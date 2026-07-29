@@ -43,10 +43,11 @@
      "đạt / không đạt", không dùng cho trang trí. */
   /* Xanh thật, KHÔNG lấy dải `positive` của bảng màu gửi sang: dải đó ở sắc 82°
      và bão hoà 19–22% nên ra ô-liu, mắt đọc thành nâu xám chứ không thành "tốt".
-     Bộ này ở sắc 148° — vẫn dịu để hợp nền kem, nhưng là xanh. */
-  --om-green: #3f8f5f;        /* viền, ký hiệu */
-  --om-green-soft: #e4f2e8;   /* nền nhãn */
-  --om-green-ink: #23724a;    /* chữ — 5.9:1 trên nền trắng */
+     Cặp base / ink chia việc GIỐNG cam: base là màu tươi để làm dấu hiệu trên
+     nền sáng, ink là sắc đậm để làm CHỮ trên nền nhãn. */
+  --om-green: #10b981;        /* dấu hiệu: mũi tên tăng, viền, vòng đạt chỉ tiêu */
+  --om-green-soft: #e6f7f1;   /* nền nhãn */
+  --om-green-ink: #0f7a5b;    /* chữ trên nền nhãn — 4.7:1 */
 
   /* Chip theo màu chính: nền cam rất nhạt, chữ đúng màu chính. */
   --om-chip-bg: #fbece5;
@@ -149,9 +150,9 @@
   --om-orange-light: #5a3316;
   --om-orange-2: #fb923c;
 
-  --om-green: #4fae7d;
-  --om-green-soft: #14321f;
-  --om-green-ink: #7fdaa4;
+  --om-green: #34d399;
+  --om-green-soft: #0f2f24;
+  --om-green-ink: #6ee7b7;
 
   --om-chip-bg: #3b2110;
   --om-chip-ink: #fdba74;
