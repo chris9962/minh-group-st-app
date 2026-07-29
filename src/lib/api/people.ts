@@ -62,9 +62,11 @@ export async function fetchPeople(
   scope: Scope,
   period: string,
   summaryMonth: string,
+  departmentId: string,
 ): Promise<PeopleData> {
   const res = await fetch(
-    `/api/people?scope=${scope}&period=${period}&summaryMonth=${summaryMonth}`,
+    `/api/people?scope=${scope}&period=${period}&summaryMonth=${summaryMonth}` +
+      `&departmentId=${encodeURIComponent(departmentId)}`,
   );
   if (!res.ok) throw new Error('Không tải được danh sách nhân viên');
   return PeopleData.parse(await res.json());

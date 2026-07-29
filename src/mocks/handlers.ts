@@ -3,7 +3,7 @@ import { LOGIN_ERROR, Scope } from "@/lib/types";
 import { sessionExpiry } from "@/store/session";
 import { dashboardFor } from "./dashboard";
 import { peopleFor } from "./people";
-import { mockUsers } from "./data";
+import { departments, mockUsers } from "./data";
 
 /** Sai 5 lần liên tiếp thì khoá 15 phút — đếm theo tên đăng nhập. */
 const MAX_ATTEMPTS = 5;
@@ -97,7 +97,12 @@ export const handlers = [
         parsed.success ? parsed.data : "company",
         params.get("period") ?? "today",
         params.get("summaryMonth") ?? "",
+        params.get("departmentId") || undefined,
       ),
     );
   }),
+
+  http.get("/api/departments", () =>
+    HttpResponse.json(departments.filter((d) => d.active)),
+  ),
 ];

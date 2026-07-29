@@ -1,5 +1,6 @@
 import type { PeopleData, PersonScore } from "@/lib/api/people";
 import type { Scope } from "@/lib/types";
+import { departments as allDepartments } from "./data";
 
 /** Dữ liệu giả cho P-51. Chỉ tiêu hiện tại là 100 điểm mỗi người mỗi tháng. */
 
@@ -43,6 +44,10 @@ function person([fullName, departmentName]: [string, string], i: number): Person
 
 const ALL = NAMES.map(person);
 
+/** Dữ liệu giả gắn nhân viên với phòng bằng TÊN; bản thật sẽ dùng id. */
+const departmentName = (id: string): string =>
+  allDepartments.find((d) => d.id === id)?.name ?? "";
+
 /** Phạm vi hẹp hơn thì ít người hơn — để thấy thanh chọn phạm vi có tác dụng. */
 const TAKE: Record<Scope, number> = { own: 1, managed: 6, company: ALL.length };
 
@@ -60,8 +65,14 @@ export function peopleFor(
   scope: Scope,
   period: string,
   summaryMonth: string,
+  departmentId?: string,
 ): PeopleData {
-  const monthly = ALL.slice(0, TAKE[scope] ?? ALL.length);
+  const inScope = ALL.slice(0, TAKE[scope] ?? ALL.length);
+  // Lọc đơn vị áp lên CẢ phần tóm tắt, không chỉ bảng — nếu không thì "12 nhân
+  // viên" sẽ mâu thuẫn với bảng đang hiện 4 người của một phòng.
+  const monthly = departmentId
+    ? inScope.filter((p) => departmentName(departmentId) === p.departmentName)
+    : inScope;
 
   const lastDay = new Date(
     Number(summaryMonth.slice(0, 4)),

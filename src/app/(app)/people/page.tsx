@@ -8,6 +8,7 @@ import { monthLabel, thisMonth } from "@/components/ui/MonthPicker";
 import { PeoplePeriodPicker } from "@/components/ui/PeoplePeriodPicker";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { ScopeSwitcher } from "@/components/ui/ScopeSwitcher";
+import { Select } from "@/components/ui/Select";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatCard } from "@/components/ui/StatCard";
 import { StatusTag } from "@/components/ui/StatusTag";
@@ -22,6 +23,7 @@ import {
   type PeriodMode,
   type PersonScore,
 } from "@/lib/api/people";
+import { fetchDepartments } from "@/lib/api/departments";
 import { exportExcel } from "@/lib/excel";
 import { availableScopes } from "@/lib/permissions";
 import type { Scope } from "@/lib/types";
@@ -84,14 +86,21 @@ export default function PeoplePage() {
   const scopes = availableScopes(user, "banking", "view-stats");
   const [scope, setScope] = useState<Scope>(scopes.at(-1) ?? "own");
   const [period, setPeriod] = useState<PeriodMode>({ kind: "this-month" });
+  const [departmentId, setDepartmentId] = useState("");
+
+  const { data: departments = [] } = useQuery({
+    queryKey: ["departments"],
+    queryFn: fetchDepartments,
+    staleTime: Infinity,
+  });
 
   const current = thisMonth();
   const summaryMonth = periodMonth(period, current);
   const param = periodParam(period, current);
 
   const { data, isPending, isError } = useQuery({
-    queryKey: ["people", scope, param, summaryMonth],
-    queryFn: () => fetchPeople(scope, param, summaryMonth),
+    queryKey: ["people", scope, param, summaryMonth, departmentId],
+    queryFn: () => fetchPeople(scope, param, summaryMonth, departmentId),
   });
 
   const people = data?.people ?? [];
@@ -128,6 +137,16 @@ export default function PeoplePage() {
     <>
       <TopBar title="Nhân sự & KPI">
         <ScopeSwitcher options={scopes} value={scope} onChange={setScope} />
+        <Select
+          label="Đơn vị"
+          hideLabel
+          value={departmentId}
+          onChange={setDepartmentId}
+          options={[
+            { value: "", label: "Tất cả đơn vị" },
+            ...departments.map((d) => ({ value: d.id, label: d.name })),
+          ]}
+        />
         <PeoplePeriodPicker value={period} onChange={setPeriod} />
         <Button
           variant="secondary"
@@ -157,6 +176,11 @@ export default function PeoplePage() {
             </div>
 
             <SectionCard title="Nhân viên" meta={periodText} variant="plain">
+              {people.length === 0 && (
+                <p className="text-muted">
+                  Không có nhân viên nào trong đơn vị đang lọc.
+                </p>
+              )}
               <RankTable
                 key={withKpi ? "kpi" : "daily"}
                 rows={people}
