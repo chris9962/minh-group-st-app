@@ -3,6 +3,25 @@ import type { Scope } from '@/lib/types';
 
 /** Số liệu cho P-51 Danh sách nhân viên + điểm. */
 
+/**
+ * Kỳ xem bảng.
+ *
+ * `today` xem hoạt động trong ngày — KHÔNG có cột điểm và trạng thái, vì chỉ
+ * tiêu tính theo tháng, điểm của một ngày không so được với chỉ tiêu nào.
+ */
+export type PeriodMode =
+  | { kind: 'today' }
+  | { kind: 'this-month' }
+  | { kind: 'month'; month: string };
+
+export const periodMonth = (p: PeriodMode, current: string): string =>
+  p.kind === 'month' ? p.month : current;
+
+export const showsKpi = (p: PeriodMode): boolean => p.kind !== 'today';
+
+export const periodParam = (p: PeriodMode, current: string): string =>
+  p.kind === 'today' ? 'today' : periodMonth(p, current);
+
 export const PersonScore = z.object({
   id: z.string(),
   fullName: z.string(),
@@ -20,9 +39,17 @@ export const PersonScore = z.object({
 export type PersonScore = z.infer<typeof PersonScore>;
 
 export const PeopleData = z.object({
-  month: z.string(),
-  /** Số ngày còn lại của tháng — dùng cho cảnh báo cuối tháng. */
+  /** Tháng của phần tóm tắt. Luôn là tháng, kể cả khi bảng đang xem theo ngày. */
+  summaryMonth: z.string(),
+  /** Số ngày còn lại của tháng. 0 nếu không phải tháng hiện tại. */
   daysLeft: z.number(),
+  summary: z.object({
+    headcount: z.number(),
+    onTarget: z.number(),
+    offTarget: z.number(),
+    averagePoints: z.number(),
+  }),
+  /** Số liệu theo kỳ đang chọn — ngày hoặc tháng. */
   people: z.array(PersonScore),
 });
 export type PeopleData = z.infer<typeof PeopleData>;
@@ -31,8 +58,14 @@ export const totalPoints = (p: PersonScore) => p.bankingPoints + p.servicePoints
 export const isOnTarget = (p: PersonScore) => totalPoints(p) >= p.target;
 export const pointsGap = (p: PersonScore) => totalPoints(p) - p.target;
 
-export async function fetchPeople(scope: Scope, month: string): Promise<PeopleData> {
-  const res = await fetch(`/api/people?scope=${scope}&month=${month}`);
+export async function fetchPeople(
+  scope: Scope,
+  period: string,
+  summaryMonth: string,
+): Promise<PeopleData> {
+  const res = await fetch(
+    `/api/people?scope=${scope}&period=${period}&summaryMonth=${summaryMonth}`,
+  );
   if (!res.ok) throw new Error('Không tải được danh sách nhân viên');
   return PeopleData.parse(await res.json());
 }

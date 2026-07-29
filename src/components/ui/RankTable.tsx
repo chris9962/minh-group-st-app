@@ -21,6 +21,13 @@ type Props<T> = {
   /** Khoá cột sắp mặc định. */
   defaultSort: string;
   caption: string;
+  /**
+   * Số dòng mỗi trang. Bỏ trống thì hiện hết.
+   *
+   * Đây là phân trang phía trình duyệt — đủ cho vài trăm dòng. Khi dữ liệu
+   * thật lớn hơn thì chuyển sang phân trang phía máy chủ, đổi ở tầng api.
+   */
+  pageSize?: number;
 };
 
 /**
@@ -36,9 +43,11 @@ export function RankTable<T>({
   rowKey,
   defaultSort,
   caption,
+  pageSize,
 }: Props<T>) {
   const [sortKey, setSortKey] = useState(defaultSort);
   const [asc, setAsc] = useState(false);
+  const [page, setPage] = useState(0);
 
   const sorted = useMemo(() => {
     const col = columns.find((c) => c.key === sortKey);
@@ -47,7 +56,16 @@ export function RankTable<T>({
     return [...rows].sort((a, b) => (asc ? by(a) - by(b) : by(b) - by(a)));
   }, [rows, columns, sortKey, asc]);
 
+  const pageCount = pageSize ? Math.ceil(sorted.length / pageSize) : 1;
+  const current = Math.min(page, Math.max(0, pageCount - 1));
+  const visible = pageSize
+    ? sorted.slice(current * pageSize, (current + 1) * pageSize)
+    : sorted;
+
   const toggle = (key: string) => {
+    // Đổi cột sắp thì về trang đầu, nếu không người dùng đang ở trang 3 sẽ
+    // thấy một khúc giữa vô nghĩa.
+    setPage(0);
     if (key === sortKey) setAsc((v) => !v);
     else {
       setSortKey(key);
@@ -92,7 +110,7 @@ export function RankTable<T>({
           </tr>
         </thead>
         <tbody>
-          {sorted.map((row) => (
+          {visible.map((row) => (
             <tr key={rowKey(row)}>
               {columns.map((col) => (
                 <td
@@ -123,6 +141,34 @@ export function RankTable<T>({
           ))}
         </tbody>
       </table>
+
+      {pageSize && pageCount > 1 && (
+        <div className={styles.pager}>
+          <span className={styles.range}>
+            {current * pageSize + 1}–{Math.min((current + 1) * pageSize, sorted.length)}{" "}
+            trên {sorted.length}
+          </span>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => setPage(current - 1)}
+            disabled={current === 0}
+          >
+            Trước
+          </button>
+          <span className={styles.pageNo}>
+            {current + 1} / {pageCount}
+          </span>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => setPage(current + 1)}
+            disabled={current >= pageCount - 1}
+          >
+            Sau
+          </button>
+        </div>
+      )}
     </div>
   );
 }

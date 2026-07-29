@@ -4,7 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { TopBar } from "@/components/layout/TopBar";
 import { Button } from "@/components/ui/Button";
-import { MonthPicker, monthLabel, thisMonth, type Month } from "@/components/ui/MonthPicker";
+import { monthLabel, thisMonth } from "@/components/ui/MonthPicker";
+import { PeoplePeriodPicker } from "@/components/ui/PeoplePeriodPicker";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { ScopeSwitcher } from "@/components/ui/ScopeSwitcher";
 import { SectionCard } from "@/components/ui/SectionCard";
@@ -13,8 +14,12 @@ import { StatusTag } from "@/components/ui/StatusTag";
 import {
   fetchPeople,
   isOnTarget,
+  periodMonth,
+  periodParam,
   pointsGap,
+  showsKpi,
   totalPoints,
+  type PeriodMode,
   type PersonScore,
 } from "@/lib/api/people";
 import { exportExcel } from "@/lib/excel";
@@ -23,16 +28,9 @@ import type { Scope } from "@/lib/types";
 import { useSession } from "@/store/session";
 import styles from "./page.module.css";
 
-const COLUMNS: RankColumn<PersonScore>[] = [
+const BASE_COLUMNS: RankColumn<PersonScore>[] = [
   { key: "fullName", label: "Nhân viên", render: (p) => p.fullName },
   { key: "departmentName", label: "Đơn vị", render: (p) => p.departmentName },
-  {
-    key: "points",
-    label: "Điểm tháng",
-    align: "right",
-    sortBy: totalPoints,
-    render: (p) => totalPoints(p),
-  },
   {
     key: "accounts",
     label: "Tài khoản",
@@ -54,6 +52,17 @@ const COLUMNS: RankColumn<PersonScore>[] = [
     sortBy: (p) => p.insuranceOrders,
     render: (p) => p.insuranceOrders,
   },
+];
+
+/** Chỉ hiện khi xem theo tháng — điểm một ngày không so được với chỉ tiêu tháng. */
+const KPI_COLUMNS: RankColumn<PersonScore>[] = [
+  {
+    key: "points",
+    label: "Điểm tháng",
+    align: "right",
+    sortBy: totalPoints,
+    render: (p) => totalPoints(p),
+  },
   {
     key: "status",
     label: "Trạng thái",
@@ -74,23 +83,28 @@ export default function PeoplePage() {
   const user = useSession((s) => s.user);
   const scopes = availableScopes(user, "banking", "view-stats");
   const [scope, setScope] = useState<Scope>(scopes.at(-1) ?? "own");
-  const [month, setMonth] = useState<Month>(thisMonth());
+  const [period, setPeriod] = useState<PeriodMode>({ kind: "this-month" });
+
+  const current = thisMonth();
+  const summaryMonth = periodMonth(period, current);
+  const param = periodParam(period, current);
 
   const { data, isPending, isError } = useQuery({
-    queryKey: ["people", scope, month],
-    queryFn: () => fetchPeople(scope, month),
+    queryKey: ["people", scope, param, summaryMonth],
+    queryFn: () => fetchPeople(scope, param, summaryMonth),
   });
 
   const people = data?.people ?? [];
-  const onTarget = people.filter(isOnTarget).length;
-  const average = people.length
-    ? Math.round(people.reduce((sum, p) => sum + totalPoints(p), 0) / people.length)
-    : 0;
+  const withKpi = showsKpi(period);
+  const columns = withKpi
+    ? [...BASE_COLUMNS.slice(0, 2), ...KPI_COLUMNS.slice(0, 1), ...BASE_COLUMNS.slice(2), KPI_COLUMNS[1]]
+    : BASE_COLUMNS;
+  const periodText = period.kind === "today" ? "Hôm nay" : monthLabel(summaryMonth);
 
   const download = () =>
     exportExcel({
-      fileName: `nhan-vien-diem-${month}.xlsx`,
-      sheetName: monthLabel(month),
+      fileName: `nhan-vien-diem-${param}.xlsx`,
+      sheetName: periodText,
       rows: people,
       columns: [
         { header: "Nhân viên", width: 26, transform: "name", value: (p) => p.fullName },
@@ -114,7 +128,7 @@ export default function PeoplePage() {
     <>
       <TopBar title="Nhân sự & KPI">
         <ScopeSwitcher options={scopes} value={scope} onChange={setScope} />
-        <MonthPicker value={month} onChange={setMonth} />
+        <PeoplePeriodPicker value={period} onChange={setPeriod} />
         <Button
           variant="secondary"
           onClick={download}
@@ -131,29 +145,41 @@ export default function PeoplePage() {
         {data && (
           <>
             <div className={styles.stats}>
-              <StatCard value={people.length} label="nhân viên" />
-              <StatCard value={onTarget} label="đã đạt chỉ tiêu" />
+              <StatCard value={data.summary.headcount} label="nhân viên" />
+              <StatCard value={data.summary.onTarget} label="đã đạt chỉ tiêu" />
               <StatCard
-                value={people.length - onTarget}
+                value={data.summary.offTarget}
                 label="chưa đạt"
-                tone={people.length - onTarget > 0 ? "attention" : "normal"}
+                tone={data.summary.offTarget > 0 ? "attention" : "normal"}
                 detail={data.daysLeft > 0 ? `còn ${data.daysLeft} ngày` : undefined}
               />
-              <StatCard value={average} label="điểm trung bình" />
+              <StatCard value={data.summary.averagePoints} label="điểm trung bình" />
             </div>
 
-            <SectionCard title="Nhân viên" meta={monthLabel(month)} variant="plain">
+            <SectionCard title="Nhân viên" meta={periodText} variant="plain">
               <RankTable
+                key={withKpi ? "kpi" : "daily"}
                 rows={people}
-                columns={COLUMNS}
+                columns={columns}
                 rowKey={(p) => p.id}
-                defaultSort="points"
-                caption={`Nhân viên và điểm KPI ${monthLabel(month)}`}
+                defaultSort={withKpi ? "points" : "accounts"}
+                pageSize={10}
+                caption={`Nhân viên và số liệu ${periodText}`}
               />
               <p className={styles.footnote}>
-                Điểm gồm <strong>ngân hàng</strong> (hệ số app đã cài) cộng{" "}
-                <strong>dịch vụ</strong> (hệ số theo loại). Chỉ tiêu hiện tại là{" "}
-                <span className="so">100</span> điểm mỗi tháng.
+                {withKpi ? (
+                  <>
+                    Điểm gồm <strong>ngân hàng</strong> (hệ số app đã cài) cộng{" "}
+                    <strong>dịch vụ</strong> (hệ số theo loại). Chỉ tiêu hiện tại là{" "}
+                    <span className="so">100</span> điểm mỗi tháng.
+                  </>
+                ) : (
+                  <>
+                    Xem theo ngày nên không có cột điểm và trạng thái — chỉ tiêu tính
+                    theo tháng, điểm của một ngày không so với chỉ tiêu nào được. Bốn
+                    số tóm tắt phía trên vẫn là của {monthLabel(summaryMonth)}.
+                  </>
+                )}
               </p>
             </SectionCard>
           </>

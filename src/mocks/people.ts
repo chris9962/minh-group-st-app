@@ -46,19 +46,52 @@ const ALL = NAMES.map(person);
 /** Phạm vi hẹp hơn thì ít người hơn — để thấy thanh chọn phạm vi có tác dụng. */
 const TAKE: Record<Scope, number> = { own: 1, managed: 6, company: ALL.length };
 
-export function peopleFor(scope: Scope, month: string): PeopleData {
+/** Số liệu trong MỘT ngày nhỏ hơn hẳn số liệu cả tháng. */
+const toDaily = (p: PersonScore): PersonScore => ({
+  ...p,
+  bankingPoints: Math.round(p.bankingPoints / 22),
+  servicePoints: Math.round(p.servicePoints / 22),
+  accounts: Math.round(p.accounts / 22),
+  apps: Math.round(p.apps / 22),
+  insuranceOrders: Math.round(p.insuranceOrders / 22),
+});
+
+export function peopleFor(
+  scope: Scope,
+  period: string,
+  summaryMonth: string,
+): PeopleData {
+  const monthly = ALL.slice(0, TAKE[scope] ?? ALL.length);
+
   const lastDay = new Date(
-    Number(month.slice(0, 4)),
-    Number(month.slice(5, 7)),
+    Number(summaryMonth.slice(0, 4)),
+    Number(summaryMonth.slice(5, 7)),
     0,
   ).getDate();
-  const today = new Date();
+  const now = new Date();
   const isCurrentMonth =
-    month === `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
+    summaryMonth ===
+    `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+
+  // Phần tóm tắt LUÔN tính theo tháng, kể cả khi bảng đang xem theo ngày —
+  // chỉ tiêu là chỉ tiêu tháng, không có "chỉ tiêu hôm nay".
+  const onTarget = monthly.filter((p) => p.bankingPoints + p.servicePoints >= p.target).length;
+  const average = monthly.length
+    ? Math.round(
+        monthly.reduce((sum, p) => sum + p.bankingPoints + p.servicePoints, 0) /
+          monthly.length,
+      )
+    : 0;
 
   return {
-    month,
-    daysLeft: isCurrentMonth ? Math.max(0, lastDay - today.getDate()) : 0,
-    people: ALL.slice(0, TAKE[scope] ?? ALL.length),
+    summaryMonth,
+    daysLeft: isCurrentMonth ? Math.max(0, lastDay - now.getDate()) : 0,
+    summary: {
+      headcount: monthly.length,
+      onTarget,
+      offTarget: monthly.length - onTarget,
+      averagePoints: average,
+    },
+    people: period === "today" ? monthly.map(toDaily) : monthly,
   };
 }
