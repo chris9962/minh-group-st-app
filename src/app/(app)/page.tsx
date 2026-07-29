@@ -16,7 +16,7 @@ import { ScopeSwitcher } from "@/components/ui/ScopeSwitcher";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatCard } from "@/components/ui/StatCard";
 import { fetchDashboard } from "@/lib/api/dashboard";
-import { CHART_COLORS } from "@/lib/chart-colors";
+import { useChartColors } from "@/lib/chart-colors";
 import { availableScopes } from "@/lib/permissions";
 import type { Scope } from "@/lib/types";
 import { useSession } from "@/store/session";
@@ -77,6 +77,7 @@ const DEPARTMENT_COLUMNS: RankColumn<DepartmentRow>[] = [
 /** P-80 · Dashboard tổng — Ban giám đốc và trưởng phòng (phạm vi hẹp hơn). */
 export default function DashboardPage() {
   const user = useSession((s) => s.user);
+  const chartColors = useChartColors();
   const scopes = availableScopes(user, "banking", "view-stats");
   const [scope, setScope] = useState<Scope>(scopes.at(-1) ?? "own");
   const [period, setPeriod] = useState<Period>(DEFAULT_PERIOD);
@@ -158,8 +159,8 @@ export default function DashboardPage() {
                   labelKey="label"
                   rows={data.insurance.buckets}
                   series={[
-                    { key: "motorbike", label: "BH xe máy", color: CHART_COLORS.primary },
-                    { key: "electric", label: "BH tai nạn điện", color: CHART_COLORS.secondary },
+                    { key: "motorbike", label: "BH xe máy", color: chartColors.primary },
+                    { key: "electric", label: "BH tai nạn điện", color: chartColors.secondary },
                   ]}
                 />
               </SectionCard>

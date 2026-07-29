@@ -5,7 +5,9 @@
   flex: none;
   box-sizing: border-box;
   background: var(--om-sidebar);
-  border-right: 0;
+  /* Nền sidebar và nền trang giờ chỉ chênh nhau một sắc — không có đường kẻ
+     thì hai vùng dính làm một. */
+  border-right: 1px solid var(--om-line);
   padding: 22px 14px;
   display: flex;
   flex-direction: column;
@@ -54,7 +56,7 @@
 .foot {
   margin-top: auto;
   padding-top: 12px;
-  border-top: 1px solid rgb(255 255 255 / 20%);
+  border-top: 1px solid var(--om-line);
 }
 
 .item {
@@ -69,20 +71,20 @@
 }
 
 .item:hover {
-  background: rgb(255 255 255 / 14%);
+  background: var(--om-sidebar-hover);
 }
 
 .item:focus-visible {
-  outline: 2px solid #ffffff;
+  outline: 2px solid var(--om-orange);
   outline-offset: -2px;
 }
 
-/* Mục đang mở đảo nền: trắng, chữ cam. Nền trắng trên nền cam đã là rìa rõ
-   nhất có thể nên không cần viền; kèm aria-current cho trình đọc màn hình. */
+/* Mục đang mở là khối cam đặc, chữ trắng — nền sidebar sáng nên khối màu mới
+   là dấu hiệu mạnh; kèm aria-current cho trình đọc màn hình. */
 .active,
 .active:hover {
   background: var(--om-sidebar-active);
-  color: var(--om-orange);
+  color: var(--om-sidebar-active-ink);
   font-weight: 700;
 }
 
@@ -91,6 +93,6 @@
     width: auto;
     height: auto;
     border-right: 0;
-    border-bottom: 1px solid rgb(255 255 255 / 20%);
+    border-bottom: 1px solid var(--om-line);
   }
 }

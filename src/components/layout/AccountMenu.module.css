@@ -13,11 +13,11 @@
 }
 
 .trigger:hover {
-  background: rgb(255 255 255 / 14%);
+  background: var(--om-sidebar-hover);
 }
 
 .trigger:focus-visible {
-  outline: 2px solid #ffffff;
+  outline: 2px solid var(--om-orange);
   outline-offset: -2px;
 }
 
@@ -26,8 +26,8 @@
   height: 30px;
   flex: none;
   border-radius: 999px;
-  background: rgb(255 255 255 / 22%);
-  color: var(--om-sidebar-ink);
+  background: var(--om-orange-soft);
+  color: var(--om-orange-ink);
   display: grid;
   place-items: center;
   font-size: 11.5px;
@@ -72,6 +72,10 @@
 
 .item {
   all: unset;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   box-sizing: border-box;
   display: block;
   padding: 9px 12px;
@@ -98,4 +102,9 @@
   height: 1px;
   margin: 4px 8px;
   background: var(--color-divider);
+}
+
+.hint {
+  font-size: 13px;
+  color: var(--om-text-3);
 }

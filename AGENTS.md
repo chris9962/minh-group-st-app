@@ -54,7 +54,11 @@ Quy tắc:
   `--om-line` · `--om-text` `--om-text-2` `--om-text-3` · `--om-orange` `--om-orange-ink`
   `--om-orange-soft` `--om-orange-mid` `--om-orange-light`.
   Các tên `--color-*` cũ vẫn chạy vì trỏ về `--om-*`, nhưng code mới dùng `--om-*`.
-  Bảng màu là **xám · trắng · cam** — không có màu thứ tư, đừng thêm.
+  **Hai bộ màu**: sáng (Kem & trắng) ở `:root`, tối (Dark xanh đêm) ở
+  `:root[data-theme="dark"]`. Component chỉ dùng tên `--om-*`, KHÔNG bao giờ
+  viết `#fff` hay `rgb(255 255 255 / …)` — mã cứng là chỗ vỡ khi đổi bộ.
+  Trạng thái theme ở `store/theme.ts`, lưu localStorage, gắn `data-theme` lên
+  thẻ `html` bằng script trong `<head>` để không chớp màu lúc tải.
   Hai ngoại lệ, đều là màu **mang nghĩa**, không phải màu trang trí:
   **màu trạng thái** `--om-green*` nói "đạt / không đạt", và **màu ngân hàng**
   `SOURCE_COLORS` trong `lib/chart-colors.ts` là màu nhận diện của chính ngân

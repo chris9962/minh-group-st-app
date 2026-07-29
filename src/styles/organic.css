@@ -4,42 +4,48 @@
 /* Organic — design-system tokens and component classes. This file is the source of truth for the system's look; retune it here and see readme.md. */
 
 :root {
-  /* ── Bảng màu: xám · trắng · cam ─────────────────────────────────────
-     Tên --om-* là nguồn; các tên --color-* bên dưới chỉ là bí danh để
-     component cũ không phải sửa. Đổi màu thì đổi ở khối --om-*. */
-  --om-bg: #ffffff;        /* nền trang */
-  --om-card: #f5f5f3;      /* thẻ / card */
-  --om-surface: #f0f0ee;   /* chip, ô nhập, thanh phân đoạn */
-  --om-panel: #fafaf9;     /* sidebar */
-  --om-soft: #fdfdfc;      /* nền nhạt nhất trong thẻ */
-  --om-line: #e4e3e1;      /* đường kẻ / viền */
+/* ── Hai bộ màu ────────────────────────────────────────────────────────
+     `:root` là bộ SÁNG (Kem & trắng). `[data-theme="dark"]` đè lên bằng bộ
+     TỐI (Dark xanh đêm). Component chỉ dùng tên --om-*, không biết mode nào
+     đang bật — nên đổi mode không phải sửa dòng CSS nào của component. */
+  --om-bg: #f8f5f0;        /* nền trang */
+  --om-card: #ffffff;      /* thẻ / card */
+  --om-surface: #f4f0ea;   /* chip, ô nhập, thanh phân đoạn */
+  --om-panel: #fbf9f6;     /* nền nhạt trong thẻ */
+  --om-soft: #fbf9f6;      /* nền nhạt nhất trong thẻ */
+  --om-line: #ebe5dc;      /* đường kẻ / viền */
+  --om-line-strong: #c0b6a5; /* viền cần thấy rõ */
 
-  /* Sidebar đúng bằng --om-orange; mục đang mở đảo nền trắng, chữ cam. */
-  --om-sidebar: #e8763a;
-  --om-sidebar-active: #ffffff;
-  --om-sidebar-ink: #ffffff;
-  --om-sidebar-ink-2: rgb(255 255 255 / 72%);
+  /* Sidebar giờ là nền SÁNG, chữ đậm — không còn nền cam nữa. Mục đang mở
+     mới là khối cam, chữ trắng. */
+  --om-sidebar: #ffffff;
+  --om-sidebar-active: #d95328;
+  --om-sidebar-active-ink: #ffffff;
+  --om-sidebar-ink: #201e1d;
+  --om-sidebar-ink-2: #82796a;
+  /* Nền khi di chuột trong sidebar — phải theo mode, không dùng trắng cứng. */
+  --om-sidebar-hover: rgb(32 30 29 / 6%);
 
   --om-text: #201e1d;      /* chữ chính */
   --om-text-2: #645c50;    /* chữ phụ */
   --om-text-3: #82796a;    /* chữ mờ */
+  --om-text-on-accent: #ffffff;
 
-  /* Cam lấy theo logo — bão hoà cao nên có sức sống. Chỉ dùng cho chữ CỠ LỚN
-     (số thống kê) và cho nền/viền: chữ trắng trên nó chỉ 3.05:1, chữ thường
-     phải lấy --om-orange-mid trở xuống. */
-  --om-orange: #e8763a;       /* nút chính, số nhấn, thanh tiến độ */
-  --om-orange-mid: #b04d06;   /* trạng thái di chuột / nhấn giữ, liên kết thao tác */
-  --om-orange-ink: #8a3d05;   /* chữ trên nền cam nhạt — 7.4:1 trên #ffe1d0 */
-  --om-orange-soft: #ffe1d0;  /* nền cảnh báo */
-  --om-orange-light: #ffc6a5; /* nền rất nhạt, thanh nền */
-  --om-orange-2: #a84a05;     /* chuỗi thứ hai trong biểu đồ */
+  --om-orange: #d95328;       /* nút chính, số nhấn, thanh tiến độ */
+  --om-orange-mid: #bf4420;   /* di chuột / nhấn giữ */
+  --om-orange-ink: #963317;   /* chữ trên nền cam nhạt */
+  --om-orange-strong: #6b230f;
+  --om-orange-soft: #fce6dd;  /* nền cảnh báo */
+  --om-orange-light: #f6bfa9; /* nền rất nhạt, thanh nền */
+  --om-orange-2: #e88055;     /* chuỗi thứ hai trong biểu đồ */
 
   /* Màu trạng thái — KHÔNG phải màu thứ tư của bộ nhận diện. Chỉ dùng cho
-     "đạt / không đạt", không dùng cho trang trí. Cam vẫn là màu thương hiệu,
-     nếu cam kiêm luôn nghĩa "tốt" thì không còn gì để nói "chưa tốt". */
-  --om-green: #1a7f37;        /* viền, ký hiệu */
-  --om-green-soft: #e6f4ea;   /* nền nhãn */
-  --om-green-ink: #14672c;    /* chữ — 6.2:1 trên nền nhãn */
+     "đạt / không đạt", không dùng cho trang trí. */
+  --om-green: #7a8a5e;        /* viền, ký hiệu */
+  --om-green-soft: #e1eecc;   /* nền nhãn */
+  --om-green-ink: #56633f;    /* chữ trên nền nhãn */
+
+  --om-shadow-color: 32 30 29;
 
   /* ── Bí danh cho design system ─────────────────────────────────────── */
   --color-bg: var(--om-bg);
@@ -98,9 +104,57 @@
   --radius-lg: 28px;
 
   /* Đổ bóng xám trung tính, không ám nâu như bảng màu cũ. */
-  --shadow-sm: 0 1px 2px rgb(32 30 29 / 8%);
-  --shadow-md: 0 3px 10px rgb(32 30 29 / 10%);
-  --shadow-lg: 0 12px 32px rgb(32 30 29 / 14%);
+  --shadow-sm: 0 1px 2px rgb(var(--om-shadow-color) / 8%);
+  --shadow-md: 0 3px 10px rgb(var(--om-shadow-color) / 10%);
+  --shadow-lg: 0 12px 32px rgb(var(--om-shadow-color) / 24%);
+}
+
+/* ── Bộ TỐI: Dark xanh đêm ───────────────────────────────────────────── */
+:root[data-theme="dark"] {
+  --om-bg: #0f1826;
+  --om-card: #16202f;
+  --om-surface: #1e2a3d;
+  --om-panel: #1b273a;
+  --om-soft: #1b273a;
+  --om-line: #26344a;
+  --om-line-strong: #3a4a63;
+
+  --om-sidebar: #0b131f;
+  --om-sidebar-active: #f97316;
+  --om-sidebar-active-ink: #ffffff;
+  --om-sidebar-ink: #eef2f8;
+  --om-sidebar-ink-2: #7e8da3;
+  --om-sidebar-hover: rgb(238 242 248 / 8%);
+
+  --om-text: #eef2f8;
+  --om-text-2: #a9b6c9;
+  --om-text-3: #7e8da3;
+  --om-text-on-accent: #ffffff;
+
+  --om-orange: #f97316;
+  --om-orange-mid: #fb923c;
+  --om-orange-ink: #fdba74;
+  --om-orange-strong: #ffd7ae;
+  --om-orange-soft: #3b2110;
+  --om-orange-light: #5a3316;
+  --om-orange-2: #fb923c;
+
+  --om-green: #6fae88;
+  --om-green-soft: #1d3a2c;
+  --om-green-ink: #9fd3b4;
+
+  --om-shadow-color: 0 0 0;
+
+  /* Dải xám của design system phải lật theo, nếu không chữ mờ và viền vẫn
+     lấy màu của bộ sáng và biến mất trên nền tối. */
+  --color-neutral-400: #4c5c74;
+  --color-neutral-500: #64748b;
+  --color-neutral-800: #cbd5e1;
+
+  --color-accent-100: #1d2a3c;
+  --color-accent-500: #fb923c;
+  --color-accent-800: #ffd7ae;
+  --color-accent-900: #ffe9d5;
 }
 
 body {

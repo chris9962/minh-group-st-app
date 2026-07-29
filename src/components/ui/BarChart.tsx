@@ -11,7 +11,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { CHART_COLORS } from "@/lib/chart-colors";
+import { useChartColors } from "@/lib/chart-colors";
 import styles from "./BarChart.module.css";
 
 export type BarSeries = {
@@ -64,6 +64,8 @@ export function BarChart({
   highlight,
   showLegend = true,
 }: Props) {
+  const chartColors = useChartColors();
+
   return (
     <div className={styles.wrap}>
       {title && <strong className={styles.title}>{title}</strong>}
@@ -96,7 +98,7 @@ export function BarChart({
               allowDecimals={false}
             />
             <Tooltip
-              cursor={{ fill: "rgb(32 30 29 / 6%)" }}
+              cursor={{ fill: "var(--om-sidebar-hover)" }}
               contentStyle={{
                 background: "var(--om-bg)",
                 border: "1px solid var(--om-line)",
@@ -137,7 +139,7 @@ export function BarChart({
                       fill={
                         String(row[labelKey]) === highlight
                           ? s.color
-                          : CHART_COLORS.muted
+                          : chartColors.muted
                       }
                     />
                   ))}

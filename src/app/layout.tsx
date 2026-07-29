@@ -32,7 +32,10 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#ffffff",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f8f5f0" },
+    { media: "(prefers-color-scheme: dark)", color: "#0f1826" },
+  ],
 };
 
 export default function RootLayout({
@@ -40,6 +43,18 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="vi" className={`${fontTieuDe.variable} ${fontThan.variable}`}>
+      <head>
+        {/*
+          Gắn data-theme TRƯỚC khi vẽ. Để React gắn trong effect thì khung hình
+          đầu tiên luôn là bộ sáng, ai chọn bộ tối sẽ thấy chớp trắng mỗi lần
+          tải trang.
+        */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{var t=JSON.parse(localStorage.getItem("mgst-theme")||"{}").state?.theme;if(t)document.documentElement.dataset.theme=t}catch(e){}`,
+          }}
+        />
+      </head>
       <body>
         <Providers>{children}</Providers>
       </body>

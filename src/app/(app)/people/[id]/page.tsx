@@ -22,7 +22,7 @@ import {
   type PersonInsurance,
   type PersonService,
 } from "@/lib/api/person";
-import { CHART_COLORS, sourceColor } from "@/lib/chart-colors";
+import { sourceColor, useChartColors } from "@/lib/chart-colors";
 import { formatDate, formatPhone } from "@/lib/format";
 import styles from "./page.module.css";
 
@@ -113,6 +113,7 @@ export default function PersonPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
+  const chartColors = useChartColors();
   const [period, setPeriod] = useState<PeriodMode>({ kind: "this-month" });
   const [tab, setTab] = useState<TabKey>("accounts");
 
@@ -233,7 +234,7 @@ export default function PersonPage({
                     }))}
                     labelKey="label"
                     series={[
-                      { key: "points", label: "Điểm", color: CHART_COLORS.primary },
+                      { key: "points", label: "Điểm", color: chartColors.primary },
                     ]}
                     highlight={shortMonth(data.summaryMonth)}
                     showLegend={false}

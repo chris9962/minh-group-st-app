@@ -4,6 +4,7 @@ import * as Popover from "@radix-ui/react-popover";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "@/store/session";
+import { useTheme } from "@/store/theme";
 import type { User } from "@/lib/types";
 import styles from "./AccountMenu.module.css";
 
@@ -19,6 +20,8 @@ function initials(fullName: string): string {
 export function AccountMenu({ user }: { user: User }) {
   const router = useRouter();
   const logout = useSession((s) => s.logout);
+  const theme = useTheme((s) => s.theme);
+  const toggleTheme = useTheme((s) => s.toggle);
 
   return (
     <Popover.Root>
@@ -44,6 +47,14 @@ export function AccountMenu({ user }: { user: User }) {
               Thông tin cá nhân
             </Link>
           </Popover.Close>
+
+          {/* Cố ý KHÔNG đóng menu sau khi đổi: xem thử rồi đổi lại ngay được. */}
+          <button type="button" className={styles.item} onClick={toggleTheme}>
+            {theme === "dark" ? "Giao diện sáng" : "Giao diện tối"}
+            <span className={styles.hint} aria-hidden>
+              {theme === "dark" ? "☀" : "☾"}
+            </span>
+          </button>
 
           <div className={styles.divider} />
 
