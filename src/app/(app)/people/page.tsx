@@ -25,11 +25,13 @@ import {
   type PersonScore,
 } from "@/lib/api/people";
 import { fetchDepartments } from "@/lib/api/departments";
+import { fetchStaff, type StaffAccount } from "@/lib/api/staff";
 import { SearchField } from "@/components/ui/SearchField";
+import { StaffFormDialog } from "@/components/staff/StaffFormDialog";
 import { exportExcel } from "@/lib/excel";
 import { useDebouncedValue } from "@/lib/hooks";
-import { availableScopes } from "@/lib/permissions";
-import type { Scope } from "@/lib/types";
+import { availableScopes, can } from "@/lib/permissions";
+import { ROLE_LABEL, type Scope } from "@/lib/types";
 import { useSession } from "@/store/session";
 import styles from "./page.module.css";
 
@@ -91,7 +93,71 @@ const KPI_COLUMNS: RankColumn<PersonScore>[] = [
   },
 ];
 
-/** P-51 · Danh sách nhân viên + điểm. */
+/**
+ * Hàng của bảng khi người xem quản trị được tài khoản.
+ *
+ * Nguồn là DANH SÁCH TÀI KHOẢN chứ không phải danh sách có điểm, nên gồm cả kế
+ * toán và quản trị hệ thống. Người không thuộc diện tính điểm để trống cột điểm
+ * — 0 điểm nghĩa là có chỉ tiêu mà chưa làm được gì, khác hẳn "không có chỉ tiêu".
+ */
+type StaffRow = StaffAccount & { score: PersonScore | null };
+
+/**
+ * Cột thêm cho người quản trị tài khoản. Cố ý KHÔNG tách thành một bảng riêng:
+ * hai bảng cho cùng một danh sách người là chỗ dễ lạc nhất — đổi qua lại thì
+ * bộ lọc, số tóm tắt và cả nghĩa của chữ "trạng thái" đều đổi theo.
+ */
+const ACCOUNT_COLUMNS: RankColumn<StaffRow>[] = [
+  {
+    key: "fullName",
+    label: "Nhân viên",
+    render: (r) => (
+      <Link href={`/people/${r.id}`} className={styles.nameLink}>
+        {r.fullName}
+        <span className={styles.username}>{r.username}</span>
+      </Link>
+    ),
+  },
+  { key: "departmentName", label: "Đơn vị", render: (r) => r.departmentName || "—" },
+  {
+    key: "role",
+    label: "Chức vụ",
+    render: (r) =>
+      r.role ? ROLE_LABEL[r.role] : <StatusTag ok={false}>Chưa gán</StatusTag>,
+  },
+  {
+    key: "points",
+    label: "Điểm tháng",
+    align: "right",
+    // -1 để người không có chỉ tiêu nằm cuối chứ không lẫn với người 0 điểm.
+    sortBy: (r) => (r.score ? totalPoints(r.score) : -1),
+    render: (r) => (r.score ? totalPoints(r.score) : "—"),
+  },
+  {
+    key: "kpi",
+    label: "Chỉ tiêu",
+    sortBy: (r) => (r.score ? pointsGap(r.score) : -999),
+    render: (r) =>
+      r.score ? (
+        <StatusTag ok={isOnTarget(r.score)}>
+          {isOnTarget(r.score)
+            ? `Đã đạt · vượt ${pointsGap(r.score)}`
+            : `Chưa đạt · còn ${-pointsGap(r.score)}`}
+        </StatusTag>
+      ) : (
+        "—"
+      ),
+  },
+  {
+    key: "active",
+    label: "Tài khoản",
+    render: (r) => (
+      <StatusTag ok={r.active}>{r.active ? "Đang hoạt động" : "Đã khoá"}</StatusTag>
+    ),
+  },
+];
+
+/** P-51 · Danh sách nhân viên + điểm + quản trị tài khoản. */
 export default function PeoplePage() {
   const user = useSession((s) => s.user);
   const scopes = availableScopes(user, "banking", "view-stats");
@@ -100,6 +166,11 @@ export default function PeoplePage() {
   const [departmentId, setDepartmentId] = useState("");
   const [search, setSearch] = useState("");
   const searchQuery = useDebouncedValue(search);
+  const [status, setStatus] = useState<"active" | "locked" | "all">("active");
+  const [editing, setEditing] = useState<StaffAccount | null>(null);
+  const [creating, setCreating] = useState(false);
+
+  const canManage = can(user, "system", "manage-users");
 
   const { data: departments = [] } = useQuery({
     queryKey: ["departments"],
@@ -126,7 +197,21 @@ export default function PeoplePage() {
     placeholderData: (previous) => previous,
   });
 
+  // Danh sách tài khoản chỉ tải khi có quyền — không thì gọi API vô nghĩa.
+  const { data: staffData } = useQuery({
+    queryKey: ["staff", scope, departmentId, searchQuery, status],
+    queryFn: () => fetchStaff({ scope, departmentId, search: searchQuery, status }),
+    enabled: canManage,
+    placeholderData: (previous) => previous,
+  });
+
   const people = data?.people ?? [];
+  const scoreById = new Map(people.map((p) => [p.id, p]));
+  const staffRows: StaffRow[] = (staffData?.staff ?? []).map((s) => ({
+    ...s,
+    score: scoreById.get(s.id) ?? null,
+  }));
+
   const withKpi = showsKpi(period);
   const columns = withKpi
     ? [...BASE_COLUMNS.slice(0, 2), ...KPI_COLUMNS.slice(0, 1), ...BASE_COLUMNS.slice(2), KPI_COLUMNS[1]]
@@ -176,6 +261,19 @@ export default function PeoplePage() {
             ...departments.map((d) => ({ value: d.id, label: d.name })),
           ]}
         />
+        {canManage && (
+          <Select
+            label="Trạng thái tài khoản"
+            hideLabel
+            value={status}
+            onChange={(v) => setStatus(v as typeof status)}
+            options={[
+              { value: "active", label: "Đang hoạt động" },
+              { value: "locked", label: "Đã khoá" },
+              { value: "all", label: "Tất cả trạng thái" },
+            ]}
+          />
+        )}
         <PeoplePeriodPicker value={period} onChange={setPeriod} />
         <Button
           variant="secondary"
@@ -184,6 +282,9 @@ export default function PeoplePage() {
         >
           Xuất Excel
         </Button>
+        {canManage && (
+          <Button onClick={() => setCreating(true)}>＋ Thêm nhân viên</Button>
+        )}
       </TopBar>
 
       <main className={styles.body}>
@@ -193,7 +294,14 @@ export default function PeoplePage() {
         {data && (
           <>
             <div className={styles.stats}>
-              <StatCard value={data.summary.headcount} label="nhân viên" />
+              <StatCard
+                value={
+                  canManage && staffData
+                    ? staffData.summary.active + staffData.summary.locked
+                    : data.summary.headcount
+                }
+                label="nhân viên"
+              />
               <StatCard value={data.summary.onTarget} label="đã đạt chỉ tiêu" />
               <StatCard
                 value={data.summary.offTarget}
@@ -201,7 +309,20 @@ export default function PeoplePage() {
                 tone={data.summary.offTarget > 0 ? "attention" : "normal"}
                 detail={data.daysLeft > 0 ? `còn ${data.daysLeft} ngày` : undefined}
               />
-              <StatCard value={data.summary.averagePoints} label="điểm trung bình" />
+              {canManage && staffData ? (
+                <StatCard
+                  value={staffData.summary.withoutRole}
+                  label="chưa gán chức vụ"
+                  tone={staffData.summary.withoutRole > 0 ? "attention" : "normal"}
+                  detail={
+                    staffData.summary.locked > 0
+                      ? `${staffData.summary.locked} tài khoản đã khoá`
+                      : undefined
+                  }
+                />
+              ) : (
+                <StatCard value={data.summary.averagePoints} label="điểm trung bình" />
+              )}
             </div>
 
             <SectionCard
@@ -220,20 +341,39 @@ export default function PeoplePage() {
                     : "Không có nhân viên nào trong đơn vị đang lọc."}
                 </p>
               )}
-              <RankTable
-                key={withKpi ? "kpi" : "daily"}
-                rows={people}
-                columns={columns}
-                rowKey={(p) => p.id}
-                defaultSort={withKpi ? "points" : "accounts"}
-                pageSize={10}
-                caption={`Nhân viên và số liệu ${periodText}`}
-              />
+              {canManage ? (
+                <RankTable
+                  rows={staffRows}
+                  columns={ACCOUNT_COLUMNS}
+                  rowKey={(r) => r.id}
+                  defaultSort="points"
+                  pageSize={10}
+                  caption={`Nhân viên, tài khoản và số liệu ${periodText}`}
+                />
+              ) : (
+                <RankTable
+                  key={withKpi ? "kpi" : "daily"}
+                  rows={people}
+                  columns={columns}
+                  rowKey={(p) => p.id}
+                  defaultSort={withKpi ? "points" : "accounts"}
+                  pageSize={10}
+                  caption={`Nhân viên và số liệu ${periodText}`}
+                />
+              )}
               {searchQuery && (
                 <p className={styles.footnote}>
                   Bốn số tóm tắt phía trên không đổi theo ô tìm kiếm — chúng là
                   của cả {departmentId ? "đơn vị đang lọc" : "phạm vi đang xem"},
                   còn ô tìm kiếm chỉ lọc bảng.
+                </p>
+              )}
+              {canManage && (
+                <p className={styles.footnote}>
+                  Danh sách gồm <strong>cả người không có chỉ tiêu</strong> — kế
+                  toán, quản trị hệ thống. Cột điểm để trống chứ không để 0: 0
+                  điểm nghĩa là có chỉ tiêu mà chưa làm được gì. Bấm tên để mở hồ
+                  sơ, sửa tài khoản ở ngay trong đó.
                 </p>
               )}
               <p className={styles.footnote}>
@@ -253,6 +393,18 @@ export default function PeoplePage() {
               </p>
             </SectionCard>
           </>
+        )}
+
+        {(creating || editing) && (
+          <StaffFormDialog
+            open
+            staff={editing}
+            departments={departments}
+            onClose={() => {
+              setCreating(false);
+              setEditing(null);
+            }}
+          />
         )}
       </main>
     </>

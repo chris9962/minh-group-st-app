@@ -18,6 +18,8 @@
   margin: 0;
   font-size: 20px;
   flex: none;
+  /* Không có nowrap thì trang nào nhiều bộ lọc sẽ bóp tiêu đề còn "Nhà". */
+  white-space: nowrap;
 }
 
 .tools {
@@ -25,8 +27,18 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 10px;
   min-width: 0;
+}
+
+/* Nút và ô chọn giữ nguyên bề ngang của chúng; chật thì xuống hàng, không bóp. */
+.tools > * {
+  flex: none;
+}
+
+.tools :global(.btn) {
+  white-space: nowrap;
 }
 
 @media (max-width: 900px) {

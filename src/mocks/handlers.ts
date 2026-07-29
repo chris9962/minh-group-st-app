@@ -2,9 +2,29 @@ import { HttpResponse, http } from "msw";
 import { LOGIN_ERROR, Scope } from "@/lib/types";
 import { sessionExpiry } from "@/store/session";
 import { dashboardFor } from "./dashboard";
+import { SAVE_ERROR, type StaffForm } from "@/lib/api/staff";
 import { peopleFor } from "./people";
 import { personFor } from "./person";
+import {
+  createStaff,
+  findStaff,
+  newPassword,
+  setStaffActive,
+  staffFor,
+  updateStaff,
+} from "./staff";
 import { departments, mockUsers } from "./data";
+
+/** Người bấm nút — máy chủ thật lấy từ phiên, ở đây gửi kèm cho gọn. */
+const actorBy = (id: string) => mockUsers.find((u) => u.id === id) ?? null;
+
+const saveError = (code: "username-taken" | "role-too-high") => ({
+  code,
+  message:
+    code === SAVE_ERROR.USERNAME_TAKEN
+      ? "Tên đăng nhập này đã có người dùng"
+      : "Bạn không gán được chức vụ cao hơn quyền của chính mình",
+});
 
 /** Sai 5 lần liên tiếp thì khoá 15 phút — đếm theo tên đăng nhập. */
 const MAX_ATTEMPTS = 5;
@@ -114,6 +134,52 @@ export const handlers = [
     if (!person) return new HttpResponse(null, { status: 404 });
     return HttpResponse.json(person);
   }),
+
+  http.get("/api/staff", ({ request }) => {
+    const params = new URL(request.url).searchParams;
+    return HttpResponse.json(
+      staffFor({
+        scope: params.get("scope") ?? "company",
+        departmentId: params.get("departmentId") ?? "",
+        search: params.get("search") ?? "",
+        status: (params.get("status") ?? "active") as "active" | "locked" | "all",
+      }),
+    );
+  }),
+
+  http.post("/api/staff", async ({ request }) => {
+    const { actorId, ...form } = (await request.json()) as StaffForm & {
+      actorId: string;
+    };
+    const result = createStaff(form, actorBy(actorId));
+    return result.ok
+      ? HttpResponse.json(result.staff, { status: 201 })
+      : HttpResponse.json(saveError(result.code), { status: 422 });
+  }),
+
+  http.patch("/api/staff/:id", async ({ params, request }) => {
+    const { actorId, ...form } = (await request.json()) as StaffForm & {
+      actorId: string;
+    };
+    const result = updateStaff(String(params.id), form, actorBy(actorId));
+    return result.ok
+      ? HttpResponse.json(result.staff)
+      : HttpResponse.json(saveError(result.code), { status: 422 });
+  }),
+
+  http.post("/api/staff/:id/active", async ({ params, request }) => {
+    const { active } = (await request.json()) as { active: boolean };
+    const staff = setStaffActive(String(params.id), active);
+    return staff
+      ? HttpResponse.json(staff)
+      : new HttpResponse(null, { status: 404 });
+  }),
+
+  http.post("/api/staff/:id/reset-password", ({ params }) =>
+    findStaff(String(params.id))
+      ? HttpResponse.json({ password: newPassword() })
+      : new HttpResponse(null, { status: 404 }),
+  ),
 
   http.get("/api/departments", () =>
     HttpResponse.json(departments.filter((d) => d.active)),

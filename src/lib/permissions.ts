@@ -1,4 +1,12 @@
-import { SCOPES, type Action, type ModuleKey, type Permission, type Scope, type User } from './types';
+import {
+  RoleKey,
+  SCOPES,
+  type Action,
+  type ModuleKey,
+  type Permission,
+  type Scope,
+  type User,
+} from './types';
 
 /**
  * ĐÚNG MỘT hàm kiểm quyền cho toàn hệ thống (quyết định kỹ thuật #9).
@@ -77,6 +85,40 @@ export function visibleDepartmentIds(
   if (scope === 'company') return null;
   if (scope === 'managed') return user.managedDepartmentIds;
   return user.departmentId ? [user.departmentId] : [];
+}
+
+/** Bậc quản lý của từng chức vụ. Chỉ để so cao thấp, không phải nguồn quyền. */
+const ROLE_RANK: Record<RoleKey, number> = {
+  director: 4,
+  'deputy-director': 3,
+  head: 2,
+  'deputy-head': 1,
+  staff: 0,
+};
+
+/**
+ * Những chức vụ người này được phép gán cho người khác.
+ *
+ * ⚠️ Đây là chốt chặn tự nâng quyền (spec mục 10.1). `quản trị người dùng` được
+ * cấp cho nhiều người, mà gán chức vụ chính là một dạng cấp quyền — không chặn
+ * thì trưởng phòng chỉ cần tạo một tài khoản vai Giám đốc rồi đăng nhập bằng
+ * nó, và `cấp quyền` thành vô nghĩa.
+ *
+ * So theo BẬC chứ không so từng bộ ba. So từng bộ ba nghe chặt hơn nhưng sai:
+ * giám đốc cố ý KHÔNG có quyền `tạo` đơn, nên xét từng bộ ba thì giám đốc không
+ * gán nổi cả vai Nhân viên — đúng cái việc họ cần làm hằng ngày. Điều cần chặn
+ * là gán vai CAO HƠN mình, không phải gán vai khác mình.
+ *
+ * Người có `cấp quyền` gán được tất cả — đó đúng là ý nghĩa của quyền đó, và
+ * spec giới hạn nó ở 1–2 tài khoản.
+ */
+export function assignableRoles(actor: User | null): RoleKey[] {
+  if (!actor || !can(actor, 'system', 'manage-users')) return [];
+  if (can(actor, 'system', 'grant-permission')) return [...RoleKey.options];
+
+  return RoleKey.options.filter(
+    (role) => ROLE_RANK[role] <= ROLE_RANK[actor.role],
+  );
 }
 
 /**

@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { use, useState } from "react";
 import { TopBar } from "@/components/layout/TopBar";
+import { AccountCard } from "@/components/staff/AccountCard";
 import { BarChart } from "@/components/ui/BarChart";
 import { monthLabel, thisMonth } from "@/components/ui/MonthPicker";
 import { PeoplePeriodPicker } from "@/components/ui/PeoplePeriodPicker";
@@ -220,6 +221,8 @@ export default function PersonPage({
                   </>
                 )}
               </div>
+
+              <AccountCard staffId={id} />
 
               {withKpi && (
                 <SectionCard title="Điểm theo tháng">
