@@ -34,10 +34,18 @@ const fromMockUser = (u: User): StaffAccount => ({
 const departmentIdByName = (name: string): string | null =>
   departments.find((d) => d.name === name)?.id ?? null;
 
+/**
+ * MỘT không gian id duy nhất.
+ *
+ * Người có mặt ở cả hai nguồn — vừa là tài khoản đăng nhập, vừa là người có
+ * điểm ở P-51 — phải giữ id của bên P-51. Trước đây mỗi bên một id nên hồ sơ
+ * `/people/p2` không tìm thấy tài khoản nào và thẻ Tài khoản lặng lẽ mất.
+ */
 let store: StaffAccount[] = [
-  ...mockUsers.map(fromMockUser),
-  ...ALL.filter((p) => !mockUsers.some((u) => u.fullName === p.fullName)).map(
-    (p, i): StaffAccount => ({
+  ...ALL.map((p, i): StaffAccount => {
+    const account = mockUsers.find((u) => u.fullName === p.fullName);
+    if (account) return { ...fromMockUser(account), id: p.id };
+    return {
       id: p.id,
       fullName: p.fullName,
       username: `nv${String(i + 1).padStart(2, "0")}`,
@@ -50,8 +58,12 @@ let store: StaffAccount[] = [
       managedDepartmentIds: [],
       wardId: null,
       active: i % 7 !== 0,
-    }),
-  ),
+    };
+  }),
+  // Tài khoản không có mặt ở P-51: ban giám đốc, kế toán, quản trị hệ thống.
+  ...mockUsers
+    .filter((u) => !ALL.some((p) => p.fullName === u.fullName))
+    .map(fromMockUser),
 ];
 
 let nextId = 1;
