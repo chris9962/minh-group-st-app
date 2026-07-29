@@ -58,9 +58,7 @@ const COMPANY: DashboardData = {
 /** Phạm vi hẹp hơn thì số nhỏ lại — để thấy rõ thanh chọn phạm vi có tác dụng. */
 const RATIO: Record<Scope, number> = {
   own: 0.08,
-  team: 0.22,
-  department: 0.45,
-  branch: 0.78,
+  managed: 0.35,
   company: 1,
 };
 

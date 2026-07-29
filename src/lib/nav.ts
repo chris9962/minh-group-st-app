@@ -1,4 +1,4 @@
-import { can, scopeFor } from './permissions';
+import { can } from './permissions';
 import type { User } from './types';
 
 /**
@@ -45,14 +45,11 @@ export function navFor(user: User | null): NavItem[] {
   // Hồ sơ khách hàng không áp trục phạm vi — ai đăng nhập được cũng thấy.
   items.push({ href: '/customers', label: 'Khách hàng', screen: 'P-40' });
 
-  // Chỉ quản được người khác mới thấy "Nhân sự & KPI"; còn lại là chỉ tiêu của mình.
-  const statsScope =
-    scopeFor(user, 'banking', 'view-stats') ??
-    scopeFor(user, 'insurance', 'view-stats');
+  // Chỉ người quản phòng mới thấy "Nhân sự & KPI"; còn lại là chỉ tiêu của mình.
   items.push(
-    statsScope && statsScope !== 'own'
-      ? { href: '/people', label: 'Nhân sự & KPI', screen: 'P-51' }
-      : { href: '/my-target', label: 'Chỉ tiêu của tôi', screen: 'P-50' },
+    user.manageScope === 'none'
+      ? { href: '/my-target', label: 'Chỉ tiêu của tôi', screen: 'P-50' }
+      : { href: '/people', label: 'Nhân sự & KPI', screen: 'P-51' },
   );
 
   if (

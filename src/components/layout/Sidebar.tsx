@@ -21,7 +21,7 @@ export function Sidebar({ user }: { user: User }) {
         <Logo size={32} />
         <span className={styles.identity}>
           <strong>MGST</strong>
-          <span>{user.roleName}</span>
+          <span>{user.title}</span>
         </span>
       </div>
 

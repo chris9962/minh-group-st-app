@@ -35,15 +35,42 @@ export function can(user: User | null, module: ModuleKey, action: Action): boole
   return scopeFor(user, module, action) !== null;
 }
 
-/** Các mức phạm vi hiện trên thanh lọc — 0 hoặc 1 mức thì không hiện thanh. */
+/**
+ * Các mức phạm vi hiện trên thanh lọc.
+ *
+ * Trả về 0 hoặc 1 mức thì KHÔNG hiện thanh — nhân viên kinh doanh nhìn thấy
+ * giao diện y như không có tính năng này.
+ *
+ * `managed` chỉ có nghĩa với người thật sự quản phòng nào đó; giám đốc có
+ * `company` nhưng không phụ trách phòng cụ thể nên bỏ mức giữa đi.
+ */
 export function availableScopes(
   user: User | null,
   module: ModuleKey,
   action: Action = 'view-detail',
 ): Scope[] {
   const widest = scopeFor(user, module, action);
-  if (!widest) return [];
-  return SCOPES.slice(0, scopeRank(widest) + 1);
+  if (!user || !widest) return [];
+
+  return SCOPES.slice(0, scopeRank(widest) + 1).filter(
+    (s) => s !== 'managed' || user.manageScope === 'listed',
+  );
+}
+
+/**
+ * Các phòng người này được xem dữ liệu.
+ *
+ * `null` nghĩa là KHÔNG giới hạn phòng nào — dùng cho phạm vi toàn công ty.
+ * Đừng thay bằng "danh sách tất cả phòng": mở phòng mới là thiếu ngay.
+ */
+export function visibleDepartmentIds(
+  user: User | null,
+  scope: Scope,
+): string[] | null {
+  if (!user) return [];
+  if (scope === 'company') return null;
+  if (scope === 'managed') return user.managedDepartmentIds;
+  return user.departmentId ? [user.departmentId] : [];
 }
 
 /**

@@ -5,9 +5,7 @@ import styles from "./ScopeSwitcher.module.css";
 
 const LABEL: Record<Scope, string> = {
   own: "Của tôi",
-  team: "Nhóm tôi",
-  department: "Phòng tôi",
-  branch: "Chi nhánh",
+  managed: "Phòng tôi quản",
   company: "Toàn công ty",
 };
 

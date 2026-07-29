@@ -1,18 +1,28 @@
-import type { OrgUnit, Permission, User } from "@/lib/types";
+import type { Department, Permission, User } from "@/lib/types";
 
-/** Dữ liệu giả — thay bằng API thật sau. Tên và số liệu lấy đúng như trong bản thiết kế. */
+/** Dữ liệu giả — lấy đúng sơ đồ tổ chức thật của MGST. */
 
-export const orgUnits: OrgUnit[] = [
-  { id: "co", name: "Minh Group ST", type: "company", parentId: null, active: true },
-  { id: "br-ct", name: "Chi nhánh Cần Thơ", type: "branch", parentId: "co", active: true },
-  { id: "sales-1", name: "Phòng KD 1", type: "department", parentId: "br-ct", active: true },
-  { id: "sales-2", name: "Phòng KD 2", type: "department", parentId: "br-ct", active: true },
-  { id: "sales-1-t2", name: "Nhóm 2", type: "team", parentId: "sales-1", active: true },
-  { id: "sales-ops", name: "Kinh doanh tổng hợp", type: "department", parentId: "co", active: true },
-  { id: "acct-ops", name: "Kế toán tổng hợp", type: "department", parentId: "co", active: true },
-  { id: "order-desk", name: "Đội tạo đơn", type: "department", parentId: "co", active: true },
-  { id: "projects", name: "Phòng Dự án", type: "department", parentId: "co", active: true },
+/* ── 15 phòng, danh sách phẳng ──────────────────────────────────────── */
+
+export const departments: Department[] = [
+  { id: "an-sinh", name: "Phòng An Sinh", active: true },
+  { id: "y", name: "Phòng Y", active: true },
+  { id: "ke-toan-th", name: "Phòng Kế toán tổng hợp", active: true },
+  { id: "kinh-doanh-th", name: "Phòng Kinh doanh tổng hợp", active: true },
+  { id: "du-an", name: "Phòng Dự Án", active: true },
+  { id: "bao-tro-xh", name: "Phòng Bảo trợ xã hội", active: true },
+  { id: "kd-1", name: "Phòng Kinh doanh 1", active: true },
+  { id: "kd-2", name: "Phòng Kinh doanh 2", active: true },
+  { id: "kd-3", name: "Phòng Kinh doanh 3", active: true },
+  { id: "kd-4", name: "Phòng Kinh doanh 4", active: true },
+  { id: "kd-5", name: "Phòng Kinh doanh 5", active: true },
+  { id: "kd-6", name: "Phòng Kinh doanh 6", active: true },
+  { id: "kd-7", name: "Phòng Kinh doanh 7", active: true },
+  { id: "kd-8", name: "Phòng Kinh doanh 8", active: true },
+  { id: "kd-9", name: "Phòng Kinh doanh 9", active: true },
 ];
+
+/* ── Bộ quyền theo chức vụ ──────────────────────────────────────────── */
 
 const p = (
   module: Permission["module"],
@@ -21,7 +31,7 @@ const p = (
 ): Permission => ({ module, action, scope });
 
 /** Nhân viên kinh doanh — phạm vi hẹp nhất, không hiện thanh chọn phạm vi. */
-const salesRepPermissions: Permission[] = [
+const staffPermissions: Permission[] = [
   p("insurance", "view-stats", "own"),
   p("insurance", "view-detail", "own"),
   p("insurance", "create", "own"),
@@ -35,16 +45,19 @@ const salesRepPermissions: Permission[] = [
   p("services", "create", "own"),
 ];
 
-/** Trưởng phòng — cùng bộ hành động, chỉ khác phạm vi. `create` vẫn là `own`. */
-const departmentHeadPermissions: Permission[] = [
-  ...salesRepPermissions.map((x) =>
-    x.action === "create" ? x : { ...x, scope: "department" as const },
+/**
+ * Trưởng phòng và Phó GĐ dùng CÙNG bộ hành động với nhân viên, chỉ khác phạm vi.
+ * `create` vẫn là `own` — quản lý xem được đơn của lính nhưng không tạo hộ ai.
+ */
+const managerPermissions: Permission[] = [
+  ...staffPermissions.map((x) =>
+    x.action === "create" ? x : { ...x, scope: "managed" as const },
   ),
-  p("insurance", "export-excel", "department"),
-  p("banking", "export-excel", "department"),
+  p("insurance", "export-excel", "managed"),
+  p("banking", "export-excel", "managed"),
 ];
 
-const executivePermissions: Permission[] = [
+const directorPermissions: Permission[] = [
   p("*", "view-stats", "company"),
   p("*", "view-detail", "company"),
   p("*", "download", "company"),
@@ -82,84 +95,157 @@ const accountingOpsPermissions: Permission[] = [
   p("*", "configure-catalog", "company"),
 ];
 
+/* ── Người dùng ─────────────────────────────────────────────────────── */
+
 export type MockAccount = User & { password: string };
 
+const account = (
+  a: Omit<MockAccount, "wardId" | "active"> & Partial<Pick<MockAccount, "wardId">>,
+): MockAccount => ({ wardId: null, active: true, ...a });
+
 export const mockUsers: MockAccount[] = [
-  {
-    id: "u1",
+  account({
+    id: "u-director",
+    username: "giamdoc",
+    password: "12345678",
+    fullName: "Đinh Hoàng Công",
+    title: "Giám đốc",
+    role: "director",
+    departmentId: null,
+    managedDepartmentIds: [],
+    manageScope: "company",
+    permissions: directorPermissions,
+  }),
+  account({
+    id: "u-advisor",
+    username: "covan",
+    password: "12345678",
+    fullName: "Đinh Hoàng Minh",
+    title: "Cố vấn cao cấp",
+    role: "deputy-director",
+    departmentId: null,
+    managedDepartmentIds: ["ke-toan-th", "kinh-doanh-th"],
+    manageScope: "listed",
+    permissions: managerPermissions,
+  }),
+  account({
+    id: "u-dd1",
+    username: "pgd1",
+    password: "12345678",
+    fullName: "Phan Hữu Linh",
+    title: "Phó Giám Đốc 1",
+    role: "deputy-director",
+    departmentId: null,
+    managedDepartmentIds: ["du-an", "bao-tro-xh"],
+    manageScope: "listed",
+    permissions: managerPermissions,
+  }),
+  account({
+    id: "u-dd2",
+    username: "pgd2",
+    password: "12345678",
+    fullName: "Nguyễn Thị Hồng Huệ",
+    title: "Phó Giám Đốc 2",
+    role: "deputy-director",
+    departmentId: null,
+    managedDepartmentIds: ["kd-2", "kd-6", "kd-7"],
+    manageScope: "listed",
+    permissions: managerPermissions,
+  }),
+  account({
+    id: "u-dd3",
+    username: "pgd3",
+    password: "12345678",
+    fullName: "Lư Hồng Huỳnh",
+    title: "Phó Giám Đốc 3",
+    role: "deputy-director",
+    departmentId: null,
+    managedDepartmentIds: ["kd-3", "kd-4", "kd-5", "kd-9"],
+    manageScope: "listed",
+    permissions: managerPermissions,
+  }),
+  account({
+    id: "u-dd4",
+    username: "quyenpgd",
+    password: "12345678",
+    fullName: "Dương Minh Trường",
+    title: "Quyền Phó Giám Đốc",
+    role: "deputy-director",
+    departmentId: null,
+    managedDepartmentIds: ["kd-1", "kd-8"],
+    manageScope: "listed",
+    permissions: managerPermissions,
+  }),
+  account({
+    id: "u-head-kd2",
+    username: "tpkd2",
+    password: "12345678",
+    fullName: "Trần Văn Hậu",
+    title: "Trưởng phòng Kinh doanh 2",
+    role: "head",
+    departmentId: "kd-2",
+    managedDepartmentIds: ["kd-2"],
+    manageScope: "listed",
+    permissions: managerPermissions,
+  }),
+  account({
+    id: "u-staff",
     username: "ntbtram",
     password: "12345678",
     fullName: "Nguyễn Thị Bích Trâm",
-    orgUnitId: "sales-1-t2",
-    wardId: null,
-    roleName: "Nhân viên kinh doanh",
-    permissions: salesRepPermissions,
-    active: true,
-  },
-  {
-    id: "u2",
-    username: "tvhau",
-    password: "12345678",
-    fullName: "Trần Văn Hậu",
-    orgUnitId: "sales-1",
-    wardId: null,
-    roleName: "Trưởng phòng KD 1",
-    permissions: departmentHeadPermissions,
-    active: true,
-  },
-  {
-    id: "u3",
-    username: "giamdoc",
-    password: "12345678",
-    fullName: "Lê Minh Quân",
-    orgUnitId: "co",
-    wardId: null,
-    roleName: "Ban giám đốc",
-    permissions: executivePermissions,
-    active: true,
-  },
-  {
-    id: "u4",
+    title: "Nhân viên kinh doanh",
+    role: "staff",
+    departmentId: "kd-2",
+    managedDepartmentIds: [],
+    manageScope: "none",
+    permissions: staffPermissions,
+  }),
+  account({
+    id: "u-sysadmin",
     username: "quantri",
     password: "12345678",
     fullName: "Phạm Thu Hà",
-    orgUnitId: "co",
-    wardId: null,
-    roleName: "Quản trị hệ thống",
+    title: "Quản trị hệ thống",
+    role: "staff",
+    departmentId: null,
+    managedDepartmentIds: [],
+    manageScope: "company",
     permissions: sysAdminPermissions,
-    active: true,
-  },
-  {
-    id: "u5",
+  }),
+  account({
+    id: "u-orderdesk",
     username: "taodon",
     password: "12345678",
     fullName: "Võ Thanh Tùng",
-    orgUnitId: "order-desk",
-    wardId: null,
-    roleName: "Đội tạo đơn",
+    title: "Đội tạo đơn",
+    role: "staff",
+    departmentId: "kinh-doanh-th",
+    managedDepartmentIds: [],
+    manageScope: "company",
     permissions: orderDeskPermissions,
-    active: true,
-  },
-  {
-    id: "u6",
+  }),
+  account({
+    id: "u-salesops",
     username: "kdth",
     password: "12345678",
     fullName: "Đặng Ngọc Mai",
-    orgUnitId: "sales-ops",
-    wardId: null,
-    roleName: "Kinh doanh tổng hợp",
+    title: "Kinh doanh tổng hợp",
+    role: "staff",
+    departmentId: "kinh-doanh-th",
+    managedDepartmentIds: [],
+    manageScope: "company",
     permissions: salesOpsPermissions,
-    active: true,
-  },
-  {
-    id: "u7",
+  }),
+  account({
+    id: "u-acctops",
     username: "ktth",
     password: "12345678",
     fullName: "Huỳnh Kim Ngân",
-    orgUnitId: "acct-ops",
-    wardId: null,
-    roleName: "Kế toán tổng hợp",
+    title: "Kế toán tổng hợp",
+    role: "staff",
+    departmentId: "ke-toan-th",
+    managedDepartmentIds: [],
+    manageScope: "company",
     permissions: accountingOpsPermissions,
-    active: true,
-  },
+  }),
 ];

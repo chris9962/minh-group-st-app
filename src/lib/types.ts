@@ -29,8 +29,11 @@ export const Action = z.enum([
 ]);
 export type Action = z.infer<typeof Action>;
 
-/** Thứ tự từ hẹp đến rộng — dùng để so sánh, đừng đổi thứ tự. */
-export const SCOPES = ['own', 'team', 'department', 'branch', 'company'] as const;
+/**
+ * Thứ tự từ hẹp đến rộng — dùng để so sánh, đừng đổi thứ tự.
+ * Ba mức, khớp đúng sơ đồ tổ chức: không có chi nhánh, không có nhóm.
+ */
+export const SCOPES = ['own', 'managed', 'company'] as const;
 export const Scope = z.enum(SCOPES);
 export type Scope = z.infer<typeof Scope>;
 
@@ -41,19 +44,41 @@ export const Permission = z.object({
 });
 export type Permission = z.infer<typeof Permission>;
 
-/* ── Tổ chức: bảng tự trỏ về chính nó, không cứng hoá số cấp ────────── */
+/* ── Tổ chức: danh sách phòng phẳng ─────────────────────────────────── */
 
-export const OrgUnitType = z.enum(['company', 'branch', 'department', 'team']);
-export type OrgUnitType = z.infer<typeof OrgUnitType>;
-
-export const OrgUnit = z.object({
+export const Department = z.object({
   id: z.string(),
   name: z.string(),
-  type: OrgUnitType,
-  parentId: z.string().nullable(),
   active: z.boolean(),
 });
-export type OrgUnit = z.infer<typeof OrgUnit>;
+export type Department = z.infer<typeof Department>;
+
+/** Chức vụ — chỉ là bộ mặc định khi tạo tài khoản, không khoá cứng quyền. */
+export const RoleKey = z.enum([
+  'director',
+  'deputy-director',
+  'head',
+  'deputy-head',
+  'staff',
+]);
+export type RoleKey = z.infer<typeof RoleKey>;
+
+export const ROLE_LABEL: Record<RoleKey, string> = {
+  director: 'Giám đốc',
+  'deputy-director': 'Phó giám đốc',
+  head: 'Trưởng phòng',
+  'deputy-head': 'Phó phòng',
+  staff: 'Nhân viên',
+};
+
+/**
+ * Người này quản những phòng nào.
+ *
+ * `company` KHÔNG liệt kê từng phòng — mở phòng mới mà quên thêm vào danh sách
+ * thì giám đốc mù một phòng và hệ thống không báo gì.
+ */
+export const ManageScope = z.enum(['none', 'listed', 'company']);
+export type ManageScope = z.infer<typeof ManageScope>;
 
 /* ── Người dùng ─────────────────────────────────────────────────────── */
 
@@ -61,10 +86,16 @@ export const User = z.object({
   id: z.string(),
   username: z.string(),
   fullName: z.string(),
-  orgUnitId: z.string(),
-  /** Chỉ nhân viên phòng Dự án mới có. */
+  role: RoleKey,
+  /** THUỘC VỀ — đúng một phòng. NULL với Giám đốc, Cố vấn và các Phó GĐ. */
+  departmentId: z.string().nullable(),
+  /** QUẢN LÝ — 0..n phòng. Chỉ có giá trị khi manageScope = 'listed'. */
+  managedDepartmentIds: z.array(z.string()),
+  manageScope: ManageScope,
+  /** Chỉ nhân viên phòng Dự Án mới có. */
   wardId: z.string().nullable(),
-  roleName: z.string(),
+  /** Tên chức danh hiển thị, ví dụ "Phó GĐ 2" — khác với `role`. */
+  title: z.string(),
   permissions: z.array(Permission),
   active: z.boolean(),
 });
