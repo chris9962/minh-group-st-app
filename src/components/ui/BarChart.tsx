@@ -1,69 +1,131 @@
+"use client";
+
+import {
+  Bar,
+  CartesianGrid,
+  Legend,
+  BarChart as RechartsBarChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import styles from "./BarChart.module.css";
 
-export type BarSeries = { label: string; color: string };
+export type BarSeries = {
+  /** Khoá của chuỗi trong từng dòng dữ liệu. */
+  key: string;
+  label: string;
+  color: string;
+};
 
 type Props = {
-  rows: { label: string; values: number[] }[];
+  rows: Record<string, string | number>[];
+  /** Khoá của cột nhãn trục ngang. */
+  labelKey: string;
   series: BarSeries[];
-  /** Tiêu đề hiện trên biểu đồ. */
   title?: string;
   /** Mô tả cho trình đọc màn hình, đặt ở caption của bảng số ẩn. */
   caption: string;
+  height?: number;
+};
+
+const AXIS_TICK = {
+  fontSize: 10.5,
+  fill: "var(--color-neutral-600)",
+  fontFamily: "var(--font-body)",
 };
 
 /**
- * Biểu đồ cột chồng, dựng bằng CSS.
+ * Biểu đồ cột chồng.
  *
- * Không dùng thư viện vẽ biểu đồ cho hình đơn giản thế này — thêm ~50KB mà
- * không giúp gì. Giá trị luôn hiện bằng SỐ ở bảng ẩn phía dưới để trình đọc
- * màn hình đọc được, vì cột màu không đọc được.
+ * Dùng recharts vì số cột đổi theo kỳ — một ngày là 6 cột, một tháng là 30.
+ * Tự vẽ bằng div thì phải tự lo trục dọc, giãn nhãn, đường lưới, rê chuột;
+ * tới 30 cột là nhìn so le ngay.
+ *
+ * Recharts không lo phần đọc màn hình, nên vẫn giữ bảng số ẩn bên dưới.
  */
-export function BarChart({ rows, series, title, caption }: Props) {
-  const max = Math.max(1, ...rows.map((r) => r.values.reduce((a, b) => a + b, 0)));
-  // Nhiều cột thì nhãn chồng lên nhau — chỉ hiện thưa ra, số đầy đủ vẫn ở bảng ẩn.
-  const tickEvery = Math.ceil(rows.length / 12);
-
+export function BarChart({
+  rows,
+  labelKey,
+  series,
+  title,
+  caption,
+  height = 190,
+}: Props) {
   return (
     <div className={styles.wrap}>
-      <div className={styles.legend}>
-        {title && <strong className={styles.title}>{title}</strong>}
-        {series.map((s) => (
-          <span key={s.label} className={styles.legendItem}>
-            <i style={{ background: s.color }} aria-hidden />
-            {s.label}
-          </span>
-        ))}
-      </div>
+      {title && <strong className={styles.title}>{title}</strong>}
 
       <div className={styles.chart} aria-hidden>
-        {rows.map((row, i) => (
-          <div key={row.label} className={styles.column}>
-            <div className={styles.stack}>
-              {row.values.map((v, i) => (
-                <div
-                  key={series[i].label}
-                  className={styles.bar}
-                  style={{
-                    height: `${(v / max) * 100}%`,
-                    background: series[i].color,
-                  }}
-                />
-              ))}
-            </div>
-            <span className={styles.tick}>
-              {i % tickEvery === 0 ? row.label : ""}
-            </span>
-          </div>
-        ))}
+        <ResponsiveContainer width="100%" height={height}>
+          <RechartsBarChart
+            data={rows}
+            margin={{ top: 4, right: 4, bottom: 0, left: -18 }}
+            barCategoryGap="18%"
+          >
+            <CartesianGrid
+              vertical={false}
+              stroke="var(--color-neutral-300)"
+              strokeDasharray="3 3"
+            />
+            <XAxis
+              dataKey={labelKey}
+              tick={AXIS_TICK}
+              tickLine={false}
+              axisLine={{ stroke: "var(--color-neutral-300)" }}
+              interval="preserveStartEnd"
+              minTickGap={14}
+            />
+            <YAxis
+              tick={AXIS_TICK}
+              tickLine={false}
+              axisLine={false}
+              width={44}
+              allowDecimals={false}
+            />
+            <Tooltip
+              cursor={{ fill: "rgb(32 30 29 / 6%)" }}
+              contentStyle={{
+                background: "var(--color-neutral-100)",
+                border: "1px solid var(--color-divider)",
+                borderRadius: 14,
+                fontSize: 12.5,
+                fontFamily: "var(--font-body)",
+                boxShadow: "var(--shadow-md)",
+              }}
+              labelStyle={{ fontWeight: 600, marginBottom: 4 }}
+            />
+            <Legend
+              verticalAlign="top"
+              align="right"
+              height={26}
+              iconType="circle"
+              iconSize={8}
+              wrapperStyle={{ fontSize: 11.5, fontFamily: "var(--font-body)" }}
+            />
+            {series.map((s) => (
+              <Bar
+                key={s.key}
+                dataKey={s.key}
+                name={s.label}
+                stackId="stack"
+                fill={s.color}
+                radius={[3, 3, 0, 0]}
+                isAnimationActive={false}
+              />
+            ))}
+          </RechartsBarChart>
+        </ResponsiveContainer>
       </div>
 
       <table className="an-nhin">
         <caption>{caption}</caption>
         <thead>
           <tr>
-            <th scope="col">Khung giờ</th>
+            <th scope="col">Mốc</th>
             {series.map((s) => (
-              <th key={s.label} scope="col">
+              <th key={s.key} scope="col">
                 {s.label}
               </th>
             ))}
@@ -71,10 +133,10 @@ export function BarChart({ rows, series, title, caption }: Props) {
         </thead>
         <tbody>
           {rows.map((row) => (
-            <tr key={row.label}>
-              <th scope="row">{row.label}</th>
-              {row.values.map((v, i) => (
-                <td key={series[i].label}>{v}</td>
+            <tr key={String(row[labelKey])}>
+              <th scope="row">{String(row[labelKey])}</th>
+              {series.map((s) => (
+                <td key={s.key}>{row[s.key]}</td>
               ))}
             </tr>
           ))}

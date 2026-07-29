@@ -109,14 +109,12 @@ export default function DashboardPage() {
                 <BarChart
                   title={`Đơn theo ${BUCKET_LABEL[data.insurance.bucketType]}`}
                   caption={`Đơn bảo hiểm theo ${BUCKET_LABEL[data.insurance.bucketType]}, tách đơn tự động và đơn làm tay`}
+                  labelKey="label"
+                  rows={data.insurance.buckets}
                   series={[
-                    { label: "tự động", color: "var(--color-accent-2-500)" },
-                    { label: "làm tay", color: "var(--color-accent-500)" },
+                    { key: "automatic", label: "tự động", color: "#8fa073" },
+                    { key: "manual", label: "làm tay", color: "#d67f48" },
                   ]}
-                  rows={data.insurance.buckets.map((b) => ({
-                    label: b.label,
-                    values: [b.automatic, b.manual],
-                  }))}
                 />
               </SectionCard>
 
