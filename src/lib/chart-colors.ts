@@ -10,4 +10,6 @@
 export const CHART_COLORS = {
   primary: '#e8763a',
   secondary: '#a84a05',
+  /** Cột bị làm mờ khi chỉ một cột được làm nổi — khớp `--om-line`. */
+  muted: '#e4e3e1',
 } as const;

@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { use, useState } from "react";
 import { TopBar } from "@/components/layout/TopBar";
-import { MiniBars } from "@/components/ui/MiniBars";
+import { BarChart } from "@/components/ui/BarChart";
 import { monthLabel, thisMonth } from "@/components/ui/MonthPicker";
 import { PeoplePeriodPicker } from "@/components/ui/PeoplePeriodPicker";
 import { ProgressRing } from "@/components/ui/ProgressRing";
@@ -15,11 +15,13 @@ import { StatusTag } from "@/components/ui/StatusTag";
 import { periodMonth, periodParam, showsKpi, type PeriodMode } from "@/lib/api/people";
 import {
   fetchPerson,
+  groupAccountsByCustomer,
   INSURANCE_STATUS,
-  type PersonAccount,
+  type CustomerAccounts,
   type PersonInsurance,
   type PersonService,
 } from "@/lib/api/person";
+import { CHART_COLORS } from "@/lib/chart-colors";
 import { formatDate, formatPhone } from "@/lib/format";
 import styles from "./page.module.css";
 
@@ -33,20 +35,21 @@ const DATE_COLUMN = {
   render: (row: { date: string }) => formatDate(row.date),
 };
 
-const ACCOUNT_COLUMNS: RankColumn<PersonAccount>[] = [
-  DATE_COLUMN,
-  { key: "customerName", label: "Khách hàng", render: (a) => a.customerName },
-  { key: "bankName", label: "Ngân hàng", render: (a) => a.bankName },
-  { key: "referralCode", label: "Mã giới thiệu", render: (a) => a.referralCode },
-  { key: "channel", label: "Kênh", render: (a) => a.channel },
+/** Một hàng một khách, mọi ngân hàng của khách nằm cùng ô. */
+const ACCOUNT_COLUMNS: RankColumn<CustomerAccounts>[] = [
+  { ...DATE_COLUMN, label: "Gần nhất" },
+  { key: "customerName", label: "Khách hàng", render: (c) => c.customerName },
+  { key: "banks", label: "Ngân hàng", render: (c) => c.banks.join(", ") },
+  { key: "channels", label: "Kênh", render: (c) => c.channels.join(", ") },
   {
-    key: "appInstalled",
-    label: "App",
-    render: (a) => (
-      <StatusTag ok={a.appInstalled}>
-        {a.appInstalled ? "Đã cài" : "Chưa cài"}
-      </StatusTag>
-    ),
+    key: "appBanks",
+    label: "App đã cài",
+    render: (c) =>
+      c.appBanks.length > 0 ? (
+        c.appBanks.join(", ")
+      ) : (
+        <StatusTag ok={false}>Chưa cài</StatusTag>
+      ),
   },
 ];
 
@@ -110,6 +113,7 @@ export default function PersonPage({
 
   const withKpi = showsKpi(period);
   const periodText = period.kind === "today" ? "Hôm nay" : monthLabel(summaryMonth);
+  const customers = data ? groupAccountsByCustomer(data.accounts) : [];
 
   // Chỉ hiện thẻ có dòng. Thẻ rỗng chỉ để người dùng bấm vào rồi thấy trống.
   const tabs: TabOption[] = data
@@ -195,12 +199,18 @@ export default function PersonPage({
                   </SectionCard>
 
                   <SectionCard title="Điểm theo tháng">
-                    <MiniBars
+                    <BarChart
                       rows={data.monthlyPoints.map((m) => ({
                         label: shortMonth(m.month),
-                        value: m.points,
+                        points: m.points,
                       }))}
+                      labelKey="label"
+                      series={[
+                        { key: "points", label: "Điểm", color: CHART_COLORS.primary },
+                      ]}
                       highlight={shortMonth(data.summaryMonth)}
+                      showLegend={false}
+                      height={160}
                       caption="Điểm của nhân viên trong 5 tháng gần nhất"
                     />
                   </SectionCard>
@@ -223,14 +233,22 @@ export default function PersonPage({
                   />
 
                   {activeTab === "accounts" && (
-                    <RankTable
-                      rows={data.accounts}
-                      columns={ACCOUNT_COLUMNS}
-                      rowKey={(a) => a.id}
-                      defaultSort="date"
-                      pageSize={10}
-                      caption={`Tài khoản đã mở cho khách ${periodText}`}
-                    />
+                    <>
+                      <RankTable
+                        rows={customers}
+                        columns={ACCOUNT_COLUMNS}
+                        rowKey={(c) => c.customerName}
+                        defaultSort="date"
+                        pageSize={10}
+                        caption={`Khách hàng đã tiếp ${periodText}, gộp mọi ngân hàng của một khách vào một hàng`}
+                      />
+                      <p className={styles.footnote}>
+                        Mỗi hàng là một khách — <span className="so">{data.accounts.length}</span>{" "}
+                        tài khoản gộp thành <span className="so">{customers.length}</span> hàng.
+                        Ô <strong>App đã cài</strong> ghi kèm loại đăng ký khi có:{" "}
+                        <em>VPa (CNKD)</em>.
+                      </p>
+                    </>
                   )}
 
                   {activeTab === "insurance" && (

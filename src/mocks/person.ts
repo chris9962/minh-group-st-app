@@ -21,6 +21,7 @@ const SERVICE_TYPES = [
   "Bảo hiểm y tế",
 ];
 const WARDS = ["Tân Bình", "Tân Hoà", "Tân Lập", "Tân Phú"];
+/** Đủ dài để mỗi khách chỉ có một hai ngân hàng, giống ngoài đời hơn. */
 const CUSTOMERS = [
   "Nguyễn Thị Bích Trâm",
   "Trần Văn Đức",
@@ -30,6 +31,18 @@ const CUSTOMERS = [
   "Đỗ Văn Bình",
   "Huỳnh Thị Ngọc",
   "Lý Văn Sang",
+  "Nguyễn Văn Khoa",
+  "Trần Thị Thu",
+  "Đặng Minh Hoàng",
+  "Bùi Thị Lan",
+  "Phan Văn Tài",
+  "Ngô Thị Kim",
+  "Dương Văn Phúc",
+  "Hồ Thị Diệu",
+  "Vũ Minh Quân",
+  "Trương Thị Nga",
+  "Lâm Văn Hậu",
+  "Cao Thị Yến",
 ];
 
 /** Tên đăng nhập giả: chữ cuối của tên, bỏ dấu. Bản thật lấy từ hồ sơ. */
@@ -51,19 +64,33 @@ function dayIn(month: string, offset: number): string {
   return `${month}-${String(day).padStart(2, "0")}`;
 }
 
+const ACCOUNT_TYPES: PersonAccount["accountType"][] = [
+  "none",
+  "none",
+  "none",
+  "CNKD",
+  "HKD",
+];
+
 function accountsOf(fullName: string, month: string, count: number): PersonAccount[] {
   return Array.from({ length: count }, (_, i) => {
     const bank = BANKS[seed(fullName, i + 11) % BANKS.length];
+    // App chưa cài thì tài khoản không tính điểm, không tính quà — đây là lý do
+    // bảng có dòng nhưng điểm vẫn thấp.
+    const appInstalled = seed(fullName, i + 53) % 5 !== 0;
     return {
       id: `a${i + 1}`,
       date: dayIn(month, i),
-      customerName: CUSTOMERS[seed(fullName, i + 23) % CUSTOMERS.length],
+      // Rải theo i để mỗi khách chỉ dính một hai dòng; lấy seed thuần thì cả
+      // 36 tài khoản dồn vào 8 khách và mỗi hàng có 5 ngân hàng.
+      customerName: CUSTOMERS[(i + (seed(fullName, 23) % 3)) % CUSTOMERS.length],
       bankName: bank,
       referralCode: `${bank}-${String(seed(fullName, i + 31) * 7).padStart(4, "0").slice(0, 4)}`,
       channel: CHANNELS[seed(fullName, i + 41) % CHANNELS.length],
-      // App chưa cài thì tài khoản không tính điểm, không tính quà — cột này
-      // là lý do bảng có dòng nhưng điểm vẫn thấp.
-      appInstalled: seed(fullName, i + 53) % 5 !== 0,
+      appInstalled,
+      accountType: appInstalled
+        ? ACCOUNT_TYPES[seed(fullName, i + 59) % ACCOUNT_TYPES.length]
+        : "none",
     };
   });
 }

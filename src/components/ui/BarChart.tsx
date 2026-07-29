@@ -3,6 +3,7 @@
 import {
   Bar,
   CartesianGrid,
+  Cell,
   Legend,
   BarChart as RechartsBarChart,
   ResponsiveContainer,
@@ -10,6 +11,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { CHART_COLORS } from "@/lib/chart-colors";
 import styles from "./BarChart.module.css";
 
 export type BarSeries = {
@@ -28,6 +30,13 @@ type Props = {
   /** Mô tả cho trình đọc màn hình, đặt ở caption của bảng số ẩn. */
   caption: string;
   height?: number;
+  /**
+   * Giá trị nhãn của cột cần làm nổi; các cột còn lại chuyển sang màu mờ.
+   * Chỉ dùng được khi biểu đồ có ĐÚNG một chuỗi.
+   */
+  highlight?: string;
+  /** Một chuỗi thì chú thích chỉ chiếm chỗ chứ không nói thêm gì. */
+  showLegend?: boolean;
 };
 
 const AXIS_TICK = {
@@ -52,6 +61,8 @@ export function BarChart({
   title,
   caption,
   height = 190,
+  highlight,
+  showLegend = true,
 }: Props) {
   return (
     <div className={styles.wrap}>
@@ -96,14 +107,16 @@ export function BarChart({
               }}
               labelStyle={{ fontWeight: 600, marginBottom: 4 }}
             />
-            <Legend
-              verticalAlign="top"
-              align="right"
-              height={26}
-              iconType="circle"
-              iconSize={8}
-              wrapperStyle={{ fontSize: 11.5, fontFamily: "var(--font-body)" }}
-            />
+            {showLegend && (
+              <Legend
+                verticalAlign="top"
+                align="right"
+                height={26}
+                iconType="circle"
+                iconSize={8}
+                wrapperStyle={{ fontSize: 11.5, fontFamily: "var(--font-body)" }}
+              />
+            )}
             {series.map((s) => (
               <Bar
                 key={s.key}
@@ -114,7 +127,21 @@ export function BarChart({
                 // Không bo góc: cột chồng mà bo đầu từng khúc thì giữa hai
                 // khúc hở ra một khe lõm.
                 isAnimationActive={false}
-              />
+              >
+                {/* Cell phải là con của Bar — đây là cách duy nhất recharts cho
+                    đổi màu từng cột. Không có highlight thì Bar tự tô fill. */}
+                {highlight !== undefined &&
+                  rows.map((row) => (
+                    <Cell
+                      key={String(row[labelKey])}
+                      fill={
+                        String(row[labelKey]) === highlight
+                          ? s.color
+                          : CHART_COLORS.muted
+                      }
+                    />
+                  ))}
+              </Bar>
             ))}
           </RechartsBarChart>
         </ResponsiveContainer>

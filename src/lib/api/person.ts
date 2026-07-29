@@ -11,8 +11,62 @@ export const PersonAccount = z.object({
   referralCode: z.string(),
   channel: z.string(),
   appInstalled: z.boolean(),
+  /** Loại đăng ký app. `none` khi khách chưa cài app. */
+  accountType: z.enum(['none', 'CNKD', 'HKD']),
 });
 export type PersonAccount = z.infer<typeof PersonAccount>;
+
+/** Một khách với TẤT CẢ ngân hàng của họ gộp lại. */
+export type CustomerAccounts = {
+  customerName: string;
+  /** Ngày gần nhất trong nhóm — để sắp xếp. */
+  date: string;
+  banks: string[];
+  referralCodes: string[];
+  channels: string[];
+  /** Ngân hàng đã cài app, kèm loại đăng ký: `VPa (CNKD)`. */
+  appBanks: string[];
+};
+
+/**
+ * Gộp tài khoản thành một hàng cho mỗi khách.
+ *
+ * Một khách mở tài khoản ở nhiều ngân hàng, để mỗi ngân hàng một dòng thì tên
+ * khách lặp lại và người đọc phải tự gom. Xuất Excel cũng gộp theo đúng quy tắc
+ * này, nên hàm để ở đây chứ không nằm trong trang.
+ */
+export function groupAccountsByCustomer(
+  accounts: PersonAccount[],
+): CustomerAccounts[] {
+  const byCustomer = new Map<string, CustomerAccounts>();
+
+  for (const a of accounts) {
+    const row = byCustomer.get(a.customerName) ?? {
+      customerName: a.customerName,
+      date: a.date,
+      banks: [],
+      referralCodes: [],
+      channels: [],
+      appBanks: [],
+    };
+
+    // Chuỗi YYYY-MM-DD so sánh được trực tiếp, không cần dựng Date.
+    if (a.date > row.date) row.date = a.date;
+    if (!row.banks.includes(a.bankName)) row.banks.push(a.bankName);
+    if (!row.referralCodes.includes(a.referralCode))
+      row.referralCodes.push(a.referralCode);
+    if (!row.channels.includes(a.channel)) row.channels.push(a.channel);
+    if (a.appInstalled) {
+      row.appBanks.push(
+        a.accountType === 'none' ? a.bankName : `${a.bankName} (${a.accountType})`,
+      );
+    }
+
+    byCustomer.set(a.customerName, row);
+  }
+
+  return [...byCustomer.values()];
+}
 
 export const PersonService = z.object({
   id: z.string(),
