@@ -32,8 +32,8 @@
   display: grid;
   place-items: center;
   border-radius: var(--radius-sm);
-  background: var(--om-orange-soft);
-  color: var(--om-orange);
+  background: var(--om-chip-bg);
+  color: var(--om-chip-ink);
 }
 
 .title {

@@ -45,6 +45,14 @@
   --om-green-soft: #e1eecc;   /* nền nhãn */
   --om-green-ink: #56633f;    /* chữ trên nền nhãn */
 
+  /* Chip theo màu chính: nền cam rất nhạt, chữ đúng màu chính. */
+  --om-chip-bg: #fbece5;
+  --om-chip-ink: #d95328;
+
+  /* Màu "giảm". Xanh nói tăng thì phải có màu nói giảm — cam là màu thương
+     hiệu nên không kiêm được nghĩa xấu. */
+  --om-negative-ink: #b3261e;
+
   --om-shadow-color: 32 30 29;
 
   /* ── Bí danh cho design system ─────────────────────────────────────── */
@@ -144,6 +152,11 @@
   --om-green: #6fae88;
   --om-green-soft: #1d3a2c;
   --om-green-ink: #9fd3b4;
+
+  --om-chip-bg: #3b2110;
+  --om-chip-ink: #fdba74;
+
+  --om-negative-ink: #fca5a5;
 
   --om-shadow-color: 0 0 0;
 
@@ -259,18 +272,25 @@ textarea.input { min-height: 90px; resize: vertical; }
   box-shadow: inset 0 0 0 4px var(--color-bg);
 }
 .radio input:focus-visible + .dot { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+/* Khung ngoài là một thẻ trắng, mục đang chọn là khối cam nằm trong. KHÔNG kẻ
+   ngăn giữa các mục: khối cam đã nói rõ mục nào đang chọn, thêm kẻ chỉ làm rối. */
 .seg {
-  display: inline-flex; overflow: hidden;
-  border: 1px solid var(--color-divider); border-radius: var(--radius-md);
+  display: inline-flex; align-items: center; gap: 2px; padding: 4px;
+  background: var(--om-card);
+  border: 1px solid var(--om-line);
+  box-shadow: var(--shadow-sm);
 }
 .seg-opt {
   display: inline-flex; align-items: center; gap: 6px;
-  padding: 7px 12px; font-size: 13px; cursor: pointer;
+  padding: 8px 15px; font-size: 13.5px; font-weight: 600; cursor: pointer;
+  color: var(--om-text-2); border-radius: var(--radius-md);
+  white-space: nowrap;
 }
-.seg-opt + .seg-opt { border-left: 1px solid var(--color-divider); }
-.seg-opt:has(input:checked) { background: var(--color-accent); color: var(--color-bg); }
-.seg-opt:not(:has(input:checked)):hover { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
-.seg-opt:has(input:focus-visible) { outline: 2px solid var(--color-accent); outline-offset: -2px; }
+.seg-opt:has(input:checked) {
+  background: var(--om-orange); color: var(--om-text-on-accent); font-weight: 700;
+}
+.seg-opt:not(:has(input:checked)):hover { background: var(--om-surface); color: var(--om-text); }
+.seg-opt:has(input:focus-visible) { outline: 2px solid var(--om-orange); outline-offset: 2px; }
 
 /* — cards — */
 .card {
@@ -351,7 +371,8 @@ textarea.input { min-height: 90px; resize: vertical; }
 /* Nút và ô nhập bo vừa phải, KHÔNG bo tròn hết cỡ — viên thuốc làm hàng nút
    và hàng ô nhập mất cảm giác thẳng hàng. Riêng .tag vẫn tròn: nhãn trạng thái
    ngắn, tròn mới ra dáng nhãn. */
-.btn, .seg, .input { border-radius: var(--radius-md); }
+.btn, .input { border-radius: var(--radius-md); }
+.seg { border-radius: calc(var(--radius-lg) + 4px); }
 .tag { border-radius: 999px; }
 .input { padding-inline: 14px; }
 

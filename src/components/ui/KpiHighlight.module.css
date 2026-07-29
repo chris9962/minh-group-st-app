@@ -49,8 +49,8 @@
   display: grid;
   place-items: center;
   border-radius: var(--radius-md);
-  background: var(--om-orange-soft);
-  color: var(--om-orange);
+  background: var(--om-chip-bg);
+  color: var(--om-chip-ink);
 }
 
 .track {
@@ -80,8 +80,8 @@
   color: var(--om-text-2);
 }
 
-/* Tăng thì xanh, giảm thì cam — nhưng chữ luôn kèm mũi tên ↑ ↓, màu không phải
-   kênh truyền đạt duy nhất. */
+/* Tăng thì xanh, giảm thì đỏ — chữ luôn kèm mũi tên ↑ ↓ nên màu không phải kênh
+   truyền đạt duy nhất. Cam là màu thương hiệu, không kiêm được nghĩa xấu. */
 .deltaUp,
 .deltaDown {
   font-size: 12.5px;
@@ -94,7 +94,7 @@
 }
 
 .deltaDown {
-  color: var(--om-orange-ink);
+  color: var(--om-negative-ink);
 }
 
 @media (max-width: 900px) {

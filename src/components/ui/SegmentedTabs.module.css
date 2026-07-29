@@ -41,12 +41,14 @@
 .count {
   padding: 1px 7px;
   border-radius: 999px;
-  background: var(--om-surface);
-  color: var(--om-text-2);
+  background: var(--om-chip-bg);
+  color: var(--om-chip-ink);
   font-size: 12px;
 }
 
+/* Trên nền cam đặc thì chip đếm dùng trắng-mờ, không dùng token nền chip —
+   nền chip là cam nhạt, đặt lên cam đặc là mất hút. */
 .active .count {
   background: rgb(255 255 255 / 26%);
-  color: var(--om-bg);
+  color: var(--om-text-on-accent);
 }
