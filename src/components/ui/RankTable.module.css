@@ -1,0 +1,62 @@
+.table {
+  font-size: 13px;
+}
+
+.table th,
+.table td {
+  white-space: nowrap;
+}
+
+.right {
+  text-align: right;
+}
+
+.sortBtn {
+  all: unset;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: inherit;
+}
+
+.sortBtn:hover {
+  color: var(--color-accent);
+}
+
+.sortBtn:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.caret {
+  font-size: 10px;
+  min-width: 8px;
+}
+
+/* Ô tỉ lệ: thanh nền + con số, để so sánh bằng mắt mà vẫn đọc được số. */
+.ratioCell {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  justify-content: flex-end;
+}
+
+.track {
+  flex: 1;
+  min-width: 46px;
+  max-width: 88px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--color-neutral-300);
+  overflow: hidden;
+}
+
+.fill {
+  display: block;
+  height: 100%;
+  background: var(--color-accent-2);
+}

@@ -1,5 +1,6 @@
 import type { DashboardData } from "@/lib/api/dashboard";
 import type { Scope } from "@/lib/types";
+import { departments as allDepartments } from "./data";
 
 /** Số liệu giả cho P-80. Lấy đúng con số trong bản thiết kế ở phạm vi toàn công ty. */
 
@@ -28,6 +29,7 @@ const COMPANY: DashboardData = {
     bucketType: "hour",
     buckets: [],
   },
+  departments: [],
   services: {
     byType: [
       { label: "Nạp / rút", count: 34 },
@@ -39,6 +41,31 @@ const COMPANY: DashboardData = {
   },
 };
 
+
+
+/* ── Xếp hạng phòng ─────────────────────────────────────────────────── */
+
+/** Chỉ 9 phòng kinh doanh mới mở tài khoản; các phòng khác không có số. */
+const SALES_DEPARTMENTS = allDepartments.filter((d) => d.id.startsWith("kd-"));
+
+/** Con số cố định theo id để bảng không nhảy mỗi lần render. */
+const seed = (id: string, salt: number) =>
+  ((id.charCodeAt(id.length - 1) * 31 + salt * 17) % 23) + 4;
+
+function departmentRanking(ratio: number) {
+  return SALES_DEPARTMENTS.map((d) => {
+    const accountsOpened = scale(seed(d.id, 1) * 6, ratio);
+    // Tỉ lệ cài dao động 52–95% để thấy rõ phòng nhiều tài khoản mà cài ít.
+    const rate = 0.52 + (seed(d.id, 2) % 44) / 100;
+    return {
+      id: d.id,
+      name: d.name,
+      accountsOpened,
+      appsInstalled: Math.round(accountsOpened * rate),
+      customers: Math.round(accountsOpened * 0.78),
+    };
+  });
+}
 
 /* ── Cột biểu đồ: độ chia theo kỳ ───────────────────────────────────── */
 
@@ -140,7 +167,11 @@ export function dashboardFor(scope: Scope, periodKey = "today"): DashboardData {
   const chart = makeBuckets(periodKey, scale, RATIO[scope] ?? 1);
 
   if (r === 1) {
-    return { ...COMPANY, insurance: { ...COMPANY.insurance, ...chart } };
+    return {
+      ...COMPANY,
+      insurance: { ...COMPANY.insurance, ...chart },
+      departments: departmentRanking(1),
+    };
   }
 
   const d = COMPANY;
@@ -169,6 +200,7 @@ export function dashboardFor(scope: Scope, periodKey = "today"): DashboardData {
       pendingManual: scale(d.insurance.pendingManual, RATIO[scope] ?? 1),
       ...chart,
     },
+    departments: departmentRanking(r),
     services: {
       byType: d.services.byType.map((s) => ({
         label: s.label,

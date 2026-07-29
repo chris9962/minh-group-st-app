@@ -5,6 +5,7 @@ import { useState } from "react";
 import { TopBar } from "@/components/layout/TopBar";
 import { BarChart } from "@/components/ui/BarChart";
 import { KpiHighlight } from "@/components/ui/KpiHighlight";
+import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import {
   DEFAULT_PERIOD,
   PeriodPicker,
@@ -27,6 +28,50 @@ const BUCKET_LABEL = {
   week: "tuần",
   month: "tháng",
 } as const;
+
+type DepartmentRow = {
+  id: string;
+  name: string;
+  accountsOpened: number;
+  appsInstalled: number;
+  customers: number;
+};
+
+const installRate = (d: DepartmentRow) =>
+  d.accountsOpened === 0 ? 0 : Math.round((d.appsInstalled / d.accountsOpened) * 100);
+
+const DEPARTMENT_COLUMNS: RankColumn<DepartmentRow>[] = [
+  { key: "name", label: "Phòng", render: (d) => d.name },
+  {
+    key: "accountsOpened",
+    label: "TK mở",
+    align: "right",
+    sortBy: (d) => d.accountsOpened,
+    render: (d) => d.accountsOpened,
+  },
+  {
+    key: "appsInstalled",
+    label: "App cài",
+    align: "right",
+    sortBy: (d) => d.appsInstalled,
+    render: (d) => d.appsInstalled,
+  },
+  {
+    key: "installRate",
+    label: "Tỉ lệ cài",
+    align: "right",
+    sortBy: installRate,
+    ratio: installRate,
+    render: (d) => `${installRate(d)}%`,
+  },
+  {
+    key: "customers",
+    label: "Khách hàng",
+    align: "right",
+    sortBy: (d) => d.customers,
+    render: (d) => d.customers,
+  },
+];
 
 /** P-80 · Dashboard tổng — Ban giám đốc và trưởng phòng (phạm vi hẹp hơn). */
 export default function DashboardPage() {
@@ -116,6 +161,25 @@ export default function DashboardPage() {
                     { key: "manual", label: "làm tay", color: "#d67f48" },
                   ]}
                 />
+              </SectionCard>
+
+              <SectionCard
+                title="Xếp hạng phòng"
+                meta={periodLabel}
+                className={styles.wide}
+              >
+                <RankTable
+                  rows={data.departments}
+                  columns={DEPARTMENT_COLUMNS}
+                  rowKey={(d) => d.id}
+                  defaultSort="accountsOpened"
+                  caption="Xếp hạng phòng kinh doanh theo số tài khoản mở, app đã cài, tỉ lệ cài app và số khách hàng"
+                />
+                <p className={styles.footnote}>
+                  Bấm tên cột để sắp xếp. Lật cột <strong>Tỉ lệ cài</strong> để tìm
+                  phòng mở nhiều tài khoản nhưng khách ít cài app — số tài khoản đó
+                  không tính quà, không tính điểm.
+                </p>
               </SectionCard>
 
               <SectionCard title="Dịch vụ theo loại" meta={periodLabel}>

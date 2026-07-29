@@ -39,6 +39,16 @@ export const DashboardData = z.object({
       z.object({ label: z.string(), automatic: z.number(), manual: z.number() }),
     ),
   }),
+  /** Xếp hạng phòng — chỉ gồm các phòng người xem được phép thấy. */
+  departments: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      accountsOpened: z.number(),
+      appsInstalled: z.number(),
+      customers: z.number(),
+    }),
+  ),
   services: z.object({
     byType: z.array(z.object({ label: z.string(), count: z.number() })),
     topWard: z.object({ name: z.string(), count: z.number() }),
