@@ -1,7 +1,10 @@
 import styles from "./KpiHighlight.module.css";
 
 type Props = {
-  kicker: string;
+  /** Nhãn nhỏ phía trên. Bỏ trống thì không hiện. */
+  kicker?: string;
+  /** Tên chỉ số cho trình đọc màn hình — thanh tiến trình cần nó. */
+  ariaLabel: string;
   /** Giá trị phần trăm, 0–100. Dùng luôn cho thanh tiến trình. */
   percent: number;
   description: React.ReactNode;
@@ -9,12 +12,18 @@ type Props = {
 };
 
 /** Thẻ chỉ số chính trên dashboard — số lớn kèm thanh tiến trình. */
-export function KpiHighlight({ kicker, percent, description, detail }: Props) {
+export function KpiHighlight({
+  kicker,
+  ariaLabel,
+  percent,
+  description,
+  detail,
+}: Props) {
   const clamped = Math.max(0, Math.min(100, percent));
 
   return (
     <div className={styles.card}>
-      <span className={styles.kicker}>{kicker}</span>
+      {kicker && <span className={styles.kicker}>{kicker}</span>}
 
       <div className={styles.headline}>
         <strong className={`${styles.value} so`}>{clamped}%</strong>
@@ -27,7 +36,7 @@ export function KpiHighlight({ kicker, percent, description, detail }: Props) {
         aria-valuenow={clamped}
         aria-valuemin={0}
         aria-valuemax={100}
-        aria-label={kicker}
+        aria-label={ariaLabel}
       >
         <span className={styles.fill} style={{ width: `${clamped}%` }} />
       </div>

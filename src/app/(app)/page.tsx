@@ -62,7 +62,7 @@ export default function DashboardPage() {
           <>
             <div className={styles.headline}>
               <KpiHighlight
-                kicker="Chỉ số quan trọng nhất"
+                ariaLabel="Tỉ lệ cài app trên số tài khoản mở"
                 percent={data.installRate.percent}
                 description={
                   <>

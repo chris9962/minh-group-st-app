@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Logo } from "@/components/ui/Logo";
+import { AccountMenu } from "./AccountMenu";
 import { navFor } from "@/lib/nav";
 import type { User } from "@/lib/types";
 import styles from "./Sidebar.module.css";
@@ -21,7 +22,7 @@ export function Sidebar({ user }: { user: User }) {
         <Logo size={32} />
         <span className={styles.identity}>
           <strong>MGST</strong>
-          <span>{user.title}</span>
+          <span>Nền tảng nội bộ</span>
         </span>
       </div>
 
@@ -44,6 +45,10 @@ export function Sidebar({ user }: { user: User }) {
           );
         })}
       </ul>
+
+      <div className={styles.foot}>
+        <AccountMenu user={user} />
+      </div>
     </nav>
   );
 }
