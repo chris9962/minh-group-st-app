@@ -84,7 +84,7 @@
   background: var(--om-sidebar-active);
   color: var(--om-sidebar-ink);
   font-weight: 700;
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 26%);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 45%);
 }
 
 @media (max-width: 900px) {

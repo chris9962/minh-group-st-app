@@ -14,10 +14,9 @@
   --om-soft: #fdfdfc;      /* nền nhạt nhất trong thẻ */
   --om-line: #e4e3e1;      /* đường kẻ / viền */
 
-  /* Sidebar nền cam sâu, mục đang mở sáng hơn cả --om-orange. Chênh nền giữa
-     hai màu này là 1.91:1 nên mục đang mở nổi rõ; bù lại chữ trắng trên
-     #e46c12 chỉ 3.26:1 nên nó phải đi kèm chữ đậm và viền trong. */
-  --om-sidebar: #a04606;
+  /* Sidebar đúng bằng --om-orange; mục đang mở sáng hơn một bậc. Chênh nền
+     giữa hai màu chỉ 1.14:1 nên rìa pill phải nhờ viền trong, không nhờ màu. */
+  --om-sidebar: #d8620f;
   --om-sidebar-active: #e46c12;
   --om-sidebar-ink: #ffffff;
   --om-sidebar-ink-2: rgb(255 255 255 / 72%);
