@@ -8,11 +8,11 @@
      Tên --om-* là nguồn; các tên --color-* bên dưới chỉ là bí danh để
      component cũ không phải sửa. Đổi màu thì đổi ở khối --om-*. */
   --om-bg: #ffffff;        /* nền trang */
-  --om-card: #eeeeec;      /* thẻ / card */
-  --om-surface: #ededeb;   /* chip, ô nhập, thanh phân đoạn */
-  --om-panel: #f4f4f2;     /* sidebar */
-  --om-soft: #fafafa;      /* nền nhạt nhất trong thẻ */
-  --om-line: #dedddb;      /* đường kẻ / viền */
+  --om-card: #f5f5f3;      /* thẻ / card */
+  --om-surface: #f0f0ee;   /* chip, ô nhập, thanh phân đoạn */
+  --om-panel: #fafaf9;     /* sidebar */
+  --om-soft: #fdfdfc;      /* nền nhạt nhất trong thẻ */
+  --om-line: #e4e3e1;      /* đường kẻ / viền */
 
   --om-text: #201e1d;      /* chữ chính */
   --om-text-2: #645c50;    /* chữ phụ */
