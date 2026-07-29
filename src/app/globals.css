@@ -2,20 +2,30 @@
 
 /* Chỉ để những gì design system không lo. Token và component đều ở organic.css. */
 
-html {
-  height: 100%;
+/* Máy tính: sidebar và vùng nội dung tự cuộn bên trong AppShell, còn TÀI LIỆU
+   thì không cuộn — khoá luôn ở đây cho chắc.
+
+   Trước đây html/body đo bằng `100%` còn khung app đo bằng `100dvh`. Hai cách
+   đo này KHÔNG bằng nhau: đơn vị vh/dvh tính cả phần thanh cuộn chiếm chỗ, còn
+   chiều cao nhìn thấy thì không. Máy nào bật thanh cuộn kiểu cũ (chiếm chỗ
+   thật) là khung app cao hơn phần nhìn thấy đúng bằng bề dày thanh cuộn, và
+   body mọc thêm một thanh cuộn thứ hai.
+
+   Điện thoại thì ngược lại — cả trang phải cuộn được nên không đặt gì. */
+@media (min-width: 901px) {
+  html,
+  body {
+    height: 100%;
+    overflow: hidden;
+  }
 }
 
-/* KHÔNG đặt overflow-x: hidden ở đây.
-   Nó biến html/body thành khung cuộn riêng và làm hỏng position: sticky của
-   sidebar. Nội dung rộng thì cuộn trong khung của nó bằng .bang-cuon. */
-html,
+/* KHÔNG đặt lại max-width: 100vw ở đây. 100vw tính cả bề dày thanh cuộn dọc,
+   nên chính nó là thứ đẩy body rộng hơn phần nhìn thấy và sinh ra tràn ngang.
+   Bảng rộng thì cuộn trong khung của nó bằng .bang-cuon.
+   Cũng KHÔNG đặt overflow-x: hidden — nó biến body thành khung cuộn và làm
+   hỏng position: sticky bên trong. */
 body {
-  max-width: 100vw;
-}
-
-body {
-  min-height: 100%;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }

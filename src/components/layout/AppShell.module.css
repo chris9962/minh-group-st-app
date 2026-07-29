@@ -2,8 +2,11 @@
    Trang dài bao nhiêu thì sidebar cũng đứng yên, khối tài khoản ở chân luôn
    trong tầm nhìn. Cách này chắc hơn position:sticky vì không phụ thuộc vào
    overflow của html/body. */
+/* 100% của body chứ KHÔNG phải 100dvh: vh tính cả chỗ thanh cuộn chiếm, phần
+   trăm thì đo đúng chiều cao nhìn thấy. Lấy dvh là khung app luôn cao hơn màn
+   hình đúng bằng bề dày thanh cuộn. */
 .shell {
-  height: 100dvh;
+  height: 100%;
   display: flex;
   overflow: hidden;
   background: var(--om-bg);
