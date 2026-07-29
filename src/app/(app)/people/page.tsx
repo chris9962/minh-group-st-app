@@ -142,7 +142,7 @@ export default function PeoplePage() {
               <StatCard value={average} label="điểm trung bình" />
             </div>
 
-            <SectionCard title="Nhân viên" meta={monthLabel(month)}>
+            <SectionCard title="Nhân viên" meta={monthLabel(month)} variant="plain">
               <RankTable
                 rows={people}
                 columns={COLUMNS}

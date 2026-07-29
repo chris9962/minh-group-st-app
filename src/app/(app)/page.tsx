@@ -166,6 +166,7 @@ export default function DashboardPage() {
               <SectionCard
                 title="Xếp hạng phòng"
                 meta={periodLabel}
+                variant="plain"
                 className={styles.wide}
               >
                 <RankTable

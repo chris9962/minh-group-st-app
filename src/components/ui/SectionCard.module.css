@@ -8,6 +8,11 @@
   min-width: 0;
 }
 
+.plain {
+  background: none;
+  padding: 0;
+}
+
 .head {
   display: flex;
   align-items: baseline;

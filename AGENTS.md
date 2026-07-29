@@ -54,6 +54,9 @@ Quy tắc:
   **Không viết mã màu và khoảng cách cứng.** Ngoại lệ duy nhất: khối thương hiệu
   `BrandPanel` dùng đúng màu bộ nhận diện, có ghi chú lý do.
 - Component của design system dùng qua class có sẵn: `.btn`, `.input`, `.card`, `.tag`, `.table`
+- **Đừng lạm dụng nền màu của card.** Bảng vốn đã có đường kẻ hàng để phân nhóm —
+  bọc thêm một mảng nền quanh nó chỉ làm trang nặng màu mà không thêm thông tin.
+  Bảng đặt thẳng trên nền trang: `<SectionCard variant="plain">`
 - Không thêm Tailwind, không thêm thư viện component có style riêng — sẽ thành hai hệ thống
 
 ## 4. Kiểu dữ liệu
