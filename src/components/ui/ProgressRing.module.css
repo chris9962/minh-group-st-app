@@ -38,10 +38,12 @@
   line-height: 1.05;
 }
 
+/* Số dùng font thân 800 — slab dày ở giữa vòng đọc nặng và bí. */
 .value {
-  font-family: var(--font-heading);
-  font-weight: var(--font-heading-weight);
-  font-size: 26px;
+  font-family: var(--font-body);
+  font-weight: 800;
+  font-size: 27px;
+  letter-spacing: -0.02em;
 }
 
 /* Đạt chỉ tiêu thì số đổi màu trạng thái — cùng ngôn ngữ với nhãn "Đã đạt". */

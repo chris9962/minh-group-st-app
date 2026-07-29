@@ -9,25 +9,19 @@
   min-width: 0;
 }
 
+/* Thẻ chỉ số chính rộng gấp đôi hai thẻ số bên phải: nó là câu trả lời cho
+   "hôm nay công ty chạy tốt không", hai thẻ kia chỉ là số thô đỡ nó. */
 .headline {
-  display: flex;
-  gap: 18px;
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 16px;
   align-items: stretch;
 }
 
-.headline > :first-child {
-  width: 392px;
-  flex: none;
-}
-
-/* 2×2 và giãn hết chiều cao để khối phải cân với thẻ chỉ số bên trái,
-   thay vì bốn thẻ dẹt nằm trên cùng rồi để trống bên dưới. */
-.statGrid {
-  flex: 1;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-template-rows: repeat(2, minmax(0, 1fr));
-  gap: 14px;
+@media (max-width: 1100px) {
+  .headline {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .grid {
@@ -74,8 +68,9 @@
 
 .pairs dd {
   margin: 0;
-  font-family: var(--font-heading);
-  font-size: 17px;
+  font-family: var(--font-body);
+  font-weight: 800;
+  font-size: 18px;
 }
 
 .footnote {

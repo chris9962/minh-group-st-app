@@ -42,7 +42,14 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="vi" className={`${fontTieuDe.variable} ${fontThan.variable}`}>
+    // suppressHydrationWarning: script dưới đây CỐ Ý sửa thẻ html trước khi
+    // React so khớp, nên máy chủ không có data-theme còn trình duyệt thì có.
+    // Đây là lệch có chủ đích và chỉ nằm trên đúng thẻ này.
+    <html
+      lang="vi"
+      className={`${fontTieuDe.variable} ${fontThan.variable}`}
+      suppressHydrationWarning
+    >
       <head>
         {/*
           Gắn data-theme TRƯỚC khi vẽ. Để React gắn trong effect thì khung hình

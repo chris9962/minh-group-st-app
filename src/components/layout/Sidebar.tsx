@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Logo } from "@/components/ui/Logo";
 import { AccountMenu } from "./AccountMenu";
+import { NavIcon } from "./NavIcon";
 import { navFor } from "@/lib/nav";
 import type { User } from "@/lib/types";
 import styles from "./Sidebar.module.css";
@@ -39,6 +40,7 @@ export function Sidebar({ user }: { user: User }) {
                   .join(" ")}
                 aria-current={active ? "page" : undefined}
               >
+                <NavIcon name={item.icon} />
                 {item.label}
               </Link>
             </li>

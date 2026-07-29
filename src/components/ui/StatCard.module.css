@@ -4,15 +4,18 @@
   justify-content: center;
   gap: 2px;
   align-items: flex-start;
-  padding: 14px 16px;
-  border-radius: 20px;
-  background: var(--color-surface);
+  padding: 16px 18px;
+  border-radius: var(--radius-lg);
+  background: var(--om-card);
+  border: 1px solid var(--om-line);
 }
 
 .value {
-  font-family: var(--font-heading);
-  font-size: 26px;
-  line-height: 1.1;
+  font-family: var(--font-body);
+  font-weight: 800;
+  font-size: 28px;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
 }
 
 /* Cam chính, KHÔNG dùng --om-orange-ink: màu đó dành cho chữ trên nền cảnh

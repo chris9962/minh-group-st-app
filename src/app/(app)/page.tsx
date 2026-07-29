@@ -15,6 +15,7 @@ import {
 import { ScopeSwitcher } from "@/components/ui/ScopeSwitcher";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatCard } from "@/components/ui/StatCard";
+import { StatStack } from "@/components/ui/StatStack";
 import { fetchDashboard } from "@/lib/api/dashboard";
 import { useChartColors } from "@/lib/chart-colors";
 import { availableScopes } from "@/lib/permissions";
@@ -118,19 +119,35 @@ export default function DashboardPage() {
                     số tài khoản mở
                   </>
                 }
-                detail={`${data.installRate.appsInstalled} app / ${data.installRate.accountsOpened} tài khoản mở ${periodLabel} · kỳ trước ${data.installRate.previousPercent}%`}
+                detail={`${data.installRate.appsInstalled} app / ${data.installRate.accountsOpened} tài khoản mở ${periodLabel}`}
+                delta={{
+                  up: data.installRate.percent >= data.installRate.previousPercent,
+                  text: `kỳ trước ${data.installRate.previousPercent}% (${
+                    data.installRate.percent >= data.installRate.previousPercent ? "↑" : "↓"
+                  } ${Math.abs(data.installRate.percent - data.installRate.previousPercent)}%)`,
+                }}
               />
 
-              <div className={styles.statGrid}>
-                <StatCard value={data.banking.accountsOpened} label="tài khoản mở" />
-                <StatCard value={data.banking.appsInstalled} label="app đã cài" />
-                <StatCard value={data.banking.customers} label={`khách hàng ${periodLabel}`} />
-                <StatCard
-                  value={data.banking.giftsPending}
-                  label="đủ ĐK quà, chưa phát"
-                  tone="attention"
-                />
-              </div>
+              <StatStack
+                items={[
+                  { value: data.banking.accountsOpened, label: "tài khoản mở" },
+                  {
+                    value: data.banking.customers,
+                    label: `khách hàng ${periodLabel}`,
+                  },
+                ]}
+              />
+
+              <StatStack
+                items={[
+                  { value: data.banking.appsInstalled, label: "app đã cài" },
+                  {
+                    value: data.banking.giftsPending,
+                    label: "chưa phát thưởng",
+                    badge: "Đủ ĐK quà",
+                  },
+                ]}
+              />
             </div>
 
             <div className={styles.grid}>

@@ -62,12 +62,23 @@
 .item {
   display: flex;
   align-items: center;
-  gap: 9px;
-  padding: 10px 13px;
-  border-radius: 999px;
+  gap: 11px;
+  padding: 11px 13px;
+  border-radius: var(--radius-md);
   font-size: 13.5px;
   font-weight: 600;
   color: var(--om-sidebar-ink);
+}
+
+.item svg {
+  flex: none;
+  /* Icon mờ hơn chữ một bậc để chữ vẫn là thứ đọc trước; mục đang mở thì cả
+     hai cùng trắng nên bỏ độ mờ đi. */
+  opacity: 0.72;
+}
+
+.active svg {
+  opacity: 1;
 }
 
 .item:hover {

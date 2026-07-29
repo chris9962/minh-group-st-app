@@ -99,9 +99,11 @@
   --space-6: 26.4px;
   --space-8: 35.2px;
 
-  --radius-sm: 8px;
-  --radius-md: 16px;
-  --radius-lg: 28px;
+  /* Bo góc vừa phải. Bo quá tròn làm ô nhập trông như viên thuốc và bảng mất
+     cảm giác thẳng hàng. */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
 
   /* Đổ bóng xám trung tính, không ám nâu như bảng màu cũ. */
   --shadow-sm: 0 1px 2px rgb(var(--om-shadow-color) / 8%);
@@ -346,6 +348,10 @@ textarea.input { min-height: 90px; resize: vertical; }
 
 /* — rounded frame: everything softens, small controls go pill — */
 .card, .dialog { border-radius: calc(var(--radius-lg) * 1.15); }
-.btn, .tag, .seg, .input { border-radius: 999px; }
+/* Nút và ô nhập bo vừa phải, KHÔNG bo tròn hết cỡ — viên thuốc làm hàng nút
+   và hàng ô nhập mất cảm giác thẳng hàng. Riêng .tag vẫn tròn: nhãn trạng thái
+   ngắn, tròn mới ra dáng nhãn. */
+.btn, .seg, .input { border-radius: var(--radius-md); }
+.tag { border-radius: 999px; }
 .input { padding-inline: 14px; }
 

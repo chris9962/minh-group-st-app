@@ -9,6 +9,8 @@ type Props = {
   percent: number;
   description: React.ReactNode;
   detail: React.ReactNode;
+  /** So với kỳ trước, nằm bên phải chân thẻ. Tăng thì xanh, giảm thì cam. */
+  delta?: { text: string; up: boolean };
 };
 
 /** Thẻ chỉ số chính trên dashboard — số lớn kèm thanh tiến trình. */
@@ -18,6 +20,7 @@ export function KpiHighlight({
   percent,
   description,
   detail,
+  delta,
 }: Props) {
   const clamped = Math.max(0, Math.min(100, percent));
 
@@ -28,6 +31,27 @@ export function KpiHighlight({
       <div className={styles.headline}>
         <strong className={`${styles.value} so`}>{clamped}%</strong>
         <span className={styles.description}>{description}</span>
+
+        <span className={styles.icon} aria-hidden>
+          <svg viewBox="0 0 24 24" width="20" height="20" focusable="false">
+            <rect
+              x="7"
+              y="2.5"
+              width="10"
+              height="19"
+              rx="2.4"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.7"
+            />
+            <path
+              d="M10.6 18.4h2.8"
+              stroke="currentColor"
+              strokeWidth="1.7"
+              strokeLinecap="round"
+            />
+          </svg>
+        </span>
       </div>
 
       <div
@@ -41,7 +65,14 @@ export function KpiHighlight({
         <span className={styles.fill} style={{ width: `${clamped}%` }} />
       </div>
 
-      <span className={styles.detail}>{detail}</span>
+      <div className={styles.foot}>
+        <span className={styles.detail}>{detail}</span>
+        {delta && (
+          <span className={delta.up ? styles.deltaUp : styles.deltaDown}>
+            {delta.text}
+          </span>
+        )}
+      </div>
     </div>
   );
 }
