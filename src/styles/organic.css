@@ -41,9 +41,12 @@
 
   /* Màu trạng thái — KHÔNG phải màu thứ tư của bộ nhận diện. Chỉ dùng cho
      "đạt / không đạt", không dùng cho trang trí. */
-  --om-green: #7a8a5e;        /* viền, ký hiệu */
-  --om-green-soft: #e1eecc;   /* nền nhãn */
-  --om-green-ink: #56633f;    /* chữ trên nền nhãn */
+  /* Xanh thật, KHÔNG lấy dải `positive` của bảng màu gửi sang: dải đó ở sắc 82°
+     và bão hoà 19–22% nên ra ô-liu, mắt đọc thành nâu xám chứ không thành "tốt".
+     Bộ này ở sắc 148° — vẫn dịu để hợp nền kem, nhưng là xanh. */
+  --om-green: #3f8f5f;        /* viền, ký hiệu */
+  --om-green-soft: #e4f2e8;   /* nền nhãn */
+  --om-green-ink: #23724a;    /* chữ — 5.9:1 trên nền trắng */
 
   /* Chip theo màu chính: nền cam rất nhạt, chữ đúng màu chính. */
   --om-chip-bg: #fbece5;
@@ -146,9 +149,9 @@
   --om-orange-light: #5a3316;
   --om-orange-2: #fb923c;
 
-  --om-green: #6fae88;
-  --om-green-soft: #1d3a2c;
-  --om-green-ink: #9fd3b4;
+  --om-green: #4fae7d;
+  --om-green-soft: #14321f;
+  --om-green-ink: #7fdaa4;
 
   --om-chip-bg: #3b2110;
   --om-chip-ink: #fdba74;
