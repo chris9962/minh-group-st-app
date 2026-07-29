@@ -58,16 +58,24 @@ export const totalPoints = (p: PersonScore) => p.bankingPoints + p.servicePoints
 export const isOnTarget = (p: PersonScore) => totalPoints(p) >= p.target;
 export const pointsGap = (p: PersonScore) => totalPoints(p) - p.target;
 
-export async function fetchPeople(
-  scope: Scope,
-  period: string,
-  summaryMonth: string,
-  departmentId: string,
-): Promise<PeopleData> {
-  const res = await fetch(
-    `/api/people?scope=${scope}&period=${period}&summaryMonth=${summaryMonth}` +
-      `&departmentId=${encodeURIComponent(departmentId)}`,
-  );
+export type PeopleQuery = {
+  scope: Scope;
+  period: string;
+  summaryMonth: string;
+  departmentId: string;
+  /** Tìm theo tên nhân viên hoặc tên đơn vị. Không dấu cũng khớp. */
+  search: string;
+};
+
+export async function fetchPeople(query: PeopleQuery): Promise<PeopleData> {
+  const params = new URLSearchParams({
+    scope: query.scope,
+    period: query.period,
+    summaryMonth: query.summaryMonth,
+    departmentId: query.departmentId,
+    search: query.search,
+  });
+  const res = await fetch(`/api/people?${params}`);
   if (!res.ok) throw new Error('Không tải được danh sách nhân viên');
   return PeopleData.parse(await res.json());
 }

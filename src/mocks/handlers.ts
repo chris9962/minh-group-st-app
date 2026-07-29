@@ -93,12 +93,13 @@ export const handlers = [
     const params = new URL(request.url).searchParams;
     const parsed = Scope.safeParse(params.get("scope"));
     return HttpResponse.json(
-      peopleFor(
-        parsed.success ? parsed.data : "company",
-        params.get("period") ?? "today",
-        params.get("summaryMonth") ?? "",
-        params.get("departmentId") || undefined,
-      ),
+      peopleFor({
+        scope: parsed.success ? parsed.data : "company",
+        period: params.get("period") ?? "today",
+        summaryMonth: params.get("summaryMonth") ?? "",
+        departmentId: params.get("departmentId") || undefined,
+        search: params.get("search") ?? "",
+      }),
     );
   }),
 

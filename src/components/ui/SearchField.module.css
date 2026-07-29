@@ -1,0 +1,71 @@
+.wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.icon {
+  position: absolute;
+  left: 11px;
+  width: 15px;
+  height: 15px;
+  color: var(--om-text-3);
+  pointer-events: none;
+}
+
+.input {
+  width: 210px;
+  min-height: 34px;
+  padding-left: 32px;
+  padding-right: 30px;
+  font-size: 13px;
+}
+
+/* Nút xoá mặc định của WebKit trùng chỗ với nút xoá tự dựng bên dưới. */
+.input::-webkit-search-cancel-button {
+  appearance: none;
+}
+
+.clear {
+  position: absolute;
+  right: 5px;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--om-text-2);
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+/* Vùng bấm 44px cho ngón tay, còn hình thì vẫn nhỏ gọn trong ô nhập. */
+.clear::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 44px;
+  height: 44px;
+  transform: translate(-50%, -50%);
+}
+
+.clear:hover {
+  background: var(--om-surface);
+  color: var(--om-text);
+}
+
+@media (max-width: 900px) {
+  .input {
+    width: 100%;
+  }
+
+  .wrap {
+    flex: 1;
+    min-width: 160px;
+  }
+}

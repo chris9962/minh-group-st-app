@@ -24,7 +24,9 @@ import {
   type PersonScore,
 } from "@/lib/api/people";
 import { fetchDepartments } from "@/lib/api/departments";
+import { SearchField } from "@/components/ui/SearchField";
 import { exportExcel } from "@/lib/excel";
+import { useDebouncedValue } from "@/lib/hooks";
 import { availableScopes } from "@/lib/permissions";
 import type { Scope } from "@/lib/types";
 import { useSession } from "@/store/session";
@@ -87,6 +89,8 @@ export default function PeoplePage() {
   const [scope, setScope] = useState<Scope>(scopes.at(-1) ?? "own");
   const [period, setPeriod] = useState<PeriodMode>({ kind: "this-month" });
   const [departmentId, setDepartmentId] = useState("");
+  const [search, setSearch] = useState("");
+  const searchQuery = useDebouncedValue(search);
 
   const { data: departments = [] } = useQuery({
     queryKey: ["departments"],
@@ -99,8 +103,18 @@ export default function PeoplePage() {
   const param = periodParam(period, current);
 
   const { data, isPending, isError } = useQuery({
-    queryKey: ["people", scope, param, summaryMonth, departmentId],
-    queryFn: () => fetchPeople(scope, param, summaryMonth, departmentId),
+    queryKey: ["people", scope, param, summaryMonth, departmentId, searchQuery],
+    queryFn: () =>
+      fetchPeople({
+        scope,
+        period: param,
+        summaryMonth,
+        departmentId,
+        search: searchQuery,
+      }),
+    // Giữ bảng cũ trong lúc gõ tiếp — không thì mỗi lần đổi từ khoá bảng lại
+    // biến mất rồi hiện lại, nhìn giật.
+    placeholderData: (previous) => previous,
   });
 
   const people = data?.people ?? [];
@@ -136,6 +150,12 @@ export default function PeoplePage() {
   return (
     <>
       <TopBar title="Nhân sự & KPI">
+        <SearchField
+          label="Tìm nhân viên"
+          placeholder="Tìm tên nhân viên, đơn vị…"
+          value={search}
+          onChange={setSearch}
+        />
         <ScopeSwitcher options={scopes} value={scope} onChange={setScope} />
         <Select
           label="Đơn vị"
@@ -175,10 +195,20 @@ export default function PeoplePage() {
               <StatCard value={data.summary.averagePoints} label="điểm trung bình" />
             </div>
 
-            <SectionCard title="Nhân viên" meta={periodText} variant="plain">
+            <SectionCard
+              title="Nhân viên"
+              meta={
+                searchQuery
+                  ? `${periodText} · khớp ${people.length}/${data.summary.headcount}`
+                  : periodText
+              }
+              variant="plain"
+            >
               {people.length === 0 && (
                 <p className="text-muted">
-                  Không có nhân viên nào trong đơn vị đang lọc.
+                  {searchQuery
+                    ? `Không tìm thấy nhân viên nào khớp “${searchQuery}”.`
+                    : "Không có nhân viên nào trong đơn vị đang lọc."}
                 </p>
               )}
               <RankTable
@@ -190,6 +220,13 @@ export default function PeoplePage() {
                 pageSize={10}
                 caption={`Nhân viên và số liệu ${periodText}`}
               />
+              {searchQuery && (
+                <p className={styles.footnote}>
+                  Bốn số tóm tắt phía trên không đổi theo ô tìm kiếm — chúng là
+                  của cả {departmentId ? "đơn vị đang lọc" : "phạm vi đang xem"},
+                  còn ô tìm kiếm chỉ lọc bảng.
+                </p>
+              )}
               <p className={styles.footnote}>
                 {withKpi ? (
                   <>

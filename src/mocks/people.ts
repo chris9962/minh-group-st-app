@@ -1,4 +1,5 @@
 import type { PeopleData, PersonScore } from "@/lib/api/people";
+import { matchesSearch } from "@/lib/format";
 import type { Scope } from "@/lib/types";
 import { departments as allDepartments } from "./data";
 
@@ -61,12 +62,19 @@ const toDaily = (p: PersonScore): PersonScore => ({
   insuranceOrders: Math.round(p.insuranceOrders / 22),
 });
 
-export function peopleFor(
-  scope: Scope,
-  period: string,
-  summaryMonth: string,
-  departmentId?: string,
-): PeopleData {
+export function peopleFor({
+  scope,
+  period,
+  summaryMonth,
+  departmentId,
+  search = "",
+}: {
+  scope: Scope;
+  period: string;
+  summaryMonth: string;
+  departmentId?: string;
+  search?: string;
+}): PeopleData {
   const inScope = ALL.slice(0, TAKE[scope] ?? ALL.length);
   // Lọc đơn vị áp lên CẢ phần tóm tắt, không chỉ bảng — nếu không thì "12 nhân
   // viên" sẽ mâu thuẫn với bảng đang hiện 4 người của một phòng.
@@ -94,6 +102,14 @@ export function peopleFor(
       )
     : 0;
 
+  const rows = period === "today" ? monthly.map(toDaily) : monthly;
+  // Tìm kiếm KHÔNG áp lên phần tóm tắt: gõ tên một người không có nghĩa là
+  // phòng chỉ còn một người, và "điểm trung bình" của đúng một người thì vô
+  // nghĩa. Lọc đơn vị thì ngược lại — nó đổi hẳn nhóm người đang xem.
+  const found = search
+    ? rows.filter((p) => matchesSearch(`${p.fullName} ${p.departmentName}`, search))
+    : rows;
+
   return {
     summaryMonth,
     daysLeft: isCurrentMonth ? Math.max(0, lastDay - now.getDate()) : 0,
@@ -103,6 +119,6 @@ export function peopleFor(
       offTarget: monthly.length - onTarget,
       averagePoints: average,
     },
-    people: period === "today" ? monthly.map(toDaily) : monthly,
+    people: found,
   };
 }
