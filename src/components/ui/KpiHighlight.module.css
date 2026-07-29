@@ -80,9 +80,8 @@
   color: var(--om-text-2);
 }
 
-/* Tăng thì xanh, giảm thì cam. Lấy --om-orange-ink chứ không lấy --om-orange:
-   chữ 12px nên cần sắc cam đậm, cam chính chỉ đạt 3,5:1 trên nền thẻ.
-   Mũi tên ↑ ↓ luôn đi kèm nên màu không phải kênh truyền đạt duy nhất. */
+/* Tăng thì xanh, giảm thì cam chính. Mũi tên ↑ ↓ luôn đi kèm nên màu không phải
+   kênh truyền đạt duy nhất — cần thế vì cam chính chỉ đạt 3,5:1 ở cỡ chữ này. */
 .deltaUp,
 .deltaDown {
   font-size: 12.5px;
@@ -95,7 +94,7 @@
 }
 
 .deltaDown {
-  color: var(--om-orange-ink);
+  color: var(--om-orange);
 }
 
 @media (max-width: 900px) {
