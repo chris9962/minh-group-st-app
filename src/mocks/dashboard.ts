@@ -19,7 +19,7 @@ const COMPANY: DashboardData = {
   },
   insurance: {
     createdToday: 24,
-    fireCount: 9,
+    electricCount: 9,
     motorbikeCount: 15,
     completed: 17,
     completedPercent: 71,
@@ -44,7 +44,7 @@ const COMPANY: DashboardData = {
       { label: "Tiền mặt 20.000đ", count: 26 },
       { label: "1 năm BH xe máy", count: 19 },
       { label: "Tiền mặt 50.000đ", count: 14 },
-      { label: "1 năm BH điện 100k", count: 11 },
+      { label: "1 năm BH tai nạn điện 100k", count: 11 },
       { label: "Nón bảo hiểm", count: 8 },
       { label: "2 năm BH xe máy", count: 6 },
       { label: "Mì", count: 5 },
@@ -204,7 +204,7 @@ export function dashboardFor(scope: Scope, periodKey = "today"): DashboardData {
     insurance: {
       ...d.insurance,
       createdToday: scale(d.insurance.createdToday, r),
-      fireCount: scale(d.insurance.fireCount, r),
+      electricCount: scale(d.insurance.electricCount, r),
       motorbikeCount: scale(d.insurance.motorbikeCount, r),
       completed: scale(d.insurance.completed, r),
       // Đơn tồn là số tức thời, chỉ co theo phạm vi chứ không theo kỳ.

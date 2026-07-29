@@ -22,7 +22,9 @@ export const DashboardData = z.object({
   }),
   insurance: z.object({
     createdToday: z.number(),
-    fireCount: z.number(),
+    /** Bảo hiểm tai nạn hộ sử dụng điện. */
+    electricCount: z.number(),
+    /** Bảo hiểm xe máy. */
     motorbikeCount: z.number(),
     completed: z.number(),
     completedPercent: z.number(),

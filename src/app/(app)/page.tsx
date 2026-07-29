@@ -137,7 +137,7 @@ export default function DashboardPage() {
                   <StatCard
                     value={data.insurance.createdToday}
                     label={`đơn BH tạo ${periodLabel}`}
-                    detail={`cháy nổ ${data.insurance.fireCount} · xe máy ${data.insurance.motorbikeCount}`}
+                    detail={`BH tai nạn điện ${data.insurance.electricCount} · BH xe máy ${data.insurance.motorbikeCount}`}
                   />
                   <StatCard
                     value={data.insurance.completed}
