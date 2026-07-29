@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { Briefcase, Gift, ShieldCheck, Trophy } from "lucide-react";
 import { TopBar } from "@/components/layout/TopBar";
 import { BarChart } from "@/components/ui/BarChart";
 import { KpiHighlight } from "@/components/ui/KpiHighlight";
@@ -151,7 +152,11 @@ export default function DashboardPage() {
             </div>
 
             <div className={styles.grid}>
-              <SectionCard title={`Bảo hiểm ${periodLabel}`} className={styles.wide}>
+              <SectionCard
+                title={`Bảo hiểm ${periodLabel}`}
+                icon={<ShieldCheck size={17} />}
+                className={styles.wide}
+              >
                 <div className={styles.statRow}>
                   <StatCard
                     value={data.insurance.createdToday}
@@ -184,8 +189,8 @@ export default function DashboardPage() {
 
               <SectionCard
                 title="Xếp hạng phòng"
+                icon={<Trophy size={17} />}
                 meta={periodLabel}
-                variant="plain"
                 className={styles.wide}
               >
                 <RankTable
@@ -202,7 +207,11 @@ export default function DashboardPage() {
                 </p>
               </SectionCard>
 
-              <SectionCard title="Dịch vụ theo loại" meta={periodLabel}>
+              <SectionCard
+                title="Dịch vụ theo loại"
+                icon={<Briefcase size={17} />}
+                meta={periodLabel}
+              >
                 <dl className={styles.pairs}>
                   {data.services.byType.map((s) => (
                     <div key={s.label}>
@@ -217,7 +226,11 @@ export default function DashboardPage() {
                 </p>
               </SectionCard>
 
-              <SectionCard title="Quà đã tặng" meta={periodLabel}>
+              <SectionCard
+                title="Quà đã tặng"
+                icon={<Gift size={17} />}
+                meta={periodLabel}
+              >
                 <dl className={styles.pairs}>
                   {data.gifts.byType.map((g) => (
                     <div key={g.label}>

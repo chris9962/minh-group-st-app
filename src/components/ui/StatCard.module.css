@@ -8,6 +8,7 @@
   border-radius: var(--radius-lg);
   background: var(--om-card);
   border: 1px solid var(--om-line);
+  box-shadow: var(--shadow-sm);
 }
 
 .value {

@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState } from "react";
+import { Users } from "lucide-react";
 import { TopBar } from "@/components/layout/TopBar";
 import { Button } from "@/components/ui/Button";
 import { monthLabel, thisMonth } from "@/components/ui/MonthPicker";
@@ -327,12 +328,12 @@ export default function PeoplePage() {
 
             <SectionCard
               title="Nhân viên"
+              icon={<Users size={17} />}
               meta={
                 searchQuery
                   ? `${periodText} · khớp ${people.length}/${data.summary.headcount}`
                   : periodText
               }
-              variant="plain"
             >
               {people.length === 0 && (
                 <p className="text-muted">

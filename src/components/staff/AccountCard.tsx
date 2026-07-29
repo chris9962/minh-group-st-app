@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { KeyRound } from "lucide-react";
 import { useState } from "react";
 import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
@@ -67,7 +68,7 @@ export function AccountCard({ staffId }: { staffId: string }) {
   if (!canManage || !staff) return null;
 
   return (
-    <SectionCard title="Tài khoản">
+    <SectionCard title="Tài khoản" icon={<KeyRound size={17} />}>
       <dl className={styles.rows}>
         <Row label="Tên đăng nhập" value={staff.username} mono />
         <Row

@@ -66,9 +66,11 @@ Quy tắc:
   **Không viết mã màu và khoảng cách cứng.** Ngoại lệ duy nhất: khối thương hiệu
   `BrandPanel` dùng đúng màu bộ nhận diện, có ghi chú lý do.
 - Component của design system dùng qua class có sẵn: `.btn`, `.input`, `.card`, `.tag`, `.table`
-- **Đừng lạm dụng nền màu của card.** Bảng vốn đã có đường kẻ hàng để phân nhóm —
-  bọc thêm một mảng nền quanh nó chỉ làm trang nặng màu mà không thêm thông tin.
-  Bảng đặt thẳng trên nền trang: `<SectionCard variant="plain">`
+- **Thẻ = nền `--om-card` + viền `--om-line` + `--shadow-sm`.** Nền trang là màu
+  kem nên thẻ trắng đọc ra khối nổi, không phải mảng màu — khác với bảng màu cũ
+  (thẻ xám trên nền trắng) từng làm trang nặng màu. Mọi khối nội dung đi qua
+  `SectionCard`; `variant="plain"` chỉ dùng khi cố ý đặt thẳng lên nền trang.
+- Tiêu đề khối nên có icon (`lucide-react`, `size={17}`) để nhận ra khi cuộn nhanh.
 - Không thêm Tailwind, không thêm thư viện component có style riêng — sẽ thành hai hệ thống
 
 ## 4. Kiểu dữ liệu

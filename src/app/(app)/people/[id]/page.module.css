@@ -148,6 +148,16 @@
   font-size: 16px;
 }
 
+/* Bảng ở cột phải cũng là một thẻ — cùng nền, cùng viền, cùng bóng với các
+   thẻ bên trái, nếu không nó trông như đang nằm rơi trên nền trang. */
+.panel {
+  background: var(--om-card);
+  border: 1px solid var(--om-line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-4);
+}
+
 .footnote {
   margin: 10px 0 0;
   font-size: 12px;

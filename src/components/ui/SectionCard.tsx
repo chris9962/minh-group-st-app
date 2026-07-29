@@ -2,6 +2,8 @@ import styles from "./SectionCard.module.css";
 
 type Props = {
   title: string;
+  /** Icon nhỏ trước tiêu đề — giúp nhận ra khối khi cuộn nhanh. */
+  icon?: React.ReactNode;
   /** Chú thích bên phải tiêu đề, ví dụ "7 ngày". */
   meta?: string;
   /**
@@ -18,6 +20,7 @@ type Props = {
 /** Khối nội dung có tiêu đề trên dashboard và các màn chi tiết. */
 export function SectionCard({
   title,
+  icon,
   meta,
   variant = "card",
   children,
@@ -30,6 +33,11 @@ export function SectionCard({
         .join(" ")}
     >
       <header className={styles.head}>
+        {icon && (
+          <span className={styles.icon} aria-hidden>
+            {icon}
+          </span>
+        )}
         <h2 className={styles.title}>{title}</h2>
         {meta && <span className={styles.meta}>{meta}</span>}
       </header>

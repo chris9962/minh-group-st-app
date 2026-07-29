@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { use, useState } from "react";
+import { ChartColumn } from "lucide-react";
 import { TopBar } from "@/components/layout/TopBar";
 import { AccountCard } from "@/components/staff/AccountCard";
 import { BarChart } from "@/components/ui/BarChart";
@@ -226,7 +227,7 @@ export default function PersonPage({
               <AccountCard staffId={id} />
 
               {withKpi && (
-                <SectionCard title="Điểm theo tháng">
+                <SectionCard title="Điểm theo tháng" icon={<ChartColumn size={17} />}>
                   <BarChart
                     rows={data.monthlyPoints.map((m) => ({
                       label: shortMonth(m.month),
@@ -260,7 +261,7 @@ export default function PersonPage({
                   />
 
                   {activeTab === "accounts" && (
-                    <>
+                    <div className={styles.panel}>
                       <RankTable
                         rows={customers}
                         columns={ACCOUNT_COLUMNS}
@@ -275,29 +276,33 @@ export default function PersonPage({
                         Ô <strong>App đã cài</strong> ghi kèm loại đăng ký khi có:{" "}
                         <em>VPa (CNKD)</em>.
                       </p>
-                    </>
+                    </div>
                   )}
 
                   {activeTab === "insurance" && (
-                    <RankTable
-                      rows={data.insurance}
-                      columns={INSURANCE_COLUMNS}
-                      rowKey={(o) => o.id}
-                      defaultSort="date"
-                      pageSize={10}
-                      caption={`Đơn bảo hiểm đã tạo ${periodText}`}
-                    />
+                    <div className={styles.panel}>
+                      <RankTable
+                        rows={data.insurance}
+                        columns={INSURANCE_COLUMNS}
+                        rowKey={(o) => o.id}
+                        defaultSort="date"
+                        pageSize={10}
+                        caption={`Đơn bảo hiểm đã tạo ${periodText}`}
+                      />
+                    </div>
                   )}
 
                   {activeTab === "services" && (
-                    <RankTable
-                      rows={data.services}
-                      columns={SERVICE_COLUMNS}
-                      rowKey={(s) => s.id}
-                      defaultSort="date"
-                      pageSize={10}
-                      caption={`Dịch vụ đã làm cho khách ${periodText}`}
-                    />
+                    <div className={styles.panel}>
+                      <RankTable
+                        rows={data.services}
+                        columns={SERVICE_COLUMNS}
+                        rowKey={(s) => s.id}
+                        defaultSort="date"
+                        pageSize={10}
+                        caption={`Dịch vụ đã làm cho khách ${periodText}`}
+                      />
+                    </div>
                   )}
                 </>
               )}

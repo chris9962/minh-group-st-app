@@ -4,19 +4,36 @@
   gap: var(--space-3);
   padding: var(--space-4);
   border-radius: var(--radius-lg);
-  background: var(--color-surface);
+  background: var(--om-card);
+  border: 1px solid var(--om-line);
+  box-shadow: var(--shadow-sm);
   min-width: 0;
 }
 
+/* Còn giữ để dùng khi cần đặt khối thẳng lên nền trang, nhưng mặc định là thẻ:
+   nền trang giờ là màu kem nên thẻ trắng đọc ra khối nổi, không phải mảng màu. */
 .plain {
   background: none;
+  border: 0;
+  box-shadow: none;
   padding: 0;
 }
 
 .head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 10px;
+}
+
+.icon {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  background: var(--om-orange-soft);
+  color: var(--om-orange);
 }
 
 .title {
