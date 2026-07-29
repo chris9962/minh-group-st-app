@@ -21,6 +21,40 @@
   text-decoration: underline;
 }
 
+/* Cột trái là chân dung nhân viên và điểm — đọc một lần rồi để đó. Cột phải là
+   thứ người dùng thật sự lật qua lật lại, nên rộng và không bị cắt. */
+.columns {
+  display: grid;
+  grid-template-columns: minmax(0, 340px) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+/* Thông tin nhân viên và điểm nằm CHUNG một thẻ: hai thẻ riêng thì thẻ điểm
+   thừa ra một mảng trống vì phải cao bằng thẻ bên cạnh. */
+.person {
+  background: var(--om-card);
+  border-radius: var(--radius-lg);
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
 .identity {
   display: flex;
   align-items: center;
@@ -48,7 +82,7 @@
 
 .name {
   font-family: var(--font-heading);
-  font-size: 19px;
+  font-size: 18px;
   font-weight: var(--font-heading-weight);
 }
 
@@ -57,17 +91,16 @@
   color: var(--om-text-2);
 }
 
-/* Điểm và phần giải thích điểm đứng cạnh nhau — nhìn số rồi nhìn ngay lý do. */
-.headline {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 14px;
-  align-items: stretch;
+.score {
+  display: flex;
+  align-items: center;
+  gap: 16px;
 }
 
-.target {
-  font-size: 0.5em;
-  color: var(--om-text-3);
+.scoreNote {
+  margin: 0;
+  font-size: 13px;
+  color: var(--om-text-2);
 }
 
 .pairs {
@@ -108,25 +141,21 @@
   font-size: 17px;
 }
 
-.stats {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
-}
-
 .footnote {
   margin: 10px 0 0;
   font-size: 12px;
   color: var(--color-neutral-600);
 }
 
+/* Dưới 1100px cột trái hết chỗ để thở, xếp dọc lại. */
+@media (max-width: 1100px) {
+  .columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 @media (max-width: 900px) {
   .body {
     padding: 16px 16px 32px;
-  }
-
-  .headline,
-  .stats {
-    grid-template-columns: minmax(0, 1fr);
   }
 }

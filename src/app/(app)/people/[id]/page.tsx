@@ -4,17 +4,20 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { use, useState } from "react";
 import { TopBar } from "@/components/layout/TopBar";
-import { KpiHighlight } from "@/components/ui/KpiHighlight";
+import { MiniBars } from "@/components/ui/MiniBars";
 import { monthLabel, thisMonth } from "@/components/ui/MonthPicker";
 import { PeoplePeriodPicker } from "@/components/ui/PeoplePeriodPicker";
+import { ProgressRing } from "@/components/ui/ProgressRing";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { SectionCard } from "@/components/ui/SectionCard";
-import { StatCard } from "@/components/ui/StatCard";
+import { SegmentedTabs, type TabOption } from "@/components/ui/SegmentedTabs";
 import { StatusTag } from "@/components/ui/StatusTag";
 import { periodMonth, periodParam, showsKpi, type PeriodMode } from "@/lib/api/people";
 import {
   fetchPerson,
+  INSURANCE_STATUS,
   type PersonAccount,
+  type PersonInsurance,
   type PersonService,
 } from "@/lib/api/person";
 import { formatDate, formatPhone } from "@/lib/format";
@@ -23,13 +26,15 @@ import styles from "./page.module.css";
 /** Sắp theo ngày cần một con số — lấy chính chuỗi YYYY-MM-DD bỏ dấu gạch. */
 const dateOrder = (row: { date: string }) => Number(row.date.replace(/-/g, ""));
 
+const DATE_COLUMN = {
+  key: "date",
+  label: "Ngày",
+  sortBy: dateOrder,
+  render: (row: { date: string }) => formatDate(row.date),
+};
+
 const ACCOUNT_COLUMNS: RankColumn<PersonAccount>[] = [
-  {
-    key: "date",
-    label: "Ngày",
-    sortBy: dateOrder,
-    render: (a) => formatDate(a.date),
-  },
+  DATE_COLUMN,
   { key: "customerName", label: "Khách hàng", render: (a) => a.customerName },
   { key: "bankName", label: "Ngân hàng", render: (a) => a.bankName },
   { key: "referralCode", label: "Mã giới thiệu", render: (a) => a.referralCode },
@@ -45,13 +50,22 @@ const ACCOUNT_COLUMNS: RankColumn<PersonAccount>[] = [
   },
 ];
 
-const SERVICE_COLUMNS: RankColumn<PersonService>[] = [
+const INSURANCE_COLUMNS: RankColumn<PersonInsurance>[] = [
+  DATE_COLUMN,
+  { key: "customerName", label: "Khách hàng", render: (o) => o.customerName },
+  { key: "product", label: "Loại bảo hiểm", render: (o) => o.product },
+  { key: "packageName", label: "Gói", render: (o) => o.packageName },
   {
-    key: "date",
-    label: "Ngày",
-    sortBy: dateOrder,
-    render: (s) => formatDate(s.date),
+    key: "status",
+    label: "Trạng thái",
+    render: (o) => (
+      <StatusTag ok={o.status === "done"}>{INSURANCE_STATUS[o.status]}</StatusTag>
+    ),
   },
+];
+
+const SERVICE_COLUMNS: RankColumn<PersonService>[] = [
+  DATE_COLUMN,
   { key: "customerName", label: "Khách hàng", render: (s) => s.customerName },
   { key: "serviceType", label: "Loại dịch vụ", render: (s) => s.serviceType },
   { key: "ward", label: "Xã", render: (s) => s.ward || "—" },
@@ -70,6 +84,11 @@ const initialsOf = (fullName: string): string => {
   return `${parts[0]?.[0] ?? ""}${parts.at(-1)?.[0] ?? ""}`.toUpperCase();
 };
 
+/** Nhãn cột biểu đồ: `2026-07` → `T7`. */
+const shortMonth = (month: string) => `T${Number(month.slice(5, 7))}`;
+
+type TabKey = "accounts" | "insurance" | "services";
+
 /** P-52 · Xem theo một nhân viên. */
 export default function PersonPage({
   params,
@@ -78,6 +97,7 @@ export default function PersonPage({
 }) {
   const { id } = use(params);
   const [period, setPeriod] = useState<PeriodMode>({ kind: "this-month" });
+  const [tab, setTab] = useState<TabKey>("accounts");
 
   const current = thisMonth();
   const summaryMonth = periodMonth(period, current);
@@ -90,6 +110,18 @@ export default function PersonPage({
 
   const withKpi = showsKpi(period);
   const periodText = period.kind === "today" ? "Hôm nay" : monthLabel(summaryMonth);
+
+  // Chỉ hiện thẻ có dòng. Thẻ rỗng chỉ để người dùng bấm vào rồi thấy trống.
+  const tabs: TabOption[] = data
+    ? (
+        [
+          { value: "accounts", label: "Tài khoản", count: data.accounts.length },
+          { value: "insurance", label: "Đơn bảo hiểm", count: data.insurance.length },
+          { value: "services", label: "Dịch vụ", count: data.services.length },
+        ] as TabOption[]
+      ).filter((t) => t.count > 0)
+    : [];
+  const activeTab = tabs.some((t) => t.value === tab) ? tab : tabs[0]?.value;
 
   return (
     <>
@@ -106,103 +138,126 @@ export default function PersonPage({
         {isError && <p className="text-muted">Không tải được hồ sơ nhân viên này.</p>}
 
         {data && (
-          <>
-            <div className={styles.identity}>
-              <span className={styles.avatar} aria-hidden>
-                {initialsOf(data.fullName)}
-              </span>
-              <div>
-                <strong className={styles.name}>{data.fullName}</strong>
-                <span className={styles.sub}>
-                  {data.departmentName} · vào từ {monthLabel(data.joinedMonth)}
-                </span>
-                <span className={styles.sub}>
-                  {data.username} · <span className="so">{formatPhone(data.phone)}</span>
-                </span>
+          <div className={styles.columns}>
+            <aside className={styles.side}>
+              <div className={styles.person}>
+                <div className={styles.identity}>
+                  <span className={styles.avatar} aria-hidden>
+                    {initialsOf(data.fullName)}
+                  </span>
+                  <div>
+                    <strong className={styles.name}>{data.fullName}</strong>
+                    <span className={styles.sub}>
+                      {data.username} ·{" "}
+                      <span className="so">{formatPhone(data.phone)}</span>
+                    </span>
+                    <span className={styles.sub}>
+                      {data.departmentName} · vào từ {monthLabel(data.joinedMonth)}
+                    </span>
+                  </div>
+                </div>
+
+                {withKpi && (
+                  <div className={styles.score}>
+                    <ProgressRing
+                      value={data.points.total}
+                      max={data.points.target}
+                      ariaLabel={`Điểm ${monthLabel(data.summaryMonth)} trên chỉ tiêu`}
+                    />
+                    <p className={styles.scoreNote}>
+                      {data.points.total >= data.points.target
+                        ? `Đã vượt chỉ tiêu ${monthLabel(data.summaryMonth).toLowerCase()} ${data.points.total - data.points.target} điểm.`
+                        : `Còn ${data.points.target - data.points.total} điểm nữa mới đạt chỉ tiêu ${monthLabel(data.summaryMonth).toLowerCase()}.` +
+                          (data.daysLeft > 0 ? ` Còn ${data.daysLeft} ngày.` : "")}
+                    </p>
+                  </div>
+                )}
               </div>
+
+              {withKpi && (
+                <>
+                  <SectionCard title="Điểm đến từ đâu">
+                    <dl className={styles.pairs}>
+                      {data.pointSources.map((s) => (
+                        <div key={s.label}>
+                          <dt>
+                            {s.label}
+                            <span className={styles.pairDetail}>{s.detail}</span>
+                          </dt>
+                          <dd className="so">{s.points}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                    <p className={styles.footnote}>
+                      Tài khoản khách <strong>chưa cài app</strong> không sinh điểm —
+                      đó là lý do bảng bên cạnh có dòng mà điểm vẫn chưa lên.
+                    </p>
+                  </SectionCard>
+
+                  <SectionCard title="Điểm theo tháng">
+                    <MiniBars
+                      rows={data.monthlyPoints.map((m) => ({
+                        label: shortMonth(m.month),
+                        value: m.points,
+                      }))}
+                      highlight={shortMonth(data.summaryMonth)}
+                      caption="Điểm của nhân viên trong 5 tháng gần nhất"
+                    />
+                  </SectionCard>
+                </>
+              )}
+            </aside>
+
+            <div className={styles.content}>
+              {tabs.length === 0 ? (
+                <p className="text-muted">
+                  {periodText} chưa có hoạt động nào của {data.fullName}.
+                </p>
+              ) : (
+                <>
+                  <SegmentedTabs
+                    label="Loại hoạt động"
+                    options={tabs}
+                    value={activeTab ?? "accounts"}
+                    onChange={(v) => setTab(v as TabKey)}
+                  />
+
+                  {activeTab === "accounts" && (
+                    <RankTable
+                      rows={data.accounts}
+                      columns={ACCOUNT_COLUMNS}
+                      rowKey={(a) => a.id}
+                      defaultSort="date"
+                      pageSize={10}
+                      caption={`Tài khoản đã mở cho khách ${periodText}`}
+                    />
+                  )}
+
+                  {activeTab === "insurance" && (
+                    <RankTable
+                      rows={data.insurance}
+                      columns={INSURANCE_COLUMNS}
+                      rowKey={(o) => o.id}
+                      defaultSort="date"
+                      pageSize={10}
+                      caption={`Đơn bảo hiểm đã tạo ${periodText}`}
+                    />
+                  )}
+
+                  {activeTab === "services" && (
+                    <RankTable
+                      rows={data.services}
+                      columns={SERVICE_COLUMNS}
+                      rowKey={(s) => s.id}
+                      defaultSort="date"
+                      pageSize={10}
+                      caption={`Dịch vụ đã làm cho khách ${periodText}`}
+                    />
+                  )}
+                </>
+              )}
             </div>
-
-            {withKpi && (
-              <div className={styles.headline}>
-                <KpiHighlight
-                  ariaLabel={`Điểm ${monthLabel(data.summaryMonth)} trên chỉ tiêu`}
-                  percent={Math.round((data.points.total / data.points.target) * 100)}
-                  value={
-                    <>
-                      {data.points.total}
-                      <span className={styles.target}> / {data.points.target}</span>
-                    </>
-                  }
-                  description={<>điểm {monthLabel(data.summaryMonth)}</>}
-                  detail={
-                    data.points.total >= data.points.target
-                      ? `Đã vượt chỉ tiêu ${data.points.total - data.points.target} điểm.`
-                      : `Còn ${data.points.target - data.points.total} điểm nữa mới đạt chỉ tiêu.` +
-                        (data.daysLeft > 0 ? ` Còn ${data.daysLeft} ngày.` : "")
-                  }
-                />
-
-                <SectionCard title="Điểm đến từ đâu" meta={monthLabel(data.summaryMonth)}>
-                  <dl className={styles.pairs}>
-                    {data.pointSources.map((s) => (
-                      <div key={s.label}>
-                        <dt>
-                          {s.label}
-                          <span className={styles.pairDetail}>{s.detail}</span>
-                        </dt>
-                        <dd className="so">{s.points}</dd>
-                      </div>
-                    ))}
-                  </dl>
-                  <p className={styles.footnote}>
-                    Tài khoản khách <strong>chưa cài app</strong> không sinh điểm —
-                    đó là lý do bảng bên dưới có dòng mà điểm vẫn chưa lên.
-                  </p>
-                </SectionCard>
-              </div>
-            )}
-
-            <div className={styles.stats}>
-              <StatCard value={data.accounts.length} label={`tài khoản mở ${periodText.toLowerCase()}`} />
-              <StatCard value={data.services.length} label={`dịch vụ đã làm ${periodText.toLowerCase()}`} />
-              <StatCard
-                value={data.accounts.filter((a) => a.appInstalled).length}
-                label="tài khoản đã cài app"
-              />
-            </div>
-
-            {data.accounts.length > 0 && (
-              <SectionCard title="Khách hàng đã tiếp" meta={periodText} variant="plain">
-                <RankTable
-                  rows={data.accounts}
-                  columns={ACCOUNT_COLUMNS}
-                  rowKey={(a) => a.id}
-                  defaultSort="date"
-                  pageSize={10}
-                  caption={`Tài khoản đã mở cho khách ${periodText}`}
-                />
-              </SectionCard>
-            )}
-
-            {data.services.length > 0 && (
-              <SectionCard title="Dịch vụ đã làm" meta={periodText} variant="plain">
-                <RankTable
-                  rows={data.services}
-                  columns={SERVICE_COLUMNS}
-                  rowKey={(s) => s.id}
-                  defaultSort="date"
-                  pageSize={10}
-                  caption={`Dịch vụ đã làm cho khách ${periodText}`}
-                />
-              </SectionCard>
-            )}
-
-            {data.accounts.length === 0 && data.services.length === 0 && (
-              <p className="text-muted">
-                {periodText} chưa có hoạt động nào của {data.fullName}.
-              </p>
-            )}
-          </>
+          </div>
         )}
       </main>
     </>

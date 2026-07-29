@@ -1,6 +1,7 @@
 import type {
   PersonAccount,
   PersonDetail,
+  PersonInsurance,
   PersonService,
   PointSource,
 } from "@/lib/api/person";
@@ -35,8 +36,9 @@ const CUSTOMERS = [
 const usernameOf = (fullName: string): string =>
   removeDiacritics(fullName).toLowerCase().split(" ").slice(-2).join("");
 
+/** SĐT giả phải đủ 10 số, nếu không formatPhone trả lại nguyên chuỗi thô. */
 const phoneOf = (fullName: string): string =>
-  `09${String(seed(fullName, 7) * 1013 + 100000).slice(0, 8)}`;
+  `09${String(seed(fullName, 7) * 1013 + 10_000_000).slice(0, 8)}`;
 
 /** Ngày trong tháng, đếm ngược từ ngày cuối cùng có hoạt động. */
 function dayIn(month: string, offset: number): string {
@@ -62,6 +64,28 @@ function accountsOf(fullName: string, month: string, count: number): PersonAccou
       // App chưa cài thì tài khoản không tính điểm, không tính quà — cột này
       // là lý do bảng có dòng nhưng điểm vẫn thấp.
       appInstalled: seed(fullName, i + 53) % 5 !== 0,
+    };
+  });
+}
+
+const PRODUCTS: [string, string][] = [
+  ["BH tai nạn điện", "1 năm · 100k"],
+  ["BH tai nạn điện", "1 năm · 200k"],
+  ["BH xe máy", "1 năm · 100k"],
+  ["BH xe máy", "2 năm · 200k"],
+];
+const STATUSES: PersonInsurance["status"][] = ["done", "done", "running", "manual"];
+
+function insuranceOf(fullName: string, month: string, count: number): PersonInsurance[] {
+  return Array.from({ length: count }, (_, i) => {
+    const [product, packageName] = PRODUCTS[seed(fullName, i + 83) % PRODUCTS.length];
+    return {
+      id: `i${i + 1}`,
+      date: dayIn(month, i * 3),
+      customerName: CUSTOMERS[seed(fullName, i + 89) % CUSTOMERS.length],
+      product,
+      packageName,
+      status: STATUSES[seed(fullName, i + 97) % STATUSES.length],
     };
   });
 }
@@ -107,6 +131,19 @@ function pointSourcesOf(
   return sources;
 }
 
+/** Điểm 5 tháng gần nhất; tháng đang xem là tháng cuối và lấy đúng số thật. */
+function monthlyPointsOf(fullName: string, month: string, current: number) {
+  const [year, mon] = month.split("-").map(Number);
+  return Array.from({ length: 5 }, (_, i) => {
+    const offset = 4 - i;
+    const d = new Date(year, mon - 1 - offset, 1);
+    return {
+      month: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
+      points: offset === 0 ? current : 45 + (seed(fullName, offset + 101) % 70),
+    };
+  });
+}
+
 export function personFor({
   id,
   period,
@@ -126,7 +163,12 @@ export function personFor({
     ? Math.max(0, Math.round(base.servicePoints / 22))
     : base.servicePoints;
 
+  const insuranceCount = daily
+    ? Math.max(0, Math.round(base.insuranceOrders / 22))
+    : base.insuranceOrders;
+
   const accounts = accountsOf(base.fullName, summaryMonth, accountCount);
+  const insurance = insuranceOf(base.fullName, summaryMonth, insuranceCount);
   const services = servicesOf(base.fullName, summaryMonth, serviceCount);
 
   const lastDay = new Date(
@@ -138,6 +180,8 @@ export function personFor({
   const isCurrentMonth =
     summaryMonth ===
     `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+
+  const total = base.bankingPoints + base.servicePoints;
 
   return {
     id: base.id,
@@ -160,7 +204,9 @@ export function personFor({
       accountsOf(base.fullName, summaryMonth, base.accounts),
       base.insuranceOrders,
     ),
+    monthlyPoints: monthlyPointsOf(base.fullName, summaryMonth, total),
     accounts,
+    insurance,
     services,
   };
 }

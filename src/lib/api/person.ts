@@ -25,6 +25,23 @@ export const PersonService = z.object({
 });
 export type PersonService = z.infer<typeof PersonService>;
 
+export const PersonInsurance = z.object({
+  id: z.string(),
+  date: z.string(),
+  customerName: z.string(),
+  /** BH tai nạn điện · BH xe máy. */
+  product: z.string(),
+  packageName: z.string(),
+  status: z.enum(['done', 'running', 'manual']),
+});
+export type PersonInsurance = z.infer<typeof PersonInsurance>;
+
+export const INSURANCE_STATUS: Record<PersonInsurance['status'], string> = {
+  done: 'Hoàn thành',
+  running: 'Đang chạy',
+  manual: 'Chờ làm tay',
+};
+
 /** Một nguồn điểm — để trả lời "68/100 thì thiếu ở đâu". */
 export const PointSource = z.object({
   label: z.string(),
@@ -51,8 +68,11 @@ export const PersonDetail = z.object({
     target: z.number(),
   }),
   pointSources: z.array(PointSource),
-  /** Rỗng thì trang không hiện bảng. */
+  /** Điểm 5 tháng gần nhất, cũ trước mới sau. Luôn theo tháng, không theo ngày. */
+  monthlyPoints: z.array(z.object({ month: z.string(), points: z.number() })),
+  /** Rỗng thì trang không hiện thẻ tương ứng. */
   accounts: z.array(PersonAccount),
+  insurance: z.array(PersonInsurance),
   services: z.array(PersonService),
 });
 export type PersonDetail = z.infer<typeof PersonDetail>;

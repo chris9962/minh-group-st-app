@@ -1,0 +1,52 @@
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  /* 44px chiều cao cho ngón tay — đây là nút chuyển bảng, bấm nhầm là mất chỗ. */
+  min-height: 44px;
+  padding: 0 15px;
+  border: 1px solid var(--om-line);
+  border-radius: 999px;
+  font-size: 13.5px;
+  color: var(--om-text-2);
+  cursor: pointer;
+}
+
+.tab:hover {
+  border-color: var(--om-orange);
+  color: var(--om-text);
+}
+
+/* Thẻ đang mở: nền cam, chữ trắng. Số đếm đổi nền theo để vẫn đọc được. */
+.active,
+.active:hover {
+  background: var(--om-orange);
+  border-color: var(--om-orange);
+  color: var(--om-bg);
+  font-weight: 600;
+}
+
+/* Bàn phím: radio bị ẩn nên viền focus phải vẽ trên chính cái nhãn. */
+.tab:has(input:focus-visible) {
+  outline: 2px solid var(--om-orange);
+  outline-offset: 2px;
+}
+
+.count {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--om-surface);
+  color: var(--om-text-2);
+  font-size: 12px;
+}
+
+.active .count {
+  background: rgb(255 255 255 / 26%);
+  color: var(--om-bg);
+}
