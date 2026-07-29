@@ -29,7 +29,6 @@ import { fetchDepartments } from "@/lib/api/departments";
 import { fetchStaff, type StaffAccount } from "@/lib/api/staff";
 import { SearchField } from "@/components/ui/SearchField";
 import { StaffFormDialog } from "@/components/staff/StaffFormDialog";
-import { exportExcel } from "@/lib/excel";
 import { useDebouncedValue } from "@/lib/hooks";
 import { availableScopes, can } from "@/lib/permissions";
 import { ROLE_LABEL, type Scope } from "@/lib/types";
@@ -115,7 +114,6 @@ const ACCOUNT_COLUMNS: RankColumn<StaffRow>[] = [
     render: (r) => (
       <Link href={`/people/${r.id}`} className={styles.nameLink}>
         {r.fullName}
-        <span className={styles.username}>{r.username}</span>
       </Link>
     ),
   },
@@ -149,13 +147,6 @@ const ACCOUNT_COLUMNS: RankColumn<StaffRow>[] = [
         "—"
       ),
   },
-  {
-    key: "active",
-    label: "Tài khoản",
-    render: (r) => (
-      <StatusTag ok={r.active}>{r.active ? "Đang hoạt động" : "Đã khoá"}</StatusTag>
-    ),
-  },
 ];
 
 /** P-51 · Danh sách nhân viên + điểm + quản trị tài khoản. */
@@ -167,7 +158,6 @@ export default function PeoplePage() {
   const [departmentId, setDepartmentId] = useState("");
   const [search, setSearch] = useState("");
   const searchQuery = useDebouncedValue(search);
-  const [status, setStatus] = useState<"active" | "locked" | "all">("active");
   const [editing, setEditing] = useState<StaffAccount | null>(null);
   const [creating, setCreating] = useState(false);
 
@@ -200,8 +190,11 @@ export default function PeoplePage() {
 
   // Danh sách tài khoản chỉ tải khi có quyền — không thì gọi API vô nghĩa.
   const { data: staffData } = useQuery({
-    queryKey: ["staff", scope, departmentId, searchQuery, status],
-    queryFn: () => fetchStaff({ scope, departmentId, search: searchQuery, status }),
+    queryKey: ["staff", scope, departmentId, searchQuery],
+    // Chỉ người đang làm. Người đã khoá xem trong hồ sơ của họ, không lẫn vào
+    // danh sách hằng ngày.
+    queryFn: () =>
+      fetchStaff({ scope, departmentId, search: searchQuery, status: "active" }),
     enabled: canManage,
     placeholderData: (previous) => previous,
   });
@@ -218,29 +211,6 @@ export default function PeoplePage() {
     ? [...BASE_COLUMNS.slice(0, 2), ...KPI_COLUMNS.slice(0, 1), ...BASE_COLUMNS.slice(2), KPI_COLUMNS[1]]
     : BASE_COLUMNS;
   const periodText = period.kind === "today" ? "Hôm nay" : monthLabel(summaryMonth);
-
-  const download = () =>
-    exportExcel({
-      fileName: `nhan-vien-diem-${param}.xlsx`,
-      sheetName: periodText,
-      rows: people,
-      columns: [
-        { header: "Nhân viên", width: 26, transform: "name", value: (p) => p.fullName },
-        { header: "Đơn vị", width: 24, value: (p) => p.departmentName },
-        { header: "Điểm ngân hàng", value: (p) => p.bankingPoints },
-        { header: "Điểm dịch vụ", value: (p) => p.servicePoints },
-        { header: "Tổng điểm", value: totalPoints },
-        { header: "Chỉ tiêu", value: (p) => p.target },
-        { header: "Tài khoản", value: (p) => p.accounts },
-        { header: "App đã cài", value: (p) => p.apps },
-        { header: "Đơn bảo hiểm", value: (p) => p.insuranceOrders },
-        {
-          header: "Trạng thái",
-          width: 14,
-          value: (p) => (isOnTarget(p) ? "Đã đạt" : "Chưa đạt"),
-        },
-      ],
-    });
 
   return (
     <>
@@ -262,27 +232,7 @@ export default function PeoplePage() {
             ...departments.map((d) => ({ value: d.id, label: d.name })),
           ]}
         />
-        {canManage && (
-          <Select
-            label="Trạng thái tài khoản"
-            hideLabel
-            value={status}
-            onChange={(v) => setStatus(v as typeof status)}
-            options={[
-              { value: "active", label: "Đang hoạt động" },
-              { value: "locked", label: "Đã khoá" },
-              { value: "all", label: "Tất cả trạng thái" },
-            ]}
-          />
-        )}
         <PeoplePeriodPicker value={period} onChange={setPeriod} />
-        <Button
-          variant="secondary"
-          onClick={download}
-          disabled={people.length === 0}
-        >
-          Xuất Excel
-        </Button>
         {canManage && (
           <Button onClick={() => setCreating(true)}>＋ Thêm nhân viên</Button>
         )}

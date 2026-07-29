@@ -42,10 +42,3 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
-
-/* Tên đăng nhập nằm dưới họ tên: một hàng nhắc được cả người lẫn tài khoản. */
-.username {
-  display: block;
-  font-size: 11.5px;
-  color: var(--om-text-3);
-}
