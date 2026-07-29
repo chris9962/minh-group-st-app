@@ -9,15 +9,15 @@
   border-radius: 999px;
   cursor: pointer;
   font: inherit;
-  color: var(--color-text);
+  color: var(--om-sidebar-ink);
 }
 
 .trigger:hover {
-  background: color-mix(in srgb, var(--color-text) 6%, transparent);
+  background: rgb(255 255 255 / 14%);
 }
 
 .trigger:focus-visible {
-  outline: 2px solid var(--color-accent);
+  outline: 2px solid #ffffff;
   outline-offset: -2px;
 }
 
@@ -26,8 +26,8 @@
   height: 30px;
   flex: none;
   border-radius: 999px;
-  background: var(--om-surface);
-  color: var(--om-text-2);
+  background: rgb(255 255 255 / 22%);
+  color: var(--om-sidebar-ink);
   display: grid;
   place-items: center;
   font-size: 11.5px;
@@ -52,7 +52,7 @@
 
 .identity > span {
   font-size: 10.5px;
-  color: var(--color-neutral-600);
+  color: var(--om-sidebar-ink-2);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

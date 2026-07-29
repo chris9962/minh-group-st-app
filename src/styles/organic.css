@@ -14,6 +14,12 @@
   --om-soft: #fdfdfc;      /* nền nhạt nhất trong thẻ */
   --om-line: #e4e3e1;      /* đường kẻ / viền */
 
+  /* Sidebar nền cam. Đậm hơn --om-orange để chữ trắng 13.5px đạt 4.54:1;
+     lấy đúng --om-orange thì chỉ còn 3.82, không đủ cho chữ thường. */
+  --om-sidebar: #c25608;
+  --om-sidebar-ink: #ffffff;
+  --om-sidebar-ink-2: rgb(255 255 255 / 72%);
+
   --om-text: #201e1d;      /* chữ chính */
   --om-text-2: #645c50;    /* chữ phụ */
   --om-text-3: #82796a;    /* chữ mờ */

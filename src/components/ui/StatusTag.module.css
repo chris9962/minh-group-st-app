@@ -1,13 +1,16 @@
-/* Đạt là trạng thái bình thường → xám. Chưa đạt mới cần để mắt → cam.
+/* Bảng có hàng chục dòng — khối màu đặc biến thành một mảng loang, rất nặng.
+   Dùng viền mảnh + chữ, nền trong suốt.
    Ký hiệu ✓ / ! vẫn là kênh truyền đạt chính, màu chỉ hỗ trợ. */
 .ok {
-  background: var(--om-surface);
+  background: transparent;
+  border: 1px solid var(--om-line);
   color: var(--om-text-2);
 }
 
 .warn {
-  background: var(--om-orange-soft);
-  color: var(--om-orange-ink);
+  background: transparent;
+  border: 1px solid var(--om-orange);
+  color: var(--om-orange-mid);
 }
 
 .mark {
