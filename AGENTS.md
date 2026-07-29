@@ -50,7 +50,11 @@ Quy tắc:
 ## 3. Style
 
 - Nguồn sự thật là `src/styles/organic.css` — đồng bộ từ `../mgst-design/_ds`. **Không sửa tay.**
-- Dùng token: `var(--color-accent)`, `var(--space-3)`, `var(--radius-md)`.
+- Dùng token **`--om-*`**: `--om-bg` `--om-card` `--om-surface` `--om-panel` `--om-soft`
+  `--om-line` · `--om-text` `--om-text-2` `--om-text-3` · `--om-orange` `--om-orange-ink`
+  `--om-orange-soft` `--om-orange-mid` `--om-orange-light`.
+  Các tên `--color-*` cũ vẫn chạy vì trỏ về `--om-*`, nhưng code mới dùng `--om-*`.
+  Bảng màu là **xám · trắng · cam** — không có màu thứ tư, đừng thêm.
   **Không viết mã màu và khoảng cách cứng.** Ngoại lệ duy nhất: khối thương hiệu
   `BrandPanel` dùng đúng màu bộ nhận diện, có ghi chú lý do.
 - Component của design system dùng qua class có sẵn: `.btn`, `.input`, `.card`, `.tag`, `.table`

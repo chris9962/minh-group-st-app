@@ -3,10 +3,10 @@
   position: sticky;
   top: 0;
   z-index: 5;
-  background: var(--color-neutral-100);
+  background: var(--om-bg);
   flex: none;
   min-height: 66px;
-  border-bottom: 1px solid var(--color-neutral-300);
+  border-bottom: 1px solid var(--om-line);
   display: flex;
   align-items: center;
   gap: 12px;

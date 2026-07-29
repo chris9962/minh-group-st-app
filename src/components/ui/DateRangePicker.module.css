@@ -7,7 +7,7 @@
 }
 
 .panel {
-  background: var(--color-neutral-100);
+  background: var(--om-bg);
   border: 1px solid var(--color-divider);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
@@ -16,7 +16,7 @@
 }
 
 .arrow {
-  fill: var(--color-neutral-100);
+  fill: var(--om-bg);
 }
 
 /* Ghi đè token của react-day-picker cho khớp design system Organic. */

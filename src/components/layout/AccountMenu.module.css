@@ -26,8 +26,8 @@
   height: 30px;
   flex: none;
   border-radius: 999px;
-  background: var(--color-accent-2-300);
-  color: var(--color-accent-2-800);
+  background: var(--om-surface);
+  color: var(--om-text-2);
   display: grid;
   place-items: center;
   font-size: 11.5px;
@@ -60,7 +60,7 @@
 
 .panel {
   min-width: 200px;
-  background: var(--color-neutral-100);
+  background: var(--om-bg);
   border: 1px solid var(--color-divider);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);

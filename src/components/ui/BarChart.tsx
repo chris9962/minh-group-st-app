@@ -32,7 +32,7 @@ type Props = {
 
 const AXIS_TICK = {
   fontSize: 10.5,
-  fill: "var(--color-neutral-600)",
+  fill: "var(--om-text-3)",
   fontFamily: "var(--font-body)",
 };
 
@@ -66,14 +66,14 @@ export function BarChart({
           >
             <CartesianGrid
               vertical={false}
-              stroke="var(--color-neutral-300)"
+              stroke="var(--om-line)"
               strokeDasharray="3 3"
             />
             <XAxis
               dataKey={labelKey}
               tick={AXIS_TICK}
               tickLine={false}
-              axisLine={{ stroke: "var(--color-neutral-300)" }}
+              axisLine={{ stroke: "var(--om-line)" }}
               interval="preserveStartEnd"
               minTickGap={14}
             />
@@ -87,8 +87,8 @@ export function BarChart({
             <Tooltip
               cursor={{ fill: "rgb(32 30 29 / 6%)" }}
               contentStyle={{
-                background: "var(--color-neutral-100)",
-                border: "1px solid var(--color-divider)",
+                background: "var(--om-bg)",
+                border: "1px solid var(--om-line)",
                 borderRadius: 14,
                 fontSize: 12.5,
                 fontFamily: "var(--font-body)",

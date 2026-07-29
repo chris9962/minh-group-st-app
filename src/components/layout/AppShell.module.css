@@ -6,7 +6,7 @@
   height: 100dvh;
   display: flex;
   overflow: hidden;
-  background: var(--color-neutral-100);
+  background: var(--om-bg);
 }
 
 .main {

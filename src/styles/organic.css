@@ -4,44 +4,66 @@
 /* Organic — design-system tokens and component classes. This file is the source of truth for the system's look; retune it here and see readme.md. */
 
 :root {
-  --color-bg: #f5ead8;
-  --color-surface: #ebddc5;
-  --color-text: #201e1d;
-  --color-accent: #c67139;
-  --color-accent-2: #7a8a5e;
-  --color-divider: color-mix(in srgb, #201e1d 16%, transparent);
+  /* ── Bảng màu: xám · trắng · cam ─────────────────────────────────────
+     Tên --om-* là nguồn; các tên --color-* bên dưới chỉ là bí danh để
+     component cũ không phải sửa. Đổi màu thì đổi ở khối --om-*. */
+  --om-bg: #ffffff;        /* nền trang */
+  --om-card: #eeeeec;      /* thẻ / card */
+  --om-surface: #ededeb;   /* chip, ô nhập, thanh phân đoạn */
+  --om-panel: #f4f4f2;     /* sidebar */
+  --om-soft: #fafafa;      /* nền nhạt nhất trong thẻ */
+  --om-line: #dedddb;      /* đường kẻ / viền */
 
-  /* Tonal ramps — generated in OKLCH on one shared lightness scale, so the
-     same step of any role matches the others in visual value. */
-  --color-neutral-100: #f9f4ed;
-  --color-neutral-200: #eee7db;
-  --color-neutral-300: #dcd3c4;
-  --color-neutral-400: #c0b6a5;
-  --color-neutral-500: #a19786;
-  --color-neutral-600: #82796a;
-  --color-neutral-700: #645c50;
-  --color-neutral-800: #474238;
-  --color-neutral-900: #2e2b25;
+  --om-text: #201e1d;      /* chữ chính */
+  --om-text-2: #645c50;    /* chữ phụ */
+  --om-text-3: #82796a;    /* chữ mờ */
+
+  --om-orange: #c67139;    /* nút chính, mục menu đang chọn, thanh tiến độ */
+  --om-orange-ink: #8c491a; /* chữ trên nền cảnh báo, số nhấn mạnh */
+  --om-orange-soft: #ffe1d0; /* nền cảnh báo */
+  --om-orange-mid: #b2622d; /* mã màn, liên kết thao tác */
+  --om-orange-light: #ffc6a5; /* chuỗi phụ trong biểu đồ */
+
+  /* ── Bí danh cho design system ─────────────────────────────────────── */
+  --color-bg: var(--om-bg);
+  --color-surface: var(--om-card);
+  --color-text: var(--om-text);
+  --color-accent: var(--om-orange);
+  --color-accent-2: var(--om-orange-mid);
+  --color-divider: var(--om-line);
+
+  /* Dải xám. 600 và 700 lấy đúng chữ mờ / chữ phụ của bảng màu. */
+  --color-neutral-100: var(--om-soft);
+  --color-neutral-200: var(--om-panel);
+  --color-neutral-300: var(--om-line);
+  --color-neutral-400: #c4c2bf;
+  --color-neutral-500: #a6a39f;
+  --color-neutral-600: var(--om-text-3);
+  --color-neutral-700: var(--om-text-2);
+  --color-neutral-800: #403a33;
+  --color-neutral-900: var(--om-text);
 
   --color-accent-100: #fff2eb;
-  --color-accent-200: #ffe1d0;
-  --color-accent-300: #ffc6a5;
+  --color-accent-200: var(--om-orange-soft);
+  --color-accent-300: var(--om-orange-light);
   --color-accent-400: #f6a06b;
   --color-accent-500: #d67f48;
-  --color-accent-600: #b2622d;
-  --color-accent-700: #8c491a;
+  --color-accent-600: var(--om-orange-mid);
+  --color-accent-700: var(--om-orange-ink);
   --color-accent-800: #643312;
   --color-accent-900: #402310;
 
-  --color-accent-2-100: #f0fae1;
-  --color-accent-2-200: #e1eecc;
-  --color-accent-2-300: #ccdbb2;
-  --color-accent-2-400: #aebf92;
-  --color-accent-2-500: #8fa073;
-  --color-accent-2-600: #728157;
-  --color-accent-2-700: #56633f;
-  --color-accent-2-800: #3d472b;
-  --color-accent-2-900: #272e1b;
+  /* Bảng màu không có xanh lá — dải accent-2 trỏ về xám và cam để chỗ nào
+     còn dùng cũng không lòi màu lạ ra. */
+  --color-accent-2-100: var(--om-soft);
+  --color-accent-2-200: var(--om-surface);
+  --color-accent-2-300: var(--om-line);
+  --color-accent-2-400: #c4c2bf;
+  --color-accent-2-500: var(--om-orange-light);
+  --color-accent-2-600: var(--om-orange-mid);
+  --color-accent-2-700: var(--om-text-2);
+  --color-accent-2-800: var(--om-text);
+  --color-accent-2-900: var(--om-text);
 
   --font-heading: var(--font-tieu-de), system-ui, sans-serif;
   --font-heading-weight: 400;
@@ -58,11 +80,10 @@
   --radius-md: 16px;
   --radius-lg: 28px;
 
-  /* Elevation — derived from the ground: soft ink-tinted shadows on a
-     light theme, a hairline edge + ambient darkness on a dark one. */
-  --shadow-sm: 0 1px 2px color-mix(in srgb, #2e2b25 14%, transparent);
-  --shadow-md: 0 3px 10px color-mix(in srgb, #2e2b25 16%, transparent);
-  --shadow-lg: 0 12px 32px color-mix(in srgb, #2e2b25 22%, transparent);
+  /* Đổ bóng xám trung tính, không ám nâu như bảng màu cũ. */
+  --shadow-sm: 0 1px 2px rgb(32 30 29 / 8%);
+  --shadow-md: 0 3px 10px rgb(32 30 29 / 10%);
+  --shadow-lg: 0 12px 32px rgb(32 30 29 / 14%);
 }
 
 body {

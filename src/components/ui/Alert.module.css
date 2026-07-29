@@ -7,16 +7,16 @@
 }
 
 .info {
-  background: var(--color-accent-200);
-  color: var(--color-accent-800);
+  background: var(--om-orange-soft);
+  color: var(--om-orange-ink);
 }
 
 .warning {
-  background: var(--color-accent-200);
-  color: var(--color-accent-800);
+  background: var(--om-orange-soft);
+  color: var(--om-orange-ink);
 }
 
 .error {
-  background: #fbdcd6;
-  color: #7d2415;
+  background: var(--om-orange-soft);
+  color: var(--om-orange-ink);
 }

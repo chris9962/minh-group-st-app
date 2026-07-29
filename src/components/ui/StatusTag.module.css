@@ -1,11 +1,13 @@
+/* Đạt là trạng thái bình thường → xám. Chưa đạt mới cần để mắt → cam.
+   Ký hiệu ✓ / ! vẫn là kênh truyền đạt chính, màu chỉ hỗ trợ. */
 .ok {
-  background: var(--color-accent-2-200);
-  color: var(--color-accent-2-800);
+  background: var(--om-surface);
+  color: var(--om-text-2);
 }
 
 .warn {
-  background: var(--color-accent-200);
-  color: var(--color-accent-800);
+  background: var(--om-orange-soft);
+  color: var(--om-orange-ink);
 }
 
 .mark {
