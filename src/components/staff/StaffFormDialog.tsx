@@ -46,7 +46,7 @@ const toForm = (s: StaffAccount): StaffForm => ({
   username: s.username,
   phone: s.phone,
   departmentId: s.departmentId ?? "",
-  role: s.role ?? "staff",
+  role: s.role,
   title: s.title,
   manageScope: s.manageScope,
   managedDepartmentIds: s.managedDepartmentIds,

@@ -77,16 +77,7 @@ export function AccountCard({ staffId }: { staffId: string }) {
     <SectionCard title="Tài khoản" icon={<KeyRound size={17} />}>
       <dl className={styles.rows}>
         <Row label="Tên đăng nhập" value={staff.username} mono />
-        <Row
-          label="Chức vụ"
-          value={
-            staff.role ? (
-              ROLE_LABEL[staff.role]
-            ) : (
-              <StatusTag ok={false}>Chưa gán</StatusTag>
-            )
-          }
-        />
+        <Row label="Chức vụ" value={ROLE_LABEL[staff.role]} />
         <Row label="Chức danh" value={staff.title || "—"} />
         <Row label="Đơn vị" value={staff.departmentName || "Không thuộc phòng nào"} />
         {staff.manageScope !== "none" && (

@@ -44,9 +44,8 @@ let store: StaffAccount[] = [
       phone: "0900000000",
       departmentId: departmentIdByName(p.departmentName),
       departmentName: p.departmentName,
-      // Vài người cố ý chưa gán chức vụ để thấy số "chưa gán vai trò" chạy.
-      role: i % 6 === 0 ? null : "staff",
-      title: i % 6 === 0 ? "" : "Nhân viên kinh doanh",
+      role: "staff",
+      title: "Nhân viên kinh doanh",
       manageScope: "none",
       managedDepartmentIds: [],
       wardId: null,
@@ -70,7 +69,7 @@ export function staffFor(query: StaffQuery): StaffList {
   // bảng sẽ trống trơn.
   const byRole =
     query.roles.length > 0
-      ? byDepartment.filter((s) => query.roles.includes(s.role ?? "none"))
+      ? byDepartment.filter((s) => query.roles.includes(s.role))
       : byDepartment;
 
   // Tìm kiếm KHÔNG áp lên phần tóm tắt — cùng quy tắc với P-51.
@@ -88,7 +87,6 @@ export function staffFor(query: StaffQuery): StaffList {
     summary: {
       active: inDepartment.filter((s) => s.active).length,
       locked: inDepartment.filter((s) => !s.active).length,
-      withoutRole: inDepartment.filter((s) => s.role === null).length,
     },
     staff: found,
   };

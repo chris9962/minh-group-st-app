@@ -11,8 +11,8 @@ export const StaffAccount = z.object({
   /** THUỘC VỀ — đúng một phòng. Rỗng với ban giám đốc. */
   departmentId: z.string().nullable(),
   departmentName: z.string(),
-  /** Chưa gán chức vụ thì không đăng nhập làm được gì — màn danh sách đếm số này. */
-  role: RoleKey.nullable(),
+  /** Bắt buộc. Biểu mẫu tạo người luôn có sẵn một chức vụ nên không có ai thiếu. */
+  role: RoleKey,
   title: z.string(),
   manageScope: ManageScope,
   managedDepartmentIds: z.array(z.string()),
@@ -26,8 +26,6 @@ export const StaffList = z.object({
   summary: z.object({
     active: z.number(),
     locked: z.number(),
-    /** Tạo xong mà quên gán chức vụ — người này đăng nhập vào cũng trắng trơn. */
-    withoutRole: z.number(),
   }),
   staff: z.array(StaffAccount),
 });
@@ -77,11 +75,8 @@ export type StaffQuery = {
   search: string;
   /** `all` gồm cả người đã khoá. Mặc định chỉ hiện người đang làm. */
   status: 'active' | 'locked' | 'all';
-  /**
-   * Chức vụ cần lấy. RỖNG nghĩa là lấy hết — không phải "không lấy gì".
-   * `none` là người chưa gán chức vụ.
-   */
-  roles: (RoleKey | 'none')[];
+  /** Chức vụ cần lấy. RỖNG nghĩa là lấy hết — không phải "không lấy gì". */
+  roles: RoleKey[];
 };
 
 export async function fetchStaff(query: StaffQuery): Promise<StaffList> {

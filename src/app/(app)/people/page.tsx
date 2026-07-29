@@ -121,12 +121,7 @@ const ACCOUNT_COLUMNS: RankColumn<StaffRow>[] = [
     ),
   },
   { key: "departmentName", label: "Đơn vị", render: (r) => r.departmentName || "—" },
-  {
-    key: "role",
-    label: "Chức vụ",
-    render: (r) =>
-      r.role ? ROLE_LABEL[r.role] : <StatusTag ok={false}>Chưa gán</StatusTag>,
-  },
+  { key: "role", label: "Chức vụ", render: (r) => ROLE_LABEL[r.role] },
   {
     key: "points",
     label: "Điểm tháng",
@@ -152,13 +147,10 @@ const ACCOUNT_COLUMNS: RankColumn<StaffRow>[] = [
   },
 ];
 
-/** Chức vụ để lọc, thêm mục "chưa gán" vì đó là trạng thái cần tìm nhất. */
-const ROLE_FILTERS: { value: RoleFilter; label: string }[] = [
-  ...RoleKey.options.map((r) => ({ value: r as RoleFilter, label: ROLE_LABEL[r] })),
-  { value: "none", label: "Chưa gán chức vụ" },
-];
-
-type RoleFilter = (typeof RoleKey.options)[number] | "none";
+const ROLE_FILTERS = RoleKey.options.map((value) => ({
+  value,
+  label: ROLE_LABEL[value],
+}));
 
 /** P-51 · Danh sách nhân viên + điểm + quản trị tài khoản. */
 export default function PeoplePage() {
@@ -171,7 +163,7 @@ export default function PeoplePage() {
   const searchQuery = useDebouncedValue(search);
   // Mặc định KHÔNG chọn gì = lấy hết. Giữ mảng rỗng thay vì nhồi sẵn cả 6 mục
   // để "chưa lọc" và "lọc đúng 6 mục" không lẫn vào nhau ở tầng gọi API.
-  const [roles, setRoles] = useState<RoleFilter[]>([]);
+  const [roles, setRoles] = useState<RoleKey[]>([]);
   const [editing, setEditing] = useState<StaffAccount | null>(null);
   const [creating, setCreating] = useState(false);
 
@@ -338,20 +330,7 @@ export default function PeoplePage() {
                 tone={data.summary.offTarget > 0 ? "attention" : "normal"}
                 detail={data.daysLeft > 0 ? `còn ${data.daysLeft} ngày` : undefined}
               />
-              {canManage && staffData ? (
-                <StatCard
-                  value={staffData.summary.withoutRole}
-                  label="chưa gán chức vụ"
-                  tone={staffData.summary.withoutRole > 0 ? "attention" : "normal"}
-                  detail={
-                    staffData.summary.locked > 0
-                      ? `${staffData.summary.locked} tài khoản đã khoá`
-                      : undefined
-                  }
-                />
-              ) : (
-                <StatCard value={data.summary.averagePoints} label="điểm trung bình" />
-              )}
+              <StatCard value={data.summary.averagePoints} label="điểm trung bình" />
             </div>
 
             <SectionCard
