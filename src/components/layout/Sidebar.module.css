@@ -76,15 +76,13 @@
   outline-offset: -2px;
 }
 
-/* Mục đang mở: cam sáng hơn cả --om-orange, chữ trắng đậm. Chữ trắng trên nền
-   này chỉ 3,26:1 nên chữ phải 700 và có viền trong giữ rìa pill; dấu hiệu cho
-   trình đọc màn hình là aria-current, không phải màu. */
+/* Mục đang mở đảo nền: trắng, chữ cam. Nền trắng trên nền cam đã là rìa rõ
+   nhất có thể nên không cần viền; kèm aria-current cho trình đọc màn hình. */
 .active,
 .active:hover {
   background: var(--om-sidebar-active);
-  color: var(--om-sidebar-ink);
+  color: var(--om-orange);
   font-weight: 700;
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 45%);
 }
 
 @media (max-width: 900px) {
