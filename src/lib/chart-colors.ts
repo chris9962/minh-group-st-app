@@ -9,5 +9,5 @@
  */
 export const CHART_COLORS = {
   primary: '#d8620f',
-  secondary: '#f6a06b',
+  secondary: '#f59209',
 } as const;

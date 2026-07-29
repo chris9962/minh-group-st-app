@@ -32,7 +32,7 @@
   --om-orange-ink: #8a3d05;   /* chữ trên nền cam nhạt — 7.4:1 trên #ffe1d0 */
   --om-orange-soft: #ffe1d0;  /* nền cảnh báo */
   --om-orange-light: #ffc6a5; /* nền rất nhạt, thanh nền */
-  --om-orange-2: #f6a06b;     /* chuỗi thứ hai trong biểu đồ */
+  --om-orange-2: #f59209;     /* chuỗi thứ hai trong biểu đồ */
 
   /* ── Bí danh cho design system ─────────────────────────────────────── */
   --color-bg: var(--om-bg);
