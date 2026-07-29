@@ -1,6 +1,7 @@
 "use client";
 
 import * as RadixCheckbox from "@radix-ui/react-checkbox";
+import { Check } from "lucide-react";
 import styles from "./Checkbox.module.css";
 
 type Props = {
@@ -17,6 +18,10 @@ type Props = {
  *
  * Dùng Radix để có sẵn hành vi bàn phím (Space để tích, focus thấy được).
  * Tự vẽ bằng div là sẽ thiếu một trong số đó.
+ *
+ * Dấu tích là SVG, KHÔNG dùng ký tự "✓": ký tự chữ mang theo baseline và khoảng
+ * đệm hai bên của font, nên `place-items: center` canh giữa cái khung chữ chứ
+ * không canh giữa nét vẽ — kết quả là dấu tích lệch xuống và lệch phải.
  */
 export function Checkbox({
   checked,
@@ -36,7 +41,9 @@ export function Checkbox({
         onBlur={onBlur}
         disabled={disabled}
       >
-        <RadixCheckbox.Indicator aria-hidden>✓</RadixCheckbox.Indicator>
+        <RadixCheckbox.Indicator className={styles.mark} aria-hidden>
+          <Check size={14} strokeWidth={3.2} />
+        </RadixCheckbox.Indicator>
       </RadixCheckbox.Root>
       {label}
     </label>

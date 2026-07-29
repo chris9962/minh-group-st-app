@@ -14,7 +14,11 @@
   color: var(--om-orange-mid);
 }
 
+/* Ký hiệu vẽ bằng SVG chứ không dùng ký tự chữ: ký tự mang baseline của font
+   nên nét bị lệch xuống so với chữ bên cạnh. */
 .mark {
-  font-weight: 700;
+  display: inline-grid;
+  place-items: center;
   margin-right: 5px;
+  line-height: 0;
 }

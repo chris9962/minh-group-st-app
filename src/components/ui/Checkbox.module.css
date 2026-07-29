@@ -15,8 +15,15 @@
   background: var(--color-surface);
   display: grid;
   place-items: center;
-  color: var(--color-bg);
+  color: var(--om-text-on-accent);
   cursor: pointer;
+}
+
+/* Indicator là một lớp bọc nữa, phải tự canh giữa chứ không thừa hưởng của .box. */
+.mark {
+  display: grid;
+  place-items: center;
+  line-height: 0;
 }
 
 .box[data-state="checked"] {
