@@ -19,9 +19,9 @@ type Props = {
  * Dùng Radix để có sẵn hành vi bàn phím (Space để tích, focus thấy được).
  * Tự vẽ bằng div là sẽ thiếu một trong số đó.
  *
- * Dấu tích là SVG, KHÔNG dùng ký tự "✓": ký tự chữ mang theo baseline và khoảng
- * đệm hai bên của font, nên `place-items: center` canh giữa cái khung chữ chứ
- * không canh giữa nét vẽ — kết quả là dấu tích lệch xuống và lệch phải.
+ * Dấu tích là icon SVG, không phải ký tự chữ — ký tự mang theo baseline của font
+ * nên nét không nằm giữa khung. Còn việc canh giữa thì phụ thuộc `padding: 0` ở
+ * `.box`: Radix render Root thành <button>, mà <button> có padding mặc định.
  */
 export function Checkbox({
   checked,

@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { use, useState } from "react";
-import { ChartColumn } from "lucide-react";
+import { ChartColumn, ChevronLeft } from "lucide-react";
 import { TopBar } from "@/components/layout/TopBar";
 import { AccountCard } from "@/components/staff/AccountCard";
 import { BarChart } from "@/components/ui/BarChart";
@@ -151,7 +151,8 @@ export default function PersonPage({
 
       <main className={styles.body}>
         <Link href="/people" className={styles.back}>
-          ‹ Nhân sự &amp; KPI
+          <ChevronLeft size={15} aria-hidden />
+          Nhân sự &amp; KPI
         </Link>
 
         {isPending && <p className="text-muted">Đang tải hồ sơ…</p>}

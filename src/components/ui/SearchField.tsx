@@ -1,5 +1,6 @@
 "use client";
 
+import { Search, X } from "lucide-react";
 import { useId } from "react";
 import styles from "./SearchField.module.css";
 
@@ -24,16 +25,8 @@ export function SearchField({ label, placeholder, value, onChange }: Props) {
       <label htmlFor={id} className="an-nhin">
         {label}
       </label>
-      <svg className={styles.icon} viewBox="0 0 20 20" aria-hidden focusable="false">
-        <circle cx="9" cy="9" r="5.5" fill="none" stroke="currentColor" strokeWidth="1.8" />
-        <path
-          d="M13.2 13.2 17 17"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.8"
-          strokeLinecap="round"
-        />
-      </svg>
+      <Search className={styles.icon} size={15} aria-hidden />
+
       <input
         id={id}
         type="search"
@@ -49,7 +42,7 @@ export function SearchField({ label, placeholder, value, onChange }: Props) {
           onClick={() => onChange("")}
           aria-label={`Xoá ${label.toLowerCase()}`}
         >
-          <span aria-hidden>×</span>
+          <X size={15} aria-hidden />
         </button>
       )}
     </div>

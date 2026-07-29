@@ -10,6 +10,11 @@
   width: 20px;
   height: 20px;
   flex: none;
+  /* Radix render Root thành <button>, mà <button> có padding mặc định 1px 6px.
+     Với box-sizing: border-box, ô 20px trừ viền và padding chỉ còn 5px lòng —
+     dấu tích 14px rộng hơn chỗ đó nên trình duyệt kẹp về mép trái thay vì canh
+     giữa, lệch đúng 9px. Phải reset padding, không phải lỗi của hình dấu tích. */
+  padding: 0;
   border-radius: var(--radius-sm);
   border: 1.5px solid var(--color-divider);
   background: var(--color-surface);

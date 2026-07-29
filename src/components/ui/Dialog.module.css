@@ -38,6 +38,7 @@
 }
 
 .close {
+  padding: 0;
   flex: none;
   width: 44px;
   height: 44px;

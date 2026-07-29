@@ -1,5 +1,6 @@
 "use client";
 
+import { X } from "lucide-react";
 import { useEffect, useRef } from "react";
 import styles from "./Dialog.module.css";
 
@@ -56,7 +57,7 @@ export function Dialog({ open, title, onClose, children, footer }: Props) {
               onClick={onClose}
               aria-label="Đóng"
             >
-              <span aria-hidden>×</span>
+              <X size={18} aria-hidden />
             </button>
           </header>
 

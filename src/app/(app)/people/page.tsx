@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState } from "react";
-import { Users } from "lucide-react";
+import { Plus, Users } from "lucide-react";
 import { TopBar } from "@/components/layout/TopBar";
 import { Button } from "@/components/ui/Button";
 import { monthLabel, thisMonth } from "@/components/ui/MonthPicker";
@@ -276,7 +276,10 @@ export default function PeoplePage() {
           </fieldset>
         </FilterButton>
         {canManage && (
-          <Button onClick={() => setCreating(true)}>＋ Thêm nhân viên</Button>
+          <Button onClick={() => setCreating(true)}>
+            <Plus size={16} />
+            Thêm nhân viên
+          </Button>
         )}
       </TopBar>
 

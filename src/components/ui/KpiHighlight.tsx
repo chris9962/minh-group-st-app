@@ -1,3 +1,4 @@
+import { Smartphone } from "lucide-react";
 import styles from "./KpiHighlight.module.css";
 
 type Props = {
@@ -36,24 +37,7 @@ export function KpiHighlight({
         <span className={styles.description}>{description}</span>
 
         <span className={styles.icon} aria-hidden>
-          <svg viewBox="0 0 24 24" width="20" height="20" focusable="false">
-            <rect
-              x="7"
-              y="2.5"
-              width="10"
-              height="19"
-              rx="2.4"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.7"
-            />
-            <path
-              d="M10.6 18.4h2.8"
-              stroke="currentColor"
-              strokeWidth="1.7"
-              strokeLinecap="round"
-            />
-          </svg>
+          <Smartphone size={20} strokeWidth={1.8} />
         </span>
       </div>
 
