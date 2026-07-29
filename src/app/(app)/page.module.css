@@ -20,12 +20,14 @@
   flex: none;
 }
 
+/* 2×2 và giãn hết chiều cao để khối phải cân với thẻ chỉ số bên trái,
+   thay vì bốn thẻ dẹt nằm trên cùng rồi để trống bên dưới. */
 .statGrid {
   flex: 1;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
   gap: 14px;
-  align-content: start;
 }
 
 .grid {
