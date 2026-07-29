@@ -55,6 +55,8 @@ Quy tắc:
   `--om-orange-soft` `--om-orange-mid` `--om-orange-light`.
   Các tên `--color-*` cũ vẫn chạy vì trỏ về `--om-*`, nhưng code mới dùng `--om-*`.
   Bảng màu là **xám · trắng · cam** — không có màu thứ tư, đừng thêm.
+  Ngoại lệ duy nhất là **màu trạng thái** `--om-green*`: nó nói "đạt / không đạt",
+  không phải màu thương hiệu. Chỉ dùng đúng nghĩa đó, không dùng để trang trí.
   **Không viết mã màu và khoảng cách cứng.** Ngoại lệ duy nhất: khối thương hiệu
   `BrandPanel` dùng đúng màu bộ nhận diện, có ghi chú lý do.
 - Component của design system dùng qua class có sẵn: `.btn`, `.input`, `.card`, `.tag`, `.table`

@@ -1,10 +1,11 @@
-/* Bảng có hàng chục dòng — khối màu đặc biến thành một mảng loang, rất nặng.
-   Dùng viền mảnh + chữ, nền trong suốt.
+/* Đạt chỉ tiêu là tin vui nên nhãn có nền xanh nhạt; chưa đạt chỉ có viền cam,
+   nền trong suốt. Bất đối xứng là cố ý: bảng thường nhiều người chưa đạt hơn
+   người đã đạt, tô đặc cả hai thì thành một mảng loang và chẳng còn gì nổi.
    Ký hiệu ✓ / ! vẫn là kênh truyền đạt chính, màu chỉ hỗ trợ. */
 .ok {
-  background: transparent;
-  border: 1px solid var(--om-line);
-  color: var(--om-text-2);
+  background: var(--om-green-soft);
+  border: 1px solid var(--om-green);
+  color: var(--om-green-ink);
 }
 
 .warn {

@@ -34,6 +34,13 @@
   --om-orange-light: #ffc6a5; /* nền rất nhạt, thanh nền */
   --om-orange-2: #a84a05;     /* chuỗi thứ hai trong biểu đồ */
 
+  /* Màu trạng thái — KHÔNG phải màu thứ tư của bộ nhận diện. Chỉ dùng cho
+     "đạt / không đạt", không dùng cho trang trí. Cam vẫn là màu thương hiệu,
+     nếu cam kiêm luôn nghĩa "tốt" thì không còn gì để nói "chưa tốt". */
+  --om-green: #1a7f37;        /* viền, ký hiệu */
+  --om-green-soft: #e6f4ea;   /* nền nhãn */
+  --om-green-ink: #14672c;    /* chữ — 6.2:1 trên nền nhãn */
+
   /* ── Bí danh cho design system ─────────────────────────────────────── */
   --color-bg: var(--om-bg);
   --color-surface: var(--om-card);
