@@ -49,10 +49,6 @@
   --om-chip-bg: #fbece5;
   --om-chip-ink: #d95328;
 
-  /* Màu "giảm". Xanh nói tăng thì phải có màu nói giảm — cam là màu thương
-     hiệu nên không kiêm được nghĩa xấu. */
-  --om-negative-ink: #f43f5e;
-  --om-negative-soft: #ffe7ea;
 
   --om-shadow-color: 32 30 29;
 
@@ -157,8 +153,6 @@
   --om-chip-bg: #3b2110;
   --om-chip-ink: #fdba74;
 
-  --om-negative-ink: #fb7185;
-  --om-negative-soft: #401520;
 
   --om-shadow-color: 0 0 0;
 
