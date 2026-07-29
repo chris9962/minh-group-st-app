@@ -1,7 +1,14 @@
 import styles from "./ProgressRing.module.css";
 
-type Props = {
+export type RingSegment = {
+  label: string;
   value: number;
+  color: string;
+};
+
+type Props = {
+  /** Các phần cộng lại thành tổng. Một phần tử thì vòng liền một khối. */
+  segments: RingSegment[];
   max: number;
   /** Tên chỉ số cho trình đọc màn hình. */
   ariaLabel: string;
@@ -11,40 +18,60 @@ const RADIUS = 52;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
 /**
- * Vòng tiến độ có số ở giữa.
+ * Vòng tiến độ chia phần, số tổng ở giữa.
  *
  * Vẽ bằng `stroke` trong CSS chứ không phải thuộc tính SVG — thuộc tính SVG
- * không giải được `var(--om-*)`, đặt màu ở đó là màu chết cứng.
+ * không giải được `var(--om-*)`. Riêng màu từng phần thì buộc phải là mã màu
+ * thật vì nó đến từ dữ liệu, lấy ở `SERIES_RAMP`.
  */
-export function ProgressRing({ value, max, ariaLabel }: Props) {
-  const ratio = max > 0 ? Math.max(0, Math.min(1, value / max)) : 0;
-  const reached = value >= max;
+export function ProgressRing({ segments, max, ariaLabel }: Props) {
+  const total = segments.reduce((sum, s) => sum + s.value, 0);
+  const reached = total >= max;
+
+  // Vượt chỉ tiêu thì co các phần lại cho vừa đúng một vòng; nếu không cung
+  // cuối cùng chạy chồng lên cung đầu và vòng trông như còn thiếu.
+  const scale = max > 0 ? Math.min(1, max / Math.max(total, 1)) / max : 0;
+
+  let offset = 0;
 
   return (
     <div
       className={styles.ring}
       role="progressbar"
-      aria-valuenow={value}
+      aria-valuenow={total}
       aria-valuemin={0}
       aria-valuemax={max}
       aria-label={ariaLabel}
     >
       <svg viewBox="0 0 120 120" className={styles.svg} aria-hidden focusable="false">
         <circle className={styles.track} cx="60" cy="60" r={RADIUS} />
-        <circle
-          className={reached ? styles.fillReached : styles.fill}
-          cx="60"
-          cy="60"
-          r={RADIUS}
-          style={{
-            strokeDasharray: CIRCUMFERENCE,
-            strokeDashoffset: CIRCUMFERENCE * (1 - ratio),
-          }}
-        />
+        {segments.map((s) => {
+          const length = s.value * scale * CIRCUMFERENCE;
+          const start = offset;
+          offset += length;
+          return (
+            <circle
+              key={s.label}
+              className={styles.arc}
+              cx="60"
+              cy="60"
+              r={RADIUS}
+              stroke={s.color}
+              strokeDasharray={`${length} ${CIRCUMFERENCE}`}
+              strokeDashoffset={-start}
+            />
+          );
+        })}
       </svg>
 
       <span className={styles.center}>
-        <strong className={`${styles.value} so`}>{value}</strong>
+        <strong
+          className={[styles.value, reached && styles.reached, "so"]
+            .filter(Boolean)
+            .join(" ")}
+        >
+          {total}
+        </strong>
         <span className={`${styles.max} so`}>/ {max}</span>
       </span>
     </div>

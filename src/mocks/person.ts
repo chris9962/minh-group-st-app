@@ -7,13 +7,18 @@ import type {
   PointSource,
 } from "@/lib/api/person";
 import { removeDiacritics } from "@/lib/format";
-import { ALL, seed } from "./people";
+import {
+  accountCountOf,
+  BANK_FACTOR,
+  buildAccounts,
+  CUSTOMERS,
+  seed,
+  type AccountSpec,
+} from "./activity";
+import { ALL } from "./people";
 
 /** Dữ liệu giả cho P-52. Dựng từ cùng danh sách người của P-51 để hai màn khớp nhau. */
 
-const BANKS = ["MSBa", "VPa", "VPb", "MB", "TPB"];
-const BANK_FACTOR: Record<string, number> = { MSBa: 3, VPa: 2, VPb: 2, MB: 1, TPB: 1 };
-const CHANNELS = ["Ấp Tân Hoà", "BV Tân An", "ATM", "Định danh", "Ấp Tân Lập"];
 const SERVICE_TYPES = [
   "Thanh toán hoá đơn",
   "Nạp / rút",
@@ -22,29 +27,6 @@ const SERVICE_TYPES = [
   "Bảo hiểm y tế",
 ];
 const WARDS = ["Tân Bình", "Tân Hoà", "Tân Lập", "Tân Phú"];
-/** Đủ dài để mỗi khách chỉ có một hai ngân hàng, giống ngoài đời hơn. */
-const CUSTOMERS = [
-  "Nguyễn Thị Bích Trâm",
-  "Trần Văn Đức",
-  "Lê Thị Hồng",
-  "Phạm Minh Tuấn",
-  "Võ Thị Mai",
-  "Đỗ Văn Bình",
-  "Huỳnh Thị Ngọc",
-  "Lý Văn Sang",
-  "Nguyễn Văn Khoa",
-  "Trần Thị Thu",
-  "Đặng Minh Hoàng",
-  "Bùi Thị Lan",
-  "Phan Văn Tài",
-  "Ngô Thị Kim",
-  "Dương Văn Phúc",
-  "Hồ Thị Diệu",
-  "Vũ Minh Quân",
-  "Trương Thị Nga",
-  "Lâm Văn Hậu",
-  "Cao Thị Yến",
-];
 
 /** Tên đăng nhập giả: chữ cuối của tên, bỏ dấu. Bản thật lấy từ hồ sơ. */
 const usernameOf = (fullName: string): string =>
@@ -65,36 +47,12 @@ function dayIn(month: string, offset: number): string {
   return `${month}-${String(day).padStart(2, "0")}`;
 }
 
-const ACCOUNT_TYPES: PersonAccount["accountType"][] = [
-  "none",
-  "none",
-  "none",
-  "CNKD",
-  "HKD",
-];
-
-function accountsOf(fullName: string, month: string, count: number): PersonAccount[] {
-  return Array.from({ length: count }, (_, i) => {
-    const bank = BANKS[seed(fullName, i + 11) % BANKS.length];
-    // App chưa cài thì tài khoản không tính điểm, không tính quà — đây là lý do
-    // bảng có dòng nhưng điểm vẫn thấp.
-    const appInstalled = seed(fullName, i + 53) % 5 !== 0;
-    return {
-      id: `a${i + 1}`,
-      date: dayIn(month, i),
-      // Rải theo i để mỗi khách chỉ dính một hai dòng; lấy seed thuần thì cả
-      // 36 tài khoản dồn vào 8 khách và mỗi hàng có 5 ngân hàng.
-      customerName: CUSTOMERS[(i + (seed(fullName, 23) % 3)) % CUSTOMERS.length],
-      bankName: bank,
-      referralCode: `${bank}-${String(seed(fullName, i + 31) * 7).padStart(4, "0").slice(0, 4)}`,
-      channel: CHANNELS[seed(fullName, i + 41) % CHANNELS.length],
-      appInstalled,
-      accountType: appInstalled
-        ? ACCOUNT_TYPES[seed(fullName, i + 59) % ACCOUNT_TYPES.length]
-        : "none",
-    };
-  });
-}
+/** Gắn ngày vào danh sách tài khoản dùng chung; thứ tự mới nhất trước. */
+const accountsOf = (fullName: string, month: string, count: number): PersonAccount[] =>
+  buildAccounts(fullName, count).map((a: AccountSpec, i) => ({
+    ...a,
+    date: dayIn(month, i),
+  }));
 
 const PRODUCTS: [string, string][] = [
   ["BH tai nạn điện", "1 năm · 100k"],
@@ -154,10 +112,16 @@ function giftsOf(accounts: PersonAccount[]): CustomerGift[] {
     }));
 }
 
-/** Gom tài khoản theo ngân hàng để giải thích điểm đến từ đâu. */
+/**
+ * Tách điểm theo nguồn.
+ *
+ * Tổng của danh sách này PHẢI bằng đúng tổng điểm hiện ở giữa vòng, nên chỉ
+ * gồm những thứ thật sự sinh điểm: app đã cài theo từng ngân hàng, và dịch vụ.
+ * Đơn bảo hiểm cố ý không có mặt — theo spec nó không tính vào điểm KPI.
+ */
 function pointSourcesOf(
   accounts: PersonAccount[],
-  insuranceOrders: number,
+  servicePoints: number,
 ): PointSource[] {
   const byBank = new Map<string, number>();
   for (const a of accounts) {
@@ -168,16 +132,16 @@ function pointSourcesOf(
   const sources: PointSource[] = [...byBank.entries()]
     .map(([bank, count]) => ({
       label: bank,
-      detail: `${count} tài khoản · hệ số ${BANK_FACTOR[bank] ?? 1}`,
+      detail: `${count} app đã cài · hệ số ${BANK_FACTOR[bank] ?? 1}`,
       points: count * (BANK_FACTOR[bank] ?? 1),
     }))
     .sort((a, b) => b.points - a.points);
 
-  if (insuranceOrders > 0) {
+  if (servicePoints > 0) {
     sources.push({
-      label: "Đơn bảo hiểm",
-      detail: `${insuranceOrders} đơn`,
-      points: insuranceOrders,
+      label: "Dịch vụ",
+      detail: `${servicePoints} lượt`,
+      points: servicePoints,
     });
   }
 
@@ -253,9 +217,10 @@ export function personFor({
       total: base.bankingPoints + base.servicePoints,
       target: base.target,
     },
+    // Tách điểm luôn tính trên tài khoản CẢ THÁNG, khớp với con số ở giữa vòng.
     pointSources: pointSourcesOf(
-      accountsOf(base.fullName, summaryMonth, base.accounts),
-      base.insuranceOrders,
+      accountsOf(base.fullName, summaryMonth, accountCountOf(base.fullName)),
+      base.servicePoints,
     ),
     monthlyPoints: monthlyPointsOf(base.fullName, summaryMonth, total),
     gifts: giftsOf(accounts),

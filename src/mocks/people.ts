@@ -1,6 +1,7 @@
 import type { PeopleData, PersonScore } from "@/lib/api/people";
 import { matchesSearch } from "@/lib/format";
 import type { Scope } from "@/lib/types";
+import { accountCountOf, bankPointsOf, buildAccounts, seed } from "./activity";
 import { departments as allDepartments } from "./data";
 
 /** Dữ liệu giả cho P-51. Chỉ tiêu hiện tại là 100 điểm mỗi người mỗi tháng. */
@@ -22,22 +23,21 @@ const NAMES: [string, string][] = [
   ["Phan Thị Tuyết", "Phòng Kinh doanh 1"],
 ];
 
-/** Số cố định theo tên để bảng không nhảy mỗi lần render. */
-export const seed = (s: string, salt: number) =>
-  (s.split("").reduce((a, c) => a + c.charCodeAt(0), 0) * 13 + salt * 29) % 97;
-
+/**
+ * Điểm ngân hàng TÍNH TỪ chính danh sách tài khoản mà P-52 sẽ hiện, không bịa
+ * một con số riêng. Bịa riêng thì màn này báo 99 điểm còn màn kia tách ra chỉ
+ * được 61, và chẳng có cách nào biết bên nào đúng.
+ */
 function person([fullName, departmentName]: [string, string], i: number): PersonScore {
-  const banking = 28 + (seed(fullName, 1) % 88);
-  const service = seed(fullName, 2) % 22;
-  const accounts = Math.round(banking / 2.6);
+  const accounts = buildAccounts(fullName, accountCountOf(fullName));
   return {
     id: `p${i + 1}`,
     fullName,
     departmentName,
-    bankingPoints: banking,
-    servicePoints: service,
-    accounts,
-    apps: Math.round(accounts * (0.62 + (seed(fullName, 3) % 32) / 100)),
+    bankingPoints: bankPointsOf(accounts),
+    servicePoints: seed(fullName, 2) % 22,
+    accounts: accounts.length,
+    apps: accounts.filter((a) => a.appInstalled).length,
     insuranceOrders: seed(fullName, 4) % 8,
     target: TARGET,
   };

@@ -1,8 +1,8 @@
 .ring {
   position: relative;
   flex: none;
-  width: 108px;
-  height: 108px;
+  width: 116px;
+  height: 116px;
 }
 
 /* Quay -90° để vòng bắt đầu từ đỉnh chứ không phải từ bên phải. */
@@ -13,25 +13,19 @@
 }
 
 .track,
-.fill,
-.fillReached {
+.arc {
   fill: none;
-  stroke-width: 12;
+  stroke-width: 13;
 }
 
 .track {
   stroke: var(--om-line);
 }
 
-.fill {
-  stroke: var(--om-orange);
-  stroke-linecap: round;
-}
-
-/* Đạt chỉ tiêu thì đổi sang màu trạng thái, cùng ngôn ngữ với nhãn "Đã đạt".
-   Vòng đầy đã là dấu hiệu chính, màu chỉ nói thêm. */
-.fillReached {
-  stroke: var(--om-green);
+/* Đầu cung cắt vuông: bo tròn thì hai cung cạnh nhau đè lên nhau và phần nhỏ
+   nhất bị phần kế bên nuốt mất. */
+.arc {
+  stroke-linecap: butt;
 }
 
 .center {
@@ -48,6 +42,11 @@
   font-family: var(--font-heading);
   font-weight: var(--font-heading-weight);
   font-size: 26px;
+}
+
+/* Đạt chỉ tiêu thì số đổi màu trạng thái — cùng ngôn ngữ với nhãn "Đã đạt". */
+.reached {
+  color: var(--om-green-ink);
 }
 
 .max {

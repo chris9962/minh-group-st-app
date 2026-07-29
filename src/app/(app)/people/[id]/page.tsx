@@ -21,7 +21,7 @@ import {
   type PersonInsurance,
   type PersonService,
 } from "@/lib/api/person";
-import { CHART_COLORS } from "@/lib/chart-colors";
+import { CHART_COLORS, sourceColor } from "@/lib/chart-colors";
 import { formatDate, formatPhone } from "@/lib/format";
 import styles from "./page.module.css";
 
@@ -40,7 +40,6 @@ const ACCOUNT_COLUMNS: RankColumn<CustomerAccounts>[] = [
   { ...DATE_COLUMN, label: "Gần nhất" },
   { key: "customerName", label: "Khách hàng", render: (c) => c.customerName },
   { key: "banks", label: "Ngân hàng", render: (c) => c.banks.join(", ") },
-  { key: "channels", label: "Kênh", render: (c) => c.channels.join(", ") },
   {
     key: "appBanks",
     label: "App đã cài",
@@ -176,59 +175,69 @@ export default function PersonPage({
                 </div>
 
                 {withKpi && (
-                  <div className={styles.score}>
-                    <ProgressRing
-                      value={data.points.total}
-                      max={data.points.target}
-                      ariaLabel={`Điểm ${monthLabel(data.summaryMonth)} trên chỉ tiêu`}
-                    />
-                    <p className={styles.scoreNote}>
-                      {data.points.total >= data.points.target
-                        ? `Đã vượt chỉ tiêu ${monthLabel(data.summaryMonth).toLowerCase()} ${data.points.total - data.points.target} điểm.`
-                        : `Còn ${data.points.target - data.points.total} điểm nữa mới đạt chỉ tiêu ${monthLabel(data.summaryMonth).toLowerCase()}.` +
-                          (data.daysLeft > 0 ? ` Còn ${data.daysLeft} ngày.` : "")}
-                    </p>
-                  </div>
-                )}
-              </div>
+                  <>
+                    <div className={styles.score}>
+                      <ProgressRing
+                        segments={data.pointSources.map((s, i) => ({
+                          label: s.label,
+                          value: s.points,
+                          color: sourceColor(s.label, i),
+                        }))}
+                        max={data.points.target}
+                        ariaLabel={`Điểm ${monthLabel(data.summaryMonth)} trên chỉ tiêu`}
+                      />
+                      <p className={styles.scoreNote}>
+                        {data.points.total >= data.points.target
+                          ? `Đã vượt chỉ tiêu ${monthLabel(data.summaryMonth).toLowerCase()} ${data.points.total - data.points.target} điểm.`
+                          : `Còn ${data.points.target - data.points.total} điểm nữa mới đạt chỉ tiêu ${monthLabel(data.summaryMonth).toLowerCase()}.` +
+                            (data.daysLeft > 0 ? ` Còn ${data.daysLeft} ngày.` : "")}
+                      </p>
+                    </div>
 
-              {withKpi && (
-                <>
-                  <SectionCard title="Điểm đến từ đâu">
-                    <dl className={styles.pairs}>
-                      {data.pointSources.map((s) => (
+                    <dl className={styles.legend}>
+                      {data.pointSources.map((s, i) => (
                         <div key={s.label}>
                           <dt>
+                            <span
+                              className={styles.dot}
+                              style={{
+                                background: sourceColor(s.label, i),
+                              }}
+                              aria-hidden
+                            />
                             {s.label}
-                            <span className={styles.pairDetail}>{s.detail}</span>
+                            <span className={styles.legendDetail}>{s.detail}</span>
                           </dt>
                           <dd className="so">{s.points}</dd>
                         </div>
                       ))}
                     </dl>
+
                     <p className={styles.footnote}>
                       Tài khoản khách <strong>chưa cài app</strong> không sinh điểm —
                       đó là lý do bảng bên cạnh có dòng mà điểm vẫn chưa lên.
                     </p>
-                  </SectionCard>
+                  </>
+                )}
+              </div>
 
-                  <SectionCard title="Điểm theo tháng">
-                    <BarChart
-                      rows={data.monthlyPoints.map((m) => ({
-                        label: shortMonth(m.month),
-                        points: m.points,
-                      }))}
-                      labelKey="label"
-                      series={[
-                        { key: "points", label: "Điểm", color: CHART_COLORS.primary },
-                      ]}
-                      highlight={shortMonth(data.summaryMonth)}
-                      showLegend={false}
-                      height={160}
-                      caption="Điểm của nhân viên trong 5 tháng gần nhất"
-                    />
-                  </SectionCard>
-                </>
+              {withKpi && (
+                <SectionCard title="Điểm theo tháng">
+                  <BarChart
+                    rows={data.monthlyPoints.map((m) => ({
+                      label: shortMonth(m.month),
+                      points: m.points,
+                    }))}
+                    labelKey="label"
+                    series={[
+                      { key: "points", label: "Điểm", color: CHART_COLORS.primary },
+                    ]}
+                    highlight={shortMonth(data.summaryMonth)}
+                    showLegend={false}
+                    height={160}
+                    caption="Điểm của nhân viên trong 5 tháng gần nhất"
+                  />
+                </SectionCard>
               )}
             </aside>
 
