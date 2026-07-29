@@ -16,6 +16,7 @@ import { ScopeSwitcher } from "@/components/ui/ScopeSwitcher";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatCard } from "@/components/ui/StatCard";
 import { fetchDashboard } from "@/lib/api/dashboard";
+import { CHART_COLORS } from "@/lib/chart-colors";
 import { availableScopes } from "@/lib/permissions";
 import type { Scope } from "@/lib/types";
 import { useSession } from "@/store/session";
@@ -157,8 +158,8 @@ export default function DashboardPage() {
                   labelKey="label"
                   rows={data.insurance.buckets}
                   series={[
-                    { key: "motorbike", label: "BH xe máy", color: "#c67139" },
-                    { key: "electric", label: "BH tai nạn điện", color: "#f6a06b" },
+                    { key: "motorbike", label: "BH xe máy", color: CHART_COLORS.primary },
+                    { key: "electric", label: "BH tai nạn điện", color: CHART_COLORS.secondary },
                   ]}
                 />
               </SectionCard>

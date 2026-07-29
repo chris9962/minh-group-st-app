@@ -18,14 +18,14 @@
   --om-text-2: #645c50;    /* chữ phụ */
   --om-text-3: #82796a;    /* chữ mờ */
 
-  --om-orange: #c67139;    /* nút chính, mục menu đang chọn, thanh tiến độ */
-  --om-orange-ink: #8c491a; /* chữ trên nền cảnh báo, số nhấn mạnh */
-  --om-orange-soft: #ffe1d0; /* nền cảnh báo */
-  --om-orange-mid: #b2622d; /* mã màn, liên kết thao tác */
+  /* Cam lấy theo logo — bão hoà cao nên có sức sống. Bản cũ #c67139 chỉ 71%
+     bão hoà, ra sắc nhợt. #d65f0a đạt 95% mà chữ trắng vẫn còn 3.82:1. */
+  --om-orange: #d65f0a;       /* nút chính, menu đang chọn, số nhấn, thanh tiến độ */
+  --om-orange-mid: #b04d06;   /* trạng thái di chuột / nhấn giữ, liên kết thao tác */
+  --om-orange-ink: #8a3d05;   /* chữ trên nền cam nhạt — 7.4:1 trên #ffe1d0 */
+  --om-orange-soft: #ffe1d0;  /* nền cảnh báo */
   --om-orange-light: #ffc6a5; /* nền rất nhạt, thanh nền */
-  /* Bậc trung gian giữa cam chính và cam sáng. Hai màu trong bảng gốc đứng
-     cạnh nhau trên nền xám thì chuỗi nhạt bị chìm; bậc này tách bạch được. */
-  --om-orange-2: #f6a06b;    /* chuỗi thứ hai trong biểu đồ */
+  --om-orange-2: #f6a06b;     /* chuỗi thứ hai trong biểu đồ */
 
   /* ── Bí danh cho design system ─────────────────────────────────────── */
   --color-bg: var(--om-bg);
