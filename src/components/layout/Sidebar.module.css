@@ -76,8 +76,9 @@
   outline-offset: -2px;
 }
 
-/* Mục đang mở: cam sáng hơn nền sidebar, chữ trắng đậm. Chênh nền chỉ 1,37:1
-   nên thêm viền trong mảnh để rìa pill vẫn rõ; kèm aria-current cho trình đọc. */
+/* Mục đang mở: cam sáng hơn cả --om-orange, chữ trắng đậm. Chữ trắng trên nền
+   này chỉ 3,26:1 nên chữ phải 700 và có viền trong giữ rìa pill; dấu hiệu cho
+   trình đọc màn hình là aria-current, không phải màu. */
 .active,
 .active:hover {
   background: var(--om-sidebar-active);

@@ -14,11 +14,11 @@
   --om-soft: #fdfdfc;      /* nền nhạt nhất trong thẻ */
   --om-line: #e4e3e1;      /* đường kẻ / viền */
 
-  /* Sidebar nền cam sâu, mục đang mở là cam sáng hơn. Cả hai đều đậm hơn
-     --om-orange vì chữ trắng 13.5px cần 4.5:1 — nền #a04606 cho 6.22:1,
-     nền mục đang mở #c25608 cho 4.54:1. Lấy đúng --om-orange chỉ còn 3.59. */
+  /* Sidebar nền cam sâu, mục đang mở sáng hơn cả --om-orange. Chênh nền giữa
+     hai màu này là 1.91:1 nên mục đang mở nổi rõ; bù lại chữ trắng trên
+     #e46c12 chỉ 3.26:1 nên nó phải đi kèm chữ đậm và viền trong. */
   --om-sidebar: #a04606;
-  --om-sidebar-active: #c25608;
+  --om-sidebar-active: #e46c12;
   --om-sidebar-ink: #ffffff;
   --om-sidebar-ink-2: rgb(255 255 255 / 72%);
 
@@ -27,9 +27,9 @@
   --om-text-3: #82796a;    /* chữ mờ */
 
   /* Cam lấy theo logo — bão hoà cao nên có sức sống. Chỉ dùng cho chữ CỠ LỚN
-     (số thống kê) và cho nền/viền: chữ trắng trên nó chỉ 3.59:1, chữ thường
+     (số thống kê) và cho nền/viền: chữ trắng trên nó chỉ 3.70:1, chữ thường
      phải lấy --om-orange-mid trở xuống. */
-  --om-orange: #e0600b;       /* nút chính, số nhấn, thanh tiến độ */
+  --om-orange: #d8620f;       /* nút chính, số nhấn, thanh tiến độ */
   --om-orange-mid: #b04d06;   /* trạng thái di chuột / nhấn giữ, liên kết thao tác */
   --om-orange-ink: #8a3d05;   /* chữ trên nền cam nhạt — 7.4:1 trên #ffe1d0 */
   --om-orange-soft: #ffe1d0;  /* nền cảnh báo */

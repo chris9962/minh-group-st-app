@@ -8,6 +8,6 @@
  * `styles/organic.css`. Đổi token thì đổi luôn ở đây.
  */
 export const CHART_COLORS = {
-  primary: '#e0600b',
+  primary: '#d8620f',
   secondary: '#f6a06b',
 } as const;
