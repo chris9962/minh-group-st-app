@@ -15,8 +15,10 @@
   line-height: 1.1;
 }
 
+/* Cam chính, KHÔNG dùng --om-orange-ink: màu đó dành cho chữ trên nền cảnh
+   báo #ffe1d0; đặt lên nền xám thì thành nâu đục. */
 .attention {
-  color: var(--color-accent-700);
+  color: var(--om-orange);
 }
 
 .label {

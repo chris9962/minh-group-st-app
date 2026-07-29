@@ -22,7 +22,10 @@
   --om-orange-ink: #8c491a; /* chữ trên nền cảnh báo, số nhấn mạnh */
   --om-orange-soft: #ffe1d0; /* nền cảnh báo */
   --om-orange-mid: #b2622d; /* mã màn, liên kết thao tác */
-  --om-orange-light: #ffc6a5; /* chuỗi phụ trong biểu đồ */
+  --om-orange-light: #ffc6a5; /* nền rất nhạt, thanh nền */
+  /* Bậc trung gian giữa cam chính và cam sáng. Hai màu trong bảng gốc đứng
+     cạnh nhau trên nền xám thì chuỗi nhạt bị chìm; bậc này tách bạch được. */
+  --om-orange-2: #f6a06b;    /* chuỗi thứ hai trong biểu đồ */
 
   /* ── Bí danh cho design system ─────────────────────────────────────── */
   --color-bg: var(--om-bg);

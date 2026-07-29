@@ -158,7 +158,7 @@ export default function DashboardPage() {
                   rows={data.insurance.buckets}
                   series={[
                     { key: "motorbike", label: "BH xe máy", color: "#c67139" },
-                    { key: "electric", label: "BH tai nạn điện", color: "#ffc6a5" },
+                    { key: "electric", label: "BH tai nạn điện", color: "#f6a06b" },
                   ]}
                 />
               </SectionCard>
