@@ -45,9 +45,11 @@ export function navFor(user: User | null): NavItem[] {
   // Hồ sơ khách hàng không áp trục phạm vi — ai đăng nhập được cũng thấy.
   items.push({ href: '/customers', label: 'Khách hàng', screen: 'P-40' });
 
-  // Chỉ người quản phòng mới thấy "Nhân sự & KPI"; còn lại là chỉ tiêu của mình.
+  // Vào được màn Nhân sự bằng HAI đường: quản phòng thì xem điểm của lính, còn
+  // `manage-users` thì vào để tạo/sửa người — quản trị hệ thống không quản
+  // phòng nào nhưng vẫn phải mở được danh sách này.
   items.push(
-    user.manageScope === 'none'
+    user.manageScope === 'none' && !can(user, 'system', 'manage-users')
       ? { href: '/my-target', label: 'Chỉ tiêu của tôi', screen: 'P-50' }
       : { href: '/people', label: 'Nhân sự & KPI', screen: 'P-51' },
   );
@@ -75,8 +77,10 @@ export function navFor(user: User | null): NavItem[] {
     items.push({ href: '/exports', label: 'Xuất dữ liệu', screen: 'P-73' });
   }
 
-  if (can(user, 'system', 'manage-users')) {
-    items.push({ href: '/users', label: 'Tài khoản & phân quyền', screen: 'P-90' });
+  // Không có mục "tài khoản người dùng" riêng: nhân viên và tài khoản là một
+  // thứ nên quản trị tài khoản nằm luôn trong màn Nhân sự ở trên.
+  if (can(user, 'system', 'grant-permission')) {
+    items.push({ href: '/permissions', label: 'Phân quyền', screen: 'P-92' });
   }
 
   if (can(user, 'system', 'view-detail')) {

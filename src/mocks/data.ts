@@ -57,6 +57,11 @@ const managerPermissions: Permission[] = [
   p("banking", "export-excel", "managed"),
 ];
 
+/**
+ * Ban giám đốc có `manage-users` nhưng KHÔNG có `grant-permission`: nhận việc,
+ * luân chuyển, bổ nhiệm là quyết định nhân sự chứ không phải việc IT. Gán được
+ * vai trò có sẵn, không sửa được vai trò gồm những quyền gì.
+ */
 const directorPermissions: Permission[] = [
   p("*", "view-stats", "company"),
   p("*", "view-detail", "company"),
@@ -65,6 +70,7 @@ const directorPermissions: Permission[] = [
   p("*", "configure-catalog", "company"),
   p("*", "configure-gift-rules", "company"),
   p("*", "grant-gift", "company"),
+  p("system", "manage-users", "company"),
 ];
 
 const sysAdminPermissions: Permission[] = [
