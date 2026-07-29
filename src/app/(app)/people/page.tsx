@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import Link from "next/link";
 import { useState } from "react";
 import { TopBar } from "@/components/layout/TopBar";
 import { Button } from "@/components/ui/Button";
@@ -33,7 +34,15 @@ import { useSession } from "@/store/session";
 import styles from "./page.module.css";
 
 const BASE_COLUMNS: RankColumn<PersonScore>[] = [
-  { key: "fullName", label: "Nhân viên", render: (p) => p.fullName },
+  {
+    key: "fullName",
+    label: "Nhân viên",
+    render: (p) => (
+      <Link href={`/people/${p.id}`} className={styles.nameLink}>
+        {p.fullName}
+      </Link>
+    ),
+  },
   { key: "departmentName", label: "Đơn vị", render: (p) => p.departmentName },
   {
     key: "accounts",

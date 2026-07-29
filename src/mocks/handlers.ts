@@ -3,6 +3,7 @@ import { LOGIN_ERROR, Scope } from "@/lib/types";
 import { sessionExpiry } from "@/store/session";
 import { dashboardFor } from "./dashboard";
 import { peopleFor } from "./people";
+import { personFor } from "./person";
 import { departments, mockUsers } from "./data";
 
 /** Sai 5 lần liên tiếp thì khoá 15 phút — đếm theo tên đăng nhập. */
@@ -101,6 +102,17 @@ export const handlers = [
         search: params.get("search") ?? "",
       }),
     );
+  }),
+
+  http.get("/api/people/:id", ({ params, request }) => {
+    const search = new URL(request.url).searchParams;
+    const person = personFor({
+      id: String(params.id),
+      period: search.get("period") ?? "today",
+      summaryMonth: search.get("summaryMonth") ?? "",
+    });
+    if (!person) return new HttpResponse(null, { status: 404 });
+    return HttpResponse.json(person);
   }),
 
   http.get("/api/departments", () =>

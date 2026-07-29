@@ -13,6 +13,20 @@
   gap: 14px;
 }
 
+/* Ô bấm cao bằng cả dòng: ngón tay bấm trúng tên là vào hồ sơ, không cần
+   nhắm đúng chữ. Gạch chân chỉ khi di chuột để bảng không rối. */
+.nameLink {
+  display: block;
+  padding: 12px 0;
+  margin: -12px 0;
+  color: var(--om-text);
+}
+
+.nameLink:hover {
+  color: var(--om-orange-mid);
+  text-decoration: underline;
+}
+
 .footnote {
   margin: 0;
   font-size: 12px;

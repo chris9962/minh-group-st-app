@@ -23,7 +23,7 @@ const NAMES: [string, string][] = [
 ];
 
 /** Số cố định theo tên để bảng không nhảy mỗi lần render. */
-const seed = (s: string, salt: number) =>
+export const seed = (s: string, salt: number) =>
   (s.split("").reduce((a, c) => a + c.charCodeAt(0), 0) * 13 + salt * 29) % 97;
 
 function person([fullName, departmentName]: [string, string], i: number): PersonScore {
@@ -43,7 +43,7 @@ function person([fullName, departmentName]: [string, string], i: number): Person
   };
 }
 
-const ALL = NAMES.map(person);
+export const ALL = NAMES.map(person);
 
 /** Dữ liệu giả gắn nhân viên với phòng bằng TÊN; bản thật sẽ dùng id. */
 const departmentName = (id: string): string =>

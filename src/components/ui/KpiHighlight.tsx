@@ -7,6 +7,13 @@ type Props = {
   ariaLabel: string;
   /** Giá trị phần trăm, 0–100. Dùng luôn cho thanh tiến trình. */
   percent: number;
+  /**
+   * Số lớn hiển thị. Bỏ trống thì lấy chính `percent`.
+   *
+   * Có màn cần thấy số gốc chứ không phải phần trăm — "74 / 100 điểm" nói
+   * được còn thiếu bao nhiêu, "74%" thì không.
+   */
+  value?: React.ReactNode;
   description: React.ReactNode;
   detail: React.ReactNode;
 };
@@ -16,6 +23,7 @@ export function KpiHighlight({
   kicker,
   ariaLabel,
   percent,
+  value,
   description,
   detail,
 }: Props) {
@@ -26,7 +34,7 @@ export function KpiHighlight({
       {kicker && <span className={styles.kicker}>{kicker}</span>}
 
       <div className={styles.headline}>
-        <strong className={`${styles.value} so`}>{clamped}%</strong>
+        <strong className={`${styles.value} so`}>{value ?? `${clamped}%`}</strong>
         <span className={styles.description}>{description}</span>
       </div>
 
