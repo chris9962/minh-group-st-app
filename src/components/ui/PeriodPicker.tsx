@@ -1,23 +1,33 @@
 "use client";
 
 import { useId } from "react";
+import type { DateRange } from "react-day-picker";
+import { DateRangePicker } from "./DateRangePicker";
 import styles from "./PeriodPicker.module.css";
 
 export type Period =
   | { kind: "today" }
   | { kind: "this-month" }
-  | { kind: "range"; from: string; to: string };
+  | { kind: "range"; range: DateRange | undefined };
 
 export const DEFAULT_PERIOD: Period = { kind: "today" };
 
-/** Khoá dùng cho queryKey và tham số API — một chuỗi ổn định cho mỗi kỳ. */
-export const periodKey = (p: Period): string =>
-  p.kind === "range" ? `range:${p.from}:${p.to}` : p.kind;
+const iso = (d: Date) =>
+  new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
 
-const today = () => new Date().toISOString().slice(0, 10);
+/**
+ * Khoá dùng cho queryKey và tham số API — một chuỗi ổn định cho mỗi kỳ.
+ * Khoảng chưa chọn xong (mới có ngày đầu) coi như chưa đổi kỳ.
+ */
+export const periodKey = (p: Period): string => {
+  if (p.kind !== "range") return p.kind;
+  const { from, to } = p.range ?? {};
+  return from && to ? `range:${iso(from)}:${iso(to)}` : "today";
+};
+
 const firstOfMonth = () => {
   const d = new Date();
-  return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
+  return new Date(d.getFullYear(), d.getMonth(), 1);
 };
 
 type Props = {
@@ -56,7 +66,10 @@ export function PeriodPicker({ value, onChange }: Props) {
             name={`${id}-period`}
             checked={value.kind === "range"}
             onChange={() =>
-              onChange({ kind: "range", from: firstOfMonth(), to: today() })
+              onChange({
+                kind: "range",
+                range: { from: firstOfMonth(), to: new Date() },
+              })
             }
           />
           Khoảng ngày
@@ -64,33 +77,12 @@ export function PeriodPicker({ value, onChange }: Props) {
       </div>
 
       {value.kind === "range" && (
-        <div className={styles.range}>
-          <label htmlFor={`${id}-from`} className="an-nhin">
-            Từ ngày
-          </label>
-          <input
-            id={`${id}-from`}
-            type="date"
-            className={`input ${styles.date}`}
-            value={value.from}
-            max={value.to}
-            onChange={(e) => onChange({ ...value, from: e.target.value })}
-          />
-          <span aria-hidden>→</span>
-          <label htmlFor={`${id}-to`} className="an-nhin">
-            Đến ngày
-          </label>
-          <input
-            id={`${id}-to`}
-            type="date"
-            className={`input ${styles.date}`}
-            value={value.to}
-            min={value.from}
-            max={today()}
-            onChange={(e) => onChange({ ...value, to: e.target.value })}
-          />
-        </div>
+        <DateRangePicker
+          value={value.range}
+          onChange={(range) => onChange({ kind: "range", range })}
+        />
       )}
+
     </div>
   );
 }

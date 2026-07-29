@@ -16,7 +16,8 @@ export const DashboardData = z.object({
   banking: z.object({
     accountsOpened: z.number(),
     appsInstalled: z.number(),
-    codesRunningLow: z.number(),
+    /** Số khách hàng có phát sinh trong kỳ. */
+    customers: z.number(),
     giftsPending: z.number(),
   }),
   insurance: z.object({
@@ -29,19 +30,9 @@ export const DashboardData = z.object({
     pending: z.number(),
     pendingBot: z.number(),
     pendingManual: z.number(),
-    avgMinutes: z.number(),
-    avgSeconds: z.number(),
     byHour: z.array(
       z.object({ label: z.string(), automatic: z.number(), manual: z.number() }),
     ),
-  }),
-  quality: z.object({
-    botSuccessPercent: z.number(),
-    botAvgMinutes: z.number(),
-    botAvgSeconds: z.number(),
-    manualOrders: z.number(),
-    badInputOrders: z.number(),
-    overnightOrders: z.number(),
   }),
   services: z.object({
     byType: z.array(z.object({ label: z.string(), count: z.number() })),

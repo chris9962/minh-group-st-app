@@ -5,15 +5,17 @@ type Props = {
   label: string;
   /** Dòng phụ: so sánh kỳ trước, tách nhỏ theo loại… */
   detail?: React.ReactNode;
-  /** Thẻ chỉ số chính — to hơn, nổi hơn. */
-  featured?: boolean;
+  /** `attention` cho số cần để mắt tới — vẫn kèm nhãn chữ, màu không đứng một mình. */
+  tone?: "normal" | "attention";
 };
 
 /** Ô số liệu trên dashboard. */
-export function StatCard({ value, label, detail, featured = false }: Props) {
+export function StatCard({ value, label, detail, tone = "normal" }: Props) {
   return (
-    <div className={[styles.card, featured && styles.featured].filter(Boolean).join(" ")}>
-      <strong className={`${styles.value} so`}>{value}</strong>
+    <div className={styles.card}>
+      <strong className={[styles.value, tone === "attention" && styles.attention, "so"].filter(Boolean).join(" ")}>
+        {value}
+      </strong>
       <span className={styles.label}>{label}</span>
       {detail && <span className={styles.detail}>{detail}</span>}
     </div>

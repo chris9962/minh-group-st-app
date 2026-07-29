@@ -1,16 +1,21 @@
 .card {
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  padding: var(--space-4);
-  border-radius: var(--radius-lg);
+  gap: 2px;
+  align-items: flex-start;
+  padding: 14px 16px;
+  border-radius: 20px;
   background: var(--color-surface);
 }
 
 .value {
   font-family: var(--font-heading);
-  font-size: 30px;
+  font-size: 26px;
   line-height: 1.1;
+}
+
+.attention {
+  color: var(--color-accent-700);
 }
 
 .label {
@@ -24,10 +29,3 @@
   margin-top: 2px;
 }
 
-.featured {
-  background: var(--color-accent-2-200);
-}
-
-.featured .value {
-  font-size: 54px;
-}

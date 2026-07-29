@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { TopBar } from "@/components/layout/TopBar";
 import { BarChart } from "@/components/ui/BarChart";
+import { KpiHighlight } from "@/components/ui/KpiHighlight";
 import {
   DEFAULT_PERIOD,
   PeriodPicker,
@@ -36,7 +37,7 @@ export default function DashboardPage() {
       ? "hôm nay"
       : period.kind === "this-month"
         ? "tháng này"
-        : `${period.from} → ${period.to}`;
+        : "khoảng đã chọn";
 
   return (
     <>
@@ -51,25 +52,31 @@ export default function DashboardPage() {
 
         {data && (
           <>
-            <SectionCard title="Chỉ số quan trọng nhất">
-              <div className={styles.headline}>
+            <div className={styles.headline}>
+              <KpiHighlight
+                kicker="Chỉ số quan trọng nhất"
+                percent={data.installRate.percent}
+                description={
+                  <>
+                    tỉ lệ cài app trên
+                    <br />
+                    số tài khoản mở
+                  </>
+                }
+                detail={`${data.installRate.appsInstalled} app / ${data.installRate.accountsOpened} tài khoản mở ${periodLabel} · kỳ trước ${data.installRate.previousPercent}%`}
+              />
+
+              <div className={styles.statGrid}>
+                <StatCard value={data.banking.accountsOpened} label="tài khoản mở" />
+                <StatCard value={data.banking.appsInstalled} label="app đã cài" />
+                <StatCard value={data.banking.customers} label={`khách hàng ${periodLabel}`} />
                 <StatCard
-                  featured
-                  value={`${data.installRate.percent}%`}
-                  label="tỉ lệ cài app trên số tài khoản mở"
-                  detail={`${data.installRate.appsInstalled} app / ${data.installRate.accountsOpened} tài khoản mở ${periodLabel} · kỳ trước ${data.installRate.previousPercent}%`}
+                  value={data.banking.giftsPending}
+                  label="đủ ĐK quà, chưa phát"
+                  tone="attention"
                 />
-                <div className={styles.headlineSide}>
-                  <StatCard value={data.banking.accountsOpened} label="tài khoản mở" />
-                  <StatCard value={data.banking.appsInstalled} label="app đã cài" />
-                  <StatCard value={data.banking.codesRunningLow} label="mã sắp hết" />
-                  <StatCard
-                    value={data.banking.giftsPending}
-                    label="đủ ĐK quà, chưa phát"
-                  />
-                </div>
               </div>
-            </SectionCard>
+            </div>
 
             <div className={styles.grid}>
               <SectionCard title={`Bảo hiểm ${periodLabel}`} className={styles.wide}>
@@ -89,10 +96,6 @@ export default function DashboardPage() {
                     label="đơn tồn hiện tại"
                     detail={`${data.insurance.pendingBot} đang chạy · ${data.insurance.pendingManual} chờ làm tay`}
                   />
-                  <StatCard
-                    value={`${data.insurance.avgMinutes}′${String(data.insurance.avgSeconds).padStart(2, "0")}″`}
-                    label="thời gian TB mỗi đơn"
-                  />
                 </div>
 
                 <BarChart
@@ -106,34 +109,6 @@ export default function DashboardPage() {
                     values: [h.automatic, h.manual],
                   }))}
                 />
-              </SectionCard>
-
-              <SectionCard title="Chất lượng vận hành" meta={periodLabel}>
-                <dl className={styles.pairs}>
-                  <div>
-                    <dt>Tỉ lệ bot thành công</dt>
-                    <dd className="so">{data.quality.botSuccessPercent}%</dd>
-                  </div>
-                  <div>
-                    <dt>Thời gian bot TB</dt>
-                    <dd className="so">
-                      {data.quality.botAvgMinutes}′
-                      {String(data.quality.botAvgSeconds).padStart(2, "0")}″
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Đơn phải làm tay</dt>
-                    <dd className="so">{data.quality.manualOrders}</dd>
-                  </div>
-                  <div>
-                    <dt>Đơn KD nhập sai</dt>
-                    <dd className="so">{data.quality.badInputOrders}</dd>
-                  </div>
-                  <div>
-                    <dt>Đơn tồn qua đêm</dt>
-                    <dd className="so">{data.quality.overnightOrders}</dd>
-                  </div>
-                </dl>
               </SectionCard>
 
               <SectionCard title="Dịch vụ theo loại" meta={periodLabel}>

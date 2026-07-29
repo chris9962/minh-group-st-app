@@ -13,7 +13,7 @@ const COMPANY: DashboardData = {
   banking: {
     accountsOpened: 61,
     appsInstalled: 50,
-    codesRunningLow: 2,
+    customers: 47,
     giftsPending: 18,
   },
   insurance: {
@@ -25,8 +25,6 @@ const COMPANY: DashboardData = {
     pending: 7,
     pendingBot: 3,
     pendingManual: 4,
-    avgMinutes: 6,
-    avgSeconds: 12,
     byHour: [
       { label: "8–10h", automatic: 4, manual: 1 },
       { label: "10–12h", automatic: 7, manual: 1 },
@@ -35,14 +33,6 @@ const COMPANY: DashboardData = {
       { label: "16–18h", automatic: 3, manual: 1 },
       { label: "sau 18h", automatic: 1, manual: 0 },
     ],
-  },
-  quality: {
-    botSuccessPercent: 88,
-    botAvgMinutes: 4,
-    botAvgSeconds: 2,
-    manualOrders: 19,
-    badInputOrders: 6,
-    overnightOrders: 3,
   },
   services: {
     byType: [
@@ -92,7 +82,7 @@ export function dashboardFor(scope: Scope, periodKey = "today"): DashboardData {
     banking: {
       accountsOpened: scale(d.banking.accountsOpened, r),
       appsInstalled: scale(d.banking.appsInstalled, r),
-      codesRunningLow: d.banking.codesRunningLow,
+      customers: scale(d.banking.customers, r),
       giftsPending: scale(d.banking.giftsPending, r),
     },
     insurance: {
@@ -110,12 +100,6 @@ export function dashboardFor(scope: Scope, periodKey = "today"): DashboardData {
         automatic: scale(h.automatic, r),
         manual: scale(h.manual, r),
       })),
-    },
-    quality: {
-      ...d.quality,
-      manualOrders: scale(d.quality.manualOrders, r),
-      badInputOrders: scale(d.quality.badInputOrders, r),
-      overnightOrders: scale(d.quality.overnightOrders, r),
     },
     services: {
       byType: d.services.byType.map((s) => ({

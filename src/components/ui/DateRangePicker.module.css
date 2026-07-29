@@ -1,0 +1,45 @@
+.trigger {
+  width: auto;
+  min-height: 32px;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.panel {
+  background: var(--color-neutral-100);
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: var(--space-3);
+  z-index: 20;
+}
+
+.arrow {
+  fill: var(--color-neutral-100);
+}
+
+/* Ghi đè token của react-day-picker cho khớp design system Organic. */
+.calendar {
+  --rdp-accent-color: var(--color-accent);
+  --rdp-accent-background-color: var(--color-accent-200);
+  --rdp-today-color: var(--color-accent-700);
+  --rdp-day-height: 34px;
+  --rdp-day-width: 34px;
+  --rdp-day_button-height: 34px;
+  --rdp-day_button-width: 34px;
+  --rdp-day_button-border-radius: 999px;
+  --rdp-range_start-color: var(--color-bg);
+  --rdp-range_end-color: var(--color-bg);
+  --rdp-range_middle-background-color: var(--color-accent-200);
+  --rdp-range_middle-color: var(--color-accent-800);
+  --rdp-selected-border: none;
+  font-family: var(--font-body);
+  font-size: 13px;
+  margin: 0;
+}
+
+.calendar :global(.rdp-month_caption) {
+  font-family: var(--font-heading);
+  font-size: 15px;
+}
