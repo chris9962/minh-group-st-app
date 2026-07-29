@@ -76,13 +76,14 @@
   outline-offset: -2px;
 }
 
-/* Mục đang mở đảo màu: nền sáng, chữ cam. Đảo nền là dấu hiệu mạnh hơn đổi
-   sắc, và vẫn kèm aria-current cho trình đọc màn hình. */
+/* Mục đang mở: cam sáng hơn nền sidebar, chữ trắng đậm. Chênh nền chỉ 1,37:1
+   nên thêm viền trong mảnh để rìa pill vẫn rõ; kèm aria-current cho trình đọc. */
 .active,
 .active:hover {
-  background: var(--om-bg);
-  color: var(--om-orange-mid);
-  font-weight: 600;
+  background: var(--om-sidebar-active);
+  color: var(--om-sidebar-ink);
+  font-weight: 700;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 26%);
 }
 
 @media (max-width: 900px) {

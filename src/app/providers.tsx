@@ -16,23 +16,35 @@ const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK !== "false";
  * ở tầng mạng và trả lời. Ngày có backend, đặt NEXT_PUBLIC_USE_MOCK=false là
  * xong, không sửa dòng nào trong component.
  *
- * KHÔNG chặn render để chờ worker: giao diện hiện ngay, worker bật nền. Chặn ở
- * đây từng làm cả trang trắng khi service worker không chạy được. Trang đăng
- * nhập không gọi API lúc mở nên không có cuộc đua nào.
+ * Phải chờ worker xong mới render: mở thẳng một trang trong app (F5 khi đang ở
+ * /people) thì query bắn đi trước lúc worker kịp đăng ký, đi thẳng ra mạng và
+ * ăn 404 của Next. `catch` là bắt buộc — thiếu nó thì máy nào chặn service
+ * worker sẽ thấy trang trắng vĩnh viễn.
  */
 function useMockApi() {
+  const [ready, setReady] = useState(!USE_MOCK);
+
   useEffect(() => {
     if (!USE_MOCK) return;
+    let cancelled = false;
     import("@/mocks/browser")
       .then(({ worker }) =>
         worker.start({ onUnhandledRequest: "bypass", quiet: true }),
       )
-      .catch((e) => console.error("[mock] không bật được MSW:", e));
+      .catch((e) => console.error("[mock] không bật được MSW:", e))
+      .finally(() => {
+        if (!cancelled) setReady(true);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
+
+  return ready;
 }
 
 export function Providers({ children }: { children: React.ReactNode }) {
-  useMockApi();
+  const mockReady = useMockApi();
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -43,6 +55,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    <QueryClientProvider client={queryClient}>
+      {mockReady ? children : null}
+    </QueryClientProvider>
   );
 }
