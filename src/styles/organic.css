@@ -15,7 +15,7 @@
   --om-line: #e4e3e1;      /* đường kẻ / viền */
 
   /* Sidebar đúng bằng --om-orange; mục đang mở đảo nền trắng, chữ cam. */
-  --om-sidebar: #d8620f;
+  --om-sidebar: #e8912a;
   --om-sidebar-active: #ffffff;
   --om-sidebar-ink: #ffffff;
   --om-sidebar-ink-2: rgb(255 255 255 / 72%);
@@ -25,14 +25,14 @@
   --om-text-3: #82796a;    /* chữ mờ */
 
   /* Cam lấy theo logo — bão hoà cao nên có sức sống. Chỉ dùng cho chữ CỠ LỚN
-     (số thống kê) và cho nền/viền: chữ trắng trên nó chỉ 3.70:1, chữ thường
+     (số thống kê) và cho nền/viền: chữ trắng trên nó chỉ 2.47:1, chữ thường
      phải lấy --om-orange-mid trở xuống. */
-  --om-orange: #d8620f;       /* nút chính, số nhấn, thanh tiến độ */
+  --om-orange: #e8912a;       /* nút chính, số nhấn, thanh tiến độ */
   --om-orange-mid: #b04d06;   /* trạng thái di chuột / nhấn giữ, liên kết thao tác */
   --om-orange-ink: #8a3d05;   /* chữ trên nền cam nhạt — 7.4:1 trên #ffe1d0 */
   --om-orange-soft: #ffe1d0;  /* nền cảnh báo */
   --om-orange-light: #ffc6a5; /* nền rất nhạt, thanh nền */
-  --om-orange-2: #f59209;     /* chuỗi thứ hai trong biểu đồ */
+  --om-orange-2: #a84a05;     /* chuỗi thứ hai trong biểu đồ */
 
   /* ── Bí danh cho design system ─────────────────────────────────────── */
   --color-bg: var(--om-bg);
