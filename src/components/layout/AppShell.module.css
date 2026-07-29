@@ -1,20 +1,32 @@
+/* Khung app: sidebar và vùng nội dung cuộn ĐỘC LẬP.
+   Trang dài bao nhiêu thì sidebar cũng đứng yên, khối tài khoản ở chân luôn
+   trong tầm nhìn. Cách này chắc hơn position:sticky vì không phụ thuộc vào
+   overflow của html/body. */
 .shell {
-  min-height: 100dvh;
+  height: 100dvh;
   display: flex;
+  overflow: hidden;
   background: var(--color-neutral-100);
 }
 
 .main {
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  min-width: 0;
+  overflow-y: auto;
 }
 
-/* Trên điện thoại sidebar nằm ngang trên đầu, cuộn ngang.
-   Menu dạng ngăn kéo sẽ làm sau khi có màn KD. */
+/* Trên điện thoại sidebar nằm ngang trên đầu, cả trang cuộn như bình thường. */
 @media (max-width: 900px) {
   .shell {
+    height: auto;
+    min-height: 100dvh;
     flex-direction: column;
+    overflow: visible;
+  }
+
+  .main {
+    overflow: visible;
   }
 }

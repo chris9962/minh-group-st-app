@@ -6,10 +6,12 @@ html {
   height: 100%;
 }
 
+/* KHÔNG đặt overflow-x: hidden ở đây.
+   Nó biến html/body thành khung cuộn riêng và làm hỏng position: sticky của
+   sidebar. Nội dung rộng thì cuộn trong khung của nó bằng .bang-cuon. */
 html,
 body {
   max-width: 100vw;
-  overflow-x: hidden;
 }
 
 body {

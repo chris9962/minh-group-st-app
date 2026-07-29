@@ -111,7 +111,8 @@ export function BarChart({
                 name={s.label}
                 stackId="stack"
                 fill={s.color}
-                radius={[3, 3, 0, 0]}
+                // Không bo góc: cột chồng mà bo đầu từng khúc thì giữa hai
+                // khúc hở ra một khe lõm.
                 isAnimationActive={false}
               />
             ))}
