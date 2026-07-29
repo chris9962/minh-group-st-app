@@ -5,6 +5,9 @@ export type BarSeries = { label: string; color: string };
 type Props = {
   rows: { label: string; values: number[] }[];
   series: BarSeries[];
+  /** Tiêu đề hiện trên biểu đồ. */
+  title?: string;
+  /** Mô tả cho trình đọc màn hình, đặt ở caption của bảng số ẩn. */
   caption: string;
 };
 
@@ -15,12 +18,15 @@ type Props = {
  * không giúp gì. Giá trị luôn hiện bằng SỐ ở bảng ẩn phía dưới để trình đọc
  * màn hình đọc được, vì cột màu không đọc được.
  */
-export function BarChart({ rows, series, caption }: Props) {
+export function BarChart({ rows, series, title, caption }: Props) {
   const max = Math.max(1, ...rows.map((r) => r.values.reduce((a, b) => a + b, 0)));
+  // Nhiều cột thì nhãn chồng lên nhau — chỉ hiện thưa ra, số đầy đủ vẫn ở bảng ẩn.
+  const tickEvery = Math.ceil(rows.length / 12);
 
   return (
     <div className={styles.wrap}>
       <div className={styles.legend}>
+        {title && <strong className={styles.title}>{title}</strong>}
         {series.map((s) => (
           <span key={s.label} className={styles.legendItem}>
             <i style={{ background: s.color }} aria-hidden />
@@ -30,7 +36,7 @@ export function BarChart({ rows, series, caption }: Props) {
       </div>
 
       <div className={styles.chart} aria-hidden>
-        {rows.map((row) => (
+        {rows.map((row, i) => (
           <div key={row.label} className={styles.column}>
             <div className={styles.stack}>
               {row.values.map((v, i) => (
@@ -44,7 +50,9 @@ export function BarChart({ rows, series, caption }: Props) {
                 />
               ))}
             </div>
-            <span className={styles.tick}>{row.label}</span>
+            <span className={styles.tick}>
+              {i % tickEvery === 0 ? row.label : ""}
+            </span>
           </div>
         ))}
       </div>

@@ -30,7 +30,12 @@ export const DashboardData = z.object({
     pending: z.number(),
     pendingBot: z.number(),
     pendingManual: z.number(),
-    byHour: z.array(
+    /**
+     * Cột của biểu đồ. Độ chia do KỲ quyết định, không cố định theo giờ:
+     * một ngày → khung giờ, một tháng → ngày, dài hơn → tuần hoặc tháng.
+     */
+    bucketType: z.enum(['hour', 'day', 'week', 'month']),
+    buckets: z.array(
       z.object({ label: z.string(), automatic: z.number(), manual: z.number() }),
     ),
   }),

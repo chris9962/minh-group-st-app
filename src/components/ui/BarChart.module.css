@@ -6,9 +6,17 @@
 
 .legend {
   display: flex;
+  align-items: baseline;
   gap: 14px;
   font-size: 11.5px;
   color: var(--color-neutral-700);
+}
+
+.title {
+  font-family: var(--font-heading);
+  font-size: 13px;
+  color: var(--color-text);
+  margin-right: auto;
 }
 
 .legendItem {
@@ -27,7 +35,7 @@
 .chart {
   display: flex;
   align-items: flex-end;
-  gap: 10px;
+  gap: clamp(2px, 0.6vw, 10px);
   height: 150px;
 }
 

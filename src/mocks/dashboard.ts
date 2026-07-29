@@ -25,14 +25,8 @@ const COMPANY: DashboardData = {
     pending: 7,
     pendingBot: 3,
     pendingManual: 4,
-    byHour: [
-      { label: "8–10h", automatic: 4, manual: 1 },
-      { label: "10–12h", automatic: 7, manual: 1 },
-      { label: "12–14h", automatic: 2, manual: 0 },
-      { label: "14–16h", automatic: 6, manual: 2 },
-      { label: "16–18h", automatic: 3, manual: 1 },
-      { label: "sau 18h", automatic: 1, manual: 0 },
-    ],
+    bucketType: "hour",
+    buckets: [],
   },
   services: {
     byType: [
@@ -44,6 +38,80 @@ const COMPANY: DashboardData = {
     topWard: { name: "Tân Bình", count: 29 },
   },
 };
+
+
+/* ── Cột biểu đồ: độ chia theo kỳ ───────────────────────────────────── */
+
+type Bucket = { label: string; automatic: number; manual: number };
+
+const HOUR_SHAPE = [
+  { label: "8–10h", automatic: 4, manual: 1 },
+  { label: "10–12h", automatic: 7, manual: 1 },
+  { label: "12–14h", automatic: 2, manual: 0 },
+  { label: "14–16h", automatic: 6, manual: 2 },
+  { label: "16–18h", automatic: 3, manual: 1 },
+  { label: "sau 18h", automatic: 1, manual: 0 },
+];
+
+const dd = (d: Date) =>
+  `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
+
+/** Dao động nhẹ và ổn định theo chỉ số, để cột không phẳng lì mà cũng không nhảy mỗi lần render. */
+const wiggle = (i: number) => 0.6 + ((i * 37) % 11) / 10;
+
+function rangeOf(periodKey: string): { from: Date; to: Date } {
+  const to = new Date();
+  if (periodKey === "this-month") {
+    return { from: new Date(to.getFullYear(), to.getMonth(), 1), to };
+  }
+  if (periodKey.startsWith("range:")) {
+    const [, from, until] = periodKey.split(":");
+    return { from: new Date(from), to: new Date(until) };
+  }
+  return { from: to, to };
+}
+
+function makeBuckets(
+  periodKey: string,
+  scale_: (n: number, r: number) => number,
+  ratio: number,
+): { bucketType: "hour" | "day" | "week" | "month"; buckets: Bucket[] } {
+  if (periodKey === "today") {
+    return {
+      bucketType: "hour",
+      buckets: HOUR_SHAPE.map((h) => ({
+        label: h.label,
+        automatic: scale_(h.automatic, ratio),
+        manual: scale_(h.manual, ratio),
+      })),
+    };
+  }
+
+  const { from, to } = rangeOf(periodKey);
+  const days = Math.max(
+    1,
+    Math.round((to.getTime() - from.getTime()) / 86_400_000) + 1,
+  );
+
+  // Quá nhiều cột thì không đọc được — gộp thành tuần rồi tháng.
+  const step = days <= 31 ? 1 : days <= 182 ? 7 : 30;
+  const bucketType = step === 1 ? "day" : step === 7 ? "week" : "month";
+
+  const buckets: Bucket[] = [];
+  for (let i = 0; i < days; i += step) {
+    const start = new Date(from.getTime() + i * 86_400_000);
+    const end = new Date(
+      Math.min(to.getTime(), start.getTime() + (step - 1) * 86_400_000),
+    );
+    buckets.push({
+      label: step === 1 ? dd(start) : `${dd(start)}–${dd(end)}`,
+      automatic: scale_(Math.round(4 * step * wiggle(i)), ratio),
+      manual: scale_(Math.round(step * wiggle(i + 3)) || 1, ratio),
+    });
+  }
+
+  return { bucketType, buckets };
+}
 
 /** Phạm vi hẹp hơn thì số nhỏ lại — để thấy rõ thanh chọn phạm vi có tác dụng. */
 const RATIO: Record<Scope, number> = {
@@ -69,7 +137,11 @@ function periodFactor(periodKey: string): number {
 
 export function dashboardFor(scope: Scope, periodKey = "today"): DashboardData {
   const r = (RATIO[scope] ?? 1) * periodFactor(periodKey);
-  if (r === 1) return COMPANY;
+  const chart = makeBuckets(periodKey, scale, RATIO[scope] ?? 1);
+
+  if (r === 1) {
+    return { ...COMPANY, insurance: { ...COMPANY.insurance, ...chart } };
+  }
 
   const d = COMPANY;
   return {
@@ -95,11 +167,7 @@ export function dashboardFor(scope: Scope, periodKey = "today"): DashboardData {
       pending: scale(d.insurance.pending, RATIO[scope] ?? 1),
       pendingBot: scale(d.insurance.pendingBot, RATIO[scope] ?? 1),
       pendingManual: scale(d.insurance.pendingManual, RATIO[scope] ?? 1),
-      byHour: d.insurance.byHour.map((h) => ({
-        label: h.label,
-        automatic: scale(h.automatic, r),
-        manual: scale(h.manual, r),
-      })),
+      ...chart,
     },
     services: {
       byType: d.services.byType.map((s) => ({

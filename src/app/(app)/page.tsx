@@ -20,6 +20,14 @@ import type { Scope } from "@/lib/types";
 import { useSession } from "@/store/session";
 import styles from "./page.module.css";
 
+/** Trục ngang của biểu đồ đổi theo kỳ — một ngày thì chia giờ, dài hơn thì chia ngày. */
+const BUCKET_LABEL = {
+  hour: "khung giờ",
+  day: "ngày",
+  week: "tuần",
+  month: "tháng",
+} as const;
+
 /** P-80 · Dashboard tổng — Ban giám đốc và trưởng phòng (phạm vi hẹp hơn). */
 export default function DashboardPage() {
   const user = useSession((s) => s.user);
@@ -99,14 +107,15 @@ export default function DashboardPage() {
                 </div>
 
                 <BarChart
-                  caption="Đơn bảo hiểm theo khung giờ, tách đơn tự động và đơn làm tay"
+                  title={`Đơn theo ${BUCKET_LABEL[data.insurance.bucketType]}`}
+                  caption={`Đơn bảo hiểm theo ${BUCKET_LABEL[data.insurance.bucketType]}, tách đơn tự động và đơn làm tay`}
                   series={[
                     { label: "tự động", color: "var(--color-accent-2-500)" },
                     { label: "làm tay", color: "var(--color-accent-500)" },
                   ]}
-                  rows={data.insurance.byHour.map((h) => ({
-                    label: h.label,
-                    values: [h.automatic, h.manual],
+                  rows={data.insurance.buckets.map((b) => ({
+                    label: b.label,
+                    values: [b.automatic, b.manual],
                   }))}
                 />
               </SectionCard>
