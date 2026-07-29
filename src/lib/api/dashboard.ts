@@ -11,7 +11,12 @@ export const DashboardData = z.object({
     percent: z.number(),
     appsInstalled: z.number(),
     accountsOpened: z.number(),
-    previousPercent: z.number(),
+    /**
+     * Tỉ lệ của kỳ liền trước: hôm nay so hôm qua, tháng này so tháng trước.
+     * `null` khi người dùng tự chọn khoảng ngày — một khoảng tuỳ ý không có
+     * "kỳ liền trước" nào định nghĩa được.
+     */
+    previousPercent: z.number().nullable(),
   }),
   banking: z.object({
     accountsOpened: z.number(),
@@ -55,6 +60,11 @@ export const DashboardData = z.object({
       accountsOpened: z.number(),
       appsInstalled: z.number(),
       customers: z.number(),
+      /**
+       * Tỉ lệ cài của kỳ liền trước, để so tăng/giảm. `null` khi không có kỳ
+       * nào để so — người dùng tự chọn khoảng ngày.
+       */
+      previousInstallRate: z.number().nullable(),
     }),
   ),
   services: z.object({

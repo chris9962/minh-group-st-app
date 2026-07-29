@@ -65,17 +65,22 @@ const SALES_DEPARTMENTS = allDepartments.filter((d) => d.id.startsWith("kd-"));
 const seed = (id: string, salt: number) =>
   ((id.charCodeAt(id.length - 1) * 31 + salt * 17) % 23) + 4;
 
-function departmentRanking(ratio: number) {
+function departmentRanking(ratio: number, hasPrevious: boolean) {
   return SALES_DEPARTMENTS.map((d) => {
     const accountsOpened = scale(seed(d.id, 1) * 6, ratio);
     // Tỉ lệ cài dao động 52–95% để thấy rõ phòng nhiều tài khoản mà cài ít.
     const rate = 0.52 + (seed(d.id, 2) % 44) / 100;
+    // Kỳ trước lệch -9 đến +8 điểm phần trăm để bảng có cả tăng lẫn giảm.
+    const shift = (seed(d.id, 3) % 18) - 9;
     return {
       id: d.id,
       name: d.name,
       accountsOpened,
       appsInstalled: Math.round(accountsOpened * rate),
       customers: Math.round(accountsOpened * 0.78),
+      previousInstallRate: hasPrevious
+        ? Math.max(0, Math.min(100, Math.round(rate * 100) + shift))
+        : null,
     };
   });
 }
@@ -179,12 +184,18 @@ function periodFactor(periodKey: string): number {
 export function dashboardFor(scope: Scope, periodKey = "today"): DashboardData {
   const r = (RATIO[scope] ?? 1) * periodFactor(periodKey);
   const chart = makeBuckets(periodKey, scale, RATIO[scope] ?? 1);
+  // Khoảng ngày tự chọn không có kỳ liền trước nào định nghĩa được.
+  const previousPercent =
+    periodKey === "today" || periodKey === "this-month"
+      ? COMPANY.installRate.previousPercent
+      : null;
 
   if (r === 1) {
     return {
       ...COMPANY,
+      installRate: { ...COMPANY.installRate, previousPercent },
       insurance: { ...COMPANY.insurance, ...chart },
-      departments: departmentRanking(1),
+      departments: departmentRanking(1, previousPercent !== null),
     };
   }
 
@@ -195,6 +206,7 @@ export function dashboardFor(scope: Scope, periodKey = "today"): DashboardData {
       ...d.installRate,
       appsInstalled: scale(d.installRate.appsInstalled, r),
       accountsOpened: scale(d.installRate.accountsOpened, r),
+      previousPercent,
     },
     banking: {
       accountsOpened: scale(d.banking.accountsOpened, r),
@@ -214,7 +226,7 @@ export function dashboardFor(scope: Scope, periodKey = "today"): DashboardData {
       pendingManual: scale(d.insurance.pendingManual, RATIO[scope] ?? 1),
       ...chart,
     },
-    departments: departmentRanking(r),
+    departments: departmentRanking(r, previousPercent !== null),
     services: {
       byType: d.services.byType.map((s) => ({
         label: s.label,

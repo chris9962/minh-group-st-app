@@ -73,6 +73,36 @@
   font-size: 18px;
 }
 
+/* Ô cột "Tỉ lệ cài": tỉ lệ rồi mới tới mức thay đổi, căn phải cùng các cột số. */
+.rateCell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.up,
+.down {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.up {
+  color: var(--om-green-ink);
+}
+
+.down {
+  color: var(--om-negative-ink);
+}
+
+.flat {
+  font-size: 12px;
+  color: var(--om-text-3);
+}
+
 .footnote {
   margin: 0;
   font-size: 12px;

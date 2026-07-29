@@ -117,6 +117,12 @@ export function BarChart({
                 iconType="circle"
                 iconSize={8}
                 wrapperStyle={{ fontSize: 11.5, fontFamily: "var(--font-body)" }}
+                // Recharts tô chữ chú thích bằng chính màu chuỗi. Chấm màu là đủ
+                // để nối với cột; chữ tô màu theo thì mỗi nhãn một màu, đọc mệt
+                // và nhãn màu nhạt gần như mất hút trên nền thẻ.
+                formatter={(value) => (
+                  <span style={{ color: "var(--om-text-2)" }}>{value}</span>
+                )}
               />
             )}
             {series.map((s) => (

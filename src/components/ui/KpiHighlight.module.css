@@ -81,7 +81,7 @@
 }
 
 /* Tăng thì xanh, giảm thì đỏ — chữ luôn kèm mũi tên ↑ ↓ nên màu không phải kênh
-   truyền đạt duy nhất. Cam là màu thương hiệu, không kiêm được nghĩa xấu. */
+   truyền đạt duy nhất. */
 .deltaUp,
 .deltaDown {
   font-size: 12.5px;

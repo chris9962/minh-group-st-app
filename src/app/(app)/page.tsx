@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Briefcase, Gift, ShieldCheck, Trophy } from "lucide-react";
+import { ArrowDown, ArrowUp, Briefcase, Gift, ShieldCheck, Trophy } from "lucide-react";
 import { TopBar } from "@/components/layout/TopBar";
 import { BarChart } from "@/components/ui/BarChart";
 import { KpiHighlight } from "@/components/ui/KpiHighlight";
@@ -38,6 +38,7 @@ type DepartmentRow = {
   accountsOpened: number;
   appsInstalled: number;
   customers: number;
+  previousInstallRate: number | null;
 };
 
 const installRate = (d: DepartmentRow) =>
@@ -63,9 +64,17 @@ const DEPARTMENT_COLUMNS: RankColumn<DepartmentRow>[] = [
     key: "installRate",
     label: "Tỉ lệ cài",
     align: "right",
+    // Sắp theo MỨC THAY ĐỔI, không theo tỉ lệ tuyệt đối: phòng tụt mạnh nhất là
+    // phòng cần gọi trước, dù tỉ lệ của nó vẫn còn cao.
     sortBy: installRate,
-    ratio: installRate,
-    render: (d) => `${installRate(d)}%`,
+    render: (d) => (
+      <span className={styles.rateCell}>
+        <span className="so">{installRate(d)}%</span>
+        {d.previousInstallRate !== null && (
+          <Delta points={installRate(d) - d.previousInstallRate} />
+        )}
+      </span>
+    ),
   },
   {
     key: "customers",
@@ -75,6 +84,23 @@ const DEPARTMENT_COLUMNS: RankColumn<DepartmentRow>[] = [
     render: (d) => d.customers,
   },
 ];
+
+/**
+ * Mức tăng / giảm so với kỳ liền trước.
+ *
+ * Mũi tên đi kèm luôn, không chỉ dựa vào màu: người mù màu và màn hình điện
+ * thoại ngoài nắng đều không phân biệt được xanh với đỏ.
+ */
+function Delta({ points }: { points: number }) {
+  if (points === 0) return <span className={styles.flat}>—</span>;
+  const up = points > 0;
+  return (
+    <span className={up ? styles.up : styles.down}>
+      {up ? <ArrowUp size={13} /> : <ArrowDown size={13} />}
+      <span className="so">{Math.abs(points)}</span>
+    </span>
+  );
+}
 
 /** P-80 · Dashboard tổng — Ban giám đốc và trưởng phòng (phạm vi hẹp hơn). */
 export default function DashboardPage() {
@@ -95,6 +121,20 @@ export default function DashboardPage() {
       : period.kind === "this-month"
         ? "tháng này"
         : "khoảng đã chọn";
+
+  /**
+   * Kỳ đem so. Khoảng ngày tự chọn thì `null` — một khoảng tuỳ ý không có kỳ
+   * liền trước nào định nghĩa được, và máy chủ cũng trả previousPercent = null.
+   */
+  const previousLabel =
+    period.kind === "today"
+      ? "hôm qua"
+      : period.kind === "this-month"
+        ? "tháng trước"
+        : null;
+
+  const previous = data?.installRate.previousPercent ?? null;
+  const installGap = previous === null ? null : data!.installRate.percent - previous;
 
   return (
     <>
@@ -121,12 +161,14 @@ export default function DashboardPage() {
                   </>
                 }
                 detail={`${data.installRate.appsInstalled} app / ${data.installRate.accountsOpened} tài khoản mở ${periodLabel}`}
-                delta={{
-                  up: data.installRate.percent >= data.installRate.previousPercent,
-                  text: `kỳ trước ${data.installRate.previousPercent}% (${
-                    data.installRate.percent >= data.installRate.previousPercent ? "↑" : "↓"
-                  } ${Math.abs(data.installRate.percent - data.installRate.previousPercent)}%)`,
-                }}
+                delta={
+                  installGap === null
+                    ? undefined
+                    : {
+                        up: installGap >= 0,
+                        text: `${previousLabel} ${previous}% (${installGap >= 0 ? "↑" : "↓"} ${Math.abs(installGap)}%)`,
+                      }
+                }
               />
 
               <StatStack
@@ -203,7 +245,9 @@ export default function DashboardPage() {
                 <p className={styles.footnote}>
                   Bấm tên cột để sắp xếp. Lật cột <strong>Tỉ lệ cài</strong> để tìm
                   phòng mở nhiều tài khoản nhưng khách ít cài app — số tài khoản đó
-                  không tính quà, không tính điểm.
+                  không tính quà, không tính điểm. Số nhỏ bên cạnh là mức thay đổi
+                  so với {previousLabel ?? "kỳ trước"}; chọn khoảng ngày thì không
+                  có kỳ nào để so nên cột này chỉ còn tỉ lệ.
                 </p>
               </SectionCard>
 

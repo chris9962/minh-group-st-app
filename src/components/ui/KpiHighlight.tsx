@@ -9,7 +9,10 @@ type Props = {
   percent: number;
   description: React.ReactNode;
   detail: React.ReactNode;
-  /** So với kỳ trước, nằm bên phải chân thẻ. Tăng thì xanh, giảm thì cam. */
+  /**
+   * So với kỳ trước, nằm bên phải chân thẻ. Tăng thì xanh, giảm thì đỏ.
+   * Bỏ trống khi không có kỳ nào để so.
+   */
   delta?: { text: string; up: boolean };
 };
 
