@@ -2,17 +2,10 @@
   gap: 7px;
 }
 
-.count {
-  min-width: 19px;
-  height: 19px;
-  padding: 0 5px;
-  display: inline-grid;
-  place-items: center;
-  border-radius: 999px;
-  background: var(--om-orange);
-  color: var(--om-text-on-accent);
-  font-size: 11.5px;
-  font-weight: 700;
+/* Đang lọc: đổi sắc chữ và viền, không thêm khối đậm nào. */
+.on {
+  border-color: var(--om-orange);
+  color: var(--om-orange-ink);
 }
 
 .panel {

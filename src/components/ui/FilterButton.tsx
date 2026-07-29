@@ -18,16 +18,23 @@ type Props = {
  * Gom bộ lọc vào một nút thay vì xếp hết ra thanh trên: thanh trên đã có ô tìm
  * kiếm, phạm vi, bộ chọn kỳ và nút thêm — mỗi bộ lọc mới lại đẩy nó xuống một
  * hàng nữa. Đổi lại, bộ lọc bị che thì người dùng không biết mình đang lọc, nên
- * BẮT BUỘC có số đếm ở nút và dòng chip bên ngoài liệt kê bộ lọc đang bật.
+ * BẮT BUỘC có dòng chip bên ngoài liệt kê bộ lọc đang bật.
+ *
+ * Đang lọc thì nút chỉ đổi sang sắc cam, KHÔNG đeo thêm huy hiệu số: dòng chip
+ * đã nói rõ đang lọc gì, con số chỉ lặp lại thông tin đó bằng một khối đậm.
  */
 export function FilterButton({ activeCount, onClear, children }: Props) {
   return (
     <Popover.Root>
       <Popover.Trigger asChild>
-        <Button variant="secondary" className={styles.trigger}>
+        <Button
+          variant="secondary"
+          className={[styles.trigger, activeCount > 0 && styles.on]
+            .filter(Boolean)
+            .join(" ")}
+        >
           <SlidersHorizontal size={15} />
           Bộ lọc
-          {activeCount > 0 && <span className={styles.count}>{activeCount}</span>}
         </Button>
       </Popover.Trigger>
 
