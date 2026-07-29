@@ -38,7 +38,13 @@ export const DashboardData = z.object({
      */
     bucketType: z.enum(['hour', 'day', 'week', 'month']),
     buckets: z.array(
-      z.object({ label: z.string(), automatic: z.number(), manual: z.number() }),
+      z.object({
+        label: z.string(),
+        /** Bảo hiểm tai nạn hộ sử dụng điện. */
+        electric: z.number(),
+        /** Bảo hiểm xe máy. */
+        motorbike: z.number(),
+      }),
     ),
   }),
   /** Xếp hạng phòng — chỉ gồm các phòng người xem được phép thấy. */

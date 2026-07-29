@@ -153,12 +153,12 @@ export default function DashboardPage() {
 
                 <BarChart
                   title={`Đơn theo ${BUCKET_LABEL[data.insurance.bucketType]}`}
-                  caption={`Đơn bảo hiểm theo ${BUCKET_LABEL[data.insurance.bucketType]}, tách đơn tự động và đơn làm tay`}
+                  caption={`Đơn bảo hiểm theo ${BUCKET_LABEL[data.insurance.bucketType]}, tách theo loại sản phẩm`}
                   labelKey="label"
                   rows={data.insurance.buckets}
                   series={[
-                    { key: "automatic", label: "tự động", color: "#8fa073" },
-                    { key: "manual", label: "làm tay", color: "#d67f48" },
+                    { key: "motorbike", label: "BH xe máy", color: "#8fa073" },
+                    { key: "electric", label: "BH tai nạn điện", color: "#d67f48" },
                   ]}
                 />
               </SectionCard>

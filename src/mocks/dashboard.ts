@@ -82,15 +82,16 @@ function departmentRanking(ratio: number) {
 
 /* ── Cột biểu đồ: độ chia theo kỳ ───────────────────────────────────── */
 
-type Bucket = { label: string; automatic: number; manual: number };
+type Bucket = { label: string; electric: number; motorbike: number };
 
+/** Tổng khớp với insurance.electricCount = 9 và motorbikeCount = 15. */
 const HOUR_SHAPE = [
-  { label: "8–10h", automatic: 4, manual: 1 },
-  { label: "10–12h", automatic: 7, manual: 1 },
-  { label: "12–14h", automatic: 2, manual: 0 },
-  { label: "14–16h", automatic: 6, manual: 2 },
-  { label: "16–18h", automatic: 3, manual: 1 },
-  { label: "sau 18h", automatic: 1, manual: 0 },
+  { label: "8–10h", electric: 2, motorbike: 3 },
+  { label: "10–12h", electric: 3, motorbike: 5 },
+  { label: "12–14h", electric: 0, motorbike: 2 },
+  { label: "14–16h", electric: 2, motorbike: 4 },
+  { label: "16–18h", electric: 1, motorbike: 1 },
+  { label: "sau 18h", electric: 1, motorbike: 0 },
 ];
 
 const dd = (d: Date) =>
@@ -121,8 +122,8 @@ function makeBuckets(
       bucketType: "hour",
       buckets: HOUR_SHAPE.map((h) => ({
         label: h.label,
-        automatic: scale_(h.automatic, ratio),
-        manual: scale_(h.manual, ratio),
+        electric: scale_(h.electric, ratio),
+        motorbike: scale_(h.motorbike, ratio),
       })),
     };
   }
@@ -145,8 +146,8 @@ function makeBuckets(
     );
     buckets.push({
       label: step === 1 ? dd(start) : `${dd(start)}–${dd(end)}`,
-      automatic: scale_(Math.round(4 * step * wiggle(i)), ratio),
-      manual: scale_(Math.round(step * wiggle(i + 3)) || 1, ratio),
+      electric: scale_(Math.round(2 * step * wiggle(i)), ratio),
+      motorbike: scale_(Math.round(3 * step * wiggle(i + 3)), ratio),
     });
   }
 
