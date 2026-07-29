@@ -1,0 +1,14 @@
+.ok {
+  background: var(--color-accent-2-200);
+  color: var(--color-accent-2-800);
+}
+
+.warn {
+  background: var(--color-accent-200);
+  color: var(--color-accent-800);
+}
+
+.mark {
+  font-weight: 700;
+  margin-right: 5px;
+}

@@ -2,6 +2,7 @@ import { HttpResponse, http } from "msw";
 import { LOGIN_ERROR, Scope } from "@/lib/types";
 import { sessionExpiry } from "@/store/session";
 import { dashboardFor } from "./dashboard";
+import { peopleFor } from "./people";
 import { mockUsers } from "./data";
 
 /** Sai 5 lần liên tiếp thì khoá 15 phút — đếm theo tên đăng nhập. */
@@ -85,6 +86,14 @@ export const handlers = [
         parsed.success ? parsed.data : "company",
         params.get("period") ?? "today",
       ),
+    );
+  }),
+
+  http.get("/api/people", ({ request }) => {
+    const params = new URL(request.url).searchParams;
+    const parsed = Scope.safeParse(params.get("scope"));
+    return HttpResponse.json(
+      peopleFor(parsed.success ? parsed.data : "company", params.get("month") ?? ""),
     );
   }),
 ];

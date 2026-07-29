@@ -1,0 +1,12 @@
+.wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.label {
+  min-width: 118px;
+  text-align: center;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
