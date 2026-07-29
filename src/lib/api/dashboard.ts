@@ -53,6 +53,11 @@ export const DashboardData = z.object({
     byType: z.array(z.object({ label: z.string(), count: z.number() })),
     topWard: z.object({ name: z.string(), count: z.number() }),
   }),
+  gifts: z.object({
+    byType: z.array(z.object({ label: z.string(), count: z.number() })),
+    /** Khách đủ điều kiện nhưng chưa phát quà — khớp thẻ ở đầu trang. */
+    pending: z.number(),
+  }),
 });
 export type DashboardData = z.infer<typeof DashboardData>;
 

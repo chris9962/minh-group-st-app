@@ -39,6 +39,19 @@ const COMPANY: DashboardData = {
     ],
     topWard: { name: "Tân Bình", count: 29 },
   },
+  gifts: {
+    byType: [
+      { label: "Tiền mặt 20.000đ", count: 26 },
+      { label: "1 năm BH xe máy", count: 19 },
+      { label: "Tiền mặt 50.000đ", count: 14 },
+      { label: "1 năm BH điện 100k", count: 11 },
+      { label: "Nón bảo hiểm", count: 8 },
+      { label: "2 năm BH xe máy", count: 6 },
+      { label: "Mì", count: 5 },
+      { label: "Loa", count: 3 },
+    ],
+    pending: 18,
+  },
 };
 
 
@@ -207,6 +220,13 @@ export function dashboardFor(scope: Scope, periodKey = "today"): DashboardData {
         count: scale(s.count, r),
       })),
       topWard: { ...d.services.topWard, count: scale(d.services.topWard.count, r) },
+    },
+    gifts: {
+      byType: d.gifts.byType.map((g) => ({
+        label: g.label,
+        count: scale(g.count, r),
+      })),
+      pending: scale(d.gifts.pending, r),
     },
   };
 }

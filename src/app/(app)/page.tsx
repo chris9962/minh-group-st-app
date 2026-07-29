@@ -196,6 +196,22 @@ export default function DashboardPage() {
                   <span className="so">{data.services.topWard.count}</span>
                 </p>
               </SectionCard>
+
+              <SectionCard title="Quà đã tặng" meta={periodLabel}>
+                <dl className={styles.pairs}>
+                  {data.gifts.byType.map((g) => (
+                    <div key={g.label}>
+                      <dt>{g.label}</dt>
+                      <dd className="so">{g.count}</dd>
+                    </div>
+                  ))}
+                </dl>
+                <p className={styles.footnote}>
+                  Chưa phát · <span className="so">{data.gifts.pending}</span> khách
+                  đủ điều kiện. Tổng ở đây lớn hơn số khách vì mỗi khách nhận tiền
+                  mặt <em>cộng thêm</em> một món trong rổ quà.
+                </p>
+              </SectionCard>
             </div>
           </>
         )}
