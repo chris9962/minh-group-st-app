@@ -16,6 +16,15 @@ export const PersonAccount = z.object({
 });
 export type PersonAccount = z.infer<typeof PersonAccount>;
 
+/** Quà của một khách. Quà tính theo KHÁCH, không theo từng tài khoản. */
+export const CustomerGift = z.object({
+  customerName: z.string(),
+  /** Món đã phát. Rỗng mà `eligible` là đúng nghĩa là đủ điều kiện nhưng chưa phát. */
+  items: z.array(z.string()),
+  eligible: z.boolean(),
+});
+export type CustomerGift = z.infer<typeof CustomerGift>;
+
 /** Một khách với TẤT CẢ ngân hàng của họ gộp lại. */
 export type CustomerAccounts = {
   customerName: string;
@@ -26,6 +35,8 @@ export type CustomerAccounts = {
   channels: string[];
   /** Ngân hàng đã cài app, kèm loại đăng ký: `VPa (CNKD)`. */
   appBanks: string[];
+  giftItems: string[];
+  giftEligible: boolean;
 };
 
 /**
@@ -37,7 +48,9 @@ export type CustomerAccounts = {
  */
 export function groupAccountsByCustomer(
   accounts: PersonAccount[],
+  gifts: CustomerGift[] = [],
 ): CustomerAccounts[] {
+  const giftOf = new Map(gifts.map((g) => [g.customerName, g]));
   const byCustomer = new Map<string, CustomerAccounts>();
 
   for (const a of accounts) {
@@ -48,6 +61,8 @@ export function groupAccountsByCustomer(
       referralCodes: [],
       channels: [],
       appBanks: [],
+      giftItems: giftOf.get(a.customerName)?.items ?? [],
+      giftEligible: giftOf.get(a.customerName)?.eligible ?? false,
     };
 
     // Chuỗi YYYY-MM-DD so sánh được trực tiếp, không cần dựng Date.
@@ -124,6 +139,8 @@ export const PersonDetail = z.object({
   pointSources: z.array(PointSource),
   /** Điểm 5 tháng gần nhất, cũ trước mới sau. Luôn theo tháng, không theo ngày. */
   monthlyPoints: z.array(z.object({ month: z.string(), points: z.number() })),
+  /** Quà đã tặng cho khách của người này trong kỳ. */
+  gifts: z.array(CustomerGift),
   /** Rỗng thì trang không hiện thẻ tương ứng. */
   accounts: z.array(PersonAccount),
   insurance: z.array(PersonInsurance),

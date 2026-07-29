@@ -1,4 +1,5 @@
 import type {
+  CustomerGift,
   PersonAccount,
   PersonDetail,
   PersonInsurance,
@@ -128,6 +129,31 @@ function servicesOf(fullName: string, month: string, count: number): PersonServi
   }));
 }
 
+/** Rổ quà — mỗi khách đủ điều kiện nhận TIỀN MẶT cộng thêm một món. */
+const GIFT_CASH = "Tiền mặt 20.000đ";
+const GIFT_ITEMS = ["Nón bảo hiểm", "Mì", "Loa", "1 năm BH xe máy", "BH sức khoẻ"];
+
+/**
+ * Quà tính theo KHÁCH chứ không theo từng tài khoản: khách cài đủ 2 app trở
+ * lên mới vào diện. Một phần đã phát, phần còn lại là "đủ ĐK · chưa phát" —
+ * đúng con số mà dashboard đang đếm.
+ */
+function giftsOf(accounts: PersonAccount[]): CustomerGift[] {
+  const appsPerCustomer = new Map<string, number>();
+  for (const a of accounts) {
+    if (!a.appInstalled) continue;
+    appsPerCustomer.set(a.customerName, (appsPerCustomer.get(a.customerName) ?? 0) + 1);
+  }
+
+  return [...appsPerCustomer.entries()]
+    .filter(([, apps]) => apps >= 2)
+    .map(([customerName, apps], i) => ({
+      customerName,
+      eligible: true,
+      items: i % 3 === 0 ? [] : [GIFT_CASH, GIFT_ITEMS[(apps + i) % GIFT_ITEMS.length]],
+    }));
+}
+
 /** Gom tài khoản theo ngân hàng để giải thích điểm đến từ đâu. */
 function pointSourcesOf(
   accounts: PersonAccount[],
@@ -232,6 +258,7 @@ export function personFor({
       base.insuranceOrders,
     ),
     monthlyPoints: monthlyPointsOf(base.fullName, summaryMonth, total),
+    gifts: giftsOf(accounts),
     accounts,
     insurance,
     services,

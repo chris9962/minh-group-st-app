@@ -51,6 +51,20 @@ const ACCOUNT_COLUMNS: RankColumn<CustomerAccounts>[] = [
         <StatusTag ok={false}>Chưa cài</StatusTag>
       ),
   },
+  {
+    key: "gift",
+    label: "Quà tặng",
+    // Ba trạng thái khác hẳn nhau: đã tặng gì · đủ điều kiện mà chưa phát ·
+    // không thuộc diện. Gộp hai cái sau thành "—" là giấu mất việc phải làm.
+    render: (c) =>
+      c.giftItems.length > 0 ? (
+        c.giftItems.join(", ")
+      ) : c.giftEligible ? (
+        <StatusTag ok={false}>Đủ ĐK · chưa phát</StatusTag>
+      ) : (
+        "—"
+      ),
+  },
 ];
 
 const INSURANCE_COLUMNS: RankColumn<PersonInsurance>[] = [
@@ -113,7 +127,7 @@ export default function PersonPage({
 
   const withKpi = showsKpi(period);
   const periodText = period.kind === "today" ? "Hôm nay" : monthLabel(summaryMonth);
-  const customers = data ? groupAccountsByCustomer(data.accounts) : [];
+  const customers = data ? groupAccountsByCustomer(data.accounts, data.gifts) : [];
 
   // Chỉ hiện thẻ có dòng. Thẻ rỗng chỉ để người dùng bấm vào rồi thấy trống.
   const tabs: TabOption[] = data
