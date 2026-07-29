@@ -1,0 +1,73 @@
+/** Chuẩn hoá & định dạng dữ liệu — dùng chung cho hiển thị, tìm kiếm và xuất Excel. */
+
+/**
+ * Bỏ dấu tiếng Việt.
+ *
+ * NFD tách được dấu của nguyên âm nhưng KHÔNG tách đ/Đ — phải thay tay,
+ * nếu không `Đặng` ra `ĐANG` thay vì `DANG` và ngân hàng trả file về.
+ */
+export function removeDiacritics(input: string): string {
+  return input
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D');
+}
+
+/** Khoá tìm kiếm: thường hoá + bỏ dấu + gộp khoảng trắng. */
+export function searchKey(input: string): string {
+  return removeDiacritics(input).toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Tìm không dấu, không phân biệt thứ tự từ.
+ * `bich tram nguyen` vẫn khớp `Nguyễn Thị Bích Trâm`.
+ */
+export function matchesSearch(source: string, query: string): boolean {
+  const key = searchKey(source);
+  return searchKey(query)
+    .split(' ')
+    .filter(Boolean)
+    .every((term) => key.includes(term));
+}
+
+/** Chỉ giữ chữ số. */
+export const digitsOnly = (input: string): string => input.replace(/\D/g, '');
+
+/** SĐT dạng nhóm cho dễ đọc: 0901 234 567. Không đổi dữ liệu gốc. */
+export function formatPhone(phone: string): string {
+  const d = digitsOnly(phone);
+  return d.length === 10 ? `${d.slice(0, 4)} ${d.slice(4, 7)} ${d.slice(7)}` : phone;
+}
+
+/** CCCD dạng nhóm: 0923 0100 4871. */
+export function formatIdNumber(idNumber: string): string {
+  const d = digitsOnly(idNumber);
+  return d.length === 12 ? `${d.slice(0, 4)} ${d.slice(4, 8)} ${d.slice(8)}` : idNumber;
+}
+
+export const isValidPhone = (v: string): boolean => digitsOnly(v).length === 10;
+export const isValidIdNumber = (v: string): boolean => digitsOnly(v).length === 12;
+
+/** Tên khi XUẤT Excel: VIẾT HOA, BỎ DẤU. Lúc nhập không ràng buộc gì. */
+export const nameForExcel = (name: string): string =>
+  removeDiacritics(name).toUpperCase();
+
+export function formatVnd(amount: number): string {
+  return new Intl.NumberFormat('vi-VN').format(amount) + 'đ';
+}
+
+export function formatDate(value: Date | string): string {
+  const d = typeof value === 'string' ? new Date(value) : value;
+  return new Intl.DateTimeFormat('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(d);
+}
+
+/** Đếm ngược mm:ss — dùng cho đồng hồ giữ chỗ mã giới thiệu. */
+export function countdown(seconds: number): string {
+  const s = Math.max(0, Math.floor(seconds));
+  return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+}

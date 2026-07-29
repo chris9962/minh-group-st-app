@@ -1,0 +1,72 @@
+.panel {
+  position: relative;
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.wedge {
+  position: absolute;
+  inset: 0;
+  background: #e8763a;
+  clip-path: polygon(0 0, 40% 0, 72% 100%, 0 100%);
+}
+
+.top {
+  position: absolute;
+  top: 44px;
+  right: 46px;
+  gap: 13px;
+}
+
+.photoRing {
+  position: absolute;
+  left: 50%;
+  top: 47%;
+  transform: translate(-50%, -50%);
+  width: clamp(200px, 42%, 318px);
+  aspect-ratio: 1;
+  border-radius: 999px;
+  background: #fff;
+  padding: 15px;
+  box-shadow: 0 10px 34px rgb(27 27 27 / 14%);
+}
+
+.photoRing img {
+  width: 100%;
+  height: 100%;
+  border-radius: 999px;
+  object-fit: cover;
+}
+
+.bottom {
+  position: absolute;
+  left: 48px;
+  bottom: 64px;
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.legalForm {
+  font-weight: 600;
+  font-size: clamp(15px, 1.7vw, 20px);
+  letter-spacing: 0.13em;
+}
+
+.wordmark {
+  font-weight: 800;
+  font-size: clamp(26px, 3.4vw, 40px);
+  line-height: 1.1;
+  border-bottom: 3px solid rgb(255 255 255 / 85%);
+  padding-bottom: 9px;
+  align-self: flex-start;
+}
+
+.slogan {
+  font-style: italic;
+  font-weight: 600;
+  font-size: 15px;
+  color: #1b1b1b;
+  margin-top: 9px;
+}

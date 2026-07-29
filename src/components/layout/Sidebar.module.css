@@ -1,0 +1,73 @@
+.sidebar {
+  width: 236px;
+  flex: none;
+  background: var(--color-neutral-200);
+  border-right: 1px solid var(--color-neutral-300);
+  padding: 22px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  overflow-y: auto;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 6px 16px;
+}
+
+.identity {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+  min-width: 0;
+}
+
+.identity strong {
+  font-family: var(--font-heading);
+  font-size: 15px;
+}
+
+.identity > span {
+  font-size: 10.5px;
+  color: var(--color-neutral-600);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 13px;
+  border-radius: 999px;
+  font-size: 13.5px;
+  color: var(--color-text);
+}
+
+.item:hover {
+  background: color-mix(in srgb, var(--color-text) 6%, transparent);
+}
+
+.item:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+/* Mục đang mở: nền đậm + aria-current, không chỉ dựa vào màu. */
+.active,
+.active:hover {
+  background: var(--color-accent);
+  color: var(--color-bg);
+}

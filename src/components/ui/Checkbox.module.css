@@ -1,0 +1,35 @@
+.row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13.5px;
+  cursor: pointer;
+}
+
+.box {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  border-radius: 6px;
+  border: 1.5px solid var(--color-divider);
+  background: var(--color-surface);
+  display: grid;
+  place-items: center;
+  color: var(--color-bg);
+  cursor: pointer;
+}
+
+.box[data-state="checked"] {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+.box:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.box:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}

@@ -1,0 +1,20 @@
+.shell {
+  min-height: 100dvh;
+  display: flex;
+  background: var(--color-neutral-100);
+}
+
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* Trên điện thoại sidebar nằm ngang trên đầu, cuộn ngang.
+   Menu dạng ngăn kéo sẽ làm sau khi có màn KD. */
+@media (max-width: 900px) {
+  .shell {
+    flex-direction: column;
+  }
+}

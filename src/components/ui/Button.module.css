@@ -1,0 +1,6 @@
+/* Vùng bấm tối thiểu 44px — ngón tay ngoài hiện trường, không phải con trỏ chuột. */
+.large {
+  padding: 14px;
+  font-size: 15px;
+  min-height: 48px;
+}

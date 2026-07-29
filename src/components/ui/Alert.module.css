@@ -1,0 +1,22 @@
+.box {
+  margin: 0;
+  border-radius: 18px;
+  padding: 12px 16px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.info {
+  background: var(--color-accent-200);
+  color: var(--color-accent-800);
+}
+
+.warning {
+  background: var(--color-accent-200);
+  color: var(--color-accent-800);
+}
+
+.error {
+  background: #fbdcd6;
+  color: #7d2415;
+}
