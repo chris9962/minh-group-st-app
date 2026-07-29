@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { User } from "@/lib/types";
+import { User } from "@/lib/types";
 
 /**
  * Phiên đăng nhập.
@@ -40,6 +40,26 @@ export const useSession = create<SessionState>()(
         return Boolean(user && expiresAt && expiresAt > Date.now());
       },
     }),
-    { name: "mgst-session" },
+    {
+      name: "mgst-session",
+
+      /**
+       * Phiên cũ phải khớp schema hiện tại, nếu không thì bỏ.
+       *
+       * Đổi cấu trúc User mà không kiểm ở đây thì người đang đăng nhập mắc kẹt
+       * với dữ liệu cũ: giao diện hiện sai, mà cũng không quay lại trang đăng
+       * nhập được vì phiên vẫn còn hạn.
+       */
+      merge: (persisted, current) => {
+        const saved = persisted as Partial<SessionState> | undefined;
+        const parsed = User.safeParse(saved?.user);
+        if (!parsed.success) return current;
+        return {
+          ...current,
+          user: parsed.data,
+          expiresAt: saved?.expiresAt ?? null,
+        };
+      },
+    },
   ),
 );

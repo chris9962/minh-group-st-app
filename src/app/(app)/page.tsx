@@ -4,6 +4,12 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { TopBar } from "@/components/layout/TopBar";
 import { BarChart } from "@/components/ui/BarChart";
+import {
+  DEFAULT_PERIOD,
+  PeriodPicker,
+  periodKey,
+  type Period,
+} from "@/components/ui/PeriodPicker";
 import { ScopeSwitcher } from "@/components/ui/ScopeSwitcher";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatCard } from "@/components/ui/StatCard";
@@ -18,22 +24,25 @@ export default function DashboardPage() {
   const user = useSession((s) => s.user);
   const scopes = availableScopes(user, "banking", "view-stats");
   const [scope, setScope] = useState<Scope>(scopes.at(-1) ?? "own");
+  const [period, setPeriod] = useState<Period>(DEFAULT_PERIOD);
 
   const { data, isPending, isError } = useQuery({
-    queryKey: ["dashboard", scope],
-    queryFn: () => fetchDashboard(scope),
+    queryKey: ["dashboard", scope, periodKey(period)],
+    queryFn: () => fetchDashboard(scope, period),
   });
 
-  const today = new Intl.DateTimeFormat("vi-VN", {
-    day: "2-digit",
-    month: "2-digit",
-  }).format(new Date());
+  const periodLabel =
+    period.kind === "today"
+      ? "hôm nay"
+      : period.kind === "this-month"
+        ? "tháng này"
+        : `${period.from} → ${period.to}`;
 
   return (
     <>
       <TopBar title="Tổng quan">
         <ScopeSwitcher options={scopes} value={scope} onChange={setScope} />
-        <span className={styles.today}>Hôm nay · {today}</span>
+        <PeriodPicker value={period} onChange={setPeriod} />
       </TopBar>
 
       <main className={styles.body}>
@@ -48,7 +57,7 @@ export default function DashboardPage() {
                   featured
                   value={`${data.installRate.percent}%`}
                   label="tỉ lệ cài app trên số tài khoản mở"
-                  detail={`${data.installRate.appsInstalled} app / ${data.installRate.accountsOpened} tài khoản mở hôm nay · tháng trước ${data.installRate.previousPercent}%`}
+                  detail={`${data.installRate.appsInstalled} app / ${data.installRate.accountsOpened} tài khoản mở ${periodLabel} · kỳ trước ${data.installRate.previousPercent}%`}
                 />
                 <div className={styles.headlineSide}>
                   <StatCard value={data.banking.accountsOpened} label="tài khoản mở" />
@@ -63,11 +72,11 @@ export default function DashboardPage() {
             </SectionCard>
 
             <div className={styles.grid}>
-              <SectionCard title="Bảo hiểm hôm nay" className={styles.wide}>
+              <SectionCard title={`Bảo hiểm ${periodLabel}`} className={styles.wide}>
                 <div className={styles.statRow}>
                   <StatCard
                     value={data.insurance.createdToday}
-                    label="đơn BH tạo hôm nay"
+                    label={`đơn BH tạo ${periodLabel}`}
                     detail={`cháy nổ ${data.insurance.fireCount} · xe máy ${data.insurance.motorbikeCount}`}
                   />
                   <StatCard
@@ -77,7 +86,7 @@ export default function DashboardPage() {
                   />
                   <StatCard
                     value={data.insurance.pending}
-                    label="đơn tồn"
+                    label="đơn tồn hiện tại"
                     detail={`${data.insurance.pendingBot} đang chạy · ${data.insurance.pendingManual} chờ làm tay`}
                   />
                   <StatCard
@@ -99,7 +108,7 @@ export default function DashboardPage() {
                 />
               </SectionCard>
 
-              <SectionCard title="Chất lượng vận hành" meta="7 ngày">
+              <SectionCard title="Chất lượng vận hành" meta={periodLabel}>
                 <dl className={styles.pairs}>
                   <div>
                     <dt>Tỉ lệ bot thành công</dt>
@@ -127,7 +136,7 @@ export default function DashboardPage() {
                 </dl>
               </SectionCard>
 
-              <SectionCard title="Dịch vụ theo loại">
+              <SectionCard title="Dịch vụ theo loại" meta={periodLabel}>
                 <dl className={styles.pairs}>
                   {data.services.byType.map((s) => (
                     <div key={s.label}>

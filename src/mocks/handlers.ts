@@ -78,8 +78,13 @@ export const handlers = [
   }),
 
   http.get("/api/dashboard", ({ request }) => {
-    const raw = new URL(request.url).searchParams.get("scope");
-    const parsed = Scope.safeParse(raw);
-    return HttpResponse.json(dashboardFor(parsed.success ? parsed.data : "company"));
+    const params = new URL(request.url).searchParams;
+    const parsed = Scope.safeParse(params.get("scope"));
+    return HttpResponse.json(
+      dashboardFor(
+        parsed.success ? parsed.data : "company",
+        params.get("period") ?? "today",
+      ),
+    );
   }),
 ];

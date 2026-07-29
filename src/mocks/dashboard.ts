@@ -62,11 +62,23 @@ const RATIO: Record<Scope, number> = {
   company: 1,
 };
 
-const scaleDown = (value: number, ratio: number) =>
+const scale = (value: number, ratio: number) =>
   ratio === 1 ? value : Math.max(0, Math.round(value * ratio));
 
-export function dashboardFor(scope: Scope): DashboardData {
-  const r = RATIO[scope] ?? 1;
+/** Kỳ dài hơn thì số lớn lên. Ước lượng thô, chỉ để thấy bộ chọn kỳ có tác dụng. */
+function periodFactor(periodKey: string): number {
+  if (periodKey === "this-month") return 21;
+  if (periodKey.startsWith("range:")) {
+    const [, from, to] = periodKey.split(":");
+    const days =
+      Math.abs(new Date(to).getTime() - new Date(from).getTime()) / 86_400_000 + 1;
+    return Number.isFinite(days) ? Math.max(1, Math.round(days)) : 1;
+  }
+  return 1;
+}
+
+export function dashboardFor(scope: Scope, periodKey = "today"): DashboardData {
+  const r = (RATIO[scope] ?? 1) * periodFactor(periodKey);
   if (r === 1) return COMPANY;
 
   const d = COMPANY;
@@ -74,42 +86,43 @@ export function dashboardFor(scope: Scope): DashboardData {
     // Tỉ lệ phần trăm KHÔNG nhân theo phạm vi — nó là tỉ lệ, không phải số đếm.
     installRate: {
       ...d.installRate,
-      appsInstalled: scaleDown(d.installRate.appsInstalled, r),
-      accountsOpened: scaleDown(d.installRate.accountsOpened, r),
+      appsInstalled: scale(d.installRate.appsInstalled, r),
+      accountsOpened: scale(d.installRate.accountsOpened, r),
     },
     banking: {
-      accountsOpened: scaleDown(d.banking.accountsOpened, r),
-      appsInstalled: scaleDown(d.banking.appsInstalled, r),
+      accountsOpened: scale(d.banking.accountsOpened, r),
+      appsInstalled: scale(d.banking.appsInstalled, r),
       codesRunningLow: d.banking.codesRunningLow,
-      giftsPending: scaleDown(d.banking.giftsPending, r),
+      giftsPending: scale(d.banking.giftsPending, r),
     },
     insurance: {
       ...d.insurance,
-      createdToday: scaleDown(d.insurance.createdToday, r),
-      fireCount: scaleDown(d.insurance.fireCount, r),
-      motorbikeCount: scaleDown(d.insurance.motorbikeCount, r),
-      completed: scaleDown(d.insurance.completed, r),
-      pending: scaleDown(d.insurance.pending, r),
-      pendingBot: scaleDown(d.insurance.pendingBot, r),
-      pendingManual: scaleDown(d.insurance.pendingManual, r),
+      createdToday: scale(d.insurance.createdToday, r),
+      fireCount: scale(d.insurance.fireCount, r),
+      motorbikeCount: scale(d.insurance.motorbikeCount, r),
+      completed: scale(d.insurance.completed, r),
+      // Đơn tồn là số tức thời, chỉ co theo phạm vi chứ không theo kỳ.
+      pending: scale(d.insurance.pending, RATIO[scope] ?? 1),
+      pendingBot: scale(d.insurance.pendingBot, RATIO[scope] ?? 1),
+      pendingManual: scale(d.insurance.pendingManual, RATIO[scope] ?? 1),
       byHour: d.insurance.byHour.map((h) => ({
         label: h.label,
-        automatic: scaleDown(h.automatic, r),
-        manual: scaleDown(h.manual, r),
+        automatic: scale(h.automatic, r),
+        manual: scale(h.manual, r),
       })),
     },
     quality: {
       ...d.quality,
-      manualOrders: scaleDown(d.quality.manualOrders, r),
-      badInputOrders: scaleDown(d.quality.badInputOrders, r),
-      overnightOrders: scaleDown(d.quality.overnightOrders, r),
+      manualOrders: scale(d.quality.manualOrders, r),
+      badInputOrders: scale(d.quality.badInputOrders, r),
+      overnightOrders: scale(d.quality.overnightOrders, r),
     },
     services: {
       byType: d.services.byType.map((s) => ({
         label: s.label,
-        count: scaleDown(s.count, r),
+        count: scale(s.count, r),
       })),
-      topWard: { ...d.services.topWard, count: scaleDown(d.services.topWard.count, r) },
+      topWard: { ...d.services.topWard, count: scale(d.services.topWard.count, r) },
     },
   };
 }

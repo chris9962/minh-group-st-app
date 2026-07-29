@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import type { Period } from '@/components/ui/PeriodPicker';
+import { periodKey } from '@/components/ui/PeriodPicker';
 import type { Scope } from '@/lib/types';
 
 /** Số liệu cho P-80 Dashboard tổng. */
@@ -23,6 +25,7 @@ export const DashboardData = z.object({
     motorbikeCount: z.number(),
     completed: z.number(),
     completedPercent: z.number(),
+    /** Số tức thời — "ngay lúc này còn bao nhiêu đơn chưa xong", không theo kỳ. */
     pending: z.number(),
     pendingBot: z.number(),
     pendingManual: z.number(),
@@ -47,8 +50,13 @@ export const DashboardData = z.object({
 });
 export type DashboardData = z.infer<typeof DashboardData>;
 
-export async function fetchDashboard(scope: Scope): Promise<DashboardData> {
-  const res = await fetch(`/api/dashboard?scope=${scope}`);
+export async function fetchDashboard(
+  scope: Scope,
+  period: Period,
+): Promise<DashboardData> {
+  const res = await fetch(
+    `/api/dashboard?scope=${scope}&period=${encodeURIComponent(periodKey(period))}`,
+  );
   if (!res.ok) throw new Error('Không tải được số liệu tổng quan');
   return DashboardData.parse(await res.json());
 }

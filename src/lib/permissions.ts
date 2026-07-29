@@ -52,9 +52,15 @@ export function availableScopes(
   const widest = scopeFor(user, module, action);
   if (!user || !widest) return [];
 
-  return SCOPES.slice(0, scopeRank(widest) + 1).filter(
-    (s) => s !== 'managed' || user.manageScope === 'listed',
-  );
+  return SCOPES.slice(0, scopeRank(widest) + 1).filter((s) => {
+    // `phòng tôi quản` chỉ có nghĩa với người thật sự phụ trách phòng nào đó.
+    if (s === 'managed') return user.manageScope === 'listed';
+    // `của tôi` chỉ có nghĩa với người thật sự tạo bản ghi.
+    // Giám đốc không tạo đơn nên mức này luôn rỗng — bỏ đi, còn một mức thì
+    // thanh chọn phạm vi tự ẩn.
+    if (s === 'own') return can(user, module, 'create');
+    return true;
+  });
 }
 
 /**
