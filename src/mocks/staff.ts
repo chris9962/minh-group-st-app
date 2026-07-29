@@ -66,12 +66,19 @@ export function staffFor(query: StaffQuery): StaffList {
     ? byStatus.filter((s) => s.departmentId === query.departmentId)
     : byStatus;
 
+  // Rỗng nghĩa là lấy hết. Nếu hiểu thành "không lấy gì" thì lần đầu mở trang
+  // bảng sẽ trống trơn.
+  const byRole =
+    query.roles.length > 0
+      ? byDepartment.filter((s) => query.roles.includes(s.role ?? "none"))
+      : byDepartment;
+
   // Tìm kiếm KHÔNG áp lên phần tóm tắt — cùng quy tắc với P-51.
   const found = query.search
-    ? byDepartment.filter((s) =>
+    ? byRole.filter((s) =>
         matchesSearch(`${s.fullName} ${s.username} ${s.departmentName}`, query.search),
       )
-    : byDepartment;
+    : byRole;
 
   const inDepartment = query.departmentId
     ? store.filter((s) => s.departmentId === query.departmentId)

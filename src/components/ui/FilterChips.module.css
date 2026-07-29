@@ -1,0 +1,55 @@
+.row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.lead {
+  font-size: 12.5px;
+  color: var(--om-text-3);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 6px 5px 11px;
+  border-radius: 999px;
+  background: var(--om-chip-bg);
+  color: var(--om-chip-ink);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.remove {
+  all: unset;
+  position: relative;
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  cursor: pointer;
+  color: inherit;
+}
+
+/* Vùng bấm 44px cho ngón tay, hình vẫn nhỏ gọn trong chip. */
+.remove::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 44px;
+  height: 44px;
+  transform: translate(-50%, -50%);
+}
+
+.remove:hover {
+  background: rgb(from var(--om-chip-ink) r g b / 18%);
+}
+
+.remove:focus-visible {
+  outline: 2px solid var(--om-orange);
+  outline-offset: 1px;
+}

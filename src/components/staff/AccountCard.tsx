@@ -46,7 +46,13 @@ export function AccountCard({ staffId }: { staffId: string }) {
   const { data: staff } = useQuery({
     queryKey: ["staff-one", staffId],
     queryFn: () =>
-      fetchStaff({ scope: "company", departmentId: "", search: "", status: "all" }).then(
+      fetchStaff({
+        scope: "company",
+        departmentId: "",
+        search: "",
+        status: "all",
+        roles: [],
+      }).then(
         (r) => r.staff.find((s) => s.id === staffId) ?? null,
       ),
     enabled: canManage,

@@ -77,10 +77,16 @@ export type StaffQuery = {
   search: string;
   /** `all` gồm cả người đã khoá. Mặc định chỉ hiện người đang làm. */
   status: 'active' | 'locked' | 'all';
+  /**
+   * Chức vụ cần lấy. RỖNG nghĩa là lấy hết — không phải "không lấy gì".
+   * `none` là người chưa gán chức vụ.
+   */
+  roles: (RoleKey | 'none')[];
 };
 
 export async function fetchStaff(query: StaffQuery): Promise<StaffList> {
-  const params = new URLSearchParams({ ...query });
+  const { roles, ...rest } = query;
+  const params = new URLSearchParams({ ...rest, roles: roles.join(',') });
   const res = await fetch(`/api/staff?${params}`);
   if (!res.ok) throw new Error('Không tải được danh sách nhân viên');
   return StaffList.parse(await res.json());

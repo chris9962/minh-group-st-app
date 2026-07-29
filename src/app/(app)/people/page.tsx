@@ -27,11 +27,14 @@ import {
 } from "@/lib/api/people";
 import { fetchDepartments } from "@/lib/api/departments";
 import { fetchStaff, type StaffAccount } from "@/lib/api/staff";
+import { FilterButton } from "@/components/ui/FilterButton";
+import { FilterChips } from "@/components/ui/FilterChips";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { SearchField } from "@/components/ui/SearchField";
 import { StaffFormDialog } from "@/components/staff/StaffFormDialog";
 import { useDebouncedValue } from "@/lib/hooks";
 import { availableScopes, can } from "@/lib/permissions";
-import { ROLE_LABEL, type Scope } from "@/lib/types";
+import { ROLE_LABEL, RoleKey, type Scope } from "@/lib/types";
 import { useSession } from "@/store/session";
 import styles from "./page.module.css";
 
@@ -149,6 +152,14 @@ const ACCOUNT_COLUMNS: RankColumn<StaffRow>[] = [
   },
 ];
 
+/** Chức vụ để lọc, thêm mục "chưa gán" vì đó là trạng thái cần tìm nhất. */
+const ROLE_FILTERS: { value: RoleFilter; label: string }[] = [
+  ...RoleKey.options.map((r) => ({ value: r as RoleFilter, label: ROLE_LABEL[r] })),
+  { value: "none", label: "Chưa gán chức vụ" },
+];
+
+type RoleFilter = (typeof RoleKey.options)[number] | "none";
+
 /** P-51 · Danh sách nhân viên + điểm + quản trị tài khoản. */
 export default function PeoplePage() {
   const user = useSession((s) => s.user);
@@ -158,6 +169,9 @@ export default function PeoplePage() {
   const [departmentId, setDepartmentId] = useState("");
   const [search, setSearch] = useState("");
   const searchQuery = useDebouncedValue(search);
+  // Mặc định KHÔNG chọn gì = lấy hết. Giữ mảng rỗng thay vì nhồi sẵn cả 6 mục
+  // để "chưa lọc" và "lọc đúng 6 mục" không lẫn vào nhau ở tầng gọi API.
+  const [roles, setRoles] = useState<RoleFilter[]>([]);
   const [editing, setEditing] = useState<StaffAccount | null>(null);
   const [creating, setCreating] = useState(false);
 
@@ -190,11 +204,17 @@ export default function PeoplePage() {
 
   // Danh sách tài khoản chỉ tải khi có quyền — không thì gọi API vô nghĩa.
   const { data: staffData } = useQuery({
-    queryKey: ["staff", scope, departmentId, searchQuery],
+    queryKey: ["staff", scope, departmentId, searchQuery, roles],
     // Chỉ người đang làm. Người đã khoá xem trong hồ sơ của họ, không lẫn vào
     // danh sách hằng ngày.
     queryFn: () =>
-      fetchStaff({ scope, departmentId, search: searchQuery, status: "active" }),
+      fetchStaff({
+        scope,
+        departmentId,
+        search: searchQuery,
+        status: "active",
+        roles,
+      }),
     enabled: canManage,
     placeholderData: (previous) => previous,
   });
@@ -222,23 +242,81 @@ export default function PeoplePage() {
           onChange={setSearch}
         />
         <ScopeSwitcher options={scopes} value={scope} onChange={setScope} />
-        <Select
-          label="Đơn vị"
-          hideLabel
-          value={departmentId}
-          onChange={setDepartmentId}
-          options={[
-            { value: "", label: "Tất cả đơn vị" },
-            ...departments.map((d) => ({ value: d.id, label: d.name })),
-          ]}
-        />
         <PeoplePeriodPicker value={period} onChange={setPeriod} />
+        <FilterButton
+          activeCount={(departmentId ? 1 : 0) + (roles.length > 0 ? 1 : 0)}
+          onClear={() => {
+            setDepartmentId("");
+            setRoles([]);
+          }}
+        >
+          <Select
+            label="Đơn vị"
+            value={departmentId}
+            onChange={setDepartmentId}
+            options={[
+              { value: "", label: "Tất cả đơn vị" },
+              ...departments.map((d) => ({ value: d.id, label: d.name })),
+            ]}
+          />
+
+          <fieldset className={styles.roleSet}>
+            <legend className={styles.roleLegend}>Chức vụ</legend>
+            {ROLE_FILTERS.map((r) => (
+              <Checkbox
+                key={r.value}
+                label={r.label}
+                // Rỗng = lấy hết, nên lúc chưa lọc thì tích sẵn mọi ô: người
+                // dùng thấy "tất cả" chứ không thấy "chưa chọn gì".
+                checked={roles.length === 0 || roles.includes(r.value)}
+                onCheckedChange={(on) => {
+                  const current =
+                    roles.length === 0 ? ROLE_FILTERS.map((x) => x.value) : roles;
+                  const next = on
+                    ? [...current, r.value]
+                    : current.filter((x) => x !== r.value);
+                  // Bỏ tích hết cũng coi như lấy hết — bảng trống trơn thì
+                  // người dùng tưởng mất dữ liệu.
+                  setRoles(next.length === ROLE_FILTERS.length ? [] : next);
+                }}
+              />
+            ))}
+          </fieldset>
+        </FilterButton>
         {canManage && (
           <Button onClick={() => setCreating(true)}>＋ Thêm nhân viên</Button>
         )}
       </TopBar>
 
       <main className={styles.body}>
+        {canManage && (
+          <FilterChips
+            chips={[
+              ...(departmentId
+                ? [
+                    {
+                      label: `Đơn vị: ${departments.find((d) => d.id === departmentId)?.name ?? departmentId}`,
+                      onRemove: () => setDepartmentId(""),
+                    },
+                  ]
+                : []),
+              ...(roles.length > 0
+                ? [
+                    {
+                      label: `Chức vụ: ${roles
+                        .map(
+                          (r) =>
+                            ROLE_FILTERS.find((x) => x.value === r)?.label ?? r,
+                        )
+                        .join(", ")}`,
+                      onRemove: () => setRoles([]),
+                    },
+                  ]
+                : []),
+            ]}
+          />
+        )}
+
         {isPending && <p className="text-muted">Đang tải danh sách…</p>}
         {isError && <p className="text-muted">Không tải được danh sách nhân viên.</p>}
 

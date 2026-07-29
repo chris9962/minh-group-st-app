@@ -2,7 +2,7 @@ import { HttpResponse, http } from "msw";
 import { LOGIN_ERROR, Scope } from "@/lib/types";
 import { sessionExpiry } from "@/store/session";
 import { dashboardFor } from "./dashboard";
-import { SAVE_ERROR, type StaffForm } from "@/lib/api/staff";
+import { SAVE_ERROR, type StaffForm, type StaffQuery } from "@/lib/api/staff";
 import { peopleFor } from "./people";
 import { personFor } from "./person";
 import {
@@ -143,6 +143,9 @@ export const handlers = [
         departmentId: params.get("departmentId") ?? "",
         search: params.get("search") ?? "",
         status: (params.get("status") ?? "active") as "active" | "locked" | "all",
+        roles: (params.get("roles") ?? "")
+          .split(",")
+          .filter(Boolean) as StaffQuery["roles"],
       }),
     );
   }),

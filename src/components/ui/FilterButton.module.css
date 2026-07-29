@@ -1,0 +1,65 @@
+.trigger {
+  gap: 7px;
+}
+
+.count {
+  min-width: 19px;
+  height: 19px;
+  padding: 0 5px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--om-orange);
+  color: var(--om-text-on-accent);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.panel {
+  width: min(320px, calc(100vw - 32px));
+  background: var(--om-card);
+  border: 1px solid var(--om-line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Danh sách chức vụ có thể dài dần; cuộn TRONG bảng để hàng nút luôn thấy. */
+.body {
+  max-height: min(60dvh, 420px);
+  overflow-y: auto;
+  padding: 16px 18px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.foot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 18px 16px;
+}
+
+.clear {
+  all: unset;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--om-orange-ink);
+  /* 44px cho ngón tay mà không phình hàng nút. */
+  padding: 13px 2px;
+  margin: -13px 0;
+}
+
+.clear:disabled {
+  color: var(--om-text-3);
+  cursor: not-allowed;
+}
+
+.clear:not(:disabled):hover {
+  text-decoration: underline;
+}
