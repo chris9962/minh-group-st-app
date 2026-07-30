@@ -25,14 +25,19 @@ export const BankAccountRow = z.object({
 export type BankAccountRow = z.infer<typeof BankAccountRow>;
 
 /**
- * P-22 · Chỉ xem — không có nút sửa/huỷ dù §10.1 cấp quyền `sửa · huỷ` cho
- * quản lý, vì feature-list không spec nút đó ở màn này.
+ * P-22 · Chỉ xem các trường của tài khoản — không có nút sửa/huỷ dù §10.1 cấp
+ * quyền `sửa · huỷ` cho quản lý, vì feature-list không spec nút đó ở màn này.
+ * Riêng ẢNH CHỨNG MINH thì có xem/thêm/thay — mỗi ngân hàng yêu cầu số ảnh
+ * khác nhau (`requiredPhotos`, P-60), không có ở màn tạo tài khoản (chỉ có ô
+ * tích xác nhận), nên đây là chỗ DUY NHẤT thật sự lưu và xem lại ảnh.
  */
 export const BankAccountDetail = BankAccountRow.extend({
   channelDetail: z.string(),
   accountType: AccountType,
   note: z.string(),
   createdByDepartmentId: z.string().nullable(),
+  photoUrls: z.array(z.string()),
+  requiredPhotos: z.number(),
 });
 export type BankAccountDetail = z.infer<typeof BankAccountDetail>;
 

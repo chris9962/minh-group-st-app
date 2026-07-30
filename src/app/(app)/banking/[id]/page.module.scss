@@ -40,6 +40,86 @@
   font-size: 14px;
 }
 
+.photoSection {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--om-line);
+}
+
+.photoTitle {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.photoGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.photoTile {
+  position: relative;
+  width: 120px;
+  height: 90px;
+}
+
+.photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--om-line);
+}
+
+.photoEdit {
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: var(--om-card);
+  color: var(--om-text);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+}
+
+.photoEdit:hover {
+  color: var(--om-orange-mid);
+}
+
+.photoAdd {
+  width: 120px;
+  height: 90px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--om-text-2);
+  background: var(--om-soft);
+  border: 1px dashed var(--om-line);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.photoAdd:hover {
+  color: var(--om-orange-mid);
+  border-color: var(--om-orange-mid);
+}
+
+.hiddenInput {
+  display: none;
+}
+
 @media (max-width: bp.$bp-mobile) {
   .body {
     padding: 16px 16px 32px;

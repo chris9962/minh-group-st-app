@@ -1,6 +1,7 @@
 import type { BankAccountDetail, BankAccountQuery, BankAccountRow } from "@/lib/api/banking";
 import { seed } from "./activity";
 import { allManualAccounts, manualAccountsFor } from "./bankAccounts";
+import { banksFor } from "./bankCatalog";
 import { departments } from "./data";
 import { ALL } from "./people";
 import { accountsOf } from "./person";
@@ -122,6 +123,7 @@ export function bankAccountDetailFor(
 
   const manual = manualAccountsFor(row.customerName).find((a) => a.id === id);
   const { departmentId, ...base } = row;
+  const bank = banksFor().find((b) => b.code === row.bankCode);
 
   return {
     ...base,
@@ -129,5 +131,7 @@ export function bankAccountDetailFor(
     accountType: manual?.accountType ?? "none",
     note: manual?.note ?? "",
     createdByDepartmentId: departmentId,
+    photoUrls: manual?.photoUrls ?? [],
+    requiredPhotos: bank?.requiredPhotos ?? 0,
   };
 }

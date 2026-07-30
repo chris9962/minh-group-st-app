@@ -1,12 +1,14 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { use } from "react";
-import { ChevronLeft, Landmark } from "lucide-react";
+import { use, useRef, useState } from "react";
+import { ChevronLeft, ImagePlus, Landmark, Pencil } from "lucide-react";
 import { TopBar } from "@/components/layout/TopBar";
+import { Alert } from "@/components/ui/Alert";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusTag } from "@/components/ui/StatusTag";
+import { setBankAccountPhotos } from "@/lib/api/bankAccounts";
 import { fetchBankAccountDetail } from "@/lib/api/banking";
 import { fetchDepartments } from "@/lib/api/departments";
 import { formatDate, formatPhone } from "@/lib/format";
@@ -27,6 +29,9 @@ export default function BankAccountDetailPage({
 }) {
   const { id } = use(params);
   const actor = useSession((s) => s.user);
+  const queryClient = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [pendingSlot, setPendingSlot] = useState<number | null>(null);
 
   const { data, isPending, isError } = useQuery({
     queryKey: ["bank-account-detail", id],
@@ -39,6 +44,19 @@ export default function BankAccountDetailPage({
     staleTime: Infinity,
   });
   const departmentName = departments.find((d) => d.id === data?.createdByDepartmentId)?.name;
+
+  const uploadPhotos = useMutation({
+    mutationFn: (photoUrls: string[]) => setBankAccountPhotos(id, photoUrls, actor?.id ?? ""),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["bank-account-detail", id] });
+      queryClient.invalidateQueries({ queryKey: ["bank-account-list"] });
+    },
+  });
+
+  const openPicker = (slot: number) => {
+    setPendingSlot(slot);
+    fileInputRef.current?.click();
+  };
 
   return (
     <>
@@ -94,10 +112,6 @@ export default function BankAccountDetailPage({
                 <dd>{ACCOUNT_TYPE_LABEL[data.accountType]}</dd>
               </div>
               <div>
-                <dt>Ảnh chứng minh</dt>
-                <dd>Đã xác nhận đủ ảnh theo cấu hình ngân hàng lúc mở</dd>
-              </div>
-              <div>
                 <dt>Ghi chú</dt>
                 <dd>{data.note || "—"}</dd>
               </div>
@@ -110,6 +124,61 @@ export default function BankAccountDetailPage({
                 <dd>{departmentName ?? "—"}</dd>
               </div>
             </dl>
+
+            {uploadPhotos.isError && (
+              <Alert tone="error">Không lưu được ảnh chứng minh này.</Alert>
+            )}
+
+            <div className={styles.photoSection}>
+              <h3 className={styles.photoTitle}>
+                Ảnh chứng minh ({data.photoUrls.length}/{data.requiredPhotos})
+              </h3>
+
+              <div className={styles.photoGrid}>
+                {data.photoUrls.map((url, i) => (
+                  <div key={i} className={styles.photoTile}>
+                    <a href={url} target="_blank" rel="noreferrer">
+                      <img src={url} alt={`Ảnh chứng minh ${i + 1}`} className={styles.photo} />
+                    </a>
+                    <button
+                      type="button"
+                      className={styles.photoEdit}
+                      aria-label={`Thay ảnh chứng minh ${i + 1}`}
+                      onClick={() => openPicker(i)}
+                    >
+                      <Pencil size={14} aria-hidden />
+                    </button>
+                  </div>
+                ))}
+
+                {data.photoUrls.length < data.requiredPhotos && (
+                  <button
+                    type="button"
+                    className={styles.photoAdd}
+                    onClick={() => openPicker(data.photoUrls.length)}
+                  >
+                    <ImagePlus size={20} aria-hidden />
+                    Thêm ảnh
+                  </button>
+                )}
+              </div>
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className={styles.hiddenInput}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file || pendingSlot === null) return;
+                  const next = [...data.photoUrls];
+                  next[pendingSlot] = URL.createObjectURL(file);
+                  uploadPhotos.mutate(next);
+                  e.target.value = "";
+                  setPendingSlot(null);
+                }}
+              />
+            </div>
           </SectionCard>
         )}
       </main>

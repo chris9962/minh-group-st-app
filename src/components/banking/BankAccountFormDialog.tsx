@@ -100,11 +100,10 @@ export function BankAccountFormDialog({
   });
   const availableCodes = codes.filter((c) => codeStatusOf(c) !== "full");
 
-  // Đổi ngân hàng thì gợi ý sẵn mã đầu tiên còn chỗ, và tự điền số tài khoản
-  // theo đúng cách lấy STK của ngân hàng đó (spec §4.2).
+  // Đổi ngân hàng thì tự điền số tài khoản theo đúng cách lấy STK của ngân
+  // hàng đó (spec §4.2).
   useEffect(() => {
     if (!selectedBank) return;
-    setValue("referralCode", availableCodes[0]?.id ?? "", { shouldDirty: true });
     if (selectedBank.accountNumberMethod === "phone-match") {
       setValue("accountNumber", customerPrimaryPhone, { shouldDirty: true });
     } else {
@@ -115,6 +114,17 @@ export function BankAccountFormDialog({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bankId]);
+
+  // Gợi ý sẵn mã đầu tiên còn chỗ — TÁCH RIÊNG effect trên: `codes` tải xong
+  // SAU khi bankId đổi (query bất đồng bộ), effect gộp chung `[bankId]` sẽ
+  // set "" trước rồi không bao giờ chạy lại khi mã đã tải xong. Ô chọn khi đó
+  // NHÌN như đã chọn mã đầu (select tự rơi vào option đầu tiên khi value
+  // không khớp), nhưng state thật vẫn rỗng — bấm Lưu báo "Chưa chọn mã".
+  useEffect(() => {
+    if (!bankId) return;
+    setValue("referralCode", availableCodes[0]?.id ?? "", { shouldDirty: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bankId, availableCodes.length]);
 
   const save = useMutation({
     mutationFn: (form: BankAccountForm) => createBankAccount(form, actor?.id ?? ""),

@@ -34,7 +34,7 @@ import {
   updateCustomer,
 } from "./customers";
 import type { BankAccountForm } from "@/lib/api/bankAccounts";
-import { createBankAccount } from "./bankAccounts";
+import { createBankAccount, setAccountPhotos } from "./bankAccounts";
 import type { InsuranceOrderForm, InsuranceOrderStatus } from "@/lib/api/insuranceOrders";
 import { createInsuranceOrder, setOrderPhoto, setOrderStatus } from "./insuranceOrders";
 import type {
@@ -515,6 +515,13 @@ export const handlers = [
     const result = createBankAccount(form, customer, actor);
     if (!result) return new HttpResponse(null, { status: 422 });
     return HttpResponse.json(result, { status: 201 });
+  }),
+
+  /** Thêm/thay/xoá ảnh chứng minh ở P-22 — mỗi ngân hàng yêu cầu số ảnh riêng (P-60). */
+  http.patch("/api/bank-accounts/:id/photos", async ({ params, request }) => {
+    const { photoUrls } = (await request.json()) as { photoUrls: string[]; actorId: string };
+    const updated = setAccountPhotos(String(params.id), photoUrls);
+    return updated ? HttpResponse.json(updated) : new HttpResponse(null, { status: 404 });
   }),
 
   /* ── Tạo đơn bảo hiểm — tự mua hoặc từ quà tặng ───────────────────────── */

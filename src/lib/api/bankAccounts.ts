@@ -35,6 +35,8 @@ export const BankAccount = z.object({
   createdByName: z.string().nullable(),
   /** Phòng của người tạo lúc tạo — dùng để lọc theo phạm vi ở P-42, P-21. */
   createdByDepartmentId: z.string().nullable(),
+  /** Ảnh chứng minh thật — số ảnh bắt buộc lấy từ cấu hình ngân hàng (P-60), xem/sửa ở P-22. */
+  photoUrls: z.array(z.string()),
 });
 export type BankAccount = z.infer<typeof BankAccount>;
 
@@ -75,4 +77,19 @@ export async function createBankAccount(
   });
   if (!res.ok) throw new Error('Không lưu được tài khoản này');
   return CreateBankAccountResult.parse(await res.json());
+}
+
+/** Thêm/thay/xoá ảnh chứng minh ở P-22 — gửi nguyên mảng đã cập nhật. */
+export async function setBankAccountPhotos(
+  id: string,
+  photoUrls: string[],
+  actorId: string,
+): Promise<BankAccount> {
+  const res = await fetch(`/api/bank-accounts/${id}/photos`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ photoUrls, actorId }),
+  });
+  if (!res.ok) throw new Error('Không lưu được ảnh chứng minh này');
+  return BankAccount.parse(await res.json());
 }

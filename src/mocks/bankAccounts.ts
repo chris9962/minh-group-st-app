@@ -107,8 +107,19 @@ export function createBankAccount(
     createdById: actor?.id ?? null,
     createdByName: actor?.fullName ?? null,
     createdByDepartmentId: actor?.departmentId ?? null,
+    photoUrls: [],
   };
   manualAccounts = [...manualAccounts, account];
 
   return { account, warnings: accountWarnings(customer.fullName, account) };
+}
+
+/** Thêm/thay/xoá ảnh chứng minh — P-22 gửi nguyên mảng đã cập nhật. */
+export function setAccountPhotos(id: string, photoUrls: string[]): BankAccount | null {
+  const current = manualAccounts.find((a) => a.id === id);
+  if (!current) return null;
+
+  const updated = { ...current, photoUrls };
+  manualAccounts = manualAccounts.map((a) => (a.id === id ? updated : a));
+  return updated;
 }
