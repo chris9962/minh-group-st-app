@@ -1,24 +1,15 @@
 import type { Metadata, Viewport } from "next";
-import { Alfa_Slab_One, Figtree } from "next/font/google";
+import { Figtree } from "next/font/google";
 import { Providers } from "./providers";
 import "./globals.css";
 
 /**
- * Font tiêu đề.
- *
- * Design system gốc dùng Caprasimo — nhưng font đó KHÔNG có bộ ký tự tiếng Việt,
- * `Đ ă ậ ỉ ể ổ` rơi về font dự phòng làm chữ vỡ thành hai kiểu. Alfa Slab One
- * cùng chất slab dày và có đủ tiếng Việt.
+ * Tiêu đề dùng font hệ thống, không tải font display riêng — font slab dày cũ
+ * làm mọi tiêu đề nặng bằng nhau nên mất thứ bậc. Thứ bậc giờ đi bằng cỡ chữ
+ * và weight, xem `--font-heading` trong organic.css.
  */
-const fontTieuDe = Alfa_Slab_One({
-  variable: "--font-tieu-de",
-  subsets: ["latin", "vietnamese"],
-  weight: "400",
-  display: "swap",
-});
-
-const fontThan = Figtree({
-  variable: "--font-than",
+const fontSans = Figtree({
+  variable: "--font-sans",
   subsets: ["latin", "latin-ext"],
   display: "swap",
 });
@@ -47,7 +38,7 @@ export default function RootLayout({
     // Đây là lệch có chủ đích và chỉ nằm trên đúng thẻ này.
     <html
       lang="vi"
-      className={`${fontTieuDe.variable} ${fontThan.variable}`}
+      className={fontSans.variable}
       suppressHydrationWarning
     >
       <head>

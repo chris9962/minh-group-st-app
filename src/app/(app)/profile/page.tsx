@@ -24,7 +24,7 @@ export default function ProfilePage() {
             </div>
             <div>
               <dt>Tên đăng nhập</dt>
-              <dd className="so">{user.username}</dd>
+              <dd className="tabular-nums">{user.username}</dd>
             </div>
             <div>
               <dt>Chức danh</dt>
@@ -36,7 +36,7 @@ export default function ProfilePage() {
             </div>
             <div>
               <dt>Số quyền được cấp</dt>
-              <dd className="so">{user.permissions.length}</dd>
+              <dd className="tabular-nums">{user.permissions.length}</dd>
             </div>
           </dl>
           <p className={styles.note}>

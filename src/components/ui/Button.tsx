@@ -8,6 +8,8 @@ type Props = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   block?: boolean;
   /** Nút lớn hơn, dễ bấm bằng ngón cái ngoài hiện trường. */
   large?: boolean;
+  /** Nút vuông chỉ chứa icon — bắt buộc truyền kèm `aria-label`. */
+  icon?: boolean;
 };
 
 /**
@@ -18,6 +20,7 @@ export function Button({
   variant = "primary",
   block = false,
   large = false,
+  icon = false,
   className,
   type = "button",
   ...rest
@@ -30,6 +33,7 @@ export function Button({
         `btn-${variant}`,
         block && "btn-block",
         large && styles.large,
+        icon && `btn-icon ${styles.icon}`,
         className,
       ]
         .filter(Boolean)

@@ -2,8 +2,8 @@
 
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { useState } from "react";
-import { Plus, Users } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Pencil, Plus, Users } from "lucide-react";
 import { TopBar } from "@/components/layout/TopBar";
 import { Button } from "@/components/ui/Button";
 import { monthLabel, thisMonth } from "@/components/ui/MonthPicker";
@@ -218,6 +218,30 @@ export default function PeoplePage() {
     score: scoreById.get(s.id) ?? null,
   }));
 
+  // Nút chỉ có icon nên `aria-label` phải kèm tên người: giữa mười dòng giống
+  // nhau, "Sửa" một mình không nói đang sửa ai.
+  const accountColumns = useMemo<RankColumn<StaffRow>[]>(
+    () => [
+      ...ACCOUNT_COLUMNS,
+      {
+        key: "actions",
+        label: "Thao tác",
+        align: "right",
+        render: (r) => (
+          <Button
+            variant="secondary"
+            icon
+            aria-label={`Sửa ${r.fullName}`}
+            onClick={() => setEditing(r)}
+          >
+            <Pencil size={16} aria-hidden />
+          </Button>
+        ),
+      },
+    ],
+    [],
+  );
+
   const withKpi = showsKpi(period);
   const columns = withKpi
     ? [...BASE_COLUMNS.slice(0, 2), ...KPI_COLUMNS.slice(0, 1), ...BASE_COLUMNS.slice(2), KPI_COLUMNS[1]]
@@ -333,7 +357,6 @@ export default function PeoplePage() {
                 tone={data.summary.offTarget > 0 ? "attention" : "normal"}
                 detail={data.daysLeft > 0 ? `còn ${data.daysLeft} ngày` : undefined}
               />
-              <StatCard value={data.summary.averagePoints} label="điểm trung bình" />
             </div>
 
             <SectionCard
@@ -355,7 +378,7 @@ export default function PeoplePage() {
               {canManage ? (
                 <RankTable
                   rows={staffRows}
-                  columns={ACCOUNT_COLUMNS}
+                  columns={accountColumns}
                   rowKey={(r) => r.id}
                   defaultSort="points"
                   pageSize={10}
@@ -384,7 +407,7 @@ export default function PeoplePage() {
                   Danh sách gồm <strong>cả người không có chỉ tiêu</strong> — kế
                   toán, quản trị hệ thống. Cột điểm để trống chứ không để 0: 0
                   điểm nghĩa là có chỉ tiêu mà chưa làm được gì. Bấm tên để mở hồ
-                  sơ, sửa tài khoản ở ngay trong đó.
+                  sơ, bấm bút chì để sửa tài khoản ngay tại bảng.
                 </p>
               )}
               <p className={styles.footnote}>
@@ -392,7 +415,7 @@ export default function PeoplePage() {
                   <>
                     Điểm gồm <strong>ngân hàng</strong> (hệ số app đã cài) cộng{" "}
                     <strong>dịch vụ</strong> (hệ số theo loại). Chỉ tiêu hiện tại là{" "}
-                    <span className="so">100</span> điểm mỗi tháng.
+                    <span className="tabular-nums">100</span> điểm mỗi tháng.
                   </>
                 ) : (
                   <>

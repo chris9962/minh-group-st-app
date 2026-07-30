@@ -22,7 +22,7 @@ export function SearchField({ label, placeholder, value, onChange }: Props) {
 
   return (
     <div className={styles.wrap}>
-      <label htmlFor={id} className="an-nhin">
+      <label htmlFor={id} className="sr-only">
         {label}
       </label>
       <Search className={styles.icon} size={15} aria-hidden />

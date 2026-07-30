@@ -13,7 +13,7 @@ type Props = {
 export function StatCard({ value, label, detail, tone = "normal" }: Props) {
   return (
     <div className={styles.card}>
-      <strong className={[styles.value, tone === "attention" && styles.attention, "so"].filter(Boolean).join(" ")}>
+      <strong className={[styles.value, tone === "attention" && styles.attention, "tabular-nums"].filter(Boolean).join(" ")}>
         {value}
       </strong>
       <span className={styles.label}>{label}</span>

@@ -155,7 +155,7 @@ export function BarChart({
         </ResponsiveContainer>
       </div>
 
-      <table className="an-nhin">
+      <table className="sr-only">
         <caption>{caption}</caption>
         <thead>
           <tr>

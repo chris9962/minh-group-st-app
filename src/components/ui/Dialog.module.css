@@ -11,12 +11,16 @@
   background: rgb(32 30 29 / 45%);
 }
 
+/* `color` phải đặt tay: thẻ <dialog> mang sẵn `color: CanvasText` của trình
+   duyệt (= đen), chữ trong hộp thoại thừa hưởng nó nên bộ tối đọc thành đen
+   trên nền đen. */
 .panel {
   width: min(560px, calc(100vw - 32px));
   max-height: calc(100dvh - 64px);
   display: flex;
   flex-direction: column;
   background: var(--om-bg);
+  color: var(--om-text);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
 }

@@ -170,7 +170,7 @@ export default function PersonPage({
                     <strong className={styles.name}>{data.fullName}</strong>
                     <span className={styles.sub}>
                       {data.username} ·{" "}
-                      <span className="so">{formatPhone(data.phone)}</span>
+                      <span className="tabular-nums">{formatPhone(data.phone)}</span>
                     </span>
                     <span className={styles.sub}>
                       {data.departmentName} · vào từ {monthLabel(data.joinedMonth)}
@@ -212,7 +212,7 @@ export default function PersonPage({
                             {s.label}
                             <span className={styles.legendDetail}>{s.detail}</span>
                           </dt>
-                          <dd className="so">{s.points}</dd>
+                          <dd className="tabular-nums">{s.points}</dd>
                         </div>
                       ))}
                     </dl>
@@ -272,8 +272,8 @@ export default function PersonPage({
                         caption={`Khách hàng đã tiếp ${periodText}, gộp mọi ngân hàng của một khách vào một hàng`}
                       />
                       <p className={styles.footnote}>
-                        Mỗi hàng là một khách — <span className="so">{data.accounts.length}</span>{" "}
-                        tài khoản gộp thành <span className="so">{customers.length}</span> hàng.
+                        Mỗi hàng là một khách — <span className="tabular-nums">{data.accounts.length}</span>{" "}
+                        tài khoản gộp thành <span className="tabular-nums">{customers.length}</span> hàng.
                         Ô <strong>App đã cài</strong> ghi kèm loại đăng ký khi có:{" "}
                         <em>VPa (CNKD)</em>.
                       </p>

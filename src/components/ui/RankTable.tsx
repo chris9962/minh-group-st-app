@@ -74,9 +74,9 @@ export function RankTable<T>({
   };
 
   return (
-    <div className="bang-cuon">
+    <div className="table-scroll">
       <table className={`table ${styles.table}`}>
-        <caption className="an-nhin">{caption}</caption>
+        <caption className="sr-only">{caption}</caption>
         <thead>
           <tr>
             {columns.map((col) => {
@@ -117,7 +117,7 @@ export function RankTable<T>({
                   key={col.key}
                   className={[
                     col.align === "right" ? styles.right : undefined,
-                    col.sortBy ? "so" : undefined,
+                    col.sortBy ? "tabular-nums" : undefined,
                   ]
                     .filter(Boolean)
                     .join(" ")}

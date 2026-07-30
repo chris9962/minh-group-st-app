@@ -71,6 +71,19 @@ Quy tắc:
   (thẻ xám trên nền trắng) từng làm trang nặng màu. Mọi khối nội dung đi qua
   `SectionCard`; `variant="plain"` chỉ dùng khi cố ý đặt thẳng lên nền trang.
 - Tiêu đề khối nên có icon (`lucide-react`, `size={17}`) để nhận ra khi cuộn nhanh.
+- **Đừng để chữ quá dày. Trần weight là `600`.** Cần nhấn thì đổi cỡ chữ, màu
+  hoặc khoảng trắng — đừng cộng thêm weight.
+  - `--font-heading` là **`system-ui`** weight 600, `--font-body` là Figtree.
+    Không có font display nào nữa: dự án từng dùng Alfa Slab One và đã bỏ vì
+    tiêu đề, nút, tab đều nặng bằng nhau nên mất hết thứ bậc thị giác.
+  - **Không thêm font display / slab / black.** Thứ bậc đi bằng cỡ chữ, không
+    bằng độ dày.
+  - Font chỉ có một nét thì **hạ `font-weight` vô tác dụng** — không có nét nhẹ
+    hơn để chọn, trình duyệt cũng không tự làm mảnh chữ. Thấy chữ dày quá thì
+    xem lại họ font trước, đừng loay hoay với số weight.
+- **Chữ trên nền cam dùng `--om-text-on-accent`**, không dùng `--om-bg`/`--color-bg`.
+  Token này là `#ffffff` ở cả hai bộ màu; lấy màu nền trang thì bộ tối cho ra
+  chữ xanh đêm trên nền cam.
 - Không thêm Tailwind, không thêm thư viện component có style riêng — sẽ thành hai hệ thống
 
 ## 4. Kiểu dữ liệu

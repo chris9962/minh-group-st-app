@@ -66,7 +66,7 @@ export function ProgressRing({ segments, max, ariaLabel }: Props) {
 
       <span className={styles.center}>
         <strong
-          className={[styles.value, reached && styles.reached, "so"]
+          className={[styles.value, reached && styles.reached, "tabular-nums"]
             .filter(Boolean)
             .join(" ")}
         >

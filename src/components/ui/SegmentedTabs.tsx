@@ -38,7 +38,7 @@ export function SegmentedTabs({ label, options, value, onChange }: Props) {
         >
           <input
             type="radio"
-            className="an-nhin"
+            className="sr-only"
             name={`${id}-tab`}
             checked={o.value === value}
             onChange={() => onChange(o.value)}

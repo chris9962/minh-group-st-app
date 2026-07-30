@@ -34,7 +34,7 @@ export function Select({
 
   return (
     <span className={styles.wrap}>
-      <label htmlFor={id} className={hideLabel ? "an-nhin" : styles.label}>
+      <label htmlFor={id} className={hideLabel ? "sr-only" : styles.label}>
         {label}
       </label>
       <select

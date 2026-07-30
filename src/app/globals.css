@@ -22,7 +22,7 @@
 
 /* KHÔNG đặt lại max-width: 100vw ở đây. 100vw tính cả bề dày thanh cuộn dọc,
    nên chính nó là thứ đẩy body rộng hơn phần nhìn thấy và sinh ra tràn ngang.
-   Bảng rộng thì cuộn trong khung của nó bằng .bang-cuon.
+   Bảng rộng thì cuộn trong khung của nó bằng .table-scroll.
    Cũng KHÔNG đặt overflow-x: hidden — nó biến body thành khung cuộn và làm
    hỏng position: sticky bên trong. */
 body {
@@ -36,18 +36,18 @@ a {
 
 /* Bảng nhiều cột trên điện thoại phải cuộn ngang TRONG khung của nó,
    không được làm cả trang trượt ngang. */
-.bang-cuon {
+.table-scroll {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
 
 /* Cột số phải thẳng hàng: SĐT, CCCD, điểm, tiền. */
-.so {
+.tabular-nums {
   font-variant-numeric: tabular-nums;
 }
 
 /* Chỉ dành cho trình đọc màn hình. */
-.an-nhin {
+.sr-only {
   position: absolute;
   width: 1px;
   height: 1px;

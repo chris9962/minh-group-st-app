@@ -102,7 +102,7 @@ export function AccountCard({ staffId }: { staffId: string }) {
 
       {newPassword && (
         <Alert tone="warning">
-          Mật khẩu mới: <strong className="so">{newPassword}</strong> — gửi cho
+          Mật khẩu mới: <strong className="tabular-nums">{newPassword}</strong> — gửi cho
           nhân viên rồi đóng trang. <strong>Chỉ hiện đúng một lần</strong>, không
           xem lại được vì mật khẩu lưu dạng băm một chiều.
         </Alert>
@@ -159,7 +159,7 @@ function Row({
   return (
     <div>
       <dt>{label}</dt>
-      <dd className={mono ? "so" : undefined}>{value}</dd>
+      <dd className={mono ? "tabular-nums" : undefined}>{value}</dd>
     </div>
   );
 }

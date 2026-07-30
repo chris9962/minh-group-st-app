@@ -4,3 +4,12 @@
   font-size: 15px;
   min-height: 48px;
 }
+
+/* .btn-icon của design system là 36px, vừa con trỏ chuột nhưng thiếu cho ngón
+   tay. Nới lên 44px khi thiết bị trỏ là ngón tay. */
+@media (pointer: coarse) {
+  .icon {
+    width: 44px;
+    height: 44px;
+  }
+}

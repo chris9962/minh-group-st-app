@@ -97,9 +97,11 @@
   --color-accent-2-800: var(--om-text);
   --color-accent-2-900: var(--om-text);
 
-  --font-heading: var(--font-tieu-de), system-ui, sans-serif;
-  --font-heading-weight: 400;
-  --font-body: var(--font-than), system-ui, sans-serif;
+  /* Tiêu đề dùng font hệ thống. Thứ bậc đi bằng cỡ chữ, không bằng một font
+     display dày — font đó làm tiêu đề nào cũng nặng như nhau. */
+  --font-heading: system-ui, sans-serif;
+  --font-heading-weight: 600;
+  --font-body: var(--font-sans), system-ui, sans-serif;
 
   --space-1: 4.4px;
   --space-2: 8.8px;
@@ -223,7 +225,9 @@ figcaption {
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   cursor: pointer; text-decoration: none;
-  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  /* Cố ý ghim font hệ thống thay vì đi qua --font-heading: nhãn nút không được
+     nặng theo nếu sau này tiêu đề đổi sang một font display dày. */
+  font-family: system-ui, sans-serif; font-weight: 600;
   font-size: 14px; line-height: 1.2; color: var(--color-text); /* matches the .input's 14px —
      the pair sits side by side in sign-up rows */
   background: transparent; border: 1px solid transparent;
@@ -232,7 +236,9 @@ figcaption {
 }
 .btn svg { display: block; flex: none; }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
-.btn-primary { background: var(--color-accent); color: var(--color-bg); }
+/* Chữ trên nền cam luôn trắng. Dùng --color-bg thì chữ đổi theo nền trang: bộ
+   tối cho ra chữ xanh đêm trên cam. */
+.btn-primary { background: var(--color-accent); color: var(--om-text-on-accent); }
 .btn-primary:hover { background: var(--color-accent-600); }
 .btn-primary:active { background: var(--color-accent-700); }
 .btn-secondary { border-color: var(--color-divider); }

@@ -69,7 +69,7 @@ const DEPARTMENT_COLUMNS: RankColumn<DepartmentRow>[] = [
     sortBy: installRate,
     render: (d) => (
       <span className={styles.rateCell}>
-        <span className="so">{installRate(d)}%</span>
+        <span className="tabular-nums">{installRate(d)}%</span>
         {d.previousInstallRate !== null && (
           <Delta points={installRate(d) - d.previousInstallRate} />
         )}
@@ -97,7 +97,7 @@ function Delta({ points }: { points: number }) {
   return (
     <span className={up ? styles.up : styles.down}>
       {up ? <ArrowUp size={13} /> : <ArrowDown size={13} />}
-      <span className="so">{Math.abs(points)}</span>
+      <span className="tabular-nums">{Math.abs(points)}</span>
     </span>
   );
 }
@@ -260,13 +260,13 @@ export default function DashboardPage() {
                   {data.services.byType.map((s) => (
                     <div key={s.label}>
                       <dt>{s.label}</dt>
-                      <dd className="so">{s.count}</dd>
+                      <dd className="tabular-nums">{s.count}</dd>
                     </div>
                   ))}
                 </dl>
                 <p className={styles.footnote}>
                   Xã nhiều nhất · {data.services.topWard.name}{" "}
-                  <span className="so">{data.services.topWard.count}</span>
+                  <span className="tabular-nums">{data.services.topWard.count}</span>
                 </p>
               </SectionCard>
 
@@ -279,12 +279,12 @@ export default function DashboardPage() {
                   {data.gifts.byType.map((g) => (
                     <div key={g.label}>
                       <dt>{g.label}</dt>
-                      <dd className="so">{g.count}</dd>
+                      <dd className="tabular-nums">{g.count}</dd>
                     </div>
                   ))}
                 </dl>
                 <p className={styles.footnote}>
-                  Chưa phát · <span className="so">{data.gifts.pending}</span> khách
+                  Chưa phát · <span className="tabular-nums">{data.gifts.pending}</span> khách
                   đủ điều kiện. Tổng ở đây lớn hơn số khách vì mỗi khách nhận tiền
                   mặt <em>cộng thêm</em> một món trong rổ quà.
                 </p>
