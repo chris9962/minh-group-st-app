@@ -8,7 +8,8 @@ import { Checkbox } from "@/components/ui/Checkbox";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { Select } from "@/components/ui/Select";
 import { fetchBanks } from "@/lib/api/bankCatalog";
-import { CHANNEL_CODES, simulateGift } from "@/lib/api/settings";
+import { fetchChannels } from "@/lib/api/channelCatalog";
+import { simulateGift } from "@/lib/api/settings";
 import { formatVnd } from "@/lib/format";
 import styles from "./GiftSimulator.module.scss";
 
@@ -23,6 +24,7 @@ export function GiftSimulator() {
 
   const { data: allBanks = [] } = useQuery({ queryKey: ["banks"], queryFn: fetchBanks });
   const activeBanks = allBanks.filter((b) => b.active);
+  const { data: channels = [] } = useQuery({ queryKey: ["channels"], queryFn: fetchChannels });
 
   const run = useMutation({
     mutationFn: () =>
@@ -61,7 +63,7 @@ export function GiftSimulator() {
           onChange={setChannel}
           options={[
             { value: "", label: "— Không thuộc kênh nào —" },
-            ...CHANNEL_CODES.map((c) => ({ value: c, label: c })),
+            ...channels.map((c) => ({ value: c.name, label: c.name })),
           ]}
         />
         <Button onClick={() => run.mutate()} disabled={run.isPending}>

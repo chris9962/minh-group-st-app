@@ -4,11 +4,10 @@ import { z } from 'zod';
  * Cấu hình cho CEO — P-81…P-84 (mgst-feature-list.md §4.8).
  *
  * Ngân hàng bắt buộc trong quy tắc quà tra trực tiếp vào P-60
- * (`@/lib/api/bankCatalog`, `fetchBanks`), không có danh sách riêng ở đây nữa.
- * `CHANNEL_CODES` vẫn là hằng số TẠM — P-70 (Danh mục kênh) chưa có bảng/API
- * thật trong code.
+ * (`@/lib/api/bankCatalog`, `fetchBanks`), kênh tra vào P-70
+ * (`@/lib/api/channelCatalog`, `fetchChannels`) — không có danh sách riêng ở
+ * đây nữa.
  */
-export const CHANNEL_CODES = ['Bệnh viện', 'Ấp', 'Định danh'] as const;
 
 /* ── P-82 · Danh mục quà & gói bảo hiểm ──────────────────────────────── */
 

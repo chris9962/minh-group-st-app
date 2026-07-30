@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
@@ -17,7 +17,8 @@ import {
   createBankAccount,
   type CreateBankAccountResult,
 } from "@/lib/api/bankAccounts";
-import { CHANNEL_CODES } from "@/lib/api/settings";
+import { fetchChannels } from "@/lib/api/channelCatalog";
+import { fetchWards } from "@/lib/api/wardCatalog";
 import { useSession } from "@/store/session";
 import styles from "./BankAccountFormDialog.module.scss";
 
@@ -78,6 +79,18 @@ export function BankAccountFormDialog({
   const bankId = watch("bankId");
   const channel = watch("channel");
   const selectedBank = activeBanks.find((b) => b.id === bankId);
+
+  const { data: channels = [] } = useQuery({ queryKey: ["channels"], queryFn: fetchChannels });
+  const selectedChannel = channels.find((c) => c.name === channel);
+
+  const { data: wards = [] } = useQuery({
+    queryKey: ["wards"],
+    queryFn: fetchWards,
+    enabled: selectedChannel?.inputKind === "ward-hamlet",
+  });
+  const [wardId, setWardId] = useState("");
+  const [hamletId, setHamletId] = useState("");
+  const selectedWard = wards.find((w) => w.id === wardId);
 
   const { data: codes = [] } = useQuery({
     queryKey: ["referral-codes", bankId, ""],
@@ -197,25 +210,77 @@ export function BankAccountFormDialog({
                 />
               </div>
 
-              <div className={styles.pair}>
+              <Select
+                block
+                label="Kênh"
+                value={channel}
+                onChange={(v) => {
+                  setValue("channel", v, { shouldDirty: true });
+                  setValue("channelDetail", "", { shouldDirty: true });
+                  setWardId("");
+                  setHamletId("");
+                }}
+                options={[
+                  { value: "", label: "Không có" },
+                  ...channels.map((c) => ({ value: c.name, label: c.name })),
+                ]}
+              />
+
+              {selectedChannel?.inputKind === "ward-hamlet" && (
+                <div className={styles.pair}>
+                  <Select
+                    block
+                    label="Xã"
+                    value={wardId}
+                    onChange={(v) => {
+                      setWardId(v);
+                      setHamletId("");
+                      setValue("channelDetail", "", { shouldDirty: true });
+                    }}
+                    options={[
+                      { value: "", label: "— Chọn xã —" },
+                      ...wards.map((w) => ({ value: w.id, label: w.name })),
+                    ]}
+                  />
+                  {selectedWard && (
+                    <Select
+                      block
+                      label="Ấp"
+                      value={hamletId}
+                      onChange={(v) => {
+                        setHamletId(v);
+                        const hamlet = selectedWard.hamlets.find((h) => h.id === v);
+                        setValue(
+                          "channelDetail",
+                          hamlet ? `${selectedWard.name} · ${hamlet.name}` : "",
+                          { shouldDirty: true },
+                        );
+                      }}
+                      options={[
+                        { value: "", label: "— Chọn ấp —" },
+                        ...selectedWard.hamlets.map((h) => ({ value: h.id, label: h.name })),
+                      ]}
+                    />
+                  )}
+                </div>
+              )}
+
+              {selectedChannel?.inputKind === "list" && (
                 <Select
                   block
-                  label="Kênh"
-                  value={channel}
-                  onChange={(v) => setValue("channel", v, { shouldDirty: true })}
+                  label="Chọn từ danh sách"
+                  value={watch("channelDetail")}
+                  onChange={(v) => setValue("channelDetail", v, { shouldDirty: true })}
                   options={[
-                    { value: "", label: "Không có" },
-                    ...CHANNEL_CODES.map((c) => ({ value: c, label: c })),
+                    { value: "", label: "— Chọn —" },
+                    ...selectedChannel.listOptions.map((o) => ({ value: o, label: o })),
                   ]}
                 />
-                {channel && (
-                  <TextField
-                    label="Chi tiết kênh"
-                    placeholder="Ấp Tân Hoà"
-                    {...register("channelDetail")}
-                  />
-                )}
-              </div>
+              )}
+
+              {selectedChannel?.inputKind === "free-text" && (
+                <TextField label="Chi tiết kênh" {...register("channelDetail")} />
+              )}
 
               {selectedBank?.code === "VPa" && (
                 <Select

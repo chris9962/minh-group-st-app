@@ -10,9 +10,9 @@ import { Dialog } from "@/components/ui/Dialog";
 import { Select } from "@/components/ui/Select";
 import { TextField } from "@/components/ui/TextField";
 import { fetchBanks } from "@/lib/api/bankCatalog";
+import { fetchChannels } from "@/lib/api/channelCatalog";
 import {
   APP_COMPARATOR_LABEL,
-  CHANNEL_CODES,
   createGiftRule,
   GIFT_GROUP_LABEL,
   GIFT_MODE_LABEL,
@@ -69,6 +69,7 @@ export function GiftRuleFormDialog({ open, onClose, rule, giftItems, packages }:
 
   const { data: banks = [] } = useQuery({ queryKey: ["banks"], queryFn: fetchBanks });
   const activeBanks = banks.filter((b) => b.active);
+  const { data: channels = [] } = useQuery({ queryKey: ["channels"], queryFn: fetchChannels });
 
   const {
     register,
@@ -169,7 +170,7 @@ export function GiftRuleFormDialog({ open, onClose, rule, giftItems, packages }:
             onChange={(v) => setValue("channel", v, { shouldDirty: true })}
             options={[
               { value: "", label: "— Không yêu cầu —" },
-              ...CHANNEL_CODES.map((c) => ({ value: c, label: c })),
+              ...channels.map((c) => ({ value: c.name, label: c.name })),
             ]}
           />
         </div>

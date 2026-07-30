@@ -1,0 +1,54 @@
+.wards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.wardCard {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  border: 1px solid var(--om-line);
+  border-radius: var(--radius-md);
+}
+
+.wardHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.wardName {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.hamlets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hamlet {
+  padding: 4px 10px;
+  background: var(--om-soft);
+  border-radius: 999px;
+  font-size: 12.5px;
+}
+
+.footRow {
+  display: flex;
+  justify-content: flex-start;
+  margin-top: var(--space-3);
+}
+
+.footnote {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: var(--color-neutral-600);
+}

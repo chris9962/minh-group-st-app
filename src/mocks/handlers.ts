@@ -74,6 +74,10 @@ import {
   setBankActive,
   updateBank,
 } from "./bankCatalog";
+import type { ChannelForm } from "@/lib/api/channelCatalog";
+import { channelsFor, createChannel, updateChannel } from "./channelCatalog";
+import type { HamletForm, WardForm } from "@/lib/api/wardCatalog";
+import { createHamlet, createWard, wardsFor } from "./wardCatalog";
 
 /** Người bấm nút — máy chủ thật lấy từ phiên, ở đây gửi kèm cho gọn. */
 const actorBy = (id: string) => mockUsers.find((u) => u.id === id) ?? null;
@@ -418,6 +422,36 @@ export const handlers = [
   http.post("/api/settings/referral-codes", async ({ request }) => {
     const form = (await request.json()) as ReferralCodeForm;
     return HttpResponse.json(createReferralCode(form), { status: 201 });
+  }),
+
+  /* ── P-70 · Danh mục kênh ─────────────────────────────────────────────── */
+
+  http.get("/api/settings/channels", () => HttpResponse.json(channelsFor())),
+
+  http.post("/api/settings/channels", async ({ request }) => {
+    const form = (await request.json()) as ChannelForm;
+    return HttpResponse.json(createChannel(form), { status: 201 });
+  }),
+
+  http.patch("/api/settings/channels/:id", async ({ params, request }) => {
+    const form = (await request.json()) as ChannelForm;
+    const result = updateChannel(String(params.id), form);
+    return result ? HttpResponse.json(result) : new HttpResponse(null, { status: 404 });
+  }),
+
+  /* ── P-71 · Danh mục xã / ấp ──────────────────────────────────────────── */
+
+  http.get("/api/settings/wards", () => HttpResponse.json(wardsFor())),
+
+  http.post("/api/settings/wards", async ({ request }) => {
+    const form = (await request.json()) as WardForm;
+    return HttpResponse.json(createWard(form), { status: 201 });
+  }),
+
+  http.post("/api/settings/hamlets", async ({ request }) => {
+    const form = (await request.json()) as HamletForm;
+    const result = createHamlet(form);
+    return result ? HttpResponse.json(result, { status: 201 }) : new HttpResponse(null, { status: 404 });
   }),
 
   /* ── Khách hàng — P-40 · P-41 · P-42 ─────────────────────────────────── */

@@ -124,6 +124,14 @@ export function navFor(user: User | null): NavEntry[] {
       screen: 'P-61',
     });
   }
+  if (can(user, 'system', 'configure-catalog')) {
+    settingsChildren.push({ href: '/settings/channels', label: 'Danh mục kênh', screen: 'P-70' });
+    settingsChildren.push({
+      href: '/settings/wards',
+      label: 'Danh mục xã / ấp',
+      screen: 'P-71',
+    });
+  }
 
   if (settingsChildren.length > 0) {
     items.push({ label: 'Cấu hình', icon: 'settings', children: settingsChildren });
