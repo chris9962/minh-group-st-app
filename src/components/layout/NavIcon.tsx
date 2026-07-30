@@ -1,4 +1,5 @@
 import {
+  Building2,
   ChartNoAxesColumn,
   Download,
   History,
@@ -7,7 +8,6 @@ import {
   Settings,
   ShieldCheck,
   Target,
-  Ticket,
   Briefcase,
   UserRoundCheck,
   Users,
@@ -29,10 +29,10 @@ const ICONS = {
   customers: Users,
   people: UserRoundCheck,
   target: Target,
-  codes: Ticket,
   settings: Settings,
   exports: Download,
   permissions: Lock,
+  org: Building2,
   audit: History,
 } as const satisfies Record<NavIconKey, unknown>;
 

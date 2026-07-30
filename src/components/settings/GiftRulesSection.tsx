@@ -202,9 +202,9 @@ export function GiftRulesSection() {
           Mỗi dòng có nhiều điều kiện: <strong>ngân hàng bắt buộc</strong>,{" "}
           <strong>tổng app</strong>, <strong>kênh</strong>, <strong>mở CNKD/HKD</strong>.
           Khách phải khớp <strong>đủ mọi điều kiện đã đặt</strong> thì dòng mới tính
-          — đây là phép VÀ, không phải HOẶC. Ô nào để <strong>"—"</strong> (Không
-          yêu cầu) nghĩa là <strong>bỏ qua</strong> điều kiện đó, không phải "khách
-          không được có". Ví dụ dòng 2: ngân hàng = MSBa <em>và</em> tổng app = 3 —
+          — đây là phép VÀ, không phải HOẶC. Ô nào để <strong>“—”</strong> (Không
+          yêu cầu) nghĩa là <strong>bỏ qua</strong> điều kiện đó, không phải “khách
+          không được có”. Ví dụ dòng 2: ngân hàng = MSBa <em>và</em> tổng app = 3 —
           khách phải vừa cài MSBa vừa đúng 3 app thì mới được 50.000đ; thiếu một
           trong hai thì dòng này không tính.
         </p>

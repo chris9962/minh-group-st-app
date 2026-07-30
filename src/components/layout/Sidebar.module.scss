@@ -62,12 +62,57 @@
 .item {
   display: flex;
   align-items: center;
+  width: 100%;
   gap: 11px;
   padding: 11px 13px;
+  border: none;
+  background: none;
   border-radius: var(--radius-md);
+  font-family: inherit;
   font-size: 13.5px;
   font-weight: 600;
   color: var(--om-sidebar-ink);
+  cursor: pointer;
+  text-align: left;
+}
+
+.chevron {
+  margin-left: auto;
+  flex: none;
+  opacity: 0.6;
+  transition: transform 0.15s ease;
+}
+
+.chevronOpen {
+  transform: rotate(180deg);
+}
+
+.subList {
+  list-style: none;
+  margin: 2px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.subItem {
+  display: flex;
+  align-items: center;
+  /* Thụt vào để thấy nó thuộc nhóm cha, không phải mục ngang hàng. */
+  padding: 9px 13px 9px 42px;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  color: var(--om-sidebar-ink);
+}
+
+.subItem:hover {
+  background: var(--om-sidebar-hover);
+}
+
+.subItem:focus-visible {
+  outline: 2px solid var(--om-orange);
+  outline-offset: -2px;
 }
 
 .item svg {

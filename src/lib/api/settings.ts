@@ -3,25 +3,11 @@ import { z } from 'zod';
 /**
  * Cấu hình cho CEO — P-81…P-84 (mgst-feature-list.md §4.8).
  *
- * `BANK_CODES` / `CHANNEL_CODES` khớp danh sách thật trong
- * mgst-platform-spec.md (§2.6 mục 466-468, §4.7) nhưng P-60 (Kho ngân hàng) và
- * P-70 (Danh mục kênh) chưa có bảng/API thật trong code, nên quy tắc quà và
- * nút thử tra vào hằng số ở đây. Khi hai màn đó có API riêng thì đổi chỗ tra
- * cứu, không đổi hình dạng `GiftRule`.
+ * Ngân hàng bắt buộc trong quy tắc quà tra trực tiếp vào P-60
+ * (`@/lib/api/bankCatalog`, `fetchBanks`), không có danh sách riêng ở đây nữa.
+ * `CHANNEL_CODES` vẫn là hằng số TẠM — P-70 (Danh mục kênh) chưa có bảng/API
+ * thật trong code.
  */
-export const BANK_CODES = [
-  'MB',
-  'VPa',
-  'VPb',
-  'LBP',
-  'MSBa',
-  'MSBb',
-  'TCB',
-  'BIDV',
-  'TPB',
-  'VIB',
-  'SHB',
-] as const;
 export const CHANNEL_CODES = ['Bệnh viện', 'Ấp', 'Định danh'] as const;
 
 /* ── P-82 · Danh mục quà & gói bảo hiểm ──────────────────────────────── */

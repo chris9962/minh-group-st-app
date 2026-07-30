@@ -51,6 +51,14 @@ import {
   updateKpiTargetRow,
   updateServiceTypeRow,
 } from "./settings";
+import type { BankForm, CodeStatus } from "@/lib/api/bankCatalog";
+import {
+  banksFor,
+  createBank,
+  referralCodesFor,
+  setBankActive,
+  updateBank,
+} from "./bankCatalog";
 
 /** Người bấm nút — máy chủ thật lấy từ phiên, ở đây gửi kèm cho gọn. */
 const actorBy = (id: string) => mockUsers.find((u) => u.id === id) ?? null;
@@ -361,5 +369,34 @@ export const handlers = [
     const { active } = (await request.json()) as { active: boolean };
     const result = setServiceTypeActiveRow(String(params.id), active);
     return result ? HttpResponse.json(result) : new HttpResponse(null, { status: 404 });
+  }),
+
+  http.get("/api/settings/banks", () => HttpResponse.json(banksFor())),
+
+  http.post("/api/settings/banks", async ({ request }) => {
+    const form = (await request.json()) as BankForm;
+    return HttpResponse.json(createBank(form), { status: 201 });
+  }),
+
+  http.patch("/api/settings/banks/:id", async ({ params, request }) => {
+    const form = (await request.json()) as BankForm;
+    const result = updateBank(String(params.id), form);
+    return result ? HttpResponse.json(result) : new HttpResponse(null, { status: 404 });
+  }),
+
+  http.post("/api/settings/banks/:id/active", async ({ params, request }) => {
+    const { active } = (await request.json()) as { active: boolean };
+    const result = setBankActive(String(params.id), active);
+    return result ? HttpResponse.json(result) : new HttpResponse(null, { status: 404 });
+  }),
+
+  http.get("/api/settings/referral-codes", ({ request }) => {
+    const params = new URL(request.url).searchParams;
+    return HttpResponse.json(
+      referralCodesFor({
+        bankId: params.get("bankId") ?? "",
+        status: (params.get("status") ?? "") as CodeStatus | "",
+      }),
+    );
   }),
 ];

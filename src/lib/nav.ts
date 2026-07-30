@@ -19,10 +19,10 @@ export type NavIconKey =
   | 'customers'
   | 'people'
   | 'target'
-  | 'codes'
   | 'settings'
   | 'exports'
   | 'permissions'
+  | 'org'
   | 'audit';
 
 export type NavItem = {
@@ -33,10 +33,28 @@ export type NavItem = {
   screen: string;
 };
 
-export function navFor(user: User | null): NavItem[] {
+/** Mục con trong một nhóm mở rộng — không có icon riêng, đi theo icon của nhóm. */
+export type NavChild = {
+  href: string;
+  label: string;
+  screen: string;
+};
+
+/** Nhóm mở rộng trong sidebar — ví dụ "Cấu hình" gồm nhiều màn nhỏ. */
+export type NavGroup = {
+  label: string;
+  icon: NavIconKey;
+  children: NavChild[];
+};
+
+export type NavEntry = NavItem | NavGroup;
+
+export const isNavGroup = (entry: NavEntry): entry is NavGroup => 'children' in entry;
+
+export function navFor(user: User | null): NavEntry[] {
   if (!user) return [];
 
-  const items: NavItem[] = [];
+  const items: NavEntry[] = [];
 
   if (
     can(user, 'insurance', 'view-stats') ||
@@ -70,19 +88,49 @@ export function navFor(user: User | null): NavItem[] {
       : { href: '/people', label: 'Nhân sự & KPI', icon: 'people', screen: 'P-51' },
   );
 
-  if (
-    can(user, 'banking', 'manage-codes') ||
-    can(user, 'insurance', 'manage-codes')
-  ) {
-    items.push({ href: '/codes', label: 'Kho mã & ngân hàng', icon: 'codes', screen: 'P-60' });
+  // "Cấu hình" gộp mọi màn thiết lập vào một nhóm, nhưng mục con nào hiện ra
+  // vẫn theo đúng quyền riêng của nó — Kinh doanh tổng hợp thấy ngân hàng/mã
+  // giới thiệu, còn quy tắc quà/danh mục/chỉ tiêu/loại dịch vụ vẫn của CEO
+  // (spec §3.1: "CEO KHÔNG có... kho mã giới thiệu").
+  const settingsChildren: NavChild[] = [];
+
+  if (can(user, 'system', 'configure-gift-rules')) {
+    settingsChildren.push({ href: '/settings/gift-rules', label: 'Quy tắc quà', screen: 'P-81' });
+  }
+  if (can(user, 'insurance', 'configure-catalog')) {
+    settingsChildren.push({
+      href: '/settings/gift-catalog',
+      label: 'Danh mục quà & gói BH',
+      screen: 'P-82',
+    });
+  }
+  if (can(user, 'system', 'configure-catalog')) {
+    settingsChildren.push({ href: '/settings/kpi-target', label: 'Chỉ tiêu KPI', screen: 'P-83' });
+  }
+  if (can(user, 'services', 'configure-catalog')) {
+    settingsChildren.push({
+      href: '/settings/service-types',
+      label: 'Loại dịch vụ',
+      screen: 'P-84',
+    });
+  }
+  if (can(user, 'banking', 'manage-codes') || can(user, 'banking', 'configure-catalog')) {
+    settingsChildren.push({ href: '/settings/banks', label: 'Danh sách ngân hàng', screen: 'P-60' });
+  }
+  if (can(user, 'banking', 'manage-codes')) {
+    settingsChildren.push({
+      href: '/settings/referral-codes',
+      label: 'Danh sách mã giới thiệu',
+      screen: 'P-61',
+    });
   }
 
-  if (
-    can(user, 'system', 'configure-catalog') ||
-    can(user, 'system', 'configure-gift-rules') ||
-    can(user, 'banking', 'configure-catalog')
-  ) {
-    items.push({ href: '/settings', label: 'Cấu hình', icon: 'settings', screen: 'P-81' });
+  if (settingsChildren.length > 0) {
+    items.push({ label: 'Cấu hình', icon: 'settings', children: settingsChildren });
+  }
+
+  if (can(user, 'system', 'manage-org')) {
+    items.push({ href: '/departments', label: 'Phòng ban', icon: 'org', screen: 'P-91' });
   }
 
   if (

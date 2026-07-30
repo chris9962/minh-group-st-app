@@ -1,13 +1,14 @@
 "use client";
 
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { FlaskConical } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { Select } from "@/components/ui/Select";
-import { BANK_CODES, CHANNEL_CODES, simulateGift } from "@/lib/api/settings";
+import { fetchBanks } from "@/lib/api/bankCatalog";
+import { CHANNEL_CODES, simulateGift } from "@/lib/api/settings";
 import { formatVnd } from "@/lib/format";
 import styles from "./GiftSimulator.module.scss";
 
@@ -19,6 +20,9 @@ export function GiftSimulator() {
   const [banks, setBanks] = useState<string[]>([]);
   const [cnkd, setCnkd] = useState(false);
   const [channel, setChannel] = useState("");
+
+  const { data: allBanks = [] } = useQuery({ queryKey: ["banks"], queryFn: fetchBanks });
+  const activeBanks = allBanks.filter((b) => b.active);
 
   const run = useMutation({
     mutationFn: () => simulateGift({ installedBanks: banks, cnkd, channel }),
@@ -37,12 +41,12 @@ export function GiftSimulator() {
       <fieldset className={styles.fieldset}>
         <legend className={styles.legend}>App đã cài</legend>
         <div className={styles.banks}>
-          {BANK_CODES.map((bank) => (
+          {activeBanks.map((bank) => (
             <Checkbox
-              key={bank}
-              label={bank}
-              checked={banks.includes(bank)}
-              onCheckedChange={() => toggleBank(bank)}
+              key={bank.id}
+              label={bank.code}
+              checked={banks.includes(bank.code)}
+              onCheckedChange={() => toggleBank(bank.code)}
             />
           ))}
         </div>
@@ -86,7 +90,11 @@ export function GiftSimulator() {
                 "Không có món nào"
               ) : (
                 <>
-                  <span className="tabular-nums">{run.data.basket.length} món</span>
+                  <span>
+                    Khách chọn <strong>đúng 1</strong> trong{" "}
+                    <span className="tabular-nums">{run.data.basket.length}</span> món dưới đây
+                    (hoặc từ chối, không lấy gì):
+                  </span>
                   <ol className={styles.basket}>
                     {run.data.basket.map((item, i) => (
                       <li key={`${item.id}-${i}`}>

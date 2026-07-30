@@ -1,5 +1,4 @@
 import {
-  BANK_CODES,
   type CatalogItemForm,
   type GiftItem,
   type GiftRule,
@@ -13,6 +12,7 @@ import {
   type ServiceTypeForm,
   type ServiceTypeRow,
 } from "@/lib/api/settings";
+import { banksFor } from "./bankCatalog";
 
 /**
  * Kho cấu hình cho P-81…P-84. Giữ trong bộ nhớ và sửa được — admin lập/sửa
@@ -358,19 +358,17 @@ export function simulateGift(input: GiftSimulateInput): GiftSimulateResult {
     }
   }
 
-  // Mặc định 1 cho tất cả ngân hàng — riêng VPb = 1.4 (spec §2.6/§7, đã biết
-  // trước khi có bảng hệ số thật ở P-60).
-  const kpiBreakdown = input.installedBanks.map((bank) => ({
-    label: bank,
-    points: bank === "VPb" ? 1.4 : 1,
+  // Hệ số đọc từ chính kho ngân hàng (P-60) — sửa hệ số ở đó thì nút thử tính
+  // theo ngay, không phải hằng số lặp lại ở đây.
+  const kpiBreakdown = input.installedBanks.map((code) => ({
+    label: code,
+    points: banksFor().find((b) => b.code === code)?.coefficient ?? 1,
   }));
   if (input.cnkd) kpiBreakdown.push({ label: "Mở CNKD/HKD", points: 1 });
   const kpiPoints = kpiBreakdown.reduce((sum, b) => sum + b.points, 0);
 
   return { cashTotal, cashBreakdown, basket, kpiPoints, kpiBreakdown };
 }
-
-export { BANK_CODES };
 
 /* ── P-83 · Chỉ tiêu KPI theo tháng ──────────────────────────────────── */
 

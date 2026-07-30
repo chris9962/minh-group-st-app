@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
@@ -9,9 +9,9 @@ import { Checkbox } from "@/components/ui/Checkbox";
 import { Dialog } from "@/components/ui/Dialog";
 import { Select } from "@/components/ui/Select";
 import { TextField } from "@/components/ui/TextField";
+import { fetchBanks } from "@/lib/api/bankCatalog";
 import {
   APP_COMPARATOR_LABEL,
-  BANK_CODES,
   CHANNEL_CODES,
   createGiftRule,
   GIFT_GROUP_LABEL,
@@ -66,6 +66,9 @@ const toForm = (r: GiftRule): GiftRuleForm => ({
 export function GiftRuleFormDialog({ open, onClose, rule, giftItems, packages }: Props) {
   const queryClient = useQueryClient();
   const editing = Boolean(rule);
+
+  const { data: banks = [] } = useQuery({ queryKey: ["banks"], queryFn: fetchBanks });
+  const activeBanks = banks.filter((b) => b.active);
 
   const {
     register,
@@ -156,7 +159,7 @@ export function GiftRuleFormDialog({ open, onClose, rule, giftItems, packages }:
             onChange={(v) => setValue("requiredBank", v, { shouldDirty: true })}
             options={[
               { value: "", label: "— Không yêu cầu —" },
-              ...BANK_CODES.map((b) => ({ value: b, label: b })),
+              ...activeBanks.map((b) => ({ value: b.code, label: b.code })),
             ]}
           />
           <Select
