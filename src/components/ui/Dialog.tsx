@@ -1,8 +1,17 @@
 "use client";
 
 import { X } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { createContext, useEffect, useRef, useState } from "react";
 import styles from "./Dialog.module.css";
+
+/**
+ * DOM của `<dialog>` đang bao quanh, nếu có — nơi khác dùng để portal ra
+ * (xem `Combobox`). `<dialog open>` đẩy nội dung của nó vào "top layer" của
+ * trình duyệt, đứng trên mọi DOM thường bất kể z-index; một popup portal ra
+ * thẳng `document.body` (mặc định của Radix) sẽ bị NẰM DƯỚI hộp thoại đang
+ * mở. Portal vào chính bên trong `<dialog>` này thì vẫn ở trong top layer đó.
+ */
+export const DialogPortalContext = createContext<HTMLDialogElement | null>(null);
 
 type Props = {
   open: boolean;
@@ -22,6 +31,7 @@ type Props = {
  */
 export function Dialog({ open, title, onClose, children, footer }: Props) {
   const ref = useRef<HTMLDialogElement>(null);
+  const [dialogEl, setDialogEl] = useState<HTMLDialogElement | null>(null);
 
   // Đồng bộ với DOM ngoài React: `open` là thuộc tính, còn showModal() mới bật
   // lớp phủ và bẫy tiêu điểm — đặt thuộc tính thôi thì không có hai thứ đó.
@@ -34,7 +44,10 @@ export function Dialog({ open, title, onClose, children, footer }: Props) {
 
   return (
     <dialog
-      ref={ref}
+      ref={(el) => {
+        ref.current = el;
+        setDialogEl(el);
+      }}
       className={styles.dialog}
       aria-label={title}
       onCancel={(e) => {
@@ -48,23 +61,25 @@ export function Dialog({ open, title, onClose, children, footer }: Props) {
       }}
     >
       {open && (
-        <div className={styles.panel}>
-          <header className={styles.head}>
-            <h2 className={styles.title}>{title}</h2>
-            <button
-              type="button"
-              className={styles.close}
-              onClick={onClose}
-              aria-label="Đóng"
-            >
-              <X size={18} aria-hidden />
-            </button>
-          </header>
+        <DialogPortalContext.Provider value={dialogEl}>
+          <div className={styles.panel}>
+            <header className={styles.head}>
+              <h2 className={styles.title}>{title}</h2>
+              <button
+                type="button"
+                className={styles.close}
+                onClick={onClose}
+                aria-label="Đóng"
+              >
+                <X size={18} aria-hidden />
+              </button>
+            </header>
 
-          <div className={styles.body}>{children}</div>
+            <div className={styles.body}>{children}</div>
 
-          {footer && <footer className={styles.foot}>{footer}</footer>}
-        </div>
+            {footer && <footer className={styles.foot}>{footer}</footer>}
+          </div>
+        </DialogPortalContext.Provider>
       )}
     </dialog>
   );

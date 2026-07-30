@@ -1,7 +1,9 @@
 "use client";
 
-import { useId, useState } from "react";
+import * as Popover from "@radix-ui/react-popover";
+import { useContext, useId, useState } from "react";
 import { matchesSearch } from "@/lib/format";
+import { DialogPortalContext } from "./Dialog";
 import styles from "./Combobox.module.css";
 
 export type ComboboxOption = { value: string; label: string };
@@ -21,6 +23,11 @@ type Props = {
  * (ví dụ xã/ấp cả nước). Không dùng `<datalist>` gốc vì trình duyệt vẽ khung
  * gợi ý theo giao diện hệ điều hành, không theo được token màu/khoảng cách
  * của design system.
+ *
+ * Danh sách nổi lên qua `@radix-ui/react-popover` (portal ra ngoài DOM) thay
+ * vì `position: absolute` thường — hộp thoại (Dialog) cuộn nội dung bằng
+ * `overflow-y: auto`, một khối absolute nằm trong đó bị cắt mất phần tràn ra
+ * ngoài, y hệt cách `DateRangePicker`/`FilterButton` đã phải dùng Popover.
  */
 export function Combobox({ label, value, options, onChange, placeholder, block = false }: Props) {
   const id = useId();
@@ -28,6 +35,7 @@ export function Combobox({ label, value, options, onChange, placeholder, block =
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
+  const dialogEl = useContext(DialogPortalContext);
 
   const selected = options.find((o) => o.value === value);
   const displayValue = open ? query : (selected?.label ?? "");
@@ -41,77 +49,89 @@ export function Combobox({ label, value, options, onChange, placeholder, block =
   };
 
   return (
-    <span className={block ? styles.blockWrap : styles.wrap}>
-      <label htmlFor={id} className={block ? styles.blockLabel : styles.label}>
-        {label}
-      </label>
-      <input
-        id={id}
-        type="text"
-        role="combobox"
-        aria-expanded={open}
-        aria-controls={listId}
-        aria-autocomplete="list"
-        aria-activedescendant={activeIndex >= 0 ? `${listId}-${activeIndex}` : undefined}
-        autoComplete="off"
-        className={`input ${styles.input} ${block ? styles.blockInput : ""}`}
-        value={displayValue}
-        placeholder={placeholder}
-        onFocus={() => {
-          setOpen(true);
-          setQuery("");
-          setActiveIndex(-1);
-        }}
-        onChange={(e) => {
-          setOpen(true);
-          setQuery(e.target.value);
-          setActiveIndex(-1);
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "ArrowDown") {
-            e.preventDefault();
-            setOpen(true);
-            setActiveIndex((i) => Math.min(i + 1, filtered.length - 1));
-          } else if (e.key === "ArrowUp") {
-            e.preventDefault();
-            setActiveIndex((i) => Math.max(i - 1, 0));
-          } else if (e.key === "Enter") {
-            if (open && filtered[activeIndex]) {
-              e.preventDefault();
-              commit(filtered[activeIndex]);
-            }
-          } else if (e.key === "Escape") {
-            setOpen(false);
-            setQuery("");
-          }
-        }}
-        onBlur={() => setOpen(false)}
-      />
+    <Popover.Root open={open} onOpenChange={setOpen}>
+      <span className={block ? styles.blockWrap : styles.wrap}>
+        <label htmlFor={id} className={block ? styles.blockLabel : styles.label}>
+          {label}
+        </label>
+        <Popover.Anchor asChild>
+          <input
+            id={id}
+            type="text"
+            role="combobox"
+            aria-expanded={open}
+            aria-controls={listId}
+            aria-autocomplete="list"
+            aria-activedescendant={activeIndex >= 0 ? `${listId}-${activeIndex}` : undefined}
+            autoComplete="off"
+            className={`input ${styles.input} ${block ? styles.blockInput : ""}`}
+            value={displayValue}
+            placeholder={placeholder}
+            onFocus={() => {
+              setOpen(true);
+              setQuery("");
+              setActiveIndex(-1);
+            }}
+            onChange={(e) => {
+              setOpen(true);
+              setQuery(e.target.value);
+              setActiveIndex(-1);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "ArrowDown") {
+                e.preventDefault();
+                setOpen(true);
+                setActiveIndex((i) => Math.min(i + 1, filtered.length - 1));
+              } else if (e.key === "ArrowUp") {
+                e.preventDefault();
+                setActiveIndex((i) => Math.max(i - 1, 0));
+              } else if (e.key === "Enter") {
+                if (open && filtered[activeIndex]) {
+                  e.preventDefault();
+                  commit(filtered[activeIndex]);
+                }
+              } else if (e.key === "Escape") {
+                setOpen(false);
+                setQuery("");
+              }
+            }}
+          />
+        </Popover.Anchor>
+      </span>
 
-      {open && (
-        <ul id={listId} role="listbox" className={styles.list}>
-          {filtered.length === 0 ? (
-            <li className={styles.empty}>Không tìm thấy</li>
-          ) : (
-            filtered.map((o, i) => (
-              <li
-                key={o.value}
-                id={`${listId}-${i}`}
-                role="option"
-                aria-selected={o.value === value}
-                className={[styles.option, i === activeIndex && styles.optionActive]
-                  .filter(Boolean)
-                  .join(" ")}
-                // Chặn blur nổ trước click — không thì danh sách đóng trước khi kịp chọn.
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => commit(o)}
-              >
-                {o.label}
-              </li>
-            ))
-          )}
-        </ul>
-      )}
-    </span>
+      <Popover.Portal container={dialogEl ?? undefined}>
+        <Popover.Content
+          className={styles.list}
+          align="start"
+          sideOffset={4}
+          style={{ width: "var(--radix-popover-trigger-width)" }}
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          onCloseAutoFocus={(e) => e.preventDefault()}
+        >
+          <ul id={listId} role="listbox" className={styles.listInner}>
+            {filtered.length === 0 ? (
+              <li className={styles.empty}>Không tìm thấy</li>
+            ) : (
+              filtered.map((o, i) => (
+                <li
+                  key={o.value}
+                  id={`${listId}-${i}`}
+                  role="option"
+                  aria-selected={o.value === value}
+                  className={[styles.option, i === activeIndex && styles.optionActive]
+                    .filter(Boolean)
+                    .join(" ")}
+                  // Chặn blur nổ trước click — không thì danh sách đóng trước khi kịp chọn.
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => commit(o)}
+                >
+                  {o.label}
+                </li>
+              ))
+            )}
+          </ul>
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
   );
 }
