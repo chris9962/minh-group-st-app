@@ -55,6 +55,7 @@ export default function LoginPage() {
           >
             <TextField
               label="Tài khoản"
+              placeholder="Tên đăng nhập công ty cấp"
               autoComplete="username"
               autoCapitalize="none"
               spellCheck={false}
