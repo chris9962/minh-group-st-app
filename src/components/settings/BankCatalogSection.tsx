@@ -37,7 +37,6 @@ export function BankCatalogSection() {
     {
       key: "requiredPhotos",
       label: "Số ảnh bắt buộc",
-      align: "right",
       sortBy: (b) => b.requiredPhotos,
       render: (b) => b.requiredPhotos,
     },
@@ -49,7 +48,6 @@ export function BankCatalogSection() {
     {
       key: "coefficient",
       label: "Hệ số điểm KPI",
-      align: "right",
       sortBy: (b) => b.coefficient,
       render: (b) => b.coefficient,
     },
@@ -70,7 +68,6 @@ export function BankCatalogSection() {
     {
       key: "actions",
       label: "Thao tác",
-      align: "right",
       render: (b) => (
         <span className={styles.actions}>
           <Button

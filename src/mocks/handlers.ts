@@ -51,10 +51,11 @@ import {
   updateKpiTargetRow,
   updateServiceTypeRow,
 } from "./settings";
-import type { BankForm, CodeStatus } from "@/lib/api/bankCatalog";
+import type { BankForm, CodeStatus, ReferralCodeForm } from "@/lib/api/bankCatalog";
 import {
   banksFor,
   createBank,
+  createReferralCode,
   referralCodesFor,
   setBankActive,
   updateBank,
@@ -398,5 +399,10 @@ export const handlers = [
         status: (params.get("status") ?? "") as CodeStatus | "",
       }),
     );
+  }),
+
+  http.post("/api/settings/referral-codes", async ({ request }) => {
+    const form = (await request.json()) as ReferralCodeForm;
+    return HttpResponse.json(createReferralCode(form), { status: 201 });
   }),
 ];

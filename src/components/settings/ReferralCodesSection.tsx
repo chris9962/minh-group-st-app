@@ -1,9 +1,10 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Ticket } from "lucide-react";
+import { Plus, Ticket } from "lucide-react";
 import { useState } from "react";
 import { Alert } from "@/components/ui/Alert";
+import { Button } from "@/components/ui/Button";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { Select } from "@/components/ui/Select";
@@ -16,12 +17,14 @@ import {
   type CodeStatus,
   type ReferralCode,
 } from "@/lib/api/bankCatalog";
+import { ReferralCodeFormDialog } from "./ReferralCodeFormDialog";
 import styles from "./ReferralCodesSection.module.scss";
 
-/** P-61 · Kho mã giới thiệu — chỉ xem; tạo/nhập hàng loạt thuộc P-62 (chưa làm). */
+/** P-61 · Kho mã giới thiệu — thêm mã lẻ ở đây; nhập hàng loạt từ Excel vẫn là P-62 (chưa làm). */
 export function ReferralCodesSection() {
   const [bankId, setBankId] = useState("");
   const [status, setStatus] = useState<CodeStatus | "">("");
+  const [creating, setCreating] = useState(false);
 
   const { data: banks = [] } = useQuery({ queryKey: ["banks"], queryFn: fetchBanks });
   const bankName = (id: string) => banks.find((b) => b.id === id)?.code ?? id;
@@ -56,7 +59,6 @@ export function ReferralCodesSection() {
     {
       key: "holding",
       label: "Đang giữ",
-      align: "right",
       sortBy: (c) => c.holding,
       render: (c) => c.holding,
     },
@@ -126,10 +128,21 @@ export function ReferralCodesSection() {
         </>
       )}
 
+      <div className={styles.footRow}>
+        <Button onClick={() => setCreating(true)}>
+          <Plus size={16} />
+          Thêm mã
+        </Button>
+      </div>
+
       <p className={styles.footnote}>
-        Tạo mã mới hoặc nhập hàng loạt từ Excel làm ở màn <strong>Nhập mã hàng
-        loạt</strong> (P-62) — màn này chỉ để xem và lọc kho hiện có.
+        Thêm từng mã một ở đây. Nhập <strong>hàng loạt</strong> từ Excel vẫn là
+        việc riêng của màn <strong>Nhập mã hàng loạt</strong> (P-62, chưa làm).
       </p>
+
+      {creating && (
+        <ReferralCodeFormDialog open onClose={() => setCreating(false)} />
+      )}
     </SectionCard>
   );
 }

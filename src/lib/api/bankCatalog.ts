@@ -105,3 +105,21 @@ export async function fetchReferralCodes(query: ReferralCodeQuery): Promise<Refe
   if (!res.ok) throw new Error('Không tải được kho mã giới thiệu');
   return z.array(ReferralCode).parse(await res.json());
 }
+
+/** Thêm một mã lẻ. Nhập hàng loạt từ Excel vẫn là việc riêng của P-62. */
+export const ReferralCodeForm = z.object({
+  bankId: z.string().trim().min(1, 'Chưa chọn ngân hàng'),
+  code: z.string().trim().min(1, 'Chưa nhập mã'),
+  total: z.number().min(1, 'Tổng số phải lớn hơn 0'),
+});
+export type ReferralCodeForm = z.infer<typeof ReferralCodeForm>;
+
+export const createReferralCode = (form: ReferralCodeForm) =>
+  fetch('/api/settings/referral-codes', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(form),
+  }).then(async (res) => {
+    if (!res.ok) throw new Error('Không lưu được mã này');
+    return ReferralCode.parse(await res.json());
+  });

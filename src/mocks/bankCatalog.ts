@@ -4,6 +4,7 @@ import {
   type BankForm,
   type CodeStatus,
   type ReferralCode,
+  type ReferralCodeForm,
 } from "@/lib/api/bankCatalog";
 
 /**
@@ -55,7 +56,7 @@ export function setBankActive(id: string, active: boolean): Bank | null {
 
 /* ── P-61 · Kho mã giới thiệu ─────────────────────────────────────────── */
 
-const codes: ReferralCode[] = [
+let codes: ReferralCode[] = [
   { id: "rc-1", bankId: "bk-vpa", code: "VPA-2024-01", used: 47, total: 100, holding: 3 },
   { id: "rc-2", bankId: "bk-vpa", code: "VPA-2024-02", used: 12, total: 100, holding: 0 },
   { id: "rc-3", bankId: "bk-msba", code: "MSBA-01", used: 85, total: 100, holding: 5 },
@@ -64,10 +65,25 @@ const codes: ReferralCode[] = [
   { id: "rc-6", bankId: "bk-vpb", code: "VPB-2024-01", used: 30, total: 100, holding: 2 },
 ];
 
+let nextCodeId = 1;
+
 export function referralCodesFor(query: { bankId: string; status: CodeStatus | "" }): ReferralCode[] {
   return codes.filter((c) => {
     if (query.bankId && c.bankId !== query.bankId) return false;
     if (query.status && codeStatusOf(c) !== query.status) return false;
     return true;
   });
+}
+
+export function createReferralCode(form: ReferralCodeForm): ReferralCode {
+  const code: ReferralCode = {
+    id: `rc-new-${nextCodeId++}`,
+    bankId: form.bankId,
+    code: form.code,
+    total: form.total,
+    used: 0,
+    holding: 0,
+  };
+  codes = [...codes, code];
+  return code;
 }
