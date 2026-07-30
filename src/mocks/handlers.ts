@@ -36,7 +36,7 @@ import {
 import type { BankAccountForm } from "@/lib/api/bankAccounts";
 import { createBankAccount } from "./bankAccounts";
 import type { InsuranceOrderForm, InsuranceOrderStatus } from "@/lib/api/insuranceOrders";
-import { createInsuranceOrder, setOrderStatus } from "./insuranceOrders";
+import { createInsuranceOrder, setOrderPhoto, setOrderStatus } from "./insuranceOrders";
 import type {
   CatalogItemForm,
   GiftRuleForm,
@@ -545,6 +545,13 @@ export const handlers = [
       return new HttpResponse(null, { status: 403 });
     }
     const updated = setOrderStatus(String(params.id), status);
+    return updated ? HttpResponse.json(updated) : new HttpResponse(null, { status: 404 });
+  }),
+
+  /** Đính/thay ảnh chứng nhận bảo hiểm — thay cho PDF, cho phép ở mọi trạng thái. */
+  http.patch("/api/insurance-orders/:id/photo", async ({ params, request }) => {
+    const { photoUrl } = (await request.json()) as { photoUrl: string; actorId: string };
+    const updated = setOrderPhoto(String(params.id), photoUrl);
     return updated ? HttpResponse.json(updated) : new HttpResponse(null, { status: 404 });
   }),
 

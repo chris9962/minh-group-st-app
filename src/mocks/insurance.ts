@@ -47,6 +47,7 @@ function allRows(): TaggedRow[] {
         createdById: p.id,
         createdByName: p.fullName,
         createdByDepartmentId: departmentId,
+        certificatePhotoUrl: null,
         departmentId,
       });
     }
@@ -70,6 +71,7 @@ function allRows(): TaggedRow[] {
       createdById: o.createdById,
       createdByName: o.createdByName,
       createdByDepartmentId: o.createdByDepartmentId,
+      certificatePhotoUrl: o.certificatePhotoUrl,
       departmentId: o.createdByDepartmentId,
     });
   }
@@ -104,6 +106,7 @@ export function insuranceOrdersFor(
         date: r.date,
         createdById: r.createdById,
         createdByName: r.createdByName,
+        certificatePhotoUrl: r.certificatePhotoUrl,
       }),
     );
 
@@ -144,5 +147,6 @@ export function insuranceDetailFor(
     createdById: row.createdById,
     createdByName: row.createdByName,
     createdByDepartmentId: row.createdByDepartmentId,
+    certificatePhotoUrl: row.certificatePhotoUrl,
   };
 }

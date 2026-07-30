@@ -2,43 +2,25 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { use } from "react";
-import { CheckCircle2, ChevronLeft, Download, ShieldCheck } from "lucide-react";
+import { use, useRef } from "react";
+import { CheckCircle2, ChevronLeft, ImagePlus, ShieldCheck } from "lucide-react";
 import { TopBar } from "@/components/layout/TopBar";
 import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusTag } from "@/components/ui/StatusTag";
 import { fetchInsuranceDetail } from "@/lib/api/insurance";
-import { INSURANCE_STATUS_LABEL, setInsuranceOrderStatus } from "@/lib/api/insuranceOrders";
+import {
+  INSURANCE_STATUS_LABEL,
+  setInsuranceOrderPhoto,
+  setInsuranceOrderStatus,
+} from "@/lib/api/insuranceOrders";
 import { formatDate, formatIdNumber, formatPhone } from "@/lib/format";
 import { can } from "@/lib/permissions";
 import { useSession } from "@/store/session";
 import styles from "./page.module.scss";
 
 const SOURCE_LABEL = { self: "Tự mua", gift: "Quà tặng" } as const;
-
-/** Tải bản tóm tắt đơn — không có PDF thật trong hệ thống mô phỏng này. */
-function downloadSummary(data: {
-  orderCode: string;
-  customerName: string;
-  product: string;
-  packageName: string;
-  beneficiaryName: string;
-}) {
-  const text = [
-    `Mã đơn: ${data.orderCode}`,
-    `Khách hàng: ${data.customerName}`,
-    `Sản phẩm: ${data.product} · ${data.packageName}`,
-    `Người thụ hưởng: ${data.beneficiaryName}`,
-  ].join("\n");
-  const url = URL.createObjectURL(new Blob([text], { type: "text/plain;charset=utf-8" }));
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `${data.orderCode}.txt`;
-  a.click();
-  URL.revokeObjectURL(url);
-}
 
 /** P-14 · Chi tiết đơn bảo hiểm — chỉ xem, không có nút sửa/huỷ sau khi đơn đã chạy. */
 export default function InsuranceDetailPage({
@@ -49,6 +31,7 @@ export default function InsuranceDetailPage({
   const { id } = use(params);
   const actor = useSession((s) => s.user);
   const queryClient = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data, isPending, isError } = useQuery({
     queryKey: ["insurance-detail", id],
@@ -58,6 +41,14 @@ export default function InsuranceDetailPage({
   const advance = useMutation({
     mutationFn: (status: "manual-progress" | "done") =>
       setInsuranceOrderStatus(id, status, actor?.id ?? ""),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["insurance-detail", id] });
+      queryClient.invalidateQueries({ queryKey: ["insurance-list"] });
+    },
+  });
+
+  const uploadPhoto = useMutation({
+    mutationFn: (photoUrl: string) => setInsuranceOrderPhoto(id, photoUrl, actor?.id ?? ""),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["insurance-detail", id] });
       queryClient.invalidateQueries({ queryKey: ["insurance-list"] });
@@ -146,37 +137,69 @@ export default function InsuranceDetailPage({
               </div>
             </dl>
 
-            {advance.isError && (
-              <Alert tone="error">Không đổi được trạng thái đơn này.</Alert>
+            {advance.isError && <Alert tone="error">Không đổi được trạng thái đơn này.</Alert>}
+            {uploadPhoto.isError && (
+              <Alert tone="error">Không lưu được ảnh chứng nhận này.</Alert>
             )}
 
-            <div className={styles.actions}>
+            <div className={styles.photoSection}>
+              <h3 className={styles.photoTitle}>Ảnh chứng nhận bảo hiểm</h3>
+              {data.certificatePhotoUrl ? (
+                <a
+                  href={data.certificatePhotoUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className={styles.photoLink}
+                >
+                  <img
+                    src={data.certificatePhotoUrl}
+                    alt="Ảnh chứng nhận bảo hiểm"
+                    className={styles.photo}
+                  />
+                </a>
+              ) : (
+                <p className="text-muted">Chưa có ảnh — dùng ở mọi trạng thái, không cần chờ hoàn thành.</p>
+              )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className={styles.hiddenInput}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  uploadPhoto.mutate(URL.createObjectURL(file));
+                  e.target.value = "";
+                }}
+              />
               <Button
                 variant="secondary"
-                disabled={data.status !== "done"}
-                onClick={() => downloadSummary(data)}
+                disabled={uploadPhoto.isPending}
+                onClick={() => fileInputRef.current?.click()}
               >
-                <Download size={16} />
-                Tải PDF
+                <ImagePlus size={16} />
+                {data.certificatePhotoUrl ? "Đổi ảnh" : "Tải ảnh lên"}
               </Button>
-              {canHandleFallback && data.status === "manual-queued" && (
-                <Button
-                  disabled={advance.isPending}
-                  onClick={() => advance.mutate("manual-progress")}
-                >
-                  <CheckCircle2 size={16} />
-                  Nhận đơn xử lý
-                </Button>
-              )}
-              {canHandleFallback && data.status === "manual-progress" && (
-                <Button disabled={advance.isPending} onClick={() => advance.mutate("done")}>
-                  <CheckCircle2 size={16} />
-                  Đánh dấu hoàn thành
-                </Button>
-              )}
             </div>
-            {data.status !== "done" && (
-              <p className={styles.footnote}>Chưa có file PDF — đơn chưa xử lý xong.</p>
+
+            {(canHandleFallback && (data.status === "manual-queued" || data.status === "manual-progress")) && (
+              <div className={styles.actions}>
+                {data.status === "manual-queued" && (
+                  <Button
+                    disabled={advance.isPending}
+                    onClick={() => advance.mutate("manual-progress")}
+                  >
+                    <CheckCircle2 size={16} />
+                    Nhận đơn xử lý
+                  </Button>
+                )}
+                {data.status === "manual-progress" && (
+                  <Button disabled={advance.isPending} onClick={() => advance.mutate("done")}>
+                    <CheckCircle2 size={16} />
+                    Đánh dấu hoàn thành
+                  </Button>
+                )}
+              </div>
             )}
           </SectionCard>
         )}

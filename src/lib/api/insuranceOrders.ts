@@ -60,6 +60,12 @@ export const InsuranceOrder = z.object({
   createdByName: z.string().nullable(),
   /** Phòng của người tạo lúc tạo — dùng để lọc theo phạm vi ở P-42, P-13. */
   createdByDepartmentId: z.string().nullable(),
+  /**
+   * Ảnh chụp giấy chứng nhận bảo hiểm — THAY cho file PDF (không có PVI thật
+   * để tải PDF). Có chỗ đính/xem ảnh này bất kể đơn đang ở trạng thái nào,
+   * không chỉ khi đã hoàn thành.
+   */
+  certificatePhotoUrl: z.string().nullable(),
 });
 export type InsuranceOrder = z.infer<typeof InsuranceOrder>;
 
@@ -114,5 +120,20 @@ export async function setInsuranceOrderStatus(
     body: JSON.stringify({ status, actorId }),
   });
   if (!res.ok) throw new Error('Không đổi được trạng thái đơn này');
+  return InsuranceOrder.parse(await res.json());
+}
+
+/** Đính/thay ảnh chứng nhận — dùng chung cho mọi trạng thái đơn. */
+export async function setInsuranceOrderPhoto(
+  id: string,
+  photoUrl: string,
+  actorId: string,
+): Promise<InsuranceOrder> {
+  const res = await fetch(`/api/insurance-orders/${id}/photo`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ photoUrl, actorId }),
+  });
+  if (!res.ok) throw new Error('Không lưu được ảnh chứng nhận này');
   return InsuranceOrder.parse(await res.json());
 }

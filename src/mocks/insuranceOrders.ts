@@ -75,6 +75,7 @@ export function createInsuranceOrder(
       createdById: actor?.id ?? null,
       createdByName: actor?.fullName ?? null,
       createdByDepartmentId: actor?.departmentId ?? null,
+      certificatePhotoUrl: null,
     };
     orders = [...orders, order];
     return order;
@@ -98,6 +99,16 @@ export function setOrderStatus(id: string, next: InsuranceOrderStatus): Insuranc
   if (ALLOWED_TRANSITIONS[current.status] !== next) return null;
 
   const updated = { ...current, status: next };
+  orders = orders.map((o) => (o.id === id ? updated : o));
+  return updated;
+}
+
+/** Đính/thay ảnh chứng nhận — cho phép ở bất kỳ trạng thái nào (P-14). */
+export function setOrderPhoto(id: string, photoUrl: string): InsuranceOrder | null {
+  const current = orders.find((o) => o.id === id);
+  if (!current) return null;
+
+  const updated = { ...current, certificatePhotoUrl: photoUrl };
   orders = orders.map((o) => (o.id === id ? updated : o));
   return updated;
 }

@@ -17,6 +17,8 @@ export const InsuranceListRow = z.object({
   date: z.string(),
   createdById: z.string().nullable(),
   createdByName: z.string().nullable(),
+  /** Ảnh chụp giấy chứng nhận — thay cho PDF, có thể null dù đơn đã hoàn thành. */
+  certificatePhotoUrl: z.string().nullable(),
 });
 export type InsuranceListRow = z.infer<typeof InsuranceListRow>;
 
