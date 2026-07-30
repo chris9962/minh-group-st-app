@@ -11,6 +11,10 @@
   /* 44px chiều cao cho ngón tay — đây là nút chuyển bảng, bấm nhầm là mất chỗ. */
   min-height: 44px;
   padding: 0 15px;
+  /* Nền thẻ, không để trong suốt: nằm thẳng trên nền kem thì thẻ chưa mở nhạt
+     quá, đọc ra như bị vô hiệu hoá. --om-card lật theo bộ màu nên bộ tối không
+     ra một vệt trắng. */
+  background: var(--om-card);
   border: 1px solid var(--om-line);
   border-radius: 999px;
   font-size: 13.5px;
@@ -28,7 +32,7 @@
 .active:hover {
   background: var(--om-orange);
   border-color: var(--om-orange);
-  color: var(--om-bg);
+  color: var(--om-text-on-accent);
   font-weight: 600;
 }
 
