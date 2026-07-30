@@ -201,6 +201,9 @@ export default function CustomerDetailPage({
                           ? "Đủ ĐK · chưa phát"
                           : "Chưa đủ điều kiện"}
                     </StatusTag>
+                    {data.gift.given && data.gift.givenItem && (
+                      <span className={styles.detail}>Đã giao: {data.gift.givenItem}</span>
+                    )}
                   </dd>
                 </div>
               </dl>

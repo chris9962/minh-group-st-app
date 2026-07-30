@@ -36,6 +36,8 @@ export const CustomerRow = z.object({
   accountCount: z.number(),
   insuranceCount: z.number(),
   giftStatus: z.enum(['none', 'eligible', 'given']),
+  /** Tên món đã tặng — chỉ có giá trị khi giftStatus = 'given'. */
+  givenItem: z.string().nullable(),
 });
 export type CustomerRow = z.infer<typeof CustomerRow>;
 
@@ -152,7 +154,11 @@ export const CustomerDetail = z.object({
    * Quà tính trên TOÀN BỘ tài khoản của khách, không chỉ phần người xem thấy
    * được (spec §4.4 P-42 lỗi thường gặp #2) — dùng chung máy tính với P-81.
    */
-  gift: GiftSimulateResult.extend({ given: z.boolean() }),
+  gift: GiftSimulateResult.extend({
+    given: z.boolean(),
+    /** Tên món đã tặng — chỉ có giá trị khi given = true. */
+    givenItem: z.string().nullable(),
+  }),
 });
 export type CustomerDetail = z.infer<typeof CustomerDetail>;
 

@@ -67,7 +67,9 @@ export default function CustomersPage() {
         label: "Trạng thái quà",
         render: (c) => (
           <StatusTag ok={c.giftStatus !== "eligible"}>
-            {GIFT_STATUS_LABEL[c.giftStatus]}
+            {c.giftStatus === "given" && c.givenItem
+              ? `Đã tặng · ${c.givenItem}`
+              : GIFT_STATUS_LABEL[c.giftStatus]}
           </StatusTag>
         ),
       },

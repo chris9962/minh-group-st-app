@@ -58,9 +58,6 @@ let customers: Customer[] = CUSTOMERS.map((fullName, i) => {
 
 let nextCustomerId = customers.length + 1;
 
-/** Chưa có khách nào — luồng Tặng quà (P-43) chưa làm nên không có gì đánh dấu. */
-const giftGivenIds = new Set<string>();
-
 const THIS_MONTH = (() => {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -97,10 +94,26 @@ function allAccountsAndInsurance(): { accounts: TaggedAccount[]; insurance: Tagg
   return { accounts, insurance };
 }
 
-const accountsFor = (fullName: string, all: TaggedAccount[]) =>
-  all.filter((a) => a.customerName === fullName);
-const insuranceFor = (fullName: string, all: TaggedInsurance[]) =>
-  all.filter((i) => i.customerName === fullName);
+const newestFirst = <T extends { date: string }>(rows: T[]): T[] =>
+  [...rows].sort((a, b) => (a.date < b.date ? 1 : -1));
+
+/**
+ * Gộp qua 12 nhân viên thì mỗi khách cộng dồn tới vài chục dòng — không thật.
+ * Khách đời thường có khoảng 2-3 tài khoản ngân hàng và 1-2 đơn bảo hiểm, nên
+ * cắt về mức đó (giữ dòng mới nhất) ngay tại đây — không cần sửa `accountsOf`
+ * dùng chung với P-52, P-52 vẫn đúng vì nó không cộng dồn qua nhiều người.
+ */
+const accountsFor = (fullName: string, all: TaggedAccount[]): TaggedAccount[] => {
+  const mine = all.filter((a) => a.customerName === fullName);
+  const cap = 2 + (seed(fullName, 41) % 2); // 2 hoặc 3
+  return newestFirst(mine).slice(0, cap);
+};
+
+const insuranceFor = (fullName: string, all: TaggedInsurance[]): TaggedInsurance[] => {
+  const mine = all.filter((i) => i.customerName === fullName);
+  const cap = 1 + (seed(fullName, 43) % 2); // 1 hoặc 2
+  return newestFirst(mine).slice(0, cap);
+};
 
 function primaryPhoneOf(c: Customer): string {
   return c.phones.find((p) => p.primary)?.number ?? c.phones[0]?.number ?? "";
@@ -124,14 +137,37 @@ function matchesCustomer(c: Customer, query: string): boolean {
   );
 }
 
-function giftEligible(fullName: string, accounts: TaggedAccount[]): boolean {
+function giftResultFor(fullName: string, accounts: TaggedAccount[]) {
   const mine = accountsFor(fullName, accounts);
   const installedBanks = [...new Set(mine.filter((a) => a.appInstalled).map((a) => a.bankName))];
   const cnkd = mine.some((a) => a.accountType === "CNKD" || a.accountType === "HKD");
   const channels = [...new Set(mine.map((a) => a.channel))];
-  const result = simulateGift({ installedBanks, cnkd, channels });
+  return simulateGift({ installedBanks, cnkd, channels });
+}
+
+function giftEligible(fullName: string, accounts: TaggedAccount[]): boolean {
+  const result = giftResultFor(fullName, accounts);
   return result.cashTotal > 0 || result.basket.length > 0;
 }
+
+/**
+ * Vài khách đã được tặng quà — để màn hình có đủ ba trạng thái (chưa đủ ĐK,
+ * đủ ĐK chưa phát, đã tặng). Luồng Tặng quà thật (P-43) chưa làm, đây chỉ là
+ * seed tĩnh chứ không phải kết quả của một thao tác tặng quà thật.
+ */
+const giftGiven: Map<string, string> = (() => {
+  const map = new Map<string, string>();
+  const { accounts } = allAccountsAndInsurance();
+  const givenAt = [2, 7, 13];
+  for (const i of givenAt) {
+    const c = customers[i];
+    if (!c) continue;
+    const result = giftResultFor(c.fullName, accounts);
+    const item = result.basket[0]?.name ?? (result.cashTotal > 0 ? "Tiền mặt" : null);
+    if (item) map.set(c.id, item);
+  }
+  return map;
+})();
 
 export function customersFor(search: string): CustomerList {
   const { accounts, insurance } = allAccountsAndInsurance();
@@ -144,11 +180,8 @@ export function customersFor(search: string): CustomerList {
       primaryPhone: primaryPhoneOf(c),
       accountCount: accountsFor(c.fullName, accounts).length,
       insuranceCount: insuranceFor(c.fullName, insurance).length,
-      giftStatus: giftGivenIds.has(c.id)
-        ? "given"
-        : giftEligible(c.fullName, accounts)
-          ? "eligible"
-          : "none",
+      giftStatus: giftGiven.has(c.id) ? "given" : giftEligible(c.fullName, accounts) ? "eligible" : "none",
+      givenItem: giftGiven.get(c.id) ?? null,
     }));
 
   return { summary: { total: customers.length }, customers: rows };
@@ -284,6 +317,6 @@ export function customerDetailFor(id: string, actor: User | null): CustomerDetai
       source: "self" as const,
     })),
     insuranceHiddenCount: myInsurance.length - visibleInsurance.length,
-    gift: { ...gift, given: giftGivenIds.has(id) },
+    gift: { ...gift, given: giftGiven.has(id), givenItem: giftGiven.get(id) ?? null },
   };
 }
