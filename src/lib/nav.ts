@@ -125,12 +125,9 @@ export function navFor(user: User | null): NavEntry[] {
     });
   }
   if (can(user, 'system', 'configure-catalog')) {
+    // P-71 (xã/ấp) gộp chung trang với P-70 — chỉ dùng để phục vụ kênh
+    // Ấp/Định danh, không cần mục riêng trên sidebar.
     settingsChildren.push({ href: '/settings/channels', label: 'Danh mục kênh', screen: 'P-70' });
-    settingsChildren.push({
-      href: '/settings/wards',
-      label: 'Danh mục xã / ấp',
-      screen: 'P-71',
-    });
   }
 
   if (settingsChildren.length > 0) {
