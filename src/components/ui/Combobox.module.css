@@ -1,0 +1,72 @@
+.wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.label {
+  font-size: 12.5px;
+  color: var(--om-text-2);
+  white-space: nowrap;
+}
+
+.input {
+  width: auto;
+  min-height: 34px;
+  font-size: 13px;
+  max-width: 220px;
+}
+
+.blockWrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.blockLabel {
+  font-size: 13px;
+  color: var(--color-neutral-700);
+}
+
+.blockInput {
+  width: 100%;
+  max-width: none;
+}
+
+.list {
+  position: absolute;
+  z-index: 20;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin: 4px 0 0;
+  padding: 6px;
+  max-height: 240px;
+  overflow-y: auto;
+  background: var(--om-card);
+  border: 1px solid var(--om-line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  list-style: none;
+}
+
+.option {
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 13.5px;
+  cursor: pointer;
+}
+
+.option:hover,
+.optionActive {
+  background: var(--om-soft);
+}
+
+.empty {
+  padding: 8px 10px;
+  font-size: 13px;
+  color: var(--om-text-2);
+}

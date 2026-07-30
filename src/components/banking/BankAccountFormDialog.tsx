@@ -7,6 +7,7 @@ import { useForm } from "react-hook-form";
 import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
+import { Combobox } from "@/components/ui/Combobox";
 import { Dialog } from "@/components/ui/Dialog";
 import { Select } from "@/components/ui/Select";
 import { TextField } from "@/components/ui/TextField";
@@ -228,19 +229,17 @@ export function BankAccountFormDialog({
 
               {selectedChannel?.inputKind === "ward-hamlet" && (
                 <div className={styles.pair}>
-                  <Select
+                  <Combobox
                     block
                     label="Xã"
+                    placeholder="Gõ để tìm xã…"
                     value={wardId}
                     onChange={(v) => {
                       setWardId(v);
                       setHamletId("");
                       setValue("channelDetail", "", { shouldDirty: true });
                     }}
-                    options={[
-                      { value: "", label: "— Chọn xã —" },
-                      ...wards.map((w) => ({ value: w.id, label: w.name })),
-                    ]}
+                    options={wards.map((w) => ({ value: w.id, label: w.name }))}
                   />
                   {selectedWard && (
                     <Select
