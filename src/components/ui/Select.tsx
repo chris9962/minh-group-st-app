@@ -13,6 +13,11 @@ type Props = {
   options: SelectOption[];
   onChange: (value: string) => void;
   disabled?: boolean;
+  /**
+   * Nhãn xếp phía trên, ô chọn rộng hết cỡ — dùng khi đứng cùng hàng với
+   * `TextField` trong form. Mặc định nhãn nằm bên trái, hợp cho thanh lọc.
+   */
+  block?: boolean;
 };
 
 /**
@@ -29,17 +34,21 @@ export function Select({
   options,
   onChange,
   disabled,
+  block = false,
 }: Props) {
   const id = useId();
 
   return (
-    <span className={styles.wrap}>
-      <label htmlFor={id} className={hideLabel ? "sr-only" : styles.label}>
+    <span className={block ? styles.blockWrap : styles.wrap}>
+      <label
+        htmlFor={id}
+        className={hideLabel ? "sr-only" : block ? styles.blockLabel : styles.label}
+      >
         {label}
       </label>
       <select
         id={id}
-        className={`input ${styles.select}`}
+        className={`input ${styles.select} ${block ? styles.blockSelect : ""}`}
         value={value}
         disabled={disabled}
         onChange={(e) => onChange(e.target.value)}

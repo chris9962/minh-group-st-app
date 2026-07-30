@@ -124,6 +124,7 @@ export function GiftRuleFormDialog({ open, onClose, rule, giftItems, packages }:
 
         <div className={styles.pair}>
           <Select
+            block
             label="Nhóm"
             value={group}
             onChange={(v) => {
@@ -137,6 +138,7 @@ export function GiftRuleFormDialog({ open, onClose, rule, giftItems, packages }:
             }))}
           />
           <Select
+            block
             label="Cách chạy"
             value={watch("mode")}
             onChange={(v) =>
@@ -148,6 +150,7 @@ export function GiftRuleFormDialog({ open, onClose, rule, giftItems, packages }:
 
         <div className={styles.pair}>
           <Select
+            block
             label="Ngân hàng bắt buộc"
             value={watch("requiredBank")}
             onChange={(v) => setValue("requiredBank", v, { shouldDirty: true })}
@@ -157,6 +160,7 @@ export function GiftRuleFormDialog({ open, onClose, rule, giftItems, packages }:
             ]}
           />
           <Select
+            block
             label="Kênh"
             value={watch("channel")}
             onChange={(v) => setValue("channel", v, { shouldDirty: true })}
@@ -175,6 +179,7 @@ export function GiftRuleFormDialog({ open, onClose, rule, giftItems, packages }:
 
         <div className={styles.pair}>
           <Select
+            block
             label="Tổng app"
             value={appCountComparator}
             onChange={(v) =>

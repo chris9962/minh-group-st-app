@@ -17,3 +17,21 @@
   cursor: pointer;
   max-width: 220px;
 }
+
+/* Dáng đứng cùng hàng với TextField trong form — nhãn trên, ô rộng hết cỡ. */
+.blockWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.blockLabel {
+  font-size: 13px;
+  color: var(--color-neutral-700);
+}
+
+.blockSelect {
+  width: 100%;
+  max-width: none;
+}
