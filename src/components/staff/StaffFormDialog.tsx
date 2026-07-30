@@ -74,19 +74,8 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
   });
 
   const roles = assignableRoles(actor);
-  const role = watch("role");
   const manageScope = watch("manageScope");
   const managed = watch("managedDepartmentIds");
-
-  /**
-   * Nhân viên kinh doanh không quản phòng nên ẩn ô đi.
-   *
-   * NHƯNG người đã có phạm vi sẵn thì vẫn hiện: các tài khoản back-office
-   * (quản trị hệ thống, tạo đơn, KD/KT tổng hợp) đều mang vai `staff` mà phạm
-   * vi `company`. Ẩn cứng theo vai thì mở hồ sơ họ ra lưu lại là âm thầm cắt
-   * mất phạm vi.
-   */
-  const showManageScope = role !== "staff" || manageScope !== "none";
 
   const save = useMutation({
     mutationFn: (form: StaffForm) =>
@@ -174,17 +163,10 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
           />
           <Select
             label="Chức vụ"
-            value={role}
-            onChange={(v) => {
-              const next = v as StaffForm["role"];
-              setValue("role", next, { shouldDirty: true });
-              // Ô phạm vi sắp bị ẩn, để lại giá trị cũ là lưu một phạm vi
-              // không ai nhìn thấy.
-              if (next === "staff") {
-                setValue("manageScope", "none", { shouldDirty: true });
-                setValue("managedDepartmentIds", [], { shouldDirty: true });
-              }
-            }}
+            value={watch("role")}
+            onChange={(v) =>
+              setValue("role", v as StaffForm["role"], { shouldDirty: true })
+            }
             options={roles.map((r) => ({ value: r, label: ROLE_LABEL[r] }))}
           />
         </div>
@@ -203,41 +185,37 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
           {...register("title")}
         />
 
-        {showManageScope && (
-          <>
-            <Select
-              label="Quản lý phòng"
-              value={manageScope}
-              onChange={(v) =>
-                setValue("manageScope", v as StaffForm["manageScope"], {
-                  shouldDirty: true,
-                })
-              }
-              options={[
-                { value: "none", label: "Không quản phòng nào" },
-                { value: "listed", label: "Quản một số phòng" },
-                { value: "company", label: "Quản toàn công ty" },
-              ]}
-            />
+        <Select
+          label="Quản lý phòng"
+          value={manageScope}
+          onChange={(v) =>
+            setValue("manageScope", v as StaffForm["manageScope"], {
+              shouldDirty: true,
+            })
+          }
+          options={[
+            { value: "none", label: "Không quản phòng nào" },
+            { value: "listed", label: "Quản một số phòng" },
+            { value: "company", label: "Quản toàn công ty" },
+          ]}
+        />
 
-            {manageScope === "listed" && (
-              <fieldset className={styles.fieldset}>
-                <legend className={styles.legend}>Phòng phụ trách</legend>
-                <div className={styles.checks}>
-                  {departments.map((d) => (
-                    <label key={d.id} className={styles.check}>
-                      <input
-                        type="checkbox"
-                        checked={managed.includes(d.id)}
-                        onChange={() => toggleManaged(d.id)}
-                      />
-                      {d.name}
-                    </label>
-                  ))}
-                </div>
-              </fieldset>
-            )}
-          </>
+        {manageScope === "listed" && (
+          <fieldset className={styles.fieldset}>
+            <legend className={styles.legend}>Phòng phụ trách</legend>
+            <div className={styles.checks}>
+              {departments.map((d) => (
+                <label key={d.id} className={styles.check}>
+                  <input
+                    type="checkbox"
+                    checked={managed.includes(d.id)}
+                    onChange={() => toggleManaged(d.id)}
+                  />
+                  {d.name}
+                </label>
+              ))}
+            </div>
+          </fieldset>
         )}
 
         {editing && (
