@@ -386,11 +386,17 @@ export function updateKpiTargetRow(form: KpiTargetForm): KpiTarget {
 
 /* ── P-84 · Danh mục loại dịch vụ + hệ số điểm ───────────────────────── */
 
+/**
+ * Danh mục đúng theo mgst-platform-spec.md §6 — "danh mục admin setup".
+ * Tên khớp với `SERVICE_TYPES` ở `./person.ts` (P-52 tab Dịch vụ) để hai màn
+ * không lệch chữ của cùng một loại dịch vụ.
+ */
 let serviceTypes: ServiceTypeRow[] = [
-  { id: "st-1", name: "Đăng ký thường trú", active: true, coefficient: 1 },
-  { id: "st-2", name: "Đăng ký tạm trú", active: true, coefficient: 1 },
-  { id: "st-3", name: "Cấp lại CCCD", active: true, coefficient: 1 },
-  { id: "st-4", name: "Xác nhận cư trú", active: true, coefficient: 1 },
+  { id: "st-1", name: "Thanh toán hoá đơn", active: true, coefficient: 1 },
+  { id: "st-2", name: "Nạp / rút", active: true, coefficient: 1 },
+  { id: "st-3", name: "Thủ tục hành chính", active: true, coefficient: 1 },
+  { id: "st-4", name: "Bảo hiểm xã hội", active: true, coefficient: 1 },
+  { id: "st-5", name: "Bảo hiểm y tế", active: true, coefficient: 1 },
 ];
 
 let nextServiceTypeId = 1;
