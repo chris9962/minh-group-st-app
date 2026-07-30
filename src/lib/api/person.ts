@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { InsuranceOrderStatus } from './insuranceOrders';
 
 /** Số liệu cho P-52 Xem theo một nhân viên. */
 
@@ -101,15 +102,9 @@ export const PersonInsurance = z.object({
   /** BH tai nạn điện · BH xe máy. */
   product: z.string(),
   packageName: z.string(),
-  status: z.enum(['done', 'running', 'manual']),
+  status: InsuranceOrderStatus,
 });
 export type PersonInsurance = z.infer<typeof PersonInsurance>;
-
-export const INSURANCE_STATUS: Record<PersonInsurance['status'], string> = {
-  done: 'Hoàn thành',
-  running: 'Đang chạy',
-  manual: 'Chờ làm tay',
-};
 
 /** Một nguồn điểm — để trả lời "68/100 thì thiếu ở đâu". */
 export const PointSource = z.object({

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { InsuranceOrderStatus } from './insuranceOrders';
 import { GiftSimulateResult } from './settings';
 
 /**
@@ -137,7 +138,7 @@ export const CustomerInsuranceRow = z.object({
   date: z.string(),
   product: z.string(),
   packageName: z.string(),
-  status: z.enum(['done', 'running', 'manual']),
+  status: InsuranceOrderStatus,
   /** Đơn tự khách mua, hay từ luồng tặng quà (P-43 — chưa làm nên luôn 'self'). */
   source: z.enum(['self', 'gift']),
 });

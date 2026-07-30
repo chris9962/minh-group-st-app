@@ -66,7 +66,13 @@ const PRODUCTS: [string, string][] = [
   ["BH xe máy", "1 năm · 100k"],
   ["BH xe máy", "2 năm · 200k"],
 ];
-const STATUSES: PersonInsurance["status"][] = ["done", "done", "running", "manual"];
+const STATUSES: PersonInsurance["status"][] = [
+  "done",
+  "done",
+  "creating",
+  "pending-approval",
+  "manual",
+];
 
 export function insuranceOf(fullName: string, month: string, count: number): PersonInsurance[] {
   return Array.from({ length: count }, (_, i) => {

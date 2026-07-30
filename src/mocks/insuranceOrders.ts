@@ -9,9 +9,19 @@ import type { Customer } from "@/lib/api/customers";
 
 let orders: InsuranceOrder[] = [];
 let nextId = 1;
+let nextOrderCodeSeq = 1;
 
 export const manualOrdersFor = (customerName: string): InsuranceOrder[] =>
   orders.filter((o) => o.customerName === customerName);
+
+/** Toàn bộ đơn thật, không lọc theo khách — dùng cho P-13 (gộp cả công ty). */
+export const allManualOrders = (): InsuranceOrder[] => orders;
+
+/** DH-YYMM-NNN (spec P-12) — YYMM theo lúc tạo, số thứ tự tăng dần toàn hệ thống. */
+function nextOrderCode(date: string): string {
+  const yymm = date.slice(2, 4) + date.slice(5, 7);
+  return `DH-${yymm}-${String(nextOrderCodeSeq++).padStart(3, "0")}`;
+}
 
 const oneYearLater = (date: string): string => {
   const d = new Date(date);
@@ -36,23 +46,31 @@ function packagesToCreate(product: string, packageName: string): string[] {
 export function createInsuranceOrder(
   form: InsuranceOrderForm,
   customer: Customer,
-  actorDepartmentId: string | null,
+  actor: { id: string; fullName: string; departmentId: string | null } | null,
 ): InsuranceOrder[] {
   const packageNames = packagesToCreate(form.product, form.packageName);
 
   return packageNames.map((packageName, i) => {
+    const date = i === 0 ? form.date : oneYearLater(form.date);
     const order: InsuranceOrder = {
       id: `mi-${nextId++}`,
+      orderCode: nextOrderCode(date),
       customerId: customer.id,
       customerName: customer.fullName,
-      date: i === 0 ? form.date : oneYearLater(form.date),
+      date,
       product: form.product,
       packageName,
-      // Đơn tự tạo ở đây luôn "đang chạy" — chưa có luồng ký/duyệt riêng.
-      status: "running",
+      // Đơn tự tạo ở đây luôn bắt đầu từ "đang tạo" — chưa có bot PVI thật để
+      // tự chuyển trạng thái (spec §3.4 mốc 01/02).
+      status: "creating",
       source: form.source,
       beneficiaryName: form.beneficiaryName,
-      createdByDepartmentId: actorDepartmentId,
+      beneficiaryDob: form.beneficiaryDob,
+      beneficiaryIdNumber: form.beneficiaryIdNumber,
+      beneficiaryPhone: form.beneficiaryPhone,
+      createdById: actor?.id ?? null,
+      createdByName: actor?.fullName ?? null,
+      createdByDepartmentId: actor?.departmentId ?? null,
     };
     orders = [...orders, order];
     return order;

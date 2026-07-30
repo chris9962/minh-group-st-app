@@ -11,17 +11,40 @@ import { z } from 'zod';
 export const InsuranceOrderSource = z.enum(['self', 'gift']);
 export type InsuranceOrderSource = z.infer<typeof InsuranceOrderSource>;
 
+/**
+ * Vòng đời đơn — 5 mốc chốt lại còn 4 trạng thái hiện trên P-13 (spec §3.4,
+ * mgst-feature-list.md P-13): "Đã tiếp nhận" và "Đang tạo đơn trên PVI" gộp
+ * chung một nhãn `creating` vì P-13 chỉ hiện một badge cho cả hai mốc.
+ * `pending-approval` từng bị thiếu hẳn trong code cũ (chỉ có 3 trạng thái).
+ */
+export const InsuranceOrderStatus = z.enum(['creating', 'pending-approval', 'manual', 'done']);
+export type InsuranceOrderStatus = z.infer<typeof InsuranceOrderStatus>;
+
+export const INSURANCE_STATUS_LABEL: Record<InsuranceOrderStatus, string> = {
+  creating: 'Đang tạo',
+  'pending-approval': 'Chờ duyệt',
+  manual: 'Đang làm tay',
+  done: 'Hoàn thành',
+};
+
 export const InsuranceOrder = z.object({
   id: z.string(),
+  /** DH-YYMM-NNN (spec P-12) — sinh lúc tạo, không đổi theo trạng thái sau đó. */
+  orderCode: z.string(),
   customerId: z.string(),
   customerName: z.string(),
   date: z.string(),
   product: z.string(),
   packageName: z.string(),
-  status: z.enum(['done', 'running', 'manual']),
+  status: InsuranceOrderStatus,
   source: InsuranceOrderSource,
   beneficiaryName: z.string(),
-  /** Phòng của người tạo lúc tạo — dùng để lọc theo phạm vi ở P-42. */
+  beneficiaryDob: z.string(),
+  beneficiaryIdNumber: z.string(),
+  beneficiaryPhone: z.string(),
+  createdById: z.string().nullable(),
+  createdByName: z.string().nullable(),
+  /** Phòng của người tạo lúc tạo — dùng để lọc theo phạm vi ở P-42, P-13. */
   createdByDepartmentId: z.string().nullable(),
 });
 export type InsuranceOrder = z.infer<typeof InsuranceOrder>;

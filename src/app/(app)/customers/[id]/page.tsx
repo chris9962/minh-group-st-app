@@ -15,7 +15,7 @@ import {
   type CustomerAccountRow,
   type CustomerInsuranceRow,
 } from "@/lib/api/customers";
-import { INSURANCE_STATUS } from "@/lib/api/person";
+import { INSURANCE_STATUS_LABEL } from "@/lib/api/insuranceOrders";
 import { formatDate, formatIdNumber, formatPhone, formatVnd } from "@/lib/format";
 import { useSession } from "@/store/session";
 import styles from "./page.module.scss";
@@ -58,7 +58,9 @@ export default function CustomerDetailPage({
     {
       key: "status",
       label: "Trạng thái",
-      render: (i) => <StatusTag ok={i.status === "done"}>{INSURANCE_STATUS[i.status]}</StatusTag>,
+      render: (i) => (
+        <StatusTag ok={i.status === "done"}>{INSURANCE_STATUS_LABEL[i.status]}</StatusTag>
+      ),
     },
   ];
 

@@ -83,6 +83,8 @@ import type { ServiceForm } from "@/lib/api/services";
 import { createService, servicesFor } from "./services";
 import type { BankAccountQuery } from "@/lib/api/banking";
 import { bankAccountDetailFor, bankAccountsFor } from "./banking";
+import type { InsuranceQuery } from "@/lib/api/insurance";
+import { insuranceDetailFor, insuranceOrdersFor } from "./insurance";
 
 /** Người bấm nút — máy chủ thật lấy từ phiên, ở đây gửi kèm cho gọn. */
 const actorBy = (id: string) => mockUsers.find((u) => u.id === id) ?? null;
@@ -524,7 +526,7 @@ export const handlers = [
     const customer = findCustomer(form.customerId);
     if (!customer) return new HttpResponse(null, { status: 404 });
     const actor = actorBy(actorId);
-    const orders = createInsuranceOrder(form, customer, actor?.departmentId ?? null);
+    const orders = createInsuranceOrder(form, customer, actor);
     return HttpResponse.json({ orders }, { status: 201 });
   }),
 
@@ -595,6 +597,37 @@ export const handlers = [
     const actor = actorBy(search.get("actorId") ?? "");
     const scope = clampScope(actor, "banking", "view-detail", null);
     const detail = bankAccountDetailFor(String(params.id), visibleDepartmentIds(actor, scope));
+    return detail ? HttpResponse.json(detail) : new HttpResponse(null, { status: 404 });
+  }),
+
+  /* ── P-13 · Danh sách đơn bảo hiểm · P-14 · Chi tiết ──────────────────── */
+
+  http.get("/api/insurance-list", ({ request }) => {
+    const params = new URL(request.url).searchParams;
+    const actor = actorBy(params.get("actorId") ?? "");
+    const requested = Scope.safeParse(params.get("scope"));
+    const scope = clampScope(
+      actor,
+      "insurance",
+      "view-detail",
+      requested.success ? requested.data : null,
+    );
+    const query: InsuranceQuery = {
+      scope,
+      status: params.get("status") ?? "",
+      product: params.get("product") ?? "",
+      from: params.get("from") ?? "",
+      to: params.get("to") ?? "",
+      staffId: params.get("staffId") ?? "",
+    };
+    return HttpResponse.json(insuranceOrdersFor(query, visibleDepartmentIds(actor, scope)));
+  }),
+
+  http.get("/api/insurance-list/:id", ({ params, request }) => {
+    const search = new URL(request.url).searchParams;
+    const actor = actorBy(search.get("actorId") ?? "");
+    const scope = clampScope(actor, "insurance", "view-detail", null);
+    const detail = insuranceDetailFor(String(params.id), visibleDepartmentIds(actor, scope));
     return detail ? HttpResponse.json(detail) : new HttpResponse(null, { status: 404 });
   }),
 ];

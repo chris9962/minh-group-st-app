@@ -18,11 +18,11 @@ import { periodMonth, periodParam, showsKpi, type PeriodMode } from "@/lib/api/p
 import {
   fetchPerson,
   groupAccountsByCustomer,
-  INSURANCE_STATUS,
   type CustomerAccounts,
   type PersonInsurance,
   type PersonService,
 } from "@/lib/api/person";
+import { INSURANCE_STATUS_LABEL } from "@/lib/api/insuranceOrders";
 import { sourceColor, useChartColors } from "@/lib/chart-colors";
 import { formatDate, formatPhone } from "@/lib/format";
 import styles from "./page.module.scss";
@@ -77,7 +77,7 @@ const INSURANCE_COLUMNS: RankColumn<PersonInsurance>[] = [
     key: "status",
     label: "Trạng thái",
     render: (o) => (
-      <StatusTag ok={o.status === "done"}>{INSURANCE_STATUS[o.status]}</StatusTag>
+      <StatusTag ok={o.status === "done"}>{INSURANCE_STATUS_LABEL[o.status]}</StatusTag>
     ),
   },
 ];
