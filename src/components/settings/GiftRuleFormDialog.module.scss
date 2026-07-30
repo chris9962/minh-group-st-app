@@ -1,0 +1,48 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-bottom: 4px;
+}
+
+.pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+
+.fieldset {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--om-line);
+  border-radius: var(--radius-md);
+}
+
+.legend {
+  padding: 0 6px;
+  font-size: 12.5px;
+  color: var(--om-text-2);
+}
+
+.checks {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px 12px;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+@media (max-width: bp.$bp-narrow) {
+  .pair,
+  .checks {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

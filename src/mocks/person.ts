@@ -16,6 +16,7 @@ import {
   type AccountSpec,
 } from "./activity";
 import { ALL } from "./people";
+import { kpiTargetFor } from "./settings";
 
 /** Dữ liệu giả cho P-52. Dựng từ cùng danh sách người của P-51 để hai màn khớp nhau. */
 
@@ -215,7 +216,7 @@ export function personFor({
       banking: base.bankingPoints,
       service: base.servicePoints,
       total: base.bankingPoints + base.servicePoints,
-      target: base.target,
+      target: kpiTargetFor().monthlyPoints,
     },
     // Tách điểm luôn tính trên tài khoản CẢ THÁNG, khớp với con số ở giữa vòng.
     pointSources: pointSourcesOf(

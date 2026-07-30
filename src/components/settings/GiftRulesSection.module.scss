@@ -1,0 +1,27 @@
+.table th,
+.table td {
+  white-space: nowrap;
+}
+
+.right {
+  text-align: right;
+}
+
+.actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.footRow {
+  display: flex;
+  justify-content: flex-start;
+  margin-top: var(--space-3);
+}
+
+.footnote {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: var(--color-neutral-600);
+}

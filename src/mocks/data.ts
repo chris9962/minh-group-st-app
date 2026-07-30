@@ -35,9 +35,13 @@ const p = (
 
 const sysAdminPermissions: Permission[] = [
   p("system", "manage-users", "company"),
+  p("system", "manage-org", "company"),
   p("system", "grant-permission", "company"),
   p("*", "view-detail", "company"),
   p("*", "update", "company"),
+  // Cấu hình (P-81…P-84): để cùng Giám đốc cấu hình được, không chỉ mỗi CEO.
+  p("*", "configure-catalog", "company"),
+  p("*", "configure-gift-rules", "company"),
 ];
 
 const orderDeskPermissions: Permission[] = [

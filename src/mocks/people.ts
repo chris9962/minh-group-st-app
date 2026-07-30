@@ -3,10 +3,9 @@ import { matchesSearch } from "@/lib/format";
 import type { Scope } from "@/lib/types";
 import { accountCountOf, bankPointsOf, buildAccounts, seed } from "./activity";
 import { departments as allDepartments } from "./data";
+import { kpiTargetFor } from "./settings";
 
-/** Dữ liệu giả cho P-51. Chỉ tiêu hiện tại là 100 điểm mỗi người mỗi tháng. */
-
-const TARGET = 100;
+/** Dữ liệu giả cho P-51. Chỉ tiêu đọc từ P-83 (`kpiTargetFor`), không hằng số cứng. */
 
 const NAMES: [string, string][] = [
   ["Lê Thị Hồng", "Phòng Kinh doanh 2"],
@@ -39,7 +38,7 @@ function person([fullName, departmentName]: [string, string], i: number): Person
     accounts: accounts.length,
     apps: accounts.filter((a) => a.appInstalled).length,
     insuranceOrders: seed(fullName, 4) % 8,
-    target: TARGET,
+    target: kpiTargetFor().monthlyPoints,
   };
 }
 
@@ -75,7 +74,12 @@ export function peopleFor({
   departmentId?: string;
   search?: string;
 }): PeopleData {
-  const inScope = ALL.slice(0, TAKE[scope] ?? ALL.length);
+  // Đọc lại chỉ tiêu mỗi lần gọi — admin đổi ở P-83 thì bảng này phải thấy
+  // ngay, không phải giá trị đóng băng lúc `ALL` dựng lên.
+  const inScope = ALL.slice(0, TAKE[scope] ?? ALL.length).map((p) => ({
+    ...p,
+    target: kpiTargetFor().monthlyPoints,
+  }));
   // Lọc đơn vị áp lên CẢ phần tóm tắt, không chỉ bảng — nếu không thì "12 nhân
   // viên" sẽ mâu thuẫn với bảng đang hiện 4 người của một phòng.
   const monthly = departmentId

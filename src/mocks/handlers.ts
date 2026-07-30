@@ -22,6 +22,35 @@ import {
   updateStaff,
 } from "./staff";
 import { departments, mockUsers } from "./data";
+import type {
+  CatalogItemForm,
+  GiftRuleForm,
+  GiftSimulateInput,
+  InsurancePackageForm,
+  KpiTargetForm,
+  ServiceTypeForm,
+} from "@/lib/api/settings";
+import {
+  createGiftItemRow,
+  createGiftRule,
+  createInsurancePackageRow,
+  createServiceTypeRow,
+  giftItemsFor,
+  giftRulesFor,
+  insurancePackagesFor,
+  kpiTargetFor,
+  moveGiftRule,
+  serviceTypesFor,
+  setGiftItemActiveRow,
+  setGiftRuleActiveRow,
+  setInsurancePackageActiveRow,
+  setServiceTypeActiveRow,
+  simulateGift,
+  updateGiftRule,
+  updateInsurancePackageRow,
+  updateKpiTargetRow,
+  updateServiceTypeRow,
+} from "./settings";
 
 /** Người bấm nút — máy chủ thật lấy từ phiên, ở đây gửi kèm cho gọn. */
 const actorBy = (id: string) => mockUsers.find((u) => u.id === id) ?? null;
@@ -240,5 +269,97 @@ export const handlers = [
     return result.ok
       ? HttpResponse.json(result.department)
       : HttpResponse.json(orgError(result.code), { status: 422 });
+  }),
+
+  /* ── Cấu hình — P-81…P-84 ─────────────────────────────────────────── */
+
+  http.get("/api/settings/gift-rules", () => HttpResponse.json(giftRulesFor())),
+
+  http.post("/api/settings/gift-rules", async ({ request }) => {
+    const form = (await request.json()) as GiftRuleForm;
+    return HttpResponse.json(createGiftRule(form), { status: 201 });
+  }),
+
+  http.patch("/api/settings/gift-rules/:id", async ({ params, request }) => {
+    const form = (await request.json()) as GiftRuleForm;
+    const result = updateGiftRule(String(params.id), form);
+    return result ? HttpResponse.json(result) : new HttpResponse(null, { status: 404 });
+  }),
+
+  http.post("/api/settings/gift-rules/:id/move", async ({ params, request }) => {
+    const { direction } = (await request.json()) as { direction: "up" | "down" };
+    const result = moveGiftRule(String(params.id), direction);
+    return result ? HttpResponse.json(result) : new HttpResponse(null, { status: 404 });
+  }),
+
+  http.post("/api/settings/gift-rules/:id/active", async ({ params, request }) => {
+    const { active } = (await request.json()) as { active: boolean };
+    const result = setGiftRuleActiveRow(String(params.id), active);
+    return result ? HttpResponse.json(result) : new HttpResponse(null, { status: 404 });
+  }),
+
+  http.post("/api/settings/gift-rules/simulate", async ({ request }) => {
+    const input = (await request.json()) as GiftSimulateInput;
+    return HttpResponse.json(simulateGift(input));
+  }),
+
+  http.get("/api/settings/gift-items", () => HttpResponse.json(giftItemsFor())),
+
+  http.post("/api/settings/gift-items", async ({ request }) => {
+    const form = (await request.json()) as CatalogItemForm;
+    return HttpResponse.json(createGiftItemRow(form), { status: 201 });
+  }),
+
+  http.post("/api/settings/gift-items/:id/active", async ({ params, request }) => {
+    const { active } = (await request.json()) as { active: boolean };
+    const result = setGiftItemActiveRow(String(params.id), active);
+    return result ? HttpResponse.json(result) : new HttpResponse(null, { status: 404 });
+  }),
+
+  http.get("/api/settings/insurance-packages", () =>
+    HttpResponse.json(insurancePackagesFor()),
+  ),
+
+  http.post("/api/settings/insurance-packages", async ({ request }) => {
+    const form = (await request.json()) as InsurancePackageForm;
+    return HttpResponse.json(createInsurancePackageRow(form), { status: 201 });
+  }),
+
+  http.patch("/api/settings/insurance-packages/:id", async ({ params, request }) => {
+    const form = (await request.json()) as InsurancePackageForm;
+    const result = updateInsurancePackageRow(String(params.id), form);
+    return result ? HttpResponse.json(result) : new HttpResponse(null, { status: 404 });
+  }),
+
+  http.post("/api/settings/insurance-packages/:id/active", async ({ params, request }) => {
+    const { active } = (await request.json()) as { active: boolean };
+    const result = setInsurancePackageActiveRow(String(params.id), active);
+    return result ? HttpResponse.json(result) : new HttpResponse(null, { status: 404 });
+  }),
+
+  http.get("/api/settings/kpi-target", () => HttpResponse.json(kpiTargetFor())),
+
+  http.post("/api/settings/kpi-target", async ({ request }) => {
+    const form = (await request.json()) as KpiTargetForm;
+    return HttpResponse.json(updateKpiTargetRow(form));
+  }),
+
+  http.get("/api/settings/service-types", () => HttpResponse.json(serviceTypesFor())),
+
+  http.post("/api/settings/service-types", async ({ request }) => {
+    const form = (await request.json()) as ServiceTypeForm;
+    return HttpResponse.json(createServiceTypeRow(form), { status: 201 });
+  }),
+
+  http.patch("/api/settings/service-types/:id", async ({ params, request }) => {
+    const form = (await request.json()) as ServiceTypeForm;
+    const result = updateServiceTypeRow(String(params.id), form);
+    return result ? HttpResponse.json(result) : new HttpResponse(null, { status: 404 });
+  }),
+
+  http.post("/api/settings/service-types/:id/active", async ({ params, request }) => {
+    const { active } = (await request.json()) as { active: boolean };
+    const result = setServiceTypeActiveRow(String(params.id), active);
+    return result ? HttpResponse.json(result) : new HttpResponse(null, { status: 404 });
   }),
 ];
