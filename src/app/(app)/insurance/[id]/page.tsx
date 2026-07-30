@@ -2,8 +2,8 @@
 
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { use, useState } from "react";
-import { ChevronLeft, Download, Send, ShieldCheck } from "lucide-react";
+import { use } from "react";
+import { ChevronLeft, Download, ShieldCheck } from "lucide-react";
 import { TopBar } from "@/components/layout/TopBar";
 import { Button } from "@/components/ui/Button";
 import { SectionCard } from "@/components/ui/SectionCard";
@@ -46,7 +46,6 @@ export default function InsuranceDetailPage({
 }) {
   const { id } = use(params);
   const actor = useSession((s) => s.user);
-  const [sent, setSent] = useState(false);
 
   const { data, isPending, isError } = useQuery({
     queryKey: ["insurance-detail", id],
@@ -141,14 +140,6 @@ export default function InsuranceDetailPage({
               >
                 <Download size={16} />
                 Tải PDF
-              </Button>
-              <Button
-                variant="secondary"
-                disabled={data.status !== "done" || sent}
-                onClick={() => setSent(true)}
-              >
-                <Send size={16} />
-                {sent ? "Đã gửi cho khách" : "Gửi cho khách"}
               </Button>
             </div>
             {data.status !== "done" && (
