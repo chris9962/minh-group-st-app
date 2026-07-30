@@ -358,7 +358,12 @@ export function simulateGift(input: GiftSimulateInput): GiftSimulateResult {
     }
   }
 
-  const kpiBreakdown = input.installedBanks.map((bank) => ({ label: bank, points: 1 }));
+  // Mặc định 1 cho tất cả ngân hàng — riêng VPb = 1.4 (spec §2.6/§7, đã biết
+  // trước khi có bảng hệ số thật ở P-60).
+  const kpiBreakdown = input.installedBanks.map((bank) => ({
+    label: bank,
+    points: bank === "VPb" ? 1.4 : 1,
+  }));
   if (input.cnkd) kpiBreakdown.push({ label: "Mở CNKD/HKD", points: 1 });
   const kpiPoints = kpiBreakdown.reduce((sum, b) => sum + b.points, 0);
 
