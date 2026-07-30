@@ -44,19 +44,29 @@ const managerPermissions: Permission[] = [
 ];
 
 /**
- * Ban giám đốc có `manage-users` nhưng KHÔNG có `grant-permission`: nhận việc,
- * luân chuyển, bổ nhiệm là quyết định nhân sự chứ không phải việc IT. Gán được
- * vai trò có sẵn, không sửa được vai trò gồm những quyền gì.
+ * Ban giám đốc: toàn quyền — theo đúng lối thoát mà spec §3.1 đã tính sẵn
+ * ("Nếu sếp vẫn muốn toàn quyền: cứ cấp"). Mọi hành động, phạm vi `company`.
+ *
+ * CHỈ THIẾU `grant-permission`: đây là hành động DUY NHẤT tự nâng quyền được
+ * cho chính mình, spec giữ nó ở 1–2 tài khoản quản trị dù CEO có toàn quyền
+ * ở mọi chỗ khác — nới nó ra thì chốt chặn tự nâng quyền ở
+ * `assignableRoles` (permissions.ts) mất tác dụng.
  */
 export const directorPermissions: Permission[] = [
   p('*', 'view-stats', 'company'),
   p('*', 'view-detail', 'company'),
+  p('*', 'create', 'company'),
+  p('*', 'update', 'company'),
+  p('*', 'cancel', 'company'),
   p('*', 'download', 'company'),
   p('*', 'export-excel', 'company'),
+  p('*', 'handle-fallback', 'company'),
+  p('*', 'manage-codes', 'company'),
+  p('*', 'grant-gift', 'company'),
   p('*', 'configure-catalog', 'company'),
   p('*', 'configure-gift-rules', 'company'),
-  p('*', 'grant-gift', 'company'),
-  p('system', 'manage-users', 'company'),
+  p('*', 'manage-users', 'company'),
+  p('*', 'manage-org', 'company'),
 ];
 
 export const ROLE_PERMISSIONS: Record<RoleKey, Permission[]> = {
