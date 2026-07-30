@@ -22,22 +22,33 @@ import { GiftRuleFormDialog } from "./GiftRuleFormDialog";
 import { GiftSimulator } from "./GiftSimulator";
 import styles from "./GiftRulesSection.module.scss";
 
-/**
- * Tên món quà từ id — bảng quy tắc chỉ lưu id, tra sang tên để đọc được.
- *
- * Nối bằng "hoặc", không phải "·": khách lấy ĐÚNG 1 món trong rổ (spec §5.2
- * bước 3), dùng dấu chấm giữa dễ đọc nhầm thành "cho tất cả các món".
- */
+/** Tên món quà từ id — bảng quy tắc chỉ lưu id, tra sang tên để đọc được. */
 function giftNamesOf(
   ids: string[],
   giftItems: { id: string; name: string }[],
   packages: { id: string; name: string }[],
-): string {
-  const names = ids.map(
+): string[] {
+  return ids.map(
     (id) =>
       giftItems.find((g) => g.id === id)?.name ?? packages.find((p) => p.id === id)?.name ?? id,
   );
-  return names.join(" hoặc ");
+}
+
+/**
+ * "hoặc" in đậm giữa các món — khách lấy ĐÚNG 1 món trong rổ (spec §5.2 bước
+ * 3), chữ thường xen giữa dễ đọc nhầm thành liệt kê "cho tất cả các món".
+ */
+function GiftNames({ names }: { names: string[] }) {
+  return (
+    <>
+      {names.map((name, i) => (
+        <span key={`${name}-${i}`}>
+          {i > 0 && <strong> hoặc </strong>}
+          {name}
+        </span>
+      ))}
+    </>
+  );
 }
 
 /** P-81 · Quy tắc quà — bảng có thứ tự ưu tiên + nút thử. */
@@ -119,9 +130,11 @@ export function GiftRulesSection() {
                     </td>
                     <td>{r.channel ?? "—"}</td>
                     <td>
-                      {r.group === "cash"
-                        ? formatVnd(r.cashAmount ?? 0)
-                        : giftNamesOf(r.giftItemIds, giftItems, packages)}
+                      {r.group === "cash" ? (
+                        formatVnd(r.cashAmount ?? 0)
+                      ) : (
+                        <GiftNames names={giftNamesOf(r.giftItemIds, giftItems, packages)} />
+                      )}
                     </td>
                     <td>
                       {formatDate(r.effectiveFrom)} –{" "}
