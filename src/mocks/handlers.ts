@@ -3,8 +3,16 @@ import { LOGIN_ERROR, Scope } from "@/lib/types";
 import { sessionExpiry } from "@/store/session";
 import { dashboardFor } from "./dashboard";
 import { SAVE_ERROR, type StaffForm, type StaffQuery } from "@/lib/api/staff";
+import { ORG_ERROR, type DepartmentForm, type OrgErrorCode } from "@/lib/api/org";
 import { peopleFor } from "./people";
 import { personFor } from "./person";
+import {
+  createDepartment,
+  departmentDetailFor,
+  departmentsFor,
+  setDepartmentActive,
+  updateDepartment,
+} from "./org";
 import {
   createStaff,
   findStaff,
@@ -24,6 +32,14 @@ const saveError = (code: "username-taken" | "role-too-high") => ({
     code === SAVE_ERROR.USERNAME_TAKEN
       ? "Tên đăng nhập này đã có người dùng"
       : "Bạn không gán được chức vụ cao hơn quyền của chính mình",
+});
+
+const orgError = (code: OrgErrorCode) => ({
+  code,
+  message:
+    code === ORG_ERROR.NAME_TAKEN
+      ? "Đã có phòng tên này"
+      : "Phòng này vẫn còn người — chuyển họ sang phòng khác trước",
 });
 
 /** Sai 5 lần liên tiếp thì khoá 15 phút — đếm theo tên đăng nhập. */
@@ -187,4 +203,42 @@ export const handlers = [
   http.get("/api/departments", () =>
     HttpResponse.json(departments.filter((d) => d.active)),
   ),
+
+  http.get("/api/org/departments", ({ request }) =>
+    HttpResponse.json(
+      departmentsFor(new URL(request.url).searchParams.get("search") ?? ""),
+    ),
+  ),
+
+  http.get("/api/org/departments/:id", ({ params }) => {
+    const detail = departmentDetailFor(String(params.id));
+    return detail
+      ? HttpResponse.json(detail)
+      : new HttpResponse(null, { status: 404 });
+  }),
+
+  http.post("/api/org/departments", async ({ request }) => {
+    const form = (await request.json()) as DepartmentForm;
+    const result = createDepartment(form);
+    return result.ok
+      ? HttpResponse.json(result.department, { status: 201 })
+      : HttpResponse.json(orgError(result.code), { status: 422 });
+  }),
+
+  http.post("/api/org/departments/:id", async ({ params, request }) => {
+    const form = (await request.json()) as DepartmentForm;
+    const result = updateDepartment(String(params.id), form);
+    return result.ok
+      ? HttpResponse.json(result.department)
+      : HttpResponse.json(orgError(result.code), { status: 422 });
+  }),
+
+  http.post("/api/org/departments/:id/active", async ({ params, request }) => {
+    const { active } = (await request.json()) as { active: boolean };
+    const result = setDepartmentActive(String(params.id), active);
+    if (!result) return new HttpResponse(null, { status: 404 });
+    return result.ok
+      ? HttpResponse.json(result.department)
+      : HttpResponse.json(orgError(result.code), { status: 422 });
+  }),
 ];
