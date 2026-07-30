@@ -79,6 +79,8 @@ import type { ChannelForm } from "@/lib/api/channelCatalog";
 import { channelsFor, createChannel, updateChannel } from "./channelCatalog";
 import type { HamletForm, WardForm } from "@/lib/api/wardCatalog";
 import { createHamlet, createWard, wardsFor } from "./wardCatalog";
+import type { HospitalForm } from "@/lib/api/hospitalCatalog";
+import { createHospital, hospitalsFor } from "./hospitalCatalog";
 import type { ServiceForm } from "@/lib/api/services";
 import { createService, servicesFor } from "./services";
 import type { BankAccountQuery } from "@/lib/api/banking";
@@ -459,6 +461,15 @@ export const handlers = [
     const form = (await request.json()) as HamletForm;
     const result = createHamlet(form);
     return result ? HttpResponse.json(result, { status: 201 }) : new HttpResponse(null, { status: 404 });
+  }),
+
+  /* ── P-2.5 · Danh mục bệnh viện ───────────────────────────────────────── */
+
+  http.get("/api/settings/hospitals", () => HttpResponse.json(hospitalsFor())),
+
+  http.post("/api/settings/hospitals", async ({ request }) => {
+    const form = (await request.json()) as HospitalForm;
+    return HttpResponse.json(createHospital(form), { status: 201 });
   }),
 
   /* ── Khách hàng — P-40 · P-41 · P-42 ─────────────────────────────────── */

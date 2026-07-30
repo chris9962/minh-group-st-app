@@ -28,10 +28,7 @@ export function ChannelCatalogSection() {
     {
       key: "inputKind",
       label: "Nhập thêm khi chọn kênh này",
-      render: (c) =>
-        c.inputKind === "list" && c.listOptions.length > 0
-          ? `${INPUT_KIND_LABEL[c.inputKind]} (${c.listOptions.join(", ")})`
-          : INPUT_KIND_LABEL[c.inputKind],
+      render: (c) => INPUT_KIND_LABEL[c.inputKind],
     },
     {
       key: "actions",

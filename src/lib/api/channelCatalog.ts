@@ -8,12 +8,12 @@ import { z } from 'zod';
  * phát hành lại app (spec §2.3 "chỗ này làm sai thì rất khó sửa").
  */
 
-export const ChannelInputKind = z.enum(['ward-hamlet', 'list', 'free-text', 'none']);
+export const ChannelInputKind = z.enum(['ward-hamlet', 'hospital', 'free-text', 'none']);
 export type ChannelInputKind = z.infer<typeof ChannelInputKind>;
 
 export const INPUT_KIND_LABEL: Record<ChannelInputKind, string> = {
   'ward-hamlet': 'Chọn xã rồi chọn ấp',
-  list: 'Chọn từ danh sách',
+  hospital: 'Chọn từ danh mục bệnh viện',
   'free-text': 'Nhập tự do',
   none: 'Không nhập gì thêm',
 };
@@ -22,15 +22,12 @@ export const Channel = z.object({
   id: z.string(),
   name: z.string(),
   inputKind: ChannelInputKind,
-  /** Chỉ có ý nghĩa khi inputKind = 'list' — các lựa chọn do người cấu hình tự nhập. */
-  listOptions: z.array(z.string()),
 });
 export type Channel = z.infer<typeof Channel>;
 
 export const ChannelForm = z.object({
   name: z.string().trim().min(1, 'Chưa nhập tên kênh'),
   inputKind: ChannelInputKind,
-  listOptions: z.array(z.string().trim().min(1, 'Lựa chọn không được để trống')),
 });
 export type ChannelForm = z.infer<typeof ChannelForm>;
 

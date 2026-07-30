@@ -5,11 +5,11 @@ import type { Channel, ChannelForm } from '@/lib/api/channelCatalog';
  * ATM chưa rõ có nhập kèm gì (spec đánh dấu ❓) nên tạm để `none`.
  */
 let channels: Channel[] = [
-  { id: 'ch-ap', name: 'Ấp', inputKind: 'ward-hamlet', listOptions: [] },
-  { id: 'ch-dinh-danh', name: 'Định danh', inputKind: 'ward-hamlet', listOptions: [] },
-  { id: 'ch-benh-vien', name: 'Bệnh viện', inputKind: 'list', listOptions: [] },
-  { id: 'ch-tu-do', name: 'Tự do', inputKind: 'free-text', listOptions: [] },
-  { id: 'ch-atm', name: 'ATM', inputKind: 'none', listOptions: [] },
+  { id: 'ch-ap', name: 'Ấp', inputKind: 'ward-hamlet' },
+  { id: 'ch-dinh-danh', name: 'Định danh', inputKind: 'ward-hamlet' },
+  { id: 'ch-benh-vien', name: 'Bệnh viện', inputKind: 'hospital' },
+  { id: 'ch-tu-do', name: 'Tự do', inputKind: 'free-text' },
+  { id: 'ch-atm', name: 'ATM', inputKind: 'none' },
 ];
 
 let nextId = 1;

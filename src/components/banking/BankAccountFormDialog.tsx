@@ -19,6 +19,7 @@ import {
   type CreateBankAccountResult,
 } from "@/lib/api/bankAccounts";
 import { fetchChannels } from "@/lib/api/channelCatalog";
+import { fetchHospitals } from "@/lib/api/hospitalCatalog";
 import { fetchWards } from "@/lib/api/wardCatalog";
 import { useSession } from "@/store/session";
 import styles from "./BankAccountFormDialog.module.scss";
@@ -92,6 +93,12 @@ export function BankAccountFormDialog({
   const [wardId, setWardId] = useState("");
   const [hamletId, setHamletId] = useState("");
   const selectedWard = wards.find((w) => w.id === wardId);
+
+  const { data: hospitals = [] } = useQuery({
+    queryKey: ["hospitals"],
+    queryFn: fetchHospitals,
+    enabled: selectedChannel?.inputKind === "hospital",
+  });
 
   const { data: codes = [] } = useQuery({
     queryKey: ["referral-codes", bankId, ""],
@@ -274,16 +281,14 @@ export function BankAccountFormDialog({
                 </div>
               )}
 
-              {selectedChannel?.inputKind === "list" && (
-                <Select
+              {selectedChannel?.inputKind === "hospital" && (
+                <Combobox
                   block
-                  label="Chọn từ danh sách"
+                  label="Bệnh viện"
+                  placeholder="Gõ để tìm bệnh viện…"
                   value={watch("channelDetail")}
                   onChange={(v) => setValue("channelDetail", v, { shouldDirty: true })}
-                  options={[
-                    { value: "", label: "— Chọn —" },
-                    ...selectedChannel.listOptions.map((o) => ({ value: o, label: o })),
-                  ]}
+                  options={hospitals.map((h) => ({ value: h.name, label: h.name }))}
                 />
               )}
 

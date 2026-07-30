@@ -2,7 +2,6 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Trash2 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
@@ -26,7 +25,11 @@ type Props = {
   channel?: Channel | null;
 };
 
-/** P-70 · Lập / sửa một dòng kênh — kiểu nhập kèm quyết định ô nào hiện ra ở P-20/P-21. */
+/**
+ * P-70 · Lập / sửa một dòng kênh — kiểu nhập kèm quyết định ô nào hiện ra ở
+ * P-20/P-21. `hospital` tra vào danh mục bệnh viện dùng chung (card riêng
+ * ngay trên trang này), không phải danh sách riêng của từng kênh.
+ */
 export function ChannelFormDialog({ open, onClose, channel }: Props) {
   const queryClient = useQueryClient();
   const editing = Boolean(channel);
@@ -42,26 +45,10 @@ export function ChannelFormDialog({ open, onClose, channel }: Props) {
     defaultValues: {
       name: channel?.name ?? "",
       inputKind: channel?.inputKind ?? "free-text",
-      listOptions: channel?.listOptions ?? [],
     },
   });
 
   const inputKind = watch("inputKind");
-  const listOptions = watch("listOptions");
-
-  const updateOption = (i: number, value: string) =>
-    setValue(
-      "listOptions",
-      listOptions.map((o, idx) => (idx === i ? value : o)),
-      { shouldDirty: true },
-    );
-  const removeOption = (i: number) =>
-    setValue(
-      "listOptions",
-      listOptions.filter((_, idx) => idx !== i),
-      { shouldDirty: true },
-    );
-  const addOption = () => setValue("listOptions", [...listOptions, ""], { shouldDirty: true });
 
   const save = useMutation({
     mutationFn: (form: ChannelForm) =>
@@ -113,40 +100,6 @@ export function ChannelFormDialog({ open, onClose, channel }: Props) {
             label: INPUT_KIND_LABEL[value],
           }))}
         />
-
-        {inputKind === "list" && (
-          <fieldset className={styles.fieldset}>
-            <legend className={styles.legend}>Các lựa chọn trong danh sách</legend>
-            <div className={styles.options}>
-              {listOptions.map((option, i) => (
-                <div key={i} className={styles.optionRow}>
-                  <TextField
-                    label={`Lựa chọn ${i + 1}`}
-                    placeholder="Bệnh viện Đa khoa Tân Bình"
-                    error={errors.listOptions?.[i]?.message}
-                    value={option}
-                    onChange={(e) => updateOption(i, e.target.value)}
-                  />
-                  <Button
-                    variant="secondary"
-                    icon
-                    type="button"
-                    aria-label={`Xoá lựa chọn ${i + 1}`}
-                    onClick={() => removeOption(i)}
-                  >
-                    <Trash2 size={16} aria-hidden />
-                  </Button>
-                </div>
-              ))}
-            </div>
-            {typeof errors.listOptions?.message === "string" && (
-              <p className={styles.error}>{errors.listOptions.message}</p>
-            )}
-            <Button variant="secondary" type="button" onClick={addOption}>
-              + Thêm lựa chọn
-            </Button>
-          </fieldset>
-        )}
       </form>
     </Dialog>
   );
