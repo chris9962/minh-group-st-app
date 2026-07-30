@@ -6,96 +6,126 @@ import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { SearchField } from "@/components/ui/SearchField";
 import { SectionCard } from "@/components/ui/SectionCard";
-import { fetchWards, type Ward } from "@/lib/api/wardCatalog";
+import { fetchProvinces, type Province, type Ward } from "@/lib/api/wardCatalog";
 import { matchesSearch } from "@/lib/format";
 import { HamletFormDialog } from "./HamletFormDialog";
+import { ProvinceFormDialog } from "./ProvinceFormDialog";
 import { WardFormDialog } from "./WardFormDialog";
 import styles from "./WardCatalogSection.module.scss";
 
+const matchesProvince = (p: Province, query: string): boolean =>
+  matchesSearch(p.name, query) ||
+  p.wards.some((w) => matchesSearch(w.name, query) || w.hamlets.some((h) => matchesSearch(h.name, query)));
+
 /**
- * P-71 · Danh mục xã / ấp — cây hai cấp (spec §2.4), dùng cho kênh Ấp và
- * Định danh: chọn xã trước, hiện đúng ấp của xã đó.
+ * P-71 · Danh mục xã / ấp — cây BA cấp Tỉnh/thành phố → Xã/phường → Ấp/khu
+ * vực (spec §2.4). Danh mục bắt đầu rỗng — quản lý tự "triển khai" từng
+ * tỉnh/xã một, chỉ những tỉnh/xã đã thêm ở đây mới hiện ra khi mở tài khoản
+ * ngân hàng.
  */
 export function WardCatalogSection() {
-  const [creatingWard, setCreatingWard] = useState(false);
+  const [addingProvince, setAddingProvince] = useState(false);
+  const [addingWardTo, setAddingWardTo] = useState<Province | null>(null);
   const [addingHamletTo, setAddingHamletTo] = useState<Ward | null>(null);
   const [search, setSearch] = useState("");
 
-  const { data: wards = [], isPending, isError } = useQuery({
-    queryKey: ["wards"],
-    queryFn: fetchWards,
+  const { data: provinces = [], isPending, isError } = useQuery({
+    queryKey: ["provinces"],
+    queryFn: fetchProvinces,
   });
 
-  // Tìm theo tên xã HOẶC tên ấp — gõ "tân hoà a" vẫn ra đúng xã chứa ấp đó.
-  const visibleWards = useMemo(
-    () =>
-      search.trim()
-        ? wards.filter(
-            (w) => matchesSearch(w.name, search) || w.hamlets.some((h) => matchesSearch(h.name, search)),
-          )
-        : wards,
-    [wards, search],
+  const visibleProvinces = useMemo(
+    () => (search.trim() ? provinces.filter((p) => matchesProvince(p, search)) : provinces),
+    [provinces, search],
   );
 
   return (
     <>
-      <SectionCard title="Danh mục xã / ấp" icon={<MapPin size={17} />} meta={`${wards.length} xã`}>
+      <SectionCard
+        title="Danh mục tỉnh / xã / ấp"
+        icon={<MapPin size={17} />}
+        meta={`${provinces.length} tỉnh/thành phố`}
+      >
         <SearchField
-          label="Tìm xã hoặc ấp"
-          placeholder="Tân Bình, Ấp 2…"
+          label="Tìm tỉnh, xã hoặc ấp"
+          placeholder="Cần Thơ, Ninh Kiều, Ấp 2…"
           value={search}
           onChange={setSearch}
         />
 
         {isPending && <p className="text-muted">Đang tải danh sách…</p>}
-        {isError && <p className="text-muted">Không tải được danh mục xã/ấp.</p>}
-        {!isPending && !isError && wards.length === 0 && (
-          <p className="text-muted">Chưa có xã nào.</p>
+        {isError && <p className="text-muted">Không tải được danh mục tỉnh/xã/ấp.</p>}
+        {!isPending && !isError && provinces.length === 0 && (
+          <p className="text-muted">
+            Chưa triển khai tỉnh/thành phố nào — bấm &quot;Thêm tỉnh/thành phố&quot; bên dưới.
+          </p>
         )}
-        {!isPending && !isError && wards.length > 0 && visibleWards.length === 0 && (
-          <p className="text-muted">Không tìm thấy xã/ấp nào khớp &quot;{search}&quot;.</p>
+        {!isPending && !isError && provinces.length > 0 && visibleProvinces.length === 0 && (
+          <p className="text-muted">Không tìm thấy gì khớp &quot;{search}&quot;.</p>
         )}
 
-        <div className={styles.wards}>
-          {visibleWards.map((ward) => (
-            <div key={ward.id} className={styles.wardCard}>
-              <div className={styles.wardHead}>
-                <span className={styles.wardName}>{ward.name}</span>
-                <Button variant="secondary" onClick={() => setAddingHamletTo(ward)}>
+        <div className={styles.provinces}>
+          {visibleProvinces.map((province) => (
+            <div key={province.id} className={styles.provinceCard}>
+              <div className={styles.provinceHead}>
+                <span className={styles.provinceName}>{province.name}</span>
+                <Button variant="secondary" onClick={() => setAddingWardTo(province)}>
                   <Plus size={14} />
-                  Thêm ấp
+                  Thêm xã/phường
                 </Button>
               </div>
 
-              {ward.hamlets.length === 0 ? (
-                <p className="text-muted">Chưa có ấp nào.</p>
+              {province.wards.length === 0 ? (
+                <p className="text-muted">Chưa có xã/phường nào.</p>
               ) : (
-                <ul className={styles.hamlets}>
-                  {ward.hamlets.map((h) => (
-                    <li key={h.id} className={styles.hamlet}>
-                      {h.name}
-                    </li>
+                <div className={styles.wards}>
+                  {province.wards.map((ward) => (
+                    <div key={ward.id} className={styles.wardCard}>
+                      <div className={styles.wardHead}>
+                        <span className={styles.wardName}>{ward.name}</span>
+                        <Button variant="secondary" onClick={() => setAddingHamletTo(ward)}>
+                          <Plus size={14} />
+                          Thêm ấp
+                        </Button>
+                      </div>
+
+                      {ward.hamlets.length === 0 ? (
+                        <p className="text-muted">Chưa có ấp nào.</p>
+                      ) : (
+                        <ul className={styles.hamlets}>
+                          {ward.hamlets.map((h) => (
+                            <li key={h.id} className={styles.hamlet}>
+                              {h.name}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
                   ))}
-                </ul>
+                </div>
               )}
             </div>
           ))}
         </div>
 
         <div className={styles.footRow}>
-          <Button onClick={() => setCreatingWard(true)}>
+          <Button onClick={() => setAddingProvince(true)}>
             <Plus size={16} />
-            Thêm xã
+            Thêm tỉnh/thành phố
           </Button>
         </div>
 
         <p className={styles.footnote}>
-          Dùng cho kênh <strong>Ấp</strong> và <strong>Định danh</strong> ở P-20 — KD chọn xã
-          trước, app tự lọc đúng ấp của xã đó.
+          Dùng cho kênh <strong>Ấp</strong> và <strong>Định danh</strong> ở P-20 — KD chỉ chọn
+          được trong đúng những tỉnh/xã đã triển khai ở đây, không phải toàn bộ danh sách cả
+          nước.
         </p>
       </SectionCard>
 
-      {creatingWard && <WardFormDialog open onClose={() => setCreatingWard(false)} />}
+      {addingProvince && <ProvinceFormDialog open onClose={() => setAddingProvince(false)} />}
+      {addingWardTo && (
+        <WardFormDialog open province={addingWardTo} onClose={() => setAddingWardTo(null)} />
+      )}
       {addingHamletTo && (
         <HamletFormDialog open ward={addingHamletTo} onClose={() => setAddingHamletTo(null)} />
       )}

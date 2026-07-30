@@ -77,8 +77,15 @@ import {
 } from "./bankCatalog";
 import type { ChannelForm } from "@/lib/api/channelCatalog";
 import { channelsFor, createChannel, updateChannel } from "./channelCatalog";
-import type { HamletForm, WardForm } from "@/lib/api/wardCatalog";
-import { createHamlet, createWard, wardsFor } from "./wardCatalog";
+import type { AddProvinceForm, AddWardForm, HamletForm } from "@/lib/api/wardCatalog";
+import {
+  addProvince,
+  addWard,
+  createHamlet,
+  provincesFor,
+  referenceProvincesFor,
+  referenceWardsFor,
+} from "./wardCatalog";
 import type { HospitalForm } from "@/lib/api/hospitalCatalog";
 import { createHospital, hospitalsFor } from "./hospitalCatalog";
 import type { ServiceForm } from "@/lib/api/services";
@@ -448,13 +455,29 @@ export const handlers = [
     return result ? HttpResponse.json(result) : new HttpResponse(null, { status: 404 });
   }),
 
-  /* ── P-71 · Danh mục xã / ấp ──────────────────────────────────────────── */
+  /* ── Tham chiếu — 34 tỉnh + 3.321 xã/phường thật, chỉ để tìm & chọn ───── */
 
-  http.get("/api/settings/wards", () => HttpResponse.json(wardsFor())),
+  http.get("/api/reference/provinces", () => HttpResponse.json(referenceProvincesFor())),
 
-  http.post("/api/settings/wards", async ({ request }) => {
-    const form = (await request.json()) as WardForm;
-    return HttpResponse.json(createWard(form), { status: 201 });
+  http.get("/api/reference/wards", ({ request }) => {
+    const provinceId = new URL(request.url).searchParams.get("provinceId") ?? "";
+    return HttpResponse.json(referenceWardsFor(provinceId));
+  }),
+
+  /* ── P-71 · Danh mục xã / ấp — danh mục thật, bắt đầu rỗng ────────────── */
+
+  http.get("/api/settings/provinces", () => HttpResponse.json(provincesFor())),
+
+  http.post("/api/settings/provinces", async ({ request }) => {
+    const form = (await request.json()) as AddProvinceForm;
+    const result = addProvince(form);
+    return result ? HttpResponse.json(result, { status: 201 }) : new HttpResponse(null, { status: 422 });
+  }),
+
+  http.post("/api/settings/provinces/wards", async ({ request }) => {
+    const form = (await request.json()) as AddWardForm;
+    const result = addWard(form);
+    return result ? HttpResponse.json(result, { status: 201 }) : new HttpResponse(null, { status: 422 });
   }),
 
   http.post("/api/settings/hamlets", async ({ request }) => {

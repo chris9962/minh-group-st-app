@@ -28,7 +28,7 @@ export function HamletFormDialog({ open, onClose, ward }: Props) {
   const save = useMutation({
     mutationFn: createHamlet,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["wards"] });
+      queryClient.invalidateQueries({ queryKey: ["provinces"] });
       onClose();
     },
   });

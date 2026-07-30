@@ -13,7 +13,7 @@ import { SectionCard } from "@/components/ui/SectionCard";
 import { Select } from "@/components/ui/Select";
 import { fetchServices, type ServiceRow } from "@/lib/api/services";
 import { fetchServiceTypes } from "@/lib/api/settings";
-import { fetchWards } from "@/lib/api/wardCatalog";
+import { fetchProvinces } from "@/lib/api/wardCatalog";
 import { formatDate } from "@/lib/format";
 import { availableScopes } from "@/lib/permissions";
 import type { Scope } from "@/lib/types";
@@ -37,7 +37,8 @@ export default function ServicesPage() {
     queryKey: ["service-types"],
     queryFn: fetchServiceTypes,
   });
-  const { data: wards = [] } = useQuery({ queryKey: ["wards"], queryFn: fetchWards });
+  const { data: provinces = [] } = useQuery({ queryKey: ["provinces"], queryFn: fetchProvinces });
+  const wards = useMemo(() => provinces.flatMap((p) => p.wards), [provinces]);
 
   const from = range?.from ? iso(range.from) : "";
   const to = range?.to ? iso(range.to) : "";

@@ -20,7 +20,7 @@ import {
 } from "@/lib/api/bankAccounts";
 import { fetchChannels } from "@/lib/api/channelCatalog";
 import { fetchHospitals } from "@/lib/api/hospitalCatalog";
-import { fetchWards } from "@/lib/api/wardCatalog";
+import { fetchProvinces } from "@/lib/api/wardCatalog";
 import { useSession } from "@/store/session";
 import styles from "./BankAccountFormDialog.module.scss";
 
@@ -85,14 +85,16 @@ export function BankAccountFormDialog({
   const { data: channels = [] } = useQuery({ queryKey: ["channels"], queryFn: fetchChannels });
   const selectedChannel = channels.find((c) => c.name === channel);
 
-  const { data: wards = [] } = useQuery({
-    queryKey: ["wards"],
-    queryFn: fetchWards,
+  const { data: provinces = [] } = useQuery({
+    queryKey: ["provinces"],
+    queryFn: fetchProvinces,
     enabled: selectedChannel?.inputKind === "ward-hamlet",
   });
+  const [provinceId, setProvinceId] = useState("");
   const [wardId, setWardId] = useState("");
   const [hamletId, setHamletId] = useState("");
-  const selectedWard = wards.find((w) => w.id === wardId);
+  const selectedProvince = provinces.find((p) => p.id === provinceId);
+  const selectedWard = selectedProvince?.wards.find((w) => w.id === wardId);
 
   const { data: hospitals = [] } = useQuery({
     queryKey: ["hospitals"],
@@ -235,6 +237,7 @@ export function BankAccountFormDialog({
                 onChange={(v) => {
                   setValue("channel", v, { shouldDirty: true });
                   setValue("channelDetail", "", { shouldDirty: true });
+                  setProvinceId("");
                   setWardId("");
                   setHamletId("");
                 }}
@@ -245,19 +248,36 @@ export function BankAccountFormDialog({
               />
 
               {selectedChannel?.inputKind === "ward-hamlet" && (
-                <div className={styles.pair}>
-                  <Combobox
+                <>
+                  <Select
                     block
-                    label="Xã"
-                    placeholder="Gõ để tìm xã…"
-                    value={wardId}
+                    label="Tỉnh/thành phố"
+                    value={provinceId}
                     onChange={(v) => {
-                      setWardId(v);
+                      setProvinceId(v);
+                      setWardId("");
                       setHamletId("");
                       setValue("channelDetail", "", { shouldDirty: true });
                     }}
-                    options={wards.map((w) => ({ value: w.id, label: w.name }))}
+                    options={[
+                      { value: "", label: "— Chọn tỉnh/thành phố —" },
+                      ...provinces.map((p) => ({ value: p.id, label: p.name })),
+                    ]}
                   />
+                  {selectedProvince && (
+                    <Combobox
+                      block
+                      label="Xã/phường"
+                      placeholder="Gõ để tìm xã/phường…"
+                      value={wardId}
+                      onChange={(v) => {
+                        setWardId(v);
+                        setHamletId("");
+                        setValue("channelDetail", "", { shouldDirty: true });
+                      }}
+                      options={selectedProvince.wards.map((w) => ({ value: w.id, label: w.name }))}
+                    />
+                  )}
                   {selectedWard && (
                     <Select
                       block
@@ -268,7 +288,9 @@ export function BankAccountFormDialog({
                         const hamlet = selectedWard.hamlets.find((h) => h.id === v);
                         setValue(
                           "channelDetail",
-                          hamlet ? `${selectedWard.name} · ${hamlet.name}` : "",
+                          hamlet
+                            ? `${selectedProvince?.name} · ${selectedWard.name} · ${hamlet.name}`
+                            : "",
                           { shouldDirty: true },
                         );
                       }}
@@ -278,7 +300,7 @@ export function BankAccountFormDialog({
                       ]}
                     />
                   )}
-                </div>
+                </>
               )}
 
               {selectedChannel?.inputKind === "hospital" && (
