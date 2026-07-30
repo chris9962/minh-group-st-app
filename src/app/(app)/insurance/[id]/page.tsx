@@ -1,16 +1,18 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { use } from "react";
-import { ChevronLeft, Download, ShieldCheck } from "lucide-react";
+import { CheckCircle2, ChevronLeft, Download, ShieldCheck } from "lucide-react";
 import { TopBar } from "@/components/layout/TopBar";
+import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusTag } from "@/components/ui/StatusTag";
 import { fetchInsuranceDetail } from "@/lib/api/insurance";
-import { INSURANCE_STATUS_LABEL } from "@/lib/api/insuranceOrders";
+import { INSURANCE_STATUS_LABEL, setInsuranceOrderStatus } from "@/lib/api/insuranceOrders";
 import { formatDate, formatIdNumber, formatPhone } from "@/lib/format";
+import { can } from "@/lib/permissions";
 import { useSession } from "@/store/session";
 import styles from "./page.module.scss";
 
@@ -46,11 +48,23 @@ export default function InsuranceDetailPage({
 }) {
   const { id } = use(params);
   const actor = useSession((s) => s.user);
+  const queryClient = useQueryClient();
 
   const { data, isPending, isError } = useQuery({
     queryKey: ["insurance-detail", id],
     queryFn: () => fetchInsuranceDetail(id, actor?.id ?? ""),
   });
+
+  const advance = useMutation({
+    mutationFn: (status: "manual-progress" | "done") =>
+      setInsuranceOrderStatus(id, status, actor?.id ?? ""),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["insurance-detail", id] });
+      queryClient.invalidateQueries({ queryKey: ["insurance-list"] });
+    },
+  });
+
+  const canHandleFallback = can(actor, "insurance", "handle-fallback");
 
   return (
     <>
@@ -132,6 +146,10 @@ export default function InsuranceDetailPage({
               </div>
             </dl>
 
+            {advance.isError && (
+              <Alert tone="error">Không đổi được trạng thái đơn này.</Alert>
+            )}
+
             <div className={styles.actions}>
               <Button
                 variant="secondary"
@@ -141,6 +159,21 @@ export default function InsuranceDetailPage({
                 <Download size={16} />
                 Tải PDF
               </Button>
+              {canHandleFallback && data.status === "manual-queued" && (
+                <Button
+                  disabled={advance.isPending}
+                  onClick={() => advance.mutate("manual-progress")}
+                >
+                  <CheckCircle2 size={16} />
+                  Nhận đơn xử lý
+                </Button>
+              )}
+              {canHandleFallback && data.status === "manual-progress" && (
+                <Button disabled={advance.isPending} onClick={() => advance.mutate("done")}>
+                  <CheckCircle2 size={16} />
+                  Đánh dấu hoàn thành
+                </Button>
+              )}
             </div>
             {data.status !== "done" && (
               <p className={styles.footnote}>Chưa có file PDF — đơn chưa xử lý xong.</p>

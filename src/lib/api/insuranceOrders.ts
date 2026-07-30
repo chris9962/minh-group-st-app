@@ -12,18 +12,32 @@ export const InsuranceOrderSource = z.enum(['self', 'gift']);
 export type InsuranceOrderSource = z.infer<typeof InsuranceOrderSource>;
 
 /**
- * Vòng đời đơn — 5 mốc chốt lại còn 4 trạng thái hiện trên P-13 (spec §3.4,
- * mgst-feature-list.md P-13): "Đã tiếp nhận" và "Đang tạo đơn trên PVI" gộp
- * chung một nhãn `creating` vì P-13 chỉ hiện một badge cho cả hai mốc.
- * `pending-approval` từng bị thiếu hẳn trong code cũ (chỉ có 3 trạng thái).
+ * Vòng đời đơn (spec §3.4):
+ *
+ * `queued` (Chờ tạo) — vừa nhận, CHƯA được hệ thống pick lên tạo. Mọi đơn mới
+ * đều bắt đầu ở đây, không nhảy thẳng vào `creating`.
+ * `queued` → `creating` (Đang tạo) → `pending-approval` (Chờ duyệt) →
+ * `done` (Hoàn thành) là đường chính, do hệ thống tự chuyển.
+ * Lỗi ở `creating` hoặc `pending-approval` → `manual-queued` (Chờ làm tay,
+ * xếp hàng chờ người xử lý — P-15). Người xử lý nhận đơn → `manual-progress`
+ * (Đang làm tay — P-16), xong bấm hoàn thành → `done`.
  */
-export const InsuranceOrderStatus = z.enum(['creating', 'pending-approval', 'manual', 'done']);
+export const InsuranceOrderStatus = z.enum([
+  'queued',
+  'creating',
+  'pending-approval',
+  'manual-queued',
+  'manual-progress',
+  'done',
+]);
 export type InsuranceOrderStatus = z.infer<typeof InsuranceOrderStatus>;
 
 export const INSURANCE_STATUS_LABEL: Record<InsuranceOrderStatus, string> = {
+  queued: 'Chờ tạo',
   creating: 'Đang tạo',
   'pending-approval': 'Chờ duyệt',
-  manual: 'Đang làm tay',
+  'manual-queued': 'Chờ làm tay',
+  'manual-progress': 'Đang làm tay',
   done: 'Hoàn thành',
 };
 
@@ -82,4 +96,23 @@ export async function createInsuranceOrder(
   });
   if (!res.ok) throw new Error('Không tạo được đơn bảo hiểm này');
   return CreateInsuranceOrdersResult.parse(await res.json());
+}
+
+/**
+ * Hai nút thao tác tay ở P-16: nhận đơn từ hàng chờ (`manual-queued` →
+ * `manual-progress`), rồi đánh dấu hoàn thành (`manual-progress` → `done`).
+ * Máy chủ tự kiểm bước chuyển hợp lệ, không nhận trạng thái tuỳ ý từ client.
+ */
+export async function setInsuranceOrderStatus(
+  id: string,
+  status: InsuranceOrderStatus,
+  actorId: string,
+): Promise<InsuranceOrder> {
+  const res = await fetch(`/api/insurance-orders/${id}/status`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status, actorId }),
+  });
+  if (!res.ok) throw new Error('Không đổi được trạng thái đơn này');
+  return InsuranceOrder.parse(await res.json());
 }

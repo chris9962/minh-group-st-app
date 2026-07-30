@@ -1,4 +1,8 @@
-import type { InsuranceOrder, InsuranceOrderForm } from "@/lib/api/insuranceOrders";
+import type {
+  InsuranceOrder,
+  InsuranceOrderForm,
+  InsuranceOrderStatus,
+} from "@/lib/api/insuranceOrders";
 import type { Customer } from "@/lib/api/customers";
 
 /**
@@ -60,9 +64,9 @@ export function createInsuranceOrder(
       date,
       product: form.product,
       packageName,
-      // Đơn tự tạo ở đây luôn bắt đầu từ "đang tạo" — chưa có bot PVI thật để
-      // tự chuyển trạng thái (spec §3.4 mốc 01/02).
-      status: "creating",
+      // Đơn mới luôn bắt đầu ở "chờ tạo" — phải được hệ thống pick lên mới
+      // chuyển sang "đang tạo", không nhảy thẳng vào đó (spec §3.4 mốc 01).
+      status: "queued",
       source: form.source,
       beneficiaryName: form.beneficiaryName,
       beneficiaryDob: form.beneficiaryDob,
@@ -75,4 +79,25 @@ export function createInsuranceOrder(
     orders = [...orders, order];
     return order;
   });
+}
+
+/**
+ * Hai bước chuyển tay duy nhất người dùng được bấm (P-16): nhận đơn từ hàng
+ * chờ, rồi đánh dấu hoàn thành. Đường chính (chờ tạo → đang tạo → chờ duyệt →
+ * hoàn thành) và lỗi đẩy qua chờ làm tay là việc của hệ thống, không phải nút
+ * bấm — chặn ở đây để không ai gọi API nhảy cóc sang trạng thái khác.
+ */
+const ALLOWED_TRANSITIONS: Partial<Record<InsuranceOrderStatus, InsuranceOrderStatus>> = {
+  "manual-queued": "manual-progress",
+  "manual-progress": "done",
+};
+
+export function setOrderStatus(id: string, next: InsuranceOrderStatus): InsuranceOrder | null {
+  const current = orders.find((o) => o.id === id);
+  if (!current) return null;
+  if (ALLOWED_TRANSITIONS[current.status] !== next) return null;
+
+  const updated = { ...current, status: next };
+  orders = orders.map((o) => (o.id === id ? updated : o));
+  return updated;
 }

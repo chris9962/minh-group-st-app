@@ -69,9 +69,11 @@ const PRODUCTS: [string, string][] = [
 const STATUSES: PersonInsurance["status"][] = [
   "done",
   "done",
+  "queued",
   "creating",
   "pending-approval",
-  "manual",
+  "manual-queued",
+  "manual-progress",
 ];
 
 export function insuranceOf(fullName: string, month: string, count: number): PersonInsurance[] {

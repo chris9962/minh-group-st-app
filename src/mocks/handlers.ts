@@ -1,6 +1,6 @@
 import { HttpResponse, http } from "msw";
 import { LOGIN_ERROR, Scope } from "@/lib/types";
-import { clampScope, visibleDepartmentIds } from "@/lib/permissions";
+import { can, clampScope, visibleDepartmentIds } from "@/lib/permissions";
 import { sessionExpiry } from "@/store/session";
 import { dashboardFor } from "./dashboard";
 import { SAVE_ERROR, type StaffForm, type StaffQuery } from "@/lib/api/staff";
@@ -35,8 +35,8 @@ import {
 } from "./customers";
 import type { BankAccountForm } from "@/lib/api/bankAccounts";
 import { createBankAccount } from "./bankAccounts";
-import type { InsuranceOrderForm } from "@/lib/api/insuranceOrders";
-import { createInsuranceOrder } from "./insuranceOrders";
+import type { InsuranceOrderForm, InsuranceOrderStatus } from "@/lib/api/insuranceOrders";
+import { createInsuranceOrder, setOrderStatus } from "./insuranceOrders";
 import type {
   CatalogItemForm,
   GiftRuleForm,
@@ -528,6 +528,24 @@ export const handlers = [
     const actor = actorBy(actorId);
     const orders = createInsuranceOrder(form, customer, actor);
     return HttpResponse.json({ orders }, { status: 201 });
+  }),
+
+  /**
+   * P-16 · Nhận đơn / đánh dấu hoàn thành — chỉ Đội tạo đơn (quyền
+   * `handle-fallback`) mới được bấm; ẩn nút ở giao diện không thay được kiểm
+   * tra ở đây.
+   */
+  http.patch("/api/insurance-orders/:id/status", async ({ params, request }) => {
+    const { status, actorId } = (await request.json()) as {
+      status: InsuranceOrderStatus;
+      actorId: string;
+    };
+    const actor = actorBy(actorId);
+    if (!can(actor, "insurance", "handle-fallback")) {
+      return new HttpResponse(null, { status: 403 });
+    }
+    const updated = setOrderStatus(String(params.id), status);
+    return updated ? HttpResponse.json(updated) : new HttpResponse(null, { status: 404 });
   }),
 
   http.post("/api/customers/:id/gift-given", async ({ params, request }) => {
