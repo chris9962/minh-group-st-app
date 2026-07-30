@@ -44,6 +44,24 @@ export function can(user: User | null, module: ModuleKey, action: Action): boole
 }
 
 /**
+ * Hạ phạm vi client xin về đúng phạm vi thật của người gọi — chặn kiểu tấn
+ * công "đổi tham số scope trên URL/request thành company" (spec §1.1.6:
+ * "Đổi số trên URL là xem được đơn của phòng khác"). Dùng ở MÁY CHỦ (handler
+ * mock), không phải chỉ ở giao diện — ẩn nút không phải là phân quyền.
+ */
+export function clampScope(
+  user: User | null,
+  module: ModuleKey,
+  action: Action,
+  requested: Scope | null,
+): Scope {
+  const widest = scopeFor(user, module, action);
+  if (!widest) return 'own';
+  if (!requested) return widest;
+  return scopeRank(requested) <= scopeRank(widest) ? requested : widest;
+}
+
+/**
  * Các mức phạm vi hiện trên thanh lọc.
  *
  * Trả về 0 hoặc 1 mức thì KHÔNG hiện thanh — nhân viên kinh doanh nhìn thấy

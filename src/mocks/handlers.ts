@@ -1,5 +1,6 @@
 import { HttpResponse, http } from "msw";
 import { LOGIN_ERROR, Scope } from "@/lib/types";
+import { clampScope, visibleDepartmentIds } from "@/lib/permissions";
 import { sessionExpiry } from "@/store/session";
 import { dashboardFor } from "./dashboard";
 import { SAVE_ERROR, type StaffForm, type StaffQuery } from "@/lib/api/staff";
@@ -78,6 +79,8 @@ import type { ChannelForm } from "@/lib/api/channelCatalog";
 import { channelsFor, createChannel, updateChannel } from "./channelCatalog";
 import type { HamletForm, WardForm } from "@/lib/api/wardCatalog";
 import { createHamlet, createWard, wardsFor } from "./wardCatalog";
+import type { ServiceForm } from "@/lib/api/services";
+import { createService, servicesFor } from "./services";
 
 /** Người bấm nút — máy chủ thật lấy từ phiên, ở đây gửi kèm cho gọn. */
 const actorBy = (id: string) => mockUsers.find((u) => u.id === id) ?? null;
@@ -527,5 +530,37 @@ export const handlers = [
     const { item } = (await request.json()) as { item: string };
     const ok = markGiftGiven(String(params.id), item);
     return ok ? HttpResponse.json({ ok: true }) : new HttpResponse(null, { status: 404 });
+  }),
+
+  /* ── P-30 · Ghi dịch vụ · P-31 · Danh sách dịch vụ ────────────────────── */
+
+  http.get("/api/services", ({ request }) => {
+    const params = new URL(request.url).searchParams;
+    const actor = actorBy(params.get("actorId") ?? "");
+    const requested = Scope.safeParse(params.get("scope"));
+    const scope = clampScope(actor, "services", "view-detail", requested.success ? requested.data : null);
+    return HttpResponse.json(
+      servicesFor(
+        {
+          scope,
+          serviceTypeId: params.get("serviceTypeId") ?? "",
+          from: params.get("from") ?? "",
+          to: params.get("to") ?? "",
+          ward: params.get("ward") ?? "",
+          staffId: params.get("staffId") ?? "",
+        },
+        visibleDepartmentIds(actor, scope),
+      ),
+    );
+  }),
+
+  http.post("/api/services", async ({ request }) => {
+    const { actorId, ...form } = (await request.json()) as ServiceForm & { actorId: string };
+    const customer = findCustomer(form.customerId);
+    if (!customer) return new HttpResponse(null, { status: 404 });
+    const actor = actorBy(actorId);
+    if (!actor) return new HttpResponse(null, { status: 404 });
+    const row = createService(form, customer, actor.id, actor.fullName, actor.departmentId);
+    return HttpResponse.json(row, { status: 201 });
   }),
 ];

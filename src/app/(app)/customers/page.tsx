@@ -3,11 +3,12 @@
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Gift, Landmark, Plus, Users } from "lucide-react";
+import { Briefcase, Gift, Landmark, Plus, Users } from "lucide-react";
 import { TopBar } from "@/components/layout/TopBar";
 import { BankAccountFormDialog } from "@/components/banking/BankAccountFormDialog";
 import { CustomerFormDialog } from "@/components/customers/CustomerFormDialog";
 import { GiftGivingDialog } from "@/components/customers/GiftGivingDialog";
+import { ServiceFormDialog } from "@/components/services/ServiceFormDialog";
 import { Button } from "@/components/ui/Button";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { SearchField } from "@/components/ui/SearchField";
@@ -31,6 +32,7 @@ export default function CustomersPage() {
   const [creating, setCreating] = useState(false);
   const [givingGiftTo, setGivingGiftTo] = useState<CustomerRow | null>(null);
   const [openingBankFor, setOpeningBankFor] = useState<CustomerRow | null>(null);
+  const [loggingServiceFor, setLoggingServiceFor] = useState<CustomerRow | null>(null);
 
   const { data, isPending, isError } = useQuery({
     queryKey: ["customers", searchQuery],
@@ -93,6 +95,10 @@ export default function CustomersPage() {
             <Button variant="secondary" onClick={() => setOpeningBankFor(c)}>
               <Landmark size={16} />
               Mở ngân hàng
+            </Button>
+            <Button variant="secondary" onClick={() => setLoggingServiceFor(c)}>
+              <Briefcase size={16} />
+              Ghi dịch vụ
             </Button>
           </span>
         ),
@@ -172,6 +178,15 @@ export default function CustomersPage() {
             customerId={openingBankFor.id}
             customerPrimaryPhone={openingBankFor.primaryPhone}
             onClose={() => setOpeningBankFor(null)}
+          />
+        )}
+
+        {loggingServiceFor && (
+          <ServiceFormDialog
+            open
+            customerId={loggingServiceFor.id}
+            customerName={loggingServiceFor.fullName}
+            onClose={() => setLoggingServiceFor(null)}
           />
         )}
       </main>
