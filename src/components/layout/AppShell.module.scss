@@ -21,7 +21,7 @@
 }
 
 /* Trên điện thoại sidebar nằm ngang trên đầu, cả trang cuộn như bình thường. */
-@media (max-width: 900px) {
+@media (max-width: bp.$bp-mobile) {
   .shell {
     height: auto;
     min-height: 100dvh;

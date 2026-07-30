@@ -25,7 +25,7 @@ import {
 } from "@/lib/api/person";
 import { sourceColor, useChartColors } from "@/lib/chart-colors";
 import { formatDate, formatPhone } from "@/lib/format";
-import styles from "./page.module.css";
+import styles from "./page.module.scss";
 
 /** Sắp theo ngày cần một con số — lấy chính chuỗi YYYY-MM-DD bỏ dấu gạch. */
 const dateOrder = (row: { date: string }) => Number(row.date.replace(/-/g, ""));

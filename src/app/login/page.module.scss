@@ -38,7 +38,7 @@
 }
 
 /* Trên điện thoại chỉ còn form — khối nhận diện chiếm chỗ mà không giúp gì. */
-@media (max-width: 900px) {
+@media (max-width: bp.$bp-mobile) {
   .brandColumn {
     display: none;
   }

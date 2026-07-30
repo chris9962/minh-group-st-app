@@ -20,7 +20,7 @@ import {
 import { useDebouncedValue } from "@/lib/hooks";
 import { can } from "@/lib/permissions";
 import { useSession } from "@/store/session";
-import styles from "./page.module.css";
+import styles from "./page.module.scss";
 
 /** P-91 · Phòng ban. Danh sách phẳng — không có cây, không có đơn vị cha. */
 export default function DepartmentsPage() {

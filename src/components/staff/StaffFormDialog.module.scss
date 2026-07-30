@@ -48,7 +48,7 @@
   cursor: pointer;
 }
 
-@media (max-width: 600px) {
+@media (max-width: bp.$bp-narrow) {
   .pair,
   .checks {
     grid-template-columns: minmax(0, 1fr);

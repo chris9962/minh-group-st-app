@@ -168,13 +168,13 @@
 }
 
 /* Dưới 1100px cột trái hết chỗ để thở, xếp dọc lại. */
-@media (max-width: 1100px) {
+@media (max-width: bp.$bp-tablet) {
   .columns {
     grid-template-columns: minmax(0, 1fr);
   }
 }
 
-@media (max-width: 900px) {
+@media (max-width: bp.$bp-mobile) {
   .body {
     padding: 16px 16px 32px;
   }

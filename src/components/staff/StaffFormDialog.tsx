@@ -19,7 +19,7 @@ import {
 import { assignableRoles } from "@/lib/permissions";
 import { ROLE_LABEL, type Department } from "@/lib/types";
 import { useSession } from "@/store/session";
-import styles from "./StaffFormDialog.module.css";
+import styles from "./StaffFormDialog.module.scss";
 
 type Props = {
   open: boolean;

@@ -41,7 +41,7 @@
   white-space: nowrap;
 }
 
-@media (max-width: 900px) {
+@media (max-width: bp.$bp-mobile) {
   .bar {
     padding: 10px 16px;
   }

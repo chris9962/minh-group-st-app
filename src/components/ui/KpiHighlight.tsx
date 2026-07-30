@@ -1,5 +1,5 @@
 import { Smartphone } from "lucide-react";
-import styles from "./KpiHighlight.module.css";
+import styles from "./KpiHighlight.module.scss";
 
 type Props = {
   /** Nhãn nhỏ phía trên. Bỏ trống thì không hiện. */

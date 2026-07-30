@@ -22,7 +22,7 @@ import { useChartColors } from "@/lib/chart-colors";
 import { availableScopes } from "@/lib/permissions";
 import type { Scope } from "@/lib/types";
 import { useSession } from "@/store/session";
-import styles from "./page.module.css";
+import styles from "./page.module.scss";
 
 /** Trục ngang của biểu đồ đổi theo kỳ — một ngày thì chia giờ, dài hơn thì chia ngày. */
 const BUCKET_LABEL = {

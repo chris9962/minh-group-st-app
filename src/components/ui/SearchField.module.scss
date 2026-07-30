@@ -59,7 +59,7 @@
   color: var(--om-text);
 }
 
-@media (max-width: 900px) {
+@media (max-width: bp.$bp-mobile) {
   .input {
     width: 100%;
   }

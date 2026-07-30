@@ -99,7 +99,7 @@
   font-weight: 700;
 }
 
-@media (max-width: 900px) {
+@media (max-width: bp.$bp-mobile) {
   .sidebar {
     width: auto;
     height: auto;

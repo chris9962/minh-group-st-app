@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "@/store/session";
 import { Sidebar } from "./Sidebar";
-import styles from "./AppShell.module.css";
+import styles from "./AppShell.module.scss";
 
 /**
  * Khung app (C-03): sidebar trái + vùng nội dung.

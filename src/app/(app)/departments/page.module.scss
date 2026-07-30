@@ -39,7 +39,7 @@
   text-decoration: underline;
 }
 
-@media (max-width: 900px) {
+@media (max-width: bp.$bp-mobile) {
   .body {
     padding: 16px 16px 32px;
   }

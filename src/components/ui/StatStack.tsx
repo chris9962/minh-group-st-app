@@ -1,4 +1,4 @@
-import styles from "./StatStack.module.css";
+import styles from "./StatStack.module.scss";
 
 export type StatStackItem = {
   value: React.ReactNode;

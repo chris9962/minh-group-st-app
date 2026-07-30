@@ -1,4 +1,4 @@
-import styles from "./TopBar.module.css";
+import styles from "./TopBar.module.scss";
 
 type Props = {
   title: string;

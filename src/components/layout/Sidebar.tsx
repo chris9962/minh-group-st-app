@@ -7,7 +7,7 @@ import { AccountMenu } from "./AccountMenu";
 import { NavIcon } from "./NavIcon";
 import { navFor } from "@/lib/nav";
 import type { User } from "@/lib/types";
-import styles from "./Sidebar.module.css";
+import styles from "./Sidebar.module.scss";
 
 /**
  * Thanh điều hướng trái. Dùng chung cho mọi vai trò — danh sách mục do quyền

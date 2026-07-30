@@ -2,7 +2,7 @@
 
 import { Search, X } from "lucide-react";
 import { useId } from "react";
-import styles from "./SearchField.module.css";
+import styles from "./SearchField.module.scss";
 
 type Props = {
   label: string;

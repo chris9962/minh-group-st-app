@@ -1,0 +1,7 @@
+/**
+ * Một chỗ duy nhất cho các mốc responsive. Đổi số ở đây, mọi
+ * `.module.scss` có `@media (max-width: bp.$bp-*)` đổi theo.
+ */
+$bp-mobile: 900px;
+$bp-tablet: 1100px;
+$bp-narrow: 600px;

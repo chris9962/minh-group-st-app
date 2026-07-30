@@ -13,7 +13,7 @@ import { TextField } from "@/components/ui/TextField";
 import { ApiError, login } from "@/lib/api/auth";
 import { LoginForm } from "@/lib/types";
 import { useSession } from "@/store/session";
-import styles from "./page.module.css";
+import styles from "./page.module.scss";
 
 export default function LoginPage() {
   const router = useRouter();

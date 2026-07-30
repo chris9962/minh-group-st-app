@@ -36,7 +36,7 @@ import { useDebouncedValue } from "@/lib/hooks";
 import { availableScopes, can } from "@/lib/permissions";
 import { ROLE_LABEL, RoleKey, type Scope } from "@/lib/types";
 import { useSession } from "@/store/session";
-import styles from "./page.module.css";
+import styles from "./page.module.scss";
 
 const BASE_COLUMNS: RankColumn<PersonScore>[] = [
   {

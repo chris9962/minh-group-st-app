@@ -11,7 +11,7 @@ import { StatusTag } from "@/components/ui/StatusTag";
 import { fetchDepartmentDetail } from "@/lib/api/org";
 import { fetchStaff, type StaffAccount } from "@/lib/api/staff";
 import { ROLE_LABEL, type RoleKey } from "@/lib/types";
-import styles from "./page.module.css";
+import styles from "./page.module.scss";
 
 /** Trưởng/Phó phòng sắp lên đầu bảng nhân viên — số càng cao càng lên trước. */
 const ROLE_RANK: Record<RoleKey, number> = {
