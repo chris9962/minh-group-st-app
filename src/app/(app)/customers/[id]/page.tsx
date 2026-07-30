@@ -177,20 +177,22 @@ export default function CustomerDetailPage({
                     )}
                   </dd>
                 </div>
-                <div>
-                  <dt>Rổ quà</dt>
-                  <dd>
-                    {data.gift.basket.length === 0 ? (
-                      "Chưa đủ điều kiện"
-                    ) : (
-                      <ol className={styles.basket}>
-                        {data.gift.basket.map((item, i) => (
-                          <li key={`${item.id}-${i}`}>{item.name}</li>
-                        ))}
-                      </ol>
-                    )}
-                  </dd>
-                </div>
+                {!data.gift.given && (
+                  <div>
+                    <dt>Rổ quà</dt>
+                    <dd>
+                      {data.gift.basket.length === 0 ? (
+                        "Chưa đủ điều kiện"
+                      ) : (
+                        <ol className={styles.basket}>
+                          {data.gift.basket.map((item, i) => (
+                            <li key={`${item.id}-${i}`}>{item.name}</li>
+                          ))}
+                        </ol>
+                      )}
+                    </dd>
+                  </div>
+                )}
                 <div>
                   <dt>Trạng thái</dt>
                   <dd>
