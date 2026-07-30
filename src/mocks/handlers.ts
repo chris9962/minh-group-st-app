@@ -22,6 +22,14 @@ import {
   updateStaff,
 } from "./staff";
 import { departments, mockUsers } from "./data";
+import type { CustomerForm } from "@/lib/api/customers";
+import {
+  createCustomer,
+  customerDetailFor,
+  customerSummary,
+  customersFor,
+  updateCustomer,
+} from "./customers";
 import type {
   CatalogItemForm,
   GiftRuleForm,
@@ -404,5 +412,47 @@ export const handlers = [
   http.post("/api/settings/referral-codes", async ({ request }) => {
     const form = (await request.json()) as ReferralCodeForm;
     return HttpResponse.json(createReferralCode(form), { status: 201 });
+  }),
+
+  /* ── Khách hàng — P-40 · P-41 · P-42 ─────────────────────────────────── */
+
+  http.get("/api/customers", ({ request }) => {
+    const search = new URL(request.url).searchParams.get("search") ?? "";
+    return HttpResponse.json(customersFor(search));
+  }),
+
+  http.get("/api/customers/:id", ({ params, request }) => {
+    const actorId = new URL(request.url).searchParams.get("actorId") ?? "";
+    const detail = customerDetailFor(String(params.id), actorBy(actorId));
+    return detail ? HttpResponse.json(detail) : new HttpResponse(null, { status: 404 });
+  }),
+
+  http.post("/api/customers", async ({ request }) => {
+    const form = (await request.json()) as CustomerForm;
+    const result = createCustomer(form);
+    if (result.ok) return HttpResponse.json(result.customer, { status: 201 });
+    return HttpResponse.json(
+      {
+        code: result.code,
+        message: "CCCD này đã có hồ sơ trong hệ thống",
+        existing: customerSummary(result.existing),
+      },
+      { status: 422 },
+    );
+  }),
+
+  http.patch("/api/customers/:id", async ({ params, request }) => {
+    const form = (await request.json()) as CustomerForm;
+    const result = updateCustomer(String(params.id), form);
+    if (!result) return new HttpResponse(null, { status: 404 });
+    if (result.ok) return HttpResponse.json(result.customer);
+    return HttpResponse.json(
+      {
+        code: result.code,
+        message: "CCCD này đã có hồ sơ trong hệ thống",
+        existing: customerSummary(result.existing),
+      },
+      { status: 422 },
+    );
   }),
 ];

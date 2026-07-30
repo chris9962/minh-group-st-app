@@ -1,0 +1,32 @@
+.body {
+  flex: 1;
+  padding: 22px 28px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.nameLink {
+  display: block;
+  padding: 12px 0;
+  margin: -12px 0;
+  color: var(--om-text);
+}
+
+.nameLink:hover {
+  color: var(--om-orange-mid);
+  text-decoration: underline;
+}
+
+.footnote {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: var(--color-neutral-600);
+}
+
+@media (max-width: bp.$bp-mobile) {
+  .body {
+    padding: 16px 16px 32px;
+  }
+}

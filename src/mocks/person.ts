@@ -48,8 +48,13 @@ function dayIn(month: string, offset: number): string {
   return `${month}-${String(day).padStart(2, "0")}`;
 }
 
-/** Gắn ngày vào danh sách tài khoản dùng chung; thứ tự mới nhất trước. */
-const accountsOf = (fullName: string, month: string, count: number): PersonAccount[] =>
+/**
+ * Gắn ngày vào danh sách tài khoản dùng chung; thứ tự mới nhất trước.
+ *
+ * Export để `mocks/customers.ts` dựng hồ sơ khách từ ĐÚNG MỘT nguồn — hai nơi
+ * tự sinh riêng thì "3 tài khoản" ở P-42 không khớp con số cộng dồn từ P-52.
+ */
+export const accountsOf = (fullName: string, month: string, count: number): PersonAccount[] =>
   buildAccounts(fullName, count).map((a: AccountSpec, i) => ({
     ...a,
     date: dayIn(month, i),
@@ -63,7 +68,7 @@ const PRODUCTS: [string, string][] = [
 ];
 const STATUSES: PersonInsurance["status"][] = ["done", "done", "running", "manual"];
 
-function insuranceOf(fullName: string, month: string, count: number): PersonInsurance[] {
+export function insuranceOf(fullName: string, month: string, count: number): PersonInsurance[] {
   return Array.from({ length: count }, (_, i) => {
     const [product, packageName] = PRODUCTS[seed(fullName, i + 83) % PRODUCTS.length];
     return {
@@ -77,7 +82,7 @@ function insuranceOf(fullName: string, month: string, count: number): PersonInsu
   });
 }
 
-function servicesOf(fullName: string, month: string, count: number): PersonService[] {
+export function servicesOf(fullName: string, month: string, count: number): PersonService[] {
   return Array.from({ length: count }, (_, i) => ({
     id: `s${i + 1}`,
     date: dayIn(month, i * 2),

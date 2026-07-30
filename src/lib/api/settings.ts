@@ -123,8 +123,12 @@ export type GiftRuleForm = z.infer<typeof GiftRuleForm>;
 export const GiftSimulateInput = z.object({
   installedBanks: z.array(z.string()),
   cnkd: z.boolean(),
-  /** '' = không thuộc kênh nào. */
-  channel: z.string(),
+  /**
+   * Một khách có thể mở tài khoản qua nhiều kênh khác nhau — mảng chứ không
+   * phải một chuỗi, để hồ sơ khách hàng (P-42) truyền đủ mọi kênh khách đã
+   * dùng, không chỉ kênh của tài khoản gần nhất.
+   */
+  channels: z.array(z.string()),
 });
 export type GiftSimulateInput = z.infer<typeof GiftSimulateInput>;
 

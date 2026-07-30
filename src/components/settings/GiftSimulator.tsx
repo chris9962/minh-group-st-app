@@ -25,7 +25,8 @@ export function GiftSimulator() {
   const activeBanks = allBanks.filter((b) => b.active);
 
   const run = useMutation({
-    mutationFn: () => simulateGift({ installedBanks: banks, cnkd, channel }),
+    mutationFn: () =>
+      simulateGift({ installedBanks: banks, cnkd, channels: channel ? [channel] : [] }),
   });
 
   const toggleBank = (bank: string) =>

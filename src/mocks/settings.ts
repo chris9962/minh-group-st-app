@@ -312,7 +312,7 @@ const inEffect = (rule: GiftRule, today: string): boolean =>
 function matches(rule: GiftRule, input: GiftSimulateInput, appCount: number): boolean {
   if (rule.requiredBank && !input.installedBanks.includes(rule.requiredBank)) return false;
   if (rule.requiresCnkd && !input.cnkd) return false;
-  if (rule.channel && rule.channel !== input.channel) return false;
+  if (rule.channel && !input.channels.includes(rule.channel)) return false;
   if (rule.appCountComparator === "eq") return appCount === rule.appCountValue;
   if (rule.appCountComparator === "gte") return appCount >= (rule.appCountValue ?? 0);
   return true;
