@@ -3,7 +3,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Plus, Ticket } from "lucide-react";
 import { useState } from "react";
-import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { SectionCard } from "@/components/ui/SectionCard";
@@ -33,14 +32,6 @@ export function ReferralCodesSection() {
     queryKey: ["referral-codes", bankId, status],
     queryFn: () => fetchReferralCodes({ bankId, status }),
   });
-
-  // Cảnh báo nổi bật ở đầu trang, không phụ thuộc bộ lọc đang chọn — thiếu mã
-  // ở phòng nào cũng phải thấy ngay, không phải bỏ lọc ra mới biết.
-  const { data: allCodes = [] } = useQuery({
-    queryKey: ["referral-codes", "", ""],
-    queryFn: () => fetchReferralCodes({ bankId: "", status: "" }),
-  });
-  const runningLow = allCodes.filter((c) => codeStatusOf(c) !== "available");
 
   const columns: RankColumn<ReferralCode>[] = [
     { key: "bank", label: "Ngân hàng", render: (c) => bankName(c.bankId) },
@@ -78,15 +69,6 @@ export function ReferralCodesSection() {
       icon={<Ticket size={17} />}
       meta={`${codes.length} mã`}
     >
-      {runningLow.length > 0 && (
-        <Alert tone="warning" className={styles.warning}>
-          <strong>Sắp hết hoặc đã hết mã:</strong>{" "}
-          {runningLow
-            .map((c) => `${bankName(c.bankId)} · ${c.code} (${c.used}/${c.total})`)
-            .join(", ")}
-        </Alert>
-      )}
-
       <div className={styles.filters}>
         <Select
           label="Ngân hàng"

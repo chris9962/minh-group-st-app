@@ -49,21 +49,18 @@ const DEPARTMENT_COLUMNS: RankColumn<DepartmentRow>[] = [
   {
     key: "accountsOpened",
     label: "TK mở",
-    align: "right",
     sortBy: (d) => d.accountsOpened,
     render: (d) => d.accountsOpened,
   },
   {
     key: "appsInstalled",
     label: "App cài",
-    align: "right",
     sortBy: (d) => d.appsInstalled,
     render: (d) => d.appsInstalled,
   },
   {
     key: "installRate",
     label: "Tỉ lệ cài",
-    align: "right",
     // Sắp theo MỨC THAY ĐỔI, không theo tỉ lệ tuyệt đối: phòng tụt mạnh nhất là
     // phòng cần gọi trước, dù tỉ lệ của nó vẫn còn cao.
     sortBy: installRate,
@@ -79,7 +76,6 @@ const DEPARTMENT_COLUMNS: RankColumn<DepartmentRow>[] = [
   {
     key: "customers",
     label: "Khách hàng",
-    align: "right",
     sortBy: (d) => d.customers,
     render: (d) => d.customers,
   },

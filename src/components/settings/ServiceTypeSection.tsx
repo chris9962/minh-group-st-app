@@ -32,7 +32,6 @@ export function ServiceTypeSection() {
     {
       key: "coefficient",
       label: "Hệ số điểm",
-      align: "right",
       sortBy: (r) => r.coefficient,
       render: (r) => r.coefficient,
     },
@@ -46,7 +45,6 @@ export function ServiceTypeSection() {
     {
       key: "actions",
       label: "Thao tác",
-      align: "right",
       render: (r) => (
         <span className={styles.actions}>
           <Button

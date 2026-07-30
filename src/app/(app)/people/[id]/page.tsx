@@ -90,7 +90,6 @@ const SERVICE_COLUMNS: RankColumn<PersonService>[] = [
   {
     key: "points",
     label: "Điểm",
-    align: "right",
     sortBy: (s) => s.points,
     render: (s) => s.points,
   },

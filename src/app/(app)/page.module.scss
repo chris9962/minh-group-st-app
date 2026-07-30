@@ -73,11 +73,10 @@
   font-size: 18px;
 }
 
-/* Ô cột "Tỉ lệ cài": tỉ lệ rồi mới tới mức thay đổi, căn phải cùng các cột số. */
+/* Ô cột "Tỉ lệ cài": tỉ lệ rồi mới tới mức thay đổi. */
 .rateCell {
   display: inline-flex;
   align-items: center;
-  justify-content: flex-end;
   gap: 8px;
 }
 

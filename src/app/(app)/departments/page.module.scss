@@ -13,11 +13,10 @@
   gap: 14px;
 }
 
-/* Hai nút cùng một ô: giữ chúng trên một dòng và dồn về phải theo cột. */
+/* Hai nút cùng một ô: giữ chúng trên một dòng. */
 .actions {
   display: inline-flex;
   align-items: center;
-  justify-content: flex-end;
   gap: 8px;
 }
 

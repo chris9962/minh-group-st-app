@@ -52,21 +52,18 @@ const BASE_COLUMNS: RankColumn<PersonScore>[] = [
   {
     key: "accounts",
     label: "Tài khoản",
-    align: "right",
     sortBy: (p) => p.accounts,
     render: (p) => p.accounts,
   },
   {
     key: "apps",
     label: "App",
-    align: "right",
     sortBy: (p) => p.apps,
     render: (p) => p.apps,
   },
   {
     key: "insuranceOrders",
     label: "Đơn BH",
-    align: "right",
     sortBy: (p) => p.insuranceOrders,
     render: (p) => p.insuranceOrders,
   },
@@ -77,7 +74,6 @@ const KPI_COLUMNS: RankColumn<PersonScore>[] = [
   {
     key: "points",
     label: "Điểm tháng",
-    align: "right",
     sortBy: totalPoints,
     render: (p) => totalPoints(p),
   },
@@ -125,7 +121,6 @@ const ACCOUNT_COLUMNS: RankColumn<StaffRow>[] = [
   {
     key: "points",
     label: "Điểm tháng",
-    align: "right",
     // -1 để người không có chỉ tiêu nằm cuối chứ không lẫn với người 0 điểm.
     sortBy: (r) => (r.score ? totalPoints(r.score) : -1),
     render: (r) => (r.score ? totalPoints(r.score) : "—"),
@@ -226,7 +221,6 @@ export default function PeoplePage() {
       {
         key: "actions",
         label: "Thao tác",
-        align: "right",
         render: (r) => (
           <Button
             variant="secondary"

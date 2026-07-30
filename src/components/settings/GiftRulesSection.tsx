@@ -108,9 +108,7 @@ export function GiftRulesSection() {
                   <th scope="col">Quà / món góp</th>
                   <th scope="col">Hiệu lực</th>
                   <th scope="col">Trạng thái</th>
-                  <th scope="col" className={styles.right}>
-                    Thao tác
-                  </th>
+                  <th scope="col">Thao tác</th>
                 </tr>
               </thead>
               <tbody>

@@ -64,7 +64,6 @@ export default function DepartmentsPage() {
       {
         key: "headcount",
         label: "Số người",
-        align: "right",
         sortBy: (d) => d.headcount,
         render: (d) => d.headcount,
       },
@@ -80,7 +79,6 @@ export default function DepartmentsPage() {
       {
         key: "actions",
         label: "Thao tác",
-        align: "right",
         render: (d) => (
           <span className={styles.actions}>
             {/* Nút chỉ có icon nên aria-label phải kèm tên phòng: giữa mười lăm
