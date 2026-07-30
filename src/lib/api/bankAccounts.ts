@@ -31,7 +31,9 @@ export const BankAccount = z.object({
   /** Chỉ có ý nghĩa khi ngân hàng = VPa. */
   accountType: AccountType,
   note: z.string(),
-  /** Phòng của người tạo lúc tạo — dùng để lọc theo phạm vi ở P-42. */
+  createdById: z.string().nullable(),
+  createdByName: z.string().nullable(),
+  /** Phòng của người tạo lúc tạo — dùng để lọc theo phạm vi ở P-42, P-21. */
   createdByDepartmentId: z.string().nullable(),
 });
 export type BankAccount = z.infer<typeof BankAccount>;

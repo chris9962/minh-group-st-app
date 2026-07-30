@@ -19,7 +19,10 @@ export const BANK_FACTOR: Record<string, number> = {
   TPB: 1,
 };
 
-const CHANNELS = ["Ấp Tân Hoà", "BV Tân An", "ATM", "Định danh", "Ấp Tân Lập"];
+/** Khớp đúng tên trong danh mục kênh thật (P-70, `channelCatalog.ts`) — dữ
+ *  liệu giả lập dùng tên khác đi thì lọc theo kênh và tính quà theo kênh
+ *  (spec §5.2 kênh Bệnh viện góp quà) đều không khớp được. */
+const CHANNELS = ["Ấp", "Bệnh viện", "ATM", "Định danh", "Tự do"];
 
 /** Đủ dài để mỗi khách chỉ có một hai ngân hàng, giống ngoài đời hơn. */
 export const CUSTOMERS = [

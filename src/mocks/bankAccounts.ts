@@ -20,6 +20,9 @@ let manualAccounts: BankAccount[] = [];
 export const manualAccountsFor = (customerName: string): BankAccount[] =>
   manualAccounts.filter((a) => a.customerName === customerName);
 
+/** Toàn bộ tài khoản thật, không lọc theo khách — dùng cho P-21 (gộp cả công ty). */
+export const allManualAccounts = (): BankAccount[] => manualAccounts;
+
 let nextId = 1;
 
 const THIS_MONTH = (() => {
@@ -79,7 +82,7 @@ function accountWarnings(customerName: string, newAccount: BankAccount): string[
 export function createBankAccount(
   form: BankAccountForm,
   customer: Customer,
-  actorDepartmentId: string | null,
+  actor: { id: string; fullName: string; departmentId: string | null } | null,
 ): { account: BankAccount; warnings: string[] } | null {
   const bank = banksFor().find((b) => b.id === form.bankId);
   if (!bank) return null;
@@ -101,7 +104,9 @@ export function createBankAccount(
     appInstalled: form.appInstalled,
     accountType: form.accountType,
     note: form.note,
-    createdByDepartmentId: actorDepartmentId,
+    createdById: actor?.id ?? null,
+    createdByName: actor?.fullName ?? null,
+    createdByDepartmentId: actor?.departmentId ?? null,
   };
   manualAccounts = [...manualAccounts, account];
 

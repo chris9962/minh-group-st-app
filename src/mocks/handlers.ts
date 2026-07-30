@@ -81,6 +81,8 @@ import type { HamletForm, WardForm } from "@/lib/api/wardCatalog";
 import { createHamlet, createWard, wardsFor } from "./wardCatalog";
 import type { ServiceForm } from "@/lib/api/services";
 import { createService, servicesFor } from "./services";
+import type { BankAccountQuery } from "@/lib/api/banking";
+import { bankAccountDetailFor, bankAccountsFor } from "./banking";
 
 /** Người bấm nút — máy chủ thật lấy từ phiên, ở đây gửi kèm cho gọn. */
 const actorBy = (id: string) => mockUsers.find((u) => u.id === id) ?? null;
@@ -508,7 +510,7 @@ export const handlers = [
     const customer = findCustomer(form.customerId);
     if (!customer) return new HttpResponse(null, { status: 404 });
     const actor = actorBy(actorId);
-    const result = createBankAccount(form, customer, actor?.departmentId ?? null);
+    const result = createBankAccount(form, customer, actor);
     if (!result) return new HttpResponse(null, { status: 422 });
     return HttpResponse.json(result, { status: 201 });
   }),
@@ -562,5 +564,37 @@ export const handlers = [
     if (!actor) return new HttpResponse(null, { status: 404 });
     const row = createService(form, customer, actor.id, actor.fullName, actor.departmentId);
     return HttpResponse.json(row, { status: 201 });
+  }),
+
+  /* ── P-21 · Danh sách tài khoản ngân hàng · P-22 · Chi tiết ───────────── */
+
+  http.get("/api/bank-account-list", ({ request }) => {
+    const params = new URL(request.url).searchParams;
+    const actor = actorBy(params.get("actorId") ?? "");
+    const requested = Scope.safeParse(params.get("scope"));
+    const scope = clampScope(
+      actor,
+      "banking",
+      "view-detail",
+      requested.success ? requested.data : null,
+    );
+    const query: BankAccountQuery = {
+      scope,
+      bankCode: params.get("bankCode") ?? "",
+      from: params.get("from") ?? "",
+      to: params.get("to") ?? "",
+      referralCode: params.get("referralCode") ?? "",
+      channel: params.get("channel") ?? "",
+      staffId: params.get("staffId") ?? "",
+    };
+    return HttpResponse.json(bankAccountsFor(query, visibleDepartmentIds(actor, scope)));
+  }),
+
+  http.get("/api/bank-account-list/:id", ({ params, request }) => {
+    const search = new URL(request.url).searchParams;
+    const actor = actorBy(search.get("actorId") ?? "");
+    const scope = clampScope(actor, "banking", "view-detail", null);
+    const detail = bankAccountDetailFor(String(params.id), visibleDepartmentIds(actor, scope));
+    return detail ? HttpResponse.json(detail) : new HttpResponse(null, { status: 404 });
   }),
 ];
