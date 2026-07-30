@@ -3,9 +3,11 @@
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Plus, Users } from "lucide-react";
+import { Gift, Landmark, Plus, Users } from "lucide-react";
 import { TopBar } from "@/components/layout/TopBar";
+import { BankAccountFormDialog } from "@/components/banking/BankAccountFormDialog";
 import { CustomerFormDialog } from "@/components/customers/CustomerFormDialog";
+import { GiftGivingDialog } from "@/components/customers/GiftGivingDialog";
 import { Button } from "@/components/ui/Button";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { SearchField } from "@/components/ui/SearchField";
@@ -27,6 +29,8 @@ export default function CustomersPage() {
   const [search, setSearch] = useState("");
   const searchQuery = useDebouncedValue(search);
   const [creating, setCreating] = useState(false);
+  const [givingGiftTo, setGivingGiftTo] = useState<CustomerRow | null>(null);
+  const [openingBankFor, setOpeningBankFor] = useState<CustomerRow | null>(null);
 
   const { data, isPending, isError } = useQuery({
     queryKey: ["customers", searchQuery],
@@ -71,6 +75,26 @@ export default function CustomersPage() {
               ? `Đã tặng · ${c.givenItem}`
               : GIFT_STATUS_LABEL[c.giftStatus]}
           </StatusTag>
+        ),
+      },
+      {
+        key: "actions",
+        label: "Thao tác",
+        render: (c) => (
+          <span className={styles.actions}>
+            <Button
+              variant="secondary"
+              disabled={c.giftStatus === "given"}
+              onClick={() => setGivingGiftTo(c)}
+            >
+              <Gift size={16} />
+              Tặng quà
+            </Button>
+            <Button variant="secondary" onClick={() => setOpeningBankFor(c)}>
+              <Landmark size={16} />
+              Mở ngân hàng
+            </Button>
+          </span>
         ),
       },
     ],
@@ -132,6 +156,24 @@ export default function CustomersPage() {
         )}
 
         {creating && <CustomerFormDialog open onClose={() => setCreating(false)} />}
+
+        {givingGiftTo && (
+          <GiftGivingDialog
+            open
+            customerId={givingGiftTo.id}
+            customerName={givingGiftTo.fullName}
+            onClose={() => setGivingGiftTo(null)}
+          />
+        )}
+
+        {openingBankFor && (
+          <BankAccountFormDialog
+            open
+            customerId={openingBankFor.id}
+            customerPrimaryPhone={openingBankFor.primaryPhone}
+            onClose={() => setOpeningBankFor(null)}
+          />
+        )}
       </main>
     </>
   );

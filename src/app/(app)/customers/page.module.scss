@@ -19,6 +19,13 @@
   text-decoration: underline;
 }
 
+.actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .footnote {
   margin: 10px 0 0;
   font-size: 12px;

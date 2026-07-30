@@ -169,3 +169,16 @@ export async function fetchCustomerDetail(id: string, actorId: string): Promise<
   if (!res.ok) throw new Error('Không tải được hồ sơ khách hàng');
   return CustomerDetail.parse(await res.json());
 }
+
+/**
+ * Đánh dấu khách đã được tặng quà — đúng một lần, không có đợt thứ hai
+ * (spec §4.4 P-43). `item` là tên món đã chọn, hoặc câu mô tả việc từ chối.
+ */
+export async function markGiftGiven(customerId: string, item: string): Promise<void> {
+  const res = await fetch(`/api/customers/${customerId}/gift-given`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ item }),
+  });
+  if (!res.ok) throw new Error('Không đánh dấu được quà đã tặng');
+}

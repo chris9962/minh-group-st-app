@@ -87,3 +87,19 @@ export function createReferralCode(form: ReferralCodeForm): ReferralCode {
   codes = [...codes, code];
   return code;
 }
+
+export const findReferralCode = (id: string): ReferralCode | null =>
+  codes.find((c) => c.id === id) ?? null;
+
+/**
+ * Mở tài khoản xong thì trừ một lượt — bỏ qua bước giữ chỗ 30 phút có sẵn ở
+ * spec §4.5, dùng trực tiếp thao tác "dùng luôn" cho gọn ở lượt xây đầu tiên
+ * này. Không cho dùng mã đã đầy.
+ */
+export function consumeReferralCode(id: string): ReferralCode | null {
+  const current = codes.find((c) => c.id === id);
+  if (!current || current.used >= current.total) return null;
+  const next = { ...current, used: current.used + 1 };
+  codes = codes.map((c) => (c.id === id ? next : c));
+  return next;
+}

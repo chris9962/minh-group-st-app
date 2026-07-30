@@ -11,7 +11,9 @@ import { digitsOnly, matchesSearch } from "@/lib/format";
 import { scopeFor, visibleDepartmentIds } from "@/lib/permissions";
 import type { User } from "@/lib/types";
 import { CUSTOMERS, seed } from "./activity";
+import { manualAccountsFor } from "./bankAccounts";
 import { departments } from "./data";
+import { manualOrdersFor } from "./insuranceOrders";
 import { ALL } from "./people";
 import { accountsOf, insuranceOf } from "./person";
 import { simulateGift } from "./settings";
@@ -67,12 +69,19 @@ const departmentIdByName = (name: string): string | null =>
   departments.find((d) => d.name === name)?.id ?? null;
 
 type TaggedAccount = ReturnType<typeof accountsOf>[number] & { departmentId: string | null };
-type TaggedInsurance = ReturnType<typeof insuranceOf>[number] & { departmentId: string | null };
+type TaggedInsurance = ReturnType<typeof insuranceOf>[number] & {
+  departmentId: string | null;
+  source: "self" | "gift";
+};
 
 /**
  * Dựng lại toàn bộ tài khoản/đơn bảo hiểm của mọi nhân viên, kèm phòng đã tạo
  * ra nó — cần để lọc theo phạm vi ở P-42. Số lượng nhỏ (12 người) nên tính lại
  * mỗi lần gọi, không cần cache.
+ *
+ * Gộp thêm tài khoản THẬT tạo qua P-20 (`bankAccounts.ts`) — khách bấm "Mở
+ * ngân hàng" xong phải thấy tài khoản mới ngay ở P-40/P-42, không chỉ tài
+ * khoản giả lập.
  */
 function allAccountsAndInsurance(): { accounts: TaggedAccount[]; insurance: TaggedInsurance[] } {
   const accounts: TaggedAccount[] = [];
@@ -87,7 +96,37 @@ function allAccountsAndInsurance(): { accounts: TaggedAccount[]; insurance: Tagg
       accounts.push({ ...a, id: `${p.id}-${a.id}`, departmentId });
     }
     for (const ins of insuranceOf(p.fullName, THIS_MONTH, p.insuranceOrders)) {
-      insurance.push({ ...ins, id: `${p.id}-${ins.id}`, departmentId });
+      // Đơn giả lập luôn coi là tự khách mua — luồng Tặng quà tạo đơn 'gift'
+      // là đơn THẬT, gộp riêng ở vòng dưới.
+      insurance.push({ ...ins, id: `${p.id}-${ins.id}`, departmentId, source: "self" });
+    }
+  }
+
+  for (const c of customers) {
+    for (const a of manualAccountsFor(c.fullName)) {
+      accounts.push({
+        id: a.id,
+        date: a.openedDate,
+        customerName: a.customerName,
+        bankName: a.bankCode,
+        referralCode: a.referralCode,
+        channel: a.channel,
+        appInstalled: a.appInstalled,
+        accountType: a.accountType,
+        departmentId: a.createdByDepartmentId,
+      });
+    }
+    for (const o of manualOrdersFor(c.fullName)) {
+      insurance.push({
+        id: o.id,
+        date: o.date,
+        customerName: o.customerName,
+        product: o.product,
+        packageName: o.packageName,
+        status: o.status,
+        source: o.source,
+        departmentId: o.createdByDepartmentId,
+      });
     }
   }
 
@@ -189,6 +228,16 @@ export function customersFor(search: string): CustomerList {
 
 export const findCustomer = (id: string): Customer | null =>
   customers.find((c) => c.id === id) ?? null;
+
+/**
+ * Đánh dấu khách ĐÃ ĐƯỢC TẶNG QUÀ (spec §4.4 P-43) — mỗi khách đúng một lần,
+ * không có đợt thứ hai. `item` là tên món đã chọn (hoặc "Từ chối nhận quà").
+ */
+export function markGiftGiven(customerId: string, item: string): boolean {
+  if (!findCustomer(customerId)) return false;
+  giftGiven.set(customerId, item);
+  return true;
+}
 
 export type CustomerOutcome =
   | { ok: true; customer: Customer }
@@ -313,8 +362,7 @@ export function customerDetailFor(id: string, actor: User | null): CustomerDetai
       product: i.product,
       packageName: i.packageName,
       status: i.status,
-      // Luôn 'self' — luồng Tặng quà (P-43) tự tạo đơn 'gift' chưa làm.
-      source: "self" as const,
+      source: i.source,
     })),
     insuranceHiddenCount: myInsurance.length - visibleInsurance.length,
     gift: { ...gift, given: giftGiven.has(id), givenItem: giftGiven.get(id) ?? null },

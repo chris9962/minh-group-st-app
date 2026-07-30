@@ -28,8 +28,14 @@ import {
   customerDetailFor,
   customerSummary,
   customersFor,
+  findCustomer,
+  markGiftGiven,
   updateCustomer,
 } from "./customers";
+import type { BankAccountForm } from "@/lib/api/bankAccounts";
+import { createBankAccount } from "./bankAccounts";
+import type { InsuranceOrderForm } from "@/lib/api/insuranceOrders";
+import { createInsuranceOrder } from "./insuranceOrders";
 import type {
   CatalogItemForm,
   GiftRuleForm,
@@ -454,5 +460,38 @@ export const handlers = [
       },
       { status: 422 },
     );
+  }),
+
+  /* ── P-20 · Mở tài khoản ngân hàng cho khách ──────────────────────────── */
+
+  http.post("/api/bank-accounts", async ({ request }) => {
+    const { actorId, ...form } = (await request.json()) as BankAccountForm & {
+      actorId: string;
+    };
+    const customer = findCustomer(form.customerId);
+    if (!customer) return new HttpResponse(null, { status: 404 });
+    const actor = actorBy(actorId);
+    const result = createBankAccount(form, customer, actor?.departmentId ?? null);
+    if (!result) return new HttpResponse(null, { status: 422 });
+    return HttpResponse.json(result, { status: 201 });
+  }),
+
+  /* ── Tạo đơn bảo hiểm — tự mua hoặc từ quà tặng ───────────────────────── */
+
+  http.post("/api/insurance-orders", async ({ request }) => {
+    const { actorId, ...form } = (await request.json()) as InsuranceOrderForm & {
+      actorId: string;
+    };
+    const customer = findCustomer(form.customerId);
+    if (!customer) return new HttpResponse(null, { status: 404 });
+    const actor = actorBy(actorId);
+    const orders = createInsuranceOrder(form, customer, actor?.departmentId ?? null);
+    return HttpResponse.json({ orders }, { status: 201 });
+  }),
+
+  http.post("/api/customers/:id/gift-given", async ({ params, request }) => {
+    const { item } = (await request.json()) as { item: string };
+    const ok = markGiftGiven(String(params.id), item);
+    return ok ? HttpResponse.json({ ok: true }) : new HttpResponse(null, { status: 404 });
   }),
 ];
