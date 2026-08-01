@@ -2,8 +2,10 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Briefcase } from "lucide-react";
+import { Briefcase, Plus } from "lucide-react";
 import { TopBar } from "@/components/layout/TopBar";
+import { CreateServiceDialog } from "@/components/services/CreateServiceDialog";
+import { Button } from "@/components/ui/Button";
 import { DateRangePicker } from "@/components/ui/DateRangePicker";
 import { FilterButton } from "@/components/ui/FilterButton";
 import { FilterChips } from "@/components/ui/FilterChips";
@@ -15,7 +17,7 @@ import { fetchServices, type ServiceRow } from "@/lib/api/services";
 import { fetchServiceTypes } from "@/lib/api/settings";
 import { fetchProvinces } from "@/lib/api/wardCatalog";
 import { formatDate } from "@/lib/format";
-import { availableScopes } from "@/lib/permissions";
+import { availableScopes, can } from "@/lib/permissions";
 import type { Scope } from "@/lib/types";
 import { useSession } from "@/store/session";
 import type { DateRange } from "react-day-picker";
@@ -32,6 +34,7 @@ export default function ServicesPage() {
   const [range, setRange] = useState<DateRange | undefined>(undefined);
   const [ward, setWard] = useState("");
   const [staffId, setStaffId] = useState("");
+  const [creating, setCreating] = useState(false);
 
   const { data: serviceTypes = [] } = useQuery({
     queryKey: ["service-types"],
@@ -124,6 +127,12 @@ export default function ServicesPage() {
             options={[{ value: "", label: "Tất cả nhân viên" }, ...staffOptions]}
           />
         </FilterButton>
+        {can(user, "services", "create") && (
+          <Button onClick={() => setCreating(true)}>
+            <Plus size={16} />
+            Ghi dịch vụ
+          </Button>
+        )}
       </TopBar>
 
       <main className={styles.body}>
@@ -180,6 +189,8 @@ export default function ServicesPage() {
             )}
           </SectionCard>
         )}
+
+        {creating && <CreateServiceDialog open onClose={() => setCreating(false)} />}
       </main>
     </>
   );

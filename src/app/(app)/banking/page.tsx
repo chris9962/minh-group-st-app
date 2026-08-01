@@ -3,9 +3,10 @@
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Download, Landmark } from "lucide-react";
+import { Download, Landmark, Plus } from "lucide-react";
 import type { DateRange } from "react-day-picker";
 import { TopBar } from "@/components/layout/TopBar";
+import { CreateBankAccountDialog } from "@/components/banking/CreateBankAccountDialog";
 import { Button } from "@/components/ui/Button";
 import { DateRangePicker } from "@/components/ui/DateRangePicker";
 import { FilterButton } from "@/components/ui/FilterButton";
@@ -74,6 +75,7 @@ export default function BankingPage() {
   const [channel, setChannel] = useState("");
   const [staffId, setStaffId] = useState("");
   const [status, setStatus] = useState<BankAccountStatus | "">("");
+  const [creating, setCreating] = useState(false);
 
   const { data: banks = [] } = useQuery({ queryKey: ["banks"], queryFn: fetchBanks });
   const { data: codes = [] } = useQuery({
@@ -228,6 +230,12 @@ export default function BankingPage() {
             Xuất Excel
           </Button>
         )}
+        {can(user, "banking", "create") && (
+          <Button onClick={() => setCreating(true)}>
+            <Plus size={16} />
+            Tạo tài khoản ngân hàng
+          </Button>
+        )}
       </TopBar>
 
       <main className={styles.body}>
@@ -278,6 +286,8 @@ export default function BankingPage() {
             )}
           </SectionCard>
         )}
+
+        {creating && <CreateBankAccountDialog open onClose={() => setCreating(false)} />}
       </main>
     </>
   );

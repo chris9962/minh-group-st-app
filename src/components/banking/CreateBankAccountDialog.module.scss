@@ -1,0 +1,62 @@
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  /* Hộp thoại cuộn nội dung sát mép trên (`Dialog.module.css` .body không có
+     padding-top) — không chừa chỗ này thì viền/outline lúc focus của ô đầu
+     tiên bị cắt mất phần trên. */
+  padding-top: 6px;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 320px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+}
+
+/* `<button>` không tự nhận màu chữ theo `data-theme` — trình duyệt vẽ theo
+   màu hệ điều hành riêng, không theo biến CSS của trang, nên phải ghim màu
+   tường minh giống `.btn`, không thì nền tối vẫn ra chữ đen mặc định. */
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  color: var(--om-text);
+  font: inherit;
+  background: var(--om-card);
+  border: 1px solid var(--om-line);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  text-align: left;
+  /* 44px cho ngón tay — đội KD dùng điện thoại ngoài hiện trường. */
+  min-height: 44px;
+}
+
+.row:hover {
+  border-color: var(--om-orange-mid);
+}
+
+.rowName {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.rowPhone {
+  font-size: 13px;
+  color: var(--om-text-2);
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}

@@ -31,6 +31,8 @@ type Props = {
   onClose: () => void;
   /** Có thì là sửa, không có thì là tạo khách mới. */
   customer?: Customer | null;
+  /** Chỉ gọi khi TẠO MỚI thành công — không gọi khi sửa. */
+  onCreated?: (customer: Customer) => void;
 };
 
 const emptyForm: CustomerForm = {
@@ -54,7 +56,7 @@ const toForm = (c: Customer): CustomerForm => ({
 });
 
 /** P-41 · Tạo / sửa khách hàng — tên không ràng buộc định dạng, CCCD chặn trùng. */
-export function CustomerFormDialog({ open, onClose, customer }: Props) {
+export function CustomerFormDialog({ open, onClose, customer, onCreated }: Props) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const editing = Boolean(customer);
@@ -99,9 +101,13 @@ export function CustomerFormDialog({ open, onClose, customer }: Props) {
   const save = useMutation({
     mutationFn: (form: CustomerForm) =>
       customer ? updateCustomer(customer.id, form) : createCustomer(form),
-    onSuccess: () => {
+    onSuccess: (saved) => {
       queryClient.invalidateQueries({ queryKey: ["customers"] });
-      if (customer) queryClient.invalidateQueries({ queryKey: ["customer", customer.id] });
+      if (customer) {
+        queryClient.invalidateQueries({ queryKey: ["customer", customer.id] });
+      } else {
+        onCreated?.(saved);
+      }
       onClose();
     },
     onError: (err) => {
