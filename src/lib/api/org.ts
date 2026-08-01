@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { DepartmentRanking } from './dashboard';
 import { Department } from '@/lib/types';
 
 /**
@@ -73,6 +74,22 @@ export async function fetchDepartmentRows(search: string): Promise<DepartmentLis
   const res = await fetch(`/api/org/departments?${params}`);
   if (!res.ok) throw new Error('Không tải được danh sách phòng ban');
   return DepartmentList.parse(await res.json());
+}
+
+/**
+ * Số liệu nghiệp vụ (TK mở, App cài, Tỉ lệ cài, Khách hàng) theo phòng —
+ * cùng hình dạng `DepartmentRanking` với P-80, tách endpoint riêng vì trang
+ * P-91 không có scope 'own'/'managed' như dashboard, luôn xem phạm vi công ty.
+ */
+export const DepartmentStats = z.object({
+  departments: z.array(DepartmentRanking),
+});
+export type DepartmentStats = z.infer<typeof DepartmentStats>;
+
+export async function fetchDepartmentStats(periodKey: string): Promise<DepartmentStats> {
+  const res = await fetch(`/api/org/departments/stats?period=${encodeURIComponent(periodKey)}`);
+  if (!res.ok) throw new Error('Không tải được số liệu phòng ban');
+  return DepartmentStats.parse(await res.json());
 }
 
 export async function fetchDepartmentDetail(id: string): Promise<DepartmentDetail> {

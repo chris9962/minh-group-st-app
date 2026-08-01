@@ -5,6 +5,25 @@ import type { Scope } from '@/lib/types';
 
 /** Số liệu cho P-80 Dashboard tổng. */
 
+/**
+ * Một dòng xếp hạng phòng — dùng chung với P-91 (Phòng ban) qua
+ * `src/lib/api/org.ts` nên tách riêng, không khai lại cùng hình dạng ở hai
+ * chỗ.
+ */
+export const DepartmentRanking = z.object({
+  id: z.string(),
+  name: z.string(),
+  accountsOpened: z.number(),
+  appsInstalled: z.number(),
+  customers: z.number(),
+  /**
+   * Tỉ lệ cài của kỳ liền trước, để so tăng/giảm. `null` khi không có kỳ nào
+   * để so — người dùng tự chọn khoảng ngày.
+   */
+  previousInstallRate: z.number().nullable(),
+});
+export type DepartmentRanking = z.infer<typeof DepartmentRanking>;
+
 export const DashboardData = z.object({
   /** Chỉ số quan trọng nhất: tỉ lệ cài app trên số tài khoản mở. */
   installRate: z.object({
@@ -53,20 +72,7 @@ export const DashboardData = z.object({
     ),
   }),
   /** Xếp hạng phòng — chỉ gồm các phòng người xem được phép thấy. */
-  departments: z.array(
-    z.object({
-      id: z.string(),
-      name: z.string(),
-      accountsOpened: z.number(),
-      appsInstalled: z.number(),
-      customers: z.number(),
-      /**
-       * Tỉ lệ cài của kỳ liền trước, để so tăng/giảm. `null` khi không có kỳ
-       * nào để so — người dùng tự chọn khoảng ngày.
-       */
-      previousInstallRate: z.number().nullable(),
-    }),
-  ),
+  departments: z.array(DepartmentRanking),
   services: z.object({
     byType: z.array(z.object({ label: z.string(), count: z.number() })),
     topWard: z.object({ name: z.string(), count: z.number() }),

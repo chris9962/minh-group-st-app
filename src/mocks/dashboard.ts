@@ -1,4 +1,4 @@
-import type { DashboardData } from "@/lib/api/dashboard";
+import type { DashboardData, DepartmentRanking } from "@/lib/api/dashboard";
 import type { Scope } from "@/lib/types";
 import { departments as allDepartments } from "./data";
 
@@ -242,4 +242,13 @@ export function dashboardFor(scope: Scope, periodKey = "today"): DashboardData {
       pending: scale(d.gifts.pending, r),
     },
   };
+}
+
+/**
+ * Xếp hạng phòng dùng riêng cho P-91 (Phòng ban) — công ty luôn xem hết,
+ * không có thanh chọn phạm vi như P-80 nên không nhân theo `RATIO[scope]`.
+ */
+export function departmentStatsFor(periodKey = "today"): { departments: DepartmentRanking[] } {
+  const hasPrevious = periodKey === "today" || periodKey === "this-month";
+  return { departments: departmentRanking(periodFactor(periodKey), hasPrevious) };
 }

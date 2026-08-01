@@ -2,12 +2,13 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { ArrowDown, ArrowUp, Briefcase, Gift, ShieldCheck, Trophy } from "lucide-react";
+import { Briefcase, Gift, ShieldCheck, Trophy } from "lucide-react";
 import { TopBar } from "@/components/layout/TopBar";
 import { BarChart } from "@/components/ui/BarChart";
 import { FilterButton } from "@/components/ui/FilterButton";
 import { KpiHighlight } from "@/components/ui/KpiHighlight";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
+import { RateDelta } from "@/components/ui/RateDelta";
 import {
   DEFAULT_PERIOD,
   PeriodPicker,
@@ -17,7 +18,7 @@ import {
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatCard } from "@/components/ui/StatCard";
 import { StatStack } from "@/components/ui/StatStack";
-import { fetchDashboard } from "@/lib/api/dashboard";
+import { fetchDashboard, type DepartmentRanking } from "@/lib/api/dashboard";
 import { useChartColors } from "@/lib/chart-colors";
 import { availableScopes } from "@/lib/permissions";
 import type { Scope } from "@/lib/types";
@@ -32,19 +33,10 @@ const BUCKET_LABEL = {
   month: "tháng",
 } as const;
 
-type DepartmentRow = {
-  id: string;
-  name: string;
-  accountsOpened: number;
-  appsInstalled: number;
-  customers: number;
-  previousInstallRate: number | null;
-};
-
-const installRate = (d: DepartmentRow) =>
+const installRate = (d: DepartmentRanking) =>
   d.accountsOpened === 0 ? 0 : Math.round((d.appsInstalled / d.accountsOpened) * 100);
 
-const DEPARTMENT_COLUMNS: RankColumn<DepartmentRow>[] = [
+const DEPARTMENT_COLUMNS: RankColumn<DepartmentRanking>[] = [
   { key: "name", label: "Phòng", render: (d) => d.name },
   {
     key: "accountsOpened",
@@ -68,7 +60,7 @@ const DEPARTMENT_COLUMNS: RankColumn<DepartmentRow>[] = [
       <span className={styles.rateCell}>
         <span className="tabular-nums">{installRate(d)}%</span>
         {d.previousInstallRate !== null && (
-          <Delta points={installRate(d) - d.previousInstallRate} />
+          <RateDelta points={installRate(d) - d.previousInstallRate} />
         )}
       </span>
     ),
@@ -80,23 +72,6 @@ const DEPARTMENT_COLUMNS: RankColumn<DepartmentRow>[] = [
     render: (d) => d.customers,
   },
 ];
-
-/**
- * Mức tăng / giảm so với kỳ liền trước.
- *
- * Mũi tên đi kèm luôn, không chỉ dựa vào màu: người mù màu và màn hình điện
- * thoại ngoài nắng đều không phân biệt được xanh với đỏ.
- */
-function Delta({ points }: { points: number }) {
-  if (points === 0) return <span className={styles.flat}>—</span>;
-  const up = points > 0;
-  return (
-    <span className={up ? styles.up : styles.down}>
-      {up ? <ArrowUp size={13} /> : <ArrowDown size={13} />}
-      <span className="tabular-nums">{Math.abs(points)}</span>
-    </span>
-  );
-}
 
 /** P-80 · Dashboard tổng — Ban giám đốc và trưởng phòng (phạm vi hẹp hơn). */
 export default function DashboardPage() {

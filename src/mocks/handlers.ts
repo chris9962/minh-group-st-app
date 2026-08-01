@@ -4,7 +4,7 @@ import { can, clampScope, scopeFor, visibleDepartmentIds } from "@/lib/permissio
 import { sessionExpiry } from "@/store/session";
 import type { AuditLogQuery } from "@/lib/api/auditLog";
 import { auditLogFor } from "./auditLog";
-import { dashboardFor } from "./dashboard";
+import { dashboardFor, departmentStatsFor } from "./dashboard";
 import { SAVE_ERROR, type StaffForm, type StaffQuery } from "@/lib/api/staff";
 import { ORG_ERROR, type DepartmentForm, type OrgErrorCode } from "@/lib/api/org";
 import { peopleFor } from "./people";
@@ -295,6 +295,12 @@ export const handlers = [
   http.get("/api/org/departments", ({ request }) =>
     HttpResponse.json(
       departmentsFor(new URL(request.url).searchParams.get("search") ?? ""),
+    ),
+  ),
+
+  http.get("/api/org/departments/stats", ({ request }) =>
+    HttpResponse.json(
+      departmentStatsFor(new URL(request.url).searchParams.get("period") ?? "today"),
     ),
   ),
 

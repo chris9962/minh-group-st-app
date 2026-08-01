@@ -80,28 +80,6 @@
   gap: 8px;
 }
 
-.up,
-.down {
-  display: inline-flex;
-  align-items: center;
-  gap: 1px;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.up {
-  color: var(--om-green);
-}
-
-.down {
-  color: var(--om-orange);
-}
-
-.flat {
-  font-size: 12px;
-  color: var(--om-text-3);
-}
-
 .footnote {
   margin: 0;
   font-size: 12px;

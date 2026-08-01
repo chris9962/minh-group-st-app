@@ -8,13 +8,22 @@ import { TopBar } from "@/components/layout/TopBar";
 import { DepartmentFormDialog } from "@/components/departments/DepartmentFormDialog";
 import { Button } from "@/components/ui/Button";
 import buttonStyles from "@/components/ui/Button.module.css";
+import { FilterButton } from "@/components/ui/FilterButton";
+import {
+  DEFAULT_PERIOD,
+  PeriodPicker,
+  periodKey,
+  type Period,
+} from "@/components/ui/PeriodPicker";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
+import { RateDelta } from "@/components/ui/RateDelta";
 import { SearchField } from "@/components/ui/SearchField";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatCard } from "@/components/ui/StatCard";
 import { StatusTag } from "@/components/ui/StatusTag";
 import {
   fetchDepartmentRows,
+  fetchDepartmentStats,
   setDepartmentActive,
   type DepartmentRow,
 } from "@/lib/api/org";
@@ -22,6 +31,9 @@ import { useDebouncedValue } from "@/lib/hooks";
 import { can } from "@/lib/permissions";
 import { useSession } from "@/store/session";
 import styles from "./page.module.scss";
+
+const installRate = (s: { accountsOpened: number; appsInstalled: number }) =>
+  s.accountsOpened === 0 ? 0 : Math.round((s.appsInstalled / s.accountsOpened) * 100);
 
 /** P-91 · Phòng ban. Danh sách phẳng — không có cây, không có đơn vị cha. */
 export default function DepartmentsPage() {
@@ -31,8 +43,16 @@ export default function DepartmentsPage() {
   const searchQuery = useDebouncedValue(search);
   const [editing, setEditing] = useState<DepartmentRow | null>(null);
   const [creating, setCreating] = useState(false);
+  const [period, setPeriod] = useState<Period>(DEFAULT_PERIOD);
 
   const canManage = can(user, "system", "manage-org");
+  // Số TK mở/App cài/Tỉ lệ cài/Khách hàng là số liệu nghiệp vụ — quyền xem nó
+  // tách khỏi quyền quản tổ chức, giống hệt cách P-80 quyết định ai thấy
+  // "Xếp hạng phòng".
+  const canSeeStats =
+    can(user, "banking", "view-summary") ||
+    can(user, "insurance", "view-summary") ||
+    can(user, "services", "view-summary");
 
   const { data, isPending, isError } = useQuery({
     queryKey: ["org-departments", searchQuery],
@@ -41,6 +61,21 @@ export default function DepartmentsPage() {
     // biến mất rồi hiện lại, nhìn giật.
     placeholderData: (previous) => previous,
   });
+
+  const statsQuery = useQuery({
+    queryKey: ["org-department-stats", periodKey(period)],
+    queryFn: () => fetchDepartmentStats(periodKey(period)),
+    enabled: canSeeStats,
+    placeholderData: (previous) => previous,
+  });
+
+  // Chỉ 9 phòng kinh doanh có phát sinh TK/đơn/dịch vụ — phòng khác (kế toán,
+  // dự án…) không có dòng trong đây, cột số liệu của chúng hiện "—".
+  const statsById = useMemo(() => {
+    const map = new Map<string, NonNullable<typeof statsQuery.data>["departments"][number]>();
+    statsQuery.data?.departments.forEach((d) => map.set(d.id, d));
+    return map;
+  }, [statsQuery.data]);
 
   const toggleActive = useMutation({
     mutationFn: ({ id, next }: { id: string; next: boolean }) =>
@@ -62,6 +97,48 @@ export default function DepartmentsPage() {
           </Link>
         ),
       },
+      ...(canSeeStats
+        ? ([
+            {
+              key: "accountsOpened",
+              label: "TK mở",
+              sortBy: (d) => statsById.get(d.id)?.accountsOpened ?? -1,
+              render: (d) => statsById.get(d.id)?.accountsOpened ?? "—",
+            },
+            {
+              key: "appsInstalled",
+              label: "App cài",
+              sortBy: (d) => statsById.get(d.id)?.appsInstalled ?? -1,
+              render: (d) => statsById.get(d.id)?.appsInstalled ?? "—",
+            },
+            {
+              key: "installRate",
+              label: "Tỉ lệ cài",
+              sortBy: (d) => {
+                const s = statsById.get(d.id);
+                return s ? installRate(s) : -1;
+              },
+              render: (d) => {
+                const s = statsById.get(d.id);
+                if (!s) return "—";
+                return (
+                  <span className={styles.rateCell}>
+                    <span className="tabular-nums">{installRate(s)}%</span>
+                    {s.previousInstallRate !== null && (
+                      <RateDelta points={installRate(s) - s.previousInstallRate} />
+                    )}
+                  </span>
+                );
+              },
+            },
+            {
+              key: "customers",
+              label: "Khách hàng",
+              sortBy: (d) => statsById.get(d.id)?.customers ?? -1,
+              render: (d) => statsById.get(d.id)?.customers ?? "—",
+            },
+          ] satisfies RankColumn<DepartmentRow>[])
+        : []),
       {
         key: "headcount",
         label: "Số người",
@@ -105,7 +182,7 @@ export default function DepartmentsPage() {
         ),
       },
     ],
-    [toggleActive],
+    [toggleActive, canSeeStats, statsById],
   );
 
   const blocked = (data?.departments ?? []).filter(
@@ -121,6 +198,14 @@ export default function DepartmentsPage() {
           value={search}
           onChange={setSearch}
         />
+        {canSeeStats && (
+          <FilterButton
+            activeCount={period.kind === "today" ? 0 : 1}
+            onClear={() => setPeriod(DEFAULT_PERIOD)}
+          >
+            <PeriodPicker value={period} onChange={setPeriod} />
+          </FilterButton>
+        )}
         {canManage && (
           <Button aria-label="Thêm phòng ban" onClick={() => setCreating(true)}>
             <Plus size={16} aria-hidden />
