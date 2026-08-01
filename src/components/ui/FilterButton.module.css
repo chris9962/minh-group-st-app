@@ -4,8 +4,12 @@
   color: var(--om-orange-ink);
 }
 
+/* `--radix-popover-content-available-width` là khoảng trống THẬT Radix đã
+   tính (đã trừ collisionPadding, đã xét vị trí nút mở) — dùng biến này thay
+   vì tự đoán bằng `100vw` để bảng lọc luôn khít hết chỗ trống trên mọi màn
+   hình, kể cả điện thoại, mà không cần media query riêng. */
 .panel {
-  width: min(320px, calc(100vw - 32px));
+  width: min(400px, var(--radix-popover-content-available-width, 400px));
   background: var(--om-card);
   border: 1px solid var(--om-line);
   border-radius: var(--radius-lg);

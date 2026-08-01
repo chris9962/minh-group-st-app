@@ -251,9 +251,6 @@ export default function PeoplePage() {
           value={search}
           onChange={setSearch}
         />
-        <div className="desktop-only">
-          <PeoplePeriodPicker value={period} onChange={setPeriod} />
-        </div>
         <FilterButton
           activeCount={(departmentId ? 1 : 0) + (roles.length > 0 ? 1 : 0)}
           onClear={() => {
@@ -261,9 +258,7 @@ export default function PeoplePage() {
             setRoles([]);
           }}
         >
-          <div className="mobile-only">
-            <PeoplePeriodPicker value={period} onChange={setPeriod} />
-          </div>
+          <PeoplePeriodPicker value={period} onChange={setPeriod} />
           <Select
             label="Đơn vị"
             value={departmentId}

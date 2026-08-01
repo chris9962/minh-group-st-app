@@ -111,10 +111,12 @@ export function BottomNav({ user, onOpenMenu }: { user: User; onOpenMenu: () => 
               <button
                 key="create"
                 type="button"
-                className={styles.item}
+                className={[styles.item, styles.createItem].join(" ")}
                 onClick={() => setPickerOpen(true)}
               >
-                <Plus size={18} strokeWidth={1.8} aria-hidden />
+                <span className={styles.createIcon}>
+                  <Plus size={20} strokeWidth={2} aria-hidden />
+                </span>
                 <span>{entry.label}</span>
               </button>
             );

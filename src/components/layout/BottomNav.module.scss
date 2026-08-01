@@ -79,6 +79,27 @@
   background: var(--om-orange);
 }
 
+/* "Tạo mới" là thao tác chính, không phải một mục ngang hàng — cho nó nổi
+   lên thành nút tròn lòi ra khỏi mép trên thanh, viền cùng màu nền thanh để
+   tạo cảm giác "cắt ra" thay vì chỉ icon to hơn bình thường. */
+.createIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  margin-top: -22px;
+  border-radius: 999px;
+  background: var(--om-orange);
+  color: var(--om-text-on-accent);
+  border: 3px solid var(--om-sidebar);
+  box-shadow: 0 4px 10px color-mix(in srgb, var(--om-orange) 40%, transparent);
+}
+
+.createItem svg {
+  opacity: 1;
+}
+
 .pickerList {
   list-style: none;
   margin: 0;

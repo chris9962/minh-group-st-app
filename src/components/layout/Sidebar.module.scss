@@ -182,7 +182,17 @@
     inset: 0 auto 0 0;
     z-index: 50;
     width: min(280px, 85vw);
-    height: 100dvh;
+    /* `svh` = chiều cao khi thanh công cụ trình duyệt đang HIỆN (trường hợp
+       vùng thấy được nhỏ nhất). Không đặt height gì thì `bottom:0` tính theo
+       viewport LỚN NHẤT (thanh công cụ coi như đã ẩn hết) — lúc thanh đó
+       đang hiện thật, đáy hộp nằm lọt xuống dưới, bị chính thanh công cụ che
+       mất. Dùng `dvh` (số động) thì WebKit có lúc không vẽ lại kịp lúc thanh
+       đang chuyển động giữa chừng, để hở khoảng trống (ảnh chụp Tổng quan).
+       `svh` không rơi vào lỗi nào ở trên vì luôn là con số CỐ ĐỊNH, ứng với
+       trường hợp xấu nhất — đánh đổi là lúc thanh công cụ tự ẩn (vùng thấy
+       được nới rộng ra) thì hộp không giãn theo kịp, hở một khoảng nhỏ vô
+       hại ở đáy thay vì bị che mất hẳn. */
+    height: 100svh;
     transform: translateX(-100%);
     transition: transform 0.2s ease;
     border-right: 1px solid var(--om-line);
