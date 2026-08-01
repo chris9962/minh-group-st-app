@@ -26,7 +26,13 @@
 @media (max-width: bp.$bp-mobile) {
   .shell {
     height: auto;
-    min-height: 100dvh;
+    /* `svh` (small viewport height) = chiều cao khi thanh địa chỉ trình duyệt
+       ĐANG hiện — cố định, không đổi. `dvh` đổi động theo lúc thanh đó ẩn/hiện
+       khi cuộn; dùng nó ở đây từng làm layout co giãn ngay lúc cuộn, đúng lúc
+       BottomNav (position: fixed, không đổi) và nội dung trang (đổi theo
+       min-height) lệch nhịp nhau — rõ nhất ở trang ngắn (Tổng quan), gần
+       ngưỡng chiều cao màn hình nên chỉ cần lệch vài chục px là thấy đè hình. */
+    min-height: 100svh;
     flex-direction: column;
     overflow: visible;
   }

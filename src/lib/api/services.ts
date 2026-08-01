@@ -31,6 +31,7 @@ export type ServiceRow = z.infer<typeof ServiceRow>;
 
 export const ServiceQuery = z.object({
   scope: Scope,
+  search: z.string(),
   serviceTypeId: z.string(),
   from: z.string(),
   to: z.string(),
@@ -51,6 +52,7 @@ export async function fetchServices(
   const params = new URLSearchParams({
     actorId: query.actorId,
     scope: query.scope,
+    search: query.search,
     serviceTypeId: query.serviceTypeId,
     from: query.from,
     to: query.to,

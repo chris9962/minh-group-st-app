@@ -1,7 +1,3 @@
-.trigger {
-  gap: 7px;
-}
-
 /* Đang lọc: đổi sắc chữ và viền, không thêm khối đậm nào. */
 .on {
   border-color: var(--om-orange);

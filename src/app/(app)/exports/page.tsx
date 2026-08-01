@@ -285,6 +285,7 @@ export default function ExportsPage() {
       const { rows } = await fetchBankAccounts({
         actorId: user?.id ?? "",
         scope,
+        search: "",
         bankCode,
         from,
         to,
@@ -365,6 +366,7 @@ export default function ExportsPage() {
       const { rows } = await fetchBankAccounts({
         actorId: user?.id ?? "",
         scope,
+        search: "",
         bankCode,
         from,
         to,
@@ -399,6 +401,7 @@ export default function ExportsPage() {
       const { rows } = await fetchBankAccounts({
         actorId: user?.id ?? "",
         scope,
+        search: "",
         bankCode,
         from,
         to,
@@ -421,6 +424,7 @@ export default function ExportsPage() {
       const { rows } = await fetchInsuranceOrders({
         actorId: user?.id ?? "",
         scope,
+        search: "",
         status: insuranceStatus,
         product: insuranceProduct,
         from,
@@ -441,6 +445,7 @@ export default function ExportsPage() {
       const { rows } = await fetchServices({
         actorId: user?.id ?? "",
         scope,
+        search: "",
         serviceTypeId,
         from,
         to,

@@ -6,10 +6,10 @@ import { useMemo, useState } from "react";
 import { Pencil, Plus, Users } from "lucide-react";
 import { TopBar } from "@/components/layout/TopBar";
 import { Button } from "@/components/ui/Button";
+import buttonStyles from "@/components/ui/Button.module.css";
 import { monthLabel, thisMonth } from "@/components/ui/MonthPicker";
 import { PeoplePeriodPicker } from "@/components/ui/PeoplePeriodPicker";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
-import { ScopeSwitcher } from "@/components/ui/ScopeSwitcher";
 import { Select } from "@/components/ui/Select";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatCard } from "@/components/ui/StatCard";
@@ -151,7 +151,7 @@ const ROLE_FILTERS = RoleKey.options.map((value) => ({
 export default function PeoplePage() {
   const user = useSession((s) => s.user);
   const scopes = availableScopes(user, "banking", "view-summary");
-  const [scope, setScope] = useState<Scope>(scopes.at(-1) ?? "own");
+  const scope: Scope = scopes.at(-1) ?? "own";
   const [period, setPeriod] = useState<PeriodMode>({ kind: "this-month" });
   const [departmentId, setDepartmentId] = useState("");
   const [search, setSearch] = useState("");
@@ -233,7 +233,7 @@ export default function PeoplePage() {
         ),
       },
     ],
-    [],
+    [setEditing],
   );
 
   const withKpi = showsKpi(period);
@@ -251,8 +251,9 @@ export default function PeoplePage() {
           value={search}
           onChange={setSearch}
         />
-        <ScopeSwitcher options={scopes} value={scope} onChange={setScope} />
-        <PeoplePeriodPicker value={period} onChange={setPeriod} />
+        <div className="desktop-only">
+          <PeoplePeriodPicker value={period} onChange={setPeriod} />
+        </div>
         <FilterButton
           activeCount={(departmentId ? 1 : 0) + (roles.length > 0 ? 1 : 0)}
           onClear={() => {
@@ -260,6 +261,9 @@ export default function PeoplePage() {
             setRoles([]);
           }}
         >
+          <div className="mobile-only">
+            <PeoplePeriodPicker value={period} onChange={setPeriod} />
+          </div>
           <Select
             label="Đơn vị"
             value={departmentId}
@@ -294,9 +298,9 @@ export default function PeoplePage() {
           </fieldset>
         </FilterButton>
         {canManage && (
-          <Button onClick={() => setCreating(true)}>
-            <Plus size={16} />
-            Thêm nhân viên
+          <Button aria-label="Thêm nhân viên" onClick={() => setCreating(true)}>
+            <Plus size={16} aria-hidden />
+            <span className={buttonStyles.label}>Thêm nhân viên</span>
           </Button>
         )}
       </TopBar>

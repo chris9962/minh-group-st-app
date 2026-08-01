@@ -8,11 +8,12 @@ import type { DateRange } from "react-day-picker";
 import { TopBar } from "@/components/layout/TopBar";
 import { CreateBankAccountDialog } from "@/components/banking/CreateBankAccountDialog";
 import { Button } from "@/components/ui/Button";
+import buttonStyles from "@/components/ui/Button.module.css";
 import { DateRangePicker } from "@/components/ui/DateRangePicker";
 import { FilterButton } from "@/components/ui/FilterButton";
 import { FilterChips } from "@/components/ui/FilterChips";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
-import { ScopeSwitcher } from "@/components/ui/ScopeSwitcher";
+import { SearchField } from "@/components/ui/SearchField";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { Select } from "@/components/ui/Select";
 import { StatusTag } from "@/components/ui/StatusTag";
@@ -22,6 +23,7 @@ import { fetchBanks, fetchReferralCodes } from "@/lib/api/bankCatalog";
 import { fetchChannels } from "@/lib/api/channelCatalog";
 import { exportExcel } from "@/lib/excel";
 import { formatDate, formatPhone } from "@/lib/format";
+import { useDebouncedValue } from "@/lib/hooks";
 import { availableScopes, can } from "@/lib/permissions";
 import type { Scope } from "@/lib/types";
 import { useSession } from "@/store/session";
@@ -68,7 +70,9 @@ function exportByCustomer(rows: BankAccountRow[], bankCodes: string[]) {
 export default function BankingPage() {
   const user = useSession((s) => s.user);
   const scopes = availableScopes(user, "banking", "view-detail");
-  const [scope, setScope] = useState<Scope>(scopes.at(-1) ?? "own");
+  const scope: Scope = scopes.at(-1) ?? "own";
+  const [search, setSearch] = useState("");
+  const searchQuery = useDebouncedValue(search);
   const [bankCode, setBankCode] = useState("");
   const [range, setRange] = useState<DateRange | undefined>(undefined);
   const [referralCode, setReferralCode] = useState("");
@@ -88,11 +92,23 @@ export default function BankingPage() {
   const to = range?.to ? iso(range.to) : "";
 
   const { data, isPending, isError } = useQuery({
-    queryKey: ["bank-account-list", scope, bankCode, from, to, referralCode, channel, staffId, status],
+    queryKey: [
+      "bank-account-list",
+      scope,
+      searchQuery,
+      bankCode,
+      from,
+      to,
+      referralCode,
+      channel,
+      staffId,
+      status,
+    ],
     queryFn: () =>
       fetchBankAccounts({
         actorId: user?.id ?? "",
         scope,
+        search: searchQuery,
         bankCode,
         from,
         to,
@@ -164,7 +180,12 @@ export default function BankingPage() {
   return (
     <>
       <TopBar title="Ngân hàng">
-        <ScopeSwitcher options={scopes} value={scope} onChange={setScope} />
+        <SearchField
+          label="Tìm khách hàng"
+          placeholder="Tìm tên khách hàng…"
+          value={search}
+          onChange={setSearch}
+        />
         <FilterButton
           activeCount={activeCount}
           onClear={() => {
@@ -219,21 +240,22 @@ export default function BankingPage() {
             onChange={setStaffId}
             options={[{ value: "", label: "Tất cả nhân viên" }, ...staffOptions]}
           />
+          {can(user, "banking", "export") && (
+            <Button
+              variant="secondary"
+              block
+              onClick={() => exportByCustomer(rows, banks.map((b) => b.code))}
+              disabled={rows.length === 0}
+            >
+              <Download size={16} aria-hidden />
+              Xuất Excel
+            </Button>
+          )}
         </FilterButton>
-        {can(user, "banking", "export") && (
-          <Button
-            variant="secondary"
-            onClick={() => exportByCustomer(rows, banks.map((b) => b.code))}
-            disabled={rows.length === 0}
-          >
-            <Download size={16} />
-            Xuất Excel
-          </Button>
-        )}
         {can(user, "banking", "create") && (
-          <Button onClick={() => setCreating(true)}>
-            <Plus size={16} />
-            Tạo tài khoản ngân hàng
+          <Button aria-label="Tạo tài khoản ngân hàng" onClick={() => setCreating(true)}>
+            <Plus size={16} aria-hidden />
+            <span className={buttonStyles.label}>Tạo tài khoản ngân hàng</span>
           </Button>
         )}
       </TopBar>

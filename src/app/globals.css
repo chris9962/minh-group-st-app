@@ -71,6 +71,28 @@ a {
   color-scheme: light;
 }
 
+/* Cùng MỘT control (state dùng chung từ component cha) đổi CHỖ hiện giữa
+   desktop (ngay trên TopBar) và điện thoại (gộp vào trong "Bộ lọc") — tránh
+   phải viết hai bản khác nhau cho cùng một chức năng. 900px khớp $bp-mobile ở
+   _breakpoints.scss; file này là .css thường nên chép tay giá trị. */
+.desktop-only {
+  display: block;
+}
+
+.mobile-only {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .desktop-only {
+    display: none;
+  }
+
+  .mobile-only {
+    display: block;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

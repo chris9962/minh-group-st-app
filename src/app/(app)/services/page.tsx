@@ -6,17 +6,19 @@ import { Briefcase, Plus } from "lucide-react";
 import { TopBar } from "@/components/layout/TopBar";
 import { CreateServiceDialog } from "@/components/services/CreateServiceDialog";
 import { Button } from "@/components/ui/Button";
+import buttonStyles from "@/components/ui/Button.module.css";
 import { DateRangePicker } from "@/components/ui/DateRangePicker";
 import { FilterButton } from "@/components/ui/FilterButton";
 import { FilterChips } from "@/components/ui/FilterChips";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
-import { ScopeSwitcher } from "@/components/ui/ScopeSwitcher";
+import { SearchField } from "@/components/ui/SearchField";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { Select } from "@/components/ui/Select";
 import { fetchServices, type ServiceRow } from "@/lib/api/services";
 import { fetchServiceTypes } from "@/lib/api/settings";
 import { fetchProvinces } from "@/lib/api/wardCatalog";
 import { formatDate } from "@/lib/format";
+import { useDebouncedValue } from "@/lib/hooks";
 import { availableScopes, can } from "@/lib/permissions";
 import type { Scope } from "@/lib/types";
 import { useSession } from "@/store/session";
@@ -29,7 +31,9 @@ const iso = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60_000).
 export default function ServicesPage() {
   const user = useSession((s) => s.user);
   const scopes = availableScopes(user, "services", "view-detail");
-  const [scope, setScope] = useState<Scope>(scopes.at(-1) ?? "own");
+  const scope: Scope = scopes.at(-1) ?? "own";
+  const [search, setSearch] = useState("");
+  const searchQuery = useDebouncedValue(search);
   const [serviceTypeId, setServiceTypeId] = useState("");
   const [range, setRange] = useState<DateRange | undefined>(undefined);
   const [ward, setWard] = useState("");
@@ -47,11 +51,12 @@ export default function ServicesPage() {
   const to = range?.to ? iso(range.to) : "";
 
   const { data, isPending, isError } = useQuery({
-    queryKey: ["services", scope, serviceTypeId, from, to, ward, staffId],
+    queryKey: ["services", scope, searchQuery, serviceTypeId, from, to, ward, staffId],
     queryFn: () =>
       fetchServices({
         actorId: user?.id ?? "",
         scope,
+        search: searchQuery,
         serviceTypeId,
         from,
         to,
@@ -91,7 +96,12 @@ export default function ServicesPage() {
   return (
     <>
       <TopBar title="Dịch vụ">
-        <ScopeSwitcher options={scopes} value={scope} onChange={setScope} />
+        <SearchField
+          label="Tìm khách hàng"
+          placeholder="Tìm tên khách hàng…"
+          value={search}
+          onChange={setSearch}
+        />
         <FilterButton
           activeCount={activeCount}
           onClear={() => {
@@ -128,9 +138,9 @@ export default function ServicesPage() {
           />
         </FilterButton>
         {can(user, "services", "create") && (
-          <Button onClick={() => setCreating(true)}>
-            <Plus size={16} />
-            Ghi dịch vụ
+          <Button aria-label="Ghi dịch vụ" onClick={() => setCreating(true)}>
+            <Plus size={16} aria-hidden />
+            <span className={buttonStyles.label}>Ghi dịch vụ</span>
           </Button>
         )}
       </TopBar>

@@ -1,5 +1,6 @@
 import type { ServiceForm, ServiceQuery, ServiceRow } from "@/lib/api/services";
 import type { Customer } from "@/lib/api/customers";
+import { matchesSearch } from "@/lib/format";
 import { departments } from "./data";
 import { ALL } from "./people";
 import { servicesOf } from "./person";
@@ -67,6 +68,7 @@ export function servicesFor(
         visibleDepartmentIds === null ||
         (r.createdByDepartmentId && visibleDepartmentIds.includes(r.createdByDepartmentId)),
     )
+    .filter((r) => !query.search || matchesSearch(r.customerName, query.search))
     .filter((r) => !query.serviceTypeId || r.serviceTypeId === query.serviceTypeId)
     .filter((r) => !query.from || r.date >= query.from)
     .filter((r) => !query.to || r.date <= query.to)

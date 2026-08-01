@@ -41,10 +41,16 @@ const CREATE_OPTIONS: { kind: CreateKind; label: string; icon: NavIconKey; allow
 
 /**
  * Thanh điều hướng đáy — chỉ hiện trên điện thoại (CSS ẩn ở desktop). Khác
- * sidebar đầy đủ mọi mục: đây là 3-4 lối tắt hay dùng nhất theo QUYỀN của
- * người đang đăng nhập (không hard-code theo chức danh — cùng nguyên tắc với
+ * sidebar đầy đủ mọi mục: đây là 5 lối tắt hay dùng nhất theo QUYỀN của người
+ * đang đăng nhập (không hard-code theo chức danh — cùng nguyên tắc với
  * `navFor` ở sidebar), cộng nút "Thêm" mở lại sidebar đầy đủ. Không thay thế
  * sidebar, chỉ rút ngắn thao tác lặp lại hằng ngày.
+ *
+ * Tổng quan LUÔN đứng đầu (còn quyền xem), Thêm LUÔN đứng cuối — Khách hàng
+ * đứng ngay sau Tổng quan vì hồ sơ khách không áp trục phạm vi, ai đăng nhập
+ * cũng xem được (giống sidebar). Ô thứ ba đổi theo việc có tạo được bản ghi
+ * nghiệp vụ hay không: tạo được thì ưu tiên "Tạo mới"; không (GĐ/PGĐ) thì đổi
+ * sang Phòng ban.
  */
 export function BottomNav({ user, onOpenMenu }: { user: User; onOpenMenu: () => void }) {
   const pathname = usePathname();
@@ -58,29 +64,25 @@ export function BottomNav({ user, onOpenMenu }: { user: User; onOpenMenu: () => 
     can(user, "insurance", "view-summary") ||
     can(user, "banking", "view-summary") ||
     can(user, "services", "view-summary");
+  const canManageOrg = can(user, "system", "manage-org");
 
   const peopleEntry: Entry = managesPeople
-    ? { kind: "link", href: "/people", label: "Nhân sự & KPI", icon: "people" }
+    ? { kind: "link", href: "/people", label: "Nhân sự", icon: "people" }
     : { kind: "link", href: "/my-target", label: "Chỉ tiêu của tôi", icon: "target" };
 
-  // Tạo được ít nhất một loại bản ghi nghiệp vụ → thao tác hằng ngày là ghi
-  // dữ liệu, ưu tiên Khách hàng + Tạo mới. Không tạo được gì (GĐ/PGĐ) → thao
-  // tác hằng ngày là xem, ưu tiên Tổng quan + Nhân sự + Phòng ban.
-  const entries: Entry[] = canCreateBusinessRecord
-    ? [
-        { kind: "link", href: "/customers", label: "Khách hàng", icon: "customers" },
-        { kind: "create", label: "Tạo mới" },
-        peopleEntry,
-        { kind: "more", label: "Thêm" },
-      ]
-    : [
-        ...(canSeeOverview ? [{ kind: "link", href: "/", label: "Tổng quan", icon: "overview" } as Entry] : []),
-        ...(managesPeople ? [peopleEntry] : []),
-        ...(can(user, "system", "manage-org")
-          ? [{ kind: "link", href: "/departments", label: "Phòng ban", icon: "org" } as Entry]
-          : []),
-        { kind: "more", label: "Thêm" },
-      ];
+  const thirdEntry: Entry | null = canCreateBusinessRecord
+    ? { kind: "create", label: "Tạo mới" }
+    : canManageOrg
+      ? { kind: "link", href: "/departments", label: "Phòng ban", icon: "org" }
+      : null;
+
+  const entries: Entry[] = [
+    ...(canSeeOverview ? [{ kind: "link", href: "/", label: "Tổng quan", icon: "overview" } as Entry] : []),
+    { kind: "link", href: "/customers", label: "Khách hàng", icon: "customers" },
+    ...(thirdEntry ? [thirdEntry] : []),
+    peopleEntry,
+    { kind: "more", label: "Thêm" },
+  ];
 
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
   const createOptions = CREATE_OPTIONS.filter((o) => o.allowed(user));

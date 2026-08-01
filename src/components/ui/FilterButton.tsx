@@ -3,6 +3,7 @@
 import * as Popover from "@radix-ui/react-popover";
 import { SlidersHorizontal } from "lucide-react";
 import { Button } from "./Button";
+import buttonStyles from "./Button.module.css";
 import styles from "./FilterButton.module.css";
 
 type Props = {
@@ -29,12 +30,11 @@ export function FilterButton({ activeCount, onClear, children }: Props) {
       <Popover.Trigger asChild>
         <Button
           variant="secondary"
-          className={[styles.trigger, activeCount > 0 && styles.on]
-            .filter(Boolean)
-            .join(" ")}
+          aria-label="Bộ lọc"
+          className={activeCount > 0 ? styles.on : undefined}
         >
-          <SlidersHorizontal size={15} />
-          Bộ lọc
+          <SlidersHorizontal size={16} aria-hidden />
+          <span className={buttonStyles.label}>Bộ lọc</span>
         </Button>
       </Popover.Trigger>
 

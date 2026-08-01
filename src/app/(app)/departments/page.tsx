@@ -7,6 +7,7 @@ import { Building2, Pencil, Plus } from "lucide-react";
 import { TopBar } from "@/components/layout/TopBar";
 import { DepartmentFormDialog } from "@/components/departments/DepartmentFormDialog";
 import { Button } from "@/components/ui/Button";
+import buttonStyles from "@/components/ui/Button.module.css";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { SearchField } from "@/components/ui/SearchField";
 import { SectionCard } from "@/components/ui/SectionCard";
@@ -121,9 +122,9 @@ export default function DepartmentsPage() {
           onChange={setSearch}
         />
         {canManage && (
-          <Button onClick={() => setCreating(true)}>
-            <Plus size={16} />
-            Thêm phòng ban
+          <Button aria-label="Thêm phòng ban" onClick={() => setCreating(true)}>
+            <Plus size={16} aria-hidden />
+            <span className={buttonStyles.label}>Thêm phòng ban</span>
           </Button>
         )}
       </TopBar>

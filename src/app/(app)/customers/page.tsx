@@ -11,6 +11,7 @@ import { CustomerFormDialog } from "@/components/customers/CustomerFormDialog";
 import { GiftGivingDialog } from "@/components/customers/GiftGivingDialog";
 import { ServiceFormDialog } from "@/components/services/ServiceFormDialog";
 import { Button } from "@/components/ui/Button";
+import buttonStyles from "@/components/ui/Button.module.css";
 import { DateRangePicker } from "@/components/ui/DateRangePicker";
 import { FilterButton } from "@/components/ui/FilterButton";
 import { FilterChips } from "@/components/ui/FilterChips";
@@ -161,9 +162,9 @@ export default function CustomersPage() {
           />
           <DateRangePicker value={range} onChange={setRange} />
         </FilterButton>
-        <Button onClick={() => setCreating(true)}>
-          <Plus size={16} />
-          Thêm khách hàng
+        <Button aria-label="Thêm khách hàng" onClick={() => setCreating(true)}>
+          <Plus size={16} aria-hidden />
+          <span className={buttonStyles.label}>Thêm khách hàng</span>
         </Button>
       </TopBar>
 

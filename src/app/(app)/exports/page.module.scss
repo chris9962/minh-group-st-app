@@ -20,11 +20,16 @@
   gap: 6px;
 }
 
+/* `<button>` không tự nhận màu chữ theo `data-theme` — trình duyệt vẽ theo
+   màu hệ điều hành riêng, không theo biến CSS của trang, nên phải ghim màu
+   tường minh, không thì nền tối vẫn ra chữ đen mặc định. */
 .reportItem {
   display: flex;
   flex-direction: column;
   gap: 2px;
   padding: 10px 12px;
+  color: var(--om-text);
+  font: inherit;
   text-align: left;
   background: transparent;
   border: 1px solid transparent;

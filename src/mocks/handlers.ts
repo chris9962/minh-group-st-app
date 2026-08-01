@@ -670,6 +670,7 @@ export const handlers = [
       servicesFor(
         {
           scope,
+          search: params.get("search") ?? "",
           serviceTypeId: params.get("serviceTypeId") ?? "",
           from: params.get("from") ?? "",
           to: params.get("to") ?? "",
@@ -705,6 +706,7 @@ export const handlers = [
     );
     const query: BankAccountQuery = {
       scope,
+      search: params.get("search") ?? "",
       bankCode: params.get("bankCode") ?? "",
       from: params.get("from") ?? "",
       to: params.get("to") ?? "",
@@ -738,6 +740,7 @@ export const handlers = [
     );
     const query: InsuranceQuery = {
       scope,
+      search: params.get("search") ?? "",
       status: params.get("status") ?? "",
       product: params.get("product") ?? "",
       from: params.get("from") ?? "",

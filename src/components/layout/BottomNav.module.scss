@@ -14,16 +14,24 @@
     border-top: 1px solid var(--om-line);
     /* Chừa vùng an toàn của thanh cử chỉ iOS — không thì hàng nút bị che một phần. */
     padding-bottom: env(safe-area-inset-bottom, 0);
+    /* WebKit (Safari/Chrome iOS đều dùng chung engine này) vẽ sai vị trí
+       phần tử position:fixed trong lúc thanh địa chỉ ẩn/hiện khi cuộn nếu nó
+       không có layer GPU riêng — ép layer bằng translateZ(0) là cách chuẩn
+       để tránh đúng lỗi này, không liên quan gì đến dvh/svh hay padding. */
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+    will-change: transform;
   }
 }
 
 .item {
+  position: relative;
   flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 3px;
+  gap: 4px;
   padding: 8px 4px;
   border: none;
   background: none;
@@ -39,6 +47,7 @@
 
 .item svg {
   opacity: 0.8;
+  transition: opacity 0.15s ease;
 }
 
 .item:focus-visible {
@@ -46,13 +55,28 @@
   outline-offset: -2px;
 }
 
+/* Chỉ đổi màu chữ/icon — không đổi cả khối nền, không thì một hàng 4 nút
+   thành 4 mảng màu đặc, nặng nề trên một dải mỏng ở đáy màn hình. Vạch nhỏ
+   phía trên là dấu hiệu THỨ HAI ngoài màu, đọc được cả khi ngoài nắng khó
+   phân biệt sắc độ. */
 .active {
-  color: var(--om-sidebar-active-ink);
-  background: var(--om-sidebar-active);
+  color: var(--om-orange-ink);
 }
 
 .active svg {
   opacity: 1;
+}
+
+.active::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 28px;
+  height: 3px;
+  border-radius: 0 0 3px 3px;
+  background: var(--om-orange);
 }
 
 .pickerList {

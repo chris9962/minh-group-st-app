@@ -6,6 +6,9 @@
   white-space: nowrap;
 }
 
+/* Không giới hạn bề rộng thì lịch 2 tháng cạnh nhau (~560px) tràn ra ngoài
+   màn hình hẹp. `.rdp-months` gốc đã có flex-wrap: wrap — chỉ cần panel bị
+   ép hẹp lại là hai tháng tự xuống dòng xếp chồng, không cần tắt tháng nào. */
 .panel {
   background: var(--om-bg);
   border: 1px solid var(--color-divider);
@@ -13,6 +16,9 @@
   box-shadow: var(--shadow-lg);
   padding: var(--space-3);
   z-index: 20;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
 }
 
 .arrow {

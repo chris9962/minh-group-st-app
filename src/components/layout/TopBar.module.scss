@@ -22,8 +22,12 @@
   white-space: nowrap;
 }
 
+/* `flex: 1` = flex-basis 0% — thuật toán xuống dòng của `.bar` coi như cụm
+   này "không cần chỗ" nên không bao giờ đẩy nó xuống dòng mới, dù nội dung
+   thật (mấy nút pill không tự co) rộng hơn khoảng còn lại, tràn đè lên tiêu
+   đề. `flex-basis: auto` cho nó tính theo kích thước nội dung thật. */
 .tools {
-  flex: 1;
+  flex: 1 1 auto;
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -35,6 +39,14 @@
 /* Nút và ô chọn giữ nguyên bề ngang của chúng; chật thì xuống hàng, không bóp. */
 .tools > * {
   flex: none;
+}
+
+/* Quy ước chung mọi trang: control cuối cùng luôn là hành động chính (Tạo/
+   Thêm...). Trang nào càng nhiều bộ lọc (Nhân sự & KPI: tìm · phạm vi · kỳ ·
+   bộ lọc) thì cụm đó càng dính sát nút hành động chính — thêm khoảng đệm
+   riêng ở đây để mắt tách được "xem/lọc" với "làm", không phải sửa từng trang. */
+.tools > *:last-child {
+  margin-left: 6px;
 }
 
 .tools :global(.btn) {

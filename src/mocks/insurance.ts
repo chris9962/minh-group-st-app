@@ -1,4 +1,5 @@
 import type { InsuranceDetail, InsuranceListRow, InsuranceQuery } from "@/lib/api/insurance";
+import { matchesSearch } from "@/lib/format";
 import { allManualOrders } from "./insuranceOrders";
 import { departments } from "./data";
 import { ALL } from "./people";
@@ -97,6 +98,7 @@ export function insuranceOrdersFor(
         visibleDepartmentIds === null ||
         (r.departmentId !== null && visibleDepartmentIds.includes(r.departmentId)),
     )
+    .filter((r) => !query.search || matchesSearch(r.customerName, query.search))
     .filter((r) => !query.status || r.status === query.status)
     .filter((r) => !query.product || r.product === query.product)
     .filter((r) => !query.from || r.date >= query.from)

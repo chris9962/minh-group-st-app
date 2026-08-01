@@ -13,3 +13,18 @@
     height: 44px;
   }
 }
+
+/* Nhãn chữ cạnh icon trên nút hành động chính ở TopBar — ẩn trên điện thoại
+   cho gọn, GIỮ NGUYÊN chữ trên desktop. Ẩn bằng display:none nên PHẢI kèm
+   aria-label trên chính nút đó, không thì điện thoại mất luôn tên cho trình
+   đọc màn hình. 900px khớp $bp-mobile ở _breakpoints.scss — file này là .css
+   thường, không tự inject được biến Sass nên phải chép tay giá trị. */
+.label {
+  display: inline;
+}
+
+@media (max-width: 900px) {
+  .label {
+    display: none;
+  }
+}

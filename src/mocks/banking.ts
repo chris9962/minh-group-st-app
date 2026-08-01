@@ -1,4 +1,5 @@
 import type { BankAccountDetail, BankAccountQuery, BankAccountRow } from "@/lib/api/banking";
+import { matchesSearch } from "@/lib/format";
 import { seed } from "./activity";
 import { allManualAccounts, manualAccountsFor } from "./bankAccounts";
 import { banksFor } from "./bankCatalog";
@@ -94,6 +95,7 @@ export function bankAccountsFor(
         visibleDepartmentIds === null ||
         (r.departmentId !== null && visibleDepartmentIds.includes(r.departmentId)),
     )
+    .filter((r) => !query.search || matchesSearch(r.customerName, query.search))
     .filter((r) => !query.bankCode || r.bankCode === query.bankCode)
     .filter((r) => !query.from || r.date >= query.from)
     .filter((r) => !query.to || r.date <= query.to)

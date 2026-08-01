@@ -7,11 +7,12 @@ import { Plus, ShieldCheck } from "lucide-react";
 import type { DateRange } from "react-day-picker";
 import { TopBar } from "@/components/layout/TopBar";
 import { Button } from "@/components/ui/Button";
+import buttonStyles from "@/components/ui/Button.module.css";
 import { DateRangePicker } from "@/components/ui/DateRangePicker";
 import { FilterButton } from "@/components/ui/FilterButton";
 import { FilterChips } from "@/components/ui/FilterChips";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
-import { ScopeSwitcher } from "@/components/ui/ScopeSwitcher";
+import { SearchField } from "@/components/ui/SearchField";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { Select } from "@/components/ui/Select";
 import { StatusTag } from "@/components/ui/StatusTag";
@@ -19,6 +20,7 @@ import { CreateInsuranceOrderDialog } from "@/components/insurance/CreateInsuran
 import { fetchInsuranceOrders, type InsuranceListRow } from "@/lib/api/insurance";
 import { INSURANCE_STATUS_LABEL, InsuranceOrderStatus } from "@/lib/api/insuranceOrders";
 import { formatDate } from "@/lib/format";
+import { useDebouncedValue } from "@/lib/hooks";
 import { availableScopes, can } from "@/lib/permissions";
 import type { Scope } from "@/lib/types";
 import { useSession } from "@/store/session";
@@ -31,7 +33,9 @@ const PRODUCTS = ["BH tai nạn điện", "BH xe máy"];
 export default function InsurancePage() {
   const user = useSession((s) => s.user);
   const scopes = availableScopes(user, "insurance", "view-detail");
-  const [scope, setScope] = useState<Scope>(scopes.at(-1) ?? "own");
+  const scope: Scope = scopes.at(-1) ?? "own";
+  const [search, setSearch] = useState("");
+  const searchQuery = useDebouncedValue(search);
   const [status, setStatus] = useState("");
   const [product, setProduct] = useState("");
   const [range, setRange] = useState<DateRange | undefined>(undefined);
@@ -45,11 +49,12 @@ export default function InsurancePage() {
   const to = range?.to ? iso(range.to) : "";
 
   const { data, isPending, isError } = useQuery({
-    queryKey: ["insurance-list", scope, status, product, from, to, staffId],
+    queryKey: ["insurance-list", scope, searchQuery, status, product, from, to, staffId],
     queryFn: () =>
       fetchInsuranceOrders({
         actorId: user?.id ?? "",
         scope,
+        search: searchQuery,
         status,
         product,
         from,
@@ -107,7 +112,12 @@ export default function InsurancePage() {
   return (
     <>
       <TopBar title="Bảo hiểm">
-        <ScopeSwitcher options={scopes} value={scope} onChange={setScope} />
+        <SearchField
+          label="Tìm khách hàng"
+          placeholder="Tìm tên khách hàng…"
+          value={search}
+          onChange={setSearch}
+        />
         <FilterButton
           activeCount={activeCount}
           onClear={() => {
@@ -141,9 +151,9 @@ export default function InsurancePage() {
           />
         </FilterButton>
         {canCreate && (
-          <Button onClick={() => setCreating(true)}>
-            <Plus size={16} />
-            Tạo đơn bảo hiểm
+          <Button aria-label="Tạo đơn bảo hiểm" onClick={() => setCreating(true)}>
+            <Plus size={16} aria-hidden />
+            <span className={buttonStyles.label}>Tạo đơn bảo hiểm</span>
           </Button>
         )}
       </TopBar>

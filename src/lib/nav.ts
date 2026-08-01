@@ -85,7 +85,7 @@ export function navFor(user: User | null): NavEntry[] {
   items.push(
     user.manageScope === 'none' && !can(user, 'staff', 'create')
       ? { href: '/my-target', label: 'Chỉ tiêu của tôi', icon: 'target', screen: 'P-50' }
-      : { href: '/people', label: 'Nhân sự & KPI', icon: 'people', screen: 'P-51' },
+      : { href: '/people', label: 'Nhân sự', icon: 'people', screen: 'P-51' },
   );
 
   // "Cấu hình" gộp mọi màn thiết lập vào một nhóm, nhưng mục con nào hiện ra

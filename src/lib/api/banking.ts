@@ -51,6 +51,7 @@ export type BankAccountDetail = z.infer<typeof BankAccountDetail>;
 
 export const BankAccountQuery = z.object({
   scope: Scope,
+  search: z.string(),
   bankCode: z.string(),
   from: z.string(),
   to: z.string(),
@@ -73,6 +74,7 @@ export async function fetchBankAccounts(
   const params = new URLSearchParams({
     actorId: query.actorId,
     scope: query.scope,
+    search: query.search,
     bankCode: query.bankCode,
     from: query.from,
     to: query.to,

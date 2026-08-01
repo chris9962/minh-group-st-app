@@ -43,6 +43,7 @@ export type InsuranceDetail = z.infer<typeof InsuranceDetail>;
 
 export const InsuranceQuery = z.object({
   scope: Scope,
+  search: z.string(),
   status: z.string(),
   product: z.string(),
   from: z.string(),
@@ -63,6 +64,7 @@ export async function fetchInsuranceOrders(
   const params = new URLSearchParams({
     actorId: query.actorId,
     scope: query.scope,
+    search: query.search,
     status: query.status,
     product: query.product,
     from: query.from,

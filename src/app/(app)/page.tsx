@@ -5,6 +5,7 @@ import { useState } from "react";
 import { ArrowDown, ArrowUp, Briefcase, Gift, ShieldCheck, Trophy } from "lucide-react";
 import { TopBar } from "@/components/layout/TopBar";
 import { BarChart } from "@/components/ui/BarChart";
+import { FilterButton } from "@/components/ui/FilterButton";
 import { KpiHighlight } from "@/components/ui/KpiHighlight";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import {
@@ -13,7 +14,6 @@ import {
   periodKey,
   type Period,
 } from "@/components/ui/PeriodPicker";
-import { ScopeSwitcher } from "@/components/ui/ScopeSwitcher";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatCard } from "@/components/ui/StatCard";
 import { StatStack } from "@/components/ui/StatStack";
@@ -103,7 +103,7 @@ export default function DashboardPage() {
   const user = useSession((s) => s.user);
   const chartColors = useChartColors();
   const scopes = availableScopes(user, "banking", "view-summary");
-  const [scope, setScope] = useState<Scope>(scopes.at(-1) ?? "own");
+  const scope: Scope = scopes.at(-1) ?? "own";
   const [period, setPeriod] = useState<Period>(DEFAULT_PERIOD);
 
   const { data, isPending, isError } = useQuery({
@@ -135,8 +135,20 @@ export default function DashboardPage() {
   return (
     <>
       <TopBar title="Tổng quan">
-        <ScopeSwitcher options={scopes} value={scope} onChange={setScope} />
-        <PeriodPicker value={period} onChange={setPeriod} />
+        <div className="desktop-only">
+          <PeriodPicker value={period} onChange={setPeriod} />
+        </div>
+        {/* Trên desktop bộ chọn kỳ đã hiện thẳng ở trên — nút "Bộ lọc" ở đây
+            chỉ có việc trên điện thoại, ẩn hẳn (không chỉ ẩn nội dung) ở
+            desktop để khỏi thừa một nút mở ra không có gì bên trong. */}
+        <div className="mobile-only">
+          <FilterButton
+            activeCount={period.kind === "today" ? 0 : 1}
+            onClear={() => setPeriod(DEFAULT_PERIOD)}
+          >
+            <PeriodPicker value={period} onChange={setPeriod} />
+          </FilterButton>
+        </div>
       </TopBar>
 
       <main className={styles.body}>
