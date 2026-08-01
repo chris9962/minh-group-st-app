@@ -8,14 +8,17 @@ import { Button } from "@/components/ui/Button";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusTag } from "@/components/ui/StatusTag";
 import { fetchDepartments } from "@/lib/api/departments";
-import {
-  fetchStaff,
-  resetPassword,
-  setStaffActive,
-  type StaffAccount,
-} from "@/lib/api/staff";
+import { fetchStaffMember, resetPassword, setStaffActive } from "@/lib/api/staff";
 import { can } from "@/lib/permissions";
-import { ROLE_LABEL } from "@/lib/types";
+import {
+  ACTION_LABEL,
+  EDITABLE_MODULES,
+  MODULE_LABEL,
+  ROLE_LABEL,
+  SCOPE_LABEL,
+  type Permission,
+  type Scope,
+} from "@/lib/types";
 import { useSession } from "@/store/session";
 import { StaffFormDialog } from "./StaffFormDialog";
 import styles from "./AccountCard.module.css";
@@ -32,7 +35,7 @@ export function AccountCard({ staffId }: { staffId: string }) {
   const [editing, setEditing] = useState(false);
   const [newPassword, setNewPassword] = useState<string | null>(null);
 
-  const canManage = can(actor, "system", "manage-users");
+  const canManage = can(actor, "staff", "create") || can(actor, "staff", "update");
 
   const { data: departments = [] } = useQuery({
     queryKey: ["departments"],
@@ -45,21 +48,12 @@ export function AccountCard({ staffId }: { staffId: string }) {
   // nhau, gộp một lời gọi thì đổi chức vụ cũng phải tải lại cả bảng điểm.
   const { data: staff } = useQuery({
     queryKey: ["staff-one", staffId],
-    queryFn: () =>
-      fetchStaff({
-        scope: "company",
-        departmentId: "",
-        search: "",
-        status: "all",
-        roles: [],
-      }).then(
-        (r) => r.staff.find((s) => s.id === staffId) ?? null,
-      ),
+    queryFn: () => fetchStaffMember(staffId),
     enabled: canManage,
   });
 
   const toggleActive = useMutation({
-    mutationFn: (next: boolean) => setStaffActive(staffId, next),
+    mutationFn: (next: boolean) => setStaffActive(staffId, next, actor?.id ?? ""),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["staff-one", staffId] });
       queryClient.invalidateQueries({ queryKey: ["staff"] });
@@ -99,6 +93,29 @@ export function AccountCard({ staffId }: { staffId: string }) {
           }
         />
       </dl>
+
+      {staff.permissions.length > 0 && (
+        <div className={styles.permissions}>
+          <h4 className={styles.permissionsTitle}>Quyền</h4>
+          <div className={styles.permissionGroups}>
+            {groupPermissionsByModule(staff.permissions).map(({ module, items }) => (
+              <div key={module} className={styles.permissionGroup}>
+                <span className={styles.permissionModule}>{MODULE_LABEL[module]}</span>
+                <div className={styles.permissionScopes}>
+                  {groupByScope(items).map(({ scope, actions }) => (
+                    <div key={scope} className={styles.scopeGroup}>
+                      <span className={`tag ${SCOPE_TAG_CLASS[scope]}`}>{SCOPE_LABEL[scope]}</span>
+                      <span className={styles.scopeActions}>
+                        {actions.map((a) => ACTION_LABEL[a]).join(", ")}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {newPassword && (
         <Alert tone="warning">
@@ -145,6 +162,37 @@ export function AccountCard({ staffId }: { staffId: string }) {
       )}
     </SectionCard>
   );
+}
+
+/** Đậm dần theo phạm vi rộng dần — cùng một tông cam, không thêm màu mới. */
+const SCOPE_TAG_CLASS: Record<Scope, string> = {
+  own: styles.scopeOwn,
+  managed: styles.scopeManaged,
+  company: styles.scopeCompany,
+};
+
+/** Gom theo module, module `*` (Giám đốc) lên đầu vì rộng nhất. */
+function groupPermissionsByModule(
+  permissions: Permission[],
+): { module: Permission["module"]; items: Permission[] }[] {
+  return (["*", ...EDITABLE_MODULES] as const)
+    .map((module) => ({ module, items: permissions.filter((p) => p.module === module) }))
+    .filter((g) => g.items.length > 0);
+}
+
+/**
+ * Gom tiếp theo phạm vi trong một module — nhiều hành động cùng phạm vi thì
+ * chỉ hiện "Của tôi" một lần, không lặp lại trên từng tag như trước.
+ */
+function groupByScope(
+  items: Permission[],
+): { scope: Scope; actions: Permission["action"][] }[] {
+  return (["company", "managed", "own"] as const)
+    .map((scope) => ({
+      scope,
+      actions: items.filter((p) => p.scope === scope).map((p) => p.action),
+    }))
+    .filter((g) => g.actions.length > 0);
 }
 
 function Row({

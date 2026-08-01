@@ -26,6 +26,15 @@ export const Customer = z.object({
   idNumber: z.string().nullable(),
   address: z.string(),
   phones: z.array(CustomerPhone),
+  /**
+   * Nguồn khách (spec §2.3) — thuộc về KHÁCH, không thuộc về từng tài khoản
+   * ngân hàng: một khách chỉ được một kênh, dù mở bao nhiêu tài khoản sau đó.
+   * '' = không có kênh.
+   */
+  channel: z.string(),
+  channelDetail: z.string(),
+  /** Ngày tạo hồ sơ, YYYY-MM-DD — dùng để lọc ở P-40 (hôm nay/tháng này/khoảng ngày). */
+  createdAt: z.string(),
 });
 export type Customer = z.infer<typeof Customer>;
 
@@ -39,6 +48,8 @@ export const CustomerRow = z.object({
   giftStatus: z.enum(['none', 'eligible', 'given']),
   /** Tên món đã tặng — chỉ có giá trị khi giftStatus = 'given'. */
   givenItem: z.string().nullable(),
+  channel: z.string(),
+  createdAt: z.string(),
 });
 export type CustomerRow = z.infer<typeof CustomerRow>;
 
@@ -48,8 +59,16 @@ export const CustomerList = z.object({
 });
 export type CustomerList = z.infer<typeof CustomerList>;
 
-export async function fetchCustomers(search: string): Promise<CustomerList> {
-  const params = new URLSearchParams({ search });
+export const CustomerQuery = z.object({
+  search: z.string(),
+  channel: z.string(),
+  from: z.string(),
+  to: z.string(),
+});
+export type CustomerQuery = z.infer<typeof CustomerQuery>;
+
+export async function fetchCustomers(query: CustomerQuery): Promise<CustomerList> {
+  const params = new URLSearchParams(query);
   const res = await fetch(`/api/customers?${params}`);
   if (!res.ok) throw new Error('Không tải được danh sách khách hàng');
   return CustomerList.parse(await res.json());
@@ -79,6 +98,8 @@ export const CustomerForm = z.object({
     .refine((v) => v === '' || /^\d{12}$/.test(v), 'CCCD phải đủ 12 số'),
   address: z.string().trim(),
   phones: z.array(CustomerPhoneForm).min(1, 'Cần ít nhất một số điện thoại'),
+  channel: z.string(),
+  channelDetail: z.string(),
 });
 export type CustomerForm = z.infer<typeof CustomerForm>;
 
@@ -133,6 +154,18 @@ export const CustomerAccountRow = z.object({
 });
 export type CustomerAccountRow = z.infer<typeof CustomerAccountRow>;
 
+/**
+ * Tài khoản đang `creating` (spec §4.5) — đã giữ chỗ mã, KD đi mở tài khoản
+ * thật bên ngoài, chưa quay lại điền nốt. Tách khỏi `CustomerAccountRow` vì
+ * chưa có ngày mở/đã cài app thật — chỉ đủ dữ liệu để "Tiếp tục" hoặc "Xoá".
+ */
+export const CustomerDraftAccountRow = z.object({
+  id: z.string(),
+  bankName: z.string(),
+  referralCode: z.string(),
+});
+export type CustomerDraftAccountRow = z.infer<typeof CustomerDraftAccountRow>;
+
 export const CustomerInsuranceRow = z.object({
   id: z.string(),
   date: z.string(),
@@ -147,6 +180,9 @@ export type CustomerInsuranceRow = z.infer<typeof CustomerInsuranceRow>;
 export const CustomerDetail = z.object({
   customer: Customer,
   accounts: z.array(CustomerAccountRow),
+  /** Tài khoản đang tạo dở, chưa hoàn thành — cùng áp phạm vi như `accounts`. */
+  draftAccounts: z.array(CustomerDraftAccountRow),
+  draftAccountsHiddenCount: z.number(),
   /** Số bản ghi ngoài phạm vi người xem — hiện gộp, không hiện chi tiết. */
   accountsHiddenCount: z.number(),
   insurance: z.array(CustomerInsuranceRow),

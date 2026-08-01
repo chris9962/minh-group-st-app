@@ -1,3 +1,4 @@
+import type { BankAccountStatus } from "@/lib/api/bankAccounts";
 import {
   CUSTOMER_ERROR,
   type Customer,
@@ -10,7 +11,7 @@ import {
 import { digitsOnly, matchesSearch } from "@/lib/format";
 import { scopeFor, visibleDepartmentIds } from "@/lib/permissions";
 import type { User } from "@/lib/types";
-import { CUSTOMERS, seed } from "./activity";
+import { CUSTOMERS, customerChannelOf, seed } from "./activity";
 import { manualAccountsFor } from "./bankAccounts";
 import { departments } from "./data";
 import { manualOrdersFor } from "./insuranceOrders";
@@ -36,6 +37,14 @@ const phoneFor = (name: string, salt: number): string =>
 const idNumberFor = (name: string, index: number): string =>
   `092${String(300_000_000 + index * 1000 + (seed(name, 5) % 1000)).padStart(9, "0")}`;
 
+/** Rải hồ sơ mẫu trong ~18 tháng gần đây để lọc theo ngày ở P-40 có dữ liệu thật để thử. */
+const createdAtFor = (fullName: string, index: number): string => {
+  const daysAgo = 3 + ((seed(fullName, 13) * 11 + index * 17) % 540);
+  const d = new Date();
+  d.setDate(d.getDate() - daysAgo);
+  return d.toISOString().slice(0, 10);
+};
+
 let customers: Customer[] = CUSTOMERS.map((fullName, i) => {
   // Vài khách chưa có CCCD — module B chưa chắc bắt buộc (spec §2.1, câu hỏi mở).
   const hasIdNumber = i % 7 !== 6;
@@ -55,6 +64,8 @@ let customers: Customer[] = CUSTOMERS.map((fullName, i) => {
     idNumber: hasIdNumber ? idNumberFor(fullName, i) : null,
     address: `${10 + (seed(fullName, 8) % 200)} ${STREETS[seed(fullName, 9) % STREETS.length]}, ${WARDS_ADDR[seed(fullName, 10) % WARDS_ADDR.length]}`,
     phones,
+    ...customerChannelOf(fullName),
+    createdAt: createdAtFor(fullName, i),
   };
 });
 
@@ -68,7 +79,10 @@ const THIS_MONTH = (() => {
 const departmentIdByName = (name: string): string | null =>
   departments.find((d) => d.name === name)?.id ?? null;
 
-type TaggedAccount = ReturnType<typeof accountsOf>[number] & { departmentId: string | null };
+type TaggedAccount = ReturnType<typeof accountsOf>[number] & {
+  departmentId: string | null;
+  status: BankAccountStatus;
+};
 type TaggedInsurance = ReturnType<typeof insuranceOf>[number] & {
   departmentId: string | null;
   source: "self" | "gift";
@@ -93,7 +107,9 @@ function allAccountsAndInsurance(): { accounts: TaggedAccount[]; insurance: Tagg
     // lặp lại ở người khác) — thêm tiền tố theo người tạo để không đụng nhau
     // khi gộp qua cả công ty, nếu không bảng ở P-42 sẽ trùng khoá React.
     for (const a of accountsOf(p.fullName, THIS_MONTH, p.accounts)) {
-      accounts.push({ ...a, id: `${p.id}-${a.id}`, departmentId });
+      // Tài khoản giả lập luôn coi là đã hoàn thành — dữ liệu demo, không có
+      // khái niệm đang tạo dở.
+      accounts.push({ ...a, id: `${p.id}-${a.id}`, departmentId, status: "done" });
     }
     for (const ins of insuranceOf(p.fullName, THIS_MONTH, p.insuranceOrders)) {
       // Đơn giả lập luôn coi là tự khách mua — luồng Tặng quà tạo đơn 'gift'
@@ -114,6 +130,7 @@ function allAccountsAndInsurance(): { accounts: TaggedAccount[]; insurance: Tagg
         appInstalled: a.appInstalled,
         accountType: a.accountType,
         departmentId: a.createdByDepartmentId,
+        status: a.status,
       });
     }
     for (const o of manualOrdersFor(c.fullName)) {
@@ -141,12 +158,19 @@ const newestFirst = <T extends { date: string }>(rows: T[]): T[] =>
  * Khách đời thường có khoảng 2-3 tài khoản ngân hàng và 1-2 đơn bảo hiểm, nên
  * cắt về mức đó (giữ dòng mới nhất) ngay tại đây — không cần sửa `accountsOf`
  * dùng chung với P-52, P-52 vẫn đúng vì nó không cộng dồn qua nhiều người.
+ *
+ * Chỉ tính tài khoản `done` — tài khoản `creating` chưa thật sự mở, không
+ * được tính vào số tài khoản/điểm/quà của khách (mục 4.5, 4.8).
  */
 const accountsFor = (fullName: string, all: TaggedAccount[]): TaggedAccount[] => {
-  const mine = all.filter((a) => a.customerName === fullName);
+  const mine = all.filter((a) => a.customerName === fullName && a.status === "done");
   const cap = 2 + (seed(fullName, 41) % 2); // 2 hoặc 3
   return newestFirst(mine).slice(0, cap);
 };
+
+/** Tài khoản đang tạo dở của khách — không cắt bớt, thường chỉ 0-1 dòng. */
+const draftAccountsFor = (fullName: string, all: TaggedAccount[]): TaggedAccount[] =>
+  all.filter((a) => a.customerName === fullName && a.status === "creating");
 
 const insuranceFor = (fullName: string, all: TaggedInsurance[]): TaggedInsurance[] => {
   const mine = all.filter((i) => i.customerName === fullName);
@@ -208,11 +232,19 @@ const giftGiven: Map<string, string> = (() => {
   return map;
 })();
 
-export function customersFor(search: string): CustomerList {
+export function customersFor(query: {
+  search: string;
+  channel: string;
+  from: string;
+  to: string;
+}): CustomerList {
   const { accounts, insurance } = allAccountsAndInsurance();
 
   const rows: CustomerRow[] = customers
-    .filter((c) => !search.trim() || matchesCustomer(c, search))
+    .filter((c) => !query.search.trim() || matchesCustomer(c, query.search))
+    .filter((c) => !query.channel || c.channel === query.channel)
+    .filter((c) => !query.from || c.createdAt >= query.from)
+    .filter((c) => !query.to || c.createdAt <= query.to)
     .map((c) => ({
       id: c.id,
       fullName: c.fullName,
@@ -221,6 +253,8 @@ export function customersFor(search: string): CustomerList {
       insuranceCount: insuranceFor(c.fullName, insurance).length,
       giftStatus: giftGiven.has(c.id) ? "given" : giftEligible(c.fullName, accounts) ? "eligible" : "none",
       givenItem: giftGiven.get(c.id) ?? null,
+      channel: c.channel,
+      createdAt: c.createdAt,
     }));
 
   return { summary: { total: customers.length }, customers: rows };
@@ -271,6 +305,9 @@ export function createCustomer(form: CustomerForm): CustomerOutcome {
     idNumber: form.idNumber || null,
     address: form.address,
     phones: toStoredPhones(id, form),
+    channel: form.channel,
+    channelDetail: form.channelDetail,
+    createdAt: new Date().toISOString().slice(0, 10),
   };
   customers = [...customers, customer];
   return { ok: true, customer };
@@ -292,6 +329,8 @@ export function updateCustomer(id: string, form: CustomerForm): CustomerOutcome 
     idNumber: form.idNumber || null,
     address: form.address,
     phones: toStoredPhones(id, form),
+    channel: form.channel,
+    channelDetail: form.channelDetail,
   };
   customers = customers.map((c) => (c.id === id ? next : c));
   return { ok: true, customer: next };
@@ -326,6 +365,7 @@ export function customerDetailFor(id: string, actor: User | null): CustomerDetai
 
   const { accounts: allAccounts, insurance: allInsurance } = allAccountsAndInsurance();
   const myAccounts = accountsFor(customer.fullName, allAccounts);
+  const myDraftAccounts = draftAccountsFor(customer.fullName, allAccounts);
   const myInsurance = insuranceFor(customer.fullName, allInsurance);
 
   const bankingScope = scopeFor(actor, "banking", "view-detail");
@@ -337,6 +377,9 @@ export function customerDetailFor(id: string, actor: User | null): CustomerDetai
     allowed === null || (departmentId !== null && allowed.includes(departmentId));
 
   const visibleAccounts = myAccounts.filter((a) => isVisible(a.departmentId, bankingVisible));
+  const visibleDraftAccounts = myDraftAccounts.filter((a) =>
+    isVisible(a.departmentId, bankingVisible),
+  );
   const visibleInsurance = myInsurance.filter((i) => isVisible(i.departmentId, insuranceVisible));
 
   const installedBanks = [
@@ -356,6 +399,12 @@ export function customerDetailFor(id: string, actor: User | null): CustomerDetai
       appInstalled: a.appInstalled,
     })),
     accountsHiddenCount: myAccounts.length - visibleAccounts.length,
+    draftAccounts: visibleDraftAccounts.map((a) => ({
+      id: a.id,
+      bankName: a.bankName,
+      referralCode: a.referralCode,
+    })),
+    draftAccountsHiddenCount: myDraftAccounts.length - visibleDraftAccounts.length,
     insurance: visibleInsurance.map((i) => ({
       id: i.id,
       date: i.date,

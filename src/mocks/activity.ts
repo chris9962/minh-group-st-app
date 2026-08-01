@@ -23,6 +23,14 @@ export const BANK_FACTOR: Record<string, number> = {
  *  liệu giả lập dùng tên khác đi thì lọc theo kênh và tính quà theo kênh
  *  (spec §5.2 kênh Bệnh viện góp quà) đều không khớp được. */
 const CHANNELS = ["Ấp", "Bệnh viện", "ATM", "Định danh", "Tự do"];
+const HAMLET_DETAIL_DEMO = [
+  "Xã Tân Bình · Ấp 3",
+  "Xã Tân Hoà · Ấp 1",
+  "Xã Tân Lập · Ấp 5",
+  "Xã Tân Phú · Ấp 2",
+];
+const HOSPITAL_DETAIL_DEMO = ["Bệnh viện Chợ Rẫy", "Bệnh viện Nhân dân 115", "Bệnh viện Nhi đồng 1"];
+const FREE_TEXT_DETAIL_DEMO = ["Giới thiệu từ bạn bè", "Khách tự đến quầy", "Qua Zalo OA"];
 
 /** Đủ dài để mỗi khách chỉ có một hai ngân hàng, giống ngoài đời hơn. */
 export const CUSTOMERS = [
@@ -60,6 +68,24 @@ const ACCOUNT_TYPES: PersonAccount["accountType"][] = [
 export const seed = (s: string, salt: number) =>
   (s.split("").reduce((a, c) => a + c.charCodeAt(0), 0) * 13 + salt * 29) % 97;
 
+/**
+ * Kênh là thuộc tính của KHÁCH, không phải của từng tài khoản — seed theo tên
+ * khách để mọi tài khoản giả lập của cùng một khách luôn ra cùng một kênh,
+ * khớp với `mocks/customers.ts` (một nguồn seed, dùng ở cả hai nơi).
+ */
+export function customerChannelOf(customerName: string): { channel: string; channelDetail: string } {
+  const channel = CHANNELS[seed(customerName, 41) % CHANNELS.length];
+  const channelDetail =
+    channel === "Ấp" || channel === "Định danh"
+      ? HAMLET_DETAIL_DEMO[seed(customerName, 43) % HAMLET_DETAIL_DEMO.length]
+      : channel === "Bệnh viện"
+        ? HOSPITAL_DETAIL_DEMO[seed(customerName, 43) % HOSPITAL_DETAIL_DEMO.length]
+        : channel === "Tự do"
+          ? FREE_TEXT_DETAIL_DEMO[seed(customerName, 43) % FREE_TEXT_DETAIL_DEMO.length]
+          : "";
+  return { channel, channelDetail };
+}
+
 /** Tài khoản chưa có ngày — ngày do màn nào cần thì tự gắn theo kỳ đang xem. */
 export type AccountSpec = Omit<PersonAccount, "date">;
 
@@ -69,14 +95,15 @@ export function buildAccounts(fullName: string, count: number): AccountSpec[] {
     // App chưa cài thì tài khoản không tính điểm, không tính quà — đây là lý do
     // bảng có dòng mà điểm vẫn thấp.
     const appInstalled = seed(fullName, i + 53) % 5 !== 0;
+    // Rải theo i để mỗi khách chỉ dính một hai dòng; lấy seed thuần thì cả
+    // mấy chục tài khoản dồn vào vài khách và mỗi hàng có năm ngân hàng.
+    const customerName = CUSTOMERS[(i + (seed(fullName, 23) % 3)) % CUSTOMERS.length];
     return {
       id: `a${i + 1}`,
-      // Rải theo i để mỗi khách chỉ dính một hai dòng; lấy seed thuần thì cả
-      // mấy chục tài khoản dồn vào vài khách và mỗi hàng có năm ngân hàng.
-      customerName: CUSTOMERS[(i + (seed(fullName, 23) % 3)) % CUSTOMERS.length],
+      customerName,
       bankName: bank,
       referralCode: `${bank}-${String(seed(fullName, i + 31) * 7).padStart(4, "0").slice(0, 4)}`,
-      channel: CHANNELS[seed(fullName, i + 41) % CHANNELS.length],
+      channel: customerChannelOf(customerName).channel,
       appInstalled,
       accountType: appInstalled
         ? ACCOUNT_TYPES[seed(fullName, i + 59) % ACCOUNT_TYPES.length]

@@ -1,15 +1,19 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { use, useState } from "react";
-import { ChevronLeft, Gift, Landmark, ShieldCheck, User as UserIcon } from "lucide-react";
+import { Briefcase, ChevronLeft, Gift, Landmark, ShieldCheck, Trash2, User as UserIcon } from "lucide-react";
 import { TopBar } from "@/components/layout/TopBar";
+import { BankAccountFormDialog } from "@/components/banking/BankAccountFormDialog";
 import { CustomerFormDialog } from "@/components/customers/CustomerFormDialog";
+import { GiftGivingDialog } from "@/components/customers/GiftGivingDialog";
+import { ServiceFormDialog } from "@/components/services/ServiceFormDialog";
 import { Button } from "@/components/ui/Button";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusTag } from "@/components/ui/StatusTag";
+import { deleteBankAccount } from "@/lib/api/bankAccounts";
 import {
   fetchCustomerDetail,
   type CustomerAccountRow,
@@ -33,11 +37,26 @@ export default function CustomerDetailPage({
 }) {
   const { id } = use(params);
   const actor = useSession((s) => s.user);
+  const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
+  const [givingGift, setGivingGift] = useState(false);
+  const [openingBank, setOpeningBank] = useState(false);
+  const [loggingService, setLoggingService] = useState(false);
 
   const { data, isPending, isError } = useQuery({
     queryKey: ["customer", id],
     queryFn: () => fetchCustomerDetail(id, actor?.id ?? ""),
+  });
+
+  const removeDraft = useMutation({
+    mutationFn: (accountId: string) => deleteBankAccount(accountId, actor?.id ?? ""),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["customer", id] });
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
+      // Xoá nhả chỗ mã ngay — không invalidate thì hộp thoại "Mở ngân hàng"
+      // vẫn hiện "đang giữ" cũ tới khi hết 30s staleTime mặc định.
+      queryClient.invalidateQueries({ queryKey: ["referral-codes"] });
+    },
   });
 
   const accountColumns: RankColumn<CustomerAccountRow>[] = [
@@ -96,6 +115,13 @@ export default function CustomerDetailPage({
                   <dd>{data.customer.address || "Chưa có"}</dd>
                 </div>
                 <div>
+                  <dt>Kênh</dt>
+                  <dd>
+                    {data.customer.channel || "Không có"}
+                    {data.customer.channelDetail ? ` · ${data.customer.channelDetail}` : ""}
+                  </dd>
+                </div>
+                <div>
                   <dt>Điện thoại</dt>
                   <dd>
                     {data.customer.phones.map((p) => (
@@ -111,6 +137,22 @@ export default function CustomerDetailPage({
                 <Button variant="secondary" onClick={() => setEditing(true)}>
                   Sửa thông tin
                 </Button>
+                <Button
+                  variant="secondary"
+                  disabled={data.gift.given}
+                  onClick={() => setGivingGift(true)}
+                >
+                  <Gift size={16} />
+                  Tặng quà
+                </Button>
+                <Button variant="secondary" onClick={() => setOpeningBank(true)}>
+                  <Landmark size={16} />
+                  Mở ngân hàng
+                </Button>
+                <Button variant="secondary" onClick={() => setLoggingService(true)}>
+                  <Briefcase size={16} />
+                  Ghi dịch vụ
+                </Button>
               </div>
             </SectionCard>
 
@@ -119,6 +161,38 @@ export default function CustomerDetailPage({
               icon={<Landmark size={17} />}
               meta={`${data.accounts.length} tài khoản`}
             >
+              {data.draftAccounts.length > 0 && (
+                <ul className={styles.drafts}>
+                  {data.draftAccounts.map((a) => (
+                    <li key={a.id} className={styles.draftRow}>
+                      <span>
+                        <strong>{a.bankName}</strong> · {a.referralCode} — đang tạo, chưa hoàn thành
+                      </span>
+                      <span className={styles.draftActions}>
+                        <Link href={`/banking/${a.id}`} className="btn btn-secondary">
+                          Tiếp tục
+                        </Link>
+                        <Button
+                          variant="secondary"
+                          icon
+                          aria-label={`Xoá tài khoản đang tạo ${a.bankName}`}
+                          disabled={removeDraft.isPending}
+                          onClick={() => removeDraft.mutate(a.id)}
+                        >
+                          <Trash2 size={16} aria-hidden />
+                        </Button>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {data.draftAccountsHiddenCount > 0 && (
+                <p className={styles.footnote}>
+                  Còn <strong>{data.draftAccountsHiddenCount}</strong> tài khoản đang tạo của
+                  phòng khác, ngoài phạm vi xem của bạn.
+                </p>
+              )}
+
               {data.accounts.length === 0 ? (
                 <p className="text-muted">Chưa có tài khoản ngân hàng nào trong phạm vi xem.</p>
               ) : (
@@ -213,9 +287,7 @@ export default function CustomerDetailPage({
               </dl>
               <p className={styles.footnote}>
                 Quà tính trên <strong>toàn bộ</strong> tài khoản của khách, kể cả tài khoản
-                ngoài phạm vi xem của bạn. Luồng <strong>Tặng quà</strong> (P-43 — chọn món,
-                tạo đơn thụ hưởng, đánh dấu đã giao) chưa triển khai; màn này mới dừng ở tính
-                toán hiển thị.
+                ngoài phạm vi xem của bạn.
               </p>
             </SectionCard>
           </>
@@ -223,6 +295,35 @@ export default function CustomerDetailPage({
 
         {editing && data && (
           <CustomerFormDialog open customer={data.customer} onClose={() => setEditing(false)} />
+        )}
+
+        {givingGift && data && (
+          <GiftGivingDialog
+            open
+            customerId={data.customer.id}
+            customerName={data.customer.fullName}
+            onClose={() => setGivingGift(false)}
+          />
+        )}
+
+        {openingBank && data && (
+          <BankAccountFormDialog
+            open
+            customerId={data.customer.id}
+            customerPrimaryPhone={
+              data.customer.phones.find((p) => p.primary)?.number ?? data.customer.phones[0]?.number ?? ""
+            }
+            onClose={() => setOpeningBank(false)}
+          />
+        )}
+
+        {loggingService && data && (
+          <ServiceFormDialog
+            open
+            customerId={data.customer.id}
+            customerName={data.customer.fullName}
+            onClose={() => setLoggingService(false)}
+          />
         )}
       </main>
     </>

@@ -87,10 +87,15 @@ export const CODE_STATUS_LABEL: Record<CodeStatus, string> = {
   full: 'Đã đầy',
 };
 
-/** Sắp hết khi đã dùng từ 80% trở lên — ngưỡng cảnh báo trước khi đầy hẳn. */
+/**
+ * Tính trên `đã dùng + đang giữ` — chỗ đang được ai đó giữ (tài khoản còn
+ * `creating`, mục 4.5) cũng là chỗ không còn trống thật, dù chưa tính vào
+ * `used`. Sắp hết khi đã chạm 80% trở lên — ngưỡng cảnh báo trước khi đầy hẳn.
+ */
 export function codeStatusOf(c: ReferralCode): CodeStatus {
-  if (c.used >= c.total) return 'full';
-  if (c.used / c.total >= 0.8) return 'low';
+  const taken = c.used + c.holding;
+  if (taken >= c.total) return 'full';
+  if (taken / c.total >= 0.8) return 'low';
   return 'available';
 }
 

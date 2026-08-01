@@ -10,7 +10,6 @@ import { Select } from "@/components/ui/Select";
 import { TextField } from "@/components/ui/TextField";
 import {
   createStaff,
-  SAVE_ERROR,
   StaffForm,
   updateStaff,
   type SaveError,
@@ -18,7 +17,9 @@ import {
 } from "@/lib/api/staff";
 import { assignableRoles } from "@/lib/permissions";
 import { ROLE_LABEL, type Department } from "@/lib/types";
+import { ROLE_PERMISSIONS } from "@/lib/roles";
 import { useSession } from "@/store/session";
+import { PermissionsEditor } from "./PermissionsEditor";
 import styles from "./StaffFormDialog.module.scss";
 
 type Props = {
@@ -39,6 +40,7 @@ const emptyForm: StaffForm = {
   manageScope: "none",
   managedDepartmentIds: [],
   wardId: "",
+  permissions: ROLE_PERMISSIONS.staff,
 };
 
 const toForm = (s: StaffAccount): StaffForm => ({
@@ -51,6 +53,7 @@ const toForm = (s: StaffAccount): StaffForm => ({
   manageScope: s.manageScope,
   managedDepartmentIds: s.managedDepartmentIds,
   wardId: s.wardId ?? "",
+  permissions: s.permissions,
 });
 
 const isSaveError = (e: unknown): e is SaveError =>
@@ -164,9 +167,16 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
           <Select
             label="Chức vụ"
             value={watch("role")}
-            onChange={(v) =>
-              setValue("role", v as StaffForm["role"], { shouldDirty: true })
-            }
+            onChange={(v) => {
+              const role = v as StaffForm["role"];
+              setValue("role", role, { shouldDirty: true });
+              // Chỉ tự điền lại quyền khi TẠO MỚI — sửa người đã có thì giữ
+              // nguyên quyền hiện tại, đổi chức vụ không được xoá mất phần
+              // admin đã cấp thêm riêng cho người đó.
+              if (!editing) {
+                setValue("permissions", ROLE_PERMISSIONS[role], { shouldDirty: true });
+              }
+            }}
             options={roles.map((r) => ({ value: r, label: ROLE_LABEL[r] }))}
           />
         </div>
@@ -218,12 +228,29 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
           </fieldset>
         )}
 
-        {editing && (
-          <Alert tone="warning">
-            Đổi đơn vị <strong>không viết lại lịch sử</strong>. Bản ghi cũ vẫn
-            thuộc phòng lúc tạo, nên báo cáo các tháng trước không đổi theo.
-          </Alert>
-        )}
+        <fieldset className={styles.fieldset}>
+          <legend className={styles.legend}>Quyền</legend>
+          <p className={styles.note}>
+            Đã điền sẵn theo chức vụ — sửa riêng từng ô nếu người này cần thêm
+            hoặc bớt quyền so với chức vụ chung. Chỉ chọn được tới đúng phạm vi
+            bạn đang có, không cấp vượt quá quyền của chính bạn.
+          </p>
+          <PermissionsEditor
+            value={watch("permissions")}
+            onChange={(permissions) => setValue("permissions", permissions, { shouldDirty: true })}
+            actor={actor}
+          />
+          <Button
+            variant="secondary"
+            type="button"
+            className={styles.resetPermissions}
+            onClick={() =>
+              setValue("permissions", ROLE_PERMISSIONS[watch("role")], { shouldDirty: true })
+            }
+          >
+            Đặt lại theo chức vụ
+          </Button>
+        </fieldset>
       </form>
     </Dialog>
   );

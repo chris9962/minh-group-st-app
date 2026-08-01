@@ -2,6 +2,7 @@ import type { BankAccountDetail, BankAccountQuery, BankAccountRow } from "@/lib/
 import { seed } from "./activity";
 import { allManualAccounts, manualAccountsFor } from "./bankAccounts";
 import { banksFor } from "./bankCatalog";
+import { findCustomer } from "./customers";
 import { departments } from "./data";
 import { ALL } from "./people";
 import { accountsOf } from "./person";
@@ -29,7 +30,10 @@ const departmentIdByName = (name: string): string | null =>
 const fakeAccountNumber = (customerName: string, bankName: string, i: number): string =>
   `09${String(seed(customerName + bankName, i) * 1013 + 10_000_000).slice(0, 8)}`;
 
-type TaggedRow = BankAccountRow & { departmentId: string | null };
+type TaggedRow = Omit<BankAccountRow, "createdByDepartmentName"> & { departmentId: string | null };
+
+const departmentNameById = (id: string | null): string | null =>
+  departments.find((d) => d.id === id)?.name ?? null;
 
 function allRows(): TaggedRow[] {
   const rows: TaggedRow[] = [];
@@ -39,6 +43,9 @@ function allRows(): TaggedRow[] {
     for (const a of accountsOf(p.fullName, THIS_MONTH, p.accounts)) {
       rows.push({
         id: `${p.id}-${a.id}`,
+        // Tài khoản giả lập không có hồ sơ khách thật đứng sau — "" là đúng,
+        // trang chi tiết đã có nhánh dự phòng khi không có id (như P-14).
+        customerId: "",
         customerName: a.customerName,
         bankCode: a.bankName,
         accountNumber: fakeAccountNumber(a.customerName, a.bankName, rows.length),
@@ -49,6 +56,9 @@ function allRows(): TaggedRow[] {
         createdById: p.id,
         createdByName: p.fullName,
         departmentId,
+        // Tài khoản giả lập luôn coi là đã hoàn thành — dữ liệu demo, không
+        // có khái niệm đang tạo dở.
+        status: "done",
       });
     }
   }
@@ -56,6 +66,7 @@ function allRows(): TaggedRow[] {
   for (const a of allManualAccounts()) {
     rows.push({
       id: a.id,
+      customerId: a.customerId,
       customerName: a.customerName,
       bankCode: a.bankCode,
       accountNumber: a.accountNumber,
@@ -66,6 +77,7 @@ function allRows(): TaggedRow[] {
       createdById: a.createdById,
       createdByName: a.createdByName,
       departmentId: a.createdByDepartmentId,
+      status: a.status,
     });
   }
 
@@ -88,10 +100,12 @@ export function bankAccountsFor(
     .filter((r) => !query.referralCode || r.referralCode === query.referralCode)
     .filter((r) => !query.channel || r.channel === query.channel)
     .filter((r) => !query.staffId || r.createdById === query.staffId)
+    .filter((r) => !query.status || r.status === query.status)
     .sort((a, b) => (a.date < b.date ? 1 : -1))
     .map(
       (r): BankAccountRow => ({
         id: r.id,
+        customerId: r.customerId,
         customerName: r.customerName,
         bankCode: r.bankCode,
         accountNumber: r.accountNumber,
@@ -101,6 +115,8 @@ export function bankAccountsFor(
         date: r.date,
         createdById: r.createdById,
         createdByName: r.createdByName,
+        createdByDepartmentName: departmentNameById(r.departmentId),
+        status: r.status,
       }),
     );
 
@@ -124,14 +140,19 @@ export function bankAccountDetailFor(
   const manual = manualAccountsFor(row.customerName).find((a) => a.id === id);
   const { departmentId, ...base } = row;
   const bank = banksFor().find((b) => b.code === row.bankCode);
+  const customer = findCustomer(row.customerId);
+  const primaryPhone = customer?.phones.find((p) => p.primary)?.number ?? customer?.phones[0]?.number ?? "";
 
   return {
     ...base,
+    createdByDepartmentName: departmentNameById(departmentId),
     channelDetail: manual?.channelDetail ?? "",
     accountType: manual?.accountType ?? "none",
     note: manual?.note ?? "",
     createdByDepartmentId: departmentId,
     photoUrls: manual?.photoUrls ?? [],
     requiredPhotos: bank?.requiredPhotos ?? 0,
+    accountNumberMethod: bank?.accountNumberMethod ?? "manual",
+    customerPrimaryPhone: primaryPhone,
   };
 }

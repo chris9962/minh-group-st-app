@@ -24,6 +24,13 @@
   gap: 10px;
 }
 
+.summary {
+  padding: 10px 12px;
+  background: var(--om-soft);
+  border-radius: var(--radius-md);
+  font-size: 13.5px;
+}
+
 @media (max-width: bp.$bp-narrow) {
   .pair {
     grid-template-columns: minmax(0, 1fr);

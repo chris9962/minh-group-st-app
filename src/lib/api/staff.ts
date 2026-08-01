@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ManageScope, RoleKey } from '@/lib/types';
+import { ManageScope, Permission, RoleKey } from '@/lib/types';
 
 /** Hồ sơ nhân viên = tài khoản đăng nhập. Một thứ, không tách (spec §2.2). */
 
@@ -19,6 +19,12 @@ export const StaffAccount = z.object({
   /** Chỉ nhân viên phòng Dự Án mới có. */
   wardId: z.string().nullable(),
   active: z.boolean(),
+  /**
+   * Quyền THẬT của người này — mặc định theo Chức vụ lúc tạo, admin gán tay
+   * đè lên được (mục 1.1.0 spec). Đây là nguồn hiển thị ở P-92/thẻ "Quyền" —
+   * không suy ngược từ `role`, vì suy ngược thì mất phần admin đã cấp thêm.
+   */
+  permissions: z.array(Permission),
 });
 export type StaffAccount = z.infer<typeof StaffAccount>;
 
@@ -55,16 +61,18 @@ export const StaffForm = z.object({
   manageScope: ManageScope,
   managedDepartmentIds: z.array(z.string()),
   wardId: z.string(),
+  permissions: z.array(Permission),
 });
 export type StaffForm = z.infer<typeof StaffForm>;
 
 export const SAVE_ERROR = {
   USERNAME_TAKEN: 'username-taken',
   ROLE_TOO_HIGH: 'role-too-high',
+  PERMISSION_TOO_HIGH: 'permission-too-high',
 } as const;
 
 export const SaveError = z.object({
-  code: z.enum([SAVE_ERROR.USERNAME_TAKEN, SAVE_ERROR.ROLE_TOO_HIGH]),
+  code: z.enum([SAVE_ERROR.USERNAME_TAKEN, SAVE_ERROR.ROLE_TOO_HIGH, SAVE_ERROR.PERMISSION_TOO_HIGH]),
   message: z.string(),
 });
 export type SaveError = z.infer<typeof SaveError>;
@@ -87,6 +95,13 @@ export async function fetchStaff(query: StaffQuery): Promise<StaffList> {
   return StaffList.parse(await res.json());
 }
 
+/** Dùng ở P-52 (hồ sơ một người) để hiện khối "Quyền" — P-51 chỉ trả danh sách rút gọn. */
+export async function fetchStaffMember(id: string): Promise<StaffAccount> {
+  const res = await fetch(`/api/staff/${id}`);
+  if (!res.ok) throw new Error('Không tải được hồ sơ nhân viên này');
+  return StaffAccount.parse(await res.json());
+}
+
 /** Lỗi nghiệp vụ ném ra dạng SaveError để form gắn được vào đúng ô nhập. */
 async function send(url: string, method: string, body?: unknown) {
   const res = await fetch(url, {
@@ -107,8 +122,8 @@ export const createStaff = (form: StaffForm, actorId: string) =>
 export const updateStaff = (id: string, form: StaffForm, actorId: string) =>
   send(`/api/staff/${id}`, 'PATCH', { ...form, actorId }).then(StaffAccount.parse);
 
-export const setStaffActive = (id: string, active: boolean) =>
-  send(`/api/staff/${id}/active`, 'POST', { active }).then(StaffAccount.parse);
+export const setStaffActive = (id: string, active: boolean, actorId: string) =>
+  send(`/api/staff/${id}/active`, 'POST', { active, actorId }).then(StaffAccount.parse);
 
 /**
  * Sinh mật khẩu MỚI và trả về đúng một lần.

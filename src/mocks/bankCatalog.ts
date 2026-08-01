@@ -1,11 +1,4 @@
-import {
-  codeStatusOf,
-  type Bank,
-  type BankForm,
-  type CodeStatus,
-  type ReferralCode,
-  type ReferralCodeForm,
-} from "@/lib/api/bankCatalog";
+import type { Bank, BankForm, ReferralCode, ReferralCodeForm } from "@/lib/api/bankCatalog";
 
 /**
  * Kho ngân hàng (P-60) + kho mã giới thiệu (P-61). Danh sách 11 ngân hàng +
@@ -56,47 +49,54 @@ export function setBankActive(id: string, active: boolean): Bank | null {
 
 /* ── P-61 · Kho mã giới thiệu ─────────────────────────────────────────── */
 
-let codes: ReferralCode[] = [
-  { id: "rc-1", bankId: "bk-vpa", code: "VPA-2024-01", used: 47, total: 100, holding: 3 },
-  { id: "rc-2", bankId: "bk-vpa", code: "VPA-2024-02", used: 12, total: 100, holding: 0 },
-  { id: "rc-3", bankId: "bk-msba", code: "MSBA-01", used: 85, total: 100, holding: 5 },
-  { id: "rc-4", bankId: "bk-tpb", code: "TPB-01", used: 100, total: 100, holding: 0 },
-  { id: "rc-5", bankId: "bk-mb", code: "MB-01", used: 10, total: 50, holding: 1 },
-  { id: "rc-6", bankId: "bk-vpb", code: "VPB-2024-01", used: 30, total: 100, holding: 2 },
+/**
+ * Không lưu `holding` ở đây — "đang giữ" của một mã = số tài khoản đang
+ * `creating` tham chiếu mã đó (mục 4.5), tính từ `bankAccounts.ts`. Lưu tĩnh
+ * ở đây thì sẽ có hai nguồn sự thật lệch nhau. `holding` chỉ được GHÉP vào
+ * lúc trả JSON, ở `handlers.ts` (nơi đã import được cả hai kho).
+ */
+type StoredReferralCode = Omit<ReferralCode, "holding">;
+
+let codes: StoredReferralCode[] = [
+  { id: "rc-1", bankId: "bk-vpa", code: "VPA-2024-01", used: 47, total: 100 },
+  { id: "rc-2", bankId: "bk-vpa", code: "VPA-2024-02", used: 12, total: 100 },
+  { id: "rc-3", bankId: "bk-msba", code: "MSBA-01", used: 85, total: 100 },
+  { id: "rc-4", bankId: "bk-tpb", code: "TPB-01", used: 100, total: 100 },
+  { id: "rc-5", bankId: "bk-mb", code: "MB-01", used: 10, total: 50 },
+  { id: "rc-6", bankId: "bk-vpb", code: "VPB-2024-01", used: 30, total: 100 },
 ];
 
 let nextCodeId = 1;
 
-export function referralCodesFor(query: { bankId: string; status: CodeStatus | "" }): ReferralCode[] {
-  return codes.filter((c) => {
-    if (query.bankId && c.bankId !== query.bankId) return false;
-    if (query.status && codeStatusOf(c) !== query.status) return false;
-    return true;
-  });
+/**
+ * Không lọc theo trạng thái (còn chỗ/sắp hết/đầy) ở đây nữa — trạng thái cần
+ * `holding` thật, chỉ có sau khi ghép ở `handlers.ts`.
+ */
+export function referralCodesFor(query: { bankId: string }): StoredReferralCode[] {
+  return codes.filter((c) => !query.bankId || c.bankId === query.bankId);
 }
 
-export function createReferralCode(form: ReferralCodeForm): ReferralCode {
-  const code: ReferralCode = {
+export function createReferralCode(form: ReferralCodeForm): StoredReferralCode {
+  const code: StoredReferralCode = {
     id: `rc-new-${nextCodeId++}`,
     bankId: form.bankId,
     code: form.code,
     total: form.total,
     used: 0,
-    holding: 0,
   };
   codes = [...codes, code];
   return code;
 }
 
-export const findReferralCode = (id: string): ReferralCode | null =>
+export const findReferralCode = (id: string): StoredReferralCode | null =>
   codes.find((c) => c.id === id) ?? null;
 
 /**
- * Mở tài khoản xong thì trừ một lượt — bỏ qua bước giữ chỗ 30 phút có sẵn ở
- * spec §4.5, dùng trực tiếp thao tác "dùng luôn" cho gọn ở lượt xây đầu tiên
- * này. Không cho dùng mã đã đầy.
+ * Tiêu một lượt thật — gọi ở BƯỚC 2 lúc tài khoản chuyển sang `done`
+ * (`bankAccounts.ts#finishBankAccount`), không phải lúc chọn mã ở bước 1.
+ * Không cho dùng mã đã đầy (tính cả đang giữ, xem `codeStatusOf`).
  */
-export function consumeReferralCode(id: string): ReferralCode | null {
+export function consumeReferralCode(id: string): StoredReferralCode | null {
   const current = codes.find((c) => c.id === id);
   if (!current || current.used >= current.total) return null;
   const next = { ...current, used: current.used + 1 };

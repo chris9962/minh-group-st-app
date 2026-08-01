@@ -1,0 +1,205 @@
+.body {
+  flex: 1;
+  padding: 22px 28px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.columns {
+  display: grid;
+  grid-template-columns: minmax(0, 300px) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.reportList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.reportItem {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  text-align: left;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  /* 44px cho ngón tay — đội KD dùng điện thoại ngoài hiện trường. */
+  min-height: 44px;
+}
+
+.reportItem:hover:not(:disabled) {
+  background: var(--om-soft);
+}
+
+.reportItem:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.reportItemActive {
+  background: var(--om-orange-soft);
+  border-color: var(--om-orange-light);
+}
+
+.reportLabel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.reportHint {
+  font-size: 12px;
+  color: var(--om-text-2);
+}
+
+.columnPreview {
+  margin-bottom: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--om-line);
+}
+
+.columnPreviewLabel {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 12.5px;
+  color: var(--om-text-2);
+}
+
+/* Mọi cột — kể cả đang tắt — nằm cùng một hàng ngang, đúng vị trí cố định.
+   Bỏ tick chỉ làm nhạt màu, KHÔNG rời khỏi chỗ — bật lại về đúng vị trí cũ,
+   không bị đẩy xuống cuối. Mũi tên trái/phải khớp hướng đọc bảng ngang. */
+.columnPicker {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  background: var(--om-soft);
+  border-radius: var(--radius-md);
+}
+
+.columnChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: var(--om-card);
+  border: 1px solid var(--om-line);
+  border-radius: 999px;
+}
+
+.columnChipOff {
+  background: transparent;
+  border-style: dashed;
+  opacity: 0.6;
+}
+
+.chipArrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex: none;
+  padding: 0;
+  color: var(--om-text-2);
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.chipArrow:hover:not(:disabled) {
+  background: var(--om-soft);
+  color: var(--om-text);
+}
+
+.chipArrow:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.columnChips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.previewScroll {
+  overflow-x: auto;
+  border: 1px solid var(--om-line);
+  border-radius: var(--radius-md);
+}
+
+/* Bảng — dòng đầu in đậm giống dòng tiêu đề Excel thật (ws.getRow(1).font), có
+   kẻ ô để nhìn ra ngay đây là xem trước bảng tính, không phải danh sách chữ. */
+.previewTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.previewTable th,
+.previewTable td {
+  padding: 7px 12px;
+  border: 1px solid var(--om-line);
+  text-align: left;
+}
+
+.previewTable thead th {
+  font-weight: 700;
+  background: var(--om-soft);
+  color: var(--om-text);
+}
+
+.previewTable tbody tr:nth-child(even) td {
+  background: var(--om-soft);
+}
+
+/* Đè `.previewTable th/td` — cả hai đều 2 lớp nhưng khai sau nên thắng theo
+   thứ tự nguồn không đủ tin cậy, phải khớp cùng độ đặc trưng để chắc thắng. */
+.previewTable th.alignNum,
+.previewTable td.alignNum {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.textHint {
+  font-weight: 400;
+  color: var(--om-text-3);
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.result {
+  font-size: 13px;
+  color: var(--om-text-2);
+}
+
+@media (max-width: bp.$bp-narrow) {
+  .columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

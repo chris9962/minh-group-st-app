@@ -33,7 +33,10 @@
 
 .phoneRow {
   display: flex;
-  align-items: center;
+  // flex-end, không phải center: cột đầu có nhãn phía trên ô nhập, "Số chính"
+  // và nút xoá thì không — center sẽ láy theo chiều cao CẢ NHÃN LẪN Ô, đẩy hai
+  // thứ này lên cao hơn ô nhập thay vì đứng ngang hàng với nó.
+  align-items: flex-end;
   gap: 10px;
 }
 

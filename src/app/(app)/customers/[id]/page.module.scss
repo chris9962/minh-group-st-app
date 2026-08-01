@@ -68,6 +68,8 @@
 .footRow {
   display: flex;
   justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 8px;
   margin-top: 14px;
 }
 
@@ -75,6 +77,33 @@
   margin: 10px 0 0;
   font-size: 12px;
   color: var(--color-neutral-600);
+}
+
+.drafts {
+  margin: 0 0 14px;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.draftRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--om-soft);
+  border-radius: var(--radius-md);
+  font-size: 13.5px;
+}
+
+.draftActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .detail {

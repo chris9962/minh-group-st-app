@@ -13,6 +13,19 @@ import { z } from 'zod';
 export const AccountType = z.enum(['none', 'CNKD', 'HKD']);
 export type AccountType = z.infer<typeof AccountType>;
 
+/**
+ * Hai bước, không phải một (spec §4.5): KD chọn ngân hàng + mã rồi đi mở tài
+ * khoản THẬT bên ngoài (có thể mất nhiều giờ, qua ngày khác) — không nhập hết
+ * một lần được. `creating` = đã giữ chỗ mã, đang chờ quay lại điền nốt.
+ * `done` = đã quay lại, đủ ảnh chứng minh, mã đã tiêu thật.
+ *
+ * "Đang giữ" của một mã giới thiệu = đúng số tài khoản đang ở trạng thái
+ * `creating` tham chiếu mã đó — không có bảng "lượt giữ" hay hạn 30 phút
+ * riêng, tài khoản dở dang CHÍNH LÀ cái giữ chỗ. Muốn nhả thì xoá dòng đó.
+ */
+export const BankAccountStatus = z.enum(['creating', 'done']);
+export type BankAccountStatus = z.infer<typeof BankAccountStatus>;
+
 export const BankAccount = z.object({
   id: z.string(),
   customerId: z.string(),
@@ -21,10 +34,13 @@ export const BankAccount = z.object({
   customerName: z.string(),
   bankId: z.string(),
   bankCode: z.string(),
+  /** Id thật của mã — dùng để đối chiếu/tiêu mã. `referralCode` là chuỗi hiển thị. */
+  referralCodeId: z.string(),
   referralCode: z.string(),
+  /** '' lúc còn `creating` — chưa chắc đã biết số thật cho tới khi mở xong. */
   accountNumber: z.string(),
   openedDate: z.string(),
-  /** '' = không có kênh. */
+  /** Chép lại từ khách lúc mở tài khoản — kênh thuộc về khách, không nhập ở đây. */
   channel: z.string(),
   channelDetail: z.string(),
   appInstalled: z.boolean(),
@@ -37,24 +53,27 @@ export const BankAccount = z.object({
   createdByDepartmentId: z.string().nullable(),
   /** Ảnh chứng minh thật — số ảnh bắt buộc lấy từ cấu hình ngân hàng (P-60), xem/sửa ở P-22. */
   photoUrls: z.array(z.string()),
+  status: BankAccountStatus,
 });
 export type BankAccount = z.infer<typeof BankAccount>;
 
-export const BankAccountForm = z.object({
+/** Bước 1 (P-20) — chỉ chọn ngân hàng + mã. Lưu là giữ chỗ mã ngay, tạo dòng `creating`. */
+export const BankAccountStartForm = z.object({
   customerId: z.string(),
   bankId: z.string().trim().min(1, 'Chưa chọn ngân hàng'),
   referralCode: z.string().trim().min(1, 'Chưa chọn mã giới thiệu'),
+});
+export type BankAccountStartForm = z.infer<typeof BankAccountStartForm>;
+
+/** Bước 2 (P-22, khi tài khoản đang `creating`) — điền nốt sau khi đã mở xong ở ngoài. */
+export const BankAccountFinishForm = z.object({
   accountNumber: z.string().trim().min(1, 'Chưa có số tài khoản'),
   openedDate: z.string().trim().min(1, 'Chưa chọn ngày mở'),
-  channel: z.string(),
-  channelDetail: z.string(),
   appInstalled: z.boolean(),
   accountType: AccountType,
-  /** Chặn cứng nếu chưa tích — số ảnh bắt buộc lấy từ cấu hình ngân hàng (P-60). */
-  photosConfirmed: z.boolean().refine((v) => v, 'Chưa đủ ảnh chứng minh theo cấu hình'),
   note: z.string(),
 });
-export type BankAccountForm = z.infer<typeof BankAccountForm>;
+export type BankAccountFinishForm = z.infer<typeof BankAccountFinishForm>;
 
 export const CreateBankAccountResult = z.object({
   account: BankAccount,
@@ -66,17 +85,40 @@ export const CreateBankAccountResult = z.object({
 });
 export type CreateBankAccountResult = z.infer<typeof CreateBankAccountResult>;
 
-export async function createBankAccount(
-  form: BankAccountForm,
+/** Bước 1 — giữ chỗ mã, tạo dòng `creating`. Chưa có cảnh báo vì chưa biết đã cài app chưa. */
+export async function startBankAccount(
+  form: BankAccountStartForm,
   actorId: string,
-): Promise<CreateBankAccountResult> {
+): Promise<BankAccount> {
   const res = await fetch('/api/bank-accounts', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ...form, actorId }),
   });
-  if (!res.ok) throw new Error('Không lưu được tài khoản này');
+  if (!res.ok) throw new Error('Không giữ được chỗ mã này');
+  return BankAccount.parse(await res.json());
+}
+
+/** Bước 2 — điền nốt + đủ ảnh mới cho hoàn thành; lúc này mã mới thật sự bị tiêu. */
+export async function finishBankAccount(
+  id: string,
+  form: BankAccountFinishForm,
+  actorId: string,
+): Promise<CreateBankAccountResult> {
+  const res = await fetch(`/api/bank-accounts/${id}/finish`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...form, actorId }),
+  });
+  if (!res.ok) throw new Error('Không hoàn thành được tài khoản này');
   return CreateBankAccountResult.parse(await res.json());
+}
+
+/** Bỏ dở — chỉ xoá được khi còn `creating`. Nhả mã lại kho ngay (mục 4.5). */
+export async function deleteBankAccount(id: string, actorId: string): Promise<void> {
+  const params = new URLSearchParams({ actorId });
+  const res = await fetch(`/api/bank-accounts/${id}?${params}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Không xoá được tài khoản đang tạo này');
 }
 
 /** Thêm/thay/xoá ảnh chứng minh ở P-22 — gửi nguyên mảng đã cập nhật. */

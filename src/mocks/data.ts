@@ -34,7 +34,11 @@ const p = (
 ): Permission => ({ module, action, scope });
 
 const sysAdminPermissions: Permission[] = [
-  p("system", "manage-users", "company"),
+  p("staff", "view-summary", "company"),
+  p("staff", "view-detail", "company"),
+  p("staff", "create", "company"),
+  p("staff", "update", "company"),
+  p("staff", "delete", "company"),
   p("system", "manage-org", "company"),
   p("system", "grant-permission", "company"),
   p("*", "view-detail", "company"),
@@ -47,21 +51,20 @@ const sysAdminPermissions: Permission[] = [
 const orderDeskPermissions: Permission[] = [
   p("insurance", "view-detail", "company"),
   p("insurance", "handle-fallback", "company"),
-  p("insurance", "download", "company"),
 ];
 
 const salesOpsPermissions: Permission[] = [
   p("banking", "view-detail", "company"),
-  p("banking", "view-stats", "company"),
-  p("banking", "export-excel", "company"),
-  p("banking", "manage-codes", "company"),
-  p("banking", "configure-catalog", "company"),
+  p("banking", "view-summary", "company"),
+  p("banking", "export", "company"),
+  p("banking", "manage-referral-codes", "company"),
+  p("banking", "manage-bank-catalog", "company"),
 ];
 
 const accountingOpsPermissions: Permission[] = [
   p("*", "view-detail", "company"),
-  p("*", "view-stats", "company"),
-  p("*", "export-excel", "company"),
+  p("*", "view-summary", "company"),
+  p("*", "export", "company"),
   p("*", "configure-catalog", "company"),
 ];
 
@@ -73,7 +76,7 @@ const account = (
   a: Omit<MockAccount, "wardId" | "active"> & Partial<Pick<MockAccount, "wardId">>,
 ): MockAccount => ({ wardId: null, active: true, ...a });
 
-export const mockUsers: MockAccount[] = [
+export let mockUsers: MockAccount[] = [
   account({
     id: "u-director",
     username: "giamdoc",
@@ -219,3 +222,14 @@ export const mockUsers: MockAccount[] = [
     permissions: accountingOpsPermissions,
   }),
 ];
+
+/**
+ * Sửa quyền của một người qua màn Nhân sự (P-53/P-92) phải ảnh hưởng luôn tới
+ * PHIÊN ĐĂNG NHẬP thật — không chỉ đổi cho có ở hồ sơ nhân sự. `mockUsers` là
+ * nguồn duy nhất `/api/login` và mọi handler tra `actorBy` đọc, nên phải sửa
+ * đúng chỗ này. Khớp theo `username` vì đó là khoá duy nhất chung giữa
+ * `StaffAccount` (kho ở `mocks/staff.ts`) và tài khoản đăng nhập ở đây.
+ */
+export function setMockUserPermissions(username: string, permissions: Permission[]): void {
+  mockUsers = mockUsers.map((u) => (u.username === username ? { ...u, permissions } : u));
+}

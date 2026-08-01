@@ -1,8 +1,10 @@
 import type { StaffAccount, StaffForm, StaffList, StaffQuery } from "@/lib/api/staff";
 import { matchesSearch } from "@/lib/format";
-import { assignableRoles } from "@/lib/permissions";
+import { assignableRoles, canGrant } from "@/lib/permissions";
+import { ROLE_PERMISSIONS } from "@/lib/roles";
 import type { User } from "@/lib/types";
-import { departments, mockUsers } from "./data";
+import { logAudit } from "./auditLog";
+import { departments, mockUsers, setMockUserPermissions } from "./data";
 import { ALL } from "./people";
 
 /**
@@ -29,6 +31,7 @@ const fromMockUser = (u: User): StaffAccount => ({
   managedDepartmentIds: u.managedDepartmentIds,
   wardId: u.wardId,
   active: u.active,
+  permissions: u.permissions,
 });
 
 const departmentIdByName = (name: string): string | null =>
@@ -58,6 +61,10 @@ let store: StaffAccount[] = [
       managedDepartmentIds: [],
       wardId: null,
       active: i % 7 !== 0,
+      // Người giả lập cho P-51, không phải tài khoản đăng nhập thật — hiện
+      // đúng bó quyền mặc định của "Nhân viên" để khối "Quyền" ở P-52 không
+      // trống trơn.
+      permissions: ROLE_PERMISSIONS.staff,
     };
   }),
   // Tài khoản không có mặt ở P-51: ban giám đốc, kế toán, quản trị hệ thống.
@@ -106,6 +113,15 @@ export function staffFor(query: StaffQuery): StaffList {
 
 export const findStaff = (id: string) => store.find((s) => s.id === id) ?? null;
 
+/**
+ * Số người đang thuộc một phòng — dùng cho P-91.
+ *
+ * Đếm cả người đã khoá: họ vẫn thuộc phòng này, nên cho phòng ngừng hoạt động
+ * là vẫn bỏ rơi họ trong một phòng không còn chọn được.
+ */
+export const headcountOf = (departmentId: string): number =>
+  store.filter((s) => s.departmentId === departmentId).length;
+
 const toAccount = (id: string, form: StaffForm): StaffAccount => ({
   id,
   fullName: form.fullName,
@@ -120,11 +136,12 @@ const toAccount = (id: string, form: StaffForm): StaffAccount => ({
     form.manageScope === "listed" ? form.managedDepartmentIds : [],
   wardId: form.wardId || null,
   active: true,
+  permissions: form.permissions,
 });
 
 export type SaveOutcome =
   | { ok: true; staff: StaffAccount }
-  | { ok: false; code: "username-taken" | "role-too-high" };
+  | { ok: false; code: "username-taken" | "role-too-high" | "permission-too-high" };
 
 /**
  * Máy chủ PHẢI kiểm lại chức vụ được gán, không tin danh sách mà giao diện gửi
@@ -134,6 +151,29 @@ function checkRole(actor: User | null, form: StaffForm): boolean {
   return assignableRoles(actor).includes(form.role);
 }
 
+/** Không tin danh sách quyền client gửi lên — mỗi bộ ba phải nằm trong tầm actor được cấp (mục 1.1.0). */
+function checkPermissions(actor: User | null, form: StaffForm): boolean {
+  return form.permissions.every((perm) => canGrant(actor, perm));
+}
+
+/** Đồng bộ sang tài khoản đăng nhập thật nếu người này có mặt ở đó (mocks/data.ts). */
+function syncLoginPermissions(form: StaffForm): void {
+  setMockUserPermissions(form.username, form.permissions);
+}
+
+/** Không log được nếu không biết ai làm — tài khoản demo cụt (actor null) thì bỏ qua. */
+function logStaffAction(actor: User | null, action: "create" | "update" | "delete", staff: StaffAccount): void {
+  if (!actor) return;
+  logAudit({
+    actorId: actor.id,
+    actorName: actor.fullName,
+    actorUsername: actor.username,
+    module: "staff",
+    action,
+    targetLabel: `Nhân viên ${staff.fullName}`,
+  });
+}
+
 export function createStaff(
   form: StaffForm,
   actor: User | null,
@@ -141,9 +181,12 @@ export function createStaff(
   if (store.some((s) => s.username === form.username))
     return { ok: false, code: "username-taken" };
   if (!checkRole(actor, form)) return { ok: false, code: "role-too-high" };
+  if (!checkPermissions(actor, form)) return { ok: false, code: "permission-too-high" };
 
   const staff = toAccount(`new-${nextId++}`, form);
   store = [staff, ...store];
+  syncLoginPermissions(form);
+  logStaffAction(actor, "create", staff);
   return { ok: true, staff };
 }
 
@@ -157,19 +200,23 @@ export function updateStaff(
   if (store.some((s) => s.username === form.username && s.id !== id))
     return { ok: false, code: "username-taken" };
   if (!checkRole(actor, form)) return { ok: false, code: "role-too-high" };
+  if (!checkPermissions(actor, form)) return { ok: false, code: "permission-too-high" };
 
   // Giữ nguyên `active`: khoá / mở khoá đi bằng đường riêng, sửa hồ sơ mà vô
   // tình mở khoá một người đã nghỉ việc là chuyện không được xảy ra.
   const staff = { ...toAccount(id, form), active: current.active };
   store = store.map((s) => (s.id === id ? staff : s));
+  syncLoginPermissions(form);
+  logStaffAction(actor, "update", staff);
   return { ok: true, staff };
 }
 
-export function setStaffActive(id: string, active: boolean): StaffAccount | null {
+export function setStaffActive(id: string, active: boolean, actor: User | null): StaffAccount | null {
   const current = findStaff(id);
   if (!current) return null;
   const staff = { ...current, active };
   store = store.map((s) => (s.id === id ? staff : s));
+  logStaffAction(actor, active ? "update" : "delete", staff);
   return staff;
 }
 

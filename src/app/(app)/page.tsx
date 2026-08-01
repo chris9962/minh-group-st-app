@@ -102,7 +102,7 @@ function Delta({ points }: { points: number }) {
 export default function DashboardPage() {
   const user = useSession((s) => s.user);
   const chartColors = useChartColors();
-  const scopes = availableScopes(user, "banking", "view-stats");
+  const scopes = availableScopes(user, "banking", "view-summary");
   const [scope, setScope] = useState<Scope>(scopes.at(-1) ?? "own");
   const [period, setPeriod] = useState<Period>(DEFAULT_PERIOD);
 

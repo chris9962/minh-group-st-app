@@ -44,6 +44,22 @@ export function can(user: User | null, module: ModuleKey, action: Action): boole
 }
 
 /**
+ * Chặn tự nâng quyền khi CẤP QUYỀN LẺ cho người khác (P-92/thẻ "Quyền") —
+ * không phải chặn theo Chức vụ như `assignableRoles`, mà chặn theo TỪNG bộ ba
+ * một. Người cấp không có `grant-permission` thì chỉ cấp được cho người khác
+ * đúng bằng hoặc hẹp hơn phạm vi CHÍNH MÌNH đang có trên đúng (module, hành
+ * động) đó — không cấp được cái mình không có, và không cấp rộng hơn mình.
+ */
+export function canGrant(actor: User | null, target: Permission): boolean {
+  if (!actor) return false;
+  if (can(actor, 'system', 'grant-permission')) return true;
+
+  const ownScope = scopeFor(actor, target.module, target.action);
+  if (!ownScope) return false;
+  return scopeRank(ownScope) >= scopeRank(target.scope);
+}
+
+/**
  * Hạ phạm vi client xin về đúng phạm vi thật của người gọi — chặn kiểu tấn
  * công "đổi tham số scope trên URL/request thành company" (spec §1.1.6:
  * "Đổi số trên URL là xem được đơn của phòng khác"). Dùng ở MÁY CHỦ (handler
@@ -131,7 +147,7 @@ const ROLE_RANK: Record<RoleKey, number> = {
  * spec giới hạn nó ở 1–2 tài khoản.
  */
 export function assignableRoles(actor: User | null): RoleKey[] {
-  if (!actor || !can(actor, 'system', 'manage-users')) return [];
+  if (!actor || !can(actor, 'staff', 'create')) return [];
   if (can(actor, 'system', 'grant-permission')) return [...RoleKey.options];
 
   return RoleKey.options.filter(

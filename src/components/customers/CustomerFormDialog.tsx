@@ -1,15 +1,18 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
+import { Combobox } from "@/components/ui/Combobox";
 import { Dialog } from "@/components/ui/Dialog";
+import { Select } from "@/components/ui/Select";
 import { TextField } from "@/components/ui/TextField";
+import { fetchChannels } from "@/lib/api/channelCatalog";
 import {
   createCustomer,
   CustomerForm,
@@ -18,6 +21,8 @@ import {
   type Customer,
   type DuplicateCustomerError,
 } from "@/lib/api/customers";
+import { fetchHospitals } from "@/lib/api/hospitalCatalog";
+import { fetchProvinces } from "@/lib/api/wardCatalog";
 import { formatPhone } from "@/lib/format";
 import styles from "./CustomerFormDialog.module.scss";
 
@@ -34,6 +39,8 @@ const emptyForm: CustomerForm = {
   idNumber: "",
   address: "",
   phones: [{ number: "", primary: true }],
+  channel: "",
+  channelDetail: "",
 };
 
 const toForm = (c: Customer): CustomerForm => ({
@@ -42,6 +49,8 @@ const toForm = (c: Customer): CustomerForm => ({
   idNumber: c.idNumber ?? "",
   address: c.address,
   phones: c.phones.map((p) => ({ number: p.number, primary: p.primary })),
+  channel: c.channel,
+  channelDetail: c.channelDetail,
 });
 
 /** P-41 · Tạo / sửa khách hàng — tên không ràng buộc định dạng, CCCD chặn trùng. */
@@ -65,6 +74,27 @@ export function CustomerFormDialog({ open, onClose, customer }: Props) {
 
   const { fields, append, remove } = useFieldArray({ control, name: "phones" });
   const phones = watch("phones");
+
+  const channel = watch("channel");
+  const { data: channels = [] } = useQuery({ queryKey: ["channels"], queryFn: fetchChannels });
+  const selectedChannel = channels.find((c) => c.name === channel);
+
+  const { data: provinces = [] } = useQuery({
+    queryKey: ["provinces"],
+    queryFn: fetchProvinces,
+    enabled: selectedChannel?.inputKind === "ward-hamlet",
+  });
+  const [provinceId, setProvinceId] = useState("");
+  const [wardId, setWardId] = useState("");
+  const [hamletId, setHamletId] = useState("");
+  const selectedProvince = provinces.find((p) => p.id === provinceId);
+  const selectedWard = selectedProvince?.wards.find((w) => w.id === wardId);
+
+  const { data: hospitals = [] } = useQuery({
+    queryKey: ["hospitals"],
+    queryFn: fetchHospitals,
+    enabled: selectedChannel?.inputKind === "hospital",
+  });
 
   const save = useMutation({
     mutationFn: (form: CustomerForm) =>
@@ -165,6 +195,99 @@ export function CustomerFormDialog({ open, onClose, customer }: Props) {
             placeholder="123 Nguyễn Trãi, Phường Tân Bình"
             {...register("address")}
           />
+
+          <Select
+            block
+            label="Kênh"
+            value={channel}
+            onChange={(v) => {
+              setValue("channel", v, { shouldDirty: true });
+              setValue("channelDetail", "", { shouldDirty: true });
+              setProvinceId("");
+              setWardId("");
+              setHamletId("");
+            }}
+            options={[
+              { value: "", label: "Không có" },
+              ...channels.map((c) => ({ value: c.name, label: c.name })),
+            ]}
+          />
+
+          {selectedChannel?.inputKind === "ward-hamlet" && (
+            <>
+              <Select
+                block
+                label="Tỉnh/thành phố"
+                value={provinceId}
+                onChange={(v) => {
+                  setProvinceId(v);
+                  setWardId("");
+                  setHamletId("");
+                  setValue("channelDetail", "", { shouldDirty: true });
+                }}
+                options={[
+                  { value: "", label: "— Chọn tỉnh/thành phố —" },
+                  ...provinces.map((p) => ({ value: p.id, label: p.name })),
+                ]}
+              />
+              {selectedProvince && (
+                <Combobox
+                  block
+                  label="Xã/phường"
+                  placeholder="Gõ để tìm xã/phường…"
+                  value={wardId}
+                  onChange={(v) => {
+                    setWardId(v);
+                    setHamletId("");
+                    setValue("channelDetail", "", { shouldDirty: true });
+                  }}
+                  options={selectedProvince.wards.map((w) => ({ value: w.id, label: w.name }))}
+                />
+              )}
+              {selectedWard && (
+                <Select
+                  block
+                  label="Ấp"
+                  value={hamletId}
+                  onChange={(v) => {
+                    setHamletId(v);
+                    const hamlet = selectedWard.hamlets.find((h) => h.id === v);
+                    setValue(
+                      "channelDetail",
+                      hamlet
+                        ? `${selectedProvince?.name} · ${selectedWard.name} · ${hamlet.name}`
+                        : "",
+                      { shouldDirty: true },
+                    );
+                  }}
+                  options={[
+                    { value: "", label: "— Chọn ấp —" },
+                    ...selectedWard.hamlets.map((h) => ({ value: h.id, label: h.name })),
+                  ]}
+                />
+              )}
+              {editing && watch("channelDetail") && !selectedWard && (
+                <p className="text-muted">
+                  Đang lưu: {watch("channelDetail")} — chọn lại xã/ấp nếu muốn đổi.
+                </p>
+              )}
+            </>
+          )}
+
+          {selectedChannel?.inputKind === "hospital" && (
+            <Combobox
+              block
+              label="Bệnh viện"
+              placeholder="Gõ để tìm bệnh viện…"
+              value={watch("channelDetail")}
+              onChange={(v) => setValue("channelDetail", v, { shouldDirty: true })}
+              options={hospitals.map((h) => ({ value: h.name, label: h.name }))}
+            />
+          )}
+
+          {selectedChannel?.inputKind === "free-text" && (
+            <TextField label="Chi tiết kênh" {...register("channelDetail")} />
+          )}
 
           <fieldset className={styles.fieldset}>
             <legend className={styles.legend}>Số điện thoại</legend>

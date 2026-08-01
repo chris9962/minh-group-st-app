@@ -48,6 +48,10 @@
   cursor: pointer;
 }
 
+.resetPermissions {
+  margin-top: 10px;
+}
+
 @media (max-width: bp.$bp-narrow) {
   .pair,
   .checks {

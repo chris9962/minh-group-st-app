@@ -1,10 +1,11 @@
 import { z } from 'zod';
 import { Scope } from '@/lib/types';
-import { AccountType } from './bankAccounts';
+import { AccountNumberMethod } from './bankCatalog';
+import { AccountType, BankAccountStatus } from './bankAccounts';
 
 /**
- * P-21 · Danh sách tài khoản ngân hàng · P-22 · Chi tiết (chỉ xem)
- * (mgst-feature-list.md P-21 · mgst-platform-spec.md §4.2, §4.3).
+ * P-21 · Danh sách tài khoản ngân hàng · P-22 · Chi tiết / hoàn tất tài khoản
+ * (mgst-feature-list.md P-21 · mgst-platform-spec.md §4.2, §4.3, §4.5).
  *
  * Một tài khoản = một bản ghi độc lập — không gom nhiều ngân hàng của cùng
  * một khách vào chung một dòng ở đây (khác với xuất Excel, gộp theo khách).
@@ -12,6 +13,7 @@ import { AccountType } from './bankAccounts';
 
 export const BankAccountRow = z.object({
   id: z.string(),
+  customerId: z.string(),
   customerName: z.string(),
   bankCode: z.string(),
   accountNumber: z.string(),
@@ -21,15 +23,17 @@ export const BankAccountRow = z.object({
   date: z.string(),
   createdById: z.string().nullable(),
   createdByName: z.string().nullable(),
+  /** Đơn vị của người tạo LÚC TẠO — chụp một lần, không tra động (spec §1.1.5). Dùng cho báo cáo xuất theo phòng (P-73 #4). */
+  createdByDepartmentName: z.string().nullable(),
+  status: BankAccountStatus,
 });
 export type BankAccountRow = z.infer<typeof BankAccountRow>;
 
 /**
- * P-22 · Chỉ xem các trường của tài khoản — không có nút sửa/huỷ dù §10.1 cấp
- * quyền `sửa · huỷ` cho quản lý, vì feature-list không spec nút đó ở màn này.
- * Riêng ẢNH CHỨNG MINH thì có xem/thêm/thay — mỗi ngân hàng yêu cầu số ảnh
- * khác nhau (`requiredPhotos`, P-60), không có ở màn tạo tài khoản (chỉ có ô
- * tích xác nhận), nên đây là chỗ DUY NHẤT thật sự lưu và xem lại ảnh.
+ * P-22 · Xem chi tiết khi `status = done`; khi `status = creating` đây là màn
+ * BƯỚC 2 — điền nốt STK/ngày mở/app + đủ ảnh rồi bấm Hoàn thành (spec §4.5).
+ * Riêng ẢNH CHỨNG MINH thì luôn xem/thêm/thay được bất kể trạng thái — mỗi
+ * ngân hàng yêu cầu số ảnh khác nhau (`requiredPhotos`, P-60).
  */
 export const BankAccountDetail = BankAccountRow.extend({
   channelDetail: z.string(),
@@ -38,6 +42,10 @@ export const BankAccountDetail = BankAccountRow.extend({
   createdByDepartmentId: z.string().nullable(),
   photoUrls: z.array(z.string()),
   requiredPhotos: z.number(),
+  /** Dùng để tự điền/khoá ô số tài khoản ở bước 2, giống lúc chọn ngân hàng ở P-20. */
+  accountNumberMethod: AccountNumberMethod,
+  /** SĐT chính của khách — nguồn để tự điền số tài khoản khi `accountNumberMethod = phone-match`. */
+  customerPrimaryPhone: z.string(),
 });
 export type BankAccountDetail = z.infer<typeof BankAccountDetail>;
 
@@ -49,6 +57,7 @@ export const BankAccountQuery = z.object({
   referralCode: z.string(),
   channel: z.string(),
   staffId: z.string(),
+  status: z.union([BankAccountStatus, z.literal('')]),
 });
 export type BankAccountQuery = z.infer<typeof BankAccountQuery>;
 
@@ -70,6 +79,7 @@ export async function fetchBankAccounts(
     referralCode: query.referralCode,
     channel: query.channel,
     staffId: query.staffId,
+    status: query.status,
   });
   const res = await fetch(`/api/bank-account-list?${params}`);
   if (!res.ok) throw new Error('Không tải được danh sách tài khoản ngân hàng');

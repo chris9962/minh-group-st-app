@@ -1,0 +1,71 @@
+.grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.module {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  background: var(--om-soft);
+  border-radius: var(--radius-md);
+}
+
+.moduleTitle {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Bề rộng cố định — nhãn dài ngắn khác nhau nhưng ô chọn luôn bắt đầu cùng
+   một cột, không thụt ra thụt vào theo độ dài chữ. */
+.actionLabel {
+  flex: 0 0 200px;
+  font-size: 12.5px;
+  color: var(--om-text-2);
+}
+
+.locked {
+  font-size: 12.5px;
+  color: var(--om-text-3);
+}
+
+/* Ô vuông bo góc nhẹ trước mỗi select — đổi màu theo phạm vi rộng dần (mình →
+   phòng → toàn công ty), cùng tông cam sẵn có, để liếc màu là nhận ra phạm vi
+   thay vì phải đọc chữ bên trong ô chọn. */
+.mark {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+.markNone {
+  background: var(--om-line);
+}
+
+.markOwn {
+  background: var(--om-orange-light);
+}
+
+.markManaged {
+  background: var(--om-orange-mid);
+}
+
+.markCompany {
+  background: var(--om-orange);
+}
+
+@media (max-width: bp.$bp-narrow) {
+  .actionLabel {
+    flex-basis: 140px;
+  }
+}

@@ -57,9 +57,9 @@ export function navFor(user: User | null): NavEntry[] {
   const items: NavEntry[] = [];
 
   if (
-    can(user, 'insurance', 'view-stats') ||
-    can(user, 'banking', 'view-stats') ||
-    can(user, 'services', 'view-stats')
+    can(user, 'insurance', 'view-summary') ||
+    can(user, 'banking', 'view-summary') ||
+    can(user, 'services', 'view-summary')
   ) {
     items.push({ href: '/', label: 'Tổng quan', icon: 'overview', screen: 'P-80' });
   }
@@ -80,10 +80,10 @@ export function navFor(user: User | null): NavEntry[] {
   items.push({ href: '/customers', label: 'Khách hàng', icon: 'customers', screen: 'P-40' });
 
   // Vào được màn Nhân sự bằng HAI đường: quản phòng thì xem điểm của lính, còn
-  // `manage-users` thì vào để tạo/sửa người — quản trị hệ thống không quản
+  // `staff:create` thì vào để tạo người mới — quản trị hệ thống không quản
   // phòng nào nhưng vẫn phải mở được danh sách này.
   items.push(
-    user.manageScope === 'none' && !can(user, 'system', 'manage-users')
+    user.manageScope === 'none' && !can(user, 'staff', 'create')
       ? { href: '/my-target', label: 'Chỉ tiêu của tôi', icon: 'target', screen: 'P-50' }
       : { href: '/people', label: 'Nhân sự & KPI', icon: 'people', screen: 'P-51' },
   );
@@ -114,10 +114,10 @@ export function navFor(user: User | null): NavEntry[] {
       screen: 'P-84',
     });
   }
-  if (can(user, 'banking', 'manage-codes') || can(user, 'banking', 'configure-catalog')) {
+  if (can(user, 'banking', 'manage-bank-catalog')) {
     settingsChildren.push({ href: '/settings/banks', label: 'Danh sách ngân hàng', screen: 'P-60' });
   }
-  if (can(user, 'banking', 'manage-codes')) {
+  if (can(user, 'banking', 'manage-referral-codes')) {
     settingsChildren.push({
       href: '/settings/referral-codes',
       label: 'Danh sách mã giới thiệu',
@@ -139,9 +139,9 @@ export function navFor(user: User | null): NavEntry[] {
   }
 
   if (
-    can(user, 'insurance', 'export-excel') ||
-    can(user, 'banking', 'export-excel') ||
-    can(user, 'services', 'export-excel')
+    can(user, 'insurance', 'export') ||
+    can(user, 'banking', 'export') ||
+    can(user, 'services', 'export')
   ) {
     items.push({ href: '/exports', label: 'Xuất dữ liệu', icon: 'exports', screen: 'P-73' });
   }
@@ -152,7 +152,9 @@ export function navFor(user: User | null): NavEntry[] {
     items.push({ href: '/permissions', label: 'Phân quyền', icon: 'permissions', screen: 'P-92' });
   }
 
-  if (can(user, 'system', 'view-detail')) {
+  // Chỉ GĐ · QTHT xem được (spec P-93) — `manage-org` đúng khớp hai vai này,
+  // không dùng `view-detail` vì Kế toán tổng hợp cũng có qua wildcard `*`.
+  if (can(user, 'system', 'manage-org')) {
     items.push({ href: '/audit-log', label: 'Nhật ký truy vết', icon: 'audit', screen: 'P-93' });
   }
 

@@ -224,8 +224,6 @@ export default function PersonPage({
                 )}
               </div>
 
-              <AccountCard staffId={id} />
-
               {withKpi && (
                 <SectionCard title="Điểm theo tháng" icon={<ChartColumn size={17} />}>
                   <BarChart
@@ -306,6 +304,8 @@ export default function PersonPage({
                   )}
                 </>
               )}
+
+              <AccountCard staffId={id} />
             </div>
           </div>
         )}

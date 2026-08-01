@@ -1,6 +1,10 @@
-import type { BankAccount, BankAccountForm } from "@/lib/api/bankAccounts";
+import type {
+  BankAccount,
+  BankAccountFinishForm,
+  BankAccountStartForm,
+} from "@/lib/api/bankAccounts";
 import type { Customer } from "@/lib/api/customers";
-import { banksFor, consumeReferralCode } from "./bankCatalog";
+import { banksFor, consumeReferralCode, findReferralCode } from "./bankCatalog";
 import { ALL } from "./people";
 import { accountsOf } from "./person";
 import { giftRulesFor } from "./settings";
@@ -23,6 +27,15 @@ export const manualAccountsFor = (customerName: string): BankAccount[] =>
 /** Toàn bộ tài khoản thật, không lọc theo khách — dùng cho P-21 (gộp cả công ty). */
 export const allManualAccounts = (): BankAccount[] => manualAccounts;
 
+/**
+ * "Đang giữ" của một mã (mục 4.5) = đúng số tài khoản đang `creating` tham
+ * chiếu mã đó — không có bảng lượt giữ riêng, tài khoản dở dang CHÍNH LÀ cái
+ * giữ chỗ. `bankCatalog.ts` ghép số này vào lúc trả JSON cho `/referral-codes`.
+ */
+export const creatingCountForCode = (referralCodeId: string): number =>
+  manualAccounts.filter((a) => a.status === "creating" && a.referralCodeId === referralCodeId)
+    .length;
+
 let nextId = 1;
 
 const THIS_MONTH = (() => {
@@ -33,7 +46,8 @@ const THIS_MONTH = (() => {
 /**
  * Tổng ngân hàng đã cài của khách, tính TRÊN TOÀN BỘ tài khoản kể cả tài
  * khoản do phòng khác tạo (spec §4.2, §4.8) — không phải con số đã cắt gọn
- * để hiển thị ở P-42.
+ * để hiển thị ở P-42. Tài khoản còn `creating` chưa chắc đã cài app thật,
+ * không tính.
  */
 function trueInstalledBanks(customerName: string): Set<string> {
   const banks = new Set<string>();
@@ -44,7 +58,7 @@ function trueInstalledBanks(customerName: string): Set<string> {
     }
   }
   for (const a of manualAccountsFor(customerName)) {
-    if (a.appInstalled) banks.add(a.bankCode);
+    if (a.status === "done" && a.appInstalled) banks.add(a.bankCode);
   }
 
   return banks;
@@ -79,16 +93,23 @@ function accountWarnings(customerName: string, newAccount: BankAccount): string[
   return warnings;
 }
 
-export function createBankAccount(
-  form: BankAccountForm,
+/**
+ * Bước 1 (P-20) — chọn ngân hàng + mã, giữ chỗ ngay. Chặn nếu mã đã hết chỗ
+ * THẬT, tính cả những tài khoản khác đang giữ mã này (`used + đang giữ`),
+ * không chỉ `used` — hai người cùng bấm vào đúng lúc chỉ 1 chỗ thì người sau
+ * phải bị chặn ở đây.
+ */
+export function startBankAccount(
+  form: BankAccountStartForm,
   customer: Customer,
   actor: { id: string; fullName: string; departmentId: string | null } | null,
-): { account: BankAccount; warnings: string[] } | null {
+): BankAccount | null {
   const bank = banksFor().find((b) => b.id === form.bankId);
   if (!bank) return null;
 
-  const usedCode = consumeReferralCode(form.referralCode);
-  if (!usedCode) return null;
+  const code = findReferralCode(form.referralCode);
+  if (!code) return null;
+  if (code.used + creatingCountForCode(code.id) >= code.total) return null;
 
   const account: BankAccount = {
     id: `mb-${nextId++}`,
@@ -96,25 +117,63 @@ export function createBankAccount(
     customerName: customer.fullName,
     bankId: form.bankId,
     bankCode: bank.code,
-    referralCode: usedCode.code,
-    accountNumber: form.accountNumber,
-    openedDate: form.openedDate,
-    channel: form.channel,
-    channelDetail: form.channelDetail,
-    appInstalled: form.appInstalled,
-    accountType: form.accountType,
-    note: form.note,
+    referralCodeId: code.id,
+    referralCode: code.code,
+    accountNumber: "",
+    openedDate: "",
+    channel: customer.channel,
+    channelDetail: customer.channelDetail,
+    appInstalled: false,
+    accountType: "none",
+    note: "",
     createdById: actor?.id ?? null,
     createdByName: actor?.fullName ?? null,
     createdByDepartmentId: actor?.departmentId ?? null,
     photoUrls: [],
+    status: "creating",
   };
   manualAccounts = [...manualAccounts, account];
 
-  return { account, warnings: accountWarnings(customer.fullName, account) };
+  return account;
 }
 
-/** Thêm/thay/xoá ảnh chứng minh — P-22 gửi nguyên mảng đã cập nhật. */
+/**
+ * Bước 2 (P-22, khi tài khoản đang `creating`) — điền nốt sau khi đã mở xong
+ * ở ngoài. Chặn cứng nếu thiếu ảnh so với cấu hình ngân hàng (spec §4.7).
+ * Mã giới thiệu chỉ THẬT SỰ bị tiêu ở đây, không phải lúc giữ chỗ.
+ */
+export function finishBankAccount(
+  id: string,
+  form: BankAccountFinishForm,
+): { account: BankAccount; warnings: string[] } | null {
+  const current = manualAccounts.find((a) => a.id === id);
+  if (!current || current.status !== "creating") return null;
+
+  const bank = banksFor().find((b) => b.id === current.bankId);
+  if (!bank || current.photoUrls.length < bank.requiredPhotos) return null;
+
+  const usedCode = consumeReferralCode(current.referralCodeId);
+  if (!usedCode) return null;
+
+  const updated: BankAccount = { ...current, ...form, status: "done" };
+  manualAccounts = manualAccounts.map((a) => (a.id === id ? updated : a));
+
+  return { account: updated, warnings: accountWarnings(current.customerName, updated) };
+}
+
+/**
+ * Bỏ dở — chỉ xoá được khi còn `creating` (tài khoản đã `done` là lịch sử
+ * thật, không được xoá). Xoá thẳng, không giữ lại bản ghi "đã huỷ": tài khoản
+ * chưa từng thật sự mở thì không có gì để lưu vết.
+ */
+export function deleteBankAccount(id: string): boolean {
+  const current = manualAccounts.find((a) => a.id === id);
+  if (!current || current.status !== "creating") return false;
+  manualAccounts = manualAccounts.filter((a) => a.id !== id);
+  return true;
+}
+
+/** Thêm/thay/xoá ảnh chứng minh — dùng được ở cả hai trạng thái. */
 export function setAccountPhotos(id: string, photoUrls: string[]): BankAccount | null {
   const current = manualAccounts.find((a) => a.id === id);
   if (!current) return null;

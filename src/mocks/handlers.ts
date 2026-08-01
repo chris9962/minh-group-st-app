@@ -1,7 +1,9 @@
 import { HttpResponse, http } from "msw";
 import { LOGIN_ERROR, Scope } from "@/lib/types";
-import { can, clampScope, visibleDepartmentIds } from "@/lib/permissions";
+import { can, clampScope, scopeFor, visibleDepartmentIds } from "@/lib/permissions";
 import { sessionExpiry } from "@/store/session";
+import type { AuditLogQuery } from "@/lib/api/auditLog";
+import { auditLogFor } from "./auditLog";
 import { dashboardFor } from "./dashboard";
 import { SAVE_ERROR, type StaffForm, type StaffQuery } from "@/lib/api/staff";
 import { ORG_ERROR, type DepartmentForm, type OrgErrorCode } from "@/lib/api/org";
@@ -33,8 +35,15 @@ import {
   markGiftGiven,
   updateCustomer,
 } from "./customers";
-import type { BankAccountForm } from "@/lib/api/bankAccounts";
-import { createBankAccount, setAccountPhotos } from "./bankAccounts";
+import type { BankAccountFinishForm, BankAccountStartForm } from "@/lib/api/bankAccounts";
+import {
+  allManualAccounts,
+  creatingCountForCode,
+  deleteBankAccount,
+  finishBankAccount,
+  setAccountPhotos,
+  startBankAccount,
+} from "./bankAccounts";
 import type { InsuranceOrderForm, InsuranceOrderStatus } from "@/lib/api/insuranceOrders";
 import { createInsuranceOrder, setOrderPhoto, setOrderStatus } from "./insuranceOrders";
 import type {
@@ -66,7 +75,7 @@ import {
   updateKpiTargetRow,
   updateServiceTypeRow,
 } from "./settings";
-import type { BankForm, CodeStatus, ReferralCodeForm } from "@/lib/api/bankCatalog";
+import { codeStatusOf, type BankForm, type CodeStatus, type ReferralCodeForm } from "@/lib/api/bankCatalog";
 import {
   banksFor,
   createBank,
@@ -98,12 +107,14 @@ import { insuranceDetailFor, insuranceOrdersFor } from "./insurance";
 /** Người bấm nút — máy chủ thật lấy từ phiên, ở đây gửi kèm cho gọn. */
 const actorBy = (id: string) => mockUsers.find((u) => u.id === id) ?? null;
 
-const saveError = (code: "username-taken" | "role-too-high") => ({
+const saveError = (code: "username-taken" | "role-too-high" | "permission-too-high") => ({
   code,
   message:
     code === SAVE_ERROR.USERNAME_TAKEN
       ? "Tên đăng nhập này đã có người dùng"
-      : "Bạn không gán được chức vụ cao hơn quyền của chính mình",
+      : code === SAVE_ERROR.ROLE_TOO_HIGH
+        ? "Bạn không gán được chức vụ cao hơn quyền của chính mình"
+        : "Có quyền bạn đang cấp vượt quá quyền của chính bạn",
 });
 
 const orgError = (code: OrgErrorCode) => ({
@@ -238,6 +249,11 @@ export const handlers = [
     );
   }),
 
+  http.get("/api/staff/:id", ({ params }) => {
+    const staff = findStaff(String(params.id));
+    return staff ? HttpResponse.json(staff) : new HttpResponse(null, { status: 404 });
+  }),
+
   http.post("/api/staff", async ({ request }) => {
     const { actorId, ...form } = (await request.json()) as StaffForm & {
       actorId: string;
@@ -259,8 +275,8 @@ export const handlers = [
   }),
 
   http.post("/api/staff/:id/active", async ({ params, request }) => {
-    const { active } = (await request.json()) as { active: boolean };
-    const staff = setStaffActive(String(params.id), active);
+    const { active, actorId } = (await request.json()) as { active: boolean; actorId: string };
+    const staff = setStaffActive(String(params.id), active, actorBy(actorId));
     return staff
       ? HttpResponse.json(staff)
       : new HttpResponse(null, { status: 404 });
@@ -427,12 +443,15 @@ export const handlers = [
 
   http.get("/api/settings/referral-codes", ({ request }) => {
     const params = new URL(request.url).searchParams;
-    return HttpResponse.json(
-      referralCodesFor({
-        bankId: params.get("bankId") ?? "",
-        status: (params.get("status") ?? "") as CodeStatus | "",
-      }),
-    );
+    const status = (params.get("status") ?? "") as CodeStatus | "";
+    // "Đang giữ" không lưu tĩnh — đúng bằng số tài khoản đang `creating` tham
+    // chiếu mã đó (mục 4.5), ghép vào đây trước khi trả JSON.
+    const withHolding = referralCodesFor({ bankId: params.get("bankId") ?? "" }).map((c) => ({
+      ...c,
+      holding: creatingCountForCode(c.id),
+    }));
+    const filtered = status ? withHolding.filter((c) => codeStatusOf(c) === status) : withHolding;
+    return HttpResponse.json(filtered);
   }),
 
   http.post("/api/settings/referral-codes", async ({ request }) => {
@@ -498,8 +517,15 @@ export const handlers = [
   /* ── Khách hàng — P-40 · P-41 · P-42 ─────────────────────────────────── */
 
   http.get("/api/customers", ({ request }) => {
-    const search = new URL(request.url).searchParams.get("search") ?? "";
-    return HttpResponse.json(customersFor(search));
+    const params = new URL(request.url).searchParams;
+    return HttpResponse.json(
+      customersFor({
+        search: params.get("search") ?? "",
+        channel: params.get("channel") ?? "",
+        from: params.get("from") ?? "",
+        to: params.get("to") ?? "",
+      }),
+    );
   }),
 
   http.get("/api/customers/:id", ({ params, request }) => {
@@ -537,18 +563,49 @@ export const handlers = [
     );
   }),
 
-  /* ── P-20 · Mở tài khoản ngân hàng cho khách ──────────────────────────── */
+  /* ── P-20 · Mở tài khoản ngân hàng cho khách — hai bước (spec §4.5) ───── */
 
+  /** Bước 1 — chọn ngân hàng + mã, giữ chỗ ngay: tạo dòng `creating`. */
   http.post("/api/bank-accounts", async ({ request }) => {
-    const { actorId, ...form } = (await request.json()) as BankAccountForm & {
+    const { actorId, ...form } = (await request.json()) as BankAccountStartForm & {
       actorId: string;
     };
     const customer = findCustomer(form.customerId);
     if (!customer) return new HttpResponse(null, { status: 404 });
     const actor = actorBy(actorId);
-    const result = createBankAccount(form, customer, actor);
+    const result = startBankAccount(form, customer, actor);
     if (!result) return new HttpResponse(null, { status: 422 });
     return HttpResponse.json(result, { status: 201 });
+  }),
+
+  /** Bước 2 — điền nốt + đủ ảnh mới cho hoàn thành; mã bị tiêu thật ở đây. */
+  http.patch("/api/bank-accounts/:id/finish", async ({ params, request }) => {
+    const { accountNumber, openedDate, appInstalled, accountType, note } =
+      (await request.json()) as BankAccountFinishForm & { actorId: string };
+    const form: BankAccountFinishForm = { accountNumber, openedDate, appInstalled, accountType, note };
+    const result = finishBankAccount(String(params.id), form);
+    if (!result) return new HttpResponse(null, { status: 422 });
+    return HttpResponse.json(result);
+  }),
+
+  /** Bỏ dở — chỉ xoá được khi còn `creating`, nhả mã lại kho ngay. */
+  http.delete("/api/bank-accounts/:id", ({ params, request }) => {
+    const search = new URL(request.url).searchParams;
+    const actor = actorBy(search.get("actorId") ?? "");
+    const scope = scopeFor(actor, "banking", "delete");
+    if (!scope) return new HttpResponse(null, { status: 403 });
+
+    const target = allManualAccounts().find((a) => a.id === String(params.id));
+    const allowed = visibleDepartmentIds(actor, scope);
+    if (
+      !target ||
+      (allowed !== null && (target.createdByDepartmentId === null || !allowed.includes(target.createdByDepartmentId)))
+    ) {
+      return new HttpResponse(null, { status: 404 });
+    }
+
+    const ok = deleteBankAccount(String(params.id));
+    return ok ? new HttpResponse(null, { status: 204 }) : new HttpResponse(null, { status: 404 });
   }),
 
   /** Thêm/thay/xoá ảnh chứng minh ở P-22 — mỗi ngân hàng yêu cầu số ảnh riêng (P-60). */
@@ -654,6 +711,7 @@ export const handlers = [
       referralCode: params.get("referralCode") ?? "",
       channel: params.get("channel") ?? "",
       staffId: params.get("staffId") ?? "",
+      status: (params.get("status") ?? "") as BankAccountQuery["status"],
     };
     return HttpResponse.json(bankAccountsFor(query, visibleDepartmentIds(actor, scope)));
   }),
@@ -695,5 +753,25 @@ export const handlers = [
     const scope = clampScope(actor, "insurance", "view-detail", null);
     const detail = insuranceDetailFor(String(params.id), visibleDepartmentIds(actor, scope));
     return detail ? HttpResponse.json(detail) : new HttpResponse(null, { status: 404 });
+  }),
+
+  /* ── P-93 · Nhật ký truy vết ───────────────────────────────────────────
+     Không áp trục phạm vi theo phòng — hoặc thấy hết, hoặc không thấy gì.
+     Chỉ GĐ · QTHT (spec) — gate bằng `manage-org` vì hai vai này luôn có nó,
+     còn Kế toán tổng hợp thì không; `view-detail` không dùng được vì Kế toán
+     tổng hợp cũng có qua wildcard `*` (đọc chéo mọi module nghiệp vụ). */
+
+  http.get("/api/audit-log", ({ request }) => {
+    const params = new URL(request.url).searchParams;
+    const actor = actorBy(params.get("actorId") ?? "");
+    if (!can(actor, "system", "manage-org")) return new HttpResponse(null, { status: 403 });
+
+    const query: AuditLogQuery = {
+      staffId: params.get("staffId") ?? "",
+      action: (params.get("action") ?? "") as AuditLogQuery["action"],
+      from: params.get("from") ?? "",
+      to: params.get("to") ?? "",
+    };
+    return HttpResponse.json(auditLogFor(query));
   }),
 ];

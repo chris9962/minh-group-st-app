@@ -150,7 +150,7 @@ const ROLE_FILTERS = RoleKey.options.map((value) => ({
 /** P-51 · Danh sách nhân viên + điểm + quản trị tài khoản. */
 export default function PeoplePage() {
   const user = useSession((s) => s.user);
-  const scopes = availableScopes(user, "banking", "view-stats");
+  const scopes = availableScopes(user, "banking", "view-summary");
   const [scope, setScope] = useState<Scope>(scopes.at(-1) ?? "own");
   const [period, setPeriod] = useState<PeriodMode>({ kind: "this-month" });
   const [departmentId, setDepartmentId] = useState("");
@@ -162,7 +162,7 @@ export default function PeoplePage() {
   const [editing, setEditing] = useState<StaffAccount | null>(null);
   const [creating, setCreating] = useState(false);
 
-  const canManage = can(user, "system", "manage-users");
+  const canManage = can(user, "staff", "create") || can(user, "staff", "update");
 
   const { data: departments = [] } = useQuery({
     queryKey: ["departments"],

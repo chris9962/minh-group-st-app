@@ -8,26 +8,93 @@ import { z } from 'zod';
 
 /* ── Phân quyền: ba trục (spec mục 1.1) ─────────────────────────────── */
 
-export const ModuleKey = z.enum(['insurance', 'banking', 'services', 'system', '*']);
+/**
+ * `customer` và `staff` là nghiệp vụ CƠ BẢN như `banking`/`insurance`/`services`
+ * — có đúng bộ 6 hành động cơ bản, không phải "vô chủ" (customer) hay gộp lẫn
+ * vào `system` (staff) như trước.
+ */
+export const ModuleKey = z.enum(['customer', 'insurance', 'banking', 'services', 'staff', 'system', '*']);
 export type ModuleKey = z.infer<typeof ModuleKey>;
 
+/**
+ * Hai nhóm hành động:
+ *
+ * CƠ BẢN — 6 cái, cùng tên cùng nghĩa ở mọi module cơ bản (customer, banking,
+ * insurance, services, staff). Module nào cũng dùng được cả 6, không cần đặt
+ * tên riêng cho từng module.
+ *
+ * ĐẶC BIỆT — tên riêng, chỉ gắn với đúng module của nó, vì không diễn đạt nổi
+ * bằng 6 cái cơ bản (vd "chốt & phát quà" không phải là "sửa" hay "tạo").
+ */
 export const Action = z.enum([
-  'view-stats',
+  // Cơ bản
+  'view-summary',
   'view-detail',
   'create',
   'update',
-  'cancel',
-  'download',
-  'export-excel',
+  'delete',
+  'export',
+  // Đặc biệt — insurance
   'handle-fallback',
-  'manage-codes',
+  // Đặc biệt — banking
   'grant-gift',
+  'manage-referral-codes',
+  'manage-bank-catalog',
+  // Đặc biệt — insurance/services/system (danh mục dùng chung kiểu chọn-từ-danh-sách)
   'configure-catalog',
+  // Đặc biệt — system
   'configure-gift-rules',
-  'manage-users',
+  /** Lập phòng, đổi tên, cho ngừng hoạt động. Tách khỏi CRUD của `staff`: sửa cơ
+      cấu phòng ban không cùng việc với luân chuyển một con người. */
+  'manage-org',
   'grant-permission',
 ]);
 export type Action = z.infer<typeof Action>;
+
+export const MODULE_LABEL: Record<ModuleKey, string> = {
+  customer: 'Khách hàng',
+  insurance: 'Bảo hiểm',
+  banking: 'Ngân hàng',
+  services: 'Dịch vụ',
+  staff: 'Nhân viên',
+  system: 'Hệ thống',
+  '*': 'Tất cả module',
+};
+
+export const ACTION_LABEL: Record<Action, string> = {
+  'view-summary': 'Xem số liệu tổng hợp',
+  'view-detail': 'Xem chi tiết',
+  create: 'Thêm mới',
+  update: 'Sửa',
+  delete: 'Xoá / huỷ',
+  export: 'Xuất dữ liệu',
+  'handle-fallback': 'Xử lý đơn lỗi (làm tay)',
+  'grant-gift': 'Chốt & phát quà',
+  'manage-referral-codes': 'Quản lý mã giới thiệu',
+  'manage-bank-catalog': 'Quản lý danh sách ngân hàng',
+  'configure-catalog': 'Cấu hình danh mục',
+  'configure-gift-rules': 'Cấu hình quy tắc quà',
+  'manage-org': 'Quản lý phòng ban',
+  'grant-permission': 'Cấp quyền',
+};
+
+/** 6 hành động dùng chung cho mọi module cơ bản — xem mục 1.1.2 spec. */
+export const BASE_ACTIONS: Action[] = ['view-summary', 'view-detail', 'create', 'update', 'delete', 'export'];
+
+/**
+ * Hành động ĐẶC BIỆT của từng module cơ bản, thêm sau 6 cái nền — module nào
+ * không có dòng ở đây thì chỉ dùng đúng `BASE_ACTIONS`. `system` không có
+ * hành động cơ bản nào cả (không phải nghiệp vụ có bản ghi để CRUD).
+ */
+export const SPECIAL_ACTIONS_OF: Partial<Record<ModuleKey, Action[]>> = {
+  insurance: ['handle-fallback', 'configure-catalog'],
+  banking: ['grant-gift', 'manage-referral-codes', 'manage-bank-catalog'],
+  services: ['configure-catalog'],
+  system: ['configure-catalog', 'configure-gift-rules', 'manage-org', 'grant-permission'],
+};
+
+/** Module cơ bản hiện trong màn cấp quyền lẻ (P-92/thẻ "Quyền") — không có `*`, quá rộng để cấp tay. */
+export const EDITABLE_MODULES: ModuleKey[] = ['customer', 'insurance', 'banking', 'services', 'staff', 'system'];
 
 /**
  * Thứ tự từ hẹp đến rộng — dùng để so sánh, đừng đổi thứ tự.
@@ -36,6 +103,13 @@ export type Action = z.infer<typeof Action>;
 export const SCOPES = ['own', 'managed', 'company'] as const;
 export const Scope = z.enum(SCOPES);
 export type Scope = z.infer<typeof Scope>;
+
+/** Khớp đúng chữ với `ScopeSwitcher` — cùng một khái niệm phạm vi, đừng đặt tên khác nhau ở hai chỗ. */
+export const SCOPE_LABEL: Record<Scope, string> = {
+  own: 'Của tôi',
+  managed: 'Phòng tôi quản',
+  company: 'Toàn công ty',
+};
 
 export const Permission = z.object({
   module: ModuleKey,

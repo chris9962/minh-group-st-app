@@ -15,6 +15,7 @@ import { ScopeSwitcher } from "@/components/ui/ScopeSwitcher";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { Select } from "@/components/ui/Select";
 import { StatusTag } from "@/components/ui/StatusTag";
+import { BankAccountStatus } from "@/lib/api/bankAccounts";
 import { fetchBankAccounts, type BankAccountRow } from "@/lib/api/banking";
 import { fetchBanks, fetchReferralCodes } from "@/lib/api/bankCatalog";
 import { fetchChannels } from "@/lib/api/channelCatalog";
@@ -26,6 +27,11 @@ import { useSession } from "@/store/session";
 import styles from "./page.module.scss";
 
 const iso = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
+
+const STATUS_LABEL: Record<BankAccountStatus, string> = {
+  creating: "Đang tạo",
+  done: "Hoàn thành",
+};
 
 /** Xuất Excel gộp theo khách — mỗi khách một dòng, một cột riêng cho mỗi ngân hàng (spec §8.2). */
 function exportByCustomer(rows: BankAccountRow[], bankCodes: string[]) {
@@ -67,6 +73,7 @@ export default function BankingPage() {
   const [referralCode, setReferralCode] = useState("");
   const [channel, setChannel] = useState("");
   const [staffId, setStaffId] = useState("");
+  const [status, setStatus] = useState<BankAccountStatus | "">("");
 
   const { data: banks = [] } = useQuery({ queryKey: ["banks"], queryFn: fetchBanks });
   const { data: codes = [] } = useQuery({
@@ -79,7 +86,7 @@ export default function BankingPage() {
   const to = range?.to ? iso(range.to) : "";
 
   const { data, isPending, isError } = useQuery({
-    queryKey: ["bank-account-list", scope, bankCode, from, to, referralCode, channel, staffId],
+    queryKey: ["bank-account-list", scope, bankCode, from, to, referralCode, channel, staffId, status],
     queryFn: () =>
       fetchBankAccounts({
         actorId: user?.id ?? "",
@@ -90,6 +97,7 @@ export default function BankingPage() {
         referralCode,
         channel,
         staffId,
+        status,
       }),
     placeholderData: (previous) => previous,
   });
@@ -102,7 +110,12 @@ export default function BankingPage() {
   }, [rows]);
 
   const activeCount =
-    (bankCode ? 1 : 0) + (from && to ? 1 : 0) + (referralCode ? 1 : 0) + (channel ? 1 : 0) + (staffId ? 1 : 0);
+    (bankCode ? 1 : 0) +
+    (from && to ? 1 : 0) +
+    (referralCode ? 1 : 0) +
+    (channel ? 1 : 0) +
+    (staffId ? 1 : 0) +
+    (status ? 1 : 0);
 
   const columns = useMemo<RankColumn<BankAccountRow>[]>(
     () => [
@@ -123,6 +136,13 @@ export default function BankingPage() {
       },
       { key: "referralCode", label: "Mã giới thiệu", render: (r) => r.referralCode },
       {
+        key: "status",
+        label: "Trạng thái",
+        render: (r) => (
+          <StatusTag ok={r.status === "done"}>{STATUS_LABEL[r.status]}</StatusTag>
+        ),
+      },
+      {
         key: "appInstalled",
         label: "Đã cài app",
         render: (r) => <StatusTag ok={r.appInstalled}>{r.appInstalled ? "Có" : "Không"}</StatusTag>,
@@ -130,8 +150,9 @@ export default function BankingPage() {
       {
         key: "date",
         label: "Ngày",
-        sortBy: (r) => new Date(r.date).getTime(),
-        render: (r) => formatDate(r.date),
+        // "" khi tài khoản còn `creating` — chưa mở xong nên chưa có ngày mở thật.
+        sortBy: (r) => (r.date ? new Date(r.date).getTime() : 0),
+        render: (r) => (r.date ? formatDate(r.date) : "—"),
       },
       { key: "createdByName", label: "Người tạo", render: (r) => r.createdByName ?? "—" },
     ],
@@ -150,6 +171,7 @@ export default function BankingPage() {
             setReferralCode("");
             setChannel("");
             setStaffId("");
+            setStatus("");
           }}
         >
           <Select
@@ -159,6 +181,15 @@ export default function BankingPage() {
             options={[
               { value: "", label: "Tất cả ngân hàng" },
               ...banks.map((b) => ({ value: b.code, label: b.code })),
+            ]}
+          />
+          <Select
+            label="Trạng thái"
+            value={status}
+            onChange={(v) => setStatus(v as BankAccountStatus | "")}
+            options={[
+              { value: "", label: "Tất cả trạng thái" },
+              ...BankAccountStatus.options.map((s) => ({ value: s, label: STATUS_LABEL[s] })),
             ]}
           />
           <DateRangePicker value={range} onChange={setRange} />
@@ -187,7 +218,7 @@ export default function BankingPage() {
             options={[{ value: "", label: "Tất cả nhân viên" }, ...staffOptions]}
           />
         </FilterButton>
-        {can(user, "banking", "export-excel") && (
+        {can(user, "banking", "export") && (
           <Button
             variant="secondary"
             onClick={() => exportByCustomer(rows, banks.map((b) => b.code))}
@@ -210,6 +241,9 @@ export default function BankingPage() {
               ? [{ label: `Mã giới thiệu: ${referralCode}`, onRemove: () => setReferralCode("") }]
               : []),
             ...(channel ? [{ label: `Kênh: ${channel}`, onRemove: () => setChannel("") }] : []),
+            ...(status
+              ? [{ label: `Trạng thái: ${STATUS_LABEL[status]}`, onRemove: () => setStatus("") }]
+              : []),
             ...(staffId
               ? [
                   {
