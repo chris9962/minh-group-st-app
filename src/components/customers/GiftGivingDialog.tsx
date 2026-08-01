@@ -22,19 +22,6 @@ type Props = {
 const DECLINE = "__decline__";
 
 /**
- * BH tai nạn điện 2 năm và món ghép ("A + B") tách thành nhiều đơn/nhiều
- * bước tạo đơn — tầng tạo đơn (`insuranceOrders.ts`) đã lo việc tách 2 năm,
- * ở đây chỉ cần tách các sản phẩm GHÉP bằng dấu "+".
- */
-function parseInsuranceItem(name: string): { product: string; packageName: string }[] {
-  return name.split("+").map((part) => {
-    const trimmed = part.trim();
-    const product = trimmed.includes("xe máy") ? "BH xe máy" : "BH tai nạn điện";
-    return { product, packageName: trimmed };
-  });
-}
-
-/**
  * P-43 · Tặng quà — bật lên từ hồ sơ khách (P-42) hoặc bảng khách hàng (P-40).
  * Khách chọn ĐÚNG 1 món trong rổ; món bảo hiểm tự mở form người thụ hưởng và
  * tạo đơn luôn, món vật phẩm đánh dấu đã tặng ngay.
@@ -43,9 +30,7 @@ export function GiftGivingDialog({ open, onClose, customerId, customerName }: Pr
   const actor = useSession((s) => s.user);
   const queryClient = useQueryClient();
   const [selected, setSelected] = useState<string>("");
-  const [pendingOrders, setPendingOrders] = useState<
-    { product: string; packageName: string }[] | null
-  >(null);
+  const [creatingOrder, setCreatingOrder] = useState(false);
 
   const { data, isPending } = useQuery({
     queryKey: ["customer", customerId],
@@ -65,23 +50,16 @@ export function GiftGivingDialog({ open, onClose, customerId, customerName }: Pr
     },
   });
 
-  if (pendingOrders && pendingOrders.length > 0 && data) {
+  if (creatingOrder && data) {
+    const chosen = data.gift.basket.find((b) => b.id === selected);
     return (
       <InsuranceOrderFormDialog
         open
         customer={data.customer}
         source="gift"
-        prefill={pendingOrders[0]}
+        prefill={{ packageName: chosen?.name ?? "" }}
         onClose={onClose}
-        onCreated={() => {
-          const rest = pendingOrders.slice(1);
-          if (rest.length === 0) {
-            const chosen = data.gift.basket.find((b) => b.id === selected);
-            markGiven.mutate(chosen?.name ?? "Quà tặng");
-          } else {
-            setPendingOrders(rest);
-          }
-        }}
+        onCreated={() => markGiven.mutate(chosen?.name ?? "Quà tặng")}
       />
     );
   }
@@ -95,7 +73,7 @@ export function GiftGivingDialog({ open, onClose, customerId, customerName }: Pr
     const item = data?.gift.basket.find((b) => b.id === selected);
     if (!item) return;
     if (packages.some((p) => p.id === item.id)) {
-      setPendingOrders(parseInsuranceItem(item.name));
+      setCreatingOrder(true);
     } else {
       markGiven.mutate(item.name);
     }

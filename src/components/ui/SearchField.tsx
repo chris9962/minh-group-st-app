@@ -9,6 +9,8 @@ type Props = {
   placeholder?: string;
   value: string;
   onChange: (value: string) => void;
+  /** Ô rộng hết cỡ — dùng khi đứng một mình trong hộp thoại, không phải chen giữa các control khác trên TopBar. */
+  block?: boolean;
 };
 
 /**
@@ -17,11 +19,11 @@ type Props = {
  * Nút xoá tự dựng thay cho nút xoá mặc định của WebKit: nút mặc định chỉ hiện
  * trên Safari/Chrome, quá nhỏ để bấm bằng ngón tay, và không đọc được nhãn.
  */
-export function SearchField({ label, placeholder, value, onChange }: Props) {
+export function SearchField({ label, placeholder, value, onChange, block = false }: Props) {
   const id = useId();
 
   return (
-    <div className={styles.wrap}>
+    <div className={block ? styles.blockWrap : styles.wrap}>
       <label htmlFor={id} className="sr-only">
         {label}
       </label>
@@ -30,7 +32,7 @@ export function SearchField({ label, placeholder, value, onChange }: Props) {
       <input
         id={id}
         type="search"
-        className={`input ${styles.input}`}
+        className={`input ${styles.input} ${block ? styles.blockInput : ""}`}
         value={value}
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}

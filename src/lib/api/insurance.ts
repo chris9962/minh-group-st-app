@@ -26,11 +26,17 @@ export type InsuranceListRow = z.infer<typeof InsuranceListRow>;
 export const InsuranceDetail = InsuranceListRow.extend({
   /** null với đơn giả lập P-51/P-52 — không gắn hồ sơ khách thật để dẫn ngược lại. */
   customerId: z.string().nullable(),
+  /** Ngày hết hiệu lực — null với đơn giả lập P-51/P-52 (không có khái niệm hiệu lực). */
+  endDate: z.string().nullable(),
   source: InsuranceOrderSource,
   beneficiaryName: z.string(),
   beneficiaryDob: z.string(),
   beneficiaryIdNumber: z.string(),
   beneficiaryPhone: z.string(),
+  /** Chỉ có giá trị với đơn BH xe máy — rỗng với đơn khác. */
+  licensePlate: z.string(),
+  chassisNumber: z.string(),
+  engineNumber: z.string(),
   createdByDepartmentId: z.string().nullable(),
 });
 export type InsuranceDetail = z.infer<typeof InsuranceDetail>;

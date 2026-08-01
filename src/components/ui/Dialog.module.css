@@ -63,12 +63,42 @@
   color: var(--om-text);
 }
 
-/* Biểu mẫu dài hơn màn hình thì cuộn TRONG hộp thoại, hàng nút luôn thấy được. */
+/* Biểu mẫu dài hơn màn hình thì cuộn TRONG hộp thoại, hàng nút luôn thấy được.
+   `.bodyWrap` chỉ là điểm neo `position` cho `.scrollHint` — bản thân nó vẫn
+   phải là flex column bình thường, không thì `.body` tuyệt đối hoá mất khỏi
+   luồng, `.bodyWrap` không còn gì để tính chiều cao và cả hộp thoại xẹp lại. */
+.bodyWrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   padding: 0 20px 4px;
+}
+
+/* Gợi ý còn cuộn được — nổi cố định ở đáy vùng cuộn, không trôi theo nội
+   dung bên dưới. Chỉ hiện khi đo được nội dung còn tràn xuống dưới. */
+.scrollHint {
+  position: absolute;
+  left: 50%;
+  bottom: 6px;
+  transform: translateX(-50%);
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  background: var(--om-card);
+  border: 1px solid var(--om-line);
+  color: var(--om-text-2);
+  box-shadow: var(--shadow-sm);
+  pointer-events: none;
 }
 
 .foot {

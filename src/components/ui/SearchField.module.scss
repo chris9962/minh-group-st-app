@@ -21,6 +21,17 @@
   font-size: 13px;
 }
 
+.blockWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.blockInput {
+  width: 100%;
+}
+
 /* Nút xoá mặc định của WebKit trùng chỗ với nút xoá tự dựng bên dưới. */
 .input::-webkit-search-cancel-button {
   appearance: none;

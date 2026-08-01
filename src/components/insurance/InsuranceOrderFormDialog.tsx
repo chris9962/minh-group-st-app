@@ -2,7 +2,9 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useForm } from "react-hook-form";
+import { useState } from "react";
+import { useFieldArray, useForm } from "react-hook-form";
+import { UserCheck } from "lucide-react";
 import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
@@ -11,7 +13,11 @@ import { TextField } from "@/components/ui/TextField";
 import type { Customer } from "@/lib/api/customers";
 import {
   createInsuranceOrder,
+  insuranceOrderLegsFor,
+  oneYearLater,
   InsuranceOrderForm,
+  type InsuranceOrderLegForm,
+  type InsuranceOrderLegGroup,
   type InsuranceOrderSource,
 } from "@/lib/api/insuranceOrders";
 import { fetchInsurancePackages } from "@/lib/api/settings";
@@ -23,15 +29,56 @@ type Props = {
   onClose: () => void;
   customer: Customer;
   source: InsuranceOrderSource;
-  /** Cố định sản phẩm/gói — dùng khi mở từ luồng Tặng quà (P-43). */
-  prefill?: { product: string; packageName: string };
+  /** Cố định gói — dùng khi mở từ luồng Tặng quà (P-43). */
+  prefill?: { packageName: string };
   onCreated?: () => void;
 };
 
 /**
+ * Người thụ hưởng để trống — có thể là người khác hẳn khách hàng (spec §5.4),
+ * mặc định sẵn tên khách thì hay gặp ca gõ nhầm rồi phải xoá lại. Năm sau nối
+ * ngay sau năm trước — không có khoảng trống giữa hai hợp đồng.
+ */
+function defaultLegsFor(group: InsuranceOrderLegGroup): InsuranceOrderLegForm[] {
+  let start = new Date().toISOString().slice(0, 10);
+  return group.legs.map((leg) => {
+    const end = oneYearLater(start);
+    const values: InsuranceOrderLegForm = {
+      product: leg.product,
+      packageName: leg.packageName,
+      startDate: start,
+      endDate: end,
+      beneficiaryName: "",
+      beneficiaryDob: "",
+      beneficiaryIdNumber: "",
+      beneficiaryPhone: "",
+      licensePlate: "",
+      chassisNumber: "",
+      engineNumber: "",
+    };
+    start = end;
+    return values;
+  });
+}
+
+const legLabel = (group: InsuranceOrderLegGroup, i: number): string => {
+  const leg = group.legs[i];
+  return group.sharedBeneficiary && group.legs.length > 1
+    ? `${leg.product} · Năm thứ ${i + 1}`
+    : `${leg.product} · ${leg.packageName}`;
+};
+
+/**
  * Tạo đơn bảo hiểm — người thụ hưởng có thể khác khách hàng (spec §5.4).
- * Dùng chung cho luồng Tặng quà (`source='gift'`, sản phẩm cố định) và mua tự
- * nguyện (`source='self'`, tự chọn gói) khi P-10/P-11 được xây.
+ * Dùng chung cho luồng Tặng quà (`source='gift'`, gói cố định) và mua tự
+ * nguyện (`source='self'`, tự chọn gói).
+ *
+ * Một gói có thể sinh NHIỀU đơn (`insuranceOrderLegsFor`, spec §4.4/§5.4):
+ * gói ghép hai sản phẩm khác nhau hiện đủ hai form riêng — mỗi sản phẩm một
+ * người thụ hưởng, vì xe máy theo GPLX còn tai nạn điện theo CCCD, chưa chắc
+ * cùng một người (P-10). Gói nhiều năm CÙNG một sản phẩm (2 năm tai nạn điện)
+ * dùng chung một người thụ hưởng nhưng có từng cặp ngày bắt đầu/kết thúc
+ * riêng cho mỗi năm, vì hãng chỉ phát hành hợp đồng 1 năm nối tiếp.
  */
 export function InsuranceOrderFormDialog({
   open,
@@ -43,6 +90,8 @@ export function InsuranceOrderFormDialog({
 }: Props) {
   const actor = useSession((s) => s.user);
   const queryClient = useQueryClient();
+  const [packageName, setPackageName] = useState(prefill?.packageName ?? "");
+  const legGroup = insuranceOrderLegsFor(packageName);
   const primaryPhone = customer.phones.find((p) => p.primary)?.number ?? "";
 
   const { data: packages = [] } = useQuery({
@@ -53,24 +102,31 @@ export function InsuranceOrderFormDialog({
 
   const {
     register,
-    handleSubmit,
-    watch,
+    control,
     setValue,
+    handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<InsuranceOrderForm>({
     resolver: zodResolver(InsuranceOrderForm),
     defaultValues: {
       customerId: customer.id,
-      product: prefill?.product ?? "",
-      packageName: prefill?.packageName ?? "",
       source,
-      date: new Date().toISOString().slice(0, 10),
-      beneficiaryName: customer.fullName,
-      beneficiaryDob: customer.dob ?? "",
-      beneficiaryIdNumber: customer.idNumber ?? "",
-      beneficiaryPhone: primaryPhone,
+      legs: defaultLegsFor(legGroup),
     },
   });
+  const legsField = useFieldArray({ control, name: "legs" });
+
+  const selectPackage = (value: string) => {
+    setPackageName(value);
+    legsField.replace(defaultLegsFor(insuranceOrderLegsFor(value)));
+  };
+
+  const applyCustomerInfo = (i: number) => {
+    setValue(`legs.${i}.beneficiaryName`, customer.fullName, { shouldDirty: true });
+    setValue(`legs.${i}.beneficiaryDob`, customer.dob ?? "", { shouldDirty: true });
+    setValue(`legs.${i}.beneficiaryIdNumber`, customer.idNumber ?? "", { shouldDirty: true });
+    setValue(`legs.${i}.beneficiaryPhone`, primaryPhone, { shouldDirty: true });
+  };
 
   const save = useMutation({
     mutationFn: (form: InsuranceOrderForm) => createInsuranceOrder(form, actor?.id ?? ""),
@@ -81,6 +137,63 @@ export function InsuranceOrderFormDialog({
       onClose();
     },
   });
+
+  const onSubmit = handleSubmit((values) => {
+    // Nhiều năm CÙNG một sản phẩm dùng chung người thụ hưởng — chỉ hiện một bộ
+    // ô nhập (năm đầu) nên phải chép sang các năm sau trước khi gửi đi.
+    const legs = legGroup.sharedBeneficiary
+      ? values.legs.map((leg, i) =>
+          i === 0
+            ? leg
+            : {
+                ...leg,
+                beneficiaryName: values.legs[0].beneficiaryName,
+                beneficiaryDob: values.legs[0].beneficiaryDob,
+                beneficiaryIdNumber: values.legs[0].beneficiaryIdNumber,
+                beneficiaryPhone: values.legs[0].beneficiaryPhone,
+              },
+        )
+      : values.legs;
+    save.mutate({ ...values, legs });
+  });
+
+  const renderVehicleInfo = (i: number) => (
+    <fieldset className={styles.fieldset}>
+      <legend className={styles.legend}>Thông tin xe</legend>
+
+      <TextField
+        label="Biển số xe"
+        error={errors.legs?.[i]?.licensePlate?.message}
+        {...register(`legs.${i}.licensePlate`)}
+      />
+      <div className={styles.pair}>
+        <TextField label="Số khung" hint="Không bắt buộc" {...register(`legs.${i}.chassisNumber`)} />
+        <TextField label="Số máy" hint="Không bắt buộc" {...register(`legs.${i}.engineNumber`)} />
+      </div>
+    </fieldset>
+  );
+
+  const renderBeneficiary = (i: number) => (
+    <fieldset className={styles.fieldset}>
+      <legend className={styles.legend}>Người thụ hưởng</legend>
+
+      <Button variant="secondary" onClick={() => applyCustomerInfo(i)}>
+        <UserCheck size={14} aria-hidden />
+        Điền theo khách hàng
+      </Button>
+
+      <TextField
+        label="Họ tên"
+        error={errors.legs?.[i]?.beneficiaryName?.message}
+        {...register(`legs.${i}.beneficiaryName`)}
+      />
+      <div className={styles.pair}>
+        <TextField label="Ngày sinh" type="date" {...register(`legs.${i}.beneficiaryDob`)} />
+        <TextField label="CCCD" {...register(`legs.${i}.beneficiaryIdNumber`)} />
+      </div>
+      <TextField label="Số điện thoại" {...register(`legs.${i}.beneficiaryPhone`)} />
+    </fieldset>
+  );
 
   return (
     <Dialog
@@ -95,63 +208,54 @@ export function InsuranceOrderFormDialog({
           <Button
             type="submit"
             form="insurance-order-form"
-            disabled={isSubmitting || save.isPending}
+            disabled={isSubmitting || save.isPending || legGroup.legs.length === 0}
           >
             Tạo đơn
           </Button>
         </>
       }
     >
-      <form
-        id="insurance-order-form"
-        className={styles.form}
-        onSubmit={handleSubmit((form) => save.mutate(form))}
-        noValidate
-      >
+      <form id="insurance-order-form" className={styles.form} onSubmit={onSubmit} noValidate>
         {save.isError && <Alert tone="error">Không tạo được đơn bảo hiểm này.</Alert>}
 
-        {prefill ? (
-          <p className={styles.productLine}>
-            Sản phẩm: <strong>{prefill.product}</strong> · {prefill.packageName}
-          </p>
-        ) : (
+        {!prefill && (
           <Select
             block
             label="Gói bảo hiểm"
-            value={watch("packageName")}
-            onChange={(v) => {
-              const pkg = packages.find((p) => p.name === v);
-              setValue("packageName", v, { shouldDirty: true });
-              setValue("product", pkg?.name.includes("xe máy") ? "BH xe máy" : "BH tai nạn điện", {
-                shouldDirty: true,
-              });
-            }}
+            value={packageName}
+            onChange={selectPackage}
             options={[
               { value: "", label: "— Chọn gói —" },
               ...packages.map((p) => ({ value: p.name, label: p.name })),
             ]}
           />
         )}
-        {errors.packageName && <p className={styles.error}>{errors.packageName.message}</p>}
 
-        <TextField label="Ngày tạo" type="date" {...register("date")} />
+        {legsField.fields.length > 1 &&
+          legsField.fields.map((field, i) => (
+            <fieldset key={field.id} className={styles.legCard}>
+              <legend className={styles.legTitle}>{legLabel(legGroup, i)}</legend>
 
-        <fieldset className={styles.fieldset}>
-          <legend className={styles.legend}>
-            Người thụ hưởng — mặc định theo khách, sửa được nếu khác
-          </legend>
+              <div className={styles.pair}>
+                <TextField label="Ngày bắt đầu" type="date" {...register(`legs.${i}.startDate`)} />
+                <TextField label="Ngày kết thúc" type="date" {...register(`legs.${i}.endDate`)} />
+              </div>
 
-          <TextField
-            label="Họ tên"
-            error={errors.beneficiaryName?.message}
-            {...register("beneficiaryName")}
-          />
-          <div className={styles.pair}>
-            <TextField label="Ngày sinh" type="date" {...register("beneficiaryDob")} />
-            <TextField label="CCCD" {...register("beneficiaryIdNumber")} />
-          </div>
-          <TextField label="Số điện thoại" {...register("beneficiaryPhone")} />
-        </fieldset>
+              {legGroup.legs[i].product === "BH xe máy" && renderVehicleInfo(i)}
+              {(!legGroup.sharedBeneficiary || i === 0) && renderBeneficiary(i)}
+            </fieldset>
+          ))}
+
+        {legsField.fields.length === 1 && (
+          <>
+            <div className={styles.pair}>
+              <TextField label="Ngày bắt đầu" type="date" {...register("legs.0.startDate")} />
+              <TextField label="Ngày kết thúc" type="date" {...register("legs.0.endDate")} />
+            </div>
+            {legGroup.legs[0].product === "BH xe máy" && renderVehicleInfo(0)}
+            {renderBeneficiary(0)}
+          </>
+        )}
       </form>
     </Dialog>
   );

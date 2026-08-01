@@ -47,7 +47,10 @@ export const InsuranceOrder = z.object({
   orderCode: z.string(),
   customerId: z.string(),
   customerName: z.string(),
+  /** Ngày bắt đầu hiệu lực. */
   date: z.string(),
+  /** Ngày hết hiệu lực — null với đơn giả lập P-51/P-52 (không có khái niệm hiệu lực). */
+  endDate: z.string().nullable(),
   product: z.string(),
   packageName: z.string(),
   status: InsuranceOrderStatus,
@@ -56,6 +59,12 @@ export const InsuranceOrder = z.object({
   beneficiaryDob: z.string(),
   beneficiaryIdNumber: z.string(),
   beneficiaryPhone: z.string(),
+  /** Chỉ có giá trị với đơn BH xe máy — rỗng với đơn khác. */
+  licensePlate: z.string(),
+  /** Số khung — không bắt buộc, có khách không đọc được/không nhớ. */
+  chassisNumber: z.string(),
+  /** Số máy — không bắt buộc, cùng lý do với số khung. */
+  engineNumber: z.string(),
   createdById: z.string().nullable(),
   createdByName: z.string().nullable(),
   /** Phòng của người tạo lúc tạo — dùng để lọc theo phạm vi ở P-42, P-13. */
@@ -70,21 +79,94 @@ export const InsuranceOrder = z.object({
 export type InsuranceOrder = z.infer<typeof InsuranceOrder>;
 
 /**
- * Người thụ hưởng: mặc định điền theo khách, sửa được thành người khác.
- * `product`/`packageName` cố định (từ món quà đã chọn) khi source = 'gift'.
+ * Một đơn thật trong gói — người thụ hưởng để trống, KHÔNG mặc định theo
+ * khách (có thể là người khác hẳn, mặc định sẵn thì hay gõ nhầm rồi phải xoá
+ * lại). Có nút tự áp dụng thông tin khách vào form ở giao diện.
+ * Một gói có thể sinh nhiều đơn, xem `insuranceOrderLegsFor`.
  */
+export const InsuranceOrderLegForm = z
+  .object({
+    product: z.string().trim().min(1, 'Chưa chọn sản phẩm'),
+    packageName: z.string().trim().min(1, 'Chưa chọn gói'),
+    startDate: z.string().trim().min(1, 'Chưa chọn ngày bắt đầu'),
+    endDate: z.string().trim().min(1, 'Chưa chọn ngày kết thúc'),
+    beneficiaryName: z.string().trim().min(1, 'Chưa nhập tên người thụ hưởng'),
+    beneficiaryDob: z.string(),
+    beneficiaryIdNumber: z.string(),
+    beneficiaryPhone: z.string(),
+    licensePlate: z.string().trim(),
+    chassisNumber: z.string().trim(),
+    engineNumber: z.string().trim(),
+  })
+  // Biển số bắt buộc CHỈ với BH xe máy — số khung/số máy luôn không bắt buộc
+  // (khách hay không đọc được/không nhớ), gửi rỗng lên máy chủ nếu bỏ trống.
+  .refine((leg) => leg.product !== 'BH xe máy' || leg.licensePlate.length > 0, {
+    message: 'Chưa nhập biển số xe',
+    path: ['licensePlate'],
+  });
+export type InsuranceOrderLegForm = z.infer<typeof InsuranceOrderLegForm>;
+
 export const InsuranceOrderForm = z.object({
   customerId: z.string(),
-  product: z.string().trim().min(1, 'Chưa chọn sản phẩm'),
-  packageName: z.string().trim().min(1, 'Chưa chọn gói'),
   source: InsuranceOrderSource,
-  date: z.string().trim().min(1, 'Chưa chọn ngày tạo'),
-  beneficiaryName: z.string().trim().min(1, 'Chưa nhập tên người thụ hưởng'),
-  beneficiaryDob: z.string(),
-  beneficiaryIdNumber: z.string(),
-  beneficiaryPhone: z.string(),
+  legs: z.array(InsuranceOrderLegForm).min(1, 'Chưa chọn gói'),
 });
 export type InsuranceOrderForm = z.infer<typeof InsuranceOrderForm>;
+
+export type InsuranceOrderLegGroup = {
+  /**
+   * true = các đơn dùng CHUNG một người thụ hưởng (tách nhiều năm CÙNG một
+   * sản phẩm) — chỉ cần hiện một bộ ô nhập người thụ hưởng.
+   * false = mỗi đơn một sản phẩm khác nhau (gói ghép), người thụ hưởng có thể
+   * khác nhau — xe máy theo GPLX, tai nạn điện theo CCCD (spec P-10), chưa
+   * chắc cùng một người — nên hiện đủ một bộ ô nhập riêng cho từng đơn.
+   */
+  sharedBeneficiary: boolean;
+  legs: { product: string; packageName: string }[];
+};
+
+const productOf = (name: string): string => (name.includes('xe máy') ? 'BH xe máy' : 'BH tai nạn điện');
+
+/**
+ * Một gói có thể sinh NHIỀU đơn thật (spec §4.4 P-43, §5.4):
+ * - Gói ghép "A + B" (ví dụ combo xe máy + điện) → N đơn, MỖI đơn một sản
+ *   phẩm và một người thụ hưởng riêng.
+ * - "2 năm tai nạn điện" → 2 đơn 1 năm nối tiếp — hãng chỉ phát hành hợp
+ *   đồng 1 năm (KHÔNG áp dụng "2 năm BH xe máy": xe máy có hợp đồng 2 năm
+ *   thật, không tách). Dùng chung cho cả luồng Tặng quà lẫn tự mua.
+ */
+export function insuranceOrderLegsFor(packageName: string): InsuranceOrderLegGroup {
+  const trimmed = packageName.trim();
+  if (!trimmed) return { sharedBeneficiary: true, legs: [] };
+
+  const parts = trimmed.split('+').map((s) => s.trim());
+  if (parts.length > 1) {
+    return {
+      sharedBeneficiary: false,
+      legs: parts.map((name) => ({ product: productOf(name), packageName: name })),
+    };
+  }
+
+  const product = productOf(trimmed);
+  if (product === 'BH tai nạn điện' && trimmed.startsWith('2 năm')) {
+    const fee = trimmed.match(/(\d+k)/)?.[1] ?? '100k';
+    return {
+      sharedBeneficiary: true,
+      legs: [
+        { product, packageName: `1 năm · ${fee}` },
+        { product, packageName: `1 năm · ${fee}` },
+      ],
+    };
+  }
+
+  return { sharedBeneficiary: true, legs: [{ product, packageName: trimmed }] };
+}
+
+export const oneYearLater = (date: string): string => {
+  const d = new Date(date);
+  d.setFullYear(d.getFullYear() + 1);
+  return d.toISOString().slice(0, 10);
+};
 
 export const CreateInsuranceOrdersResult = z.object({
   orders: z.array(InsuranceOrder),

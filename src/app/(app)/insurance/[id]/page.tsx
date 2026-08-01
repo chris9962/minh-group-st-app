@@ -108,8 +108,12 @@ export default function InsuranceDetailPage({
                 <dd>{data.packageName}</dd>
               </div>
               <div>
-                <dt>Ngày tạo</dt>
+                <dt>Ngày bắt đầu</dt>
                 <dd>{formatDate(data.date)}</dd>
+              </div>
+              <div>
+                <dt>Ngày kết thúc</dt>
+                <dd>{data.endDate ? formatDate(data.endDate) : "—"}</dd>
               </div>
               <div>
                 <dt>Nguồn gốc</dt>
@@ -131,6 +135,22 @@ export default function InsuranceDetailPage({
                 <dt>Số điện thoại</dt>
                 <dd>{data.beneficiaryPhone ? formatPhone(data.beneficiaryPhone) : "—"}</dd>
               </div>
+              {data.product === "BH xe máy" && (
+                <>
+                  <div>
+                    <dt>Biển số xe</dt>
+                    <dd>{data.licensePlate || "—"}</dd>
+                  </div>
+                  <div>
+                    <dt>Số khung</dt>
+                    <dd>{data.chassisNumber || "—"}</dd>
+                  </div>
+                  <div>
+                    <dt>Số máy</dt>
+                    <dd>{data.engineNumber || "—"}</dd>
+                  </div>
+                </>
+              )}
               <div>
                 <dt>Người tạo</dt>
                 <dd>{data.createdByName ?? "—"}</dd>

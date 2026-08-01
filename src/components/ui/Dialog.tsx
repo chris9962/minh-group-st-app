@@ -1,6 +1,6 @@
 "use client";
 
-import { X } from "lucide-react";
+import { ChevronDown, X } from "lucide-react";
 import { createContext, useEffect, useRef, useState } from "react";
 import styles from "./Dialog.module.css";
 
@@ -32,6 +32,8 @@ type Props = {
 export function Dialog({ open, title, onClose, children, footer }: Props) {
   const ref = useRef<HTMLDialogElement>(null);
   const [dialogEl, setDialogEl] = useState<HTMLDialogElement | null>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const [canScrollDown, setCanScrollDown] = useState(false);
 
   // Đồng bộ với DOM ngoài React: `open` là thuộc tính, còn showModal() mới bật
   // lớp phủ và bẫy tiêu điểm — đặt thuộc tính thôi thì không có hai thứ đó.
@@ -40,6 +42,22 @@ export function Dialog({ open, title, onClose, children, footer }: Props) {
     if (!el) return;
     if (open && !el.open) el.showModal();
     if (!open && el.open) el.close();
+  }, [open]);
+
+  const checkScroll = (el: HTMLDivElement) => {
+    setCanScrollDown(el.scrollHeight - el.scrollTop - el.clientHeight > 2);
+  };
+
+  // Nội dung dài ngắn khác nhau tuỳ hộp thoại, có nơi đổi kích thước sau khi
+  // mở (chọn gói bảo hiểm mới hiện thêm form) — phải đo kích thước THẬT của
+  // DOM mới biết còn cuộn được không, không suy ra được lúc render.
+  useEffect(() => {
+    const el = bodyRef.current;
+    if (!el) return;
+    checkScroll(el);
+    const observer = new ResizeObserver(() => checkScroll(el));
+    observer.observe(el);
+    return () => observer.disconnect();
   }, [open]);
 
   return (
@@ -75,7 +93,16 @@ export function Dialog({ open, title, onClose, children, footer }: Props) {
               </button>
             </header>
 
-            <div className={styles.body}>{children}</div>
+            <div className={styles.bodyWrap}>
+              <div ref={bodyRef} className={styles.body} onScroll={(e) => checkScroll(e.currentTarget)}>
+                {children}
+              </div>
+              {canScrollDown && (
+                <div className={styles.scrollHint} aria-hidden="true">
+                  <ChevronDown size={16} />
+                </div>
+              )}
+            </div>
 
             {footer && <footer className={styles.foot}>{footer}</footer>}
           </div>

@@ -3,9 +3,10 @@
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { ShieldCheck } from "lucide-react";
+import { Plus, ShieldCheck } from "lucide-react";
 import type { DateRange } from "react-day-picker";
 import { TopBar } from "@/components/layout/TopBar";
+import { Button } from "@/components/ui/Button";
 import { DateRangePicker } from "@/components/ui/DateRangePicker";
 import { FilterButton } from "@/components/ui/FilterButton";
 import { FilterChips } from "@/components/ui/FilterChips";
@@ -14,10 +15,11 @@ import { ScopeSwitcher } from "@/components/ui/ScopeSwitcher";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { Select } from "@/components/ui/Select";
 import { StatusTag } from "@/components/ui/StatusTag";
+import { CreateInsuranceOrderDialog } from "@/components/insurance/CreateInsuranceOrderDialog";
 import { fetchInsuranceOrders, type InsuranceListRow } from "@/lib/api/insurance";
 import { INSURANCE_STATUS_LABEL, InsuranceOrderStatus } from "@/lib/api/insuranceOrders";
 import { formatDate } from "@/lib/format";
-import { availableScopes } from "@/lib/permissions";
+import { availableScopes, can } from "@/lib/permissions";
 import type { Scope } from "@/lib/types";
 import { useSession } from "@/store/session";
 import styles from "./page.module.scss";
@@ -34,6 +36,8 @@ export default function InsurancePage() {
   const [product, setProduct] = useState("");
   const [range, setRange] = useState<DateRange | undefined>(undefined);
   const [staffId, setStaffId] = useState("");
+  const [creating, setCreating] = useState(false);
+  const canCreate = can(user, "insurance", "create");
 
   const iso = (d: Date) =>
     new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
@@ -136,6 +140,12 @@ export default function InsurancePage() {
             options={[{ value: "", label: "Tất cả nhân viên" }, ...staffOptions]}
           />
         </FilterButton>
+        {canCreate && (
+          <Button onClick={() => setCreating(true)}>
+            <Plus size={16} />
+            Tạo đơn bảo hiểm
+          </Button>
+        )}
       </TopBar>
 
       <main className={styles.body}>
@@ -186,6 +196,10 @@ export default function InsurancePage() {
               />
             )}
           </SectionCard>
+        )}
+
+        {creating && (
+          <CreateInsuranceOrderDialog open onClose={() => setCreating(false)} />
         )}
       </main>
     </>

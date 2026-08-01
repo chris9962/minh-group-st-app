@@ -27,51 +27,38 @@ function nextOrderCode(date: string): string {
   return `DH-${yymm}-${String(nextOrderCodeSeq++).padStart(3, "0")}`;
 }
 
-const oneYearLater = (date: string): string => {
-  const d = new Date(date);
-  d.setFullYear(d.getFullYear() + 1);
-  return d.toISOString().slice(0, 10);
-};
-
 /**
- * BH tai nạn điện gói 2 năm sinh ra HAI đơn 1 năm nối ngày (spec §4.4 P-43,
- * §5.4) — hãng chỉ phát hành hợp đồng 1 năm, "2 năm" là hai hợp đồng liên
- * tiếp. Áp dụng bất kể mua tự nguyện hay từ quà tặng, nên đặt ở tầng tạo đơn
- * dùng chung, không phải riêng luồng quà.
+ * Việc tách một gói thành nhiều đơn (gói ghép, gói nhiều năm cùng sản phẩm)
+ * đã làm ở tầng gọi (`insuranceOrderLegsFor`, dùng chung cho cả hộp thoại tự
+ * mua lẫn tặng quà) — ở đây chỉ còn việc tạo thẳng một đơn cho mỗi đơn đã có
+ * sẵn ngày/người thụ hưởng riêng.
  */
-function packagesToCreate(product: string, packageName: string): string[] {
-  if (product === "BH tai nạn điện" && packageName.trim().startsWith("2 năm")) {
-    const fee = packageName.match(/(\d+k)/)?.[1] ?? "100k";
-    return [`1 năm · ${fee}`, `1 năm · ${fee}`];
-  }
-  return [packageName];
-}
-
 export function createInsuranceOrder(
   form: InsuranceOrderForm,
   customer: Customer,
   actor: { id: string; fullName: string; departmentId: string | null } | null,
 ): InsuranceOrder[] {
-  const packageNames = packagesToCreate(form.product, form.packageName);
-
-  return packageNames.map((packageName, i) => {
-    const date = i === 0 ? form.date : oneYearLater(form.date);
+  return form.legs.map((leg) => {
     const order: InsuranceOrder = {
       id: `mi-${nextId++}`,
-      orderCode: nextOrderCode(date),
+      orderCode: nextOrderCode(leg.startDate),
       customerId: customer.id,
       customerName: customer.fullName,
-      date,
-      product: form.product,
-      packageName,
+      date: leg.startDate,
+      endDate: leg.endDate,
+      product: leg.product,
+      packageName: leg.packageName,
       // Đơn mới luôn bắt đầu ở "chờ tạo" — phải được hệ thống pick lên mới
       // chuyển sang "đang tạo", không nhảy thẳng vào đó (spec §3.4 mốc 01).
       status: "queued",
       source: form.source,
-      beneficiaryName: form.beneficiaryName,
-      beneficiaryDob: form.beneficiaryDob,
-      beneficiaryIdNumber: form.beneficiaryIdNumber,
-      beneficiaryPhone: form.beneficiaryPhone,
+      beneficiaryName: leg.beneficiaryName,
+      beneficiaryDob: leg.beneficiaryDob,
+      beneficiaryIdNumber: leg.beneficiaryIdNumber,
+      beneficiaryPhone: leg.beneficiaryPhone,
+      licensePlate: leg.licensePlate,
+      chassisNumber: leg.chassisNumber,
+      engineNumber: leg.engineNumber,
       createdById: actor?.id ?? null,
       createdByName: actor?.fullName ?? null,
       createdByDepartmentId: actor?.departmentId ?? null,

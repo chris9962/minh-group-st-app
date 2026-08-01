@@ -38,6 +38,26 @@
   color: var(--om-text-2);
 }
 
+/* Khối riêng cho từng đơn khi một gói sinh NHIỀU đơn (gói ghép, hoặc gói
+   nhiều năm cùng một sản phẩm) — nền mờ để tách rõ khỏi `.fieldset` viền
+   mỏng bên trong nó (người thụ hưởng), tránh nhìn thành hai viền chồng nhau. */
+.legCard {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 14px;
+  background: var(--om-soft);
+  border-radius: var(--radius-md);
+}
+
+.legTitle {
+  padding: 0 6px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--om-text);
+}
+
 @media (max-width: bp.$bp-narrow) {
   .pair {
     grid-template-columns: minmax(0, 1fr);

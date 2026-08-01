@@ -59,6 +59,18 @@ a {
   border: 0;
 }
 
+/* `input[type=date]` vẽ icon lịch (và bảng chọn ngày bật lên) theo màu hệ
+   điều hành, không theo `data-theme` của trang — không đặt lại thì bộ tối vẫn
+   ra icon đen trên nền tối. Đặt theo đúng lựa chọn theme của trang, không để
+   trình duyệt tự suy theo màu hệ điều hành. */
+:root[data-theme="dark"] input[type="date"] {
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] input[type="date"] {
+  color-scheme: light;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
