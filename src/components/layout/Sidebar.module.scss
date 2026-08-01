@@ -22,6 +22,35 @@
   padding: 0 6px 16px;
 }
 
+.backdrop {
+  display: none;
+}
+
+.mobileClose {
+  display: none;
+  margin-left: auto;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--om-sidebar-ink);
+  cursor: pointer;
+  /* 44px cho ngón tay — đội KD dùng điện thoại ngoài hiện trường. */
+  width: 44px;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+}
+
+.mobileClose:hover {
+  background: var(--om-sidebar-hover);
+}
+
+.mobileClose:focus-visible {
+  outline: 2px solid var(--om-orange);
+  outline-offset: -2px;
+}
+
 .identity {
   display: flex;
   flex-direction: column;
@@ -144,11 +173,36 @@
   font-weight: 700;
 }
 
+/* Trên điện thoại sidebar là hộp thoại trượt ra từ mép trái, ẩn ngoài khung
+   hình theo mặc định (`AppShell`'s .mobileTrigger thay chỗ nó) — mở qua nút
+   hamburger, đóng qua backdrop/Esc/bấm mục điều hướng (xem Sidebar.tsx). */
 @media (max-width: bp.$bp-mobile) {
   .sidebar {
-    width: auto;
-    height: auto;
-    border-right: 0;
-    border-bottom: 1px solid var(--om-line);
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 50;
+    width: min(280px, 85vw);
+    height: 100dvh;
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+    border-right: 1px solid var(--om-line);
+    border-bottom: 0;
+    box-shadow: var(--shadow-lg);
+  }
+
+  .sidebarOpen {
+    transform: translateX(0);
+  }
+
+  .mobileClose {
+    display: flex;
+  }
+
+  .backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    background: rgb(32 30 29 / 45%);
   }
 }

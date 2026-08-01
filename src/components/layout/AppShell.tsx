@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "@/store/session";
+import { BottomNav } from "./BottomNav";
 import { Sidebar } from "./Sidebar";
 import styles from "./AppShell.module.scss";
 
@@ -16,6 +17,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const user = useSession((s) => s.user);
   const isValid = useSession((s) => s.isValid);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   useEffect(() => {
     if (!isValid()) router.replace("/login");
@@ -25,8 +27,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className={styles.shell}>
-      <Sidebar user={user} />
+      <Sidebar user={user} mobileOpen={mobileNavOpen} onMobileClose={() => setMobileNavOpen(false)} />
+
       <div className={styles.main}>{children}</div>
+
+      <BottomNav user={user} onOpenMenu={() => setMobileNavOpen(true)} />
     </div>
   );
 }

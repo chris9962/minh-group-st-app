@@ -20,7 +20,9 @@
   overflow-y: auto;
 }
 
-/* Trên điện thoại sidebar nằm ngang trên đầu, cả trang cuộn như bình thường. */
+/* Trên điện thoại sidebar trượt ra từ mép trái khi mở (xem Sidebar.module.scss),
+   mặc định nằm ngoài khung hình — nút "Thêm" trong BottomNav mở lại, khỏi cần
+   thêm một hàng hamburger riêng ở đầu trang. */
 @media (max-width: bp.$bp-mobile) {
   .shell {
     height: auto;
@@ -31,5 +33,8 @@
 
   .main {
     overflow: visible;
+    /* Thanh điều hướng đáy (BottomNav) đứng cố định, che một dải cuối trang
+       nếu không chừa chỗ — ~52px hàng nút + vùng an toàn cử chỉ iOS. */
+    padding-bottom: calc(52px + env(safe-area-inset-bottom, 0px));
   }
 }

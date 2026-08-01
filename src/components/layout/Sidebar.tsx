@@ -1,9 +1,9 @@
 "use client";
 
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Logo } from "@/components/ui/Logo";
 import { AccountMenu } from "./AccountMenu";
 import { NavIcon } from "./NavIcon";
@@ -15,7 +15,15 @@ const isChildActive = (pathname: string, group: NavGroup): boolean =>
   group.children.some((c) => pathname.startsWith(c.href));
 
 /** Nhóm mở rộng — tự mở sẵn nếu trang đang xem là một mục con của nó. */
-function SidebarGroup({ group, pathname }: { group: NavGroup; pathname: string }) {
+function SidebarGroup({
+  group,
+  pathname,
+  onNavigate,
+}: {
+  group: NavGroup;
+  pathname: string;
+  onNavigate: () => void;
+}) {
   const [open, setOpen] = useState(() => isChildActive(pathname, group));
 
   return (
@@ -47,6 +55,7 @@ function SidebarGroup({ group, pathname }: { group: NavGroup; pathname: string }
                     .filter(Boolean)
                     .join(" ")}
                   aria-current={active ? "page" : undefined}
+                  onClick={onNavigate}
                 >
                   {child.label}
                 </Link>
@@ -59,52 +68,105 @@ function SidebarGroup({ group, pathname }: { group: NavGroup; pathname: string }
   );
 }
 
+type Props = {
+  user: User;
+  /** Có mở trên điện thoại không — không ảnh hưởng gì ở desktop (luôn hiện sẵn). */
+  mobileOpen?: boolean;
+  onMobileClose?: () => void;
+};
+
 /**
  * Thanh điều hướng trái. Dùng chung cho mọi vai trò — danh sách mục do quyền
  * quyết định, xem src/lib/nav.ts.
+ *
+ * Trên điện thoại đây là một hộp thoại trượt ra từ mép trái (xem
+ * `.module.scss` — CSS tự chuyển sang `position: fixed` dưới `bp-mobile`),
+ * ẩn theo mặc định, mở qua nút hamburger ở `AppShell`. Đóng lại khi: bấm ra
+ * ngoài (`onMobileClose` qua backdrop), bấm Esc, hoặc điều hướng sang trang
+ * khác — cả ba đều là đồng bộ với thứ NGOÀI React (bàn phím, DOM cuộn), nên
+ * hợp lệ để dùng effect, không phải suy ra lúc render.
  */
-export function Sidebar({ user }: { user: User }) {
+export function Sidebar({ user, mobileOpen = false, onMobileClose }: Props) {
   const pathname = usePathname();
   const entries = navFor(user);
 
+  useEffect(() => {
+    if (!mobileOpen) return;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onMobileClose?.();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = "";
+    };
+  }, [mobileOpen, onMobileClose]);
+
   return (
-    <nav className={styles.sidebar} aria-label="Điều hướng chính">
-      <div className={styles.head}>
-        <Logo size={32} />
-        <span className={styles.identity}>
-          <strong>MGST</strong>
-          <span>Nền tảng nội bộ</span>
-        </span>
-      </div>
+    <>
+      {mobileOpen && (
+        <div className={styles.backdrop} onClick={onMobileClose} aria-hidden="true" />
+      )}
 
-      <ul className={styles.list}>
-        {entries.map((entry) => {
-          if (isNavGroup(entry)) {
-            return <SidebarGroup key={entry.label} group={entry} pathname={pathname} />;
-          }
+      <nav
+        className={[styles.sidebar, mobileOpen && styles.sidebarOpen].filter(Boolean).join(" ")}
+        aria-label="Điều hướng chính"
+      >
+        <div className={styles.head}>
+          <Logo size={32} />
+          <span className={styles.identity}>
+            <strong>MGST</strong>
+            <span>Nền tảng nội bộ</span>
+          </span>
+          <button
+            type="button"
+            className={styles.mobileClose}
+            onClick={onMobileClose}
+            aria-label="Đóng menu điều hướng"
+          >
+            <X size={20} aria-hidden />
+          </button>
+        </div>
 
-          const active =
-            entry.href === "/" ? pathname === "/" : pathname.startsWith(entry.href);
-          return (
-            <li key={entry.href}>
-              <Link
-                href={entry.href}
-                className={[styles.item, active && styles.active]
-                  .filter(Boolean)
-                  .join(" ")}
-                aria-current={active ? "page" : undefined}
-              >
-                <NavIcon name={entry.icon} />
-                {entry.label}
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
+        <ul className={styles.list}>
+          {entries.map((entry) => {
+            if (isNavGroup(entry)) {
+              return (
+                <SidebarGroup
+                  key={entry.label}
+                  group={entry}
+                  pathname={pathname}
+                  onNavigate={() => onMobileClose?.()}
+                />
+              );
+            }
 
-      <div className={styles.foot}>
-        <AccountMenu user={user} />
-      </div>
-    </nav>
+            const active =
+              entry.href === "/" ? pathname === "/" : pathname.startsWith(entry.href);
+            return (
+              <li key={entry.href}>
+                <Link
+                  href={entry.href}
+                  className={[styles.item, active && styles.active]
+                    .filter(Boolean)
+                    .join(" ")}
+                  aria-current={active ? "page" : undefined}
+                  onClick={() => onMobileClose?.()}
+                >
+                  <NavIcon name={entry.icon} />
+                  {entry.label}
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+
+        <div className={styles.foot}>
+          <AccountMenu user={user} />
+        </div>
+      </nav>
+    </>
   );
 }

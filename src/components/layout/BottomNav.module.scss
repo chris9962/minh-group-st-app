@@ -1,0 +1,89 @@
+.bar {
+  display: none;
+}
+
+@media (max-width: bp.$bp-mobile) {
+  .bar {
+    display: flex;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 30;
+    background: var(--om-sidebar);
+    border-top: 1px solid var(--om-line);
+    /* Chừa vùng an toàn của thanh cử chỉ iOS — không thì hàng nút bị che một phần. */
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+}
+
+.item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 8px 4px;
+  border: none;
+  background: none;
+  color: var(--om-sidebar-ink-2);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+  cursor: pointer;
+  /* 44px cho ngón tay — đội KD dùng điện thoại ngoài hiện trường. */
+  min-height: 52px;
+}
+
+.item svg {
+  opacity: 0.8;
+}
+
+.item:focus-visible {
+  outline: 2px solid var(--om-orange);
+  outline-offset: -2px;
+}
+
+.active {
+  color: var(--om-sidebar-active-ink);
+  background: var(--om-sidebar-active);
+}
+
+.active svg {
+  opacity: 1;
+}
+
+.pickerList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* `<button>` không tự nhận màu chữ theo `data-theme` — ghim tường minh, không
+   thì nền tối vẫn ra chữ đen mặc định (xem CreateBankAccountDialog cùng lỗi). */
+.pickerRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px;
+  color: var(--om-text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  background: var(--om-card);
+  border: 1px solid var(--om-line);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  text-align: left;
+  min-height: 44px;
+}
+
+.pickerRow:hover {
+  border-color: var(--om-orange-mid);
+}
