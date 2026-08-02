@@ -162,7 +162,10 @@ export let mockUsers: MockAccount[] = [
     permissions: managerPermissions,
   }),
   account({
-    id: "u-staff",
+    // "p2" chứ không phải "u-staff": người này cũng nằm trong danh sách P-51
+    // (mocks/people.ts) với id p2 — một người MỘT id, nếu không thì bản ghi
+    // nghiệp vụ tạo bởi p2 và phiên đăng nhập u-staff không nhận ra nhau.
+    id: "p2",
     username: "ntbtram",
     password: "12345678",
     fullName: "Nguyễn Thị Bích Trâm",

@@ -1,0 +1,707 @@
+{
+  "id": "a3d4cf1b-9326-4af8-a2f5-c67f3d4c6d03",
+  "prevId": "00000000-0000-0000-0000-000000000000",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.audit_log": {
+      "name": "audit_log",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "at": {
+          "name": "at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "actor_id": {
+          "name": "actor_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "module": {
+          "name": "module",
+          "type": "module_key",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "action": {
+          "name": "action",
+          "type": "action_key",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "target_label": {
+          "name": "target_label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "target_table": {
+          "name": "target_table",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "target_id": {
+          "name": "target_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "detail": {
+          "name": "detail",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "audit_log_at": {
+          "name": "audit_log_at",
+          "columns": [
+            {
+              "expression": "at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "audit_log_actor": {
+          "name": "audit_log_actor",
+          "columns": [
+            {
+              "expression": "actor_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "audit_log_actor_id_users_id_fk": {
+          "name": "audit_log_actor_id_users_id_fk",
+          "tableFrom": "audit_log",
+          "tableTo": "users",
+          "columnsFrom": [
+            "actor_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.departments": {
+      "name": "departments",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "active": {
+          "name": "active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "departments_name_unique": {
+          "name": "departments_name_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "name"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.sessions": {
+      "name": "sessions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "token_hash": {
+          "name": "token_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "remember": {
+          "name": "remember",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "sessions_token_hash": {
+          "name": "sessions_token_hash",
+          "columns": [
+            {
+              "expression": "token_hash",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "sessions_user_id_users_id_fk": {
+          "name": "sessions_user_id_users_id_fk",
+          "tableFrom": "sessions",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.user_managed_departments": {
+      "name": "user_managed_departments",
+      "schema": "",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "department_id": {
+          "name": "department_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "user_managed_departments_user_id_users_id_fk": {
+          "name": "user_managed_departments_user_id_users_id_fk",
+          "tableFrom": "user_managed_departments",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "user_managed_departments_department_id_departments_id_fk": {
+          "name": "user_managed_departments_department_id_departments_id_fk",
+          "tableFrom": "user_managed_departments",
+          "tableTo": "departments",
+          "columnsFrom": [
+            "department_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "user_managed_departments_user_id_department_id_pk": {
+          "name": "user_managed_departments_user_id_department_id_pk",
+          "columns": [
+            "user_id",
+            "department_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.user_permissions": {
+      "name": "user_permissions",
+      "schema": "",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "module": {
+          "name": "module",
+          "type": "module_key",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "action": {
+          "name": "action",
+          "type": "action_key",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "scope": {
+          "name": "scope",
+          "type": "scope_key",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "user_permissions_user_id_users_id_fk": {
+          "name": "user_permissions_user_id_users_id_fk",
+          "tableFrom": "user_permissions",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "user_permissions_user_id_module_action_pk": {
+          "name": "user_permissions_user_id_module_action_pk",
+          "columns": [
+            "user_id",
+            "module",
+            "action"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.users": {
+      "name": "users",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "username": {
+          "name": "username",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "password_hash": {
+          "name": "password_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "full_name": {
+          "name": "full_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "phone": {
+          "name": "phone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "role": {
+          "name": "role",
+          "type": "role_key",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "department_id": {
+          "name": "department_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "manage_scope": {
+          "name": "manage_scope",
+          "type": "manage_scope",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'none'"
+        },
+        "ward_id": {
+          "name": "ward_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "active": {
+          "name": "active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "failed_attempts": {
+          "name": "failed_attempts",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "locked_until": {
+          "name": "locked_until",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "users_department": {
+          "name": "users_department",
+          "columns": [
+            {
+              "expression": "department_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "users_department_id_departments_id_fk": {
+          "name": "users_department_id_departments_id_fk",
+          "tableFrom": "users",
+          "tableTo": "departments",
+          "columnsFrom": [
+            "department_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "users_username_unique": {
+          "name": "users_username_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "username"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {
+    "public.account_number_method": {
+      "name": "account_number_method",
+      "schema": "public",
+      "values": [
+        "phone-match",
+        "manual"
+      ]
+    },
+    "public.action_key": {
+      "name": "action_key",
+      "schema": "public",
+      "values": [
+        "view-summary",
+        "view-detail",
+        "create",
+        "update",
+        "delete",
+        "export",
+        "handle-fallback",
+        "grant-gift",
+        "manage-referral-codes",
+        "manage-bank-catalog",
+        "configure-catalog",
+        "configure-gift-rules",
+        "manage-org",
+        "grant-permission",
+        "access-id-number"
+      ]
+    },
+    "public.app_count_comparator": {
+      "name": "app_count_comparator",
+      "schema": "public",
+      "values": [
+        "none",
+        "eq",
+        "gte"
+      ]
+    },
+    "public.bank_account_status": {
+      "name": "bank_account_status",
+      "schema": "public",
+      "values": [
+        "creating",
+        "done"
+      ]
+    },
+    "public.bank_account_type": {
+      "name": "bank_account_type",
+      "schema": "public",
+      "values": [
+        "none",
+        "CNKD",
+        "HKD"
+      ]
+    },
+    "public.channel_input_kind": {
+      "name": "channel_input_kind",
+      "schema": "public",
+      "values": [
+        "ward-hamlet",
+        "hospital",
+        "free-text",
+        "none"
+      ]
+    },
+    "public.gift_group": {
+      "name": "gift_group",
+      "schema": "public",
+      "values": [
+        "cash",
+        "choice"
+      ]
+    },
+    "public.gift_rule_mode": {
+      "name": "gift_rule_mode",
+      "schema": "public",
+      "values": [
+        "accumulate",
+        "tiered",
+        "addon"
+      ]
+    },
+    "public.insurance_order_source": {
+      "name": "insurance_order_source",
+      "schema": "public",
+      "values": [
+        "self",
+        "gift"
+      ]
+    },
+    "public.insurance_order_status": {
+      "name": "insurance_order_status",
+      "schema": "public",
+      "values": [
+        "queued",
+        "creating",
+        "pending-approval",
+        "manual-queued",
+        "manual-progress",
+        "done"
+      ]
+    },
+    "public.insurance_product": {
+      "name": "insurance_product",
+      "schema": "public",
+      "values": [
+        "motorbike",
+        "electric-accident"
+      ]
+    },
+    "public.manage_scope": {
+      "name": "manage_scope",
+      "schema": "public",
+      "values": [
+        "none",
+        "listed",
+        "company"
+      ]
+    },
+    "public.module_key": {
+      "name": "module_key",
+      "schema": "public",
+      "values": [
+        "customer",
+        "insurance",
+        "banking",
+        "services",
+        "staff",
+        "system",
+        "*"
+      ]
+    },
+    "public.notification_kind": {
+      "name": "notification_kind",
+      "schema": "public",
+      "values": [
+        "order-done",
+        "order-manual",
+        "code-low"
+      ]
+    },
+    "public.role_key": {
+      "name": "role_key",
+      "schema": "public",
+      "values": [
+        "director",
+        "deputy-director",
+        "head",
+        "deputy-head",
+        "staff"
+      ]
+    },
+    "public.scope_key": {
+      "name": "scope_key",
+      "schema": "public",
+      "values": [
+        "own",
+        "managed",
+        "company"
+      ]
+    }
+  },
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}
