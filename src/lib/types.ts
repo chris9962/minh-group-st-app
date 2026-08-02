@@ -34,6 +34,9 @@ export const Action = z.enum([
   'update',
   'delete',
   'export',
+  // Đặc biệt — customer: XEM + SỬA CCCD đầy đủ, gộp một quyền (quyết định 03/08).
+  // Không có quyền này thì mọi response chỉ thấy 4 số cuối và ô CCCD khoá.
+  'access-id-number',
   // Đặc biệt — insurance
   'handle-fallback',
   // Đặc biệt — banking
@@ -68,6 +71,7 @@ export const ACTION_LABEL: Record<Action, string> = {
   update: 'Sửa',
   delete: 'Xoá / huỷ',
   export: 'Xuất dữ liệu',
+  'access-id-number': 'Xem & sửa CCCD đầy đủ',
   'handle-fallback': 'Xử lý đơn lỗi (làm tay)',
   'grant-gift': 'Chốt & phát quà',
   'manage-referral-codes': 'Quản lý mã giới thiệu',
@@ -87,6 +91,7 @@ export const BASE_ACTIONS: Action[] = ['view-summary', 'view-detail', 'create', 
  * hành động cơ bản nào cả (không phải nghiệp vụ có bản ghi để CRUD).
  */
 export const SPECIAL_ACTIONS_OF: Partial<Record<ModuleKey, Action[]>> = {
+  customer: ['access-id-number'],
   insurance: ['handle-fallback', 'configure-catalog'],
   banking: ['grant-gift', 'manage-referral-codes', 'manage-bank-catalog'],
   services: ['configure-catalog'],

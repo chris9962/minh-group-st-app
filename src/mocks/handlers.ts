@@ -1,30 +1,12 @@
 import { HttpResponse, http } from "msw";
-import { LOGIN_ERROR, Scope } from "@/lib/types";
+import { Scope } from "@/lib/types";
 import { can, clampScope, scopeFor, visibleDepartmentIds } from "@/lib/permissions";
-import { sessionExpiry } from "@/store/session";
 import type { AuditLogQuery } from "@/lib/api/auditLog";
 import { auditLogFor } from "./auditLog";
-import { dashboardFor, departmentStatsFor } from "./dashboard";
-import { SAVE_ERROR, type StaffForm, type StaffQuery } from "@/lib/api/staff";
-import { ORG_ERROR, type DepartmentForm, type OrgErrorCode } from "@/lib/api/org";
+import { dashboardFor } from "./dashboard";
 import { peopleFor } from "./people";
 import { personFor } from "./person";
-import {
-  createDepartment,
-  departmentDetailFor,
-  departmentsFor,
-  setDepartmentActive,
-  updateDepartment,
-} from "./org";
-import {
-  createStaff,
-  findStaff,
-  newPassword,
-  setStaffActive,
-  staffFor,
-  updateStaff,
-} from "./staff";
-import { departments, mockUsers } from "./data";
+import { mockUsers } from "./data";
 import type { CustomerForm } from "@/lib/api/customers";
 import {
   createCustomer,
@@ -107,96 +89,11 @@ import { insuranceDetailFor, insuranceOrdersFor } from "./insurance";
 /** Người bấm nút — máy chủ thật lấy từ phiên, ở đây gửi kèm cho gọn. */
 const actorBy = (id: string) => mockUsers.find((u) => u.id === id) ?? null;
 
-const saveError = (code: "username-taken" | "role-too-high" | "permission-too-high") => ({
-  code,
-  message:
-    code === SAVE_ERROR.USERNAME_TAKEN
-      ? "Tên đăng nhập này đã có người dùng"
-      : code === SAVE_ERROR.ROLE_TOO_HIGH
-        ? "Bạn không gán được chức vụ cao hơn quyền của chính mình"
-        : "Có quyền bạn đang cấp vượt quá quyền của chính bạn",
-});
-
-const orgError = (code: OrgErrorCode) => ({
-  code,
-  message:
-    code === ORG_ERROR.NAME_TAKEN
-      ? "Đã có phòng tên này"
-      : "Phòng này vẫn còn người — chuyển họ sang phòng khác trước",
-});
-
-/** Sai 5 lần liên tiếp thì khoá 15 phút — đếm theo tên đăng nhập. */
-const MAX_ATTEMPTS = 5;
-const LOCK_MS = 15 * 60 * 1000;
-
-const failedAttempts = new Map<string, number>();
-const lockedUntil = new Map<string, number>();
+/* Đăng nhập · nhân sự · phòng ban KHÔNG còn mock — đã có API thật
+   (src/app/api/…, đọc Postgres). MSW mặc định bypass request không có
+   handler nên các đường đó tự đi thẳng vào máy chủ. */
 
 export const handlers = [
-  http.post("/api/login", async ({ request }) => {
-    const { username, password, remember } = (await request.json()) as {
-      username: string;
-      password: string;
-      remember: boolean;
-    };
-
-    const key = username.trim().toLowerCase();
-    const lockEnd = lockedUntil.get(key);
-
-    if (lockEnd && lockEnd > Date.now()) {
-      const minutes = Math.ceil((lockEnd - Date.now()) / 60_000);
-      return HttpResponse.json(
-        {
-          code: LOGIN_ERROR.LOCKED,
-          message: `Tài khoản đang bị khoá. Thử lại sau ${minutes} phút hoặc liên hệ quản trị hệ thống.`,
-          lockedUntil: new Date(lockEnd).toISOString(),
-        },
-        { status: 423 },
-      );
-    }
-
-    const account = mockUsers.find(
-      (u) => u.username === key && u.password === password && u.active,
-    );
-
-    if (!account) {
-      const attempts = (failedAttempts.get(key) ?? 0) + 1;
-      failedAttempts.set(key, attempts);
-
-      if (attempts >= MAX_ATTEMPTS) {
-        lockedUntil.set(key, Date.now() + LOCK_MS);
-        failedAttempts.delete(key);
-        return HttpResponse.json(
-          {
-            code: LOGIN_ERROR.LOCKED,
-            message:
-              "Sai 5 lần liên tiếp — tài khoản bị khoá 15 phút. Liên hệ quản trị hệ thống để mở lại.",
-          },
-          { status: 423 },
-        );
-      }
-
-      return HttpResponse.json(
-        {
-          code: LOGIN_ERROR.BAD_CREDENTIALS,
-          message: "Tên đăng nhập hoặc mật khẩu không đúng.",
-          attemptsLeft: MAX_ATTEMPTS - attempts,
-        },
-        { status: 401 },
-      );
-    }
-
-    failedAttempts.delete(key);
-    lockedUntil.delete(key);
-
-    const { password: _omit, ...user } = account;
-    void _omit;
-
-    return HttpResponse.json({
-      user,
-      expiresAt: new Date(sessionExpiry(Boolean(remember))).toISOString(),
-    });
-  }),
 
   http.get("/api/dashboard", ({ request }) => {
     const params = new URL(request.url).searchParams;
@@ -234,107 +131,6 @@ export const handlers = [
     return HttpResponse.json(person);
   }),
 
-  http.get("/api/staff", ({ request }) => {
-    const params = new URL(request.url).searchParams;
-    return HttpResponse.json(
-      staffFor({
-        scope: params.get("scope") ?? "company",
-        departmentId: params.get("departmentId") ?? "",
-        search: params.get("search") ?? "",
-        status: (params.get("status") ?? "active") as "active" | "locked" | "all",
-        roles: (params.get("roles") ?? "")
-          .split(",")
-          .filter(Boolean) as StaffQuery["roles"],
-      }),
-    );
-  }),
-
-  http.get("/api/staff/:id", ({ params }) => {
-    const staff = findStaff(String(params.id));
-    return staff ? HttpResponse.json(staff) : new HttpResponse(null, { status: 404 });
-  }),
-
-  http.post("/api/staff", async ({ request }) => {
-    const { actorId, ...form } = (await request.json()) as StaffForm & {
-      actorId: string;
-    };
-    const result = createStaff(form, actorBy(actorId));
-    return result.ok
-      ? HttpResponse.json(result.staff, { status: 201 })
-      : HttpResponse.json(saveError(result.code), { status: 422 });
-  }),
-
-  http.patch("/api/staff/:id", async ({ params, request }) => {
-    const { actorId, ...form } = (await request.json()) as StaffForm & {
-      actorId: string;
-    };
-    const result = updateStaff(String(params.id), form, actorBy(actorId));
-    return result.ok
-      ? HttpResponse.json(result.staff)
-      : HttpResponse.json(saveError(result.code), { status: 422 });
-  }),
-
-  http.post("/api/staff/:id/active", async ({ params, request }) => {
-    const { active, actorId } = (await request.json()) as { active: boolean; actorId: string };
-    const staff = setStaffActive(String(params.id), active, actorBy(actorId));
-    return staff
-      ? HttpResponse.json(staff)
-      : new HttpResponse(null, { status: 404 });
-  }),
-
-  http.post("/api/staff/:id/reset-password", ({ params }) =>
-    findStaff(String(params.id))
-      ? HttpResponse.json({ password: newPassword() })
-      : new HttpResponse(null, { status: 404 }),
-  ),
-
-  http.get("/api/departments", () =>
-    HttpResponse.json(departments.filter((d) => d.active)),
-  ),
-
-  http.get("/api/org/departments", ({ request }) =>
-    HttpResponse.json(
-      departmentsFor(new URL(request.url).searchParams.get("search") ?? ""),
-    ),
-  ),
-
-  http.get("/api/org/departments/stats", ({ request }) =>
-    HttpResponse.json(
-      departmentStatsFor(new URL(request.url).searchParams.get("period") ?? "today"),
-    ),
-  ),
-
-  http.get("/api/org/departments/:id", ({ params }) => {
-    const detail = departmentDetailFor(String(params.id));
-    return detail
-      ? HttpResponse.json(detail)
-      : new HttpResponse(null, { status: 404 });
-  }),
-
-  http.post("/api/org/departments", async ({ request }) => {
-    const form = (await request.json()) as DepartmentForm;
-    const result = createDepartment(form);
-    return result.ok
-      ? HttpResponse.json(result.department, { status: 201 })
-      : HttpResponse.json(orgError(result.code), { status: 422 });
-  }),
-
-  http.post("/api/org/departments/:id", async ({ params, request }) => {
-    const form = (await request.json()) as DepartmentForm;
-    const result = updateDepartment(String(params.id), form);
-    return result.ok
-      ? HttpResponse.json(result.department)
-      : HttpResponse.json(orgError(result.code), { status: 422 });
-  }),
-
-  http.post("/api/org/departments/:id/active", async ({ params, request }) => {
-    const { active } = (await request.json()) as { active: boolean };
-    const result = setDepartmentActive(String(params.id), active);
-    if (!result) return new HttpResponse(null, { status: 404 });
-    return result.ok
-      ? HttpResponse.json(result.department)
-      : HttpResponse.json(orgError(result.code), { status: 422 });
-  }),
 
   /* ── Cấu hình — P-81…P-84 ─────────────────────────────────────────── */
 
