@@ -13,7 +13,6 @@ import {
   HOSPITALS,
   INSURANCE_PACKAGES,
   KPI_TARGET,
-  REFERRAL_CODES,
   SERVICE_TYPES,
 } from "./seed-data";
 
@@ -97,15 +96,7 @@ async function main() {
     (await db.select().from(schema.banks)).map((b) => [b.code, b.id]),
   );
 
-  if ((await count("referral_codes")) === 0) {
-    await db.insert(schema.referralCodes).values(
-      REFERRAL_CODES.map((c) => ({
-        bankId: bankIdByCode.get(c.bankCode)!,
-        code: c.code,
-        total: c.total,
-      })),
-    );
-  }
+  /* Kho mã giới thiệu KHÔNG seed — KDTH nhập mã thật qua P-61/P-62. */
 
   /* Kênh · bệnh viện · loại dịch vụ · quà · gói BH */
   if ((await count("channels")) === 0)

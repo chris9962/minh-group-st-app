@@ -57,25 +57,8 @@ const sysAdminPermissions: Permission[] = [
   p("*", "configure-gift-rules", "company"),
 ];
 
-const orderDeskPermissions: Permission[] = [
-  p("insurance", "view-detail", "company"),
-  p("insurance", "handle-fallback", "company"),
-];
-
-const salesOpsPermissions: Permission[] = [
-  p("banking", "view-detail", "company"),
-  p("banking", "view-summary", "company"),
-  p("banking", "export", "company"),
-  p("banking", "manage-referral-codes", "company"),
-  p("banking", "manage-bank-catalog", "company"),
-];
-
-const accountingOpsPermissions: Permission[] = [
-  p("*", "view-detail", "company"),
-  p("*", "view-summary", "company"),
-  p("*", "export", "company"),
-  p("*", "configure-catalog", "company"),
-];
+/* Các bộ quyền vị trí đặc thù khác (đội tạo đơn, KDTH, KTTH…) cấp qua P-53/P-92
+   khi tạo người thật — không seed tài khoản ảo kèm theo nữa (duyệt 03/08). */
 
 export type SeedAccount = {
   username: string;
@@ -88,7 +71,13 @@ export type SeedAccount = {
   permissions: Permission[];
 };
 
-/** 12 tài khoản khởi tạo — mật khẩu demo chung `12345678`, đổi qua C-02. */
+/**
+ * Tài khoản khởi tạo (duyệt 03/08): CHỈ Ban giám đốc (người thật) + một tài
+ * khoản hệ thống `admin` giữ quyền cấp quyền (spec §10.1: grant-permission ở
+ * 1-2 tài khoản quản trị — Giám đốc cố ý không có, thiếu admin là không cấp
+ * nổi quyền nghiệp vụ cho nhân viên mới). Mật khẩu demo chung `12345678`,
+ * đổi qua C-02 khi dùng thật. Nhân viên các phòng nhập tay qua P-53.
+ */
 export const ACCOUNTS: SeedAccount[] = [
   {
     username: "giamdoc",
@@ -156,64 +145,16 @@ export const ACCOUNTS: SeedAccount[] = [
     permissions: managerPermissions,
   },
   {
-    username: "tpkd2",
-    fullName: "Trần Văn Hậu",
-    title: "Trưởng phòng Kinh doanh 2",
-    role: "head",
-    departmentName: "Phòng Kinh doanh 2",
-    manageScope: "listed",
-    managedDepartmentNames: ["Phòng Kinh doanh 2"],
-    permissions: managerPermissions,
-  },
-  {
-    username: "ntbtram",
-    fullName: "Nguyễn Thị Bích Trâm",
-    title: "Nhân viên kinh doanh",
-    role: "staff",
-    departmentName: "Phòng Kinh doanh 2",
-    manageScope: "none",
-    managedDepartmentNames: [],
-    permissions: staffPermissions,
-  },
-  {
-    username: "quantri",
-    fullName: "Phạm Thu Hà",
+    // Tài khoản HỆ THỐNG, không phải người ảo — giao cho ai đảm nhiệm thì
+    // đổi username/mật khẩu của chính tài khoản này.
+    username: "admin",
+    fullName: "User Admin",
     title: "Quản trị hệ thống",
     role: "staff",
     departmentName: null,
     manageScope: "company",
     managedDepartmentNames: [],
     permissions: sysAdminPermissions,
-  },
-  {
-    username: "taodon",
-    fullName: "Võ Thanh Tùng",
-    title: "Đội tạo đơn",
-    role: "staff",
-    departmentName: "Phòng Kinh doanh tổng hợp",
-    manageScope: "company",
-    managedDepartmentNames: [],
-    permissions: orderDeskPermissions,
-  },
-  {
-    username: "kdth",
-    fullName: "Đặng Ngọc Mai",
-    title: "Kinh doanh tổng hợp",
-    role: "staff",
-    departmentName: "Phòng Kinh doanh tổng hợp",
-    manageScope: "company",
-    managedDepartmentNames: [],
-    permissions: salesOpsPermissions,
-  },
-  {
-    username: "ktth",
-    fullName: "Huỳnh Kim Ngân",
-    title: "Kế toán tổng hợp",
-    role: "staff",
-    departmentName: "Phòng Kế toán tổng hợp",
-    manageScope: "company",
-    managedDepartmentNames: [],
-    permissions: accountingOpsPermissions,
   },
 ];
 
@@ -235,15 +176,8 @@ export const BANKS = [
   { code: "HKD", requiredPhotos: 3, accountNumberMethod: "phone-match", coefficient: "1", countsAsApp: false },
 ] as const;
 
-/** Kho mã khởi điểm — stock sạch (chưa dùng lượt nào), KDTH quản qua P-61/P-62. */
-export const REFERRAL_CODES = [
-  { bankCode: "VPa", code: "VPA-2026-01", total: 100 },
-  { bankCode: "VPa", code: "VPA-2026-02", total: 100 },
-  { bankCode: "MSBa", code: "MSBA-01", total: 100 },
-  { bankCode: "TPB", code: "TPB-01", total: 100 },
-  { bankCode: "MB", code: "MB-01", total: 50 },
-  { bankCode: "VPb", code: "VPB-2026-01", total: 100 },
-] as const;
+/* Kho mã giới thiệu KHÔNG seed (duyệt 03/08 — mã mẫu là số bịa): bắt đầu rỗng,
+   KDTH nhập mã thật qua P-61/P-62. */
 
 /* ── Kênh — spec §2.3 ───────────────────────────────────────────────── */
 
@@ -255,11 +189,8 @@ export const CHANNELS = [
   { name: "ATM", inputKind: "none" },
 ] as const;
 
+/** Danh sách thật do người dùng chốt 03/08. */
 export const HOSPITALS: string[] = [
-  "Bệnh viện Đa khoa Tân Bình",
-  "Bệnh viện Chợ Rẫy",
-  "Bệnh viện Nhân dân 115",
-  "Bệnh viện Nhi đồng 1",
   "Quân y Cà Mau",
   "Quân y Bạc Liêu",
   "Quân y Sóc Trăng",
