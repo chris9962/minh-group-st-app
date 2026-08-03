@@ -1,4 +1,4 @@
-import type { StaffForm } from "@/lib/api/staff";
+import { StaffForm } from "@/lib/api/staff";
 import { logAudit } from "@/server/audit";
 import { getActor, unauthorized } from "@/server/auth";
 import { findStaff, saveError, updateStaff } from "@/server/staff";
@@ -29,12 +29,11 @@ export async function PATCH(request: Request, { params }: Params) {
   if (!actor) return unauthorized();
 
   const { id } = await params;
-  const { actorId: _ignored, ...form } = (await request.json()) as StaffForm & {
-    actorId?: string;
-  };
-  void _ignored;
+  const parsed = StaffForm.safeParse(await request.json());
+  if (!parsed.success)
+    return Response.json({ message: "Dữ liệu không hợp lệ" }, { status: 400 });
 
-  const result = await updateStaff(actor, id, form);
+  const result = await updateStaff(actor, id, parsed.data);
   if (!result) return new Response(null, { status: 404 });
   if (!result.ok) return Response.json(saveError(result.code), { status: 422 });
 

@@ -1,4 +1,4 @@
-import type { StaffForm, StaffQuery } from "@/lib/api/staff";
+import { StaffForm, type StaffQuery } from "@/lib/api/staff";
 import type { RoleKey } from "@/lib/types";
 import { logAudit } from "@/server/audit";
 import { getActor, unauthorized } from "@/server/auth";
@@ -24,13 +24,13 @@ export async function POST(request: Request) {
   const actor = await getActor(request);
   if (!actor) return unauthorized();
 
-  // `actorId` client gửi kèm (di sản thời mock) bị bỏ qua — actor lấy từ phiên.
-  const { actorId: _ignored, ...form } = (await request.json()) as StaffForm & {
-    actorId?: string;
-  };
-  void _ignored;
+  // Máy chủ tự kiểm dữ liệu vào — không tin client đã chạy zod. `actorId`
+  // client gửi kèm (di sản cũ) rơi rụng luôn ở bước parse vì không có trong schema.
+  const parsed = StaffForm.safeParse(await request.json());
+  if (!parsed.success)
+    return Response.json({ message: "Dữ liệu không hợp lệ" }, { status: 400 });
 
-  const result = await createStaff(actor, form);
+  const result = await createStaff(actor, parsed.data);
   if (!result.ok) return Response.json(saveError(result.code), { status: 422 });
 
   await logAudit(actor, {

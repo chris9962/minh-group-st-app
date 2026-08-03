@@ -33,6 +33,7 @@ type Props = {
 const emptyForm: StaffForm = {
   fullName: "",
   username: "",
+  staffCode: "",
   phone: "",
   departmentId: "",
   role: "staff",
@@ -46,6 +47,7 @@ const emptyForm: StaffForm = {
 const toForm = (s: StaffAccount): StaffForm => ({
   fullName: s.fullName,
   username: s.username,
+  staffCode: s.staffCode ?? "",
   phone: s.phone,
   departmentId: s.departmentId ?? "",
   role: s.role,
@@ -153,6 +155,15 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
             {...register("phone")}
           />
         </div>
+
+        <TextField
+          label="Mã nhân viên"
+          placeholder="MG-0123"
+          hint="Định danh nhân viên ở hệ thống khác của công ty — không được trùng"
+          error={errors.staffCode?.message}
+          autoComplete="off"
+          {...register("staffCode")}
+        />
 
         <div className={styles.pair}>
           <Select

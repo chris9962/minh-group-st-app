@@ -45,6 +45,7 @@ async function toAccounts(rows: StaffRow[]): Promise<StaffAccount[]> {
     id: r.id,
     fullName: r.fullName,
     username: r.username,
+    staffCode: r.staffCode,
     phone: r.phone,
     departmentId: r.departmentId,
     departmentName: r.departmentName ?? "",
@@ -107,18 +108,22 @@ export async function findStaff(id: string): Promise<StaffAccount | null> {
   return account;
 }
 
+type SaveErrorCode = "username-taken" | "staff-code-taken" | "role-too-high" | "permission-too-high";
+
 export type SaveOutcome =
   | { ok: true; staff: StaffAccount }
-  | { ok: false; code: "username-taken" | "role-too-high" | "permission-too-high" };
+  | { ok: false; code: SaveErrorCode };
 
-export const saveError = (code: "username-taken" | "role-too-high" | "permission-too-high") => ({
+export const saveError = (code: SaveErrorCode) => ({
   code,
   message:
     code === "username-taken"
       ? "Tên đăng nhập này đã có người dùng"
-      : code === "role-too-high"
-        ? "Bạn không gán được chức vụ cao hơn quyền của chính mình"
-        : "Có quyền bạn đang cấp vượt quá quyền của chính bạn",
+      : code === "staff-code-taken"
+        ? "Mã nhân viên này đã có người dùng"
+        : code === "role-too-high"
+          ? "Bạn không gán được chức vụ cao hơn quyền của chính mình"
+          : "Có quyền bạn đang cấp vượt quá quyền của chính bạn",
 });
 
 /** Máy chủ PHẢI kiểm lại chức vụ — ẩn bớt lựa chọn trong ô chọn không phải là phân quyền. */
@@ -142,6 +147,19 @@ async function usernameTaken(username: string, exceptId?: string): Promise<boole
   return rows.length > 0;
 }
 
+async function staffCodeTaken(staffCode: string, exceptId?: string): Promise<boolean> {
+  const rows = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(
+      exceptId
+        ? and(eq(users.staffCode, staffCode), ne(users.id, exceptId))
+        : eq(users.staffCode, staffCode),
+    )
+    .limit(1);
+  return rows.length > 0;
+}
+
 /** Ghi user + quyền + phòng quản trong MỘT transaction — không có nửa người. */
 async function writeStaff(
   id: string,
@@ -155,6 +173,7 @@ async function writeStaff(
       await tx.insert(users).values({
         id,
         username: form.username,
+        staffCode: form.staffCode,
         // Mật khẩu khởi tạo ngẫu nhiên, không ai biết — admin cấp qua nút
         // "Đặt lại mật khẩu" (C-02), không có mật khẩu mặc định đoán được.
         passwordHash: hashSync(newPassword(), 10),
@@ -171,6 +190,7 @@ async function writeStaff(
         .update(users)
         .set({
           username: form.username,
+          staffCode: form.staffCode,
           fullName: form.fullName,
           phone: form.phone,
           role: form.role,
@@ -205,6 +225,7 @@ async function writeStaff(
 
 export async function createStaff(actor: User, form: StaffForm): Promise<SaveOutcome> {
   if (await usernameTaken(form.username)) return { ok: false, code: "username-taken" };
+  if (await staffCodeTaken(form.staffCode)) return { ok: false, code: "staff-code-taken" };
   if (!checkRole(actor, form)) return { ok: false, code: "role-too-high" };
   if (!checkPermissions(actor, form)) return { ok: false, code: "permission-too-high" };
 
@@ -217,6 +238,7 @@ export async function updateStaff(actor: User, id: string, form: StaffForm): Pro
   const current = await findStaff(id);
   if (!current) return null;
   if (await usernameTaken(form.username, id)) return { ok: false, code: "username-taken" };
+  if (await staffCodeTaken(form.staffCode, id)) return { ok: false, code: "staff-code-taken" };
   if (!checkRole(actor, form)) return { ok: false, code: "role-too-high" };
   if (!checkPermissions(actor, form)) return { ok: false, code: "permission-too-high" };
 

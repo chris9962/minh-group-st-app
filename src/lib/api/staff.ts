@@ -7,6 +7,8 @@ export const StaffAccount = z.object({
   id: z.string(),
   fullName: z.string(),
   username: z.string(),
+  /** Mã nhân viên — định danh ở app khác của công ty. null với tài khoản cũ chưa bổ sung. */
+  staffCode: z.string().nullable(),
   phone: z.string(),
   /** THUỘC VỀ — đúng một phòng. Rỗng với ban giám đốc. */
   departmentId: z.string().nullable(),
@@ -50,6 +52,8 @@ export const StaffForm = z.object({
     .trim()
     .min(3, 'Tên đăng nhập ít nhất 3 ký tự')
     .regex(/^[a-z0-9._-]+$/, 'Chỉ dùng chữ thường không dấu, số và . _ -'),
+  /** Bắt buộc trên form — định danh nhân viên ở app khác, không được trùng. */
+  staffCode: z.string().trim().min(1, 'Chưa nhập mã nhân viên'),
   phone: z
     .string()
     .trim()
@@ -67,12 +71,18 @@ export type StaffForm = z.infer<typeof StaffForm>;
 
 export const SAVE_ERROR = {
   USERNAME_TAKEN: 'username-taken',
+  STAFF_CODE_TAKEN: 'staff-code-taken',
   ROLE_TOO_HIGH: 'role-too-high',
   PERMISSION_TOO_HIGH: 'permission-too-high',
 } as const;
 
 export const SaveError = z.object({
-  code: z.enum([SAVE_ERROR.USERNAME_TAKEN, SAVE_ERROR.ROLE_TOO_HIGH, SAVE_ERROR.PERMISSION_TOO_HIGH]),
+  code: z.enum([
+    SAVE_ERROR.USERNAME_TAKEN,
+    SAVE_ERROR.STAFF_CODE_TAKEN,
+    SAVE_ERROR.ROLE_TOO_HIGH,
+    SAVE_ERROR.PERMISSION_TOO_HIGH,
+  ]),
   message: z.string(),
 });
 export type SaveError = z.infer<typeof SaveError>;

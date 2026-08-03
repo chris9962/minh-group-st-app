@@ -1,4 +1,36 @@
-# Báo cáo phiên tự động be-setup — 03/08/2026
+# Báo cáo be-setup — 03/08/2026
+
+## ĐỢT 2 (cùng ngày) — Bỏ toàn bộ mock, DB chuẩn uuid từ đầu
+
+Quyết định của người dùng: gỡ hẳn MSW, xoá sạch DB, làm chuẩn từ giờ. **Phạm vi triển khai
+GIỮ NGUYÊN** (đăng nhập · Phòng ban · Nhân sự & phân quyền) — trang thuộc module chưa xây
+(khách hàng, ngân hàng, bảo hiểm, dịch vụ, cấu hình…) fetch lỗi và hiện lỗi, đó là chủ đích.
+
+- **Gỡ mock tận gốc**: xoá `src/mocks/` + dep `msw` + `public/mockServiceWorker.js`;
+  `providers.tsx` không còn nhánh USE_MOCK. `vnAddress.json` dời về `scripts/data/` (nguồn seed).
+- **DB đập xây lại**: migration mới `drizzle/0000_init.sql` — **đủ 32 bảng · 16 enum đúng
+  mgst-db-design.md, id uuid chuẩn** (hết ràng buộc id mock); kèm extension `unaccent`/`pg_trgm`
+  + hàm `mgst_normalize` (đ/Đ → d/D) + cột sinh `customers.search_name` + index trigram cho C-06.
+- **Seed chuẩn — không còn MỘT dòng dữ liệu giả**: 15 phòng thật · 12 tài khoản thật (demo pass
+  `12345678`) · danh mục theo spec (13 ngân hàng, 5 kênh, 14 BV, 5 loại DV, 5 quà, 6 gói BH,
+  7 quy tắc quà §5.2, chỉ tiêu 100 điểm) · 34 tỉnh + 3.321 xã tham chiếu · kho mã sạch (6 mã,
+  0 lượt dùng). Bảng nghiệp vụ (khách, tài khoản, đơn, dịch vụ, quà) **trống** — như ngày đầu dùng thật.
+- **Cột mới `users.staff_code`** (yêu cầu 03/08): mã nhân viên định danh ở app khác — partial
+  unique, bắt buộc trên form P-53, lỗi `staff-code-taken` riêng; API staff giờ **zod-parse phía server**.
+- **`/api/people` + `/api/people/:id` làm THẬT** (kéo vào phạm vi vì trang /people khoá bảng
+  nhân sự sau query KPI): điểm tính sống từ bảng nghiệp vụ × hệ số danh mục — bảng trống thì
+  0 điểm THẬT, dữ liệu vào tới đâu số đúng tới đó, không phải stub.
+
+**Kiểm chứng đợt 2**: curl 7/7 (login uuid, 15 phòng, 12 nhân sự, tạo NV kèm mã, trùng mã →
+`staff-code-taken`, thiếu mã → 400) · Playwright UI 5/5 (login không MSW, /departments,
+/people hiện nhân sự thật + dialog có ô Mã nhân viên, /customers lỗi sạch) · tsc sạch ·
+lint 14 vấn đề pre-existing (giảm 1 do xoá mock) · seed idempotent.
+
+**Đăng nhập demo**: `giamdoc / tpkd2 / quantri / ntbtram + 12345678` (nv01… không còn — đó là dữ liệu giả).
+
+---
+
+# Báo cáo phiên tự động be-setup ĐỢT 1 — 03/08/2026 *(một phần đã bị đợt 2 thay thế: id text → uuid, seed 23 người → 12, MSW cắt từng phần → gỡ hẳn)*
 
 > Thực hiện theo `docs/be-setup-brief.md`. Toàn bộ nằm trên branch **`be-setup`**, master không đụng.
 > Kết quả: **hoàn thành đủ phạm vi, mọi kiểm chứng pass** (curl 23/23 · Playwright 8/8 · tsc sạch · lint không lỗi mới · seed idempotent).

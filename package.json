@@ -45,14 +45,8 @@
     "drizzle-kit": "^0.31.10",
     "eslint": "^9",
     "eslint-config-next": "16.2.12",
-    "msw": "^2.15.0",
     "sass": "^1.102.0",
     "typescript": "^5"
-  },
-  "msw": {
-    "workerDirectory": [
-      "public"
-    ]
   },
   "trustedDependencies": [
     "unrs-resolver"
