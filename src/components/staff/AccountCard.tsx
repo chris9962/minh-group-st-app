@@ -5,6 +5,8 @@ import { KeyRound } from "lucide-react";
 import { useState } from "react";
 import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { CopyValue } from "@/components/ui/CopyValue";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusTag } from "@/components/ui/StatusTag";
 import { fetchDepartments } from "@/lib/api/departments";
@@ -21,7 +23,7 @@ import {
 } from "@/lib/types";
 import { useSession } from "@/store/session";
 import { StaffFormDialog } from "./StaffFormDialog";
-import styles from "./AccountCard.module.css";
+import styles from "./AccountCard.module.scss";
 
 /**
  * Thẻ tài khoản trên hồ sơ nhân viên (P-52).
@@ -34,6 +36,8 @@ export function AccountCard({ staffId }: { staffId: string }) {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [newPassword, setNewPassword] = useState<string | null>(null);
+  /** Thao tác đang chờ xác nhận. `null` = không có hộp thoại nào mở. */
+  const [confirming, setConfirming] = useState<"reset" | "lock" | "unlock" | null>(null);
 
   const canManage = can(actor, "staff", "create") || can(actor, "staff", "update");
 
@@ -57,12 +61,16 @@ export function AccountCard({ staffId }: { staffId: string }) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["staff-one", staffId] });
       queryClient.invalidateQueries({ queryKey: ["staff"] });
+      setConfirming(null);
     },
   });
 
   const reset = useMutation({
     mutationFn: () => resetPassword(staffId),
-    onSuccess: (r) => setNewPassword(r.password),
+    onSuccess: (r) => {
+      setNewPassword(r.password);
+      setConfirming(null);
+    },
   });
 
   if (!canManage || !staff) return null;
@@ -104,9 +112,24 @@ export function AccountCard({ staffId }: { staffId: string }) {
                 <div className={styles.permissionScopes}>
                   {groupByScope(items).map(({ scope, actions }) => (
                     <div key={scope} className={styles.scopeGroup}>
-                      <span className={`tag ${SCOPE_TAG_CLASS[scope]}`}>{SCOPE_LABEL[scope]}</span>
+                      <span className={`${styles.scopeLabel} ${SCOPE_CLASS[scope]}`}>
+                        {SCOPE_LABEL[scope]}
+                      </span>
                       <span className={styles.scopeActions}>
-                        {actions.map((a) => ACTION_LABEL[a]).join(", ")}
+                        {actions.map((a, i) => (
+                          // Dấu phân cách đi SAU, không đi trước: dòng bị gãy
+                          // thì bắt đầu bằng tên hành động, mép trái thẳng hàng
+                          // với dòng đầu. Đặt trước thì mọi dòng gãy đều thụt ra
+                          // một ký tự và cột chữ trông so le.
+                          <span key={a} className={styles.action}>
+                            {ACTION_LABEL[a]}
+                            {i < actions.length - 1 && (
+                              <span className={styles.actionSep} aria-hidden>
+                                |
+                              </span>
+                            )}
+                          </span>
+                        ))}
                       </span>
                     </div>
                   ))}
@@ -119,9 +142,9 @@ export function AccountCard({ staffId }: { staffId: string }) {
 
       {newPassword && (
         <Alert tone="warning">
-          Mật khẩu mới: <strong className="tabular-nums">{newPassword}</strong> — gửi cho
-          nhân viên rồi đóng trang. <strong>Chỉ hiện đúng một lần</strong>, không
-          xem lại được vì mật khẩu lưu dạng băm một chiều.
+          Mật khẩu mới: <CopyValue value={newPassword} label="mật khẩu mới" /> — bấm
+          để chép rồi gửi cho nhân viên. <strong>Chỉ hiện đúng một lần</strong>,
+          không xem lại được vì mật khẩu lưu dạng băm một chiều.
         </Alert>
       )}
 
@@ -131,14 +154,14 @@ export function AccountCard({ staffId }: { staffId: string }) {
         </Button>
         <Button
           variant="secondary"
-          onClick={() => reset.mutate()}
+          onClick={() => setConfirming("reset")}
           disabled={reset.isPending}
         >
           Đặt lại mật khẩu
         </Button>
         <Button
           variant="secondary"
-          onClick={() => toggleActive.mutate(!staff.active)}
+          onClick={() => setConfirming(staff.active ? "lock" : "unlock")}
           disabled={toggleActive.isPending}
         >
           {staff.active ? "Khoá tài khoản" : "Mở khoá"}
@@ -160,12 +183,68 @@ export function AccountCard({ staffId }: { staffId: string }) {
           onClose={() => setEditing(false)}
         />
       )}
+
+      <ConfirmDialog
+        open={confirming === "reset"}
+        title="Đặt lại mật khẩu"
+        confirmLabel="Đặt lại mật khẩu"
+        pending={reset.isPending}
+        onConfirm={() => reset.mutate()}
+        onClose={() => setConfirming(null)}
+        consequence={
+          <>
+            Mật khẩu cũ mất ngay, và <strong>mọi thiết bị {staff.fullName} đang
+            đăng nhập đều bị đăng xuất</strong>. Mật khẩu mới chỉ hiện đúng một
+            lần — chưa gửi được cho họ thì phải đặt lại lần nữa.
+          </>
+        }
+      >
+        Đặt lại mật khẩu cho <strong>{staff.fullName}</strong>?
+      </ConfirmDialog>
+
+      <ConfirmDialog
+        open={confirming === "lock"}
+        title="Khoá tài khoản"
+        confirmLabel="Khoá tài khoản"
+        pending={toggleActive.isPending}
+        onConfirm={() => toggleActive.mutate(false)}
+        onClose={() => setConfirming(null)}
+        consequence={
+          <>
+            Người này <strong>không đăng nhập được nữa</strong> cho tới khi có
+            người mở khoá. Các bản ghi cũ vẫn giữ nguyên tên họ.
+          </>
+        }
+      >
+        Khoá tài khoản của <strong>{staff.fullName}</strong>?
+      </ConfirmDialog>
+
+      <ConfirmDialog
+        open={confirming === "unlock"}
+        title="Mở khoá tài khoản"
+        confirmLabel="Mở khoá"
+        pending={toggleActive.isPending}
+        onConfirm={() => toggleActive.mutate(true)}
+        onClose={() => setConfirming(null)}
+        consequence={
+          <>
+            Người này đăng nhập lại được bằng <strong>mật khẩu cũ</strong>. Nghi
+            lộ mật khẩu thì đặt lại luôn sau khi mở.
+          </>
+        }
+      >
+        Mở khoá tài khoản của <strong>{staff.fullName}</strong>?
+      </ConfirmDialog>
     </SectionCard>
   );
 }
 
-/** Đậm dần theo phạm vi rộng dần — cùng một tông cam, không thêm màu mới. */
-const SCOPE_TAG_CLASS: Record<Scope, string> = {
+/**
+ * Rõ dần theo phạm vi rộng dần. Chỉ mức TOÀN CÔNG TY được dùng màu nhấn —
+ * người rà soát quyền cần thấy ngay ai có tầm rộng nhất, tô cả ba mức thì
+ * không mức nào nổi lên.
+ */
+const SCOPE_CLASS: Record<Scope, string> = {
   own: styles.scopeOwn,
   managed: styles.scopeManaged,
   company: styles.scopeCompany,

@@ -4,6 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { use, useState } from "react";
 import { ChartColumn, ChevronLeft } from "lucide-react";
+import { SkeletonCard } from "@/components/ui/Skeleton";
+import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
 import { AccountCard } from "@/components/staff/AccountCard";
 import { BarChart } from "@/components/ui/BarChart";
@@ -12,6 +14,7 @@ import { PeoplePeriodPicker } from "@/components/ui/PeoplePeriodPicker";
 import { ProgressRing } from "@/components/ui/ProgressRing";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { SectionCard } from "@/components/ui/SectionCard";
+import { SectionTabs, type SectionOption } from "@/components/ui/SectionTabs";
 import { SegmentedTabs, type TabOption } from "@/components/ui/SegmentedTabs";
 import { StatusTag } from "@/components/ui/StatusTag";
 import { periodMonth, periodParam, showsKpi, type PeriodMode } from "@/lib/api/people";
@@ -25,6 +28,8 @@ import {
 import { INSURANCE_STATUS_LABEL } from "@/lib/api/insuranceOrders";
 import { sourceColor, useChartColors } from "@/lib/chart-colors";
 import { formatDate, formatPhone } from "@/lib/format";
+import { can } from "@/lib/permissions";
+import { useSession } from "@/store/session";
 import styles from "./page.module.scss";
 
 /** Sắp theo ngày cần một con số — lấy chính chuỗi YYYY-MM-DD bỏ dấu gạch. */
@@ -106,6 +111,18 @@ const shortMonth = (month: string) => `T${Number(month.slice(5, 7))}`;
 
 type TabKey = "accounts" | "insurance" | "services";
 
+/**
+ * Tab ngoài. Cố ý KHÔNG gọi tab thứ hai là "Tài khoản": bên trong tab thứ nhất
+ * đã có một tab tên "Tài khoản" nghĩa là tài khoản NGÂN HÀNG của khách. Hai chữ
+ * giống nhau ở hai tầng chỉ tổ làm người dùng bấm nhầm.
+ */
+type SectionKey = "kpi" | "account";
+
+const SECTIONS: SectionOption[] = [
+  { value: "kpi", label: "KPI & hoạt động" },
+  { value: "account", label: "Tài khoản & quyền" },
+];
+
 /** P-52 · Xem theo một nhân viên. */
 export default function PersonPage({
   params,
@@ -116,15 +133,23 @@ export default function PersonPage({
   const chartColors = useChartColors();
   const [period, setPeriod] = useState<PeriodMode>({ kind: "this-month" });
   const [tab, setTab] = useState<TabKey>("accounts");
+  /** Tab ngoài: hồ sơ KPI hay thẻ tài khoản đăng nhập. */
+  const [section, setSection] = useState<SectionKey>("kpi");
 
   const current = thisMonth();
   const summaryMonth = periodMonth(period, current);
   const param = periodParam(period, current);
 
-  const { data, isPending, isError } = useQuery({
+  const { data, isPending, isError, refetch, isFetching } = useQuery({
     queryKey: ["person", id, param, summaryMonth],
     queryFn: () => fetchPerson({ id, period: param, summaryMonth }),
   });
+
+  // Thẻ tài khoản chỉ hiện với người quản trị được tài khoản — không có quyền
+  // thì `AccountCard` trả về null, bày ra một tab rỗng cho họ bấm là vô nghĩa.
+  const actor = useSession((st) => st.user);
+  const canManage = can(actor, "staff", "create") || can(actor, "staff", "update");
+  const showAccount = canManage && section === "account";
 
   const withKpi = showsKpi(period);
   const periodText = period.kind === "today" ? "Hôm nay" : monthLabel(summaryMonth);
@@ -138,7 +163,7 @@ export default function PersonPage({
           { value: "insurance", label: "Đơn bảo hiểm", count: data.insurance.length },
           { value: "services", label: "Dịch vụ", count: data.services.length },
         ] as TabOption[]
-      ).filter((t) => t.count > 0)
+      ).filter((t) => (t.count ?? 0) > 0)
     : [];
   const activeTab = tabs.some((t) => t.value === tab) ? tab : tabs[0]?.value;
 
@@ -149,15 +174,32 @@ export default function PersonPage({
       </TopBar>
 
       <main className={styles.body}>
-        <Link href="/people" className={styles.back}>
+        <Link href="/users" className={styles.back}>
           <ChevronLeft size={15} aria-hidden />
           Nhân sự &amp; KPI
         </Link>
 
-        {isPending && <p className="text-muted">Đang tải hồ sơ…</p>}
-        {isError && <p className="text-muted">Không tải được hồ sơ nhân viên này.</p>}
+        {isPending && <SkeletonCard lines={5} />}
+        {isError && (
+          <ErrorState what="hồ sơ nhân viên này" onRetry={refetch} retrying={isFetching} />
+        )}
 
-        {data && (
+        {data && canManage && (
+          <SectionTabs
+            label="Khu vực hồ sơ"
+            options={SECTIONS}
+            value={section}
+            onChange={(v) => setSection(v as SectionKey)}
+          />
+        )}
+
+        {data && showAccount && (
+          <div className={styles.accountSection}>
+            <AccountCard staffId={id} />
+          </div>
+        )}
+
+        {data && !showAccount && (
           <div className={styles.columns}>
             <aside className={styles.side}>
               <div className={styles.person}>
@@ -167,12 +209,20 @@ export default function PersonPage({
                   </span>
                   <div>
                     <strong className={styles.name}>{data.fullName}</strong>
-                    <span className={styles.sub}>
-                      {data.username} ·{" "}
-                      <span className="tabular-nums">{formatPhone(data.phone)}</span>
+                    {/* Mã nhân viên là thứ dùng để đối chiếu với app khác, nên
+                        đứng cạnh số điện thoại ở dòng nhận diện. Tên đăng nhập
+                        thì không — nó đã có ở thẻ Tài khoản ngay bên dưới. */}
+                    <span className={`${styles.sub} tabular-nums`}>
+                      {[data.staffCode, formatPhone(data.phone)]
+                        .filter(Boolean)
+                        .join(" · ")}
                     </span>
+                    {/* Ban giám đốc không thuộc phòng nào nên chuỗi phòng rỗng —
+                        nối cứng dấu · sẽ để lại một dấu chấm mồ côi đầu dòng. */}
                     <span className={styles.sub}>
-                      {data.departmentName} · vào từ {monthLabel(data.joinedMonth)}
+                      {[data.departmentName, `vào từ ${monthLabel(data.joinedMonth)}`]
+                        .filter(Boolean)
+                        .join(" · ")}
                     </span>
                   </div>
                 </div>
@@ -189,12 +239,24 @@ export default function PersonPage({
                         max={data.points.target}
                         ariaLabel={`Điểm ${monthLabel(data.summaryMonth)} trên chỉ tiêu`}
                       />
-                      <p className={styles.scoreNote}>
-                        {data.points.total >= data.points.target
-                          ? `Đã vượt chỉ tiêu ${monthLabel(data.summaryMonth).toLowerCase()} ${data.points.total - data.points.target} điểm.`
-                          : `Còn ${data.points.target - data.points.total} điểm nữa mới đạt chỉ tiêu ${monthLabel(data.summaryMonth).toLowerCase()}.` +
-                            (data.daysLeft > 0 ? ` Còn ${data.daysLeft} ngày.` : "")}
-                      </p>
+                      {/* Hai con số thay cho một câu văn: người xem chỉ cần biết
+                          còn cách chỉ tiêu bao xa và còn bao nhiêu ngày. Tháng
+                          đang xem đã ghi ở tiêu đề thẻ "Điểm theo tháng" và ở
+                          thanh chọn kỳ trên đầu trang, không nhắc lại lần ba. */}
+                      <dl className={styles.scoreFacts}>
+                        <div>
+                          <dt>{data.points.total >= data.points.target ? "Vượt" : "Còn thiếu"}</dt>
+                          <dd className="tabular-nums">
+                            {Math.abs(data.points.target - data.points.total)} điểm
+                          </dd>
+                        </div>
+                        {data.daysLeft > 0 && (
+                          <div>
+                            <dt>Còn lại</dt>
+                            <dd className="tabular-nums">{data.daysLeft} ngày</dd>
+                          </div>
+                        )}
+                      </dl>
                     </div>
 
                     <dl className={styles.legend}>
@@ -216,10 +278,6 @@ export default function PersonPage({
                       ))}
                     </dl>
 
-                    <p className={styles.footnote}>
-                      Tài khoản khách <strong>chưa cài app</strong> không sinh điểm —
-                      đó là lý do bảng bên cạnh có dòng mà điểm vẫn chưa lên.
-                    </p>
                   </>
                 )}
               </div>
@@ -305,7 +363,6 @@ export default function PersonPage({
                 </>
               )}
 
-              <AccountCard staffId={id} />
             </div>
           </div>
         )}

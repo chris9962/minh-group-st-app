@@ -4,6 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Pencil, Plus, Users } from "lucide-react";
+import { SkeletonStats, SkeletonTable } from "@/components/ui/Skeleton";
+import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
 import { Button } from "@/components/ui/Button";
 import buttonStyles from "@/components/ui/Button.module.css";
@@ -13,7 +15,7 @@ import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { Select } from "@/components/ui/Select";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatCard } from "@/components/ui/StatCard";
-import { StatusTag } from "@/components/ui/StatusTag";
+import { KpiRing } from "@/components/ui/KpiRing";
 import {
   fetchPeople,
   isOnTarget,
@@ -38,15 +40,27 @@ import { ROLE_LABEL, RoleKey, type Scope } from "@/lib/types";
 import { useSession } from "@/store/session";
 import styles from "./page.module.scss";
 
+/**
+ * Ô tên nhân viên: tên ở trên, mã nhân viên ở dưới.
+ *
+ * Mã là thứ dùng đối chiếu với app khác, nên phải thấy ngay ở bảng chứ không
+ * bắt mở từng hồ sơ. Xếp dọc chứ không nối bằng dấu · để tên vẫn là dòng bấm
+ * được và mắt không phải lọc chữ ra khỏi mã.
+ */
+function StaffName({ id, fullName, staffCode }: { id: string; fullName: string; staffCode: string | null }) {
+  return (
+    <Link href={`/users/${id}`} className={styles.nameCell}>
+      <span className={styles.nameText}>{fullName}</span>
+      {staffCode && <span className={`${styles.nameCode} tabular-nums`}>{staffCode}</span>}
+    </Link>
+  );
+}
+
 const BASE_COLUMNS: RankColumn<PersonScore>[] = [
   {
     key: "fullName",
     label: "Nhân viên",
-    render: (p) => (
-      <Link href={`/people/${p.id}`} className={styles.nameLink}>
-        {p.fullName}
-      </Link>
-    ),
+    render: (p) => <StaffName id={p.id} fullName={p.fullName} staffCode={p.staffCode} />,
   },
   { key: "departmentName", label: "Đơn vị", render: (p) => p.departmentName },
   {
@@ -69,26 +83,30 @@ const BASE_COLUMNS: RankColumn<PersonScore>[] = [
   },
 ];
 
+/**
+ * Ô chỉ tiêu: vòng tiến độ + chênh lệch, rê chuột ra câu đầy đủ.
+ *
+ * Cả cột nhìn một lượt là thấy ngay ai gần chỉ tiêu (vòng xanh, gần đầy) và ai
+ * còn xa (vòng cam, hở nhiều) — nhanh hơn hẳn đọc từng dòng "Chưa đạt · còn 100".
+ */
+function KpiGap({ score }: { score: PersonScore }) {
+  const total = totalPoints(score);
+  const gap = pointsGap(score);
+  const detail = isOnTarget(score)
+    ? `Đã đạt chỉ tiêu: ${total}/${score.target} điểm, vượt ${gap}.`
+    : `Chưa đạt: ${total}/${score.target} điểm, còn thiếu ${-gap}.`;
+  return <KpiRing value={total} target={score.target} detail={detail} />;
+}
+
 /** Chỉ hiện khi xem theo tháng — điểm một ngày không so được với chỉ tiêu tháng. */
 const KPI_COLUMNS: RankColumn<PersonScore>[] = [
   {
-    key: "points",
-    label: "Điểm tháng",
-    sortBy: totalPoints,
-    render: (p) => totalPoints(p),
-  },
-  {
     key: "status",
-    label: "Trạng thái",
-    sortBy: pointsGap,
-    render: (p) => {
-      const gap = pointsGap(p);
-      return (
-        <StatusTag ok={isOnTarget(p)}>
-          {isOnTarget(p) ? `Đã đạt · vượt ${gap}` : `Chưa đạt · còn ${-gap}`}
-        </StatusTag>
-      );
-    },
+    label: "Chỉ tiêu",
+    // Sắp theo TỈ LỆ đạt, không theo hiệu số: mốc mỗi phòng có thể khác nhau
+    // nên "còn thiếu 10" của người mốc 50 nặng hơn của người mốc 200.
+    sortBy: (p) => (p.target > 0 ? totalPoints(p) / p.target : 0),
+    render: (p) => <KpiGap score={p} />,
   },
 ];
 
@@ -110,35 +128,16 @@ const ACCOUNT_COLUMNS: RankColumn<StaffRow>[] = [
   {
     key: "fullName",
     label: "Nhân viên",
-    render: (r) => (
-      <Link href={`/people/${r.id}`} className={styles.nameLink}>
-        {r.fullName}
-      </Link>
-    ),
+    render: (r) => <StaffName id={r.id} fullName={r.fullName} staffCode={r.staffCode} />,
   },
   { key: "departmentName", label: "Đơn vị", render: (r) => r.departmentName || "—" },
   { key: "role", label: "Chức vụ", render: (r) => ROLE_LABEL[r.role] },
   {
-    key: "points",
-    label: "Điểm tháng",
-    // -1 để người không có chỉ tiêu nằm cuối chứ không lẫn với người 0 điểm.
-    sortBy: (r) => (r.score ? totalPoints(r.score) : -1),
-    render: (r) => (r.score ? totalPoints(r.score) : "—"),
-  },
-  {
     key: "kpi",
     label: "Chỉ tiêu",
-    sortBy: (r) => (r.score ? pointsGap(r.score) : -999),
-    render: (r) =>
-      r.score ? (
-        <StatusTag ok={isOnTarget(r.score)}>
-          {isOnTarget(r.score)
-            ? `Đã đạt · vượt ${pointsGap(r.score)}`
-            : `Chưa đạt · còn ${-pointsGap(r.score)}`}
-        </StatusTag>
-      ) : (
-        "—"
-      ),
+    // -1 để người không thuộc diện tính điểm nằm cuối, không lẫn với người 0%.
+    sortBy: (r) => (r.score && r.score.target > 0 ? totalPoints(r.score) / r.score.target : -1),
+    render: (r) => (r.score ? <KpiGap score={r.score} /> : "—"),
   },
 ];
 
@@ -150,7 +149,11 @@ const ROLE_FILTERS = RoleKey.options.map((value) => ({
 /** P-51 · Danh sách nhân viên + điểm + quản trị tài khoản. */
 export default function PeoplePage() {
   const user = useSession((s) => s.user);
-  const scopes = availableScopes(user, "banking", "view-summary");
+  // Phạm vi phải hỏi theo ĐÚNG module đang liệt kê. Trước đây hỏi theo
+  // `banking`: tài khoản quản trị không có `banking:view-summary` nên rơi về
+  // `own`, mà `own` lại là "phòng của tôi" — quản trị không thuộc phòng nào nên
+  // bảng trống trơn dù họ có quyền xem toàn công ty.
+  const scopes = availableScopes(user, "staff", "view-summary");
   const scope: Scope = scopes.at(-1) ?? "own";
   const [period, setPeriod] = useState<PeriodMode>({ kind: "this-month" });
   const [departmentId, setDepartmentId] = useState("");
@@ -174,7 +177,7 @@ export default function PeoplePage() {
   const summaryMonth = periodMonth(period, current);
   const param = periodParam(period, current);
 
-  const { data, isPending, isError } = useQuery({
+  const { data, isPending, isError, refetch, isFetching } = useQuery({
     queryKey: ["people", scope, param, summaryMonth, departmentId, searchQuery],
     queryFn: () =>
       fetchPeople({
@@ -329,8 +332,15 @@ export default function PeoplePage() {
           />
         )}
 
-        {isPending && <p className="text-muted">Đang tải danh sách…</p>}
-        {isError && <p className="text-muted">Không tải được danh sách nhân viên.</p>}
+        {isPending && (
+          <>
+            <SkeletonStats count={3} />
+            <SkeletonTable rows={8} columns={6} />
+          </>
+        )}
+        {isError && (
+          <ErrorState what="danh sách nhân viên" onRetry={refetch} retrying={isFetching} />
+        )}
 
         {data && (
           <>
@@ -373,7 +383,7 @@ export default function PeoplePage() {
                   rows={staffRows}
                   columns={accountColumns}
                   rowKey={(r) => r.id}
-                  defaultSort="points"
+                  defaultSort="kpi"
                   pageSize={10}
                   caption={`Nhân viên, tài khoản và số liệu ${periodText}`}
                 />
@@ -383,7 +393,7 @@ export default function PeoplePage() {
                   rows={people}
                   columns={columns}
                   rowKey={(p) => p.id}
-                  defaultSort={withKpi ? "points" : "accounts"}
+                  defaultSort={withKpi ? "status" : "accounts"}
                   pageSize={10}
                   caption={`Nhân viên và số liệu ${periodText}`}
                 />
@@ -395,29 +405,13 @@ export default function PeoplePage() {
                   còn ô tìm kiếm chỉ lọc bảng.
                 </p>
               )}
-              {canManage && (
+              {!withKpi && (
                 <p className={styles.footnote}>
-                  Danh sách gồm <strong>cả người không có chỉ tiêu</strong> — kế
-                  toán, quản trị hệ thống. Cột điểm để trống chứ không để 0: 0
-                  điểm nghĩa là có chỉ tiêu mà chưa làm được gì. Bấm tên để mở hồ
-                  sơ, bấm bút chì để sửa tài khoản ngay tại bảng.
+                  Xem theo ngày nên không có cột điểm và trạng thái — chỉ tiêu tính
+                  theo tháng, điểm của một ngày không so với chỉ tiêu nào được. Bốn
+                  số tóm tắt phía trên vẫn là của {monthLabel(summaryMonth)}.
                 </p>
               )}
-              <p className={styles.footnote}>
-                {withKpi ? (
-                  <>
-                    Điểm gồm <strong>ngân hàng</strong> (hệ số app đã cài) cộng{" "}
-                    <strong>dịch vụ</strong> (hệ số theo loại). Chỉ tiêu hiện tại là{" "}
-                    <span className="tabular-nums">100</span> điểm mỗi tháng.
-                  </>
-                ) : (
-                  <>
-                    Xem theo ngày nên không có cột điểm và trạng thái — chỉ tiêu tính
-                    theo tháng, điểm của một ngày không so với chỉ tiêu nào được. Bốn
-                    số tóm tắt phía trên vẫn là của {monthLabel(summaryMonth)}.
-                  </>
-                )}
-              </p>
             </SectionCard>
           </>
         )}

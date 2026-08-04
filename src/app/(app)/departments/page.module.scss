@@ -44,6 +44,22 @@
   text-decoration: underline;
 }
 
+/**
+ * Chọn kỳ số liệu hiện ở hai chỗ tuỳ bề ngang, và chỉ MỘT chỗ hiển thị tại một
+ * thời điểm — `display: none` gỡ luôn khỏi cây trợ năng nên trình đọc màn hình
+ * không đọc trùng, bàn phím cũng không Tab vào cái đang ẩn.
+ *
+ * Màn rộng thì ba lựa chọn nằm thẳng trên header, thấy ngay đang xem kỳ nào.
+ * Màn hẹp thì nhét vào nút Lọc, vì header điện thoại không đủ chỗ.
+ */
+.periodInline {
+  display: flex;
+}
+
+.periodCollapsed {
+  display: none;
+}
+
 @media (max-width: bp.$bp-mobile) {
   .body {
     padding: 16px 16px 32px;
@@ -51,5 +67,13 @@
 
   .stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .periodInline {
+    display: none;
+  }
+
+  .periodCollapsed {
+    display: block;
   }
 }

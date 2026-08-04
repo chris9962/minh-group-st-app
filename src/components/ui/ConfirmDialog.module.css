@@ -1,0 +1,9 @@
+.question {
+  margin: 0 0 12px;
+  color: var(--om-text);
+  line-height: 1.55;
+}
+
+.question:last-child {
+  margin-bottom: 0;
+}

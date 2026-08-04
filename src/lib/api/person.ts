@@ -118,6 +118,8 @@ export const PersonDetail = z.object({
   id: z.string(),
   fullName: z.string(),
   username: z.string(),
+  /** Mã nhân viên — null với những tài khoản có trước khi trường này ra đời. */
+  staffCode: z.string().nullable(),
   phone: z.string(),
   departmentName: z.string(),
   /** Tháng vào làm, dạng YYYY-MM. */

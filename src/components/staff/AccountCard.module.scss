@@ -1,0 +1,203 @@
+/**
+ * Thẻ tài khoản (P-52).
+ *
+ * Cả thẻ đi theo MỘT cột nhãn duy nhất rộng 116px — hồ sơ ở trên và bảng quyền
+ * ở dưới cùng mép, nên mắt chỉ phải bám một đường dọc thay vì hai.
+ */
+$label-col: 116px;
+$scope-col: 124px;
+
+.rows {
+  margin: 0;
+  display: grid;
+  grid-template-columns: $label-col minmax(0, 1fr);
+  gap: 7px 12px;
+  align-items: baseline;
+}
+
+.rows > div {
+  display: contents;
+}
+
+.rows dt {
+  font-size: 12.5px;
+  color: var(--om-text-3);
+}
+
+.rows dd {
+  margin: 0;
+  min-width: 0;
+  font-size: 13.5px;
+  color: var(--om-text);
+}
+
+/* ── Quyền ─────────────────────────────────────────────────────────── */
+
+.permissions {
+  margin-top: 18px;
+  border-top: 1px solid var(--om-line);
+  padding-top: 14px;
+}
+
+.permissionsTitle {
+  margin: 0 0 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--om-text-2);
+}
+
+.permissionGroups {
+  display: flex;
+  flex-direction: column;
+}
+
+/**
+ * Một module một khối, cách nhau bằng đường kẻ mảnh thay vì khoảng trắng: năm
+ * module liền nhau mà chỉ có khoảng trắng thì không biết dòng nào thuộc về đâu.
+ */
+.permissionGroup {
+  display: grid;
+  grid-template-columns: $label-col minmax(0, 1fr);
+  gap: 12px;
+  padding: 9px 0;
+  border-top: 1px solid var(--om-line);
+}
+
+.permissionGroup:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.permissionModule {
+  font-size: 12.5px;
+  color: var(--om-text-3);
+  padding-top: 1px;
+}
+
+.permissionScopes {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+/**
+ * Phạm vi ở cột CỐ ĐỊNH, canh phải.
+ *
+ * Trước đây phạm vi là viên pill nên rộng hẹp theo độ dài chữ, kéo theo danh
+ * sách hành động mỗi dòng bắt đầu một chỗ khác nhau — không quét dọc được.
+ * Canh phải một cột cố định tạo ra đúng một mép thẳng ngay chỗ hành động bắt
+ * đầu, và đó mới là thứ người đọc cần dò.
+ */
+.scopeGroup {
+  display: grid;
+  grid-template-columns: $scope-col minmax(0, 1fr);
+  gap: 12px;
+  align-items: baseline;
+}
+
+.scopeLabel {
+  text-align: right;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+/**
+ * Phạm vi rộng hơn thì chữ đậm hơn — thang thứ bậc, không phải màu trang trí.
+ * Người rà soát quyền cần thấy ngay ai đang có tầm TOÀN CÔNG TY; hai mức còn
+ * lại lùi về sau. Chữ luôn ghi rõ tên phạm vi nên màu không phải kênh duy nhất.
+ */
+.scopeOwn {
+  color: var(--om-text-3);
+}
+
+.scopeManaged {
+  color: var(--om-text-2);
+}
+
+/**
+ * Mức rộng nhất là mức DUY NHẤT được dùng màu nhấn — tô cả ba mức thì không
+ * mức nào nổi lên. Cố ý KHÔNG thêm gạch dọc ở đây: cột hành động bên phải đã
+ * dùng gạch dọc làm dấu phân cách, thêm một gạch nữa sát ngay cạnh thì hai
+ * thứ dính vào nhau và đọc ra như lỗi hiển thị.
+ */
+.scopeCompany {
+  color: var(--om-orange-ink);
+  font-weight: 600;
+}
+
+/**
+ * Flex-wrap chứ không phải chữ chảy thường.
+ *
+ * Các span hành động do JSX sinh ra nằm SÁT nhau, không có khoảng trắng ở giữa.
+ * Chữ chảy thường chỉ ngắt dòng được ở khoảng trắng, nên với `nowrap` bên trong
+ * từng span thì cả dãy thành một khối không ngắt được và tràn khỏi thẻ. Flex
+ * thì mỗi span là một item, xuống dòng giữa các item là chuyện đương nhiên.
+ */
+.scopeActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--om-text);
+}
+
+/** Tên hành động không bị bẻ giữa chừng thành "Xuất dữ" / "liệu". */
+.action {
+  white-space: nowrap;
+}
+
+/**
+ * Gạch dọc chứ không phải dấu chấm giữa dòng: các hành động là mục RỜI NHAU,
+ * gạch dọc cắt chúng ra dứt khoát. Dấu chấm quá mảnh, ở cỡ chữ 13px nó chìm
+ * vào khoảng trắng nên năm hành động vẫn đọc ra một dải liền.
+ */
+.actionSep {
+  color: var(--om-line-strong);
+  padding: 0 7px;
+  font-weight: 400;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.note {
+  margin: 12px 0 0;
+  font-size: 12px;
+  color: var(--om-text-3);
+}
+
+/**
+ * Màn hẹp: bỏ cột nhãn, xếp dọc. Giữ lưới hai cột trên điện thoại thì nhãn ăn
+ * mất một phần ba bề ngang và danh sách hành động bị bóp thành cột chữ hẹp.
+ */
+@media (max-width: bp.$bp-narrow) {
+  .rows {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+
+  .rows > div {
+    display: block;
+    padding: 5px 0;
+  }
+
+  .permissionGroup,
+  .scopeGroup {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+
+  .permissionModule {
+    font-weight: 600;
+    color: var(--om-text-2);
+  }
+
+  .scopeLabel {
+    text-align: left;
+  }
+}

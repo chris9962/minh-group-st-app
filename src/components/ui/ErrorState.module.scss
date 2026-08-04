@@ -1,0 +1,41 @@
+/**
+ * Nền cam rất nhạt, không phải đỏ: bộ màu chỉ có cam, xanh trạng thái và màu
+ * nhận diện ngân hàng (AGENTS.md §3). Mức nghiêm trọng nói bằng CHỮ và biểu
+ * tượng cảnh báo, không dựa vào màu — người mù màu và màn hình ngoài nắng đều
+ * không phân biệt được sắc độ.
+ */
+.box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 18px;
+  background: var(--om-orange-soft);
+  border: 1px solid var(--om-orange-light);
+  border-radius: var(--radius-lg, 12px);
+}
+
+.icon {
+  flex: none;
+  color: var(--om-orange-ink);
+}
+
+.title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--om-orange-ink);
+}
+
+@media (max-width: bp.$bp-narrow) {
+  .box {
+    flex-wrap: wrap;
+  }
+
+  /* Nút xuống dòng riêng và chiếm hết bề ngang — ngón cái bấm dễ hơn hẳn. */
+  .box > button {
+    width: 100%;
+    justify-content: center;
+  }
+}

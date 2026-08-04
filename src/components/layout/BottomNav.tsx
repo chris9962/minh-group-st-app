@@ -67,7 +67,7 @@ export function BottomNav({ user, onOpenMenu }: { user: User; onOpenMenu: () => 
   const canManageOrg = can(user, "system", "manage-org");
 
   const peopleEntry: Entry = managesPeople
-    ? { kind: "link", href: "/people", label: "Nhân sự", icon: "people" }
+    ? { kind: "link", href: "/users", label: "Nhân sự", icon: "people" }
     : { kind: "link", href: "/my-target", label: "Chỉ tiêu của tôi", icon: "target" };
 
   const thirdEntry: Entry | null = canCreateBusinessRecord

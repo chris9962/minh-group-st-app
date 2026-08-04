@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Target } from "lucide-react";
 import { useEffect } from "react";
 import { useForm } from "react-hook-form";
+import { SkeletonText } from "@/components/ui/Skeleton";
 import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { SectionCard } from "@/components/ui/SectionCard";
@@ -45,7 +46,7 @@ export function KpiTargetSection() {
 
   return (
     <SectionCard title="Chỉ tiêu KPI theo tháng" icon={<Target size={17} />}>
-      {isPending && <p className="text-muted">Đang tải chỉ tiêu…</p>}
+      {isPending && <SkeletonText lines={2} label="Đang tải chỉ tiêu" />}
 
       {!isPending && (
         <form

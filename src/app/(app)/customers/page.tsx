@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Briefcase, Gift, Landmark, Plus, Users } from "lucide-react";
 import type { DateRange } from "react-day-picker";
+import { SkeletonTable } from "@/components/ui/Skeleton";
+import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
 import { BankAccountFormDialog } from "@/components/banking/BankAccountFormDialog";
 import { CustomerFormDialog } from "@/components/customers/CustomerFormDialog";
@@ -51,7 +53,7 @@ export default function CustomersPage() {
   const to = range?.to ? iso(range.to) : "";
   const activeCount = (channel ? 1 : 0) + (from && to ? 1 : 0);
 
-  const { data, isPending, isError } = useQuery({
+  const { data, isPending, isError, refetch, isFetching } = useQuery({
     queryKey: ["customers", searchQuery, channel, from, to],
     queryFn: () => fetchCustomers({ search: searchQuery, channel, from, to }),
     placeholderData: (previous) => previous,
@@ -178,8 +180,10 @@ export default function CustomersPage() {
           ]}
         />
 
-        {isPending && <p className="text-muted">Đang tải danh sách…</p>}
-        {isError && <p className="text-muted">Không tải được danh sách khách hàng.</p>}
+        {isPending && <SkeletonTable rows={8} columns={5} />}
+        {isError && (
+          <ErrorState what="danh sách khách hàng" onRetry={refetch} retrying={isFetching} />
+        )}
 
         {data && (
           <SectionCard

@@ -1,0 +1,41 @@
+.wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border: 1px solid var(--om-line-strong);
+  border-radius: 6px;
+  background: var(--om-card);
+  /* Nút thô cần màu chữ tường minh: bộ tối không kế thừa được từ nền. */
+  color: var(--om-text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  /* Vùng bấm tối thiểu 44px cho ngón cái ngoài hiện trường (WCAG 2.5.8). */
+  min-height: 44px;
+}
+
+.button:hover {
+  border-color: var(--om-orange-mid);
+  color: var(--om-orange-ink);
+}
+
+.value {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  /* Chép tay được khi Clipboard API không dùng được: một cú bấm là chọn hết. */
+  user-select: all;
+}
+
+.status {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--om-text-2);
+}

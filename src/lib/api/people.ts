@@ -25,6 +25,8 @@ export const periodParam = (p: PeriodMode, current: string): string =>
 export const PersonScore = z.object({
   id: z.string(),
   fullName: z.string(),
+  /** Mã nhân viên — null với tài khoản có trước khi trường này ra đời. */
+  staffCode: z.string().nullable(),
   departmentName: z.string(),
   /** Điểm từ ngân hàng: tổng hệ số của app đã cài + CNKD/HKD. */
   bankingPoints: z.number(),

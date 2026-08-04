@@ -251,6 +251,7 @@ export async function peopleFor(
     return {
       id: r.user.id,
       fullName: r.user.fullName,
+      staffCode: r.user.staffCode,
       departmentName: r.departmentName ?? "",
       bankingPoints: Math.round(a.bankingPoints),
       servicePoints: Math.round(a.servicePoints),
@@ -420,6 +421,7 @@ export async function personFor(
     id: row.user.id,
     fullName: row.user.fullName,
     username: row.user.username,
+    staffCode: row.user.staffCode,
     phone: row.user.phone,
     departmentName: row.departmentName ?? "",
     joinedMonth: businessMonth(row.user.createdAt),

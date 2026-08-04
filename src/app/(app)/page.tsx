@@ -3,6 +3,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Briefcase, Gift, ShieldCheck, Trophy } from "lucide-react";
+import { SkeletonStats, SkeletonTable } from "@/components/ui/Skeleton";
+import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
 import { BarChart } from "@/components/ui/BarChart";
 import { FilterButton } from "@/components/ui/FilterButton";
@@ -81,7 +83,7 @@ export default function DashboardPage() {
   const scope: Scope = scopes.at(-1) ?? "own";
   const [period, setPeriod] = useState<Period>(DEFAULT_PERIOD);
 
-  const { data, isPending, isError } = useQuery({
+  const { data, isPending, isError, refetch, isFetching } = useQuery({
     queryKey: ["dashboard", scope, periodKey(period)],
     queryFn: () => fetchDashboard(scope, period),
   });
@@ -127,8 +129,15 @@ export default function DashboardPage() {
       </TopBar>
 
       <main className={styles.body}>
-        {isPending && <p className="text-muted">Đang tải số liệu…</p>}
-        {isError && <p className="text-muted">Không tải được số liệu tổng quan.</p>}
+        {isPending && (
+          <>
+            <SkeletonStats count={3} />
+            <SkeletonTable rows={5} columns={4} />
+          </>
+        )}
+        {isError && (
+          <ErrorState what="số liệu tổng quan" onRetry={refetch} retrying={isFetching} />
+        )}
 
         {data && (
           <>

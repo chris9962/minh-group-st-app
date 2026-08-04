@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Download, Landmark, Plus } from "lucide-react";
 import type { DateRange } from "react-day-picker";
+import { SkeletonTable } from "@/components/ui/Skeleton";
+import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
 import { CreateBankAccountDialog } from "@/components/banking/CreateBankAccountDialog";
 import { Button } from "@/components/ui/Button";
@@ -91,7 +93,7 @@ export default function BankingPage() {
   const from = range?.from ? iso(range.from) : "";
   const to = range?.to ? iso(range.to) : "";
 
-  const { data, isPending, isError } = useQuery({
+  const { data, isPending, isError, refetch, isFetching } = useQuery({
     queryKey: [
       "bank-account-list",
       scope,
@@ -285,8 +287,10 @@ export default function BankingPage() {
           ]}
         />
 
-        {isPending && <p className="text-muted">Đang tải danh sách…</p>}
-        {isError && <p className="text-muted">Không tải được danh sách tài khoản.</p>}
+        {isPending && <SkeletonTable rows={8} columns={6} />}
+        {isError && (
+          <ErrorState what="danh sách tài khoản" onRetry={refetch} retrying={isFetching} />
+        )}
 
         {data && (
           <SectionCard

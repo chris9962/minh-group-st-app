@@ -6,7 +6,8 @@ import styles from "./SegmentedTabs.module.css";
 export type TabOption = {
   value: string;
   label: string;
-  count: number;
+  /** Bỏ trống khi con số không có nghĩa — ví dụ tab điều hướng giữa hai khu vực. */
+  count?: number;
 };
 
 type Props = {
@@ -44,7 +45,9 @@ export function SegmentedTabs({ label, options, value, onChange }: Props) {
             onChange={() => onChange(o.value)}
           />
           {o.label}
-          <span className={`${styles.count} so`}>{o.count}</span>
+          {o.count !== undefined && (
+            <span className={`${styles.count} so`}>{o.count}</span>
+          )}
         </label>
       ))}
     </div>

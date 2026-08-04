@@ -4,10 +4,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Building2, Pencil, Plus } from "lucide-react";
+import { SkeletonStats, SkeletonTable } from "@/components/ui/Skeleton";
+import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
 import { DepartmentFormDialog } from "@/components/departments/DepartmentFormDialog";
 import { Button } from "@/components/ui/Button";
 import buttonStyles from "@/components/ui/Button.module.css";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { FilterButton } from "@/components/ui/FilterButton";
 import {
   DEFAULT_PERIOD,
@@ -43,6 +46,8 @@ export default function DepartmentsPage() {
   const searchQuery = useDebouncedValue(search);
   const [editing, setEditing] = useState<DepartmentRow | null>(null);
   const [creating, setCreating] = useState(false);
+  /** Phòng đang chờ xác nhận ngừng / mở lại. */
+  const [confirming, setConfirming] = useState<DepartmentRow | null>(null);
   const [period, setPeriod] = useState<Period>(DEFAULT_PERIOD);
 
   const canManage = can(user, "system", "manage-org");
@@ -54,7 +59,7 @@ export default function DepartmentsPage() {
     can(user, "insurance", "view-summary") ||
     can(user, "services", "view-summary");
 
-  const { data, isPending, isError } = useQuery({
+  const { data, isPending, isError, refetch, isFetching } = useQuery({
     queryKey: ["org-departments", searchQuery],
     queryFn: () => fetchDepartmentRows(searchQuery),
     // Giữ bảng cũ trong lúc gõ tiếp — không thì mỗi lần đổi từ khoá bảng lại
@@ -84,6 +89,7 @@ export default function DepartmentsPage() {
       queryClient.invalidateQueries({ queryKey: ["org-departments"] });
       queryClient.invalidateQueries({ queryKey: ["departments"] });
       queryClient.invalidateQueries({ queryKey: ["org-department", id] });
+      setConfirming(null);
     },
   });
 
@@ -175,7 +181,7 @@ export default function DepartmentsPage() {
               disabled={
                 (d.active && d.headcount > 0) || toggleActive.isPending
               }
-              onClick={() => toggleActive.mutate({ id: d.id, next: !d.active })}
+              onClick={() => setConfirming(d)}
             >
               {d.active ? "Ngừng hoạt động" : "Mở lại"}
             </Button>
@@ -183,7 +189,7 @@ export default function DepartmentsPage() {
         ),
       },
     ],
-    [toggleActive, canSeeStats, statsById],
+    [toggleActive.isPending, canSeeStats, statsById],
   );
 
   const blocked = (data?.departments ?? []).filter(
@@ -200,12 +206,19 @@ export default function DepartmentsPage() {
           onChange={setSearch}
         />
         {canSeeStats && (
-          <FilterButton
-            activeCount={period.kind === "today" ? 0 : 1}
-            onClear={() => setPeriod(DEFAULT_PERIOD)}
-          >
-            <PeriodPicker value={period} onChange={setPeriod} />
-          </FilterButton>
+          <>
+            <div className={styles.periodInline}>
+              <PeriodPicker value={period} onChange={setPeriod} />
+            </div>
+            <div className={styles.periodCollapsed}>
+              <FilterButton
+                activeCount={period.kind === "today" ? 0 : 1}
+                onClear={() => setPeriod(DEFAULT_PERIOD)}
+              >
+                <PeriodPicker value={period} onChange={setPeriod} />
+              </FilterButton>
+            </div>
+          </>
         )}
         {canManage && (
           <Button aria-label="Thêm phòng ban" onClick={() => setCreating(true)}>
@@ -216,9 +229,14 @@ export default function DepartmentsPage() {
       </TopBar>
 
       <main className={styles.body}>
-        {isPending && <p className="text-muted">Đang tải danh sách…</p>}
+        {isPending && (
+          <>
+            <SkeletonStats count={3} />
+            <SkeletonTable rows={8} columns={5} />
+          </>
+        )}
         {isError && (
-          <p className="text-muted">Không tải được danh sách phòng ban.</p>
+          <ErrorState what="danh sách phòng ban" onRetry={refetch} retrying={isFetching} />
         )}
 
         {data && (
@@ -274,17 +292,6 @@ export default function DepartmentsPage() {
                 </p>
               )}
 
-              <p className={styles.footnote}>
-                Phòng ban là <strong>danh sách phẳng</strong>, không có cấp trên
-                cấp dưới. Ai quản phòng nào thì sửa trong hồ sơ người đó ở màn
-                Nhân sự &amp; KPI.
-              </p>
-              <p className={styles.footnote}>
-                Giải thể phòng thì cho <strong>ngừng hoạt động</strong>, không
-                xoá — bản ghi cũ lưu mã phòng, xoá là để lại mã chết trong dữ
-                liệu các tháng trước. Phòng đã ngừng không còn trong ô chọn đơn
-                vị nhưng số liệu cũ của nó vẫn nguyên.
-              </p>
             </SectionCard>
           </>
         )}
@@ -299,6 +306,34 @@ export default function DepartmentsPage() {
             }}
           />
         )}
+
+        <ConfirmDialog
+          open={confirming !== null}
+          title={confirming?.active ? "Ngừng hoạt động phòng" : "Mở lại phòng"}
+          confirmLabel={confirming?.active ? "Ngừng hoạt động" : "Mở lại"}
+          pending={toggleActive.isPending}
+          onConfirm={() =>
+            confirming &&
+            toggleActive.mutate({ id: confirming.id, next: !confirming.active })
+          }
+          onClose={() => setConfirming(null)}
+          consequence={
+            confirming?.active ? (
+              <>
+                Phòng biến mất khỏi các ô chọn đơn vị nên{" "}
+                <strong>không gán người mới vào được nữa</strong>. Số liệu và bản
+                ghi cũ của phòng vẫn giữ nguyên, mở lại lúc nào cũng được.
+              </>
+            ) : (
+              <>
+                Phòng hiện lại ở mọi ô chọn đơn vị và nhận người mới được ngay.
+              </>
+            )
+          }
+        >
+          {confirming?.active ? "Ngừng hoạt động phòng " : "Mở lại phòng "}
+          <strong>{confirming?.name}</strong>?
+        </ConfirmDialog>
       </main>
     </>
   );

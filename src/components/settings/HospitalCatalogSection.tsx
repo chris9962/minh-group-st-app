@@ -3,6 +3,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { Hospital as HospitalIcon, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
+import { SkeletonTable } from "@/components/ui/Skeleton";
+import { ErrorState } from "@/components/ui/ErrorState";
 import { Button } from "@/components/ui/Button";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { SearchField } from "@/components/ui/SearchField";
@@ -23,7 +25,7 @@ export function HospitalCatalogSection() {
   const [creating, setCreating] = useState(false);
   const [search, setSearch] = useState("");
 
-  const { data: hospitals = [], isPending, isError } = useQuery({
+  const { data: hospitals = [], isPending, isError, refetch, isFetching } = useQuery({
     queryKey: ["hospitals"],
     queryFn: fetchHospitals,
   });
@@ -47,8 +49,10 @@ export function HospitalCatalogSection() {
           onChange={setSearch}
         />
 
-        {isPending && <p className="text-muted">Đang tải danh sách…</p>}
-        {isError && <p className="text-muted">Không tải được danh mục bệnh viện.</p>}
+        {isPending && <SkeletonTable rows={5} columns={3} />}
+        {isError && (
+          <ErrorState what="danh mục bệnh viện" onRetry={refetch} retrying={isFetching} />
+        )}
         {!isPending && !isError && hospitals.length === 0 && (
           <p className="text-muted">Chưa có bệnh viện nào.</p>
         )}

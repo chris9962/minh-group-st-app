@@ -1,0 +1,131 @@
+.block {
+  display: block;
+}
+
+/**
+ * Nhịp thở nhẹ, KHÔNG phải dải sáng chạy ngang.
+ *
+ * Dải sáng chạy cần một gradient chuyển động, ở bảng nhiều dòng thì thành cả
+ * chục vệt sáng chạy cùng lúc — rối hơn là chờ. Đổi độ mờ thì cả khối cùng
+ * thở một nhịp, đủ để biết đang tải mà không cướp sự chú ý.
+ */
+.box {
+  display: block;
+  width: 100%;
+  height: 14px;
+  border-radius: 5px;
+  background: var(--om-soft);
+  border: 1px solid var(--om-line);
+  animation: breathe 1.6s ease-in-out infinite;
+}
+
+.circle {
+  border-radius: 50%;
+  flex: none;
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/**
+ * Người đặt máy giảm chuyển động thì bỏ hẳn nhịp thở. Với người dễ chóng mặt
+ * hoặc rối loạn tiền đình, một khối nhấp nháy liên tục là thứ gây khó chịu
+ * thật, không phải chuyện hình thức (WCAG 2.3.3).
+ */
+@media (prefers-reduced-motion: reduce) {
+  .box {
+    animation: none;
+    opacity: 0.75;
+  }
+}
+
+.textLines {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+/* ── Bảng ──────────────────────────────────────────────────────────── */
+
+.table {
+  display: flex;
+  flex-direction: column;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 4), minmax(0, 1fr));
+  gap: 16px;
+  align-items: center;
+  padding: 13px 0;
+  border-top: 1px solid var(--om-line);
+}
+
+/* Hàng tiêu đề mảnh hơn và không có đường kẻ trên, khớp dáng bảng thật. */
+.head {
+  border-top: none;
+  padding: 6px 0 11px;
+}
+
+/* ── Thẻ số liệu ───────────────────────────────────────────────────── */
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr));
+  gap: 14px;
+}
+
+.statCard {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 18px;
+  background: var(--om-card);
+  border: 1px solid var(--om-line);
+  border-radius: var(--radius-lg, 12px);
+}
+
+/* ── Thẻ nội dung ──────────────────────────────────────────────────── */
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 18px;
+  background: var(--om-card);
+  border: 1px solid var(--om-line);
+  border-radius: var(--radius-lg, 12px);
+}
+
+.cardHead {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.cardHeadText {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  flex: 1;
+  min-width: 0;
+}
+
+@media (max-width: bp.$bp-mobile) {
+  .stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  /* Bảng thật trên điện thoại chỉ còn hai cột đầu — khung phải theo cho khớp. */
+  .row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+}

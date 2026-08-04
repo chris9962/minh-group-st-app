@@ -7,6 +7,8 @@ import { useRouter } from "next/navigation";
 import { use } from "react";
 import { useForm } from "react-hook-form";
 import { CheckCircle2, ChevronLeft, Landmark, Trash2 } from "lucide-react";
+import { SkeletonCard } from "@/components/ui/Skeleton";
+import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
 import { BankAccountFinishFields } from "@/components/banking/BankAccountFinishFields";
 import { BankAccountPhotos } from "@/components/banking/BankAccountPhotos";
@@ -49,7 +51,7 @@ export default function BankAccountDetailPage({
   const { id } = use(params);
   const actor = useSession((s) => s.user);
 
-  const { data, isPending, isError } = useQuery({
+  const { data, isPending, isError, refetch, isFetching } = useQuery({
     queryKey: ["bank-account-detail", id],
     queryFn: () => fetchBankAccountDetail(id, actor?.id ?? ""),
   });
@@ -71,8 +73,10 @@ export default function BankAccountDetailPage({
           Ngân hàng
         </Link>
 
-        {isPending && <p className="text-muted">Đang tải tài khoản…</p>}
-        {isError && <p className="text-muted">Không tìm thấy tài khoản này.</p>}
+        {isPending && <SkeletonCard lines={5} />}
+        {isError && (
+          <ErrorState what="tài khoản này" onRetry={refetch} retrying={isFetching} />
+        )}
 
         {data && data.status === "creating" && (
           <FinishAccountCard id={id} data={data} departmentName={departmentName} />

@@ -4,6 +4,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { use, useRef } from "react";
 import { CheckCircle2, ChevronLeft, ImagePlus, ShieldCheck } from "lucide-react";
+import { SkeletonCard } from "@/components/ui/Skeleton";
+import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
 import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
@@ -33,7 +35,7 @@ export default function InsuranceDetailPage({
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { data, isPending, isError } = useQuery({
+  const { data, isPending, isError, refetch, isFetching } = useQuery({
     queryKey: ["insurance-detail", id],
     queryFn: () => fetchInsuranceDetail(id, actor?.id ?? ""),
   });
@@ -67,8 +69,10 @@ export default function InsuranceDetailPage({
           Bảo hiểm
         </Link>
 
-        {isPending && <p className="text-muted">Đang tải đơn…</p>}
-        {isError && <p className="text-muted">Không tìm thấy đơn này.</p>}
+        {isPending && <SkeletonCard lines={5} />}
+        {isError && (
+          <ErrorState what="đơn bảo hiểm này" onRetry={refetch} retrying={isFetching} />
+        )}
 
         {data && (
           <SectionCard

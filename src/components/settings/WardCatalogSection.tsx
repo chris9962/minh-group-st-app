@@ -3,6 +3,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { MapPin, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
+import { SkeletonTable } from "@/components/ui/Skeleton";
+import { ErrorState } from "@/components/ui/ErrorState";
 import { Button } from "@/components/ui/Button";
 import { SearchField } from "@/components/ui/SearchField";
 import { SectionCard } from "@/components/ui/SectionCard";
@@ -29,7 +31,7 @@ export function WardCatalogSection() {
   const [addingHamletTo, setAddingHamletTo] = useState<Ward | null>(null);
   const [search, setSearch] = useState("");
 
-  const { data: provinces = [], isPending, isError } = useQuery({
+  const { data: provinces = [], isPending, isError, refetch, isFetching } = useQuery({
     queryKey: ["provinces"],
     queryFn: fetchProvinces,
   });
@@ -53,8 +55,10 @@ export function WardCatalogSection() {
           onChange={setSearch}
         />
 
-        {isPending && <p className="text-muted">Đang tải danh sách…</p>}
-        {isError && <p className="text-muted">Không tải được danh mục tỉnh/xã/ấp.</p>}
+        {isPending && <SkeletonTable rows={5} columns={4} />}
+        {isError && (
+          <ErrorState what="danh mục tỉnh/xã/ấp" onRetry={refetch} retrying={isFetching} />
+        )}
         {!isPending && !isError && provinces.length === 0 && (
           <p className="text-muted">
             Chưa triển khai tỉnh/thành phố nào — bấm &quot;Thêm tỉnh/thành phố&quot; bên dưới.

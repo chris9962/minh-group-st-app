@@ -1,0 +1,69 @@
+.wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.cell {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 8px;
+  /* Vùng bấm/hover đủ cao cho ngón cái (WCAG 2.5.8). */
+  min-height: 44px;
+  padding-right: 2px;
+}
+
+.cell:focus-visible {
+  outline: 2px solid var(--om-orange);
+  outline-offset: 2px;
+}
+
+.track {
+  stroke: var(--om-line);
+}
+
+/**
+ * Chi tiết hiện khi rê chuột hoặc khi bàn phím dừng ở ô.
+ *
+ * Dùng `position: fixed`… không được, vì cần bám theo ô. Dùng absolute và cho
+ * chồng lên trên: bảng có thể cắt ngang phần tràn ra, nên z-index phải cao hơn
+ * hàng kế bên và hộp phải tự co theo chữ chứ không kéo giãn ô của bảng.
+ */
+.tip {
+  position: absolute;
+  bottom: calc(100% - 4px);
+  left: 0;
+  z-index: 20;
+  width: max-content;
+  max-width: 240px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: var(--om-text);
+  color: var(--om-card);
+  font-size: 12px;
+  line-height: 1.45;
+  font-weight: 500;
+  box-shadow: var(--shadow-sm);
+  opacity: 0;
+  /* `visibility` chứ không phải `display`: có trạng thái để chuyển mượt, và
+     phần tử vẫn nằm ngoài luồng nên không đội chiều cao hàng lên. */
+  visibility: hidden;
+  transform: translateY(3px);
+  transition:
+    opacity 140ms ease-out,
+    transform 140ms ease-out,
+    visibility 140ms;
+}
+
+.wrap:hover .tip,
+.cell:focus-visible ~ .tip {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tip {
+    transition: none;
+    transform: none;
+  }
+}

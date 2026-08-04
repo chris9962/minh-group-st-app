@@ -3,6 +3,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { Plus, Ticket } from "lucide-react";
 import { useState } from "react";
+import { SkeletonTable } from "@/components/ui/Skeleton";
+import { ErrorState } from "@/components/ui/ErrorState";
 import { Button } from "@/components/ui/Button";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { SectionCard } from "@/components/ui/SectionCard";
@@ -28,7 +30,7 @@ export function ReferralCodesSection() {
   const { data: banks = [] } = useQuery({ queryKey: ["banks"], queryFn: fetchBanks });
   const bankName = (id: string) => banks.find((b) => b.id === id)?.code ?? id;
 
-  const { data: codes = [], isPending, isError } = useQuery({
+  const { data: codes = [], isPending, isError, refetch, isFetching } = useQuery({
     queryKey: ["referral-codes", bankId, status],
     queryFn: () => fetchReferralCodes({ bankId, status }),
   });
@@ -90,8 +92,10 @@ export function ReferralCodesSection() {
         />
       </div>
 
-      {isPending && <p className="text-muted">Đang tải kho mã…</p>}
-      {isError && <p className="text-muted">Không tải được kho mã giới thiệu.</p>}
+      {isPending && <SkeletonTable rows={5} columns={5} />}
+      {isError && (
+          <ErrorState what="kho mã giới thiệu" onRetry={refetch} retrying={isFetching} />
+        )}
 
       {!isPending && !isError && (
         <>

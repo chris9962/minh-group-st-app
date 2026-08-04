@@ -3,6 +3,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Landmark, Pencil, Plus } from "lucide-react";
 import { useState } from "react";
+import { SkeletonTable } from "@/components/ui/Skeleton";
+import { ErrorState } from "@/components/ui/ErrorState";
 import { Button } from "@/components/ui/Button";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { SectionCard } from "@/components/ui/SectionCard";
@@ -22,7 +24,7 @@ export function BankCatalogSection() {
   const [editing, setEditing] = useState<Bank | null>(null);
   const [creating, setCreating] = useState(false);
 
-  const { data: banks = [], isPending, isError } = useQuery({
+  const { data: banks = [], isPending, isError, refetch, isFetching } = useQuery({
     queryKey: ["banks"],
     queryFn: fetchBanks,
   });
@@ -93,8 +95,10 @@ export function BankCatalogSection() {
   return (
     <>
       <SectionCard title="Kho ngân hàng" icon={<Landmark size={17} />} meta={`${banks.length} dòng`}>
-        {isPending && <p className="text-muted">Đang tải danh sách…</p>}
-        {isError && <p className="text-muted">Không tải được kho ngân hàng.</p>}
+        {isPending && <SkeletonTable rows={5} columns={5} />}
+        {isError && (
+          <ErrorState what="kho ngân hàng" onRetry={refetch} retrying={isFetching} />
+        )}
 
         {!isPending && !isError && (
           <RankTable

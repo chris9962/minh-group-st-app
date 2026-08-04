@@ -100,10 +100,28 @@
   gap: 16px;
 }
 
-.scoreNote {
+/**
+ * Hai cặp nhãn–số đứng cạnh vòng điểm. Nhãn nhỏ và mờ, số to và rõ: mắt bắt
+ * con số trước rồi mới đọc nhãn để biết nó là gì, ngược lại thì phải đọc cả
+ * câu mới ra được thông tin.
+ */
+.scoreFacts {
   margin: 0;
-  font-size: 13px;
-  color: var(--om-text-2);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.scoreFacts dt {
+  font-size: 11.5px;
+  color: var(--om-text-3);
+}
+
+.scoreFacts dd {
+  margin: 2px 0 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--om-text);
 }
 
 /* Chú thích của vòng điểm. Không kẻ ngăn giữa các dòng — chấm màu đã tách dòng
@@ -178,4 +196,15 @@
   .body {
     padding: 16px 16px 32px;
   }
+}
+
+/**
+ * Thẻ tài khoản đứng một mình ở tab thứ hai, chiếm trọn bề ngang.
+ *
+ * Bảng quyền bên trong đã tự giữ nhịp bằng cột nhãn và cột phạm vi cố định
+ * (xem `AccountCard.module.scss`), nên nới rộng chỉ làm danh sách hành động
+ * bớt phải xuống dòng chứ không kéo giãn cặp nhãn–giá trị ra xa nhau.
+ */
+.accountSection {
+  width: 100%;
 }

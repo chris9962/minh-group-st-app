@@ -3,6 +3,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pencil, Plus, Wrench } from "lucide-react";
 import { useState } from "react";
+import { SkeletonTable } from "@/components/ui/Skeleton";
+import { ErrorState } from "@/components/ui/ErrorState";
 import { Button } from "@/components/ui/Button";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { SectionCard } from "@/components/ui/SectionCard";
@@ -17,7 +19,7 @@ export function ServiceTypeSection() {
   const [editing, setEditing] = useState<ServiceTypeRow | null>(null);
   const [creating, setCreating] = useState(false);
 
-  const { data: rows = [], isPending, isError } = useQuery({
+  const { data: rows = [], isPending, isError, refetch, isFetching } = useQuery({
     queryKey: ["service-types"],
     queryFn: fetchServiceTypes,
   });
@@ -74,8 +76,10 @@ export function ServiceTypeSection() {
         icon={<Wrench size={17} />}
         meta={`${rows.length} loại`}
       >
-        {isPending && <p className="text-muted">Đang tải danh mục…</p>}
-        {isError && <p className="text-muted">Không tải được danh mục loại dịch vụ.</p>}
+        {isPending && <SkeletonTable rows={5} columns={4} />}
+        {isError && (
+          <ErrorState what="danh mục loại dịch vụ" onRetry={refetch} retrying={isFetching} />
+        )}
 
         {!isPending && !isError && (
           <RankTable

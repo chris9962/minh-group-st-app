@@ -4,6 +4,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { use, useState } from "react";
 import { Briefcase, ChevronLeft, Gift, Landmark, ShieldCheck, Trash2, User as UserIcon } from "lucide-react";
+import { SkeletonCard } from "@/components/ui/Skeleton";
+import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
 import { BankAccountFormDialog } from "@/components/banking/BankAccountFormDialog";
 import { CustomerFormDialog } from "@/components/customers/CustomerFormDialog";
@@ -43,7 +45,7 @@ export default function CustomerDetailPage({
   const [openingBank, setOpeningBank] = useState(false);
   const [loggingService, setLoggingService] = useState(false);
 
-  const { data, isPending, isError } = useQuery({
+  const { data, isPending, isError, refetch, isFetching } = useQuery({
     queryKey: ["customer", id],
     queryFn: () => fetchCustomerDetail(id, actor?.id ?? ""),
   });
@@ -93,8 +95,10 @@ export default function CustomerDetailPage({
           Khách hàng
         </Link>
 
-        {isPending && <p className="text-muted">Đang tải hồ sơ khách hàng…</p>}
-        {isError && <p className="text-muted">Không tải được hồ sơ khách hàng này.</p>}
+        {isPending && <SkeletonCard lines={5} />}
+        {isError && (
+          <ErrorState what="hồ sơ khách hàng này" onRetry={refetch} retrying={isFetching} />
+        )}
 
         {data && (
           <>

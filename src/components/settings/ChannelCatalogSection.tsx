@@ -3,6 +3,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { Pencil, Plus, Signpost } from "lucide-react";
 import { useState } from "react";
+import { SkeletonTable } from "@/components/ui/Skeleton";
+import { ErrorState } from "@/components/ui/ErrorState";
 import { Button } from "@/components/ui/Button";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { SectionCard } from "@/components/ui/SectionCard";
@@ -18,7 +20,7 @@ export function ChannelCatalogSection() {
   const [editing, setEditing] = useState<Channel | null>(null);
   const [creating, setCreating] = useState(false);
 
-  const { data: channels = [], isPending, isError } = useQuery({
+  const { data: channels = [], isPending, isError, refetch, isFetching } = useQuery({
     queryKey: ["channels"],
     queryFn: fetchChannels,
   });
@@ -51,8 +53,10 @@ export function ChannelCatalogSection() {
   return (
     <>
       <SectionCard title="Danh mục kênh" icon={<Signpost size={17} />} meta={`${channels.length} kênh`}>
-        {isPending && <p className="text-muted">Đang tải danh sách…</p>}
-        {isError && <p className="text-muted">Không tải được danh mục kênh.</p>}
+        {isPending && <SkeletonTable rows={5} columns={4} />}
+        {isError && (
+          <ErrorState what="danh mục kênh" onRetry={refetch} retrying={isFetching} />
+        )}
 
         {!isPending && !isError && (
           <RankTable

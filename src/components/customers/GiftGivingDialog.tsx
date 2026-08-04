@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { SkeletonText } from "@/components/ui/Skeleton";
 import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
@@ -95,7 +96,7 @@ export function GiftGivingDialog({ open, onClose, customerId, customerName }: Pr
         </>
       }
     >
-      {isPending && <p className="text-muted">Đang tải rổ quà…</p>}
+      {isPending && <SkeletonText lines={3} label="Đang tải rổ quà" />}
 
       {data && (
         <div className={styles.body}>

@@ -3,6 +3,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Briefcase, Plus } from "lucide-react";
+import { SkeletonTable } from "@/components/ui/Skeleton";
+import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
 import { CreateServiceDialog } from "@/components/services/CreateServiceDialog";
 import { Button } from "@/components/ui/Button";
@@ -50,7 +52,7 @@ export default function ServicesPage() {
   const from = range?.from ? iso(range.from) : "";
   const to = range?.to ? iso(range.to) : "";
 
-  const { data, isPending, isError } = useQuery({
+  const { data, isPending, isError, refetch, isFetching } = useQuery({
     queryKey: ["services", scope, searchQuery, serviceTypeId, from, to, ward, staffId],
     queryFn: () =>
       fetchServices({
@@ -176,8 +178,10 @@ export default function ServicesPage() {
           ]}
         />
 
-        {isPending && <p className="text-muted">Đang tải danh sách…</p>}
-        {isError && <p className="text-muted">Không tải được danh sách dịch vụ.</p>}
+        {isPending && <SkeletonTable rows={8} columns={5} />}
+        {isError && (
+          <ErrorState what="danh sách dịch vụ" onRetry={refetch} retrying={isFetching} />
+        )}
 
         {data && (
           <SectionCard

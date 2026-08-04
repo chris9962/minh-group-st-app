@@ -3,6 +3,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, ChevronUp, Gift, Pencil, Plus } from "lucide-react";
 import { useState } from "react";
+import { SkeletonTable } from "@/components/ui/Skeleton";
+import { ErrorState } from "@/components/ui/ErrorState";
 import { Button } from "@/components/ui/Button";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusTag } from "@/components/ui/StatusTag";
@@ -57,7 +59,7 @@ export function GiftRulesSection() {
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<GiftRule | null>(null);
 
-  const { data: rules, isPending, isError } = useQuery({
+  const { data: rules, isPending, isError, refetch, isFetching } = useQuery({
     queryKey: ["gift-rules"],
     queryFn: fetchGiftRules,
   });
@@ -90,8 +92,10 @@ export function GiftRulesSection() {
         icon={<Gift size={17} />}
         meta={rules ? `${rules.length} dòng` : undefined}
       >
-        {isPending && <p className="text-muted">Đang tải bảng quy tắc…</p>}
-        {isError && <p className="text-muted">Không tải được bảng quy tắc quà.</p>}
+        {isPending && <SkeletonTable rows={5} columns={5} />}
+        {isError && (
+          <ErrorState what="bảng quy tắc quà" onRetry={refetch} retrying={isFetching} />
+        )}
 
         {rules && (
           <div className="table-scroll">

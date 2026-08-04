@@ -1,0 +1,77 @@
+/**
+ * Đường kẻ chạy hết bề ngang làm nền cho các gạch chân. Không có nó thì gạch
+ * dưới tab đang chọn lơ lửng giữa khoảng trắng, trông như lỗi hơn là chỉ dẫn.
+ */
+.bar {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--om-line);
+}
+
+.tab {
+  position: relative;
+  padding: 9px 14px 11px;
+  font-size: 13.5px;
+  color: var(--om-text-3);
+  cursor: pointer;
+  white-space: nowrap;
+  /* Vùng bấm đủ cao cho ngón cái ngoài hiện trường (WCAG 2.5.8). */
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+
+/**
+ * Gạch chân vẽ bằng `::after` phủ lên đúng đường kẻ của thanh, chứ không phải
+ * `border-bottom` của chính tab — border sẽ cộng thêm chiều cao và làm tab đang
+ * chọn nhích lên một pixel so với các tab còn lại.
+ */
+.tab::after {
+  content: "";
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: transparent;
+}
+
+.tab:hover {
+  color: var(--om-text);
+}
+
+.active {
+  color: var(--om-orange-ink);
+  font-weight: 600;
+}
+
+.active::after {
+  background: var(--om-orange);
+}
+
+/**
+ * Viền tiêu điểm chỉ hiện khi đi bằng BÀN PHÍM.
+ *
+ * `:focus-within` thì bấm chuột cũng ăn viền, nên tab đang chọn lúc nào cũng bị
+ * đóng khung — vừa xấu vừa sai nghĩa, vì viền tiêu điểm là để nói "phím đang ở
+ * đây". `:has(:focus-visible)` chuyển việc phân biệt chuột hay phím cho trình
+ * duyệt lo; radio thật bị ẩn nên phải bắt qua thẻ label bọc ngoài.
+ */
+.tab:has(:focus-visible) {
+  outline: 2px solid var(--om-orange);
+  outline-offset: -3px;
+  border-radius: 6px;
+}
+
+@media (max-width: bp.$bp-narrow) {
+  /* Nhiều khu vực thì cho trượt ngang, không bẻ xuống hai dòng. */
+  .bar {
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .bar::-webkit-scrollbar {
+    display: none;
+  }
+}

@@ -3,6 +3,8 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Plus } from "lucide-react";
+import { SkeletonTable, SkeletonText } from "@/components/ui/Skeleton";
+import { ErrorState } from "@/components/ui/ErrorState";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { SearchField } from "@/components/ui/SearchField";
@@ -39,7 +41,13 @@ export function CreateInsuranceOrderDialog({ open, onClose }: Props) {
   const [search, setSearch] = useState("");
   const searchQuery = useDebouncedValue(search);
 
-  const { data: list, isPending: listPending, isError: listError } = useQuery({
+  const {
+    data: list,
+    isPending: listPending,
+    isError: listError,
+    refetch: refetchList,
+    isFetching: listFetching,
+  } = useQuery({
     queryKey: ["customers-picker", searchQuery],
     queryFn: () => fetchCustomers({ search: searchQuery, channel: "", from: "", to: "" }),
     enabled: open && !customerId && !readyCustomer,
@@ -98,13 +106,19 @@ export function CreateInsuranceOrderDialog({ open, onClose }: Props) {
           />
 
           {customerId && detailPending && (
-            <p className="text-muted">Đang tải hồ sơ khách hàng…</p>
+            <SkeletonText lines={3} label="Đang tải hồ sơ khách hàng" />
           )}
 
           {!customerId && (
             <>
-              {listPending && <p className="text-muted">Đang tải danh sách khách hàng…</p>}
-              {listError && <p className="text-muted">Không tải được danh sách khách hàng.</p>}
+              {listPending && <SkeletonTable rows={4} columns={2} label="Đang tải danh sách khách hàng" />}
+              {listError && (
+                <ErrorState
+                  what="danh sách khách hàng"
+                  onRetry={refetchList}
+                  retrying={listFetching}
+                />
+              )}
               {/* Nút tạo giờ nằm cố định ở footer — chỗ này chỉ còn lời nhắn. */}
               {!listPending && customers.length === 0 && (
                 <p className="text-muted">

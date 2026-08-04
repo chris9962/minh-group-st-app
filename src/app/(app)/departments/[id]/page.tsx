@@ -4,6 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { use } from "react";
 import { ChevronLeft, UserCog, Users } from "lucide-react";
+import { SkeletonCard } from "@/components/ui/Skeleton";
+import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { SectionCard } from "@/components/ui/SectionCard";
@@ -27,7 +29,7 @@ const EMPLOYEE_COLUMNS: RankColumn<StaffAccount>[] = [
     key: "fullName",
     label: "Tên",
     render: (s) => (
-      <Link href={`/people/${s.id}`} className={styles.nameLink}>
+      <Link href={`/users/${s.id}`} className={styles.nameLink}>
         {s.fullName}
       </Link>
     ),
@@ -55,7 +57,7 @@ export default function DepartmentDetailPage({
 }) {
   const { id } = use(params);
 
-  const { data, isPending, isError } = useQuery({
+  const { data, isPending, isError, refetch, isFetching } = useQuery({
     queryKey: ["org-department", id],
     queryFn: () => fetchDepartmentDetail(id),
   });
@@ -85,8 +87,10 @@ export default function DepartmentDetailPage({
           Phòng ban
         </Link>
 
-        {isPending && <p className="text-muted">Đang tải phòng ban…</p>}
-        {isError && <p className="text-muted">Không tìm thấy phòng ban này.</p>}
+        {isPending && <SkeletonCard lines={4} />}
+        {isError && (
+          <ErrorState what="phòng ban này" onRetry={refetch} retrying={isFetching} />
+        )}
 
         {data && (
           <>
@@ -94,7 +98,7 @@ export default function DepartmentDetailPage({
               <ul className={styles.managers}>
                 {data.managers.map((m) => (
                   <li key={m.id}>
-                    <Link href={`/people/${m.id}`} className={styles.nameLink}>
+                    <Link href={`/users/${m.id}`} className={styles.nameLink}>
                       {m.fullName}
                     </Link>
                     <span className={styles.managerTitle}>{m.title}</span>
