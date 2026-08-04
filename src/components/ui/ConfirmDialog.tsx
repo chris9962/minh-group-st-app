@@ -18,6 +18,14 @@ type Props = {
   confirmLabel: string;
   cancelLabel?: string;
   pending?: boolean;
+  /**
+   * Lời báo khi lần xác nhận trước hỏng.
+   *
+   * Phải hiện TRONG hộp thoại: `<dialog>` mở bằng `showModal()` nằm ở lớp trên
+   * cùng và làm phần còn lại của trang trơ ra, nên câu báo lỗi đặt ở trang nền
+   * người dùng vừa không thấy vừa không bấm tới được.
+   */
+  error?: React.ReactNode;
   onConfirm: () => void;
   onClose: () => void;
 };
@@ -39,17 +47,29 @@ export function ConfirmDialog({
   confirmLabel,
   cancelLabel = "Huỷ",
   pending = false,
+  error,
   onConfirm,
   onClose,
 }: Props) {
+  /**
+   * Đang chạy thì mọi lối đóng đều khoá: nút Huỷ, dấu X, phím Esc, bấm nền.
+   *
+   * Không khoá thì "Huỷ" nói dối — request đã bay đi rồi, đóng hộp thoại không
+   * gọi nó về được. Người dùng bấm Huỷ, hộp thoại biến mất, và tài khoản vẫn bị
+   * khoá vài trăm mili giây sau đó.
+   */
+  const requestClose = () => {
+    if (!pending) onClose();
+  };
+
   return (
     <Dialog
       open={open}
       title={title}
-      onClose={onClose}
+      onClose={requestClose}
       footer={
         <>
-          <Button variant="secondary" onClick={onClose}>
+          <Button variant="secondary" onClick={requestClose} disabled={pending}>
             {cancelLabel}
           </Button>
           <Button onClick={onConfirm} disabled={pending}>
@@ -60,6 +80,7 @@ export function ConfirmDialog({
     >
       <p className={styles.question}>{children}</p>
       {consequence && <Alert tone="warning">{consequence}</Alert>}
+      {error && <Alert tone="error">{error}</Alert>}
     </Dialog>
   );
 }

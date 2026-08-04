@@ -120,7 +120,9 @@ export function CreateInsuranceOrderDialog({ open, onClose }: Props) {
                 />
               )}
               {/* Nút tạo giờ nằm cố định ở footer — chỗ này chỉ còn lời nhắn. */}
-              {!listPending && customers.length === 0 && (
+              {/* `!listError` bắt buộc: tải hỏng thì `customers` cũng rỗng, và khối này mời
+                  người dùng "tạo khách hàng mới" cho một người có thể đã có hồ sơ — ra hồ sơ trùng. */}
+              {!listPending && !listError && customers.length === 0 && (
                 <p className="text-muted">
                   Không tìm thấy khách hàng nào khớp “{searchQuery}”. Bấm{" "}
                   <strong>Tạo KH mới</strong> để lập hồ sơ.

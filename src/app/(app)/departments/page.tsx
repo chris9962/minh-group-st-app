@@ -27,6 +27,7 @@ import { StatusTag } from "@/components/ui/StatusTag";
 import {
   fetchDepartmentRows,
   fetchDepartmentStats,
+  isOrgError,
   setDepartmentActive,
   type DepartmentRow,
 } from "@/lib/api/org";
@@ -161,10 +162,14 @@ export default function DepartmentsPage() {
           </StatusTag>
         ),
       },
-      {
+      // Không có `manage-org` thì mọi nút ở đây đều 403 — trang lại vào được
+      // bằng URL (không có middleware, nav chỉ ẩn link). Giấu cột đi thay vì
+      // đưa ra nút bấm vào không làm gì.
+      ...(canManage
+        ? [{
         key: "actions",
         label: "Thao tác",
-        render: (d) => (
+        render: (d: DepartmentRow) => (
           <span className={styles.actions}>
             {/* Nút chỉ có icon nên aria-label phải kèm tên phòng: giữa mười lăm
                 dòng giống nhau, "Sửa" một mình không nói đang sửa phòng nào. */}
@@ -187,9 +192,10 @@ export default function DepartmentsPage() {
             </Button>
           </span>
         ),
-      },
+      }] satisfies RankColumn<DepartmentRow>[]
+        : []),
     ],
-    [toggleActive.isPending, canSeeStats, statsById],
+    [toggleActive.isPending, canSeeStats, canManage, statsById],
   );
 
   const blocked = (data?.departments ?? []).filter(
@@ -277,12 +283,6 @@ export default function DepartmentsPage() {
                 caption="Phòng ban, số người và trạng thái"
               />
 
-              {toggleActive.isError && (
-                <p className={styles.footnote}>
-                  Không đổi được trạng thái phòng này.
-                </p>
-              )}
-
               {/* Nút mờ mà không nói vì sao chính là chỗ người dùng mắc kẹt. */}
               {blocked.length > 0 && (
                 <p className={styles.footnote}>
@@ -312,11 +312,22 @@ export default function DepartmentsPage() {
           title={confirming?.active ? "Ngừng hoạt động phòng" : "Mở lại phòng"}
           confirmLabel={confirming?.active ? "Ngừng hoạt động" : "Mở lại"}
           pending={toggleActive.isPending}
+          error={
+            toggleActive.isError
+              ? isOrgError(toggleActive.error)
+                ? toggleActive.error.message
+                : "Không đổi được trạng thái phòng này. Thử lại."
+              : null
+          }
           onConfirm={() =>
             confirming &&
             toggleActive.mutate({ id: confirming.id, next: !confirming.active })
           }
-          onClose={() => setConfirming(null)}
+          onClose={() => {
+            // Xoá lỗi lần trước, không thì lần mở sau chào bằng lỗi cũ.
+            toggleActive.reset();
+            setConfirming(null);
+          }}
           consequence={
             confirming?.active ? (
               <>

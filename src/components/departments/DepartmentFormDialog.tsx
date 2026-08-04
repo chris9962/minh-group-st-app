@@ -53,7 +53,18 @@ export function DepartmentFormDialog({ open, onClose, department }: Props) {
     },
   });
 
-  const failure = isOrgError(save.error) ? save.error : null;
+  /**
+   * Lỗi KHÔNG phải lỗi nghiệp vụ vẫn phải hiện ra.
+   *
+   * `send()` chỉ ném `OrgError` cho 422 có mã; 403 và mất mạng ném `Error`
+   * trần. Lọc `isOrgError` rồi bỏ phần còn lại là hộp thoại đứng im: nút bật
+   * lại, không chữ nào, người dùng bấm Lưu lần nữa và lại y như thế.
+   */
+  const failure = save.error
+    ? isOrgError(save.error)
+      ? save.error.message
+      : "Không lưu được phòng ban. Kiểm tra kết nối rồi thử lại."
+    : null;
 
   return (
     <Dialog
@@ -81,7 +92,7 @@ export function DepartmentFormDialog({ open, onClose, department }: Props) {
         onSubmit={handleSubmit((form) => save.mutate(form))}
         noValidate
       >
-        {failure && <Alert tone="error">{failure.message}</Alert>}
+        {failure && <Alert tone="error">{failure}</Alert>}
 
         <TextField
           label="Tên phòng"

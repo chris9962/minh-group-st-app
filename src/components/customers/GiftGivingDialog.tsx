@@ -6,6 +6,7 @@ import { SkeletonText } from "@/components/ui/Skeleton";
 import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
+import { ErrorState } from "@/components/ui/ErrorState";
 import { InsuranceOrderFormDialog } from "@/components/insurance/InsuranceOrderFormDialog";
 import { fetchCustomerDetail, markGiftGiven } from "@/lib/api/customers";
 import { fetchInsurancePackages } from "@/lib/api/settings";
@@ -33,7 +34,7 @@ export function GiftGivingDialog({ open, onClose, customerId, customerName }: Pr
   const [selected, setSelected] = useState<string>("");
   const [creatingOrder, setCreatingOrder] = useState(false);
 
-  const { data, isPending } = useQuery({
+  const { data, isPending, isError, refetch, isFetching } = useQuery({
     queryKey: ["customer", customerId],
     queryFn: () => fetchCustomerDetail(customerId, actor?.id ?? ""),
   });
@@ -97,6 +98,8 @@ export function GiftGivingDialog({ open, onClose, customerId, customerName }: Pr
       }
     >
       {isPending && <SkeletonText lines={3} label="Đang tải rổ quà" />}
+      {/* Thiếu nhánh này thì tải hỏng ra hộp thoại RỖNG: không chữ, không nút thử lại. */}
+      {isError && <ErrorState what="rổ quà của khách" onRetry={refetch} retrying={isFetching} />}
 
       {data && (
         <div className={styles.body}>

@@ -19,6 +19,18 @@
   color: var(--om-orange-ink);
 }
 
+/*
+ * Vùng bấm tối thiểu 44px (WCAG 2.5.8, AGENTS.md §8). `.btn` mặc định cao
+ * ~36px vì organic.css không đặt `min-height` — đây là nút bấm nhiều nhất
+ * trong đợt này, và bấm nó là lúc đang bực vì mạng chập.
+ *
+ * ⚠️ Chỉ vá tại chỗ. Mọi `.btn` cỡ thường trong app vẫn ~36px; sửa gốc phải
+ * làm ở ../mgst-design/_ds rồi đồng bộ lại organic.css.
+ */
+.box > button {
+  min-height: 44px;
+}
+
 .title {
   flex: 1;
   min-width: 0;

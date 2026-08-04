@@ -154,14 +154,20 @@ export function AccountCard({ staffId }: { staffId: string }) {
         </Button>
         <Button
           variant="secondary"
-          onClick={() => setConfirming("reset")}
+          onClick={() => {
+            reset.reset();
+            setConfirming("reset");
+          }}
           disabled={reset.isPending}
         >
           Đặt lại mật khẩu
         </Button>
         <Button
           variant="secondary"
-          onClick={() => setConfirming(staff.active ? "lock" : "unlock")}
+          onClick={() => {
+            toggleActive.reset();
+            setConfirming(staff.active ? "lock" : "unlock");
+          }}
           disabled={toggleActive.isPending}
         >
           {staff.active ? "Khoá tài khoản" : "Mở khoá"}
@@ -189,6 +195,7 @@ export function AccountCard({ staffId }: { staffId: string }) {
         title="Đặt lại mật khẩu"
         confirmLabel="Đặt lại mật khẩu"
         pending={reset.isPending}
+        error={reset.isError ? "Không đặt lại được mật khẩu. Thử lại." : null}
         onConfirm={() => reset.mutate()}
         onClose={() => setConfirming(null)}
         consequence={
@@ -207,6 +214,7 @@ export function AccountCard({ staffId }: { staffId: string }) {
         title="Khoá tài khoản"
         confirmLabel="Khoá tài khoản"
         pending={toggleActive.isPending}
+        error={toggleActive.isError ? "Không khoá được tài khoản này. Thử lại." : null}
         onConfirm={() => toggleActive.mutate(false)}
         onClose={() => setConfirming(null)}
         consequence={
@@ -224,6 +232,7 @@ export function AccountCard({ staffId }: { staffId: string }) {
         title="Mở khoá tài khoản"
         confirmLabel="Mở khoá"
         pending={toggleActive.isPending}
+        error={toggleActive.isError ? "Không mở khoá được tài khoản này. Thử lại." : null}
         onConfirm={() => toggleActive.mutate(true)}
         onClose={() => setConfirming(null)}
         consequence={

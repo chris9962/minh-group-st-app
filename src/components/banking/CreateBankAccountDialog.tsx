@@ -109,7 +109,9 @@ export function CreateBankAccountDialog({ open, onClose }: Props) {
                   retrying={listFetching}
                 />
               )}
-              {!listPending && customers.length === 0 && (
+              {/* `!listError` bắt buộc: tải hỏng thì `customers` cũng rỗng, và khối này mời
+                  người dùng "tạo khách hàng mới" cho một người có thể đã có hồ sơ — ra hồ sơ trùng. */}
+              {!listPending && !listError && customers.length === 0 && (
                 <div className={styles.empty}>
                   <p className="text-muted">
                     Không tìm thấy khách hàng nào khớp “{searchQuery}”.
