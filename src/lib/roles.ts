@@ -90,6 +90,10 @@ export const directorPermissions: Permission[] = [
   p('*', 'manage-referral-codes', 'company'),
   p('*', 'manage-bank-catalog', 'company'),
   p('*', 'grant-gift', 'company'),
+  // Thiếu dòng này thì không tài khoản nào trong hệ thống có `access-id-number`
+  // (nó chỉ có trong types + DB + lưới cấp quyền), nên ngày module khách hàng
+  // lên, CẢ CEO cũng chỉ thấy 4 số cuối CCCD và ô nhập bị khoá.
+  p('*', 'access-id-number', 'company'),
   p('*', 'configure-catalog', 'company'),
   p('*', 'configure-gift-rules', 'company'),
   p('*', 'manage-org', 'company'),

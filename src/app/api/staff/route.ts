@@ -11,7 +11,13 @@ export async function GET(request: Request) {
   // Thiếu chốt này thì `clampScope` rơi về `own`, mà `own` lại là CẢ PHÒNG —
   // nhân viên kinh doanh không có quyền nào vẫn lấy được danh sách đồng nghiệp
   // kèm bảng quyền của từng người.
-  if (!can(actor, "staff", "view-summary")) return forbidden();
+  //
+  // Hỏi `view-detail` chứ không phải `view-summary`: `staffFor` kẹp phạm vi
+  // theo `view-detail`, và payload trả về gồm số điện thoại + nguyên bảng
+  // quyền — đúng thứ route một-bản-ghi bắt phải có `view-detail`. Chốt vào một
+  // đằng, kẹp phạm vi một nẻo thì hoặc lọt dữ liệu, hoặc ra bảng trống không
+  // báo gì.
+  if (!can(actor, "staff", "view-detail")) return forbidden();
 
   const params = new URL(request.url).searchParams;
   const query: StaffQuery = {

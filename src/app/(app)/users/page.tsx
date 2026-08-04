@@ -153,7 +153,11 @@ export default function PeoplePage() {
   // `banking`: tài khoản quản trị không có `banking:view-summary` nên rơi về
   // `own`, mà `own` lại là "phòng của tôi" — quản trị không thuộc phòng nào nên
   // bảng trống trơn dù họ có quyền xem toàn công ty.
-  const scopes = availableScopes(user, "staff", "view-summary");
+  //
+  // Và đúng HÀNH ĐỘNG máy chủ dùng để kẹp: `staffFor` kẹp theo `view-detail`.
+  // Hỏi `view-summary` thì thanh lọc hiện "Toàn công ty" trong khi máy chủ
+  // đang thu về phòng mình quản, mà không chỗ nào nói ra điều đó.
+  const scopes = availableScopes(user, "staff", "view-detail");
   const scope: Scope = scopes.at(-1) ?? "own";
   const [period, setPeriod] = useState<PeriodMode>({ kind: "this-month" });
   const [departmentId, setDepartmentId] = useState("");
@@ -193,7 +197,12 @@ export default function PeoplePage() {
   });
 
   // Danh sách tài khoản chỉ tải khi có quyền — không thì gọi API vô nghĩa.
-  const { data: staffData } = useQuery({
+  const {
+    data: staffData,
+    isError: staffError,
+    refetch: refetchStaff,
+    isFetching: staffFetching,
+  } = useQuery({
     queryKey: ["staff", scope, departmentId, searchQuery, roles],
     // Chỉ người đang làm. Người đã khoá xem trong hồ sơ của họ, không lẫn vào
     // danh sách hằng ngày.
@@ -378,7 +387,17 @@ export default function PeoplePage() {
                     : "Không có nhân viên nào trong đơn vị đang lọc."}
                 </p>
               )}
-              {canManage ? (
+              {/* `canManage` là create||update, còn /api/staff đòi view-detail —
+                  hai vế khác nhau, nên query này 403 được trong khi bảng vẫn
+                  dựng. Không có nhánh lỗi thì ra bảng RỖNG, không skeleton
+                  không báo lỗi, đọc ra như "phòng không còn ai". */}
+              {canManage && staffError ? (
+                <ErrorState
+                  what="danh sách tài khoản nhân viên"
+                  onRetry={refetchStaff}
+                  retrying={staffFetching}
+                />
+              ) : canManage ? (
                 <RankTable
                   rows={staffRows}
                   columns={accountColumns}

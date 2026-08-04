@@ -18,6 +18,8 @@ export async function GET(request: Request, { params }: Params) {
   const actor = await getActor(request);
   if (!actor) return unauthorized();
 
+  if (!can(actor, "system", "manage-org")) return forbidden();
+
   const { id } = await params;
   // Id sai dạng uuid thì Postgres ném lỗi cast — 500 cho một đường dẫn cũ
   // hay bookmark hỏng, trong khi đúng ra chỉ là "không có phòng này".

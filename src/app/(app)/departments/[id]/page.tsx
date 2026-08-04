@@ -62,7 +62,12 @@ export default function DepartmentDetailPage({
     queryFn: () => fetchDepartmentDetail(id),
   });
 
-  const { data: staffData } = useQuery({
+  const {
+    data: staffData,
+    isError: staffError,
+    refetch: refetchStaff,
+    isFetching: staffFetching,
+  } = useQuery({
     queryKey: ["staff-by-department", id],
     queryFn: () =>
       fetchStaff({
@@ -117,7 +122,16 @@ export default function DepartmentDetailPage({
               icon={<Users size={17} />}
               meta={`${employees.length} người`}
             >
-              {employees.length === 0 ? (
+              {/* Hỏng hoặc bị kẹp phạm vi thì `employees` cũng rỗng, và câu
+                  "chưa có nhân viên nào" nói ra một điều KHÔNG đúng về phòng
+                  đang mở — sĩ số ngay bên trên thường vẫn khác 0. */}
+              {staffError ? (
+                <ErrorState
+                  what="danh sách nhân viên của phòng"
+                  onRetry={refetchStaff}
+                  retrying={staffFetching}
+                />
+              ) : employees.length === 0 ? (
                 <p className="text-muted">Phòng này chưa có nhân viên nào.</p>
               ) : (
                 <>

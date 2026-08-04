@@ -89,6 +89,11 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
         : createStaff(form, actor?.id ?? ""),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["staff"] });
+      // `AccountCard` đọc khoá riêng `["staff-one", id]`, và bảng KPI cùng màn
+      // đọc `["people"]` — bỏ sót thì sửa xong chức vụ mà thẻ bên dưới vẫn
+      // hiện giá trị cũ suốt 30 giây, người dùng tưởng lưu hỏng và lưu lại.
+      if (staff) queryClient.invalidateQueries({ queryKey: ["staff-one", staff.id] });
+      queryClient.invalidateQueries({ queryKey: ["people"] });
       queryClient.invalidateQueries({ queryKey: ["person"] });
       onClose();
     },
