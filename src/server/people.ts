@@ -25,6 +25,19 @@ import {
  *
  * Điểm ngân hàng = Σ hệ số của tài khoản `done` ĐÃ CÀI APP trong kỳ.
  * Điểm dịch vụ = Σ hệ số loại dịch vụ trong kỳ.
+ *
+ * ⚠️ CÔNG THỨC NGÂN HÀNG Ở ĐÂY LÀ BẢN TẠM, KHÔNG PHẢI LUẬT HIỆN HÀNH.
+ *
+ * Thể lệ 03/08 đã BỎ cách cộng hệ số từng app: điểm giờ thuộc về cả COMBO của
+ * một khách và phụ thuộc tổ hợp hạng ngân hàng (mgst-platform-spec.md §7.1 —
+ * "Công thức cũ (bỏ)"), nên `banks.coefficient` hết tác dụng. Thang mới nhỏ
+ * hơn thang cũ khoảng 2,5 lần, tức mốc 100 điểm/tháng cũng phải đặt lại — số
+ * đọc ra từ màn hình này hiện KHÔNG phải con số nghiệp vụ công nhận.
+ *
+ * Luật thật phải nằm ở `src/rules/YYYY-MM.ts` (spec §5.3) và còn kẹt ở 12 câu
+ * hỏi chưa chốt trong `mgst-the-le/2026-08.md` §7 — trong đó có câu hạng của
+ * VPa/VPb, mà danh mục đang seed ngược với thể lệ. Đừng nới công thức này
+ * thêm; viết module luật khi 12 câu đó có trả lời.
  */
 
 const PRODUCT_LABEL = { motorbike: "BH xe máy", "electric-accident": "BH tai nạn điện" } as const;
@@ -227,7 +240,14 @@ export async function peopleFor(
           .select({ user: users, departmentName: departments.name })
           .from(users)
           .leftJoin(departments, eq(departments.id, users.departmentId))
-          .where(visible === null ? undefined : inArray(users.departmentId, visible))
+          // Chỉ người đang làm mới có chỉ tiêu. Tính cả tài khoản đã khoá thì
+          // họ vào bảng với 0 điểm, `chưa đạt` phồng lên và điểm trung bình tụt
+          // — số trên thẻ tóm tắt sai mà không ai thấy vì sao.
+          .where(
+            visible === null
+              ? eq(users.active, true)
+              : and(eq(users.active, true), inArray(users.departmentId, visible)),
+          )
           .orderBy(asc(users.fullName))
           .limit(500);
 
@@ -402,20 +422,35 @@ export async function personFor(
     ),
   );
 
-  const pointSources = [
-    ...accountRows
-      .filter((r) => r.account.appInstalled)
-      .map((r) => ({
-        label: r.bankCode,
-        detail: `${r.customerName} · ${r.account.openedDate ?? ""}`,
-        points: coefficientByCode.get(r.bankCode) ?? 1,
-      })),
-    ...serviceRows.map((r) => ({
-      label: r.typeName,
-      detail: `${r.customerName} · ${r.service.serviceDate}`,
-      points: Number(r.coefficient),
-    })),
-  ];
+  /**
+   * Gộp theo NGUỒN, không phải mỗi bản ghi một dòng.
+   *
+   * Một người mở 40 tài khoản VPa thì cách cũ trả 40 mục cùng nhãn "VPa":
+   * `ProgressRing` vẽ 40 cung trùng `key` (React cảnh báo và ghép nhầm khi đổi
+   * kỳ), còn bảng chú thích dài 40 dòng thay vì một dòng mỗi ngân hàng.
+   */
+  const bySource = new Map<string, { label: string; count: number; points: number }>();
+  const addSource = (label: string, points: number) => {
+    const kept = bySource.get(label) ?? { label, count: 0, points: 0 };
+    kept.count += 1;
+    kept.points += points;
+    bySource.set(label, kept);
+  };
+
+  for (const r of accountRows)
+    if (r.account.appInstalled) addSource(r.bankCode, coefficientByCode.get(r.bankCode) ?? 1);
+  for (const r of serviceRows) addSource(r.typeName, Number(r.coefficient));
+
+  // Làm tròn 2 số: hệ số là `numeric(4,2)` nên cộng dồn ra 4.199999999999999.
+  const round2 = (n: number) => Math.round(n * 100) / 100;
+
+  const pointSources = [...bySource.values()]
+    .map((s) => ({
+      label: s.label,
+      detail: `${s.count} lượt · hệ số ${round2(s.points / s.count)}`,
+      points: round2(s.points),
+    }))
+    .sort((a, b) => b.points - a.points);
 
   return {
     id: row.user.id,
@@ -430,7 +465,11 @@ export async function personFor(
     points: {
       banking: Math.round(monthAgg.bankingPoints),
       service: Math.round(monthAgg.servicePoints),
-      total: Math.round(monthAgg.bankingPoints + monthAgg.servicePoints),
+      // Cộng hai số ĐÃ làm tròn, không làm tròn tổng thô: P-51 lấy tổng bằng
+      // `bankingPoints + servicePoints` từ hai số đã tròn, nên làm tròn tổng ở
+      // đây cho ra con số khác — 1.4 + 1.4 thành 2 ở danh sách mà 3 ở hồ sơ,
+      // và "đạt / chưa đạt" lật ngay chỗ giáp mốc.
+      total: Math.round(monthAgg.bankingPoints) + Math.round(monthAgg.servicePoints),
       target,
     },
     pointSources,

@@ -241,7 +241,7 @@ export default function PeoplePage() {
 
   const withKpi = showsKpi(period);
   const columns = withKpi
-    ? [...BASE_COLUMNS.slice(0, 2), ...KPI_COLUMNS.slice(0, 1), ...BASE_COLUMNS.slice(2), KPI_COLUMNS[1]]
+    ? [...BASE_COLUMNS.slice(0, 2), ...KPI_COLUMNS, ...BASE_COLUMNS.slice(2)]
     : BASE_COLUMNS;
   const periodText = period.kind === "today" ? "Hôm nay" : monthLabel(summaryMonth);
 

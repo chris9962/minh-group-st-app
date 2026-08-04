@@ -26,6 +26,10 @@ const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
  */
 export function ProgressRing({ segments, max, ariaLabel }: Props) {
   const total = segments.reduce((sum, s) => sum + s.value, 0);
+  // Hệ số là `numeric(4,2)` nên tổng là số thực nhị phân: 1.4 + 1.4 + 1.4 ra
+  // 4.199999999999999, và React in nguyên chuỗi đó vào giữa vòng. Giữ `total`
+  // thô cho phần hình học, chỉ làm tròn cái đọc được.
+  const shown = Math.round(total * 100) / 100;
   const reached = total >= max;
 
   // Vượt chỉ tiêu thì co các phần lại cho vừa đúng một vòng; nếu không cung
@@ -38,7 +42,7 @@ export function ProgressRing({ segments, max, ariaLabel }: Props) {
     <div
       className={styles.ring}
       role="progressbar"
-      aria-valuenow={total}
+      aria-valuenow={shown}
       aria-valuemin={0}
       aria-valuemax={max}
       aria-label={ariaLabel}
@@ -70,7 +74,7 @@ export function ProgressRing({ segments, max, ariaLabel }: Props) {
             .filter(Boolean)
             .join(" ")}
         >
-          {total}
+          {shown}
         </strong>
         <span className={`${styles.max} so`}>/ {max}</span>
       </span>
