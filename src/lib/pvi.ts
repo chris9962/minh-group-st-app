@@ -37,6 +37,30 @@ export const VEHICLE_TYPES: readonly PviOption[] = [
 export const vehicleTypeLabel = (code: string): string =>
   VEHICLE_TYPES.find((v) => v.code === code)?.label ?? code;
 
+/* ── Định dạng & giá trị tự sinh ───────────────────────────────────── */
+
+/**
+ * ⚠️ CHƯA ĐỐI CHIẾU với form thật — đang đoán PVI dùng định dạng Việt Nam
+ * `dd/MM/yyyy`. Mở form PVI xem một lần rồi sửa đúng ở ĐÂY, mọi field dùng
+ * ngày tự đổi theo.
+ */
+export const pviDate = (d: Date): string =>
+  `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+
+export const pviDateTime = (d: Date): string =>
+  `${pviDate(d)} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+
+/**
+ * Thời điểm hiện tại cộng thêm N phút.
+ *
+ * Dùng cho các field PVI đòi mốc giờ tương lai gần (ví dụ hiệu lực bắt đầu
+ * sau 30 phút). Bắt buộc là HÀM: gọi lúc điền đơn nên luôn ra giờ hiện tại —
+ * viết thành hằng số thì nó đóng băng ở thời điểm nạp file, máy chủ chạy vài
+ * ngày là đơn nào cũng mang giờ của lần khởi động gần nhất.
+ */
+export const nowPlusMinutes = (minutes: number): Date =>
+  new Date(Date.now() + minutes * 60_000);
+
 /**
  * Mức tin cậy của từng dòng — đọc bảng phải biết ngay chỗ nào chắc, chỗ nào
  * mới là phỏng đoán, để lúc gặp PVI còn biết hỏi cái gì.
@@ -67,16 +91,26 @@ export type PviField = {
    * `select` thường là hỏng. Phân biệt hai cái này để bot khỏi đứng im ở đúng
    * chỗ mà nhìn ảnh chụp thì tưởng đã chọn xong.
    */
-  input: 'text' | 'date' | 'number' | 'select' | 'select-search';
+  input: 'text' | 'date' | 'datetime' | 'number' | 'select' | 'select-search';
   /** Chỉ có với `input: 'select'` hoặc `'select-search'`. */
   options?: readonly PviOption[];
   /** Mô tả nguồn bằng tiếng Việt — dùng cho bảng đối chiếu với PVI. */
   source: string;
   /**
-   * Lấy giá trị thật từ đơn. `null` = CHƯA CÓ CHỖ NÀO CHỨA giá trị này,
-   * tức là một lỗ hổng phải bịt trước khi bot chạy được.
+   * Lấy giá trị thật từ đơn. `null` = không lấy từ đơn — hoặc field này tự
+   * sinh (xem `defaultValue`), hoặc CHƯA CÓ CHỖ NÀO CHỨA giá trị này và đó là
+   * lỗ hổng phải bịt trước khi bot chạy được (`status: 'missing'`).
    */
   fill: ((order: InsuranceOrder) => string) | null;
+  /**
+   * Giá trị tự sinh, dùng khi `fill` không có hoặc trả về rỗng.
+   *
+   * PHẢI là hàm, không phải giá trị sẵn — nó được gọi ĐÚNG LÚC ĐIỀN ĐƠN. Ví dụ
+   * `() => pviDateTime(nowPlusMinutes(30))` cho field hiệu lực bắt đầu sau 30
+   * phút: viết thành hằng số thì giờ bị đóng băng ở lúc nạp file, máy chủ chạy
+   * vài ngày là mọi đơn đều mang mốc giờ của lần khởi động gần nhất.
+   */
+  defaultValue?: () => string;
   status: PviFieldStatus;
   note?: string;
 };
@@ -258,7 +292,7 @@ export const pviFieldsFor = (product: 'motorbike' | 'electric-accident'): PviFie
  * đúng field đó. Kiểm trước khi bắt tay làm bot, đừng để phát hiện lúc chạy.
  */
 export const missingPviFields = (): PviField[] =>
-  PVI_FIELDS.filter((f) => f.fill === null);
+  PVI_FIELDS.filter((f) => f.fill === null && !f.defaultValue);
 
 /**
  * Dựng sẵn dữ liệu để bot điền vào PVI.
@@ -277,11 +311,10 @@ export function pviPayloadFor(order: InsuranceOrder): {
   const missing: string[] = [];
 
   for (const field of pviFieldsFor(product)) {
-    if (!field.fill) {
-      if (field.required) missing.push(field.key);
-      continue;
-    }
-    values[field.key] = field.fill(order);
+    // Lấy từ đơn trước; không có hoặc rỗng thì mới dùng giá trị tự sinh.
+    const value = field.fill?.(order) || field.defaultValue?.() || '';
+    if (value) values[field.key] = value;
+    else if (field.required) missing.push(field.key);
   }
 
   return { values, missing };
