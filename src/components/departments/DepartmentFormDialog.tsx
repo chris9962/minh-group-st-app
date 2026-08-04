@@ -90,13 +90,6 @@ export function DepartmentFormDialog({ open, onClose, department }: Props) {
           {...register("name")}
         />
 
-        {editing && (
-          <Alert tone="warning">
-            Đổi tên <strong>không tách báo cáo cũ làm hai nhóm</strong>: bản ghi
-            lưu mã phòng, không lưu tên. Số liệu các tháng trước vẫn gom về đúng
-            phòng này.
-          </Alert>
-        )}
       </form>
     </Dialog>
   );
