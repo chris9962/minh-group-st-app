@@ -183,9 +183,15 @@ export function insuranceOrderLegsFor(packageName: string): InsuranceOrderLegGro
  *
  * Cần cho gói xe máy nhiều năm — hợp đồng 2/3 năm là THẬT, không tách thành
  * nhiều đơn 1 năm như bên tai nạn điện, nên ngày kết thúc phải cộng đủ số năm.
+ *
+ * ⚠️ Tên gói là chữ TỰ DO gõ ở P-82, không có ràng buộc định dạng nào. Nới hoa
+ * thường và dấu để "BH xe máy 3 Năm" không lặng lẽ thành hợp đồng 1 năm; "Ba
+ * năm" hay "36 tháng" thì vẫn rơi về 1 và regex không cứu được. Nguồn sự thật
+ * cho thời hạn hợp đồng đáng ra là một cột `termYears` trên gói bảo hiểm, đọc
+ * số năm từ nhãn người ta gõ tay là chỗ sai người sẽ trả giá bằng hợp đồng.
  */
 export const yearsOf = (packageName: string): number => {
-  const matched = packageName.match(/(\d+)\s*năm/);
+  const matched = packageName.match(/(\d+)\s*n[ăâa]m/i);
   const years = matched ? Number(matched[1]) : 1;
   return Number.isFinite(years) && years > 0 ? years : 1;
 };

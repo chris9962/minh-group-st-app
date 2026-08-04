@@ -1,4 +1,5 @@
 import type { InsuranceOrder } from './api/insuranceOrders';
+import { BUSINESS_TIMEZONE } from './format';
 
 /**
  * HỢP ĐỒNG TÍCH HỢP PVI — danh sách field trên form của PVI và giá trị của
@@ -45,10 +46,31 @@ export const vehicleTypeLabel = (code: string): string =>
  * ngày tự đổi theo.
  */
 export const pviDate = (d: Date): string =>
-  `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+  new Intl.DateTimeFormat('en-GB', {
+    timeZone: BUSINESS_TIMEZONE,
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(d);
 
 export const pviDateTime = (d: Date): string =>
-  `${pviDate(d)} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  `${pviDate(d)} ${new Intl.DateTimeFormat('en-GB', {
+    timeZone: BUSINESS_TIMEZONE,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(d)}`;
+
+/**
+ * `YYYY-MM-DD` (kiểu `date` của Postgres) → `dd/MM/yyyy`.
+ *
+ * KHÔNG đi vòng qua `Date`: `new Date('2026-08-04')` là nửa đêm UTC, đọc lại
+ * bằng giờ máy là lệch mất một ngày. Đây chỉ là đảo lại thứ tự ba mảnh chuỗi.
+ */
+export const pviDateFromIso = (iso: string): string => {
+  const [y, m, d] = iso.split('-');
+  return y && m && d ? `${d}/${m}/${y}` : '';
+};
 
 /**
  * Thời điểm hiện tại cộng thêm N phút.
@@ -183,7 +205,7 @@ export const PVI_FIELDS: readonly PviField[] = [
     required: true,
     input: 'date',
     source: 'Đơn · Ngày bắt đầu',
-    fill: (o) => o.date,
+    fill: (o) => pviDateFromIso(o.date),
     status: 'assumed',
   },
   {
@@ -193,7 +215,7 @@ export const PVI_FIELDS: readonly PviField[] = [
     required: true,
     input: 'date',
     source: 'Đơn · Ngày kết thúc',
-    fill: (o) => o.endDate ?? '',
+    fill: (o) => pviDateFromIso(o.endDate ?? ''),
     status: 'assumed',
   },
   {
@@ -226,7 +248,7 @@ export const PVI_FIELDS: readonly PviField[] = [
     required: true,
     input: 'date',
     source: 'Người thụ hưởng · Ngày sinh',
-    fill: (o) => o.beneficiaryDob,
+    fill: (o) => pviDateFromIso(o.beneficiaryDob),
     status: 'assumed',
     note: 'Form BH xe máy đã bỏ ô này (03/08) — chỉ đơn tai nạn điện còn hỏi.',
   },

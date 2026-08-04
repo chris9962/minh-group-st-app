@@ -22,6 +22,7 @@ import {
   type InsuranceOrderSource,
 } from "@/lib/api/insuranceOrders";
 import { fetchInsurancePackages } from "@/lib/api/settings";
+import { businessDay } from "@/lib/format";
 import { VEHICLE_TYPES } from "@/lib/pvi";
 import { useSession } from "@/store/session";
 import styles from "./InsuranceOrderFormDialog.module.scss";
@@ -42,11 +43,16 @@ type Props = {
  * ngay sau năm trước — không có khoảng trống giữa hai hợp đồng.
  */
 function defaultLegsFor(group: InsuranceOrderLegGroup): InsuranceOrderLegForm[] {
-  let start = new Date().toISOString().slice(0, 10);
+  // `toISOString()` cắt theo UTC, mà máy chủ chạy UTC: đơn lập lúc 0-7h sáng
+  // giờ Việt Nam mặc định lùi về HÔM QUA (xem lib/format.ts).
+  const today = businessDay();
+  let start = today;
   return group.legs.map((leg) => {
     // Gói xe máy nhiều năm là MỘT hợp đồng dài (2/3 năm), không tách thành
     // nhiều đơn 1 năm như tai nạn điện — ngày kết thúc phải cộng đủ số năm.
-    const end = yearsLater(start, yearsOf(leg.packageName));
+    // Chỉ xe máy: hãng chỉ phát hành hợp đồng tai nạn điện 1 năm, dù tên gói
+    // có ghi mấy năm đi nữa (insuranceOrders.ts §insuranceOrderLegsFor).
+    const end = yearsLater(start, leg.product === "BH xe máy" ? yearsOf(leg.packageName) : 1);
     const values: InsuranceOrderLegForm = {
       product: leg.product,
       packageName: leg.packageName,
@@ -65,7 +71,10 @@ function defaultLegsFor(group: InsuranceOrderLegGroup): InsuranceOrderLegForm[] 
       chassisNumber: "",
       engineNumber: "",
     };
-    start = end;
+    // Nối năm sau vào ngay sau năm trước CHỈ đúng với gói nhiều năm cùng một
+    // sản phẩm. Gói ghép "A + B" là hai sản phẩm khác nhau, cả hai cùng bắt
+    // đầu hôm nay — nối vào là đơn thứ hai lùi sang tận sang năm.
+    start = group.sharedBeneficiary ? end : today;
     return values;
   });
 }
@@ -207,7 +216,13 @@ export function InsuranceOrderFormDialog({
         <Select
           label="Loại xe"
           value={watch(`legs.${i}.vehicleType`)}
-          onChange={(v) => setValue(`legs.${i}.vehicleType`, v, { shouldDirty: true })}
+          block
+          // `shouldValidate`: ô này không `register` nên không có onChange của
+          // RHF để tự kiểm lại. Thiếu nó thì sau một lần submit hỏng, chọn
+          // đúng loại xe rồi dòng chữ đỏ vẫn nằm đó tới lần submit sau.
+          onChange={(v) =>
+            setValue(`legs.${i}.vehicleType`, v, { shouldDirty: true, shouldValidate: true })
+          }
           options={[
             { value: "", label: "— Chọn loại xe —" },
             ...VEHICLE_TYPES.map((v) => ({ value: v.code, label: `${v.code} – ${v.label}` })),
