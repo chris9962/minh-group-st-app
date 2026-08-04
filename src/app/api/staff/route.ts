@@ -1,12 +1,17 @@
 import { StaffForm, type StaffQuery } from "@/lib/api/staff";
+import { can, inVisibleScope } from "@/lib/permissions";
 import type { RoleKey } from "@/lib/types";
 import { logAudit } from "@/server/audit";
-import { getActor, unauthorized } from "@/server/auth";
+import { badRequest, forbidden, getActor, jsonBody, unauthorized } from "@/server/auth";
 import { createStaff, saveError, staffFor } from "@/server/staff";
 
 export async function GET(request: Request) {
   const actor = await getActor(request);
   if (!actor) return unauthorized();
+  // Thiếu chốt này thì `clampScope` rơi về `own`, mà `own` lại là CẢ PHÒNG —
+  // nhân viên kinh doanh không có quyền nào vẫn lấy được danh sách đồng nghiệp
+  // kèm bảng quyền của từng người.
+  if (!can(actor, "staff", "view-summary")) return forbidden();
 
   const params = new URL(request.url).searchParams;
   const query: StaffQuery = {
@@ -23,12 +28,17 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const actor = await getActor(request);
   if (!actor) return unauthorized();
+  if (!can(actor, "staff", "create")) return forbidden();
 
   // Máy chủ tự kiểm dữ liệu vào — không tin client đã chạy zod. `actorId`
   // client gửi kèm (di sản cũ) rơi rụng luôn ở bước parse vì không có trong schema.
-  const parsed = StaffForm.safeParse(await request.json());
-  if (!parsed.success)
-    return Response.json({ message: "Dữ liệu không hợp lệ" }, { status: 400 });
+  const parsed = StaffForm.safeParse(await jsonBody(request));
+  if (!parsed.success) return badRequest();
+
+  // Không tạo người vào phòng mình không quản: trần vai và trần quyền vẫn giữ
+  // được, nhưng thiếu dòng này thì trục phạm vi thủng.
+  if (!inVisibleScope(actor, "staff", "create", parsed.data.departmentId || null))
+    return forbidden();
 
   const result = await createStaff(actor, parsed.data);
   if (!result.ok) return Response.json(saveError(result.code), { status: 422 });

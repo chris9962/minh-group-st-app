@@ -1,8 +1,4 @@
-import {
-  directorPermissions,
-  managerPermissions,
-  staffPermissions,
-} from "../src/lib/roles";
+import { directorPermissions, managerPermissions } from "../src/lib/roles";
 import type { ManageScope, Permission, RoleKey } from "../src/lib/types";
 
 /**
@@ -66,6 +62,12 @@ export type SeedAccount = {
   fullName: string;
   title: string;
   role: RoleKey;
+  /**
+   * Mã nhân viên. Bảy tài khoản khởi tạo có trước khi trường này thành bắt buộc
+   * nên đang mang mã TẠM `TMP-*`: để trống thì form P-52 chặn không cho sửa gì,
+   * kể cả đổi số điện thoại. Có mã thật thì sửa thẳng ở P-52, không cần seed lại.
+   */
+  staffCode: string;
   /** Mã phòng THUỘC VỀ — null với ban giám đốc. Tra theo `code`, không theo tên. */
   departmentCode: string | null;
   manageScope: ManageScope;
@@ -84,6 +86,7 @@ export type SeedAccount = {
 export const ACCOUNTS: SeedAccount[] = [
   {
     username: "giamdoc",
+    staffCode: "TMP-GIAMDOC",
     fullName: "Đinh Hoàng Công",
     title: "Giám đốc",
     role: "director",
@@ -94,6 +97,7 @@ export const ACCOUNTS: SeedAccount[] = [
   },
   {
     username: "covan",
+    staffCode: "TMP-COVAN",
     fullName: "Đinh Hoàng Minh",
     title: "Cố vấn cao cấp",
     role: "deputy-director",
@@ -104,6 +108,7 @@ export const ACCOUNTS: SeedAccount[] = [
   },
   {
     username: "pgd1",
+    staffCode: "TMP-PGD1",
     fullName: "Phan Hữu Linh",
     title: "Phó Giám Đốc 1",
     role: "deputy-director",
@@ -114,6 +119,7 @@ export const ACCOUNTS: SeedAccount[] = [
   },
   {
     username: "pgd2",
+    staffCode: "TMP-PGD2",
     fullName: "Nguyễn Thị Hồng Huệ",
     title: "Phó Giám Đốc 2",
     role: "deputy-director",
@@ -124,6 +130,7 @@ export const ACCOUNTS: SeedAccount[] = [
   },
   {
     username: "pgd3",
+    staffCode: "TMP-PGD3",
     fullName: "Lư Hồng Huỳnh",
     title: "Phó Giám Đốc 3",
     role: "deputy-director",
@@ -134,6 +141,7 @@ export const ACCOUNTS: SeedAccount[] = [
   },
   {
     username: "quyenpgd",
+    staffCode: "TMP-QUYENPGD",
     fullName: "Dương Minh Trường",
     title: "Quyền Phó Giám Đốc",
     role: "deputy-director",
@@ -146,6 +154,7 @@ export const ACCOUNTS: SeedAccount[] = [
     // Tài khoản HỆ THỐNG, không phải người ảo — giao cho ai đảm nhiệm thì
     // đổi username/mật khẩu của chính tài khoản này.
     username: "admin",
+    staffCode: "TMP-ADMIN",
     fullName: "User Admin",
     title: "Quản trị hệ thống",
     role: "staff",

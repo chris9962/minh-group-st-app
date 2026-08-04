@@ -1,11 +1,21 @@
+import { randomInt } from "node:crypto";
 import { hashSync } from "bcryptjs";
 import { and, asc, eq, inArray, ne } from "drizzle-orm";
 import type { StaffAccount, StaffForm, StaffList, StaffQuery } from "@/lib/api/staff";
 import { matchesSearch } from "@/lib/format";
-import { assignableRoles, canGrant, clampScope, visibleDepartmentIds } from "@/lib/permissions";
-import { Scope, type User } from "@/lib/types";
+import {
+  assignableRoles,
+  can,
+  canActOn,
+  canGrant,
+  clampScope,
+  inVisibleScope,
+  visibleDepartmentIds,
+} from "@/lib/permissions";
+import { SCOPES, Scope, type Action, type User } from "@/lib/types";
+import { forbidden, isUuid, notFound } from "./auth";
 import { db } from "./db/client";
-import { departments, userManagedDepartments, userPermissions, users } from "./db/schema";
+import { departments, sessions, userManagedDepartments, userPermissions, users } from "./db/schema";
 import { relationsFor } from "./users";
 
 /**
@@ -108,6 +118,40 @@ export async function findStaff(id: string): Promise<StaffAccount | null> {
   return account;
 }
 
+/**
+ * Cổng chung cho MỌI thao tác lên một hồ sơ nhân viên cụ thể.
+ *
+ * Trước đây mỗi route tự gác một kiểu: `active` và `reset-password` gọi `can()`,
+ * còn `GET`/`PATCH` thì không gác gì — nên một Phó GĐ sửa được cả tài khoản ở
+ * phòng mình không quản, kể cả hạ cấp Giám đốc. Gom về một chỗ để không route
+ * nào quên được nữa (AGENTS.md §6).
+ *
+ * Ba lớp, đúng thứ tự: có quyền trên module chưa → mục tiêu có nằm trong phạm
+ * vi mình nhìn thấy không → mình có đủ bậc để đụng vào người này không.
+ */
+export async function staffTargetFor(
+  actor: User,
+  id: string,
+  action: Action,
+): Promise<{ ok: true; staff: StaffAccount } | { ok: false; response: Response }> {
+  if (!isUuid(id)) return { ok: false, response: notFound() };
+  if (!can(actor, "staff", action)) return { ok: false, response: forbidden() };
+
+  const staff = await findStaff(id);
+  if (!staff) return { ok: false, response: notFound() };
+
+  // Ngoài tầm nhìn trả 404 y hệt "không tồn tại" — 403 là xác nhận id có thật.
+  if (!inVisibleScope(actor, "staff", action, staff.departmentId))
+    return { ok: false, response: notFound() };
+
+  // Trần BẬC chỉ chặn thao tác GHI. Với lượt xem thì phạm vi đã đủ, thêm bậc nữa
+  // là người ngang vai không mở nổi hồ sơ của nhau dù cùng phòng.
+  if (action !== "view-detail" && !canActOn(actor, staff.role))
+    return { ok: false, response: forbidden() };
+
+  return { ok: true, staff };
+}
+
 type SaveErrorCode = "username-taken" | "staff-code-taken" | "role-too-high" | "permission-too-high";
 
 export type SaveOutcome =
@@ -160,6 +204,18 @@ async function staffCodeTaken(staffCode: string, exceptId?: string): Promise<boo
   return rows.length > 0;
 }
 
+/**
+ * Mã lỗi trùng khoá của Postgres. Hai lần kiểm `usernameTaken`/`staffCodeTaken`
+ * ở trên là kiểm TRƯỚC KHI ghi, nên hai request song song cùng lọt qua rồi một
+ * cái vỡ ở tầng DB — không bắt thì client nhận 500 thay vì 422 có mã lỗi.
+ */
+const UNIQUE_VIOLATION = "23505";
+
+const uniqueViolation = (e: unknown): string | null => {
+  const err = e as { code?: string; constraint?: string };
+  return err?.code === UNIQUE_VIOLATION ? (err.constraint ?? "") : null;
+};
+
 /** Ghi user + quyền + phòng quản trong MỘT transaction — không có nửa người. */
 async function writeStaff(
   id: string,
@@ -207,9 +263,19 @@ async function writeStaff(
       await tx.delete(userManagedDepartments).where(eq(userManagedDepartments.userId, id));
     }
 
-    if (form.permissions.length > 0)
+    // Khoá chính của `user_permissions` là (user, module, action) nên hai dòng
+    // cùng module + hành động mà khác phạm vi là vỡ 23505. Giữ phạm vi RỘNG
+    // nhất cho mỗi cặp — hẹp hơn thì thừa, vì `scopeFor` vốn đã lấy rộng nhất.
+    const widest = new Map<string, (typeof form.permissions)[number]>();
+    for (const p of form.permissions) {
+      const key = `${p.module}:${p.action}`;
+      const kept = widest.get(key);
+      if (!kept || SCOPES.indexOf(p.scope) > SCOPES.indexOf(kept.scope)) widest.set(key, p);
+    }
+
+    if (widest.size > 0)
       await tx.insert(userPermissions).values(
-        form.permissions.map((p) => ({
+        [...widest.values()].map((p) => ({
           userId: id,
           module: p.module,
           action: p.action,
@@ -223,26 +289,59 @@ async function writeStaff(
   });
 }
 
+/**
+ * Trần vai và trần quyền kiểm TRƯỚC "tên đã có người dùng".
+ *
+ * Ngược lại là hở oracle: người không có quyền tạo vẫn nhận `422 username-taken`
+ * cho tên có thật và `role-too-high` cho tên chưa có — một request là dò được
+ * từng tên đăng nhập lẫn từng mã nhân viên trong công ty.
+ */
+const checkCeilings = (actor: User, form: StaffForm): SaveErrorCode | null => {
+  if (!checkRole(actor, form)) return "role-too-high";
+  if (!checkPermissions(actor, form)) return "permission-too-high";
+  return null;
+};
+
+/** Trùng khoá lúc ghi → đúng mã lỗi 422 mà client đang chờ, không phải 500. */
+async function writeGuarded(
+  id: string,
+  form: StaffForm,
+  mode: "create" | "update",
+): Promise<SaveErrorCode | null> {
+  try {
+    await writeStaff(id, form, mode);
+    return null;
+  } catch (e) {
+    const constraint = uniqueViolation(e);
+    if (constraint === null) throw e;
+    if (constraint.includes("staff_code")) return "staff-code-taken";
+    if (constraint.includes("username")) return "username-taken";
+    throw e;
+  }
+}
+
 export async function createStaff(actor: User, form: StaffForm): Promise<SaveOutcome> {
+  const ceiling = checkCeilings(actor, form);
+  if (ceiling) return { ok: false, code: ceiling };
   if (await usernameTaken(form.username)) return { ok: false, code: "username-taken" };
   if (await staffCodeTaken(form.staffCode)) return { ok: false, code: "staff-code-taken" };
-  if (!checkRole(actor, form)) return { ok: false, code: "role-too-high" };
-  if (!checkPermissions(actor, form)) return { ok: false, code: "permission-too-high" };
 
   const id = crypto.randomUUID();
-  await writeStaff(id, form, "create");
+  const failed = await writeGuarded(id, form, "create");
+  if (failed) return { ok: false, code: failed };
   return { ok: true, staff: (await findStaff(id))! };
 }
 
 export async function updateStaff(actor: User, id: string, form: StaffForm): Promise<SaveOutcome | null> {
   const current = await findStaff(id);
   if (!current) return null;
+  const ceiling = checkCeilings(actor, form);
+  if (ceiling) return { ok: false, code: ceiling };
   if (await usernameTaken(form.username, id)) return { ok: false, code: "username-taken" };
   if (await staffCodeTaken(form.staffCode, id)) return { ok: false, code: "staff-code-taken" };
-  if (!checkRole(actor, form)) return { ok: false, code: "role-too-high" };
-  if (!checkPermissions(actor, form)) return { ok: false, code: "permission-too-high" };
 
-  await writeStaff(id, form, "update");
+  const failed = await writeGuarded(id, form, "update");
+  if (failed) return { ok: false, code: failed };
   return { ok: true, staff: (await findStaff(id))! };
 }
 
@@ -256,23 +355,34 @@ export async function setStaffActive(id: string, active: boolean): Promise<Staff
   return findStaff(id);
 }
 
-/** Mật khẩu sinh ngẫu nhiên, bỏ các ký tự dễ đọc nhầm khi nhắn qua Zalo. */
+/**
+ * Mật khẩu sinh ngẫu nhiên, bỏ các ký tự dễ đọc nhầm khi nhắn qua Zalo.
+ *
+ * Dùng `randomInt` của `node:crypto`, KHÔNG dùng `Math.random`: V8 chạy
+ * xorshift128+, khôi phục được trạng thái từ một số lượng đầu ra vừa phải. Ai
+ * hay đặt lại mật khẩu cho người khác sẽ gom đủ mẫu để đoán mật khẩu của những
+ * lần sau, kể cả cho tài khoản họ chưa từng đụng tới.
+ */
 export function newPassword(): string {
   const alphabet = "abcdefghjkmnpqrstuvwxyz23456789";
-  return Array.from(
-    { length: 10 },
-    () => alphabet[Math.floor(Math.random() * alphabet.length)],
-  ).join("");
+  return Array.from({ length: 10 }, () => alphabet[randomInt(alphabet.length)]).join("");
 }
 
 /** Sinh mật khẩu MỚI, trả về đúng một lần — mật khẩu cũ băm một chiều, không đọc lại được. */
 export async function resetPassword(id: string): Promise<string | null> {
   const password = newPassword();
-  const [row] = await db
-    .update(users)
-    .set({ passwordHash: hashSync(password, 10), updatedAt: new Date() })
-    .where(eq(users.id, id))
-    .returning({ id: users.id });
+  const [row] = await db.transaction(async (tx) => {
+    const updated = await tx
+      .update(users)
+      .set({ passwordHash: hashSync(password, 10), updatedAt: new Date() })
+      .where(eq(users.id, id))
+      .returning({ id: users.id });
+
+    // Đặt lại mật khẩu thường là vì tài khoản bị lộ — không cắt phiên đang sống
+    // thì kẻ chiếm tài khoản vẫn vào được bằng cookie cũ tới cả năm.
+    if (updated[0]) await tx.delete(sessions).where(eq(sessions.userId, id));
+    return updated;
+  });
   return row ? password : null;
 }
 

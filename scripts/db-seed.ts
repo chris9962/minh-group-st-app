@@ -1,4 +1,5 @@
 import { hashSync } from "bcryptjs";
+import { businessMonth } from "../src/lib/format";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import vnAddress from "./data/vnAddress.json";
@@ -24,7 +25,13 @@ import {
 const DEMO_PASSWORD_HASH = hashSync("12345678", 10);
 
 async function main() {
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  // `pg` không báo lỗi khi thiếu biến này — nó rơi về localhost:5432 và
+  // script sẽ tạo bảng / đổ dữ liệu vào NHẦM database mà không ai biết.
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString)
+    throw new Error("DATABASE_URL chưa đặt — tạo .env.local từ .env.example rồi chạy lại");
+
+  const pool = new Pool({ connectionString });
   const db = drizzle(pool, { schema });
 
   const count = async (name: string): Promise<number> => {
@@ -47,41 +54,47 @@ async function main() {
     return id;
   };
 
-  /* Tài khoản + quyền + phòng quản */
+  /* Tài khoản + quyền + phòng quản.
+     Cả khối trong MỘT transaction: cổng vào là "bảng users đã có dòng nào chưa",
+     nên đổ dở dang rồi lỗi là lần chạy sau bỏ qua cả khối, mất luôn những tài
+     khoản chưa kịp tạo — kể cả `admin`, tài khoản duy nhất cấp quyền được. */
   if ((await count("users")) === 0) {
-    for (const a of ACCOUNTS) {
-      const [row] = await db
-        .insert(schema.users)
-        .values({
-          username: a.username,
-          passwordHash: DEMO_PASSWORD_HASH,
-          fullName: a.fullName,
-          phone: "0900000000",
-          role: a.role,
-          title: a.title,
-          departmentId: a.departmentCode ? departmentId(a.departmentCode) : null,
-          manageScope: a.manageScope,
-        })
-        .returning({ id: schema.users.id });
+    await db.transaction(async (tx) => {
+      for (const a of ACCOUNTS) {
+        const [row] = await tx
+          .insert(schema.users)
+          .values({
+            username: a.username,
+            staffCode: a.staffCode,
+            passwordHash: DEMO_PASSWORD_HASH,
+            fullName: a.fullName,
+            phone: "0900000000",
+            role: a.role,
+            title: a.title,
+            departmentId: a.departmentCode ? departmentId(a.departmentCode) : null,
+            manageScope: a.manageScope,
+          })
+          .returning({ id: schema.users.id });
 
-      if (a.permissions.length > 0)
-        await db.insert(schema.userPermissions).values(
-          a.permissions.map((perm) => ({
-            userId: row.id,
-            module: perm.module,
-            action: perm.action,
-            scope: perm.scope,
-          })),
-        );
+        if (a.permissions.length > 0)
+          await tx.insert(schema.userPermissions).values(
+            a.permissions.map((perm) => ({
+              userId: row.id,
+              module: perm.module,
+              action: perm.action,
+              scope: perm.scope,
+            })),
+          );
 
-      if (a.managedDepartmentCodes.length > 0)
-        await db.insert(schema.userManagedDepartments).values(
-          a.managedDepartmentCodes.map((code) => ({
-            userId: row.id,
-            departmentId: departmentId(code),
-          })),
-        );
-    }
+        if (a.managedDepartmentCodes.length > 0)
+          await tx.insert(schema.userManagedDepartments).values(
+            a.managedDepartmentCodes.map((code) => ({
+              userId: row.id,
+              departmentId: departmentId(code),
+            })),
+          );
+      }
+    });
   }
 
   /* Danh mục ngân hàng + kho mã */
@@ -96,10 +109,6 @@ async function main() {
       })),
     );
   }
-  const bankIdByCode = new Map(
-    (await db.select().from(schema.banks)).map((b) => [b.code, b.id]),
-  );
-
   /* Kho mã giới thiệu KHÔNG seed — KDTH nhập mã thật qua P-61/P-62. */
 
   /* Kênh · bệnh viện · loại dịch vụ · quà · gói BH */
@@ -119,17 +128,21 @@ async function main() {
 
   /* Chỉ tiêu KPI — mốc chung toàn công ty cho tháng hiện tại */
   if ((await count("kpi_targets")) === 0) {
-    const yearMonth = new Date().toISOString().slice(0, 7);
+    const yearMonth = businessMonth();
     await db.insert(schema.kpiTargets).values({ yearMonth, ...KPI_TARGET });
   }
 
-  /* Tham chiếu tỉnh/xã — 34 tỉnh + 3.321 xã từ address-kit, chỉ đọc */
+  /* Tham chiếu tỉnh/xã — 34 tỉnh + 3.321 xã từ address-kit, chỉ đọc.
+     Transaction vì xã chia 7 lượt insert nhưng cổng vào lại đếm bảng TỈNH:
+     gãy giữa chừng là còn thiếu xã mà lần chạy sau tưởng đã xong. */
   if ((await count("ref_provinces")) === 0) {
-    await db.insert(schema.refProvinces).values(vnAddress.provinces);
-    const wardRows = vnAddress.wards as { id: string; provinceId: string; name: string }[];
-    for (let i = 0; i < wardRows.length; i += 500) {
-      await db.insert(schema.refWards).values(wardRows.slice(i, i + 500));
-    }
+    await db.transaction(async (tx) => {
+      await tx.insert(schema.refProvinces).values(vnAddress.provinces);
+      const wardRows = vnAddress.wards as { id: string; provinceId: string; name: string }[];
+      for (let i = 0; i < wardRows.length; i += 500) {
+        await tx.insert(schema.refWards).values(wardRows.slice(i, i + 500));
+      }
+    });
   }
 
   const users = await db.select({ id: schema.users.id }).from(schema.users);

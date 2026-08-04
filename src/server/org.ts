@@ -1,5 +1,5 @@
 import { and, asc, count, eq, sql } from "drizzle-orm";
-import { removeDiacritics } from "@/lib/format";
+import { matchesSearch, removeDiacritics } from "@/lib/format";
 import {
   ORG_ERROR,
   type DepartmentDetail,
@@ -56,8 +56,11 @@ export async function departmentsFor(search: string): Promise<DepartmentList> {
 
   // Tìm kiếm KHÔNG áp lên phần tóm tắt — gõ tên một phòng không có nghĩa là
   // công ty chỉ còn một phòng.
-  const key = sameNameKey(search);
-  const found = search ? rows.filter((d) => sameNameKey(d.name).includes(key)) : rows;
+  //
+  // `matchesSearch` chứ không phải `includes`: nó tách từ khoá thành từng từ,
+  // không phụ thuộc thứ tự và gộp khoảng trắng thừa. Dùng substring thì "2 kinh"
+  // hay "kinh  doanh" (hai dấu cách, hay gặp khi dán) đều ra 0 kết quả.
+  const found = search ? rows.filter((d) => matchesSearch(d.name, search)) : rows;
 
   return {
     summary: {
@@ -110,11 +113,19 @@ async function nextDepartmentCode(name: string): Promise<string> {
 export async function createDepartment(name: string): Promise<OrgOutcome> {
   if (await nameTaken(name)) return { ok: false, code: ORG_ERROR.NAME_TAKEN };
 
-  const [row] = await db
-    .insert(departments)
-    .values({ code: await nextDepartmentCode(name), name })
-    .returning();
-  return { ok: true, department: { id: row.id, name: row.name, active: row.active, headcount: 0 } };
+  // `nameTaken` và `nextDepartmentCode` đều là đọc-rồi-mới-ghi: hai request
+  // song song cùng lọt qua, rồi một cái đụng unique index của `name`/`code`.
+  // Không bắt thì client nhận 500 trần thay vì 422 `name-taken` như hợp đồng.
+  try {
+    const [row] = await db
+      .insert(departments)
+      .values({ code: await nextDepartmentCode(name), name })
+      .returning();
+    return { ok: true, department: { id: row.id, name: row.name, active: row.active, headcount: 0 } };
+  } catch (e) {
+    if ((e as { code?: string }).code === "23505") return { ok: false, code: ORG_ERROR.NAME_TAKEN };
+    throw e;
+  }
 }
 
 export async function renameDepartment(id: string, name: string): Promise<OrgOutcome | null> {
@@ -123,11 +134,17 @@ export async function renameDepartment(id: string, name: string): Promise<OrgOut
   if (await nameTaken(name, id)) return { ok: false, code: ORG_ERROR.NAME_TAKEN };
 
   // Giữ nguyên `active`: ngừng / mở lại đi bằng đường riêng.
-  const [row] = await db
-    .update(departments)
-    .set({ name, updatedAt: sql`now()` })
-    .where(eq(departments.id, id))
-    .returning();
+  let row;
+  try {
+    [row] = await db
+      .update(departments)
+      .set({ name, updatedAt: sql`now()` })
+      .where(eq(departments.id, id))
+      .returning();
+  } catch (e) {
+    if ((e as { code?: string }).code === "23505") return { ok: false, code: ORG_ERROR.NAME_TAKEN };
+    throw e;
+  }
   return {
     ok: true,
     department: { id: row.id, name: row.name, active: row.active, headcount: await headcountOf(id) },
@@ -171,6 +188,10 @@ export async function departmentDetailFor(id: string): Promise<DepartmentDetail 
         eq(userManagedDepartments.departmentId, id),
         eq(users.role, "deputy-director"),
         eq(users.manageScope, "listed"),
+        // Người đã bị khoá không đăng nhập được nên không quản được gì. Không
+        // lọc thì phòng hiện tên một người không vào nổi hệ thống, mà vì danh
+        // sách khác rỗng nên cũng không rơi về Giám đốc.
+        eq(users.active, true),
       ),
     );
 
@@ -179,7 +200,7 @@ export async function departmentDetailFor(id: string): Promise<DepartmentDetail 
     ? await db
         .select({ id: users.id, fullName: users.fullName, title: users.title })
         .from(users)
-        .where(eq(users.role, "director"))
+        .where(and(eq(users.role, "director"), eq(users.active, true)))
     : listed;
 
   return {

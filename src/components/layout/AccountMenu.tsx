@@ -1,8 +1,10 @@
 "use client";
 
 import * as Popover from "@radix-ui/react-popover";
+import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { logout as logoutRequest } from "@/lib/api/auth";
 import { useSession } from "@/store/session";
 import { useTheme } from "@/store/theme";
 import type { User } from "@/lib/types";
@@ -19,6 +21,7 @@ function initials(fullName: string): string {
 
 export function AccountMenu({ user }: { user: User }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const logout = useSession((s) => s.logout);
   const theme = useTheme((s) => s.theme);
   const toggleTheme = useTheme((s) => s.toggle);
@@ -63,7 +66,13 @@ export function AccountMenu({ user }: { user: User }) {
               type="button"
               className={`${styles.item} ${styles.danger}`}
               onClick={() => {
+                // Dọn phía máy TRƯỚC, gọi máy chủ sau và không chờ. Mạng treo
+                // (captive portal, backend chết) thì fetch không resolve cũng
+                // không reject, `await` sẽ đứng im mãi và người dùng bỏ đi khi
+                // vẫn còn đăng nhập — đúng cái rủi ro của máy dùng chung.
                 logout();
+                queryClient.clear();
+                void logoutRequest().catch(() => {});
                 router.replace("/login");
               }}
             >

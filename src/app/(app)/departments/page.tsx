@@ -80,9 +80,10 @@ export default function DepartmentsPage() {
   const toggleActive = useMutation({
     mutationFn: ({ id, next }: { id: string; next: boolean }) =>
       setDepartmentActive(id, next),
-    onSuccess: () => {
+    onSuccess: (_data, { id }) => {
       queryClient.invalidateQueries({ queryKey: ["org-departments"] });
       queryClient.invalidateQueries({ queryKey: ["departments"] });
+      queryClient.invalidateQueries({ queryKey: ["org-department", id] });
     },
   });
 

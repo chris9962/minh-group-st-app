@@ -156,6 +156,42 @@ export function assignableRoles(actor: User | null): RoleKey[] {
 }
 
 /**
+ * Bản ghi của phòng `departmentId` có nằm trong tầm của người này không.
+ *
+ * `departmentId` null nghĩa là không thuộc phòng nào (ban giám đốc) — chỉ phạm
+ * vi `company` với tới, vì `managed`/`own` đều là danh sách phòng cụ thể.
+ *
+ * ⚠️ Gọi hàm này KHÔNG thay được cho `can()`: không có quyền nào thì `clampScope`
+ * rơi về `own`, mà `own` lại trả về cả phòng của chính người đó. Route phải kiểm
+ * `can()` trước, rồi mới kiểm phạm vi bằng hàm này.
+ */
+export function inVisibleScope(
+  user: User | null,
+  module: ModuleKey,
+  action: Action,
+  departmentId: string | null,
+): boolean {
+  const visible = visibleDepartmentIds(user, clampScope(user, module, action, null));
+  if (visible === null) return true;
+  if (!departmentId) return false;
+  return visible.includes(departmentId);
+}
+
+/**
+ * Người thao tác có đủ BẬC để đụng vào hồ sơ của người này không.
+ *
+ * `assignableRoles` chặn việc GÁN vai cao hơn mình, nhưng không chặn việc sửa
+ * một người VỐN ĐÃ có vai cao hơn: Phó GĐ gửi `role: 'deputy-director'` cho tài
+ * khoản Giám đốc là hạ cấp được ông ta, kèm `permissions: []` là xoá sạch quyền.
+ * Hàm này bịt chiều đó — chặn theo vai HIỆN TẠI của mục tiêu.
+ */
+export function canActOn(actor: User | null, targetRole: RoleKey): boolean {
+  if (!actor) return false;
+  if (can(actor, 'system', 'grant-permission')) return true;
+  return ROLE_RANK[targetRole] <= ROLE_RANK[actor.role];
+}
+
+/**
  * Hồ sơ KHÁCH HÀNG không áp trục phạm vi — mọi nhân viên xem được toàn công ty
  * (spec mục 2.1b). Chỉ BẢN GHI NGHIỆP VỤ mới áp.
  *

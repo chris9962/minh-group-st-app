@@ -41,6 +41,13 @@ export async function createSession(
   return { cookie, expiresAt };
 }
 
+/** Xoá phiên hiện tại; cookie trả về đã hết hạn để trình duyệt bỏ luôn. */
+export async function destroySession(request: Request): Promise<string> {
+  const token = tokenFrom(request);
+  if (token) await db.delete(sessions).where(eq(sessions.tokenHash, hashToken(token)));
+  return `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
+}
+
 function tokenFrom(request: Request): string | null {
   const header = request.headers.get("cookie");
   if (!header) return null;
@@ -79,3 +86,26 @@ export const unauthorized = () =>
 
 export const forbidden = () =>
   Response.json({ message: "Bạn không có quyền thực hiện thao tác này" }, { status: 403 });
+
+export const badRequest = (message = "Dữ liệu không hợp lệ") =>
+  Response.json({ message }, { status: 400 });
+
+/**
+ * 404 cho bản ghi ngoài tầm nhìn, KHÔNG phải 403.
+ *
+ * 403 xác nhận "id này có thật, chỉ là bạn không được xem" — đủ để dò ra danh
+ * sách id hợp lệ. Ngoài tầm và không tồn tại phải trả lời giống hệt nhau.
+ */
+export const notFound = () => new Response(null, { status: 404 });
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Chặn id sai dạng TRƯỚC khi vào SQL: Postgres ném lỗi cast uuid, Next bắt được
+ * thì đã thành 500 — trong khi đúng ra chỉ là "không có bản ghi này".
+ */
+export const isUuid = (id: string): boolean => UUID.test(id);
+
+/** Đọc JSON an toàn — body rỗng hoặc không phải JSON thì trả null, không ném. */
+export const jsonBody = async (request: Request): Promise<unknown> =>
+  request.json().catch(() => null);

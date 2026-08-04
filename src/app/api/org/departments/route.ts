@@ -1,7 +1,7 @@
-import type { DepartmentForm } from "@/lib/api/org";
+import { DepartmentForm } from "@/lib/api/org";
 import { can } from "@/lib/permissions";
 import { logAudit } from "@/server/audit";
-import { forbidden, getActor, unauthorized } from "@/server/auth";
+import { badRequest, forbidden, getActor, jsonBody, unauthorized } from "@/server/auth";
 import { createDepartment, departmentsFor, orgError } from "@/server/org";
 
 export async function GET(request: Request) {
@@ -17,8 +17,12 @@ export async function POST(request: Request) {
   if (!actor) return unauthorized();
   if (!can(actor, "system", "manage-org")) return forbidden();
 
-  const form = (await request.json()) as DepartmentForm;
-  const result = await createDepartment(form.name);
+  // Máy chủ tự kiểm — `as` chỉ là lời hứa của TypeScript, body rỗng thì
+  // `sameNameKey(undefined)` ném lỗi và cả request vỡ thành 500.
+  const parsed = DepartmentForm.safeParse(await jsonBody(request));
+  if (!parsed.success) return badRequest();
+
+  const result = await createDepartment(parsed.data.name);
   if (!result.ok) return Response.json(orgError(result.code), { status: 422 });
 
   await logAudit(actor, {

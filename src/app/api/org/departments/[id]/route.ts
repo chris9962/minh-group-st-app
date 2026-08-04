@@ -1,7 +1,15 @@
-import type { DepartmentForm } from "@/lib/api/org";
+import { DepartmentForm } from "@/lib/api/org";
 import { can } from "@/lib/permissions";
 import { logAudit } from "@/server/audit";
-import { forbidden, getActor, unauthorized } from "@/server/auth";
+import {
+  badRequest,
+  forbidden,
+  getActor,
+  isUuid,
+  jsonBody,
+  notFound,
+  unauthorized,
+} from "@/server/auth";
 import { departmentDetailFor, orgError, renameDepartment } from "@/server/org";
 
 type Params = { params: Promise<{ id: string }> };
@@ -11,8 +19,12 @@ export async function GET(request: Request, { params }: Params) {
   if (!actor) return unauthorized();
 
   const { id } = await params;
+  // Id sai dạng uuid thì Postgres ném lỗi cast — 500 cho một đường dẫn cũ
+  // hay bookmark hỏng, trong khi đúng ra chỉ là "không có phòng này".
+  if (!isUuid(id)) return notFound();
+
   const detail = await departmentDetailFor(id);
-  return detail ? Response.json(detail) : new Response(null, { status: 404 });
+  return detail ? Response.json(detail) : notFound();
 }
 
 export async function POST(request: Request, { params }: Params) {
@@ -21,9 +33,13 @@ export async function POST(request: Request, { params }: Params) {
   if (!can(actor, "system", "manage-org")) return forbidden();
 
   const { id } = await params;
-  const form = (await request.json()) as DepartmentForm;
-  const result = await renameDepartment(id, form.name);
-  if (!result) return new Response(null, { status: 404 });
+  if (!isUuid(id)) return notFound();
+
+  const parsed = DepartmentForm.safeParse(await jsonBody(request));
+  if (!parsed.success) return badRequest();
+
+  const result = await renameDepartment(id, parsed.data.name);
+  if (!result) return notFound();
   if (!result.ok) return Response.json(orgError(result.code), { status: 422 });
 
   await logAudit(actor, {

@@ -20,3 +20,7 @@ export async function login(form: LoginForm): Promise<LoginResult> {
 
   return LoginResult.parse(data);
 }
+
+export async function logout(): Promise<void> {
+  await fetch("/api/logout", { method: "POST" });
+}

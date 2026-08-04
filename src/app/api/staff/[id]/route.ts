@@ -1,7 +1,7 @@
 import { StaffForm } from "@/lib/api/staff";
 import { logAudit } from "@/server/audit";
-import { getActor, unauthorized } from "@/server/auth";
-import { findStaff, saveError, updateStaff } from "@/server/staff";
+import { badRequest, getActor, jsonBody, unauthorized } from "@/server/auth";
+import { saveError, staffTargetFor, updateStaff } from "@/server/staff";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -10,18 +10,18 @@ export async function GET(request: Request, { params }: Params) {
   if (!actor) return unauthorized();
 
   const { id } = await params;
-  const staff = await findStaff(id);
-  if (!staff) return new Response(null, { status: 404 });
+  const target = await staffTargetFor(actor, id, "view-detail");
+  if (!target.ok) return target.response;
 
   // Hồ sơ nhân viên kèm cả bảng quyền — lượt xem này đáng ghi vết.
   await logAudit(actor, {
     module: "staff",
     action: "view-detail",
-    targetLabel: `Nhân viên ${staff.fullName}`,
+    targetLabel: `Nhân viên ${target.staff.fullName}`,
     targetTable: "users",
-    targetId: staff.id,
+    targetId: target.staff.id,
   });
-  return Response.json(staff);
+  return Response.json(target.staff);
 }
 
 export async function PATCH(request: Request, { params }: Params) {
@@ -29,9 +29,11 @@ export async function PATCH(request: Request, { params }: Params) {
   if (!actor) return unauthorized();
 
   const { id } = await params;
-  const parsed = StaffForm.safeParse(await request.json());
-  if (!parsed.success)
-    return Response.json({ message: "Dữ liệu không hợp lệ" }, { status: 400 });
+  const target = await staffTargetFor(actor, id, "update");
+  if (!target.ok) return target.response;
+
+  const parsed = StaffForm.safeParse(await jsonBody(request));
+  if (!parsed.success) return badRequest();
 
   const result = await updateStaff(actor, id, parsed.data);
   if (!result) return new Response(null, { status: 404 });

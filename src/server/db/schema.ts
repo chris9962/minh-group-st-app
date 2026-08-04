@@ -152,27 +152,38 @@ export const sessions = pgTable(
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     createdAt: createdAt(),
   },
-  (t) => [uniqueIndex("sessions_token_hash").on(t.tokenHash)],
+  (t) => [
+    uniqueIndex("sessions_token_hash").on(t.tokenHash),
+    // `resetPassword` xoá theo user_id, và dọn phiên hết hạn lọc theo expires_at.
+    index("sessions_user").on(t.userId),
+    index("sessions_expires").on(t.expiresAt),
+  ],
 );
 
 /* ── §2 · Danh mục ──────────────────────────────────────────────────── */
 
-export const banks = pgTable("banks", {
-  id: id(),
-  /** VPa/VPb, MSBa/MSBb là các ngân hàng RIÊNG — không gộp cha–con (spec §2.6). */
-  code: text("code").notNull().unique(),
-  active: boolean("active").notNull().default(true),
-  requiredPhotos: smallint("required_photos").notNull().default(3),
-  accountNumberMethod: accountNumberMethod("account_number_method")
-    .notNull()
-    .default("phone-match"),
-  /** Hệ số điểm KPI — VPb = 1.4. */
-  coefficient: numeric("coefficient", { precision: 4, scale: 2 }).notNull().default("1"),
-  /** false với CNKD/HKD — tính điểm nhưng không đếm vào tổng app xét quà. */
-  countsAsApp: boolean("counts_as_app").notNull().default(true),
-  createdAt: createdAt(),
-  updatedAt: updatedAt(),
-});
+export const banks = pgTable(
+  "banks",
+  {
+    id: id(),
+    /** VPa/VPb, MSBa/MSBb là các ngân hàng RIÊNG — không gộp cha–con (spec §2.6). */
+    code: text("code").notNull().unique(),
+    active: boolean("active").notNull().default(true),
+    requiredPhotos: smallint("required_photos").notNull().default(3),
+    accountNumberMethod: accountNumberMethod("account_number_method")
+      .notNull()
+      .default("phone-match"),
+    /** Hệ số điểm KPI — VPb = 1.4. */
+    coefficient: numeric("coefficient", { precision: 4, scale: 2 }).notNull().default("1"),
+    /** false với CNKD/HKD — tính điểm nhưng không đếm vào tổng app xét quà. */
+    countsAsApp: boolean("counts_as_app").notNull().default(true),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  // Số âm hay 0 làm chốt chặn ảnh mất tác dụng: tài khoản lên "Hoàn thành" mà
+  // không có tấm ảnh nào, và mã giới thiệu thì đã bị tiêu vĩnh viễn.
+  (t) => [check("banks_required_photos_non_negative", sql`${t.requiredPhotos} >= 0`)],
+);
 
 export const referralCodes = pgTable(
   "referral_codes",
@@ -228,17 +239,23 @@ export const giftItems = pgTable("gift_items", {
   createdAt: createdAt(),
 });
 
-export const insurancePackages = pgTable("insurance_packages", {
-  id: id(),
-  /** Mã cố định cho module luật (`BH-1N-XEMAY`). */
-  code: text("code").notNull().unique(),
-  name: text("name").notNull().unique(),
-  /** Đồng/năm. */
-  yearlyFee: integer("yearly_fee").notNull().default(0),
-  active: boolean("active").notNull().default(true),
-  createdAt: createdAt(),
-  updatedAt: updatedAt(),
-});
+export const insurancePackages = pgTable(
+  "insurance_packages",
+  {
+    id: id(),
+    /** Mã cố định cho module luật (`BH-1N-XEMAY`). */
+    code: text("code").notNull().unique(),
+    name: text("name").notNull().unique(),
+    /** Đồng/năm. */
+    yearlyFee: integer("yearly_fee").notNull().default(0),
+    active: boolean("active").notNull().default(true),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  // Phí âm ở danh mục sẽ trôi xuống `insurance_orders.fee` rồi mới đụng ràng
+  // buộc `fee >= 0` — lỗi nổ ở màn tạo đơn trong khi dữ liệu sai nằm ở P-82.
+  (t) => [check("insurance_packages_fee_non_negative", sql`${t.yearlyFee} >= 0`)],
+);
 
 /* Tỉnh/Xã hai tầng (spec §2.4): tham chiếu chỉ đọc + đang dùng của công ty. */
 
@@ -266,21 +283,31 @@ export const provinces = pgTable("provinces", {
   createdAt: createdAt(),
 });
 
-export const wards = pgTable("wards", {
-  id: id(),
-  provinceId: uuid("province_id").notNull().references(() => provinces.id),
-  refId: text("ref_id").notNull().unique().references(() => refWards.id),
-  name: text("name").notNull(),
-  createdAt: createdAt(),
-});
+export const wards = pgTable(
+  "wards",
+  {
+    id: id(),
+    provinceId: uuid("province_id").notNull().references(() => provinces.id),
+    refId: text("ref_id").notNull().unique().references(() => refWards.id),
+    name: text("name").notNull(),
+    createdAt: createdAt(),
+  },
+  // Ô chọn tỉnh → xã lọc theo province_id mỗi lần mở form khách hàng / mở TK.
+  (t) => [index("wards_province").on(t.provinceId)],
+);
 
-export const hamlets = pgTable("hamlets", {
-  id: id(),
-  wardId: uuid("ward_id").notNull().references(() => wards.id),
-  /** Ấp KHÔNG có nguồn tham chiếu — luôn nhập tay. */
-  name: text("name").notNull(),
-  createdAt: createdAt(),
-});
+export const hamlets = pgTable(
+  "hamlets",
+  {
+    id: id(),
+    wardId: uuid("ward_id").notNull().references(() => wards.id),
+    /** Ấp KHÔNG có nguồn tham chiếu — luôn nhập tay. */
+    name: text("name").notNull(),
+    createdAt: createdAt(),
+  },
+  // Ấp nhập tay nên bảng phình theo thời gian; ô chọn lọc theo ward_id.
+  (t) => [index("hamlets_ward").on(t.wardId)],
+);
 
 /* ── §3 · Khách hàng ────────────────────────────────────────────────── */
 
@@ -361,6 +388,9 @@ export const bankAccounts = pgTable(
     index("bank_accounts_customer").on(t.customerId),
     index("bank_accounts_referral").on(t.referralCodeId, t.status),
     index("bank_accounts_dept_date").on(t.createdByDepartmentId, t.openedDate),
+    // Tính điểm KPI gom theo NGƯỜI TẠO trong một khoảng ngày (§9), không lọc
+    // theo phòng — index dẫn đầu bằng department_id ở trên không dùng được.
+    index("bank_accounts_creator_date").on(t.createdBy, t.openedDate),
     check(
       "bank_accounts_done_filled",
       sql`status = 'creating' or (account_number is not null and opened_date is not null)`,
@@ -454,6 +484,7 @@ export const insuranceOrders = pgTable(
     index("insurance_orders_customer").on(t.customerId),
     index("insurance_orders_status").on(t.status),
     index("insurance_orders_dept_date").on(t.createdByDepartmentId, t.startDate),
+    index("insurance_orders_creator_date").on(t.createdBy, t.startDate),
     check(
       "insurance_orders_motorbike_plate",
       sql`product <> 'motorbike' or license_plate <> ''`,
@@ -505,6 +536,7 @@ export const services = pgTable(
   },
   (t) => [
     index("services_dept_date").on(t.createdByDepartmentId, t.serviceDate),
+    index("services_creator_date").on(t.createdBy, t.serviceDate),
     index("services_customer").on(t.customerId),
   ],
 );

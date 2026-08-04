@@ -66,6 +66,25 @@ export function formatDate(value: Date | string): string {
   }).format(d);
 }
 
+/**
+ * Múi giờ nghiệp vụ. Máy chủ và container Postgres đều chạy UTC, nên mọi phép
+ * "hôm nay là ngày mấy" phải nói rõ múi giờ, không được để môi trường tự quyết.
+ */
+export const BUSINESS_TIMEZONE = 'Asia/Ho_Chi_Minh';
+
+/**
+ * Ngày làm việc `YYYY-MM-DD` theo giờ Việt Nam.
+ *
+ * KHÔNG dùng `toISOString().slice(0, 10)`: hàm đó trả ngày theo UTC, mà Việt Nam
+ * là UTC+7 nên từ 0h đến 7h sáng nó vẫn đang ở ngày hôm trước. Lọc "Hôm nay"
+ * bằng ngày đó là ra dữ liệu của hôm qua, và ngày mùng 1 thì ra cả tháng trước.
+ */
+export const businessDay = (at: Date = new Date()): string =>
+  new Intl.DateTimeFormat('en-CA', { timeZone: BUSINESS_TIMEZONE }).format(at);
+
+/** Tháng làm việc `YYYY-MM` theo giờ Việt Nam. */
+export const businessMonth = (at: Date = new Date()): string => businessDay(at).slice(0, 7);
+
 /** Đếm ngược mm:ss — dùng cho đồng hồ giữ chỗ mã giới thiệu. */
 export function countdown(seconds: number): string {
   const s = Math.max(0, Math.floor(seconds));

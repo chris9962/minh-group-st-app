@@ -45,6 +45,10 @@ export function DepartmentFormDialog({ open, onClose, department }: Props) {
       // Ô lọc của P-51 và ô chọn đơn vị của form nhân viên đi bằng khoá riêng.
       // Không dọn nó thì lập phòng mới xong vào P-51 vẫn không thấy phòng đó.
       queryClient.invalidateQueries({ queryKey: ["departments"] });
+      // Trang chi tiết giữ khoá riêng theo id. Bỏ sót thì đổi tên xong quay lại
+      // trang đó vẫn thấy tên cũ suốt `staleTime` (30 giây), không refetch.
+      if (department)
+        queryClient.invalidateQueries({ queryKey: ["org-department", department.id] });
       onClose();
     },
   });
