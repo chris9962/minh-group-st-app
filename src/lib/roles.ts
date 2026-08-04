@@ -61,14 +61,17 @@ const managerPermissions: Permission[] = [
 ];
 
 /**
- * Ban giám đốc: xem/xuất mọi module + mọi hành động đặc biệt, phạm vi
- * `company` — nhưng KHÔNG `tạo`/`sửa`/`xoá` bản ghi nghiệp vụ (spec §10.3):
- * bẩn số liệu ai-tạo-bao-nhiêu-đơn, bấm nhầm không phục hồi được, và CEO vốn
- * không tự nhập đơn nên quyền đó chỉ nằm không mà không giải quyết gì.
+ * Ban giám đốc: xem/xuất mọi module + mọi hành động đặc biệt + TẠO bản ghi
+ * nghiệp vụ, phạm vi `company`.
+ *
+ * `tạo` là MẶC ĐỊNH của vai này (CEO chốt 03/08, đảo một phần spec §10.3 cũ) —
+ * đánh đổi đã biết: đơn CEO tạo cũng tính vào số liệu ai-tạo-bao-nhiêu, và mọi
+ * thao tác ghi của tài khoản CEO đều nằm trong nhật ký truy vết P-93.
+ * Vẫn KHÔNG có `sửa`/`xoá` bản ghi nghiệp vụ của người khác — bấm nhầm trên
+ * dữ liệu toàn công ty không phục hồi được.
  *
  * CRUD `nhân viên` là ngoại lệ được liệt kê riêng: nhận việc/luân chuyển/khoá
- * tài khoản là quyết định nhân sự, không phải quyết định kinh doanh, nên vẫn
- * cấp cho CEO dù không cấp `tạo/sửa/xoá` cho các module còn lại.
+ * tài khoản là quyết định nhân sự, không phải quyết định kinh doanh.
  *
  * CHỈ THIẾU `grant-permission`: đây là hành động DUY NHẤT tự nâng quyền được
  * cho chính mình, spec giữ nó ở 1–2 tài khoản quản trị dù CEO có gần như toàn
@@ -79,6 +82,10 @@ export const directorPermissions: Permission[] = [
   p('*', 'view-summary', 'company'),
   p('*', 'view-detail', 'company'),
   p('*', 'export', 'company'),
+  p('customer', 'create', 'company'),
+  p('insurance', 'create', 'company'),
+  p('banking', 'create', 'company'),
+  p('services', 'create', 'company'),
   p('*', 'handle-fallback', 'company'),
   p('*', 'manage-referral-codes', 'company'),
   p('*', 'manage-bank-catalog', 'company'),

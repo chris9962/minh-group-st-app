@@ -53,14 +53,20 @@ export const InsuranceOrder = z.object({
   endDate: z.string().nullable(),
   product: z.string(),
   packageName: z.string(),
+  /** Mức phí của ĐƠN này (đ) — prefill từ gói, sửa được từng đơn (03/08). */
+  fee: z.number(),
   status: InsuranceOrderStatus,
   source: InsuranceOrderSource,
   beneficiaryName: z.string(),
   beneficiaryDob: z.string(),
   beneficiaryIdNumber: z.string(),
   beneficiaryPhone: z.string(),
+  /** Địa chỉ người thụ hưởng — BH tai nạn điện theo HỘ nên địa chỉ là thông tin lõi (thêm 03/08). */
+  beneficiaryAddress: z.string(),
   /** Chỉ có giá trị với đơn BH xe máy — rỗng với đơn khác. */
   licensePlate: z.string(),
+  /** Loại xe, tự nhập ("Xe số", "Tay ga", "Xe điện"…) — chỉ đơn BH xe máy (thêm 03/08). */
+  vehicleType: z.string(),
   /** Số khung — không bắt buộc, có khách không đọc được/không nhớ. */
   chassisNumber: z.string(),
   /** Số máy — không bắt buộc, cùng lý do với số khung. */
@@ -88,21 +94,28 @@ export const InsuranceOrderLegForm = z
   .object({
     product: z.string().trim().min(1, 'Chưa chọn sản phẩm'),
     packageName: z.string().trim().min(1, 'Chưa chọn gói'),
+    fee: z.number().min(0, 'Mức phí phải từ 0 trở lên'),
     startDate: z.string().trim().min(1, 'Chưa chọn ngày bắt đầu'),
     endDate: z.string().trim().min(1, 'Chưa chọn ngày kết thúc'),
     beneficiaryName: z.string().trim().min(1, 'Chưa nhập tên người thụ hưởng'),
     beneficiaryDob: z.string(),
     beneficiaryIdNumber: z.string(),
     beneficiaryPhone: z.string(),
+    beneficiaryAddress: z.string().trim().min(1, 'Chưa nhập địa chỉ'),
     licensePlate: z.string().trim(),
+    vehicleType: z.string().trim(),
     chassisNumber: z.string().trim(),
     engineNumber: z.string().trim(),
   })
-  // Biển số bắt buộc CHỈ với BH xe máy — số khung/số máy luôn không bắt buộc
-  // (khách hay không đọc được/không nhớ), gửi rỗng lên máy chủ nếu bỏ trống.
+  // Biển số + loại xe bắt buộc CHỈ với BH xe máy — số khung/số máy luôn không
+  // bắt buộc (khách hay không đọc được/không nhớ), gửi rỗng lên máy chủ nếu bỏ trống.
   .refine((leg) => leg.product !== 'BH xe máy' || leg.licensePlate.length > 0, {
     message: 'Chưa nhập biển số xe',
     path: ['licensePlate'],
+  })
+  .refine((leg) => leg.product !== 'BH xe máy' || leg.vehicleType.length > 0, {
+    message: 'Chưa nhập loại xe',
+    path: ['vehicleType'],
   });
 export type InsuranceOrderLegForm = z.infer<typeof InsuranceOrderLegForm>;
 
