@@ -58,13 +58,18 @@ export const StaffForm = z.object({
     .string()
     .trim()
     .regex(/^0\d{9}$/, 'Số điện thoại phải đủ 10 số và bắt đầu bằng 0'),
-  /** Chuỗi rỗng = không thuộc phòng nào, đúng với ban giám đốc. */
-  departmentId: z.string(),
+  /**
+   * Chuỗi rỗng = không thuộc phòng nào, đúng với ban giám đốc.
+   *
+   * Bắt dạng uuid ngay ở đây: để lọt chuỗi bậy xuống Postgres là `22P02`, mà
+   * tầng dưới chỉ bắt `23505` nên client nhận 500 thay vì 400.
+   */
+  departmentId: z.union([z.literal(''), z.uuid()]),
   role: RoleKey,
   title: z.string().trim().min(2, 'Chưa nhập chức danh'),
   manageScope: ManageScope,
-  managedDepartmentIds: z.array(z.string()),
-  wardId: z.string(),
+  managedDepartmentIds: z.array(z.uuid()),
+  wardId: z.union([z.literal(''), z.uuid()]),
   permissions: z.array(Permission),
 });
 export type StaffForm = z.infer<typeof StaffForm>;
@@ -74,6 +79,8 @@ export const SAVE_ERROR = {
   STAFF_CODE_TAKEN: 'staff-code-taken',
   ROLE_TOO_HIGH: 'role-too-high',
   PERMISSION_TOO_HIGH: 'permission-too-high',
+  /** Giao phòng mình không quản cho người khác — cũng là một dạng nới phạm vi. */
+  MANAGED_DEPARTMENT_TOO_WIDE: 'managed-department-too-wide',
 } as const;
 
 export const SaveError = z.object({
@@ -82,6 +89,7 @@ export const SaveError = z.object({
     SAVE_ERROR.STAFF_CODE_TAKEN,
     SAVE_ERROR.ROLE_TOO_HIGH,
     SAVE_ERROR.PERMISSION_TOO_HIGH,
+    SAVE_ERROR.MANAGED_DEPARTMENT_TOO_WIDE,
   ]),
   message: z.string(),
 });

@@ -1,5 +1,5 @@
 import { compare, hashSync } from "bcryptjs";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, isNull, lte, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { LOGIN_ERROR } from "@/lib/types";
 import { badRequest, createSession, jsonBody } from "@/server/auth";
@@ -50,49 +50,80 @@ export async function POST(request: Request) {
     );
   }
 
-  if (account.lockedUntil && account.lockedUntil > new Date()) {
-    const minutes = Math.ceil((account.lockedUntil.getTime() - Date.now()) / 60_000);
+  const LOCKED_MESSAGE =
+    "Sai 5 lần liên tiếp — tài khoản bị khoá 15 phút. Liên hệ quản trị hệ thống để mở lại.";
+
+  /** Đọc mốc hết khoá từ DB rồi báo 423 — không tự sửa gì. */
+  const reportLock = async (message: string) => {
+    const [row] = await db
+      .select({ lockedUntil: users.lockedUntil })
+      .from(users)
+      .where(eq(users.id, account.id))
+      .limit(1);
+    const until = row?.lockedUntil ?? new Date(Date.now() + LOCK_MS);
     return Response.json(
-      {
-        code: LOGIN_ERROR.LOCKED,
-        message: `Tài khoản đang bị khoá. Thử lại sau ${minutes} phút hoặc liên hệ quản trị hệ thống.`,
-        lockedUntil: account.lockedUntil.toISOString(),
-      },
+      { code: LOGIN_ERROR.LOCKED, message, lockedUntil: until.toISOString() },
       { status: 423 },
     );
+  };
+
+  /** Khoá hàng lại. Bộ đếm về 0 để hết 15 phút là có đủ 5 lượt mới. */
+  const lockNow = async () => {
+    const [row] = await db
+      .update(users)
+      .set({
+        failedAttempts: 0,
+        lockedUntil: sql`now() + interval '${sql.raw(String(LOCK_MS / 60000))} minutes'`,
+      })
+      .where(eq(users.id, account.id))
+      .returning({ lockedUntil: users.lockedUntil });
+    const until = row?.lockedUntil ?? new Date(Date.now() + LOCK_MS);
+    return Response.json(
+      { code: LOGIN_ERROR.LOCKED, message: LOCKED_MESSAGE, lockedUntil: until.toISOString() },
+      { status: 423 },
+    );
+  };
+
+  /**
+   * Nhận MỘT lượt thử, nguyên tử, TRƯỚC khi băm.
+   *
+   * Gác bằng `account` đọc ở trên là gác trên ảnh chụp cũ: bắn N request cùng
+   * lúc thì cả N đều thấy `locked_until` rỗng, cả N đều lọt xuống `compare`, và
+   * cả N mật khẩu đều thật sự được thử — khoá 5 lần chỉ chặn được người thử
+   * tuần tự. Tăng bộ đếm bằng một câu lệnh nguyên tử trước khi băm thì mỗi
+   * request nhận một số thứ tự riêng, và cái vượt ngưỡng bị chặn mà KHÔNG tốn
+   * lần băm nào. Đó mới là thứ giới hạn số mật khẩu được thử mỗi 15 phút.
+   */
+  const stillOpen = or(isNull(users.lockedUntil), lte(users.lockedUntil, sql`now()`));
+
+  const [slot] = await db
+    .update(users)
+    .set({ failedAttempts: sql`${users.failedAttempts} + 1` })
+    .where(and(eq(users.id, account.id), stillOpen))
+    .returning({ attempts: users.failedAttempts });
+
+  // Không giành được lượt nào = hàng đang khoá.
+  if (!slot) {
+    const [row] = await db
+      .select({ lockedUntil: users.lockedUntil })
+      .from(users)
+      .where(eq(users.id, account.id))
+      .limit(1);
+    const until = row?.lockedUntil ?? new Date(Date.now() + LOCK_MS);
+    const minutes = Math.max(1, Math.ceil((until.getTime() - Date.now()) / 60_000));
+    return reportLock(
+      `Tài khoản đang bị khoá. Thử lại sau ${minutes} phút hoặc liên hệ quản trị hệ thống.`,
+    );
   }
+
+  // Quá ngưỡng mà hàng chưa kịp khoá — cả đợt bắn cùng lúc còn đang băm. Khoá
+  // ngay và không băm: đây chính là chỗ chặn kiểu tấn công đó.
+  if (slot.attempts > MAX_ATTEMPTS) return lockNow();
 
   const ok = await compare(password, account.passwordHash);
 
   if (!ok) {
-    /**
-     * Đếm và khoá trong MỘT câu lệnh.
-     *
-     * Trước đây `attempts` tính từ bản đọc ở trên, ngoài transaction: bắn N
-     * request sai cùng lúc thì cả N đều thấy `failed_attempts` cũ, cả N đều
-     * kết luận "chưa tới 5", và không request nào vào nhánh khoá. Bộ đếm leo
-     * còn khoá thì không bao giờ nổ — dò mật khẩu không giới hạn.
-     */
-    const [locked] = await db
-      .update(users)
-      .set({
-        failedAttempts: sql`case when ${users.failedAttempts} + 1 >= ${MAX_ATTEMPTS} then 0 else ${users.failedAttempts} + 1 end`,
-        lockedUntil: sql`case when ${users.failedAttempts} + 1 >= ${MAX_ATTEMPTS} then now() + interval '${sql.raw(String(LOCK_MS / 60000))} minutes' else ${users.lockedUntil} end`,
-      })
-      .where(eq(users.id, account.id))
-      .returning({ lockedUntil: users.lockedUntil });
-
-    if (locked?.lockedUntil && locked.lockedUntil > new Date()) {
-      return Response.json(
-        {
-          code: LOGIN_ERROR.LOCKED,
-          message:
-            "Sai 5 lần liên tiếp — tài khoản bị khoá 15 phút. Liên hệ quản trị hệ thống để mở lại.",
-          lockedUntil: locked.lockedUntil.toISOString(),
-        },
-        { status: 423 },
-      );
-    }
+    if (slot.attempts >= MAX_ATTEMPTS) return lockNow();
 
     // KHÔNG trả `attemptsLeft`: trường này chỉ xuất hiện khi tài khoản có thật,
     // nên chỉ một request là biết tên nào tồn tại — phá đúng ý định giấu tên ở
@@ -107,17 +138,30 @@ export async function POST(request: Request) {
     );
   }
 
-  await db
+  // Xoá bộ đếm, nhưng CHỈ khi hàng chưa bị khoá trong lúc mình đang băm. Xoá
+  // vô điều kiện thì lần đoán trúng trong một đợt bắn song song vừa lấy được
+  // phiên vừa gỡ luôn khoá vừa đặt.
+  const [cleared] = await db
     .update(users)
     .set({ failedAttempts: 0, lockedUntil: null })
-    .where(eq(users.id, account.id));
+    .where(and(eq(users.id, account.id), stillOpen))
+    .returning({ id: users.id });
+
+  if (!cleared) return reportLock(LOCKED_MESSAGE);
 
   // Dựng User TRƯỚC khi phát cookie: `loadUser` trả null được (hàng vừa bị xoá
   // giữa chừng), mà `Response.json` nhận any nên TypeScript không chặn. Phát
   // cookie rồi mới thiếu user thì client ôm phiên sống cho một tài khoản mà
   // giao diện chưa từng biết, và zod phía client ném lỗi không ai bắt.
   const user = await loadUser(account.id);
-  if (!user) return new Response(null, { status: 500 });
+  if (!user)
+    return Response.json(
+      {
+        code: LOGIN_ERROR.BAD_CREDENTIALS,
+        message: "Không đăng nhập được, thử lại sau ít phút.",
+      },
+      { status: 500 },
+    );
 
   const { cookie, expiresAt } = await createSession(account.id, Boolean(remember));
 

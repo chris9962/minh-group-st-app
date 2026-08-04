@@ -14,7 +14,7 @@ import {
 } from "@/lib/permissions";
 import { SCOPES, Scope, type Action, type User } from "@/lib/types";
 import { forbidden, isUuid, notFound } from "./auth";
-import { db } from "./db/client";
+import { db, uniqueViolationOf } from "./db/client";
 import { departments, sessions, userManagedDepartments, userPermissions, users } from "./db/schema";
 import { relationsFor } from "./users";
 
@@ -146,13 +146,18 @@ export async function staffTargetFor(
 
   // Trần BẬC chỉ chặn thao tác GHI. Với lượt xem thì phạm vi đã đủ, thêm bậc nữa
   // là người ngang vai không mở nổi hồ sơ của nhau dù cùng phòng.
-  if (action !== "view-detail" && !canActOn(actor, staff.role))
+  if (action !== "view-detail" && !canActOn(actor, staff))
     return { ok: false, response: forbidden() };
 
   return { ok: true, staff };
 }
 
-type SaveErrorCode = "username-taken" | "staff-code-taken" | "role-too-high" | "permission-too-high";
+type SaveErrorCode =
+  | "username-taken"
+  | "staff-code-taken"
+  | "role-too-high"
+  | "permission-too-high"
+  | "managed-department-too-wide";
 
 export type SaveOutcome =
   | { ok: true; staff: StaffAccount }
@@ -167,7 +172,9 @@ export const saveError = (code: SaveErrorCode) => ({
         ? "Mã nhân viên này đã có người dùng"
         : code === "role-too-high"
           ? "Bạn không gán được chức vụ cao hơn quyền của chính mình"
-          : "Có quyền bạn đang cấp vượt quá quyền của chính bạn",
+          : code === "managed-department-too-wide"
+            ? "Bạn chỉ giao được những phòng chính mình đang quản"
+            : "Có quyền bạn đang cấp vượt quá quyền của chính bạn",
 });
 
 /** Máy chủ PHẢI kiểm lại chức vụ — ẩn bớt lựa chọn trong ô chọn không phải là phân quyền. */
@@ -177,6 +184,42 @@ const checkRole = (actor: User, form: StaffForm): boolean =>
 /** Từng bộ ba client gửi lên phải nằm trong tầm actor được cấp (spec §10.1). */
 const checkPermissions = (actor: User, form: StaffForm): boolean =>
   form.permissions.every((perm) => canGrant(actor, perm));
+
+/**
+ * Danh sách "phòng phụ trách" cũng là một trục phân quyền, không phải dữ liệu hồ sơ.
+ *
+ * `visibleDepartmentIds(u, 'managed')` trả thẳng danh sách này, nên mọi quyền
+ * phạm vi `managed` của người được sửa nở đúng theo nó. Không chặn thì trưởng
+ * phòng tự PATCH hồ sơ CHÍNH MÌNH, tích hết 15 phòng, và có tầm nhìn toàn công
+ * ty — `canGrant` không thấy gì bất thường vì phạm vi vẫn đúng chữ `managed`.
+ */
+const checkManagedDepartments = (actor: User, form: StaffForm, action: Action): boolean => {
+  if (form.manageScope !== "listed") return true;
+  const allowed = visibleDepartmentIds(actor, clampScope(actor, "staff", action, null));
+  // null = phạm vi toàn công ty, giao phòng nào cũng được.
+  if (allowed === null) return true;
+  return form.managedDepartmentIds.every((id) => allowed.includes(id));
+};
+
+/**
+ * Quyền BỊ GỠ cũng phải nằm trong tầm actor, y như quyền được cấp.
+ *
+ * `checkPermissions` chỉ soi mảng gửi lên, mà `writeStaff` xoá sạch rồi ghi lại
+ * — nên cái KHÔNG gửi lên là cái bị xoá, không ai kiểm. Giám đốc mở hồ sơ tài
+ * khoản quản trị rồi bấm Lưu là `cấp quyền` biến mất, và không đường nào cấp
+ * lại được vì cấp `cấp quyền` đòi phải đang có nó.
+ */
+const strippedPermissions = (current: StaffAccount, form: StaffForm) =>
+  current.permissions.filter(
+    (had) =>
+      !form.permissions.some(
+        (kept) =>
+          kept.module === had.module &&
+          kept.action === had.action &&
+          // Thu hẹp phạm vi cũng là gỡ bớt quyền.
+          SCOPES.indexOf(kept.scope) >= SCOPES.indexOf(had.scope),
+      ),
+  );
 
 async function usernameTaken(username: string, exceptId?: string): Promise<boolean> {
   const rows = await db
@@ -203,18 +246,6 @@ async function staffCodeTaken(staffCode: string, exceptId?: string): Promise<boo
     .limit(1);
   return rows.length > 0;
 }
-
-/**
- * Mã lỗi trùng khoá của Postgres. Hai lần kiểm `usernameTaken`/`staffCodeTaken`
- * ở trên là kiểm TRƯỚC KHI ghi, nên hai request song song cùng lọt qua rồi một
- * cái vỡ ở tầng DB — không bắt thì client nhận 500 thay vì 422 có mã lỗi.
- */
-const UNIQUE_VIOLATION = "23505";
-
-const uniqueViolation = (e: unknown): string | null => {
-  const err = e as { code?: string; constraint?: string };
-  return err?.code === UNIQUE_VIOLATION ? (err.constraint ?? "") : null;
-};
 
 /** Ghi user + quyền + phòng quản trong MỘT transaction — không có nửa người. */
 async function writeStaff(
@@ -296,9 +327,10 @@ async function writeStaff(
  * cho tên có thật và `role-too-high` cho tên chưa có — một request là dò được
  * từng tên đăng nhập lẫn từng mã nhân viên trong công ty.
  */
-const checkCeilings = (actor: User, form: StaffForm): SaveErrorCode | null => {
+const checkCeilings = (actor: User, form: StaffForm, action: Action): SaveErrorCode | null => {
   if (!checkRole(actor, form)) return "role-too-high";
   if (!checkPermissions(actor, form)) return "permission-too-high";
+  if (!checkManagedDepartments(actor, form, action)) return "managed-department-too-wide";
   return null;
 };
 
@@ -312,7 +344,7 @@ async function writeGuarded(
     await writeStaff(id, form, mode);
     return null;
   } catch (e) {
-    const constraint = uniqueViolation(e);
+    const constraint = uniqueViolationOf(e);
     if (constraint === null) throw e;
     if (constraint.includes("staff_code")) return "staff-code-taken";
     if (constraint.includes("username")) return "username-taken";
@@ -321,7 +353,7 @@ async function writeGuarded(
 }
 
 export async function createStaff(actor: User, form: StaffForm): Promise<SaveOutcome> {
-  const ceiling = checkCeilings(actor, form);
+  const ceiling = checkCeilings(actor, form, "create");
   if (ceiling) return { ok: false, code: ceiling };
   if (await usernameTaken(form.username)) return { ok: false, code: "username-taken" };
   if (await staffCodeTaken(form.staffCode)) return { ok: false, code: "staff-code-taken" };
@@ -335,8 +367,10 @@ export async function createStaff(actor: User, form: StaffForm): Promise<SaveOut
 export async function updateStaff(actor: User, id: string, form: StaffForm): Promise<SaveOutcome | null> {
   const current = await findStaff(id);
   if (!current) return null;
-  const ceiling = checkCeilings(actor, form);
+  const ceiling = checkCeilings(actor, form, "update");
   if (ceiling) return { ok: false, code: ceiling };
+  if (!strippedPermissions(current, form).every((perm) => canGrant(actor, perm)))
+    return { ok: false, code: "permission-too-high" };
   if (await usernameTaken(form.username, id)) return { ok: false, code: "username-taken" };
   if (await staffCodeTaken(form.staffCode, id)) return { ok: false, code: "staff-code-taken" };
 

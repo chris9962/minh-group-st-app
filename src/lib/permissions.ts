@@ -184,11 +184,18 @@ export function inVisibleScope(
  * một người VỐN ĐÃ có vai cao hơn: Phó GĐ gửi `role: 'deputy-director'` cho tài
  * khoản Giám đốc là hạ cấp được ông ta, kèm `permissions: []` là xoá sạch quyền.
  * Hàm này bịt chiều đó — chặn theo vai HIỆN TẠI của mục tiêu.
+ *
+ * ⚠️ Bậc vai KHÔNG nói lên quyền: tài khoản quản trị mang vai Nhân viên (bậc 0)
+ * mà giữ `cấp quyền`. So bậc không thôi thì Giám đốc (bậc 4) đụng được nó —
+ * đặt lại mật khẩu là đọc được mật khẩu mới, đăng nhập vào là tự nâng quyền,
+ * đúng cái `assignableRoles` sinh ra để chặn. Nên tài khoản giữ `cấp quyền` chỉ
+ * người cùng giữ mới đụng được.
  */
-export function canActOn(actor: User | null, targetRole: RoleKey): boolean {
+export function canActOn(actor: User | null, target: User): boolean {
   if (!actor) return false;
   if (can(actor, 'system', 'grant-permission')) return true;
-  return ROLE_RANK[targetRole] <= ROLE_RANK[actor.role];
+  if (can(target, 'system', 'grant-permission')) return false;
+  return ROLE_RANK[target.role] <= ROLE_RANK[actor.role];
 }
 
 /**

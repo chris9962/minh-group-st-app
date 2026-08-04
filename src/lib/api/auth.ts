@@ -1,4 +1,4 @@
-import { LoginResult, type LoginError, type LoginForm } from "@/lib/types";
+import { LOGIN_ERROR, LoginError, LoginResult, type LoginForm } from "@/lib/types";
 
 /** Lỗi có mã — để giao diện phân biệt "sai thông tin" với "bị khoá". */
 export class ApiError extends Error {
@@ -15,8 +15,22 @@ export async function login(form: LoginForm): Promise<LoginResult> {
     body: JSON.stringify(form),
   });
 
-  const data = await res.json();
-  if (!res.ok) throw new ApiError(data as LoginError);
+  // Thân rỗng hoặc không phải JSON (500 trần của Next, trang lỗi của proxy)
+  // làm `res.json()` ném SyntaxError — không phải ApiError, nên màn đăng nhập
+  // không có gì để hiện và người dùng thấy nút bật lại mà không hiểu vì sao.
+  const data = await res.json().catch(() => null);
+
+  if (!res.ok) {
+    const parsed = LoginError.safeParse(data);
+    throw new ApiError(
+      parsed.success
+        ? parsed.data
+        : {
+            code: LOGIN_ERROR.BAD_CREDENTIALS,
+            message: "Không đăng nhập được. Thử lại sau ít phút hoặc liên hệ quản trị hệ thống.",
+          },
+    );
+  }
 
   return LoginResult.parse(data);
 }

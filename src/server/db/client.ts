@@ -38,3 +38,22 @@ if (!globalForDb.mgstPool) {
 if (process.env.NODE_ENV !== "production") globalForDb.mgstPool = pool;
 
 export const db = drizzle(pool, { schema });
+
+/**
+ * Tên ràng buộc bị vi phạm nếu lỗi này là trùng khoá (Postgres `23505`), ngược
+ * lại `null`.
+ *
+ * ⚠️ Phải đi dọc chuỗi `cause`. Drizzle bọc MỌI lỗi truy vấn trong
+ * `DrizzleQueryError`, và lớp bọc đó chỉ có `query`/`params`/`cause` — không có
+ * `code`, không có `constraint`. So thẳng `e.code === '23505'` thì không bao giờ
+ * khớp, nên mọi lần trùng tên đăng nhập / mã nhân viên / tên phòng rơi thành
+ * 500 thay vì 422 có mã lỗi mà biểu mẫu đang chờ.
+ */
+export function uniqueViolationOf(e: unknown): string | null {
+  for (let cur: unknown = e, depth = 0; cur && depth < 4; depth++) {
+    const err = cur as { code?: string; constraint?: string; cause?: unknown };
+    if (err.code === "23505") return err.constraint ?? "";
+    cur = err.cause;
+  }
+  return null;
+}

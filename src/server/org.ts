@@ -7,7 +7,7 @@ import {
   type DepartmentRow,
   type OrgErrorCode,
 } from "@/lib/api/org";
-import { db } from "./db/client";
+import { db, uniqueViolationOf } from "./db/client";
 import { departments, userManagedDepartments, users } from "./db/schema";
 
 /**
@@ -113,18 +113,27 @@ async function nextDepartmentCode(name: string): Promise<string> {
 export async function createDepartment(name: string): Promise<OrgOutcome> {
   if (await nameTaken(name)) return { ok: false, code: ORG_ERROR.NAME_TAKEN };
 
-  // `nameTaken` và `nextDepartmentCode` đều là đọc-rồi-mới-ghi: hai request
-  // song song cùng lọt qua, rồi một cái đụng unique index của `name`/`code`.
-  // Không bắt thì client nhận 500 trần thay vì 422 `name-taken` như hợp đồng.
-  try {
+  const insert = async (): Promise<OrgOutcome> => {
     const [row] = await db
       .insert(departments)
       .values({ code: await nextDepartmentCode(name), name })
       .returning();
     return { ok: true, department: { id: row.id, name: row.name, active: row.active, headcount: 0 } };
+  };
+
+  // `nameTaken` và `nextDepartmentCode` đều là đọc-rồi-mới-ghi: hai request
+  // song song cùng lọt qua, rồi một cái đụng unique index của `name`/`code`.
+  // Không bắt thì client nhận 500 trần thay vì 422 `name-taken` như hợp đồng.
+  try {
+    return await insert();
   } catch (e) {
-    if ((e as { code?: string }).code === "23505") return { ok: false, code: ORG_ERROR.NAME_TAKEN };
-    throw e;
+    const constraint = uniqueViolationOf(e);
+    if (constraint === null) throw e;
+    // Đụng unique của `name` mới là trùng tên. Đụng `code` chỉ là hai request
+    // cùng giành một mã — cấp mã mới rồi ghi lại; báo "đã có phòng tên này" ở
+    // đó là nói sai chuyện, người dùng không có gì để sửa.
+    if (!constraint.includes("code")) return { ok: false, code: ORG_ERROR.NAME_TAKEN };
+    return await insert();
   }
 }
 
@@ -142,7 +151,7 @@ export async function renameDepartment(id: string, name: string): Promise<OrgOut
       .where(eq(departments.id, id))
       .returning();
   } catch (e) {
-    if ((e as { code?: string }).code === "23505") return { ok: false, code: ORG_ERROR.NAME_TAKEN };
+    if (uniqueViolationOf(e) !== null) return { ok: false, code: ORG_ERROR.NAME_TAKEN };
     throw e;
   }
   return {

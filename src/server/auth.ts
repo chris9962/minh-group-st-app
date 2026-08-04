@@ -21,6 +21,25 @@ const ONE_YEAR_S = 365 * 24 * 60 * 60;
 const hashToken = (token: string): string =>
   createHash("sha256").update(token).digest("hex");
 
+/**
+ * `Secure` — cookie chỉ đi trên https.
+ *
+ * Thiếu nó thì dù trang chạy https, trình duyệt VẪN gửi token kèm bất kỳ URL
+ * `http://` nào cùng host (một đường dẫn cũ, một thẻ ảnh ai đó chèn vào), và ai
+ * ngồi giữa đường truyền nhặt được phiên sống tới cả năm. `SameSite` không thay
+ * được: nó chặn theo site, không chặn theo giao thức.
+ *
+ * Tắt ở dev vì `http://localhost`. Có `COOKIE_SECURE=false` để chạy thật trong
+ * mạng nội bộ không có https — buộc theo `NODE_ENV` thôi thì hôm đó đăng nhập
+ * hỏng mà không ai đoán ra vì sao.
+ */
+const SECURE =
+  process.env.COOKIE_SECURE === "false"
+    ? ""
+    : process.env.NODE_ENV === "production" || process.env.COOKIE_SECURE === "true"
+      ? "; Secure"
+      : "";
+
 export async function createSession(
   userId: string,
   remember: boolean,
@@ -36,8 +55,7 @@ export async function createSession(
     expiresAt,
   });
 
-  // secure bỏ qua ở dev (http://localhost) — bật khi deploy https.
-  const cookie = `${SESSION_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}`;
+  const cookie = `${SESSION_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax${SECURE}; Max-Age=${maxAge}`;
   return { cookie, expiresAt };
 }
 
@@ -45,7 +63,7 @@ export async function createSession(
 export async function destroySession(request: Request): Promise<string> {
   const token = tokenFrom(request);
   if (token) await db.delete(sessions).where(eq(sessions.tokenHash, hashToken(token)));
-  return `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
+  return `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax${SECURE}; Max-Age=0`;
 }
 
 function tokenFrom(request: Request): string | null {

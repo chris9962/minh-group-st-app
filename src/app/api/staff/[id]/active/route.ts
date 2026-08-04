@@ -16,7 +16,9 @@ export async function POST(request: Request, { params }: Params) {
   if (!target.ok) return target.response;
 
   // Tự khoá mình là tự đẩy mình ra khỏi hệ thống, không còn đường vào để mở lại.
-  if (id === actor.id) return badRequest("Không khoá được tài khoản của chính bạn");
+  // So bằng id LẤY TỪ DB, không phải id trên URL: `uuid` của Postgres so không
+  // phân biệt hoa thường, nên gửi chính uuid của mình viết hoa là lách được.
+  if (target.staff.id === actor.id) return badRequest("Không khoá được tài khoản của chính bạn");
 
   const parsed = Body.safeParse(await jsonBody(request));
   if (!parsed.success) return badRequest();

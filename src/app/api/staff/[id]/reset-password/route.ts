@@ -15,8 +15,9 @@ export async function POST(request: Request, { params }: Params) {
 
   // Đặt lại mật khẩu xoá mọi phiên của người đó — làm với chính mình là mất
   // phiên ngay giữa chừng, mật khẩu mới hiện trong hộp thoại đã hết hiệu lực.
-  if (id === actor.id)
-    return badRequest("Đổi mật khẩu của chính bạn ở trang Thông tin cá nhân");
+  // So id lấy từ DB: uuid của Postgres không phân biệt hoa thường (xem active/route.ts).
+  if (target.staff.id === actor.id)
+    return badRequest("Nhờ một quản trị khác đặt lại giúp bạn");
 
   const password = await resetPassword(id);
   if (!password) return new Response(null, { status: 404 });

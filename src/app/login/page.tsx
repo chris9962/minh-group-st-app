@@ -37,8 +37,13 @@ export default function LoginPage() {
     },
   });
 
-  const serverError =
-    submit.error instanceof ApiError ? submit.error.detail : null;
+  // `fetch` hỏng vì mất mạng ném TypeError, không phải ApiError — bắt luôn ở
+  // đây, không thì lỗi đó rơi vào khoảng không và màn hình đứng im.
+  const serverError = submit.error
+    ? submit.error instanceof ApiError
+      ? submit.error.message
+      : "Không đăng nhập được. Kiểm tra kết nối mạng rồi thử lại."
+    : null;
 
   return (
     <div className={styles.page}>
@@ -85,14 +90,7 @@ export default function LoginPage() {
               )}
             />
 
-            {serverError && (
-              <Alert tone="error">
-                {serverError.message}
-                {typeof serverError.attemptsLeft === "number" && (
-                  <> Còn {serverError.attemptsLeft} lần trước khi bị khoá.</>
-                )}
-              </Alert>
-            )}
+            {serverError && <Alert tone="error">{serverError}</Alert>}
 
             <Button type="submit" block large disabled={submit.isPending}>
               {submit.isPending ? "Đang kiểm tra…" : "Đăng nhập"}
