@@ -48,6 +48,7 @@ export function createInsuranceOrder(
       endDate: leg.endDate,
       product: leg.product,
       packageName: leg.packageName,
+      fee: leg.fee,
       // Đơn mới luôn bắt đầu ở "chờ tạo" — phải được hệ thống pick lên mới
       // chuyển sang "đang tạo", không nhảy thẳng vào đó (spec §3.4 mốc 01).
       status: "queued",
@@ -56,7 +57,9 @@ export function createInsuranceOrder(
       beneficiaryDob: leg.beneficiaryDob,
       beneficiaryIdNumber: leg.beneficiaryIdNumber,
       beneficiaryPhone: leg.beneficiaryPhone,
+      beneficiaryAddress: leg.beneficiaryAddress,
       licensePlate: leg.licensePlate,
+      vehicleType: leg.vehicleType,
       chassisNumber: leg.chassisNumber,
       engineNumber: leg.engineNumber,
       createdById: actor?.id ?? null,

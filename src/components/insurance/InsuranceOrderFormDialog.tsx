@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { UserCheck } from "lucide-react";
 import { Alert } from "@/components/ui/Alert";
@@ -46,13 +46,18 @@ function defaultLegsFor(group: InsuranceOrderLegGroup): InsuranceOrderLegForm[] 
     const values: InsuranceOrderLegForm = {
       product: leg.product,
       packageName: leg.packageName,
+      // Phí gói chia đều các đơn nó sinh ra (combo 200k → 2 đơn 100k) — chỉ là
+      // số prefill, người nhập sửa được từng đơn.
+      fee: 0,
       startDate: start,
       endDate: end,
       beneficiaryName: "",
       beneficiaryDob: "",
       beneficiaryIdNumber: "",
       beneficiaryPhone: "",
+      beneficiaryAddress: "",
       licensePlate: "",
+      vehicleType: "",
       chassisNumber: "",
       engineNumber: "",
     };
@@ -94,16 +99,26 @@ export function InsuranceOrderFormDialog({
   const legGroup = insuranceOrderLegsFor(packageName);
   const primaryPhone = customer.phones.find((p) => p.primary)?.number ?? "";
 
+  // Luôn nạp danh mục gói (kể cả luồng Tặng quà gói cố định) — cần phí gói
+  // để prefill ô Mức phí của từng đơn.
   const { data: packages = [] } = useQuery({
     queryKey: ["insurance-packages"],
     queryFn: fetchInsurancePackages,
-    enabled: !prefill,
   });
+
+  const packageFee = packages.find((p) => p.name === packageName)?.yearlyFee ?? null;
+
+  /** Phí gói chia đều các đơn nó sinh ra — chỉ là prefill, sửa được từng đơn. */
+  const withFees = (legs: InsuranceOrderLegForm[], fee: number | null): InsuranceOrderLegForm[] =>
+    fee === null || legs.length === 0
+      ? legs
+      : legs.map((leg) => ({ ...leg, fee: Math.round(fee / legs.length) }));
 
   const {
     register,
     control,
     setValue,
+    getValues,
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<InsuranceOrderForm>({
@@ -116,9 +131,21 @@ export function InsuranceOrderFormDialog({
   });
   const legsField = useFieldArray({ control, name: "legs" });
 
+  // Luồng Tặng quà: legs dựng NGAY lúc mở (gói cố định) nhưng phí gói về sau
+  // qua query — đồng bộ một lần khi danh mục về, chỉ khi người dùng chưa gõ gì
+  // (fee còn 0). Đây là sync dữ liệu ngoài vào form, không phải derived state.
+  useEffect(() => {
+    if (!prefill || packageFee === null) return;
+    const legs = getValues("legs");
+    if (legs.length === 0 || legs.some((leg) => leg.fee !== 0)) return;
+    const share = Math.round(packageFee / legs.length);
+    legs.forEach((_, i) => setValue(`legs.${i}.fee`, share));
+  }, [prefill, packageFee, getValues, setValue]);
+
   const selectPackage = (value: string) => {
     setPackageName(value);
-    legsField.replace(defaultLegsFor(insuranceOrderLegsFor(value)));
+    const fee = packages.find((p) => p.name === value)?.yearlyFee ?? null;
+    legsField.replace(withFees(defaultLegsFor(insuranceOrderLegsFor(value)), fee));
   };
 
   const applyCustomerInfo = (i: number) => {
@@ -126,6 +153,7 @@ export function InsuranceOrderFormDialog({
     setValue(`legs.${i}.beneficiaryDob`, customer.dob ?? "", { shouldDirty: true });
     setValue(`legs.${i}.beneficiaryIdNumber`, customer.idNumber ?? "", { shouldDirty: true });
     setValue(`legs.${i}.beneficiaryPhone`, primaryPhone, { shouldDirty: true });
+    setValue(`legs.${i}.beneficiaryAddress`, customer.address, { shouldDirty: true });
   };
 
   const save = useMutation({
@@ -151,6 +179,7 @@ export function InsuranceOrderFormDialog({
                 beneficiaryDob: values.legs[0].beneficiaryDob,
                 beneficiaryIdNumber: values.legs[0].beneficiaryIdNumber,
                 beneficiaryPhone: values.legs[0].beneficiaryPhone,
+                beneficiaryAddress: values.legs[0].beneficiaryAddress,
               },
         )
       : values.legs;
@@ -161,11 +190,19 @@ export function InsuranceOrderFormDialog({
     <fieldset className={styles.fieldset}>
       <legend className={styles.legend}>Thông tin xe</legend>
 
-      <TextField
-        label="Biển số xe"
-        error={errors.legs?.[i]?.licensePlate?.message}
-        {...register(`legs.${i}.licensePlate`)}
-      />
+      <div className={styles.pair}>
+        <TextField
+          label="Biển số xe"
+          error={errors.legs?.[i]?.licensePlate?.message}
+          {...register(`legs.${i}.licensePlate`)}
+        />
+        <TextField
+          label="Loại xe"
+          placeholder="Xe số, tay ga, xe điện…"
+          error={errors.legs?.[i]?.vehicleType?.message}
+          {...register(`legs.${i}.vehicleType`)}
+        />
+      </div>
       <div className={styles.pair}>
         <TextField label="Số khung" hint="Không bắt buộc" {...register(`legs.${i}.chassisNumber`)} />
         <TextField label="Số máy" hint="Không bắt buộc" {...register(`legs.${i}.engineNumber`)} />
@@ -192,6 +229,12 @@ export function InsuranceOrderFormDialog({
         <TextField label="CCCD" {...register(`legs.${i}.beneficiaryIdNumber`)} />
       </div>
       <TextField label="Số điện thoại" {...register(`legs.${i}.beneficiaryPhone`)} />
+      <TextField
+        label="Địa chỉ"
+        placeholder="123 Nguyễn Trãi, Phường Tân Bình"
+        error={errors.legs?.[i]?.beneficiaryAddress?.message}
+        {...register(`legs.${i}.beneficiaryAddress`)}
+      />
     </fieldset>
   );
 
@@ -231,6 +274,7 @@ export function InsuranceOrderFormDialog({
           />
         )}
 
+
         {legsField.fields.length > 1 &&
           legsField.fields.map((field, i) => (
             <fieldset key={field.id} className={styles.legCard}>
@@ -240,6 +284,14 @@ export function InsuranceOrderFormDialog({
                 <TextField label="Ngày bắt đầu" type="date" {...register(`legs.${i}.startDate`)} />
                 <TextField label="Ngày kết thúc" type="date" {...register(`legs.${i}.endDate`)} />
               </div>
+
+              <TextField
+                label="Mức phí (đ)"
+                type="number"
+                inputMode="numeric"
+                error={errors.legs?.[i]?.fee?.message}
+                {...register(`legs.${i}.fee`, { valueAsNumber: true })}
+              />
 
               {legGroup.legs[i].product === "BH xe máy" && renderVehicleInfo(i)}
               {(!legGroup.sharedBeneficiary || i === 0) && renderBeneficiary(i)}
@@ -252,6 +304,13 @@ export function InsuranceOrderFormDialog({
               <TextField label="Ngày bắt đầu" type="date" {...register("legs.0.startDate")} />
               <TextField label="Ngày kết thúc" type="date" {...register("legs.0.endDate")} />
             </div>
+            <TextField
+              label="Mức phí (đ)"
+              type="number"
+              inputMode="numeric"
+              error={errors.legs?.[0]?.fee?.message}
+              {...register("legs.0.fee", { valueAsNumber: true })}
+            />
             {legGroup.legs[0].product === "BH xe máy" && renderVehicleInfo(0)}
             {renderBeneficiary(0)}
           </>

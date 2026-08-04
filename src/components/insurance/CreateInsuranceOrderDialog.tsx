@@ -73,11 +73,19 @@ export function CreateInsuranceOrderDialog({ open, onClose }: Props) {
       <Dialog
         open={open}
         onClose={onClose}
-        title="Tạo đơn bảo hiểm — chọn khách hàng"
+        title="Chọn khách hàng"
         footer={
-          <Button variant="secondary" onClick={onClose}>
-            Huỷ
-          </Button>
+          <>
+            <Button variant="secondary" onClick={onClose}>
+              Huỷ
+            </Button>
+            {/* Luôn hiện, không chỉ lúc tìm không ra — khách mới toanh thì
+                nhân viên bấm thẳng, khỏi phải gõ tìm vu vơ trước. */}
+            <Button onClick={() => setCreatingCustomer(true)}>
+              <Plus size={16} aria-hidden />
+              Tạo KH mới
+            </Button>
+          </>
         }
       >
         <div className={styles.body}>
@@ -97,16 +105,12 @@ export function CreateInsuranceOrderDialog({ open, onClose }: Props) {
             <>
               {listPending && <p className="text-muted">Đang tải danh sách khách hàng…</p>}
               {listError && <p className="text-muted">Không tải được danh sách khách hàng.</p>}
+              {/* Nút tạo giờ nằm cố định ở footer — chỗ này chỉ còn lời nhắn. */}
               {!listPending && customers.length === 0 && (
-                <div className={styles.empty}>
-                  <p className="text-muted">
-                    Không tìm thấy khách hàng nào khớp “{searchQuery}”.
-                  </p>
-                  <Button variant="secondary" onClick={() => setCreatingCustomer(true)}>
-                    <Plus size={16} />
-                    Tạo khách hàng
-                  </Button>
-                </div>
+                <p className="text-muted">
+                  Không tìm thấy khách hàng nào khớp “{searchQuery}”. Bấm{" "}
+                  <strong>Tạo KH mới</strong> để lập hồ sơ.
+                </p>
               )}
               {customers.length > 0 && (
                 <ul className={styles.list}>
