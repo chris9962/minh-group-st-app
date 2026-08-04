@@ -41,21 +41,8 @@ export const INSURANCE_STATUS_LABEL: Record<InsuranceOrderStatus, string> = {
   done: 'Hoàn thành',
 };
 
-/**
- * Loại xe của đơn BH xe máy — danh sách CỐ ĐỊNH của PVI, không phải danh mục
- * công ty tự cấu hình, nên để ở code chứ không đưa vào database. Lưu `code`
- * (`1001`…) chứ không lưu tên: đó là thứ PVI nhận, tên chỉ để hiển thị.
- */
-export const VEHICLE_TYPES = [
-  { code: '1001', label: 'Dưới 50 cc' },
-  { code: '1002', label: 'Từ 50 cc trở lên' },
-  { code: '1003', label: 'Xe máy điện' },
-  { code: '2001', label: 'Xe mô tô ba bánh' },
-  { code: '2002', label: 'Xe gắn máy và các loại xe cơ giới tương tự' },
-] as const;
-
-export const vehicleTypeLabel = (code: string): string =>
-  VEHICLE_TYPES.find((v) => v.code === code)?.label ?? code;
+/* Loại xe (`VEHICLE_TYPES`) nằm ở `@/lib/pvi` cùng toàn bộ hợp đồng field
+   của PVI — nó là danh sách của PVI, không phải danh mục của mình. */
 
 export const InsuranceOrder = z.object({
   id: z.string(),

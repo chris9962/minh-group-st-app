@@ -16,13 +16,13 @@ import {
   insuranceOrderLegsFor,
   yearsLater,
   yearsOf,
-  VEHICLE_TYPES,
   InsuranceOrderForm,
   type InsuranceOrderLegForm,
   type InsuranceOrderLegGroup,
   type InsuranceOrderSource,
 } from "@/lib/api/insuranceOrders";
 import { fetchInsurancePackages } from "@/lib/api/settings";
+import { VEHICLE_TYPES } from "@/lib/pvi";
 import { useSession } from "@/store/session";
 import styles from "./InsuranceOrderFormDialog.module.scss";
 
