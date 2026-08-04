@@ -40,3 +40,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# tài liệu làm việc của agent — chỉ giữ ở máy, không đưa lên repo
+/docs
