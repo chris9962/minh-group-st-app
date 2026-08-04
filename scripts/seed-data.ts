@@ -11,8 +11,9 @@ import type { ManageScope, Permission, RoleKey } from "../src/lib/types";
  * như ngày đầu công ty dùng thật.
  *
  * Đứng độc lập, không import từ src/mocks — mock đã bị gỡ khỏi dự án.
- * Tham chiếu chéo (tài khoản→phòng, quy tắc quà→ngân hàng/món quà…) đi bằng
- * TÊN/CODE, script seed tự tra ra uuid lúc chèn.
+ * Tham chiếu chéo (tài khoản→phòng, quy tắc→ngân hàng/món quà…) đi bằng MÃ
+ * `code`, script seed tra ra uuid lúc chèn — không tra theo TÊN vì tên sửa
+ * được ở giao diện, gõ lệch một chữ là quan hệ rơi mất trong im lặng.
  */
 
 const p = (
@@ -65,9 +66,11 @@ export type SeedAccount = {
   fullName: string;
   title: string;
   role: RoleKey;
-  departmentName: string | null;
+  /** Mã phòng THUỘC VỀ — null với ban giám đốc. Tra theo `code`, không theo tên. */
+  departmentCode: string | null;
   manageScope: ManageScope;
-  managedDepartmentNames: string[];
+  /** Mã các phòng QUẢN LÝ. Seed sẽ dừng hẳn nếu có mã không tồn tại. */
+  managedDepartmentCodes: string[];
   permissions: Permission[];
 };
 
@@ -84,9 +87,9 @@ export const ACCOUNTS: SeedAccount[] = [
     fullName: "Đinh Hoàng Công",
     title: "Giám đốc",
     role: "director",
-    departmentName: null,
+    departmentCode: null,
     manageScope: "company",
-    managedDepartmentNames: [],
+    managedDepartmentCodes: [],
     permissions: directorPermissions,
   },
   {
@@ -94,9 +97,9 @@ export const ACCOUNTS: SeedAccount[] = [
     fullName: "Đinh Hoàng Minh",
     title: "Cố vấn cao cấp",
     role: "deputy-director",
-    departmentName: null,
+    departmentCode: null,
     manageScope: "listed",
-    managedDepartmentNames: ["Phòng Kế toán tổng hợp", "Phòng Kinh doanh tổng hợp"],
+    managedDepartmentCodes: ["PHONG-KTTH", "PHONG-KDTH"],
     permissions: managerPermissions,
   },
   {
@@ -104,9 +107,9 @@ export const ACCOUNTS: SeedAccount[] = [
     fullName: "Phan Hữu Linh",
     title: "Phó Giám Đốc 1",
     role: "deputy-director",
-    departmentName: null,
+    departmentCode: null,
     manageScope: "listed",
-    managedDepartmentNames: ["Phòng Dự Án", "Phòng Bảo trợ xã hội"],
+    managedDepartmentCodes: ["PHONG-DU-AN", "PHONG-BTXH"],
     permissions: managerPermissions,
   },
   {
@@ -114,9 +117,9 @@ export const ACCOUNTS: SeedAccount[] = [
     fullName: "Nguyễn Thị Hồng Huệ",
     title: "Phó Giám Đốc 2",
     role: "deputy-director",
-    departmentName: null,
+    departmentCode: null,
     manageScope: "listed",
-    managedDepartmentNames: ["Phòng Kinh doanh 2", "Phòng Kinh doanh 6", "Phòng Kinh doanh 7"],
+    managedDepartmentCodes: ["KD-2", "KD-6", "KD-7"],
     permissions: managerPermissions,
   },
   {
@@ -124,14 +127,9 @@ export const ACCOUNTS: SeedAccount[] = [
     fullName: "Lư Hồng Huỳnh",
     title: "Phó Giám Đốc 3",
     role: "deputy-director",
-    departmentName: null,
+    departmentCode: null,
     manageScope: "listed",
-    managedDepartmentNames: [
-      "Phòng Kinh doanh 3",
-      "Phòng Kinh doanh 4",
-      "Phòng Kinh doanh 5",
-      "Phòng Kinh doanh 9",
-    ],
+    managedDepartmentCodes: ["KD-3", "KD-4", "KD-5", "KD-9"],
     permissions: managerPermissions,
   },
   {
@@ -139,9 +137,9 @@ export const ACCOUNTS: SeedAccount[] = [
     fullName: "Dương Minh Trường",
     title: "Quyền Phó Giám Đốc",
     role: "deputy-director",
-    departmentName: null,
+    departmentCode: null,
     manageScope: "listed",
-    managedDepartmentNames: ["Phòng Kinh doanh 1", "Phòng Kinh doanh 8"],
+    managedDepartmentCodes: ["KD-1", "KD-8"],
     permissions: managerPermissions,
   },
   {
@@ -151,9 +149,9 @@ export const ACCOUNTS: SeedAccount[] = [
     fullName: "User Admin",
     title: "Quản trị hệ thống",
     role: "staff",
-    departmentName: null,
+    departmentCode: null,
     manageScope: "company",
-    managedDepartmentNames: [],
+    managedDepartmentCodes: [],
     permissions: sysAdminPermissions,
   },
 ];

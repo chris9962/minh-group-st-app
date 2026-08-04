@@ -36,9 +36,16 @@ async function main() {
   if ((await count("departments")) === 0) {
     await db.insert(schema.departments).values(DEPARTMENTS.map((d) => ({ code: d.code, name: d.name })));
   }
-  const departmentIdByName = new Map(
-    (await db.select().from(schema.departments)).map((d) => [d.name, d.id]),
+  const departmentIdByCode = new Map(
+    (await db.select().from(schema.departments)).map((d) => [d.code, d.id]),
   );
+
+  /** Mã sai thì DỪNG HẲN — bỏ qua trong im lặng là quan hệ quản lý rơi mất mà không ai biết. */
+  const departmentId = (code: string): string => {
+    const id = departmentIdByCode.get(code);
+    if (!id) throw new Error(`Seed: không có phòng nào mã "${code}"`);
+    return id;
+  };
 
   /* Tài khoản + quyền + phòng quản */
   if ((await count("users")) === 0) {
@@ -52,9 +59,7 @@ async function main() {
           phone: "0900000000",
           role: a.role,
           title: a.title,
-          departmentId: a.departmentName
-            ? (departmentIdByName.get(a.departmentName) ?? null)
-            : null,
+          departmentId: a.departmentCode ? departmentId(a.departmentCode) : null,
           manageScope: a.manageScope,
         })
         .returning({ id: schema.users.id });
@@ -69,12 +74,12 @@ async function main() {
           })),
         );
 
-      const managed = a.managedDepartmentNames
-        .map((name) => departmentIdByName.get(name))
-        .filter((x): x is string => Boolean(x));
-      if (managed.length > 0)
+      if (a.managedDepartmentCodes.length > 0)
         await db.insert(schema.userManagedDepartments).values(
-          managed.map((departmentId) => ({ userId: row.id, departmentId })),
+          a.managedDepartmentCodes.map((code) => ({
+            userId: row.id,
+            departmentId: departmentId(code),
+          })),
         );
     }
   }
