@@ -1,5 +1,5 @@
 {
-  "id": "e6001794-dfef-486b-a529-3fbfb2d2511d",
+  "id": "7c1a609d-d33d-41fa-93c4-a52cfd71d4cf",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -143,6 +143,14 @@
           "primaryKey": false,
           "notNull": true
         },
+        "kind": {
+          "name": "kind",
+          "type": "photo_kind",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'opening'"
+        },
         "url": {
           "name": "url",
           "type": "text",
@@ -250,6 +258,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": false
+        },
+        "transaction_at": {
+          "name": "transaction_at",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
         },
         "account_type": {
           "name": "account_type",
@@ -457,6 +471,10 @@
         "bank_accounts_done_filled": {
           "name": "bank_accounts_done_filled",
           "value": "status = 'creating' or (account_number is not null and opened_date is not null)"
+        },
+        "bank_accounts_transaction_other_day": {
+          "name": "bank_accounts_transaction_other_day",
+          "value": "transaction_at is null or transaction_at <> opened_date"
         }
       },
       "isRLSEnabled": false
@@ -555,6 +573,12 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
+        "code": {
+          "name": "code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
         "name": {
           "name": "name",
           "type": "text",
@@ -587,6 +611,13 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
+        "channels_code_unique": {
+          "name": "channels_code_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "code"
+          ]
+        },
         "channels_name_unique": {
           "name": "channels_name_unique",
           "nullsNotDistinct": false,
@@ -872,6 +903,12 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
+        "code": {
+          "name": "code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
         "name": {
           "name": "name",
           "type": "text",
@@ -903,6 +940,13 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
+        "departments_code_unique": {
+          "name": "departments_code_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "code"
+          ]
+        },
         "departments_name_unique": {
           "name": "departments_name_unique",
           "nullsNotDistinct": false,
@@ -1019,6 +1063,12 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
+        "code": {
+          "name": "code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
         "name": {
           "name": "name",
           "type": "text",
@@ -1044,6 +1094,13 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
+        "gift_items_code_unique": {
+          "name": "gift_items_code_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "code"
+          ]
+        },
         "gift_items_name_unique": {
           "name": "gift_items_name_unique",
           "nullsNotDistinct": false,
@@ -1052,243 +1109,6 @@
           ]
         }
       },
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.gift_rule_items": {
-      "name": "gift_rule_items",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "rule_id": {
-          "name": "rule_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "gift_item_id": {
-          "name": "gift_item_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "insurance_package_id": {
-          "name": "insurance_package_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "gift_rule_items_rule": {
-          "name": "gift_rule_items_rule",
-          "columns": [
-            {
-              "expression": "rule_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "gift_rule_items_rule_id_gift_rules_id_fk": {
-          "name": "gift_rule_items_rule_id_gift_rules_id_fk",
-          "tableFrom": "gift_rule_items",
-          "tableTo": "gift_rules",
-          "columnsFrom": [
-            "rule_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "gift_rule_items_gift_item_id_gift_items_id_fk": {
-          "name": "gift_rule_items_gift_item_id_gift_items_id_fk",
-          "tableFrom": "gift_rule_items",
-          "tableTo": "gift_items",
-          "columnsFrom": [
-            "gift_item_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "gift_rule_items_insurance_package_id_insurance_packages_id_fk": {
-          "name": "gift_rule_items_insurance_package_id_insurance_packages_id_fk",
-          "tableFrom": "gift_rule_items",
-          "tableTo": "insurance_packages",
-          "columnsFrom": [
-            "insurance_package_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "gift_rule_items_one_target": {
-          "name": "gift_rule_items_one_target",
-          "value": "num_nonnulls(gift_item_id, insurance_package_id) = 1"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.gift_rules": {
-      "name": "gift_rules",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "sort_order": {
-          "name": "sort_order",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "gift_group": {
-          "name": "gift_group",
-          "type": "gift_group",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "mode": {
-          "name": "mode",
-          "type": "gift_rule_mode",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "required_bank_id": {
-          "name": "required_bank_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "requires_cnkd": {
-          "name": "requires_cnkd",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "app_count_comparator": {
-          "name": "app_count_comparator",
-          "type": "app_count_comparator",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'none'"
-        },
-        "app_count_value": {
-          "name": "app_count_value",
-          "type": "smallint",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "channel_id": {
-          "name": "channel_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "cash_amount": {
-          "name": "cash_amount",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "effective_from": {
-          "name": "effective_from",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "effective_to": {
-          "name": "effective_to",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "active": {
-          "name": "active",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "gift_rules_required_bank_id_banks_id_fk": {
-          "name": "gift_rules_required_bank_id_banks_id_fk",
-          "tableFrom": "gift_rules",
-          "tableTo": "banks",
-          "columnsFrom": [
-            "required_bank_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "gift_rules_channel_id_channels_id_fk": {
-          "name": "gift_rules_channel_id_channels_id_fk",
-          "tableFrom": "gift_rules",
-          "tableTo": "channels",
-          "columnsFrom": [
-            "channel_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -1532,6 +1352,13 @@
           "primaryKey": false,
           "notNull": true
         },
+        "fee": {
+          "name": "fee",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
         "start_date": {
           "name": "start_date",
           "type": "date",
@@ -1591,8 +1418,22 @@
           "notNull": true,
           "default": "''"
         },
+        "beneficiary_address": {
+          "name": "beneficiary_address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
         "license_plate": {
           "name": "license_plate",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "vehicle_type": {
+          "name": "vehicle_type",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -1615,6 +1456,12 @@
         "certificate_photo_url": {
           "name": "certificate_photo_url",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "handled_by": {
+          "name": "handled_by",
+          "type": "uuid",
           "primaryKey": false,
           "notNull": false
         },
@@ -1737,6 +1584,19 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
+        "insurance_orders_handled_by_users_id_fk": {
+          "name": "insurance_orders_handled_by_users_id_fk",
+          "tableFrom": "insurance_orders",
+          "tableTo": "users",
+          "columnsFrom": [
+            "handled_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
         "insurance_orders_created_by_users_id_fk": {
           "name": "insurance_orders_created_by_users_id_fk",
           "tableFrom": "insurance_orders",
@@ -1779,6 +1639,14 @@
         "insurance_orders_motorbike_plate": {
           "name": "insurance_orders_motorbike_plate",
           "value": "product <> 'motorbike' or license_plate <> ''"
+        },
+        "insurance_orders_motorbike_vehicle_type": {
+          "name": "insurance_orders_motorbike_vehicle_type",
+          "value": "product <> 'motorbike' or vehicle_type <> ''"
+        },
+        "insurance_orders_fee_positive": {
+          "name": "insurance_orders_fee_positive",
+          "value": "fee >= 0"
         }
       },
       "isRLSEnabled": false
@@ -1793,6 +1661,12 @@
           "primaryKey": true,
           "notNull": true,
           "default": "gen_random_uuid()"
+        },
+        "code": {
+          "name": "code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
         },
         "name": {
           "name": "name",
@@ -1832,6 +1706,13 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
+        "insurance_packages_code_unique": {
+          "name": "insurance_packages_code_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "code"
+          ]
+        },
         "insurance_packages_name_unique": {
           "name": "insurance_packages_name_unique",
           "nullsNotDistinct": false,
@@ -3127,15 +3008,6 @@
         "access-id-number"
       ]
     },
-    "public.app_count_comparator": {
-      "name": "app_count_comparator",
-      "schema": "public",
-      "values": [
-        "none",
-        "eq",
-        "gte"
-      ]
-    },
     "public.bank_account_status": {
       "name": "bank_account_status",
       "schema": "public",
@@ -3161,23 +3033,6 @@
         "hospital",
         "free-text",
         "none"
-      ]
-    },
-    "public.gift_group": {
-      "name": "gift_group",
-      "schema": "public",
-      "values": [
-        "cash",
-        "choice"
-      ]
-    },
-    "public.gift_rule_mode": {
-      "name": "gift_rule_mode",
-      "schema": "public",
-      "values": [
-        "accumulate",
-        "tiered",
-        "addon"
       ]
     },
     "public.insurance_order_source": {
@@ -3237,6 +3092,14 @@
         "order-done",
         "order-manual",
         "code-low"
+      ]
+    },
+    "public.photo_kind": {
+      "name": "photo_kind",
+      "schema": "public",
+      "values": [
+        "opening",
+        "transaction"
       ]
     },
     "public.role_key": {

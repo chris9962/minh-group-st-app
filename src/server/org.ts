@@ -90,12 +90,29 @@ export const orgError = (code: OrgErrorCode) => ({
       : "Phòng này vẫn còn người — chuyển họ sang phòng khác trước",
 });
 
+/**
+ * Mã cố định sinh từ tên: "Phòng Kinh doanh 10" → `PHONG-KINH-DOANH-10`.
+ *
+ * Module luật theo kỳ trỏ vào phòng bằng mã này (spec §5.3) nên nó KHÔNG BAO
+ * GIỜ đổi, kể cả khi phòng đổi tên — sinh đúng một lần lúc lập phòng. Trùng
+ * thì nối số, không ghi đè mã của phòng khác.
+ */
+async function nextDepartmentCode(name: string): Promise<string> {
+  const base =
+    removeDiacritics(name).trim().toUpperCase().replace(/[^A-Z0-9]+/g, "-").replace(/^-|-$/g, "") ||
+    "PHONG";
+
+  const taken = new Set((await db.select({ code: departments.code }).from(departments)).map((d) => d.code));
+  if (!taken.has(base)) return base;
+  for (let i = 2; ; i++) if (!taken.has(`${base}-${i}`)) return `${base}-${i}`;
+}
+
 export async function createDepartment(name: string): Promise<OrgOutcome> {
   if (await nameTaken(name)) return { ok: false, code: ORG_ERROR.NAME_TAKEN };
 
   const [row] = await db
     .insert(departments)
-    .values({ id: crypto.randomUUID(), name })
+    .values({ code: await nextDepartmentCode(name), name })
     .returning();
   return { ok: true, department: { id: row.id, name: row.name, active: row.active, headcount: 0 } };
 }

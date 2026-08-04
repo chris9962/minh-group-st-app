@@ -23,22 +23,22 @@ const p = (
 
 /* ── 15 phòng — sơ đồ thật của MGST ─────────────────────────────────── */
 
-export const DEPARTMENTS: string[] = [
-  "Phòng An Sinh",
-  "Phòng Y",
-  "Phòng Kế toán tổng hợp",
-  "Phòng Kinh doanh tổng hợp",
-  "Phòng Dự Án",
-  "Phòng Bảo trợ xã hội",
-  "Phòng Kinh doanh 1",
-  "Phòng Kinh doanh 2",
-  "Phòng Kinh doanh 3",
-  "Phòng Kinh doanh 4",
-  "Phòng Kinh doanh 5",
-  "Phòng Kinh doanh 6",
-  "Phòng Kinh doanh 7",
-  "Phòng Kinh doanh 8",
-  "Phòng Kinh doanh 9",
+export const DEPARTMENTS: { code: string; name: string }[] = [
+  { code: "PHONG-AN-SINH", name: "Phòng An Sinh" },
+  { code: "PHONG-Y", name: "Phòng Y" },
+  { code: "PHONG-KTTH", name: "Phòng Kế toán tổng hợp" },
+  { code: "PHONG-KDTH", name: "Phòng Kinh doanh tổng hợp" },
+  { code: "PHONG-DU-AN", name: "Phòng Dự Án" },
+  { code: "PHONG-BTXH", name: "Phòng Bảo trợ xã hội" },
+  { code: "KD-1", name: "Phòng Kinh doanh 1" },
+  { code: "KD-2", name: "Phòng Kinh doanh 2" },
+  { code: "KD-3", name: "Phòng Kinh doanh 3" },
+  { code: "KD-4", name: "Phòng Kinh doanh 4" },
+  { code: "KD-5", name: "Phòng Kinh doanh 5" },
+  { code: "KD-6", name: "Phòng Kinh doanh 6" },
+  { code: "KD-7", name: "Phòng Kinh doanh 7" },
+  { code: "KD-8", name: "Phòng Kinh doanh 8" },
+  { code: "KD-9", name: "Phòng Kinh doanh 9" },
 ];
 
 /* ── Bộ quyền theo vị trí đặc thù (ngoài 3 bộ theo chức vụ ở lib/roles) ── */
@@ -182,11 +182,11 @@ export const BANKS = [
 /* ── Kênh — spec §2.3 ───────────────────────────────────────────────── */
 
 export const CHANNELS = [
-  { name: "Ấp", inputKind: "ward-hamlet" },
-  { name: "Định danh", inputKind: "ward-hamlet" },
-  { name: "Bệnh viện", inputKind: "hospital" },
-  { name: "Tự do", inputKind: "free-text" },
-  { name: "ATM", inputKind: "none" },
+  { code: "KENH-AP", name: "Ấp", inputKind: "ward-hamlet" },
+  { code: "KENH-DINH-DANH", name: "Định danh", inputKind: "ward-hamlet" },
+  { code: "KENH-BENH-VIEN", name: "Bệnh viện", inputKind: "hospital" },
+  { code: "KENH-TU-DO", name: "Tự do", inputKind: "free-text" },
+  { code: "KENH-ATM", name: "ATM", inputKind: "none" },
 ] as const;
 
 /** Danh sách thật do người dùng chốt 03/08. */
@@ -213,96 +213,27 @@ export const SERVICE_TYPES = [
   { name: "Bảo hiểm y tế", coefficient: "1" },
 ] as const;
 
-export const GIFT_ITEMS: string[] = ["Loa", "Bảng mica", "Mì", "Nón bảo hiểm", "BH sức khoẻ"];
-
-export const INSURANCE_PACKAGES = [
-  { name: "1 năm BH xe máy", yearlyFee: 100000 },
-  { name: "1 năm BH tai nạn điện", yearlyFee: 100000 },
-  { name: "1 năm xe máy + 1 năm tai nạn điện", yearlyFee: 200000 },
-  { name: "2 năm BH xe máy", yearlyFee: 200000 },
-  /** Xe máy có hợp đồng nhiều năm THẬT — một đơn, không tách thành 3 đơn 1 năm. */
-  { name: "3 năm BH xe máy", yearlyFee: 300000 },
-  { name: "2 năm tai nạn điện gói 100k", yearlyFee: 200000 },
-  { name: "1 năm tai nạn điện gói 200k", yearlyFee: 200000 },
+export const GIFT_ITEMS = [
+  { code: "QUA-LOA", name: "Loa" },
+  { code: "QUA-MICA", name: "Bảng mica" },
+  { code: "QUA-MI", name: "Mì" },
+  { code: "QUA-NON-BH", name: "Nón bảo hiểm" },
+  { code: "QUA-BH-SUC-KHOE", name: "BH sức khoẻ" },
 ] as const;
 
-/** Bảng quy tắc quà khởi điểm — khớp spec §5.2; CEO chỉnh tiếp ở P-81. */
-export type SeedGiftRule = {
-  sortOrder: number;
-  giftGroup: "cash" | "choice";
-  mode: "accumulate" | "tiered" | "addon";
-  requiredBankCode: string | null;
-  requiresCnkd: boolean;
-  appCountComparator: "none" | "eq" | "gte";
-  appCountValue: number | null;
-  channelName: string | null;
-  cashAmount: number | null;
-  /** Tên món — tra ở gift_items trước, không có thì insurance_packages. */
-  itemNames: string[];
-  effectiveFrom: string;
-};
+export const INSURANCE_PACKAGES = [
+  { code: "BH-1N-XEMAY", name: "1 năm BH xe máy", yearlyFee: 100000 },
+  { code: "BH-1N-DIEN", name: "1 năm BH tai nạn điện", yearlyFee: 100000 },
+  { code: "BH-COMBO-1N", name: "1 năm xe máy + 1 năm tai nạn điện", yearlyFee: 200000 },
+  { code: "BH-2N-XEMAY", name: "2 năm BH xe máy", yearlyFee: 200000 },
+  /** Xe máy có hợp đồng nhiều năm THẬT — một đơn, không tách thành 3 đơn 1 năm. */
+  { code: "BH-3N-XEMAY", name: "3 năm BH xe máy", yearlyFee: 300000 },
+  { code: "BH-2N-DIEN-100K", name: "2 năm tai nạn điện gói 100k", yearlyFee: 200000 },
+  { code: "BH-1N-DIEN-200K", name: "1 năm tai nạn điện gói 200k", yearlyFee: 200000 },
+] as const;
 
-export const GIFT_RULES: SeedGiftRule[] = [
-  {
-    sortOrder: 1, giftGroup: "cash", mode: "accumulate",
-    requiredBankCode: "VPa", requiresCnkd: false,
-    appCountComparator: "none", appCountValue: null,
-    channelName: null, cashAmount: 20000, itemNames: [],
-    effectiveFrom: "2026-01-01",
-  },
-  {
-    sortOrder: 2, giftGroup: "cash", mode: "accumulate",
-    requiredBankCode: "MSBa", requiresCnkd: false,
-    appCountComparator: "eq", appCountValue: 3,
-    channelName: null, cashAmount: 50000, itemNames: [],
-    effectiveFrom: "2026-01-01",
-  },
-  {
-    sortOrder: 3, giftGroup: "choice", mode: "tiered",
-    requiredBankCode: "MSBa", requiresCnkd: false,
-    appCountComparator: "gte", appCountValue: 3,
-    channelName: null, cashAmount: null,
-    itemNames: ["1 năm BH xe máy", "1 năm BH tai nạn điện"],
-    effectiveFrom: "2026-01-01",
-  },
-  {
-    sortOrder: 4, giftGroup: "choice", mode: "tiered",
-    requiredBankCode: null, requiresCnkd: false,
-    appCountComparator: "gte", appCountValue: 3,
-    channelName: null, cashAmount: null,
-    itemNames: [
-      "1 năm xe máy + 1 năm tai nạn điện",
-      "2 năm BH xe máy",
-      "2 năm tai nạn điện gói 100k",
-      "1 năm tai nạn điện gói 200k",
-    ],
-    effectiveFrom: "2026-01-01",
-  },
-  {
-    sortOrder: 5, giftGroup: "choice", mode: "tiered",
-    requiredBankCode: null, requiresCnkd: false,
-    appCountComparator: "gte", appCountValue: 2,
-    channelName: null, cashAmount: null,
-    itemNames: ["1 năm BH xe máy", "1 năm BH tai nạn điện"],
-    effectiveFrom: "2026-01-01",
-  },
-  {
-    sortOrder: 6, giftGroup: "choice", mode: "addon",
-    requiredBankCode: "VPa", requiresCnkd: true,
-    appCountComparator: "none", appCountValue: null,
-    channelName: null, cashAmount: null,
-    itemNames: ["Loa", "Bảng mica"],
-    effectiveFrom: "2026-01-01",
-  },
-  {
-    sortOrder: 7, giftGroup: "choice", mode: "addon",
-    requiredBankCode: null, requiresCnkd: false,
-    appCountComparator: "none", appCountValue: null,
-    channelName: "Bệnh viện", cashAmount: null,
-    itemNames: ["Mì", "BH sức khoẻ", "Nón bảo hiểm"],
-    effectiveFrom: "2026-01-01",
-  },
-];
+/* Quy tắc quà KHÔNG còn ở đây: thể lệ nằm trong module code theo kỳ
+   `src/rules/YYYY-MM.ts` (spec §5.3), tài liệu nguồn ở `mgst-the-le/`. */
 
 /** Chỉ tiêu KPI khởi điểm — 100 điểm/tháng, cảnh báo khi còn 7 ngày (P-83). */
 export const KPI_TARGET = { monthlyPoints: 100, warnDaysLeft: 7 };

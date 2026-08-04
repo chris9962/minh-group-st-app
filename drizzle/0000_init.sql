@@ -8,18 +8,16 @@ $fn$ SELECT lower(public.unaccent('public.unaccent', translate($1, 'đĐ', 'dD')
 --> statement-breakpoint
 CREATE TYPE "public"."account_number_method" AS ENUM('phone-match', 'manual');--> statement-breakpoint
 CREATE TYPE "public"."action_key" AS ENUM('view-summary', 'view-detail', 'create', 'update', 'delete', 'export', 'handle-fallback', 'grant-gift', 'manage-referral-codes', 'manage-bank-catalog', 'configure-catalog', 'configure-gift-rules', 'manage-org', 'grant-permission', 'access-id-number');--> statement-breakpoint
-CREATE TYPE "public"."app_count_comparator" AS ENUM('none', 'eq', 'gte');--> statement-breakpoint
 CREATE TYPE "public"."bank_account_status" AS ENUM('creating', 'done');--> statement-breakpoint
 CREATE TYPE "public"."bank_account_type" AS ENUM('none', 'CNKD', 'HKD');--> statement-breakpoint
 CREATE TYPE "public"."channel_input_kind" AS ENUM('ward-hamlet', 'hospital', 'free-text', 'none');--> statement-breakpoint
-CREATE TYPE "public"."gift_group" AS ENUM('cash', 'choice');--> statement-breakpoint
-CREATE TYPE "public"."gift_rule_mode" AS ENUM('accumulate', 'tiered', 'addon');--> statement-breakpoint
 CREATE TYPE "public"."insurance_order_source" AS ENUM('self', 'gift');--> statement-breakpoint
 CREATE TYPE "public"."insurance_order_status" AS ENUM('queued', 'creating', 'pending-approval', 'manual-queued', 'manual-progress', 'done');--> statement-breakpoint
 CREATE TYPE "public"."insurance_product" AS ENUM('motorbike', 'electric-accident');--> statement-breakpoint
 CREATE TYPE "public"."manage_scope" AS ENUM('none', 'listed', 'company');--> statement-breakpoint
 CREATE TYPE "public"."module_key" AS ENUM('customer', 'insurance', 'banking', 'services', 'staff', 'system', '*');--> statement-breakpoint
 CREATE TYPE "public"."notification_kind" AS ENUM('order-done', 'order-manual', 'code-low');--> statement-breakpoint
+CREATE TYPE "public"."photo_kind" AS ENUM('opening', 'transaction');--> statement-breakpoint
 CREATE TYPE "public"."role_key" AS ENUM('director', 'deputy-director', 'head', 'deputy-head', 'staff');--> statement-breakpoint
 CREATE TYPE "public"."scope_key" AS ENUM('own', 'managed', 'company');--> statement-breakpoint
 CREATE TABLE "audit_log" (
@@ -37,6 +35,7 @@ CREATE TABLE "audit_log" (
 CREATE TABLE "bank_account_photos" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"account_id" uuid NOT NULL,
+	"kind" "photo_kind" DEFAULT 'opening' NOT NULL,
 	"url" text NOT NULL,
 	"sort_order" smallint DEFAULT 0 NOT NULL
 );
@@ -50,6 +49,7 @@ CREATE TABLE "bank_accounts" (
 	"account_number" text,
 	"opened_date" date,
 	"app_installed" boolean DEFAULT false NOT NULL,
+	"transaction_at" date,
 	"account_type" "bank_account_type" DEFAULT 'none' NOT NULL,
 	"note" text DEFAULT '' NOT NULL,
 	"channel_id" uuid,
@@ -59,7 +59,8 @@ CREATE TABLE "bank_accounts" (
 	"finished_at" timestamp with time zone,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone,
-	CONSTRAINT "bank_accounts_done_filled" CHECK (status = 'creating' or (account_number is not null and opened_date is not null))
+	CONSTRAINT "bank_accounts_done_filled" CHECK (status = 'creating' or (account_number is not null and opened_date is not null)),
+	CONSTRAINT "bank_accounts_transaction_other_day" CHECK (transaction_at is null or transaction_at <> opened_date)
 );
 --> statement-breakpoint
 CREATE TABLE "banks" (
@@ -77,10 +78,12 @@ CREATE TABLE "banks" (
 --> statement-breakpoint
 CREATE TABLE "channels" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"code" text NOT NULL,
 	"name" text NOT NULL,
 	"input_kind" "channel_input_kind" NOT NULL,
 	"active" boolean DEFAULT true NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "channels_code_unique" UNIQUE("code"),
 	CONSTRAINT "channels_name_unique" UNIQUE("name")
 );
 --> statement-breakpoint
@@ -107,10 +110,12 @@ CREATE TABLE "customers" (
 --> statement-breakpoint
 CREATE TABLE "departments" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"code" text NOT NULL,
 	"name" text NOT NULL,
 	"active" boolean DEFAULT true NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone,
+	CONSTRAINT "departments_code_unique" UNIQUE("code"),
 	CONSTRAINT "departments_name_unique" UNIQUE("name")
 );
 --> statement-breakpoint
@@ -127,36 +132,12 @@ CREATE TABLE "gift_grants" (
 --> statement-breakpoint
 CREATE TABLE "gift_items" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"code" text NOT NULL,
 	"name" text NOT NULL,
 	"active" boolean DEFAULT true NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "gift_items_code_unique" UNIQUE("code"),
 	CONSTRAINT "gift_items_name_unique" UNIQUE("name")
-);
---> statement-breakpoint
-CREATE TABLE "gift_rule_items" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"rule_id" uuid NOT NULL,
-	"gift_item_id" uuid,
-	"insurance_package_id" uuid,
-	CONSTRAINT "gift_rule_items_one_target" CHECK (num_nonnulls(gift_item_id, insurance_package_id) = 1)
-);
---> statement-breakpoint
-CREATE TABLE "gift_rules" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"sort_order" integer NOT NULL,
-	"gift_group" "gift_group" NOT NULL,
-	"mode" "gift_rule_mode" NOT NULL,
-	"required_bank_id" uuid,
-	"requires_cnkd" boolean DEFAULT false NOT NULL,
-	"app_count_comparator" "app_count_comparator" DEFAULT 'none' NOT NULL,
-	"app_count_value" smallint,
-	"channel_id" uuid,
-	"cash_amount" integer,
-	"effective_from" date NOT NULL,
-	"effective_to" date,
-	"active" boolean DEFAULT true NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone
 );
 --> statement-breakpoint
 CREATE TABLE "hamlets" (
@@ -190,6 +171,7 @@ CREATE TABLE "insurance_orders" (
 	"product" "insurance_product" NOT NULL,
 	"package_id" uuid,
 	"package_name" text NOT NULL,
+	"fee" integer DEFAULT 0 NOT NULL,
 	"start_date" date NOT NULL,
 	"end_date" date NOT NULL,
 	"status" "insurance_order_status" DEFAULT 'queued' NOT NULL,
@@ -199,25 +181,32 @@ CREATE TABLE "insurance_orders" (
 	"beneficiary_dob" date,
 	"beneficiary_id_number" text DEFAULT '' NOT NULL,
 	"beneficiary_phone" text DEFAULT '' NOT NULL,
+	"beneficiary_address" text DEFAULT '' NOT NULL,
 	"license_plate" text DEFAULT '' NOT NULL,
+	"vehicle_type" text DEFAULT '' NOT NULL,
 	"chassis_number" text DEFAULT '' NOT NULL,
 	"engine_number" text DEFAULT '' NOT NULL,
 	"certificate_photo_url" text,
+	"handled_by" uuid,
 	"created_by" uuid,
 	"created_by_department_id" uuid,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone,
 	CONSTRAINT "insurance_orders_order_code_unique" UNIQUE("order_code"),
-	CONSTRAINT "insurance_orders_motorbike_plate" CHECK (product <> 'motorbike' or license_plate <> '')
+	CONSTRAINT "insurance_orders_motorbike_plate" CHECK (product <> 'motorbike' or license_plate <> ''),
+	CONSTRAINT "insurance_orders_motorbike_vehicle_type" CHECK (product <> 'motorbike' or vehicle_type <> ''),
+	CONSTRAINT "insurance_orders_fee_positive" CHECK (fee >= 0)
 );
 --> statement-breakpoint
 CREATE TABLE "insurance_packages" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"code" text NOT NULL,
 	"name" text NOT NULL,
 	"yearly_fee" integer DEFAULT 0 NOT NULL,
 	"active" boolean DEFAULT true NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone,
+	CONSTRAINT "insurance_packages_code_unique" UNIQUE("code"),
 	CONSTRAINT "insurance_packages_name_unique" UNIQUE("name")
 );
 --> statement-breakpoint
@@ -373,17 +362,13 @@ ALTER TABLE "customers" ADD CONSTRAINT "customers_channel_id_channels_id_fk" FOR
 ALTER TABLE "customers" ADD CONSTRAINT "customers_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "gift_grants" ADD CONSTRAINT "gift_grants_customer_id_customers_id_fk" FOREIGN KEY ("customer_id") REFERENCES "public"."customers"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "gift_grants" ADD CONSTRAINT "gift_grants_granted_by_users_id_fk" FOREIGN KEY ("granted_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "gift_rule_items" ADD CONSTRAINT "gift_rule_items_rule_id_gift_rules_id_fk" FOREIGN KEY ("rule_id") REFERENCES "public"."gift_rules"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "gift_rule_items" ADD CONSTRAINT "gift_rule_items_gift_item_id_gift_items_id_fk" FOREIGN KEY ("gift_item_id") REFERENCES "public"."gift_items"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "gift_rule_items" ADD CONSTRAINT "gift_rule_items_insurance_package_id_insurance_packages_id_fk" FOREIGN KEY ("insurance_package_id") REFERENCES "public"."insurance_packages"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "gift_rules" ADD CONSTRAINT "gift_rules_required_bank_id_banks_id_fk" FOREIGN KEY ("required_bank_id") REFERENCES "public"."banks"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "gift_rules" ADD CONSTRAINT "gift_rules_channel_id_channels_id_fk" FOREIGN KEY ("channel_id") REFERENCES "public"."channels"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "hamlets" ADD CONSTRAINT "hamlets_ward_id_wards_id_fk" FOREIGN KEY ("ward_id") REFERENCES "public"."wards"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "insurance_order_status_history" ADD CONSTRAINT "insurance_order_status_history_order_id_insurance_orders_id_fk" FOREIGN KEY ("order_id") REFERENCES "public"."insurance_orders"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "insurance_order_status_history" ADD CONSTRAINT "insurance_order_status_history_changed_by_users_id_fk" FOREIGN KEY ("changed_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "insurance_orders" ADD CONSTRAINT "insurance_orders_customer_id_customers_id_fk" FOREIGN KEY ("customer_id") REFERENCES "public"."customers"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "insurance_orders" ADD CONSTRAINT "insurance_orders_package_id_insurance_packages_id_fk" FOREIGN KEY ("package_id") REFERENCES "public"."insurance_packages"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "insurance_orders" ADD CONSTRAINT "insurance_orders_gift_grant_id_gift_grants_id_fk" FOREIGN KEY ("gift_grant_id") REFERENCES "public"."gift_grants"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "insurance_orders" ADD CONSTRAINT "insurance_orders_handled_by_users_id_fk" FOREIGN KEY ("handled_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "insurance_orders" ADD CONSTRAINT "insurance_orders_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "insurance_orders" ADD CONSTRAINT "insurance_orders_created_by_department_id_departments_id_fk" FOREIGN KEY ("created_by_department_id") REFERENCES "public"."departments"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "kpi_targets" ADD CONSTRAINT "kpi_targets_department_id_departments_id_fk" FOREIGN KEY ("department_id") REFERENCES "public"."departments"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -417,7 +402,6 @@ CREATE UNIQUE INDEX "customer_phones_one_primary" ON "customer_phones" USING btr
 CREATE UNIQUE INDEX "customers_id_number" ON "customers" USING btree ("id_number") WHERE id_number is not null;--> statement-breakpoint
 CREATE INDEX "customers_search_name_trgm" ON "customers" USING gin (search_name gin_trgm_ops);--> statement-breakpoint
 CREATE INDEX "customers_id_last4" ON "customers" USING btree (right(id_number, 4)) WHERE id_number is not null;--> statement-breakpoint
-CREATE INDEX "gift_rule_items_rule" ON "gift_rule_items" USING btree ("rule_id");--> statement-breakpoint
 CREATE INDEX "insurance_history_order" ON "insurance_order_status_history" USING btree ("order_id");--> statement-breakpoint
 CREATE INDEX "insurance_orders_customer" ON "insurance_orders" USING btree ("customer_id");--> statement-breakpoint
 CREATE INDEX "insurance_orders_status" ON "insurance_orders" USING btree ("status");--> statement-breakpoint

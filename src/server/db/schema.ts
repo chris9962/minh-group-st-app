@@ -60,9 +60,11 @@ export const insuranceOrderSource = pgEnum("insurance_order_source", ["self", "g
 export const channelInputKind = pgEnum("channel_input_kind", [
   "ward-hamlet", "hospital", "free-text", "none",
 ]);
-export const giftGroup = pgEnum("gift_group", ["cash", "choice"]);
-export const giftRuleMode = pgEnum("gift_rule_mode", ["accumulate", "tiered", "addon"]);
-export const appCountComparator = pgEnum("app_count_comparator", ["none", "eq", "gte"]);
+/* ❌ gift_group · gift_rule_mode · app_count_comparator: BỎ (03/08) — chỉ phục
+   vụ hai bảng cấu hình quy tắc quà, nay quy tắc nằm ở code theo kỳ. */
+
+/** Ảnh mở tài khoản đếm theo `banks.required_photos`; ảnh giao dịch thì không. */
+export const photoKind = pgEnum("photo_kind", ["opening", "transaction"]);
 
 export const notificationKind = pgEnum("notification_kind", [
   "order-done", "order-manual", "code-low",
@@ -77,6 +79,8 @@ const updatedAt = () => timestamp("updated_at", { withTimezone: true });
 
 export const departments = pgTable("departments", {
   id: id(),
+  /** Mã cố định cho module luật theo kỳ trỏ vào (`PHONG-Y`) — P-91 cho đổi TÊN phòng. */
+  code: text("code").notNull().unique(),
   name: text("name").notNull().unique(),
   active: boolean("active").notNull().default(true),
   createdAt: createdAt(),
@@ -189,6 +193,8 @@ export const referralCodes = pgTable(
 
 export const channels = pgTable("channels", {
   id: id(),
+  /** Mã cố định cho module luật (`KENH-BENH-VIEN`). */
+  code: text("code").notNull().unique(),
   name: text("name").notNull().unique(),
   /** Là DỮ LIỆU, không phải nhánh code theo tên kênh (spec §2.3). */
   inputKind: channelInputKind("input_kind").notNull(),
@@ -215,6 +221,8 @@ export const serviceTypes = pgTable("service_types", {
 
 export const giftItems = pgTable("gift_items", {
   id: id(),
+  /** Mã cố định cho module luật (`QUA-NON-BH`) — file luật đóng băng không trỏ theo tên. */
+  code: text("code").notNull().unique(),
   name: text("name").notNull().unique(),
   active: boolean("active").notNull().default(true),
   createdAt: createdAt(),
@@ -222,6 +230,8 @@ export const giftItems = pgTable("gift_items", {
 
 export const insurancePackages = pgTable("insurance_packages", {
   id: id(),
+  /** Mã cố định cho module luật (`BH-1N-XEMAY`). */
+  code: text("code").notNull().unique(),
   name: text("name").notNull().unique(),
   /** Đồng/năm. */
   yearlyFee: integer("yearly_fee").notNull().default(0),
@@ -329,6 +339,11 @@ export const bankAccounts = pgTable(
     openedDate: date("opened_date"),
     /** Trường quyết định quà. */
     appInstalled: boolean("app_installed").notNull().default(false),
+    /**
+     * Ngày khách phát sinh giao dịch — thể lệ 01/8/2026 đòi giao dịch vào ngày
+     * KHÁC ngày mở tài khoản mới được tặng tiền. Ghi muộn (spec §4.2 bước 3).
+     */
+    transactionAt: date("transaction_at"),
     /** Chỉ có nghĩa khi ngân hàng = VPa — kiểm ở app (ngân hàng là dữ liệu). */
     accountType: bankAccountType("account_type").notNull().default("none"),
     note: text("note").notNull().default(""),
@@ -350,6 +365,11 @@ export const bankAccounts = pgTable(
       "bank_accounts_done_filled",
       sql`status = 'creating' or (account_number is not null and opened_date is not null)`,
     ),
+    /* Thể lệ ghi rõ "có giao dịch trong tháng (khác ngày mở tk)". */
+    check(
+      "bank_accounts_transaction_other_day",
+      sql`transaction_at is null or transaction_at <> opened_date`,
+    ),
   ],
 );
 
@@ -361,6 +381,12 @@ export const bankAccountPhotos = pgTable(
     accountId: uuid("account_id")
       .notNull()
       .references(() => bankAccounts.id, { onDelete: "cascade" }),
+    /**
+     * Luật "đủ ảnh mới cho Hoàn thành" chỉ đếm ảnh `opening` so với
+     * `banks.required_photos` — ảnh giao dịch nộp muộn hơn nhiều, đếm chung là
+     * tài khoản tự "đủ ảnh" sai.
+     */
+    kind: photoKind("kind").notNull().default("opening"),
     url: text("url").notNull(),
     sortOrder: smallint("sort_order").notNull().default(0),
   },
@@ -391,6 +417,8 @@ export const insuranceOrders = pgTable(
     packageId: uuid("package_id").references(() => insurancePackages.id),
     /** Snapshot tên gói lúc tạo — đổi tên gói không viết lại đơn cũ. */
     packageName: text("package_name").notNull(),
+    /** Mức phí của ĐƠN — prefill từ gói, người nhập sửa được từng đơn. */
+    fee: integer("fee").notNull().default(0),
     startDate: date("start_date").notNull(),
     endDate: date("end_date").notNull(),
     status: insuranceOrderStatus("status").notNull().default("queued"),
@@ -402,11 +430,21 @@ export const insuranceOrders = pgTable(
     beneficiaryDob: date("beneficiary_dob"),
     beneficiaryIdNumber: text("beneficiary_id_number").notNull().default(""),
     beneficiaryPhone: text("beneficiary_phone").notNull().default(""),
+    /** BH tai nạn điện tính theo HỘ nên địa chỉ là thông tin lõi; đơn xe máy cũng thu. */
+    beneficiaryAddress: text("beneficiary_address").notNull().default(""),
     licensePlate: text("license_plate").notNull().default(""),
+    /** Mã loại xe của PVI (`1001`…) — danh sách cố định ở `src/lib/pvi.ts`. */
+    vehicleType: text("vehicle_type").notNull().default(""),
     chassisNumber: text("chassis_number").notNull().default(""),
     engineNumber: text("engine_number").notNull().default(""),
     /** Ảnh chứng nhận — thay PDF, đính được ở mọi trạng thái. */
     certificatePhotoUrl: text("certificate_photo_url"),
+    /**
+      * Người XỬ LÝ TAY — ghi lúc bấm "Nhận đơn xử lý", null với đơn bot chạy
+      * trơn. Khác `created_by` (người tạo): hai người khác nhau, và mở đơn phải
+      * thấy ngay ai đang cầm để hai người không giẫm chân nhau.
+      */
+    handledBy: uuid("handled_by").references(() => users.id),
     createdBy: uuid("created_by").references(() => users.id),
     createdByDepartmentId: uuid("created_by_department_id").references(() => departments.id),
     createdAt: createdAt(),
@@ -420,6 +458,11 @@ export const insuranceOrders = pgTable(
       "insurance_orders_motorbike_plate",
       sql`product <> 'motorbike' or license_plate <> ''`,
     ),
+    check(
+      "insurance_orders_motorbike_vehicle_type",
+      sql`product <> 'motorbike' or vehicle_type <> ''`,
+    ),
+    check("insurance_orders_fee_positive", sql`fee >= 0`),
   ],
 );
 
@@ -468,44 +511,13 @@ export const services = pgTable(
 
 /* ── §5 · Quà & KPI ─────────────────────────────────────────────────── */
 
-export const giftRules = pgTable("gift_rules", {
-  id: id(),
-  /** Bậc thang khớp dòng nhỏ nhất trước rồi dừng. */
-  sortOrder: integer("sort_order").notNull(),
-  giftGroup: giftGroup("gift_group").notNull(),
-  /** `cash` luôn đi với `accumulate` — kiểm ở app. */
-  mode: giftRuleMode("mode").notNull(),
-  requiredBankId: uuid("required_bank_id").references(() => banks.id),
-  /** Cờ riêng — "mở CNKD ở HKD" không phải một ngân hàng. */
-  requiresCnkd: boolean("requires_cnkd").notNull().default(false),
-  appCountComparator: appCountComparator("app_count_comparator").notNull().default("none"),
-  appCountValue: smallint("app_count_value"),
-  channelId: uuid("channel_id").references(() => channels.id),
-  cashAmount: integer("cash_amount"),
-  effectiveFrom: date("effective_from").notNull(),
-  effectiveTo: date("effective_to"),
-  active: boolean("active").notNull().default(true),
-  createdAt: createdAt(),
-  updatedAt: updatedAt(),
-});
-
-export const giftRuleItems = pgTable(
-  "gift_rule_items",
-  {
-    id: id(),
-    ruleId: uuid("rule_id").notNull().references(() => giftRules.id),
-    giftItemId: uuid("gift_item_id").references(() => giftItems.id),
-    insurancePackageId: uuid("insurance_package_id").references(() => insurancePackages.id),
-  },
-  (t) => [
-    /** Món trong rổ là quà vật lý HOẶC gói bảo hiểm — đúng một FK có giá trị. */
-    check(
-      "gift_rule_items_one_target",
-      sql`num_nonnulls(gift_item_id, insurance_package_id) = 1`,
-    ),
-    index("gift_rule_items_rule").on(t.ruleId),
-  ],
-);
+/* ❌ `gift_rules` + `gift_rule_items` ĐÃ BỎ (chốt 03/08) — quy tắc quà và công
+   thức điểm KPI chuyển sang module code theo kỳ (`src/rules/YYYY-MM.ts`, spec
+   §5.3). Thể lệ đổi theo tháng và đổi cả HÌNH DẠNG luật (combo, hạng ngân
+   hàng, cấm bank theo combo, quy đổi quà theo phòng) — nhét vào bảng cấu hình
+   là phải dựng một ngôn ngữ lập trình bên trong database.
+   `gift_items` và `insurance_packages` VẪN ở đây: chúng là thực thể có thật,
+   file luật trỏ vào bằng cột `code`. */
 
 export const kpiTargets = pgTable(
   "kpi_targets",

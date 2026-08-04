@@ -103,6 +103,16 @@ export type PviField = {
    */
   fill: ((order: InsuranceOrder) => string) | null;
   /**
+   * `true` = SCRIPT RIÊNG CỦA TỪNG GÓI tự điền, không lấy từ đơn (chốt 04/08).
+   *
+   * Bot có một script cho mỗi gói bảo hiểm vì luồng form PVI khác nhau theo
+   * sản phẩm — script nào thì tự biết mình đang khai gói nào. Vì vậy KHÔNG
+   * cần cột ánh xạ `pvi_product_code` trong database: cột đó chỉ đủ cho việc
+   * chọn một dòng trong ô sản phẩm, không đủ cho cả luồng khai, mà thiếu
+   * script thì có mã cũng không chạy được.
+   */
+  filledByScript?: boolean;
+  /**
    * Giá trị tự sinh, dùng khi `fill` không có hoặc trả về rỗng.
    *
    * PHẢI là hàm, không phải giá trị sẵn — nó được gọi ĐÚNG LÚC ĐIỀN ĐƠN. Ví dụ
@@ -155,13 +165,16 @@ export const PVI_FIELDS: readonly PviField[] = [
     product: 'both',
     required: true,
     input: 'select-search',
-    source: 'Gói bảo hiểm đã chọn → mã sản phẩm bên PVI',
+    source: 'Script riêng của từng gói tự khai',
     fill: null,
-    status: 'missing',
+    filledByScript: true,
+    status: 'assumed',
     note:
-      'Mình mới có TÊN gói ("1 năm BH xe máy"), chưa có mã sản phẩm tương ứng ' +
-      'bên PVI. Cần thêm cột `insurance_packages.pvi_product_code` — ánh xạ này ' +
-      'phải ở database vì CEO thêm gói mới ở P-82 lúc nào cũng được.',
+      'Mỗi gói bảo hiểm có script bot riêng (luồng form PVI khác nhau theo sản ' +
+      'phẩm) nên script tự biết đang khai gói nào — không lấy từ đơn, không cần ' +
+      'cột ánh xạ trong database. ⚠️ Hệ quả: CEO thêm gói mới ở P-82 mà chưa có ' +
+      'script thì đơn của gói đó phải rơi vào Chờ làm tay kèm lý do rõ ràng, ' +
+      'không được để bot chết câm.',
   },
   {
     key: 'ngayHieuLuc',
@@ -292,7 +305,7 @@ export const pviFieldsFor = (product: 'motorbike' | 'electric-accident'): PviFie
  * đúng field đó. Kiểm trước khi bắt tay làm bot, đừng để phát hiện lúc chạy.
  */
 export const missingPviFields = (): PviField[] =>
-  PVI_FIELDS.filter((f) => f.fill === null && !f.defaultValue);
+  PVI_FIELDS.filter((f) => f.fill === null && !f.defaultValue && !f.filledByScript);
 
 /**
  * Dựng sẵn dữ liệu để bot điền vào PVI.
@@ -311,6 +324,8 @@ export function pviPayloadFor(order: InsuranceOrder): {
   const missing: string[] = [];
 
   for (const field of pviFieldsFor(product)) {
+    // Script tự khai — máy chủ không dựng sẵn giá trị, cũng không tính là thiếu.
+    if (field.filledByScript) continue;
     // Lấy từ đơn trước; không có hoặc rỗng thì mới dùng giá trị tự sinh.
     const value = field.fill?.(order) || field.defaultValue?.() || '';
     if (value) values[field.key] = value;

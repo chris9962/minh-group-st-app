@@ -9,7 +9,6 @@ import {
   CHANNELS,
   DEPARTMENTS,
   GIFT_ITEMS,
-  GIFT_RULES,
   HOSPITALS,
   INSURANCE_PACKAGES,
   KPI_TARGET,
@@ -35,7 +34,7 @@ async function main() {
 
   /* Phòng ban */
   if ((await count("departments")) === 0) {
-    await db.insert(schema.departments).values(DEPARTMENTS.map((name) => ({ name })));
+    await db.insert(schema.departments).values(DEPARTMENTS.map((d) => ({ code: d.code, name: d.name })));
   }
   const departmentIdByName = new Map(
     (await db.select().from(schema.departments)).map((d) => [d.name, d.id]),
@@ -106,53 +105,12 @@ async function main() {
   if ((await count("service_types")) === 0)
     await db.insert(schema.serviceTypes).values(SERVICE_TYPES.map((s) => ({ ...s })));
   if ((await count("gift_items")) === 0)
-    await db.insert(schema.giftItems).values(GIFT_ITEMS.map((name) => ({ name })));
+    await db.insert(schema.giftItems).values(GIFT_ITEMS.map((g) => ({ ...g })));
   if ((await count("insurance_packages")) === 0)
     await db.insert(schema.insurancePackages).values(INSURANCE_PACKAGES.map((x) => ({ ...x })));
 
-  /* Quy tắc quà — tra ngân hàng/kênh/món ra uuid */
-  if ((await count("gift_rules")) === 0) {
-    const channelIdByName = new Map(
-      (await db.select().from(schema.channels)).map((c) => [c.name, c.id]),
-    );
-    const giftItemIdByName = new Map(
-      (await db.select().from(schema.giftItems)).map((g) => [g.name, g.id]),
-    );
-    const packageIdByName = new Map(
-      (await db.select().from(schema.insurancePackages)).map((x) => [x.name, x.id]),
-    );
-
-    for (const r of GIFT_RULES) {
-      const [rule] = await db
-        .insert(schema.giftRules)
-        .values({
-          sortOrder: r.sortOrder,
-          giftGroup: r.giftGroup,
-          mode: r.mode,
-          requiredBankId: r.requiredBankCode
-            ? (bankIdByCode.get(r.requiredBankCode) ?? null)
-            : null,
-          requiresCnkd: r.requiresCnkd,
-          appCountComparator: r.appCountComparator,
-          appCountValue: r.appCountValue,
-          channelId: r.channelName ? (channelIdByName.get(r.channelName) ?? null) : null,
-          cashAmount: r.cashAmount,
-          effectiveFrom: r.effectiveFrom,
-        })
-        .returning({ id: schema.giftRules.id });
-
-      if (r.itemNames.length > 0)
-        await db.insert(schema.giftRuleItems).values(
-          r.itemNames.map((name) => ({
-            ruleId: rule.id,
-            giftItemId: giftItemIdByName.get(name) ?? null,
-            insurancePackageId: giftItemIdByName.has(name)
-              ? null
-              : (packageIdByName.get(name) ?? null),
-          })),
-        );
-    }
-  }
+  /* Quy tắc quà KHÔNG seed — không còn bảng cấu hình; thể lệ nằm ở module code
+     theo kỳ `src/rules/YYYY-MM.ts` (spec §5.3, chốt 03/08). */
 
   /* Chỉ tiêu KPI — mốc chung toàn công ty cho tháng hiện tại */
   if ((await count("kpi_targets")) === 0) {
@@ -172,7 +130,7 @@ async function main() {
   const users = await db.select({ id: schema.users.id }).from(schema.users);
   console.log(
     `Seed xong: ${DEPARTMENTS.length} phòng · ${users.length} tài khoản · ` +
-      `${BANKS.length} ngân hàng · ${GIFT_RULES.length} quy tắc quà · ` +
+      `${BANKS.length} ngân hàng · ` +
       `${vnAddress.provinces.length} tỉnh tham chiếu.`,
   );
   await pool.end();
