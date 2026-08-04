@@ -57,8 +57,18 @@ export type PviField = {
   /** Field này thuộc sản phẩm nào. */
   product: 'motorbike' | 'electric-accident' | 'both';
   required: boolean;
-  input: 'text' | 'date' | 'number' | 'select';
-  /** Chỉ có với `input: 'select'`. */
+  /**
+   * Kiểu ô nhập BÊN PVI — quyết định cách bot thao tác, không phải cách mình
+   * hiển thị.
+   *
+   * `select` = thẻ chọn thường, đặt thẳng giá trị được.
+   * `select-search` = ô chọn có Ô TÌM KIẾM bên trong: bot phải bấm mở → gõ vào
+   * ô tìm → chờ danh sách lọc xong → mới bấm được dòng. Đặt thẳng giá trị như
+   * `select` thường là hỏng. Phân biệt hai cái này để bot khỏi đứng im ở đúng
+   * chỗ mà nhìn ảnh chụp thì tưởng đã chọn xong.
+   */
+  input: 'text' | 'date' | 'number' | 'select' | 'select-search';
+  /** Chỉ có với `input: 'select'` hoặc `'select-search'`. */
   options?: readonly PviOption[];
   /** Mô tả nguồn bằng tiếng Việt — dùng cho bảng đối chiếu với PVI. */
   source: string;
@@ -110,7 +120,7 @@ export const PVI_FIELDS: readonly PviField[] = [
     label: 'Sản phẩm / gói bảo hiểm',
     product: 'both',
     required: true,
-    input: 'select',
+    input: 'select-search',
     source: 'Gói bảo hiểm đã chọn → mã sản phẩm bên PVI',
     fill: null,
     status: 'missing',
@@ -204,11 +214,15 @@ export const PVI_FIELDS: readonly PviField[] = [
     label: 'Loại xe',
     product: 'motorbike',
     required: true,
-    input: 'select',
+    input: 'select-search',
     options: VEHICLE_TYPES,
     source: 'Thông tin xe · Loại xe',
     fill: (o) => o.vehicleType,
     status: 'confirmed',
+    note:
+      'Ô chọn CÓ tìm kiếm bên trong (thấy trên ảnh chụp form PVI) — bot phải mở ' +
+      'rồi gõ vào ô tìm, không đặt thẳng giá trị được. Dòng hiển thị dạng ' +
+      '"1001 - Dưới 50 cc", gõ mã số là lọc nhanh nhất.',
   },
   {
     key: 'soKhung',
