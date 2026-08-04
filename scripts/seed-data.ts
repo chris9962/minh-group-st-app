@@ -220,6 +220,8 @@ export const INSURANCE_PACKAGES = [
   { name: "1 năm BH tai nạn điện", yearlyFee: 100000 },
   { name: "1 năm xe máy + 1 năm tai nạn điện", yearlyFee: 200000 },
   { name: "2 năm BH xe máy", yearlyFee: 200000 },
+  /** Xe máy có hợp đồng nhiều năm THẬT — một đơn, không tách thành 3 đơn 1 năm. */
+  { name: "3 năm BH xe máy", yearlyFee: 300000 },
   { name: "2 năm tai nạn điện gói 100k", yearlyFee: 200000 },
   { name: "1 năm tai nạn điện gói 200k", yearlyFee: 200000 },
 ] as const;

@@ -14,7 +14,9 @@ import type { Customer } from "@/lib/api/customers";
 import {
   createInsuranceOrder,
   insuranceOrderLegsFor,
-  oneYearLater,
+  yearsLater,
+  yearsOf,
+  VEHICLE_TYPES,
   InsuranceOrderForm,
   type InsuranceOrderLegForm,
   type InsuranceOrderLegGroup,
@@ -42,7 +44,9 @@ type Props = {
 function defaultLegsFor(group: InsuranceOrderLegGroup): InsuranceOrderLegForm[] {
   let start = new Date().toISOString().slice(0, 10);
   return group.legs.map((leg) => {
-    const end = oneYearLater(start);
+    // Gói xe máy nhiều năm là MỘT hợp đồng dài (2/3 năm), không tách thành
+    // nhiều đơn 1 năm như tai nạn điện — ngày kết thúc phải cộng đủ số năm.
+    const end = yearsLater(start, yearsOf(leg.packageName));
     const values: InsuranceOrderLegForm = {
       product: leg.product,
       packageName: leg.packageName,
@@ -119,6 +123,7 @@ export function InsuranceOrderFormDialog({
     control,
     setValue,
     getValues,
+    watch,
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<InsuranceOrderForm>({
@@ -150,10 +155,13 @@ export function InsuranceOrderFormDialog({
 
   const applyCustomerInfo = (i: number) => {
     setValue(`legs.${i}.beneficiaryName`, customer.fullName, { shouldDirty: true });
-    setValue(`legs.${i}.beneficiaryDob`, customer.dob ?? "", { shouldDirty: true });
     setValue(`legs.${i}.beneficiaryIdNumber`, customer.idNumber ?? "", { shouldDirty: true });
     setValue(`legs.${i}.beneficiaryPhone`, primaryPhone, { shouldDirty: true });
     setValue(`legs.${i}.beneficiaryAddress`, customer.address, { shouldDirty: true });
+    // Đơn xe máy không hỏi ngày sinh (ô đã ẩn) — điền vào là gửi lên dữ liệu
+    // người dùng không hề thấy để đối chiếu.
+    if (legGroup.legs[i]?.product !== "BH xe máy")
+      setValue(`legs.${i}.beneficiaryDob`, customer.dob ?? "", { shouldDirty: true });
   };
 
   const save = useMutation({
@@ -196,13 +204,19 @@ export function InsuranceOrderFormDialog({
           error={errors.legs?.[i]?.licensePlate?.message}
           {...register(`legs.${i}.licensePlate`)}
         />
-        <TextField
+        <Select
           label="Loại xe"
-          placeholder="Xe số, tay ga, xe điện…"
-          error={errors.legs?.[i]?.vehicleType?.message}
-          {...register(`legs.${i}.vehicleType`)}
+          value={watch(`legs.${i}.vehicleType`)}
+          onChange={(v) => setValue(`legs.${i}.vehicleType`, v, { shouldDirty: true })}
+          options={[
+            { value: "", label: "— Chọn loại xe —" },
+            ...VEHICLE_TYPES.map((v) => ({ value: v.code, label: `${v.code} – ${v.label}` })),
+          ]}
         />
       </div>
+      {errors.legs?.[i]?.vehicleType && (
+        <p className={styles.error}>{errors.legs[i]?.vehicleType?.message}</p>
+      )}
       <div className={styles.pair}>
         <TextField label="Số khung" hint="Không bắt buộc" {...register(`legs.${i}.chassisNumber`)} />
         <TextField label="Số máy" hint="Không bắt buộc" {...register(`legs.${i}.engineNumber`)} />
@@ -224,10 +238,16 @@ export function InsuranceOrderFormDialog({
         error={errors.legs?.[i]?.beneficiaryName?.message}
         {...register(`legs.${i}.beneficiaryName`)}
       />
-      <div className={styles.pair}>
-        <TextField label="Ngày sinh" type="date" {...register(`legs.${i}.beneficiaryDob`)} />
+      {/* Đơn BH xe máy không cần ngày sinh — định danh bằng GPLX/biển số, PVI
+          không hỏi trường này (spec P-10). Đơn tai nạn điện thì vẫn cần. */}
+      {legGroup.legs[i]?.product === "BH xe máy" ? (
         <TextField label="CCCD" {...register(`legs.${i}.beneficiaryIdNumber`)} />
-      </div>
+      ) : (
+        <div className={styles.pair}>
+          <TextField label="Ngày sinh" type="date" {...register(`legs.${i}.beneficiaryDob`)} />
+          <TextField label="CCCD" {...register(`legs.${i}.beneficiaryIdNumber`)} />
+        </div>
+      )}
       <TextField label="Số điện thoại" {...register(`legs.${i}.beneficiaryPhone`)} />
       <TextField
         label="Địa chỉ"

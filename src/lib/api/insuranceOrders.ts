@@ -41,6 +41,22 @@ export const INSURANCE_STATUS_LABEL: Record<InsuranceOrderStatus, string> = {
   done: 'Hoàn thành',
 };
 
+/**
+ * Loại xe của đơn BH xe máy — danh sách CỐ ĐỊNH của PVI, không phải danh mục
+ * công ty tự cấu hình, nên để ở code chứ không đưa vào database. Lưu `code`
+ * (`1001`…) chứ không lưu tên: đó là thứ PVI nhận, tên chỉ để hiển thị.
+ */
+export const VEHICLE_TYPES = [
+  { code: '1001', label: 'Dưới 50 cc' },
+  { code: '1002', label: 'Từ 50 cc trở lên' },
+  { code: '1003', label: 'Xe máy điện' },
+  { code: '2001', label: 'Xe mô tô ba bánh' },
+  { code: '2002', label: 'Xe gắn máy và các loại xe cơ giới tương tự' },
+] as const;
+
+export const vehicleTypeLabel = (code: string): string =>
+  VEHICLE_TYPES.find((v) => v.code === code)?.label ?? code;
+
 export const InsuranceOrder = z.object({
   id: z.string(),
   /** DH-YYMM-NNN (spec P-12) — sinh lúc tạo, không đổi theo trạng thái sau đó. */
@@ -175,11 +191,25 @@ export function insuranceOrderLegsFor(packageName: string): InsuranceOrderLegGro
   return { sharedBeneficiary: true, legs: [{ product, packageName: trimmed }] };
 }
 
-export const oneYearLater = (date: string): string => {
+/**
+ * Số năm của gói, đọc từ tên ("3 năm BH xe máy" → 3). Không khớp thì 1 năm.
+ *
+ * Cần cho gói xe máy nhiều năm — hợp đồng 2/3 năm là THẬT, không tách thành
+ * nhiều đơn 1 năm như bên tai nạn điện, nên ngày kết thúc phải cộng đủ số năm.
+ */
+export const yearsOf = (packageName: string): number => {
+  const matched = packageName.match(/(\d+)\s*năm/);
+  const years = matched ? Number(matched[1]) : 1;
+  return Number.isFinite(years) && years > 0 ? years : 1;
+};
+
+export const yearsLater = (date: string, years: number): string => {
   const d = new Date(date);
-  d.setFullYear(d.getFullYear() + 1);
+  d.setFullYear(d.getFullYear() + years);
   return d.toISOString().slice(0, 10);
 };
+
+export const oneYearLater = (date: string): string => yearsLater(date, 1);
 
 export const CreateInsuranceOrdersResult = z.object({
   orders: z.array(InsuranceOrder),
