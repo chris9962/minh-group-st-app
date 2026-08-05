@@ -24,6 +24,7 @@ import {
 import { useSession } from "@/store/session";
 import { StaffFormDialog } from "./StaffFormDialog";
 import styles from "./AccountCard.module.scss";
+import { errorMessage, toast } from "@/lib/toast";
 
 /**
  * Thẻ tài khoản trên hồ sơ nhân viên (P-52).
@@ -58,19 +59,26 @@ export function AccountCard({ staffId }: { staffId: string }) {
 
   const toggleActive = useMutation({
     mutationFn: (next: boolean) => setStaffActive(staffId, next, actor?.id ?? ""),
-    onSuccess: () => {
+    onSuccess: (_account, next) => {
       queryClient.invalidateQueries({ queryKey: ["staff-one", staffId] });
       queryClient.invalidateQueries({ queryKey: ["staff"] });
+      toast.ok(next ? "Đã mở khoá tài khoản" : "Đã khoá tài khoản");
       setConfirming(null);
     },
+    onError: (e) =>
+      toast.fail(errorMessage(e, "Không đổi được trạng thái tài khoản. Thử lại.")),
   });
 
   const reset = useMutation({
     mutationFn: () => resetPassword(staffId),
+    // KHÔNG toast lúc thành công: mật khẩu mới hiện đúng MỘT lần, phải ở lại
+    // để người dùng chép. Toast tự tắt sau 5 giây là mất luôn mật khẩu.
     onSuccess: (r) => {
       setNewPassword(r.password);
       setConfirming(null);
     },
+    onError: (e) =>
+      toast.fail(errorMessage(e, "Không đặt lại được mật khẩu. Thử lại.")),
   });
 
   if (!canManage || !staff) return null;
@@ -154,20 +162,14 @@ export function AccountCard({ staffId }: { staffId: string }) {
         </Button>
         <Button
           variant="secondary"
-          onClick={() => {
-            reset.reset();
-            setConfirming("reset");
-          }}
+          onClick={() => setConfirming("reset")}
           disabled={reset.isPending}
         >
           Đặt lại mật khẩu
         </Button>
         <Button
           variant="secondary"
-          onClick={() => {
-            toggleActive.reset();
-            setConfirming(staff.active ? "lock" : "unlock");
-          }}
+          onClick={() => setConfirming(staff.active ? "lock" : "unlock")}
           disabled={toggleActive.isPending}
         >
           {staff.active ? "Khoá tài khoản" : "Mở khoá"}
@@ -195,7 +197,6 @@ export function AccountCard({ staffId }: { staffId: string }) {
         title="Đặt lại mật khẩu"
         confirmLabel="Đặt lại mật khẩu"
         pending={reset.isPending}
-        error={reset.isError ? "Không đặt lại được mật khẩu. Thử lại." : null}
         onConfirm={() => reset.mutate()}
         onClose={() => setConfirming(null)}
         consequence={
@@ -214,7 +215,6 @@ export function AccountCard({ staffId }: { staffId: string }) {
         title="Khoá tài khoản"
         confirmLabel="Khoá tài khoản"
         pending={toggleActive.isPending}
-        error={toggleActive.isError ? "Không khoá được tài khoản này. Thử lại." : null}
         onConfirm={() => toggleActive.mutate(false)}
         onClose={() => setConfirming(null)}
         consequence={
@@ -232,7 +232,6 @@ export function AccountCard({ staffId }: { staffId: string }) {
         title="Mở khoá tài khoản"
         confirmLabel="Mở khoá"
         pending={toggleActive.isPending}
-        error={toggleActive.isError ? "Không mở khoá được tài khoản này. Thử lại." : null}
         onConfirm={() => toggleActive.mutate(true)}
         onClose={() => setConfirming(null)}
         consequence={

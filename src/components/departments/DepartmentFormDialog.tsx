@@ -3,18 +3,17 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
-import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { TextField } from "@/components/ui/TextField";
 import {
   createDepartment,
   DepartmentForm,
-  isOrgError,
   updateDepartment,
   type DepartmentRow,
 } from "@/lib/api/org";
 import styles from "./DepartmentFormDialog.module.css";
+import { errorMessage, toast } from "@/lib/toast";
 
 type Props = {
   open: boolean;
@@ -49,22 +48,12 @@ export function DepartmentFormDialog({ open, onClose, department }: Props) {
       // trang đó vẫn thấy tên cũ suốt `staleTime` (30 giây), không refetch.
       if (department)
         queryClient.invalidateQueries({ queryKey: ["org-department", department.id] });
+      toast.ok(department ? "Đã đổi tên phòng ban" : "Đã tạo phòng ban");
       onClose();
     },
+    onError: (e) =>
+      toast.fail(errorMessage(e, "Không lưu được phòng ban. Kiểm tra kết nối rồi thử lại.")),
   });
-
-  /**
-   * Lỗi KHÔNG phải lỗi nghiệp vụ vẫn phải hiện ra.
-   *
-   * `send()` chỉ ném `OrgError` cho 422 có mã; 403 và mất mạng ném `Error`
-   * trần. Lọc `isOrgError` rồi bỏ phần còn lại là hộp thoại đứng im: nút bật
-   * lại, không chữ nào, người dùng bấm Lưu lần nữa và lại y như thế.
-   */
-  const failure = save.error
-    ? isOrgError(save.error)
-      ? save.error.message
-      : "Không lưu được phòng ban. Kiểm tra kết nối rồi thử lại."
-    : null;
 
   return (
     <Dialog
@@ -92,8 +81,6 @@ export function DepartmentFormDialog({ open, onClose, department }: Props) {
         onSubmit={handleSubmit((form) => save.mutate(form))}
         noValidate
       >
-        {failure && <Alert tone="error">{failure}</Alert>}
-
         <TextField
           label="Tên phòng"
           placeholder="Phòng Kinh doanh 10"

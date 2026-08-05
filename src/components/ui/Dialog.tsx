@@ -2,6 +2,7 @@
 
 import { ChevronDown, X } from "lucide-react";
 import { createContext, useEffect, useRef, useState } from "react";
+import { useDialogLayer } from "@/store/dialogLayer";
 import styles from "./Dialog.module.css";
 
 /**
@@ -37,11 +38,21 @@ export function Dialog({ open, title, onClose, children, footer }: Props) {
 
   // Đồng bộ với DOM ngoài React: `open` là thuộc tính, còn showModal() mới bật
   // lớp phủ và bẫy tiêu điểm — đặt thuộc tính thôi thì không có hai thứ đó.
+  //
+  // Khai báo mình vào `dialogLayer` luôn: toast phải portal vào hộp thoại đang
+  // mở mới nổi lên trên được (showModal() đẩy phần tử này vào top layer, đứng
+  // trên mọi z-index). Gỡ khai báo trong cleanup để hộp thoại bị tháo đột ngột
+  // không để lại một phần tử chết trong ngăn xếp.
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     if (open && !el.open) el.showModal();
     if (!open && el.open) el.close();
+
+    if (!open) return;
+    const { push, pop } = useDialogLayer.getState();
+    push(el);
+    return () => pop(el);
   }, [open]);
 
   const checkScroll = (el: HTMLDivElement) => {

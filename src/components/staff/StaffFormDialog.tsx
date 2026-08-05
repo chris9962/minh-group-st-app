@@ -3,7 +3,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
-import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { Select } from "@/components/ui/Select";
@@ -12,7 +11,6 @@ import {
   createStaff,
   StaffForm,
   updateStaff,
-  type SaveError,
   type StaffAccount,
 } from "@/lib/api/staff";
 import { assignableRoles } from "@/lib/permissions";
@@ -21,6 +19,7 @@ import { ROLE_PERMISSIONS } from "@/lib/roles";
 import { useSession } from "@/store/session";
 import { PermissionsEditor } from "./PermissionsEditor";
 import styles from "./StaffFormDialog.module.scss";
+import { errorMessage, toast } from "@/lib/toast";
 
 type Props = {
   open: boolean;
@@ -58,9 +57,6 @@ const toForm = (s: StaffAccount): StaffForm => ({
   permissions: s.permissions,
 });
 
-const isSaveError = (e: unknown): e is SaveError =>
-  typeof e === "object" && e !== null && "code" in e;
-
 /** P-53 · Tạo / sửa nhân viên. */
 export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
   const actor = useSession((s) => s.user);
@@ -95,11 +91,12 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
       if (staff) queryClient.invalidateQueries({ queryKey: ["staff-one", staff.id] });
       queryClient.invalidateQueries({ queryKey: ["people"] });
       queryClient.invalidateQueries({ queryKey: ["person"] });
+      toast.ok(staff ? "Đã lưu hồ sơ nhân viên" : "Đã thêm nhân viên");
       onClose();
     },
+    onError: (e) =>
+      toast.fail(errorMessage(e, "Không lưu được hồ sơ. Kiểm tra kết nối rồi thử lại.")),
   });
-
-  const failure = isSaveError(save.error) ? save.error : null;
 
   const toggleManaged = (id: string) =>
     setValue(
@@ -134,8 +131,6 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
         onSubmit={handleSubmit((form) => save.mutate(form))}
         noValidate
       >
-        {failure && <Alert tone="error">{failure.message}</Alert>}
-
         <TextField
           label="Họ tên"
           placeholder="Nguyễn Văn An"

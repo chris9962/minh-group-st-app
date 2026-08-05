@@ -27,7 +27,6 @@ import { StatusTag } from "@/components/ui/StatusTag";
 import {
   fetchDepartmentRows,
   fetchDepartmentStats,
-  isOrgError,
   setDepartmentActive,
   type DepartmentRow,
 } from "@/lib/api/org";
@@ -35,6 +34,7 @@ import { useDebouncedValue } from "@/lib/hooks";
 import { can } from "@/lib/permissions";
 import { useSession } from "@/store/session";
 import styles from "./page.module.scss";
+import { errorMessage, toast } from "@/lib/toast";
 
 const installRate = (s: { accountsOpened: number; appsInstalled: number }) =>
   s.accountsOpened === 0 ? 0 : Math.round((s.appsInstalled / s.accountsOpened) * 100);
@@ -86,12 +86,15 @@ export default function DepartmentsPage() {
   const toggleActive = useMutation({
     mutationFn: ({ id, next }: { id: string; next: boolean }) =>
       setDepartmentActive(id, next),
-    onSuccess: (_data, { id }) => {
+    onSuccess: (_data, { next }) => {
       queryClient.invalidateQueries({ queryKey: ["org-departments"] });
       queryClient.invalidateQueries({ queryKey: ["departments"] });
-      queryClient.invalidateQueries({ queryKey: ["org-department", id] });
+      queryClient.invalidateQueries({ queryKey: ["org-department", _data.id] });
+      toast.ok(next ? "Đã mở lại phòng ban" : "Đã ngừng hoạt động phòng ban");
       setConfirming(null);
     },
+    onError: (e) =>
+      toast.fail(errorMessage(e, "Không đổi được trạng thái phòng này. Thử lại.")),
   });
 
   const columns = useMemo<RankColumn<DepartmentRow>[]>(
@@ -312,22 +315,11 @@ export default function DepartmentsPage() {
           title={confirming?.active ? "Ngừng hoạt động phòng" : "Mở lại phòng"}
           confirmLabel={confirming?.active ? "Ngừng hoạt động" : "Mở lại"}
           pending={toggleActive.isPending}
-          error={
-            toggleActive.isError
-              ? isOrgError(toggleActive.error)
-                ? toggleActive.error.message
-                : "Không đổi được trạng thái phòng này. Thử lại."
-              : null
-          }
           onConfirm={() =>
             confirming &&
             toggleActive.mutate({ id: confirming.id, next: !confirming.active })
           }
-          onClose={() => {
-            // Xoá lỗi lần trước, không thì lần mở sau chào bằng lỗi cũ.
-            toggleActive.reset();
-            setConfirming(null);
-          }}
+          onClose={() => setConfirming(null)}
           consequence={
             confirming?.active ? (
               <>

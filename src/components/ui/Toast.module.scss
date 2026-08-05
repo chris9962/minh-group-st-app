@@ -1,0 +1,145 @@
+/**
+ * Toast báo kết quả thao tác.
+ *
+ * Nền dùng `--om-card` như mọi thẻ khác, viền đổi theo tone. KHÔNG tô nền cam
+ * hay xanh kín: chữ trên nền màu đọc kém ngoài nắng, và bộ màu chỉ có cam +
+ * xanh trạng thái (AGENTS.md §3).
+ */
+
+.viewport {
+  position: fixed;
+  right: var(--space-6);
+  bottom: var(--space-6);
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 380px;
+  max-width: calc(100vw - var(--space-6) * 2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  outline: none;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
+  background: var(--om-card);
+  border: 1px solid var(--om-line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+
+.ok {
+  border-color: var(--om-green);
+}
+
+.fail {
+  border-color: var(--om-orange-mid);
+}
+
+.mark {
+  flex: none;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.ok .mark {
+  color: var(--om-green);
+}
+
+.text {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.35;
+  color: var(--om-text);
+}
+
+/* Vùng bấm 44px (WCAG 2.5.8) — nút này bấm bằng ngón cái, ngoài trời. */
+.close {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  min-height: 44px;
+  margin: calc(var(--space-2) * -1) 0;
+  padding: 0;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: var(--om-text-3);
+  cursor: pointer;
+}
+
+.close:hover {
+  color: var(--om-text);
+}
+
+.close:focus-visible {
+  outline: 2px solid var(--om-orange);
+  outline-offset: 2px;
+}
+
+/* Nuốt sang phải để tắt — Radix gắn sẵn các data-attribute này. */
+.toast[data-swipe="move"] {
+  transform: translateX(var(--radix-toast-swipe-move-x));
+}
+
+.toast[data-swipe="cancel"] {
+  transform: translateX(0);
+  transition: transform 150ms ease-out;
+}
+
+.toast[data-state="open"] {
+  animation: slide-in 160ms ease-out;
+}
+
+.toast[data-state="closed"],
+.toast[data-swipe="end"] {
+  animation: fade-out 100ms ease-in;
+}
+
+@keyframes slide-in {
+  from {
+    transform: translateY(8px);
+    opacity: 0;
+  }
+}
+
+@keyframes fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+/* Người bật "giảm chuyển động" thì bỏ hẳn hiệu ứng, chỉ hiện/ẩn. */
+@media (prefers-reduced-motion: reduce) {
+  .toast[data-state="open"],
+  .toast[data-state="closed"],
+  .toast[data-swipe="end"],
+  .toast[data-swipe="cancel"] {
+    animation: none;
+    transition: none;
+  }
+}
+
+@media (max-width: bp.$bp-mobile) {
+  .viewport {
+    right: var(--space-3);
+    left: var(--space-3);
+    width: auto;
+    max-width: none;
+    /*
+     * Đẩy lên khỏi BottomNav — thanh đó `position: fixed; bottom: 0` cao tối
+     * thiểu 52px, cộng vùng an toàn của thanh cử chỉ iOS. Không trừ ra thì
+     * toast nằm đè lên hàng nút điều hướng và nút X không bấm được.
+     */
+    bottom: calc(52px + env(safe-area-inset-bottom, 0px) + var(--space-3));
+  }
+}

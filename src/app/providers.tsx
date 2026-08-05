@@ -3,6 +3,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { ToastHost } from "@/components/ui/Toast";
 import { useSession } from "@/store/session";
 
 /**
@@ -60,5 +61,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   useSignOutOn401(queryClient);
 
-  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+  return (
+    <QueryClientProvider client={queryClient}>
+      {children}
+      {/* Ở GỐC, không phải trong AppShell — màn đăng nhập nằm ngoài AppShell. */}
+      <ToastHost />
+    </QueryClientProvider>
+  );
 }

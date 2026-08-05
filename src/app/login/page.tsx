@@ -5,15 +5,15 @@ import { useMutation } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { Controller, useForm } from "react-hook-form";
 import { BrandPanel } from "@/components/brand/BrandPanel";
-import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { Logo } from "@/components/ui/Logo";
 import { TextField } from "@/components/ui/TextField";
-import { ApiError, login } from "@/lib/api/auth";
+import { login } from "@/lib/api/auth";
 import { LoginForm } from "@/lib/types";
 import { useSession } from "@/store/session";
 import styles from "./page.module.scss";
+import { errorMessage, toast } from "@/lib/toast";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -31,19 +31,15 @@ export default function LoginPage() {
 
   const submit = useMutation({
     mutationFn: login,
+    // `fetch` hỏng vì mất mạng ném TypeError chứ không phải ApiError — bắt cả
+    // hai ở đây, không thì lỗi đó rơi vào khoảng không và màn hình đứng im.
+    onError: (e) =>
+      toast.fail(errorMessage(e, "Không đăng nhập được. Kiểm tra kết nối mạng rồi thử lại.")),
     onSuccess: (result, vars) => {
       saveSession(result.user, vars.remember);
       router.push("/");
     },
   });
-
-  // `fetch` hỏng vì mất mạng ném TypeError, không phải ApiError — bắt luôn ở
-  // đây, không thì lỗi đó rơi vào khoảng không và màn hình đứng im.
-  const serverError = submit.error
-    ? submit.error instanceof ApiError
-      ? submit.error.message
-      : "Không đăng nhập được. Kiểm tra kết nối mạng rồi thử lại."
-    : null;
 
   return (
     <div className={styles.page}>
@@ -89,8 +85,6 @@ export default function LoginPage() {
                 />
               )}
             />
-
-            {serverError && <Alert tone="error">{serverError}</Alert>}
 
             <Button type="submit" block large disabled={submit.isPending}>
               {submit.isPending ? "Đang kiểm tra…" : "Đăng nhập"}
