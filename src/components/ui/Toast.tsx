@@ -75,7 +75,19 @@ export function ToastHost() {
   useEffect(() => {
     if (!container) return;
     const parent = topDialog(stack) ?? document.body;
-    if (container.parentNode !== parent) parent.appendChild(container);
+    if (container.parentNode === parent) return;
+
+    parent.appendChild(container);
+
+    /**
+     * Gỡ node ra rồi cắm lại làm CSS chạy LẠI mọi hoạt ảnh từ đầu: toast đang
+     * đứng yên bỗng trượt vào thêm lần nữa mỗi khi mở hoặc đóng hộp thoại,
+     * nhìn hệt như bị dựng lại. React không dựng lại gì — đã đo — nhưng người
+     * dùng không phân biệt được. Nhảy thẳng tới cuối hoạt ảnh.
+     */
+    for (const el of container.querySelectorAll("*")) {
+      for (const animation of el.getAnimations()) animation.finish();
+    }
   }, [container, stack]);
 
   // Dọn khi `Providers` bị tháo — chỉ xảy ra lúc hot-reload, nhưng không dọn
