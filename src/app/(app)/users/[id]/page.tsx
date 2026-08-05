@@ -31,6 +31,7 @@ import { formatDate, formatPhone } from "@/lib/format";
 import { can } from "@/lib/permissions";
 import { useSession } from "@/store/session";
 import styles from "./page.module.scss";
+import { PRODUCT_LABEL } from "@/lib/types";
 
 /** Sắp theo ngày cần một con số — lấy chính chuỗi YYYY-MM-DD bỏ dấu gạch. */
 const dateOrder = (row: { date: string }) => Number(row.date.replace(/-/g, ""));
@@ -76,7 +77,7 @@ const ACCOUNT_COLUMNS: RankColumn<CustomerAccounts>[] = [
 const INSURANCE_COLUMNS: RankColumn<PersonInsurance>[] = [
   DATE_COLUMN,
   { key: "customerName", label: "Khách hàng", render: (o) => o.customerName },
-  { key: "product", label: "Loại bảo hiểm", render: (o) => o.product },
+  { key: "product", label: "Loại bảo hiểm", render: (o) => PRODUCT_LABEL[o.product] },
   { key: "packageName", label: "Gói", render: (o) => o.packageName },
   {
     key: "status",

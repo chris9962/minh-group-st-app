@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { InsuranceProduct } from '@/lib/types';
 
 /**
  * Tạo đơn bảo hiểm — người thụ hưởng có thể KHÁC khách hàng (spec §5.4).
@@ -54,7 +55,7 @@ export const InsuranceOrder = z.object({
   date: z.string(),
   /** Ngày hết hiệu lực — null với đơn giả lập P-51/P-52 (không có khái niệm hiệu lực). */
   endDate: z.string().nullable(),
-  product: z.string(),
+  product: InsuranceProduct,
   packageName: z.string(),
   /** Mức phí của ĐƠN này (đ) — prefill từ gói, sửa được từng đơn (03/08). */
   fee: z.number(),
@@ -95,7 +96,7 @@ export type InsuranceOrder = z.infer<typeof InsuranceOrder>;
  */
 export const InsuranceOrderLegForm = z
   .object({
-    product: z.string().trim().min(1, 'Chưa chọn sản phẩm'),
+    product: InsuranceProduct,
     packageName: z.string().trim().min(1, 'Chưa chọn gói'),
     fee: z.number().min(0, 'Mức phí phải từ 0 trở lên'),
     startDate: z.string().trim().min(1, 'Chưa chọn ngày bắt đầu'),
@@ -112,11 +113,11 @@ export const InsuranceOrderLegForm = z
   })
   // Biển số + loại xe bắt buộc CHỈ với BH xe máy — số khung/số máy luôn không
   // bắt buộc (khách hay không đọc được/không nhớ), gửi rỗng lên máy chủ nếu bỏ trống.
-  .refine((leg) => leg.product !== 'BH xe máy' || leg.licensePlate.length > 0, {
+  .refine((leg) => leg.product !== 'motorbike' || leg.licensePlate.length > 0, {
     message: 'Chưa nhập biển số xe',
     path: ['licensePlate'],
   })
-  .refine((leg) => leg.product !== 'BH xe máy' || leg.vehicleType.length > 0, {
+  .refine((leg) => leg.product !== 'motorbike' || leg.vehicleType.length > 0, {
     message: 'Chưa nhập loại xe',
     path: ['vehicleType'],
   });
@@ -138,10 +139,11 @@ export type InsuranceOrderLegGroup = {
    * chắc cùng một người — nên hiện đủ một bộ ô nhập riêng cho từng đơn.
    */
   sharedBeneficiary: boolean;
-  legs: { product: string; packageName: string }[];
+  legs: { product: InsuranceProduct; packageName: string }[];
 };
 
-const productOf = (name: string): string => (name.includes('xe máy') ? 'BH xe máy' : 'BH tai nạn điện');
+const productOf = (name: string): InsuranceProduct =>
+  name.includes('xe máy') ? 'motorbike' : 'electric-accident';
 
 /**
  * Một gói có thể sinh NHIỀU đơn thật (spec §4.4 P-43, §5.4):
@@ -164,7 +166,7 @@ export function insuranceOrderLegsFor(packageName: string): InsuranceOrderLegGro
   }
 
   const product = productOf(trimmed);
-  if (product === 'BH tai nạn điện' && trimmed.startsWith('2 năm')) {
+  if (product === 'electric-accident' && trimmed.startsWith('2 năm')) {
     const fee = trimmed.match(/(\d+k)/)?.[1] ?? '100k';
     return {
       sharedBeneficiary: true,

@@ -52,7 +52,7 @@ function defaultLegsFor(group: InsuranceOrderLegGroup): InsuranceOrderLegForm[] 
     // nhiều đơn 1 năm như tai nạn điện — ngày kết thúc phải cộng đủ số năm.
     // Chỉ xe máy: hãng chỉ phát hành hợp đồng tai nạn điện 1 năm, dù tên gói
     // có ghi mấy năm đi nữa (insuranceOrders.ts §insuranceOrderLegsFor).
-    const end = yearsLater(start, leg.product === "BH xe máy" ? yearsOf(leg.packageName) : 1);
+    const end = yearsLater(start, leg.product === "motorbike" ? yearsOf(leg.packageName) : 1);
     const values: InsuranceOrderLegForm = {
       product: leg.product,
       packageName: leg.packageName,
@@ -169,7 +169,7 @@ export function InsuranceOrderFormDialog({
     setValue(`legs.${i}.beneficiaryAddress`, customer.address, { shouldDirty: true });
     // Đơn xe máy không hỏi ngày sinh (ô đã ẩn) — điền vào là gửi lên dữ liệu
     // người dùng không hề thấy để đối chiếu.
-    if (legGroup.legs[i]?.product !== "BH xe máy")
+    if (legGroup.legs[i]?.product !== "motorbike")
       setValue(`legs.${i}.beneficiaryDob`, customer.dob ?? "", { shouldDirty: true });
   };
 
@@ -255,7 +255,7 @@ export function InsuranceOrderFormDialog({
       />
       {/* Đơn BH xe máy không cần ngày sinh — định danh bằng GPLX/biển số, PVI
           không hỏi trường này (spec P-10). Đơn tai nạn điện thì vẫn cần. */}
-      {legGroup.legs[i]?.product === "BH xe máy" ? (
+      {legGroup.legs[i]?.product === "motorbike" ? (
         <TextField label="CCCD" {...register(`legs.${i}.beneficiaryIdNumber`)} />
       ) : (
         <div className={styles.pair}>
@@ -328,7 +328,7 @@ export function InsuranceOrderFormDialog({
                 {...register(`legs.${i}.fee`, { valueAsNumber: true })}
               />
 
-              {legGroup.legs[i].product === "BH xe máy" && renderVehicleInfo(i)}
+              {legGroup.legs[i].product === "motorbike" && renderVehicleInfo(i)}
               {(!legGroup.sharedBeneficiary || i === 0) && renderBeneficiary(i)}
             </fieldset>
           ))}
@@ -346,7 +346,7 @@ export function InsuranceOrderFormDialog({
               error={errors.legs?.[0]?.fee?.message}
               {...register("legs.0.fee", { valueAsNumber: true })}
             />
-            {legGroup.legs[0].product === "BH xe máy" && renderVehicleInfo(0)}
+            {legGroup.legs[0].product === "motorbike" && renderVehicleInfo(0)}
             {renderBeneficiary(0)}
           </>
         )}

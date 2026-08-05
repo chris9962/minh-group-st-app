@@ -27,9 +27,11 @@ import { availableScopes, can } from "@/lib/permissions";
 import type { Scope } from "@/lib/types";
 import { useSession } from "@/store/session";
 import styles from "./page.module.scss";
+import { InsuranceProduct, PRODUCT_LABEL } from "@/lib/types";
 
 /** Đúng hai sản phẩm — spec §3.2 nhấn mạnh không đặt thêm tên khác. */
-const PRODUCTS = ["BH tai nạn điện", "BH xe máy"];
+/** Giá trị gửi lên là enum; chữ hiện tra qua PRODUCT_LABEL. */
+const PRODUCTS = InsuranceProduct.options;
 
 /** P-13 · Danh sách đơn bảo hiểm. */
 export default function InsurancePage() {
@@ -39,7 +41,7 @@ export default function InsurancePage() {
   const [search, setSearch] = useState("");
   const searchQuery = useDebouncedValue(search);
   const [status, setStatus] = useState("");
-  const [product, setProduct] = useState("");
+  const [product, setProduct] = useState<InsuranceProduct | "">("");
   const [range, setRange] = useState<DateRange | undefined>(undefined);
   const [staffId, setStaffId] = useState("");
   const [creating, setCreating] = useState(false);
@@ -91,7 +93,7 @@ export default function InsurancePage() {
       {
         key: "product",
         label: "Loại · gói",
-        render: (r) => `${r.product} · ${r.packageName}`,
+        render: (r) => `${PRODUCT_LABEL[r.product]} · ${r.packageName}`,
       },
       {
         key: "status",
@@ -141,8 +143,8 @@ export default function InsurancePage() {
           <Select
             label="Loại nghiệp vụ"
             value={product}
-            onChange={setProduct}
-            options={[{ value: "", label: "Tất cả loại" }, ...PRODUCTS.map((p) => ({ value: p, label: p }))]}
+            onChange={(v) => setProduct(v as InsuranceProduct | "")}
+            options={[{ value: "", label: "Tất cả loại" }, ...PRODUCTS.map((p) => ({ value: p, label: PRODUCT_LABEL[p] }))]}
           />
           <DateRangePicker value={range} onChange={setRange} />
           <Select

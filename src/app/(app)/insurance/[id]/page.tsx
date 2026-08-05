@@ -139,7 +139,7 @@ export default function InsuranceDetailPage({
                 <dt>Số điện thoại</dt>
                 <dd>{data.beneficiaryPhone ? formatPhone(data.beneficiaryPhone) : "—"}</dd>
               </div>
-              {data.product === "BH xe máy" && (
+              {data.product === "motorbike" && (
                 <>
                   <div>
                     <dt>Biển số xe</dt>

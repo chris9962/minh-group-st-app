@@ -3,7 +3,7 @@ import type { PeopleData, PersonScore } from "@/lib/api/people";
 import type { PersonDetail } from "@/lib/api/person";
 import { businessDay, businessMonth, matchesSearch, monthRange } from "@/lib/format";
 import { clampScope, inVisibleScope, visibleDepartmentIds } from "@/lib/permissions";
-import { Scope, type User } from "@/lib/types";
+import { PRODUCT_LABEL, Scope, type User } from "@/lib/types";
 import { db } from "./db/client";
 import {
   bankAccounts,
@@ -40,8 +40,6 @@ import {
  * VPa/VPb, mà danh mục đang seed ngược với thể lệ. Đừng nới công thức này
  * thêm; viết module luật khi 12 câu đó có trả lời.
  */
-
-const PRODUCT_LABEL = { motorbike: "BH xe máy", "electric-accident": "BH tai nạn điện" } as const;
 
 type Period = { from: string; to: string };
 
@@ -499,7 +497,7 @@ export async function personFor(
       id: r.order.id,
       date: r.order.startDate,
       customerName: r.customerName,
-      product: PRODUCT_LABEL[r.order.product],
+      product: r.order.product,
       packageName: r.order.packageName,
       status: r.order.status,
     })),

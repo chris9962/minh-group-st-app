@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { InsuranceProduct } from '@/lib/types';
 import { InsuranceOrderStatus } from './insuranceOrders';
 
 /** Số liệu cho P-52 Xem theo một nhân viên. */
@@ -100,7 +101,7 @@ export const PersonInsurance = z.object({
   date: z.string(),
   customerName: z.string(),
   /** BH tai nạn điện · BH xe máy. */
-  product: z.string(),
+  product: InsuranceProduct,
   packageName: z.string(),
   status: InsuranceOrderStatus,
 });

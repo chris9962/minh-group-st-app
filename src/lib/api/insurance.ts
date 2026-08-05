@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { Scope } from '@/lib/types';
+import { InsuranceProduct, Scope } from '@/lib/types';
 import { InsuranceOrderSource, InsuranceOrderStatus } from './insuranceOrders';
 
 /**
@@ -11,7 +11,7 @@ export const InsuranceListRow = z.object({
   id: z.string(),
   orderCode: z.string(),
   customerName: z.string(),
-  product: z.string(),
+  product: InsuranceProduct,
   packageName: z.string(),
   status: InsuranceOrderStatus,
   date: z.string(),
@@ -45,7 +45,8 @@ export const InsuranceQuery = z.object({
   scope: Scope,
   search: z.string(),
   status: z.string(),
-  product: z.string(),
+  /** Rỗng = tất cả loại. Có giá trị thì phải là enum, không nhận nhãn tiếng Việt. */
+  product: z.union([z.literal(''), InsuranceProduct]),
   from: z.string(),
   to: z.string(),
   staffId: z.string(),

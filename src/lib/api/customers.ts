@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { InsuranceProduct } from '@/lib/types';
 import { InsuranceOrderStatus } from './insuranceOrders';
 import { GiftSimulateResult } from './settings';
 
@@ -169,7 +170,7 @@ export type CustomerDraftAccountRow = z.infer<typeof CustomerDraftAccountRow>;
 export const CustomerInsuranceRow = z.object({
   id: z.string(),
   date: z.string(),
-  product: z.string(),
+  product: InsuranceProduct,
   packageName: z.string(),
   status: InsuranceOrderStatus,
   /** Đơn tự khách mua, hay từ luồng tặng quà (P-43 — chưa làm nên luôn 'self'). */

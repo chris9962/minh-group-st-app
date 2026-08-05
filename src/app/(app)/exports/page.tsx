@@ -24,12 +24,13 @@ import { fetchStaff } from "@/lib/api/staff";
 import { fetchProvinces } from "@/lib/api/wardCatalog";
 import { exportExcel, type ExcelColumn } from "@/lib/excel";
 import { can, scopeFor } from "@/lib/permissions";
-import { ROLE_LABEL, type ModuleKey, type Scope } from "@/lib/types";
+import { InsuranceProduct, PRODUCT_LABEL, ROLE_LABEL, type ModuleKey, type Scope } from "@/lib/types";
 import { useSession } from "@/store/session";
 import styles from "./page.module.scss";
 
 const iso = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
-const PRODUCTS = ["BH tai nạn điện", "BH xe máy"];
+/** Giá trị gửi lên là enum; chữ hiện tra qua PRODUCT_LABEL. */
+const PRODUCTS = InsuranceProduct.options;
 
 type ReportId =
   | "accounts-by-customer"
@@ -157,7 +158,7 @@ function catalogFor(report: ReportId, banks: Bank[], usernameById: Map<string, s
       return [
         { key: "orderCode", header: "Mã đơn", type: "text", defaultOn: false, sample: ["DH-2607-014", "DH-2607-091"], value: (r) => r.orderCode },
         { key: "customerName", header: "Khách hàng", transform: "name", defaultOn: true, sample: ["NGUYEN THI BICH TRAM", "LY HOANG NAM"], value: (r) => r.customerName },
-        { key: "product", header: "Loại", defaultOn: true, sample: ["BH tai nạn điện", "BH xe máy"], value: (r) => r.product },
+        { key: "product", header: "Loại", defaultOn: true, sample: ["BH tai nạn điện", "BH xe máy"], value: (r) => PRODUCT_LABEL[r.product as InsuranceProduct] },
         { key: "packageName", header: "Gói", defaultOn: true, sample: ["BH điện 100k", "BH xe máy cơ bản"], value: (r) => r.packageName },
         {
           key: "status",
@@ -217,7 +218,7 @@ export default function ExportsPage() {
   const [ward, setWard] = useState("");
   const [serviceTypeId, setServiceTypeId] = useState("");
   const [insuranceStatus, setInsuranceStatus] = useState("");
-  const [insuranceProduct, setInsuranceProduct] = useState("");
+  const [insuranceProduct, setInsuranceProduct] = useState<InsuranceProduct | "">("");
   const [staffId, setStaffId] = useState("");
 
   const { data: banks = [] } = useQuery({ queryKey: ["banks"], queryFn: fetchBanks });
@@ -627,8 +628,8 @@ export default function ExportsPage() {
                     <Select
                       label="Loại"
                       value={insuranceProduct}
-                      onChange={setInsuranceProduct}
-                      options={[{ value: "", label: "Tất cả loại" }, ...PRODUCTS.map((p) => ({ value: p, label: p }))]}
+                      onChange={(v) => setInsuranceProduct(v as InsuranceProduct | "")}
+                      options={[{ value: "", label: "Tất cả loại" }, ...PRODUCTS.map((p) => ({ value: p, label: PRODUCT_LABEL[p] }))]}
                     />
                     <Select
                       label="Trạng thái"

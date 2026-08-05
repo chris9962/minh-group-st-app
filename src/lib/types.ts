@@ -142,6 +142,25 @@ export const RoleKey = z.enum([
 ]);
 export type RoleKey = z.infer<typeof RoleKey>;
 
+/**
+ * Sản phẩm bảo hiểm — NGUỒN SỰ THẬT là enum này, không phải nhãn tiếng Việt.
+ *
+ * Cùng giá trị với `insurance_product` trong DB. Giao diện từng so sánh bằng
+ * chuỗi `'BH xe máy'` ở mười một chỗ; API thật trả `"motorbike"` nên cả mười
+ * một lặng lẽ đi sai nhánh — bỏ kiểm biển số và loại xe, không hiện khối thông
+ * tin xe, ô ngày sinh hiện lại trên đơn xe máy, bot PVI nhận sai bộ field
+ * (`mgst-db-design.md` §2).
+ *
+ * Nhãn tiếng Việt CHỈ để hiển thị, tra qua `PRODUCT_LABEL`. Đừng đem đi so.
+ */
+export const InsuranceProduct = z.enum(['motorbike', 'electric-accident']);
+export type InsuranceProduct = z.infer<typeof InsuranceProduct>;
+
+export const PRODUCT_LABEL: Record<InsuranceProduct, string> = {
+  motorbike: 'BH xe máy',
+  'electric-accident': 'BH tai nạn điện',
+};
+
 export const ROLE_LABEL: Record<RoleKey, string> = {
   director: 'Giám đốc',
   'deputy-director': 'Phó giám đốc',
