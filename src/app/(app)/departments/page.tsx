@@ -113,6 +113,22 @@ export default function DepartmentsPage() {
           </Link>
         ),
       },
+      /**
+       * TODO(P-91, chờ module ngân hàng): bốn cột này CHƯA CHẠY.
+       *
+       * `/api/org/departments/stats` là stub trả `{ departments: [] }` viết
+       * cứng — không truy vấn gì, không đọc cả tham số `period`. Nên cả bốn cột
+       * hiện `—` cho mọi phòng, và ô chọn kỳ trên thanh tiêu đề là nút bấm chết.
+       *
+       * Phía giao diện đã xong hết: cột, sắp xếp, `RateDelta`, nhánh thiếu dữ
+       * liệu. Việc còn lại nằm TRỌN trong route kia — viết aggregate theo phòng
+       * và theo kỳ, dùng chung công thức với dashboard P-80. Trả đúng dạng
+       * `DepartmentStats` là bốn cột tự sống, không phải sửa file này.
+       *
+       * ⚠️ Đừng viết aggregate đó trước khi có dữ liệu thật: `appsInstalled` và
+       * `installRate` dựa trên định nghĩa "app đã cài", mà thể lệ 03/08 đang
+       * viết lại đúng chỗ đó (xem ghi chú đầu `src/server/people.ts`).
+       */
       ...(canSeeStats
         ? ([
             {
