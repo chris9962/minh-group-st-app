@@ -151,6 +151,22 @@ export const ROLE_LABEL: Record<RoleKey, string> = {
 };
 
 /**
+ * Chức danh gợi ý sẵn cho mỗi chức vụ khi TẠO người mới.
+ *
+ * Khác `ROLE_LABEL`: đây là chữ in trên danh thiếp, người dùng sửa được thành
+ * "Phó Giám Đốc 2" hay "Cố vấn cao cấp". `ROLE_LABEL` là tên của vai trong hệ
+ * thống, không đổi. Riêng vai Nhân viên thì chức danh thật là "Nhân viên kinh
+ * doanh" — đội ngoài hiện trường tự gọi mình như vậy.
+ */
+export const ROLE_TITLE: Record<RoleKey, string> = {
+  director: 'Giám đốc',
+  'deputy-director': 'Phó Giám Đốc',
+  head: 'Trưởng phòng',
+  'deputy-head': 'Phó phòng',
+  staff: 'Nhân viên kinh doanh',
+};
+
+/**
  * Người này quản những phòng nào.
  *
  * `company` KHÔNG liệt kê từng phòng — mở phòng mới mà quên thêm vào danh sách

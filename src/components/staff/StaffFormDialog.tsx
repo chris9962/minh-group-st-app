@@ -14,7 +14,7 @@ import {
   type StaffAccount,
 } from "@/lib/api/staff";
 import { assignableRoles } from "@/lib/permissions";
-import { ROLE_LABEL, type Department } from "@/lib/types";
+import { ROLE_LABEL, ROLE_TITLE, type Department } from "@/lib/types";
 import { ROLE_PERMISSIONS } from "@/lib/roles";
 import { useSession } from "@/store/session";
 import { PermissionsEditor } from "./PermissionsEditor";
@@ -36,7 +36,7 @@ const emptyForm: StaffForm = {
   phone: "",
   departmentId: "",
   role: "staff",
-  title: "Nhân viên kinh doanh",
+  title: ROLE_TITLE.staff,
   manageScope: "none",
   managedDepartmentIds: [],
   wardId: "",
@@ -68,6 +68,7 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
     handleSubmit,
     watch,
     setValue,
+    getValues,
     formState: { errors, isSubmitting },
   } = useForm<StaffForm>({
     resolver: zodResolver(StaffForm),
@@ -179,8 +180,19 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
             label="Chức vụ"
             value={watch("role")}
             onChange={(v) => {
+              const previous = getValues("role");
               const role = v as StaffForm["role"];
               setValue("role", role, { shouldDirty: true });
+
+              // Chức danh đi theo chức vụ, nhưng CHỈ khi người dùng chưa tự gõ
+              // gì — còn nguyên gợi ý của vai trước thì thay, đã sửa thành
+              // "Cố vấn cao cấp" rồi thì để yên. Không có nhánh này thì mọi
+              // người tạo mới đều mang chức danh của vai mặc định: trong DB
+              // đang có một Trưởng phòng ghi "Nhân viên kinh doanh".
+              const currentTitle = getValues("title").trim();
+              if (!editing && (currentTitle === "" || currentTitle === ROLE_TITLE[previous])) {
+                setValue("title", ROLE_TITLE[role], { shouldDirty: true });
+              }
               // Chỉ tự điền lại quyền khi TẠO MỚI — sửa người đã có thì giữ
               // nguyên quyền hiện tại, đổi chức vụ không được xoá mất phần
               // admin đã cấp thêm riêng cho người đó.
@@ -201,6 +213,7 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
 
         <TextField
           label="Chức danh hiển thị"
+          placeholder={ROLE_TITLE[watch("role")]}
           hint='Ví dụ "Phó Giám Đốc 2" — khác với chức vụ ở trên'
           error={errors.title?.message}
           {...register("title")}
