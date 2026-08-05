@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { pageOf, pageParams, type Page, type PageQuery } from './pagination';
 
 /**
  * P-60 · Kho ngân hàng · P-61 · Kho mã giới thiệu (mgst-feature-list.md §4.6).
@@ -80,16 +81,6 @@ export const setBankActive = (id: string, active: boolean) =>
 
 /* ── P-61 · Kho mã giới thiệu — chỉ xem, tạo/nhập hàng loạt thuộc P-62 ──── */
 
-export const ReferralCode = z.object({
-  id: z.string(),
-  bankId: z.string(),
-  code: z.string(),
-  used: z.number(),
-  total: z.number(),
-  holding: z.number(),
-});
-export type ReferralCode = z.infer<typeof ReferralCode>;
-
 export const CodeStatus = z.enum(['available', 'low', 'full']);
 export type CodeStatus = z.infer<typeof CodeStatus>;
 
@@ -100,26 +91,74 @@ export const CODE_STATUS_LABEL: Record<CodeStatus, string> = {
 };
 
 /**
- * Tính trên `đã dùng + đang giữ` — chỗ đang được ai đó giữ (tài khoản còn
- * `creating`, mục 4.5) cũng là chỗ không còn trống thật, dù chưa tính vào
- * `used`. Sắp hết khi đã chạm 80% trở lên — ngưỡng cảnh báo trước khi đầy hẳn.
+ * Chạm ngưỡng này là "sắp hết" — cảnh báo trước khi đầy hẳn để kịp xin mã mới.
+ *
+ * Hằng số nằm ở đây nhưng phép so sánh chạy trong SQL (`server/catalog.ts`).
+ * Đừng viết lại công thức trạng thái ở trình duyệt: máy chủ đã lọc theo nó, hai
+ * nơi cùng tính là hai nơi lệch nhau, và lúc đó bộ lọc trả về một đằng còn thẻ
+ * trạng thái hiện một nẻo.
  */
-export function codeStatusOf(c: ReferralCode): CodeStatus {
-  const taken = c.used + c.holding;
-  if (taken >= c.total) return 'full';
-  if (taken / c.total >= 0.8) return 'low';
-  return 'available';
-}
+export const CODE_LOW_RATIO = 0.8;
 
-export type ReferralCodeQuery = {
+/**
+ * `used` gộp cả số đã tiêu trước khi nhập vào hệ thống (`imported_used`).
+ *
+ * KHÔNG còn `holding` (số tài khoản đang mở dở giữ chỗ): nó chưa bao giờ ngăn
+ * được hai người cùng nhận chỗ cuối — cả hai đều đọc thấy "còn 1" rồi cùng bấm.
+ * Chốt chặn thật phải nằm trong giao dịch tạo tài khoản ở module ngân hàng.
+ */
+export const ReferralCode = z.object({
+  id: z.string(),
+  bankId: z.string(),
+  bankCode: z.string(),
+  code: z.string(),
+  used: z.number(),
+  total: z.number(),
+  status: CodeStatus,
+});
+export type ReferralCode = z.infer<typeof ReferralCode>;
+
+export const REFERRAL_CODE_SORT = ['bank', 'code', 'progress'] as const;
+export type ReferralCodeSort = (typeof REFERRAL_CODE_SORT)[number];
+
+export type ReferralCodeQuery = PageQuery<ReferralCodeSort> & {
   bankId: string;
   status: CodeStatus | '';
+  search: string;
 };
 
-export async function fetchReferralCodes(query: ReferralCodeQuery): Promise<ReferralCode[]> {
-  const params = new URLSearchParams({ bankId: query.bankId, status: query.status });
-  const res = await fetch(`/api/settings/referral-codes?${params}`);
+const ReferralCodePage = pageOf(ReferralCode);
+
+/** Một TRANG mã, đã lọc/tìm/sắp sẵn ở máy chủ. */
+export async function fetchReferralCodes(query: ReferralCodeQuery): Promise<Page<ReferralCode>> {
+  const res = await fetch(
+    `/api/settings/referral-codes?${pageParams(query, {
+      bankId: query.bankId,
+      status: query.status,
+      search: query.search,
+    })}`,
+  );
   if (!res.ok) throw new Error('Không tải được kho mã giới thiệu');
+  return ReferralCodePage.parse(await res.json());
+}
+
+/** Tên mã cho ô LỌC ở màn ngân hàng / xuất Excel — gồm cả mã đã đầy. */
+export async function fetchReferralCodeOptions(): Promise<string[]> {
+  const res = await fetch('/api/settings/referral-codes/options');
+  if (!res.ok) throw new Error('Không tải được danh sách mã giới thiệu');
+  return z.array(z.string()).parse(await res.json());
+}
+
+/**
+ * Mã CÒN CHỖ của một ngân hàng, để KD chọn lúc mở tài khoản. Không phân trang.
+ *
+ * Route riêng chứ không phải `?status=` của bảng trên: ô chọn mà chỉ có 15 mã
+ * đầu là ô chọn nói dối. Trả trọn danh sách còn chỗ, xếp mã nhiều chỗ trống lên
+ * trước để mã sắp đầy không bị tranh nhau.
+ */
+export async function fetchOpenReferralCodes(bankId: string): Promise<ReferralCode[]> {
+  const res = await fetch(`/api/settings/referral-codes/open?bankId=${encodeURIComponent(bankId)}`);
+  if (!res.ok) throw new Error('Không tải được mã giới thiệu còn chỗ');
   return z.array(ReferralCode).parse(await res.json());
 }
 

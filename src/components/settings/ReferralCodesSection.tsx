@@ -7,41 +7,60 @@ import { SkeletonTable } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { Button } from "@/components/ui/Button";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
+import { SearchField } from "@/components/ui/SearchField";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { Select } from "@/components/ui/Select";
 import { StatusTag } from "@/components/ui/StatusTag";
 import {
   CODE_STATUS_LABEL,
-  codeStatusOf,
   fetchBanks,
   fetchReferralCodes,
   type CodeStatus,
   type ReferralCode,
+  type ReferralCodeQuery,
 } from "@/lib/api/bankCatalog";
+import { EMPTY_PAGE, PAGE_SIZE } from "@/lib/api/pagination";
 import { ReferralCodeFormDialog } from "./ReferralCodeFormDialog";
 import styles from "./ReferralCodesSection.module.scss";
 
-/** P-61 · Kho mã giới thiệu — thêm mã lẻ ở đây; nhập hàng loạt từ Excel vẫn là P-62 (chưa làm). */
+const FIRST_PAGE: ReferralCodeQuery = {
+  bankId: "",
+  status: "",
+  search: "",
+  page: 0,
+  sort: "progress",
+  dir: "desc",
+};
+
+/**
+ * P-61 · Kho mã giới thiệu — thêm mã lẻ ở đây; nhập hàng loạt từ Excel vẫn là P-62 (chưa làm).
+ *
+ * Lọc, tìm, sắp và cắt trang đều do máy chủ làm (AGENTS.md §5.1). Màn này chỉ
+ * giữ CÂU HỎI trong `query` rồi hiện đúng những gì máy chủ trả về — không có
+ * chỗ nào lọc lại trên dữ liệu đã tải.
+ */
 export function ReferralCodesSection() {
-  const [bankId, setBankId] = useState("");
-  const [status, setStatus] = useState<CodeStatus | "">("");
+  const [query, setQuery] = useState<ReferralCodeQuery>(FIRST_PAGE);
   const [creating, setCreating] = useState(false);
 
   const { data: banks = [] } = useQuery({ queryKey: ["banks"], queryFn: fetchBanks });
-  const bankName = (id: string) => banks.find((b) => b.id === id)?.code ?? id;
 
-  const { data: codes = [], isPending, isError, refetch, isFetching } = useQuery({
-    queryKey: ["referral-codes", bankId, status],
-    queryFn: () => fetchReferralCodes({ bankId, status }),
+  const { data: page = EMPTY_PAGE, isPending, isError, refetch, isFetching } = useQuery({
+    queryKey: ["referral-codes", query],
+    queryFn: () => fetchReferralCodes(query),
   });
 
+  /** Đổi bộ lọc thì về trang đầu — giữ nguyên trang 5 của kết quả cũ là hiện một khúc rỗng. */
+  const refine = (patch: Partial<ReferralCodeQuery>) =>
+    setQuery((q) => ({ ...q, ...patch, page: 0 }));
+
   const columns: RankColumn<ReferralCode>[] = [
-    { key: "bank", label: "Ngân hàng", render: (c) => bankName(c.bankId) },
-    { key: "code", label: "Mã", render: (c) => c.code },
+    { key: "bank", label: "Ngân hàng", sortable: true, render: (c) => c.bankCode },
+    { key: "code", label: "Mã", sortable: true, render: (c) => c.code },
     {
       key: "progress",
       label: "Đã dùng",
-      sortBy: (c) => c.used / c.total,
+      sortable: true,
       ratio: (c) => (c.used / c.total) * 100,
       render: (c) => (
         <span className="tabular-nums">
@@ -50,18 +69,11 @@ export function ReferralCodesSection() {
       ),
     },
     {
-      key: "holding",
-      label: "Đang giữ",
-      sortBy: (c) => c.holding,
-      render: (c) => c.holding,
-    },
-    {
       key: "status",
       label: "Trạng thái",
-      render: (c) => {
-        const s = codeStatusOf(c);
-        return <StatusTag ok={s === "available"}>{CODE_STATUS_LABEL[s]}</StatusTag>;
-      },
+      render: (c) => (
+        <StatusTag ok={c.status === "available"}>{CODE_STATUS_LABEL[c.status]}</StatusTag>
+      ),
     },
   ];
 
@@ -69,13 +81,19 @@ export function ReferralCodesSection() {
     <SectionCard
       title="Kho mã giới thiệu"
       icon={<Ticket size={17} />}
-      meta={`${codes.length} mã`}
+      meta={`${page.total} mã`}
     >
       <div className={styles.filters}>
+        <SearchField
+          label="Tìm mã"
+          placeholder="VPa, 884…"
+          value={query.search}
+          onChange={(v) => refine({ search: v })}
+        />
         <Select
           label="Ngân hàng"
-          value={bankId}
-          onChange={setBankId}
+          value={query.bankId}
+          onChange={(v) => refine({ bankId: v })}
           options={[
             { value: "", label: "Tất cả ngân hàng" },
             ...banks.map((b) => ({ value: b.id, label: b.code })),
@@ -83,8 +101,8 @@ export function ReferralCodesSection() {
         />
         <Select
           label="Trạng thái"
-          value={status}
-          onChange={(v) => setStatus(v as CodeStatus | "")}
+          value={query.status}
+          onChange={(v) => refine({ status: v as CodeStatus | "" })}
           options={[
             { value: "", label: "Tất cả trạng thái" },
             ...Object.entries(CODE_STATUS_LABEL).map(([value, label]) => ({ value, label })),
@@ -92,23 +110,32 @@ export function ReferralCodesSection() {
         />
       </div>
 
-      {isPending && <SkeletonTable rows={5} columns={5} />}
+      {isPending && <SkeletonTable rows={5} columns={4} />}
       {isError && (
           <ErrorState what="kho mã giới thiệu" onRetry={refetch} retrying={isFetching} />
         )}
 
       {!isPending && !isError && (
         <>
-          {codes.length === 0 ? (
+          {page.total === 0 ? (
             <p className="text-muted">Không có mã nào khớp bộ lọc.</p>
           ) : (
             <RankTable
-              rows={codes}
+              rows={page.rows}
               columns={columns}
               rowKey={(c) => c.id}
               defaultSort="progress"
-              pageSize={15}
               caption="Mã giới thiệu theo ngân hàng, tiến độ sử dụng và trạng thái"
+              server={{
+                sort: query.sort,
+                dir: query.dir,
+                page: query.page,
+                total: page.total,
+                pageSize: PAGE_SIZE,
+                onSortChange: (sort, dir) =>
+                  refine({ sort: sort as ReferralCodeQuery["sort"], dir }),
+                onPageChange: (next) => setQuery((q) => ({ ...q, page: next })),
+              }}
             />
           )}
         </>

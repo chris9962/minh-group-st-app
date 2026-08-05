@@ -1,5 +1,15 @@
-import { asc, eq, sql } from "drizzle-orm";
-import type { Bank, BankForm, ReferralCode, ReferralCodeForm } from "@/lib/api/bankCatalog";
+import { and, asc, count, desc, eq, sql, type SQL } from "drizzle-orm";
+import { CODE_LOW_RATIO } from "@/lib/api/bankCatalog";
+import type {
+  Bank,
+  BankForm,
+  CodeStatus,
+  ReferralCode,
+  ReferralCodeForm,
+  ReferralCodeSort,
+} from "@/lib/api/bankCatalog";
+import type { Page } from "@/lib/api/pagination";
+import type { PageArgs } from "./pagination";
 import type { Channel, ChannelForm } from "@/lib/api/channelCatalog";
 import type { Hospital, HospitalForm } from "@/lib/api/hospitalCatalog";
 import type {
@@ -121,42 +131,129 @@ export async function setBankActive(id: string, active: boolean): Promise<Bank |
 /* ── Mã giới thiệu ────────────────────────────────────────────────────── */
 
 /**
- * `used` và `holding` KHÔNG lưu — đếm sống từ `bank_accounts`
- * (`mgst-db-design.md` §4.5 · §9).
+ * `used` KHÔNG lưu — đếm sống từ `bank_accounts` (`mgst-db-design.md` §4.5 · §9):
+ * tài khoản đã `done` đang mang mã, cộng `imported_used` (số đã tiêu TRƯỚC khi
+ * nhập mã vào hệ thống).
  *
- * `used`    = tài khoản đã `done` đang mang mã, cộng `imported_used` (số đã
- *             tiêu TRƯỚC khi nhập mã vào hệ thống).
- * `holding` = tài khoản còn `creating` đang giữ chỗ. Chỗ đang giữ cũng là chỗ
- *             không còn trống, dù chưa tính vào `used` — bỏ qua nó thì hai người
- *             cùng nhận một chỗ cuối cùng.
+ * Trạng thái tính luôn trong SQL chứ không để trình duyệt tự suy. Bắt buộc phải
+ * vậy: có lọc theo trạng thái thì máy chủ phải hiểu trạng thái mới cắt đúng
+ * trang. Trước đây công thức nằm ở giao diện nên máy chủ cắt trang mù — trang 1
+ * lọc xong còn 3 dòng, mà tổng vẫn ghi 240.
  *
- * Một câu GROUP BY cho cả kho, không đếm từng mã (§11.1 cấm N+1).
+ * Một câu GROUP BY cho cả kho, không đếm từng mã (§11.1 cấm N+1). Chỉ mục
+ * `bank_accounts_referral` (referral_code_id, status) đỡ đúng phép đếm này.
  */
-export async function listReferralCodes(bankId: string): Promise<ReferralCode[]> {
-  const rows = await db
-    .select({
-      id: referralCodes.id,
-      bankId: referralCodes.bankId,
-      code: referralCodes.code,
-      total: referralCodes.total,
-      importedUsed: referralCodes.importedUsed,
-      used: sql<number>`count(${bankAccounts.id}) filter (where ${bankAccounts.status} = 'done')::int`,
-      holding: sql<number>`count(${bankAccounts.id}) filter (where ${bankAccounts.status} = 'creating')::int`,
-    })
-    .from(referralCodes)
-    .leftJoin(bankAccounts, eq(bankAccounts.referralCodeId, referralCodes.id))
-    .where(bankId ? eq(referralCodes.bankId, bankId) : undefined)
-    .groupBy(referralCodes.id)
-    .orderBy(asc(referralCodes.code));
+const countedCodes = db
+  .select({
+    id: referralCodes.id,
+    bankId: referralCodes.bankId,
+    // Phải đặt bí danh: `banks.code` và `referral_codes.code` trùng tên, để
+    // nguyên thì truy vấn con có hai cột `code` và Postgres báo nhập nhằng.
+    bankCode: sql<string>`${banks.code}`.as("bank_code"),
+    code: referralCodes.code,
+    total: referralCodes.total,
+    used: sql<number>`(${referralCodes.importedUsed} + count(${bankAccounts.id}) filter (where ${bankAccounts.status} = 'done'))::int`.as(
+      "used",
+    ),
+  })
+  .from(referralCodes)
+  .innerJoin(banks, eq(banks.id, referralCodes.bankId))
+  .leftJoin(bankAccounts, eq(bankAccounts.referralCodeId, referralCodes.id))
+  .groupBy(referralCodes.id, banks.code)
+  .as("counted");
 
-  return rows.map((r) => ({
-    id: r.id,
-    bankId: r.bankId,
-    code: r.code,
-    used: r.used + r.importedUsed,
-    total: r.total,
-    holding: r.holding,
-  }));
+/** Nhãn trạng thái, suy từ hai số đã đếm. Cùng ngưỡng với `CODE_LOW_RATIO`. */
+const statusExpr = sql<CodeStatus>`case
+  when ${countedCodes.used} >= ${countedCodes.total} then 'full'
+  when ${countedCodes.used}::float / ${countedCodes.total} >= ${CODE_LOW_RATIO} then 'low'
+  else 'available'
+end`;
+
+function codeFilters(query: ReferralCodeFilters): SQL | undefined {
+  const parts = [
+    query.bankId ? eq(countedCodes.bankId, query.bankId) : undefined,
+    query.status ? eq(statusExpr, query.status) : undefined,
+    // Tìm trên mã lẫn tên ngân hàng: gõ "VPa" ra cả kho của ngân hàng đó, gõ
+    // "884" ra đúng mã chứa số ấy.
+    query.search
+      ? sql`(${countedCodes.code} ilike ${`%${query.search}%`} or ${countedCodes.bankCode} ilike ${`%${query.search}%`})`
+      : undefined,
+  ].filter(Boolean) as SQL[];
+  return parts.length > 0 ? and(...parts) : undefined;
+}
+
+export type ReferralCodeFilters = { bankId: string; status: CodeStatus | ""; search: string };
+
+/**
+ * MỘT trang mã. Đếm tổng bằng câu thứ hai trên đúng bộ lọc đó — `rows.length`
+ * là số dòng của trang, nói ra thì thanh phân trang hiện "1–15 trên 15" ở mọi
+ * trang và không ai bấm sang trang sau.
+ */
+export async function listReferralCodes(
+  filters: ReferralCodeFilters,
+  page: PageArgs<ReferralCodeSort>,
+): Promise<Page<ReferralCode>> {
+  const where = codeFilters(filters);
+  const direction = page.dir === "asc" ? asc : desc;
+  const orderBy = {
+    bank: [direction(countedCodes.bankCode), asc(countedCodes.code)],
+    code: [direction(countedCodes.code)],
+    progress: [direction(sql`${countedCodes.used}::float / ${countedCodes.total}`), asc(countedCodes.code)],
+  }[page.sort];
+
+  const [rows, [totals]] = await Promise.all([
+    db
+      .select({
+        id: countedCodes.id,
+        bankId: countedCodes.bankId,
+        bankCode: countedCodes.bankCode,
+        code: countedCodes.code,
+        total: countedCodes.total,
+        used: countedCodes.used,
+        status: statusExpr,
+      })
+      .from(countedCodes)
+      .where(where)
+      .orderBy(...orderBy)
+      .limit(page.limit)
+      .offset(page.offset),
+    db.select({ value: count() }).from(countedCodes).where(where),
+  ]);
+
+  return { rows, total: totals?.value ?? 0 };
+}
+
+/**
+ * Chỉ TÊN mã, cho các ô lọc ở màn báo cáo và xuất Excel.
+ *
+ * Không đụng `countedCodes`: ô lọc chỉ cần chuỗi để hiện, đếm `used` cho từng mã
+ * là trả tiền cho phép gộp trên cả bảng tài khoản rồi vứt kết quả đi. `distinct`
+ * vì hai ngân hàng được phép trùng tên mã (khoá duy nhất là bank + code) — để
+ * lọt thì ô chọn hiện hai dòng y hệt nhau.
+ */
+export async function listReferralCodeOptions(): Promise<string[]> {
+  const rows = await db
+    .selectDistinct({ code: referralCodes.code })
+    .from(referralCodes)
+    .orderBy(asc(referralCodes.code));
+  return rows.map((r) => r.code);
+}
+
+/** Mã còn chỗ của một ngân hàng, nhiều chỗ trống lên trước. Ô chọn nên không cắt trang. */
+export async function listOpenReferralCodes(bankId: string): Promise<ReferralCode[]> {
+  return db
+    .select({
+      id: countedCodes.id,
+      bankId: countedCodes.bankId,
+      bankCode: countedCodes.bankCode,
+      code: countedCodes.code,
+      total: countedCodes.total,
+      used: countedCodes.used,
+      status: statusExpr,
+    })
+    .from(countedCodes)
+    .where(and(eq(countedCodes.bankId, bankId), sql`${countedCodes.used} < ${countedCodes.total}`))
+    .orderBy(desc(sql`${countedCodes.total} - ${countedCodes.used}`), asc(countedCodes.code));
 }
 
 export async function createReferralCode(
@@ -167,10 +264,21 @@ export async function createReferralCode(
       .insert(referralCodes)
       .values({ bankId: form.bankId, code: form.code, total: form.total })
       .returning();
-    return {
-      ok: true,
-      item: { id: row.id, bankId: row.bankId, code: row.code, used: row.importedUsed, total: row.total, holding: 0 },
-    };
+    // Đọc lại qua `countedCodes` chứ không tự dựng đối tượng: trạng thái chỉ có
+    // một định nghĩa, nằm trong SQL. Dựng tay ở đây là chép công thức lần hai.
+    const [item] = await db
+      .select({
+        id: countedCodes.id,
+        bankId: countedCodes.bankId,
+        bankCode: countedCodes.bankCode,
+        code: countedCodes.code,
+        total: countedCodes.total,
+        used: countedCodes.used,
+        status: statusExpr,
+      })
+      .from(countedCodes)
+      .where(eq(countedCodes.id, row.id));
+    return { ok: true, item };
   } catch (e) {
     if (uniqueViolationOf(e) !== null) return { ok: false, reason: "code-taken" };
     throw e;

@@ -21,7 +21,7 @@ import { Select } from "@/components/ui/Select";
 import { StatusTag } from "@/components/ui/StatusTag";
 import { BankAccountStatus } from "@/lib/api/bankAccounts";
 import { fetchBankAccounts, type BankAccountRow } from "@/lib/api/banking";
-import { fetchBanks, fetchReferralCodes } from "@/lib/api/bankCatalog";
+import { fetchBanks, fetchReferralCodeOptions } from "@/lib/api/bankCatalog";
 import { fetchChannels } from "@/lib/api/channelCatalog";
 import { exportExcel } from "@/lib/excel";
 import { formatDate, formatPhone } from "@/lib/format";
@@ -85,8 +85,8 @@ export default function BankingPage() {
 
   const { data: banks = [] } = useQuery({ queryKey: ["banks"], queryFn: fetchBanks });
   const { data: codes = [] } = useQuery({
-    queryKey: ["referral-codes", "", ""],
-    queryFn: () => fetchReferralCodes({ bankId: "", status: "" }),
+    queryKey: ["referral-code-options"],
+    queryFn: fetchReferralCodeOptions,
   });
   const { data: channels = [] } = useQuery({ queryKey: ["channels"], queryFn: fetchChannels });
 
@@ -224,7 +224,7 @@ export default function BankingPage() {
             onChange={setReferralCode}
             options={[
               { value: "", label: "Tất cả mã giới thiệu" },
-              ...codes.map((c) => ({ value: c.code, label: c.code })),
+              ...codes.map((code) => ({ value: code, label: code })),
             ]}
           />
           <Select

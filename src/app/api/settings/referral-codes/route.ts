@@ -1,7 +1,8 @@
-import { ReferralCodeForm } from "@/lib/api/bankCatalog";
+import { CodeStatus, REFERRAL_CODE_SORT, ReferralCodeForm } from "@/lib/api/bankCatalog";
 import { logAudit } from "@/server/audit";
 import { actorWith, badRequest, jsonBody } from "@/server/auth";
 import { createReferralCode, listReferralCodes } from "@/server/catalog";
+import { pageArgsFrom } from "@/server/pagination";
 
 /**
  * P-61 · Kho mã giới thiệu.
@@ -14,10 +15,22 @@ export async function GET(request: Request) {
   const guard = await actorWith(request, "banking", "manage-referral-codes");
   if (!guard.ok) return guard.response;
 
-  // `status` lọc ở giao diện: nó suy ra từ used/holding/total nên tính ở đây là
-  // lặp lại công thức `codeStatusOf` ở hai nơi, sớm muộn hai nơi lệch nhau.
-  const bankId = new URL(request.url).searchParams.get("bankId") ?? "";
-  return Response.json(await listReferralCodes(bankId));
+  // Lọc · tìm · sắp · cắt trang đều ở máy chủ (AGENTS.md §5.1). Trạng thái lạ
+  // thì bỏ bộ lọc chứ không trả 400 — không nên vì một tham số gõ sai mà bắt
+  // người dùng nhìn màn hỏng.
+  const params = new URL(request.url).searchParams;
+  const status = CodeStatus.safeParse(params.get("status"));
+
+  return Response.json(
+    await listReferralCodes(
+      {
+        bankId: params.get("bankId") ?? "",
+        status: status.success ? status.data : "",
+        search: (params.get("search") ?? "").trim(),
+      },
+      pageArgsFrom(new URL(request.url), REFERRAL_CODE_SORT, "progress"),
+    ),
+  );
 }
 
 export async function POST(request: Request) {

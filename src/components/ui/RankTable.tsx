@@ -6,36 +6,58 @@ import styles from "./RankTable.module.css";
 export type RankColumn<T> = {
   key: string;
   label: string;
-  /** Giá trị dùng để sắp xếp. Không có thì cột không bấm sắp được. */
+  /** Giá trị dùng để sắp xếp ở chế độ trình duyệt. Không có thì cột không bấm sắp được. */
   sortBy?: (row: T) => number;
+  /**
+   * Bấm sắp được hay không, khi việc sắp do máy chủ làm (`server`) nên không có
+   * `sortBy`. Khoá gửi lên máy chủ chính là `key`.
+   */
+  sortable?: boolean;
   render: (row: T) => React.ReactNode;
   align?: "left" | "right";
   /** Cột tỉ lệ vẽ kèm thanh nền — xem `ratio`. */
   ratio?: (row: T) => number;
 };
 
+/**
+ * Sắp xếp và phân trang do MÁY CHỦ làm; bảng chỉ hiện và báo lên khi người dùng
+ * bấm. `rows` lúc này là đúng một trang, đã sắp sẵn — bảng không đụng vào.
+ */
+export type RankServer = {
+  sort: string;
+  dir: "asc" | "desc";
+  /** Đếm từ 0. */
+  page: number;
+  /** Tổng số dòng KHỚP BỘ LỌC, không phải số dòng đang hiện. */
+  total: number;
+  pageSize: number;
+  onSortChange: (sort: string, dir: "asc" | "desc") => void;
+  onPageChange: (page: number) => void;
+};
+
 type Props<T> = {
   rows: T[];
   columns: RankColumn<T>[];
   rowKey: (row: T) => string;
-  /** Khoá cột sắp mặc định. */
+  /** Khoá cột sắp mặc định. Bỏ qua khi có `server` — lúc đó `server.sort` là nguồn. */
   defaultSort: string;
   caption: string;
   /**
-   * Số dòng mỗi trang. Bỏ trống thì hiện hết.
+   * Số dòng mỗi trang, cắt ở trình duyệt. Bỏ trống thì hiện hết.
    *
-   * Đây là phân trang phía trình duyệt — đủ cho vài trăm dòng. Khi dữ liệu
-   * thật lớn hơn thì chuyển sang phân trang phía máy chủ, đổi ở tầng api.
+   * Chỉ dùng cho DANH MỤC ĐÓNG (danh sách ngân hàng, loại dịch vụ…) — vài chục
+   * dòng, không lớn thêm. Danh sách lớn dần theo ngày thì dùng `server`, đừng
+   * tải cả bảng về rồi cắt (AGENTS.md §5.1).
    */
   pageSize?: number;
+  server?: RankServer;
 };
 
 /**
  * Bảng xếp hạng có sắp xếp theo cột.
  *
- * Cố ý KHÔNG dùng TanStack Table ở đây: bảng chỉ vài cột, không phân trang,
- * không lọc. Dùng thư viện chỉ thêm một lớp gián tiếp. Tới các màn danh sách
- * lớn (P-13, P-21, P-51) thì mới cần.
+ * Cố ý KHÔNG dùng TanStack Table ở đây: bảng chỉ vài cột. Dùng thư viện chỉ
+ * thêm một lớp gián tiếp.
  */
 export function RankTable<T>({
   rows,
@@ -44,33 +66,42 @@ export function RankTable<T>({
   defaultSort,
   caption,
   pageSize,
+  server,
 }: Props<T>) {
   const [sortKey, setSortKey] = useState(defaultSort);
   const [asc, setAsc] = useState(false);
   const [page, setPage] = useState(0);
 
+  const activeSort = server ? server.sort : sortKey;
+  const activeAsc = server ? server.dir === "asc" : asc;
+
   const sorted = useMemo(() => {
+    if (server) return rows;
     const col = columns.find((c) => c.key === sortKey);
     if (!col?.sortBy) return rows;
     const by = col.sortBy;
     return [...rows].sort((a, b) => (asc ? by(a) - by(b) : by(b) - by(a)));
-  }, [rows, columns, sortKey, asc]);
+  }, [server, rows, columns, sortKey, asc]);
 
-  const pageCount = pageSize ? Math.ceil(sorted.length / pageSize) : 1;
-  const current = Math.min(page, Math.max(0, pageCount - 1));
-  const visible = pageSize
-    ? sorted.slice(current * pageSize, (current + 1) * pageSize)
-    : sorted;
+  const size = server ? server.pageSize : pageSize;
+  const totalRows = server ? server.total : sorted.length;
+  const pageCount = size ? Math.ceil(totalRows / size) : 1;
+  const current = server ? server.page : Math.min(page, Math.max(0, pageCount - 1));
+  const visible = server || !pageSize ? sorted : sorted.slice(current * pageSize, (current + 1) * pageSize);
+
+  const goTo = (next: number) => (server ? server.onPageChange(next) : setPage(next));
 
   const toggle = (key: string) => {
     // Đổi cột sắp thì về trang đầu, nếu không người dùng đang ở trang 3 sẽ
     // thấy một khúc giữa vô nghĩa.
-    setPage(0);
-    if (key === sortKey) setAsc((v) => !v);
-    else {
-      setSortKey(key);
-      setAsc(false);
+    const nextAsc = key === activeSort ? !activeAsc : false;
+    if (server) {
+      server.onSortChange(key, nextAsc ? "asc" : "desc");
+      return;
     }
+    setPage(0);
+    setSortKey(key);
+    setAsc(nextAsc);
   };
 
   return (
@@ -80,17 +111,18 @@ export function RankTable<T>({
         <thead>
           <tr>
             {columns.map((col) => {
-              const active = col.key === sortKey;
+              const active = col.key === activeSort;
+              const canSort = col.sortable ?? Boolean(col.sortBy);
               return (
                 <th
                   key={col.key}
                   scope="col"
                   className={col.align === "right" ? styles.right : undefined}
                   aria-sort={
-                    active ? (asc ? "ascending" : "descending") : undefined
+                    active ? (activeAsc ? "ascending" : "descending") : undefined
                   }
                 >
-                  {col.sortBy ? (
+                  {canSort ? (
                     <button
                       type="button"
                       className={styles.sortBtn}
@@ -98,7 +130,7 @@ export function RankTable<T>({
                     >
                       {col.label}
                       <span aria-hidden className={styles.caret}>
-                        {active ? (asc ? "↑" : "↓") : ""}
+                        {active ? (activeAsc ? "↑" : "↓") : ""}
                       </span>
                     </button>
                   ) : (
@@ -142,16 +174,15 @@ export function RankTable<T>({
         </tbody>
       </table>
 
-      {pageSize && pageCount > 1 && (
+      {size && pageCount > 1 && (
         <div className={styles.pager}>
           <span className={styles.range}>
-            {current * pageSize + 1}–{Math.min((current + 1) * pageSize, sorted.length)}{" "}
-            trên {sorted.length}
+            {current * size + 1}–{Math.min((current + 1) * size, totalRows)} trên {totalRows}
           </span>
           <button
             type="button"
             className="btn btn-secondary"
-            onClick={() => setPage(current - 1)}
+            onClick={() => goTo(current - 1)}
             disabled={current === 0}
           >
             Trước
@@ -162,7 +193,7 @@ export function RankTable<T>({
           <button
             type="button"
             className="btn btn-secondary"
-            onClick={() => setPage(current + 1)}
+            onClick={() => goTo(current + 1)}
             disabled={current >= pageCount - 1}
           >
             Sau

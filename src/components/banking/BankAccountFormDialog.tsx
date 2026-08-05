@@ -9,7 +9,7 @@ import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { Select } from "@/components/ui/Select";
-import { codeStatusOf, fetchBanks, fetchReferralCodes } from "@/lib/api/bankCatalog";
+import { fetchBanks, fetchOpenReferralCodes } from "@/lib/api/bankCatalog";
 import {
   BankAccountFinishForm,
   BankAccountStartForm,
@@ -76,12 +76,12 @@ export function BankAccountFormDialog({
   const bankId = startForm.watch("bankId");
   const selectedBank = activeBanks.find((b) => b.id === bankId);
 
-  const { data: codes = [] } = useQuery({
-    queryKey: ["referral-codes", bankId, ""],
-    queryFn: () => fetchReferralCodes({ bankId, status: "" }),
+  // Máy chủ đã lọc "còn chỗ" sẵn — không lọc lại ở đây (AGENTS.md §5.1).
+  const { data: availableCodes = [] } = useQuery({
+    queryKey: ["referral-codes", "open", bankId],
+    queryFn: () => fetchOpenReferralCodes(bankId),
     enabled: Boolean(bankId),
   });
-  const availableCodes = codes.filter((c) => codeStatusOf(c) !== "full");
 
   // Gợi ý sẵn mã đầu tiên còn chỗ khi đổi ngân hàng — `codes` tải xong SAU khi
   // bankId đổi (query bất đồng bộ) nên phải tách riêng effect này, khoá theo
@@ -260,7 +260,7 @@ export function BankAccountFormDialog({
                     ? [{ value: "", label: "— Hết mã còn chỗ —" }]
                     : availableCodes.map((c) => ({
                         value: c.id,
-                        label: `${c.code} · còn ${c.total - c.used - c.holding} chỗ · đang giữ ${c.holding}`,
+                        label: `${c.code} · còn ${c.total - c.used} chỗ`,
                       }))
                 }
               />

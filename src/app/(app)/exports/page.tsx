@@ -12,7 +12,7 @@ import { MonthPicker, thisMonth } from "@/components/ui/MonthPicker";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { Select } from "@/components/ui/Select";
 import { fetchBankAccounts } from "@/lib/api/banking";
-import { fetchBanks, fetchReferralCodes, type Bank } from "@/lib/api/bankCatalog";
+import { fetchBanks, fetchReferralCodeOptions, type Bank } from "@/lib/api/bankCatalog";
 import { fetchCustomers } from "@/lib/api/customers";
 import { fetchDepartments } from "@/lib/api/departments";
 import { fetchInsuranceOrders } from "@/lib/api/insurance";
@@ -223,8 +223,8 @@ export default function ExportsPage() {
 
   const { data: banks = [] } = useQuery({ queryKey: ["banks"], queryFn: fetchBanks });
   const { data: codes = [] } = useQuery({
-    queryKey: ["referral-codes", "", ""],
-    queryFn: () => fetchReferralCodes({ bankId: "", status: "" }),
+    queryKey: ["referral-code-options"],
+    queryFn: fetchReferralCodeOptions,
   });
   const { data: departments = [] } = useQuery({ queryKey: ["departments"], queryFn: fetchDepartments });
   const { data: serviceTypes = [] } = useQuery({ queryKey: ["service-types"], queryFn: fetchServiceTypes });
@@ -598,7 +598,7 @@ export default function ExportsPage() {
                     label="Mã giới thiệu"
                     value={referralCode}
                     onChange={setReferralCode}
-                    options={[{ value: "", label: "Tất cả mã giới thiệu" }, ...codes.map((c) => ({ value: c.code, label: c.code }))]}
+                    options={[{ value: "", label: "Tất cả mã giới thiệu" }, ...codes.map((code) => ({ value: code, label: code }))]}
                   />
                 )}
 

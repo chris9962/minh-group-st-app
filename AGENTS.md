@@ -116,6 +116,43 @@ Quy tắc:
 - MSW ở `src/mocks/` trả lời như backend thật. Tắt bằng `NEXT_PUBLIC_USE_MOCK=false`
 - Đổi từ mock sang thật **không được sửa component**
 
+### 5.1 Phân trang · sắp xếp · tìm kiếm · lọc — LÀM Ở MÁY CHỦ
+
+**Không có ngoại lệ cần hỏi lại.** Danh sách nào lớn dần theo ngày làm việc thì
+mọi thao tác thu hẹp dữ liệu đều chạy ở máy chủ. Trình duyệt gửi câu hỏi, máy
+chủ trả về đúng một trang.
+
+Cấm: tải cả bảng rồi `.filter()` / `.sort()` / `.slice()` ở component. Nó chạy
+mượt trên máy người viết với 20 dòng seed và chết trên dữ liệu thật.
+
+Bộ khung dùng chung — đừng tự chế kiểu vỏ riêng cho từng module:
+
+| | |
+|---|---|
+| `src/lib/api/pagination.ts` | `PAGE_SIZE` · `pageOf()` · `Page<T>` · `PageQuery` · `pageParams()` |
+| `src/server/pagination.ts` | `pageArgsFrom(url, sortable, fallback)` |
+| `RankTable` prop `server` | bảng nhận sắp xếp/trang từ ngoài, không tự giữ |
+
+Bốn điều dễ làm sai, đã trả giá một lần ở P-61:
+
+1. **`total` là tổng số dòng KHỚP BỘ LỌC**, không phải số dòng của trang và
+   cũng không phải số dòng của bảng. Trả sai thì thanh phân trang hiện
+   "1–15 trên 15" ở mọi trang và không ai bấm sang trang sau được.
+2. **Khoá sắp xếp phải qua danh sách trắng.** Nó đi thẳng vào `ORDER BY`. Khoá
+   lạ thì rơi về mặc định, không trả 400 — một tham số gõ sai không đáng làm
+   hỏng cả màn.
+3. **Giá trị suy ra được (trạng thái, xếp loại, điểm) mà có ô lọc thì máy chủ
+   phải tự tính lấy**, và trả kèm trong mỗi dòng. Để công thức ở giao diện thì
+   máy chủ cắt trang mù: lọc xong trang 1 còn 3 dòng mà tổng vẫn ghi 240.
+   Tính hai nơi là hai nơi sớm muộn lệch nhau.
+4. **Ô chọn (`Select`) không phải bảng.** Nó cần trọn danh sách dùng được, nên
+   đi route riêng — `/referral-codes/open`, `/referral-codes/options`. Đừng mở
+   đường "lấy hết" trên route đã phân trang: đường đó là chỗ mọi màn sau lách.
+
+`pageSize` của `RankTable` (cắt ở trình duyệt) chỉ còn dùng cho **danh mục
+đóng** — ngân hàng, loại dịch vụ, kênh: vài chục dòng do người gõ tay, không
+lớn thêm.
+
 ## 6. Phân quyền
 
 - **Đúng một hàm kiểm quyền**: `src/lib/permissions.ts`. Mọi màn danh sách, chi tiết, xuất Excel đều qua đó
