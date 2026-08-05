@@ -33,6 +33,7 @@ import {
 } from "@/lib/api/org";
 import { useDebouncedValue } from "@/lib/hooks";
 import { can } from "@/lib/permissions";
+import { usePrefs } from "@/store/prefs";
 import { useSession } from "@/store/session";
 import styles from "./page.module.scss";
 import { errorMessage, toast } from "@/lib/toast";
@@ -46,9 +47,11 @@ export default function DepartmentsPage() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const searchQuery = useDebouncedValue(search);
+  // Nhớ theo máy — mở lại trang không phải tích lại.
+  const showStopped = usePrefs((s) => s.showStoppedDepartments);
+  const setShowStopped = usePrefs((s) => s.setShowStoppedDepartments);
   const [editing, setEditing] = useState<DepartmentRow | null>(null);
   const [creating, setCreating] = useState(false);
-  const [showStopped, setShowStopped] = useState(false);
   /** Phòng đang chờ xác nhận ngừng / mở lại. */
   const [confirming, setConfirming] = useState<DepartmentRow | null>(null);
   const [period, setPeriod] = useState<Period>(DEFAULT_PERIOD);
@@ -279,19 +282,18 @@ export default function DepartmentsPage() {
               title="Phòng ban"
               icon={<Building2 size={17} />}
               meta={searchQuery ? `khớp ${rows.length}/${data.summary.total}` : undefined}
-            >
-              {/* Chỉ hiện ô tích khi thật sự có phòng đã ngừng — không thì nó
-                  là một lựa chọn không làm gì, đứng chắn chỗ mỗi lần mở trang. */}
-              {data.summary.stopped > 0 && (
-                <div className={styles.filterRow}>
+              // Chỉ hiện ô tích khi thật sự có phòng đã ngừng — không thì nó là
+              // một lựa chọn không làm gì, đứng chắn chỗ mỗi lần mở trang.
+              action={
+                data.summary.stopped > 0 ? (
                   <Checkbox
                     checked={showStopped}
                     onCheckedChange={setShowStopped}
                     label={`Hiện cả phòng đã ngừng (${data.summary.stopped})`}
                   />
-                </div>
-              )}
-
+                ) : undefined
+              }
+            >
               {rows.length === 0 && (
                 <p className="text-muted">
                   {hiddenCount > 0

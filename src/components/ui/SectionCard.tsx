@@ -7,6 +7,13 @@ type Props = {
   /** Chú thích bên phải tiêu đề, ví dụ "7 ngày". */
   meta?: string;
   /**
+   * Điều khiển nằm ngang hàng tiêu đề, dạt phải — ô tích lọc, nút phụ.
+   *
+   * Đặt ở đây thay vì thả lên đầu phần nội dung: một ô tích đứng ngay trên
+   * bảng trông như một hàng của bảng, và đẩy bảng tụt xuống một dòng.
+   */
+  action?: React.ReactNode;
+  /**
    * `plain` bỏ nền và viền — dùng cho bảng.
    *
    * Bảng vốn đã có đường kẻ hàng để phân nhóm; đặt thêm một mảng nền màu
@@ -22,6 +29,7 @@ export function SectionCard({
   title,
   icon,
   meta,
+  action,
   variant = "card",
   children,
   className,
@@ -40,6 +48,7 @@ export function SectionCard({
         )}
         <h2 className={styles.title}>{title}</h2>
         {meta && <span className={styles.meta}>{meta}</span>}
+        {action && <div className={styles.action}>{action}</div>}
       </header>
       {children}
     </section>

@@ -23,6 +23,8 @@
   display: flex;
   align-items: center;
   gap: 10px;
+  /* Điều khiển bên phải xuống dòng khi màn hẹp, thay vì bóp nát tiêu đề. */
+  flex-wrap: wrap;
 }
 
 .icon {
@@ -45,4 +47,10 @@
 .meta {
   font-size: 11.5px;
   color: var(--color-neutral-600);
+}
+
+/* `.title` có `flex: 1` nên khối này tự bị đẩy sang phải. */
+.action {
+  flex: none;
+  margin-left: auto;
 }
