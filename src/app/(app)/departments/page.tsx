@@ -11,6 +11,7 @@ import { DepartmentFormDialog } from "@/components/departments/DepartmentFormDia
 import { Button } from "@/components/ui/Button";
 import buttonStyles from "@/components/ui/Button.module.css";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { FilterButton } from "@/components/ui/FilterButton";
 import {
   DEFAULT_PERIOD,
@@ -47,6 +48,7 @@ export default function DepartmentsPage() {
   const searchQuery = useDebouncedValue(search);
   const [editing, setEditing] = useState<DepartmentRow | null>(null);
   const [creating, setCreating] = useState(false);
+  const [showStopped, setShowStopped] = useState(false);
   /** Phòng đang chờ xác nhận ngừng / mở lại. */
   const [confirming, setConfirming] = useState<DepartmentRow | null>(null);
   const [period, setPeriod] = useState<Period>(DEFAULT_PERIOD);
@@ -205,6 +207,19 @@ export default function DepartmentsPage() {
     (d) => d.active && d.headcount > 0,
   );
 
+  /**
+   * Phòng đã ngừng ẩn mặc định.
+   *
+   * Phòng chỉ NGỪNG chứ không xoá (quyết định #32 — bản ghi cũ trỏ vào khoảng
+   * không), nên chúng nằm lại trong bảng mãi mãi và càng ngày càng lấn chỗ
+   * những phòng đang chạy. Số lượng vẫn đọc được ở thẻ "đã ngừng" phía trên,
+   * nên ẩn danh sách đi không giấu mất thông tin nào.
+   */
+  const rows = showStopped
+    ? (data?.departments ?? [])
+    : (data?.departments ?? []).filter((d) => d.active);
+  const hiddenCount = (data?.departments.length ?? 0) - rows.length;
+
   return (
     <>
       <TopBar title="Phòng ban">
@@ -263,22 +278,32 @@ export default function DepartmentsPage() {
             <SectionCard
               title="Phòng ban"
               icon={<Building2 size={17} />}
-              meta={
-                searchQuery
-                  ? `khớp ${data.departments.length}/${data.summary.total}`
-                  : undefined
-              }
+              meta={searchQuery ? `khớp ${rows.length}/${data.summary.total}` : undefined}
             >
-              {data.departments.length === 0 && (
+              {/* Chỉ hiện ô tích khi thật sự có phòng đã ngừng — không thì nó
+                  là một lựa chọn không làm gì, đứng chắn chỗ mỗi lần mở trang. */}
+              {data.summary.stopped > 0 && (
+                <div className={styles.filterRow}>
+                  <Checkbox
+                    checked={showStopped}
+                    onCheckedChange={setShowStopped}
+                    label={`Hiện cả phòng đã ngừng (${data.summary.stopped})`}
+                  />
+                </div>
+              )}
+
+              {rows.length === 0 && (
                 <p className="text-muted">
-                  {searchQuery
-                    ? `Không tìm thấy phòng nào khớp “${searchQuery}”.`
-                    : "Chưa có phòng ban nào."}
+                  {hiddenCount > 0
+                    ? `Chỉ có phòng đã ngừng khớp${searchQuery ? ` “${searchQuery}”` : ""} — tích ô trên để hiện.`
+                    : searchQuery
+                      ? `Không tìm thấy phòng nào khớp “${searchQuery}”.`
+                      : "Chưa có phòng ban nào."}
                 </p>
               )}
 
               <RankTable
-                rows={data.departments}
+                rows={rows}
                 columns={columns}
                 rowKey={(d) => d.id}
                 defaultSort="headcount"
