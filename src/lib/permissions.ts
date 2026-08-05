@@ -1,3 +1,4 @@
+import { ROLE_PERMISSIONS } from './roles';
 import {
   RoleKey,
   SCOPES,
@@ -44,19 +45,51 @@ export function can(user: User | null, module: ModuleKey, action: Action): boole
 }
 
 /**
+ * Phạm vi rộng nhất người này PHÁT được cho người khác trên (module, hành động).
+ *
+ * Trần PHÁT tách khỏi trần DÙNG — hai thứ khác nhau. Giám đốc cố ý không có
+ * `sửa`/`xoá` bản ghi nghiệp vụ, mà đó lại là quyền mặc định của vai Nhân viên:
+ * lấy quyền đang cầm làm trần phát thì Giám đốc không tạo nổi một nhân viên
+ * nào, chỉ tạo được Giám đốc khác (bộ quyền vai đó toàn `*` nên khớp hết).
+ *
+ * Hai nguồn, lấy cái rộng hơn:
+ *  1. Quyền chính mình đang cầm — cấp lại được đúng bằng hoặc hẹp hơn.
+ *  2. Bộ quyền mặc định của những vai mình được gán — gán được vai nào thì phát
+ *     được quyền của vai đó, kể cả quyền mình không tự dùng.
+ *
+ * Nguồn 2 KHÔNG rò `grant-permission`: không vai nào trong `ROLE_PERMISSIONS`
+ * có nó (chỉ tài khoản quản trị seed mới giữ), nên đường vòng tự nâng quyền
+ * "tạo tài khoản có cấp quyền → đặt lại mật khẩu → đăng nhập vào nó" vẫn tắc.
+ * Bậc dưới cũng không lợi thêm gì: vai họ gán được đều thấp hơn hoặc bằng
+ * mình, mà hợp bộ quyền của những vai đó đúng bằng cái họ đang cầm.
+ */
+export function grantScopeFor(
+  actor: User | null,
+  module: ModuleKey,
+  action: Action,
+): Scope | null {
+  if (!actor) return null;
+  if (can(actor, 'system', 'grant-permission')) return 'company';
+
+  let widest = scopeFor(actor, module, action);
+  for (const role of assignableRoles(actor)) {
+    for (const p of ROLE_PERMISSIONS[role]) {
+      if ((p.module !== module && p.module !== '*') || p.action !== action) continue;
+      if (!widest || scopeRank(p.scope) > scopeRank(widest)) widest = p.scope;
+    }
+  }
+  return widest;
+}
+
+/**
  * Chặn tự nâng quyền khi CẤP QUYỀN LẺ cho người khác (P-92/thẻ "Quyền") —
  * không phải chặn theo Chức vụ như `assignableRoles`, mà chặn theo TỪNG bộ ba
- * một. Người cấp không có `grant-permission` thì chỉ cấp được cho người khác
- * đúng bằng hoặc hẹp hơn phạm vi CHÍNH MÌNH đang có trên đúng (module, hành
- * động) đó — không cấp được cái mình không có, và không cấp rộng hơn mình.
+ * một: không phát được rộng hơn trần phát của chính mình.
  */
 export function canGrant(actor: User | null, target: Permission): boolean {
-  if (!actor) return false;
-  if (can(actor, 'system', 'grant-permission')) return true;
-
-  const ownScope = scopeFor(actor, target.module, target.action);
-  if (!ownScope) return false;
-  return scopeRank(ownScope) >= scopeRank(target.scope);
+  const ceiling = grantScopeFor(actor, target.module, target.action);
+  if (!ceiling) return false;
+  return scopeRank(ceiling) >= scopeRank(target.scope);
 }
 
 /**

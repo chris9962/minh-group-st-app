@@ -1,7 +1,7 @@
 "use client";
 
 import { Select } from "@/components/ui/Select";
-import { can, scopeFor } from "@/lib/permissions";
+import { grantScopeFor } from "@/lib/permissions";
 import {
   ACTION_LABEL,
   BASE_ACTIONS,
@@ -56,12 +56,6 @@ export function PermissionsEditor({ value, onChange, actor }: Props) {
     onChange(scope ? [...next, { module, action, scope }] : next);
   };
 
-  /** Rộng nhất actor tự cấp được cho người khác trên đúng (module, action) này. */
-  const maxGrantable = (module: ModuleKey, action: Action): Scope | null => {
-    if (can(actor, "system", "grant-permission")) return "company";
-    return scopeFor(actor, module, action);
-  };
-
   return (
     <div className={styles.grid}>
       {EDITABLE_MODULES.map((module) => (
@@ -81,7 +75,7 @@ export function PermissionsEditor({ value, onChange, actor }: Props) {
               );
             }
 
-            const max = maxGrantable(module, action);
+            const max = grantScopeFor(actor, module, action);
             const current = findScope(module, action);
             // Luôn hiện đúng giá trị thật đang có, kể cả khi nó vượt quá tầm
             // actor tự cấp được (vd đang xem người có sẵn quyền rộng hơn
