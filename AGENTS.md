@@ -9,6 +9,22 @@ This version has breaking changes — APIs, conventions, and file structure may 
 Đọc file này trước khi viết dòng code nào. Nghiệp vụ nằm ở `../mgst-platform-spec.md`,
 danh sách màn hình ở `../mgst-feature-list.md`, bản thiết kế ở `../mgst-design/`.
 
+## 0. Việc chưa làm — tra bằng `TODO(`
+
+```bash
+grep -rn "TODO(" src/
+```
+
+**Chạy lệnh này trước khi sửa một màn.** Có màn nhìn thì tưởng xong — cột nối
+đầy đủ, sắp xếp có, bộ lọc có — mà API sau lưng còn là stub trả rỗng. Không tra
+thì mất cả buổi đi tìm "sao số không lên".
+
+Dạng: `TODO(<màn hoặc module>, <chờ gì>): <chưa chạy cái gì>`
+
+Mốc phải đặt ở **CẢ HAI đầu** — chỗ giao diện dùng và chỗ máy chủ còn thiếu — và
+mỗi mốc nói rõ **điều kiện gỡ**. Đặt một đầu thôi thì người đọc đầu kia vẫn tưởng
+mọi thứ chạy. Xong việc thì xoá cả hai.
+
 ## 1. Ngôn ngữ
 
 | | |
