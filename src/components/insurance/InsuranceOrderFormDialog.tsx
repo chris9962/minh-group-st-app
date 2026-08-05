@@ -291,7 +291,10 @@ export function InsuranceOrderFormDialog({
             onChange={selectPackage}
             options={[
               { value: "", label: "— Chọn gói —" },
-              ...packages.map((p) => ({ value: p.name, label: p.name })),
+              // Gói đã ngừng không tặng cho khách mới được nữa. Chỉ lọc ở đây,
+              // không lọc `packages`: luồng Tặng quà vẫn cần tra phí gói cũ để
+              // prefill đơn đang mở dở.
+              ...packages.filter((p) => p.active).map((p) => ({ value: p.name, label: p.name })),
             ]}
           />
         )}

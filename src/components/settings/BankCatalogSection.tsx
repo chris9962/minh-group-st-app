@@ -6,6 +6,7 @@ import { useState } from "react";
 import { SkeletonTable } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { Button } from "@/components/ui/Button";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusTag } from "@/components/ui/StatusTag";
@@ -24,6 +25,7 @@ export function BankCatalogSection() {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<Bank | null>(null);
   const [creating, setCreating] = useState(false);
+  const [confirming, setConfirming] = useState<Bank | null>(null);
 
   const { data: banks = [], isPending, isError, refetch, isFetching } = useQuery({
     queryKey: ["banks"],
@@ -35,6 +37,7 @@ export function BankCatalogSection() {
     onSuccess: (_item, { next }) => {
       queryClient.invalidateQueries({ queryKey: ["banks"] });
       toast.ok(next ? "Đã bật lại ngân hàng" : "Đã ngừng ngân hàng");
+      setConfirming(null);
     },
     onError: (e) => toast.fail(errorMessage(e, "Không đổi được trạng thái ngân hàng này.")),
   });
@@ -82,7 +85,7 @@ export function BankCatalogSection() {
           <Button
             variant="secondary"
             disabled={toggleActive.isPending}
-            onClick={() => toggleActive.mutate({ id: b.id, next: !b.active })}
+            onClick={() => setConfirming(b)}
           >
             {b.active ? "Tắt" : "Bật lại"}
           </Button>
@@ -135,6 +138,31 @@ export function BankCatalogSection() {
           }}
         />
       )}
+
+      <ConfirmDialog
+        open={confirming !== null}
+        title={confirming?.active ? "Tắt ngân hàng" : "Bật lại ngân hàng"}
+        confirmLabel={confirming?.active ? "Tắt" : "Bật lại"}
+        pending={toggleActive.isPending}
+        onConfirm={() =>
+          confirming && toggleActive.mutate({ id: confirming.id, next: !confirming.active })
+        }
+        onClose={() => setConfirming(null)}
+        consequence={
+          confirming?.active ? (
+            <>
+              Ngân hàng biến mất khỏi ô chọn lúc mở tài khoản và lúc nhập mã giới
+              thiệu nên <strong>không mở tài khoản mới cho ngân hàng này được nữa</strong>.
+              Tài khoản đã mở và mã đã cấp vẫn giữ nguyên, bật lại lúc nào cũng được.
+            </>
+          ) : (
+            <>Ngân hàng hiện lại ở mọi ô chọn và nhận tài khoản mới được ngay.</>
+          )
+        }
+      >
+        {confirming?.active ? "Tắt ngân hàng " : "Bật lại ngân hàng "}
+        <strong>{confirming?.code}</strong>?
+      </ConfirmDialog>
     </>
   );
 }

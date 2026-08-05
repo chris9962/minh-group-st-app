@@ -6,6 +6,7 @@ import { Gift, Package, Pencil, Plus } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/Button";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusTag } from "@/components/ui/StatusTag";
 import { TextField } from "@/components/ui/TextField";
@@ -17,6 +18,7 @@ import {
   packageTotalFee,
   setGiftItemActive,
   setInsurancePackageActive,
+  type GiftItem,
   type InsurancePackage,
 } from "@/lib/api/settings";
 import { formatVnd } from "@/lib/format";
@@ -29,6 +31,8 @@ export function GiftCatalogSection() {
   const queryClient = useQueryClient();
   const [editingPackage, setEditingPackage] = useState<InsurancePackage | null>(null);
   const [creatingPackage, setCreatingPackage] = useState(false);
+  const [confirmingGift, setConfirmingGift] = useState<GiftItem | null>(null);
+  const [confirmingPackage, setConfirmingPackage] = useState<InsurancePackage | null>(null);
 
   const { data: giftItems = [] } = useQuery({
     queryKey: ["gift-items"],
@@ -64,6 +68,7 @@ export function GiftCatalogSection() {
     onSuccess: (_item, { next }) => {
       queryClient.invalidateQueries({ queryKey: ["gift-items"] });
       toast.ok(next ? "Đã bật lại món quà" : "Đã ngừng món quà");
+      setConfirmingGift(null);
     },
     onError: (e) => toast.fail(errorMessage(e, "Không đổi được trạng thái món quà này.")),
   });
@@ -74,6 +79,7 @@ export function GiftCatalogSection() {
     onSuccess: (_item, { next }) => {
       queryClient.invalidateQueries({ queryKey: ["insurance-packages"] });
       toast.ok(next ? "Đã bật lại gói bảo hiểm" : "Đã ngừng gói bảo hiểm");
+      setConfirmingPackage(null);
     },
     onError: (e) => toast.fail(errorMessage(e, "Không đổi được trạng thái gói này.")),
   });
@@ -90,7 +96,7 @@ export function GiftCatalogSection() {
                 <Button
                   variant="secondary"
                   disabled={toggleGiftItem.isPending}
-                  onClick={() => toggleGiftItem.mutate({ id: g.id, next: !g.active })}
+                  onClick={() => setConfirmingGift(g)}
                 >
                   {g.active ? "Ngừng" : "Dùng lại"}
                 </Button>
@@ -144,7 +150,7 @@ export function GiftCatalogSection() {
                 <Button
                   variant="secondary"
                   disabled={togglePackage.isPending}
-                  onClick={() => togglePackage.mutate({ id: p.id, next: !p.active })}
+                  onClick={() => setConfirmingPackage(p)}
                 >
                   {p.active ? "Ngừng" : "Dùng lại"}
                 </Button>
@@ -171,6 +177,57 @@ export function GiftCatalogSection() {
           }}
         />
       )}
+
+      <ConfirmDialog
+        open={confirmingGift !== null}
+        title={confirmingGift?.active ? "Ngừng vật phẩm" : "Dùng lại vật phẩm"}
+        confirmLabel={confirmingGift?.active ? "Ngừng" : "Dùng lại"}
+        pending={toggleGiftItem.isPending}
+        onConfirm={() =>
+          confirmingGift &&
+          toggleGiftItem.mutate({ id: confirmingGift.id, next: !confirmingGift.active })
+        }
+        onClose={() => setConfirmingGift(null)}
+        consequence={
+          confirmingGift?.active ? (
+            <>
+              Món này <strong>không vào rổ quà của khách mới nữa</strong>. Quà đã
+              tặng vẫn nằm nguyên trong lịch sử của khách, dùng lại lúc nào cũng được.
+            </>
+          ) : (
+            <>Món này lại được xét vào rổ quà của khách mới.</>
+          )
+        }
+      >
+        {confirmingGift?.active ? "Ngừng vật phẩm " : "Dùng lại vật phẩm "}
+        <strong>{confirmingGift?.name}</strong>?
+      </ConfirmDialog>
+
+      <ConfirmDialog
+        open={confirmingPackage !== null}
+        title={confirmingPackage?.active ? "Ngừng gói bảo hiểm" : "Dùng lại gói bảo hiểm"}
+        confirmLabel={confirmingPackage?.active ? "Ngừng" : "Dùng lại"}
+        pending={togglePackage.isPending}
+        onConfirm={() =>
+          confirmingPackage &&
+          togglePackage.mutate({ id: confirmingPackage.id, next: !confirmingPackage.active })
+        }
+        onClose={() => setConfirmingPackage(null)}
+        consequence={
+          confirmingPackage?.active ? (
+            <>
+              Gói biến mất khỏi ô chọn lúc tạo đơn bảo hiểm nên{" "}
+              <strong>không tặng gói này cho khách mới được nữa</strong>. Đơn đã
+              tạo vẫn giữ nguyên, dùng lại lúc nào cũng được.
+            </>
+          ) : (
+            <>Gói hiện lại ở ô chọn lúc tạo đơn và tặng cho khách mới được ngay.</>
+          )
+        }
+      >
+        {confirmingPackage?.active ? "Ngừng gói " : "Dùng lại gói "}
+        <strong>{confirmingPackage?.name}</strong>?
+      </ConfirmDialog>
     </div>
   );
 }
