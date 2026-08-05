@@ -59,15 +59,24 @@ a {
   border: 0;
 }
 
-/* `input[type=date]` vẽ icon lịch (và bảng chọn ngày bật lên) theo màu hệ
-   điều hành, không theo `data-theme` của trang — không đặt lại thì bộ tối vẫn
-   ra icon đen trên nền tối. Đặt theo đúng lựa chọn theme của trang, không để
-   trình duyệt tự suy theo màu hệ điều hành. */
-:root[data-theme="dark"] input[type="date"] {
+/* Mọi control GỐC của trình duyệt — danh sách `<option>` bật ra, icon và bảng
+   chọn của `input[type=date|time]`, thanh cuộn, gợi ý tự động điền — do HỆ ĐIỀU
+   HÀNH vẽ, nằm ngoài DOM. Token `--om-*` không với tới chúng; thứ duy nhất
+   trình duyệt nghe là `color-scheme`.
+
+   Đặt ở `:root` để khai MỘT lần cho cả trang. Trước đây chỉ khai cho
+   `input[type=date]`, nên mỗi lần gặp một control gốc khác lại phải vá thêm một
+   dòng — đã ba lượt như vậy (nút thiếu `color`, icon lịch, rồi `<option>` chữ
+   đen trên nền tối).
+
+   Bám `data-theme` chứ không để trình duyệt tự suy theo màu hệ điều hành:
+   người dùng chọn bộ tối trong app thì control gốc phải tối theo, kể cả khi máy
+   họ đang để chế độ sáng. */
+:root[data-theme="dark"] {
   color-scheme: dark;
 }
 
-:root[data-theme="light"] input[type="date"] {
+:root[data-theme="light"] {
   color-scheme: light;
 }
 
