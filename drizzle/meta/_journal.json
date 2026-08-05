@@ -22,6 +22,13 @@
       "when": 1785905701888,
       "tag": "0002_mighty_kang",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1785911347622,
+      "tag": "0003_superb_grim_reaper",
+      "breakpoints": true
     }
   ]
 }

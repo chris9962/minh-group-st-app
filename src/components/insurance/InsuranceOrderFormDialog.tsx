@@ -13,15 +13,13 @@ import { TextField } from "@/components/ui/TextField";
 import type { Customer } from "@/lib/api/customers";
 import {
   createInsuranceOrder,
-  insuranceOrderLegsFor,
   yearsLater,
-  yearsOf,
   InsuranceOrderForm,
   type InsuranceOrderLegForm,
-  type InsuranceOrderLegGroup,
   type InsuranceOrderSource,
 } from "@/lib/api/insuranceOrders";
-import { fetchInsurancePackages } from "@/lib/api/settings";
+import { PRODUCT_LABEL } from "@/lib/types";
+import { fetchInsurancePackages, type InsurancePackage } from "@/lib/api/settings";
 import { businessDay } from "@/lib/format";
 import { VEHICLE_TYPES } from "@/lib/pvi";
 import { useSession } from "@/store/session";
@@ -38,29 +36,30 @@ type Props = {
 };
 
 /**
- * Người thụ hưởng để trống — có thể là người khác hẳn khách hàng (spec §5.4),
- * mặc định sẵn tên khách thì hay gặp ca gõ nhầm rồi phải xoá lại. Năm sau nối
- * ngay sau năm trước — không có khoảng trống giữa hai hợp đồng.
+ * Dựng form theo đúng danh sách leg đã khai ở gói (chốt 04/08) — MỘT LEG = MỘT
+ * ĐƠN. Không suy gì từ tên gói.
+ *
+ * Người thụ hưởng để trống: có thể là người khác hẳn khách hàng (spec §5.4),
+ * mặc định sẵn tên khách thì hay gặp ca gõ nhầm rồi phải xoá lại.
+ *
+ * Mỗi đơn mặc định hôm nay → hôm nay + số năm của LEG ĐÓ. Cố ý KHÔNG tự nối
+ * ngày giữa các đơn: gói hai năm tai nạn điện thì KD tự sửa ngày đơn thứ hai
+ * cho khớp, còn gói ghép thì hai sản phẩm vốn cùng bắt đầu hôm nay — không có
+ * cấu hình nào phân biệt hai ca đó nữa.
  */
-function defaultLegsFor(group: InsuranceOrderLegGroup): InsuranceOrderLegForm[] {
+function defaultLegsFor(pkg: InsurancePackage | null): InsuranceOrderLegForm[] {
+  if (!pkg) return [];
   // `toISOString()` cắt theo UTC, mà máy chủ chạy UTC: đơn lập lúc 0-7h sáng
   // giờ Việt Nam mặc định lùi về HÔM QUA (xem lib/format.ts).
   const today = businessDay();
-  let start = today;
-  return group.legs.map((leg) => {
-    // Gói xe máy nhiều năm là MỘT hợp đồng dài (2/3 năm), không tách thành
-    // nhiều đơn 1 năm như tai nạn điện — ngày kết thúc phải cộng đủ số năm.
-    // Chỉ xe máy: hãng chỉ phát hành hợp đồng tai nạn điện 1 năm, dù tên gói
-    // có ghi mấy năm đi nữa (insuranceOrders.ts §insuranceOrderLegsFor).
-    const end = yearsLater(start, leg.product === "motorbike" ? yearsOf(leg.packageName) : 1);
+  return pkg.legs.map((leg) => {
     const values: InsuranceOrderLegForm = {
       product: leg.product,
-      packageName: leg.packageName,
-      // Phí gói chia đều các đơn nó sinh ra (combo 200k → 2 đơn 100k) — chỉ là
-      // số prefill, người nhập sửa được từng đơn.
-      fee: 0,
-      startDate: start,
-      endDate: end,
+      packageName: pkg.name,
+      /** Phí khai riêng cho leg này — trọn thời hạn, không phải chia đều giá gói. */
+      fee: leg.fee,
+      startDate: today,
+      endDate: yearsLater(today, leg.years),
       beneficiaryName: "",
       beneficiaryDob: "",
       beneficiaryIdNumber: "",
@@ -71,19 +70,16 @@ function defaultLegsFor(group: InsuranceOrderLegGroup): InsuranceOrderLegForm[] 
       chassisNumber: "",
       engineNumber: "",
     };
-    // Nối năm sau vào ngay sau năm trước CHỈ đúng với gói nhiều năm cùng một
-    // sản phẩm. Gói ghép "A + B" là hai sản phẩm khác nhau, cả hai cùng bắt
-    // đầu hôm nay — nối vào là đơn thứ hai lùi sang tận sang năm.
-    start = group.sharedBeneficiary ? end : today;
     return values;
   });
 }
 
-const legLabel = (group: InsuranceOrderLegGroup, i: number): string => {
-  const leg = group.legs[i];
-  return group.sharedBeneficiary && group.legs.length > 1
-    ? `${leg.product} · Năm thứ ${i + 1}`
-    : `${leg.product} · ${leg.packageName}`;
+/** Nhãn từng form. Nhiều đơn thì đánh số để KD biết đang điền đơn nào. */
+const legLabel = (pkg: InsurancePackage | null, i: number): string => {
+  const leg = pkg?.legs[i];
+  if (!leg) return "";
+  const label = `${PRODUCT_LABEL[leg.product]} · ${leg.years} năm`;
+  return pkg.legs.length > 1 ? `Đơn ${i + 1}/${pkg.legs.length} · ${label}` : label;
 };
 
 /**
@@ -91,12 +87,10 @@ const legLabel = (group: InsuranceOrderLegGroup, i: number): string => {
  * Dùng chung cho luồng Tặng quà (`source='gift'`, gói cố định) và mua tự
  * nguyện (`source='self'`, tự chọn gói).
  *
- * Một gói có thể sinh NHIỀU đơn (`insuranceOrderLegsFor`, spec §4.4/§5.4):
- * gói ghép hai sản phẩm khác nhau hiện đủ hai form riêng — mỗi sản phẩm một
- * người thụ hưởng, vì xe máy theo GPLX còn tai nạn điện theo CCCD, chưa chắc
- * cùng một người (P-10). Gói nhiều năm CÙNG một sản phẩm (2 năm tai nạn điện)
- * dùng chung một người thụ hưởng nhưng có từng cặp ngày bắt đầu/kết thúc
- * riêng cho mỗi năm, vì hãng chỉ phát hành hợp đồng 1 năm nối tiếp.
+ * Số form = số leg khai ở gói (chốt 04/08). Mỗi form một bộ ô đầy đủ, kể cả
+ * khi hai đơn cùng một người: xe máy định danh bằng GPLX còn tai nạn điện bằng
+ * CCCD (P-10), chưa chắc cùng một người. Nút "Lấy thông tin khách" ở từng form
+ * là đủ — không cần cờ dùng chung người thụ hưởng.
  */
 export function InsuranceOrderFormDialog({
   open,
@@ -109,7 +103,6 @@ export function InsuranceOrderFormDialog({
   const actor = useSession((s) => s.user);
   const queryClient = useQueryClient();
   const [packageName, setPackageName] = useState(prefill?.packageName ?? "");
-  const legGroup = insuranceOrderLegsFor(packageName);
   const primaryPhone = customer.phones.find((p) => p.primary)?.number ?? "";
 
   // Luôn nạp danh mục gói (kể cả luồng Tặng quà gói cố định) — cần phí gói
@@ -119,14 +112,7 @@ export function InsuranceOrderFormDialog({
     queryFn: fetchInsurancePackages,
   });
 
-  const packageFee = packages.find((p) => p.name === packageName)?.yearlyFee ?? null;
-
-  /** Phí gói chia đều các đơn nó sinh ra — chỉ là prefill, sửa được từng đơn. */
-  const withFees = (legs: InsuranceOrderLegForm[], fee: number | null): InsuranceOrderLegForm[] =>
-    fee === null || legs.length === 0
-      ? legs
-      : legs.map((leg) => ({ ...leg, fee: Math.round(fee / legs.length) }));
-
+  const selectedPackage = packages.find((p) => p.name === packageName) ?? null;
   const {
     register,
     control,
@@ -140,26 +126,27 @@ export function InsuranceOrderFormDialog({
     defaultValues: {
       customerId: customer.id,
       source,
-      legs: defaultLegsFor(legGroup),
+      legs: defaultLegsFor(selectedPackage),
     },
   });
   const legsField = useFieldArray({ control, name: "legs" });
 
-  // Luồng Tặng quà: legs dựng NGAY lúc mở (gói cố định) nhưng phí gói về sau
-  // qua query — đồng bộ một lần khi danh mục về, chỉ khi người dùng chưa gõ gì
-  // (fee còn 0). Đây là sync dữ liệu ngoài vào form, không phải derived state.
+  /**
+   * Luồng Tặng quà mở hộp thoại với gói CỐ ĐỊNH, nhưng danh mục gói về sau qua
+   * query — lúc dựng form chưa biết gói có mấy leg nên `legs` rỗng. Dựng lại
+   * một lần khi danh mục về, và chỉ khi người dùng chưa gõ gì.
+   *
+   * Đây là đồng bộ dữ liệu ngoài vào form, không phải giá trị suy ra được.
+   */
   useEffect(() => {
-    if (!prefill || packageFee === null) return;
-    const legs = getValues("legs");
-    if (legs.length === 0 || legs.some((leg) => leg.fee !== 0)) return;
-    const share = Math.round(packageFee / legs.length);
-    legs.forEach((_, i) => setValue(`legs.${i}.fee`, share));
-  }, [prefill, packageFee, getValues, setValue]);
+    if (!prefill || !selectedPackage) return;
+    if (getValues("legs").length > 0) return;
+    legsField.replace(defaultLegsFor(selectedPackage));
+  }, [prefill, selectedPackage, getValues, legsField]);
 
   const selectPackage = (value: string) => {
     setPackageName(value);
-    const fee = packages.find((p) => p.name === value)?.yearlyFee ?? null;
-    legsField.replace(withFees(defaultLegsFor(insuranceOrderLegsFor(value)), fee));
+    legsField.replace(defaultLegsFor(packages.find((p) => p.name === value) ?? null));
   };
 
   const applyCustomerInfo = (i: number) => {
@@ -169,7 +156,7 @@ export function InsuranceOrderFormDialog({
     setValue(`legs.${i}.beneficiaryAddress`, customer.address, { shouldDirty: true });
     // Đơn xe máy không hỏi ngày sinh (ô đã ẩn) — điền vào là gửi lên dữ liệu
     // người dùng không hề thấy để đối chiếu.
-    if (legGroup.legs[i]?.product !== "motorbike")
+    if ((selectedPackage?.legs ?? [])[i]?.product !== "motorbike")
       setValue(`legs.${i}.beneficiaryDob`, customer.dob ?? "", { shouldDirty: true });
   };
 
@@ -186,7 +173,7 @@ export function InsuranceOrderFormDialog({
   const onSubmit = handleSubmit((values) => {
     // Nhiều năm CÙNG một sản phẩm dùng chung người thụ hưởng — chỉ hiện một bộ
     // ô nhập (năm đầu) nên phải chép sang các năm sau trước khi gửi đi.
-    const legs = legGroup.sharedBeneficiary
+    const legs = false
       ? values.legs.map((leg, i) =>
           i === 0
             ? leg
@@ -255,7 +242,7 @@ export function InsuranceOrderFormDialog({
       />
       {/* Đơn BH xe máy không cần ngày sinh — định danh bằng GPLX/biển số, PVI
           không hỏi trường này (spec P-10). Đơn tai nạn điện thì vẫn cần. */}
-      {legGroup.legs[i]?.product === "motorbike" ? (
+      {(selectedPackage?.legs ?? [])[i]?.product === "motorbike" ? (
         <TextField label="CCCD" {...register(`legs.${i}.beneficiaryIdNumber`)} />
       ) : (
         <div className={styles.pair}>
@@ -286,7 +273,7 @@ export function InsuranceOrderFormDialog({
           <Button
             type="submit"
             form="insurance-order-form"
-            disabled={isSubmitting || save.isPending || legGroup.legs.length === 0}
+            disabled={isSubmitting || save.isPending || (selectedPackage?.legs ?? []).length === 0}
           >
             Tạo đơn
           </Button>
@@ -313,7 +300,7 @@ export function InsuranceOrderFormDialog({
         {legsField.fields.length > 1 &&
           legsField.fields.map((field, i) => (
             <fieldset key={field.id} className={styles.legCard}>
-              <legend className={styles.legTitle}>{legLabel(legGroup, i)}</legend>
+              <legend className={styles.legTitle}>{legLabel(selectedPackage, i)}</legend>
 
               <div className={styles.pair}>
                 <TextField label="Ngày bắt đầu" type="date" {...register(`legs.${i}.startDate`)} />
@@ -328,8 +315,8 @@ export function InsuranceOrderFormDialog({
                 {...register(`legs.${i}.fee`, { valueAsNumber: true })}
               />
 
-              {legGroup.legs[i].product === "motorbike" && renderVehicleInfo(i)}
-              {(!legGroup.sharedBeneficiary || i === 0) && renderBeneficiary(i)}
+              {(selectedPackage?.legs ?? [])[i].product === "motorbike" && renderVehicleInfo(i)}
+              {(!false || i === 0) && renderBeneficiary(i)}
             </fieldset>
           ))}
 
@@ -346,7 +333,7 @@ export function InsuranceOrderFormDialog({
               error={errors.legs?.[0]?.fee?.message}
               {...register("legs.0.fee", { valueAsNumber: true })}
             />
-            {legGroup.legs[0].product === "motorbike" && renderVehicleInfo(0)}
+            {(selectedPackage?.legs ?? [])[0].product === "motorbike" && renderVehicleInfo(0)}
             {renderBeneficiary(0)}
           </>
         )}

@@ -14,6 +14,7 @@ import type {
   GiftItem,
   InsurancePackage,
   InsurancePackageForm,
+  InsurancePackageLeg,
   KpiTarget,
   KpiTargetForm,
   ServiceTypeForm,
@@ -27,6 +28,7 @@ import {
   channels,
   giftItems,
   hospitals,
+  insurancePackageLegs,
   insurancePackages,
   hamlets,
   kpiTargets,
@@ -246,16 +248,50 @@ export async function setGiftItemActive(id: string, active: boolean): Promise<Gi
 
 /* ── Gói bảo hiểm ─────────────────────────────────────────────────────── */
 
-const toPackage = (r: typeof insurancePackages.$inferSelect): InsurancePackage => ({
-  id: r.id,
-  name: r.name,
-  yearlyFee: Number(r.yearlyFee),
-  active: r.active,
-});
-
+/**
+ * Gói kèm danh sách leg. Hai câu cho cả bảng rồi gộp ở app — không truy vấn
+ * leg theo từng gói (§11.1 cấm N+1).
+ */
 export async function listInsurancePackages(): Promise<InsurancePackage[]> {
-  return (await db.select().from(insurancePackages).orderBy(asc(insurancePackages.name))).map(
-    toPackage,
+  const [packageRows, legRows] = await Promise.all([
+    db.select().from(insurancePackages).orderBy(asc(insurancePackages.name)),
+    db.select().from(insurancePackageLegs).orderBy(asc(insurancePackageLegs.ord)),
+  ]);
+
+  const legsByPackage = new Map<string, InsurancePackageLeg[]>();
+  for (const l of legRows) {
+    const list = legsByPackage.get(l.packageId) ?? [];
+    list.push({ product: l.product, years: l.years, fee: l.fee });
+    legsByPackage.set(l.packageId, list);
+  }
+
+  return packageRows.map((p) => ({
+    id: p.id,
+    name: p.name,
+    active: p.active,
+    legs: legsByPackage.get(p.id) ?? [],
+  }));
+}
+
+async function packageWithLegs(id: string): Promise<InsurancePackage | null> {
+  return (await listInsurancePackages()).find((p) => p.id === id) ?? null;
+}
+
+/** Ghi gói + legs trong MỘT transaction — gói không có leg là gói không dùng được. */
+async function writeLegs(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  packageId: string,
+  legs: InsurancePackageForm["legs"],
+): Promise<void> {
+  await tx.delete(insurancePackageLegs).where(eq(insurancePackageLegs.packageId, packageId));
+  await tx.insert(insurancePackageLegs).values(
+    legs.map((leg, i) => ({
+      packageId,
+      ord: i + 1,
+      product: leg.product,
+      years: leg.years,
+      fee: leg.fee,
+    })),
   );
 }
 
@@ -265,27 +301,36 @@ export async function createInsurancePackage(
   const taken = new Set(
     (await db.select({ code: insurancePackages.code }).from(insurancePackages)).map((r) => r.code),
   );
-  const [row] = await db
-    .insert(insurancePackages)
-    .values({
-      code: uniqueCode(form.name, "GOI", taken),
-      name: form.name,
-      yearlyFee: form.yearlyFee,
-    })
-    .returning();
-  return toPackage(row);
+
+  const id = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .insert(insurancePackages)
+      .values({ code: uniqueCode(form.name, "GOI", taken), name: form.name })
+      .returning();
+    await writeLegs(tx, row.id, form.legs);
+    return row.id;
+  });
+
+  return (await packageWithLegs(id))!;
 }
 
+/** Đổi tên KHÔNG đổi mã: file luật theo kỳ trỏ vào mã, đổi là gãy. */
 export async function updateInsurancePackage(
   id: string,
   form: InsurancePackageForm,
 ): Promise<InsurancePackage | null> {
-  const [row] = await db
-    .update(insurancePackages)
-    .set({ name: form.name, yearlyFee: form.yearlyFee })
-    .where(eq(insurancePackages.id, id))
-    .returning();
-  return row ? toPackage(row) : null;
+  const updated = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .update(insurancePackages)
+      .set({ name: form.name, updatedAt: new Date() })
+      .where(eq(insurancePackages.id, id))
+      .returning({ id: insurancePackages.id });
+    if (!row) return false;
+    await writeLegs(tx, id, form.legs);
+    return true;
+  });
+
+  return updated ? packageWithLegs(id) : null;
 }
 
 export async function setInsurancePackageActive(
@@ -296,8 +341,8 @@ export async function setInsurancePackageActive(
     .update(insurancePackages)
     .set({ active })
     .where(eq(insurancePackages.id, id))
-    .returning();
-  return row ? toPackage(row) : null;
+    .returning({ id: insurancePackages.id });
+  return row ? packageWithLegs(id) : null;
 }
 
 /* ── Loại dịch vụ ─────────────────────────────────────────────────────── */

@@ -4,3 +4,33 @@
   gap: 14px;
   padding-bottom: 4px;
 }
+
+/* Mỗi leg một hàng: sản phẩm · số năm · phí · nút bỏ. Xuống dòng khi màn hẹp. */
+.legs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--om-line);
+  border-radius: var(--radius-md);
+}
+
+.legend {
+  padding: 0 var(--space-1);
+  font-size: 12.5px;
+  color: var(--om-text-2);
+}
+
+.leg {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 0.7fr) minmax(0, 1.2fr) auto;
+  align-items: end;
+  gap: var(--space-2);
+}
+
+@media (max-width: bp.$bp-narrow) {
+  .leg {
+    grid-template-columns: 1fr 1fr;
+  }
+}

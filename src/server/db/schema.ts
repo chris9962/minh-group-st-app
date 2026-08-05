@@ -245,16 +245,55 @@ export const insurancePackages = pgTable(
     id: id(),
     /** Mã cố định cho module luật (`BH-1N-XEMAY`). */
     code: text("code").notNull().unique(),
+    /**
+     * CHỈ để hiển thị. Không code nào được đọc chuỗi này để suy ra sản phẩm, số
+     * năm hay số đơn — cấu trúc gói nằm ở `insurance_package_legs`.
+     */
     name: text("name").notNull().unique(),
-    /** Đồng/năm. */
-    yearlyFee: integer("yearly_fee").notNull().default(0),
     active: boolean("active").notNull().default(true),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  // Phí âm ở danh mục sẽ trôi xuống `insurance_orders.fee` rồi mới đụng ràng
-  // buộc `fee >= 0` — lỗi nổ ở màn tạo đơn trong khi dữ liệu sai nằm ở P-82.
-  (t) => [check("insurance_packages_fee_non_negative", sql`${t.yearlyFee} >= 0`)],
+);
+
+/**
+ * Gói gồm những gì (chốt 04/08) — MỘT LEG = MỘT ĐƠN bảo hiểm.
+ *
+ * Màn tạo đơn cứ theo danh sách leg mà hiện đúng số form, mỗi form một bộ ô đầy
+ * đủ. Gói "2 năm tai nạn điện" và gói ghép giờ chỉ khác nhau ở `product` của
+ * từng leg — không còn cấu hình nào phân biệt hai ca đó.
+ *
+ * ⚠️ Trước 04/08 hệ thống suy ngược cấu trúc từ chuỗi `name` bằng bốn bộ luật
+ * parse: `includes('xe máy')` ra sản phẩm, `/(\d+)\s*năm/` ra số năm,
+ * `split('+')` ra số đơn, `/(\d+k)/` ra phí. Mà `name` là thứ CEO sửa được ở
+ * P-82 — đặt tên "BH xe máy 3N" là regex trượt, âm thầm trả 1 năm, và một hợp
+ * đồng 3 năm bị ghi ngày kết thúc sai 2 năm. Nay khai tường minh ở đây.
+ *
+ * Cố ý KHÔNG có cột quan hệ giữa các leg: không `shared_beneficiary` (gói nhiều
+ * leg luôn hiện N form độc lập), không cờ nối ngày (mỗi form mặc định hôm nay →
+ * hôm nay + `years`, KD tự sửa nếu muốn nối tiếp).
+ */
+export const insurancePackageLegs = pgTable(
+  "insurance_package_legs",
+  {
+    id: id(),
+    packageId: uuid("package_id")
+      .notNull()
+      .references(() => insurancePackages.id, { onDelete: "cascade" }),
+    /** Thứ tự các form trên màn tạo đơn, từ 1. */
+    ord: smallint("ord").notNull(),
+    product: insuranceProduct("product").notNull(),
+    years: smallint("years").notNull(),
+    /** Phí của ĐƠN mà leg này sinh ra, TRỌN THỜI HẠN — khớp `insurance_orders.fee`. */
+    fee: integer("fee").notNull().default(0),
+  },
+  (t) => [
+    uniqueIndex("insurance_package_legs_ord").on(t.packageId, t.ord),
+    check("insurance_package_legs_years_positive", sql`${t.years} > 0`),
+    // Phí âm ở danh mục sẽ trôi xuống `insurance_orders.fee` rồi mới đụng ràng
+    // buộc `fee >= 0` — lỗi nổ ở màn tạo đơn trong khi dữ liệu sai nằm ở P-82.
+    check("insurance_package_legs_fee_non_negative", sql`${t.fee} >= 0`),
+  ],
 );
 
 /* Tỉnh/Xã hai tầng (spec §2.4): tham chiếu chỉ đọc + đang dùng của công ty. */

@@ -120,8 +120,26 @@ async function main() {
     await db.insert(schema.serviceTypes).values(SERVICE_TYPES.map((s) => ({ ...s })));
   if ((await count("gift_items")) === 0)
     await db.insert(schema.giftItems).values(GIFT_ITEMS.map((g) => ({ ...g })));
-  if ((await count("insurance_packages")) === 0)
-    await db.insert(schema.insurancePackages).values(INSURANCE_PACKAGES.map((x) => ({ ...x })));
+  if ((await count("insurance_packages")) === 0) {
+    const packageRows = await db
+      .insert(schema.insurancePackages)
+      .values(INSURANCE_PACKAGES.map(({ code, name }) => ({ code, name })))
+      .returning({ id: schema.insurancePackages.id, code: schema.insurancePackages.code });
+
+    // Gói không có leg là gói không sinh đơn nào — vô dụng. Ghi cùng lượt.
+    const idByCode = new Map(packageRows.map((r) => [r.code, r.id]));
+    await db.insert(schema.insurancePackageLegs).values(
+      INSURANCE_PACKAGES.flatMap((p) =>
+        p.legs.map((leg, i) => ({
+          packageId: idByCode.get(p.code)!,
+          ord: i + 1,
+          product: leg.product,
+          years: leg.years,
+          fee: leg.fee,
+        })),
+      ),
+    );
+  }
 
   /* Quy tắc quà KHÔNG seed — không còn bảng cấu hình; thể lệ nằm ở module code
      theo kỳ `src/rules/YYYY-MM.ts` (spec §5.3, chốt 03/08). */

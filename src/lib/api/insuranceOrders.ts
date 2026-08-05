@@ -130,73 +130,20 @@ export const InsuranceOrderForm = z.object({
 });
 export type InsuranceOrderForm = z.infer<typeof InsuranceOrderForm>;
 
-export type InsuranceOrderLegGroup = {
-  /**
-   * true = các đơn dùng CHUNG một người thụ hưởng (tách nhiều năm CÙNG một
-   * sản phẩm) — chỉ cần hiện một bộ ô nhập người thụ hưởng.
-   * false = mỗi đơn một sản phẩm khác nhau (gói ghép), người thụ hưởng có thể
-   * khác nhau — xe máy theo GPLX, tai nạn điện theo CCCD (spec P-10), chưa
-   * chắc cùng một người — nên hiện đủ một bộ ô nhập riêng cho từng đơn.
-   */
-  sharedBeneficiary: boolean;
-  legs: { product: InsuranceProduct; packageName: string }[];
-};
-
-const productOf = (name: string): InsuranceProduct =>
-  name.includes('xe máy') ? 'motorbike' : 'electric-accident';
-
 /**
- * Một gói có thể sinh NHIỀU đơn thật (spec §4.4 P-43, §5.4):
- * - Gói ghép "A + B" (ví dụ combo xe máy + điện) → N đơn, MỖI đơn một sản
- *   phẩm và một người thụ hưởng riêng.
- * - "2 năm tai nạn điện" → 2 đơn 1 năm nối tiếp — hãng chỉ phát hành hợp
- *   đồng 1 năm (KHÔNG áp dụng "2 năm BH xe máy": xe máy có hợp đồng 2 năm
- *   thật, không tách). Dùng chung cho cả luồng Tặng quà lẫn tự mua.
- */
-export function insuranceOrderLegsFor(packageName: string): InsuranceOrderLegGroup {
-  const trimmed = packageName.trim();
-  if (!trimmed) return { sharedBeneficiary: true, legs: [] };
-
-  const parts = trimmed.split('+').map((s) => s.trim());
-  if (parts.length > 1) {
-    return {
-      sharedBeneficiary: false,
-      legs: parts.map((name) => ({ product: productOf(name), packageName: name })),
-    };
-  }
-
-  const product = productOf(trimmed);
-  if (product === 'electric-accident' && trimmed.startsWith('2 năm')) {
-    const fee = trimmed.match(/(\d+k)/)?.[1] ?? '100k';
-    return {
-      sharedBeneficiary: true,
-      legs: [
-        { product, packageName: `1 năm · ${fee}` },
-        { product, packageName: `1 năm · ${fee}` },
-      ],
-    };
-  }
-
-  return { sharedBeneficiary: true, legs: [{ product, packageName: trimmed }] };
-}
-
-/**
- * Số năm của gói, đọc từ tên ("3 năm BH xe máy" → 3). Không khớp thì 1 năm.
+ * ⚠️ ĐÃ BỎ (chốt 04/08): `InsuranceOrderLegGroup`, `insuranceOrderLegsFor`,
+ * `productOf`, `yearsOf`.
  *
- * Cần cho gói xe máy nhiều năm — hợp đồng 2/3 năm là THẬT, không tách thành
- * nhiều đơn 1 năm như bên tai nạn điện, nên ngày kết thúc phải cộng đủ số năm.
+ * Bốn hàm đó suy ngược cấu trúc gói từ chuỗi `name` bằng bốn bộ luật parse:
+ * `includes('xe máy')` ra sản phẩm, `/(\d+)\s*năm/` ra số năm, `split('+')` ra
+ * số đơn, `/(\d+k)/` ra phí. Mà `name` là thứ CEO sửa được ở P-82 — đặt tên
+ * "BH xe máy 3N" là regex trượt, âm thầm trả 1 năm, và một hợp đồng 3 năm bị
+ * ghi ngày kết thúc sai hai năm.
  *
- * ⚠️ Tên gói là chữ TỰ DO gõ ở P-82, không có ràng buộc định dạng nào. Nới hoa
- * thường và dấu để "BH xe máy 3 Năm" không lặng lẽ thành hợp đồng 1 năm; "Ba
- * năm" hay "36 tháng" thì vẫn rơi về 1 và regex không cứu được. Nguồn sự thật
- * cho thời hạn hợp đồng đáng ra là một cột `termYears` trên gói bảo hiểm, đọc
- * số năm từ nhãn người ta gõ tay là chỗ sai người sẽ trả giá bằng hợp đồng.
+ * Nay cấu trúc khai tường minh ở `insurance_package_legs`: mỗi leg là *sản phẩm
+ * gì · mấy năm · phí bao nhiêu*, và MỘT LEG = MỘT ĐƠN. Đọc `package.legs`,
+ * đừng đọc tên gói.
  */
-export const yearsOf = (packageName: string): number => {
-  const matched = packageName.match(/(\d+)\s*n[ăâa]m/i);
-  const years = matched ? Number(matched[1]) : 1;
-  return Number.isFinite(years) && years > 0 ? years : 1;
-};
 
 export const yearsLater = (date: string, years: number): string => {
   const d = new Date(date);

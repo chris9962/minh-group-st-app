@@ -14,6 +14,7 @@ import {
   createGiftItem,
   fetchGiftItems,
   fetchInsurancePackages,
+  packageTotalFee,
   setGiftItemActive,
   setInsurancePackageActive,
   type InsurancePackage,
@@ -114,7 +115,10 @@ export function GiftCatalogSection() {
           {packages.map((p) => (
             <li key={p.id}>
               <span>
-                {p.name} <span className="tabular-nums">· {formatVnd(p.yearlyFee)}/năm</span>
+                {p.name}{" "}
+                  <span className="tabular-nums">
+                    · {formatVnd(packageTotalFee(p))} · {p.legs.length} đơn
+                  </span>
               </span>
               <span className={styles.rowActions}>
                 <StatusTag ok={p.active}>{p.active ? "Đang dùng" : "Đã ngừng"}</StatusTag>

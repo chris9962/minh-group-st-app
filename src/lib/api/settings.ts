@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { InsuranceProduct } from '@/lib/types';
 
 /**
  * Cấu hình cho CEO — P-81…P-84 (mgst-feature-list.md §4.8).
@@ -18,23 +19,54 @@ export const GiftItem = z.object({
 });
 export type GiftItem = z.infer<typeof GiftItem>;
 
+/**
+ * Một leg = MỘT đơn bảo hiểm mà gói này sinh ra (chốt 04/08).
+ *
+ * `fee` là phí TRỌN THỜI HẠN của đơn đó, không phải phí mỗi năm — khớp thẳng
+ * `insurance_orders.fee` nên điền sang không phải quy đổi.
+ */
+export const InsurancePackageLeg = z.object({
+  product: InsuranceProduct,
+  years: z.number(),
+  fee: z.number(),
+});
+export type InsurancePackageLeg = z.infer<typeof InsurancePackageLeg>;
+
+/**
+ * ⚠️ `name` CHỈ để hiển thị. Không code nào được đọc chuỗi này để suy ra sản
+ * phẩm, số năm hay số đơn — cấu trúc nằm ở `legs`.
+ *
+ * Không còn `yearlyFee`: phí thuộc về từng leg, giá gói là `sum(legs.fee)` —
+ * tính ra được thì không lưu (db-design §9).
+ */
 export const InsurancePackage = z.object({
   id: z.string(),
   name: z.string(),
-  /** Đồng/năm — ví dụ "BH điện 100k" = 100000. */
-  yearlyFee: z.number(),
   active: z.boolean(),
+  legs: z.array(InsurancePackageLeg),
 });
 export type InsurancePackage = z.infer<typeof InsurancePackage>;
+
+/** Giá gói hiển thị ở P-82 — cộng phí các đơn nó sinh ra. */
+export const packageTotalFee = (p: InsurancePackage): number =>
+  p.legs.reduce((sum, leg) => sum + leg.fee, 0);
 
 export const CatalogItemForm = z.object({
   name: z.string().trim().min(2, 'Chưa nhập tên'),
 });
 export type CatalogItemForm = z.infer<typeof CatalogItemForm>;
 
+export const InsurancePackageLegForm = z.object({
+  product: InsuranceProduct,
+  years: z.number().min(1, 'Số năm phải từ 1 trở lên'),
+  fee: z.number().min(0, 'Phí phải từ 0 trở lên'),
+});
+export type InsurancePackageLegForm = z.infer<typeof InsurancePackageLegForm>;
+
 export const InsurancePackageForm = z.object({
   name: z.string().trim().min(2, 'Chưa nhập tên gói'),
-  yearlyFee: z.number().min(0, 'Phí phải từ 0 trở lên'),
+  /** Ít nhất một leg: gói không sinh đơn nào thì không dùng để làm gì. */
+  legs: z.array(InsurancePackageLegForm).min(1, 'Gói phải có ít nhất một đơn'),
 });
 export type InsurancePackageForm = z.infer<typeof InsurancePackageForm>;
 

@@ -228,15 +228,40 @@ export const GIFT_ITEMS = [
   { code: "QUA-BH-SUC-KHOE", name: "BH sức khoẻ" },
 ] as const;
 
+/**
+ * MỘT LEG = MỘT ĐƠN bảo hiểm (chốt 04/08). `fee` là phí TRỌN THỜI HẠN của đơn
+ * leg đó sinh ra, không phải phí mỗi năm.
+ *
+ * `name` chỉ để hiển thị — không code nào được đọc nó để suy ra sản phẩm, số
+ * năm hay số đơn. Cấu trúc khai tường minh ở đây.
+ */
 export const INSURANCE_PACKAGES = [
-  { code: "BH-1N-XEMAY", name: "1 năm BH xe máy", yearlyFee: 100000 },
-  { code: "BH-1N-DIEN", name: "1 năm BH tai nạn điện", yearlyFee: 100000 },
-  { code: "BH-COMBO-1N", name: "1 năm xe máy + 1 năm tai nạn điện", yearlyFee: 200000 },
-  { code: "BH-2N-XEMAY", name: "2 năm BH xe máy", yearlyFee: 200000 },
-  /** Xe máy có hợp đồng nhiều năm THẬT — một đơn, không tách thành 3 đơn 1 năm. */
-  { code: "BH-3N-XEMAY", name: "3 năm BH xe máy", yearlyFee: 300000 },
-  { code: "BH-2N-DIEN-100K", name: "2 năm tai nạn điện gói 100k", yearlyFee: 200000 },
-  { code: "BH-1N-DIEN-200K", name: "1 năm tai nạn điện gói 200k", yearlyFee: 200000 },
+  /** Xe máy có hợp đồng nhiều năm THẬT — một đơn dài, không tách. */
+  { code: "BH-1N-XEMAY", name: "1 năm BH xe máy",
+    legs: [{ product: "motorbike", years: 1, fee: 100000 }] },
+  { code: "BH-2N-XEMAY", name: "2 năm BH xe máy",
+    legs: [{ product: "motorbike", years: 2, fee: 200000 }] },
+  { code: "BH-3N-XEMAY", name: "3 năm BH xe máy",
+    legs: [{ product: "motorbike", years: 3, fee: 300000 }] },
+
+  { code: "BH-1N-DIEN", name: "1 năm BH tai nạn điện",
+    legs: [{ product: "electric-accident", years: 1, fee: 100000 }] },
+  { code: "BH-1N-DIEN-200K", name: "1 năm tai nạn điện gói 200k",
+    legs: [{ product: "electric-accident", years: 1, fee: 200000 }] },
+
+  /** Hãng chỉ phát hành hợp đồng tai nạn điện 1 năm → gói 2 năm là HAI leg. */
+  { code: "BH-2N-DIEN-100K", name: "2 năm tai nạn điện gói 100k",
+    legs: [
+      { product: "electric-accident", years: 1, fee: 100000 },
+      { product: "electric-accident", years: 1, fee: 100000 },
+    ] },
+
+  /** Gói ghép chỉ khác gói trên ở `product` của từng leg. */
+  { code: "BH-COMBO-1N", name: "1 năm xe máy + 1 năm tai nạn điện",
+    legs: [
+      { product: "motorbike", years: 1, fee: 100000 },
+      { product: "electric-accident", years: 1, fee: 100000 },
+    ] },
 ] as const;
 
 /* Quy tắc quà KHÔNG còn ở đây: thể lệ nằm trong module code theo kỳ
