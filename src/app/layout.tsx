@@ -17,6 +17,21 @@ const fontSans = Figtree({
 export const metadata: Metadata = {
   title: "MGST — Nền tảng nội bộ",
   description: "Hệ thống nội bộ Minh Group ST: bảo hiểm, ngân hàng, dịch vụ",
+  /**
+   * Trỏ thẳng vào file logo đang dùng, KHÔNG chép sang `src/app/icon.png`.
+   *
+   * Next có quy ước đặt file tên `icon.png` trong `app/` là tự sinh thẻ link,
+   * nhưng như vậy là hai bản cùng một hình: đổi bộ nhận diện mà chỉ sửa một
+   * chỗ thì tab trình duyệt mang logo cũ, và không ai để ý.
+   *
+   * `apple` là biểu tượng khi thêm vào màn hình chính iOS — đội KD dùng điện
+   * thoại nên đường vào nhanh đó có người dùng thật. Thiếu nó thì iOS chụp màn
+   * hình trang làm biểu tượng.
+   */
+  icons: {
+    icon: "/brand/logo.png",
+    apple: "/brand/logo.png",
+  },
 };
 
 /** Đội KD làm việc trên điện thoại — không khoá zoom, để họ phóng to được. */
