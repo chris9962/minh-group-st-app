@@ -1,6 +1,6 @@
 import { AddWardForm } from "@/lib/api/wardCatalog";
 import { logAudit } from "@/server/audit";
-import { actorWith, badRequest, jsonBody } from "@/server/auth";
+import { actorWith, badRequest, jsonBody, notFound } from "@/server/auth";
 import { addWard } from "@/server/catalog";
 
 /** Trả về CẢ CÂY chứ không riêng xã vừa thêm — màn P-71 vẽ lại từ một nguồn. */
@@ -11,7 +11,7 @@ export async function POST(request: Request) {
   const parsed = AddWardForm.safeParse(await jsonBody(request));
   if (!parsed.success) return badRequest();
 
-  const tree = await addWard(parsed.data.provinceId, parsed.data.wardId);
+  const province = await addWard(parsed.data.provinceId, parsed.data.wardId);
 
   await logAudit(guard.actor, {
     module: "system",
@@ -19,5 +19,7 @@ export async function POST(request: Request) {
     targetLabel: "Thêm xã/phường vào địa bàn",
     targetTable: "wards",
   });
-  return Response.json(tree, { status: 201 });
+  if (!province) return notFound();
+
+  return Response.json(province, { status: 201 });
 }

@@ -17,6 +17,7 @@ import {
 } from "@/lib/api/settings";
 import { InsuranceProduct, PRODUCT_LABEL } from "@/lib/types";
 import styles from "./InsurancePackageFormDialog.module.scss";
+import { errorMessage, toast } from "@/lib/toast";
 
 type Props = {
   open: boolean;
@@ -57,7 +58,9 @@ export function InsurancePackageFormDialog({ open, onClose, insurancePackage }: 
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["insurance-packages"] });
       onClose();
+      toast.ok("Đã lưu gói bảo hiểm");
     },
+    onError: (e) => toast.fail(errorMessage(e, "Không lưu được gói bảo hiểm này.")),
   });
 
   return (
@@ -86,8 +89,6 @@ export function InsurancePackageFormDialog({ open, onClose, insurancePackage }: 
         onSubmit={handleSubmit((form) => save.mutate(form))}
         noValidate
       >
-        {save.isError && <Alert tone="error">Không lưu được gói bảo hiểm này.</Alert>}
-
         <TextField
           label="Tên gói"
           placeholder="1 năm BH tai nạn điện gói 100k"

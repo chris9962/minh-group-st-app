@@ -3,12 +3,12 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
-import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { TextField } from "@/components/ui/TextField";
 import { createHospital, HospitalForm } from "@/lib/api/hospitalCatalog";
 import styles from "./HospitalFormDialog.module.scss";
+import { errorMessage, toast } from "@/lib/toast";
 
 type Props = { open: boolean; onClose: () => void };
 
@@ -30,7 +30,9 @@ export function HospitalFormDialog({ open, onClose }: Props) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["hospitals"] });
       onClose();
+      toast.ok("Đã lưu bệnh viện");
     },
+    onError: (e) => toast.fail(errorMessage(e, "Không lưu được bệnh viện này.")),
   });
 
   return (
@@ -55,7 +57,6 @@ export function HospitalFormDialog({ open, onClose }: Props) {
         onSubmit={handleSubmit((form) => save.mutate(form))}
         noValidate
       >
-        {save.isError && <Alert tone="error">Không lưu được bệnh viện này.</Alert>}
         <TextField
           label="Tên bệnh viện"
           placeholder="Bệnh viện Đa khoa Tân Bình"

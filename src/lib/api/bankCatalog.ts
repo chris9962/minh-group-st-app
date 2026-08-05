@@ -60,7 +60,12 @@ async function send(url: string, method: string, body?: unknown) {
     headers: { 'Content-Type': 'application/json' },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
-  if (!res.ok) throw new Error('Không lưu được');
+  if (!res.ok) {
+    // Máy chủ đã nói rõ vì sao ("Mã ngân hàng này đã có") — nuốt đi rồi ném câu
+    // chung chung là bắt người dùng tự đoán mình sai chỗ nào.
+    const body = (await res.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(body?.message?.trim() || 'Không lưu được');
+  }
   return res.json();
 }
 

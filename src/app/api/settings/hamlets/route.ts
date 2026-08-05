@@ -1,6 +1,6 @@
 import { HamletForm } from "@/lib/api/wardCatalog";
 import { logAudit } from "@/server/audit";
-import { actorWith, badRequest, jsonBody } from "@/server/auth";
+import { actorWith, badRequest, jsonBody, notFound } from "@/server/auth";
 import { addHamlet } from "@/server/catalog";
 
 /** Ấp nhập tay — dữ liệu nhà nước không có cấp này. */
@@ -11,7 +11,7 @@ export async function POST(request: Request) {
   const parsed = HamletForm.safeParse(await jsonBody(request));
   if (!parsed.success) return badRequest();
 
-  const tree = await addHamlet(parsed.data.wardId, parsed.data.name);
+  const province = await addHamlet(parsed.data.wardId, parsed.data.name);
 
   await logAudit(guard.actor, {
     module: "system",
@@ -19,5 +19,7 @@ export async function POST(request: Request) {
     targetLabel: `Thêm ấp ${parsed.data.name}`,
     targetTable: "hamlets",
   });
-  return Response.json(tree, { status: 201 });
+  if (!province) return notFound();
+
+  return Response.json(province, { status: 201 });
 }

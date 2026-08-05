@@ -485,39 +485,62 @@ export async function listProvinceTree(): Promise<Province[]> {
   }));
 }
 
-/** Đưa một tỉnh từ bảng tham chiếu vào địa bàn công ty. Đã có thì im lặng bỏ qua. */
-export async function addProvince(refId: string): Promise<Province[]> {
+/**
+ * Đưa một tỉnh từ bảng tham chiếu vào địa bàn công ty. Đã có thì im lặng bỏ qua.
+ *
+ * Trả về ĐÚNG tỉnh vừa thêm, không trả cả cây — hợp đồng ở `wardCatalog.ts`
+ * parse một `Province`, nơi dùng chỉ cần nạp lại khoá `['provinces']`.
+ */
+export async function addProvince(refId: string): Promise<Province | null> {
   const [ref] = await db.select().from(refProvinces).where(eq(refProvinces.id, refId)).limit(1);
-  if (ref) {
-    await db
-      .insert(provinces)
-      .values({ refId: ref.id, name: ref.name })
-      .onConflictDoNothing({ target: provinces.refId });
-  }
-  return listProvinceTree();
+  if (!ref) return null;
+
+  await db
+    .insert(provinces)
+    .values({ refId: ref.id, name: ref.name })
+    .onConflictDoNothing({ target: provinces.refId });
+
+  return provinceByRefId(refId);
 }
 
-export async function addWard(provinceRefId: string, wardRefId: string): Promise<Province[]> {
+/** Một tỉnh kèm xã/ấp của nó. */
+async function provinceByRefId(refId: string): Promise<Province | null> {
+  const [row] = await db.select().from(provinces).where(eq(provinces.refId, refId)).limit(1);
+  if (!row) return null;
+  return (await listProvinceTree()).find((p) => p.id === row.id) ?? null;
+}
+
+async function provinceById(id: string): Promise<Province | null> {
+  return (await listProvinceTree()).find((p) => p.id === id) ?? null;
+}
+
+export async function addWard(
+  provinceRefId: string,
+  wardRefId: string,
+): Promise<Province | null> {
   const [province] = await db
     .select()
     .from(provinces)
     .where(eq(provinces.refId, provinceRefId))
     .limit(1);
   const [ref] = await db.select().from(refWards).where(eq(refWards.id, wardRefId)).limit(1);
+  if (!province || !ref) return null;
 
-  if (province && ref) {
-    await db
-      .insert(wards)
-      .values({ provinceId: province.id, refId: ref.id, name: ref.name })
-      .onConflictDoNothing({ target: wards.refId });
-  }
-  return listProvinceTree();
+  await db
+    .insert(wards)
+    .values({ provinceId: province.id, refId: ref.id, name: ref.name })
+    .onConflictDoNothing({ target: wards.refId });
+
+  return provinceById(province.id);
 }
 
 /** Ấp không có trong dữ liệu nhà nước — nhập tay, nên có thể trùng tên trong cùng xã. */
-export async function addHamlet(wardId: string, name: string): Promise<Province[]> {
+export async function addHamlet(wardId: string, name: string): Promise<Province | null> {
+  const [ward] = await db.select().from(wards).where(eq(wards.id, wardId)).limit(1);
+  if (!ward) return null;
+
   await db.insert(hamlets).values({ wardId, name }).onConflictDoNothing();
-  return listProvinceTree();
+  return provinceById(ward.provinceId);
 }
 
 /* ── Tham chiếu hành chính — chỉ đọc ──────────────────────────────────── */

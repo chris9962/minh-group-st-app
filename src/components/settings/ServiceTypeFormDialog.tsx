@@ -3,7 +3,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
-import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { TextField } from "@/components/ui/TextField";
@@ -14,6 +13,7 @@ import {
   type ServiceTypeRow,
 } from "@/lib/api/settings";
 import styles from "./ServiceTypeFormDialog.module.scss";
+import { errorMessage, toast } from "@/lib/toast";
 
 type Props = {
   open: boolean;
@@ -45,7 +45,9 @@ export function ServiceTypeFormDialog({ open, onClose, serviceType }: Props) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["service-types"] });
       onClose();
+      toast.ok("Đã lưu loại dịch vụ");
     },
+    onError: (e) => toast.fail(errorMessage(e, "Không lưu được loại dịch vụ này.")),
   });
 
   return (
@@ -74,8 +76,6 @@ export function ServiceTypeFormDialog({ open, onClose, serviceType }: Props) {
         onSubmit={handleSubmit((form) => save.mutate(form))}
         noValidate
       >
-        {save.isError && <Alert tone="error">Không lưu được loại dịch vụ này.</Alert>}
-
         <TextField
           label="Tên loại dịch vụ"
           placeholder="Xác nhận cư trú"

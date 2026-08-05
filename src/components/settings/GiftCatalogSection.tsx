@@ -22,6 +22,7 @@ import {
 import { formatVnd } from "@/lib/format";
 import { InsurancePackageFormDialog } from "./InsurancePackageFormDialog";
 import styles from "./GiftCatalogSection.module.scss";
+import { errorMessage, toast } from "@/lib/toast";
 
 /** P-82 · Danh mục quà & gói bảo hiểm — hai bảng cạnh nhau. */
 export function GiftCatalogSection() {
@@ -53,18 +54,28 @@ export function GiftCatalogSection() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["gift-items"] });
       reset();
+      toast.ok("Đã thêm món quà");
     },
+    onError: (e) => toast.fail(errorMessage(e, "Không thêm được món quà này.")),
   });
 
   const toggleGiftItem = useMutation({
     mutationFn: ({ id, next }: { id: string; next: boolean }) => setGiftItemActive(id, next),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["gift-items"] }),
+    onSuccess: (_item, { next }) => {
+      queryClient.invalidateQueries({ queryKey: ["gift-items"] });
+      toast.ok(next ? "Đã bật lại món quà" : "Đã ngừng món quà");
+    },
+    onError: (e) => toast.fail(errorMessage(e, "Không đổi được trạng thái món quà này.")),
   });
 
   const togglePackage = useMutation({
     mutationFn: ({ id, next }: { id: string; next: boolean }) =>
       setInsurancePackageActive(id, next),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["insurance-packages"] }),
+    onSuccess: (_item, { next }) => {
+      queryClient.invalidateQueries({ queryKey: ["insurance-packages"] });
+      toast.ok(next ? "Đã bật lại gói bảo hiểm" : "Đã ngừng gói bảo hiểm");
+    },
+    onError: (e) => toast.fail(errorMessage(e, "Không đổi được trạng thái gói này.")),
   });
 
   return (

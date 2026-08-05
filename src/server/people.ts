@@ -3,7 +3,7 @@ import type { PeopleData, PersonScore } from "@/lib/api/people";
 import type { PersonDetail } from "@/lib/api/person";
 import { businessDay, businessMonth, matchesSearch, monthRange } from "@/lib/format";
 import { clampScope, inVisibleScope, visibleDepartmentIds } from "@/lib/permissions";
-import { PRODUCT_LABEL, Scope, type User } from "@/lib/types";
+import { Scope, type User } from "@/lib/types";
 import { db } from "./db/client";
 import {
   bankAccounts,

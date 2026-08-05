@@ -5,13 +5,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Target } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { SkeletonText } from "@/components/ui/Skeleton";
-import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { TextField } from "@/components/ui/TextField";
 import { fetchKpiTarget, KpiTargetForm, updateKpiTarget } from "@/lib/api/settings";
 import styles from "./KpiTargetSection.module.scss";
+import { errorMessage, toast } from "@/lib/toast";
 
 /** P-83 · Chỉ tiêu KPI theo tháng — một con số chung cho toàn công ty. */
 export function KpiTargetSection() {
@@ -40,7 +40,9 @@ export function KpiTargetSection() {
       // P-51/P-52 đọc chỉ tiêu này — đổi xong phải thấy ngay ở đó.
       queryClient.invalidateQueries({ queryKey: ["people"] });
       queryClient.invalidateQueries({ queryKey: ["person"] });
+      toast.ok("Đã lưu chỉ tiêu mới");
     },
+    onError: (e) => toast.fail(errorMessage(e, "Không lưu được chỉ tiêu này.")),
   });
 
   return (
@@ -60,9 +62,6 @@ export function KpiTargetSection() {
           onSubmit={handleSubmit((form) => save.mutate(form))}
           noValidate
         >
-          {save.isSuccess && <Alert tone="info">Đã lưu chỉ tiêu mới.</Alert>}
-          {save.isError && <Alert tone="error">Không lưu được chỉ tiêu này.</Alert>}
-
           <div className={styles.pair}>
             <TextField
               label="Chỉ tiêu điểm mỗi tháng"

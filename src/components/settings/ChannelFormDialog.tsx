@@ -3,7 +3,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
-import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { Select } from "@/components/ui/Select";
@@ -17,6 +16,7 @@ import {
   type Channel,
 } from "@/lib/api/channelCatalog";
 import styles from "./ChannelFormDialog.module.scss";
+import { errorMessage, toast } from "@/lib/toast";
 
 type Props = {
   open: boolean;
@@ -56,7 +56,9 @@ export function ChannelFormDialog({ open, onClose, channel }: Props) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["channels"] });
       onClose();
+      toast.ok("Đã lưu kênh");
     },
+    onError: (e) => toast.fail(errorMessage(e, "Không lưu được kênh này.")),
   });
 
   return (
@@ -81,8 +83,6 @@ export function ChannelFormDialog({ open, onClose, channel }: Props) {
         onSubmit={handleSubmit((form) => save.mutate(form))}
         noValidate
       >
-        {save.isError && <Alert tone="error">Không lưu được kênh này.</Alert>}
-
         <TextField
           label="Tên kênh"
           placeholder="Trường học"

@@ -1,6 +1,6 @@
 import { AddProvinceForm } from "@/lib/api/wardCatalog";
 import { logAudit } from "@/server/audit";
-import { actorWith, badRequest, jsonBody } from "@/server/auth";
+import { actorWith, badRequest, jsonBody, notFound } from "@/server/auth";
 import { addProvince, listProvinceTree } from "@/server/catalog";
 
 /** P-71 · Địa bàn công ty — cây tỉnh · xã/phường · ấp. */
@@ -17,7 +17,7 @@ export async function POST(request: Request) {
   const parsed = AddProvinceForm.safeParse(await jsonBody(request));
   if (!parsed.success) return badRequest();
 
-  const tree = await addProvince(parsed.data.provinceId);
+  const province = await addProvince(parsed.data.provinceId);
 
   await logAudit(guard.actor, {
     module: "system",
@@ -25,5 +25,7 @@ export async function POST(request: Request) {
     targetLabel: "Thêm tỉnh vào địa bàn",
     targetTable: "provinces",
   });
-  return Response.json(tree, { status: 201 });
+  if (!province) return notFound();
+
+  return Response.json(province, { status: 201 });
 }

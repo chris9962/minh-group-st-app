@@ -12,6 +12,7 @@ import { StatusTag } from "@/components/ui/StatusTag";
 import { fetchServiceTypes, setServiceTypeActive, type ServiceTypeRow } from "@/lib/api/settings";
 import { ServiceTypeFormDialog } from "./ServiceTypeFormDialog";
 import styles from "./ServiceTypeSection.module.scss";
+import { errorMessage, toast } from "@/lib/toast";
 
 /** P-84 · Danh mục loại dịch vụ + hệ số điểm KPI. */
 export function ServiceTypeSection() {
@@ -26,7 +27,11 @@ export function ServiceTypeSection() {
 
   const toggleActive = useMutation({
     mutationFn: ({ id, next }: { id: string; next: boolean }) => setServiceTypeActive(id, next),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["service-types"] }),
+    onSuccess: (_item, { next }) => {
+      queryClient.invalidateQueries({ queryKey: ["service-types"] });
+      toast.ok(next ? "Đã bật lại loại dịch vụ" : "Đã ngừng loại dịch vụ");
+    },
+    onError: (e) => toast.fail(errorMessage(e, "Không đổi được trạng thái loại dịch vụ này.")),
   });
 
   const columns: RankColumn<ServiceTypeRow>[] = [

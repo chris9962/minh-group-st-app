@@ -3,7 +3,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
-import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { Select } from "@/components/ui/Select";
@@ -14,6 +13,7 @@ import {
   ReferralCodeForm,
 } from "@/lib/api/bankCatalog";
 import styles from "./ReferralCodeFormDialog.module.scss";
+import { errorMessage, toast } from "@/lib/toast";
 
 type Props = {
   open: boolean;
@@ -42,7 +42,9 @@ export function ReferralCodeFormDialog({ open, onClose }: Props) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["referral-codes"] });
       onClose();
+      toast.ok("Đã lưu mã giới thiệu");
     },
+    onError: (e) => toast.fail(errorMessage(e, "Không lưu được mã này.")),
   });
 
   return (
@@ -71,8 +73,6 @@ export function ReferralCodeFormDialog({ open, onClose }: Props) {
         onSubmit={handleSubmit((form) => save.mutate(form))}
         noValidate
       >
-        {save.isError && <Alert tone="error">Không lưu được mã này.</Alert>}
-
         <Select
           block
           label="Ngân hàng"

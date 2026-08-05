@@ -3,12 +3,12 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
-import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { TextField } from "@/components/ui/TextField";
 import { createHamlet, HamletForm, type Ward } from "@/lib/api/wardCatalog";
 import styles from "./WardFormDialog.module.scss";
+import { errorMessage, toast } from "@/lib/toast";
 
 type Props = { open: boolean; onClose: () => void; ward: Ward };
 
@@ -30,7 +30,9 @@ export function HamletFormDialog({ open, onClose, ward }: Props) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["provinces"] });
       onClose();
+      toast.ok("Đã lưu ấp");
     },
+    onError: (e) => toast.fail(errorMessage(e, "Không lưu được ấp này.")),
   });
 
   return (
@@ -55,7 +57,6 @@ export function HamletFormDialog({ open, onClose, ward }: Props) {
         onSubmit={handleSubmit((form) => save.mutate(form))}
         noValidate
       >
-        {save.isError && <Alert tone="error">Không lưu được ấp này.</Alert>}
         <input type="hidden" {...register("wardId")} />
         <TextField
           label="Tên ấp"

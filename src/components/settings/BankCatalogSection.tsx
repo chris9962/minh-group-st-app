@@ -17,6 +17,7 @@ import {
 } from "@/lib/api/bankCatalog";
 import { BankFormDialog } from "./BankFormDialog";
 import styles from "./BankCatalogSection.module.scss";
+import { errorMessage, toast } from "@/lib/toast";
 
 /** P-60 · Kho ngân hàng — danh sách phẳng, mỗi dòng một ngân hàng độc lập. */
 export function BankCatalogSection() {
@@ -31,7 +32,11 @@ export function BankCatalogSection() {
 
   const toggleActive = useMutation({
     mutationFn: ({ id, next }: { id: string; next: boolean }) => setBankActive(id, next),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["banks"] }),
+    onSuccess: (_item, { next }) => {
+      queryClient.invalidateQueries({ queryKey: ["banks"] });
+      toast.ok(next ? "Đã bật lại ngân hàng" : "Đã ngừng ngân hàng");
+    },
+    onError: (e) => toast.fail(errorMessage(e, "Không đổi được trạng thái ngân hàng này.")),
   });
 
   const columns: RankColumn<Bank>[] = [

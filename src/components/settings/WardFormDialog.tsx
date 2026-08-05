@@ -3,12 +3,12 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
-import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { Combobox } from "@/components/ui/Combobox";
 import { Dialog } from "@/components/ui/Dialog";
 import { addWard, AddWardForm, fetchReferenceWards, type Province } from "@/lib/api/wardCatalog";
 import styles from "./WardFormDialog.module.scss";
+import { errorMessage, toast } from "@/lib/toast";
 
 type Props = { open: boolean; onClose: () => void; province: Province };
 
@@ -42,7 +42,9 @@ export function WardFormDialog({ open, onClose, province }: Props) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["provinces"] });
       onClose();
+      toast.ok("Đã lưu xã/phường");
     },
+    onError: (e) => toast.fail(errorMessage(e, "Không thêm được xã/phường này.")),
   });
 
   return (
@@ -67,7 +69,6 @@ export function WardFormDialog({ open, onClose, province }: Props) {
         onSubmit={handleSubmit((form) => save.mutate(form))}
         noValidate
       >
-        {save.isError && <Alert tone="error">Không thêm được xã/phường này.</Alert>}
         <Combobox
           block
           label="Xã/phường"

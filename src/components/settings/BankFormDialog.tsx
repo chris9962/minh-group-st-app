@@ -3,7 +3,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
-import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { Dialog } from "@/components/ui/Dialog";
@@ -18,6 +17,7 @@ import {
   type Bank,
 } from "@/lib/api/bankCatalog";
 import styles from "./BankFormDialog.module.scss";
+import { errorMessage, toast } from "@/lib/toast";
 
 type Props = {
   open: boolean;
@@ -52,7 +52,9 @@ export function BankFormDialog({ open, onClose, bank }: Props) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["banks"] });
       onClose();
+      toast.ok("Đã lưu ngân hàng");
     },
+    onError: (e) => toast.fail(errorMessage(e, "Không lưu được ngân hàng này.")),
   });
 
   return (
@@ -77,8 +79,6 @@ export function BankFormDialog({ open, onClose, bank }: Props) {
         onSubmit={handleSubmit((form) => save.mutate(form))}
         noValidate
       >
-        {save.isError && <Alert tone="error">Không lưu được ngân hàng này.</Alert>}
-
         <TextField
           label="Mã ngân hàng"
           placeholder="VPa"

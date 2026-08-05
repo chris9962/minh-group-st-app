@@ -3,7 +3,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
-import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { Combobox } from "@/components/ui/Combobox";
 import { Dialog } from "@/components/ui/Dialog";
@@ -14,6 +13,7 @@ import {
   fetchReferenceProvinces,
 } from "@/lib/api/wardCatalog";
 import styles from "./ProvinceFormDialog.module.scss";
+import { errorMessage, toast } from "@/lib/toast";
 
 type Props = { open: boolean; onClose: () => void };
 
@@ -48,7 +48,9 @@ export function ProvinceFormDialog({ open, onClose }: Props) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["provinces"] });
       onClose();
+      toast.ok("Đã lưu tỉnh/thành phố");
     },
+    onError: (e) => toast.fail(errorMessage(e, "Không thêm được tỉnh/thành phố này.")),
   });
 
   return (
@@ -73,7 +75,6 @@ export function ProvinceFormDialog({ open, onClose }: Props) {
         onSubmit={handleSubmit((form) => save.mutate(form))}
         noValidate
       >
-        {save.isError && <Alert tone="error">Không thêm được tỉnh/thành phố này.</Alert>}
         <Combobox
           block
           label="Tỉnh/thành phố"
