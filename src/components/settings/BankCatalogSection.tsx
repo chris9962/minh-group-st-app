@@ -48,12 +48,6 @@ export function BankCatalogSection() {
       render: (b) => ACCOUNT_NUMBER_METHOD_LABEL[b.accountNumberMethod],
     },
     {
-      key: "coefficient",
-      label: "Hệ số điểm KPI",
-      sortBy: (b) => b.coefficient,
-      render: (b) => b.coefficient,
-    },
-    {
       key: "countsAsApp",
       label: "Đi kèm app",
       render: (b) => (

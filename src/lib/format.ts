@@ -97,6 +97,28 @@ export const monthRange = (yearMonth: string): { from: string; to: string } => {
   return { from: `${yearMonth}-01`, to: `${yearMonth}-${String(last).padStart(2, '0')}` };
 };
 
+/**
+ * Mã danh mục sinh từ tên: bỏ dấu, viết hoa, nối gạch — "Phòng Kinh doanh 10"
+ * thành `PHONG-KINH-DOANH-10`.
+ *
+ * Mã là thứ bản ghi khác trỏ vào và là thứ module luật theo kỳ đối chiếu, nên
+ * nó phải ổn định khi tên đổi — sinh MỘT lần lúc lập, không tính lại.
+ * `fallback` dùng khi tên toàn ký tự đặc biệt, không còn chữ nào để làm mã.
+ */
+export const codeFrom = (name: string, fallback: string): string =>
+  removeDiacritics(name)
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '-')
+    .replace(/^-|-$/g, '') || fallback;
+
+/** `codeFrom` nhưng nối số khi đụng mã đã có. Không bao giờ ghi đè mã của bản ghi khác. */
+export const uniqueCode = (name: string, fallback: string, taken: Set<string>): string => {
+  const base = codeFrom(name, fallback);
+  if (!taken.has(base)) return base;
+  for (let i = 2; ; i++) if (!taken.has(`${base}-${i}`)) return `${base}-${i}`;
+};
+
 /** Đếm ngược mm:ss — dùng cho đồng hồ giữ chỗ mã giới thiệu. */
 export function countdown(seconds: number): string {
   const s = Math.max(0, Math.floor(seconds));

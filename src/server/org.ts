@@ -1,5 +1,5 @@
 import { and, asc, count, eq, sql } from "drizzle-orm";
-import { matchesSearch, removeDiacritics } from "@/lib/format";
+import { matchesSearch, removeDiacritics, uniqueCode } from "@/lib/format";
 import {
   ORG_ERROR,
   type DepartmentDetail,
@@ -101,13 +101,10 @@ export const orgError = (code: OrgErrorCode) => ({
  * thì nối số, không ghi đè mã của phòng khác.
  */
 async function nextDepartmentCode(name: string): Promise<string> {
-  const base =
-    removeDiacritics(name).trim().toUpperCase().replace(/[^A-Z0-9]+/g, "-").replace(/^-|-$/g, "") ||
-    "PHONG";
-
-  const taken = new Set((await db.select({ code: departments.code }).from(departments)).map((d) => d.code));
-  if (!taken.has(base)) return base;
-  for (let i = 2; ; i++) if (!taken.has(`${base}-${i}`)) return `${base}-${i}`;
+  const taken = new Set(
+    (await db.select({ code: departments.code }).from(departments)).map((d) => d.code),
+  );
+  return uniqueCode(name, "PHONG", taken);
 }
 
 export async function createDepartment(name: string): Promise<OrgOutcome> {

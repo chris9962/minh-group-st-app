@@ -43,7 +43,6 @@ export function BankFormDialog({ open, onClose, bank }: Props) {
       code: bank?.code ?? "",
       requiredPhotos: bank?.requiredPhotos ?? 3,
       accountNumberMethod: bank?.accountNumberMethod ?? "phone-match",
-      coefficient: bank?.coefficient ?? 1,
       countsAsApp: bank?.countsAsApp ?? true,
     },
   });
@@ -94,14 +93,6 @@ export function BankFormDialog({ open, onClose, bank }: Props) {
             inputMode="numeric"
             error={errors.requiredPhotos?.message}
             {...register("requiredPhotos", { valueAsNumber: true })}
-          />
-          <TextField
-            label="Hệ số điểm KPI"
-            type="number"
-            inputMode="numeric"
-            step="0.1"
-            error={errors.coefficient?.message}
-            {...register("coefficient", { valueAsNumber: true })}
           />
         </div>
 

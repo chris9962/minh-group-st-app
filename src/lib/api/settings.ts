@@ -38,84 +38,19 @@ export const InsurancePackageForm = z.object({
 });
 export type InsurancePackageForm = z.infer<typeof InsurancePackageForm>;
 
-/* ── P-81 · Quy tắc quà ───────────────────────────────────────────────── */
-
-export const GiftGroup = z.enum(['cash', 'choice']);
-export type GiftGroup = z.infer<typeof GiftGroup>;
-
-export const GIFT_GROUP_LABEL: Record<GiftGroup, string> = {
-  cash: 'Tiền mặt',
-  choice: 'Quà chọn',
-};
-
-export const GiftRuleMode = z.enum(['accumulate', 'tiered', 'addon']);
-export type GiftRuleMode = z.infer<typeof GiftRuleMode>;
-
-export const GIFT_MODE_LABEL: Record<GiftRuleMode, string> = {
-  accumulate: 'Cộng dồn',
-  tiered: 'Bậc thang',
-  addon: 'Góp thêm',
-};
-
-/** Nhóm nào đi với cách chạy nào — nhóm Tiền mặt luôn cộng dồn (spec §5.2). */
-export const MODES_FOR_GROUP: Record<GiftGroup, GiftRuleMode[]> = {
-  cash: ['accumulate'],
-  choice: ['tiered', 'addon'],
-};
-
-export const AppCountComparator = z.enum(['none', 'eq', 'gte']);
-export type AppCountComparator = z.infer<typeof AppCountComparator>;
-
-export const APP_COMPARATOR_LABEL: Record<AppCountComparator, string> = {
-  none: '—',
-  eq: '=',
-  gte: '≥',
-};
-
-export const GiftRule = z.object({
-  id: z.string(),
-  /** Vị trí ưu tiên — bậc thang khớp dòng nhỏ nhất trước rồi dừng. */
-  order: z.number(),
-  group: GiftGroup,
-  mode: GiftRuleMode,
-  /** null = không yêu cầu ngân hàng cụ thể. */
-  requiredBank: z.string().nullable(),
-  /** Cờ riêng cho điều kiện "mở CNKD ở HKD" — không phải một ngân hàng. */
-  requiresCnkd: z.boolean(),
-  appCountComparator: AppCountComparator,
-  appCountValue: z.number().nullable(),
-  /** null = không yêu cầu kênh cụ thể. */
-  channel: z.string().nullable(),
-  /** Chỉ dùng khi group = 'cash'. */
-  cashAmount: z.number().nullable(),
-  /** Chỉ dùng khi group = 'choice' — id món trong GiftItem hoặc InsurancePackage. */
-  giftItemIds: z.array(z.string()),
-  effectiveFrom: z.string(),
-  effectiveTo: z.string().nullable(),
-  active: z.boolean(),
-});
-export type GiftRule = z.infer<typeof GiftRule>;
+/* ── Quy tắc quà — CHỈ CÒN NÚT THỬ ───────────────────────────────────── */
 
 /**
- * Biểu mẫu lập / sửa quy tắc.
+ * Bộ kiểu mô tả quy tắc quà (GiftRule, GiftRuleForm, GiftGroup, GiftRuleMode,
+ * AppCountComparator) đã bị gỡ cùng bảng `gift_rules`/`gift_rule_items` trong
+ * DB — quyết định 03/08 chuyển luật sang module code theo kỳ
+ * (`src/rules/YYYY-MM.ts`), admin không sửa được nữa.
  *
- * Chuỗi rỗng thay cho null ở các ô không bắt buộc — giữ đúng nguyên tắc
- * không `.default()` trong schema form, mặc định đặt ở `defaultValues`.
+ * Chúng mô tả HÌNH DẠNG luật cũ (danh sách dòng phẳng, kéo thứ tự, bật tắt).
+ * Luật mới là hai bảng tách theo Combo 2 / Combo 3, trong đó Combo 3 là bậc
+ * thang KHỚP DÒNG ĐẦU THÌ DỪNG — thứ tự là một phần của luật, không phải thứ
+ * admin sắp xếp. Đừng khôi phục bộ kiểu cũ để hiển thị luật mới.
  */
-export const GiftRuleForm = z.object({
-  group: GiftGroup,
-  mode: GiftRuleMode,
-  requiredBank: z.string(),
-  requiresCnkd: z.boolean(),
-  appCountComparator: AppCountComparator,
-  appCountValue: z.number(),
-  channel: z.string(),
-  cashAmount: z.number(),
-  giftItemIds: z.array(z.string()),
-  effectiveFrom: z.string().trim().min(1, 'Chưa chọn ngày hiệu lực'),
-  effectiveTo: z.string(),
-});
-export type GiftRuleForm = z.infer<typeof GiftRuleForm>;
 
 /* ── Nút thử — chỉ tính toán, không ghi gì (spec §5.3) ──────────────── */
 
@@ -183,24 +118,10 @@ async function send(url: string, method: string, body?: unknown) {
   return res.json();
 }
 
-export const fetchGiftRules = (): Promise<GiftRule[]> =>
-  fetch('/api/settings/gift-rules')
-    .then((r) => r.json())
-    .then((d) => z.array(GiftRule).parse(d));
 
-export const createGiftRule = (form: GiftRuleForm) =>
-  send('/api/settings/gift-rules', 'POST', form).then(GiftRule.parse);
 
-export const updateGiftRule = (id: string, form: GiftRuleForm) =>
-  send(`/api/settings/gift-rules/${id}`, 'PATCH', form).then(GiftRule.parse);
 
-export const moveGiftRule = (id: string, direction: 'up' | 'down') =>
-  send(`/api/settings/gift-rules/${id}/move`, 'POST', { direction }).then((d) =>
-    z.array(GiftRule).parse(d),
-  );
 
-export const setGiftRuleActive = (id: string, active: boolean) =>
-  send(`/api/settings/gift-rules/${id}/active`, 'POST', { active }).then(GiftRule.parse);
 
 export const simulateGift = (input: GiftSimulateInput): Promise<GiftSimulateResult> =>
   send('/api/settings/gift-rules/simulate', 'POST', input).then(GiftSimulateResult.parse);

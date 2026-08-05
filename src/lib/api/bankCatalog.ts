@@ -25,7 +25,15 @@ export const Bank = z.object({
   active: z.boolean(),
   requiredPhotos: z.number(),
   accountNumberMethod: AccountNumberMethod,
-  /** Hệ số điểm KPI — mặc định 1, riêng VPb = 1.4 (đã biết). */
+  /**
+   * Hệ số điểm KPI cũ. HẾT TÁC DỤNG từ 03/08 — điểm giờ tính theo tổ hợp combo
+   * của từng khách trong `src/rules/YYYY-MM.ts`, không cộng hệ số từng ngân
+   * hàng (`mgst-db-design.md`:458).
+   *
+   * Cột vẫn còn trong DB nên vẫn trả về, nhưng KHÔNG hiện ở bảng và KHÔNG có ô
+   * nhập: mở cho sửa là mời người ta kéo một cần gạt mà nghiệp vụ đã bỏ, và
+   * chừng nào công thức tạm còn đọc nó thì điểm KPI đổi thật mà không ai báo.
+   */
   coefficient: z.number(),
   /** false với CNKD/HKD — tính điểm nhưng không cộng vào tổng app xét quà. */
   countsAsApp: z.boolean(),
@@ -36,7 +44,6 @@ export const BankForm = z.object({
   code: z.string().trim().min(1, 'Chưa nhập mã ngân hàng'),
   requiredPhotos: z.number().min(0, 'Số ảnh phải từ 0 trở lên'),
   accountNumberMethod: AccountNumberMethod,
-  coefficient: z.number().min(0, 'Hệ số phải từ 0 trở lên'),
   countsAsApp: z.boolean(),
 });
 export type BankForm = z.infer<typeof BankForm>;

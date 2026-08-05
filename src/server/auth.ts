@@ -3,7 +3,8 @@ import { and, eq, gt } from "drizzle-orm";
 import { db } from "./db/client";
 import { sessions, users } from "./db/schema";
 import { relationsFor, toUser } from "./users";
-import type { User } from "@/lib/types";
+import { can } from "@/lib/permissions";
+import type { Action, ModuleKey, User } from "@/lib/types";
 
 /**
  * Phiên đăng nhập phía máy chủ (C-01): cookie httpOnly mang token trần,
@@ -97,6 +98,23 @@ export async function getActor(request: Request): Promise<User | null> {
     permissionsOf.get(row.user.id) ?? [],
     managedOf.get(row.user.id) ?? [],
   );
+}
+
+/**
+ * Gác chung: phải có phiên VÀ đúng quyền.
+ *
+ * Cùng hình dạng `staffTargetFor` để mọi route đọc như nhau, và để không route
+ * nào tự chế một kiểu gác riêng rồi quên một vế (AGENTS.md §6).
+ */
+export async function actorWith(
+  request: Request,
+  module: ModuleKey,
+  action: Action,
+): Promise<{ ok: true; actor: User } | { ok: false; response: Response }> {
+  const actor = await getActor(request);
+  if (!actor) return { ok: false, response: unauthorized() };
+  if (!can(actor, module, action)) return { ok: false, response: forbidden() };
+  return { ok: true, actor };
 }
 
 export const unauthorized = () =>
