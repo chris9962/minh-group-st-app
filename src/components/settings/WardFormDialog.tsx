@@ -23,8 +23,11 @@ export function WardFormDialog({ open, onClose, province }: Props) {
     queryKey: ["reference-wards", province.id],
     queryFn: () => fetchReferenceWards(province.id),
   });
+  // So `refId` chứ không so `id`: `existing.id` là uuid dòng công ty, còn
+  // `w.id` là mã ở bảng tham chiếu — so thẳng thì không bao giờ khớp, và xã đã
+  // thêm rồi vẫn hiện trong danh sách chọn.
   const availableWards = referenceWards.filter(
-    (w) => !province.wards.some((existing) => existing.id === w.id),
+    (w) => !province.wards.some((existing) => existing.refId === w.id),
   );
 
   const {

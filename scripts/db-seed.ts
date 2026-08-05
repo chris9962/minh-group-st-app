@@ -156,7 +156,12 @@ async function main() {
   if ((await count("ref_provinces")) === 0) {
     await db.transaction(async (tx) => {
       await tx.insert(schema.refProvinces).values(vnAddress.provinces);
-      const wardRows = vnAddress.wards as { id: string; provinceId: string; name: string }[];
+      // Dữ liệu nguồn có đúng một tên xã lọt ký tự xuống dòng ("Phường \nHoàn
+      // Kiếm") — hiển thị vỡ hai dòng ở ô chọn và ở địa chỉ khách. Chuẩn hoá
+      // khoảng trắng lúc nạp, không sửa file nguồn: file đó đồng bộ từ ngoài.
+      const wardRows = (vnAddress.wards as { id: string; provinceId: string; name: string }[]).map(
+        (w) => ({ ...w, name: w.name.replace(/\s+/g, " ").trim() }),
+      );
       for (let i = 0; i < wardRows.length; i += 500) {
         await tx.insert(schema.refWards).values(wardRows.slice(i, i + 500));
       }

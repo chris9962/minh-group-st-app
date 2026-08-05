@@ -474,7 +474,7 @@ export async function listProvinceTree(): Promise<Province[]> {
   const wardsByProvince = new Map<string, Ward[]>();
   for (const w of wardRows) {
     const list = wardsByProvince.get(w.provinceId) ?? [];
-    list.push({ id: w.id, name: w.name, hamlets: hamletsByWard.get(w.id) ?? [] });
+    list.push({ id: w.id, refId: w.refId, name: w.name, hamlets: hamletsByWard.get(w.id) ?? [] });
     wardsByProvince.set(w.provinceId, list);
   }
 
@@ -514,14 +514,12 @@ async function provinceById(id: string): Promise<Province | null> {
   return (await listProvinceTree()).find((p) => p.id === id) ?? null;
 }
 
-export async function addWard(
-  provinceRefId: string,
-  wardRefId: string,
-): Promise<Province | null> {
+/** `provinceId` là uuid tỉnh công ty; `wardRefId` là mã xã ở bảng tham chiếu. */
+export async function addWard(provinceId: string, wardRefId: string): Promise<Province | null> {
   const [province] = await db
     .select()
     .from(provinces)
-    .where(eq(provinces.refId, provinceRefId))
+    .where(eq(provinces.id, provinceId))
     .limit(1);
   const [ref] = await db.select().from(refWards).where(eq(refWards.id, wardRefId)).limit(1);
   if (!province || !ref) return null;
@@ -549,10 +547,27 @@ export async function listReferenceProvinces(): Promise<ReferenceProvince[]> {
   return db.select({ id: refProvinces.id, name: refProvinces.name }).from(refProvinces).orderBy(asc(refProvinces.name));
 }
 
+/**
+ * Xã/phường tham chiếu, lọc theo TỈNH CÔNG TY (uuid trong `provinces`).
+ *
+ * Nhận uuid chứ không nhận mã tham chiếu: nơi gọi là hộp thoại thêm xã, nó chỉ
+ * có đối tượng `Province` của công ty. Bắt nó tự biết mã tham chiếu là rò một
+ * chi tiết lưu trữ ra giao diện — và đó chính là chỗ đã sai: truyền uuid vào
+ * `ref_wards.province_id` (kiểu text `"01"`) thì không khớp dòng nào, ô tìm xã
+ * không ra gì.
+ */
 export async function listReferenceWards(provinceId: string): Promise<ReferenceWard[]> {
+  if (!provinceId) return [];
+  const [province] = await db
+    .select({ refId: provinces.refId })
+    .from(provinces)
+    .where(eq(provinces.id, provinceId))
+    .limit(1);
+  if (!province) return [];
+
   return db
     .select({ id: refWards.id, name: refWards.name, provinceId: refWards.provinceId })
     .from(refWards)
-    .where(provinceId ? eq(refWards.provinceId, provinceId) : undefined)
+    .where(eq(refWards.provinceId, province.refId))
     .orderBy(asc(refWards.name));
 }

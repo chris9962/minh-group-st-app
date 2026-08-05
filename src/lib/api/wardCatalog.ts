@@ -38,6 +38,12 @@ export async function fetchReferenceProvinces(): Promise<ReferenceProvince[]> {
   return z.array(ReferenceProvince).parse(await res.json());
 }
 
+/**
+ * Xã/phường tham chiếu của một tỉnh ĐANG DÙNG.
+ *
+ * `provinceId` là uuid của dòng trong `provinces` (tỉnh công ty), KHÔNG phải mã
+ * tham chiếu — nơi gọi chỉ có đối tượng `Province`, máy chủ tự tra sang mã.
+ */
 export async function fetchReferenceWards(provinceId: string): Promise<ReferenceWard[]> {
   const params = new URLSearchParams({ provinceId });
   const res = await fetch(`/api/reference/wards?${params}`);
@@ -50,7 +56,16 @@ export async function fetchReferenceWards(provinceId: string): Promise<Reference
 export const Hamlet = z.object({ id: z.string(), name: z.string() });
 export type Hamlet = z.infer<typeof Hamlet>;
 
-export const Ward = z.object({ id: z.string(), name: z.string(), hamlets: z.array(Hamlet) });
+export const Ward = z.object({
+  id: z.string(),
+  /**
+   * Mã xã ở bảng THAM CHIẾU. Cần để lọc ra xã chưa thêm: `id` là uuid của dòng
+   * công ty, không so được với id của danh sách tham chiếu.
+   */
+  refId: z.string(),
+  name: z.string(),
+  hamlets: z.array(Hamlet),
+});
 export type Ward = z.infer<typeof Ward>;
 
 export const Province = z.object({ id: z.string(), name: z.string(), wards: z.array(Ward) });
