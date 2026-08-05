@@ -2,7 +2,7 @@
 
 import * as RadixToast from "@radix-ui/react-toast";
 import { X } from "lucide-react";
-import { useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { topDialog, useDialogLayer } from "@/store/dialogLayer";
 import { useToasts, type ToastTone } from "@/lib/toast";
@@ -18,10 +18,10 @@ const TOAST_MS = 5000;
 const MARK: Record<ToastTone, string> = { ok: "✓", fail: "❌" };
 
 /**
- * Đã chạy ở trình duyệt chưa — `createPortal` cần một nút DOM thật, mà lượt
- * render đầu tiên diễn ra ở máy chủ. `useSyncExternalStore` với hai ảnh chụp
- * khác nhau là cách React chính thức hỏi câu này; đặt state trong effect cũng
- * ra kết quả đúng nhưng tốn thêm một lượt render lồng nhau.
+ * Đã chạy ở trình duyệt chưa. Máy chủ không có `document` nên không dựng được
+ * container, tức lượt render đầu ở máy chủ ra rỗng — client phải ra rỗng y hệt
+ * ở lượt hydrate, không thì React báo lệch cây. Hai ảnh chụp khác nhau của
+ * `useSyncExternalStore` là cách React chính thức hỏi câu này.
  */
 const NEVER_CHANGES = () => () => {};
 const useHydrated = () =>
@@ -40,25 +40,49 @@ const useHydrated = () =>
  * Radix lo phần khó: hẹn giờ tự tắt, dừng đếm khi rê chuột hoặc focus, vùng
  * `aria-live` đúng chuẩn, nuốt sang phải để tắt trên cảm ứng, phím F8 nhảy tới
  * danh sách toast. Đừng thay bằng đồ tự viết.
+ *
+ * ══ Vì sao lằng nhằng thế này ══
+ *
+ * Toast phải nổi trên hộp thoại, mà `<dialog showModal()>` nằm ở TOP LAYER của
+ * trình duyệt — một tầng vẽ ngoài cây xếp chồng thường, không `z-index` nào
+ * với tới. Đã đo bằng trình duyệt thật, hai cách đầu đều hỏng:
+ *
+ *  1. `popover="manual"` — cũng vào top layer, nhưng modal `<dialog>` LUÔN vẽ
+ *     trên popover, bất kể mở cái nào trước; đóng rồi mở lại popover cũng
+ *     không đảo được thứ tự.
+ *  2. Đổi container của `createPortal` theo hộp thoại đang mở — nổi lên đúng,
+ *     nhưng đổi container thì React tháo cả cây con rồi dựng lại: toast chớp
+ *     một cái mỗi lần mở/đóng hộp thoại, và `ToastImpl` mount lại là bộ đếm
+ *     5 giây chạy lại từ đầu.
+ *
+ * Cách chạy được: giữ container CỐ ĐỊNH cho React, rồi tự tay chuyển chính nút
+ * DOM đó vào trong `<dialog>` bằng `appendChild`. Nút không đổi nên React
+ * không dựng lại gì — bộ đếm và trạng thái đều còn nguyên — mà nội dung thì đã
+ * nằm trong hộp thoại nên vẽ đè lên. Cùng lối `Combobox` dùng cho ô chọn.
  */
 export function ToastHost() {
   const items = useToasts((s) => s.items);
   const dismiss = useToasts((s) => s.dismiss);
   const stack = useDialogLayer((s) => s.stack);
-
-  // `document` không tồn tại lúc render phía máy chủ.
   const hydrated = useHydrated();
-  if (!hydrated) return null;
 
-  /**
-   * Portal vào `<dialog>` đang mở nếu có.
-   *
-   * `showModal()` đẩy hộp thoại vào top layer của trình duyệt, đứng trên mọi
-   * DOM thường BẤT KỂ z-index — toast render ở gốc app sẽ nằm dưới nó và người
-   * dùng không thấy gì. Vào trong chính hộp thoại thì cùng top layer, nổi lên
-   * đúng chỗ. Xem `store/dialogLayer.ts`.
-   */
-  const host = topDialog(stack) ?? document.body;
+  // Tạo một lần, không bao giờ đổi — đây là điểm mấu chốt để React khỏi dựng
+  // lại. `null` ở lượt render phía máy chủ, nơi chưa có `document`.
+  const [container] = useState(() =>
+    typeof document === "undefined" ? null : document.createElement("div"),
+  );
+
+  useEffect(() => {
+    if (!container) return;
+    const parent = topDialog(stack) ?? document.body;
+    if (container.parentNode !== parent) parent.appendChild(container);
+  }, [container, stack]);
+
+  // Dọn khi `Providers` bị tháo — chỉ xảy ra lúc hot-reload, nhưng không dọn
+  // thì mỗi lần nạp lại để thừa một div rỗng trong body.
+  useEffect(() => () => container?.remove(), [container]);
+
+  if (!hydrated || !container) return null;
 
   return createPortal(
     <RadixToast.Provider swipeDirection="right" duration={TOAST_MS}>
@@ -82,6 +106,6 @@ export function ToastHost() {
       ))}
       <RadixToast.Viewport className={styles.viewport} />
     </RadixToast.Provider>,
-    host,
+    container,
   );
 }
