@@ -132,7 +132,6 @@ export function InsurancePackageFormDialog({ open, onClose, insurancePackage }: 
                 label="Phí trọn thời hạn (đồng)"
                 type="number"
                 inputMode="numeric"
-                hint="Phí của ĐƠN này, không phải phí mỗi năm"
                 error={errors.legs?.[i]?.fee?.message}
                 {...register(`legs.${i}.fee`, { valueAsNumber: true })}
               />
