@@ -573,6 +573,43 @@ export const kpiTargets = pgTable(
   ],
 );
 
+/**
+ * Điểm KPI đã tính, một dòng mỗi người mỗi tháng.
+ *
+ * ⚠️ Đây là ngoại lệ so với `mgst-db-design.md` §9 ("điểm KPI không lưu"). Lý do
+ * ghi ở đó — *"lưu điểm là khoá cứng quá khứ vào hệ số cũ"* — đúng với thiết kế
+ * CŨ, khi hệ số nằm trong DB và admin sửa được, sửa xong thì mọi tháng cũ phải
+ * chấm lại. Quyết định 03/08 đổi hẳn: công thức vào `src/rules/YYYY-MM.ts` và
+ * **file của kỳ đã qua đóng băng vĩnh viễn**. Điểm tháng đã đóng không thể đổi
+ * nữa, nên lưu nó không khoá cứng gì cả.
+ *
+ * Đổi lại được: điểm nằm sẵn ở đây thì `ORDER BY điểm / chỉ tiêu` chạy được
+ * trong SQL, tức màn Nhân sự sắp xếp và phân trang ở máy chủ được — điều không
+ * làm nổi khi điểm tính sống trong lúc truy vấn.
+ *
+ * Cập nhật bằng `recomputeKpi` (`src/server/kpi.ts`), KHÔNG ghi tay.
+ */
+export const kpiScores = pgTable(
+  "kpi_scores",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    /** '2026-08'. Chỉ theo THÁNG — xem "hôm nay" không hiện cột chỉ tiêu. */
+    yearMonth: text("year_month").notNull(),
+    /** Từ module luật của kỳ. Thang mới là số thực (0.4–1.2 mỗi combo). */
+    bankingPoints: numeric("banking_points", { precision: 10, scale: 2 }).notNull().default("0"),
+    /** Σ hệ số loại dịch vụ — spec §7.2 giữ cách cũ, vẫn ở DB. */
+    servicePoints: numeric("service_points", { precision: 10, scale: 2 }).notNull().default("0"),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.yearMonth] }),
+    /** Bảng xếp hạng đọc theo tháng rồi sắp theo điểm. */
+    index("kpi_scores_month").on(t.yearMonth),
+  ],
+);
+
 /* ── §6 · Hệ thống ──────────────────────────────────────────────────── */
 
 /** Append-only — không có UPDATE/DELETE ở tầng app. */

@@ -15,6 +15,13 @@
       "when": 1785833198430,
       "tag": "0001_clever_green_goblin",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1785905701888,
+      "tag": "0002_mighty_kang",
+      "breakpoints": true
     }
   ]
 }

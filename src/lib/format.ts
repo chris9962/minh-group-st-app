@@ -85,6 +85,18 @@ export const businessDay = (at: Date = new Date()): string =>
 /** Tháng làm việc `YYYY-MM` theo giờ Việt Nam. */
 export const businessMonth = (at: Date = new Date()): string => businessDay(at).slice(0, 7);
 
+/**
+ * Ngày đầu và ngày cuối của tháng `YYYY-MM`, dạng `YYYY-MM-DD`.
+ *
+ * `Date.UTC(y, m, 0)` là ngày 0 của tháng SAU, tức ngày cuối của tháng này —
+ * tự đúng cả tháng 28, 29, 30, 31 mà không cần bảng tra.
+ */
+export const monthRange = (yearMonth: string): { from: string; to: string } => {
+  const [y, m] = yearMonth.split('-').map(Number);
+  const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  return { from: `${yearMonth}-01`, to: `${yearMonth}-${String(last).padStart(2, '0')}` };
+};
+
 /** Đếm ngược mm:ss — dùng cho đồng hồ giữ chỗ mã giới thiệu. */
 export function countdown(seconds: number): string {
   const s = Math.max(0, Math.floor(seconds));
