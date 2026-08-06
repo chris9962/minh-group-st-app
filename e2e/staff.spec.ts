@@ -63,6 +63,10 @@ test.describe("P-51 · danh sách nhân sự", () => {
    * của người này đúng bằng phần đóng góp của module ngân hàng: hễ khác 0 là
    * công thức đã bịa ra từ đâu đó.
    *
+   * ⚠️ Vì vậy KHÔNG ca nào được ghi dịch vụ dưới tài khoản này — làm thế là
+   * cộng điểm dịch vụ cho họ và ca này đỏ. `customers.spec` cố ý đăng nhập bằng
+   * Trưởng phòng ở ca "ghi dịch vụ từ dòng khách" đúng vì lý do đó.
+   *
    * ⚠️ Đọc `/api/staff`, không phải `/api/people`: route sau đã bị gỡ khi bảng
    * P-51 chuyển sang lấy đúng một trang từ máy chủ. Ca này gọi vào đó và nhận
    * 404 suốt một thời gian mà vẫn "đỏ đúng lý do khác".

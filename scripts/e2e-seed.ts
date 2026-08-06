@@ -22,7 +22,9 @@ import {
   customers,
   departments,
   insuranceOrders,
+  kpiScores,
   referralCodes,
+  services,
   sessions,
   userManagedDepartments,
   userPermissions,
@@ -65,6 +67,7 @@ for (const c of staleCustomers) {
         where order_id in (select id from insurance_orders where customer_id = ${c.id})`,
   );
   await db.delete(insuranceOrders).where(eq(insuranceOrders.customerId, c.id));
+  await db.delete(services).where(eq(services.customerId, c.id));
   await db.delete(bankAccounts).where(eq(bankAccounts.customerId, c.id));
   await db.delete(customerPhones).where(eq(customerPhones.customerId, c.id));
   await db.delete(customers).where(eq(customers.id, c.id));
@@ -76,6 +79,7 @@ for (const u of stale) {
   await db.delete(auditLog).where(eq(auditLog.actorId, u.id));
   await db.delete(sessions).where(eq(sessions.userId, u.id));
   await db.delete(userPermissions).where(eq(userPermissions.userId, u.id));
+  await db.delete(kpiScores).where(eq(kpiScores.userId, u.id));
   await db.delete(userManagedDepartments).where(eq(userManagedDepartments.userId, u.id));
   await db.delete(users).where(eq(users.id, u.id));
 }

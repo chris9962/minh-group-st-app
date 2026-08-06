@@ -462,25 +462,6 @@ test.describe("TODO — chờ module khác", () => {
   });
 
   /**
-   * TODO(P-21 Ngân hàng, chờ module ngân hàng): `/api/bank-accounts` chưa có
-   * route nào, nên hộp thoại mở được nhưng bấm lưu là 404. Bật khi module lên.
-   */
-  test.fixme("mở tài khoản ngân hàng từ dòng khách → toast + số tài khoản +1", async ({ page }) => {
-    await openCustomerList(page, "staff");
-    await search(page, "minh dung");
-    await rows(page).first().getByRole("button", { name: /Mở ngân hàng/ }).click();
-  });
-
-  /**
-   * TODO(P-31 Dịch vụ, chờ module dịch vụ): `/api/services` chưa có route.
-   */
-  test.fixme("ghi dịch vụ từ dòng khách → toast xác nhận", async ({ page }) => {
-    await openCustomerList(page, "staff");
-    await search(page, "minh dung");
-    await rows(page).first().getByRole("button", { name: /Ghi dịch vụ/ }).click();
-  });
-
-  /**
    * TODO(P-42 Hồ sơ 360°, chờ `src/rules/YYYY-MM.ts`): khối "Quà" luôn hiện rổ
    * rỗng và tiền mặt 0 vì chưa có luật của kỳ. Bảng tài khoản/đơn BH thì đã đọc
    * dữ liệu thật, ca dưới soi phần đó — chỉ khối Quà là chờ.
@@ -490,6 +471,103 @@ test.describe("TODO — chờ module khác", () => {
     await search(page, "bich tram");
     await rows(page).first().getByRole("link").first().click();
     await expect(page.locator("main")).toContainText(/Rổ quà/);
+  });
+});
+
+/**
+ * Hai nút nghiệp vụ bật thẳng từ dòng khách — trước đây tắt vì `/api/services`
+ * và `/api/bank-accounts` chưa có route nào, mở hộp thoại được nhưng bấm lưu là
+ * 404. Hai module đã lên nên bật lại, và lần này đi TRỌN đường tới toast.
+ */
+test.describe("nút nghiệp vụ trên dòng khách", () => {
+  /**
+   * Đăng nhập bằng TRƯỞNG PHÒNG chứ không phải Nhân viên, và đó là ràng buộc
+   * chéo file chứ không phải sở thích.
+   *
+   * `staff.spec` chốt rằng `zz_e2e_staff` mở 12 tài khoản ngân hàng mà điểm vẫn
+   * bằng 0 — bằng chứng công thức ngân hàng không bịa số. Ghi một lượt dịch vụ
+   * dưới đúng tài khoản đó là cộng cho họ điểm dịch vụ, và ca kia đỏ ở một file
+   * khác vì một dòng viết ở đây.
+   */
+  test("ghi dịch vụ từ dòng khách → toast xác nhận", async ({ page }) => {
+    await openCustomerList(page, "head");
+    await search(page, "minh dung");
+    await rows(page).first().getByRole("button", { name: /Ghi dịch vụ/ }).click();
+
+    const box = dialog(page);
+    await expect(box).toBeVisible();
+    // Ô chọn loại dịch vụ đọc từ danh mục — lấy lựa chọn đầu tiên có giá trị
+    // thật, không đoán tên, vì danh mục là thứ CEO sửa được ở màn Cấu hình.
+    const options = box.getByLabel("Loại dịch vụ").locator("option");
+    const value = await options.nth(1).getAttribute("value");
+    await box.getByLabel("Loại dịch vụ").selectOption(value!);
+    await box.getByLabel("Ghi chú công việc").fill(`${TAG} ghi tu dong khach`);
+    await box.getByRole("button", { name: "Lưu" }).click();
+
+    await expect(toast(page).first()).toBeVisible();
+    await expect(box).toBeHidden();
+  });
+
+  test("mở tài khoản ngân hàng từ dòng khách → giữ chỗ mã, sang bước 2", async ({ page }) => {
+    await openCustomerList(page, "staff");
+    await search(page, "minh dung");
+    await rows(page).first().getByRole("button", { name: /Mở ngân hàng/ }).click();
+
+    const box = dialog(page);
+    await expect(box).toBeVisible();
+
+    /**
+     * Thử từng ngân hàng cho tới khi gặp một cái CÒN MÃ.
+     *
+     * Không lấy đại ngân hàng đầu tiên: kho mã của mỗi ngân hàng là dữ liệu
+     * thật, ngân hàng hết mã thì ô "Mã giới thiệu" hiện "— Hết mã còn chỗ —" và
+     * bấm Tiếp tục không đi đâu cả. Ca test đỏ khi đó là đỏ vì kho mã, không
+     * phải vì luồng hai bước hỏng.
+     */
+    const bankSelect = box.getByLabel("Ngân hàng");
+    // Danh mục ngân hàng cũng về sau một lượt gọi máy chủ: đọc ngay lúc hộp
+    // thoại vừa mở thì ô chọn mới có mỗi dòng "— Chọn ngân hàng —", và ca test
+    // tự bỏ qua chính nó.
+    await expect
+      .poll(async () => bankSelect.locator("option").count(), { timeout: 10_000 })
+      .toBeGreaterThan(1);
+
+    const bankIds = (
+      await bankSelect
+        .locator("option")
+        .evaluateAll((opts) => opts.map((o) => (o as HTMLOptionElement).value))
+    ).filter(Boolean);
+
+    /**
+     * Kho mã của ngân hàng vừa chọn về sau MỘT LƯỢT GỌI MÁY CHỦ. Đọc ngay lúc
+     * vừa chọn thì ô mã còn đang ở trạng thái rỗng và luôn hiện "Hết mã còn
+     * chỗ" — ca test bỏ qua chính nó, mãi mãi, kể cả khi kho mã đầy.
+     */
+    const openCodes = () =>
+      box.getByLabel("Mã giới thiệu").locator("option").filter({ hasText: /còn \d+ chỗ/ });
+
+    let picked = false;
+    for (const id of bankIds) {
+      await bankSelect.selectOption(id);
+      // `waitFor` tự thử lại tới khi hết giờ; `.count()` chỉ chụp một khoảnh
+      // khắc, mà khoảnh khắc đó thường rơi vào lúc danh sách chưa về.
+      picked = await openCodes()
+        .first()
+        .waitFor({ state: "attached", timeout: 3000 })
+        .then(() => true)
+        .catch(() => false);
+      if (picked) break;
+    }
+    test.skip(!picked, "mọi ngân hàng đều hết mã còn chỗ");
+
+    await box.getByRole("button", { name: "Tiếp tục" }).click();
+
+    /**
+     * Bấm "Tiếp tục" là GIỮ CHỖ MÃ và tạo bản ghi `Đang tạo` (spec §4.5), rồi
+     * hộp thoại tự chuyển sang bước 2. Nút của bước 2 hiện ra là bằng chứng bản
+     * ghi đã tạo thật — bước đó chỉ dựng được khi đã có tài khoản để hoàn tất.
+     */
+    await expect(box.getByRole("button", { name: "Hoàn thành" })).toBeVisible();
   });
 });
 

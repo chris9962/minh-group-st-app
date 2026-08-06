@@ -32,8 +32,10 @@ import {
   giftItems,
   hospitals,
   insurancePackages,
+  kpiScores,
   referralCodes,
   serviceTypes,
+  services,
   sessions,
   userManagedDepartments,
   userPermissions,
@@ -68,6 +70,7 @@ for (const c of testCustomers) {
         where order_id in (select id from insurance_orders where customer_id = ${c.id})`,
   );
   await db.delete(insuranceOrders).where(eq(insuranceOrders.customerId, c.id));
+  await db.delete(services).where(eq(services.customerId, c.id));
   await db.delete(giftGrants).where(eq(giftGrants.customerId, c.id));
   await db.delete(bankAccounts).where(eq(bankAccounts.customerId, c.id));
   await db.delete(customerPhones).where(eq(customerPhones.customerId, c.id));
@@ -97,6 +100,9 @@ for (const u of accounts) {
   await db.delete(userPermissions).where(eq(userPermissions.userId, u.id));
   // Phòng người này quản — khoá ngoại không cascade, xoá người trước là vướng.
   await db.delete(userManagedDepartments).where(eq(userManagedDepartments.userId, u.id));
+  // Điểm KPI: ca test ghi một lượt dịch vụ là máy chủ tính lại điểm ngay và để
+  // lại một dòng ở đây, dù chính bản ghi dịch vụ đã bị dọn ở trên.
+  await db.delete(kpiScores).where(eq(kpiScores.userId, u.id));
   await db.delete(users).where(eq(users.id, u.id));
 }
 if (accounts.length) wiped.push(`tài khoản: ${accounts.length}`);
