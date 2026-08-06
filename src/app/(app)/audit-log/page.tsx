@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { History } from "lucide-react";
 import type { DateRange } from "react-day-picker";
@@ -14,6 +14,9 @@ import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { Select } from "@/components/ui/Select";
 import { fetchAuditLog, type AuditLogEntry } from "@/lib/api/auditLog";
+import { fetchStaffOptions } from "@/lib/api/staff";
+import { EMPTY_PAGE, PAGE_SIZE, type SortDir } from "@/lib/api/pagination";
+import { formatDate } from "@/lib/format";
 import { can } from "@/lib/permissions";
 import { ACTION_LABEL, Action, MODULE_LABEL } from "@/lib/types";
 import { useSession } from "@/store/session";
@@ -46,40 +49,57 @@ export default function AuditLogPage() {
   const [staffId, setStaffId] = useState("");
   const [action, setAction] = useState<Action | "">("");
   const [range, setRange] = useState<DateRange | undefined>(undefined);
+  const [page, setPage] = useState(0);
+  // Chỉ sắp theo thời điểm, và chỉ đổi được chiều — `AUDIT_LOG_SORT` có đúng
+  // một khoá vì bảng này chỉ có chỉ mục theo `at`.
+  const [dir, setDir] = useState<SortDir>("desc");
 
   const from = range?.from ? iso(range.from) : "";
   const to = range?.to ? iso(range.to) : "";
 
-  const { data, isPending, isError, refetch, isFetching } = useQuery({
-    queryKey: ["audit-log", staffId, action, from, to],
-    queryFn: () =>
-      fetchAuditLog({
-        actorId: user?.id ?? "",
-        staffId,
-        action,
-        from,
-        to,
-      }),
+  /** Đổi bộ lọc thì về trang đầu — giữ trang 5 của kết quả cũ là hiện khúc rỗng. */
+  const refine = (apply: () => void) => {
+    apply();
+    setPage(0);
+  };
+
+  const { data = EMPTY_PAGE, isPending, isError, refetch, isFetching } = useQuery({
+    queryKey: ["audit-log", staffId, action, from, to, page, dir],
+    queryFn: () => fetchAuditLog({ staffId, action, from, to, page, sort: "at", dir }),
     enabled: canView,
-    placeholderData: (previous) => previous,
+    placeholderData: keepPreviousData,
   });
 
-  const rows = useMemo(() => data?.rows ?? [], [data]);
+  /**
+   * Ô lọc "Người" đọc TRỌN danh sách nhân viên, không gom từ các dòng đang hiện.
+   *
+   * Gom từ dòng thì ô chọn chỉ có những người tình cờ nằm ở trang đang xem —
+   * lọc theo người thứ 16 trở đi là không chọn được. Hỏng thì để rỗng chứ không
+   * chặn cả màn: người có `manage-org` mà thiếu `staff:view-detail` vẫn phải đọc
+   * được nhật ký, chỉ là không lọc theo tên.
+   */
+  const { data: staff = [] } = useQuery({
+    queryKey: ["staff", "options", "all"],
+    queryFn: () => fetchStaffOptions({ status: "all" }),
+    enabled: canView,
+    retry: false,
+    staleTime: Infinity,
+  });
 
-  const staffOptions = useMemo(() => {
-    const seen = new Map<string, string>();
-    for (const r of rows) seen.set(r.actorId, r.actorName);
-    return [...seen.entries()].map(([value, label]) => ({ value, label }));
-  }, [rows]);
+  const staffOptions = useMemo(
+    () => staff.map((s) => ({ value: s.id, label: s.fullName })),
+    [staff],
+  );
 
   const activeCount = (staffId ? 1 : 0) + (action ? 1 : 0) + (from && to ? 1 : 0);
+  const filtering = activeCount > 0;
 
   const columns = useMemo<RankColumn<AuditLogEntry>[]>(
     () => [
       {
         key: "at",
         label: "Lúc",
-        sortBy: (r) => new Date(r.at).getTime(),
+        sortable: true,
         render: (r) => <span className="tabular-nums">{formatDateTime(r.at)}</span>,
       },
       { key: "actorName", label: "Người", render: (r) => r.actorName },
@@ -109,28 +129,30 @@ export default function AuditLogPage() {
       <TopBar title="Nhật ký truy vết">
         <FilterButton
           activeCount={activeCount}
-          onClear={() => {
-            setStaffId("");
-            setAction("");
-            setRange(undefined);
-          }}
+          onClear={() =>
+            refine(() => {
+              setStaffId("");
+              setAction("");
+              setRange(undefined);
+            })
+          }
         >
           <Select
             label="Người"
             value={staffId}
-            onChange={setStaffId}
+            onChange={(v) => refine(() => setStaffId(v))}
             options={[{ value: "", label: "Tất cả mọi người" }, ...staffOptions]}
           />
           <Select
             label="Hành động"
             value={action}
-            onChange={(v) => setAction(v as Action | "")}
+            onChange={(v) => refine(() => setAction(v as Action | ""))}
             options={[
               { value: "", label: "Tất cả hành động" },
               ...Action.options.map((a) => ({ value: a, label: ACTION_LABEL[a] })),
             ]}
           />
-          <DateRangePicker value={range} onChange={setRange} />
+          <DateRangePicker value={range} onChange={(v) => refine(() => setRange(v))} />
         </FilterButton>
       </TopBar>
 
@@ -141,13 +163,20 @@ export default function AuditLogPage() {
               ? [
                   {
                     label: `Người: ${staffOptions.find((s) => s.value === staffId)?.label ?? ""}`,
-                    onRemove: () => setStaffId(""),
+                    onRemove: () => refine(() => setStaffId("")),
                   },
                 ]
               : []),
-            ...(action ? [{ label: `Hành động: ${ACTION_LABEL[action]}`, onRemove: () => setAction("") }] : []),
+            ...(action
+              ? [{ label: `Hành động: ${ACTION_LABEL[action]}`, onRemove: () => refine(() => setAction("")) }]
+              : []),
             ...(from && to
-              ? [{ label: `Ngày: ${from} → ${to}`, onRemove: () => setRange(undefined) }]
+              ? [
+                  {
+                    label: `Ngày: ${formatDate(from)} → ${formatDate(to)}`,
+                    onRemove: () => refine(() => setRange(undefined)),
+                  },
+                ]
               : []),
           ]}
         />
@@ -163,20 +192,32 @@ export default function AuditLogPage() {
           <ErrorState what="nhật ký truy vết" onRetry={refetch} retrying={isFetching} />
         )}
 
-        {data && (
-          <SectionCard title="Nhật ký" icon={<History size={17} />} meta={`${data.summary.total} dòng`}>
-            {rows.length === 0 ? (
-              <p className="text-muted">Chưa có hành động nào khớp bộ lọc.</p>
-            ) : (
-              <RankTable
-                rows={rows}
-                columns={columns}
-                rowKey={(r) => r.id}
-                defaultSort="at"
-                pageSize={20}
-                caption="Nhật ký truy vết theo thời gian gần nhất"
-              />
-            )}
+        {!isPending && !isError && (
+          <SectionCard title="Nhật ký" icon={<History size={17} />} meta={`${data.total} dòng`}>
+            <RankTable
+              rows={data.rows}
+              columns={columns}
+              rowKey={(r) => r.id}
+              defaultSort="at"
+              caption="Nhật ký truy vết theo thời gian gần nhất"
+              emptyText={
+                filtering
+                  ? "Không có hành động nào khớp bộ lọc."
+                  : "Chưa có hành động nào được ghi lại."
+              }
+              server={{
+                sort: "at",
+                dir,
+                page,
+                total: data.total,
+                pageSize: PAGE_SIZE,
+                onSortChange: (_sort, nextDir) => {
+                  setDir(nextDir);
+                  setPage(0);
+                },
+                onPageChange: setPage,
+              }}
+            />
           </SectionCard>
         )}
       </main>
