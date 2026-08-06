@@ -54,17 +54,28 @@ test.describe("P-51 · danh sách nhân sự", () => {
   });
 
   /**
-   * Điểm KPI đang là 0 vì chưa có file luật của kỳ (`src/rules`). Ca này chốt
-   * rằng màn KHÔNG bịa số — 0 đọc ra là "chưa tính được", còn một con số khác 0
-   * trông như dữ liệu thật thì ai mở màn cũng tin.
+   * Điểm ngân hàng đang là 0 vì chưa có file luật của kỳ (`src/rules`). Ca này
+   * chốt rằng màn KHÔNG bịa số — 0 đọc ra là "chưa tính được", còn một con số
+   * khác 0 trông như dữ liệu thật thì ai mở màn cũng tin.
+   *
+   * `zz_e2e_staff` là người tạo toàn bộ tài khoản ngân hàng `done` của bộ seed
+   * (xem `E2E_CUSTOMERS` — 12 tài khoản) và KHÔNG có lượt dịch vụ nào. Nên điểm
+   * của người này đúng bằng phần đóng góp của module ngân hàng: hễ khác 0 là
+   * công thức đã bịa ra từ đâu đó.
+   *
+   * ⚠️ Đọc `/api/staff`, không phải `/api/people`: route sau đã bị gỡ khi bảng
+   * P-51 chuyển sang lấy đúng một trang từ máy chủ. Ca này gọi vào đó và nhận
+   * 404 suốt một thời gian mà vẫn "đỏ đúng lý do khác".
    */
-  test("điểm KPI chưa có công thức thì để 0, không bịa số", async ({ page }) => {
-    const res = await page.request.get("/api/people");
+  test("điểm ngân hàng chưa có công thức thì để 0, không bịa số", async ({ page }) => {
+    const res = await page.request.get("/api/staff?search=zz_e2e_staff&page=0&sort=name&dir=asc");
     expect(res.status()).toBe(200);
-    const body = (await res.json()) as { people?: { bankingPoints: number }[] };
-    expect(body.people?.length ?? 0).toBeGreaterThan(0);
-    // Chỉ điểm NGÂN HÀNG mới đang chờ file luật; điểm dịch vụ vẫn tính bằng SQL.
-    for (const p of body.people ?? []) expect(p.bankingPoints).toBe(0);
+    const body = (await res.json()) as { page?: { rows?: { username: string; points: number }[] } };
+
+    const rows = body.page?.rows ?? [];
+    const seedStaff = rows.find((r) => r.username === "zz_e2e_staff");
+    expect(seedStaff, "phải tìm thấy tài khoản e2e nhân viên").toBeTruthy();
+    expect(seedStaff!.points).toBe(0);
   });
 });
 

@@ -187,7 +187,7 @@ test.describe("chỉ tiêu KPI", () => {
 test.describe("danh mục ấp", () => {
   test("hai ấp trùng tên trong cùng một xã bị chặn, báo rõ lý do", async ({ page }) => {
     await page.goto("/settings/channels");
-    await page.waitForTimeout(800);
+    await page.waitForLoadState("networkidle");
 
     const addHamlet = page.getByRole("button", { name: /Thêm ấp/ }).first();
     test.skip((await addHamlet.count()) === 0, "chưa triển khai xã nào");
@@ -198,12 +198,21 @@ test.describe("danh mục ấp", () => {
       const box = dialog(page);
       await box.getByLabel(/Tên ấp/).fill(name);
       await box.getByRole("button", { name: "Tạo ấp" }).click();
-      await page.waitForTimeout(900);
 
-      if (attempt === 2) {
+      /**
+       * Chờ ĐÚNG toast cần chờ, không chờ theo đồng hồ.
+       *
+       * Toast sống 5 giây, mà hai lượt bấm cách nhau chưa tới một giây — nên
+       * lúc lượt hai báo trùng thì toast "Đã lưu ấp" của lượt một VẪN CÒN trên
+       * màn. Bộ chọn cũ vớ phải cái cũ rồi đỏ, và chỉ đỏ khi máy chạy chậm: ca
+       * này xanh khi chạy một mình, đỏ khi chạy cùng cả bộ.
+       */
+      if (attempt === 1) {
+        await expect(toast(page).filter({ hasText: /Đã lưu ấp/ }).first()).toBeVisible();
+      } else {
         // Lần hai phải nói rõ trùng, KHÔNG được im lặng báo "đã lưu" rồi không
         // thêm gì — người dùng sẽ bấm lại vài lần rồi đi hỏi.
-        await expect(toast(page)).toContainText(/trùng tên/i);
+        await expect(toast(page).filter({ hasText: /trùng tên/i }).first()).toBeVisible();
       }
     }
   });

@@ -54,11 +54,20 @@ const SEES_ID_NUMBER: Record<Role, boolean> = {
 };
 
 /** Ai xuất được "Dữ liệu tổng" — `customer:export` chỉ CEO có (qua `*`). */
+/**
+ * Ai xuất được danh sách khách (`customer:export`) — Phó GĐ, Trưởng phòng, Phó
+ * phòng được thêm ngày 06/08.
+ *
+ * Phạm vi ghi là `company` và đó là mô tả THẬT chứ không phải nới tay: hồ sơ
+ * khách không áp trục phạm vi (spec §2.1b) nên file xuất luôn gồm mọi khách
+ * khớp bộ lọc. Bản xuất KHÔNG chứa CCCD — trường đó đi đường riêng, gác bằng
+ * `customer:access-id-number`.
+ */
 const EXPORTS: Record<Role, boolean> = {
   director: true,
-  "deputy-director": false,
-  head: false,
-  "deputy-head": false,
+  "deputy-director": true,
+  head: true,
+  "deputy-head": true,
   staff: false,
 };
 
