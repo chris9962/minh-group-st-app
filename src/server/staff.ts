@@ -1,8 +1,15 @@
 import { randomInt } from "node:crypto";
 import { hashSync } from "bcryptjs";
-import { and, asc, eq, inArray, ne } from "drizzle-orm";
-import type { StaffAccount, StaffForm, StaffList, StaffQuery } from "@/lib/api/staff";
-import { matchesSearch } from "@/lib/format";
+import { and, asc, count, desc, eq, inArray, ne, sql, type SQL } from "drizzle-orm";
+import type {
+  StaffAccount,
+  StaffForm,
+  StaffList,
+  StaffOption,
+  StaffQuery,
+  StaffSort,
+} from "@/lib/api/staff";
+import { businessMonth } from "@/lib/format";
 import {
   assignableRoles,
   can,
@@ -15,7 +22,16 @@ import {
 import { SCOPES, Scope, type Action, type User } from "@/lib/types";
 import { forbidden, isUuid, notFound } from "./auth";
 import { db, uniqueViolationOf } from "./db/client";
-import { departments, sessions, userManagedDepartments, userPermissions, users } from "./db/schema";
+import {
+  departments,
+  kpiScores,
+  sessions,
+  userManagedDepartments,
+  userPermissions,
+  users,
+} from "./db/schema";
+import type { PageArgs } from "./pagination";
+import { daysLeftOf, pointsExpr, staffSearchWhere, targetExpr } from "./people";
 import { relationsFor } from "./users";
 
 /**
@@ -23,31 +39,9 @@ import { relationsFor } from "./users";
  * máy chủ kiểm lại bậc vai + từng ô quyền, không tin danh sách giao diện gửi lên.
  */
 
-/** Trần cứng cho một công ty ~vài trăm người — chặn kéo vô hạn nếu dữ liệu phình. */
-const STAFF_LIMIT = 500;
+type UserWithDepartment = typeof users.$inferSelect & { departmentName: string | null };
 
-type StaffRow = typeof users.$inferSelect & { departmentName: string | null };
-
-async function fetchStaffRows(departmentIds: string[] | null): Promise<StaffRow[]> {
-  // null = không giới hạn phòng; [] = không thấy ai (người không thuộc phòng nào, phạm vi own).
-  if (departmentIds !== null && departmentIds.length === 0) return [];
-
-  const base = db
-    .select({ user: users, departmentName: departments.name })
-    .from(users)
-    .leftJoin(departments, eq(departments.id, users.departmentId))
-    .orderBy(asc(users.fullName))
-    .limit(STAFF_LIMIT);
-
-  const rows =
-    departmentIds === null
-      ? await base
-      : await base.where(inArray(users.departmentId, departmentIds));
-
-  return rows.map((r) => ({ ...r.user, departmentName: r.departmentName }));
-}
-
-async function toAccounts(rows: StaffRow[]): Promise<StaffAccount[]> {
+async function toAccounts(rows: UserWithDepartment[]): Promise<StaffAccount[]> {
   // Quyền + phòng quản nạp MỘT lượt cho cả trang — không truy vấn từng người (N+1).
   const { permissionsOf, managedOf } = await relationsFor(rows.map((r) => r.id));
 
@@ -69,40 +63,171 @@ async function toAccounts(rows: StaffRow[]): Promise<StaffAccount[]> {
   }));
 }
 
-export async function staffFor(actor: User, query: StaffQuery): Promise<StaffList> {
+/**
+ * MỘT trang của bảng nhân sự P-51 — lọc, tìm, sắp, cắt trang và đếm tóm tắt đều
+ * chạy trong SQL (AGENTS.md §5.1 · §5.2).
+ *
+ * Chỉ đụng hai nguồn: hồ sơ nhân sự (`users` + tên phòng) và điểm/chỉ tiêu
+ * (`kpi_scores` + `kpi_targets`). Bảng KHÔNG có cột đếm tài khoản / app / đơn
+ * bảo hiểm, nên không câu nào ở đây chạm tới `bank_accounts` hay
+ * `insurance_orders` — hai bảng lớn nhất hệ thống.
+ *
+ * Bản cũ kéo 500 người rồi lọc bằng JS: người thứ 501 biến mất im lặng và thẻ
+ * tóm tắt đếm thiếu theo, tức SAI SỐ chứ không phải chậm.
+ */
+export async function staffFor(
+  actor: User,
+  query: Omit<StaffQuery, "page" | "sort" | "dir">,
+  page: PageArgs<StaffSort>,
+): Promise<StaffList> {
   // Phạm vi client xin hạ về đúng mức thật của người gọi — không tin tham số URL.
   const requested = Scope.safeParse(query.scope);
   const scope = clampScope(actor, "staff", "view-detail", requested.success ? requested.data : null);
   const visible = visibleDepartmentIds(actor, scope);
 
-  const rows = await fetchStaffRows(visible);
+  const summaryMonth = query.summaryMonth || businessMonth();
+  const target = targetExpr(summaryMonth);
+  const daysLeft = daysLeftOf(summaryMonth);
 
-  const byDepartment = query.departmentId
-    ? rows.filter((r) => r.departmentId === query.departmentId)
-    : rows;
+  // null = không giới hạn phòng; [] = không thấy ai (người không thuộc phòng nào, phạm vi own).
+  if (visible !== null && visible.length === 0)
+    return {
+      summaryMonth,
+      daysLeft,
+      summary: { active: 0, locked: 0, onTarget: 0, offTarget: 0 },
+      page: { rows: [], total: 0 },
+    };
 
-  const byStatus = byDepartment.filter((r) =>
-    query.status === "all" ? true : query.status === "active" ? r.active : !r.active,
+  /** Phạm vi + ô lọc đơn vị. Thẻ tóm tắt đếm trên ĐÚNG tập này. */
+  const inScope = and(
+    visible === null ? undefined : inArray(users.departmentId, visible),
+    query.departmentId ? eq(users.departmentId, query.departmentId) : undefined,
   );
 
-  // Rỗng nghĩa là lấy hết — hiểu thành "không lấy gì" thì lần đầu mở trang bảng trống trơn.
-  const byRole =
-    query.roles.length > 0 ? byStatus.filter((r) => query.roles.includes(r.role)) : byStatus;
+  const where = and(
+    inScope,
+    query.status === "all" ? undefined : eq(users.active, query.status === "active"),
+    // Rỗng nghĩa là lấy hết — hiểu thành "không lấy gì" thì lần đầu mở trang bảng trống trơn.
+    query.roles.length > 0 ? inArray(users.role, query.roles) : undefined,
+    staffSearchWhere(query.search),
+  );
 
-  const found = query.search
-    ? byRole.filter((r) =>
-        matchesSearch(`${r.fullName} ${r.username} ${r.departmentName ?? ""}`, query.search),
+  const direction = page.dir === "asc" ? asc : desc;
+  /**
+   * Mọi kiểu sắp kết thúc bằng `id`. Trang 1 và trang 2 là hai câu hỏi riêng
+   * biệt, không có khoá phụ duy nhất thì thứ tự giữa những dòng bằng nhau là
+   * không xác định — người thứ 15 lần này thành thứ 16 lần sau, hiện lại ở
+   * trang 2 còn người khác biến mất khỏi cả hai trang.
+   */
+  const orderBy = {
+    // Sắp theo tên đã bỏ dấu: collate mặc định của Postgres xếp `Đặng` sau
+    // `Zũng`, người dùng đọc ra là bảng sắp sai.
+    name: [direction(sql`mgst_normalize(${users.fullName})`), asc(users.id)],
+    role: [direction(users.role), asc(sql`mgst_normalize(${users.fullName})`), asc(users.id)],
+    // Sắp theo TỈ LỆ đạt, không theo hiệu số: mốc mỗi phòng có thể khác nhau
+    // nên "còn thiếu 10" của người mốc 50 nặng hơn của người mốc 200.
+    kpi: [direction(sql`${pointsExpr}::float / nullif(${target}, 0)`), asc(users.id)],
+  }[page.sort] as SQL[];
+
+  const [rows, [totals], [counts]] = await Promise.all([
+    db
+      .select({ user: users, departmentName: departments.name, points: pointsExpr, target })
+      .from(users)
+      .leftJoin(departments, eq(departments.id, users.departmentId))
+      .leftJoin(
+        kpiScores,
+        and(eq(kpiScores.userId, users.id), eq(kpiScores.yearMonth, summaryMonth)),
       )
-    : byRole;
+      .where(where)
+      .orderBy(...orderBy)
+      .limit(page.limit)
+      .offset(page.offset),
+    // Phép nối `departments` phải giữ ở câu đếm — ô tìm kiếm soi cả tên đơn vị.
+    db
+      .select({ value: count() })
+      .from(users)
+      .leftJoin(departments, eq(departments.id, users.departmentId))
+      .where(where),
+    // Tóm tắt cố ý KHÔNG áp tìm kiếm / trạng thái / chức vụ: gõ tên một người
+    // không có nghĩa công ty chỉ còn một người.
+    db
+      .select({
+        active: sql<number>`count(*) filter (where ${users.active})::int`,
+        locked: sql<number>`count(*) filter (where not ${users.active})::int`,
+        // Chỉ người đang làm mới có chỉ tiêu. Tính cả tài khoản đã khoá thì họ
+        // vào với 0 điểm và "chưa đạt" phồng lên mà không ai thấy vì sao.
+        onTarget: sql<number>`count(*) filter (where ${users.active} and ${pointsExpr} >= ${target})::int`,
+      })
+      .from(users)
+      .leftJoin(
+        kpiScores,
+        and(eq(kpiScores.userId, users.id), eq(kpiScores.yearMonth, summaryMonth)),
+      )
+      .where(inScope),
+  ]);
 
-  // Tóm tắt đếm trên phạm vi + phòng, KHÔNG áp search/status/roles — cùng quy tắc với mock.
+  const accounts = await toAccounts(
+    rows.map((r) => ({ ...r.user, departmentName: r.departmentName })),
+  );
+  const scoreById = new Map(rows.map((r) => [r.user.id, r]));
+
+  const active = counts?.active ?? 0;
+  const onTarget = counts?.onTarget ?? 0;
+
   return {
-    summary: {
-      active: byDepartment.filter((r) => r.active).length,
-      locked: byDepartment.filter((r) => !r.active).length,
+    summaryMonth,
+    daysLeft,
+    summary: { active, locked: counts?.locked ?? 0, onTarget, offTarget: active - onTarget },
+    page: {
+      rows: accounts.map((a) => ({
+        ...a,
+        points: scoreById.get(a.id)?.points ?? 0,
+        target: scoreById.get(a.id)?.target ?? 100,
+      })),
+      total: totals?.value ?? 0,
     },
-    staff: await toAccounts(found),
   };
+}
+
+/**
+ * Danh sách rút gọn, trọn bộ trong phạm vi người gọi — cho ô tra cứu và trang
+ * chi tiết phòng ban. Không phân trang vì nơi gọi cần đủ danh sách để tra.
+ *
+ * Payload mỏng có chủ đích: đủ để tra cứu và hiện tên, KHÔNG kèm bảng quyền —
+ * thứ chỉ hồ sơ một người mới cần.
+ */
+export async function listStaffOptions(
+  actor: User,
+  query: { departmentId: string; status: "active" | "all" },
+): Promise<StaffOption[]> {
+  const scope = clampScope(actor, "staff", "view-detail", null);
+  const visible = visibleDepartmentIds(actor, scope);
+  if (visible !== null && visible.length === 0) return [];
+
+  const rows = await db
+    .select({
+      id: users.id,
+      fullName: users.fullName,
+      username: users.username,
+      staffCode: users.staffCode,
+      phone: users.phone,
+      departmentName: departments.name,
+      role: users.role,
+      title: users.title,
+      active: users.active,
+    })
+    .from(users)
+    .leftJoin(departments, eq(departments.id, users.departmentId))
+    .where(
+      and(
+        visible === null ? undefined : inArray(users.departmentId, visible),
+        query.departmentId ? eq(users.departmentId, query.departmentId) : undefined,
+        query.status === "active" ? eq(users.active, true) : undefined,
+      ),
+    )
+    .orderBy(asc(sql`mgst_normalize(${users.fullName})`), asc(users.id));
+
+  return rows.map((r) => ({ ...r, departmentName: r.departmentName ?? "" }));
 }
 
 export async function findStaff(id: string): Promise<StaffAccount | null> {

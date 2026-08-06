@@ -1,8 +1,10 @@
-import { StaffForm, type StaffQuery } from "@/lib/api/staff";
+import { STAFF_SORT, StaffForm, type StaffQuery } from "@/lib/api/staff";
 import { can, inVisibleScope } from "@/lib/permissions";
-import type { RoleKey } from "@/lib/types";
+import { RoleKey } from "@/lib/types";
 import { logAudit } from "@/server/audit";
-import { badRequest, forbidden, getActor, jsonBody, unauthorized } from "@/server/auth";
+import { badRequest, forbidden, getActor, jsonBody, unauthorized, uuidParam } from "@/server/auth";
+import { pageArgsFrom } from "@/server/pagination";
+import { isYearMonth } from "@/server/people";
 import { createStaff, saveError, staffFor } from "@/server/staff";
 
 export async function GET(request: Request) {
@@ -19,16 +21,30 @@ export async function GET(request: Request) {
   // báo gì.
   if (!can(actor, "staff", "view-detail")) return forbidden();
 
-  const params = new URL(request.url).searchParams;
-  const query: StaffQuery = {
+  const url = new URL(request.url);
+  const params = url.searchParams;
+  const summaryMonth = params.get("summaryMonth") ?? "";
+  if (summaryMonth && !isYearMonth(summaryMonth)) return badRequest("Tháng không hợp lệ");
+
+  const query: Omit<StaffQuery, "page" | "sort" | "dir"> = {
     scope: params.get("scope") ?? "",
-    departmentId: params.get("departmentId") ?? "",
+    // Chuỗi không phải uuid đi thẳng vào SQL là `22P02` → 500. Link cũ trỏ
+    // phòng đã xoá không đáng làm hỏng cả màn: bỏ qua bộ lọc, hiện tất cả.
+    departmentId: uuidParam(params.get("departmentId")),
     search: params.get("search") ?? "",
+    summaryMonth,
     status: (params.get("status") ?? "active") as StaffQuery["status"],
-    roles: (params.get("roles") ?? "").split(",").filter(Boolean) as RoleKey[],
+    // Lọc qua danh sách vai có thật, cùng lối nghĩ với danh sách trắng khoá
+    // sắp: vai lạ đi vào `inArray` trên cột enum là 500, mà URL có ô lọc chức
+    // vụ thì người ta chia sẻ link cho nhau.
+    roles: (params.get("roles") ?? "")
+      .split(",")
+      .filter((r): r is RoleKey => RoleKey.options.includes(r as RoleKey)),
   };
 
-  return Response.json(await staffFor(actor, query));
+  return Response.json(
+    await staffFor(actor, query, pageArgsFrom(url, STAFF_SORT, "name")),
+  );
 }
 
 export async function POST(request: Request) {

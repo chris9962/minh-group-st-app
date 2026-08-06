@@ -11,7 +11,7 @@ import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusTag } from "@/components/ui/StatusTag";
 import { fetchDepartmentDetail } from "@/lib/api/org";
-import { fetchStaff, type StaffAccount } from "@/lib/api/staff";
+import { fetchStaffOptions, type StaffOption } from "@/lib/api/staff";
 import { ROLE_LABEL, type RoleKey } from "@/lib/types";
 import styles from "./page.module.scss";
 
@@ -24,7 +24,7 @@ const ROLE_RANK: Record<RoleKey, number> = {
   director: 0,
 };
 
-const EMPLOYEE_COLUMNS: RankColumn<StaffAccount>[] = [
+const EMPLOYEE_COLUMNS: RankColumn<StaffOption>[] = [
   {
     key: "fullName",
     label: "Tên",
@@ -70,17 +70,11 @@ export default function DepartmentDetailPage({
   } = useQuery({
     queryKey: ["staff-by-department", id],
     queryFn: () =>
-      fetchStaff({
-        departmentId: id,
-        status: "all",
-        roles: [],
-        search: "",
-        scope: "company",
-      }),
+      fetchStaffOptions({ departmentId: id, status: "all" }),
     enabled: Boolean(data),
   });
 
-  const employees = staffData?.staff ?? [];
+  const employees = staffData ?? [];
 
   return (
     <>

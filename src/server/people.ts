@@ -1,7 +1,7 @@
-import { and, asc, eq, gte, inArray, lte, sql } from "drizzle-orm";
-import type { PeopleData, PersonScore } from "@/lib/api/people";
+import { and, asc, eq, gte, inArray, lte, sql, type AnyColumn, type SQL } from "drizzle-orm";
+import type { PersonScore } from "@/lib/api/people";
 import type { PersonDetail } from "@/lib/api/person";
-import { businessDay, businessMonth, matchesSearch, monthRange } from "@/lib/format";
+import { businessDay, businessMonth, monthRange } from "@/lib/format";
 import { clampScope, inVisibleScope, visibleDepartmentIds } from "@/lib/permissions";
 import { Scope, type User } from "@/lib/types";
 import { db } from "./db/client";
@@ -88,6 +88,64 @@ async function targetsFor(
 const targetFor = async (yearMonth: string, departmentId: string | null): Promise<number> =>
   (await targetsFor(yearMonth, [departmentId])).get(departmentId) ?? 100;
 
+/* ── Mảnh SQL dùng chung với `server/staff.ts` ───────────────────────────
+ *
+ * Bảng nhân sự cho LỌC và SẮP theo chỉ tiêu, nên điểm và mốc phải tính được
+ * ngay trong `ORDER BY` và `WHERE`. Tính ở JS thì máy chủ cắt trang mù.
+ */
+
+/**
+ * Điểm tháng, làm tròn TỪNG vế rồi mới cộng.
+ *
+ * Không làm tròn tổng thô: giao diện lấy tổng bằng `bankingPoints + servicePoints`
+ * từ hai số đã tròn, nên tròn ở tổng cho ra con số khác và "đạt / chưa đạt" lật
+ * ngay chỗ giáp mốc.
+ */
+export const bankingExpr = sql<number>`round(coalesce(${kpiScores.bankingPoints}, 0))::int`;
+export const serviceExpr = sql<number>`round(coalesce(${kpiScores.servicePoints}, 0))::int`;
+export const pointsExpr = sql<number>`(${bankingExpr} + ${serviceExpr})`;
+
+/**
+ * Chỉ tiêu của ĐÚNG phòng người này, viết thẳng trong SQL.
+ *
+ * Cùng chuỗi rơi với `targetsFor`, chỉ khác là chạy trong database. Người không
+ * thuộc phòng nào (ban giám đốc) có `department_id` null nên vế đầu không khớp
+ * dòng nào và rơi thẳng xuống mốc chung — đúng như bản JS.
+ */
+export const targetExpr = (yearMonth: string) => sql<number>`coalesce(
+  (select t.monthly_points from ${kpiTargets} t
+    where t.year_month = ${yearMonth} and t.department_id = ${users.departmentId}),
+  (select t.monthly_points from ${kpiTargets} t
+    where t.department_id is null and t.year_month <= ${yearMonth}
+    order by t.year_month desc limit 1),
+  100
+)`;
+
+/** Vô hiệu ký tự đại diện của `LIKE` — gõ `%` phải ra "không có kết quả". */
+const likeEscape = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
+
+/**
+ * Tìm theo tên nhân viên, tên đăng nhập hoặc tên đơn vị — không dấu cũng khớp,
+ * không phụ thuộc thứ tự từ. Cùng luật với `matchesSearch` ở giao diện.
+ *
+ * Câu gọi PHẢI có `leftJoin(departments)`, vì mỗi từ soi cả tên phòng.
+ */
+export function staffSearchWhere(search: string): SQL | undefined {
+  const text = search.trim();
+  if (!text) return undefined;
+
+  const like = (col: SQL | AnyColumn, term: string) =>
+    sql`mgst_normalize(${col}) like '%' || mgst_normalize(${likeEscape(term)}) || '%' escape '\\'`;
+
+  return and(
+    ...text
+      .split(/\s+/)
+      .map((term) =>
+        sql`(${like(users.fullName, term)} or ${like(users.username, term)} or ${like(sql`coalesce(${departments.name}, '')`, term)})`,
+      ),
+  );
+}
+
 type Aggregates = {
   accounts: number;
   apps: number;
@@ -96,52 +154,69 @@ type Aggregates = {
   insuranceOrders: number;
 };
 
+type Counts = { accounts: number; apps: number; insuranceOrders: number };
+
+const NO_COUNTS: Counts = { accounts: 0, apps: 0, insuranceOrders: 0 };
+
 /**
- * Hai câu GROUP BY cho MỌI người một lượt — không truy vấn từng người (§11.1).
+ * Số đếm theo kỳ, chỉ cho những người ĐƯỢC HỎI TỚI.
  *
- * Chỉ ĐẾM, không cộng điểm: điểm đọc từ `kpi_scores` (xem `storedPointsFor`).
+ * `inArray` chứ không gộp cả kho: chỉ mục `bank_accounts_creator_date`
+ * (created_by, opened_date) và `insurance_orders_creator_date` đỡ trọn phép này.
+ * Hai câu GROUP BY cho cả danh sách, không truy vấn từng người (§11.1).
  */
-async function aggregatesByUser(range: Period): Promise<Map<string, Aggregates>> {
-  const map = new Map<string, Aggregates>();
-  const entry = (id: string | null): Aggregates => {
+async function countsFor(userIds: string[], range: Period): Promise<Map<string, Counts>> {
+  const map = new Map<string, Counts>();
+  if (userIds.length === 0) return map;
+
+  const entry = (id: string | null): Counts => {
     const key = id ?? "";
-    let a = map.get(key);
-    if (!a) {
-      a = { accounts: 0, apps: 0, bankingPoints: 0, servicePoints: 0, insuranceOrders: 0 };
-      map.set(key, a);
+    let c = map.get(key);
+    if (!c) {
+      c = { ...NO_COUNTS };
+      map.set(key, c);
     }
-    return a;
+    return c;
   };
 
-  const bankRows = await db
-    .select({
-      createdBy: bankAccounts.createdBy,
-      accounts: sql<number>`count(*)::int`,
-      // CNKD/HKD có `counts_as_app = false`: vẫn TÍNH ĐIỂM nhưng không đếm vào
-      // tổng app, nên hai cột này lọc khác nhau (mgst-db-design.md §9).
-      apps: sql<number>`count(*) filter (where ${bankAccounts.appInstalled} and ${banks.countsAsApp})::int`,
-    })
-    .from(bankAccounts)
-    .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
-    .where(
-      and(
-        eq(bankAccounts.status, "done"),
-        gte(bankAccounts.openedDate, range.from),
-        lte(bankAccounts.openedDate, range.to),
-      ),
-    )
-    .groupBy(bankAccounts.createdBy);
-  for (const r of bankRows) {
-    const a = entry(r.createdBy);
-    a.accounts = r.accounts;
-    a.apps = r.apps;
-  }
+  const [bankRows, orderRows] = await Promise.all([
+    db
+      .select({
+        createdBy: bankAccounts.createdBy,
+        accounts: sql<number>`count(*)::int`,
+        // CNKD/HKD có `counts_as_app = false`: vẫn TÍNH ĐIỂM nhưng không đếm vào
+        // tổng app, nên hai cột này lọc khác nhau (mgst-db-design.md §9).
+        apps: sql<number>`count(*) filter (where ${bankAccounts.appInstalled} and ${banks.countsAsApp})::int`,
+      })
+      .from(bankAccounts)
+      .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
+      .where(
+        and(
+          inArray(bankAccounts.createdBy, userIds),
+          eq(bankAccounts.status, "done"),
+          gte(bankAccounts.openedDate, range.from),
+          lte(bankAccounts.openedDate, range.to),
+        ),
+      )
+      .groupBy(bankAccounts.createdBy),
+    db
+      .select({ createdBy: insuranceOrders.createdBy, n: sql<number>`count(*)::int` })
+      .from(insuranceOrders)
+      .where(
+        and(
+          inArray(insuranceOrders.createdBy, userIds),
+          gte(insuranceOrders.startDate, range.from),
+          lte(insuranceOrders.startDate, range.to),
+        ),
+      )
+      .groupBy(insuranceOrders.createdBy),
+  ]);
 
-  const orderRows = await db
-    .select({ createdBy: insuranceOrders.createdBy, n: sql<number>`count(*)::int` })
-    .from(insuranceOrders)
-    .where(and(gte(insuranceOrders.startDate, range.from), lte(insuranceOrders.startDate, range.to)))
-    .groupBy(insuranceOrders.createdBy);
+  for (const r of bankRows) {
+    const c = entry(r.createdBy);
+    c.accounts = r.accounts;
+    c.apps = r.apps;
+  }
   for (const r of orderRows) entry(r.createdBy).insuranceOrders = r.n;
 
   return map;
@@ -212,7 +287,7 @@ async function monthlyPointsFor(
   );
 }
 
-const daysLeftOf = (yearMonth: string): number => {
+export const daysLeftOf = (yearMonth: string): number => {
   const today = businessDay();
   if (yearMonth !== today.slice(0, 7)) return 0;
   const [y, m, d] = today.split("-").map(Number);
@@ -220,90 +295,81 @@ const daysLeftOf = (yearMonth: string): number => {
   return last - d;
 };
 
-export async function peopleFor(
+/**
+ * TRỌN danh sách nhân viên kèm điểm và SỐ ĐẾM theo kỳ, cho việc xuất Excel.
+ *
+ * Ba cột đếm (`accounts`, `apps`, `insuranceOrders`) chỉ còn sống ở đây. Màn
+ * P-51 đã bỏ chúng khỏi bảng, nên gộp trên kho tài khoản giờ chỉ xảy ra khi ai
+ * đó bấm xuất Excel, không phải mỗi lần gõ phím.
+ *
+ * KHÔNG có trần số dòng, khác `listCustomersForExport`. Trần bên đó có lý vì
+ * bảng khách hàng lớn thêm mỗi ngày làm việc; bảng này thì số dòng bằng số
+ * nhân viên công ty, chặn ở 20.000 là chặn một tình huống không tồn tại — mà
+ * cái giá của nó là nơi gọi phải nhớ so `rows.length` với `total`, một nghĩa vụ
+ * dễ quên và im lặng khi quên.
+ *
+ * Đây là route riêng chứ không phải tham số "lấy hết" trên route đã phân trang
+ * (AGENTS.md §5.1, điều 4).
+ */
+export async function peopleForExport(
   actor: User,
   query: { scope: string; period: string; summaryMonth: string; departmentId: string; search: string },
-): Promise<PeopleData> {
+): Promise<PersonScore[]> {
+  // Kẹp theo ĐÚNG hành động mà route gác — `export`, không phải `view-detail`.
+  // Lệch hai vế là ai có `view-detail` toàn công ty nhưng `export` một phòng
+  // vẫn tải được cả công ty bằng cách tự sửa `?scope=`.
   const requested = Scope.safeParse(query.scope);
-  const scope = clampScope(actor, "staff", "view-detail", requested.success ? requested.data : null);
+  const scope = clampScope(actor, "staff", "export", requested.success ? requested.data : null);
   const visible = visibleDepartmentIds(actor, scope);
-
-  // leftJoin, KHÔNG innerJoin: `users.department_id` để trống với ban giám đốc,
-  // innerJoin thì họ rơi khỏi cả danh sách lẫn các số tóm tắt mà không báo gì.
-  const rows =
-    visible !== null && visible.length === 0
-      ? []
-      : await db
-          .select({ user: users, departmentName: departments.name })
-          .from(users)
-          .leftJoin(departments, eq(departments.id, users.departmentId))
-          // Chỉ người đang làm mới có chỉ tiêu. Tính cả tài khoản đã khoá thì
-          // họ vào bảng với 0 điểm, `chưa đạt` phồng lên và điểm trung bình tụt
-          // — số trên thẻ tóm tắt sai mà không ai thấy vì sao.
-          .where(
-            visible === null
-              ? eq(users.active, true)
-              : and(eq(users.active, true), inArray(users.departmentId, visible)),
-          )
-          .orderBy(asc(users.fullName))
-          .limit(500);
-
-  const byDepartment = query.departmentId
-    ? rows.filter((r) => r.user.departmentId === query.departmentId)
-    : rows;
+  if (visible !== null && visible.length === 0) return [];
 
   const summaryMonth = query.summaryMonth || businessMonth();
-  const [periodAgg, points] = await Promise.all([
-    aggregatesByUser(periodOf(query.period || "today")),
-    storedPointsFor(summaryMonth),
-  ]);
 
-  // Mốc của ĐÚNG phòng từng người. Trước đây luôn truyền null nên bảng danh sách
-  // chấm mọi người theo mốc công ty, còn trang chi tiết chấm theo mốc phòng —
-  // cùng một người ra hai kết luận Đạt / Chưa đạt trái ngược.
-  const targets = await targetsFor(summaryMonth, byDepartment.map((r) => r.user.departmentId));
+  // Chỉ người đang làm mới có chỉ tiêu. Tính cả tài khoản đã khoá thì họ vào
+  // bảng với 0 điểm và cột "chưa đạt" phồng lên mà không ai thấy vì sao.
+  const where = and(
+    eq(users.active, true),
+    visible === null ? undefined : inArray(users.departmentId, visible),
+    query.departmentId ? eq(users.departmentId, query.departmentId) : undefined,
+    staffSearchWhere(query.search),
+  );
 
-  const toScore = (r: (typeof rows)[number], counts: Map<string, Aggregates>): PersonScore => {
-    const a = counts.get(r.user.id) ?? EMPTY;
-    const p = points.get(r.user.id) ?? EMPTY;
-    return {
-      id: r.user.id,
-      fullName: r.user.fullName,
-      staffCode: r.user.staffCode,
-      departmentName: r.departmentName ?? "",
-      bankingPoints: Math.round(p.bankingPoints),
-      servicePoints: Math.round(p.servicePoints),
-      accounts: a.accounts,
-      apps: a.apps,
-      insuranceOrders: a.insuranceOrders,
-      target: targets.get(r.user.departmentId) ?? 100,
-    };
-  };
+  // leftJoin, KHÔNG innerJoin: `users.department_id` để trống với ban giám đốc,
+  // innerJoin thì họ rơi khỏi bản xuất mà không báo gì.
+  const rows = await db
+    .select({
+      id: users.id,
+      fullName: users.fullName,
+      staffCode: users.staffCode,
+      departmentName: departments.name,
+      bankingPoints: bankingExpr,
+      servicePoints: serviceExpr,
+      target: targetExpr(summaryMonth),
+    })
+    .from(users)
+    .leftJoin(departments, eq(departments.id, users.departmentId))
+    .leftJoin(
+      kpiScores,
+      and(eq(kpiScores.userId, users.id), eq(kpiScores.yearMonth, summaryMonth)),
+    )
+    .where(where)
+    .orderBy(asc(sql`mgst_normalize(${users.fullName})`), asc(users.id));
 
-  // Điểm đã luôn của `summaryMonth`, nên bản này chỉ khác `people` ở chỗ không
-  // lọc theo ô tìm kiếm — bốn thẻ tóm tắt phải đếm trên cả phạm vi.
-  const monthScores = byDepartment.map((r) => toScore(r, periodAgg));
-  const onTarget = monthScores.filter((p) => p.bankingPoints + p.servicePoints >= p.target).length;
+  const counts = await countsFor(
+    rows.map((r) => r.id),
+    periodOf(query.period || "today"),
+  );
 
-  const people = byDepartment
-    .map((r) => toScore(r, periodAgg))
-    .filter((p) => !query.search || matchesSearch(`${p.fullName} ${p.departmentName}`, query.search));
-
-  return {
-    summaryMonth,
-    daysLeft: daysLeftOf(summaryMonth),
-    summary: {
-      headcount: monthScores.length,
-      onTarget,
-      offTarget: monthScores.length - onTarget,
-      averagePoints: monthScores.length
-        ? Math.round(
-            monthScores.reduce((s, p) => s + p.bankingPoints + p.servicePoints, 0) / monthScores.length,
-          )
-        : 0,
-    },
-    people,
-  };
+  return rows.map((r) => ({
+    id: r.id,
+    fullName: r.fullName,
+    staffCode: r.staffCode,
+    departmentName: r.departmentName ?? "",
+    bankingPoints: r.bankingPoints,
+    servicePoints: r.servicePoints,
+    ...(counts.get(r.id) ?? NO_COUNTS),
+    target: r.target,
+  }));
 }
 
 /**
@@ -403,8 +469,8 @@ export async function personFor(
     .limit(500);
 
   /* Điểm tháng (phần tóm tắt) + 5 tháng gần nhất. */
-  // Hồ sơ một người chỉ cần ĐIỂM của tháng — số đếm ở đây lấy từ các danh sách
-  // chi tiết bên dưới, không qua `aggregatesByUser`.
+  // Hồ sơ một người chỉ cần ĐIỂM của tháng — số đếm ở đây lấy từ chính các danh
+  // sách chi tiết bên dưới, không đi qua phép gộp nào.
   const monthAgg = (await storedPointsFor(summaryMonth)).get(id) ?? EMPTY;
   const target = await targetFor(summaryMonth, row.user.departmentId);
 
@@ -412,8 +478,8 @@ export async function personFor(
   const months = Array.from({ length: 5 }, (_, i) =>
     new Date(Date.UTC(y, m - 5 + i, 1)).toISOString().slice(0, 7),
   );
-  // MỘT câu mỗi bảng cho cả dải 5 tháng. Vòng lặp cũ gọi `aggregatesByUser` mỗi
-  // tháng, mà hàm đó quét TOÀN BỘ người dùng — 15 lượt quét bảng để lấy 5 con số.
+  // MỘT câu cho cả dải 5 tháng. Vòng lặp cũ gộp lại theo từng tháng trên TOÀN BỘ
+  // người dùng — 15 lượt quét bảng chỉ để lấy 5 con số của một người.
   const trend = await monthlyPointsFor(id, months[0], months[4]);
   const monthlyPoints = months.map((ym) => ({ month: ym, points: trend.get(ym) ?? 0 }));
 

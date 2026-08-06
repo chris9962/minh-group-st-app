@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Pencil, Plus, Users } from "lucide-react";
@@ -9,26 +9,23 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
 import { Button } from "@/components/ui/Button";
 import buttonStyles from "@/components/ui/Button.module.css";
-import { monthLabel, thisMonth } from "@/components/ui/MonthPicker";
-import { PeoplePeriodPicker } from "@/components/ui/PeoplePeriodPicker";
+import { MonthPicker, monthLabel, thisMonth } from "@/components/ui/MonthPicker";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { Select } from "@/components/ui/Select";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatCard } from "@/components/ui/StatCard";
 import { KpiRing } from "@/components/ui/KpiRing";
-import {
-  fetchPeople,
-  isOnTarget,
-  periodMonth,
-  periodParam,
-  pointsGap,
-  showsKpi,
-  totalPoints,
-  type PeriodMode,
-  type PersonScore,
-} from "@/lib/api/people";
 import { fetchDepartments } from "@/lib/api/departments";
-import { fetchStaff, type StaffAccount } from "@/lib/api/staff";
+import {
+  fetchStaff,
+  isOnTarget,
+  pointsGap,
+  type StaffAccount,
+  type StaffQuery,
+  type StaffRow,
+  type StaffSort,
+} from "@/lib/api/staff";
+import { EMPTY_PAGE, PAGE_SIZE, type SortDir } from "@/lib/api/pagination";
 import { FilterButton } from "@/components/ui/FilterButton";
 import { FilterChips } from "@/components/ui/FilterChips";
 import { Checkbox } from "@/components/ui/Checkbox";
@@ -56,89 +53,41 @@ function StaffName({ id, fullName, staffCode }: { id: string; fullName: string; 
   );
 }
 
-const BASE_COLUMNS: RankColumn<PersonScore>[] = [
-  {
-    key: "fullName",
-    label: "Nhân viên",
-    render: (p) => <StaffName id={p.id} fullName={p.fullName} staffCode={p.staffCode} />,
-  },
-  { key: "departmentName", label: "Đơn vị", render: (p) => p.departmentName },
-  {
-    key: "accounts",
-    label: "Tài khoản",
-    sortBy: (p) => p.accounts,
-    render: (p) => p.accounts,
-  },
-  {
-    key: "apps",
-    label: "App",
-    sortBy: (p) => p.apps,
-    render: (p) => p.apps,
-  },
-  {
-    key: "insuranceOrders",
-    label: "Đơn BH",
-    sortBy: (p) => p.insuranceOrders,
-    render: (p) => p.insuranceOrders,
-  },
-];
-
 /**
  * Ô chỉ tiêu: vòng tiến độ + chênh lệch, rê chuột ra câu đầy đủ.
  *
  * Cả cột nhìn một lượt là thấy ngay ai gần chỉ tiêu (vòng xanh, gần đầy) và ai
  * còn xa (vòng cam, hở nhiều) — nhanh hơn hẳn đọc từng dòng "Chưa đạt · còn 100".
  */
-function KpiGap({ score }: { score: PersonScore }) {
-  const total = totalPoints(score);
-  const gap = pointsGap(score);
-  const detail = isOnTarget(score)
-    ? `Đã đạt chỉ tiêu: ${total}/${score.target} điểm, vượt ${gap}.`
-    : `Chưa đạt: ${total}/${score.target} điểm, còn thiếu ${-gap}.`;
-  return <KpiRing value={total} target={score.target} detail={detail} />;
+function KpiGap({ row }: { row: StaffRow }) {
+  const gap = pointsGap(row);
+  const detail = isOnTarget(row)
+    ? `Đã đạt chỉ tiêu: ${row.points}/${row.target} điểm, vượt ${gap}.`
+    : `Chưa đạt: ${row.points}/${row.target} điểm, còn thiếu ${-gap}.`;
+  return <KpiRing value={row.points} target={row.target} detail={detail} />;
 }
 
-/** Chỉ hiện khi xem theo tháng — điểm một ngày không so được với chỉ tiêu tháng. */
-const KPI_COLUMNS: RankColumn<PersonScore>[] = [
-  {
-    key: "status",
-    label: "Chỉ tiêu",
-    // Sắp theo TỈ LỆ đạt, không theo hiệu số: mốc mỗi phòng có thể khác nhau
-    // nên "còn thiếu 10" của người mốc 50 nặng hơn của người mốc 200.
-    sortBy: (p) => (p.target > 0 ? totalPoints(p) / p.target : 0),
-    render: (p) => <KpiGap score={p} />,
-  },
-];
-
 /**
- * Hàng của bảng khi người xem quản trị được tài khoản.
+ * MỘT bộ cột cho mọi người có quyền xem nhân sự.
  *
- * Nguồn là DANH SÁCH TÀI KHOẢN chứ không phải danh sách có điểm, nên gồm cả kế
- * toán và quản trị hệ thống. Người không thuộc diện tính điểm để trống cột điểm
- * — 0 điểm nghĩa là có chỉ tiêu mà chưa làm được gì, khác hẳn "không có chỉ tiêu".
+ * Trước đây màn này có hai bảng khác nhau tuỳ quyền, và bảng của người quản trị
+ * thiếu hẳn ba cột đếm mà máy chủ vẫn đi gộp cả kho tài khoản để tính. Một bảng
+ * thì không còn chỗ cho kiểu lãng phí đó.
+ *
+ * `sortable` chỉ đặt ở cột nào máy chủ sắp được (`STAFF_SORT`) — khoá sắp đi
+ * thẳng vào `ORDER BY`, cột nào không có trong danh sách trắng thì bấm cũng
+ * không đổi gì mà người dùng lại tưởng bảng hỏng.
  */
-type StaffRow = StaffAccount & { score: PersonScore | null };
-
-/**
- * Cột thêm cho người quản trị tài khoản. Cố ý KHÔNG tách thành một bảng riêng:
- * hai bảng cho cùng một danh sách người là chỗ dễ lạc nhất — đổi qua lại thì
- * bộ lọc, số tóm tắt và cả nghĩa của chữ "trạng thái" đều đổi theo.
- */
-const ACCOUNT_COLUMNS: RankColumn<StaffRow>[] = [
+const BASE_COLUMNS: RankColumn<StaffRow>[] = [
   {
-    key: "fullName",
+    key: "name",
     label: "Nhân viên",
+    sortable: true,
     render: (r) => <StaffName id={r.id} fullName={r.fullName} staffCode={r.staffCode} />,
   },
   { key: "departmentName", label: "Đơn vị", render: (r) => r.departmentName || "—" },
-  { key: "role", label: "Chức vụ", render: (r) => ROLE_LABEL[r.role] },
-  {
-    key: "kpi",
-    label: "Chỉ tiêu",
-    // -1 để người không thuộc diện tính điểm nằm cuối, không lẫn với người 0%.
-    sortBy: (r) => (r.score && r.score.target > 0 ? totalPoints(r.score) / r.score.target : -1),
-    render: (r) => (r.score ? <KpiGap score={r.score} /> : "—"),
-  },
+  { key: "role", label: "Chức vụ", sortable: true, render: (r) => ROLE_LABEL[r.role] },
+  { key: "kpi", label: "Chỉ tiêu", sortable: true, render: (r) => <KpiGap row={r} /> },
 ];
 
 const ROLE_FILTERS = RoleKey.options.map((value) => ({
@@ -146,7 +95,7 @@ const ROLE_FILTERS = RoleKey.options.map((value) => ({
   label: ROLE_LABEL[value],
 }));
 
-/** P-51 · Danh sách nhân viên + điểm + quản trị tài khoản. */
+/** P-51 · Danh sách nhân viên + chỉ tiêu + quản trị tài khoản. */
 export default function PeoplePage() {
   const user = useSession((s) => s.user);
   // Phạm vi phải hỏi theo ĐÚNG module đang liệt kê. Trước đây hỏi theo
@@ -159,13 +108,17 @@ export default function PeoplePage() {
   // đang thu về phòng mình quản, mà không chỗ nào nói ra điều đó.
   const scopes = availableScopes(user, "staff", "view-detail");
   const scope: Scope = scopes.at(-1) ?? "own";
-  const [period, setPeriod] = useState<PeriodMode>({ kind: "this-month" });
+
+  const [month, setMonth] = useState(thisMonth());
   const [departmentId, setDepartmentId] = useState("");
   const [search, setSearch] = useState("");
   const searchQuery = useDebouncedValue(search);
   // Mặc định KHÔNG chọn gì = lấy hết. Giữ mảng rỗng thay vì nhồi sẵn cả 6 mục
   // để "chưa lọc" và "lọc đúng 6 mục" không lẫn vào nhau ở tầng gọi API.
   const [roles, setRoles] = useState<RoleKey[]>([]);
+  const [page, setPage] = useState(0);
+  const [sort, setSort] = useState<StaffSort>("kpi");
+  const [dir, setDir] = useState<SortDir>("desc");
   const [editing, setEditing] = useState<StaffAccount | null>(null);
   const [creating, setCreating] = useState(false);
 
@@ -177,104 +130,102 @@ export default function PeoplePage() {
     staleTime: Infinity,
   });
 
-  const current = thisMonth();
-  const summaryMonth = periodMonth(period, current);
-  const param = periodParam(period, current);
+  /** Đổi bộ lọc thì về trang đầu — giữ nguyên trang 5 của kết quả cũ là hiện một khúc rỗng. */
+  const refine = (apply: () => void) => {
+    apply();
+    setPage(0);
+  };
 
-  const { data, isPending, isError, refetch, isFetching } = useQuery({
-    queryKey: ["people", scope, param, summaryMonth, departmentId, searchQuery],
-    queryFn: () =>
-      fetchPeople({
-        scope,
-        period: param,
-        summaryMonth,
-        departmentId,
-        search: searchQuery,
-      }),
-    // Giữ bảng cũ trong lúc gõ tiếp — không thì mỗi lần đổi từ khoá bảng lại
-    // biến mất rồi hiện lại, nhìn giật.
-    placeholderData: (previous) => previous,
-  });
-
-  // Danh sách tài khoản chỉ tải khi có quyền — không thì gọi API vô nghĩa.
-  const {
-    data: staffData,
-    isError: staffError,
-    refetch: refetchStaff,
-    isFetching: staffFetching,
-  } = useQuery({
-    queryKey: ["staff", scope, departmentId, searchQuery, roles],
+  const query: StaffQuery = {
+    scope,
+    departmentId,
+    search: searchQuery,
+    summaryMonth: month,
     // Chỉ người đang làm. Người đã khoá xem trong hồ sơ của họ, không lẫn vào
     // danh sách hằng ngày.
-    queryFn: () =>
-      fetchStaff({
-        scope,
-        departmentId,
-        search: searchQuery,
-        status: "active",
-        roles,
-      }),
-    enabled: canManage,
-    placeholderData: (previous) => previous,
+    status: "active",
+    roles,
+    page,
+    sort,
+    dir,
+  };
+
+  const { data, isPending, isError, refetch, isFetching } = useQuery({
+    // `roles` sắp lại trước khi vào khoá: ô tích bỏ rồi tích lại đẩy phần tử
+    // xuống cuối mảng, cùng một tập nhưng khác khoá — thêm một ô cache trùng
+    // nội dung và một lượt gọi mạng thừa.
+    queryKey: ["staff", { ...query, roles: [...roles].sort() }],
+    queryFn: () => fetchStaff(query),
+    /**
+     * Giữ trang cũ trong lúc tải trang mới. Không giữ thì `isPending` bật lại
+     * theo từng lần đổi khoá: bảng bị thay bằng skeleton, số đếm nhảy về 0, và
+     * nút "Sau" rời khỏi DOM — bấm hai lần liên tiếp là cú thứ hai rơi vào chỗ
+     * trống, còn người dùng bàn phím thì mất tiêu điểm (AGENTS.md §8).
+     */
+    placeholderData: keepPreviousData,
   });
 
-  const people = data?.people ?? [];
-  const scoreById = new Map(people.map((p) => [p.id, p]));
-  const staffRows: StaffRow[] = (staffData?.staff ?? []).map((s) => ({
-    ...s,
-    score: scoreById.get(s.id) ?? null,
-  }));
+  const rows = data?.page.rows ?? EMPTY_PAGE.rows;
+  const summary = data?.summary;
+
+  // Kho rỗng và "lọc không ra gì" là hai chuyện khác nhau. Nói nhầm thì trưởng
+  // phòng của một phòng mới đi tìm bộ lọc để xoá, trong khi không có cái nào bật.
+  const filtering = Boolean(searchQuery || departmentId || roles.length > 0);
 
   // Nút chỉ có icon nên `aria-label` phải kèm tên người: giữa mười dòng giống
   // nhau, "Sửa" một mình không nói đang sửa ai.
-  const accountColumns = useMemo<RankColumn<StaffRow>[]>(
-    () => [
-      ...ACCOUNT_COLUMNS,
-      {
-        key: "actions",
-        label: "Thao tác",
-        render: (r) => (
-          <Button
-            variant="secondary"
-            icon
-            aria-label={`Sửa ${r.fullName}`}
-            onClick={() => setEditing(r)}
-          >
-            <Pencil size={16} aria-hidden />
-          </Button>
-        ),
-      },
-    ],
-    [setEditing],
+  const columns = useMemo<RankColumn<StaffRow>[]>(
+    () =>
+      canManage
+        ? [
+            ...BASE_COLUMNS,
+            {
+              key: "actions",
+              label: "Thao tác",
+              render: (r) => (
+                <Button
+                  variant="secondary"
+                  icon
+                  aria-label={`Sửa ${r.fullName}`}
+                  onClick={() => setEditing(r)}
+                >
+                  <Pencil size={16} aria-hidden />
+                </Button>
+              ),
+            },
+          ]
+        : BASE_COLUMNS,
+    [canManage],
   );
-
-  const withKpi = showsKpi(period);
-  const columns = withKpi
-    ? [...BASE_COLUMNS.slice(0, 2), ...KPI_COLUMNS, ...BASE_COLUMNS.slice(2)]
-    : BASE_COLUMNS;
-  const periodText = period.kind === "today" ? "Hôm nay" : monthLabel(summaryMonth);
 
   return (
     <>
       <TopBar title="Nhân sự & KPI">
         <SearchField
           label="Tìm nhân viên"
-          placeholder="Tìm tên nhân viên, đơn vị…"
+          placeholder="Tìm tên, tên đăng nhập, đơn vị…"
           value={search}
-          onChange={setSearch}
+          onChange={(v) => {
+            // Về trang đầu ngay lúc gõ, không đợi hoãn xong: đang ở trang 3 mà
+            // kết quả mới chỉ có 2 dòng thì trang 3 là một khúc rỗng.
+            setSearch(v);
+            setPage(0);
+          }}
         />
         <FilterButton
           activeCount={(departmentId ? 1 : 0) + (roles.length > 0 ? 1 : 0)}
-          onClear={() => {
-            setDepartmentId("");
-            setRoles([]);
-          }}
+          onClear={() =>
+            refine(() => {
+              setDepartmentId("");
+              setRoles([]);
+            })
+          }
         >
-          <PeoplePeriodPicker value={period} onChange={setPeriod} />
+          <MonthPicker value={month} onChange={(m) => refine(() => setMonth(m))} />
           <Select
             label="Đơn vị"
             value={departmentId}
-            onChange={setDepartmentId}
+            onChange={(v) => refine(() => setDepartmentId(v))}
             options={[
               { value: "", label: "Tất cả đơn vị" },
               ...departments.map((d) => ({ value: d.id, label: d.name })),
@@ -298,7 +249,7 @@ export default function PeoplePage() {
                     : current.filter((x) => x !== r.value);
                   // Bỏ tích hết cũng coi như lấy hết — bảng trống trơn thì
                   // người dùng tưởng mất dữ liệu.
-                  setRoles(next.length === ROLE_FILTERS.length ? [] : next);
+                  refine(() => setRoles(next.length === ROLE_FILTERS.length ? [] : next));
                 }}
               />
             ))}
@@ -313,60 +264,48 @@ export default function PeoplePage() {
       </TopBar>
 
       <main className={styles.body}>
-        {canManage && (
-          <FilterChips
-            chips={[
-              ...(departmentId
-                ? [
-                    {
-                      label: `Đơn vị: ${departments.find((d) => d.id === departmentId)?.name ?? departmentId}`,
-                      onRemove: () => setDepartmentId(""),
-                    },
-                  ]
-                : []),
-              ...(roles.length > 0
-                ? [
-                    {
-                      label: `Chức vụ: ${roles
-                        .map(
-                          (r) =>
-                            ROLE_FILTERS.find((x) => x.value === r)?.label ?? r,
-                        )
-                        .join(", ")}`,
-                      onRemove: () => setRoles([]),
-                    },
-                  ]
-                : []),
-            ]}
-          />
-        )}
+        <FilterChips
+          chips={[
+            ...(departmentId
+              ? [
+                  {
+                    label: `Đơn vị: ${departments.find((d) => d.id === departmentId)?.name ?? departmentId}`,
+                    onRemove: () => refine(() => setDepartmentId("")),
+                  },
+                ]
+              : []),
+            ...(roles.length > 0
+              ? [
+                  {
+                    label: `Chức vụ: ${roles
+                      .map((r) => ROLE_FILTERS.find((x) => x.value === r)?.label ?? r)
+                      .join(", ")}`,
+                    onRemove: () => refine(() => setRoles([])),
+                  },
+                ]
+              : []),
+          ]}
+        />
 
         {isPending && (
           <>
             <SkeletonStats count={3} />
-            <SkeletonTable rows={8} columns={6} />
+            <SkeletonTable rows={8} columns={5} />
           </>
         )}
         {isError && (
           <ErrorState what="danh sách nhân viên" onRetry={refetch} retrying={isFetching} />
         )}
 
-        {data && (
+        {data && summary && (
           <>
             <div className={styles.stats}>
+              <StatCard value={summary.active + summary.locked} label="nhân viên" />
+              <StatCard value={summary.onTarget} label="đã đạt chỉ tiêu" />
               <StatCard
-                value={
-                  canManage && staffData
-                    ? staffData.summary.active + staffData.summary.locked
-                    : data.summary.headcount
-                }
-                label="nhân viên"
-              />
-              <StatCard value={data.summary.onTarget} label="đã đạt chỉ tiêu" />
-              <StatCard
-                value={data.summary.offTarget}
+                value={summary.offTarget}
                 label="chưa đạt"
-                tone={data.summary.offTarget > 0 ? "attention" : "normal"}
+                tone={summary.offTarget > 0 ? "attention" : "normal"}
                 detail={data.daysLeft > 0 ? `còn ${data.daysLeft} ngày` : undefined}
               />
             </div>
@@ -376,65 +315,47 @@ export default function PeoplePage() {
               icon={<Users size={17} />}
               meta={
                 searchQuery
-                  ? `${periodText} · khớp ${people.length}/${data.summary.headcount}`
-                  : periodText
+                  ? `${monthLabel(month)} · khớp ${data.page.total}`
+                  : monthLabel(month)
               }
             >
-              {people.length === 0 && (
-                <p className="text-muted">
-                  {searchQuery
+              <RankTable
+                rows={rows}
+                columns={columns}
+                rowKey={(r) => r.id}
+                defaultSort={sort}
+                caption={`Nhân viên và chỉ tiêu ${monthLabel(month)}`}
+                emptyText={
+                  searchQuery
                     ? `Không tìm thấy nhân viên nào khớp “${searchQuery}”.`
-                    : "Không có nhân viên nào trong đơn vị đang lọc."}
-                </p>
-              )}
-              {/* `canManage` là create||update, còn /api/staff đòi view-detail —
-                  hai vế khác nhau, nên query này 403 được trong khi bảng vẫn
-                  dựng. Không có nhánh lỗi thì ra bảng RỖNG, không skeleton
-                  không báo lỗi, đọc ra như "phòng không còn ai". */}
-              {canManage && staffError ? (
-                <ErrorState
-                  what="danh sách tài khoản nhân viên"
-                  onRetry={refetchStaff}
-                  retrying={staffFetching}
-                />
-              ) : canManage ? (
-                <RankTable
-                  rows={staffRows}
-                  columns={accountColumns}
-                  rowKey={(r) => r.id}
-                  defaultSort="kpi"
-                  pageSize={10}
-                  caption={`Nhân viên, tài khoản và số liệu ${periodText}`}
-                />
-              ) : (
-                <RankTable
-                  key={withKpi ? "kpi" : "daily"}
-                  rows={people}
-                  columns={columns}
-                  rowKey={(p) => p.id}
-                  defaultSort={withKpi ? "status" : "accounts"}
-                  pageSize={10}
-                  caption={`Nhân viên và số liệu ${periodText}`}
-                />
-              )}
+                    : filtering
+                      ? "Không có nhân viên nào khớp bộ lọc đang chọn."
+                      : "Chưa có nhân viên nào."
+                }
+                server={{
+                  sort,
+                  dir,
+                  page,
+                  total: data.page.total,
+                  pageSize: PAGE_SIZE,
+                  onSortChange: (nextSort, nextDir) => {
+                    setSort(nextSort as StaffSort);
+                    setDir(nextDir);
+                    setPage(0);
+                  },
+                  onPageChange: setPage,
+                }}
+              />
               {searchQuery && (
                 <p className={styles.footnote}>
-                  Bốn số tóm tắt phía trên không đổi theo ô tìm kiếm — chúng là
+                  Ba số tóm tắt phía trên không đổi theo ô tìm kiếm — chúng là
                   của cả {departmentId ? "đơn vị đang lọc" : "phạm vi đang xem"},
                   còn ô tìm kiếm chỉ lọc bảng.
-                </p>
-              )}
-              {!withKpi && (
-                <p className={styles.footnote}>
-                  Xem theo ngày nên không có cột điểm và trạng thái — chỉ tiêu tính
-                  theo tháng, điểm của một ngày không so với chỉ tiêu nào được. Bốn
-                  số tóm tắt phía trên vẫn là của {monthLabel(summaryMonth)}.
                 </p>
               )}
             </SectionCard>
           </>
         )}
-
         {(creating || editing) && (
           <StaffFormDialog
             open

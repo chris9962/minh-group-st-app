@@ -18,10 +18,10 @@ import { errorMessage } from "@/lib/toast";
 import { fetchDepartments } from "@/lib/api/departments";
 import { fetchInsuranceOrders } from "@/lib/api/insurance";
 import { INSURANCE_STATUS_LABEL, InsuranceOrderStatus } from "@/lib/api/insuranceOrders";
-import { fetchPeople, periodMonth, periodParam, totalPoints } from "@/lib/api/people";
+import { fetchPeopleForExport, periodMonth, periodParam, totalPoints } from "@/lib/api/people";
 import { fetchServices } from "@/lib/api/services";
 import { fetchServiceTypes } from "@/lib/api/settings";
-import { fetchStaff } from "@/lib/api/staff";
+import { fetchStaffOptions } from "@/lib/api/staff";
 import { fetchProvinces } from "@/lib/api/wardCatalog";
 import { exportExcel, type ExcelColumn } from "@/lib/excel";
 import { can, scopeFor } from "@/lib/permissions";
@@ -240,9 +240,9 @@ export default function ExportsPage() {
   const wards = provinces.flatMap((p) => p.wards);
   const { data: staffData } = useQuery({
     queryKey: ["staff-all-for-export"],
-    queryFn: () => fetchStaff({ scope: "company", departmentId: "", search: "", status: "active", roles: [] }),
+    queryFn: () => fetchStaffOptions({ status: "active" }),
   });
-  const staffOptions = staffData?.staff ?? [];
+  const staffOptions = staffData ?? [];
   const usernameById = new Map(staffOptions.map((s) => [s.id, s.username]));
   const staffById = new Map(staffOptions.map((s) => [s.id, s]));
 
@@ -373,7 +373,7 @@ export default function ExportsPage() {
       const scope: Scope = scopeFor(user, "staff", "export") ?? "own";
       const param = periodParam({ kind: "month", month }, thisMonth());
       const summaryMonth = periodMonth({ kind: "month", month }, thisMonth());
-      const { people } = await fetchPeople({ scope, period: param, summaryMonth, departmentId, search: "" });
+      const people = await fetchPeopleForExport({ scope, period: param, summaryMonth, departmentId, search: "" });
       await exportExcel({
         fileName: `nhan-vien-diem-${month}.xlsx`,
         sheetName: "Nhân viên và điểm",

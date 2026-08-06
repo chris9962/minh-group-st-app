@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { ManageScope, Permission, RoleKey } from '@/lib/types';
+import { pageOf, pageParams, type PageQuery } from './pagination';
 
 /** Hồ sơ nhân viên = tài khoản đăng nhập. Một thứ, không tách (spec §2.2). */
 
@@ -30,14 +31,48 @@ export const StaffAccount = z.object({
 });
 export type StaffAccount = z.infer<typeof StaffAccount>;
 
+/**
+ * Một dòng của bảng P-51: hồ sơ nhân viên + ô chỉ tiêu.
+ *
+ * Điểm và mốc đi kèm ngay trong dòng vì bảng cho SẮP theo tỉ lệ đạt — máy chủ
+ * phải tự tính lấy thì mới cắt đúng trang (AGENTS.md §5.1, điều 3).
+ */
+export const StaffRow = StaffAccount.extend({
+  /** Điểm tháng, đã làm tròn. Chưa có bản ghi nào thì bằng 0 thật. */
+  points: z.number(),
+  /** Mốc của đúng phòng người này. */
+  target: z.number(),
+});
+export type StaffRow = z.infer<typeof StaffRow>;
+
+export const StaffSummary = z.object({
+  active: z.number(),
+  locked: z.number(),
+  onTarget: z.number(),
+  offTarget: z.number(),
+});
+export type StaffSummary = z.infer<typeof StaffSummary>;
+
 export const StaffList = z.object({
-  summary: z.object({
-    active: z.number(),
-    locked: z.number(),
-  }),
-  staff: z.array(StaffAccount),
+  /** Tháng của phần tóm tắt. Luôn là tháng, kể cả khi bảng đang xem theo ngày. */
+  summaryMonth: z.string(),
+  /** Số ngày còn lại của tháng. 0 nếu không phải tháng hiện tại. */
+  daysLeft: z.number(),
+  /** Đếm trên PHẠM VI + ĐƠN VỊ, cố ý bỏ qua tìm kiếm / trạng thái / chức vụ. */
+  summary: StaffSummary,
+  page: pageOf(StaffRow),
 });
 export type StaffList = z.infer<typeof StaffList>;
+
+export const isOnTarget = (r: { points: number; target: number }) => r.points >= r.target;
+export const pointsGap = (r: { points: number; target: number }) => r.points - r.target;
+
+/**
+ * Ba khoá sắp, và chỉ ba — khoá đi thẳng vào `ORDER BY` nên phải qua danh sách
+ * trắng (AGENTS.md §5.1, điều 2).
+ */
+export const STAFF_SORT = ['name', 'role', 'kpi'] as const;
+export type StaffSort = (typeof STAFF_SORT)[number];
 
 /**
  * Biểu mẫu tạo / sửa nhân viên.
@@ -95,19 +130,59 @@ export const SaveError = z.object({
 });
 export type SaveError = z.infer<typeof SaveError>;
 
-export type StaffQuery = {
+export type StaffQuery = PageQuery<StaffSort> & {
   scope: string;
   departmentId: string;
   search: string;
+  /** Tháng chấm điểm. Rỗng = tháng làm việc hiện tại. */
+  summaryMonth: string;
   /** `all` gồm cả người đã khoá. Mặc định chỉ hiện người đang làm. */
   status: 'active' | 'locked' | 'all';
   /** Chức vụ cần lấy. RỖNG nghĩa là lấy hết — không phải "không lấy gì". */
   roles: RoleKey[];
 };
 
+/**
+ * Danh sách nhân viên RÚT GỌN, trọn bộ — cho ô tra cứu id → tên và cho khối
+ * "Nhân viên" ở trang chi tiết phòng ban.
+ *
+ * Route riêng chứ không phải tham số "lấy hết" trên route đã phân trang
+ * (AGENTS.md §5.1, điều 4): mở đường đó một lần thì màn sau nào cũng lách.
+ * Payload cố ý mỏng: đủ để tra cứu và hiện tên, KHÔNG kèm bảng quyền.
+ */
+export const StaffOption = z.object({
+  id: z.string(),
+  fullName: z.string(),
+  username: z.string(),
+  staffCode: z.string().nullable(),
+  phone: z.string(),
+  departmentName: z.string(),
+  role: RoleKey,
+  title: z.string(),
+  active: z.boolean(),
+});
+export type StaffOption = z.infer<typeof StaffOption>;
+
+export async function fetchStaffOptions(
+  query: { departmentId?: string; status?: 'active' | 'all' } = {},
+): Promise<StaffOption[]> {
+  const params = new URLSearchParams();
+  if (query.departmentId) params.set('departmentId', query.departmentId);
+  if (query.status) params.set('status', query.status);
+  const res = await fetch(`/api/staff/options?${params}`);
+  if (!res.ok) throw new Error('Không tải được danh sách nhân viên');
+  return z.array(StaffOption).parse(await res.json());
+}
+
 export async function fetchStaff(query: StaffQuery): Promise<StaffList> {
-  const { roles, ...rest } = query;
-  const params = new URLSearchParams({ ...rest, roles: roles.join(',') });
+  const params = pageParams(query, {
+    scope: query.scope,
+    departmentId: query.departmentId,
+    search: query.search,
+    summaryMonth: query.summaryMonth,
+    status: query.status,
+    roles: query.roles.join(','),
+  });
   const res = await fetch(`/api/staff?${params}`);
   if (!res.ok) throw new Error('Không tải được danh sách nhân viên');
   return StaffList.parse(await res.json());

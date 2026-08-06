@@ -49,7 +49,7 @@ export function ServiceTypeFormDialog({ open, onClose, serviceType }: Props) {
       queryClient.invalidateQueries({ queryKey: ["service-types"] });
       // Hệ số vào thẳng công thức điểm KPI, mà P-51/P-52 đọc điểm qua các khoá
       // này — không nạp lại thì hai màn đó hiện điểm theo hệ số cũ.
-      queryClient.invalidateQueries({ queryKey: ["people"] });
+      queryClient.invalidateQueries({ queryKey: ["staff"] });
       queryClient.invalidateQueries({ queryKey: ["person"] });
       queryClient.invalidateQueries({ queryKey: ["services"] });
       setConfirming(null);

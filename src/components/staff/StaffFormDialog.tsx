@@ -85,12 +85,12 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
         ? updateStaff(staff.id, form, actor?.id ?? "")
         : createStaff(form, actor?.id ?? ""),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["staff"] });
-      // `AccountCard` đọc khoá riêng `["staff-one", id]`, và bảng KPI cùng màn
-      // đọc `["people"]` — bỏ sót thì sửa xong chức vụ mà thẻ bên dưới vẫn
+      // Ba khoá riêng biệt, bỏ sót cái nào thì sửa xong chức vụ mà chỗ đó vẫn
       // hiện giá trị cũ suốt 30 giây, người dùng tưởng lưu hỏng và lưu lại.
+      // `["staff"]` là bảng P-51, `["staff-one", id]` là `AccountCard`,
+      // `["person"]` là hồ sơ điểm P-52.
+      queryClient.invalidateQueries({ queryKey: ["staff"] });
       if (staff) queryClient.invalidateQueries({ queryKey: ["staff-one", staff.id] });
-      queryClient.invalidateQueries({ queryKey: ["people"] });
       queryClient.invalidateQueries({ queryKey: ["person"] });
       toast.ok(staff ? "Đã lưu hồ sơ nhân viên" : "Đã thêm nhân viên");
       onClose();

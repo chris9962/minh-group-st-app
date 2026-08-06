@@ -39,7 +39,7 @@ export function KpiTargetSection() {
     onSuccess: (next) => {
       queryClient.setQueryData(["kpi-target"], next);
       // P-51/P-52 đọc chỉ tiêu này — đổi xong phải thấy ngay ở đó.
-      queryClient.invalidateQueries({ queryKey: ["people"] });
+      queryClient.invalidateQueries({ queryKey: ["staff"] });
       queryClient.invalidateQueries({ queryKey: ["person"] });
       toast.ok("Đã lưu chỉ tiêu mới");
     },

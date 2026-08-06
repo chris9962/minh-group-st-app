@@ -40,36 +40,30 @@ export const PersonScore = z.object({
 });
 export type PersonScore = z.infer<typeof PersonScore>;
 
-export const PeopleData = z.object({
-  /** Tháng của phần tóm tắt. Luôn là tháng, kể cả khi bảng đang xem theo ngày. */
-  summaryMonth: z.string(),
-  /** Số ngày còn lại của tháng. 0 nếu không phải tháng hiện tại. */
-  daysLeft: z.number(),
-  summary: z.object({
-    headcount: z.number(),
-    onTarget: z.number(),
-    offTarget: z.number(),
-    averagePoints: z.number(),
-  }),
-  /** Số liệu theo kỳ đang chọn — ngày hoặc tháng. */
-  people: z.array(PersonScore),
-});
-export type PeopleData = z.infer<typeof PeopleData>;
-
-export const totalPoints = (p: PersonScore) => p.bankingPoints + p.servicePoints;
-export const isOnTarget = (p: PersonScore) => totalPoints(p) >= p.target;
-export const pointsGap = (p: PersonScore) => totalPoints(p) - p.target;
+export const totalPoints = (p: { bankingPoints: number; servicePoints: number }) =>
+  p.bankingPoints + p.servicePoints;
 
 export type PeopleQuery = {
   scope: Scope;
   period: string;
   summaryMonth: string;
   departmentId: string;
-  /** Tìm theo tên nhân viên hoặc tên đơn vị. Không dấu cũng khớp. */
+  /** Tìm theo tên nhân viên, tên đăng nhập hoặc tên đơn vị. Không dấu cũng khớp. */
   search: string;
 };
 
-export async function fetchPeople(query: PeopleQuery): Promise<PeopleData> {
+/**
+ * TRỌN danh sách khớp bộ lọc, CHỈ cho việc xuất Excel.
+ *
+ * Màn P-51 không dùng hàm này: bảng ở đó lấy đúng một trang qua `fetchStaff`.
+ * Ba cột đếm (`accounts`, `apps`, `insuranceOrders`) chỉ còn sống trong file
+ * Excel, nên phép gộp trên kho tài khoản giờ chạy một lượt mỗi lần bấm xuất,
+ * thay vì mỗi lần gõ phím.
+ *
+ * Không có trần số dòng nên cũng không có chuyện file bị cắt âm thầm — số dòng
+ * ở đây bằng số nhân viên công ty, không lớn thêm theo ngày làm việc.
+ */
+export async function fetchPeopleForExport(query: PeopleQuery): Promise<PersonScore[]> {
   const params = new URLSearchParams({
     scope: query.scope,
     period: query.period,
@@ -77,7 +71,7 @@ export async function fetchPeople(query: PeopleQuery): Promise<PeopleData> {
     departmentId: query.departmentId,
     search: query.search,
   });
-  const res = await fetch(`/api/people?${params}`);
+  const res = await fetch(`/api/people/export?${params}`);
   if (!res.ok) throw new Error('Không tải được danh sách nhân viên');
-  return PeopleData.parse(await res.json());
+  return z.array(PersonScore).parse(await res.json());
 }
