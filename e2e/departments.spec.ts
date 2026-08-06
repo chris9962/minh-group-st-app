@@ -103,11 +103,61 @@ test("lập phòng mới rồi đổi tên", async ({ page }) => {
   await expect(page.locator("table tbody")).toContainText(`${name} 2`);
 });
 
-test("bốn cột số liệu của module ngân hàng chưa chạy — không được bịa số", async ({ page }) => {
-  // TODO(P-91, chờ module ngân hàng): route thống kê còn là stub trả rỗng. Ca
-  // này giữ cho tới ngày module ngân hàng lên; lúc đó đổi thành kiểm số thật.
-  const stats = await page.request.get("/api/org/departments/stats");
-  expect(stats.status()).toBe(200);
-  const body = (await stats.json()) as unknown[];
-  expect(Array.isArray(body) ? body.length : 0, "stub phải trả rỗng, không phải số bịa").toBe(0);
+/**
+ * Bốn cột số liệu nghiệp vụ của bảng phòng ban.
+ *
+ * ⚠️ Bản trước của ca này XANH VÔ NGHĨA: nó ép body thành `unknown[]` rồi hỏi
+ * `Array.isArray(body) ? body.length : 0`, mà route trả về một OBJECT
+ * `{ departments: [...] }` — nhánh `Array.isArray` luôn sai nên vế trái luôn
+ * bằng 0 và phép so luôn đúng, bất kể máy chủ trả gì. Nó "canh" stub suốt một
+ * thời gian dài mà không canh được gì.
+ */
+test("mỗi phòng đang hoạt động có đúng một dòng số liệu, phòng chưa phát sinh là 0", async ({
+  page,
+}) => {
+  for (const period of ["today", "this-month", "range:2026-07-01:2026-07-31"]) {
+    const res = await page.request.get(
+      `/api/org/departments/stats?period=${encodeURIComponent(period)}`,
+    );
+    expect(res.status(), `kỳ ${period}`).toBe(200);
+
+    const body = (await res.json()) as {
+      departments: {
+        id: string;
+        name: string;
+        accountsOpened: number;
+        appsInstalled: number;
+        customers: number;
+        previousInstallRate: number | null;
+      }[];
+    };
+
+    expect(body.departments.length, "phải có dòng cho mọi phòng đang hoạt động").toBeGreaterThan(0);
+
+    for (const d of body.departments) {
+      // Phòng chưa phát sinh gì phải mang số 0 chứ không vắng mặt: vắng mặt thì
+      // giao diện hiện "—", mà "—" nghĩa là "không đọc được số liệu".
+      expect(Number.isInteger(d.accountsOpened), `${d.name}: TK mở phải là số nguyên`).toBe(true);
+      expect(d.accountsOpened).toBeGreaterThanOrEqual(0);
+      // Không thể có nhiều app hơn số tài khoản đã mở — tỉ lệ cài sẽ vượt 100%.
+      expect(d.appsInstalled, `${d.name}: app cài không được nhiều hơn TK mở`).toBeLessThanOrEqual(
+        d.accountsOpened,
+      );
+      expect(d.customers, `${d.name}: số khách không được nhiều hơn TK mở`).toBeLessThanOrEqual(
+        d.accountsOpened,
+      );
+    }
+
+    // Khoảng ngày tự chọn KHÔNG có "kỳ liền trước" nào định nghĩa được.
+    if (period.startsWith("range:")) {
+      for (const d of body.departments) expect(d.previousInstallRate).toBeNull();
+    }
+  }
+});
+
+test("kỳ gõ bậy không làm vỡ màn, rơi về hôm nay", async ({ page }) => {
+  const res = await page.request.get("/api/org/departments/stats?period=rác");
+  expect(res.status()).toBe(200);
+  const body = (await res.json()) as { departments: unknown[] };
+  expect(body.departments.length).toBeGreaterThan(0);
 });

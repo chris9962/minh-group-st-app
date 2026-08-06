@@ -1,14 +1,15 @@
-import { and, asc, count, eq, sql } from "drizzle-orm";
-import { matchesSearch, removeDiacritics, uniqueCode } from "@/lib/format";
+import { and, asc, count, eq, gte, lte, sql } from "drizzle-orm";
+import { businessDay, matchesSearch, monthRange, removeDiacritics, uniqueCode } from "@/lib/format";
 import {
   ORG_ERROR,
   type DepartmentDetail,
   type DepartmentList,
   type DepartmentRow,
+  type DepartmentStats,
   type OrgErrorCode,
 } from "@/lib/api/org";
 import { db, uniqueViolationOf } from "./db/client";
-import { departments, userManagedDepartments, users } from "./db/schema";
+import { bankAccounts, banks, departments, userManagedDepartments, users } from "./db/schema";
 
 /**
  * P-91 · Phòng ban — bản DB của src/mocks/org.ts, cùng luật:
@@ -218,5 +219,126 @@ export async function departmentDetailFor(id: string): Promise<DepartmentDetail 
     },
     managers,
     managedByDefault,
+  };
+}
+
+/* ── P-91 · Số liệu nghiệp vụ theo phòng ───────────────────────────────── */
+
+type Range = { from: string; to: string };
+
+/** Lùi một ngày, giữ dạng `YYYY-MM-DD`. */
+const dayBefore = (day: string): string =>
+  new Date(`${day}T00:00:00Z`).getTime() - 86_400_000 > 0
+    ? new Date(new Date(`${day}T00:00:00Z`).getTime() - 86_400_000).toISOString().slice(0, 10)
+    : day;
+
+/** Lùi một tháng, giữ dạng `YYYY-MM`. */
+const monthBefore = (yearMonth: string): string => {
+  const [y, m] = yearMonth.split("-").map(Number);
+  return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, "0")}`;
+};
+
+/**
+ * Đọc chuỗi kỳ mà `PeriodPicker` gửi lên: `today`, `this-month`, hoặc
+ * `range:YYYY-MM-DD:YYYY-MM-DD`.
+ *
+ * `previous` là kỳ liền trước để so tăng/giảm, và nó `null` với khoảng ngày tự
+ * chọn — một khoảng tuỳ ý không có "kỳ liền trước" nào định nghĩa được. Chuỗi
+ * lạ rơi về `today` chứ không trả 400: một ô địa chỉ gõ nhầm không đáng làm
+ * hỏng cả màn.
+ */
+function periodRanges(key: string, today: string): { current: Range; previous: Range | null } {
+  if (key === "this-month") {
+    const month = today.slice(0, 7);
+    return { current: monthRange(month), previous: monthRange(monthBefore(month)) };
+  }
+
+  const range = key.match(/^range:(\d{4}-\d{2}-\d{2}):(\d{4}-\d{2}-\d{2})$/);
+  if (range) return { current: { from: range[1], to: range[2] }, previous: null };
+
+  const yesterday = dayBefore(today);
+  return { current: { from: today, to: today }, previous: { from: yesterday, to: yesterday } };
+}
+
+/**
+ * Đếm tài khoản mở, app đã cài và số khách theo phòng, trong một khoảng ngày.
+ *
+ * Gộp theo `created_by_department_id` — ĐƠN VỊ CHỤP LÚC TẠO, không tra động từ
+ * hồ sơ nhân viên: người luân chuyển phòng không được làm đổi số liệu tháng
+ * trước.
+ *
+ * "App đã cài" đếm tài khoản có `app_installed` VÀ ngân hàng đó `counts_as_app`
+ * — cùng định nghĩa với cảnh báo mềm ở `server/banking.ts`. Đây là phép ĐẾM dữ
+ * liệu thô, khác hẳn công thức tính ĐIỂM đang chờ file luật của kỳ: thể lệ
+ * 03/08 viết lại cách quy điểm cho một combo, không viết lại chuyện một tài
+ * khoản có cài app hay không.
+ */
+async function statsByDepartment(range: Range) {
+  const rows = await db
+    .select({
+      departmentId: bankAccounts.createdByDepartmentId,
+      accountsOpened: sql<number>`count(*)::int`,
+      appsInstalled: sql<number>`count(*) filter (where ${bankAccounts.appInstalled} and ${banks.countsAsApp})::int`,
+      customers: sql<number>`count(distinct ${bankAccounts.customerId})::int`,
+    })
+    .from(bankAccounts)
+    .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
+    .where(
+      and(
+        // Bản `creating` mới là lượt giữ chỗ mã, chưa phải tài khoản thật.
+        eq(bankAccounts.status, "done"),
+        gte(bankAccounts.openedDate, range.from),
+        lte(bankAccounts.openedDate, range.to),
+      ),
+    )
+    .groupBy(bankAccounts.createdByDepartmentId);
+
+  return new Map(
+    rows
+      .filter((r) => r.departmentId !== null)
+      .map((r) => [r.departmentId as string, r]),
+  );
+}
+
+const rateOf = (opened: number, installed: number): number =>
+  opened === 0 ? 0 : Math.round((installed / opened) * 100);
+
+/**
+ * P-91 · Bốn cột số liệu của bảng phòng ban, luôn ở phạm vi TOÀN CÔNG TY.
+ *
+ * Trả về mọi phòng đang hoạt động, kể cả phòng không phát sinh gì — chúng mang
+ * số 0 chứ không vắng mặt. Bỏ chúng đi thì giao diện hiện `—`, mà `—` có nghĩa
+ * "không đọc được số" chứ không phải "tháng này chưa mở tài khoản nào".
+ */
+export async function departmentStatsFor(periodKey: string): Promise<DepartmentStats> {
+  const { current, previous } = periodRanges(periodKey, businessDay());
+
+  const [rows, now, before] = await Promise.all([
+    db
+      .select({ id: departments.id, name: departments.name })
+      .from(departments)
+      .where(eq(departments.active, true))
+      .orderBy(asc(departments.name)),
+    statsByDepartment(current),
+    previous ? statsByDepartment(previous) : Promise.resolve(null),
+  ]);
+
+  return {
+    departments: rows.map((d) => {
+      const s = now.get(d.id);
+      const p = before?.get(d.id);
+      return {
+        id: d.id,
+        name: d.name,
+        accountsOpened: s?.accountsOpened ?? 0,
+        appsInstalled: s?.appsInstalled ?? 0,
+        customers: s?.customers ?? 0,
+        // `null` khi không có kỳ trước để so, HOẶC kỳ trước phòng này không mở
+        // tài khoản nào: 0% so với "chưa có gì" là một phép trừ vô nghĩa, và
+        // mũi tên giảm 74 điểm đọc ra như tai nạn.
+        previousInstallRate:
+          p && p.accountsOpened > 0 ? rateOf(p.accountsOpened, p.appsInstalled) : null,
+      };
+    }),
   };
 }
