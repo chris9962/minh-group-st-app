@@ -3,15 +3,14 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
-import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { Select } from "@/components/ui/Select";
 import { TextField } from "@/components/ui/TextField";
 import { fetchServiceTypes } from "@/lib/api/settings";
 import { createService, ServiceForm } from "@/lib/api/services";
-import { useSession } from "@/store/session";
 import styles from "./ServiceFormDialog.module.scss";
+import { invalidateKpi } from "@/lib/invalidateKpi";
 import { errorMessage, toast } from "@/lib/toast";
 
 type Props = {
@@ -26,7 +25,6 @@ type Props = {
  * luồng Tặng quà / Mở ngân hàng. Dịch vụ hiện KHÔNG thu phí (đã chốt ở spec).
  */
 export function ServiceFormDialog({ open, onClose, customerId, customerName }: Props) {
-  const actor = useSession((s) => s.user);
   const queryClient = useQueryClient();
 
   const { data: serviceTypes = [] } = useQuery({
@@ -47,9 +45,12 @@ export function ServiceFormDialog({ open, onClose, customerId, customerName }: P
   });
 
   const save = useMutation({
-    mutationFn: (form: ServiceForm) => createService(form, actor?.id ?? ""),
+    // Người thực hiện do máy chủ tự ghi từ phiên đăng nhập — gửi kèm `actorId`
+    // là mở đường ghi công của mình vào tên người khác.
+    mutationFn: (form: ServiceForm) => createService(form),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["services"] });
+      invalidateKpi(queryClient);
       onClose();
       toast.ok(`Đã ghi dịch vụ cho ${customerName}`);
     },
@@ -78,7 +79,6 @@ export function ServiceFormDialog({ open, onClose, customerId, customerName }: P
         onSubmit={handleSubmit((form) => save.mutate(form))}
         noValidate
       >
-        {save.isError && <Alert tone="error">Không lưu được dịch vụ này.</Alert>}
 
         <Select
           block

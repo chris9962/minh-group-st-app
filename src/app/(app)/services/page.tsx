@@ -1,28 +1,34 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Briefcase, Plus } from "lucide-react";
+import { Briefcase, Pencil, Plus, Trash2 } from "lucide-react";
 import { SkeletonTable } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
 import { CreateServiceDialog } from "@/components/services/CreateServiceDialog";
+import { ServiceEditDialog } from "@/components/services/ServiceEditDialog";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Button } from "@/components/ui/Button";
 import buttonStyles from "@/components/ui/Button.module.css";
 import { DateRangePicker } from "@/components/ui/DateRangePicker";
 import { FilterButton } from "@/components/ui/FilterButton";
 import { FilterChips } from "@/components/ui/FilterChips";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
+import { RowActions } from "@/components/ui/RowActions";
 import { SearchField } from "@/components/ui/SearchField";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { Select } from "@/components/ui/Select";
-import { fetchServices, type ServiceRow } from "@/lib/api/services";
+import { EMPTY_PAGE, PAGE_SIZE, type SortDir } from "@/lib/api/pagination";
+import { deleteService, fetchServices, type ServiceRow } from "@/lib/api/services";
 import { fetchServiceTypes } from "@/lib/api/settings";
+import { fetchStaffOptions } from "@/lib/api/staff";
 import { fetchProvinces } from "@/lib/api/wardCatalog";
 import { formatDate } from "@/lib/format";
 import { useDebouncedValue } from "@/lib/hooks";
-import { availableScopes, can } from "@/lib/permissions";
-import type { Scope } from "@/lib/types";
+import { can } from "@/lib/permissions";
+import { invalidateKpi } from "@/lib/invalidateKpi";
+import { errorMessage, toast } from "@/lib/toast";
 import { useSession } from "@/store/session";
 import type { DateRange } from "react-day-picker";
 import styles from "./page.module.scss";
@@ -32,15 +38,19 @@ const iso = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60_000).
 /** P-31 · Danh sách dịch vụ — không có màn chi tiết riêng (không có P-32). */
 export default function ServicesPage() {
   const user = useSession((s) => s.user);
-  const scopes = availableScopes(user, "services", "view-detail");
-  const scope: Scope = scopes.at(-1) ?? "own";
   const [search, setSearch] = useState("");
   const searchQuery = useDebouncedValue(search);
   const [serviceTypeId, setServiceTypeId] = useState("");
   const [range, setRange] = useState<DateRange | undefined>(undefined);
-  const [ward, setWard] = useState("");
+  const [wardId, setWardId] = useState("");
   const [staffId, setStaffId] = useState("");
+  const [page, setPage] = useState(0);
+  // Chỉ sắp theo ngày, và chỉ đổi được chiều — `SERVICE_SORT` có đúng một khoá
+  // vì sắp theo tên khách/loại/người làm thì phải nối bảng trước khi cắt trang.
+  const [dir, setDir] = useState<SortDir>("desc");
   const [creating, setCreating] = useState(false);
+  const [editing, setEditing] = useState<ServiceRow | null>(null);
+  const [removing, setRemoving] = useState<ServiceRow | null>(null);
 
   const { data: serviceTypes = [] } = useQuery({
     queryKey: ["service-types"],
@@ -49,34 +59,75 @@ export default function ServicesPage() {
   const { data: provinces = [] } = useQuery({ queryKey: ["provinces"], queryFn: fetchProvinces });
   const wards = useMemo(() => provinces.flatMap((p) => p.wards), [provinces]);
 
+  /**
+   * Ô lọc "Nhân viên" đọc TRỌN danh sách, không gom từ các dòng đang hiện.
+   *
+   * Gom từ dòng thì ô chọn chỉ có những người tình cờ nằm ở trang đang xem —
+   * lọc theo người thứ 16 trở đi là không chọn được. Hỏng thì để rỗng chứ không
+   * chặn cả màn.
+   */
+  const { data: staff = [] } = useQuery({
+    queryKey: ["staff", "options", "active"],
+    queryFn: () => fetchStaffOptions({ status: "active" }),
+    retry: false,
+    staleTime: Infinity,
+  });
+  const staffOptions = useMemo(
+    () => staff.map((s) => ({ value: s.id, label: s.fullName })),
+    [staff],
+  );
+
   const from = range?.from ? iso(range.from) : "";
   const to = range?.to ? iso(range.to) : "";
 
-  const { data, isPending, isError, refetch, isFetching } = useQuery({
-    queryKey: ["services", scope, searchQuery, serviceTypeId, from, to, ward, staffId],
+  /** Đổi bộ lọc thì về trang đầu — giữ trang 5 của kết quả cũ là hiện khúc rỗng. */
+  const refine = (apply: () => void) => {
+    apply();
+    setPage(0);
+  };
+
+  const { data = EMPTY_PAGE, isPending, isError, refetch, isFetching } = useQuery({
+    queryKey: ["services", searchQuery, serviceTypeId, from, to, wardId, staffId, page, dir],
     queryFn: () =>
       fetchServices({
-        actorId: user?.id ?? "",
-        scope,
         search: searchQuery,
         serviceTypeId,
         from,
         to,
-        ward,
+        wardId,
         staffId,
+        page,
+        sort: "date",
+        dir,
       }),
-    placeholderData: (previous) => previous,
+    placeholderData: keepPreviousData,
   });
 
-  const rows = useMemo(() => data?.rows ?? [], [data]);
-  const staffOptions = useMemo(() => {
-    const seen = new Map<string, string>();
-    for (const r of rows) seen.set(r.createdById, r.createdByName);
-    return [...seen.entries()].map(([value, label]) => ({ value, label }));
-  }, [rows]);
-
   const activeCount =
-    (serviceTypeId ? 1 : 0) + (from && to ? 1 : 0) + (ward ? 1 : 0) + (staffId ? 1 : 0);
+    (serviceTypeId ? 1 : 0) + (from && to ? 1 : 0) + (wardId ? 1 : 0) + (staffId ? 1 : 0);
+  // Cột Thao tác chỉ dựng khi bấm vào có tác dụng — một cột nút bấm không được
+  // là lời hứa suông (AGENTS.md §6: ẩn nút không phải phân quyền, nhưng hiện
+  // nút không làm gì thì là nói dối).
+  const canEdit = can(user, "services", "update");
+  const canRemove = can(user, "services", "delete");
+
+  const queryClient = useQueryClient();
+  const remove = useMutation({
+    mutationFn: (row: ServiceRow) => deleteService(row.id),
+    onSuccess: (_void, row) => {
+      queryClient.invalidateQueries({ queryKey: ["services"] });
+      // Xoá dịch vụ là tính lại điểm KPI của người đã làm — bảng nhân sự phải
+      // tải lại, không thì số cũ còn nằm đó tới khi hết staleTime.
+      invalidateKpi(queryClient);
+      setRemoving(null);
+      // Xoá dòng cuối của trang cuối → lùi một trang, không thì bảng rỗng mà
+      // thanh trang vẫn ghi số cũ.
+      setPage((p) => (data.rows.length === 1 && p > 0 ? p - 1 : p));
+      toast.ok(`Đã xoá dịch vụ của ${row.customerName}`);
+    },
+    onError: (e) => toast.fail(errorMessage(e, "Không xoá được dịch vụ này.")),
+  });
+  const filtering = Boolean(searchQuery) || activeCount > 0;
 
   const columns = useMemo<RankColumn<ServiceRow>[]>(
     () => [
@@ -86,13 +137,47 @@ export default function ServicesPage() {
       {
         key: "date",
         label: "Ngày",
-        sortBy: (r) => new Date(r.date).getTime(),
+        sortable: true,
         render: (r) => formatDate(r.date),
       },
       { key: "createdByName", label: "Người thực hiện", render: (r) => r.createdByName },
       { key: "note", label: "Ghi chú", render: (r) => r.note || "—" },
+      ...(canEdit || canRemove
+        ? [
+            {
+              key: "actions",
+              label: "Thao tác",
+              // Nút chỉ có icon nên `aria-label` phải kèm tên khách: giữa mười
+              // lăm dòng giống nhau, "Sửa" một mình không nói đang sửa dòng nào.
+              render: (r: ServiceRow) => (
+                <RowActions>
+                  {canEdit && (
+                    <Button
+                      variant="secondary"
+                      icon
+                      aria-label={`Sửa dịch vụ ${r.serviceTypeName} của ${r.customerName}`}
+                      onClick={() => setEditing(r)}
+                    >
+                      <Pencil size={16} aria-hidden />
+                    </Button>
+                  )}
+                  {canRemove && (
+                    <Button
+                      variant="secondary"
+                      icon
+                      aria-label={`Xoá dịch vụ ${r.serviceTypeName} của ${r.customerName}`}
+                      onClick={() => setRemoving(r)}
+                    >
+                      <Trash2 size={16} aria-hidden />
+                    </Button>
+                  )}
+                </RowActions>
+              ),
+            },
+          ]
+        : []),
     ],
-    [],
+    [canEdit, canRemove],
   );
 
   return (
@@ -102,40 +187,49 @@ export default function ServicesPage() {
           label="Tìm khách hàng"
           placeholder="Tìm tên khách hàng…"
           value={search}
-          onChange={setSearch}
+          onChange={(v) => {
+            // Về trang đầu ngay lúc gõ, không đợi hoãn xong: đang ở trang 3 mà
+            // kết quả mới chỉ có 2 dòng thì trang 3 là một khúc rỗng.
+            setSearch(v);
+            setPage(0);
+          }}
         />
         <FilterButton
           activeCount={activeCount}
-          onClear={() => {
-            setServiceTypeId("");
-            setRange(undefined);
-            setWard("");
-            setStaffId("");
-          }}
+          onClear={() =>
+            refine(() => {
+              setServiceTypeId("");
+              setRange(undefined);
+              setWardId("");
+              setStaffId("");
+            })
+          }
         >
           <Select
             label="Loại dịch vụ"
             value={serviceTypeId}
-            onChange={setServiceTypeId}
+            onChange={(v) => refine(() => setServiceTypeId(v))}
             options={[
               { value: "", label: "Tất cả loại dịch vụ" },
               ...serviceTypes.map((t) => ({ value: t.id, label: t.name })),
             ]}
           />
-          <DateRangePicker value={range} onChange={setRange} />
+          <DateRangePicker value={range} onChange={(v) => refine(() => setRange(v))} />
           <Select
             label="Xã"
-            value={ward}
-            onChange={setWard}
+            value={wardId}
+            // Lọc theo id chứ không theo tên: bản ghi chụp cả hai, mà xã đổi tên
+            // thì lọc theo tên bỏ sót đúng những dòng cũ cần tìm.
+            onChange={(v) => refine(() => setWardId(v))}
             options={[
               { value: "", label: "Tất cả xã" },
-              ...wards.map((w) => ({ value: w.name, label: w.name })),
+              ...wards.map((w) => ({ value: w.id, label: w.name })),
             ]}
           />
           <Select
             label="Nhân viên"
             value={staffId}
-            onChange={setStaffId}
+            onChange={(v) => refine(() => setStaffId(v))}
             options={[{ value: "", label: "Tất cả nhân viên" }, ...staffOptions]}
           />
         </FilterButton>
@@ -154,7 +248,7 @@ export default function ServicesPage() {
               ? [
                   {
                     label: `Loại dịch vụ: ${serviceTypes.find((t) => t.id === serviceTypeId)?.name ?? ""}`,
-                    onRemove: () => setServiceTypeId(""),
+                    onRemove: () => refine(() => setServiceTypeId("")),
                   },
                 ]
               : []),
@@ -162,49 +256,85 @@ export default function ServicesPage() {
               ? [
                   {
                     label: `Ngày: ${formatDate(from)} → ${formatDate(to)}`,
-                    onRemove: () => setRange(undefined),
+                    onRemove: () => refine(() => setRange(undefined)),
                   },
                 ]
               : []),
-            ...(ward ? [{ label: `Xã: ${ward}`, onRemove: () => setWard("") }] : []),
+            ...(wardId
+              ? [
+                  {
+                    label: `Xã: ${wards.find((w) => w.id === wardId)?.name ?? ""}`,
+                    onRemove: () => refine(() => setWardId("")),
+                  },
+                ]
+              : []),
             ...(staffId
               ? [
                   {
                     label: `Nhân viên: ${staffOptions.find((s) => s.value === staffId)?.label ?? ""}`,
-                    onRemove: () => setStaffId(""),
+                    onRemove: () => refine(() => setStaffId("")),
                   },
                 ]
               : []),
           ]}
         />
 
-        {isPending && <SkeletonTable rows={8} columns={5} />}
+        {isPending && <SkeletonTable rows={8} columns={6} />}
         {isError && (
           <ErrorState what="danh sách dịch vụ" onRetry={refetch} retrying={isFetching} />
         )}
 
-        {data && (
+        {!isPending && !isError && (
           <SectionCard
             title="Dịch vụ đã thực hiện"
             icon={<Briefcase size={17} />}
-            meta={`${data.summary.total} dòng`}
+            meta={`${data.total} dòng`}
           >
-            {rows.length === 0 ? (
-              <p className="text-muted">Chưa có dịch vụ nào khớp bộ lọc.</p>
-            ) : (
-              <RankTable
-                rows={rows}
-                columns={columns}
-                rowKey={(r) => r.id}
-                defaultSort="date"
-                pageSize={20}
-                caption="Dịch vụ đã thực hiện cho khách hàng"
-              />
-            )}
+            <RankTable
+              rows={data.rows}
+              columns={columns}
+              rowKey={(r) => r.id}
+              defaultSort="date"
+              caption="Dịch vụ đã thực hiện cho khách hàng"
+              emptyText={
+                filtering
+                  ? "Không có dịch vụ nào khớp bộ lọc."
+                  : "Chưa ghi dịch vụ nào."
+              }
+              server={{
+                sort: "date",
+                dir,
+                page,
+                total: data.total,
+                pageSize: PAGE_SIZE,
+                onSortChange: (_sort, nextDir) => {
+                  setDir(nextDir);
+                  setPage(0);
+                },
+                onPageChange: setPage,
+              }}
+            />
           </SectionCard>
         )}
 
         {creating && <CreateServiceDialog open onClose={() => setCreating(false)} />}
+        {editing && (
+          <ServiceEditDialog open service={editing} onClose={() => setEditing(null)} />
+        )}
+        {removing && (
+          <ConfirmDialog
+            open
+            title="Xoá dịch vụ này?"
+            consequence="Điểm KPI của người thực hiện sẽ được tính lại ngay. Xoá rồi không lấy lại được."
+            confirmLabel="Xoá"
+            pending={remove.isPending}
+            onConfirm={() => remove.mutate(removing)}
+            onClose={() => setRemoving(null)}
+          >
+            <strong>{removing.serviceTypeName}</strong> cho {removing.customerName}, ngày{" "}
+            {formatDate(removing.date)}, do {removing.createdByName} thực hiện.
+          </ConfirmDialog>
+        )}
       </main>
     </>
   );

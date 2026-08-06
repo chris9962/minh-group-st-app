@@ -32,6 +32,7 @@ import type {
 } from "@/lib/api/settings";
 import { businessMonth, uniqueCode } from "@/lib/format";
 import { db, uniqueViolationOf } from "./db/client";
+import { recomputeKpiForMonth } from "./kpi";
 import {
   banks,
   channels,
@@ -532,23 +533,43 @@ export async function createServiceType(
 
 /**
  * Hệ số loại dịch vụ VẪN còn tác dụng (spec §7.2 — dịch vụ giữ cách cũ), khác
- * hẳn `banks.coefficient` đã bỏ. Nên sửa nó là đổi điểm KPI thật.
+ * hẳn `banks.coefficient` đã bỏ. Nên sửa nó là ĐỔI ĐIỂM KPI THẬT.
  *
- * TODO(KPI, chờ module dịch vụ): sau khi sửa phải gọi `recomputeKpiForMonth`
- * cho tháng hiện tại, không thì điểm đã lưu giữ nguyên hệ số cũ. Chưa gọi ở đây
- * vì bảng `services` còn rỗng — không có gì để tính lại.
+ * Vì vậy phải tính lại điểm ngay sau khi ghi. Không gọi thì điểm đã lưu giữ
+ * nguyên hệ số cũ, và không có gì báo — người quản trị kéo hệ số từ 1 lên 2 rồi
+ * mở bảng nhân sự, thấy số không nhúc nhích, tưởng mình bấm hụt.
+ *
+ * Chỉ tính lại THÁNG HIỆN TẠI. Tháng cũ giữ nguyên là cố ý: đổi hệ số hôm nay
+ * mà chấm lại quá khứ thì báo cáo đã chốt tự viết lại, và người đã nhận lương
+ * theo con số cũ bỗng có con số khác.
+ *
+ * Chạy tuần tự cho vài trăm người nên chậm — chấp nhận được, đây là thao tác
+ * cấu hình hiếm khi làm, không phải đường đi hằng ngày.
  */
 export async function updateServiceType(
   id: string,
   form: ServiceTypeForm,
 ): Promise<CatalogOutcome<ServiceTypeRow | null>> {
   return catalogWrite(async () => {
+    const [current] = await db
+      .select({ coefficient: serviceTypes.coefficient })
+      .from(serviceTypes)
+      .where(eq(serviceTypes.id, id))
+      .limit(1);
+
     const [row] = await db
       .update(serviceTypes)
       .set({ name: form.name, coefficient: String(form.coefficient) })
       .where(eq(serviceTypes.id, id))
       .returning();
-    return row ? toServiceType(row) : null;
+    if (!row) return null;
+
+    // Chỉ tính lại khi HỆ SỐ đổi. Sửa mỗi cái tên mà chạy lại điểm của cả công
+    // ty là trả giá cho một thao tác không đụng tới con số nào.
+    if (current && Number(current.coefficient) !== form.coefficient)
+      await recomputeKpiForMonth(businessMonth());
+
+    return toServiceType(row);
   });
 }
 
