@@ -12,7 +12,6 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
 import { BankAccountFinishFields } from "@/components/banking/BankAccountFinishFields";
 import { BankAccountPhotos } from "@/components/banking/BankAccountPhotos";
-import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusTag } from "@/components/ui/StatusTag";
@@ -25,8 +24,9 @@ import {
 } from "@/lib/api/bankAccounts";
 import { fetchBankAccountDetail, type BankAccountDetail } from "@/lib/api/banking";
 import { fetchDepartments } from "@/lib/api/departments";
-import { formatDate, formatPhone } from "@/lib/format";
-import { useSession } from "@/store/session";
+import { invalidateKpi } from "@/lib/invalidateKpi";
+import { errorMessage, toast } from "@/lib/toast";
+import { formatDate, formatPhone, businessDay } from "@/lib/format";
 import styles from "./page.module.scss";
 
 const ACCOUNT_TYPE_LABEL: Record<AccountType, string> = {
@@ -49,11 +49,10 @@ export default function BankAccountDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
-  const actor = useSession((s) => s.user);
 
   const { data, isPending, isError, refetch, isFetching } = useQuery({
     queryKey: ["bank-account-detail", id],
-    queryFn: () => fetchBankAccountDetail(id, actor?.id ?? ""),
+    queryFn: () => fetchBankAccountDetail(id),
   });
 
   const { data: departments = [] } = useQuery({
@@ -99,7 +98,6 @@ function FinishAccountCard({
   data: BankAccountDetail;
   departmentName?: string;
 }) {
-  const actor = useSession((s) => s.user);
   const router = useRouter();
   const queryClient = useQueryClient();
 
@@ -108,7 +106,7 @@ function FinishAccountCard({
     defaultValues: {
       accountNumber:
         data.accountNumberMethod === "phone-match" ? data.customerPrimaryPhone : data.accountNumber,
-      openedDate: data.date || new Date().toISOString().slice(0, 10),
+      openedDate: data.date || businessDay(),
       appInstalled: true,
       accountType: "none",
       note: data.note,
@@ -124,27 +122,39 @@ function FinishAccountCard({
     queryClient.invalidateQueries({ queryKey: ["customers"] });
     queryClient.invalidateQueries({ queryKey: ["referral-codes"] });
     if (data.customerId) queryClient.invalidateQueries({ queryKey: ["customer", data.customerId] });
+    invalidateKpi(queryClient);
   };
 
   const uploadPhotos = useMutation({
-    mutationFn: (urls: string[]) => setBankAccountPhotos(id, urls, actor?.id ?? ""),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["bank-account-detail", id] }),
+    mutationFn: (urls: string[]) => setBankAccountPhotos(id, urls),
+    onSuccess: (updated) => {
+      queryClient.invalidateQueries({ queryKey: ["bank-account-detail", id] });
+      toast.ok(`Đã lưu ${updated.photoUrls.length} ảnh chứng minh`);
+    },
+    onError: (e) => toast.fail(errorMessage(e, "Không lưu được ảnh chứng minh này.")),
   });
 
   const finish = useMutation({
-    mutationFn: (form: BankAccountFinishForm) => finishBankAccount(id, form, actor?.id ?? ""),
-    onSuccess: () => {
+    mutationFn: (form: BankAccountFinishForm) => finishBankAccount(id, form),
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["bank-account-detail", id] });
       invalidateShared();
+      toast.ok("Đã hoàn tất tài khoản ngân hàng");
+      // Cảnh báo mềm mức khách hàng (spec §4.8) — hiện SAU khi đã lưu xong, mỗi
+      // luật một dòng riêng để không dồn thành một câu dài không ai đọc.
+      for (const w of result.warnings) toast.warn(w);
     },
+    onError: (e) => toast.fail(errorMessage(e, "Không hoàn tất được tài khoản này.")),
   });
 
   const remove = useMutation({
-    mutationFn: () => deleteBankAccount(id, actor?.id ?? ""),
+    mutationFn: () => deleteBankAccount(id),
     onSuccess: () => {
       invalidateShared();
+      toast.ok("Đã xoá tài khoản đang tạo dở, mã giới thiệu được nhả lại");
       router.push(data.customerId ? `/customers/${data.customerId}` : "/banking");
     },
+    onError: (e) => toast.fail(errorMessage(e, "Không xoá được tài khoản này.")),
   });
 
   return (
@@ -185,7 +195,6 @@ function FinishAccountCard({
         Đã mở tài khoản thật xong thì điền nốt bên dưới rồi bấm &quot;Hoàn thành&quot;.
       </p>
 
-      {finish.isError && <Alert tone="error">Không hoàn thành được tài khoản này.</Alert>}
 
       <BankAccountFinishFields
         formId="finish-account-form"
@@ -199,7 +208,6 @@ function FinishAccountCard({
         photoUrls={data.photoUrls}
         requiredPhotos={data.requiredPhotos}
         onPhotosChange={(urls) => uploadPhotos.mutate(urls)}
-        photosError={uploadPhotos.isError}
       />
 
       <div className={styles.actions}>
@@ -232,15 +240,16 @@ function DoneAccountCard({
   data: BankAccountDetail;
   departmentName?: string;
 }) {
-  const actor = useSession((s) => s.user);
   const queryClient = useQueryClient();
 
   const uploadPhotos = useMutation({
-    mutationFn: (photoUrls: string[]) => setBankAccountPhotos(id, photoUrls, actor?.id ?? ""),
-    onSuccess: () => {
+    mutationFn: (photoUrls: string[]) => setBankAccountPhotos(id, photoUrls),
+    onSuccess: (updated) => {
       queryClient.invalidateQueries({ queryKey: ["bank-account-detail", id] });
       queryClient.invalidateQueries({ queryKey: ["bank-account-list"] });
+      toast.ok(`Đã lưu ${updated.photoUrls.length} ảnh chứng minh`);
     },
+    onError: (e) => toast.fail(errorMessage(e, "Không lưu được ảnh chứng minh này.")),
   });
 
   return (
@@ -303,7 +312,6 @@ function DoneAccountCard({
         </div>
       </dl>
 
-      {uploadPhotos.isError && <Alert tone="error">Không lưu được ảnh chứng minh này.</Alert>}
       <BankAccountPhotos
         photoUrls={data.photoUrls}
         requiredPhotos={data.requiredPhotos}

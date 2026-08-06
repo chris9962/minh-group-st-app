@@ -1,13 +1,15 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Download, Landmark, Plus } from "lucide-react";
+import { Download, Landmark, Pencil, Plus, Trash2 } from "lucide-react";
 import type { DateRange } from "react-day-picker";
 import { SkeletonTable } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
+import { BankAccountEditDialog } from "@/components/banking/BankAccountEditDialog";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { CreateBankAccountDialog } from "@/components/banking/CreateBankAccountDialog";
 import { Button } from "@/components/ui/Button";
 import buttonStyles from "@/components/ui/Button.module.css";
@@ -15,19 +17,22 @@ import { DateRangePicker } from "@/components/ui/DateRangePicker";
 import { FilterButton } from "@/components/ui/FilterButton";
 import { FilterChips } from "@/components/ui/FilterChips";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
+import { RowActions } from "@/components/ui/RowActions";
 import { SearchField } from "@/components/ui/SearchField";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { Select } from "@/components/ui/Select";
 import { StatusTag } from "@/components/ui/StatusTag";
-import { BankAccountStatus } from "@/lib/api/bankAccounts";
-import { fetchBankAccounts, type BankAccountRow } from "@/lib/api/banking";
+import { BankAccountStatus, deleteBankAccount } from "@/lib/api/bankAccounts";
+import { fetchBankAccounts, fetchBankAccountsForExport, type BankAccountRow } from "@/lib/api/banking";
 import { fetchBanks, fetchReferralCodeOptions } from "@/lib/api/bankCatalog";
 import { fetchChannels } from "@/lib/api/channelCatalog";
+import { fetchStaffOptions } from "@/lib/api/staff";
+import { EMPTY_PAGE, PAGE_SIZE, type SortDir } from "@/lib/api/pagination";
 import { exportExcel } from "@/lib/excel";
 import { formatDate, formatPhone } from "@/lib/format";
 import { useDebouncedValue } from "@/lib/hooks";
-import { availableScopes, can } from "@/lib/permissions";
-import type { Scope } from "@/lib/types";
+import { can } from "@/lib/permissions";
+import { errorMessage, toast } from "@/lib/toast";
 import { useSession } from "@/store/session";
 import styles from "./page.module.scss";
 
@@ -71,17 +76,22 @@ function exportByCustomer(rows: BankAccountRow[], bankCodes: string[]) {
 /** P-21 · Danh sách tài khoản ngân hàng. */
 export default function BankingPage() {
   const user = useSession((s) => s.user);
-  const scopes = availableScopes(user, "banking", "view-detail");
-  const scope: Scope = scopes.at(-1) ?? "own";
   const [search, setSearch] = useState("");
   const searchQuery = useDebouncedValue(search);
   const [bankCode, setBankCode] = useState("");
   const [range, setRange] = useState<DateRange | undefined>(undefined);
   const [referralCode, setReferralCode] = useState("");
-  const [channel, setChannel] = useState("");
+  const [channelId, setChannelId] = useState("");
   const [staffId, setStaffId] = useState("");
   const [status, setStatus] = useState<BankAccountStatus | "">("");
+  const [page, setPage] = useState(0);
+  // Chỉ sắp theo ngày mở, và chỉ đổi được chiều — sắp theo tên khách thì phải
+  // nối bảng trước khi cắt trang, trên bảng lớn nhất hệ thống.
+  const [dir, setDir] = useState<SortDir>("desc");
   const [creating, setCreating] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [removing, setRemoving] = useState<BankAccountRow | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   const { data: banks = [] } = useQuery({ queryKey: ["banks"], queryFn: fetchBanks });
   const { data: codes = [] } = useQuery({
@@ -90,50 +100,101 @@ export default function BankingPage() {
   });
   const { data: channels = [] } = useQuery({ queryKey: ["channels"], queryFn: fetchChannels });
 
+  /**
+   * Ô lọc "Nhân viên" đọc TRỌN danh sách, không gom từ các dòng đang hiện.
+   *
+   * Gom từ dòng thì ô chọn chỉ có những người tình cờ nằm ở trang đang xem —
+   * lọc theo người thứ 16 trở đi là không chọn được.
+   */
+  const { data: staff = [] } = useQuery({
+    queryKey: ["staff", "options", "active"],
+    queryFn: () => fetchStaffOptions({ status: "active" }),
+    retry: false,
+    staleTime: Infinity,
+  });
+  const staffOptions = useMemo(
+    () => staff.map((s) => ({ value: s.id, label: s.fullName })),
+    [staff],
+  );
+
+  /** Đổi bộ lọc thì về trang đầu — giữ trang 5 của kết quả cũ là hiện khúc rỗng. */
+  const refine = (apply: () => void) => {
+    apply();
+    setPage(0);
+  };
+
+  const canWrite = can(user, "banking", "update");
+  const canRemove = can(user, "banking", "delete");
+
+  const queryClient = useQueryClient();
+  const remove = useMutation({
+    mutationFn: (row: BankAccountRow) => deleteBankAccount(row.id),
+    onSuccess: (_void, row) => {
+      queryClient.invalidateQueries({ queryKey: ["bank-account-list"] });
+      // Xoá bản nháp là NHẢ CHỖ mã về kho — ô chọn mã ở hộp thoại mở tài khoản
+      // phải thấy số mới ngay, không đợi hết staleTime.
+      queryClient.invalidateQueries({ queryKey: ["referral-codes"] });
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
+      queryClient.invalidateQueries({ queryKey: ["customer", row.customerId] });
+      setRemoving(null);
+      // Xoá cũng là thao tác làm hẹp kết quả. `RankTable` ở chế độ máy chủ cố ý
+      // KHÔNG tự kẹp trang, nên xoá dòng cuối của trang cuối là bảng rỗng kèm
+      // thanh trang ghi "76–75 trên 75".
+      setPage((p) => (data.rows.length === 1 && p > 0 ? p - 1 : p));
+      toast.ok("Đã xoá tài khoản đang tạo dở, mã giới thiệu được nhả lại");
+    },
+    onError: (e) => toast.fail(errorMessage(e, "Không xoá được tài khoản này.")),
+  });
+
   const from = range?.from ? iso(range.from) : "";
   const to = range?.to ? iso(range.to) : "";
 
-  const { data, isPending, isError, refetch, isFetching } = useQuery({
-    queryKey: [
-      "bank-account-list",
-      scope,
-      searchQuery,
-      bankCode,
-      from,
-      to,
-      referralCode,
-      channel,
-      staffId,
-      status,
-    ],
-    queryFn: () =>
-      fetchBankAccounts({
-        actorId: user?.id ?? "",
-        scope,
-        search: searchQuery,
-        bankCode,
-        from,
-        to,
-        referralCode,
-        channel,
-        staffId,
-        status,
-      }),
-    placeholderData: (previous) => previous,
+  const filters = {
+    search: searchQuery,
+    bankCode,
+    from,
+    to,
+    referralCode,
+    channelId,
+    staffId,
+    status,
+  };
+
+  const { data = EMPTY_PAGE, isPending, isError, refetch, isFetching } = useQuery({
+    queryKey: ["bank-account-list", filters, page, dir],
+    queryFn: () => fetchBankAccounts({ ...filters, page, sort: "date", dir }),
+    placeholderData: keepPreviousData,
   });
 
-  const rows = useMemo(() => data?.rows ?? [], [data]);
-  const staffOptions = useMemo(() => {
-    const seen = new Map<string, string>();
-    for (const r of rows) if (r.createdById) seen.set(r.createdById, r.createdByName ?? r.createdById);
-    return [...seen.entries()].map(([value, label]) => ({ value, label }));
-  }, [rows]);
+  /**
+   * Xuất Excel đi qua đường RIÊNG, không dựng file từ trang đang xem.
+   *
+   * Dựng từ `data.rows` thì file chỉ có 15 dòng của trang hiện tại mà trông y
+   * hệt file đầy đủ — người nhận không có cách nào biết.
+   */
+  const exportAll = async () => {
+    setExporting(true);
+    try {
+      const { rows, total } = await fetchBankAccountsForExport(filters);
+      if (rows.length < total) {
+        throw new Error(
+          `Bộ lọc này có ${total.toLocaleString("vi-VN")} tài khoản, vượt trần ${rows.length.toLocaleString("vi-VN")} dòng một lần xuất. Thu hẹp khoảng ngày rồi xuất làm nhiều đợt.`,
+        );
+      }
+      await exportByCustomer(rows, banks.map((b) => b.code));
+      toast.ok(`Đã xuất ${rows.length.toLocaleString("vi-VN")} tài khoản`);
+    } catch (e) {
+      toast.fail(errorMessage(e, "Không xuất được file Excel."));
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const activeCount =
     (bankCode ? 1 : 0) +
     (from && to ? 1 : 0) +
     (referralCode ? 1 : 0) +
-    (channel ? 1 : 0) +
+    (channelId ? 1 : 0) +
     (staffId ? 1 : 0) +
     (status ? 1 : 0);
 
@@ -170,13 +231,51 @@ export default function BankingPage() {
       {
         key: "date",
         label: "Ngày",
-        // "" khi tài khoản còn `creating` — chưa mở xong nên chưa có ngày mở thật.
-        sortBy: (r) => (r.date ? new Date(r.date).getTime() : 0),
+        sortable: true,
         render: (r) => (r.date ? formatDate(r.date) : "—"),
       },
       { key: "createdByName", label: "Người tạo", render: (r) => r.createdByName ?? "—" },
+      ...(canWrite || canRemove
+        ? [{
+        key: "actions",
+        label: "Thao tác",
+        // Nút chỉ có icon nên `aria-label` phải kèm tên khách: giữa mười lăm
+        // dòng giống nhau, "Sửa" một mình không nói đang sửa dòng nào.
+        render: (r: BankAccountRow) => (
+          <RowActions>
+            {canWrite && (
+              <Button
+                variant="secondary"
+                icon
+                aria-label={
+                  r.status === "creating"
+                    ? `Hoàn tất tài khoản ${r.bankCode} của ${r.customerName}`
+                    : `Ảnh chứng minh tài khoản ${r.bankCode} của ${r.customerName}`
+                }
+                onClick={() => setEditingId(r.id)}
+              >
+                <Pencil size={16} aria-hidden />
+              </Button>
+            )}
+            {/* Chỉ bản NHÁP mới xoá được (spec §4.5): tài khoản đã hoàn thành
+                đã tiêu một lượt mã và đã vào điểm KPI. Ẩn nút thay vì hiện rồi
+                báo lỗi — nút bấm không làm gì là lời hứa suông. */}
+            {canRemove && r.status === "creating" && (
+              <Button
+                variant="secondary"
+                icon
+                aria-label={`Xoá tài khoản ${r.bankCode} đang tạo dở của ${r.customerName}`}
+                onClick={() => setRemoving(r)}
+              >
+                <Trash2 size={16} aria-hidden />
+              </Button>
+            )}
+          </RowActions>
+        ),
+      }]
+        : []),
     ],
-    [],
+    [canWrite, canRemove],
   );
 
   return (
@@ -186,23 +285,30 @@ export default function BankingPage() {
           label="Tìm khách hàng"
           placeholder="Tìm tên khách hàng…"
           value={search}
-          onChange={setSearch}
+          onChange={(v) => {
+            // Về trang đầu ngay lúc gõ, không đợi hoãn xong: đang ở trang 3 mà
+            // kết quả mới chỉ có 2 dòng thì trang 3 là một khúc rỗng.
+            setSearch(v);
+            setPage(0);
+          }}
         />
         <FilterButton
           activeCount={activeCount}
-          onClear={() => {
-            setBankCode("");
-            setRange(undefined);
-            setReferralCode("");
-            setChannel("");
-            setStaffId("");
-            setStatus("");
-          }}
+          onClear={() =>
+            refine(() => {
+              setBankCode("");
+              setRange(undefined);
+              setReferralCode("");
+              setChannelId("");
+              setStaffId("");
+              setStatus("");
+            })
+          }
         >
           <Select
             label="Ngân hàng"
             value={bankCode}
-            onChange={setBankCode}
+            onChange={(v) => refine(() => setBankCode(v))}
             options={[
               { value: "", label: "Tất cả ngân hàng" },
               ...banks.map((b) => ({ value: b.code, label: b.code })),
@@ -211,17 +317,17 @@ export default function BankingPage() {
           <Select
             label="Trạng thái"
             value={status}
-            onChange={(v) => setStatus(v as BankAccountStatus | "")}
+            onChange={(v) => refine(() => setStatus(v as BankAccountStatus | ""))}
             options={[
               { value: "", label: "Tất cả trạng thái" },
               ...BankAccountStatus.options.map((s) => ({ value: s, label: STATUS_LABEL[s] })),
             ]}
           />
-          <DateRangePicker value={range} onChange={setRange} />
+          <DateRangePicker value={range} onChange={(v) => refine(() => setRange(v))} />
           <Select
             label="Mã giới thiệu"
             value={referralCode}
-            onChange={setReferralCode}
+            onChange={(v) => refine(() => setReferralCode(v))}
             options={[
               { value: "", label: "Tất cả mã giới thiệu" },
               ...codes.map((code) => ({ value: code, label: code })),
@@ -229,25 +335,27 @@ export default function BankingPage() {
           />
           <Select
             label="Kênh"
-            value={channel}
-            onChange={setChannel}
+            value={channelId}
+            onChange={(v) => refine(() => setChannelId(v))}
             options={[
               { value: "", label: "Tất cả kênh" },
-              ...channels.map((c) => ({ value: c.name, label: c.name })),
+              // Lọc theo ID kênh, không theo tên: kênh đổi tên thì lọc theo
+              // tên bỏ sót đúng những dòng cũ cần tìm.
+              ...channels.map((c) => ({ value: c.id, label: c.name })),
             ]}
           />
           <Select
             label="Nhân viên"
             value={staffId}
-            onChange={setStaffId}
+            onChange={(v) => refine(() => setStaffId(v))}
             options={[{ value: "", label: "Tất cả nhân viên" }, ...staffOptions]}
           />
           {can(user, "banking", "export") && (
             <Button
               variant="secondary"
               block
-              onClick={() => exportByCustomer(rows, banks.map((b) => b.code))}
-              disabled={rows.length === 0}
+              onClick={exportAll}
+              disabled={exporting || data.total === 0}
             >
               <Download size={16} aria-hidden />
               Xuất Excel
@@ -265,22 +373,29 @@ export default function BankingPage() {
       <main className={styles.body}>
         <FilterChips
           chips={[
-            ...(bankCode ? [{ label: `Ngân hàng: ${bankCode}`, onRemove: () => setBankCode("") }] : []),
+            ...(bankCode ? [{ label: `Ngân hàng: ${bankCode}`, onRemove: () => refine(() => setBankCode("")) }] : []),
             ...(from && to
-              ? [{ label: `Ngày: ${formatDate(from)} → ${formatDate(to)}`, onRemove: () => setRange(undefined) }]
+              ? [{ label: `Ngày: ${formatDate(from)} → ${formatDate(to)}`, onRemove: () => refine(() => setRange(undefined)) }]
               : []),
             ...(referralCode
-              ? [{ label: `Mã giới thiệu: ${referralCode}`, onRemove: () => setReferralCode("") }]
+              ? [{ label: `Mã giới thiệu: ${referralCode}`, onRemove: () => refine(() => setReferralCode("")) }]
               : []),
-            ...(channel ? [{ label: `Kênh: ${channel}`, onRemove: () => setChannel("") }] : []),
+            ...(channelId
+              ? [
+                  {
+                    label: `Kênh: ${channels.find((c) => c.id === channelId)?.name ?? ""}`,
+                    onRemove: () => refine(() => setChannelId("")),
+                  },
+                ]
+              : []),
             ...(status
-              ? [{ label: `Trạng thái: ${STATUS_LABEL[status]}`, onRemove: () => setStatus("") }]
+              ? [{ label: `Trạng thái: ${STATUS_LABEL[status]}`, onRemove: () => refine(() => setStatus("")) }]
               : []),
             ...(staffId
               ? [
                   {
                     label: `Nhân viên: ${staffOptions.find((s) => s.value === staffId)?.label ?? ""}`,
-                    onRemove: () => setStaffId(""),
+                    onRemove: () => refine(() => setStaffId("")),
                   },
                 ]
               : []),
@@ -292,28 +407,61 @@ export default function BankingPage() {
           <ErrorState what="danh sách tài khoản" onRetry={refetch} retrying={isFetching} />
         )}
 
-        {data && (
+        {!isPending && !isError && (
           <SectionCard
             title="Tài khoản ngân hàng"
             icon={<Landmark size={17} />}
-            meta={`${data.summary.total} dòng`}
+            meta={`${data.total} dòng`}
           >
-            {rows.length === 0 ? (
-              <p className="text-muted">Chưa có tài khoản nào khớp bộ lọc.</p>
-            ) : (
-              <RankTable
-                rows={rows}
-                columns={columns}
-                rowKey={(r) => r.id}
-                defaultSort="date"
-                pageSize={20}
-                caption="Tài khoản ngân hàng đã mở cho khách hàng"
-              />
-            )}
+            <RankTable
+              rows={data.rows}
+              columns={columns}
+              rowKey={(r) => r.id}
+              defaultSort="date"
+              caption="Tài khoản ngân hàng đã mở cho khách hàng"
+              emptyText={
+                activeCount > 0 || searchQuery
+                  ? "Không có tài khoản nào khớp bộ lọc."
+                  : "Chưa mở tài khoản nào."
+              }
+              server={{
+                sort: "date",
+                dir,
+                page,
+                total: data.total,
+                pageSize: PAGE_SIZE,
+                onSortChange: (_sort, nextDir) => {
+                  setDir(nextDir);
+                  setPage(0);
+                },
+                onPageChange: setPage,
+              }}
+            />
           </SectionCard>
         )}
 
         {creating && <CreateBankAccountDialog open onClose={() => setCreating(false)} />}
+        {editingId && (
+          <BankAccountEditDialog
+            open
+            accountId={editingId}
+            onClose={() => setEditingId(null)}
+          />
+        )}
+        {removing && (
+          <ConfirmDialog
+            open
+            title="Xoá tài khoản đang tạo dở?"
+            consequence="Chỗ đang giữ trên mã giới thiệu được nhả lại kho ngay. Ảnh đã tải lên cũng mất theo."
+            confirmLabel="Xoá"
+            pending={remove.isPending}
+            onConfirm={() => remove.mutate(removing)}
+            onClose={() => setRemoving(null)}
+          >
+            Tài khoản <strong>{removing.bankCode}</strong> của {removing.customerName}, mã{" "}
+            {removing.referralCode}.
+          </ConfirmDialog>
+        )}
       </main>
     </>
   );

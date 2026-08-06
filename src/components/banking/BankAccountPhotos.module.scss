@@ -77,3 +77,21 @@
 .hiddenInput {
   display: none;
 }
+
+/* Vòng quay lúc đang tải ảnh lên. `prefers-reduced-motion` thì đứng yên —
+   biểu tượng vẫn nói đúng trạng thái, chỉ bỏ phần chuyển động. */
+.spinner {
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+  }
+}

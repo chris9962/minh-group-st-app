@@ -6,7 +6,6 @@ import type {
   UseFormSetValue,
   UseFormWatch,
 } from "react-hook-form";
-import { Alert } from "@/components/ui/Alert";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { Select } from "@/components/ui/Select";
 import { TextField } from "@/components/ui/TextField";
@@ -33,7 +32,6 @@ type Props = {
   photoUrls: string[];
   requiredPhotos: number;
   onPhotosChange: (photoUrls: string[]) => void;
-  photosError?: boolean;
 };
 
 /**
@@ -54,7 +52,6 @@ export function BankAccountFinishFields({
   photoUrls,
   requiredPhotos,
   onPhotosChange,
-  photosError,
 }: Props) {
   return (
     <>
@@ -98,7 +95,6 @@ export function BankAccountFinishFields({
         <TextField label="Ghi chú" {...register("note")} />
       </form>
 
-      {photosError && <Alert tone="error">Không lưu được ảnh chứng minh này.</Alert>}
       <BankAccountPhotos photoUrls={photoUrls} requiredPhotos={requiredPhotos} onChange={onPhotosChange} />
     </>
   );

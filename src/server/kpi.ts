@@ -13,14 +13,12 @@ import { bankAccounts, banks, kpiScores, services, serviceTypes, users } from ".
  *
  * ⚠️ CHỖ PHẢI GỌI HÀM NÀY — chưa nhánh nào tồn tại, thêm dần khi xây module:
  *
- *   TODO(KPI, chờ module ngân hàng):
- *     - tạo tài khoản ngân hàng
- *     - chuyển trạng thái sang `done`   ← điểm chỉ tính tài khoản `done`
- *     - tích / bỏ tích "đã cài app"
- *     - xoá tài khoản đang `creating`
- *   TODO(KPI, chờ module dịch vụ):
- *     - ghi một dịch vụ đã làm
- *     - xoá dịch vụ
+ *   TODO(KPI, chờ đường sửa tài khoản đã hoàn thành):
+ *     - tích / bỏ tích "đã cài app" trên bản ghi `done`
+ *
+ * Đã nối xong: chuyển tài khoản sang `done` (`server/banking.ts`), ghi/sửa/xoá
+ * dịch vụ (`server/services.ts`). Bản `creating` không vào điểm nên tạo và xoá
+ * nháp không cần tính lại.
  *   TODO(KPI, chờ module cấu hình):
  *     - sửa hệ số một loại dịch vụ → `recomputeKpiForMonth` cho tháng hiện tại
  *

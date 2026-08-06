@@ -53,7 +53,7 @@ export default function CustomerDetailPage({
   });
 
   const removeDraft = useMutation({
-    mutationFn: (accountId: string) => deleteBankAccount(accountId, actor?.id ?? ""),
+    mutationFn: (accountId: string) => deleteBankAccount(accountId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["customer", id] });
       queryClient.invalidateQueries({ queryKey: ["customers"] });

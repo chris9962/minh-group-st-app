@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import { Scope } from '@/lib/types';
 import { AccountNumberMethod } from './bankCatalog';
 import { AccountType, BankAccountStatus } from './bankAccounts';
+import { pageOf, pageParams, type Page, type PageQuery } from './pagination';
 
 /**
  * P-21 · Danh sách tài khoản ngân hàng · P-22 · Chi tiết / hoàn tất tài khoản
@@ -9,6 +9,10 @@ import { AccountType, BankAccountStatus } from './bankAccounts';
  *
  * Một tài khoản = một bản ghi độc lập — không gom nhiều ngân hàng của cùng
  * một khách vào chung một dòng ở đây (khác với xuất Excel, gộp theo khách).
+ *
+ * Phạm vi KHÔNG đi qua đường truyền: máy chủ tự lấy mức rộng nhất người gọi
+ * được cấp. Nhận `scope` hay `actorId` từ client là mở hai ô để nặn tay mà
+ * không thêm được tính năng nào — phiên đăng nhập đã nói đủ.
  */
 
 export const BankAccountRow = z.object({
@@ -49,51 +53,68 @@ export const BankAccountDetail = BankAccountRow.extend({
 });
 export type BankAccountDetail = z.infer<typeof BankAccountDetail>;
 
-export const BankAccountQuery = z.object({
-  scope: Scope,
-  search: z.string(),
-  bankCode: z.string(),
-  from: z.string(),
-  to: z.string(),
-  referralCode: z.string(),
-  channel: z.string(),
-  staffId: z.string(),
-  status: z.union([BankAccountStatus, z.literal('')]),
-});
-export type BankAccountQuery = z.infer<typeof BankAccountQuery>;
+/**
+ * Khoá sắp xếp — DANH SÁCH TRẮNG, đi thẳng vào `ORDER BY` của máy chủ.
+ *
+ * Chỉ cột nằm trong chính bảng `bank_accounts`. Sắp theo tên khách hay tên
+ * người tạo thì phải nối bảng TRƯỚC khi cắt trang, tức kéo cả kho để lấy 15
+ * dòng (AGENTS.md §5.2) — mà `bank_accounts` là bảng lớn nhất hệ thống.
+ */
+export const BANK_ACCOUNT_SORT = ['date'] as const;
+export type BankAccountSort = (typeof BANK_ACCOUNT_SORT)[number];
 
-export const BankAccountList = z.object({
-  rows: z.array(BankAccountRow),
-  summary: z.object({ total: z.number() }),
-});
-export type BankAccountList = z.infer<typeof BankAccountList>;
+export type BankAccountQuery = PageQuery<BankAccountSort> & {
+  /** Tìm theo TÊN KHÁCH — không dấu, không phụ thuộc thứ tự từ. */
+  search: string;
+  /** Mã ngân hàng dạng chuỗi ('VPa'), không phải uuid — ô chọn hiện mã. */
+  bankCode: string;
+  /** Khoảng NGÀY MỞ, YYYY-MM-DD. Rỗng = không giới hạn. */
+  from: string;
+  to: string;
+  referralCode: string;
+  /** Lọc theo id kênh, không theo tên: kênh đổi tên thì lọc theo tên bỏ sót dòng cũ. */
+  channelId: string;
+  staffId: string;
+  status: BankAccountStatus | '';
+};
 
-export async function fetchBankAccounts(
-  query: BankAccountQuery & { actorId: string },
-): Promise<BankAccountList> {
-  const params = new URLSearchParams({
-    actorId: query.actorId,
-    scope: query.scope,
-    search: query.search,
-    bankCode: query.bankCode,
-    from: query.from,
-    to: query.to,
-    referralCode: query.referralCode,
-    channel: query.channel,
-    staffId: query.staffId,
-    status: query.status,
-  });
-  const res = await fetch(`/api/bank-account-list?${params}`);
+const BankAccountPage = pageOf(BankAccountRow);
+
+const listParams = (query: Omit<BankAccountQuery, keyof PageQuery>) => ({
+  search: query.search,
+  bankCode: query.bankCode,
+  from: query.from,
+  to: query.to,
+  referralCode: query.referralCode,
+  channelId: query.channelId,
+  staffId: query.staffId,
+  status: query.status,
+});
+
+/** MỘT trang tài khoản, đã lọc/tìm/sắp sẵn ở máy chủ (AGENTS.md §5.1). */
+export async function fetchBankAccounts(query: BankAccountQuery): Promise<Page<BankAccountRow>> {
+  const res = await fetch(`/api/bank-account-list?${pageParams(query, listParams(query))}`);
   if (!res.ok) throw new Error('Không tải được danh sách tài khoản ngân hàng');
-  return BankAccountList.parse(await res.json());
+  return BankAccountPage.parse(await res.json());
 }
 
-export async function fetchBankAccountDetail(
-  id: string,
-  actorId: string,
-): Promise<BankAccountDetail> {
-  const params = new URLSearchParams({ actorId });
-  const res = await fetch(`/api/bank-account-list/${id}?${params}`);
+/**
+ * TRỌN danh sách khớp bộ lọc, CHỈ cho việc xuất Excel — đường riêng chứ không
+ * mở tham số "lấy hết" trên route đã phân trang (AGENTS.md §5.1, điều 4).
+ *
+ * `total` có thể lớn hơn `rows.length` khi chạm trần — nơi gọi BẮT BUỘC so hai
+ * số rồi dừng, vì file thiếu dòng trông y hệt file đủ.
+ */
+export async function fetchBankAccountsForExport(
+  query: Omit<BankAccountQuery, keyof PageQuery>,
+): Promise<Page<BankAccountRow>> {
+  const res = await fetch(`/api/bank-account-list/export?${new URLSearchParams(listParams(query))}`);
+  if (!res.ok) throw new Error('Không tải được danh sách tài khoản ngân hàng');
+  return BankAccountPage.parse(await res.json());
+}
+
+export async function fetchBankAccountDetail(id: string): Promise<BankAccountDetail> {
+  const res = await fetch(`/api/bank-account-list/${id}`);
   if (res.status === 404) throw new Error('Không tìm thấy tài khoản này');
   if (!res.ok) throw new Error('Không tải được chi tiết tài khoản');
   return BankAccountDetail.parse(await res.json());

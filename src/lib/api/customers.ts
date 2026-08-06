@@ -249,7 +249,7 @@ export type CustomerInsuranceRow = z.infer<typeof CustomerInsuranceRow>;
  *
  * Spec §2.1 đòi hồ sơ 360° hiện đủ bốn thứ — đơn bảo hiểm, tài khoản ngân hàng,
  * DỊCH VỤ ĐÃ LÀM, trạng thái quà. Ba thứ đầu đã có, dịch vụ thì chưa: bảng
- * `services` có trong schema nhưng `/api/services` chưa có route nào, nên chưa
+ * `services` có trong schema nhưng hồ sơ 360° chưa truy vấn bảng `services`, nên chưa
  * có gì để đọc. Thêm `services: z.array(...)` ở đây, truy vấn ở
  * `server/customers.ts`, và dựng khối thứ năm ở `[id]/page.tsx` khi module dịch
  * vụ lên. Gỡ mốc ở cả hai đầu.

@@ -5,7 +5,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { CheckCircle2, Trash2 } from "lucide-react";
-import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { Select } from "@/components/ui/Select";
@@ -19,9 +18,10 @@ import {
   startBankAccount,
   type BankAccount,
 } from "@/lib/api/bankAccounts";
-import { useSession } from "@/store/session";
 import { BankAccountFinishFields } from "./BankAccountFinishFields";
 import styles from "./BankAccountFormDialog.module.scss";
+import { businessDay } from "@/lib/format";
+import { invalidateKpi } from "@/lib/invalidateKpi";
 import { errorMessage, toast } from "@/lib/toast";
 
 type Props = {
@@ -60,7 +60,6 @@ export function BankAccountFormDialog({
   customerId,
   customerPrimaryPhone,
 }: Props) {
-  const actor = useSession((s) => s.user);
   const queryClient = useQueryClient();
   const [account, setAccount] = useState<BankAccount | null>(null);
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
@@ -102,7 +101,7 @@ export function BankAccountFormDialog({
   const enoughPhotos = photoUrls.length >= requiredPhotos;
 
   const start = useMutation({
-    mutationFn: (form: BankAccountStartForm) => startBankAccount(form, actor?.id ?? ""),
+    mutationFn: (form: BankAccountStartForm) => startBankAccount(form),
     onSuccess: (created) => {
       setAccount(created);
       setPhotoUrls(created.photoUrls);
@@ -111,7 +110,7 @@ export function BankAccountFormDialog({
           selectedBank?.accountNumberMethod === "phone-match"
             ? customerPrimaryPhone
             : created.accountNumber,
-        openedDate: created.openedDate || new Date().toISOString().slice(0, 10),
+        openedDate: created.openedDate || businessDay(),
         appInstalled: true,
         accountType: "none",
         note: created.note,
@@ -131,17 +130,18 @@ export function BankAccountFormDialog({
     queryClient.invalidateQueries({ queryKey: ["customers"] });
     queryClient.invalidateQueries({ queryKey: ["referral-codes"] });
     queryClient.invalidateQueries({ queryKey: ["customer", customerId] });
+    invalidateKpi(queryClient);
   };
 
   const uploadPhotos = useMutation({
-    mutationFn: (urls: string[]) => setBankAccountPhotos(account?.id ?? "", urls, actor?.id ?? ""),
+    mutationFn: (urls: string[]) => setBankAccountPhotos(account?.id ?? "", urls),
     onSuccess: (updated) => setPhotoUrls(updated.photoUrls),
     onError: (e) => toast.fail(errorMessage(e, "Không tải được ảnh lên.")),
   });
 
   const finish = useMutation({
     mutationFn: (form: BankAccountFinishForm) =>
-      finishBankAccount(account?.id ?? "", form, actor?.id ?? ""),
+      finishBankAccount(account?.id ?? "", form),
     onSuccess: () => {
       invalidateAfterFinishOrDelete();
       onClose();
@@ -151,7 +151,7 @@ export function BankAccountFormDialog({
   });
 
   const remove = useMutation({
-    mutationFn: () => deleteBankAccount(account?.id ?? "", actor?.id ?? ""),
+    mutationFn: () => deleteBankAccount(account?.id ?? ""),
     onSuccess: () => {
       invalidateAfterFinishOrDelete();
       onClose();
@@ -213,7 +213,6 @@ export function BankAccountFormDialog({
             )}
           </div>
 
-          {finish.isError && <Alert tone="error">Không hoàn thành được tài khoản này.</Alert>}
 
           <BankAccountFinishFields
             formId="finish-account-form"
@@ -227,7 +226,6 @@ export function BankAccountFormDialog({
             photoUrls={photoUrls}
             requiredPhotos={requiredPhotos}
             onPhotosChange={(urls) => uploadPhotos.mutate(urls)}
-            photosError={uploadPhotos.isError}
           />
           {!enoughPhotos && (
             <p className="text-muted">Cần đủ {requiredPhotos} ảnh chứng minh mới hoàn thành được.</p>
@@ -240,7 +238,6 @@ export function BankAccountFormDialog({
           onSubmit={startForm.handleSubmit((form) => start.mutate(form))}
           noValidate
         >
-          {start.isError && <Alert tone="error">Không giữ được chỗ mã này.</Alert>}
 
           <Select
             block

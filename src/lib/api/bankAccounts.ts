@@ -10,15 +10,6 @@ import { z } from 'zod';
  * lại y hệt từ P-20/màn Ngân hàng khi màn đó được xây — không đổi API.
  */
 
-/**
- * TODO(P-20 Ngân hàng, chờ module ngân hàng): MỌI hàm trong file này gọi vào
- * `/api/bank-accounts*`, mà route đó CHƯA TỒN TẠI — gọi vào là 404.
- *
- * Hộp thoại `BankAccountFormDialog` mở được từ P-40/P-42 và điền được hết, chỉ
- * bấm lưu là hỏng. Nút mở nó nằm ở `app/(app)/customers/page.tsx` và
- * `app/(app)/customers/[id]/page.tsx`. Gỡ mốc ở cả hai đầu khi dựng route.
- */
-
 export const AccountType = z.enum(['none', 'CNKD', 'HKD']);
 export type AccountType = z.infer<typeof AccountType>;
 
@@ -68,16 +59,29 @@ export type BankAccount = z.infer<typeof BankAccount>;
 
 /** Bước 1 (P-20) — chỉ chọn ngân hàng + mã. Lưu là giữ chỗ mã ngay, tạo dòng `creating`. */
 export const BankAccountStartForm = z.object({
-  customerId: z.string(),
-  bankId: z.string().trim().min(1, 'Chưa chọn ngân hàng'),
-  referralCode: z.string().trim().min(1, 'Chưa chọn mã giới thiệu'),
+  // Bắt dạng uuid ngay ở đây: để lọt chuỗi bậy xuống Postgres là `22P02`, mà
+  // tầng dưới chỉ bắt lỗi trùng khoá nên client nhận 500 thay vì 400.
+  customerId: z.uuid('Chưa chọn khách'),
+  bankId: z.uuid('Chưa chọn ngân hàng'),
+  referralCode: z.uuid('Chưa chọn mã giới thiệu'),
 });
 export type BankAccountStartForm = z.infer<typeof BankAccountStartForm>;
 
 /** Bước 2 (P-22, khi tài khoản đang `creating`) — điền nốt sau khi đã mở xong ở ngoài. */
 export const BankAccountFinishForm = z.object({
   accountNumber: z.string().trim().min(1, 'Chưa có số tài khoản'),
-  openedDate: z.string().trim().min(1, 'Chưa chọn ngày mở'),
+  /**
+   * Bắt đúng `YYYY-MM-DD`, không chỉ "khác rỗng".
+   *
+   * Postgres nhận nhiều dạng ngày mà `Date` của JS không nhận. Gửi `20260806`
+   * thì câu `UPDATE` THÀNH CÔNG — tài khoản lên `done`, mã đã tiêu — rồi
+   * `businessMonth(new Date(…))` ném lỗi và route trả 500: dữ liệu đã ghi, điểm
+   * KPI không được tính lại, nhật ký truy vết không có dòng nào.
+   */
+  openedDate: z
+    .string()
+    .trim()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Ngày mở phải có dạng YYYY-MM-DD'),
   appInstalled: z.boolean(),
   accountType: AccountType,
   note: z.string(),
@@ -94,17 +98,32 @@ export const CreateBankAccountResult = z.object({
 });
 export type CreateBankAccountResult = z.infer<typeof CreateBankAccountResult>;
 
-/** Bước 1 — giữ chỗ mã, tạo dòng `creating`. Chưa có cảnh báo vì chưa biết đã cài app chưa. */
-export async function startBankAccount(
-  form: BankAccountStartForm,
-  actorId: string,
-): Promise<BankAccount> {
+/**
+ * Máy chủ đã nói rõ vì sao ("Mã này vừa hết chỗ") — nuốt đi rồi ném câu chung
+ * chung là bắt người dùng tự đoán mình sai chỗ nào.
+ */
+async function failure(res: Response, fallback: string): Promise<Error> {
+  const body = (await res.json().catch(() => null)) as { message?: string } | null;
+  return new Error(body?.message?.trim() || fallback);
+}
+
+/**
+ * Bước 1 — giữ chỗ mã, tạo dòng `creating`.
+ *
+ * Người tạo do máy chủ lấy từ phiên đăng nhập, biểu mẫu không gửi: nhận
+ * `actorId` từ client là mở đường ghi công của mình vào tên người khác.
+ *
+ * Hai người bấm cùng lúc vào chỗ cuối thì chỉ một người được — người kia nhận
+ * lỗi "hết chỗ" NGAY tại đây, không phải đợi tới bước 2 mới biết đã mất công
+ * đi mở tài khoản (spec §4.5).
+ */
+export async function startBankAccount(form: BankAccountStartForm): Promise<BankAccount> {
   const res = await fetch('/api/bank-accounts', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ...form, actorId }),
+    body: JSON.stringify(form),
   });
-  if (!res.ok) throw new Error('Không giữ được chỗ mã này');
+  if (!res.ok) throw await failure(res, 'Không giữ được chỗ mã này');
   return BankAccount.parse(await res.json());
 }
 
@@ -112,35 +131,38 @@ export async function startBankAccount(
 export async function finishBankAccount(
   id: string,
   form: BankAccountFinishForm,
-  actorId: string,
 ): Promise<CreateBankAccountResult> {
   const res = await fetch(`/api/bank-accounts/${id}/finish`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ...form, actorId }),
+    body: JSON.stringify(form),
   });
-  if (!res.ok) throw new Error('Không hoàn thành được tài khoản này');
+  if (!res.ok) throw await failure(res, 'Không hoàn thành được tài khoản này');
   return CreateBankAccountResult.parse(await res.json());
 }
 
 /** Bỏ dở — chỉ xoá được khi còn `creating`. Nhả mã lại kho ngay (mục 4.5). */
-export async function deleteBankAccount(id: string, actorId: string): Promise<void> {
-  const params = new URLSearchParams({ actorId });
-  const res = await fetch(`/api/bank-accounts/${id}?${params}`, { method: 'DELETE' });
-  if (!res.ok) throw new Error('Không xoá được tài khoản đang tạo này');
+export async function deleteBankAccount(id: string): Promise<void> {
+  const res = await fetch(`/api/bank-accounts/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw await failure(res, 'Không xoá được tài khoản đang tạo này');
 }
 
-/** Thêm/thay/xoá ảnh chứng minh ở P-22 — gửi nguyên mảng đã cập nhật. */
+/**
+ * Ghi danh sách ảnh chứng minh vào database — gửi nguyên mảng URL đã cập nhật.
+ *
+ * KHÔNG nhận file: tải ảnh lên là việc riêng của `uploadImage`, đường này chỉ
+ * ghi URL. Tách hai việc ra để một lần tải hỏng không kéo theo cả bản ghi, và
+ * để đổi chỗ lưu trữ về sau không phải sửa nghiệp vụ.
+ */
 export async function setBankAccountPhotos(
   id: string,
   photoUrls: string[],
-  actorId: string,
 ): Promise<BankAccount> {
   const res = await fetch(`/api/bank-accounts/${id}/photos`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ photoUrls, actorId }),
+    body: JSON.stringify({ photoUrls }),
   });
-  if (!res.ok) throw new Error('Không lưu được ảnh chứng minh này');
+  if (!res.ok) throw await failure(res, 'Không lưu được ảnh chứng minh này');
   return BankAccount.parse(await res.json());
 }
