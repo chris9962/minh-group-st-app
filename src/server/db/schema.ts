@@ -503,6 +503,20 @@ export const bankAccounts = pgTable(
     // Tính điểm KPI gom theo NGƯỜI TẠO trong một khoảng ngày (§9), không lọc
     // theo phòng — index dẫn đầu bằng department_id ở trên không dùng được.
     index("bank_accounts_creator_date").on(t.createdBy, t.openedDate),
+    /**
+     * Khớp ĐÚNG `ORDER BY` của P-21: `opened_date desc nulls last, id`.
+     *
+     * `nulls last` là bắt buộc về nghiệp vụ — tài khoản `creating` chưa có ngày
+     * mở, mà mặc định Postgres xếp NULL lên đầu khi giảm dần nên bảng mở ra
+     * toàn bản nháp. Nhưng nó cũng làm hai index ở trên hết dùng được: đo trên
+     * 20.000 dòng, câu lấy trang chuyển từ Index Scan (116 buffer, 0,16ms) sang
+     * Seq Scan toàn bảng (1703 buffer, 5,3ms) — và câu đếm tổng là lượt quét
+     * thứ hai. Hai index dưới đây khai đúng thứ tự đó nên dùng lại được.
+     */
+    index("bank_accounts_dept_opened").on(
+      sql`created_by_department_id, opened_date desc nulls last, id`,
+    ),
+    index("bank_accounts_opened").on(sql`opened_date desc nulls last, id`),
     check(
       "bank_accounts_done_filled",
       sql`status = 'creating' or (account_number is not null and opened_date is not null)`,
@@ -595,8 +609,20 @@ export const insuranceOrders = pgTable(
   (t) => [
     index("insurance_orders_customer").on(t.customerId),
     index("insurance_orders_status").on(t.status),
-    index("insurance_orders_dept_date").on(t.createdByDepartmentId, t.startDate),
-    index("insurance_orders_creator_date").on(t.createdBy, t.startDate),
+    /**
+     * Khớp đúng thứ tự P-13 lấy một trang: `start_date desc, created_at desc,
+     * id`, có hoặc không kèm bộ lọc phạm vi. Cả ba khoá đều phải nằm trong chỉ
+     * mục — thiếu một cái thì Postgres vẫn phải xếp lại toàn bộ kết quả khớp
+     * bộ lọc trước khi cắt 15 dòng, tức là quét cả kho để lấy một trang.
+     * Vì sao đúng bộ ba đó: xem `orderByDate` ở `server/insurance.ts`.
+     */
+    index("insurance_orders_dept_date").on(
+      sql`created_by_department_id, start_date desc, created_at desc, id`,
+    ),
+    index("insurance_orders_creator_date").on(
+      sql`created_by, start_date desc, created_at desc, id`,
+    ),
+    index("insurance_orders_date").on(sql`start_date desc, created_at desc, id`),
     check(
       "insurance_orders_motorbike_plate",
       sql`product <> 'motorbike' or license_plate <> ''`,
@@ -650,6 +676,12 @@ export const services = pgTable(
     index("services_dept_date").on(t.createdByDepartmentId, t.serviceDate),
     index("services_creator_date").on(t.createdBy, t.serviceDate),
     index("services_customer").on(t.customerId),
+    // Khớp `ORDER BY service_date desc, id` của P-31. Thiếu nó thì phạm vi toàn
+    // công ty quét cả bảng, hai lượt mỗi lần mở màn — đo trên 300.000 dòng:
+    // 14ms cho câu lấy trang, 43ms cho câu đếm.
+    index("services_date").on(sql`service_date desc, id`),
+    // Ô lọc "Xã" ở P-31 — không có index này thì ai bấm cũng seq scan (74ms).
+    index("services_ward").on(t.wardId),
   ],
 );
 

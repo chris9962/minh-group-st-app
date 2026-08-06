@@ -57,6 +57,27 @@
       "when": 1785996866621,
       "tag": "0007_referral_code_counts",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1786011222301,
+      "tag": "0008_list_sort_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1786023091620,
+      "tag": "0009_insurance_sort_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1786027044444,
+      "tag": "0010_insurance_recent_first",
+      "breakpoints": true
     }
   ]
 }

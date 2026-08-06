@@ -1,0 +1,5 @@
+DROP INDEX "insurance_orders_dept_date";--> statement-breakpoint
+DROP INDEX "insurance_orders_creator_date";--> statement-breakpoint
+CREATE INDEX "insurance_orders_date" ON "insurance_orders" USING btree (start_date desc, id);--> statement-breakpoint
+CREATE INDEX "insurance_orders_dept_date" ON "insurance_orders" USING btree (created_by_department_id, start_date desc, id);--> statement-breakpoint
+CREATE INDEX "insurance_orders_creator_date" ON "insurance_orders" USING btree (created_by, start_date desc, id);
