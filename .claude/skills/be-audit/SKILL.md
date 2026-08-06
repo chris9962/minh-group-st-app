@@ -13,7 +13,7 @@ nhưng phát nổ khi chạy thật — N+1, quên kiểm quyền phía server, 
 
 | Tài liệu | Lấy gì từ đó |
 |---|---|
-| `../mgst-db-design.md` §9 | Danh sách giá trị CẤM lưu (used/holding, giftStatus, điểm KPI…) |
+| `../mgst-db-design.md` §9 | Danh sách giá trị CẤM lưu (giftStatus, điểm KPI, tổng app…) **và bảng ngoại lệ cột đếm do trigger giữ** |
 | `../mgst-db-design.md` §10 | Bất biến app phải giữ (transition, for update, canGrant, clampScope…) |
 | `../mgst-db-design.md` §11 | 10 rule SQL bắt buộc |
 | `../mgst-platform-spec.md` §1.1, §10 | Mô hình phân quyền 3 trục, chặn tự nâng quyền |
@@ -53,8 +53,10 @@ Với mock hiện tại, dấu hiệu tương đương của từng rule:
 4. **Danh sách không phân trang**: endpoint trả mảng không `limit` — `audit_log` là bắt buộc tuyệt đối.
 5. **Read-modify-write không có khoá**: giữ chỗ mã giới thiệu, sinh mã đơn (`order_code_counters`),
    chốt quà — phải là transaction + `select … for update` (backend thật) / phải ghi chú rõ (mock).
-6. **Counter tự chế**: biến đếm lưu sẵn cho giá trị §9 cấm lưu (used/holding, giftStatus, điểm KPI,
-   tổng app) — mọi chỗ phải đếm/tính từ bản ghi thật.
+6. **Counter tự chế**: biến đếm lưu sẵn cho giá trị §9 cấm lưu (giftStatus, điểm KPI,
+   tổng app) — mọi chỗ phải đếm/tính từ bản ghi thật. Các cột trong **bảng ngoại lệ ở §9**
+   (`customers.account_count`/`insurance_count`, `referral_codes.used_count`/`holding_count`)
+   KHÔNG phải finding — nhưng phải kiểm đủ 5 điều kiện §9 liệt kê, thiếu một cái mới là finding.
 
 ### C · Snapshot & bất biến lịch sử
 

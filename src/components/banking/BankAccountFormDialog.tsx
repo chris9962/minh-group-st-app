@@ -268,7 +268,9 @@ export function BankAccountFormDialog({
                     ? [{ value: "", label: "— Hết mã còn chỗ —" }]
                     : availableCodes.map((c) => ({
                         value: c.id,
-                        label: `${c.code} · còn ${c.total - c.used} chỗ`,
+                        // Trừ cả `holding`: tài khoản người khác đang mở dở đã
+                        // chiếm chỗ rồi, không trừ là hứa thừa.
+                        label: `${c.code} · còn ${c.total - c.used - c.holding} chỗ`,
                       }))
                 }
               />

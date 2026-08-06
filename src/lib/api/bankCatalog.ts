@@ -104,9 +104,13 @@ export const CODE_LOW_RATIO = 0.8;
 /**
  * `used` gộp cả số đã tiêu trước khi nhập vào hệ thống (`imported_used`).
  *
- * KHÔNG còn `holding` (số tài khoản đang mở dở giữ chỗ): nó chưa bao giờ ngăn
- * được hai người cùng nhận chỗ cuối — cả hai đều đọc thấy "còn 1" rồi cùng bấm.
- * Chốt chặn thật phải nằm trong giao dịch tạo tài khoản ở module ngân hàng.
+ * `holding` là số tài khoản đang mở dở giữ chỗ mã này. Nó là con số ĐỂ HIỆN, KHÔNG
+ * phải chốt chặn: đọc xong rồi bấm thì hai người vẫn cùng nhận được chỗ cuối.
+ * Chốt thật nằm trong giao dịch tạo tài khoản ở module ngân hàng, khoá dòng
+ * `referral_codes` rồi mới kiểm (`mgst-db-design.md` §10).
+ *
+ * Chỗ còn nhận được tài khoản mới là `total - used - holding`, không phải
+ * `total - used`.
  */
 export const ReferralCode = z.object({
   id: z.string(),
@@ -114,6 +118,7 @@ export const ReferralCode = z.object({
   bankCode: z.string(),
   code: z.string(),
   used: z.number(),
+  holding: z.number(),
   total: z.number(),
   status: CodeStatus,
 });

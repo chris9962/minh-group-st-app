@@ -71,7 +71,7 @@ trong `page.module.css`.
 src/components/
   ui/        Button · TextField · Checkbox · Alert · Logo · …  (nguyên thuỷ)
   brand/     BrandPanel                                        (khối thương hiệu)
-  <domain>/  theo nghiệp vụ, ví dụ banking/CodeCountdown
+  <domain>/  theo nghiệp vụ, ví dụ banking/BankAccountPhotos
 ```
 
 Quy tắc:

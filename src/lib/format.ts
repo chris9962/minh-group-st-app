@@ -119,8 +119,3 @@ export const uniqueCode = (name: string, fallback: string, taken: Set<string>): 
   for (let i = 2; ; i++) if (!taken.has(`${base}-${i}`)) return `${base}-${i}`;
 };
 
-/** Đếm ngược mm:ss — dùng cho đồng hồ giữ chỗ mã giới thiệu. */
-export function countdown(seconds: number): string {
-  const s = Math.max(0, Math.floor(seconds));
-  return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
-}

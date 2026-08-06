@@ -192,13 +192,46 @@ export const referralCodes = pgTable(
     bankId: uuid("bank_id").notNull().references(() => banks.id),
     code: text("code").notNull(),
     total: integer("total").notNull(),
-    /** Số đã dùng TRƯỚC khi nhập vào hệ thống (P-62). `used`/`holding` sống thì ĐẾM từ bank_accounts. */
+    /** Số đã dùng TRƯỚC khi nhập vào hệ thống (P-62) — không có dòng `bank_accounts` nào để đếm. */
     importedUsed: integer("imported_used").notNull().default(0),
+    /**
+     * Số tài khoản `done` và số tài khoản `creating` đang giữ chỗ mã này —
+     * LƯU SẴN, ngoại lệ có chủ đích của luật §9 "used/holding thì đếm sống"
+     * (`mgst-db-design.md` §9, mục đã ghi lại ngoại lệ này).
+     *
+     * ⚠️ KHÔNG code nào được tự cộng trừ hai cột này. Trigger
+     * `mgst_sync_referral_counts` giữ chúng, nên mọi đường ghi đều đúng: mở tài
+     * khoản, hoàn thành, xoá bản nháp, đổi mã, nhập hàng loạt, vá tay.
+     *
+     * Vì sao lưu — hai lý do, cả hai đều không né được bằng index:
+     *
+     * 1. P-61 lọc theo TRẠNG THÁI và sắp theo TIẾN ĐỘ, mà cả hai đều suy từ
+     *    `used`. Đếm sống thì phải gộp TOÀN BỘ `bank_accounts` xong mới biết
+     *    dòng nào khớp bộ lọc — không cắt trang trước được, và câu đếm tổng
+     *    chạy lại y nguyên phép gộp đó lần thứ hai.
+     * 2. §10 đòi chốt "còn chỗ" phải khoá dòng `referral_codes` bằng
+     *    `select … for update` TRONG giao dịch tạo tài khoản. Với công thức
+     *    đếm sống thì mỗi lần kiểm là chạy phép gộp toàn bảng trong lúc đang
+     *    giữ khoá; đọc hai cột này thì chỉ còn một dòng.
+     *
+     * `used` hiển thị = `imported_used + used_count`. Đừng gộp `imported_used`
+     * vào cột đếm: lần `db:recount` đầu tiên sẽ đè mất số nhập tay từ P-62.
+     *
+     * Lệch thì `bun run db:recount` đếm lại toàn bộ.
+     */
+    usedCount: integer("used_count").notNull().default(0),
+    holdingCount: integer("holding_count").notNull().default(0),
     createdAt: createdAt(),
   },
   (t) => [
     uniqueIndex("referral_codes_bank_code").on(t.bankId, t.code),
     check("referral_codes_total_positive", sql`total > 0`),
+    // Số đếm âm là trigger sai. Vỡ ra ở đây còn hơn để nó âm thầm làm màn P-61
+    // hiện "còn -3 chỗ" và chốt "còn chỗ" mở cửa cho mã đã đầy.
+    check(
+      "referral_codes_counts_non_negative",
+      sql`used_count >= 0 and holding_count >= 0`,
+    ),
   ],
 );
 

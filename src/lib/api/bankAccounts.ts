@@ -28,9 +28,9 @@ export type AccountType = z.infer<typeof AccountType>;
  * một lần được. `creating` = đã giữ chỗ mã, đang chờ quay lại điền nốt.
  * `done` = đã quay lại, đủ ảnh chứng minh, mã đã tiêu thật.
  *
- * "Đang giữ" của một mã giới thiệu = đúng số tài khoản đang ở trạng thái
- * `creating` tham chiếu mã đó — không có bảng "lượt giữ" hay hạn 30 phút
- * riêng, tài khoản dở dang CHÍNH LÀ cái giữ chỗ. Muốn nhả thì xoá dòng đó.
+ * "Đang giữ" của một mã giới thiệu = số tài khoản `creating` tham chiếu mã đó,
+ * đếm sẵn ở `referral_codes.holding_count`. Chỗ được nhả bằng đúng một đường:
+ * xoá dòng `creating`.
  */
 export const BankAccountStatus = z.enum(['creating', 'done']);
 export type BankAccountStatus = z.infer<typeof BankAccountStatus>;

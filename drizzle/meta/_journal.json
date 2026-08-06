@@ -50,6 +50,13 @@
       "when": 1785948575567,
       "tag": "0006_phone_search_index",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1785996866621,
+      "tag": "0007_referral_code_counts",
+      "breakpoints": true
     }
   ]
 }

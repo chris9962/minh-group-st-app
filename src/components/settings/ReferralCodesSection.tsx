@@ -88,6 +88,13 @@ export function ReferralCodesSection() {
       ),
     },
     {
+      // Không cho sắp: khoá sắp xếp đi thẳng vào `ORDER BY` nên phải nằm trong
+      // danh sách trắng `REFERRAL_CODE_SORT` ở máy chủ, mà cột này chưa có.
+      key: "holding",
+      label: "Đang giữ",
+      render: (c) => <span className="tabular-nums">{c.holding}</span>,
+    },
+    {
       key: "status",
       label: "Trạng thái",
       render: (c) => (
