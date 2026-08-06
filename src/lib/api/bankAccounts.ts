@@ -10,6 +10,15 @@ import { z } from 'zod';
  * lại y hệt từ P-20/màn Ngân hàng khi màn đó được xây — không đổi API.
  */
 
+/**
+ * TODO(P-20 Ngân hàng, chờ module ngân hàng): MỌI hàm trong file này gọi vào
+ * `/api/bank-accounts*`, mà route đó CHƯA TỒN TẠI — gọi vào là 404.
+ *
+ * Hộp thoại `BankAccountFormDialog` mở được từ P-40/P-42 và điền được hết, chỉ
+ * bấm lưu là hỏng. Nút mở nó nằm ở `app/(app)/customers/page.tsx` và
+ * `app/(app)/customers/[id]/page.tsx`. Gỡ mốc ở cả hai đầu khi dựng route.
+ */
+
 export const AccountType = z.enum(['none', 'CNKD', 'HKD']);
 export type AccountType = z.infer<typeof AccountType>;
 

@@ -23,7 +23,9 @@ import {
 } from "@/lib/api/customers";
 import { INSURANCE_STATUS_LABEL } from "@/lib/api/insuranceOrders";
 import { formatDate, formatIdNumber, formatPhone, formatVnd } from "@/lib/format";
+import { can } from "@/lib/permissions";
 import { useSession } from "@/store/session";
+import { errorMessage, toast } from "@/lib/toast";
 import styles from "./page.module.scss";
 
 const INSURANCE_SOURCE_LABEL: Record<CustomerInsuranceRow["source"], string> = {
@@ -47,7 +49,7 @@ export default function CustomerDetailPage({
 
   const { data, isPending, isError, refetch, isFetching } = useQuery({
     queryKey: ["customer", id],
-    queryFn: () => fetchCustomerDetail(id, actor?.id ?? ""),
+    queryFn: () => fetchCustomerDetail(id),
   });
 
   const removeDraft = useMutation({
@@ -58,7 +60,9 @@ export default function CustomerDetailPage({
       // Xoá nhả chỗ mã ngay — không invalidate thì hộp thoại "Mở ngân hàng"
       // vẫn hiện "đang giữ" cũ tới khi hết 30s staleTime mặc định.
       queryClient.invalidateQueries({ queryKey: ["referral-codes"] });
+      toast.ok("Đã xoá tài khoản đang tạo dở, mã giới thiệu được nhả lại");
     },
+    onError: (e) => toast.fail(errorMessage(e, "Không xoá được tài khoản này.")),
   });
 
   const accountColumns: RankColumn<CustomerAccountRow>[] = [
@@ -111,7 +115,14 @@ export default function CustomerDetailPage({
                 <div>
                   <dt>CCCD</dt>
                   <dd>
-                    {data.customer.idNumber ? formatIdNumber(data.customer.idNumber) : "Chưa có"}
+                    {/* Che thì KHÔNG đưa qua `formatIdNumber` — hàm đó chia nhóm
+                        theo 12 số, đưa 4 số vào ra một chuỗi trông như CCCD thật
+                        mà ngắn ngủn. */}
+                    {!data.customer.idNumber
+                      ? "Chưa có"
+                      : data.customer.idNumberMasked
+                        ? `•••• •••• ${data.customer.idNumber}`
+                        : formatIdNumber(data.customer.idNumber)}
                   </dd>
                 </div>
                 <div>
@@ -138,9 +149,14 @@ export default function CustomerDetailPage({
                 </div>
               </dl>
               <div className={styles.footRow}>
-                <Button variant="secondary" onClick={() => setEditing(true)}>
-                  Sửa thông tin
-                </Button>
+                {/* Ẩn nút khi máy chủ sẽ từ chối — bấm xong nhận 403 thì câu báo
+                    lỗi không nói được là "vai của bạn vốn không sửa hồ sơ
+                    khách". Điều kiện phải khớp đúng chốt ở `PATCH /api/customers/[id]`. */}
+                {can(actor, "customer", "update") && (
+                  <Button variant="secondary" onClick={() => setEditing(true)}>
+                    Sửa thông tin
+                  </Button>
+                )}
                 <Button
                   variant="secondary"
                   disabled={data.gift.given}

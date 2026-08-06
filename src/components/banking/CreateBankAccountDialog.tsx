@@ -12,7 +12,6 @@ import { BankAccountFormDialog } from "@/components/banking/BankAccountFormDialo
 import { CustomerFormDialog } from "@/components/customers/CustomerFormDialog";
 import { fetchCustomerDetail, fetchCustomers, type Customer } from "@/lib/api/customers";
 import { useDebouncedValue } from "@/lib/hooks";
-import { useSession } from "@/store/session";
 import styles from "./CreateBankAccountDialog.module.scss";
 
 type Props = {
@@ -33,7 +32,6 @@ const primaryPhoneOf = (c: Customer): string =>
  * chặn lại ở một bước xác nhận trung gian.
  */
 export function CreateBankAccountDialog({ open, onClose }: Props) {
-  const actor = useSession((s) => s.user);
   const [pickedId, setPickedId] = useState("");
   const [creatingCustomer, setCreatingCustomer] = useState(false);
   // Khách vừa tạo đã có sẵn đủ dữ liệu (Customer đầy đủ) — khỏi cần tải lại
@@ -50,14 +48,14 @@ export function CreateBankAccountDialog({ open, onClose }: Props) {
     isFetching: listFetching,
   } = useQuery({
     queryKey: ["customers-picker", searchQuery],
-    queryFn: () => fetchCustomers({ search: searchQuery, channel: "", from: "", to: "" }),
+    queryFn: () => fetchCustomers({ search: searchQuery, channelId: "", from: "", to: "", page: 0, sort: "name", dir: "asc" }),
     enabled: open && !pickedId && !readyCustomer,
     placeholderData: (previous) => previous,
   });
 
   const { data: detail, isPending: detailPending } = useQuery({
     queryKey: ["customer", pickedId],
-    queryFn: () => fetchCustomerDetail(pickedId, actor?.id ?? ""),
+    queryFn: () => fetchCustomerDetail(pickedId),
     enabled: !!pickedId,
   });
 
@@ -74,7 +72,7 @@ export function CreateBankAccountDialog({ open, onClose }: Props) {
     );
   }
 
-  const customers = list?.customers ?? [];
+  const customers = list?.rows ?? [];
 
   return (
     <>

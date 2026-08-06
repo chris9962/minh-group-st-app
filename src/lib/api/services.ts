@@ -9,6 +9,14 @@ import { Scope } from '@/lib/types';
  * đóng câu hỏi mở trong spec), KHÔNG có màn chi tiết riêng (không có P-32).
  */
 
+/**
+ * TODO(P-30 Dịch vụ, chờ module dịch vụ): MỌI hàm trong file này gọi vào
+ * `/api/services*`, mà route đó CHƯA TỒN TẠI — gọi vào là 404.
+ *
+ * Nút "Ghi dịch vụ" ở `app/(app)/customers/page.tsx` và `[id]/page.tsx` mở được
+ * hộp thoại nhưng bấm lưu là hỏng. Gỡ mốc ở cả hai đầu khi dựng route.
+ */
+
 export const ServiceRow = z.object({
   id: z.string(),
   customerName: z.string(),

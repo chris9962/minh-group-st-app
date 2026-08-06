@@ -9,6 +9,14 @@ import { InsuranceProduct } from '@/lib/types';
  * mua, `source: 'self'`, tự chọn sản phẩm) khi màn đó được xây.
  */
 
+/**
+ * TODO(P-10 Bảo hiểm, chờ module bảo hiểm): MỌI hàm trong file này gọi vào
+ * `/api/insurance-orders*`, mà route đó CHƯA TỒN TẠI — gọi vào là 404.
+ *
+ * Luồng tặng quà ở `GiftGivingDialog` mở form người thụ hưởng được nhưng không
+ * tạo nổi đơn. Gỡ mốc ở cả hai đầu khi dựng route.
+ */
+
 export const InsuranceOrderSource = z.enum(['self', 'gift']);
 export type InsuranceOrderSource = z.infer<typeof InsuranceOrderSource>;
 

@@ -11,7 +11,7 @@ import { InsuranceOrderFormDialog } from "@/components/insurance/InsuranceOrderF
 import { fetchCustomerDetail, markGiftGiven } from "@/lib/api/customers";
 import { fetchInsurancePackages } from "@/lib/api/settings";
 import { formatVnd } from "@/lib/format";
-import { useSession } from "@/store/session";
+import { errorMessage, toast } from "@/lib/toast";
 import styles from "./GiftGivingDialog.module.scss";
 
 type Props = {
@@ -23,33 +23,56 @@ type Props = {
 
 const DECLINE = "__decline__";
 
+/** Chữ ghi vào `gift_grants.chosen_item` khi khách không nhận — cũng là chữ toast đọc lại. */
+const DECLINE_TEXT = "Từ chối nhận quà";
+
 /**
  * P-43 · Tặng quà — bật lên từ hồ sơ khách (P-42) hoặc bảng khách hàng (P-40).
  * Khách chọn ĐÚNG 1 món trong rổ; món bảo hiểm tự mở form người thụ hưởng và
  * tạo đơn luôn, món vật phẩm đánh dấu đã tặng ngay.
  */
 export function GiftGivingDialog({ open, onClose, customerId, customerName }: Props) {
-  const actor = useSession((s) => s.user);
   const queryClient = useQueryClient();
   const [selected, setSelected] = useState<string>("");
   const [creatingOrder, setCreatingOrder] = useState(false);
 
   const { data, isPending, isError, refetch, isFetching } = useQuery({
     queryKey: ["customer", customerId],
-    queryFn: () => fetchCustomerDetail(customerId, actor?.id ?? ""),
+    queryFn: () => fetchCustomerDetail(customerId),
   });
-  const { data: packages = [] } = useQuery({
+  /**
+   * Danh mục gói bảo hiểm quyết định món đã chọn đi đường nào: món BẢO HIỂM phải
+   * mở form người thụ hưởng rồi tạo đơn, món VẬT PHẨM thì đánh dấu đã tặng ngay.
+   *
+   * Chưa tải xong mà vẫn cho bấm là hỏng KHÔNG SỬA ĐƯỢC: `packages` rỗng nên mọi
+   * món trông như vật phẩm, khách chọn gói bảo hiểm sẽ bị ghi "đã tặng" mà không
+   * có đơn nào được tạo — mà quà chỉ tặng đúng một lần, không có đợt hai (spec
+   * §4.4 P-43). Nên phải chặn ở nút, không chỉ hiện nhãn sai.
+   */
+  const {
+    data: packages = [],
+    isPending: packagesPending,
+    isError: packagesError,
+    refetch: refetchPackages,
+    isFetching: packagesFetching,
+  } = useQuery({
     queryKey: ["insurance-packages"],
     queryFn: fetchInsurancePackages,
   });
 
   const markGiven = useMutation({
     mutationFn: (item: string) => markGiftGiven(customerId, item),
-    onSuccess: () => {
+    onSuccess: (_data, item) => {
       queryClient.invalidateQueries({ queryKey: ["customers"] });
       queryClient.invalidateQueries({ queryKey: ["customer", customerId] });
       onClose();
+      toast.ok(
+        item === DECLINE_TEXT
+          ? `Đã ghi nhận ${customerName} từ chối quà`
+          : `Đã tặng ${item} cho ${customerName}`,
+      );
     },
+    onError: (e) => toast.fail(errorMessage(e, "Không đánh dấu được quà đã tặng.")),
   });
 
   if (creatingOrder && data) {
@@ -68,8 +91,11 @@ export function GiftGivingDialog({ open, onClose, customerId, customerName }: Pr
 
   const confirm = () => {
     if (!selected) return;
+    // Chốt chặn thứ hai, sau nút bị vô hiệu: không biết món nào là bảo hiểm thì
+    // KHÔNG được chốt. Đánh dấu nhầm là mất suất quà của khách vĩnh viễn.
+    if (packagesPending || packagesError) return;
     if (selected === DECLINE) {
-      markGiven.mutate("Từ chối nhận quà");
+      markGiven.mutate(DECLINE_TEXT);
       return;
     }
     const item = data?.gift.basket.find((b) => b.id === selected);
@@ -91,7 +117,10 @@ export function GiftGivingDialog({ open, onClose, customerId, customerName }: Pr
           <Button variant="secondary" onClick={onClose}>
             Huỷ
           </Button>
-          <Button onClick={confirm} disabled={!selected || markGiven.isPending}>
+          <Button
+            onClick={confirm}
+            disabled={!selected || markGiven.isPending || packagesPending || packagesError}
+          >
             Xác nhận
           </Button>
         </>
@@ -100,6 +129,13 @@ export function GiftGivingDialog({ open, onClose, customerId, customerName }: Pr
       {isPending && <SkeletonText lines={3} label="Đang tải rổ quà" />}
       {/* Thiếu nhánh này thì tải hỏng ra hộp thoại RỖNG: không chữ, không nút thử lại. */}
       {isError && <ErrorState what="rổ quà của khách" onRetry={refetch} retrying={isFetching} />}
+      {packagesError && (
+        <ErrorState
+          what="danh mục gói bảo hiểm"
+          onRetry={refetchPackages}
+          retrying={packagesFetching}
+        />
+      )}
 
       {data && (
         <div className={styles.body}>

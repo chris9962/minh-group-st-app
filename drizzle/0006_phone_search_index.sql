@@ -1,0 +1,1 @@
+CREATE INDEX "customer_phones_number_trgm" ON "customer_phones" USING gin (number gin_trgm_ops);

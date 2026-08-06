@@ -22,6 +22,7 @@ import {
 import { useSession } from "@/store/session";
 import { BankAccountFinishFields } from "./BankAccountFinishFields";
 import styles from "./BankAccountFormDialog.module.scss";
+import { errorMessage, toast } from "@/lib/toast";
 
 type Props = {
   open: boolean;
@@ -118,7 +119,9 @@ export function BankAccountFormDialog({
       queryClient.invalidateQueries({ queryKey: ["customers"] });
       queryClient.invalidateQueries({ queryKey: ["customer", customerId] });
       queryClient.invalidateQueries({ queryKey: ["referral-codes"] });
+      toast.ok("Đã giữ chỗ mã giới thiệu — điền nốt để hoàn tất tài khoản");
     },
+    onError: (e) => toast.fail(errorMessage(e, "Không mở được tài khoản này.")),
   });
 
   // Hoàn thành/xoá đều đổi số "đang giữ · đã dùng" của mã — invalidate để hộp
@@ -133,6 +136,7 @@ export function BankAccountFormDialog({
   const uploadPhotos = useMutation({
     mutationFn: (urls: string[]) => setBankAccountPhotos(account?.id ?? "", urls, actor?.id ?? ""),
     onSuccess: (updated) => setPhotoUrls(updated.photoUrls),
+    onError: (e) => toast.fail(errorMessage(e, "Không tải được ảnh lên.")),
   });
 
   const finish = useMutation({
@@ -141,7 +145,9 @@ export function BankAccountFormDialog({
     onSuccess: () => {
       invalidateAfterFinishOrDelete();
       onClose();
+      toast.ok("Đã hoàn tất tài khoản ngân hàng");
     },
+    onError: (e) => toast.fail(errorMessage(e, "Không hoàn tất được tài khoản này.")),
   });
 
   const remove = useMutation({
@@ -149,7 +155,9 @@ export function BankAccountFormDialog({
     onSuccess: () => {
       invalidateAfterFinishOrDelete();
       onClose();
+      toast.ok("Đã xoá tài khoản đang tạo dở, mã giới thiệu được nhả lại");
     },
+    onError: (e) => toast.fail(errorMessage(e, "Không xoá được tài khoản này.")),
   });
 
   return (

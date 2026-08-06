@@ -12,6 +12,7 @@ import { fetchServiceTypes } from "@/lib/api/settings";
 import { createService, ServiceForm } from "@/lib/api/services";
 import { useSession } from "@/store/session";
 import styles from "./ServiceFormDialog.module.scss";
+import { errorMessage, toast } from "@/lib/toast";
 
 type Props = {
   open: boolean;
@@ -50,7 +51,9 @@ export function ServiceFormDialog({ open, onClose, customerId, customerName }: P
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["services"] });
       onClose();
+      toast.ok(`Đã ghi dịch vụ cho ${customerName}`);
     },
+    onError: (e) => toast.fail(errorMessage(e, "Không ghi được dịch vụ này.")),
   });
 
   return (

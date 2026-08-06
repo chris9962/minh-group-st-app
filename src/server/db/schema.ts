@@ -344,8 +344,20 @@ export const hamlets = pgTable(
     name: text("name").notNull(),
     createdAt: createdAt(),
   },
-  // Ấp nhập tay nên bảng phình theo thời gian; ô chọn lọc theo ward_id.
-  (t) => [index("hamlets_ward").on(t.wardId)],
+  (t) => [
+    // Ấp nhập tay nên bảng phình theo thời gian; ô chọn lọc theo ward_id.
+    index("hamlets_ward").on(t.wardId),
+    /**
+     * Một xã không được có hai ấp trùng tên.
+     *
+     * Không chặn thì bấm "Thêm ấp" hai lần (mạng chậm, hoặc hai người cùng
+     * nhập) ra hai dòng khác id cùng tên: ô chọn hiện "Ấp 3" hai lần không phân
+     * biệt nổi, và khách của cùng một ấp bị gắn vào hai mã khác nhau nên gom
+     * theo ấp ra hai nhóm. Trùng tên GIỮA hai xã thì vẫn được — "Ấp 3" là tên
+     * phổ biến, xã nào cũng có.
+     */
+    uniqueIndex("hamlets_ward_name").on(t.wardId, t.name),
+  ],
 );
 
 /* ── §3 · Khách hàng ────────────────────────────────────────────────── */
@@ -364,6 +376,24 @@ export const customers = pgTable(
     /** Kênh thuộc về KHÁCH, nhập đúng một lần (spec §2.3). */
     channelId: uuid("channel_id").references(() => channels.id),
     channelDetail: text("channel_detail").notNull().default(""),
+    /**
+     * Số tài khoản `done` và số đơn bảo hiểm của khách — LƯU SẴN, ngoại lệ có
+     * chủ đích của luật "tính ra được thì không lưu" (db-design §9).
+     *
+     * ⚠️ KHÔNG code nào được tự cộng trừ hai cột này. Trigger
+     * `mgst_sync_account_count` / `mgst_sync_insurance_count` giữ chúng, nên mọi
+     * đường ghi đều đúng: màn nghiệp vụ, nhập hàng loạt, script vá tay.
+     * Tự cộng ở tầng app là mở đường cho một chỗ quên rồi số lệch lặng lẽ.
+     *
+     * Vì sao lưu: P-40 cho sắp theo hai cột này, mà sắp theo số đếm thì buộc
+     * phải đếm CẢ KHO trước khi cắt trang — không cắt trước được, vì chưa đếm
+     * thì chưa biết 15 người đứng đầu là ai. Đo ở 250.000 khách: đếm sống
+     * 0,8–1,0 giây mỗi lần bấm, đọc cột lưu sẵn 1 mili giây.
+     *
+     * Lệch thì `bun run db:recount` đếm lại toàn bộ.
+     */
+    accountCount: integer("account_count").notNull().default(0),
+    insuranceCount: integer("insurance_count").notNull().default(0),
     createdBy: uuid("created_by").references(() => users.id),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -372,6 +402,10 @@ export const customers = pgTable(
     uniqueIndex("customers_id_number").on(t.idNumber).where(sql`id_number is not null`),
     index("customers_search_name_trgm").using("gin", sql`search_name gin_trgm_ops`),
     index("customers_id_last4").on(sql`right(id_number, 4)`).where(sql`id_number is not null`),
+    // Khớp đúng thứ tự sắp mặc định của P-40 (nhiều nhất lên trước, đồng hạng
+    // thì theo tên) — có index thì lấy 15 dòng đầu không phải xếp cả kho.
+    index("customers_account_count").on(sql`account_count desc, search_name`),
+    index("customers_insurance_count").on(sql`insurance_count desc, search_name`),
   ],
 );
 
@@ -387,6 +421,12 @@ export const customerPhones = pgTable(
     index("customer_phones_number").on(t.number),
     index("customer_phones_customer").on(t.customerId),
     uniqueIndex("customer_phones_one_primary").on(t.customerId).where(sql`is_primary`),
+    /**
+     * Ô tìm ở P-40 cho gõ một KHÚC số ("912345"), mà `like '%…%'` thì chỉ mục
+     * btree ở trên không đỡ được — nó chỉ đỡ khi biết trước phần đầu.
+     * Đo ở 333.000 số: không có chỉ mục này 18ms, có thì 2ms.
+     */
+    index("customer_phones_number_trgm").using("gin", sql`number gin_trgm_ops`),
   ],
 );
 

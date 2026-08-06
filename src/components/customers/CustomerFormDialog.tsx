@@ -24,6 +24,7 @@ import {
 import { fetchHospitals } from "@/lib/api/hospitalCatalog";
 import { fetchProvinces } from "@/lib/api/wardCatalog";
 import { formatPhone } from "@/lib/format";
+import { errorMessage, toast } from "@/lib/toast";
 import styles from "./CustomerFormDialog.module.scss";
 
 type Props = {
@@ -41,17 +42,24 @@ const emptyForm: CustomerForm = {
   idNumber: "",
   address: "",
   phones: [{ number: "", primary: true }],
-  channel: "",
+  channelId: "",
   channelDetail: "",
 };
 
+/**
+ * Hồ sơ đang sửa → giá trị ban đầu của biểu mẫu.
+ *
+ * CCCD bị che thì để TRỐNG chứ không đổ 4 số cuối vào ô: đổ vào là người sửa
+ * nhìn ra một số CCCD 4 chữ số và tưởng hồ sơ đang lưu sai. Máy chủ cũng bỏ qua
+ * ô này với người không có quyền nên trống hay không đều không ghi đè gì.
+ */
 const toForm = (c: Customer): CustomerForm => ({
   fullName: c.fullName,
   dob: c.dob ?? "",
-  idNumber: c.idNumber ?? "",
+  idNumber: c.idNumberMasked ? "" : (c.idNumber ?? ""),
   address: c.address,
   phones: c.phones.map((p) => ({ number: p.number, primary: p.primary })),
-  channel: c.channel,
+  channelId: c.channelId,
   channelDetail: c.channelDetail,
 });
 
@@ -60,6 +68,7 @@ export function CustomerFormDialog({ open, onClose, customer, onCreated }: Props
   const router = useRouter();
   const queryClient = useQueryClient();
   const editing = Boolean(customer);
+  const maskedId = Boolean(customer?.idNumberMasked);
   const [duplicate, setDuplicate] = useState<DuplicateCustomerError | null>(null);
 
   const {
@@ -77,9 +86,9 @@ export function CustomerFormDialog({ open, onClose, customer, onCreated }: Props
   const { fields, append, remove } = useFieldArray({ control, name: "phones" });
   const phones = watch("phones");
 
-  const channel = watch("channel");
+  const channelId = watch("channelId");
   const { data: channels = [] } = useQuery({ queryKey: ["channels"], queryFn: fetchChannels });
-  const selectedChannel = channels.find((c) => c.name === channel);
+  const selectedChannel = channels.find((c) => c.id === channelId);
 
   const { data: provinces = [] } = useQuery({
     queryKey: ["provinces"],
@@ -109,9 +118,16 @@ export function CustomerFormDialog({ open, onClose, customer, onCreated }: Props
         onCreated?.(saved);
       }
       onClose();
+      toast.ok(customer ? `Đã lưu hồ sơ ${saved.fullName}` : `Đã thêm khách hàng ${saved.fullName}`);
     },
     onError: (err) => {
-      if (isDuplicateCustomerError(err)) setDuplicate(err);
+      // Trùng CCCD KHÔNG báo bằng toast: hộp thoại đổi sang khối "hồ sơ đã có"
+      // kèm nút dùng lại, mà toast thì trôi mất sau vài giây và không bấm được.
+      if (isDuplicateCustomerError(err)) {
+        setDuplicate(err);
+        return;
+      }
+      toast.fail(errorMessage(err, "Không lưu được hồ sơ khách này."));
     },
   });
 
@@ -187,13 +203,26 @@ export function CustomerFormDialog({ open, onClose, customer, onCreated }: Props
 
           <div className={styles.pair}>
             <TextField label="Ngày sinh" type="date" {...register("dob")} />
-            <TextField
-              label="CCCD"
-              placeholder="092301004871"
-              hint="Bỏ trống nếu khách chưa cung cấp"
-              error={errors.idNumber?.message}
-              {...register("idNumber")}
-            />
+            {/* CCCD là trường bảo mật: không có `customer:access-id-number` thì
+                máy chủ chỉ trả 4 số cuối và bỏ qua mọi giá trị gửi lên, nên ô
+                phải khoá. Để mở mà máy chủ lặng lẽ bỏ qua thì người sửa gõ xong
+                bấm Lưu, thấy "đã lưu", rồi mở lại thấy số cũ. */}
+            {maskedId ? (
+              <TextField
+                label="CCCD"
+                readOnly
+                value={`•••• •••• ${customer?.idNumber ?? ""}`}
+                hint="Bạn chỉ được xem 4 số cuối — cần sửa thì nhờ người có quyền xem CCCD."
+              />
+            ) : (
+              <TextField
+                label="CCCD"
+                placeholder="092301004871"
+                hint="Bỏ trống nếu khách chưa cung cấp"
+                error={errors.idNumber?.message}
+                {...register("idNumber")}
+              />
+            )}
           </div>
 
           <TextField
@@ -205,9 +234,9 @@ export function CustomerFormDialog({ open, onClose, customer, onCreated }: Props
           <Select
             block
             label="Kênh"
-            value={channel}
+            value={channelId}
             onChange={(v) => {
-              setValue("channel", v, { shouldDirty: true });
+              setValue("channelId", v, { shouldDirty: true });
               setValue("channelDetail", "", { shouldDirty: true });
               setProvinceId("");
               setWardId("");
@@ -215,7 +244,7 @@ export function CustomerFormDialog({ open, onClose, customer, onCreated }: Props
             }}
             options={[
               { value: "", label: "Không có" },
-              ...channels.map((c) => ({ value: c.name, label: c.name })),
+              ...channels.map((c) => ({ value: c.id, label: c.name })),
             ]}
           />
 

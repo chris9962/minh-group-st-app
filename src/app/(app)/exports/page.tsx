@@ -13,7 +13,8 @@ import { SectionCard } from "@/components/ui/SectionCard";
 import { Select } from "@/components/ui/Select";
 import { fetchBankAccounts } from "@/lib/api/banking";
 import { fetchBanks, fetchReferralCodeOptions, type Bank } from "@/lib/api/bankCatalog";
-import { fetchCustomers } from "@/lib/api/customers";
+import { fetchCustomersForExport } from "@/lib/api/customers";
+import { errorMessage } from "@/lib/toast";
 import { fetchDepartments } from "@/lib/api/departments";
 import { fetchInsuranceOrders } from "@/lib/api/insurance";
 import { INSURANCE_STATUS_LABEL, InsuranceOrderStatus } from "@/lib/api/insuranceOrders";
@@ -51,9 +52,16 @@ const REPORTS: { id: ReportId; label: string; hint: string; module: ModuleKey | 
   { id: "services-by-ward", label: "Dịch vụ đã làm, có cột xã", hint: "Xã · loại dịch vụ · kỳ", module: "services" },
 ];
 
-/** `customer` không áp trục phạm vi (spec §2.1b) — báo cáo tổng luôn mở cho ai vào được trang này. */
+/**
+ * Báo cáo khách hàng KHÔNG mở cho mọi người dù hồ sơ khách không áp trục phạm
+ * vi (spec §2.1b): xem một hồ sơ khác hẳn kéo cả kho kèm số điện thoại về máy,
+ * và `customer:export` sinh ra đúng để phân biệt hai việc đó.
+ *
+ * Điều kiện này phải khớp chốt của `/api/customers/export`; lệch nhau thì người
+ * dùng bấm một báo cáo đang hiện và nhận về 403 không hiểu vì sao.
+ */
 const hasAccess = (user: Parameters<typeof can>[0], report: (typeof REPORTS)[number]): boolean =>
-  report.module === "customer" ? true : can(user, report.module, "export");
+  can(user, report.module, "export");
 
 /** Một cột có thể chọn/bỏ và đổi thứ tự — `value` nhận `any` vì mỗi báo cáo có một kiểu dòng riêng. */
 type CatalogColumn = {
@@ -273,8 +281,11 @@ export default function ExportsPage() {
     try {
       const count = await RUN[active]();
       setLastResult(`Đã xuất ${count} dòng, ${exportOrder.length} cột.`);
-    } catch {
-      setLastResult("Xuất thất bại — thử lại.");
+    } catch (e) {
+      // Nuốt câu của máy chủ rồi in "thử lại" là bắt người dùng thử lại một
+      // việc chắc chắn hỏng — ví dụ vượt trần dòng thì thử bao nhiêu lần cũng
+      // vậy, phải thu hẹp bộ lọc mới xong.
+      setLastResult(errorMessage(e, "Xuất thất bại — thử lại."));
     } finally {
       setExporting(false);
     }
@@ -338,14 +349,24 @@ export default function ExportsPage() {
     },
 
     async "customer-summary"() {
-      const { customers } = await fetchCustomers({ search: "", channel: "", from, to });
+      const { rows, total } = await fetchCustomersForExport({ search: "", channelId: "", from, to });
+
+      // Máy chủ có trần dòng. Chạm trần thì DỪNG, không dựng file: một báo cáo
+      // thiếu 5.000 khách trông y hệt báo cáo đủ, người nhận không có cách nào
+      // biết. Thà không có file còn hơn có file nói dối.
+      if (rows.length < total) {
+        throw new Error(
+          `Khoảng ngày này có ${total.toLocaleString("vi-VN")} khách, vượt trần ${rows.length.toLocaleString("vi-VN")} dòng một lần xuất. Thu hẹp khoảng ngày rồi xuất làm nhiều đợt.`,
+        );
+      }
+
       await exportExcel({
         fileName: `du-lieu-tong-${iso(new Date())}.xlsx`,
         sheetName: "Dữ liệu tổng",
-        rows: customers,
+        rows,
         columns: buildColumns(catalogFor("customer-summary", banks, usernameById), exportOrder),
       });
-      return customers.length;
+      return rows.length;
     },
 
     async "staff-points"() {

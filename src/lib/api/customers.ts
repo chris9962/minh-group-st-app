@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { InsuranceProduct } from '@/lib/types';
 import { InsuranceOrderStatus } from './insuranceOrders';
 import { GiftSimulateResult } from './settings';
+import { pageOf, pageParams, type Page, type PageQuery } from './pagination';
 
 /**
  * P-40 · Danh sách khách hàng · P-41 · Tạo/sửa · P-42 · Hồ sơ 360°
@@ -21,17 +22,28 @@ export type CustomerPhone = z.infer<typeof CustomerPhone>;
 export const Customer = z.object({
   id: z.string(),
   fullName: z.string(),
-  /** '' hoặc ngày sinh dạng YYYY-MM-DD. */
+  /** null hoặc ngày sinh dạng YYYY-MM-DD. */
   dob: z.string().nullable(),
-  /** null = chưa có CCCD — module B không bắt buộc (spec §2.1 câu hỏi mở). */
+  /**
+   * null = chưa có CCCD — module B không bắt buộc (spec §2.1 câu hỏi mở).
+   *
+   * Chỉ là 4 SỐ CUỐI khi `idNumberMasked` bật: CCCD là trường bảo mật, máy chủ
+   * mặc định không trả số đầy đủ (quyết định 03/08). Đừng hiển thị chuỗi này
+   * qua `formatIdNumber` mà không xem cờ — nó định dạng theo 12 số.
+   */
   idNumber: z.string().nullable(),
+  idNumberMasked: z.boolean(),
   address: z.string(),
   phones: z.array(CustomerPhone),
   /**
    * Nguồn khách (spec §2.3) — thuộc về KHÁCH, không thuộc về từng tài khoản
    * ngân hàng: một khách chỉ được một kênh, dù mở bao nhiêu tài khoản sau đó.
    * '' = không có kênh.
+   *
+   * `channelId` là thứ biểu mẫu gửi đi, `channel` chỉ để HIỆN: kênh đổi tên thì
+   * hồ sơ cũ vẫn trỏ đúng chỗ.
    */
+  channelId: z.string(),
   channel: z.string(),
   channelDetail: z.string(),
   /** Ngày tạo hồ sơ, YYYY-MM-DD — dùng để lọc ở P-40 (hôm nay/tháng này/khoảng ngày). */
@@ -39,7 +51,14 @@ export const Customer = z.object({
 });
 export type Customer = z.infer<typeof Customer>;
 
-/** Một dòng ở P-40 — tóm tắt, không phải hồ sơ đầy đủ. */
+/**
+ * Một dòng ở P-40 — tóm tắt, không phải hồ sơ đầy đủ.
+ *
+ * TODO(P-40, chờ `src/rules/YYYY-MM.ts`): `giftStatus` hiện chỉ nhận `none` hoặc
+ * `given`. Máy chủ KHÔNG tính được `eligible` vì đủ điều kiện hay không là luật
+ * của kỳ, mà file luật chưa có — nhãn "Đủ ĐK · chưa phát" chưa bao giờ hiện.
+ * Gỡ mốc ở cả hai đầu; đầu kia ở `server/customers.ts`.
+ */
 export const CustomerRow = z.object({
   id: z.string(),
   fullName: z.string(),
@@ -54,25 +73,65 @@ export const CustomerRow = z.object({
 });
 export type CustomerRow = z.infer<typeof CustomerRow>;
 
-export const CustomerList = z.object({
-  summary: z.object({ total: z.number() }),
-  customers: z.array(CustomerRow),
-});
-export type CustomerList = z.infer<typeof CustomerList>;
+/**
+ * Khoá sắp xếp — DANH SÁCH TRẮNG, vì nó đi thẳng vào `ORDER BY` của máy chủ.
+ * Thêm khoá ở đây thì phải thêm nhánh tương ứng trong `server/customers.ts`.
+ */
+export const CUSTOMER_SORT = ['name', 'accounts', 'insurance', 'created'] as const;
+export type CustomerSort = (typeof CUSTOMER_SORT)[number];
 
-export const CustomerQuery = z.object({
-  search: z.string(),
-  channel: z.string(),
-  from: z.string(),
-  to: z.string(),
-});
-export type CustomerQuery = z.infer<typeof CustomerQuery>;
+export type CustomerQuery = PageQuery<CustomerSort> & {
+  search: string;
+  channelId: string;
+  /** Khoảng NGÀY TẠO, YYYY-MM-DD. Rỗng = không giới hạn. */
+  from: string;
+  to: string;
+};
 
-export async function fetchCustomers(query: CustomerQuery): Promise<CustomerList> {
-  const params = new URLSearchParams(query);
-  const res = await fetch(`/api/customers?${params}`);
+const CustomerPage = pageOf(CustomerRow);
+
+/**
+ * Một TRANG khách hàng. Lọc, tìm, sắp và cắt trang đều do máy chủ làm
+ * (AGENTS.md §5.1) — nơi gọi chỉ hiện đúng những gì nhận được.
+ */
+export async function fetchCustomers(query: CustomerQuery): Promise<Page<CustomerRow>> {
+  const res = await fetch(
+    `/api/customers?${pageParams(query, {
+      search: query.search,
+      channelId: query.channelId,
+      from: query.from,
+      to: query.to,
+    })}`,
+  );
   if (!res.ok) throw new Error('Không tải được danh sách khách hàng');
-  return CustomerList.parse(await res.json());
+  return CustomerPage.parse(await res.json());
+}
+
+export type CustomerExportQuery = Pick<CustomerQuery, 'search' | 'channelId' | 'from' | 'to'>;
+
+/**
+ * `total` là tổng số dòng KHỚP BỘ LỌC. Lớn hơn `rows.length` nghĩa là máy chủ
+ * đã cắt ở trần — nơi gọi phải nói ra, không được lặng lẽ đưa file thiếu.
+ */
+const CustomerExportPage = z.object({ rows: z.array(CustomerRow), total: z.number() });
+
+/**
+ * TRỌN danh sách khớp bộ lọc, cho màn Xuất dữ liệu — không phân trang.
+ *
+ * Route riêng, không phải `fetchCustomers` với trang thật to: bảng và file
+ * Excel là hai việc khác nhau, gộp đường đi thì sớm muộn có màn dùng đường
+ * "lấy hết" để đổ cả kho vào một ô chọn (AGENTS.md §5.1, điều 4).
+ */
+export async function fetchCustomersForExport(
+  query: CustomerExportQuery,
+): Promise<Page<CustomerRow>> {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value) params.set(key, value);
+  }
+  const res = await fetch(`/api/customers/export?${params}`);
+  if (!res.ok) throw new Error('Không tải được danh sách khách hàng để xuất');
+  return CustomerExportPage.parse(await res.json());
 }
 
 /* ── P-41 · Tạo / sửa ─────────────────────────────────────────────────── */
@@ -99,7 +158,7 @@ export const CustomerForm = z.object({
     .refine((v) => v === '' || /^\d{12}$/.test(v), 'CCCD phải đủ 12 số'),
   address: z.string().trim(),
   phones: z.array(CustomerPhoneForm).min(1, 'Cần ít nhất một số điện thoại'),
-  channel: z.string(),
+  channelId: z.string(),
   channelDetail: z.string(),
 });
 export type CustomerForm = z.infer<typeof CustomerForm>;
@@ -108,17 +167,20 @@ export const CUSTOMER_ERROR = {
   DUPLICATE_ID: 'duplicate-id-number',
 } as const;
 
+export const ExistingCustomer = z.object({
+  id: z.string(),
+  fullName: z.string(),
+  primaryPhone: z.string(),
+  accountCount: z.number(),
+  insuranceCount: z.number(),
+});
+export type ExistingCustomer = z.infer<typeof ExistingCustomer>;
+
 /** Không phải lỗi ngõ cụt — kèm theo hồ sơ đã có để dùng lại ngay (spec §2.1). */
 export const DuplicateCustomerError = z.object({
   code: z.literal(CUSTOMER_ERROR.DUPLICATE_ID),
   message: z.string(),
-  existing: z.object({
-    id: z.string(),
-    fullName: z.string(),
-    primaryPhone: z.string(),
-    accountCount: z.number(),
-    insuranceCount: z.number(),
-  }),
+  existing: ExistingCustomer,
 });
 export type DuplicateCustomerError = z.infer<typeof DuplicateCustomerError>;
 
@@ -132,8 +194,12 @@ async function send(url: string, method: string, body: unknown) {
     body: JSON.stringify(body),
   });
   if (!res.ok) {
-    const parsed = DuplicateCustomerError.safeParse(await res.json().catch(() => null));
-    throw parsed.success ? parsed.data : new Error('Không lưu được');
+    const payload = (await res.json().catch(() => null)) as { message?: string } | null;
+    const duplicate = DuplicateCustomerError.safeParse(payload);
+    if (duplicate.success) throw duplicate.data;
+    // Máy chủ đã nói rõ vì sao — nuốt đi rồi ném câu chung chung là bắt người
+    // dùng tự đoán mình sai chỗ nào.
+    throw new Error(payload?.message?.trim() || 'Không lưu được');
   }
   return res.json();
 }
@@ -173,11 +239,21 @@ export const CustomerInsuranceRow = z.object({
   product: InsuranceProduct,
   packageName: z.string(),
   status: InsuranceOrderStatus,
-  /** Đơn tự khách mua, hay từ luồng tặng quà (P-43 — chưa làm nên luôn 'self'). */
+  /** Đơn tự khách mua, hay từ luồng tặng quà (P-43). */
   source: z.enum(['self', 'gift']),
 });
 export type CustomerInsuranceRow = z.infer<typeof CustomerInsuranceRow>;
 
+/**
+ * TODO(P-42, chờ module dịch vụ): CÒN THIẾU TRƯỜNG `services`.
+ *
+ * Spec §2.1 đòi hồ sơ 360° hiện đủ bốn thứ — đơn bảo hiểm, tài khoản ngân hàng,
+ * DỊCH VỤ ĐÃ LÀM, trạng thái quà. Ba thứ đầu đã có, dịch vụ thì chưa: bảng
+ * `services` có trong schema nhưng `/api/services` chưa có route nào, nên chưa
+ * có gì để đọc. Thêm `services: z.array(...)` ở đây, truy vấn ở
+ * `server/customers.ts`, và dựng khối thứ năm ở `[id]/page.tsx` khi module dịch
+ * vụ lên. Gỡ mốc ở cả hai đầu.
+ */
 export const CustomerDetail = z.object({
   customer: Customer,
   accounts: z.array(CustomerAccountRow),
@@ -200,9 +276,9 @@ export const CustomerDetail = z.object({
 });
 export type CustomerDetail = z.infer<typeof CustomerDetail>;
 
-export async function fetchCustomerDetail(id: string, actorId: string): Promise<CustomerDetail> {
-  const params = new URLSearchParams({ actorId });
-  const res = await fetch(`/api/customers/${id}?${params}`);
+/** Người xem lấy từ cookie phiên ở máy chủ — không gửi kèm định danh tự khai. */
+export async function fetchCustomerDetail(id: string): Promise<CustomerDetail> {
+  const res = await fetch(`/api/customers/${id}`);
   if (res.status === 404) throw new Error('Không tìm thấy khách hàng này');
   if (!res.ok) throw new Error('Không tải được hồ sơ khách hàng');
   return CustomerDetail.parse(await res.json());
@@ -211,6 +287,11 @@ export async function fetchCustomerDetail(id: string, actorId: string): Promise<
 /**
  * Đánh dấu khách đã được tặng quà — đúng một lần, không có đợt thứ hai
  * (spec §4.4 P-43). `item` là tên món đã chọn, hoặc câu mô tả việc từ chối.
+ *
+ * TODO(P-43, chờ `src/rules/YYYY-MM.ts`): route `/api/customers/[id]/gift-given`
+ * CHƯA CÓ, gọi vào là 404. Chốt quà phải đóng băng rổ quà đã tính vào
+ * `gift_grants.snapshot`, mà rổ đó do file luật của kỳ sinh ra — chưa có luật
+ * thì chốt được cũng chỉ chốt một cái rổ rỗng. Gỡ mốc ở cả hai đầu.
  */
 export async function markGiftGiven(customerId: string, item: string): Promise<void> {
   const res = await fetch(`/api/customers/${customerId}/gift-given`, {

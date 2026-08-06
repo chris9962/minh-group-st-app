@@ -12,7 +12,6 @@ import { CustomerFormDialog } from "@/components/customers/CustomerFormDialog";
 import { InsuranceOrderFormDialog } from "@/components/insurance/InsuranceOrderFormDialog";
 import { fetchCustomerDetail, fetchCustomers, type Customer } from "@/lib/api/customers";
 import { useDebouncedValue } from "@/lib/hooks";
-import { useSession } from "@/store/session";
 import styles from "./CreateInsuranceOrderDialog.module.scss";
 
 type Props = {
@@ -31,7 +30,6 @@ type Props = {
  * `CreateServiceDialog`/`CreateBankAccountDialog`.
  */
 export function CreateInsuranceOrderDialog({ open, onClose }: Props) {
-  const actor = useSession((s) => s.user);
   const queryClient = useQueryClient();
   const [customerId, setCustomerId] = useState("");
   const [creatingCustomer, setCreatingCustomer] = useState(false);
@@ -49,14 +47,14 @@ export function CreateInsuranceOrderDialog({ open, onClose }: Props) {
     isFetching: listFetching,
   } = useQuery({
     queryKey: ["customers-picker", searchQuery],
-    queryFn: () => fetchCustomers({ search: searchQuery, channel: "", from: "", to: "" }),
+    queryFn: () => fetchCustomers({ search: searchQuery, channelId: "", from: "", to: "", page: 0, sort: "name", dir: "asc" }),
     enabled: open && !customerId && !readyCustomer,
     placeholderData: (previous) => previous,
   });
 
   const { data: detail, isPending: detailPending } = useQuery({
     queryKey: ["customer", customerId],
-    queryFn: () => fetchCustomerDetail(customerId, actor?.id ?? ""),
+    queryFn: () => fetchCustomerDetail(customerId),
     enabled: !!customerId,
   });
 
@@ -74,7 +72,7 @@ export function CreateInsuranceOrderDialog({ open, onClose }: Props) {
     );
   }
 
-  const customers = list?.customers ?? [];
+  const customers = list?.rows ?? [];
 
   return (
     <>
