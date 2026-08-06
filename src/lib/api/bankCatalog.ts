@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { INT_MAX, SMALLINT_MAX } from './limits';
 import { pageOf, pageParams, type Page, type PageQuery } from './pagination';
 
 /**
@@ -43,7 +44,7 @@ export type Bank = z.infer<typeof Bank>;
 
 export const BankForm = z.object({
   code: z.string().trim().min(1, 'Chưa nhập mã ngân hàng'),
-  requiredPhotos: z.number().min(0, 'Số ảnh phải từ 0 trở lên'),
+  requiredPhotos: z.int('Số ảnh phải là số nguyên').min(0, 'Số ảnh phải từ 0 trở lên').max(SMALLINT_MAX, 'Số ảnh lớn quá'),
   accountNumberMethod: AccountNumberMethod,
   countsAsApp: z.boolean(),
 });
@@ -166,7 +167,7 @@ export async function fetchOpenReferralCodes(bankId: string): Promise<ReferralCo
 export const ReferralCodeForm = z.object({
   bankId: z.string().trim().min(1, 'Chưa chọn ngân hàng'),
   code: z.string().trim().min(1, 'Chưa nhập mã'),
-  total: z.number().min(1, 'Tổng số phải lớn hơn 0'),
+  total: z.int('Tổng số phải là số nguyên').min(1, 'Tổng số phải lớn hơn 0').max(INT_MAX, 'Tổng số lớn quá'),
 });
 export type ReferralCodeForm = z.infer<typeof ReferralCodeForm>;
 

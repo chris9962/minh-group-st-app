@@ -7,6 +7,8 @@ import { PAGE_SIZE, SortDir } from "@/lib/api/pagination";
  * `searchParams.get("page")` — tự đọc là sớm muộn có chỗ quên chặn.
  */
 
+const MAX_PAGE = 1_000_000;
+
 export type PageArgs<Sort extends string> = {
   limit: number;
   offset: number;
@@ -33,10 +35,18 @@ export function pageArgsFrom<Sort extends string>(
 
   const dir = SortDir.safeParse(params.get("dir"));
 
-  // Trang âm hay `NaN` (?page=abc) đều về 0. `OFFSET -15` là lỗi Postgres, một
-  // ô địa chỉ gõ nhầm không nên thành màn trắng.
+  /**
+   * Trang âm, `NaN` (?page=abc), hay số khổng lồ (?page=1e18) đều về 0. Mỗi thứ
+   * làm vỡ một kiểu: `OFFSET -15` là lỗi cú pháp, còn `1e18 × 15` vượt trần
+   * `bigint` của Postgres. Một ô địa chỉ gõ nhầm không nên thành màn trắng.
+   *
+   * Trần đặt ở `MAX_PAGE` chứ không phải giới hạn của số nguyên: không kho dữ
+   * liệu nào của hệ thống này có tới 15 triệu dòng, quá số đó chắc chắn là URL
+   * bịa chứ không phải người dùng thật đang lật trang.
+   */
   const askedPage = Number(params.get("page"));
-  const page = Number.isFinite(askedPage) && askedPage > 0 ? Math.floor(askedPage) : 0;
+  const page =
+    Number.isInteger(askedPage) && askedPage > 0 ? Math.min(askedPage, MAX_PAGE) : 0;
 
   return { limit: PAGE_SIZE, offset: page * PAGE_SIZE, sort, dir: dir.success ? dir.data : "desc" };
 }

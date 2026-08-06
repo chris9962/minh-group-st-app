@@ -52,7 +52,7 @@ export function ChannelCatalogSection() {
 
   return (
     <>
-      <SectionCard title="Danh mục kênh" icon={<Signpost size={17} />} meta={`${channels.length} kênh`}>
+      <SectionCard title="Danh mục kênh" icon={<Signpost size={17} />} meta={isPending ? undefined : `${channels.length} kênh`}>
         {isPending && <SkeletonTable rows={5} columns={4} />}
         {isError && (
           <ErrorState what="danh mục kênh" onRetry={refetch} retrying={isFetching} />
@@ -65,6 +65,7 @@ export function ChannelCatalogSection() {
             rowKey={(c) => c.id}
             defaultSort="name"
             caption="Kênh và kiểu nhập kèm theo từng kênh"
+            emptyText="Chưa có kênh nào — bấm “Thêm kênh” bên dưới."
           />
         )}
 

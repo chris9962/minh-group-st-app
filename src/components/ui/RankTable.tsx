@@ -11,6 +11,10 @@ export type RankColumn<T> = {
   /**
    * Bấm sắp được hay không, khi việc sắp do máy chủ làm (`server`) nên không có
    * `sortBy`. Khoá gửi lên máy chủ chính là `key`.
+   *
+   * CHỈ có tác dụng khi có `server`. Ở chế độ trình duyệt thì bị bỏ qua, vì bảng
+   * không biết sắp bằng gì: bật nút lên thì mũi tên và `aria-sort` báo là đã sắp
+   * trong khi thứ tự không đổi — nói dối cả người nhìn lẫn trình đọc màn hình.
    */
   sortable?: boolean;
   render: (row: T) => React.ReactNode;
@@ -51,6 +55,11 @@ type Props<T> = {
    */
   pageSize?: number;
   server?: RankServer;
+  /**
+   * Câu hiện khi không có dòng nào. Thiếu nó thì người dùng chỉ thấy hàng tiêu
+   * đề trống trơn, không phân biệt được "chưa có gì" với "tải xong nhưng hỏng".
+   */
+  emptyText?: string;
 };
 
 /**
@@ -67,6 +76,7 @@ export function RankTable<T>({
   caption,
   pageSize,
   server,
+  emptyText,
 }: Props<T>) {
   const [sortKey, setSortKey] = useState(defaultSort);
   const [asc, setAsc] = useState(false);
@@ -112,7 +122,7 @@ export function RankTable<T>({
           <tr>
             {columns.map((col) => {
               const active = col.key === activeSort;
-              const canSort = col.sortable ?? Boolean(col.sortBy);
+              const canSort = server ? (col.sortable ?? false) : Boolean(col.sortBy);
               return (
                 <th
                   key={col.key}
@@ -142,6 +152,13 @@ export function RankTable<T>({
           </tr>
         </thead>
         <tbody>
+          {visible.length === 0 && emptyText && (
+            <tr>
+              <td colSpan={columns.length} className={styles.empty}>
+                {emptyText}
+              </td>
+            </tr>
+          )}
           {visible.map((row) => (
             <tr key={rowKey(row)}>
               {columns.map((col) => (

@@ -15,7 +15,9 @@ export async function PATCH(request: Request, { params }: Params) {
   const parsed = InsurancePackageForm.safeParse(await jsonBody(request));
   if (!parsed.success) return badRequest();
 
-  const item = await updateInsurancePackage(id, parsed.data);
+  const result = await updateInsurancePackage(id, parsed.data);
+  if (!result.ok) return badRequest("Tên gói bảo hiểm này đã có");
+  const item = result.item;
   if (!item) return notFound();
 
   await logAudit(guard.actor, {

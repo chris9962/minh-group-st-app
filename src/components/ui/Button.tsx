@@ -30,6 +30,7 @@ export function Button({
       type={type}
       className={[
         "btn",
+        styles.base,
         `btn-${variant}`,
         block && "btn-block",
         large && styles.large,

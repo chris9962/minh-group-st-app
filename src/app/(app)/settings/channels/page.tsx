@@ -1,5 +1,6 @@
 "use client";
 
+import { RequirePermission } from "@/components/layout/RequirePermission";
 import { TopBar } from "@/components/layout/TopBar";
 import { ChannelCatalogSection } from "@/components/settings/ChannelCatalogSection";
 import { HospitalCatalogSection } from "@/components/settings/HospitalCatalogSection";
@@ -13,13 +14,13 @@ import styles from "./page.module.scss";
  */
 export default function ChannelsPage() {
   return (
-    <>
+    <RequirePermission module="system" action="configure-catalog">
       <TopBar title="Danh mục kênh" />
       <main className={styles.body}>
         <ChannelCatalogSection />
         <WardCatalogSection />
         <HospitalCatalogSection />
       </main>
-    </>
+    </RequirePermission>
   );
 }

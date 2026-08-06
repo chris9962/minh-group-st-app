@@ -51,6 +51,10 @@ export function BankFormDialog({ open, onClose, bank }: Props) {
     mutationFn: (form: BankForm) => (bank ? updateBank(bank.id, form) : createBank(form)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["banks"] });
+      // Mã ngân hàng được nhúng sẵn vào từng dòng của các màn này, đổi mã
+      // mà không nạp lại thì chúng hiện mã cũ cho tới khi cache hết hạn.
+      queryClient.invalidateQueries({ queryKey: ["referral-codes"] });
+      queryClient.invalidateQueries({ queryKey: ["referral-code-options"] });
       onClose();
       toast.ok("Đã lưu ngân hàng");
     },

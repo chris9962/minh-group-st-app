@@ -40,7 +40,7 @@ export function HospitalCatalogSection() {
       <SectionCard
         title="Danh mục bệnh viện"
         icon={<HospitalIcon size={17} />}
-        meta={`${hospitals.length} bệnh viện`}
+        meta={isPending ? undefined : `${hospitals.length} bệnh viện`}
       >
         <SearchField
           label="Tìm bệnh viện"

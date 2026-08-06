@@ -5,9 +5,16 @@
   min-height: 48px;
 }
 
-/* .btn-icon của design system là 36px, vừa con trỏ chuột nhưng thiếu cho ngón
-   tay. Nới lên 44px khi thiết bị trỏ là ngón tay. */
+/* .btn của design system cao ~36px: vừa con trỏ chuột, thiếu cho ngón tay.
+   Nới lên 44px khi thiết bị trỏ là ngón tay (§8: đội KD dùng điện thoại ngoài
+   trời). Chỉ đổi min-height chứ không đổi padding — desktop giữ nguyên dáng,
+   chỉ vùng bấm trên cảm ứng to ra. Không sửa .btn ở organic.css: file đó đồng
+   bộ từ ../mgst-design/_ds, sửa tay là mất ở lần đồng bộ sau (§3). */
 @media (pointer: coarse) {
+  .base {
+    min-height: 44px;
+  }
+
   .icon {
     width: 44px;
     height: 44px;

@@ -46,7 +46,7 @@ export function WardCatalogSection() {
       <SectionCard
         title="Danh mục tỉnh / xã / ấp"
         icon={<MapPin size={17} />}
-        meta={`${provinces.length} tỉnh/thành phố`}
+        meta={isPending ? undefined : `${provinces.length} tỉnh/thành phố`}
       >
         <SearchField
           label="Tìm tỉnh, xã hoặc ấp"

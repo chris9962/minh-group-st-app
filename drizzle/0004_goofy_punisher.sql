@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "hamlets_ward_name" ON "hamlets" USING btree ("ward_id","name");

@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Plus, Ticket } from "lucide-react";
 import { useState } from "react";
 import { SkeletonTable } from "@/components/ui/Skeleton";
@@ -20,6 +20,7 @@ import {
   type ReferralCodeQuery,
 } from "@/lib/api/bankCatalog";
 import { EMPTY_PAGE, PAGE_SIZE } from "@/lib/api/pagination";
+import { useDebouncedValue } from "@/lib/hooks";
 import { ReferralCodeFormDialog } from "./ReferralCodeFormDialog";
 import styles from "./ReferralCodesSection.module.scss";
 
@@ -43,16 +44,34 @@ export function ReferralCodesSection() {
   const [query, setQuery] = useState<ReferralCodeQuery>(FIRST_PAGE);
   const [creating, setCreating] = useState(false);
 
+  // Ô tìm giữ chữ đang gõ riêng, chỉ hoãn xong mới thành câu hỏi gửi đi. Nối
+  // thẳng vào `query` thì mỗi phím là một lượt gọi máy chủ, mà mỗi lượt là một
+  // phép gộp trên cả bảng tài khoản.
+  const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search);
+
   const { data: banks = [] } = useQuery({ queryKey: ["banks"], queryFn: fetchBanks });
 
+  const asked: ReferralCodeQuery = { ...query, search: debouncedSearch };
   const { data: page = EMPTY_PAGE, isPending, isError, refetch, isFetching } = useQuery({
-    queryKey: ["referral-codes", query],
-    queryFn: () => fetchReferralCodes(query),
+    queryKey: ["referral-codes", asked],
+    queryFn: () => fetchReferralCodes(asked),
+    /**
+     * Giữ trang cũ trong lúc tải trang mới. Không giữ thì `isPending` bật lại
+     * theo từng lần đổi khoá: bảng bị thay bằng skeleton, số đếm nhảy về 0, và
+     * nút "Sau" rời khỏi DOM — bấm hai lần liên tiếp là cú thứ hai rơi vào chỗ
+     * trống, còn người dùng bàn phím thì mất tiêu điểm (AGENTS.md §8).
+     */
+    placeholderData: keepPreviousData,
   });
 
   /** Đổi bộ lọc thì về trang đầu — giữ nguyên trang 5 của kết quả cũ là hiện một khúc rỗng. */
   const refine = (patch: Partial<ReferralCodeQuery>) =>
     setQuery((q) => ({ ...q, ...patch, page: 0 }));
+
+  // Kho rỗng và "lọc không ra gì" là hai chuyện khác nhau. Nói nhầm thì người
+  // dùng đi xoá bộ lọc vốn đang trống, thay vì bấm "Thêm mã".
+  const filtering = Boolean(debouncedSearch || query.bankId || query.status);
 
   const columns: RankColumn<ReferralCode>[] = [
     { key: "bank", label: "Ngân hàng", sortable: true, render: (c) => c.bankCode },
@@ -81,14 +100,19 @@ export function ReferralCodesSection() {
     <SectionCard
       title="Kho mã giới thiệu"
       icon={<Ticket size={17} />}
-      meta={`${page.total} mã`}
+      meta={isPending ? undefined : `${page.total} mã`}
     >
       <div className={styles.filters}>
         <SearchField
           label="Tìm mã"
           placeholder="VPa, 884…"
-          value={query.search}
-          onChange={(v) => refine({ search: v })}
+          value={search}
+          onChange={(v) => {
+            // Về trang đầu ngay lúc gõ, không đợi hoãn xong: đang ở trang 3 mà
+            // kết quả mới chỉ có 2 dòng thì trang 3 là một khúc rỗng.
+            setSearch(v);
+            setQuery((q) => ({ ...q, page: 0 }));
+          }}
         />
         <Select
           label="Ngân hàng"
@@ -118,7 +142,11 @@ export function ReferralCodesSection() {
       {!isPending && !isError && (
         <>
           {page.total === 0 ? (
-            <p className="text-muted">Không có mã nào khớp bộ lọc.</p>
+            <p className="text-muted">
+              {filtering
+                ? "Không có mã nào khớp bộ lọc."
+                : "Kho mã đang rỗng — bấm “Thêm mã” bên dưới."}
+            </p>
           ) : (
             <RankTable
               rows={page.rows}

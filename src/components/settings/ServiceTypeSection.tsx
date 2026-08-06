@@ -82,7 +82,7 @@ export function ServiceTypeSection() {
       <SectionCard
         title="Loại dịch vụ"
         icon={<Wrench size={17} />}
-        meta={`${rows.length} loại`}
+        meta={isPending ? undefined : `${rows.length} loại`}
       >
         {isPending && <SkeletonTable rows={5} columns={4} />}
         {isError && (
@@ -97,6 +97,7 @@ export function ServiceTypeSection() {
             defaultSort="name"
             pageSize={10}
             caption="Loại dịch vụ và hệ số điểm KPI"
+            emptyText="Chưa có loại dịch vụ nào — bấm “Thêm loại dịch vụ” bên dưới."
           />
         )}
 

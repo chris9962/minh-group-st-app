@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Target } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { SkeletonText } from "@/components/ui/Skeleton";
+import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { SectionCard } from "@/components/ui/SectionCard";
@@ -30,7 +31,7 @@ export function KpiTargetSection() {
     defaultValues: { monthlyPoints: 100, warnDaysLeft: 7 },
     // `values` chứ không phải effect + `reset`: giá trị suy ra từ dữ liệu đã
     // tải, tính thẳng lúc render (AGENTS.md §7).
-    values: data,
+    values: data ?? undefined,
   });
 
   const save = useMutation({
@@ -51,17 +52,28 @@ export function KpiTargetSection() {
       {isError && <ErrorState what="chỉ tiêu KPI" onRetry={refetch} retrying={isFetching} />}
 
       {/*
-        Bám vào `data`, KHÔNG phải `!isPending`. Tải hỏng thì `isPending` cũng
+        Bám vào `isError`, KHÔNG chỉ `!isPending`. Tải hỏng thì `isPending` cũng
         thành false, form hiện ra với `defaultValues` 100/7 trông y như số đã
         lưu — quản trị bấm "Lưu chỉ tiêu" là ghi đè chỉ tiêu thật của cả công ty
         bằng hai con số bịa.
+
+        `data === null` thì KHÁC: đó là "chưa ai đặt mốc", form phải hiện ra mới
+        đặt được lần đầu, chỉ cần nói rõ hai số đang là gợi ý chứ không phải số
+        đã lưu.
       */}
-      {data && (
+      {!isPending && !isError && (
         <form
           className={styles.form}
           onSubmit={handleSubmit((form) => save.mutate(form))}
           noValidate
         >
+          {data === null && (
+            <Alert tone="warning">
+              Chưa đặt chỉ tiêu cho tháng này. Hai số dưới đây là{" "}
+              <strong>gợi ý</strong>, chưa được lưu — sửa lại cho đúng rồi bấm Lưu.
+            </Alert>
+          )}
+
           <div className={styles.pair}>
             <TextField
               label="Chỉ tiêu điểm mỗi tháng"

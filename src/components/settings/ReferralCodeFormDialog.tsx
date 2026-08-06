@@ -41,6 +41,9 @@ export function ReferralCodeFormDialog({ open, onClose }: Props) {
     mutationFn: createReferralCode,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["referral-codes"] });
+      // Ô lọc mã ở màn ngân hàng / xuất Excel đi khoá riêng, tiền tố trên
+      // không với tới — không nạp thì mã vừa thêm chưa hiện ở đó.
+      queryClient.invalidateQueries({ queryKey: ["referral-code-options"] });
       onClose();
       toast.ok("Đã lưu mã giới thiệu");
     },
@@ -82,8 +85,8 @@ export function ReferralCodeFormDialog({ open, onClose }: Props) {
             { value: "", label: "— Chọn ngân hàng —" },
             ...activeBanks.map((b) => ({ value: b.id, label: b.code })),
           ]}
+          error={errors.bankId?.message}
         />
-        {errors.bankId && <p className={styles.error}>{errors.bankId.message}</p>}
 
         <TextField
           label="Mã giới thiệu"

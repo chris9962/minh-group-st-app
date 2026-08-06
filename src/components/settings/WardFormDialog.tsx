@@ -79,8 +79,8 @@ export function WardFormDialog({ open, onClose, province }: Props) {
           value={watch("wardId")}
           onChange={(v) => setValue("wardId", v, { shouldDirty: true })}
           options={availableWards.map((w) => ({ value: w.id, label: w.name }))}
+          error={errors.wardId?.message}
         />
-        {errors.wardId && <p className={styles.error}>{errors.wardId.message}</p>}
       </form>
     </Dialog>
   );

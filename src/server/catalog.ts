@@ -60,8 +60,30 @@ import {
  * mọi thứ đang trỏ vào.
  */
 
-/** Mã trùng → `null` để route trả 422 thay vì 500. */
-export type CatalogOutcome<T> = { ok: true; item: T } | { ok: false; reason: "code-taken" };
+/** Trùng khoá duy nhất → kết quả route đọc được, thay vì 500. */
+export type CatalogOutcome<T> =
+  | { ok: true; item: T }
+  | { ok: false; reason: "code-taken" | "name-taken" };
+
+/**
+ * Chạy một lệnh ghi danh mục, đổi lỗi trùng khoá của Postgres thành `ok: false`.
+ *
+ * Không bắt thì Next trả 500 kèm trang HTML, tầng api không parse nổi JSON nên
+ * người dùng chỉ nhận đúng câu "Không lưu được" và không biết mình trùng tên.
+ * Gõ tên khác cũng thấy y hệt vì thông báo không nói gì.
+ *
+ * Phân biệt bằng tên ràng buộc: `*_name_unique` là người dùng gõ trùng tên, còn
+ * lại là mã tự sinh đụng nhau khi hai request chạy song song.
+ */
+async function catalogWrite<T>(run: () => Promise<T>): Promise<CatalogOutcome<T>> {
+  try {
+    return { ok: true, item: await run() };
+  } catch (e) {
+    const constraint = uniqueViolationOf(e);
+    if (constraint === null) throw e;
+    return { ok: false, reason: constraint.includes("name") ? "name-taken" : "code-taken" };
+  }
+}
 
 /* ── Ngân hàng ────────────────────────────────────────────────────────── */
 
@@ -169,6 +191,14 @@ const statusExpr = sql<CodeStatus>`case
   else 'available'
 end`;
 
+/**
+ * Vô hiệu ký tự đại diện của `ILIKE` trong chữ người dùng gõ.
+ *
+ * Không thoát thì gõ `%` ra nguyên cả kho thay vì "không có kết quả", còn `_`
+ * lặng lẽ khớp một ký tự bất kỳ nên tìm `ABC_1` ra cả `ABC-1`.
+ */
+const likeEscape = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
+
 function codeFilters(query: ReferralCodeFilters): SQL | undefined {
   const parts = [
     query.bankId ? eq(countedCodes.bankId, query.bankId) : undefined,
@@ -176,7 +206,10 @@ function codeFilters(query: ReferralCodeFilters): SQL | undefined {
     // Tìm trên mã lẫn tên ngân hàng: gõ "VPa" ra cả kho của ngân hàng đó, gõ
     // "884" ra đúng mã chứa số ấy.
     query.search
-      ? sql`(${countedCodes.code} ilike ${`%${query.search}%`} or ${countedCodes.bankCode} ilike ${`%${query.search}%`})`
+      ? (() => {
+          const needle = `%${likeEscape(query.search)}%`;
+          return sql`(${countedCodes.code} ilike ${needle} escape '\\' or ${countedCodes.bankCode} ilike ${needle} escape '\\')`;
+        })()
       : undefined,
   ].filter(Boolean) as SQL[];
   return parts.length > 0 ? and(...parts) : undefined;
@@ -297,23 +330,30 @@ export async function listChannels(): Promise<Channel[]> {
   return (await db.select().from(channels).orderBy(asc(channels.name))).map(toChannel);
 }
 
-export async function createChannel(form: ChannelForm): Promise<Channel> {
-  const taken = new Set((await db.select({ code: channels.code }).from(channels)).map((r) => r.code));
-  const [row] = await db
-    .insert(channels)
-    .values({ code: uniqueCode(form.name, "KENH", taken), name: form.name, inputKind: form.inputKind })
-    .returning();
-  return toChannel(row);
+export async function createChannel(form: ChannelForm): Promise<CatalogOutcome<Channel>> {
+  return catalogWrite(async () => {
+    const taken = new Set((await db.select({ code: channels.code }).from(channels)).map((r) => r.code));
+    const [row] = await db
+      .insert(channels)
+      .values({ code: uniqueCode(form.name, "KENH", taken), name: form.name, inputKind: form.inputKind })
+      .returning();
+    return toChannel(row);
+  });
 }
 
 /** Đổi tên KHÔNG đổi mã — bản ghi cũ trỏ vào mã, đổi là cắt đứt chúng. */
-export async function updateChannel(id: string, form: ChannelForm): Promise<Channel | null> {
-  const [row] = await db
-    .update(channels)
-    .set({ name: form.name, inputKind: form.inputKind })
-    .where(eq(channels.id, id))
-    .returning();
-  return row ? toChannel(row) : null;
+export async function updateChannel(
+  id: string,
+  form: ChannelForm,
+): Promise<CatalogOutcome<Channel | null>> {
+  return catalogWrite(async () => {
+    const [row] = await db
+      .update(channels)
+      .set({ name: form.name, inputKind: form.inputKind })
+      .where(eq(channels.id, id))
+      .returning();
+    return row ? toChannel(row) : null;
+  });
 }
 
 /* ── Bệnh viện ────────────────────────────────────────────────────────── */
@@ -323,9 +363,11 @@ export async function listHospitals(): Promise<Hospital[]> {
   return rows.map((r) => ({ id: r.id, name: r.name }));
 }
 
-export async function createHospital(form: HospitalForm): Promise<Hospital> {
-  const [row] = await db.insert(hospitals).values({ name: form.name }).returning();
-  return { id: row.id, name: row.name };
+export async function createHospital(form: HospitalForm): Promise<CatalogOutcome<Hospital>> {
+  return catalogWrite(async () => {
+    const [row] = await db.insert(hospitals).values({ name: form.name }).returning();
+    return { id: row.id, name: row.name };
+  });
 }
 
 /* ── Danh mục quà ─────────────────────────────────────────────────────── */
@@ -340,13 +382,15 @@ export async function listGiftItems(): Promise<GiftItem[]> {
   return (await db.select().from(giftItems).orderBy(asc(giftItems.name))).map(toGiftItem);
 }
 
-export async function createGiftItem(form: CatalogItemForm): Promise<GiftItem> {
-  const taken = new Set((await db.select({ code: giftItems.code }).from(giftItems)).map((r) => r.code));
-  const [row] = await db
-    .insert(giftItems)
-    .values({ code: uniqueCode(form.name, "QUA", taken), name: form.name })
-    .returning();
-  return toGiftItem(row);
+export async function createGiftItem(form: CatalogItemForm): Promise<CatalogOutcome<GiftItem>> {
+  return catalogWrite(async () => {
+    const taken = new Set((await db.select({ code: giftItems.code }).from(giftItems)).map((r) => r.code));
+    const [row] = await db
+      .insert(giftItems)
+      .values({ code: uniqueCode(form.name, "QUA", taken), name: form.name })
+      .returning();
+    return toGiftItem(row);
+  });
 }
 
 export async function setGiftItemActive(id: string, active: boolean): Promise<GiftItem | null> {
@@ -405,40 +449,44 @@ async function writeLegs(
 
 export async function createInsurancePackage(
   form: InsurancePackageForm,
-): Promise<InsurancePackage> {
-  const taken = new Set(
-    (await db.select({ code: insurancePackages.code }).from(insurancePackages)).map((r) => r.code),
-  );
+): Promise<CatalogOutcome<InsurancePackage>> {
+  return catalogWrite(async () => {
+    const taken = new Set(
+      (await db.select({ code: insurancePackages.code }).from(insurancePackages)).map((r) => r.code),
+    );
 
-  const id = await db.transaction(async (tx) => {
-    const [row] = await tx
-      .insert(insurancePackages)
-      .values({ code: uniqueCode(form.name, "GOI", taken), name: form.name })
-      .returning();
-    await writeLegs(tx, row.id, form.legs);
-    return row.id;
+    const id = await db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(insurancePackages)
+        .values({ code: uniqueCode(form.name, "GOI", taken), name: form.name })
+        .returning();
+      await writeLegs(tx, row.id, form.legs);
+      return row.id;
+    });
+
+    return (await packageWithLegs(id))!;
   });
-
-  return (await packageWithLegs(id))!;
 }
 
 /** Đổi tên KHÔNG đổi mã: file luật theo kỳ trỏ vào mã, đổi là gãy. */
 export async function updateInsurancePackage(
   id: string,
   form: InsurancePackageForm,
-): Promise<InsurancePackage | null> {
-  const updated = await db.transaction(async (tx) => {
-    const [row] = await tx
-      .update(insurancePackages)
-      .set({ name: form.name, updatedAt: new Date() })
-      .where(eq(insurancePackages.id, id))
-      .returning({ id: insurancePackages.id });
-    if (!row) return false;
-    await writeLegs(tx, id, form.legs);
-    return true;
-  });
+): Promise<CatalogOutcome<InsurancePackage | null>> {
+  return catalogWrite(async () => {
+    const updated = await db.transaction(async (tx) => {
+      const [row] = await tx
+        .update(insurancePackages)
+        .set({ name: form.name, updatedAt: new Date() })
+        .where(eq(insurancePackages.id, id))
+        .returning({ id: insurancePackages.id });
+      if (!row) return false;
+      await writeLegs(tx, id, form.legs);
+      return true;
+    });
 
-  return updated ? packageWithLegs(id) : null;
+    return updated ? packageWithLegs(id) : null;
+  });
 }
 
 export async function setInsurancePackageActive(
@@ -466,12 +514,16 @@ export async function listServiceTypes(): Promise<ServiceTypeRow[]> {
   return (await db.select().from(serviceTypes).orderBy(asc(serviceTypes.name))).map(toServiceType);
 }
 
-export async function createServiceType(form: ServiceTypeForm): Promise<ServiceTypeRow> {
-  const [row] = await db
-    .insert(serviceTypes)
-    .values({ name: form.name, coefficient: String(form.coefficient) })
-    .returning();
-  return toServiceType(row);
+export async function createServiceType(
+  form: ServiceTypeForm,
+): Promise<CatalogOutcome<ServiceTypeRow>> {
+  return catalogWrite(async () => {
+    const [row] = await db
+      .insert(serviceTypes)
+      .values({ name: form.name, coefficient: String(form.coefficient) })
+      .returning();
+    return toServiceType(row);
+  });
 }
 
 /**
@@ -485,13 +537,15 @@ export async function createServiceType(form: ServiceTypeForm): Promise<ServiceT
 export async function updateServiceType(
   id: string,
   form: ServiceTypeForm,
-): Promise<ServiceTypeRow | null> {
-  const [row] = await db
-    .update(serviceTypes)
-    .set({ name: form.name, coefficient: String(form.coefficient) })
-    .where(eq(serviceTypes.id, id))
-    .returning();
-  return row ? toServiceType(row) : null;
+): Promise<CatalogOutcome<ServiceTypeRow | null>> {
+  return catalogWrite(async () => {
+    const [row] = await db
+      .update(serviceTypes)
+      .set({ name: form.name, coefficient: String(form.coefficient) })
+      .where(eq(serviceTypes.id, id))
+      .returning();
+    return row ? toServiceType(row) : null;
+  });
 }
 
 export async function setServiceTypeActive(
@@ -513,16 +567,21 @@ export async function setServiceTypeActive(
  *
  * Cùng chuỗi rơi với `people.ts` — hai nơi lệch nhau thì màn cấu hình hiện một
  * số mà bảng KPI chấm theo số khác.
+ *
+ * Chưa có mốc nào thì trả `null`, KHÔNG bịa 100/7. Bịa thì màn P-83 hiện hai
+ * con số trông y như đã lưu, quản trị bấm Lưu là ghi đè bằng số máy tự nghĩ ra
+ * — đúng cái mà chốt chặn ở `KpiTargetSection` dựng ra để tránh, chỉ là đi vòng
+ * từ phía máy chủ nên chốt đó không bắt được.
  */
-export async function getKpiTarget(): Promise<KpiTarget> {
+export async function getKpiTarget(): Promise<KpiTarget | null> {
   const month = businessMonth();
-  const rows = await db.select().from(kpiTargets);
-  const exact = rows.find((r) => r.departmentId === null && r.yearMonth === month);
-  const latest = rows
-    .filter((r) => r.departmentId === null && r.yearMonth <= month)
-    .sort((a, b) => (a.yearMonth < b.yearMonth ? 1 : -1))[0];
-  const row = exact ?? latest;
-  return { monthlyPoints: row?.monthlyPoints ?? 100, warnDaysLeft: row?.warnDaysLeft ?? 7 };
+  const [row] = await db
+    .select()
+    .from(kpiTargets)
+    .where(sql`${kpiTargets.departmentId} is null and ${kpiTargets.yearMonth} <= ${month}`)
+    .orderBy(desc(kpiTargets.yearMonth))
+    .limit(1);
+  return row ? { monthlyPoints: row.monthlyPoints, warnDaysLeft: row.warnDaysLeft } : null;
 }
 
 /** Ghi mốc cho THÁNG HIỆN TẠI. Tháng cũ không sửa — sửa là chấm lại quá khứ. */
@@ -588,6 +647,7 @@ export async function listProvinceTree(): Promise<Province[]> {
 
   return provinceRows.map((p) => ({
     id: p.id,
+    refId: p.refId,
     name: p.name,
     wards: wardsByProvince.get(p.id) ?? [],
   }));
@@ -640,13 +700,25 @@ export async function addWard(provinceId: string, wardRefId: string): Promise<Pr
   return provinceById(province.id);
 }
 
-/** Ấp không có trong dữ liệu nhà nước — nhập tay, nên có thể trùng tên trong cùng xã. */
-export async function addHamlet(wardId: string, name: string): Promise<Province | null> {
-  const [ward] = await db.select().from(wards).where(eq(wards.id, wardId)).limit(1);
-  if (!ward) return null;
+/**
+ * Ấp không có trong dữ liệu nhà nước — nhập tay.
+ *
+ * Trùng tên trong CÙNG một xã thì chặn (chỉ mục `hamlets_ward_name`), và báo ra
+ * chứ không nuốt: nuốt thì người dùng nhận "Đã lưu" mà danh sách không đổi, bấm
+ * lại vài lần rồi đi hỏi. Trùng tên giữa hai xã khác nhau thì vẫn cho — "Ấp 3"
+ * là tên phổ biến, xã nào cũng có.
+ */
+export async function addHamlet(
+  wardId: string,
+  name: string,
+): Promise<CatalogOutcome<Province | null>> {
+  return catalogWrite(async () => {
+    const [ward] = await db.select().from(wards).where(eq(wards.id, wardId)).limit(1);
+    if (!ward) return null;
 
-  await db.insert(hamlets).values({ wardId, name }).onConflictDoNothing();
-  return provinceById(ward.provinceId);
+    await db.insert(hamlets).values({ wardId, name });
+    return provinceById(ward.provinceId);
+  });
 }
 
 /* ── Tham chiếu hành chính — chỉ đọc ──────────────────────────────────── */

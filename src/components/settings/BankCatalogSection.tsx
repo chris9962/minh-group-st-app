@@ -96,7 +96,7 @@ export function BankCatalogSection() {
 
   return (
     <>
-      <SectionCard title="Kho ngân hàng" icon={<Landmark size={17} />} meta={`${banks.length} dòng`}>
+      <SectionCard title="Kho ngân hàng" icon={<Landmark size={17} />} meta={isPending ? undefined : `${banks.length} dòng`}>
         {isPending && <SkeletonTable rows={5} columns={5} />}
         {isError && (
           <ErrorState what="kho ngân hàng" onRetry={refetch} retrying={isFetching} />
@@ -110,6 +110,7 @@ export function BankCatalogSection() {
             defaultSort="code"
             pageSize={15}
             caption="Ngân hàng và các trường cấu hình"
+            emptyText="Chưa có ngân hàng nào — bấm “Thêm ngân hàng” bên dưới."
           />
         )}
 
@@ -124,7 +125,7 @@ export function BankCatalogSection() {
           <strong>Tắt</strong> chỉ chặn tạo tài khoản mới — tài khoản cũ thuộc
           ngân hàng đã tắt vẫn hiển thị và xuất được bình thường. VPa/VPb và
           MSBa/MSBb là bốn ngân hàng riêng biệt dù cùng một nhà băng ngoài đời:
-          khác mã giới thiệu, khác hệ số điểm, khác chính sách.
+          khác mã giới thiệu, khác chính sách.
         </p>
       </SectionCard>
 

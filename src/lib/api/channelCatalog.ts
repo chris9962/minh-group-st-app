@@ -43,7 +43,12 @@ async function send(url: string, method: string, form: ChannelForm) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(form),
   });
-  if (!res.ok) throw new Error('Không lưu được kênh này');
+  if (!res.ok) {
+    // Máy chủ đã nói rõ vì sao ("Tên kênh này đã có") — nuốt đi rồi ném câu
+    // chung chung là bắt người dùng tự đoán mình sai chỗ nào.
+    const body = (await res.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(body?.message?.trim() || 'Không lưu được kênh này');
+  }
   return Channel.parse(await res.json());
 }
 

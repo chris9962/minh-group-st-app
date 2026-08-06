@@ -1,6 +1,6 @@
 import { CodeStatus, REFERRAL_CODE_SORT, ReferralCodeForm } from "@/lib/api/bankCatalog";
 import { logAudit } from "@/server/audit";
-import { actorWith, badRequest, jsonBody } from "@/server/auth";
+import { actorWith, badRequest, jsonBody, uuidParam } from "@/server/auth";
 import { createReferralCode, listReferralCodes } from "@/server/catalog";
 import { pageArgsFrom } from "@/server/pagination";
 
@@ -24,7 +24,9 @@ export async function GET(request: Request) {
   return Response.json(
     await listReferralCodes(
       {
-        bankId: params.get("bankId") ?? "",
+        // uuid sai dạng đi thẳng vào SQL là lỗi cast của Postgres → 500 màn
+        // trắng. Bỏ bộ lọc, cùng cách đang xử lý `status` lạ ngay dưới.
+        bankId: uuidParam(params.get("bankId")),
         status: status.success ? status.data : "",
         search: (params.get("search") ?? "").trim(),
       },

@@ -15,7 +15,9 @@ export async function PATCH(request: Request, { params }: Params) {
   const parsed = ServiceTypeForm.safeParse(await jsonBody(request));
   if (!parsed.success) return badRequest();
 
-  const item = await updateServiceType(id, parsed.data);
+  const result = await updateServiceType(id, parsed.data);
+  if (!result.ok) return badRequest("Tên loại dịch vụ này đã có");
+  const item = result.item;
   if (!item) return notFound();
 
   await logAudit(guard.actor, {

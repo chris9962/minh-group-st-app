@@ -117,6 +117,25 @@ export async function actorWith(
   return { ok: true, actor };
 }
 
+/**
+ * Gác cho DANH MỤC DÙNG CHUNG: chỉ cần có phiên, không đòi quyền gì thêm.
+ *
+ * Tên ngân hàng, tên kênh, tên bệnh viện, danh sách xã… là dữ liệu tham chiếu —
+ * không có trục phạm vi, không có gì của riêng ai. Mọi form nghiệp vụ đều phải
+ * đọc được chúng để đổ vào ô chọn: nhân viên mở tài khoản cần danh sách ngân
+ * hàng, tạo khách cần danh mục kênh và địa bàn.
+ *
+ * Cố ý KHÔNG dựng một quyền "được xem danh mục": đó sẽ là quyền mà ai cũng phải
+ * có, nên thứ duy nhất nó thêm vào là một ô tích trong lưới P-92 mà lỡ bỏ tích
+ * là hỏng sạch form của người đó. Quyền SỬA danh mục thì vẫn gác như cũ.
+ */
+export async function signedIn(
+  request: Request,
+): Promise<{ ok: true; actor: User } | { ok: false; response: Response }> {
+  const actor = await getActor(request);
+  return actor ? { ok: true, actor } : { ok: false, response: unauthorized() };
+}
+
 export const unauthorized = () =>
   Response.json({ message: "Chưa đăng nhập hoặc phiên đã hết hạn" }, { status: 401 });
 
@@ -141,6 +160,16 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
  * thì đã thành 500 — trong khi đúng ra chỉ là "không có bản ghi này".
  */
 export const isUuid = (id: string): boolean => UUID.test(id);
+
+/**
+ * Tham số URL đáng lẽ là uuid: sai dạng thì coi như không truyền.
+ *
+ * Dành cho BỘ LỌC, nơi "bỏ qua" là câu trả lời đúng — link cũ hay ô địa chỉ gõ
+ * nhầm không đáng thành 500. Khoá chính của một bản ghi thì dùng `isUuid` rồi
+ * trả 404, đừng dùng hàm này.
+ */
+export const uuidParam = (value: string | null): string =>
+  value && isUuid(value) ? value : "";
 
 /** Đọc JSON an toàn — body rỗng hoặc không phải JSON thì trả null, không ném. */
 export const jsonBody = async (request: Request): Promise<unknown> =>

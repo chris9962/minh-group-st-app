@@ -48,6 +48,10 @@ export async function fetchAuditLog(
     from: query.from,
     to: query.to,
   });
+  // TODO(P-93 Nhật ký truy vết, chờ nối FE–BE): route `/api/audit-log` CHƯA CÓ,
+  // gọi vào là 404. Phần GHI nhật ký đã chạy thật (`server/audit.ts`, bảng
+  // `audit_log` đang đầy dòng) — chỉ thiếu đúng đường đọc lên. Gỡ mốc ở cả hai
+  // đầu khi dựng `src/app/api/audit-log/route.ts`.
   const res = await fetch(`/api/audit-log?${params}`);
   if (res.status === 403) throw new Error('Bạn không có quyền xem nhật ký truy vết');
   if (!res.ok) throw new Error('Không tải được nhật ký truy vết');

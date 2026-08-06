@@ -1,4 +1,4 @@
-import { actorWith } from "@/server/auth";
+import { actorWith, uuidParam } from "@/server/auth";
 import { listOpenReferralCodes } from "@/server/catalog";
 
 /**
@@ -16,7 +16,8 @@ export async function GET(request: Request) {
   const guard = await actorWith(request, "banking", "create");
   if (!guard.ok) return guard.response;
 
-  const bankId = new URL(request.url).searchParams.get("bankId") ?? "";
+  const bankId = uuidParam(new URL(request.url).searchParams.get("bankId"));
+  // Không có ngân hàng hoặc id sai dạng thì không có mã nào để chọn.
   if (!bankId) return Response.json([]);
 
   return Response.json(await listOpenReferralCodes(bankId));

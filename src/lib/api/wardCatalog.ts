@@ -68,7 +68,13 @@ export const Ward = z.object({
 });
 export type Ward = z.infer<typeof Ward>;
 
-export const Province = z.object({ id: z.string(), name: z.string(), wards: z.array(Ward) });
+export const Province = z.object({
+  id: z.string(),
+  /** Mã tỉnh ở bảng THAM CHIẾU — cùng lý do với `Ward.refId`, xem ghi chú trên. */
+  refId: z.string(),
+  name: z.string(),
+  wards: z.array(Ward),
+});
 export type Province = z.infer<typeof Province>;
 
 export const AddProvinceForm = z.object({
@@ -76,17 +82,31 @@ export const AddProvinceForm = z.object({
 });
 export type AddProvinceForm = z.infer<typeof AddProvinceForm>;
 
+/**
+ * `provinceId` là uuid tỉnh của CÔNG TY, `wardId` là mã xã ở bảng THAM CHIẾU —
+ * hai loại id khác nhau, đừng đổi chỗ. Ép dạng uuid ngay ở đây để id sai dạng
+ * dừng lại ở tầng kiểm dữ liệu, chứ không đi tới Postgres rồi thành lỗi 500.
+ */
 export const AddWardForm = z.object({
-  provinceId: z.string().min(1, 'Chưa chọn tỉnh/thành phố'),
+  provinceId: z.uuid('Chưa chọn tỉnh/thành phố'),
   wardId: z.string().min(1, 'Chưa chọn xã/phường'),
 });
 export type AddWardForm = z.infer<typeof AddWardForm>;
 
 export const HamletForm = z.object({
-  wardId: z.string().min(1, 'Chưa chọn xã'),
+  wardId: z.uuid('Chưa chọn xã'),
   name: z.string().trim().min(1, 'Chưa nhập tên ấp'),
 });
 export type HamletForm = z.infer<typeof HamletForm>;
+
+/**
+ * Máy chủ đã nói rõ vì sao ("Xã này đã có ấp trùng tên") — nuốt đi rồi ném câu
+ * chung chung là bắt người dùng tự đoán mình sai chỗ nào.
+ */
+async function failure(res: Response, fallback: string): Promise<Error> {
+  const body = (await res.json().catch(() => null)) as { message?: string } | null;
+  return new Error(body?.message?.trim() || fallback);
+}
 
 export async function fetchProvinces(): Promise<Province[]> {
   const res = await fetch('/api/settings/provinces');
@@ -100,7 +120,7 @@ export async function addProvince(form: AddProvinceForm): Promise<Province> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(form),
   });
-  if (!res.ok) throw new Error('Không thêm được tỉnh/thành phố này');
+  if (!res.ok) throw await failure(res, 'Không thêm được tỉnh/thành phố này');
   return Province.parse(await res.json());
 }
 
@@ -110,7 +130,7 @@ export async function addWard(form: AddWardForm): Promise<Province> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(form),
   });
-  if (!res.ok) throw new Error('Không thêm được xã/phường này');
+  if (!res.ok) throw await failure(res, 'Không thêm được xã/phường này');
   return Province.parse(await res.json());
 }
 
@@ -121,6 +141,6 @@ export async function createHamlet(form: HamletForm): Promise<Province> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(form),
   });
-  if (!res.ok) throw new Error('Không lưu được ấp này');
+  if (!res.ok) throw await failure(res, 'Không lưu được ấp này');
   return Province.parse(await res.json());
 }

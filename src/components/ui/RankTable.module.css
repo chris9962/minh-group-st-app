@@ -35,6 +35,15 @@
   outline-offset: 2px;
 }
 
+/* Chữ tiêu đề cột chỉ cao 17px — bấm bằng ngón tay là trượt (§8 đòi 44px).
+   Nới vùng bấm bằng min-height chứ không bằng padding: hàng tiêu đề cao thêm
+   một chút trên điện thoại, còn trên máy tính giữ nguyên. */
+@media (pointer: coarse) {
+  .sortBtn {
+    min-height: 44px;
+  }
+}
+
 .caret {
   font-size: 10px;
   min-width: 8px;
@@ -82,4 +91,10 @@
   min-width: 46px;
   text-align: center;
   font-variant-numeric: tabular-nums;
+}
+
+.empty {
+  padding: var(--space-4);
+  text-align: center;
+  color: var(--color-neutral-600);
 }

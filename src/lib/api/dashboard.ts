@@ -85,6 +85,14 @@ export const DashboardData = z.object({
 });
 export type DashboardData = z.infer<typeof DashboardData>;
 
+/**
+ * TODO(P-01 Tổng quan, chờ thiết kế cho từng chức vụ): route `/api/dashboard`
+ * CHƯA TỒN TẠI, gọi vào là 404 và màn chủ hiện khối báo lỗi.
+ *
+ * Hiện mới chốt bố cục cho CEO; trưởng phòng, phó phòng và nhân viên sẽ có màn
+ * riêng với chỉ số khác nhau, nên chưa dựng máy chủ vội — dựng theo bản CEO rồi
+ * sửa lại là làm hai lần. Gỡ mốc ở cả hai đầu khi có bản thiết kế đủ 5 chức vụ.
+ */
 export async function fetchDashboard(
   scope: Scope,
   period: Period,

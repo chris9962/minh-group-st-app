@@ -29,8 +29,12 @@ export function ProvinceFormDialog({ open, onClose }: Props) {
     queryFn: fetchReferenceProvinces,
   });
   const { data: provinces = [] } = useQuery({ queryKey: ["provinces"], queryFn: fetchProvinces });
+  // So `refId` chứ KHÔNG so `id`: `existing.id` là uuid dòng tỉnh của công ty,
+  // `p.id` là mã tham chiếu dạng text ("92"). So thẳng thì không bao giờ khớp
+  // nên tỉnh đã thêm vẫn nằm trong ô chọn, chọn lại thì báo "Đã lưu" mà không
+  // có gì xảy ra — máy chủ bỏ qua bản trùng.
   const availableProvinces = referenceProvinces.filter(
-    (p) => !provinces.some((existing) => existing.id === p.id),
+    (p) => !provinces.some((existing) => existing.refId === p.id),
   );
 
   const {
@@ -82,8 +86,8 @@ export function ProvinceFormDialog({ open, onClose }: Props) {
           value={watch("provinceId")}
           onChange={(v) => setValue("provinceId", v, { shouldDirty: true })}
           options={availableProvinces.map((p) => ({ value: p.id, label: p.name }))}
+          error={errors.provinceId?.message}
         />
-        {errors.provinceId && <p className={styles.error}>{errors.provinceId.message}</p>}
       </form>
     </Dialog>
   );

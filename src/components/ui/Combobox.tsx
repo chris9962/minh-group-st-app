@@ -14,6 +14,8 @@ type Props = {
   options: ComboboxOption[];
   onChange: (value: string) => void;
   placeholder?: string;
+  /** Thông báo lỗi. Có giá trị thì ô được đánh dấu `aria-invalid` và nối vào câu lỗi. */
+  error?: string;
   /** Nhãn xếp phía trên, ô rộng hết cỡ — dùng khi đứng cùng hàng với TextField trong form. */
   block?: boolean;
 };
@@ -29,9 +31,18 @@ type Props = {
  * `overflow-y: auto`, một khối absolute nằm trong đó bị cắt mất phần tràn ra
  * ngoài, y hệt cách `DateRangePicker`/`FilterButton` đã phải dùng Popover.
  */
-export function Combobox({ label, value, options, onChange, placeholder, block = false }: Props) {
+export function Combobox({
+  label,
+  value,
+  options,
+  onChange,
+  placeholder,
+  error,
+  block = false,
+}: Props) {
   const id = useId();
   const listId = `${id}-list`;
+  const errorId = `${id}-error`;
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
@@ -63,6 +74,8 @@ export function Combobox({ label, value, options, onChange, placeholder, block =
             aria-controls={listId}
             aria-autocomplete="list"
             aria-activedescendant={activeIndex >= 0 ? `${listId}-${activeIndex}` : undefined}
+            aria-invalid={Boolean(error)}
+            aria-errormessage={error ? errorId : undefined}
             autoComplete="off"
             className={`input ${styles.input} ${block ? styles.blockInput : ""}`}
             value={displayValue}
@@ -97,6 +110,11 @@ export function Combobox({ label, value, options, onChange, placeholder, block =
             }}
           />
         </Popover.Anchor>
+        {error && (
+          <span id={errorId} className={styles.error} role="alert">
+            {error}
+          </span>
+        )}
       </span>
 
       <Popover.Portal container={dialogEl ?? undefined}>

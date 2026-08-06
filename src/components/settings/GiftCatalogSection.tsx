@@ -7,7 +7,9 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { ErrorState } from "@/components/ui/ErrorState";
 import { SectionCard } from "@/components/ui/SectionCard";
+import { SkeletonText } from "@/components/ui/Skeleton";
 import { StatusTag } from "@/components/ui/StatusTag";
 import { TextField } from "@/components/ui/TextField";
 import {
@@ -34,14 +36,14 @@ export function GiftCatalogSection() {
   const [confirmingGift, setConfirmingGift] = useState<GiftItem | null>(null);
   const [confirmingPackage, setConfirmingPackage] = useState<InsurancePackage | null>(null);
 
-  const { data: giftItems = [] } = useQuery({
-    queryKey: ["gift-items"],
-    queryFn: fetchGiftItems,
-  });
-  const { data: packages = [] } = useQuery({
+  const gifts = useQuery({ queryKey: ["gift-items"], queryFn: fetchGiftItems });
+  const giftItems = gifts.data ?? [];
+
+  const packageQuery = useQuery({
     queryKey: ["insurance-packages"],
     queryFn: fetchInsurancePackages,
   });
+  const packages = packageQuery.data ?? [];
 
   const {
     register,
@@ -86,7 +88,27 @@ export function GiftCatalogSection() {
 
   return (
     <div className={styles.columns}>
-      <SectionCard title="Vật phẩm" icon={<Gift size={17} />} meta={`${giftItems.length} món`}>
+      <SectionCard
+        title="Vật phẩm"
+        icon={<Gift size={17} />}
+        meta={gifts.isPending ? undefined : `${giftItems.length} món`}
+      >
+        {gifts.isPending && <SkeletonText lines={4} label="Đang tải danh mục quà" />}
+        {/*
+          Tải hỏng mà im lặng thì màn trông y hệt "danh mục rỗng", quản trị sẽ
+          nhập lại toàn bộ và làm nhân đôi danh mục.
+        */}
+        {gifts.isError && (
+          <ErrorState
+            what="danh mục quà"
+            onRetry={gifts.refetch}
+            retrying={gifts.isFetching}
+          />
+        )}
+        {!gifts.isPending && !gifts.isError && giftItems.length === 0 && (
+          <p className="text-muted">Chưa có món quà nào — thêm ở ô bên dưới.</p>
+        )}
+
         <ul className={styles.list}>
           {giftItems.map((g) => (
             <li key={g.id}>
@@ -126,8 +148,20 @@ export function GiftCatalogSection() {
       <SectionCard
         title="Gói bảo hiểm"
         icon={<Package size={17} />}
-        meta={`${packages.length} gói`}
+        meta={packageQuery.isPending ? undefined : `${packages.length} gói`}
       >
+        {packageQuery.isPending && <SkeletonText lines={4} label="Đang tải gói bảo hiểm" />}
+        {packageQuery.isError && (
+          <ErrorState
+            what="danh mục gói bảo hiểm"
+            onRetry={packageQuery.refetch}
+            retrying={packageQuery.isFetching}
+          />
+        )}
+        {!packageQuery.isPending && !packageQuery.isError && packages.length === 0 && (
+          <p className="text-muted">Chưa có gói bảo hiểm nào.</p>
+        )}
+
         <ul className={styles.list}>
           {packages.map((p) => (
             <li key={p.id}>

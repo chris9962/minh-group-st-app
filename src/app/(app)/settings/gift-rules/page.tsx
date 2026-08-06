@@ -1,5 +1,6 @@
 "use client";
 
+import { RequirePermission } from "@/components/layout/RequirePermission";
 import { TopBar } from "@/components/layout/TopBar";
 import { GiftSimulator } from "@/components/settings/GiftSimulator";
 import styles from "./page.module.scss";
@@ -17,11 +18,11 @@ import styles from "./page.module.scss";
  */
 export default function GiftRulesPage() {
   return (
-    <>
+    <RequirePermission module="system" action="configure-gift-rules">
       <TopBar title="Quy tắc quà" />
       <main className={styles.body}>
         <GiftSimulator />
       </main>
-    </>
+    </RequirePermission>
   );
 }

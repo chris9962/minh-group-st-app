@@ -15,7 +15,9 @@ export async function PATCH(request: Request, { params }: Params) {
   const parsed = ChannelForm.safeParse(await jsonBody(request));
   if (!parsed.success) return badRequest();
 
-  const item = await updateChannel(id, parsed.data);
+  const result = await updateChannel(id, parsed.data);
+  if (!result.ok) return badRequest("Tên kênh này đã có");
+  const item = result.item;
   if (!item) return notFound();
 
   await logAudit(guard.actor, {

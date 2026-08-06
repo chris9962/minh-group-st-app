@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { Select } from "@/components/ui/Select";
+import { errorMessage, toast } from "@/lib/toast";
 import { fetchBanks } from "@/lib/api/bankCatalog";
 import { fetchChannels } from "@/lib/api/channelCatalog";
 import { simulateGift } from "@/lib/api/settings";
@@ -26,9 +27,16 @@ export function GiftSimulator() {
   const activeBanks = allBanks.filter((b) => b.active);
   const { data: channels = [] } = useQuery({ queryKey: ["channels"], queryFn: fetchChannels });
 
+  /**
+   * TODO(P-81, chờ `src/rules/2026-08.ts`): bấm "Thử" hiện luôn báo lỗi —
+   * `/api/settings/gift-rules/simulate` chưa có route. Gỡ cùng lúc với mốc ở
+   * `lib/api/settings.ts`.
+   */
   const run = useMutation({
     mutationFn: () =>
       simulateGift({ installedBanks: banks, cnkd, channels: channel ? [channel] : [] }),
+    onError: (e) =>
+      toast.fail(errorMessage(e, "Chưa chạy thử được — kỳ này chưa có file luật quà.")),
   });
 
   const toggleBank = (bank: string) =>

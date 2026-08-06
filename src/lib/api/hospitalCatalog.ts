@@ -31,6 +31,9 @@ export async function createHospital(form: HospitalForm): Promise<Hospital> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(form),
   });
-  if (!res.ok) throw new Error('Không lưu được bệnh viện này');
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(body?.message?.trim() || 'Không lưu được bệnh viện này');
+  }
   return Hospital.parse(await res.json());
 }

@@ -1,11 +1,13 @@
 import { BankForm } from "@/lib/api/bankCatalog";
 import { logAudit } from "@/server/audit";
-import { actorWith, badRequest, jsonBody } from "@/server/auth";
+import { actorWith, signedIn, badRequest, jsonBody } from "@/server/auth";
 import { createBank, listBanks } from "@/server/catalog";
 
 /** P-60 · Danh sách ngân hàng. */
 export async function GET(request: Request) {
-  const guard = await actorWith(request, "banking", "manage-bank-catalog");
+  // Danh mục dùng chung: mọi form nghiệp vụ đều phải đọc được để đổ vào ô chọn,
+  // nên chỉ chặn ở mức đã đăng nhập. Quyền SỬA bên dưới vẫn gác như cũ.
+  const guard = await signedIn(request);
   if (!guard.ok) return guard.response;
   return Response.json(await listBanks());
 }

@@ -13,6 +13,8 @@ type Props = {
   options: SelectOption[];
   onChange: (value: string) => void;
   disabled?: boolean;
+  /** Thông báo lỗi. Có giá trị thì ô chọn được đánh dấu `aria-invalid` và nối vào câu lỗi. */
+  error?: string;
   /**
    * Nhãn xếp phía trên, ô chọn rộng hết cỡ — dùng khi đứng cùng hàng với
    * `TextField` trong form. Mặc định nhãn nằm bên trái, hợp cho thanh lọc.
@@ -34,9 +36,11 @@ export function Select({
   options,
   onChange,
   disabled,
+  error,
   block = false,
 }: Props) {
   const id = useId();
+  const errorId = `${id}-error`;
 
   return (
     <span className={block ? styles.blockWrap : styles.wrap}>
@@ -51,6 +55,8 @@ export function Select({
         className={`input ${styles.select} ${block ? styles.blockSelect : ""}`}
         value={value}
         disabled={disabled}
+        aria-invalid={Boolean(error)}
+        aria-describedby={error ? errorId : undefined}
         onChange={(e) => onChange(e.target.value)}
       >
         {options.map((o) => (
@@ -59,6 +65,16 @@ export function Select({
           </option>
         ))}
       </select>
+      {/*
+        Câu lỗi phải NỐI vào ô chọn, không đứng rời. Để rời thì người dùng trình
+        đọc màn hình bấm Lưu, form bị chặn, mà không nghe thấy gì — hộp thoại
+        trông như treo.
+      */}
+      {error && (
+        <span id={errorId} className={styles.error} role="alert">
+          {error}
+        </span>
+      )}
     </span>
   );
 }

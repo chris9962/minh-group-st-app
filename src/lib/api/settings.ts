@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { InsuranceProduct } from '@/lib/types';
+import { COEFFICIENT_MAX, INT_MAX, SMALLINT_MAX } from './limits';
 
 /**
  * Cấu hình cho CEO — P-81…P-84 (mgst-feature-list.md §4.8).
@@ -58,8 +59,8 @@ export type CatalogItemForm = z.infer<typeof CatalogItemForm>;
 
 export const InsurancePackageLegForm = z.object({
   product: InsuranceProduct,
-  years: z.number().min(1, 'Số năm phải từ 1 trở lên'),
-  fee: z.number().min(0, 'Phí phải từ 0 trở lên'),
+  years: z.int('Số năm phải là số nguyên').min(1, 'Số năm phải từ 1 trở lên').max(SMALLINT_MAX, 'Số năm lớn quá'),
+  fee: z.int('Phí phải là số nguyên đồng').min(0, 'Phí phải từ 0 trở lên').max(INT_MAX, 'Phí lớn quá'),
 });
 export type InsurancePackageLegForm = z.infer<typeof InsurancePackageLegForm>;
 
@@ -117,8 +118,8 @@ export const KpiTarget = z.object({
 export type KpiTarget = z.infer<typeof KpiTarget>;
 
 export const KpiTargetForm = z.object({
-  monthlyPoints: z.number().min(1, 'Chỉ tiêu phải lớn hơn 0'),
-  warnDaysLeft: z.number().min(0, 'Số ngày phải từ 0 trở lên'),
+  monthlyPoints: z.int('Chỉ tiêu phải là số nguyên').min(1, 'Chỉ tiêu phải lớn hơn 0').max(INT_MAX, 'Chỉ tiêu lớn quá'),
+  warnDaysLeft: z.int('Số ngày phải là số nguyên').min(0, 'Số ngày phải từ 0 trở lên').max(31, 'Nhiều nhất 31 ngày'),
 });
 export type KpiTargetForm = z.infer<typeof KpiTargetForm>;
 
@@ -134,7 +135,11 @@ export type ServiceTypeRow = z.infer<typeof ServiceTypeRow>;
 
 export const ServiceTypeForm = z.object({
   name: z.string().trim().min(2, 'Chưa nhập tên loại dịch vụ'),
-  coefficient: z.number().min(0, 'Hệ số phải từ 0 trở lên'),
+  coefficient: z
+    .number()
+    .min(0, 'Hệ số phải từ 0 trở lên')
+    .max(COEFFICIENT_MAX, `Hệ số nhiều nhất ${COEFFICIENT_MAX}`)
+    .multipleOf(0.01, 'Hệ số nhiều nhất 2 chữ số thập phân'),
 });
 export type ServiceTypeForm = z.infer<typeof ServiceTypeForm>;
 
@@ -155,11 +160,14 @@ async function send(url: string, method: string, body?: unknown) {
   return res.json();
 }
 
-
-
-
-
-
+/**
+ * TODO(P-81, chờ `src/rules/2026-08.ts`): route CHƯA TỒN TẠI, gọi vào là 404.
+ *
+ * Màn thử quy tắc quà không chạy được cho tới khi có file luật của kỳ — quy tắc
+ * quà là chính sách nằm ở code, không phải dữ liệu trong bảng (quyết định
+ * 03/08). Gỡ mốc này ở cả hai đầu khi dựng
+ * `src/app/api/settings/gift-rules/simulate/route.ts`.
+ */
 export const simulateGift = (input: GiftSimulateInput): Promise<GiftSimulateResult> =>
   send('/api/settings/gift-rules/simulate', 'POST', input).then(GiftSimulateResult.parse);
 
@@ -190,10 +198,12 @@ export const setInsurancePackageActive = (id: string, active: boolean) =>
     InsurancePackage.parse,
   );
 
-export const fetchKpiTarget = (): Promise<KpiTarget> =>
-  fetch('/api/settings/kpi-target')
-    .then((r) => r.json())
-    .then((d) => KpiTarget.parse(d));
+/** `null` = chưa đặt mốc nào. Khác hẳn tải hỏng, và nơi gọi phải nói khác nhau. */
+export const fetchKpiTarget = (): Promise<KpiTarget | null> =>
+  fetch('/api/settings/kpi-target').then(async (r) => {
+    if (!r.ok) throw new Error('Không tải được chỉ tiêu KPI');
+    return KpiTarget.nullable().parse(await r.json());
+  });
 
 export const updateKpiTarget = (form: KpiTargetForm) =>
   send('/api/settings/kpi-target', 'POST', form).then(KpiTarget.parse);

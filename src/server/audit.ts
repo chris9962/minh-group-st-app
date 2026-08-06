@@ -5,6 +5,12 @@ import type { Action, ModuleKey, User } from "@/lib/types";
 /**
  * Ghi nhật ký truy vết (P-93) — append-only, không có đường sửa/xoá.
  * Ghi cho mọi thao tác GHI và các lượt xem nhạy cảm (chi tiết nhân viên…).
+ *
+ * TODO(P-93, chờ nối FE–BE): chiều GHI dưới đây đã chạy thật và bảng `audit_log`
+ * đang đầy dòng, nhưng CHƯA CÓ hàm đọc lẫn route `/api/audit-log`, nên màn P-93
+ * mở ra là 404. Cần một hàm `listAuditLog` (lọc theo người/hành động/khoảng
+ * ngày, phân trang ở máy chủ theo AGENTS.md §5.1) và route đọc gác bằng
+ * `system:manage-org`. Gỡ mốc ở cả hai đầu — đầu kia ở `lib/api/auditLog.ts`.
  */
 export async function logAudit(
   actor: User,
