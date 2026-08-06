@@ -21,8 +21,15 @@ nhưng phát nổ khi chạy thật — N+1, quên kiểm quyền phía server, 
 
 ## Phạm vi rà
 
-- **Khi backend thật đã tồn tại**: rà repo/thư mục backend đó (tầng queries, handlers, migrations).
-- **Hiện tại (chưa có backend thật)**: backend = MSW handlers — rà `src/mocks/handlers.ts` + các module `src/mocks/*.ts` chứa logic nghiệp vụ, và `src/lib/permissions.ts`. Mock là bản nháp của backend thật nên logic sai ở đây sẽ được chép nguyên sang backend.
+Backend thật đã thay hẳn tầng mock (`src/mocks/` không còn):
+
+- `src/server/*.ts` — tầng truy vấn và logic nghiệp vụ
+- `src/server/db/schema.ts` + `drizzle/*.sql` — cột, chỉ mục, ràng buộc, trigger
+- `src/app/api/**/route.ts` — cổng vào: đọc tham số, kiểm quyền, mã lỗi
+- `src/lib/permissions.ts` — hàm kiểm quyền duy nhất
+
+Nhiều module còn **chưa có route — cố ý**, không phải bỏ sót. Endpoint chưa xây thì
+`src/lib/api/*.ts` gọi tới một đường không tồn tại; đó không phải finding.
 
 Không rà component React, CSS, hay chuyện style code — skill này chỉ lo ĐÚNG ĐẮN và HIỆU NĂNG của tầng dữ liệu.
 
@@ -42,17 +49,53 @@ Không rà component React, CSS, hay chuyện style code — skill này chỉ lo
 
 ### B · SQL & hiệu năng (mgst-db-design.md §11 — 10 rule)
 
-Với mock hiện tại, dấu hiệu tương đương của từng rule:
+**B0 · Câu hỏi mở màn cho MỌI endpoint danh sách — hỏi trước tất cả rule khác:**
+
+> Để trả 15 dòng, database phải đọc bao nhiêu dòng?
+
+Đáp án phải là "15 dòng cộng vài lượt tra chỉ mục". "Cả bảng" là finding 🟡, kể
+cả khi hiện tại nhanh — bảng nghiệp vụ chỉ lớn thêm mỗi ngày. **Đừng đề xuất
+thêm index cho ca này**: hình dạng câu hỏi mới là vấn đề, index không sửa được.
+
+Hình dạng phải bắt (AGENTS.md §5.2):
+
+```
+JOIN bảng lớn → GROUP BY → WHERE trên số vừa gộp → ORDER BY trên số vừa gộp → LIMIT 15
+```
+
+`LIMIT` nằm sau phép gộp = database phải gộp xong cả kho mới biết 15 dòng đầu là
+ai. Kiểm luôn **câu đếm `total`** đi kèm: gần như chắc chắn nó lặp lại y nguyên
+phép gộp đó, tức một lần mở màn là hai lượt quét bảng lớn.
+
+Dấu hiệu nhẹ hơn nhưng cùng bệnh: `.filter()` / `.sort()` / `.slice()` trên mảng
+vừa `await` từ DB; `select()` không `where` trên bảng lớn thêm theo ngày;
+`LIMIT` cứng kiểu 500 rồi lọc tiếp bằng JS (im lặng cắt mất dòng thứ 501).
+
+Đề xuất sửa phải chọn một trong hai cách đã dùng thật trong repo, đừng đề xuất
+chung chung: **(A)** lọc/sắp/cắt trang trên MỘT bảng rồi `leftJoinLateral` dán
+phần phụ cho đúng 15 dòng (`listCustomers`) — dùng khi bộ lọc và khoá sắp nằm
+trong một bảng; **(B)** cột đếm do trigger giữ (`referral_codes.used_count`) —
+dùng khi người ta LỌC hoặc SẮP theo chính con số đếm.
+
+Bảng đáng soi: `bank_accounts`, `insurance_orders`, `services`, `customers`,
+`audit_log`. Danh mục đóng vài chục dòng do người gõ tay thì bỏ qua.
+
+Các rule còn lại:
 
 1. **N+1**: `await` hoặc gọi hàm truy dữ liệu bên trong `for`/`.map()` khi dựng một danh sách —
-   đúng ra phải gom một lượt (JOIN/GROUP BY khi có SQL thật).
-2. **Kéo hết rồi lọc bằng JS**: chấp nhận được trong mock, nhưng ĐÁNH DẤU các chỗ backend thật
-   phải chuyển thành WHERE/aggregate — đặc biệt chỗ nào lọc sau khi đã map/enrich nặng.
+   đúng ra phải gom một lượt (JOIN/GROUP BY).
+2. **Kéo hết rồi lọc bằng JS**: mọi thao tác thu hẹp dữ liệu (lọc, tìm, sắp, cắt trang) phải là
+   `WHERE`/`ORDER BY`/`LIMIT` ở máy chủ — AGENTS.md §5.1 không có ngoại lệ cần hỏi lại.
+   Ngoại lệ duy nhất chấp nhận được: lọc phạm vi phòng ban SAU khi đã lấy trọn danh sách của
+   MỘT bản ghi cha, khi cần biết tổng để đếm phần bị giấu (`customerDetailFor`) — và phải có
+   comment nói rõ vì sao.
 3. **Index**: query mới trên bảng lớn (`bank_accounts`, `insurance_orders`, `services`, `audit_log`)
    phải khớp index đã khai ở §8 — pattern WHERE mới mà không có index đi kèm là finding.
 4. **Danh sách không phân trang**: endpoint trả mảng không `limit` — `audit_log` là bắt buộc tuyệt đối.
 5. **Read-modify-write không có khoá**: giữ chỗ mã giới thiệu, sinh mã đơn (`order_code_counters`),
-   chốt quà — phải là transaction + `select … for update` (backend thật) / phải ghi chú rõ (mock).
+   chốt quà — phải là transaction + `select … for update` khoá dòng rồi mới kiểm.
+   Đọc con số ở một request rồi ghi ở request sau KHÔNG phải chốt: hai người cùng đọc
+   "còn 1 chỗ" rồi cùng bấm thì cả hai cùng lọt.
 6. **Counter tự chế**: biến đếm lưu sẵn cho giá trị §9 cấm lưu (giftStatus, điểm KPI,
    tổng app) — mọi chỗ phải đếm/tính từ bản ghi thật. Các cột trong **bảng ngoại lệ ở §9**
    (`customers.account_count`/`insurance_count`, `referral_codes.used_count`/`holding_count`)
@@ -104,11 +147,12 @@ Với mock hiện tại, dấu hiệu tương đương của từng rule:
 ## Cách làm việc
 
 1. Đọc các mục tài liệu ở bảng trên (chỉ đúng các mục đó, không đọc cả file).
-2. Xác định phạm vi: backend thật hay mock (xem "Phạm vi rà").
-3. Rà theo thứ tự A → F. Dùng grep tìm ứng viên, nhưng **mọi finding phải được xác nhận bằng cách
-   đọc trọn hàm chứa nó** — không báo lỗi chỉ dựa trên một dòng grep khớp.
-4. Điều gì mock làm "tạm được" nhưng backend thật bắt buộc làm khác (vd lọc bằng JS) →
-   ghi loại riêng "nợ khi chuyển backend thật", không tính là bug hiện tại.
+2. `grep -rn "TODO(" src/` trước — việc đã biết là thiếu thì đừng báo lại thành finding.
+3. Rà theo thứ tự A → F, **B0 chạy cho mọi endpoint danh sách trước khi sang rule khác**.
+   Dùng grep tìm ứng viên, nhưng **mọi finding phải được xác nhận bằng cách đọc trọn hàm
+   chứa nó** — không báo lỗi chỉ dựa trên một dòng grep khớp.
+4. Với B0, đọc **cả hai câu**: câu lấy trang và câu đếm `total`. Câu đếm hay bị bỏ sót mà nó
+   thường đắt ngang câu kia.
 
 ## Báo cáo
 
@@ -119,8 +163,9 @@ Mỗi finding gồm: `file:dòng` · rule bị vi phạm (vd "A2", "B1") · kị
 Xếp theo mức, nặng trước:
 
 - 🔴 **Nghiêm trọng** — phân quyền hở, mất/sai dữ liệu, viết lại lịch sử, race condition có thật
-- 🟡 **Cao** — hiệu năng sẽ nổ theo thời gian (N+1, không phân trang, thiếu index), thiếu audit log
-- 🟢 **Ghi nhận** — nợ khi chuyển backend thật, lệch quy ước chưa gây hại
+- 🟡 **Cao** — hiệu năng sẽ nổ theo thời gian (quét cả kho để lấy một trang, N+1,
+  không phân trang, thiếu index), thiếu audit log
+- 🟢 **Ghi nhận** — lệch quy ước chưa gây hại
 
 Cuối báo cáo: bảng tóm tắt số finding theo mức + theo hạng mục A–F, và danh sách các hạng mục
 đã rà mà KHÔNG có finding (để biết cái gì đã được kiểm chứ không phải bị bỏ sót).

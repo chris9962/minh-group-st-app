@@ -152,7 +152,7 @@ Bộ khung dùng chung — đừng tự chế kiểu vỏ riêng cho từng modu
 | `src/server/pagination.ts` | `pageArgsFrom(url, sortable, fallback)` |
 | `RankTable` prop `server` | bảng nhận sắp xếp/trang từ ngoài, không tự giữ |
 
-Bốn điều dễ làm sai, đã trả giá một lần ở P-61:
+Năm điều dễ làm sai, đã trả giá ở P-40 và P-61:
 
 1. **`total` là tổng số dòng KHỚP BỘ LỌC**, không phải số dòng của trang và
    cũng không phải số dòng của bảng. Trả sai thì thanh phân trang hiện
@@ -167,10 +167,53 @@ Bốn điều dễ làm sai, đã trả giá một lần ở P-61:
 4. **Ô chọn (`Select`) không phải bảng.** Nó cần trọn danh sách dùng được, nên
    đi route riêng — `/referral-codes/open`, `/referral-codes/options`. Đừng mở
    đường "lấy hết" trên route đã phân trang: đường đó là chỗ mọi màn sau lách.
+5. **Câu SQL không được đụng cả kho để lấy 15 dòng** — xem §5.2. Đây là điều
+   tốn nhiều thời gian nhất trong bốn cái trên cộng lại.
 
 `pageSize` của `RankTable` (cắt ở trình duyệt) chỉ còn dùng cho **danh mục
 đóng** — ngân hàng, loại dịch vụ, kênh: vài chục dòng do người gõ tay, không
 lớn thêm.
+
+### 5.2 Đừng quét cả kho để lấy 15 dòng
+
+Viết xong một câu truy vấn danh sách, hỏi đúng một câu:
+
+> **Để trả 15 dòng, database phải đọc bao nhiêu dòng?**
+
+Đáp án phải là "15 dòng cộng vài lượt tra chỉ mục". Nếu là "cả bảng" thì câu đó
+sai, kể cả khi nó chạy mượt trên máy bạn — bảng nghiệp vụ chỉ lớn thêm mỗi ngày
+làm việc, và cái chạy 20ms hôm nay là 800ms sau một năm. **Thêm chỉ mục không
+cứu được**: vấn đề nằm ở hình dạng câu hỏi, không ở chỉ mục.
+
+Dấu hiệu chắc chắn sai — `LIMIT` rơi xuống bước cuối cùng, sau khi đã gộp xong:
+
+```
+JOIN bảng lớn → GROUP BY → WHERE trên số vừa gộp → ORDER BY trên số vừa gộp → LIMIT 15
+```
+
+Nó buộc phải vậy: chưa gộp xong cả kho thì chưa biết dòng nào khớp bộ lọc, chưa
+biết ai đứng đầu. Và câu đếm `total` chạy lại **y nguyên** phép gộp đó lần thứ
+hai. Một lần mở màn = hai lượt quét bảng lớn.
+
+Hai cách chữa đã dùng thật trong repo này. Chọn theo việc con số đó có bị **lọc
+hoặc sắp** hay không:
+
+| | Khi nào | Làm gì | Ví dụ |
+|---|---|---|---|
+| **A. Cắt trang trước, dán phần phụ sau** | Bộ lọc và khoá sắp đều nằm trong MỘT bảng | `WHERE`/`ORDER BY`/`LIMIT` chỉ trên bảng đó → rồi `leftJoinLateral` lấy phần phụ cho đúng 15 dòng | `listCustomers` — `pickPage()` + `decorate()` ở `server/customers.ts` |
+| **B. Cột đếm do trigger giữ** | Người dùng LỌC hoặc SẮP theo chính con số đếm | Lưu số vào cột, trigger ở DB giữ, câu truy vấn đọc cột | `customers.account_count`, `referral_codes.used_count`/`holding_count` |
+
+Cách B là ngoại lệ của luật "tính ra được thì không lưu"
+(`../mgst-db-design.md` §9) nên **phải trả đủ giá của nó** — năm điều kiện liệt
+kê ở §9: trigger ở DB (không phải app cộng trừ) · `UPDATE OF` liệt kê đủ mọi
+cột công thức phụ thuộc · `check` chặn số âm · `db:recount` biết đếm lại và in
+dòng lệch · migration backfill trước rồi mới gắn trigger. Thiếu một điều thì
+quay lại đếm sống, đừng lưu nửa vời.
+
+Không phải mọi bảng đều đáng làm. Danh mục đóng vài chục dòng do người gõ tay
+(ngân hàng, loại dịch vụ, kênh, phòng ban) thì gộp cả bảng là chuyện nhỏ — chỗ
+phải soi là bảng **lớn thêm theo ngày làm việc**: `bank_accounts`,
+`insurance_orders`, `services`, `customers`, `audit_log`.
 
 ## 6. Phân quyền
 
