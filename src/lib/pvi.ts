@@ -1,4 +1,4 @@
-import type { InsuranceOrder } from './api/insuranceOrders';
+import type { InsuranceOrder } from './api/insurance';
 import { BUSINESS_TIMEZONE } from './format';
 
 /**

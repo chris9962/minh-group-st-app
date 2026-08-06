@@ -5,14 +5,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { UserCheck } from "lucide-react";
-import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { Select } from "@/components/ui/Select";
 import { TextField } from "@/components/ui/TextField";
 import type { Customer } from "@/lib/api/customers";
+import { createInsuranceOrders } from "@/lib/api/insurance";
 import {
-  createInsuranceOrder,
   yearsLater,
   InsuranceOrderForm,
   type InsuranceOrderLegForm,
@@ -21,8 +20,9 @@ import {
 import { PRODUCT_LABEL } from "@/lib/types";
 import { fetchInsurancePackages, type InsurancePackage } from "@/lib/api/settings";
 import { businessDay } from "@/lib/format";
+import { invalidateKpi } from "@/lib/invalidateKpi";
 import { VEHICLE_TYPES } from "@/lib/pvi";
-import { useSession } from "@/store/session";
+import { errorMessage, toast } from "@/lib/toast";
 import styles from "./InsuranceOrderFormDialog.module.scss";
 
 type Props = {
@@ -100,7 +100,6 @@ export function InsuranceOrderFormDialog({
   prefill,
   onCreated,
 }: Props) {
-  const actor = useSession((s) => s.user);
   const queryClient = useQueryClient();
   const [packageName, setPackageName] = useState(prefill?.packageName ?? "");
   const primaryPhone = customer.phones.find((p) => p.primary)?.number ?? "";
@@ -161,34 +160,27 @@ export function InsuranceOrderFormDialog({
   };
 
   const save = useMutation({
-    mutationFn: (form: InsuranceOrderForm) => createInsuranceOrder(form, actor?.id ?? ""),
-    onSuccess: () => {
+    mutationFn: (form: InsuranceOrderForm) => createInsuranceOrders(form),
+    onSuccess: (orders) => {
+      queryClient.invalidateQueries({ queryKey: ["insurance-list"] });
       queryClient.invalidateQueries({ queryKey: ["customers"] });
       queryClient.invalidateQueries({ queryKey: ["customer", customer.id] });
+      // Bảng nhân sự P-51 có cột "Đơn BH" đếm từ chính bảng này.
+      invalidateKpi(queryClient);
       onCreated?.();
       onClose();
+      // Một gói khai mấy leg thì tạo bấy nhiêu đơn — nói ra đủ mã, vì người dùng
+      // điền một form và dễ tưởng mình vừa tạo đúng một đơn.
+      toast.ok(
+        orders.length === 1
+          ? `Đã tạo đơn ${orders[0].orderCode}`
+          : `Đã tạo ${orders.length} đơn: ${orders.map((o) => o.orderCode).join(", ")}`,
+      );
     },
+    onError: (e) => toast.fail(errorMessage(e, "Không tạo được đơn bảo hiểm này.")),
   });
 
-  const onSubmit = handleSubmit((values) => {
-    // Nhiều năm CÙNG một sản phẩm dùng chung người thụ hưởng — chỉ hiện một bộ
-    // ô nhập (năm đầu) nên phải chép sang các năm sau trước khi gửi đi.
-    const legs = false
-      ? values.legs.map((leg, i) =>
-          i === 0
-            ? leg
-            : {
-                ...leg,
-                beneficiaryName: values.legs[0].beneficiaryName,
-                beneficiaryDob: values.legs[0].beneficiaryDob,
-                beneficiaryIdNumber: values.legs[0].beneficiaryIdNumber,
-                beneficiaryPhone: values.legs[0].beneficiaryPhone,
-                beneficiaryAddress: values.legs[0].beneficiaryAddress,
-              },
-        )
-      : values.legs;
-    save.mutate({ ...values, legs });
-  });
+  const onSubmit = handleSubmit((values) => save.mutate(values));
 
   const renderVehicleInfo = (i: number) => (
     <fieldset className={styles.fieldset}>
@@ -281,8 +273,6 @@ export function InsuranceOrderFormDialog({
       }
     >
       <form id="insurance-order-form" className={styles.form} onSubmit={onSubmit} noValidate>
-        {save.isError && <Alert tone="error">Không tạo được đơn bảo hiểm này.</Alert>}
-
         {!prefill && (
           <Select
             block
@@ -319,7 +309,7 @@ export function InsuranceOrderFormDialog({
               />
 
               {(selectedPackage?.legs ?? [])[i].product === "motorbike" && renderVehicleInfo(i)}
-              {(!false || i === 0) && renderBeneficiary(i)}
+              {renderBeneficiary(i)}
             </fieldset>
           ))}
 

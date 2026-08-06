@@ -1,86 +1,228 @@
 import { z } from 'zod';
-import { InsuranceProduct, Scope } from '@/lib/types';
-import { InsuranceOrderSource, InsuranceOrderStatus } from './insuranceOrders';
+import { InsuranceProduct } from '@/lib/types';
+import {
+  InsuranceOrderSource,
+  InsuranceOrderStatus,
+  type InsuranceManualStep,
+  type InsuranceOrderEditForm,
+  type InsuranceOrderForm,
+} from './insuranceOrders';
+import { pageOf, pageParams, type Page, type PageQuery } from './pagination';
 
 /**
  * P-13 · Danh sách đơn bảo hiểm · P-14 · Chi tiết
  * (mgst-feature-list.md P-13/P-14 · mgst-platform-spec.md §3.4, §3.6).
+ *
+ * Đơn bảo hiểm CÓ áp trục phạm vi (spec §2.1b) — nhưng phạm vi KHÔNG đi qua
+ * đường truyền: máy chủ tự lấy mức rộng nhất người gọi được cấp. Nhận `scope`
+ * hay `actorId` từ client là mở hai ô để nặn tay mà không thêm tính năng nào.
  */
 
 export const InsuranceListRow = z.object({
   id: z.string(),
+  /** DH-YYMM-NNN (spec P-12) — sinh lúc tạo, không đổi theo trạng thái sau đó. */
   orderCode: z.string(),
+  customerId: z.string(),
   customerName: z.string(),
   product: InsuranceProduct,
   packageName: z.string(),
+  /** Mức phí của ĐƠN này (đ) — prefill từ gói, sửa được từng đơn (03/08). */
+  fee: z.number(),
   status: InsuranceOrderStatus,
+  source: InsuranceOrderSource,
+  /** Ngày bắt đầu hiệu lực. */
   date: z.string(),
+  endDate: z.string(),
   createdById: z.string().nullable(),
   createdByName: z.string().nullable(),
+  /**
+   * Người XỬ LÝ TAY (chốt 03/08) — trường khác hẳn `createdBy`. Có giá trị từ
+   * lúc bấm "Nhận đơn xử lý"; null với đơn chưa ai cầm.
+   */
+  handledById: z.string().nullable(),
+  handledByName: z.string().nullable(),
   /** Ảnh chụp giấy chứng nhận — thay cho PDF, có thể null dù đơn đã hoàn thành. */
   certificatePhotoUrl: z.string().nullable(),
 });
 export type InsuranceListRow = z.infer<typeof InsuranceListRow>;
 
-/** P-14 · Toàn bộ dữ liệu đã nhập — không có nút sửa/huỷ sau khi bot đã chạy (spec §10.1). */
-export const InsuranceDetail = InsuranceListRow.extend({
-  /** null với đơn giả lập P-51/P-52 — không gắn hồ sơ khách thật để dẫn ngược lại. */
-  customerId: z.string().nullable(),
-  /** Ngày hết hiệu lực — null với đơn giả lập P-51/P-52 (không có khái niệm hiệu lực). */
-  endDate: z.string().nullable(),
-  source: InsuranceOrderSource,
+/**
+ * Trọn bản ghi một đơn.
+ *
+ * Bốn trường người thụ hưởng KHÔNG nằm ở dòng danh sách: một trong số đó là
+ * CCCD, và bảng P-13 không có lý do gì để chở CCCD của mười lăm người qua
+ * đường truyền mỗi lần lật trang.
+ */
+export const InsuranceOrder = InsuranceListRow.extend({
   beneficiaryName: z.string(),
   beneficiaryDob: z.string(),
   beneficiaryIdNumber: z.string(),
   beneficiaryPhone: z.string(),
-  /** Chỉ có giá trị với đơn BH xe máy — rỗng với đơn khác. */
+  /** BH tai nạn điện tính theo HỘ nên địa chỉ là thông tin lõi (thêm 03/08). */
+  beneficiaryAddress: z.string(),
+  /** Bốn trường xe chỉ có giá trị với đơn BH xe máy — rỗng với đơn khác. */
   licensePlate: z.string(),
+  vehicleType: z.string(),
   chassisNumber: z.string(),
   engineNumber: z.string(),
+  /** Đơn vị của người tạo LÚC TẠO — chụp một lần, không tra động (spec §1.1.5). */
   createdByDepartmentId: z.string().nullable(),
+});
+export type InsuranceOrder = z.infer<typeof InsuranceOrder>;
+
+/** Một bước chuyển trạng thái — dựng dòng thời gian ở P-14. */
+export const InsuranceStatusStep = z.object({
+  id: z.string(),
+  /** null = dòng khởi tạo đơn. */
+  fromStatus: InsuranceOrderStatus.nullable(),
+  toStatus: InsuranceOrderStatus,
+  /** null = hệ thống tự chuyển, không phải người bấm. */
+  changedByName: z.string().nullable(),
+  changedAt: z.string(),
+});
+export type InsuranceStatusStep = z.infer<typeof InsuranceStatusStep>;
+
+/** P-14 · Toàn bộ dữ liệu đã nhập + dòng thời gian trạng thái kèm mốc giờ. */
+export const InsuranceDetail = InsuranceOrder.extend({
+  history: z.array(InsuranceStatusStep),
 });
 export type InsuranceDetail = z.infer<typeof InsuranceDetail>;
 
-export const InsuranceQuery = z.object({
-  scope: Scope,
-  search: z.string(),
-  status: z.string(),
+/**
+ * Khoá sắp xếp — DANH SÁCH TRẮNG, vì nó đi thẳng vào `ORDER BY` của máy chủ.
+ *
+ * Chỉ cột nằm trong chính bảng `insurance_orders`. Sắp theo tên khách hay tên
+ * người tạo thì phải nối bảng TRƯỚC khi cắt trang, tức gộp cả kho để lấy 15
+ * dòng (AGENTS.md §5.2).
+ */
+export const INSURANCE_SORT = ['date'] as const;
+export type InsuranceSort = (typeof INSURANCE_SORT)[number];
+
+export type InsuranceQuery = PageQuery<InsuranceSort> & {
+  /** Tìm theo TÊN KHÁCH HÀNG (spec P-13) — không dấu, không phụ thuộc thứ tự từ. */
+  search: string;
+  /** Rỗng = mọi trạng thái. Hàng đợi đơn lỗi P-15 chính là màn này lọc `Chờ làm tay`. */
+  status: InsuranceOrderStatus | '';
   /** Rỗng = tất cả loại. Có giá trị thì phải là enum, không nhận nhãn tiếng Việt. */
-  product: z.union([z.literal(''), InsuranceProduct]),
-  from: z.string(),
-  to: z.string(),
-  staffId: z.string(),
-});
-export type InsuranceQuery = z.infer<typeof InsuranceQuery>;
+  product: InsuranceProduct | '';
+  /** Khoảng NGÀY BẮT ĐẦU HIỆU LỰC, YYYY-MM-DD. Rỗng = không giới hạn. */
+  from: string;
+  to: string;
+  staffId: string;
+};
 
-export const InsuranceList = z.object({
-  rows: z.array(InsuranceListRow),
-  summary: z.object({ total: z.number() }),
-});
-export type InsuranceList = z.infer<typeof InsuranceList>;
+const InsurancePage = pageOf(InsuranceListRow);
 
-export async function fetchInsuranceOrders(
-  query: InsuranceQuery & { actorId: string },
-): Promise<InsuranceList> {
-  const params = new URLSearchParams({
-    actorId: query.actorId,
-    scope: query.scope,
-    search: query.search,
-    status: query.status,
-    product: query.product,
-    from: query.from,
-    to: query.to,
-    staffId: query.staffId,
-  });
-  const res = await fetch(`/api/insurance-list?${params}`);
+const listParams = (query: Omit<InsuranceQuery, keyof PageQuery>) => ({
+  search: query.search,
+  status: query.status,
+  product: query.product,
+  from: query.from,
+  to: query.to,
+  staffId: query.staffId,
+});
+
+/** MỘT trang đơn bảo hiểm, đã lọc/tìm/sắp sẵn ở máy chủ (AGENTS.md §5.1). */
+export async function fetchInsuranceOrders(query: InsuranceQuery): Promise<Page<InsuranceListRow>> {
+  const res = await fetch(`/api/insurance-list?${pageParams(query, listParams(query))}`);
   if (!res.ok) throw new Error('Không tải được danh sách đơn bảo hiểm');
-  return InsuranceList.parse(await res.json());
+  return InsurancePage.parse(await res.json());
 }
 
-export async function fetchInsuranceDetail(id: string, actorId: string): Promise<InsuranceDetail> {
-  const params = new URLSearchParams({ actorId });
-  const res = await fetch(`/api/insurance-list/${id}?${params}`);
+/**
+ * TRỌN danh sách khớp bộ lọc, CHỈ cho việc xuất Excel — đường riêng chứ không
+ * mở tham số "lấy hết" trên route đã phân trang (AGENTS.md §5.1, điều 4).
+ *
+ * `total` có thể lớn hơn `rows.length` khi chạm trần — nơi gọi BẮT BUỘC so hai
+ * số rồi dừng, vì file thiếu dòng trông y hệt file đủ.
+ */
+export async function fetchInsuranceOrdersForExport(
+  query: Omit<InsuranceQuery, keyof PageQuery>,
+): Promise<Page<InsuranceListRow>> {
+  const res = await fetch(`/api/insurance-list/export?${new URLSearchParams(listParams(query))}`);
+  if (!res.ok) throw new Error('Không tải được danh sách đơn bảo hiểm');
+  return InsurancePage.parse(await res.json());
+}
+
+export async function fetchInsuranceDetail(id: string): Promise<InsuranceDetail> {
+  const res = await fetch(`/api/insurance-list/${id}`);
   if (res.status === 404) throw new Error('Không tìm thấy đơn bảo hiểm này');
   if (!res.ok) throw new Error('Không tải được chi tiết đơn bảo hiểm');
+  return InsuranceDetail.parse(await res.json());
+}
+
+/**
+ * Máy chủ đã nói rõ vì sao ("Đơn đã hoàn thành thì không sửa được nữa") — nuốt
+ * đi rồi ném câu chung chung là bắt người dùng tự đoán mình sai chỗ nào.
+ */
+async function failure(res: Response, fallback: string): Promise<Error> {
+  const body = (await res.json().catch(() => null)) as { message?: string } | null;
+  return new Error(body?.message?.trim() || fallback);
+}
+
+/** Một gói khai mấy leg thì tạo bấy nhiêu đơn — máy chủ trả về đủ cả chùm. */
+export async function createInsuranceOrders(form: InsuranceOrderForm): Promise<InsuranceListRow[]> {
+  const res = await fetch('/api/insurance-orders', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(form),
+  });
+  if (!res.ok) throw await failure(res, 'Không tạo được đơn bảo hiểm này');
+  return z.array(InsuranceListRow).parse(await res.json());
+}
+
+export async function updateInsuranceOrder(
+  id: string,
+  form: InsuranceOrderEditForm,
+): Promise<InsuranceListRow> {
+  const res = await fetch(`/api/insurance-list/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(form),
+  });
+  if (!res.ok) throw await failure(res, 'Không lưu được thay đổi này');
+  return InsuranceListRow.parse(await res.json());
+}
+
+/**
+ * Huỷ hẳn một đơn CHƯA hoàn thành — không có trạng thái "đã huỷ", cùng lối với
+ * tài khoản ngân hàng bỏ dở (spec §4.5). Đơn đã `Hoàn thành` là hợp đồng đã
+ * phát hành bên PVI nên máy chủ từ chối; đơn quà tặng cũng vậy, nó là vết của
+ * một đợt tặng quà.
+ */
+export async function deleteInsuranceOrder(id: string): Promise<void> {
+  const res = await fetch(`/api/insurance-list/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw await failure(res, 'Không huỷ được đơn này');
+}
+
+/**
+ * Hai nút thao tác tay ở P-14: nhận đơn từ hàng chờ (`Chờ làm tay` → `Đang làm
+ * tay`, gắn luôn người bấm vào trường người xử lý), rồi đánh dấu hoàn thành.
+ * Máy chủ tự kiểm bước chuyển hợp lệ, không nhận trạng thái tuỳ ý từ client.
+ */
+export async function setInsuranceOrderStatus(
+  id: string,
+  status: InsuranceManualStep,
+): Promise<InsuranceDetail> {
+  const res = await fetch(`/api/insurance-orders/${id}/status`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status }),
+  });
+  if (!res.ok) throw await failure(res, 'Không đổi được trạng thái đơn này');
+  return InsuranceDetail.parse(await res.json());
+}
+
+/** Đính/thay ảnh chứng nhận — dùng được ở MỌI trạng thái đơn (spec §3.4). */
+export async function setInsuranceOrderPhoto(
+  id: string,
+  photoUrl: string,
+): Promise<InsuranceDetail> {
+  const res = await fetch(`/api/insurance-orders/${id}/photo`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ photoUrl }),
+  });
+  if (!res.ok) throw await failure(res, 'Không lưu được ảnh chứng nhận này');
   return InsuranceDetail.parse(await res.json());
 }

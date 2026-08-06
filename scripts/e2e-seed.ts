@@ -11,7 +11,7 @@
  * thật. Các tài khoản này bị xoá ngay sau khi chạy (`e2e-clean.ts`).
  */
 import { hashSync } from "bcryptjs";
-import { eq, like } from "drizzle-orm";
+import { eq, like, sql } from "drizzle-orm";
 import { db } from "../src/server/db/client";
 import {
   auditLog,
@@ -24,6 +24,7 @@ import {
   insuranceOrders,
   referralCodes,
   sessions,
+  userManagedDepartments,
   userPermissions,
   users,
 } from "../src/server/db/schema";
@@ -57,6 +58,12 @@ const staleCustomers = await db
   .from(customers)
   .where(like(customers.fullName, "ZZE2E%"));
 for (const c of staleCustomers) {
+  // Dòng thời gian trạng thái trỏ vào đơn và không cascade — xoá đơn trước là
+  // vướng khoá ngoại, và lần chạy sau hỏng ngay từ bước đăng nhập.
+  await db.execute(
+    sql`delete from insurance_order_status_history
+        where order_id in (select id from insurance_orders where customer_id = ${c.id})`,
+  );
   await db.delete(insuranceOrders).where(eq(insuranceOrders.customerId, c.id));
   await db.delete(bankAccounts).where(eq(bankAccounts.customerId, c.id));
   await db.delete(customerPhones).where(eq(customerPhones.customerId, c.id));
@@ -69,8 +76,23 @@ for (const u of stale) {
   await db.delete(auditLog).where(eq(auditLog.actorId, u.id));
   await db.delete(sessions).where(eq(sessions.userId, u.id));
   await db.delete(userPermissions).where(eq(userPermissions.userId, u.id));
+  await db.delete(userManagedDepartments).where(eq(userManagedDepartments.userId, u.id));
   await db.delete(users).where(eq(users.id, u.id));
 }
+
+/**
+ * Vai quản lý phải THẬT SỰ quản một phòng, không chỉ mang chức danh.
+ *
+ * Bộ quyền mặc định cho ba vai này phạm vi `phòng tôi quản`, mà phạm vi đó đọc
+ * từ `user_managed_departments` chứ không đọc từ chức vụ. Dựng thiếu dòng đó
+ * thì `manage_scope` là `none`, `managed` hoá tập RỖNG, và họ mở màn nghiệp vụ
+ * nào cũng ra bảng trắng — kể cả bản ghi của chính mình, vì `managed` rộng hơn
+ * `own` nên được chọn trước rồi phân giải ra không gì cả.
+ *
+ * Ba vai đó vì vậy từng không kiểm được thứ gì: mọi ca "quản lý xem được dữ
+ * liệu của phòng" đều xanh vì bảng rỗng nên không có dòng nào sai để mà bắt.
+ */
+const MANAGES_A_DEPARTMENT: RoleKey[] = ["deputy-director", "head", "deputy-head"];
 
 const hash = hashSync(E2E_PASSWORD, 10);
 for (const [i, role] of E2E_ROLES.entries()) {
@@ -84,9 +106,15 @@ for (const [i, role] of E2E_ROLES.entries()) {
       role,
       title: ROLE_TITLE[role],
       departmentId: dept.id,
+      // Giám đốc KHÔNG liệt kê từng phòng — mở phòng mới mà quên thêm vào danh
+      // sách thì giám đốc mù một phòng và hệ thống không báo gì.
+      manageScope: role === "director" ? "company" : MANAGES_A_DEPARTMENT.includes(role) ? "listed" : "none",
       active: true,
     })
     .returning({ id: users.id });
+
+  if (MANAGES_A_DEPARTMENT.includes(role))
+    await db.insert(userManagedDepartments).values({ userId: u.id, departmentId: dept.id });
 
   await db
     .insert(userPermissions)

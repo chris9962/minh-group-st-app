@@ -11,15 +11,15 @@ import { DateRangePicker } from "@/components/ui/DateRangePicker";
 import { MonthPicker, thisMonth } from "@/components/ui/MonthPicker";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { Select } from "@/components/ui/Select";
-import { fetchBankAccounts } from "@/lib/api/banking";
+import { fetchBankAccountsForExport } from "@/lib/api/banking";
 import { fetchBanks, fetchReferralCodeOptions, type Bank } from "@/lib/api/bankCatalog";
 import { fetchCustomersForExport } from "@/lib/api/customers";
 import { errorMessage } from "@/lib/toast";
 import { fetchDepartments } from "@/lib/api/departments";
-import { fetchInsuranceOrders } from "@/lib/api/insurance";
+import { fetchInsuranceOrdersForExport } from "@/lib/api/insurance";
 import { INSURANCE_STATUS_LABEL, InsuranceOrderStatus } from "@/lib/api/insuranceOrders";
 import { fetchPeopleForExport, periodMonth, periodParam, totalPoints } from "@/lib/api/people";
-import { fetchServices } from "@/lib/api/services";
+import { fetchServicesForExport } from "@/lib/api/services";
 import { fetchServiceTypes } from "@/lib/api/settings";
 import { fetchStaffOptions } from "@/lib/api/staff";
 import { fetchProvinces } from "@/lib/api/wardCatalog";
@@ -225,7 +225,7 @@ export default function ExportsPage() {
   const [departmentId, setDepartmentId] = useState("");
   const [ward, setWard] = useState("");
   const [serviceTypeId, setServiceTypeId] = useState("");
-  const [insuranceStatus, setInsuranceStatus] = useState("");
+  const [insuranceStatus, setInsuranceStatus] = useState<InsuranceOrderStatus | "">("");
   const [insuranceProduct, setInsuranceProduct] = useState<InsuranceProduct | "">("");
   const [staffId, setStaffId] = useState("");
 
@@ -291,21 +291,31 @@ export default function ExportsPage() {
     }
   }
 
+  /**
+   * Chạm trần thì DỪNG, không dựng file: một báo cáo thiếu 5.000 dòng trông y
+   * hệt báo cáo đủ, người nhận không có cách nào biết. Thà không có file còn
+   * hơn có file nói dối.
+   */
+  const capCheck = (got: number, total: number, what: string) => {
+    if (got < total)
+      throw new Error(
+        `Bộ lọc này có ${total.toLocaleString("vi-VN")} ${what}, vượt trần ${got.toLocaleString("vi-VN")} dòng một lần xuất. Thu hẹp khoảng ngày rồi xuất làm nhiều đợt.`,
+      );
+  };
+
   const RUN: Record<ReportId, () => Promise<number>> = {
     async "accounts-by-customer"() {
-      const scope: Scope = scopeFor(user, "banking", "export") ?? "own";
-      const { rows } = await fetchBankAccounts({
-        actorId: user?.id ?? "",
-        scope,
+      const { rows, total } = await fetchBankAccountsForExport({
         search: "",
         bankCode,
         from,
         to,
         referralCode,
-        channel: "",
+        channelId: "",
         staffId: "",
         status: "",
       });
+      capCheck(rows.length, total, "tài khoản");
       const byCustomer = new Map<
         string,
         { customerId: string; customerName: string; createdByNames: Set<string>; createdByIds: Set<string>; cells: Record<string, string> }
@@ -384,19 +394,17 @@ export default function ExportsPage() {
     },
 
     async "apps-by-bank-department"() {
-      const scope: Scope = scopeFor(user, "banking", "export") ?? "own";
-      const { rows } = await fetchBankAccounts({
-        actorId: user?.id ?? "",
-        scope,
+      const { rows, total } = await fetchBankAccountsForExport({
         search: "",
         bankCode,
         from,
         to,
         referralCode: "",
-        channel: "",
+        channelId: "",
         staffId: "",
         status: "done",
       });
+      capCheck(rows.length, total, "tài khoản");
       const filtered = departmentId
         ? rows.filter((r) => r.createdByDepartmentName === departments.find((d) => d.id === departmentId)?.name)
         : rows;
@@ -419,19 +427,17 @@ export default function ExportsPage() {
     },
 
     async "accounts-by-code"() {
-      const scope: Scope = scopeFor(user, "banking", "export") ?? "own";
-      const { rows } = await fetchBankAccounts({
-        actorId: user?.id ?? "",
-        scope,
+      const { rows, total } = await fetchBankAccountsForExport({
         search: "",
         bankCode,
         from,
         to,
         referralCode,
-        channel: "",
+        channelId: "",
         staffId: "",
         status: "",
       });
+      capCheck(rows.length, total, "tài khoản");
       await exportExcel({
         fileName: `tra-theo-ma-gioi-thieu-${iso(new Date())}.xlsx`,
         sheetName: "Tra theo mã giới thiệu",
@@ -442,10 +448,7 @@ export default function ExportsPage() {
     },
 
     async "insurance-by-month"() {
-      const scope: Scope = scopeFor(user, "insurance", "export") ?? "own";
-      const { rows } = await fetchInsuranceOrders({
-        actorId: user?.id ?? "",
-        scope,
+      const { rows, total } = await fetchInsuranceOrdersForExport({
         search: "",
         status: insuranceStatus,
         product: insuranceProduct,
@@ -453,6 +456,7 @@ export default function ExportsPage() {
         to,
         staffId,
       });
+      capCheck(rows.length, total, "đơn bảo hiểm");
       await exportExcel({
         fileName: `don-bao-hiem-theo-thang-${iso(new Date())}.xlsx`,
         sheetName: "Đơn bảo hiểm",
@@ -463,17 +467,22 @@ export default function ExportsPage() {
     },
 
     async "services-by-ward"() {
-      const scope: Scope = scopeFor(user, "services", "export") ?? "own";
-      const { rows } = await fetchServices({
-        actorId: user?.id ?? "",
-        scope,
+      const { rows, total } = await fetchServicesForExport({
         search: "",
         serviceTypeId,
         from,
         to,
-        ward,
+        wardId: ward,
         staffId: "",
       });
+
+      // Chạm trần thì DỪNG, không dựng file — cùng lý do với báo cáo khách hàng
+      // ở trên: file thiếu dòng trông y hệt file đủ.
+      if (rows.length < total) {
+        throw new Error(
+          `Khoảng ngày này có ${total.toLocaleString("vi-VN")} lượt dịch vụ, vượt trần ${rows.length.toLocaleString("vi-VN")} dòng một lần xuất. Thu hẹp khoảng ngày rồi xuất làm nhiều đợt.`,
+        );
+      }
       await exportExcel({
         fileName: `dich-vu-theo-xa-${iso(new Date())}.xlsx`,
         sheetName: "Dịch vụ",
@@ -655,7 +664,7 @@ export default function ExportsPage() {
                     <Select
                       label="Trạng thái"
                       value={insuranceStatus}
-                      onChange={setInsuranceStatus}
+                      onChange={(v) => setInsuranceStatus(v as InsuranceOrderStatus | "")}
                       options={[
                         { value: "", label: "Tất cả trạng thái" },
                         ...InsuranceOrderStatus.options.map((s) => ({ value: s, label: INSURANCE_STATUS_LABEL[s] })),

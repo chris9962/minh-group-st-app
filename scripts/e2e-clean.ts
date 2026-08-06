@@ -16,7 +16,7 @@
  * rồi mới xoá được tài khoản. Đây là nhật ký do chính test sinh ra, không phải
  * dấu vết thật của người dùng.
  */
-import { eq, like } from "drizzle-orm";
+import { eq, like, sql } from "drizzle-orm";
 import { db } from "../src/server/db/client";
 import {
   auditLog,
@@ -35,6 +35,7 @@ import {
   referralCodes,
   serviceTypes,
   sessions,
+  userManagedDepartments,
   userPermissions,
   users,
 } from "../src/server/db/schema";
@@ -60,6 +61,12 @@ for (const c of testCustomers) {
   // trỏ vào `customers` và KHÔNG có `on delete cascade` — sai thứ tự là script
   // chết giữa chừng, bỏ lại cả tài khoản `zz_e2e_*` và lần chạy sau hỏng ngay
   // từ bước đăng nhập.
+  // Dòng thời gian trạng thái trỏ vào đơn, cũng không cascade — xoá đơn trước
+  // là script chết ngay tại đây.
+  await db.execute(
+    sql`delete from insurance_order_status_history
+        where order_id in (select id from insurance_orders where customer_id = ${c.id})`,
+  );
   await db.delete(insuranceOrders).where(eq(insuranceOrders.customerId, c.id));
   await db.delete(giftGrants).where(eq(giftGrants.customerId, c.id));
   await db.delete(bankAccounts).where(eq(bankAccounts.customerId, c.id));
@@ -88,6 +95,8 @@ for (const u of accounts) {
   await db.delete(auditLog).where(eq(auditLog.actorId, u.id));
   await db.delete(sessions).where(eq(sessions.userId, u.id));
   await db.delete(userPermissions).where(eq(userPermissions.userId, u.id));
+  // Phòng người này quản — khoá ngoại không cascade, xoá người trước là vướng.
+  await db.delete(userManagedDepartments).where(eq(userManagedDepartments.userId, u.id));
   await db.delete(users).where(eq(users.id, u.id));
 }
 if (accounts.length) wiped.push(`tài khoản: ${accounts.length}`);

@@ -92,6 +92,43 @@
   color: var(--color-neutral-600);
 }
 
+.timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.timeline li {
+  display: grid;
+  grid-template-columns: 130px minmax(0, 1fr) 140px;
+  gap: 12px;
+  align-items: baseline;
+  font-size: 13.5px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--om-line);
+}
+
+.timeline li:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.stepAt {
+  color: var(--om-text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.stepWhat {
+  min-width: 0;
+}
+
+.stepWho {
+  color: var(--om-text-2);
+}
+
 @media (max-width: bp.$bp-mobile) {
   .body {
     padding: 16px 16px 32px;
@@ -99,5 +136,11 @@
 
   .fields {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  // Ba cột cạnh nhau trên màn hẹp thì cột giữa vỡ chữ — xếp dọc, mốc giờ trước.
+  .timeline li {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
   }
 }
