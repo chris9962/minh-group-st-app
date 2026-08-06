@@ -11,19 +11,20 @@ import { bankAccounts, banks, kpiScores, services, serviceTypes, users } from ".
  * trong `db/schema.ts` để biết vì sao đây là ngoại lệ có chủ ý so với
  * `mgst-db-design.md` §9.
  *
- * ⚠️ CHỖ PHẢI GỌI HÀM NÀY — chưa nhánh nào tồn tại, thêm dần khi xây module:
+ * ⚠️ MỌI ĐƯỜNG GHI ĐỔI DỮ LIỆU TÍNH ĐIỂM ĐỀU PHẢI GỌI HÀM NÀY. Sót một nhánh
+ * nghĩa là điểm đứng im trong khi dữ liệu đã đổi, không báo gì. Mà điểm KPI
+ * dính tới lương.
+ *
+ * Đã nối: chuyển tài khoản sang `done` (`server/banking.ts`), ghi/sửa/xoá dịch
+ * vụ (`server/services.ts`), sửa hệ số một loại dịch vụ (`server/catalog.ts`,
+ * gọi `recomputeKpiForMonth`). Bản `creating` không vào điểm nên tạo và xoá
+ * nháp không cần tính lại.
  *
  *   TODO(KPI, chờ đường sửa tài khoản đã hoàn thành):
  *     - tích / bỏ tích "đã cài app" trên bản ghi `done`
  *
- * Đã nối xong: chuyển tài khoản sang `done` (`server/banking.ts`), ghi/sửa/xoá
- * dịch vụ (`server/services.ts`). Bản `creating` không vào điểm nên tạo và xoá
- * nháp không cần tính lại.
- *   TODO(KPI, chờ module cấu hình):
- *     - sửa hệ số một loại dịch vụ → `recomputeKpiForMonth` cho tháng hiện tại
- *
- * Sót một nhánh nghĩa là điểm đứng im trong khi dữ liệu đã đổi, không báo gì.
- * Mà điểm KPI dính tới lương.
+ * Đường đó chưa tồn tại: P-22 và hộp thoại sửa trên P-21 đều chỉ cho thay ẢNH
+ * khi tài khoản đã `done`. Ngày mở nó ra thì thêm lời gọi ở đây cùng lúc.
  *
  * ⚠️ NGÀY `bankingPointsFor` THÔI TRẢ 0: mọi dòng đã lưu ở đây thành cũ và
  * KHÔNG tự sửa — chúng chỉ được tính lại khi có người ghi tài khoản mới. Lúc đó
