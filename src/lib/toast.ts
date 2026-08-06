@@ -15,7 +15,14 @@ import { create } from 'zustand';
  *   vào ô nào sai.
  */
 
-export type ToastTone = 'ok' | 'fail';
+/**
+ * `warn` KHÁC `fail`: thao tác ĐÃ THÀNH CÔNG, đây là lời nhắc nghiệp vụ đi kèm.
+ *
+ * Cảnh báo mềm của spec §4.8 ("khách mới cài 1 app", "MSBa phải đủ 3 app") rơi
+ * đúng vào chỗ này — báo bằng `fail` thì người dùng tưởng chưa lưu và bấm lại,
+ * báo bằng `ok` thì lời nhắc chìm nghỉm giữa các thông báo thành công.
+ */
+export type ToastTone = 'ok' | 'warn' | 'fail';
 
 export type ToastItem = {
   id: number;
@@ -46,6 +53,8 @@ const push = (tone: ToastTone, message: string) => {
  */
 export const toast = {
   ok: (message: string) => push('ok', message),
+  /** Đã lưu xong, nhưng có điều đáng nhắc — không phải lỗi. */
+  warn: (message: string) => push('warn', message),
   fail: (message: string) => push('fail', message),
 };
 

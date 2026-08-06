@@ -36,6 +36,10 @@
   border-color: var(--om-green);
 }
 
+.warn {
+  border-color: var(--om-orange);
+}
+
 .fail {
   border-color: var(--om-orange-mid);
 }
@@ -48,6 +52,10 @@
 
 .ok .mark {
   color: var(--om-green);
+}
+
+.warn .mark {
+  color: var(--om-orange);
 }
 
 .text {

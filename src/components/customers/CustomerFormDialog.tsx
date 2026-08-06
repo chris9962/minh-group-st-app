@@ -190,10 +190,6 @@ export function CustomerFormDialog({ open, onClose, customer, onCreated }: Props
           onSubmit={handleSubmit((form) => save.mutate(form))}
           noValidate
         >
-          {save.isError && !isDuplicateCustomerError(save.error) && (
-            <Alert tone="error">Không lưu được khách hàng này.</Alert>
-          )}
-
           <TextField
             label="Họ tên"
             placeholder="Nguyễn Văn An"

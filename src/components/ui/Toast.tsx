@@ -15,7 +15,7 @@ const TOAST_MS = 5000;
  * Màu không được là kênh truyền đạt duy nhất (AGENTS.md §8) — mỗi tone kèm một
  * ký hiệu, cùng quy ước với `Alert`.
  */
-const MARK: Record<ToastTone, string> = { ok: "✓", fail: "❌" };
+const MARK: Record<ToastTone, string> = { ok: "✓", warn: "⚠", fail: "❌" };
 
 /**
  * Đã chạy ở trình duyệt chưa. Máy chủ không có `document` nên không dựng được
