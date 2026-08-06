@@ -48,3 +48,6 @@ next-env.d.ts
 /test-results/
 /playwright-report/
 /blob-report/
+
+# Ảnh tải lên của bản lưu trữ tạm (chưa có S3) — dữ liệu chạy, không phải mã nguồn.
+/public/uploads
