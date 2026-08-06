@@ -7,6 +7,7 @@ import type {
   CustomerForm,
   CustomerInsuranceRow,
   CustomerRow,
+  CustomerServiceRow,
   CustomerSort,
   ExistingCustomer,
 } from "@/lib/api/customers";
@@ -25,6 +26,9 @@ import {
   giftGrants,
   insuranceOrders,
   referralCodes,
+  serviceTypes,
+  services,
+  users,
 } from "./db/schema";
 
 /**
@@ -439,7 +443,7 @@ export async function updateCustomer(
  * `chỉ mình` nghĩa là bản ghi do CHÍNH MÌNH tạo (spec §1.1.2) — xem ghi chú ở
  * `recordVisibility`. Phần bị giấu vẫn được đếm và nói ra, không giấu im.
  */
-const scopeOf = (actor: User, module: "banking" | "insurance"): RecordVisibility =>
+const scopeOf = (actor: User, module: "banking" | "insurance" | "services"): RecordVisibility =>
   recordVisibility(actor, module, "view-detail");
 
 /**
@@ -457,8 +461,9 @@ export async function customerDetailFor(
 
   const bankingVisible = scopeOf(actor, "banking");
   const insuranceVisible = scopeOf(actor, "insurance");
+  const servicesVisible = scopeOf(actor, "services");
 
-  const [accountRows, insuranceRows, [grant]] = await Promise.all([
+  const [accountRows, insuranceRows, serviceRows, [grant]] = await Promise.all([
     db
       .select({
         id: bankAccounts.id,
@@ -489,6 +494,23 @@ export async function customerDetailFor(
       .from(insuranceOrders)
       .where(eq(insuranceOrders.customerId, id))
       .orderBy(desc(insuranceOrders.startDate)),
+    db
+      .select({
+        id: services.id,
+        date: services.serviceDate,
+        serviceTypeName: serviceTypes.name,
+        createdByName: users.fullName,
+        note: services.note,
+        departmentId: services.createdByDepartmentId,
+        createdById: services.createdBy,
+      })
+      .from(services)
+      .innerJoin(serviceTypes, eq(serviceTypes.id, services.serviceTypeId))
+      // leftJoin: người thực hiện có thể đã bị xoá khỏi hệ thống, mà lượt dịch
+      // vụ thì vẫn đã xảy ra — innerJoin làm dòng đó biến mất không báo gì.
+      .leftJoin(users, eq(users.id, services.createdBy))
+      .where(eq(services.customerId, id))
+      .orderBy(desc(services.serviceDate)),
     db.select().from(giftGrants).where(eq(giftGrants.customerId, id)).limit(1),
   ]);
 
@@ -517,6 +539,7 @@ export async function customerDetailFor(
   const visibleDone = visible(doneAccounts, bankingVisible);
   const visibleDrafts = visible(draftAccounts, bankingVisible);
   const visibleInsurance = visible(insuranceRows, insuranceVisible);
+  const visibleServices = visible(serviceRows, servicesVisible);
 
   const accounts: CustomerAccountRow[] = visibleDone.map((a) => ({
     id: a.id,
@@ -541,14 +564,16 @@ export async function customerDetailFor(
     source: i.source,
   }));
 
-  /**
-   * TODO(P-42, chờ module dịch vụ): hồ sơ 360° CÒN THIẾU KHỐI "DỊCH VỤ".
-   *
-   * Spec §2.1 đòi hồ sơ hiện đủ bốn thứ — đơn bảo hiểm, tài khoản ngân hàng,
-   * DỊCH VỤ ĐÃ LÀM, trạng thái quà. Bảng `services` đã có trong schema nhưng
-   * chưa truy vấn ở đây, và `CustomerDetail` cũng chưa có trường `services`.
-   * Gỡ mốc ở cả hai đầu — đầu kia ở `lib/api/customers.ts`.
-   */
+  const servicesDone: CustomerServiceRow[] = visibleServices.map((s) => ({
+    id: s.id,
+    date: s.date,
+    serviceTypeName: s.serviceTypeName,
+    // Người thực hiện đã bị xoá khỏi hệ thống thì vẫn phải hiện lượt dịch vụ,
+    // chỉ là không biết ai làm.
+    createdByName: s.createdByName ?? "—",
+    note: s.note,
+  }));
+
   return {
     customer,
     accounts,
@@ -557,6 +582,8 @@ export async function customerDetailFor(
     draftAccountsHiddenCount: draftAccounts.length - visibleDrafts.length,
     insurance,
     insuranceHiddenCount: insuranceRows.length - visibleInsurance.length,
+    services: servicesDone,
+    servicesHiddenCount: serviceRows.length - visibleServices.length,
     /**
      * TODO(P-42, chờ `src/rules/YYYY-MM.ts`): rổ quà và tiền mặt luôn RỖNG —
      * quy tắc quà là chính sách nằm ở code theo kỳ (quyết định 03/08) và file

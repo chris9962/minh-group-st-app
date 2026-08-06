@@ -20,6 +20,7 @@ import {
   fetchCustomerDetail,
   type CustomerAccountRow,
   type CustomerInsuranceRow,
+  type CustomerServiceRow,
 } from "@/lib/api/customers";
 import { INSURANCE_STATUS_LABEL } from "@/lib/api/insuranceOrders";
 import { formatDate, formatIdNumber, formatPhone, formatVnd } from "@/lib/format";
@@ -87,6 +88,18 @@ export default function CustomerDetailPage({
         <StatusTag ok={i.status === "done"}>{INSURANCE_STATUS_LABEL[i.status]}</StatusTag>
       ),
     },
+  ];
+
+  const serviceColumns: RankColumn<CustomerServiceRow>[] = [
+    {
+      key: "date",
+      label: "Ngày",
+      sortBy: (s) => Number(s.date.replace(/-/g, "")),
+      render: (s) => formatDate(s.date),
+    },
+    { key: "serviceTypeName", label: "Loại dịch vụ", render: (s) => s.serviceTypeName },
+    { key: "createdByName", label: "Người thực hiện", render: (s) => s.createdByName },
+    { key: "note", label: "Ghi chú", render: (s) => s.note || "—" },
   ];
 
   return (
@@ -253,6 +266,31 @@ export default function CustomerDetailPage({
               {data.insuranceHiddenCount > 0 && (
                 <p className={styles.footnote}>
                   Còn <strong>{data.insuranceHiddenCount}</strong> đơn của phòng khác, ngoài
+                  phạm vi xem của bạn.
+                </p>
+              )}
+            </SectionCard>
+
+            <SectionCard
+              title="Dịch vụ đã làm"
+              icon={<Briefcase size={17} />}
+              meta={`${data.services.length} lượt`}
+            >
+              {data.services.length === 0 ? (
+                <p className="text-muted">Chưa hỗ trợ dịch vụ nào trong phạm vi xem.</p>
+              ) : (
+                <RankTable
+                  rows={data.services}
+                  columns={serviceColumns}
+                  rowKey={(s) => s.id}
+                  defaultSort="date"
+                  pageSize={10}
+                  caption="Dịch vụ đã thực hiện cho khách"
+                />
+              )}
+              {data.servicesHiddenCount > 0 && (
+                <p className={styles.footnote}>
+                  Còn <strong>{data.servicesHiddenCount}</strong> lượt của phòng khác, ngoài
                   phạm vi xem của bạn.
                 </p>
               )}

@@ -244,16 +244,17 @@ export const CustomerInsuranceRow = z.object({
 });
 export type CustomerInsuranceRow = z.infer<typeof CustomerInsuranceRow>;
 
-/**
- * TODO(P-42, chờ module dịch vụ): CÒN THIẾU TRƯỜNG `services`.
- *
- * Spec §2.1 đòi hồ sơ 360° hiện đủ bốn thứ — đơn bảo hiểm, tài khoản ngân hàng,
- * DỊCH VỤ ĐÃ LÀM, trạng thái quà. Ba thứ đầu đã có, dịch vụ thì chưa: bảng
- * `services` có trong schema nhưng hồ sơ 360° chưa truy vấn bảng `services`, nên chưa
- * có gì để đọc. Thêm `services: z.array(...)` ở đây, truy vấn ở
- * `server/customers.ts`, và dựng khối thứ năm ở `[id]/page.tsx` khi module dịch
- * vụ lên. Gỡ mốc ở cả hai đầu.
- */
+/** Một lượt dịch vụ đã làm cho khách này (spec §2.1, khối thứ tư của hồ sơ 360°). */
+export const CustomerServiceRow = z.object({
+  id: z.string(),
+  date: z.string(),
+  serviceTypeName: z.string(),
+  /** Người thực hiện — khối này là để trả lời "ai đã chăm khách này". */
+  createdByName: z.string(),
+  note: z.string(),
+});
+export type CustomerServiceRow = z.infer<typeof CustomerServiceRow>;
+
 export const CustomerDetail = z.object({
   customer: Customer,
   accounts: z.array(CustomerAccountRow),
@@ -264,6 +265,8 @@ export const CustomerDetail = z.object({
   accountsHiddenCount: z.number(),
   insurance: z.array(CustomerInsuranceRow),
   insuranceHiddenCount: z.number(),
+  services: z.array(CustomerServiceRow),
+  servicesHiddenCount: z.number(),
   /**
    * Quà tính trên TOÀN BỘ tài khoản của khách, không chỉ phần người xem thấy
    * được (spec §4.4 P-42 lỗi thường gặp #2) — dùng chung máy tính với P-81.
