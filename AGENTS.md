@@ -25,6 +25,25 @@ Mốc phải đặt ở **CẢ HAI đầu** — chỗ giao diện dùng và ch�
 mỗi mốc nói rõ **điều kiện gỡ**. Đặt một đầu thôi thì người đọc đầu kia vẫn tưởng
 mọi thứ chạy. Xong việc thì xoá cả hai.
 
+## 0.1 Chạy thử end-to-end
+
+```bash
+bun run e2e        # dựng tài khoản test → chạy Playwright → dọn sạch
+bun run e2e:ui     # mở giao diện Playwright để soi từng bước
+```
+
+Cần **server dev đang chạy** (`bun dev`, cổng 3002) và database đã seed.
+
+`scripts/e2e-seed.ts` dựng 5 tài khoản `zz_e2e_<chức vụ>` mang ĐÚNG bộ quyền
+mặc định của từng chức vụ. **Đừng đổi sang tài khoản thật**: quyền của một người
+nằm ở các dòng riêng trong `user_permissions`, không đọc lại từ chức vụ, mà tài
+khoản đang chạy đã bị sửa quyền tay nhiều lần — bám vào chúng thì đo được thói
+quen của một hệ thống cụ thể chứ không đo được bản thiết kế.
+
+Mọi bản ghi test đặt tiền tố `ZZE2E`; `scripts/e2e-clean.ts` xoá theo tiền tố đó
+và chạy cả khi test hỏng giữa chừng. **Ca test nào tạo dữ liệu thì phải mang
+tiền tố này**, không thì rác nằm lại và ca "đếm số dòng" của lần sau sai.
+
 ## 1. Ngôn ngữ
 
 | | |
@@ -111,10 +130,10 @@ Quy tắc:
 
 ## 5. Dữ liệu
 
-- Component gọi `fetch('/api/...')` qua hàm trong `src/lib/api/`, **không import dữ liệu mock trực tiếp**
+- Component gọi `fetch('/api/...')` qua hàm trong `src/lib/api/`, không gọi thẳng DB
 - Server state dùng TanStack Query. Client state dùng Zustand (`src/store/`)
-- MSW ở `src/mocks/` trả lời như backend thật. Tắt bằng `NEXT_PUBLIC_USE_MOCK=false`
-- Đổi từ mock sang thật **không được sửa component**
+- Hợp đồng giữa hai tầng là schema zod ở `src/lib/api/` — máy chủ trả đúng hình
+  dạng đó, đổi một đầu phải đổi đầu kia
 
 ### 5.1 Phân trang · sắp xếp · tìm kiếm · lọc — LÀM Ở MÁY CHỦ
 
