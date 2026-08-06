@@ -114,3 +114,18 @@
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+/* Màn của nhân viên: khối điểm cá nhân rồi tới ba thẻ đếm. Một cột, vì nội
+   dung ít hơn hẳn bản tổng quan và trải ngang ra chỉ tạo khoảng trống. */
+.personal {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 560px;
+}
+
+.scopeNote {
+  margin: 0;
+  font-size: 13px;
+  color: var(--om-text-2);
+}

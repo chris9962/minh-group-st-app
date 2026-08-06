@@ -39,11 +39,21 @@ test("mặc định ẩn phòng đã ngừng, và lựa chọn được nhớ qu
 test("tìm phòng ban lọc đúng bảng", async ({ page }) => {
   const first = (await page.locator("table tbody tr").first().locator("td").first().innerText()).trim();
   await page.getByRole("searchbox", { name: "Tìm phòng ban" }).fill(first);
-  await page.waitForTimeout(400);
 
-  const names = await page.locator("table tbody tr td:first-child").allInnerTexts();
-  expect(names.length).toBeGreaterThan(0);
-  for (const n of names) expect(n.toLowerCase()).toContain(first.toLowerCase());
+  /**
+   * Chờ BẢNG LẮNG, không chờ theo đồng hồ.
+   *
+   * Ô tìm có hoãn nhịp gõ, và bảng giữ nguyên dòng cũ trong lúc câu mới chạy.
+   * Chụp danh sách sau một khoảng cố định là chụp trúng kết quả CŨ — ca này đỏ
+   * đúng lúc màn thêm truy vấn số liệu phòng ban, tức khi máy phải làm nhiều
+   * việc hơn chứ không phải khi ứng dụng sai.
+   */
+  await expect
+    .poll(async () => {
+      const names = await page.locator("table tbody tr td:first-child").allInnerTexts();
+      return names.length > 0 && names.every((n) => n.toLowerCase().includes(first.toLowerCase()));
+    })
+    .toBe(true);
 });
 
 test("ngừng hoạt động phải hỏi lại và nói rõ hệ quả", async ({ page }) => {

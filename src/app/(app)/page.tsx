@@ -20,11 +20,9 @@ import {
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatCard } from "@/components/ui/StatCard";
 import { StatStack } from "@/components/ui/StatStack";
+import { PersonKpiPanel } from "@/components/people/PersonKpiPanel";
 import { fetchDashboard, type DepartmentRanking } from "@/lib/api/dashboard";
 import { useChartColors } from "@/lib/chart-colors";
-import { availableScopes } from "@/lib/permissions";
-import type { Scope } from "@/lib/types";
-import { useSession } from "@/store/session";
 import styles from "./page.module.scss";
 
 /** Trục ngang của biểu đồ đổi theo kỳ — một ngày thì chia giờ, dài hơn thì chia ngày. */
@@ -75,18 +73,28 @@ const DEPARTMENT_COLUMNS: RankColumn<DepartmentRanking>[] = [
   },
 ];
 
-/** P-80 · Dashboard tổng — Ban giám đốc và trưởng phòng (phạm vi hẹp hơn). */
+/**
+ * P-80 · Tổng quan — bốn cách nhìn, MÁY CHỦ chọn (chốt 06/08).
+ *
+ *   Giám đốc         toàn công ty
+ *   Phó giám đốc     những phòng họ quản
+ *   Trưởng/Phó phòng phòng của họ
+ *   Nhân viên        chỉ số của chính mình — đổi hẳn sang khối hồ sơ P-52
+ *
+ * Trang KHÔNG gửi phạm vi lên: phiên đăng nhập đã nói đủ, và một tham số phạm
+ * vi trên đường truyền chỉ là chỗ để nặn tay.
+ */
 export default function DashboardPage() {
-  const user = useSession((s) => s.user);
   const chartColors = useChartColors();
-  const scopes = availableScopes(user, "banking", "view-summary");
-  const scope: Scope = scopes.at(-1) ?? "own";
   const [period, setPeriod] = useState<Period>(DEFAULT_PERIOD);
 
-  const { data, isPending, isError, refetch, isFetching } = useQuery({
-    queryKey: ["dashboard", scope, periodKey(period)],
-    queryFn: () => fetchDashboard(scope, period),
+  const { data: view, isPending, isError, refetch, isFetching } = useQuery({
+    queryKey: ["dashboard", periodKey(period)],
+    queryFn: () => fetchDashboard(period),
   });
+
+  const overview = view && view.kind === "overview" ? view : null;
+  const data = overview?.data ?? null;
 
   const periodLabel =
     period.kind === "today"
@@ -139,8 +147,38 @@ export default function DashboardPage() {
           <ErrorState what="số liệu tổng quan" onRetry={refetch} retrying={isFetching} />
         )}
 
+        {/* Nhân viên: chỉ số của CHÍNH họ, đúng khối hồ sơ mà cấp trên nhìn
+            thấy ở P-52. Vòng điểm luôn theo THÁNG (chỉ tiêu là con số của cả
+            tháng), còn ba thẻ đếm bên dưới đi theo kỳ đang chọn. */}
+        {view && view.kind === "personal" && (
+          <div className={styles.personal}>
+            <PersonKpiPanel person={view.person} withKpi />
+            <div className={styles.statRow}>
+              <StatCard
+                value={view.person.accounts.length}
+                label={`tài khoản mở ${periodLabel}`}
+              />
+              <StatCard
+                value={view.person.insurance.length}
+                label={`đơn bảo hiểm ${periodLabel}`}
+              />
+              <StatCard
+                value={view.person.services.length}
+                label={`lượt dịch vụ ${periodLabel}`}
+              />
+            </div>
+          </div>
+        )}
+
         {data && (
           <>
+            {/* Cùng một màn cho bốn cách nhìn, nên phải nói rõ đang nhìn phạm vi
+                nào — thiếu dòng này thì trưởng phòng đọc số của phòng mình mà
+                tưởng là số của cả công ty. */}
+            <p className={styles.scopeNote}>
+              Phạm vi: <strong>{overview!.scopeLabel}</strong>
+            </p>
+
             <div className={styles.headline}>
               <KpiHighlight
                 ariaLabel="Tỉ lệ cài app trên số tài khoản mở"

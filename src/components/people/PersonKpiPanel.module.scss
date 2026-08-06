@@ -1,0 +1,121 @@
+/* Thông tin nhân viên và điểm nằm CHUNG một thẻ: hai thẻ riêng thì thẻ điểm
+   thừa ra một mảng trống vì phải cao bằng thẻ bên cạnh. */
+.person {
+  background: var(--om-card);
+  border-radius: var(--radius-lg);
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.identity {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.avatar {
+  flex: none;
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--om-orange-soft);
+  color: var(--om-orange-ink);
+  font-family: var(--font-heading);
+  font-size: 16px;
+}
+
+.identity > div {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.name {
+  font-family: var(--font-heading);
+  font-size: 18px;
+  font-weight: var(--font-heading-weight);
+}
+
+.sub {
+  font-size: 12.5px;
+  color: var(--om-text-2);
+}
+
+.score {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+/**
+ * Hai cặp nhãn–số đứng cạnh vòng điểm. Nhãn nhỏ và mờ, số to và rõ: mắt bắt
+ * con số trước rồi mới đọc nhãn để biết nó là gì, ngược lại thì phải đọc cả
+ * câu mới ra được thông tin.
+ */
+.scoreFacts {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.scoreFacts dt {
+  font-size: 11.5px;
+  color: var(--om-text-3);
+}
+
+.scoreFacts dd {
+  margin: 2px 0 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--om-text);
+}
+
+/* Chú thích của vòng điểm. Không kẻ ngăn giữa các dòng — chấm màu đã tách dòng
+   rồi, thêm đường kẻ nữa là hai lớp phân cách cho cùng một việc. */
+.legend {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.legend > div {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.legend dt {
+  flex: 1;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  column-gap: 8px;
+  line-height: 1.3;
+  font-size: 13px;
+  color: var(--om-text);
+}
+
+.dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+}
+
+.legendDetail {
+  grid-column: 2;
+  font-size: 11.5px;
+  color: var(--om-text-3);
+}
+
+.legend dd {
+  margin: 0;
+  font-family: var(--font-body);
+  font-weight: 800;
+  font-size: 16px;
+}

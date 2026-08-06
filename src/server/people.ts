@@ -48,13 +48,29 @@ const YEAR_MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
 
 export const isYearMonth = (v: string): boolean => YEAR_MONTH.test(v);
 
-/** `period` chỉ nhận `today` hoặc `YYYY-MM` — dùng ở route để trả 400 thay vì 500. */
-export const isPeriod = (v: string): boolean => v === "today" || isYearMonth(v);
+/** Khoảng ngày tự chọn, dạng `range:YYYY-MM-DD:YYYY-MM-DD` — bộ chọn kỳ của P-80. */
+const PICKED_RANGE = /^range:(\d{4}-\d{2}-\d{2}):(\d{4}-\d{2}-\d{2})$/;
+
+/**
+ * `period` nhận `today`, `YYYY-MM`, hoặc `range:từ:đến` — dùng ở route để trả
+ * 400 thay vì 500.
+ *
+ * ⚠️ Chuỗi lạ đi qua được chốt này sẽ tới `monthRange`, và nó dựng ra
+ * `this-month-01` / `this-month-NaN` rồi Postgres đổ lỗi cast ngày. Đã dính
+ * thật: màn Tổng quan gửi `this-month` (từ vựng của `PeriodPicker`) sang đây,
+ * nơi chỉ hiểu `YYYY-MM`, và endpoint trả 500 cho mọi nhân viên.
+ */
+export const isPeriod = (v: string): boolean =>
+  v === "today" || isYearMonth(v) || PICKED_RANGE.test(v);
 
 const todayIso = (): string => businessDay();
 
-const periodOf = (period: string): Period =>
-  period === "today" ? { from: todayIso(), to: todayIso() } : monthRange(period);
+const periodOf = (period: string): Period => {
+  if (period === "today") return { from: todayIso(), to: todayIso() };
+  const picked = period.match(PICKED_RANGE);
+  if (picked) return { from: picked[1], to: picked[2] };
+  return monthRange(period);
+};
 
 /**
  * Tra chỉ tiêu tháng cho nhiều phòng một lượt.

@@ -33,10 +33,18 @@ for (const role of ROLES) {
       expect(labels.includes("Phòng ban")).toBe(MANAGES_ORG[role]);
       expect(labels.includes("Nhật ký truy vết")).toBe(MANAGES_ORG[role]);
 
-      // Nhân viên thấy "Chỉ tiêu của tôi" thay cho "Nhân sự" — hai màn khác
-      // nhau, không phải cùng một màn đổi nhãn.
       expect(labels.includes("Nhân sự")).toBe(role !== "staff");
-      expect(labels.includes("Chỉ tiêu của tôi")).toBe(role === "staff");
+
+      /**
+       * "Chỉ tiêu của tôi" (P-50) ĐÃ BỎ khỏi điều hướng của MỌI chức vụ.
+       *
+       * Mục đó trỏ tới `/my-target`, một trang chưa bao giờ tồn tại — nhân viên
+       * bấm vào nhận 404, mà đó là nhóm ít có khả năng đi báo lỗi nhất. Nội
+       * dung của nó nay nằm ở màn Tổng quan: nhân viên mở ra thấy đúng điểm,
+       * chỉ tiêu và số liệu của chính mình.
+       */
+      expect(labels).not.toContain("Chỉ tiêu của tôi");
+      expect(labels).toContain("Tổng quan");
 
       // Không có mục "Phân quyền" trên sidebar với BẤT KỲ chức vụ nào — cấp
       // quyền lẻ (P-92) nằm trong hộp thoại sửa nhân viên, thẻ "Quyền".

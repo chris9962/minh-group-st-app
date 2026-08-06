@@ -7,6 +7,7 @@ import { ChartColumn, ChevronLeft } from "lucide-react";
 import { SkeletonCard } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
+import { PersonKpiPanel } from "@/components/people/PersonKpiPanel";
 import { AccountCard } from "@/components/staff/AccountCard";
 import { BarChart } from "@/components/ui/BarChart";
 import { monthLabel, thisMonth } from "@/components/ui/MonthPicker";
@@ -203,104 +204,7 @@ export default function PersonPage({
         {data && !showAccount && (
           <div className={styles.columns}>
             <aside className={styles.side}>
-              <div className={styles.person}>
-                <div className={styles.identity}>
-                  <span className={styles.avatar} aria-hidden>
-                    {initialsOf(data.fullName)}
-                  </span>
-                  <div>
-                    <strong className={styles.name}>{data.fullName}</strong>
-                    {/* Mã nhân viên là thứ dùng để đối chiếu với app khác, nên
-                        đứng cạnh số điện thoại ở dòng nhận diện. Tên đăng nhập
-                        thì không — nó đã có ở thẻ Tài khoản ngay bên dưới. */}
-                    <span className={`${styles.sub} tabular-nums`}>
-                      {[data.staffCode, formatPhone(data.phone)]
-                        .filter(Boolean)
-                        .join(" · ")}
-                    </span>
-                    {/* Ban giám đốc không thuộc phòng nào nên chuỗi phòng rỗng —
-                        nối cứng dấu · sẽ để lại một dấu chấm mồ côi đầu dòng. */}
-                    <span className={styles.sub}>
-                      {[data.departmentName, `vào từ ${monthLabel(data.joinedMonth)}`]
-                        .filter(Boolean)
-                        .join(" · ")}
-                    </span>
-                  </div>
-                </div>
-
-                {withKpi && (
-                  <>
-                    <div className={styles.score}>
-                      <ProgressRing
-                        segments={data.pointSources.map((s, i) => ({
-                          label: s.label,
-                          value: s.points,
-                          color: sourceColor(s.label, i),
-                        }))}
-                        max={data.points.target}
-                        ariaLabel={`Điểm ${monthLabel(data.summaryMonth)} trên chỉ tiêu`}
-                      />
-                      {/* Hai con số thay cho một câu văn: người xem chỉ cần biết
-                          còn cách chỉ tiêu bao xa và còn bao nhiêu ngày. Tháng
-                          đang xem đã ghi ở tiêu đề thẻ "Điểm theo tháng" và ở
-                          thanh chọn kỳ trên đầu trang, không nhắc lại lần ba. */}
-                      <dl className={styles.scoreFacts}>
-                        <div>
-                          <dt>{data.points.total >= data.points.target ? "Vượt" : "Còn thiếu"}</dt>
-                          <dd className="tabular-nums">
-                            {Math.abs(data.points.target - data.points.total)} điểm
-                          </dd>
-                        </div>
-                        {data.daysLeft > 0 && (
-                          <div>
-                            <dt>Còn lại</dt>
-                            <dd className="tabular-nums">{data.daysLeft} ngày</dd>
-                          </div>
-                        )}
-                      </dl>
-                    </div>
-
-                    <dl className={styles.legend}>
-                      {data.pointSources.map((s, i) => (
-                        <div key={s.label}>
-                          <dt>
-                            <span
-                              className={styles.dot}
-                              style={{
-                                background: sourceColor(s.label, i),
-                              }}
-                              aria-hidden
-                            />
-                            {s.label}
-                            <span className={styles.legendDetail}>{s.detail}</span>
-                          </dt>
-                          <dd className="tabular-nums">{s.points}</dd>
-                        </div>
-                      ))}
-                    </dl>
-
-                  </>
-                )}
-              </div>
-
-              {withKpi && (
-                <SectionCard title="Điểm theo tháng" icon={<ChartColumn size={17} />}>
-                  <BarChart
-                    rows={data.monthlyPoints.map((m) => ({
-                      label: shortMonth(m.month),
-                      points: m.points,
-                    }))}
-                    labelKey="label"
-                    series={[
-                      { key: "points", label: "Điểm", color: chartColors.primary },
-                    ]}
-                    highlight={shortMonth(data.summaryMonth)}
-                    showLegend={false}
-                    height={160}
-                    caption="Điểm của nhân viên trong 5 tháng gần nhất"
-                  />
-                </SectionCard>
-              )}
+              <PersonKpiPanel person={data} withKpi={withKpi} />
             </aside>
 
             <div className={styles.content}>

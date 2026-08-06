@@ -81,11 +81,18 @@ export function navFor(user: User | null): NavEntry[] {
   // Vào được màn Nhân sự bằng HAI đường: quản phòng thì xem điểm của lính, còn
   // `staff:create` thì vào để tạo người mới — quản trị hệ thống không quản
   // phòng nào nhưng vẫn phải mở được danh sách này.
-  items.push(
-    user.manageScope === 'none' && !can(user, 'staff', 'create')
-      ? { href: '/my-target', label: 'Chỉ tiêu của tôi', icon: 'target', screen: 'P-50' }
-      : { href: '/users', label: 'Nhân sự', icon: 'people', screen: 'P-51' },
-  );
+  /**
+   * ⚠️ Chỉ thêm mục Nhân sự cho người vào được. Mục "Chỉ tiêu của tôi" (P-50)
+   * ĐÃ BỎ khỏi đây: nó trỏ tới `/my-target`, một trang CHƯA BAO GIỜ tồn tại, và
+   * nhân viên bấm vào nhận 404 — đúng nhóm người ít có khả năng đi báo lỗi nhất.
+   *
+   * Nội dung của P-50 nay nằm ở màn Tổng quan: nhân viên mở nó ra thấy đúng
+   * điểm, chỉ tiêu và số liệu của chính mình (chốt 06/08). Hai mục cùng dẫn tới
+   * một nội dung thì thừa một mục.
+   */
+  if (user.manageScope !== 'none' || can(user, 'staff', 'create')) {
+    items.push({ href: '/users', label: 'Nhân sự', icon: 'people', screen: 'P-51' });
+  }
 
   // "Cấu hình" gộp mọi màn thiết lập vào một nhóm, nhưng mục con nào hiện ra
   // vẫn theo đúng quyền riêng của nó — Kinh doanh tổng hợp thấy ngân hàng/mã

@@ -224,7 +224,7 @@ export async function departmentDetailFor(id: string): Promise<DepartmentDetail 
 
 /* ── P-91 · Số liệu nghiệp vụ theo phòng ───────────────────────────────── */
 
-type Range = { from: string; to: string };
+export type Range = { from: string; to: string };
 
 /** Lùi một ngày, giữ dạng `YYYY-MM-DD`. */
 const dayBefore = (day: string): string =>
@@ -273,7 +273,7 @@ function periodRanges(key: string, today: string): { current: Range; previous: R
  * 03/08 viết lại cách quy điểm cho một combo, không viết lại chuyện một tài
  * khoản có cài app hay không.
  */
-async function statsByDepartment(range: Range) {
+export async function statsByDepartment(range: Range) {
   const rows = await db
     .select({
       departmentId: bankAccounts.createdByDepartmentId,

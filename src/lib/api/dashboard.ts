@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { Period } from '@/components/ui/PeriodPicker';
 import { periodKey } from '@/components/ui/PeriodPicker';
-import type { Scope } from '@/lib/types';
+import { PersonDetail } from './person';
 
 /** Số liệu cho P-80 Dashboard tổng. */
 
@@ -86,20 +86,31 @@ export const DashboardData = z.object({
 export type DashboardData = z.infer<typeof DashboardData>;
 
 /**
- * TODO(P-01 Tổng quan, chờ thiết kế cho từng chức vụ): route `/api/dashboard`
- * CHƯA TỒN TẠI, gọi vào là 404 và màn chủ hiện khối báo lỗi.
+ * Màn tổng quan có HAI mặt, và máy chủ quyết định mặt nào (chốt 06/08):
  *
- * Hiện mới chốt bố cục cho CEO; trưởng phòng, phó phòng và nhân viên sẽ có màn
- * riêng với chỉ số khác nhau, nên chưa dựng máy chủ vội — dựng theo bản CEO rồi
- * sửa lại là làm hai lần. Gỡ mốc ở cả hai đầu khi có bản thiết kế đủ 5 chức vụ.
+ *   Giám đốc         `overview` toàn công ty
+ *   Phó giám đốc     `overview` những phòng họ quản
+ *   Trưởng/Phó phòng `overview` phòng của họ
+ *   Nhân viên        `personal` — chỉ số của chính mình, đúng hồ sơ P-52 mà
+ *                    cấp trên nhìn thấy, chỉ khác là tự xem
+ *
+ * Phạm vi KHÔNG đi qua đường truyền. Nhận `scope` từ client là mở một ô để nặn
+ * tay mà không thêm tính năng nào — phiên đăng nhập đã nói đủ, và bản trước
+ * nhận đúng tham số đó.
  */
-export async function fetchDashboard(
-  scope: Scope,
-  period: Period,
-): Promise<DashboardData> {
-  const res = await fetch(
-    `/api/dashboard?scope=${scope}&period=${encodeURIComponent(periodKey(period))}`,
-  );
+export const DashboardView = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('overview'),
+    /** "Toàn công ty" · tên các phòng · "3 phòng bạn quản" — người xem cần biết mình đang nhìn gì. */
+    scopeLabel: z.string(),
+    data: DashboardData,
+  }),
+  z.object({ kind: z.literal('personal'), person: PersonDetail }),
+]);
+export type DashboardView = z.infer<typeof DashboardView>;
+
+export async function fetchDashboard(period: Period): Promise<DashboardView> {
+  const res = await fetch(`/api/dashboard?period=${encodeURIComponent(periodKey(period))}`);
   if (!res.ok) throw new Error('Không tải được số liệu tổng quan');
-  return DashboardData.parse(await res.json());
+  return DashboardView.parse(await res.json());
 }
