@@ -90,6 +90,21 @@ export const BASE_ACTIONS: Action[] = ['view-summary', 'view-detail', 'create', 
  * không có dòng ở đây thì chỉ dùng đúng `BASE_ACTIONS`. `system` không có
  * hành động cơ bản nào cả (không phải nghiệp vụ có bản ghi để CRUD).
  */
+/**
+ * Hành động KHÔNG CHIA ĐƯỢC THEO PHẠM VI — có hoặc không, và có thì là toàn
+ * công ty.
+ *
+ * `manage-org` gác hai thứ vốn không thuộc về phòng nào: sơ đồ tổ chức (lập
+ * phòng, ngừng phòng) và NHẬT KÝ TRUY VẾT. Cấp nó ở mức `chỉ mình` hay `phòng
+ * quản` là dựng ra một con số không có nghĩa — nhật ký không cắt theo phòng
+ * được, nên người được cấp "hẹp" vẫn đọc trọn nhật ký công ty. Trông như hẹp
+ * mà không hẹp là tệ hơn không hẹp.
+ *
+ * Ô chọn ở P-92 vì vậy chỉ có Bật/Tắt, và máy chủ nắn mọi phạm vi khác về
+ * `company` trước khi ghi.
+ */
+export const SCOPELESS_ACTIONS: Action[] = ['manage-org'];
+
 export const SPECIAL_ACTIONS_OF: Partial<Record<ModuleKey, Action[]>> = {
   customer: ['access-id-number'],
   insurance: ['handle-fallback', 'configure-catalog'],

@@ -13,7 +13,7 @@ import type {
 import type { Page } from "@/lib/api/pagination";
 import type { PageArgs } from "./pagination";
 import { BUSINESS_TIMEZONE, digitsOnly } from "@/lib/format";
-import { can, clampScope, visibleDepartmentIds } from "@/lib/permissions";
+import { can, recordVisibility, type RecordVisibility } from "@/lib/permissions";
 import type { User } from "@/lib/types";
 import { db, uniqueViolationOf } from "./db/client";
 import {
@@ -436,14 +436,11 @@ export async function updateCustomer(
 /**
  * Bản ghi nghiệp vụ của khách CÓ áp phạm vi, khác hẳn hồ sơ ở trên.
  *
- * `null` = không giới hạn phòng; `[]` = không thấy dòng nào. Không có quyền xem
- * module đó cũng ra `[]` — `clampScope` một mình rơi về `own`, mà `own` là cả
- * phòng của người đó, nên thiếu chốt `can()` là lọt dữ liệu (permissions.ts).
+ * `chỉ mình` nghĩa là bản ghi do CHÍNH MÌNH tạo (spec §1.1.2) — xem ghi chú ở
+ * `recordVisibility`. Phần bị giấu vẫn được đếm và nói ra, không giấu im.
  */
-function scopeOf(actor: User, module: "banking" | "insurance"): string[] | null {
-  if (!can(actor, module, "view-detail")) return [];
-  return visibleDepartmentIds(actor, clampScope(actor, module, "view-detail", null));
-}
+const scopeOf = (actor: User, module: "banking" | "insurance"): RecordVisibility =>
+  recordVisibility(actor, module, "view-detail");
 
 /**
  * Hồ sơ 360° — thông tin khách (không phạm vi) + bản ghi nghiệp vụ (có phạm vi).
@@ -471,6 +468,7 @@ export async function customerDetailFor(
         referralCode: referralCodes.code,
         appInstalled: bankAccounts.appInstalled,
         departmentId: bankAccounts.createdByDepartmentId,
+        createdById: bankAccounts.createdBy,
       })
       .from(bankAccounts)
       .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
@@ -486,6 +484,7 @@ export async function customerDetailFor(
         status: insuranceOrders.status,
         source: insuranceOrders.source,
         departmentId: insuranceOrders.createdByDepartmentId,
+        createdById: insuranceOrders.createdBy,
       })
       .from(insuranceOrders)
       .where(eq(insuranceOrders.customerId, id))
@@ -495,10 +494,23 @@ export async function customerDetailFor(
 
   // Lọc phạm vi ở app chứ không thêm `where` vào hai câu trên: phải biết TỔNG
   // mới đếm được phần bị giấu, mà một khách chỉ có vài chục bản ghi.
-  const visible = <T extends { departmentId: string | null }>(
+  const visible = <T extends { departmentId: string | null; createdById: string | null }>(
     rows: T[],
-    allowed: string[] | null,
-  ): T[] => (allowed === null ? rows : rows.filter((r) => r.departmentId && allowed.includes(r.departmentId)));
+    allowed: RecordVisibility,
+  ): T[] => {
+    switch (allowed.kind) {
+      case "all":
+        return rows;
+      case "departments":
+        return rows.filter(
+          (r) => r.departmentId !== null && allowed.departmentIds.includes(r.departmentId),
+        );
+      case "creator":
+        return rows.filter((r) => r.createdById === allowed.userId);
+      default:
+        return [];
+    }
+  };
 
   const doneAccounts = accountRows.filter((a) => a.status === "done");
   const draftAccounts = accountRows.filter((a) => a.status === "creating");

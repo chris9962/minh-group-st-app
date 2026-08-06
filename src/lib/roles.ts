@@ -28,14 +28,53 @@ const staffPermissions: Permission[] = [
   p('insurance', 'view-detail', 'own'),
   p('insurance', 'create', 'own'),
   p('insurance', 'update', 'own'),
+  /**
+   * Huỷ một đơn nhập nhầm khi nó CHƯA hoàn thành — xoá hẳn, không có trạng thái
+   * "đã huỷ" (cùng lối với tài khoản ngân hàng bỏ dở, spec §4.5).
+   *
+   * Máy chủ chặn hai ca mà quyền này không mở ra được: đơn đã `Hoàn thành` là
+   * hợp đồng đã phát hành bên PVI, và đơn quà tặng là vết của một đợt tặng quà.
+   */
+  p('insurance', 'delete', 'own'),
+  /**
+   * Xử lý đơn tay — CẤP CHO MỌI NGƯỜI (chốt 06/08), không riêng một đội.
+   *
+   * Chưa có bot PVI nên MỌI đơn đều phải có người mở web PVI nhập tay; đơn sinh
+   * thẳng ở `Chờ làm tay` (xem `NEW_ORDER_STATUS` ở `server/insurance.ts`).
+   * Gói quyền này vào một nhóm nhỏ thì cả công ty tạo đơn mà chỉ vài người đẩy
+   * được đơn đi, và hàng đợi dồn lại ngay ngày đầu.
+   *
+   * Phạm vi đi theo đúng luật của module: nhân viên xử lý đơn của chính mình,
+   * quản lý xử lý đơn của phòng mình quản. Cần một đội trung tâm cầm đơn của cả
+   * công ty thì cấp riêng `toàn công ty` cho họ ở P-92.
+   */
+  p('insurance', 'handle-fallback', 'own'),
   p('banking', 'view-summary', 'own'),
   p('banking', 'view-detail', 'own'),
   p('banking', 'create', 'own'),
+  /**
+   * BƯỚC 2 của luồng mở tài khoản (spec §4.2) và mọi thao tác ảnh chứng minh.
+   *
+   * Thiếu quyền này thì KHÔNG AI hoàn thành nổi một tài khoản nào: bấm "Tiếp
+   * tục" xong là kẹt vĩnh viễn ở `creating`, mã giới thiệu bị giữ mà không bao
+   * giờ tiêu, và điểm KPI đứng im. Đủ ảnh mới cho Hoàn thành, mà tải ảnh cũng
+   * đi qua đúng quyền này.
+   */
+  p('banking', 'update', 'own'),
   /** Xoá tài khoản đang tạo dở (chưa hoàn thành) — nhả lại chỗ mã (spec §4.5). */
   p('banking', 'delete', 'own'),
   p('banking', 'grant-gift', 'own'),
+  p('services', 'view-summary', 'own'),
   p('services', 'view-detail', 'own'),
   p('services', 'create', 'own'),
+  /**
+   * Dịch vụ không có màn sửa (spec P-31): ghi sai thì xoá rồi ghi lại. Nhưng
+   * quyền `update` vẫn cấp để mọi module nghiệp vụ có cùng bộ sáu hành động —
+   * ngày P-31 mở đường sửa thì không phải đi vá phân quyền lần nữa, và đó đúng
+   * là lần vá mà module ngân hàng vừa phải chịu.
+   */
+  p('services', 'update', 'own'),
+  p('services', 'delete', 'own'),
 ];
 
 /**
@@ -57,8 +96,28 @@ const managerPermissions: Permission[] = [
       ? x
       : { ...x, scope: 'managed' as const },
   ),
+  /**
+   * Xuất Excel chỉ từ cấp quản lý trở lên — kéo cả kho về máy khác hẳn xem một
+   * bản ghi. Bốn quyền này phải khớp ĐÚNG bốn báo cáo ở màn Xuất dữ liệu; thiếu
+   * cái nào thì báo cáo đó hiện ra rồi bấm vào nhận 403 mà không hiểu vì sao.
+   */
   p('insurance', 'export', 'managed'),
   p('banking', 'export', 'managed'),
+  p('services', 'export', 'managed'),
+  p('staff', 'export', 'managed'),
+  /**
+   * Xuất danh sách khách — Phó GĐ, Trưởng phòng, Phó phòng (chốt 06/08).
+   *
+   * Phạm vi `company` chứ không phải `managed`, và đó là mô tả THẬT chứ không
+   * phải nới tay: hồ sơ khách KHÔNG áp trục phạm vi (spec §2.1b), nên
+   * `listCustomersForExport` không đọc phạm vi ở đâu cả — file luôn gồm mọi
+   * khách khớp bộ lọc. Ghi `managed` ở đây là nói dối cho êm tai: nhìn bảng
+   * quyền tưởng hẹp, mà file xuất ra vẫn là cả kho.
+   *
+   * Bản xuất KHÔNG chứa CCCD: `CustomerRow` không có trường đó. CCCD đi đường
+   * riêng, gác bằng `customer:access-id-number`.
+   */
+  p('customer', 'export', 'company'),
   p('staff', 'view-summary', 'managed'),
   p('staff', 'view-detail', 'managed'),
   p('staff', 'create', 'managed'),

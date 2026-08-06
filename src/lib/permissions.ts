@@ -170,6 +170,54 @@ export function visibleDepartmentIds(
   return user.departmentId ? [user.departmentId] : [];
 }
 
+/**
+ * Ai được đụng vào BẢN GHI NGHIỆP VỤ nào — tài khoản ngân hàng, đơn bảo hiểm,
+ * bản ghi dịch vụ.
+ *
+ * ⚠️ Khác `visibleDepartmentIds` ở đúng mức hẹp nhất, và đây là chỗ code từng
+ * lệch spec.
+ *
+ * Spec §1.1.2 định nghĩa `chỉ mình` là **bản ghi do chính mình tạo**
+ * (`người tạo = tôi`). `visibleDepartmentIds` lại trả về CẢ PHÒNG của người đó,
+ * nên hai nhân viên cùng phòng sửa và xoá được bản ghi của nhau — mà xoá là mất
+ * hẳn, và `recomputeKpi` hạ điểm của người kia, thứ dính tới lương.
+ *
+ * Vì sao không sửa thẳng `visibleDepartmentIds`: nó còn phục vụ DANH BẠ NHÂN SỰ,
+ * nơi `own` chỉ có thể hiểu là "phòng tôi" — bảng `users` không có cột người
+ * tạo, không ai "tạo ra" một đồng nghiệp. Hai câu hỏi khác nhau thì hai hàm.
+ */
+export type RecordVisibility =
+  /** Toàn công ty — không lọc gì. */
+  | { kind: 'all' }
+  /** Lọc theo phòng chụp lúc tạo bản ghi. */
+  | { kind: 'departments'; departmentIds: string[] }
+  /** Lọc theo NGƯỜI TẠO — đúng nghĩa `chỉ mình` của spec. */
+  | { kind: 'creator'; userId: string }
+  /** Không thấy dòng nào. */
+  | { kind: 'none' };
+
+export function recordVisibility(
+  user: User | null,
+  module: ModuleKey,
+  action: Action,
+): RecordVisibility {
+  if (!user) return { kind: 'none' };
+
+  // Chốt `can()` phải đứng trước: thiếu nó thì `clampScope` rơi về `own` và
+  // người không có quyền vẫn thấy bản ghi của chính mình.
+  const scope = scopeFor(user, module, action);
+  if (!scope) return { kind: 'none' };
+
+  if (scope === 'company') return { kind: 'all' };
+  if (scope === 'managed')
+    return user.managedDepartmentIds.length > 0
+      ? { kind: 'departments', departmentIds: user.managedDepartmentIds }
+      : // Quản 0 phòng thì `managed` là tập rỗng — không thấy gì, chứ không
+        // phải rơi về phòng của mình.
+        { kind: 'none' };
+  return { kind: 'creator', userId: user.id };
+}
+
 /** Bậc quản lý của từng chức vụ. Chỉ để so cao thấp, không phải nguồn quyền. */
 const ROLE_RANK: Record<RoleKey, number> = {
   director: 4,

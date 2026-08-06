@@ -9,6 +9,7 @@ import {
   MODULE_LABEL,
   SCOPE_LABEL,
   SCOPES,
+  SCOPELESS_ACTIONS,
   SPECIAL_ACTIONS_OF,
   type Action,
   type ModuleKey,
@@ -77,6 +78,39 @@ export function PermissionsEditor({ value, onChange, actor }: Props) {
 
             const max = grantScopeFor(actor, module, action);
             const current = findScope(module, action);
+
+            /**
+             * Hành động không chia được theo phạm vi — chỉ Bật/Tắt.
+             *
+             * Hiện ba mức phạm vi cho `manage-org` là mời người ta cấp một
+             * quyền trông như hẹp mà thật ra không: nhật ký truy vết không cắt
+             * theo phòng được, ai bật cũng đọc trọn công ty.
+             */
+            if (SCOPELESS_ACTIONS.includes(action)) {
+              const on = current !== "";
+              return (
+                <div key={action} className={styles.row}>
+                  <span className={styles.actionLabel}>{ACTION_LABEL[action]}</span>
+                  <span
+                    className={`${styles.mark} ${on ? styles.markCompany : styles.markNone}`}
+                    aria-hidden="true"
+                  />
+                  <Select
+                    label={ACTION_LABEL[action]}
+                    hideLabel
+                    value={on ? "company" : ""}
+                    // Không tự cấp được thì không bật được — `max` là trần phát
+                    // của chính người đang thao tác.
+                    disabled={max === null && !on}
+                    onChange={(v) => setScope(module, action, v ? "company" : "")}
+                    options={[
+                      { value: "", label: "Không có" },
+                      { value: "company", label: "Có · toàn công ty" },
+                    ]}
+                  />
+                </div>
+              );
+            }
             // Luôn hiện đúng giá trị thật đang có, kể cả khi nó vượt quá tầm
             // actor tự cấp được (vd đang xem người có sẵn quyền rộng hơn
             // mình) — không cho CHỌN THÊM cái mới vượt tầm, nhưng không giấu

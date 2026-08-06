@@ -19,7 +19,7 @@ import {
   inVisibleScope,
   visibleDepartmentIds,
 } from "@/lib/permissions";
-import { SCOPES, Scope, type Action, type User } from "@/lib/types";
+import { SCOPELESS_ACTIONS, SCOPES, Scope, type Action, type User } from "@/lib/types";
 import { forbidden, isUuid, notFound } from "./auth";
 import { db, uniqueViolationOf } from "./db/client";
 import {
@@ -425,8 +425,16 @@ async function writeStaff(
     const widest = new Map<string, (typeof form.permissions)[number]>();
     for (const p of form.permissions) {
       const key = `${p.module}:${p.action}`;
+      // Hành động không chia được theo phạm vi thì nắn về `company` NGAY Ở ĐÂY,
+      // không tin ô chọn của giao diện: ẩn lựa chọn không phải là phân quyền, và
+      // một request nặn tay vẫn gửi `own` lên được. Ghi `own` cho `manage-org`
+      // là để lại một dòng trông như hẹp mà đọc trọn nhật ký công ty.
+      const normalized = SCOPELESS_ACTIONS.includes(p.action)
+        ? { ...p, scope: "company" as const }
+        : p;
       const kept = widest.get(key);
-      if (!kept || SCOPES.indexOf(p.scope) > SCOPES.indexOf(kept.scope)) widest.set(key, p);
+      if (!kept || SCOPES.indexOf(normalized.scope) > SCOPES.indexOf(kept.scope))
+        widest.set(key, normalized);
     }
 
     if (widest.size > 0)
