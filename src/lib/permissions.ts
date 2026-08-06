@@ -47,21 +47,14 @@ export function can(user: User | null, module: ModuleKey, action: Action): boole
 /**
  * Phạm vi rộng nhất người này PHÁT được cho người khác trên (module, hành động).
  *
- * Trần PHÁT tách khỏi trần DÙNG — hai thứ khác nhau. Giám đốc cố ý không có
- * `sửa`/`xoá` bản ghi nghiệp vụ, mà đó lại là quyền mặc định của vai Nhân viên:
- * lấy quyền đang cầm làm trần phát thì Giám đốc không tạo nổi một nhân viên
- * nào, chỉ tạo được Giám đốc khác (bộ quyền vai đó toàn `*` nên khớp hết).
+ * Trần PHÁT tách khỏi trần DÙNG — hai thứ khác nhau. Một người quản lý có thể
+ * không tự dùng một quyền nào đó nhưng vẫn phải phát được nó cho lính: lấy
+ * quyền đang cầm làm trần phát thì họ chỉ tạo được người giống hệt mình.
  *
  * Hai nguồn, lấy cái rộng hơn:
  *  1. Quyền chính mình đang cầm — cấp lại được đúng bằng hoặc hẹp hơn.
  *  2. Bộ quyền mặc định của những vai mình được gán — gán được vai nào thì phát
  *     được quyền của vai đó, kể cả quyền mình không tự dùng.
- *
- * Nguồn 2 KHÔNG rò `grant-permission`: không vai nào trong `ROLE_PERMISSIONS`
- * có nó (chỉ tài khoản quản trị seed mới giữ), nên đường vòng tự nâng quyền
- * "tạo tài khoản có cấp quyền → đặt lại mật khẩu → đăng nhập vào nó" vẫn tắc.
- * Bậc dưới cũng không lợi thêm gì: vai họ gán được đều thấp hơn hoặc bằng
- * mình, mà hợp bộ quyền của những vai đó đúng bằng cái họ đang cầm.
  */
 export function grantScopeFor(
   actor: User | null,
@@ -74,6 +67,22 @@ export function grantScopeFor(
   let widest = scopeFor(actor, module, action);
   for (const role of assignableRoles(actor)) {
     for (const p of ROLE_PERMISSIONS[role]) {
+      /**
+       * ⚠️ `grant-permission` KHÔNG BAO GIỜ đi qua nguồn 2. Đây là chốt chặn tự
+       * nâng quyền, và nó phải đứng độc lập với nội dung `ROLE_PERMISSIONS`.
+       *
+       * Trước 06/08 chốt này là ngầm: không vai nào có `grant-permission` nên
+       * vòng lặp không bao giờ tìm thấy. Ngày vai Giám đốc chuyển sang toàn
+       * quyền thì chốt vỡ ngay, và vỡ im lặng — một tài khoản mang chức vụ Giám
+       * đốc nhưng đã bị admin cắt quyền, chỉ còn `staff:create`, vẫn gán được
+       * vai Giám đốc (cùng bậc), nên nguồn 2 lôi `grant-permission` của vai đó
+       * ra làm trần phát rồi họ TỰ CẤP cho chính mình. Đã dựng lại được thật.
+       *
+       * Chặn thẳng ở đây thì bộ quyền vai muốn đổi thế nào cũng không đụng tới
+       * chốt. Ai cần phát `grant-permission` thì phải tự đang cầm nó — nhánh
+       * `can(actor, 'system', 'grant-permission')` ở trên đã lo.
+       */
+      if (p.action === 'grant-permission') continue;
       if ((p.module !== module && p.module !== '*') || p.action !== action) continue;
       if (!widest || scopeRank(p.scope) > scopeRank(widest)) widest = p.scope;
     }
@@ -130,10 +139,17 @@ export function availableScopes(
   return SCOPES.slice(0, scopeRank(widest) + 1).filter((s) => {
     // `phòng tôi quản` chỉ có nghĩa với người thật sự phụ trách phòng nào đó.
     if (s === 'managed') return user.manageScope === 'listed';
-    // `của tôi` chỉ có nghĩa với người thật sự tạo bản ghi.
-    // Giám đốc không tạo đơn nên mức này luôn rỗng — bỏ đi, còn một mức thì
-    // thanh chọn phạm vi tự ẩn.
-    if (s === 'own') return can(user, module, 'create');
+    /**
+     * `của tôi` thực chất là "phòng của tôi" (`visibleDepartmentIds`), nên nó
+     * chỉ có nghĩa với người VỪA tạo bản ghi VỪA thuộc một phòng.
+     *
+     * Điều kiện `departmentId` là bắt buộc chứ không phải cho chắc: ban giám
+     * đốc không thuộc phòng nào, nên mức này trả về danh sách phòng RỖNG và
+     * chọn vào là bảng trắng, luôn luôn. Trước 06/08 vế `create` đã che được ca
+     * đó vì Giám đốc không có `create`; từ khi vai này toàn quyền thì không che
+     * nữa, và mức rỗng lộ ra ở cả 5 màn có thanh chọn phạm vi.
+     */
+    if (s === 'own') return can(user, module, 'create') && Boolean(user.departmentId);
     return true;
   });
 }

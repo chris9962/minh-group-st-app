@@ -21,7 +21,6 @@ export type NavIconKey =
   | 'target'
   | 'settings'
   | 'exports'
-  | 'permissions'
   | 'org'
   | 'audit';
 
@@ -148,9 +147,17 @@ export function navFor(user: User | null): NavEntry[] {
 
   // Không có mục "tài khoản người dùng" riêng: nhân viên và tài khoản là một
   // thứ nên quản trị tài khoản nằm luôn trong màn Nhân sự ở trên.
-  if (can(user, 'system', 'grant-permission')) {
-    items.push({ href: '/permissions', label: 'Phân quyền', icon: 'permissions', screen: 'P-92' });
-  }
+  //
+  // Cũng KHÔNG có mục "Phân quyền" riêng. Việc cấp quyền lẻ (P-92) đã nằm trong
+  // hộp thoại sửa nhân viên — thẻ "Quyền" ở `StaffFormDialog`, dùng
+  // `PermissionsEditor`. Quyền gắn với một con người cụ thể, nên sửa nó ngay tại
+  // hồ sơ người đó là đúng chỗ; một màn riêng chỉ bắt người dùng đi tìm lại đúng
+  // cái tên vừa mở.
+  //
+  // Từng có `if (can(user,'system','grant-permission'))` đẩy ra `/permissions`,
+  // nhưng trang đó chưa bao giờ được dựng. Không ai phát hiện vì trước 06/08
+  // không chức vụ nào cầm `grant-permission`; đến khi CEO chuyển sang toàn quyền
+  // (`lib/roles.ts`) thì mục hiện ngay và bấm vào ra 404 trắng của Next.
 
   // Chỉ GĐ · QTHT xem được (spec P-93) — `manage-org` đúng khớp hai vai này,
   // không dùng `view-detail` vì Kế toán tổng hợp cũng có qua wildcard `*`.

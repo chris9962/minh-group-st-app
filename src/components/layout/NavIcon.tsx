@@ -4,7 +4,6 @@ import {
   Download,
   History,
   Landmark,
-  Lock,
   Settings,
   ShieldCheck,
   Target,
@@ -31,7 +30,6 @@ const ICONS = {
   target: Target,
   settings: Settings,
   exports: Download,
-  permissions: Lock,
   org: Building2,
   audit: History,
 } as const satisfies Record<NavIconKey, unknown>;
