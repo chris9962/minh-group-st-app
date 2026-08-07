@@ -18,10 +18,16 @@ import * as period202608 from "./2026-08";
  * KHÔNG phải hàng của bảng `bank_accounts`: hàm luật là hàm thuần, không biết
  * gì về DB (spec §5.3). Tầng gọi có nhiệm vụ đọc DB rồi nắn về dạng này.
  *
- * Bốn trường này đủ cho cả điểm lẫn quà. Thể lệ còn nhắc "có giao dịch khác ngày
- * mở tài khoản" (`bank_accounts.transaction_at` đã có cột) nhưng chưa dùng: nó
- * là điều kiện của khoản tiền 20k cho `VPb`, mà bảng quà mục 3 không có dòng
- * nào cho `VPb` — xem câu 7.15.
+ * Bốn trường này đủ cho kỳ 2026-08. Thể lệ có nhắc điều kiện "phát sinh giao
+ * dịch" và cột `bank_accounts.transaction_at` đã ghi được ngày đó, nhưng kỳ này
+ * KHÔNG dùng tới — xem câu 7.8 và 7.15.
+ *
+ * ⚠️ Kỳ nào cần tới thì thêm trường vào đây và xử trong file kỳ đó. TUYỆT ĐỐI
+ * không đẩy điều kiện này xuống ràng buộc database. Database giữ SỰ KIỆN (khách
+ * giao dịch ngày nào), file luật giữ CHÍNH SÁCH (ngày đó có tính hay không) —
+ * spec §5.3. Ràng buộc DB không có khái niệm "kỳ": đặt luật của tháng 8 vào đó
+ * thì tháng 9 đổi luật là kẹt, mà dữ liệu cũ ghi theo luật cũ vẫn phải nằm yên.
+ * Đã từng có `bank_accounts_transaction_other_day`, bỏ ở migration 0017.
  */
 export type ScoringAccount = {
   /** Gom theo khách: điểm thuộc về CẢ COMBO của một khách, không cộng lẻ từng tài khoản. */
