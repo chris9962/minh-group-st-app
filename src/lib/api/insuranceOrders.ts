@@ -62,16 +62,29 @@ export type InsuranceManualStep = z.infer<typeof InsuranceManualStep>;
    của PVI — nó là danh sách của PVI, không phải danh mục của mình. */
 
 /**
- * NGÀY CỦA ĐƠN — ngày nhân viên bán đơn cho khách.
+ * NGÀY TẠO ĐƠN — ngày nhân viên thật sự lập đơn cho khách.
  *
- * Ghi vào `insurance_orders.created_at`, và cột đó SỬA ĐƯỢC (chốt 07/08): hệ
- * thống sập hay mất mạng ngoài hiện trường thì hôm sau nhập bù vẫn ghi được
- * đúng ngày đã bán. Máy chủ chặn ngày tương lai — đơn của tuần sau thì chưa bán.
+ * Ghi vào cột riêng `insurance_orders.order_date` (chốt 07/08), cùng lối với
+ * `bank_accounts.opened_date` và `services.service_date`. Hệ thống sập hay mất
+ * mạng ngoài hiện trường thì hôm sau nhập bù vẫn ghi được đúng ngày đã làm.
+ * Máy chủ chặn ngày tương lai — đơn của tuần sau thì chưa có.
  *
- * Vết kiểm toán KHÔNG nằm ở cột này mà ở bảng `audit_log` (P-93), nơi ghi ai
- * sửa đơn nào lúc nào; cho sửa `created_at` không xoá dấu vết gì.
+ * `created_at` KHÔNG đụng tới: nó vẫn là mốc bất biến "dòng dữ liệu ghi lúc
+ * nào", và là thứ duy nhất còn đối chiếu được khi ngày tạo đơn bị sửa.
+ *
+ * ⚠️ Nhật ký truy vết P-93 hiện chỉ ghi "ai sửa đơn nào lúc nào", KHÔNG ghi giá
+ * trị cũ và mới (`audit_log.detail` chưa có đường ghi). Nên một lượt kéo đơn từ
+ * tháng 8 về tháng 6 để lại vết là có người sửa, chứ không nói kéo đi đâu.
  */
-const orderDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Ngày không hợp lệ');
+const orderDate = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Ngày không hợp lệ')
+  /**
+   * Regex thôi chưa đủ: `2026-02-31` khớp hình dạng nhưng không phải ngày có
+   * thật, và nó đi thẳng vào Postgres rồi vỡ `22008` — người dùng nhận 500 thay
+   * vì một câu nói rõ mình gõ sai.
+   */
+  .refine((v) => new Date(`${v}T00:00:00Z`).toISOString().startsWith(v), 'Ngày không có thật');
 
 /** Những trường một người nhập liệu gõ vào, dùng chung cho lúc tạo và lúc sửa. */
 const orderFields = {

@@ -158,7 +158,7 @@ export default function InsurancePage() {
       },
       {
         key: "date",
-        label: "Ngày đơn",
+        label: "Ngày tạo đơn",
         sortable: true,
         render: (r) => formatDate(r.orderDate),
       },

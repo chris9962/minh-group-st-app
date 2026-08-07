@@ -1,7 +1,7 @@
 import { and, asc, eq, gte, inArray, lte, sql, type AnyColumn, type SQL } from "drizzle-orm";
 import type { PersonScore } from "@/lib/api/people";
 import type { PersonDetail } from "@/lib/api/person";
-import { BUSINESS_TIMEZONE, businessDay, businessMonth, monthRange } from "@/lib/format";
+import { businessDay, businessMonth, monthRange } from "@/lib/format";
 import { clampScope, inVisibleScope, visibleDepartmentIds } from "@/lib/permissions";
 import { Scope, type User } from "@/lib/types";
 import { db } from "./db/client";
@@ -73,18 +73,18 @@ const periodOf = (period: string): Period => {
 };
 
 /**
- * NGÀY CỦA ĐƠN bảo hiểm là `created_at`, KHÔNG phải `start_date`.
+ * NGÀY CỦA ĐƠN bảo hiểm là `order_date`, KHÔNG phải `start_date`.
  *
  * `start_date` là ngày hợp đồng có hiệu lực — người nhập chọn, lùi hay tiến đều
  * được, và một đơn lập hôm nay cho hợp đồng hiệu lực tháng sau là chuyện bình
  * thường. Lấy nó làm ngày của đơn thì công của tháng này rơi sang tháng sau, và
  * ngược lại (chốt 07/08).
- *
- * Cột là `timestamptz` nên phải quy về ngày làm việc giờ Việt Nam trước khi so:
- * đơn lập lúc 0–7h sáng mà so thẳng theo UTC sẽ rơi về hôm trước.
  */
 const orderedInRange = (range: Period): SQL =>
-  sql`(${insuranceOrders.createdAt} at time zone ${BUSINESS_TIMEZONE})::date between ${range.from}::date and ${range.to}::date`;
+  and(
+    gte(insuranceOrders.orderDate, range.from),
+    lte(insuranceOrders.orderDate, range.to),
+  ) as SQL;
 
 /**
  * Tra chỉ tiêu tháng cho nhiều phòng một lượt.
@@ -590,7 +590,7 @@ export async function personFor(
     insurance: orderRows.map((r) => ({
       id: r.order.id,
       // Ngày ĐƠN, khớp với phép đếm ở `orderedInRange`.
-      date: businessDay(r.order.createdAt),
+      date: r.order.orderDate,
       customerName: r.customerName,
       product: r.order.product,
       packageName: r.order.packageName,

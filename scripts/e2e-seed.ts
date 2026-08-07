@@ -235,6 +235,8 @@ for (const [i, c] of E2E_CUSTOMERS.entries()) {
     await db.insert(insuranceOrders).values({
       orderCode: `ZZE2E-${i}-${k}`,
       customerId: row.id,
+      // Ngày TẠO ĐƠN — cột không có default (xem `schema.ts`), phải truyền tay.
+      orderDate: "2026-08-01",
       product: "motorbike",
       packageName: "ZZE2E gói",
       licensePlate: `59X1-${i}${k}`,

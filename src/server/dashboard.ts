@@ -212,7 +212,7 @@ const rateOf = (opened: number, installed: number): number =>
   opened === 0 ? 0 : Math.round((installed / opened) * 100);
 
 /**
- * Đơn bảo hiểm đếm theo `created_at`, KHÔNG theo `start_date`.
+ * Đơn bảo hiểm đếm theo `order_date`, KHÔNG theo `start_date`.
  *
  * Hai cột trả lời hai câu khác nhau: `start_date` là ngày hợp đồng có hiệu lực
  * (người nhập chọn, có thể lùi hoặc tiến), còn thẻ ở đây hỏi "hôm nay đội tạo
@@ -220,7 +220,10 @@ const rateOf = (opened: number, installed: number): number =>
  * lực tháng sau biến mất khỏi số của hôm nay.
  */
 const createdInRange = (range: Range): SQL =>
-  sql`(${insuranceOrders.createdAt} at time zone ${BUSINESS_TIMEZONE})::date between ${range.from}::date and ${range.to}::date`;
+  and(
+    gte(insuranceOrders.orderDate, range.from),
+    lte(insuranceOrders.orderDate, range.to),
+  ) as SQL;
 
 async function insuranceBlock(
   v: DashboardVisibility,
@@ -253,16 +256,47 @@ async function insuranceBlock(
     .where(and(sql`${insuranceOrders.status} <> 'done'`, scope));
 
   const bucketType = bucketTypeFor(range);
-  const bucketExpr = {
-    hour: sql`to_char(${insuranceOrders.createdAt} at time zone ${BUSINESS_TIMEZONE}, 'HH24:00')`,
-    day: sql`to_char(${insuranceOrders.createdAt} at time zone ${BUSINESS_TIMEZONE}, 'DD/MM')`,
-    week: sql`'Tuần ' || to_char(${insuranceOrders.createdAt} at time zone ${BUSINESS_TIMEZONE}, 'IW')`,
-    month: sql`to_char(${insuranceOrders.createdAt} at time zone ${BUSINESS_TIMEZONE}, 'MM/YYYY')`,
+
+  /**
+   * Ba mức ngày trở lên chia theo `order_date`; riêng mức GIỜ phải lấy
+   * `created_at`, vì `order_date` không có giờ.
+   *
+   * Hai cột trả lời hai câu hơi khác nhau, và ở đây khác đó là đúng: cột theo
+   * ngày hỏi "ngày nào đội làm được nhiều đơn", còn cột theo giờ hỏi "khung giờ
+   * nào đội ngồi nhập" — thứ chỉ `created_at` biết. Đơn nhập bù cho hôm trước
+   * vì vậy nằm đúng ngày đã khai, nhưng mang khung giờ lúc gõ.
+   */
+  const bucket = {
+    hour: {
+      label: sql`to_char(${insuranceOrders.createdAt} at time zone ${BUSINESS_TIMEZONE}, 'HH24:00')`,
+      /**
+       * Sắp theo CHÍNH NHÃN, không theo `min(created_at)`.
+       *
+       * Bộ lọc chọn dòng bằng `order_date` còn nhãn dựng từ `created_at`, nên
+       * hai thứ hết đi cùng nhau: một đơn tạo hôm 04/08 lúc 19:00 rồi sửa ngày
+       * tạo đơn về hôm nay vẫn lọt vào kỳ, và `min(created_at)` của nhóm 19:00
+       * nhỏ hơn mọi mốc hôm nay → cột 19:00 nhảy lên đầu trục. Nhãn `HH24:00`
+       * có đệm số 0 nên so chuỗi đã đúng thứ tự giờ.
+       */
+      order: sql`1`,
+    },
+    day: {
+      label: sql`to_char(${insuranceOrders.orderDate}, 'DD/MM')`,
+      order: sql`min(${insuranceOrders.orderDate})`,
+    },
+    week: {
+      label: sql`'Tuần ' || to_char(${insuranceOrders.orderDate}, 'IW')`,
+      order: sql`min(${insuranceOrders.orderDate})`,
+    },
+    month: {
+      label: sql`to_char(${insuranceOrders.orderDate}, 'MM/YYYY')`,
+      order: sql`min(${insuranceOrders.orderDate})`,
+    },
   }[bucketType];
 
   const buckets = await db
     .select({
-      label: sql<string>`${bucketExpr}`.as("label"),
+      label: sql<string>`${bucket.label}`.as("label"),
       electric: sql<number>`count(*) filter (where ${insuranceOrders.product} = 'electric-accident')::int`,
       motorbike: sql<number>`count(*) filter (where ${insuranceOrders.product} = 'motorbike')::int`,
     })
@@ -271,7 +305,7 @@ async function insuranceBlock(
     .groupBy(sql`1`)
     // Sắp theo MỐC THẬT chứ không theo nhãn: nhãn `DD/MM` xếp theo chuỗi thì
     // 01/09 đứng trước 31/08, và biểu đồ chạy ngược thời gian.
-    .orderBy(sql`min(${insuranceOrders.createdAt})`);
+    .orderBy(bucket.order);
 
   const created = totals?.created ?? 0;
   return {

@@ -175,7 +175,7 @@ function catalogFor(report: ReportId, banks: Bank[], usernameById: Map<string, s
           sample: ["Hoàn thành", "Chờ làm tay"],
           value: (r) => INSURANCE_STATUS_LABEL[r.status as keyof typeof INSURANCE_STATUS_LABEL],
         },
-        { key: "orderDate", header: "Ngày đơn", defaultOn: true, sample: ["15/07/2026", "20/07/2026"], value: (r) => r.orderDate },
+        { key: "orderDate", header: "Ngày tạo đơn", defaultOn: true, sample: ["15/07/2026", "20/07/2026"], value: (r) => r.orderDate },
         { key: "startDate", header: "Hiệu lực từ", defaultOn: false, sample: ["15/07/2026", "20/07/2026"], value: (r) => r.startDate },
         { key: "createdById", header: "Mã người tạo", type: "text", defaultOn: false, sample: ["u-staff", "u-orderdesk"], value: (r) => r.createdById ?? "—" },
         { key: "createdByName", header: "Người tạo", defaultOn: true, sample: ["Nguyễn Thị Bích Trâm", "Võ Thanh Tùng"], value: (r) => r.createdByName ?? "—" },

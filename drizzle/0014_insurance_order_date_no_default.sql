@@ -1,0 +1,1 @@
+ALTER TABLE "insurance_orders" ALTER COLUMN "order_date" DROP DEFAULT;

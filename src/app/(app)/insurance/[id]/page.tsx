@@ -163,8 +163,8 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                 <dd>{formatVnd(data.fee)}</dd>
               </div>
               <div>
-                {/* Ngày BÁN đơn — thứ quyết định đơn này tính vào tháng nào. */}
-                <dt>Ngày đơn</dt>
+                {/* Ngày TẠO đơn — thứ quyết định đơn này tính vào tháng nào. */}
+                <dt>Ngày tạo đơn</dt>
                 <dd>{formatDate(data.orderDate)}</dd>
               </div>
               <div>

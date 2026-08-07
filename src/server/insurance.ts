@@ -1,4 +1,4 @@
-import { and, asc, count, eq, gte, inArray, lte, sql, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray, lte, sql, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type {
   InsuranceDetail,
@@ -13,7 +13,7 @@ import {
   type InsuranceOrderForm,
 } from "@/lib/api/insuranceOrders";
 import type { Page } from "@/lib/api/pagination";
-import { BUSINESS_TIMEZONE, businessDay, businessMonth } from "@/lib/format";
+import { businessDay, businessMonth } from "@/lib/format";
 import { recordVisibility, type RecordVisibility } from "@/lib/permissions";
 import { InsuranceProduct, type User } from "@/lib/types";
 import { db } from "./db/client";
@@ -133,40 +133,15 @@ const productFilter = (raw: string): SQL | undefined => {
 };
 
 /**
- * Khoảng ngày lọc theo NGÀY CỦA ĐƠN (`created_at`), không theo ngày hiệu lực.
+ * Khoảng ngày lọc theo NGÀY TẠO ĐƠN, không theo ngày hiệu lực.
  *
- * Quản lý hỏi "tháng này đội bán được bao nhiêu đơn", không hỏi "bao nhiêu hợp
- * đồng có hiệu lực trong tháng" — hai câu khác nhau, và một đơn bán hôm nay cho
+ * Quản lý hỏi "tháng này đội làm được bao nhiêu đơn", không hỏi "bao nhiêu hợp
+ * đồng có hiệu lực trong tháng" — hai câu khác nhau, và một đơn lập hôm nay cho
  * hợp đồng hiệu lực tháng sau sẽ biến mất khỏi câu thứ nhất nếu lọc nhầm cột.
  *
- * `created_at` là `timestamptz` nên phải quy về ngày làm việc giờ Việt Nam
- * trước khi so: đơn lập lúc 0–7h sáng mà so thẳng theo UTC sẽ rơi về hôm trước.
+ * `order_date` là cột `date` trần nên so thẳng chuỗi `YYYY-MM-DD` là đủ — không
+ * còn phép quy múi giờ nào, và phép so dùng lại được chỉ mục.
  */
-const orderedOn = sql`(${insuranceOrders.createdAt} at time zone ${BUSINESS_TIMEZONE})::date`;
-
-/**
- * Ghép NGÀY người dùng khai với GIỜ của đồng hồ lúc ghi.
- *
- * Nhập bù cho hôm qua mà đặt 00:00 thì biểu đồ theo khung giờ ở màn Tổng quan
- * dồn hết vào cột nửa đêm. Lấy giờ hiện tại thì ngày vẫn đúng cái người dùng
- * khai, mà giờ đọc ra vẫn hợp lý.
- *
- * Ngày hôm nay thì trả về đúng lúc này, không phải dựng lại từ chuỗi — đó là ca
- * thường gặp nhất và không có lý do gì để làm tròn nó.
- */
-function atBusinessDay(day: string): Date {
-  const now = new Date();
-  if (day === businessDay(now)) return now;
-  const clock = new Intl.DateTimeFormat("en-GB", {
-    timeZone: BUSINESS_TIMEZONE,
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  }).format(now);
-  // `+07:00` viết cứng vì giờ làm việc là giờ Việt Nam, nơi không có giờ mùa hè.
-  return new Date(`${day}T${clock}+07:00`);
-}
 const orderFilters = (visible: RecordVisibility, query: InsuranceFilters): SQL | undefined => {
   const parts = [
     scopeWhere(visible),
@@ -175,8 +150,8 @@ const orderFilters = (visible: RecordVisibility, query: InsuranceFilters): SQL |
     productFilter(query.product),
     // Ngày sai định dạng thì bỏ qua, không trả 400 — link cũ hay ô địa chỉ gõ
     // nhầm không đáng làm hỏng cả màn (cùng lối nghĩ với `uuidParam`).
-    YEAR_MONTH_DAY.test(query.from) ? sql`${orderedOn} >= ${query.from}::date` : undefined,
-    YEAR_MONTH_DAY.test(query.to) ? sql`${orderedOn} <= ${query.to}::date` : undefined,
+    YEAR_MONTH_DAY.test(query.from) ? gte(insuranceOrders.orderDate, query.from) : undefined,
+    YEAR_MONTH_DAY.test(query.to) ? lte(insuranceOrders.orderDate, query.to) : undefined,
     query.staffId ? eq(insuranceOrders.createdBy, query.staffId) : undefined,
   ].filter(Boolean) as SQL[];
 
@@ -204,7 +179,7 @@ const pickPage = (where: SQL | undefined, orderBy: SQL[], limit: number, offset:
       fee: insuranceOrders.fee,
       status: insuranceOrders.status,
       source: insuranceOrders.source,
-      createdAt: insuranceOrders.createdAt,
+      orderDate: insuranceOrders.orderDate,
       startDate: insuranceOrders.startDate,
       endDate: insuranceOrders.endDate,
       beneficiaryName: insuranceOrders.beneficiaryName,
@@ -240,7 +215,7 @@ const decorate = (page: ReturnType<typeof pickPage>) =>
       fee: page.fee,
       status: page.status,
       source: page.source,
-      orderDate: sql<string>`to_char(${page.createdAt} at time zone ${BUSINESS_TIMEZONE}, 'YYYY-MM-DD')`,
+      orderDate: page.orderDate,
       startDate: page.startDate,
       endDate: page.endDate,
       beneficiaryName: page.beneficiaryName,
@@ -310,21 +285,25 @@ const toOrder = (r: DecoratedRow): InsuranceOrder => ({
 });
 
 /**
- * Sắp theo NGÀY CỦA ĐƠN, mới nhất lên trước.
+ * Ba khoá, và cả ba đều cần thiết.
  *
- * `created_at` là timestamp nên gần như không hoà; `id` đứng cuối cho ca hai đơn
- * của cùng một gói sinh trong CÙNG một giao dịch — `now()` không đổi trong một
- * giao dịch nên chúng mang dấu thời gian y hệt nhau, và không có khoá phụ duy
- * nhất thì một dòng hiện lại ở trang sau còn dòng khác biến mất khỏi cả hai.
+ * `order_date` là thứ người dùng chọn sắp. Nhưng nó là kiểu `date` — không có
+ * giờ — nên MỌI đơn lập trong cùng một ngày đều hoà, và một ngày làm việc bình
+ * thường có hàng chục đơn như vậy.
  *
- * Bản trước sắp theo `start_date` (ngày hiệu lực) rồi mới tới `created_at`, nên
- * một đơn bán hôm nay cho hợp đồng hiệu lực tháng sau nhảy lên đầu bảng còn đơn
- * vừa bán cho hợp đồng hiệu lực hôm qua thì nằm giữa danh sách.
+ * `created_at` phá hoà theo đúng thứ tự người dùng mong đợi: đơn vừa lập nằm
+ * trên. Nó vẫn bất biến nên không ai xê dịch được thứ tự này. Thiếu nó thì khoá
+ * phá hoà còn lại là `id` — uuid NGẪU NHIÊN — và người dùng bấm Tạo đơn xong
+ * không thấy đơn của mình đâu vì nó rơi vào giữa bảng. Bộ e2e bắt được đúng ca
+ * đó: 6 ca đỏ vì không tìm ra dòng vừa tạo.
+ *
+ * `id` vẫn phải đứng cuối: hai đơn của cùng một gói sinh trong cùng giao dịch
+ * mang `created_at` y hệt nhau (`now()` không đổi trong một giao dịch).
  */
 const orderByDate = (dir: "asc" | "desc"): SQL[] =>
   dir === "asc"
-    ? [sql`${insuranceOrders.createdAt} asc`, asc(insuranceOrders.id)]
-    : [sql`${insuranceOrders.createdAt} desc`, asc(insuranceOrders.id)];
+    ? [asc(insuranceOrders.orderDate), asc(insuranceOrders.createdAt), asc(insuranceOrders.id)]
+    : [desc(insuranceOrders.orderDate), desc(insuranceOrders.createdAt), asc(insuranceOrders.id)];
 
 /** MỘT trang đơn bảo hiểm, đã lọc/tìm/sắp sẵn ở máy chủ (AGENTS.md §5.1). */
 export async function listInsuranceOrders(
@@ -445,7 +424,7 @@ export async function createInsuranceOrders(
     if (leg.endDate < leg.startDate)
       return { ok: false, message: "Ngày kết thúc phải sau ngày bắt đầu" };
     // Sổ ghi việc ĐÃ LÀM: một đơn của tuần sau thì chưa bán cho ai.
-    if (leg.orderDate > today) return { ok: false, message: "Ngày đơn không được ở tương lai" };
+    if (leg.orderDate > today) return { ok: false, message: "Ngày tạo đơn không được ở tương lai" };
   }
 
   /**
@@ -502,14 +481,7 @@ export async function createInsuranceOrders(
           packageId: packageIds.get(leg.packageName) ?? null,
           packageName: leg.packageName,
           fee: leg.fee,
-          /**
-           * Ngày người nhập chọn, GIỜ thì lấy đồng hồ lúc ghi.
-           *
-           * Nhập bù cho hôm qua mà đặt 00:00 thì biểu đồ theo khung giờ ở màn
-           * Tổng quan dồn hết vào cột nửa đêm — giờ hiện tại đọc ra hợp lý hơn
-           * hẳn, và ngày thì vẫn đúng cái người dùng khai.
-           */
-          createdAt: atBusinessDay(leg.orderDate),
+          orderDate: leg.orderDate,
           startDate: leg.startDate,
           endDate: leg.endDate,
           status: NEW_ORDER_STATUS,
@@ -591,14 +563,13 @@ export async function updateInsuranceOrder(
   if (form.endDate < form.startDate)
     return { ok: false, message: "Ngày kết thúc phải sau ngày bắt đầu" };
   if (form.orderDate > businessDay())
-    return { ok: false, message: "Ngày đơn không được ở tương lai" };
+    return { ok: false, message: "Ngày tạo đơn không được ở tương lai" };
 
   await db
     .update(insuranceOrders)
     .set({
-      // Đổi ngày đơn là đổi tháng mà đơn này được tính — cột `created_at` sửa
-      // được đúng vì lý do đó (chốt 07/08).
-      createdAt: atBusinessDay(form.orderDate),
+      // Đổi ngày tạo đơn là đổi tháng mà đơn này được tính vào.
+      orderDate: form.orderDate,
       fee: form.fee,
       startDate: form.startDate,
       endDate: form.endDate,

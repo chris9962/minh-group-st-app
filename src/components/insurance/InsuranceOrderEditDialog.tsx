@@ -119,13 +119,13 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId }: Props) {
             {data.customerName}
           </p>
 
-          {/* Ngày BÁN đơn — đổi nó là đổi tháng mà đơn này được tính. Khác hẳn
+          {/* Ngày TẠO đơn — đổi nó là đổi tháng mà đơn này được tính. Khác hẳn
               ngày hiệu lực bên dưới. */}
           <TextField
-            label="Ngày đơn"
+            label="Ngày tạo đơn"
             type="date"
             max={businessDay()}
-            hint="Ngày bán đơn cho khách"
+            hint="Nhập bù cho hôm trước thì sửa lại ngày này"
             error={errors.orderDate?.message}
             {...form.register("orderDate")}
           />

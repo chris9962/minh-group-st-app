@@ -575,6 +575,24 @@ export const insuranceOrders = pgTable(
     packageName: text("package_name").notNull(),
     /** Mức phí của ĐƠN — prefill từ gói, người nhập sửa được từng đơn. */
     fee: integer("fee").notNull().default(0),
+    /**
+     * NGÀY TẠO ĐƠN — ngày nhân viên thật sự lập đơn cho khách, và là ngày mọi
+     * phép tính theo kỳ dựa vào (KPI, dashboard, bộ lọc P-13).
+     *
+     * Cột RIÊNG chứ không mượn `created_at`, cùng lối với `bank_accounts.opened_date`
+     * và `services.service_date` — ba bảng nghiệp vụ cùng một hình dạng:
+     * một ngày nghiệp vụ sửa được, cộng `created_at` bất biến.
+     *
+     * Kiểu `date` (không giờ) là phần đáng giá nhất: so khoảng ngày dùng thẳng
+     * được chỉ mục, còn `(created_at at time zone …)::date` thì không khớp chỉ
+     * mục nào và phải viết lại phép quy múi giờ ở mọi chỗ đọc.
+     *
+     * ⚠️ CỐ Ý KHÔNG CÓ DEFAULT. `current_date` chạy theo TimeZone của phiên kết
+     * nối, mà máy chủ để UTC — nên từ 0h đến 7h sáng giờ Việt Nam nó trả về HÔM
+     * QUA, đúng cái bẫy cả cột này sinh ra để dẹp. Không default thì đường ghi
+     * nào quên truyền sẽ hỏng ồn ào ngay, thay vì lặng lẽ ghi sai ngày.
+     */
+    orderDate: date("order_date").notNull(),
     startDate: date("start_date").notNull(),
     endDate: date("end_date").notNull(),
     status: insuranceOrderStatus("status").notNull().default("queued"),
@@ -615,12 +633,18 @@ export const insuranceOrders = pgTable(
      * xếp lại toàn bộ kết quả khớp bộ lọc trước khi cắt 15 dòng, tức quét cả
      * kho để lấy một trang.
      *
-     * Sắp theo NGÀY CỦA ĐƠN (`created_at`), không theo ngày hiệu lực — xem
-     * `orderByDate` ở `server/insurance.ts`.
+     * Sắp theo NGÀY TẠO ĐƠN, không theo ngày hiệu lực. `created_at` là khoá phá
+     * hoà — `order_date` không có giờ nên mọi đơn cùng ngày đều hoà, và thiếu
+     * khoá này thì đơn vừa tạo rơi vào giữa bảng. Xem `orderByDate` ở
+     * `server/insurance.ts`.
      */
-    index("insurance_orders_dept_date").on(sql`created_by_department_id, created_at desc, id`),
-    index("insurance_orders_creator_date").on(sql`created_by, created_at desc, id`),
-    index("insurance_orders_date").on(sql`created_at desc, id`),
+    index("insurance_orders_dept_date").on(
+      sql`created_by_department_id, order_date desc, created_at desc, id`,
+    ),
+    index("insurance_orders_creator_date").on(
+      sql`created_by, order_date desc, created_at desc, id`,
+    ),
+    index("insurance_orders_date").on(sql`order_date desc, created_at desc, id`),
     check(
       "insurance_orders_motorbike_plate",
       sql`product <> 'motorbike' or license_plate <> ''`,

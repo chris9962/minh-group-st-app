@@ -31,16 +31,16 @@ export const InsuranceListRow = z.object({
   status: InsuranceOrderStatus,
   source: InsuranceOrderSource,
   /**
-   * NGÀY CỦA ĐƠN — ngày nhân viên bán đơn cho khách, và là ngày dùng để tính
-   * kỳ (KPI, dashboard, bộ lọc P-13).
+   * NGÀY TẠO ĐƠN — ngày nhân viên thật sự lập đơn cho khách, và là ngày dùng để
+   * tính kỳ (KPI, dashboard, bộ lọc P-13).
    *
    * Đọc từ `created_at`, và cột đó SỬA ĐƯỢC (chốt 07/08): hệ thống sập hay mất
-   * mạng ngoài hiện trường thì hôm sau nhập bù vẫn ghi được đúng ngày đã bán.
+   * mạng ngoài hiện trường thì hôm sau nhập bù vẫn ghi được đúng ngày đã làm.
    * Vết kiểm toán không nằm ở đây mà ở bảng `audit_log` (P-93), nên cho sửa cột
    * này không xoá dấu vết gì.
    */
   orderDate: z.string(),
-  /** Ngày hợp đồng bắt đầu có hiệu lực — KHÁC ngày bán đơn, người nhập tự chọn. */
+  /** Ngày hợp đồng bắt đầu có hiệu lực — KHÁC ngày tạo đơn, người nhập tự chọn. */
   startDate: z.string(),
   endDate: z.string(),
   createdById: z.string().nullable(),
@@ -115,7 +115,7 @@ export type InsuranceQuery = PageQuery<InsuranceSort> & {
   status: InsuranceOrderStatus | '';
   /** Rỗng = tất cả loại. Có giá trị thì phải là enum, không nhận nhãn tiếng Việt. */
   product: InsuranceProduct | '';
-  /** Khoảng NGÀY BẮT ĐẦU HIỆU LỰC, YYYY-MM-DD. Rỗng = không giới hạn. */
+  /** Khoảng NGÀY TẠO ĐƠN, YYYY-MM-DD. Rỗng = không giới hạn. */
   from: string;
   to: string;
   staffId: string;
