@@ -287,7 +287,12 @@ export async function createService(actor: User, form: ServiceForm): Promise<Ser
     ? ((await db.select({ name: wards.name }).from(wards).where(eq(wards.id, actor.wardId)).limit(1))[0] ?? null)
     : null;
 
-  const serviceDate = businessDay();
+  // Ngày người nhập chọn (chốt 07/08). Máy chủ chỉ chặn ngày TƯƠNG LAI: đây là
+  // sổ ghi việc ĐÃ LÀM. Ngày lùi để tự do — nhân viên nhập trễ là chuyện thường,
+  // và mọi lượt ghi đều nằm trong nhật ký truy vết.
+  const serviceDate = form.date;
+  if (serviceDate > businessDay())
+    return { ok: false, message: "Ngày thực hiện không được ở tương lai" };
 
   const [row] = await db
     .insert(services)
@@ -344,12 +349,23 @@ export async function updateService(
   if (!type.active && form.serviceTypeId !== current.serviceTypeId)
     return { ok: false, message: "Loại dịch vụ này đã ngừng dùng" };
 
+  if (form.date > businessDay())
+    return { ok: false, message: "Ngày thực hiện không được ở tương lai" };
+
   await db
     .update(services)
-    .set({ serviceTypeId: form.serviceTypeId, note: form.note })
+    .set({ serviceTypeId: form.serviceTypeId, serviceDate: form.date, note: form.note })
     .where(eq(services.id, id));
 
-  await recomputeKpi(current.createdById, current.date.slice(0, 7));
+  /**
+   * Tính lại CẢ HAI THÁNG khi ngày bị dời sang tháng khác.
+   *
+   * Chỉ tính tháng cũ thì tháng mới không biết mình vừa nhận thêm một lượt; chỉ
+   * tính tháng mới thì tháng cũ giữ nguyên điểm của một lượt đã dời đi — điểm
+   * được đếm hai lần, và đó là thứ dính tới lương.
+   */
+  const months = new Set([current.date.slice(0, 7), form.date.slice(0, 7)]);
+  for (const month of months) await recomputeKpi(current.createdById, month);
 
   return { ok: true, service: (await serviceById(id))! };
 }

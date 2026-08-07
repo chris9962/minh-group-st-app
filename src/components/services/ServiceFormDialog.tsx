@@ -8,6 +8,7 @@ import { Dialog } from "@/components/ui/Dialog";
 import { Select } from "@/components/ui/Select";
 import { TextField } from "@/components/ui/TextField";
 import { fetchServiceTypes } from "@/lib/api/settings";
+import { businessDay } from "@/lib/format";
 import { createService, ServiceForm } from "@/lib/api/services";
 import styles from "./ServiceFormDialog.module.scss";
 import { invalidateKpi } from "@/lib/invalidateKpi";
@@ -41,7 +42,7 @@ export function ServiceFormDialog({ open, onClose, customerId, customerName }: P
     formState: { errors, isSubmitting },
   } = useForm<ServiceForm>({
     resolver: zodResolver(ServiceForm),
-    defaultValues: { customerId, serviceTypeId: "", note: "" },
+    defaultValues: { customerId, serviceTypeId: "", date: businessDay(), note: "" },
   });
 
   const save = useMutation({
@@ -91,6 +92,17 @@ export function ServiceFormDialog({ open, onClose, customerId, customerName }: P
           ]}
         />
         {errors.serviceTypeId && <p className={styles.error}>{errors.serviceTypeId.message}</p>}
+
+        {/* Mặc định hôm nay, sửa được: làm cho khách ngày 31 mà mùng 2 mới
+            ngồi nhập thì lượt đó phải tính vào tháng ĐÃ LÀM, không phải tháng
+            nhập liệu. Máy chủ chặn ngày tương lai. */}
+        <TextField
+          label="Ngày thực hiện"
+          type="date"
+          max={businessDay()}
+          error={errors.date?.message}
+          {...register("date")}
+        />
 
         <TextField
           label="Ghi chú công việc"

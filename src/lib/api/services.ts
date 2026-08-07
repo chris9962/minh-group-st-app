@@ -104,20 +104,39 @@ export async function fetchServicesForExport(
   return ServicePage.parse(await res.json());
 }
 
-/** Tên không ràng buộc gì thêm — chỉ ghi lại việc đã hỗ trợ khách xong. */
+/**
+ * NGÀY THỰC HIỆN người nhập tự chọn (chốt 07/08), mặc định hôm nay.
+ *
+ * Trước đây máy chủ tự ghi ngày nhập liệu và không ai sửa được. Ca hỏng thật:
+ * làm dịch vụ cho khách ngày 31 nhưng mùng 2 mới ngồi nhập, lượt đó rơi sang
+ * điểm KPI tháng sau và không có đường chữa — không phải lỗi nhập liệu, mà là
+ * hệ thống không cho nhập đúng.
+ *
+ * Chặn ngày TƯƠNG LAI: đây là sổ ghi việc ĐÃ LÀM, một lượt dịch vụ của tuần sau
+ * thì chưa xảy ra. Ngày lùi thì để tự do — máy chủ không đoán được nhân viên
+ * nhập trễ bao lâu là hợp lý, và mọi lượt sửa đều nằm trong nhật ký truy vết.
+ */
+const serviceDate = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Ngày không hợp lệ');
+
 export const ServiceForm = z.object({
   customerId: z.string().min(1, 'Chưa chọn khách'),
   serviceTypeId: z.string().min(1, 'Chưa chọn loại dịch vụ'),
+  date: serviceDate,
   note: z.string().trim(),
 });
 export type ServiceForm = z.infer<typeof ServiceForm>;
 
 /**
- * Sửa một lượt đã ghi — chỉ LOẠI và GHI CHÚ.
+ * Sửa một lượt đã ghi — LOẠI, NGÀY và GHI CHÚ.
  *
- * Khách, người thực hiện, ngày, đơn vị và xã là ảnh chụp của việc đã xảy ra:
- * đổi khách là biến bản ghi thành việc khác hẳn, đổi người thực hiện là chuyển
- * công sang người khác.
+ * Khách, người thực hiện, đơn vị và xã vẫn không sửa được: đổi khách là biến
+ * bản ghi thành việc khác hẳn, đổi người thực hiện là chuyển công sang người
+ * khác.
+ *
+ * ⚠️ Đổi ngày là ĐỔI THÁNG TÍNH ĐIỂM. Máy chủ phải tính lại KPI cho cả tháng cũ
+ * lẫn tháng mới, không thì tháng cũ giữ nguyên điểm của một lượt đã dời đi.
  */
 export const ServiceEditForm = ServiceForm.omit({ customerId: true });
 export type ServiceEditForm = z.infer<typeof ServiceEditForm>;

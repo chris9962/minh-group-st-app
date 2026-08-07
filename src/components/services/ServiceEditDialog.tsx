@@ -9,7 +9,7 @@ import { Select } from "@/components/ui/Select";
 import { TextField } from "@/components/ui/TextField";
 import { ServiceEditForm, updateService, type ServiceRow } from "@/lib/api/services";
 import { fetchServiceTypes } from "@/lib/api/settings";
-import { formatDate } from "@/lib/format";
+import { businessDay, formatDate } from "@/lib/format";
 import { invalidateKpi } from "@/lib/invalidateKpi";
 import { errorMessage, toast } from "@/lib/toast";
 import styles from "./ServiceFormDialog.module.scss";
@@ -61,7 +61,11 @@ export function ServiceEditDialog({ open, onClose, service }: Props) {
 
   const form = useForm<ServiceEditForm>({
     resolver: zodResolver(ServiceEditForm),
-    defaultValues: { serviceTypeId: service.serviceTypeId, note: service.note },
+    defaultValues: {
+      serviceTypeId: service.serviceTypeId,
+      date: service.date,
+      note: service.note,
+    },
   });
 
   const invalidate = () => {
@@ -104,7 +108,7 @@ export function ServiceEditDialog({ open, onClose, service }: Props) {
         noValidate
       >
         <p className="text-muted">
-          {service.customerName} · {formatDate(service.date)} · {service.createdByName}
+          {service.customerName} · {service.createdByName}
         </p>
 
         <Select
@@ -114,6 +118,16 @@ export function ServiceEditDialog({ open, onClose, service }: Props) {
           onChange={(v) => form.setValue("serviceTypeId", v, { shouldDirty: true })}
           options={options.length > 0 ? options : fallback}
           error={typesError ? "Không tải được danh mục loại dịch vụ — chỉ giữ được loại hiện tại." : undefined}
+        />
+
+        {/* Đổi ngày là ĐỔI THÁNG TÍNH ĐIỂM — máy chủ tính lại KPI cho cả tháng
+            cũ lẫn tháng mới. Chặn ngày tương lai: đây là sổ việc ĐÃ LÀM. */}
+        <TextField
+          label="Ngày thực hiện"
+          type="date"
+          max={businessDay()}
+          error={form.formState.errors.date?.message}
+          {...form.register("date")}
         />
 
         <TextField label="Ghi chú" placeholder="Không bắt buộc" {...form.register("note")} />
