@@ -33,6 +33,16 @@ bun run e2e:ui     # mở giao diện Playwright để soi từng bước
 bun run test:rules # công thức điểm KPI (src/rules) — không cần database
 ```
 
+Xem giao diện bằng mắt thì dùng bộ mẫu:
+
+```bash
+bun run db:demo             # 6 nhân viên + 14 khách phủ đủ ca TH1–TH6 + 24 khách độn
+bun run db:demo -- --clean  # dọn sạch, không đụng dữ liệu tự nhập
+```
+
+Mọi bản ghi mang tiền tố `DEMO`. **Không chạy trên dữ liệu thật** — nó đổ khách
+bịa. Khác `db:seed`: lệnh đó chỉ dựng cấu trúc + danh mục thật.
+
 Cần **server dev đang chạy** (`bun dev`, cổng 3002) và database đã seed.
 
 `test:rules` là ngoại lệ: hàm luật là hàm thuần nên chạy thẳng, vài giây. **Sửa

@@ -1,0 +1,453 @@
+/**
+ * Dữ liệu MẪU để xem giao diện có đủ ca — `bun run db:demo`, dọn bằng
+ * `bun run db:demo -- --clean`.
+ *
+ * Tách khỏi `db:seed` là có chủ ý: `db:seed` chỉ dựng cấu trúc và danh mục
+ * THẬT, chạy được cả trên máy chủ chạy thật. File này đổ khách bịa, tài khoản
+ * bịa, đơn bịa — không bao giờ được chạy trên dữ liệu thật.
+ *
+ * Mọi bản ghi mang tiền tố `DEMO` (`demo_` với tên đăng nhập) nên dọn được sạch
+ * mà không đụng dữ liệu người dùng tự nhập.
+ *
+ * Chạy lại nhiều lần: tự dọn phần cũ trước khi dựng lại.
+ */
+import { hashSync } from "bcryptjs";
+import { eq, inArray, like } from "drizzle-orm";
+import { businessDay, businessMonth } from "../src/lib/format";
+import { ROLE_PERMISSIONS } from "../src/lib/roles";
+import { db } from "../src/server/db/client";
+import { giftForCustomer, recomputeGiftCase } from "../src/server/gift";
+import { recomputeKpi } from "../src/server/kpi";
+import {
+  auditLog,
+  bankAccounts,
+  banks,
+  channels,
+  customerPhones,
+  customers,
+  departments,
+  giftGrants,
+  insuranceOrderStatusHistory,
+  insuranceOrders,
+  kpiScores,
+  referralCodes,
+  serviceTypes,
+  services,
+  sessions,
+  userManagedDepartments,
+  userPermissions,
+  users,
+} from "../src/server/db/schema";
+import type { RoleKey } from "../src/lib/types";
+
+const TAG = "DEMO";
+const USER_PREFIX = "demo_";
+const PASSWORD = "12345678";
+
+const MONTH = businessMonth();
+const day = (n: number) => `${MONTH}-${String(n).padStart(2, "0")}`;
+
+/* ── Dọn ───────────────────────────────────────────────────────────────── */
+
+async function clean() {
+  const demoUsers = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(like(users.username, `${USER_PREFIX}%`));
+  const demoCustomers = await db
+    .select({ id: customers.id })
+    .from(customers)
+    .where(like(customers.fullName, `${TAG}%`));
+
+  const customerIds = demoCustomers.map((c) => c.id);
+  if (customerIds.length > 0) {
+    // Thứ tự bắt buộc: dòng thời gian trỏ vào đơn, đơn và quà trỏ vào khách.
+    const orders = await db
+      .select({ id: insuranceOrders.id })
+      .from(insuranceOrders)
+      .where(inArray(insuranceOrders.customerId, customerIds));
+    if (orders.length > 0)
+      await db.delete(insuranceOrderStatusHistory).where(
+        inArray(
+          insuranceOrderStatusHistory.orderId,
+          orders.map((o) => o.id),
+        ),
+      );
+    await db.delete(insuranceOrders).where(inArray(insuranceOrders.customerId, customerIds));
+    await db.delete(services).where(inArray(services.customerId, customerIds));
+    await db.delete(giftGrants).where(inArray(giftGrants.customerId, customerIds));
+    await db.delete(bankAccounts).where(inArray(bankAccounts.customerId, customerIds));
+    await db.delete(customerPhones).where(inArray(customerPhones.customerId, customerIds));
+    await db.delete(customers).where(inArray(customers.id, customerIds));
+  }
+
+  await db.delete(referralCodes).where(like(referralCodes.code, `${TAG}%`));
+
+  for (const u of demoUsers) {
+    // Bốn bảng này trỏ vào `users.id` và không cascade — xoá người trước là
+    // vướng khoá ngoại ngay từ lần chạy lại thứ hai.
+    await db.delete(auditLog).where(eq(auditLog.actorId, u.id));
+    await db.delete(sessions).where(eq(sessions.userId, u.id));
+    await db.delete(kpiScores).where(eq(kpiScores.userId, u.id));
+    await db.delete(userPermissions).where(eq(userPermissions.userId, u.id));
+    await db.delete(userManagedDepartments).where(eq(userManagedDepartments.userId, u.id));
+    await db.delete(users).where(eq(users.id, u.id));
+  }
+
+  console.log(
+    `Đã dọn: ${customerIds.length} khách · ${demoUsers.length} tài khoản mang tiền tố ${TAG}.`,
+  );
+}
+
+/* ── Nhân sự mẫu ───────────────────────────────────────────────────────── */
+
+/**
+ * Sáu người ở BA phòng khác nhau, và một người ở Phòng Y.
+ *
+ * Bộ `db:seed` chỉ có ban giám đốc, không ai thuộc phòng kinh doanh nào — nên
+ * bảng xếp hạng phòng, thống kê P-91 và luật quy đổi quà của Phòng Y đều không
+ * có gì để hiện. Sáu người này là mức tối thiểu để ba màn đó nói được điều gì.
+ */
+const STAFF: { username: string; fullName: string; role: RoleKey; dept: string }[] = [
+  { username: "demo_kd1_truong", fullName: "DEMO Trần Quốc Bảo", role: "head", dept: "KD-1" },
+  { username: "demo_kd1_a", fullName: "DEMO Nguyễn Thị Lan", role: "staff", dept: "KD-1" },
+  { username: "demo_kd1_b", fullName: "DEMO Lê Văn Hậu", role: "staff", dept: "KD-1" },
+  { username: "demo_kd2_a", fullName: "DEMO Phạm Thu Trang", role: "staff", dept: "KD-2" },
+  { username: "demo_kd2_b", fullName: "DEMO Võ Minh Khoa", role: "staff", dept: "KD-2" },
+  { username: "demo_y_a", fullName: "DEMO Huỳnh Bảo Ngọc", role: "staff", dept: "PHONG-Y" },
+];
+
+/* ── Khách mẫu ─────────────────────────────────────────────────────────── */
+
+type DemoAccount = { bank: string; app?: boolean; draft?: boolean };
+
+type DemoCustomer = {
+  name: string;
+  /** Có CCCD thì màn hồ sơ mới hiện được ca "che 8 số đầu" (quyết định 03/08). */
+  idNumber?: string;
+  /** Ghi ngay vào tên để mở màn là đọc được ca này định thử điều gì. */
+  case: string;
+  owner: string;
+  channel?: string;
+  accounts: DemoAccount[];
+  insurance?: number;
+  services?: number;
+  gifted?: boolean;
+};
+
+/**
+ * Mỗi dòng là MỘT ca của thể lệ 2026-08, ghi thẳng kết quả mong đợi vào tên.
+ *
+ * Ghi kết quả vào tên khách là cố ý: mở P-40 ra là so được ngay cột trạng thái
+ * quà với chữ trong tên, không phải mở từng hồ sơ rồi tự nhẩm lại bảng điểm.
+ */
+const CUSTOMERS: DemoCustomer[] = [
+  {
+    name: "DEMO TH3 · 3 ưu tiên · 1.2đ · 70k",
+    idNumber: "079301004871",
+    case: "TH3",
+    owner: "demo_kd1_a",
+    accounts: [{ bank: "MB" }, { bank: "VPa" }, { bank: "MSBa" }],
+    insurance: 2,
+    services: 1,
+  },
+  {
+    name: "DEMO TH4 · có MSBa · 1.0đ · 50k",
+    case: "TH4",
+    owner: "demo_kd1_a",
+    accounts: [{ bank: "MB" }, { bank: "MSBa" }, { bank: "LBP" }],
+    insurance: 1,
+  },
+  {
+    name: "DEMO TH5 · có VPa · 1.0đ · 20k · kênh bệnh viện",
+    case: "TH5",
+    owner: "demo_kd1_b",
+    channel: "KENH-BENH-VIEN",
+    accounts: [{ bank: "MB" }, { bank: "VPa" }, { bank: "LBP" }],
+    services: 2,
+  },
+  {
+    name: "DEMO TH6 · 3 bank khác · 0.7đ · 0đ",
+    case: "TH6",
+    owner: "demo_kd1_b",
+    accounts: [{ bank: "LBP" }, { bank: "TPB" }, { bank: "VIB" }],
+  },
+  {
+    name: "DEMO TH1 · combo 2 có VPa · 0.7đ · 20k",
+    idNumber: "079301004872",
+    case: "TH1",
+    owner: "demo_kd2_a",
+    accounts: [{ bank: "MB" }, { bank: "VPa" }],
+    insurance: 3,
+  },
+  {
+    name: "DEMO TH2 · combo 2 bank khác · 0.4đ",
+    case: "TH2",
+    owner: "demo_kd2_a",
+    accounts: [{ bank: "MSBb" }, { bank: "BIDV" }],
+  },
+  {
+    name: "DEMO TH5 · có bank hạn chế VPb · 0.9đ",
+    case: "TH5",
+    owner: "demo_kd2_b",
+    accounts: [{ bank: "MB" }, { bank: "VPa" }, { bank: "VPb" }],
+  },
+  {
+    name: "DEMO TH2 · VPa chưa cài app nên tụt combo · 0.5đ",
+    case: "TH2",
+    owner: "demo_kd2_b",
+    accounts: [{ bank: "MB" }, { bank: "VPa", app: false }, { bank: "LBP" }],
+  },
+  {
+    name: "DEMO TH1 · VPa kèm CNKD nên rổ có Loa và Mica",
+    case: "TH1",
+    owner: "demo_kd1_a",
+    accounts: [{ bank: "MB" }, { bank: "VPa" }, { bank: "CNKD" }],
+  },
+  {
+    name: "DEMO TH6 · Phòng Y quy đổi sang nón và mì",
+    case: "TH6",
+    owner: "demo_y_a",
+    accounts: [{ bank: "LBP" }, { bank: "TPB" }, { bank: "VIB" }],
+  },
+  {
+    name: "DEMO Không đủ ĐK · mở lẻ 1 tài khoản",
+    case: "—",
+    owner: "demo_kd1_b",
+    accounts: [{ bank: "MB" }],
+  },
+  {
+    name: "DEMO Không đủ ĐK · MB+MSBa không thành combo 2",
+    case: "—",
+    owner: "demo_kd2_b",
+    accounts: [{ bank: "MB" }, { bank: "MSBa" }],
+  },
+  {
+    name: "DEMO Đã tặng quà rồi",
+    idNumber: "079301004873",
+    case: "TH3",
+    owner: "demo_kd1_truong",
+    accounts: [{ bank: "MB" }, { bank: "VPa" }, { bank: "MSBa" }],
+    gifted: true,
+  },
+  {
+    name: "DEMO Có bản nháp đang giữ chỗ mã",
+    case: "TH1",
+    owner: "demo_kd1_truong",
+    accounts: [{ bank: "MB" }, { bank: "VPa" }, { bank: "TPB", draft: true }],
+    insurance: 1,
+  },
+];
+
+/** Khách độn cho phân trang — P-40 cắt 15 dòng một trang. */
+const FILLER_COUNT = 24;
+
+/* ── Dựng ──────────────────────────────────────────────────────────────── */
+
+async function build() {
+  const bankIdByCode = new Map(
+    (await db.select({ id: banks.id, code: banks.code }).from(banks)).map((b) => [b.code, b.id]),
+  );
+  const deptIdByCode = new Map(
+    (await db.select({ id: departments.id, code: departments.code }).from(departments)).map((d) => [
+      d.code,
+      d.id,
+    ]),
+  );
+  const channelIdByCode = new Map(
+    (await db.select({ id: channels.id, code: channels.code }).from(channels)).map((c) => [
+      c.code,
+      c.id,
+    ]),
+  );
+  const serviceTypeRows = await db.select({ id: serviceTypes.id }).from(serviceTypes);
+
+  if (bankIdByCode.size === 0 || deptIdByCode.size === 0)
+    throw new Error("Chưa có danh mục — chạy `bun run db:seed` trước.");
+
+  /* Nhân sự */
+  const hash = hashSync(PASSWORD, 10);
+  const userIdByName = new Map<string, string>();
+  for (const [i, s] of STAFF.entries()) {
+    const [row] = await db
+      .insert(users)
+      .values({
+        username: s.username,
+        staffCode: `DEMO-${String(i + 1).padStart(3, "0")}`,
+        passwordHash: hash,
+        fullName: s.fullName,
+        phone: `09770000${String(i).padStart(2, "0")}`,
+        role: s.role,
+        title: s.role === "head" ? "Trưởng phòng" : "Nhân viên",
+        departmentId: deptIdByCode.get(s.dept)!,
+        manageScope: s.role === "head" ? "listed" : "none",
+      })
+      .returning({ id: users.id });
+    userIdByName.set(s.username, row.id);
+
+    await db.insert(userPermissions).values(
+      ROLE_PERMISSIONS[s.role].map((p) => ({
+        userId: row.id,
+        module: p.module,
+        action: p.action,
+        scope: p.scope,
+      })),
+    );
+    // Trưởng phòng KHÔNG có dòng này thì phạm vi `phòng tôi quản` phân giải ra
+    // tập rỗng, và mọi màn nghiệp vụ của họ trắng trơn.
+    if (s.role === "head")
+      await db.insert(userManagedDepartments).values({ userId: row.id, departmentId: deptIdByCode.get(s.dept)! });
+  }
+
+  /* Kho mã — mỗi ngân hàng một mã đủ chỗ cho cả bộ mẫu. */
+  const codeIdByBank = new Map<string, string>();
+  for (const [code, id] of bankIdByCode) {
+    const [row] = await db
+      .insert(referralCodes)
+      .values({ bankId: id, code: `${TAG}-${code}`, total: 200 })
+      .returning({ id: referralCodes.id });
+    codeIdByBank.set(code, row.id);
+  }
+
+  /* Khách + tài khoản + đơn + dịch vụ */
+  const touchedCustomers: string[] = [];
+  const touchedOwners = new Set<string>();
+  let phoneSeq = 0;
+  let orderSeq = 0;
+
+  for (const [i, c] of CUSTOMERS.entries()) {
+    const ownerId = userIdByName.get(c.owner)!;
+    const deptId = deptIdByCode.get(STAFF.find((s) => s.username === c.owner)!.dept)!;
+    touchedOwners.add(ownerId);
+
+    const [customer] = await db
+      .insert(customers)
+      .values({
+        fullName: c.name,
+        idNumber: c.idNumber ?? null,
+        address: "DEMO địa chỉ",
+        channelId: c.channel ? (channelIdByCode.get(c.channel) ?? null) : null,
+        createdBy: ownerId,
+      })
+      .returning({ id: customers.id });
+    touchedCustomers.push(customer.id);
+
+    await db.insert(customerPhones).values({
+      customerId: customer.id,
+      number: `0912${String(100000 + phoneSeq++).padStart(6, "0")}`,
+      isPrimary: true,
+    });
+    // Khách đầu có thêm số phụ — ca "tìm ra khách qua số KHÔNG phải số chính".
+    if (i === 0)
+      await db
+        .insert(customerPhones)
+        .values({ customerId: customer.id, number: "0987654321", isPrimary: false });
+
+    for (const [k, a] of c.accounts.entries()) {
+      await db.insert(bankAccounts).values({
+        customerId: customer.id,
+        bankId: bankIdByCode.get(a.bank)!,
+        referralCodeId: codeIdByBank.get(a.bank)!,
+        status: a.draft ? "creating" : "done",
+        accountNumber: a.draft ? null : `DEMO${i}${k}`,
+        openedDate: a.draft ? null : day(3 + (i % 20)),
+        appInstalled: a.app ?? true,
+        createdBy: ownerId,
+        createdByDepartmentId: deptId,
+      });
+    }
+
+    // Đơn bảo hiểm rải đều bốn trạng thái đang dùng, để P-13 lọc ra dòng nào
+    // cũng có dữ liệu và hàng đợi làm tay P-15 không rỗng.
+    const STATUSES = ["manual-queued", "manual-progress", "done", "manual-queued"] as const;
+    for (let n = 0; n < (c.insurance ?? 0); n++) {
+      await db.insert(insuranceOrders).values({
+        orderCode: `DEMO-${MONTH.slice(2, 4)}${MONTH.slice(5, 7)}-${String(++orderSeq).padStart(3, "0")}`,
+        customerId: customer.id,
+        product: n % 2 === 0 ? "motorbike" : "electric-accident",
+        packageName: n % 2 === 0 ? "1 năm BH xe máy" : "1 năm BH tai nạn điện",
+        fee: 100_000,
+        orderDate: day(5 + n),
+        startDate: day(5 + n),
+        endDate: `${Number(MONTH.slice(0, 4)) + 1}-${MONTH.slice(5, 7)}-05`,
+        status: STATUSES[n % STATUSES.length],
+        source: "self",
+        beneficiaryName: c.name,
+        licensePlate: n % 2 === 0 ? `59X1-${i}${n}` : "",
+        vehicleType: n % 2 === 0 ? "1001" : "",
+        createdBy: ownerId,
+        createdByDepartmentId: deptId,
+      });
+    }
+
+    for (let n = 0; n < (c.services ?? 0); n++) {
+      await db.insert(services).values({
+        customerId: customer.id,
+        serviceTypeId: serviceTypeRows[n % serviceTypeRows.length].id,
+        serviceDate: day(7 + n),
+        note: "DEMO lượt dịch vụ",
+        createdBy: ownerId,
+        createdByDepartmentId: deptId,
+      });
+    }
+  }
+
+  /* Khách độn — đủ hai trang ở P-40 mà không lẫn vào các ca trên. */
+  const fillerOwner = userIdByName.get("demo_kd2_a")!;
+  for (let i = 0; i < FILLER_COUNT; i++) {
+    const [row] = await db
+      .insert(customers)
+      .values({ fullName: `DEMO-PG Khách độn ${i + 1}`, address: "DEMO", createdBy: fillerOwner })
+      .returning({ id: customers.id });
+    await db.insert(customerPhones).values({
+      customerId: row.id,
+      number: `0913${String(200000 + i).padStart(6, "0")}`,
+      isPrimary: true,
+    });
+  }
+  touchedOwners.add(fillerOwner);
+
+  /* Điểm KPI và trường hợp quà KHÔNG tự sinh khi ghi thẳng vào bảng — đường
+     tính lại nằm ở tầng ứng dụng, mà script này đi tắt xuống database. */
+  for (const id of touchedCustomers) await recomputeGiftCase(id);
+  for (const ownerId of touchedOwners) await recomputeKpi(ownerId, MONTH);
+
+  /* Một đợt quà ĐÃ CHỐT, dựng sau khi có `gift_case` để snapshot đúng thật. */
+  const gifted = CUSTOMERS.findIndex((c) => c.gifted);
+  if (gifted >= 0) {
+    const customerId = touchedCustomers[gifted];
+    const snapshot = await giftForCustomer(customerId);
+    await db.insert(giftGrants).values({
+      customerId,
+      grantedBy: userIdByName.get(CUSTOMERS[gifted].owner)!,
+      cashTotal: snapshot.cashTotal,
+      chosenItem: snapshot.basket[0]?.name ?? "Từ chối nhận quà",
+      snapshot,
+    });
+  }
+
+  console.log(
+    `Dựng xong (ngày ${businessDay()}): ${STAFF.length} nhân viên · ` +
+      `${CUSTOMERS.length} khách theo ca + ${FILLER_COUNT} khách độn · ` +
+      `mật khẩu tất cả là "${PASSWORD}".`,
+  );
+  // Nói ra vì nó làm cả bảng KPI đỏ và trông như lỗi: chỉ tiêu mặc định 100
+  // điểm là của thang CŨ, thang mới trần 1.2 điểm mỗi khách (thể lệ câu 7.12).
+  console.log(
+    "⚠️ Chỉ tiêu KPI đang là 100 điểm/tháng — thang mới nhỏ hơn nhiều nên mọi " +
+      "nhân viên sẽ hiện “chưa đạt”. Đặt lại ở màn Chỉ tiêu KPI (P-83).",
+  );
+}
+
+async function main() {
+  await clean();
+  if (process.argv.includes("--clean")) return;
+  await build();
+}
+
+main()
+  .then(() => process.exit(0))
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  });

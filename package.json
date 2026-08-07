@@ -11,6 +11,7 @@
     "db:migrate": "bun --env-file=.env.local scripts/db-migrate.ts",
     "db:seed": "bun --env-file=.env.local scripts/db-seed.ts",
     "db:recount": "bun --env-file=.env.local scripts/db-recount.ts",
+    "db:demo": "bun --env-file=.env.local scripts/db-demo.ts",
     "db:grant-missing": "bun --env-file=.env.local scripts/db-grant-missing-permissions.ts",
     "kpi:recompute": "bun --env-file=.env.local scripts/kpi-recompute.ts",
     "test:rules": "bun scripts/test-rules.ts",
