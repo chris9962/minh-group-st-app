@@ -17,19 +17,38 @@
   color: var(--om-text-2);
 }
 
+/* Lưới cột cố định thay vì dòng chảy tràn: mã ngân hàng thẳng hàng nhau nên
+   dò bằng mắt là ra, không phải đọc từng chữ. */
 .banks {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 2px 18px;
 }
 
-/* Ô "đã cài app" nằm ngay cạnh ngân hàng nó thuộc về, không phải một cột riêng
-   ở cuối — luật xét từng tài khoản, giao diện phải đọc ra được điều đó. */
+/* Mã ngân hàng bên trái, ô "đã cài app" thẳng cột bên phải. Cột thứ hai rộng
+   cố định để mọi dòng cắt cùng một chỗ, kể cả mã dài ngắn khác nhau. */
 .bankRow {
-  display: inline-flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 110px;
   align-items: center;
-  gap: 10px;
-  padding: 2px 8px 2px 0;
+  gap: 8px;
+  padding: 5px 6px;
+  border-radius: var(--radius-sm);
+}
+
+/* Dòng đã chọn nổi nền nhạt — nhìn một lượt là biết khách mở mấy ngân hàng,
+   không phải đếm dấu tích. */
+.bankRowOn {
+  background: var(--om-soft);
+}
+
+/* Chưa chọn ngân hàng thì ô "đã cài app" mờ CẢ CHỮ, không chỉ mờ cái hộp: chữ
+   đậm nằm cạnh một cái hộp mờ vẫn trông như còn bấm được. */
+.bankRow:not(.bankRowOn) > :last-child {
+  opacity: 0.5;
 }
 
 .row {
