@@ -1,15 +1,16 @@
-import type { ScoringAccount } from "./index";
+import type { GiftCash, GiftChoice, GiftInput, GiftResult, ScoringAccount } from "./index";
 
 /**
- * Thể lệ kỳ **2026-08** — phần TÍNH ĐIỂM.
+ * Thể lệ kỳ **2026-08** — điểm KPI và quà tặng.
  *
- * Nguồn: `../../../mgst-the-le/2026-08.md`, mục 1 (phân hạng ngân hàng), mục 2
- * (bảng điểm theo tổ hợp) và mục 4 lưu ý 1. Quà tặng (mục 3) chưa viết ở đây —
- * còn ba câu chưa chốt: 7.5, 7.6, 7.10.
+ * Nguồn: `../../../mgst-the-le/2026-08.md` mục 1 (phân hạng ngân hàng), mục 2
+ * (bảng điểm), mục 3 (bảng quà TH1–TH6), mục 4 (hai lưu ý). Thể lệ chỉ ghi "01
+ * năm BH" mà không nói gói nào, nên phần rổ quà lấy theo spec §5.2 — hai tài
+ * liệu khớp nhau từng bậc, xem `giftOf`.
  *
  * File của một kỳ ĐÓNG BĂNG VĨNH VIỄN (spec §5.3). Tháng sau thể lệ đổi thì
  * thêm `2026-09.ts`, không sửa file này: sửa nó là đổi điểm của một kỳ đã trả
- * lương xong.
+ * lương xong và đổi quà đã hứa với khách.
  *
  * Chạy thử: `bun run test:rules` (`scripts/test-rules.ts`).
  */
@@ -91,33 +92,46 @@ const signatureOf = (bankCodes: string[]): string =>
     .map((s) => s.letter)
     .join("");
 
+/** Tổ hợp thắng của một khách. `size` 0 nghĩa là không thành combo nào. */
+type Combo = { tenths: number; size: 0 | 2 | 3; codes: string[] };
+
+const NO_COMBO: Combo = { tenths: 0, size: 0, codes: [] };
+
 /**
- * Điểm của MỘT khách, đơn vị 1/10 điểm.
+ * Tổ hợp CHO ĐIỂM CAO NHẤT của một khách — dùng chung cho cả điểm lẫn quà.
  *
- * Lấy tổ hợp CHO ĐIỂM CAO NHẤT, không lấy theo số tài khoản (chốt 07/08, câu
- * 7.4): dữ liệu có dư 4 tài khoản thì bỏ bớt cái kéo điểm xuống.
+ * Lấy theo điểm chứ không theo số tài khoản (chốt 07/08, câu 7.4): dữ liệu có
+ * dư 4 tài khoản thì bỏ bớt cái kéo điểm xuống.
  *
  * Duyệt cả tổ hợp 2 lẫn tổ hợp 3 rồi lấy max. Duyệt tổ hợp 2 KHÔNG phải để hạ
- * điểm khách có 3 tài khoản: mọi dòng combo 3 đều cao hơn tổ hợp 2 nằm trong
- * nó (thấp nhất 0.5 so với 0.4), nên khi tổ hợp 3 hợp lệ thì nó luôn thắng.
- * Nhánh combo 2 chỉ đỡ ca bảng không có dòng nào khớp.
+ * điểm khách có 3 tài khoản: mọi dòng combo 3 đều cao hơn HẲN tổ hợp 2 nằm
+ * trong nó (thấp nhất 0.5 so với 0.4), nên tổ hợp 3 hợp lệ thì luôn thắng và
+ * không bao giờ hoà. Nhánh combo 2 chỉ đỡ ca bảng không có dòng nào khớp.
  *
  * Số tổ hợp phải duyệt chỉ hàng chục — mỗi khách tối đa 3 tài khoản theo luật
  * ngoài đời, và danh mục có 10 mã ngân hàng tham gia. Không đáng tối ưu.
  */
-function comboTenths(bankCodes: string[]): number {
+function bestComboOf(bankCodes: string[]): Combo {
   // Trùng mã chỉ tính một lần: "02 Bank ưu tiên" nghĩa là hai NGÂN HÀNG khác
   // nhau, hai tài khoản cùng một ngân hàng không thành combo.
   const codes = [...new Set(bankCodes)].filter((code) => code in TIER_OF);
 
-  let best = 0;
+  let best = NO_COMBO;
+  const keep = (tenths: number, size: 2 | 3, picked: string[]) => {
+    if (tenths > best.tenths) best = { tenths, size, codes: picked };
+  };
+
   for (let i = 0; i < codes.length; i += 1)
     for (let j = i + 1; j < codes.length; j += 1) {
-      for (let k = j + 1; k < codes.length; k += 1)
-        best = Math.max(best, COMBO_3_TENTHS[signatureOf([codes[i], codes[j], codes[k]])] ?? 0);
+      for (let k = j + 1; k < codes.length; k += 1) {
+        const three = [codes[i], codes[j], codes[k]];
+        keep(COMBO_3_TENTHS[signatureOf(three)] ?? 0, 3, three);
+      }
 
-      if (!OUT_OF_COMBO_2.has(codes[i]) && !OUT_OF_COMBO_2.has(codes[j]))
-        best = Math.max(best, COMBO_2_TENTHS[signatureOf([codes[i], codes[j]])] ?? 0);
+      if (!OUT_OF_COMBO_2.has(codes[i]) && !OUT_OF_COMBO_2.has(codes[j])) {
+        const two = [codes[i], codes[j]];
+        keep(COMBO_2_TENTHS[signatureOf(two)] ?? 0, 2, two);
+      }
     }
 
   return best;
@@ -133,7 +147,7 @@ export const bankTierOf = (bankCode: string): Tier | null => TIER_OF[bankCode] ?
  * đó. Dùng `bankingPoints` cho đường tính điểm thật; hàm này để dựng ca thử và
  * để module quà dùng lại phép gom combo.
  */
-export const comboPointsFor = (bankCodes: string[]): number => comboTenths(bankCodes) / 10;
+export const comboPointsFor = (bankCodes: string[]): number => bestComboOf(bankCodes).tenths / 10;
 
 /**
  * Điểm ngân hàng của MỘT người trong kỳ.
@@ -145,14 +159,158 @@ export const comboPointsFor = (bankCodes: string[]): number => comboTenths(bankC
 export function bankingPoints(accounts: ScoringAccount[]): number {
   const codesByCustomer = new Map<string, string[]>();
 
-  for (const account of accounts) {
-    if (REQUIRES_APP.has(account.bankCode) && !account.appInstalled) continue;
-    const codes = codesByCustomer.get(account.customerId);
-    if (codes) codes.push(account.bankCode);
-    else codesByCustomer.set(account.customerId, [account.bankCode]);
+  for (const code of comboCodesOf(accounts)) {
+    const codes = codesByCustomer.get(code.customerId);
+    if (codes) codes.push(code.bankCode);
+    else codesByCustomer.set(code.customerId, [code.bankCode]);
   }
 
   let tenths = 0;
-  for (const codes of codesByCustomer.values()) tenths += comboTenths(codes);
+  for (const codes of codesByCustomer.values()) tenths += bestComboOf(codes).tenths;
   return tenths / 10;
+}
+
+/** Tài khoản còn được vào combo sau khi lọc điều kiện cài app (câu 7.8). */
+const comboCodesOf = (accounts: ScoringAccount[]): ScoringAccount[] =>
+  accounts.filter((a) => !REQUIRES_APP.has(a.bankCode) || a.appInstalled);
+
+/* ── Mục 3 · quà tặng ────────────────────────────────────────────────── */
+
+/**
+ * Tiền mặt của từng ngân hàng (mục 1, cột Ghi chú).
+ *
+ * `withinDays` là HẠN CÔNG TY PHẢI CHI, không phải điều kiện của khách. Mốc bắt
+ * đầu đếm chưa chốt (câu 7.7) nên nơi gọi tự quyết định đếm từ ngày nào — file
+ * luật chỉ nói số ngày.
+ */
+const CASH_OF: Record<string, Omit<GiftCash, "reason">> = {
+  VPa: { bankCode: "VPa", amount: 20_000, withinDays: 3 },
+  MSBa: { bankCode: "MSBa", amount: 50_000, withinDays: 10 },
+};
+
+/**
+ * Rổ bảo hiểm theo số năm thể lệ hứa.
+ *
+ * Thể lệ chỉ ghi "01 năm BH" / "02 năm BH" mà không nói gói nào — danh sách gói
+ * lấy từ spec §5.2 bước 1, và hai tài liệu khớp nhau từng bậc:
+ *
+ *   spec "app ≥ 3 và có MSBa" = thể lệ TH3/TH4 (Combo 3 có B4a) → 1 năm
+ *   spec "app ≥ 3"            = thể lệ TH5/TH6 (Combo 3 không B4a) → 2 năm
+ *   spec "app = 2"            = thể lệ TH1/TH2 (Combo 2) → 1 năm
+ *
+ * Mức 1 năm chỉ có hai gói đơn vì một năm còn lại đã quy đổi thành 50k tiền mặt
+ * (spec §5.2, ghi chú dưới bảng).
+ */
+const INSURANCE_BASKET: Record<1 | 2, string[]> = {
+  1: ["BH-1N-XEMAY", "BH-1N-DIEN"],
+  2: ["BH-COMBO-1N", "BH-2N-XEMAY", "BH-2N-DIEN-100K", "BH-1N-DIEN-200K"],
+};
+
+/** Món thêm — spec §5.2 bước 2, mọi dòng khớp đều góp, không dừng ở dòng đầu. */
+const ITEMS_CNKD = ["QUA-LOA", "QUA-MICA"];
+const ITEMS_HOSPITAL = ["QUA-MI", "QUA-BH-SUC-KHOE", "QUA-NON-BH"];
+/** Lưu ý 2: Phòng Y quy đổi quà của TH5/TH6 sang vật phẩm. */
+const ITEMS_PHONG_Y = ["QUA-NON-BH", "QUA-MI"];
+
+const HOSPITAL_CHANNEL = "KENH-BENH-VIEN";
+const PHONG_Y = "PHONG-Y";
+/** Hai mã này ngoài thể lệ nên không vào combo, nhưng vẫn mở thêm rổ quà. */
+const HOUSEHOLD_CODES = new Set(["CNKD", "HKD"]);
+
+/** Bậc thang mục 3 — KHỚP DÒNG ĐẦU THÌ DỪNG, không cộng dồn. */
+function caseOf(combo: Combo): { code: string; years: 1 | 2; cashBanks: string[] } | null {
+  const has = (bankCode: string) => combo.codes.includes(bankCode);
+
+  if (combo.size === 2) {
+    if (has("VPa")) return { code: "TH1", years: 1, cashBanks: ["VPa"] };
+    return { code: "TH2", years: 1, cashBanks: [] };
+  }
+
+  if (combo.size === 3) {
+    if (has("MSBa") && has("VPa")) return { code: "TH3", years: 1, cashBanks: ["VPa", "MSBa"] };
+    if (has("MSBa")) return { code: "TH4", years: 1, cashBanks: ["MSBa"] };
+    if (has("VPa")) return { code: "TH5", years: 2, cashBanks: ["VPa"] };
+    return { code: "TH6", years: 2, cashBanks: [] };
+  }
+
+  return null;
+}
+
+/**
+ * Quà của MỘT khách.
+ *
+ * Ba bước, đúng thứ tự spec §5.2: tiền mặt cộng dồn (khách không phải chọn) →
+ * rổ quà gộp lại → khách lấy đúng một món hoặc từ chối. Rổ trộn món giá trị rất
+ * khác nhau (2 năm bảo hiểm nằm cạnh gói mì) nên màn chọn quà phải hiện rõ giá
+ * trị từng món — chỗ đó là việc của giao diện, không phải của file này.
+ *
+ * ⚠️ Xét trên TỔ HỢP THẮNG, không phải trên mọi tài khoản khách có. Khách dư
+ * tài khoản mà `VPa` không nằm trong tổ hợp thắng thì không tính 20k của `VPa`.
+ * Ca này chỉ xảy ra với dữ liệu dư (luật ngoài đời giới hạn 3 tài khoản).
+ */
+export function gift(input: GiftInput): GiftResult {
+  const eligible = comboCodesOf(input.accounts);
+  const combo = bestComboOf(eligible.map((a) => a.bankCode));
+  const matched = caseOf(combo);
+  const explain: string[] = [];
+
+  if (!matched) {
+    explain.push(
+      combo.size === 0 && eligible.length > 0
+        ? "Khách chưa đủ tổ hợp 2 ngân hàng theo thể lệ nên chưa có quà."
+        : "Khách chưa mở tài khoản nào tính được vào thể lệ.",
+    );
+    return { caseCode: null, insuranceYears: 0, cash: [], cashTotal: 0, basket: [], explain };
+  }
+
+  explain.push(
+    `Tổ hợp ${combo.size} ngân hàng: ${combo.codes.join(" + ")} — trường hợp ${matched.code}.`,
+  );
+
+  const cash: GiftCash[] = matched.cashBanks.map((bankCode) => ({
+    ...CASH_OF[bankCode],
+    reason: `Mở ${bankCode} trong tổ hợp ${matched.code}`,
+  }));
+  for (const c of cash)
+    explain.push(`Tặng ${c.amount.toLocaleString("vi-VN")}đ vào ${c.bankCode}, chi trong ${c.withinDays} ngày.`);
+
+  const basket: GiftChoice[] = INSURANCE_BASKET[matched.years].map((code) => ({
+    kind: "insurance-package" as const,
+    code,
+    reason: `${matched.years} năm bảo hiểm của ${matched.code}`,
+  }));
+  explain.push(`Được ${matched.years} năm bảo hiểm — chọn 1 gói trong rổ.`);
+
+  const addItems = (codes: string[], reason: string) => {
+    for (const code of codes) {
+      if (basket.some((b) => b.code === code)) continue;
+      basket.push({ kind: "gift-item", code, reason });
+    }
+  };
+
+  // Điều kiện dưới đây độc lập với số tài khoản (spec §5.2, câu hỏi cuối mục).
+  const hasHousehold = input.accounts.some((a) => HOUSEHOLD_CODES.has(a.bankCode));
+  if (combo.codes.includes("VPa") && hasHousehold) {
+    addItems(ITEMS_CNKD, "Mở VPa kèm CNKD/HKD");
+    explain.push("Mở VPa kèm CNKD hoặc HKD nên rổ có thêm Loa và Bảng mica.");
+  }
+
+  if (input.channelCodes.includes(HOSPITAL_CHANNEL)) {
+    addItems(ITEMS_HOSPITAL, "Khách đến từ kênh Bệnh viện");
+    explain.push("Khách đến từ kênh Bệnh viện nên rổ có thêm Mì, BH sức khoẻ và Nón bảo hiểm.");
+  }
+
+  if (input.departmentCode === PHONG_Y && (matched.code === "TH5" || matched.code === "TH6")) {
+    addItems(ITEMS_PHONG_Y, "Phòng Y quy đổi quà TH5/TH6");
+    explain.push("Phòng Y được quy đổi quà sang vật phẩm nên rổ có thêm Nón bảo hiểm và Mì.");
+  }
+
+  return {
+    caseCode: matched.code,
+    insuranceYears: matched.years,
+    cash,
+    cashTotal: cash.reduce((sum, c) => sum + c.amount, 0),
+    basket,
+    explain,
+  };
 }

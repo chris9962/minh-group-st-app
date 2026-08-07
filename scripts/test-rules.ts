@@ -10,20 +10,27 @@
  * Điểm KPI dính tới lương, nên ca thử bám SÁT `mgst-the-le/2026-08.md`: đủ 10
  * dòng bảng điểm, cả hai lưu ý ở mục 4, và bốn quyết định chốt 07/08.
  */
-import { bankingPointsFor, hasRulesFor, type ScoringAccount } from "../src/rules";
+import { bankingPointsFor, giftFor, hasRulesFor, type GiftResult, type ScoringAccount } from "../src/rules";
 import { comboPointsFor } from "../src/rules/2026-08";
 
 const PERIOD = "2026-08";
 
+type Value = number | boolean | string | null;
+
 let passed = 0;
 const failures: string[] = [];
 
-function check(name: string, actual: number | boolean, expected: number | boolean): void {
+function check(name: string, actual: Value, expected: Value): void {
   if (Object.is(actual, expected)) {
     passed += 1;
     return;
   }
   failures.push(`${name}\n      mong ${expected} · nhận ${actual}`);
+}
+
+/** So danh sách mã, KHÔNG theo thứ tự — thứ tự trong rổ là việc của giao diện. */
+function checkCodes(name: string, actual: string[], expected: string[]): void {
+  check(name, [...actual].sort().join(" · "), [...expected].sort().join(" · "));
 }
 
 function section(title: string): void {
@@ -266,6 +273,175 @@ check(
   ]),
   1.6,
 );
+
+/* ══ QUÀ TẶNG · mục 3 và mục 4 lưu ý 2 ═══════════════════════════════ */
+
+/**
+ * `"VPa"` là đã cài app, `"VPa!"` là chưa cài — dấu chấm than cho ca thử đọc
+ * được trong một dòng, không phải cú pháp của luật.
+ */
+const giftOf = (
+  bankCodes: string[],
+  opts: { channels?: string[]; department?: string; at?: string } = {},
+): GiftResult => {
+  const accounts = bankCodes.map((spec) =>
+    account("kh1", spec.replace("!", ""), { app: !spec.endsWith("!") }),
+  );
+  const result = giftFor(
+    {
+      accounts,
+      channelCodes: opts.channels ?? [],
+      departmentCode: opts.department ?? null,
+    },
+    opts.at ?? `${PERIOD}-15`,
+  );
+  if (!result) throw new Error(`Không có luật cho ngày ${opts.at}`);
+  return result;
+};
+
+const BH_1N = ["BH-1N-XEMAY", "BH-1N-DIEN"];
+const BH_2N = ["BH-COMBO-1N", "BH-2N-XEMAY", "BH-2N-DIEN-100K", "BH-1N-DIEN-200K"];
+
+section("Bậc thang TH1 → TH6 (6 dòng)");
+check("TH1 · Combo 2 có VPa", giftOf(["MB", "VPa"]).caseCode, "TH1");
+check("TH2 · Combo 2 không VPa", giftOf(["MB", "LBP"]).caseCode, "TH2");
+check("TH3 · Combo 3 có cả MSBa và VPa", giftOf(["MB", "VPa", "MSBa"]).caseCode, "TH3");
+check("TH4 · Combo 3 chỉ có MSBa", giftOf(["MB", "MSBa", "LBP"]).caseCode, "TH4");
+check("TH5 · Combo 3 chỉ có VPa", giftOf(["MB", "VPa", "LBP"]).caseCode, "TH5");
+check("TH6 · Combo 3 không có cả hai", giftOf(["LBP", "TPB", "VIB"]).caseCode, "TH6");
+
+section("Số năm bảo hiểm theo từng trường hợp");
+check("TH1 · 1 năm", giftOf(["MB", "VPa"]).insuranceYears, 1);
+check("TH2 · 1 năm", giftOf(["MB", "LBP"]).insuranceYears, 1);
+check("TH3 · 1 năm", giftOf(["MB", "VPa", "MSBa"]).insuranceYears, 1);
+check("TH4 · 1 năm", giftOf(["MB", "MSBa", "LBP"]).insuranceYears, 1);
+check("TH5 · 2 năm", giftOf(["MB", "VPa", "LBP"]).insuranceYears, 2);
+check("TH6 · 2 năm", giftOf(["LBP", "TPB", "VIB"]).insuranceYears, 2);
+
+section("Tiền mặt");
+check("TH1 · 20k", giftOf(["MB", "VPa"]).cashTotal, 20_000);
+check("TH2 · không tiền", giftOf(["MB", "LBP"]).cashTotal, 0);
+check("TH3 · 70k", giftOf(["MB", "VPa", "MSBa"]).cashTotal, 70_000);
+check("TH4 · 50k", giftOf(["MB", "MSBa", "LBP"]).cashTotal, 50_000);
+check("TH5 · 20k", giftOf(["MB", "VPa", "LBP"]).cashTotal, 20_000);
+check("TH6 · không tiền", giftOf(["LBP", "TPB", "VIB"]).cashTotal, 0);
+checkCodes(
+  "TH3 · 70k chia hai ngân hàng",
+  giftOf(["MB", "VPa", "MSBa"]).cash.map((c) => `${c.bankCode}:${c.amount}`),
+  ["VPa:20000", "MSBa:50000"],
+);
+check("VPa chi trong 3 ngày", giftOf(["MB", "VPa"]).cash[0].withinDays, 3);
+check("MSBa chi trong 10 ngày", giftOf(["MB", "MSBa", "LBP"]).cash[0].withinDays, 10);
+
+section("Bậc thang KHỚP DÒNG ĐẦU THÌ DỪNG, không cộng dồn");
+check("TH3 không lấy thêm 2 năm của TH5", giftOf(["MB", "VPa", "MSBa"]).insuranceYears, 1);
+check("TH3 chỉ có đúng hai khoản tiền", giftOf(["MB", "VPa", "MSBa"]).cash.length, 2);
+check("TH4 không kèm 20k của VPa", giftOf(["MB", "MSBa", "LBP"]).cashTotal, 50_000);
+
+section("Không đủ combo thì không có quà");
+check("không tài khoản nào", giftOf([]).caseCode, null);
+check("một tài khoản", giftOf(["MB"]).caseCode, null);
+check("một tài khoản · 0 năm bảo hiểm", giftOf(["MB"]).insuranceYears, 0);
+check("một tài khoản · rổ rỗng", giftOf(["MB"]).basket.length, 0);
+check("MB + MSBa không thành Combo 2", giftOf(["MB", "MSBa"]).caseCode, null);
+check("MB + VPb không thành Combo 2", giftOf(["MB", "VPb"]).caseCode, null);
+check("vẫn giải thích được vì sao", giftOf(["MB"]).explain.length > 0, true);
+
+section("Điều kiện cài app cũng áp cho quà");
+check("VPa chưa cài → tụt xuống TH2", giftOf(["MB", "VPa!", "LBP"]).caseCode, "TH2");
+check("VPa chưa cài → mất 20k", giftOf(["MB", "VPa!", "LBP"]).cashTotal, 0);
+check("MSBa chưa cài → còn 2 ngân hàng, tụt xuống TH1", giftOf(["MB", "VPa", "MSBa!"]).caseCode, "TH1");
+check("MSBa chưa cài → 2 năm tụt còn 1 năm", giftOf(["MB", "VPa", "MSBa!"]).insuranceYears, 1);
+check("MSBa chưa cài → mất 50k", giftOf(["MB", "VPa", "MSBa!"]).cashTotal, 20_000);
+check("MSBa chưa cài, đủ 3 ngân hàng khác → TH5", giftOf(["MB", "VPa", "LBP", "MSBa!"]).caseCode, "TH5");
+check("LBP chưa cài vẫn tính", giftOf(["MB", "VPa", "LBP!"]).caseCode, "TH5");
+
+section("Rổ bảo hiểm");
+checkCodes("1 năm · hai gói", giftOf(["MB", "VPa"]).basket.map((b) => b.code), BH_1N);
+checkCodes("2 năm · bốn gói", giftOf(["MB", "VPa", "LBP"]).basket.map((b) => b.code), BH_2N);
+check(
+  "mọi món của mức bảo hiểm đều là gói bảo hiểm",
+  giftOf(["MB", "VPa", "LBP"]).basket.every((b) => b.kind === "insurance-package"),
+  true,
+);
+
+section("Món thêm — CNKD/HKD");
+checkCodes(
+  "VPa kèm CNKD",
+  giftOf(["MB", "VPa", "CNKD"]).basket.map((b) => b.code),
+  [...BH_1N, "QUA-LOA", "QUA-MICA"],
+);
+checkCodes(
+  "VPa kèm HKD tính như CNKD",
+  giftOf(["MB", "VPa", "HKD"]).basket.map((b) => b.code),
+  [...BH_1N, "QUA-LOA", "QUA-MICA"],
+);
+checkCodes(
+  "có CNKD nhưng không có VPa thì không thêm",
+  giftOf(["MB", "LBP", "CNKD"]).basket.map((b) => b.code),
+  BH_1N,
+);
+checkCodes(
+  "có VPa nhưng không có CNKD thì không thêm",
+  giftOf(["MB", "VPa"]).basket.map((b) => b.code),
+  BH_1N,
+);
+check("CNKD không tự thành combo", giftOf(["MB", "CNKD", "HKD"]).caseCode, null);
+
+section("Món thêm — kênh Bệnh viện");
+checkCodes(
+  "kênh Bệnh viện góp ba món",
+  giftOf(["MB", "VPa"], { channels: ["KENH-BENH-VIEN"] }).basket.map((b) => b.code),
+  [...BH_1N, "QUA-MI", "QUA-BH-SUC-KHOE", "QUA-NON-BH"],
+);
+checkCodes(
+  "kênh khác không góp gì",
+  giftOf(["MB", "VPa"], { channels: ["KENH-ATM"] }).basket.map((b) => b.code),
+  BH_1N,
+);
+check(
+  "khách một tài khoản ở bệnh viện vẫn không có rổ",
+  giftOf(["MB"], { channels: ["KENH-BENH-VIEN"] }).basket.length,
+  0,
+);
+
+section("Món thêm — Phòng Y quy đổi (lưu ý 2)");
+checkCodes(
+  "TH5 ở Phòng Y",
+  giftOf(["MB", "VPa", "LBP"], { department: "PHONG-Y" }).basket.map((b) => b.code),
+  [...BH_2N, "QUA-NON-BH", "QUA-MI"],
+);
+checkCodes(
+  "TH6 ở Phòng Y",
+  giftOf(["LBP", "TPB", "VIB"], { department: "PHONG-Y" }).basket.map((b) => b.code),
+  [...BH_2N, "QUA-NON-BH", "QUA-MI"],
+);
+checkCodes(
+  "TH3 ở Phòng Y KHÔNG được quy đổi",
+  giftOf(["MB", "VPa", "MSBa"], { department: "PHONG-Y" }).basket.map((b) => b.code),
+  BH_1N,
+);
+checkCodes(
+  "TH5 ở phòng khác không được quy đổi",
+  giftOf(["MB", "VPa", "LBP"], { department: "KD-1" }).basket.map((b) => b.code),
+  BH_2N,
+);
+checkCodes(
+  "bệnh viện và Phòng Y trùng món thì không nhân đôi",
+  giftOf(["LBP", "TPB", "VIB"], { channels: ["KENH-BENH-VIEN"], department: "PHONG-Y" }).basket.map(
+    (b) => b.code,
+  ),
+  [...BH_2N, "QUA-MI", "QUA-BH-SUC-KHOE", "QUA-NON-BH"],
+);
+
+section("Quà tra luật theo NGÀY");
+check(
+  "trước ngày thể lệ có hiệu lực thì chưa tính được",
+  giftFor({ accounts: [], channelCodes: [], departmentCode: null }, "2026-07-31") === null,
+  true,
+);
+check("đúng ngày đầu kỳ đã tính được", giftOf(["MB", "VPa"], { at: "2026-08-01" }).caseCode, "TH1");
+check("sang tháng sau vẫn dùng luật này", giftOf(["MB", "VPa"], { at: "2026-09-20" }).caseCode, "TH1");
 
 /* ── Kết quả ────────────────────────────────────────────────────────── */
 

@@ -522,10 +522,11 @@ export async function startBankAccount(
  * CNKD/HKD có `counts_as_app = false`: tính điểm KPI nhưng KHÔNG cộng vào tổng
  * app khi xét quà (spec §4.9) — nên phép đếm này lọc theo `counts_as_app`.
  *
- * TODO(P-20, chờ `src/rules/YYYY-MM.ts`): spec §4.8 đòi ba luật này nằm CÙNG
- * bảng quy tắc sửa được với quy tắc quà, vì chúng đổi cùng nhau theo chương
- * trình của ngân hàng. File luật của kỳ chưa có nên tạm để ở đây; chuyển sang
- * đó khi 12 câu hỏi trong `mgst-the-le/2026-08.md` §7 có trả lời.
+ * TODO(P-20, chờ chốt câu 7.2 và 7.3): spec §4.8 đòi ba luật này nằm CÙNG chỗ
+ * với quy tắc quà, vì chúng đổi cùng nhau theo chương trình của ngân hàng.
+ * Chuyển sang `src/rules/` được rồi, nhưng ba câu cảnh báo đang đếm theo "tổng
+ * app" của luật CŨ — viết lại theo combo thì phải biết `TCB`/`CNKD`/`HKD` có
+ * tham gia không (câu 7.2) và mở lẻ một tài khoản có cảnh báo gì không (7.3).
  */
 async function warningsFor(customerId: string): Promise<string[]> {
   const rows = await db

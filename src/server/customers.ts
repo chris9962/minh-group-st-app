@@ -201,10 +201,15 @@ function decorate(page: ReturnType<typeof pickPage>) {
  * Tổng đếm bằng câu thứ hai trên ĐÚNG bộ lọc đó, không phải `rows.length`: nói
  * nhầm thì thanh phân trang hiện "1–15 trên 15" ở mọi trang.
  *
- * TODO(P-40, chờ `src/rules/YYYY-MM.ts`): cột trạng thái quà chỉ phân biệt được
- * "đã tặng" (có dòng `gift_grants`) với "chưa" — KHÔNG tính được `eligible`, vì
- * đủ điều kiện hay không là luật của kỳ, mà file luật chưa có. Gỡ mốc ở cả hai
- * đầu; đầu kia ở `lib/api/customers.ts`.
+ * TODO(P-40, chờ nối `giftFor` vào câu truy vấn): cột trạng thái quà chỉ phân
+ * biệt được "đã tặng" (có dòng `gift_grants`) với "chưa" — chưa tính `eligible`.
+ *
+ * Luật quà đã có (`src/rules/2026-08.ts`), nhưng nó là hàm JavaScript nên chạy
+ * được nó cho từng khách nghĩa là kéo tài khoản của CẢ KHO về rồi lọc ở tầng
+ * ứng dụng — đúng thứ AGENTS.md §5.2 cấm, vì P-40 có ô LỌC theo trạng thái quà.
+ * Cách đi được: một cột lưu sẵn do `giftFor` ghi lại mỗi lần tài khoản của khách
+ * đổi, cùng lối `customers.account_count`. Gỡ mốc ở cả hai đầu; đầu kia ở
+ * `lib/api/customers.ts`.
  */
 export async function listCustomers(
   filters: CustomerFilters,
@@ -586,9 +591,12 @@ export async function customerDetailFor(
     services: servicesDone,
     servicesHiddenCount: serviceRows.length - visibleServices.length,
     /**
-     * TODO(P-42, chờ `src/rules/YYYY-MM.ts`): rổ quà và tiền mặt luôn RỖNG —
-     * quy tắc quà là chính sách nằm ở code theo kỳ (quyết định 03/08) và file
-     * luật của kỳ chưa có, nên ở đây không có gì để tính.
+     * TODO(P-42, chờ nối `giftFor`): rổ quà và tiền mặt luôn RỖNG.
+     *
+     * Luật đã có (`src/rules/2026-08.ts` — `gift`), chỉ còn việc gọi: gom tài
+     * khoản `done` của khách + mã kênh + mã phòng người phụ trách, gọi `giftFor`,
+     * rồi đổi mã món trong kết quả sang tên trong danh mục `gift_items` /
+     * `insurance_packages`.
      *
      * Trả 0 và mảng rỗng chứ không bịa số: một con số khác 0 trông như đã tính
      * xong, nhân viên sẽ đọc nó rồi đi phát quà. Đợt đã chốt thì lấy đúng

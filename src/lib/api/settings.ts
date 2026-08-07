@@ -161,12 +161,14 @@ async function send(url: string, method: string, body?: unknown) {
 }
 
 /**
- * TODO(P-81, chờ `src/rules/2026-08.ts`): route CHƯA TỒN TẠI, gọi vào là 404.
+ * TODO(P-81, chờ dựng route + sửa hình dạng tham số): route CHƯA TỒN TẠI, gọi
+ * vào là 404.
  *
- * Màn thử quy tắc quà không chạy được cho tới khi có file luật của kỳ — quy tắc
- * quà là chính sách nằm ở code, không phải dữ liệu trong bảng (quyết định
- * 03/08). Gỡ mốc này ở cả hai đầu khi dựng
- * `src/app/api/settings/gift-rules/simulate/route.ts`.
+ * Luật đã có (`src/rules/2026-08.ts`), nhưng `GiftSimulateInput` bên dưới còn
+ * mang từ vựng của luật CŨ: `installedBanks` + `cnkd` không đủ, vì luật mới cần
+ * biết TỪNG tài khoản mở ở ngân hàng nào và đã cài app chưa, cộng mã phòng của
+ * người phụ trách (Phòng Y quy đổi quà). Sửa hình dạng trước rồi mới dựng
+ * `src/app/api/settings/gift-rules/simulate/route.ts`. Gỡ mốc ở cả hai đầu.
  */
 export const simulateGift = (input: GiftSimulateInput): Promise<GiftSimulateResult> =>
   send('/api/settings/gift-rules/simulate', 'POST', input).then(GiftSimulateResult.parse);

@@ -396,13 +396,14 @@ async function giftsBlock(
     .orderBy(sql`count(*) desc`);
 
   /**
-   * TODO(P-80 Tổng quan, chờ `src/rules/YYYY-MM.ts`): "khách đủ điều kiện nhưng
-   * chưa phát quà" luôn bằng 0.
+   * TODO(P-80 Tổng quan, chờ cột trạng thái quà lưu sẵn): "khách đủ điều kiện
+   * nhưng chưa phát quà" luôn bằng 0.
    *
-   * Đếm được nó nghĩa là chạy được thể lệ quà trên từng khách, mà thể lệ nằm ở
-   * file luật của kỳ và file đó chưa có (12 câu hỏi ở `mgst-the-le/2026-08.md`
-   * §7). Trả 0 chứ không bịa: một con số khác 0 ở thẻ này là lệnh cho nhân viên
-   * đi phát quà.
+   * Luật đã có, nhưng đếm bằng cách chạy `giftFor` cho từng khách nghĩa là kéo
+   * cả kho tài khoản về tầng ứng dụng mỗi lần mở màn Tổng quan. Con số này đi
+   * cùng cột trạng thái quà của P-40 — dựng cột lưu sẵn ở đó thì thẻ này chỉ
+   * còn là một câu `count`. Trả 0 chứ không bịa: một con số khác 0 ở thẻ này là
+   * lệnh cho nhân viên đi phát quà.
    */
   return { byType, pending: 0 };
 }

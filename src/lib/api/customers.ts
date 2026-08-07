@@ -54,10 +54,10 @@ export type Customer = z.infer<typeof Customer>;
 /**
  * Một dòng ở P-40 — tóm tắt, không phải hồ sơ đầy đủ.
  *
- * TODO(P-40, chờ `src/rules/YYYY-MM.ts`): `giftStatus` hiện chỉ nhận `none` hoặc
- * `given`. Máy chủ KHÔNG tính được `eligible` vì đủ điều kiện hay không là luật
- * của kỳ, mà file luật chưa có — nhãn "Đủ ĐK · chưa phát" chưa bao giờ hiện.
- * Gỡ mốc ở cả hai đầu; đầu kia ở `server/customers.ts`.
+ * TODO(P-40, chờ nối `giftFor` vào câu truy vấn): `giftStatus` hiện chỉ nhận
+ * `none` hoặc `given`, nhãn "Đủ ĐK · chưa phát" chưa bao giờ hiện. Luật quà đã
+ * có; cái thiếu là chỗ lưu kết quả để LỌC và CẮT TRANG được ở máy chủ. Gỡ mốc ở
+ * cả hai đầu; đầu kia ở `server/customers.ts`.
  */
 export const CustomerRow = z.object({
   id: z.string(),
@@ -291,10 +291,10 @@ export async function fetchCustomerDetail(id: string): Promise<CustomerDetail> {
  * Đánh dấu khách đã được tặng quà — đúng một lần, không có đợt thứ hai
  * (spec §4.4 P-43). `item` là tên món đã chọn, hoặc câu mô tả việc từ chối.
  *
- * TODO(P-43, chờ `src/rules/YYYY-MM.ts`): route `/api/customers/[id]/gift-given`
- * CHƯA CÓ, gọi vào là 404. Chốt quà phải đóng băng rổ quà đã tính vào
- * `gift_grants.snapshot`, mà rổ đó do file luật của kỳ sinh ra — chưa có luật
- * thì chốt được cũng chỉ chốt một cái rổ rỗng. Gỡ mốc ở cả hai đầu.
+ * TODO(P-43, chờ dựng route): `/api/customers/[id]/gift-given` CHƯA CÓ, gọi vào
+ * là 404. Luật đã có nên rổ quà sinh ra được; còn thiếu route ghi
+ * `gift_grants` kèm đóng băng kết quả `giftFor` vào cột `snapshot`, và chốt
+ * chặn "món chọn phải nằm trong rổ". Gỡ mốc ở cả hai đầu.
  */
 export async function markGiftGiven(customerId: string, item: string): Promise<void> {
   const res = await fetch(`/api/customers/${customerId}/gift-given`, {

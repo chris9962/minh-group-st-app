@@ -28,9 +28,10 @@ export function GiftSimulator() {
   const { data: channels = [] } = useQuery({ queryKey: ["channels"], queryFn: fetchChannels });
 
   /**
-   * TODO(P-81, chờ `src/rules/2026-08.ts`): bấm "Thử" hiện luôn báo lỗi —
-   * `/api/settings/gift-rules/simulate` chưa có route. Gỡ cùng lúc với mốc ở
-   * `lib/api/settings.ts`.
+   * TODO(P-81, chờ dựng route): bấm "Thử" hiện luôn báo lỗi —
+   * `/api/settings/gift-rules/simulate` chưa có route, và bộ ô nhập ở màn này
+   * còn theo luật cũ (chọn "đã cài app" chung cho cả nhóm). Gỡ cùng lúc với mốc
+   * ở `lib/api/settings.ts`.
    */
   const run = useMutation({
     mutationFn: () =>
