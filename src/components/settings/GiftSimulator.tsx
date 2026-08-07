@@ -15,33 +15,48 @@ import { formatVnd } from "@/lib/format";
 import styles from "./GiftSimulator.module.scss";
 
 /**
+ * Mã phòng được quy đổi quà (thể lệ 2026-08 lưu ý 2).
+ *
+ * Viết cứng ở đây là CỐ Ý: đây là màn thử luật, và một ô chọn phòng đầy đủ thì
+ * người dùng phải tự biết phòng nào có luật riêng mới thử được. Ô tick nói
+ * thẳng ra. Kỳ nào bỏ luật Phòng Y thì bỏ luôn ô này.
+ */
+const PHONG_Y = "PHONG-Y";
+
+/**
  * P-81 · Nút thử — chỉ tính toán, không ghi gì (spec §5.3). Không tạo khách,
  * không tạo đơn, không trừ mã. Bấm bao nhiêu lần cũng được.
+ *
+ * Ô nhập khai TỪNG TÀI KHOẢN chứ không khai "tổng số app đã cài" như bản cũ:
+ * luật từ kỳ 2026-08 xét tổ hợp hạng ngân hàng, và chỉ `VPa` với `MSBa` mới đòi
+ * cài app. Gộp thành một con số thì không diễn tả được ca "mở VPa nhưng chưa
+ * cài" — đúng ca hay gặp nhất ngoài hiện trường.
  */
 export function GiftSimulator() {
-  const [banks, setBanks] = useState<string[]>([]);
-  const [cnkd, setCnkd] = useState(false);
+  const [opened, setOpened] = useState<string[]>([]);
+  const [apps, setApps] = useState<string[]>([]);
   const [channel, setChannel] = useState("");
+  const [phongY, setPhongY] = useState(false);
 
   const { data: allBanks = [] } = useQuery({ queryKey: ["banks"], queryFn: fetchBanks });
   const activeBanks = allBanks.filter((b) => b.active);
   const { data: channels = [] } = useQuery({ queryKey: ["channels"], queryFn: fetchChannels });
 
-  /**
-   * TODO(P-81, chờ dựng route): bấm "Thử" hiện luôn báo lỗi —
-   * `/api/settings/gift-rules/simulate` chưa có route, và bộ ô nhập ở màn này
-   * còn theo luật cũ (chọn "đã cài app" chung cho cả nhóm). Gỡ cùng lúc với mốc
-   * ở `lib/api/settings.ts`.
-   */
   const run = useMutation({
     mutationFn: () =>
-      simulateGift({ installedBanks: banks, cnkd, channels: channel ? [channel] : [] }),
-    onError: (e) =>
-      toast.fail(errorMessage(e, "Chưa chạy thử được — kỳ này chưa có file luật quà.")),
+      simulateGift({
+        accounts: opened.map((bankCode) => ({ bankCode, appInstalled: apps.includes(bankCode) })),
+        channelCodes: channel ? [channel] : [],
+        departmentCode: phongY ? PHONG_Y : null,
+      }),
+    onError: (e) => toast.fail(errorMessage(e, "Chưa chạy thử được.")),
   });
 
-  const toggleBank = (bank: string) =>
-    setBanks((prev) => (prev.includes(bank) ? prev.filter((b) => b !== bank) : [...prev, bank]));
+  const toggleOpened = (bank: string) =>
+    setOpened((prev) => (prev.includes(bank) ? prev.filter((b) => b !== bank) : [...prev, bank]));
+
+  const toggleApp = (bank: string) =>
+    setApps((prev) => (prev.includes(bank) ? prev.filter((b) => b !== bank) : [...prev, bank]));
 
   return (
     <SectionCard title="Nút thử" icon={<FlaskConical size={17} />}>
@@ -51,28 +66,36 @@ export function GiftSimulator() {
       </p>
 
       <fieldset className={styles.fieldset}>
-        <legend className={styles.legend}>App đã cài</legend>
+        <legend className={styles.legend}>Khách đã mở tài khoản ở</legend>
         <div className={styles.banks}>
           {activeBanks.map((bank) => (
-            <Checkbox
-              key={bank.id}
-              label={bank.code}
-              checked={banks.includes(bank.code)}
-              onCheckedChange={() => toggleBank(bank.code)}
-            />
+            <div key={bank.id} className={styles.bankRow}>
+              <Checkbox
+                label={bank.code}
+                checked={opened.includes(bank.code)}
+                onCheckedChange={() => toggleOpened(bank.code)}
+              />
+              {opened.includes(bank.code) && (
+                <Checkbox
+                  label="đã cài app"
+                  checked={apps.includes(bank.code)}
+                  onCheckedChange={() => toggleApp(bank.code)}
+                />
+              )}
+            </div>
           ))}
         </div>
       </fieldset>
 
       <div className={styles.row}>
-        <Checkbox label="Mở CNKD/HKD" checked={cnkd} onCheckedChange={setCnkd} />
+        <Checkbox label="Khách của Phòng Y" checked={phongY} onCheckedChange={setPhongY} />
         <Select
           label="Kênh"
           value={channel}
           onChange={setChannel}
           options={[
             { value: "", label: "— Không thuộc kênh nào —" },
-            ...channels.map((c) => ({ value: c.name, label: c.name })),
+            ...channels.map((c) => ({ value: c.code, label: c.name })),
           ]}
         />
         <Button onClick={() => run.mutate()} disabled={run.isPending}>
@@ -82,6 +105,15 @@ export function GiftSimulator() {
 
       {run.data && (
         <dl className={styles.result}>
+          <div>
+            <dt>Trường hợp</dt>
+            <dd>
+              {run.data.caseCode ?? "Chưa đủ điều kiện"}
+              {run.data.insuranceYears > 0 && (
+                <span className={styles.detail}>{run.data.insuranceYears} năm bảo hiểm</span>
+              )}
+            </dd>
+          </div>
           <div>
             <dt>Tiền mặt</dt>
             <dd>
@@ -130,6 +162,18 @@ export function GiftSimulator() {
               )}
             </dd>
           </div>
+          {run.data.explain.length > 0 && (
+            <div>
+              <dt>Vì sao</dt>
+              <dd>
+                <ol className={styles.basket}>
+                  {run.data.explain.map((line, i) => (
+                    <li key={i}>{line}</li>
+                  ))}
+                </ol>
+              </dd>
+            </div>
+          )}
         </dl>
       )}
     </SectionCard>

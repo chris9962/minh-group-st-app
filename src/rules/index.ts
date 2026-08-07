@@ -70,6 +70,14 @@ export type GiftResult = {
   caseCode: string | null;
   /** Số năm bảo hiểm thể lệ hứa — 0 khi không đủ điều kiện. */
   insuranceYears: 0 | 1 | 2;
+  /**
+   * Điểm KPI của chính tổ hợp này.
+   *
+   * Trả kèm ở đây vì quà và điểm dùng CHUNG một phép gom combo — hồ sơ khách
+   * hiện cả hai cạnh nhau, và hai con số phải đến từ cùng một lượt tính, nếu
+   * không sẽ có ngày màn nói "combo 3" mà điểm lại là của combo 2.
+   */
+  comboPoints: number;
   cash: GiftCash[];
   cashTotal: number;
   /** Khách lấy ĐÚNG MỘT món, hoặc từ chối không lấy gì (spec §5.2 bước 3). */

@@ -24,7 +24,9 @@ import { bankAccounts, banks, customers, kpiScores, services, serviceTypes, user
  *     - tích / bỏ tích "đã cài app" trên bản ghi `done`
  *
  * Đường đó chưa tồn tại: P-22 và hộp thoại sửa trên P-21 đều chỉ cho thay ẢNH
- * khi tài khoản đã `done`. Ngày mở nó ra thì thêm lời gọi ở đây cùng lúc.
+ * khi tài khoản đã `done`. Ngày mở nó ra thì thêm lời gọi ở đây cùng lúc — và
+ * gọi luôn `recomputeGiftCase` (`server/gift.ts`), vì bỏ tích app của `VPa` hay
+ * `MSBa` cũng làm khách rơi khỏi combo, tức đổi cả trường hợp quà.
  *
  * ⚠️ MỌI DÒNG `kpi_scores` GHI TRƯỚC 07/08 ĐỀU SAI và không tự sửa: chúng mang
  * điểm của công thức cũ, và cột `banking_points` lúc đó luôn là 0. Dòng cũ chỉ

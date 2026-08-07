@@ -23,6 +23,15 @@
   gap: 6px 18px;
 }
 
+/* Ô "đã cài app" nằm ngay cạnh ngân hàng nó thuộc về, không phải một cột riêng
+   ở cuối — luật xét từng tài khoản, giao diện phải đọc ra được điều đó. */
+.bankRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 2px 8px 2px 0;
+}
+
 .row {
   display: flex;
   align-items: center;

@@ -446,31 +446,62 @@ test.describe("thao tác nào cũng báo kết quả", () => {
   });
 });
 
-/* ── Chưa triển khai — TODO, không phải ca hỏng ───────────────────────── */
+/* ── Quà — luật của kỳ chạy thật, không phải rổ rỗng ──────────────────── */
 
-test.describe("TODO — chờ module khác", () => {
-  /**
-   * TODO(P-43 Tặng quà, chờ `src/rules/YYYY-MM.ts`): rổ quà do file luật của kỳ
-   * sinh ra, chưa có luật thì rổ luôn rỗng và route `/api/customers/[id]/gift-given`
-   * cũng chưa tồn tại. Bật ca này khi có file luật.
-   */
-  test.fixme("tặng quà: chọn một món rồi xác nhận → toast + trạng thái đổi", async ({ page }) => {
-    await openCustomerList(page, "staff");
-    await search(page, "bich tram");
-    await rows(page).first().getByRole("button", { name: /Tặng quà/ }).click();
-    await expect(dialog(page)).toContainText(/Chọn/);
-  });
-
-  /**
-   * TODO(P-42 Hồ sơ 360°, chờ `src/rules/YYYY-MM.ts`): khối "Quà" luôn hiện rổ
-   * rỗng và tiền mặt 0 vì chưa có luật của kỳ. Bảng tài khoản/đơn BH thì đã đọc
-   * dữ liệu thật, ca dưới soi phần đó — chỉ khối Quà là chờ.
-   */
-  test.fixme("hồ sơ 360°: khối Quà hiện rổ quà đã tính", async ({ page }) => {
+/**
+ * Khách `A Nguyễn Thị Bích Trâm` của bộ seed mở `MB` + `VPa` + `MSBa` (đã cài
+ * app) nên khớp **TH3** của thể lệ 2026-08: 03 bank ưu tiên → 01 năm bảo hiểm
+ * cộng 70k tiền mặt (20k vào VPa, 50k vào MSBa).
+ *
+ * Con số 70.000 không phải số tròn cho đẹp — đổi bộ seed hay đổi file luật mà
+ * quên chỗ này thì ca đỏ, đúng như mong muốn.
+ */
+test.describe("P-42 · P-43 · quà theo thể lệ của kỳ", () => {
+  test("hồ sơ 360°: khối Quà hiện đúng trường hợp và số tiền", async ({ page }) => {
     await openCustomerList(page, "director");
     await search(page, "bich tram");
     await rows(page).first().getByRole("link").first().click();
-    await expect(page.locator("main")).toContainText(/Rổ quà/);
+
+    const main = page.locator("main");
+    await expect(main).toContainText("Trường hợp TH3");
+    await expect(main).toContainText("70.000đ");
+    await expect(main).toContainText("1 năm");
+    // Phần giải thích là yêu cầu của spec §5.3, không phải trang trí: khách hỏi
+    // "sao tôi chỉ được 1 năm" thì nhân viên phải đọc được ngay tại màn.
+    await expect(main).toContainText(/Tổ hợp 3 ngân hàng/);
+  });
+
+  test("P-40: khách đủ điều kiện hiện nhãn chờ phát", async ({ page }) => {
+    await openCustomerList(page, "director");
+    await search(page, "bich tram");
+    await expect(rows(page).first()).toContainText("Đủ ĐK · chưa phát");
+  });
+
+  /**
+   * Đi đường TỪ CHỐI chứ không chọn gói bảo hiểm: chọn gói sẽ mở tiếp form tạo
+   * đơn và ca này thành ca test của module bảo hiểm. Đường từ chối vẫn chạm đủ
+   * route chốt quà, và quà chỉ tặng được đúng một lần nên ca sau không lặp lại
+   * được — bộ dọn `e2e-clean.ts` xoá cả `gift_grants` theo khách.
+   */
+  test("tặng quà: từ chối cũng ghi nhận, và không tặng lần hai", async ({ page }) => {
+    await openCustomerList(page, "staff");
+    await search(page, "bich tram");
+    await rows(page).first().getByRole("button", { name: /Tặng quà/ }).click();
+
+    const box = dialog(page);
+    await expect(box).toContainText("Tiền mặt tự động");
+    await box.getByText("Từ chối, không lấy gì").click();
+    await box.getByRole("button", { name: "Xác nhận" }).click();
+
+    await expect(toast(page)).toContainText(/từ chối quà/i);
+    await expect(rows(page).first()).toContainText("Đã tặng");
+
+    // Bấm lại: MÁY CHỦ chặn, không phải giao diện ẩn nút (AGENTS.md §6).
+    const href = await rows(page).first().getByRole("link").first().getAttribute("href");
+    const res = await page.request.post(`${href}`.replace("/customers/", "/api/customers/") + "/gift-given", {
+      data: { item: "Từ chối nhận quà" },
+    });
+    expect(res.status()).toBe(422);
   });
 });
 

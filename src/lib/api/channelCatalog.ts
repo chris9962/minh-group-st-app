@@ -20,6 +20,8 @@ export const INPUT_KIND_LABEL: Record<ChannelInputKind, string> = {
 
 export const Channel = z.object({
   id: z.string(),
+  /** Mã cố định — module luật theo kỳ trỏ vào nó (`KENH-BENH-VIEN`), tên thì admin sửa được. */
+  code: z.string(),
   name: z.string(),
   inputKind: ChannelInputKind,
 });

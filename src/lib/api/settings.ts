@@ -87,26 +87,55 @@ export type InsurancePackageForm = z.infer<typeof InsurancePackageForm>;
 
 /* ── Nút thử — chỉ tính toán, không ghi gì (spec §5.3) ──────────────── */
 
+/**
+ * Luật kỳ 2026-08 xét theo TỪNG TÀI KHOẢN, không theo "tổng số app đã cài" như
+ * luật cũ: chỉ `VPa` và `MSBa` mới đòi cài app, và hạng của từng ngân hàng
+ * quyết định điểm. Nên ô nhập phải khai từng dòng một.
+ */
+export const GiftSimulateAccount = z.object({
+  bankCode: z.string().min(1, 'Chưa chọn ngân hàng'),
+  appInstalled: z.boolean(),
+});
+export type GiftSimulateAccount = z.infer<typeof GiftSimulateAccount>;
+
 export const GiftSimulateInput = z.object({
-  installedBanks: z.array(z.string()),
-  cnkd: z.boolean(),
+  accounts: z.array(GiftSimulateAccount),
   /**
    * Một khách có thể mở tài khoản qua nhiều kênh khác nhau — mảng chứ không
    * phải một chuỗi, để hồ sơ khách hàng (P-42) truyền đủ mọi kênh khách đã
    * dùng, không chỉ kênh của tài khoản gần nhất.
    */
-  channels: z.array(z.string()),
+  channelCodes: z.array(z.string()),
+  /** Mã phòng của người phụ trách — `PHONG-Y` được quy đổi quà (thể lệ lưu ý 2). */
+  departmentCode: z.string().nullable(),
 });
 export type GiftSimulateInput = z.infer<typeof GiftSimulateInput>;
 
 export const GiftSimulateResult = z.object({
+  /** `TH1`…`TH6` của bảng quà; `null` khi khách chưa đủ combo nào. */
+  caseCode: z.string().nullable(),
+  insuranceYears: z.number(),
   cashTotal: z.number(),
   cashBreakdown: z.array(z.object({ label: z.string(), amount: z.number() })),
   basket: z.array(z.object({ id: z.string(), name: z.string(), source: z.string() })),
   kpiPoints: z.number(),
   kpiBreakdown: z.array(z.object({ label: z.string(), points: z.number() })),
+  /** Vì sao ra kết quả này — khách hỏi thì nhân viên đọc thẳng ở màn (spec §5.3). */
+  explain: z.array(z.string()),
 });
 export type GiftSimulateResult = z.infer<typeof GiftSimulateResult>;
+
+/** Rổ rỗng dùng khi kỳ chưa có file luật — KHÁC hẳn "đã tính, không đủ điều kiện". */
+export const EMPTY_GIFT: GiftSimulateResult = {
+  caseCode: null,
+  insuranceYears: 0,
+  cashTotal: 0,
+  cashBreakdown: [],
+  basket: [],
+  kpiPoints: 0,
+  kpiBreakdown: [],
+  explain: [],
+};
 
 /* ── P-83 · Chỉ tiêu KPI theo tháng ──────────────────────────────────── */
 
@@ -160,16 +189,7 @@ async function send(url: string, method: string, body?: unknown) {
   return res.json();
 }
 
-/**
- * TODO(P-81, chờ dựng route + sửa hình dạng tham số): route CHƯA TỒN TẠI, gọi
- * vào là 404.
- *
- * Luật đã có (`src/rules/2026-08.ts`), nhưng `GiftSimulateInput` bên dưới còn
- * mang từ vựng của luật CŨ: `installedBanks` + `cnkd` không đủ, vì luật mới cần
- * biết TỪNG tài khoản mở ở ngân hàng nào và đã cài app chưa, cộng mã phòng của
- * người phụ trách (Phòng Y quy đổi quà). Sửa hình dạng trước rồi mới dựng
- * `src/app/api/settings/gift-rules/simulate/route.ts`. Gỡ mốc ở cả hai đầu.
- */
+/** P-81 · chạy thử luật của kỳ trên dữ liệu tự bịa — máy chủ không ghi gì. */
 export const simulateGift = (input: GiftSimulateInput): Promise<GiftSimulateResult> =>
   send('/api/settings/gift-rules/simulate', 'POST', input).then(GiftSimulateResult.parse);
 

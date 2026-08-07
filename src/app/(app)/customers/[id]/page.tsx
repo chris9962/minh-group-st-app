@@ -311,6 +311,17 @@ export default function CustomerDetailPage({
                     )}
                   </dd>
                 </div>
+                {data.gift.insuranceYears > 0 && (
+                  <div>
+                    <dt>Bảo hiểm</dt>
+                    <dd>
+                      {data.gift.insuranceYears} năm
+                      {data.gift.caseCode && (
+                        <span className={styles.detail}>Trường hợp {data.gift.caseCode}</span>
+                      )}
+                    </dd>
+                  </div>
+                )}
                 {!data.gift.given && (
                   <div>
                     <dt>Rổ quà</dt>
@@ -343,6 +354,15 @@ export default function CustomerDetailPage({
                   </dd>
                 </div>
               </dl>
+              {/* Lý do phải hiện ngay tại màn, không giấu sau nút: khách đứng đó
+                  hỏi "sao tôi chỉ được 1 năm" thì nhân viên đọc thẳng ra. */}
+              {data.gift.explain.length > 0 && (
+                <ul className={styles.giftExplain}>
+                  {data.gift.explain.map((line, i) => (
+                    <li key={i}>{line}</li>
+                  ))}
+                </ul>
+              )}
               <p className={styles.footnote}>
                 Quà tính trên <strong>toàn bộ</strong> tài khoản của khách, kể cả tài khoản
                 ngoài phạm vi xem của bạn.

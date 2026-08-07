@@ -327,6 +327,7 @@ export async function createReferralCode(
 
 const toChannel = (r: typeof channels.$inferSelect): Channel => ({
   id: r.id,
+  code: r.code,
   name: r.name,
   inputKind: r.inputKind,
 });

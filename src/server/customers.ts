@@ -15,8 +15,10 @@ import type { Page } from "@/lib/api/pagination";
 import type { PageArgs } from "./pagination";
 import { BUSINESS_TIMEZONE, digitsOnly } from "@/lib/format";
 import { can, recordVisibility, type RecordVisibility } from "@/lib/permissions";
+import type { GiftSimulateResult } from "@/lib/api/settings";
 import type { User } from "@/lib/types";
 import { db, uniqueViolationOf } from "./db/client";
+import { giftForCustomer } from "./gift";
 import {
   bankAccounts,
   banks,
@@ -141,6 +143,7 @@ const pickPage = (where: SQL | undefined, orderBy: SQL[], limit: number, offset:
       fullName: customers.fullName,
       accountCount: customers.accountCount,
       insuranceCount: customers.insuranceCount,
+      giftCase: customers.giftCase,
       channelId: customers.channelId,
       // Cột tính bằng `sql` nằm trong truy vấn con thì BẮT BUỘC có bí danh —
       // không có thì câu ngoài không gọi tên nó được, drizzle ném lỗi lúc dựng.
@@ -182,9 +185,16 @@ function decorate(page: ReturnType<typeof pickPage>) {
       primaryPhone: sql<string>`coalesce(${phone.number}, '')`,
       accountCount: page.accountCount,
       insuranceCount: page.insuranceCount,
-      giftStatus: sql<
-        CustomerRow["giftStatus"]
-      >`case when ${giftGrants.id} is null then 'none' else 'given' end`,
+      /**
+       * Ba trạng thái đọc từ HAI nguồn lưu sẵn, không chạy luật ở đây: đợt đã
+       * chốt nằm ở `gift_grants`, còn "đủ điều kiện" là cột `customers.gift_case`
+       * do `recomputeGiftCase` ghi. Chạy hàm luật cho từng dòng thì phải kéo tài
+       * khoản của cả kho về tầng ứng dụng (AGENTS.md §5.2).
+       */
+      giftStatus: sql<CustomerRow["giftStatus"]>`case
+        when ${giftGrants.id} is not null then 'given'
+        when ${page.giftCase} is not null then 'eligible'
+        else 'none' end`,
       givenItem: giftGrants.chosenItem,
       channel: sql<string>`coalesce(${channels.name}, '')`,
       createdAt: page.createdAt,
@@ -201,15 +211,6 @@ function decorate(page: ReturnType<typeof pickPage>) {
  * Tổng đếm bằng câu thứ hai trên ĐÚNG bộ lọc đó, không phải `rows.length`: nói
  * nhầm thì thanh phân trang hiện "1–15 trên 15" ở mọi trang.
  *
- * TODO(P-40, chờ nối `giftFor` vào câu truy vấn): cột trạng thái quà chỉ phân
- * biệt được "đã tặng" (có dòng `gift_grants`) với "chưa" — chưa tính `eligible`.
- *
- * Luật quà đã có (`src/rules/2026-08.ts`), nhưng nó là hàm JavaScript nên chạy
- * được nó cho từng khách nghĩa là kéo tài khoản của CẢ KHO về rồi lọc ở tầng
- * ứng dụng — đúng thứ AGENTS.md §5.2 cấm, vì P-40 có ô LỌC theo trạng thái quà.
- * Cách đi được: một cột lưu sẵn do `giftFor` ghi lại mỗi lần tài khoản của khách
- * đổi, cùng lối `customers.account_count`. Gỡ mốc ở cả hai đầu; đầu kia ở
- * `lib/api/customers.ts`.
  */
 export async function listCustomers(
   filters: CustomerFilters,
@@ -591,25 +592,16 @@ export async function customerDetailFor(
     services: servicesDone,
     servicesHiddenCount: serviceRows.length - visibleServices.length,
     /**
-     * TODO(P-42, chờ nối `giftFor`): rổ quà và tiền mặt luôn RỖNG.
+     * Quà tính trên TOÀN BỘ tài khoản của khách, không chỉ phần người xem thấy
+     * (spec §4.4 P-42 lỗi thường gặp #2) — nên `giftForCustomer` đọc lại từ
+     * database chứ không dùng `visibleDone` ở trên.
      *
-     * Luật đã có (`src/rules/2026-08.ts` — `gift`), chỉ còn việc gọi: gom tài
-     * khoản `done` của khách + mã kênh + mã phòng người phụ trách, gọi `giftFor`,
-     * rồi đổi mã món trong kết quả sang tên trong danh mục `gift_items` /
-     * `insurance_packages`.
-     *
-     * Trả 0 và mảng rỗng chứ không bịa số: một con số khác 0 trông như đã tính
-     * xong, nhân viên sẽ đọc nó rồi đi phát quà. Đợt đã chốt thì lấy đúng
-     * snapshot đóng băng trong `gift_grants` — đó là số THẬT đã phát.
+     * Đợt ĐÃ CHỐT thì lấy nguyên snapshot đóng băng trong `gift_grants`, không
+     * tính lại: thể lệ đổi hay danh mục đổi tên món cũng không được viết lại
+     * thứ đã phát cho khách.
      */
-    gift: {
-      cashTotal: grant?.cashTotal ?? 0,
-      cashBreakdown: [],
-      basket: [],
-      kpiPoints: 0,
-      kpiBreakdown: [],
-      given: Boolean(grant),
-      givenItem: grant?.chosenItem ?? null,
-    },
+    gift: grant
+      ? { ...(grant.snapshot as GiftSimulateResult), given: true, givenItem: grant.chosenItem }
+      : { ...(await giftForCustomer(id)), given: false, givenItem: null },
   };
 }

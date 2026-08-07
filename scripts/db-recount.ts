@@ -1,11 +1,17 @@
 import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
+import { recountGiftCases } from "../src/server/gift";
 
 /**
- * Đếm lại mọi cột đếm lưu sẵn từ dữ liệu gốc:
- * `customers.account_count` / `insurance_count` và
+ * Đếm lại mọi cột lưu sẵn từ dữ liệu gốc:
+ * `customers.account_count` / `insurance_count` / `gift_case` và
  * `referral_codes.used_count` / `holding_count`.
+ *
+ * `gift_case` khác ba cột kia ở chỗ KHÔNG có trigger nào giữ: giá trị của nó do
+ * hàm luật JavaScript quyết định (`src/rules/`), nên tầng ứng dụng phải tự ghi
+ * mỗi lần tài khoản của khách lên/rời `done`. Vì vậy nó là cột dễ lệch nhất —
+ * chạy lệnh này sau mỗi lần thêm file luật của kỳ mới.
  *
  * Bình thường KHÔNG cần chạy: các cột đó do trigger `mgst_sync_account_count` /
  * `mgst_sync_insurance_count` / `mgst_sync_referral_counts` giữ, nên ghi từ
@@ -95,6 +101,14 @@ async function main() {
     where r.id = x.id
       and (r.used_count <> coalesce(a.done, 0) or r.holding_count <> coalesce(a.creating, 0))
   `);
+
+  const giftDrift = await recountGiftCases();
+  if (giftDrift.length === 0) {
+    console.log("Không có khách nào lệch trường hợp quà.");
+  } else {
+    console.log(`${giftDrift.length} khách lệch trường hợp quà:`);
+    for (const r of giftDrift) console.log(" ", JSON.stringify(r));
+  }
 
   await pool.end();
   console.log("Đếm lại xong.");

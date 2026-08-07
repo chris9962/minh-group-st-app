@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { InsuranceOrderFormDialog } from "@/components/insurance/InsuranceOrderFormDialog";
-import { fetchCustomerDetail, markGiftGiven } from "@/lib/api/customers";
+import { GIFT_DECLINED, fetchCustomerDetail, markGiftGiven } from "@/lib/api/customers";
 import { fetchInsurancePackages } from "@/lib/api/settings";
 import { formatVnd } from "@/lib/format";
 import { errorMessage, toast } from "@/lib/toast";
@@ -22,9 +22,6 @@ type Props = {
 };
 
 const DECLINE = "__decline__";
-
-/** Chữ ghi vào `gift_grants.chosen_item` khi khách không nhận — cũng là chữ toast đọc lại. */
-const DECLINE_TEXT = "Từ chối nhận quà";
 
 /**
  * P-43 · Tặng quà — bật lên từ hồ sơ khách (P-42) hoặc bảng khách hàng (P-40).
@@ -67,7 +64,7 @@ export function GiftGivingDialog({ open, onClose, customerId, customerName }: Pr
       queryClient.invalidateQueries({ queryKey: ["customer", customerId] });
       onClose();
       toast.ok(
-        item === DECLINE_TEXT
+        item === GIFT_DECLINED
           ? `Đã ghi nhận ${customerName} từ chối quà`
           : `Đã tặng ${item} cho ${customerName}`,
       );
@@ -95,7 +92,7 @@ export function GiftGivingDialog({ open, onClose, customerId, customerName }: Pr
     // KHÔNG được chốt. Đánh dấu nhầm là mất suất quà của khách vĩnh viễn.
     if (packagesPending || packagesError) return;
     if (selected === DECLINE) {
-      markGiven.mutate(DECLINE_TEXT);
+      markGiven.mutate(GIFT_DECLINED);
       return;
     }
     const item = data?.gift.basket.find((b) => b.id === selected);

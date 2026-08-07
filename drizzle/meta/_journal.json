@@ -113,6 +113,13 @@
       "when": 1786095880701,
       "tag": "0015_customers_creator_index",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1786098728186,
+      "tag": "0016_customers_gift_case",
+      "breakpoints": true
     }
   ]
 }

@@ -54,10 +54,6 @@ export type Customer = z.infer<typeof Customer>;
 /**
  * Một dòng ở P-40 — tóm tắt, không phải hồ sơ đầy đủ.
  *
- * TODO(P-40, chờ nối `giftFor` vào câu truy vấn): `giftStatus` hiện chỉ nhận
- * `none` hoặc `given`, nhãn "Đủ ĐK · chưa phát" chưa bao giờ hiện. Luật quà đã
- * có; cái thiếu là chỗ lưu kết quả để LỌC và CẮT TRANG được ở máy chủ. Gỡ mốc ở
- * cả hai đầu; đầu kia ở `server/customers.ts`.
  */
 export const CustomerRow = z.object({
   id: z.string(),
@@ -288,13 +284,21 @@ export async function fetchCustomerDetail(id: string): Promise<CustomerDetail> {
 }
 
 /**
- * Đánh dấu khách đã được tặng quà — đúng một lần, không có đợt thứ hai
- * (spec §4.4 P-43). `item` là tên món đã chọn, hoặc câu mô tả việc từ chối.
+ * Chữ ghi vào `gift_grants.chosen_item` khi khách không nhận món nào.
  *
- * TODO(P-43, chờ dựng route): `/api/customers/[id]/gift-given` CHƯA CÓ, gọi vào
- * là 404. Luật đã có nên rổ quà sinh ra được; còn thiếu route ghi
- * `gift_grants` kèm đóng băng kết quả `giftFor` vào cột `snapshot`, và chốt
- * chặn "món chọn phải nằm trong rổ". Gỡ mốc ở cả hai đầu.
+ * Nằm ở đây chứ không ở component vì MÁY CHỦ cũng phải nhận ra nó: nó kiểm món
+ * chọn có nằm trong rổ không, mà "từ chối" thì không nằm trong rổ nào cả.
+ */
+export const GIFT_DECLINED = 'Từ chối nhận quà';
+
+export const GIFT_ERROR = {
+  ALREADY_GIVEN: 'ALREADY_GIVEN',
+  NOT_IN_BASKET: 'NOT_IN_BASKET',
+} as const;
+
+/**
+ * Đánh dấu khách đã được tặng quà — đúng một lần, không có đợt thứ hai
+ * (spec §4.4 P-43). `item` là TÊN món đã chọn, hoặc `GIFT_DECLINED`.
  */
 export async function markGiftGiven(customerId: string, item: string): Promise<void> {
   const res = await fetch(`/api/customers/${customerId}/gift-given`, {
@@ -302,5 +306,10 @@ export async function markGiftGiven(customerId: string, item: string): Promise<v
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ item }),
   });
-  if (!res.ok) throw new Error('Không đánh dấu được quà đã tặng');
+  if (!res.ok) {
+    // Máy chủ nói rõ vì sao ("Khách này đã được tặng quà rồi") — nuốt đi rồi
+    // ném câu chung chung là bắt người dùng tự đoán mình sai chỗ nào.
+    const body = (await res.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(body?.message?.trim() || 'Không đánh dấu được quà đã tặng');
+  }
 }

@@ -260,7 +260,15 @@ export function gift(input: GiftInput): GiftResult {
         ? "Khách chưa đủ tổ hợp 2 ngân hàng theo thể lệ nên chưa có quà."
         : "Khách chưa mở tài khoản nào tính được vào thể lệ.",
     );
-    return { caseCode: null, insuranceYears: 0, cash: [], cashTotal: 0, basket: [], explain };
+    return {
+      caseCode: null,
+      insuranceYears: 0,
+      comboPoints: combo.tenths / 10,
+      cash: [],
+      cashTotal: 0,
+      basket: [],
+      explain,
+    };
   }
 
   explain.push(
@@ -308,6 +316,7 @@ export function gift(input: GiftInput): GiftResult {
   return {
     caseCode: matched.code,
     insuranceYears: matched.years,
+    comboPoints: combo.tenths / 10,
     cash,
     cashTotal: cash.reduce((sum, c) => sum + c.amount, 0),
     basket,

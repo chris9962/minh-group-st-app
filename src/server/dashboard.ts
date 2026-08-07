@@ -7,6 +7,7 @@ import { db } from "./db/client";
 import {
   bankAccounts,
   banks,
+  customers,
   departments,
   giftGrants,
   insuranceOrders,
@@ -396,16 +397,39 @@ async function giftsBlock(
     .orderBy(sql`count(*) desc`);
 
   /**
-   * TODO(P-80 Tổng quan, chờ cột trạng thái quà lưu sẵn): "khách đủ điều kiện
-   * nhưng chưa phát quà" luôn bằng 0.
+   * "Đủ điều kiện nhưng chưa phát" — KHÔNG lọc theo kỳ đang xem.
    *
-   * Luật đã có, nhưng đếm bằng cách chạy `giftFor` cho từng khách nghĩa là kéo
-   * cả kho tài khoản về tầng ứng dụng mỗi lần mở màn Tổng quan. Con số này đi
-   * cùng cột trạng thái quà của P-40 — dựng cột lưu sẵn ở đó thì thẻ này chỉ
-   * còn là một câu `count`. Trả 0 chứ không bịa: một con số khác 0 ở thẻ này là
-   * lệnh cho nhân viên đi phát quà.
+   * Đây là hàng tồn chứ không phải số liệu của một khoảng ngày: khách đủ điều
+   * kiện từ tháng trước mà chưa ai phát thì vẫn đang chờ, giấu đi vì "ngoài kỳ"
+   * là để họ chờ mãi.
+   *
+   * Đọc cột `customers.gift_case` lưu sẵn, không chạy hàm luật cho từng khách —
+   * chạy luật ở đây nghĩa là kéo cả kho tài khoản về mỗi lần mở màn Tổng quan
+   * (AGENTS.md §5.2). Cột đó do `recomputeGiftCase` ghi.
    */
-  return { byType, pending: 0 };
+  const giftScope =
+    v.kind === "company"
+      ? undefined
+      : v.kind === "departments"
+        ? inArray(users.departmentId, v.departmentIds)
+        : v.kind === "personal"
+          ? eq(customers.createdBy, actorId)
+          : sql`false`;
+
+  const [pendingRow] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(customers)
+    // leftJoin: khách do người đã bị xoá lập vẫn phải đếm ở phạm vi công ty.
+    .leftJoin(users, eq(users.id, customers.createdBy))
+    .where(
+      and(
+        sql`${customers.giftCase} is not null`,
+        sql`not exists (select 1 from ${giftGrants} g where g.customer_id = ${customers.id})`,
+        giftScope,
+      ),
+    );
+
+  return { byType, pending: pendingRow?.n ?? 0 };
 }
 
 /**

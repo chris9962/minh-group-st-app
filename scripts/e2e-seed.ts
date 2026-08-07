@@ -21,6 +21,7 @@ import {
   customerPhones,
   customers,
   departments,
+  giftGrants,
   insuranceOrders,
   kpiScores,
   referralCodes,
@@ -31,6 +32,7 @@ import {
   users,
 } from "../src/server/db/schema";
 import { businessMonth } from "../src/lib/format";
+import { recomputeGiftCase } from "../src/server/gift";
 import { recomputeKpi } from "../src/server/kpi";
 import { ROLE_PERMISSIONS } from "../src/lib/roles";
 import { ROLE_TITLE, type RoleKey } from "../src/lib/types";
@@ -70,6 +72,9 @@ for (const c of staleCustomers) {
   );
   await db.delete(insuranceOrders).where(eq(insuranceOrders.customerId, c.id));
   await db.delete(services).where(eq(services.customerId, c.id));
+  // Ca "tặng quà" của lần trước để lại một dòng ở đây, và nó trỏ vào khách —
+  // xoá khách trước là vướng khoá ngoại ngay từ bước dựng.
+  await db.delete(giftGrants).where(eq(giftGrants.customerId, c.id));
   await db.delete(bankAccounts).where(eq(bankAccounts.customerId, c.id));
   await db.delete(customerPhones).where(eq(customerPhones.customerId, c.id));
   await db.delete(customers).where(eq(customers.id, c.id));
@@ -201,6 +206,8 @@ const [seedActor] = await db
   .where(eq(users.username, `${E2E_PREFIX}staff`))
   .limit(1);
 
+const seededCustomerIds: string[] = [];
+
 for (const [i, c] of E2E_CUSTOMERS.entries()) {
   const [row] = await db
     .insert(customers)
@@ -213,6 +220,7 @@ for (const [i, c] of E2E_CUSTOMERS.entries()) {
       createdBy: seedActor?.id ?? null,
     })
     .returning({ id: customers.id });
+  seededCustomerIds.push(row.id);
 
   await db.insert(customerPhones).values({
     customerId: row.id,
@@ -271,10 +279,12 @@ for (const [i, c] of E2E_CUSTOMERS.entries()) {
     });
 }
 
-/* Điểm KPI không tự sinh khi ghi thẳng vào bảng: đường tính lại nằm ở tầng ứng
-   dụng, mà bộ seed này đi tắt xuống database. Không gọi thì `kpi_scores` rỗng
-   và ca "điểm ngân hàng đúng bảng điểm" xanh vì bảng trống chứ không vì đúng. */
+/* Điểm KPI và trường hợp quà đều KHÔNG tự sinh khi ghi thẳng vào bảng: đường
+   tính lại nằm ở tầng ứng dụng, mà bộ seed này đi tắt xuống database. Không gọi
+   thì `kpi_scores` rỗng và `gift_case` null — hai ca test tương ứng xanh vì
+   bảng trống chứ không vì công thức đúng. */
 if (seedActor) await recomputeKpi(seedActor.id, businessMonth());
+for (const id of seededCustomerIds) await recomputeGiftCase(id);
 
 /**
  * Khách độn cho ca PHÂN TRANG — 22 hồ sơ, vượt `PAGE_SIZE` = 15 nên có thật hai

@@ -427,6 +427,26 @@ export const customers = pgTable(
      */
     accountCount: integer("account_count").notNull().default(0),
     insuranceCount: integer("insurance_count").notNull().default(0),
+    /**
+     * Trường hợp quà khách đang khớp (`TH1`…`TH6`), `null` = chưa đủ điều kiện.
+     *
+     * LƯU SẴN, và là ngoại lệ KHÁC HẲN hai cột đếm bên trên: trigger ở database
+     * không giữ nổi cột này, vì giá trị của nó do một hàm JavaScript quyết định
+     * (`src/rules/`), và thể lệ đổi hình dạng theo kỳ nên không viết lại được
+     * bằng SQL.
+     *
+     * Vì sao vẫn phải lưu: P-40 cho LỌC theo trạng thái quà và P-80 đếm "đủ ĐK
+     * chưa phát". Chạy hàm luật cho từng khách nghĩa là kéo tài khoản của CẢ
+     * KHO về tầng ứng dụng mỗi lần mở màn — đúng thứ AGENTS.md §5.2 cấm.
+     *
+     * ⚠️ Giá trị chỉ phụ thuộc TÀI KHOẢN `done` của khách, không phụ thuộc kênh
+     * hay phòng: hai thứ đó chỉ đổi món trong rổ, không đổi trường hợp. Nên chỗ
+     * duy nhất phải ghi lại là đường tài khoản lên/rời `done`, và
+     * `recomputeGiftCase` (`server/gift.ts`) lo việc đó.
+     *
+     * Lệch thì `bun run db:recount` tính lại toàn bộ.
+     */
+    giftCase: text("gift_case"),
     createdBy: uuid("created_by").references(() => users.id),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -446,6 +466,12 @@ export const customers = pgTable(
      * quét cả bảng khách.
      */
     index("customers_creator").on(t.createdBy),
+    /**
+     * P-40 lọc theo trạng thái quà, P-80 đếm "đủ ĐK chưa phát" — cả hai đều hỏi
+     * "khách nào có `gift_case`". Chỉ mục một phần vì đại đa số khách chưa đủ
+     * combo nào, để `null` ra ngoài thì chỉ mục nhỏ hơn hẳn.
+     */
+    index("customers_gift_case").on(t.giftCase).where(sql`gift_case is not null`),
   ],
 );
 

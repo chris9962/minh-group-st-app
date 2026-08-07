@@ -21,6 +21,7 @@ import {
   referralCodes,
   users,
 } from "./db/schema";
+import { recomputeGiftCase } from "./gift";
 import { recomputeKpiForCustomer } from "./kpi";
 import type { PageArgs } from "./pagination";
 
@@ -643,6 +644,9 @@ export async function finishBankAccount(
     current.customerId,
     businessMonth(new Date(`${form.openedDate}T00:00:00+07:00`)),
   );
+  // Tài khoản mới `done` có thể vừa làm khách đủ combo — P-40 và P-80 đọc cột
+  // lưu sẵn nên phải ghi lại ngay tại đây, không có trigger nào lo hộ.
+  await recomputeGiftCase(current.customerId);
 
   return {
     ok: true,
