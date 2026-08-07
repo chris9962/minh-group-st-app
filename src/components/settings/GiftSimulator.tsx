@@ -68,19 +68,26 @@ export function GiftSimulator() {
       <fieldset className={styles.fieldset}>
         <legend className={styles.legend}>Khách đã mở tài khoản ở</legend>
         {/*
-          CHA – CON: ngân hàng là dòng cha, "đã cài app" là dòng con thụt vào
-          dưới nó, có vạch nối.
+          MỖI NGÂN HÀNG MỘT THẺ CHỌN ĐƯỢC, "đã cài app" là dòng CON bên trong.
 
-          Bản trước đặt hai ô NGANG HÀNG nhau nên nhìn ra hai lựa chọn song
-          song, trong khi thật ra ô sau chỉ là một thuộc tính của ô trước —
-          chưa mở tài khoản thì "đã cài app" không có nghĩa gì.
+          Hai bản trước đều bày ô tích trần: bản đầu dồn hết vào một dòng chảy
+          tràn, bản sau kẻ vạch nối. Cả hai đọc được nhưng không ai nhìn ra
+          ngay "khách này mở mấy ngân hàng" — phải đếm dấu tích. Thẻ được chọn
+          đổi cả viền lẫn nền nên đếm bằng mắt là xong.
+
+          Ô "đã cài app" là thuộc tính của ngân hàng, không phải lựa chọn song
+          song, nên nó nằm TRONG thẻ và chỉ hiện khi thẻ được chọn.
         */}
         <ul className={styles.banks}>
           {activeBanks.map((bank) => {
             const picked = opened.includes(bank.code);
             return (
-              <li key={bank.id} className={styles.bank}>
+              <li
+                key={bank.id}
+                className={[styles.bank, picked && styles.bankOn].filter(Boolean).join(" ")}
+              >
                 <Checkbox
+                  block
                   label={bank.code}
                   checked={picked}
                   onCheckedChange={() => toggleOpened(bank.code)}
@@ -129,7 +136,11 @@ export function GiftSimulator() {
           <div>
             <dt>Trường hợp</dt>
             <dd>
-              {run.data.caseCode ?? "Chưa đủ điều kiện"}
+              {run.data.caseCode ? (
+                <span className={styles.caseTag}>{run.data.caseCode}</span>
+              ) : (
+                <span className="text-muted">Chưa đủ điều kiện</span>
+              )}
               {run.data.insuranceYears > 0 && (
                 <span className={styles.detail}>{run.data.insuranceYears} năm bảo hiểm</span>
               )}

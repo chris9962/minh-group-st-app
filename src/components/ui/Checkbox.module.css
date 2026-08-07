@@ -45,3 +45,19 @@
   opacity: 0.45;
   cursor: not-allowed;
 }
+
+/* Biến thể `block`: vùng bấm phủ trọn dòng thay vì bó sát chữ. Đệm nằm TRONG
+   label chứ không ở thẻ bọc ngoài — để ra ngoài thì khoảng đệm đó không bấm
+   được, đúng chỗ ngón tay hay chạm nhất. */
+.block {
+  width: 100%;
+  padding: 9px 11px;
+  min-height: 40px;
+  border-radius: inherit;
+}
+
+@media (pointer: coarse) {
+  .block {
+    min-height: 44px;
+  }
+}

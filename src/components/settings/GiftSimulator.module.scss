@@ -4,43 +4,63 @@
   color: var(--om-text-2);
 }
 
+/* Bỏ khung viền của `fieldset` — thẻ ngân hàng bên trong đã có viền riêng, hai
+   lớp khung lồng nhau làm khối này nhìn nặng hơn mọi khối khác trong màn. */
 .fieldset {
-  margin: 0 0 12px;
-  padding: 12px 14px;
-  border: 1px solid var(--om-line);
-  border-radius: var(--radius-md);
+  margin: 0 0 14px;
+  padding: 0;
+  border: 0;
 }
 
 .legend {
-  padding: 0 6px;
+  padding: 0;
+  margin-bottom: 8px;
   font-size: 12.5px;
+  font-weight: 600;
   color: var(--om-text-2);
 }
 
-/* Lưới cột tự co: mã ngân hàng thẳng hàng nhau nên dò bằng mắt là ra.
-   `align-items: start` để một ô mở dòng con ra thì các ô cùng hàng không bị
-   kéo cao theo. */
 .banks {
   margin: 0;
   padding: 0;
   list-style: none;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
   align-items: start;
-  gap: 2px 20px;
+  gap: 8px;
 }
 
+/* Thẻ chọn được: viền nhạt khi chưa chọn, viền cam + nền cam nhạt khi đã chọn.
+   `align-items: start` ở lưới trên để thẻ mở dòng con ra không kéo cao cả hàng. */
 .bank {
-  padding: 3px 0;
+  border: 1px solid var(--om-line);
+  border-radius: var(--radius-md);
+  background: var(--om-card);
+  transition: border-color 0.12s ease, background-color 0.12s ease;
 }
 
-/* Dòng con thụt vào và có vạch nối lên dòng cha — quan hệ "thuộc về" đọc ra
-   bằng vị trí, không phải đoán theo khoảng cách. */
+.bank:hover {
+  border-color: var(--om-orange-mid);
+}
+
+.bankOn {
+  border-color: var(--om-orange);
+  background: var(--om-orange-soft);
+}
+
+/* Dòng con nằm TRONG thẻ, ngăn bằng một vạch mảnh và thụt vào — quan hệ "thuộc
+   về" đọc ra bằng vị trí, không phải đoán theo khoảng cách. */
 .bankChild {
-  margin: 2px 0 4px 9px;
-  padding: 2px 0 2px 14px;
-  border-left: 2px solid var(--om-orange-light);
-  font-size: 13px;
+  margin: 0 11px 0 22px;
+  padding: 7px 0 9px;
+  border-top: 1px solid var(--om-orange-mid);
+  font-size: 12.5px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bank {
+    transition: none;
+  }
 }
 
 .row {
@@ -80,6 +100,18 @@
 .detail {
   font-size: 12px;
   color: var(--om-text-3);
+}
+
+/* Mã trường hợp là kết luận của cả màn — cho nó nổi hẳn lên, đừng để lẫn vào
+   dòng chữ như một chi tiết phụ. */
+.caseTag {
+  align-self: flex-start;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--om-orange);
+  color: var(--om-text-on-accent);
+  font-weight: 600;
+  font-size: 13px;
 }
 
 .basket {

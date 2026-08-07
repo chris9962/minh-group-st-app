@@ -11,6 +11,13 @@ type Props = {
   name?: string;
   onBlur?: () => void;
   disabled?: boolean;
+  /**
+   * Chiếm trọn bề ngang, và VÙNG BẤM phủ cả dòng.
+   *
+   * Dùng khi ô tích nằm trong một thẻ chọn được: bấm vào khoảng trống trong thẻ
+   * mà không ăn thua thì người dùng tưởng thẻ hỏng.
+   */
+  block?: boolean;
 };
 
 /**
@@ -30,9 +37,10 @@ export function Checkbox({
   name,
   onBlur,
   disabled,
+  block = false,
 }: Props) {
   return (
-    <label className={styles.row}>
+    <label className={block ? `${styles.row} ${styles.block}` : styles.row}>
       <RadixCheckbox.Root
         className={styles.box}
         checked={checked}
