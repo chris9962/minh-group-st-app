@@ -1,7 +1,55 @@
+import { BankAccountFinishForm } from "@/lib/api/bankAccounts";
 import { can } from "@/lib/permissions";
 import { logAudit } from "@/server/audit";
-import { forbidden, getActor, isUuid, notFound, unauthorized } from "@/server/auth";
-import { deleteDraft } from "@/server/banking";
+import {
+  badRequest,
+  forbidden,
+  getActor,
+  isUuid,
+  jsonBody,
+  notFound,
+  unauthorized,
+} from "@/server/auth";
+import { deleteDraft, updateFinishedAccount } from "@/server/banking";
+
+/**
+ * Sửa một tài khoản ĐÃ hoàn thành (chốt 07/08).
+ *
+ * Đường riêng chứ không dùng lại `/finish`: hai việc khác nhau. `/finish` là
+ * bước chuyển trạng thái và nó TIÊU một lượt mã giới thiệu; đường này chỉ sửa
+ * chữ trên một bản ghi đã xong, không đụng kho mã.
+ *
+ * Khách, ngân hàng và mã giới thiệu KHÔNG nằm trong biểu mẫu — đổi ba thứ đó là
+ * viết lại lịch sử kho mã, và người dùng có nút xoá bản nháp cho ca nhập nhầm.
+ */
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const actor = await getActor(request);
+  if (!actor) return unauthorized();
+  if (!can(actor, "banking", "update")) return forbidden();
+
+  const { id } = await params;
+  if (!isUuid(id)) return notFound();
+
+  const parsed = BankAccountFinishForm.safeParse(await jsonBody(request));
+  if (!parsed.success) return badRequest();
+
+  const result = await updateFinishedAccount(actor, id, parsed.data);
+  // `null` = không có hoặc ngoài tầm nhìn — 404 giống hệt nhau.
+  if (result === null) return notFound();
+  if (!result.ok) return Response.json({ message: result.message }, { status: 422 });
+
+  await logAudit(actor, {
+    module: "banking",
+    action: "update",
+    targetLabel: `Sửa tài khoản ${result.value.account.bankCode} của ${result.value.account.customerName}`,
+    targetTable: "bank_accounts",
+    targetId: id,
+  });
+  return Response.json(result.value);
+}
 
 /**
  * Bỏ dở một tài khoản đang tạo — nhả chỗ mã về kho ngay (spec §4.5).

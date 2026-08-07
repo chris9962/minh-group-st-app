@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, Save } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { ErrorState } from "@/components/ui/ErrorState";
@@ -12,6 +12,7 @@ import {
   BankAccountFinishForm,
   finishBankAccount,
   setBankAccountPhotos,
+  updateBankAccount,
 } from "@/lib/api/bankAccounts";
 import { fetchBankAccountDetail } from "@/lib/api/banking";
 import { invalidateKpi } from "@/lib/invalidateKpi";
@@ -20,7 +21,6 @@ import { businessDay } from "@/lib/format";
 import { errorMessage, toast } from "@/lib/toast";
 import { useSession } from "@/store/session";
 import { BankAccountFinishFields } from "./BankAccountFinishFields";
-import { BankAccountPhotos } from "./BankAccountPhotos";
 import styles from "./BankAccountFormDialog.module.scss";
 
 type Props = {
@@ -34,8 +34,14 @@ type Props = {
  *
  * Hai mặt tuỳ trạng thái, vì hai việc khác nhau:
  *  - `creating` → đây là BƯỚC 2: điền nốt STK/ngày mở/app + ảnh rồi Hoàn thành.
- *  - `done`     → chỉ còn ẢNH. Bản ghi đã hoàn thành không sửa được ngoài ảnh
- *                 (db-design §10) — nó đã tiêu một lượt mã và đã vào điểm KPI.
+ *                 Bấm nút là TIÊU một lượt mã giới thiệu.
+ *  - `done`     → SỬA: cùng bộ ô, nhưng không đụng kho mã. Bản trước chỉ cho
+ *                 thay ảnh, và đó là ngõ cụt thật — gõ nhầm số tài khoản hay
+ *                 quên tích "đã cài app" thì không có đường chữa nào, vì bản
+ *                 `done` cũng không xoá được.
+ *
+ * Khách, ngân hàng và mã giới thiệu KHÔNG sửa được ở cả hai mặt: đổi chúng là
+ * viết lại lịch sử kho mã, không phải sửa một chỗ gõ nhầm.
  *
  * Tự tải chi tiết theo `accountId` chứ không nhận sẵn từ dòng bảng: dòng bảng
  * không có `photoUrls`, `requiredPhotos` lẫn `accountNumberMethod`, mà thiếu ba
@@ -105,6 +111,22 @@ export function BankAccountEditDialog({ open, onClose, accountId }: Props) {
     onError: (e) => toast.fail(errorMessage(e, "Không hoàn tất được tài khoản này.")),
   });
 
+  /**
+   * Sửa bản ghi đã hoàn thành. Máy chủ tính lại điểm KPI của CẢ tháng cũ lẫn
+   * tháng mới khi ngày mở đổi, và tính lại trường hợp quà khi cờ app đổi — nên
+   * `invalidate()` ở đây quan trọng y như ở nhánh hoàn thành.
+   */
+  const update = useMutation({
+    mutationFn: (form: BankAccountFinishForm) => updateBankAccount(accountId, form),
+    onSuccess: (result) => {
+      invalidate();
+      onClose();
+      toast.ok("Đã lưu thay đổi cho tài khoản này");
+      for (const w of result.warnings) toast.warn(w);
+    },
+    onError: (e) => toast.fail(errorMessage(e, "Không lưu được thay đổi cho tài khoản này.")),
+  });
+
   const draft = data?.status === "creating";
   const enoughPhotos = (data?.photoUrls.length ?? 0) >= (data?.requiredPhotos ?? 0);
 
@@ -112,22 +134,28 @@ export function BankAccountEditDialog({ open, onClose, accountId }: Props) {
     <Dialog
       open={open}
       onClose={onClose}
-      title={draft ? "Hoàn tất tài khoản" : "Ảnh chứng minh"}
+      title={draft ? "Hoàn tất tài khoản" : "Sửa tài khoản"}
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>
             Đóng
           </Button>
-          {draft && canWrite && (
-            <Button
-              type="submit"
-              form="edit-account-form"
-              disabled={finish.isPending || !enoughPhotos}
-            >
-              <CheckCircle2 size={16} aria-hidden />
-              Hoàn thành
-            </Button>
-          )}
+          {canWrite &&
+            (draft ? (
+              <Button
+                type="submit"
+                form="edit-account-form"
+                disabled={finish.isPending || !enoughPhotos}
+              >
+                <CheckCircle2 size={16} aria-hidden />
+                Hoàn thành
+              </Button>
+            ) : (
+              <Button type="submit" form="edit-account-form" disabled={update.isPending}>
+                <Save size={16} aria-hidden />
+                Lưu
+              </Button>
+            ))}
         </>
       }
     >
@@ -149,35 +177,37 @@ export function BankAccountEditDialog({ open, onClose, accountId }: Props) {
             )}
           </div>
 
-          {draft ? (
-            <>
-              <BankAccountFinishFields
-                formId="edit-account-form"
-                onSubmit={finishForm.handleSubmit((form) => finish.mutate(form))}
-                register={finishForm.register}
-                errors={finishForm.formState.errors}
-                watch={finishForm.watch}
-                setValue={finishForm.setValue}
-                bankCode={data.bankCode}
-                accountNumberMethod={data.accountNumberMethod}
-                photoUrls={data.photoUrls}
-                requiredPhotos={data.requiredPhotos}
-                onPhotosChange={(urls) => savePhotos.mutate(urls)}
-              />
-              {!enoughPhotos && (
-                <p className="text-muted">
-                  Cần đủ {data.requiredPhotos} ảnh chứng minh mới hoàn thành được.
-                </p>
-              )}
-            </>
-          ) : (
-            /* Đã hoàn thành: chỉ ảnh. Số tài khoản, ngày mở và trạng thái cài
-               app đều đã tính vào điểm KPI và đã tiêu một lượt mã. */
-            <BankAccountPhotos
-              photoUrls={data.photoUrls}
-              requiredPhotos={data.requiredPhotos}
-              onChange={(urls) => savePhotos.mutate(urls)}
-            />
+          {/* Cùng một bộ ô cho cả hai mặt — khác nhau ở chỗ bấm nút thì làm gì.
+              Ảnh vẫn lưu ngay khi thả, không chờ nút, ở cả hai mặt. */}
+          <BankAccountFinishFields
+            formId="edit-account-form"
+            onSubmit={
+              draft
+                ? finishForm.handleSubmit((form) => finish.mutate(form))
+                : finishForm.handleSubmit((form) => update.mutate(form))
+            }
+            register={finishForm.register}
+            errors={finishForm.formState.errors}
+            watch={finishForm.watch}
+            setValue={finishForm.setValue}
+            bankCode={data.bankCode}
+            accountNumberMethod={data.accountNumberMethod}
+            photoUrls={data.photoUrls}
+            requiredPhotos={data.requiredPhotos}
+            onPhotosChange={(urls) => savePhotos.mutate(urls)}
+          />
+          {draft && !enoughPhotos && (
+            <p className="text-muted">
+              Cần đủ {data.requiredPhotos} ảnh chứng minh mới hoàn thành được.
+            </p>
+          )}
+          {/* Đổi ngày mở là đổi tháng tính điểm, đổi cờ app là đổi cả combo quà
+              — nói trước khi người dùng bấm, không phải sau. */}
+          {!draft && (
+            <p className="text-muted">
+              Đổi ngày mở hoặc trạng thái cài app sẽ tính lại điểm KPI và trường hợp quà
+              của khách này.
+            </p>
           )}
         </div>
       )}

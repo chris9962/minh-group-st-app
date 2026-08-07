@@ -658,6 +658,75 @@ export async function finishBankAccount(
 }
 
 /**
+ * SỬA một tài khoản ĐÃ hoàn thành (chốt 07/08).
+ *
+ * db-design §10 trước đây khoá cứng bản ghi `done`, lý do là "đã tiêu một lượt
+ * mã và đã vào điểm KPI". Lý do đó chỉ đúng với MÃ GIỚI THIỆU, KHÁCH và NGÂN
+ * HÀNG — ba thứ đó vẫn không sửa được ở đây, vì đổi chúng là viết lại lịch sử
+ * kho mã. Còn số tài khoản gõ nhầm, ngày mở ghi lệch, hay quên tích "đã cài
+ * app" thì trước đây không có đường chữa nào ngoài xoá — mà bản `done` lại
+ * không xoá được. Ngõ cụt thật, gặp thường xuyên.
+ *
+ * Hai thứ phải tính lại sau khi ghi, và ĐỀU dễ quên:
+ *
+ * 1. Đổi ngày mở là đổi THÁNG tính điểm, nên tính lại CẢ tháng cũ lẫn tháng
+ *    mới — chỉ tính tháng mới thì lượt đó được đếm hai lần.
+ * 2. Bỏ tích app của `VPa` hay `MSBa` làm khách rơi khỏi combo, tức đổi cả
+ *    trường hợp quà — `recomputeGiftCase` phải chạy theo.
+ */
+export async function updateFinishedAccount(
+  actor: User,
+  id: string,
+  form: BankAccountFinishForm,
+): Promise<BankingOutcome<{ account: BankAccount; warnings: string[] }> | null> {
+  const visible = scopeOf(actor, WRITE_ACTION);
+  if (visible.kind === "none") return null;
+
+  const current = await rawById(id);
+  if (!current || !inScope(visible, current)) return null;
+
+  if (current.status !== "done")
+    return { ok: false, message: "Tài khoản này chưa hoàn thành — dùng bước Hoàn thành" };
+
+  const accountType = current.bankCode === "VPa" ? form.accountType : "none";
+  const previousDate = current.date;
+
+  // Điều kiện `done` nằm ngay trong câu ghi, không chỉ ở phép kiểm bên trên:
+  // giữa lúc đọc và lúc ghi, người khác có thể vừa xoá bản ghi này.
+  const updated = await db
+    .update(bankAccounts)
+    .set({
+      accountNumber: form.accountNumber,
+      openedDate: form.openedDate,
+      appInstalled: form.appInstalled,
+      accountType,
+      note: form.note,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(bankAccounts.id, id), eq(bankAccounts.status, "done")))
+    .returning({ id: bankAccounts.id });
+
+  if (updated.length === 0)
+    return { ok: false, message: "Tài khoản này vừa bị đổi ở nơi khác" };
+
+  const months = new Set(
+    [previousDate, form.openedDate]
+      .filter((d): d is string => Boolean(d))
+      .map((d) => businessMonth(new Date(`${d}T00:00:00+07:00`))),
+  );
+  for (const month of months) await recomputeKpiForCustomer(current.customerId, month);
+  await recomputeGiftCase(current.customerId);
+
+  return {
+    ok: true,
+    value: {
+      account: (await accountById(id))!,
+      warnings: await warningsFor(current.customerId),
+    },
+  };
+}
+
+/**
  * Bỏ dở — chỉ xoá được khi còn `creating` (db-design §10).
  *
  * Xoá dòng đó là NHẢ CHỖ mã về kho: trigger `mgst_sync_referral_counts` hạ

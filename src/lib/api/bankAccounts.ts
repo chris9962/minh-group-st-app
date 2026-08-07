@@ -141,6 +141,28 @@ export async function finishBankAccount(
   return CreateBankAccountResult.parse(await res.json());
 }
 
+/**
+ * Sửa một tài khoản ĐÃ hoàn thành (chốt 07/08) — cùng bộ ô với bước 2.
+ *
+ * Khác `finishBankAccount` ở chỗ nó KHÔNG đụng kho mã: mã đã tiêu từ lúc hoàn
+ * thành và giữ nguyên. Khách, ngân hàng, mã giới thiệu không sửa được ở đây.
+ *
+ * ⚠️ Đổi ngày mở là đổi tháng tính điểm — máy chủ tính lại cả tháng cũ lẫn
+ * tháng mới, nên nơi gọi phải làm mới ba màn hiện điểm (`invalidateKpi`).
+ */
+export async function updateBankAccount(
+  id: string,
+  form: BankAccountFinishForm,
+): Promise<CreateBankAccountResult> {
+  const res = await fetch(`/api/bank-accounts/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(form),
+  });
+  if (!res.ok) throw await failure(res, 'Không lưu được thay đổi cho tài khoản này');
+  return CreateBankAccountResult.parse(await res.json());
+}
+
 /** Bỏ dở — chỉ xoá được khi còn `creating`. Nhả mã lại kho ngay (mục 4.5). */
 export async function deleteBankAccount(id: string): Promise<void> {
   const res = await fetch(`/api/bank-accounts/${id}`, { method: 'DELETE' });

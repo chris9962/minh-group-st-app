@@ -4,12 +4,13 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { use } from "react";
+import { use, useState } from "react";
 import { useForm } from "react-hook-form";
-import { CheckCircle2, ChevronLeft, Landmark, Trash2 } from "lucide-react";
+import { CheckCircle2, ChevronLeft, Landmark, Pencil, Trash2 } from "lucide-react";
 import { SkeletonCard } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
+import { BankAccountEditDialog } from "@/components/banking/BankAccountEditDialog";
 import { BankAccountFinishFields } from "@/components/banking/BankAccountFinishFields";
 import { BankAccountPhotos } from "@/components/banking/BankAccountPhotos";
 import { Button } from "@/components/ui/Button";
@@ -25,8 +26,10 @@ import {
 import { fetchBankAccountDetail, type BankAccountDetail } from "@/lib/api/banking";
 import { fetchDepartments } from "@/lib/api/departments";
 import { invalidateKpi } from "@/lib/invalidateKpi";
+import { can } from "@/lib/permissions";
 import { errorMessage, toast } from "@/lib/toast";
 import { formatDate, formatPhone, businessDay } from "@/lib/format";
+import { useSession } from "@/store/session";
 import styles from "./page.module.scss";
 
 const ACCOUNT_TYPE_LABEL: Record<AccountType, string> = {
@@ -241,6 +244,8 @@ function DoneAccountCard({
   departmentName?: string;
 }) {
   const queryClient = useQueryClient();
+  const user = useSession((s) => s.user);
+  const [editing, setEditing] = useState(false);
 
   const uploadPhotos = useMutation({
     mutationFn: (photoUrls: string[]) => setBankAccountPhotos(id, photoUrls),
@@ -253,7 +258,23 @@ function DoneAccountCard({
   });
 
   return (
-    <SectionCard title="Chi tiết tài khoản" icon={<Landmark size={17} />}>
+    <SectionCard
+      title="Chi tiết tài khoản"
+      icon={<Landmark size={17} />}
+      /* Bản `done` sửa được từ 07/08 — dùng lại đúng hộp thoại của bảng P-21,
+         không dựng biểu mẫu thứ hai để rồi hai chỗ lệch luật nhau. */
+      action={
+        can(user, "banking", "update") ? (
+          <Button variant="secondary" onClick={() => setEditing(true)}>
+            <Pencil size={16} aria-hidden />
+            Sửa
+          </Button>
+        ) : undefined
+      }
+    >
+      {editing && (
+        <BankAccountEditDialog open onClose={() => setEditing(false)} accountId={id} />
+      )}
       <dl className={styles.fields}>
         <div>
           <dt>Khách hàng</dt>
