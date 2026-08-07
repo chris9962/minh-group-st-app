@@ -205,7 +205,7 @@ export const PVI_FIELDS: readonly PviField[] = [
     required: true,
     input: 'date',
     source: 'Đơn · Ngày bắt đầu',
-    fill: (o) => pviDateFromIso(o.date),
+    fill: (o) => pviDateFromIso(o.startDate),
     status: 'assumed',
   },
   {

@@ -589,7 +589,8 @@ export async function personFor(
     })),
     insurance: orderRows.map((r) => ({
       id: r.order.id,
-      date: r.order.startDate,
+      // Ngày ĐƠN, khớp với phép đếm ở `orderedInRange`.
+      date: businessDay(r.order.createdAt),
       customerName: r.customerName,
       product: r.order.product,
       packageName: r.order.packageName,

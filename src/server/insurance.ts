@@ -13,7 +13,7 @@ import {
   type InsuranceOrderForm,
 } from "@/lib/api/insuranceOrders";
 import type { Page } from "@/lib/api/pagination";
-import { businessMonth } from "@/lib/format";
+import { BUSINESS_TIMEZONE, businessDay, businessMonth } from "@/lib/format";
 import { recordVisibility, type RecordVisibility } from "@/lib/permissions";
 import { InsuranceProduct, type User } from "@/lib/types";
 import { db } from "./db/client";
@@ -133,9 +133,40 @@ const productFilter = (raw: string): SQL | undefined => {
 };
 
 /**
- * Ngày ở đây là cột `date` trần, so thẳng chuỗi `YYYY-MM-DD` là đủ — không có
- * bẫy múi giờ như `audit_log.at`.
+ * Khoảng ngày lọc theo NGÀY CỦA ĐƠN (`created_at`), không theo ngày hiệu lực.
+ *
+ * Quản lý hỏi "tháng này đội bán được bao nhiêu đơn", không hỏi "bao nhiêu hợp
+ * đồng có hiệu lực trong tháng" — hai câu khác nhau, và một đơn bán hôm nay cho
+ * hợp đồng hiệu lực tháng sau sẽ biến mất khỏi câu thứ nhất nếu lọc nhầm cột.
+ *
+ * `created_at` là `timestamptz` nên phải quy về ngày làm việc giờ Việt Nam
+ * trước khi so: đơn lập lúc 0–7h sáng mà so thẳng theo UTC sẽ rơi về hôm trước.
  */
+const orderedOn = sql`(${insuranceOrders.createdAt} at time zone ${BUSINESS_TIMEZONE})::date`;
+
+/**
+ * Ghép NGÀY người dùng khai với GIỜ của đồng hồ lúc ghi.
+ *
+ * Nhập bù cho hôm qua mà đặt 00:00 thì biểu đồ theo khung giờ ở màn Tổng quan
+ * dồn hết vào cột nửa đêm. Lấy giờ hiện tại thì ngày vẫn đúng cái người dùng
+ * khai, mà giờ đọc ra vẫn hợp lý.
+ *
+ * Ngày hôm nay thì trả về đúng lúc này, không phải dựng lại từ chuỗi — đó là ca
+ * thường gặp nhất và không có lý do gì để làm tròn nó.
+ */
+function atBusinessDay(day: string): Date {
+  const now = new Date();
+  if (day === businessDay(now)) return now;
+  const clock = new Intl.DateTimeFormat("en-GB", {
+    timeZone: BUSINESS_TIMEZONE,
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(now);
+  // `+07:00` viết cứng vì giờ làm việc là giờ Việt Nam, nơi không có giờ mùa hè.
+  return new Date(`${day}T${clock}+07:00`);
+}
 const orderFilters = (visible: RecordVisibility, query: InsuranceFilters): SQL | undefined => {
   const parts = [
     scopeWhere(visible),
@@ -144,8 +175,8 @@ const orderFilters = (visible: RecordVisibility, query: InsuranceFilters): SQL |
     productFilter(query.product),
     // Ngày sai định dạng thì bỏ qua, không trả 400 — link cũ hay ô địa chỉ gõ
     // nhầm không đáng làm hỏng cả màn (cùng lối nghĩ với `uuidParam`).
-    YEAR_MONTH_DAY.test(query.from) ? gte(insuranceOrders.startDate, query.from) : undefined,
-    YEAR_MONTH_DAY.test(query.to) ? lte(insuranceOrders.startDate, query.to) : undefined,
+    YEAR_MONTH_DAY.test(query.from) ? sql`${orderedOn} >= ${query.from}::date` : undefined,
+    YEAR_MONTH_DAY.test(query.to) ? sql`${orderedOn} <= ${query.to}::date` : undefined,
     query.staffId ? eq(insuranceOrders.createdBy, query.staffId) : undefined,
   ].filter(Boolean) as SQL[];
 
@@ -173,6 +204,7 @@ const pickPage = (where: SQL | undefined, orderBy: SQL[], limit: number, offset:
       fee: insuranceOrders.fee,
       status: insuranceOrders.status,
       source: insuranceOrders.source,
+      createdAt: insuranceOrders.createdAt,
       startDate: insuranceOrders.startDate,
       endDate: insuranceOrders.endDate,
       beneficiaryName: insuranceOrders.beneficiaryName,
@@ -208,7 +240,8 @@ const decorate = (page: ReturnType<typeof pickPage>) =>
       fee: page.fee,
       status: page.status,
       source: page.source,
-      date: page.startDate,
+      orderDate: sql<string>`to_char(${page.createdAt} at time zone ${BUSINESS_TIMEZONE}, 'YYYY-MM-DD')`,
+      startDate: page.startDate,
       endDate: page.endDate,
       beneficiaryName: page.beneficiaryName,
       // Cột nullable ở DB nhưng hợp đồng là chuỗi: đơn xe máy không hỏi ngày sinh.
@@ -252,7 +285,8 @@ const toRow = (r: DecoratedRow): InsuranceListRow => ({
   fee: r.fee,
   status: r.status,
   source: r.source,
-  date: r.date,
+  orderDate: r.orderDate,
+  startDate: r.startDate,
   endDate: r.endDate,
   createdById: r.createdById,
   createdByName: r.createdByName,
@@ -276,27 +310,21 @@ const toOrder = (r: DecoratedRow): InsuranceOrder => ({
 });
 
 /**
- * Ba khoá, và cả ba đều cần thiết.
+ * Sắp theo NGÀY CỦA ĐƠN, mới nhất lên trước.
  *
- * `start_date` là thứ người dùng chọn sắp. Nhưng hàng chục đơn CÙNG một ngày
- * hiệu lực là chuyện thường ngày — mọi đơn lập trong hôm nay đều mặc định hôm
- * nay — nên một mình nó không quyết định nổi thứ tự.
+ * `created_at` là timestamp nên gần như không hoà; `id` đứng cuối cho ca hai đơn
+ * của cùng một gói sinh trong CÙNG một giao dịch — `now()` không đổi trong một
+ * giao dịch nên chúng mang dấu thời gian y hệt nhau, và không có khoá phụ duy
+ * nhất thì một dòng hiện lại ở trang sau còn dòng khác biến mất khỏi cả hai.
  *
- * `created_at` phá hoà theo đúng thứ tự người dùng mong đợi: đơn vừa lập nằm
- * trên. Bản đầu chỉ có `start_date, id`, mà `id` là uuid ngẫu nhiên, nên trong
- * cùng một ngày thứ tự là ngẫu nhiên — người dùng bấm Tạo đơn xong không thấy
- * đơn của mình đâu vì nó rơi vào giữa bảng, có khi sang tận trang 3. Bộ e2e bắt
- * được đúng ca đó sau vài lượt chạy.
- *
- * `id` vẫn phải đứng cuối: hai đơn của cùng một gói sinh trong cùng giao dịch
- * mang `created_at` y hệt nhau (`now()` không đổi trong một giao dịch), và
- * không có khoá phụ duy nhất thì một dòng hiện lại ở trang sau còn dòng khác
- * biến mất khỏi cả hai trang. Chỉ mục `insurance_orders_date` khớp đúng bộ ba.
+ * Bản trước sắp theo `start_date` (ngày hiệu lực) rồi mới tới `created_at`, nên
+ * một đơn bán hôm nay cho hợp đồng hiệu lực tháng sau nhảy lên đầu bảng còn đơn
+ * vừa bán cho hợp đồng hiệu lực hôm qua thì nằm giữa danh sách.
  */
 const orderByDate = (dir: "asc" | "desc"): SQL[] =>
   dir === "asc"
-    ? [sql`${insuranceOrders.startDate} asc`, sql`${insuranceOrders.createdAt} asc`, asc(insuranceOrders.id)]
-    : [sql`${insuranceOrders.startDate} desc`, sql`${insuranceOrders.createdAt} desc`, asc(insuranceOrders.id)];
+    ? [sql`${insuranceOrders.createdAt} asc`, asc(insuranceOrders.id)]
+    : [sql`${insuranceOrders.createdAt} desc`, asc(insuranceOrders.id)];
 
 /** MỘT trang đơn bảo hiểm, đã lọc/tìm/sắp sẵn ở máy chủ (AGENTS.md §5.1). */
 export async function listInsuranceOrders(
@@ -412,9 +440,12 @@ export async function createInsuranceOrders(
     .limit(1);
   if (!customer) return { ok: false, message: "Không tìm thấy khách hàng này" };
 
+  const today = businessDay();
   for (const leg of form.legs) {
     if (leg.endDate < leg.startDate)
       return { ok: false, message: "Ngày kết thúc phải sau ngày bắt đầu" };
+    // Sổ ghi việc ĐÃ LÀM: một đơn của tuần sau thì chưa bán cho ai.
+    if (leg.orderDate > today) return { ok: false, message: "Ngày đơn không được ở tương lai" };
   }
 
   /**
@@ -471,6 +502,14 @@ export async function createInsuranceOrders(
           packageId: packageIds.get(leg.packageName) ?? null,
           packageName: leg.packageName,
           fee: leg.fee,
+          /**
+           * Ngày người nhập chọn, GIỜ thì lấy đồng hồ lúc ghi.
+           *
+           * Nhập bù cho hôm qua mà đặt 00:00 thì biểu đồ theo khung giờ ở màn
+           * Tổng quan dồn hết vào cột nửa đêm — giờ hiện tại đọc ra hợp lý hơn
+           * hẳn, và ngày thì vẫn đúng cái người dùng khai.
+           */
+          createdAt: atBusinessDay(leg.orderDate),
           startDate: leg.startDate,
           endDate: leg.endDate,
           status: NEW_ORDER_STATUS,
@@ -551,10 +590,15 @@ export async function updateInsuranceOrder(
 
   if (form.endDate < form.startDate)
     return { ok: false, message: "Ngày kết thúc phải sau ngày bắt đầu" };
+  if (form.orderDate > businessDay())
+    return { ok: false, message: "Ngày đơn không được ở tương lai" };
 
   await db
     .update(insuranceOrders)
     .set({
+      // Đổi ngày đơn là đổi tháng mà đơn này được tính — cột `created_at` sửa
+      // được đúng vì lý do đó (chốt 07/08).
+      createdAt: atBusinessDay(form.orderDate),
       fee: form.fee,
       startDate: form.startDate,
       endDate: form.endDate,

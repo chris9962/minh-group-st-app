@@ -61,8 +61,21 @@ export type InsuranceManualStep = z.infer<typeof InsuranceManualStep>;
 /* Loại xe (`VEHICLE_TYPES`) nằm ở `@/lib/pvi` cùng toàn bộ hợp đồng field
    của PVI — nó là danh sách của PVI, không phải danh mục của mình. */
 
+/**
+ * NGÀY CỦA ĐƠN — ngày nhân viên bán đơn cho khách.
+ *
+ * Ghi vào `insurance_orders.created_at`, và cột đó SỬA ĐƯỢC (chốt 07/08): hệ
+ * thống sập hay mất mạng ngoài hiện trường thì hôm sau nhập bù vẫn ghi được
+ * đúng ngày đã bán. Máy chủ chặn ngày tương lai — đơn của tuần sau thì chưa bán.
+ *
+ * Vết kiểm toán KHÔNG nằm ở cột này mà ở bảng `audit_log` (P-93), nơi ghi ai
+ * sửa đơn nào lúc nào; cho sửa `created_at` không xoá dấu vết gì.
+ */
+const orderDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Ngày không hợp lệ');
+
 /** Những trường một người nhập liệu gõ vào, dùng chung cho lúc tạo và lúc sửa. */
 const orderFields = {
+  orderDate,
   /** Mức phí của ĐƠN này (đ) — prefill từ gói, sửa được từng đơn (03/08). */
   fee: z.number().min(0, 'Mức phí phải từ 0 trở lên'),
   startDate: z.string().trim().min(1, 'Chưa chọn ngày bắt đầu'),

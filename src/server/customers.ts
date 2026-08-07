@@ -483,7 +483,8 @@ export async function customerDetailFor(
     db
       .select({
         id: insuranceOrders.id,
-        date: insuranceOrders.startDate,
+        // Ngày ĐƠN, không phải ngày hiệu lực (chốt 07/08).
+        date: sql<string>`to_char(${insuranceOrders.createdAt} at time zone ${BUSINESS_TIMEZONE}, 'YYYY-MM-DD')`,
         product: insuranceOrders.product,
         packageName: insuranceOrders.packageName,
         status: insuranceOrders.status,
@@ -493,7 +494,7 @@ export async function customerDetailFor(
       })
       .from(insuranceOrders)
       .where(eq(insuranceOrders.customerId, id))
-      .orderBy(desc(insuranceOrders.startDate)),
+      .orderBy(desc(insuranceOrders.createdAt)),
     db
       .select({
         id: services.id,

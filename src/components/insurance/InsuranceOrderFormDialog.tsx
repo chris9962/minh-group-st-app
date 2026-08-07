@@ -56,6 +56,8 @@ function defaultLegsFor(pkg: InsurancePackage | null): InsuranceOrderLegForm[] {
     const values: InsuranceOrderLegForm = {
       product: leg.product,
       packageName: pkg.name,
+      // Ngày BÁN đơn, mặc định hôm nay. Khác `startDate` (ngày hiệu lực).
+      orderDate: today,
       /** Phí khai riêng cho leg này — trọn thời hạn, không phải chia đều giá gói. */
       fee: leg.fee,
       startDate: today,
@@ -295,6 +297,15 @@ export function InsuranceOrderFormDialog({
             <fieldset key={field.id} className={styles.legCard}>
               <legend className={styles.legTitle}>{legLabel(selectedPackage, i)}</legend>
 
+              <TextField
+                label="Ngày đơn"
+                type="date"
+                max={businessDay()}
+                hint="Ngày bán đơn cho khách"
+                error={errors.legs?.[i]?.orderDate?.message}
+                {...register(`legs.${i}.orderDate`)}
+              />
+
               <div className={styles.pair}>
                 <TextField label="Ngày bắt đầu" type="date" {...register(`legs.${i}.startDate`)} />
                 <TextField label="Ngày kết thúc" type="date" {...register(`legs.${i}.endDate`)} />
@@ -315,6 +326,15 @@ export function InsuranceOrderFormDialog({
 
         {legsField.fields.length === 1 && (
           <>
+            <TextField
+              label="Ngày đơn"
+              type="date"
+              max={businessDay()}
+              hint="Ngày bán đơn cho khách"
+              error={errors.legs?.[0]?.orderDate?.message}
+              {...register("legs.0.orderDate")}
+            />
+
             <div className={styles.pair}>
               <TextField label="Ngày bắt đầu" type="date" {...register("legs.0.startDate")} />
               <TextField label="Ngày kết thúc" type="date" {...register("legs.0.endDate")} />

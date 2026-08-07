@@ -610,19 +610,17 @@ export const insuranceOrders = pgTable(
     index("insurance_orders_customer").on(t.customerId),
     index("insurance_orders_status").on(t.status),
     /**
-     * Khớp đúng thứ tự P-13 lấy một trang: `start_date desc, created_at desc,
-     * id`, có hoặc không kèm bộ lọc phạm vi. Cả ba khoá đều phải nằm trong chỉ
-     * mục — thiếu một cái thì Postgres vẫn phải xếp lại toàn bộ kết quả khớp
-     * bộ lọc trước khi cắt 15 dòng, tức là quét cả kho để lấy một trang.
-     * Vì sao đúng bộ ba đó: xem `orderByDate` ở `server/insurance.ts`.
+     * Khớp đúng thứ tự P-13 lấy một trang: `created_at desc, id`, có hoặc không
+     * kèm bộ lọc phạm vi. Thiếu chỉ mục đúng hình dạng này thì Postgres phải
+     * xếp lại toàn bộ kết quả khớp bộ lọc trước khi cắt 15 dòng, tức quét cả
+     * kho để lấy một trang.
+     *
+     * Sắp theo NGÀY CỦA ĐƠN (`created_at`), không theo ngày hiệu lực — xem
+     * `orderByDate` ở `server/insurance.ts`.
      */
-    index("insurance_orders_dept_date").on(
-      sql`created_by_department_id, start_date desc, created_at desc, id`,
-    ),
-    index("insurance_orders_creator_date").on(
-      sql`created_by, start_date desc, created_at desc, id`,
-    ),
-    index("insurance_orders_date").on(sql`start_date desc, created_at desc, id`),
+    index("insurance_orders_dept_date").on(sql`created_by_department_id, created_at desc, id`),
+    index("insurance_orders_creator_date").on(sql`created_by, created_at desc, id`),
+    index("insurance_orders_date").on(sql`created_at desc, id`),
     check(
       "insurance_orders_motorbike_plate",
       sql`product <> 'motorbike' or license_plate <> ''`,

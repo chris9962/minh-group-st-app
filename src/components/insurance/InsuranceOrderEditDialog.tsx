@@ -14,6 +14,7 @@ import {
   insuranceOrderEditSchema,
   type InsuranceOrderEditForm,
 } from "@/lib/api/insuranceOrders";
+import { businessDay } from "@/lib/format";
 import { VEHICLE_TYPES } from "@/lib/pvi";
 import { errorMessage, toast } from "@/lib/toast";
 import { PRODUCT_LABEL } from "@/lib/types";
@@ -57,8 +58,9 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId }: Props) {
     // `values` chứ không phải `defaultValues`: chi tiết về SAU lượt render đầu,
     // mà `defaultValues` chỉ đọc một lần nên form sẽ trống mãi.
     values: {
+      orderDate: data?.orderDate ?? "",
       fee: data?.fee ?? 0,
-      startDate: data?.date ?? "",
+      startDate: data?.startDate ?? "",
       endDate: data?.endDate ?? "",
       beneficiaryName: data?.beneficiaryName ?? "",
       beneficiaryDob: data?.beneficiaryDob ?? "",
@@ -116,6 +118,17 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId }: Props) {
             {data.orderCode} · {PRODUCT_LABEL[data.product]} · {data.packageName} ·{" "}
             {data.customerName}
           </p>
+
+          {/* Ngày BÁN đơn — đổi nó là đổi tháng mà đơn này được tính. Khác hẳn
+              ngày hiệu lực bên dưới. */}
+          <TextField
+            label="Ngày đơn"
+            type="date"
+            max={businessDay()}
+            hint="Ngày bán đơn cho khách"
+            error={errors.orderDate?.message}
+            {...form.register("orderDate")}
+          />
 
           <div className={styles.pair}>
             <TextField label="Ngày bắt đầu" type="date" {...form.register("startDate")} />

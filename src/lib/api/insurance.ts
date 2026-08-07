@@ -30,8 +30,18 @@ export const InsuranceListRow = z.object({
   fee: z.number(),
   status: InsuranceOrderStatus,
   source: InsuranceOrderSource,
-  /** Ngày bắt đầu hiệu lực. */
-  date: z.string(),
+  /**
+   * NGÀY CỦA ĐƠN — ngày nhân viên bán đơn cho khách, và là ngày dùng để tính
+   * kỳ (KPI, dashboard, bộ lọc P-13).
+   *
+   * Đọc từ `created_at`, và cột đó SỬA ĐƯỢC (chốt 07/08): hệ thống sập hay mất
+   * mạng ngoài hiện trường thì hôm sau nhập bù vẫn ghi được đúng ngày đã bán.
+   * Vết kiểm toán không nằm ở đây mà ở bảng `audit_log` (P-93), nên cho sửa cột
+   * này không xoá dấu vết gì.
+   */
+  orderDate: z.string(),
+  /** Ngày hợp đồng bắt đầu có hiệu lực — KHÁC ngày bán đơn, người nhập tự chọn. */
+  startDate: z.string(),
   endDate: z.string(),
   createdById: z.string().nullable(),
   createdByName: z.string().nullable(),

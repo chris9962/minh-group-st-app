@@ -158,10 +158,11 @@ export default function InsurancePage() {
       },
       {
         key: "date",
-        label: "Ngày hiệu lực",
+        label: "Ngày đơn",
         sortable: true,
-        render: (r) => formatDate(r.date),
+        render: (r) => formatDate(r.orderDate),
       },
+      { key: "startDate", label: "Hiệu lực từ", render: (r) => formatDate(r.startDate) },
       { key: "createdByName", label: "Người tạo", render: (r) => r.createdByName ?? "—" },
       ...(canEdit || canRemove
         ? [
@@ -361,8 +362,8 @@ export default function InsurancePage() {
             onClose={() => setRemoving(null)}
           >
             <strong>{removing.orderCode}</strong> · {PRODUCT_LABEL[removing.product]} ·{" "}
-            {removing.packageName}, của {removing.customerName}, hiệu lực từ{" "}
-            {formatDate(removing.date)}.
+            {removing.packageName}, của {removing.customerName}, bán ngày{" "}
+            {formatDate(removing.orderDate)}.
           </ConfirmDialog>
         )}
       </main>
