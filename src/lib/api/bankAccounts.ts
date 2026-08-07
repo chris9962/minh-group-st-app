@@ -53,6 +53,10 @@ export const BankAccount = z.object({
   createdByDepartmentId: z.string().nullable(),
   /** Ảnh chứng minh thật — số ảnh bắt buộc lấy từ cấu hình ngân hàng (P-60), xem/sửa ở P-22. */
   photoUrls: z.array(z.string()),
+  /** `''` = chưa ghi nhận giao dịch nào (bước 3, spec §4.2). */
+  transactionAt: z.string(),
+  /** Ảnh chuyển khoản — đếm RIÊNG, không cộng vào `photoUrls`. */
+  transactionPhotoUrls: z.array(z.string()),
   status: BankAccountStatus,
 });
 export type BankAccount = z.infer<typeof BankAccount>;
@@ -87,6 +91,22 @@ export const BankAccountFinishForm = z.object({
   note: z.string(),
 });
 export type BankAccountFinishForm = z.infer<typeof BankAccountFinishForm>;
+
+/**
+ * Bước 2 + bước 3 gộp lại — biểu mẫu SỬA một tài khoản đã `done` (P-22).
+ *
+ * Ngày giao dịch chỉ có mặt ở đây, không có ở `BankAccountFinishForm`: bước 2
+ * là lúc vừa mở tài khoản xong, chưa thể có giao dịch để ghi. Ghi nhận giao
+ * dịch là việc quay lại làm sau (spec §4.2 bước 3).
+ */
+export const BankAccountUpdateForm = BankAccountFinishForm.extend({
+  /** `''` = chưa ghi nhận. Trùng ngày mở vẫn hợp lệ (chốt 07/08). */
+  transactionAt: z
+    .string()
+    .trim()
+    .regex(/^$|^\d{4}-\d{2}-\d{2}$/, 'Ngày giao dịch phải có dạng YYYY-MM-DD'),
+});
+export type BankAccountUpdateForm = z.infer<typeof BankAccountUpdateForm>;
 
 export const CreateBankAccountResult = z.object({
   account: BankAccount,
@@ -152,7 +172,7 @@ export async function finishBankAccount(
  */
 export async function updateBankAccount(
   id: string,
-  form: BankAccountFinishForm,
+  form: BankAccountUpdateForm,
 ): Promise<CreateBankAccountResult> {
   const res = await fetch(`/api/bank-accounts/${id}`, {
     method: 'PATCH',
@@ -169,22 +189,41 @@ export async function deleteBankAccount(id: string): Promise<void> {
   if (!res.ok) throw await failure(res, 'Không xoá được tài khoản đang tạo này');
 }
 
+/** Hai loại ảnh của một tài khoản, đếm tách nhau (spec §4.2 bước 3). */
+export type PhotoKind = 'opening' | 'transaction';
+
 /**
- * Ghi danh sách ảnh chứng minh vào database — gửi nguyên mảng URL đã cập nhật.
+ * Trần số ảnh MỖI NHÓM. Máy chủ chặn theo đúng con số này, giao diện cũng khoá
+ * theo — hai nơi lệch nhau thì người dùng chọn đủ ảnh rồi mới nhận lỗi 400.
+ */
+export const PHOTO_MAX = 20;
+
+const PHOTO_LABEL: Record<PhotoKind, string> = {
+  opening: 'ảnh chứng minh',
+  transaction: 'ảnh giao dịch',
+};
+
+/**
+ * Ghi danh sách ảnh vào database — gửi nguyên mảng URL đã cập nhật.
  *
  * KHÔNG nhận file: tải ảnh lên là việc riêng của `uploadImage`, đường này chỉ
  * ghi URL. Tách hai việc ra để một lần tải hỏng không kéo theo cả bản ghi, và
  * để đổi chỗ lưu trữ về sau không phải sửa nghiệp vụ.
+ *
+ * `kind` quyết định ghi đè NHÓM NÀO. Ảnh giao dịch nộp muộn hơn ảnh chứng minh
+ * rất nhiều, nên hai nhóm phải ghi rời — gửi chung một mảng là lượt nộp ảnh
+ * giao dịch xoá sạch ảnh chứng minh của bước 2.
  */
 export async function setBankAccountPhotos(
   id: string,
   photoUrls: string[],
+  kind: PhotoKind = 'opening',
 ): Promise<BankAccount> {
   const res = await fetch(`/api/bank-accounts/${id}/photos`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ photoUrls }),
+    body: JSON.stringify({ photoUrls, kind }),
   });
-  if (!res.ok) throw await failure(res, 'Không lưu được ảnh chứng minh này');
+  if (!res.ok) throw await failure(res, `Không lưu được ${PHOTO_LABEL[kind]} này`);
   return BankAccount.parse(await res.json());
 }

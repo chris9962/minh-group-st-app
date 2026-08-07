@@ -27,7 +27,9 @@ import {
   BankAccountFinishForm,
   deleteBankAccount,
   finishBankAccount,
+  PHOTO_MAX,
   setBankAccountPhotos,
+  type PhotoKind,
 } from "@/lib/api/bankAccounts";
 import { fetchBankAccountDetail, type BankAccountDetail } from "@/lib/api/banking";
 import { fetchDepartments } from "@/lib/api/departments";
@@ -253,6 +255,7 @@ function DoneAccountCard({
 }) {
   const queryClient = useQueryClient();
   const user = useSession((s) => s.user);
+  const canWrite = can(user, "banking", "update");
   const [editing, setEditing] = useState(false);
 
   /**
@@ -261,17 +264,37 @@ function DoneAccountCard({
    */
   const [editedPhotos, setEditedPhotos] = useState<PhotoItem[] | null>(null);
   const photos = editedPhotos ?? savedPhotos(data.photoUrls);
+  const [editedTransactionPhotos, setEditedTransactionPhotos] = useState<PhotoItem[] | null>(null);
+  const transactionPhotos = editedTransactionPhotos ?? savedPhotos(data.transactionPhotoUrls);
 
   const uploadPhotos = useMutation({
-    mutationFn: async (next: PhotoItem[]) =>
-      setBankAccountPhotos(id, await uploadPendingPhotos(next)),
-    onSuccess: (updated) => {
-      setEditedPhotos(null);
+    mutationFn: async ({ next, kind }: { next: PhotoItem[]; kind: PhotoKind }) =>
+      setBankAccountPhotos(id, await uploadPendingPhotos(next), kind),
+    onSuccess: (updated, { kind }) => {
+      // Nhả trạng thái tạm của ĐÚNG nhóm vừa lưu — nhả cả hai thì nhóm kia đang
+      // sửa dở bị kéo về bản trên máy chủ giữa chừng.
+      if (kind === "opening") setEditedPhotos(null);
+      else setEditedTransactionPhotos(null);
       queryClient.invalidateQueries({ queryKey: ["bank-account-detail", id] });
       queryClient.invalidateQueries({ queryKey: ["bank-account-list"] });
-      toast.ok(`Đã lưu ${updated.photoUrls.length} ảnh chứng minh`);
+      toast.ok(
+        kind === "opening"
+          ? `Đã lưu ${updated.photoUrls.length} ảnh chứng minh`
+          : `Đã lưu ${updated.transactionPhotoUrls.length} ảnh giao dịch`,
+      );
     },
-    onError: (e) => toast.fail(errorMessage(e, "Không lưu được ảnh chứng minh này.")),
+    /**
+     * Trả màn về ĐÚNG thứ máy chủ đang giữ.
+     *
+     * Danh sách mới được đặt vào state TRƯỚC khi gọi máy chủ, nên lượt gọi hỏng
+     * mà không nhả state thì màn hiện một danh sách không tồn tại — người dùng
+     * thấy tấm ảnh biến mất, tưởng đã xoá xong, trong khi máy chủ vẫn còn nguyên.
+     */
+    onError: (e, { kind }) => {
+      if (kind === "opening") setEditedPhotos(null);
+      else setEditedTransactionPhotos(null);
+      toast.fail(errorMessage(e, "Không lưu được ảnh này."));
+    },
   });
 
   return (
@@ -281,7 +304,7 @@ function DoneAccountCard({
       /* Bản `done` sửa được từ 07/08 — dùng lại đúng hộp thoại của bảng P-21,
          không dựng biểu mẫu thứ hai để rồi hai chỗ lệch luật nhau. */
       action={
-        can(user, "banking", "update") ? (
+        canWrite ? (
           <Button variant="secondary" onClick={() => setEditing(true)}>
             <Pencil size={16} aria-hidden />
             Sửa
@@ -337,6 +360,16 @@ function DoneAccountCard({
           <dd>{ACCOUNT_TYPE_LABEL[data.accountType]}</dd>
         </div>
         <div>
+          <dt>Ngày giao dịch</dt>
+          <dd>
+            {data.transactionAt ? (
+              formatDate(data.transactionAt)
+            ) : (
+              <span className="text-muted">Chưa ghi nhận</span>
+            )}
+          </dd>
+        </div>
+        <div>
           <dt>Ghi chú</dt>
           <dd>{data.note || "—"}</dd>
         </div>
@@ -350,14 +383,32 @@ function DoneAccountCard({
         </div>
       </dl>
 
+      {/* Không có quyền sửa thì KHOÁ, không phải ẩn: ảnh vẫn phải xem được.
+          Máy chủ vẫn kiểm lại từ đầu — khoá ở đây chỉ để người dùng khỏi bấm
+          vào một nút chắc chắn trả 403 (AGENTS.md §6). */}
       <BankAccountPhotos
         photos={photos}
         requiredPhotos={data.requiredPhotos}
         onChange={(next) => {
           setEditedPhotos(next);
-          uploadPhotos.mutate(next);
+          uploadPhotos.mutate({ next, kind: "opening" });
         }}
-        busy={uploadPhotos.isPending}
+        busy={!canWrite || uploadPhotos.isPending}
+      />
+
+      {/* Ảnh giao dịch của bước 3 (spec §4.2) — nộp muộn, không bắt buộc tấm
+          nào, và KHÔNG cộng vào số ảnh chứng minh bắt buộc. Ngày giao dịch sửa
+          ở hộp thoại Sửa cùng với các ô còn lại. */}
+      <BankAccountPhotos
+        title="Ảnh giao dịch"
+        requiredPhotos={0}
+        max={PHOTO_MAX}
+        photos={transactionPhotos}
+        onChange={(next) => {
+          setEditedTransactionPhotos(next);
+          uploadPhotos.mutate({ next, kind: "transaction" });
+        }}
+        busy={!canWrite || uploadPhotos.isPending}
       />
     </SectionCard>
   );

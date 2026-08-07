@@ -1,4 +1,4 @@
-import { BankAccountFinishForm } from "@/lib/api/bankAccounts";
+import { BankAccountUpdateForm } from "@/lib/api/bankAccounts";
 import { can } from "@/lib/permissions";
 import { logAudit } from "@/server/audit";
 import {
@@ -21,6 +21,9 @@ import { deleteDraft, updateFinishedAccount } from "@/server/banking";
  *
  * Khách, ngân hàng và mã giới thiệu KHÔNG nằm trong biểu mẫu — đổi ba thứ đó là
  * viết lại lịch sử kho mã, và người dùng có nút xoá bản nháp cho ca nhập nhầm.
+ *
+ * Cũng là đường ghi BƯỚC 3 (spec §4.2): ngày khách phát sinh giao dịch. Ảnh
+ * giao dịch đi đường `/photos` riêng, cùng nhịp với ảnh chứng minh.
  */
 export async function PATCH(
   request: Request,
@@ -33,7 +36,7 @@ export async function PATCH(
   const { id } = await params;
   if (!isUuid(id)) return notFound();
 
-  const parsed = BankAccountFinishForm.safeParse(await jsonBody(request));
+  const parsed = BankAccountUpdateForm.safeParse(await jsonBody(request));
   if (!parsed.success) return badRequest();
 
   const result = await updateFinishedAccount(actor, id, parsed.data);
@@ -41,10 +44,17 @@ export async function PATCH(
   if (result === null) return notFound();
   if (!result.ok) return Response.json({ message: result.message }, { status: 422 });
 
+  // Ngày giao dịch nói riêng ra: ô để trống là lệnh XOÁ ghi nhận, mà nhãn chung
+  // "Sửa tài khoản" thì người soát nhật ký không có cách nào biết nó vừa mất.
+  const { account } = result.value;
+  const transaction = account.transactionAt
+    ? `, ngày giao dịch ${account.transactionAt}`
+    : ", không có ngày giao dịch";
+
   await logAudit(actor, {
     module: "banking",
     action: "update",
-    targetLabel: `Sửa tài khoản ${result.value.account.bankCode} của ${result.value.account.customerName}`,
+    targetLabel: `Sửa tài khoản ${account.bankCode} của ${account.customerName}${transaction}`,
     targetTable: "bank_accounts",
     targetId: id,
   });

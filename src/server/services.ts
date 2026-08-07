@@ -1,4 +1,16 @@
-import { and, asc, count, desc, eq, gte, inArray, lte, sql, type SQL } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gte,
+  inArray,
+  lte,
+  sql,
+  type SQL,
+  type SQLWrapper,
+} from "drizzle-orm";
 import type { Page } from "@/lib/api/pagination";
 import type { ServiceEditForm, ServiceForm, ServiceRow, ServiceSort } from "@/lib/api/services";
 import { businessDay, businessMonth } from "@/lib/format";
@@ -99,6 +111,8 @@ const pickPage = (where: SQL | undefined, orderBy: SQL[], limit: number, offset:
       serviceTypeId: services.serviceTypeId,
       note: services.note,
       date: services.serviceDate,
+      // Không hiện ở màn nào — có mặt CHỈ để câu ngoài sắp lại được, xem `orderOuter`.
+      createdAt: services.createdAt,
       createdById: services.createdBy,
       createdByDepartmentId: services.createdByDepartmentId,
       wardName: services.wardName,
@@ -189,6 +203,53 @@ const inScope = (
   }
 };
 
+/**
+ * Ba khoá, và cả ba đều cần thiết.
+ *
+ * `service_date` là thứ người dùng chọn sắp. Nhưng nó là kiểu `date` — không có
+ * giờ — nên MỌI dịch vụ ghi trong cùng một ngày đều hoà, mà một ngày bình thường
+ * có hàng chục dòng như vậy.
+ *
+ * `created_at` phá hoà theo đúng thứ tự người dùng mong đợi: dòng vừa ghi nằm
+ * trên. Thiếu nó thì khoá phá hoà còn lại là `id` — uuid NGẪU NHIÊN — và thứ tự
+ * trong ngày đọc ra như xáo bài (migration 0018).
+ *
+ * `id` vẫn phải đứng cuối: không có khoá duy nhất ở cuối thì một dòng hiện lại ở
+ * trang sau còn dòng khác biến mất khỏi cả hai trang.
+ */
+const orderByDate = (
+  t: { date: SQLWrapper; at: SQLWrapper; id: SQLWrapper },
+  dir: "asc" | "desc",
+): SQL[] =>
+  dir === "asc" ? [asc(t.date), asc(t.at), asc(t.id)] : [desc(t.date), desc(t.at), asc(t.id)];
+
+/**
+ * Một trang ĐÃ sắp đúng ở CẢ HAI TẦNG.
+ *
+ * ⚠️ PHÉP NỐI KHÔNG GIỮ THỨ TỰ — câu con sắp xong rồi cắt trang, nhưng câu ngoài
+ * nối ba bảng và Postgres chọn Hash Join thì thứ tự đầu vào biến mất sạch. Nó
+ * "chạy đúng" khi ít dữ liệu chỉ vì kế hoạch tình cờ là Nested Loop.
+ *
+ * Hai tầng gọi CHUNG một `orderByDate`, chỉ khác nguồn cột — chép quy tắc ra hai
+ * chỗ là có ngày chúng lệch nhau.
+ */
+const orderedPage = (
+  where: SQL | undefined,
+  dir: "asc" | "desc",
+  limit: number,
+  offset: number,
+) => {
+  const page = pickPage(
+    where,
+    orderByDate({ date: services.serviceDate, at: services.createdAt, id: services.id }, dir),
+    limit,
+    offset,
+  );
+  return decorate(page).orderBy(
+    ...orderByDate({ date: page.date, at: page.createdAt, id: page.id }, dir),
+  );
+};
+
 /** MỘT trang dịch vụ, đã lọc/tìm/sắp sẵn ở máy chủ (AGENTS.md §5.1). */
 export async function listServices(
   actor: User,
@@ -199,17 +260,8 @@ export async function listServices(
   if (visible.kind === "none") return { rows: [], total: 0 };
 
   const where = serviceFilters(visible, filters);
-  const direction = page.dir === "asc" ? asc : desc;
-
-  /**
-   * Kết thúc bằng `id` là bắt buộc: nhiều dịch vụ cùng một ngày là chuyện
-   * thường, mà không có khoá phụ duy nhất thì thứ tự giữa chúng không xác định
-   * — một dòng hiện lại ở trang sau còn dòng khác biến mất khỏi cả hai trang.
-   */
-  const orderBy = [direction(services.serviceDate), asc(services.id)] as SQL[];
-
   const [rows, [totals]] = await Promise.all([
-    decorate(pickPage(where, orderBy, page.limit, page.offset)),
+    orderedPage(where, page.dir, page.limit, page.offset),
     db.select({ value: count() }).from(services).where(where),
   ]);
 
@@ -235,10 +287,8 @@ export async function listServicesForExport(
   if (visible.kind === "none") return { rows: [], total: 0 };
 
   const where = serviceFilters(visible, filters);
-  const orderBy = [desc(services.serviceDate), asc(services.id)] as SQL[];
-
   const [rows, [totals]] = await Promise.all([
-    decorate(pickPage(where, orderBy, EXPORT_LIMIT, 0)),
+    orderedPage(where, "desc", EXPORT_LIMIT, 0),
     db.select({ value: count() }).from(services).where(where),
   ]);
 

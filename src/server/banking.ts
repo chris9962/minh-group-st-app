@@ -1,8 +1,22 @@
-import { and, asc, count, eq, gte, inArray, lte, sql, type SQL } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gte,
+  inArray,
+  lte,
+  sql,
+  type SQL,
+  type SQLWrapper,
+} from "drizzle-orm";
 import type {
   BankAccount,
   BankAccountFinishForm,
   BankAccountStartForm,
+  BankAccountUpdateForm,
+  PhotoKind,
 } from "@/lib/api/bankAccounts";
 import type { BankAccountDetail, BankAccountRow, BankAccountSort } from "@/lib/api/banking";
 import type { Page } from "@/lib/api/pagination";
@@ -211,6 +225,9 @@ const pickPage = (where: SQL | undefined, orderBy: SQL[], limit: number, offset:
       referralCodeId: bankAccounts.referralCodeId,
       accountNumber: bankAccounts.accountNumber,
       openedDate: bankAccounts.openedDate,
+      transactionAt: bankAccounts.transactionAt,
+      // Không hiện ở màn nào — có mặt CHỈ để câu ngoài sắp lại được, xem `orderOuter`.
+      createdAt: bankAccounts.createdAt,
       channelId: bankAccounts.channelId,
       channelDetail: bankAccounts.channelDetail,
       appInstalled: bankAccounts.appInstalled,
@@ -241,6 +258,7 @@ const decorate = (page: ReturnType<typeof pickPage>) =>
       // chưa mở xong thì chưa biết số thật.
       accountNumber: sql<string>`coalesce(${page.accountNumber}, '')`,
       date: sql<string>`coalesce(${page.openedDate}::text, '')`,
+      transactionAt: sql<string>`coalesce(${page.transactionAt}::text, '')`,
       channel: sql<string>`coalesce(${channels.name}, '')`,
       channelDetail: page.channelDetail,
       appInstalled: page.appInstalled,
@@ -284,7 +302,7 @@ const toRow = (r: DecoratedRow): BankAccountRow => ({
 });
 
 /**
- * Sắp theo ngày mở, NULL xuống cuối.
+ * Sắp theo ngày mở, NULL xuống cuối, ba khoá.
  *
  * Viết thẳng `desc nulls last` chứ không bọc `desc(sql\`… nulls last\`)`: bọc
  * thì drizzle nối thành `opened_date nulls last desc`, mà Postgres đòi đúng thứ
@@ -293,11 +311,60 @@ const toRow = (r: DecoratedRow): BankAccountRow => ({
  * `nulls last` là cố ý: tài khoản còn `creating` chưa có ngày mở, mà mặc định
  * Postgres xếp NULL lên ĐẦU khi giảm dần — bảng mở ra toàn bản nháp trong khi
  * người dùng đang tìm tài khoản mới hoàn thành.
+ *
+ * `created_at` phá hoà (migration 0018). `opened_date` là kiểu `date`, không có
+ * giờ, nên mọi tài khoản mở cùng ngày đều hoà — mà một ngày làm việc có hàng
+ * chục dòng như vậy. Thiếu khoá này thì khoá phá hoà còn lại là `id`, uuid
+ * NGẪU NHIÊN, và người vừa nhập xong không thấy dòng của mình đâu vì nó rơi vào
+ * giữa bảng. Đơn bảo hiểm đã dính đúng lỗi này, xem `insurance.ts`.
+ *
+ * `id` vẫn đứng cuối: hai dòng sinh trong cùng một giao dịch mang `created_at` y
+ * hệt nhau, vì `now()` không đổi trong một giao dịch.
  */
-const byOpenedDate = (dir: "asc" | "desc"): SQL =>
+const orderByDate = (
+  t: { date: SQLWrapper; at: SQLWrapper; id: SQLWrapper },
+  dir: "asc" | "desc",
+): SQL[] =>
   dir === "asc"
-    ? sql`${bankAccounts.openedDate} asc nulls last`
-    : sql`${bankAccounts.openedDate} desc nulls last`;
+    ? [sql`${t.date} asc nulls last`, asc(t.at), asc(t.id)]
+    : [sql`${t.date} desc nulls last`, desc(t.at), asc(t.id)];
+
+/**
+ * Một trang ĐÃ sắp đúng ở CẢ HAI TẦNG — mọi nơi cần danh sách phải đi qua đây.
+ *
+ * ⚠️ PHÉP NỐI KHÔNG GIỮ THỨ TỰ. Câu con sắp xong rồi cắt trang, nhưng câu ngoài
+ * nối thêm sáu bảng — Postgres chọn Hash Join thì nó xây bảng băm rồi quét, thứ
+ * tự đầu vào biến mất sạch. Đo trên chính dữ liệu thật: câu con trả
+ * `15-15-14-14-13…`, sau khi nối thành `11-11-12-13-13…`, đảo ngược hoàn toàn.
+ *
+ * Bỏ `ORDER BY` ở câu ngoài KHÔNG phải tối ưu — SQL không hứa giữ thứ tự qua
+ * phép nối, và nó "chạy đúng" khi ít dữ liệu chỉ vì Postgres tình cờ chọn
+ * Nested Loop. Thêm dòng vào là kế hoạch đổi và bảng loạn.
+ *
+ * Câu ngoài chỉ sắp 15 dòng đã cắt sẵn nên không tốn gì đáng kể.
+ *
+ * Hai tầng gọi CHUNG một `orderByDate`, chỉ khác nguồn cột. Chép quy tắc ra hai
+ * chỗ là có ngày chúng lệch nhau — đúng lỗi đã xảy ra ở `server/audit.ts`.
+ */
+const orderedPage = (
+  where: SQL | undefined,
+  dir: "asc" | "desc",
+  limit: number,
+  offset: number,
+) => {
+  const page = pickPage(
+    where,
+    orderByDate(
+      { date: bankAccounts.openedDate, at: bankAccounts.createdAt, id: bankAccounts.id },
+      dir,
+    ),
+    limit,
+    offset,
+  );
+  return decorate(page).orderBy(
+    ...orderByDate({ date: page.openedDate, at: page.createdAt, id: page.id }, dir),
+  );
+};
 
 /** MỘT trang tài khoản, đã lọc/tìm/sắp sẵn ở máy chủ (AGENTS.md §5.1). */
 export async function listBankAccounts(
@@ -309,10 +376,8 @@ export async function listBankAccounts(
   if (visible.kind === "none") return { rows: [], total: 0 };
 
   const where = await accountFilters(visible, filters);
-  const orderBy = [byOpenedDate(page.dir), asc(bankAccounts.id)] as SQL[];
-
   const [rows, [totals]] = await Promise.all([
-    decorate(pickPage(where, orderBy, page.limit, page.offset)),
+    orderedPage(where, page.dir, page.limit, page.offset),
     db.select({ value: count() }).from(bankAccounts).where(where),
   ]);
 
@@ -335,22 +400,26 @@ export async function listBankAccountsForExport(
   if (visible.kind === "none") return { rows: [], total: 0 };
 
   const where = await accountFilters(visible, filters);
-  const orderBy = [byOpenedDate("desc"), asc(bankAccounts.id)] as SQL[];
-
   const [rows, [totals]] = await Promise.all([
-    decorate(pickPage(where, orderBy, EXPORT_LIMIT, 0)),
+    orderedPage(where, "desc", EXPORT_LIMIT, 0),
     db.select({ value: count() }).from(bankAccounts).where(where),
   ]);
 
   return { rows: rows.map(toRow), total: totals?.value ?? 0 };
 }
 
-const photoUrlsOf = async (accountId: string): Promise<string[]> =>
+/**
+ * Ảnh của MỘT nhóm.
+ *
+ * Luôn phải kẹp `kind`: luật "đủ ảnh mới cho Hoàn thành" đếm riêng ảnh mở tài
+ * khoản, lấy chung cả ảnh giao dịch thì tài khoản tự "đủ ảnh" sai.
+ */
+const photoUrlsOf = async (accountId: string, kind: PhotoKind): Promise<string[]> =>
   (
     await db
       .select({ url: bankAccountPhotos.url })
       .from(bankAccountPhotos)
-      .where(and(eq(bankAccountPhotos.accountId, accountId), eq(bankAccountPhotos.kind, "opening")))
+      .where(and(eq(bankAccountPhotos.accountId, accountId), eq(bankAccountPhotos.kind, kind)))
       .orderBy(asc(bankAccountPhotos.sortOrder), asc(bankAccountPhotos.id))
   ).map((r) => r.url);
 
@@ -379,7 +448,9 @@ async function accountById(id: string): Promise<BankAccount | null> {
     createdById: r.createdById,
     createdByName: r.createdByName,
     createdByDepartmentId: r.createdByDepartmentId,
-    photoUrls: await photoUrlsOf(id),
+    photoUrls: await photoUrlsOf(id, "opening"),
+    transactionAt: r.transactionAt,
+    transactionPhotoUrls: await photoUrlsOf(id, "transaction"),
     status: r.status,
   };
 }
@@ -412,7 +483,9 @@ export async function bankAccountDetail(
     accountType: r.accountType,
     note: r.note,
     createdByDepartmentId: r.createdByDepartmentId,
-    photoUrls: await photoUrlsOf(id),
+    photoUrls: await photoUrlsOf(id, "opening"),
+    transactionAt: r.transactionAt,
+    transactionPhotoUrls: await photoUrlsOf(id, "transaction"),
     requiredPhotos: r.requiredPhotos,
     accountNumberMethod: r.accountNumberMethod,
     customerPrimaryPhone: phone?.number ?? "",
@@ -673,11 +746,14 @@ export async function finishBankAccount(
  *    mới — chỉ tính tháng mới thì lượt đó được đếm hai lần.
  * 2. Bỏ tích app của `VPa` hay `MSBa` làm khách rơi khỏi combo, tức đổi cả
  *    trường hợp quà — `recomputeGiftCase` phải chạy theo.
+ *
+ * Đây cũng là chỗ ghi BƯỚC 3 (spec §4.2) — ngày khách phát sinh giao dịch, nộp
+ * muộn sau khi tài khoản đã xong. Trùng ngày mở vẫn nhận (chốt 07/08).
  */
 export async function updateFinishedAccount(
   actor: User,
   id: string,
-  form: BankAccountFinishForm,
+  form: BankAccountUpdateForm,
 ): Promise<BankingOutcome<{ account: BankAccount; warnings: string[] }> | null> {
   const visible = scopeOf(actor, WRITE_ACTION);
   if (visible.kind === "none") return null;
@@ -698,6 +774,9 @@ export async function updateFinishedAccount(
     .set({
       accountNumber: form.accountNumber,
       openedDate: form.openedDate,
+      // Ô để trống nghĩa là XOÁ ghi nhận, không phải "giữ nguyên" — người dùng
+      // xoá ngày đi rồi bấm Lưu thì phải mất thật.
+      transactionAt: form.transactionAt || null,
       appInstalled: form.appInstalled,
       accountType,
       note: form.note,
@@ -756,17 +835,22 @@ export async function deleteDraft(actor: User, id: string): Promise<BankAccount 
 }
 
 /**
- * Ghi danh sách ảnh chứng minh. Ảnh xem/thêm/thay được BẤT KỂ trạng thái —
+ * Ghi danh sách ảnh của MỘT nhóm. Ảnh xem/thêm/thay được BẤT KỂ trạng thái —
  * tài khoản đã hoàn thành vẫn phải bổ sung được ảnh còn thiếu.
  *
  * Nhận URL chứ không nhận file: đẩy ảnh lên kho là việc của `/api/uploads`.
  * Xoá sạch rồi ghi lại theo đúng thứ tự mảng gửi lên — mảng ĐÃ là trạng thái
  * mong muốn, không phải một lệnh thêm.
+ *
+ * `kind` khoanh vùng cả lượt xoá lẫn lượt chèn. Không khoanh thì nộp ảnh giao
+ * dịch sẽ xoá sạch ảnh chứng minh của bước 2, và bản ghi `done` nằm lại với 0
+ * ảnh bắt buộc mà không đường nào phát hiện.
  */
 export async function setPhotos(
   actor: User,
   id: string,
   photoUrls: string[],
+  kind: PhotoKind,
 ): Promise<BankAccount | { tooFew: number } | null> {
   const visible = scopeOf(actor, WRITE_ACTION);
   if (visible.kind === "none") return null;
@@ -784,17 +868,20 @@ export async function setPhotos(
    *
    * Bản `creating` thì cho tự do: nó chưa tiêu gì, và người dùng đang trong lúc
    * thêm dần từng tấm.
+   *
+   * Ảnh giao dịch KHÔNG bị chốt này: nó là bằng chứng nộp muộn, để trống hay bỏ
+   * đi đều hợp lệ, và `banks.required_photos` không nói gì về nó.
    */
-  if (current.status === "done" && photoUrls.length < current.requiredPhotos)
+  if (kind === "opening" && current.status === "done" && photoUrls.length < current.requiredPhotos)
     return { tooFew: current.requiredPhotos } as const;
 
   await db.transaction(async (tx) => {
     await tx
       .delete(bankAccountPhotos)
-      .where(and(eq(bankAccountPhotos.accountId, id), eq(bankAccountPhotos.kind, "opening")));
+      .where(and(eq(bankAccountPhotos.accountId, id), eq(bankAccountPhotos.kind, kind)));
     if (photoUrls.length > 0)
       await tx.insert(bankAccountPhotos).values(
-        photoUrls.map((url, i) => ({ accountId: id, kind: "opening" as const, url, sortOrder: i })),
+        photoUrls.map((url, i) => ({ accountId: id, kind, url, sortOrder: i })),
       );
   });
 

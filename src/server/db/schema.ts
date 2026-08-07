@@ -512,8 +512,11 @@ export const bankAccounts = pgTable(
     /** Trường quyết định quà. */
     appInstalled: boolean("app_installed").notNull().default(false),
     /**
-     * Ngày khách phát sinh giao dịch — thể lệ 01/8/2026 đòi giao dịch vào ngày
-     * KHÁC ngày mở tài khoản mới được tặng tiền. Ghi muộn (spec §4.2 bước 3).
+     * Ngày khách phát sinh giao dịch. `null` = chưa ghi nhận.
+     *
+     * Ghi MUỘN, sau khi tài khoản đã `done` (spec §4.2 bước 3) — hôm nay mở tài
+     * khoản, hôm sau chuyển khoản giúp khách rồi quay lại điền. Trùng ngày mở
+     * vẫn hợp lệ (chốt 07/08).
      */
     transactionAt: date("transaction_at"),
     /** Chỉ có nghĩa khi ngân hàng = VPa — kiểm ở app (ngân hàng là dữ liệu). */
@@ -537,7 +540,8 @@ export const bankAccounts = pgTable(
     // theo phòng — index dẫn đầu bằng department_id ở trên không dùng được.
     index("bank_accounts_creator_date").on(t.createdBy, t.openedDate),
     /**
-     * Khớp ĐÚNG `ORDER BY` của P-21: `opened_date desc nulls last, id`.
+     * Khớp ĐÚNG `ORDER BY` của P-21:
+     * `opened_date desc nulls last, created_at desc, id`.
      *
      * `nulls last` là bắt buộc về nghiệp vụ — tài khoản `creating` chưa có ngày
      * mở, mà mặc định Postgres xếp NULL lên đầu khi giảm dần nên bảng mở ra
@@ -545,20 +549,23 @@ export const bankAccounts = pgTable(
      * 20.000 dòng, câu lấy trang chuyển từ Index Scan (116 buffer, 0,16ms) sang
      * Seq Scan toàn bảng (1703 buffer, 5,3ms) — và câu đếm tổng là lượt quét
      * thứ hai. Hai index dưới đây khai đúng thứ tự đó nên dùng lại được.
+     *
+     * `created_at` ở giữa là khoá phá hoà (migration 0018). Bỏ nó khỏi index mà
+     * vẫn để trong `ORDER BY` thì kế hoạch rơi từ Index Scan → Limit sang
+     * Sort → Limit, mà Sort không chảy được: nó nuốt trọn đầu vào rồi mới nhả
+     * dòng đầu tiên, nên mọi trang đều trả giá chứ không riêng trang cuối.
      */
     index("bank_accounts_dept_opened").on(
-      sql`created_by_department_id, opened_date desc nulls last, id`,
+      sql`created_by_department_id, opened_date desc nulls last, created_at desc, id`,
     ),
-    index("bank_accounts_opened").on(sql`opened_date desc nulls last, id`),
+    index("bank_accounts_opened").on(sql`opened_date desc nulls last, created_at desc, id`),
     check(
       "bank_accounts_done_filled",
       sql`status = 'creating' or (account_number is not null and opened_date is not null)`,
     ),
-    /* Thể lệ ghi rõ "có giao dịch trong tháng (khác ngày mở tk)". */
-    check(
-      "bank_accounts_transaction_other_day",
-      sql`transaction_at is null or transaction_at <> opened_date`,
-    ),
+    /* ❌ bank_accounts_transaction_other_day: BỎ 07/08 (migration 0017). Dựng
+       theo chữ "khác ngày mở tk" của thể lệ mục 1, nhưng CEO xác nhận đọc vậy
+       là sai — giao dịch ngay trong ngày mở vẫn tính. */
   ],
 );
 
@@ -731,10 +738,10 @@ export const services = pgTable(
     index("services_dept_date").on(t.createdByDepartmentId, t.serviceDate),
     index("services_creator_date").on(t.createdBy, t.serviceDate),
     index("services_customer").on(t.customerId),
-    // Khớp `ORDER BY service_date desc, id` của P-31. Thiếu nó thì phạm vi toàn
-    // công ty quét cả bảng, hai lượt mỗi lần mở màn — đo trên 300.000 dòng:
-    // 14ms cho câu lấy trang, 43ms cho câu đếm.
-    index("services_date").on(sql`service_date desc, id`),
+    // Khớp `ORDER BY service_date desc, created_at desc, id` của P-31. Thiếu nó
+    // thì phạm vi toàn công ty quét cả bảng, hai lượt mỗi lần mở màn — đo trên
+    // 300.000 dòng: 14ms cho câu lấy trang, 43ms cho câu đếm.
+    index("services_date").on(sql`service_date desc, created_at desc, id`),
     // Ô lọc "Xã" ở P-31 — không có index này thì ai bấm cũng seq scan (74ms).
     index("services_ward").on(t.wardId),
   ],

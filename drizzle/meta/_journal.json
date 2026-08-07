@@ -120,6 +120,20 @@
       "when": 1786098728186,
       "tag": "0016_customers_gift_case",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1786113367761,
+      "tag": "0017_transaction_same_day_ok",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1786114722006,
+      "tag": "0018_date_tiebreak_created_at",
+      "breakpoints": true
     }
   ]
 }

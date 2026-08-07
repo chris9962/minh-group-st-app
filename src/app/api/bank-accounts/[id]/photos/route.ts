@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { PHOTO_MAX } from "@/lib/api/bankAccounts";
 import { can } from "@/lib/permissions";
 import { logAudit } from "@/server/audit";
 import {
@@ -14,7 +15,7 @@ import { setPhotos } from "@/server/banking";
 import { isStorageUrl } from "@/server/storage";
 
 /**
- * Ghi danh sách ảnh chứng minh — NHỊP THỨ HAI của luồng tải ảnh.
+ * Ghi danh sách ảnh — NHỊP THỨ HAI của luồng tải ảnh.
  *
  * Nhịp thứ nhất là `POST /api/uploads`: đẩy file lên kho, trả về URL, không
  * đụng database. Ở đây chỉ nhận URL rồi ghi. Tách vậy để một lần tải hỏng giữa
@@ -23,12 +24,20 @@ import { isStorageUrl } from "@/server/storage";
  *
  * Mảng gửi lên ĐÃ là trạng thái mong muốn (thêm, thay, xoá, đổi thứ tự đều
  * chung một đường), không phải một lệnh "thêm vào".
+ *
+ * `kind` chọn nhóm ảnh: `opening` là ảnh chứng minh của bước 2, `transaction`
+ * là ảnh chuyển khoản của bước 3. Mỗi lượt ghi chỉ đụng đúng nhóm của nó.
  */
 const Body = z.object({
   // Chốt chặn XSS lưu trữ — xem `isStorageUrl` ở `server/storage.ts`. Nhận chuỗi
   // bất kỳ ở đây là mở đường cho `javascript:` chạy trong phiên của người xem.
-  photoUrls: z.array(z.string().trim().min(1).refine(isStorageUrl)).max(20),
+  photoUrls: z.array(z.string().trim().min(1).refine(isStorageUrl)).max(PHOTO_MAX),
+  // Mặc định `opening` để bản client cũ còn gọi được — nhóm này là nhóm có
+  // chốt số lượng, tức mặc định nghiêm hơn, không phải lỏng hơn.
+  kind: z.enum(["opening", "transaction"]).default("opening"),
 });
+
+const PHOTO_LABEL = { opening: "Ảnh chứng minh", transaction: "Ảnh giao dịch" } as const;
 
 export async function PATCH(
   request: Request,
@@ -44,7 +53,8 @@ export async function PATCH(
   const parsed = Body.safeParse(await jsonBody(request));
   if (!parsed.success) return badRequest();
 
-  const account = await setPhotos(actor, id, parsed.data.photoUrls);
+  const { photoUrls, kind } = parsed.data;
+  const account = await setPhotos(actor, id, photoUrls, kind);
   if (!account) return notFound();
   // Tài khoản đã hoàn thành không được tụt xuống dưới mức ảnh bắt buộc — nếu
   // không thì đây là đường vòng để lách chốt ảnh của bước 2.
@@ -56,10 +66,12 @@ export async function PATCH(
       { status: 422 },
     );
 
+  const kept =
+    kind === "opening" ? account.photoUrls.length : account.transactionPhotoUrls.length;
   await logAudit(actor, {
     module: "banking",
     action: "update",
-    targetLabel: `Ảnh chứng minh tài khoản ${account.bankCode} của ${account.customerName} — còn ${account.photoUrls.length} ảnh`,
+    targetLabel: `${PHOTO_LABEL[kind]} tài khoản ${account.bankCode} của ${account.customerName} — còn ${kept} ảnh`,
     targetTable: "bank_accounts",
     targetId: id,
   });

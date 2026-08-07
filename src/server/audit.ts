@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, sql, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, sql, type SQL, type SQLWrapper } from "drizzle-orm";
 import type { AuditLogEntry, AuditLogSort } from "@/lib/api/auditLog";
 import type { Page } from "@/lib/api/pagination";
 import { BUSINESS_TIMEZONE } from "@/lib/format";
@@ -126,6 +126,14 @@ const pickPage = (where: SQL | undefined, orderBy: SQL[], limit: number, offset:
       at: sql<string>`to_char(${auditLog.at} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')`.as(
         "at_iso",
       ),
+      /*
+       * Mốc THÔ, không hiện ở màn nào — có mặt CHỈ để câu ngoài sắp lại được.
+       * `at_iso` bên trên cắt tới giây, sắp theo nó thì mọi dòng trong cùng một
+       * giây đều hoà rồi rơi về `id` ngẫu nhiên. Nhật ký ghi hàng loạt trong
+       * một thao tác nên chuyện đó xảy ra thường xuyên: đo trên dữ liệu dev,
+       * 68/205 dòng nằm chung giây với một dòng khác.
+       */
+      instant: auditLog.at,
       actorId: auditLog.actorId,
       module: auditLog.module,
       action: auditLog.action,
@@ -137,6 +145,13 @@ const pickPage = (where: SQL | undefined, orderBy: SQL[], limit: number, offset:
     .limit(limit)
     .offset(offset)
     .as("page");
+
+/**
+ * Khoá sắp, dựng từ bất kỳ nguồn cột nào — bảng gốc hay câu con. Một định nghĩa
+ * dùng cho cả hai tầng: chép ra hai chỗ là có ngày chúng lệch nhau.
+ */
+const orderKeys = (t: { at: SQLWrapper; id: SQLWrapper }, dir: "asc" | "desc"): SQL[] =>
+  dir === "asc" ? [asc(t.at), asc(t.id)] : [desc(t.at), asc(t.id)];
 
 /** Dán tên người thực hiện cho đúng 15 dòng — 15 lượt tra khoá chính `users`. */
 const decorate = (page: ReturnType<typeof pickPage>) =>
@@ -172,17 +187,27 @@ export async function listAuditLog(
   page: PageArgs<AuditLogSort>,
 ): Promise<Page<AuditLogEntry>> {
   const where = auditFilters(filters);
-  const direction = page.dir === "asc" ? asc : desc;
 
   /**
    * `id` làm khoá phụ: trang 1 và trang 2 là hai câu hỏi riêng biệt, không có
    * khoá duy nhất ở cuối thì thứ tự giữa những dòng cùng `at` là không xác định
    * — một dòng hiện lại ở trang sau còn dòng khác biến mất khỏi cả hai.
    */
-  const orderBy = [direction(auditLog.at), asc(auditLog.id)] as SQL[];
+  const inner = pickPage(where, orderKeys(auditLog, page.dir), page.limit, page.offset);
 
+  /**
+   * Sắp LẠI ở câu ngoài, CÙNG một `orderKeys`, chỉ khác nguồn cột.
+   *
+   * ⚠️ PHÉP NỐI KHÔNG GIỮ THỨ TỰ. Câu con sắp xong rồi cắt trang, nhưng nối
+   * `users` vào mà Postgres chọn Hash Join thì thứ tự đầu vào biến mất sạch. Nó
+   * "chạy đúng" khi ít dữ liệu chỉ vì kế hoạch tình cờ là Nested Loop.
+   *
+   * Nguồn cột là `instant` (mốc thô) chứ KHÔNG phải `at` — `at` đã cắt tới giây
+   * nên hai tầng sẽ sắp khác nhau, và trang cắt theo micro giây lại hiện theo
+   * giây. Đúng lỗi đã gặp: ba dòng mới nhất hiện ngược.
+   */
   const [rows, [totals]] = await Promise.all([
-    decorate(pickPage(where, orderBy, page.limit, page.offset)),
+    decorate(inner).orderBy(...orderKeys({ at: inner.instant, id: inner.id }, page.dir)),
     db.select({ value: count() }).from(auditLog).where(where),
   ]);
 

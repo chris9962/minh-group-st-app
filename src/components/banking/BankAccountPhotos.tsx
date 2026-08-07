@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { ImagePlus, Pencil, X } from "lucide-react";
+import { PHOTO_MAX } from "@/lib/api/bankAccounts";
 import { imageProblem, uploadImage } from "@/lib/api/uploads";
 import { toast } from "@/lib/toast";
 import styles from "./BankAccountPhotos.module.scss";
@@ -52,7 +53,18 @@ export const photosChanged = (photos: PhotoItem[], savedUrls: string[]): boolean
 
 type Props = {
   photos: PhotoItem[];
+  /** Số ảnh BẮT BUỘC. `0` = không bắt buộc tấm nào, bộ đếm bỏ luôn mẫu số. */
   requiredPhotos: number;
+  /** Trần số ảnh nhận vào; mặc định bằng số bắt buộc. Luôn bị kẹp bởi `PHOTO_MAX`. */
+  max?: number;
+  /** Tên nhóm ảnh — cũng là gốc của nhãn cho trình đọc màn hình. */
+  title?: string;
+  /**
+   * Cấp tiêu đề của khối. Mặc định `h3` — đúng khi khối đứng thẳng trong thẻ.
+   * Nằm trong một mục đã có tiêu đề riêng thì truyền `h4`, không thì trình đọc
+   * màn hình nghe hai tiêu đề ngang hàng trong khi một cái là con của cái kia.
+   */
+  headingAs?: "h3" | "h4";
   onChange: (photos: PhotoItem[]) => void;
   /** Đang gửi biểu mẫu — khoá lại để không ai đổi ảnh giữa chừng. */
   busy?: boolean;
@@ -61,6 +73,10 @@ type Props = {
 /**
  * Ảnh chứng minh (spec §4.7): số lượng bắt buộc theo cấu hình ngân hàng, nội
  * dung không duyệt.
+ *
+ * Dùng lại được cho ẢNH GIAO DỊCH của bước 3 (spec §4.2) bằng `title` + `max`:
+ * nhóm đó không bắt buộc tấm nào nên `requiredPhotos = 0`, và trần lấy theo
+ * `PHOTO_MAX`. Hai nhóm ghi vào hai `kind` khác nhau ở máy chủ.
  *
  * ⚠️ CHỌN ẢNH KHÔNG TẢI LÊN NGAY (chốt 07/08). Ảnh nằm lại trong máy người dùng
  * cho tới lúc bấm Hoàn thành / Lưu, rồi mới đi một lượt. Bản trước tải ngay khi
@@ -74,7 +90,23 @@ type Props = {
  * mã và đã vào điểm KPI. Nên `uploadPendingPhotos` phải chạy XONG trước khi gọi
  * đường ghi bản ghi.
  */
-export function BankAccountPhotos({ photos, requiredPhotos, onChange, busy = false }: Props) {
+export function BankAccountPhotos({
+  photos,
+  requiredPhotos,
+  max: rawMax = requiredPhotos,
+  title = "Ảnh chứng minh",
+  headingAs: Heading = "h3",
+  onChange,
+  busy = false,
+}: Props) {
+  /**
+   * Kẹp bởi trần của máy chủ. `banks.required_photos` là số admin gõ ở P-60 và
+   * không có trần riêng: đặt 25 thì người dùng chọn đủ 25 tấm, tải hết lên kho,
+   * rồi mới nhận 400 vì đường ghi ảnh chỉ nhận `PHOTO_MAX`. Kẹp ở đây thì họ
+   * dừng đúng chỗ máy chủ dừng.
+   */
+  const max = Math.min(rawMax, PHOTO_MAX);
+  const noun = title.toLowerCase();
   const fileInputRef = useRef<HTMLInputElement>(null);
   /** Ô đang thay ảnh; `null` = đang thêm mới. */
   const replacingSlot = useRef<number | null>(null);
@@ -129,14 +161,14 @@ export function BankAccountPhotos({ photos, requiredPhotos, onChange, busy = fal
       return;
     }
 
-    const room = Math.max(0, requiredPhotos - photos.length);
+    const room = Math.max(0, max - photos.length);
     const picked = files
       .slice(0, room)
       .map(toPending)
       .filter((photo): photo is PhotoItem => photo !== null);
 
     if (files.length > room)
-      toast.warn(`Ngân hàng này cần ${requiredPhotos} ảnh — đã lấy ${picked.length} tấm đầu.`);
+      toast.warn(`Chỗ này nhận tối đa ${max} ảnh — đã lấy ${picked.length} tấm đầu.`);
     if (picked.length > 0) onChange([...photos, ...picked]);
   };
 
@@ -149,14 +181,15 @@ export function BankAccountPhotos({ photos, requiredPhotos, onChange, busy = fal
 
   return (
     <div className={styles.photoSection}>
-      <h3 className={styles.photoTitle}>
-        Ảnh chứng minh ({photos.length}/{requiredPhotos})
+      <Heading className={styles.photoTitle}>
+        {title} ({photos.length}
+        {requiredPhotos > 0 ? `/${requiredPhotos}` : ""})
         {pendingCount > 0 && (
           <span className={styles.photoHint}>
             {pendingCount} tấm sẽ tải lên khi bạn bấm lưu
           </span>
         )}
-      </h3>
+      </Heading>
 
       <div className={styles.photoGrid}>
         {photos.map((photo, i) => {
@@ -164,13 +197,13 @@ export function BankAccountPhotos({ photos, requiredPhotos, onChange, busy = fal
           return (
             <div key={photo.kind === "saved" ? photo.url : photo.preview} className={styles.photoTile}>
               <a href={src} target="_blank" rel="noreferrer">
-                <img src={src} alt={`Ảnh chứng minh ${i + 1}`} className={styles.photo} />
+                <img src={src} alt={`${title} ${i + 1}`} className={styles.photo} />
               </a>
               {photo.kind === "pending" && <span className={styles.photoBadge}>Chưa tải lên</span>}
               <button
                 type="button"
                 className={styles.photoEdit}
-                aria-label={`Thay ảnh chứng minh ${i + 1}`}
+                aria-label={`Thay ${noun} ${i + 1}`}
                 disabled={busy}
                 onClick={() => openPicker(i)}
               >
@@ -179,7 +212,7 @@ export function BankAccountPhotos({ photos, requiredPhotos, onChange, busy = fal
               <button
                 type="button"
                 className={styles.photoRemove}
-                aria-label={`Bỏ ảnh chứng minh ${i + 1}`}
+                aria-label={`Bỏ ${noun} ${i + 1}`}
                 disabled={busy}
                 onClick={() => removeAt(i)}
               >
@@ -189,10 +222,13 @@ export function BankAccountPhotos({ photos, requiredPhotos, onChange, busy = fal
           );
         })}
 
-        {photos.length < requiredPhotos && (
+        {photos.length < max && (
           <button
             type="button"
             className={styles.photoAdd}
+            /* P-22 vẽ hai khối ảnh cạnh nhau — hai nút cùng tên "Thêm ảnh" thì
+               người duyệt bằng danh sách nút không biết nút nào của khối nào. */
+            aria-label={`Thêm ${noun}`}
             disabled={busy}
             onClick={() => openPicker(null)}
           >

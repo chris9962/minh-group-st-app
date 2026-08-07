@@ -15,6 +15,7 @@ import {
   setBankAccountPhotos,
   updateBankAccount,
 } from "@/lib/api/bankAccounts";
+import { BankAccountTransaction } from "./BankAccountTransaction";
 import { fetchBankAccountDetail } from "@/lib/api/banking";
 import { invalidateKpi } from "@/lib/invalidateKpi";
 import { can } from "@/lib/permissions";
@@ -104,17 +105,39 @@ export function BankAccountEditDialog({ open, onClose, accountId }: Props) {
   const [editedPhotos, setEditedPhotos] = useState<PhotoItem[] | null>(null);
   const photos = editedPhotos ?? savedPhotos(data?.photoUrls ?? []);
 
+  /** Bước 3 — cùng lối "chưa đụng thì lấy theo bản ghi" như ảnh ở trên. */
+  const [editedTransactionAt, setEditedTransactionAt] = useState<string | null>(null);
+  const transactionAt = editedTransactionAt ?? data?.transactionAt ?? "";
+  const [editedTransactionPhotos, setEditedTransactionPhotos] = useState<PhotoItem[] | null>(null);
+  const transactionPhotos =
+    editedTransactionPhotos ?? savedPhotos(data?.transactionPhotoUrls ?? []);
+
   /**
    * Ảnh đi trước, bản ghi đi sau — và phải ĐỦ CẢ HAI mới coi là xong.
    *
    * Máy chủ đếm ảnh trong bảng `bank_account_photos` ngay trong giao dịch hoàn
    * thành, nên tải file lên thôi chưa đủ: phải ghi danh sách URL vào bản ghi
    * trước khi gọi đường hoàn thành/sửa.
+   *
+   * Hai nhóm ảnh ghi bằng HAI lượt riêng: mỗi lượt xoá sạch rồi chèn lại đúng
+   * nhóm của nó, gộp làm một là nhóm kia mất trắng.
+   *
+   * ⚠️ Lượt nào ghi xong thì ĐÁNH DẤU ĐÃ LƯU ngay, đừng đợi tới cuối. Ba lượt đi
+   * mạng nối nhau sau một nút bấm; lượt 2 rớt thì lượt 1 vẫn đã ghi. Không đánh
+   * dấu thì mấy tấm đó còn `pending`, và người dùng bấm Lưu lần nữa là
+   * `uploadPendingPhotos` tải lại đúng file cũ — URL mới, còn tấm lượt trước nằm
+   * lại kho vĩnh viễn. Mỗi lần thử lại thêm một bộ rác.
    */
   const savePhotosThen = async <T,>(run: () => Promise<T>): Promise<T> => {
     if (photosChanged(photos, data?.photoUrls ?? [])) {
       const urls = await uploadPendingPhotos(photos);
       await setBankAccountPhotos(accountId, urls);
+      setEditedPhotos(savedPhotos(urls));
+    }
+    if (photosChanged(transactionPhotos, data?.transactionPhotoUrls ?? [])) {
+      const urls = await uploadPendingPhotos(transactionPhotos);
+      await setBankAccountPhotos(accountId, urls, "transaction");
+      setEditedTransactionPhotos(savedPhotos(urls));
     }
     return run();
   };
@@ -140,7 +163,7 @@ export function BankAccountEditDialog({ open, onClose, accountId }: Props) {
    */
   const update = useMutation({
     mutationFn: (form: BankAccountFinishForm) =>
-      savePhotosThen(() => updateBankAccount(accountId, form)),
+      savePhotosThen(() => updateBankAccount(accountId, { ...form, transactionAt })),
     onSuccess: (result) => {
       invalidate();
       onClose();
@@ -225,6 +248,18 @@ export function BankAccountEditDialog({ open, onClose, accountId }: Props) {
             <p className="text-muted">
               Cần đủ {data.requiredPhotos} ảnh chứng minh mới hoàn thành được.
             </p>
+          )}
+
+          {/* Bước 3 chỉ có nghĩa khi tài khoản đã xong — lúc còn `creating` thì
+              khách chưa có tài khoản thật để mà giao dịch. */}
+          {!draft && (
+            <BankAccountTransaction
+              date={transactionAt}
+              onDateChange={setEditedTransactionAt}
+              photos={transactionPhotos}
+              onPhotosChange={setEditedTransactionPhotos}
+              busy={busy}
+            />
           )}
           {/* Đổi ngày mở là đổi tháng tính điểm, đổi cờ app là đổi cả combo quà
               — nói trước khi người dùng bấm, không phải sau. */}

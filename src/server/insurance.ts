@@ -1,4 +1,16 @@
-import { and, asc, count, desc, eq, gte, inArray, lte, sql, type SQL } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gte,
+  inArray,
+  lte,
+  sql,
+  type SQL,
+  type SQLWrapper,
+} from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type {
   InsuranceDetail,
@@ -195,6 +207,8 @@ const pickPage = (where: SQL | undefined, orderBy: SQL[], limit: number, offset:
       handledBy: insuranceOrders.handledBy,
       createdBy: insuranceOrders.createdBy,
       createdByDepartmentId: insuranceOrders.createdByDepartmentId,
+      // Không hiện ở màn nào — có mặt CHỈ để câu ngoài sắp lại được, xem `orderOuter`.
+      createdAt: insuranceOrders.createdAt,
     })
     .from(insuranceOrders)
     .where(where)
@@ -300,10 +314,41 @@ const toOrder = (r: DecoratedRow): InsuranceOrder => ({
  * `id` vẫn phải đứng cuối: hai đơn của cùng một gói sinh trong cùng giao dịch
  * mang `created_at` y hệt nhau (`now()` không đổi trong một giao dịch).
  */
-const orderByDate = (dir: "asc" | "desc"): SQL[] =>
-  dir === "asc"
-    ? [asc(insuranceOrders.orderDate), asc(insuranceOrders.createdAt), asc(insuranceOrders.id)]
-    : [desc(insuranceOrders.orderDate), desc(insuranceOrders.createdAt), asc(insuranceOrders.id)];
+const orderByDate = (
+  t: { date: SQLWrapper; at: SQLWrapper; id: SQLWrapper },
+  dir: "asc" | "desc",
+): SQL[] =>
+  dir === "asc" ? [asc(t.date), asc(t.at), asc(t.id)] : [desc(t.date), desc(t.at), asc(t.id)];
+
+/**
+ * Một trang ĐÃ sắp đúng ở CẢ HAI TẦNG.
+ *
+ * ⚠️ PHÉP NỐI KHÔNG GIỮ THỨ TỰ — câu con sắp xong rồi cắt trang, nhưng câu ngoài
+ * nối ba bảng và Postgres chọn Hash Join thì thứ tự đầu vào biến mất sạch. Nó
+ * "chạy đúng" khi ít dữ liệu chỉ vì kế hoạch tình cờ là Nested Loop.
+ *
+ * Hai tầng gọi CHUNG một `orderByDate`, chỉ khác nguồn cột — chép quy tắc ra hai
+ * chỗ là có ngày chúng lệch nhau.
+ */
+const orderedPage = (
+  where: SQL | undefined,
+  dir: "asc" | "desc",
+  limit: number,
+  offset: number,
+) => {
+  const page = pickPage(
+    where,
+    orderByDate(
+      { date: insuranceOrders.orderDate, at: insuranceOrders.createdAt, id: insuranceOrders.id },
+      dir,
+    ),
+    limit,
+    offset,
+  );
+  return decorate(page).orderBy(
+    ...orderByDate({ date: page.orderDate, at: page.createdAt, id: page.id }, dir),
+  );
+};
 
 /** MỘT trang đơn bảo hiểm, đã lọc/tìm/sắp sẵn ở máy chủ (AGENTS.md §5.1). */
 export async function listInsuranceOrders(
@@ -317,7 +362,7 @@ export async function listInsuranceOrders(
   const where = orderFilters(visible, filters);
 
   const [rows, [totals]] = await Promise.all([
-    decorate(pickPage(where, orderByDate(page.dir), page.limit, page.offset)),
+    orderedPage(where, page.dir, page.limit, page.offset),
     db.select({ value: count() }).from(insuranceOrders).where(where),
   ]);
 
@@ -342,7 +387,7 @@ export async function listInsuranceOrdersForExport(
   const where = orderFilters(visible, filters);
 
   const [rows, [totals]] = await Promise.all([
-    decorate(pickPage(where, orderByDate("desc"), EXPORT_LIMIT, 0)),
+    orderedPage(where, "desc", EXPORT_LIMIT, 0),
     db.select({ value: count() }).from(insuranceOrders).where(where),
   ]);
 
@@ -519,9 +564,14 @@ export async function createInsuranceOrders(
 
   // Trả về theo THỨ TỰ MÃ, tức đúng thứ tự các leg của gói — người dùng vừa
   // điền form số 1 rồi form số 2, toast báo ngược lại thì đọc rất khó hiểu.
-  const rows = await decorate(
-    pickPage(inArray(insuranceOrders.id, created), [asc(insuranceOrders.orderCode)], created.length, 0),
+  // Phải sắp ở CẢ HAI tầng: phép nối không giữ thứ tự của câu con.
+  const inner = pickPage(
+    inArray(insuranceOrders.id, created),
+    [asc(insuranceOrders.orderCode)],
+    created.length,
+    0,
   );
+  const rows = await decorate(inner).orderBy(asc(inner.orderCode));
   return { ok: true, value: rows.map(toRow) };
 }
 

@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, or, sql, type SQL, type SQLWrapper } from "drizzle-orm";
 import type {
   Customer,
   CustomerAccountRow,
@@ -148,6 +148,13 @@ const pickPage = (where: SQL | undefined, orderBy: SQL[], limit: number, offset:
       // Cột tính bằng `sql` nằm trong truy vấn con thì BẮT BUỘC có bí danh —
       // không có thì câu ngoài không gọi tên nó được, drizzle ném lỗi lúc dựng.
       createdAt: createdDayText.as("created_day"),
+      /*
+       * Ba cột dưới không hiện ở màn nào — có mặt CHỈ để câu ngoài sắp lại được
+       * (xem `orderOuter`). `createdDayText` bên trên là NGÀY, không dùng để sắp
+       * được: cắt mất giờ thì mọi khách tạo cùng ngày lại hoà.
+       */
+      searchName: customers.searchName,
+      createdInstant: customers.createdAt,
     })
     .from(customers)
     .where(where)
@@ -206,6 +213,34 @@ function decorate(page: ReturnType<typeof pickPage>) {
 }
 
 /**
+ * Khoá sắp của MỘT kiểu sắp, dựng từ bất kỳ nguồn cột nào — bảng gốc hay câu con.
+ *
+ * Một định nghĩa dùng cho cả hai tầng. Chép ra hai chỗ là có ngày chúng lệch
+ * nhau, và lệch thì bảng sắp một đằng còn trang cắt một nẻo.
+ */
+const orderKeys = (
+  c: {
+    searchName: SQLWrapper;
+    accountCount: SQLWrapper;
+    insuranceCount: SQLWrapper;
+    createdAt: SQLWrapper;
+    id: SQLWrapper;
+  },
+  sort: CustomerSort,
+  dir: "asc" | "desc",
+): SQL[] => {
+  const direction = dir === "asc" ? asc : desc;
+  return {
+    // Sắp theo cột đã bỏ dấu, không theo `full_name`: Postgres xếp `Đặng` sau
+    // `Zũng` với collate mặc định, người dùng đọc ra là bảng sắp sai.
+    name: [direction(c.searchName), asc(c.id)],
+    accounts: [direction(c.accountCount), asc(c.searchName), asc(c.id)],
+    insurance: [direction(c.insuranceCount), asc(c.searchName), asc(c.id)],
+    created: [direction(c.createdAt), asc(c.id)],
+  }[sort] as SQL[];
+};
+
+/**
  * MỘT trang khách hàng, đã lọc/tìm/sắp sẵn (AGENTS.md §5.1).
  *
  * Tổng đếm bằng câu thứ hai trên ĐÚNG bộ lọc đó, không phải `rows.length`: nói
@@ -217,7 +252,6 @@ export async function listCustomers(
   page: PageArgs<CustomerSort>,
 ): Promise<Page<CustomerRow>> {
   const where = customerFilters(filters);
-  const direction = page.dir === "asc" ? asc : desc;
 
   /**
    * MỌI kiểu sắp đều kết thúc bằng `id`, và đây là điều kiện bắt buộc chứ không
@@ -239,17 +273,33 @@ export async function listCustomers(
    * Chỉ trùng khi nhiều dòng đi chung MỘT transaction (`now()` là giờ mở
    * transaction, không phải giờ từng dòng), tức lúc có màn nhập hàng loạt.
    */
-  const orderBy = {
-    // Sắp theo cột đã bỏ dấu, không theo `full_name`: Postgres xếp `Đặng` sau
-    // `Zũng` với collate mặc định, người dùng đọc ra là bảng sắp sai.
-    name: [direction(customers.searchName), asc(customers.id)],
-    accounts: [direction(customers.accountCount), asc(customers.searchName), asc(customers.id)],
-    insurance: [direction(customers.insuranceCount), asc(customers.searchName), asc(customers.id)],
-    created: [direction(customers.createdAt), asc(customers.id)],
-  }[page.sort] as SQL[];
+  const inner = pickPage(where, orderKeys(customers, page.sort, page.dir), page.limit, page.offset);
 
+  /**
+   * Sắp LẠI ở câu ngoài, CÙNG một `orderKeys`, chỉ khác nguồn cột.
+   *
+   * ⚠️ PHÉP NỐI KHÔNG GIỮ THỨ TỰ. Câu con sắp xong rồi cắt trang, nhưng câu
+   * ngoài còn nối SĐT, đợt quà và kênh — Postgres chọn Hash Join thì thứ tự đầu
+   * vào biến mất sạch. Nó "chạy đúng" khi ít dữ liệu chỉ vì kế hoạch tình cờ là
+   * Nested Loop, nên thêm dữ liệu vào là bảng loạn mà không ai đổi dòng code nào.
+   *
+   * `createdAt` của câu con là NGÀY dạng chữ (để hiện), nên nguồn cột ở đây trỏ
+   * `createdInstant` — mốc thô. Sắp theo ngày thì mọi khách tạo cùng ngày lại hoà.
+   */
   const [rows, [totals]] = await Promise.all([
-    decorate(pickPage(where, orderBy, page.limit, page.offset)),
+    decorate(inner).orderBy(
+      ...orderKeys(
+        {
+          searchName: inner.searchName,
+          accountCount: inner.accountCount,
+          insuranceCount: inner.insuranceCount,
+          createdAt: inner.createdInstant,
+          id: inner.id,
+        },
+        page.sort,
+        page.dir,
+      ),
+    ),
     db.select({ value: count() }).from(customers).where(where),
   ]);
 
@@ -279,8 +329,16 @@ export async function listCustomersForExport(
   filters: CustomerFilters,
 ): Promise<{ rows: CustomerRow[]; total: number }> {
   const where = customerFilters(filters);
+  const inner = pickPage(
+    where,
+    [desc(customers.createdAt), asc(customers.id)] as SQL[],
+    EXPORT_LIMIT,
+    0,
+  );
   const [rows, [totals]] = await Promise.all([
-    decorate(pickPage(where, [desc(customers.createdAt), asc(customers.id)] as SQL[], EXPORT_LIMIT, 0)),
+    // Sắp lại ở câu ngoài y như `listCustomers` — phép nối không giữ thứ tự, mà
+    // file Excel xáo dòng thì người nhận không nhìn ra là sai.
+    decorate(inner).orderBy(desc(inner.createdInstant), asc(inner.id)),
     db.select({ value: count() }).from(customers).where(where),
   ]);
   return { rows, total: totals?.value ?? 0 };
@@ -485,7 +543,9 @@ export async function customerDetailFor(
       .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
       .innerJoin(referralCodes, eq(referralCodes.id, bankAccounts.referralCodeId))
       .where(eq(bankAccounts.customerId, id))
-      .orderBy(desc(bankAccounts.openedDate)),
+      // Cùng khoá ba tầng như P-21: `opened_date` là kiểu `date` nên mọi tài
+      // khoản mở cùng ngày đều hoà, và `id` là uuid ngẫu nhiên.
+      .orderBy(desc(bankAccounts.openedDate), desc(bankAccounts.createdAt), asc(bankAccounts.id)),
     db
       .select({
         id: insuranceOrders.id,
@@ -500,7 +560,7 @@ export async function customerDetailFor(
       })
       .from(insuranceOrders)
       .where(eq(insuranceOrders.customerId, id))
-      .orderBy(desc(insuranceOrders.orderDate)),
+      .orderBy(desc(insuranceOrders.orderDate), desc(insuranceOrders.createdAt), asc(insuranceOrders.id)),
     db
       .select({
         id: services.id,
@@ -517,7 +577,7 @@ export async function customerDetailFor(
       // vụ thì vẫn đã xảy ra — innerJoin làm dòng đó biến mất không báo gì.
       .leftJoin(users, eq(users.id, services.createdBy))
       .where(eq(services.customerId, id))
-      .orderBy(desc(services.serviceDate)),
+      .orderBy(desc(services.serviceDate), desc(services.createdAt), asc(services.id)),
     db.select().from(giftGrants).where(eq(giftGrants.customerId, id)).limit(1),
   ]);
 

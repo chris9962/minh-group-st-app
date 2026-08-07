@@ -1,0 +1,20 @@
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--om-line);
+}
+
+.title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* Ô ngày chỉ chứa 10 ký tự — kéo hết chiều ngang thẻ thì nhìn như ô nhập chữ
+   dài, và trên màn rộng khoảng trắng thừa đẩy nút lịch ra xa ngón tay. */
+.date {
+  max-width: 220px;
+}

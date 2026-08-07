@@ -45,6 +45,13 @@ export const BankAccountDetail = BankAccountRow.extend({
   note: z.string(),
   createdByDepartmentId: z.string().nullable(),
   photoUrls: z.array(z.string()),
+  /**
+   * Bước 3 (spec §4.2) — ngày khách phát sinh giao dịch, `''` = chưa ghi nhận.
+   * Nộp muộn sau khi tài khoản đã xong, và trùng ngày mở vẫn hợp lệ.
+   */
+  transactionAt: z.string(),
+  /** Ảnh chuyển khoản. Đếm RIÊNG, không cộng vào `requiredPhotos`. */
+  transactionPhotoUrls: z.array(z.string()),
   requiredPhotos: z.number(),
   /** Dùng để tự điền/khoá ô số tài khoản ở bước 2, giống lúc chọn ngân hàng ở P-20. */
   accountNumberMethod: AccountNumberMethod,
