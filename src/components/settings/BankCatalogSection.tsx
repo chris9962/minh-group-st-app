@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Landmark, Pencil, Plus } from "lucide-react";
+import { Landmark, Pencil } from "lucide-react";
 import { useState } from "react";
 import { SkeletonTable } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
@@ -20,11 +20,19 @@ import { BankFormDialog } from "./BankFormDialog";
 import styles from "./BankCatalogSection.module.scss";
 import { errorMessage, toast } from "@/lib/toast";
 
+type Props = {
+  /**
+   * Nút "Thêm ngân hàng" nằm ở thanh tiêu đề TRANG, đồng bộ với P-40 và P-51 —
+   * nên trạng thái mở hộp thoại do trang giữ, khối này chỉ nhận vào.
+   */
+  creating: boolean;
+  onCreatingChange: (creating: boolean) => void;
+};
+
 /** P-60 · Kho ngân hàng — danh sách phẳng, mỗi dòng một ngân hàng độc lập. */
-export function BankCatalogSection() {
+export function BankCatalogSection({ creating, onCreatingChange }: Props) {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<Bank | null>(null);
-  const [creating, setCreating] = useState(false);
   const [confirming, setConfirming] = useState<Bank | null>(null);
 
   const { data: banks = [], isPending, isError, refetch, isFetching } = useQuery({
@@ -100,15 +108,6 @@ export function BankCatalogSection() {
         title="Kho ngân hàng"
         icon={<Landmark size={17} />}
         meta={isPending ? undefined : `${banks.length} dòng`}
-        /* Nút nằm NGANG HÀNG TIÊU ĐỀ, không nằm dưới bảng: bảng cắt 15 dòng
-           một trang nên nút bị đẩy khỏi màn hình điện thoại, muốn thêm một
-           ngân hàng phải cuộn hết bảng xuống rồi cuộn ngược lên. */
-        action={
-          <Button onClick={() => setCreating(true)}>
-            <Plus size={16} />
-            Thêm ngân hàng
-          </Button>
-        }
       >
         {isPending && <SkeletonTable rows={5} columns={5} />}
         {isError && (
@@ -123,7 +122,7 @@ export function BankCatalogSection() {
             defaultSort="code"
             pageSize={15}
             caption="Ngân hàng và các trường cấu hình"
-            emptyText="Chưa có ngân hàng nào — bấm “Thêm ngân hàng” ở góc trên."
+            emptyText="Chưa có ngân hàng nào — bấm “Thêm ngân hàng” ở thanh tiêu đề."
           />
         )}
 
@@ -140,7 +139,7 @@ export function BankCatalogSection() {
           open
           bank={editing}
           onClose={() => {
-            setCreating(false);
+            onCreatingChange(false);
             setEditing(null);
           }}
         />
