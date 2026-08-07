@@ -179,9 +179,10 @@ const comboCodesOf = (accounts: ScoringAccount[]): ScoringAccount[] =>
 /**
  * Tiền mặt của từng ngân hàng (mục 1, cột Ghi chú).
  *
- * `withinDays` là HẠN CÔNG TY PHẢI CHI, không phải điều kiện của khách. Mốc bắt
- * đầu đếm chưa chốt (câu 7.7) nên nơi gọi tự quyết định đếm từ ngày nào — file
- * luật chỉ nói số ngày.
+ * `withinDays` là HẠN CÔNG TY PHẢI CHI, và nó CHỈ ĐỂ HIỆN CHO NGƯỜI ĐỌC — việc
+ * chi tiền nằm ngoài hệ thống này (chốt 07/08), không có bảng nào theo dõi đã
+ * chi hay chưa và cũng không định có. Đừng dựng lịch nhắc hay cột trạng thái
+ * dựa trên con số này.
  */
 const CASH_OF: Record<string, Omit<GiftCash, "reason">> = {
   VPa: { bankCode: "VPa", amount: 20_000, withinDays: 3 },

@@ -53,7 +53,10 @@ export type GiftInput = {
 export type GiftCash = {
   bankCode: string;
   amount: number;
-  /** Hạn công ty phải chi, tính từ ngày khách đủ điều kiện (câu 7.7 chưa chốt mốc đếm). */
+  /**
+   * Hạn công ty phải chi, tính bằng ngày. CHỈ ĐỂ HIỆN — việc chi tiền nằm ngoài
+   * hệ thống này (chốt 07/08), không màn nào theo dõi đã chi hay chưa.
+   */
   withinDays: number;
   reason: string;
 };

@@ -1,7 +1,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { GIFT_DECLINED, GIFT_ERROR } from "@/lib/api/customers";
 import { EMPTY_GIFT, type GiftSimulateInput, type GiftSimulateResult } from "@/lib/api/settings";
-import { businessDay, formatVnd } from "@/lib/format";
+import { businessDay } from "@/lib/format";
 import type { User } from "@/lib/types";
 import { giftFor, type GiftInput, type GiftResult } from "@/rules";
 import { db } from "./db/client";
@@ -189,10 +189,6 @@ export const giftSimulate = (input: GiftSimulateInput): Promise<GiftSimulateResu
     channelCodes: input.channelCodes,
     departmentCode: input.departmentCode,
   });
-
-/** Câu mô tả khoản tiền — dùng cho nhật ký P-93, không phải cho phép tính nào. */
-export const cashSummary = (result: GiftSimulateResult): string =>
-  result.cashBreakdown.map((c) => `${formatVnd(c.amount)} (${c.label})`).join(" + ");
 
 /**
  * Tính lại `customers.gift_case` cho TOÀN BỘ khách — `bun run db:recount`.
