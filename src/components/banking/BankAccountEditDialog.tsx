@@ -2,6 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { CheckCircle2, Save } from "lucide-react";
 import { Button } from "@/components/ui/Button";
@@ -21,6 +22,12 @@ import { businessDay } from "@/lib/format";
 import { errorMessage, toast } from "@/lib/toast";
 import { useSession } from "@/store/session";
 import { BankAccountFinishFields } from "./BankAccountFinishFields";
+import {
+  photosChanged,
+  savedPhotos,
+  uploadPendingPhotos,
+  type PhotoItem,
+} from "./BankAccountPhotos";
 import styles from "./BankAccountFormDialog.module.scss";
 
 type Props = {
@@ -89,17 +96,32 @@ export function BankAccountEditDialog({ open, onClose, accountId }: Props) {
     invalidateKpi(queryClient);
   };
 
-  const savePhotos = useMutation({
-    mutationFn: (urls: string[]) => setBankAccountPhotos(accountId, urls),
-    onSuccess: (updated) => {
-      invalidate();
-      toast.ok(`Đã lưu ${updated.photoUrls.length} ảnh chứng minh`);
-    },
-    onError: (e) => toast.fail(errorMessage(e, "Không lưu được ảnh chứng minh này.")),
-  });
+  /**
+   * `null` = người dùng chưa đụng vào ảnh, cứ lấy theo bản ghi. Tính khi render
+   * chứ không đồng bộ bằng effect (AGENTS.md §7) — chi tiết về sau lượt render
+   * đầu nên `useState(data.photoUrls)` sẽ mãi rỗng.
+   */
+  const [editedPhotos, setEditedPhotos] = useState<PhotoItem[] | null>(null);
+  const photos = editedPhotos ?? savedPhotos(data?.photoUrls ?? []);
+
+  /**
+   * Ảnh đi trước, bản ghi đi sau — và phải ĐỦ CẢ HAI mới coi là xong.
+   *
+   * Máy chủ đếm ảnh trong bảng `bank_account_photos` ngay trong giao dịch hoàn
+   * thành, nên tải file lên thôi chưa đủ: phải ghi danh sách URL vào bản ghi
+   * trước khi gọi đường hoàn thành/sửa.
+   */
+  const savePhotosThen = async <T,>(run: () => Promise<T>): Promise<T> => {
+    if (photosChanged(photos, data?.photoUrls ?? [])) {
+      const urls = await uploadPendingPhotos(photos);
+      await setBankAccountPhotos(accountId, urls);
+    }
+    return run();
+  };
 
   const finish = useMutation({
-    mutationFn: (form: BankAccountFinishForm) => finishBankAccount(accountId, form),
+    mutationFn: (form: BankAccountFinishForm) =>
+      savePhotosThen(() => finishBankAccount(accountId, form)),
     onSuccess: (result) => {
       invalidate();
       onClose();
@@ -117,7 +139,8 @@ export function BankAccountEditDialog({ open, onClose, accountId }: Props) {
    * `invalidate()` ở đây quan trọng y như ở nhánh hoàn thành.
    */
   const update = useMutation({
-    mutationFn: (form: BankAccountFinishForm) => updateBankAccount(accountId, form),
+    mutationFn: (form: BankAccountFinishForm) =>
+      savePhotosThen(() => updateBankAccount(accountId, form)),
     onSuccess: (result) => {
       invalidate();
       onClose();
@@ -128,7 +151,8 @@ export function BankAccountEditDialog({ open, onClose, accountId }: Props) {
   });
 
   const draft = data?.status === "creating";
-  const enoughPhotos = (data?.photoUrls.length ?? 0) >= (data?.requiredPhotos ?? 0);
+  const enoughPhotos = photos.length >= (data?.requiredPhotos ?? 0);
+  const busy = finish.isPending || update.isPending;
 
   return (
     <Dialog
@@ -145,13 +169,13 @@ export function BankAccountEditDialog({ open, onClose, accountId }: Props) {
               <Button
                 type="submit"
                 form="edit-account-form"
-                disabled={finish.isPending || !enoughPhotos}
+                disabled={busy || !enoughPhotos}
               >
                 <CheckCircle2 size={16} aria-hidden />
                 Hoàn thành
               </Button>
             ) : (
-              <Button type="submit" form="edit-account-form" disabled={update.isPending}>
+              <Button type="submit" form="edit-account-form" disabled={busy}>
                 <Save size={16} aria-hidden />
                 Lưu
               </Button>
@@ -192,9 +216,10 @@ export function BankAccountEditDialog({ open, onClose, accountId }: Props) {
             setValue={finishForm.setValue}
             bankCode={data.bankCode}
             accountNumberMethod={data.accountNumberMethod}
-            photoUrls={data.photoUrls}
+            photos={photos}
             requiredPhotos={data.requiredPhotos}
-            onPhotosChange={(urls) => savePhotos.mutate(urls)}
+            onPhotosChange={setEditedPhotos}
+            busy={busy}
           />
           {draft && !enoughPhotos && (
             <p className="text-muted">

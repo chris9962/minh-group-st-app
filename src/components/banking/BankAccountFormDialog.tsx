@@ -19,6 +19,12 @@ import {
   type BankAccount,
 } from "@/lib/api/bankAccounts";
 import { BankAccountFinishFields } from "./BankAccountFinishFields";
+import {
+  photosChanged,
+  savedPhotos,
+  uploadPendingPhotos,
+  type PhotoItem,
+} from "./BankAccountPhotos";
 import styles from "./BankAccountFormDialog.module.scss";
 import { businessDay } from "@/lib/format";
 import { invalidateKpi } from "@/lib/invalidateKpi";
@@ -62,7 +68,7 @@ export function BankAccountFormDialog({
 }: Props) {
   const queryClient = useQueryClient();
   const [account, setAccount] = useState<BankAccount | null>(null);
-  const [photoUrls, setPhotoUrls] = useState<string[]>([]);
+  const [photos, setPhotos] = useState<PhotoItem[]>([]);
 
   const { data: banks = [] } = useQuery({ queryKey: ["banks"], queryFn: fetchBanks });
   const activeBanks = banks.filter((b) => b.active);
@@ -98,13 +104,13 @@ export function BankAccountFormDialog({
     defaultValues: emptyFinishForm,
   });
   const requiredPhotos = selectedBank?.requiredPhotos ?? 0;
-  const enoughPhotos = photoUrls.length >= requiredPhotos;
+  const enoughPhotos = photos.length >= requiredPhotos;
 
   const start = useMutation({
     mutationFn: (form: BankAccountStartForm) => startBankAccount(form),
     onSuccess: (created) => {
       setAccount(created);
-      setPhotoUrls(created.photoUrls);
+      setPhotos(savedPhotos(created.photoUrls));
       finishForm.reset({
         accountNumber:
           selectedBank?.accountNumberMethod === "phone-match"
@@ -133,15 +139,15 @@ export function BankAccountFormDialog({
     invalidateKpi(queryClient);
   };
 
-  const uploadPhotos = useMutation({
-    mutationFn: (urls: string[]) => setBankAccountPhotos(account?.id ?? "", urls),
-    onSuccess: (updated) => setPhotoUrls(updated.photoUrls),
-    onError: (e) => toast.fail(errorMessage(e, "Không tải được ảnh lên.")),
-  });
-
   const finish = useMutation({
-    mutationFn: (form: BankAccountFinishForm) =>
-      finishBankAccount(account?.id ?? "", form),
+    // Ảnh đi trước, bản ghi đi sau: máy chủ đếm ảnh ngay trong giao dịch hoàn
+    // thành, nên phải ghi xong danh sách URL rồi mới gọi đường hoàn thành.
+    mutationFn: async (form: BankAccountFinishForm) => {
+      const id = account?.id ?? "";
+      if (photosChanged(photos, account?.photoUrls ?? []))
+        await setBankAccountPhotos(id, await uploadPendingPhotos(photos));
+      return finishBankAccount(id, form);
+    },
     onSuccess: () => {
       invalidateAfterFinishOrDelete();
       onClose();
@@ -223,9 +229,10 @@ export function BankAccountFormDialog({
             setValue={finishForm.setValue}
             bankCode={account.bankCode}
             accountNumberMethod={selectedBank?.accountNumberMethod ?? "manual"}
-            photoUrls={photoUrls}
+            photos={photos}
             requiredPhotos={requiredPhotos}
-            onPhotosChange={(urls) => uploadPhotos.mutate(urls)}
+            onPhotosChange={setPhotos}
+            busy={finish.isPending}
           />
           {!enoughPhotos && (
             <p className="text-muted">Cần đủ {requiredPhotos} ảnh chứng minh mới hoàn thành được.</p>

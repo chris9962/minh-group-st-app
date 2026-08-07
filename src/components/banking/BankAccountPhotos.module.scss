@@ -9,8 +9,20 @@
 
 .photoTitle {
   margin: 0;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 10px;
   font-size: 13px;
   font-weight: 600;
+}
+
+/* Nói rõ ảnh chưa lên máy chủ. Chỉ dựa vào nhãn góc ảnh là chưa đủ: người dùng
+   nhìn thấy ảnh hiện ra thì mặc định là đã xong. */
+.photoHint {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--om-orange-ink);
 }
 
 .photoGrid {
@@ -33,6 +45,20 @@
   border: 1px solid var(--om-line);
 }
 
+/* Nhãn "chưa tải lên" là CHỮ chứ không phải chỉ đổi màu viền — màu không được
+   là kênh truyền đạt duy nhất (AGENTS.md §8). */
+.photoBadge {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--om-orange);
+  color: var(--om-text-on-accent);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
 .photoEdit {
   position: absolute;
   bottom: 6px;
@@ -49,8 +75,31 @@
   cursor: pointer;
 }
 
-.photoEdit:hover {
+.photoRemove {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: var(--om-card);
+  color: var(--om-text);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+}
+
+.photoEdit:hover,
+.photoRemove:hover {
   color: var(--om-orange-mid);
+}
+
+.photoEdit:disabled,
+.photoRemove:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .photoAdd {
@@ -78,20 +127,22 @@
   display: none;
 }
 
-/* Vòng quay lúc đang tải ảnh lên. `prefers-reduced-motion` thì đứng yên —
-   biểu tượng vẫn nói đúng trạng thái, chỉ bỏ phần chuyển động. */
-.spinner {
-  animation: spin 0.9s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
+/* Đội KD chọn ảnh bằng ngón tay ngoài trời — hai nút góc ảnh phải đủ 44px khi
+   trỏ bằng ngón (AGENTS.md §8). Trên chuột thì giữ nhỏ để không che mất ảnh. */
+@media (pointer: coarse) {
+  .photoTile {
+    width: 140px;
+    height: 105px;
   }
-}
 
-@media (prefers-reduced-motion: reduce) {
-  .spinner {
-    animation: none;
+  .photoEdit,
+  .photoRemove {
+    width: 44px;
+    height: 44px;
+  }
+
+  .photoAdd {
+    width: 140px;
+    height: 105px;
   }
 }

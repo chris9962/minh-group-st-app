@@ -96,7 +96,20 @@ export function BankCatalogSection() {
 
   return (
     <>
-      <SectionCard title="Kho ngân hàng" icon={<Landmark size={17} />} meta={isPending ? undefined : `${banks.length} dòng`}>
+      <SectionCard
+        title="Kho ngân hàng"
+        icon={<Landmark size={17} />}
+        meta={isPending ? undefined : `${banks.length} dòng`}
+        /* Nút nằm NGANG HÀNG TIÊU ĐỀ, không nằm dưới bảng: bảng cắt 15 dòng
+           một trang nên nút bị đẩy khỏi màn hình điện thoại, muốn thêm một
+           ngân hàng phải cuộn hết bảng xuống rồi cuộn ngược lên. */
+        action={
+          <Button onClick={() => setCreating(true)}>
+            <Plus size={16} />
+            Thêm ngân hàng
+          </Button>
+        }
+      >
         {isPending && <SkeletonTable rows={5} columns={5} />}
         {isError && (
           <ErrorState what="kho ngân hàng" onRetry={refetch} retrying={isFetching} />
@@ -110,16 +123,9 @@ export function BankCatalogSection() {
             defaultSort="code"
             pageSize={15}
             caption="Ngân hàng và các trường cấu hình"
-            emptyText="Chưa có ngân hàng nào — bấm “Thêm ngân hàng” bên dưới."
+            emptyText="Chưa có ngân hàng nào — bấm “Thêm ngân hàng” ở góc trên."
           />
         )}
-
-        <div className={styles.footRow}>
-          <Button onClick={() => setCreating(true)}>
-            <Plus size={16} />
-            Thêm ngân hàng
-          </Button>
-        </div>
 
         <p className={styles.footnote}>
           <strong>Tắt</strong> chỉ chặn tạo tài khoản mới — tài khoản cũ thuộc

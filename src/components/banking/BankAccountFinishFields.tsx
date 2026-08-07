@@ -11,7 +11,7 @@ import { Select } from "@/components/ui/Select";
 import { TextField } from "@/components/ui/TextField";
 import { AccountType, BankAccountFinishForm } from "@/lib/api/bankAccounts";
 import type { AccountNumberMethod } from "@/lib/api/bankCatalog";
-import { BankAccountPhotos } from "./BankAccountPhotos";
+import { BankAccountPhotos, type PhotoItem } from "./BankAccountPhotos";
 import styles from "./BankAccountFinishFields.module.scss";
 
 const ACCOUNT_TYPE_LABEL: Record<AccountType, string> = {
@@ -29,9 +29,11 @@ type Props = {
   setValue: UseFormSetValue<BankAccountFinishForm>;
   bankCode: string;
   accountNumberMethod: AccountNumberMethod;
-  photoUrls: string[];
+  photos: PhotoItem[];
   requiredPhotos: number;
-  onPhotosChange: (photoUrls: string[]) => void;
+  onPhotosChange: (photos: PhotoItem[]) => void;
+  /** Đang gửi biểu mẫu — khoá phần ảnh để không ai đổi giữa chừng. */
+  busy?: boolean;
 };
 
 /**
@@ -49,9 +51,10 @@ export function BankAccountFinishFields({
   setValue,
   bankCode,
   accountNumberMethod,
-  photoUrls,
+  photos,
   requiredPhotos,
   onPhotosChange,
+  busy = false,
 }: Props) {
   return (
     <>
@@ -95,7 +98,12 @@ export function BankAccountFinishFields({
         <TextField label="Ghi chú" {...register("note")} />
       </form>
 
-      <BankAccountPhotos photoUrls={photoUrls} requiredPhotos={requiredPhotos} onChange={onPhotosChange} />
+      <BankAccountPhotos
+        photos={photos}
+        requiredPhotos={requiredPhotos}
+        onChange={onPhotosChange}
+        busy={busy}
+      />
     </>
   );
 }

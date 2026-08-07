@@ -12,7 +12,13 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
 import { BankAccountEditDialog } from "@/components/banking/BankAccountEditDialog";
 import { BankAccountFinishFields } from "@/components/banking/BankAccountFinishFields";
-import { BankAccountPhotos } from "@/components/banking/BankAccountPhotos";
+import {
+  BankAccountPhotos,
+  photosChanged,
+  savedPhotos,
+  uploadPendingPhotos,
+  type PhotoItem,
+} from "@/components/banking/BankAccountPhotos";
 import { Button } from "@/components/ui/Button";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusTag } from "@/components/ui/StatusTag";
@@ -128,17 +134,18 @@ function FinishAccountCard({
     invalidateKpi(queryClient);
   };
 
-  const uploadPhotos = useMutation({
-    mutationFn: (urls: string[]) => setBankAccountPhotos(id, urls),
-    onSuccess: (updated) => {
-      queryClient.invalidateQueries({ queryKey: ["bank-account-detail", id] });
-      toast.ok(`Đã lưu ${updated.photoUrls.length} ảnh chứng minh`);
-    },
-    onError: (e) => toast.fail(errorMessage(e, "Không lưu được ảnh chứng minh này.")),
-  });
+  /** `null` = chưa đụng vào ảnh, cứ lấy theo bản ghi (AGENTS.md §7 — không effect). */
+  const [editedPhotos, setEditedPhotos] = useState<PhotoItem[] | null>(null);
+  const photos = editedPhotos ?? savedPhotos(data.photoUrls);
 
   const finish = useMutation({
-    mutationFn: (form: BankAccountFinishForm) => finishBankAccount(id, form),
+    // Ảnh đi trước, bản ghi đi sau: máy chủ đếm ảnh ngay trong giao dịch hoàn
+    // thành, nên phải ghi xong danh sách URL rồi mới gọi đường hoàn thành.
+    mutationFn: async (form: BankAccountFinishForm) => {
+      if (photosChanged(photos, data.photoUrls))
+        await setBankAccountPhotos(id, await uploadPendingPhotos(photos));
+      return finishBankAccount(id, form);
+    },
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["bank-account-detail", id] });
       invalidateShared();
@@ -208,9 +215,10 @@ function FinishAccountCard({
         setValue={finishForm.setValue}
         bankCode={data.bankCode}
         accountNumberMethod={data.accountNumberMethod}
-        photoUrls={data.photoUrls}
+        photos={photos}
         requiredPhotos={data.requiredPhotos}
-        onPhotosChange={(urls) => uploadPhotos.mutate(urls)}
+        onPhotosChange={setEditedPhotos}
+        busy={finish.isPending}
       />
 
       <div className={styles.actions}>
@@ -247,9 +255,18 @@ function DoneAccountCard({
   const user = useSession((s) => s.user);
   const [editing, setEditing] = useState(false);
 
+  /**
+   * Ở đây ảnh vẫn lưu NGAY khi bấm, khác hai màn kia — thẻ này không có biểu
+   * mẫu nào để bấm "Lưu" cùng. Nút Sửa bên trên mở hộp thoại cho phần còn lại.
+   */
+  const [editedPhotos, setEditedPhotos] = useState<PhotoItem[] | null>(null);
+  const photos = editedPhotos ?? savedPhotos(data.photoUrls);
+
   const uploadPhotos = useMutation({
-    mutationFn: (photoUrls: string[]) => setBankAccountPhotos(id, photoUrls),
+    mutationFn: async (next: PhotoItem[]) =>
+      setBankAccountPhotos(id, await uploadPendingPhotos(next)),
     onSuccess: (updated) => {
+      setEditedPhotos(null);
       queryClient.invalidateQueries({ queryKey: ["bank-account-detail", id] });
       queryClient.invalidateQueries({ queryKey: ["bank-account-list"] });
       toast.ok(`Đã lưu ${updated.photoUrls.length} ảnh chứng minh`);
@@ -334,9 +351,13 @@ function DoneAccountCard({
       </dl>
 
       <BankAccountPhotos
-        photoUrls={data.photoUrls}
+        photos={photos}
         requiredPhotos={data.requiredPhotos}
-        onChange={(urls) => uploadPhotos.mutate(urls)}
+        onChange={(next) => {
+          setEditedPhotos(next);
+          uploadPhotos.mutate(next);
+        }}
+        busy={uploadPhotos.isPending}
       />
     </SectionCard>
   );
