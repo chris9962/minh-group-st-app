@@ -44,6 +44,18 @@ const TAG = "DEMO";
 const USER_PREFIX = "demo_";
 const PASSWORD = "12345678";
 
+/**
+ * ⚠️ MỌI SỐ TRONG FILE NÀY PHẢI KHÔNG TRÙNG BỘ E2E (`scripts/e2e-seed.ts`).
+ *
+ * Hai bộ sống chung một database dev. Bộ e2e có ca "tìm bằng 4 số cuối CCCD"
+ * và "tìm bằng số phụ", và chúng chốt rằng kết quả ra ĐÚNG MỘT dòng — nên chỉ
+ * cần một khách mẫu trùng bốn số cuối là hai ca đó đỏ, mà đỏ vì dữ liệu chứ
+ * không phải vì ứng dụng sai. Đã dính một lần.
+ *
+ * Bộ e2e giữ `092301004871` và `0987654321`; bộ này dùng dải `0703018850xx` và
+ * `09788800xx`.
+ */
+
 const MONTH = businessMonth();
 const day = (n: number) => `${MONTH}-${String(n).padStart(2, "0")}`;
 
@@ -144,7 +156,7 @@ type DemoCustomer = {
 const CUSTOMERS: DemoCustomer[] = [
   {
     name: "DEMO TH3 · 3 ưu tiên · 1.2đ · 70k",
-    idNumber: "079301004871",
+    idNumber: "070301885001",
     case: "TH3",
     owner: "demo_kd1_a",
     accounts: [{ bank: "MB" }, { bank: "VPa" }, { bank: "MSBa" }],
@@ -174,7 +186,7 @@ const CUSTOMERS: DemoCustomer[] = [
   },
   {
     name: "DEMO TH1 · combo 2 có VPa · 0.7đ · 20k",
-    idNumber: "079301004872",
+    idNumber: "070301885002",
     case: "TH1",
     owner: "demo_kd2_a",
     accounts: [{ bank: "MB" }, { bank: "VPa" }],
@@ -224,7 +236,7 @@ const CUSTOMERS: DemoCustomer[] = [
   },
   {
     name: "DEMO Đã tặng quà rồi",
-    idNumber: "079301004873",
+    idNumber: "070301885003",
     case: "TH3",
     owner: "demo_kd1_truong",
     accounts: [{ bank: "MB" }, { bank: "VPa" }, { bank: "MSBa" }],
@@ -337,11 +349,11 @@ async function build() {
       number: `0912${String(100000 + phoneSeq++).padStart(6, "0")}`,
       isPrimary: true,
     });
-    // Khách đầu có thêm số phụ — ca "tìm ra khách qua số KHÔNG phải số chính".
+    // Khách đầu có thêm số phụ — để thử tìm bằng số KHÔNG phải số chính.
     if (i === 0)
       await db
         .insert(customerPhones)
-        .values({ customerId: customer.id, number: "0987654321", isPrimary: false });
+        .values({ customerId: customer.id, number: "0978880001", isPrimary: false });
 
     for (const [k, a] of c.accounts.entries()) {
       await db.insert(bankAccounts).values({

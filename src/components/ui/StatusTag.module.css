@@ -14,6 +14,14 @@
   color: var(--om-orange-mid);
 }
 
+/* Không đạt cũng không cần để ý — không mượn màu của bên nào. Dấu gạch ngang
+   thay cho ✓ / ! là chỗ phân biệt chính, màu chỉ hỗ trợ. */
+.neutral {
+  background: transparent;
+  border: 1px solid var(--om-line);
+  color: var(--om-text-3);
+}
+
 /* Ký hiệu vẽ bằng SVG chứ không dùng ký tự chữ: ký tự mang baseline của font
    nên nét bị lệch xuống so với chữ bên cạnh. */
 .mark {

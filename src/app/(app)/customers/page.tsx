@@ -39,6 +39,19 @@ const GIFT_STATUS_LABEL: Record<CustomerRow["giftStatus"], string> = {
   given: "Đã tặng",
 };
 
+/**
+ * Ba trạng thái, ba tông — `null` là "không thuộc bên nào".
+ *
+ * "Chưa đủ điều kiện" từng dùng chung tông với "Đã tặng" nên cả cột hiện dấu ✓
+ * nền xanh cho những khách chưa được gì. Chỉ "Đủ ĐK · chưa phát" mới là việc
+ * cần làm, và chỉ nó mới được nhãn cam.
+ */
+const GIFT_STATUS_TONE: Record<CustomerRow["giftStatus"], boolean | null> = {
+  none: null,
+  eligible: false,
+  given: true,
+};
+
 /** Khách mới nhất lên đầu — người nhập vừa tạo xong là thấy ngay dòng của mình. */
 const FIRST_PAGE: CustomerQuery = {
   search: "",
@@ -138,7 +151,7 @@ export default function CustomersPage() {
         key: "giftStatus",
         label: "Trạng thái quà",
         render: (c) => (
-          <StatusTag ok={c.giftStatus !== "eligible"}>
+          <StatusTag ok={GIFT_STATUS_TONE[c.giftStatus]}>
             {c.giftStatus === "given" && c.givenItem
               ? `Đã tặng · ${c.givenItem}`
               : GIFT_STATUS_LABEL[c.giftStatus]}

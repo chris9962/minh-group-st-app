@@ -326,8 +326,19 @@ export default function CustomerDetailPage({
                   <div>
                     <dt>Rổ quà</dt>
                     <dd>
+                      {/* Rổ rỗng có HAI lý do khác hẳn nhau: khách chưa đủ
+                          combo, hoặc đủ rồi mà admin vừa tắt hết món trong danh
+                          mục. Nói gộp thì nhân viên đi tư vấn khách mở thêm tài
+                          khoản trong khi lỗi nằm ở màn danh mục. */}
                       {data.gift.basket.length === 0 ? (
-                        "Chưa đủ điều kiện"
+                        data.gift.caseCode ? (
+                          <span className="text-muted">
+                            Đủ điều kiện nhưng danh mục chưa có món nào phát được — xem lại
+                            danh mục quà và gói bảo hiểm.
+                          </span>
+                        ) : (
+                          "Chưa đủ điều kiện"
+                        )
                       ) : (
                         <ol className={styles.basket}>
                           {data.gift.basket.map((item, i) => (
@@ -341,10 +352,13 @@ export default function CustomerDetailPage({
                 <div>
                   <dt>Trạng thái</dt>
                   <dd>
-                    <StatusTag ok={data.gift.given || data.gift.basket.length === 0}>
+                    {/* Ba trạng thái, ba tông. Đọc theo `caseCode` chứ không
+                        theo số món trong rổ: rổ có thể rỗng vì admin vừa tắt
+                        mấy món trong danh mục, mà khách thì vẫn đủ điều kiện. */}
+                    <StatusTag ok={data.gift.given ? true : data.gift.caseCode ? false : null}>
                       {data.gift.given
                         ? "Đã tặng"
-                        : data.gift.basket.length > 0
+                        : data.gift.caseCode
                           ? "Đủ ĐK · chưa phát"
                           : "Chưa đủ điều kiện"}
                     </StatusTag>
