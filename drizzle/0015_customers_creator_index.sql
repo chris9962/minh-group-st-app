@@ -1,0 +1,1 @@
+CREATE INDEX "customers_creator" ON "customers" USING btree ("created_by");

@@ -439,6 +439,13 @@ export const customers = pgTable(
     // thì theo tên) — có index thì lấy 15 dòng đầu không phải xếp cả kho.
     index("customers_account_count").on(sql`account_count desc, search_name`),
     index("customers_insurance_count").on(sql`insurance_count desc, search_name`),
+    /**
+     * Điểm KPI ngân hàng gom theo CHỦ HỒ SƠ KHÁCH từ 07/08 (thể lệ câu 7.11),
+     * nên `recomputeKpi` lọc `customers.created_by` rồi mới nối sang tài khoản.
+     * Không có chỉ mục này thì mỗi lần hoàn thành một tài khoản là một lượt
+     * quét cả bảng khách.
+     */
+    index("customers_creator").on(t.createdBy),
   ],
 );
 

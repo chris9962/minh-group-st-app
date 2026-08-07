@@ -1,3 +1,5 @@
+import * as period202608 from "./2026-08";
+
 /**
  * Cửa vào DUY NHẤT của công thức tính điểm theo kỳ.
  *
@@ -16,10 +18,10 @@
  * KHÔNG phải hàng của bảng `bank_accounts`: hàm luật là hàm thuần, không biết
  * gì về DB (spec §5.3). Tầng gọi có nhiệm vụ đọc DB rồi nắn về dạng này.
  *
- * ⚠️ Dạng này sẽ phải nở thêm khi viết file luật thật. Thể lệ kỳ 2026-08 còn
- * đòi "có giao dịch khác ngày mở tài khoản" và "chi tiền vào đúng ngân hàng
- * trong X ngày" — hai điều kiện đó cần thêm cột. Chưa thêm bây giờ vì chưa chốt
- * (12 câu ở `mgst-the-le/2026-08.md` §7), thêm mò là đoán sai rồi phải sửa lại.
+ * Bốn trường này đủ cho phần ĐIỂM. Phần QUÀ sẽ đòi thêm: thể lệ 2026-08 yêu cầu
+ * "có giao dịch khác ngày mở tài khoản" và "chi tiền vào đúng ngân hàng trong X
+ * ngày" (`transaction_at` đã có cột, mốc đếm ngày thì chưa). Chưa thêm bây giờ
+ * vì ba câu 7.5 · 7.6 · 7.10 chưa chốt — thêm mò là đoán sai rồi phải sửa lại.
  */
 export type ScoringAccount = {
   /** Gom theo khách: điểm thuộc về CẢ COMBO của một khách, không cộng lẻ từng tài khoản. */
@@ -30,30 +32,58 @@ export type ScoringAccount = {
   openedDate: string;
 };
 
+type PeriodRules = {
+  bankingPoints(accounts: ScoringAccount[]): number;
+};
+
+/**
+ * Các kỳ đã có file luật, khoá là tháng BẮT ĐẦU áp dụng.
+ *
+ * Thêm kỳ mới thì thêm đúng một dòng ở đây và một file `YYYY-MM.ts` — không nơi
+ * nào khác trong ứng dụng biết tên các file kỳ.
+ */
+const PERIODS: Record<string, PeriodRules> = {
+  "2026-08": period202608,
+};
+
+/**
+ * File luật áp cho `yearMonth`: file mới nhất có mốc áp dụng KHÔNG SAU tháng đó.
+ *
+ * Thể lệ ghi "áp dụng từ 01/8/2026" chứ không phải "cho riêng tháng 8", nên
+ * tháng 9 chưa có thể lệ mới thì vẫn tính bằng thể lệ tháng 8. Để rơi về 0 thì
+ * sáng mùng 1 tháng 9 cả công ty mất sạch điểm ngân hàng mà không ai báo gì.
+ *
+ * Tháng TRƯỚC kỳ đầu tiên thì không luật nào áp: công thức cũ bỏ từ 03/08 và
+ * không được khôi phục.
+ */
+function rulesFor(yearMonth: string): PeriodRules | null {
+  const applicable = Object.keys(PERIODS)
+    .filter((start) => start <= yearMonth)
+    .sort();
+  const latest = applicable.at(-1);
+  return latest ? PERIODS[latest] : null;
+}
+
 /**
  * Điểm ngân hàng của MỘT người trong một tháng.
  *
  * Nhận trọn danh sách tài khoản rồi tự gom theo khách — tầng gọi không cần biết
- * luật gom thế nào. Nhờ vậy ngày luật đổi thì chỉ thân hàm này đổi.
- *
- * TODO(KPI, chờ `src/rules/2026-08.ts`): đang trả 0 vì chưa có file luật của kỳ.
- *
- * Trả 0 chứ KHÔNG trả một số cố định khác: số khác 0 nghĩa là mọi nhân viên
- * cùng điểm, trông như dữ liệu thật, ai mở màn KPI sẽ tin. 0 đọc ra ngay là
- * "chưa tính được" — cùng nguyên tắc đang ghi ở đầu `src/server/people.ts`.
+ * luật gom thế nào. Nhờ vậy ngày luật đổi thì chỉ file kỳ đổi.
  *
  * Công thức CŨ (`Σ banks.coefficient` của tài khoản đã cài app) đã bị bỏ từ
  * 03/08, đừng khôi phục: thang mới nhỏ hơn khoảng 2,5 lần và tính theo tổ hợp
  * hạng ngân hàng trên từng khách (spec §7.1).
  */
 export function bankingPointsFor(accounts: ScoringAccount[], yearMonth: string): number {
-  void accounts;
-  void yearMonth;
-  return 0;
+  const rules = rulesFor(yearMonth);
+  if (!rules) return 0;
+
+  // Combo chỉ tính tài khoản mở TRONG tháng đang tính, không nối combo qua
+  // tháng (chốt 07/08, câu 7.13). Lọc ở đây để file kỳ nào cũng khỏi tự nhớ.
+  return rules.bankingPoints(accounts.filter((a) => a.openedDate.startsWith(`${yearMonth}-`)));
 }
 
 /** Đã có file luật cho kỳ này chưa — nơi gọi dùng để biết số 0 là thật hay là chưa tính. */
 export function hasRulesFor(yearMonth: string): boolean {
-  void yearMonth;
-  return false;
+  return rulesFor(yearMonth) !== null;
 }

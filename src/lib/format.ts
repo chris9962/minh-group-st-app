@@ -57,6 +57,20 @@ export function formatVnd(amount: number): string {
   return new Intl.NumberFormat('vi-VN').format(amount) + 'đ';
 }
 
+/**
+ * Điểm KPI cho người đọc: `1.2` ra `1,2`, `2` ra `2`, `8.400000000000001` ra `8,4`.
+ *
+ * Thang điểm từ kỳ 2026-08 là số lẻ (0,4 đến 1,2 mỗi khách) nên không được in
+ * thẳng số thực: cộng nhị phân đẻ ra đuôi rác, và `toFixed(2)` thì mọi số tròn
+ * đều mọc thêm `,00`.
+ */
+export function formatPoints(points: number): string {
+  return new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 2 }).format(points);
+}
+
+/** Làm tròn 2 số lẻ — đúng bằng `numeric(10,2)` của `kpi_scores`. */
+export const roundPoints = (points: number): number => Math.round(points * 100) / 100;
+
 export function formatDate(value: Date | string): string {
   const d = typeof value === 'string' ? new Date(value) : value;
   return new Intl.DateTimeFormat('vi-VN', {

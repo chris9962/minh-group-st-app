@@ -1,7 +1,7 @@
 import { and, asc, eq, gte, inArray, lte, sql, type AnyColumn, type SQL } from "drizzle-orm";
 import type { PersonScore } from "@/lib/api/people";
 import type { PersonDetail } from "@/lib/api/person";
-import { businessDay, businessMonth, monthRange } from "@/lib/format";
+import { businessDay, businessMonth, monthRange, roundPoints } from "@/lib/format";
 import { clampScope, inVisibleScope, visibleDepartmentIds } from "@/lib/permissions";
 import { Scope, type User } from "@/lib/types";
 import { db } from "./db/client";
@@ -125,15 +125,19 @@ const targetFor = async (yearMonth: string, departmentId: string | null): Promis
  */
 
 /**
- * Điểm tháng, làm tròn TỪNG vế rồi mới cộng.
+ * Điểm tháng, GIỮ HAI SỐ LẺ.
  *
- * Không làm tròn tổng thô: giao diện lấy tổng bằng `bankingPoints + servicePoints`
- * từ hai số đã tròn, nên tròn ở tổng cho ra con số khác và "đạt / chưa đạt" lật
- * ngay chỗ giáp mốc.
+ * Trước đây làm tròn về số nguyên. Không dùng được nữa: thang điểm từ kỳ
+ * 2026-08 chạy 0,4 đến 1,2 cho mỗi khách, nên `round(...)::int` biến 1,2 thành
+ * 1 và 0,4 thành 0 — cả công ty về gần hết 0 điểm ngân hàng.
+ *
+ * Hai cột nguồn đã là `numeric(10,2)` nên cộng trong SQL không sinh sai số; ép
+ * `float` một lần ở ngoài cùng để `pointsExpr` vẫn nằm được trong `ORDER BY` và
+ * `WHERE` của bảng nhân sự.
  */
-export const bankingExpr = sql<number>`round(coalesce(${kpiScores.bankingPoints}, 0))::int`;
-export const serviceExpr = sql<number>`round(coalesce(${kpiScores.servicePoints}, 0))::int`;
-export const pointsExpr = sql<number>`(${bankingExpr} + ${serviceExpr})`;
+export const bankingExpr = sql<number>`coalesce(${kpiScores.bankingPoints}, 0)::float`;
+export const serviceExpr = sql<number>`coalesce(${kpiScores.servicePoints}, 0)::float`;
+export const pointsExpr = sql<number>`(coalesce(${kpiScores.bankingPoints}, 0) + coalesce(${kpiScores.servicePoints}, 0))::float`;
 
 /**
  * Chỉ tiêu của ĐÚNG phòng người này, viết thẳng trong SQL.
@@ -312,7 +316,7 @@ async function monthlyPointsFor(
     );
 
   return new Map(
-    rows.map((r) => [r.yearMonth, Math.round(Number(r.banking)) + Math.round(Number(r.service))]),
+    rows.map((r) => [r.yearMonth, roundPoints(Number(r.banking) + Number(r.service))]),
   );
 }
 
@@ -518,16 +522,9 @@ export async function personFor(
    * `ProgressRing` vẽ 40 cung trùng `key` (React cảnh báo và ghép nhầm khi đổi
    * kỳ), còn bảng chú thích dài 40 dòng thay vì một dòng mỗi ngân hàng.
    *
-   * TODO(KPI, chờ `src/rules/YYYY-MM.ts`): CHỈ CÓ NGUỒN DỊCH VỤ.
-   *
    * Vòng điểm lấy tổng bằng cách cộng các cung (`ProgressRing` tự reduce), nên
    * nguồn ở đây phải cộng ra ĐÚNG `points.total` bên cạnh — lệch là hai con số
-   * mâu thuẫn trên cùng một thẻ. Điểm ngân hàng giờ do module luật trả về một
-   * cục, và luật mới quy điểm cho CẢ COMBO của một khách chứ không cho từng
-   * ngân hàng, nên "mỗi ngân hàng một cung" không còn là cách chia đúng.
-   *
-   * Khi viết file luật, nó phải trả kèm phần chia theo khách; lúc đó thêm các
-   * cung đó vào đây. Trước đó để trống còn hơn chia bằng hệ số đã bị bỏ.
+   * mâu thuẫn trên cùng một thẻ.
    */
   const bySource = new Map<string, { label: string; count: number; points: number }>();
   const addSource = (label: string, points: number) => {
@@ -539,16 +536,26 @@ export async function personFor(
 
   for (const r of serviceRows) addSource(r.typeName, Number(r.coefficient));
 
-  // Làm tròn 2 số: hệ số là `numeric(4,2)` nên cộng dồn ra 4.199999999999999.
-  const round2 = (n: number) => Math.round(n * 100) / 100;
+  const pointSources = [...bySource.values()].map((s) => ({
+    label: s.label,
+    // Làm tròn 2 số: hệ số là `numeric(4,2)` nên cộng dồn ra 4.199999999999999.
+    detail: `${s.count} lượt · hệ số ${roundPoints(s.points / s.count)}`,
+    points: roundPoints(s.points),
+  }));
 
-  const pointSources = [...bySource.values()]
-    .map((s) => ({
-      label: s.label,
-      detail: `${s.count} lượt · hệ số ${round2(s.points / s.count)}`,
-      points: round2(s.points),
-    }))
-    .sort((a, b) => b.points - a.points);
+  /* Điểm ngân hàng về MỘT cung duy nhất. Luật của kỳ quy điểm cho cả combo của
+     một khách chứ không cho từng ngân hàng, nên chẻ nhỏ theo ngân hàng là bịa
+     ra con số không có trong thể lệ. Nhưng bỏ hẳn thì tổng các cung thiếu mất
+     phần ngân hàng và lệch với `points.total` ngay bên cạnh. */
+  const bankingTotal = roundPoints(monthAgg.bankingPoints);
+  if (bankingTotal > 0)
+    pointSources.push({
+      label: "Ngân hàng",
+      detail: "Điểm combo của khách do người này lập hồ sơ",
+      points: bankingTotal,
+    });
+
+  pointSources.sort((a, b) => b.points - a.points);
 
   return {
     id: row.user.id,
@@ -561,13 +568,12 @@ export async function personFor(
     summaryMonth,
     daysLeft: daysLeftOf(summaryMonth),
     points: {
-      banking: Math.round(monthAgg.bankingPoints),
-      service: Math.round(monthAgg.servicePoints),
-      // Cộng hai số ĐÃ làm tròn, không làm tròn tổng thô: P-51 lấy tổng bằng
-      // `bankingPoints + servicePoints` từ hai số đã tròn, nên làm tròn tổng ở
-      // đây cho ra con số khác — 1.4 + 1.4 thành 2 ở danh sách mà 3 ở hồ sơ,
-      // và "đạt / chưa đạt" lật ngay chỗ giáp mốc.
-      total: Math.round(monthAgg.bankingPoints) + Math.round(monthAgg.servicePoints),
+      banking: roundPoints(monthAgg.bankingPoints),
+      service: roundPoints(monthAgg.servicePoints),
+      // Làm tròn ở TỔNG, đúng cách P-51 làm (`totalPoints`). Hai cột nguồn đã
+      // là `numeric(10,2)` nên phép cộng chỉ có thể đẻ đuôi rác của số thực,
+      // không đẻ chênh lệch thật — hai màn ra cùng một số.
+      total: roundPoints(monthAgg.bankingPoints + monthAgg.servicePoints),
       target,
     },
     pointSources,

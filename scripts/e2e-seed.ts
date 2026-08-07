@@ -30,6 +30,8 @@ import {
   userPermissions,
   users,
 } from "../src/server/db/schema";
+import { businessMonth } from "../src/lib/format";
+import { recomputeKpi } from "../src/server/kpi";
 import { ROLE_PERMISSIONS } from "../src/lib/roles";
 import { ROLE_TITLE, type RoleKey } from "../src/lib/types";
 
@@ -166,6 +168,18 @@ const E2E_CUSTOMERS = [
 ];
 
 const [seedBank] = await db.select({ id: banks.id }).from(banks).limit(1);
+
+/**
+ * Ba ngân hàng ƯU TIÊN của thể lệ 2026-08, để khách đầu tiên có một combo thật.
+ *
+ * Các khách còn lại mở nhiều tài khoản ở CÙNG `seedBank`, mà luật gom theo ngân
+ * hàng khác nhau nên họ ra 0 điểm — không ca nào đo được công thức. Khách đầu
+ * cầm ba mã khác hạng nhau thì `staff.spec` chốt được đúng một con số.
+ */
+const COMBO_CODES = ["MB", "VPa", "MSBa", "LBP", "TPB"] as const;
+const comboBankIds = new Map(
+  (await db.select({ id: banks.id, code: banks.code }).from(banks)).map((b) => [b.code, b.id]),
+);
 const [seedChannel] = await db.select({ id: channels.id, name: channels.name }).from(channels).limit(1);
 if (!seedBank || !seedChannel) throw new Error("Thiếu danh mục ngân hàng/kênh — chạy `bun db:seed` trước.");
 
@@ -209,17 +223,24 @@ for (const [i, c] of E2E_CUSTOMERS.entries()) {
   if (i === 0)
     await db.insert(customerPhones).values({ customerId: row.id, number: "0987654321", isPrimary: false });
 
-  for (let k = 0; k < c.done; k++)
+  for (let k = 0; k < c.done; k++) {
+    // Khách đầu cầm combo thật; các khách sau dồn về một ngân hàng nên 0 điểm.
+    const comboCode = i === 0 ? COMBO_CODES[k % COMBO_CODES.length] : null;
     await db.insert(bankAccounts).values({
       customerId: row.id,
-      bankId: seedBank.id,
+      bankId: (comboCode && comboBankIds.get(comboCode)) || seedBank.id,
       referralCodeId: codeId,
       status: "done",
       accountNumber: `ZZE2E${i}${k}`,
-      openedDate: "2026-08-01",
+      // Tháng làm việc HIỆN TẠI, không phải ngày cứng: điểm KPI chỉ tính tài
+      // khoản mở trong tháng đang xét, ghi cứng thì sang tháng sau ca test đỏ.
+      openedDate: `${businessMonth()}-01`,
+      // VPa và MSBa chưa cài app thì rơi khỏi combo (thể lệ 2026-08, câu 7.8).
+      appInstalled: comboCode !== null,
       createdBy: seedActor?.id ?? null,
       createdByDepartmentId: dept.id,
     });
+  }
 
   for (let k = 0; k < c.nhap; k++)
     await db.insert(bankAccounts).values({
@@ -249,6 +270,11 @@ for (const [i, c] of E2E_CUSTOMERS.entries()) {
       createdByDepartmentId: dept.id,
     });
 }
+
+/* Điểm KPI không tự sinh khi ghi thẳng vào bảng: đường tính lại nằm ở tầng ứng
+   dụng, mà bộ seed này đi tắt xuống database. Không gọi thì `kpi_scores` rỗng
+   và ca "điểm ngân hàng đúng bảng điểm" xanh vì bảng trống chứ không vì đúng. */
+if (seedActor) await recomputeKpi(seedActor.id, businessMonth());
 
 /**
  * Khách độn cho ca PHÂN TRANG — 22 hồ sơ, vượt `PAGE_SIZE` = 15 nên có thật hai

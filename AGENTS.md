@@ -30,9 +30,14 @@ mọi thứ chạy. Xong việc thì xoá cả hai.
 ```bash
 bun run e2e        # dựng tài khoản test → chạy Playwright → dọn sạch
 bun run e2e:ui     # mở giao diện Playwright để soi từng bước
+bun run test:rules # công thức điểm KPI (src/rules) — không cần database
 ```
 
 Cần **server dev đang chạy** (`bun dev`, cổng 3002) và database đã seed.
+
+`test:rules` là ngoại lệ: hàm luật là hàm thuần nên chạy thẳng, vài giây. **Sửa
+`src/rules/` thì chạy nó trước khi chạy e2e** — điểm KPI dính tới lương, và một
+ca sai ở đó rẻ hơn hẳn khi bắt được trong ba giây thay vì bảy phút.
 
 `scripts/e2e-seed.ts` dựng 5 tài khoản `zz_e2e_<chức vụ>` mang ĐÚNG bộ quyền
 mặc định của từng chức vụ. **Đừng đổi sang tài khoản thật**: quyền của một người

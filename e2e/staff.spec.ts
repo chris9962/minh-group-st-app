@@ -54,24 +54,24 @@ test.describe("P-51 · danh sách nhân sự", () => {
   });
 
   /**
-   * Điểm ngân hàng đang là 0 vì chưa có file luật của kỳ (`src/rules`). Ca này
-   * chốt rằng màn KHÔNG bịa số — 0 đọc ra là "chưa tính được", còn một con số
-   * khác 0 trông như dữ liệu thật thì ai mở màn cũng tin.
+   * Điểm chạy hết đường: bộ seed ghi tài khoản → `recomputeKpi` → `kpi_scores`
+   * → bảng P-51. Con số 1,2 không phải số tròn cho đẹp, nó là dòng "03 Bank ưu
+   * tiên" của bảng điểm kỳ 2026-08.
    *
-   * `zz_e2e_staff` là người tạo toàn bộ tài khoản ngân hàng `done` của bộ seed
-   * (xem `E2E_CUSTOMERS` — 12 tài khoản) và KHÔNG có lượt dịch vụ nào. Nên điểm
-   * của người này đúng bằng phần đóng góp của module ngân hàng: hễ khác 0 là
-   * công thức đã bịa ra từ đâu đó.
+   * `zz_e2e_staff` lập TOÀN BỘ hồ sơ khách của bộ seed và không có lượt dịch vụ
+   * nào, nên điểm của người này đúng bằng phần ngân hàng. Khách đầu tiên cầm
+   * `MB` + `VPa` + `MSBa` (đã cài app) nên được 1.2; năm khách còn lại mở nhiều
+   * tài khoản ở cùng một ngân hàng nên không thành combo và được 0.
    *
-   * ⚠️ Vì vậy KHÔNG ca nào được ghi dịch vụ dưới tài khoản này — làm thế là
-   * cộng điểm dịch vụ cho họ và ca này đỏ. `customers.spec` cố ý đăng nhập bằng
-   * Trưởng phòng ở ca "ghi dịch vụ từ dòng khách" đúng vì lý do đó.
+   * ⚠️ KHÔNG ca nào được ghi dịch vụ dưới tài khoản này — làm thế là cộng thêm
+   * điểm dịch vụ và ca này đỏ. `customers.spec` cố ý đăng nhập bằng Trưởng
+   * phòng ở ca "ghi dịch vụ từ dòng khách" đúng vì lý do đó.
    *
    * ⚠️ Đọc `/api/staff`, không phải `/api/people`: route sau đã bị gỡ khi bảng
    * P-51 chuyển sang lấy đúng một trang từ máy chủ. Ca này gọi vào đó và nhận
    * 404 suốt một thời gian mà vẫn "đỏ đúng lý do khác".
    */
-  test("điểm ngân hàng chưa có công thức thì để 0, không bịa số", async ({ page }) => {
+  test("điểm ngân hàng bằng đúng bảng điểm của kỳ", async ({ page }) => {
     const res = await page.request.get("/api/staff?search=zz_e2e_staff&page=0&sort=name&dir=asc");
     expect(res.status()).toBe(200);
     const body = (await res.json()) as { page?: { rows?: { username: string; points: number }[] } };
@@ -79,7 +79,7 @@ test.describe("P-51 · danh sách nhân sự", () => {
     const rows = body.page?.rows ?? [];
     const seedStaff = rows.find((r) => r.username === "zz_e2e_staff");
     expect(seedStaff, "phải tìm thấy tài khoản e2e nhân viên").toBeTruthy();
-    expect(seedStaff!.points).toBe(0);
+    expect(seedStaff!.points, "03 Bank ưu tiên = 1.2 điểm").toBe(1.2);
   });
 });
 

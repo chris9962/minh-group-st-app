@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { roundPoints } from '@/lib/format';
 import type { Scope } from '@/lib/types';
 
 /** Số liệu cho P-51 Danh sách nhân viên + điểm. */
@@ -28,7 +29,7 @@ export const PersonScore = z.object({
   /** Mã nhân viên — null với tài khoản có trước khi trường này ra đời. */
   staffCode: z.string().nullable(),
   departmentName: z.string(),
-  /** Điểm từ ngân hàng: tổng hệ số của app đã cài + CNKD/HKD. */
+  /** Điểm combo ngân hàng của những khách do người này lập hồ sơ (`src/rules/`). */
   bankingPoints: z.number(),
   /** Điểm từ dịch vụ: hệ số theo loại dịch vụ. */
   servicePoints: z.number(),
@@ -40,8 +41,9 @@ export const PersonScore = z.object({
 });
 export type PersonScore = z.infer<typeof PersonScore>;
 
+/** Làm tròn vì cộng hai số thực đẻ đuôi rác: `0.7 + 1.25` ra `1.9500000000000002`. */
 export const totalPoints = (p: { bankingPoints: number; servicePoints: number }) =>
-  p.bankingPoints + p.servicePoints;
+  roundPoints(p.bankingPoints + p.servicePoints);
 
 export type PeopleQuery = {
   scope: Scope;

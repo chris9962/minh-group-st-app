@@ -7,7 +7,7 @@ import { ProgressRing } from "@/components/ui/ProgressRing";
 import { SectionCard } from "@/components/ui/SectionCard";
 import type { PersonDetail } from "@/lib/api/person";
 import { sourceColor, useChartColors } from "@/lib/chart-colors";
-import { formatPhone } from "@/lib/format";
+import { formatPhone, formatPoints } from "@/lib/format";
 import styles from "./PersonKpiPanel.module.scss";
 
 /**
@@ -82,7 +82,7 @@ export function PersonKpiPanel({ person, withKpi }: Props) {
                 <div>
                   <dt>{person.points.total >= person.points.target ? "Vượt" : "Còn thiếu"}</dt>
                   <dd className="tabular-nums">
-                    {Math.abs(person.points.target - person.points.total)} điểm
+                    {formatPoints(Math.abs(person.points.target - person.points.total))} điểm
                   </dd>
                 </div>
                 {person.daysLeft > 0 && (
@@ -106,7 +106,7 @@ export function PersonKpiPanel({ person, withKpi }: Props) {
                     {s.label}
                     <span className={styles.legendDetail}>{s.detail}</span>
                   </dt>
-                  <dd className="tabular-nums">{s.points}</dd>
+                  <dd className="tabular-nums">{formatPoints(s.points)}</dd>
                 </div>
               ))}
             </dl>

@@ -12,6 +12,8 @@
     "db:seed": "bun --env-file=.env.local scripts/db-seed.ts",
     "db:recount": "bun --env-file=.env.local scripts/db-recount.ts",
     "db:grant-missing": "bun --env-file=.env.local scripts/db-grant-missing-permissions.ts",
+    "kpi:recompute": "bun --env-file=.env.local scripts/kpi-recompute.ts",
+    "test:rules": "bun scripts/test-rules.ts",
     "e2e": "bun --env-file=.env.local scripts/e2e-clean.ts && bun --env-file=.env.local scripts/e2e-seed.ts && playwright test; bun --env-file=.env.local scripts/e2e-clean.ts",
     "e2e:ui": "bun --env-file=.env.local scripts/e2e-seed.ts && playwright test --ui"
   },

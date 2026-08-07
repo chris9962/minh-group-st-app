@@ -21,7 +21,7 @@ import {
   referralCodes,
   users,
 } from "./db/schema";
-import { recomputeKpi } from "./kpi";
+import { recomputeKpiForCustomer } from "./kpi";
 import type { PageArgs } from "./pagination";
 
 /**
@@ -636,9 +636,12 @@ export async function finishBankAccount(
   if (!outcome.ok) return { ok: false, message: outcome.message };
 
   // Điểm chỉ tính tài khoản `done`, nên đây là nhánh BẮT BUỘC gọi tính lại. Ghi
-  // cho NGƯỜI TẠO và THÁNG CỦA NGÀY MỞ — không phải người bấm và tháng hiện tại.
-  if (current.createdById)
-    await recomputeKpi(current.createdById, businessMonth(new Date(`${form.openedDate}T00:00:00+07:00`)));
+  // cho CHỦ HỒ SƠ KHÁCH và THÁNG CỦA NGÀY MỞ (chốt 07/08, câu 7.11) — không
+  // phải người bấm nút, cũng không phải tháng hiện tại.
+  await recomputeKpiForCustomer(
+    current.customerId,
+    businessMonth(new Date(`${form.openedDate}T00:00:00+07:00`)),
+  );
 
   return {
     ok: true,

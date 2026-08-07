@@ -15,6 +15,7 @@ import { Select } from "@/components/ui/Select";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatCard } from "@/components/ui/StatCard";
 import { KpiRing } from "@/components/ui/KpiRing";
+import { formatPoints } from "@/lib/format";
 import { fetchDepartments } from "@/lib/api/departments";
 import {
   fetchStaff,
@@ -62,8 +63,8 @@ function StaffName({ id, fullName, staffCode }: { id: string; fullName: string; 
 function KpiGap({ row }: { row: StaffRow }) {
   const gap = pointsGap(row);
   const detail = isOnTarget(row)
-    ? `Đã đạt chỉ tiêu: ${row.points}/${row.target} điểm, vượt ${gap}.`
-    : `Chưa đạt: ${row.points}/${row.target} điểm, còn thiếu ${-gap}.`;
+    ? `Đã đạt chỉ tiêu: ${formatPoints(row.points)}/${row.target} điểm, vượt ${formatPoints(gap)}.`
+    : `Chưa đạt: ${formatPoints(row.points)}/${row.target} điểm, còn thiếu ${formatPoints(-gap)}.`;
   return <KpiRing value={row.points} target={row.target} detail={detail} />;
 }
 
