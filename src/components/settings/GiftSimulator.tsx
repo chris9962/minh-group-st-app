@@ -68,41 +68,40 @@ export function GiftSimulator() {
       <fieldset className={styles.fieldset}>
         <legend className={styles.legend}>Khách đã mở tài khoản ở</legend>
         {/*
-          MỘT NGÂN HÀNG MỘT DÒNG, ô "đã cài app" thẳng cột bên phải.
+          CHA – CON: ngân hàng là dòng cha, "đã cài app" là dòng con thụt vào
+          dưới nó, có vạch nối.
 
-          Bản trước xếp tất cả vào một dòng chảy tràn, và ô "đã cài app" chỉ
-          hiện ra KHI tích ngân hàng — nên mỗi lần tích là cả lưới xô lại, mã
-          ngân hàng nhảy sang chỗ khác, đọc không kịp. Nay ô đó luôn có mặt,
-          chỉ mờ đi khi chưa chọn ngân hàng: chiều cao dòng không đổi.
+          Bản trước đặt hai ô NGANG HÀNG nhau nên nhìn ra hai lựa chọn song
+          song, trong khi thật ra ô sau chỉ là một thuộc tính của ô trước —
+          chưa mở tài khoản thì "đã cài app" không có nghĩa gì.
         */}
         <ul className={styles.banks}>
           {activeBanks.map((bank) => {
             const picked = opened.includes(bank.code);
             return (
-              <li
-                key={bank.id}
-                className={[styles.bankRow, picked && styles.bankRowOn]
-                  .filter(Boolean)
-                  .join(" ")}
-              >
+              <li key={bank.id} className={styles.bank}>
                 <Checkbox
                   label={bank.code}
                   checked={picked}
                   onCheckedChange={() => toggleOpened(bank.code)}
                 />
-                <Checkbox
-                  /* Trình đọc màn hình nghe mười ba lần "đã cài app" thì không
-                     biết ô nào của ngân hàng nào — mã đi kèm, chỉ ẩn khỏi mắt. */
-                  label={
-                    <>
-                      <span className="sr-only">{bank.code} </span>
-                      đã cài app
-                    </>
-                  }
-                  checked={picked && apps.includes(bank.code)}
-                  disabled={!picked}
-                  onCheckedChange={() => toggleApp(bank.code)}
-                />
+                {picked && (
+                  <div className={styles.bankChild}>
+                    <Checkbox
+                      /* Trình đọc màn hình nghe mười ba lần "đã cài app" thì
+                         không biết ô nào của ngân hàng nào — mã đi kèm, chỉ ẩn
+                         khỏi mắt. */
+                      label={
+                        <>
+                          <span className="sr-only">{bank.code} </span>
+                          đã cài app
+                        </>
+                      }
+                      checked={apps.includes(bank.code)}
+                      onCheckedChange={() => toggleApp(bank.code)}
+                    />
+                  </div>
+                )}
               </li>
             );
           })}

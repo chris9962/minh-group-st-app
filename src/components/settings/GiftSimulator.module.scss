@@ -17,38 +17,30 @@
   color: var(--om-text-2);
 }
 
-/* Lưới cột cố định thay vì dòng chảy tràn: mã ngân hàng thẳng hàng nhau nên
-   dò bằng mắt là ra, không phải đọc từng chữ. */
+/* Lưới cột tự co: mã ngân hàng thẳng hàng nhau nên dò bằng mắt là ra.
+   `align-items: start` để một ô mở dòng con ra thì các ô cùng hàng không bị
+   kéo cao theo. */
 .banks {
   margin: 0;
   padding: 0;
   list-style: none;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
-  gap: 2px 18px;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  align-items: start;
+  gap: 2px 20px;
 }
 
-/* Mã ngân hàng bên trái, ô "đã cài app" thẳng cột bên phải. Cột thứ hai rộng
-   cố định để mọi dòng cắt cùng một chỗ, kể cả mã dài ngắn khác nhau. */
-.bankRow {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 110px;
-  align-items: center;
-  gap: 8px;
-  padding: 5px 6px;
-  border-radius: var(--radius-sm);
+.bank {
+  padding: 3px 0;
 }
 
-/* Dòng đã chọn nổi nền nhạt — nhìn một lượt là biết khách mở mấy ngân hàng,
-   không phải đếm dấu tích. */
-.bankRowOn {
-  background: var(--om-soft);
-}
-
-/* Chưa chọn ngân hàng thì ô "đã cài app" mờ CẢ CHỮ, không chỉ mờ cái hộp: chữ
-   đậm nằm cạnh một cái hộp mờ vẫn trông như còn bấm được. */
-.bankRow:not(.bankRowOn) > :last-child {
-  opacity: 0.5;
+/* Dòng con thụt vào và có vạch nối lên dòng cha — quan hệ "thuộc về" đọc ra
+   bằng vị trí, không phải đoán theo khoảng cách. */
+.bankChild {
+  margin: 2px 0 4px 9px;
+  padding: 2px 0 2px 14px;
+  border-left: 2px solid var(--om-orange-light);
+  font-size: 13px;
 }
 
 .row {
