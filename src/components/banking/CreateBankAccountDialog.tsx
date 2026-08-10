@@ -81,9 +81,17 @@ export function CreateBankAccountDialog({ open, onClose }: Props) {
         onClose={onClose}
         title="Tạo tài khoản ngân hàng — chọn khách hàng"
         footer={
-          <Button variant="secondary" onClick={onClose}>
-            Huỷ
-          </Button>
+          <>
+            <Button variant="secondary" onClick={onClose}>
+              Huỷ
+            </Button>
+            {/* Luôn hiện, không chỉ lúc tìm không ra — khách mới toanh thì
+                nhân viên bấm thẳng, khỏi phải gõ tìm vu vơ trước. */}
+            <Button onClick={() => setCreatingCustomer(true)}>
+              <Plus size={16} aria-hidden />
+              Tạo KH mới
+            </Button>
+          </>
         }
       >
         <div className={styles.body}>
@@ -107,18 +115,14 @@ export function CreateBankAccountDialog({ open, onClose }: Props) {
                   retrying={listFetching}
                 />
               )}
+              {/* Nút tạo giờ nằm cố định ở footer — chỗ này chỉ còn lời nhắn. */}
               {/* `!listError` bắt buộc: tải hỏng thì `customers` cũng rỗng, và khối này mời
                   người dùng "tạo khách hàng mới" cho một người có thể đã có hồ sơ — ra hồ sơ trùng. */}
               {!listPending && !listError && customers.length === 0 && (
-                <div className={styles.empty}>
-                  <p className="text-muted">
-                    Không tìm thấy khách hàng nào khớp “{searchQuery}”.
-                  </p>
-                  <Button variant="secondary" onClick={() => setCreatingCustomer(true)}>
-                    <Plus size={16} />
-                    Tạo khách hàng
-                  </Button>
-                </div>
+                <p className="text-muted">
+                  Không tìm thấy khách hàng nào khớp “{searchQuery}”. Bấm{" "}
+                  <strong>Tạo KH mới</strong> để lập hồ sơ.
+                </p>
               )}
               {customers.length > 0 && (
                 <ul className={styles.list}>
