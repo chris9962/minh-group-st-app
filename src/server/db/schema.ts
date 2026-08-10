@@ -448,6 +448,16 @@ export const customers = pgTable(
      */
     giftCase: text("gift_case"),
     createdBy: uuid("created_by").references(() => users.id),
+    /**
+     * Snapshot phòng LÚC LẬP HỒ SƠ (#8) — không bao giờ update lại khi người này
+     * luân chuyển.
+     *
+     * Khách không phải bản ghi nghiệp vụ, nhưng vẫn cần cột này vì thể lệ kỳ
+     * 2026-08 (mục 4 lưu ý 2) cho Phòng Y quy đổi quà TH5/TH6, và "phòng của
+     * khách" đọc theo phòng người lập hồ sơ. Tra sống qua `users.department_id`
+     * thì chuyển phòng một người là viết lại rổ quà của mọi khách họ từng lập.
+     */
+    createdByDepartmentId: uuid("created_by_department_id").references(() => departments.id),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

@@ -201,7 +201,7 @@ const codeId =
     .id;
 
 const [seedActor] = await db
-  .select({ id: users.id })
+  .select({ id: users.id, departmentId: users.departmentId })
   .from(users)
   .where(eq(users.username, `${E2E_PREFIX}staff`))
   .limit(1);
@@ -218,6 +218,7 @@ for (const [i, c] of E2E_CUSTOMERS.entries()) {
       // Chỉ khách đầu có kênh — ca lọc kênh cần một tập con thật sự nhỏ hơn.
       channelId: i === 0 ? seedChannel.id : null,
       createdBy: seedActor?.id ?? null,
+      createdByDepartmentId: seedActor?.departmentId ?? null,
     })
     .returning({ id: customers.id });
   seededCustomerIds.push(row.id);
@@ -306,7 +307,11 @@ for (let i = 0; i < E2E_PAGING_COUNT; i++) {
   const [row] = await db
     .insert(customers)
     // Cùng tên y hệt nhau — xem chú thích trên. Số thứ tự chỉ nằm ở SĐT.
-    .values({ fullName: `${E2E_PAGING_TAG} Nguyễn Văn An`, createdBy: seedActor?.id ?? null })
+    .values({
+      fullName: `${E2E_PAGING_TAG} Nguyễn Văn An`,
+      createdBy: seedActor?.id ?? null,
+      createdByDepartmentId: seedActor?.departmentId ?? null,
+    })
     .returning({ id: customers.id });
   await db.insert(customerPhones).values({
     customerId: row.id,

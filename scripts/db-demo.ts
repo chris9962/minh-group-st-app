@@ -340,6 +340,7 @@ async function build() {
         address: "DEMO địa chỉ",
         channelId: c.channel ? (channelIdByCode.get(c.channel) ?? null) : null,
         createdBy: ownerId,
+        createdByDepartmentId: deptId,
       })
       .returning({ id: customers.id });
     touchedCustomers.push(customer.id);
@@ -406,10 +407,16 @@ async function build() {
 
   /* Khách độn — đủ hai trang ở P-40 mà không lẫn vào các ca trên. */
   const fillerOwner = userIdByName.get("demo_kd2_a")!;
+  const fillerDept = deptIdByCode.get(STAFF.find((s) => s.username === "demo_kd2_a")!.dept)!;
   for (let i = 0; i < FILLER_COUNT; i++) {
     const [row] = await db
       .insert(customers)
-      .values({ fullName: `DEMO-PG Khách độn ${i + 1}`, address: "DEMO", createdBy: fillerOwner })
+      .values({
+        fullName: `DEMO-PG Khách độn ${i + 1}`,
+        address: "DEMO",
+        createdBy: fillerOwner,
+        createdByDepartmentId: fillerDept,
+      })
       .returning({ id: customers.id });
     await db.insert(customerPhones).values({
       customerId: row.id,

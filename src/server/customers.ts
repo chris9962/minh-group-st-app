@@ -446,6 +446,9 @@ export async function createCustomer(
           channelId: form.channelId || null,
           channelDetail: form.channelDetail,
           createdBy: actor.id,
+          // Snapshot phòng LÚC TẠO (#8) — rổ quà Phòng Y đọc cột này, nên tra
+          // sống thì luân chuyển người là viết lại quà đã hứa của khách cũ.
+          createdByDepartmentId: actor.departmentId,
         })
         .returning({ id: customers.id });
       await tx.insert(customerPhones).values(phoneRows(row.id, form));
