@@ -44,6 +44,9 @@ next-env.d.ts
 # tài liệu làm việc của agent — chỉ giữ ở máy, không đưa lên repo
 /docs
 
+# script dựng bằng chứng khi review — chạy tay, chỉ đọc, không phải mã sản phẩm
+/.probe
+
 # Playwright
 /test-results/
 /playwright-report/
