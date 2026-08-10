@@ -157,22 +157,37 @@ export function GiftGivingDialog({ open, onClose, customerId, customerName }: Pr
                   <div className={styles.cards}>
                     {data.gift.basket.map((item, i) => {
                       const isInsurance = packages.some((p) => p.id === item.id);
+                      // Vẫn hiện, nhưng không chọn được: khách đủ điều kiện
+                      // nhận món này, chỉ là danh mục đang ngừng cấp. Giấu đi
+                      // thì nhân viên tưởng khách không được hưởng.
+                      const off = item.status !== "ok";
                       return (
                         <label
-                          key={`${item.id}-${i}`}
-                          className={[styles.card, selected === item.id && styles.cardActive]
+                          key={`${item.code}-${i}`}
+                          className={[
+                            styles.card,
+                            selected === item.id && styles.cardActive,
+                            off && styles.cardOff,
+                          ]
                             .filter(Boolean)
                             .join(" ")}
                         >
                           <input
                             type="radio"
                             name="gift-choice"
-                            checked={selected === item.id}
-                            onChange={() => setSelected(item.id)}
+                            disabled={off}
+                            checked={!off && selected === item.id}
+                            onChange={() => item.id && setSelected(item.id)}
                           />
                           <span className={styles.cardName}>{item.name}</span>
                           <span className={styles.cardKind}>
-                            {isInsurance ? "Bảo hiểm" : "Vật phẩm"}
+                            {off
+                              ? item.status === "discontinued"
+                                ? "Đã ngưng cấp"
+                                : "Không còn trong danh mục"
+                              : isInsurance
+                                ? "Bảo hiểm"
+                                : "Vật phẩm"}
                           </span>
                         </label>
                       );

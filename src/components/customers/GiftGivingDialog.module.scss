@@ -42,6 +42,24 @@
   background: var(--om-orange-soft);
 }
 
+// Món danh mục đã ngừng cấp — còn đọc được, không chọn được. Nhạt đi để mắt
+// bỏ qua khi lướt, nhưng nhãn ở `.cardKind` mới là thứ nói lý do; chỉ làm nhạt
+// mà không có chữ là truyền đạt bằng mỗi màu (§8).
+.cardOff {
+  cursor: not-allowed;
+  background: var(--om-soft);
+  border-style: dashed;
+}
+
+.cardOff:hover {
+  border-color: var(--om-line);
+}
+
+.cardOff .cardName {
+  color: var(--om-text-2);
+  text-decoration: line-through;
+}
+
 .card input {
   position: absolute;
   opacity: 0;

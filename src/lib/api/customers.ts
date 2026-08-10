@@ -294,6 +294,12 @@ export const GIFT_DECLINED = 'Từ chối nhận quà';
 export const GIFT_ERROR = {
   ALREADY_GIVEN: 'ALREADY_GIVEN',
   NOT_IN_BASKET: 'NOT_IN_BASKET',
+  /**
+   * Món CÓ trong rổ nhưng danh mục đã ngừng cấp (hoặc không còn dòng nào).
+   * Tách khỏi `NOT_IN_BASKET` vì hai câu trả lời cho người dùng khác hẳn nhau:
+   * "khách không được món này" so với "khách được, nhưng món hết".
+   */
+  ITEM_DISCONTINUED: 'ITEM_DISCONTINUED',
 } as const;
 
 /**

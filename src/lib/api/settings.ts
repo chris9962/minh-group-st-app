@@ -117,7 +117,23 @@ export const GiftSimulateResult = z.object({
   insuranceYears: z.number(),
   cashTotal: z.number(),
   cashBreakdown: z.array(z.object({ label: z.string(), amount: z.number() })),
-  basket: z.array(z.object({ id: z.string(), name: z.string(), source: z.string() })),
+  /**
+   * Rổ quà — trả về ĐỦ mọi món luật cho, kể cả món danh mục đã ngừng hoặc
+   * không còn dòng nào. Lọc bỏ ở máy chủ thì rổ 4 món tụt còn 2 mà không ai
+   * biết; giữ lại kèm `status` để màn nói được "đủ điều kiện nhưng ngưng cấp".
+   *
+   * `id` là `null` khi `status = "missing"` — mã trong file luật không tra ra
+   * dòng nào trong danh mục, lúc đó `name` rơi về chính mã đó.
+   */
+  basket: z.array(
+    z.object({
+      id: z.string().nullable(),
+      code: z.string(),
+      name: z.string(),
+      source: z.string(),
+      status: z.enum(['ok', 'discontinued', 'missing']),
+    }),
+  ),
   kpiPoints: z.number(),
   kpiBreakdown: z.array(z.object({ label: z.string(), points: z.number() })),
   /** Vì sao ra kết quả này — khách hỏi thì nhân viên đọc thẳng ở màn (spec §5.3). */

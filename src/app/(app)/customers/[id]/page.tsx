@@ -342,7 +342,19 @@ export default function CustomerDetailPage({
                       ) : (
                         <ol className={styles.basket}>
                           {data.gift.basket.map((item, i) => (
-                            <li key={`${item.id}-${i}`}>{item.name}</li>
+                            <li key={`${item.code}-${i}`}>
+                              {item.name}
+                              {/* Khách vẫn đủ điều kiện nhận — chỉ là không phát
+                                  được lúc này. Bỏ dòng đi thì rổ hụt món mà
+                                  không ai biết vì sao. */}
+                              {item.status !== "ok" && (
+                                <span className={styles.basketOff}>
+                                  {item.status === "discontinued"
+                                    ? " (đã ngưng cấp)"
+                                    : " (không còn trong danh mục)"}
+                                </span>
+                              )}
+                            </li>
                           ))}
                         </ol>
                       )}

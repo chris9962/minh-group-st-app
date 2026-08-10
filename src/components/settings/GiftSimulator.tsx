@@ -173,8 +173,17 @@ export function GiftSimulator() {
                   </span>
                   <ol className={styles.basket}>
                     {run.data.basket.map((item, i) => (
-                      <li key={`${item.id}-${i}`}>
+                      <li key={`${item.code}-${i}`}>
                         {item.name}
+                        {/* Màn thử của quản trị — đây đúng là chỗ phải thấy món
+                            nào đang tắt, vì họ là người bấm cái công tắc đó. */}
+                        {item.status !== "ok" && (
+                          <strong>
+                            {item.status === "discontinued"
+                              ? " (đã ngưng cấp)"
+                              : " (không còn trong danh mục)"}
+                          </strong>
+                        )}
                         <span className={styles.detail}>{item.source}</span>
                       </li>
                     ))}

@@ -75,12 +75,19 @@ export async function giftInputFor(customerId: string): Promise<GiftInput> {
 }
 
 /**
- * Đổi mã món sang tên trong danh mục.
+ * Tra danh mục để lấy TÊN và tình trạng cấp phát của từng mã món.
  *
  * Hàm luật đóng băng nên chỉ trỏ bằng MÃ (`BH-1N-XEMAY`, `QUA-NON-BH`); tên thì
- * admin sửa được bất cứ lúc nào. Món có mã mà danh mục không có dòng nào —
- * hoặc dòng đã tắt — thì BỎ KHỎI RỔ: nhân viên không phát được món không tồn
- * tại, hiện lên chỉ tổ hứa suông với khách.
+ * admin sửa được bất cứ lúc nào, và công tắc bật/tắt cũng nằm ở danh mục.
+ *
+ * Hai tầng, hai việc, không tầng nào phải biết việc của tầng kia:
+ * - **luật** quyết định khách XỨNG ĐÁNG nhận gì,
+ * - **danh mục** quyết định món đó CÒN CẤP ĐƯỢC không.
+ *
+ * Nên hàm này KHÔNG lọc bỏ món nào, chỉ gắn cờ. Bản trước lọc bỏ món tắt và
+ * món mất khỏi danh mục, hệ quả là rổ 4 món tụt còn 2 mà màn không có gì để
+ * nói — người dùng không phân biệt được "khách không đủ điều kiện" với "món
+ * hết hàng". Ai chặn phát là việc của `grantGift`.
  */
 async function resolveBasket(items: GiftResult["basket"]) {
   const packageCodes = items.filter((i) => i.kind === "insurance-package").map((i) => i.code);
@@ -90,25 +97,50 @@ async function resolveBasket(items: GiftResult["basket"]) {
     packageCodes.length === 0
       ? []
       : db
-          .select({ id: insurancePackages.id, code: insurancePackages.code, name: insurancePackages.name })
+          .select({
+            id: insurancePackages.id,
+            code: insurancePackages.code,
+            name: insurancePackages.name,
+            active: insurancePackages.active,
+          })
           .from(insurancePackages)
           .where(inArray(insurancePackages.code, packageCodes)),
     itemCodes.length === 0
       ? []
       : db
-          .select({ id: giftItems.id, code: giftItems.code, name: giftItems.name })
+          .select({
+            id: giftItems.id,
+            code: giftItems.code,
+            name: giftItems.name,
+            active: giftItems.active,
+          })
           .from(giftItems)
           .where(inArray(giftItems.code, itemCodes)),
   ]);
 
   const byCode = new Map([...packageRows, ...itemRows].map((r) => [r.code, r]));
 
-  return items
-    .map((item) => {
-      const row = byCode.get(item.code);
-      return row ? { id: row.id, name: row.name, source: item.reason } : null;
-    })
-    .filter((row): row is { id: string; name: string; source: string } => row !== null);
+  // KHÔNG lọc bỏ món nào. Món tắt hoặc mất khỏi danh mục vẫn đi ra, mang cờ
+  // `status` — "khách đủ điều kiện nhận" và "món còn cấp được" là hai chuyện
+  // khác nhau, gộp lại thì rổ hụt món mà màn không có gì để nói.
+  return items.map((item) => {
+    const row = byCode.get(item.code);
+    if (!row)
+      return {
+        id: null,
+        code: item.code,
+        name: item.code,
+        source: item.reason,
+        status: "missing" as const,
+      };
+    return {
+      id: row.id,
+      code: row.code,
+      name: row.name,
+      source: item.reason,
+      status: row.active ? ("ok" as const) : ("discontinued" as const),
+    };
+  });
 }
 
 /**
@@ -295,11 +327,25 @@ export async function grantGift(
       message: "Khách này chưa đủ điều kiện nhận quà",
     };
 
-  if (!declined && !gift.basket.some((b) => b.name === item))
+  const picked = declined ? null : gift.basket.find((b) => b.name === item);
+
+  if (!declined && !picked)
     return {
       ok: false,
       code: GIFT_ERROR.NOT_IN_BASKET,
       message: `"${item}" không nằm trong rổ quà của khách này`,
+    };
+
+  // Rổ giữ lại cả món đã ngừng để màn nói được lý do, nên chốt chặn phải tự
+  // kiểm — ẩn nút ở giao diện không phải là chặn (AGENTS.md §6).
+  if (picked && picked.status !== "ok")
+    return {
+      ok: false,
+      code: GIFT_ERROR.ITEM_DISCONTINUED,
+      message:
+        picked.status === "discontinued"
+          ? `"${item}" đã ngừng cấp — chọn món khác trong rổ`
+          : `"${item}" không còn trong danh mục quà — báo quản trị thêm lại rồi phát`,
     };
 
   const inserted = await db

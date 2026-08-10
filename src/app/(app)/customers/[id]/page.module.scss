@@ -120,6 +120,13 @@
   gap: 2px;
 }
 
+// Món còn trong rổ nhưng danh mục đã ngừng cấp. Đi kèm CHỮ, không chỉ màu —
+// ngoài nắng và với người khó phân biệt màu thì màu không nói được gì (§8).
+.basketOff {
+  color: var(--om-text-3);
+  font-size: 12px;
+}
+
 .giftExplain {
   margin: 14px 0 0;
   padding: 10px 12px 10px 30px;
