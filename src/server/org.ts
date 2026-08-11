@@ -86,13 +86,13 @@ export type OrgOutcome =
   | { ok: false; code: OrgErrorCode };
 
 /** Cùng lời nhắn với bản mock — FE đã hiện đúng các câu này. */
-export const orgError = (code: OrgErrorCode) => ({
-  code,
-  message:
-    code === ORG_ERROR.NAME_TAKEN
-      ? "Đã có phòng tên này"
-      : "Phòng này vẫn còn người — chuyển họ sang phòng khác trước",
-});
+/** Bảng tra — thêm mã mà quên câu thông báo thì không biên dịch được. Xem `staff.ts`. */
+const ORG_ERROR_MESSAGE: Record<OrgErrorCode, string> = {
+  [ORG_ERROR.NAME_TAKEN]: "Đã có phòng tên này",
+  [ORG_ERROR.NOT_EMPTY]: "Phòng này vẫn còn người — chuyển họ sang phòng khác trước",
+};
+
+export const orgError = (code: OrgErrorCode) => ({ code, message: ORG_ERROR_MESSAGE[code] });
 
 /**
  * Mã cố định sinh từ tên: "Phòng Kinh doanh 10" → `PHONG-KINH-DOANH-10`.

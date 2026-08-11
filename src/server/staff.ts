@@ -289,21 +289,26 @@ export type SaveOutcome =
   | { ok: true; staff: StaffAccount }
   | { ok: false; code: SaveErrorCode };
 
-export const saveError = (code: SaveErrorCode) => ({
-  code,
-  message:
-    code === "username-taken"
-      ? "Tên đăng nhập này đã có người dùng"
-      : code === "staff-code-taken"
-        ? "Mã nhân viên này đã có người dùng"
-        : code === "role-too-high"
-          ? "Bạn không gán được chức vụ cao hơn quyền của chính mình"
-          : code === "managed-department-too-wide"
-            ? "Bạn chỉ giao được những phòng chính mình đang quản"
-            : code === "self-permission-change"
-              ? "Bạn không sửa được quyền của chính mình — nhờ người có quyền cấp phát làm giúp"
-              : "Có quyền bạn đang cấp vượt quá quyền của chính bạn",
-});
+/**
+ * Bảng tra, KHÔNG phải chuỗi ternary: `Record<SaveErrorCode, …>` bắt buộc liệt
+ * kê đủ mã, nên thêm mã mới mà quên câu thông báo thì không biên dịch được.
+ *
+ * Bản ternary cũ có nhánh `else` bắt tất, và nhánh đó là câu của
+ * `permission-too-high` — mã mới nào quên khai đều lặng lẽ hiện câu đó.
+ *
+ * Cùng kiểu với `MODULE_LABEL` · `ACTION_LABEL` · `SCOPE_LABEL` ở `lib/types.ts`.
+ */
+const SAVE_ERROR_MESSAGE: Record<SaveErrorCode, string> = {
+  "username-taken": "Tên đăng nhập này đã có người dùng",
+  "staff-code-taken": "Mã nhân viên này đã có người dùng",
+  "role-too-high": "Bạn không gán được chức vụ cao hơn quyền của chính mình",
+  "managed-department-too-wide": "Bạn chỉ giao được những phòng chính mình đang quản",
+  "self-permission-change":
+    "Bạn không sửa được quyền của chính mình — nhờ người có quyền cấp phát làm giúp",
+  "permission-too-high": "Có quyền bạn đang cấp vượt quá quyền của chính bạn",
+};
+
+export const saveError = (code: SaveErrorCode) => ({ code, message: SAVE_ERROR_MESSAGE[code] });
 
 /** Máy chủ PHẢI kiểm lại chức vụ — ẩn bớt lựa chọn trong ô chọn không phải là phân quyền. */
 const checkRole = (actor: User, form: StaffForm): boolean =>
