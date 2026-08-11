@@ -347,11 +347,27 @@ const toRow = (r: DecoratedRow): InsuranceListRow => ({
   certificatePhotoUrl: r.certificatePhotoUrl,
 });
 
-const toOrder = (r: DecoratedRow): InsuranceOrder => ({
+/**
+ * CCCD người thụ hưởng chỉ hiện với người CÓ PHẦN TRONG ĐƠN.
+ *
+ * Khác CCCD của KHÁCH (quyết định 02/08, gác bằng `customer:access-id-number`):
+ * số này nằm trên hợp đồng, và người nhập đơn sang PVI buộc phải đọc được nó.
+ *
+ * Nhưng hàng chờ làm tay là kho chung, ai có `handle-fallback` cũng mở được mọi
+ * đơn đang chờ — nếu hiện luôn CCCD thì kho chung thành đường đọc CCCD của cả
+ * công ty. Nên: thấy đơn ≠ thấy CCCD. Nhận đơn về rồi mới thấy.
+ */
+const seesBeneficiaryId = (actor: User, r: DecoratedRow): boolean =>
+  r.createdById === actor.id ||
+  r.handledById === actor.id ||
+  can(actor, "customer", "access-id-number");
+
+const toOrder = (actor: User, r: DecoratedRow): InsuranceOrder => ({
   ...toRow(r),
   beneficiaryName: r.beneficiaryName,
   beneficiaryDob: r.beneficiaryDob,
-  beneficiaryIdNumber: r.beneficiaryIdNumber,
+  beneficiaryIdNumber: seesBeneficiaryId(actor, r) ? r.beneficiaryIdNumber : "",
+  beneficiaryIdNumberHidden: !seesBeneficiaryId(actor, r) && r.beneficiaryIdNumber !== "",
   beneficiaryPhone: r.beneficiaryPhone,
   beneficiaryAddress: r.beneficiaryAddress,
   licensePlate: r.licensePlate,
@@ -491,7 +507,7 @@ export async function insuranceOrderDetail(
   const r = await rawById(id);
   if (!r || !canSeeOrder(actor, r)) return null;
 
-  return { ...toOrder(r), history: await historyOf(id) };
+  return { ...toOrder(actor, r), history: await historyOf(id) };
 }
 
 export type InsuranceOutcome<T> = { ok: true; value: T } | { ok: false; message: string };
@@ -861,5 +877,5 @@ export async function setCertificatePhoto(
     .set({ certificatePhotoUrl: photoUrl, updatedAt: new Date() })
     .where(eq(insuranceOrders.id, id));
 
-  return { ...toOrder((await rawById(id))!), history: await historyOf(id) };
+  return { ...toOrder(actor, (await rawById(id))!), history: await historyOf(id) };
 }

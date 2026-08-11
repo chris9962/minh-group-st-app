@@ -311,6 +311,18 @@ async function build() {
       await db.insert(userManagedDepartments).values({ userId: row.id, departmentId: deptIdByCode.get(s.dept)! });
   }
 
+  /**
+   * Người NHẬN XỬ LÝ đơn bảo hiểm — cố ý chọn người ở phòng KHÁC người tạo.
+   *
+   * Mọi khách mẫu đều do người KD-1/KD-2 lập, nên lấy Phòng Y và trưởng KD-1
+   * làm người xử lý thì dựng được ca "quản lý phòng người xử lý cũng thấy đơn",
+   * thứ không quan sát được khi hai phòng trùng nhau.
+   */
+  const HANDLERS = (["demo_y_a", "demo_kd1_truong"] as const).map((username) => ({
+    id: userIdByName.get(username)!,
+    deptId: deptIdByCode.get(STAFF.find((s) => s.username === username)!.dept)!,
+  }));
+
   /* Kho mã — mỗi ngân hàng một mã đủ chỗ cho cả bộ mẫu. */
   const codeIdByBank = new Map<string, string>();
   for (const [code, id] of bankIdByCode) {
@@ -374,6 +386,16 @@ async function build() {
     // cũng có dữ liệu và hàng đợi làm tay P-15 không rỗng.
     const STATUSES = ["manual-queued", "manual-progress", "done", "manual-queued"] as const;
     for (let n = 0; n < (c.insurance ?? 0); n++) {
+      const status = STATUSES[n % STATUSES.length];
+      /**
+       * Đơn đã rời hàng chờ thì PHẢI có người xử lý — `handled_by` chỉ được ghi
+       * qua nút "Nhận đơn xử lý", mà script ghi thẳng vào bảng nên phải tự đặt.
+       *
+       * Người xử lý cố ý ở PHÒNG KHÁC người tạo: luật nhìn thấy đơn cho cấp
+       * quản lý của cả hai phòng, và chỉ dựng lại được ca đó khi hai phòng khác
+       * nhau. Bộ mẫu cũ để `handled_by` rỗng nên ca này vô hình.
+       */
+      const handler = status === "manual-queued" ? null : HANDLERS[n % HANDLERS.length];
       await db.insert(insuranceOrders).values({
         orderCode: `DEMO-${MONTH.slice(2, 4)}${MONTH.slice(5, 7)}-${String(++orderSeq).padStart(3, "0")}`,
         customerId: customer.id,
@@ -383,9 +405,16 @@ async function build() {
         orderDate: day(5 + n),
         startDate: day(5 + n),
         endDate: `${Number(MONTH.slice(0, 4)) + 1}-${MONTH.slice(5, 7)}-05`,
-        status: STATUSES[n % STATUSES.length],
+        status,
         source: "self",
         beneficiaryName: c.name,
+        // Người thụ hưởng chính là khách — CCCD giống hồ sơ khách, đúng như
+        // luồng thật khi bấm "Điền theo khách hàng".
+        beneficiaryIdNumber: c.idNumber ?? "",
+        beneficiaryPhone: `09${String(10_000_000 + i * 100 + n).slice(-8)}`,
+        beneficiaryAddress: "DEMO địa chỉ người thụ hưởng",
+        handledBy: handler?.id ?? null,
+        handledByDepartmentId: handler?.deptId ?? null,
         licensePlate: n % 2 === 0 ? `59X1-${i}${n}` : "",
         vehicleType: n % 2 === 0 ? "1001" : "",
         createdBy: ownerId,

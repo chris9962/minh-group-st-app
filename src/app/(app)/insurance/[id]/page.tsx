@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { use, useRef, useState } from "react";
-import { CheckCircle2, ChevronLeft, ImagePlus, ShieldCheck } from "lucide-react";
+import { CheckCircle2, ChevronLeft, EyeOff, ImagePlus, ShieldCheck } from "lucide-react";
 import { SkeletonCard } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
@@ -190,7 +190,23 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
               <div>
                 <dt>Số giấy tờ</dt>
                 <dd>
-                  {data.beneficiaryIdNumber ? formatIdNumber(data.beneficiaryIdNumber) : "—"}
+                  {/* Ẩn HẲN số, không hiện 4 số cuối: người chưa nhận đơn không
+                      có việc gì cần tới nó. Icon kèm lời giải thích để người
+                      dùng biết là "chưa được xem", không phải "đơn thiếu dữ
+                      liệu" rồi đi nhập lại. */}
+                  {data.beneficiaryIdNumberHidden ? (
+                    <span
+                      className={styles.hiddenValue}
+                      title="Nhận đơn về xử lý thì mới xem được số giấy tờ của người thụ hưởng."
+                    >
+                      <EyeOff size={15} aria-hidden />
+                      Đã ẩn
+                    </span>
+                  ) : data.beneficiaryIdNumber ? (
+                    formatIdNumber(data.beneficiaryIdNumber)
+                  ) : (
+                    "—"
+                  )}
                 </dd>
               </div>
               <div>

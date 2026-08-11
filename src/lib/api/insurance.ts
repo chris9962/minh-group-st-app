@@ -67,6 +67,14 @@ export const InsuranceOrder = InsuranceListRow.extend({
   beneficiaryName: z.string(),
   beneficiaryDob: z.string(),
   beneficiaryIdNumber: z.string(),
+  /**
+   * Máy chủ ĐÃ GIẤU số này vì người xem không có phần trong đơn.
+   *
+   * Khác `beneficiaryIdNumber === ''` (đơn vốn không có CCCD): cờ này nói "có
+   * số, nhưng bạn chưa được xem" — màn hình phải nói ra lý do, chứ để trống thì
+   * người dùng tưởng dữ liệu thiếu rồi đi nhập lại.
+   */
+  beneficiaryIdNumberHidden: z.boolean().default(false),
   beneficiaryPhone: z.string(),
   /** BH tai nạn điện tính theo HỘ nên địa chỉ là thông tin lõi (thêm 03/08). */
   beneficiaryAddress: z.string(),

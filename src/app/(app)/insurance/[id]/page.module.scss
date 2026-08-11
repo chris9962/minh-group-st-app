@@ -144,3 +144,13 @@
     gap: 2px;
   }
 }
+
+// Giá trị máy chủ cố ý giấu. Đi kèm CHỮ "Đã ẩn" chứ không chỉ icon — màu và
+// hình không phải kênh truyền đạt duy nhất (AGENTS.md §8).
+.hiddenValue {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--om-text-3);
+  cursor: help;
+}
