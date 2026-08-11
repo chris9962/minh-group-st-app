@@ -127,6 +127,11 @@ export type InsuranceQuery = PageQuery<InsuranceSort> & {
   from: string;
   to: string;
   staffId: string;
+  /**
+   * `staffId` soi vai nào của đơn. Một đơn có HAI người liên quan, nên "lọc
+   * theo nhân viên" là câu hỏi mơ hồ nếu không nói rõ vai.
+   */
+  staffRole: 'creator' | 'handler' | 'any';
 };
 
 const InsurancePage = pageOf(InsuranceListRow);
@@ -138,6 +143,7 @@ const listParams = (query: Omit<InsuranceQuery, keyof PageQuery>) => ({
   from: query.from,
   to: query.to,
   staffId: query.staffId,
+  staffRole: query.staffRole,
 });
 
 /** MỘT trang đơn bảo hiểm, đã lọc/tìm/sắp sẵn ở máy chủ (AGENTS.md §5.1). */

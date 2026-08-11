@@ -452,6 +452,7 @@ export default function ExportsPage() {
       const { rows, total } = await fetchInsuranceOrdersForExport({
         search: "",
         status: insuranceStatus,
+        staffRole: "any",
         product: insuranceProduct,
         from,
         to,

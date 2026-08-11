@@ -59,6 +59,7 @@ export type InsuranceFilters = {
   from: string;
   to: string;
   staffId: string;
+  staffRole: string;
 };
 
 /**
@@ -194,6 +195,22 @@ function searchWhere(raw: string): SQL | undefined {
   );
 }
 
+/**
+ * Lọc theo nhân viên, nói rõ soi VAI NÀO của đơn.
+ *
+ * Một đơn có hai người: người tạo và người xử lý tay. Trước đây ô lọc chỉ soi
+ * người tạo, nên quản lý muốn hỏi "đội mình đang cầm bao nhiêu đơn của phòng
+ * khác" thì không có đường hỏi.
+ *
+ * Giá trị lạ rơi về `any` chứ không trả 400 — cùng lối với khoá sắp xếp.
+ */
+const staffFilter = (q: { staffId: string; staffRole: string }): SQL | undefined => {
+  if (!q.staffId) return undefined;
+  if (q.staffRole === "creator") return eq(insuranceOrders.createdBy, q.staffId);
+  if (q.staffRole === "handler") return eq(insuranceOrders.handledBy, q.staffId);
+  return or(eq(insuranceOrders.createdBy, q.staffId), eq(insuranceOrders.handledBy, q.staffId));
+};
+
 /** Chuỗi rỗng hoặc giá trị lạ đều thành "mọi trạng thái" / "mọi loại". */
 const statusFilter = (raw: string): SQL | undefined => {
   const parsed = InsuranceOrderStatus.safeParse(raw);
@@ -225,7 +242,7 @@ const orderFilters = (actor: User, query: InsuranceFilters): SQL | undefined => 
     // nhầm không đáng làm hỏng cả màn (cùng lối nghĩ với `uuidParam`).
     YEAR_MONTH_DAY.test(query.from) ? gte(insuranceOrders.orderDate, query.from) : undefined,
     YEAR_MONTH_DAY.test(query.to) ? lte(insuranceOrders.orderDate, query.to) : undefined,
-    query.staffId ? eq(insuranceOrders.createdBy, query.staffId) : undefined,
+    staffFilter(query),
   ].filter(Boolean) as SQL[];
 
   return parts.length > 0 ? and(...parts) : undefined;

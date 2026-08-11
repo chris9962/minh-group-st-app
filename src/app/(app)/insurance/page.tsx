@@ -56,6 +56,8 @@ export default function InsurancePage() {
   const [product, setProduct] = useState<InsuranceProduct | "">("");
   const [range, setRange] = useState<DateRange | undefined>(undefined);
   const [staffId, setStaffId] = useState("");
+  /** Đơn có hai người liên quan — ô lọc phải nói rõ đang hỏi vai nào. */
+  const [staffRole, setStaffRole] = useState<"any" | "creator" | "handler">("any");
   const [page, setPage] = useState(0);
   // Chỉ sắp theo ngày hiệu lực, và chỉ đổi được chiều — `INSURANCE_SORT` có đúng
   // một khoá vì sắp theo tên khách/người tạo thì phải nối bảng trước khi cắt trang.
@@ -91,7 +93,7 @@ export default function InsurancePage() {
   };
 
   const { data = EMPTY_PAGE, isPending, isError, refetch, isFetching } = useQuery({
-    queryKey: ["insurance-list", searchQuery, status, product, from, to, staffId, page, dir],
+    queryKey: ["insurance-list", searchQuery, status, product, from, to, staffId, staffRole, page, dir],
     queryFn: () =>
       fetchInsuranceOrders({
         search: searchQuery,
@@ -100,6 +102,7 @@ export default function InsurancePage() {
         from,
         to,
         staffId,
+        staffRole,
         page,
         sort: "date",
         dir,
@@ -233,6 +236,7 @@ export default function InsurancePage() {
               setProduct("");
               setRange(undefined);
               setStaffId("");
+              setStaffRole("any");
             })
           }
         >
@@ -264,6 +268,20 @@ export default function InsurancePage() {
             onChange={(v) => refine(() => setStaffId(v))}
             options={[{ value: "", label: "Tất cả nhân viên" }, ...staffOptions]}
           />
+          {/* Chỉ hỏi vai khi đã chọn người — "vai nào" không có nghĩa gì khi
+              chưa lọc theo ai. */}
+          {staffId && (
+            <Select
+              label="Người đó là"
+              value={staffRole}
+              onChange={(v) => refine(() => setStaffRole(v as typeof staffRole))}
+              options={[
+                { value: "any", label: "Người tạo hoặc người xử lý" },
+                { value: "creator", label: "Người tạo đơn" },
+                { value: "handler", label: "Người xử lý đơn" },
+              ]}
+            />
+          )}
         </FilterButton>
         {can(user, "insurance", "create") && (
           <Button aria-label="Tạo đơn bảo hiểm" onClick={() => setCreating(true)}>
@@ -303,8 +321,18 @@ export default function InsurancePage() {
             ...(staffId
               ? [
                   {
-                    label: `Nhân viên: ${staffOptions.find((s) => s.value === staffId)?.label ?? ""}`,
-                    onRemove: () => refine(() => setStaffId("")),
+                    label: `${
+                    staffRole === "creator"
+                      ? "Người tạo"
+                      : staffRole === "handler"
+                        ? "Người xử lý"
+                        : "Nhân viên"
+                  }: ${staffOptions.find((s) => s.value === staffId)?.label ?? ""}`,
+                    onRemove: () =>
+                      refine(() => {
+                        setStaffId("");
+                        setStaffRole("any");
+                      }),
                   },
                 ]
               : []),

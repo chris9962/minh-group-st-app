@@ -18,6 +18,7 @@ export async function GET(request: Request) {
   const result = await listInsuranceOrdersForExport(actor, {
     search: params.get("search") ?? "",
     status: params.get("status") ?? "",
+    staffRole: params.get("staffRole") ?? "any",
     product: params.get("product") ?? "",
     from: params.get("from") ?? "",
     to: params.get("to") ?? "",
