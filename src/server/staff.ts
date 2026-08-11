@@ -282,7 +282,8 @@ type SaveErrorCode =
   | "staff-code-taken"
   | "role-too-high"
   | "permission-too-high"
-  | "managed-department-too-wide";
+  | "managed-department-too-wide"
+  | "self-permission-change";
 
 export type SaveOutcome =
   | { ok: true; staff: StaffAccount }
@@ -299,7 +300,9 @@ export const saveError = (code: SaveErrorCode) => ({
           ? "Bạn không gán được chức vụ cao hơn quyền của chính mình"
           : code === "managed-department-too-wide"
             ? "Bạn chỉ giao được những phòng chính mình đang quản"
-            : "Có quyền bạn đang cấp vượt quá quyền của chính bạn",
+            : code === "self-permission-change"
+              ? "Bạn không sửa được quyền của chính mình — nhờ người có quyền cấp phát làm giúp"
+              : "Có quyền bạn đang cấp vượt quá quyền của chính bạn",
 });
 
 /** Máy chủ PHẢI kiểm lại chức vụ — ẩn bớt lựa chọn trong ô chọn không phải là phân quyền. */
@@ -334,6 +337,21 @@ const checkManagedDepartments = (actor: User, form: StaffForm, action: Action): 
  * khoản quản trị rồi bấm Lưu là `cấp quyền` biến mất, và không đường nào cấp
  * lại được vì cấp `cấp quyền` đòi phải đang có nó.
  */
+/**
+ * Bộ quyền gửi lên có y hệt bộ đang lưu không — so theo TẬP, không theo thứ tự,
+ * vì biểu mẫu dựng lại mảng mỗi lần mở nên thứ tự không hứa hẹn gì.
+ *
+ * Không dùng `strippedPermissions` được: hàm đó chỉ nhìn chiều GỠ BỚT, mà tự
+ * CẤP THÊM cho mình mới là chuyện phải chặn.
+ */
+const samePermissions = (current: StaffAccount, form: StaffForm): boolean => {
+  const key = (p: { module: string; action: string; scope: string }) =>
+    `${p.module}:${p.action}:${p.scope}`;
+  const had = new Set(current.permissions.map(key));
+  const sent = new Set(form.permissions.map(key));
+  return had.size === sent.size && [...had].every((k) => sent.has(k));
+};
+
 const strippedPermissions = (current: StaffAccount, form: StaffForm) =>
   current.permissions.filter(
     (had) =>
@@ -500,6 +518,26 @@ export async function createStaff(actor: User, form: StaffForm): Promise<SaveOut
 export async function updateStaff(actor: User, id: string, form: StaffForm): Promise<SaveOutcome | null> {
   const current = await findStaff(id);
   if (!current) return null;
+
+  /**
+   * TỰ sửa quyền của chính mình thì TỪ CHỐI thẳng.
+   *
+   * Không có chốt này thì cắt quyền một người là vô nghĩa: trần cấp phát lấy
+   * MAX của "quyền đang cầm" và "bộ mặc định của mọi chức vụ mình gán được",
+   * mà ai cũng gán được chức vụ NGANG BẬC mình. Nên một Trưởng phòng bị cắt còn
+   * 2 quyền vẫn bấm "Đặt lại theo chức vụ" trên hồ sơ chính mình là khôi phục
+   * đủ 33 quyền, gồm `customer:export` toàn công ty.
+   *
+   * `/active` và `/reset-password` đã chặn tự thao tác từ trước; riêng đường
+   * PATCH này bỏ sót.
+   *
+   * So bộ quyền chứ không chặn thẳng mọi lượt tự PATCH: biểu mẫu gửi CẢ form kể
+   * cả khi người ta chỉ sửa số điện thoại của mình, và việc đó vẫn phải chạy
+   * được. Chỉ khi bộ quyền khác đi mới là chuyện phải chặn.
+   */
+  if (id === actor.id && !samePermissions(current, form))
+    return { ok: false, code: "self-permission-change" };
+
   const ceiling = checkCeilings(actor, form, "update");
   if (ceiling) return { ok: false, code: ceiling };
   if (!strippedPermissions(current, form).every((perm) => canGrant(actor, perm)))

@@ -252,29 +252,34 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
           </fieldset>
         )}
 
-        <fieldset className={styles.fieldset}>
-          <legend className={styles.legend}>Quyền</legend>
-          <p className={styles.note}>
-            Đã điền sẵn theo chức vụ — sửa riêng từng ô nếu người này cần thêm
-            hoặc bớt quyền so với chức vụ chung. Chỉ chọn được tới đúng phạm vi
-            bạn đang có, không cấp vượt quá quyền của chính bạn.
-          </p>
-          <PermissionsEditor
-            value={watch("permissions")}
-            onChange={(permissions) => setValue("permissions", permissions, { shouldDirty: true })}
-            actor={actor}
-          />
-          <Button
-            variant="secondary"
-            type="button"
-            className={styles.resetPermissions}
-            onClick={() =>
-              setValue("permissions", ROLE_PERMISSIONS[watch("role")], { shouldDirty: true })
-            }
-          >
-            Đặt lại theo chức vụ
-          </Button>
-        </fieldset>
+        {/* Sửa hồ sơ CHÍNH MÌNH thì không có thẻ Quyền. Cắt quyền một người mà
+            họ tự bấm lại là xong thì việc cắt vô nghĩa. Máy chủ cũng chặn
+            (`updateStaff`) — ẩn ở đây chỉ để khỏi bày ra thứ bấm không ăn. */}
+        {staff?.id !== actor?.id && (
+          <fieldset className={styles.fieldset}>
+            <legend className={styles.legend}>Quyền</legend>
+            <p className={styles.note}>
+              Đã điền sẵn theo chức vụ — sửa riêng từng ô nếu người này cần thêm
+              hoặc bớt quyền so với chức vụ chung. Chỉ chọn được tới đúng phạm vi
+              bạn đang có, không cấp vượt quá quyền của chính bạn.
+            </p>
+            <PermissionsEditor
+              value={watch("permissions")}
+              onChange={(permissions) => setValue("permissions", permissions, { shouldDirty: true })}
+              actor={actor}
+            />
+            <Button
+              variant="secondary"
+              type="button"
+              className={styles.resetPermissions}
+              onClick={() =>
+                setValue("permissions", ROLE_PERMISSIONS[watch("role")], { shouldDirty: true })
+              }
+            >
+              Đặt lại theo chức vụ
+            </Button>
+          </fieldset>
+        )}
       </form>
     </Dialog>
   );
