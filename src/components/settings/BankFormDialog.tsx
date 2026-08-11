@@ -83,9 +83,14 @@ export function BankFormDialog({ open, onClose, bank }: Props) {
         onSubmit={handleSubmit((form) => save.mutate(form))}
         noValidate
       >
+        {/* Khoá khi sửa: mã là danh tính, file luật theo kỳ khớp bằng chính
+            chuỗi này. Đổi nó là xếp lại hạng cho mọi tài khoản đã ghi từ trước.
+            Máy chủ cũng không ghi `code` khi cập nhật — xem `updateBank`. */}
         <TextField
           label="Mã ngân hàng"
           placeholder="VPa"
+          disabled={editing}
+          hint={editing ? "Mã không đổi được sau khi tạo — luật tính điểm và quà khớp theo mã này." : undefined}
           error={errors.code?.message}
           {...register("code")}
         />

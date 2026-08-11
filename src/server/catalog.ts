@@ -126,12 +126,27 @@ export async function createBank(form: BankForm): Promise<CatalogOutcome<Bank>> 
   }
 }
 
+/**
+ * ⚠️ KHÔNG ghi `code`. Mã ngân hàng là DANH TÍNH, không phải cấu hình.
+ *
+ * Module luật theo kỳ khớp bằng chính chuỗi mã (`TIER_OF`, `REQUIRES_APP`,
+ * `CASH_OF` trong `src/rules/`), và file luật đã đóng băng. Đổi `VPa` thành
+ * `VPA` là xếp lại hạng cho MỌI tài khoản đã ghi từ trước — điểm KPI và rổ quà
+ * của các tháng đã chốt đổi theo, mà không lượt tính lại nào chạy. Nhật ký chỉ
+ * ghi "Sửa ngân hàng <mã>" nên sau đó cũng không lần ra đã đổi từ gì sang gì.
+ *
+ * Spec §2.6 liệt kê đúng năm trường cấu hình sửa được; `mã` không nằm trong đó.
+ * Cùng lối với `departments.code` — sinh một lần lúc lập, P-91 chỉ cho đổi TÊN.
+ *
+ * Mã gửi lên bị bỏ qua trong im lặng, không trả lỗi: ô đã khoá ở giao diện nên
+ * đây chỉ là chốt chặn phía máy chủ (AGENTS.md §6), không phải đường người dùng
+ * đi tới được.
+ */
 export async function updateBank(id: string, form: BankForm): Promise<CatalogOutcome<Bank> | null> {
   try {
     const [row] = await db
       .update(banks)
       .set({
-        code: form.code,
         requiredPhotos: form.requiredPhotos,
         accountNumberMethod: form.accountNumberMethod,
         countsAsApp: form.countsAsApp,
