@@ -457,8 +457,21 @@ export async function createInsuranceOrders(
   actor: User,
   form: InsuranceOrderForm,
 ): Promise<InsuranceOutcome<InsuranceListRow[]>> {
+  /**
+   * Lấy luôn CCCD THẬT của khách, không chỉ `id`.
+   *
+   * Người nhập không có `customer:access-id-number` chỉ nhìn thấy 4 số cuối
+   * (`**** 7872`), nên không có gì để gõ vào ô CCCD người thụ hưởng. Trước đây
+   * nút "Điền theo khách hàng" chép thẳng chuỗi 4 số đó vào hợp đồng, mà ô
+   * không ràng buộc độ dài nên đơn lưu im lặng rồi PVI từ chối — bảo hiểm tai
+   * nạn điện định danh theo CCCD (spec §3.2).
+   *
+   * Nay máy chủ tự móc số đầy đủ từ DB khi `beneficiaryIsCustomer` bật. Số
+   * KHÔNG đi ngược ra trình duyệt của người nhập, nên quyền xem CCCD khách
+   * (quyết định 02/08) vẫn nguyên.
+   */
   const [customer] = await db
-    .select({ id: customers.id })
+    .select({ id: customers.id, idNumber: customers.idNumber })
     .from(customers)
     .where(eq(customers.id, form.customerId))
     .limit(1);
@@ -535,7 +548,11 @@ export async function createInsuranceOrders(
           // Ô ngày sinh ẩn với đơn xe máy nên chuỗi rỗng là chuyện thường —
           // `''::date` là lỗi cú pháp, phải về null.
           beneficiaryDob: leg.beneficiaryDob || null,
-          beneficiaryIdNumber: leg.beneficiaryIdNumber,
+          // Người thụ hưởng là chính khách thì lấy CCCD từ DB, KHÔNG tin chuỗi
+          // client gửi — nó có thể là 4 số cuối đã bị che.
+          beneficiaryIdNumber: leg.beneficiaryIsCustomer
+            ? (customer.idNumber ?? "")
+            : leg.beneficiaryIdNumber,
           beneficiaryPhone: leg.beneficiaryPhone,
           beneficiaryAddress: leg.beneficiaryAddress,
           licensePlate: leg.licensePlate,

@@ -95,6 +95,14 @@ const orderFields = {
   endDate: z.string().trim().min(1, 'Chưa chọn ngày kết thúc'),
   beneficiaryName: z.string().trim().min(1, 'Chưa nhập tên người thụ hưởng'),
   beneficiaryDob: z.string(),
+  /**
+   * CCCD người thụ hưởng — CÓ THỂ RỖNG khi `beneficiaryIsCustomer` bật.
+   *
+   * Người nhập không có `customer:access-id-number` chỉ thấy 4 số cuối CCCD của
+   * khách, nên không có gì để điền. Lúc đó máy chủ tự lấy số đầy đủ từ DB (xem
+   * `createInsuranceOrders`). Đừng ràng buộc đủ 12 số ở đây — nó chặn đúng
+   * người đang dùng đường hợp lệ.
+   */
   beneficiaryIdNumber: z.string(),
   beneficiaryPhone: z.string(),
   beneficiaryAddress: z.string().trim().min(1, 'Chưa nhập địa chỉ'),
@@ -115,6 +123,16 @@ export const InsuranceOrderLegForm = z
     product: InsuranceProduct,
     packageName: z.string().trim().min(1, 'Chưa chọn gói'),
     ...orderFields,
+    /**
+     * Người thụ hưởng CHÍNH LÀ khách của đơn — bật khi bấm "Điền theo khách hàng".
+     *
+     * Chỉ có ở luồng TẠO, không có ở luồng sửa: sửa một đơn đã ghi mà tự dẫn
+     * xuất lại CCCD từ hồ sơ khách là viết lại hợp đồng theo dữ liệu hôm nay.
+     *
+     * Cần cờ tường minh chứ không suy từ "ô CCCD rỗng": đơn mua hộ người thân
+     * cũng để trống ô đó, đoán nhầm là ghi CCCD của khách vào hợp đồng người khác.
+     */
+    beneficiaryIsCustomer: z.boolean(),
   })
   // Biển số + loại xe bắt buộc CHỈ với BH xe máy — số khung/số máy luôn không
   // bắt buộc (khách hay không đọc được/không nhớ), gửi rỗng lên máy chủ nếu bỏ trống.

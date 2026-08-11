@@ -56,6 +56,9 @@ function defaultLegsFor(pkg: InsurancePackage | null): InsuranceOrderLegForm[] {
     const values: InsuranceOrderLegForm = {
       product: leg.product,
       packageName: pkg.name,
+      // Mặc định TẮT — người thụ hưởng có thể là người khác hẳn. Bật lên khi
+      // người dùng bấm "Điền theo khách hàng".
+      beneficiaryIsCustomer: false,
       // Ngày TẠO đơn, mặc định hôm nay. Khác `startDate` (ngày hiệu lực).
       orderDate: today,
       /** Phí khai riêng cho leg này — trọn thời hạn, không phải chia đều giá gói. */
@@ -152,7 +155,17 @@ export function InsuranceOrderFormDialog({
 
   const applyCustomerInfo = (i: number) => {
     setValue(`legs.${i}.beneficiaryName`, customer.fullName, { shouldDirty: true });
-    setValue(`legs.${i}.beneficiaryIdNumber`, customer.idNumber ?? "", { shouldDirty: true });
+    /**
+     * Bật cờ để MÁY CHỦ tự lấy CCCD đầy đủ từ DB.
+     *
+     * Không chép `customer.idNumber` nữa: người không có `customer:access-id-number`
+     * chỉ cầm 4 số cuối, chép vào là hợp đồng mang CCCD cụt và PVI từ chối.
+     * Ô để trống, máy chủ điền hộ lúc tạo đơn.
+     */
+    setValue(`legs.${i}.beneficiaryIsCustomer`, true, { shouldDirty: true });
+    setValue(`legs.${i}.beneficiaryIdNumber`, customer.idNumberMasked ? "" : (customer.idNumber ?? ""), {
+      shouldDirty: true,
+    });
     setValue(`legs.${i}.beneficiaryPhone`, primaryPhone, { shouldDirty: true });
     setValue(`legs.${i}.beneficiaryAddress`, customer.address, { shouldDirty: true });
     // Đơn xe máy không hỏi ngày sinh (ô đã ẩn) — điền vào là gửi lên dữ liệu
@@ -237,11 +250,35 @@ export function InsuranceOrderFormDialog({
       {/* Đơn BH xe máy không cần ngày sinh — định danh bằng GPLX/biển số, PVI
           không hỏi trường này (spec P-10). Đơn tai nạn điện thì vẫn cần. */}
       {(selectedPackage?.legs ?? [])[i]?.product === "motorbike" ? (
-        <TextField label="CCCD" {...register(`legs.${i}.beneficiaryIdNumber`)} />
+        <TextField
+            label="CCCD"
+            hint={
+              watch(`legs.${i}.beneficiaryIsCustomer`)
+                ? "Lấy theo hồ sơ khách — gõ vào ô này để nhập số khác"
+                : undefined
+            }
+            {...register(`legs.${i}.beneficiaryIdNumber`, {
+              // Gõ tay = người thụ hưởng không còn là khách, tắt cờ để máy chủ
+              // dùng đúng số vừa gõ thay vì móc lại CCCD của khách.
+              onChange: () => setValue(`legs.${i}.beneficiaryIsCustomer`, false),
+            })}
+          />
       ) : (
         <div className={styles.pair}>
           <TextField label="Ngày sinh" type="date" {...register(`legs.${i}.beneficiaryDob`)} />
-          <TextField label="CCCD" {...register(`legs.${i}.beneficiaryIdNumber`)} />
+          <TextField
+            label="CCCD"
+            hint={
+              watch(`legs.${i}.beneficiaryIsCustomer`)
+                ? "Lấy theo hồ sơ khách — gõ vào ô này để nhập số khác"
+                : undefined
+            }
+            {...register(`legs.${i}.beneficiaryIdNumber`, {
+              // Gõ tay = người thụ hưởng không còn là khách, tắt cờ để máy chủ
+              // dùng đúng số vừa gõ thay vì móc lại CCCD của khách.
+              onChange: () => setValue(`legs.${i}.beneficiaryIsCustomer`, false),
+            })}
+          />
         </div>
       )}
       <TextField label="Số điện thoại" {...register(`legs.${i}.beneficiaryPhone`)} />
