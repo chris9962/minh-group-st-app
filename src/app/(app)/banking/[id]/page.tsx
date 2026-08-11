@@ -124,7 +124,6 @@ function FinishAccountCard({
     },
   });
 
-  const enoughPhotos = data.photoUrls.length >= data.requiredPhotos;
 
   // Hoàn thành/xoá đều đổi số "đang giữ · đã dùng" của mã — invalidate để hộp
   // thoại "Mở ngân hàng" không hiện số cũ tới khi hết 30s staleTime mặc định.
@@ -139,6 +138,19 @@ function FinishAccountCard({
   /** `null` = chưa đụng vào ảnh, cứ lấy theo bản ghi (AGENTS.md §7 — không effect). */
   const [editedPhotos, setEditedPhotos] = useState<PhotoItem[] | null>(null);
   const photos = editedPhotos ?? savedPhotos(data.photoUrls);
+
+  /**
+   * Đếm ảnh ĐANG CHỌN, không phải ảnh đã nằm trên máy chủ.
+   *
+   * Từ khi ảnh chỉ tải lên lúc bấm Lưu, hai con số đó khác nhau: ảnh vừa chọn
+   * còn nằm trong máy người dùng. Đếm theo `photoUrls` sinh ra vòng luẩn quẩn —
+   * nút mở khoá cần ảnh trên máy chủ, mà lượt tải lên nằm BÊN TRONG hành động
+   * hoàn thành, tức sau khi nút đã khoá. Bộ đếm hiện (3/3) mà nút vẫn xám.
+   *
+   * Hai màn cùng làm việc này (`BankAccountFormDialog`, `BankAccountEditDialog`)
+   * đều đếm `photos.length`.
+   */
+  const enoughPhotos = photos.length >= data.requiredPhotos;
 
   const finish = useMutation({
     // Ảnh đi trước, bản ghi đi sau: máy chủ đếm ảnh ngay trong giao dịch hoàn
