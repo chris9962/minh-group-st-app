@@ -7,6 +7,7 @@ import {
   gte,
   inArray,
   lte,
+  or,
   sql,
   type SQL,
   type SQLWrapper,
@@ -26,7 +27,7 @@ import {
 } from "@/lib/api/insuranceOrders";
 import type { Page } from "@/lib/api/pagination";
 import { businessDay, businessMonth } from "@/lib/format";
-import { recordVisibility, type RecordVisibility } from "@/lib/permissions";
+import { can, recordVisibility, type RecordVisibility } from "@/lib/permissions";
 import { InsuranceProduct, type User } from "@/lib/types";
 import { db } from "./db/client";
 import {
@@ -108,6 +109,66 @@ const inScope = (
 };
 
 /**
+ * Ai nhìn thấy một đơn bảo hiểm — HỢP của bốn đường, không phải một trục.
+ *
+ * Đơn có HAI người liên quan (người tạo, người xử lý tay) nên một trục phạm vi
+ * đơn lẻ không diễn tả nổi. Bốn đường:
+ *
+ * 1. trục phạm vi thường, tính trên NGƯỜI TẠO — gồm luôn cấp quản lý phòng đó
+ * 2. chính người đang xử lý đơn
+ * 3. cấp quản lý phòng của người xử lý (phòng chụp lúc nhận đơn)
+ * 4. KHO CHUNG: đơn còn ở hàng chờ thì ai có `handle-fallback` cũng thấy, bất
+ *    kể phòng — không thế thì người phạm vi `own` chỉ nhận được đơn của chính
+ *    mình và vai "người xử lý tay" vô dụng
+ *
+ * Đường 4 CỐ Ý chỉ áp cho `manual-queued`. Đơn vừa có người nhận là rơi khỏi
+ * kho chung, còn lại đúng những người có phần trong nó.
+ */
+const CLAIMABLE_STATUS = "manual-queued" as const;
+
+const visibleOrderWhere = (actor: User): SQL | undefined => {
+  const view = scopeOf(actor, "view-detail");
+  if (view.kind === "all") return undefined;
+
+  const managed = view.kind === "departments" ? view.departmentIds : [];
+  const parts: (SQL | undefined)[] = [
+    scopeWhere(view),
+    eq(insuranceOrders.handledBy, actor.id),
+    managed.length > 0
+      ? inArray(insuranceOrders.handledByDepartmentId, managed)
+      : undefined,
+    can(actor, "insurance", "handle-fallback")
+      ? eq(insuranceOrders.status, CLAIMABLE_STATUS)
+      : undefined,
+  ];
+
+  const usable = parts.filter((p): p is SQL => p !== undefined && p !== (sql`false` as never));
+  return usable.length > 0 ? or(...usable) : sql`false`;
+};
+
+const canSeeOrder = (
+  actor: User,
+  row: {
+    createdById: string | null;
+    createdByDepartmentId: string | null;
+    handledById: string | null;
+    handledByDepartmentId: string | null;
+    status: string;
+  },
+): boolean => {
+  const view = scopeOf(actor, "view-detail");
+  if (inScope(view, row)) return true;
+  if (row.handledById !== null && row.handledById === actor.id) return true;
+  if (
+    view.kind === "departments" &&
+    row.handledByDepartmentId !== null &&
+    view.departmentIds.includes(row.handledByDepartmentId)
+  )
+    return true;
+  return row.status === CLAIMABLE_STATUS && can(actor, "insurance", "handle-fallback");
+};
+
+/**
  * Tìm theo TÊN KHÁCH bằng `exists`, không phải phép nối.
  *
  * `exists` là phép nửa-nối: Postgres dừng ngay khi thấy một dòng khớp, và cột
@@ -154,9 +215,9 @@ const productFilter = (raw: string): SQL | undefined => {
  * `order_date` là cột `date` trần nên so thẳng chuỗi `YYYY-MM-DD` là đủ — không
  * còn phép quy múi giờ nào, và phép so dùng lại được chỉ mục.
  */
-const orderFilters = (visible: RecordVisibility, query: InsuranceFilters): SQL | undefined => {
+const orderFilters = (actor: User, query: InsuranceFilters): SQL | undefined => {
   const parts = [
-    scopeWhere(visible),
+    visibleOrderWhere(actor),
     searchWhere(query.search),
     statusFilter(query.status),
     productFilter(query.product),
@@ -205,6 +266,7 @@ const pickPage = (where: SQL | undefined, orderBy: SQL[], limit: number, offset:
       engineNumber: insuranceOrders.engineNumber,
       certificatePhotoUrl: insuranceOrders.certificatePhotoUrl,
       handledBy: insuranceOrders.handledBy,
+      handledByDepartmentId: insuranceOrders.handledByDepartmentId,
       createdBy: insuranceOrders.createdBy,
       createdByDepartmentId: insuranceOrders.createdByDepartmentId,
       // Không hiện ở màn nào — có mặt CHỈ để câu ngoài sắp lại được, xem `orderOuter`.
@@ -247,6 +309,7 @@ const decorate = (page: ReturnType<typeof pickPage>) =>
       createdByName: creator.fullName,
       createdByDepartmentId: page.createdByDepartmentId,
       handledById: page.handledBy,
+      handledByDepartmentId: page.handledByDepartmentId,
       handledByName: handler.fullName,
     })
     .from(page)
@@ -359,7 +422,7 @@ export async function listInsuranceOrders(
   const visible = scopeOf(actor, "view-detail");
   if (visible.kind === "none") return { rows: [], total: 0 };
 
-  const where = orderFilters(visible, filters);
+  const where = orderFilters(actor, filters);
 
   const [rows, [totals]] = await Promise.all([
     orderedPage(where, page.dir, page.limit, page.offset),
@@ -384,7 +447,7 @@ export async function listInsuranceOrdersForExport(
   const visible = scopeOf(actor, "export");
   if (visible.kind === "none") return { rows: [], total: 0 };
 
-  const where = orderFilters(visible, filters);
+  const where = orderFilters(actor, filters);
 
   const [rows, [totals]] = await Promise.all([
     orderedPage(where, "desc", EXPORT_LIMIT, 0),
@@ -425,11 +488,8 @@ export async function insuranceOrderDetail(
   actor: User,
   id: string,
 ): Promise<InsuranceDetail | null> {
-  const visible = scopeOf(actor, "view-detail");
-  if (visible.kind === "none") return null;
-
   const r = await rawById(id);
-  if (!r || !inScope(visible, r)) return null;
+  if (!r || !canSeeOrder(actor, r)) return null;
 
   return { ...toOrder(r), history: await historyOf(id) };
 }
@@ -721,11 +781,21 @@ export async function setInsuranceOrderStatus(
   id: string,
   next: InsuranceManualStep,
 ): Promise<InsuranceOutcome<InsuranceDetail> | null> {
-  const visible = scopeOf(actor, "handle-fallback");
-  if (visible.kind === "none") return null;
+  if (!can(actor, "insurance", "handle-fallback")) return null;
 
   const current = await rawById(id);
-  if (!current || !inScope(visible, current)) return null;
+  if (!current) return null;
+
+  /**
+   * Hàng chờ là KHO CHUNG: ai có `handle-fallback` cũng nhận được đơn ở
+   * `manual-queued`, bất kể phòng. Kẹp theo phạm vi thì người phạm vi `own` chỉ
+   * nhận nổi đơn của chính mình, và vai "người xử lý tay" không dùng được.
+   *
+   * Đơn đã rời hàng chờ thì quay về luật thường: chỉ người có phần trong nó —
+   * người tạo, người đang cầm, cấp quản lý hai phòng đó — mới bấm tiếp được.
+   */
+  const claimable = current.status === CLAIMABLE_STATUS;
+  if (!claimable && !canSeeOrder(actor, current)) return null;
 
   const from = STEP_FROM[next];
 
@@ -735,7 +805,11 @@ export async function setInsuranceOrderStatus(
       status: next,
       // Người bấm "Nhận đơn xử lý" thành người xử lý đơn (chốt 03/08). Bước
       // "Hoàn thành" giữ nguyên người đã nhận, không ghi đè bằng người bấm.
-      ...(next === "manual-progress" ? { handledBy: actor.id } : {}),
+      // Chụp luôn phòng của họ: cấp quản lý phòng đó được xem đơn, và họ chuyển
+      // phòng về sau không được làm đổi danh sách người xem (#8).
+      ...(next === "manual-progress"
+        ? { handledBy: actor.id, handledByDepartmentId: actor.departmentId }
+        : {}),
       updatedAt: new Date(),
     })
     .where(and(eq(insuranceOrders.id, id), eq(insuranceOrders.status, from)))

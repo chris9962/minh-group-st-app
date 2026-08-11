@@ -669,6 +669,15 @@ export const insuranceOrders = pgTable(
       * thấy ngay ai đang cầm để hai người không giẫm chân nhau.
       */
     handledBy: uuid("handled_by").references(() => users.id),
+    /**
+     * Snapshot phòng của người xử lý, chụp LÚC NHẬN ĐƠN (#8).
+     *
+     * Luật nhìn thấy đơn cho cấp quản lý của CẢ HAI phòng — phòng người tạo và
+     * phòng người xử lý — nên trục thứ hai cũng phải chụp. Tra động
+     * `users.department_id` thì người xử lý chuyển phòng là quản lý phòng cũ mất
+     * quyền xem đơn họ từng phụ trách.
+     */
+    handledByDepartmentId: uuid("handled_by_department_id").references(() => departments.id),
     createdBy: uuid("created_by").references(() => users.id),
     createdByDepartmentId: uuid("created_by_department_id").references(() => departments.id),
     createdAt: createdAt(),
