@@ -128,12 +128,29 @@ export const GiftSimulateResult = z.object({
   basket: z.array(
     z.object({
       id: z.string().nullable(),
-      code: z.string(),
+      /**
+       * `default` ở đây KHÔNG phải để cho tiện: `gift_grants.snapshot` đóng băng
+       * nguyên kết quả lúc phát, nên đợt chốt trước 11/08 không có hai trường
+       * này. Snapshot là bản ghi lịch sử, không vá ngược được — nên chỗ đọc
+       * phải chịu được cả hai hình dạng.
+       */
+      code: z.string().default(''),
       name: z.string(),
       source: z.string(),
-      status: z.enum(['ok', 'discontinued', 'missing']),
+      /** Món phát được ở thời điểm chốt, nên đợt cũ quy về `ok`. */
+      status: z.enum(['ok', 'discontinued', 'missing']).default('ok'),
     }),
   ),
+  /**
+   * Điểm COMBO của khách — thứ quyết định bậc quà (TH1…TH6). Tên trường là di
+   * sản và không đổi được: nó đã đóng băng trong `gift_grants.snapshot` của
+   * mọi đợt đã phát.
+   *
+   * ĐỪNG đọc nó như điểm KPI trả lương. Điểm KPI chỉ tính tài khoản mở TRONG
+   * tháng đang tính (thể lệ câu 7.13); con số này tính trên toàn bộ tài khoản
+   * `done` của khách, đúng theo luật quà (câu 7.15). Khách mở vắt hai tháng
+   * thì hai số lệch nhau, và cả hai đều đúng với việc của mình.
+   */
   kpiPoints: z.number(),
   kpiBreakdown: z.array(z.object({ label: z.string(), points: z.number() })),
   /** Vì sao ra kết quả này — khách hỏi thì nhân viên đọc thẳng ở màn (spec §5.3). */

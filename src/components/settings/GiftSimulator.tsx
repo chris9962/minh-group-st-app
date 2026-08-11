@@ -193,7 +193,12 @@ export function GiftSimulator() {
             </dd>
           </div>
           <div>
-            <dt>Điểm KPI</dt>
+            {/* KHÔNG gọi là "Điểm KPI". Màn này thử THỂ LỆ QUÀ, và con số dưới
+                đây là điểm combo — thứ quyết định khách rơi vào TH2 hay TH5.
+                Điểm KPI thật còn lọc theo tháng (thể lệ câu 7.13) mà màn này
+                không hỏi ngày, nên gọi nó là KPI là hứa một con số nó không
+                tính được. */}
+            <dt>Điểm combo</dt>
             <dd>
               <span className="tabular-nums">{run.data.kpiPoints}</span>
               {run.data.kpiBreakdown.length > 0 && (
