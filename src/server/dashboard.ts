@@ -403,7 +403,7 @@ async function giftsBlock(
    * kiện từ tháng trước mà chưa ai phát thì vẫn đang chờ, giấu đi vì "ngoài kỳ"
    * là để họ chờ mãi.
    *
-   * Đọc cột `customers.gift_case` lưu sẵn, không chạy hàm luật cho từng khách —
+   * Đọc cột `customers.gift_basket` lưu sẵn, không chạy hàm luật cho từng khách —
    * chạy luật ở đây nghĩa là kéo cả kho tài khoản về mỗi lần mở màn Tổng quan
    * (AGENTS.md §5.2). Cột đó do `recomputeGiftCase` ghi.
    */
@@ -423,7 +423,7 @@ async function giftsBlock(
     .leftJoin(users, eq(users.id, customers.createdBy))
     .where(
       and(
-        sql`${customers.giftCase} is not null`,
+        sql`cardinality(${customers.giftBasket}) > 0`,
         sql`not exists (select 1 from ${giftGrants} g where g.customer_id = ${customers.id})`,
         giftScope,
       ),

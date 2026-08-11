@@ -1,4 +1,5 @@
 import { and, eq, inArray } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { GIFT_DECLINED, GIFT_ERROR } from "@/lib/api/customers";
 import { EMPTY_GIFT, type GiftSimulateInput, type GiftSimulateResult } from "@/lib/api/settings";
 import { businessDay } from "@/lib/format";
@@ -181,6 +182,10 @@ export async function giftResultOf(
   };
 }
 
+/** Hai danh sách mã quà giống nhau không — thứ tự luật sinh ra ổn định nên so thẳng. */
+const sameCodes = (a: string[], b: string[]): boolean =>
+  a.length === b.length && a.every((code, i) => code === b[i]);
+
 /** P-42 và P-43 — quà của một khách có thật trong database. */
 export const giftForCustomer = async (customerId: string): Promise<GiftSimulateResult> =>
   giftResultOf(await giftInputFor(customerId));
@@ -204,7 +209,7 @@ export async function recomputeGiftCase(customerId: string): Promise<void> {
 
   await db
     .update(customers)
-    .set({ giftCase: result?.caseCode ?? null })
+    .set({ giftBasket: result?.basket.map((b) => b.code) ?? [] })
     .where(eq(customers.id, customerId));
 }
 
@@ -241,20 +246,36 @@ export const giftSimulate = (input: GiftSimulateInput): Promise<GiftSimulateResu
  */
 export async function recountGiftCases(
   batchSize = 2_000,
-): Promise<{ id: string; from: string | null; to: string | null }[]> {
+): Promise<{ id: string; from: string[]; to: string[] }[]> {
   const today = businessDay();
-  const drift: { id: string; from: string | null; to: string | null }[] = [];
+  const drift: { id: string; from: string[]; to: string[] }[] = [];
 
   for (let offset = 0; ; offset += batchSize) {
+    /**
+     * Lô phải kéo về CẢ BA nguồn của hàm luật: tài khoản, kênh, phòng.
+     *
+     * Bản trước truyền `channelCodes: []` và `departmentCode: null` với lý do
+     * "kênh và phòng chỉ đổi món trong rổ, không đổi trường hợp". Lý do đó đúng
+     * khi cột lưu MÃ BẬC. Cột nay lưu DANH SÁCH MÃ QUÀ, mà kênh và phòng đổi
+     * đúng danh sách đó — bỏ chúng đi là đếm lại ra rổ thiếu món.
+     */
     const batch = await db
-      .select({ id: customers.id, giftCase: customers.giftCase })
+      .select({
+        id: customers.id,
+        giftBasket: customers.giftBasket,
+        channelCode: channels.code,
+        departmentCode: departments.code,
+      })
       .from(customers)
+      .leftJoin(channels, eq(channels.id, customers.channelId))
+      .leftJoin(departments, eq(departments.id, customers.createdByDepartmentId))
       .orderBy(customers.id)
       .limit(batchSize)
       .offset(offset);
     if (batch.length === 0) break;
 
     const ids = batch.map((c) => c.id);
+    const accountChannel = alias(channels, "account_channel");
     const accountRows = await db
       .select({
         customerId: bankAccounts.customerId,
@@ -262,12 +283,15 @@ export async function recountGiftCases(
         appInstalled: bankAccounts.appInstalled,
         openedDate: bankAccounts.openedDate,
         accountType: bankAccounts.accountType,
+        channelCode: accountChannel.code,
       })
       .from(bankAccounts)
       .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
+      .leftJoin(accountChannel, eq(accountChannel.id, bankAccounts.channelId))
       .where(and(inArray(bankAccounts.customerId, ids), eq(bankAccounts.status, "done")));
 
     const byCustomer = new Map<string, GiftInput["accounts"]>();
+    const channelsOf = new Map<string, Set<string>>();
     for (const row of accountRows) {
       const list = byCustomer.get(row.customerId) ?? [];
       list.push({
@@ -278,20 +302,31 @@ export async function recountGiftCases(
         household: row.accountType !== "none",
       });
       byCustomer.set(row.customerId, list);
+
+      if (row.channelCode) {
+        const set = channelsOf.get(row.customerId) ?? new Set<string>();
+        set.add(row.channelCode);
+        channelsOf.set(row.customerId, set);
+      }
     }
 
     for (const customer of batch) {
-      // Kênh và phòng chỉ đổi món trong rổ, không đổi trường hợp — nên lô này
-      // không cần kéo chúng về, và cột vẫn ra đúng.
+      const codes = channelsOf.get(customer.id) ?? new Set<string>();
+      if (customer.channelCode) codes.add(customer.channelCode);
+
       const result = giftFor(
-        { accounts: byCustomer.get(customer.id) ?? [], channelCodes: [], departmentCode: null },
+        {
+          accounts: byCustomer.get(customer.id) ?? [],
+          channelCodes: [...codes],
+          departmentCode: customer.departmentCode,
+        },
         today,
       );
-      const next = result?.caseCode ?? null;
-      if (next === customer.giftCase) continue;
+      const next = result?.basket.map((b) => b.code) ?? [];
+      if (sameCodes(next, customer.giftBasket)) continue;
 
-      drift.push({ id: customer.id, from: customer.giftCase, to: next });
-      await db.update(customers).set({ giftCase: next }).where(eq(customers.id, customer.id));
+      drift.push({ id: customer.id, from: customer.giftBasket, to: next });
+      await db.update(customers).set({ giftBasket: next }).where(eq(customers.id, customer.id));
     }
   }
 

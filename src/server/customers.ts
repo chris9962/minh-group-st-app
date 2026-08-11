@@ -18,7 +18,7 @@ import { can, recordVisibility, type RecordVisibility } from "@/lib/permissions"
 import type { GiftSimulateResult } from "@/lib/api/settings";
 import type { User } from "@/lib/types";
 import { db, uniqueViolationOf } from "./db/client";
-import { giftForCustomer } from "./gift";
+import { giftForCustomer, recomputeGiftCase } from "./gift";
 import {
   bankAccounts,
   banks,
@@ -143,7 +143,7 @@ const pickPage = (where: SQL | undefined, orderBy: SQL[], limit: number, offset:
       fullName: customers.fullName,
       accountCount: customers.accountCount,
       insuranceCount: customers.insuranceCount,
-      giftCase: customers.giftCase,
+      giftBasket: customers.giftBasket,
       channelId: customers.channelId,
       // Cột tính bằng `sql` nằm trong truy vấn con thì BẮT BUỘC có bí danh —
       // không có thì câu ngoài không gọi tên nó được, drizzle ném lỗi lúc dựng.
@@ -194,13 +194,14 @@ function decorate(page: ReturnType<typeof pickPage>) {
       insuranceCount: page.insuranceCount,
       /**
        * Ba trạng thái đọc từ HAI nguồn lưu sẵn, không chạy luật ở đây: đợt đã
-       * chốt nằm ở `gift_grants`, còn "đủ điều kiện" là cột `customers.gift_case`
-       * do `recomputeGiftCase` ghi. Chạy hàm luật cho từng dòng thì phải kéo tài
+       * chốt nằm ở `gift_grants`, còn "đủ điều kiện" là cột
+       * `customers.gift_basket` do `recomputeGiftCase` ghi. Rổ rỗng nghĩa là
+       * không có gì để phát — kể cả khách chưa đạt bậc nào nhưng có món thêm. Chạy hàm luật cho từng dòng thì phải kéo tài
        * khoản của cả kho về tầng ứng dụng (AGENTS.md §5.2).
        */
       giftStatus: sql<CustomerRow["giftStatus"]>`case
         when ${giftGrants.id} is not null then 'given'
-        when ${page.giftCase} is not null then 'eligible'
+        when cardinality(${page.giftBasket}) > 0 then 'eligible'
         else 'none' end`,
       givenItem: giftGrants.chosenItem,
       channel: sql<string>`coalesce(${channels.name}, '')`,
@@ -499,6 +500,16 @@ export async function updateCustomer(
   }, full ? form.idNumber : "");
 
   if (!result.ok) return result;
+
+  /**
+   * Đổi kênh của khách thì rổ quà đổi theo — kênh Bệnh viện góp thêm ba món
+   * (thể lệ mục 4b). Cột `gift_basket` lưu sẵn danh sách mã quà nên nó phải
+   * tính lại ở đây.
+   *
+   * Bản trước không gọi, và đúng: cột cũ lưu MÃ BẬC, mà bậc chỉ phụ thuộc tài
+   * khoản. Cột nay lưu DANH SÁCH MÃ QUÀ, và kênh đổi đúng danh sách đó.
+   */
+  await recomputeGiftCase(id);
   return result.customer ? { ok: true, customer: result.customer } : null;
 }
 

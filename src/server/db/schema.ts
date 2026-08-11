@@ -446,7 +446,28 @@ export const customers = pgTable(
      *
      * Lệch thì `bun run db:recount` tính lại toàn bộ.
      */
-    giftCase: text("gift_case"),
+    /**
+     * DANH SÁCH MÃ QUÀ khách đang được nhận — rỗng nghĩa là chưa có gì để phát.
+     *
+     * LƯU SẴN, ngoại lệ của luật "tính ra được thì không lưu" (db-design §9),
+     * cùng lý do với hai cột đếm bên trên: P-40 lọc theo trạng thái quà và P-80
+     * đếm khách chờ phát. Chạy hàm luật cho từng dòng nghĩa là kéo tài khoản của
+     * cả kho về tầng ứng dụng (AGENTS.md §5.2).
+     *
+     * ⚠️ Trigger ở database KHÔNG giữ nổi cột này: giá trị của nó do một hàm
+     * JavaScript quyết định (`src/rules/`), và thể lệ đổi hình dạng theo kỳ.
+     * `recomputeGiftCase` (`server/gift.ts`) lo việc ghi.
+     *
+     * Cột này thay `gift_case` cũ (mã bậc `TH1`…`TH6`). Mã bậc trả lời sai ca
+     * khách chưa đủ tổ hợp ngân hàng nhưng có món thêm: bậc `null` mà rổ có món.
+     *
+     * Phụ thuộc BA nguồn, khác `gift_case` cũ chỉ phụ thuộc tài khoản: tài khoản
+     * `done` của khách · kênh của khách · phòng của người lập hồ sơ. Đổi một
+     * trong ba thì phải gọi lại `recomputeGiftCase`.
+     *
+     * Lệch thì `bun run db:recount` tính lại toàn bộ.
+     */
+    giftBasket: text("gift_basket").array().notNull().default([]),
     createdBy: uuid("created_by").references(() => users.id),
     /**
      * Snapshot phòng LÚC LẬP HỒ SƠ (#8) — không bao giờ update lại khi người này
@@ -481,7 +502,7 @@ export const customers = pgTable(
      * "khách nào có `gift_case`". Chỉ mục một phần vì đại đa số khách chưa đủ
      * combo nào, để `null` ra ngoài thì chỉ mục nhỏ hơn hẳn.
      */
-    index("customers_gift_case").on(t.giftCase).where(sql`gift_case is not null`),
+    index("customers_gift_basket").on(t.id).where(sql`cardinality(gift_basket) > 0`),
   ],
 );
 

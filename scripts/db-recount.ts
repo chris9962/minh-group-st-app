@@ -5,10 +5,10 @@ import { recountGiftCases } from "../src/server/gift";
 
 /**
  * Đếm lại mọi cột lưu sẵn từ dữ liệu gốc:
- * `customers.account_count` / `insurance_count` / `gift_case` và
+ * `customers.account_count` / `insurance_count` / `gift_basket` và
  * `referral_codes.used_count` / `holding_count`.
  *
- * `gift_case` khác ba cột kia ở chỗ KHÔNG có trigger nào giữ: giá trị của nó do
+ * `gift_basket` khác ba cột kia ở chỗ KHÔNG có trigger nào giữ: giá trị của nó do
  * hàm luật JavaScript quyết định (`src/rules/`), nên tầng ứng dụng phải tự ghi
  * mỗi lần tài khoản của khách lên/rời `done`. Vì vậy nó là cột dễ lệch nhất —
  * chạy lệnh này sau mỗi lần thêm file luật của kỳ mới.
@@ -104,9 +104,9 @@ async function main() {
 
   const giftDrift = await recountGiftCases();
   if (giftDrift.length === 0) {
-    console.log("Không có khách nào lệch trường hợp quà.");
+    console.log("Không có khách nào lệch rổ quà.");
   } else {
-    console.log(`${giftDrift.length} khách lệch trường hợp quà:`);
+    console.log(`${giftDrift.length} khách lệch rổ quà:`);
     for (const r of giftDrift) console.log(" ", JSON.stringify(r));
   }
 
