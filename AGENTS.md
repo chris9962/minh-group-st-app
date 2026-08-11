@@ -9,6 +9,11 @@ This version has breaking changes — APIs, conventions, and file structure may 
 Đọc file này trước khi viết dòng code nào. Nghiệp vụ nằm ở `../mgst-platform-spec.md`,
 danh sách màn hình ở `../mgst-feature-list.md`, bản thiết kế ở `../mgst-design/`.
 
+**Luật điểm KPI và quà nằm ở `../mgst-the-le/<kỳ>.md`, KHÔNG ở spec.** Sửa
+`src/rules/` thì mở đúng file đó — nó chứa trọn luật của kỳ: bảng khách gửi
+(mục 1–4) cộng phần đội tự quy định như món thêm (mục 4b). Spec chỉ còn giữ
+phần màn hình và kho dữ liệu.
+
 ## 0. Việc chưa làm — tra bằng `TODO(`
 
 ```bash
