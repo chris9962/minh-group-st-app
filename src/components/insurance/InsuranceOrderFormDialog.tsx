@@ -252,9 +252,18 @@ export function InsuranceOrderFormDialog({
       {(selectedPackage?.legs ?? [])[i]?.product === "motorbike" ? (
         <TextField
             label="CCCD"
+            /**
+             * Ô rỗng + chấm mờ khi máy chủ sẽ tự điền. KHÔNG hiện 4 số cuối ở
+             * đây: trong một ô nhập, "7872" đọc ra như một CCCD đã điền xong và
+             * người nhập tưởng số đã đủ. Màn hồ sơ khách hiện `•••• •••• 7872`
+             * thì khác — ở đó nó là chữ để đối chiếu giấy tờ, không phải ô gõ.
+             */
+            placeholder={
+              watch(`legs.${i}.beneficiaryIsCustomer`) ? "•••• •••• ••••" : undefined
+            }
             hint={
               watch(`legs.${i}.beneficiaryIsCustomer`)
-                ? "Lấy theo hồ sơ khách — gõ vào ô này để nhập số khác"
+                ? "Lấy theo hồ sơ khách khi lưu — gõ vào ô này nếu người thụ hưởng là người khác"
                 : undefined
             }
             {...register(`legs.${i}.beneficiaryIdNumber`, {
@@ -268,9 +277,18 @@ export function InsuranceOrderFormDialog({
           <TextField label="Ngày sinh" type="date" {...register(`legs.${i}.beneficiaryDob`)} />
           <TextField
             label="CCCD"
+            /**
+             * Ô rỗng + chấm mờ khi máy chủ sẽ tự điền. KHÔNG hiện 4 số cuối ở
+             * đây: trong một ô nhập, "7872" đọc ra như một CCCD đã điền xong và
+             * người nhập tưởng số đã đủ. Màn hồ sơ khách hiện `•••• •••• 7872`
+             * thì khác — ở đó nó là chữ để đối chiếu giấy tờ, không phải ô gõ.
+             */
+            placeholder={
+              watch(`legs.${i}.beneficiaryIsCustomer`) ? "•••• •••• ••••" : undefined
+            }
             hint={
               watch(`legs.${i}.beneficiaryIsCustomer`)
-                ? "Lấy theo hồ sơ khách — gõ vào ô này để nhập số khác"
+                ? "Lấy theo hồ sơ khách khi lưu — gõ vào ô này nếu người thụ hưởng là người khác"
                 : undefined
             }
             {...register(`legs.${i}.beneficiaryIdNumber`, {
