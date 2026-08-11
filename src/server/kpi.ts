@@ -89,6 +89,8 @@ async function scoringAccountsOf(
     bankCode: r.bankCode,
     appInstalled: r.appInstalled,
     openedDate: r.openedDate ?? "",
+    // Điểm KPI không xét CNKD/HKD — cờ này chỉ mở nhóm quà vật phẩm.
+    household: false,
   }));
 }
 

@@ -44,6 +44,9 @@ export async function giftInputFor(customerId: string): Promise<GiftInput> {
         bankCode: banks.code,
         appInstalled: bankAccounts.appInstalled,
         openedDate: bankAccounts.openedDate,
+        // Ô chọn "Mở tài khoản CNKD / HKD" nằm trên chính dòng VPa. Không lấy
+        // cột này thì luật không thấy ô chọn đó, và khách mất Loa + Bảng mica.
+        accountType: bankAccounts.accountType,
         channelCode: channels.code,
       })
       .from(bankAccounts)
@@ -68,6 +71,7 @@ export async function giftInputFor(customerId: string): Promise<GiftInput> {
       bankCode: r.bankCode,
       appInstalled: r.appInstalled,
       openedDate: r.openedDate ?? "",
+      household: r.accountType !== "none",
     })),
     channelCodes: [...channelCodes],
     departmentCode: customerRow?.departmentCode ?? null,
@@ -217,6 +221,9 @@ export const giftSimulate = (input: GiftSimulateInput): Promise<GiftSimulateResu
       bankCode: a.bankCode,
       appInstalled: a.appInstalled,
       openedDate: businessDay(),
+      // Màn thử P-81 chưa có ô chọn CNKD/HKD — người dùng khai bằng cách thêm
+      // một dòng ngân hàng mã `CNKD`.
+      household: false,
     })),
     channelCodes: input.channelCodes,
     departmentCode: input.departmentCode,
@@ -254,6 +261,7 @@ export async function recountGiftCases(
         bankCode: banks.code,
         appInstalled: bankAccounts.appInstalled,
         openedDate: bankAccounts.openedDate,
+        accountType: bankAccounts.accountType,
       })
       .from(bankAccounts)
       .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
@@ -267,6 +275,7 @@ export async function recountGiftCases(
         bankCode: row.bankCode,
         appInstalled: row.appInstalled,
         openedDate: row.openedDate ?? "",
+        household: row.accountType !== "none",
       });
       byCustomer.set(row.customerId, list);
     }

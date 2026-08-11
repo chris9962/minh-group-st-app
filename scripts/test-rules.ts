@@ -41,12 +41,14 @@ function section(title: string): void {
 const account = (
   customerId: string,
   bankCode: string,
-  opts: { app?: boolean; date?: string } = {},
+  opts: { app?: boolean; date?: string; household?: boolean } = {},
 ): ScoringAccount => ({
   customerId,
   bankCode,
   appInstalled: opts.app ?? true,
   openedDate: opts.date ?? `${PERIOD}-15`,
+  /** Ô chọn "Mở tài khoản CNKD / HKD" trên dòng VPa — mặc định không tick. */
+  household: opts.household ?? false,
 });
 
 /** Điểm của cả người, qua đúng cửa vào thật (`src/rules/index.ts`). */
@@ -399,10 +401,19 @@ checkCodes(
   giftOf(["MB", "VPa"], { channels: ["KENH-ATM"] }).basket.map((b) => b.code),
   BH_1N,
 );
+/**
+ * Món thêm KHÔNG phụ thuộc số tài khoản (thể lệ mục 4b). Khách chưa đủ bậc quà
+ * nào vẫn nhận món thêm của kênh — chỉ không có gói bảo hiểm.
+ */
+checkCodes(
+  "khách một tài khoản ở bệnh viện vẫn nhận món thêm của kênh",
+  giftOf(["MB"], { channels: ["KENH-BENH-VIEN"] }).basket.map((b) => b.code),
+  ["QUA-MI", "QUA-BH-SUC-KHOE", "QUA-NON-BH"],
+);
 check(
-  "khách một tài khoản ở bệnh viện vẫn không có rổ",
-  giftOf(["MB"], { channels: ["KENH-BENH-VIEN"] }).basket.length,
-  0,
+  "…nhưng chưa đạt bậc nào nên không có gói bảo hiểm",
+  giftOf(["MB"], { channels: ["KENH-BENH-VIEN"] }).caseCode,
+  null,
 );
 
 section("Món thêm — Phòng Y quy đổi (lưu ý 2)");

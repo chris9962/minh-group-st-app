@@ -36,6 +36,14 @@ export type ScoringAccount = {
   bankCode: string;
   appInstalled: boolean;
   openedDate: string;
+  /**
+   * Tài khoản này có kèm đăng ký CNKD/HKD không.
+   *
+   * Giao diện ghi nó thành một Ô CHỌN trên chính dòng `VPa`, không phải một
+   * tài khoản riêng. Luật phải đọc được cả hai cách ghi: ô chọn ở đây, và
+   * `bankCode` bằng `CNKD`/`HKD` khi người dùng lập tài khoản riêng.
+   */
+  household: boolean;
 };
 
 /**

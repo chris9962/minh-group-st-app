@@ -255,6 +255,42 @@ export function gift(input: GiftInput): GiftResult {
   const matched = caseOf(combo);
   const explain: string[] = [];
 
+  /**
+   * MÓN THÊM XÉT TRƯỚC COMBO.
+   *
+   * Ba điều kiện dưới đây quyết định món quà, không quyết định điểm. Chúng
+   * không phụ thuộc số tài khoản (spec §5.2 xếp thành bước 2 riêng, và bước 1
+   * đã có sẵn dòng "tổng app ≤ 1 → không góp món nào").
+   *
+   * Bản trước xét chúng SAU khi thoát vì khách chưa đủ bậc, nên khách 1 tài
+   * khoản đến từ kênh Bệnh viện nhận rổ rỗng.
+   */
+  const extras: GiftChoice[] = [];
+  const addItems = (codes: string[], reason: string) => {
+    for (const code of codes) {
+      if (extras.some((b) => b.code === code)) continue;
+      extras.push({ kind: "gift-item", code, reason });
+    }
+  };
+
+  const hasHousehold = input.accounts.some(
+    (a) => HOUSEHOLD_CODES.has(a.bankCode) || a.household,
+  );
+  if (combo.codes.includes("VPa") && hasHousehold) {
+    addItems(ITEMS_CNKD, "Mở VPa kèm CNKD/HKD");
+    explain.push("Mở VPa kèm CNKD hoặc HKD nên rổ có thêm Loa và Bảng mica.");
+  }
+
+  if (input.channelCodes.includes(HOSPITAL_CHANNEL)) {
+    addItems(ITEMS_HOSPITAL, "Khách đến từ kênh Bệnh viện");
+    explain.push("Khách đến từ kênh Bệnh viện nên rổ có thêm Mì, BH sức khoẻ và Nón bảo hiểm.");
+  }
+
+  if (input.departmentCode === PHONG_Y && (matched?.code === "TH5" || matched?.code === "TH6")) {
+    addItems(ITEMS_PHONG_Y, "Phòng Y quy đổi quà TH5/TH6");
+    explain.push("Phòng Y được quy đổi quà sang vật phẩm nên rổ có thêm Nón bảo hiểm và Mì.");
+  }
+
   if (!matched) {
     explain.push(
       combo.size === 0 && eligible.length > 0
@@ -267,12 +303,13 @@ export function gift(input: GiftInput): GiftResult {
       comboPoints: combo.tenths / 10,
       cash: [],
       cashTotal: 0,
-      basket: [],
+      // Chưa đạt bậc nào thì không có gói bảo hiểm, nhưng món thêm vẫn phát.
+      basket: extras,
       explain,
     };
   }
 
-  explain.push(
+  explain.unshift(
     `Tổ hợp ${combo.size} ngân hàng: ${combo.codes.join(" + ")} — trường hợp ${matched.code}.`,
   );
 
@@ -290,29 +327,10 @@ export function gift(input: GiftInput): GiftResult {
   }));
   explain.push(`Được ${matched.years} năm bảo hiểm — chọn 1 gói trong rổ.`);
 
-  const addItems = (codes: string[], reason: string) => {
-    for (const code of codes) {
-      if (basket.some((b) => b.code === code)) continue;
-      basket.push({ kind: "gift-item", code, reason });
-    }
-  };
-
-  // Điều kiện dưới đây độc lập với số tài khoản (spec §5.2, câu hỏi cuối mục).
-  const hasHousehold = input.accounts.some((a) => HOUSEHOLD_CODES.has(a.bankCode));
-  if (combo.codes.includes("VPa") && hasHousehold) {
-    addItems(ITEMS_CNKD, "Mở VPa kèm CNKD/HKD");
-    explain.push("Mở VPa kèm CNKD hoặc HKD nên rổ có thêm Loa và Bảng mica.");
-  }
-
-  if (input.channelCodes.includes(HOSPITAL_CHANNEL)) {
-    addItems(ITEMS_HOSPITAL, "Khách đến từ kênh Bệnh viện");
-    explain.push("Khách đến từ kênh Bệnh viện nên rổ có thêm Mì, BH sức khoẻ và Nón bảo hiểm.");
-  }
-
-  if (input.departmentCode === PHONG_Y && (matched.code === "TH5" || matched.code === "TH6")) {
-    addItems(ITEMS_PHONG_Y, "Phòng Y quy đổi quà TH5/TH6");
-    explain.push("Phòng Y được quy đổi quà sang vật phẩm nên rổ có thêm Nón bảo hiểm và Mì.");
-  }
+  // Gói bảo hiểm đứng TRƯỚC món thêm trong rổ. Rổ trộn món giá trị rất khác
+  // nhau, và khách đọc từ trên xuống (spec §5.2 cảnh báo ca "lấy mì trong khi
+  // đủ điều kiện nhận 2 năm bảo hiểm").
+  basket.push(...extras);
 
   return {
     caseCode: matched.code,
