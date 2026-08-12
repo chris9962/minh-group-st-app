@@ -253,21 +253,12 @@ export const PVI_FIELDS: readonly PviField[] = [
     note: 'Form BH xe máy đã bỏ ô này (03/08) — chỉ đơn tai nạn điện còn hỏi.',
   },
 
-  /* ── BH xe máy — định danh theo GPLX (spec §3.2) ──────────────────── */
-  {
-    key: 'gplx',
-    label: 'Số giấy phép lái xe',
-    product: 'motorbike',
-    required: true,
-    input: 'text',
-    source: '⚠️ chưa có ô nhập riêng',
-    fill: null,
-    status: 'missing',
-    note:
-      'Spec §3.2 ghi form BH xe máy định danh THEO GPLX, và §4.3 có luật kiểm ' +
-      '"GPLX đúng độ dài" — nhưng form hiện tại chỉ có ô CCCD dùng chung cho cả ' +
-      'hai sản phẩm. Phải hỏi PVI: đơn xe máy cần GPLX, CCCD, hay cả hai?',
-  },
+  /* ── BH xe máy — thông tin xe ─────────────────────────────────────── */
+  /* Không có field `gplx` ở đây, và đó là CHỦ Ý (chốt 12/08).
+     Spec §3.2 ghi cột "Form theo | GPLX" — câu đó nói GIẤY TỜ NGUỒN, không nói
+     ô nhập: KD đọc họ tên, ngày sinh, địa chỉ từ giấy phép lái xe của khách.
+     Form PVI không hỏi số giấy phép. Bản cũ hiểu thành một field bắt buộc, nên
+     mọi đơn xe máy đều báo thiếu một thứ không tồn tại. */
   {
     key: 'bienSo',
     label: 'Biển số xe',
@@ -341,7 +332,13 @@ export function pviPayloadFor(order: InsuranceOrder): {
   values: Record<string, string>;
   missing: string[];
 } {
-  const product = order.product.includes('xe máy') ? 'motorbike' : 'electric-accident';
+  // `order.product` LÀ enum `'motorbike' | 'electric-accident'`, đúng kiểu
+  // `pviFieldsFor` nhận. Bản cũ so `includes('xe máy')` trên chính enum đó —
+  // nhãn tiếng Việt chỉ để hiển thị (`lib/types.ts`), không bao giờ nằm trong
+  // giá trị — nên mọi đơn xe máy rơi vào nhánh tai nạn điện: payload mất
+  // `bienSo`/`loaiXe`, đổi lại báo thiếu `cccd`/`ngaySinh` mà form xe máy
+  // không hỏi.
+  const product = order.product;
   const values: Record<string, string> = {};
   const missing: string[] = [];
 
