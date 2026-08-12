@@ -13,7 +13,6 @@ import {
   insuranceOrders,
   serviceTypes,
   services,
-  users,
 } from "./db/schema";
 import { statsByDepartment, type Range } from "./org";
 
@@ -367,10 +366,16 @@ async function servicesBlock(
 /**
  * Quà đã tặng trong kỳ.
  *
- * Phạm vi đi qua NGƯỜI PHÁT (`granted_by`) rồi tra phòng hiện tại của người đó,
- * vì `gift_grants` không chụp đơn vị lúc phát như ba bảng nghiệp vụ kia. Người
- * luân chuyển phòng vì vậy kéo cả lịch sử phát quà của họ sang phòng mới — sai
- * lệch đã biết, và chỉ chữa được bằng cách thêm cột chụp vào bảng.
+ * Phạm vi đi theo NGƯỜI LẬP HỒ SƠ KHÁCH, cùng trục với điểm KPI (thể lệ câu
+ * 7.11 và mục "Phòng Y"). Quà xét theo KHÁCH, khách thuộc người lập hồ sơ, nên
+ * phần quà thuộc phòng của người đó — không phải phòng của người bấm nút phát.
+ * Hai trục lệch nhau vì cấp quản lý cũng phát quà được cho khách của lính
+ * (spec §5.2).
+ *
+ * Cột đọc là `customers.created_by_department_id`, snapshot lúc lập hồ sơ (#8).
+ * Bản cũ nối sang `users` để tra phòng, mà cột đó là phòng HIỆN TẠI: người lập
+ * hồ sơ chuyển phòng là kéo cả lịch sử phát quà sang phòng mới, tức số liệu
+ * tháng cũ tự viết lại — đúng ca spec §1.1.5 cấm.
  */
 async function giftsBlock(
   v: DashboardVisibility,
@@ -383,15 +388,15 @@ async function giftsBlock(
     v.kind === "company"
       ? undefined
       : v.kind === "departments"
-        ? inArray(users.departmentId, v.departmentIds)
+        ? inArray(customers.createdByDepartmentId, v.departmentIds)
         : v.kind === "personal"
-          ? eq(giftGrants.grantedBy, actorId)
+          ? eq(customers.createdBy, actorId)
           : sql`false`;
 
   const byType = await db
     .select({ label: giftGrants.chosenItem, count: sql<number>`count(*)::int` })
     .from(giftGrants)
-    .innerJoin(users, eq(users.id, giftGrants.grantedBy))
+    .innerJoin(customers, eq(customers.id, giftGrants.customerId))
     .where(and(inRange, scope))
     .groupBy(giftGrants.chosenItem)
     .orderBy(sql`count(*) desc`);
@@ -407,11 +412,13 @@ async function giftsBlock(
    * chạy luật ở đây nghĩa là kéo cả kho tài khoản về mỗi lần mở màn Tổng quan
    * (AGENTS.md §5.2). Cột đó do `recomputeGiftCase` ghi.
    */
+  // Cùng lý do với `scope` bên trên: đọc cột chụp lúc lập hồ sơ, không tra phòng
+  // hiện tại của người lập.
   const giftScope =
     v.kind === "company"
       ? undefined
       : v.kind === "departments"
-        ? inArray(users.departmentId, v.departmentIds)
+        ? inArray(customers.createdByDepartmentId, v.departmentIds)
         : v.kind === "personal"
           ? eq(customers.createdBy, actorId)
           : sql`false`;
@@ -419,8 +426,6 @@ async function giftsBlock(
   const [pendingRow] = await db
     .select({ n: sql<number>`count(*)::int` })
     .from(customers)
-    // leftJoin: khách do người đã bị xoá lập vẫn phải đếm ở phạm vi công ty.
-    .leftJoin(users, eq(users.id, customers.createdBy))
     .where(
       and(
         sql`cardinality(${customers.giftBasket}) > 0`,
