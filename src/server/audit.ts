@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, sql, type SQL, type SQLWrapper } from "drizzle-orm";
+import { and, asc, count, eq, sql, type SQL, type SQLWrapper } from "drizzle-orm";
 import type { AuditLogEntry, AuditLogSort } from "@/lib/api/auditLog";
 import type { Page } from "@/lib/api/pagination";
 import { BUSINESS_TIMEZONE } from "@/lib/format";
@@ -149,9 +149,21 @@ const pickPage = (where: SQL | undefined, orderBy: SQL[], limit: number, offset:
 /**
  * Khoá sắp, dựng từ bất kỳ nguồn cột nào — bảng gốc hay câu con. Một định nghĩa
  * dùng cho cả hai tầng: chép ra hai chỗ là có ngày chúng lệch nhau.
+ *
+ * ⚠️ Viết `nulls` RÕ RA, đừng dùng `asc()`/`desc()` trơn. Hai hàm cùng tên của
+ * drizzle sinh hai chiều khác nhau: `.desc()` trong `index()` ra `NULLS LAST`,
+ * còn `desc()` ở đây ra `NULLS FIRST` — đó là mặc định của Postgres. Hai chiều
+ * lệch nhau thì planner bỏ chỉ mục `audit_log_at`, và mỗi lượt mở P-93 thành
+ * một lượt quét cả bảng: đo trên 200.000 dòng là 28,6 ms so với 0,06 ms.
+ *
+ * `audit_log` phình theo từng thao tác ghi, và P-93 mặc định không lọc ngày.
+ * Cột `at` khai `NOT NULL` nên chiều `nulls` không đổi kết quả — nó chỉ quyết
+ * định chỉ mục có dùng được hay không.
  */
 const orderKeys = (t: { at: SQLWrapper; id: SQLWrapper }, dir: "asc" | "desc"): SQL[] =>
-  dir === "asc" ? [asc(t.at), asc(t.id)] : [desc(t.at), asc(t.id)];
+  dir === "asc"
+    ? [sql`${t.at} asc nulls first`, asc(t.id)]
+    : [sql`${t.at} desc nulls last`, asc(t.id)];
 
 /** Dán tên người thực hiện cho đúng 15 dòng — 15 lượt tra khoá chính `users`. */
 const decorate = (page: ReturnType<typeof pickPage>) =>
