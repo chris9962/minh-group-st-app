@@ -9,6 +9,8 @@ import { Select } from "@/components/ui/Select";
 import { TextField } from "@/components/ui/TextField";
 import {
   createStaff,
+  normalizeStaffForm,
+  ROLE_SHAPE,
   StaffForm,
   updateStaff,
   type StaffAccount,
@@ -43,6 +45,15 @@ const emptyForm: StaffForm = {
   permissions: ROLE_PERMISSIONS.staff,
 };
 
+/** Chức vụ nào nhìn được tới đâu — nói thẳng, vì người tạo không còn ô nào để chọn. */
+const SCOPE_NOTE: Record<StaffForm["role"], string> = {
+  director: "Giám đốc xem được bản ghi của toàn công ty.",
+  "deputy-director": "",
+  head: "Trưởng phòng xem được bản ghi của đúng đơn vị mình thuộc về.",
+  "deputy-head": "Phó phòng xem được bản ghi của đúng đơn vị mình thuộc về.",
+  staff: "Nhân viên xem được bản ghi do chính mình tạo.",
+};
+
 const toForm = (s: StaffAccount): StaffForm => ({
   fullName: s.fullName,
   username: s.username,
@@ -71,19 +82,24 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
     getValues,
     formState: { errors, isSubmitting },
   } = useForm<StaffForm>({
+    // Chuẩn hoá NGAY LÚC MỞ, không chỉ lúc gửi: hồ sơ cũ có thể mang trạng thái
+    // mà luật mới cấm, và ô sửa nó lại đang ẩn theo chức vụ — người dùng nhận
+    // câu lỗi không có đường chữa.
     resolver: zodResolver(StaffForm),
-    defaultValues: staff ? toForm(staff) : emptyForm,
+    defaultValues: staff ? normalizeStaffForm(toForm(staff)) : emptyForm,
   });
 
   const roles = assignableRoles(actor);
-  const manageScope = watch("manageScope");
   const managed = watch("managedDepartmentIds");
+  const shape = ROLE_SHAPE[watch("role")];
 
   const save = useMutation({
-    mutationFn: (form: StaffForm) =>
-      staff
-        ? updateStaff(staff.id, form, actor?.id ?? "")
-        : createStaff(form, actor?.id ?? ""),
+    mutationFn: (form: StaffForm) => {
+      const body = normalizeStaffForm(form);
+      return staff
+        ? updateStaff(staff.id, body, actor?.id ?? "")
+        : createStaff(body, actor?.id ?? "");
+    },
     onSuccess: () => {
       // Ba khoá riêng biệt, bỏ sót cái nào thì sửa xong chức vụ mà chỗ đó vẫn
       // hiện giá trị cũ suốt 30 giây, người dùng tưởng lưu hỏng và lưu lại.
@@ -170,7 +186,15 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
           <Select
             label="Đơn vị"
             value={watch("departmentId")}
-            onChange={(v) => setValue("departmentId", v, { shouldDirty: true })}
+            disabled={!shape.department}
+            error={errors.departmentId?.message}
+            onChange={(v) => {
+              setValue("departmentId", v, { shouldDirty: true });
+              // Trưởng phòng và Phó phòng nhìn đúng đơn vị mình thuộc về, nên
+              // đổi đơn vị là đổi luôn phạm vi nhìn.
+              if (shape.manages === "own-department")
+                setValue("managedDepartmentIds", v ? [v] : [], { shouldDirty: true });
+            }}
             options={[
               { value: "", label: "Không thuộc phòng nào" },
               ...departments.map((d) => ({ value: d.id, label: d.name })),
@@ -199,6 +223,13 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
               if (!editing) {
                 setValue("permissions", ROLE_PERMISSIONS[role], { shouldDirty: true });
               }
+              // Đơn vị và phòng phụ trách suy ra từ chức vụ, người dùng không
+              // tích tay. Bỏ bước này thì Trưởng phòng mới lập giữ nguyên
+              // `manageScope: none` và thấy 0 bản ghi.
+              const next = normalizeStaffForm({ ...getValues(), role });
+              setValue("departmentId", next.departmentId, { shouldDirty: true });
+              setValue("manageScope", next.manageScope, { shouldDirty: true });
+              setValue("managedDepartmentIds", next.managedDepartmentIds, { shouldDirty: true });
             }}
             options={roles.map((r) => ({ value: r, label: ROLE_LABEL[r] }))}
           />
@@ -219,22 +250,12 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
           {...register("title")}
         />
 
-        <Select
-          label="Quản lý phòng"
-          value={manageScope}
-          onChange={(v) =>
-            setValue("manageScope", v as StaffForm["manageScope"], {
-              shouldDirty: true,
-            })
-          }
-          options={[
-            { value: "none", label: "Không quản phòng nào" },
-            { value: "listed", label: "Quản một số phòng" },
-            { value: "company", label: "Quản toàn công ty" },
-          ]}
-        />
-
-        {manageScope === "listed" && (
+        {/* Chỉ Phó giám đốc mới cần người tạo tích phòng. Ba chức vụ kia suy ra
+            được từ chức vụ cộng ô Đơn vị, nên khối này ẩn đi — bày ra một ô có
+            đúng một đáp án là mời người dùng chọn sai.
+            `managed.length > 0` giữ khối lại cho hồ sơ cũ đang phụ trách phòng
+            mà chức vụ không đòi: ẩn đi thì không ai gỡ được nữa. */}
+        {shape.manages === "listed" || managed.length > 0 ? (
           <fieldset className={styles.fieldset}>
             <legend className={styles.legend}>Phòng phụ trách</legend>
             <div className={styles.checks}>
@@ -249,7 +270,14 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
                 </label>
               ))}
             </div>
+            {errors.managedDepartmentIds?.message && (
+              <p className={styles.error} role="alert">
+                {errors.managedDepartmentIds.message}
+              </p>
+            )}
           </fieldset>
+        ) : (
+          <p className={styles.note}>{SCOPE_NOTE[watch("role")]}</p>
         )}
 
         {/* Sửa hồ sơ CHÍNH MÌNH thì không có thẻ Quyền. Cắt quyền một người mà

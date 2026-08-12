@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ManageScope, Permission, RoleKey } from '@/lib/types';
+import { ManageScope, Permission, ROLE_LABEL, RoleKey } from '@/lib/types';
 import { pageOf, pageParams, type PageQuery } from './pagination';
 
 /** Hồ sơ nhân viên = tài khoản đăng nhập. Một thứ, không tách (spec §2.2). */
@@ -75,6 +75,55 @@ export const STAFF_SORT = ['name', 'role', 'kpi'] as const;
 export type StaffSort = (typeof STAFF_SORT)[number];
 
 /**
+ * Chức vụ quyết định luôn hai trục tổ chức, không để người tạo tự tích.
+ *
+ * `phòng phụ trách` là chữ của spec §1.1.2 cho phạm vi NHÌN, không phải chức
+ * trách quản lý: spec ghi rõ "trưởng phòng là 1 phòng" — đúng phòng họ thuộc
+ * về. Để người tạo tích tay thì họ bỏ trống, và `recordVisibility` trả `none`
+ * khi danh sách rỗng: người mới lập thấy 0 bản ghi, kể cả bản ghi của chính
+ * mình. Hai tài khoản thật đã rơi vào đó.
+ */
+export const ROLE_SHAPE: Record<
+  RoleKey,
+  { department: boolean; manages: 'company' | 'own-department' | 'listed' | 'none' | 'free' }
+> = {
+  director: { department: false, manages: 'company' },
+  'deputy-director': { department: false, manages: 'listed' },
+  head: { department: true, manages: 'own-department' },
+  'deputy-head': { department: true, manages: 'own-department' },
+  // Chức vụ Nhân viên CỐ Ý không siết — chốt 12/08. Bốn chức vụ trên là chỗ
+  // đứng trong cây tổ chức nên suy ra được; Nhân viên thì không. `admin` là
+  // tài khoản kỹ thuật giữ `cấp quyền`, không thuộc phòng nào, và phải giữ
+  // nguyên như vậy. Siết theo bảng thì chính nó không lưu nổi hồ sơ của mình.
+  staff: { department: true, manages: 'free' },
+};
+
+/**
+ * Dựng lại hai trục tổ chức từ chức vụ + đơn vị. Biểu mẫu gọi hàm này ngay
+ * trước khi gửi, nên người dùng không bao giờ gặp lỗi của `superRefine` dưới
+ * đây — lỗi đó dành cho ai gọi thẳng API.
+ */
+export function normalizeStaffForm(form: StaffForm): StaffForm {
+  const shape = ROLE_SHAPE[form.role];
+  if (shape.manages === 'free') return form;
+  const departmentId = shape.department ? form.departmentId : '';
+  const managedDepartmentIds =
+    shape.manages === 'own-department'
+      ? departmentId
+        ? [departmentId]
+        : []
+      : shape.manages === 'listed'
+        ? form.managedDepartmentIds
+        : [];
+  const manageScope =
+    shape.manages === 'company' ? 'company' : shape.manages === 'none' ? 'none' : 'listed';
+  return { ...form, departmentId, manageScope, managedDepartmentIds };
+}
+
+const sameIds = (a: string[], b: string[]) =>
+  a.length === b.length && [...a].sort().join() === [...b].sort().join();
+
+/**
  * Biểu mẫu tạo / sửa nhân viên.
  *
  * Không có `.default()` — zod v4 làm kiểu vào/ra lệch nhau và react-hook-form
@@ -106,6 +155,26 @@ export const StaffForm = z.object({
   managedDepartmentIds: z.array(z.uuid()),
   wardId: z.union([z.literal(''), z.uuid()]),
   permissions: z.array(Permission),
+}).superRefine((form, ctx) => {
+  const shape = ROLE_SHAPE[form.role];
+  if (shape.manages === 'free') return;
+  const label = ROLE_LABEL[form.role];
+  const fail = (path: string, message: string) =>
+    ctx.addIssue({ code: 'custom', path: [path], message });
+
+  if (shape.department && !form.departmentId) fail('departmentId', `${label} phải thuộc một đơn vị`);
+  if (!shape.department && form.departmentId) fail('departmentId', `${label} không thuộc đơn vị nào`);
+
+  const expected = normalizeStaffForm(form);
+  if (form.manageScope !== expected.manageScope)
+    fail('manageScope', `${label} không đặt được mức quản lý này`);
+
+  if (shape.manages === 'own-department' && !sameIds(form.managedDepartmentIds, expected.managedDepartmentIds))
+    fail('managedDepartmentIds', `${label} phụ trách đúng đơn vị mình thuộc về`);
+  if (shape.manages === 'listed' && form.managedDepartmentIds.length === 0)
+    fail('managedDepartmentIds', 'Chọn ít nhất một phòng phụ trách');
+  if ((shape.manages === 'none' || shape.manages === 'company') && form.managedDepartmentIds.length > 0)
+    fail('managedDepartmentIds', `${label} không phụ trách phòng nào`);
 });
 export type StaffForm = z.infer<typeof StaffForm>;
 
