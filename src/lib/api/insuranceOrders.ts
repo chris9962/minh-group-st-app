@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { InsuranceProduct } from '@/lib/types';
+import { InsuranceProduct, isoDate, isoDateOrEmpty } from '@/lib/types';
 
 /**
  * Vòng đời và BIỂU MẪU của đơn bảo hiểm. Phần đọc (danh sách, chi tiết, các
@@ -76,25 +76,27 @@ export type InsuranceManualStep = z.infer<typeof InsuranceManualStep>;
  * trị cũ và mới (`audit_log.detail` chưa có đường ghi). Nên một lượt kéo đơn từ
  * tháng 8 về tháng 6 để lại vết là có người sửa, chứ không nói kéo đi đâu.
  */
-const orderDate = z
-  .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Ngày không hợp lệ')
-  /**
-   * Regex thôi chưa đủ: `2026-02-31` khớp hình dạng nhưng không phải ngày có
-   * thật, và nó đi thẳng vào Postgres rồi vỡ `22008` — người dùng nhận 500 thay
-   * vì một câu nói rõ mình gõ sai.
-   */
-  .refine((v) => new Date(`${v}T00:00:00Z`).toISOString().startsWith(v), 'Ngày không có thật');
+const orderDate = isoDate('Chưa chọn ngày tạo đơn');
 
-/** Những trường một người nhập liệu gõ vào, dùng chung cho lúc tạo và lúc sửa. */
+/**
+ * Những trường một người nhập liệu gõ vào, dùng chung cho lúc tạo và lúc sửa.
+ *
+ * Bốn ô ngày đi qua cùng một hàm kiểm. `startDate` / `endDate` / `beneficiaryDob`
+ * trước đây không kiểm định dạng, nên `'05/08/2026'` xuống tới Postgres và ghi
+ * thành `2026-05-08` — lệch ngày mà không báo lỗi.
+ *
+ * Máy chủ so `endDate < startDate` bằng phép so CHUỖI (`server/insurance.ts`).
+ * Phép đó chỉ đúng khi cả hai ở dạng `YYYY-MM-DD`, và hàm kiểm này là thứ bảo
+ * đảm điều đó.
+ */
 const orderFields = {
   orderDate,
   /** Mức phí của ĐƠN này (đ) — prefill từ gói, sửa được từng đơn (03/08). */
   fee: z.number().min(0, 'Mức phí phải từ 0 trở lên'),
-  startDate: z.string().trim().min(1, 'Chưa chọn ngày bắt đầu'),
-  endDate: z.string().trim().min(1, 'Chưa chọn ngày kết thúc'),
+  startDate: isoDate('Chưa chọn ngày bắt đầu'),
+  endDate: isoDate('Chưa chọn ngày kết thúc'),
   beneficiaryName: z.string().trim().min(1, 'Chưa nhập tên người thụ hưởng'),
-  beneficiaryDob: z.string(),
+  beneficiaryDob: isoDateOrEmpty,
   /**
    * CCCD người thụ hưởng — CÓ THỂ RỖNG khi `beneficiaryIsCustomer` bật.
    *

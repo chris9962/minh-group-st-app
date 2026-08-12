@@ -6,6 +6,41 @@ import { z } from 'zod';
  * Khi thiết kế database xong, sửa schema ở file này là cả FE đổi theo.
  */
 
+/* ── Ngày ───────────────────────────────────────────────────────────── */
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Hình dạng đúng CHƯA đủ: `2026-02-31` khớp regex mà không phải ngày có thật,
+ * và Postgres từ chối nó bằng `22008`.
+ *
+ * ⚠️ Hàm này KHÔNG được ném lỗi. `zod` v4 chạy hết mọi check trên một chuỗi,
+ * không dừng ở check đầu tiên hỏng — nên nhánh kiểm chạy cả trên chuỗi đã trượt
+ * regex. Bản cũ gọi thẳng `new Date(v).toISOString()` và ném `RangeError` trên
+ * `Invalid Date`; `safeParse` không bắt lỗi ném ra, route không có `try/catch`,
+ * nên người dùng nhận 500 thay vì câu báo lỗi. Xoá trống ô ngày là chạm tới.
+ */
+const isRealIsoDate = (v: string): boolean => {
+  if (!ISO_DATE.test(v)) return false;
+  const time = Date.parse(`${v}T00:00:00Z`);
+  return !Number.isNaN(time) && new Date(time).toISOString().startsWith(v);
+};
+
+/**
+ * Ngày `YYYY-MM-DD` bắt buộc.
+ *
+ * Không kiểm định dạng thì Postgres tự đoán theo `DateStyle = ISO, MDY`:
+ * `'05/08/2026'` ghi thành `2026-05-08`, tức lệch ngày mà không báo lỗi.
+ */
+export const isoDate = (emptyMessage: string) =>
+  z.string().trim().min(1, emptyMessage).refine(isRealIsoDate, 'Ngày không hợp lệ');
+
+/** Ngày `YYYY-MM-DD`, cho phép để trống. */
+export const isoDateOrEmpty = z
+  .string()
+  .trim()
+  .refine((v) => v === '' || isRealIsoDate(v), 'Ngày không hợp lệ');
+
 /* ── Phân quyền: ba trục (spec mục 1.1) ─────────────────────────────── */
 
 /**
