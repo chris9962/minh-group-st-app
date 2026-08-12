@@ -21,7 +21,7 @@ import { INSURANCE_STATUS_LABEL, InsuranceOrderStatus } from "@/lib/api/insuranc
 import { fetchPeopleForExport, periodMonth, periodParam, totalPoints } from "@/lib/api/people";
 import { fetchServicesForExport } from "@/lib/api/services";
 import { fetchServiceTypes } from "@/lib/api/settings";
-import { fetchStaffOptions } from "@/lib/api/staff";
+import { fetchStaffOptions, type StaffOption } from "@/lib/api/staff";
 import { fetchProvinces } from "@/lib/api/wardCatalog";
 import { exportExcel, type ExcelColumn } from "@/lib/excel";
 import { can, scopeFor } from "@/lib/permissions";
@@ -81,7 +81,15 @@ type CatalogColumn = {
  * Cùng một khai báo này vừa dựng bảng xem trước, vừa dựng cột thật lúc xuất
  * (qua `buildColumns`), nên xem trước không bao giờ lệch với file thật.
  */
-function catalogFor(report: ReportId, banks: Bank[], usernameById: Map<string, string>): CatalogColumn[] {
+/**
+ * `staffById` khoá bằng id nội bộ, nhưng KHÔNG cột nào xuất id đó ra.
+ *
+ * Người nhận file đối chiếu với hệ thống nhân sự khác của công ty, nơi định
+ * danh là `staffCode` (`MG-0123`). Uuid ở cột "Mã nhân viên" thì không tra được
+ * gì, và cột trông vẫn có dữ liệu nên không ai báo lỗi.
+ */
+function catalogFor(report: ReportId, banks: Bank[], staffById: Map<string, StaffOption>): CatalogColumn[] {
+  const staffCodeOf = (id: string | null) => (id && staffById.get(id)?.staffCode) || "—";
   switch (report) {
     case "accounts-by-customer":
       return [
@@ -91,7 +99,7 @@ function catalogFor(report: ReportId, banks: Bank[], usernameById: Map<string, s
         // Một khách có thể có tài khoản do NHIỀU nhân viên tạo (mỗi ngân hàng
         // một người) — mấy cột nhân viên dưới đây nối bằng dấu phẩy y hệt cột
         // "Người tạo", không phải 1 khách 1 giá trị như báo cáo Nhân viên+điểm.
-        { key: "createdByIds", header: "Mã nhân viên", type: "text", defaultOn: false, sample: ["u-staff", "u-head-kd2"], value: (r) => r.createdByIds || "—" },
+        { key: "createdByCodes", header: "Mã nhân viên", type: "text", defaultOn: false, sample: ["MG-0123", "MG-0007"], value: (r) => r.createdByCodes },
         { key: "createdByDepartments", header: "Đơn vị người tạo", defaultOn: false, sample: ["Phòng Kinh doanh 2", "Phòng Kinh doanh 2"], value: (r) => r.createdByDepartments },
         { key: "createdByRoles", header: "Chức vụ người tạo", defaultOn: false, sample: ["Nhân viên", "Trưởng phòng"], value: (r) => r.createdByRoles },
         { key: "createdByTitles", header: "Chức danh người tạo", defaultOn: false, sample: ["Nhân viên kinh doanh", "Trưởng phòng Kinh doanh 2"], value: (r) => r.createdByTitles },
@@ -123,8 +131,8 @@ function catalogFor(report: ReportId, banks: Bank[], usernameById: Map<string, s
       ];
     case "staff-points":
       return [
-        { key: "id", header: "Mã nhân viên", type: "text", defaultOn: false, sample: ["p1", "p2"], value: (r) => r.id },
-        { key: "username", header: "Tên đăng nhập", type: "text", defaultOn: false, sample: ["lethihong", "vothanhhai"], value: (r) => usernameById.get(r.id) ?? "—" },
+        { key: "staffCode", header: "Mã nhân viên", type: "text", defaultOn: false, sample: ["MG-0123", "MG-0007"], value: (r) => r.staffCode ?? "—" },
+        { key: "username", header: "Tên đăng nhập", type: "text", defaultOn: false, sample: ["lethihong", "vothanhhai"], value: (r) => staffById.get(r.id)?.username ?? "—" },
         { key: "fullName", header: "Nhân viên", transform: "name", defaultOn: true, sample: ["LE THI HONG", "VO THANH HAI"], value: (r) => r.fullName },
         { key: "departmentName", header: "Đơn vị", defaultOn: true, sample: ["Phòng Kinh doanh 2", "Phòng Kinh doanh 2"], value: (r) => r.departmentName },
         { key: "bankingPoints", header: "Điểm ngân hàng", type: "number", defaultOn: true, sample: ["4,2", "2,8"], value: (r) => r.bankingPoints },
@@ -159,7 +167,7 @@ function catalogFor(report: ReportId, banks: Bank[], usernameById: Map<string, s
         { key: "accountNumber", header: "STK", type: "text", defaultOn: true, sample: ["0912345678", "0987654321"], value: (r) => r.accountNumber },
         { key: "referralCode", header: "Mã giới thiệu", type: "text", defaultOn: true, sample: ["VPA-2024-02", "MSBA-2026-03"], value: (r) => r.referralCode },
         { key: "date", header: "Ngày", defaultOn: true, sample: ["31/07/2026", "22/07/2026"], value: (r) => r.date || "" },
-        { key: "createdById", header: "Mã người tạo", type: "text", defaultOn: false, sample: ["u-staff", "u-head-kd2"], value: (r) => r.createdById ?? "—" },
+        { key: "createdByCode", header: "Mã người tạo", type: "text", defaultOn: false, sample: ["MG-0123", "MG-0007"], value: (r) => staffCodeOf(r.createdById) },
         { key: "createdByName", header: "Người tạo", defaultOn: true, sample: ["Nguyễn Thị Bích Trâm", "Trần Văn Hậu"], value: (r) => r.createdByName ?? "—" },
       ];
     case "insurance-by-month":
@@ -177,7 +185,7 @@ function catalogFor(report: ReportId, banks: Bank[], usernameById: Map<string, s
         },
         { key: "orderDate", header: "Ngày tạo đơn", defaultOn: true, sample: ["15/07/2026", "20/07/2026"], value: (r) => r.orderDate },
         { key: "startDate", header: "Hiệu lực từ", defaultOn: false, sample: ["15/07/2026", "20/07/2026"], value: (r) => r.startDate },
-        { key: "createdById", header: "Mã người tạo", type: "text", defaultOn: false, sample: ["u-staff", "u-orderdesk"], value: (r) => r.createdById ?? "—" },
+        { key: "createdByCode", header: "Mã người tạo", type: "text", defaultOn: false, sample: ["MG-0123", "MG-0007"], value: (r) => staffCodeOf(r.createdById) },
         { key: "createdByName", header: "Người tạo", defaultOn: true, sample: ["Nguyễn Thị Bích Trâm", "Võ Thanh Tùng"], value: (r) => r.createdByName ?? "—" },
       ];
     case "services-by-ward":
@@ -187,7 +195,7 @@ function catalogFor(report: ReportId, banks: Bank[], usernameById: Map<string, s
         { key: "serviceTypeName", header: "Loại dịch vụ", defaultOn: true, sample: ["Tư vấn BHYT", "Hỗ trợ giấy tờ"], value: (r) => r.serviceTypeName },
         { key: "wardName", header: "Xã", defaultOn: true, sample: ["Xã Tân Thành", "Xã Bình Phú"], value: (r) => r.wardName ?? "—" },
         { key: "date", header: "Ngày", defaultOn: true, sample: ["10/07/2026", "18/07/2026"], value: (r) => r.date },
-        { key: "createdById", header: "Mã người thực hiện", type: "text", defaultOn: false, sample: ["p11", "p12"], value: (r) => r.createdById ?? "—" },
+        { key: "createdByCode", header: "Mã người thực hiện", type: "text", defaultOn: false, sample: ["MG-0123", "MG-0007"], value: (r) => staffCodeOf(r.createdById) },
         { key: "createdByName", header: "Người thực hiện", defaultOn: true, sample: ["Lý Hoàng Nam", "Phan Thị Tuyết"], value: (r) => r.createdByName },
         { key: "note", header: "Ghi chú", defaultOn: true, sample: ["—", "Đã hoàn tất hồ sơ"], value: (r) => r.note || "—" },
       ];
@@ -239,18 +247,20 @@ export default function ExportsPage() {
   const { data: serviceTypes = [] } = useQuery({ queryKey: ["service-types"], queryFn: fetchServiceTypes });
   const { data: provinces = [] } = useQuery({ queryKey: ["provinces"], queryFn: fetchProvinces });
   const wards = provinces.flatMap((p) => p.wards);
+  // `status: "all"` chứ không phải `"active"`: báo cáo đọc dữ liệu CŨ, và người
+  // tạo ra nó có thể đã nghỉ. Lấy mỗi người đang hoạt động thì mã nhân viên,
+  // đơn vị và chức vụ của họ ra "—" trên mọi dòng họ từng nhập.
   const { data: staffData } = useQuery({
     queryKey: ["staff-all-for-export"],
-    queryFn: () => fetchStaffOptions({ status: "active" }),
+    queryFn: () => fetchStaffOptions({ status: "all" }),
   });
   const staffOptions = staffData ?? [];
-  const usernameById = new Map(staffOptions.map((s) => [s.id, s.username]));
   const staffById = new Map(staffOptions.map((s) => [s.id, s]));
 
   const from = range?.from ? iso(range.from) : "";
   const to = range?.to ? iso(range.to) : "";
 
-  const catalog = active ? catalogFor(active, banks, usernameById) : [];
+  const catalog = active ? catalogFor(active, banks, staffById) : [];
   const fullOrder = active ? (orderMap[active] ?? catalog.map((c) => c.key)) : [];
   const enabled = active ? (enabledMap[active] ?? catalog.filter((c) => c.defaultOn).map((c) => c.key)) : [];
   // Cột thật sẽ xuất: đúng những cột đang bật, đúng thứ tự đang xếp.
@@ -317,22 +327,29 @@ export default function ExportsPage() {
         status: "",
       });
       capCheck(rows.length, total, "tài khoản");
+      // Khoá gộp là `customerId`, KHÔNG phải tên. Database đang có hai khách
+      // trùng tên khác CCCD; gộp theo tên là trộn hồ sơ của hai người vào một
+      // dòng, và dòng đó mang `customerId` của người đến trước — báo cáo đối
+      // soát gửi ngân hàng ghi mã khách của người này cho tài khoản người kia.
+      //
+      // Ô ngân hàng giữ TẬP số: gán đè thì khách có nhiều tài khoản ở cùng ngân
+      // hàng chỉ còn số cuối. Một khách thật đang có 4 tài khoản BIDV.
       const byCustomer = new Map<
         string,
-        { customerId: string; customerName: string; createdByNames: Set<string>; createdByIds: Set<string>; cells: Record<string, string> }
+        { customerId: string; customerName: string; createdByNames: Set<string>; createdByIds: Set<string>; cells: Record<string, Set<string>> }
       >();
       for (const r of rows) {
-        const row = byCustomer.get(r.customerName) ?? {
+        const row = byCustomer.get(r.customerId) ?? {
           customerId: r.customerId,
           customerName: r.customerName,
           createdByNames: new Set<string>(),
           createdByIds: new Set<string>(),
           cells: {},
         };
-        row.cells[r.bankCode] = r.accountNumber;
+        (row.cells[r.bankCode] ??= new Set<string>()).add(r.accountNumber);
         if (r.createdByName) row.createdByNames.add(r.createdByName);
         if (r.createdById) row.createdByIds.add(r.createdById);
-        byCustomer.set(r.customerName, row);
+        byCustomer.set(r.customerId, row);
       }
       // Một khách có thể có tài khoản do nhiều nhân viên tạo — nối mọi trường
       // nhân viên bằng dấu phẩy giống "Người tạo", không phải suy ra một người.
@@ -341,9 +358,9 @@ export default function ExportsPage() {
         return {
           customerId: g.customerId,
           customerName: g.customerName,
-          cells: g.cells,
+          cells: Object.fromEntries(Object.entries(g.cells).map(([code, nums]) => [code, [...nums].join(", ")])),
           createdByNames: [...g.createdByNames].join(", "),
-          createdByIds: [...g.createdByIds].join(", "),
+          createdByCodes: staffs.map((s) => s.staffCode || "—").join(", ") || "—",
           createdByDepartments: staffs.map((s) => s.departmentName || "—").join(", ") || "—",
           createdByRoles: staffs.map((s) => ROLE_LABEL[s.role]).join(", ") || "—",
           createdByTitles: staffs.map((s) => s.title || "—").join(", ") || "—",
@@ -354,7 +371,7 @@ export default function ExportsPage() {
         fileName: `tai-khoan-gop-theo-khach-${iso(new Date())}.xlsx`,
         sheetName: "Tài khoản theo khách",
         rows: grouped,
-        columns: buildColumns(catalogFor("accounts-by-customer", banks, usernameById), exportOrder),
+        columns: buildColumns(catalogFor("accounts-by-customer", banks, staffById), exportOrder),
       });
       return grouped.length;
     },
@@ -375,7 +392,7 @@ export default function ExportsPage() {
         fileName: `du-lieu-tong-${iso(new Date())}.xlsx`,
         sheetName: "Dữ liệu tổng",
         rows,
-        columns: buildColumns(catalogFor("customer-summary", banks, usernameById), exportOrder),
+        columns: buildColumns(catalogFor("customer-summary", banks, staffById), exportOrder),
       });
       return rows.length;
     },
@@ -389,7 +406,7 @@ export default function ExportsPage() {
         fileName: `nhan-vien-diem-${month}.xlsx`,
         sheetName: "Nhân viên và điểm",
         rows: people,
-        columns: buildColumns(catalogFor("staff-points", banks, usernameById), exportOrder),
+        columns: buildColumns(catalogFor("staff-points", banks, staffById), exportOrder),
       });
       return people.length;
     },
@@ -422,7 +439,7 @@ export default function ExportsPage() {
         fileName: `app-theo-ngan-hang-phong-${iso(new Date())}.xlsx`,
         sheetName: "App theo NH-phòng",
         rows: groups,
-        columns: buildColumns(catalogFor("apps-by-bank-department", banks, usernameById), exportOrder),
+        columns: buildColumns(catalogFor("apps-by-bank-department", banks, staffById), exportOrder),
       });
       return groups.length;
     },
@@ -443,7 +460,7 @@ export default function ExportsPage() {
         fileName: `tra-theo-ma-gioi-thieu-${iso(new Date())}.xlsx`,
         sheetName: "Tra theo mã giới thiệu",
         rows,
-        columns: buildColumns(catalogFor("accounts-by-code", banks, usernameById), exportOrder),
+        columns: buildColumns(catalogFor("accounts-by-code", banks, staffById), exportOrder),
       });
       return rows.length;
     },
@@ -463,7 +480,7 @@ export default function ExportsPage() {
         fileName: `don-bao-hiem-theo-thang-${iso(new Date())}.xlsx`,
         sheetName: "Đơn bảo hiểm",
         rows,
-        columns: buildColumns(catalogFor("insurance-by-month", banks, usernameById), exportOrder),
+        columns: buildColumns(catalogFor("insurance-by-month", banks, staffById), exportOrder),
       });
       return rows.length;
     },
@@ -489,7 +506,7 @@ export default function ExportsPage() {
         fileName: `dich-vu-theo-xa-${iso(new Date())}.xlsx`,
         sheetName: "Dịch vụ",
         rows,
-        columns: buildColumns(catalogFor("services-by-ward", banks, usernameById), exportOrder),
+        columns: buildColumns(catalogFor("services-by-ward", banks, staffById), exportOrder),
       });
       return rows.length;
     },

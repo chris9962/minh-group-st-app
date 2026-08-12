@@ -45,16 +45,22 @@ const STATUS_LABEL: Record<BankAccountStatus, string> = {
 
 /** Xuất Excel gộp theo khách — mỗi khách một dòng, một cột riêng cho mỗi ngân hàng (spec §8.2). */
 function exportByCustomer(rows: BankAccountRow[], bankCodes: string[]) {
-  const byCustomer = new Map<string, { customerName: string; createdByNames: Set<string>; cells: Record<string, string> }>();
+  // Khoá gộp là `customerId`, KHÔNG phải tên. Database đang có hai khách trùng
+  // tên khác CCCD; gộp theo tên là trộn hồ sơ của hai người vào một dòng.
+  //
+  // Ô ngân hàng giữ TẬP số, không phải một chuỗi: gán đè thì khách có nhiều tài
+  // khoản ở cùng ngân hàng chỉ còn số cuối. Một khách thật đang có 4 tài khoản
+  // BIDV. `Set` cũng gộp luôn các số trùng nhau.
+  const byCustomer = new Map<string, { customerName: string; createdByNames: Set<string>; cells: Record<string, Set<string>> }>();
   for (const r of rows) {
-    const row = byCustomer.get(r.customerName) ?? {
+    const row = byCustomer.get(r.customerId) ?? {
       customerName: r.customerName,
       createdByNames: new Set<string>(),
       cells: {},
     };
-    row.cells[r.bankCode] = r.accountNumber;
+    (row.cells[r.bankCode] ??= new Set<string>()).add(r.accountNumber);
     if (r.createdByName) row.createdByNames.add(r.createdByName);
-    byCustomer.set(r.customerName, row);
+    byCustomer.set(r.customerId, row);
   }
 
   return exportExcel({
@@ -67,7 +73,7 @@ function exportByCustomer(rows: BankAccountRow[], bankCodes: string[]) {
       ...bankCodes.map((code) => ({
         header: code,
         type: "text" as const,
-        value: (r: { cells: Record<string, string> }) => r.cells[code] ?? "",
+        value: (r: { cells: Record<string, Set<string>> }) => [...(r.cells[code] ?? [])].join(", "),
       })),
     ],
   });
