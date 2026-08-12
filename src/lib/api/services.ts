@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isoDate } from '@/lib/types';
 import { pageOf, pageParams, type Page, type PageQuery } from './pagination';
 
 /**
@@ -116,9 +117,7 @@ export async function fetchServicesForExport(
  * thì chưa xảy ra. Ngày lùi thì để tự do — máy chủ không đoán được nhân viên
  * nhập trễ bao lâu là hợp lý, và mọi lượt sửa đều nằm trong nhật ký truy vết.
  */
-const serviceDate = z
-  .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Ngày không hợp lệ');
+const serviceDate = isoDate('Chưa chọn ngày');
 
 export const ServiceForm = z.object({
   customerId: z.string().min(1, 'Chưa chọn khách'),

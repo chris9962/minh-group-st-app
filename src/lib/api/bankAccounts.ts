@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isoDate, isoDateOrEmpty } from '@/lib/types';
 
 /**
  * P-20 · Tạo tài khoản ngân hàng (mgst-platform-spec.md §4).
@@ -75,17 +76,17 @@ export type BankAccountStartForm = z.infer<typeof BankAccountStartForm>;
 export const BankAccountFinishForm = z.object({
   accountNumber: z.string().trim().min(1, 'Chưa có số tài khoản'),
   /**
-   * Bắt đúng `YYYY-MM-DD`, không chỉ "khác rỗng".
+   * Bắt đúng `YYYY-MM-DD`, và phải là ngày CÓ THẬT.
    *
    * Postgres nhận nhiều dạng ngày mà `Date` của JS không nhận. Gửi `20260806`
    * thì câu `UPDATE` THÀNH CÔNG — tài khoản lên `done`, mã đã tiêu — rồi
    * `businessMonth(new Date(…))` ném lỗi và route trả 500: dữ liệu đã ghi, điểm
    * KPI không được tính lại, nhật ký truy vết không có dòng nào.
+   *
+   * Đúng hình dạng vẫn chưa đủ: `2026-02-31` khớp regex mà Postgres từ chối
+   * bằng `22008`, và người dùng nhận 500 thay vì câu báo lỗi.
    */
-  openedDate: z
-    .string()
-    .trim()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Ngày mở phải có dạng YYYY-MM-DD'),
+  openedDate: isoDate('Chưa chọn ngày mở'),
   appInstalled: z.boolean(),
   accountType: AccountType,
   note: z.string(),
@@ -101,10 +102,7 @@ export type BankAccountFinishForm = z.infer<typeof BankAccountFinishForm>;
  */
 export const BankAccountUpdateForm = BankAccountFinishForm.extend({
   /** `''` = chưa ghi nhận. Trùng ngày mở vẫn hợp lệ (chốt 07/08). */
-  transactionAt: z
-    .string()
-    .trim()
-    .regex(/^$|^\d{4}-\d{2}-\d{2}$/, 'Ngày giao dịch phải có dạng YYYY-MM-DD'),
+  transactionAt: isoDateOrEmpty,
 });
 export type BankAccountUpdateForm = z.infer<typeof BankAccountUpdateForm>;
 
