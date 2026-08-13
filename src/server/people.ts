@@ -5,6 +5,7 @@ import { businessDay, businessMonth, monthRange, roundPoints } from "@/lib/forma
 import { clampScope, inVisibleScope, visibleDepartmentIds } from "@/lib/permissions";
 import { Scope, type User } from "@/lib/types";
 import { db } from "./db/client";
+import { grantedItemLabel } from "./gift";
 import {
   bankAccounts,
   banks,
@@ -580,7 +581,8 @@ export async function personFor(
     monthlyPoints,
     gifts: grants.map((g) => ({
       customerName: g.customerName,
-      items: [(g.grant.chosenItem || "").toString()].filter(Boolean),
+      // `chosen_item` giữ MÃ (#74) — chữ hiện lấy tên lúc phát trong snapshot.
+      items: [grantedItemLabel(g.grant.chosenItem, g.grant.snapshot)].filter(Boolean),
       eligible: true,
     })),
     accounts: accountRows.map((r) => ({

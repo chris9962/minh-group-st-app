@@ -469,7 +469,7 @@ async function build() {
       customerId,
       grantedBy: userIdByName.get(CUSTOMERS[gifted].owner)!,
       cashTotal: snapshot.cashTotal,
-      chosenItem: snapshot.basket[0]?.name ?? "Từ chối nhận quà",
+      chosenItem: snapshot.basket[0]?.code ?? "DECLINED",
       snapshot,
     });
   }

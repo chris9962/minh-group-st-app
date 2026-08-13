@@ -57,16 +57,18 @@ export function GiftGivingDialog({ open, onClose, customerId, customerName }: Pr
     queryFn: fetchInsurancePackages,
   });
 
+  // Gửi MÃ món lên máy chủ (#74), nhưng toast phải nói TÊN — người dùng không
+  // đọc `BH-1N-XEMAY`. Nên mutation nhận cả hai.
   const markGiven = useMutation({
-    mutationFn: (item: string) => markGiftGiven(customerId, item),
-    onSuccess: (_data, item) => {
+    mutationFn: ({ code }: { code: string; label: string }) => markGiftGiven(customerId, code),
+    onSuccess: (_data, { code, label }) => {
       queryClient.invalidateQueries({ queryKey: ["customers"] });
       queryClient.invalidateQueries({ queryKey: ["customer", customerId] });
       onClose();
       toast.ok(
-        item === GIFT_DECLINED
+        code === GIFT_DECLINED
           ? `Đã ghi nhận ${customerName} từ chối quà`
-          : `Đã tặng ${item} cho ${customerName}`,
+          : `Đã tặng ${label} cho ${customerName}`,
       );
     },
     onError: (e) => toast.fail(errorMessage(e, "Không đánh dấu được quà đã tặng.")),
@@ -81,7 +83,9 @@ export function GiftGivingDialog({ open, onClose, customerId, customerName }: Pr
         source="gift"
         prefill={{ packageName: chosen?.name ?? "" }}
         onClose={onClose}
-        onCreated={() => markGiven.mutate(chosen?.name ?? "Quà tặng")}
+        onCreated={() =>
+          markGiven.mutate({ code: chosen?.code ?? "", label: chosen?.name ?? "Quà tặng" })
+        }
       />
     );
   }
@@ -92,7 +96,7 @@ export function GiftGivingDialog({ open, onClose, customerId, customerName }: Pr
     // KHÔNG được chốt. Đánh dấu nhầm là mất suất quà của khách vĩnh viễn.
     if (packagesPending || packagesError) return;
     if (selected === DECLINE) {
-      markGiven.mutate(GIFT_DECLINED);
+      markGiven.mutate({ code: GIFT_DECLINED, label: "" });
       return;
     }
     const item = data?.gift.basket.find((b) => b.id === selected);
@@ -100,7 +104,7 @@ export function GiftGivingDialog({ open, onClose, customerId, customerName }: Pr
     if (packages.some((p) => p.id === item.id)) {
       setCreatingOrder(true);
     } else {
-      markGiven.mutate(item.name);
+      markGiven.mutate({ code: item.code, label: item.name });
     }
   };
 

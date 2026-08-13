@@ -284,12 +284,18 @@ export async function fetchCustomerDetail(id: string): Promise<CustomerDetail> {
 }
 
 /**
- * Chữ ghi vào `gift_grants.chosen_item` khi khách không nhận món nào.
+ * Giá trị ghi vào `gift_grants.chosen_item` khi khách không nhận món nào.
  *
  * Nằm ở đây chứ không ở component vì MÁY CHỦ cũng phải nhận ra nó: nó kiểm món
  * chọn có nằm trong rổ không, mà "từ chối" thì không nằm trong rổ nào cả.
+ *
+ * Là MÃ, không phải câu tiếng Việt — cùng lối với mọi giá trị khác của cột đó
+ * (quyết định #74). Câu hiển thị nằm ở `GIFT_DECLINED_LABEL`.
  */
-export const GIFT_DECLINED = 'Từ chối nhận quà';
+export const GIFT_DECLINED = 'DECLINED';
+
+/** Câu hiện cho người dùng khi `chosen_item` là `GIFT_DECLINED`. */
+export const GIFT_DECLINED_LABEL = 'Từ chối nhận quà';
 
 export const GIFT_ERROR = {
   ALREADY_GIVEN: 'ALREADY_GIVEN',
@@ -304,7 +310,10 @@ export const GIFT_ERROR = {
 
 /**
  * Đánh dấu khách đã được tặng quà — đúng một lần, không có đợt thứ hai
- * (spec §4.4 P-43). `item` là TÊN món đã chọn, hoặc `GIFT_DECLINED`.
+ * (spec §4.4 P-43). `item` là MÃ món đã chọn, hoặc `GIFT_DECLINED`.
+ *
+ * Mã chứ không phải tên: admin sửa tên món ở P-82 bất cứ lúc nào, và tên đã đổi
+ * thì không tra ngược ra món nào nữa (quyết định #74).
  */
 export async function markGiftGiven(customerId: string, item: string): Promise<void> {
   const res = await fetch(`/api/customers/${customerId}/gift-given`, {

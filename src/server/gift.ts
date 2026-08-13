@@ -1,6 +1,6 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
-import { GIFT_DECLINED, GIFT_ERROR } from "@/lib/api/customers";
+import { GIFT_DECLINED, GIFT_DECLINED_LABEL, GIFT_ERROR } from "@/lib/api/customers";
 import { EMPTY_GIFT, type GiftSimulateInput, type GiftSimulateResult } from "@/lib/api/settings";
 import { businessDay } from "@/lib/format";
 import type { User } from "@/lib/types";
@@ -334,7 +334,8 @@ export async function recountGiftCases(
 }
 
 type GrantOutcome =
-  | { ok: true; customerName: string }
+  /** `itemLabel` là TÊN món lúc phát — nhật ký truy vết cần chữ đọc được, không cần mã. */
+  | { ok: true; customerName: string; itemLabel: string }
   | { ok: false; code: (typeof GIFT_ERROR)[keyof typeof GIFT_ERROR]; message: string };
 
 /**
@@ -371,7 +372,9 @@ export async function grantGift(
       message: "Khách này chưa đủ điều kiện nhận quà",
     };
 
-  const picked = declined ? null : gift.basket.find((b) => b.name === item);
+  // Tìm bằng MÃ, không bằng tên (quyết định #74): admin đổi tên món ở P-82 giữa
+  // lúc người dùng đang mở màn phát quà thì tìm theo tên không ra, dù đúng món.
+  const picked = declined ? null : gift.basket.find((b) => b.code === item);
 
   if (!declined && !picked)
     return {
@@ -388,8 +391,8 @@ export async function grantGift(
       code: GIFT_ERROR.ITEM_DISCONTINUED,
       message:
         picked.status === "discontinued"
-          ? `"${item}" đã ngừng cấp — chọn món khác trong rổ`
-          : `"${item}" không còn trong danh mục quà — báo quản trị thêm lại rồi phát`,
+          ? `"${picked.name}" đã ngừng cấp — chọn món khác trong rổ`
+          : `"${picked.name}" không còn trong danh mục quà — báo quản trị thêm lại rồi phát`,
     };
 
   const inserted = await db
@@ -398,6 +401,8 @@ export async function grantGift(
       customerId,
       grantedBy: actor.id,
       cashTotal: gift.cashTotal,
+      // MÃ món, không phải tên. Tên lúc phát vẫn còn trong `snapshot.basket` —
+      // hai chỗ đọc dùng nó để hiện đúng chữ của thời điểm phát.
       chosenItem: item,
       // Đóng băng NGUYÊN kết quả: thể lệ đổi hay admin sửa tên món cũng không
       // được viết lại thứ đã phát cho khách (spec §5.3).
@@ -413,5 +418,50 @@ export async function grantGift(
       message: "Khách này đã được tặng quà rồi — mỗi khách chỉ tặng đúng một lần",
     };
 
-  return { ok: true, customerName: customer.fullName };
+  return {
+    ok: true,
+    customerName: customer.fullName,
+    itemLabel: picked?.name ?? GIFT_DECLINED_LABEL,
+  };
+}
+
+/**
+ * Tên HIỆN TẠI trong danh mục cho một loạt mã món — dùng cho con số GỘP.
+ *
+ * Khác `grantedItemLabel`: hàm này tra danh mục hôm nay, còn hàm kia đọc tên
+ * đóng băng lúc phát. Một đợt quà đã giao phải giữ tên lúc giao (spec §5.3),
+ * nhưng nhãn của một biểu đồ gộp nhiều đợt thì phải là tên đội đang dùng.
+ */
+export async function giftItemNames(codes: string[]): Promise<Map<string, string>> {
+  const wanted = [...new Set(codes.filter((c) => c && c !== GIFT_DECLINED))];
+  const map = new Map<string, string>();
+  if (codes.includes(GIFT_DECLINED)) map.set(GIFT_DECLINED, GIFT_DECLINED_LABEL);
+  if (wanted.length === 0) return map;
+
+  const [packageRows, itemRows] = await Promise.all([
+    db
+      .select({ code: insurancePackages.code, name: insurancePackages.name })
+      .from(insurancePackages)
+      .where(inArray(insurancePackages.code, wanted)),
+    db
+      .select({ code: giftItems.code, name: giftItems.name })
+      .from(giftItems)
+      .where(inArray(giftItems.code, wanted)),
+  ]);
+
+  for (const row of [...packageRows, ...itemRows]) map.set(row.code, row.name);
+  return map;
+}
+
+/**
+ * Chữ hiện cho MỘT đợt đã phát — lấy TÊN LÚC PHÁT trong `snapshot.basket`.
+ *
+ * Không tra danh mục hiện tại: đợt đã phát phải đóng băng (spec §5.3), nên đổi
+ * tên món hôm nay không được viết lại thứ đã giao cho khách hôm qua. Mã lạ
+ * không có trong rổ đóng băng thì trả về chính mã đó, để màn không hiện ô trống.
+ */
+export function grantedItemLabel(chosenItem: string, snapshot: unknown): string {
+  if (chosenItem === GIFT_DECLINED) return GIFT_DECLINED_LABEL;
+  const basket = (snapshot as GiftSimulateResult | null)?.basket ?? [];
+  return basket.find((b) => b.code === chosenItem)?.name ?? chosenItem;
 }

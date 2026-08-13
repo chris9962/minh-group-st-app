@@ -14,6 +14,7 @@ import {
   serviceTypes,
   services,
 } from "./db/schema";
+import { giftItemNames } from "./gift";
 import { statsByDepartment, type Range } from "./org";
 
 /**
@@ -393,13 +394,26 @@ async function giftsBlock(
           ? eq(customers.createdBy, actorId)
           : sql`false`;
 
-  const byType = await db
-    .select({ label: giftGrants.chosenItem, count: sql<number>`count(*)::int` })
+  /**
+   * Gộp theo MÃ món (#74), rồi mới đổi sang tên để hiện.
+   *
+   * Gộp theo tên thì admin đổi tên món ở P-82 là một món tách thành hai dòng —
+   * tên cũ và tên mới — trong cùng một biểu đồ.
+   *
+   * Tên lấy từ DANH MỤC HIỆN TẠI, khác chỗ hiện quà của một khách: ở đó phải
+   * đóng băng tên lúc phát (spec §5.3), còn ở đây là con số gộp của nhiều đợt,
+   * và nhãn phải khớp với tên đội đang gọi món đó hôm nay.
+   */
+  const byCode = await db
+    .select({ code: giftGrants.chosenItem, count: sql<number>`count(*)::int` })
     .from(giftGrants)
     .innerJoin(customers, eq(customers.id, giftGrants.customerId))
     .where(and(inRange, scope))
     .groupBy(giftGrants.chosenItem)
     .orderBy(sql`count(*) desc`);
+
+  const names = await giftItemNames(byCode.map((r) => r.code));
+  const byType = byCode.map((r) => ({ label: names.get(r.code) ?? r.code, count: r.count }));
 
   /**
    * "Đủ điều kiện nhưng chưa phát" — KHÔNG lọc theo kỳ đang xem.

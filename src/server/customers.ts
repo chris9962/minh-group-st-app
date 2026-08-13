@@ -11,6 +11,7 @@ import type {
   CustomerSort,
   ExistingCustomer,
 } from "@/lib/api/customers";
+import { GIFT_DECLINED, GIFT_DECLINED_LABEL } from "@/lib/api/customers";
 import type { Page } from "@/lib/api/pagination";
 import type { PageArgs } from "./pagination";
 import { BUSINESS_TIMEZONE, digitsOnly } from "@/lib/format";
@@ -18,7 +19,7 @@ import { can, recordVisibility, type RecordVisibility } from "@/lib/permissions"
 import type { GiftSimulateResult } from "@/lib/api/settings";
 import type { User } from "@/lib/types";
 import { db, uniqueViolationOf } from "./db/client";
-import { giftForCustomer, recomputeGiftCase } from "./gift";
+import { giftForCustomer, grantedItemLabel, recomputeGiftCase } from "./gift";
 import {
   bankAccounts,
   banks,
@@ -203,7 +204,18 @@ function decorate(page: ReturnType<typeof pickPage>) {
         when ${giftGrants.id} is not null then 'given'
         when cardinality(${page.giftBasket}) > 0 then 'eligible'
         else 'none' end`,
-      givenItem: giftGrants.chosenItem,
+      /**
+       * `chosen_item` giữ MÃ món (#74). Chữ hiện lên lấy TÊN LÚC PHÁT trong
+       * `snapshot.basket`, không tra danh mục hiện tại: đợt đã phát phải đóng
+       * băng (spec §5.3). Mã lạ thì trả về chính mã, để ô không trống trơn.
+       */
+      givenItem: sql<string | null>`case
+        when ${giftGrants.id} is null then null
+        when ${giftGrants.chosenItem} = ${GIFT_DECLINED} then ${GIFT_DECLINED_LABEL}
+        else coalesce(
+          (select b->>'name' from jsonb_array_elements(${giftGrants.snapshot}->'basket') b
+            where b->>'code' = ${giftGrants.chosenItem} limit 1),
+          ${giftGrants.chosenItem}) end`,
       channel: sql<string>`coalesce(${channels.name}, '')`,
       createdAt: page.createdAt,
     })
@@ -675,7 +687,11 @@ export async function customerDetailFor(
      * thứ đã phát cho khách.
      */
     gift: grant
-      ? { ...(grant.snapshot as GiftSimulateResult), given: true, givenItem: grant.chosenItem }
+      ? {
+          ...(grant.snapshot as GiftSimulateResult),
+          given: true,
+          givenItem: grantedItemLabel(grant.chosenItem, grant.snapshot),
+        }
       : { ...(await giftForCustomer(id)), given: false, givenItem: null },
   };
 }
