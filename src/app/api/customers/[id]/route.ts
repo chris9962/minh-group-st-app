@@ -17,13 +17,30 @@ export async function GET(request: Request, { params }: Params) {
   if (!detail) return notFound();
 
   /**
-   * Chỉ ghi nhật ký khi người xem THẬT SỰ nhận được số CCCD đầy đủ — đó là lượt
-   * xem nhạy cảm mà P-93 cần lần lại (`server/audit.ts`).
+   * MỌI lượt mở hồ sơ khách đều vào nhật ký (`mgst-db-design.md` §3 và §6).
    *
-   * Ghi mọi lượt mở hồ sơ thì nhật ký đầy tiếng ồn: nhân viên bấm qua bấm lại
-   * mấy chục khách một buổi, và lúc cần tra "ai đã đọc CCCD của khách này" thì
-   * phải lọc giữa hàng nghìn dòng vô thưởng vô phạt.
+   * Hồ sơ khách không áp trục phạm vi (spec §2.1b) nên mọi nhân viên đọc được
+   * địa chỉ và 4 số cuối CCCD của mọi khách trong công ty. Không chốt nào chặn
+   * họ, nên nhật ký là thứ duy nhất trả lời được "ai đã đọc hồ sơ này".
+   *
+   * Lượt thấy số CCCD ĐẦY ĐỦ ghi thành một dòng riêng, hành động
+   * `access-id-number`. Hai dòng cho một lượt gọi là cố ý: P-93 có ô lọc theo
+   * hành động, nên tra "ai đọc CCCD" vẫn ra đúng tập cũ, không lẫn với lượt mở
+   * hồ sơ thường.
+   *
+   * ⚠️ Bảng phình nhanh hơn hẳn. Ước lượng 17 nhân viên × 30 lượt mở mỗi ngày
+   * là khoảng 500 dòng một ngày. Ngày nó thành vấn đề thì cách chữa là gộp —
+   * một người xem một khách trong một giờ chỉ ghi một dòng — chứ không phải bỏ
+   * ghi.
    */
+  await logAudit(guard.actor, {
+    module: "customer",
+    action: "view-detail",
+    targetLabel: `Mở hồ sơ ${detail.customer.fullName}`,
+    targetTable: "customers",
+    targetId: id,
+  });
+
   if (detail.customer.idNumber && !detail.customer.idNumberMasked) {
     await logAudit(guard.actor, {
       module: "customer",
