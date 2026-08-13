@@ -1,4 +1,4 @@
-import { and, eq, gte, lte, sql } from "drizzle-orm";
+import { and, asc, eq, gte, lte, sql } from "drizzle-orm";
 import { monthRange } from "@/lib/format";
 import { bankingPointsFor, type ScoringAccount } from "@/rules";
 import { db } from "./db/client";
@@ -116,45 +116,56 @@ async function scoringAccountsOf(
  * điểm KPI dính tới lương.
  */
 export async function recomputeKpi(userId: string, yearMonth: string): Promise<void> {
+  await db.transaction((tx) => recomputeKpiOn(tx, userId, yearMonth));
+}
+
+/**
+ * Thân của `recomputeKpi`, chạy trên một transaction CÓ SẴN.
+ *
+ * Tách ra để `recomputeKpiForMonth` bọc cả vòng lặp trong MỘT transaction. Gọi
+ * `db.transaction` lồng nhau thì Postgres dựng savepoint, và lượt tính cho
+ * người thứ 200 hỏng vẫn để 199 người trước ghi xong — đúng trạng thái nửa vời
+ * mà transaction bao ngoài sinh ra để chặn.
+ */
+async function recomputeKpiOn(tx: Db, userId: string, yearMonth: string): Promise<void> {
   const { from, to } = monthRange(yearMonth);
 
-  await db.transaction(async (tx) => {
-    /**
-     * Khoá theo ĐÚNG ô điểm đang ghi, không khoá bảng: hai lượt cho cùng
-     * (người, tháng) xếp hàng, hai người khác nhau vẫn chạy song song. Postgres
-     * nhả khoá khi transaction kết thúc, kể cả khi có lỗi ném ra.
-     *
-     * Mỗi transaction lấy đúng MỘT khoá nên không có thứ tự để đảo, tức không
-     * có deadlock. Sáu nơi gọi hàm này đều đứng ngoài transaction của chúng.
-     */
-    await tx.execute(
-      sql`select pg_advisory_xact_lock(hashtext(${userId}), hashtext(${yearMonth}))`,
-    );
+  /**
+   * Khoá theo ĐÚNG ô điểm đang ghi, không khoá bảng: hai lượt cho cùng
+   * (người, tháng) xếp hàng, hai người khác nhau vẫn chạy song song. Postgres
+   * nhả khoá khi transaction kết thúc, kể cả khi có lỗi ném ra.
+   *
+   * Mỗi lượt gọi lấy đúng MỘT khoá, và `recomputeKpiForMonth` duyệt người theo
+   * thứ tự `id` cố định — hai lượt chạy song song xin khoá cùng thứ tự nên
+   * không có deadlock.
+   */
+  await tx.execute(
+    sql`select pg_advisory_xact_lock(hashtext(${userId}), hashtext(${yearMonth}))`,
+  );
 
-    // Nối tiếp chứ không `Promise.all`: một transaction đi trên một kết nối,
-    // gửi hai câu cùng lúc lên đó là lỗi giao thức.
-    const accounts = await scoringAccountsOf(tx, userId, from, to);
-    const service = await servicePointsOf(tx, userId, from, to);
-    const banking = bankingPointsFor(accounts, yearMonth);
+  // Nối tiếp chứ không `Promise.all`: một transaction đi trên một kết nối,
+  // gửi hai câu cùng lúc lên đó là lỗi giao thức.
+  const accounts = await scoringAccountsOf(tx, userId, from, to);
+  const service = await servicePointsOf(tx, userId, from, to);
+  const banking = bankingPointsFor(accounts, yearMonth);
 
-    await tx
-      .insert(kpiScores)
-      .values({
-        userId,
-        yearMonth,
+  await tx
+    .insert(kpiScores)
+    .values({
+      userId,
+      yearMonth,
+      bankingPoints: String(banking),
+      servicePoints: String(service),
+      updatedAt: new Date(),
+    })
+    .onConflictDoUpdate({
+      target: [kpiScores.userId, kpiScores.yearMonth],
+      set: {
         bankingPoints: String(banking),
         servicePoints: String(service),
         updatedAt: new Date(),
-      })
-      .onConflictDoUpdate({
-        target: [kpiScores.userId, kpiScores.yearMonth],
-        set: {
-          bankingPoints: String(banking),
-          servicePoints: String(service),
-          updatedAt: new Date(),
-        },
-      });
-  });
+      },
+    });
 }
 
 /**
@@ -188,7 +199,25 @@ export async function recomputeKpiForCustomer(
  * song thì cạn sạch pool 10 kết nối và làm nghẽn các request đang phục vụ.
  */
 export async function recomputeKpiForMonth(yearMonth: string): Promise<number> {
-  const rows = await db.select({ id: users.id }).from(users).where(eq(users.active, true));
-  for (const row of rows) await recomputeKpi(row.id, yearMonth);
-  return rows.length;
+  /**
+   * MỘT transaction cho cả vòng lặp: hoặc cả công ty chấm theo hệ số mới, hoặc
+   * không ai đổi.
+   *
+   * Bản cũ mở một transaction cho mỗi người. Timeout hay lỗi giữa chừng để lại
+   * nửa công ty theo hệ số mới, nửa theo hệ số cũ — không báo gì, không có lượt
+   * chạy lại, và admin không có cách nào biết dữ liệu đang ở trạng thái nào.
+   *
+   * Sắp theo `id` để hai lượt chạy song song xin khoá cùng thứ tự, tức không có
+   * deadlock. Vẫn tuần tự chứ không song song: bắn song song thì cạn pool 10
+   * kết nối và làm nghẽn các request đang phục vụ.
+   */
+  return db.transaction(async (tx) => {
+    const rows = await tx
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.active, true))
+      .orderBy(asc(users.id));
+    for (const row of rows) await recomputeKpiOn(tx, row.id, yearMonth);
+    return rows.length;
+  });
 }
