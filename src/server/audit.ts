@@ -5,7 +5,7 @@ import { BUSINESS_TIMEZONE } from "@/lib/format";
 import { db } from "./db/client";
 import { auditLog, users } from "./db/schema";
 import type { PageArgs } from "./pagination";
-import { Action, type ModuleKey, type User } from "@/lib/types";
+import { Action, isRealIsoDate, type ModuleKey, type User } from "@/lib/types";
 
 /**
  * Ghi nhật ký truy vết (P-93) — append-only, không có đường sửa/xoá.
@@ -55,7 +55,17 @@ export type AuditLogFilters = {
   to: string;
 };
 
-const YEAR_MONTH_DAY = /^\d{4}-\d{2}-\d{2}$/;
+/**
+ * Ngày lọc phải ĐÚNG HÌNH DẠNG và CÓ THẬT.
+ *
+ * Bản cũ chỉ so regex `^\d{4}-\d{2}-\d{2}$`. `2026-02-30` khớp hình dạng đó
+ * nhưng tháng 2 không có ngày 30, nên Postgres từ chối bằng `22008` và cả màn
+ * trả 500. Khoảng ngày nằm trong địa chỉ trang, nên một link cũ bị sửa là đủ.
+ *
+ * Ngày sai thì BỎ QUA điều kiện lọc đó, không trả 400 — cùng lối nghĩ với
+ * `uuidParam`.
+ */
+const usableDate = isRealIsoDate;
 
 /**
  * Khoảng ngày so THẲNG trên cột `at`, không bọc `at time zone` quanh nó.
@@ -80,10 +90,10 @@ const YEAR_MONTH_DAY = /^\d{4}-\d{2}-\d{2}$/;
 const dateRange = (from: string, to: string): (SQL | undefined)[] => [
   // Ngày sai định dạng thì bỏ qua, không trả 400 — link cũ hay ô địa chỉ gõ
   // nhầm không đáng làm hỏng cả màn (cùng lối nghĩ với `uuidParam`).
-  YEAR_MONTH_DAY.test(from)
+  usableDate(from)
     ? sql`${auditLog.at} >= ((${from}::date)::timestamp at time zone ${BUSINESS_TIMEZONE})`
     : undefined,
-  YEAR_MONTH_DAY.test(to)
+  usableDate(to)
     ? sql`${auditLog.at} < ((${to}::date + 1)::timestamp at time zone ${BUSINESS_TIMEZONE})`
     : undefined,
 ];

@@ -17,7 +17,7 @@ import type { PageArgs } from "./pagination";
 import { BUSINESS_TIMEZONE, digitsOnly } from "@/lib/format";
 import { can, recordVisibility, type RecordVisibility } from "@/lib/permissions";
 import type { GiftSimulateResult } from "@/lib/api/settings";
-import type { User } from "@/lib/types";
+import { isRealIsoDate, type User } from "@/lib/types";
 import { db, uniqueViolationOf } from "./db/client";
 import { giftForCustomer, grantedItemLabel, recomputeGiftCase } from "./gift";
 import {
@@ -60,7 +60,17 @@ const createdDay = sql`(${customers.createdAt} at time zone ${BUSINESS_TIMEZONE}
 
 const createdDayText = sql<string>`to_char(${customers.createdAt} at time zone ${BUSINESS_TIMEZONE}, 'YYYY-MM-DD')`;
 
-const YEAR_MONTH_DAY = /^\d{4}-\d{2}-\d{2}$/;
+/**
+ * Ngày lọc phải ĐÚNG HÌNH DẠNG và CÓ THẬT.
+ *
+ * Bản cũ chỉ so regex `^\d{4}-\d{2}-\d{2}$`. `2026-02-30` khớp hình dạng đó
+ * nhưng tháng 2 không có ngày 30, nên Postgres từ chối bằng `22008` và cả màn
+ * trả 500. Khoảng ngày nằm trong địa chỉ trang, nên một link cũ bị sửa là đủ.
+ *
+ * Ngày sai thì BỎ QUA điều kiện lọc đó, không trả 400 — cùng lối nghĩ với
+ * `uuidParam`.
+ */
+const usableDate = isRealIsoDate;
 
 export type CustomerFilters = {
   search: string;
@@ -121,8 +131,8 @@ function customerFilters(query: CustomerFilters): SQL | undefined {
     query.channelId ? eq(customers.channelId, query.channelId) : undefined,
     // Ngày sai định dạng thì BỎ QUA, không trả 400: link cũ hay ô địa chỉ gõ
     // nhầm không đáng làm hỏng cả màn (cùng lối nghĩ với `uuidParam`).
-    YEAR_MONTH_DAY.test(query.from) ? sql`${createdDay} >= ${query.from}::date` : undefined,
-    YEAR_MONTH_DAY.test(query.to) ? sql`${createdDay} <= ${query.to}::date` : undefined,
+    usableDate(query.from) ? sql`${createdDay} >= ${query.from}::date` : undefined,
+    usableDate(query.to) ? sql`${createdDay} <= ${query.to}::date` : undefined,
   ].filter(Boolean) as SQL[];
 
   return parts.length > 0 ? and(...parts) : undefined;

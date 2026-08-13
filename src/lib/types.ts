@@ -20,7 +20,7 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
  * `Invalid Date`; `safeParse` không bắt lỗi ném ra, route không có `try/catch`,
  * nên người dùng nhận 500 thay vì câu báo lỗi. Xoá trống ô ngày là chạm tới.
  */
-const isRealIsoDate = (v: string): boolean => {
+export const isRealIsoDate = (v: string): boolean => {
   if (!ISO_DATE.test(v)) return false;
   const time = Date.parse(`${v}T00:00:00Z`);
   return !Number.isNaN(time) && new Date(time).toISOString().startsWith(v);

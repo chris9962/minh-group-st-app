@@ -28,7 +28,7 @@ import {
 import type { Page } from "@/lib/api/pagination";
 import { businessDay, businessMonth } from "@/lib/format";
 import { can, recordVisibility, type RecordVisibility } from "@/lib/permissions";
-import { InsuranceProduct, type User } from "@/lib/types";
+import { InsuranceProduct, isRealIsoDate, type User } from "@/lib/types";
 import { db } from "./db/client";
 import {
   customers,
@@ -50,7 +50,17 @@ import type { PageArgs } from "./pagination";
 /** Vô hiệu ký tự đại diện của `LIKE` — gõ `%` phải ra "không có kết quả". */
 const likeEscape = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
 
-const YEAR_MONTH_DAY = /^\d{4}-\d{2}-\d{2}$/;
+/**
+ * Ngày lọc phải ĐÚNG HÌNH DẠNG và CÓ THẬT.
+ *
+ * Bản cũ chỉ so regex `^\d{4}-\d{2}-\d{2}$`. `2026-02-30` khớp hình dạng đó
+ * nhưng tháng 2 không có ngày 30, nên Postgres từ chối bằng `22008` và cả màn
+ * trả 500. Khoảng ngày nằm trong địa chỉ trang, nên một link cũ bị sửa là đủ.
+ *
+ * Ngày sai thì BỎ QUA điều kiện lọc đó, không trả 400 — cùng lối nghĩ với
+ * `uuidParam`.
+ */
+const usableDate = isRealIsoDate;
 
 export type InsuranceFilters = {
   search: string;
@@ -240,8 +250,8 @@ const orderFilters = (actor: User, query: InsuranceFilters): SQL | undefined => 
     productFilter(query.product),
     // Ngày sai định dạng thì bỏ qua, không trả 400 — link cũ hay ô địa chỉ gõ
     // nhầm không đáng làm hỏng cả màn (cùng lối nghĩ với `uuidParam`).
-    YEAR_MONTH_DAY.test(query.from) ? gte(insuranceOrders.orderDate, query.from) : undefined,
-    YEAR_MONTH_DAY.test(query.to) ? lte(insuranceOrders.orderDate, query.to) : undefined,
+    usableDate(query.from) ? gte(insuranceOrders.orderDate, query.from) : undefined,
+    usableDate(query.to) ? lte(insuranceOrders.orderDate, query.to) : undefined,
     staffFilter(query),
   ].filter(Boolean) as SQL[];
 
