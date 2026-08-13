@@ -292,7 +292,53 @@ export function canActOn(actor: User | null, target: User): boolean {
   if (!actor) return false;
   if (can(actor, 'system', 'grant-permission')) return true;
   if (can(target, 'system', 'grant-permission')) return false;
-  return ROLE_RANK[target.role] <= ROLE_RANK[actor.role];
+  if (ROLE_RANK[target.role] > ROLE_RANK[actor.role]) return false;
+
+  /**
+   * TẦM NHÌN của mục tiêu phải nằm trong tầm nhìn của người thao tác.
+   *
+   * So bậc không đủ. `inVisibleScope` hỏi mục tiêu THUỘC phòng nào, còn chốt
+   * này hỏi mục tiêu VỚI TỚI phòng nào — hai câu hỏi khác nhau với người quản
+   * phòng ngoài phòng mình. Ca thật: `quyenpgd` thuộc KD1 nhưng quản KD1+KD2,
+   * nên Phó phòng KD1 đặt lại được mật khẩu của họ rồi đăng nhập vào và đọc
+   * luôn KD2 — một phòng người đó không có quyền thấy.
+   */
+  const actorReach = reachOf(actor);
+  if (actorReach === null) return true;
+  const targetReach = reachOf(target);
+  if (targetReach === null) return false;
+  return targetReach.every((id) => actorReach.includes(id));
+}
+
+/**
+ * Những phòng một người ĐỌC ĐƯỢC BẢN GHI, gộp bốn module nghiệp vụ.
+ * `null` = toàn công ty.
+ *
+ * Chỉ soi bốn hành động ĐỌC/GHI bản ghi. Phạm vi của một hành động quản trị —
+ * `manage-bank-catalog`, `configure-catalog`, `manage-referral-codes` — luôn là
+ * `company` vì danh mục vốn dùng chung, và nó KHÔNG nói gì về việc người đó đọc
+ * được bản ghi của phòng nào. Gộp cả chúng vào thì mọi Trưởng phòng đều thành
+ * "toàn công ty" và chốt này mất tác dụng.
+ *
+ * Cộng phòng mình THUỘC VỀ vào danh sách phòng QUẢN: hai nguồn khác nhau, và
+ * người quản 0 phòng vẫn đọc được phòng mình qua phạm vi `own` của danh bạ.
+ */
+const RECORD_MODULES: ModuleKey[] = ['insurance', 'banking', 'services', 'staff'];
+const RECORD_ACTIONS: Action[] = ['view-summary', 'view-detail', 'update', 'delete', 'export'];
+
+function reachOf(user: User): string[] | null {
+  const ids = new Set(user.managedDepartmentIds);
+  if (user.departmentId) ids.add(user.departmentId);
+
+  for (const p of user.permissions) {
+    if (p.scope !== 'company') continue;
+    if (!RECORD_ACTIONS.includes(p.action)) continue;
+    // `customer` nằm ngoài `RECORD_MODULES`: hồ sơ khách KHÔNG áp trục phạm vi
+    // (spec §2.1b), nên `customer:view-detail` của MỌI người đều là `company`.
+    // Tính nó vào thì ai cũng thành "toàn công ty" và chốt này mất tác dụng.
+    if (p.module === '*' || RECORD_MODULES.includes(p.module)) return null;
+  }
+  return [...ids];
 }
 
 /**
