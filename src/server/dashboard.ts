@@ -46,12 +46,28 @@ export type DashboardVisibility =
  * nhắc, nhưng ngày ai đó cấp lệch tay thì nó nghiêng về phía đóng.
  */
 export function dashboardVisibility(actor: User): DashboardVisibility {
-  const scopes = (["banking", "insurance", "services"] as const)
-    .map((m) => scopeFor(actor, m, "view-summary"))
-    .filter((s): s is Scope => s !== null);
-  if (scopes.length === 0) return { kind: "none" };
+  const scopes = (["banking", "insurance", "services"] as const).map((m) =>
+    scopeFor(actor, m, "view-summary"),
+  );
+  if (scopes.every((s) => s === null)) return { kind: "none" };
 
-  const narrowest = scopes.reduce((a, b) => (SCOPES.indexOf(b) < SCOPES.indexOf(a) ? b : a));
+  /**
+   * KHÔNG có quyền ở một module thì hẹp hơn mọi mức, kể cả `own`.
+   *
+   * Bản cũ lọc bỏ module `null` khỏi danh sách rồi mới lấy mức hẹp nhất, tức
+   * module không được cấp coi như không tồn tại. Người chỉ có `ngân hàng` phạm
+   * vi toàn công ty vì vậy thấy trọn số đơn bảo hiểm, số dịch vụ và bảng xếp
+   * hạng 15 phòng — ngược hẳn câu "nghiêng về phía đóng" ngay trên hàm này. Ca
+   * thật là vai "Kinh doanh tổng hợp" của spec §10.1, chỉ có module ngân hàng.
+   *
+   * Rơi về `personal` chứ không `none`: họ vẫn được xem phần mình ở module
+   * được cấp, và bản ghi của chính mình thì họ tự tạo ra.
+   */
+  if (scopes.some((s) => s === null)) return { kind: "personal" };
+
+  const narrowest = (scopes as Scope[]).reduce((a, b) =>
+    SCOPES.indexOf(b) < SCOPES.indexOf(a) ? b : a,
+  );
   if (narrowest === "company") return { kind: "company" };
   if (narrowest === "own") return { kind: "personal" };
 
