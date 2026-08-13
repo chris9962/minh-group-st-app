@@ -162,6 +162,13 @@
       "when": 1786635600000,
       "tag": "0022_gift_grants_chosen_code",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1786722000000,
+      "tag": "0023_bank_accounts_opened_asc",
+      "breakpoints": true
     }
   ]
 }

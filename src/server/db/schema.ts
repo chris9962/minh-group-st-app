@@ -595,6 +595,21 @@ export const bankAccounts = pgTable(
       sql`created_by_department_id, opened_date desc nulls last, created_at desc, id`,
     ),
     index("bank_accounts_opened").on(sql`opened_date desc nulls last, created_at desc, id`),
+    /**
+     * Bản TĂNG DẦN của hai chỉ mục trên — bấm tiêu đề cột "Ngày" lần thứ hai.
+     *
+     * Postgres đọc ngược `opened_date desc nulls last` ra `asc nulls FIRST`, mà
+     * câu truy vấn hỏi `asc nulls last`. Lệch ngay khoá đầu nên planner bỏ hẳn
+     * chỉ mục: đo trên 200.000 dòng là Seq Scan 19,7 ms so với 0,07 ms.
+     *
+     * `insurance_orders` và `services` không cần cặp này. Chỉ mục của chúng khai
+     * `desc` trơn, đọc ngược ra `asc nulls last` khớp đúng khoá đầu; chỉ khoá
+     * cuối `id` lệch và `Incremental Sort` chữa được.
+     */
+    index("bank_accounts_dept_opened_asc").on(
+      sql`created_by_department_id, opened_date asc nulls last, created_at asc, id asc`,
+    ),
+    index("bank_accounts_opened_asc").on(sql`opened_date asc nulls last, created_at asc, id asc`),
     check(
       "bank_accounts_done_filled",
       sql`status = 'creating' or (account_number is not null and opened_date is not null)`,
