@@ -34,9 +34,9 @@ import {
  * - kênh: kênh của khách CỘNG kênh của từng tài khoản, vì mỗi tài khoản mở qua
  *   một kênh riêng và kênh Bệnh viện góp thêm món vào rổ (spec §5.2 bước 2),
  * - phòng của NGƯỜI LẬP HỒ SƠ KHÁCH, cùng trục với điểm KPI (câu 7.11) — chứ
- *   không phải phòng của người bấm nút xem, và đọc từ cột SNAPSHOT
- *   `customers.created_by_department_id` chứ không tra sống sang `users`: người
- *   lập hồ sơ chuyển phòng không được viết lại rổ quà của khách cũ (#8).
+ *   không phải phòng của người bấm nút xem. Đọc cột
+ *   `customers.created_by_department_id`, và `writeStaff` viết lại cột đó khi
+ *   người lập hồ sơ chuyển phòng, nên rổ quà đi theo người (chốt 13/08).
  */
 export async function giftInputFor(customerId: string): Promise<GiftInput> {
   const [accountRows, [customerRow]] = await Promise.all([

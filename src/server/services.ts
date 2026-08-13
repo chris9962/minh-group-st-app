@@ -352,8 +352,8 @@ export async function createService(actor: User, form: ServiceForm): Promise<Ser
       note: form.note,
       serviceDate,
       createdBy: actor.id,
-      // Snapshot đơn vị LÚC TẠO (#8) — không bao giờ update lại khi người này
-      // luân chuyển phòng, nếu không báo cáo tháng trước tự viết lại.
+      // Đơn vị của người tạo lúc tạo. Người này chuyển phòng thì `writeStaff`
+      // viết lại cột này cho mọi dòng của họ (chốt 13/08).
       createdByDepartmentId: actor.departmentId,
       wardId: actor.wardId,
       wardName: ward?.name ?? null,

@@ -470,13 +470,18 @@ export const customers = pgTable(
     giftBasket: text("gift_basket").array().notNull().default([]),
     createdBy: uuid("created_by").references(() => users.id),
     /**
-     * Snapshot phòng LÚC LẬP HỒ SƠ (#8) — không bao giờ update lại khi người này
-     * luân chuyển.
+     * Phòng của người lập hồ sơ. `writeStaff` viết lại cột này cho mọi khách của
+     * họ khi họ chuyển phòng — dữ liệu đi theo người (chốt 13/08).
      *
      * Khách không phải bản ghi nghiệp vụ, nhưng vẫn cần cột này vì thể lệ kỳ
      * 2026-08 (mục 4 lưu ý 2) cho Phòng Y quy đổi quà TH5/TH6, và "phòng của
-     * khách" đọc theo phòng người lập hồ sơ. Tra sống qua `users.department_id`
-     * thì chuyển phòng một người là viết lại rổ quà của mọi khách họ từng lập.
+     * khách" đọc theo phòng người lập hồ sơ. Giữ cột thay vì nối `users` lúc
+     * truy vấn: nối thì mất chỉ mục và phải nối trước khi cắt trang
+     * (AGENTS.md §5.2).
+     *
+     * ⚠️ Chuyển phòng ĐỔI RỔ QUÀ của khách chưa phát: `updateStaff` gọi
+     * `recomputeGiftCase` cho từng khách ngay sau lượt chuyển. Đợt ĐÃ phát
+     * không đụng — `gift_grants.snapshot` đóng băng (spec §5.3).
      */
     createdByDepartmentId: uuid("created_by_department_id").references(() => departments.id),
     createdAt: createdAt(),

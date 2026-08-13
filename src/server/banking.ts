@@ -573,8 +573,8 @@ export async function startBankAccount(
         channelId: customer.channelId,
         channelDetail: customer.channelDetail,
         createdBy: actor.id,
-        // Snapshot phòng LÚC TẠO (#8) — không bao giờ update lại khi người này
-        // luân chuyển, nếu không báo cáo tháng trước tự đổi theo.
+        // Đơn vị của người tạo lúc tạo. Người này chuyển phòng thì `writeStaff`
+        // viết lại cột này cho mọi dòng của họ (chốt 13/08).
         createdByDepartmentId: actor.departmentId,
       })
       .returning({ id: bankAccounts.id });

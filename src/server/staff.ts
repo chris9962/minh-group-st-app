@@ -23,8 +23,12 @@ import { SCOPELESS_ACTIONS, SCOPES, Scope, type Action, type User } from "@/lib/
 import { forbidden, isUuid, notFound } from "./auth";
 import { db, uniqueViolationOf } from "./db/client";
 import {
+  bankAccounts,
+  customers,
   departments,
+  insuranceOrders,
   kpiScores,
+  services,
   sessions,
   userManagedDepartments,
   userPermissions,
@@ -32,6 +36,7 @@ import {
 } from "./db/schema";
 import type { PageArgs } from "./pagination";
 import { daysLeftOf, pointsExpr, staffSearchWhere, targetExpr } from "./people";
+import { recomputeGiftCase } from "./gift";
 import { relationsFor } from "./users";
 
 /**
@@ -421,6 +426,32 @@ async function writeStaff(
         wardId: form.wardId || null,
       });
     } else {
+      /**
+       * Chuyển phòng thì DỮ LIỆU ĐI THEO NGƯỜI (chốt 13/08).
+       *
+       * Bốn bảng nghiệp vụ chụp `created_by_department_id` lúc tạo. Đội chốt
+       * bản ghi của một người luôn thuộc phòng họ ĐANG ở, nên lượt chuyển phòng
+       * phải viết lại cột đó — cùng lối với điểm KPI, vốn khoá theo `user_id`
+       * nên vẫn đi theo người.
+       *
+       * Viết lại cột chứ không bỏ cột rồi nối sang `users` lúc truy vấn: nối
+       * thì bốn chỉ mục `*_dept_date` hết tác dụng, và lọc theo phòng buộc phải
+       * nối `users` TRƯỚC khi cắt trang — đúng hình dạng câu hỏi mà AGENTS.md
+       * §5.2 cấm.
+       */
+      const [before] = await tx
+        .select({ departmentId: users.departmentId })
+        .from(users)
+        .where(eq(users.id, id));
+      const movedTo = form.departmentId || null;
+      if (before && before.departmentId !== movedTo) {
+        for (const table of [bankAccounts, insuranceOrders, services, customers])
+          await tx
+            .update(table)
+            .set({ createdByDepartmentId: movedTo })
+            .where(eq(table.createdBy, id));
+      }
+
       await tx
         .update(users)
         .set({
@@ -550,8 +581,29 @@ export async function updateStaff(actor: User, id: string, form: StaffForm): Pro
   if (await usernameTaken(form.username, id)) return { ok: false, code: "username-taken" };
   if (await staffCodeTaken(form.staffCode, id)) return { ok: false, code: "staff-code-taken" };
 
+  const movedDepartment = (current.departmentId ?? null) !== (form.departmentId || null);
+
   const failed = await writeGuarded(id, form, "update");
   if (failed) return { ok: false, code: failed };
+
+  /**
+   * Rổ quà tính lại sau khi chuyển phòng — chốt 13/08.
+   *
+   * Luật quà đọc phòng của người lập hồ sơ khách để biết có áp phần quy đổi của
+   * Phòng Y không (thể lệ mục 4). `writeStaff` vừa dời khách sang phòng mới nên
+   * rổ của họ đã khác, mà cột `customers.gift_basket` lưu sẵn thì chưa biết.
+   *
+   * Đợt ĐÃ phát không đụng tới: `gift_grants.snapshot` đóng băng (spec §5.3),
+   * và `recomputeGiftCase` chỉ ghi cột `gift_basket` của khách.
+   */
+  if (movedDepartment) {
+    const moved = await db
+      .select({ id: customers.id })
+      .from(customers)
+      .where(eq(customers.createdBy, id));
+    for (const row of moved) await recomputeGiftCase(row.id);
+  }
+
   return { ok: true, staff: (await findStaff(id))! };
 }
 

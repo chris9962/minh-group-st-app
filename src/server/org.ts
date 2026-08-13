@@ -263,9 +263,11 @@ function periodRanges(key: string, today: string): { current: Range; previous: R
 /**
  * Đếm tài khoản mở, app đã cài và số khách theo phòng, trong một khoảng ngày.
  *
- * Gộp theo `created_by_department_id` — ĐƠN VỊ CHỤP LÚC TẠO, không tra động từ
- * hồ sơ nhân viên: người luân chuyển phòng không được làm đổi số liệu tháng
- * trước.
+ * Gộp theo `created_by_department_id` — cột trên chính dòng dữ liệu, không nối
+ * sang `users`. Người chuyển phòng thì `writeStaff` viết lại cột đó cho mọi dòng
+ * của họ, nên số liệu đi theo người (chốt 13/08). Nối `users` lúc truy vấn cho
+ * cùng kết quả, nhưng mất bốn chỉ mục `*_dept_date` và buộc nối trước khi cắt
+ * trang — đúng hình dạng câu hỏi mà AGENTS.md §5.2 cấm.
  *
  * "App đã cài" đếm tài khoản có `app_installed` VÀ ngân hàng đó `counts_as_app`
  * — cùng định nghĩa với cảnh báo mềm ở `server/banking.ts`. Đây là phép ĐẾM dữ
