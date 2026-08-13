@@ -240,6 +240,30 @@ phải soi là bảng **lớn thêm theo ngày làm việc**: `bank_accounts`,
 - **Đúng một hàm kiểm quyền**: `src/lib/permissions.ts`. Mọi màn danh sách, chi tiết, xuất Excel đều qua đó
 - Kiểm ở giao diện chỉ để ẩn/hiện. **Ẩn nút không phải là phân quyền** — máy chủ vẫn phải kiểm lại
 - Hồ sơ **khách hàng** không áp trục phạm vi; chỉ **bản ghi nghiệp vụ** mới áp
+- **Chức vụ KHÔNG phải nguồn quyền.** Nó chỉ là bộ quyền mặc định lúc tạo hồ sơ; quyền thật nằm ở `user_permissions`
+
+### 6.1 Ngoại lệ duy nhất: màn Tổng quan P-80 đọc chức vụ
+
+`dashboardVisibility` (`server/dashboard.ts`) đọc thẳng `actor.role`, không đọc quyền:
+
+| Chức vụ | Thấy |
+|---|---|
+| Giám đốc | toàn công ty |
+| Phó giám đốc | các phòng được giao quản |
+| Trưởng phòng · Phó phòng | phòng mình thuộc về |
+| Nhân viên | chỉ số của chính mình |
+
+Chốt 13/08. Lý do: màn này trộn số của ba module, mà ba module có thể được cấp
+ba phạm vi khác nhau. Bản cũ lấy mức hẹp nhất trong số module CÓ quyền và bỏ qua
+module không có quyền — người chỉ được cấp `ngân hàng` toàn công ty vẫn thấy
+trọn số bảo hiểm và dịch vụ. Siết phép so thì màn của một người phụ thuộc ba ô
+quyền rời nhau, không ai đoán trước được họ thấy gì.
+
+Bảng xếp hạng cũng đổi theo chức vụ: Trưởng phòng và Phó phòng thấy **xếp hạng
+nhân viên** trong phòng, vì bảng phòng của họ chỉ có một dòng.
+
+**Ngoại lệ này KHÔNG mở rộng sang màn khác.** Màn danh sách, chi tiết và xuất
+Excel vẫn kiểm quyền qua `permissions.ts`.
 
 ## 7. React
 
