@@ -36,8 +36,12 @@ const BUCKET_LABEL = {
 const installRate = (d: DepartmentRanking) =>
   d.accountsOpened === 0 ? 0 : Math.round((d.appsInstalled / d.accountsOpened) * 100);
 
-const DEPARTMENT_COLUMNS: RankColumn<DepartmentRanking>[] = [
-  { key: "name", label: "Phòng", render: (d) => d.name },
+/**
+ * Bốn cột số dùng chung cho bảng phòng và bảng nhân viên — chỉ cột đầu đổi nhãn.
+ * Viết hai bộ cột là hai chỗ sớm muộn lệch nhau.
+ */
+const rankingColumns = (kind: "department" | "staff"): RankColumn<DepartmentRanking>[] => [
+  { key: "name", label: kind === "staff" ? "Nhân viên" : "Phòng", render: (d) => d.name },
   {
     key: "accountsOpened",
     label: "TK mở",
@@ -259,25 +263,33 @@ export default function DashboardPage() {
                 />
               </SectionCard>
 
+              {/* Trưởng phòng và Phó phòng chỉ thấy một phòng, nên máy chủ đổi
+                  bảng sang xếp hạng nhân viên trong phòng đó (chốt 13/08). Bốn
+                  cột số y hệt, chỉ cột đầu đổi nhãn. */}
               <SectionCard
-                title="Xếp hạng phòng"
+                title={data.rankingKind === "staff" ? "Xếp hạng nhân viên" : "Xếp hạng phòng"}
                 icon={<Trophy size={17} />}
                 meta={periodLabel}
                 className={styles.wide}
               >
                 <RankTable
                   rows={data.departments}
-                  columns={DEPARTMENT_COLUMNS}
+                  columns={rankingColumns(data.rankingKind)}
                   rowKey={(d) => d.id}
                   defaultSort="accountsOpened"
-                  caption="Xếp hạng phòng kinh doanh theo số tài khoản mở, app đã cài, tỉ lệ cài app và số khách hàng"
+                  caption={
+                    data.rankingKind === "staff"
+                      ? "Xếp hạng nhân viên trong phòng theo số tài khoản mở, app đã cài, tỉ lệ cài app và số khách hàng"
+                      : "Xếp hạng phòng kinh doanh theo số tài khoản mở, app đã cài, tỉ lệ cài app và số khách hàng"
+                  }
                 />
                 <p className={styles.footnote}>
-                  Bấm tên cột để sắp xếp. Lật cột <strong>Tỉ lệ cài</strong> để tìm
-                  phòng mở nhiều tài khoản nhưng khách ít cài app — số tài khoản đó
-                  không tính quà, không tính điểm. Số nhỏ bên cạnh là mức thay đổi
-                  so với {previousLabel ?? "kỳ trước"}; chọn khoảng ngày thì không
-                  có kỳ nào để so nên cột này chỉ còn tỉ lệ.
+                  Bấm tên cột để sắp xếp. Lật cột <strong>Tỉ lệ cài</strong> để tìm{" "}
+                  {data.rankingKind === "staff" ? "người" : "phòng"} mở nhiều tài khoản
+                  nhưng khách ít cài app — số tài khoản đó không tính quà, không tính
+                  điểm. Số nhỏ bên cạnh là mức thay đổi so với{" "}
+                  {previousLabel ?? "kỳ trước"}; chọn khoảng ngày thì không có kỳ nào
+                  để so nên cột này chỉ còn tỉ lệ.
                 </p>
               </SectionCard>
 

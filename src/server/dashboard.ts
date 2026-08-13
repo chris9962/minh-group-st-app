@@ -1,8 +1,7 @@
 import { and, eq, gte, inArray, lte, sql, type SQL } from "drizzle-orm";
 import type { DashboardData, DepartmentRanking } from "@/lib/api/dashboard";
 import { BUSINESS_TIMEZONE, businessDay, monthRange } from "@/lib/format";
-import { SCOPES, type Scope, type User } from "@/lib/types";
-import { scopeFor } from "@/lib/permissions";
+import type { User } from "@/lib/types";
 import { db } from "./db/client";
 import {
   bankAccounts,
@@ -13,9 +12,10 @@ import {
   insuranceOrders,
   serviceTypes,
   services,
+  users,
 } from "./db/schema";
 import { giftItemNames } from "./gift";
-import { statsByDepartment, type Range } from "./org";
+import { statsByDepartment, statsByStaff, type Range } from "./org";
 
 /**
  * P-80 · Tổng quan — bốn cách nhìn, một bộ số liệu (chốt 06/08).
@@ -36,38 +36,45 @@ export type DashboardVisibility =
   | { kind: "none" };
 
 /**
- * Phạm vi của màn tổng quan lấy theo mức HẸP NHẤT trong ba module nghiệp vụ.
+ * Phạm vi của màn Tổng quan đọc CHỨC VỤ, cố định theo chức vụ (chốt 13/08).
  *
- * Một màn trộn số của cả ba (ngân hàng · bảo hiểm · dịch vụ) mà mỗi module một
- * phạm vi thì không có cách nào ghi nhãn cho đúng. Lấy mức hẹp nhất là hướng
- * an toàn: người chỉ được xem dịch vụ toàn công ty nhưng ngân hàng phần mình sẽ
- * KHÔNG thấy số ngân hàng của công ty ở đây. Thực tế ba module luôn cùng mức —
- * bộ quyền mặc định cấp chúng theo cụm — nên luật này hầu như không phải cân
- * nhắc, nhưng ngày ai đó cấp lệch tay thì nó nghiêng về phía đóng.
+ * ⚠️ Đây là NGOẠI LỆ có chủ ý của luật "chức vụ không phải nguồn quyền"
+ * (`db/schema.ts`, AGENTS.md §6). Mọi màn khác vẫn kiểm quyền qua
+ * `permissions.ts`; riêng màn này thì không.
+ *
+ * Lý do: một màn trộn số của ba module, mà ba module có thể được cấp ba phạm vi
+ * khác nhau. Bản cũ lấy mức hẹp nhất trong số module CÓ quyền, và bỏ qua module
+ * không có quyền — nên người chỉ có `ngân hàng` toàn công ty thấy trọn số bảo
+ * hiểm và dịch vụ. Chữa bằng cách siết phép so thì màn của một người phụ thuộc
+ * ba ô quyền rời nhau, không ai đoán trước được họ sẽ thấy gì.
+ *
+ * Chức vụ cho một câu trả lời duy nhất cho mỗi người, đọc ra được từ hồ sơ.
  */
 export function dashboardVisibility(actor: User): DashboardVisibility {
-  const scopes = (["banking", "insurance", "services"] as const)
-    .map((m) => scopeFor(actor, m, "view-summary"))
-    .filter((s): s is Scope => s !== null);
-  if (scopes.length === 0) return { kind: "none" };
+  switch (actor.role) {
+    case "director":
+      return { kind: "company" };
 
-  const narrowest = scopes.reduce((a, b) => (SCOPES.indexOf(b) < SCOPES.indexOf(a) ? b : a));
-  if (narrowest === "company") return { kind: "company" };
-  if (narrowest === "own") return { kind: "personal" };
+    /** Phó GĐ không thuộc phòng nào — họ chỉ có danh sách phòng được giao quản. */
+    case "deputy-director":
+      return actor.managedDepartmentIds.length > 0
+        ? { kind: "departments", departmentIds: actor.managedDepartmentIds }
+        : { kind: "none" };
 
-  /**
-   * `phòng tôi quản` CỘNG phòng mình thuộc về.
-   *
-   * Phó GĐ không thuộc phòng nào nên chỉ còn danh sách phòng quản — đúng ý
-   * "dashboard chỉ có phòng họ quản lý". Trưởng phòng và Phó phòng thì ngược
-   * lại: nhiều người trong số họ chưa được gán quản phòng nào (`manage_scope =
-   * 'none'`), nên nếu chỉ đọc danh sách quản thì màn của họ TRỐNG TRƠN — kể cả
-   * phòng họ đang ngồi. Cộng thêm phòng mình thuộc về là đọc đúng chữ "phòng
-   * họ" mà không phải đi sửa cơ cấu tổ chức trước.
-   */
-  const ids = new Set(actor.managedDepartmentIds);
-  if (actor.departmentId) ids.add(actor.departmentId);
-  return ids.size > 0 ? { kind: "departments", departmentIds: [...ids] } : { kind: "none" };
+    /**
+     * Trưởng phòng và Phó phòng đọc PHÒNG MÌNH THUỘC VỀ, không đọc danh sách
+     * phòng quản: hai chức vụ này luôn quản đúng phòng đó, và `StaffForm` đã
+     * ràng buộc chéo hai trường đó từ H9.
+     */
+    case "head":
+    case "deputy-head":
+      return actor.departmentId
+        ? { kind: "departments", departmentIds: [actor.departmentId] }
+        : { kind: "none" };
+
+    default:
+      return { kind: "personal" };
+  }
 }
 
 /** Câu chữ hiện trên màn để người xem biết mình đang nhìn phạm vi nào. */
@@ -451,19 +458,69 @@ async function giftsBlock(
   return { byType, pending: pendingRow?.n ?? 0 };
 }
 
+/** Bốn con số của một dòng, dán từ hai kỳ — dùng chung cho bảng phòng và bảng nhân viên. */
+type Counted = { accountsOpened: number; appsInstalled: number; customers: number };
+const rankRow = (
+  id: string,
+  name: string,
+  now: Counted | undefined,
+  before: Counted | undefined,
+): DepartmentRanking => ({
+  id,
+  name,
+  accountsOpened: now?.accountsOpened ?? 0,
+  appsInstalled: now?.appsInstalled ?? 0,
+  customers: now?.customers ?? 0,
+  previousInstallRate:
+    before && before.accountsOpened > 0
+      ? rateOf(before.accountsOpened, before.appsInstalled)
+      : null,
+});
+
 /**
- * Xếp hạng phòng — chỉ những phòng người xem được thấy.
+ * Bảng xếp hạng — PHÒNG hay NHÂN VIÊN, chọn theo chức vụ người xem (chốt 13/08).
  *
- * Dùng chung `statsByDepartment` với bảng P-91: hai màn hỏi đúng một câu, viết
- * hai phép gộp là hai chỗ sớm muộn lệch nhau.
+ * Trưởng phòng và Phó phòng chỉ thấy đúng phòng mình. Bảng phòng của họ có một
+ * dòng, không so được với gì, nên đổi sang xếp hạng nhân viên trong phòng đó.
+ *
+ * Bảng phòng dùng chung `statsByDepartment` với P-91: hai màn hỏi đúng một câu,
+ * viết hai phép gộp là hai chỗ sớm muộn lệch nhau.
  */
-async function departmentRanking(
+async function ranking(
+  actor: User,
   v: DashboardVisibility,
   current: Range,
   previous: Range | null,
-): Promise<DepartmentRanking[]> {
-  // Nhân viên không có bảng xếp hạng phòng: màn của họ là hồ sơ cá nhân.
-  if (v.kind === "personal" || v.kind === "none") return [];
+): Promise<{ kind: "department" | "staff"; rows: DepartmentRanking[] }> {
+  // Nhân viên không có bảng xếp hạng: màn của họ là hồ sơ cá nhân.
+  if (v.kind === "personal" || v.kind === "none") return { kind: "department", rows: [] };
+
+  if (v.kind === "departments" && (actor.role === "head" || actor.role === "deputy-head")) {
+    const [people, now, before] = await Promise.all([
+      db
+        .select({ id: users.id, fullName: users.fullName })
+        .from(users)
+        .where(inArray(users.departmentId, v.departmentIds)),
+      statsByStaff(current, v.departmentIds),
+      previous ? statsByStaff(previous, v.departmentIds) : Promise.resolve(null),
+    ]);
+
+    /**
+     * Người đã CHUYỂN ĐI vẫn có dòng nếu họ còn số trong kỳ.
+     *
+     * `statsByStaff` lọc theo `created_by_department_id` trên bản ghi, mà lượt
+     * chuyển phòng viết lại cột đó (chốt 13/08) — nên thực tế danh sách hai bên
+     * luôn khớp. Gộp thêm cho chắc: thiếu một dòng thì tổng bảng nhân viên không
+     * bằng dòng phòng đó trong bảng của Giám đốc, và không ai giải thích được.
+     */
+    const names = new Map(people.map((p) => [p.id, p.fullName]));
+    for (const id of now.keys()) if (!names.has(id)) names.set(id, "Người đã chuyển đi");
+
+    return {
+      kind: "staff",
+      rows: [...names].map(([id, name]) => rankRow(id, name, now.get(id), before?.get(id))),
+    };
+  }
 
   const [rows, now, before] = await Promise.all([
     db
@@ -478,19 +535,10 @@ async function departmentRanking(
     previous ? statsByDepartment(previous) : Promise.resolve(null),
   ]);
 
-  return rows.map((d) => {
-    const s = now.get(d.id);
-    const p = before?.get(d.id);
-    return {
-      id: d.id,
-      name: d.name,
-      accountsOpened: s?.accountsOpened ?? 0,
-      appsInstalled: s?.appsInstalled ?? 0,
-      customers: s?.customers ?? 0,
-      previousInstallRate:
-        p && p.accountsOpened > 0 ? rateOf(p.accountsOpened, p.appsInstalled) : null,
-    };
-  });
+  return {
+    kind: "department",
+    rows: rows.map((d) => rankRow(d.id, d.name, now.get(d.id), before?.get(d.id))),
+  };
 }
 
 /* ── Ghép lại ──────────────────────────────────────────────────────────── */
@@ -502,14 +550,14 @@ export async function dashboardFor(
   const v = dashboardVisibility(actor);
   const { current, previous } = periodRanges(periodKey, businessDay());
 
-  const [banking, previousBanking, insurance, servicesData, gifts, ranking, scopeLabel] =
+  const [banking, previousBanking, insurance, servicesData, gifts, ranked, scopeLabel] =
     await Promise.all([
       bankingTotals(v, actor.id, current),
       previous ? bankingTotals(v, actor.id, previous) : Promise.resolve(null),
       insuranceBlock(v, actor.id, current),
       servicesBlock(v, actor.id, current),
       giftsBlock(v, actor.id, current),
-      departmentRanking(v, current, previous),
+      ranking(actor, v, current, previous),
       visibilityLabel(v),
     ]);
 
@@ -534,7 +582,8 @@ export async function dashboardFor(
         giftsPending: gifts.pending,
       },
       insurance,
-      departments: ranking,
+      rankingKind: ranked.kind,
+      departments: ranked.rows,
       services: servicesData,
       gifts,
     },

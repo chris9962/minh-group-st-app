@@ -1,4 +1,4 @@
-import { and, asc, count, eq, gte, lte, sql } from "drizzle-orm";
+import { and, asc, count, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { businessDay, matchesSearch, monthRange, removeDiacritics, uniqueCode } from "@/lib/format";
 import {
   ORG_ERROR,
@@ -300,6 +300,40 @@ export async function statsByDepartment(range: Range) {
       .filter((r) => r.departmentId !== null)
       .map((r) => [r.departmentId as string, r]),
   );
+}
+
+/**
+ * Cùng bốn con số, gộp theo NGƯỜI TẠO thay vì theo phòng.
+ *
+ * Màn Tổng quan của Trưởng phòng và Phó phòng dùng nó: họ chỉ thấy một phòng,
+ * nên bảng xếp hạng phòng của họ có đúng một dòng và không nói lên điều gì.
+ *
+ * Lọc theo `created_by_department_id` chứ không theo danh sách nhân sự đang
+ * thuộc phòng: hai cách cho kết quả khác nhau khi có người vừa chuyển đi. Cách
+ * này bảo đảm tổng bảng nhân viên của Trưởng phòng bằng đúng dòng phòng đó
+ * trong bảng của Giám đốc.
+ */
+export async function statsByStaff(range: Range, departmentIds: string[]) {
+  const rows = await db
+    .select({
+      staffId: bankAccounts.createdBy,
+      accountsOpened: sql<number>`count(*)::int`,
+      appsInstalled: sql<number>`count(*) filter (where ${bankAccounts.appInstalled} and ${banks.countsAsApp})::int`,
+      customers: sql<number>`count(distinct ${bankAccounts.customerId})::int`,
+    })
+    .from(bankAccounts)
+    .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
+    .where(
+      and(
+        eq(bankAccounts.status, "done"),
+        gte(bankAccounts.openedDate, range.from),
+        lte(bankAccounts.openedDate, range.to),
+        inArray(bankAccounts.createdByDepartmentId, departmentIds),
+      ),
+    )
+    .groupBy(bankAccounts.createdBy);
+
+  return new Map(rows.filter((r) => r.staffId !== null).map((r) => [r.staffId as string, r]));
 }
 
 const rateOf = (opened: number, installed: number): number =>

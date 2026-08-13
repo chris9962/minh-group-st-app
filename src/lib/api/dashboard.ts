@@ -71,7 +71,18 @@ export const DashboardData = z.object({
       }),
     ),
   }),
-  /** Xếp hạng phòng — chỉ gồm các phòng người xem được phép thấy. */
+  /**
+   * Bảng xếp hạng đổi theo CHỨC VỤ người xem (chốt 13/08).
+   *
+   * Trưởng phòng và Phó phòng chỉ thấy đúng phòng mình, nên bảng phòng của họ
+   * có một dòng và không so được gì. Với hai chức vụ đó, bảng đổi sang xếp hạng
+   * NHÂN VIÊN trong phòng.
+   *
+   * Bốn cột số giữ nguyên, chỉ đổi cột đầu: tên phòng thành tên nhân viên. Nên
+   * giao diện dùng chung một bảng, chỉ đổi tiêu đề và chú thích.
+   */
+  rankingKind: z.enum(['department', 'staff']),
+  /** Xếp hạng — phòng hoặc nhân viên, tuỳ `rankingKind`. */
   departments: z.array(DepartmentRanking),
   services: z.object({
     byType: z.array(z.object({ label: z.string(), count: z.number() })),
