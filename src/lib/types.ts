@@ -220,6 +220,25 @@ export const ROLE_LABEL: Record<RoleKey, string> = {
 };
 
 /**
+ * Bậc chức vụ — SỐ CÀNG CAO CHỨC VỤ CÀNG CAO.
+ *
+ * Nguồn duy nhất. Hai việc dùng nó: chặn người bậc thấp thao tác lên người bậc
+ * cao hơn (`permissions.ts`), và sắp cột Chức vụ ở các bảng.
+ *
+ * ⚠️ ĐỪNG sắp bảng bằng chính cột `role`. Enum trong database khai theo thứ tự
+ * `director` → `staff`, nên `director` mang số NHỎ nhất và `ORDER BY role DESC`
+ * đẩy Nhân viên lên đầu — mũi tên trên tiêu đề cột nói ngược với thứ tự thấy
+ * được. Sửa 2026-08-14; câu SQL tương ứng là `roleRankExpr` ở `server/people.ts`.
+ */
+export const ROLE_RANK: Record<RoleKey, number> = {
+  director: 4,
+  'deputy-director': 3,
+  head: 2,
+  'deputy-head': 1,
+  staff: 0,
+};
+
+/**
  * Chức danh gợi ý sẵn cho mỗi chức vụ khi TẠO người mới.
  *
  * Khác `ROLE_LABEL`: đây là chữ in trên danh thiếp, người dùng sửa được thành

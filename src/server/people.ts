@@ -1,9 +1,9 @@
 import { and, asc, eq, gte, inArray, lte, sql, type AnyColumn, type SQL } from "drizzle-orm";
 import type { PersonScore } from "@/lib/api/people";
 import type { PersonDetail } from "@/lib/api/person";
-import { businessDay, businessMonth, monthRange, roundPoints } from "@/lib/format";
+import { BUSINESS_TIMEZONE, businessDay, businessMonth, monthRange, roundPoints } from "@/lib/format";
 import { clampScope, inVisibleScope, visibleDepartmentIds } from "@/lib/permissions";
-import { Scope, type User } from "@/lib/types";
+import { ROLE_RANK, Scope, type User } from "@/lib/types";
 import { db } from "./db/client";
 import { grantedItemLabel } from "./gift";
 import {
@@ -155,6 +155,38 @@ export const targetExpr = (yearMonth: string) => sql<number>`coalesce(
     order by t.year_month desc limit 1),
   100
 )`;
+
+/**
+ * Bậc chức vụ viết trong SQL — bản `ROLE_RANK` của `lib/types.ts`, sinh từ
+ * chính hằng số đó nên thêm một vai mới là hai vế đi cùng nhau.
+ *
+ * Sắp bằng chính cột `role` thì Postgres đi theo thứ tự khai enum, mà enum khai
+ * `director` trước `staff`. Giám đốc vì thế mang số nhỏ nhất, và `DESC` đẩy
+ * Nhân viên lên đầu — mũi tên trên tiêu đề cột nói ngược với thứ tự thấy được.
+ */
+export const roleRankExpr: SQL = sql`case ${users.role}
+${sql.join(
+  Object.entries(ROLE_RANK).map(([role, rank]) => sql`when ${role} then ${rank}`),
+  sql` `,
+)}
+else 0 end`;
+
+/**
+ * Người đã có tài khoản tính tới hết tháng `yearMonth`.
+ *
+ * Bảng nhân sự đổi tháng là đổi cột Chỉ tiêu, nên danh sách người phải đổi
+ * theo. Không có điều kiện này thì người lập tài khoản 2026-08 vẫn nằm trong
+ * bảng của 2026-07 với 0 điểm, và thẻ "chưa đạt" đếm cả người chưa vào công ty.
+ *
+ * Mốc là `created_at` — chốt 2026-08-14, KHÔNG thêm cột ngày vào làm. Hai thứ
+ * này khác nhau: người vào từ tháng 5 mà tài khoản lập tháng 8 thì tháng 5 đến
+ * tháng 7 không thấy họ trong bảng.
+ *
+ * ⚠️ Ép `::timestamp` TRƯỚC `at time zone`, và đây là chỗ đã sai một lần ở
+ * `server/audit.ts` — xem ghi chú dài tại đó.
+ */
+export const createdByEndOf = (yearMonth: string): SQL =>
+  sql`${users.createdAt} < ((${monthRange(yearMonth).to}::date + 1)::timestamp at time zone ${BUSINESS_TIMEZONE})`;
 
 /** Vô hiệu ký tự đại diện của `LIKE` — gõ `%` phải ra "không có kết quả". */
 const likeEscape = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
@@ -365,6 +397,9 @@ export async function peopleForExport(
     eq(users.active, true),
     visible === null ? undefined : inArray(users.departmentId, visible),
     query.departmentId ? eq(users.departmentId, query.departmentId) : undefined,
+    // Cùng mốc với màn P-51. Lệch hai vế là bản xuất Excel và bảng trên màn
+    // hình cho hai số khác nhau cho cùng một tháng.
+    createdByEndOf(summaryMonth),
     staffSearchWhere(query.search),
   );
 

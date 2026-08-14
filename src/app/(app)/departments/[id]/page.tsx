@@ -12,17 +12,8 @@ import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusTag } from "@/components/ui/StatusTag";
 import { fetchDepartmentDetail } from "@/lib/api/org";
 import { fetchStaffOptions, type StaffOption } from "@/lib/api/staff";
-import { ROLE_LABEL, type RoleKey } from "@/lib/types";
+import { ROLE_LABEL, ROLE_RANK } from "@/lib/types";
 import styles from "./page.module.scss";
-
-/** Trưởng/Phó phòng sắp lên đầu bảng nhân viên — số càng cao càng lên trước. */
-const ROLE_RANK: Record<RoleKey, number> = {
-  head: 2,
-  "deputy-head": 1,
-  staff: 0,
-  "deputy-director": 0,
-  director: 0,
-};
 
 const EMPLOYEE_COLUMNS: RankColumn<StaffOption>[] = [
   {
@@ -128,20 +119,14 @@ export default function DepartmentDetailPage({
               ) : employees.length === 0 ? (
                 <p className="text-muted">Phòng này chưa có nhân viên nào.</p>
               ) : (
-                <>
-                  <RankTable
-                    rows={employees}
-                    columns={EMPLOYEE_COLUMNS}
-                    rowKey={(s) => s.id}
-                    defaultSort="role"
-                    pageSize={10}
-                    caption="Nhân viên của phòng, Trưởng và Phó phòng nằm đầu bảng"
-                  />
-                  <p className={styles.footnote}>
-                    Gồm cả người <strong>đã khoá</strong> — họ vẫn thuộc phòng này cho
-                    tới khi chuyển sang phòng khác.
-                  </p>
-                </>
+                <RankTable
+                  rows={employees}
+                  columns={EMPLOYEE_COLUMNS}
+                  rowKey={(s) => s.id}
+                  defaultSort="role"
+                  pageSize={10}
+                  caption="Nhân viên của phòng, Trưởng và Phó phòng nằm đầu bảng"
+                />
               )}
             </SectionCard>
           </>

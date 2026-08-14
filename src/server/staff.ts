@@ -35,7 +35,14 @@ import {
   users,
 } from "./db/schema";
 import type { PageArgs } from "./pagination";
-import { daysLeftOf, pointsExpr, staffSearchWhere, targetExpr } from "./people";
+import {
+  createdByEndOf,
+  daysLeftOf,
+  pointsExpr,
+  roleRankExpr,
+  staffSearchWhere,
+  targetExpr,
+} from "./people";
 import { recomputeGiftCase } from "./gift";
 import { relationsFor } from "./users";
 
@@ -103,10 +110,17 @@ export async function staffFor(
       page: { rows: [], total: 0 },
     };
 
-  /** Phạm vi + ô lọc đơn vị. Thẻ tóm tắt đếm trên ĐÚNG tập này. */
+  /**
+   * Phạm vi + ô lọc đơn vị + mốc thời điểm. Thẻ tóm tắt đếm trên ĐÚNG tập này.
+   *
+   * `createdByEndOf` nằm ở đây chứ không ở `where`: thẻ tóm tắt cũng phải bỏ
+   * người chưa có tài khoản trong tháng đang xem, nếu không thì thẻ "chưa đạt"
+   * đếm cả họ.
+   */
   const inScope = and(
     visible === null ? undefined : inArray(users.departmentId, visible),
     query.departmentId ? eq(users.departmentId, query.departmentId) : undefined,
+    createdByEndOf(summaryMonth),
   );
 
   const where = and(
@@ -128,7 +142,10 @@ export async function staffFor(
     // Sắp theo tên đã bỏ dấu: collate mặc định của Postgres xếp `Đặng` sau
     // `Zũng`, người dùng đọc ra là bảng sắp sai.
     name: [direction(sql`mgst_normalize(${users.fullName})`), asc(users.id)],
-    role: [direction(users.role), asc(sql`mgst_normalize(${users.fullName})`), asc(users.id)],
+    // `roleRankExpr` chứ không phải cột `role`: enum khai `director` trước
+    // `staff` nên Giám đốc mang số nhỏ nhất, và `DESC` trên cột đó đẩy Nhân
+    // viên lên đầu trong khi mũi tên ↓ hứa điều ngược lại.
+    role: [direction(roleRankExpr), asc(sql`mgst_normalize(${users.fullName})`), asc(users.id)],
     // Sắp theo TỈ LỆ đạt, không theo hiệu số: mốc mỗi phòng có thể khác nhau
     // nên "còn thiếu 10" của người mốc 50 nặng hơn của người mốc 200.
     kpi: [direction(sql`${pointsExpr}::float / nullif(${target}, 0)`), asc(users.id)],

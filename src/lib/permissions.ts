@@ -1,5 +1,6 @@
 import { ROLE_PERMISSIONS } from './roles';
 import {
+  ROLE_RANK,
   RoleKey,
   SCOPES,
   type Action,
@@ -217,15 +218,6 @@ export function recordVisibility(
         { kind: 'none' };
   return { kind: 'creator', userId: user.id };
 }
-
-/** Bậc quản lý của từng chức vụ. Chỉ để so cao thấp, không phải nguồn quyền. */
-const ROLE_RANK: Record<RoleKey, number> = {
-  director: 4,
-  'deputy-director': 3,
-  head: 2,
-  'deputy-head': 1,
-  staff: 0,
-};
 
 /**
  * Những chức vụ người này được phép gán cho người khác.
