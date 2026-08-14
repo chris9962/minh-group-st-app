@@ -42,6 +42,17 @@ export const StaffRow = StaffAccount.extend({
   points: z.number(),
   /** Mốc của đúng phòng người này. */
   target: z.number(),
+  /**
+   * Ba số đếm của ĐÚNG tháng đang xem, gộp theo người tạo.
+   *
+   * Chỉ để hiện, KHÔNG sắp được — `STAFF_SORT` cố ý không nhận chúng. Sắp theo
+   * số đếm buộc máy chủ phải biết số của mọi người TRƯỚC khi cắt trang, tức
+   * gộp cả kho tài khoản mỗi lần gõ phím (AGENTS.md §5.2). Cần sắp thì phải
+   * chuyển sang cột đếm do trigger giữ, kèm đủ 5 điều kiện của db-design §9.
+   */
+  customers: z.number(),
+  accounts: z.number(),
+  services: z.number(),
 });
 export type StaffRow = z.infer<typeof StaffRow>;
 
@@ -205,6 +216,19 @@ export type StaffQuery = PageQuery<StaffSort> & {
   search: string;
   /** Tháng chấm điểm. Rỗng = tháng làm việc hiện tại. */
   summaryMonth: string;
+  /**
+   * Khoảng ngày của BA CỘT ĐẾM, dạng `YYYY-MM-DD`. Cùng cặp tham số với route
+   * ngân hàng, bảo hiểm, dịch vụ và khách hàng.
+   *
+   * Thiếu một trong hai thì ba cột đếm theo `summaryMonth` — hai trục thời gian
+   * trùng nhau, đó là màn P-51.
+   *
+   * Tách hai trục là cố ý: cột Chỉ tiêu buộc theo tháng vì `kpi_scores` lưu
+   * theo tháng, còn ba cột đếm thì đếm dòng nên nhận được khoảng bất kỳ. Màn
+   * chi tiết phòng ban gửi khoảng ngày và bỏ hẳn cột Chỉ tiêu.
+   */
+  from: string;
+  to: string;
   /** `all` gồm cả người đã khoá. Mặc định chỉ hiện người đang làm. */
   status: 'active' | 'locked' | 'all';
   /** Chức vụ cần lấy. RỖNG nghĩa là lấy hết — không phải "không lấy gì". */
@@ -212,8 +236,10 @@ export type StaffQuery = PageQuery<StaffSort> & {
 };
 
 /**
- * Danh sách nhân viên RÚT GỌN, trọn bộ — cho ô tra cứu id → tên và cho khối
- * "Nhân viên" ở trang chi tiết phòng ban.
+ * Danh sách nhân viên RÚT GỌN, trọn bộ — cho ô tra cứu id → tên ở thanh lọc.
+ *
+ * Bảng "Nhân viên" của trang chi tiết phòng ban từng dùng nó; từ 2026-08-14 nó
+ * gọi `fetchStaff` để có ba cột đếm và phân trang máy chủ.
  *
  * Route riêng chứ không phải tham số "lấy hết" trên route đã phân trang
  * (AGENTS.md §5.1, điều 4): mở đường đó một lần thì màn sau nào cũng lách.
@@ -249,6 +275,8 @@ export async function fetchStaff(query: StaffQuery): Promise<StaffList> {
     departmentId: query.departmentId,
     search: query.search,
     summaryMonth: query.summaryMonth,
+    from: query.from,
+    to: query.to,
     status: query.status,
     roles: query.roles.join(','),
   });

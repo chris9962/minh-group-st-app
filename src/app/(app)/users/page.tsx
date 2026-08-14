@@ -8,6 +8,7 @@ import { SkeletonStats, SkeletonTable } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
 import { Button } from "@/components/ui/Button";
+import { Count } from "@/components/ui/Count";
 import buttonStyles from "@/components/ui/Button.module.css";
 import { MonthPicker, monthLabel, thisMonth } from "@/components/ui/MonthPicker";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
@@ -109,6 +110,15 @@ const BASE_COLUMNS: RankColumn<StaffRow>[] = [
     render: (r) => <DepartmentCell id={r.departmentId} name={r.departmentName} />,
   },
   { key: "role", label: "Chức vụ", sortable: true, render: (r) => ROLE_LABEL[r.role] },
+  /**
+   * Ba cột đếm của ĐÚNG tháng đang chọn, gộp theo người tạo.
+   *
+   * Không có `sortable` — máy chủ đếm SAU khi đã cắt trang nên nó không biết số
+   * của những người ngoài trang. Xem `countsInRange` ở `server/people.ts`.
+   */
+  { key: "customers", label: "Khách hàng", render: (r) => <Count n={r.customers} /> },
+  { key: "accounts", label: "TK ngân hàng", render: (r) => <Count n={r.accounts} /> },
+  { key: "services", label: "Dịch vụ", render: (r) => <Count n={r.services} /> },
   { key: "kpi", label: "Chỉ tiêu", sortable: true, render: (r) => <KpiGap row={r} /> },
 ];
 
@@ -163,6 +173,10 @@ export default function PeoplePage() {
     departmentId,
     search: searchQuery,
     summaryMonth: month,
+    // Rỗng: ba cột đếm đi theo đúng tháng của cột Chỉ tiêu. Chỉ màn chi tiết
+    // phòng ban tách hai trục ra, vì màn đó có bộ chọn kỳ theo ngày.
+    from: "",
+    to: "",
     // Chỉ người đang làm. Người đã khoá xem trong hồ sơ của họ, không lẫn vào
     // danh sách hằng ngày.
     status: "active",
@@ -312,7 +326,7 @@ export default function PeoplePage() {
         {isPending && (
           <>
             <SkeletonStats count={3} />
-            <SkeletonTable rows={8} columns={5} />
+            <SkeletonTable rows={8} columns={columns.length} />
           </>
         )}
         {isError && (

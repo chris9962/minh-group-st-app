@@ -188,6 +188,89 @@ else 0 end`;
 export const createdByEndOf = (yearMonth: string): SQL =>
   sql`${users.createdAt} < ((${monthRange(yearMonth).to}::date + 1)::timestamp at time zone ${BUSINESS_TIMEZONE})`;
 
+export type StaffCounts = { customers: number; accounts: number; services: number };
+const NO_STAFF_COUNTS: StaffCounts = { customers: 0, accounts: 0, services: 0 };
+
+/**
+ * Ba số đếm của một KHOẢNG NGÀY cho một NHÓM NGƯỜI CỤ THỂ, gộp theo người tạo.
+ *
+ * ⚠️ `userIds` phải là id của ĐÚNG trang đang hiện, không phải cả công ty. Đây
+ * là bước "dán phần phụ sau" của cách A ở AGENTS.md §5.2: cắt trang trước bằng
+ * câu chính, rồi đếm cho 15 dòng đó. Truyền cả bảng vào đây là quay lại đúng
+ * hình dạng câu hỏi mà §5.2 cấm.
+ *
+ * Vì thế ba số này KHÔNG sắp được. Muốn sắp thì phải chuyển sang cột đếm do
+ * trigger giữ — cách B của §5.2, kèm đủ 5 điều kiện của db-design §9.
+ *
+ * Ba mốc ngày khác nhau, cố ý:
+ *   khách hàng  `created_at`   timestamptz, phải quy về giờ làm việc
+ *   tài khoản   `opened_date`  ngày mở, và chỉ đếm bản `done`
+ *   dịch vụ     `service_date` ngày làm dịch vụ
+ *
+ * Bản `creating` không phải tài khoản thật, cùng lối lọc với `scoringAccountsOf`.
+ */
+export async function countsInRange(
+  userIds: string[],
+  { from, to }: { from: string; to: string },
+): Promise<Map<string, StaffCounts>> {
+  const map = new Map<string, StaffCounts>();
+  if (userIds.length === 0) return map;
+
+  const entry = (id: string | null): StaffCounts => {
+    const key = id ?? "";
+    let c = map.get(key);
+    if (!c) {
+      c = { ...NO_STAFF_COUNTS };
+      map.set(key, c);
+    }
+    return c;
+  };
+
+  const [customerRows, accountRows, serviceRows] = await Promise.all([
+    db
+      .select({ createdBy: customers.createdBy, n: sql<number>`count(*)::int` })
+      .from(customers)
+      .where(
+        and(
+          inArray(customers.createdBy, userIds),
+          // Cột là `timestamptz`, hai mốc phải quy về giờ làm việc — cùng cách
+          // với `createdByEndOf` ngay bên trên.
+          sql`${customers.createdAt} >= ((${from}::date)::timestamp at time zone ${BUSINESS_TIMEZONE})`,
+          sql`${customers.createdAt} < ((${to}::date + 1)::timestamp at time zone ${BUSINESS_TIMEZONE})`,
+        ),
+      )
+      .groupBy(customers.createdBy),
+    db
+      .select({ createdBy: bankAccounts.createdBy, n: sql<number>`count(*)::int` })
+      .from(bankAccounts)
+      .where(
+        and(
+          inArray(bankAccounts.createdBy, userIds),
+          eq(bankAccounts.status, "done"),
+          gte(bankAccounts.openedDate, from),
+          lte(bankAccounts.openedDate, to),
+        ),
+      )
+      .groupBy(bankAccounts.createdBy),
+    db
+      .select({ createdBy: services.createdBy, n: sql<number>`count(*)::int` })
+      .from(services)
+      .where(
+        and(
+          inArray(services.createdBy, userIds),
+          gte(services.serviceDate, from),
+          lte(services.serviceDate, to),
+        ),
+      )
+      .groupBy(services.createdBy),
+  ]);
+
+  for (const r of customerRows) entry(r.createdBy).customers = Number(r.n);
+  for (const r of accountRows) entry(r.createdBy).accounts = Number(r.n);
+  for (const r of serviceRows) entry(r.createdBy).services = Number(r.n);
+  return map;
+}
+
 /** Vô hiệu ký tự đại diện của `LIKE` — gõ `%` phải ra "không có kết quả". */
 const likeEscape = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
 
@@ -364,9 +447,10 @@ export const daysLeftOf = (yearMonth: string): number => {
 /**
  * TRỌN danh sách nhân viên kèm điểm và SỐ ĐẾM theo kỳ, cho việc xuất Excel.
  *
- * Ba cột đếm (`accounts`, `apps`, `insuranceOrders`) chỉ còn sống ở đây. Màn
- * P-51 đã bỏ chúng khỏi bảng, nên gộp trên kho tài khoản giờ chỉ xảy ra khi ai
- * đó bấm xuất Excel, không phải mỗi lần gõ phím.
+ * `apps` và `insuranceOrders` chỉ còn sống ở đây — bảng P-51 không có hai cột
+ * đó. `accounts` thì bảng có lại từ 2026-08-14, nhưng đi qua `countsInRange`,
+ * tức chỉ đếm cho 15 id của trang; `countsFor` dưới đây đếm cho TRỌN danh sách
+ * nhân viên nên nặng hơn hẳn, và đó là lý do nó ở lại đường xuất Excel.
  *
  * KHÔNG có trần số dòng, khác `listCustomersForExport`. Trần bên đó có lý vì
  * bảng khách hàng lớn thêm mỗi ngày làm việc; bảng này thì số dòng bằng số

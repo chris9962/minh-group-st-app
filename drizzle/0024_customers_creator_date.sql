@@ -1,0 +1,20 @@
+-- Chỉ mục ghép cho cột "Khách hàng" của bảng nhân sự P-51.
+--
+-- `countsInRange` (server/people.ts) đếm khách một người lập TRONG một kỳ:
+--   where created_by in (15 id của trang) and created_at >= ... and created_at < ...
+--
+-- `customers_creator` chỉ có một cột `created_by`, nên Postgres đọc mọi khách
+-- của 15 người đó rồi mới lọc ngày ở bước `Filter`. Đo bằng `EXPLAIN`:
+--
+--   Bitmap Heap Scan on customers
+--     Recheck Cond: (created_by = ...)
+--     Filter: (created_at >= ... AND created_at < ...)
+--
+-- Số khách của một nhân viên lớn thêm mỗi ngày làm việc, nên đây là câu chạy
+-- nhanh trên máy dev và chậm dần trên dữ liệu thật — đúng hình dạng AGENTS.md
+-- §5.2 cấm. Hai bảng còn lại đã có chỉ mục ghép tương ứng từ trước:
+-- `bank_accounts_creator_date` và `services_creator_date`.
+--
+-- KHÔNG bỏ `customers_creator`: `recomputeKpi` lọc `created_by` mà không kèm
+-- ngày, và một chỉ mục ghép hai cột phục vụ được câu đó nhưng lớn hơn.
+CREATE INDEX "customers_creator_date" ON "customers" USING btree ("created_by", "created_at");

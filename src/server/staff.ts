@@ -9,7 +9,7 @@ import type {
   StaffQuery,
   StaffSort,
 } from "@/lib/api/staff";
-import { businessMonth } from "@/lib/format";
+import { businessMonth, monthRange } from "@/lib/format";
 import {
   assignableRoles,
   can,
@@ -19,7 +19,14 @@ import {
   inVisibleScope,
   visibleDepartmentIds,
 } from "@/lib/permissions";
-import { SCOPELESS_ACTIONS, SCOPES, Scope, type Action, type User } from "@/lib/types";
+import {
+  isRealIsoDate,
+  SCOPELESS_ACTIONS,
+  SCOPES,
+  Scope,
+  type Action,
+  type User,
+} from "@/lib/types";
 import { forbidden, isUuid, notFound } from "./auth";
 import { db, uniqueViolationOf } from "./db/client";
 import {
@@ -36,6 +43,7 @@ import {
 } from "./db/schema";
 import type { PageArgs } from "./pagination";
 import {
+  countsInRange,
   createdByEndOf,
   daysLeftOf,
   pointsExpr,
@@ -50,6 +58,18 @@ import { relationsFor } from "./users";
  * P-51 · P-52 · P-53 — bản DB của src/mocks/staff.ts, cùng luật nghiệp vụ:
  * máy chủ kiểm lại bậc vai + từng ô quyền, không tin danh sách giao diện gửi lên.
  */
+
+/**
+ * Ngày lọc phải ĐÚNG HÌNH DẠNG và CÓ THẬT.
+ *
+ * Cùng hàm với bốn module danh sách kia (mục M20). `2026-02-30` khớp hình dạng
+ * `YYYY-MM-DD` nhưng tháng 2 không có ngày 30, và Postgres từ chối nó bằng
+ * `22008` làm cả màn trả 500.
+ *
+ * Kiểm ở ĐÂY chứ không ở route: hàm này còn nơi gọi khác, và chặn một đầu thì
+ * đầu kia vẫn vỡ. Ngày sai thì bỏ qua khoảng, rơi về tháng — không trả 400.
+ */
+const usableDate = isRealIsoDate;
 
 type UserWithDepartment = typeof users.$inferSelect & { departmentName: string | null };
 
@@ -79,10 +99,13 @@ async function toAccounts(rows: UserWithDepartment[]): Promise<StaffAccount[]> {
  * MỘT trang của bảng nhân sự P-51 — lọc, tìm, sắp, cắt trang và đếm tóm tắt đều
  * chạy trong SQL (AGENTS.md §5.1 · §5.2).
  *
- * Chỉ đụng hai nguồn: hồ sơ nhân sự (`users` + tên phòng) và điểm/chỉ tiêu
- * (`kpi_scores` + `kpi_targets`). Bảng KHÔNG có cột đếm tài khoản / app / đơn
- * bảo hiểm, nên không câu nào ở đây chạm tới `bank_accounts` hay
- * `insurance_orders` — hai bảng lớn nhất hệ thống.
+ * Ba câu chính chỉ đụng hồ sơ nhân sự (`users` + tên phòng) và điểm/chỉ tiêu
+ * (`kpi_scores` + `kpi_targets`) — không câu nào chạm bảng nghiệp vụ, nên lọc,
+ * sắp và cắt trang không phụ thuộc kích thước kho.
+ *
+ * `countsInRange` ở cuối hàm CÓ đụng `customers`, `bank_accounts` và
+ * `services`, nhưng chỉ cho 15 id đã cắt trang xong (§5.2 cách A). Ba bảng đó
+ * đều có chỉ mục ghép `(created_by, ngày)` cho đúng hình dạng câu hỏi này.
  *
  * Bản cũ kéo 500 người rồi lọc bằng JS: người thứ 501 biến mất im lặng và thẻ
  * tóm tắt đếm thiếu theo, tức SAI SỐ chứ không phải chậm.
@@ -192,6 +215,21 @@ export async function staffFor(
     rows.map((r) => ({ ...r.user, departmentName: r.departmentName })),
   );
   const scoreById = new Map(rows.map((r) => [r.user.id, r]));
+  /**
+   * Đếm SAU khi đã cắt trang, và chỉ cho id của trang này — xem `countsInRange`.
+   *
+   * Ba cột đếm và cột Chỉ tiêu chạy trên HAI trục thời gian khác nhau. Chỉ tiêu
+   * buộc phải theo tháng vì `kpi_scores` lưu theo tháng; ba cột đếm thì đếm
+   * dòng nên nhận được khoảng ngày bất kỳ. Thiếu `from`/`to` thì hai trục trùng
+   * nhau — đó là màn P-51. Màn chi tiết phòng ban gửi khoảng ngày và bỏ hẳn
+   * cột Chỉ tiêu, vì "chỉ tiêu của ngày 05/08 đến 12/08" không có nghĩa.
+   */
+  const countsById = await countsInRange(
+    rows.map((r) => r.user.id),
+    usableDate(query.from) && usableDate(query.to)
+      ? { from: query.from, to: query.to }
+      : monthRange(summaryMonth),
+  );
 
   const active = counts?.active ?? 0;
   const onTarget = counts?.onTarget ?? 0;
@@ -205,6 +243,9 @@ export async function staffFor(
         ...a,
         points: scoreById.get(a.id)?.points ?? 0,
         target: scoreById.get(a.id)?.target ?? 100,
+        customers: countsById.get(a.id)?.customers ?? 0,
+        accounts: countsById.get(a.id)?.accounts ?? 0,
+        services: countsById.get(a.id)?.services ?? 0,
       })),
       total: totals?.value ?? 0,
     },
@@ -212,8 +253,11 @@ export async function staffFor(
 }
 
 /**
- * Danh sách rút gọn, trọn bộ trong phạm vi người gọi — cho ô tra cứu và trang
- * chi tiết phòng ban. Không phân trang vì nơi gọi cần đủ danh sách để tra.
+ * Danh sách rút gọn, trọn bộ trong phạm vi người gọi — cho ô CHỌN NGƯỜI ở
+ * thanh lọc. Không phân trang vì ô chọn cần đủ danh sách để tra.
+ *
+ * Trang chi tiết phòng ban từng dùng hàm này; từ 2026-08-14 nó gọi `staffFor`
+ * để có ba cột đếm và phân trang máy chủ.
  *
  * Payload mỏng có chủ đích: đủ để tra cứu và hiện tên, KHÔNG kèm bảng quyền —
  * thứ chỉ hồ sơ một người mới cần.

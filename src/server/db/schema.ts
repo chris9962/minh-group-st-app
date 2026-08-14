@@ -503,6 +503,17 @@ export const customers = pgTable(
      */
     index("customers_creator").on(t.createdBy),
     /**
+     * Cột "Khách hàng" của bảng nhân sự P-51 đếm khách một người lập TRONG một
+     * kỳ (`countsInRange` ở `server/people.ts`).
+     *
+     * `customers_creator` một cột không đủ: Postgres đọc mọi khách của người đó
+     * rồi mới lọc ngày ở bước `Filter`. Một nhân viên tích luỹ 30.000 khách thì
+     * mỗi lượt mở bảng đọc 30.000 dòng để ra một con số — đúng hình dạng câu
+     * hỏi mà AGENTS.md §5.2 cấm. Hai bảng kia đã có chỉ mục ghép tương ứng
+     * (`bank_accounts_creator_date`, `services_creator_date`).
+     */
+    index("customers_creator_date").on(t.createdBy, t.createdAt),
+    /**
      * P-40 lọc theo trạng thái quà, P-80 đếm "đủ ĐK chưa phát" — cả hai đều hỏi
      * "khách nào có `gift_case`". Chỉ mục một phần vì đại đa số khách chưa đủ
      * combo nào, để `null` ra ngoài thì chỉ mục nhỏ hơn hẳn.

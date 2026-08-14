@@ -30,6 +30,30 @@ const firstOfMonth = () => {
   return new Date(d.getFullYear(), d.getMonth(), 1);
 };
 
+/**
+ * Kỳ quy về hai ngày `YYYY-MM-DD` — dạng mà route danh sách nào cũng nhận.
+ *
+ * Dùng khi máy chủ chỉ cần lọc theo khoảng. Route nào phải so với KỲ TRƯỚC để
+ * vẽ mũi tên tăng giảm thì vẫn gửi `periodKey`, vì "kỳ trước của 05/08 đến
+ * 12/08" là câu hỏi không có lời đáp — xem `periodRanges` ở `server/org.ts`.
+ */
+export const periodDates = (p: Period): { from: string; to: string } => {
+  if (p.kind === "today") {
+    const today = iso(new Date());
+    return { from: today, to: today };
+  }
+  if (p.kind === "this-month") {
+    const d = new Date();
+    return { from: iso(firstOfMonth()), to: iso(new Date(d.getFullYear(), d.getMonth() + 1, 0)) };
+  }
+  const { from, to } = p.range ?? {};
+  if (!from || !to) {
+    const today = iso(new Date());
+    return { from: today, to: today };
+  }
+  return { from: iso(from), to: iso(to) };
+};
+
 type Props = {
   value: Period;
   onChange: (period: Period) => void;

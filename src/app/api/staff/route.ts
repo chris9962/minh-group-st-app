@@ -33,6 +33,11 @@ export async function GET(request: Request) {
     departmentId: uuidParam(params.get("departmentId")),
     search: params.get("search") ?? "",
     summaryMonth,
+    // Khoảng ngày của ba cột đếm. `staffFor` tự kiểm ngày CÓ THẬT, cùng chỗ
+    // với bốn module danh sách kia — chặn ở route thì hàm vẫn vỡ khi có nơi
+    // gọi khác.
+    from: params.get("from") ?? "",
+    to: params.get("to") ?? "",
     status: (params.get("status") ?? "active") as StaffQuery["status"],
     // Lọc qua danh sách vai có thật, cùng lối nghĩ với danh sách trắng khoá
     // sắp: vai lạ đi vào `inArray` trên cột enum là 500, mà URL có ô lọc chức

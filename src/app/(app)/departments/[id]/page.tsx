@@ -1,36 +1,51 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { use } from "react";
+import { use, useState } from "react";
 import { ChevronLeft, UserCog, Users } from "lucide-react";
-import { SkeletonCard } from "@/components/ui/Skeleton";
+import { SkeletonCard, SkeletonTable } from "@/components/ui/Skeleton";
+import { Count } from "@/components/ui/Count";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
+import { FilterButton } from "@/components/ui/FilterButton";
+import {
+  DEFAULT_PERIOD,
+  type Period,
+  PeriodPicker,
+  periodDates,
+} from "@/components/ui/PeriodPicker";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusTag } from "@/components/ui/StatusTag";
+import { EMPTY_PAGE, PAGE_SIZE, type SortDir } from "@/lib/api/pagination";
 import { fetchDepartmentDetail } from "@/lib/api/org";
-import { fetchStaffOptions, type StaffOption } from "@/lib/api/staff";
-import { ROLE_LABEL, ROLE_RANK } from "@/lib/types";
+import { fetchStaff, type StaffQuery, type StaffRow, type StaffSort } from "@/lib/api/staff";
+import { ROLE_LABEL } from "@/lib/types";
 import styles from "./page.module.scss";
 
-const EMPLOYEE_COLUMNS: RankColumn<StaffOption>[] = [
+/**
+ * Cùng bộ cột với bảng nhân sự P-51, TRỪ cột Chỉ tiêu.
+ *
+ * Chỉ tiêu lưu theo tháng ở `kpi_scores`, mà màn này lọc theo kỳ — "chỉ tiêu
+ * của ngày 05/08 đến 12/08" không có nghĩa. Bảng phòng ban ở P-91 cũng không có
+ * cột đó, và nó dùng đúng bộ chọn kỳ này.
+ *
+ * `sortable` chỉ đặt ở cột nào máy chủ sắp được (`STAFF_SORT`). Ba cột đếm nằm
+ * ngoài vì máy chủ đếm SAU khi đã cắt trang — xem `countsInRange`.
+ */
+const EMPLOYEE_COLUMNS: RankColumn<StaffRow>[] = [
   {
-    key: "fullName",
+    key: "name",
     label: "Tên",
+    sortable: true,
     render: (s) => (
       <Link href={`/users/${s.id}`} className={styles.nameLink}>
         {s.fullName}
       </Link>
     ),
   },
-  {
-    key: "role",
-    label: "Chức vụ",
-    sortBy: (s) => ROLE_RANK[s.role],
-    render: (s) => ROLE_LABEL[s.role],
-  },
+  { key: "role", label: "Chức vụ", sortable: true, render: (s) => ROLE_LABEL[s.role] },
   {
     key: "active",
     label: "Trạng thái",
@@ -38,6 +53,9 @@ const EMPLOYEE_COLUMNS: RankColumn<StaffOption>[] = [
       <StatusTag ok={s.active}>{s.active ? "Đang hoạt động" : "Đã khoá"}</StatusTag>
     ),
   },
+  { key: "customers", label: "Khách hàng", render: (s) => <Count n={s.customers} /> },
+  { key: "accounts", label: "TK ngân hàng", render: (s) => <Count n={s.accounts} /> },
+  { key: "services", label: "Dịch vụ", render: (s) => <Count n={s.services} /> },
 ];
 
 /** Chi tiết một phòng ban — mở rộng P-91: bấm tên phòng ở bảng đi tới đây. */
@@ -47,29 +65,75 @@ export default function DepartmentDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
+  const [period, setPeriod] = useState<Period>(DEFAULT_PERIOD);
+  const [page, setPage] = useState(0);
+  const [sort, setSort] = useState<StaffSort>("role");
+  const [dir, setDir] = useState<SortDir>("desc");
 
   const { data, isPending, isError, refetch, isFetching } = useQuery({
     queryKey: ["org-department", id],
     queryFn: () => fetchDepartmentDetail(id),
   });
 
+  /**
+   * Dùng chung route với bảng nhân sự P-51, chỉ khác ba tham số: khoá theo
+   * phòng đang mở, lấy cả người đã khoá, và gửi kỳ cho ba cột đếm.
+   *
+   * `summaryMonth` để rỗng — máy chủ tự lấy tháng làm việc. Bảng này không có
+   * cột Chỉ tiêu nên tháng đó chỉ còn dùng cho luật `createdByEndOf`.
+   */
+  const { from, to } = periodDates(period);
+  const query: StaffQuery = {
+    scope: "company",
+    departmentId: id,
+    search: "",
+    summaryMonth: "",
+    from,
+    to,
+    status: "all",
+    roles: [],
+    page,
+    sort,
+    dir,
+  };
+
   const {
     data: staffData,
+    isPending: staffPending,
     isError: staffError,
     refetch: refetchStaff,
     isFetching: staffFetching,
   } = useQuery({
-    queryKey: ["staff-by-department", id],
-    queryFn: () =>
-      fetchStaffOptions({ departmentId: id, status: "all" }),
+    queryKey: ["staff-by-department", query],
+    queryFn: () => fetchStaff(query),
     enabled: Boolean(data),
+    placeholderData: keepPreviousData,
   });
 
-  const employees = staffData ?? [];
+  const rows = staffData?.page.rows ?? EMPTY_PAGE.rows;
+  const total = staffData?.page.total ?? 0;
+
+  /** Đổi kỳ thì về trang đầu — giữ trang 3 của kết quả cũ là hiện một khúc rỗng. */
+  const refinePeriod = (next: Period) => {
+    setPeriod(next);
+    setPage(0);
+  };
 
   return (
     <>
-      <TopBar title={data?.department.name ?? "Phòng ban"} />
+      <TopBar title={data?.department.name ?? "Phòng ban"}>
+        <div className={styles.periodInline}>
+          <PeriodPicker value={period} onChange={refinePeriod} />
+        </div>
+        <div className={styles.periodCollapsed}>
+          <FilterButton
+            activeCount={period.kind === "today" ? 0 : 1}
+            onClear={() => refinePeriod(DEFAULT_PERIOD)}
+          >
+            <PeriodPicker value={period} onChange={refinePeriod} />
+          </FilterButton>
+        </div>
+      </TopBar>
 
       <main className={styles.body}>
         <Link href="/departments" className={styles.back}>
@@ -105,27 +169,40 @@ export default function DepartmentDetailPage({
             <SectionCard
               title="Nhân viên"
               icon={<Users size={17} />}
-              meta={`${employees.length} người`}
+              meta={staffPending ? undefined : `${total} người`}
             >
-              {/* Hỏng hoặc bị kẹp phạm vi thì `employees` cũng rỗng, và câu
-                  "chưa có nhân viên nào" nói ra một điều KHÔNG đúng về phòng
-                  đang mở — sĩ số ngay bên trên thường vẫn khác 0. */}
+              {/* Hỏng hoặc bị kẹp phạm vi thì bảng cũng rỗng, và câu "chưa có
+                  nhân viên nào" nói ra một điều KHÔNG đúng về phòng đang mở —
+                  sĩ số ngay bên trên thường vẫn khác 0. */}
               {staffError ? (
                 <ErrorState
                   what="danh sách nhân viên của phòng"
                   onRetry={refetchStaff}
                   retrying={staffFetching}
                 />
-              ) : employees.length === 0 ? (
-                <p className="text-muted">Phòng này chưa có nhân viên nào.</p>
+              ) : staffPending ? (
+                <SkeletonTable rows={5} columns={EMPLOYEE_COLUMNS.length} />
               ) : (
                 <RankTable
-                  rows={employees}
+                  rows={rows}
                   columns={EMPLOYEE_COLUMNS}
                   rowKey={(s) => s.id}
                   defaultSort="role"
-                  pageSize={10}
                   caption="Nhân viên của phòng, Trưởng và Phó phòng nằm đầu bảng"
+                  emptyText="Phòng này chưa có nhân viên nào."
+                  server={{
+                    sort,
+                    dir,
+                    page,
+                    total,
+                    pageSize: PAGE_SIZE,
+                    onSortChange: (nextSort, nextDir) => {
+                      setSort(nextSort as StaffSort);
+                      setDir(nextDir);
+                      setPage(0);
+                    },
+                    onPageChange: setPage,
+                  }}
                 />
               )}
             </SectionCard>
