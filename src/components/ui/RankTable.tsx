@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import styles from "./RankTable.module.css";
 
 export type RankColumn<T> = {
@@ -96,8 +96,27 @@ export function RankTable<T>({
   const size = server ? server.pageSize : pageSize;
   const totalRows = server ? server.total : sorted.length;
   const pageCount = size ? Math.ceil(totalRows / size) : 1;
-  const current = server ? server.page : Math.min(page, Math.max(0, pageCount - 1));
+  const maxPage = Math.max(0, pageCount - 1);
+  const current = Math.min(server ? server.page : page, maxPage);
   const visible = server || !pageSize ? sorted : sorted.slice(current * pageSize, (current + 1) * pageSize);
+
+  /**
+   * Kéo trang cha về trang có thật khi `total` co lại dưới trang đang xem.
+   *
+   * Kẹp `current` ở trên chỉ chữa được thanh phân trang: `rows` vẫn là kết quả
+   * của lượt gọi cắt từ dòng 16 của một danh sách 15 dòng, tức rỗng. Bảng không
+   * tự gọi mạng nên phải báo ngược để trang cha đổi khoá truy vấn và lấy lại.
+   *
+   * Không có nó thì `pageCount > 1` thành sai, thanh phân trang biến mất, và
+   * người dùng ở lại trang rỗng không có nút lùi.
+   *
+   * ⚠️ Đây là lớp che, KHÔNG phải chỗ xử lý chính. Nó chạy SAU khi lượt gọi sai
+   * đã đi và về. Đường nào biết trước danh sách sắp co — xoá một dòng chẳng hạn
+   * — thì phải tự lùi trang ngay tại nơi gọi, xem `banking/page.tsx` `remove`.
+   */
+  useEffect(() => {
+    if (server && server.page > maxPage) server.onPageChange(maxPage);
+  }, [server, maxPage]);
 
   const goTo = (next: number) => (server ? server.onPageChange(next) : setPage(next));
 

@@ -143,9 +143,9 @@ export default function BankingPage() {
       queryClient.invalidateQueries({ queryKey: ["customers"] });
       queryClient.invalidateQueries({ queryKey: ["customer", row.customerId] });
       setRemoving(null);
-      // Xoá cũng là thao tác làm hẹp kết quả. `RankTable` ở chế độ máy chủ cố ý
-      // KHÔNG tự kẹp trang, nên xoá dòng cuối của trang cuối là bảng rỗng kèm
-      // thanh trang ghi "76–75 trên 75".
+      // Lùi TRƯỚC khi gọi lại: chỗ này biết trang vừa mất dòng cuối, `RankTable`
+      // thì chỉ biết sau khi máy chủ đã trả về một trang rỗng. Bỏ dòng này thì
+      // người dùng thấy chữ "Chưa có tài khoản nào" suốt một lượt gọi mạng.
       setPage((p) => (data.rows.length === 1 && p > 0 ? p - 1 : p));
       toast.ok("Đã xoá tài khoản đang tạo dở, mã giới thiệu được nhả lại");
     },

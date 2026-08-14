@@ -120,8 +120,9 @@ export default function ServicesPage() {
       // tải lại, không thì số cũ còn nằm đó tới khi hết staleTime.
       invalidateKpi(queryClient);
       setRemoving(null);
-      // Xoá dòng cuối của trang cuối → lùi một trang, không thì bảng rỗng mà
-      // thanh trang vẫn ghi số cũ.
+      // Lùi TRƯỚC khi gọi lại: chỗ này biết trang vừa mất dòng cuối, `RankTable`
+      // thì chỉ biết sau khi máy chủ đã trả về một trang rỗng. Bỏ dòng này thì
+      // người dùng thấy chữ "Chưa có dịch vụ nào" suốt một lượt gọi mạng.
       setPage((p) => (data.rows.length === 1 && p > 0 ? p - 1 : p));
       toast.ok(`Đã xoá dịch vụ của ${row.customerName}`);
     },
