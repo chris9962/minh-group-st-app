@@ -245,7 +245,6 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
         <TextField
           label="Chức danh hiển thị"
           placeholder={ROLE_TITLE[watch("role")]}
-          hint='Ví dụ "Phó Giám Đốc 2" — khác với chức vụ ở trên'
           error={errors.title?.message}
           {...register("title")}
         />

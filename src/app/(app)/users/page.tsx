@@ -55,6 +55,23 @@ function StaffName({ id, fullName, staffCode }: { id: string; fullName: string; 
 }
 
 /**
+ * Ô đơn vị: bấm sang trang phòng ban đó.
+ *
+ * Chỉ người có `manage-org` mới thấy link — API chi tiết phòng chặn ở đúng
+ * quyền đó, nên link cho người khác chỉ dẫn tới một màn báo lỗi.
+ */
+function DepartmentCell({ id, name }: { id: string | null; name: string }) {
+  const user = useSession((s) => s.user);
+  if (!id || !name) return <>{name || "—"}</>;
+  if (!can(user, "system", "manage-org")) return <>{name}</>;
+  return (
+    <Link href={`/departments/${id}`} className={styles.nameLink}>
+      {name}
+    </Link>
+  );
+}
+
+/**
  * Ô chỉ tiêu: vòng tiến độ + chênh lệch, rê chuột ra câu đầy đủ.
  *
  * Cả cột nhìn một lượt là thấy ngay ai gần chỉ tiêu (vòng xanh, gần đầy) và ai
@@ -86,7 +103,11 @@ const BASE_COLUMNS: RankColumn<StaffRow>[] = [
     sortable: true,
     render: (r) => <StaffName id={r.id} fullName={r.fullName} staffCode={r.staffCode} />,
   },
-  { key: "departmentName", label: "Đơn vị", render: (r) => r.departmentName || "—" },
+  {
+    key: "departmentName",
+    label: "Đơn vị",
+    render: (r) => <DepartmentCell id={r.departmentId} name={r.departmentName} />,
+  },
   { key: "role", label: "Chức vụ", sortable: true, render: (r) => ROLE_LABEL[r.role] },
   { key: "kpi", label: "Chỉ tiêu", sortable: true, render: (r) => <KpiGap row={r} /> },
 ];

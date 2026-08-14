@@ -363,11 +363,7 @@ export default function DepartmentsPage() {
                 <strong>không gán người mới vào được nữa</strong>. Số liệu và bản
                 ghi cũ của phòng vẫn giữ nguyên, mở lại lúc nào cũng được.
               </>
-            ) : (
-              <>
-                Phòng hiện lại ở mọi ô chọn đơn vị và nhận người mới được ngay.
-              </>
-            )
+            ) : undefined
           }
         >
           {confirming?.active ? "Ngừng hoạt động phòng " : "Mở lại phòng "}
