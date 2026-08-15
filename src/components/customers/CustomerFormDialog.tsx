@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
@@ -93,7 +93,6 @@ export function CustomerFormDialog({ open, onClose, customer, onCreated }: Props
   const { data: provinces = [] } = useQuery({
     queryKey: ["provinces"],
     queryFn: fetchProvinces,
-    enabled: selectedChannel?.inputKind === "ward-hamlet",
   });
   const [provinceId, setProvinceId] = useState("");
   const [wardId, setWardId] = useState("");
@@ -106,6 +105,31 @@ export function CustomerFormDialog({ open, onClose, customer, onCreated }: Props
     queryFn: fetchHospitals,
     enabled: selectedChannel?.inputKind === "hospital",
   });
+
+  useEffect(() => {
+    if (
+      editing &&
+      customer?.channelId &&
+      provinces.length > 0 &&
+      customer.channelDetail &&
+      !provinceId
+    ) {
+      const channel = channels.find((c) => c.id === customer.channelId);
+
+      if (channel?.inputKind === "ward-hamlet") {
+        for (const province of provinces) {
+          for (const ward of province.wards) {
+            if (ward.hamlets.some((h) => h.id === customer.channelDetail)) {
+              setProvinceId(province.id);
+              setWardId(ward.id);
+              setHamletId(customer.channelDetail);
+              return;
+            }
+          }
+        }
+      }
+    }
+  }, [editing, customer?.channelId, channels, provinces, customer?.channelDetail, provinceId]);
 
   const save = useMutation({
     mutationFn: (form: CustomerForm) =>
@@ -296,11 +320,6 @@ export function CustomerFormDialog({ open, onClose, customer, onCreated }: Props
                     ...selectedWard.hamlets.map((h) => ({ value: h.id, label: h.name })),
                   ]}
                 />
-              )}
-              {editing && watch("channelDetail") && !selectedWard && (
-                <p className="text-muted">
-                  Đang lưu: {watch("channelDetail")} — chọn lại xã/ấp nếu muốn đổi.
-                </p>
               )}
             </>
           )}
