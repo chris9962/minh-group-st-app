@@ -2,7 +2,8 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { ChevronRight } from "lucide-react";
+import { useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
@@ -18,8 +19,9 @@ import {
   updateStaff,
   type StaffAccount,
 } from "@/lib/api/staff";
+import { removeDiacritics } from "@/lib/format";
 import { assignableRoles } from "@/lib/permissions";
-import { ROLE_LABEL, ROLE_TITLE, type Department } from "@/lib/types";
+import { Action, ROLE_LABEL, ROLE_TITLE, type Department } from "@/lib/types";
 import { ROLE_PERMISSIONS } from "@/lib/roles";
 import { useSession } from "@/store/session";
 import { PermissionsEditor } from "./PermissionsEditor";
@@ -57,6 +59,22 @@ const SCOPE_NOTE: Record<StaffForm["role"], string> = {
   staff: "Nhân viên xem được bản ghi do chính mình tạo.",
 };
 
+/**
+ * Tên đăng nhập gợi ý từ họ tên: `mg-` + chữ đầu mỗi từ, bỏ dấu.
+ * "Nguyễn Văn Anh" ra `mg-nva`.
+ */
+function usernameFrom(fullName: string): string {
+  const initials = removeDiacritics(fullName)
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => word[0])
+    .join("")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+  return initials ? `mg-${initials}` : "";
+}
+
 const toForm = (s: StaffAccount): StaffForm => ({
   fullName: s.fullName,
   username: s.username,
@@ -83,6 +101,8 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
    * là người tạo phải vào hồ sơ bấm "Đặt lại mật khẩu" để có mật khẩu khác.
    */
   const [created, setCreated] = useState<{ username: string; password: string } | null>(null);
+  /** Tên đăng nhập tự sinh gần nhất — mốc để biết người tạo đã tự gõ hay chưa. */
+  const suggestedUsername = useRef("");
 
   const {
     register,
@@ -102,6 +122,26 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
   const roles = assignableRoles(actor);
   const managed = watch("managedDepartmentIds");
   const shape = ROLE_SHAPE[watch("role")];
+
+  /**
+   * Chỉ Phó giám đốc mới tích tay. Trưởng phòng và Phó phòng suy ra từ ô Đơn vị
+   * nên bày ô tích ra là hỏi một câu đã có đáp án — người tạo tưởng phải tự tích.
+   *
+   * Vế sau giữ khối lại cho vai Nhân viên: `normalizeStaffForm` không đụng tới
+   * vai đó (`manages: 'free'`), nên hồ sơ cũ còn phòng phụ trách mà ẩn khối đi
+   * thì không ai gỡ được nữa. Ba vai kia được ghi đè lúc lưu, ẩn vẫn đúng.
+   */
+  const picksManaged = shape.manages === "listed" || (shape.manages === "free" && managed.length > 0);
+
+  const permissions = watch("permissions");
+  /**
+   * Bộ quyền Giám đốc là 15 dòng module `*`, mỗi dòng phủ MỌI module. Đếm dòng
+   * thì ra số nhỏ hơn Trưởng phòng (32 dòng lẻ) trong khi quyền rộng hơn hẳn,
+   * và lưới cấp lẻ không hiện được dòng `*` nên nó trông như chưa cấp gì.
+   */
+  const fullAccess = Action.options.every((action) =>
+    permissions.some((p) => p.module === "*" && p.action === action && p.scope === "company"),
+  );
 
   const save = useMutation({
     /**
@@ -209,7 +249,20 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
           label="Họ tên"
           placeholder="Nguyễn Văn An"
           error={errors.fullName?.message}
-          {...register("fullName")}
+          {...register("fullName", {
+            // Tên đăng nhập đi theo họ tên, nhưng CHỈ khi người tạo chưa tự gõ:
+            // còn nguyên gợi ý của lần gõ trước thì thay, đã sửa thành "nv13"
+            // rồi thì để yên. Sửa hồ sơ cũ thì không đụng — đổi tên đăng nhập
+            // của người đang dùng là họ không đăng nhập được nữa.
+            onChange: (e) => {
+              if (editing) return;
+              const current = getValues("username").trim();
+              if (current !== "" && current !== suggestedUsername.current) return;
+              const next = usernameFrom(e.target.value);
+              suggestedUsername.current = next;
+              setValue("username", next, { shouldDirty: true });
+            },
+          })}
         />
 
         <div className={styles.pair}>
@@ -233,7 +286,6 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
         <TextField
           label="Mã nhân viên"
           placeholder="MG-0123"
-          hint="Định danh nhân viên ở hệ thống khác của công ty — không được trùng"
           error={errors.staffCode?.message}
           autoComplete="off"
           {...register("staffCode")}
@@ -284,9 +336,18 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
               // tích tay. Bỏ bước này thì Trưởng phòng mới lập giữ nguyên
               // `manageScope: none` và thấy 0 bản ghi.
               const next = normalizeStaffForm({ ...getValues(), role });
+              // `normalizeStaffForm` cố ý không đụng vai Nhân viên, nên phòng
+              // phụ trách của vai vừa bỏ còn nguyên. Lúc TẠO MỚI không có hồ sơ
+              // cũ nào để giữ — xoá đi, không thì ô tích hiện ra và người tạo
+              // phải tự bỏ tích từng phòng.
+              const dropManaged = !editing && ROLE_SHAPE[role].manages === "free";
               setValue("departmentId", next.departmentId, { shouldDirty: true });
-              setValue("manageScope", next.manageScope, { shouldDirty: true });
-              setValue("managedDepartmentIds", next.managedDepartmentIds, { shouldDirty: true });
+              setValue("manageScope", dropManaged ? "none" : next.manageScope, { shouldDirty: true });
+              setValue(
+                "managedDepartmentIds",
+                dropManaged ? [] : next.managedDepartmentIds,
+                { shouldDirty: true },
+              );
             }}
             options={roles.map((r) => ({ value: r, label: ROLE_LABEL[r] }))}
           />
@@ -306,12 +367,7 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
           {...register("title")}
         />
 
-        {/* Chỉ Phó giám đốc mới cần người tạo tích phòng. Ba chức vụ kia suy ra
-            được từ chức vụ cộng ô Đơn vị, nên khối này ẩn đi — bày ra một ô có
-            đúng một đáp án là mời người dùng chọn sai.
-            `managed.length > 0` giữ khối lại cho hồ sơ cũ đang phụ trách phòng
-            mà chức vụ không đòi: ẩn đi thì không ai gỡ được nữa. */}
-        {shape.manages === "listed" || managed.length > 0 ? (
+        {picksManaged ? (
           <fieldset className={styles.fieldset}>
             <legend className={styles.legend}>Phòng phụ trách</legend>
             <div className={styles.checks}>
@@ -340,29 +396,51 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
             họ tự bấm lại là xong thì việc cắt vô nghĩa. Máy chủ cũng chặn
             (`updateStaff`) — ẩn ở đây chỉ để khỏi bày ra thứ bấm không ăn. */}
         {staff?.id !== actor?.id && (
-          <fieldset className={styles.fieldset}>
-            <legend className={styles.legend}>Quyền</legend>
-            <p className={styles.note}>
-              Đã điền sẵn theo chức vụ — sửa riêng từng ô nếu người này cần thêm
-              hoặc bớt quyền so với chức vụ chung. Chỉ chọn được tới đúng phạm vi
-              bạn đang có, không cấp vượt quá quyền của chính bạn.
-            </p>
-            <PermissionsEditor
-              value={watch("permissions")}
-              onChange={(permissions) => setValue("permissions", permissions, { shouldDirty: true })}
-              actor={actor}
-            />
-            <Button
-              variant="secondary"
-              type="button"
-              className={styles.resetPermissions}
-              onClick={() =>
-                setValue("permissions", ROLE_PERMISSIONS[watch("role")], { shouldDirty: true })
-              }
-            >
-              Đặt lại theo chức vụ
-            </Button>
-          </fieldset>
+          /* Đóng sẵn: lưới quyền là phần dài nhất hộp thoại, mà phần lớn lượt
+             tạo giữ nguyên bộ quyền mặc định của chức vụ. Dùng `details` chứ
+             không tự dựng bằng div: bàn phím và trình đọc màn hình có sẵn. */
+          <details className={styles.collapsible}>
+            <summary>
+              <ChevronRight size={16} className={styles.chevron} aria-hidden />
+              Quyền
+              <span className={styles.collapsibleCount}>
+                {fullAccess ? "Toàn quyền" : `${permissions.length} quyền`}
+              </span>
+            </summary>
+            <div className={styles.collapsibleBody}>
+              {fullAccess ? (
+                <Alert tone="warning">
+                  Bộ quyền này phủ <strong>mọi module, toàn công ty</strong>, gồm
+                  cả cấp quyền cho người khác. Lưới bên dưới chỉ cấp quyền lẻ theo
+                  từng module nên nó hiện trống — tích thêm ở đó không làm quyền
+                  rộng hơn hay hẹp đi.
+                </Alert>
+              ) : (
+                <p className={styles.note}>
+                  Đã điền sẵn theo chức vụ — sửa riêng từng ô nếu người này cần thêm
+                  hoặc bớt quyền so với chức vụ chung. Chỉ chọn được tới đúng phạm vi
+                  bạn đang có, không cấp vượt quá quyền của chính bạn.
+                </p>
+              )}
+              <PermissionsEditor
+                value={permissions}
+                onChange={(permissions) =>
+                  setValue("permissions", permissions, { shouldDirty: true })
+                }
+                actor={actor}
+              />
+              <Button
+                variant="secondary"
+                type="button"
+                className={styles.resetPermissions}
+                onClick={() =>
+                  setValue("permissions", ROLE_PERMISSIONS[watch("role")], { shouldDirty: true })
+                }
+              >
+                Đặt lại theo chức vụ
+              </Button>
+            </div>
+          </details>
         )}
       </form>
       )}

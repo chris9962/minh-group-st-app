@@ -70,6 +70,58 @@
   color: var(--om-text-2);
 }
 
+/* Khối thu gọn được, cùng khung với `.fieldset` để hai khối đọc ra một hệ. */
+.collapsible {
+  border: 1px solid var(--om-line);
+  border-radius: var(--radius-md);
+
+  > summary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    /* 44px cho ngón tay: đây là vùng bấm mở khối trên điện thoại. */
+    min-height: 44px;
+    padding: 0 14px;
+    font-size: 12.5px;
+    color: var(--om-text-2);
+    cursor: pointer;
+    /* Bỏ tam giác mặc định — icon riêng bên dưới xoay theo trạng thái. */
+    list-style: none;
+  }
+
+  > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  &[open] > summary {
+    border-bottom: 1px solid var(--om-line);
+  }
+
+  &[open] .chevron {
+    transform: rotate(90deg);
+  }
+}
+
+.chevron {
+  flex: none;
+  transition: transform 0.15s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chevron {
+    transition: none;
+  }
+}
+
+.collapsibleCount {
+  margin-left: auto;
+  color: var(--om-text-3);
+}
+
+.collapsibleBody {
+  padding: 12px 14px 14px;
+}
+
 /* Mười lăm phòng — xếp hai cột cho khỏi thành một cột dài lê thê. */
 .checks {
   display: grid;
