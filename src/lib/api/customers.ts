@@ -152,7 +152,7 @@ export const CustomerForm = z.object({
     .string()
     .trim()
     .min(1, 'Chưa nhập CCCD')
-    .refine(/^\d{12}$/.test, 'CCCD phải đủ 12 số'),
+    .refine((v) => /^\d{12}$/.test(v), 'CCCD phải đủ 12 số'),
   address: z.string().trim().min(1, 'Chưa nhập địa chỉ'),
   phones: z.array(CustomerPhoneForm).min(1, 'Cần ít nhất một số điện thoại'),
   channelId: z.string(),
