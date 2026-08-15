@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { use, useState } from "react";
 import { ChartColumn, ChevronLeft, SquareArrowOutUpRight } from "lucide-react";
@@ -18,9 +18,14 @@ import { SectionCard } from "@/components/ui/SectionCard";
 import { SectionTabs, type SectionOption } from "@/components/ui/SectionTabs";
 import { SegmentedTabs, type TabOption } from "@/components/ui/SegmentedTabs";
 import { StatusTag } from "@/components/ui/StatusTag";
+import { PAGE_SIZE, type SortDir } from "@/lib/api/pagination";
 import { periodMonth, periodParam, showsKpi, type PeriodMode } from "@/lib/api/people";
 import {
   fetchPerson,
+  fetchPersonAccounts,
+  fetchPersonCustomers,
+  fetchPersonInsurance,
+  fetchPersonServices,
   type PersonAccount,
   type PersonCustomer,
   type PersonInsurance,
@@ -41,6 +46,9 @@ const DATE_COLUMN = {
   key: "date",
   label: "Ngày",
   sortBy: dateOrder,
+  // Bốn bảng tab phân trang ở máy chủ — `date` là khoá duy nhất trong danh
+  // sách trắng của route.
+  sortable: true,
   render: (row: { date: string }) => formatDate(row.date),
 };
 
@@ -210,6 +218,45 @@ export default function PersonPage({
     queryFn: () => fetchPerson({ id, period: param, summaryMonth }),
   });
 
+  /* Bốn tab, mỗi tab một route phân trang — gọi CẢ BỐN ngay khi mở trang để
+     biết tab nào có dòng mà hiện; đổi kỳ thì khoá truy vấn đổi, cả bốn tự gọi
+     lại. Trang/chiều sắp giữ riêng từng tab. */
+  const ZERO_PAGES: Record<TabKey, number> = { customers: 0, accounts: 0, insurance: 0, services: 0 };
+  const [tabPages, setTabPages] = useState<Record<TabKey, number>>(ZERO_PAGES);
+  const [tabDirs, setTabDirs] = useState<Record<TabKey, SortDir>>({
+    customers: "desc",
+    accounts: "desc",
+    insurance: "desc",
+    services: "desc",
+  });
+
+  const listQuery = <T,>(
+    key: TabKey,
+    fetcher: (q: { id: string; period: string; page: number; dir: SortDir }) => Promise<T>,
+  ) => ({
+    queryKey: ["person-" + key, id, param, tabPages[key], tabDirs[key]],
+    queryFn: () => fetcher({ id, period: param, page: tabPages[key], dir: tabDirs[key] }),
+    placeholderData: keepPreviousData as never,
+  });
+
+  const customersQ = useQuery(listQuery("customers", fetchPersonCustomers));
+  const accountsQ = useQuery(listQuery("accounts", fetchPersonAccounts));
+  const insuranceQ = useQuery(listQuery("insurance", fetchPersonInsurance));
+  const servicesQ = useQuery(listQuery("services", fetchPersonServices));
+
+  const serverFor = (key: TabKey, total: number) => ({
+    sort: "date",
+    dir: tabDirs[key],
+    page: tabPages[key],
+    total,
+    pageSize: PAGE_SIZE,
+    onSortChange: (_sort: string, dir: "asc" | "desc") => {
+      setTabDirs((d) => ({ ...d, [key]: dir }));
+      setTabPages((p) => ({ ...p, [key]: 0 }));
+    },
+    onPageChange: (next: number) => setTabPages((p) => ({ ...p, [key]: next })),
+  });
+
   // Thẻ tài khoản chỉ hiện với người quản trị được tài khoản — không có quyền
   // thì `AccountCard` trả về null, bày ra một tab rỗng cho họ bấm là vô nghĩa.
   const actor = useSession((st) => st.user);
@@ -220,13 +267,14 @@ export default function PersonPage({
   const periodText = period.kind === "today" ? "Hôm nay" : monthLabel(summaryMonth);
 
   // Chỉ hiện thẻ có dòng. Thẻ rỗng chỉ để người dùng bấm vào rồi thấy trống.
-  const tabs: TabOption[] = data
+  const listsReady = [customersQ, accountsQ, insuranceQ, servicesQ].every((q) => q.isSuccess);
+  const tabs: TabOption[] = listsReady
     ? (
         [
-          { value: "customers", label: "Khách hàng", count: data.customers.length },
-          { value: "accounts", label: "Tài khoản", count: data.accounts.length },
-          { value: "insurance", label: "Đơn bảo hiểm", count: data.insurance.length },
-          { value: "services", label: "Dịch vụ", count: data.services.length },
+          { value: "customers", label: "Khách hàng", count: customersQ.data?.total ?? 0 },
+          { value: "accounts", label: "Tài khoản", count: accountsQ.data?.total ?? 0 },
+          { value: "insurance", label: "Đơn bảo hiểm", count: insuranceQ.data?.total ?? 0 },
+          { value: "services", label: "Dịch vụ", count: servicesQ.data?.total ?? 0 },
         ] as TabOption[]
       ).filter((t) => (t.count ?? 0) > 0)
     : [];
@@ -235,7 +283,15 @@ export default function PersonPage({
   return (
     <>
       <TopBar title={data?.fullName ?? "Nhân viên"}>
-        <PeoplePeriodPicker value={period} onChange={setPeriod} />
+        <PeoplePeriodPicker
+          value={period}
+          onChange={(v) => {
+            setPeriod(v);
+            // Đổi kỳ là bốn danh sách đổi nội dung — trang 3 của kỳ cũ áp vào
+            // kỳ mới là một khúc rỗng.
+            setTabPages(ZERO_PAGES);
+          }}
+        />
       </TopBar>
 
       <main className={styles.body}>
@@ -271,7 +327,9 @@ export default function PersonPage({
             </aside>
 
             <div className={styles.content}>
-              {tabs.length === 0 ? (
+              {!listsReady ? (
+                <SkeletonCard lines={4} />
+              ) : tabs.length === 0 ? (
                 <p className="text-muted">
                   {periodText} chưa có hoạt động nào của {data.fullName}.
                 </p>
@@ -287,12 +345,12 @@ export default function PersonPage({
                   {activeTab === "customers" && (
                     <div className={styles.panel}>
                       <RankTable
-                        rows={data.customers}
+                        rows={customersQ.data?.rows ?? []}
                         columns={CUSTOMER_COLUMNS}
                         rowKey={(c) => c.id}
                         defaultSort="date"
-                        pageSize={10}
                         caption={`Khách hàng đã lập hồ sơ ${periodText}`}
+                        server={serverFor("customers", customersQ.data?.total ?? 0)}
                       />
                       <p className={styles.footnote}>
                         Hai cột đếm là TỔNG của khách đó, không giới hạn trong kỳ
@@ -305,12 +363,12 @@ export default function PersonPage({
                   {activeTab === "accounts" && (
                     <div className={styles.panel}>
                       <RankTable
-                        rows={data.accounts}
+                        rows={accountsQ.data?.rows ?? []}
                         columns={ACCOUNT_COLUMNS}
                         rowKey={(a) => a.id}
                         defaultSort="date"
-                        pageSize={10}
                         caption={`Tài khoản ngân hàng đã mở ${periodText}`}
+                        server={serverFor("accounts", accountsQ.data?.total ?? 0)}
                       />
                     </div>
                   )}
@@ -318,12 +376,12 @@ export default function PersonPage({
                   {activeTab === "insurance" && (
                     <div className={styles.panel}>
                       <RankTable
-                        rows={data.insurance}
+                        rows={insuranceQ.data?.rows ?? []}
                         columns={INSURANCE_COLUMNS}
                         rowKey={(o) => o.id}
                         defaultSort="date"
-                        pageSize={10}
                         caption={`Đơn bảo hiểm đã tạo ${periodText}`}
+                        server={serverFor("insurance", insuranceQ.data?.total ?? 0)}
                       />
                     </div>
                   )}
@@ -331,12 +389,12 @@ export default function PersonPage({
                   {activeTab === "services" && (
                     <div className={styles.panel}>
                       <RankTable
-                        rows={data.services}
+                        rows={servicesQ.data?.rows ?? []}
                         columns={SERVICE_COLUMNS}
                         rowKey={(s) => s.id}
                         defaultSort="date"
-                        pageSize={10}
                         caption={`Dịch vụ đã làm cho khách ${periodText}`}
+                        server={serverFor("services", servicesQ.data?.total ?? 0)}
                       />
                     </div>
                   )}

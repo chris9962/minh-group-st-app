@@ -1,11 +1,18 @@
-import { and, asc, eq, gte, inArray, lte, sql, type AnyColumn, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lte, sql, type AnyColumn, type SQL } from "drizzle-orm";
 import type { PersonScore } from "@/lib/api/people";
-import type { PersonDetail } from "@/lib/api/person";
+import type {
+  PersonAccount,
+  PersonCustomer,
+  PersonDetail,
+  PersonInsurance,
+  PersonService,
+} from "@/lib/api/person";
+import type { Page } from "@/lib/api/pagination";
 import { BUSINESS_TIMEZONE, businessDay, businessMonth, monthRange, roundPoints } from "@/lib/format";
 import { clampScope, inVisibleScope, visibleDepartmentIds } from "@/lib/permissions";
 import { ROLE_RANK, Scope, type User } from "@/lib/types";
 import { db } from "./db/client";
-import { grantedItemLabel } from "./gift";
+import type { PageArgs } from "./pagination";
 import {
   bankAccounts,
   banks,
@@ -13,7 +20,6 @@ import {
   customerPhones,
   customers,
   departments,
-  giftGrants,
   insuranceOrders,
   kpiScores,
   kpiTargets,
@@ -553,75 +559,46 @@ export async function personFor(
   const summaryMonth = query.summaryMonth || businessMonth();
   const range = periodOf(query.period || "today");
 
-  /* Hoạt động trong KỲ đang xem — bảng còn trống thì các mảng rỗng, thẻ tự ẩn. */
-
-  /* Khách do chính người này lập hồ sơ. `created_at` là `timestamptz` nên hai
-     mốc phải quy về giờ làm việc, cùng cách với `countsInRange` ở trên — so
-     thẳng thì khách lập lúc 23:30 ngày cuối kỳ rơi sang kỳ sau. */
-  const customerRows = await db
-    .select({
-      id: customers.id,
-      date: sql<string>`to_char(${customers.createdAt} at time zone ${BUSINESS_TIMEZONE}, 'YYYY-MM-DD')`,
-      fullName: customers.fullName,
-      phone: sql<string>`coalesce((select cp.number from ${customerPhones} cp
-        where cp.customer_id = ${customers.id} order by cp.is_primary desc limit 1), '')`,
-      channel: sql<string>`coalesce(${channels.name}, '')`,
-      accountCount: customers.accountCount,
-      insuranceCount: customers.insuranceCount,
-    })
-    .from(customers)
-    .leftJoin(channels, eq(channels.id, customers.channelId))
-    .where(
-      and(
-        eq(customers.createdBy, id),
-        sql`${customers.createdAt} >= ((${range.from}::date)::timestamp at time zone ${BUSINESS_TIMEZONE})`,
-        sql`${customers.createdAt} < ((${range.to}::date + 1)::timestamp at time zone ${BUSINESS_TIMEZONE})`,
-      ),
-    )
-    .limit(500);
-
-  const accountRows = await db
-    .select({
-      account: bankAccounts,
-      bankCode: banks.code,
-      customerName: customers.fullName,
-      referralCode: sql<string>`(select code from referral_codes rc where rc.id = ${bankAccounts.referralCodeId})`,
-    })
-    .from(bankAccounts)
-    .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
-    .innerJoin(customers, eq(customers.id, bankAccounts.customerId))
-    .where(
+  /* Bốn danh sách hoạt động trong kỳ KHÔNG còn nằm ở đây — mỗi tab một route
+     phân trang riêng (`personCustomersFor`…, chốt 2026-08-15). Hàm này chỉ còn
+     gộp điểm dịch vụ theo LOẠI cho các cung nguồn điểm, và ba số đếm cho màn
+     Tổng quan của nhân viên. */
+  const countOf = async (table: typeof bankAccounts | typeof insuranceOrders | typeof services, where: SQL | undefined) => {
+    const [{ n }] = await db.select({ n: sql<number>`count(*)::int` }).from(table).where(where);
+    return n;
+  };
+  const counts = {
+    accounts: await countOf(
+      bankAccounts,
       and(
         eq(bankAccounts.createdBy, id),
         eq(bankAccounts.status, "done"),
         gte(bankAccounts.openedDate, range.from),
         lte(bankAccounts.openedDate, range.to),
       ),
-    )
-    .limit(500);
-
-  const orderRows = await db
-    .select({ order: insuranceOrders, customerName: customers.fullName })
-    .from(insuranceOrders)
-    .innerJoin(customers, eq(customers.id, insuranceOrders.customerId))
-    .where(
+    ),
+    insurance: await countOf(
+      insuranceOrders,
+      and(eq(insuranceOrders.createdBy, id), orderedInRange(range)),
+    ),
+    services: await countOf(
+      services,
       and(
-        eq(insuranceOrders.createdBy, id),
-        orderedInRange(range),
+        eq(services.createdBy, id),
+        gte(services.serviceDate, range.from),
+        lte(services.serviceDate, range.to),
       ),
-    )
-    .limit(500);
+    ),
+  };
 
-  const serviceRows = await db
+  const serviceAgg = await db
     .select({
-      service: services,
       typeName: serviceTypes.name,
-      coefficient: serviceTypes.coefficient,
-      customerName: customers.fullName,
+      count: sql<number>`count(*)::int`,
+      points: sql<number>`sum(${serviceTypes.coefficient})::float`,
     })
     .from(services)
     .innerJoin(serviceTypes, eq(serviceTypes.id, services.serviceTypeId))
-    .innerJoin(customers, eq(customers.id, services.customerId))
     .where(
       and(
         eq(services.createdBy, id),
@@ -629,24 +606,7 @@ export async function personFor(
         lte(services.serviceDate, range.to),
       ),
     )
-    .limit(500);
-
-  /* Quà: đợt CHÍNH NGƯỜI NÀY tặng, trong kỳ đang xem. Lọc theo `granted_by` và
-     `granted_at` là bắt buộc — `gift_grants.customer_id` là unique nên mỗi khách
-     đúng một đợt, thiếu hai điều kiện này thì quà người khác tặng ở tháng khác
-     vẫn hiện lên hồ sơ này. */
-  const grants = await db
-    .select({ grant: giftGrants, customerName: customers.fullName })
-    .from(giftGrants)
-    .innerJoin(customers, eq(customers.id, giftGrants.customerId))
-    .where(
-      and(
-        eq(giftGrants.grantedBy, id),
-        gte(giftGrants.grantedAt, new Date(`${range.from}T00:00:00+07:00`)),
-        lte(giftGrants.grantedAt, new Date(`${range.to}T23:59:59.999+07:00`)),
-      ),
-    )
-    .limit(500);
+    .groupBy(serviceTypes.name);
 
   /* Điểm tháng (phần tóm tắt) + 5 tháng gần nhất. */
   // Hồ sơ một người chỉ cần ĐIỂM của tháng — số đếm ở đây lấy từ chính các danh
@@ -674,18 +634,8 @@ export async function personFor(
    * nguồn ở đây phải cộng ra ĐÚNG `points.total` bên cạnh — lệch là hai con số
    * mâu thuẫn trên cùng một thẻ.
    */
-  const bySource = new Map<string, { label: string; count: number; points: number }>();
-  const addSource = (label: string, points: number) => {
-    const kept = bySource.get(label) ?? { label, count: 0, points: 0 };
-    kept.count += 1;
-    kept.points += points;
-    bySource.set(label, kept);
-  };
-
-  for (const r of serviceRows) addSource(r.typeName, Number(r.coefficient));
-
-  const pointSources = [...bySource.values()].map((s) => ({
-    label: s.label,
+  const pointSources = serviceAgg.map((s) => ({
+    label: s.typeName,
     // Làm tròn 2 số: hệ số là `numeric(4,2)` nên cộng dồn ra 4.199999999999999.
     detail: `${s.count} lượt · hệ số ${roundPoints(s.points / s.count)}`,
     points: roundPoints(s.points),
@@ -726,15 +676,113 @@ export async function personFor(
     },
     pointSources,
     monthlyPoints,
-    gifts: grants.map((g) => ({
-      customerId: g.grant.customerId,
-      customerName: g.customerName,
-      // `chosen_item` giữ MÃ (#74) — chữ hiện lấy tên lúc phát trong snapshot.
-      items: [grantedItemLabel(g.grant.chosenItem, g.grant.snapshot)].filter(Boolean),
-      eligible: true,
-    })),
-    customers: customerRows,
-    accounts: accountRows.map((r) => ({
+    counts,
+  };
+}
+
+/**
+ * Bốn danh sách hoạt động của MỘT người, mỗi danh sách một route phân trang
+ * (chốt 2026-08-15) — thay cho bản cũ trả cả bốn mảng trong `personFor` với
+ * trần 500 dòng cắt không báo.
+ *
+ * Cùng luật tầm nhìn với `personFor`: ngoài tầm trả `null` → route đổi 404.
+ * Khoá sắp duy nhất là `date`; luôn kèm `id` làm khoá phụ — thứ tự giữa những
+ * dòng cùng ngày phải ổn định qua các trang (xem `listCustomers`).
+ */
+async function visibleStaffId(actor: User, id: string): Promise<boolean> {
+  const rows = await db
+    .select({ departmentId: users.departmentId })
+    .from(users)
+    .where(eq(users.id, id))
+    .limit(1);
+  if (!rows[0]) return false;
+  return inVisibleScope(actor, "staff", "view-detail", rows[0].departmentId);
+}
+
+const orderedBy = (col: AnyColumn, dir: "asc" | "desc", idCol: AnyColumn) =>
+  dir === "asc" ? [asc(col), asc(idCol)] : [desc(col), desc(idCol)];
+
+export async function personCustomersFor(
+  actor: User,
+  id: string,
+  period: string,
+  page: PageArgs<"date">,
+): Promise<Page<PersonCustomer> | null> {
+  if (!(await visibleStaffId(actor, id))) return null;
+  const range = periodOf(period);
+
+  /* `created_at` là `timestamptz` nên hai mốc phải quy về giờ làm việc — so
+     thẳng thì khách lập lúc 23:30 ngày cuối kỳ rơi sang kỳ sau. */
+  const where = and(
+    eq(customers.createdBy, id),
+    sql`${customers.createdAt} >= ((${range.from}::date)::timestamp at time zone ${BUSINESS_TIMEZONE})`,
+    sql`${customers.createdAt} < ((${range.to}::date + 1)::timestamp at time zone ${BUSINESS_TIMEZONE})`,
+  );
+
+  const rows = await db
+    .select({
+      id: customers.id,
+      date: sql<string>`to_char(${customers.createdAt} at time zone ${BUSINESS_TIMEZONE}, 'YYYY-MM-DD')`,
+      fullName: customers.fullName,
+      phone: sql<string>`coalesce((select cp.number from ${customerPhones} cp
+        where cp.customer_id = ${customers.id} order by cp.is_primary desc limit 1), '')`,
+      channel: sql<string>`coalesce(${channels.name}, '')`,
+      accountCount: customers.accountCount,
+      insuranceCount: customers.insuranceCount,
+    })
+    .from(customers)
+    .leftJoin(channels, eq(channels.id, customers.channelId))
+    .where(where)
+    .orderBy(...orderedBy(customers.createdAt, page.dir, customers.id))
+    .limit(page.limit)
+    .offset(page.offset);
+
+  const [{ total }] = await db
+    .select({ total: sql<number>`count(*)::int` })
+    .from(customers)
+    .where(where);
+
+  return { rows, total };
+}
+
+export async function personAccountsFor(
+  actor: User,
+  id: string,
+  period: string,
+  page: PageArgs<"date">,
+): Promise<Page<PersonAccount> | null> {
+  if (!(await visibleStaffId(actor, id))) return null;
+  const range = periodOf(period);
+
+  const where = and(
+    eq(bankAccounts.createdBy, id),
+    eq(bankAccounts.status, "done"),
+    gte(bankAccounts.openedDate, range.from),
+    lte(bankAccounts.openedDate, range.to),
+  );
+
+  const rows = await db
+    .select({
+      account: bankAccounts,
+      bankCode: banks.code,
+      customerName: customers.fullName,
+      referralCode: sql<string>`(select code from referral_codes rc where rc.id = ${bankAccounts.referralCodeId})`,
+    })
+    .from(bankAccounts)
+    .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
+    .innerJoin(customers, eq(customers.id, bankAccounts.customerId))
+    .where(where)
+    .orderBy(...orderedBy(bankAccounts.openedDate, page.dir, bankAccounts.id))
+    .limit(page.limit)
+    .offset(page.offset);
+
+  const [{ total }] = await db
+    .select({ total: sql<number>`count(*)::int` })
+    .from(bankAccounts)
+    .where(where);
+
+  return {
+    rows: rows.map((r) => ({
       id: r.account.id,
       date: r.account.openedDate ?? "",
       customerId: r.account.customerId,
@@ -745,7 +793,37 @@ export async function personFor(
       appInstalled: r.account.appInstalled,
       accountType: r.account.accountType,
     })),
-    insurance: orderRows.map((r) => ({
+    total,
+  };
+}
+
+export async function personInsuranceFor(
+  actor: User,
+  id: string,
+  period: string,
+  page: PageArgs<"date">,
+): Promise<Page<PersonInsurance> | null> {
+  if (!(await visibleStaffId(actor, id))) return null;
+  const range = periodOf(period);
+
+  const where = and(eq(insuranceOrders.createdBy, id), orderedInRange(range));
+
+  const rows = await db
+    .select({ order: insuranceOrders, customerName: customers.fullName })
+    .from(insuranceOrders)
+    .innerJoin(customers, eq(customers.id, insuranceOrders.customerId))
+    .where(where)
+    .orderBy(...orderedBy(insuranceOrders.orderDate, page.dir, insuranceOrders.id))
+    .limit(page.limit)
+    .offset(page.offset);
+
+  const [{ total }] = await db
+    .select({ total: sql<number>`count(*)::int` })
+    .from(insuranceOrders)
+    .where(where);
+
+  return {
+    rows: rows.map((r) => ({
       id: r.order.id,
       // Ngày ĐƠN, khớp với phép đếm ở `orderedInRange`.
       date: r.order.orderDate,
@@ -755,7 +833,47 @@ export async function personFor(
       packageName: r.order.packageName,
       status: r.order.status,
     })),
-    services: serviceRows.map((r) => ({
+    total,
+  };
+}
+
+export async function personServicesFor(
+  actor: User,
+  id: string,
+  period: string,
+  page: PageArgs<"date">,
+): Promise<Page<PersonService> | null> {
+  if (!(await visibleStaffId(actor, id))) return null;
+  const range = periodOf(period);
+
+  const where = and(
+    eq(services.createdBy, id),
+    gte(services.serviceDate, range.from),
+    lte(services.serviceDate, range.to),
+  );
+
+  const rows = await db
+    .select({
+      service: services,
+      typeName: serviceTypes.name,
+      coefficient: serviceTypes.coefficient,
+      customerName: customers.fullName,
+    })
+    .from(services)
+    .innerJoin(serviceTypes, eq(serviceTypes.id, services.serviceTypeId))
+    .innerJoin(customers, eq(customers.id, services.customerId))
+    .where(where)
+    .orderBy(...orderedBy(services.serviceDate, page.dir, services.id))
+    .limit(page.limit)
+    .offset(page.offset);
+
+  const [{ total }] = await db
+    .select({ total: sql<number>`count(*)::int` })
+    .from(services)
+    .where(where);
+
+  return {
+    rows: rows.map((r) => ({
       id: r.service.id,
       date: r.service.serviceDate,
       customerId: r.service.customerId,
@@ -764,5 +882,6 @@ export async function personFor(
       ward: r.service.wardName ?? "",
       points: Number(r.coefficient),
     })),
+    total,
   };
 }

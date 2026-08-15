@@ -159,15 +159,15 @@ export default function DashboardPage() {
             <PersonKpiPanel person={view.person} withKpi />
             <div className={styles.statRow}>
               <StatCard
-                value={view.person.accounts.length}
+                value={view.person.counts.accounts}
                 label={`tài khoản mở ${periodLabel}`}
               />
               <StatCard
-                value={view.person.insurance.length}
+                value={view.person.counts.insurance}
                 label={`đơn bảo hiểm ${periodLabel}`}
               />
               <StatCard
-                value={view.person.services.length}
+                value={view.person.counts.services}
                 label={`lượt dịch vụ ${periodLabel}`}
               />
             </div>

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { InsuranceProduct } from '@/lib/types';
 import { InsuranceOrderStatus } from './insuranceOrders';
+import { pageOf, pageParams, SortDir, type Page } from './pagination';
 
 /** Số liệu cho P-52 Xem theo một nhân viên. */
 
@@ -18,78 +19,6 @@ export const PersonAccount = z.object({
   accountType: z.enum(['none', 'CNKD', 'HKD']),
 });
 export type PersonAccount = z.infer<typeof PersonAccount>;
-
-/** Quà của một khách. Quà tính theo KHÁCH, không theo từng tài khoản. */
-export const CustomerGift = z.object({
-  customerId: z.string(),
-  customerName: z.string(),
-  /** Món đã phát. Rỗng mà `eligible` là đúng nghĩa là đủ điều kiện nhưng chưa phát. */
-  items: z.array(z.string()),
-  eligible: z.boolean(),
-});
-export type CustomerGift = z.infer<typeof CustomerGift>;
-
-/** Một khách với TẤT CẢ ngân hàng của họ gộp lại. */
-export type CustomerAccounts = {
-  customerId: string;
-  customerName: string;
-  /** Ngày gần nhất trong nhóm — để sắp xếp. */
-  date: string;
-  banks: string[];
-  referralCodes: string[];
-  channels: string[];
-  /** Ngân hàng đã cài app, kèm loại đăng ký: `VPa (CNKD)`. */
-  appBanks: string[];
-  giftItems: string[];
-  giftEligible: boolean;
-};
-
-/**
- * Gộp tài khoản thành một hàng cho mỗi khách.
- *
- * Một khách mở tài khoản ở nhiều ngân hàng, để mỗi ngân hàng một dòng thì tên
- * khách lặp lại và người đọc phải tự gom. Xuất Excel cũng gộp theo đúng quy tắc
- * này, nên hàm để ở đây chứ không nằm trong trang.
- */
-export function groupAccountsByCustomer(
-  accounts: PersonAccount[],
-  gifts: CustomerGift[] = [],
-): CustomerAccounts[] {
-  // Gộp theo ID chứ không theo tên: hai khách trùng tên là chuyện thường, gộp
-  // theo tên thì họ thành một dòng và link trỏ nhầm sang người kia.
-  const giftOf = new Map(gifts.map((g) => [g.customerId, g]));
-  const byCustomer = new Map<string, CustomerAccounts>();
-
-  for (const a of accounts) {
-    const row = byCustomer.get(a.customerId) ?? {
-      customerId: a.customerId,
-      customerName: a.customerName,
-      date: a.date,
-      banks: [],
-      referralCodes: [],
-      channels: [],
-      appBanks: [],
-      giftItems: giftOf.get(a.customerId)?.items ?? [],
-      giftEligible: giftOf.get(a.customerId)?.eligible ?? false,
-    };
-
-    // Chuỗi YYYY-MM-DD so sánh được trực tiếp, không cần dựng Date.
-    if (a.date > row.date) row.date = a.date;
-    if (!row.banks.includes(a.bankName)) row.banks.push(a.bankName);
-    if (!row.referralCodes.includes(a.referralCode))
-      row.referralCodes.push(a.referralCode);
-    if (!row.channels.includes(a.channel)) row.channels.push(a.channel);
-    if (a.appInstalled) {
-      row.appBanks.push(
-        a.accountType === 'none' ? a.bankName : `${a.bankName} (${a.accountType})`,
-      );
-    }
-
-    byCustomer.set(a.customerId, row);
-  }
-
-  return [...byCustomer.values()];
-}
 
 /** Một khách do người này lập hồ sơ trong kỳ. */
 export const PersonCustomer = z.object({
@@ -159,13 +88,15 @@ export const PersonDetail = z.object({
   pointSources: z.array(PointSource),
   /** Điểm 5 tháng gần nhất, cũ trước mới sau. Luôn theo tháng, không theo ngày. */
   monthlyPoints: z.array(z.object({ month: z.string(), points: z.number() })),
-  /** Quà đã tặng cho khách của người này trong kỳ. */
-  gifts: z.array(CustomerGift),
-  /** Rỗng thì trang không hiện thẻ tương ứng. */
-  customers: z.array(PersonCustomer),
-  accounts: z.array(PersonAccount),
-  insurance: z.array(PersonInsurance),
-  services: z.array(PersonService),
+  /**
+   * Số bản ghi trong kỳ — cho ba thẻ đếm ở màn Tổng quan của nhân viên.
+   * Danh sách chi tiết nằm ở bốn route phân trang riêng (chốt 2026-08-15).
+   */
+  counts: z.object({
+    accounts: z.number(),
+    insurance: z.number(),
+    services: z.number(),
+  }),
 });
 export type PersonDetail = z.infer<typeof PersonDetail>;
 
@@ -183,3 +114,29 @@ export async function fetchPerson(query: {
   if (!res.ok) throw new Error('Không tải được hồ sơ nhân viên');
   return PersonDetail.parse(await res.json());
 }
+
+/* ── Bốn danh sách hoạt động, mỗi tab một route phân trang (chốt 2026-08-15) ── */
+
+export type PersonListQuery = {
+  id: string;
+  period: string;
+  /** Đếm từ 0. */
+  page: number;
+  dir: SortDir;
+};
+
+const personListPage = <T extends z.ZodTypeAny>(row: T, segment: string) => {
+  const PageSchema = pageOf(row);
+  return async (query: PersonListQuery): Promise<Page<z.infer<T>>> => {
+    const qs = pageParams({ page: query.page, sort: 'date', dir: query.dir }, { period: query.period });
+    const res = await fetch(`/api/people/${encodeURIComponent(query.id)}/${segment}?${qs}`);
+    if (res.status === 404) throw new Error('Không tìm thấy nhân viên này');
+    if (!res.ok) throw new Error('Không tải được danh sách hoạt động');
+    return PageSchema.parse(await res.json());
+  };
+};
+
+export const fetchPersonCustomers = personListPage(PersonCustomer, 'customers');
+export const fetchPersonAccounts = personListPage(PersonAccount, 'accounts');
+export const fetchPersonInsurance = personListPage(PersonInsurance, 'insurance');
+export const fetchPersonServices = personListPage(PersonService, 'services');
