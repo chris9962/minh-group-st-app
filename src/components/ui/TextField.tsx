@@ -4,6 +4,8 @@ import styles from "./TextField.module.css";
 
 type Props = Omit<React.InputHTMLAttributes<HTMLInputElement>, "id"> & {
   label: string;
+  /** Hiện dấu * cạnh nhãn và đánh dấu aria-required — KHÔNG bật validation của trình duyệt. */
+  required?: boolean;
   /** Thông báo lỗi. Có giá trị thì input được đánh dấu aria-invalid. */
   error?: string;
   /** Chú thích dưới ô nhập, ví dụ "đủ 12 số". */
@@ -19,7 +21,7 @@ type Props = Omit<React.InputHTMLAttributes<HTMLInputElement>, "id"> & {
  * Nhãn LUÔN liên kết với input qua id — bắt buộc cho trình đọc màn hình,
  * và bấm vào nhãn thì con trỏ nhảy vào ô.
  */
-export function TextField({ label, error, hint, trailing, className, ref, ...rest }: Props) {
+export function TextField({ label, required, error, hint, trailing, className, ref, ...rest }: Props) {
   const id = useId();
   const errorId = `${id}-error`;
   const hintId = `${id}-hint`;
@@ -27,12 +29,20 @@ export function TextField({ label, error, hint, trailing, className, ref, ...res
 
   return (
     <div className={clsx(styles.field, className)}>
-      <label htmlFor={id}>{label}</label>
+      <label htmlFor={id}>
+        {label}
+        {required && (
+          <span className={styles.required} aria-hidden>
+            {" *"}
+          </span>
+        )}
+      </label>
       <div className={styles.control}>
         <input
           id={id}
           ref={ref}
           className={clsx("input", trailing && styles.withTrailing)}
+          aria-required={required || undefined}
           aria-invalid={Boolean(error)}
           aria-describedby={describedBy || undefined}
           {...rest}

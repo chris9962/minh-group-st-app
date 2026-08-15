@@ -210,13 +210,20 @@ export function CustomerFormDialog({ open, onClose, customer, onCreated }: Props
         >
           <TextField
             label="Họ tên"
+            required
             placeholder="Nguyễn Văn An"
             error={errors.fullName?.message}
             {...register("fullName")}
           />
 
           <div className={styles.pair}>
-            <TextField label="Ngày sinh" type="date" {...register("dob")} />
+            <TextField
+              label="Ngày sinh"
+              required
+              type="date"
+              error={errors.dob?.message}
+              {...register("dob")}
+            />
             {/* CCCD là trường bảo mật: không có `customer:access-id-number` thì
                 máy chủ chỉ trả 4 số cuối và bỏ qua mọi giá trị gửi lên, nên ô
                 phải khoá. Để mở mà máy chủ lặng lẽ bỏ qua thì người sửa gõ xong
@@ -231,6 +238,7 @@ export function CustomerFormDialog({ open, onClose, customer, onCreated }: Props
             ) : (
               <TextField
                 label="CCCD"
+                required
                 placeholder="092301004871"
                 error={errors.idNumber?.message}
                 {...register("idNumber")}
@@ -240,13 +248,15 @@ export function CustomerFormDialog({ open, onClose, customer, onCreated }: Props
 
           <TextField
             label="Địa chỉ"
+            required
             placeholder="123 Nguyễn Trãi, Phường Tân Bình"
+            error={errors.address?.message}
             {...register("address")}
           />
 
           <Select
             block
-            label="Kênh"
+            label="Kênh (tuỳ chọn)"
             value={channelId}
             onChange={(v) => {
               setValue("channelId", v, { shouldDirty: true });
@@ -339,6 +349,7 @@ export function CustomerFormDialog({ open, onClose, customer, onCreated }: Props
                 <div key={field.id} className={styles.phoneRow}>
                   <TextField
                     label={`Số điện thoại ${i + 1}`}
+                    required
                     placeholder="0901234567"
                     error={errors.phones?.[i]?.number?.message}
                     {...register(`phones.${i}.number`)}
