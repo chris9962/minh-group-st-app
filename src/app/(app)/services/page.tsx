@@ -26,7 +26,7 @@ import { fetchStaffOptions } from "@/lib/api/staff";
 import { fetchProvinces } from "@/lib/api/wardCatalog";
 import { formatDate } from "@/lib/format";
 import { useDebouncedValue } from "@/lib/hooks";
-import { can } from "@/lib/permissions";
+import { can, scopeFor } from "@/lib/permissions";
 import { invalidateKpi } from "@/lib/invalidateKpi";
 import { errorMessage, toast } from "@/lib/toast";
 import { useSession } from "@/store/session";
@@ -66,11 +66,16 @@ export default function ServicesPage() {
    * lọc theo người thứ 16 trở đi là không chọn được. Hỏng thì để rỗng chứ không
    * chặn cả màn.
    */
+  // Phạm vi 'own' thì bảng chỉ có dịch vụ của chính mình — ô lọc Nhân viên
+  // không có ai khác để chọn, và lời gọi danh sách nhân viên chắc chắn 403.
+  const canFilterByStaff = scopeFor(user, "services", "view-detail") !== "own";
+
   const { data: staff = [] } = useQuery({
     queryKey: ["staff", "options", "active"],
     queryFn: () => fetchStaffOptions({ status: "active" }),
     retry: false,
     staleTime: Infinity,
+    enabled: canFilterByStaff,
   });
   const staffOptions = useMemo(
     () => staff.map((s) => ({ value: s.id, label: s.fullName })),
@@ -227,12 +232,14 @@ export default function ServicesPage() {
               ...wards.map((w) => ({ value: w.id, label: w.name })),
             ]}
           />
-          <Select
-            label="Nhân viên"
-            value={staffId}
-            onChange={(v) => refine(() => setStaffId(v))}
-            options={[{ value: "", label: "Tất cả nhân viên" }, ...staffOptions]}
-          />
+          {canFilterByStaff && (
+            <Select
+              label="Nhân viên"
+              value={staffId}
+              onChange={(v) => refine(() => setStaffId(v))}
+              options={[{ value: "", label: "Tất cả nhân viên" }, ...staffOptions]}
+            />
+          )}
         </FilterButton>
         {can(user, "services", "create") && (
           <Button aria-label="Ghi dịch vụ" onClick={() => setCreating(true)}>
