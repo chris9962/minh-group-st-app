@@ -8,6 +8,7 @@ import { InsuranceOrderStatus } from './insuranceOrders';
 export const PersonAccount = z.object({
   id: z.string(),
   date: z.string(),
+  customerId: z.string(),
   customerName: z.string(),
   bankName: z.string(),
   referralCode: z.string(),
@@ -20,6 +21,7 @@ export type PersonAccount = z.infer<typeof PersonAccount>;
 
 /** Quà của một khách. Quà tính theo KHÁCH, không theo từng tài khoản. */
 export const CustomerGift = z.object({
+  customerId: z.string(),
   customerName: z.string(),
   /** Món đã phát. Rỗng mà `eligible` là đúng nghĩa là đủ điều kiện nhưng chưa phát. */
   items: z.array(z.string()),
@@ -29,6 +31,7 @@ export type CustomerGift = z.infer<typeof CustomerGift>;
 
 /** Một khách với TẤT CẢ ngân hàng của họ gộp lại. */
 export type CustomerAccounts = {
+  customerId: string;
   customerName: string;
   /** Ngày gần nhất trong nhóm — để sắp xếp. */
   date: string;
@@ -52,19 +55,22 @@ export function groupAccountsByCustomer(
   accounts: PersonAccount[],
   gifts: CustomerGift[] = [],
 ): CustomerAccounts[] {
-  const giftOf = new Map(gifts.map((g) => [g.customerName, g]));
+  // Gộp theo ID chứ không theo tên: hai khách trùng tên là chuyện thường, gộp
+  // theo tên thì họ thành một dòng và link trỏ nhầm sang người kia.
+  const giftOf = new Map(gifts.map((g) => [g.customerId, g]));
   const byCustomer = new Map<string, CustomerAccounts>();
 
   for (const a of accounts) {
-    const row = byCustomer.get(a.customerName) ?? {
+    const row = byCustomer.get(a.customerId) ?? {
+      customerId: a.customerId,
       customerName: a.customerName,
       date: a.date,
       banks: [],
       referralCodes: [],
       channels: [],
       appBanks: [],
-      giftItems: giftOf.get(a.customerName)?.items ?? [],
-      giftEligible: giftOf.get(a.customerName)?.eligible ?? false,
+      giftItems: giftOf.get(a.customerId)?.items ?? [],
+      giftEligible: giftOf.get(a.customerId)?.eligible ?? false,
     };
 
     // Chuỗi YYYY-MM-DD so sánh được trực tiếp, không cần dựng Date.
@@ -79,15 +85,30 @@ export function groupAccountsByCustomer(
       );
     }
 
-    byCustomer.set(a.customerName, row);
+    byCustomer.set(a.customerId, row);
   }
 
   return [...byCustomer.values()];
 }
 
+/** Một khách do người này lập hồ sơ trong kỳ. */
+export const PersonCustomer = z.object({
+  id: z.string(),
+  /** Ngày lập hồ sơ, đã quy về giờ làm việc. */
+  date: z.string(),
+  fullName: z.string(),
+  phone: z.string(),
+  channel: z.string(),
+  /** Hai cột đếm lưu sẵn của khách — xem `customers.account_count` ở db-design §9. */
+  accountCount: z.number(),
+  insuranceCount: z.number(),
+});
+export type PersonCustomer = z.infer<typeof PersonCustomer>;
+
 export const PersonService = z.object({
   id: z.string(),
   date: z.string(),
+  customerId: z.string(),
   customerName: z.string(),
   serviceType: z.string(),
   /** Chỉ nhân viên phòng Dự án mới có xã; nơi khác để trống. */
@@ -99,6 +120,7 @@ export type PersonService = z.infer<typeof PersonService>;
 export const PersonInsurance = z.object({
   id: z.string(),
   date: z.string(),
+  customerId: z.string(),
   customerName: z.string(),
   /** BH tai nạn điện · BH xe máy. */
   product: InsuranceProduct,
@@ -140,6 +162,7 @@ export const PersonDetail = z.object({
   /** Quà đã tặng cho khách của người này trong kỳ. */
   gifts: z.array(CustomerGift),
   /** Rỗng thì trang không hiện thẻ tương ứng. */
+  customers: z.array(PersonCustomer),
   accounts: z.array(PersonAccount),
   insurance: z.array(PersonInsurance),
   services: z.array(PersonService),

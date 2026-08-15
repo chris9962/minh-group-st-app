@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { use, useState } from "react";
-import { ChartColumn, ChevronLeft } from "lucide-react";
+import { ChartColumn, ChevronLeft, SquareArrowOutUpRight } from "lucide-react";
 import { SkeletonCard } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
@@ -23,6 +23,7 @@ import {
   fetchPerson,
   groupAccountsByCustomer,
   type CustomerAccounts,
+  type PersonCustomer,
   type PersonInsurance,
   type PersonService,
 } from "@/lib/api/person";
@@ -44,10 +45,52 @@ const DATE_COLUMN = {
   render: (row: { date: string }) => formatDate(row.date),
 };
 
+/**
+ * Ô tên khách — bấm sang hồ sơ khách hàng.
+ *
+ * Hồ sơ khách KHÔNG áp trục phạm vi (spec §2.1b) nên ai đăng nhập cũng mở được;
+ * không phải kiểm quyền trước khi dựng link như cột Đơn vị ở bảng nhân sự.
+ */
+function CustomerCell({ id, name }: { id: string; name: string }) {
+  return (
+    <Link href={`/customers/${id}`} className={styles.nameLink}>
+      {name}
+    </Link>
+  );
+}
+
+/** Khách do người này lập hồ sơ trong kỳ. */
+const CUSTOMER_COLUMNS: RankColumn<PersonCustomer>[] = [
+  DATE_COLUMN,
+  {
+    key: "fullName",
+    label: "Khách hàng",
+    render: (c) => <CustomerCell id={c.id} name={c.fullName} />,
+  },
+  { key: "phone", label: "Số điện thoại", render: (c) => formatPhone(c.phone) || "—" },
+  { key: "channel", label: "Kênh", render: (c) => c.channel || "—" },
+  {
+    key: "accountCount",
+    label: "Tài khoản",
+    sortBy: (c) => c.accountCount,
+    render: (c) => c.accountCount,
+  },
+  {
+    key: "insuranceCount",
+    label: "Đơn bảo hiểm",
+    sortBy: (c) => c.insuranceCount,
+    render: (c) => c.insuranceCount,
+  },
+];
+
 /** Một hàng một khách, mọi ngân hàng của khách nằm cùng ô. */
 const ACCOUNT_COLUMNS: RankColumn<CustomerAccounts>[] = [
-  { ...DATE_COLUMN, label: "Gần nhất" },
-  { key: "customerName", label: "Khách hàng", render: (c) => c.customerName },
+  DATE_COLUMN,
+  {
+    key: "customerName",
+    label: "Khách hàng",
+    render: (c) => <CustomerCell id={c.customerId} name={c.customerName} />,
+  },
   { key: "banks", label: "Ngân hàng", render: (c) => c.banks.join(", ") },
   {
     key: "appBanks",
@@ -75,9 +118,37 @@ const ACCOUNT_COLUMNS: RankColumn<CustomerAccounts>[] = [
   },
 ];
 
+/**
+ * Mở đơn bảo hiểm ở tab mới.
+ *
+ * Tab mới chứ không điều hướng tại chỗ: người xem đang dò một bảng dài, mở tại
+ * chỗ là mất luôn kỳ đang chọn và vị trí cuộn, quay lại phải dò từ đầu.
+ *
+ * Ẩn khi người xem không có quyền xem đơn — bấm vào chỉ nhận một màn báo lỗi.
+ */
+function OrderLinkCell({ id }: { id: string }) {
+  const user = useSession((s) => s.user);
+  if (!can(user, "insurance", "view-detail")) return null;
+  return (
+    <Link
+      href={`/insurance/${id}`}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={styles.openLink}
+      aria-label="Mở đơn bảo hiểm ở tab mới"
+    >
+      <SquareArrowOutUpRight size={15} aria-hidden />
+    </Link>
+  );
+}
+
 const INSURANCE_COLUMNS: RankColumn<PersonInsurance>[] = [
   DATE_COLUMN,
-  { key: "customerName", label: "Khách hàng", render: (o) => o.customerName },
+  {
+    key: "customerName",
+    label: "Khách hàng",
+    render: (o) => <CustomerCell id={o.customerId} name={o.customerName} />,
+  },
   { key: "product", label: "Loại bảo hiểm", render: (o) => PRODUCT_LABEL[o.product] },
   { key: "packageName", label: "Gói", render: (o) => o.packageName },
   {
@@ -87,11 +158,16 @@ const INSURANCE_COLUMNS: RankColumn<PersonInsurance>[] = [
       <StatusTag ok={o.status === "done"}>{INSURANCE_STATUS_LABEL[o.status]}</StatusTag>
     ),
   },
+  { key: "open", label: "Chi tiết", render: (o) => <OrderLinkCell id={o.id} /> },
 ];
 
 const SERVICE_COLUMNS: RankColumn<PersonService>[] = [
   DATE_COLUMN,
-  { key: "customerName", label: "Khách hàng", render: (s) => s.customerName },
+  {
+    key: "customerName",
+    label: "Khách hàng",
+    render: (s) => <CustomerCell id={s.customerId} name={s.customerName} />,
+  },
   { key: "serviceType", label: "Loại dịch vụ", render: (s) => s.serviceType },
   { key: "ward", label: "Xã", render: (s) => s.ward || "—" },
   {
@@ -111,7 +187,7 @@ const initialsOf = (fullName: string): string => {
 /** Nhãn cột biểu đồ: `2026-07` → `T7`. */
 const shortMonth = (month: string) => `T${Number(month.slice(5, 7))}`;
 
-type TabKey = "accounts" | "insurance" | "services";
+type TabKey = "customers" | "accounts" | "insurance" | "services";
 
 /**
  * Tab ngoài. Cố ý KHÔNG gọi tab thứ hai là "Tài khoản": bên trong tab thứ nhất
@@ -161,6 +237,7 @@ export default function PersonPage({
   const tabs: TabOption[] = data
     ? (
         [
+          { value: "customers", label: "Khách hàng", count: data.customers.length },
           { value: "accounts", label: "Tài khoản", count: data.accounts.length },
           { value: "insurance", label: "Đơn bảo hiểm", count: data.insurance.length },
           { value: "services", label: "Dịch vụ", count: data.services.length },
@@ -221,12 +298,30 @@ export default function PersonPage({
                     onChange={(v) => setTab(v as TabKey)}
                   />
 
+                  {activeTab === "customers" && (
+                    <div className={styles.panel}>
+                      <RankTable
+                        rows={data.customers}
+                        columns={CUSTOMER_COLUMNS}
+                        rowKey={(c) => c.id}
+                        defaultSort="date"
+                        pageSize={10}
+                        caption={`Khách hàng đã lập hồ sơ ${periodText}`}
+                      />
+                      <p className={styles.footnote}>
+                        Hai cột đếm là TỔNG của khách đó, không giới hạn trong kỳ
+                        đang xem — một khách lập tháng này vẫn hiện đủ tài khoản
+                        và đơn của những tháng trước.
+                      </p>
+                    </div>
+                  )}
+
                   {activeTab === "accounts" && (
                     <div className={styles.panel}>
                       <RankTable
                         rows={customers}
                         columns={ACCOUNT_COLUMNS}
-                        rowKey={(c) => c.customerName}
+                        rowKey={(c) => c.customerId}
                         defaultSort="date"
                         pageSize={10}
                         caption={`Khách hàng đã tiếp ${periodText}, gộp mọi ngân hàng của một khách vào một hàng`}

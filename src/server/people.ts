@@ -9,6 +9,8 @@ import { grantedItemLabel } from "./gift";
 import {
   bankAccounts,
   banks,
+  channels,
+  customerPhones,
   customers,
   departments,
   giftGrants,
@@ -552,6 +554,32 @@ export async function personFor(
   const range = periodOf(query.period || "today");
 
   /* Hoạt động trong KỲ đang xem — bảng còn trống thì các mảng rỗng, thẻ tự ẩn. */
+
+  /* Khách do chính người này lập hồ sơ. `created_at` là `timestamptz` nên hai
+     mốc phải quy về giờ làm việc, cùng cách với `countsInRange` ở trên — so
+     thẳng thì khách lập lúc 23:30 ngày cuối kỳ rơi sang kỳ sau. */
+  const customerRows = await db
+    .select({
+      id: customers.id,
+      date: sql<string>`to_char(${customers.createdAt} at time zone ${BUSINESS_TIMEZONE}, 'YYYY-MM-DD')`,
+      fullName: customers.fullName,
+      phone: sql<string>`coalesce((select cp.number from ${customerPhones} cp
+        where cp.customer_id = ${customers.id} order by cp.is_primary desc limit 1), '')`,
+      channel: sql<string>`coalesce(${channels.name}, '')`,
+      accountCount: customers.accountCount,
+      insuranceCount: customers.insuranceCount,
+    })
+    .from(customers)
+    .leftJoin(channels, eq(channels.id, customers.channelId))
+    .where(
+      and(
+        eq(customers.createdBy, id),
+        sql`${customers.createdAt} >= ((${range.from}::date)::timestamp at time zone ${BUSINESS_TIMEZONE})`,
+        sql`${customers.createdAt} < ((${range.to}::date + 1)::timestamp at time zone ${BUSINESS_TIMEZONE})`,
+      ),
+    )
+    .limit(500);
+
   const accountRows = await db
     .select({
       account: bankAccounts,
@@ -699,14 +727,17 @@ export async function personFor(
     pointSources,
     monthlyPoints,
     gifts: grants.map((g) => ({
+      customerId: g.grant.customerId,
       customerName: g.customerName,
       // `chosen_item` giữ MÃ (#74) — chữ hiện lấy tên lúc phát trong snapshot.
       items: [grantedItemLabel(g.grant.chosenItem, g.grant.snapshot)].filter(Boolean),
       eligible: true,
     })),
+    customers: customerRows,
     accounts: accountRows.map((r) => ({
       id: r.account.id,
       date: r.account.openedDate ?? "",
+      customerId: r.account.customerId,
       customerName: r.customerName,
       bankName: r.bankCode,
       referralCode: r.referralCode ?? "",
@@ -718,6 +749,7 @@ export async function personFor(
       id: r.order.id,
       // Ngày ĐƠN, khớp với phép đếm ở `orderedInRange`.
       date: r.order.orderDate,
+      customerId: r.order.customerId,
       customerName: r.customerName,
       product: r.order.product,
       packageName: r.order.packageName,
@@ -726,6 +758,7 @@ export async function personFor(
     services: serviceRows.map((r) => ({
       id: r.service.id,
       date: r.service.serviceDate,
+      customerId: r.service.customerId,
       customerName: r.customerName,
       serviceType: r.typeName,
       ward: r.service.wardName ?? "",
