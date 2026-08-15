@@ -72,8 +72,14 @@ function kiemDon(don) {
   return { dat: hong.length === 0, tong: dong.length, soHong: hong.length, dong, hong };
 }
 
-/** Trang kết quả — bot đọc `#ket-qua` để biết đạt hay không. */
-function trangKetQua(kq) {
+/**
+ * Trang kết quả — bot đọc `#ket-qua` để biết đạt hay không.
+ *
+ * `prKey` và `linkDuyet` mô phỏng chỗ PVI trả khoá của đơn vừa tạo. Chưa ai bấm
+ * nút trên hệ thống thật nên đây là PHỎNG ĐOÁN; nó có mặt để thử được cách bot
+ * đọc lại khoá, không phải để tin là PVI làm y như vậy.
+ */
+function trangKetQua(kq, { prKey, linkDuyet } = {}) {
   const hang = kq.dong
     .map(
       (d) =>
@@ -96,6 +102,12 @@ td,th{border:1px solid #ccc;padding:5px 9px;font-size:13px;text-align:left}
 <div id="ket-qua" data-dat="${kq.dat ? '1' : '0'}" data-so-hong="${kq.soHong}" class="tong">
 ${kq.dat ? `Máy chủ nhận đủ và đúng ${kq.tong}/${kq.tong} trường.` : `${kq.soHong}/${kq.tong} trường KHÔNG đạt.`}
 </div>
+${
+  prKey
+    ? `<p id="pr-key-don" data-pr-key="${prKey}">Khoá đơn vừa tạo:
+<code>${prKey}</code> — <a id="link-duyet" href="${linkDuyet}">Sang bước duyệt</a></p>`
+    : ''
+}
 <table><tr><th>Kết quả</th><th>Trường</th><th>id</th><th>Máy chủ nhận được</th></tr>${hang}</table>
 </body></html>`;
 }

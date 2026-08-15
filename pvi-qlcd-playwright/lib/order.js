@@ -4,6 +4,7 @@ const { STATE_PATH } = require('../config');
 const { LA_GIA_LAP } = require('./base-url');
 const { layBrowser } = require('./browser');
 const { flowFor, ChuaCoFlow } = require('./flows');
+const { batDauGhiVet, timPrKey } = require('./ghi-vet');
 
 const ANH_DIR_MAC_DINH = process.env.PVI_SHOT_DIR || path.join(__dirname, '..', 'anh');
 
@@ -31,7 +32,22 @@ function duocBamLuu(muonBam) {
 // `lib/flows/<sản phẩm>.js`.
 async function taoDon(
   payload,
-  { dryRun = false, thuMucAnh = ANH_DIR_MAC_DINH, chupAnh = true, bamLuu = false } = {},
+  {
+    dryRun = false,
+    thuMucAnh = ANH_DIR_MAC_DINH,
+    chupAnh = true,
+    bamLuu = false,
+    /** Ghi mọi request/response ra `vet/<orderId>-vet.json`. */
+    ghiVet = false,
+    /**
+     * Điền xong thì GIỮ trình duyệt mở bấy nhiêu giây cho người bấm tay.
+     *
+     * Dùng cho lần bấm "Chấp nhận" đầu tiên trên PVI thật: bot không bấm, người
+     * bấm, còn bot ngồi ghi lại PVI trả gì. Đơn đó dù sao cũng phải tạo nên
+     * không tốn thêm đơn rác, mà lấy được trọn thông tin để nối bước duyệt.
+     */
+    choNguoiBamGiay = 0,
+  } = {},
 ) {
   const orderId = tenAnToan(payload?.orderId || 'khong-co-id');
 
@@ -65,6 +81,10 @@ async function taoDon(
   const browser = await layBrowser();
   const ctx = await browser.newContext({ storageState: STATE_PATH });
   const page = await ctx.newPage();
+
+  // Gắn TRƯỚC khi mở trang: lượt tải đầu cũng là dữ liệu, và chuyển hướng lúc
+  // hết phiên chỉ thấy được nếu đã nghe từ đầu.
+  const ketThucGhiVet = ghiVet || choNguoiBamGiay > 0 ? batDauGhiVet(page, { orderId }) : null;
 
   try {
     await page.goto(flow.urlForm, { waitUntil: 'domcontentloaded', timeout: 60000 });
@@ -119,6 +139,23 @@ async function taoDon(
       }
     }
 
+    // Người bấm tay. Trình duyệt phải MỞ (PVI_HEADED khác 0) thì mới có ai bấm
+    // được — chạy headless mà chờ thì chỉ tốn thời gian.
+    if (choNguoiBamGiay > 0 && !hong.length) {
+      await page.waitForTimeout(choNguoiBamGiay * 1000);
+      if (chupAnh && anh) {
+        const anhCho = anh.replace(/\.png$/, '-sau-cho.png');
+        await page.screenshot({ path: anhCho, fullPage: true });
+      }
+    }
+
+    let vet = null;
+    if (ketThucGhiVet) {
+      const v = await ketThucGhiVet();
+      const doc = JSON.parse(fs.readFileSync(v.file, 'utf8'));
+      vet = { ...v, prKeyTimThay: timPrKey(doc), urlCuoi: doc.urlCuoi };
+    }
+
     await ctx.close().catch(() => {});
 
     return {
@@ -136,6 +173,7 @@ async function taoDon(
       canXem: kq.canXem,
       anh,
       daLuu,
+      ...(vet ? { vet } : {}),
       ...(bamLuu && !xin.duoc && xin.vi ? { khongBamLuuVi: xin.vi } : {}),
     };
   } catch (e) {

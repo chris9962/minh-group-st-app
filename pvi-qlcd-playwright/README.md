@@ -8,6 +8,9 @@ thật bên PVI, nên bước đó chờ chốt sau khi tin script điền đún
 Thư mục này nằm trong repo `mgst-app` và dùng chung `node_modules` với nó. Mọi
 lệnh dưới đây chạy từ **gốc mgst-app**, không phải từ thư mục này.
 
+📌 **Đang làm tới đâu, việc tiếp theo là gì: đọc [TRANG-THAI.md](TRANG-THAI.md).**
+File này chỉ nói cách chạy.
+
 ## Sản phẩm chạy được
 
 | Sản phẩm | `product` | Trạng thái |
@@ -42,6 +45,25 @@ nó ghi được vào ô — ô `disabled`, ô nằm ngoài thẻ `<form>`, ho�
 ⚠️ `--bam-luu` KHÔNG có tác dụng khi trỏ vào PVI thật. Bấm ở đó là tạo đơn thật,
 nên script từ chối và trả `khongBamLuuVi`. Chỉ mở khi `PVI_BASE_URL` trỏ sang máy
 chủ khác.
+
+## Ghi vết mạng
+
+Dùng cho lần bấm "Chấp nhận" ĐẦU TIÊN trên PVI thật, để biết PVI trả `pr_key` ở
+đâu — hiện chưa ai bấm nút đó nên chưa ai biết.
+
+```bash
+cat pvi-qlcd-playwright/payload.example.json | \
+  bun run pvi:order -- --ghi-vet --cho-nguoi-bam=120
+```
+
+Bot điền xong rồi giữ trình duyệt mở 120 giây cho bạn kiểm và tự bấm. Nó ghi mọi
+request, response, header, và HTML trang cuối vào `vet/<orderId>-vet.json`, rồi
+tự dò `pr_key` trong đó.
+
+`--ghi-vet` dùng riêng cũng được, không cần chờ người bấm.
+
+File vết lọc `cookie`, `set-cookie` và `authorization` trước khi ghi — chúng thay
+cho mật khẩu phiên PVI, không được nằm trong file dễ gửi đi.
 
 Máy chủ phục vụ **nguyên văn DOM thật** của PVI ở `mock/html/`, chỉ đổi địa chỉ
 tuyệt đối `https://qlcd.pvi.com.vn` thành đường dẫn tương đối. Không viết lại

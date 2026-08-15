@@ -27,11 +27,16 @@ const inRa = (kq) => {
     inRa({ ok: false, ma: 1, thongDiep: `Payload không phải JSON hợp lệ: ${e.message}` });
   }
 
+  // `--cho-nguoi-bam=90` giữ trình duyệt mở 90 giây cho người tự bấm Chấp nhận.
+  const cho = /--cho-nguoi-bam=(\d+)/.exec(process.argv.join(' '));
+
   const kq = await taoDon(payload, {
     dryRun: process.argv.includes('--dry-run'),
     // Chỉ có tác dụng khi PVI_BASE_URL trỏ sang máy chủ giả lập — `lib/order.js`
     // từ chối bấm trên hệ thống thật.
     bamLuu: process.argv.includes('--bam-luu'),
+    ghiVet: process.argv.includes('--ghi-vet'),
+    choNguoiBamGiay: cho ? Number(cho[1]) : 0,
   });
   await dongBrowser();
   inRa(kq);

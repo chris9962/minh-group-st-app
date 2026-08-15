@@ -179,7 +179,14 @@ const server = http.createServer(async (req, res) => {
       );
       for (const d of kq.hong) console.log(`     HỎNG ${d.nhan} (${d.id}) = ${JSON.stringify(d.nhanDuoc)}`);
 
-      return traHtml(res, trangKetQua(kq));
+      // Sinh `pr_key` giống dạng PVI dùng: 8 byte, base64 rồi URL-encode. Đây là
+      // PHỎNG ĐOÁN về cách PVI trả khoá sau khi lưu — chưa ai bấm nút trên hệ
+      // thống thật nên chưa biết họ trả ở header, ở HTML, hay không trả.
+      const prKey = require('crypto').randomBytes(8).toString('base64');
+      const linkDuyet = `/Service/AssignDuyet?pr_key=${encodeURIComponent(prKey)}&tthai=DUYET`;
+      console.log(`     pr_key sinh ra: ${prKey}`);
+
+      return traHtml(res, trangKetQua(kq, { prKey, linkDuyet }));
     }
     return traHtml(res, docHtml('electrical-service.html'));
   }

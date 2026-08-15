@@ -62,4 +62,6 @@ next-env.d.ts
 /pvi-qlcd-playwright/anh/
 /pvi-qlcd-playwright/captcha/
 /pvi-qlcd-playwright/mock/don/
+# Vết mạng ghi lúc chạy — chứa HTML trang thật, không phải mã nguồn.
+/pvi-qlcd-playwright/vet/
 __pycache__/
