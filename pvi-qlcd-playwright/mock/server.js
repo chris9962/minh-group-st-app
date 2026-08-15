@@ -11,6 +11,7 @@
 const fs = require('fs');
 const http = require('http');
 const path = require('path');
+const { kiemDon, trangKetQua } = require('./kiem-don');
 
 const PORT = Number(process.env.PVI_MOCK_PORT || 3010);
 const HTML_DIR = path.join(__dirname, 'html');
@@ -85,6 +86,23 @@ const docBody = (req) =>
     req.on('end', () => resolve(b));
   });
 
+/**
+ * Gộp form thành object, GIỮ mọi giá trị trùng tên.
+ *
+ * Checkbox của ASP.NET MVC đi kèm một ô `hidden` cùng `name` giá trị `false`,
+ * nên tick xong trình duyệt gửi `gom_don=true&gom_don=false`. Lấy giá trị cuối
+ * là đọc ra `false` ở mọi ô đã tick — dữ liệu đúng mà kết luận sai.
+ */
+function gopForm(body) {
+  const p = new URLSearchParams(body);
+  const o = {};
+  for (const k of new Set(p.keys())) {
+    const v = p.getAll(k);
+    o[k] = v.length > 1 ? v.join(',') : v[0];
+  }
+  return o;
+}
+
 /* ── Định tuyến ────────────────────────────────────────────────────── */
 
 const server = http.createServer(async (req, res) => {
@@ -148,12 +166,20 @@ const server = http.createServer(async (req, res) => {
 
   if (p === '/Electrical/ElectricalService') {
     if (req.method === 'POST') {
-      const don = Object.fromEntries(new URLSearchParams(await docBody(req)));
+      const don = gopForm(await docBody(req));
+      const kq = kiemDon(don);
+
       fs.mkdirSync(DON_DIR, { recursive: true });
       const ten = `don-${Date.now()}.json`;
-      fs.writeFileSync(path.join(DON_DIR, ten), JSON.stringify(don, null, 1));
-      console.log(`  [đã lưu] ${ten} — ${Object.keys(don).length} trường`);
-      return traHtml(res, docHtml('assign-duyet.html'));
+      fs.writeFileSync(path.join(DON_DIR, ten), JSON.stringify({ don, kiem: kq }, null, 1));
+
+      console.log(
+        `  [nhận đơn] ${ten} — ${Object.keys(don).length} trường gửi lên, ` +
+          `${kq.tong - kq.soHong}/${kq.tong} đạt`,
+      );
+      for (const d of kq.hong) console.log(`     HỎNG ${d.nhan} (${d.id}) = ${JSON.stringify(d.nhanDuoc)}`);
+
+      return traHtml(res, trangKetQua(kq));
     }
     return traHtml(res, docHtml('electrical-service.html'));
   }

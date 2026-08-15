@@ -27,7 +27,12 @@ const inRa = (kq) => {
     inRa({ ok: false, ma: 1, thongDiep: `Payload không phải JSON hợp lệ: ${e.message}` });
   }
 
-  const kq = await taoDon(payload, { dryRun: process.argv.includes('--dry-run') });
+  const kq = await taoDon(payload, {
+    dryRun: process.argv.includes('--dry-run'),
+    // Chỉ có tác dụng khi PVI_BASE_URL trỏ sang máy chủ giả lập — `lib/order.js`
+    // từ chối bấm trên hệ thống thật.
+    bamLuu: process.argv.includes('--bam-luu'),
+  });
   await dongBrowser();
   inRa(kq);
 })();

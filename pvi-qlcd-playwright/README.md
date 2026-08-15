@@ -24,8 +24,24 @@ Thử bot mà không đụng PVI thật, không cần phiên đăng nhập:
 ```bash
 bun run pvi:mock                                     # cửa sổ 1
 cat pvi-qlcd-playwright/payload.example.json | \
-  PVI_BASE_URL=http://localhost:3010 bun run pvi:order   # cửa sổ 2
+  PVI_BASE_URL=http://localhost:3010 bun run pvi:order -- --bam-luu   # cửa sổ 2
 ```
+
+`--bam-luu` cho bot bấm nút "Chấp nhận". Máy chủ nhận form rồi kiểm **từng
+trường ở phía nhận**, in kết quả ra log và trả về trang liệt kê trường nào đạt,
+trường nào không. Bot đọc lại kết quả đó vào `daLuu.mayChuNhan`:
+
+```json
+"mayChuNhan": { "dat": true, "soHong": 0, "tomTat": "Máy chủ nhận đủ và đúng 24/24 trường." }
+```
+
+Đây là thứ duy nhất chứng minh dữ liệu "vào thật". Báo cáo điền của bot chỉ nói
+nó ghi được vào ô — ô `disabled`, ô nằm ngoài thẻ `<form>`, hoặc ô bị trang ghi
+đè sau đó đều báo "ĐÃ ĐIỀN" mà máy chủ không nhận được gì.
+
+⚠️ `--bam-luu` KHÔNG có tác dụng khi trỏ vào PVI thật. Bấm ở đó là tạo đơn thật,
+nên script từ chối và trả `khongBamLuuVi`. Chỉ mở khi `PVI_BASE_URL` trỏ sang máy
+chủ khác.
 
 Máy chủ phục vụ **nguyên văn DOM thật** của PVI ở `mock/html/`, chỉ đổi địa chỉ
 tuyệt đối `https://qlcd.pvi.com.vn` thành đường dẫn tương đối. Không viết lại

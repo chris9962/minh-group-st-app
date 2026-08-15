@@ -170,6 +170,8 @@ module.exports = {
   ten: 'BH Tai nạn hộ sử dụng điện',
   urlForm: URL_FORM,
   selectorForm: SELECTOR_FORM,
+  // Nút "Chấp nhận" không có `id`, chỉ có `type=submit` trong form của trang.
+  selectorLuu: 'form[action="/Electrical/ElectricalService"] button[type=submit]',
   batBuoc: BAT_BUOC,
   fixed: FIXED,
   dungGiaTri,
