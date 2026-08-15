@@ -1,3 +1,4 @@
+import { clsx } from "clsx";
 import styles from "./Alert.module.css";
 
 type Props = {
@@ -18,7 +19,7 @@ const MARK = { info: "", warning: "⚠️", error: "❌" } as const;
 export function Alert({ tone = "info", children, className }: Props) {
   return (
     <p
-      className={[styles.box, styles[tone], className].filter(Boolean).join(" ")}
+      className={clsx(styles.box, styles[tone], className)}
       role={tone === "info" ? undefined : "alert"}
     >
       {MARK[tone] && <span aria-hidden>{MARK[tone]} </span>}

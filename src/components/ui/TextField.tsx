@@ -1,3 +1,4 @@
+import { clsx } from "clsx";
 import { useId } from "react";
 import styles from "./TextField.module.css";
 
@@ -25,13 +26,13 @@ export function TextField({ label, error, hint, trailing, className, ref, ...res
   const describedBy = [error && errorId, hint && hintId].filter(Boolean).join(" ");
 
   return (
-    <div className={[styles.field, className].filter(Boolean).join(" ")}>
+    <div className={clsx(styles.field, className)}>
       <label htmlFor={id}>{label}</label>
       <div className={styles.control}>
         <input
           id={id}
           ref={ref}
-          className={["input", trailing && styles.withTrailing].filter(Boolean).join(" ")}
+          className={clsx("input", trailing && styles.withTrailing)}
           aria-invalid={Boolean(error)}
           aria-describedby={describedBy || undefined}
           {...rest}

@@ -1,5 +1,6 @@
 "use client";
 
+import { clsx } from "clsx";
 import { useId } from "react";
 import styles from "./SegmentedTabs.module.css";
 
@@ -33,9 +34,7 @@ export function SegmentedTabs({ label, options, value, onChange }: Props) {
       {options.map((o) => (
         <label
           key={o.value}
-          className={[styles.tab, o.value === value && styles.active]
-            .filter(Boolean)
-            .join(" ")}
+          className={clsx(styles.tab, o.value === value && styles.active)}
         >
           <input
             type="radio"

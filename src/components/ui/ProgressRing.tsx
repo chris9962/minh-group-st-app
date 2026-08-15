@@ -1,3 +1,4 @@
+import { clsx } from "clsx";
 import styles from "./ProgressRing.module.css";
 
 export type RingSegment = {
@@ -70,9 +71,7 @@ export function ProgressRing({ segments, max, ariaLabel }: Props) {
 
       <span className={styles.center}>
         <strong
-          className={[styles.value, reached && styles.reached, "tabular-nums"]
-            .filter(Boolean)
-            .join(" ")}
+          className={clsx(styles.value, reached && styles.reached, "tabular-nums")}
         >
           {shown}
         </strong>

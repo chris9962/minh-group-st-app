@@ -1,3 +1,4 @@
+import { clsx } from "clsx";
 import styles from "./SectionCard.module.css";
 
 type Props = {
@@ -36,9 +37,7 @@ export function SectionCard({
 }: Props) {
   return (
     <section
-      className={[styles.card, variant === "plain" && styles.plain, className]
-        .filter(Boolean)
-        .join(" ")}
+      className={clsx(styles.card, variant === "plain" && styles.plain, className)}
     >
       <header className={styles.head}>
         {icon && (

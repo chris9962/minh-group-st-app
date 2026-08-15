@@ -1,5 +1,6 @@
 "use client";
 
+import { clsx } from "clsx";
 import * as Popover from "@radix-ui/react-popover";
 import { useContext, useId, useState } from "react";
 import { matchesSearch } from "@/lib/format";
@@ -136,9 +137,7 @@ export function Combobox({
                   id={`${listId}-${i}`}
                   role="option"
                   aria-selected={o.value === value}
-                  className={[styles.option, i === activeIndex && styles.optionActive]
-                    .filter(Boolean)
-                    .join(" ")}
+                  className={clsx(styles.option, i === activeIndex && styles.optionActive)}
                   // Chặn blur nổ trước click — không thì danh sách đóng trước khi kịp chọn.
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => commit(o)}

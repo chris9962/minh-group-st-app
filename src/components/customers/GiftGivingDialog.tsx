@@ -1,5 +1,6 @@
 "use client";
 
+import { clsx } from "clsx";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { SkeletonText } from "@/components/ui/Skeleton";
@@ -168,13 +169,11 @@ export function GiftGivingDialog({ open, onClose, customerId, customerName }: Pr
                       return (
                         <label
                           key={`${item.code}-${i}`}
-                          className={[
+                          className={clsx(
                             styles.card,
                             selected === item.id && styles.cardActive,
                             off && styles.cardOff,
-                          ]
-                            .filter(Boolean)
-                            .join(" ")}
+                          )}
                         >
                           <input
                             type="radio"
@@ -197,9 +196,7 @@ export function GiftGivingDialog({ open, onClose, customerId, customerName }: Pr
                       );
                     })}
                     <label
-                      className={[styles.card, selected === DECLINE && styles.cardActive]
-                        .filter(Boolean)
-                        .join(" ")}
+                      className={clsx(styles.card, selected === DECLINE && styles.cardActive)}
                     >
                       <input
                         type="radio"

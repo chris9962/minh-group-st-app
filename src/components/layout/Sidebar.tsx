@@ -1,5 +1,6 @@
 "use client";
 
+import { clsx } from "clsx";
 import { ChevronDown, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -39,7 +40,7 @@ function SidebarGroup({
         <ChevronDown
           size={15}
           aria-hidden
-          className={[styles.chevron, open && styles.chevronOpen].filter(Boolean).join(" ")}
+          className={clsx(styles.chevron, open && styles.chevronOpen)}
         />
       </button>
 
@@ -51,9 +52,7 @@ function SidebarGroup({
               <li key={child.href}>
                 <Link
                   href={child.href}
-                  className={[styles.subItem, active && styles.active]
-                    .filter(Boolean)
-                    .join(" ")}
+                  className={clsx(styles.subItem, active && styles.active)}
                   aria-current={active ? "page" : undefined}
                   onClick={onNavigate}
                 >
@@ -111,7 +110,7 @@ export function Sidebar({ user, mobileOpen = false, onMobileClose }: Props) {
       )}
 
       <nav
-        className={[styles.sidebar, mobileOpen && styles.sidebarOpen].filter(Boolean).join(" ")}
+        className={clsx(styles.sidebar, mobileOpen && styles.sidebarOpen)}
         aria-label="Điều hướng chính"
       >
         <div className={styles.head}>
@@ -149,9 +148,7 @@ export function Sidebar({ user, mobileOpen = false, onMobileClose }: Props) {
               <li key={entry.href}>
                 <Link
                   href={entry.href}
-                  className={[styles.item, active && styles.active]
-                    .filter(Boolean)
-                    .join(" ")}
+                  className={clsx(styles.item, active && styles.active)}
                   aria-current={active ? "page" : undefined}
                   onClick={() => onMobileClose?.()}
                 >

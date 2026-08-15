@@ -1,5 +1,6 @@
 "use client";
 
+import { clsx } from "clsx";
 import { useEffect, useMemo, useState } from "react";
 import styles from "./RankTable.module.css";
 
@@ -183,12 +184,10 @@ export function RankTable<T>({
               {columns.map((col) => (
                 <td
                   key={col.key}
-                  className={[
+                  className={clsx(
                     col.align === "right" ? styles.right : undefined,
                     col.sortBy ? "tabular-nums" : undefined,
-                  ]
-                    .filter(Boolean)
-                    .join(" ")}
+                  )}
                 >
                   {col.ratio ? (
                     <span className={styles.ratioCell}>

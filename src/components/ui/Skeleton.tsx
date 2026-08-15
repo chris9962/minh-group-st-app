@@ -1,3 +1,4 @@
+import { clsx } from "clsx";
 import styles from "./Skeleton.module.scss";
 
 /**
@@ -26,7 +27,7 @@ export function Skeleton({ width, height, circle = false, className }: BoxProps)
   return (
     <span
       aria-hidden
-      className={[styles.box, circle && styles.circle, className].filter(Boolean).join(" ")}
+      className={clsx(styles.box, circle && styles.circle, className)}
       style={{ width, height }}
     />
   );

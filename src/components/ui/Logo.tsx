@@ -1,3 +1,4 @@
+import { clsx } from "clsx";
 import Image from "next/image";
 import styles from "./Logo.module.css";
 
@@ -39,7 +40,7 @@ export function Logo({
   }
 
   return (
-    <span className={[styles.row, className].filter(Boolean).join(" ")}>
+    <span className={clsx(styles.row, className)}>
       {mark}
       {withAppName && (
         <span className={styles.appName}>

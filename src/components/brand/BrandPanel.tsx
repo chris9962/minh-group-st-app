@@ -1,3 +1,4 @@
+import { clsx } from "clsx";
 import Image from "next/image";
 import { Logo } from "@/components/ui/Logo";
 import styles from "./BrandPanel.module.css";
@@ -14,7 +15,7 @@ import styles from "./BrandPanel.module.css";
  */
 export function BrandPanel({ className }: { className?: string }) {
   return (
-    <div className={[styles.panel, className].filter(Boolean).join(" ")} aria-hidden>
+    <div className={clsx(styles.panel, className)} aria-hidden>
       <div className={styles.wedge} />
 
       <Logo size={50} withCompanyName className={styles.top} />

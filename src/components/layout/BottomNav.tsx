@@ -1,5 +1,6 @@
 "use client";
 
+import { clsx } from "clsx";
 import { Menu, Plus } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -97,7 +98,7 @@ export function BottomNav({ user, onOpenMenu }: { user: User; onOpenMenu: () => 
               <Link
                 key={entry.href}
                 href={entry.href}
-                className={[styles.item, active && styles.active].filter(Boolean).join(" ")}
+                className={clsx(styles.item, active && styles.active)}
                 aria-current={active ? "page" : undefined}
               >
                 <NavIcon name={entry.icon} />

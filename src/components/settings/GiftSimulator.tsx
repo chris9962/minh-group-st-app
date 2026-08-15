@@ -1,5 +1,6 @@
 "use client";
 
+import { clsx } from "clsx";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { FlaskConical } from "lucide-react";
 import { useState } from "react";
@@ -84,7 +85,7 @@ export function GiftSimulator() {
             return (
               <li
                 key={bank.id}
-                className={[styles.bank, picked && styles.bankOn].filter(Boolean).join(" ")}
+                className={clsx(styles.bank, picked && styles.bankOn)}
               >
                 <Checkbox
                   block

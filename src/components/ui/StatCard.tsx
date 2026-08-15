@@ -1,3 +1,4 @@
+import { clsx } from "clsx";
 import styles from "./StatCard.module.css";
 
 type Props = {
@@ -13,7 +14,7 @@ type Props = {
 export function StatCard({ value, label, detail, tone = "normal" }: Props) {
   return (
     <div className={styles.card}>
-      <strong className={[styles.value, tone === "attention" && styles.attention, "tabular-nums"].filter(Boolean).join(" ")}>
+      <strong className={clsx(styles.value, tone === "attention" && styles.attention, "tabular-nums")}>
         {value}
       </strong>
       <span className={styles.label}>{label}</span>
