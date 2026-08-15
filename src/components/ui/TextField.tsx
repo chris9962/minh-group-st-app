@@ -7,6 +7,8 @@ type Props = Omit<React.InputHTMLAttributes<HTMLInputElement>, "id"> & {
   error?: string;
   /** Chú thích dưới ô nhập, ví dụ "đủ 12 số". */
   hint?: string;
+  /** Nút hoặc ký hiệu nằm đè bên phải trong ô — nút hiện mật khẩu, đơn vị tiền. */
+  trailing?: React.ReactNode;
   ref?: React.Ref<HTMLInputElement>;
 };
 
@@ -16,7 +18,7 @@ type Props = Omit<React.InputHTMLAttributes<HTMLInputElement>, "id"> & {
  * Nhãn LUÔN liên kết với input qua id — bắt buộc cho trình đọc màn hình,
  * và bấm vào nhãn thì con trỏ nhảy vào ô.
  */
-export function TextField({ label, error, hint, className, ref, ...rest }: Props) {
+export function TextField({ label, error, hint, trailing, className, ref, ...rest }: Props) {
   const id = useId();
   const errorId = `${id}-error`;
   const hintId = `${id}-hint`;
@@ -25,14 +27,17 @@ export function TextField({ label, error, hint, className, ref, ...rest }: Props
   return (
     <div className={[styles.field, className].filter(Boolean).join(" ")}>
       <label htmlFor={id}>{label}</label>
-      <input
-        id={id}
-        ref={ref}
-        className="input"
-        aria-invalid={Boolean(error)}
-        aria-describedby={describedBy || undefined}
-        {...rest}
-      />
+      <div className={styles.control}>
+        <input
+          id={id}
+          ref={ref}
+          className={["input", trailing && styles.withTrailing].filter(Boolean).join(" ")}
+          aria-invalid={Boolean(error)}
+          aria-describedby={describedBy || undefined}
+          {...rest}
+        />
+        {trailing}
+      </div>
       {hint && !error && (
         <span id={hintId} className={styles.hint}>
           {hint}

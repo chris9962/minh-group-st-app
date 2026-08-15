@@ -8,6 +8,7 @@ import { BrandPanel } from "@/components/brand/BrandPanel";
 import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { Logo } from "@/components/ui/Logo";
+import { PasswordField } from "@/components/ui/PasswordField";
 import { TextField } from "@/components/ui/TextField";
 import { login } from "@/lib/api/auth";
 import { LoginForm } from "@/lib/types";
@@ -64,9 +65,9 @@ export default function LoginPage() {
               {...register("username")}
             />
 
-            <TextField
+            <PasswordField
               label="Mật khẩu"
-              type="password"
+              placeholder="Mật khẩu công ty cấp"
               autoComplete="current-password"
               error={errors.password?.message}
               {...register("password")}

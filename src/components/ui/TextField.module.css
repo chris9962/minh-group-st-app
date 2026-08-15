@@ -9,6 +9,17 @@
   color: var(--color-neutral-700);
 }
 
+/* Mốc neo cho nút nằm đè bên phải ô nhập. */
+.control {
+  position: relative;
+  display: flex;
+}
+
+/* Chừa chỗ cho nút: thiếu thì chữ dài chui xuống dưới nút và đọc không ra. */
+.withTrailing {
+  padding-right: 40px;
+}
+
 .hint {
   font-size: 12px;
   color: var(--color-neutral-600);
