@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { Building2, Pencil, Plus } from "lucide-react";
 import { SkeletonStats, SkeletonTable } from "@/components/ui/Skeleton";
@@ -43,6 +43,7 @@ const installRate = (s: { accountsOpened: number; appsInstalled: number }) =>
 
 /** P-91 · Phòng ban. Danh sách phẳng — không có cây, không có đơn vị cha. */
 export default function DepartmentsPage() {
+  const router = useRouter();
   const user = useSession((s) => s.user);
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
@@ -104,15 +105,7 @@ export default function DepartmentsPage() {
 
   const columns = useMemo<RankColumn<DepartmentRow>[]>(
     () => [
-      {
-        key: "name",
-        label: "Tên phòng",
-        render: (d) => (
-          <Link href={`/departments/${d.id}`} className={styles.nameLink}>
-            {d.name}
-          </Link>
-        ),
-      },
+      { key: "name", label: "Tên phòng", render: (d) => d.name },
       /**
        * Bốn cột đếm trên tài khoản ĐÃ HOÀN THÀNH, gộp theo đơn vị CHỤP LÚC TẠO
        * (`server/org.ts`). Phòng không phát sinh gì mang số 0, và `—` chỉ còn
@@ -320,6 +313,7 @@ export default function DepartmentsPage() {
                 defaultSort="headcount"
                 pageSize={10}
                 caption="Phòng ban, số người và trạng thái"
+                onRowClick={(d) => router.push(`/departments/${d.id}`)}
               />
 
               {/* Nút mờ mà không nói vì sao chính là chỗ người dùng mắc kẹt. */}
