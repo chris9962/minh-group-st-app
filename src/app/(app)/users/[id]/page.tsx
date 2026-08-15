@@ -21,8 +21,7 @@ import { StatusTag } from "@/components/ui/StatusTag";
 import { periodMonth, periodParam, showsKpi, type PeriodMode } from "@/lib/api/people";
 import {
   fetchPerson,
-  groupAccountsByCustomer,
-  type CustomerAccounts,
+  type PersonAccount,
   type PersonCustomer,
   type PersonInsurance,
   type PersonService,
@@ -83,37 +82,25 @@ const CUSTOMER_COLUMNS: RankColumn<PersonCustomer>[] = [
   },
 ];
 
-/** Một hàng một khách, mọi ngân hàng của khách nằm cùng ô. */
-const ACCOUNT_COLUMNS: RankColumn<CustomerAccounts>[] = [
+/** Một hàng một tài khoản — cùng lối với bảng Ngân hàng P-21 (chốt 2026-08-15). */
+const ACCOUNT_COLUMNS: RankColumn<PersonAccount>[] = [
   DATE_COLUMN,
   {
     key: "customerName",
     label: "Khách hàng",
-    render: (c) => <CustomerCell id={c.customerId} name={c.customerName} />,
+    render: (a) => <CustomerCell id={a.customerId} name={a.customerName} />,
   },
-  { key: "banks", label: "Ngân hàng", render: (c) => c.banks.join(", ") },
+  { key: "bankName", label: "Ngân hàng", render: (a) => a.bankName },
+  { key: "referralCode", label: "Mã giới thiệu", render: (a) => a.referralCode },
+  { key: "channel", label: "Kênh", render: (a) => a.channel || "" },
   {
-    key: "appBanks",
-    label: "App đã cài",
-    render: (c) =>
-      c.appBanks.length > 0 ? (
-        c.appBanks.join(", ")
+    key: "appInstalled",
+    label: "Đã cài app",
+    render: (a) =>
+      a.appInstalled ? (
+        <StatusTag ok>{a.accountType === "none" ? "Có" : `Có (${a.accountType})`}</StatusTag>
       ) : (
-        <StatusTag ok={false}>Chưa cài</StatusTag>
-      ),
-  },
-  {
-    key: "gift",
-    label: "Quà tặng",
-    // Ba trạng thái khác hẳn nhau: đã tặng gì · đủ điều kiện mà chưa phát ·
-    // không thuộc diện. Gộp hai cái sau thành "—" là giấu mất việc phải làm.
-    render: (c) =>
-      c.giftItems.length > 0 ? (
-        c.giftItems.join(", ")
-      ) : c.giftEligible ? (
-        <StatusTag ok={false}>Đủ ĐK · chưa phát</StatusTag>
-      ) : (
-        "—"
+        <StatusTag ok={false}>Chưa</StatusTag>
       ),
   },
 ];
@@ -231,7 +218,6 @@ export default function PersonPage({
 
   const withKpi = showsKpi(period);
   const periodText = period.kind === "today" ? "Hôm nay" : monthLabel(summaryMonth);
-  const customers = data ? groupAccountsByCustomer(data.accounts, data.gifts) : [];
 
   // Chỉ hiện thẻ có dòng. Thẻ rỗng chỉ để người dùng bấm vào rồi thấy trống.
   const tabs: TabOption[] = data
@@ -319,19 +305,13 @@ export default function PersonPage({
                   {activeTab === "accounts" && (
                     <div className={styles.panel}>
                       <RankTable
-                        rows={customers}
+                        rows={data.accounts}
                         columns={ACCOUNT_COLUMNS}
-                        rowKey={(c) => c.customerId}
+                        rowKey={(a) => a.id}
                         defaultSort="date"
                         pageSize={10}
-                        caption={`Khách hàng đã tiếp ${periodText}, gộp mọi ngân hàng của một khách vào một hàng`}
+                        caption={`Tài khoản ngân hàng đã mở ${periodText}`}
                       />
-                      <p className={styles.footnote}>
-                        Mỗi hàng là một khách — <span className="tabular-nums">{data.accounts.length}</span>{" "}
-                        tài khoản gộp thành <span className="tabular-nums">{customers.length}</span> hàng.
-                        Ô <strong>App đã cài</strong> ghi kèm loại đăng ký khi có:{" "}
-                        <em>VPa (CNKD)</em>.
-                      </p>
                     </div>
                   )}
 
