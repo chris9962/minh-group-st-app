@@ -177,18 +177,11 @@ export function BankAccountPhotos({
     onChange(photos.filter((_, i) => i !== slot));
   };
 
-  const pendingCount = photos.filter((p) => p.kind === "pending").length;
-
   return (
     <div className={styles.photoSection}>
       <Heading className={styles.photoTitle}>
         {title} ({photos.length}
         {requiredPhotos > 0 ? `/${requiredPhotos}` : ""})
-        {pendingCount > 0 && (
-          <span className={styles.photoHint}>
-            {pendingCount} tấm sẽ tải lên khi bạn bấm lưu
-          </span>
-        )}
       </Heading>
 
       <div className={styles.photoGrid}>

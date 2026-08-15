@@ -17,14 +17,6 @@
   font-weight: 600;
 }
 
-/* Nói rõ ảnh chưa lên máy chủ. Chỉ dựa vào nhãn góc ảnh là chưa đủ: người dùng
-   nhìn thấy ảnh hiện ra thì mặc định là đã xong. */
-.photoHint {
-  font-size: 12px;
-  font-weight: 400;
-  color: var(--om-orange-ink);
-}
-
 .photoGrid {
   display: flex;
   flex-wrap: wrap;
