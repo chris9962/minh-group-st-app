@@ -19,9 +19,9 @@ import {
 } from "@/lib/api/insuranceOrders";
 import { PRODUCT_LABEL } from "@/lib/types";
 import { fetchInsurancePackages, type InsurancePackage } from "@/lib/api/settings";
-import { businessDay } from "@/lib/format";
+import { businessDay, formatVnd } from "@/lib/format";
 import { invalidateKpi } from "@/lib/invalidateKpi";
-import { VEHICLE_TYPES } from "@/lib/pvi";
+import { SUM_INSURED_DEFAULT, SUM_INSURED_OPTIONS, VEHICLE_TYPES } from "@/lib/pvi";
 import { errorMessage, toast } from "@/lib/toast";
 import styles from "./InsuranceOrderFormDialog.module.scss";
 
@@ -70,6 +70,9 @@ function defaultLegsFor(pkg: InsurancePackage | null): InsuranceOrderLegForm[] {
       beneficiaryIdNumber: "",
       beneficiaryPhone: "",
       beneficiaryAddress: "",
+      householdSize: 0,
+      // Đơn xe máy không có ô này nên để 0; tai nạn điện chọn sẵn bậc hay bán.
+      sumInsured: leg.product === "electric-accident" ? SUM_INSURED_DEFAULT : 0,
       licensePlate: "",
       vehicleType: "",
       chassisNumber: "",
@@ -233,6 +236,46 @@ export function InsuranceOrderFormDialog({
     </fieldset>
   );
 
+  /**
+   * Hai ô form PVI hỏi ở đơn tai nạn điện. Đứng thành khối riêng chứ không lẫn
+   * vào "Người thụ hưởng": chúng tả cái HỘ, không tả người đứng tên.
+   */
+  const renderHouseholdInfo = (i: number) => (
+    <fieldset className={styles.fieldset}>
+      <legend className={styles.legend}>Thông tin hộ</legend>
+
+      <div className={styles.pair}>
+        <TextField
+          label="Số thành viên"
+          type="number"
+          inputMode="numeric"
+          min={1}
+          hint="Người cùng địa chỉ thường trú"
+          error={errors.legs?.[i]?.householdSize?.message}
+          {...register(`legs.${i}.householdSize`, { valueAsNumber: true })}
+        />
+        <Select
+          label="Số tiền bảo hiểm"
+          block
+          value={String(watch(`legs.${i}.sumInsured`))}
+          error={errors.legs?.[i]?.sumInsured?.message}
+          // `shouldValidate`: ô này không `register` nên không có onChange của
+          // RHF để tự kiểm lại sau một lần submit hỏng.
+          onChange={(v) =>
+            setValue(`legs.${i}.sumInsured`, Number(v), {
+              shouldDirty: true,
+              shouldValidate: true,
+            })
+          }
+          options={SUM_INSURED_OPTIONS.map((amount) => ({
+            value: String(amount),
+            label: formatVnd(amount),
+          }))}
+        />
+      </div>
+    </fieldset>
+  );
+
   const renderBeneficiary = (i: number) => (
     <fieldset className={styles.fieldset}>
       <legend className={styles.legend}>Người thụ hưởng</legend>
@@ -374,7 +417,9 @@ export function InsuranceOrderFormDialog({
                 {...register(`legs.${i}.fee`, { valueAsNumber: true })}
               />
 
-              {(selectedPackage?.legs ?? [])[i].product === "motorbike" && renderVehicleInfo(i)}
+              {(selectedPackage?.legs ?? [])[i].product === "motorbike"
+                ? renderVehicleInfo(i)
+                : renderHouseholdInfo(i)}
               {renderBeneficiary(i)}
             </fieldset>
           ))}
@@ -401,7 +446,9 @@ export function InsuranceOrderFormDialog({
               error={errors.legs?.[0]?.fee?.message}
               {...register("legs.0.fee", { valueAsNumber: true })}
             />
-            {(selectedPackage?.legs ?? [])[0].product === "motorbike" && renderVehicleInfo(0)}
+            {(selectedPackage?.legs ?? [])[0].product === "motorbike"
+              ? renderVehicleInfo(0)
+              : renderHouseholdInfo(0)}
             {renderBeneficiary(0)}
           </>
         )}

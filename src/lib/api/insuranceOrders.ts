@@ -108,6 +108,15 @@ const orderFields = {
   beneficiaryIdNumber: z.string(),
   beneficiaryPhone: z.string(),
   beneficiaryAddress: z.string().trim().min(1, 'Chưa nhập địa chỉ'),
+  /**
+   * Hai ô của riêng đơn tai nạn điện — form PVI hỏi, đơn xe máy thì không.
+   *
+   * Không ràng buộc `min(1)` ở đây mà đẩy xuống `.refine` theo sản phẩm, cùng
+   * lối với biển số xe: đơn xe máy gửi 0 là hợp lệ, chặn ở đây thì mọi đơn xe
+   * máy đều báo thiếu một thứ form của họ không có.
+   */
+  householdSize: z.number().min(0, 'Số thành viên phải từ 0 trở lên'),
+  sumInsured: z.number().min(0, 'Số tiền bảo hiểm phải từ 0 trở lên'),
   licensePlate: z.string().trim(),
   vehicleType: z.string().trim(),
   chassisNumber: z.string().trim(),
@@ -145,6 +154,16 @@ export const InsuranceOrderLegForm = z
   .refine((leg) => leg.product !== 'motorbike' || leg.vehicleType.length > 0, {
     message: 'Chưa nhập loại xe',
     path: ['vehicleType'],
+  })
+  // Hai ô dưới đi ngược lại: bắt buộc với tai nạn điện, bỏ trống với xe máy.
+  // Bot PVI dừng ở đúng hai ô này nếu chúng bằng 0, nên chặn ngay lúc nhập.
+  .refine((leg) => leg.product !== 'electric-accident' || leg.householdSize > 0, {
+    message: 'Chưa nhập số thành viên',
+    path: ['householdSize'],
+  })
+  .refine((leg) => leg.product !== 'electric-accident' || leg.sumInsured > 0, {
+    message: 'Chưa nhập số tiền bảo hiểm',
+    path: ['sumInsured'],
   });
 export type InsuranceOrderLegForm = z.infer<typeof InsuranceOrderLegForm>;
 
@@ -172,10 +191,19 @@ export const insuranceOrderEditSchema = (product: InsuranceProduct) =>
   InsuranceOrderEditFields.refine(
     (form) => product !== 'motorbike' || form.licensePlate.length > 0,
     { message: 'Chưa nhập biển số xe', path: ['licensePlate'] },
-  ).refine((form) => product !== 'motorbike' || form.vehicleType.length > 0, {
-    message: 'Chưa nhập loại xe',
-    path: ['vehicleType'],
-  });
+  )
+    .refine((form) => product !== 'motorbike' || form.vehicleType.length > 0, {
+      message: 'Chưa nhập loại xe',
+      path: ['vehicleType'],
+    })
+    .refine((form) => product !== 'electric-accident' || form.householdSize > 0, {
+      message: 'Chưa nhập số thành viên',
+      path: ['householdSize'],
+    })
+    .refine((form) => product !== 'electric-accident' || form.sumInsured > 0, {
+      message: 'Chưa nhập số tiền bảo hiểm',
+      path: ['sumInsured'],
+    });
 
 /**
  * ⚠️ ĐÃ BỎ (chốt 04/08): `InsuranceOrderLegGroup`, `insuranceOrderLegsFor`,

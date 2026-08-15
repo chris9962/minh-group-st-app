@@ -176,6 +176,13 @@
       "when": 1786808400000,
       "tag": "0024_customers_creator_date",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1786894800000,
+      "tag": "0025_insurance_electric_fields",
+      "breakpoints": true
     }
   ]
 }

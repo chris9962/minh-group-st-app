@@ -38,6 +38,18 @@ export const VEHICLE_TYPES: readonly PviOption[] = [
 export const vehicleTypeLabel = (code: string): string =>
   VEHICLE_TYPES.find((v) => v.code === code)?.label ?? code;
 
+/**
+ * Mức chi trả của BH tai nạn hộ sử dụng điện — hai bậc PVI bán, không phải số
+ * người nhập tự đặt.
+ *
+ * Ô chọn thay ô gõ số: tám chữ số gõ tay là chỗ dễ sai một con số 0, mà sai thì
+ * hợp đồng ghi mức chi trả lệch mười lần và không ai soi ra lúc duyệt.
+ *
+ * `SUM_INSURED_DEFAULT` là bậc KD bán nhiều hơn, chọn sẵn để bớt một thao tác.
+ */
+export const SUM_INSURED_OPTIONS = [40_000_000, 80_000_000] as const;
+export const SUM_INSURED_DEFAULT = SUM_INSURED_OPTIONS[0];
+
 /* ── Định dạng & giá trị tự sinh ───────────────────────────────────── */
 
 /**
@@ -163,11 +175,15 @@ export const PVI_FIELDS: readonly PviField[] = [
     key: 'soDienThoai',
     label: 'Số điện thoại',
     product: 'both',
-    required: true,
+    // Form tai nạn điện KHÔNG có ô này (khảo sát 2026-08-15, 23 field). Để
+    // `required: true` thì mọi đơn không nhập SĐT đều bị `pviPayloadFor` báo
+    // thiếu và bot dừng, trong khi bên PVI không có chỗ nào để điền.
+    required: false,
     input: 'text',
     source: 'Người thụ hưởng · Số điện thoại',
     fill: (o) => o.beneficiaryPhone,
     status: 'assumed',
+    note: 'Form tai nạn điện không hỏi. Form xe máy CHƯA khảo sát — kiểm lại khi làm flow đó.',
   },
   {
     key: 'diaChi',
@@ -230,27 +246,87 @@ export const PVI_FIELDS: readonly PviField[] = [
     note: 'PVI có thể tự tính phí theo gói — nếu vậy field này chỉ để đối chiếu.',
   },
 
-  /* ── BH tai nạn điện — định danh theo CCCD (spec §3.2) ────────────── */
+  /* ── BH tai nạn điện — thông tin hộ ───────────────────────────────── */
+  {
+    key: 'soThanhVien',
+    label: 'Số thành viên gia đình tại cùng địa chỉ thường trú',
+    product: 'electric-accident',
+    required: true,
+    input: 'number',
+    source: 'Đơn · Số thành viên',
+    fill: (o) => (o.householdSize > 0 ? String(o.householdSize) : ''),
+    status: 'confirmed',
+    note: 'Ô `SoNguoi_HoKhau`. Hai ô số người còn lại của form giữ 0.',
+  },
+  {
+    key: 'soTienBaoHiem',
+    label: 'Số tiền bảo hiểm',
+    product: 'electric-accident',
+    required: true,
+    input: 'number',
+    source: 'Đơn · Số tiền bảo hiểm',
+    fill: (o) => (o.sumInsured > 0 ? String(o.sumInsured) : ''),
+    status: 'confirmed',
+    note:
+      'Ô `STBH__quytac_hienhanh`, mức CHI TRẢ — thường 40 hoặc 80 triệu. KHÁC ' +
+      '`fee` (phí khách trả): PVI tự nhân số này với tỷ lệ phí ra tổng phí bên họ.',
+  },
+  {
+    key: 'email',
+    label: 'Email',
+    product: 'electric-accident',
+    required: true,
+    input: 'text',
+    source: 'Cố định — tài khoản khai thác của công ty',
+    fill: null,
+    filledByScript: true,
+    status: 'confirmed',
+    note: 'Chốt 2026-08-15: luôn là `ngoctuyenmgst@gmail.com`, không lấy theo người tạo đơn.',
+  },
+  {
+    key: 'nganhNghe',
+    label: 'Ngành nghề kinh doanh',
+    product: 'electric-accident',
+    required: true,
+    input: 'text',
+    source: 'Cố định',
+    fill: null,
+    filledByScript: true,
+    status: 'confirmed',
+    note: 'Chốt 2026-08-15: luôn là `TỰ DO`.',
+  },
+
+  /* ── BH tai nạn điện — hai ô KHÔNG có trên form chính ──────────────
+     Khảo sát 2026-08-15 đếm 23 field trên form tạo đơn tai nạn điện: không có
+     ô CCCD, không có ô ngày sinh. Cả hai vẫn giữ trong bảng này vì khối HOÁ ĐƠN
+     ĐIỆN TỬ có `so_cccd`, mà chưa chốt được khối đó có phải điền hay không
+     (xem "Việc còn phải chốt" ở spec).
+
+     `required: false` để `pviPayloadFor` không báo thiếu: đơn không nhập CCCD
+     là đơn hợp lệ, form PVI không có chỗ nào từ chối nó. Còn `fill` thì giữ —
+     đơn nào có số thì payload vẫn mang theo, khỏi phải sửa lại khi chốt xong
+     khối hoá đơn. */
   {
     key: 'cccd',
     label: 'Số CCCD',
     product: 'electric-accident',
-    required: true,
+    required: false,
     input: 'text',
     source: 'Người thụ hưởng · CCCD',
     fill: (o) => o.beneficiaryIdNumber,
     status: 'assumed',
+    note: 'Form chính không hỏi. Chỉ khối hoá đơn điện tử có `so_cccd`, chưa chốt.',
   },
   {
     key: 'ngaySinh',
     label: 'Ngày sinh',
     product: 'electric-accident',
-    required: true,
+    required: false,
     input: 'date',
     source: 'Người thụ hưởng · Ngày sinh',
     fill: (o) => pviDateFromIso(o.beneficiaryDob),
     status: 'assumed',
-    note: 'Form BH xe máy đã bỏ ô này (03/08) — chỉ đơn tai nạn điện còn hỏi.',
+    note: 'Form BH xe máy đã bỏ ô này (03/08); form tai nạn điện cũng không có.',
   },
 
   /* ── BH xe máy — thông tin xe ─────────────────────────────────────── */

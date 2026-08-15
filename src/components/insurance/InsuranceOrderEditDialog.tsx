@@ -14,8 +14,8 @@ import {
   insuranceOrderEditSchema,
   type InsuranceOrderEditForm,
 } from "@/lib/api/insuranceOrders";
-import { businessDay } from "@/lib/format";
-import { VEHICLE_TYPES } from "@/lib/pvi";
+import { businessDay, formatVnd } from "@/lib/format";
+import { SUM_INSURED_OPTIONS, VEHICLE_TYPES } from "@/lib/pvi";
 import { errorMessage, toast } from "@/lib/toast";
 import { PRODUCT_LABEL } from "@/lib/types";
 import styles from "./InsuranceOrderFormDialog.module.scss";
@@ -24,6 +24,25 @@ type Props = {
   open: boolean;
   onClose: () => void;
   orderId: string;
+};
+
+/**
+ * Hai bậc PVI bán, cộng bậc của chính đơn này nếu nó nằm ngoài hai bậc đó.
+ *
+ * Đơn ghi trước khi có cột `sum_insured` mang giá trị 0, và đơn cũ có thể mang
+ * một mức PVI từng bán rồi bỏ. Không chèn dòng đó thì ô chọn hiện sai giá trị
+ * đang lưu, người sửa một ô khác cũng vô tình ghi đè mức chi trả của hợp đồng.
+ */
+const sumInsuredOptions = (current: number) => {
+  const options = SUM_INSURED_OPTIONS.map((amount) => ({
+    value: String(amount),
+    label: formatVnd(amount),
+  }));
+  if (SUM_INSURED_OPTIONS.some((a) => a === current)) return options;
+  return [
+    { value: String(current), label: current === 0 ? "— Chưa chọn —" : formatVnd(current) },
+    ...options,
+  ];
 };
 
 /**
@@ -67,6 +86,8 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId }: Props) {
       beneficiaryIdNumber: data?.beneficiaryIdNumber ?? "",
       beneficiaryPhone: data?.beneficiaryPhone ?? "",
       beneficiaryAddress: data?.beneficiaryAddress ?? "",
+      householdSize: data?.householdSize ?? 0,
+      sumInsured: data?.sumInsured ?? 0,
       licensePlate: data?.licensePlate ?? "",
       vehicleType: data?.vehicleType ?? "",
       chassisNumber: data?.chassisNumber ?? "",
@@ -174,6 +195,37 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId }: Props) {
               <div className={styles.pair}>
                 <TextField label="Số khung" hint="Không bắt buộc" {...form.register("chassisNumber")} />
                 <TextField label="Số máy" hint="Không bắt buộc" {...form.register("engineNumber")} />
+              </div>
+            </fieldset>
+          )}
+
+          {!motorbike && (
+            <fieldset className={styles.fieldset}>
+              <legend className={styles.legend}>Thông tin hộ</legend>
+
+              <div className={styles.pair}>
+                <TextField
+                  label="Số thành viên"
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  hint="Người cùng địa chỉ thường trú"
+                  error={errors.householdSize?.message}
+                  {...form.register("householdSize", { valueAsNumber: true })}
+                />
+                <Select
+                  label="Số tiền bảo hiểm"
+                  block
+                  value={String(form.watch("sumInsured"))}
+                  error={errors.sumInsured?.message}
+                  onChange={(v) =>
+                    form.setValue("sumInsured", Number(v), {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    })
+                  }
+                  options={sumInsuredOptions(data.sumInsured)}
+                />
               </div>
             </fieldset>
           )}

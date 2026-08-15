@@ -217,6 +217,18 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                 <dt>Địa chỉ</dt>
                 <dd>{data.beneficiaryAddress || "—"}</dd>
               </div>
+              {data.product === "electric-accident" && (
+                <>
+                  <div>
+                    <dt>Số thành viên</dt>
+                    <dd>{data.householdSize || "—"}</dd>
+                  </div>
+                  <div>
+                    <dt>Số tiền bảo hiểm</dt>
+                    <dd>{data.sumInsured ? formatVnd(data.sumInsured) : "—"}</dd>
+                  </div>
+                </>
+              )}
               {data.product === "motorbike" && (
                 <>
                   <div>

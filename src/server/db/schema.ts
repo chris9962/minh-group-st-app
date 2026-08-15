@@ -708,6 +708,17 @@ export const insuranceOrders = pgTable(
     beneficiaryPhone: text("beneficiary_phone").notNull().default(""),
     /** BH tai nạn điện tính theo HỘ nên địa chỉ là thông tin lõi; đơn xe máy cũng thu. */
     beneficiaryAddress: text("beneficiary_address").notNull().default(""),
+    /** Ô `SoNguoi_HoKhau` của PVI — số người cùng địa chỉ thường trú. 0 với đơn xe máy. */
+    householdSize: smallint("household_size").notNull().default(0),
+    /**
+     * Số tiền bảo hiểm — mức CHI TRẢ khi có tai nạn (40 hoặc 80 triệu), ô
+     * `STBH__quytac_hienhanh` của PVI.
+     *
+     * KHÁC `fee` và không suy ra được từ nhau: `fee` là phí khách trả, PVI hỏi
+     * cả hai ở hai ô riêng rồi tự nhân `sum_insured` với tỷ lệ phí ra tổng phí
+     * bên họ. Lẫn hai con số là ghi sai hợp đồng.
+     */
+    sumInsured: integer("sum_insured").notNull().default(0),
     licensePlate: text("license_plate").notNull().default(""),
     /** Mã loại xe của PVI (`1001`…) — danh sách cố định ở `src/lib/pvi.ts`. */
     vehicleType: text("vehicle_type").notNull().default(""),
@@ -765,6 +776,8 @@ export const insuranceOrders = pgTable(
       sql`product <> 'motorbike' or vehicle_type <> ''`,
     ),
     check("insurance_orders_fee_positive", sql`fee >= 0`),
+    check("insurance_orders_household_size_non_negative", sql`household_size >= 0`),
+    check("insurance_orders_sum_insured_non_negative", sql`sum_insured >= 0`),
   ],
 );
 

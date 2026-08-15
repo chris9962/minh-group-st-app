@@ -78,6 +78,9 @@ export const InsuranceOrder = InsuranceListRow.extend({
   beneficiaryPhone: z.string(),
   /** BH tai nạn điện tính theo HỘ nên địa chỉ là thông tin lõi (thêm 03/08). */
   beneficiaryAddress: z.string(),
+  /** Hai trường dưới chỉ có giá trị với đơn tai nạn điện — 0 với đơn xe máy. */
+  householdSize: z.number(),
+  sumInsured: z.number(),
   /** Bốn trường xe chỉ có giá trị với đơn BH xe máy — rỗng với đơn khác. */
   licensePlate: z.string(),
   vehicleType: z.string(),

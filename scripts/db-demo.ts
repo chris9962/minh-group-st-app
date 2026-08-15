@@ -417,6 +417,10 @@ async function build() {
         handledByDepartmentId: handler?.deptId ?? null,
         licensePlate: n % 2 === 0 ? `59X1-${i}${n}` : "",
         vehicleType: n % 2 === 0 ? "1001" : "",
+        // Đơn tai nạn điện để 0 thì bot PVI dừng ở hai ô này — bộ mẫu phải đi
+        // được trọn luồng, không thì ca "bot chạy trơn" không thử được.
+        householdSize: n % 2 === 0 ? 0 : 3 + (n % 3),
+        sumInsured: n % 2 === 0 ? 0 : n % 4 === 1 ? 40_000_000 : 80_000_000,
         createdBy: ownerId,
         createdByDepartmentId: deptId,
       });
