@@ -18,6 +18,7 @@ export type NavIconKey =
   | 'services'
   | 'customers'
   | 'people'
+  | 'profile'
   | 'target'
   | 'settings'
   | 'exports'

@@ -1,6 +1,7 @@
 import {
   Building2,
   ChartNoAxesColumn,
+  CircleUserRound,
   Download,
   History,
   Landmark,
@@ -27,6 +28,7 @@ const ICONS = {
   services: Briefcase,
   customers: Users,
   people: UserRoundCheck,
+  profile: CircleUserRound,
   target: Target,
   settings: Settings,
   exports: Download,

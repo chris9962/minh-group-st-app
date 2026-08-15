@@ -67,12 +67,12 @@ export function BottomNav({ user, onOpenMenu }: { user: User; onOpenMenu: () => 
     can(user, "services", "view-summary");
   const canManageOrg = can(user, "system", "manage-org");
 
-  // KHÔNG còn ô "Chỉ tiêu của tôi": nó trỏ /my-target — trang chưa bao giờ tồn
-  // tại, sidebar đã bỏ từ 2026-08-06 (xem nav.ts). Điểm và chỉ tiêu của chính
-  // mình nằm ở màn Tổng quan.
-  const peopleEntry: Entry | null = managesPeople
+  // Người không quản phòng thấy ô "Cá nhân" thay cho "Nhân sự". Trước đó ô này
+  // là "Chỉ tiêu của tôi" trỏ /my-target — trang chưa bao giờ tồn tại (sidebar
+  // đã bỏ từ 2026-08-06, xem nav.ts); đổi sang /profile ngày 2026-08-15.
+  const peopleEntry: Entry = managesPeople
     ? { kind: "link", href: "/users", label: "Nhân sự", icon: "people" }
-    : null;
+    : { kind: "link", href: "/profile", label: "Cá nhân", icon: "profile" };
 
   const thirdEntry: Entry | null = canCreateBusinessRecord
     ? { kind: "create", label: "Tạo mới" }
@@ -84,7 +84,7 @@ export function BottomNav({ user, onOpenMenu }: { user: User; onOpenMenu: () => 
     ...(canSeeOverview ? [{ kind: "link", href: "/", label: "Tổng quan", icon: "overview" } as Entry] : []),
     { kind: "link", href: "/customers", label: "Khách hàng", icon: "customers" },
     ...(thirdEntry ? [thirdEntry] : []),
-    ...(peopleEntry ? [peopleEntry] : []),
+    peopleEntry,
     { kind: "more", label: "Thêm" },
   ];
 
