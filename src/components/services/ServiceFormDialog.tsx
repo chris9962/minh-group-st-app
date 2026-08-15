@@ -51,6 +51,9 @@ export function ServiceFormDialog({ open, onClose, customerId, customerName }: P
     mutationFn: (form: ServiceForm) => createService(form),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["services"] });
+      // Card "Dịch vụ đã làm" ở hồ sơ 360° đọc từ key này — không invalidate
+      // thì ghi xong quay lại trang chi tiết vẫn thấy danh sách cũ.
+      queryClient.invalidateQueries({ queryKey: ["customer", customerId] });
       invalidateKpi(queryClient);
       onClose();
       toast.ok(`Đã ghi dịch vụ cho ${customerName}`);
