@@ -133,14 +133,14 @@ export default function ServicesPage() {
   const columns = useMemo<RankColumn<ServiceRow>[]>(
     () => [
       { key: "customerName", label: "Khách hàng", render: (r) => r.customerName },
-      { key: "serviceTypeName", label: "Loại dịch vụ", render: (r) => r.serviceTypeName },
-      { key: "wardName", label: "Xã", render: (r) => r.wardName ?? "—" },
       {
         key: "date",
         label: "Ngày",
         sortable: true,
         render: (r) => formatDate(r.date),
       },
+      { key: "serviceTypeName", label: "Loại dịch vụ", render: (r) => r.serviceTypeName },
+      { key: "wardName", label: "Xã", render: (r) => r.wardName ?? "—" },
       { key: "createdByName", label: "Người thực hiện", render: (r) => r.createdByName },
       { key: "note", label: "Ghi chú", render: (r) => r.note || "—" },
       ...(canEdit || canRemove
