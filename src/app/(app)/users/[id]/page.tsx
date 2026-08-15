@@ -33,7 +33,7 @@ import {
 } from "@/lib/api/person";
 import { INSURANCE_STATUS_LABEL } from "@/lib/api/insuranceOrders";
 import { sourceColor, useChartColors } from "@/lib/chart-colors";
-import { formatDate, formatPhone } from "@/lib/format";
+import { businessDay, formatDate, formatPhone, monthRange } from "@/lib/format";
 import { can } from "@/lib/permissions";
 import { useSession } from "@/store/session";
 import styles from "./page.module.scss";
@@ -220,7 +220,13 @@ export default function PersonPage({
 
   /* Bốn tab, mỗi tab một route phân trang — gọi CẢ BỐN ngay khi mở trang để
      biết tab nào có dòng mà hiện; đổi kỳ thì khoá truy vấn đổi, cả bốn tự gọi
-     lại. Trang/chiều sắp giữ riêng từng tab. */
+     lại. Kỳ gửi đi là KHOẢNG NGÀY tường minh from/to, không phải token.
+     Trang/chiều sắp giữ riêng từng tab. */
+  const range =
+    period.kind === "today"
+      ? { from: businessDay(), to: businessDay() }
+      : monthRange(summaryMonth);
+
   const ZERO_PAGES: Record<TabKey, number> = { customers: 0, accounts: 0, insurance: 0, services: 0 };
   const [tabPages, setTabPages] = useState<Record<TabKey, number>>(ZERO_PAGES);
   const [tabDirs, setTabDirs] = useState<Record<TabKey, SortDir>>({
@@ -232,10 +238,10 @@ export default function PersonPage({
 
   const listQuery = <T,>(
     key: TabKey,
-    fetcher: (q: { id: string; period: string; page: number; dir: SortDir }) => Promise<T>,
+    fetcher: (q: { id: string; from: string; to: string; page: number; dir: SortDir }) => Promise<T>,
   ) => ({
-    queryKey: ["person-" + key, id, param, tabPages[key], tabDirs[key]],
-    queryFn: () => fetcher({ id, period: param, page: tabPages[key], dir: tabDirs[key] }),
+    queryKey: ["person-" + key, id, range.from, range.to, tabPages[key], tabDirs[key]],
+    queryFn: () => fetcher({ id, from: range.from, to: range.to, page: tabPages[key], dir: tabDirs[key] }),
     placeholderData: keepPreviousData as never,
   });
 

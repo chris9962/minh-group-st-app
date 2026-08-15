@@ -119,7 +119,9 @@ export async function fetchPerson(query: {
 
 export type PersonListQuery = {
   id: string;
-  period: string;
+  /** Khoảng NGÀY của kỳ, YYYY-MM-DD — tường minh, không gửi token kiểu "today". */
+  from: string;
+  to: string;
   /** Đếm từ 0. */
   page: number;
   dir: SortDir;
@@ -128,7 +130,10 @@ export type PersonListQuery = {
 const personListPage = <T extends z.ZodTypeAny>(row: T, segment: string) => {
   const PageSchema = pageOf(row);
   return async (query: PersonListQuery): Promise<Page<z.infer<T>>> => {
-    const qs = pageParams({ page: query.page, sort: 'date', dir: query.dir }, { period: query.period });
+    const qs = pageParams(
+      { page: query.page, sort: 'date', dir: query.dir },
+      { from: query.from, to: query.to },
+    );
     const res = await fetch(`/api/people/${encodeURIComponent(query.id)}/${segment}?${qs}`);
     if (res.status === 404) throw new Error('Không tìm thấy nhân viên này');
     if (!res.ok) throw new Error('Không tải được danh sách hoạt động');

@@ -705,11 +705,10 @@ const orderedBy = (col: AnyColumn, dir: "asc" | "desc", idCol: AnyColumn) =>
 export async function personCustomersFor(
   actor: User,
   id: string,
-  period: string,
+  range: Period,
   page: PageArgs<"date">,
 ): Promise<Page<PersonCustomer> | null> {
   if (!(await visibleStaffId(actor, id))) return null;
-  const range = periodOf(period);
 
   /* `created_at` là `timestamptz` nên hai mốc phải quy về giờ làm việc — so
      thẳng thì khách lập lúc 23:30 ngày cuối kỳ rơi sang kỳ sau. */
@@ -748,11 +747,10 @@ export async function personCustomersFor(
 export async function personAccountsFor(
   actor: User,
   id: string,
-  period: string,
+  range: Period,
   page: PageArgs<"date">,
 ): Promise<Page<PersonAccount> | null> {
   if (!(await visibleStaffId(actor, id))) return null;
-  const range = periodOf(period);
 
   const where = and(
     eq(bankAccounts.createdBy, id),
@@ -800,11 +798,10 @@ export async function personAccountsFor(
 export async function personInsuranceFor(
   actor: User,
   id: string,
-  period: string,
+  range: Period,
   page: PageArgs<"date">,
 ): Promise<Page<PersonInsurance> | null> {
   if (!(await visibleStaffId(actor, id))) return null;
-  const range = periodOf(period);
 
   const where = and(eq(insuranceOrders.createdBy, id), orderedInRange(range));
 
@@ -840,11 +837,10 @@ export async function personInsuranceFor(
 export async function personServicesFor(
   actor: User,
   id: string,
-  period: string,
+  range: Period,
   page: PageArgs<"date">,
 ): Promise<Page<PersonService> | null> {
   if (!(await visibleStaffId(actor, id))) return null;
-  const range = periodOf(period);
 
   const where = and(
     eq(services.createdBy, id),
