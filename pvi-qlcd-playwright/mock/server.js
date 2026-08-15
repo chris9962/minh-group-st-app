@@ -184,7 +184,30 @@ const server = http.createServer(async (req, res) => {
     return traHtml(res, docHtml('electrical-service.html'));
   }
 
-  if (p === '/Service/AssignDuyet') return traHtml(res, docHtml('assign-duyet.html'));
+  if (p === '/Service/AssignDuyet') {
+    if (req.method === 'POST') {
+      const duyet = gopForm(await docBody(req));
+      fs.mkdirSync(DON_DIR, { recursive: true });
+      const ten = `duyet-${Date.now()}.json`;
+      fs.writeFileSync(path.join(DON_DIR, ten), JSON.stringify(duyet, null, 1));
+      console.log(`  [duyệt] ${ten} — trạng thái ${JSON.stringify(duyet.trang_thai)}`);
+      // Captcha KHÔNG đi theo form: trang kiểm nó ngay trong trình duyệt rồi mới
+      // gọi submit, nên máy chủ không có gì để kiểm lại. Ghi ra để người đọc biết
+      // đây là chỗ PVI thật có thể làm khác — nếu họ kiểm captcha ở máy chủ thì
+      // bot đọc `window.code` sẽ không qua được.
+      return traHtml(
+        res,
+        `<!DOCTYPE html><html lang="vi"><head><meta charset="utf-8"><title>Đã duyệt — BẢN GIẢ LẬP</title></head>
+<body style="font-family:Arial;padding:24px">
+<div id="ket-qua-duyet" data-dat="1" style="font-size:17px;font-weight:bold;background:#dff5e1;border:1px solid #0a7d28;padding:10px 14px">
+Máy chủ nhận bước duyệt. Trạng thái: ${duyet.trang_thai ?? '(không có)'}
+</div>
+<p>Captcha không nằm trong dữ liệu gửi lên — trang kiểm nó ở trình duyệt trước khi submit.</p>
+</body></html>`,
+      );
+    }
+    return traHtml(res, docHtml('assign-duyet.html'));
+  }
 
   traVe(res, 404, 'text/plain; charset=utf-8', `Máy chủ giả lập chưa có đường dẫn ${p}`);
 });
