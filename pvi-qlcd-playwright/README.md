@@ -17,6 +17,38 @@ lệnh dưới đây chạy từ **gốc mgst-app**, không phải từ thư m�
 
 Đơn của sản phẩm chưa có script thoát mã 4, BE đặt về `manual-queued` kèm lý do.
 
+## Máy chủ giả lập
+
+Thử bot mà không đụng PVI thật, không cần phiên đăng nhập:
+
+```bash
+bun run pvi:mock                                     # cửa sổ 1
+cat pvi-qlcd-playwright/payload.example.json | \
+  PVI_BASE_URL=http://localhost:3010 bun run pvi:order   # cửa sổ 2
+```
+
+Máy chủ phục vụ **nguyên văn DOM thật** của PVI ở `mock/html/`, chỉ đổi địa chỉ
+tuyệt đối `https://qlcd.pvi.com.vn` thành đường dẫn tương đối. Không viết lại
+HTML: id, option, `onchange` và cả năm hàm của trang phải giống thật, nếu không
+thì bot chạy đúng ở đây rồi hỏng ở PVI.
+
+Năm endpoint máy chủ tự trả lời:
+
+| Đường dẫn | Việc |
+|---|---|
+| `GET /API/ConvertDateTimeFormat` | Ngày bắt đầu + 1 năm |
+| `GET /API/GetTongPhi_HoSD_Dien` | Tổng phí, và trạng thái khoá ô |
+| `POST /Electrical/GetKenhKT` | Option kênh bán hàng theo nhóm |
+| `POST /Electrical/GetMaKhach` | Autocomplete mã khách |
+| `POST /API/UploadFile_OCR` | Kết quả OCR ảnh căn cước |
+
+⚠️ Công thức phí là **suy đoán**: `STBH × tỷ lệ / 100`, dựng từ một điểm đo trên
+trang thật ngày 2026-08-15 (40 000 000 với 0.25 ra 100 000). Công thức thật của
+PVI có thể còn nhân theo số ngày hiệu lực hoặc số người thuê trọ. Đừng tin con
+số máy chủ này trả ra là con số PVI sẽ tính.
+
+Đơn gửi lên lưu thành JSON ở `mock/don/`, không lên git.
+
 ## Vì sao phải đăng nhập tay
 
 Form đăng nhập của PVI có captcha ảnh `/Capcha1.aspx`. Script không giải captcha.

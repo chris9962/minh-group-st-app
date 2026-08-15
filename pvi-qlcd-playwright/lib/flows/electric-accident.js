@@ -5,8 +5,9 @@
 // biết tên ô nào của PVI — thêm sản phẩm mới là thêm một file cạnh file này.
 
 const { fmtNgay, fmtTien, doiISO, congNgay, congNam } = require('../ngay');
+const { BASE_URL } = require('../base-url');
 
-const URL_FORM = 'https://qlcd.pvi.com.vn/Electrical/ElectricalService';
+const URL_FORM = `${BASE_URL}/Electrical/ElectricalService`;
 
 // Ô đầu tiên của form. Không có ô này nghĩa là phiên đăng nhập đã hết hạn.
 const SELECTOR_FORM = '#khach_hang';

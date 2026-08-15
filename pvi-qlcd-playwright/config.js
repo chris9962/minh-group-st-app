@@ -5,8 +5,9 @@
 
 const path = require('path');
 const { flowFor, PRODUCT_MAC_DINH } = require('./lib/flows');
+const { BASE_URL, LA_GIA_LAP } = require('./lib/base-url');
 
-const URL_GOC = 'https://qlcd.pvi.com.vn/';
+const URL_GOC = `${BASE_URL}/`;
 
 const STATE_PATH = process.env.PVI_STATE || path.join(__dirname, 'storageState.json');
 
@@ -24,4 +25,4 @@ const flowKiemPhien = flowFor(PRODUCT_MAC_DINH);
 const URL_FORM = flowKiemPhien.urlForm;
 const SELECTOR_FORM = flowKiemPhien.selectorForm;
 
-module.exports = { URL_GOC, URL_FORM, SELECTOR_FORM, STATE_PATH, HEADED };
+module.exports = { URL_GOC, URL_FORM, SELECTOR_FORM, STATE_PATH, HEADED, LA_GIA_LAP };

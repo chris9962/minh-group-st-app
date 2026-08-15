@@ -17,6 +17,7 @@
     "test:rules": "bun scripts/test-rules.ts",
     "e2e": "bun --env-file=.env.local scripts/e2e-clean.ts && bun --env-file=.env.local scripts/e2e-seed.ts && playwright test; bun --env-file=.env.local scripts/e2e-clean.ts",
     "e2e:ui": "bun --env-file=.env.local scripts/e2e-seed.ts && playwright test --ui",
+    "pvi:mock": "node pvi-qlcd-playwright/mock/server.js",
     "pvi:login": "node pvi-qlcd-playwright/login.js",
     "pvi:ensure-login": "node pvi-qlcd-playwright/ensure-login.js",
     "pvi:check": "node pvi-qlcd-playwright/check-session.js",
@@ -62,6 +63,7 @@
     "drizzle-kit": "^0.31.10",
     "eslint": "^9",
     "eslint-config-next": "16.2.12",
+    "jquery": "3",
     "sass": "^1.102.0",
     "typescript": "^5"
   },

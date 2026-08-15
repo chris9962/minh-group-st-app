@@ -61,4 +61,5 @@ next-env.d.ts
 /pvi-qlcd-playwright/storageState.json
 /pvi-qlcd-playwright/anh/
 /pvi-qlcd-playwright/captcha/
+/pvi-qlcd-playwright/mock/don/
 __pycache__/
