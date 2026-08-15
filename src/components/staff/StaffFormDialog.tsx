@@ -215,10 +215,8 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
       {created ? (
         <div className={styles.created}>
           <Alert tone="warning">
-            <strong>Mật khẩu chỉ hiện đúng một lần.</strong> Chép và gửi cho nhân
-            viên ngay. Đóng hộp thoại rồi thì không xem lại được, vì database chỉ
-            giữ bản băm một chiều — muốn có mật khẩu khác phải vào hồ sơ người đó
-            bấm “Đặt lại mật khẩu”.
+            <strong>Mật khẩu chỉ hiện một lần.</strong> Chép và gửi cho nhân viên
+            trước khi đóng. Lỡ đóng thì vào hồ sơ của họ, bấm “Đặt lại mật khẩu”.
           </Alert>
           <dl className={styles.credentials}>
             <dt>Tên đăng nhập</dt>
