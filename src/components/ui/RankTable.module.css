@@ -98,3 +98,11 @@
   text-align: center;
   color: var(--color-neutral-600);
 }
+
+.clickableRow {
+  cursor: pointer;
+}
+
+.clickableRow:hover td {
+  background: color-mix(in srgb, var(--color-text) 4%, transparent);
+}

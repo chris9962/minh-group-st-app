@@ -2,6 +2,7 @@
 
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { Download, Landmark, Pencil, Plus, Trash2 } from "lucide-react";
 import type { DateRange } from "react-day-picker";
@@ -81,6 +82,7 @@ function exportByCustomer(rows: BankAccountRow[], bankCodes: string[]) {
 
 /** P-21 · Danh sách tài khoản ngân hàng. */
 export default function BankingPage() {
+  const router = useRouter();
   const user = useSession((s) => s.user);
   const [search, setSearch] = useState("");
   const searchQuery = useDebouncedValue(search);
@@ -425,6 +427,7 @@ export default function BankingPage() {
               rowKey={(r) => r.id}
               defaultSort="date"
               caption="Tài khoản ngân hàng đã mở cho khách hàng"
+              onRowClick={(r) => router.push(`/banking/${r.id}`)}
               emptyText={
                 activeCount > 0 || searchQuery
                   ? "Không có tài khoản nào khớp bộ lọc."
