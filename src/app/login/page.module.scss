@@ -5,8 +5,10 @@
   display: flex;
 }
 
+/* Chia 4-6: form có `max-width` cố định nên cột rộng thêm cũng không giúp gì,
+   phần dư để cho khối nhận diện. */
 .formColumn {
-  flex: 1;
+  flex: 4;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -34,7 +36,7 @@
 }
 
 .brandColumn {
-  flex: 1;
+  flex: 6;
 }
 
 /* Trên điện thoại chỉ còn form — khối nhận diện chiếm chỗ mà không giúp gì. */
