@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronDown, X } from "lucide-react";
-import { createContext, useEffect, useRef, useState } from "react";
+import { createContext, useCallback, useEffect, useRef, useState } from "react";
 import { useDialogLayer } from "@/store/dialogLayer";
 import styles from "./Dialog.module.css";
 
@@ -34,6 +34,7 @@ export function Dialog({ open, title, onClose, children, footer }: Props) {
   const ref = useRef<HTMLDialogElement>(null);
   const [dialogEl, setDialogEl] = useState<HTMLDialogElement | null>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   const [canScrollDown, setCanScrollDown] = useState(false);
 
   // Đồng bộ với DOM ngoài React: `open` là thuộc tính, còn showModal() mới bật
@@ -54,21 +55,37 @@ export function Dialog({ open, title, onClose, children, footer }: Props) {
     return () => pop(el);
   }, [open]);
 
-  const checkScroll = (el: HTMLDivElement) => {
-    setCanScrollDown(el.scrollHeight - el.scrollTop - el.clientHeight > 2);
-  };
+  /**
+   * Đo theo ĐÁY KHỐI NỘI DUNG, không theo `scrollHeight`.
+   *
+   * `scrollHeight` cộng cả phần tràn của mọi lớp phủ tuyệt đối bên trong. Vùng
+   * bấm 44px của nút chép nới `::after` ra 13px dưới đáy nút là một cái: hộp
+   * thoại một dòng cũng đo ra thừa 9px, và mũi tên hiện lên chỉ xuống chỗ trống.
+   * Bọc `children` trong một khối riêng rồi so đáy hai khối thì phần vô hình đó
+   * không được tính.
+   */
+  const checkScroll = useCallback(() => {
+    const body = bodyRef.current;
+    const content = contentRef.current;
+    if (!body || !content) return;
+    const remaining =
+      content.getBoundingClientRect().bottom - body.getBoundingClientRect().bottom;
+    setCanScrollDown(remaining > 2);
+  }, []);
 
   // Nội dung dài ngắn khác nhau tuỳ hộp thoại, có nơi đổi kích thước sau khi
   // mở (chọn gói bảo hiểm mới hiện thêm form) — phải đo kích thước THẬT của
   // DOM mới biết còn cuộn được không, không suy ra được lúc render.
   useEffect(() => {
-    const el = bodyRef.current;
-    if (!el) return;
-    checkScroll(el);
-    const observer = new ResizeObserver(() => checkScroll(el));
-    observer.observe(el);
+    const body = bodyRef.current;
+    const content = contentRef.current;
+    if (!body || !content) return;
+    checkScroll();
+    const observer = new ResizeObserver(checkScroll);
+    observer.observe(body);
+    observer.observe(content);
     return () => observer.disconnect();
-  }, [open]);
+  }, [checkScroll, open]);
 
   return (
     <dialog
@@ -104,8 +121,8 @@ export function Dialog({ open, title, onClose, children, footer }: Props) {
             </header>
 
             <div className={styles.bodyWrap}>
-              <div ref={bodyRef} className={styles.body} onScroll={(e) => checkScroll(e.currentTarget)}>
-                {children}
+              <div ref={bodyRef} className={styles.body} onScroll={checkScroll}>
+                <div ref={contentRef}>{children}</div>
               </div>
               {canScrollDown && (
                 <div className={styles.scrollHint} aria-hidden="true">
