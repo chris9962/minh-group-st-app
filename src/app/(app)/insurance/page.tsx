@@ -139,6 +139,12 @@ export default function InsurancePage() {
   const columns = useMemo<RankColumn<InsuranceListRow>[]>(
     () => [
       {
+        key: "date",
+        label: "Ngày tạo đơn",
+        sortable: true,
+        render: (r) => formatDate(r.orderDate),
+      },
+      {
         key: "customerName",
         label: "Khách hàng",
         render: (r) => (
@@ -159,12 +165,6 @@ export default function InsurancePage() {
         render: (r) => (
           <StatusTag ok={r.status === "done"}>{INSURANCE_STATUS_LABEL[r.status]}</StatusTag>
         ),
-      },
-      {
-        key: "date",
-        label: "Ngày tạo đơn",
-        sortable: true,
-        render: (r) => formatDate(r.orderDate),
       },
       { key: "startDate", label: "Hiệu lực từ", render: (r) => formatDate(r.startDate) },
       { key: "createdByName", label: "Người tạo", render: (r) => r.createdByName ?? "—" },

@@ -207,6 +207,12 @@ export default function BankingPage() {
   const columns = useMemo<RankColumn<BankAccountRow>[]>(
     () => [
       {
+        key: "date",
+        label: "Ngày",
+        sortable: true,
+        render: (r) => (r.date ? formatDate(r.date) : "—"),
+      },
+      {
         key: "customerName",
         label: "Khách hàng",
         render: (r) => (
@@ -233,12 +239,6 @@ export default function BankingPage() {
         key: "appInstalled",
         label: "Đã cài app",
         render: (r) => <StatusTag ok={r.appInstalled}>{r.appInstalled ? "Có" : "Không"}</StatusTag>,
-      },
-      {
-        key: "date",
-        label: "Ngày",
-        sortable: true,
-        render: (r) => (r.date ? formatDate(r.date) : "—"),
       },
       { key: "createdByName", label: "Người tạo", render: (r) => r.createdByName ?? "—" },
       ...(canWrite || canRemove

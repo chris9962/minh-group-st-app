@@ -90,6 +90,12 @@ export default function CustomersPage() {
   const columns = useMemo<RankColumn<CustomerRow>[]>(
     () => [
       {
+        key: "created",
+        label: "Ngày tạo",
+        sortable: true,
+        render: (c) => <span className="tabular-nums">{formatDate(c.createdAt)}</span>,
+      },
+      {
         key: "name",
         label: "Tên khách hàng",
         sortable: true,
@@ -98,12 +104,6 @@ export default function CustomersPage() {
             {c.fullName}
           </Link>
         ),
-      },
-      {
-        key: "created",
-        label: "Ngày tạo",
-        sortable: true,
-        render: (c) => <span className="tabular-nums">{formatDate(c.createdAt)}</span>,
       },
       {
         key: "accounts",
