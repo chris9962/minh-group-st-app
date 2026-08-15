@@ -120,12 +120,12 @@ export default function CustomersPage() {
       {
         key: "channel",
         label: "Kênh",
-        render: (c) => c.channel || "—",
+        render: (c) => c.channel || "",
       },
       {
         key: "createdByName",
         label: "Người tạo",
-        render: (c) => c.createdByName || "—",
+        render: (c) => c.createdByName || "",
       },
       {
         key: "actions",

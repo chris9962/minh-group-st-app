@@ -99,7 +99,7 @@ export default function CustomerDetailPage({
     },
     { key: "serviceTypeName", label: "Loại dịch vụ", render: (s) => s.serviceTypeName },
     { key: "createdByName", label: "Người thực hiện", render: (s) => s.createdByName },
-    { key: "note", label: "Ghi chú", render: (s) => s.note || "—" },
+    { key: "note", label: "Ghi chú", render: (s) => s.note || "" },
   ];
 
   return (
