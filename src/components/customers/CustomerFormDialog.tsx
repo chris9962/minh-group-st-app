@@ -106,30 +106,24 @@ export function CustomerFormDialog({ open, onClose, customer, onCreated }: Props
     enabled: selectedChannel?.inputKind === "hospital",
   });
 
+  // channelDetail của kênh ấp lưu chuỗi TÊN "Tỉnh · Xã · Ấp" (xem onChange của ô
+  // Ấp bên dưới), không lưu ID — nên khi mở form sửa phải tra ngược catalog theo
+  // tên để dựng lại ba ô chọn đã chọn trước đó.
   useEffect(() => {
-    if (
-      editing &&
-      customer?.channelId &&
-      provinces.length > 0 &&
-      customer.channelDetail &&
-      !provinceId
-    ) {
-      const channel = channels.find((c) => c.id === customer.channelId);
+    if (!editing || provinceId || !customer?.channelDetail) return;
+    const channel = channels.find((c) => c.id === customer.channelId);
+    if (channel?.inputKind !== "ward-hamlet" || provinces.length === 0) return;
 
-      if (channel?.inputKind === "ward-hamlet") {
-        for (const province of provinces) {
-          for (const ward of province.wards) {
-            if (ward.hamlets.some((h) => h.id === customer.channelDetail)) {
-              setProvinceId(province.id);
-              setWardId(ward.id);
-              setHamletId(customer.channelDetail);
-              return;
-            }
-          }
-        }
-      }
-    }
-  }, [editing, customer?.channelId, channels, provinces, customer?.channelDetail, provinceId]);
+    const [provinceName, wardName, hamletName] = customer.channelDetail.split(" · ");
+    const province = provinces.find((p) => p.name === provinceName);
+    if (!province) return;
+    const ward = province.wards.find((w) => w.name === wardName);
+    const hamlet = ward?.hamlets.find((h) => h.name === hamletName);
+
+    setProvinceId(province.id);
+    if (ward) setWardId(ward.id);
+    if (hamlet) setHamletId(hamlet.id);
+  }, [editing, provinceId, customer?.channelId, customer?.channelDetail, channels, provinces]);
 
   const save = useMutation({
     mutationFn: (form: CustomerForm) =>
