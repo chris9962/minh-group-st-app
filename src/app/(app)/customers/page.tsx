@@ -21,7 +21,6 @@ import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { SearchField } from "@/components/ui/SearchField";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { Select } from "@/components/ui/Select";
-import { StatusTag } from "@/components/ui/StatusTag";
 import { fetchChannels } from "@/lib/api/channelCatalog";
 import { fetchCustomers, type CustomerQuery, type CustomerRow } from "@/lib/api/customers";
 import { EMPTY_PAGE, PAGE_SIZE } from "@/lib/api/pagination";
@@ -32,25 +31,6 @@ import { useSession } from "@/store/session";
 import styles from "./page.module.scss";
 
 const iso = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
-
-const GIFT_STATUS_LABEL: Record<CustomerRow["giftStatus"], string> = {
-  none: "Chưa đủ điều kiện",
-  eligible: "Đủ ĐK · chưa phát",
-  given: "Đã tặng",
-};
-
-/**
- * Ba trạng thái, ba tông — `null` là "không thuộc bên nào".
- *
- * "Chưa đủ điều kiện" từng dùng chung tông với "Đã tặng" nên cả cột hiện dấu ✓
- * nền xanh cho những khách chưa được gì. Chỉ "Đủ ĐK · chưa phát" mới là việc
- * cần làm, và chỉ nó mới được nhãn cam.
- */
-const GIFT_STATUS_TONE: Record<CustomerRow["giftStatus"], boolean | null> = {
-  none: null,
-  eligible: false,
-  given: true,
-};
 
 /** Khách mới nhất lên đầu — người nhập vừa tạo xong là thấy ngay dòng của mình. */
 const FIRST_PAGE: CustomerQuery = {
@@ -120,9 +100,10 @@ export default function CustomersPage() {
         ),
       },
       {
-        key: "primaryPhone",
-        label: "SĐT chính",
-        render: (c) => <span className="tabular-nums">{formatPhone(c.primaryPhone)}</span>,
+        key: "created",
+        label: "Ngày tạo",
+        sortable: true,
+        render: (c) => <span className="tabular-nums">{formatDate(c.createdAt)}</span>,
       },
       {
         key: "accounts",
@@ -142,21 +123,9 @@ export default function CustomersPage() {
         render: (c) => c.channel || "—",
       },
       {
-        key: "created",
-        label: "Ngày tạo",
-        sortable: true,
-        render: (c) => <span className="tabular-nums">{formatDate(c.createdAt)}</span>,
-      },
-      {
-        key: "giftStatus",
-        label: "Trạng thái quà",
-        render: (c) => (
-          <StatusTag ok={GIFT_STATUS_TONE[c.giftStatus]}>
-            {c.giftStatus === "given" && c.givenItem
-              ? `Đã tặng · ${c.givenItem}`
-              : GIFT_STATUS_LABEL[c.giftStatus]}
-          </StatusTag>
-        ),
+        key: "createdByName",
+        label: "Người tạo",
+        render: (c) => c.createdByName || "—",
       },
       {
         key: "actions",

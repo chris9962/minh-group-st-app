@@ -156,6 +156,7 @@ const pickPage = (where: SQL | undefined, orderBy: SQL[], limit: number, offset:
       insuranceCount: customers.insuranceCount,
       giftBasket: customers.giftBasket,
       channelId: customers.channelId,
+      createdBy: customers.createdBy,
       // Cột tính bằng `sql` nằm trong truy vấn con thì BẮT BUỘC có bí danh —
       // không có thì câu ngoài không gọi tên nó được, drizzle ném lỗi lúc dựng.
       createdAt: createdDayText.as("created_day"),
@@ -200,7 +201,6 @@ function decorate(page: ReturnType<typeof pickPage>) {
     .select({
       id: page.id,
       fullName: page.fullName,
-      primaryPhone: sql<string>`coalesce(${phone.number}, '')`,
       accountCount: page.accountCount,
       insuranceCount: page.insuranceCount,
       /**
@@ -228,11 +228,14 @@ function decorate(page: ReturnType<typeof pickPage>) {
           ${giftGrants.chosenItem}) end`,
       channel: sql<string>`coalesce(${channels.name}, '')`,
       createdAt: page.createdAt,
+      createdByName: sql<string>`coalesce(${users.fullName}, '')`,
+      primaryPhone: sql<string>`coalesce(${phone.number}, '')`,
     })
     .from(page)
     .leftJoinLateral(phone, sql`true`)
     .leftJoin(giftGrants, eq(giftGrants.customerId, page.id))
-    .leftJoin(channels, eq(channels.id, page.channelId));
+    .leftJoin(channels, eq(channels.id, page.channelId))
+    .leftJoin(users, eq(users.id, page.createdBy));
 }
 
 /**

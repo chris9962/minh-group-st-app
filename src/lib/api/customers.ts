@@ -58,7 +58,6 @@ export type Customer = z.infer<typeof Customer>;
 export const CustomerRow = z.object({
   id: z.string(),
   fullName: z.string(),
-  primaryPhone: z.string(),
   accountCount: z.number(),
   insuranceCount: z.number(),
   giftStatus: z.enum(['none', 'eligible', 'given']),
@@ -66,6 +65,8 @@ export const CustomerRow = z.object({
   givenItem: z.string().nullable(),
   channel: z.string(),
   createdAt: z.string(),
+  createdByName: z.string(),
+  primaryPhone: z.string(),
 });
 export type CustomerRow = z.infer<typeof CustomerRow>;
 
@@ -143,16 +144,16 @@ export type CustomerPhoneForm = z.infer<typeof CustomerPhoneForm>;
 
 /**
  * Tên không ràng buộc định dạng (spec §4.4 P-41) — nhân viên gõ sao lưu vậy.
- * CCCD để trống được — module B chưa chắc bắt buộc; có nhập thì phải đủ 12 số.
  */
 export const CustomerForm = z.object({
   fullName: z.string().trim().min(1, 'Chưa nhập họ tên'),
-  dob: z.string(),
+  dob: z.string().min(1, 'Chưa nhập ngày sinh'),
   idNumber: z
     .string()
     .trim()
-    .refine((v) => v === '' || /^\d{12}$/.test(v), 'CCCD phải đủ 12 số'),
-  address: z.string().trim(),
+    .min(1, 'Chưa nhập CCCD')
+    .refine(/^\d{12}$/.test, 'CCCD phải đủ 12 số'),
+  address: z.string().trim().min(1, 'Chưa nhập địa chỉ'),
   phones: z.array(CustomerPhoneForm).min(1, 'Cần ít nhất một số điện thoại'),
   channelId: z.string(),
   channelDetail: z.string(),
