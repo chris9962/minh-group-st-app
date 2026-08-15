@@ -1,6 +1,9 @@
 .body {
   flex: 1;
   padding: 22px 28px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
 }
 
 .card {

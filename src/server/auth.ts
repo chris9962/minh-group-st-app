@@ -77,6 +77,17 @@ function tokenFrom(request: Request): string | null {
   return null;
 }
 
+/**
+ * Băm token của phiên đang gọi.
+ *
+ * Dùng để GIỮ LẠI đúng phiên này khi cắt các phiên còn lại — tự đổi mật khẩu mà
+ * cắt cả phiên đang dùng thì người đổi bị đăng xuất ngay lúc vừa đổi xong.
+ */
+export function sessionHashFrom(request: Request): string | null {
+  const token = tokenFrom(request);
+  return token ? hashToken(token) : null;
+}
+
 /** Người đang đăng nhập — null khi không có phiên hợp lệ (route trả 401). */
 export async function getActor(request: Request): Promise<User | null> {
   const token = tokenFrom(request);

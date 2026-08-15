@@ -1,5 +1,5 @@
 import { randomInt } from "node:crypto";
-import { hashSync } from "bcryptjs";
+import { compare, hashSync } from "bcryptjs";
 import { and, asc, count, desc, eq, inArray, ne, sql, type SQL } from "drizzle-orm";
 import type {
   StaffAccount,
@@ -352,7 +352,12 @@ type SaveErrorCode =
   | "self-permission-change";
 
 export type SaveOutcome =
-  | { ok: true; staff: StaffAccount }
+  /**
+   * `password` CHỈ có ở lượt tạo — mật khẩu khởi tạo dạng chữ, hiện đúng một
+   * lần cho người tạo chép rồi gửi cho nhân viên. Database chỉ giữ bản băm, nên
+   * bỏ lỡ lần này thì phải bấm "Đặt lại mật khẩu" để sinh mật khẩu khác.
+   */
+  | { ok: true; staff: StaffAccount; password?: string }
   | { ok: false; code: SaveErrorCode };
 
 /**
@@ -461,23 +466,31 @@ async function staffCodeTaken(staffCode: string, exceptId?: string): Promise<boo
   return rows.length > 0;
 }
 
-/** Ghi user + quyền + phòng quản trong MỘT transaction — không có nửa người. */
+/**
+ * Ghi user + quyền + phòng quản trong MỘT transaction — không có nửa người.
+ *
+ * Trả về mật khẩu khởi tạo ở lượt tạo, `null` ở lượt sửa. Sinh trong này chứ
+ * không sinh ở `createStaff` để chuỗi chữ và bản băm chắc chắn cùng một giá
+ * trị — hai chỗ sinh riêng là thứ sớm muộn lệch nhau.
+ */
 async function writeStaff(
   id: string,
   form: StaffForm,
   mode: "create" | "update",
-): Promise<void> {
+): Promise<string | null> {
+  let password: string | null = null;
   await db.transaction(async (tx) => {
     const managed = form.manageScope === "listed" ? form.managedDepartmentIds : [];
 
     if (mode === "create") {
+      // Mật khẩu khởi tạo ngẫu nhiên, KHÔNG có mặc định đoán được. Chuỗi chữ
+      // đi ngược lên cho hộp thoại hiện một lần; database chỉ giữ bản băm.
+      password = newPassword();
       await tx.insert(users).values({
         id,
         username: form.username,
         staffCode: form.staffCode,
-        // Mật khẩu khởi tạo ngẫu nhiên, không ai biết — admin cấp qua nút
-        // "Đặt lại mật khẩu" (C-02), không có mật khẩu mặc định đoán được.
-        passwordHash: hashSync(newPassword(), 10),
+        passwordHash: hashSync(password, 10),
         fullName: form.fullName,
         phone: form.phone,
         role: form.role,
@@ -566,6 +579,7 @@ async function writeStaff(
         .insert(userManagedDepartments)
         .values(managed.map((departmentId) => ({ userId: id, departmentId })));
   });
+  return password;
 }
 
 /**
@@ -587,15 +601,14 @@ async function writeGuarded(
   id: string,
   form: StaffForm,
   mode: "create" | "update",
-): Promise<SaveErrorCode | null> {
+): Promise<{ code: SaveErrorCode } | { password: string | null }> {
   try {
-    await writeStaff(id, form, mode);
-    return null;
+    return { password: await writeStaff(id, form, mode) };
   } catch (e) {
     const constraint = uniqueViolationOf(e);
     if (constraint === null) throw e;
-    if (constraint.includes("staff_code")) return "staff-code-taken";
-    if (constraint.includes("username")) return "username-taken";
+    if (constraint.includes("staff_code")) return { code: "staff-code-taken" };
+    if (constraint.includes("username")) return { code: "username-taken" };
     throw e;
   }
 }
@@ -607,9 +620,9 @@ export async function createStaff(actor: User, form: StaffForm): Promise<SaveOut
   if (await staffCodeTaken(form.staffCode)) return { ok: false, code: "staff-code-taken" };
 
   const id = crypto.randomUUID();
-  const failed = await writeGuarded(id, form, "create");
-  if (failed) return { ok: false, code: failed };
-  return { ok: true, staff: (await findStaff(id))! };
+  const written = await writeGuarded(id, form, "create");
+  if ("code" in written) return { ok: false, code: written.code };
+  return { ok: true, staff: (await findStaff(id))!, password: written.password ?? undefined };
 }
 
 export async function updateStaff(actor: User, id: string, form: StaffForm): Promise<SaveOutcome | null> {
@@ -644,8 +657,8 @@ export async function updateStaff(actor: User, id: string, form: StaffForm): Pro
 
   const movedDepartment = (current.departmentId ?? null) !== (form.departmentId || null);
 
-  const failed = await writeGuarded(id, form, "update");
-  if (failed) return { ok: false, code: failed };
+  const written = await writeGuarded(id, form, "update");
+  if ("code" in written) return { ok: false, code: written.code };
 
   /**
    * Rổ quà tính lại sau khi chuyển phòng — chốt 13/08.
@@ -707,6 +720,45 @@ export async function resetPassword(id: string): Promise<string | null> {
     return updated;
   });
   return row ? password : null;
+}
+
+/**
+ * C-02 · Tự đổi mật khẩu. Trả `false` khi mật khẩu hiện tại sai.
+ *
+ * Vẫn đòi mật khẩu hiện tại dù đã có phiên hợp lệ: máy để mở vài phút là đủ để
+ * người khác đổi mật khẩu và chiếm hẳn tài khoản.
+ *
+ * Cắt mọi phiên khác nhưng GIỮ phiên đang gọi. `resetPassword` cắt sạch vì lúc
+ * đó người thao tác là quản trị, còn ở đây chính chủ đang ngồi đổi — cắt sạch
+ * là vừa bấm xong đã bị đá về màn đăng nhập.
+ */
+export async function changeOwnPassword(
+  id: string,
+  form: { currentPassword: string; newPassword: string },
+  keepSessionHash: string | null,
+): Promise<boolean> {
+  const [row] = await db
+    .select({ passwordHash: users.passwordHash })
+    .from(users)
+    .where(eq(users.id, id))
+    .limit(1);
+  if (!row) return false;
+  if (!(await compare(form.currentPassword, row.passwordHash))) return false;
+
+  await db.transaction(async (tx) => {
+    await tx
+      .update(users)
+      .set({ passwordHash: hashSync(form.newPassword, 10), updatedAt: new Date() })
+      .where(eq(users.id, id));
+    await tx
+      .delete(sessions)
+      .where(
+        keepSessionHash
+          ? and(eq(sessions.userId, id), ne(sessions.tokenHash, keepSessionHash))
+          : eq(sessions.userId, id),
+      );
+  });
+  return true;
 }
 
 /** Mở khoá đăng nhập (C-01) khi admin mở khoá một người bị khoá 15 phút. */
