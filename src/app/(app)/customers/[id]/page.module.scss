@@ -50,11 +50,12 @@
   font-size: 14px;
 }
 
+// Mỗi số một dòng: hai số nằm ngang thì thẻ "Số chính" kẹp giữa hai số,
+// không đọc ra nó thuộc số nào.
 .phone {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 8px;
-  margin-right: 12px;
 }
 
 .primaryTag {
