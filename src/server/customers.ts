@@ -77,6 +77,8 @@ export type CustomerFilters = {
   channelId: string;
   from: string;
   to: string;
+  /** Rỗng = không lọc. Route P-40 đặt = id người xem khi họ là Nhân viên. */
+  createdBy?: string;
 };
 
 /**
@@ -128,6 +130,7 @@ function searchWhere(raw: string): SQL | undefined {
 function customerFilters(query: CustomerFilters): SQL | undefined {
   const parts = [
     searchWhere(query.search),
+    query.createdBy ? eq(customers.createdBy, query.createdBy) : undefined,
     query.channelId ? eq(customers.channelId, query.channelId) : undefined,
     // Ngày sai định dạng thì BỎ QUA, không trả 400: link cũ hay ô địa chỉ gõ
     // nhầm không đáng làm hỏng cả màn (cùng lối nghĩ với `uuidParam`).

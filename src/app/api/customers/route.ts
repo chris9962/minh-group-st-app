@@ -27,6 +27,10 @@ export async function GET(request: Request) {
         channelId: uuidParam(params.get("channelId")),
         from: params.get("from") ?? "",
         to: params.get("to") ?? "",
+        // Nhân viên chỉ thấy khách MÌNH tạo ở bảng P-40 (chốt 2026-08-15).
+        // Chỉ áp cho danh sách này: hồ sơ chi tiết, ô tìm khách của form mở
+        // tài khoản / ghi dịch vụ vẫn thấy mọi khách (spec §2.1b giữ nguyên).
+        createdBy: guard.actor.role === "staff" ? guard.actor.id : "",
       },
       pageArgsFrom(url, SORTABLE, "created"),
     ),
