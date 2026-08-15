@@ -2,28 +2,18 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
-import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { Combobox } from "@/components/ui/Combobox";
 import { Dialog } from "@/components/ui/Dialog";
 import { Select } from "@/components/ui/Select";
 import { TextField } from "@/components/ui/TextField";
 import { fetchChannels } from "@/lib/api/channelCatalog";
-import {
-  createCustomer,
-  CustomerForm,
-  isDuplicateCustomerError,
-  updateCustomer,
-  type Customer,
-  type DuplicateCustomerError,
-} from "@/lib/api/customers";
+import { createCustomer, CustomerForm, updateCustomer, type Customer } from "@/lib/api/customers";
 import { fetchHospitals } from "@/lib/api/hospitalCatalog";
 import { fetchProvinces } from "@/lib/api/wardCatalog";
-import { formatPhone } from "@/lib/format";
 import { errorMessage, toast } from "@/lib/toast";
 import styles from "./CustomerFormDialog.module.scss";
 
@@ -65,11 +55,9 @@ const toForm = (c: Customer): CustomerForm => ({
 
 /** P-41 · Tạo / sửa khách hàng — tên không ràng buộc định dạng, CCCD chặn trùng. */
 export function CustomerFormDialog({ open, onClose, customer, onCreated }: Props) {
-  const router = useRouter();
   const queryClient = useQueryClient();
   const editing = Boolean(customer);
   const maskedId = Boolean(customer?.idNumberMasked);
-  const [duplicate, setDuplicate] = useState<DuplicateCustomerError | null>(null);
 
   const {
     register,
@@ -138,15 +126,7 @@ export function CustomerFormDialog({ open, onClose, customer, onCreated }: Props
       onClose();
       toast.ok(customer ? `Đã lưu hồ sơ ${saved.fullName}` : `Đã thêm khách hàng ${saved.fullName}`);
     },
-    onError: (err) => {
-      // Trùng CCCD KHÔNG báo bằng toast: hộp thoại đổi sang khối "hồ sơ đã có"
-      // kèm nút dùng lại, mà toast thì trôi mất sau vài giây và không bấm được.
-      if (isDuplicateCustomerError(err)) {
-        setDuplicate(err);
-        return;
-      }
-      toast.fail(errorMessage(err, "Không lưu được hồ sơ khách này."));
-    },
+    onError: (err) => toast.fail(errorMessage(err, "Không lưu được hồ sơ khách này.")),
   });
 
   const makePrimary = (index: number) => {
@@ -159,55 +139,22 @@ export function CustomerFormDialog({ open, onClose, customer, onCreated }: Props
       onClose={onClose}
       title={editing ? "Sửa khách hàng" : "Thêm khách hàng"}
       footer={
-        duplicate ? (
+        <>
           <Button variant="secondary" onClick={onClose}>
-            Đóng
+            Huỷ
           </Button>
-        ) : (
-          <>
-            <Button variant="secondary" onClick={onClose}>
-              Huỷ
-            </Button>
-            <Button type="submit" form="customer-form" disabled={isSubmitting || save.isPending}>
-              {editing ? "Lưu" : "Tạo khách hàng"}
-            </Button>
-          </>
-        )
+          <Button type="submit" form="customer-form" disabled={isSubmitting || save.isPending}>
+            {editing ? "Lưu" : "Tạo khách hàng"}
+          </Button>
+        </>
       }
     >
-      {duplicate ? (
-        <div className={styles.duplicate}>
-          <Alert tone="warning">
-            CCCD <strong>{watch("idNumber")}</strong> đã có hồ sơ trong hệ thống.
-          </Alert>
-          <div className={styles.existingCard}>
-            <strong>{duplicate.existing.fullName}</strong>
-            <span>{formatPhone(duplicate.existing.primaryPhone)}</span>
-            <span>
-              {duplicate.existing.accountCount} tài khoản ngân hàng ·{" "}
-              {duplicate.existing.insuranceCount} đơn bảo hiểm
-            </span>
-          </div>
-          <div className={styles.duplicateActions}>
-            <Button
-              variant="secondary"
-              onClick={() => {
-                router.push(`/customers/${duplicate.existing.id}`);
-                onClose();
-              }}
-            >
-              Dùng hồ sơ này
-            </Button>
-            <Button onClick={() => setDuplicate(null)}>Kiểm tra lại số CCCD</Button>
-          </div>
-        </div>
-      ) : (
-        <form
-          id="customer-form"
-          className={styles.form}
-          onSubmit={handleSubmit((form) => save.mutate(form))}
-          noValidate
-        >
+      <form
+        id="customer-form"
+        className={styles.form}
+        onSubmit={handleSubmit((form) => save.mutate(form))}
+        noValidate
+      >
           <TextField
             label="Họ tên"
             required
@@ -385,8 +332,7 @@ export function CustomerFormDialog({ open, onClose, customer, onCreated }: Props
               + Thêm số điện thoại
             </Button>
           </fieldset>
-        </form>
-      )}
+      </form>
     </Dialog>
   );
 }
