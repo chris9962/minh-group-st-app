@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { use, useState } from "react";
-import { Briefcase, ChevronLeft, Gift, Landmark, ShieldCheck, Trash2, User as UserIcon } from "lucide-react";
+import { Briefcase, ChevronLeft, ExternalLink, Gift, Landmark, ShieldCheck, Trash2, User as UserIcon } from "lucide-react";
 import { SkeletonCard } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
@@ -86,6 +86,21 @@ export default function CustomerDetailPage({
       label: "Trạng thái",
       render: (i) => (
         <StatusTag ok={i.status === "done"}>{INSURANCE_STATUS_LABEL[i.status]}</StatusTag>
+      ),
+    },
+    {
+      key: "open",
+      label: "Thao tác",
+      render: (i) => (
+        <a
+          className="btn btn-secondary"
+          href={`/insurance/${i.id}`}
+          target="_blank"
+          rel="noreferrer"
+          aria-label="Mở chi tiết đơn trong tab mới"
+        >
+          <ExternalLink size={16} aria-hidden />
+        </a>
       ),
     },
   ];
