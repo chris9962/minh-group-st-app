@@ -68,6 +68,12 @@
   color: var(--om-text-2);
 }
 
+/* Hai nút icon trong một ô bảng — không xuống dòng khi cột hẹp. */
+.rowActions {
+  display: flex;
+  gap: 6px;
+}
+
 .footnote {
   margin: 0;
   font-size: 12px;

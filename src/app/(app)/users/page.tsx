@@ -1,13 +1,14 @@
 "use client";
 
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Pencil, Plus, Users } from "lucide-react";
+import { Lock, Pencil, Plus, Users } from "lucide-react";
 import { SkeletonStats, SkeletonTable } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
 import { Button } from "@/components/ui/Button";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Count } from "@/components/ui/Count";
 import buttonStyles from "@/components/ui/Button.module.css";
 import { MonthPicker, monthLabel, thisMonth } from "@/components/ui/MonthPicker";
@@ -22,6 +23,7 @@ import {
   fetchStaff,
   isOnTarget,
   pointsGap,
+  setStaffActive,
   type StaffAccount,
   type StaffQuery,
   type StaffRow,
@@ -36,6 +38,7 @@ import { StaffFormDialog } from "@/components/staff/StaffFormDialog";
 import { useDebouncedValue } from "@/lib/hooks";
 import { availableScopes, can } from "@/lib/permissions";
 import { ROLE_LABEL, RoleKey, type Scope } from "@/lib/types";
+import { errorMessage, toast } from "@/lib/toast";
 import { useSession } from "@/store/session";
 import styles from "./page.module.scss";
 
@@ -153,8 +156,10 @@ export default function PeoplePage() {
   const [dir, setDir] = useState<SortDir>("desc");
   const [editing, setEditing] = useState<StaffAccount | null>(null);
   const [creating, setCreating] = useState(false);
+  const [locking, setLocking] = useState<StaffRow | null>(null);
 
   const canManage = can(user, "staff", "create") || can(user, "staff", "update");
+  const queryClient = useQueryClient();
 
   const { data: departments = [] } = useQuery({
     queryKey: ["departments"],
@@ -204,6 +209,18 @@ export default function PeoplePage() {
   const rows = data?.page.rows ?? EMPTY_PAGE.rows;
   const summary = data?.summary;
 
+  const lockAccount = useMutation({
+    mutationFn: (row: StaffRow) => setStaffActive(row.id, false, user?.id ?? ""),
+    onSuccess: (_account, row) => {
+      // Hai khoá: bảng này và thẻ `AccountCard` ở hồ sơ người đó.
+      queryClient.invalidateQueries({ queryKey: ["staff"] });
+      queryClient.invalidateQueries({ queryKey: ["staff-one", row.id] });
+      toast.ok(`Đã khoá tài khoản ${row.fullName}`);
+      setLocking(null);
+    },
+    onError: (e) => toast.fail(errorMessage(e, "Không khoá được tài khoản. Thử lại.")),
+  });
+
   // Kho rỗng và "lọc không ra gì" là hai chuyện khác nhau. Nói nhầm thì trưởng
   // phòng của một phòng mới đi tìm bộ lọc để xoá, trong khi không có cái nào bật.
   const filtering = Boolean(searchQuery || departmentId || roles.length > 0);
@@ -219,19 +236,35 @@ export default function PeoplePage() {
               key: "actions",
               label: "Thao tác",
               render: (r) => (
-                <Button
-                  variant="secondary"
-                  icon
-                  aria-label={`Sửa ${r.fullName}`}
-                  onClick={() => setEditing(r)}
-                >
-                  <Pencil size={16} aria-hidden />
-                </Button>
+                <div className={styles.rowActions}>
+                  <Button
+                    variant="secondary"
+                    icon
+                    tooltip="Sửa hồ sơ"
+                    aria-label={`Sửa ${r.fullName}`}
+                    onClick={() => setEditing(r)}
+                  >
+                    <Pencil size={16} aria-hidden />
+                  </Button>
+                  {/* Máy chủ chặn tự khoá mình (`/api/staff/[id]/active`) — ẩn
+                      nút ở dòng của chính mình thay vì để bấm rồi nhận 400. */}
+                  {r.id !== user?.id && (
+                    <Button
+                      variant="secondary"
+                      icon
+                      tooltip="Khoá tài khoản"
+                      aria-label={`Khoá tài khoản ${r.fullName}`}
+                      onClick={() => setLocking(r)}
+                    >
+                      <Lock size={16} aria-hidden />
+                    </Button>
+                  )}
+                </div>
               ),
             },
           ]
         : BASE_COLUMNS,
-    [canManage],
+    [canManage, user?.id],
   );
 
   return (
@@ -403,6 +436,25 @@ export default function PeoplePage() {
             }}
           />
         )}
+
+        <ConfirmDialog
+          open={locking !== null}
+          title="Khoá tài khoản"
+          confirmLabel="Khoá tài khoản"
+          pending={lockAccount.isPending}
+          onConfirm={() => locking && lockAccount.mutate(locking)}
+          onClose={() => setLocking(null)}
+          consequence={
+            <>
+              Người này <strong>không đăng nhập được nữa</strong> cho tới khi có
+              người mở khoá. Bảng chỉ hiện người đang làm nên dòng của họ biến
+              mất khỏi đây — mở khoá ở hồ sơ của họ. Các bản ghi cũ vẫn giữ
+              nguyên tên họ.
+            </>
+          }
+        >
+          Khoá tài khoản của <strong>{locking?.fullName}</strong>?
+        </ConfirmDialog>
       </main>
     </>
   );

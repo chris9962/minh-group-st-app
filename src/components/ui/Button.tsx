@@ -1,3 +1,4 @@
+import { clsx } from "clsx";
 import styles from "./Button.module.css";
 
 type Variant = "primary" | "secondary" | "ghost";
@@ -10,6 +11,8 @@ type Props = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   large?: boolean;
   /** Nút vuông chỉ chứa icon — bắt buộc truyền kèm `aria-label`. */
   icon?: boolean;
+  /** Chữ hiện khi rê chuột hoặc focus. Giữ ngắn — tooltip dài tràn khỏi mép bảng. */
+  tooltip?: string;
 };
 
 /**
@@ -21,6 +24,7 @@ export function Button({
   block = false,
   large = false,
   icon = false,
+  tooltip,
   className,
   type = "button",
   ...rest
@@ -28,7 +32,8 @@ export function Button({
   return (
     <button
       type={type}
-      className={[
+      data-tooltip={tooltip}
+      className={clsx(
         "btn",
         styles.base,
         `btn-${variant}`,
@@ -36,9 +41,7 @@ export function Button({
         large && styles.large,
         icon && `btn-icon ${styles.icon}`,
         className,
-      ]
-        .filter(Boolean)
-        .join(" ")}
+      )}
       {...rest}
     />
   );

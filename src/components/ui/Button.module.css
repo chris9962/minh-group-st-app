@@ -21,6 +21,47 @@
   }
 }
 
+/* Tooltip cho nút chỉ có icon.
+   Chữ riêng chứ không lấy `aria-label`: nhãn đó kèm tên người ("Khoá tài khoản
+   Nguyễn Văn An") nên tooltip dài gấp ba và tràn khỏi mép bảng. Hiện cả khi
+   tiêu điểm bàn phím rơi vào nút — `title` của trình duyệt chỉ hiện khi rê
+   chuột, lại đợi khoảng một giây. */
+.base[data-tooltip] {
+  position: relative;
+}
+
+.base[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--om-text);
+  color: var(--om-card);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.3;
+  white-space: nowrap;
+  opacity: 0;
+  /* Không chắn con trỏ: tooltip nằm đè lên chỗ vừa rời chuột thì nút nhấp nháy. */
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+}
+
+.base[data-tooltip]:hover::after,
+.base[data-tooltip]:focus-visible::after {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .base[data-tooltip]::after {
+    transition: none;
+  }
+}
+
 /* Nhãn chữ cạnh icon trên nút hành động chính ở TopBar — ẩn trên điện thoại
    cho gọn, GIỮ NGUYÊN chữ trên desktop. Ẩn bằng display:none nên PHẢI kèm
    aria-label trên chính nút đó, không thì điện thoại mất luôn tên cho trình
