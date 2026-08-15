@@ -116,8 +116,7 @@ export function Sidebar({ user, mobileOpen = false, onMobileClose }: Props) {
         <div className={styles.head}>
           <Logo size={32} />
           <span className={styles.identity}>
-            <strong>MGST</strong>
-            <span>Nền tảng nội bộ</span>
+            <strong>Minh Group ST</strong>
           </span>
           <button
             type="button"

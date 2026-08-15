@@ -3,10 +3,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { KeyRound } from "lucide-react";
 import { useState } from "react";
-import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { CopyValue } from "@/components/ui/CopyValue";
+import { Dialog } from "@/components/ui/Dialog";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusTag } from "@/components/ui/StatusTag";
 import { fetchDepartments } from "@/lib/api/departments";
@@ -148,14 +148,6 @@ export function AccountCard({ staffId }: { staffId: string }) {
         </div>
       )}
 
-      {newPassword && (
-        <Alert tone="warning">
-          Mật khẩu mới: <CopyValue value={newPassword} label="mật khẩu mới" /> — bấm
-          để chép rồi gửi cho nhân viên. <strong>Chỉ hiện đúng một lần</strong>,
-          không xem lại được vì mật khẩu lưu dạng băm một chiều.
-        </Alert>
-      )}
-
       <div className={styles.actions}>
         <Button variant="secondary" onClick={() => setEditing(true)}>
           Sửa
@@ -202,13 +194,26 @@ export function AccountCard({ staffId }: { staffId: string }) {
         consequence={
           <>
             Mật khẩu cũ mất ngay, và <strong>mọi thiết bị {staff.fullName} đang
-            đăng nhập đều bị đăng xuất</strong>. Mật khẩu mới chỉ hiện đúng một
-            lần — chưa gửi được cho họ thì phải đặt lại lần nữa.
+            đăng nhập đều bị đăng xuất</strong>.
           </>
         }
       >
         Đặt lại mật khẩu cho <strong>{staff.fullName}</strong>?
       </ConfirmDialog>
+
+      {/* Bước sau khi xác nhận: mật khẩu mới ở lại trong hộp thoại cho người
+          quản trị chép. Trước đây nó rơi xuống một khối cảnh báo trong thẻ, cách
+          nút vừa bấm cả màn hình — người bấm xong nhìn quanh không thấy gì. */}
+      <Dialog
+        open={newPassword !== null}
+        title="Mật khẩu mới"
+        onClose={() => setNewPassword(null)}
+        footer={<Button onClick={() => setNewPassword(null)}>Đóng</Button>}
+      >
+        <p className={styles.newPassword}>
+          Mật khẩu mới là: <CopyValue value={newPassword ?? ""} label="mật khẩu mới" />
+        </p>
+      </Dialog>
 
       <ConfirmDialog
         open={confirming === "lock"}

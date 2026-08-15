@@ -28,7 +28,7 @@ export function BrandPanel({ className }: { className?: string }) {
         <span className={styles.legalForm}>CÔNG TY TNHH</span>
         <span className={styles.wordmark}>MINH GROUP ST</span>
         <span className={styles.slogan}>
-          “Tiên phong số hóa - Hiệu quả bứt phá”
+          “Tiên phong số hóa, Hiệu quả bứt phá”
         </span>
       </div>
     </div>

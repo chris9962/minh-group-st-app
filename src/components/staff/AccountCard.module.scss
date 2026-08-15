@@ -171,6 +171,14 @@ $scope-col: 124px;
   color: var(--om-text-3);
 }
 
+.newPassword {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 /**
  * Màn hẹp: bỏ cột nhãn, xếp dọc. Giữ lưới hai cột trên điện thoại thì nhãn ăn
  * mất một phần ba bề ngang và danh sách hành động bị bóp thành cột chữ hẹp.

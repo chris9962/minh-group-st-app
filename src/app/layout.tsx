@@ -15,7 +15,7 @@ const fontSans = Figtree({
 });
 
 export const metadata: Metadata = {
-  title: "MGST — Nền tảng nội bộ",
+  title: "Minh Group ST — Tiên phong số hóa, Hiệu quả bứt phá",
   description: "Hệ thống nội bộ Minh Group ST: bảo hiểm, ngân hàng, dịch vụ",
   /**
    * Trỏ thẳng vào file logo đang dùng, KHÔNG chép sang `src/app/icon.png`.

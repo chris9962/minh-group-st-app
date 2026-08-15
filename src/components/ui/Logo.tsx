@@ -5,7 +5,7 @@ import styles from "./Logo.module.css";
 type Props = {
   /** Cạnh của logo, tính bằng px. */
   size?: number;
-  /** Hiện kèm tên app "MGST · Nền tảng nội bộ". */
+  /** Hiện kèm tên công ty và câu định vị. */
   withAppName?: boolean;
   /** Hiện kèm tên công ty đầy đủ. */
   withCompanyName?: boolean;
@@ -27,7 +27,7 @@ export function Logo({
   const mark = (
     <Image
       src="/brand/logo.png"
-      alt={withAppName || withCompanyName ? "" : "MGST"}
+      alt={withAppName || withCompanyName ? "" : "Minh Group ST"}
       width={size}
       height={size}
       priority={priority}
@@ -44,8 +44,8 @@ export function Logo({
       {mark}
       {withAppName && (
         <span className={styles.appName}>
-          <strong>MGST</strong>
-          <span>Nền tảng nội bộ</span>
+          <strong>Minh Group ST</strong>
+          <span>Tiên phong số hóa, Hiệu quả bứt phá</span>
         </span>
       )}
       {withCompanyName && (

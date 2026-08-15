@@ -116,7 +116,13 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
     // mà luật mới cấm, và ô sửa nó lại đang ẩn theo chức vụ — người dùng nhận
     // câu lỗi không có đường chữa.
     resolver: zodResolver(StaffForm),
-    defaultValues: staff ? normalizeStaffForm(toForm(staff)) : emptyForm,
+    // Người mới mặc định vào ĐÚNG phòng của người đang tạo. Trưởng phòng và Phó
+    // phòng chỉ tạo được người trong phòng mình, nên bỏ trống ô đó là bắt họ
+    // chọn lại đúng một đáp án mỗi lần. Ban giám đốc không thuộc phòng nào thì
+    // ô vẫn trống như cũ.
+    defaultValues: staff
+      ? normalizeStaffForm(toForm(staff))
+      : { ...emptyForm, departmentId: actor?.departmentId ?? "" },
   });
 
   const roles = assignableRoles(actor);
@@ -195,7 +201,7 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
       title={created ? "Đã tạo tài khoản" : editing ? "Sửa nhân viên" : "Thêm nhân viên"}
       footer={
         created ? (
-          <Button onClick={onClose}>Đã gửi cho nhân viên</Button>
+          <Button onClick={onClose}>Đóng</Button>
         ) : (
           <>
             <Button variant="secondary" onClick={onClose}>
