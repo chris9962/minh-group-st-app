@@ -232,7 +232,6 @@ export function CustomerFormDialog({ open, onClose, customer, onCreated }: Props
               <TextField
                 label="CCCD"
                 placeholder="092301004871"
-                hint="Bỏ trống nếu khách chưa cung cấp"
                 error={errors.idNumber?.message}
                 {...register("idNumber")}
               />
