@@ -2,8 +2,11 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
+import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
+import { CopyButton } from "@/components/ui/CopyValue";
 import { Dialog } from "@/components/ui/Dialog";
 import { Select } from "@/components/ui/Select";
 import { TextField } from "@/components/ui/TextField";
@@ -73,6 +76,13 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
   const actor = useSession((s) => s.user);
   const queryClient = useQueryClient();
   const editing = Boolean(staff);
+  /**
+   * Thông tin đăng nhập vừa cấp. Khác `null` thì hộp thoại đổi hẳn nội dung.
+   *
+   * Không đóng ngay sau khi tạo: mật khẩu khởi tạo hiện đúng MỘT lần, đóng luôn
+   * là người tạo phải vào hồ sơ bấm "Đặt lại mật khẩu" để có mật khẩu khác.
+   */
+  const [created, setCreated] = useState<{ username: string; password: string } | null>(null);
 
   const {
     register,
@@ -94,13 +104,23 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
   const shape = ROLE_SHAPE[watch("role")];
 
   const save = useMutation({
-    mutationFn: (form: StaffForm) => {
+    /**
+     * Trả thông tin đăng nhập ở lượt tạo, `null` ở lượt sửa.
+     *
+     * Nắn về đây chứ không trả thẳng hai kiểu bản ghi: `StaffCreated` nới rộng
+     * `StaffAccount` nên TypeScript gộp union lại làm một, và `"password" in r`
+     * chỉ ra `unknown`.
+     */
+    mutationFn: async (form: StaffForm) => {
       const body = normalizeStaffForm(form);
-      return staff
-        ? updateStaff(staff.id, body, actor?.id ?? "")
-        : createStaff(body, actor?.id ?? "");
+      if (staff) {
+        await updateStaff(staff.id, body, actor?.id ?? "");
+        return null;
+      }
+      const account = await createStaff(body, actor?.id ?? "");
+      return { username: account.username, password: account.password };
     },
-    onSuccess: () => {
+    onSuccess: (credentials) => {
       // Ba khoá riêng biệt, bỏ sót cái nào thì sửa xong chức vụ mà chỗ đó vẫn
       // hiện giá trị cũ suốt 30 giây, người dùng tưởng lưu hỏng và lưu lại.
       // `["staff"]` là bảng P-51, `["staff-one", id]` là `AccountCard`,
@@ -108,8 +128,14 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
       queryClient.invalidateQueries({ queryKey: ["staff"] });
       if (staff) queryClient.invalidateQueries({ queryKey: ["staff-one", staff.id] });
       queryClient.invalidateQueries({ queryKey: ["person"] });
-      toast.ok(staff ? "Đã lưu hồ sơ nhân viên" : "Đã thêm nhân viên");
-      onClose();
+      if (!credentials) {
+        toast.ok("Đã lưu hồ sơ nhân viên");
+        onClose();
+        return;
+      }
+      // KHÔNG toast rồi đóng: mật khẩu phải ở lại cho người tạo chép. Toast tự
+      // tắt sau 5 giây, cùng lối nghĩ với nút Đặt lại mật khẩu ở `AccountCard`.
+      setCreated(credentials);
     },
     onError: (e) =>
       toast.fail(errorMessage(e, "Không lưu được hồ sơ. Kiểm tra kết nối rồi thử lại.")),
@@ -126,22 +152,53 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
     <Dialog
       open={open}
       onClose={onClose}
-      title={editing ? "Sửa nhân viên" : "Thêm nhân viên"}
+      title={created ? "Đã tạo tài khoản" : editing ? "Sửa nhân viên" : "Thêm nhân viên"}
       footer={
-        <>
-          <Button variant="secondary" onClick={onClose}>
-            Huỷ
-          </Button>
-          <Button
-            type="submit"
-            form="staff-form"
-            disabled={isSubmitting || save.isPending}
-          >
-            {editing ? "Lưu" : "Tạo nhân viên"}
-          </Button>
-        </>
+        created ? (
+          <Button onClick={onClose}>Đã gửi cho nhân viên</Button>
+        ) : (
+          <>
+            <Button variant="secondary" onClick={onClose}>
+              Huỷ
+            </Button>
+            <Button
+              type="submit"
+              form="staff-form"
+              disabled={isSubmitting || save.isPending}
+            >
+              {editing ? "Lưu" : "Tạo nhân viên"}
+            </Button>
+          </>
+        )
       }
     >
+      {created ? (
+        <div className={styles.created}>
+          <Alert tone="warning">
+            <strong>Mật khẩu chỉ hiện đúng một lần.</strong> Chép và gửi cho nhân
+            viên ngay. Đóng hộp thoại rồi thì không xem lại được, vì database chỉ
+            giữ bản băm một chiều — muốn có mật khẩu khác phải vào hồ sơ người đó
+            bấm “Đặt lại mật khẩu”.
+          </Alert>
+          <dl className={styles.credentials}>
+            <dt>Tên đăng nhập</dt>
+            <dd className={styles.credentialValue}>{created.username}</dd>
+            <dt>Mật khẩu</dt>
+            <dd className={styles.credentialValue}>{created.password}</dd>
+          </dl>
+          {/* Một nút chép cả hai dòng: người tạo dán thẳng vào tin nhắn gửi
+              nhân viên, không phải chép hai lượt rồi tự gõ lại nhãn. */}
+          <CopyButton
+            value={`Tên đăng nhập: ${created.username}\nMật khẩu: ${created.password}`}
+            label="tên đăng nhập và mật khẩu"
+          >
+            Chép cả hai
+          </CopyButton>
+          <p className={styles.createdNote}>
+            Nhân viên đăng nhập rồi tự đổi mật khẩu ở màn Thông tin cá nhân.
+          </p>
+        </div>
+      ) : (
       <form
         id="staff-form"
         className={styles.form}
@@ -308,6 +365,7 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
           </fieldset>
         )}
       </form>
+      )}
     </Dialog>
   );
 }

@@ -12,6 +12,45 @@
   align-items: start;
 }
 
+.created {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-bottom: 4px;
+}
+
+/* Nhãn cột trái, giá trị cột phải — mắt quét dọc một cột giá trị. */
+.credentials {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 16px;
+  align-items: center;
+  margin: 0;
+
+  dt {
+    font-size: 13px;
+    color: var(--om-text-2);
+  }
+
+  dd {
+    margin: 0;
+  }
+}
+
+.credentialValue {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+  /* Chép tay được khi Clipboard API không dùng được (trang chạy trên http). */
+  user-select: all;
+}
+
+.createdNote {
+  margin: 0;
+  font-size: 12px;
+  color: var(--om-text-3);
+}
+
 .note {
   margin: -4px 0 0;
   font-size: 12px;

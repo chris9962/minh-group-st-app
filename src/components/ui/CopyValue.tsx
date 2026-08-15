@@ -4,26 +4,24 @@ import { Check, Copy } from "lucide-react";
 import { useEffect, useState } from "react";
 import styles from "./CopyValue.module.css";
 
-type Props = {
-  value: string;
-  /** Cái đang chép, đọc lên cho trình đọc màn hình: "mật khẩu mới", "số tài khoản"… */
-  label: string;
-};
-
 type State = "idle" | "copied" | "failed";
 
+type ButtonProps = {
+  value: string;
+  /** Cái đang chép, đọc lên cho trình đọc màn hình: "mật khẩu mới", "tên đăng nhập và mật khẩu"… */
+  label: string;
+  /** Có thì hiện chữ cạnh icon. Không có thì nút chỉ còn icon. */
+  children?: React.ReactNode;
+};
+
 /**
- * Giá trị bấm một cái là chép xong.
+ * Nút chép, phẳng — không viền không nền.
  *
  * Là `<button>` thật chứ không phải `<span onClick>`: bàn phím Tab tới được,
  * Enter/Space bấm được, và trình đọc màn hình biết đây là nút chứ không phải
- * chữ thường. Bọc div rồi gắn onClick thì mất cả ba thứ đó.
- *
- * Giá trị vẫn đặt `user-select: all` — chép bằng clipboard cần trang chạy trên
- * https (hoặc localhost), lên http là API không tồn tại. Lúc đó vẫn phải bấm
- * chọn tay được, không thì người dùng kẹt hẳn.
+ * chữ thường.
  */
-export function CopyValue({ value, label }: Props) {
+export function CopyButton({ value, label, children }: ButtonProps) {
   const [state, setState] = useState<State>("idle");
 
   // Trả nhãn về trạng thái ban đầu sau hai giây. Hẹn giờ là hệ thống ngoài
@@ -49,14 +47,14 @@ export function CopyValue({ value, label }: Props) {
         type="button"
         className={styles.button}
         onClick={copy}
-        aria-label={`Chép ${label}: ${value}`}
+        aria-label={`Chép ${label}`}
       >
-        <span className={styles.value}>{value}</span>
         {state === "copied" ? (
-          <Check size={14} aria-hidden />
+          <Check size={15} aria-hidden />
         ) : (
-          <Copy size={14} aria-hidden />
+          <Copy size={15} aria-hidden />
         )}
+        {children}
       </button>
 
       {/* Chữ chứ không chỉ đổi icon: màu và hình không được là kênh duy nhất.
@@ -65,6 +63,22 @@ export function CopyValue({ value, label }: Props) {
         {state === "copied" && "Đã chép"}
         {state === "failed" && "Không chép được, bấm chọn rồi copy tay"}
       </span>
+    </span>
+  );
+}
+
+/**
+ * Giá trị + nút chép nhỏ bên cạnh.
+ *
+ * Giá trị đặt `user-select: all` — chép bằng clipboard cần trang chạy trên
+ * https (hoặc localhost), lên http là API không tồn tại. Lúc đó vẫn phải bấm
+ * chọn tay được, không thì người dùng không có cách chép.
+ */
+export function CopyValue({ value, label }: { value: string; label: string }) {
+  return (
+    <span className={styles.wrap}>
+      <span className={styles.value}>{value}</span>
+      <CopyButton value={value} label={`${label}: ${value}`} />
     </span>
   );
 }

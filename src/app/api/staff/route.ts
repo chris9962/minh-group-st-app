@@ -77,5 +77,9 @@ export async function POST(request: Request) {
     targetTable: "users",
     targetId: result.staff.id,
   });
-  return Response.json(result.staff, { status: 201 });
+  // Mật khẩu khởi tạo đi kèm đúng lượt này, giống `/reset-password`. Database
+  // chỉ giữ bản băm nên không route nào đọc lại được — người tạo bỏ lỡ thì phải
+  // sinh mật khẩu khác. KHÔNG thêm nó vào `StaffAccount`: mọi route danh sách
+  // và chi tiết đều trả kiểu đó.
+  return Response.json({ ...result.staff, password: result.password }, { status: 201 });
 }

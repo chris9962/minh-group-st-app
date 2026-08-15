@@ -306,8 +306,18 @@ async function send(url: string, method: string, body?: unknown) {
   return res.json();
 }
 
+/**
+ * Hồ sơ vừa lập, kèm mật khẩu khởi tạo dạng chữ.
+ *
+ * Chỉ lượt tạo có `password`. Database giữ bản băm một chiều nên không route
+ * nào đọc lại được — bỏ lỡ lần này thì phải bấm "Đặt lại mật khẩu" ở hồ sơ
+ * người đó, và mật khẩu cũ mất hiệu lực.
+ */
+export const StaffCreated = StaffAccount.extend({ password: z.string() });
+export type StaffCreated = z.infer<typeof StaffCreated>;
+
 export const createStaff = (form: StaffForm, actorId: string) =>
-  send('/api/staff', 'POST', { ...form, actorId }).then(StaffAccount.parse);
+  send('/api/staff', 'POST', { ...form, actorId }).then(StaffCreated.parse);
 
 export const updateStaff = (id: string, form: StaffForm, actorId: string) =>
   send(`/api/staff/${id}`, 'PATCH', { ...form, actorId }).then(StaffAccount.parse);
