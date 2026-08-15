@@ -1,0 +1,39 @@
+.wrap {
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background: var(--om-bg);
+}
+
+/* Cùng nhịp thở với Skeleton — một cách báo "đang tải" cho cả app, không phải
+   hai kiểu chuyển động khác nhau ở hai chỗ. */
+.mark {
+  animation: breathe 1.6s ease-in-out infinite;
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.label {
+  margin: 0;
+  font-size: 13px;
+  color: var(--om-text-3);
+}
+
+/* Người đặt máy giảm chuyển động thì bỏ hẳn nhịp thở (WCAG 2.3.3). */
+@media (prefers-reduced-motion: reduce) {
+  .mark {
+    animation: none;
+    opacity: 0.75;
+  }
+}

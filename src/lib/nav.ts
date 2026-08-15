@@ -50,6 +50,36 @@ export type NavEntry = NavItem | NavGroup;
 
 export const isNavGroup = (entry: NavEntry): entry is NavGroup => 'children' in entry;
 
+/**
+ * Đường luôn mở cho mọi người đã đăng nhập.
+ *
+ * `/` phải nằm đây kể cả khi mục Tổng quan không hiện trên sidebar: nó là chỗ
+ * lui về khi chặn một màn khác, mà một trang tự chặn chính nó thì thành vòng
+ * chuyển hướng không dừng.
+ */
+const ALWAYS_OPEN = ['/', '/profile'];
+
+/**
+ * Người này mở được đường dẫn này không — CÙNG nguồn với sidebar.
+ *
+ * Đọc thẳng `navFor` chứ không dựng bảng "đường dẫn → quyền" thứ hai: hai bảng
+ * rồi sẽ lệch, và lúc đó menu dẫn tới một màn bị chính nó chặn.
+ *
+ * Khớp theo tiền tố nên màn chi tiết đi theo màn danh sách — ai mở được
+ * `/banking` thì mở được `/banking/<id>`.
+ *
+ * ⚠️ Đây là chốt chặn ở GIAO DIỆN, cho tiện dùng — KHÔNG phải phân quyền
+ * (AGENTS.md §6). Máy chủ vẫn kiểm lại mọi lời gọi.
+ */
+export function canOpenPath(user: User | null, pathname: string): boolean {
+  if (!user) return false;
+  if (ALWAYS_OPEN.includes(pathname)) return true;
+
+  return navFor(user)
+    .flatMap((entry) => (isNavGroup(entry) ? entry.children.map((c) => c.href) : [entry.href]))
+    .some((href) => href !== '/' && (pathname === href || pathname.startsWith(`${href}/`)));
+}
+
 export function navFor(user: User | null): NavEntry[] {
   if (!user) return [];
 
@@ -92,6 +122,38 @@ export function navFor(user: User | null): NavEntry[] {
    */
   if (user.manageScope !== 'none' || can(user, 'staff', 'create')) {
     items.push({ href: '/users', label: 'Nhân sự', icon: 'people', screen: 'P-51' });
+  }
+
+  if (can(user, 'system', 'manage-org')) {
+    items.push({ href: '/departments', label: 'Phòng ban', icon: 'org', screen: 'P-91' });
+  }
+
+  if (
+    can(user, 'insurance', 'export') ||
+    can(user, 'banking', 'export') ||
+    can(user, 'services', 'export')
+  ) {
+    items.push({ href: '/exports', label: 'Xuất dữ liệu', icon: 'exports', screen: 'P-73' });
+  }
+
+  // Không có mục "tài khoản người dùng" riêng: nhân viên và tài khoản là một
+  // thứ nên quản trị tài khoản nằm luôn trong màn Nhân sự ở trên.
+  //
+  // Cũng KHÔNG có mục "Phân quyền" riêng. Việc cấp quyền lẻ (P-92) đã nằm trong
+  // hộp thoại sửa nhân viên — thẻ "Quyền" ở `StaffFormDialog`, dùng
+  // `PermissionsEditor`. Quyền gắn với một con người cụ thể, nên sửa nó ngay tại
+  // hồ sơ người đó là đúng chỗ; một màn riêng chỉ bắt người dùng đi tìm lại đúng
+  // cái tên vừa mở.
+  //
+  // Từng có `if (can(user,'system','grant-permission'))` đẩy ra `/permissions`,
+  // nhưng trang đó chưa bao giờ được dựng. Không ai phát hiện vì trước 06/08
+  // không chức vụ nào cầm `grant-permission`; đến khi CEO chuyển sang toàn quyền
+  // (`lib/roles.ts`) thì mục hiện ngay và bấm vào ra 404 trắng của Next.
+
+  // Chỉ GĐ · QTHT xem được (spec P-93) — `manage-org` đúng khớp hai vai này,
+  // không dùng `view-detail` vì Kế toán tổng hợp cũng có qua wildcard `*`.
+  if (can(user, 'system', 'manage-org')) {
+    items.push({ href: '/audit-log', label: 'Nhật ký truy vết', icon: 'audit', screen: 'P-93' });
   }
 
   // "Cấu hình" gộp mọi màn thiết lập vào một nhóm, nhưng mục con nào hiện ra
@@ -138,38 +200,6 @@ export function navFor(user: User | null): NavEntry[] {
 
   if (settingsChildren.length > 0) {
     items.push({ label: 'Cấu hình', icon: 'settings', children: settingsChildren });
-  }
-
-  if (can(user, 'system', 'manage-org')) {
-    items.push({ href: '/departments', label: 'Phòng ban', icon: 'org', screen: 'P-91' });
-  }
-
-  if (
-    can(user, 'insurance', 'export') ||
-    can(user, 'banking', 'export') ||
-    can(user, 'services', 'export')
-  ) {
-    items.push({ href: '/exports', label: 'Xuất dữ liệu', icon: 'exports', screen: 'P-73' });
-  }
-
-  // Không có mục "tài khoản người dùng" riêng: nhân viên và tài khoản là một
-  // thứ nên quản trị tài khoản nằm luôn trong màn Nhân sự ở trên.
-  //
-  // Cũng KHÔNG có mục "Phân quyền" riêng. Việc cấp quyền lẻ (P-92) đã nằm trong
-  // hộp thoại sửa nhân viên — thẻ "Quyền" ở `StaffFormDialog`, dùng
-  // `PermissionsEditor`. Quyền gắn với một con người cụ thể, nên sửa nó ngay tại
-  // hồ sơ người đó là đúng chỗ; một màn riêng chỉ bắt người dùng đi tìm lại đúng
-  // cái tên vừa mở.
-  //
-  // Từng có `if (can(user,'system','grant-permission'))` đẩy ra `/permissions`,
-  // nhưng trang đó chưa bao giờ được dựng. Không ai phát hiện vì trước 06/08
-  // không chức vụ nào cầm `grant-permission`; đến khi CEO chuyển sang toàn quyền
-  // (`lib/roles.ts`) thì mục hiện ngay và bấm vào ra 404 trắng của Next.
-
-  // Chỉ GĐ · QTHT xem được (spec P-93) — `manage-org` đúng khớp hai vai này,
-  // không dùng `view-detail` vì Kế toán tổng hợp cũng có qua wildcard `*`.
-  if (can(user, 'system', 'manage-org')) {
-    items.push({ href: '/audit-log', label: 'Nhật ký truy vết', icon: 'audit', screen: 'P-93' });
   }
 
   return items;

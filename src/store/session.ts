@@ -19,9 +19,18 @@ export const sessionExpiry = (remember: boolean): number =>
 type SessionState = {
   user: User | null;
   expiresAt: number | null;
+  /**
+   * `persist` đọc xong localStorage chưa.
+   *
+   * Trước mốc đó `user` LUÔN null, kể cả khi phiên còn hạn — ai đọc `user` để
+   * quyết định chuyển hướng phải đợi cờ này, không thì tải lại trang nào cũng
+   * bị coi như chưa đăng nhập.
+   */
+  hydrated: boolean;
   login: (user: User, remember: boolean) => void;
   logout: () => void;
   isValid: () => boolean;
+  markHydrated: () => void;
 };
 
 export const useSession = create<SessionState>()(
@@ -29,11 +38,14 @@ export const useSession = create<SessionState>()(
     (set, get) => ({
       user: null,
       expiresAt: null,
+      hydrated: false,
 
       login: (user, remember) =>
         set({ user, expiresAt: sessionExpiry(remember) }),
 
       logout: () => set({ user: null, expiresAt: null }),
+
+      markHydrated: () => set({ hydrated: true }),
 
       isValid: () => {
         const { user, expiresAt } = get();
@@ -42,6 +54,12 @@ export const useSession = create<SessionState>()(
     }),
     {
       name: "mgst-session",
+
+      /**
+       * Bật cờ kể cả khi đọc hỏng (`state` vẫn là bản mặc định): treo cờ ở
+       * `false` thì khung app không bao giờ dựng và người dùng nhận màn trắng.
+       */
+      onRehydrateStorage: () => (state) => state?.markHydrated(),
 
       /**
        * Phiên cũ phải khớp schema hiện tại, nếu không thì bỏ.
