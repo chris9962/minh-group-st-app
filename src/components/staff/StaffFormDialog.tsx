@@ -251,6 +251,7 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
       >
         <TextField
           label="Họ tên"
+          required
           placeholder="Nguyễn Văn An"
           error={errors.fullName?.message}
           {...register("fullName", {
@@ -272,6 +273,7 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
         <div className={styles.pair}>
           <TextField
             label="Tên đăng nhập"
+            required
             placeholder="nv13"
             hint="Chữ thường không dấu"
             error={errors.username?.message}
@@ -280,6 +282,7 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
           />
           <TextField
             label="Số điện thoại"
+            required
             placeholder="0912345678"
             inputMode="numeric"
             error={errors.phone?.message}
@@ -289,6 +292,7 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
 
         <TextField
           label="Mã nhân viên"
+          required
           placeholder="MG-0123"
           error={errors.staffCode?.message}
           autoComplete="off"
@@ -366,6 +370,7 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
 
         <TextField
           label="Chức danh hiển thị"
+          required
           placeholder={ROLE_TITLE[watch("role")]}
           error={errors.title?.message}
           {...register("title")}
