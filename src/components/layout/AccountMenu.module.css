@@ -65,7 +65,9 @@
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
   padding: 5px;
-  z-index: 20;
+  /* Trên 50 của drawer sidebar mobile — thấp hơn thì popover mở ra nằm dưới
+     drawer, bấm không thấy gì. Dưới 60 của toast. */
+  z-index: 55;
   display: flex;
   flex-direction: column;
 }
