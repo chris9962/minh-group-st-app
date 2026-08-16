@@ -31,7 +31,7 @@ import { EMPTY_PAGE, PAGE_SIZE, type SortDir } from "@/lib/api/pagination";
 import { exportExcel } from "@/lib/excel";
 import { formatDate, formatPhone } from "@/lib/format";
 import { useDebouncedValue } from "@/lib/hooks";
-import { can } from "@/lib/permissions";
+import { can, scopeFor } from "@/lib/permissions";
 import { errorMessage, toast } from "@/lib/toast";
 import { useSession } from "@/store/session";
 import styles from "./page.module.scss";
@@ -110,13 +110,19 @@ export default function BankingPage() {
    * Ô lọc "Nhân viên" đọc TRỌN danh sách, không gom từ các dòng đang hiện.
    *
    * Gom từ dòng thì ô chọn chỉ có những người tình cờ nằm ở trang đang xem —
-   * lọc theo người thứ 16 trở đi là không chọn được.
+   * lọc theo người thứ 16 trở đi là không chọn được. Hỏng thì để rỗng chứ không
+   * chặn cả màn.
    */
+  // Phạm vi 'own' thì bảng chỉ có tài khoản của chính mình — ô lọc Nhân viên
+  // không có ai khác để chọn, và lời gọi danh sách nhân viên chắc chắn 403.
+  const canFilterByStaff = scopeFor(user, "banking", "view-detail") !== "own";
+
   const { data: staff = [] } = useQuery({
     queryKey: ["staff", "options", "active"],
     queryFn: () => fetchStaffOptions({ status: "active" }),
     retry: false,
     staleTime: Infinity,
+    enabled: canFilterByStaff,
   });
   const staffOptions = useMemo(
     () => staff.map((s) => ({ value: s.id, label: s.fullName })),
@@ -358,12 +364,14 @@ export default function BankingPage() {
               ...channels.map((c) => ({ value: c.id, label: c.name })),
             ]}
           />
-          <Select
-            label="Nhân viên"
-            value={staffId}
-            onChange={(v) => refine(() => setStaffId(v))}
-            options={[{ value: "", label: "Tất cả nhân viên" }, ...staffOptions]}
-          />
+          {canFilterByStaff && (
+            <Select
+              label="Nhân viên"
+              value={staffId}
+              onChange={(v) => refine(() => setStaffId(v))}
+              options={[{ value: "", label: "Tất cả nhân viên" }, ...staffOptions]}
+            />
+          )}
           {can(user, "banking", "export") && (
             <Button
               variant="secondary"
