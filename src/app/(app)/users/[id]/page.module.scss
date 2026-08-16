@@ -39,18 +39,6 @@
   text-decoration: underline;
 }
 
-/* Nút mở đơn ở tab mới. Vùng bấm nới ra cho ngón tay mà không kéo cao dòng. */
-.openLink {
-  display: inline-flex;
-  padding: 12px 8px;
-  margin: -12px -8px;
-  color: var(--om-text-2);
-}
-
-.openLink:hover {
-  color: var(--om-orange-mid);
-}
-
 /* Cột trái là chân dung nhân viên và điểm — đọc một lần rồi để đó. Cột phải là
    thứ người dùng thật sự lật qua lật lại, nên rộng và không bị cắt. */
 .columns {

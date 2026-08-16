@@ -3,7 +3,7 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { use, useState } from "react";
-import { ChartColumn, ChevronLeft, SquareArrowOutUpRight } from "lucide-react";
+import { ChartColumn, ChevronLeft, ExternalLink } from "lucide-react";
 import { SkeletonCard } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
@@ -102,10 +102,10 @@ function AccountLinkCell({ id }: { id: string }) {
       href={`/banking/${id}`}
       target="_blank"
       rel="noopener noreferrer"
-      className={styles.openLink}
+      className="btn btn-secondary"
       aria-label="Mở chi tiết tài khoản ở tab mới"
     >
-      <SquareArrowOutUpRight size={15} aria-hidden />
+      <ExternalLink size={16} aria-hidden />
     </Link>
   );
 }
@@ -150,10 +150,10 @@ function OrderLinkCell({ id }: { id: string }) {
       href={`/insurance/${id}`}
       target="_blank"
       rel="noopener noreferrer"
-      className={styles.openLink}
+      className="btn btn-secondary"
       aria-label="Mở đơn bảo hiểm ở tab mới"
     >
-      <SquareArrowOutUpRight size={15} aria-hidden />
+      <ExternalLink size={16} aria-hidden />
     </Link>
   );
 }
