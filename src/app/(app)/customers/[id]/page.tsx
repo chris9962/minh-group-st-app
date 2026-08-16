@@ -22,7 +22,7 @@ import {
   type CustomerInsuranceRow,
   type CustomerServiceRow,
 } from "@/lib/api/customers";
-import { INSURANCE_STATUS_LABEL } from "@/lib/api/insuranceOrders";
+import { INSURANCE_STATUS_LABEL, INSURANCE_STATUS_TONE } from "@/lib/api/insuranceOrders";
 import { formatDate, formatIdNumber, formatPhone, formatVnd } from "@/lib/format";
 import { can } from "@/lib/permissions";
 import { useSession } from "@/store/session";
@@ -100,7 +100,9 @@ export default function CustomerDetailPage({
       key: "status",
       label: "Trạng thái",
       render: (i) => (
-        <StatusTag ok={i.status === "done"}>{INSURANCE_STATUS_LABEL[i.status]}</StatusTag>
+        <StatusTag tone={INSURANCE_STATUS_TONE[i.status]}>
+          {INSURANCE_STATUS_LABEL[i.status]}
+        </StatusTag>
       ),
     },
     {

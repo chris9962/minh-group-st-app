@@ -15,7 +15,11 @@ import {
   setInsuranceOrderPhoto,
   setInsuranceOrderStatus,
 } from "@/lib/api/insurance";
-import { INSURANCE_STATUS_LABEL, type InsuranceManualStep } from "@/lib/api/insuranceOrders";
+import {
+  INSURANCE_STATUS_LABEL,
+  INSURANCE_STATUS_TONE,
+  type InsuranceManualStep,
+} from "@/lib/api/insuranceOrders";
 import { imageProblem, uploadImage } from "@/lib/api/uploads";
 import { formatDate, formatIdNumber, formatPhone, formatVnd } from "@/lib/format";
 import { can, recordInScope, recordVisibility } from "@/lib/permissions";
@@ -230,7 +234,7 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
               <div>
                 <dt>Trạng thái</dt>
                 <dd>
-                  <StatusTag ok={data.status === "done"}>
+                  <StatusTag tone={INSURANCE_STATUS_TONE[data.status]}>
                     {INSURANCE_STATUS_LABEL[data.status]}
                     {data.handledByName ? ` · ${data.handledByName}` : ""}
                   </StatusTag>

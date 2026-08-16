@@ -14,6 +14,25 @@
   color: var(--om-orange-mid);
 }
 
+/* Chờ một quyết định ở NGOÀI hệ thống — tím, tách hẳn khỏi xám (hàng chờ của
+   đội mình) và cam (đang chạy). Ký hiệu đồng hồ cát nói "đang đợi", không phải
+   tam giác cảnh báo: đơn ở đây chưa có gì sai. */
+.review {
+  background: var(--om-violet-soft);
+  border: 1px solid var(--om-violet);
+  color: var(--om-violet-ink);
+}
+
+/* Đang chạy: cùng dải cam với `.warn` nhưng ĐẶC nền, và ký hiệu là hai mũi tên
+   xoay chứ không phải tam giác cảnh báo. Một việc đang chạy bình thường không
+   phải lỗi — dùng chung tam giác thì bảng nào cũng như đang có sự cố.
+   Nền đặc là chỗ phân biệt với `.warn` khi hai tông đứng cạnh nhau. */
+.progress {
+  background: var(--om-orange-soft);
+  border: 1px solid var(--om-orange-light);
+  color: var(--om-orange-ink);
+}
+
 /* Không đạt cũng không cần để ý — không mượn màu của bên nào. Dấu gạch ngang
    thay cho ✓ / ! là chỗ phân biệt chính, màu chỉ hỗ trợ. */
 .neutral {

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { StatusTone } from '@/components/ui/StatusTag';
 import { InsuranceProduct, isoDate, isoDateOrEmpty } from '@/lib/types';
 
 /**
@@ -46,6 +47,33 @@ export const INSURANCE_STATUS_LABEL: Record<InsuranceOrderStatus, string> = {
   'manual-queued': 'Chờ làm tay',
   'manual-progress': 'Đang làm tay',
   done: 'Hoàn thành',
+};
+
+/**
+ * Tông màu của nhãn trạng thái, gom theo GIAI ĐOẠN chứ không theo ai làm
+ * (chốt 2026-08-16).
+ *
+ * Ba nhóm: đang chờ · đang chạy · đã xong. Chờ bot hay chờ người thì với người
+ * đọc bảng đều là "chưa ai đụng tới", nên chung một tông; tương tự, bot đang
+ * chạy và người đang làm đều là "đang chạy".
+ *
+ * Bản trước hỏi `status === 'done'` nên năm trạng thái còn lại dùng chung nhãn
+ * cảnh báo tam giác cam. Cả bảng đọc ra như đang có sự cố, và đúng những dòng
+ * cần chú ý thì không nổi lên.
+ *
+ * Để ở đây cạnh `INSURANCE_STATUS_LABEL`: ba màn cùng vẽ nhãn này (P-13, P-14,
+ * hồ sơ khách P-42), ba bảng ánh xạ rời nhau là ba chỗ sớm muộn lệch nhau.
+ */
+export const INSURANCE_STATUS_TONE: Record<InsuranceOrderStatus, StatusTone> = {
+  queued: 'waiting',
+  'manual-queued': 'waiting',
+  creating: 'progress',
+  'manual-progress': 'progress',
+  // Đứng riêng một tông (chốt 2026-08-16): đây là chỗ đơn nằm lại chờ một quyết
+  // định ở NGOÀI hệ thống, không phải hàng chờ của đội mình. Đơn đọng lâu ở đây
+  // là đơn phải đi hỏi, nên nó cần nổi lên khỏi hai nhóm chờ và đang chạy.
+  'pending-approval': 'review',
+  done: 'ok',
 };
 
 /**

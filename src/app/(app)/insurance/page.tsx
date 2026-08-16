@@ -28,7 +28,11 @@ import {
   setInsuranceOrderStatus,
   type InsuranceListRow,
 } from "@/lib/api/insurance";
-import { INSURANCE_STATUS_LABEL, InsuranceOrderStatus } from "@/lib/api/insuranceOrders";
+import {
+  INSURANCE_STATUS_LABEL,
+  INSURANCE_STATUS_TONE,
+  InsuranceOrderStatus,
+} from "@/lib/api/insuranceOrders";
 import { EMPTY_PAGE, PAGE_SIZE, type SortDir } from "@/lib/api/pagination";
 import { fetchStaffOptions } from "@/lib/api/staff";
 import { formatDate } from "@/lib/format";
@@ -205,7 +209,9 @@ export default function InsurancePage() {
         key: "status",
         label: "Trạng thái",
         render: (r) => (
-          <StatusTag ok={r.status === "done"}>{INSURANCE_STATUS_LABEL[r.status]}</StatusTag>
+          <StatusTag tone={INSURANCE_STATUS_TONE[r.status]}>
+            {INSURANCE_STATUS_LABEL[r.status]}
+          </StatusTag>
         ),
       },
       { key: "startDate", label: "Hiệu lực từ", render: (r) => formatDate(r.startDate) },
