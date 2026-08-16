@@ -1,5 +1,5 @@
 import { badRequest, forbidden, getActor, unauthorized } from "@/server/auth";
-import { dashboardFor, dashboardVisibility } from "@/server/dashboard";
+import { dashboardFor, dashboardVisibility, draftAccountsFor } from "@/server/dashboard";
 import { businessMonth } from "@/lib/format";
 import { isPeriod, personFor } from "@/server/people";
 
@@ -44,16 +44,19 @@ export async function GET(request: Request) {
     const personPeriod = period === "this-month" ? businessMonth() : period;
     if (!isPeriod(personPeriod)) return badRequest("Kỳ xem không hợp lệ");
 
-    const person = await personFor(actor, actor.id, {
-      period: personPeriod,
-      // Vòng điểm LUÔN theo tháng hiện tại, kể cả khi đang xem theo ngày: chỉ
-      // tiêu là con số của cả tháng, đem so với một ngày ra một vòng gần như
-      // trống và người đọc tưởng mình đang tụt.
-      summaryMonth: businessMonth(),
-    });
+    const [person, draftAccounts] = await Promise.all([
+      personFor(actor, actor.id, {
+        period: personPeriod,
+        // Vòng điểm LUÔN theo tháng hiện tại, kể cả khi đang xem theo ngày: chỉ
+        // tiêu là con số của cả tháng, đem so với một ngày ra một vòng gần như
+        // trống và người đọc tưởng mình đang tụt.
+        summaryMonth: businessMonth(),
+      }),
+      draftAccountsFor(actor.id),
+    ]);
     // `null` nghĩa là chính tài khoản đang đăng nhập không đọc nổi hồ sơ của
     // mình — không xảy ra trong thực tế, nhưng trả 403 vẫn hơn là 500.
-    return person ? Response.json({ kind: "personal", person }) : forbidden();
+    return person ? Response.json({ kind: "personal", person, draftAccounts }) : forbidden();
   }
 
   const { data, scopeLabel } = await dashboardFor(actor, period);

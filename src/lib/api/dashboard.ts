@@ -109,6 +109,17 @@ export type DashboardData = z.infer<typeof DashboardData>;
  * tay mà không thêm tính năng nào — phiên đăng nhập đã nói đủ, và bản trước
  * nhận đúng tham số đó.
  */
+/** Tài khoản đang tạo dở của chính người xem — mới tạo nhất đứng đầu. */
+export const DashboardDraftAccount = z.object({
+  id: z.string(),
+  bankCode: z.string(),
+  referralCode: z.string(),
+  customerId: z.string(),
+  customerName: z.string(),
+  createdAt: z.string(),
+});
+export type DashboardDraftAccount = z.infer<typeof DashboardDraftAccount>;
+
 export const DashboardView = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('overview'),
@@ -116,7 +127,11 @@ export const DashboardView = z.discriminatedUnion('kind', [
     scopeLabel: z.string(),
     data: DashboardData,
   }),
-  z.object({ kind: z.literal('personal'), person: PersonDetail }),
+  z.object({
+    kind: z.literal('personal'),
+    person: PersonDetail,
+    draftAccounts: z.array(DashboardDraftAccount),
+  }),
 ]);
 export type DashboardView = z.infer<typeof DashboardView>;
 

@@ -20,7 +20,7 @@ import {
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatCard } from "@/components/ui/StatCard";
 import { StatStack } from "@/components/ui/StatStack";
-import { PersonKpiPanel } from "@/components/people/PersonKpiPanel";
+import { StaffDashboard } from "@/components/dashboard/StaffDashboard";
 import { fetchDashboard, type DepartmentRanking } from "@/lib/api/dashboard";
 import { useChartColors } from "@/lib/chart-colors";
 import styles from "./page.module.scss";
@@ -151,27 +151,14 @@ export default function DashboardPage() {
           <ErrorState what="số liệu tổng quan" onRetry={refetch} retrying={isFetching} />
         )}
 
-        {/* Nhân viên: chỉ số của CHÍNH họ, đúng khối hồ sơ mà cấp trên nhìn
-            thấy ở P-52. Vòng điểm luôn theo THÁNG (chỉ tiêu là con số của cả
-            tháng), còn ba thẻ đếm bên dưới đi theo kỳ đang chọn. */}
+        {/* Nhân viên: layout riêng — vòng điểm luôn theo THÁNG (chỉ tiêu là
+            con số của cả tháng), ba thẻ đếm đi theo kỳ đang chọn. */}
         {view && view.kind === "personal" && (
-          <div className={styles.personal}>
-            <PersonKpiPanel person={view.person} withKpi />
-            <div className={styles.statRow}>
-              <StatCard
-                value={view.person.counts.accounts}
-                label={`tài khoản mở ${periodLabel}`}
-              />
-              <StatCard
-                value={view.person.counts.insurance}
-                label={`đơn bảo hiểm ${periodLabel}`}
-              />
-              <StatCard
-                value={view.person.counts.services}
-                label={`lượt dịch vụ ${periodLabel}`}
-              />
-            </div>
-          </div>
+          <StaffDashboard
+            person={view.person}
+            draftAccounts={view.draftAccounts}
+            periodLabel={periodLabel}
+          />
         )}
 
         {data && (

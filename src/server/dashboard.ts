@@ -1,5 +1,5 @@
-import { and, eq, gte, inArray, lte, sql, type SQL } from "drizzle-orm";
-import type { DashboardData, DepartmentRanking } from "@/lib/api/dashboard";
+import { and, desc, eq, gte, inArray, lte, sql, type SQL } from "drizzle-orm";
+import type { DashboardData, DashboardDraftAccount, DepartmentRanking } from "@/lib/api/dashboard";
 import { BUSINESS_TIMEZONE, businessDay, monthRange } from "@/lib/format";
 import type { User } from "@/lib/types";
 import { db } from "./db/client";
@@ -10,6 +10,7 @@ import {
   departments,
   giftGrants,
   insuranceOrders,
+  referralCodes,
   serviceTypes,
   services,
   users,
@@ -588,4 +589,29 @@ export async function dashboardFor(
       gifts,
     },
   };
+}
+
+/**
+ * Tài khoản `creating` do CHÍNH người này tạo — việc đang dở cần làm nốt, hiện
+ * ở mặt `personal` của màn Tổng quan. Mới tạo nhất đứng đầu.
+ *
+ * Không cắt trang: bản `creating` là trạng thái tạm, mỗi người chỉ dở dang vài
+ * cái một lúc — hoàn thành hoặc xoá là dòng rời danh sách.
+ */
+export async function draftAccountsFor(actorId: string): Promise<DashboardDraftAccount[]> {
+  return db
+    .select({
+      id: bankAccounts.id,
+      bankCode: banks.code,
+      referralCode: referralCodes.code,
+      customerId: bankAccounts.customerId,
+      customerName: customers.fullName,
+      createdAt: sql<string>`to_char(${bankAccounts.createdAt} at time zone ${BUSINESS_TIMEZONE}, 'YYYY-MM-DD')`,
+    })
+    .from(bankAccounts)
+    .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
+    .innerJoin(referralCodes, eq(referralCodes.id, bankAccounts.referralCodeId))
+    .innerJoin(customers, eq(customers.id, bankAccounts.customerId))
+    .where(and(eq(bankAccounts.status, "creating"), eq(bankAccounts.createdBy, actorId)))
+    .orderBy(desc(bankAccounts.createdAt));
 }
