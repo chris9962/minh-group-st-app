@@ -114,10 +114,18 @@ Quy tắc:
   viết `#fff` hay `rgb(255 255 255 / …)` — mã cứng là chỗ vỡ khi đổi bộ.
   Trạng thái theme ở `store/theme.ts`, lưu localStorage, gắn `data-theme` lên
   thẻ `html` bằng script trong `<head>` để không chớp màu lúc tải.
-  Hai ngoại lệ, đều là màu **mang nghĩa**, không phải màu trang trí:
-  **màu trạng thái** `--om-green*` nói "đạt / không đạt", và **màu ngân hàng**
+  Ba ngoại lệ, đều là màu **mang nghĩa**, không phải màu trang trí:
+  **màu trạng thái** `--om-green*` nói "đạt / không đạt" và `--om-violet*` nói
+  "chờ một quyết định ở ngoài" (chốt 2026-08-16); **màu ngân hàng**
   `SOURCE_COLORS` trong `lib/chart-colors.ts` là màu nhận diện của chính ngân
-  hàng đó. Ngoài hai chỗ đó thì không có màu thứ tư.
+  hàng đó; và **màu chữ bấm được** `--om-link` / `--om-link-hover` (chốt
+  2026-08-16) nói "chỗ này bấm được". Ngoài ba chỗ đó thì không có màu thứ tư.
+
+  `--om-link` và `--om-violet*` khai ở `app/globals.css`, KHÔNG ở `organic.css`
+  — file đó đồng bộ từ `../mgst-design/_ds` nên sửa tay là mất ở lần đồng bộ
+  sau. `--om-link` chỉ dùng cho **màu chữ** của thứ bấm được; `--om-violet*`
+  chỉ dùng cho nhãn trạng thái. Không cái nào làm màu nhấn — cam vẫn là màu
+  nhấn duy nhất.
   **Không viết mã màu và khoảng cách cứng.** Ngoại lệ duy nhất: khối thương hiệu
   `BrandPanel` dùng đúng màu bộ nhận diện, có ghi chú lý do.
 - Component của design system dùng qua class có sẵn: `.btn`, `.input`, `.card`, `.tag`, `.table`

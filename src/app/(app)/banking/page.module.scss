@@ -11,11 +11,11 @@
   display: block;
   padding: 12px 0;
   margin: -12px 0;
-  color: var(--om-orange-ink);
+  color: var(--om-link);
 }
 
 .nameLink:hover {
-  color: var(--om-orange-mid);
+  color: var(--om-link-hover);
   text-decoration: underline;
 }
 

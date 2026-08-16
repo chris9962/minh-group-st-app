@@ -19,11 +19,11 @@
   display: block;
   padding: 12px 0;
   margin: -12px 0;
-  color: var(--om-orange-ink);
+  color: var(--om-link);
 }
 
 .nameLink:hover {
-  color: var(--om-orange-mid);
+  color: var(--om-link-hover);
   text-decoration: underline;
 }
 
@@ -37,12 +37,12 @@
   gap: 1px;
   padding: 8px 0;
   margin: -8px 0;
-  color: var(--om-orange-ink);
+  color: var(--om-link);
 }
 
 /* Chỉ gạch chân phần TÊN khi di chuột: gạch cả mã trông như một khối bị chọn. */
 .nameCell:hover .nameText {
-  color: var(--om-orange-mid);
+  color: var(--om-link-hover);
   text-decoration: underline;
 }
 

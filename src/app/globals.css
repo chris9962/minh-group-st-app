@@ -2,6 +2,65 @@
 
 /* Chỉ để những gì design system không lo. Token và component đều ở organic.css. */
 
+/**
+ * Màu chữ bấm được (chốt 2026-08-16).
+ *
+ * Đây là màu MANG NGHĨA "bấm được", cùng loại với `--om-green*` (đạt / không
+ * đạt), không phải màu trang trí — nên nó là ngoại lệ thứ ba của luật "chỉ có
+ * cam" ở AGENTS.md §3, không phải một màu nhấn thứ hai. Không dùng nó cho nền,
+ * viền hay bất cứ thứ gì khác.
+ *
+ * Vì sao không dùng cam: người dùng đọc cam trên nền kem ra chữ nhấn mạnh, chứ
+ * không ra "chỗ này bấm được" — xanh là quy ước link mà ai cũng đã biết.
+ *
+ * Vì sao không nằm trong organic.css: file đó đồng bộ từ `../mgst-design/_ds`,
+ * sửa tay là mất ở lần đồng bộ sau (AGENTS.md §3).
+ *
+ * Đã đo tương phản: bộ sáng 5.2:1 trên thẻ trắng và 4.8:1 trên nền kem; bộ tối
+ * 6.4:1 trên nền thẻ. Cả ba đều vượt mức WCAG AA cho cỡ chữ thường.
+ */
+:root {
+  --om-link: #2563eb;
+  --om-link-hover: #1d4ed8;
+}
+
+:root[data-theme="dark"] {
+  --om-link: #60a5fa;
+  --om-link-hover: #93c5fd;
+}
+
+/* Thẻ `a` trần trong organic.css mang màu cam — đổi ở đây để link không có
+   class riêng cũng cùng màu với link trong bảng. `.btn` tự đặt màu nên nút
+   dạng thẻ `a` không bị kéo theo. */
+a {
+  color: var(--om-link);
+}
+
+/**
+ * Màu trạng thái "chờ một quyết định ở ngoài" (chốt 2026-08-16).
+ *
+ * Cùng họ với `--om-green*`: màu MANG NGHĨA của nhãn trạng thái, không phải
+ * màu nhấn. Đơn bảo hiểm ở "Chờ duyệt" nằm chờ bên PVI trả lời — khác hẳn hàng
+ * chờ của đội mình, nên nó cần một tông tách khỏi cả xám lẫn cam.
+ *
+ * Vì sao tím: cam đã là màu nhấn, xanh lá là "đạt", xanh dương là chữ bấm
+ * được. Tím là hệ màu duy nhất còn lại không đụng nghĩa nào đang dùng.
+ *
+ * Đã đo tương phản chữ trên nền nhãn: bộ sáng 7.4:1, bộ tối 8.6:1 — cả hai
+ * vượt mức WCAG AAA.
+ */
+:root {
+  --om-violet: #7c3aed;
+  --om-violet-soft: #f3e8ff;
+  --om-violet-ink: #6b21a8;
+}
+
+:root[data-theme="dark"] {
+  --om-violet: #a78bfa;
+  --om-violet-soft: #2e1065;
+  --om-violet-ink: #d8b4fe;
+}
+
 /* Máy tính: sidebar và vùng nội dung tự cuộn bên trong AppShell, còn TÀI LIỆU
    thì không cuộn — khoá luôn ở đây cho chắc.
 
