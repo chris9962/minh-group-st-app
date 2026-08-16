@@ -61,12 +61,6 @@ type Props<T> = {
    * đề trống trơn, không phân biệt được "chưa có gì" với "tải xong nhưng hỏng".
    */
   emptyText?: string;
-  /**
-   * Bấm vào HÀNG thì chạy — bấm trúng link/nút bên trong hàng thì không, để
-   * cột Thao tác vẫn dùng được. Chỉ là lối tắt cho chuột: bàn phím và trình
-   * đọc màn hình vẫn phải có một link thật trong hàng dẫn tới cùng chỗ.
-   */
-  onRowClick?: (row: T) => void;
 };
 
 /**
@@ -84,7 +78,6 @@ export function RankTable<T>({
   pageSize,
   server,
   emptyText,
-  onRowClick,
 }: Props<T>) {
   const [sortKey, setSortKey] = useState(defaultSort);
   const [asc, setAsc] = useState(false);
@@ -187,20 +180,7 @@ export function RankTable<T>({
             </tr>
           )}
           {visible.map((row) => (
-            <tr
-              key={rowKey(row)}
-              className={onRowClick ? styles.clickableRow : undefined}
-              onClick={
-                onRowClick
-                  ? (e) => {
-                      // Bấm trúng link/nút/ô nhập trong hàng là thao tác riêng
-                      // của nó — không cướp thành điều hướng của hàng.
-                      if ((e.target as HTMLElement).closest("a, button, input, select, label")) return;
-                      onRowClick(row);
-                    }
-                  : undefined
-              }
-            >
+            <tr key={rowKey(row)}>
               {columns.map((col) => (
                 <td
                   key={col.key}
