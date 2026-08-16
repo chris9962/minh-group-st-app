@@ -16,7 +16,7 @@
      ra một vệt trắng. */
   background: var(--om-card);
   border: 1px solid var(--om-line);
-  border-radius: 999px;
+  border-radius: var(--radius-md);
   font-size: 13.5px;
   color: var(--om-text-2);
   cursor: pointer;
