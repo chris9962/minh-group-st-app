@@ -60,6 +60,7 @@ export function ServiceTypeSection() {
           <Button
             variant="secondary"
             icon
+            tooltip="Sửa loại dịch vụ"
             aria-label={`Sửa ${r.name}`}
             onClick={() => setEditing(r)}
           >

@@ -183,6 +183,7 @@ export default function CustomersPage() {
               <Button
                 variant="secondary"
                 icon
+                tooltip="Sửa khách hàng"
                 aria-label={`Sửa khách hàng ${c.fullName}`}
                 onClick={() => setEditingId(c.id)}
               >

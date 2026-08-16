@@ -40,6 +40,7 @@ export function ChannelCatalogSection() {
           <Button
             variant="secondary"
             icon
+            tooltip="Sửa kênh"
             aria-label={`Sửa kênh ${c.name}`}
             onClick={() => setEditing(c)}
           >

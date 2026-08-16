@@ -178,6 +178,7 @@ export default function ServicesPage() {
                     <Button
                       variant="secondary"
                       icon
+                      tooltip="Sửa dịch vụ"
                       aria-label={`Sửa dịch vụ ${r.serviceTypeName} của ${r.customerName}`}
                       onClick={() => setEditing(r)}
                     >
@@ -188,6 +189,7 @@ export default function ServicesPage() {
                     <Button
                       variant="secondary"
                       icon
+                      tooltip="Xoá dịch vụ"
                       aria-label={`Xoá dịch vụ ${r.serviceTypeName} của ${r.customerName}`}
                       onClick={() => setRemoving(r)}
                     >

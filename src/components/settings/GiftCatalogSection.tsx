@@ -176,6 +176,7 @@ export function GiftCatalogSection() {
                 <Button
                   variant="secondary"
                   icon
+                  tooltip="Sửa gói"
                   aria-label={`Sửa ${p.name}`}
                   onClick={() => setEditingPackage(p)}
                 >

@@ -267,6 +267,7 @@ export default function BankingPage() {
               <Button
                 variant="secondary"
                 icon
+                tooltip={r.status === "creating" ? "Hoàn tất tài khoản" : "Ảnh chứng minh"}
                 aria-label={
                   r.status === "creating"
                     ? `Hoàn tất tài khoản ${r.bankCode} của ${r.customerName}`
@@ -284,6 +285,7 @@ export default function BankingPage() {
               <Button
                 variant="secondary"
                 icon
+                tooltip="Xoá tài khoản"
                 aria-label={`Xoá tài khoản ${r.bankCode} đang tạo dở của ${r.customerName}`}
                 onClick={() => setRemoving(r)}
               >

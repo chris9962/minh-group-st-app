@@ -139,6 +139,7 @@ export function InsurancePackageFormDialog({ open, onClose, insurancePackage }: 
               <Button
                 variant="secondary"
                 icon
+                tooltip="Bỏ đơn này"
                 aria-label={`Bỏ đơn ${i + 1}`}
                 disabled={legs.fields.length === 1}
                 onClick={() => legs.remove(i)}

@@ -3,7 +3,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { HandHelping, Pencil, Plus, ShieldCheck, Trash2 } from "lucide-react";
+import { Pencil, Plus, ShieldCheck, Trash2, UserCheck } from "lucide-react";
 import type { DateRange } from "react-day-picker";
 import { SkeletonTable } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
@@ -254,17 +254,19 @@ export default function InsurancePage() {
                       <Button
                         variant="secondary"
                         icon
+                        tooltip="Nhận xử lý"
                         aria-label={`Nhận xử lý đơn ${r.orderCode} của ${r.customerName}`}
                         disabled={claim.isPending}
                         onClick={() => claim.mutate(r)}
                       >
-                        <HandHelping size={16} aria-hidden />
+                        <UserCheck size={16} aria-hidden />
                       </Button>
                     )}
                     {mine.edit && (
                       <Button
                         variant="secondary"
                         icon
+                        tooltip="Sửa đơn"
                         aria-label={`Sửa đơn ${r.orderCode} của ${r.customerName}`}
                         onClick={() => setEditing(r)}
                       >
@@ -275,6 +277,7 @@ export default function InsurancePage() {
                       <Button
                         variant="secondary"
                         icon
+                        tooltip="Huỷ đơn"
                         aria-label={`Huỷ đơn ${r.orderCode} của ${r.customerName}`}
                         onClick={() => setRemoving(r)}
                       >

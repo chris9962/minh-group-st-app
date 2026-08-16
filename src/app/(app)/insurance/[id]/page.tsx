@@ -355,9 +355,12 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={pending.preview} alt="Ảnh vừa chọn" className={styles.photo} />
                   <span className={styles.pendingBadge}>Chưa lưu</span>
+                  {/* Nút này không phải component `Button` nên không có prop
+                      `tooltip` — dùng `title` của trình duyệt cho cùng tác dụng. */}
                   <button
                     type="button"
                     className={styles.photoRemove}
+                    title="Bỏ ảnh vừa chọn"
                     aria-label="Bỏ ảnh vừa chọn"
                     disabled={busy}
                     onClick={() => replacePending(null)}

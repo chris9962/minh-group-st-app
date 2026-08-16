@@ -350,6 +350,7 @@ export function CustomerFormDialog({
                   <Button
                     variant="secondary"
                     icon
+                    tooltip="Xoá số này"
                     type="button"
                     aria-label={`Xoá số điện thoại ${i + 1}`}
                     disabled={fields.length <= 1}

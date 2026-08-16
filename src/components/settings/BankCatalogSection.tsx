@@ -85,6 +85,7 @@ export function BankCatalogSection({ creating, onCreatingChange }: Props) {
           <Button
             variant="secondary"
             icon
+            tooltip="Sửa ngân hàng"
             aria-label={`Sửa ${b.code}`}
             onClick={() => setEditing(b)}
           >

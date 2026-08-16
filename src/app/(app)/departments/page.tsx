@@ -193,6 +193,7 @@ export default function DepartmentsPage() {
             <Button
               variant="secondary"
               icon
+              tooltip="Đổi tên phòng"
               aria-label={`Đổi tên ${d.name}`}
               onClick={() => setEditing(d)}
             >

@@ -240,6 +240,7 @@ export default function CustomerDetailPage({
                         <Button
                           variant="secondary"
                           icon
+                          tooltip="Xoá tài khoản"
                           aria-label={`Xoá tài khoản đang tạo ${a.bankName}`}
                           disabled={removeDraft.isPending}
                           onClick={() => removeDraft.mutate(a.id)}
