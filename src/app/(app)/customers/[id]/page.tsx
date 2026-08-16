@@ -75,6 +75,21 @@ export default function CustomerDetailPage({
       label: "Đã cài app",
       render: (a) => <StatusTag ok={a.appInstalled}>{a.appInstalled ? "Có" : "Chưa"}</StatusTag>,
     },
+    {
+      key: "open",
+      label: "Thao tác",
+      render: (a) => (
+        <a
+          className="btn btn-secondary"
+          href={`/banking/${a.id}`}
+          target="_blank"
+          rel="noreferrer"
+          aria-label="Mở chi tiết tài khoản trong tab mới"
+        >
+          <ExternalLink size={16} aria-hidden />
+        </a>
+      ),
+    },
   ];
 
   const insuranceColumns: RankColumn<CustomerInsuranceRow>[] = [
@@ -337,6 +352,12 @@ export default function CustomerDetailPage({
                     </dd>
                   </div>
                 )}
+                {data.gift.given && data.gift.givenItem && (
+                  <div>
+                    <dt>Hiện vật</dt>
+                    <dd>{data.gift.givenItem}</dd>
+                  </div>
+                )}
                 {!data.gift.given && (
                   <div>
                     <dt>Rổ quà</dt>
@@ -389,9 +410,6 @@ export default function CustomerDetailPage({
                           ? "Đủ ĐK · chưa phát"
                           : "Chưa đủ điều kiện"}
                     </StatusTag>
-                    {data.gift.given && data.gift.givenItem && (
-                      <span className={styles.detail}>Đã giao: {data.gift.givenItem}</span>
-                    )}
                   </dd>
                 </div>
               </dl>
