@@ -32,6 +32,18 @@
   color: var(--color-neutral-600);
 }
 
+.nameLink {
+  display: block;
+  padding: 12px 0;
+  margin: -12px 0;
+  color: var(--om-text);
+}
+
+.nameLink:hover {
+  color: var(--om-orange-mid);
+  text-decoration: underline;
+}
+
 /**
  * Chọn kỳ số liệu hiện ở hai chỗ tuỳ bề ngang, và chỉ MỘT chỗ hiển thị tại một
  * thời điểm — `display: none` gỡ luôn khỏi cây trợ năng nên trình đọc màn hình

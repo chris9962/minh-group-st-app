@@ -35,7 +35,15 @@
   display: flex;
   flex-direction: column;
   gap: 1px;
+  padding: 8px 0;
+  margin: -8px 0;
   color: var(--om-text);
+}
+
+/* Chỉ gạch chân phần TÊN khi di chuột: gạch cả mã trông như một khối bị chọn. */
+.nameCell:hover .nameText {
+  color: var(--om-orange-mid);
+  text-decoration: underline;
 }
 
 .nameCode {

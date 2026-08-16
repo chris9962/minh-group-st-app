@@ -2,7 +2,6 @@
 
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { Lock, Pencil, Plus, Users } from "lucide-react";
 import { SkeletonStats, SkeletonTable } from "@/components/ui/Skeleton";
@@ -47,14 +46,15 @@ import styles from "./page.module.scss";
  * Ô tên nhân viên: tên ở trên, mã nhân viên ở dưới.
  *
  * Mã là thứ dùng đối chiếu với app khác, nên phải thấy ngay ở bảng chứ không
- * bắt mở từng hồ sơ. Không còn là link — bấm cả HÀNG để vào hồ sơ (onRowClick).
+ * bắt mở từng hồ sơ. Xếp dọc chứ không nối bằng dấu · để tên vẫn là dòng bấm
+ * được và mắt không phải lọc chữ ra khỏi mã.
  */
-function StaffName({ fullName, staffCode }: { fullName: string; staffCode: string | null }) {
+function StaffName({ id, fullName, staffCode }: { id: string; fullName: string; staffCode: string | null }) {
   return (
-    <span className={styles.nameCell}>
+    <Link href={`/users/${id}`} className={styles.nameCell}>
       <span className={styles.nameText}>{fullName}</span>
       {staffCode && <span className={`${styles.nameCode} tabular-nums`}>{staffCode}</span>}
-    </span>
+    </Link>
   );
 }
 
@@ -105,7 +105,7 @@ const BASE_COLUMNS: RankColumn<StaffRow>[] = [
     key: "name",
     label: "Nhân viên",
     sortable: true,
-    render: (r) => <StaffName fullName={r.fullName} staffCode={r.staffCode} />,
+    render: (r) => <StaffName id={r.id} fullName={r.fullName} staffCode={r.staffCode} />,
   },
   {
     key: "departmentName",
@@ -132,7 +132,6 @@ const ROLE_FILTERS = RoleKey.options.map((value) => ({
 
 /** P-51 · Danh sách nhân viên + chỉ tiêu + quản trị tài khoản. */
 export default function PeoplePage() {
-  const router = useRouter();
   const user = useSession((s) => s.user);
   // Phạm vi phải hỏi theo ĐÚNG module đang liệt kê. Trước đây hỏi theo
   // `banking`: tài khoản quản trị không có `banking:view-summary` nên rơi về
@@ -395,7 +394,6 @@ export default function PeoplePage() {
                 rowKey={(r) => r.id}
                 defaultSort={sort}
                 caption={`Nhân viên và chỉ tiêu ${monthLabel(month)}`}
-                onRowClick={(r) => router.push(`/users/${r.id}`)}
                 emptyText={
                   searchQuery
                     ? `Không tìm thấy nhân viên nào khớp “${searchQuery}”.`
