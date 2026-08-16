@@ -180,14 +180,16 @@ const canSeeOrder = (
 };
 
 /**
- * Tìm theo TÊN KHÁCH bằng `exists`, không phải phép nối.
+ * Tìm theo TÊN KHÁCH hoặc MÃ ĐƠN. Tên khách đi bằng `exists`, không phải phép
+ * nối.
  *
  * `exists` là phép nửa-nối: Postgres dừng ngay khi thấy một dòng khớp, và cột
  * sinh `customers.search_name` có chỉ mục trigram đỡ. Nối `customers` vào câu
  * chọn trang thì bảng khách đi cùng suốt phép sắp xếp (AGENTS.md §5.2).
  *
  * Mỗi từ một điều kiện VÀ, không phụ thuộc thứ tự — `tram nguyen` vẫn ra
- * `Nguyễn Thị Bích Trâm`.
+ * `Nguyễn Thị Bích Trâm`. Từng từ khớp MỘT trong hai: tên khách, hoặc mã đơn
+ * ngay trên dòng đơn (`ilike` để gõ `dh-2608` thường vẫn ra).
  */
 function searchWhere(raw: string): SQL | undefined {
   const text = raw.trim();
@@ -196,11 +198,14 @@ function searchWhere(raw: string): SQL | undefined {
   return and(
     ...text.split(/\s+/).map(
       (term) =>
-        sql`exists (
-          select 1 from ${customers} c
-          where c.id = ${insuranceOrders.customerId}
-            and c.search_name like '%' || mgst_normalize(${likeEscape(term)}) || '%' escape '\\'
-        )`,
+        or(
+          sql`exists (
+            select 1 from ${customers} c
+            where c.id = ${insuranceOrders.customerId}
+              and c.search_name like '%' || mgst_normalize(${likeEscape(term)}) || '%' escape '\\'
+          )`,
+          sql`${insuranceOrders.orderCode} ilike '%' || ${likeEscape(term)} || '%' escape '\\'`,
+        ),
     ),
   );
 }

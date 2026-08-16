@@ -145,15 +145,23 @@ export default function InsurancePage() {
         render: (r) => formatDate(r.orderDate),
       },
       {
+        key: "orderCode",
+        label: "Mã đơn",
+        render: (r) => (
+          <Link href={`/insurance/${r.id}`} className={styles.nameLink}>
+            {r.orderCode}
+          </Link>
+        ),
+      },
+      {
         key: "customerName",
         label: "Khách hàng",
         render: (r) => (
-          <Link href={`/insurance/${r.id}`} className={styles.nameLink}>
+          <Link href={`/customers/${r.customerId}`} className={styles.nameLink}>
             {r.customerName}
           </Link>
         ),
       },
-      { key: "orderCode", label: "Mã đơn", render: (r) => r.orderCode },
       {
         key: "product",
         label: "Loại · gói",
@@ -219,8 +227,8 @@ export default function InsurancePage() {
     <>
       <TopBar title="Bảo hiểm">
         <SearchField
-          label="Tìm khách hàng"
-          placeholder="Tìm tên khách hàng…"
+          label="Tìm khách hàng hoặc mã đơn"
+          placeholder="Tìm tên khách hoặc mã đơn…"
           value={search}
           onChange={(v) => {
             // Về trang đầu ngay lúc gõ, không đợi hoãn xong: đang ở trang 3 mà

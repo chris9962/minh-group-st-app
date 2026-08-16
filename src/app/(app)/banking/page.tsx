@@ -213,15 +213,23 @@ export default function BankingPage() {
         render: (r) => (r.date ? formatDate(r.date) : "—"),
       },
       {
+        key: "bankCode",
+        label: "Ngân hàng",
+        render: (r) => (
+          <Link href={`/banking/${r.id}`} className={styles.nameLink}>
+            {r.bankCode}
+          </Link>
+        ),
+      },
+      {
         key: "customerName",
         label: "Khách hàng",
         render: (r) => (
-          <Link href={`/banking/${r.id}`} className={styles.nameLink}>
+          <Link href={`/customers/${r.customerId}`} className={styles.nameLink}>
             {r.customerName}
           </Link>
         ),
       },
-      { key: "bankCode", label: "Ngân hàng", render: (r) => r.bankCode },
       {
         key: "accountNumber",
         label: "STK",
