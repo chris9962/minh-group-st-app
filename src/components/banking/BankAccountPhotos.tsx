@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ImagePlus, Pencil, X } from "lucide-react";
+import { ImageLightbox } from "@/components/ui/ImageLightbox";
 import { PHOTO_MAX } from "@/lib/api/bankAccounts";
 import { imageProblem, uploadImage } from "@/lib/api/uploads";
 import { toast } from "@/lib/toast";
@@ -65,7 +66,11 @@ type Props = {
    * màn hình nghe hai tiêu đề ngang hàng trong khi một cái là con của cái kia.
    */
   headingAs?: "h3" | "h4";
-  onChange: (photos: PhotoItem[]) => void;
+  /**
+   * Không truyền = khối CHỈ XEM: không thêm, không thay, không xoá ảnh.
+   * P-22 dùng mặt này — mọi thao tác ảnh đi qua hộp thoại Sửa.
+   */
+  onChange?: (photos: PhotoItem[]) => void;
   /** Đang gửi biểu mẫu — khoá lại để không ai đổi ảnh giữa chừng. */
   busy?: boolean;
 };
@@ -111,6 +116,8 @@ export function BankAccountPhotos({
   /** Ô đang thay ảnh; `null` = đang thêm mới. */
   const replacingSlot = useRef<number | null>(null);
   const previews = useRef(new Set<string>());
+  /** Ảnh đang xem cỡ lớn; `null` = không mở. */
+  const [zoomed, setZoomed] = useState<{ src: string; label: string } | null>(null);
 
   // `blob:` chiếm bộ nhớ tới khi được thu hồi, và trình duyệt không tự dọn khi
   // component biến mất. Đây là tài nguyên ngoài React nên đúng chỗ cho effect.
@@ -149,6 +156,7 @@ export function BankAccountPhotos({
   };
 
   const handleFiles = (files: File[]) => {
+    if (!onChange) return;
     const slot = replacingSlot.current;
     replacingSlot.current = null;
     if (files.length === 0) return;
@@ -173,6 +181,7 @@ export function BankAccountPhotos({
   };
 
   const removeAt = (slot: number) => {
+    if (!onChange) return;
     release(photos[slot]);
     onChange(photos.filter((_, i) => i !== slot));
   };
@@ -189,33 +198,42 @@ export function BankAccountPhotos({
           const src = photo.kind === "saved" ? photo.url : photo.preview;
           return (
             <div key={photo.kind === "saved" ? photo.url : photo.preview} className={styles.photoTile}>
-              <a href={src} target="_blank" rel="noreferrer">
+              <button
+                type="button"
+                className={styles.photoZoom}
+                aria-label={`Xem ${noun} ${i + 1} cỡ lớn`}
+                onClick={() => setZoomed({ src, label: `${title} ${i + 1}` })}
+              >
                 <img src={src} alt={`${title} ${i + 1}`} className={styles.photo} />
-              </a>
+              </button>
               {photo.kind === "pending" && <span className={styles.photoBadge}>Chưa tải lên</span>}
-              <button
-                type="button"
-                className={styles.photoEdit}
-                aria-label={`Thay ${noun} ${i + 1}`}
-                disabled={busy}
-                onClick={() => openPicker(i)}
-              >
-                <Pencil size={14} aria-hidden />
-              </button>
-              <button
-                type="button"
-                className={styles.photoRemove}
-                aria-label={`Bỏ ${noun} ${i + 1}`}
-                disabled={busy}
-                onClick={() => removeAt(i)}
-              >
-                <X size={14} aria-hidden />
-              </button>
+              {onChange && (
+                <>
+                  <button
+                    type="button"
+                    className={styles.photoEdit}
+                    aria-label={`Thay ${noun} ${i + 1}`}
+                    disabled={busy}
+                    onClick={() => openPicker(i)}
+                  >
+                    <Pencil size={14} aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.photoRemove}
+                    aria-label={`Bỏ ${noun} ${i + 1}`}
+                    disabled={busy}
+                    onClick={() => removeAt(i)}
+                  >
+                    <X size={14} aria-hidden />
+                  </button>
+                </>
+              )}
             </div>
           );
         })}
 
-        {photos.length < max && (
+        {onChange && photos.length < max && (
           <button
             type="button"
             className={styles.photoAdd}
@@ -231,22 +249,32 @@ export function BankAccountPhotos({
         )}
       </div>
 
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        // Chọn được nhiều tấm một lượt: ba tấm chứng minh chụp liền nhau nằm
-        // cạnh nhau trong thư viện, bắt mở hộp chọn ba lần là ba lần cuộn tìm.
-        multiple
-        className={styles.hiddenInput}
-        onChange={(e) => {
-          const files = [...(e.target.files ?? [])];
-          // Dọn ô chọn NGAY: giữ nguyên thì chọn lại đúng file đó lần nữa sẽ
-          // không bắn sự kiện `change`.
-          e.target.value = "";
-          handleFiles(files);
-        }}
-      />
+      {!onChange && photos.length === 0 && (
+        <p className="text-muted">Chưa có {noun} nào.</p>
+      )}
+
+      {zoomed && (
+        <ImageLightbox src={zoomed.src} alt={zoomed.label} onClose={() => setZoomed(null)} />
+      )}
+
+      {onChange && (
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          // Chọn được nhiều tấm một lượt: ba tấm chứng minh chụp liền nhau nằm
+          // cạnh nhau trong thư viện, bắt mở hộp chọn ba lần là ba lần cuộn tìm.
+          multiple
+          className={styles.hiddenInput}
+          onChange={(e) => {
+            const files = [...(e.target.files ?? [])];
+            // Dọn ô chọn NGAY: giữ nguyên thì chọn lại đúng file đó lần nữa sẽ
+            // không bắn sự kiện `change`.
+            e.target.value = "";
+            handleFiles(files);
+          }}
+        />
+      )}
     </div>
   );
 }

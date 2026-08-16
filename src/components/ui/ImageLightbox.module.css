@@ -1,0 +1,56 @@
+.lightbox {
+  margin: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  max-width: calc(100vw - 96px);
+  max-height: calc(100dvh - 96px);
+}
+
+/* Đậm hơn lớp phủ của Dialog: phần nền chỉ cần mờ đi cho ảnh nổi lên. */
+.lightbox::backdrop {
+  background: rgb(32 30 29 / 70%);
+}
+
+.image {
+  display: block;
+  max-width: calc(100vw - 96px);
+  max-height: calc(100dvh - 96px);
+  border-radius: var(--radius-md);
+}
+
+/* `fixed` trong top layer tính theo khung nhìn — nút neo góc màn hình, không
+   đè lên ảnh. */
+.close {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: var(--om-card);
+  color: var(--om-text);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+}
+
+.close:hover {
+  color: var(--om-orange-mid);
+}
+
+/* Màn hẹp thì 96px là mất gần nửa bề ngang. Đỉnh vẫn chừa 76px cho nút đóng
+   đang neo góc trên trái, không thì ảnh cao chui xuống dưới nút. */
+@media (max-width: 640px) {
+  .lightbox {
+    max-width: calc(100vw - 32px);
+    max-height: calc(100dvh - 76px);
+  }
+
+  .image {
+    max-width: calc(100vw - 32px);
+    max-height: calc(100dvh - 76px);
+  }
+}
