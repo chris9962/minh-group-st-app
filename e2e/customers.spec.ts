@@ -79,12 +79,23 @@ const EXPORTS: Record<Role, boolean> = {
  * so với một phần tử và luôn xanh sai.
  */
 async function names(page: Page): Promise<string[]> {
-  return (await rows(page).locator("td:first-child").allInnerTexts()).map((s) => s.trim());
+  // Cột 2, không phải cột 1: bảng mở đầu bằng cột Ngày tạo.
+  return (await rows(page).locator("td:nth-child(2)").allInnerTexts()).map((s) => s.trim());
 }
 
-/** Cột SĐT — dùng để phân biệt các hồ sơ TRÙNG TÊN của bộ độn phân trang. */
-async function phones(page: Page): Promise<string[]> {
-  return (await rows(page).locator("td:nth-child(2)").allInnerTexts()).map((s) => s.trim());
+/**
+ * Id của từng dòng, đọc từ link tên khách — dùng để phân biệt các hồ sơ TRÙNG
+ * TÊN của bộ độn phân trang.
+ *
+ * Trước đây ca này soi cột SĐT, nhưng cột đó đã bỏ khỏi bảng (commit 9706473).
+ * Link tên là thứ duy nhất còn lại mang giá trị riêng cho từng dòng.
+ */
+async function rowIds(page: Page): Promise<string[]> {
+  return Promise.all(
+    (await rows(page).all()).map(
+      async (r) => (await r.getByRole("link").first().getAttribute("href")) ?? "",
+    ),
+  );
 }
 
 /** Sáu hồ sơ mẫu của `e2e-seed.ts` — tiền tố riêng để không lẫn dữ liệu ca khác tạo. */
@@ -132,6 +143,18 @@ const sortBy = (page: Page, nhan: RegExp, khoa: string, chieu: "asc" | "desc") =
   afterQuery(page, (p) => p.get("sort") === khoa && p.get("dir") === chieu, () =>
     page.getByRole("button", { name: nhan }).click(),
   );
+
+/**
+ * Điền ba ô BẮT BUỘC của biểu mẫu khách hàng: ngày sinh · CCCD · địa chỉ.
+ *
+ * Ba ô này thành bắt buộc ở commit 9706473 (2026-08-15). Gom vào một chỗ vì ba
+ * ca cùng cần — điền lẻ ở từng ca thì lần siết tiếp theo phải sửa ba nơi.
+ */
+async function fillRequired(scope: ReturnType<typeof dialog>, idNumber: string) {
+  await scope.getByLabel("Ngày sinh").fill("1990-01-01");
+  await scope.getByLabel("CCCD").fill(idNumber);
+  await scope.getByLabel("Địa chỉ").fill(`${TAG} dia chi`);
+}
 
 /** Ô nhập SĐT thứ `i` — phải chỉ rõ là ô nhập, nút "Xoá số điện thoại i" trùng nhãn. */
 const phoneInput = (scope: ReturnType<typeof dialog>, i: number) =>
@@ -273,7 +296,7 @@ test.describe("tìm kiếm chạy ở máy chủ", () => {
   test("sang trang 2 ra bộ khác, không trùng không sót", async ({ page }) => {
     await search(page, PG);
     const trang1 = await names(page);
-    const sdt1 = await phones(page);
+    const id1 = await rowIds(page);
 
     await afterQuery(page, (p) => p.get("page") === "1", () =>
       page.getByRole("button", { name: "Sau" }).click(),
@@ -290,9 +313,9 @@ test.describe("tìm kiếm chạy ở máy chủ", () => {
     // nhất trong `ORDER BY` thì thứ tự giữa các hồ sơ trùng tên bám theo vị trí
     // vật lý của dòng — ai đó sửa một hồ sơ là nó nhảy xuống cuối bảng, hồ sơ
     // thứ 15 hiện lại ở trang 2 còn một người khác rơi khỏi cả hai trang.
-    const sdt2 = await phones(page);
-    expect(sdt1.filter((s) => sdt2.includes(s))).toEqual([]);
-    expect(new Set([...sdt1, ...sdt2]).size).toBe(PG_COUNT);
+    const id2 = await rowIds(page);
+    expect(id1.filter((x) => id2.includes(x))).toEqual([]);
+    expect(new Set([...id1, ...id2]).size).toBe(PG_COUNT);
   });
 });
 
@@ -409,6 +432,9 @@ test.describe("thao tác nào cũng báo kết quả", () => {
     const box = dialog(page);
     await box.getByLabel("Họ tên").fill(ten);
     await phoneInput(box, 1).fill("0912000111");
+    // Ngày sinh · CCCD · Địa chỉ thành BẮT BUỘC từ commit 9706473 — thiếu một ô
+    // là form chặn tại chỗ và hộp thoại đứng im.
+    await fillRequired(box, `0923${Date.now().toString().slice(-8)}`);
     await box.getByRole("button", { name: /Tạo khách hàng/ }).click();
 
     // Trước đây quy ước là "im lặng = thành công". Quy ước đó gãy ở form không
@@ -434,8 +460,8 @@ test.describe("thao tác nào cũng báo kết quả", () => {
     await page.getByRole("button", { name: /Thêm khách hàng/ }).click();
     const box = dialog(page);
     await box.getByLabel("Họ tên").fill(`${TAG} Trùng CCCD`);
-    await box.getByLabel("CCCD").fill("092301004871");
     await phoneInput(box, 1).fill("0912000222");
+    await fillRequired(box, "092301004871");
     await box.getByRole("button", { name: /Tạo khách hàng/ }).click();
 
     // Toast trôi mất sau vài giây và không bấm được — mà thứ người dùng cần ở

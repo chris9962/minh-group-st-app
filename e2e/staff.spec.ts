@@ -153,6 +153,15 @@ test.describe("P-51 · thêm rồi khoá một nhân viên thật", () => {
     // chặn ngay và hộp thoại đứng im.
     await box.getByLabel(/Mã nhân viên/).fill(`ZZE2E${stamp}`);
     await box.getByRole("button", { name: /Tạo nhân viên|Lưu/ }).click();
+
+    /**
+     * Tạo xong KHÔNG đóng luôn: hộp thoại đổi sang mặt "Đã tạo tài khoản", hiện
+     * tên đăng nhập với mật khẩu khởi tạo để người tạo chép đưa cho nhân viên
+     * (commit 7a4f42e). Đóng thẳng là mất mật khẩu, không xem lại được.
+     */
+    await expect(box).toHaveAttribute("aria-label", "Đã tạo tài khoản", { timeout: 15_000 });
+    // Khoanh trong `footer`: nút X ở góc hộp thoại cũng mang nhãn "Đóng".
+    await box.locator("footer").getByRole("button", { name: "Đóng" }).click();
     await expect(box).toBeHidden({ timeout: 15_000 });
 
     // Tìm cho ra: bảng nhân sự có phân trang, người mới chưa chắc ở trang đầu.

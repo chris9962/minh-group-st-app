@@ -38,7 +38,9 @@ export const TAG = "ZZE2E";
 export async function login(page: Page, role: Role) {
   await page.goto("/login");
   await page.getByLabel("Tài khoản").fill(`zz_e2e_${role}`);
-  await page.getByLabel("Mật khẩu").fill(PASSWORD);
+  // `exact` là bắt buộc: nút hiện/ẩn cạnh ô mang nhãn "Hiện mật khẩu", mà
+  // `getByLabel` khớp theo chuỗi con nên bỏ `exact` là trúng hai phần tử.
+  await page.getByLabel("Mật khẩu", { exact: true }).fill(PASSWORD);
   await page.getByRole("button", { name: /Đăng nhập/ }).click();
   await expect(page).not.toHaveURL(/\/login/, { timeout: 15_000 });
 }

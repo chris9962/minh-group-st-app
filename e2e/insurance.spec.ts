@@ -43,6 +43,25 @@ async function openInsurance(page: Page) {
  * "Hoàn thành" còn ca kia đi tìm đơn "Chờ làm tay" thì dữ liệu dùng chung là
  * chỗ đỏ ngẫu nhiên, đỏ vì thứ tự chạy chứ không vì ứng dụng sai.
  */
+/**
+ * Chọn một tấm ảnh chứng nhận ở P-14 — ảnh CHƯA lên kho sau bước này.
+ *
+ * Từ chốt 2026-08-16, chọn ảnh chỉ giữ file trong máy; nó lên kho lúc bấm "Lưu
+ * ảnh" hoặc "Đánh dấu hoàn thành". Dùng `setInputFiles` thẳng vào ô file vì ô
+ * đó cố ý ẩn — người dùng thật bấm nút "Chọn ảnh" hoặc dán bằng Ctrl+V.
+ */
+async function attachPhoto(page: Page) {
+  // PNG 1x1 hợp lệ — máy chủ kiểm chữ ký đầu file nên không dùng chuỗi bịa.
+  const png = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+    "base64",
+  );
+  await page
+    .locator('input[type="file"]')
+    .setInputFiles({ name: `${TAG}-chung-nhan.png`, mimeType: "image/png", buffer: png });
+  await expect(page.getByText("Chưa lưu")).toBeVisible();
+}
+
 async function createOrder(page: Page): Promise<string> {
   await page.getByRole("button", { name: "Tạo đơn bảo hiểm" }).click();
 
@@ -58,6 +77,9 @@ async function createOrder(page: Page): Promise<string> {
   await dialog.getByRole("button", { name: new RegExp(CUSTOMER) }).click();
 
   await dialog.getByLabel("Gói bảo hiểm").selectOption({ label: "1 năm BH tai nạn điện" });
+  // Đơn tai nạn điện bắt buộc có số thành viên (commit 2dee224) — bot PVI dừng
+  // ở đúng ô này nếu nó bằng 0, nên form chặn ngay lúc nhập.
+  await dialog.getByLabel("Số thành viên").fill("3");
   await dialog.getByLabel("Họ tên").fill(`${TAG} Nguoi thu huong`);
   await dialog.getByLabel("Địa chỉ").fill(`${TAG} dia chi`);
   await dialog.getByRole("button", { name: "Tạo đơn" }).click();
@@ -129,6 +151,14 @@ for (const role of ROLES) {
       await expect(take).toBeHidden();
       const finish = page.getByRole("button", { name: "Đánh dấu hoàn thành" });
       await expect(finish).toBeVisible();
+      // Chưa có ảnh chứng nhận thì nút KHOÁ, và màn nói rõ vì sao (chốt
+      // 2026-08-16): `done` là trạng thái cuối, đánh dấu xong mới phát hiện
+      // thiếu ảnh là không còn đường lùi.
+      await expect(finish).toBeDisabled();
+      await expect(page.getByText(/Phải đính ảnh chứng nhận/)).toBeVisible();
+
+      await attachPhoto(page);
+      await expect(finish).toBeEnabled();
       await finish.click();
       await expect(toast(page, /Đã hoàn thành đơn/)).toBeVisible();
       await expect(finish).toBeHidden();
@@ -144,11 +174,13 @@ for (const role of ROLES) {
 
       await rowsOf(page).filter({ hasText: code }).getByRole("link").first().click();
       await page.getByRole("button", { name: "Nhận đơn xử lý" }).click();
+      await attachPhoto(page);
       await page.getByRole("button", { name: "Đánh dấu hoàn thành" }).click();
       await expect(toast(page, /Đã hoàn thành đơn/)).toBeVisible();
 
-      // Ảnh chứng nhận dùng được ở MỌI trạng thái (spec §3.4).
-      await expect(page.getByRole("button", { name: /Tải ảnh lên|Đổi ảnh/ })).toBeVisible();
+      // Ảnh chứng nhận dùng được ở MỌI trạng thái (spec §3.4). Đơn đã có ảnh
+      // từ bước hoàn thành nên nút mang nhãn "Đổi ảnh".
+      await expect(page.getByRole("button", { name: /Chọn ảnh|Đổi ảnh/ })).toBeVisible();
 
       await openInsurance(page);
       const row = rowsOf(page).filter({ hasText: code });

@@ -16,7 +16,7 @@
  * rồi mới xoá được tài khoản. Đây là nhật ký do chính test sinh ra, không phải
  * dấu vết thật của người dùng.
  */
-import { eq, like, sql } from "drizzle-orm";
+import { eq, inArray, like, sql } from "drizzle-orm";
 import { db } from "../src/server/db/client";
 import {
   auditLog,
@@ -77,6 +77,29 @@ for (const c of testCustomers) {
   await db.delete(customers).where(eq(customers.id, c.id));
 }
 if (testCustomers.length) wiped.push(`khách hàng: ${testCustomers.length}`);
+
+/**
+ * Tài khoản mở bằng mã ZZE2E nhưng cho khách KHÔNG mang tiền tố.
+ *
+ * Vòng lặp theo khách ở trên không quét tới, mà mã thì không xoá được khi còn
+ * dòng trỏ vào — script chết ngay tại bước dưới và bỏ lại toàn bộ phần sau.
+ * Đã dính thật: một tài khoản `creating` mở tay trên giao diện trong lúc dữ
+ * liệu test còn nằm đó.
+ *
+ * Xoá được vì mã ZZE2E chỉ do bộ test sinh ra — không có tài khoản thật nào
+ * dùng nó. Ảnh của tài khoản tự chết theo (`bank_account_photos` cascade).
+ */
+await wipe("tài khoản mở bằng mã test", () =>
+  db
+    .delete(bankAccounts)
+    .where(
+      inArray(
+        bankAccounts.referralCodeId,
+        db.select({ id: referralCodes.id }).from(referralCodes).where(like(referralCodes.code, TAG)),
+      ),
+    )
+    .returning({ id: bankAccounts.id }),
+);
 
 await wipe("mã giới thiệu", () =>
   db.delete(referralCodes).where(like(referralCodes.code, TAG)).returning({ id: referralCodes.id }),

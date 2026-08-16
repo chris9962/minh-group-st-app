@@ -78,17 +78,31 @@ for (const role of ROLES) {
      * liệu — nếu không chặn thì nhân viên gặp một bảng quản trị đầy nút "Sửa",
      * "Tắt", bấm vào là báo lỗi.
      */
+    /**
+     * "Bị chặn" nghĩa là ĐẨY VỀ Tổng quan, không phải hiện câu báo lỗi tại chỗ.
+     *
+     * `AppShell` đổi sang lối này ở commit 91dc4b4 (2026-08-15): màn bị chặn
+     * không dựng nội dung mà `router.replace("/")` ngay, để không nhấp nháy một
+     * nhịp rồi mới chuyển đi. Bám vào câu chữ trên màn là bám vào thứ đã không
+     * còn — và `screenLoaded` cũng không dùng được ở đây, vì sau lượt đẩy nó
+     * đang soi màn Tổng quan chứ không soi màn bị chặn.
+     */
     test("gõ thẳng đường dẫn màn cấu hình thì bị chặn tại màn", async ({ page }) => {
       test.skip(EDITS_CATALOG[role], "chỉ soi chức vụ không được sửa danh mục");
       for (const [path] of SETTINGS_SCREENS) {
         await page.goto(path);
-        await expect(page.locator("main"), path).toContainText(/không có quyền mở màn này/i);
+        await expect(page, path).toHaveURL(/localhost:\d+\/$/);
       }
     });
 
     test("màn phòng ban chỉ CEO mở được", async ({ page }) => {
       await page.goto("/departments");
-      expect(await screenLoaded(page)).toBe(MANAGES_ORG[role]);
+      if (MANAGES_ORG[role]) {
+        await expect(page).toHaveURL(/\/departments$/);
+        expect(await screenLoaded(page)).toBe(true);
+      } else {
+        await expect(page).toHaveURL(/localhost:\d+\/$/);
+      }
     });
   });
 }
