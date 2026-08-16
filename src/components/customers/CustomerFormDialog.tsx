@@ -3,12 +3,14 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { Button } from "@/components/ui/Button";
 import { Combobox } from "@/components/ui/Combobox";
 import { Dialog } from "@/components/ui/Dialog";
+import { ErrorState } from "@/components/ui/ErrorState";
 import { Select } from "@/components/ui/Select";
+import { SkeletonText } from "@/components/ui/Skeleton";
 import { TextField } from "@/components/ui/TextField";
 import { fetchChannels } from "@/lib/api/channelCatalog";
 import { createCustomer, CustomerForm, updateCustomer, type Customer } from "@/lib/api/customers";
@@ -24,6 +26,14 @@ type Props = {
   customer?: Customer | null;
   /** Chỉ gọi khi TẠO MỚI thành công — không gọi khi sửa. */
   onCreated?: (customer: Customer) => void;
+  /**
+   * Đang tải hồ sơ để sửa (P-40 chỉ có dòng tóm tắt): dialog mở NGAY với
+   * skeleton, form nhận dữ liệu qua `values` khi tải xong — một vỏ Dialog
+   * duy nhất, không mở dialog thứ hai.
+   */
+  loading?: boolean;
+  /** Tải hồ sơ hỏng — hiện ErrorState kèm nút thử lại NGAY TRONG dialog. */
+  loadError?: { onRetry: () => void; retrying: boolean } | null;
 };
 
 const emptyForm: CustomerForm = {
@@ -54,10 +64,21 @@ const toForm = (c: Customer): CustomerForm => ({
 });
 
 /** P-41 · Tạo / sửa khách hàng — tên không ràng buộc định dạng, CCCD chặn trùng. */
-export function CustomerFormDialog({ open, onClose, customer, onCreated }: Props) {
+export function CustomerFormDialog({
+  open,
+  onClose,
+  customer,
+  onCreated,
+  loading = false,
+  loadError = null,
+}: Props) {
   const queryClient = useQueryClient();
-  const editing = Boolean(customer);
+  const editing = Boolean(customer) || loading || Boolean(loadError);
   const maskedId = Boolean(customer?.idNumberMasked);
+
+  // `values` để form nhận hồ sơ tải xong SAU khi dialog đã mở (luồng nút Sửa ở
+  // P-40). Memo theo `customer` — mỗi render một object mới là form reset liên tục.
+  const formValues = useMemo(() => (customer ? toForm(customer) : undefined), [customer]);
 
   const {
     register,
@@ -69,6 +90,7 @@ export function CustomerFormDialog({ open, onClose, customer, onCreated }: Props
   } = useForm<CustomerForm>({
     resolver: zodResolver(CustomerForm),
     defaultValues: customer ? toForm(customer) : emptyForm,
+    values: formValues,
   });
 
   const { fields, append, remove } = useFieldArray({ control, name: "phones" });
@@ -143,12 +165,27 @@ export function CustomerFormDialog({ open, onClose, customer, onCreated }: Props
           <Button variant="secondary" onClick={onClose}>
             Huỷ
           </Button>
-          <Button type="submit" form="customer-form" disabled={isSubmitting || save.isPending}>
+          <Button
+            type="submit"
+            form="customer-form"
+            disabled={loading || Boolean(loadError) || isSubmitting || save.isPending}
+          >
             {editing ? "Lưu" : "Tạo khách hàng"}
           </Button>
         </>
       }
     >
+      {loading && <SkeletonText lines={6} label="Đang tải hồ sơ khách" />}
+      {/* Thiếu nhánh này thì tải hỏng ra hộp thoại RỖNG: không chữ, không nút thử lại. */}
+      {!loading && loadError && (
+        <ErrorState
+          what="hồ sơ khách hàng này"
+          onRetry={loadError.onRetry}
+          retrying={loadError.retrying}
+        />
+      )}
+
+      {!loading && !loadError && (
       <form
         id="customer-form"
         className={styles.form}
@@ -333,6 +370,7 @@ export function CustomerFormDialog({ open, onClose, customer, onCreated }: Props
             </Button>
           </fieldset>
       </form>
+      )}
     </Dialog>
   );
 }

@@ -3,7 +3,7 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Briefcase, Gift, Landmark, Plus, Users } from "lucide-react";
+import { Briefcase, Gift, Landmark, Pencil, Plus, Users } from "lucide-react";
 import type { DateRange } from "react-day-picker";
 import { SkeletonTable } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
@@ -22,7 +22,12 @@ import { SearchField } from "@/components/ui/SearchField";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { Select } from "@/components/ui/Select";
 import { fetchChannels } from "@/lib/api/channelCatalog";
-import { fetchCustomers, type CustomerQuery, type CustomerRow } from "@/lib/api/customers";
+import {
+  fetchCustomerDetail,
+  fetchCustomers,
+  type CustomerQuery,
+  type CustomerRow,
+} from "@/lib/api/customers";
 import { EMPTY_PAGE, PAGE_SIZE } from "@/lib/api/pagination";
 import { formatDate, formatPhone } from "@/lib/format";
 import { useDebouncedValue } from "@/lib/hooks";
@@ -44,6 +49,31 @@ const FIRST_PAGE: CustomerQuery = {
 };
 
 /**
+ * Nút Sửa mở dialog NGAY — bảng chỉ có dòng tóm tắt nên hồ sơ đầy đủ tải bên
+ * trong dialog: đang tải hiện skeleton, hỏng hiện nút thử lại ngay trong modal
+ * (cùng lối với GiftGivingDialog).
+ */
+function EditCustomerDialog({ id, onClose }: { id: string; onClose: () => void }) {
+  const { data, isPending, isError, refetch, isFetching } = useQuery({
+    queryKey: ["customer", id],
+    queryFn: () => fetchCustomerDetail(id),
+    // Không refetch khi quay lại cửa sổ: form đồng bộ theo `values` — refetch
+    // giữa chừng là form reset mất chữ đang gõ.
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+  });
+  return (
+    <CustomerFormDialog
+      open
+      customer={data?.customer ?? null}
+      loading={isPending}
+      loadError={isError ? { onRetry: () => void refetch(), retrying: isFetching } : null}
+      onClose={onClose}
+    />
+  );
+}
+
+/**
  * P-40 · Danh sách khách hàng — không áp phạm vi, ai đăng nhập cũng thấy hết.
  *
  * Tìm, lọc, sắp và cắt trang đều do máy chủ làm (AGENTS.md §5.1). Màn này chỉ
@@ -54,6 +84,7 @@ export default function CustomersPage() {
   const user = useSession((s) => s.user);
   const [query, setQuery] = useState<CustomerQuery>(FIRST_PAGE);
   const [creating, setCreating] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [givingGiftTo, setGivingGiftTo] = useState<CustomerRow | null>(null);
   const [openingBankFor, setOpeningBankFor] = useState<CustomerRow | null>(null);
   const [loggingServiceFor, setLoggingServiceFor] = useState<CustomerRow | null>(null);
@@ -148,11 +179,21 @@ export default function CustomersPage() {
               <Briefcase size={16} />
               Ghi dịch vụ
             </Button>
+            {can(user, "customer", "update") && (
+              <Button
+                variant="secondary"
+                icon
+                aria-label={`Sửa khách hàng ${c.fullName}`}
+                onClick={() => setEditingId(c.id)}
+              >
+                <Pencil size={16} aria-hidden />
+              </Button>
+            )}
           </span>
         ),
       },
     ],
-    [],
+    [user],
   );
 
   return (
@@ -268,6 +309,8 @@ export default function CustomersPage() {
         )}
 
         {creating && <CustomerFormDialog open onClose={() => setCreating(false)} />}
+
+        {editingId && <EditCustomerDialog id={editingId} onClose={() => setEditingId(null)} />}
 
         {givingGiftTo && (
           <GiftGivingDialog
