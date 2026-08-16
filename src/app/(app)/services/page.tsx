@@ -1,6 +1,7 @@
 "use client";
 
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Briefcase, Pencil, Plus, Trash2 } from "lucide-react";
 import { SkeletonTable } from "@/components/ui/Skeleton";
@@ -143,10 +144,26 @@ export default function ServicesPage() {
         sortable: true,
         render: (r) => formatDate(r.date),
       },
-      { key: "customerName", label: "Khách hàng", render: (r) => r.customerName },
+      {
+        key: "customerName",
+        label: "Khách hàng",
+        render: (r) => (
+          <Link href={`/customers/${r.customerId}`} className={styles.nameLink}>
+            {r.customerName}
+          </Link>
+        ),
+      },
       { key: "serviceTypeName", label: "Loại dịch vụ", render: (r) => r.serviceTypeName },
       { key: "wardName", label: "Xã", render: (r) => r.wardName ?? "—" },
-      { key: "createdByName", label: "Người thực hiện", render: (r) => r.createdByName },
+      {
+        key: "createdByName",
+        label: "Người thực hiện",
+        render: (r) => (
+          <Link href={`/users/${r.createdById}`} className={styles.nameLink}>
+            {r.createdByName}
+          </Link>
+        ),
+      },
       { key: "note", label: "Ghi chú", render: (r) => r.note || "—" },
       ...(canEdit || canRemove
         ? [

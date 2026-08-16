@@ -139,6 +139,7 @@ const decorate = (page: ReturnType<typeof pickPage>) =>
   db
     .select({
       id: page.id,
+      customerId: page.customerId,
       customerName: customers.fullName,
       serviceTypeId: page.serviceTypeId,
       serviceTypeName: serviceTypes.name,

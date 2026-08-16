@@ -17,6 +17,7 @@ import { pageOf, pageParams, type Page, type PageQuery } from './pagination';
 
 export const ServiceRow = z.object({
   id: z.string(),
+  customerId: z.string(),
   customerName: z.string(),
   serviceTypeId: z.string(),
   serviceTypeName: z.string(),
