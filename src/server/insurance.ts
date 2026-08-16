@@ -27,7 +27,12 @@ import {
 } from "@/lib/api/insuranceOrders";
 import type { Page } from "@/lib/api/pagination";
 import { businessDay, businessMonth } from "@/lib/format";
-import { can, recordVisibility, type RecordVisibility } from "@/lib/permissions";
+import {
+  can,
+  recordInScope,
+  recordVisibility,
+  type RecordVisibility,
+} from "@/lib/permissions";
 import { InsuranceProduct, isRealIsoDate, type User } from "@/lib/types";
 import { db } from "./db/client";
 import {
@@ -100,24 +105,7 @@ const scopeWhere = (v: RecordVisibility): SQL | undefined => {
   }
 };
 
-const inScope = (
-  v: RecordVisibility,
-  row: { createdById: string | null; createdByDepartmentId: string | null },
-): boolean => {
-  switch (v.kind) {
-    case "all":
-      return true;
-    case "departments":
-      return (
-        row.createdByDepartmentId !== null &&
-        v.departmentIds.includes(row.createdByDepartmentId)
-      );
-    case "creator":
-      return row.createdById === v.userId;
-    default:
-      return false;
-  }
-};
+const inScope = recordInScope;
 
 /**
  * Ai nhìn thấy một đơn bảo hiểm — HỢP của bốn đường, không phải một trục.
@@ -378,6 +366,7 @@ const toRow = (r: DecoratedRow): InsuranceListRow => ({
   endDate: r.endDate,
   createdById: r.createdById,
   createdByName: r.createdByName,
+  createdByDepartmentId: r.createdByDepartmentId,
   handledById: r.handledById,
   handledByName: r.handledByName,
   certificatePhotoUrl: r.certificatePhotoUrl,
@@ -855,6 +844,20 @@ export async function setInsuranceOrderStatus(
   const claimable = current.status === CLAIMABLE_STATUS;
   if (!claimable && !canSeeOrder(actor, current)) return null;
 
+  /**
+   * Hoàn thành thì PHẢI có ảnh chứng nhận (chốt 2026-08-16).
+   *
+   * Hệ thống không nối PVI để tải file gốc, nên tấm ảnh là bằng chứng DUY NHẤT
+   * cho việc hợp đồng đã phát hành. Mà `done` là trạng thái cuối: đơn ở đó thì
+   * không sửa cũng không huỷ được nữa. Đánh dấu xong mới phát hiện thiếu ảnh là
+   * không còn đường lùi.
+   */
+  if (next === "done" && !current.certificatePhotoUrl)
+    return {
+      ok: false,
+      message: "Phải đính ảnh chứng nhận bảo hiểm trước khi đánh dấu hoàn thành.",
+    };
+
   const from = STEP_FROM[next];
 
   const updated = await db
@@ -912,7 +915,21 @@ export async function setCertificatePhoto(
 
   const current = await rawById(id);
   if (!current) return null;
-  if (!inScope(byUpdate, current) && !inScope(byFallback, current)) return null;
+
+  /**
+   * Người ĐANG CẦM đơn cũng đính được ảnh, dù đơn do người khác lập.
+   *
+   * Hàng chờ làm tay là kho chung nên người nhận đơn hầu như không bao giờ là
+   * người lập nó. Xét mỗi `created_by` thì đúng nhóm phải đính tờ chứng nhận
+   * lấy về từ PVI (spec §9.2) lại là nhóm không đính được — và từ khi bước
+   * "Đánh dấu hoàn thành" đòi ảnh, họ không hoàn thành nổi đơn nào.
+   *
+   * Cùng lối với `canSeeOrder`, chỉ khác là ĐÃ NHẬN mới tính: đơn còn nằm trong
+   * kho chung thì ai cũng thấy, nhưng phải nhận về rồi mới ghi được vào nó.
+   */
+  const handling =
+    current.handledById === actor.id && can(actor, "insurance", "handle-fallback");
+  if (!handling && !inScope(byUpdate, current) && !inScope(byFallback, current)) return null;
 
   await db
     .update(insuranceOrders)

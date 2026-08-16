@@ -3,7 +3,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Pencil, Plus, ShieldCheck, Trash2 } from "lucide-react";
+import { HandHelping, Pencil, Plus, ShieldCheck, Trash2 } from "lucide-react";
 import type { DateRange } from "react-day-picker";
 import { SkeletonTable } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
@@ -25,6 +25,7 @@ import { InsuranceOrderEditDialog } from "@/components/insurance/InsuranceOrderE
 import {
   deleteInsuranceOrder,
   fetchInsuranceOrders,
+  setInsuranceOrderStatus,
   type InsuranceListRow,
 } from "@/lib/api/insurance";
 import { INSURANCE_STATUS_LABEL, InsuranceOrderStatus } from "@/lib/api/insuranceOrders";
@@ -32,7 +33,7 @@ import { EMPTY_PAGE, PAGE_SIZE, type SortDir } from "@/lib/api/pagination";
 import { fetchStaffOptions } from "@/lib/api/staff";
 import { formatDate } from "@/lib/format";
 import { useDebouncedValue } from "@/lib/hooks";
-import { can } from "@/lib/permissions";
+import { can, recordInScope, recordVisibility } from "@/lib/permissions";
 import { invalidateKpi } from "@/lib/invalidateKpi";
 import { errorMessage, toast } from "@/lib/toast";
 import { InsuranceProduct, PRODUCT_LABEL } from "@/lib/types";
@@ -71,17 +72,25 @@ export default function InsurancePage() {
    *
    * Gom từ dòng thì ô chọn chỉ có những người tình cờ nằm ở trang đang xem —
    * lọc theo người thứ 16 trở đi là không chọn được.
+   *
+   * Màn này KHÔNG ẩn ô lọc như P-21/P-31 (chốt 2026-08-16). Nhân viên xem được
+   * đơn ngoài phần mình nhưng không đọc nổi danh bạ, nên vẫn cần tách "đơn tôi
+   * làm" khỏi phần còn lại — với nhóm đó ô lọc rút còn Tất cả · Của tôi.
    */
+  const canPickAnyStaff = can(user, "staff", "view-detail");
+
   const { data: staff = [] } = useQuery({
     queryKey: ["staff", "options", "active"],
     queryFn: () => fetchStaffOptions({ status: "active" }),
     retry: false,
     staleTime: Infinity,
+    enabled: canPickAnyStaff,
   });
-  const staffOptions = useMemo(
-    () => staff.map((s) => ({ value: s.id, label: s.fullName })),
-    [staff],
-  );
+  /** Cũng là nguồn của nhãn trên thẻ lọc bên dưới — hai chỗ phải đọc một danh sách. */
+  const staffOptions = useMemo(() => {
+    if (canPickAnyStaff) return staff.map((s) => ({ value: s.id, label: s.fullName }));
+    return user ? [{ value: user.id, label: "Của tôi" }] : [];
+  }, [canPickAnyStaff, staff, user]);
 
   const from = range?.from ? iso(range.from) : "";
   const to = range?.to ? iso(range.to) : "";
@@ -111,6 +120,26 @@ export default function InsurancePage() {
   });
 
   const queryClient = useQueryClient();
+
+  /**
+   * Nhận đơn từ hàng chờ ngay tại bảng, không phải mở P-14.
+   *
+   * Hàng chờ làm tay là kho chung và người trực nhặt đơn liên tục — bắt mở
+   * từng đơn rồi quay lại là mất chỗ đang cuộn sau mỗi lượt nhặt.
+   *
+   * KHÔNG đưa "Đánh dấu hoàn thành" ra đây: bước đó đòi ảnh chứng nhận, mà ô
+   * đính ảnh nằm ở P-14. Nút ngoài bảng chỉ có thể báo lỗi rồi bảo họ mở đơn.
+   */
+  const claim = useMutation({
+    mutationFn: (row: InsuranceListRow) => setInsuranceOrderStatus(row.id, "manual-progress"),
+    onSuccess: (order) => {
+      queryClient.invalidateQueries({ queryKey: ["insurance-list"] });
+      queryClient.invalidateQueries({ queryKey: ["insurance-detail", order.id] });
+      toast.ok(`Bạn đang xử lý đơn ${order.orderCode}`);
+    },
+    onError: (e) => toast.fail(errorMessage(e, "Không nhận được đơn này.")),
+  });
+
   const remove = useMutation({
     mutationFn: (row: InsuranceListRow) => deleteInsuranceOrder(row.id),
     onSuccess: (_void, row) => {
@@ -135,6 +164,11 @@ export default function InsurancePage() {
   const filtering = Boolean(searchQuery) || activeCount > 0;
   const canEdit = can(user, "insurance", "update");
   const canRemove = can(user, "insurance", "delete");
+  const canHandleFallback = can(user, "insurance", "handle-fallback");
+  // Bọc `useMemo` vì hàm trả về OBJECT mới mỗi lượt gọi — để trần thì bộ nhớ
+  // đệm của `columns` bên dưới hỏng ở mọi lượt render.
+  const editVisible = useMemo(() => recordVisibility(user, "insurance", "update"), [user]);
+  const removeVisible = useMemo(() => recordVisibility(user, "insurance", "delete"), [user]);
 
   const columns = useMemo<RankColumn<InsuranceListRow>[]>(
     () => [
@@ -176,7 +210,7 @@ export default function InsurancePage() {
       },
       { key: "startDate", label: "Hiệu lực từ", render: (r) => formatDate(r.startDate) },
       { key: "createdByName", label: "Người tạo", render: (r) => r.createdByName ?? "—" },
-      ...(canEdit || canRemove
+      ...(canEdit || canRemove || canHandleFallback
         ? [
             {
               key: "actions",
@@ -189,12 +223,39 @@ export default function InsurancePage() {
                * Nút chỉ có icon nên `aria-label` phải kèm mã đơn: giữa mười lăm
                * dòng giống nhau, "Sửa" một mình không nói đang sửa dòng nào.
                */
-              render: (r: InsuranceListRow) =>
-                r.status === "done" ? (
-                  <span className="text-muted">—</span>
-                ) : (
+              render: (r: InsuranceListRow) => {
+                /**
+                 * Hỏi theo TỪNG DÒNG, không chỉ theo module.
+                 *
+                 * Xem và sửa/huỷ là hai ô quyền rời nhau: nhân viên kinh doanh
+                 * xem được đơn cả công ty nhưng chỉ sửa/huỷ đơn mình tạo. Bản
+                 * trước chỉ hỏi `can()` nên nút hiện trên mọi dòng, bấm vào thì
+                 * máy chủ trả 404 — chặn đúng, nhưng người dùng đã bấm rồi.
+                 */
+                const mine = {
+                  edit: canEdit && recordInScope(editVisible, r),
+                  remove: canRemove && recordInScope(removeVisible, r),
+                  /* Hàng chờ là KHO CHUNG — ai có `handle-fallback` cũng nhặt
+                     được, bất kể phòng. Không kẹp phạm vi, đúng như máy chủ. */
+                  claim: canHandleFallback && r.status === "manual-queued",
+                };
+                if (r.status === "done" || (!mine.edit && !mine.remove && !mine.claim))
+                  return <span className="text-muted">—</span>;
+
+                return (
                   <RowActions>
-                    {canEdit && (
+                    {mine.claim && (
+                      <Button
+                        variant="secondary"
+                        icon
+                        aria-label={`Nhận xử lý đơn ${r.orderCode} của ${r.customerName}`}
+                        disabled={claim.isPending}
+                        onClick={() => claim.mutate(r)}
+                      >
+                        <HandHelping size={16} aria-hidden />
+                      </Button>
+                    )}
+                    {mine.edit && (
                       <Button
                         variant="secondary"
                         icon
@@ -204,7 +265,7 @@ export default function InsurancePage() {
                         <Pencil size={16} aria-hidden />
                       </Button>
                     )}
-                    {canRemove && r.source !== "gift" && (
+                    {mine.remove && r.source !== "gift" && (
                       <Button
                         variant="secondary"
                         icon
@@ -215,12 +276,13 @@ export default function InsurancePage() {
                       </Button>
                     )}
                   </RowActions>
-                ),
+                );
+              },
             },
           ]
         : []),
     ],
-    [canEdit, canRemove],
+    [canEdit, canRemove, canHandleFallback, claim, editVisible, removeVisible],
   );
 
   return (

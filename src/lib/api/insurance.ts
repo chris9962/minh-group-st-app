@@ -46,6 +46,12 @@ export const InsuranceListRow = z.object({
   createdById: z.string().nullable(),
   createdByName: z.string().nullable(),
   /**
+   * Phòng của người tạo LÚC TẠO — giao diện cần nó để biết dòng này có nằm
+   * trong phạm vi `managed` của người xem không, tức có hiện nút Sửa/Huỷ hay
+   * không. Xem `recordInScope`.
+   */
+  createdByDepartmentId: z.string().nullable(),
+  /**
    * Người XỬ LÝ TAY (chốt 03/08) — trường khác hẳn `createdBy`. Có giá trị từ
    * lúc bấm "Nhận đơn xử lý"; null với đơn chưa ai cầm.
    */

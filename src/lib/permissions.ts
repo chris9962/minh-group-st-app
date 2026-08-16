@@ -220,6 +220,37 @@ export function recordVisibility(
 }
 
 /**
+ * MỘT bản ghi cụ thể có nằm trong phạm vi này không.
+ *
+ * `recordVisibility` trả phạm vi ở mức module; hàm này áp nó lên từng dòng. Hai
+ * việc khác nhau và phải hỏi cả hai: người xem đơn TOÀN CÔNG TY nhưng chỉ xoá
+ * được đơn MÌNH TẠO là chuyện thường — hai ô quyền rời nhau, `can()` một mình
+ * không phân biệt nổi.
+ *
+ * Máy chủ dùng hàm này để CHẶN, giao diện dùng để ẩn nút. Một hàm cho cả hai
+ * đầu (AGENTS.md §6) — hai bản chép tay là hai chỗ sớm muộn lệch nhau, mà lệch
+ * ở đây nghĩa là nút bấm vào chắc chắn nhận 404.
+ */
+export function recordInScope(
+  visibility: RecordVisibility,
+  row: { createdById: string | null; createdByDepartmentId: string | null },
+): boolean {
+  switch (visibility.kind) {
+    case 'all':
+      return true;
+    case 'departments':
+      return (
+        row.createdByDepartmentId !== null &&
+        visibility.departmentIds.includes(row.createdByDepartmentId)
+      );
+    case 'creator':
+      return row.createdById === visibility.userId;
+    default:
+      return false;
+  }
+}
+
+/**
  * Những chức vụ người này được phép gán cho người khác.
  *
  * ⚠️ Đây là chốt chặn tự nâng quyền (spec mục 10.1). `quản trị người dùng` được
