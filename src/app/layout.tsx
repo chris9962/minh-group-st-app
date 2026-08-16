@@ -26,11 +26,36 @@ export const metadata: Metadata = {
    *
    * `apple` là biểu tượng khi thêm vào màn hình chính iOS — đội KD dùng điện
    * thoại nên đường vào nhanh đó có người dùng thật. Thiếu nó thì iOS chụp màn
-   * hình trang làm biểu tượng.
+   * hình trang làm biểu tượng. iOS đòi ảnh vuông 180×180 và không đọc icon
+   * trong manifest ở bản cũ, nên vẫn phải khai riêng.
    */
   icons: {
-    icon: "/brand/logo.png",
-    apple: "/brand/logo.png",
+    icon: [
+      { url: "/brand/logo.png", sizes: "96x96", type: "image/png" },
+      { url: "/brand/icon-192.png", sizes: "192x192", type: "image/png" },
+    ],
+    apple: { url: "/brand/apple-touch-icon.png", sizes: "180x180" },
+  },
+  /**
+   * Bật chế độ toàn màn hình khi người dùng mở từ màn hình chính iOS — không
+   * có nó thì iOS mở trong Safari kèm thanh địa chỉ.
+   *
+   * `statusBarStyle` giữ `default`: kiểu `black-translucent` đẩy nội dung chui
+   * xuống dưới thanh trạng thái, muốn dùng thì phải chừa `safe-area-inset-top`
+   * ở mọi trang.
+   */
+  appleWebApp: {
+    capable: true,
+    title: "Minh Group ST",
+    statusBarStyle: "default",
+  },
+  /**
+   * `appleWebApp.capable` chỉ sinh thẻ tên mới `mobile-web-app-capable`. iOS
+   * trước bản 17 chỉ đọc tên cũ `apple-mobile-web-app-capable`, nên khai thêm
+   * tay. Có cả hai thẻ là bình thường, không xung đột.
+   */
+  other: {
+    "apple-mobile-web-app-capable": "yes",
   },
 };
 
