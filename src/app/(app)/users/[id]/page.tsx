@@ -90,6 +90,26 @@ const CUSTOMER_COLUMNS: RankColumn<PersonCustomer>[] = [
   },
 ];
 
+/**
+ * Mở chi tiết tài khoản ngân hàng ở tab mới — cùng lý do với `OrderLinkCell`.
+ * Ẩn khi người xem không có quyền xem tài khoản.
+ */
+function AccountLinkCell({ id }: { id: string }) {
+  const user = useSession((s) => s.user);
+  if (!can(user, "banking", "view-detail")) return null;
+  return (
+    <Link
+      href={`/banking/${id}`}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={styles.openLink}
+      aria-label="Mở chi tiết tài khoản ở tab mới"
+    >
+      <SquareArrowOutUpRight size={15} aria-hidden />
+    </Link>
+  );
+}
+
 /** Một hàng một tài khoản — cùng lối với bảng Ngân hàng P-21 (chốt 2026-08-15). */
 const ACCOUNT_COLUMNS: RankColumn<PersonAccount>[] = [
   DATE_COLUMN,
@@ -111,6 +131,7 @@ const ACCOUNT_COLUMNS: RankColumn<PersonAccount>[] = [
         <StatusTag ok={false}>Chưa</StatusTag>
       ),
   },
+  { key: "open", label: "Chi tiết", render: (a) => <AccountLinkCell id={a.id} /> },
 ];
 
 /**
