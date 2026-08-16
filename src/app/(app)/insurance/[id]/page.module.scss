@@ -154,3 +154,62 @@
   color: var(--om-text-3);
   cursor: help;
 }
+
+.photoActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pendingPhoto {
+  position: relative;
+  display: inline-block;
+}
+
+/* Nhãn là CHỮ, không phải chỉ đổi viền — màu không được là kênh truyền đạt
+   duy nhất (AGENTS.md §8). */
+.pendingBadge {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--om-orange);
+  color: var(--om-text-on-accent);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+/* Nút bỏ ảnh nằm góc phải ảnh — cùng khuôn với ô ảnh ở BankAccountPhotos. */
+.photoRemove {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: var(--om-card);
+  color: var(--om-text);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+}
+
+.photoRemove:hover {
+  color: var(--om-orange-mid);
+}
+
+.photoRemove:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Ngón tay ngoài trời cần 44px (AGENTS.md §8); chuột thì giữ nhỏ để không che ảnh. */
+@media (pointer: coarse) {
+  .photoRemove {
+    width: 44px;
+    height: 44px;
+  }
+}
