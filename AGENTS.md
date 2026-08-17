@@ -255,7 +255,14 @@ phải soi là bảng **lớn thêm theo ngày làm việc**: `bank_accounts`,
 
 - **Đúng một hàm kiểm quyền**: `src/lib/permissions.ts`. Mọi màn danh sách, chi tiết, xuất Excel đều qua đó
 - Kiểm ở giao diện chỉ để ẩn/hiện. **Ẩn nút không phải là phân quyền** — máy chủ vẫn phải kiểm lại
-- Hồ sơ **khách hàng** không áp trục phạm vi; chỉ **bản ghi nghiệp vụ** mới áp
+- Hồ sơ **khách hàng** tách ĐỌC với GHI (chốt 2026-08-17). **Đọc, tìm, xuất** mở
+  toàn công ty, không áp phạm vi — spec §2.1b, để hai người không nhập trùng một
+  khách. **Sửa** thì áp phạm vi mức DÒNG như mọi bản ghi nghiệp vụ:
+  `recordVisibility` + `recordInScope`, không phải chỉ `can()`
+- **`can()` không phải điều kiện kiểm tra mức dòng.** Nó trả lời "người này có
+  làm được hành động này không", không trả lời "có làm được lên ĐÚNG bản ghi này
+  không". Mọi đường GHI phải hỏi cả hai; hỏi mỗi `can()` là ai có quyền sửa cũng
+  sửa được bản ghi của cả công ty
 - **Chức vụ KHÔNG phải nguồn quyền.** Nó chỉ là bộ quyền mặc định lúc tạo hồ sơ; quyền thật nằm ở `user_permissions`
 
 ### 6.1 Ngoại lệ duy nhất: màn Tổng quan P-80 đọc chức vụ

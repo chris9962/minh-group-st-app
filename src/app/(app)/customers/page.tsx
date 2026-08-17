@@ -31,7 +31,7 @@ import {
 import { EMPTY_PAGE, PAGE_SIZE } from "@/lib/api/pagination";
 import { formatDate, formatPhone } from "@/lib/format";
 import { useDebouncedValue } from "@/lib/hooks";
-import { can } from "@/lib/permissions";
+import { can, recordInScope, recordVisibility } from "@/lib/permissions";
 import { useSession } from "@/store/session";
 import styles from "./page.module.scss";
 
@@ -118,8 +118,15 @@ export default function CustomersPage() {
   // thì người dùng đi xoá bộ lọc vốn đang trống, thay vì bấm "Thêm khách hàng".
   const filtering = Boolean(debouncedSearch) || activeCount > 0;
 
-  const columns = useMemo<RankColumn<CustomerRow>[]>(
-    () => [
+  const columns = useMemo<RankColumn<CustomerRow>[]>(() => {
+    /**
+     * Phạm vi sửa hồ sơ khách, tính một lần cho cả bảng. `recordVisibility` đã
+     * gọi `can()` bên trong và trả `none` khi không có quyền, nên từng dòng chỉ
+     * cần hỏi `recordInScope`, không cần kiểm hai lớp.
+     */
+    const editScope = recordVisibility(user, "customer", "update");
+
+    return [
       {
         key: "created",
         label: "Ngày tạo",
@@ -179,7 +186,10 @@ export default function CustomersPage() {
               <Briefcase size={16} />
               Ghi dịch vụ
             </Button>
-            {can(user, "customer", "update") && (
+            {/* Phạm vi mức DÒNG, không phải `can()` mức module: quản lý thấy
+                khách của cả công ty nhưng chỉ sửa được khách phòng mình quản.
+                Cùng hàm với máy chủ ở `updateCustomer` (AGENTS.md §6). */}
+            {recordInScope(editScope, c) && (
               <Button
                 variant="secondary"
                 icon
@@ -193,9 +203,8 @@ export default function CustomersPage() {
           </span>
         ),
       },
-    ],
-    [user],
-  );
+    ];
+  }, [user]);
 
   return (
     <>

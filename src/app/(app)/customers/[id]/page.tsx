@@ -24,7 +24,7 @@ import {
 } from "@/lib/api/customers";
 import { INSURANCE_STATUS_LABEL, INSURANCE_STATUS_TONE } from "@/lib/api/insuranceOrders";
 import { formatDate, formatIdNumber, formatPhone, formatVnd } from "@/lib/format";
-import { can } from "@/lib/permissions";
+import { can, recordInScope, recordVisibility } from "@/lib/permissions";
 import { useSession } from "@/store/session";
 import { errorMessage, toast } from "@/lib/toast";
 import styles from "./page.module.scss";
@@ -194,10 +194,14 @@ export default function CustomerDetailPage({
                 </div>
               </dl>
               <div className={styles.footRow}>
-                {/* Ẩn nút khi máy chủ sẽ từ chối — bấm xong nhận 403 thì câu báo
-                    lỗi không nói được là "vai của bạn vốn không sửa hồ sơ
-                    khách". Điều kiện phải khớp đúng chốt ở `PATCH /api/customers/[id]`. */}
-                {can(actor, "customer", "update") && (
+                {/* Ẩn nút khi máy chủ sẽ từ chối — bấm xong nhận 404 thì câu báo
+                    lỗi không nói được là "hồ sơ này ngoài phạm vi của bạn".
+                    Phải hỏi phạm vi mức DÒNG, không phải `can()` mức module:
+                    điều kiện này khớp đúng điều kiện ở `updateCustomer`. */}
+                {recordInScope(
+                  recordVisibility(actor, "customer", "update"),
+                  data.customer,
+                ) && (
                   <Button variant="secondary" onClick={() => setEditing(true)}>
                     Sửa thông tin
                   </Button>

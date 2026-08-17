@@ -48,6 +48,9 @@ export const Customer = z.object({
   channelDetail: z.string(),
   /** Ngày tạo hồ sơ, YYYY-MM-DD — dùng để lọc ở P-40 (hôm nay/tháng này/khoảng ngày). */
   createdAt: z.string(),
+  /** Xem chú thích cùng tên ở `CustomerRow` — hai trường này để ẩn nút Sửa. */
+  createdById: z.string().nullable(),
+  createdByDepartmentId: z.string().nullable(),
 });
 export type Customer = z.infer<typeof Customer>;
 
@@ -66,6 +69,13 @@ export const CustomerRow = z.object({
   channel: z.string(),
   createdAt: z.string(),
   createdByName: z.string(),
+  /**
+   * Hai trường dưới KHÔNG hiện lên màn. Chúng để giao diện gọi `recordInScope`
+   * mà ẩn nút Sửa đúng dòng — sửa hồ sơ khách áp phạm vi mức dòng, còn đọc thì
+   * không (AGENTS.md §6).
+   */
+  createdById: z.string().nullable(),
+  createdByDepartmentId: z.string().nullable(),
   primaryPhone: z.string(),
 });
 export type CustomerRow = z.infer<typeof CustomerRow>;

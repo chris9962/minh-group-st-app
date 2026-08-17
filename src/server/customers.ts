@@ -15,7 +15,7 @@ import { GIFT_DECLINED, GIFT_DECLINED_LABEL } from "@/lib/api/customers";
 import type { Page } from "@/lib/api/pagination";
 import type { PageArgs } from "./pagination";
 import { BUSINESS_TIMEZONE, digitsOnly } from "@/lib/format";
-import { can, recordVisibility, type RecordVisibility } from "@/lib/permissions";
+import { can, recordInScope, recordVisibility, type RecordVisibility } from "@/lib/permissions";
 import type { GiftSimulateResult } from "@/lib/api/settings";
 import { isRealIsoDate, type User } from "@/lib/types";
 import { db, uniqueViolationOf } from "./db/client";
@@ -160,6 +160,7 @@ const pickPage = (where: SQL | undefined, orderBy: SQL[], limit: number, offset:
       giftBasket: customers.giftBasket,
       channelId: customers.channelId,
       createdBy: customers.createdBy,
+      createdByDepartmentId: customers.createdByDepartmentId,
       // Cột tính bằng `sql` nằm trong truy vấn con thì BẮT BUỘC có bí danh —
       // không có thì câu ngoài không gọi tên nó được, drizzle ném lỗi lúc dựng.
       createdAt: createdDayText.as("created_day"),
@@ -232,6 +233,13 @@ function decorate(page: ReturnType<typeof pickPage>) {
       channel: sql<string>`coalesce(${channels.name}, '')`,
       createdAt: page.createdAt,
       createdByName: sql<string>`coalesce(${users.fullName}, '')`,
+      /**
+       * Hai cột dưới KHÔNG hiện ở màn nào — chúng để giao diện ẩn nút Sửa đúng
+       * dòng, dùng chung `recordInScope` với máy chủ (AGENTS.md §6). Hai bản
+       * chép tay là hai chỗ sớm muộn lệch nhau.
+       */
+      createdById: page.createdBy,
+      createdByDepartmentId: page.createdByDepartmentId,
       primaryPhone: sql<string>`coalesce(${phone.number}, '')`,
     })
     .from(page)
@@ -387,6 +395,8 @@ async function customerById(id: string, actor: User): Promise<Customer | null> {
       channel: sql<string>`coalesce(${channels.name}, '')`,
       channelDetail: customers.channelDetail,
       createdAt: createdDayText,
+      createdById: customers.createdBy,
+      createdByDepartmentId: customers.createdByDepartmentId,
     })
     .from(customers)
     .leftJoin(channels, eq(channels.id, customers.channelId))
@@ -500,6 +510,29 @@ export async function updateCustomer(
   id: string,
   form: CustomerForm,
 ): Promise<CustomerOutcome<Customer> | null> {
+  /**
+   * Phạm vi mức DÒNG — khác `can()` ở route.
+   *
+   * `can()` chỉ trả lời "người này có sửa hồ sơ khách được không". Câu còn
+   * thiếu là "có sửa được ĐÚNG hồ sơ này không": nhân viên sửa khách mình tạo,
+   * quản lý sửa khách của phòng mình quản (spec §1.1.2).
+   *
+   * Chỉ áp cho GHI. Đọc, tìm và xuất vẫn mở toàn công ty (spec §2.1b) — siết cả
+   * hai đầu là hai người nhập trùng một khách mà không ai thấy.
+   *
+   * Trả `null` để route ra 404, không ra 403: 403 xác nhận id đó có thật.
+   */
+  const [owner] = await db
+    .select({
+      createdById: customers.createdBy,
+      createdByDepartmentId: customers.createdByDepartmentId,
+    })
+    .from(customers)
+    .where(eq(customers.id, id))
+    .limit(1);
+  if (!owner) return null;
+  if (!recordInScope(recordVisibility(actor, "customer", "update"), owner)) return null;
+
   const full = seesIdNumber(actor);
 
   const result = await writeGuarded(async () => {
