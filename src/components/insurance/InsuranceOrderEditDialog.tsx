@@ -109,6 +109,23 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId }: Props) {
 
   const { errors } = form.formState;
 
+  /**
+   * Máy chủ giấu CCCD với người không có phần trong đơn, nên ô này nạp rỗng.
+   * Để ô mở là nói sai rằng đơn thiếu dữ liệu, và người sửa gõ số mới đè lên
+   * số họ chưa từng thấy — máy chủ bỏ qua giá trị đó, nhưng họ tưởng đã lưu.
+   */
+  const idField = data?.beneficiaryIdNumberHidden ? (
+    <TextField
+      label="CCCD"
+      value="Đã ẩn"
+      readOnly
+      disabled
+      hint="Nhận đơn về xử lý thì mới xem và sửa được số này."
+    />
+  ) : (
+    <TextField label="CCCD" {...form.register("beneficiaryIdNumber")} />
+  );
+
   return (
     <Dialog
       open={open}
@@ -241,11 +258,11 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId }: Props) {
             {/* Đơn BH xe máy không hỏi ngày sinh — định danh bằng GPLX/biển số,
                 PVI không hỏi trường này (spec P-10). */}
             {motorbike ? (
-              <TextField label="CCCD" {...form.register("beneficiaryIdNumber")} />
+              idField
             ) : (
               <div className={styles.pair}>
                 <TextField label="Ngày sinh" type="date" {...form.register("beneficiaryDob")} />
-                <TextField label="CCCD" {...form.register("beneficiaryIdNumber")} />
+                {idField}
               </div>
             )}
             <TextField label="Số điện thoại" {...form.register("beneficiaryPhone")} />

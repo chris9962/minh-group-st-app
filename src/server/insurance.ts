@@ -747,7 +747,16 @@ export async function updateInsuranceOrder(
       endDate: form.endDate,
       beneficiaryName: form.beneficiaryName,
       beneficiaryDob: form.beneficiaryDob || null,
-      beneficiaryIdNumber: form.beneficiaryIdNumber,
+      /**
+       * CCCD chỉ ghi đè khi người sửa ĐANG XEM ĐƯỢC nó.
+       *
+       * `toOrder` trả chuỗi rỗng cho người không có phần trong đơn, nên form của
+       * họ nạp ô CCCD rỗng rồi gửi rỗng ngược lên. Ghi thẳng là xoá số trên hợp
+       * đồng đã ký, và không có bản sao nào để lấy lại.
+       */
+      ...(seesBeneficiaryId(actor, current)
+        ? { beneficiaryIdNumber: form.beneficiaryIdNumber }
+        : {}),
       beneficiaryPhone: form.beneficiaryPhone,
       beneficiaryAddress: form.beneficiaryAddress,
       householdSize: form.householdSize,
