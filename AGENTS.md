@@ -144,9 +144,17 @@ Quy tắc:
   - Font chỉ có một nét thì **hạ `font-weight` vô tác dụng** — không có nét nhẹ
     hơn để chọn, trình duyệt cũng không tự làm mảnh chữ. Thấy chữ dày quá thì
     xem lại họ font trước, đừng loay hoay với số weight.
-- **Chữ trên nền cam dùng `--om-text-on-accent`**, không dùng `--om-bg`/`--color-bg`.
-  Token này là `#ffffff` ở cả hai bộ màu; lấy màu nền trang thì bộ tối cho ra
-  chữ xanh đêm trên nền cam.
+- **Chữ trên nền cam dùng `--om-text-on-accent`**, không dùng `--om-bg`/`--color-bg`
+  và cũng không gõ `#fff`. Token này **KHÁC NHAU giữa hai bộ màu** (chốt
+  2026-08-17): `#ffffff` ở bộ sáng, `#25150a` ở bộ tối. Cam của bộ tối sáng hơn
+  hẳn nên chữ trắng chỉ được 2,80:1, còn lúc di chuột thì 2,26:1 — dưới ngưỡng
+  WCAG AA 4,5:1. Làm cam tối lại là mất màu nhấn của cả bộ, nên đổi màu chữ.
+- **Nền chip nằm trên nền cam dùng `--om-accent-chip`.** Lớp phủ đổi CHIỀU theo
+  bộ màu: bộ sáng phủ đen 18% cho chữ trắng đọc được, bộ tối phủ trắng 45% cho
+  mực tối đọc được. Phủ nhầm chiều là 2,17:1.
+- **Kiểm lại bằng `/contrast`** sau mỗi lần đụng bộ màu. Trang đó vẽ thành phần
+  thật rồi đo bằng `getComputedStyle`, đủ cả hai bộ màu — nhanh hơn và đúng hơn
+  là tính tay.
 - Không thêm Tailwind, không thêm thư viện component có style riêng — sẽ thành hai hệ thống
 
 ## 4. Kiểu dữ liệu

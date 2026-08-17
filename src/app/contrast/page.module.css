@@ -1,0 +1,145 @@
+/*
+  Trang này nằm NGOÀI nhóm route `(app)` nên không có `AppShell`, mà `AppShell`
+  mới là thứ giữ khung cuộn của app. `globals.css` khoá `overflow: hidden` trên
+  html/body từ 901px trở lên, nên trang phải tự dựng khung cuộn của mình —
+  thiếu đoạn này thì nội dung dài hơn màn hình không cuộn được.
+*/
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  height: 100dvh;
+  overflow-y: auto;
+  padding: var(--space-6);
+  background: var(--om-bg);
+  color: var(--om-text);
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.lead {
+  max-width: 70ch;
+  margin: 0;
+  color: var(--om-text-2);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.sectionTitle {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3);
+  border: 1px solid var(--om-line);
+  border-radius: var(--radius-md);
+  background: var(--om-card);
+}
+
+.sampleWrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.sampleLabel {
+  color: var(--om-text-2);
+  font-size: 12px;
+}
+
+/* Ô nhập và chú thích của nó nằm trên NỀN TRANG khi ở trong hộp thoại, không
+   nằm trên thẻ trắng. Đặt sai nền là đo ra số dễ hơn thực tế. */
+.onPageBg {
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--om-bg);
+}
+
+.swatchBox {
+  display: inline-block;
+  padding: 8px 14px;
+  border-radius: var(--radius-md);
+}
+
+.verdict {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.ratio {
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.need {
+  color: var(--om-text-2);
+  font-size: 12px;
+}
+
+/* Chữ "đạt" / "không đạt" đi kèm luôn, không để màu tự nói (AGENTS.md §8). */
+.mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.pass {
+  background: var(--om-green-soft);
+  color: var(--om-green-ink);
+}
+
+.fail {
+  background: var(--om-orange-soft);
+  color: var(--om-orange-ink);
+}
+
+.colors {
+  color: var(--om-text-3);
+  font-size: 11px;
+}
+
+@media (max-width: 700px) {
+  .row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

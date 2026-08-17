@@ -28,10 +28,14 @@
 
   --om-text: #201e1d;      /* chữ chính */
   --om-text-2: #645c50;    /* chữ phụ */
-  --om-text-3: #82796a;    /* chữ mờ */
+  --om-text-3: #776f61;    /* chữ mờ — 4.56:1 trên nền trang, đừng làm nhạt hơn */
   --om-text-on-accent: #ffffff;
+  /* Nền chip đếm nằm TRÊN nền cam. Bộ sáng phủ đen cho chữ trắng đọc được;
+     bộ tối phủ trắng vì ở đó chữ trên nền cam là mực tối. Phủ nhầm chiều là
+     chip sáng lên mà chữ vẫn trắng — cặp đó chỉ được 2,80:1. */
+  --om-accent-chip: rgb(0 0 0 / 18%);
 
-  --om-orange: #d95328;       /* nút chính, số nhấn, thanh tiến độ */
+  --om-orange: #ca4d25;       /* nút chính, số nhấn, thanh tiến độ — 4.57:1 với chữ trắng */
   --om-orange-mid: #bf4420;   /* di chuột / nhấn giữ */
   --om-orange-ink: #963317;   /* chữ trên nền cam nhạt */
   --om-orange-strong: #6b230f;
@@ -142,7 +146,11 @@
   --om-text: #eef2f8;
   --om-text-2: #a9b6c9;
   --om-text-3: #7e8da3;
-  --om-text-on-accent: #ffffff;
+  /* Mực TỐI, không phải trắng như bộ sáng. Cam của bộ tối sáng hơn hẳn nên
+     chữ trắng chỉ được 2,80:1, còn lúc di chuột thì 2,26:1. Làm cam tối lại
+     là mất màu nhấn của cả bộ, nên đổi màu chữ. */
+  --om-text-on-accent: #25150a;
+  --om-accent-chip: rgb(255 255 255 / 45%);
 
   --om-orange: #f97316;
   --om-orange-mid: #fb923c;
@@ -345,7 +353,9 @@ textarea.input { min-height: 90px; resize: vertical; }
 .table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .table th {
   text-align: left; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
-  color: color-mix(in srgb, var(--color-text) 60%, transparent);
+  /* Dùng token chữ phụ thay cho color-mix 60% gõ tay: tỉ lệ đó cho 4,40:1 ở
+     bộ sáng, thiếu ngưỡng, mà tiêu đề cột chạy ở mọi bảng qua RankTable. */
+  color: var(--om-text-2);
   padding: var(--space-2); border-bottom: 1px solid var(--color-divider);
 }
 .table td {
