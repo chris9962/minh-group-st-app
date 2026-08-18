@@ -46,6 +46,40 @@ const formatDateTime = (value: string): string =>
     minute: "2-digit",
   }).format(new Date(value));
 
+/** Một cặp nhãn — giá trị. `wide` cho giá trị dài chiếm trọn hàng lưới. */
+function Field({
+  label,
+  wide = false,
+  children,
+}: {
+  label: string;
+  wide?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className={wide ? styles.fieldWide : undefined}>
+      <dt>{label}</dt>
+      <dd>{children}</dd>
+    </div>
+  );
+}
+
+/**
+ * Nhóm trường có tiêu đề.
+ *
+ * Bản trước đổ mười tám trường vào một lưới phẳng, nên người xử lý đơn phải đọc
+ * từng nhãn để tìm biển số xe giữa các trường của người thụ hưởng. Gom theo chủ
+ * thể — đơn, người thụ hưởng, xe — thì mắt nhảy thẳng tới đúng nhóm.
+ */
+function FieldGroup({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className={styles.group}>
+      <h3 className={styles.groupTitle}>{title}</h3>
+      <dl className={styles.fields}>{children}</dl>
+    </section>
+  );
+}
+
 /**
  * Ảnh kèm trạng thái tải.
  *
@@ -252,73 +286,40 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
         {isError && <ErrorState what="đơn bảo hiểm này" onRetry={refetch} retrying={isFetching} />}
 
         {data && (
-          <SectionCard
-            title="Chi tiết đơn bảo hiểm"
-            icon={<ShieldCheck size={17} />}
-            meta={INSURANCE_STATUS_LABEL[data.status]}
-          >
-            <dl className={styles.fields}>
-              <div>
-                <dt>Khách hàng</dt>
-                <dd>
+          <SectionCard title="Chi tiết đơn bảo hiểm" icon={<ShieldCheck size={17} />}>
+            <div className={styles.detail}>
+              <div className={styles.summary}>
+                {/* Mã đơn là ĐỊNH DANH, không phải tiêu đề nhóm — để `h3` thì
+                    nó đứng ngang hàng với "Người thụ hưởng", "Thông tin xe"
+                    trong cây tiêu đề mà không chứa nhóm nào. */}
+                <p className={styles.orderCode}>{data.orderCode}</p>
+                <StatusTag tone={INSURANCE_STATUS_TONE[data.status]}>
+                  {INSURANCE_STATUS_LABEL[data.status]}
+                </StatusTag>
+                <p className={styles.summaryLine}>
                   <Link href={`/customers/${data.customerId}`} className={styles.customerLink}>
                     {data.customerName}
                   </Link>
-                </dd>
+                  {` · ${SOURCE_LABEL[data.source]}`}
+                </p>
               </div>
-              <div>
-                <dt>Mã đơn</dt>
-                <dd>{data.orderCode}</dd>
-              </div>
-              <div>
-                <dt>Trạng thái</dt>
-                <dd>
-                  <StatusTag tone={INSURANCE_STATUS_TONE[data.status]}>
-                    {INSURANCE_STATUS_LABEL[data.status]}
-                    {data.handledByName ? ` · ${data.handledByName}` : ""}
-                  </StatusTag>
-                </dd>
-              </div>
-              <div>
-                <dt>Sản phẩm</dt>
-                <dd>{PRODUCT_LABEL[data.product]}</dd>
-              </div>
-              <div>
-                <dt>Gói</dt>
-                <dd>{data.packageName}</dd>
-              </div>
-              <div>
-                <dt>Mức phí</dt>
-                <dd>{formatVnd(data.fee)}</dd>
-              </div>
-              <div>
-                {/* Ngày TẠO đơn — thứ quyết định đơn này tính vào tháng nào. */}
-                <dt>Ngày tạo đơn</dt>
-                <dd>{formatDate(data.orderDate)}</dd>
-              </div>
-              <div>
-                <dt>Hiệu lực từ</dt>
-                <dd>{formatDate(data.startDate)}</dd>
-              </div>
-              <div>
-                <dt>Ngày kết thúc</dt>
-                <dd>{formatDate(data.endDate)}</dd>
-              </div>
-              <div>
-                <dt>Nguồn gốc</dt>
-                <dd>{SOURCE_LABEL[data.source]}</dd>
-              </div>
-              <div>
-                <dt>Người thụ hưởng</dt>
-                <dd>{data.beneficiaryName}</dd>
-              </div>
-              <div>
-                <dt>Ngày sinh</dt>
-                <dd>{data.beneficiaryDob ? formatDate(data.beneficiaryDob) : "—"}</dd>
-              </div>
-              <div>
-                <dt>CCCD</dt>
-                <dd>
+
+              {/* Năm giá trị người dùng tra nhiều nhất, tách ra nền riêng: đọc
+                  được ngay mà không phải quét hết danh sách trường bên dưới. */}
+              <dl className={styles.highlights}>
+                <Field label="Sản phẩm">{PRODUCT_LABEL[data.product]}</Field>
+                <Field label="Gói">{data.packageName}</Field>
+                <Field label="Mức phí">{formatVnd(data.fee)}</Field>
+                <Field label="Hiệu lực từ">{formatDate(data.startDate)}</Field>
+                <Field label="Ngày kết thúc">{formatDate(data.endDate)}</Field>
+              </dl>
+
+              <FieldGroup title="Người thụ hưởng">
+                <Field label="Họ tên">{data.beneficiaryName}</Field>
+                <Field label="Ngày sinh">
+                  {data.beneficiaryDob ? formatDate(data.beneficiaryDob) : "—"}
+                </Field>
+                <Field label="CCCD">
                   {/* Ẩn HẲN số, không hiện 4 số cuối: người chưa nhận đơn không
                       có việc gì cần tới nó. Icon kèm lời giải thích để người
                       dùng biết là "chưa được xem", không phải "đơn thiếu dữ
@@ -336,53 +337,41 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                   ) : (
                     "—"
                   )}
-                </dd>
-              </div>
-              <div>
-                <dt>Số điện thoại</dt>
-                <dd>{data.beneficiaryPhone ? formatPhone(data.beneficiaryPhone) : "—"}</dd>
-              </div>
-              <div>
-                <dt>Địa chỉ</dt>
-                <dd>{data.beneficiaryAddress || "—"}</dd>
-              </div>
+                </Field>
+                <Field label="Số điện thoại">
+                  {data.beneficiaryPhone ? formatPhone(data.beneficiaryPhone) : "—"}
+                </Field>
+                <Field label="Địa chỉ" wide>
+                  {data.beneficiaryAddress || "—"}
+                </Field>
+              </FieldGroup>
+
               {data.product === "electric-accident" && (
-                <>
-                  <div>
-                    <dt>Số thành viên</dt>
-                    <dd>{data.householdSize || "—"}</dd>
-                  </div>
-                  <div>
-                    <dt>Số tiền bảo hiểm</dt>
-                    <dd>{data.sumInsured ? formatVnd(data.sumInsured) : "—"}</dd>
-                  </div>
-                </>
+                <FieldGroup title="Quyền lợi bảo hiểm">
+                  <Field label="Số thành viên">{data.householdSize || "—"}</Field>
+                  <Field label="Số tiền bảo hiểm">
+                    {data.sumInsured ? formatVnd(data.sumInsured) : "—"}
+                  </Field>
+                </FieldGroup>
               )}
+
               {data.product === "motorbike" && (
-                <>
-                  <div>
-                    <dt>Biển số xe</dt>
-                    <dd>{data.licensePlate || "—"}</dd>
-                  </div>
-                  <div>
-                    <dt>Loại xe</dt>
-                    <dd>{data.vehicleType ? vehicleTypeLabel(data.vehicleType) : "—"}</dd>
-                  </div>
-                  <div>
-                    <dt>Số khung</dt>
-                    <dd>{data.chassisNumber || "—"}</dd>
-                  </div>
-                  <div>
-                    <dt>Số máy</dt>
-                    <dd>{data.engineNumber || "—"}</dd>
-                  </div>
-                </>
+                <FieldGroup title="Thông tin xe">
+                  <Field label="Biển số xe">{data.licensePlate || "—"}</Field>
+                  <Field label="Loại xe">
+                    {data.vehicleType ? vehicleTypeLabel(data.vehicleType) : "—"}
+                  </Field>
+                  <Field label="Số khung">{data.chassisNumber || "—"}</Field>
+                  <Field label="Số máy">{data.engineNumber || "—"}</Field>
+                </FieldGroup>
               )}
-              <div>
-                <dt>Người tạo</dt>
-                <dd>{data.createdByName ?? "—"}</dd>
-              </div>
-            </dl>
+
+              <FieldGroup title="Ghi nhận">
+                {/* Ngày TẠO đơn — thứ quyết định đơn này tính vào tháng nào. */}
+                <Field label="Ngày tạo đơn">{formatDate(data.orderDate)}</Field>
+                <Field label="Người tạo">{data.createdByName ?? "—"}</Field>
+                <Field label="Người xử lý">{data.handledByName ?? "—"}</Field>
+              </FieldGroup>
 
             <div className={styles.photoSection}>
               <h3 className={styles.photoTitle}>Ảnh chứng nhận bảo hiểm</h3>
@@ -495,6 +484,7 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                   )}
                 </div>
               )}
+            </div>
           </SectionCard>
         )}
 
