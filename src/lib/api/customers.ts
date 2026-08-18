@@ -183,20 +183,26 @@ export const CustomerForm = z.object({
 export type CustomerForm = z.infer<typeof CustomerForm>;
 
 /**
- * Biểu mẫu SỬA hồ sơ — CCCD để trống được (chốt 2026-08-18).
+ * Biểu mẫu SỬA hồ sơ — CCCD và ngày sinh để trống được (chốt 2026-08-18).
  *
- * `CustomerForm` bắt buộc đủ 12 số, đúng cho lúc TẠO. Dùng lại cho lúc SỬA thì
- * người không có `customer:access-id-number` không lưu nổi hồ sơ nào: ô CCCD
- * của họ nạp rỗng và bị khoá, nên không có cách gõ cho đủ 12 số.
+ * `CustomerForm` bắt buộc cả hai, đúng cho lúc TẠO. Dùng lại cho lúc SỬA thì
+ * chặn nhầm hai nhóm khác nhau:
  *
- * Rỗng nghĩa là "không đụng tới CCCD", không phải "xoá CCCD" —
- * `updateCustomer` chỉ ghi cột đó khi giá trị gửi lên khác rỗng.
+ * - CCCD: người không có `customer:access-id-number` nhận ô rỗng và bị khoá
+ *   `readOnly`, nên không có cách gõ cho đủ 12 số. Họ không lưu nổi hồ sơ nào.
+ * - Ngày sinh: hồ sơ lập trước commit `9706473` không có ngày sinh. Sửa những
+ *   hồ sơ đó thì ai cũng bị chặn, kể cả người đủ quyền.
+ *
+ * CCCD rỗng nghĩa là "không đụng tới", không phải "xoá" — `updateCustomer` chỉ
+ * ghi cột đó khi giá trị gửi lên khác rỗng. Ngày sinh thì ngược lại: ai cũng
+ * xem và sửa được ô đó, nên để trống là cố ý xoá, ghi `null` đúng ý người dùng.
  */
 export const CustomerEditForm = CustomerForm.extend({
   idNumber: z.union([
     z.literal(''),
     z.string().trim().refine((v) => /^\d{12}$/.test(v), 'CCCD phải đủ 12 số'),
   ]),
+  dob: z.string(),
 });
 export type CustomerEditForm = z.infer<typeof CustomerEditForm>;
 
