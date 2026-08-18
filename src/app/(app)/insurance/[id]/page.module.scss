@@ -65,15 +65,63 @@
   font-weight: 600;
 }
 
-.photoLink {
+/* Khung giữ chỗ đúng kích thước ảnh. `<img>` chỉ đặt max-width/max-height thì
+   lúc chưa tải xong nó cao 0, tải xong nhảy lên 240px và đẩy nút bên dưới
+   xuống — cùng lý do các trang khác dùng skeleton thay cho chữ "Đang tải…". */
+.photoLink,
+.pendingPhoto {
+  position: relative;
   display: block;
+  width: 320px;
+  max-width: 100%;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--om-line);
+  background: var(--om-soft);
 }
 
 .photo {
-  max-width: 320px;
-  max-height: 240px;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--om-line);
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* Lớp phủ nói bằng CHỮ ảnh đang tải hay đã hỏng — một ô xám im không phân biệt
+   được hai trạng thái đó (AGENTS.md §8). Nhịp thở lấy theo `Skeleton`. */
+.photoStatus {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 8px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--om-text-2);
+  background: var(--om-soft);
+  animation: photoBreathe 1.6s ease-in-out infinite;
+}
+
+.photoStatusFailed {
+  color: var(--om-orange-ink);
+  animation: none;
+}
+
+@keyframes photoBreathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .photoStatus {
+    animation: none;
+  }
 }
 
 .hiddenInput {
@@ -159,11 +207,6 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-}
-
-.pendingPhoto {
-  position: relative;
-  display: inline-block;
 }
 
 /* Nhãn là CHỮ, không phải chỉ đổi viền — màu không được là kênh truyền đạt

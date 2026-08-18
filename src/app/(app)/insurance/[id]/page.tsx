@@ -47,6 +47,41 @@ const formatDateTime = (value: string): string =>
   }).format(new Date(value));
 
 /**
+ * Ảnh kèm trạng thái tải.
+ *
+ * `<img>` không báo gì trong lúc tải: người dùng đổi ảnh xong chỉ thấy một ô
+ * trống và không biết ảnh đang về hay đã hỏng. Ảnh chụp bằng điện thoại vài
+ * MB thì quãng trống này kéo dài thấy rõ.
+ *
+ * Người gọi đặt `key={src}` để trạng thái reset khi đổi ảnh — reset theo prop
+ * bằng `key`, không bằng effect (AGENTS.md §7).
+ */
+function PhotoView({ src, alt }: { src: string; alt: string }) {
+  const [state, setState] = useState<"loading" | "ready" | "failed">("loading");
+
+  return (
+    <>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={src}
+        alt={alt}
+        className={styles.photo}
+        onLoad={() => setState("ready")}
+        onError={() => setState("failed")}
+      />
+      {state !== "ready" && (
+        <span
+          role="status"
+          className={`${styles.photoStatus} ${state === "failed" ? styles.photoStatusFailed : ""}`}
+        >
+          {state === "loading" ? "Đang tải ảnh…" : "Không tải được ảnh"}
+        </span>
+      )}
+    </>
+  );
+}
+
+/**
  * P-14 · Chi tiết đơn bảo hiểm.
  *
  * Gộp luôn P-16 (xử lý đơn lỗi): hai nút "Nhận đơn xử lý" / "Đánh dấu hoàn
@@ -352,8 +387,7 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                   một mình không đủ (AGENTS.md §8). */}
               {pending ? (
                 <div className={styles.pendingPhoto}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={pending.preview} alt="Ảnh vừa chọn" className={styles.photo} />
+                  <PhotoView key={pending.preview} src={pending.preview} alt="Ảnh vừa chọn" />
                   <span className={styles.pendingBadge}>Chưa lưu</span>
                   {/* Nút này không phải component `Button` nên không có prop
                       `tooltip` — dùng `title` của trình duyệt cho cùng tác dụng. */}
@@ -375,11 +409,10 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                   rel="noreferrer"
                   className={styles.photoLink}
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
+                  <PhotoView
+                    key={data.certificatePhotoUrl}
                     src={data.certificatePhotoUrl}
                     alt="Ảnh chứng nhận bảo hiểm"
-                    className={styles.photo}
                   />
                 </a>
               ) : (
