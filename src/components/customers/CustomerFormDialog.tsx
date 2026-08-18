@@ -107,6 +107,8 @@ export function CustomerFormDialog({
   const [provinceId, setProvinceId] = useState("");
   const [wardId, setWardId] = useState("");
   const [hamletId, setHamletId] = useState("");
+  /** Người dùng đã tự chọn lại Tỉnh/Xã/Ấp chưa — xem `channelDetailToSave`. */
+  const [wardTouched, setWardTouched] = useState(false);
   const selectedProvince = provinces.find((p) => p.id === provinceId);
   const selectedWard = selectedProvince?.wards.find((w) => w.id === wardId);
 
@@ -116,13 +118,26 @@ export function CustomerFormDialog({
     enabled: selectedChannel?.inputKind === "hospital",
   });
 
-  // channelDetail của kênh ấp lưu chuỗi TÊN "Tỉnh · Xã · Ấp" (xem onChange của ô
-  // Ấp bên dưới), không lưu ID — nên khi mở form sửa phải tra ngược catalog theo
-  // tên để dựng lại ba ô chọn đã chọn trước đó.
+  /**
+   * channelDetail của kênh ấp lưu chuỗi TÊN "Tỉnh · Xã · Ấp", không lưu ID —
+   * mở form sửa thì phải tra ngược danh mục theo tên để dựng lại ba ô chọn.
+   *
+   * Ba điều kiện quyết định lúc nào được dựng lại:
+   *
+   * - `wardTouched`: người dùng tự bỏ chọn Tỉnh thì ĐỂ YÊN. Bản trước không có
+   *   điều kiện này nên effect dựng lại ngay từ giá trị gốc, và ô Tỉnh không xoá
+   *   được — bỏ chọn xong nó hiện lại y như cũ.
+   * - `provinceId`: đã dựng rồi thì thôi, tránh chạy vòng lặp.
+   * - `channelId === customer.channelId`: đổi ô Kênh đi rồi đổi về đúng kênh cũ
+   *   thì dựng lại lựa chọn đã lưu. Sang kênh khác thì không, vì lựa chọn cũ
+   *   không còn nghĩa.
+   */
   useEffect(() => {
-    if (!editing || provinceId || !customer?.channelDetail) return;
+    if (!editing || !customer?.channelDetail) return;
+    if (wardTouched || provinceId || provinces.length === 0) return;
+    if (channelId !== customer.channelId) return;
     const channel = channels.find((c) => c.id === customer.channelId);
-    if (channel?.inputKind !== "ward-hamlet" || provinces.length === 0) return;
+    if (channel?.inputKind !== "ward-hamlet") return;
 
     const [provinceName, wardName, hamletName] = customer.channelDetail.split(" · ");
     const province = provinces.find((p) => p.name === provinceName);
@@ -133,7 +148,31 @@ export function CustomerFormDialog({
     setProvinceId(province.id);
     if (ward) setWardId(ward.id);
     if (hamlet) setHamletId(hamlet.id);
-  }, [editing, provinceId, customer?.channelId, customer?.channelDetail, channels, provinces]);
+  }, [editing, customer, channelId, wardTouched, provinceId, channels, provinces]);
+
+  /**
+   * Chuỗi kênh ấp SUY RA từ ba ô chọn, tính lúc gửi form — không giữ nó như một
+   * state thứ hai rồi đồng bộ bằng tay.
+   *
+   * Bản trước giữ hai nguồn: ba ô chọn cho phần hiển thị, `channelDetail` cho
+   * phần lưu. Đổi ô Kênh hay ô Tỉnh là xoá chuỗi nhưng ba ô vẫn hiện đủ giá trị
+   * cũ, nên người dùng bấm Lưu mà không biết chuỗi đã rỗng — và cột đó lưu tên
+   * chứ không lưu ID nên mất là mất hẳn.
+   *
+   * Nhánh cuối giữ chuỗi cũ khi người dùng CHƯA chạm ba ô: chúng có thể trống vì
+   * danh mục xã/ấp đổi tên nên tra ngược không ra. Suy chuỗi từ ba ô trống lúc
+   * đó là xoá dữ liệu của một hồ sơ mà người dùng chỉ định sửa số điện thoại.
+   *
+   * Hai loại kênh còn lại giữ nguyên: ô Bệnh viện và ô Chi tiết kênh đọc ghi
+   * thẳng vào `channelDetail`, không có nguồn thứ hai để lệch.
+   */
+  const channelDetailToSave = (form: CustomerForm) => {
+    if (selectedChannel?.inputKind !== "ward-hamlet") return form.channelDetail;
+    const hamlet = selectedWard?.hamlets.find((h) => h.id === hamletId);
+    if (selectedProvince && selectedWard && hamlet)
+      return `${selectedProvince.name} · ${selectedWard.name} · ${hamlet.name}`;
+    return wardTouched ? "" : form.channelDetail;
+  };
 
   const save = useMutation({
     mutationFn: (form: CustomerForm) =>
@@ -189,7 +228,9 @@ export function CustomerFormDialog({
       <form
         id="customer-form"
         className={styles.form}
-        onSubmit={handleSubmit((form) => save.mutate(form))}
+        onSubmit={handleSubmit((form) =>
+          save.mutate({ ...form, channelDetail: channelDetailToSave(form) }),
+        )}
         noValidate
       >
           <TextField
@@ -245,6 +286,9 @@ export function CustomerFormDialog({
             onChange={(v) => {
               setValue("channelId", v, { shouldDirty: true });
               setValue("channelDetail", "", { shouldDirty: true });
+              // Đặt lại, KHÔNG bật: đổi về đúng kênh cũ thì effect dựng lại
+              // lựa chọn đã lưu, người dùng không phải chọn lại ba ô.
+              setWardTouched(false);
               setProvinceId("");
               setWardId("");
               setHamletId("");
@@ -262,10 +306,10 @@ export function CustomerFormDialog({
                 label="Tỉnh/thành phố"
                 value={provinceId}
                 onChange={(v) => {
+                  setWardTouched(true);
                   setProvinceId(v);
                   setWardId("");
                   setHamletId("");
-                  setValue("channelDetail", "", { shouldDirty: true });
                 }}
                 options={[
                   { value: "", label: "— Chọn tỉnh/thành phố —" },
@@ -279,9 +323,9 @@ export function CustomerFormDialog({
                   placeholder="Gõ để tìm xã/phường…"
                   value={wardId}
                   onChange={(v) => {
+                    setWardTouched(true);
                     setWardId(v);
                     setHamletId("");
-                    setValue("channelDetail", "", { shouldDirty: true });
                   }}
                   options={selectedProvince.wards.map((w) => ({ value: w.id, label: w.name }))}
                 />
@@ -292,15 +336,8 @@ export function CustomerFormDialog({
                   label="Ấp"
                   value={hamletId}
                   onChange={(v) => {
+                    setWardTouched(true);
                     setHamletId(v);
-                    const hamlet = selectedWard.hamlets.find((h) => h.id === v);
-                    setValue(
-                      "channelDetail",
-                      hamlet
-                        ? `${selectedProvince?.name} · ${selectedWard.name} · ${hamlet.name}`
-                        : "",
-                      { shouldDirty: true },
-                    );
                   }}
                   options={[
                     { value: "", label: "— Chọn ấp —" },
