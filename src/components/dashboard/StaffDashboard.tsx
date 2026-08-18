@@ -4,7 +4,7 @@ import Link from "next/link";
 import { ChartColumn, Landmark, Target } from "lucide-react";
 import { BarChart } from "@/components/ui/BarChart";
 import { monthLabel } from "@/components/ui/MonthPicker";
-import { ProgressRing } from "@/components/ui/ProgressRing";
+import { KpiScoreBlock } from "@/components/people/KpiScoreBlock";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatCard } from "@/components/ui/StatCard";
 import type { DashboardDraftAccount } from "@/lib/api/dashboard";
@@ -48,46 +48,25 @@ export function StaffDashboard({ person, draftAccounts, periodLabel }: Props) {
           icon={<Target size={17} />}
           meta={person.daysLeft > 0 ? `còn ${person.daysLeft} ngày` : undefined}
         >
-          <div className={styles.score}>
-            <ProgressRing
-              segments={person.pointSources.map((s, i) => ({
-                label: s.label,
-                value: s.points,
-                color: sourceColor(s.label, i),
-              }))}
-              max={person.points.target}
-              ariaLabel={`Điểm ${monthLabel(person.summaryMonth)} trên chỉ tiêu`}
-            />
-            <dl className={styles.scoreFacts}>
-              <div>
-                <dt>Chỉ tiêu</dt>
-                <dd className="tabular-nums">{formatPoints(person.points.target)} điểm</dd>
-              </div>
-              <div>
-                <dt>{person.points.total >= person.points.target ? "Vượt" : "Còn thiếu"}</dt>
-                <dd className="tabular-nums">
-                  {formatPoints(Math.abs(person.points.target - person.points.total))} điểm
-                </dd>
-              </div>
-            </dl>
-          </div>
-
-          <dl className={styles.legend}>
-            {person.pointSources.map((s, i) => (
-              <div key={s.label}>
-                <dt>
-                  <span
-                    className={styles.dot}
-                    style={{ background: sourceColor(s.label, i) }}
-                    aria-hidden
-                  />
-                  {s.label}
-                  <span className={styles.legendDetail}>{s.detail}</span>
-                </dt>
-                <dd className="tabular-nums">{formatPoints(s.points)}</dd>
-              </div>
-            ))}
-          </dl>
+          <KpiScoreBlock
+            sources={person.pointSources}
+            target={person.points.target}
+            ariaLabel={`Điểm ${monthLabel(person.summaryMonth)} trên chỉ tiêu`}
+            facts={
+              <>
+                <div>
+                  <dt>Chỉ tiêu</dt>
+                  <dd className="tabular-nums">{formatPoints(person.points.target)} điểm</dd>
+                </div>
+                <div>
+                  <dt>{person.points.total >= person.points.target ? "Vượt" : "Còn thiếu"}</dt>
+                  <dd className="tabular-nums">
+                    {formatPoints(Math.abs(person.points.target - person.points.total))} điểm
+                  </dd>
+                </div>
+              </>
+            }
+          />
         </SectionCard>
 
         <SectionCard title="Điểm theo tháng" icon={<ChartColumn size={17} />}>

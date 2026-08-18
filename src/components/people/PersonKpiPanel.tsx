@@ -3,7 +3,7 @@
 import { ChartColumn } from "lucide-react";
 import { BarChart } from "@/components/ui/BarChart";
 import { monthLabel } from "@/components/ui/MonthPicker";
-import { ProgressRing } from "@/components/ui/ProgressRing";
+import { KpiScoreBlock } from "@/components/people/KpiScoreBlock";
 import { SectionCard } from "@/components/ui/SectionCard";
 import type { PersonDetail } from "@/lib/api/person";
 import { sourceColor, useChartColors } from "@/lib/chart-colors";
@@ -66,50 +66,29 @@ export function PersonKpiPanel({ person, withKpi }: Props) {
 
         {withKpi && (
           <>
-            <div className={styles.score}>
-              <ProgressRing
-                segments={person.pointSources.map((s, i) => ({
-                  label: s.label,
-                  value: s.points,
-                  color: sourceColor(s.label, i),
-                }))}
-                max={person.points.target}
-                ariaLabel={`Điểm ${monthLabel(person.summaryMonth)} trên chỉ tiêu`}
-              />
-              {/* Hai con số thay cho một câu văn: người xem chỉ cần biết còn
-                  cách chỉ tiêu bao xa và còn bao nhiêu ngày. */}
-              <dl className={styles.scoreFacts}>
-                <div>
-                  <dt>{person.points.total >= person.points.target ? "Vượt" : "Còn thiếu"}</dt>
-                  <dd className="tabular-nums">
-                    {formatPoints(Math.abs(person.points.target - person.points.total))} điểm
-                  </dd>
-                </div>
-                {person.daysLeft > 0 && (
+            <KpiScoreBlock
+              sources={person.pointSources}
+              target={person.points.target}
+              ariaLabel={`Điểm ${monthLabel(person.summaryMonth)} trên chỉ tiêu`}
+              facts={
+                <>
+                  {/* Hai con số thay cho một câu văn: người xem chỉ cần biết còn
+                      cách chỉ tiêu bao xa và còn bao nhiêu ngày. */}
                   <div>
-                    <dt>Còn lại</dt>
-                    <dd className="tabular-nums">{person.daysLeft} ngày</dd>
+                    <dt>{person.points.total >= person.points.target ? "Vượt" : "Còn thiếu"}</dt>
+                    <dd className="tabular-nums">
+                      {formatPoints(Math.abs(person.points.target - person.points.total))} điểm
+                    </dd>
                   </div>
-                )}
-              </dl>
-            </div>
-
-            <dl className={styles.legend}>
-              {person.pointSources.map((s, i) => (
-                <div key={s.label}>
-                  <dt>
-                    <span
-                      className={styles.dot}
-                      style={{ background: sourceColor(s.label, i) }}
-                      aria-hidden
-                    />
-                    {s.label}
-                    <span className={styles.legendDetail}>{s.detail}</span>
-                  </dt>
-                  <dd className="tabular-nums">{formatPoints(s.points)}</dd>
-                </div>
-              ))}
-            </dl>
+                  {person.daysLeft > 0 && (
+                    <div>
+                      <dt>Còn lại</dt>
+                      <dd className="tabular-nums">{person.daysLeft} ngày</dd>
+                    </div>
+                  )}
+                </>
+              }
+            />
           </>
         )}
       </div>
