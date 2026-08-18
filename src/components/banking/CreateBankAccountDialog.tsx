@@ -48,7 +48,7 @@ export function CreateBankAccountDialog({ open, onClose }: Props) {
     isFetching: listFetching,
   } = useQuery({
     queryKey: ["customers-picker", searchQuery],
-    queryFn: () => fetchCustomers({ search: searchQuery, channelId: "", from: "", to: "", page: 0, sort: "name", dir: "asc" }),
+    queryFn: () => fetchCustomers({ search: searchQuery, channelId: "", staffId: "", from: "", to: "", page: 0, sort: "name", dir: "asc" }),
     enabled: open && !pickedId && !readyCustomer,
     placeholderData: (previous) => previous,
   });

@@ -93,6 +93,16 @@ export type CustomerQuery = PageQuery<CustomerSort> & {
   /** Khoảng NGÀY TẠO, YYYY-MM-DD. Rỗng = không giới hạn. */
   from: string;
   to: string;
+  /**
+   * Chỉ lấy khách do CHÍNH người đang xem tạo — bảng P-40 bật, ba ô tìm khách
+   * của các hộp thoại tạo bản ghi thì không.
+   *
+   * Máy chủ chỉ nghe cờ này với vai Nhân viên, và nó KHÔNG phải phân quyền: hồ
+   * sơ khách mở toàn công ty theo spec §2.1b. Đây là một cách xem của bảng.
+   */
+  mine?: boolean;
+  /** Lọc theo người lập hồ sơ. Rỗng = mọi người. */
+  staffId: string;
 };
 
 const CustomerPage = pageOf(CustomerRow);
@@ -108,6 +118,8 @@ export async function fetchCustomers(query: CustomerQuery): Promise<Page<Custome
       channelId: query.channelId,
       from: query.from,
       to: query.to,
+      staffId: query.staffId,
+      ...(query.mine ? { mine: '1' } : {}),
     })}`,
   );
   if (!res.ok) throw new Error('Không tải được danh sách khách hàng');

@@ -27,10 +27,29 @@ export async function GET(request: Request) {
         channelId: uuidParam(params.get("channelId")),
         from: params.get("from") ?? "",
         to: params.get("to") ?? "",
-        // Nhân viên chỉ thấy khách MÌNH tạo ở bảng P-40 (chốt 2026-08-15).
-        // Chỉ áp cho danh sách này: hồ sơ chi tiết, ô tìm khách của form mở
-        // tài khoản / ghi dịch vụ vẫn thấy mọi khách (spec §2.1b giữ nguyên).
-        createdBy: guard.actor.role === "staff" ? guard.actor.id : "",
+        /**
+         * Nhân viên chỉ thấy khách MÌNH tạo — CHỈ khi nơi gọi hỏi bằng `mine=1`.
+         *
+         * Bộ lọc này là một CÁCH XEM của bảng P-40 (chốt 2026-08-15), không
+         * phải phân quyền: spec §2.1b bắt buộc mọi nhân viên xem được mọi hồ sơ
+         * khách, và §2.1b có hẳn mục "Đây không phải tuỳ chọn" nêu lý do.
+         *
+         * Bản trước đặt điều kiện thẳng ở route nên nó áp cho MỌI nơi gọi. Ba ô
+         * tìm khách của hộp thoại Mở tài khoản, Tạo đơn bảo hiểm và Ghi dịch vụ
+         * dùng chung route này, nên nhân viên không tìm ra khách của đồng nghiệp
+         * và không mở nổi tài khoản cho họ. Chính commit `dd2a480` viết là chỉ
+         * áp cho P-40 — code không làm đúng câu đó.
+         */
+        /**
+         * `mine=1` thắng `staffId`: bảng P-40 luôn gửi cờ này, còn ô lọc Nhân
+         * viên chỉ hiện với người có `staff:view-detail` — nhân viên không có
+         * quyền đó nên hai tham số không bao giờ chọi nhau ở giao diện. Ưu tiên
+         * tường minh ở đây để lời gọi nặn tay cũng ra một kết quả xác định.
+         */
+        createdBy:
+          params.get("mine") === "1" && guard.actor.role === "staff"
+            ? guard.actor.id
+            : uuidParam(params.get("staffId")),
       },
       pageArgsFrom(url, SORTABLE, "created"),
     ),

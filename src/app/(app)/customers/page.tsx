@@ -13,6 +13,7 @@ import { CustomerFormDialog } from "@/components/customers/CustomerFormDialog";
 import { GiftGivingDialog } from "@/components/customers/GiftGivingDialog";
 import { ServiceFormDialog } from "@/components/services/ServiceFormDialog";
 import { Button } from "@/components/ui/Button";
+import { Combobox } from "@/components/ui/Combobox";
 import buttonStyles from "@/components/ui/Button.module.css";
 import { DateRangePicker } from "@/components/ui/DateRangePicker";
 import { FilterButton } from "@/components/ui/FilterButton";
@@ -32,6 +33,7 @@ import { EMPTY_PAGE, PAGE_SIZE } from "@/lib/api/pagination";
 import { formatDate, formatPhone } from "@/lib/format";
 import { useDebouncedValue } from "@/lib/hooks";
 import { can, recordInScope, recordVisibility } from "@/lib/permissions";
+import { fetchStaffOptions } from "@/lib/api/staff";
 import { useSession } from "@/store/session";
 import styles from "./page.module.scss";
 
@@ -41,6 +43,7 @@ const iso = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60_000).
 const FIRST_PAGE: CustomerQuery = {
   search: "",
   channelId: "",
+  staffId: "",
   from: "",
   to: "",
   page: 0,
@@ -97,9 +100,35 @@ export default function CustomersPage() {
 
   const { data: channels = [] } = useQuery({ queryKey: ["channels"], queryFn: fetchChannels });
 
+  /**
+   * Ô lọc "Nhân viên" đọc TRỌN danh sách nhân sự, không gom từ các dòng đang
+   * hiện — gom từ dòng thì chỉ chọn được người tình cờ nằm ở trang đang xem.
+   *
+   * Gác bằng `staff:view-detail` vì đó đúng là quyền mà route danh sách nhân sự
+   * đòi. Nhân viên không có quyền đó, và họ cũng không cần ô này: bảng của họ
+   * đã chỉ có khách của chính mình.
+   */
+  const canFilterByStaff = can(user, "staff", "view-detail");
+  const { data: staff = [] } = useQuery({
+    queryKey: ["staff", "options", "active"],
+    queryFn: () => fetchStaffOptions({ status: "active" }),
+    retry: false,
+    staleTime: Infinity,
+    enabled: canFilterByStaff,
+  });
+  const staffOptions = useMemo(
+    () => staff.map((s) => ({ value: s.id, label: s.fullName })),
+    [staff],
+  );
+
   const from = range?.from ? iso(range.from) : "";
   const to = range?.to ? iso(range.to) : "";
-  const asked: CustomerQuery = { ...query, search: debouncedSearch, from, to };
+  /**
+   * `mine` chỉ bật ở BẢNG NÀY. Ba ô tìm khách của hộp thoại Mở tài khoản, Tạo
+   * đơn bảo hiểm và Ghi dịch vụ gọi chung route nhưng không gửi cờ, nên nhân
+   * viên vẫn tìm được khách của đồng nghiệp ở đó (spec §2.1b).
+   */
+  const asked: CustomerQuery = { ...query, search: debouncedSearch, from, to, mine: true };
 
   const { data: page = EMPTY_PAGE, isPending, isError, refetch, isFetching } = useQuery({
     queryKey: ["customers", asked],
@@ -113,7 +142,8 @@ export default function CustomersPage() {
   /** Đổi bộ lọc thì về trang đầu — giữ nguyên trang 5 của kết quả cũ là hiện một khúc rỗng. */
   const refine = (patch: Partial<CustomerQuery>) => setQuery((q) => ({ ...q, ...patch, page: 0 }));
 
-  const activeCount = (query.channelId ? 1 : 0) + (from && to ? 1 : 0);
+  const activeCount =
+    (query.channelId ? 1 : 0) + (query.staffId ? 1 : 0) + (from && to ? 1 : 0);
   // "Chưa có khách nào" và "lọc không ra gì" là hai chuyện khác nhau. Nói nhầm
   // thì người dùng đi xoá bộ lọc vốn đang trống, thay vì bấm "Thêm khách hàng".
   const filtering = Boolean(debouncedSearch) || activeCount > 0;
@@ -224,10 +254,11 @@ export default function CustomersPage() {
           activeCount={activeCount}
           onClear={() => {
             setRange(undefined);
-            refine({ channelId: "" });
+            refine({ channelId: "", staffId: "" });
           }}
         >
           <Select
+            block
             label="Kênh"
             value={query.channelId}
             onChange={(v) => refine({ channelId: v })}
@@ -236,7 +267,20 @@ export default function CustomersPage() {
               ...channels.map((c) => ({ value: c.id, label: c.name })),
             ]}
           />
+          {canFilterByStaff && (
+            <Combobox
+              block
+              // Combobox chứ không phải Select: công ty có hàng trăm nhân viên,
+              // mà `<select>` gốc không gõ tìm được.
+              label="Nhân viên"
+              placeholder="Gõ để tìm nhân viên…"
+              value={query.staffId}
+              onChange={(v) => refine({ staffId: v })}
+              options={[{ value: "", label: "Tất cả nhân viên" }, ...staffOptions]}
+            />
+          )}
           <DateRangePicker
+            label="Khoảng ngày"
             value={range}
             onChange={(next) => {
               setRange(next);
@@ -260,6 +304,14 @@ export default function CustomersPage() {
                   {
                     label: `Kênh: ${channels.find((c) => c.id === query.channelId)?.name ?? query.channelId}`,
                     onRemove: () => refine({ channelId: "" }),
+                  },
+                ]
+              : []),
+            ...(query.staffId
+              ? [
+                  {
+                    label: `Nhân viên: ${staffOptions.find((o) => o.value === query.staffId)?.label ?? ""}`,
+                    onRemove: () => refine({ staffId: "" }),
                   },
                 ]
               : []),
