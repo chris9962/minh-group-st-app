@@ -4,6 +4,7 @@ import type {
   CustomerAccountRow,
   CustomerDetail,
   CustomerDraftAccountRow,
+  CustomerEditForm,
   CustomerForm,
   CustomerInsuranceRow,
   CustomerRow,
@@ -511,7 +512,7 @@ export async function createCustomer(
 export async function updateCustomer(
   actor: User,
   id: string,
-  form: CustomerForm,
+  form: CustomerEditForm,
 ): Promise<CustomerOutcome<Customer> | null> {
   /**
    * Phạm vi mức DÒNG — khác `can()` ở route.
@@ -545,7 +546,13 @@ export async function updateCustomer(
         .set({
           fullName: form.fullName,
           dob: form.dob || null,
-          ...(full ? { idNumber: form.idNumber || null } : {}),
+          /**
+           * Chỉ ghi CCCD khi người sửa CÓ quyền VÀ có gửi số lên. Rỗng nghĩa là
+           * "không đụng tới", không phải "xoá" — biểu mẫu sửa cho để trống nên
+           * nhận rỗng rồi ghi `null` là mất số của một hồ sơ mà người dùng chỉ
+           * định sửa số điện thoại.
+           */
+          ...(full && form.idNumber ? { idNumber: form.idNumber } : {}),
           address: form.address,
           channelId: form.channelId || null,
           channelDetail: form.channelDetail,

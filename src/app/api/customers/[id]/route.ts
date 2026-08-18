@@ -1,4 +1,4 @@
-import { CUSTOMER_ERROR, CustomerForm } from "@/lib/api/customers";
+import { CUSTOMER_ERROR, CustomerEditForm } from "@/lib/api/customers";
 import { logAudit } from "@/server/audit";
 import { actorWith, badRequest, isUuid, jsonBody, notFound, signedIn } from "@/server/auth";
 import { customerDetailFor, updateCustomer } from "@/server/customers";
@@ -61,7 +61,7 @@ export async function PATCH(request: Request, { params }: Params) {
   const { id } = await params;
   if (!isUuid(id)) return notFound();
 
-  const parsed = CustomerForm.safeParse(await jsonBody(request));
+  const parsed = CustomerEditForm.safeParse(await jsonBody(request));
   if (!parsed.success) return badRequest();
 
   const result = await updateCustomer(guard.actor, id, parsed.data);

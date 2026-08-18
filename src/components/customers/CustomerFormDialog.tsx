@@ -13,7 +13,13 @@ import { Select } from "@/components/ui/Select";
 import { SkeletonText } from "@/components/ui/Skeleton";
 import { TextField } from "@/components/ui/TextField";
 import { fetchChannels } from "@/lib/api/channelCatalog";
-import { createCustomer, CustomerForm, updateCustomer, type Customer } from "@/lib/api/customers";
+import {
+  createCustomer,
+  CustomerEditForm,
+  CustomerForm,
+  updateCustomer,
+  type Customer,
+} from "@/lib/api/customers";
 import { fetchHospitals } from "@/lib/api/hospitalCatalog";
 import { fetchProvinces } from "@/lib/api/wardCatalog";
 import { errorMessage, toast } from "@/lib/toast";
@@ -88,7 +94,9 @@ export function CustomerFormDialog({
     setValue,
     formState: { errors, isSubmitting },
   } = useForm<CustomerForm>({
-    resolver: zodResolver(CustomerForm),
+    // Luồng SỬA cho CCCD để trống: người không có quyền xem số thì ô đó nạp
+    // rỗng và bị khoá, giữ luật 12 số là họ không lưu nổi hồ sơ nào.
+    resolver: zodResolver(editing ? CustomerEditForm : CustomerForm),
     defaultValues: customer ? toForm(customer) : emptyForm,
     values: formValues,
   });

@@ -182,6 +182,24 @@ export const CustomerForm = z.object({
 });
 export type CustomerForm = z.infer<typeof CustomerForm>;
 
+/**
+ * Biểu mẫu SỬA hồ sơ — CCCD để trống được (chốt 2026-08-18).
+ *
+ * `CustomerForm` bắt buộc đủ 12 số, đúng cho lúc TẠO. Dùng lại cho lúc SỬA thì
+ * người không có `customer:access-id-number` không lưu nổi hồ sơ nào: ô CCCD
+ * của họ nạp rỗng và bị khoá, nên không có cách gõ cho đủ 12 số.
+ *
+ * Rỗng nghĩa là "không đụng tới CCCD", không phải "xoá CCCD" —
+ * `updateCustomer` chỉ ghi cột đó khi giá trị gửi lên khác rỗng.
+ */
+export const CustomerEditForm = CustomerForm.extend({
+  idNumber: z.union([
+    z.literal(''),
+    z.string().trim().refine((v) => /^\d{12}$/.test(v), 'CCCD phải đủ 12 số'),
+  ]),
+});
+export type CustomerEditForm = z.infer<typeof CustomerEditForm>;
+
 export const CUSTOMER_ERROR = {
   DUPLICATE_ID: 'duplicate-id-number',
 } as const;
