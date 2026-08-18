@@ -44,9 +44,20 @@ const staffPermissions: Permission[] = [
    * Gói quyền này vào một nhóm nhỏ thì cả công ty tạo đơn mà chỉ vài người đẩy
    * được đơn đi, và hàng đợi dồn lại ngay ngày đầu.
    *
-   * Phạm vi đi theo đúng luật của module: nhân viên xử lý đơn của chính mình,
-   * quản lý xử lý đơn của phòng mình quản. Cần một đội trung tâm cầm đơn của cả
-   * công ty thì cấp riêng `toàn công ty` cho họ ở P-92.
+   * ⚠️ Phạm vi `own` ở đây KHÔNG áp cho lượt NHẬN đơn ở hàng chờ (chốt
+   * 2026-08-18, xác nhận lại thiết kế có sẵn).
+   *
+   * Đơn đang ở `Chờ làm tay` là KHO CHUNG: ai có quyền này cũng nhận được, bất
+   * kể phòng nào tạo ra đơn. Kẹp phạm vi ở đó thì người `own` chỉ nhận nổi đơn
+   * của chính mình, và vai "người xử lý tay" không dùng được — đúng cái hàng
+   * chờ sinh ra để tránh. Xem `setInsuranceOrderStatus` ở `server/insurance.ts`.
+   *
+   * Phạm vi CÓ áp cho mọi thứ còn lại: xem danh sách, xem chi tiết, và bấm tiếp
+   * trên đơn ĐÃ rời hàng chờ. Người cầm đơn về rồi thì thấy được CCCD người thụ
+   * hưởng của đơn đó — đây là hệ quả đã cân nhắc, không phải bỏ sót.
+   *
+   * Bản trước của comment này viết "nhân viên xử lý đơn của chính mình", ngược
+   * với code. Chính câu đó làm một lượt review kết luận nhầm là lỗi phân quyền.
    */
   p('insurance', 'handle-fallback', 'own'),
   p('banking', 'view-summary', 'own'),
