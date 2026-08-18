@@ -183,6 +183,13 @@
       "when": 1786894800000,
       "tag": "0025_insurance_electric_fields",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1786981200000,
+      "tag": "0026_department_module",
+      "breakpoints": true
     }
   ]
 }

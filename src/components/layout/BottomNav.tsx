@@ -12,7 +12,7 @@ import { CreateInsuranceOrderDialog } from "@/components/insurance/CreateInsuran
 import { CreateServiceDialog } from "@/components/services/CreateServiceDialog";
 import { NavIcon } from "./NavIcon";
 import type { NavIconKey } from "@/lib/nav";
-import { can } from "@/lib/permissions";
+import { can, canOrg } from "@/lib/permissions";
 import type { User } from "@/lib/types";
 import styles from "./BottomNav.module.scss";
 
@@ -65,7 +65,9 @@ export function BottomNav({ user, onOpenMenu }: { user: User; onOpenMenu: () => 
     can(user, "insurance", "view-summary") ||
     can(user, "banking", "view-summary") ||
     can(user, "services", "view-summary");
-  const canManageOrg = can(user, "system", "manage-org");
+  // Cùng luật với sidebar (`navFor`) — lệch nhau thì điện thoại thiếu lối tắt
+  // tới đúng màn người dùng thấy trên máy tính.
+  const canReadOrg = canOrg(user, "view-detail");
 
   // Người không quản phòng thấy ô "Cá nhân" thay cho "Nhân sự". Trước đó ô này
   // là "Chỉ tiêu của tôi" trỏ /my-target — trang chưa bao giờ tồn tại (sidebar
@@ -76,7 +78,7 @@ export function BottomNav({ user, onOpenMenu }: { user: User; onOpenMenu: () => 
 
   const thirdEntry: Entry | null = canCreateBusinessRecord
     ? { kind: "create", label: "Tạo mới" }
-    : canManageOrg
+    : canReadOrg
       ? { kind: "link", href: "/departments", label: "Phòng ban", icon: "org" }
       : null;
 

@@ -46,6 +46,35 @@ export function can(user: User | null, module: ModuleKey, action: Action): boole
 }
 
 /**
+ * Quyền trên PHÒNG BAN (P-91) — hỏi qua đây, đừng gọi thẳng `can`.
+ *
+ * Nhánh thứ hai là tương thích ngược: trước module `department` (migration
+ * 0026) màn này chỉ gác bằng `system` + `manage-org`, và những tài khoản đang
+ * mang quyền đó phải tiếp tục vào được. Gỡ nhánh này khi mọi tài khoản đã được
+ * cấp quyền `department` tương ứng.
+ *
+ * `manage-org` là quyền GHI nên nó mở luôn cả đường đọc — ai sửa được cơ cấu
+ * thì đương nhiên xem được nó.
+ */
+export function canOrg(user: User | null, action: Action): boolean {
+  return can(user, 'department', action) || can(user, 'system', 'manage-org');
+}
+
+/**
+ * Các phòng người này ĐỌC được ở màn P-91. `null` = không giới hạn.
+ *
+ * Phó giám đốc cầm `department:view-*` ở phạm vi `managed` nên chỉ thấy phòng
+ * mình phụ trách — cả bảng, cả ba thẻ tóm tắt, cả bốn cột số liệu nghiệp vụ.
+ *
+ * `manage-org` đi trước và trả `null`: ai sửa được cơ cấu công ty thì phải nhìn
+ * được cả công ty, mà quyền đó không có trục phạm vi (`SCOPELESS_ACTIONS`).
+ */
+export function visibleOrgDepartmentIds(user: User | null): string[] | null {
+  if (can(user, 'system', 'manage-org')) return null;
+  return visibleDepartmentIds(user, scopeFor(user, 'department', 'view-detail') ?? 'own');
+}
+
+/**
  * Phạm vi rộng nhất người này PHÁT được cho người khác trên (module, hành động).
  *
  * Trần PHÁT tách khỏi trần DÙNG — hai thứ khác nhau. Một người quản lý có thể

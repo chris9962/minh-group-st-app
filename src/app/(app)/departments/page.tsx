@@ -32,7 +32,7 @@ import {
   type DepartmentRow,
 } from "@/lib/api/org";
 import { useDebouncedValue } from "@/lib/hooks";
-import { can } from "@/lib/permissions";
+import { can, canOrg } from "@/lib/permissions";
 import { usePrefs } from "@/store/prefs";
 import { useSession } from "@/store/session";
 import styles from "./page.module.scss";
@@ -56,14 +56,24 @@ export default function DepartmentsPage() {
   const [confirming, setConfirming] = useState<DepartmentRow | null>(null);
   const [period, setPeriod] = useState<Period>(DEFAULT_PERIOD);
 
-  const canManage = can(user, "system", "manage-org");
+  // Ba quyền ghi rời nhau, hỏi từng cái: lập phòng, đổi tên, và ngừng hoạt
+  // động (xoá mềm) là ba việc khác nhau, admin cấp lẻ được từng việc một.
+  const canCreate = canOrg(user, "create");
+  const canRename = canOrg(user, "update");
+  const canStop = canOrg(user, "delete");
+  /** Có bất kỳ đường ghi nào — quyết định cột Trạng thái và cột Thao tác. */
+  const canManage = canCreate || canRename || canStop;
   // Số TK mở/App cài/Tỉ lệ cài/Khách hàng là số liệu nghiệp vụ — quyền xem nó
   // tách khỏi quyền quản tổ chức, giống hệt cách P-80 quyết định ai thấy
   // "Xếp hạng phòng".
   const canSeeStats =
-    can(user, "banking", "view-summary") ||
-    can(user, "insurance", "view-summary") ||
-    can(user, "services", "view-summary");
+    // Vế đầu là ĐÚNG câu route `/stats` hỏi. Thiếu nó thì người được cấp lẻ
+    // `department:view-detail` mà không có `view-summary` vẫn bắn request rồi
+    // nhận 403, và bốn cột lặng lẽ hiện "—" như thể phòng không có số liệu.
+    canOrg(user, "view-summary") &&
+    (can(user, "banking", "view-summary") ||
+      can(user, "insurance", "view-summary") ||
+      can(user, "services", "view-summary"));
 
   const { data, isPending, isError, refetch, isFetching } = useQuery({
     queryKey: ["org-departments", searchQuery],
@@ -170,19 +180,28 @@ export default function DepartmentsPage() {
         sortBy: (d) => d.headcount,
         render: (d) => d.headcount,
       },
-      {
-        key: "active",
-        label: "Trạng thái",
-        render: (d) => (
-          <StatusTag ok={d.active}>
-            {d.active ? "Đang hoạt động" : "Đã ngừng"}
-          </StatusTag>
-        ),
-      },
-      // Không có `manage-org` thì mọi nút ở đây đều 403 — trang lại vào được
-      // bằng URL (không có middleware, nav chỉ ẩn link). Giấu cột đi thay vì
-      // đưa ra nút bấm vào không làm gì.
+      /**
+       * Trạng thái phòng đi cùng nút Ngừng/Mở lại — người chỉ xem không đổi
+       * được nó, và bảng của họ cũng đã lọc bỏ phòng đã ngừng, nên cột này chỉ
+       * còn một giá trị lặp trên mọi dòng.
+       */
       ...(canManage
+        ? ([
+            {
+              key: "active",
+              label: "Trạng thái",
+              render: (d) => (
+                <StatusTag ok={d.active}>
+                  {d.active ? "Đang hoạt động" : "Đã ngừng"}
+                </StatusTag>
+              ),
+            },
+          ] satisfies RankColumn<DepartmentRow>[])
+        : []),
+      // Mỗi nút hỏi quyền riêng của nó; không có quyền nào thì cả cột biến mất.
+      // Trang vào được bằng URL (không có middleware, nav chỉ ẩn link) nên giấu
+      // cột đi thay vì đưa ra nút bấm vào nhận 403.
+      ...(canRename || canStop
         ? [{
         key: "actions",
         label: "Thao tác",
@@ -190,30 +209,34 @@ export default function DepartmentsPage() {
           <span className={styles.actions}>
             {/* Nút chỉ có icon nên aria-label phải kèm tên phòng: giữa mười lăm
                 dòng giống nhau, "Sửa" một mình không nói đang sửa phòng nào. */}
-            <Button
-              variant="secondary"
-              icon
-              tooltip="Đổi tên phòng"
-              aria-label={`Đổi tên ${d.name}`}
-              onClick={() => setEditing(d)}
-            >
-              <Pencil size={16} aria-hidden />
-            </Button>
-            <Button
-              variant="secondary"
-              disabled={
-                (d.active && d.headcount > 0) || toggleActive.isPending
-              }
-              onClick={() => setConfirming(d)}
-            >
-              {d.active ? "Ngừng hoạt động" : "Mở lại"}
-            </Button>
+            {canRename && (
+              <Button
+                variant="secondary"
+                icon
+                tooltip="Đổi tên phòng"
+                aria-label={`Đổi tên ${d.name}`}
+                onClick={() => setEditing(d)}
+              >
+                <Pencil size={16} aria-hidden />
+              </Button>
+            )}
+            {canStop && (
+              <Button
+                variant="secondary"
+                disabled={
+                  (d.active && d.headcount > 0) || toggleActive.isPending
+                }
+                onClick={() => setConfirming(d)}
+              >
+                {d.active ? "Ngừng hoạt động" : "Mở lại"}
+              </Button>
+            )}
           </span>
         ),
       }] satisfies RankColumn<DepartmentRow>[]
         : []),
     ],
-    [toggleActive.isPending, canSeeStats, canManage, statsById],
+    [toggleActive.isPending, canSeeStats, canManage, canRename, canStop, statsById],
   );
 
   const blocked = (data?.departments ?? []).filter(
@@ -228,9 +251,10 @@ export default function DepartmentsPage() {
    * những phòng đang chạy. Số lượng vẫn đọc được ở thẻ "đã ngừng" phía trên,
    * nên ẩn danh sách đi không giấu mất thông tin nào.
    */
-  const rows = showStopped
-    ? (data?.departments ?? [])
-    : (data?.departments ?? []).filter((d) => d.active);
+  const rows =
+    showStopped && canManage
+      ? (data?.departments ?? [])
+      : (data?.departments ?? []).filter((d) => d.active);
   const hiddenCount = (data?.departments.length ?? 0) - rows.length;
 
   return (
@@ -257,7 +281,7 @@ export default function DepartmentsPage() {
             </div>
           </>
         )}
-        {canManage && (
+        {canCreate && (
           <Button aria-label="Thêm phòng ban" onClick={() => setCreating(true)}>
             <Plus size={16} aria-hidden />
             <span className={buttonStyles.label}>Thêm phòng ban</span>
@@ -269,7 +293,7 @@ export default function DepartmentsPage() {
         {isPending && (
           <>
             <SkeletonStats count={3} />
-            <SkeletonTable rows={8} columns={5} />
+            <SkeletonTable rows={8} columns={columns.length} />
           </>
         )}
         {isError && (
@@ -295,7 +319,7 @@ export default function DepartmentsPage() {
               // Chỉ hiện ô tích khi thật sự có phòng đã ngừng — không thì nó là
               // một lựa chọn không làm gì, đứng chắn chỗ mỗi lần mở trang.
               action={
-                data.summary.stopped > 0 ? (
+                canStop && data.summary.stopped > 0 ? (
                   <Checkbox
                     checked={showStopped}
                     onCheckedChange={setShowStopped}
@@ -306,8 +330,13 @@ export default function DepartmentsPage() {
             >
               {rows.length === 0 && (
                 <p className="text-muted">
+                  {/* Ba câu khác nhau cho ba lý do bảng rỗng. Người chỉ đọc
+                      không có ô tích nên không được bảo đi tích nó, nhưng vẫn
+                      phải biết là CÓ phòng khớp — chỉ là đã ngừng hoạt động. */}
                   {hiddenCount > 0
-                    ? `Chỉ có phòng đã ngừng khớp${searchQuery ? ` “${searchQuery}”` : ""} — tích ô trên để hiện.`
+                    ? canStop
+                      ? `Chỉ có phòng đã ngừng khớp${searchQuery ? ` “${searchQuery}”` : ""} — tích ô trên để hiện.`
+                      : `Chỉ có phòng đã ngừng khớp${searchQuery ? ` “${searchQuery}”` : ""}.`
                     : searchQuery
                       ? `Không tìm thấy phòng nào khớp “${searchQuery}”.`
                       : "Chưa có phòng ban nào."}
@@ -320,11 +349,11 @@ export default function DepartmentsPage() {
                 rowKey={(d) => d.id}
                 defaultSort="headcount"
                 pageSize={10}
-                caption="Phòng ban, số người và trạng thái"
+                caption={canManage ? "Phòng ban, số người và trạng thái" : "Phòng ban và số người"}
               />
 
               {/* Nút mờ mà không nói vì sao chính là chỗ người dùng mắc kẹt. */}
-              {blocked.length > 0 && (
+              {canStop && blocked.length > 0 && (
                 <p className={styles.footnote}>
                   <strong>Không ngừng hoạt động được</strong>{" "}
                   {blocked.map((d) => `${d.name} (${d.headcount} người)`).join(", ")}

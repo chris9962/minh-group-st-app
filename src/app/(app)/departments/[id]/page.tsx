@@ -21,7 +21,9 @@ import { StatusTag } from "@/components/ui/StatusTag";
 import { EMPTY_PAGE, PAGE_SIZE, type SortDir } from "@/lib/api/pagination";
 import { fetchDepartmentDetail } from "@/lib/api/org";
 import { fetchStaff, type StaffQuery, type StaffRow, type StaffSort } from "@/lib/api/staff";
+import { scopeFor, visibleDepartmentIds } from "@/lib/permissions";
 import { ROLE_LABEL } from "@/lib/types";
+import { useSession } from "@/store/session";
 import styles from "./page.module.scss";
 
 /**
@@ -65,6 +67,7 @@ export default function DepartmentDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
+  const user = useSession((s) => s.user);
   const [period, setPeriod] = useState<Period>(DEFAULT_PERIOD);
   const [page, setPage] = useState(0);
   const [sort, setSort] = useState<StaffSort>("role");
@@ -109,6 +112,16 @@ export default function DepartmentDetailPage({
     enabled: Boolean(data),
     placeholderData: keepPreviousData,
   });
+
+  /**
+   * Phòng ban mở được rộng hơn danh sách nhân viên của nó.
+   *
+   * Phó giám đốc đọc sơ đồ tổ chức toàn công ty (`department:view-detail`) nhưng
+   * chỉ đọc nhân sự của phòng mình quản, nên mở phòng khác thì máy chủ trả bảng
+   * rỗng. Câu "phòng này chưa có nhân viên nào" lúc đó nói sai về phòng đang mở.
+   */
+  const staffVisible = visibleDepartmentIds(user, scopeFor(user, "staff", "view-detail") ?? "own");
+  const staffInScope = staffVisible === null || staffVisible.includes(id);
 
   const rows = staffData?.page.rows ?? EMPTY_PAGE.rows;
   const total = staffData?.page.total ?? 0;
@@ -189,7 +202,11 @@ export default function DepartmentDetailPage({
                   rowKey={(s) => s.id}
                   defaultSort="role"
                   caption="Nhân viên của phòng, Trưởng và Phó phòng nằm đầu bảng"
-                  emptyText="Phòng này chưa có nhân viên nào."
+                  emptyText={
+                    staffInScope
+                      ? "Phòng này chưa có nhân viên nào."
+                      : "Bạn không xem được danh sách nhân viên của phòng này."
+                  }
                   server={{
                     sort,
                     dir,

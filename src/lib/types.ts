@@ -48,7 +48,18 @@ export const isoDateOrEmpty = z
  * — có đúng bộ 6 hành động cơ bản, không phải "vô chủ" (customer) hay gộp lẫn
  * vào `system` (staff) như trước.
  */
-export const ModuleKey = z.enum(['customer', 'insurance', 'banking', 'services', 'staff', 'system', '*']);
+export const ModuleKey = z.enum([
+  'customer',
+  'insurance',
+  'banking',
+  'services',
+  'staff',
+  /** P-91 · Sơ đồ tổ chức. Tách khỏi `staff`: sửa cơ cấu phòng không cùng
+      việc với luân chuyển một con người. */
+  'department',
+  'system',
+  '*',
+]);
 export type ModuleKey = z.infer<typeof ModuleKey>;
 
 /**
@@ -95,6 +106,7 @@ export const MODULE_LABEL: Record<ModuleKey, string> = {
   banking: 'Ngân hàng',
   services: 'Dịch vụ',
   staff: 'Nhân viên',
+  department: 'Phòng ban',
   system: 'Hệ thống',
   '*': 'Tất cả module',
 };
@@ -113,7 +125,7 @@ export const ACTION_LABEL: Record<Action, string> = {
   'manage-bank-catalog': 'Quản lý danh sách ngân hàng',
   'configure-catalog': 'Cấu hình danh mục',
   'configure-gift-rules': 'Cấu hình quy tắc quà',
-  'manage-org': 'Quản lý phòng ban',
+  'manage-org': 'Sửa cơ cấu tổ chức & xem nhật ký truy vết',
   'grant-permission': 'Cấp quyền',
 };
 
@@ -129,11 +141,11 @@ export const BASE_ACTIONS: Action[] = ['view-summary', 'view-detail', 'create', 
  * Hành động KHÔNG CHIA ĐƯỢC THEO PHẠM VI — có hoặc không, và có thì là toàn
  * công ty.
  *
- * `manage-org` gác hai thứ vốn không thuộc về phòng nào: sơ đồ tổ chức (lập
- * phòng, ngừng phòng) và NHẬT KÝ TRUY VẾT. Cấp nó ở mức `chỉ mình` hay `phòng
- * quản` là dựng ra một con số không có nghĩa — nhật ký không cắt theo phòng
- * được, nên người được cấp "hẹp" vẫn đọc trọn nhật ký công ty. Trông như hẹp
- * mà không hẹp là tệ hơn không hẹp.
+ * `manage-org` gác NHẬT KÝ TRUY VẾT, và là nhánh tương thích cho những tài
+ * khoản cấp trước module `department` (xem `canOrg`). Cấp nó ở mức `chỉ mình`
+ * hay `phòng quản` là dựng ra một con số không có nghĩa — nhật ký không cắt
+ * theo phòng được, nên người được cấp "hẹp" vẫn đọc trọn nhật ký công ty. Trông
+ * như hẹp mà không hẹp là tệ hơn không hẹp.
  *
  * Ô chọn ở P-92 vì vậy chỉ có Bật/Tắt, và máy chủ nắn mọi phạm vi khác về
  * `company` trước khi ghi.
@@ -149,7 +161,15 @@ export const SPECIAL_ACTIONS_OF: Partial<Record<ModuleKey, Action[]>> = {
 };
 
 /** Module cơ bản hiện trong màn cấp quyền lẻ (P-92/thẻ "Quyền") — không có `*`, quá rộng để cấp tay. */
-export const EDITABLE_MODULES: ModuleKey[] = ['customer', 'insurance', 'banking', 'services', 'staff', 'system'];
+export const EDITABLE_MODULES: ModuleKey[] = [
+  'customer',
+  'insurance',
+  'banking',
+  'services',
+  'staff',
+  'department',
+  'system',
+];
 
 /**
  * Thứ tự từ hẹp đến rộng — dùng để so sánh, đừng đổi thứ tự.

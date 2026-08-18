@@ -1,0 +1,19 @@
+-- Module `department` cho màn P-91.
+--
+-- Trước migration này, quyền trên sơ đồ tổ chức chỉ có MỘT bậc: `system` +
+-- `manage-org`, tức có hoặc không, không có mức chỉ đọc. Phó giám đốc cần xem
+-- danh sách phòng và bốn cột số liệu nghiệp vụ nhưng không được đổi tên hay
+-- ngừng hoạt động phòng nào, mà một bậc thì không diễn tả nổi.
+--
+-- Module riêng cho phép dùng đúng bộ sáu hành động chuẩn với trục phạm vi, y
+-- như các module nghiệp vụ khác: `view-summary` · `view-detail` · `create` ·
+-- `update` · `delete` · `export`.
+--
+-- `manage-org` KHÔNG bị gỡ: nó vẫn gác màn Nhật ký truy vết P-93, và những tài
+-- khoản đang mang nó vẫn mở được P-91 qua nhánh tương thích ở `canOrg`
+-- (`lib/permissions.ts`). Gỡ ở đây thì tài khoản quản trị mất quyền ngay lượt
+-- triển khai, trước khi ai kịp cấp quyền mới cho họ.
+--
+-- Postgres 12 trở lên cho phép ADD VALUE trong transaction, miễn là không dùng
+-- giá trị mới trong CÙNG transaction đó — file này chỉ thêm, không ghi dòng nào.
+ALTER TYPE "module_key" ADD VALUE IF NOT EXISTS 'department' BEFORE 'system';

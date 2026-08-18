@@ -1,5 +1,14 @@
 import { expect, test } from "@playwright/test";
-import { EDITS_CATALOG, LABEL, MANAGES_ORG, ROLES, login, navLabels, screenLoaded } from "./roles";
+import {
+  EDITS_CATALOG,
+  LABEL,
+  MANAGES_ORG,
+  READS_ORG,
+  ROLES,
+  login,
+  navLabels,
+  screenLoaded,
+} from "./roles";
 
 /**
  * Bộ test ở `docs/test-phan-quyen-2026-08-05.md`, nhóm A · B · F · I — nhưng đi
@@ -30,7 +39,7 @@ for (const role of ROLES) {
 
       expect(labels).toContain("Khách hàng");
       expect(labels.includes("Cấu hình")).toBe(EDITS_CATALOG[role]);
-      expect(labels.includes("Phòng ban")).toBe(MANAGES_ORG[role]);
+      expect(labels.includes("Phòng ban")).toBe(READS_ORG[role]);
       expect(labels.includes("Nhật ký truy vết")).toBe(MANAGES_ORG[role]);
 
       expect(labels.includes("Nhân sự")).toBe(role !== "staff");
@@ -95,9 +104,9 @@ for (const role of ROLES) {
       }
     });
 
-    test("màn phòng ban chỉ CEO mở được", async ({ page }) => {
+    test("màn phòng ban chỉ CEO và Phó giám đốc mở được", async ({ page }) => {
       await page.goto("/departments");
-      if (MANAGES_ORG[role]) {
+      if (READS_ORG[role]) {
         await expect(page).toHaveURL(/\/departments$/);
         expect(await screenLoaded(page)).toBe(true);
       } else {

@@ -1,4 +1,4 @@
-import { directorPermissions, managerPermissions } from "../src/lib/roles";
+import { deputyDirectorPermissions, directorPermissions, managerPermissions } from "../src/lib/roles";
 import type { ManageScope, Permission, RoleKey } from "../src/lib/types";
 
 /**
@@ -104,7 +104,7 @@ export const ACCOUNTS: SeedAccount[] = [
     departmentCode: null,
     manageScope: "listed",
     managedDepartmentCodes: ["PHONG-KTTH", "PHONG-KDTH"],
-    permissions: managerPermissions,
+    permissions: deputyDirectorPermissions,
   },
   {
     username: "pgd1",
@@ -115,7 +115,7 @@ export const ACCOUNTS: SeedAccount[] = [
     departmentCode: null,
     manageScope: "listed",
     managedDepartmentCodes: ["PHONG-DU-AN", "PHONG-BTXH"],
-    permissions: managerPermissions,
+    permissions: deputyDirectorPermissions,
   },
   {
     username: "pgd2",
@@ -126,7 +126,7 @@ export const ACCOUNTS: SeedAccount[] = [
     departmentCode: null,
     manageScope: "listed",
     managedDepartmentCodes: ["KD-2", "KD-6", "KD-7"],
-    permissions: managerPermissions,
+    permissions: deputyDirectorPermissions,
   },
   {
     username: "pgd3",
@@ -137,7 +137,7 @@ export const ACCOUNTS: SeedAccount[] = [
     departmentCode: null,
     manageScope: "listed",
     managedDepartmentCodes: ["KD-3", "KD-4", "KD-5", "KD-9"],
-    permissions: managerPermissions,
+    permissions: deputyDirectorPermissions,
   },
   {
     username: "quyenpgd",
@@ -148,7 +148,7 @@ export const ACCOUNTS: SeedAccount[] = [
     departmentCode: null,
     manageScope: "listed",
     managedDepartmentCodes: ["KD-1", "KD-8"],
-    permissions: managerPermissions,
+    permissions: deputyDirectorPermissions,
   },
   {
     // Tài khoản HỆ THỐNG, không phải người ảo — giao cho ai đảm nhiệm thì

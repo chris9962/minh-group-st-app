@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { can } from "@/lib/permissions";
+import { canOrg } from "@/lib/permissions";
 import { logAudit } from "@/server/audit";
 import {
   badRequest,
@@ -19,7 +19,9 @@ const Body = z.object({ active: z.boolean() });
 export async function POST(request: Request, { params }: Params) {
   const actor = await getActor(request);
   if (!actor) return unauthorized();
-  if (!can(actor, "system", "manage-org")) return forbidden();
+  // Ngừng hoạt động là XOÁ MỀM (phòng không xoá cứng, quyết định #32) nên nó
+  // hỏi `delete`, không phải `update`.
+  if (!canOrg(actor, "delete")) return forbidden();
 
   const { id } = await params;
   if (!isUuid(id)) return notFound();
@@ -36,8 +38,8 @@ export async function POST(request: Request, { params }: Params) {
   if (!result.ok) return Response.json(orgError(result.code), { status: 422 });
 
   await logAudit(actor, {
-    module: "system",
-    action: "manage-org",
+    module: "department",
+    action: "delete",
     targetLabel: `${active ? "Mở lại" : "Ngừng hoạt động"} phòng ${result.department.name}`,
     targetTable: "departments",
     targetId: id,

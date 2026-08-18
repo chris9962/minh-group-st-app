@@ -1,5 +1,5 @@
 import { DepartmentForm } from "@/lib/api/org";
-import { can } from "@/lib/permissions";
+import { canOrg, visibleOrgDepartmentIds } from "@/lib/permissions";
 import { logAudit } from "@/server/audit";
 import { badRequest, forbidden, getActor, jsonBody, unauthorized } from "@/server/auth";
 import { createDepartment, departmentsFor, orgError } from "@/server/org";
@@ -7,19 +7,19 @@ import { createDepartment, departmentsFor, orgError } from "@/server/org";
 export async function GET(request: Request) {
   const actor = await getActor(request);
   if (!actor) return unauthorized();
-  // Màn P-91 giấu sau `manage-org` ở nav, nhưng nav chỉ ẩn link — không có
-  // middleware nên URL vẫn vào được, và route này trả cả sơ đồ tổ chức kèm
-  // sĩ số từng phòng cho bất kỳ ai có phiên. Ẩn nút không phải là phân quyền.
-  if (!can(actor, "system", "manage-org")) return forbidden();
+  // Nav chỉ ẩn link — không có middleware nên URL vẫn vào được, và route này
+  // trả cả sơ đồ tổ chức kèm sĩ số từng phòng cho bất kỳ ai có phiên. Ẩn nút
+  // không phải là phân quyền.
+  if (!canOrg(actor, "view-detail")) return forbidden();
 
   const search = new URL(request.url).searchParams.get("search") ?? "";
-  return Response.json(await departmentsFor(search));
+  return Response.json(await departmentsFor(search, visibleOrgDepartmentIds(actor)));
 }
 
 export async function POST(request: Request) {
   const actor = await getActor(request);
   if (!actor) return unauthorized();
-  if (!can(actor, "system", "manage-org")) return forbidden();
+  if (!canOrg(actor, "create")) return forbidden();
 
   // Máy chủ tự kiểm — `as` chỉ là lời hứa của TypeScript, body rỗng thì
   // `sameNameKey(undefined)` ném lỗi và cả request vỡ thành 500.
@@ -30,8 +30,8 @@ export async function POST(request: Request) {
   if (!result.ok) return Response.json(orgError(result.code), { status: 422 });
 
   await logAudit(actor, {
-    module: "system",
-    action: "manage-org",
+    module: "department",
+    action: "create",
     targetLabel: `Lập phòng ${result.department.name}`,
     targetTable: "departments",
     targetId: result.department.id,

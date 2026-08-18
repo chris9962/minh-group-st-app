@@ -19,8 +19,16 @@ import { bankAccounts, banks, departments, userManagedDepartments, users } from 
 const sameNameKey = (name: string): string =>
   removeDiacritics(name).trim().toLowerCase();
 
-/** MỘT câu GROUP BY cho headcount mọi phòng — không đếm từng phòng một (N+1). */
-async function rowsWithHeadcount(): Promise<DepartmentRow[]> {
+/**
+ * MỘT câu GROUP BY cho headcount mọi phòng — không đếm từng phòng một (N+1).
+ *
+ * `visible` là danh sách phòng người gọi đọc được; `null` = không giới hạn.
+ * Kẹp NGAY TRONG CÂU TRUY VẤN, không lọc sau: lọc sau thì `headcount` của phòng
+ * ngoài phạm vi vẫn đi qua đường truyền một lượt.
+ */
+async function rowsWithHeadcount(visible: string[] | null): Promise<DepartmentRow[]> {
+  if (visible !== null && visible.length === 0) return [];
+
   const rows = await db
     .select({
       id: departments.id,
@@ -30,6 +38,7 @@ async function rowsWithHeadcount(): Promise<DepartmentRow[]> {
     })
     .from(departments)
     .leftJoin(users, eq(users.departmentId, departments.id))
+    .where(visible === null ? undefined : inArray(departments.id, visible))
     .groupBy(departments.id)
     .orderBy(asc(departments.name));
 
@@ -52,8 +61,17 @@ async function nameTaken(name: string, exceptId?: string): Promise<boolean> {
   return all.some((d) => d.id !== exceptId && sameNameKey(d.name) === key);
 }
 
-export async function departmentsFor(search: string): Promise<DepartmentList> {
-  const rows = await rowsWithHeadcount();
+/**
+ * Bảng P-91 — chỉ những phòng người gọi đọc được.
+ *
+ * Ba số ở phần tóm tắt cũng đếm trong phạm vi đó. Đếm toàn công ty rồi liệt kê
+ * sáu phòng là hai con số nói ngược nhau trên cùng một màn.
+ */
+export async function departmentsFor(
+  search: string,
+  visible: string[] | null,
+): Promise<DepartmentList> {
+  const rows = await rowsWithHeadcount(visible);
 
   // Tìm kiếm KHÔNG áp lên phần tóm tắt — gõ tên một phòng không có nghĩa là
   // công ty chỉ còn một phòng.
@@ -182,7 +200,14 @@ export async function setDepartmentActive(
  * Người quản lý một phòng — chỉ tính cấp Phó GĐ trở lên; không ai quản thì
  * hiện Giám đốc theo mặc định (quyết định #44 — company không liệt kê từng phòng).
  */
-export async function departmentDetailFor(id: string): Promise<DepartmentDetail | null> {
+export async function departmentDetailFor(
+  id: string,
+  visible: string[] | null,
+): Promise<DepartmentDetail | null> {
+  // Ngoài phạm vi thì trả `null` — route đổi thành 404. Trả 403 là nói ra rằng
+  // phòng đó có tồn tại, mà người hỏi không được biết điều đó.
+  if (visible !== null && !visible.includes(id)) return null;
+
   const [department] = await db.select().from(departments).where(eq(departments.id, id)).limit(1);
   if (!department) return null;
 
@@ -346,14 +371,23 @@ const rateOf = (opened: number, installed: number): number =>
  * số 0 chứ không vắng mặt. Bỏ chúng đi thì giao diện hiện `—`, mà `—` có nghĩa
  * "không đọc được số" chứ không phải "tháng này chưa mở tài khoản nào".
  */
-export async function departmentStatsFor(periodKey: string): Promise<DepartmentStats> {
+export async function departmentStatsFor(
+  periodKey: string,
+  visible: string[] | null,
+): Promise<DepartmentStats> {
+  if (visible !== null && visible.length === 0) return { departments: [] };
+
   const { current, previous } = periodRanges(periodKey, businessDay());
 
   const [rows, now, before] = await Promise.all([
     db
       .select({ id: departments.id, name: departments.name })
       .from(departments)
-      .where(eq(departments.active, true))
+      .where(
+        visible === null
+          ? eq(departments.active, true)
+          : and(eq(departments.active, true), inArray(departments.id, visible)),
+      )
       .orderBy(asc(departments.name)),
     statsByDepartment(current),
     previous ? statsByDepartment(previous) : Promise.resolve(null),

@@ -29,7 +29,10 @@ import {
 /* ── 16 enum (mgst-db-design.md §0) ─────────────────────────────────── */
 
 export const moduleKey = pgEnum("module_key", [
-  "customer", "insurance", "banking", "services", "staff", "system", "*",
+  "customer", "insurance", "banking", "services", "staff",
+  // P-91 · sơ đồ tổ chức, thêm ở migration 0026
+  "department",
+  "system", "*",
 ]);
 
 export const actionKey = pgEnum("action_key", [

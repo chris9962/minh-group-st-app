@@ -23,10 +23,27 @@ export const EDITS_CATALOG: Record<Role, boolean> = {
   staff: false,
 };
 
-/** Quản lý tổ chức vẫn chỉ CEO (spec §10.1, không nằm trong quyết định 05/08). */
+/**
+ * SỬA cơ cấu tổ chức — lập phòng, đổi tên, cho ngừng hoạt động — vẫn chỉ CEO
+ * (spec §10.1). Cũng là quyền gác màn Nhật ký truy vết P-93.
+ */
 export const MANAGES_ORG: Record<Role, boolean> = {
   director: true,
   "deputy-director": false,
+  head: false,
+  "deputy-head": false,
+  staff: false,
+};
+
+/**
+ * ĐỌC sơ đồ tổ chức — mở màn P-91 ở chế độ xem (chốt 2026-08-18).
+ *
+ * Tách khỏi `MANAGES_ORG` từ khi có module `department`: Phó giám đốc xem được
+ * danh sách phòng và bốn cột số liệu nhưng không có nút sửa nào.
+ */
+export const READS_ORG: Record<Role, boolean> = {
+  director: true,
+  "deputy-director": true,
   head: false,
   "deputy-head": false,
   staff: false,

@@ -2,7 +2,8 @@ import { expect, test, type Page } from "@playwright/test";
 import { TAG, login } from "./roles";
 
 /**
- * P-91 · Phòng ban — màn của riêng CEO (`system:manage-org`, spec §10.1).
+ * P-91 · Phòng ban — module `department`: CEO sửa cơ cấu, Phó giám đốc chỉ đọc
+ * (spec §10.1, chốt 2026-08-18).
  *
  * Phần "chức vụ nào mở được" đã nằm ở `permissions.spec.ts`; ở đây soi HÀNH VI
  * của màn khi đã vào được.

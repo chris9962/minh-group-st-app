@@ -36,7 +36,7 @@ import { Checkbox } from "@/components/ui/Checkbox";
 import { SearchField } from "@/components/ui/SearchField";
 import { StaffFormDialog } from "@/components/staff/StaffFormDialog";
 import { useDebouncedValue } from "@/lib/hooks";
-import { availableScopes, can } from "@/lib/permissions";
+import { availableScopes, can, canOrg, scopeFor, visibleDepartmentIds } from "@/lib/permissions";
 import { ROLE_LABEL, RoleKey, type Scope } from "@/lib/types";
 import { errorMessage, toast } from "@/lib/toast";
 import { useSession } from "@/store/session";
@@ -61,13 +61,13 @@ function StaffName({ id, fullName, staffCode }: { id: string; fullName: string; 
 /**
  * Ô đơn vị: bấm sang trang phòng ban đó.
  *
- * Chỉ người có `manage-org` mới thấy link — API chi tiết phòng chặn ở đúng
+ * Chỉ người ĐỌC ĐƯỢC phòng ban mới thấy link — API chi tiết phòng chặn ở đúng
  * quyền đó, nên link cho người khác chỉ dẫn tới một màn báo lỗi.
  */
 function DepartmentCell({ id, name }: { id: string | null; name: string }) {
   const user = useSession((s) => s.user);
   if (!id || !name) return <>{name || "—"}</>;
-  if (!can(user, "system", "manage-org")) return <>{name}</>;
+  if (!canOrg(user, "view-detail")) return <>{name}</>;
   return (
     <Link href={`/departments/${id}`} className={styles.nameLink}>
       {name}
@@ -166,6 +166,27 @@ export default function PeoplePage() {
     queryFn: fetchDepartments,
     staleTime: Infinity,
   });
+
+  /**
+   * Ô lọc chỉ liệt kê phòng người xem đọc được, qua ĐÚNG hàm máy chủ dùng để
+   * kẹp (`staffFor`). Đổ cả danh sách thì Phó giám đốc chọn một phòng ngoài
+   * phạm vi rồi nhận bảng rỗng, mà không chỗ nào nói vì sao rỗng.
+   */
+  const departmentOptions = useMemo(() => {
+    const visible = visibleDepartmentIds(user, scope);
+    return visible === null ? departments : departments.filter((d) => visible.includes(d.id));
+  }, [departments, scope, user]);
+
+  /**
+   * Hộp thoại thêm/sửa nhân sự hỏi theo ĐÚNG hành động sắp chạy — `create` khi
+   * thêm, `update` khi sửa — chứ không mượn phạm vi của ô lọc phía trên. Máy chủ
+   * kẹp ô "Phòng phụ trách" bằng cùng phép tính, xem `checkManagedDepartments`.
+   */
+  const formDepartments = useMemo(() => {
+    const action = editing ? "update" : "create";
+    const visible = visibleDepartmentIds(user, scopeFor(user, "staff", action) ?? "own");
+    return visible === null ? departments : departments.filter((d) => visible.includes(d.id));
+  }, [departments, editing, user]);
 
   /** Đổi bộ lọc thì về trang đầu — giữ nguyên trang 5 của kết quả cũ là hiện một khúc rỗng. */
   const refine = (apply: () => void) => {
@@ -297,7 +318,7 @@ export default function PeoplePage() {
             onChange={(v) => refine(() => setDepartmentId(v))}
             options={[
               { value: "", label: "Tất cả đơn vị" },
-              ...departments.map((d) => ({ value: d.id, label: d.name })),
+              ...departmentOptions.map((d) => ({ value: d.id, label: d.name })),
             ]}
           />
 
@@ -429,7 +450,7 @@ export default function PeoplePage() {
           <StaffFormDialog
             open
             staff={editing}
-            departments={departments}
+            departments={formDepartments}
             onClose={() => {
               setCreating(false);
               setEditing(null);

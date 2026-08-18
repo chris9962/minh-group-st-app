@@ -28,7 +28,14 @@ type Props = {
 
 /** `system` không có bản ghi để CRUD — chỉ có hành động đặc biệt. */
 function actionsForModule(module: ModuleKey): Action[] {
-  const base = module === "system" ? [] : BASE_ACTIONS;
+  // `department` không có đường xuất Excel nào — bày ô đó ra là hứa một tính
+  // năng không tồn tại, cấp xong vẫn không có nút nào hiện thêm.
+  const base =
+    module === "system"
+      ? []
+      : module === "department"
+        ? BASE_ACTIONS.filter((a) => a !== "export")
+        : BASE_ACTIONS;
   const special = SPECIAL_ACTIONS_OF[module] ?? [];
   return [...base, ...special];
 }

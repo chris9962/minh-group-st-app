@@ -1,4 +1,4 @@
-import { can } from './permissions';
+import { can, canOrg } from './permissions';
 import type { User } from './types';
 
 /**
@@ -125,7 +125,9 @@ export function navFor(user: User | null): NavEntry[] {
     items.push({ href: '/users', label: 'Nhân sự', icon: 'people', screen: 'P-51' });
   }
 
-  if (can(user, 'system', 'manage-org')) {
+  // Phó giám đốc vào bằng `department:view-detail` — xem sơ đồ và số liệu,
+  // không có nút sửa nào. Xem `canOrg`.
+  if (canOrg(user, 'view-detail')) {
     items.push({ href: '/departments', label: 'Phòng ban', icon: 'org', screen: 'P-91' });
   }
 

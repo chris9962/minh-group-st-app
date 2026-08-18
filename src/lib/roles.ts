@@ -167,12 +167,33 @@ export const directorPermissions: Permission[] = Action.options.map((action) =>
   p('*', action, 'company'),
 );
 
+/**
+ * Phó giám đốc = quản lý + ĐỌC phòng ban (chốt 2026-08-18).
+ *
+ * Đúng hai hành động đọc của module `department`, không có `create` · `update`
+ * · `delete`: họ xem danh sách phòng, sĩ số và bốn cột số liệu nghiệp vụ — cùng
+ * bộ số Giám đốc thấy — nhưng không lập phòng, không đổi tên, không cho ngừng
+ * hoạt động.
+ *
+ * Phạm vi `managed` — đúng những phòng ghi trong `user_managed_departments` của
+ * người đó, cùng trục với mọi quyền nghiệp vụ khác của họ. Bảng, ba thẻ tóm tắt
+ * và bốn cột số liệu đều kẹp theo danh sách này ở `server/org.ts`.
+ *
+ * Tách riêng khỏi `managerPermissions`: Trưởng phòng và Phó phòng dùng chung bộ
+ * đó, mà họ không có lý do mở màn sơ đồ tổ chức.
+ */
+const deputyDirectorPermissions: Permission[] = [
+  ...managerPermissions,
+  p('department', 'view-summary', 'managed'),
+  p('department', 'view-detail', 'managed'),
+];
+
 export const ROLE_PERMISSIONS: Record<RoleKey, Permission[]> = {
   director: directorPermissions,
-  'deputy-director': managerPermissions,
+  'deputy-director': deputyDirectorPermissions,
   head: managerPermissions,
   'deputy-head': managerPermissions,
   staff: staffPermissions,
 };
 
-export { managerPermissions, staffPermissions };
+export { deputyDirectorPermissions, managerPermissions, staffPermissions };
