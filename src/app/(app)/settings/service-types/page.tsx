@@ -9,7 +9,7 @@ import styles from "./page.module.scss";
 export default function ServiceTypesPage() {
   return (
     <RequirePermission module="services" action="configure-catalog">
-      <TopBar title="Loại dịch vụ" />
+      <TopBar title="Loại dịch vụ" keepTitleOnMobile />
       <main className={styles.body}>
         <ServiceTypeSection />
       </main>

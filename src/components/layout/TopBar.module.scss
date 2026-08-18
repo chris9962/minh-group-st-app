@@ -14,7 +14,8 @@
   flex-wrap: wrap;
 }
 
-.title {
+.title,
+.titleKept {
   margin: 0;
   font-size: 20px;
   flex: none;
@@ -56,5 +57,18 @@
 @media (max-width: bp.$bp-mobile) {
   .bar {
     padding: 10px 16px;
+  }
+
+  /* Ẩn khỏi mắt nhưng KHÔNG dùng `display: none` — `h1` là mốc điều hướng duy
+     nhất của trang, bỏ khỏi cây trợ năng là trình đọc màn hình mất chỗ đứng. */
+  .title {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    border: 0;
   }
 }

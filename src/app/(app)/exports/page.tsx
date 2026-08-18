@@ -44,7 +44,7 @@ type ReportId =
 
 const REPORTS: { id: ReportId; label: string; hint: string; module: ModuleKey | "customer" }[] = [
   { id: "accounts-by-customer", label: "Danh sách tài khoản, gộp theo khách", hint: "Ngân hàng · ngày · mã giới thiệu", module: "banking" },
-  { id: "customer-summary", label: "Dữ liệu tổng", hint: "📌 Đang chờ file mẫu của khách — cột hiện tại là tạm", module: "customer" },
+  { id: "customer-summary", label: "Dữ liệu tổng", hint: "SĐT · kênh · số tài khoản · quà", module: "customer" },
   { id: "staff-points", label: "Nhân viên + điểm", hint: "Tháng · đơn vị", module: "staff" },
   { id: "apps-by-bank-department", label: "Tổng app đã cài theo ngân hàng, theo phòng", hint: "Ngân hàng · đơn vị · kỳ", module: "banking" },
   { id: "accounts-by-code", label: "Tra tài khoản theo mã giới thiệu", hint: "Mã · ngân hàng · kỳ", module: "banking" },
@@ -515,7 +515,7 @@ export default function ExportsPage() {
   if (allowed.length === 0) {
     return (
       <>
-        <TopBar title="Xuất dữ liệu" />
+        <TopBar title="Xuất dữ liệu" keepTitleOnMobile />
         <main className={styles.body}>
           <p className="text-muted">Bạn không có quyền xuất báo cáo nào.</p>
         </main>
@@ -527,7 +527,7 @@ export default function ExportsPage() {
 
   return (
     <>
-      <TopBar title="Xuất dữ liệu" />
+      <TopBar title="Xuất dữ liệu" keepTitleOnMobile />
       <main className={styles.body}>
         <div className={styles.columns}>
           <SectionCard title="Chọn báo cáo" icon={<Download size={17} />}>

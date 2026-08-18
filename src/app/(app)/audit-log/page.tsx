@@ -116,7 +116,7 @@ export default function AuditLogPage() {
   if (!canView) {
     return (
       <>
-        <TopBar title="Nhật ký truy vết" />
+        <TopBar title="Nhật ký truy vết" keepTitleOnMobile />
         <main className={styles.body}>
           <p className="text-muted">Bạn không có quyền xem trang này.</p>
         </main>
@@ -126,7 +126,7 @@ export default function AuditLogPage() {
 
   return (
     <>
-      <TopBar title="Nhật ký truy vết">
+      <TopBar title="Nhật ký truy vết" keepTitleOnMobile>
         <FilterButton
           activeCount={activeCount}
           onClear={() =>
@@ -180,12 +180,6 @@ export default function AuditLogPage() {
               : []),
           ]}
         />
-
-        <p className={styles.note}>
-          Ghi lại ai xem/sửa gì, lúc nào — vì mọi nhân viên xem được CCCD và địa
-          chỉ của mọi khách trong công ty. Đây là bằng chứng bảo vệ, không phải
-          giám sát: số liệu lệch thì tra được ai đã sửa.
-        </p>
 
         {isPending && <SkeletonTable rows={10} columns={4} />}
         {isError && (

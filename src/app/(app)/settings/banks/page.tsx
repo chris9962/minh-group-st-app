@@ -24,7 +24,7 @@ export default function BanksPage() {
 
   return (
     <RequirePermission module="banking" action="manage-bank-catalog">
-      <TopBar title="Danh sách ngân hàng">
+      <TopBar title="Danh sách ngân hàng" keepTitleOnMobile>
         {/* Chữ ẩn đi trên màn hẹp, `aria-label` giữ nguyên nghĩa cho trình đọc
             màn hình — cùng cách làm với hai màn kia. */}
         <Button aria-label="Thêm ngân hàng" onClick={() => setCreating(true)}>

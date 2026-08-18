@@ -9,7 +9,7 @@ import styles from "./page.module.scss";
 export default function ReferralCodesPage() {
   return (
     <RequirePermission module="banking" action="manage-referral-codes">
-      <TopBar title="Danh sách mã giới thiệu" />
+      <TopBar title="Danh sách mã giới thiệu" keepTitleOnMobile />
       <main className={styles.body}>
         <ReferralCodesSection />
       </main>

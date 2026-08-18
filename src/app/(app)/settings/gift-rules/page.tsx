@@ -19,7 +19,7 @@ import styles from "./page.module.scss";
 export default function GiftRulesPage() {
   return (
     <RequirePermission module="system" action="configure-gift-rules">
-      <TopBar title="Quy tắc quà" />
+      <TopBar title="Quy tắc quà" keepTitleOnMobile />
       <main className={styles.body}>
         <GiftSimulator />
       </main>

@@ -15,7 +15,7 @@ import styles from "./page.module.scss";
 export default function ChannelsPage() {
   return (
     <RequirePermission module="system" action="configure-catalog">
-      <TopBar title="Danh mục kênh" />
+      <TopBar title="Danh mục kênh" keepTitleOnMobile />
       <main className={styles.body}>
         <ChannelCatalogSection />
         <WardCatalogSection />

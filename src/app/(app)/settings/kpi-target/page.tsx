@@ -9,7 +9,7 @@ import styles from "./page.module.scss";
 export default function KpiTargetPage() {
   return (
     <RequirePermission module="system" action="configure-catalog">
-      <TopBar title="Chỉ tiêu KPI" />
+      <TopBar title="Chỉ tiêu KPI" keepTitleOnMobile />
       <main className={styles.body}>
         <KpiTargetSection />
       </main>
