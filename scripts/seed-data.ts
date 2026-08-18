@@ -179,8 +179,10 @@ export const BANKS = [
   { code: "TPB", requiredPhotos: 3, accountNumberMethod: "phone-match", coefficient: "1", countsAsApp: true },
   { code: "VIB", requiredPhotos: 3, accountNumberMethod: "phone-match", coefficient: "1", countsAsApp: true },
   { code: "SHB", requiredPhotos: 3, accountNumberMethod: "phone-match", coefficient: "1", countsAsApp: true },
-  { code: "CNKD", requiredPhotos: 3, accountNumberMethod: "phone-match", coefficient: "1", countsAsApp: false },
-  { code: "HKD", requiredPhotos: 3, accountNumberMethod: "phone-match", coefficient: "1", countsAsApp: false },
+  // CNKD và HKD KHÔNG phải ngân hàng (chốt 2026-08-18) — chúng là LOẠI TÀI
+  // KHOẢN của VPa, ghi ở cột `bank_accounts.account_type`. Dựng thành hai dòng
+  // ở đây thì chúng hiện trong mọi ô chọn ngân hàng, và nhân viên mở được một
+  // "tài khoản CNKD" tách rời khỏi VPa.
 ] as const;
 
 /* Kho mã giới thiệu KHÔNG seed (duyệt 03/08 — mã mẫu là số bịa): bắt đầu rỗng,

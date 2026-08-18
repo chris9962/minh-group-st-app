@@ -12,7 +12,7 @@
  * Chạy lại nhiều lần: tự dọn phần cũ trước khi dựng lại.
  */
 import { hashSync } from "bcryptjs";
-import { eq, inArray, like } from "drizzle-orm";
+import { and, eq, inArray, like } from "drizzle-orm";
 import { businessDay, businessMonth } from "../src/lib/format";
 import { ROLE_PERMISSIONS } from "../src/lib/roles";
 import { db } from "../src/server/db/client";
@@ -93,9 +93,43 @@ async function clean() {
     await db.delete(customers).where(inArray(customers.id, customerIds));
   }
 
-  await db.delete(referralCodes).where(like(referralCodes.code, `${TAG}%`));
+  /**
+   * Chỉ xoá mã KHÔNG còn tài khoản nào trỏ tới.
+   *
+   * Người dùng thử tay hay mở tài khoản bằng mã `DEMO-*` là mã đó thành mã của
+   * họ, không còn là mã của bộ mẫu. Xoá thẳng thì bước dọn dừng giữa chừng vì
+   * khoá ngoại, và lượt chạy đã xoá xong khách DEMO nhưng chưa dựng lại được —
+   * bộ mẫu mất mà không báo gì.
+   */
+  const demoCodes = await db
+    .select({ id: referralCodes.id })
+    .from(referralCodes)
+    .where(like(referralCodes.code, `${TAG}%`));
+  for (const c of demoCodes) {
+    const [used] = await db
+      .select({ id: bankAccounts.id })
+      .from(bankAccounts)
+      .where(eq(bankAccounts.referralCodeId, c.id))
+      .limit(1);
+    if (!used) await db.delete(referralCodes).where(eq(referralCodes.id, c.id));
+  }
 
   for (const u of demoUsers) {
+    /**
+     * GIỮ LẠI người còn bản ghi không phải DEMO đứng tên.
+     *
+     * Người thử tay đăng nhập bằng tài khoản `demo_*` rồi lập một hồ sơ khách
+     * thật thì hồ sơ đó trỏ vào `users.id`. Xoá người là vướng khoá ngoại,
+     * bước dọn dừng giữa chừng và bộ mẫu mất mà không dựng lại được. `build()`
+     * dùng lại chính hàng này, không dựng bản trùng.
+     */
+    const [owned] = await db
+      .select({ id: customers.id })
+      .from(customers)
+      .where(eq(customers.createdBy, u.id))
+      .limit(1);
+    if (owned) continue;
+
     // Bốn bảng này trỏ vào `users.id` và không cascade — xoá người trước là
     // vướng khoá ngoại ngay từ lần chạy lại thứ hai.
     await db.delete(auditLog).where(eq(auditLog.actorId, u.id));
@@ -131,7 +165,18 @@ const STAFF: { username: string; fullName: string; role: RoleKey; dept: string }
 
 /* ── Khách mẫu ─────────────────────────────────────────────────────────── */
 
-type DemoAccount = { bank: string; app?: boolean; draft?: boolean };
+/**
+ * `type` là LOẠI TÀI KHOẢN của VPa, không phải một ngân hàng riêng (chốt
+ * 2026-08-18). CNKD và HKD từng bị dựng thành hai dòng trong bảng `banks`, nên
+ * ca TH1 mở một tài khoản "ngân hàng CNKD" — sai hình dạng, và luật quà đọc
+ * `account_type` nên nó ra rổ đúng chỉ vì trùng hợp.
+ */
+type DemoAccount = {
+  bank: string;
+  app?: boolean;
+  draft?: boolean;
+  type?: "CNKD" | "HKD";
+};
 
 type DemoCustomer = {
   name: string;
@@ -214,7 +259,7 @@ const CUSTOMERS: DemoCustomer[] = [
     name: "DEMO TH1 · VPa kèm CNKD nên rổ có Loa và Mica",
     case: "TH1",
     owner: "demo_kd1_a",
-    accounts: [{ bank: "MB" }, { bank: "VPa" }, { bank: "CNKD" }],
+    accounts: [{ bank: "MB" }, { bank: "VPa", type: "CNKD" }, { bank: "LBP" }],
   },
   {
     name: "DEMO TH6 · Phòng Y quy đổi sang nón và mì",
@@ -294,12 +339,24 @@ async function build() {
         departmentId: deptIdByCode.get(s.dept)!,
         manageScope: s.role === "head" ? "listed" : "none",
       })
+      // Người còn bản ghi đứng tên thì `clean()` giữ lại — dùng lại hàng đó.
+      .onConflictDoNothing({ target: users.username })
       .returning({ id: users.id });
-    userIdByName.set(s.username, row.id);
+    const userId =
+      row?.id ??
+      (
+        await db
+          .select({ id: users.id })
+          .from(users)
+          .where(eq(users.username, s.username))
+          .limit(1)
+      )[0].id;
+    userIdByName.set(s.username, userId);
 
+    await db.delete(userPermissions).where(eq(userPermissions.userId, userId));
     await db.insert(userPermissions).values(
       ROLE_PERMISSIONS[s.role].map((p) => ({
-        userId: row.id,
+        userId,
         module: p.module,
         action: p.action,
         scope: p.scope,
@@ -308,7 +365,10 @@ async function build() {
     // Trưởng phòng KHÔNG có dòng này thì phạm vi `phòng tôi quản` phân giải ra
     // tập rỗng, và mọi màn nghiệp vụ của họ trắng trơn.
     if (s.role === "head")
-      await db.insert(userManagedDepartments).values({ userId: row.id, departmentId: deptIdByCode.get(s.dept)! });
+      await db
+        .insert(userManagedDepartments)
+        .values({ userId, departmentId: deptIdByCode.get(s.dept)! })
+        .onConflictDoNothing();
   }
 
   /**
@@ -329,8 +389,20 @@ async function build() {
     const [row] = await db
       .insert(referralCodes)
       .values({ bankId: id, code: `${TAG}-${code}`, total: 200 })
+      // Mã cũ còn sót vì có tài khoản người dùng trỏ tới — dùng lại chính nó,
+      // không dựng bản trùng.
+      .onConflictDoNothing({ target: [referralCodes.bankId, referralCodes.code] })
       .returning({ id: referralCodes.id });
-    codeIdByBank.set(code, row.id);
+    const codeId =
+      row?.id ??
+      (
+        await db
+          .select({ id: referralCodes.id })
+          .from(referralCodes)
+          .where(and(eq(referralCodes.bankId, id), eq(referralCodes.code, `${TAG}-${code}`)))
+          .limit(1)
+      )[0].id;
+    codeIdByBank.set(code, codeId);
   }
 
   /* Khách + tài khoản + đơn + dịch vụ */
@@ -377,6 +449,7 @@ async function build() {
         accountNumber: a.draft ? null : `DEMO${i}${k}`,
         openedDate: a.draft ? null : day(3 + (i % 20)),
         appInstalled: a.app ?? true,
+        accountType: a.type ?? "none",
         createdBy: ownerId,
         createdByDepartmentId: deptId,
       });
