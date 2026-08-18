@@ -18,6 +18,21 @@
   display: flex;
   flex-direction: column;
   overflow-y: auto;
+  /**
+   * Gốc neo cho mọi `position: absolute` bên trong.
+   *
+   * Không có nó thì phần tử absolute nào không tìm thấy tổ tiên đã định vị sẽ
+   * neo vào TÀI LIỆU, thoát khỏi vùng cuộn này. Lớp `.sr-only` là ca hay gặp
+   * nhất — nó nằm ở đủ mọi bảng và mọi thanh tab — nên khi trang cuộn xuống,
+   * mấy phần tử 1px đó nằm ở toạ độ 800–900px của tài liệu và kéo tài liệu dài
+   * ra đúng ngần ấy. Tài liệu ở máy tính có `overflow: hidden` (globals.css):
+   * không có thanh cuộn, nhưng bấm vào một tab là trình duyệt tự cuộn tài liệu
+   * để đưa ô radio `.sr-only` đang nhận tiêu điểm vào tầm nhìn — cả khung app
+   * dịch lên vài trăm pixel, sidebar và thanh trên bị cắt, chân trang lộ nền
+   * trống, và không có cách nào đưa về. Dựng lại được ở P-51 chi tiết nhân
+   * viên, khung nhìn 908×683.
+   */
+  position: relative;
 }
 
 /* Trên điện thoại sidebar trượt ra từ mép trái khi mở (xem Sidebar.module.scss),

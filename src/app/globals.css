@@ -70,8 +70,24 @@ a {
    thật) là khung app cao hơn phần nhìn thấy đúng bằng bề dày thanh cuộn, và
    body mọc thêm một thanh cuộn thứ hai.
 
-   Điện thoại thì ngược lại — cả trang phải cuộn được nên không đặt gì. */
-@media (min-width: 901px) {
+   Điện thoại thì ngược lại — cả trang phải cuộn được nên không đặt gì.
+
+   ⚠️ `overflow: hidden` giấu thanh cuộn nhưng VẪN tạo một vùng cuộn — người
+   dùng không kéo được, trình duyệt thì cuộn được. Nên tài liệu tuyệt đối không
+   được cao hơn khung nhìn: chỉ cần một phần tử tràn ra là bấm vào chỗ nhận tiêu
+   điểm nào đó, trình duyệt tự cuộn tài liệu để đưa nó vào tầm nhìn, cả khung
+   app dịch lên, và không có thanh cuộn nào để đưa về. Chốt chặn cho ca đó nằm ở
+   `AppShell.module.scss` — `.main` mang `position: relative` để mọi phần tử
+   `position: absolute` neo vào vùng cuộn thay vì neo vào tài liệu.
+
+   Đổi sang `clip` KHÔNG giải quyết được: giá trị `clip` không truyền từ `html`
+   lên viewport, viewport quay về `auto` và cuộn lại như cũ. Đã thử.
+
+   Mốc `900.02px` khớp ngay trên `max-width: 900px` của các `.module.scss`. Để
+   `901px` thì cửa sổ rộng 900,5px — số lẻ có thật khi phóng to trang hoặc trên
+   màn hình HiDPI — rơi vào giữa hai luật: AppShell chạy nhánh máy tính trong
+   khi html/body không được khoá. */
+@media (min-width: 900.02px) {
   html,
   body {
     height: 100%;
