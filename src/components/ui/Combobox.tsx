@@ -2,7 +2,7 @@
 
 import { clsx } from "clsx";
 import * as Popover from "@radix-ui/react-popover";
-import { useContext, useId, useState } from "react";
+import { useContext, useId, useRef, useState } from "react";
 import { matchesSearch } from "@/lib/format";
 import { DialogPortalContext } from "./Dialog";
 import styles from "./Combobox.module.css";
@@ -46,28 +46,61 @@ export function Combobox({
   const errorId = `${id}-error`;
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
+  /**
+   * Con trỏ đang nằm trong ô — KHÁC với `open` của danh sách gợi ý.
+   *
+   * Hai thứ này từng dùng chung một state và chữ trong ô bám theo `open`. Khi
+   * Combobox nằm trong một Popover khác (ô lọc của `FilterButton`), lượt bấm
+   * chuột vừa mở danh sách vừa bị lớp bắt-bấm-ra-ngoài của Radix đóng lại ngay,
+   * nên `open` về `false` và nhãn đang chọn hiện lại. Người dùng gõ tiếp thì
+   * chữ nối vào sau nhãn đó — phải tự xoá tay trước mỗi lần tìm.
+   */
+  const [editing, setEditing] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const dialogEl = useContext(DialogPortalContext);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const selected = options.find((o) => o.value === value);
-  const displayValue = open ? query : (selected?.label ?? "");
+  const displayValue = editing ? query : (selected?.label ?? "");
   const filtered = query.trim() ? options.filter((o) => matchesSearch(o.label, query)) : options;
 
   const commit = (option: ComboboxOption) => {
     onChange(option.value);
     setQuery("");
     setOpen(false);
+    setEditing(false);
     setActiveIndex(-1);
   };
 
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
       <span className={block ? styles.blockWrap : styles.wrap}>
-        <label htmlFor={id} className={block ? styles.blockLabel : styles.label}>
+        {/*
+          Bấm vào nhãn KHÔNG mở danh sách gợi ý. Nhãn nằm ngay trên ô, mà danh
+          sách đang mở thì người dùng bấm hụt lên phía trên để đóng nó — trúng
+          nhãn là danh sách mở lại ngay.
+
+          Vẫn giữ `htmlFor`/`id`: liên kết đó là thứ trình đọc màn hình đọc
+          (AGENTS.md §8). Chỉ bỏ hành vi kích hoạt bằng chuột, bàn phím đi bằng
+          Tab nên không đổi.
+        */}
+        <label
+          htmlFor={id}
+          className={block ? styles.blockLabel : styles.label}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            // Nhả con trỏ ra hẳn. Chỉ chặn `preventDefault` thì Radix đóng danh
+            // sách nhưng con trỏ vẫn nằm trong ô, nên ô kẹt ở trạng thái đang
+            // gõ: chữ trống, nhãn đang chọn không quay lại.
+            inputRef.current?.blur();
+          }}
+          onClick={(e) => e.preventDefault()}
+        >
           {label}
         </label>
         <Popover.Anchor asChild>
           <input
+            ref={inputRef}
             id={id}
             type="text"
             role="combobox"
@@ -83,11 +116,21 @@ export function Combobox({
             placeholder={placeholder}
             onFocus={() => {
               setOpen(true);
+              setEditing(true);
               setQuery("");
               setActiveIndex(-1);
             }}
+            // Mở lại ở `click`, không chỉ ở `focus`: lượt bấm mở danh sách rồi
+            // bị chính lớp bắt-bấm-ra-ngoài của Radix đóng ngay trong cùng một
+            // nhịp. `click` chạy sau `pointerup` nên nó đứng vững.
+            onClick={() => setOpen(true)}
+            onBlur={() => {
+              setEditing(false);
+              setQuery("");
+            }}
             onChange={(e) => {
               setOpen(true);
+              setEditing(true);
               setQuery(e.target.value);
               setActiveIndex(-1);
             }}
@@ -106,6 +149,7 @@ export function Combobox({
                 }
               } else if (e.key === "Escape") {
                 setOpen(false);
+                setEditing(false);
                 setQuery("");
               }
             }}

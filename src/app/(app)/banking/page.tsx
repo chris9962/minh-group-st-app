@@ -12,6 +12,7 @@ import { BankAccountEditDialog } from "@/components/banking/BankAccountEditDialo
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { CreateBankAccountDialog } from "@/components/banking/CreateBankAccountDialog";
 import { Button } from "@/components/ui/Button";
+import { Combobox } from "@/components/ui/Combobox";
 import buttonStyles from "@/components/ui/Button.module.css";
 import { DateRangePicker } from "@/components/ui/DateRangePicker";
 import { FilterButton } from "@/components/ui/FilterButton";
@@ -328,6 +329,7 @@ export default function BankingPage() {
           }
         >
           <Select
+            block
             label="Ngân hàng"
             value={bankCode}
             onChange={(v) => refine(() => setBankCode(v))}
@@ -337,6 +339,7 @@ export default function BankingPage() {
             ]}
           />
           <Select
+            block
             label="Trạng thái"
             value={status}
             onChange={(v) => refine(() => setStatus(v as BankAccountStatus | ""))}
@@ -345,8 +348,9 @@ export default function BankingPage() {
               ...BankAccountStatus.options.map((s) => ({ value: s, label: STATUS_LABEL[s] })),
             ]}
           />
-          <DateRangePicker value={range} onChange={(v) => refine(() => setRange(v))} />
+          <DateRangePicker label="Khoảng ngày" value={range} onChange={(v) => refine(() => setRange(v))} />
           <Select
+            block
             label="Mã giới thiệu"
             value={referralCode}
             onChange={(v) => refine(() => setReferralCode(v))}
@@ -356,6 +360,7 @@ export default function BankingPage() {
             ]}
           />
           <Select
+            block
             label="Kênh"
             value={channelId}
             onChange={(v) => refine(() => setChannelId(v))}
@@ -367,8 +372,12 @@ export default function BankingPage() {
             ]}
           />
           {canFilterByStaff && (
-            <Select
+            <Combobox
+              block
+              // Combobox chứ không phải Select: công ty có hàng trăm nhân viên,
+              // mà `<select>` gốc không gõ tìm được.
               label="Nhân viên"
+              placeholder="Gõ để tìm nhân viên…"
               value={staffId}
               onChange={(v) => refine(() => setStaffId(v))}
               options={[{ value: "", label: "Tất cả nhân viên" }, ...staffOptions]}

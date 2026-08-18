@@ -9,6 +9,7 @@ import { SkeletonTable } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
 import { Button } from "@/components/ui/Button";
+import { Combobox } from "@/components/ui/Combobox";
 import buttonStyles from "@/components/ui/Button.module.css";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { DateRangePicker } from "@/components/ui/DateRangePicker";
@@ -321,6 +322,7 @@ export default function InsurancePage() {
           }
         >
           <Select
+            block
             label="Trạng thái"
             value={status}
             onChange={(v) => refine(() => setStatus(v as InsuranceOrderStatus | ""))}
@@ -333,6 +335,7 @@ export default function InsurancePage() {
             ]}
           />
           <Select
+            block
             label="Loại nghiệp vụ"
             value={product}
             onChange={(v) => refine(() => setProduct(v as InsuranceProduct | ""))}
@@ -341,9 +344,13 @@ export default function InsurancePage() {
               ...InsuranceProduct.options.map((p) => ({ value: p, label: PRODUCT_LABEL[p] })),
             ]}
           />
-          <DateRangePicker value={range} onChange={(v) => refine(() => setRange(v))} />
-          <Select
+          <DateRangePicker label="Khoảng ngày" value={range} onChange={(v) => refine(() => setRange(v))} />
+          <Combobox
+            block
+            // Combobox chứ không phải Select: công ty có hàng trăm nhân viên,
+            // mà `<select>` gốc không gõ tìm được.
             label="Nhân viên"
+            placeholder="Gõ để tìm nhân viên…"
             value={staffId}
             onChange={(v) => refine(() => setStaffId(v))}
             options={[{ value: "", label: "Tất cả nhân viên" }, ...staffOptions]}
@@ -352,6 +359,7 @@ export default function InsurancePage() {
               chưa lọc theo ai. */}
           {staffId && (
             <Select
+              block
               label="Người đó là"
               value={staffRole}
               onChange={(v) => refine(() => setStaffRole(v as typeof staffRole))}

@@ -1,3 +1,22 @@
+/* Dáng đứng: nhãn trên, ô rộng hết cỡ. Cùng cỡ chữ với `.blockLabel` của
+   Select và Combobox để ba trường trong bảng lọc đọc như một khối. */
+.blockWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.label {
+  font-size: 13px;
+  color: var(--color-neutral-700);
+}
+
+.blockTrigger {
+  width: 100%;
+  text-align: left;
+}
+
 .trigger {
   width: auto;
   min-height: 32px;

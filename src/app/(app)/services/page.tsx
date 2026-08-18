@@ -11,6 +11,7 @@ import { CreateServiceDialog } from "@/components/services/CreateServiceDialog";
 import { ServiceEditDialog } from "@/components/services/ServiceEditDialog";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Button } from "@/components/ui/Button";
+import { Combobox } from "@/components/ui/Combobox";
 import buttonStyles from "@/components/ui/Button.module.css";
 import { DateRangePicker } from "@/components/ui/DateRangePicker";
 import { FilterButton } from "@/components/ui/FilterButton";
@@ -231,6 +232,7 @@ export default function ServicesPage() {
           }
         >
           <Select
+            block
             label="Loại dịch vụ"
             value={serviceTypeId}
             onChange={(v) => refine(() => setServiceTypeId(v))}
@@ -239,8 +241,9 @@ export default function ServicesPage() {
               ...serviceTypes.map((t) => ({ value: t.id, label: t.name })),
             ]}
           />
-          <DateRangePicker value={range} onChange={(v) => refine(() => setRange(v))} />
+          <DateRangePicker label="Khoảng ngày" value={range} onChange={(v) => refine(() => setRange(v))} />
           <Select
+            block
             label="Xã"
             value={wardId}
             // Lọc theo id chứ không theo tên: bản ghi chụp cả hai, mà xã đổi tên
@@ -252,8 +255,12 @@ export default function ServicesPage() {
             ]}
           />
           {canFilterByStaff && (
-            <Select
+            <Combobox
+              block
+              // Combobox chứ không phải Select: công ty có hàng trăm nhân viên,
+              // mà `<select>` gốc không gõ tìm được.
               label="Nhân viên"
+              placeholder="Gõ để tìm nhân viên…"
               value={staffId}
               onChange={(v) => refine(() => setStaffId(v))}
               options={[{ value: "", label: "Tất cả nhân viên" }, ...staffOptions]}
