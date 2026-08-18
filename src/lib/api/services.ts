@@ -121,8 +121,11 @@ export async function fetchServicesForExport(
 const serviceDate = isoDate('Chưa chọn ngày');
 
 export const ServiceForm = z.object({
-  customerId: z.string().min(1, 'Chưa chọn khách'),
-  serviceTypeId: z.string().min(1, 'Chưa chọn loại dịch vụ'),
+  // `z.uuid` chứ không phải `z.string`: hai id này đi thẳng vào cột uuid, nên
+  // chuỗi sai dạng qua được tầng kiểm thì Postgres từ chối bằng `22P02` và cả
+  // màn trả 500. Dừng ở đây thì ra 400, đúng loại lỗi.
+  customerId: z.uuid('Chưa chọn khách'),
+  serviceTypeId: z.uuid('Chưa chọn loại dịch vụ'),
   date: serviceDate,
   note: z.string().trim(),
 });

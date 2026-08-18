@@ -170,7 +170,8 @@ export async function fetchOpenReferralCodes(bankId: string): Promise<ReferralCo
 
 /** Thêm một mã lẻ. Nhập hàng loạt từ Excel vẫn là việc riêng của P-62. */
 export const ReferralCodeForm = z.object({
-  bankId: z.string().trim().min(1, 'Chưa chọn ngân hàng'),
+  // Đi thẳng vào cột uuid — xem chú thích cùng loại ở `ServiceForm`.
+  bankId: z.uuid('Chưa chọn ngân hàng'),
   code: z.string().trim().min(1, 'Chưa nhập mã'),
   total: z.int('Tổng số phải là số nguyên').min(1, 'Tổng số phải lớn hơn 0').max(INT_MAX, 'Tổng số lớn quá'),
 });
