@@ -7,7 +7,9 @@ import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { CopyValue } from "@/components/ui/CopyValue";
 import { Dialog } from "@/components/ui/Dialog";
+import { ErrorState } from "@/components/ui/ErrorState";
 import { SectionCard } from "@/components/ui/SectionCard";
+import { SkeletonCard } from "@/components/ui/Skeleton";
 import { StatusTag } from "@/components/ui/StatusTag";
 import { fetchDepartments } from "@/lib/api/departments";
 import { fetchStaffMember, resetPassword, setStaffActive } from "@/lib/api/staff";
@@ -51,7 +53,13 @@ export function AccountCard({ staffId }: { staffId: string }) {
 
   // Hồ sơ tài khoản đi đường riêng với số liệu KPI: hai thứ đổi theo nhịp khác
   // nhau, gộp một lời gọi thì đổi chức vụ cũng phải tải lại cả bảng điểm.
-  const { data: staff } = useQuery({
+  const {
+    data: staff,
+    isPending,
+    isError,
+    refetch,
+    isFetching,
+  } = useQuery({
     queryKey: ["staff-one", staffId],
     queryFn: () => fetchStaffMember(staffId),
     enabled: canManage,
@@ -81,7 +89,29 @@ export function AccountCard({ staffId }: { staffId: string }) {
       toast.fail(errorMessage(e, "Không đặt lại được mật khẩu. Thử lại.")),
   });
 
-  if (!canManage || !staff) return null;
+  /**
+   * Ba trạng thái, ba mặt khác nhau — bản trước gộp cả ba vào `return null`.
+   *
+   * `!canManage` là điều kiện CHẾT: nơi dùng đã kiểm cùng phép ở
+   * `users/[id]/page.tsx` nên thẻ này không bao giờ dựng khi thiếu quyền. Giữ
+   * lại để phòng nơi dùng thứ hai quên kiểm.
+   *
+   * `!staff` gộp "đang tải" với "tải hỏng": cả hai đều làm thẻ biến mất, người
+   * dùng không biết chờ tiếp hay bấm lại.
+   */
+  if (!canManage) return null;
+  if (isPending)
+    return (
+      <SectionCard title="Tài khoản" icon={<KeyRound size={17} />}>
+        <SkeletonCard lines={5} />
+      </SectionCard>
+    );
+  if (isError || !staff)
+    return (
+      <SectionCard title="Tài khoản" icon={<KeyRound size={17} />}>
+        <ErrorState what="tài khoản của nhân viên này" onRetry={refetch} retrying={isFetching} />
+      </SectionCard>
+    );
 
   return (
     <SectionCard title="Tài khoản" icon={<KeyRound size={17} />}>

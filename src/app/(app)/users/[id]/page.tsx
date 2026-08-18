@@ -294,7 +294,19 @@ export default function PersonPage({
   const periodText = period.kind === "today" ? "Hôm nay" : monthLabel(summaryMonth);
 
   // Chỉ hiện thẻ có dòng. Thẻ rỗng chỉ để người dùng bấm vào rồi thấy trống.
-  const listsReady = [customersQ, accountsQ, insuranceQ, servicesQ].every((q) => q.isSuccess);
+  const listQueries = [customersQ, accountsQ, insuranceQ, servicesQ];
+  const listsReady = listQueries.every((q) => q.isSuccess);
+  /**
+   * Tải HỎNG khác tải CHƯA XONG, dù `listsReady` cho ra `false` ở cả hai.
+   *
+   * Bản trước chỉ hỏi `isSuccess`, nên một truy vấn hỏng làm skeleton quay mãi
+   * và người dùng không có nút nào để thử lại.
+   */
+  const listsFailed = listQueries.some((q) => q.isError);
+  const listsRetrying = listQueries.some((q) => q.isFetching);
+  const retryLists = () => {
+    for (const q of listQueries) if (q.isError) void q.refetch();
+  };
   const tabs: TabOption[] = listsReady
     ? (
         [
@@ -354,7 +366,13 @@ export default function PersonPage({
             </aside>
 
             <div className={styles.content}>
-              {!listsReady ? (
+              {listsFailed ? (
+                <ErrorState
+                  what="hoạt động của nhân viên này"
+                  onRetry={retryLists}
+                  retrying={listsRetrying}
+                />
+              ) : !listsReady ? (
                 <SkeletonCard lines={4} />
               ) : tabs.length === 0 ? (
                 <p className="text-muted">
