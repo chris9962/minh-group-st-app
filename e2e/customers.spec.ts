@@ -456,7 +456,17 @@ test.describe("thao tác nào cũng báo kết quả", () => {
     await expect(toast(page)).toContainText(/Đã lưu hồ sơ/);
   });
 
-  test("trùng CCCD KHÔNG báo bằng toast mà mở hồ sơ đã có", async ({ page }) => {
+  /**
+   * Chốt 2026-08-18: trùng CCCD báo bằng TOAST, không mở hồ sơ đã có.
+   *
+   * Bản trước của ca này kỳ vọng một khối trong hộp thoại kèm nút "Dùng hồ sơ
+   * này" theo spec §2.1. Đội bỏ hướng đó: một lượt ghi hỏng không được kéo theo
+   * một lượt đọc hồ sơ người khác, nên máy chủ chỉ trả mã lỗi với câu báo.
+   */
+  test("trùng CCCD báo lỗi, không trả hồ sơ đang giữ số đó", async ({ page }) => {
+    const res = page.waitForResponse(
+      (r) => r.url().includes("/api/customers") && r.request().method() === "POST",
+    );
     await page.getByRole("button", { name: /Thêm khách hàng/ }).click();
     const box = dialog(page);
     await box.getByLabel("Họ tên").fill(`${TAG} Trùng CCCD`);
@@ -464,11 +474,12 @@ test.describe("thao tác nào cũng báo kết quả", () => {
     await fillRequired(box, "092301004871");
     await box.getByRole("button", { name: /Tạo khách hàng/ }).click();
 
-    // Toast trôi mất sau vài giây và không bấm được — mà thứ người dùng cần ở
-    // đây là một nút "Dùng hồ sơ này", nên phải là khối trong hộp thoại.
-    await expect(box).toContainText(/đã có hồ sơ/i);
-    await expect(box.getByRole("button", { name: /Dùng hồ sơ này/ })).toBeVisible();
-    await expect(toast(page)).toHaveCount(0);
+    await expect(toast(page)).toContainText(/CCCD này đã có hồ sơ/i);
+
+    // Payload chỉ có mã lỗi và câu báo — không tên, không số điện thoại, không
+    // số tài khoản của hồ sơ đang giữ CCCD đó.
+    const body = (await (await res).json()) as Record<string, unknown>;
+    expect(Object.keys(body).sort()).toEqual(["code", "message"]);
   });
 });
 

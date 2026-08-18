@@ -67,13 +67,13 @@ export async function PATCH(request: Request, { params }: Params) {
   const result = await updateCustomer(guard.actor, id, parsed.data);
   if (!result) return notFound();
   if (!result.ok) {
-    if (!result.existing) return badRequest("Không lưu được hồ sơ khách này");
+    // Câu báo bám theo TÊN CHỈ MỤC bị đụng, không suy từ việc tra được hồ sơ
+    // hay không. Khoá duy nhất khác `customers_id_number` là ràng buộc nội bộ,
+    // nói "CCCD trùng" lúc đó là chỉ sai chỗ.
+    if (result.reason !== "duplicate-id-number")
+      return badRequest("Không lưu được hồ sơ khách này");
     return Response.json(
-      {
-        code: CUSTOMER_ERROR.DUPLICATE_ID,
-        message: "CCCD này đã có hồ sơ trong hệ thống",
-        existing: result.existing,
-      },
+      { code: CUSTOMER_ERROR.DUPLICATE_ID, message: "CCCD này đã có hồ sơ trong hệ thống" },
       { status: 422 },
     );
   }

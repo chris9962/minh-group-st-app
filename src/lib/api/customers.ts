@@ -186,25 +186,15 @@ export const CUSTOMER_ERROR = {
   DUPLICATE_ID: 'duplicate-id-number',
 } as const;
 
-export const ExistingCustomer = z.object({
-  id: z.string(),
-  fullName: z.string(),
-  primaryPhone: z.string(),
-  accountCount: z.number(),
-  insuranceCount: z.number(),
-});
-export type ExistingCustomer = z.infer<typeof ExistingCustomer>;
-
-/** Không phải lỗi ngõ cụt — kèm theo hồ sơ đã có để dùng lại ngay (spec §2.1). */
-export const DuplicateCustomerError = z.object({
-  code: z.literal(CUSTOMER_ERROR.DUPLICATE_ID),
-  message: z.string(),
-  existing: ExistingCustomer,
-});
-export type DuplicateCustomerError = z.infer<typeof DuplicateCustomerError>;
-
-export const isDuplicateCustomerError = (e: unknown): e is DuplicateCustomerError =>
-  typeof e === 'object' && e !== null && 'code' in e;
+/**
+ * ⚠️ ĐÃ BỎ (chốt 2026-08-18): `ExistingCustomer`, `DuplicateCustomerError`,
+ * `isDuplicateCustomerError`.
+ *
+ * Ba kiểu đó mang hồ sơ đang giữ CCCD trùng — tên, số điện thoại, số tài khoản,
+ * số đơn — để giao diện dựng nút "Dùng hồ sơ này" theo spec §2.1. Nay máy chủ
+ * CHỈ trả mã lỗi với câu báo, không trả hồ sơ của ai. Trùng CCCD báo bằng toast
+ * như mọi lỗi ghi khác.
+ */
 
 async function send(url: string, method: string, body: unknown) {
   const res = await fetch(url, {
@@ -214,9 +204,7 @@ async function send(url: string, method: string, body: unknown) {
   });
   if (!res.ok) {
     const payload = (await res.json().catch(() => null)) as { message?: string } | null;
-    const duplicate = DuplicateCustomerError.safeParse(payload);
-    if (duplicate.success) throw duplicate.data;
-    // Máy chủ đã nói rõ vì sao — nuốt đi rồi ném câu chung chung là bắt người
+    // Máy chủ đã nói rõ vì sao — bỏ qua rồi ném câu chung chung là bắt người
     // dùng tự đoán mình sai chỗ nào.
     throw new Error(payload?.message?.trim() || 'Không lưu được');
   }

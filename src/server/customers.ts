@@ -9,7 +9,6 @@ import type {
   CustomerRow,
   CustomerServiceRow,
   CustomerSort,
-  ExistingCustomer,
 } from "@/lib/api/customers";
 import { GIFT_DECLINED, GIFT_DECLINED_LABEL } from "@/lib/api/customers";
 import type { Page } from "@/lib/api/pagination";
@@ -420,27 +419,22 @@ async function customerById(id: string, actor: User): Promise<Customer | null> {
   };
 }
 
-/** Hồ sơ đang giữ CCCD trùng — kèm đủ số liệu để người nhập dùng lại ngay. */
-async function existingByIdNumber(idNumber: string): Promise<ExistingCustomer | null> {
-  const [row] = await decorate(pickPage(eq(customers.idNumber, idNumber), [], 1, 0));
-  return row
-    ? {
-        id: row.id,
-        fullName: row.fullName,
-        primaryPhone: row.primaryPhone,
-        accountCount: row.accountCount,
-        insuranceCount: row.insuranceCount,
-      }
-    : null;
-}
-
 /**
- * Trùng CCCD KHÔNG phải lỗi ngõ cụt (spec §2.1) — trả kèm hồ sơ đã có để người
- * nhập bấm "Dùng hồ sơ này", thay vì bắt họ tự đi tìm.
+ * Trùng khoá duy nhất thì CHỈ trả mã lỗi, không trả hồ sơ đang giữ khoá đó
+ * (chốt 2026-08-18).
+ *
+ * Bản trước tra ngược hồ sơ trùng rồi gửi kèm tên, số điện thoại, số tài khoản
+ * và số đơn để giao diện dựng nút "Dùng hồ sơ này" theo spec §2.1. Nay bỏ hẳn:
+ * một lượt ghi hỏng không được kéo theo một lượt đọc hồ sơ người khác.
+ *
+ * `reason` đọc từ TÊN CHỈ MỤC bị đụng, không suy từ việc tra được hồ sơ hay
+ * không. Suy kiểu đó thì trùng số điện thoại cũng ra câu "CCCD trùng".
  */
+export type CustomerConflict = "duplicate-id-number" | "unknown";
+
 export type CustomerOutcome<T> =
   | { ok: true; customer: T }
-  | { ok: false; existing: ExistingCustomer | null };
+  | { ok: false; reason: CustomerConflict };
 
 /** Đúng MỘT số chính. Form nào cũng gửi cờ, nhưng không tin — index sẽ chặn. */
 const phoneRows = (customerId: string, form: CustomerForm) => {
@@ -455,15 +449,24 @@ const phoneRows = (customerId: string, form: CustomerForm) => {
   }));
 };
 
-async function writeGuarded<T>(
-  run: () => Promise<T>,
-  idNumber: string,
-): Promise<CustomerOutcome<T>> {
+/**
+ * CHỈ `customers_id_number` là xung đột do người nhập gây ra.
+ *
+ * Khoá duy nhất còn lại đụng được là `customer_phones_one_primary` — "mỗi khách
+ * đúng một số chính". Đó là ràng buộc nội bộ, đụng nó nghĩa là `phoneRows` dựng
+ * sai chứ không phải người dùng gõ trùng. Số điện thoại KHÔNG có khoá duy nhất
+ * nào: hai khách dùng chung một số là chuyện hợp lệ.
+ */
+const conflictOf = (constraint: string): CustomerConflict =>
+  constraint === "customers_id_number" ? "duplicate-id-number" : "unknown";
+
+async function writeGuarded<T>(run: () => Promise<T>): Promise<CustomerOutcome<T>> {
   try {
     return { ok: true, customer: await run() };
   } catch (e) {
-    if (uniqueViolationOf(e) === null) throw e;
-    return { ok: false, existing: idNumber ? await existingByIdNumber(idNumber) : null };
+    const constraint = uniqueViolationOf(e);
+    if (constraint === null) throw e;
+    return { ok: false, reason: conflictOf(constraint) };
   }
 }
 
@@ -495,7 +498,7 @@ export async function createCustomer(
     });
 
     return (await customerById(id, actor))!;
-  }, form.idNumber);
+  });
 }
 
 /**
@@ -558,7 +561,7 @@ export async function updateCustomer(
     });
 
     return updated ? await customerById(id, actor) : null;
-  }, full ? form.idNumber : "");
+  });
 
   if (!result.ok) return result;
 
