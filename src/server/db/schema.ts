@@ -766,6 +766,19 @@ export const insuranceOrders = pgTable(
     index("insurance_orders_creator_date").on(
       sql`created_by, order_date desc, created_at desc, id`,
     ),
+    /**
+     * Trục NGƯỜI XỬ LÝ, đối xứng với hai chỉ mục trên (migration 0020).
+     *
+     * Luật nhìn thấy đơn lọc theo cả hai trục — người tạo và người nhận xử lý
+     * tay — nên cả hai đều cần chỉ mục cùng hình dạng. Hai dòng này có trong
+     * database từ 0020 nhưng thiếu ở đây, nên `schema.ts` mô tả sai kho thật.
+     */
+    index("insurance_orders_handler_dept_date").on(
+      sql`handled_by_department_id, order_date desc, created_at desc, id`,
+    ),
+    index("insurance_orders_handler_date").on(
+      sql`handled_by, order_date desc, created_at desc, id`,
+    ),
     index("insurance_orders_date").on(sql`order_date desc, created_at desc, id`),
     check(
       "insurance_orders_motorbike_plate",
