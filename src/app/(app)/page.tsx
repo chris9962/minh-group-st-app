@@ -123,7 +123,7 @@ export default function DashboardPage() {
 
   return (
     <>
-      <TopBar title="Tổng quan">
+      <TopBar title="Tổng quan" keepTitleOnMobile>
         <div className="desktop-only">
           <PeriodPicker value={period} onChange={setPeriod} />
         </div>
@@ -270,14 +270,6 @@ export default function DashboardPage() {
                       : "Xếp hạng phòng kinh doanh theo số tài khoản mở, app đã cài, tỉ lệ cài app và số khách hàng"
                   }
                 />
-                <p className={styles.footnote}>
-                  Bấm tên cột để sắp xếp. Lật cột <strong>Tỉ lệ cài</strong> để tìm{" "}
-                  {data.rankingKind === "staff" ? "người" : "phòng"} mở nhiều tài khoản
-                  nhưng khách ít cài app — số tài khoản đó không tính quà, không tính
-                  điểm. Số nhỏ bên cạnh là mức thay đổi so với{" "}
-                  {previousLabel ?? "kỳ trước"}; chọn khoảng ngày thì không có kỳ nào
-                  để so nên cột này chỉ còn tỉ lệ.
-                </p>
               </SectionCard>
 
               <SectionCard

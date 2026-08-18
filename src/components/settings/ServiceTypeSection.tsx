@@ -84,6 +84,12 @@ export function ServiceTypeSection() {
         title="Loại dịch vụ"
         icon={<Wrench size={17} />}
         meta={isPending ? undefined : `${rows.length} loại`}
+        action={
+          <Button onClick={() => setCreating(true)}>
+            <Plus size={16} />
+            Thêm loại dịch vụ
+          </Button>
+        }
       >
         {isPending && <SkeletonTable rows={5} columns={4} />}
         {isError && (
@@ -98,16 +104,9 @@ export function ServiceTypeSection() {
             defaultSort="name"
             pageSize={10}
             caption="Loại dịch vụ và hệ số điểm KPI"
-            emptyText="Chưa có loại dịch vụ nào — bấm “Thêm loại dịch vụ” bên dưới."
+            emptyText="Chưa có loại dịch vụ nào — bấm “Thêm loại dịch vụ” ở đầu khối."
           />
         )}
-
-        <div className={styles.footRow}>
-          <Button onClick={() => setCreating(true)}>
-            <Plus size={16} />
-            Thêm loại dịch vụ
-          </Button>
-        </div>
 
         <p className={styles.footnote}>
           Mặc định hệ số <strong>1</strong> cho loại mới — số cụ thể theo từng

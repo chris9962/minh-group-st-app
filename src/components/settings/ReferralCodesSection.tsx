@@ -108,6 +108,12 @@ export function ReferralCodesSection() {
       title="Kho mã giới thiệu"
       icon={<Ticket size={17} />}
       meta={isPending ? undefined : `${page.total} mã`}
+      action={
+        <Button onClick={() => setCreating(true)}>
+          <Plus size={16} />
+          Thêm mã
+        </Button>
+      }
     >
       <div className={styles.filters}>
         <SearchField
@@ -152,7 +158,7 @@ export function ReferralCodesSection() {
             <p className="text-muted">
               {filtering
                 ? "Không có mã nào khớp bộ lọc."
-                : "Kho mã đang rỗng — bấm “Thêm mã” bên dưới."}
+                : "Kho mã đang rỗng — bấm “Thêm mã” ở đầu khối."}
             </p>
           ) : (
             <RankTable
@@ -175,13 +181,6 @@ export function ReferralCodesSection() {
           )}
         </>
       )}
-
-      <div className={styles.footRow}>
-        <Button onClick={() => setCreating(true)}>
-          <Plus size={16} />
-          Thêm mã
-        </Button>
-      </div>
 
       <p className={styles.footnote}>
         Thêm từng mã một ở đây. Nhập <strong>hàng loạt</strong> từ Excel vẫn là
