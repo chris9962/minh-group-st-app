@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { use, useCallback, useEffect, useRef, useState } from "react";
-import { CheckCircle2, ChevronLeft, EyeOff, ImagePlus, ShieldCheck, X } from "lucide-react";
+import { CheckCircle2, ChevronLeft, EyeOff, History, ImagePlus, ShieldCheck, X } from "lucide-react";
 import { SkeletonCard } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
@@ -153,6 +153,10 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
    */
   const canAttachPhoto = Boolean(
     data &&
+      /* Chỉ đính ảnh khi đơn ĐANG LÀM TAY. Đơn còn trong hàng chờ thì chưa ai
+         cầm, đơn đã hoàn thành thì tờ chứng nhận đã nộp — cả hai ca đều không
+         phải lúc thay ảnh. */
+      data.status === "manual-progress" &&
       (recordInScope(recordVisibility(actor, "insurance", "update"), data) ||
         recordInScope(recordVisibility(actor, "insurance", "handle-fallback"), data) ||
         (canHandleFallback && data.handledById === actor?.id)),
@@ -313,7 +317,7 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                 <dd>{data.beneficiaryDob ? formatDate(data.beneficiaryDob) : "—"}</dd>
               </div>
               <div>
-                <dt>Số giấy tờ</dt>
+                <dt>CCCD</dt>
                 <dd>
                   {/* Ẩn HẲN số, không hiện 4 số cuối: người chưa nhận đơn không
                       có việc gì cần tới nó. Icon kèm lời giải thích để người
@@ -322,7 +326,7 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                   {data.beneficiaryIdNumberHidden ? (
                     <span
                       className={styles.hiddenValue}
-                      title="Nhận đơn về xử lý thì mới xem được số giấy tờ của người thụ hưởng."
+                      title="Nhận đơn về xử lý thì mới xem được CCCD của người thụ hưởng."
                     >
                       <EyeOff size={15} aria-hidden />
                       Đã ẩn
@@ -417,7 +421,9 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                 </a>
               ) : (
                 <p className="text-muted">
-                  Chưa có ảnh — đính được ở mọi trạng thái, không cần chờ hoàn thành.
+                  {data.status === "manual-progress"
+                    ? "Chưa có ảnh."
+                    : `Chưa có ảnh — chỉ đính được khi đơn ở trạng thái ${INSURANCE_STATUS_LABEL["manual-progress"]}.`}
                 </p>
               )}
               {canAttachPhoto && (
@@ -481,7 +487,7 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                         {advance.isPending ? "Đang lưu…" : "Đánh dấu hoàn thành"}
                       </Button>
                       {!hasPhoto && (
-                        <p className="text-muted">
+                        <p className={`text-muted ${styles.actionsNote}`}>
                           Phải đính ảnh chứng nhận bảo hiểm trước khi đánh dấu hoàn thành.
                         </p>
                       )}
@@ -493,7 +499,7 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
         )}
 
         {data && (
-          <SectionCard title="Dòng thời gian" icon={<ShieldCheck size={17} />}>
+          <SectionCard title="Dòng thời gian" icon={<History size={17} />}>
             <ol className={styles.timeline}>
               {data.history.map((step) => (
                 <li key={step.id}>

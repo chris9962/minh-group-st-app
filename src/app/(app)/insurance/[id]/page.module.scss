@@ -130,8 +130,17 @@
 
 .actions {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 10px;
   margin-top: var(--space-3);
+}
+
+/* Câu giải thích vì sao nút đang khoá chiếm trọn một hàng. Để nó cạnh nút thì
+   trên điện thoại chữ bị ép còn một hai từ mỗi dòng. */
+.actionsNote {
+  flex: 1 1 100%;
+  margin: 0;
 }
 
 .footnote {
