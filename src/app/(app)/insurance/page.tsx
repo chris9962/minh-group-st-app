@@ -38,7 +38,7 @@ import { EMPTY_PAGE, PAGE_SIZE, type SortDir } from "@/lib/api/pagination";
 import { fetchStaffOptions } from "@/lib/api/staff";
 import { formatDate } from "@/lib/format";
 import { useDebouncedValue } from "@/lib/hooks";
-import { can, recordInScope, recordVisibility } from "@/lib/permissions";
+import { can, recordInScope, recordVisibility, scopeFor } from "@/lib/permissions";
 import { invalidateKpi } from "@/lib/invalidateKpi";
 import { errorMessage, toast } from "@/lib/toast";
 import { InsuranceProduct, PRODUCT_LABEL } from "@/lib/types";
@@ -122,6 +122,15 @@ export default function InsurancePage() {
         dir,
       }),
     placeholderData: keepPreviousData,
+    /**
+     * Hàng chờ làm tay là kho chung, nhiều người nhặt đơn cùng lúc. Không gọi
+     * lại theo chu kỳ thì bảng đứng im tới khi người xem tự thao tác, và họ bấm
+     * "Nhận xử lý" lên đơn người khác đã cầm rồi — máy chủ từ chối, nhưng họ đã
+     * bấm.
+     *
+     * Tab ẩn thì dừng: `refetchIntervalInBackground` mặc định `false`.
+     */
+    refetchInterval: 10_000,
   });
 
   const queryClient = useQueryClient();
@@ -170,6 +179,14 @@ export default function InsurancePage() {
   const canEdit = can(user, "insurance", "update");
   const canRemove = can(user, "insurance", "delete");
   const canHandleFallback = can(user, "insurance", "handle-fallback");
+  /**
+   * Cột "Người xử lý" chỉ hiện với cấp quản lý. Nhân viên nhìn đơn của người
+   * khác để tra cứu, không để theo dõi ai đang cầm đơn nào. Ranh giới lấy theo
+   * PHẠM VI chứ không theo tên chức vụ, cùng lối với ô lọc nhân viên ở
+   * P-21/P-31 — admin nới phạm vi cho một người thì cột theo đó, không phải đi
+   * sửa lại danh sách chức vụ ở đây.
+   */
+  const canSeeHandler = scopeFor(user, "insurance", "view-summary") !== "own";
   // Bọc `useMemo` vì hàm trả về OBJECT mới mỗi lượt gọi — để trần thì bộ nhớ
   // đệm của `columns` bên dưới hỏng ở mọi lượt render.
   const editVisible = useMemo(() => recordVisibility(user, "insurance", "update"), [user]);
@@ -203,8 +220,8 @@ export default function InsurancePage() {
       },
       {
         key: "product",
-        label: "Loại · gói",
-        render: (r) => `${PRODUCT_LABEL[r.product]} · ${r.packageName}`,
+        label: "Loại",
+        render: (r) => PRODUCT_LABEL[r.product],
       },
       {
         key: "status",
@@ -215,8 +232,18 @@ export default function InsurancePage() {
           </StatusTag>
         ),
       },
-      { key: "startDate", label: "Hiệu lực từ", render: (r) => formatDate(r.startDate) },
       { key: "createdByName", label: "Người tạo", render: (r) => r.createdByName ?? "—" },
+      ...(canSeeHandler
+        ? [
+            {
+              key: "handledByName",
+              label: "Người xử lý",
+              // Đơn chưa ai nhận thì `handledBy` còn null — vẫn phải có ô để
+              // hàng không lệch cột.
+              render: (r: InsuranceListRow) => r.handledByName ?? "—",
+            },
+          ]
+        : []),
       ...(canEdit || canRemove || canHandleFallback
         ? [
             {
@@ -292,7 +319,7 @@ export default function InsurancePage() {
           ]
         : []),
     ],
-    [canEdit, canRemove, canHandleFallback, claim, editVisible, removeVisible],
+    [canEdit, canRemove, canHandleFallback, canSeeHandler, claim, editVisible, removeVisible],
   );
 
   return (
@@ -427,7 +454,7 @@ export default function InsurancePage() {
           ]}
         />
 
-        {isPending && <SkeletonTable rows={8} columns={6} />}
+        {isPending && <SkeletonTable rows={8} columns={columns.length} />}
         {isError && (
           <ErrorState what="danh sách đơn bảo hiểm" onRetry={refetch} retrying={isFetching} />
         )}
