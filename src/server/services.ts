@@ -343,14 +343,19 @@ export async function createService(actor: User, form: ServiceForm): Promise<Ser
   if (!customer) return { ok: false, message: "Không tìm thấy khách hàng này" };
 
   /**
-   * Xã chỉ chụp khi người làm thuộc Phòng Dự Án — `users.ward_id` chỉ họ mới có.
+   * Xã do NGƯỜI NHẬP chọn, không suy từ `users.ward_id` nữa (đổi 2026-08-19).
+   *
+   * Chỉ nhân viên Phòng Dự Án có `ward_id`, nên cách cũ để cột này trống với mọi
+   * phòng khác — báo cáo theo xã vì vậy thiếu hẳn phần việc của họ.
+   *
    * Chụp cả id lẫn TÊN: lọc thì cần id (xã đổi tên vẫn tìm ra), còn hiển thị lại
-   * cần tên của thời điểm đó (spec §6 — đổi xã phụ trách không được làm đổi dữ
-   * liệu tháng trước).
+   * cần tên của thời điểm đó (spec §6 — đổi tên xã không được làm đổi dữ liệu
+   * tháng trước).
    */
-  const ward = actor.wardId
-    ? ((await db.select({ name: wards.name }).from(wards).where(eq(wards.id, actor.wardId)).limit(1))[0] ?? null)
+  const ward = form.wardId
+    ? ((await db.select({ name: wards.name }).from(wards).where(eq(wards.id, form.wardId)).limit(1))[0] ?? null)
     : null;
+  if (form.wardId && !ward) return { ok: false, message: "Không tìm thấy xã/phường này" };
 
   // Ngày người nhập chọn (chốt 07/08). Máy chủ chỉ chặn ngày TƯƠNG LAI: đây là
   // sổ ghi việc ĐÃ LÀM. Ngày lùi để tự do — nhân viên nhập trễ là chuyện thường,
@@ -371,7 +376,7 @@ export async function createService(actor: User, form: ServiceForm): Promise<Ser
       // viết lại cột này cho mọi dòng của họ (chốt 13/08). Người không thuộc
       // phòng nào thì đây là phòng họ chọn ở biểu mẫu.
       createdByDepartmentId: department.departmentId,
-      wardId: actor.wardId,
+      wardId: form.wardId || null,
       wardName: ward?.name ?? null,
     })
     .returning({ id: services.id });

@@ -133,6 +133,14 @@ export const ServiceForm = z.object({
    * người có phòng thì máy chủ dùng phòng của họ và bỏ qua giá trị này.
    */
   departmentId: z.string(),
+  /**
+   * Xã nơi làm dịch vụ. `''` = không ghi nhận xã nào.
+   *
+   * Người nhập CHỌN, không suy từ hồ sơ nhân viên: chỉ nhân viên Phòng Dự Án có
+   * `users.ward_id`, nên suy tự động thì mọi phòng khác ghi dịch vụ đều để trống
+   * cột này và báo cáo theo xã thiếu hẳn phần việc của họ.
+   */
+  wardId: z.string(),
 });
 export type ServiceForm = z.infer<typeof ServiceForm>;
 
@@ -146,7 +154,11 @@ export type ServiceForm = z.infer<typeof ServiceForm>;
  * ⚠️ Đổi ngày là ĐỔI THÁNG TÍNH ĐIỂM. Máy chủ phải tính lại KPI cho cả tháng cũ
  * lẫn tháng mới, không thì tháng cũ giữ nguyên điểm của một lượt đã dời đi.
  */
-export const ServiceEditForm = ServiceForm.omit({ customerId: true });
+export const ServiceEditForm = ServiceForm.omit({
+  customerId: true,
+  departmentId: true,
+  wardId: true,
+});
 export type ServiceEditForm = z.infer<typeof ServiceEditForm>;
 
 /**

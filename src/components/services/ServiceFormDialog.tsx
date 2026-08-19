@@ -2,13 +2,17 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { DepartmentPicker } from "@/components/layout/DepartmentPicker";
 import { Button } from "@/components/ui/Button";
+import { Combobox } from "@/components/ui/Combobox";
 import { Dialog } from "@/components/ui/Dialog";
 import { Select } from "@/components/ui/Select";
 import { TextField } from "@/components/ui/TextField";
 import { fetchServiceTypes } from "@/lib/api/settings";
+import { fetchProvinces } from "@/lib/api/wardCatalog";
+import { useSession } from "@/store/session";
 import { businessDay } from "@/lib/format";
 import { createService, ServiceForm } from "@/lib/api/services";
 import styles from "./ServiceFormDialog.module.scss";
@@ -28,12 +32,30 @@ type Props = {
  */
 export function ServiceFormDialog({ open, onClose, customerId, customerName }: Props) {
   const queryClient = useQueryClient();
+  const user = useSession((s) => s.user);
 
   const { data: serviceTypes = [] } = useQuery({
     queryKey: ["service-types"],
     queryFn: fetchServiceTypes,
   });
   const activeTypes = serviceTypes.filter((t) => t.active);
+
+  const { data: provinces = [] } = useQuery({
+    queryKey: ["provinces"],
+    queryFn: fetchProvinces,
+  });
+
+  /**
+   * Tỉnh chỉ để LỌC danh sách xã, không đi vào bản ghi — `services` chụp xã,
+   * còn tỉnh suy được từ xã. Giữ ở state của component chứ không trong biểu mẫu.
+   *
+   * Nhân viên Phòng Dự Án có `ward_id`: mở form là hai ô đã chọn sẵn xã họ phụ
+   * trách, đổi được nếu làm ở xã khác.
+   */
+  const ownWard = user?.wardId ?? "";
+  const ownProvince = provinces.find((p) => p.wards.some((w) => w.id === ownWard))?.id ?? "";
+  const [provinceId, setProvinceId] = useState("");
+  const selectedProvince = provinces.find((p) => p.id === (provinceId || ownProvince));
 
   const {
     register,
@@ -49,6 +71,7 @@ export function ServiceFormDialog({ open, onClose, customerId, customerName }: P
       date: businessDay(),
       note: "",
       departmentId: "",
+      wardId: ownWard,
     },
   });
 
@@ -119,6 +142,33 @@ export function ServiceFormDialog({ open, onClose, customerId, customerName }: P
           error={errors.date?.message}
           {...register("date")}
         />
+
+        {/* Hai ô này ghi XÃ NƠI LÀM DỊCH VỤ. Không bắt buộc: dịch vụ làm ngoài
+            địa bàn xã nào cũng ghi nhận được, cột xã để trống. */}
+        <Select
+          block
+          label="Tỉnh/thành phố"
+          value={provinceId || ownProvince}
+          onChange={(v) => {
+            setProvinceId(v);
+            setValue("wardId", "", { shouldDirty: true });
+          }}
+          options={[
+            { value: "", label: "— Chọn tỉnh/thành phố —" },
+            ...provinces.map((p) => ({ value: p.id, label: p.name })),
+          ]}
+        />
+
+        {selectedProvince && (
+          <Combobox
+            block
+            label="Xã/phường"
+            placeholder="Gõ để tìm xã/phường…"
+            value={watch("wardId")}
+            onChange={(v) => setValue("wardId", v, { shouldDirty: true })}
+            options={selectedProvince.wards.map((w) => ({ value: w.id, label: w.name }))}
+          />
+        )}
 
         <TextField
           label="Ghi chú công việc"
