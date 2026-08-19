@@ -727,7 +727,10 @@ export async function updateInsuranceOrder(
    * `product` client gửi lên để mà dựa, và gửi kèm `electric-accident` là gỡ
    * được ràng buộc biển số của một đơn xe máy.
    */
-  const parsed = insuranceOrderEditSchema(current.product).safeParse(body);
+  const parsed = insuranceOrderEditSchema(
+    current.product,
+    !seesBeneficiaryId(actor, current),
+  ).safeParse(body);
   if (!parsed.success)
     return { ok: false, message: parsed.error.issues[0]?.message ?? "Dữ liệu không hợp lệ" };
   const form = parsed.data;

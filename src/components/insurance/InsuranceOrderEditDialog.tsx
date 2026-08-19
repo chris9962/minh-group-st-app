@@ -73,7 +73,12 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId }: Props) {
   const form = useForm<InsuranceOrderEditForm>({
     // Luật biển số phụ thuộc sản phẩm, mà sản phẩm chỉ biết sau khi chi tiết về
     // — máy chủ kiểm lại đúng luật này với sản phẩm đọc từ database.
-    resolver: zodResolver(insuranceOrderEditSchema(data?.product ?? "electric-accident")),
+    resolver: zodResolver(
+      insuranceOrderEditSchema(
+        data?.product ?? "electric-accident",
+        data?.beneficiaryIdNumberHidden ?? false,
+      ),
+    ),
     // `values` chứ không phải `defaultValues`: chi tiết về SAU lượt render đầu,
     // mà `defaultValues` chỉ đọc một lần nên form sẽ trống mãi.
     values: {
@@ -123,7 +128,12 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId }: Props) {
       hint="Nhận đơn về xử lý thì mới xem và sửa được số này."
     />
   ) : (
-    <TextField label="CCCD" {...form.register("beneficiaryIdNumber")} />
+    <TextField
+      label="CCCD"
+      required
+      error={errors.beneficiaryIdNumber?.message}
+      {...form.register("beneficiaryIdNumber")}
+    />
   );
 
   return (
@@ -162,6 +172,7 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId }: Props) {
           <TextField
             label="Ngày tạo đơn"
             type="date"
+            required
             max={businessDay()}
             hint="Nhập bù cho hôm trước thì sửa lại ngày này"
             error={errors.orderDate?.message}
@@ -169,14 +180,27 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId }: Props) {
           />
 
           <div className={styles.pair}>
-            <TextField label="Ngày bắt đầu" type="date" {...form.register("startDate")} />
-            <TextField label="Ngày kết thúc" type="date" {...form.register("endDate")} />
+            <TextField
+              label="Ngày bắt đầu"
+              type="date"
+              required
+              error={errors.startDate?.message}
+              {...form.register("startDate")}
+            />
+            <TextField
+              label="Ngày kết thúc"
+              type="date"
+              required
+              error={errors.endDate?.message}
+              {...form.register("endDate")}
+            />
           </div>
 
           <TextField
             label="Mức phí (đ)"
             type="number"
             inputMode="numeric"
+            required
             error={errors.fee?.message}
             {...form.register("fee", { valueAsNumber: true })}
           />
@@ -188,6 +212,7 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId }: Props) {
               <div className={styles.pair}>
                 <TextField
                   label="Biển số xe"
+                  required
                   error={errors.licensePlate?.message}
                   {...form.register("licensePlate")}
                 />
@@ -195,6 +220,8 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId }: Props) {
                   label="Loại xe"
                   value={form.watch("vehicleType")}
                   block
+                  required
+                  error={errors.vehicleType?.message}
                   // `shouldValidate`: ô này không `register` nên không có onChange
                   // của RHF để tự kiểm lại. Thiếu nó thì sau một lần submit hỏng,
                   // chọn đúng loại xe rồi dòng chữ đỏ vẫn nằm đó.
@@ -207,7 +234,6 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId }: Props) {
                   ]}
                 />
               </div>
-              {errors.vehicleType && <p className={styles.error}>{errors.vehicleType.message}</p>}
 
               <div className={styles.pair}>
                 <TextField label="Số khung" hint="Không bắt buộc" {...form.register("chassisNumber")} />
@@ -226,13 +252,14 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId }: Props) {
                   type="number"
                   inputMode="numeric"
                   min={1}
-                  hint="Người cùng địa chỉ thường trú"
+                  required
                   error={errors.householdSize?.message}
                   {...form.register("householdSize", { valueAsNumber: true })}
                 />
                 <Select
                   label="Số tiền bảo hiểm"
                   block
+                  required
                   value={String(form.watch("sumInsured"))}
                   error={errors.sumInsured?.message}
                   onChange={(v) =>
@@ -252,6 +279,7 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId }: Props) {
 
             <TextField
               label="Họ tên"
+              required
               error={errors.beneficiaryName?.message}
               {...form.register("beneficiaryName")}
             />
@@ -261,13 +289,25 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId }: Props) {
               idField
             ) : (
               <div className={styles.pair}>
-                <TextField label="Ngày sinh" type="date" {...form.register("beneficiaryDob")} />
+                <TextField
+                  label="Ngày sinh"
+                  type="date"
+                  required
+                  error={errors.beneficiaryDob?.message}
+                  {...form.register("beneficiaryDob")}
+                />
                 {idField}
               </div>
             )}
-            <TextField label="Số điện thoại" {...form.register("beneficiaryPhone")} />
+            <TextField
+              label="Số điện thoại"
+              required
+              error={errors.beneficiaryPhone?.message}
+              {...form.register("beneficiaryPhone")}
+            />
             <TextField
               label="Địa chỉ"
+              required
               error={errors.beneficiaryAddress?.message}
               {...form.register("beneficiaryAddress")}
             />

@@ -207,6 +207,7 @@ export function InsuranceOrderFormDialog({
       <div className={styles.pair}>
         <TextField
           label="Biển số xe"
+          required
           error={errors.legs?.[i]?.licensePlate?.message}
           {...register(`legs.${i}.licensePlate`)}
         />
@@ -214,6 +215,8 @@ export function InsuranceOrderFormDialog({
           label="Loại xe"
           value={watch(`legs.${i}.vehicleType`)}
           block
+          required
+          error={errors.legs?.[i]?.vehicleType?.message}
           // `shouldValidate`: ô này không `register` nên không có onChange của
           // RHF để tự kiểm lại. Thiếu nó thì sau một lần submit hỏng, chọn
           // đúng loại xe rồi dòng chữ đỏ vẫn nằm đó tới lần submit sau.
@@ -226,9 +229,6 @@ export function InsuranceOrderFormDialog({
           ]}
         />
       </div>
-      {errors.legs?.[i]?.vehicleType && (
-        <p className={styles.error}>{errors.legs[i]?.vehicleType?.message}</p>
-      )}
       <div className={styles.pair}>
         <TextField label="Số khung" hint="Không bắt buộc" {...register(`legs.${i}.chassisNumber`)} />
         <TextField label="Số máy" hint="Không bắt buộc" {...register(`legs.${i}.engineNumber`)} />
@@ -250,13 +250,14 @@ export function InsuranceOrderFormDialog({
           type="number"
           inputMode="numeric"
           min={1}
-          hint="Người cùng địa chỉ thường trú"
+          required
           error={errors.legs?.[i]?.householdSize?.message}
           {...register(`legs.${i}.householdSize`, { valueAsNumber: true })}
         />
         <Select
           label="Số tiền bảo hiểm"
           block
+          required
           value={String(watch(`legs.${i}.sumInsured`))}
           error={errors.legs?.[i]?.sumInsured?.message}
           // `shouldValidate`: ô này không `register` nên không có onChange của
@@ -287,6 +288,7 @@ export function InsuranceOrderFormDialog({
 
       <TextField
         label="Họ tên"
+        required
         error={errors.legs?.[i]?.beneficiaryName?.message}
         {...register(`legs.${i}.beneficiaryName`)}
       />
@@ -295,6 +297,7 @@ export function InsuranceOrderFormDialog({
       {(selectedPackage?.legs ?? [])[i]?.product === "motorbike" ? (
         <TextField
             label="CCCD"
+            required={!watch(`legs.${i}.beneficiaryIsCustomer`)}
             /**
              * Ô rỗng + chấm mờ khi máy chủ sẽ tự điền. KHÔNG hiện 4 số cuối ở
              * đây: trong một ô nhập, "7872" đọc ra như một CCCD đã điền xong và
@@ -309,6 +312,7 @@ export function InsuranceOrderFormDialog({
                 ? "Lấy theo hồ sơ khách khi lưu — gõ vào ô này nếu người thụ hưởng là người khác"
                 : undefined
             }
+            error={errors.legs?.[i]?.beneficiaryIdNumber?.message}
             {...register(`legs.${i}.beneficiaryIdNumber`, {
               // Gõ tay = người thụ hưởng không còn là khách, tắt cờ để máy chủ
               // dùng đúng số vừa gõ thay vì móc lại CCCD của khách.
@@ -317,9 +321,16 @@ export function InsuranceOrderFormDialog({
           />
       ) : (
         <div className={styles.pair}>
-          <TextField label="Ngày sinh" type="date" {...register(`legs.${i}.beneficiaryDob`)} />
+          <TextField
+            label="Ngày sinh"
+            type="date"
+            required
+            error={errors.legs?.[i]?.beneficiaryDob?.message}
+            {...register(`legs.${i}.beneficiaryDob`)}
+          />
           <TextField
             label="CCCD"
+            required={!watch(`legs.${i}.beneficiaryIsCustomer`)}
             /**
              * Ô rỗng + chấm mờ khi máy chủ sẽ tự điền. KHÔNG hiện 4 số cuối ở
              * đây: trong một ô nhập, "7872" đọc ra như một CCCD đã điền xong và
@@ -334,6 +345,7 @@ export function InsuranceOrderFormDialog({
                 ? "Lấy theo hồ sơ khách khi lưu — gõ vào ô này nếu người thụ hưởng là người khác"
                 : undefined
             }
+            error={errors.legs?.[i]?.beneficiaryIdNumber?.message}
             {...register(`legs.${i}.beneficiaryIdNumber`, {
               // Gõ tay = người thụ hưởng không còn là khách, tắt cờ để máy chủ
               // dùng đúng số vừa gõ thay vì móc lại CCCD của khách.
@@ -342,9 +354,15 @@ export function InsuranceOrderFormDialog({
           />
         </div>
       )}
-      <TextField label="Số điện thoại" {...register(`legs.${i}.beneficiaryPhone`)} />
+      <TextField
+        label="Số điện thoại"
+        required
+        error={errors.legs?.[i]?.beneficiaryPhone?.message}
+        {...register(`legs.${i}.beneficiaryPhone`)}
+      />
       <TextField
         label="Địa chỉ"
+        required
         placeholder="123 Nguyễn Trãi, Phường Tân Bình"
         error={errors.legs?.[i]?.beneficiaryAddress?.message}
         {...register(`legs.${i}.beneficiaryAddress`)}
@@ -377,6 +395,7 @@ export function InsuranceOrderFormDialog({
           <Select
             block
             label="Gói bảo hiểm"
+            required
             value={packageName}
             onChange={selectPackage}
             options={[
@@ -398,6 +417,7 @@ export function InsuranceOrderFormDialog({
               <TextField
                 label="Ngày tạo đơn"
                 type="date"
+                required
                 max={businessDay()}
                 hint="Nhập bù cho hôm trước thì sửa lại ngày này"
                 error={errors.legs?.[i]?.orderDate?.message}
@@ -405,14 +425,27 @@ export function InsuranceOrderFormDialog({
               />
 
               <div className={styles.pair}>
-                <TextField label="Ngày bắt đầu" type="date" {...register(`legs.${i}.startDate`)} />
-                <TextField label="Ngày kết thúc" type="date" {...register(`legs.${i}.endDate`)} />
+                <TextField
+                  label="Ngày bắt đầu"
+                  type="date"
+                  required
+                  error={errors.legs?.[i]?.startDate?.message}
+                  {...register(`legs.${i}.startDate`)}
+                />
+                <TextField
+                  label="Ngày kết thúc"
+                  type="date"
+                  required
+                  error={errors.legs?.[i]?.endDate?.message}
+                  {...register(`legs.${i}.endDate`)}
+                />
               </div>
 
               <TextField
                 label="Mức phí (đ)"
                 type="number"
                 inputMode="numeric"
+                required
                 error={errors.legs?.[i]?.fee?.message}
                 {...register(`legs.${i}.fee`, { valueAsNumber: true })}
               />
@@ -429,6 +462,7 @@ export function InsuranceOrderFormDialog({
             <TextField
               label="Ngày tạo đơn"
               type="date"
+              required
               max={businessDay()}
               hint="Nhập bù cho hôm trước thì sửa lại ngày này"
               error={errors.legs?.[0]?.orderDate?.message}
@@ -436,13 +470,26 @@ export function InsuranceOrderFormDialog({
             />
 
             <div className={styles.pair}>
-              <TextField label="Ngày bắt đầu" type="date" {...register("legs.0.startDate")} />
-              <TextField label="Ngày kết thúc" type="date" {...register("legs.0.endDate")} />
+              <TextField
+                label="Ngày bắt đầu"
+                type="date"
+                required
+                error={errors.legs?.[0]?.startDate?.message}
+                {...register("legs.0.startDate")}
+              />
+              <TextField
+                label="Ngày kết thúc"
+                type="date"
+                required
+                error={errors.legs?.[0]?.endDate?.message}
+                {...register("legs.0.endDate")}
+              />
             </div>
             <TextField
               label="Mức phí (đ)"
               type="number"
               inputMode="numeric"
+              required
               error={errors.legs?.[0]?.fee?.message}
               {...register("legs.0.fee", { valueAsNumber: true })}
             />

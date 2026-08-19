@@ -13,6 +13,8 @@ type Props = {
   options: SelectOption[];
   onChange: (value: string) => void;
   disabled?: boolean;
+  /** Hiện dấu * cạnh nhãn và đánh dấu `aria-required` — KHÔNG bật validation của trình duyệt. */
+  required?: boolean;
   /** Thông báo lỗi. Có giá trị thì ô chọn được đánh dấu `aria-invalid` và nối vào câu lỗi. */
   error?: string;
   /**
@@ -36,6 +38,7 @@ export function Select({
   options,
   onChange,
   disabled,
+  required,
   error,
   block = false,
 }: Props) {
@@ -49,12 +52,18 @@ export function Select({
         className={hideLabel ? "sr-only" : block ? styles.blockLabel : styles.label}
       >
         {label}
+        {required && (
+          <span className={styles.required} aria-hidden>
+            {" *"}
+          </span>
+        )}
       </label>
       <select
         id={id}
         className={`input ${styles.select} ${block ? styles.blockSelect : ""}`}
         value={value}
         disabled={disabled}
+        aria-required={required || undefined}
         aria-invalid={Boolean(error)}
         aria-describedby={error ? errorId : undefined}
         onChange={(e) => onChange(e.target.value)}

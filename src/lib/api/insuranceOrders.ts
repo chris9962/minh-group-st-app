@@ -124,17 +124,26 @@ const orderFields = {
   startDate: isoDate('Chưa chọn ngày bắt đầu'),
   endDate: isoDate('Chưa chọn ngày kết thúc'),
   beneficiaryName: z.string().trim().min(1, 'Chưa nhập tên người thụ hưởng'),
+  /**
+   * Ngày sinh người thụ hưởng — BẮT BUỘC với đơn tai nạn điện, bỏ trống với đơn
+   * xe máy. Ràng buộc nằm ở `.refine` theo sản phẩm chứ không ở đây: form xe máy
+   * không có ô này, siết thẳng thì mọi đơn xe máy đều báo thiếu.
+   */
   beneficiaryDob: isoDateOrEmpty,
   /**
-   * CCCD người thụ hưởng — CÓ THỂ RỖNG khi `beneficiaryIsCustomer` bật.
+   * CCCD người thụ hưởng — BẮT BUỘC, trừ hai đường hợp lệ dưới đây. Cả hai đều
+   * kiểm bằng `.refine` vì chúng phụ thuộc bối cảnh, không phụ thuộc kiểu:
    *
-   * Người nhập không có `customer:access-id-number` chỉ thấy 4 số cuối CCCD của
-   * khách, nên không có gì để điền. Lúc đó máy chủ tự lấy số đầy đủ từ DB (xem
-   * `createInsuranceOrders`). Đừng ràng buộc đủ 12 số ở đây — nó chặn đúng
-   * người đang dùng đường hợp lệ.
+   *  1. Lúc TẠO, `beneficiaryIsCustomer` bật: người nhập không có
+   *     `customer:access-id-number` chỉ thấy 4 số cuối CCCD của khách nên không
+   *     có gì để điền, máy chủ tự lấy số đầy đủ từ DB (`createInsuranceOrders`).
+   *  2. Lúc SỬA, máy chủ giấu CCCD với người không có phần trong đơn: form của
+   *     họ nạp ô rỗng, và máy chủ cũng bỏ qua giá trị họ gửi lên.
+   *
+   * Đừng ràng buộc đủ 12 số — nó chặn đúng người đang dùng đường hợp lệ.
    */
   beneficiaryIdNumber: z.string(),
-  beneficiaryPhone: z.string(),
+  beneficiaryPhone: z.string().trim().min(1, 'Chưa nhập số điện thoại'),
   beneficiaryAddress: z.string().trim().min(1, 'Chưa nhập địa chỉ'),
   /**
    * Hai ô của riêng đơn tai nạn điện — form PVI hỏi, đơn xe máy thì không.
@@ -143,8 +152,17 @@ const orderFields = {
    * lối với biển số xe: đơn xe máy gửi 0 là hợp lệ, chặn ở đây thì mọi đơn xe
    * máy đều báo thiếu một thứ form của họ không có.
    */
-  householdSize: z.number().min(0, 'Số thành viên phải từ 0 trở lên'),
-  sumInsured: z.number().min(0, 'Số tiền bảo hiểm phải từ 0 trở lên'),
+  /**
+   * Message của `z.number()` là cho lỗi KIỂU, tách hẳn khỏi message của `min`.
+   * Thiếu nó thì xoá trắng ô là `valueAsNumber` trả `NaN`, zod bắt lỗi kiểu và
+   * in câu mặc định tiếng Anh của nó — `.refine` bên dưới không kịp chạy.
+   */
+  householdSize: z
+    .number({ error: 'Chưa nhập số thành viên' })
+    .min(0, 'Số thành viên không được là số âm'),
+  sumInsured: z
+    .number({ error: 'Chưa nhập số tiền bảo hiểm' })
+    .min(0, 'Số tiền bảo hiểm không được là số âm'),
   licensePlate: z.string().trim(),
   vehicleType: z.string().trim(),
   chassisNumber: z.string().trim(),
@@ -192,6 +210,16 @@ export const InsuranceOrderLegForm = z
   .refine((leg) => leg.product !== 'electric-accident' || leg.sumInsured > 0, {
     message: 'Chưa nhập số tiền bảo hiểm',
     path: ['sumInsured'],
+  })
+  // Ngày sinh: chỉ đơn tai nạn điện hỏi, và hỏi thì phải có.
+  .refine((leg) => leg.product !== 'electric-accident' || leg.beneficiaryDob.length > 0, {
+    message: 'Chưa chọn ngày sinh người thụ hưởng',
+    path: ['beneficiaryDob'],
+  })
+  // CCCD: bỏ trống được ĐÚNG khi máy chủ sẽ tự lấy theo hồ sơ khách.
+  .refine((leg) => leg.beneficiaryIsCustomer || leg.beneficiaryIdNumber.trim().length > 0, {
+    message: 'Chưa nhập CCCD người thụ hưởng',
+    path: ['beneficiaryIdNumber'],
   });
 export type InsuranceOrderLegForm = z.infer<typeof InsuranceOrderLegForm>;
 
@@ -215,7 +243,12 @@ export type InsuranceOrderForm = z.infer<typeof InsuranceOrderForm>;
 export const InsuranceOrderEditFields = z.object(orderFields);
 export type InsuranceOrderEditForm = z.infer<typeof InsuranceOrderEditFields>;
 
-export const insuranceOrderEditSchema = (product: InsuranceProduct) =>
+/**
+ * `idHidden` = máy chủ đang giấu CCCD của đơn này với người sửa. Bắt buộc ô CCCD
+ * mà không tính tới nó thì người không xem được số sẽ không lưu nổi thay đổi nào
+ * — họ nạp ô rỗng, gõ gì vào máy chủ cũng bỏ qua (`updateInsuranceOrder`).
+ */
+export const insuranceOrderEditSchema = (product: InsuranceProduct, idHidden = false) =>
   InsuranceOrderEditFields.refine(
     (form) => product !== 'motorbike' || form.licensePlate.length > 0,
     { message: 'Chưa nhập biển số xe', path: ['licensePlate'] },
@@ -227,6 +260,14 @@ export const insuranceOrderEditSchema = (product: InsuranceProduct) =>
     .refine((form) => product !== 'electric-accident' || form.householdSize > 0, {
       message: 'Chưa nhập số thành viên',
       path: ['householdSize'],
+    })
+    .refine((form) => product !== 'electric-accident' || form.beneficiaryDob.length > 0, {
+      message: 'Chưa chọn ngày sinh người thụ hưởng',
+      path: ['beneficiaryDob'],
+    })
+    .refine((form) => idHidden || form.beneficiaryIdNumber.trim().length > 0, {
+      message: 'Chưa nhập CCCD người thụ hưởng',
+      path: ['beneficiaryIdNumber'],
     })
     .refine((form) => product !== 'electric-accident' || form.sumInsured > 0, {
       message: 'Chưa nhập số tiền bảo hiểm',
