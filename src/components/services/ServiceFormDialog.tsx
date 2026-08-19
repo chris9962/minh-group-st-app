@@ -3,6 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
+import { DepartmentPicker } from "@/components/layout/DepartmentPicker";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { Select } from "@/components/ui/Select";
@@ -42,7 +43,13 @@ export function ServiceFormDialog({ open, onClose, customerId, customerName }: P
     formState: { errors, isSubmitting },
   } = useForm<ServiceForm>({
     resolver: zodResolver(ServiceForm),
-    defaultValues: { customerId, serviceTypeId: "", date: businessDay(), note: "" },
+    defaultValues: {
+      customerId,
+      serviceTypeId: "",
+      date: businessDay(),
+      note: "",
+      departmentId: "",
+    },
   });
 
   const save = useMutation({
@@ -83,6 +90,12 @@ export function ServiceFormDialog({ open, onClose, customerId, customerName }: P
         onSubmit={handleSubmit((form) => save.mutate(form))}
         noValidate
       >
+
+        <DepartmentPicker
+          module="services"
+          value={watch("departmentId")}
+          onChange={(v) => setValue("departmentId", v, { shouldDirty: true })}
+        />
 
         <Select
           block

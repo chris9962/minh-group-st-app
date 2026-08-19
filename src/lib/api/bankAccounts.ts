@@ -69,6 +69,11 @@ export const BankAccountStartForm = z.object({
   customerId: z.uuid('Chưa chọn khách'),
   bankId: z.uuid('Chưa chọn ngân hàng'),
   referralCode: z.uuid('Chưa chọn mã giới thiệu'),
+  /**
+   * Phòng ghi nhận bản ghi này. Chỉ người KHÔNG thuộc phòng nào mới phải chọn —
+   * người có phòng thì máy chủ dùng phòng của họ và bỏ qua giá trị này.
+   */
+  departmentId: z.string(),
 });
 export type BankAccountStartForm = z.infer<typeof BankAccountStartForm>;
 

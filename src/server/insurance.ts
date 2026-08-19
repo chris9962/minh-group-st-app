@@ -35,6 +35,7 @@ import {
 } from "@/lib/permissions";
 import { InsuranceProduct, isRealIsoDate, type User } from "@/lib/types";
 import { db } from "./db/client";
+import { departmentForNewRecord } from "./writeDepartment";
 import {
   customers,
   insuranceOrderStatusHistory,
@@ -560,6 +561,9 @@ export async function createInsuranceOrders(
   actor: User,
   form: InsuranceOrderForm,
 ): Promise<InsuranceOutcome<InsuranceListRow[]>> {
+  const department = departmentForNewRecord(actor, "insurance", form.departmentId);
+  if (!department.ok) return { ok: false, message: department.message };
+
   /**
    * Lấy luôn CCCD THẬT của khách, không chỉ `id`.
    *
@@ -667,7 +671,8 @@ export async function createInsuranceOrders(
           createdBy: actor.id,
           // Đơn vị của người tạo lúc tạo. Người này chuyển phòng thì
           // `writeStaff` viết lại cột này cho mọi dòng của họ (chốt 13/08).
-          createdByDepartmentId: actor.departmentId,
+          // Người không thuộc phòng nào thì đây là phòng họ chọn ở biểu mẫu.
+          createdByDepartmentId: department.departmentId,
         })),
       )
       .returning({ id: insuranceOrders.id });

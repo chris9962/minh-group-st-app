@@ -17,6 +17,7 @@ import { businessDay, businessMonth } from "@/lib/format";
 import { recordVisibility, type RecordVisibility } from "@/lib/permissions";
 import { isRealIsoDate, type User } from "@/lib/types";
 import { db } from "./db/client";
+import { departmentForNewRecord } from "./writeDepartment";
 import { customers, serviceTypes, services, users, wards } from "./db/schema";
 import { recomputeKpi } from "./kpi";
 import type { PageArgs } from "./pagination";
@@ -321,6 +322,9 @@ const serviceById = async (id: string): Promise<ServiceRow | null> =>
  * vào công của mình.
  */
 export async function createService(actor: User, form: ServiceForm): Promise<ServiceOutcome> {
+  const department = departmentForNewRecord(actor, "services", form.departmentId);
+  if (!department.ok) return { ok: false, message: department.message };
+
   const [type] = await db
     .select({ id: serviceTypes.id, active: serviceTypes.active })
     .from(serviceTypes)
@@ -364,8 +368,9 @@ export async function createService(actor: User, form: ServiceForm): Promise<Ser
       serviceDate,
       createdBy: actor.id,
       // Đơn vị của người tạo lúc tạo. Người này chuyển phòng thì `writeStaff`
-      // viết lại cột này cho mọi dòng của họ (chốt 13/08).
-      createdByDepartmentId: actor.departmentId,
+      // viết lại cột này cho mọi dòng của họ (chốt 13/08). Người không thuộc
+      // phòng nào thì đây là phòng họ chọn ở biểu mẫu.
+      createdByDepartmentId: department.departmentId,
       wardId: actor.wardId,
       wardName: ward?.name ?? null,
     })

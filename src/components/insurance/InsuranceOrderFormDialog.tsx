@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { UserCheck } from "lucide-react";
+import { DepartmentPicker } from "@/components/layout/DepartmentPicker";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { Select } from "@/components/ui/Select";
@@ -134,6 +135,7 @@ export function InsuranceOrderFormDialog({
       customerId: customer.id,
       source,
       legs: defaultLegsFor(selectedPackage),
+      departmentId: "",
     },
   });
   const legsField = useFieldArray({ control, name: "legs" });
@@ -391,6 +393,12 @@ export function InsuranceOrderFormDialog({
       }
     >
       <form id="insurance-order-form" className={styles.form} onSubmit={onSubmit} noValidate>
+        <DepartmentPicker
+          module="insurance"
+          value={watch("departmentId")}
+          onChange={(v) => setValue("departmentId", v, { shouldDirty: true })}
+        />
+
         {!prefill && (
           <Select
             block

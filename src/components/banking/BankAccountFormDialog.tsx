@@ -7,6 +7,7 @@ import { useForm } from "react-hook-form";
 import { CheckCircle2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
+import { DepartmentPicker } from "@/components/layout/DepartmentPicker";
 import { Select } from "@/components/ui/Select";
 import { fetchBanks, fetchOpenReferralCodes } from "@/lib/api/bankCatalog";
 import {
@@ -41,6 +42,7 @@ const emptyStartForm = (customerId: string): BankAccountStartForm => ({
   customerId,
   bankId: "",
   referralCode: "",
+  departmentId: "",
 });
 
 const emptyFinishForm: BankAccountFinishForm = {
@@ -245,6 +247,12 @@ export function BankAccountFormDialog({
           onSubmit={startForm.handleSubmit((form) => start.mutate(form))}
           noValidate
         >
+
+          <DepartmentPicker
+            module="banking"
+            value={startForm.watch("departmentId")}
+            onChange={(v) => startForm.setValue("departmentId", v, { shouldDirty: true })}
+          />
 
           <Select
             block

@@ -1,5 +1,5 @@
 import { BankAccountStartForm } from "@/lib/api/bankAccounts";
-import { can, inVisibleScope } from "@/lib/permissions";
+import { can } from "@/lib/permissions";
 import { logAudit } from "@/server/audit";
 import { badRequest, forbidden, getActor, jsonBody, unauthorized } from "@/server/auth";
 import { startBankAccount } from "@/server/banking";
@@ -14,10 +14,6 @@ export async function POST(request: Request) {
   const actor = await getActor(request);
   if (!actor) return unauthorized();
   if (!can(actor, "banking", "create")) return forbidden();
-
-  // Bản ghi sinh ra mang phòng của chính người tạo, nên phòng đó phải nằm trong
-  // phạm vi họ được phép ghi — nếu không thì tạo xong chính họ không thấy lại.
-  if (!inVisibleScope(actor, "banking", "create", actor.departmentId)) return forbidden();
 
   const parsed = BankAccountStartForm.safeParse(await jsonBody(request));
   if (!parsed.success) return badRequest();

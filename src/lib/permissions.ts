@@ -327,6 +327,28 @@ export function inVisibleScope(
 }
 
 /**
+ * Những phòng người này GHI BẢN GHI MỚI vào được. `null` = mọi phòng.
+ *
+ * Chỉ dùng cho người KHÔNG THUỘC phòng nào — Giám đốc, Cố vấn và các Phó GĐ
+ * (`department_id` NULL theo spec §2.2). Người có phòng thì bản ghi luôn mang
+ * phòng của họ, không có gì để chọn.
+ *
+ * Đọc phạm vi của `view-detail` chứ không phải của `create`: `create` gần như
+ * luôn là `own`, mà `own` với người không thuộc phòng nào là tập RỖNG — lấy nó
+ * làm danh sách chọn thì ô chọn trống trơn. Câu hỏi đúng ở đây là "bản ghi ghi
+ * vào phòng nào thì chính người này còn đọc lại được", và đó là phạm vi đọc.
+ */
+export function writableDepartmentIds(
+  user: User | null,
+  module: ModuleKey,
+): string[] | null {
+  if (!user) return [];
+  const scope = scopeFor(user, module, 'view-detail');
+  if (!scope) return [];
+  return visibleDepartmentIds(user, scope);
+}
+
+/**
  * Người thao tác có đủ BẬC để đụng vào hồ sơ của người này không.
  *
  * `assignableRoles` chặn việc GÁN vai cao hơn mình, nhưng không chặn việc sửa

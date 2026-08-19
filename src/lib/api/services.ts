@@ -128,6 +128,11 @@ export const ServiceForm = z.object({
   serviceTypeId: z.uuid('Chưa chọn loại dịch vụ'),
   date: serviceDate,
   note: z.string().trim(),
+  /**
+   * Phòng ghi nhận bản ghi này. Chỉ người KHÔNG thuộc phòng nào mới phải chọn —
+   * người có phòng thì máy chủ dùng phòng của họ và bỏ qua giá trị này.
+   */
+  departmentId: z.string(),
 });
 export type ServiceForm = z.infer<typeof ServiceForm>;
 

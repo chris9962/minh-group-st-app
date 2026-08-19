@@ -24,6 +24,7 @@ import { businessMonth } from "@/lib/format";
 import { recordVisibility, type RecordVisibility } from "@/lib/permissions";
 import { isRealIsoDate, type User } from "@/lib/types";
 import { db } from "./db/client";
+import { departmentForNewRecord } from "./writeDepartment";
 import {
   bankAccountPhotos,
   bankAccounts,
@@ -523,6 +524,9 @@ export async function startBankAccount(
   actor: User,
   form: BankAccountStartForm,
 ): Promise<BankingOutcome<BankAccount>> {
+  const department = departmentForNewRecord(actor, "banking", form.departmentId);
+  if (!department.ok) return { ok: false, message: department.message };
+
   const [customer] = await db
     .select({
       id: customers.id,
@@ -584,8 +588,9 @@ export async function startBankAccount(
         channelDetail: customer.channelDetail,
         createdBy: actor.id,
         // Đơn vị của người tạo lúc tạo. Người này chuyển phòng thì `writeStaff`
-        // viết lại cột này cho mọi dòng của họ (chốt 13/08).
-        createdByDepartmentId: actor.departmentId,
+        // viết lại cột này cho mọi dòng của họ (chốt 13/08). Người không thuộc
+        // phòng nào thì đây là phòng họ chọn ở biểu mẫu.
+        createdByDepartmentId: department.departmentId,
       })
       .returning({ id: bankAccounts.id });
 
