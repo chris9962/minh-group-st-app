@@ -12,6 +12,14 @@ type ButtonProps = {
   label: string;
   /** Có thì hiện chữ cạnh icon. Không có thì nút chỉ còn icon. */
   children?: React.ReactNode;
+  /**
+   * Giấu câu "Đã chép" khỏi mắt, chỉ để trình đọc màn hình đọc.
+   *
+   * Dùng khi nút nằm trong lưới trường dày đặc: câu đó dài hơn cả giá trị bên
+   * cạnh nên nó xuống dòng, đẩy ô cao lên và làm cả hàng lệch nhau. Icon vẫn
+   * đổi từ Copy sang Check, nên vẫn còn kênh thị giác thứ hai ngoài màu.
+   */
+  quiet?: boolean;
 };
 
 /**
@@ -21,7 +29,7 @@ type ButtonProps = {
  * Enter/Space bấm được, và trình đọc màn hình biết đây là nút chứ không phải
  * chữ thường.
  */
-export function CopyButton({ value, label, children }: ButtonProps) {
+export function CopyButton({ value, label, children, quiet = false }: ButtonProps) {
   const [state, setState] = useState<State>("idle");
 
   // Trả nhãn về trạng thái ban đầu sau hai giây. Hẹn giờ là hệ thống ngoài
@@ -59,7 +67,7 @@ export function CopyButton({ value, label, children }: ButtonProps) {
 
       {/* Chữ chứ không chỉ đổi icon: màu và hình không được là kênh duy nhất.
           `aria-live` để trình đọc màn hình báo mà không cướp tiêu điểm. */}
-      <span className={styles.status} aria-live="polite">
+      <span className={quiet ? "sr-only" : styles.status} aria-live="polite">
         {state === "copied" && "Đã chép"}
         {state === "failed" && "Không chép được, bấm chọn rồi copy tay"}
       </span>

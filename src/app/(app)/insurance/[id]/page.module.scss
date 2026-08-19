@@ -43,6 +43,27 @@
   font-size: 19px;
   font-weight: 650;
   font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Nút chép đứng cạnh giá trị trên cùng một dòng.
+   `center` chứ không `baseline`: nút là inline-flex bọc một SVG, mà baseline
+   của khối đó lấy ở mép dưới nên icon tụt xuống dưới chân chữ.
+   Không `flex-wrap`: giá trị dài thì tự xuống dòng bên trong, còn nút luôn ở
+   lại cùng dòng đầu — cho nó rớt xuống thì mỗi ô cao một kiểu. */
+.fieldValue {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* Chữ nhận phần rộng còn lại và tự ngắt dòng; nút giữ nguyên bề ngang. */
+.fieldText {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 /* Chiếm trọn hàng để tên khách dài không đẩy nhãn trạng thái xuống. */

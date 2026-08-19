@@ -8,6 +8,7 @@ import { SkeletonCard } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
 import { Button } from "@/components/ui/Button";
+import { CopyButton } from "@/components/ui/CopyValue";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusTag } from "@/components/ui/StatusTag";
 import {
@@ -47,19 +48,35 @@ const formatDateTime = (value: string): string =>
   }).format(new Date(value));
 
 /** Một cặp nhãn — giá trị. `wide` cho giá trị dài chiếm trọn hàng lưới. */
+/**
+ * Một trường, kèm nút chép khi `copy` có giá trị.
+ *
+ * Người xử lý đơn tay phải gõ lại từng trường sang web PVI, nên mỗi lần gõ tay
+ * là một lần gõ sai được. CCCD người thụ hưởng CỐ Ý không có nút này — nó là
+ * trường gác bằng quyền riêng (`beneficiaryIdNumberHidden`), và một nút chép
+ * đứng cạnh chữ "Đã ẩn" là nói sai rằng vẫn lấy được số.
+ *
+ * `copy` tách khỏi `children` vì hai thứ khác nhau: màn hình hiện
+ * "10.000.000 ₫", còn form PVI nhận `10000000`.
+ */
 function Field({
   label,
   wide = false,
+  copy,
   children,
 }: {
   label: string;
   wide?: boolean;
+  copy?: string;
   children: React.ReactNode;
 }) {
   return (
     <div className={wide ? styles.fieldWide : undefined}>
       <dt>{label}</dt>
-      <dd>{children}</dd>
+      <dd className={styles.fieldValue}>
+        <span className={styles.fieldText}>{children}</span>
+        {copy ? <CopyButton value={copy} label={`${label}: ${copy}`} quiet /> : null}
+      </dd>
     </div>
   );
 }
@@ -292,7 +309,10 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                 {/* Mã đơn là ĐỊNH DANH, không phải tiêu đề nhóm — để `h3` thì
                     nó đứng ngang hàng với "Người thụ hưởng", "Thông tin xe"
                     trong cây tiêu đề mà không chứa nhóm nào. */}
-                <p className={styles.orderCode}>{data.orderCode}</p>
+                <p className={styles.orderCode}>
+                  {data.orderCode}
+                  <CopyButton value={data.orderCode} label={`mã đơn: ${data.orderCode}`} quiet />
+                </p>
                 <StatusTag tone={INSURANCE_STATUS_TONE[data.status]}>
                   {INSURANCE_STATUS_LABEL[data.status]}
                 </StatusTag>
@@ -308,15 +328,30 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                   được ngay mà không phải quét hết danh sách trường bên dưới. */}
               <dl className={styles.highlights}>
                 <Field label="Sản phẩm">{PRODUCT_LABEL[data.product]}</Field>
-                <Field label="Gói">{data.packageName}</Field>
-                <Field label="Mức phí">{formatVnd(data.fee)}</Field>
-                <Field label="Hiệu lực từ">{formatDate(data.startDate)}</Field>
-                <Field label="Ngày kết thúc">{formatDate(data.endDate)}</Field>
+                <Field label="Gói" copy={data.packageName}>
+                  {data.packageName}
+                </Field>
+                {/* Chép SỐ TRẦN, không chép chuỗi đã định dạng — form PVI nhận
+                    `10000000`, dán "10.000.000 ₫" vào là ô từ chối. */}
+                <Field label="Mức phí" copy={String(data.fee)}>
+                  {formatVnd(data.fee)}
+                </Field>
+                <Field label="Hiệu lực từ" copy={formatDate(data.startDate)}>
+                  {formatDate(data.startDate)}
+                </Field>
+                <Field label="Ngày kết thúc" copy={formatDate(data.endDate)}>
+                  {formatDate(data.endDate)}
+                </Field>
               </dl>
 
               <FieldGroup title="Người thụ hưởng">
-                <Field label="Họ tên">{data.beneficiaryName}</Field>
-                <Field label="Ngày sinh">
+                <Field label="Họ tên" copy={data.beneficiaryName}>
+                  {data.beneficiaryName}
+                </Field>
+                <Field
+                  label="Ngày sinh"
+                  copy={data.beneficiaryDob ? formatDate(data.beneficiaryDob) : undefined}
+                >
                   {data.beneficiaryDob ? formatDate(data.beneficiaryDob) : "—"}
                 </Field>
                 <Field label="CCCD">
@@ -338,18 +373,28 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                     "—"
                   )}
                 </Field>
-                <Field label="Số điện thoại">
+                {/* Chép số THÔ: `formatPhone` chèn khoảng trắng cho dễ đọc, mà
+                    ô SĐT của PVI từ chối khoảng trắng. */}
+                <Field label="Số điện thoại" copy={data.beneficiaryPhone || undefined}>
                   {data.beneficiaryPhone ? formatPhone(data.beneficiaryPhone) : "—"}
                 </Field>
-                <Field label="Địa chỉ" wide>
+                <Field label="Địa chỉ" wide copy={data.beneficiaryAddress || undefined}>
                   {data.beneficiaryAddress || "—"}
                 </Field>
               </FieldGroup>
 
               {data.product === "electric-accident" && (
                 <FieldGroup title="Quyền lợi bảo hiểm">
-                  <Field label="Số thành viên">{data.householdSize || "—"}</Field>
-                  <Field label="Số tiền bảo hiểm">
+                  <Field
+                    label="Số thành viên"
+                    copy={data.householdSize ? String(data.householdSize) : undefined}
+                  >
+                    {data.householdSize || "—"}
+                  </Field>
+                  <Field
+                    label="Số tiền bảo hiểm"
+                    copy={data.sumInsured ? String(data.sumInsured) : undefined}
+                  >
                     {data.sumInsured ? formatVnd(data.sumInsured) : "—"}
                   </Field>
                 </FieldGroup>
@@ -357,12 +402,20 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
 
               {data.product === "motorbike" && (
                 <FieldGroup title="Thông tin xe">
-                  <Field label="Biển số xe">{data.licensePlate || "—"}</Field>
-                  <Field label="Loại xe">
+                  <Field label="Biển số xe" copy={data.licensePlate || undefined}>
+                    {data.licensePlate || "—"}
+                  </Field>
+                  {/* Chép MÃ loại xe, không chép nhãn đọc cho người —
+                      `vehicleTypeLabel` trả "A1 – Xe mô tô…", PVI nhận "A1". */}
+                  <Field label="Loại xe" copy={data.vehicleType || undefined}>
                     {data.vehicleType ? vehicleTypeLabel(data.vehicleType) : "—"}
                   </Field>
-                  <Field label="Số khung">{data.chassisNumber || "—"}</Field>
-                  <Field label="Số máy">{data.engineNumber || "—"}</Field>
+                  <Field label="Số khung" copy={data.chassisNumber || undefined}>
+                    {data.chassisNumber || "—"}
+                  </Field>
+                  <Field label="Số máy" copy={data.engineNumber || undefined}>
+                    {data.engineNumber || "—"}
+                  </Field>
                 </FieldGroup>
               )}
 
