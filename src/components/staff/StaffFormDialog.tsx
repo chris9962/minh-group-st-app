@@ -417,37 +417,46 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
               </span>
             </summary>
             <div className={styles.collapsibleBody}>
+              {/*
+                Toàn quyền thì KHÔNG dựng lưới cấp lẻ. Lưới đó chỉ đọc được các
+                dòng quyền theo từng module, mà bộ quyền này gồm 15 dòng module
+                `*` — nó hiện trống trơn trong khi người này đang có mọi quyền.
+                Bày ra là mời người dùng tích vào những ô không đổi được gì.
+
+                Muốn CẮT quyền của tài khoản toàn quyền thì đổi chức vụ trước;
+                lưới hiện lại ngay khi bộ quyền không còn phủ hết.
+              */}
               {fullAccess ? (
                 <Alert tone="warning">
-                  Bộ quyền này phủ <strong>mọi module, toàn công ty</strong>, gồm
-                  cả cấp quyền cho người khác. Lưới bên dưới chỉ cấp quyền lẻ theo
-                  từng module nên nó hiện trống — tích thêm ở đó không làm quyền
-                  rộng hơn hay hẹp đi.
+                  Chức vụ này có <strong>toàn quyền</strong>: mọi module, toàn
+                  công ty, cấp được quyền cho người khác. Không có gì để cấp thêm.
                 </Alert>
               ) : (
-                <p className={styles.note}>
-                  Đã điền sẵn theo chức vụ — sửa riêng từng ô nếu người này cần thêm
-                  hoặc bớt quyền so với chức vụ chung. Chỉ chọn được tới đúng phạm vi
-                  bạn đang có, không cấp vượt quá quyền của chính bạn.
-                </p>
+                <>
+                  <p className={styles.note}>
+                    Đã điền sẵn theo chức vụ — sửa riêng từng ô nếu người này cần thêm
+                    hoặc bớt quyền so với chức vụ chung. Chỉ chọn được tới đúng phạm vi
+                    bạn đang có, không cấp vượt quá quyền của chính bạn.
+                  </p>
+                  <PermissionsEditor
+                    value={permissions}
+                    onChange={(permissions) =>
+                      setValue("permissions", permissions, { shouldDirty: true })
+                    }
+                    actor={actor}
+                  />
+                  <Button
+                    variant="secondary"
+                    type="button"
+                    className={styles.resetPermissions}
+                    onClick={() =>
+                      setValue("permissions", ROLE_PERMISSIONS[watch("role")], { shouldDirty: true })
+                    }
+                  >
+                    Đặt lại theo chức vụ
+                  </Button>
+                </>
               )}
-              <PermissionsEditor
-                value={permissions}
-                onChange={(permissions) =>
-                  setValue("permissions", permissions, { shouldDirty: true })
-                }
-                actor={actor}
-              />
-              <Button
-                variant="secondary"
-                type="button"
-                className={styles.resetPermissions}
-                onClick={() =>
-                  setValue("permissions", ROLE_PERMISSIONS[watch("role")], { shouldDirty: true })
-                }
-              >
-                Đặt lại theo chức vụ
-              </Button>
             </div>
           </details>
         )}
