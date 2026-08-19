@@ -118,9 +118,16 @@ export function BankAccountFormDialog({
         accountType: "none",
         note: created.note,
       });
+      // Bước 1 đã sinh ra một dòng `Đang tạo` thật trong bảng P-21, nên bảng đó
+      // phải tải lại ngay — không đợi tới lúc Hoàn thành. Thiếu dòng này thì
+      // người dùng đóng hộp thoại giữa chừng và không thấy bản ghi dở dang đâu.
+      queryClient.invalidateQueries({ queryKey: ["bank-account-list"] });
       queryClient.invalidateQueries({ queryKey: ["customers"] });
       queryClient.invalidateQueries({ queryKey: ["customer", customerId] });
       queryClient.invalidateQueries({ queryKey: ["referral-codes"] });
+      // Ô lọc "Mã giới thiệu" ở P-21 và màn Xuất dữ liệu đọc key này — giữ chỗ
+      // xong là số chỗ còn lại của mã đã đổi.
+      queryClient.invalidateQueries({ queryKey: ["referral-code-options"] });
       toast.ok("Đã giữ chỗ mã giới thiệu — điền nốt để hoàn tất tài khoản");
     },
     onError: (e) => toast.fail(errorMessage(e, "Không mở được tài khoản này.")),
@@ -132,6 +139,7 @@ export function BankAccountFormDialog({
     queryClient.invalidateQueries({ queryKey: ["bank-account-list"] });
     queryClient.invalidateQueries({ queryKey: ["customers"] });
     queryClient.invalidateQueries({ queryKey: ["referral-codes"] });
+    queryClient.invalidateQueries({ queryKey: ["referral-code-options"] });
     queryClient.invalidateQueries({ queryKey: ["customer", customerId] });
     invalidateKpi(queryClient);
   };

@@ -10,6 +10,7 @@ import { Checkbox } from "@/components/ui/Checkbox";
 import { DateRangePicker } from "@/components/ui/DateRangePicker";
 import { MonthPicker, thisMonth } from "@/components/ui/MonthPicker";
 import { SectionCard } from "@/components/ui/SectionCard";
+import { Combobox } from "@/components/ui/Combobox";
 import { Select } from "@/components/ui/Select";
 import { fetchBankAccountsForExport } from "@/lib/api/banking";
 import { fetchBanks, fetchReferralCodeOptions, type Bank } from "@/lib/api/bankCatalog";
@@ -643,8 +644,13 @@ export default function ExportsPage() {
                 )}
 
                 {(active === "accounts-by-customer" || active === "accounts-by-code") && (
-                  <Select
+                  <Combobox
+                    block
+                    // Combobox chứ không phải Select: kho mã lớn thêm mỗi đợt
+                    // Kinh doanh tổng hợp nhập vào, mà `<select>` gốc không gõ
+                    // tìm được. Cùng lối với ô lọc mã ở màn Ngân hàng.
                     label="Mã giới thiệu"
+                    placeholder="Gõ để tìm mã…"
                     value={referralCode}
                     onChange={setReferralCode}
                     options={[{ value: "", label: "Tất cả mã giới thiệu" }, ...codes.map((code) => ({ value: code, label: code }))]}

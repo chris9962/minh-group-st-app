@@ -20,7 +20,7 @@ import type {
 } from "@/lib/api/bankAccounts";
 import type { BankAccountDetail, BankAccountRow, BankAccountSort } from "@/lib/api/banking";
 import type { Page } from "@/lib/api/pagination";
-import { businessMonth } from "@/lib/format";
+import { businessDay, businessMonth } from "@/lib/format";
 import { recordVisibility, type RecordVisibility } from "@/lib/permissions";
 import { isRealIsoDate, type User } from "@/lib/types";
 import { db } from "./db/client";
@@ -600,6 +600,18 @@ export async function startBankAccount(
         // và chép thì đổi kênh của khách về sau không viết lại lịch sử.
         channelId: customer.channelId,
         channelDetail: customer.channelDetail,
+        /**
+         * Ngày mở ghi NGAY từ bước 1, không đợi bước 2.
+         *
+         * Nhân viên giữ chỗ mã rồi mới đi mở tài khoản thật ở ngoài, có thể tới
+         * hôm sau mới quay lại điền nốt. Để cột này trống tới lúc đó thì bản ghi
+         * dở dang không có mốc thời gian nào, và nó rơi xuống cuối bảng P-21 vì
+         * `nulls last` — đúng chỗ khó tìm nhất với người vừa tạo ra nó.
+         *
+         * Bước 2 vẫn sửa được ngày này. Mở tài khoản thật sang ngày khác thì
+         * nhân viên đổi lại cho khớp giấy tờ.
+         */
+        openedDate: businessDay(),
         createdBy: actor.id,
         // Đơn vị của người tạo lúc tạo. Người này chuyển phòng thì `writeStaff`
         // viết lại cột này cho mọi dòng của họ (chốt 13/08). Người không thuộc

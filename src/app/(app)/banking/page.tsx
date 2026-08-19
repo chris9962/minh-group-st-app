@@ -349,9 +349,13 @@ export default function BankingPage() {
             ]}
           />
           <DateRangePicker label="Khoảng ngày" value={range} onChange={(v) => refine(() => setRange(v))} />
-          <Select
+          <Combobox
             block
+            // Combobox chứ không phải Select: mỗi ngân hàng có nhiều mã và kho
+            // mã lớn thêm mỗi đợt Kinh doanh tổng hợp nhập vào, mà `<select>`
+            // gốc không gõ tìm được — cùng lý do với ô lọc Nhân viên bên dưới.
             label="Mã giới thiệu"
+            placeholder="Gõ để tìm mã…"
             value={referralCode}
             onChange={(v) => refine(() => setReferralCode(v))}
             options={[
