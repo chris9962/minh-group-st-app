@@ -454,9 +454,6 @@ export default function CustomerDetailPage({
           <BankAccountFormDialog
             open
             customerId={data.customer.id}
-            customerPrimaryPhone={
-              data.customer.phones.find((p) => p.primary)?.number ?? data.customer.phones[0]?.number ?? ""
-            }
             onClose={() => setOpeningBank(false)}
           />
         )}

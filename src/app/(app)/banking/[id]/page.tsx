@@ -114,7 +114,7 @@ function FinishAccountCard({
     resolver: zodResolver(BankAccountFinishForm),
     defaultValues: {
       accountNumber:
-        data.accountNumberMethod === "phone-match" ? data.customerPrimaryPhone : data.accountNumber,
+        data.accountNumber,
       openedDate: data.date || businessDay(),
       appInstalled: true,
       accountType: "none",
@@ -227,6 +227,7 @@ function FinishAccountCard({
         setValue={finishForm.setValue}
         bankCode={data.bankCode}
         accountNumberMethod={data.accountNumberMethod}
+        customerPhones={data.customerPhones}
         photos={photos}
         requiredPhotos={data.requiredPhotos}
         onPhotosChange={setEditedPhotos}

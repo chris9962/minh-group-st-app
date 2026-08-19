@@ -53,10 +53,10 @@ export const BankAccountDetail = BankAccountRow.extend({
   /** Ảnh chuyển khoản. Đếm RIÊNG, không cộng vào `requiredPhotos`. */
   transactionPhotoUrls: z.array(z.string()),
   requiredPhotos: z.number(),
-  /** Dùng để tự điền/khoá ô số tài khoản ở bước 2, giống lúc chọn ngân hàng ở P-20. */
+  /** Quyết ô số tài khoản ở bước 2 là ô gõ tay hay ô chọn SĐT. */
   accountNumberMethod: AccountNumberMethod,
-  /** SĐT chính của khách — nguồn để tự điền số tài khoản khi `accountNumberMethod = phone-match`. */
-  customerPrimaryPhone: z.string(),
+  /** Mọi SĐT của khách, số chính đứng đầu — nguồn cho ô chọn khi `phone-match`. */
+  customerPhones: z.array(z.string()),
 });
 export type BankAccountDetail = z.infer<typeof BankAccountDetail>;
 

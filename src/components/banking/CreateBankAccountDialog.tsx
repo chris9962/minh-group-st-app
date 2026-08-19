@@ -2,15 +2,11 @@
 
 import { BankAccountFormDialog } from "@/components/banking/BankAccountFormDialog";
 import { CustomerPickerDialog } from "@/components/customers/CustomerPickerDialog";
-import type { Customer } from "@/lib/api/customers";
 
 type Props = {
   open: boolean;
   onClose: () => void;
 };
-
-const primaryPhoneOf = (c: Customer): string =>
-  c.phones.find((p) => p.primary)?.number ?? c.phones[0]?.number ?? "";
 
 /**
  * P-21 · Mở tài khoản ngân hàng cho khách chưa có sẵn trong ngữ cảnh (khác hai
@@ -30,7 +26,6 @@ export function CreateBankAccountDialog({ open, onClose }: Props) {
         <BankAccountFormDialog
           open
           customerId={customer.id}
-          customerPrimaryPhone={primaryPhoneOf(customer)}
           onClose={onClose}
         />
       )}

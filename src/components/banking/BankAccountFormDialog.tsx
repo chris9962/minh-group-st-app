@@ -35,7 +35,6 @@ type Props = {
   open: boolean;
   onClose: () => void;
   customerId: string;
-  customerPrimaryPhone: string;
 };
 
 const emptyStartForm = (customerId: string): BankAccountStartForm => ({
@@ -66,7 +65,6 @@ export function BankAccountFormDialog({
   open,
   onClose,
   customerId,
-  customerPrimaryPhone,
 }: Props) {
   const queryClient = useQueryClient();
   const [account, setAccount] = useState<BankAccount | null>(null);
@@ -114,10 +112,7 @@ export function BankAccountFormDialog({
       setAccount(created);
       setPhotos(savedPhotos(created.photoUrls));
       finishForm.reset({
-        accountNumber:
-          selectedBank?.accountNumberMethod === "phone-match"
-            ? customerPrimaryPhone
-            : created.accountNumber,
+        accountNumber: created.accountNumber,
         openedDate: created.openedDate || businessDay(),
         appInstalled: true,
         accountType: "none",
@@ -231,6 +226,7 @@ export function BankAccountFormDialog({
             setValue={finishForm.setValue}
             bankCode={account.bankCode}
             accountNumberMethod={selectedBank?.accountNumberMethod ?? "manual"}
+            customerPhones={account?.customerPhones ?? []}
             photos={photos}
             requiredPhotos={requiredPhotos}
             onPhotosChange={setPhotos}
@@ -257,23 +253,24 @@ export function BankAccountFormDialog({
           <Select
             block
             label="Ngân hàng"
+            required
             value={bankId}
+            error={startForm.formState.errors.bankId?.message}
             onChange={(v) => startForm.setValue("bankId", v, { shouldDirty: true })}
             options={[
               { value: "", label: "— Chọn ngân hàng —" },
               ...activeBanks.map((b) => ({ value: b.id, label: b.code })),
             ]}
           />
-          {startForm.formState.errors.bankId && (
-            <p className={styles.error}>{startForm.formState.errors.bankId.message}</p>
-          )}
 
           {bankId && (
             <>
               <Select
                 block
                 label="Mã giới thiệu"
+                required
                 value={startForm.watch("referralCode")}
+                error={startForm.formState.errors.referralCode?.message}
                 onChange={(v) => startForm.setValue("referralCode", v, { shouldDirty: true })}
                 options={
                   availableCodes.length === 0
@@ -286,9 +283,6 @@ export function BankAccountFormDialog({
                       }))
                 }
               />
-              {startForm.formState.errors.referralCode && (
-                <p className={styles.error}>{startForm.formState.errors.referralCode.message}</p>
-              )}
             </>
           )}
         </form>

@@ -58,6 +58,12 @@ export const BankAccount = z.object({
   transactionAt: z.string(),
   /** Ảnh chuyển khoản — đếm RIÊNG, không cộng vào `photoUrls`. */
   transactionPhotoUrls: z.array(z.string()),
+  /**
+   * Mọi SĐT của khách, số chính đứng đầu. Ngân hàng lấy số tài khoản theo SĐT
+   * thì bước 2 cho chọn trong danh sách này — khách mở bằng số phụ là chuyện
+   * thường, áp cứng số chính là ghi sai số tài khoản vào hợp đồng.
+   */
+  customerPhones: z.array(z.string()),
   status: BankAccountStatus,
 });
 export type BankAccount = z.infer<typeof BankAccount>;

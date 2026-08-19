@@ -387,7 +387,6 @@ export default function CustomersPage() {
           <BankAccountFormDialog
             open
             customerId={openingBankFor.id}
-            customerPrimaryPhone={openingBankFor.primaryPhone}
             onClose={() => setOpeningBankFor(null)}
           />
         )}

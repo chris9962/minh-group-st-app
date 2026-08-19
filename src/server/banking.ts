@@ -438,6 +438,25 @@ const rawById = async (id: string): Promise<DecoratedRow | null> =>
   (await decorate(pickPage(eq(bankAccounts.id, id), [], 1, 0)))[0] ?? null;
 
 /** Dạng đầy đủ mà các endpoint GHI trả về (hợp đồng `BankAccount`). */
+/**
+ * Mọi số điện thoại của khách, SỐ CHÍNH đứng đầu.
+ *
+ * Ngân hàng có `cách lấy STK = trùng SĐT` thì số tài khoản chính là một trong
+ * các số này — nhưng KHÔNG nhất thiết là số chính: khách mở tài khoản bằng số
+ * phụ là chuyện thường. Trả cả danh sách để bước 2 cho người nhập chọn, thay vì
+ * áp cứng số chính rồi ghi sai số tài khoản vào hợp đồng.
+ */
+async function customerPhoneNumbers(customerId: string): Promise<string[]> {
+  const rows = await db
+    .select({ number: customerPhones.number, isPrimary: customerPhones.isPrimary })
+    .from(customerPhones)
+    .where(eq(customerPhones.customerId, customerId));
+
+  return rows
+    .sort((a, b) => Number(b.isPrimary) - Number(a.isPrimary))
+    .map((r) => r.number);
+}
+
 async function accountById(id: string): Promise<BankAccount | null> {
   const r = await rawById(id);
   if (!r) return null;
@@ -462,6 +481,7 @@ async function accountById(id: string): Promise<BankAccount | null> {
     photoUrls: await photoUrlsOf(id, "opening"),
     transactionAt: r.transactionAt,
     transactionPhotoUrls: await photoUrlsOf(id, "transaction"),
+    customerPhones: await customerPhoneNumbers(r.customerId),
     status: r.status,
   };
 }
@@ -482,12 +502,6 @@ export async function bankAccountDetail(
   const r = await rawById(id);
   if (!r || !inScope(visible, r)) return null;
 
-  const [phone] = await db
-    .select({ number: customerPhones.number })
-    .from(customerPhones)
-    .where(and(eq(customerPhones.customerId, r.customerId), eq(customerPhones.isPrimary, true)))
-    .limit(1);
-
   return {
     ...toRow(r),
     channelDetail: r.channelDetail,
@@ -499,7 +513,7 @@ export async function bankAccountDetail(
     transactionPhotoUrls: await photoUrlsOf(id, "transaction"),
     requiredPhotos: r.requiredPhotos,
     accountNumberMethod: r.accountNumberMethod,
-    customerPrimaryPhone: phone?.number ?? "",
+    customerPhones: await customerPhoneNumbers(r.customerId),
   };
 }
 
@@ -680,6 +694,21 @@ export async function finishBankAccount(
   const accountType = current.bankCode === "VPa" ? form.accountType : "none";
 
   /**
+   * Ngân hàng lấy số tài khoản THEO SĐT thì số gửi lên phải là một số của chính
+   * khách này. Giao diện dựng ô chọn, nhưng ô chọn không phải chốt chặn —
+   * request nặn tay gửi số bất kỳ vẫn tới đây, và tài khoản `done` thì số tài
+   * khoản không sửa lại được nữa.
+   */
+  if (current.accountNumberMethod === "phone-match") {
+    const phones = await customerPhoneNumbers(current.customerId);
+    if (!phones.includes(form.accountNumber))
+      return {
+        ok: false,
+        message: `Ngân hàng ${current.bankCode} lấy số tài khoản theo SĐT — chọn một số điện thoại của khách.`,
+      };
+  }
+
+  /**
    * Đếm ảnh và ghi phải nằm TRONG CÙNG MỘT GIAO DỊCH, và câu ghi phải mang lại
    * điều kiện `status = 'creating'`.
    *
@@ -778,6 +807,16 @@ export async function updateFinishedAccount(
 
   if (current.status !== "done")
     return { ok: false, message: "Tài khoản này chưa hoàn thành — dùng bước Hoàn thành" };
+
+  // Cùng chốt chặn với `finishBankAccount`: đường sửa cũng ghi đè số tài khoản.
+  if (current.accountNumberMethod === "phone-match") {
+    const phones = await customerPhoneNumbers(current.customerId);
+    if (!phones.includes(form.accountNumber))
+      return {
+        ok: false,
+        message: `Ngân hàng ${current.bankCode} lấy số tài khoản theo SĐT — chọn một số điện thoại của khách.`,
+      };
+  }
 
   const accountType = current.bankCode === "VPa" ? form.accountType : "none";
   const previousDate = current.date;

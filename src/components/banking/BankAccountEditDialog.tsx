@@ -79,7 +79,7 @@ export function BankAccountEditDialog({ open, onClose, accountId }: Props) {
     // `values` chứ không phải `defaultValues`: chi tiết về SAU lượt render đầu,
     // mà `defaultValues` chỉ đọc một lần nên form sẽ trống mãi.
     values: {
-      accountNumber: data?.accountNumber || data?.customerPrimaryPhone || "",
+      accountNumber: data?.accountNumber ?? "",
       openedDate: data?.date || businessDay(),
       appInstalled: data?.appInstalled ?? true,
       accountType: data?.accountType ?? "none",
@@ -239,6 +239,7 @@ export function BankAccountEditDialog({ open, onClose, accountId }: Props) {
             setValue={finishForm.setValue}
             bankCode={data.bankCode}
             accountNumberMethod={data.accountNumberMethod}
+        customerPhones={data.customerPhones}
             photos={photos}
             requiredPhotos={data.requiredPhotos}
             onPhotosChange={setEditedPhotos}

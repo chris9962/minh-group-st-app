@@ -29,6 +29,8 @@ type Props = {
   setValue: UseFormSetValue<BankAccountFinishForm>;
   bankCode: string;
   accountNumberMethod: AccountNumberMethod;
+  /** Mọi SĐT của khách, số chính đứng đầu — nguồn cho ô chọn khi `phone-match`. */
+  customerPhones: string[];
   photos: PhotoItem[];
   requiredPhotos: number;
   onPhotosChange: (photos: PhotoItem[]) => void;
@@ -51,6 +53,7 @@ export function BankAccountFinishFields({
   setValue,
   bankCode,
   accountNumberMethod,
+  customerPhones,
   photos,
   requiredPhotos,
   onPhotosChange,
@@ -60,20 +63,41 @@ export function BankAccountFinishFields({
     <>
       <form id={formId} className={styles.form} onSubmit={onSubmit} noValidate>
         <div className={styles.formFields}>
-          <TextField
-            label="Số tài khoản"
-            disabled={accountNumberMethod === "phone-match"}
-            hint={
-              accountNumberMethod === "phone-match"
-                ? "Tự điền theo SĐT chính, không sửa được"
-                : undefined
-            }
-            error={errors.accountNumber?.message}
-            {...register("accountNumber")}
-          />
+          {/*
+            Ngân hàng lấy số tài khoản THEO SĐT thì số đó phải là một trong các
+            số của khách — nhưng KHÔNG nhất thiết là số chính. Khách mở tài
+            khoản bằng số phụ là chuyện thường, nên đây là ô CHỌN chứ không phải
+            ô khoá tự điền: áp cứng số chính là ghi sai số tài khoản vào hợp
+            đồng, mà bản ghi đã `done` thì không sửa được nữa.
+          */}
+          {accountNumberMethod === "phone-match" ? (
+            <Select
+              block
+              required
+              label="Số tài khoản"
+              value={watch("accountNumber")}
+              error={errors.accountNumber?.message}
+              onChange={(v) => setValue("accountNumber", v, { shouldDirty: true })}
+              options={[
+                { value: "", label: "— Chọn số điện thoại —" },
+                ...customerPhones.map((phone, i) => ({
+                  value: phone,
+                  label: i === 0 ? `${phone} · SĐT chính` : phone,
+                })),
+              ]}
+            />
+          ) : (
+            <TextField
+              label="Số tài khoản"
+              required
+              error={errors.accountNumber?.message}
+              {...register("accountNumber")}
+            />
+          )}
           <TextField
             label="Ngày mở"
             type="date"
+            required
             error={errors.openedDate?.message}
             {...register("openedDate")}
           />

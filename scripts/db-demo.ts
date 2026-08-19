@@ -193,14 +193,21 @@ type DemoCustomer = {
 };
 
 /**
- * Mỗi dòng là MỘT ca của thể lệ 2026-08, ghi thẳng kết quả mong đợi vào tên.
+ * Mỗi dòng là MỘT ca của thể lệ 2026-08. Ca nào ứng với khách nào ghi ở comment
+ * ngay trên từng mục, theo đúng thứ tự này.
  *
- * Ghi kết quả vào tên khách là cố ý: mở P-40 ra là so được ngay cột trạng thái
- * quà với chữ trong tên, không phải mở từng hồ sơ rồi tự nhẩm lại bảng điểm.
+ * Tên khách là TÊN NGƯỜI, không phải mô tả ca. Bản trước nhét kết quả mong đợi
+ * vào tên (`DEMO TH3 · 3 ưu tiên · 1.2đ · 70k`) cho tiện đối chiếu ở P-40,
+ * nhưng chuỗi đó hiện ra ở mọi ô chọn khách, mọi bảng và mọi hộp thoại — trông
+ * không giống dữ liệu thật, và cột tên bị kéo rộng quá mức.
+ *
+ * Tiền tố `DEMO` PHẢI giữ: bước dọn tìm khách mẫu bằng `fullName LIKE 'DEMO%'`
+ * (xem `TAG`), bảng `customers` không có cột nào khác để đánh dấu.
  */
 const CUSTOMERS: DemoCustomer[] = [
   {
-    name: "DEMO TH3 · 3 ưu tiên · 1.2đ · 70k",
+    // TH3 · 3 ngân hàng ưu tiên · 1,2đ · rổ 70k
+    name: "DEMO Nguyễn Văn An",
     idNumber: "070301885001",
     case: "TH3",
     owner: "demo_kd1_a",
@@ -209,14 +216,16 @@ const CUSTOMERS: DemoCustomer[] = [
     services: 1,
   },
   {
-    name: "DEMO TH4 · có MSBa · 1.0đ · 50k",
+    // TH4 · có MSBa · 1,0đ · rổ 50k
+    name: "DEMO Trần Thị Bích",
     case: "TH4",
     owner: "demo_kd1_a",
     accounts: [{ bank: "MB" }, { bank: "MSBa" }, { bank: "LBP" }],
     insurance: 1,
   },
   {
-    name: "DEMO TH5 · có VPa · 1.0đ · 20k · kênh bệnh viện",
+    // TH5 · có VPa · 1,0đ · rổ 20k · kênh bệnh viện
+    name: "DEMO Lê Hoàng Cường",
     case: "TH5",
     owner: "demo_kd1_b",
     channel: "KENH-BENH-VIEN",
@@ -224,13 +233,15 @@ const CUSTOMERS: DemoCustomer[] = [
     services: 2,
   },
   {
-    name: "DEMO TH6 · 3 bank khác · 0.7đ · 0đ",
+    // TH6 · 3 ngân hàng khác · 0,7đ · rổ 0đ
+    name: "DEMO Phạm Thị Dung",
     case: "TH6",
     owner: "demo_kd1_b",
     accounts: [{ bank: "LBP" }, { bank: "TPB" }, { bank: "VIB" }],
   },
   {
-    name: "DEMO TH1 · combo 2 có VPa · 0.7đ · 20k",
+    // TH1 · combo 2 có VPa · 0,7đ · rổ 20k
+    name: "DEMO Hoàng Minh Đức",
     idNumber: "070301885002",
     case: "TH1",
     owner: "demo_kd2_a",
@@ -238,49 +249,57 @@ const CUSTOMERS: DemoCustomer[] = [
     insurance: 3,
   },
   {
-    name: "DEMO TH2 · combo 2 bank khác · 0.4đ",
+    // TH2 · combo 2 ngân hàng khác · 0,4đ
+    name: "DEMO Vũ Thị Hà",
     case: "TH2",
     owner: "demo_kd2_a",
     accounts: [{ bank: "MSBb" }, { bank: "BIDV" }],
   },
   {
-    name: "DEMO TH5 · có bank hạn chế VPb · 0.9đ",
+    // TH5 · có ngân hàng hạn chế VPb · 0,9đ
+    name: "DEMO Đỗ Quang Huy",
     case: "TH5",
     owner: "demo_kd2_b",
     accounts: [{ bank: "MB" }, { bank: "VPa" }, { bank: "VPb" }],
   },
   {
-    name: "DEMO TH2 · VPa chưa cài app nên tụt combo · 0.5đ",
+    // TH2 · VPa chưa cài app nên tụt combo · 0,5đ
+    name: "DEMO Bùi Thị Lan",
     case: "TH2",
     owner: "demo_kd2_b",
     accounts: [{ bank: "MB" }, { bank: "VPa", app: false }, { bank: "LBP" }],
   },
   {
-    name: "DEMO TH1 · VPa kèm CNKD nên rổ có Loa và Mica",
+    // TH1 · VPa kèm CNKD nên rổ có Loa và Mica
+    name: "DEMO Ngô Văn Nam",
     case: "TH1",
     owner: "demo_kd1_a",
     accounts: [{ bank: "MB" }, { bank: "VPa", type: "CNKD" }, { bank: "LBP" }],
   },
   {
-    name: "DEMO TH6 · Phòng Y quy đổi sang nón và mì",
+    // TH6 · Phòng Y quy đổi sang nón và mì
+    name: "DEMO Đặng Thị Oanh",
     case: "TH6",
     owner: "demo_y_a",
     accounts: [{ bank: "LBP" }, { bank: "TPB" }, { bank: "VIB" }],
   },
   {
-    name: "DEMO Không đủ ĐK · mở lẻ 1 tài khoản",
+    // Không đủ điều kiện · mở lẻ 1 tài khoản
+    name: "DEMO Trịnh Văn Phúc",
     case: "—",
     owner: "demo_kd1_b",
     accounts: [{ bank: "MB" }],
   },
   {
-    name: "DEMO Không đủ ĐK · MB+MSBa không thành combo 2",
+    // Không đủ điều kiện · MB+MSBa không thành combo 2
+    name: "DEMO Lý Thị Quyên",
     case: "—",
     owner: "demo_kd2_b",
     accounts: [{ bank: "MB" }, { bank: "MSBa" }],
   },
   {
-    name: "DEMO Đã tặng quà rồi",
+    // TH3 · đã tặng quà rồi
+    name: "DEMO Cao Minh Sơn",
     idNumber: "070301885003",
     case: "TH3",
     owner: "demo_kd1_truong",
@@ -288,7 +307,8 @@ const CUSTOMERS: DemoCustomer[] = [
     gifted: true,
   },
   {
-    name: "DEMO Có bản nháp đang giữ chỗ mã",
+    // TH1 · có bản nháp đang giữ chỗ mã
+    name: "DEMO Dương Thị Tâm",
     case: "TH1",
     owner: "demo_kd1_truong",
     accounts: [{ bank: "MB" }, { bank: "VPa" }, { bank: "TPB", draft: true }],
@@ -518,7 +538,7 @@ async function build() {
     const [row] = await db
       .insert(customers)
       .values({
-        fullName: `DEMO-PG Khách độn ${i + 1}`,
+        fullName: `DEMO Khách độn ${i + 1}`,
         address: "DEMO",
         createdBy: fillerOwner,
         createdByDepartmentId: fillerDept,
