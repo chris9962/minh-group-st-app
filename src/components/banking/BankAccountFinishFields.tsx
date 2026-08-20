@@ -121,9 +121,13 @@ export function BankAccountFinishFields({
               ]}
             />
           ) : (
+            /* Giữ `type="text"`: ô `number` cắt số 0 đầu của số tài khoản.
+               `inputMode` mở bàn phím số, `pattern` cho Safari cũ. */
             <TextField
               label="Số tài khoản"
               required
+              inputMode="numeric"
+              pattern="[0-9]*"
               error={errors.accountNumber?.message}
               {...register("accountNumber")}
             />
