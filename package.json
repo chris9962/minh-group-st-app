@@ -23,7 +23,8 @@
     "pvi:ensure-login": "node pvi-qlcd-playwright/ensure-login.js",
     "pvi:check": "node pvi-qlcd-playwright/check-session.js",
     "pvi:order": "node pvi-qlcd-playwright/create-order.js",
-    "pvi:order:dry": "node pvi-qlcd-playwright/create-order.js --dry-run"
+    "pvi:order:dry": "node pvi-qlcd-playwright/create-order.js --dry-run",
+    "webp:bench": "bun scripts/webp-bench.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1104.0",

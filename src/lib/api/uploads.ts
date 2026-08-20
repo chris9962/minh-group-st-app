@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { toWebpImage } from '../toWebpImage';
 
 /**
  * Tải ảnh lên kho lưu trữ — BƯỚC RIÊNG, không đụng database.
@@ -38,9 +39,19 @@ export function imageProblem(file: File): string | null {
   return null;
 }
 
+/**
+ * Ảnh chuyển sang WebP ngay trước khi gửi (spec §U7).
+ *
+ * Đặt ở đây chứ không ở nơi chọn ảnh: mọi đường tải ảnh đều đi qua hàm này, nên
+ * một chỗ là đủ. Ảnh xem trước vẫn dựng từ file gốc — người dùng thấy ảnh ngay
+ * lúc chọn, không phải đợi chuyển xong.
+ *
+ * ⚠️ Trần 10MB của `imageProblem` vẫn đo trên file GỐC. Ảnh 12MB bị từ chối lúc
+ * chọn dù chuyển xong chỉ còn vài trăm KB — đổi thứ tự đó là việc riêng, chưa làm.
+ */
 export async function uploadImage(file: File): Promise<string> {
   const body = new FormData();
-  body.append('file', file);
+  body.append('file', await toWebpImage(file));
 
   const res = await fetch('/api/uploads', { method: 'POST', body });
   if (!res.ok) {
