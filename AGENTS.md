@@ -64,6 +64,19 @@ Mọi bản ghi test đặt tiền tố `ZZE2E`; `scripts/e2e-clean.ts` xoá the
 và chạy cả khi test hỏng giữa chừng. **Ca test nào tạo dữ liệu thì phải mang
 tiền tố này**, không thì rác nằm lại và ca "đếm số dòng" của lần sau sai.
 
+## 0.2 Máy chủ chạy thật
+
+Bản `main` chạy trên một VM FPT Cloud tại **https://app.mgst.com.vn**. Toàn bộ
+cách vận hành nằm ở `docs/deploy-fpt-cloud.md`: đường SSH, systemd unit, container
+Postgres, Nginx, chứng chỉ HTTPS, thứ tự cập nhật bản mới, Security Group.
+
+**Đọc file đó trước khi đụng vào máy chủ.** Ba chỗ dễ sai: `next start` không tự
+build lại nên phải `bun run build` xong mới `systemctl restart mgst-app`; Docker
+trên VM thiếu plugin `compose` nên `docker compose` không chạy được; ảnh tải lên
+phải đi qua Nginx mới đọc lại được, vì Next chỉ quét `public/` lúc khởi động.
+
+Hợp đồng là POC, hết hạn 2026-08-25. Không đưa dữ liệu thật lên.
+
 ## 1. Ngôn ngữ
 
 | | |

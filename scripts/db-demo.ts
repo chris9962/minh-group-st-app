@@ -6,7 +6,7 @@
  * THẬT, chạy được cả trên máy chủ chạy thật. File này đổ khách bịa, tài khoản
  * bịa, đơn bịa — không bao giờ được chạy trên dữ liệu thật.
  *
- * Mọi bản ghi mang tiền tố `DEMO` (`demo_` với tên đăng nhập) nên dọn được sạch
+ * Tên đăng nhập mang tiền tố `demo_`, khách mang địa chỉ `DEMO_ADDRESS` — dọn sạch
  * mà không đụng dữ liệu người dùng tự nhập.
  *
  * Chạy lại nhiều lần: tự dọn phần cũ trước khi dựng lại.
@@ -40,9 +40,37 @@ import {
 } from "../src/server/db/schema";
 import type { RoleKey } from "../src/lib/types";
 
-const TAG = "DEMO";
 const USER_PREFIX = "demo_";
 const PASSWORD = "12345678";
+
+/**
+ * Địa chỉ dùng chung cho MỌI khách của bộ mẫu — và là DẤU NHẬN DIỆN của bộ.
+ *
+ * Bản trước đánh dấu bằng tiền tố `DEMO` trong tên khách, nhưng chuỗi đó hiện ở
+ * mọi bảng và mọi ô chọn khách nên nhìn không giống dữ liệu thật. Bảng
+ * `customers` không có cột nào để đánh dấu, nên chuyển dấu sang địa chỉ: một
+ * địa chỉ có thật về hình thức, giống hệt nhau ở cả bộ.
+ *
+ * Bước dọn hỏi CẢ HAI vế — địa chỉ này VÀ người tạo là tài khoản `demo_*`. Chỉ
+ * hỏi địa chỉ thì một khách thật trùng địa chỉ cũng mất; chỉ hỏi người tạo thì
+ * hồ sơ thật do người thử tay lập bằng tài khoản `demo_*` cũng mất.
+ */
+const DEMO_ADDRESS = "12 Nguyễn Thị Minh Khai, Phường Bến Nghé, TP Hồ Chí Minh";
+
+/**
+ * Mã đơn của bộ mẫu bắt đầu từ 900 để không đụng số máy chủ cấp.
+ *
+ * `nextOrderCodes` ở `server/insurance.ts` đếm từ 1 lên trong bảng
+ * `order_code_counters`; script này ghi thẳng vào `insurance_orders` nên không
+ * đi qua bộ đếm đó. Trùng số là vi phạm ràng buộc duy nhất của `order_code`.
+ */
+const DEMO_ORDER_START = 900;
+
+/**
+ * Tiền tố mã giới thiệu của bộ mẫu. Mã thật do ngân hàng cấp nên dạng nào cũng
+ * có; tiền tố riêng ở đây chỉ để bước dọn tìm lại đúng mã mình đã tạo.
+ */
+const CODE_PREFIX = "MGST";
 
 /**
  * ⚠️ MỌI SỐ TRONG FILE NÀY PHẢI KHÔNG TRÙNG BỘ E2E (`scripts/e2e-seed.ts`).
@@ -66,10 +94,21 @@ async function clean() {
     .select({ id: users.id })
     .from(users)
     .where(like(users.username, `${USER_PREFIX}%`));
-  const demoCustomers = await db
-    .select({ id: customers.id })
-    .from(customers)
-    .where(like(customers.fullName, `${TAG}%`));
+  const demoCustomers =
+    demoUsers.length === 0
+      ? []
+      : await db
+          .select({ id: customers.id })
+          .from(customers)
+          .where(
+            and(
+              eq(customers.address, DEMO_ADDRESS),
+              inArray(
+                customers.createdBy,
+                demoUsers.map((u) => u.id),
+              ),
+            ),
+          );
 
   const customerIds = demoCustomers.map((c) => c.id);
   if (customerIds.length > 0) {
@@ -96,15 +135,15 @@ async function clean() {
   /**
    * Chỉ xoá mã KHÔNG còn tài khoản nào trỏ tới.
    *
-   * Người dùng thử tay hay mở tài khoản bằng mã `DEMO-*` là mã đó thành mã của
+   * Người dùng thử tay hay mở tài khoản bằng mã `MGST-*` là mã đó thành mã của
    * họ, không còn là mã của bộ mẫu. Xoá thẳng thì bước dọn dừng giữa chừng vì
-   * khoá ngoại, và lượt chạy đã xoá xong khách DEMO nhưng chưa dựng lại được —
+   * khoá ngoại, và lượt chạy đã xoá xong khách mẫu nhưng chưa dựng lại được —
    * bộ mẫu mất mà không báo gì.
    */
   const demoCodes = await db
     .select({ id: referralCodes.id })
     .from(referralCodes)
-    .where(like(referralCodes.code, `${TAG}%`));
+    .where(like(referralCodes.code, `${CODE_PREFIX}%`));
   for (const c of demoCodes) {
     const [used] = await db
       .select({ id: bankAccounts.id })
@@ -116,7 +155,7 @@ async function clean() {
 
   for (const u of demoUsers) {
     /**
-     * GIỮ LẠI người còn bản ghi không phải DEMO đứng tên.
+     * GIỮ LẠI người còn bản ghi ngoài bộ mẫu đứng tên.
      *
      * Người thử tay đăng nhập bằng tài khoản `demo_*` rồi lập một hồ sơ khách
      * thật thì hồ sơ đó trỏ vào `users.id`. Xoá người là vướng khoá ngoại,
@@ -141,7 +180,7 @@ async function clean() {
   }
 
   console.log(
-    `Đã dọn: ${customerIds.length} khách · ${demoUsers.length} tài khoản mang tiền tố ${TAG}.`,
+    `Đã dọn: ${customerIds.length} khách · ${demoUsers.length} tài khoản của bộ mẫu.`,
   );
 }
 
@@ -155,12 +194,12 @@ async function clean() {
  * có gì để hiện. Sáu người này là mức tối thiểu để ba màn đó nói được điều gì.
  */
 const STAFF: { username: string; fullName: string; role: RoleKey; dept: string }[] = [
-  { username: "demo_kd1_truong", fullName: "DEMO Trần Quốc Bảo", role: "head", dept: "KD-1" },
-  { username: "demo_kd1_a", fullName: "DEMO Nguyễn Thị Lan", role: "staff", dept: "KD-1" },
-  { username: "demo_kd1_b", fullName: "DEMO Lê Văn Hậu", role: "staff", dept: "KD-1" },
-  { username: "demo_kd2_a", fullName: "DEMO Phạm Thu Trang", role: "staff", dept: "KD-2" },
-  { username: "demo_kd2_b", fullName: "DEMO Võ Minh Khoa", role: "staff", dept: "KD-2" },
-  { username: "demo_y_a", fullName: "DEMO Huỳnh Bảo Ngọc", role: "staff", dept: "PHONG-Y" },
+  { username: "demo_kd1_truong", fullName: "Trần Quốc Bảo", role: "head", dept: "KD-1" },
+  { username: "demo_kd1_a", fullName: "Nguyễn Thị Lan", role: "staff", dept: "KD-1" },
+  { username: "demo_kd1_b", fullName: "Lê Văn Hậu", role: "staff", dept: "KD-1" },
+  { username: "demo_kd2_a", fullName: "Phạm Thu Trang", role: "staff", dept: "KD-2" },
+  { username: "demo_kd2_b", fullName: "Võ Minh Khoa", role: "staff", dept: "KD-2" },
+  { username: "demo_y_a", fullName: "Huỳnh Bảo Ngọc", role: "staff", dept: "PHONG-Y" },
 ];
 
 /* ── Khách mẫu ─────────────────────────────────────────────────────────── */
@@ -196,18 +235,17 @@ type DemoCustomer = {
  * Mỗi dòng là MỘT ca của thể lệ 2026-08. Ca nào ứng với khách nào ghi ở comment
  * ngay trên từng mục, theo đúng thứ tự này.
  *
- * Tên khách là TÊN NGƯỜI, không phải mô tả ca. Bản trước nhét kết quả mong đợi
- * vào tên (`DEMO TH3 · 3 ưu tiên · 1.2đ · 70k`) cho tiện đối chiếu ở P-40,
- * nhưng chuỗi đó hiện ra ở mọi ô chọn khách, mọi bảng và mọi hộp thoại — trông
- * không giống dữ liệu thật, và cột tên bị kéo rộng quá mức.
+ * Tên khách là TÊN NGƯỜI, không mang dấu vết nào của bộ mẫu. Bản trước nhét kết
+ * quả mong đợi vào tên (`DEMO TH3 · 3 ưu tiên · 1.2đ · 70k`) cho tiện đối chiếu
+ * ở P-40, nhưng chuỗi đó hiện ra ở mọi ô chọn khách, mọi bảng và mọi hộp thoại
+ * — trông không giống dữ liệu thật, và cột tên bị kéo rộng quá mức.
  *
- * Tiền tố `DEMO` PHẢI giữ: bước dọn tìm khách mẫu bằng `fullName LIKE 'DEMO%'`
- * (xem `TAG`), bảng `customers` không có cột nào khác để đánh dấu.
+ * Dấu nhận diện của bộ chuyển sang `DEMO_ADDRESS`, xem chú thích ở hằng số đó.
  */
 const CUSTOMERS: DemoCustomer[] = [
   {
     // TH3 · 3 ngân hàng ưu tiên · 1,2đ · rổ 70k
-    name: "DEMO Nguyễn Văn An",
+    name: "Nguyễn Văn An",
     idNumber: "070301885001",
     case: "TH3",
     owner: "demo_kd1_a",
@@ -217,7 +255,7 @@ const CUSTOMERS: DemoCustomer[] = [
   },
   {
     // TH4 · có MSBa · 1,0đ · rổ 50k
-    name: "DEMO Trần Thị Bích",
+    name: "Trần Thị Bích",
     case: "TH4",
     owner: "demo_kd1_a",
     accounts: [{ bank: "MB" }, { bank: "MSBa" }, { bank: "LBP" }],
@@ -225,7 +263,7 @@ const CUSTOMERS: DemoCustomer[] = [
   },
   {
     // TH5 · có VPa · 1,0đ · rổ 20k · kênh bệnh viện
-    name: "DEMO Lê Hoàng Cường",
+    name: "Lê Hoàng Cường",
     case: "TH5",
     owner: "demo_kd1_b",
     channel: "KENH-BENH-VIEN",
@@ -234,14 +272,14 @@ const CUSTOMERS: DemoCustomer[] = [
   },
   {
     // TH6 · 3 ngân hàng khác · 0,7đ · rổ 0đ
-    name: "DEMO Phạm Thị Dung",
+    name: "Phạm Thị Dung",
     case: "TH6",
     owner: "demo_kd1_b",
     accounts: [{ bank: "LBP" }, { bank: "TPB" }, { bank: "VIB" }],
   },
   {
     // TH1 · combo 2 có VPa · 0,7đ · rổ 20k
-    name: "DEMO Hoàng Minh Đức",
+    name: "Hoàng Minh Đức",
     idNumber: "070301885002",
     case: "TH1",
     owner: "demo_kd2_a",
@@ -250,56 +288,56 @@ const CUSTOMERS: DemoCustomer[] = [
   },
   {
     // TH2 · combo 2 ngân hàng khác · 0,4đ
-    name: "DEMO Vũ Thị Hà",
+    name: "Vũ Thị Hà",
     case: "TH2",
     owner: "demo_kd2_a",
     accounts: [{ bank: "MSBb" }, { bank: "BIDV" }],
   },
   {
     // TH5 · có ngân hàng hạn chế VPb · 0,9đ
-    name: "DEMO Đỗ Quang Huy",
+    name: "Đỗ Quang Huy",
     case: "TH5",
     owner: "demo_kd2_b",
     accounts: [{ bank: "MB" }, { bank: "VPa" }, { bank: "VPb" }],
   },
   {
     // TH2 · VPa chưa cài app nên tụt combo · 0,5đ
-    name: "DEMO Bùi Thị Lan",
+    name: "Bùi Thị Lan",
     case: "TH2",
     owner: "demo_kd2_b",
     accounts: [{ bank: "MB" }, { bank: "VPa", app: false }, { bank: "LBP" }],
   },
   {
     // TH1 · VPa kèm CNKD nên rổ có Loa và Mica
-    name: "DEMO Ngô Văn Nam",
+    name: "Ngô Văn Nam",
     case: "TH1",
     owner: "demo_kd1_a",
     accounts: [{ bank: "MB" }, { bank: "VPa", type: "CNKD" }, { bank: "LBP" }],
   },
   {
     // TH6 · Phòng Y quy đổi sang nón và mì
-    name: "DEMO Đặng Thị Oanh",
+    name: "Đặng Thị Oanh",
     case: "TH6",
     owner: "demo_y_a",
     accounts: [{ bank: "LBP" }, { bank: "TPB" }, { bank: "VIB" }],
   },
   {
     // Không đủ điều kiện · mở lẻ 1 tài khoản
-    name: "DEMO Trịnh Văn Phúc",
+    name: "Trịnh Văn Phúc",
     case: "—",
     owner: "demo_kd1_b",
     accounts: [{ bank: "MB" }],
   },
   {
     // Không đủ điều kiện · MB+MSBa không thành combo 2
-    name: "DEMO Lý Thị Quyên",
+    name: "Lý Thị Quyên",
     case: "—",
     owner: "demo_kd2_b",
     accounts: [{ bank: "MB" }, { bank: "MSBa" }],
   },
   {
     // TH3 · đã tặng quà rồi
-    name: "DEMO Cao Minh Sơn",
+    name: "Cao Minh Sơn",
     idNumber: "070301885003",
     case: "TH3",
     owner: "demo_kd1_truong",
@@ -308,7 +346,7 @@ const CUSTOMERS: DemoCustomer[] = [
   },
   {
     // TH1 · có bản nháp đang giữ chỗ mã
-    name: "DEMO Dương Thị Tâm",
+    name: "Dương Thị Tâm",
     case: "TH1",
     owner: "demo_kd1_truong",
     accounts: [{ bank: "MB" }, { bank: "VPa" }, { bank: "TPB", draft: true }],
@@ -350,7 +388,7 @@ async function build() {
       .insert(users)
       .values({
         username: s.username,
-        staffCode: `DEMO-${String(i + 1).padStart(3, "0")}`,
+        staffCode: `NV-${String(901 + i)}`,
         passwordHash: hash,
         fullName: s.fullName,
         phone: `09770000${String(i).padStart(2, "0")}`,
@@ -408,7 +446,7 @@ async function build() {
   for (const [code, id] of bankIdByCode) {
     const [row] = await db
       .insert(referralCodes)
-      .values({ bankId: id, code: `${TAG}-${code}`, total: 200 })
+      .values({ bankId: id, code: `${CODE_PREFIX}-${code}`, total: 200 })
       // Mã cũ còn sót vì có tài khoản người dùng trỏ tới — dùng lại chính nó,
       // không dựng bản trùng.
       .onConflictDoNothing({ target: [referralCodes.bankId, referralCodes.code] })
@@ -419,7 +457,7 @@ async function build() {
         await db
           .select({ id: referralCodes.id })
           .from(referralCodes)
-          .where(and(eq(referralCodes.bankId, id), eq(referralCodes.code, `${TAG}-${code}`)))
+          .where(and(eq(referralCodes.bankId, id), eq(referralCodes.code, `${CODE_PREFIX}-${code}`)))
           .limit(1)
       )[0].id;
     codeIdByBank.set(code, codeId);
@@ -441,7 +479,7 @@ async function build() {
       .values({
         fullName: c.name,
         idNumber: c.idNumber ?? null,
-        address: "DEMO địa chỉ",
+        address: DEMO_ADDRESS,
         channelId: c.channel ? (channelIdByCode.get(c.channel) ?? null) : null,
         createdBy: ownerId,
         createdByDepartmentId: deptId,
@@ -466,7 +504,7 @@ async function build() {
         bankId: bankIdByCode.get(a.bank)!,
         referralCodeId: codeIdByBank.get(a.bank)!,
         status: a.draft ? "creating" : "done",
-        accountNumber: a.draft ? null : `DEMO${i}${k}`,
+        accountNumber: a.draft ? null : `19${String(90_000_000 + i * 100 + k)}`,
         openedDate: a.draft ? null : day(3 + (i % 20)),
         appInstalled: a.app ?? true,
         accountType: a.type ?? "none",
@@ -490,7 +528,7 @@ async function build() {
        */
       const handler = status === "manual-queued" ? null : HANDLERS[n % HANDLERS.length];
       await db.insert(insuranceOrders).values({
-        orderCode: `DEMO-${MONTH.slice(2, 4)}${MONTH.slice(5, 7)}-${String(++orderSeq).padStart(3, "0")}`,
+        orderCode: `DH-${MONTH.slice(2, 4)}${MONTH.slice(5, 7)}-${String(DEMO_ORDER_START + ++orderSeq)}`,
         customerId: customer.id,
         product: n % 2 === 0 ? "motorbike" : "electric-accident",
         packageName: n % 2 === 0 ? "1 năm BH xe máy" : "1 năm BH tai nạn điện",
@@ -505,7 +543,7 @@ async function build() {
         // luồng thật khi bấm "Điền theo khách hàng".
         beneficiaryIdNumber: c.idNumber ?? "",
         beneficiaryPhone: `09${String(10_000_000 + i * 100 + n).slice(-8)}`,
-        beneficiaryAddress: "DEMO địa chỉ người thụ hưởng",
+        beneficiaryAddress: DEMO_ADDRESS,
         handledBy: handler?.id ?? null,
         handledByDepartmentId: handler?.deptId ?? null,
         licensePlate: n % 2 === 0 ? `59X1-${i}${n}` : "",
@@ -524,7 +562,7 @@ async function build() {
         customerId: customer.id,
         serviceTypeId: serviceTypeRows[n % serviceTypeRows.length].id,
         serviceDate: day(7 + n),
-        note: "DEMO lượt dịch vụ",
+        note: "",
         createdBy: ownerId,
         createdByDepartmentId: deptId,
       });
@@ -538,8 +576,8 @@ async function build() {
     const [row] = await db
       .insert(customers)
       .values({
-        fullName: `DEMO Khách độn ${i + 1}`,
-        address: "DEMO",
+        fullName: `Khách độn ${i + 1}`,
+        address: DEMO_ADDRESS,
         createdBy: fillerOwner,
         createdByDepartmentId: fillerDept,
       })
