@@ -44,6 +44,7 @@ export function BankFormDialog({ open, onClose, bank }: Props) {
       requiredPhotos: bank?.requiredPhotos ?? 3,
       accountNumberMethod: bank?.accountNumberMethod ?? "phone-match",
       countsAsApp: bank?.countsAsApp ?? true,
+      priority: bank?.priority ?? 0,
     },
   });
 
@@ -102,6 +103,16 @@ export function BankFormDialog({ open, onClose, bank }: Props) {
             inputMode="numeric"
             error={errors.requiredPhotos?.message}
             {...register("requiredPhotos", { valueAsNumber: true })}
+          />
+
+          <TextField
+            label="Độ ưu tiên"
+            type="number"
+            inputMode="numeric"
+            min={0}
+            hint="Số lớn lên đầu ô chọn lúc mở tài khoản. 0 là mức thường."
+            error={errors.priority?.message}
+            {...register("priority", { valueAsNumber: true })}
           />
         </div>
 

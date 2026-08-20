@@ -1,0 +1,12 @@
+-- Độ ưu tiên của mã giới thiệu trong ô chọn lúc mở tài khoản (P-20 bước 1).
+--
+-- Cùng luật với `banks.priority` ở migration 0028: số CÀNG LỚN càng lên đầu, 0
+-- là mức thường. Hai mức xếp lồng nhau — ngân hàng sắp trước, rồi mã sắp trong
+-- từng ngân hàng.
+--
+-- Ô chọn mã CHỈ hiện mã còn chỗ (`listOpenReferralCodes` lọc `remaining > 0`),
+-- nên đặt ưu tiên cao cho một mã đã đầy không kéo nó trở lại danh sách.
+--
+-- Bằng nhau thì mã nhiều chỗ trống lên trước, rồi tới tên mã — thứ tự cũ giữ
+-- nguyên cho tới khi Kinh doanh tổng hợp đánh dấu mã nào cần tiêu trước.
+ALTER TABLE "referral_codes" ADD COLUMN IF NOT EXISTS "priority" smallint NOT NULL DEFAULT 0;

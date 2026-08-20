@@ -180,6 +180,14 @@ export const banks = pgTable(
     coefficient: numeric("coefficient", { precision: 4, scale: 2 }).notNull().default("1"),
     /** false với CNKD/HKD — tính điểm nhưng không đếm vào tổng app xét quà. */
     countsAsApp: boolean("counts_as_app").notNull().default(true),
+    /**
+     * Thứ tự trong ô chọn ngân hàng lúc mở tài khoản — số LỚN lên đầu.
+     *
+     * Ngân hàng đang đẩy mạnh đặt số cao thì Kinh doanh chọn được ngay, không
+     * phải dò trong danh sách 13 mã. Bằng nhau thì mã ngân hàng quyết định thứ
+     * tự, xem `listBanks`.
+     */
+    priority: smallint("priority").notNull().default(0),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -229,6 +237,13 @@ export const referralCodes = pgTable(
      * `null` = ngân hàng không phát link, hoặc mã nhập trước migration 0027.
      */
     openUrl: text("open_url"),
+    /**
+     * Thứ tự trong ô chọn mã lúc mở tài khoản — số LỚN lên đầu, cùng luật với
+     * `banks.priority`. Ngân hàng sắp trước, mã sắp trong từng ngân hàng.
+     *
+     * Ô chọn chỉ hiện mã còn chỗ, nên số này KHÔNG kéo mã đã đầy trở lại.
+     */
+    priority: smallint("priority").notNull().default(0),
     createdAt: createdAt(),
   },
   (t) => [

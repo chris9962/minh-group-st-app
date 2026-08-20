@@ -78,6 +78,12 @@ export function ReferralCodesSection() {
     { key: "bank", label: "Ngân hàng", sortable: true, render: (c) => c.bankCode },
     { key: "code", label: "Mã", sortable: true, render: (c) => c.code },
     {
+      key: "priority",
+      label: "Ưu tiên",
+      sortable: true,
+      render: (c) => <span className="tabular-nums">{c.priority}</span>,
+    },
+    {
       key: "progress",
       label: "Đã dùng",
       sortable: true,
@@ -221,7 +227,9 @@ export function ReferralCodesSection() {
       )}
 
       <p className={styles.footnote}>
-        Thêm từng mã một ở đây. Nhập <strong>hàng loạt</strong> từ Excel vẫn là
+        <strong>Ưu tiên</strong> quyết định thứ tự ô chọn mã lúc mở tài khoản —
+        số lớn lên đầu, chỉ so giữa các mã cùng một ngân hàng, và mã đã đầy thì
+        không hiện dù ưu tiên cao. Thêm từng mã một ở đây. Nhập <strong>hàng loạt</strong> từ Excel vẫn là
         việc riêng của màn <strong>Nhập mã hàng loạt</strong> (P-62, chưa làm).
       </p>
 

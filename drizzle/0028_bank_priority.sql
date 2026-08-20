@@ -1,0 +1,13 @@
+-- Độ ưu tiên của ngân hàng trong ô chọn lúc mở tài khoản (P-20 bước 1).
+--
+-- Số CÀNG LỚN càng lên đầu danh sách. 0 là mức thường, và mọi ngân hàng đang có
+-- đều nhận 0 nên thứ tự hiện tại giữ nguyên cho tới khi Kinh doanh tổng hợp
+-- đánh dấu ngân hàng nào đang đẩy mạnh.
+--
+-- `smallint`: con số này là mức xếp hạng do người dùng đặt tay, vài chục là
+-- cùng. Cùng kiểu với `required_photos` ở bảng này.
+--
+-- Không đặt UNIQUE: hai ngân hàng cùng mức ưu tiên là chuyện bình thường, và
+-- lúc đó mã ngân hàng quyết định thứ tự (`listBanks` sắp theo `priority desc,
+-- code asc`).
+ALTER TABLE "banks" ADD COLUMN IF NOT EXISTS "priority" smallint NOT NULL DEFAULT 0;

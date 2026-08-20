@@ -39,6 +39,8 @@ export const Bank = z.object({
   coefficient: z.number(),
   /** false với CNKD/HKD — tính điểm nhưng không cộng vào tổng app xét quà. */
   countsAsApp: z.boolean(),
+  /** Số lớn lên đầu ô chọn ngân hàng lúc mở tài khoản. 0 là mức thường. */
+  priority: z.number(),
 });
 export type Bank = z.infer<typeof Bank>;
 
@@ -47,6 +49,18 @@ export const BankForm = z.object({
   requiredPhotos: z.int('Số ảnh phải là số nguyên').min(0, 'Số ảnh phải từ 0 trở lên').max(SMALLINT_MAX, 'Số ảnh lớn quá'),
   accountNumberMethod: AccountNumberMethod,
   countsAsApp: z.boolean(),
+  /**
+   * Mức ưu tiên trong ô chọn ngân hàng lúc mở tài khoản — số lớn lên đầu.
+   *
+   * Từ 0 trở lên, không nhận số âm. `inputMode="numeric"` mở bàn phím không có
+   * phím dấu trừ, nên số âm chỉ gõ được trên máy tính — luật phải giống nhau ở
+   * mọi thiết bị. Muốn đẩy một ngân hàng xuống cuối thì nâng các ngân hàng
+   * khác lên.
+   */
+  priority: z
+    .int('Độ ưu tiên phải là số nguyên')
+    .min(0, 'Độ ưu tiên phải từ 0 trở lên')
+    .max(SMALLINT_MAX, 'Độ ưu tiên lớn quá'),
 });
 export type BankForm = z.infer<typeof BankForm>;
 
@@ -138,10 +152,12 @@ export const ReferralCode = z.object({
   status: CodeStatus,
   /** `''` = mã không có link mở tài khoản. Bước 2 P-20 khi đó không dựng nút. */
   openUrl: z.string(),
+  /** Số lớn lên đầu ô chọn mã, trong phạm vi một ngân hàng. 0 là mức thường. */
+  priority: z.number(),
 });
 export type ReferralCode = z.infer<typeof ReferralCode>;
 
-export const REFERRAL_CODE_SORT = ['bank', 'code', 'progress'] as const;
+export const REFERRAL_CODE_SORT = ['bank', 'code', 'progress', 'priority'] as const;
 export type ReferralCodeSort = (typeof REFERRAL_CODE_SORT)[number];
 
 export type ReferralCodeQuery = PageQuery<ReferralCodeSort> & {
@@ -196,6 +212,17 @@ export const ReferralCodeForm = z.object({
    * đọc được. Ảnh KHÔNG gửi lên máy chủ — hệ thống chỉ lưu chuỗi này.
    */
   openUrl: OpenUrl,
+  /**
+   * Mức ưu tiên trong ô chọn mã lúc mở tài khoản — số lớn lên đầu, từ 0 trở
+   * lên. Cùng luật với `BankForm.priority`, xem lý do ở đó.
+   *
+   * Chỉ có tác dụng giữa các mã CÙNG một ngân hàng: ô chọn lọc theo ngân hàng
+   * đã chọn ở trên rồi mới sắp.
+   */
+  priority: z
+    .int('Độ ưu tiên phải là số nguyên')
+    .min(0, 'Độ ưu tiên phải từ 0 trở lên')
+    .max(SMALLINT_MAX, 'Độ ưu tiên lớn quá'),
 });
 export type ReferralCodeForm = z.infer<typeof ReferralCodeForm>;
 

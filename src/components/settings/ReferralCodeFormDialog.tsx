@@ -55,6 +55,7 @@ export function ReferralCodeFormDialog({ open, onClose, referral }: Props) {
       code: referral?.code ?? "",
       total: referral?.total ?? 100,
       openUrl: referral?.openUrl ?? "",
+      priority: referral?.priority ?? 0,
     },
   });
 
@@ -164,6 +165,16 @@ export function ReferralCodeFormDialog({ open, onClose, referral }: Props) {
           }
           error={errors.total?.message}
           {...register("total", { valueAsNumber: true })}
+        />
+
+        <TextField
+          label="Độ ưu tiên"
+          type="number"
+          inputMode="numeric"
+          min={0}
+          hint="Số lớn lên đầu ô chọn mã lúc mở tài khoản, trong cùng ngân hàng. 0 là mức thường."
+          error={errors.priority?.message}
+          {...register("priority", { valueAsNumber: true })}
         />
 
         <TextField

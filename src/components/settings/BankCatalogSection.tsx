@@ -53,6 +53,12 @@ export function BankCatalogSection({ creating, onCreatingChange }: Props) {
   const columns: RankColumn<Bank>[] = [
     { key: "code", label: "Mã ngân hàng", render: (b) => b.code },
     {
+      key: "priority",
+      label: "Ưu tiên",
+      sortBy: (b) => b.priority,
+      render: (b) => <span className="tabular-nums">{b.priority}</span>,
+    },
+    {
       key: "requiredPhotos",
       label: "Số ảnh bắt buộc",
       sortBy: (b) => b.requiredPhotos,
@@ -128,7 +134,9 @@ export function BankCatalogSection({ creating, onCreatingChange }: Props) {
         )}
 
         <p className={styles.footnote}>
-          <strong>Tắt</strong> chỉ chặn tạo tài khoản mới — tài khoản cũ thuộc
+          <strong>Ưu tiên</strong> quyết định thứ tự ô chọn ngân hàng lúc mở tài
+          khoản — số lớn lên đầu, bằng nhau thì xếp theo mã. <strong>Tắt</strong>{" "}
+          chỉ chặn tạo tài khoản mới — tài khoản cũ thuộc
           ngân hàng đã tắt vẫn hiển thị và xuất được bình thường. VPa/VPb và
           MSBa/MSBb là bốn ngân hàng riêng biệt dù cùng một nhà băng ngoài đời:
           khác mã giới thiệu, khác chính sách.

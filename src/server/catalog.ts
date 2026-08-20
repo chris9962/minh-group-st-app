@@ -95,10 +95,18 @@ const toBank = (r: typeof banks.$inferSelect): Bank => ({
   accountNumberMethod: r.accountNumberMethod,
   coefficient: Number(r.coefficient),
   countsAsApp: r.countsAsApp,
+  priority: r.priority,
 });
 
+/**
+ * Ưu tiên cao lên trước, rồi tới mã.
+ *
+ * Thứ tự này đi thẳng vào ô chọn ngân hàng ở bước 1 của P-20 — sắp ở máy chủ
+ * chứ không sắp lại ở trình duyệt (AGENTS.md §5.1). Bảng P-60 tự sắp theo cột
+ * người dùng bấm nên không bị thứ tự này ràng buộc.
+ */
 export async function listBanks(): Promise<Bank[]> {
-  return (await db.select().from(banks).orderBy(asc(banks.code))).map(toBank);
+  return (await db.select().from(banks).orderBy(desc(banks.priority), asc(banks.code))).map(toBank);
 }
 
 /**
@@ -117,6 +125,7 @@ export async function createBank(form: BankForm): Promise<CatalogOutcome<Bank>> 
         requiredPhotos: form.requiredPhotos,
         accountNumberMethod: form.accountNumberMethod,
         countsAsApp: form.countsAsApp,
+        priority: form.priority,
       })
       .returning();
     return { ok: true, item: toBank(row) };
@@ -150,6 +159,7 @@ export async function updateBank(id: string, form: BankForm): Promise<CatalogOut
         requiredPhotos: form.requiredPhotos,
         accountNumberMethod: form.accountNumberMethod,
         countsAsApp: form.countsAsApp,
+        priority: form.priority,
       })
       .where(eq(banks.id, id))
       .returning();
@@ -222,6 +232,7 @@ const codeColumns = {
   // Cột nullable, nhưng hợp đồng API trả chuỗi — `''` đọc ra "không có link"
   // ở mọi nơi dùng, khỏi phải kiểm `null` riêng.
   openUrl: sql<string>`coalesce(${referralCodes.openUrl}, '')`,
+  priority: referralCodes.priority,
 };
 
 /**
@@ -265,6 +276,7 @@ export async function listReferralCodes(
     bank: [direction(banks.code), asc(referralCodes.code)],
     code: [direction(referralCodes.code)],
     progress: [direction(sql`${usedExpr}::float / ${referralCodes.total}`), asc(referralCodes.code)],
+    priority: [direction(referralCodes.priority), asc(banks.code), asc(referralCodes.code)],
   }[page.sort];
 
   const [rows, [totals]] = await Promise.all([
@@ -315,7 +327,9 @@ export async function listOpenReferralCodes(bankId: string): Promise<ReferralCod
     .from(referralCodes)
     .innerJoin(banks, eq(banks.id, referralCodes.bankId))
     .where(and(eq(referralCodes.bankId, bankId), sql`${remainingExpr} > 0`))
-    .orderBy(desc(remainingExpr), asc(referralCodes.code));
+    // Ưu tiên do người dùng đặt đứng trước, rồi mới tới số chỗ trống. Mã đã
+    // đầy không nằm trong câu này nên ưu tiên cao cũng không kéo nó trở lại.
+    .orderBy(desc(referralCodes.priority), desc(remainingExpr), asc(referralCodes.code));
 }
 
 export async function createReferralCode(
@@ -331,6 +345,7 @@ export async function createReferralCode(
         // Chuỗi rỗng thành NULL: cột này là "có link hay không", và hai cách
         // biểu diễn cho cùng một trạng thái sớm muộn lệch nhau khi lọc.
         openUrl: form.openUrl || null,
+        priority: form.priority,
       })
       .returning();
     // Đọc lại bằng chính `codeColumns` chứ không tự dựng đối tượng: trạng thái
@@ -411,7 +426,12 @@ export async function updateReferralCode(
     try {
       await tx
         .update(referralCodes)
-        .set({ code: form.code, total: form.total, openUrl: form.openUrl || null })
+        .set({
+          code: form.code,
+          total: form.total,
+          openUrl: form.openUrl || null,
+          priority: form.priority,
+        })
         .where(eq(referralCodes.id, id));
     } catch (e) {
       if (uniqueViolationOf(e) !== null)
