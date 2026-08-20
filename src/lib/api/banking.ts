@@ -57,6 +57,8 @@ export const BankAccountDetail = BankAccountRow.extend({
   accountNumberMethod: AccountNumberMethod,
   /** Mọi SĐT của khách, số chính đứng đầu — nguồn cho ô chọn khi `phone-match`. */
   customerPhones: z.array(z.string()),
+  /** Link mở tài khoản của mã giới thiệu; `''` = mã không có link. */
+  referralOpenUrl: z.string(),
 });
 export type BankAccountDetail = z.infer<typeof BankAccountDetail>;
 

@@ -112,6 +112,21 @@ export const CODE_LOW_RATIO = 0.8;
  * Chỗ còn nhận được tài khoản mới là `total - used - holding`, không phải
  * `total - used`.
  */
+/**
+ * Link mở tài khoản — CHỈ nhận `http` và `https`.
+ *
+ * Chuỗi này đi thẳng vào `href` của nút "Mở app ngân hàng" ở bước 2 P-20.
+ * Không chặn thì một QR chứa `javascript:` biến nút đó thành đường chạy mã tuỳ
+ * ý trên máy nhân viên. Máy chủ kiểm LẠI bằng đúng schema này — ảnh QR giải ở
+ * trình duyệt nên chuỗi gửi lên nặn tay được.
+ *
+ * `''` = không có link, hợp lệ. Ngân hàng nào không phát link thì ô để trống.
+ */
+export const OpenUrl = z
+  .string()
+  .trim()
+  .refine((v) => v === '' || /^https?:\/\//i.test(v), 'Link phải bắt đầu bằng http:// hoặc https://');
+
 export const ReferralCode = z.object({
   id: z.string(),
   bankId: z.string(),
@@ -121,6 +136,8 @@ export const ReferralCode = z.object({
   holding: z.number(),
   total: z.number(),
   status: CodeStatus,
+  /** `''` = mã không có link mở tài khoản. Bước 2 P-20 khi đó không dựng nút. */
+  openUrl: z.string(),
 });
 export type ReferralCode = z.infer<typeof ReferralCode>;
 
@@ -174,6 +191,11 @@ export const ReferralCodeForm = z.object({
   bankId: z.uuid('Chưa chọn ngân hàng'),
   code: z.string().trim().min(1, 'Chưa nhập mã'),
   total: z.int('Tổng số phải là số nguyên').min(1, 'Tổng số phải lớn hơn 0').max(INT_MAX, 'Tổng số lớn quá'),
+  /**
+   * Giải ra từ ảnh QR ở trình duyệt, hoặc người dùng gõ tay khi ảnh mờ không
+   * đọc được. Ảnh KHÔNG gửi lên máy chủ — hệ thống chỉ lưu chuỗi này.
+   */
+  openUrl: OpenUrl,
 });
 export type ReferralCodeForm = z.infer<typeof ReferralCodeForm>;
 

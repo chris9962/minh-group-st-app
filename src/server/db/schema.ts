@@ -224,6 +224,11 @@ export const referralCodes = pgTable(
      */
     usedCount: integer("used_count").notNull().default(0),
     holdingCount: integer("holding_count").notNull().default(0),
+    /**
+     * Link mở tài khoản của ngân hàng, giải ra từ ảnh QR ở P-61 (spec §4.4b).
+     * `null` = ngân hàng không phát link, hoặc mã nhập trước migration 0027.
+     */
+    openUrl: text("open_url"),
     createdAt: createdAt(),
   },
   (t) => [

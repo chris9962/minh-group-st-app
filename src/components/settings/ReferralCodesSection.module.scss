@@ -10,3 +10,16 @@
   font-size: 12px;
   color: var(--color-neutral-600);
 }
+
+/* Chỉ báo mã CÓ link, không in cả chuỗi — địa chỉ đầy đủ nằm ở `title`. */
+.openLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--om-link);
+  font-size: 13px;
+}
+
+.openLink:hover {
+  color: var(--om-link-hover);
+}

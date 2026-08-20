@@ -219,6 +219,9 @@ const codeColumns = {
   used: usedExpr,
   holding: referralCodes.holdingCount,
   status: statusExpr,
+  // Cột nullable, nhưng hợp đồng API trả chuỗi — `''` đọc ra "không có link"
+  // ở mọi nơi dùng, khỏi phải kiểm `null` riêng.
+  openUrl: sql<string>`coalesce(${referralCodes.openUrl}, '')`,
 };
 
 /**
@@ -321,7 +324,14 @@ export async function createReferralCode(
   try {
     const [row] = await db
       .insert(referralCodes)
-      .values({ bankId: form.bankId, code: form.code, total: form.total })
+      .values({
+        bankId: form.bankId,
+        code: form.code,
+        total: form.total,
+        // Chuỗi rỗng thành NULL: cột này là "có link hay không", và hai cách
+        // biểu diễn cho cùng một trạng thái sớm muộn lệch nhau khi lọc.
+        openUrl: form.openUrl || null,
+      })
       .returning();
     // Đọc lại bằng chính `codeColumns` chứ không tự dựng đối tượng: trạng thái
     // chỉ có một định nghĩa, nằm trong SQL. Dựng tay ở đây là chép công thức

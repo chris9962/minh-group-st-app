@@ -1,0 +1,15 @@
+-- Link mở tài khoản của mã giới thiệu (spec §4.4b).
+--
+-- Ngân hàng đưa link dưới dạng ảnh QR code. Kinh doanh tổng hợp tải ảnh lên ở
+-- P-61, trình duyệt giải mã lấy chuỗi link, và CHỈ chuỗi đó được lưu — ảnh
+-- không bao giờ rời máy người dùng.
+--
+-- Nullable: mã cũ chưa có link nào, và ngân hàng nào không phát link thì cột
+-- này để trống mãi. Bước 2 của P-20 chỉ dựng nút "Mở trang ngân hàng" khi mã có
+-- giá trị ở đây.
+--
+-- Không đặt ràng buộc định dạng ở tầng database: luật "chỉ nhận http/https" là
+-- luật nghiệp vụ, và nó nằm ở zod (`lib/api/bankCatalog.ts`) cộng một lượt kiểm
+-- lại ở máy chủ. Một `CHECK` bằng regex ở đây chỉ chép luật đó lần thứ ba, và
+-- là bản chép cứng nhất — đổi thì phải viết migration.
+ALTER TABLE "referral_codes" ADD COLUMN IF NOT EXISTS "open_url" text;

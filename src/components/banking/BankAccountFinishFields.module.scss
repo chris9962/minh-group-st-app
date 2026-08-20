@@ -16,3 +16,10 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Đứng trên biểu mẫu, rộng hết cỡ: đây là bước ĐẦU TIÊN của bước 2 — nhân viên
+   mở app ngân hàng, mở tài khoản thật, rồi mới quay lại điền. */
+.openBank {
+  width: 100%;
+  margin-bottom: 14px;
+}

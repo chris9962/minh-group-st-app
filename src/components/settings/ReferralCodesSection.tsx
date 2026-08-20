@@ -1,7 +1,7 @@
 "use client";
 
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { Plus, Ticket } from "lucide-react";
+import { ExternalLink, Plus, Ticket } from "lucide-react";
 import { useState } from "react";
 import { SkeletonTable } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
@@ -100,6 +100,28 @@ export function ReferralCodesSection() {
       render: (c) => (
         <StatusTag ok={c.status === "available"}>{CODE_STATUS_LABEL[c.status]}</StatusTag>
       ),
+    },
+    {
+      /* Chỉ báo CÓ hay KHÔNG, không in cả link. Link mở tài khoản dài vài trăm
+         ký tự — in ra thì bảng tràn ngang mà không ai đọc chuỗi đó bằng mắt.
+         Người cần xem đầy đủ thì mở hộp thoại sửa mã. */
+      key: "openUrl",
+      label: "Link mở TK",
+      render: (c) =>
+        c.openUrl ? (
+          <a
+            href={c.openUrl}
+            target="_blank"
+            rel="noreferrer"
+            className={styles.openLink}
+            title={c.openUrl}
+          >
+            <ExternalLink size={14} aria-hidden />
+            Mở
+          </a>
+        ) : (
+          <span className="text-muted">—</span>
+        ),
     },
   ];
 

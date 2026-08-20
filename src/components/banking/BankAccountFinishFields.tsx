@@ -6,6 +6,8 @@ import type {
   UseFormSetValue,
   UseFormWatch,
 } from "react-hook-form";
+import { ExternalLink } from "lucide-react";
+import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { Select } from "@/components/ui/Select";
 import { TextField } from "@/components/ui/TextField";
@@ -31,6 +33,8 @@ type Props = {
   accountNumberMethod: AccountNumberMethod;
   /** Mọi SĐT của khách, số chính đứng đầu — nguồn cho ô chọn khi `phone-match`. */
   customerPhones: string[];
+  /** Link mở tài khoản của mã giới thiệu; `''` = không dựng nút. */
+  referralOpenUrl: string;
   photos: PhotoItem[];
   requiredPhotos: number;
   onPhotosChange: (photos: PhotoItem[]) => void;
@@ -54,6 +58,7 @@ export function BankAccountFinishFields({
   bankCode,
   accountNumberMethod,
   customerPhones,
+  referralOpenUrl,
   photos,
   requiredPhotos,
   onPhotosChange,
@@ -61,6 +66,35 @@ export function BankAccountFinishFields({
 }: Props) {
   return (
     <>
+      {/*
+        NÚT "Mở app ngân hàng", không phải tab tự mở (spec §4.4b, chốt 2026-08-19).
+
+        Link trong QR là deep link của ngân hàng: trên điện thoại nó mở thẳng app
+        nếu máy đã cài, không thì trình duyệt mở trang tải app. Đó là lý do nhãn
+        nói "app" chứ không nói "trang".
+
+        Ba lý do. Đội kinh doanh làm trên điện thoại, nơi tab mới là chuyển hẳn
+        cửa sổ và đường quay lại hộp thoại đang mở dở không rõ ràng. Nhân viên có
+        thể chưa muốn mở ngay — đang nói với khách, hoặc vừa chọn nhầm mã. Và
+        trình duyệt CHẶN `window.open` chạy sau `await`, nên đường tự mở phải mở
+        một tab trống trước rồi gán địa chỉ sau; nút bấm nằm trong đúng lượt
+        tương tác nên không dính chuyện đó.
+
+        `rel="noreferrer"`: trang mở ra ở tab mới không được chạm tới
+        `window.opener` của app này.
+      */}
+      {referralOpenUrl && (
+        <Button
+          variant="secondary"
+          type="button"
+          className={styles.openBank}
+          onClick={() => window.open(referralOpenUrl, "_blank", "noopener,noreferrer")}
+        >
+          <ExternalLink size={16} aria-hidden />
+          Mở app ngân hàng
+        </Button>
+      )}
+
       <form id={formId} className={styles.form} onSubmit={onSubmit} noValidate>
         <div className={styles.formFields}>
           {/*

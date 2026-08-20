@@ -73,7 +73,10 @@ export default function BankAccountDetailPage({
 
   return (
     <>
-      <TopBar title={data ? `${data.bankCode} · ${data.customerName}` : "Tài khoản ngân hàng"} />
+      <TopBar
+        title={data ? `${data.bankCode} · ${data.customerName}` : "Tài khoản ngân hàng"}
+        keepTitleOnMobile
+      />
 
       <main className={styles.body}>
         <Link href="/banking" className={styles.back}>
@@ -239,6 +242,7 @@ function FinishAccountCard({
         bankCode={data.bankCode}
         accountNumberMethod={data.accountNumberMethod}
         customerPhones={data.customerPhones}
+        referralOpenUrl={data.referralOpenUrl}
         photos={photos}
         requiredPhotos={data.requiredPhotos}
         onPhotosChange={setEditedPhotos}
