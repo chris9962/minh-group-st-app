@@ -25,8 +25,8 @@
 
 .photoTile {
   position: relative;
-  width: 120px;
-  height: 90px;
+  width: 150px;
+  height: 112px;
 }
 
 .photoZoom {
@@ -49,9 +49,12 @@
 
 /* Nhãn "chưa tải lên" là CHỮ chứ không phải chỉ đổi màu viền — màu không được
    là kênh truyền đạt duy nhất (AGENTS.md §8). */
+/* Nhãn nằm ĐÁY ảnh, không phải đỉnh: hàng trên đã có hai nút tròn, mà ô ảnh
+   trên điện thoại chỉ rộng khoảng 175px — nút đè lên chữ và bấm phải nút thì
+   trúng nhãn. */
 .photoBadge {
   position: absolute;
-  top: 6px;
+  bottom: 6px;
   left: 6px;
   padding: 2px 6px;
   border-radius: var(--radius-sm);
@@ -61,10 +64,13 @@
   line-height: 1.4;
 }
 
+/* Đứng cạnh nút Bỏ ở cùng góc trên phải: 26px của nút đó cộng 6px khe.
+   Bản trước neo nút này ở góc dưới, trên ô ảnh cao thì hai nút xa nhau, ngón
+   tay phải đi hết chiều cao ảnh để làm hai việc liền nhau. */
 .photoEdit {
   position: absolute;
-  bottom: 6px;
-  right: 6px;
+  top: 6px;
+  right: 38px;
   width: 26px;
   height: 26px;
   display: grid;
@@ -93,20 +99,38 @@
   cursor: pointer;
 }
 
+.photoDownload {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: var(--om-card);
+  color: var(--om-text);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+}
+
 .photoEdit:hover,
-.photoRemove:hover {
+.photoRemove:hover,
+.photoDownload:hover {
   color: var(--om-orange-mid);
 }
 
 .photoEdit:disabled,
-.photoRemove:disabled {
+.photoRemove:disabled,
+.photoDownload:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
 .photoAdd {
-  width: 120px;
-  height: 90px;
+  width: 150px;
+  height: 112px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -129,22 +153,38 @@
   display: none;
 }
 
-/* Đội KD chọn ảnh bằng ngón tay ngoài trời — hai nút góc ảnh phải đủ 44px khi
+/* Đội KD chọn ảnh bằng ngón tay ngoài trời — ba nút góc ảnh phải đủ 44px khi
    trỏ bằng ngón (AGENTS.md §8). Trên chuột thì giữ nhỏ để không che mất ảnh. */
 @media (pointer: coarse) {
-  .photoTile {
-    width: 140px;
-    height: 105px;
-  }
-
   .photoEdit,
-  .photoRemove {
+  .photoRemove,
+  .photoDownload {
     width: 44px;
     height: 44px;
   }
 
+  /* Nút to hơn thì khe cũng phải dịch theo: 44px cộng 6px. */
+  .photoEdit {
+    right: 56px;
+  }
+}
+
+/* Trên điện thoại, ô ảnh 140px cộng ba nút 44px thì nút che gần hết tấm ảnh.
+   Chia hai cột và cho ô ảnh rộng hết cột: ảnh to gấp đôi, nút vẫn 44px nhưng
+   chỉ còn chiếm một góc nhỏ. Người dùng phải nhìn được ảnh để biết chụp rõ
+   chưa — đó mới là việc của màn này. */
+@media (max-width: bp.$bp-narrow) {
+  .photoGrid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .photoTile,
   .photoAdd {
-    width: 140px;
-    height: 105px;
+    width: 100%;
+    height: auto;
+    /* Vuông chứ không phải 4/3: ảnh chụp giấy tờ hay chụp màn hình app phần
+       lớn là ảnh DỌC, khung ngang cắt mất phần trên dưới. */
+    aspect-ratio: 1 / 1;
   }
 }

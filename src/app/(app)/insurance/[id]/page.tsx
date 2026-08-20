@@ -3,11 +3,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { use, useCallback, useEffect, useRef, useState } from "react";
-import { CheckCircle2, ChevronLeft, EyeOff, History, ImagePlus, ShieldCheck, X } from "lucide-react";
+import { CheckCircle2, ChevronLeft, Download, EyeOff, History, ImagePlus, ShieldCheck, X } from "lucide-react";
 import { SkeletonCard } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
 import { Button } from "@/components/ui/Button";
+import { ImageLightbox } from "@/components/ui/ImageLightbox";
+import { downloadImage } from "@/lib/downloadImage";
 import { CopyButton } from "@/components/ui/CopyValue";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusTag } from "@/components/ui/StatusTag";
@@ -286,6 +288,8 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
   });
 
   const busy = savePhoto.isPending || advance.isPending;
+  /** Ảnh đang xem cỡ lớn; `null` = không mở. */
+  const [zoomed, setZoomed] = useState<{ src: string; alt: string } | null>(null);
   /** Có ảnh để hoàn thành: đã lưu trên máy chủ, hoặc đang chờ lưu ở đây. */
   const hasPhoto = Boolean(data?.certificatePhotoUrl) || pending !== null;
 
@@ -436,7 +440,14 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                   một mình không đủ (AGENTS.md §8). */}
               {pending ? (
                 <div className={styles.pendingPhoto}>
-                  <PhotoView key={pending.preview} src={pending.preview} alt="Ảnh vừa chọn" />
+                  <button
+                    type="button"
+                    className={styles.photoZoom}
+                    aria-label="Xem ảnh vừa chọn cỡ lớn"
+                    onClick={() => setZoomed({ src: pending.preview, alt: "Ảnh vừa chọn" })}
+                  >
+                    <PhotoView key={pending.preview} src={pending.preview} alt="Ảnh vừa chọn" />
+                  </button>
                   <span className={styles.pendingBadge}>Chưa lưu</span>
                   {/* Nút này không phải component `Button` nên không có prop
                       `tooltip` — dùng `title` của trình duyệt cho cùng tác dụng. */}
@@ -452,18 +463,27 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                   </button>
                 </div>
               ) : data.certificatePhotoUrl ? (
-                <a
-                  href={data.certificatePhotoUrl}
-                  target="_blank"
-                  rel="noreferrer"
+                /* Xem NGAY TẠI TRANG, không mở tab mới. Đội xử lý tay đối
+                   chiếu số trên tờ chứng nhận với số trên đơn — mở tab khác là
+                   mất đơn khỏi màn hình, đúng lý do màn ngân hàng cũng dùng
+                   `ImageLightbox` chứ không phải liên kết. */
+                <button
+                  type="button"
                   className={styles.photoLink}
+                  aria-label="Xem ảnh chứng nhận cỡ lớn"
+                  onClick={() =>
+                    setZoomed({
+                      src: data.certificatePhotoUrl!,
+                      alt: "Ảnh chứng nhận bảo hiểm",
+                    })
+                  }
                 >
                   <PhotoView
                     key={data.certificatePhotoUrl}
                     src={data.certificatePhotoUrl}
                     alt="Ảnh chứng nhận bảo hiểm"
                   />
-                </a>
+                </button>
               ) : (
                 <p className="text-muted">
                   {data.status === "manual-progress"
@@ -471,6 +491,23 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                     : `Chưa có ảnh — chỉ đính được khi đơn ở trạng thái ${INSURANCE_STATUS_LABEL["manual-progress"]}.`}
                 </p>
               )}
+              {/* Ngoài khối `canAttachPhoto` bên dưới: người chỉ có quyền XEM
+                  đơn vẫn cần tải tờ chứng nhận về để gửi khách. */}
+              {(data.certificatePhotoUrl || pending) && (
+                <Button
+                  variant="secondary"
+                  onClick={() =>
+                    downloadImage(
+                      pending?.preview ?? data.certificatePhotoUrl!,
+                      pending ? "Ảnh vừa chọn" : "Ảnh chứng nhận bảo hiểm",
+                    )
+                  }
+                >
+                  <Download size={16} aria-hidden />
+                  Tải ảnh về
+                </Button>
+              )}
+
               {canAttachPhoto && (
                 <>
                   <input
@@ -563,6 +600,10 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
           </SectionCard>
         )}
       </main>
+
+      {zoomed && (
+        <ImageLightbox src={zoomed.src} alt={zoomed.alt} onClose={() => setZoomed(null)} />
+      )}
     </>
   );
 }

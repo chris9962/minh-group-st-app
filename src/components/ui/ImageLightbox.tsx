@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Download, X } from "lucide-react";
+import { downloadImage } from "@/lib/downloadImage";
 import { useDialogLayer } from "@/store/dialogLayer";
 import styles from "./ImageLightbox.module.css";
 
@@ -20,6 +21,13 @@ type Props = {
  */
 export function ImageLightbox({ src, alt, onClose }: Props) {
   const ref = useRef<HTMLDialogElement>(null);
+  const [saving, setSaving] = useState(false);
+
+  const download = async () => {
+    setSaving(true);
+    await downloadImage(src, alt);
+    setSaving(false);
+  };
 
   // Cùng lý do với `Dialog`: showModal() mới bật lớp phủ + bẫy tiêu điểm, và
   // phải khai vào `dialogLayer` để toast nổi đúng tầng khi mở từ trong hộp thoại.
@@ -47,6 +55,16 @@ export function ImageLightbox({ src, alt, onClose }: Props) {
         if (e.target === ref.current) onClose();
       }}
     >
+      <button
+        type="button"
+        className={styles.download}
+        onClick={download}
+        disabled={saving}
+        aria-label="Tải ảnh về máy"
+        title="Tải ảnh về máy"
+      >
+        <Download size={18} aria-hidden />
+      </button>
       <button type="button" className={styles.close} onClick={onClose} aria-label="Đóng">
         <X size={18} aria-hidden />
       </button>

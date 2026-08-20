@@ -21,7 +21,8 @@
 
 /* `fixed` trong top layer tính theo khung nhìn — nút neo góc màn hình, không
    đè lên ảnh. */
-.close {
+.close,
+.download {
   position: fixed;
   top: 16px;
   right: 16px;
@@ -37,8 +38,19 @@
   cursor: pointer;
 }
 
-.close:hover {
+/* Xếp cạnh nút đóng, cùng hàng. */
+.download {
+  right: 68px;
+}
+
+.close:hover,
+.download:hover {
   color: var(--om-orange-mid);
+}
+
+.download:disabled {
+  cursor: progress;
+  opacity: 0.6;
 }
 
 /* Màn hẹp thì 96px là mất gần nửa bề ngang. Đỉnh vẫn chừa 76px cho nút đóng

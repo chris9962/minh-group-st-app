@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ImagePlus, Pencil, X } from "lucide-react";
+import { Download, ImagePlus, Pencil, X } from "lucide-react";
 import { ImageLightbox } from "@/components/ui/ImageLightbox";
 import { PHOTO_MAX } from "@/lib/api/bankAccounts";
 import { imageProblem, uploadImage } from "@/lib/api/uploads";
+import { downloadImage } from "@/lib/downloadImage";
 import { toast } from "@/lib/toast";
 import styles from "./BankAccountPhotos.module.scss";
 
@@ -207,6 +208,20 @@ export function BankAccountPhotos({
                 <img src={src} alt={`${title} ${i + 1}`} className={styles.photo} />
               </button>
               {photo.kind === "pending" && <span className={styles.photoBadge}>Chưa tải lên</span>}
+              {/* Chỉ ở màn XEM. Lúc đang sửa, ô ảnh đã mang hai nút góc —
+                  nút thứ ba che gần hết ảnh, mà người đang mở tài khoản thì
+                  cũng chưa cần tải chính ảnh mình vừa chọn về máy. */}
+              {!onChange && (
+                <button
+                  type="button"
+                  className={styles.photoDownload}
+                  aria-label={`Tải ${noun} ${i + 1} về máy`}
+                  title="Tải ảnh về máy"
+                  onClick={() => downloadImage(src, `${title} ${i + 1}`)}
+                >
+                  <Download size={14} aria-hidden />
+                </button>
+              )}
               {onChange && (
                 <>
                   <button
