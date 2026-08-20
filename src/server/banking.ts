@@ -265,6 +265,9 @@ const decorate = (page: ReturnType<typeof pickPage>) =>
       bankCode: banks.code,
       referralCodeId: page.referralCodeId,
       referralCode: referralCodes.code,
+      // Link mở tài khoản của mã này (spec §4.4b). `''` = mã không có link,
+      // và bước 2 khi đó không dựng nút "Mở app ngân hàng".
+      referralOpenUrl: sql<string>`coalesce(${referralCodes.openUrl}, '')`,
       // Cột nullable ở DB nhưng hợp đồng là chuỗi: `''` lúc còn `creating` —
       // chưa mở xong thì chưa biết số thật.
       accountNumber: sql<string>`coalesce(${page.accountNumber}, '')`,
@@ -468,6 +471,7 @@ async function accountById(id: string): Promise<BankAccount | null> {
     bankCode: r.bankCode,
     referralCodeId: r.referralCodeId,
     referralCode: r.referralCode,
+    referralOpenUrl: r.referralOpenUrl,
     accountNumber: r.accountNumber,
     openedDate: r.date,
     channel: r.channel,
@@ -514,6 +518,7 @@ export async function bankAccountDetail(
     requiredPhotos: r.requiredPhotos,
     accountNumberMethod: r.accountNumberMethod,
     customerPhones: await customerPhoneNumbers(r.customerId),
+    referralOpenUrl: r.referralOpenUrl,
   };
 }
 
@@ -561,6 +566,47 @@ export async function startBankAccount(
   if (!bank.active) return { ok: false, message: "Ngân hàng này đã ngừng triển khai" };
 
   const outcome = await db.transaction(async (tx) => {
+    /**
+     * MỘT nhân viên chỉ giữ MỘT bản ghi `Đang tạo` tại một thời điểm
+     * (spec §4.5b, chốt 2026-08-20).
+     *
+     * Bản ghi `Đang tạo` chính là cái giữ chỗ mã, và không có hẹn giờ tự nhả —
+     * mã chỉ trả lại kho khi ai đó hoàn thành hoặc xoá bằng tay. Không chặn thì
+     * một người mở dở mười tài khoản là giữ mười chỗ mà chưa dùng chỗ nào, còn
+     * người mở sau nhận báo "hết chỗ".
+     *
+     * ⚠️ `SELECT … FOR UPDATE` KHÔNG đủ ở đây, khác với chỗ khoá dòng mã bên
+     * dưới. Nó chỉ khoá dòng ĐANG CÓ; khi người này chưa mở dở tài khoản nào
+     * thì câu chọn trả rỗng và không khoá gì, nên hai request song song đều đọc
+     * "chưa có" rồi cùng ghi. Đó đúng là ca luật này sinh ra để chặn.
+     *
+     * Khoá theo NGƯỜI: `pg_advisory_xact_lock` giữ một khoá mang tên chính
+     * `actor.id`, tự nhả khi giao dịch kết thúc. Request thứ hai của cùng người
+     * đứng đợi ở dòng này, tới lượt nó thì bản ghi kia đã ghi xong và câu chọn
+     * bên dưới thấy được. Hai người khác nhau mang hai khoá khác nhau nên không
+     * chờ nhau.
+     *
+     * Ràng buộc theo NGƯỜI TẠO, không theo khách — một khách vẫn có nhiều bản
+     * ghi `Đang tạo` nếu chúng do những nhân viên khác nhau mở (spec §4.2).
+     */
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${actor.id}))`);
+
+    const [draft] = await tx
+      .select({ customerName: customers.fullName, bankCode: banks.code })
+      .from(bankAccounts)
+      .innerJoin(customers, eq(customers.id, bankAccounts.customerId))
+      .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
+      .where(and(eq(bankAccounts.createdBy, actor.id), eq(bankAccounts.status, "creating")))
+      .limit(1);
+
+    if (draft)
+      return {
+        ok: false as const,
+        // Câu này phải CHỈ ĐƯỜNG, không chỉ từ chối: nói rõ tài khoản nào đang
+        // mở dở thì người dùng biết phải hoàn thành hoặc xoá cái nào.
+        message: `Bạn đang mở dở tài khoản ${draft.bankCode} của ${draft.customerName}. Hoàn thành hoặc xoá nó rồi mới mở tài khoản mới.`,
+      };
+
     const [code] = await tx
       .select({
         id: referralCodes.id,
