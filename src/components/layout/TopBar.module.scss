@@ -59,6 +59,18 @@
     padding: 10px 16px;
   }
 
+  /* Tiêu đề giữ lại phải CO ĐƯỢC trên màn hẹp.
+     Ba trang chi tiết mang tiêu đề động — "BH-2026-0001 · Nguyễn Thị Hồng Huệ"
+     dài hơn hẳn nhãn cố định kiểu "Tổng quan". `flex: none` cộng `nowrap` của
+     dáng máy tính làm nó đẩy tràn ngang; ở đây cho co lại và cắt bằng dấu ba
+     chấm. */
+  .titleKept {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
   /* Ẩn khỏi mắt nhưng KHÔNG dùng `display: none` — `h1` là mốc điều hướng duy
      nhất của trang, bỏ khỏi cây trợ năng là trình đọc màn hình mất chỗ đứng. */
   .title {

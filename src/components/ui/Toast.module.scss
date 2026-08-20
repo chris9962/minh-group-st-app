@@ -7,6 +7,10 @@
  */
 
 .viewport {
+  /* Hướng toast trượt vào. Máy tính hiện ở góc dưới nên trượt LÊN; điện thoại
+     hiện ở mép trên nên trượt XUỐNG, giống thông báo của hệ điều hành. */
+  --toast-enter-y: 8px;
+
   position: fixed;
   inset: auto var(--space-6) var(--space-6) auto;
   z-index: 60;
@@ -114,7 +118,7 @@
 
 @keyframes slide-in {
   from {
-    transform: translateY(8px);
+    transform: translateY(var(--toast-enter-y));
     opacity: 0;
   }
 }
@@ -137,16 +141,26 @@
 }
 
 @media (max-width: bp.$bp-mobile) {
+  /*
+   * Điện thoại: toast trượt xuống từ MÉP TRÊN, giống thông báo của hệ điều
+   * hành (chốt 2026-08-20).
+   *
+   * Bản trước hiện ở đáy và phải trừ chiều cao BottomNav ra. Nhưng đáy màn còn
+   * hàng nút của hộp thoại — Lưu, Huỷ, Xoá — nên trong lúc toast còn hiện thì
+   * người dùng không bấm được đúng những nút họ vừa định bấm tiếp. Đầu màn chỉ
+   * có thanh tiêu đề, và tiêu đề đọc lại lúc nào cũng được.
+   */
   .viewport {
+    --toast-enter-y: -8px;
+
     right: var(--space-3);
     left: var(--space-3);
+    bottom: auto;
+    top: calc(env(safe-area-inset-top, 0px) + var(--space-3));
     width: auto;
     max-width: none;
-    /*
-     * Đẩy lên khỏi BottomNav — thanh đó `position: fixed; bottom: 0` cao tối
-     * thiểu 52px, cộng vùng an toàn của thanh cử chỉ iOS. Không trừ ra thì
-     * toast nằm đè lên hàng nút điều hướng và nút X không bấm được.
-     */
-    bottom: calc(52px + env(safe-area-inset-bottom, 0px) + var(--space-3));
+    /* Toast mới nằm SÁT mép trên nhất, cái cũ bị đẩy xuống — cùng quy ước với
+       dáng máy tính, nơi cái mới nằm sát mép dưới nhất. */
+    flex-direction: column-reverse;
   }
 }

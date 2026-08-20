@@ -136,7 +136,7 @@ export default function CustomerDetailPage({
 
   return (
     <>
-      <TopBar title={data?.customer.fullName ?? "Khách hàng"} />
+      <TopBar title={data?.customer.fullName ?? "Khách hàng"} keepTitleOnMobile />
 
       <main className={styles.body}>
         <Link href="/customers" className={styles.back}>

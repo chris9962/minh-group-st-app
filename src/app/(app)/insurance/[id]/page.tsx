@@ -291,7 +291,10 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
 
   return (
     <>
-      <TopBar title={data ? `${data.orderCode} · ${data.customerName}` : "Đơn bảo hiểm"} />
+      <TopBar
+        title={data ? `${data.orderCode} · ${data.customerName}` : "Đơn bảo hiểm"}
+        keepTitleOnMobile
+      />
 
       <main className={styles.body}>
         <Link href="/insurance" className={styles.back}>
