@@ -13,6 +13,8 @@ import {
   createReferralCode,
   fetchBanks,
   ReferralCodeForm,
+  updateReferralCode,
+  type ReferralCode,
 } from "@/lib/api/bankCatalog";
 import styles from "./ReferralCodeFormDialog.module.scss";
 import { readQrImage } from "@/lib/readQrImage";
@@ -21,13 +23,24 @@ import { errorMessage, toast } from "@/lib/toast";
 type Props = {
   open: boolean;
   onClose: () => void;
+  /** Có thì là sửa, không có thì là thêm mã mới. */
+  referral?: ReferralCode | null;
 };
 
-/** P-61 · Thêm một mã giới thiệu lẻ. Nhập hàng loạt từ Excel là việc của P-62. */
-export function ReferralCodeFormDialog({ open, onClose }: Props) {
+/**
+ * P-61 · Thêm / sửa một mã giới thiệu lẻ. Nhập hàng loạt từ Excel là việc của P-62.
+ *
+ * Sửa được `mã`, `tổng số lượt` và `link mở tài khoản`; ngân hàng thì không —
+ * lý do đầy đủ ở `updateReferralCode` (`server/catalog.ts`).
+ */
+export function ReferralCodeFormDialog({ open, onClose, referral }: Props) {
   const queryClient = useQueryClient();
+  const editing = Boolean(referral);
   const { data: banks = [] } = useQuery({ queryKey: ["banks"], queryFn: fetchBanks });
-  const activeBanks = banks.filter((b) => b.active);
+
+  // Lúc thêm mới chỉ hiện ngân hàng đang triển khai. Lúc sửa thì lấy cả ngân
+  // hàng đã tắt: mã cũ vẫn thuộc về nó, lọc đi là ô chọn hiện trống trơn.
+  const bankOptions = editing ? banks : banks.filter((b) => b.active);
 
   const {
     register,
@@ -37,7 +50,12 @@ export function ReferralCodeFormDialog({ open, onClose }: Props) {
     formState: { errors, isSubmitting },
   } = useForm<ReferralCodeForm>({
     resolver: zodResolver(ReferralCodeForm),
-    defaultValues: { bankId: "", code: "", total: 100, openUrl: "" },
+    defaultValues: {
+      bankId: referral?.bankId ?? "",
+      code: referral?.code ?? "",
+      total: referral?.total ?? 100,
+      openUrl: referral?.openUrl ?? "",
+    },
   });
 
   const qrInputRef = useRef<HTMLInputElement>(null);
@@ -63,12 +81,17 @@ export function ReferralCodeFormDialog({ open, onClose }: Props) {
   };
 
   const save = useMutation({
-    mutationFn: createReferralCode,
+    mutationFn: (form: ReferralCodeForm) =>
+      referral ? updateReferralCode(referral.id, form) : createReferralCode(form),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["referral-codes"] });
       // Ô lọc mã ở màn ngân hàng / xuất Excel đi khoá riêng, tiền tố trên
       // không với tới — không nạp thì mã vừa thêm chưa hiện ở đó.
       queryClient.invalidateQueries({ queryKey: ["referral-code-options"] });
+      // Mỗi dòng tài khoản mang sẵn tên mã và link mở app của mã đó. Sửa mã mà
+      // không nạp lại thì bước 2 của P-20 còn mở link cũ cho tới khi cache hết hạn.
+      queryClient.invalidateQueries({ queryKey: ["bank-account-list"] });
+      queryClient.invalidateQueries({ queryKey: ["bank-account-detail"] });
       onClose();
       toast.ok("Đã lưu mã giới thiệu");
     },
@@ -79,7 +102,7 @@ export function ReferralCodeFormDialog({ open, onClose }: Props) {
     <Dialog
       open={open}
       onClose={onClose}
-      title="Thêm mã giới thiệu"
+      title={editing ? "Sửa mã giới thiệu" : "Thêm mã giới thiệu"}
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>
@@ -90,7 +113,7 @@ export function ReferralCodeFormDialog({ open, onClose }: Props) {
             form="referral-code-form"
             disabled={isSubmitting || save.isPending}
           >
-            Tạo mã
+            {editing ? "Lưu" : "Tạo mã"}
           </Button>
         </>
       }
@@ -103,19 +126,28 @@ export function ReferralCodeFormDialog({ open, onClose }: Props) {
       >
         <Select
           block
+          required
           label="Ngân hàng"
+          disabled={editing}
           value={watch("bankId")}
           onChange={(v) => setValue("bankId", v, { shouldDirty: true })}
           options={[
             { value: "", label: "— Chọn ngân hàng —" },
-            ...activeBanks.map((b) => ({ value: b.id, label: b.code })),
+            ...bankOptions.map((b) => ({ value: b.id, label: b.code })),
           ]}
           error={errors.bankId?.message}
         />
+        {editing && (
+          <p className={styles.lockNote}>
+            Ngân hàng không đổi được. Tài khoản đã mở bằng mã này thuộc về ngân
+            hàng đó — kéo mã sang nhà băng khác là bỏ chúng lại phía sau.
+          </p>
+        )}
 
         <TextField
           label="Mã giới thiệu"
           placeholder="VPA-2026-01"
+          required
           error={errors.code?.message}
           {...register("code")}
         />
@@ -124,7 +156,12 @@ export function ReferralCodeFormDialog({ open, onClose }: Props) {
           label="Tổng số lượt dùng"
           type="number"
           inputMode="numeric"
-          hint="Số lượt tài khoản có thể mở bằng mã này"
+          required
+          hint={
+            editing
+              ? `Đã dùng ${referral!.used}, đang giữ ${referral!.holding} — tổng số không được nhỏ hơn ${referral!.used + referral!.holding}.`
+              : "Số lượt tài khoản có thể mở bằng mã này"
+          }
           error={errors.total?.message}
           {...register("total", { valueAsNumber: true })}
         />

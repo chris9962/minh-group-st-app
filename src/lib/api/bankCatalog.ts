@@ -200,11 +200,14 @@ export const ReferralCodeForm = z.object({
 export type ReferralCodeForm = z.infer<typeof ReferralCodeForm>;
 
 export const createReferralCode = (form: ReferralCodeForm) =>
-  fetch('/api/settings/referral-codes', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(form),
-  }).then(async (res) => {
-    if (!res.ok) throw new Error('Không lưu được mã này');
-    return ReferralCode.parse(await res.json());
-  });
+  send('/api/settings/referral-codes', 'POST', form).then(ReferralCode.parse);
+
+/**
+ * Sửa mã đã lập. Ngân hàng gửi kèm để máy chủ kiểm lại, KHÔNG đổi được.
+ *
+ * Mã đã nằm trong kho vẫn cần sửa: link mở tài khoản đến sau khi ngân hàng gửi
+ * ảnh QR, và tổng số lượt thì ngân hàng cấp thêm theo đợt. Máy chủ từ chối khi
+ * hạ tổng xuống dưới phần đã tiêu cộng phần đang giữ.
+ */
+export const updateReferralCode = (id: string, form: ReferralCodeForm) =>
+  send(`/api/settings/referral-codes/${id}`, 'PATCH', form).then(ReferralCode.parse);

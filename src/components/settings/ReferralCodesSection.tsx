@@ -1,7 +1,7 @@
 "use client";
 
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { ExternalLink, Plus, Ticket } from "lucide-react";
+import { ExternalLink, Pencil, Plus, Ticket } from "lucide-react";
 import { useState } from "react";
 import { SkeletonTable } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
@@ -43,6 +43,7 @@ const FIRST_PAGE: ReferralCodeQuery = {
 export function ReferralCodesSection() {
   const [query, setQuery] = useState<ReferralCodeQuery>(FIRST_PAGE);
   const [creating, setCreating] = useState(false);
+  const [editing, setEditing] = useState<ReferralCode | null>(null);
 
   // Ô tìm giữ chữ đang gõ riêng, chỉ hoãn xong mới thành câu hỏi gửi đi. Nối
   // thẳng vào `query` thì mỗi phím là một lượt gọi máy chủ, mà mỗi lượt là một
@@ -122,6 +123,21 @@ export function ReferralCodesSection() {
         ) : (
           <span className="text-muted">—</span>
         ),
+    },
+    {
+      key: "actions",
+      label: "Thao tác",
+      render: (c) => (
+        <Button
+          variant="secondary"
+          icon
+          tooltip="Sửa mã"
+          aria-label={`Sửa mã ${c.code}`}
+          onClick={() => setEditing(c)}
+        >
+          <Pencil size={16} aria-hidden />
+        </Button>
+      ),
     },
   ];
 
@@ -209,8 +225,15 @@ export function ReferralCodesSection() {
         việc riêng của màn <strong>Nhập mã hàng loạt</strong> (P-62, chưa làm).
       </p>
 
-      {creating && (
-        <ReferralCodeFormDialog open onClose={() => setCreating(false)} />
+      {(creating || editing) && (
+        <ReferralCodeFormDialog
+          open
+          referral={editing}
+          onClose={() => {
+            setCreating(false);
+            setEditing(null);
+          }}
+        />
       )}
     </SectionCard>
   );

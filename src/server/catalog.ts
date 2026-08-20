@@ -348,6 +348,86 @@ export async function createReferralCode(
   }
 }
 
+/**
+ * Kết quả sửa mã: `null` = không có mã này, `message` = lời từ chối đọc được.
+ *
+ * Không dùng `CatalogOutcome` như các danh mục khác: ngoài lỗi trùng mã, hàm
+ * này còn từ chối vì tổng số nhỏ hơn phần đã tiêu — hai lý do khác nhau nên
+ * route phải nói lại đúng lý do, chứ không quy về một câu chung.
+ */
+export type ReferralCodeUpdate =
+  | { ok: true; item: ReferralCode }
+  | { ok: false; message: string }
+  | null;
+
+/**
+ * P-61 · Sửa một mã đã lập. Sửa được `code`, `total`, `openUrl`.
+ *
+ * KHÔNG đổi ngân hàng. Tài khoản đã mở bằng mã này mang `bank_id` riêng của
+ * chúng, kéo mã sang ngân hàng khác là để lại một đống tài khoản trỏ vào mã
+ * của nhà băng không liên quan. Ô chọn ngân hàng khoá sẵn ở giao diện, đây là
+ * lượt kiểm lại phía máy chủ (AGENTS.md §6).
+ *
+ * `code` thì đổi được, khác `banks.code`: tài khoản trỏ vào mã bằng `id`, và
+ * không file luật nào trong `src/rules/` đối chiếu chuỗi mã giới thiệu. Sửa
+ * một mã gõ sai chính là việc màn này cần làm được.
+ *
+ * Đọc và ghi nằm trong một giao dịch, dòng mã khoá bằng `for update`: đường mở
+ * tài khoản khoá đúng dòng đó trước khi chiếm chỗ (`startBankAccount`). Không
+ * khoá thì hai bên cùng đọc `holding = 9`, một bên hạ tổng xuống 9 còn bên kia
+ * chiếm chỗ thứ 10 — kho quay ra âm chỗ.
+ */
+export async function updateReferralCode(
+  id: string,
+  form: ReferralCodeForm,
+): Promise<ReferralCodeUpdate> {
+  return db.transaction(async (tx) => {
+    const [current] = await tx
+      .select({
+        bankId: referralCodes.bankId,
+        importedUsed: referralCodes.importedUsed,
+        usedCount: referralCodes.usedCount,
+        holdingCount: referralCodes.holdingCount,
+      })
+      .from(referralCodes)
+      .where(eq(referralCodes.id, id))
+      .limit(1)
+      .for("update");
+
+    if (!current) return null;
+
+    if (form.bankId !== current.bankId)
+      return { ok: false as const, message: "Không đổi được ngân hàng của mã đã lập" };
+
+    // Phần đã tiêu CỘNG phần đang giữ. Hạ tổng xuống dưới con số này là kho
+    // hiện "còn -2 chỗ", và mọi tài khoản đang mở dở mất chỗ đã chiếm.
+    const taken = current.importedUsed + current.usedCount + current.holdingCount;
+    if (form.total < taken)
+      return {
+        ok: false as const,
+        message: `Mã này đã dùng và đang giữ ${taken} lượt — tổng số không được nhỏ hơn ${taken}`,
+      };
+
+    try {
+      await tx
+        .update(referralCodes)
+        .set({ code: form.code, total: form.total, openUrl: form.openUrl || null })
+        .where(eq(referralCodes.id, id));
+    } catch (e) {
+      if (uniqueViolationOf(e) !== null)
+        return { ok: false as const, message: "Mã này đã có trong kho của ngân hàng đó" };
+      throw e;
+    }
+
+    const [item] = await tx
+      .select(codeColumns)
+      .from(referralCodes)
+      .innerJoin(banks, eq(banks.id, referralCodes.bankId))
+      .where(eq(referralCodes.id, id));
+    return { ok: true as const, item };
+  });
+}
+
 /* ── Kênh ─────────────────────────────────────────────────────────────── */
 
 const toChannel = (r: typeof channels.$inferSelect): Channel => ({

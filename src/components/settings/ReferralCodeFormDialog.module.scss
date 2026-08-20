@@ -20,3 +20,11 @@
   opacity: 0;
   pointer-events: none;
 }
+
+/* Câu giải thích cho ô đã khoá. Bám sát ô bên trên: âm lề để nó đọc như phần
+   phụ của ô đó, không phải một mục riêng trong biểu mẫu. */
+.lockNote {
+  margin: -10px 0 0;
+  font-size: 12.5px;
+  color: var(--color-neutral-600);
+}
