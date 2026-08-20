@@ -79,7 +79,19 @@ export function BankAccountEditDialog({ open, onClose, accountId }: Props) {
     // `values` chứ không phải `defaultValues`: chi tiết về SAU lượt render đầu,
     // mà `defaultValues` chỉ đọc một lần nên form sẽ trống mãi.
     values: {
-      accountNumber: data?.accountNumber ?? "",
+      /**
+       * Ngân hàng lấy số tài khoản theo SĐT thì điền sẵn SỐ CHÍNH — phần lớn
+       * khách mở bằng số đó. Nhân viên đổi sang số phụ ngay trong ô chọn nếu
+       * khách dùng số khác. `customerPhones[0]` là số chính, máy chủ đã sắp.
+       *
+       * Chỉ điền khi bản ghi CHƯA có số: tài khoản đang sửa mang số thật rồi
+       * thì đè lên là ghi lại hợp đồng theo dữ liệu suy đoán.
+       */
+      accountNumber:
+        data?.accountNumber ||
+        (data?.accountNumberMethod === "phone-match"
+          ? (data.customerPhones[0] ?? "")
+          : ""),
       openedDate: data?.date || businessDay(),
       appInstalled: data?.appInstalled ?? true,
       accountType: data?.accountType ?? "none",

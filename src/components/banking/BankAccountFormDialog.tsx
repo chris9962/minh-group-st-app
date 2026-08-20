@@ -112,7 +112,19 @@ export function BankAccountFormDialog({
       setAccount(created);
       setPhotos(savedPhotos(created.photoUrls));
       finishForm.reset({
-        accountNumber: created.accountNumber,
+      /**
+       * Ngân hàng lấy số tài khoản theo SĐT thì điền sẵn SỐ CHÍNH — phần lớn
+       * khách mở bằng số đó. Nhân viên đổi sang số phụ ngay trong ô chọn nếu
+       * khách dùng số khác. `customerPhones[0]` là số chính, máy chủ đã sắp.
+       *
+       * Chỉ điền khi bản ghi CHƯA có số: tài khoản đang sửa mang số thật rồi
+       * thì đè lên là ghi lại hợp đồng theo dữ liệu suy đoán.
+       */
+        accountNumber:
+          created.accountNumber ||
+          (selectedBank?.accountNumberMethod === "phone-match"
+            ? (created.customerPhones[0] ?? "")
+            : ""),
         openedDate: created.openedDate || businessDay(),
         appInstalled: true,
         accountType: "none",
