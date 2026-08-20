@@ -10,6 +10,14 @@ type Props = Omit<React.InputHTMLAttributes<HTMLInputElement>, "id"> & {
   error?: string;
   /** Chú thích dưới ô nhập, ví dụ "đủ 12 số". */
   hint?: string;
+  /**
+   * Nội dung dán thêm vào cuối hàng nhãn — bộ đếm ký tự, chữ "không bắt buộc",
+   * một liên kết nhỏ.
+   *
+   * Khe cắm chứ không phải một prop cho từng nhu cầu: nơi gọi đã có sẵn giá trị
+   * và luật của nó, `TextField` không cần biết thứ dán vào là gì.
+   */
+  labelAppend?: React.ReactNode;
   /** Nút hoặc ký hiệu nằm đè bên phải trong ô — nút hiện mật khẩu, đơn vị tiền. */
   trailing?: React.ReactNode;
   ref?: React.Ref<HTMLInputElement>;
@@ -21,7 +29,17 @@ type Props = Omit<React.InputHTMLAttributes<HTMLInputElement>, "id"> & {
  * Nhãn LUÔN liên kết với input qua id — bắt buộc cho trình đọc màn hình,
  * và bấm vào nhãn thì con trỏ nhảy vào ô.
  */
-export function TextField({ label, required, error, hint, trailing, className, ref, ...rest }: Props) {
+export function TextField({
+  label,
+  required,
+  error,
+  hint,
+  labelAppend,
+  trailing,
+  className,
+  ref,
+  ...rest
+}: Props) {
   const id = useId();
   const errorId = `${id}-error`;
   const hintId = `${id}-hint`;
@@ -36,6 +54,7 @@ export function TextField({ label, required, error, hint, trailing, className, r
             {" *"}
           </span>
         )}
+        {labelAppend}
       </label>
       <div className={styles.control}>
         <input

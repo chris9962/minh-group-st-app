@@ -7,6 +7,7 @@ import { useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
+import { CharCount } from "@/components/ui/CharCount";
 import { CopyButton } from "@/components/ui/CopyValue";
 import { Dialog } from "@/components/ui/Dialog";
 import { Select } from "@/components/ui/Select";
@@ -285,6 +286,8 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
             required
             placeholder="0912345678"
             inputMode="numeric"
+            maxLength={10}
+            labelAppend={<CharCount value={watch("phone")} max={10} />}
             error={errors.phone?.message}
             {...register("phone")}
           />

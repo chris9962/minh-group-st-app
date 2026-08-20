@@ -1,0 +1,18 @@
+/* Đẩy sang mép phải của hàng nhãn. `tabular-nums` để con số không nhảy ngang
+   mỗi lần gõ thêm một ký tự. */
+.count,
+.done {
+  float: right;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--om-text-3);
+}
+
+/* Đủ số ký tự thì đổi màu. Con số vẫn là kênh chính — màu chỉ đi kèm, đúng
+   AGENTS.md §8.
+
+   `--om-green-ink` chứ không phải `--om-green`: cái sau là màu dấu hiệu cho
+   viền và biểu tượng, đạt 2,5:1 trên nền trắng nên chữ 12px đọc không ra. */
+.done {
+  color: var(--om-green-ink);
+}

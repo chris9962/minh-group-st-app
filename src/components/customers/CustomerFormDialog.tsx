@@ -6,6 +6,7 @@ import { Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { Button } from "@/components/ui/Button";
+import { CharCount } from "@/components/ui/CharCount";
 import { Combobox } from "@/components/ui/Combobox";
 import { Dialog } from "@/components/ui/Dialog";
 import { ErrorState } from "@/components/ui/ErrorState";
@@ -273,6 +274,9 @@ export function CustomerFormDialog({
                 label="CCCD"
                 required
                 placeholder="092301004871"
+                inputMode="numeric"
+                maxLength={12}
+                labelAppend={<CharCount value={watch("idNumber")} max={12} />}
                 error={errors.idNumber?.message}
                 {...register("idNumber")}
               />
@@ -380,6 +384,9 @@ export function CustomerFormDialog({
                     label={`Số điện thoại ${i + 1}`}
                     required
                     placeholder="0901234567"
+                    inputMode="numeric"
+                    maxLength={10}
+                    labelAppend={<CharCount value={phones[i]?.number} max={10} />}
                     error={errors.phones?.[i]?.number?.message}
                     {...register(`phones.${i}.number`)}
                   />

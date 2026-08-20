@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/Button";
+import { CharCount } from "@/components/ui/CharCount";
 import { Dialog } from "@/components/ui/Dialog";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { Select } from "@/components/ui/Select";
@@ -131,6 +132,9 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId }: Props) {
     <TextField
       label="CCCD"
       required
+      inputMode="numeric"
+      maxLength={12}
+      labelAppend={<CharCount value={form.watch("beneficiaryIdNumber")} max={12} />}
       error={errors.beneficiaryIdNumber?.message}
       {...form.register("beneficiaryIdNumber")}
     />
@@ -302,6 +306,9 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId }: Props) {
             <TextField
               label="Số điện thoại"
               required
+              inputMode="numeric"
+              maxLength={10}
+              labelAppend={<CharCount value={form.watch("beneficiaryPhone")} max={10} />}
               error={errors.beneficiaryPhone?.message}
               {...form.register("beneficiaryPhone")}
             />

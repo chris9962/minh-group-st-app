@@ -7,6 +7,7 @@ import { useFieldArray, useForm } from "react-hook-form";
 import { UserCheck } from "lucide-react";
 import { DepartmentPicker } from "@/components/layout/DepartmentPicker";
 import { Button } from "@/components/ui/Button";
+import { CharCount } from "@/components/ui/CharCount";
 import { Dialog } from "@/components/ui/Dialog";
 import { Select } from "@/components/ui/Select";
 import { TextField } from "@/components/ui/TextField";
@@ -300,6 +301,11 @@ export function InsuranceOrderFormDialog({
         <TextField
             label="CCCD"
             required={!watch(`legs.${i}.beneficiaryIsCustomer`)}
+            inputMode="numeric"
+            maxLength={12}
+            labelAppend={
+              <CharCount value={watch(`legs.${i}.beneficiaryIdNumber`)} max={12} />
+            }
             /**
              * Ô rỗng + chấm mờ khi máy chủ sẽ tự điền. KHÔNG hiện 4 số cuối ở
              * đây: trong một ô nhập, "7872" đọc ra như một CCCD đã điền xong và
@@ -333,6 +339,11 @@ export function InsuranceOrderFormDialog({
           <TextField
             label="CCCD"
             required={!watch(`legs.${i}.beneficiaryIsCustomer`)}
+            inputMode="numeric"
+            maxLength={12}
+            labelAppend={
+              <CharCount value={watch(`legs.${i}.beneficiaryIdNumber`)} max={12} />
+            }
             /**
              * Ô rỗng + chấm mờ khi máy chủ sẽ tự điền. KHÔNG hiện 4 số cuối ở
              * đây: trong một ô nhập, "7872" đọc ra như một CCCD đã điền xong và
@@ -359,6 +370,9 @@ export function InsuranceOrderFormDialog({
       <TextField
         label="Số điện thoại"
         required
+        inputMode="numeric"
+        maxLength={10}
+        labelAppend={<CharCount value={watch(`legs.${i}.beneficiaryPhone`)} max={10} />}
         error={errors.legs?.[i]?.beneficiaryPhone?.message}
         {...register(`legs.${i}.beneficiaryPhone`)}
       />

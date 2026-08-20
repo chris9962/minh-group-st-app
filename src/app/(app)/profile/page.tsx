@@ -19,7 +19,7 @@ export default function ProfilePage() {
 
   return (
     <>
-      <TopBar title="Thông tin cá nhân" />
+      <TopBar title="Thông tin cá nhân" keepTitleOnMobile />
 
       <main className={styles.body}>
         <SectionCard
