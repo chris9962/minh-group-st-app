@@ -10,10 +10,10 @@
   white-space: nowrap;
 }
 
+/* Cùng lý do với `.select` ở `Select.module.css`: để `.input` toàn cục quyết
+   chiều cao và cỡ chữ, không hạ xuống 34px/13px. */
 .input {
   width: auto;
-  min-height: 34px;
-  font-size: 13px;
   max-width: 220px;
 }
 

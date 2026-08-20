@@ -33,6 +33,7 @@ type Props = {
 export function Dialog({ open, title, onClose, children, footer }: Props) {
   const ref = useRef<HTMLDialogElement>(null);
   const [dialogEl, setDialogEl] = useState<HTMLDialogElement | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const [canScrollDown, setCanScrollDown] = useState(false);
@@ -46,7 +47,25 @@ export function Dialog({ open, title, onClose, children, footer }: Props) {
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    if (open && !el.open) el.showModal();
+    if (open && !el.open) {
+      el.showModal();
+      /**
+       * Kéo tiêu điểm khỏi nút Đóng.
+       *
+       * `showModal()` tự đặt tiêu điểm vào phần tử bấm được ĐẦU TIÊN trong hộp
+       * thoại, và đó luôn là nút Đóng ở góc phải tiêu đề. Trình duyệt coi lượt
+       * đặt tiêu điểm đó là "đi bằng bàn phím" nên `:focus-visible` bật, và mọi
+       * hộp thoại mở ra đều có một khung viền quanh dấu X.
+       *
+       * Đặt vào khung hộp thoại thay vì bỏ hẳn: bẫy tiêu điểm và phím Esc của
+       * `<dialog>` cần tiêu điểm nằm BÊN TRONG. Bỏ hẳn thì Tab đầu tiên nhảy ra
+       * thanh địa chỉ trình duyệt.
+       *
+       * KHÔNG đặt vào ô nhập đầu tiên: đội kinh doanh dùng điện thoại, và bàn
+       * phím ảo bật ngay lúc mở sẽ che mất nửa hộp thoại.
+       */
+      panelRef.current?.focus();
+    }
     if (!open && el.open) el.close();
 
     if (!open) return;
@@ -107,7 +126,8 @@ export function Dialog({ open, title, onClose, children, footer }: Props) {
     >
       {open && (
         <DialogPortalContext.Provider value={dialogEl}>
-          <div className={styles.panel}>
+          {/* `tabIndex={-1}` để `focus()` gọi được, nhưng Tab không dừng ở đây. */}
+          <div ref={panelRef} className={styles.panel} tabIndex={-1}>
             <header className={styles.head}>
               <h2 className={styles.title}>{title}</h2>
               <button

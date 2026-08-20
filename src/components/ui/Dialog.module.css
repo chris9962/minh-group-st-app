@@ -25,6 +25,14 @@
   box-shadow: var(--shadow-lg);
 }
 
+/* Khung hộp thoại nhận tiêu điểm lúc mở (xem `Dialog.tsx`) nhưng không phải thứ
+   bấm được, nên không vẽ viền tiêu điểm. Các nút bên trong vẫn giữ viền của
+   chúng. */
+.panel:focus,
+.panel:focus-visible {
+  outline: none;
+}
+
 .head {
   flex: none;
   display: flex;

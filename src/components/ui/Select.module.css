@@ -10,10 +10,11 @@
   white-space: nowrap;
 }
 
+/* KHÔNG ghi đè `min-height` và `font-size` của `.input`. Bản trước hạ xuống
+   34px/13px, nên ô chọn đứng cạnh ô nhập trong cùng một hàng bị lệch mép dưới,
+   và vùng bấm hụt so với mức 44px của AGENTS.md §8. */
 .select {
   width: auto;
-  min-height: 34px;
-  font-size: 13px;
   cursor: pointer;
   max-width: 220px;
 }

@@ -17,10 +17,9 @@
   text-align: left;
 }
 
+/* Cùng lý do với `.select`: để `.input` quyết chiều cao và cỡ chữ. */
 .trigger {
   width: auto;
-  min-height: 32px;
-  font-size: 13px;
   cursor: pointer;
   white-space: nowrap;
 }
