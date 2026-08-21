@@ -39,6 +39,16 @@
     padding: 32px 28px;
     text-align: center;
   }
+  /* Ảnh trang trí, thu theo bề ngang thẻ. `aspect-ratio` giữ chỗ sẵn nên chữ bên
+     dưới không nhảy khi ảnh tải xong. */
+  .minh-hoa {
+    width: 100%;
+    max-width: 20rem;
+    aspect-ratio: 4 / 3;
+    height: auto;
+    margin: 0 auto 8px;
+    display: block;
+  }
   .badge {
     display: inline-block;
     padding: 4px 12px;
@@ -68,6 +78,9 @@
 </head>
 <body>
 <main>
+  <!-- alt rỗng vì ảnh chỉ trang trí: tiêu đề ngay dưới đã nói đủ nội dung, đọc
+       lại lần nữa cho người dùng trình đọc màn hình là thừa. -->
+  <img class="minh-hoa" src="/__maintenance/maintenance.webp" alt="" width="800" height="600">
   <span class="badge">Đang bảo trì</span>
   <h1>Hệ thống đang được nâng cấp</h1>
   <p id="loi-nhan">Đội kỹ thuật đang cập nhật dữ liệu. Bạn vui lòng quay lại sau ít phút.</p>
