@@ -25,6 +25,7 @@ import {
 import { fetchHospitals } from "@/lib/api/hospitalCatalog";
 import { fetchProvinces } from "@/lib/api/wardCatalog";
 import { errorMessage, toast } from "@/lib/toast";
+import { useSession } from "@/store/session";
 import styles from "./CustomerFormDialog.module.scss";
 
 type Props = {
@@ -83,6 +84,14 @@ export function CustomerFormDialog({
   const queryClient = useQueryClient();
   const editing = Boolean(customer) || loading || Boolean(loadError);
   const maskedId = Boolean(customer?.idNumberMasked);
+  /**
+   * Người TẠO hồ sơ ghi đè được CCCD dù chỉ thấy 4 số cuối (chốt 2026-08-21).
+   *
+   * Chính họ gõ 12 số lúc lập hồ sơ nên cũng chính họ gõ sai. Đây chỉ là phép
+   * ẩn/hiện; chốt thật nằm ở `updateCustomer` — xem `server/customers.ts`.
+   */
+  const actorId = useSession((s) => s.user?.id);
+  const canWriteMaskedId = Boolean(customer && actorId && customer.createdById === actorId);
 
   // `values` để form nhận hồ sơ tải xong SAU khi dialog đã mở (luồng nút Sửa ở
   // P-40). Memo theo `customer` — mỗi render một object mới là form reset liên tục.
@@ -259,16 +268,30 @@ export function CustomerFormDialog({
               onChange={(v) => setValue("dob", v, { shouldDirty: true, shouldValidate: true })}
               error={errors.dob?.message}
             />
-            {/* CCCD là trường bảo mật: không có `customer:access-id-number` thì
-                máy chủ chỉ trả 4 số cuối và bỏ qua mọi giá trị gửi lên, nên ô
-                phải khoá. Để mở mà máy chủ lặng lẽ bỏ qua thì người sửa gõ xong
-                bấm Lưu, thấy "đã lưu", rồi mở lại thấy số cũ. */}
-            {maskedId ? (
+            {/* CCCD là trường bảo mật, ba nhánh theo đúng ba nhóm ở
+                `updateCustomer`. Người không ghi đè được thì ô phải KHOÁ: để mở
+                mà máy chủ lặng lẽ bỏ qua thì người sửa gõ xong bấm Lưu, thấy
+                "đã lưu", rồi mở lại thấy số cũ. */}
+            {maskedId && !canWriteMaskedId ? (
               <TextField
                 label="CCCD"
                 readOnly
                 value={`•••• •••• ${customer?.idNumber ?? ""}`}
                 hint="Bạn chỉ được xem 4 số cuối — cần sửa thì nhờ người có quyền xem CCCD."
+              />
+            ) : maskedId ? (
+              /* Ô để TRỐNG, không đổ 4 số cuối vào: đổ vào thì người sửa bấm Lưu
+                 mà không gõ gì là gửi lên một chuỗi 4 ký tự. Không đánh dấu
+                 `required` vì trống là hợp lệ — nó nghĩa là giữ nguyên số cũ. */
+              <TextField
+                label="CCCD"
+                placeholder="Gõ 12 số mới để thay số cũ"
+                inputMode="numeric"
+                maxLength={12}
+                labelAppend={<CharCount value={watch("idNumber")} max={12} />}
+                hint={`Số đang lưu: •••• •••• ${customer?.idNumber ?? ""}. Để trống thì giữ nguyên, gõ đủ 12 số thì ghi đè.`}
+                error={errors.idNumber?.message}
+                {...register("idNumber")}
               />
             ) : (
               <TextField

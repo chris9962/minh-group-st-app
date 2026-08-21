@@ -503,17 +503,34 @@ export async function createCustomer(
 }
 
 /**
- * Sửa hồ sơ. Người KHÔNG có `access-id-number` sửa được mọi thứ trừ CCCD.
+ * Sửa hồ sơ. Ba nhóm, hai cách xử lý ô CCCD (chốt 2026-08-21, câu M2):
  *
- * Bỏ qua ô CCCD họ gửi lên thay vì trả 403: giao diện chỉ đưa cho họ 4 số cuối,
+ *   có `access-id-number`  →  ghi đè được, họ thấy số thật
+ *   NGƯỜI TẠO hồ sơ        →  ghi đè được, dù chỉ thấy 4 số cuối
+ *   còn lại                →  ô CCCD bị bỏ qua
+ *
+ * Người tạo được sửa vì chính họ là người gõ 12 số lúc lập hồ sơ, nên cũng
+ * chính họ là người gõ sai. Bắt họ nhờ người có quyền xem CCCD thì một lỗi gõ
+ * phải đi qua hai người.
+ *
+ * Nhóm thứ ba bị bỏ qua chứ không trả 403: giao diện chỉ đưa cho họ 4 số cuối,
  * nên thứ quay về máy chủ là `"4871"` — nhận vào là ghi đè số thật bằng 4 ký
- * tự. Khoá một chiều ở đây thì kể cả request nặn tay cũng không xoá được số.
+ * tự. Khoá một chiều ở đây thì kể cả request nặn tay cũng không đụng được số.
+ *
+ * ⚠️ RỖNG NGHĨA LÀ "KHÔNG ĐỤNG TỚI", KHÔNG PHẢI "XOÁ". Ô CCCD của người không
+ * thấy số nạp lên rỗng, và họ mở biểu mẫu để sửa địa chỉ hay số điện thoại là
+ * chuyện thường. Nhận rỗng rồi ghi `null` là xoá CCCD của mọi hồ sơ đi qua
+ * đường đó.
+ *
+ * `idNumberWritten` nói lượt ghi này CÓ đụng vào cột CCCD hay không — route
+ * dùng nó cho nhật ký. Người tạo không thấy số cũ nên không tự đối chiếu được;
+ * thiếu dấu vết thì không ai lần ra ai đã đổi.
  */
 export async function updateCustomer(
   actor: User,
   id: string,
   form: CustomerEditForm,
-): Promise<CustomerOutcome<Customer> | null> {
+): Promise<(CustomerOutcome<Customer> & { idNumberWritten?: boolean }) | null> {
   /**
    * Phạm vi mức DÒNG — khác `can()` ở route.
    *
@@ -538,6 +555,9 @@ export async function updateCustomer(
   if (!recordInScope(recordVisibility(actor, "customer", "update"), owner)) return null;
 
   const full = seesIdNumber(actor);
+  const isCreator = owner.createdById === actor.id;
+  const canWriteIdNumber = full || isCreator;
+  const idNumberWritten = canWriteIdNumber && Boolean(form.idNumber);
 
   const result = await writeGuarded(async () => {
     const updated = await db.transaction(async (tx) => {
@@ -546,13 +566,8 @@ export async function updateCustomer(
         .set({
           fullName: form.fullName,
           dob: form.dob || null,
-          /**
-           * Chỉ ghi CCCD khi người sửa CÓ quyền VÀ có gửi số lên. Rỗng nghĩa là
-           * "không đụng tới", không phải "xoá" — biểu mẫu sửa cho để trống nên
-           * nhận rỗng rồi ghi `null` là mất số của một hồ sơ mà người dùng chỉ
-           * định sửa số điện thoại.
-           */
-          ...(full && form.idNumber ? { idNumber: form.idNumber } : {}),
+          // Xem bảng ba nhóm ở đầu hàm. Rỗng là "không đụng tới", không phải "xoá".
+          ...(idNumberWritten ? { idNumber: form.idNumber } : {}),
           address: form.address,
           channelId: form.channelId || null,
           channelDetail: form.channelDetail,
@@ -581,7 +596,7 @@ export async function updateCustomer(
    * khoản. Cột nay lưu DANH SÁCH MÃ QUÀ, và kênh đổi đúng danh sách đó.
    */
   await recomputeGiftCase(id);
-  return result.customer ? { ok: true, customer: result.customer } : null;
+  return result.customer ? { ok: true, customer: result.customer, idNumberWritten } : null;
 }
 
 /* ── P-42 · Hồ sơ 360° ────────────────────────────────────────────────── */

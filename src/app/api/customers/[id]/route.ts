@@ -53,7 +53,7 @@ export async function GET(request: Request, { params }: Params) {
   return Response.json(detail);
 }
 
-/** P-41 · Sửa hồ sơ. Ô CCCD bị bỏ qua khi người sửa không có `access-id-number`. */
+/** P-41 · Sửa hồ sơ. Ai ghi đè được CCCD: xem `updateCustomer` ở `server/customers.ts`. */
 export async function PATCH(request: Request, { params }: Params) {
   const guard = await actorWith(request, "customer", "update");
   if (!guard.ok) return guard.response;
@@ -78,10 +78,19 @@ export async function PATCH(request: Request, { params }: Params) {
     );
   }
 
+  /**
+   * Ghi rõ lượt sửa có đụng vào CCCD hay không.
+   *
+   * Người tạo hồ sơ ghi đè được CCCD mà không thấy số cũ (chốt 2026-08-21).
+   * Nhãn chung "Sửa khách hàng X" không phân biệt được lượt đổi địa chỉ với
+   * lượt đổi CCCD, nên không ai lần ra ai đã đổi số của khách.
+   */
   await logAudit(guard.actor, {
     module: "customer",
     action: "update",
-    targetLabel: `Sửa khách hàng ${result.customer.fullName}`,
+    targetLabel: result.idNumberWritten
+      ? `Sửa khách hàng ${result.customer.fullName} — có ghi đè CCCD`
+      : `Sửa khách hàng ${result.customer.fullName}`,
     targetTable: "customers",
     targetId: id,
   });
