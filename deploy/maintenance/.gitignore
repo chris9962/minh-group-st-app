@@ -1,5 +1,5 @@
 # Trạng thái lúc chạy, không phải mã nguồn: `on` là file đánh dấu đang bảo trì,
-# `until.txt` là mốc giờ kết thúc dự kiến. Hai script bat-bao-tri.sh và
-# tat-bao-tri.sh sinh ra chúng.
+# `until.txt` là mốc giờ kết thúc dự kiến. Hai script maintenance-on.sh và
+# maintenance-off.sh sinh ra chúng.
 on
 until.txt

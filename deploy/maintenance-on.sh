@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Bật chế độ bảo trì. Tham số là số phút dự kiến, mặc định 15.
 #
-#   ./deploy/bat-bao-tri.sh        # 15 phút
-#   ./deploy/bat-bao-tri.sh 30     # 30 phút
+#   ./deploy/maintenance-on.sh        # 15 phút
+#   ./deploy/maintenance-on.sh 30     # 30 phút
 #
 # Không cần `nginx -t` lẫn `systemctl reload nginx`: Nginx kiểm sự tồn tại của
 # file `on` ở từng request, xem `deploy/nginx/app.conf`.
@@ -31,4 +31,4 @@ printf '%s\n' "$MOC" > "$THU_MUC/until.txt"
 touch "$THU_MUC/on"
 
 echo "Đã bật bảo trì. Dự kiến xong lúc $MOC (giờ UTC), tức $SO_PHUT phút nữa."
-echo "Tắt bằng: $(dirname "${BASH_SOURCE[0]}")/tat-bao-tri.sh"
+echo "Tắt bằng: $(dirname "${BASH_SOURCE[0]}")/maintenance-off.sh"

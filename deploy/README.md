@@ -14,8 +14,8 @@ Thông số máy chủ, chứng chỉ, tài khoản nằm ở `docs/deploy-fpt-c
 | `nginx/app.conf` | khối `location` của app, chế độ bảo trì, trần dung lượng ảnh |
 | `nginx/proxy.conf` | header chuyển tiếp dùng chung, `nginx/app.conf` include vào |
 | `maintenance/index.html` | trang bảo trì, tự đếm ngược và tự tải lại |
-| `bat-bao-tri.sh` | bật bảo trì, tham số là số phút dự kiến |
-| `tat-bao-tri.sh` | tắt bảo trì |
+| `maintenance-on.sh` | bật bảo trì, tham số là số phút dự kiến |
+| `maintenance-off.sh` | tắt bảo trì |
 
 `maintenance/on` và `maintenance/until.txt` là trạng thái lúc chạy, hai script
 sinh ra, `.gitignore` chặn.
@@ -50,7 +50,7 @@ certbot vừa ghi và HTTPS dừng.
 
 ```bash
 cd /opt/mgst-app
-./deploy/bat-bao-tri.sh 15      # dự kiến 15 phút
+./deploy/maintenance-on.sh 15   # dự kiến 15 phút
 
 git fetch origin main && git reset --hard origin/main
 bun install --frozen-lockfile
@@ -58,7 +58,7 @@ bun run db:migrate
 bun run build
 systemctl restart mgst-app
 
-./deploy/tat-bao-tri.sh
+./deploy/maintenance-off.sh
 ```
 
 Bật và tắt KHÔNG cần `nginx -t` lẫn `systemctl reload nginx`. Nginx kiểm sự tồn
