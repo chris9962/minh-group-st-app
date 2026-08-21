@@ -3,6 +3,7 @@ import { CODE_LOW_RATIO } from "@/lib/api/bankCatalog";
 import type {
   Bank,
   BankForm,
+  CodeScope,
   CodeStatus,
   ReferralCode,
   ReferralCodeForm,
@@ -45,6 +46,7 @@ import {
   provinces,
   refProvinces,
   refWards,
+  referralCodeDepartments,
   referralCodes,
   serviceTypes,
   wards,
@@ -233,7 +235,39 @@ const codeColumns = {
   // ở mọi nơi dùng, khỏi phải kiểm `null` riêng.
   openUrl: sql<string>`coalesce(${referralCodes.openUrl}, '')`,
   priority: referralCodes.priority,
+  scope: sql<CodeScope>`${referralCodes.scope}`,
+  /**
+   * Gom phòng trong CÙNG câu chọn, không gọi thêm lượt nào cho mỗi dòng.
+   *
+   * `filter (where … is not null)` bỏ dòng NULL do phép nối trái sinh ra với mã
+   * `all` — thiếu nó thì mảng ra `[null]` chứ không phải rỗng.
+   */
+  departmentIds: sql<string[]>`coalesce(
+    array_agg(${referralCodeDepartments.departmentId})
+      filter (where ${referralCodeDepartments.departmentId} is not null),
+    '{}'
+  )`,
 };
+
+/**
+ * Nhóm theo mọi cột KHÔNG gộp — bắt buộc vì `departmentIds` là `array_agg`.
+ *
+ * Liệt kê tay chứ không `group by 1,2,3…`: thêm cột vào `codeColumns` mà quên
+ * chỗ này thì Postgres báo lỗi ngay, còn số thứ tự thì lệch trong im lặng.
+ */
+const codeGroupBy = [
+  referralCodes.id,
+  banks.code,
+  referralCodes.bankId,
+  referralCodes.code,
+  referralCodes.total,
+  referralCodes.importedUsed,
+  referralCodes.usedCount,
+  referralCodes.holdingCount,
+  referralCodes.openUrl,
+  referralCodes.priority,
+  referralCodes.scope,
+] as const;
 
 /**
  * Vô hiệu ký tự đại diện của `ILIKE` trong chữ người dùng gõ.
@@ -284,7 +318,12 @@ export async function listReferralCodes(
       .select(codeColumns)
       .from(referralCodes)
       .innerJoin(banks, eq(banks.id, referralCodes.bankId))
+      .leftJoin(
+        referralCodeDepartments,
+        eq(referralCodeDepartments.referralCodeId, referralCodes.id),
+      )
       .where(where)
+      .groupBy(...codeGroupBy)
       .orderBy(...orderBy)
       .limit(page.limit)
       .offset(page.offset),
@@ -321,23 +360,94 @@ export async function listReferralCodeOptions(): Promise<string[]> {
  * bảng P-61. Đây là danh sách để đi mở tài khoản ngay bây giờ, nên chỗ người
  * khác đang mở dở không phải là chỗ trống.
  */
-export async function listOpenReferralCodes(bankId: string): Promise<ReferralCode[]> {
+/**
+ * `departmentId` là phòng GHI NHẬN của bản ghi sắp tạo (spec §4.4d, chốt câu 1).
+ *
+ * Rỗng nghĩa là người gọi không thuộc phòng nào VÀ chưa chọn phòng — khi đó chỉ
+ * còn mã `all`. Không mở rộng thành "thấy mọi mã": mã giới hạn phải giới hạn
+ * thật, kể cả với Ban giám đốc.
+ */
+export const inDepartmentScope = (departmentId: string): SQL =>
+  sql`(${referralCodes.scope} = 'all' or exists (
+        select 1 from ${referralCodeDepartments}
+        where ${referralCodeDepartments.referralCodeId} = ${referralCodes.id}
+          and ${referralCodeDepartments.departmentId} = ${departmentId}::uuid
+      ))`;
+
+export async function listOpenReferralCodes(
+  bankId: string,
+  departmentId: string,
+): Promise<ReferralCode[]> {
   return db
     .select(codeColumns)
     .from(referralCodes)
     .innerJoin(banks, eq(banks.id, referralCodes.bankId))
-    .where(and(eq(referralCodes.bankId, bankId), sql`${remainingExpr} > 0`))
+    .leftJoin(
+      referralCodeDepartments,
+      eq(referralCodeDepartments.referralCodeId, referralCodes.id),
+    )
+    .where(
+      and(
+        eq(referralCodes.bankId, bankId),
+        sql`${remainingExpr} > 0`,
+        departmentId
+          ? inDepartmentScope(departmentId)
+          : sql`${referralCodes.scope} = 'all'`,
+      ),
+    )
+    .groupBy(...codeGroupBy)
     // Ưu tiên do người dùng đặt đứng trước, rồi mới tới số chỗ trống. Mã đã
     // đầy không nằm trong câu này nên ưu tiên cao cũng không kéo nó trở lại.
     .orderBy(desc(referralCodes.priority), desc(remainingExpr), asc(referralCodes.code));
+}
+
+/**
+ * Ghi lại danh sách phòng của một mã: xoá sạch rồi chèn lại.
+ *
+ * Không so từng dòng để chèn/xoá phần chênh: danh sách nhiều nhất là 15 phòng,
+ * mà phép so đó là chỗ dễ sai hơn hẳn một lượt ghi đè.
+ */
+async function writeCodeDepartments(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  codeId: string,
+  form: ReferralCodeForm,
+) {
+  await tx
+    .delete(referralCodeDepartments)
+    .where(eq(referralCodeDepartments.referralCodeId, codeId));
+
+  if (form.scope !== "departments" || form.departmentIds.length === 0) return;
+
+  await tx.insert(referralCodeDepartments).values(
+    form.departmentIds.map((departmentId) => ({ referralCodeId: codeId, departmentId })),
+  );
+}
+
+/** Đọc lại một mã bằng chính `codeColumns` — trạng thái chỉ có một định nghĩa. */
+async function readCode(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  codeId: string,
+): Promise<ReferralCode> {
+  const [item] = await tx
+    .select(codeColumns)
+    .from(referralCodes)
+    .innerJoin(banks, eq(banks.id, referralCodes.bankId))
+    .leftJoin(
+      referralCodeDepartments,
+      eq(referralCodeDepartments.referralCodeId, referralCodes.id),
+    )
+    .where(eq(referralCodes.id, codeId))
+    .groupBy(...codeGroupBy);
+  return item;
 }
 
 export async function createReferralCode(
   form: ReferralCodeForm,
 ): Promise<CatalogOutcome<ReferralCode>> {
   try {
-    const [row] = await db
-      .insert(referralCodes)
+    return await db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(referralCodes)
       .values({
         bankId: form.bankId,
         code: form.code,
@@ -346,17 +456,13 @@ export async function createReferralCode(
         // biểu diễn cho cùng một trạng thái sớm muộn lệch nhau khi lọc.
         openUrl: form.openUrl || null,
         priority: form.priority,
+        scope: form.scope,
       })
       .returning();
-    // Đọc lại bằng chính `codeColumns` chứ không tự dựng đối tượng: trạng thái
-    // chỉ có một định nghĩa, nằm trong SQL. Dựng tay ở đây là chép công thức
-    // lần hai.
-    const [item] = await db
-      .select(codeColumns)
-      .from(referralCodes)
-      .innerJoin(banks, eq(banks.id, referralCodes.bankId))
-      .where(eq(referralCodes.id, row.id));
-    return { ok: true, item };
+
+      await writeCodeDepartments(tx, row.id, form);
+      return { ok: true as const, item: await readCode(tx, row.id) };
+    });
   } catch (e) {
     if (uniqueViolationOf(e) !== null) return { ok: false, reason: "code-taken" };
     throw e;
@@ -431,20 +537,20 @@ export async function updateReferralCode(
           total: form.total,
           openUrl: form.openUrl || null,
           priority: form.priority,
+          scope: form.scope,
         })
         .where(eq(referralCodes.id, id));
+
+      // Đổi phạm vi KHÔNG đụng tài khoản đã mở (spec §4.4d, chốt câu 3): phạm
+      // vi là cấu hình nhất thời, chỉ chặn lượt mở mới.
+      await writeCodeDepartments(tx, id, form);
     } catch (e) {
       if (uniqueViolationOf(e) !== null)
         return { ok: false as const, message: "Mã này đã có trong kho của ngân hàng đó" };
       throw e;
     }
 
-    const [item] = await tx
-      .select(codeColumns)
-      .from(referralCodes)
-      .innerJoin(banks, eq(banks.id, referralCodes.bankId))
-      .where(eq(referralCodes.id, id));
-    return { ok: true as const, item };
+    return { ok: true as const, item: await readCode(tx, id) };
   });
 }
 

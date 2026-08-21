@@ -96,6 +96,20 @@ export const setBankActive = (id: string, active: boolean) =>
 
 /* ── P-61 · Kho mã giới thiệu — chỉ xem, tạo/nhập hàng loạt thuộc P-62 ──── */
 
+/**
+ * Phạm vi phòng của một mã (spec §4.4d).
+ *
+ * `all` — mọi nhân viên chọn được. `departments` — chỉ những phòng trong
+ * `departmentIds`.
+ */
+export const CodeScope = z.enum(['all', 'departments']);
+export type CodeScope = z.infer<typeof CodeScope>;
+
+export const CODE_SCOPE_LABEL: Record<CodeScope, string> = {
+  all: 'Mọi phòng',
+  departments: 'Phòng chỉ định',
+};
+
 export const CodeStatus = z.enum(['available', 'low', 'full']);
 export type CodeStatus = z.infer<typeof CodeStatus>;
 
@@ -154,6 +168,9 @@ export const ReferralCode = z.object({
   openUrl: z.string(),
   /** Số lớn lên đầu ô chọn mã, trong phạm vi một ngân hàng. 0 là mức thường. */
   priority: z.number(),
+  scope: CodeScope,
+  /** Rỗng khi `scope` là `all`. */
+  departmentIds: z.array(z.string()),
 });
 export type ReferralCode = z.infer<typeof ReferralCode>;
 
@@ -195,8 +212,21 @@ export async function fetchReferralCodeOptions(): Promise<string[]> {
  * đầu là ô chọn nói dối. Trả trọn danh sách còn chỗ, xếp mã nhiều chỗ trống lên
  * trước để mã sắp đầy không bị tranh nhau.
  */
-export async function fetchOpenReferralCodes(bankId: string): Promise<ReferralCode[]> {
-  const res = await fetch(`/api/settings/referral-codes/open?bankId=${encodeURIComponent(bankId)}`);
+/**
+ * `departmentId` là phòng GHI NHẬN của bản ghi sắp tạo, không phải phòng trên
+ * hồ sơ người gọi (spec §4.4d, chốt câu 1). Với nhân viên thường hai thứ đó
+ * bằng nhau; với Ban giám đốc thì chỉ có cái đầu tồn tại.
+ *
+ * Bỏ trống thì máy chủ tự dùng phòng của người gọi.
+ */
+export async function fetchOpenReferralCodes(
+  bankId: string,
+  departmentId = '',
+): Promise<ReferralCode[]> {
+  const res = await fetch(
+    `/api/settings/referral-codes/open?bankId=${encodeURIComponent(bankId)}` +
+      (departmentId ? `&departmentId=${encodeURIComponent(departmentId)}` : ''),
+  );
   if (!res.ok) throw new Error('Không tải được mã giới thiệu còn chỗ');
   return z.array(ReferralCode).parse(await res.json());
 }
@@ -223,7 +253,17 @@ export const ReferralCodeForm = z.object({
     .int('Độ ưu tiên phải là số nguyên')
     .min(0, 'Độ ưu tiên phải từ 0 trở lên')
     .max(SMALLINT_MAX, 'Độ ưu tiên lớn quá'),
-});
+  scope: CodeScope,
+  departmentIds: z.array(z.uuid()),
+})
+  /**
+   * Chọn "Phòng chỉ định" mà không tick phòng nào là mã KHÔNG AI dùng được —
+   * gần như luôn là quên bấm, không phải ý định.
+   */
+  .refine((form) => form.scope === 'all' || form.departmentIds.length > 0, {
+    path: ['departmentIds'],
+    message: 'Chọn ít nhất một phòng, hoặc đổi sang Mọi phòng',
+  });
 export type ReferralCodeForm = z.infer<typeof ReferralCodeForm>;
 
 export const createReferralCode = (form: ReferralCodeForm) =>

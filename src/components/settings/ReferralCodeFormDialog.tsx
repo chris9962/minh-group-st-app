@@ -6,16 +6,20 @@ import { QrCode } from "lucide-react";
 import { useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { Dialog } from "@/components/ui/Dialog";
 import { Select } from "@/components/ui/Select";
 import { TextField } from "@/components/ui/TextField";
 import {
+  CODE_SCOPE_LABEL,
   createReferralCode,
   fetchBanks,
   ReferralCodeForm,
   updateReferralCode,
+  type CodeScope,
   type ReferralCode,
 } from "@/lib/api/bankCatalog";
+import { fetchDepartments } from "@/lib/api/departments";
 import styles from "./ReferralCodeFormDialog.module.scss";
 import { readQrImage } from "@/lib/readQrImage";
 import { errorMessage, toast } from "@/lib/toast";
@@ -37,6 +41,10 @@ export function ReferralCodeFormDialog({ open, onClose, referral }: Props) {
   const queryClient = useQueryClient();
   const editing = Boolean(referral);
   const { data: banks = [] } = useQuery({ queryKey: ["banks"], queryFn: fetchBanks });
+  const { data: departments = [] } = useQuery({
+    queryKey: ["departments"],
+    queryFn: fetchDepartments,
+  });
 
   // Lúc thêm mới chỉ hiện ngân hàng đang triển khai. Lúc sửa thì lấy cả ngân
   // hàng đã tắt: mã cũ vẫn thuộc về nó, lọc đi là ô chọn hiện trống trơn.
@@ -56,6 +64,8 @@ export function ReferralCodeFormDialog({ open, onClose, referral }: Props) {
       total: referral?.total ?? 100,
       openUrl: referral?.openUrl ?? "",
       priority: referral?.priority ?? 0,
+      scope: referral?.scope ?? "all",
+      departmentIds: referral?.departmentIds ?? [],
     },
   });
 
@@ -176,6 +186,48 @@ export function ReferralCodeFormDialog({ open, onClose, referral }: Props) {
           error={errors.priority?.message}
           {...register("priority", { valueAsNumber: true })}
         />
+
+        <Select
+          block
+          required
+          label="Phạm vi sử dụng"
+          value={watch("scope")}
+          onChange={(v) => {
+            setValue("scope", v as CodeScope, { shouldDirty: true });
+            // Về "Mọi phòng" thì dọn luôn danh sách: giữ lại là lần sau mở ra
+            // thấy phòng còn tick mà ô chọn nói "Mọi phòng".
+            if (v === "all") setValue("departmentIds", [], { shouldDirty: true });
+          }}
+          options={Object.entries(CODE_SCOPE_LABEL).map(([value, label]) => ({ value, label }))}
+        />
+
+        {watch("scope") === "departments" && (
+          <fieldset className={styles.departments}>
+            <legend className={styles.legend}>Phòng dùng được mã này</legend>
+            {departments.map((department) => {
+              const picked = watch("departmentIds");
+              return (
+                <Checkbox
+                  key={department.id}
+                  label={department.name}
+                  checked={picked.includes(department.id)}
+                  onCheckedChange={(on) =>
+                    setValue(
+                      "departmentIds",
+                      on
+                        ? [...picked, department.id]
+                        : picked.filter((id) => id !== department.id),
+                      { shouldDirty: true, shouldValidate: true },
+                    )
+                  }
+                />
+              );
+            })}
+            {errors.departmentIds && (
+              <p className={styles.error}>{errors.departmentIds.message}</p>
+            )}
+          </fieldset>
+        )}
 
         <TextField
           label="Link mở tài khoản"

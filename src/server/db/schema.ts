@@ -244,6 +244,14 @@ export const referralCodes = pgTable(
      * Ô chọn chỉ hiện mã còn chỗ, nên số này KHÔNG kéo mã đã đầy trở lại.
      */
     priority: smallint("priority").notNull().default(0),
+    /**
+     * `all` = mọi phòng dùng được; `departments` = chỉ những phòng có dòng
+     * trong `referral_code_departments` (spec §4.4d).
+     *
+     * Ý định nằm ở cột này chứ không suy từ số dòng bảng nối: "cho tất cả" và
+     * "chưa chọn phòng nào" đều cho bảng nối rỗng nhưng là hai ý trái ngược.
+     */
+    scope: text("scope").notNull().default("all"),
     createdAt: createdAt(),
   },
   (t) => [
@@ -255,6 +263,29 @@ export const referralCodes = pgTable(
       "referral_codes_counts_non_negative",
       sql`used_count >= 0 and holding_count >= 0`,
     ),
+  ],
+);
+
+/**
+ * Phòng nào dùng được mã nào — chỉ có nghĩa khi `referral_codes.scope` là
+ * `departments` (spec §4.4d).
+ *
+ * Đổi phạm vi KHÔNG đụng tài khoản đã mở: phạm vi là cấu hình nhất thời, sáng
+ * cho phòng 1 chạy mã này thì chiều đổi sang phòng 2 được, mà lịch sử phải giữ
+ * nguyên.
+ */
+export const referralCodeDepartments = pgTable(
+  "referral_code_departments",
+  {
+    referralCodeId: uuid("referral_code_id")
+      .notNull()
+      .references(() => referralCodes.id, { onDelete: "cascade" }),
+    departmentId: uuid("department_id").notNull().references(() => departments.id),
+  },
+  (t) => [
+    primaryKey({ columns: [t.referralCodeId, t.departmentId] }),
+    // Câu lọc đi từ MỘT phòng ra danh sách mã; khoá chính lo chiều ngược lại.
+    index("referral_code_departments_department").on(t.departmentId),
   ],
 );
 

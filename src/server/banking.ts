@@ -33,6 +33,7 @@ import {
   customerPhones,
   customers,
   departments,
+  referralCodeDepartments,
   referralCodes,
   users,
 } from "./db/schema";
@@ -616,6 +617,7 @@ export async function startBankAccount(
         importedUsed: referralCodes.importedUsed,
         usedCount: referralCodes.usedCount,
         holdingCount: referralCodes.holdingCount,
+        scope: referralCodes.scope,
       })
       .from(referralCodes)
       .where(eq(referralCodes.id, form.referralCode))
@@ -627,6 +629,33 @@ export async function startBankAccount(
     if (!code) return { ok: false as const, message: "Không tìm thấy mã giới thiệu này" };
     if (code.bankId !== form.bankId)
       return { ok: false as const, message: "Mã giới thiệu này không thuộc ngân hàng đã chọn" };
+
+    /**
+     * Kiểm LẠI phạm vi phòng ở đây, không tin ô chọn đã lọc (spec §4.4d).
+     *
+     * Ô chọn lọc cho gọn màn hình; đường này mới là chốt. Gọi thẳng API với một
+     * mã của phòng khác thì phải bị từ chối.
+     */
+    if (code.scope !== "all") {
+      const [allowed] = await tx
+        .select({ id: referralCodeDepartments.departmentId })
+        .from(referralCodeDepartments)
+        .where(
+          and(
+            eq(referralCodeDepartments.referralCodeId, code.id),
+            department.departmentId
+              ? eq(referralCodeDepartments.departmentId, department.departmentId)
+              : sql`false`,
+          ),
+        )
+        .limit(1);
+
+      if (!allowed)
+        return {
+          ok: false as const,
+          message: `Mã ${code.code} không dùng được cho phòng đã chọn.`,
+        };
+    }
 
     const remaining = code.total - code.importedUsed - code.usedCount - code.holdingCount;
     if (remaining <= 0)

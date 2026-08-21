@@ -12,6 +12,7 @@ import { SectionCard } from "@/components/ui/SectionCard";
 import { Select } from "@/components/ui/Select";
 import { StatusTag } from "@/components/ui/StatusTag";
 import {
+  CODE_SCOPE_LABEL,
   CODE_STATUS_LABEL,
   fetchBanks,
   fetchReferralCodes,
@@ -19,6 +20,7 @@ import {
   type ReferralCode,
   type ReferralCodeQuery,
 } from "@/lib/api/bankCatalog";
+import { fetchDepartments } from "@/lib/api/departments";
 import { EMPTY_PAGE, PAGE_SIZE } from "@/lib/api/pagination";
 import { useDebouncedValue } from "@/lib/hooks";
 import { ReferralCodeFormDialog } from "./ReferralCodeFormDialog";
@@ -52,6 +54,11 @@ export function ReferralCodesSection() {
   const debouncedSearch = useDebouncedValue(search);
 
   const { data: banks = [] } = useQuery({ queryKey: ["banks"], queryFn: fetchBanks });
+  const { data: departments = [] } = useQuery({
+    queryKey: ["departments"],
+    queryFn: fetchDepartments,
+  });
+  const departmentName = new Map(departments.map((d) => [d.id, d.name]));
 
   const asked: ReferralCodeQuery = { ...query, search: debouncedSearch };
   const { data: page = EMPTY_PAGE, isPending, isError, refetch, isFetching } = useQuery({
@@ -100,6 +107,20 @@ export function ReferralCodesSection() {
       key: "holding",
       label: "Đang giữ",
       render: (c) => <span className="tabular-nums">{c.holding}</span>,
+    },
+    {
+      /* Không cho sắp: khoá sắp đi thẳng vào `ORDER BY` nên phải nằm trong danh
+         sách trắng của máy chủ, mà cột này chưa có. */
+      key: "scope",
+      label: "Phạm vi",
+      render: (c) =>
+        c.scope === "all" ? (
+          CODE_SCOPE_LABEL.all
+        ) : (
+          <span title={c.departmentIds.map((id) => departmentName.get(id) ?? id).join(", ")}>
+            {c.departmentIds.length} phòng
+          </span>
+        ),
     },
     {
       key: "status",
@@ -227,6 +248,8 @@ export function ReferralCodesSection() {
       )}
 
       <p className={styles.footnote}>
+        <strong>Phạm vi</strong> quyết định phòng nào chọn được mã lúc mở tài
+        khoản; đổi phạm vi KHÔNG đụng tài khoản đã mở.{" "}
         <strong>Ưu tiên</strong> quyết định thứ tự ô chọn mã lúc mở tài khoản —
         số lớn lên đầu, chỉ so giữa các mã cùng một ngân hàng, và mã đã đầy thì
         không hiện dù ưu tiên cao. Thêm từng mã một ở đây. Nhập <strong>hàng loạt</strong> từ Excel vẫn là

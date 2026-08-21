@@ -82,10 +82,18 @@ export function BankAccountFormDialog({
   const bankId = startForm.watch("bankId");
   const selectedBank = activeBanks.find((b) => b.id === bankId);
 
-  // Máy chủ đã lọc "còn chỗ" sẵn — không lọc lại ở đây (AGENTS.md §5.1).
+  /**
+   * Máy chủ đã lọc "còn chỗ" và lọc theo phạm vi phòng — không lọc lại ở đây
+   * (AGENTS.md §5.1).
+   *
+   * `departmentId` chỉ có giá trị với người không thuộc phòng nào; máy chủ bỏ
+   * qua nó với người có phòng và dùng phòng thật của họ. Nó nằm trong khoá
+   * cache vì đổi phòng là đổi danh sách mã (spec §4.4d).
+   */
+  const departmentId = startForm.watch("departmentId");
   const { data: availableCodes = [] } = useQuery({
-    queryKey: ["referral-codes", "open", bankId],
-    queryFn: () => fetchOpenReferralCodes(bankId),
+    queryKey: ["referral-codes", "open", bankId, departmentId],
+    queryFn: () => fetchOpenReferralCodes(bankId, departmentId),
     enabled: Boolean(bankId),
   });
 
@@ -96,7 +104,7 @@ export function BankAccountFormDialog({
     if (!bankId) return;
     startForm.setValue("referralCode", availableCodes[0]?.id ?? "", { shouldDirty: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bankId, availableCodes.length]);
+  }, [bankId, departmentId, availableCodes.length]);
 
   /* ── Bước 2 ── */
   const finishForm = useForm<BankAccountFinishForm>({
