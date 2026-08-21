@@ -19,8 +19,9 @@ import path from "node:path";
 import { HeadObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 
 const CHAY_THU = process.argv.includes("--dry-run");
-const GOC = path.join(import.meta.dir, "..");
-const NGUON = process.env.NGUON ?? path.join(GOC, "public", "uploads");
+// Chạy TỪ GỐC REPO: `bun --env-file=.env.local deploy/upload-existing-images.ts`.
+// Không dùng `import.meta.dir` vì đó là API riêng của bun, `tsc` không biết.
+const NGUON = process.env.NGUON ?? path.join(process.cwd(), "public", "uploads");
 
 const cauHinh = {
   endpoint: (process.env.S3_ENDPOINT ?? "").replace(/\/+$/, ""),
