@@ -9,6 +9,7 @@ import { Dialog } from "@/components/ui/Dialog";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { Select } from "@/components/ui/Select";
 import { SkeletonCard } from "@/components/ui/Skeleton";
+import { DateField } from "@/components/ui/DateField";
 import { TextField } from "@/components/ui/TextField";
 import { fetchInsuranceDetail, updateInsuranceOrder } from "@/lib/api/insurance";
 import {
@@ -293,12 +294,14 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId }: Props) {
               idField
             ) : (
               <div className={styles.pair}>
-                <TextField
+                <DateField
                   label="Ngày sinh"
-                  type="date"
                   required
+                  value={form.watch("beneficiaryDob")}
+                  onChange={(v) =>
+                    form.setValue("beneficiaryDob", v, { shouldDirty: true, shouldValidate: true })
+                  }
                   error={errors.beneficiaryDob?.message}
-                  {...form.register("beneficiaryDob")}
                 />
                 {idField}
               </div>

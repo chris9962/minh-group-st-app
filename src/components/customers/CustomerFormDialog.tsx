@@ -12,6 +12,7 @@ import { Dialog } from "@/components/ui/Dialog";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { Select } from "@/components/ui/Select";
 import { SkeletonText } from "@/components/ui/Skeleton";
+import { DateField } from "@/components/ui/DateField";
 import { TextField } from "@/components/ui/TextField";
 import { fetchChannels } from "@/lib/api/channelCatalog";
 import {
@@ -251,12 +252,12 @@ export function CustomerFormDialog({
           />
 
           <div className={styles.pair}>
-            <TextField
+            <DateField
               label="Ngày sinh"
               required
-              type="date"
+              value={watch("dob")}
+              onChange={(v) => setValue("dob", v, { shouldDirty: true, shouldValidate: true })}
               error={errors.dob?.message}
-              {...register("dob")}
             />
             {/* CCCD là trường bảo mật: không có `customer:access-id-number` thì
                 máy chủ chỉ trả 4 số cuối và bỏ qua mọi giá trị gửi lên, nên ô

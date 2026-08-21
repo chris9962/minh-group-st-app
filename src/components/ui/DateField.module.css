@@ -1,0 +1,38 @@
+/* Nút mở lịch, nằm đè bên phải ô nhập. Cùng cách dựng với `PasswordField`. */
+.pick {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 100%;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 11px;
+  border: 0;
+  background: none;
+  /* Nút thô cần màu chữ tường minh: bộ tối không kế thừa được từ nền. */
+  color: var(--om-text-2);
+  cursor: pointer;
+}
+
+/* Vùng bấm 44px cho ngón tay mà không kéo cao ô nhập (AGENTS.md §8). */
+.pick::after {
+  content: "";
+  position: absolute;
+  inset: -4px -2px;
+}
+
+.pick:hover {
+  color: var(--om-orange-mid);
+}
+
+/* Ô ngày thật — chỉ để mượn bộ chọn lịch, không cho người dùng thấy hay bấm.
+   Neo vào `.control` của `TextField`, ngay dưới nút, để lịch mở đúng chỗ. */
+.picker {
+  position: absolute;
+  right: 10px;
+  bottom: 0;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}

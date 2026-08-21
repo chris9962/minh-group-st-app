@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { CharCount } from "@/components/ui/CharCount";
 import { Dialog } from "@/components/ui/Dialog";
 import { Select } from "@/components/ui/Select";
+import { DateField } from "@/components/ui/DateField";
 import { TextField } from "@/components/ui/TextField";
 import type { Customer } from "@/lib/api/customers";
 import { createInsuranceOrders } from "@/lib/api/insurance";
@@ -329,12 +330,14 @@ export function InsuranceOrderFormDialog({
           />
       ) : (
         <div className={styles.pair}>
-          <TextField
+          <DateField
             label="Ngày sinh"
-            type="date"
             required
+            value={watch(`legs.${i}.beneficiaryDob`)}
+            onChange={(v) =>
+              setValue(`legs.${i}.beneficiaryDob`, v, { shouldDirty: true, shouldValidate: true })
+            }
             error={errors.legs?.[i]?.beneficiaryDob?.message}
-            {...register(`legs.${i}.beneficiaryDob`)}
           />
           <TextField
             label="CCCD"
