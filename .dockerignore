@@ -1,0 +1,33 @@
+node_modules
+.next
+.git
+.gitignore
+
+# Biến môi trường KHÔNG vào image. Máy chủ truyền lúc chạy bằng `--env-file`.
+# Nướng secret vào layer thì ai kéo được image cũng đọc được khoá S3.
+.env
+.env.*
+
+# Ảnh của bản tạm ghi đĩa — dữ liệu chạy, không phải mã nguồn.
+.uploads
+
+# Không tham gia bản dựng máy chủ.
+e2e
+playwright.config.ts
+playwright-report
+test-results
+docs
+pvi-qlcd-playwright
+scripts
+drizzle
+
+# Sinh ra bởi bản dựng native trên cùng máy. Nằm trong context thì `COPY . .` mất
+# cache mỗi lần chạy `bun run build`, dù mã nguồn không đổi.
+*.tsbuildinfo
+.DS_Store
+.claude
+
+# Không tham gia bản dựng bên trong image.
+Dockerfile
+.dockerignore
+docker-compose.yml
