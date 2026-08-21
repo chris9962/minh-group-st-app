@@ -699,6 +699,13 @@ export const bankAccountPhotos = pgTable(
      * tài khoản tự "đủ ảnh" sai.
      */
     kind: photoKind("kind").notNull().default("opening"),
+    /**
+     * KHOÁ trong kho (`bank-accounts/<ngày>/<uuid>.webp`), KHÔNG phải URL.
+     *
+     * Tên cột giữ nguyên từ bản trước để khỏi kéo theo một lượt đổi tên cột;
+     * `server/storage.ts` dựng URL từ khoá này lúc đọc. Migration 0031 cắt tiền
+     * tố `/uploads/` của dữ liệu cũ.
+     */
     url: text("url").notNull(),
     sortOrder: smallint("sort_order").notNull().default(0),
   },
@@ -779,6 +786,7 @@ export const insuranceOrders = pgTable(
     chassisNumber: text("chassis_number").notNull().default(""),
     engineNumber: text("engine_number").notNull().default(""),
     /** Ảnh chứng nhận — thay PDF, đính được ở mọi trạng thái. */
+    /** KHOÁ trong kho, không phải URL — xem `bank_account_photos.url`. */
     certificatePhotoUrl: text("certificate_photo_url"),
     /**
       * Người XỬ LÝ TAY — ghi lúc bấm "Nhận đơn xử lý", null với đơn bot chạy

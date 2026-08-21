@@ -1,5 +1,5 @@
 import { getActor, unauthorized } from "@/server/auth";
-import { putImage } from "@/server/storage";
+import { imageUrl, putImage } from "@/server/storage";
 
 /**
  * NHỊP THỨ NHẤT của luồng tải ảnh: nhận file → đẩy lên kho → trả về URL.
@@ -44,5 +44,7 @@ export async function POST(request: Request) {
   const result = await putImage(file, "bank-accounts");
   if (!result.ok) return Response.json({ message: result.message }, { status: 400 });
 
-  return Response.json({ url: result.url }, { status: 201 });
+  // Trả URL đọc ảnh chứ không trả khoá trần: nơi gọi cần thứ gắn thẳng vào
+  // `<img src>` được, và nhịp GHI cắt lại phần đầu để lấy khoá.
+  return Response.json({ url: imageUrl(result.key) }, { status: 201 });
 }

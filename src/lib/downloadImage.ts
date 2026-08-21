@@ -16,11 +16,9 @@ function fileName(alt: string, src: string, mimeType: string): string {
 /**
  * Lưu một tấm ảnh về máy người dùng.
  *
- * Tải qua `blob:` chứ không đặt `download` thẳng lên URL của ảnh: thuộc tính
- * `download` chỉ có tác dụng với ảnh CÙNG nguồn. Kho ảnh thật nằm ở S3 hoặc
- * CloudFront — khác nguồn, nên trình duyệt bỏ qua `download` và mở ảnh ra tab
- * mới thay vì lưu file. Tải về thành blob rồi mới lưu thì tên file và hành vi
- * giống nhau ở cả hai ngả.
+ * Tải qua `blob:` chứ không đặt `download` thẳng lên URL của ảnh: ảnh CHƯA lưu
+ * mang URL `blob:` do chính trang dựng ra, còn ảnh đã lưu đi qua `/api/images`.
+ * Tải về thành blob rồi mới lưu thì tên file và hành vi giống nhau ở cả hai ngả.
  */
 export async function downloadImage(src: string, alt: string): Promise<void> {
   try {

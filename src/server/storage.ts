@@ -1,37 +1,40 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 
 /**
  * Kho lưu trữ ảnh — hai ngả sau CÙNG một cửa.
  *
- * Nơi gọi chỉ thấy `putImage(...)` và một URL trả về; nó không biết đằng sau là
+ * Nơi gọi chỉ thấy `putImage(...)` và một KHOÁ trả về; nó không biết đằng sau là
  * S3 hay đĩa cứng. Đổi nhà cung cấp về sau là sửa đúng file này.
  *
- *   Có đủ biến môi trường AWS  →  đẩy lên S3
- *   Chưa có                    →  ghi vào `public/uploads/` và trả URL nội bộ
+ *   Có đủ biến môi trường S3   →  đẩy lên FPT Object Storage
+ *   Chưa có                    →  ghi vào `.uploads/` trên đĩa máy chủ
  *
- * Ngả thứ hai là BẢN TẠM để làm việc khi chưa có tài khoản AWS. Điền đủ bốn
- * biến vào `.env.local` là tự động chuyển sang S3, không phải sửa dòng code nào.
+ * Ngả thứ hai là BẢN TẠM để làm việc khi chưa có kho lưu trữ. Điền đủ năm biến
+ * vào `.env.local` là tự động chuyển sang S3, không phải sửa dòng code nào.
  *
- * ⚠️ Ba giới hạn của bản tạm, phải biết trước khi mang lên máy chủ thật:
+ * ⚠️ BUCKET PHẢI ĐỂ PRIVATE. Không ai đọc ảnh thẳng từ FPT được; mọi lượt xem đi
+ * qua `GET /api/images/<key>`, và route đó đòi phiên đăng nhập. Mở bucket ra
+ * public là bỏ luôn chốt đó — ảnh chứng minh với tài khoản ngân hàng là dữ liệu
+ * cá nhân theo Nghị định 13/2023.
  *
- * 1. Ảnh nằm trên ĐĨA CỦA MÁY CHỦ ỨNG DỤNG. Deploy dạng container hay nhiều
- *    máy chạy song song là ảnh mất hoặc máy này không thấy ảnh máy kia.
- * 2. Ảnh thay ra KHÔNG bị xoá khỏi đĩa. Bản ghi chỉ trỏ sang URL mới; file cũ
- *    nằm lại. S3 cũng vậy — dọn rác là việc riêng, chưa làm ở cả hai ngả.
- * 3. `public/` ai cũng đọc được nếu ĐOÁN ĐÚNG đường dẫn. Tên file là uuid nên
- *    không đoán được, nhưng đó là "khó đoán", không phải "có kiểm quyền".
+ * ⚠️ Hai giới hạn còn lại, phải biết trước khi mang lên máy chủ thật:
+ *
+ * 1. Bản tạm ghi ảnh lên ĐĨA CỦA MÁY CHỦ ỨNG DỤNG. Deploy dạng container hay
+ *    nhiều máy chạy song song là ảnh mất hoặc máy này không thấy ảnh máy kia.
+ * 2. Ảnh thay ra KHÔNG bị xoá khỏi kho. Bản ghi chỉ trỏ sang khoá mới; file cũ
+ *    nằm lại. Dọn rác là việc riêng, chưa làm ở cả hai ngả.
  */
 
 type StorageConfig = {
+  /** Endpoint của nhà cung cấp, ví dụ `https://s3-han02.fptcloud.com`. */
+  endpoint: string;
   region: string;
   bucket: string;
   accessKeyId: string;
   secretAccessKey: string;
-  /** Tên miền đọc ảnh (CloudFront…). Trống thì dùng URL S3 mặc định. */
-  publicBaseUrl: string;
 };
 
 /**
@@ -42,54 +45,26 @@ type StorageConfig = {
  * vẫn ghi vào đĩa mà không hiểu vì sao.
  */
 function readConfig(): StorageConfig | null {
-  const region = process.env.AWS_REGION ?? "";
-  const bucket = process.env.AWS_S3_BUCKET ?? "";
-  const accessKeyId = process.env.AWS_ACCESS_KEY_ID ?? "";
-  const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY ?? "";
-  if (!region || !bucket || !accessKeyId || !secretAccessKey) return null;
+  const endpoint = (process.env.S3_ENDPOINT ?? "").replace(/\/+$/, "");
+  const region = process.env.S3_REGION ?? "";
+  const bucket = process.env.S3_BUCKET ?? "";
+  const accessKeyId = process.env.S3_ACCESS_KEY_ID ?? "";
+  const secretAccessKey = process.env.S3_SECRET_ACCESS_KEY ?? "";
+  if (!endpoint || !region || !bucket || !accessKeyId || !secretAccessKey) return null;
 
-  return {
-    region,
-    bucket,
-    accessKeyId,
-    secretAccessKey,
-    publicBaseUrl: (process.env.AWS_S3_PUBLIC_URL ?? "").replace(/\/+$/, ""),
-  };
+  return { endpoint, region, bucket, accessKeyId, secretAccessKey };
 }
-
-/** Thư mục ảnh của bản tạm. Nằm trong `public/` nên Next phục vụ thẳng ra web. */
-const LOCAL_DIR = "uploads";
-
-export const storageBackend = (): "s3" | "local" => (readConfig() ? "s3" : "local");
 
 /**
- * URL này có phải do CHÍNH kho của mình phát ra không.
+ * Thư mục ảnh của bản tạm — NẰM NGOÀI `public/`.
  *
- * ⚠️ Chốt chặn XSS LƯU TRỮ, không phải kiểm tra cho gọn.
- *
- * Endpoint ghi ảnh nhận một mảng URL. Không ràng buộc thì nhân viên gửi
- * `javascript:fetch('/api/staff',{method:'POST',…})` lên bản ghi của chính
- * mình, trưởng phòng mở P-22 bấm vào ô ảnh — `<a href>` — và mã đó chạy trong
- * phiên của trưởng phòng. `rel="noreferrer"` không chặn scheme `javascript:`,
- * `data:text/html` cũng vào được cùng đường.
- *
- * Nhận đúng hai dạng: đường dẫn nội bộ của bản tạm, và tên miền đọc ảnh đang
- * cấu hình. Mọi thứ khác từ chối — kể cả `https://` của nơi khác, vì ảnh chứng
- * minh không có lý do gì nằm ngoài kho của hệ thống.
+ * Để trong `public/` thì Next phục vụ thẳng file ra web, không qua route kiểm
+ * phiên đăng nhập nào cả. Bản tạm khi đó lỏng hơn hẳn bản thật, và chỗ lỏng ấy
+ * chỉ hiện ra lúc đã có người mở đúng đường dẫn.
  */
-export function isStorageUrl(url: string): boolean {
-  const value = url.trim();
-  if (value.startsWith(`/${LOCAL_DIR}/`)) return !value.includes("..");
+const LOCAL_DIR = path.join(process.cwd(), ".uploads");
 
-  const config = readConfig();
-  if (!config) return false;
-
-  const allowed = [
-    config.publicBaseUrl,
-    `https://${config.bucket}.s3.${config.region}.amazonaws.com`,
-  ].filter(Boolean);
-  return allowed.some((base) => value.startsWith(`${base}/`));
-}
+export const storageBackend = (): "s3" | "local" => (readConfig() ? "s3" : "local");
 
 /**
  * Nhận diện ảnh bằng CHỮ KÝ ĐẦU FILE, không tin `Content-Type` client khai.
@@ -131,20 +106,64 @@ const IMAGE_SIGNATURES: { ext: string; mime: string; test: (b: Uint8Array) => bo
   },
 ];
 
+const MIME_BY_EXT = new Map(IMAGE_SIGNATURES.map((s) => [s.ext, s.mime]));
+
+/** Đường dẫn của route đọc ảnh. Đổi ở đây thì đổi cả thư mục route theo. */
+const IMAGE_ROUTE = "/api/images";
+
+/**
+ * Hình dạng ĐÚNG của một khoá: `<nhóm>/<ngày>/<uuid>.<đuôi>`.
+ *
+ * ⚠️ Đây là chốt chặn DUYỆT NGƯỢC THƯ MỤC, không phải kiểm tra cho gọn. Khoá đi
+ * thẳng vào `path.join` của bản tạm và vào `Key` của S3; nhận chuỗi tự do thì
+ * `../../.env.local` là một khoá hợp lệ và route đọc ảnh trở thành đường đọc mọi
+ * file trên máy chủ.
+ *
+ * Mẫu này cũng chặn luôn XSS lưu trữ ở nhịp GHI: `javascript:` hay `data:text/html`
+ * không khớp được, nên không chuỗi nào ngoài kho của mình vào nổi database.
+ */
+const KEY_PATTERN = new RegExp(
+  `^[a-z0-9-]+/\\d{4}-\\d{2}-\\d{2}/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.(${IMAGE_SIGNATURES.map(
+    (s) => s.ext,
+  ).join("|")})$`,
+);
+
+/** Khoá trong database → URL cho `<img src>`. Cùng nguồn với app, không hết hạn. */
+export const imageUrl = (key: string): string => `${IMAGE_ROUTE}/${key}`;
+
+/**
+ * Chuỗi FE gửi lên → khoá để ghi database, hoặc `null` nếu không phải của mình.
+ *
+ * FE nhận `/api/images/<key>` rồi gửi nguyên chuỗi đó về lúc lưu, nên nhịp ghi
+ * phải cắt phần đầu ra. Nhận thẳng khoá trần cũng được — bản client cũ và các
+ * lượt gọi nội bộ đi đường đó.
+ */
+export function imageKeyOf(value: string): string | null {
+  const key = value.trim().replace(new RegExp(`^${IMAGE_ROUTE}/`), "");
+  return KEY_PATTERN.test(key) ? key : null;
+}
+
+/** Dạng dùng cho `z.refine`. Cặp với `imageKeyOf` ở bước `transform`. */
+export const isImageRef = (value: string): boolean => imageKeyOf(value) !== null;
+
 const MAX_BYTES = 10 * 1024 * 1024;
 
 export type PutResult =
-  | { ok: true; url: string }
+  | { ok: true; key: string }
   | { ok: false; message: string };
 
 let warnedAboutLocal = false;
 
 /**
- * Đẩy một ảnh lên kho và trả về URL đọc được.
+ * Đẩy một ảnh lên kho và trả về KHOÁ của nó.
  *
- * Khoá lưu trữ gồm ngày + uuid: ngày để dọn theo lô về sau, uuid để không đoán
- * được và không đụng nhau. KHÔNG dùng tên file gốc — người dùng đặt tên gì cũng
- * được, kể cả `../` hay tên trùng của người khác.
+ * Trả khoá chứ không trả URL: URL là thứ dựng ra lúc đọc (`imageUrl`), còn thứ
+ * nằm lại trong database phải là khoá. Lưu URL thì ngày đổi tên miền hay đổi
+ * đường route là mọi ảnh cũ chết.
+ *
+ * Khoá gồm ngày + uuid: ngày để dọn theo lô về sau, uuid để không đoán được và
+ * không đụng nhau. KHÔNG dùng tên file gốc — người dùng đặt tên gì cũng được,
+ * kể cả `../` hay tên trùng của người khác.
  */
 export async function putImage(file: File, folder: string): Promise<PutResult> {
   if (file.size === 0) return { ok: false, message: "File rỗng." };
@@ -166,56 +185,55 @@ export async function putImage(file: File, folder: string): Promise<PutResult> {
   return config ? putToS3(config, key, bytes, kind.mime) : putToDisk(key, bytes);
 }
 
+function clientFor(config: StorageConfig): S3Client {
+  return new S3Client({
+    region: config.region,
+    endpoint: config.endpoint,
+    /**
+     * Path-style (`<endpoint>/<bucket>/<key>`) chứ không phải virtual-host
+     * (`<bucket>.<endpoint>/<key>`): FPT Object Storage chạy Ceph RGW, dạng
+     * virtual-host cần bản ghi DNS ký tự đại diện mà tài khoản thường không có.
+     */
+    forcePathStyle: true,
+    credentials: { accessKeyId: config.accessKeyId, secretAccessKey: config.secretAccessKey },
+  });
+}
+
 async function putToS3(
   config: StorageConfig,
   key: string,
   bytes: Uint8Array,
   contentType: string,
 ): Promise<PutResult> {
-  const client = new S3Client({
-    region: config.region,
-    credentials: { accessKeyId: config.accessKeyId, secretAccessKey: config.secretAccessKey },
-  });
-
   try {
-    await client.send(
+    await clientFor(config).send(
       new PutObjectCommand({
         Bucket: config.bucket,
         Key: key,
         Body: bytes,
         // Kiểu suy từ chữ ký thật, không phải từ thứ client khai.
         ContentType: contentType,
-        // Ảnh chứng minh không bao giờ đổi nội dung dưới cùng một khoá.
-        CacheControl: "public, max-age=31536000, immutable",
       }),
     );
   } catch (e) {
     // Ghi lại nguyên lỗi cho người vận hành, nhưng KHÔNG trả nó ra client: lỗi
-    // của AWS có kèm tên bucket và cấu hình.
+    // của SDK có kèm tên bucket và cấu hình.
     console.error("[storage] không đẩy được ảnh lên S3:", e);
     return { ok: false, message: "Không tải được ảnh lên kho lưu trữ. Thử lại sau ít phút." };
   }
 
-  const base = config.publicBaseUrl || `https://${config.bucket}.s3.${config.region}.amazonaws.com`;
-  return { ok: true, url: `${base}/${key}` };
+  return { ok: true, key };
 }
 
-/**
- * Bản tạm: ghi vào `public/uploads/` và trả URL TƯƠNG ĐỐI.
- *
- * Tương đối chứ không tuyệt đối là cố ý — `<img src="/uploads/…">` chạy đúng ở
- * mọi tên miền, kể cả khi mở qua IP nội bộ hay cổng khác. Nhồi `localhost:3002`
- * vào database là ngày đổi cổng thì mọi ảnh cũ chết.
- */
 async function putToDisk(key: string, bytes: Uint8Array): Promise<PutResult> {
   if (!warnedAboutLocal) {
     warnedAboutLocal = true;
     console.warn(
-      "[storage] Chưa cấu hình AWS S3 — ảnh đang ghi vào public/uploads/ trên đĩa máy chủ. Bản tạm để làm việc, xem ghi chú đầu file src/server/storage.ts.",
+      "[storage] Chưa cấu hình S3 — ảnh đang ghi vào .uploads/ trên đĩa máy chủ. Bản tạm để làm việc, xem ghi chú đầu file src/server/storage.ts.",
     );
   }
 
-  const target = path.join(process.cwd(), "public", LOCAL_DIR, key);
+  const target = path.join(LOCAL_DIR, key);
   try {
     await mkdir(path.dirname(target), { recursive: true });
     await writeFile(target, bytes);
@@ -224,5 +242,37 @@ async function putToDisk(key: string, bytes: Uint8Array): Promise<PutResult> {
     return { ok: false, message: "Không lưu được ảnh. Thử lại sau ít phút." };
   }
 
-  return { ok: true, url: `/${LOCAL_DIR}/${key}` };
+  return { ok: true, key };
+}
+
+export type StoredImage = { body: ReadableStream<Uint8Array> | ArrayBuffer; contentType: string };
+
+/**
+ * Đọc một ảnh ra để route `/api/images` trả về. `null` = không có ảnh nào.
+ *
+ * Trả luồng chứ không trả cả file trong bộ nhớ ở ngả S3: mười người cùng mở P-22
+ * là mười tấm ảnh nằm trong RAM của tiến trình Node cùng lúc.
+ *
+ * Nơi gọi PHẢI kiểm `imageKeyOf` trước. Hàm này không kiểm lại — nhận khoá tự do
+ * thì `path.join` của bản tạm đi ra ngoài `.uploads/` được.
+ */
+export async function readImage(key: string): Promise<StoredImage | null> {
+  const config = readConfig();
+  const contentType = MIME_BY_EXT.get(key.split(".").pop() ?? "") ?? "application/octet-stream";
+
+  if (!config) {
+    const bytes = await readFile(path.join(LOCAL_DIR, key)).catch(() => null);
+    return bytes ? { body: new Uint8Array(bytes).buffer, contentType } : null;
+  }
+
+  try {
+    const out = await clientFor(config).send(
+      new GetObjectCommand({ Bucket: config.bucket, Key: key }),
+    );
+    if (!out.Body) return null;
+    return { body: out.Body.transformToWebStream(), contentType: out.ContentType || contentType };
+  } catch (e) {
+    console.error("[storage] không đọc được ảnh từ S3:", e);
+    return null;
+  }
 }

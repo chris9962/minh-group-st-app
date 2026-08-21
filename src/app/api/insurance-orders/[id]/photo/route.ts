@@ -11,21 +11,21 @@ import {
   unauthorized,
 } from "@/server/auth";
 import { setCertificatePhoto } from "@/server/insurance";
-import { isStorageUrl } from "@/server/storage";
+import { imageKeyOf, isImageRef } from "@/server/storage";
 
 /**
  * Đính/thay ảnh chứng nhận bảo hiểm — NHỊP THỨ HAI của luồng tải ảnh.
  *
  * Nhịp thứ nhất là `POST /api/uploads`: đẩy file lên kho, trả về URL, không
- * đụng database. Ở đây chỉ nhận URL rồi ghi.
+ * đụng database. Ở đây cắt URL đó về khoá rồi ghi.
  *
  * Ảnh này THAY cho file PDF của PVI (spec §3.3) và dùng được ở MỌI trạng thái
  * đơn — không chờ tới lúc hoàn thành.
  */
 const Body = z.object({
-  // Chốt chặn XSS lưu trữ — xem `isStorageUrl` ở `server/storage.ts`. Nhận chuỗi
-  // bất kỳ ở đây là mở đường cho `javascript:` chạy trong phiên của người xem.
-  photoUrl: z.string().trim().min(1).refine(isStorageUrl),
+  // FE gửi `/api/images/<key>`, database lưu `<key>`. Chốt chặn XSS lưu trữ nằm
+  // ở `refine` — xem `KEY_PATTERN` ở `server/storage.ts`.
+  photoUrl: z.string().trim().min(1).refine(isImageRef).transform((v) => imageKeyOf(v)!),
 });
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {

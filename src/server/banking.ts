@@ -40,6 +40,7 @@ import {
 import { recomputeGiftCase } from "./gift";
 import { recomputeKpiForCustomer } from "./kpi";
 import type { PageArgs } from "./pagination";
+import { imageUrl } from "./storage";
 
 /**
  * P-20 · P-21 · P-22 — bản DB của module ngân hàng.
@@ -424,7 +425,7 @@ export async function listBankAccountsForExport(
 }
 
 /**
- * Ảnh của MỘT nhóm.
+ * Ảnh của MỘT nhóm, đã đổi từ khoá trong database sang URL đọc được.
  *
  * Luôn phải kẹp `kind`: luật "đủ ảnh mới cho Hoàn thành" đếm riêng ảnh mở tài
  * khoản, lấy chung cả ảnh giao dịch thì tài khoản tự "đủ ảnh" sai.
@@ -436,7 +437,7 @@ const photoUrlsOf = async (accountId: string, kind: PhotoKind): Promise<string[]
       .from(bankAccountPhotos)
       .where(and(eq(bankAccountPhotos.accountId, accountId), eq(bankAccountPhotos.kind, kind)))
       .orderBy(asc(bankAccountPhotos.sortOrder), asc(bankAccountPhotos.id))
-  ).map((r) => r.url);
+  ).map((r) => imageUrl(r.url));
 
 const rawById = async (id: string): Promise<DecoratedRow | null> =>
   (await decorate(pickPage(eq(bankAccounts.id, id), [], 1, 0)))[0] ?? null;
@@ -990,7 +991,8 @@ export async function deleteDraft(actor: User, id: string): Promise<BankAccount 
 export async function setPhotos(
   actor: User,
   id: string,
-  photoUrls: string[],
+  /** KHOÁ trong kho, không phải URL — route đã cắt phần `/api/images/` ra. */
+  photoKeys: string[],
   kind: PhotoKind,
 ): Promise<BankAccount | { tooFew: number } | null> {
   const visible = scopeOf(actor, WRITE_ACTION);
@@ -1013,16 +1015,16 @@ export async function setPhotos(
    * Ảnh giao dịch KHÔNG bị chốt này: nó là bằng chứng nộp muộn, để trống hay bỏ
    * đi đều hợp lệ, và `banks.required_photos` không nói gì về nó.
    */
-  if (kind === "opening" && current.status === "done" && photoUrls.length < current.requiredPhotos)
+  if (kind === "opening" && current.status === "done" && photoKeys.length < current.requiredPhotos)
     return { tooFew: current.requiredPhotos } as const;
 
   await db.transaction(async (tx) => {
     await tx
       .delete(bankAccountPhotos)
       .where(and(eq(bankAccountPhotos.accountId, id), eq(bankAccountPhotos.kind, kind)));
-    if (photoUrls.length > 0)
+    if (photoKeys.length > 0)
       await tx.insert(bankAccountPhotos).values(
-        photoUrls.map((url, i) => ({ accountId: id, kind, url, sortOrder: i })),
+        photoKeys.map((url, i) => ({ accountId: id, kind, url, sortOrder: i })),
       );
   });
 

@@ -45,6 +45,7 @@ import {
   users,
 } from "./db/schema";
 import type { PageArgs } from "./pagination";
+import { imageUrl } from "./storage";
 
 /**
  * P-13 · P-14 — bản DB của module bảo hiểm.
@@ -370,7 +371,9 @@ const toRow = (r: DecoratedRow): InsuranceListRow => ({
   createdByDepartmentId: r.createdByDepartmentId,
   handledById: r.handledById,
   handledByName: r.handledByName,
-  certificatePhotoUrl: r.certificatePhotoUrl,
+  // Database lưu khoá; FE cần URL đọc được. Đổi ở đúng một chỗ vì `toOrder`
+  // trải `toRow` ra, nên cả danh sách lẫn chi tiết đi qua đây.
+  certificatePhotoUrl: r.certificatePhotoUrl ? imageUrl(r.certificatePhotoUrl) : r.certificatePhotoUrl,
 });
 
 /**
@@ -925,7 +928,8 @@ export async function setInsuranceOrderStatus(
 export async function setCertificatePhoto(
   actor: User,
   id: string,
-  photoUrl: string,
+  /** KHOÁ trong kho, không phải URL — route đã cắt phần `/api/images/` ra. */
+  photoKey: string,
 ): Promise<InsuranceDetail | null> {
   const byUpdate = scopeOf(actor, "update");
   const byFallback = scopeOf(actor, "handle-fallback");
@@ -950,7 +954,7 @@ export async function setCertificatePhoto(
 
   await db
     .update(insuranceOrders)
-    .set({ certificatePhotoUrl: photoUrl, updatedAt: new Date() })
+    .set({ certificatePhotoUrl: photoKey, updatedAt: new Date() })
     .where(eq(insuranceOrders.id, id));
 
   return { ...toOrder(actor, (await rawById(id))!), history: await historyOf(id) };
