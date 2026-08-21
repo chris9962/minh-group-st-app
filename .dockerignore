@@ -11,6 +11,14 @@ node_modules
 # Ảnh của bản tạm ghi đĩa — dữ liệu chạy, không phải mã nguồn.
 .uploads
 
+# ⚠️ Ảnh của bản CŨ, trước khi chuyển sang FPT Object Storage.
+#
+# Next phục vụ trọn `public/` ra web như file tĩnh, KHÔNG qua chốt kiểm phiên
+# đăng nhập nào. Đóng thư mục này vào image là mở lại đúng lỗ vừa đi bịt: ai
+# đoán đúng `/uploads/<key>` đều xem được ảnh chứng minh mà không cần đăng nhập.
+# Đo được trên production 2026-08-21, đường cũ trả 200.
+public/uploads
+
 # Cấu hình Nginx và trang bảo trì — chạy trên máy chủ, ngoài container app.
 deploy
 
