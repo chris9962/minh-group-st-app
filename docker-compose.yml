@@ -1,9 +1,15 @@
-# Postgres cho backend MGST — dev cục bộ.
-# Port 5433 (không phải 5432) để không đụng Postgres nào khác đang chạy trên máy.
+# Postgres và app MGST. Một file cho cả hai container.
+#
+# Máy chủ FPT thiếu plugin `compose` của Docker, nên ở đó vẫn dùng `docker build`
+# và `docker run` tay — xem `docs/deploy-fpt-cloud.md` mục 6b. File này dùng cho
+# máy local.
+#
+# Dev thì chỉ cần Postgres: `bun db:up` gọi đúng service `db`, không dựng `app`.
 services:
   db:
     image: postgres:16-alpine
     container_name: mgst-db
+    # Port 5433 (không phải 5432) để không đụng Postgres nào khác đang chạy trên máy.
     ports:
       - "5433:5432"
     environment:
@@ -17,6 +23,41 @@ services:
       interval: 2s
       timeout: 3s
       retries: 30
+
+  app:
+    build: .
+    container_name: mgst-app
+    restart: unless-stopped
+    # Chờ Postgres báo healthy rồi mới dựng app. Không chờ thì app lên trước, mọi
+    # request đầu tiên trả 500 cho tới khi database sẵn sàng.
+    depends_on:
+      db:
+        condition: service_healthy
+    # Kẹp `127.0.0.1`: bỏ đi thì Docker tự mở rule iptables ra Internet, đi vòng
+    # qua tường lửa của máy chủ, và app lộ ra ngoài không qua Nginx lẫn HTTPS.
+    ports:
+      - "127.0.0.1:3000:3000"
+    # `required: false` để repo mới clone chưa có `.env.local` vẫn chạy được
+    # `bun db:up`. Compose đọc trọn file này kể cả khi bạn chỉ gọi service `db`,
+    # nên thiếu env file là dừng ngay ở bước phân tích, chưa tới lượt dựng gì.
+    env_file:
+      - path: .env.local
+        required: false
+    environment:
+      # Ghi đè `DATABASE_URL` của `.env.local`, KHÔNG sửa file đó.
+      #
+      # Trong mạng của compose, app gọi Postgres bằng tên service `db` và cổng
+      # TRONG container là 5432, không phải 5433. Nhưng `.env.local` còn phục vụ
+      # `bun run db:migrate` và `next start` chạy trên host — hai chỗ đó cần
+      # `localhost:5433`. Sửa file là hỏng cả hai.
+      DATABASE_URL: postgres://mgst:mgst@db:5432/mgst
+    # Driver `json-file` mặc định không xoay vòng, và Next ghi log mỗi request.
+    # Chạy vài tháng là file log phình không giới hạn.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   mgst-pgdata:
