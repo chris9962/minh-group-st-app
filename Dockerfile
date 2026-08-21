@@ -29,13 +29,14 @@ ENV NEXT_TELEMETRY_DISABLED=1
 # có dòng này thì build dừng ở `/api/audit-log`. Chuỗi này không kết nối tới đâu —
 # bản dựng không truy vấn database.
 ENV DATABASE_URL=postgres://build:build@127.0.0.1:5432/build
-# Cache mount giữ `.next/cache` giữa các lần dựng.
+# ⚠️ Bản dựng GỌI RA INTERNET. `src/app/layout.tsx` nạp font qua
+# `next/font/google`, nên `next build` tải Figtree từ fonts.gstatic.com mỗi lần.
+# Egress bị chặn hay Google Fonts chậm là cả bản dựng dừng. Hết hẳn thì phải tải
+# `.woff2` về `src/fonts/` rồi chuyển sang `next/font/local` — chưa làm.
 #
-# `src/app/layout.tsx` nạp font qua `next/font/google`, nên `next build` tải
-# Figtree từ fonts.gstatic.com. `.dockerignore` loại `.next` nên không có cache
-# nào để dùng lại: mỗi lần dựng đều gọi ra Internet, và một lần Google Fonts chậm
-# hay egress bị chặn là cả bản dựng dừng.
-RUN --mount=type=cache,target=/app/.next/cache bun run build
+# KHÔNG dùng `RUN --mount=type=cache`. Máy chủ FPT không có buildx nên
+# `docker build` rơi về builder cổ điển, và builder đó từ chối cú pháp `--mount`.
+RUN bun run build
 
 FROM oven/bun:1-alpine AS runner
 WORKDIR /app
