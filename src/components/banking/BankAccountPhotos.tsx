@@ -24,17 +24,18 @@ export const savedPhotos = (urls: string[]): PhotoItem[] =>
   urls.map((url) => ({ kind: "saved", url }));
 
 /**
- * Dấu nhận dạng một file để bắt lỗi chọn trùng (spec §U10) — tên cộng dung lượng.
+ * Dấu nhận dạng một file để bắt lỗi chọn trùng (spec §U10) — CHỈ tên file.
  *
- * ⚠️ KHÔNG phải danh tính của ảnh. Hai tấm khác nhau vẫn trùng tên `IMG_0001.jpg`
- * trên hai máy, và một tấm đổi tên là thành "khác". Đây là phép bắt lỗi BẤM
- * NHẦM — chọn đúng một file hai lần trong hộp chọn — chứ không phải phép chống
- * trùng ảnh. Muốn chắc hơn thì phải băm nội dung file, mà băm ba tấm ảnh 4MB
- * ngay trong lượt bấm là giữ giao diện đứng vài trăm mili giây.
+ * ⚠️ KHÔNG phải danh tính của ảnh. Hai tấm khác nhau chụp bằng hai điện thoại
+ * vẫn cùng tên `IMG_0001.jpg` và bị chặn oan; đổi tên một tấm là nó thành
+ * "khác". Đây là phép bắt lỗi BẤM NHẦM — chọn đúng một file hai lần trong hộp
+ * chọn — chứ không phải phép chống trùng ảnh.
  *
- * Có dung lượng đi kèm để hai ảnh khác nhau cùng tên không bị chặn oan.
+ * Chốt 2026-08-21: so tên là đủ. Ghép thêm dung lượng thì chặt hơn, nhưng luật
+ * "hai ảnh cùng tên vẫn nhận nếu nặng khác nhau" khó giải thích cho người dùng
+ * hơn là "cùng tên thì trùng".
  */
-const fileKey = (file: File) => `${file.name}::${file.size}`;
+const fileKey = (file: File) => file.name;
 
 /**
  * Dấu nhận dạng của các ảnh CHƯA tải lên, bỏ qua ô ở vị trí `skip`.
