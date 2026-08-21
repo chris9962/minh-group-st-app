@@ -167,9 +167,33 @@ export type CustomerPhoneForm = z.infer<typeof CustomerPhoneForm>;
 /**
  * Tên không ràng buộc định dạng (spec §4.4 P-41) — nhân viên gõ sao lưu vậy.
  */
+/**
+ * Khách phải từ 15 tuổi, đo bằng HIỆU HAI NĂM — không so ngày và tháng.
+ *
+ * `2026 - 2011 = 15` nên mọi khách sinh năm 2011 đều đạt, kể cả người sinh
+ * tháng 12 và tới tháng 8 mới 14 tuổi rưỡi. Đội Kinh doanh chốt cách đo này
+ * (2026-08-21): nhân viên nhìn năm sinh là biết ngay đạt hay không, không phải
+ * nhẩm ngày sinh nhật.
+ *
+ * Cận dưới 1900 chặn lỗi gõ tay — `06/04/0996` là thiếu một phím, không phải
+ * một khách 1030 tuổi.
+ */
+const MIN_AGE = 15;
+const MIN_BIRTH_YEAR = 1900;
+
+const bornEarlyEnough = (isoDate: string) => {
+  const year = Number(isoDate.slice(0, 4));
+  if (!year) return false;
+  const thisYear = new Date().getFullYear();
+  return year >= MIN_BIRTH_YEAR && thisYear - year >= MIN_AGE;
+};
+
 export const CustomerForm = z.object({
   fullName: z.string().trim().min(1, 'Chưa nhập họ tên'),
-  dob: z.string().min(1, 'Chưa nhập ngày sinh'),
+  dob: z
+    .string()
+    .min(1, 'Chưa nhập ngày sinh')
+    .refine(bornEarlyEnough, `Khách phải từ ${MIN_AGE} tuổi trở lên`),
   idNumber: z
     .string()
     .trim()
