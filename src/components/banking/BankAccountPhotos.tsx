@@ -24,6 +24,32 @@ export const savedPhotos = (urls: string[]): PhotoItem[] =>
   urls.map((url) => ({ kind: "saved", url }));
 
 /**
+ * Dấu nhận dạng một file để bắt lỗi chọn trùng (spec §U10) — tên cộng dung lượng.
+ *
+ * ⚠️ KHÔNG phải danh tính của ảnh. Hai tấm khác nhau vẫn trùng tên `IMG_0001.jpg`
+ * trên hai máy, và một tấm đổi tên là thành "khác". Đây là phép bắt lỗi BẤM
+ * NHẦM — chọn đúng một file hai lần trong hộp chọn — chứ không phải phép chống
+ * trùng ảnh. Muốn chắc hơn thì phải băm nội dung file, mà băm ba tấm ảnh 4MB
+ * ngay trong lượt bấm là giữ giao diện đứng vài trăm mili giây.
+ *
+ * Có dung lượng đi kèm để hai ảnh khác nhau cùng tên không bị chặn oan.
+ */
+const fileKey = (file: File) => `${file.name}::${file.size}`;
+
+/**
+ * Dấu nhận dạng của các ảnh CHƯA tải lên, bỏ qua ô ở vị trí `skip`.
+ *
+ * Ảnh `saved` không so được: máy chủ đặt lại tên bằng uuid nên tên gốc không
+ * còn ở đâu cả (`server/storage.ts`). Chọn lại đúng tấm đã lưu thì không bắt được.
+ */
+const pendingKeys = (photos: PhotoItem[], skip: number | null) =>
+  new Set(
+    photos.flatMap((photo, i) =>
+      photo.kind === "pending" && i !== skip ? [fileKey(photo.file)] : [],
+    ),
+  );
+
+/**
  * Tải những ảnh còn ở máy người dùng lên rồi trả TRỌN danh sách URL, đúng thứ tự.
  *
  * Tải TUẦN TỰ chứ không `Promise.all`: đội KD làm việc ngoài trời bằng 4G, bắn
@@ -162,7 +188,15 @@ export function BankAccountPhotos({
     replacingSlot.current = null;
     if (files.length === 0) return;
 
+    // Ô đang thay tự loại mình ra: chọn lại đúng tấm đang nằm trong ô đó là
+    // thao tác hợp lệ, người dùng chỉ đổi ý rồi chọn lại.
+    const taken = pendingKeys(photos, slot);
+
     if (slot !== null) {
+      if (taken.has(fileKey(files[0]))) {
+        toast.fail(`Ảnh "${files[0].name}" đã chọn rồi.`);
+        return;
+      }
       const next = toPending(files[0]);
       if (!next) return;
       release(photos[slot]);
@@ -170,13 +204,34 @@ export function BankAccountPhotos({
       return;
     }
 
+    // Lọc trùng TRƯỚC khi cắt theo chỗ trống: chọn ba lần cùng một file mà chỉ
+    // còn một chỗ thì phải nhận một tấm, không phải báo "hết chỗ".
+    const fresh: File[] = [];
+    const duplicates: string[] = [];
+    for (const file of files) {
+      // `taken` lớn dần theo vòng lặp — bắt cả trùng với ảnh đã có lẫn trùng
+      // giữa các file trong CÙNG một lượt chọn.
+      if (taken.has(fileKey(file))) duplicates.push(file.name);
+      else {
+        taken.add(fileKey(file));
+        fresh.push(file);
+      }
+    }
+
+    if (duplicates.length > 0)
+      toast.fail(
+        duplicates.length === 1
+          ? `Ảnh "${duplicates[0]}" đã chọn rồi.`
+          : `${duplicates.length} ảnh đã chọn rồi: ${duplicates.join(", ")}.`,
+      );
+
     const room = Math.max(0, max - photos.length);
-    const picked = files
+    const picked = fresh
       .slice(0, room)
       .map(toPending)
       .filter((photo): photo is PhotoItem => photo !== null);
 
-    if (files.length > room)
+    if (fresh.length > room)
       toast.warn(`Chỗ này nhận tối đa ${max} ảnh — đã lấy ${picked.length} tấm đầu.`);
     if (picked.length > 0) onChange([...photos, ...picked]);
   };
