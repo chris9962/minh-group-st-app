@@ -16,7 +16,7 @@ Thông số máy chủ, chứng chỉ, tài khoản nằm ở `docs/deploy-fpt-c
 | `maintenance/index.html` | trang bảo trì, tự đếm ngược và tự tải lại |
 | `maintenance-on.sh` | bật bảo trì, tham số là số phút dự kiến |
 | `maintenance-off.sh` | tắt bảo trì |
-| `upload-existing-images.sh` | đẩy ảnh còn trên đĩa lên FPT, chạy một lần lúc chuyển kho |
+| `upload-existing-images.ts` | đẩy ảnh còn trên đĩa lên FPT, chạy một lần lúc chuyển kho |
 
 `maintenance/on` và `maintenance/until.txt` là trạng thái lúc chạy, hai script
 sinh ra, `.gitignore` chặn.
