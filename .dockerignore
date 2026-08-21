@@ -11,6 +11,9 @@ node_modules
 # Ảnh của bản tạm ghi đĩa — dữ liệu chạy, không phải mã nguồn.
 .uploads
 
+# Cấu hình Nginx và trang bảo trì — chạy trên máy chủ, ngoài container app.
+deploy
+
 # Không tham gia bản dựng máy chủ.
 e2e
 playwright.config.ts

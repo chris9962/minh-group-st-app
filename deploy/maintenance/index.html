@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Đang bảo trì · MGST</title>
+<style>
+  /* Màu lấy từ src/styles/organic.css để trang này không lạc tông với app.
+     Font hệ thống, không gọi Google Fonts: trang bảo trì phải hiện được cả khi
+     đường ra Internet của máy chủ có vấn đề. */
+  :root {
+    --bg: #f8f5f0;
+    --card: #ffffff;
+    --line: #ebe5dc;
+    --text: #201e1d;
+    --text-2: #645c50;
+    --orange: #ca4d25;
+    --orange-soft: #fce6dd;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.55;
+  }
+  main {
+    width: 100%;
+    max-width: 30rem;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 32px 28px;
+    text-align: center;
+  }
+  .badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 999px;
+    background: var(--orange-soft);
+    color: #963317;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+  h1 { margin: 16px 0 8px; font-size: 1.5rem; }
+  p { margin: 0 0 8px; color: var(--text-2); }
+  #dem-nguoc {
+    margin: 24px 0 4px;
+    font-size: 2.5rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--orange);
+  }
+  #dem-nguoc[hidden] { display: none; }
+  .nhan { font-size: 0.8125rem; color: var(--text-2); }
+  footer { margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--line); font-size: 0.8125rem; color: var(--text-2); }
+  @media (prefers-reduced-motion: no-preference) {
+    #dem-nguoc { transition: color 0.2s; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <span class="badge">Đang bảo trì</span>
+  <h1>Hệ thống đang được nâng cấp</h1>
+  <p id="loi-nhan">Đội kỹ thuật đang cập nhật dữ liệu. Bạn vui lòng quay lại sau ít phút.</p>
+
+  <p id="dem-nguoc" role="timer" aria-live="polite" aria-atomic="true" hidden></p>
+  <p class="nhan" id="nhan-dem" hidden>Thời gian còn lại dự kiến</p>
+
+  <footer>Trang tự mở lại khi hệ thống sẵn sàng. Bạn không cần tải lại.</footer>
+</main>
+
+<script>
+(function () {
+  var oDem = document.getElementById("dem-nguoc");
+  var oNhan = document.getElementById("nhan-dem");
+  var oLoiNhan = document.getElementById("loi-nhan");
+  var moc = null;
+
+  function hai(n) { return n < 10 ? "0" + n : String(n); }
+
+  function veDemNguoc() {
+    if (moc === null) return;
+    var conLai = Math.floor((moc - Date.now()) / 1000);
+
+    // Hết giờ dự kiến mà chưa xong thì đổi lời nhắn, KHÔNG hiện số âm.
+    if (conLai <= 0) {
+      oDem.hidden = true;
+      oNhan.hidden = true;
+      oLoiNhan.textContent = "Đang hoàn tất những bước cuối. Trang sẽ tự mở lại.";
+      return;
+    }
+
+    var phut = Math.floor(conLai / 60);
+    var giay = conLai % 60;
+    oDem.textContent = hai(phut) + ":" + hai(giay);
+    oDem.hidden = false;
+    oNhan.hidden = false;
+  }
+
+  // Mốc giờ nằm ở file riêng, không nhúng vào HTML: trang là file tĩnh, còn mốc
+  // giờ đổi mỗi lần bật bảo trì. Đường dẫn tuyệt đối vì trang này trả về cho MỌI
+  // đường dẫn, kể cả `/banking/<id>` — đường dẫn tương đối sẽ trỏ sai chỗ.
+  fetch("/__maintenance/until.txt", { cache: "no-store" })
+    .then(function (res) { return res.ok ? res.text() : null; })
+    .then(function (text) {
+      if (!text) return;
+      var t = Date.parse(text.trim());
+      if (isNaN(t)) return;
+      moc = t;
+      veDemNguoc();
+      setInterval(veDemNguoc, 1000);
+    })
+    .catch(function () { /* Không có mốc giờ thì chỉ hiện lời nhắn chung. */ });
+
+  /**
+   * Hỏi máy chủ 15 giây một lần, xong thì tự tải lại.
+   *
+   * Dùng HEAD để không kéo cả trang về. Nhịp 15 giây chứ không phải 1 giây: bảo
+   * trì thường kéo dài vài phút, và mỗi người đang mở trang là một nguồn request
+   * đều đặn vào đúng lúc máy chủ đang bận nâng cấp.
+   */
+  setInterval(function () {
+    fetch("/", { method: "HEAD", cache: "no-store" })
+      .then(function (res) { if (res.status !== 503) location.reload(); })
+      .catch(function () { /* Máy chủ đang khởi động lại — chờ nhịp sau. */ });
+  }, 15000);
+})();
+</script>
+</body>
+</html>
