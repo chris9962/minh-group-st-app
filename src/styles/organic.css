@@ -269,7 +269,10 @@ figcaption {
   background: var(--color-surface);
   border: 1px solid var(--color-divider); border-radius: var(--radius-md);
 }
-.input:hover { border-color: color-mix(in srgb, var(--color-text) 45%, transparent); }
+.input:hover:not(:disabled) { border-color: color-mix(in srgb, var(--color-text) 45%, transparent); }
+/* Ô nhập/ô chọn bị khoá phải NHÌN RA được là khoá. Trước đây không có luật nào,
+   nên ô chọn khoá trông y hệt ô bấm được — người dùng bấm mãi không đổi. */
+.input:disabled { opacity: 0.55; cursor: not-allowed; }
 .input:focus-visible { border-color: var(--color-accent); outline-offset: 0; }
 textarea.input { min-height: 90px; resize: vertical; }
 .radio { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; }
