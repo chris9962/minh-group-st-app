@@ -41,6 +41,13 @@
   color: var(--om-text);
 }
 
+.disabled,
+.disabled:hover {
+  color: var(--om-text-3);
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .active {
   color: var(--om-orange-ink);
   font-weight: 600;

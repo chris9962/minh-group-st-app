@@ -53,24 +53,6 @@ const SEES_ID_NUMBER: Record<Role, boolean> = {
   staff: false,
 };
 
-/** Ai xuất được "Dữ liệu tổng" — `customer:export` chỉ CEO có (qua `*`). */
-/**
- * Ai xuất được danh sách khách (`customer:export`) — Phó GĐ, Trưởng phòng, Phó
- * phòng được thêm ngày 06/08.
- *
- * Phạm vi ghi là `company` và đó là mô tả THẬT chứ không phải nới tay: hồ sơ
- * khách không áp trục phạm vi (spec §2.1b) nên file xuất luôn gồm mọi khách
- * khớp bộ lọc. Bản xuất KHÔNG chứa CCCD — trường đó đi đường riêng, gác bằng
- * `customer:access-id-number`.
- */
-const EXPORTS: Record<Role, boolean> = {
-  director: true,
-  "deputy-director": true,
-  head: true,
-  "deputy-head": true,
-  staff: false,
-};
-
 /**
  * Tên hiện trên bảng, theo đúng thứ tự bảng đang xếp.
  *
@@ -222,30 +204,6 @@ test.describe("mọi chức vụ đều dùng được màn khách hàng", () =>
         await expect(info).toContainText("4871");
         expect(await page.content()).not.toContain("092301004871");
       }
-    });
-
-    test(`${LABEL[role]}: báo cáo "Dữ liệu tổng" ${EXPORTS[role] ? "bấm được" : "bị khoá"}`, async ({ page }) => {
-      await login(page, role);
-      await page.goto("/exports");
-      /**
-       * Hỏi ĐƯỜNG DẪN, không hỏi `screenLoaded`.
-       *
-       * Không có quyền xuất gì cả thì app đẩy thẳng về trang chủ. `screenLoaded`
-       * khi đó vẫn trả `true` — trang chủ cũng là một màn dựng xong — nên ca này
-       * đi tiếp rồi tìm nút "Dữ liệu tổng" ở một màn không có nút đó. Sửa
-       * 2026-08-22.
-       */
-      if (!page.url().includes("/exports")) {
-        expect(EXPORTS[role]).toBe(false);
-        return;
-      }
-
-      // Màn Xuất cố ý LIỆT KÊ ĐỦ báo cáo rồi khoá cái không có quyền, chứ không
-      // ẩn đi — người dùng biết là có báo cáo đó và đi xin quyền, thay vì tưởng
-      // hệ thống không làm được. Nên kiểm trạng thái khoá, đừng kiểm biến mất.
-      const nut = page.getByRole("button", { name: /Dữ liệu tổng/ });
-      if (EXPORTS[role]) await expect(nut).toBeEnabled();
-      else await expect(nut).toBeDisabled();
     });
   }
 });

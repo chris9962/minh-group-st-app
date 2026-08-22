@@ -6,7 +6,15 @@ import styles from "./SectionTabs.module.scss";
 
 export type SectionOption = {
   value: string;
-  label: string;
+  /** Nhận ReactNode để nơi gọi ghép thêm icon — ví dụ ổ khoá cho khu vực không có quyền. */
+  label: React.ReactNode;
+  /**
+   * Hiện nhưng không bấm được.
+   *
+   * Dùng khi người xem KHÔNG có quyền vào khu vực đó: ẩn tab đi thì họ tưởng
+   * hệ thống không làm được, còn thấy tab mờ thì biết mà đi xin quyền.
+   */
+  disabled?: boolean;
 };
 
 type Props = {
@@ -36,13 +44,18 @@ export function SectionTabs({ label, options, value, onChange }: Props) {
       {options.map((o) => (
         <label
           key={o.value}
-          className={clsx(styles.tab, o.value === value && styles.active)}
+          className={clsx(
+            styles.tab,
+            o.value === value && styles.active,
+            o.disabled && styles.disabled,
+          )}
         >
           <input
             type="radio"
             className="sr-only"
             name={`${id}-section`}
             checked={o.value === value}
+            disabled={o.disabled}
             onChange={() => onChange(o.value)}
           />
           {o.label}

@@ -50,6 +50,13 @@ export type PeopleQuery = {
   period: string;
   summaryMonth: string;
   departmentId: string;
+  /**
+   * Lọc theo LOẠI phòng — `sales` · `office`, rỗng là mọi loại.
+   *
+   * Độc lập với `departmentId`: chọn "tất cả đơn vị" nhưng loại `sales` thì ra
+   * đúng người của 11 phòng kinh doanh. CHỈ có ở đường xuất.
+   */
+  departmentType: string;
   /** Tìm theo tên nhân viên, tên đăng nhập hoặc tên đơn vị. Không dấu cũng khớp. */
   search: string;
 };
@@ -71,6 +78,7 @@ export async function fetchPeopleForExport(query: PeopleQuery): Promise<PersonSc
     period: query.period,
     summaryMonth: query.summaryMonth,
     departmentId: query.departmentId,
+    departmentType: query.departmentType,
     search: query.search,
   });
   const res = await fetch(`/api/people/export?${params}`);

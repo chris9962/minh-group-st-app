@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, lte, sql, type AnyColumn, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNotNull, lte, sql, type AnyColumn, type SQL } from "drizzle-orm";
 import type { PersonScore } from "@/lib/api/people";
 import type {
   PersonAccount,
@@ -10,7 +10,7 @@ import type {
 import type { Page } from "@/lib/api/pagination";
 import { BUSINESS_TIMEZONE, businessDay, businessMonth, monthRange, roundPoints } from "@/lib/format";
 import { clampScope, inVisibleScope, visibleDepartmentIds } from "@/lib/permissions";
-import { ROLE_RANK, Scope, type User } from "@/lib/types";
+import { DepartmentType, ROLE_RANK, Scope, type User } from "@/lib/types";
 import { db } from "./db/client";
 import type { PageArgs } from "./pagination";
 import {
@@ -471,7 +471,15 @@ export const daysLeftOf = (yearMonth: string): number => {
  */
 export async function peopleForExport(
   actor: User,
-  query: { scope: string; period: string; summaryMonth: string; departmentId: string; search: string },
+  query: {
+    scope: string;
+    period: string;
+    summaryMonth: string;
+    departmentId: string;
+    /** `sales` · `office` · rỗng là mọi loại. Lọc theo LOẠI phòng, độc lập với `departmentId`. */
+    departmentType: string;
+    search: string;
+  },
 ): Promise<PersonScore[]> {
   // Kẹp theo ĐÚNG hành động mà route gác — `export`, không phải `view-detail`.
   // Lệch hai vế là ai có `view-detail` toàn công ty nhưng `export` một phòng
@@ -483,20 +491,32 @@ export async function peopleForExport(
 
   const summaryMonth = query.summaryMonth || businessMonth();
 
+  const departmentType = DepartmentType.safeParse(query.departmentType);
+
   // Chỉ người đang làm mới có chỉ tiêu. Tính cả tài khoản đã khoá thì họ vào
   // bảng với 0 điểm và cột "chưa đạt" phồng lên mà không ai thấy vì sao.
   const where = and(
     eq(users.active, true),
+    /**
+     * Bỏ người KHÔNG thuộc phòng nào (chốt 2026-08-22): Ban giám đốc và tài
+     * khoản quản trị. Đây là bảng thành tích của các phòng, mà họ không có
+     * chỉ tiêu — để lại thì mỗi tháng có mấy dòng 0 điểm không ai đọc.
+     *
+     * Chỉ áp cho bản XUẤT. Màn P-51 vẫn liệt kê họ.
+     */
+    isNotNull(users.departmentId),
     visible === null ? undefined : inArray(users.departmentId, visible),
     query.departmentId ? eq(users.departmentId, query.departmentId) : undefined,
+    departmentType.success ? eq(departments.type, departmentType.data) : undefined,
     // Cùng mốc với màn P-51. Lệch hai vế là bản xuất Excel và bảng trên màn
     // hình cho hai số khác nhau cho cùng một tháng.
     createdByEndOf(summaryMonth),
     staffSearchWhere(query.search),
   );
 
-  // leftJoin, KHÔNG innerJoin: `users.department_id` để trống với ban giám đốc,
-  // innerJoin thì họ rơi khỏi bản xuất mà không báo gì.
+  // Vẫn leftJoin dù `where` đã chặn `department_id` rỗng: đổi sang innerJoin
+  // thì hai vế cùng nói một luật, mà sửa một vế quên vế kia là dòng rơi mất
+  // không báo gì. Một chỗ quyết định, ở `where`.
   const rows = await db
     .select({
       id: users.id,
