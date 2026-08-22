@@ -211,7 +211,6 @@ const INSURANCE_BASKET: Record<1 | 2, string[]> = {
 const ITEMS_CNKD = ["QUA-LOA", "QUA-MICA"];
 const ITEMS_HOSPITAL = ["QUA-MI", "QUA-BH-SUC-KHOE", "QUA-NON-BH"];
 /** Lưu ý 2: Phòng Y quy đổi quà của TH5/TH6 sang vật phẩm. */
-const ITEMS_PHONG_Y = ["QUA-NON-BH", "QUA-MI"];
 
 const HOSPITAL_CHANNEL = "KENH-BENH-VIEN";
 const PHONG_Y = "PHONG-Y";
@@ -281,14 +280,29 @@ export function gift(input: GiftInput): GiftResult {
     explain.push("Mở VPa kèm CNKD hoặc HKD nên rổ có thêm Loa và Bảng mica.");
   }
 
-  if (input.channelCodes.includes(HOSPITAL_CHANNEL)) {
-    addItems(ITEMS_HOSPITAL, "Khách đến từ kênh Bệnh viện");
-    explain.push("Khách đến từ kênh Bệnh viện nên rổ có thêm Mì, BH sức khoẻ và Nón bảo hiểm.");
-  }
-
-  if (input.departmentCode === PHONG_Y && (matched?.code === "TH5" || matched?.code === "TH6")) {
-    addItems(ITEMS_PHONG_Y, "Phòng Y quy đổi quà TH5/TH6");
-    explain.push("Phòng Y được quy đổi quà sang vật phẩm nên rổ có thêm Nón bảo hiểm và Mì.");
+  /**
+   * Phòng Y và kênh Bệnh viện là MỘT nhóm khách — chủ dự án xác nhận 2026-08-22.
+   * Thoả một trong hai vế là đủ.
+   *
+   * Quy đổi CHỈ ở bậc TH5 hoặc TH6, đúng lưu ý 2 nguyên văn của mục 4: "Phòng Y
+   * được quy đổi quà tặng TH5, TH6 ở Combo3 thành nón bảo hiểm, thùng mì hoặc
+   * một số quà tặng khác."
+   *
+   * ⚠️ Đây là LẬT quyết định chốt 2026-08-11 "món thêm không phụ thuộc số tài
+   * khoản". Dòng "Kênh = Bệnh viện" của mục 4b do đội tự thêm, không có trong
+   * ảnh đội KD gửi, và nó phát quà cho nhóm khách mà bảng gốc đòi phải đạt
+   * TH5/TH6. Chốt lại 2026-08-22: theo bảng gốc.
+   *
+   * Ba món giữ nguyên danh sách của kênh Bệnh viện. Bảng gốc chỉ gọi tên nón và
+   * mì, phần "một số quà tặng khác" vẫn treo ở câu 7.9 của file thể lệ.
+   */
+  const isPhongY =
+    input.departmentCode === PHONG_Y || input.channelCodes.includes(HOSPITAL_CHANNEL);
+  if (isPhongY && (matched?.code === "TH5" || matched?.code === "TH6")) {
+    addItems(ITEMS_HOSPITAL, "Phòng Y hoặc kênh Bệnh viện, quy đổi quà TH5/TH6");
+    explain.push(
+      "Phòng Y hoặc kênh Bệnh viện đạt TH5/TH6 nên rổ có thêm Mì, BH sức khoẻ và Nón bảo hiểm.",
+    );
   }
 
   if (!matched) {

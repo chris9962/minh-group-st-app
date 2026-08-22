@@ -390,42 +390,33 @@ checkCodes(
 );
 check("CNKD không tự thành combo", giftOf(["MB", "CNKD", "HKD"]).caseCode, null);
 
-section("Món thêm — kênh Bệnh viện");
-checkCodes(
-  "kênh Bệnh viện góp ba món",
-  giftOf(["MB", "VPa"], { channels: ["KENH-BENH-VIEN"] }).basket.map((b) => b.code),
-  [...BH_1N, "QUA-MI", "QUA-BH-SUC-KHOE", "QUA-NON-BH"],
-);
-checkCodes(
-  "kênh khác không góp gì",
-  giftOf(["MB", "VPa"], { channels: ["KENH-ATM"] }).basket.map((b) => b.code),
-  BH_1N,
-);
 /**
- * Món thêm KHÔNG phụ thuộc số tài khoản (thể lệ mục 4b). Khách chưa đủ bậc quà
- * nào vẫn nhận món thêm của kênh — chỉ không có gói bảo hiểm.
+ * Món thêm của Phòng Y — chốt lại 2026-08-22.
+ *
+ * Phòng Y và kênh Bệnh viện là MỘT nhóm khách, thoả một trong hai vế là đủ.
+ * Quy đổi CHỈ ở bậc TH5 hoặc TH6, theo lưu ý 2 nguyên văn của bảng đội KD gửi.
+ *
+ * Bản trước phát ba món cho MỌI khách kênh Bệnh viện, không cần bậc — dòng đó
+ * do đội tự thêm ở mục 4b, không có trong bảng gốc. Các ca dưới đây ghăm lại
+ * luật mới để lần sau không ai nới ra mà không đọc bảng gốc.
  */
-checkCodes(
-  "khách một tài khoản ở bệnh viện vẫn nhận món thêm của kênh",
-  giftOf(["MB"], { channels: ["KENH-BENH-VIEN"] }).basket.map((b) => b.code),
-  ["QUA-MI", "QUA-BH-SUC-KHOE", "QUA-NON-BH"],
-);
-check(
-  "…nhưng chưa đạt bậc nào nên không có gói bảo hiểm",
-  giftOf(["MB"], { channels: ["KENH-BENH-VIEN"] }).caseCode,
-  null,
-);
-
-section("Món thêm — Phòng Y quy đổi (lưu ý 2)");
+section("Món thêm — Phòng Y và kênh Bệnh viện (lưu ý 2)");
 checkCodes(
   "TH5 ở Phòng Y",
   giftOf(["MB", "VPa", "LBP"], { department: "PHONG-Y" }).basket.map((b) => b.code),
-  [...BH_2N, "QUA-NON-BH", "QUA-MI"],
+  [...BH_2N, "QUA-MI", "QUA-BH-SUC-KHOE", "QUA-NON-BH"],
 );
 checkCodes(
-  "TH6 ở Phòng Y",
-  giftOf(["LBP", "TPB", "VIB"], { department: "PHONG-Y" }).basket.map((b) => b.code),
-  [...BH_2N, "QUA-NON-BH", "QUA-MI"],
+  "TH6 ở kênh Bệnh viện",
+  giftOf(["LBP", "TPB", "VIB"], { channels: ["KENH-BENH-VIEN"] }).basket.map((b) => b.code),
+  [...BH_2N, "QUA-MI", "QUA-BH-SUC-KHOE", "QUA-NON-BH"],
+);
+checkCodes(
+  "vừa Phòng Y vừa kênh Bệnh viện thì món không nhân đôi",
+  giftOf(["LBP", "TPB", "VIB"], { channels: ["KENH-BENH-VIEN"], department: "PHONG-Y" }).basket.map(
+    (b) => b.code,
+  ),
+  [...BH_2N, "QUA-MI", "QUA-BH-SUC-KHOE", "QUA-NON-BH"],
 );
 checkCodes(
   "TH3 ở Phòng Y KHÔNG được quy đổi",
@@ -433,16 +424,30 @@ checkCodes(
   BH_1N,
 );
 checkCodes(
-  "TH5 ở phòng khác không được quy đổi",
-  giftOf(["MB", "VPa", "LBP"], { department: "KD-1" }).basket.map((b) => b.code),
-  BH_2N,
+  "TH1 ở kênh Bệnh viện KHÔNG được quy đổi",
+  giftOf(["MB", "VPa"], { channels: ["KENH-BENH-VIEN"] }).basket.map((b) => b.code),
+  BH_1N,
 );
 checkCodes(
-  "bệnh viện và Phòng Y trùng món thì không nhân đôi",
-  giftOf(["LBP", "TPB", "VIB"], { channels: ["KENH-BENH-VIEN"], department: "PHONG-Y" }).basket.map(
+  "TH5 ở phòng khác, kênh khác thì không được quy đổi",
+  giftOf(["MB", "VPa", "LBP"], { department: "KD-1", channels: ["KENH-ATM"] }).basket.map(
     (b) => b.code,
   ),
-  [...BH_2N, "QUA-MI", "QUA-BH-SUC-KHOE", "QUA-NON-BH"],
+  BH_2N,
+);
+/**
+ * Ca then chốt của lượt chốt lại 2026-08-22: khách kênh Bệnh viện CHƯA đạt bậc
+ * nào thì rổ RỖNG. Bản trước trả ba món ở đây.
+ */
+checkCodes(
+  "khách một tài khoản ở kênh Bệnh viện KHÔNG còn nhận món thêm",
+  giftOf(["MB"], { channels: ["KENH-BENH-VIEN"] }).basket.map((b) => b.code),
+  [],
+);
+check(
+  "…và vẫn chưa đạt bậc nào",
+  giftOf(["MB"], { channels: ["KENH-BENH-VIEN"] }).caseCode,
+  null,
 );
 
 section("Quà tra luật theo NGÀY");
