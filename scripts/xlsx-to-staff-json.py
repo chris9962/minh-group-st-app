@@ -19,6 +19,13 @@ from openpyxl import load_workbook
 OUT = Path(__file__).parent / "data" / "staff-import.json"
 HEADER_ROW = 4
 
+# File HR xếp Dương Minh Trường là Trưởng Phòng Kinh Doanh 8; sơ đồ tổ chức thật
+# để anh ở Ban giám đốc, quản KD-1 và KD-8 (`scripts/seed-data.ts`). Ghi đè ở đây
+# để chạy lại script không kéo bản HR cũ về.
+OVERRIDE = {
+    "009TRUONGDM": {"position": "Quyền Phó Giám Đốc", "department": "Ban giám đốc"},
+}
+
 
 def rows_of(ws):
     return [r for r in list(ws.iter_rows(values_only=True))[HEADER_ROW:] if r[0] not in (None, "")]
@@ -69,23 +76,26 @@ def main() -> None:
 
     people = []
     for code, full_name, position, department, status in (r[:5] for r in source):
-        people.append(
-            {
-                "staffCode": code.strip(),
-                "username": username_of(code),
-                "fullName": " ".join(str(full_name).split()),
-                "position": str(position).strip(),
-                "department": str(department).strip(),
-                "status": str(status).strip(),
-                "phone": phone_by_code.get(code, ""),
-            }
-        )
+        person = {
+            "staffCode": code.strip(),
+            "username": username_of(code),
+            "fullName": " ".join(str(full_name).split()),
+            "position": str(position).strip(),
+            "department": str(department).strip(),
+            "status": str(status).strip(),
+            "phone": phone_by_code.get(code, ""),
+        }
+        person.update(OVERRIDE.get(person["staffCode"], {}))
+        people.append(person)
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(json.dumps(people, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
     no_phone = [p["staffCode"] for p in people if not p["phone"]]
+    applied = [c for c in OVERRIDE if any(p["staffCode"] == c for p in people)]
     print(f"Ghi {len(people)} người vào {OUT}")
+    if applied:
+        print(f"Ghi đè chức vụ theo sơ đồ tổ chức: {', '.join(applied)}")
     print(f"Thiếu số điện thoại: {len(no_phone)} — {', '.join(no_phone) if no_phone else 'không có'}")
 
 

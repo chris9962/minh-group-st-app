@@ -101,6 +101,7 @@ const DEPARTMENT_CODE: Record<string, string | null> = {
 const ROLE_OF_POSITION: Record<string, RoleKey> = {
   "Giám đốc": "director",
   "Phó Giám đốc": "deputy-director",
+  "Quyền Phó Giám Đốc": "deputy-director",
   "Cố vấn Cao cấp": "deputy-director",
   "Cố vấn chuyên môn": "deputy-director",
   "Trưởng Phòng Kinh Doanh": "head",
