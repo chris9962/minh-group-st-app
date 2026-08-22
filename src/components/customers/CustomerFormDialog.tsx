@@ -3,10 +3,11 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Trash2 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { Button } from "@/components/ui/Button";
 import { CharCount } from "@/components/ui/CharCount";
+import { AddressField } from "@/components/ui/AddressField";
 import { Combobox } from "@/components/ui/Combobox";
 import { Dialog } from "@/components/ui/Dialog";
 import { ErrorState } from "@/components/ui/ErrorState";
@@ -124,13 +125,25 @@ export function CustomerFormDialog({
     queryKey: ["provinces"],
     queryFn: fetchProvinces,
   });
-  const [provinceId, setProvinceId] = useState("");
-  const [wardId, setWardId] = useState("");
-  const [hamletId, setHamletId] = useState("");
-  /** Người dùng đã tự chọn lại Tỉnh/Xã/Ấp chưa — xem `channelDetailToSave`. */
-  const [wardTouched, setWardTouched] = useState(false);
-  const selectedProvince = provinces.find((p) => p.id === provinceId);
-  const selectedWard = selectedProvince?.wards.find((w) => w.id === wardId);
+
+  /**
+   * Gợi ý địa chỉ `Tỉnh, Xã, Ấp` ghép từ danh mục (spec §U9) — dấu PHẨY, đúng
+   * cách người ta viết địa chỉ, không phải `·` của channelDetail cũ.
+   *
+   * Ghép ở trình duyệt là đủ: mỗi ấp thuộc đúng một xã nên số dòng = số ấp
+   * cộng số xã, không phải tích chéo — cả nước mọi ấp cũng chỉ ~20.000 chuỗi,
+   * một lượt flatMap ~10ms. Xã chưa có ấp vẫn có gợi ý mức xã.
+   */
+  const addressSuggestions = useMemo(
+    () =>
+      provinces.flatMap((p) =>
+        p.wards.flatMap((w) => [
+          `${p.name}, ${w.name}`,
+          ...w.hamlets.map((h) => `${p.name}, ${w.name}, ${h.name}`),
+        ]),
+      ),
+    [provinces],
+  );
 
   const { data: hospitals = [] } = useQuery({
     queryKey: ["hospitals"],
@@ -139,60 +152,15 @@ export function CustomerFormDialog({
   });
 
   /**
-   * channelDetail của kênh ấp lưu chuỗi TÊN "Tỉnh · Xã · Ấp", không lưu ID —
-   * mở form sửa thì phải tra ngược danh mục theo tên để dựng lại ba ô chọn.
+   * Kênh kiểu `ward-hamlet` (Ấp, Định danh) KẾ THỪA ô Địa chỉ — chốt
+   * 2026-08-22, spec §U9. Không còn ô nhập riêng, nên cũng không còn lượt tra
+   * ngược chuỗi `Tỉnh · Xã · Ấp` về ba ô chọn như bản trước.
    *
-   * Ba điều kiện quyết định lúc nào được dựng lại:
-   *
-   * - `wardTouched`: người dùng tự bỏ chọn Tỉnh thì ĐỂ YÊN. Bản trước không có
-   *   điều kiện này nên effect dựng lại ngay từ giá trị gốc, và ô Tỉnh không xoá
-   *   được — bỏ chọn xong nó hiện lại y như cũ.
-   * - `provinceId`: đã dựng rồi thì thôi, tránh chạy vòng lặp.
-   * - `channelId === customer.channelId`: đổi ô Kênh đi rồi đổi về đúng kênh cũ
-   *   thì dựng lại lựa chọn đã lưu. Sang kênh khác thì không, vì lựa chọn cũ
-   *   không còn nghĩa.
+   * Hệ quả với hồ sơ cũ: `channelDetail` dạng `·` bị thay bằng chuỗi địa chỉ
+   * dấu phẩy ở lần Lưu kế tiếp — chấp nhận, cột này chỉ để hiển thị.
    */
-  useEffect(() => {
-    if (!editing || !customer?.channelDetail) return;
-    if (wardTouched || provinceId || provinces.length === 0) return;
-    if (channelId !== customer.channelId) return;
-    const channel = channels.find((c) => c.id === customer.channelId);
-    if (channel?.inputKind !== "ward-hamlet") return;
-
-    const [provinceName, wardName, hamletName] = customer.channelDetail.split(" · ");
-    const province = provinces.find((p) => p.name === provinceName);
-    if (!province) return;
-    const ward = province.wards.find((w) => w.name === wardName);
-    const hamlet = ward?.hamlets.find((h) => h.name === hamletName);
-
-    setProvinceId(province.id);
-    if (ward) setWardId(ward.id);
-    if (hamlet) setHamletId(hamlet.id);
-  }, [editing, customer, channelId, wardTouched, provinceId, channels, provinces]);
-
-  /**
-   * Chuỗi kênh ấp SUY RA từ ba ô chọn, tính lúc gửi form — không giữ nó như một
-   * state thứ hai rồi đồng bộ bằng tay.
-   *
-   * Bản trước giữ hai nguồn: ba ô chọn cho phần hiển thị, `channelDetail` cho
-   * phần lưu. Đổi ô Kênh hay ô Tỉnh là xoá chuỗi nhưng ba ô vẫn hiện đủ giá trị
-   * cũ, nên người dùng bấm Lưu mà không biết chuỗi đã rỗng — và cột đó lưu tên
-   * chứ không lưu ID nên mất là mất hẳn.
-   *
-   * Nhánh cuối giữ chuỗi cũ khi người dùng CHƯA chạm ba ô: chúng có thể trống vì
-   * danh mục xã/ấp đổi tên nên tra ngược không ra. Suy chuỗi từ ba ô trống lúc
-   * đó là xoá dữ liệu của một hồ sơ mà người dùng chỉ định sửa số điện thoại.
-   *
-   * Hai loại kênh còn lại giữ nguyên: ô Bệnh viện và ô Chi tiết kênh đọc ghi
-   * thẳng vào `channelDetail`, không có nguồn thứ hai để lệch.
-   */
-  const channelDetailToSave = (form: CustomerForm) => {
-    if (selectedChannel?.inputKind !== "ward-hamlet") return form.channelDetail;
-    const hamlet = selectedWard?.hamlets.find((h) => h.id === hamletId);
-    if (selectedProvince && selectedWard && hamlet)
-      return `${selectedProvince.name} · ${selectedWard.name} · ${hamlet.name}`;
-    return wardTouched ? "" : form.channelDetail;
-  };
+  const channelDetailToSave = (form: CustomerForm) =>
+    selectedChannel?.inputKind === "ward-hamlet" ? form.address : form.channelDetail;
 
   const save = useMutation({
     mutationFn: (form: CustomerForm) =>
@@ -309,12 +277,14 @@ export function CustomerFormDialog({
             )}
           </div>
 
-          <TextField
+          <AddressField
             label="Địa chỉ"
             required
-            placeholder="123 Nguyễn Trãi, Phường Tân Bình"
+            placeholder="Gõ để tìm Tỉnh, Xã, Ấp — chọn xong gõ thêm số nhà"
+            suggestions={addressSuggestions}
+            value={watch("address")}
+            onChange={(v) => setValue("address", v, { shouldDirty: true, shouldValidate: true })}
             error={errors.address?.message}
-            {...register("address")}
           />
 
           <Select
@@ -323,13 +293,9 @@ export function CustomerFormDialog({
             value={channelId}
             onChange={(v) => {
               setValue("channelId", v, { shouldDirty: true });
+              // Chi tiết cũ hết nghĩa khi đổi kênh. Kênh kiểu ấp không đọc ô
+              // này — nó kế thừa Địa chỉ lúc lưu (spec §U9).
               setValue("channelDetail", "", { shouldDirty: true });
-              // Đặt lại, KHÔNG bật: đổi về đúng kênh cũ thì effect dựng lại
-              // lựa chọn đã lưu, người dùng không phải chọn lại ba ô.
-              setWardTouched(false);
-              setProvinceId("");
-              setWardId("");
-              setHamletId("");
             }}
             options={[
               { value: "", label: "Không có" },
@@ -338,52 +304,10 @@ export function CustomerFormDialog({
           />
 
           {selectedChannel?.inputKind === "ward-hamlet" && (
-            <>
-              <Select
-                block
-                label="Tỉnh/thành phố"
-                value={provinceId}
-                onChange={(v) => {
-                  setWardTouched(true);
-                  setProvinceId(v);
-                  setWardId("");
-                  setHamletId("");
-                }}
-                options={[
-                  { value: "", label: "— Chọn tỉnh/thành phố —" },
-                  ...provinces.map((p) => ({ value: p.id, label: p.name })),
-                ]}
-              />
-              {selectedProvince && (
-                <Combobox
-                  block
-                  label="Xã/phường"
-                  placeholder="Gõ để tìm xã/phường…"
-                  value={wardId}
-                  onChange={(v) => {
-                    setWardTouched(true);
-                    setWardId(v);
-                    setHamletId("");
-                  }}
-                  options={selectedProvince.wards.map((w) => ({ value: w.id, label: w.name }))}
-                />
-              )}
-              {selectedWard && (
-                <Select
-                  block
-                  label="Ấp"
-                  value={hamletId}
-                  onChange={(v) => {
-                    setWardTouched(true);
-                    setHamletId(v);
-                  }}
-                  options={[
-                    { value: "", label: "— Chọn ấp —" },
-                    ...selectedWard.hamlets.map((h) => ({ value: h.id, label: h.name })),
-                  ]}
-                />
-              )}
-            </>
+            <p className="text-muted">
+              Địa chỉ sử dụng cho kênh {selectedChannel.name}:{" "}
+              <strong>{watch("address").trim() || "(chưa nhập địa chỉ ở trên)"}</strong>
+            </p>
           )}
 
           {selectedChannel?.inputKind === "hospital" && (
