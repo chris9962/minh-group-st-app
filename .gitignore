@@ -65,3 +65,7 @@ next-env.d.ts
 # Vết mạng ghi lúc chạy — chứa HTML trang thật, không phải mã nguồn.
 /pvi-qlcd-playwright/vet/
 __pycache__/
+
+# Nhập nhân sự. `staff-import.json` là họ tên và số điện thoại của người thật,
+# sinh lại được từ file HR gốc nên không có lý do nào để lên repo.
+/scripts/data/staff-import.json

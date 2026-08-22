@@ -61,19 +61,16 @@ const SCOPE_NOTE: Record<StaffForm["role"], string> = {
 };
 
 /**
- * Tên đăng nhập gợi ý từ họ tên: `mg-` + chữ đầu mỗi từ, bỏ dấu.
- * "Nguyễn Văn Anh" ra `mg-nva`.
+ * Tên đăng nhập gợi ý LÀ mã nhân viên viết thường: `001THAODV` ra `001thaodv`.
+ *
+ * Mã nhân viên đã duy nhất trong công ty nên gợi ý không bao giờ đụng nhau —
+ * khác hẳn cách cũ (chữ đầu mỗi từ của họ tên), vốn cho ba người tên Nguyễn Thị
+ * Tường Vy chung một `mg-nttv`. Người dùng cũng chỉ phải nhớ một chuỗi.
+ *
+ * Bỏ ký tự `StaffForm` không nhận, giữ lại `. _ -` vì mã có thể mang dấu nối.
  */
-function usernameFrom(fullName: string): string {
-  const initials = removeDiacritics(fullName)
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((word) => word[0])
-    .join("")
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, "");
-  return initials ? `mg-${initials}` : "";
+function usernameFrom(staffCode: string): string {
+  return removeDiacritics(staffCode).trim().toLowerCase().replace(/[^a-z0-9._-]/g, "");
 }
 
 const toForm = (s: StaffAccount): StaffForm => ({
@@ -255,31 +252,30 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
           required
           placeholder="Nguyễn Văn An"
           error={errors.fullName?.message}
-          {...register("fullName", {
-            // Tên đăng nhập đi theo họ tên, nhưng CHỈ khi người tạo chưa tự gõ:
-            // còn nguyên gợi ý của lần gõ trước thì thay, đã sửa thành "nv13"
-            // rồi thì để yên. Sửa hồ sơ cũ thì không đụng — đổi tên đăng nhập
-            // của người đang dùng là họ không đăng nhập được nữa.
-            onChange: (e) => {
-              if (editing) return;
-              const current = getValues("username").trim();
-              if (current !== "" && current !== suggestedUsername.current) return;
-              const next = usernameFrom(e.target.value);
-              suggestedUsername.current = next;
-              setValue("username", next, { shouldDirty: true });
-            },
-          })}
+          {...register("fullName")}
         />
 
         <div className={styles.pair}>
           <TextField
-            label="Tên đăng nhập"
+            label="Mã nhân viên"
             required
-            placeholder="nv13"
-            hint="Chữ thường không dấu"
-            error={errors.username?.message}
+            placeholder="001THAODV"
+            error={errors.staffCode?.message}
             autoComplete="off"
-            {...register("username")}
+            {...register("staffCode", {
+              // Tên đăng nhập đi theo mã nhân viên, nhưng CHỈ khi người tạo chưa
+              // tự gõ: còn nguyên gợi ý của lần gõ trước thì thay, đã sửa thành
+              // "nv13" rồi thì để yên. Sửa hồ sơ cũ thì không đụng — đổi tên
+              // đăng nhập của người đang dùng là họ không đăng nhập được nữa.
+              onChange: (e) => {
+                if (editing) return;
+                const current = getValues("username").trim();
+                if (current !== "" && current !== suggestedUsername.current) return;
+                const next = usernameFrom(e.target.value);
+                suggestedUsername.current = next;
+                setValue("username", next, { shouldDirty: true });
+              },
+            })}
           />
           <TextField
             label="Số điện thoại"
@@ -294,12 +290,13 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
         </div>
 
         <TextField
-          label="Mã nhân viên"
+          label="Tên đăng nhập"
           required
-          placeholder="MG-0123"
-          error={errors.staffCode?.message}
+          placeholder="001thaodv"
+          hint="Tự sinh từ mã nhân viên, sửa lại được"
+          error={errors.username?.message}
           autoComplete="off"
-          {...register("staffCode")}
+          {...register("username")}
         />
 
         <div className={styles.pair}>

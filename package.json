@@ -13,6 +13,7 @@
     "db:seed": "bun --env-file=.env.local scripts/db-seed.ts",
     "db:recount": "bun --env-file=.env.local scripts/db-recount.ts",
     "db:demo": "bun --env-file=.env.local scripts/db-demo.ts",
+    "db:import-staff": "bun --env-file=.env.local scripts/db-import-staff.ts",
     "db:grant-missing": "bun --env-file=.env.local scripts/db-grant-missing-permissions.ts",
     "db:grant-department-read": "bun --env-file=.env.local scripts/db-grant-department-read.ts",
     "kpi:recompute": "bun --env-file=.env.local scripts/kpi-recompute.ts",
