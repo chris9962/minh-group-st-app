@@ -1,0 +1,30 @@
+# Image DEV — chạy `next dev` với hot reload, KHÔNG phải bản deploy.
+#
+# Khác Dockerfile prod ở chỗ image này không chứa mã nguồn: mã mount từ máy
+# ngoài vào lúc chạy (xem service `app-dev` trong docker-compose.yml), nên sửa
+# file là trình duyệt tự nạp lại, không dựng lại image.
+#
+# Image chỉ mang node_modules cài sẵn để lần chạy đầu không phải đợi
+# `bun install` từ con số không. Lockfile đổi thì lệnh install trong CMD cài
+# bù phần chênh — thường xong trong vài giây.
+
+FROM oven/bun:1-alpine
+WORKDIR /app
+
+# Cùng lý do với Dockerfile prod: không chặn thì Chromium của playwright về
+# theo, thêm hơn 150MB cho một image không bao giờ chạy e2e.
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+ENV NEXT_TELEMETRY_DISABLED=1
+
+COPY package.json bun.lock ./
+RUN bun install --frozen-lockfile
+
+EXPOSE 3000
+
+# `bun install` chạy MỖI lần khởi động: volume node_modules sống lâu hơn image,
+# nên sau khi đổi lockfile và dựng lại image, volume vẫn giữ bản cũ — install
+# lúc chạy mới là chỗ đồng bộ thật. Đã đúng lockfile thì lệnh thoát ngay.
+#
+# `-H 0.0.0.0`: nghe mọi giao diện mạng trong container, không thì cổng ánh xạ
+# ra ngoài gọi vào không tới.
+CMD ["sh", "-c", "bun install --frozen-lockfile && bun run dev -H 0.0.0.0"]

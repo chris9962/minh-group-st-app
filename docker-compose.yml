@@ -59,5 +59,38 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  # Bản DEV — `next dev` với hot reload, chạy song song với bản prod được vì
+  # nghe cổng khác. Không tự dựng khi `docker compose up` trống tay (profiles);
+  # gọi đích danh: `docker compose up app-dev`, hoặc `bun run dev:docker`.
+  app-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: mgst-app-dev
+    profiles: ["dev"]
+    depends_on:
+      db:
+        condition: service_healthy
+    # 3001 chứ không phải 3000: container prod `mgst-app` (và `next dev` chạy
+    # thẳng trên máy) đều giữ 3000. Kẹp 127.0.0.1 cùng lý do với bản prod.
+    ports:
+      - "127.0.0.1:3001:3000"
+    env_file:
+      - path: .env.local
+        required: false
+    environment:
+      DATABASE_URL: postgres://mgst:mgst@db:5432/mgst
+    volumes:
+      # Mã nguồn đọc từ máy ngoài — sửa file là hot reload chạy.
+      - .:/app
+      # Hai volume TÊN đè lên hai thư mục con: node_modules build cho Linux
+      # trong container, .next là sản phẩm của chính `next dev`. Để chúng dùng
+      # chung với máy ngoài là binary macOS trộn với binary Linux, và bản
+      # `bun run build` trên máy đè lên cache dev trong container.
+      - mgst-dev-node-modules:/app/node_modules
+      - mgst-dev-next:/app/.next
+
 volumes:
   mgst-pgdata:
+  mgst-dev-node-modules:
+  mgst-dev-next:
