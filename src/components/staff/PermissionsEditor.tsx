@@ -1,7 +1,9 @@
 "use client";
 
 import { Select } from "@/components/ui/Select";
-import { grantScopeFor } from "@/lib/permissions";
+import { Switch } from "@/components/ui/Switch";
+import { canGrantFullAccess, grantScopeFor, isFullAccess } from "@/lib/permissions";
+import { fullPermissions } from "@/lib/roles";
 import {
   ACTION_LABEL,
   BASE_ACTIONS,
@@ -17,6 +19,7 @@ import {
   type Scope,
   type User,
 } from "@/lib/types";
+import { useState } from "react";
 import styles from "./PermissionsEditor.module.scss";
 
 type Props = {
@@ -56,6 +59,17 @@ const SCOPE_MARK_CLASS: Record<Scope | "", string> = {
  * cho một người cụ thể là quá rộng để làm bằng tay, chỉ có ở bộ quyền Giám đốc.
  */
 export function PermissionsEditor({ value, onChange, actor }: Props) {
+  const full = isFullAccess(value);
+  const canGrantFull = canGrantFullAccess(actor);
+
+  /**
+   * Bộ quyền lẻ trước lúc bật công tắc, để tắt là trả lại đúng như cũ.
+   *
+   * Bật "Toàn quyền" ghi đè cả danh sách bằng 15 dòng `*`. Không giữ bản cũ thì
+   * người bật nhầm phải tích lại từ đầu mấy chục ô.
+   */
+  const [manual, setManual] = useState<Permission[]>(full ? [] : value);
+
   const findScope = (module: ModuleKey, action: Action): Scope | "" =>
     value.find((p) => p.module === module && p.action === action)?.scope ?? "";
 
@@ -64,8 +78,31 @@ export function PermissionsEditor({ value, onChange, actor }: Props) {
     onChange(scope ? [...next, { module, action, scope }] : next);
   };
 
+  const toggleFull = (on: boolean) => {
+    if (on) {
+      setManual(value);
+      onChange(fullPermissions);
+      return;
+    }
+    onChange(manual);
+  };
+
   return (
     <div className={styles.grid}>
+      <div className={styles.fullRow}>
+        <Switch
+          label="Toàn quyền"
+          checked={full}
+          disabled={!canGrantFull}
+          onCheckedChange={toggleFull}
+          hint={
+            canGrantFull
+              ? "Mọi module, toàn công ty, cấp được quyền cho người khác. Bật lên thì không phải chọn tay từng ô."
+              : "Chỉ tài khoản đang có quyền cấp quyền mới bật được công tắc này."
+          }
+        />
+      </div>
+
       {EDITABLE_MODULES.map((module) => (
         <div key={module} className={styles.module}>
           <h4 className={styles.moduleTitle}>{MODULE_LABEL[module]}</h4>
@@ -84,7 +121,10 @@ export function PermissionsEditor({ value, onChange, actor }: Props) {
             }
 
             const max = grantScopeFor(actor, module, action);
-            const current = findScope(module, action);
+            // Toàn quyền là 15 dòng module `*`, không có dòng nào mang tên
+            // module này — hiện thẳng mức công ty thay vì để ô trống, không thì
+            // lưới trông như chưa cấp gì trong khi người này có mọi quyền.
+            const current = full ? "company" : findScope(module, action);
 
             /**
              * Hành động không chia được theo phạm vi — chỉ Bật/Tắt.
@@ -94,7 +134,7 @@ export function PermissionsEditor({ value, onChange, actor }: Props) {
              * theo phòng được, ai bật cũng đọc trọn công ty.
              */
             if (SCOPELESS_ACTIONS.includes(action)) {
-              const on = current !== "";
+              const on = full || current !== "";
               return (
                 <div key={action} className={styles.row}>
                   <span className={styles.actionLabel}>{ACTION_LABEL[action]}</span>
@@ -107,8 +147,9 @@ export function PermissionsEditor({ value, onChange, actor }: Props) {
                     hideLabel
                     value={on ? "company" : ""}
                     // Không tự cấp được thì không bật được — `max` là trần phát
-                    // của chính người đang thao tác.
-                    disabled={max === null && !on}
+                    // của chính người đang thao tác. Toàn quyền thì khoá hết:
+                    // công tắc đã quyết, sửa lẻ ở đây không đổi được gì.
+                    disabled={full || (max === null && !on)}
                     onChange={(v) => setScope(module, action, v ? "company" : "")}
                     options={[
                       { value: "", label: "Không có" },
@@ -134,6 +175,7 @@ export function PermissionsEditor({ value, onChange, actor }: Props) {
                   label={ACTION_LABEL[action]}
                   hideLabel
                   value={current}
+                  disabled={full}
                   onChange={(v) => setScope(module, action, v as Scope | "")}
                   options={[
                     { value: "", label: "Không có" },

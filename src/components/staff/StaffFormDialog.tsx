@@ -21,8 +21,8 @@ import {
   type StaffAccount,
 } from "@/lib/api/staff";
 import { removeDiacritics } from "@/lib/format";
-import { assignableRoles } from "@/lib/permissions";
-import { Action, ROLE_LABEL, ROLE_TITLE, type Department } from "@/lib/types";
+import { assignableRoles, isFullAccess } from "@/lib/permissions";
+import { ROLE_LABEL, ROLE_TITLE, type Department } from "@/lib/types";
 import { ROLE_PERMISSIONS } from "@/lib/roles";
 import { useSession } from "@/store/session";
 import { PermissionsEditor } from "./PermissionsEditor";
@@ -138,12 +138,9 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
   const permissions = watch("permissions");
   /**
    * Bộ quyền Giám đốc là 15 dòng module `*`, mỗi dòng phủ MỌI module. Đếm dòng
-   * thì ra số nhỏ hơn Trưởng phòng (32 dòng lẻ) trong khi quyền rộng hơn hẳn,
-   * và lưới cấp lẻ không hiện được dòng `*` nên nó trông như chưa cấp gì.
+   * thì ra số nhỏ hơn Trưởng phòng (32 dòng lẻ) trong khi quyền rộng hơn hẳn.
    */
-  const fullAccess = Action.options.every((action) =>
-    permissions.some((p) => p.module === "*" && p.action === action && p.scope === "company"),
-  );
+  const fullAccess = isFullAccess(permissions);
 
   const save = useMutation({
     /**
@@ -416,45 +413,29 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
             </summary>
             <div className={styles.collapsibleBody}>
               {/*
-                Toàn quyền thì KHÔNG dựng lưới cấp lẻ. Lưới đó chỉ đọc được các
-                dòng quyền theo từng module, mà bộ quyền này gồm 15 dòng module
-                `*` — nó hiện trống trơn trong khi người này đang có mọi quyền.
-                Bày ra là mời người dùng tích vào những ô không đổi được gì.
-
-                Muốn CẮT quyền của tài khoản toàn quyền thì đổi chức vụ trước;
-                lưới hiện lại ngay khi bộ quyền không còn phủ hết.
+                Lưới cấp lẻ hiện CẢ khi đang toàn quyền, chỉ khoá lại. Bản trước
+                thay nó bằng một câu thông báo, nên muốn cắt bớt quyền của tài
+                khoản toàn quyền thì phải đổi chức vụ trước rồi mới tích lại —
+                đường vòng không ai đoán ra. Nay công tắc ở đầu lưới bật/tắt
+                thẳng, tắt là trả lại đúng bộ quyền lẻ trước đó.
               */}
-              {fullAccess ? (
-                <Alert tone="warning">
-                  Chức vụ này có <strong>toàn quyền</strong>: mọi module, toàn
-                  công ty, cấp được quyền cho người khác. Không có gì để cấp thêm.
-                </Alert>
-              ) : (
-                <>
-                  <p className={styles.note}>
-                    Đã điền sẵn theo chức vụ — sửa riêng từng ô nếu người này cần thêm
-                    hoặc bớt quyền so với chức vụ chung. Chỉ chọn được tới đúng phạm vi
-                    bạn đang có, không cấp vượt quá quyền của chính bạn.
-                  </p>
-                  <PermissionsEditor
-                    value={permissions}
-                    onChange={(permissions) =>
-                      setValue("permissions", permissions, { shouldDirty: true })
-                    }
-                    actor={actor}
-                  />
-                  <Button
-                    variant="secondary"
-                    type="button"
-                    className={styles.resetPermissions}
-                    onClick={() =>
-                      setValue("permissions", ROLE_PERMISSIONS[watch("role")], { shouldDirty: true })
-                    }
-                  >
-                    Đặt lại theo chức vụ
-                  </Button>
-                </>
-              )}
+              <PermissionsEditor
+                value={permissions}
+                onChange={(permissions) =>
+                  setValue("permissions", permissions, { shouldDirty: true })
+                }
+                actor={actor}
+              />
+              <Button
+                variant="secondary"
+                type="button"
+                className={styles.resetPermissions}
+                onClick={() =>
+                  setValue("permissions", ROLE_PERMISSIONS[watch("role")], { shouldDirty: true })
+                }
+              >
+                Đặt lại theo chức vụ
+              </Button>
             </div>
           </details>
         )}

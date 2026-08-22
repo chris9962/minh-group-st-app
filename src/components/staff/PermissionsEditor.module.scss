@@ -4,6 +4,15 @@
   gap: 12px;
 }
 
+/* Công tắc đứng riêng trên đầu, có viền để tách khỏi các khối module — nó
+   quyết định cả lưới bên dưới chứ không phải một dòng quyền như những dòng kia. */
+.fullRow {
+  padding: 4px 14px 10px;
+  background: var(--om-soft);
+  border: 1px solid var(--om-line);
+  border-radius: var(--radius-md);
+}
+
 .module {
   display: flex;
   flex-direction: column;

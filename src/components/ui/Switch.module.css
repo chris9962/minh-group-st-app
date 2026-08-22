@@ -1,0 +1,76 @@
+.wrap {
+  display: grid;
+  /* Cột đầu 0 vì ô nhập thật bị ẩn khỏi mắt nhưng vẫn nằm trong luồng tiêu
+     điểm — không dùng `display: none`, nó rơi khỏi thứ tự Tab. */
+  grid-template-columns: 0 1fr;
+  row-gap: 4px;
+}
+
+.input {
+  width: 0;
+  height: 0;
+  margin: 0;
+  opacity: 0;
+}
+
+.label {
+  grid-column: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  /* 44px cho ngón tay — đội KD dùng điện thoại ngoài hiện trường. */
+  min-height: 44px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--om-text);
+  cursor: pointer;
+}
+
+.track {
+  position: relative;
+  flex: none;
+  width: 40px;
+  height: 22px;
+  background: var(--om-line);
+  border-radius: 999px;
+  transition: background 0.15s ease;
+}
+
+.thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  background: var(--om-card);
+  border-radius: 50%;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.25);
+  transition: transform 0.15s ease;
+}
+
+.input:checked + .label .track {
+  background: var(--om-orange);
+}
+
+.input:checked + .label .thumb {
+  transform: translateX(18px);
+}
+
+/* Viền tiêu điểm chỉ hiện khi đi bằng bàn phím — ô nhập thật đang ẩn nên phải
+   vẽ lên thanh trượt. */
+.input:focus-visible + .label .track {
+  outline: 2px solid var(--om-orange);
+  outline-offset: 2px;
+}
+
+.input:disabled + .label {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.hint {
+  grid-column: 2;
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--om-text-2);
+}

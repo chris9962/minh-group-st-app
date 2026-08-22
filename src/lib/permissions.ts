@@ -1,9 +1,9 @@
 import { ROLE_PERMISSIONS } from './roles';
 import {
+  Action,
   ROLE_RANK,
   RoleKey,
   SCOPES,
-  type Action,
   type ModuleKey,
   type Permission,
   type Scope,
@@ -118,6 +118,33 @@ export function grantScopeFor(
     }
   }
   return widest;
+}
+
+/**
+ * Bộ quyền này đã phủ hết chưa — mọi hành động trên `*`, phạm vi công ty.
+ *
+ * Hỏi theo NỘI DUNG chứ không theo chức vụ: một tài khoản mang chức vụ Giám đốc
+ * nhưng đã bị cắt bớt quyền thì không còn toàn quyền, và lưới cấp lẻ phải hiện
+ * lại cho người quản trị sửa tay.
+ */
+export function isFullAccess(permissions: Permission[]): boolean {
+  return Action.options.every((action) =>
+    permissions.some((p) => p.module === '*' && p.action === action && p.scope === 'company'),
+  );
+}
+
+/**
+ * Người này có phát nổi TRỌN bộ toàn quyền cho người khác không.
+ *
+ * Chỉ ai đang cầm `system:grant-permission` mới qua được — `grantScopeFor` trả
+ * `company` cho mọi bộ ba đúng một nhánh đó, và nhánh suy từ chức vụ gán được
+ * thì cố ý bỏ qua `grant-permission`. Trưởng phòng vì thế không bật được công
+ * tắc, kể cả khi họ tự sửa hồ sơ người khác.
+ */
+export function canGrantFullAccess(actor: User | null): boolean {
+  return Action.options.every((action) =>
+    canGrant(actor, { module: '*', action, scope: 'company' }),
+  );
 }
 
 /**

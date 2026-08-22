@@ -163,9 +163,18 @@ const managerPermissions: Permission[] = [
  *   ràng buộc gì với họ. Đánh đổi đã biết và được chấp nhận — tài khoản CEO từ
  *   nay phải được giữ như tài khoản quản trị.
  */
-export const directorPermissions: Permission[] = Action.options.map((action) =>
+/**
+ * TOÀN QUYỀN — mọi hành động trên module `*`, phạm vi công ty.
+ *
+ * Một bộ duy nhất, dùng cho cả vai Giám đốc lẫn công tắc "Toàn quyền" ở lưới
+ * cấp quyền lẻ. Hai chỗ tự dựng riêng thì có ngày lệch nhau một dòng, và lệch
+ * kiểu đó không báo gì.
+ */
+export const fullPermissions: Permission[] = Action.options.map((action) =>
   p('*', action, 'company'),
 );
+
+export const directorPermissions: Permission[] = fullPermissions;
 
 /**
  * Phó giám đốc = quản lý + ĐỌC phòng ban (chốt 2026-08-18).
