@@ -80,7 +80,21 @@ async function createOrder(page: Page): Promise<string> {
   // Đơn tai nạn điện bắt buộc có số thành viên (commit 2dee224) — bot PVI dừng
   // ở đúng ô này nếu nó bằng 0, nên form chặn ngay lúc nhập.
   await dialog.getByLabel("Số thành viên").fill("3");
+  /**
+   * Năm ô của người thụ hưởng, KHÔNG phải hai.
+   *
+   * Bản cũ chỉ điền họ tên với địa chỉ nên biểu mẫu dừng ở ba câu "Chưa chọn
+   * ngày sinh người thụ hưởng", "Chưa nhập CCCD người thụ hưởng", "Chưa nhập số
+   * điện thoại" — và toàn bộ 25 ca bảo hiểm dừng theo vì ca nào cũng gọi hàm này.
+   *
+   * Ngày sinh điền TÁM CHỮ SỐ `ddmmyyyy`: ô là `DateField`, nó chỉ giữ chữ số
+   * rồi tự chèn dấu gạch. Người thụ hưởng KHÔNG chịu ràng buộc 15 tuổi — họ có
+   * thể là con của khách (spec §U8).
+   */
   await dialog.getByLabel("Họ tên").fill(`${TAG} Nguoi thu huong`);
+  await dialog.getByLabel("Ngày sinh").fill("01011990");
+  await dialog.getByLabel("CCCD").fill("077090001234");
+  await dialog.getByLabel("Số điện thoại").fill("0900000077");
   await dialog.getByLabel("Địa chỉ").fill(`${TAG} dia chi`);
   await dialog.getByRole("button", { name: "Tạo đơn" }).click();
 

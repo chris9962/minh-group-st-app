@@ -151,7 +151,11 @@ const sortBy = (page: Page, nhan: RegExp, khoa: string, chieu: "asc" | "desc") =
  * ca cùng cần — điền lẻ ở từng ca thì lần siết tiếp theo phải sửa ba nơi.
  */
 async function fillRequired(scope: ReturnType<typeof dialog>, idNumber: string) {
-  await scope.getByLabel("Ngày sinh").fill("1990-01-01");
+  // TÁM CHỮ SỐ `ddmmyyyy`, không phải `yyyy-mm-dd`. Ô ngày sinh là `DateField`
+  // từ commit 3cf6da2 (2026-08-21): nó chỉ giữ chữ số rồi tự chèn dấu gạch, nên
+  // `"1990-01-01"` vào thành `19/90/0101` — tháng 90 không có thật, ô ra rỗng và
+  // biểu mẫu dừng ở "Chưa nhập ngày sinh".
+  await scope.getByLabel("Ngày sinh").fill("01011990");
   await scope.getByLabel("CCCD").fill(idNumber);
   await scope.getByLabel("Địa chỉ").fill(`${TAG} dia chi`);
 }
@@ -223,8 +227,15 @@ test.describe("mọi chức vụ đều dùng được màn khách hàng", () =>
     test(`${LABEL[role]}: báo cáo "Dữ liệu tổng" ${EXPORTS[role] ? "bấm được" : "bị khoá"}`, async ({ page }) => {
       await login(page, role);
       await page.goto("/exports");
-      if (!(await screenLoaded(page))) {
-        // Không có quyền xuất gì cả thì màn tự chặn — cũng coi như không bấm được.
+      /**
+       * Hỏi ĐƯỜNG DẪN, không hỏi `screenLoaded`.
+       *
+       * Không có quyền xuất gì cả thì app đẩy thẳng về trang chủ. `screenLoaded`
+       * khi đó vẫn trả `true` — trang chủ cũng là một màn dựng xong — nên ca này
+       * đi tiếp rồi tìm nút "Dữ liệu tổng" ở một màn không có nút đó. Sửa
+       * 2026-08-22.
+       */
+      if (!page.url().includes("/exports")) {
         expect(EXPORTS[role]).toBe(false);
         return;
       }
@@ -450,6 +461,15 @@ test.describe("thao tác nào cũng báo kết quả", () => {
 
     await page.getByRole("button", { name: "Sửa thông tin" }).click();
     const box = dialog(page);
+    /**
+     * Điền lại NGÀY SINH dù ca này chỉ định đổi địa chỉ.
+     *
+     * Ô ngày sinh thành bắt buộc từ U8 (2026-08-21), và hồ sơ lập trước ngày đó
+     * có thể chưa có. Gặp hồ sơ như vậy thì biểu mẫu dừng ở "Chưa nhập ngày
+     * sinh" và toast không bao giờ hiện. Người dùng thật cũng phải điền bù đúng
+     * như đây — chốt 2026-08-22.
+     */
+    await box.getByLabel("Ngày sinh").fill("01011990");
     await box.getByLabel("Địa chỉ").fill(`ZZE2E địa chỉ ${Date.now()}`);
     await box.getByRole("button", { name: /^Lưu$/ }).click();
 
@@ -508,10 +528,18 @@ test.describe("P-42 · P-43 · quà theo thể lệ của kỳ", () => {
     await expect(main).toContainText(/Tổ hợp 3 ngân hàng/);
   });
 
-  test("P-40: khách đủ điều kiện hiện nhãn chờ phát", async ({ page }) => {
+  /**
+   * Nhãn tình trạng quà nằm ở TRANG CHI TIẾT P-42, không ở bảng P-40.
+   *
+   * Bảng có bảy cột và không cột nào là quà; nó chỉ khoá nút "Tặng quà" khi đã
+   * tặng. Chốt 2026-08-22: giữ nguyên bảng, đổi phép kiểm sang đúng nơi nhãn ở.
+   */
+  test("P-42: khách đủ điều kiện hiện nhãn chờ phát", async ({ page }) => {
     await openCustomerList(page, "director");
     await search(page, "bich tram");
-    await expect(rows(page).first()).toContainText("Đủ ĐK · chưa phát");
+    await rows(page).first().getByRole("link").first().click();
+    await screenLoaded(page);
+    await expect(page.locator("main")).toContainText("Đủ ĐK · chưa phát");
   });
 
   /**
@@ -531,7 +559,8 @@ test.describe("P-42 · P-43 · quà theo thể lệ của kỳ", () => {
     await box.getByRole("button", { name: "Xác nhận" }).click();
 
     await expect(toast(page)).toContainText(/từ chối quà/i);
-    await expect(rows(page).first()).toContainText("Đã tặng");
+    // Bảng không có cột quà — dấu hiệu "đã tặng" ở đây là nút bị khoá lại.
+    await expect(rows(page).first().getByRole("button", { name: /Tặng quà/ })).toBeDisabled();
 
     // Bấm lại: MÁY CHỦ chặn, không phải giao diện ẩn nút (AGENTS.md §6).
     const href = await rows(page).first().getByRole("link").first().getAttribute("href");
@@ -576,8 +605,17 @@ test.describe("nút nghiệp vụ trên dòng khách", () => {
     await expect(box).toBeHidden();
   });
 
+  /**
+   * Vào bằng GIÁM ĐỐC, không phải nhân viên.
+   *
+   * App cho mỗi người mở dở đúng MỘT tài khoản: còn cái đang dở thì hộp thoại
+   * báo "Hoàn thành hoặc xoá nó rồi mới mở tài khoản mới". Mà `e2e-seed.ts` cố ý
+   * dựng 7 tài khoản `creating` dưới tên `zz_e2e_staff` để ca khác kiểm cột "Số
+   * tài khoản" chỉ đếm bản `done` — nên vào bằng nhân viên là bị chặn ngay từ
+   * bước 1, mãi mãi. Sửa 2026-08-22.
+   */
   test("mở tài khoản ngân hàng từ dòng khách → giữ chỗ mã, sang bước 2", async ({ page }) => {
-    await openCustomerList(page, "staff");
+    await openCustomerList(page, "director");
     await search(page, "minh dung");
     await rows(page).first().getByRole("button", { name: /Mở ngân hàng/ }).click();
 
