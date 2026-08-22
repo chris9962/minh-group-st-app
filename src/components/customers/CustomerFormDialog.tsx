@@ -19,6 +19,7 @@ import {
   createCustomer,
   CustomerEditForm,
   CustomerForm,
+  pickerStartForDob,
   updateCustomer,
   type Customer,
 } from "@/lib/api/customers";
@@ -264,6 +265,7 @@ export function CustomerFormDialog({
             <DateField
               label="Ngày sinh"
               required
+              pickerStart={pickerStartForDob()}
               value={watch("dob")}
               onChange={(v) => setValue("dob", v, { shouldDirty: true, shouldValidate: true })}
               error={errors.dob?.message}

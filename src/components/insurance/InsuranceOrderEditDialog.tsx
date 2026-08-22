@@ -174,30 +174,36 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId }: Props) {
 
           {/* Ngày TẠO đơn — đổi nó là đổi tháng mà đơn này được tính. Khác hẳn
               ngày hiệu lực bên dưới. */}
-          <TextField
+          <DateField
             label="Ngày tạo đơn"
-            type="date"
             required
             max={businessDay()}
             hint="Nhập bù cho hôm trước thì sửa lại ngày này"
             error={errors.orderDate?.message}
-            {...form.register("orderDate")}
+            value={form.watch("orderDate")}
+            onChange={(v) =>
+              form.setValue("orderDate", v, { shouldDirty: true, shouldValidate: true })
+            }
           />
 
           <div className={styles.pair}>
-            <TextField
+            <DateField
               label="Ngày bắt đầu"
-              type="date"
               required
               error={errors.startDate?.message}
-              {...form.register("startDate")}
+              value={form.watch("startDate")}
+              onChange={(v) =>
+                form.setValue("startDate", v, { shouldDirty: true, shouldValidate: true })
+              }
             />
-            <TextField
+            <DateField
               label="Ngày kết thúc"
-              type="date"
               required
               error={errors.endDate?.message}
-              {...form.register("endDate")}
+              value={form.watch("endDate")}
+              onChange={(v) =>
+                form.setValue("endDate", v, { shouldDirty: true, shouldValidate: true })
+              }
             />
           </div>
 

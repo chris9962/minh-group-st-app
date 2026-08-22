@@ -439,30 +439,36 @@ export function InsuranceOrderFormDialog({
             <fieldset key={field.id} className={styles.legCard}>
               <legend className={styles.legTitle}>{legLabel(selectedPackage, i)}</legend>
 
-              <TextField
+              <DateField
                 label="Ngày tạo đơn"
-                type="date"
                 required
                 max={businessDay()}
                 hint="Nhập bù cho hôm trước thì sửa lại ngày này"
                 error={errors.legs?.[i]?.orderDate?.message}
-                {...register(`legs.${i}.orderDate`)}
+                value={watch(`legs.${i}.orderDate`)}
+                onChange={(v) =>
+                  setValue(`legs.${i}.orderDate`, v, { shouldDirty: true, shouldValidate: true })
+                }
               />
 
               <div className={styles.pair}>
-                <TextField
+                <DateField
                   label="Ngày bắt đầu"
-                  type="date"
                   required
                   error={errors.legs?.[i]?.startDate?.message}
-                  {...register(`legs.${i}.startDate`)}
+                  value={watch(`legs.${i}.startDate`)}
+                  onChange={(v) =>
+                    setValue(`legs.${i}.startDate`, v, { shouldDirty: true, shouldValidate: true })
+                  }
                 />
-                <TextField
+                <DateField
                   label="Ngày kết thúc"
-                  type="date"
                   required
                   error={errors.legs?.[i]?.endDate?.message}
-                  {...register(`legs.${i}.endDate`)}
+                  value={watch(`legs.${i}.endDate`)}
+                  onChange={(v) =>
+                    setValue(`legs.${i}.endDate`, v, { shouldDirty: true, shouldValidate: true })
+                  }
                 />
               </div>
 
@@ -484,30 +490,36 @@ export function InsuranceOrderFormDialog({
 
         {legsField.fields.length === 1 && (
           <>
-            <TextField
+            <DateField
               label="Ngày tạo đơn"
-              type="date"
               required
               max={businessDay()}
               hint="Nhập bù cho hôm trước thì sửa lại ngày này"
               error={errors.legs?.[0]?.orderDate?.message}
-              {...register("legs.0.orderDate")}
+              value={watch("legs.0.orderDate")}
+              onChange={(v) =>
+                setValue("legs.0.orderDate", v, { shouldDirty: true, shouldValidate: true })
+              }
             />
 
             <div className={styles.pair}>
-              <TextField
+              <DateField
                 label="Ngày bắt đầu"
-                type="date"
                 required
                 error={errors.legs?.[0]?.startDate?.message}
-                {...register("legs.0.startDate")}
+                value={watch("legs.0.startDate")}
+                onChange={(v) =>
+                  setValue("legs.0.startDate", v, { shouldDirty: true, shouldValidate: true })
+                }
               />
-              <TextField
+              <DateField
                 label="Ngày kết thúc"
-                type="date"
                 required
                 error={errors.legs?.[0]?.endDate?.message}
-                {...register("legs.0.endDate")}
+                value={watch("legs.0.endDate")}
+                onChange={(v) =>
+                  setValue("legs.0.endDate", v, { shouldDirty: true, shouldValidate: true })
+                }
               />
             </div>
             <TextField

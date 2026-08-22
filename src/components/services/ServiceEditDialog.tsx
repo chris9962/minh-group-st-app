@@ -6,6 +6,7 @@ import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { Select } from "@/components/ui/Select";
+import { DateField } from "@/components/ui/DateField";
 import { TextField } from "@/components/ui/TextField";
 import { ServiceEditForm, updateService, type ServiceRow } from "@/lib/api/services";
 import { fetchServiceTypes } from "@/lib/api/settings";
@@ -122,12 +123,12 @@ export function ServiceEditDialog({ open, onClose, service }: Props) {
 
         {/* Đổi ngày là ĐỔI THÁNG TÍNH ĐIỂM — máy chủ tính lại KPI cho cả tháng
             cũ lẫn tháng mới. Chặn ngày tương lai: đây là sổ việc ĐÃ LÀM. */}
-        <TextField
+        <DateField
           label="Ngày thực hiện"
-          type="date"
           max={businessDay()}
           error={form.formState.errors.date?.message}
-          {...form.register("date")}
+          value={form.watch("date")}
+          onChange={(v) => form.setValue("date", v, { shouldDirty: true, shouldValidate: true })}
         />
 
         <TextField label="Ghi chú" placeholder="Không bắt buộc" {...form.register("note")} />

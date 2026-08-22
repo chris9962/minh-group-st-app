@@ -178,8 +178,20 @@ export type CustomerPhoneForm = z.infer<typeof CustomerPhoneForm>;
  * Cận dưới 1900 chặn lỗi gõ tay — `06/04/0996` là thiếu một phím, không phải
  * một khách 1030 tuổi.
  */
-const MIN_AGE = 15;
+export const MIN_AGE = 15;
 const MIN_BIRTH_YEAR = 1900;
+
+/**
+ * Ngày lịch của ô ngày sinh mở sẵn khi ô còn trống: 01/01 của năm sinh MUỘN
+ * NHẤT còn nhận.
+ *
+ * Lịch mặc định mở ở năm hiện tại, mà khách nhỏ tuổi nhất cũng sinh trước đó 15
+ * năm — người nhập phải cuộn ngược 15 lần mỗi lần lập hồ sơ.
+ *
+ * Đặt cạnh `bornEarlyEnough` để hai chỗ cùng đọc một con số. Tách ra là ngày
+ * đổi tuổi tối thiểu thì lịch vẫn mở ở năm cũ.
+ */
+export const pickerStartForDob = () => `${new Date().getFullYear() - MIN_AGE}-01-01`;
 
 const bornEarlyEnough = (isoDate: string) => {
   const year = Number(isoDate.slice(0, 4));

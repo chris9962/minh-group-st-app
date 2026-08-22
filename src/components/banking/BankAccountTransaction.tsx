@@ -1,5 +1,6 @@
 "use client";
 
+import { DateField } from "@/components/ui/DateField";
 import { TextField } from "@/components/ui/TextField";
 import { PHOTO_MAX } from "@/lib/api/bankAccounts";
 import { BankAccountPhotos, type PhotoItem } from "./BankAccountPhotos";
@@ -34,12 +35,11 @@ export function BankAccountTransaction({
   return (
     <section className={styles.section}>
       <h3 className={styles.title}>Phát sinh giao dịch</h3>
-      <TextField
+      <DateField
         className={styles.date}
         label="Ngày giao dịch"
-        type="date"
         value={date}
-        onChange={(e) => onDateChange(e.target.value)}
+        onChange={onDateChange}
         disabled={busy}
         hint="Để trống nếu khách chưa giao dịch."
       />

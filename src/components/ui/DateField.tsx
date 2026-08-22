@@ -12,6 +12,27 @@ type Props = Omit<
   /** Ngày dạng `yyyy-mm-dd`, hoặc `''` khi chưa nhập xong. */
   value: string;
   onChange: (isoDate: string) => void;
+  /**
+   * Ngày lịch mở sẵn khi ô còn TRỐNG, dạng `yyyy-mm-dd`.
+   *
+   * Ô ngày sinh cần nó: lịch mặc định mở ở năm hiện tại, mà khách nhỏ tuổi nhất
+   * cũng sinh trước đó 15 năm, nên người nhập phải cuộn ngược 15 lần mỗi lần
+   * lập hồ sơ. Không truyền thì lịch mở ở ngày trình duyệt tự chọn.
+   *
+   * Chỉ đổi chỗ lịch MỞ RA. Ô vẫn trống cho tới khi người dùng chọn thật.
+   */
+  pickerStart?: string;
+  /**
+   * Cận ngày cho LỊCH, dạng `yyyy-mm-dd`.
+   *
+   * Đưa xuống ô ngày ẩn chứ không đưa lên ô chữ: `max` trên một ô `type="text"`
+   * không có nghĩa gì, và người dùng vẫn chọn được ngày ngoài khoảng ở lịch.
+   *
+   * ⚠️ Chỉ khoanh vùng chọn của LỊCH, KHÔNG chặn được người gõ tay. Luật thật
+   * vẫn phải nằm ở schema zod — máy chủ kiểm cùng một luật.
+   */
+  min?: string;
+  max?: string;
 };
 
 /** Chỉ giữ chữ số, tối đa 8 — `ddmmyyyy`. Năm vì vậy không quá 4 chữ số. */
@@ -69,7 +90,7 @@ function toIso(digits: string): string {
  * `dd/mm/yyyy` chỉ để nhìn: nó sắp xếp sai thứ tự khi so chuỗi, và đổi cả giá
  * trị lưu là phải sửa zod, API lẫn cột database theo.
  */
-export function DateField({ value, onChange, ...rest }: Props) {
+export function DateField({ value, onChange, pickerStart, min, max, ...rest }: Props) {
   const [digits, setDigits] = useState(() => toDigits(value));
   const inputRef = useRef<HTMLInputElement>(null);
   const pickerRef = useRef<HTMLInputElement>(null);
@@ -122,35 +143,43 @@ export function DateField({ value, onChange, ...rest }: Props) {
         }}
       trailing={
         <>
-          <button
-            type="button"
-            className={styles.pick}
-            aria-label="Chọn ngày trên lịch"
-            onClick={() => {
-              const el = pickerRef.current;
-              if (!el) return;
-              // `showPicker` phải chạy trong ĐÚNG lượt bấm này; gọi sau `await`
-              // là trình duyệt từ chối. Trình duyệt cũ không có nó thì mở bằng
-              // cách bấm thẳng vào ô ngày ẩn.
-              if (typeof el.showPicker === "function") el.showPicker();
-              else el.click();
-            }}
-          >
-            <CalendarDays size={16} aria-hidden />
-          </button>
+          {/*
+            Ô ngày thật NẰM ĐÈ lên biểu tượng lịch, trong suốt, và chính nó nhận
+            lượt chạm.
 
-          {/* Ô ngày thật, chỉ để mượn bộ chọn lịch của trình duyệt. Không dùng
-              `display: none`: một số trình duyệt từ chối mở lịch cho phần tử đã
-              bị gỡ khỏi luồng bố cục. */}
+            Bản trước dựng một `<button>` rồi gọi `showPicker()` lên một ô ngày
+            ẩn 1px kèm `pointer-events: none`. Trên điện thoại lịch không mở:
+            Safari từ chối `showPicker()` cho phần tử ẩn, và `click()` thay thế
+            cũng không mở bộ chọn của hệ điều hành. Chạm thẳng vào ô ngày thì hệ
+            điều hành mở lịch như với mọi ô ngày khác, không cần API nào.
+
+            `showPicker()` vẫn gọi cho máy tính để bàn: ở Chrome, bấm vào thân ô
+            ngày KHÔNG mở lịch, chỉ bấm đúng biểu tượng mới mở.
+          */}
           <input
             ref={pickerRef}
             type="date"
             className={styles.picker}
-            tabIndex={-1}
-            aria-hidden
-            value={value}
+            aria-label="Chọn ngày trên lịch"
+            min={min}
+            max={max}
+            value={value || pickerStart || ""}
             onChange={(e) => apply(toDigits(e.target.value))}
+            onClick={() => {
+              const el = pickerRef.current;
+              // Trên điện thoại lịch đã mở do chính lượt chạm này; gọi thêm lần
+              // nữa thì trình duyệt ném lỗi. Bọc lại để lỗi đó không nổi lên.
+              try {
+                el?.showPicker?.();
+              } catch {
+                /* Trình duyệt không cho gọi lúc này — lượt chạm đã đủ. */
+              }
+            }}
           />
+
+          <span className={styles.pick} aria-hidden>
+            <CalendarDays size={16} />
+          </span>
         </>
       }
     />

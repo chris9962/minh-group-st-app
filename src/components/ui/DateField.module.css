@@ -1,4 +1,5 @@
-/* Nút mở lịch, nằm đè bên phải ô nhập. Cùng cách dựng với `PasswordField`. */
+/* Biểu tượng lịch — CHỈ để nhìn. Ô ngày thật nằm đè lên nó và nhận lượt chạm,
+   nên thẻ này phải để lượt chạm đi xuyên qua. */
 .pick {
   position: absolute;
   top: 0;
@@ -7,32 +8,51 @@
   display: inline-flex;
   align-items: center;
   padding: 0 11px;
-  border: 0;
-  background: none;
   /* Nút thô cần màu chữ tường minh: bộ tối không kế thừa được từ nền. */
   color: var(--om-text-2);
+  pointer-events: none;
+}
+
+/* Ô ngày thật, trong suốt, đè lên biểu tượng.
+   Chạm vào đây là hệ điều hành mở lịch — không qua API nào. */
+.picker {
+  position: absolute;
+  top: 0;
+  right: 0;
+  /* 44px là vùng chạm tối thiểu cho ngón tay (AGENTS.md §8). */
+  width: 44px;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: transparent;
+  opacity: 0;
+  cursor: pointer;
+  /* Safari trên iOS dựng ô ngày cao theo nội dung và chèn thêm phần trang trí
+     riêng; ép về không để vùng chạm phủ đúng 44px đã đặt ở trên. */
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.picker::-webkit-calendar-picker-indicator {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
   cursor: pointer;
 }
 
-/* Vùng bấm 44px cho ngón tay mà không kéo cao ô nhập (AGENTS.md §8). */
-.pick::after {
-  content: "";
-  position: absolute;
-  inset: -4px -2px;
+/* Ô ngày trong suốt nên vòng focus của nó không thấy được. Đổi màu biểu tượng
+   nằm ngay sau nó để người dùng bàn phím biết mình đang đứng ở đâu. */
+.picker:focus-visible + .pick {
+  color: var(--om-orange);
+  outline: 2px solid var(--om-orange);
+  outline-offset: -2px;
+  border-radius: 6px;
 }
 
-.pick:hover {
+.picker:hover + .pick {
   color: var(--om-orange-mid);
-}
-
-/* Ô ngày thật — chỉ để mượn bộ chọn lịch, không cho người dùng thấy hay bấm.
-   Neo vào `.control` của `TextField`, ngay dưới nút, để lịch mở đúng chỗ. */
-.picker {
-  position: absolute;
-  right: 10px;
-  bottom: 0;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
-  pointer-events: none;
 }

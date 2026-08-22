@@ -10,6 +10,7 @@ import { ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { Select } from "@/components/ui/Select";
+import { DateField } from "@/components/ui/DateField";
 import { TextField } from "@/components/ui/TextField";
 import { AccountType, BankAccountFinishForm } from "@/lib/api/bankAccounts";
 import type { AccountNumberMethod } from "@/lib/api/bankCatalog";
@@ -132,12 +133,12 @@ export function BankAccountFinishFields({
               {...register("accountNumber")}
             />
           )}
-          <TextField
+          <DateField
             label="Ngày mở"
-            type="date"
             required
             error={errors.openedDate?.message}
-            {...register("openedDate")}
+            value={watch("openedDate")}
+            onChange={(v) => setValue("openedDate", v, { shouldDirty: true, shouldValidate: true })}
           />
         </div>
 

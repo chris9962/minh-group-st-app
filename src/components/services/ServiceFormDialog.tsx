@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Combobox } from "@/components/ui/Combobox";
 import { Dialog } from "@/components/ui/Dialog";
 import { Select } from "@/components/ui/Select";
+import { DateField } from "@/components/ui/DateField";
 import { TextField } from "@/components/ui/TextField";
 import { fetchServiceTypes } from "@/lib/api/settings";
 import { fetchProvinces } from "@/lib/api/wardCatalog";
@@ -135,12 +136,12 @@ export function ServiceFormDialog({ open, onClose, customerId, customerName }: P
         {/* Mặc định hôm nay, sửa được: làm cho khách ngày 31 mà mùng 2 mới
             ngồi nhập thì lượt đó phải tính vào tháng ĐÃ LÀM, không phải tháng
             nhập liệu. Máy chủ chặn ngày tương lai. */}
-        <TextField
+        <DateField
           label="Ngày thực hiện"
-          type="date"
           max={businessDay()}
           error={errors.date?.message}
-          {...register("date")}
+          value={watch("date")}
+          onChange={(v) => setValue("date", v, { shouldDirty: true, shouldValidate: true })}
         />
 
         {/* Hai ô này ghi XÃ NƠI LÀM DỊCH VỤ. Không bắt buộc: dịch vụ làm ngoài
