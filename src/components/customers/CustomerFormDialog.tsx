@@ -305,8 +305,7 @@ export function CustomerFormDialog({
 
           {selectedChannel?.inputKind === "ward-hamlet" && (
             <p className="text-muted">
-              Địa chỉ sử dụng cho kênh {selectedChannel.name}:{" "}
-              <strong>{watch("address").trim() || "(chưa nhập địa chỉ ở trên)"}</strong>
+              {watch("address").trim() || "(chưa nhập địa chỉ ở trên)"}
             </p>
           )}
 
