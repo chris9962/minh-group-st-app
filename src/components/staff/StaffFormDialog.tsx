@@ -47,7 +47,6 @@ const emptyForm: StaffForm = {
   title: ROLE_TITLE.staff,
   manageScope: "none",
   managedDepartmentIds: [],
-  wardId: "",
   permissions: ROLE_PERMISSIONS.staff,
 };
 
@@ -83,7 +82,6 @@ const toForm = (s: StaffAccount): StaffForm => ({
   title: s.title,
   manageScope: s.manageScope,
   managedDepartmentIds: s.managedDepartmentIds,
-  wardId: s.wardId ?? "",
   permissions: s.permissions,
 });
 

@@ -19,8 +19,6 @@ export const StaffAccount = z.object({
   title: z.string(),
   manageScope: ManageScope,
   managedDepartmentIds: z.array(z.string()),
-  /** Chỉ nhân viên phòng Dự Án mới có. */
-  wardId: z.string().nullable(),
   active: z.boolean(),
   /**
    * Quyền THẬT của người này — mặc định theo Chức vụ lúc tạo, admin gán tay
@@ -164,7 +162,6 @@ export const StaffForm = z.object({
   title: z.string().trim().min(2, 'Chưa nhập chức danh'),
   manageScope: ManageScope,
   managedDepartmentIds: z.array(z.uuid()),
-  wardId: z.union([z.literal(''), z.uuid()]),
   permissions: z.array(Permission),
 }).superRefine((form, ctx) => {
   const shape = ROLE_SHAPE[form.role];

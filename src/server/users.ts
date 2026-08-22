@@ -23,7 +23,6 @@ export function toUser(
     departmentId: row.departmentId,
     managedDepartmentIds,
     manageScope: row.manageScope,
-    wardId: row.wardId,
     title: row.title,
     permissions,
     active: row.active,

@@ -107,8 +107,6 @@ export const users = pgTable(
     /** THUỘC VỀ đúng một phòng; null với Ban giám đốc. */
     departmentId: uuid("department_id").references(() => departments.id),
     manageScope: manageScope("manage_scope").notNull().default("none"),
-    /** Chỉ nhân viên phòng Dự Án. */
-    wardId: uuid("ward_id").references(() => wards.id),
     active: boolean("active").notNull().default(true),
     /** C-01: sai 5 lần liên tiếp → khoá 15 phút, quản trị mở lại. */
     failedAttempts: smallint("failed_attempts").notNull().default(0),

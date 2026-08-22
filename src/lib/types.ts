@@ -295,8 +295,6 @@ export const User = z.object({
   /** QUẢN LÝ — 0..n phòng. Chỉ có giá trị khi manageScope = 'listed'. */
   managedDepartmentIds: z.array(z.string()),
   manageScope: ManageScope,
-  /** Chỉ nhân viên phòng Dự Án mới có. */
-  wardId: z.string().nullable(),
   /** Tên chức danh hiển thị, ví dụ "Phó GĐ 2" — khác với `role`. */
   title: z.string(),
   permissions: z.array(Permission),

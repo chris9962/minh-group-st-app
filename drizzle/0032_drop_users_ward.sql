@@ -1,0 +1,11 @@
+-- Bỏ cột `users.ward_id` — không nơi nào còn đọc nó.
+--
+-- Cột này từng giữ xã mà nhân viên Phòng Dự Án phụ trách, dùng cho đúng một
+-- việc: điền sẵn ô Xã lúc mở form ghi dịch vụ. Quyết định 2026-08-19 chuyển xã
+-- sang do NGƯỜI NHẬP chọn (`server/services.ts`), nên phần điền sẵn là thứ duy
+-- nhất còn lại, và nó cũng không chạy: form P-53 chưa bao giờ có ô nhập cột
+-- này, nên cả 20 người Phòng Dự Án đều để trống.
+--
+-- Xoá cột thì Postgres bỏ luôn khoá ngoại `users_ward_id_wards_id_fk`.
+-- `services.ward_id` và `hamlets.ward_id` là cột KHÁC, giữ nguyên.
+ALTER TABLE "users" DROP COLUMN "ward_id";

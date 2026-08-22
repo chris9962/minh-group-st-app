@@ -13,7 +13,6 @@ import { DateField } from "@/components/ui/DateField";
 import { TextField } from "@/components/ui/TextField";
 import { fetchServiceTypes } from "@/lib/api/settings";
 import { fetchProvinces } from "@/lib/api/wardCatalog";
-import { useSession } from "@/store/session";
 import { businessDay } from "@/lib/format";
 import { createService, ServiceForm } from "@/lib/api/services";
 import styles from "./ServiceFormDialog.module.scss";
@@ -33,7 +32,6 @@ type Props = {
  */
 export function ServiceFormDialog({ open, onClose, customerId, customerName }: Props) {
   const queryClient = useQueryClient();
-  const user = useSession((s) => s.user);
 
   const { data: serviceTypes = [] } = useQuery({
     queryKey: ["service-types"],
@@ -49,14 +47,9 @@ export function ServiceFormDialog({ open, onClose, customerId, customerName }: P
   /**
    * Tỉnh chỉ để LỌC danh sách xã, không đi vào bản ghi — `services` chụp xã,
    * còn tỉnh suy được từ xã. Giữ ở state của component chứ không trong biểu mẫu.
-   *
-   * Nhân viên Phòng Dự Án có `ward_id`: mở form là hai ô đã chọn sẵn xã họ phụ
-   * trách, đổi được nếu làm ở xã khác.
    */
-  const ownWard = user?.wardId ?? "";
-  const ownProvince = provinces.find((p) => p.wards.some((w) => w.id === ownWard))?.id ?? "";
   const [provinceId, setProvinceId] = useState("");
-  const selectedProvince = provinces.find((p) => p.id === (provinceId || ownProvince));
+  const selectedProvince = provinces.find((p) => p.id === provinceId);
 
   const {
     register,
@@ -72,7 +65,7 @@ export function ServiceFormDialog({ open, onClose, customerId, customerName }: P
       date: businessDay(),
       note: "",
       departmentId: "",
-      wardId: ownWard,
+      wardId: "",
     },
   });
 
@@ -149,7 +142,7 @@ export function ServiceFormDialog({ open, onClose, customerId, customerName }: P
         <Select
           block
           label="Tỉnh/thành phố"
-          value={provinceId || ownProvince}
+          value={provinceId}
           onChange={(v) => {
             setProvinceId(v);
             setValue("wardId", "", { shouldDirty: true });

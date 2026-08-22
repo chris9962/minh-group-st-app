@@ -89,7 +89,6 @@ async function toAccounts(rows: UserWithDepartment[]): Promise<StaffAccount[]> {
     title: r.title,
     manageScope: r.manageScope,
     managedDepartmentIds: managedOf.get(r.id) ?? [],
-    wardId: r.wardId,
     active: r.active,
     permissions: permissionsOf.get(r.id) ?? [],
   }));
@@ -497,7 +496,6 @@ async function writeStaff(
         title: form.title,
         departmentId: form.departmentId || null,
         manageScope: form.manageScope,
-        wardId: form.wardId || null,
       });
     } else {
       /**
@@ -537,7 +535,6 @@ async function writeStaff(
           title: form.title,
           departmentId: form.departmentId || null,
           manageScope: form.manageScope,
-          wardId: form.wardId || null,
           updatedAt: new Date(),
           // KHÔNG đụng `active`: khoá/mở khoá đi đường riêng — sửa hồ sơ mà
           // vô tình mở khoá người đã nghỉ việc là chuyện không được xảy ra.
