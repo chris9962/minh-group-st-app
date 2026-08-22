@@ -41,7 +41,7 @@ async function main() {
 
   /* Phòng ban */
   if ((await count("departments")) === 0) {
-    await db.insert(schema.departments).values(DEPARTMENTS.map((d) => ({ code: d.code, name: d.name })));
+    await db.insert(schema.departments).values(DEPARTMENTS);
   }
   const departmentIdByCode = new Map(
     (await db.select().from(schema.departments)).map((d) => [d.code, d.id]),

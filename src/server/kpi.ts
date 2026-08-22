@@ -1,8 +1,17 @@
 import { and, asc, eq, gte, lte, sql } from "drizzle-orm";
 import { monthRange } from "@/lib/format";
-import { bankingPointsFor, type ScoringAccount } from "@/rules";
+import { bankingPointsFor, kpiAppliesTo, type ScoringAccount } from "@/rules";
 import { db } from "./db/client";
-import { bankAccounts, banks, customers, kpiScores, services, serviceTypes, users } from "./db/schema";
+import {
+  bankAccounts,
+  banks,
+  customers,
+  departments,
+  kpiScores,
+  services,
+  serviceTypes,
+  users,
+} from "./db/schema";
 
 /**
  * Tính lại điểm KPI và ghi vào `kpi_scores`.
@@ -104,6 +113,24 @@ async function scoringAccountsOf(
 }
 
 /**
+ * Loại phòng của một người — `null` khi họ không thuộc phòng nào (Ban giám đốc,
+ * tài khoản quản trị).
+ *
+ * `leftJoin` chứ không `innerJoin`: `innerJoin` bỏ luôn dòng của người không có
+ * phòng, và hàm trả `null` cho cả họ lẫn người có phòng nhưng phòng đã xoá —
+ * hai chuyện khác nhau nhưng cùng dẫn tới "chưa có công thức", nên không cần
+ * tách.
+ */
+async function departmentTypeOf(conn: Db, userId: string) {
+  const [row] = await conn
+    .select({ type: departments.type })
+    .from(users)
+    .leftJoin(departments, eq(departments.id, users.departmentId))
+    .where(eq(users.id, userId));
+  return row?.type ?? null;
+}
+
+/**
  * Tính lại điểm của MỘT người trong MỘT tháng.
  *
  * ⚠️ Đọc — tính — ghi phải nằm trong CÙNG một transaction, và phải xin khoá
@@ -142,6 +169,25 @@ async function recomputeKpiOn(tx: Db, userId: string, yearMonth: string): Promis
   await tx.execute(
     sql`select pg_advisory_xact_lock(hashtext(${userId}), hashtext(${yearMonth}))`,
   );
+
+  /**
+   * Phòng chưa có công thức thì XOÁ dòng điểm, không ghi 0 (spec §7.0).
+   *
+   * Còn dòng nghĩa là "đã chấm theo công thức của kỳ". Ghi 0 cho người phòng
+   * `office` là nói họ làm mà không được điểm nào, trong khi thật ra chưa ai
+   * viết công thức cho công của họ.
+   *
+   * ⚠️ Người chuyển từ phòng kinh doanh sang phòng `office` mất điểm của MỌI
+   * tháng có lượt tính lại chạm tới, kể cả tháng đã trả lương. Câu 4 của spec
+   * §7.0 — tính theo phòng lúc ghi bản ghi hay phòng cuối tháng — vẫn chờ đội
+   * KD trả lời; code đang lấy phòng HIỆN TẠI.
+   */
+  if (!kpiAppliesTo(await departmentTypeOf(tx, userId))) {
+    await tx
+      .delete(kpiScores)
+      .where(and(eq(kpiScores.userId, userId), eq(kpiScores.yearMonth, yearMonth)));
+    return;
+  }
 
   // Nối tiếp chứ không `Promise.all`: một transaction đi trên một kết nối,
   // gửi hai câu cùng lúc lên đó là lỗi giao thức.

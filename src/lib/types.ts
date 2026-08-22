@@ -195,6 +195,30 @@ export type Permission = z.infer<typeof Permission>;
 
 /* ── Tổ chức: danh sách phòng phẳng ─────────────────────────────────── */
 
+/**
+ * Loại phòng — quyết định công thức tính điểm KPI (spec §7.0).
+ *
+ * Bản mirror của `departmentType` ở `server/db/schema.ts`. Thêm loại mới thì
+ * sửa cả hai chỗ, cộng một migration đổi enum của Postgres.
+ */
+export const DepartmentType = z.enum(['sales', 'office']);
+export type DepartmentType = z.infer<typeof DepartmentType>;
+
+/**
+ * Nhãn hiện ở P-91. Gọi thẳng theo công của phòng, không gọi theo tên loại
+ * trong database — người lập phòng không cần biết chữ `sales`.
+ */
+export const DEPARTMENT_TYPE_LABEL: Record<DepartmentType, string> = {
+  sales: 'Phòng kinh doanh',
+  office: 'Văn phòng',
+};
+
+/** Câu giải thích dưới ô chọn loại phòng — nói rõ hệ quả về điểm KPI. */
+export const DEPARTMENT_TYPE_HINT: Record<DepartmentType, string> = {
+  sales: 'Nhân viên phòng này được tính điểm KPI theo combo ngân hàng và dịch vụ.',
+  office: 'Phòng này chưa có công thức tính điểm — nhân viên không có điểm KPI.',
+};
+
 export const Department = z.object({
   id: z.string(),
   name: z.string(),

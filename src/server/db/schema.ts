@@ -50,6 +50,16 @@ export const roleKey = pgEnum("role_key", [
 ]);
 export const manageScope = pgEnum("manage_scope", ["none", "listed", "company"]);
 
+/**
+ * Loại phòng — quyết định công thức tính điểm KPI (spec §7.0, chốt 2026-08-22).
+ *
+ * `sales` là chín phòng Kinh doanh 1–9: công thức combo ngân hàng cộng hệ số
+ * loại dịch vụ (spec §7.1 · §7.2) chỉ mô tả đúng công của họ.
+ * `office` là phần còn lại — CHƯA CÓ công thức nào, không phải "có công thức và
+ * ra 0 điểm".
+ */
+export const departmentType = pgEnum("department_type", ["sales", "office"]);
+
 export const accountNumberMethod = pgEnum("account_number_method", ["phone-match", "manual"]);
 export const bankAccountType = pgEnum("bank_account_type", ["none", "CNKD", "HKD"]);
 export const bankAccountStatus = pgEnum("bank_account_status", ["creating", "done"]);
@@ -85,6 +95,12 @@ export const departments = pgTable("departments", {
   /** Mã cố định cho module luật theo kỳ trỏ vào (`PHONG-Y`) — P-91 cho đổi TÊN phòng. */
   code: text("code").notNull().unique(),
   name: text("name").notNull().unique(),
+  /**
+   * Mặc định `office`: phòng lập ở P-91 chưa có ô chọn loại, mà cấp nhầm công
+   * thức tính điểm cho một phòng không kinh doanh thì không ai thấy — còn phòng
+   * kinh doanh mới bị chấm 0 thì nhân viên báo ngay.
+   */
+  type: departmentType("type").notNull().default("office"),
   active: boolean("active").notNull().default(true),
   createdAt: createdAt(),
   updatedAt: updatedAt(),

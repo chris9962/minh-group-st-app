@@ -1,5 +1,5 @@
 import { deputyDirectorPermissions, directorPermissions, managerPermissions } from "../src/lib/roles";
-import type { ManageScope, Permission, RoleKey } from "../src/lib/types";
+import type { DepartmentType, ManageScope, Permission, RoleKey } from "../src/lib/types";
 
 /**
  * Dữ liệu khởi tạo THẬT — cấu trúc tổ chức + danh mục theo spec, KHÔNG có
@@ -20,22 +20,29 @@ const p = (
 
 /* ── 15 phòng — sơ đồ thật của MGST ─────────────────────────────────── */
 
-export const DEPARTMENTS: { code: string; name: string }[] = [
-  { code: "PHONG-AN-SINH", name: "Phòng An Sinh" },
-  { code: "PHONG-Y", name: "Phòng Y" },
-  { code: "PHONG-KTTH", name: "Phòng Kế toán tổng hợp" },
-  { code: "PHONG-KDTH", name: "Phòng Kinh doanh tổng hợp" },
-  { code: "PHONG-DU-AN", name: "Phòng Dự Án" },
-  { code: "PHONG-BTXH", name: "Phòng Bảo trợ xã hội" },
-  { code: "KD-1", name: "Phòng Kinh doanh 1" },
-  { code: "KD-2", name: "Phòng Kinh doanh 2" },
-  { code: "KD-3", name: "Phòng Kinh doanh 3" },
-  { code: "KD-4", name: "Phòng Kinh doanh 4" },
-  { code: "KD-5", name: "Phòng Kinh doanh 5" },
-  { code: "KD-6", name: "Phòng Kinh doanh 6" },
-  { code: "KD-7", name: "Phòng Kinh doanh 7" },
-  { code: "KD-8", name: "Phòng Kinh doanh 8" },
-  { code: "KD-9", name: "Phòng Kinh doanh 9" },
+/**
+ * `type` quyết định công thức tính điểm KPI (spec §7.0, chốt 2026-08-22).
+ *
+ * 11 phòng `sales`: KD-1…KD-9, cộng Phòng Y và Phòng Dự Án — hai phòng này cũng
+ * phục vụ khách. Bốn phòng `office` CHƯA có công thức nào, kể cả `PHONG-KDTH`:
+ * phòng đó giữ kho mã và kho ngân hàng chứ không mở tài khoản cho khách.
+ */
+export const DEPARTMENTS: { code: string; name: string; type: DepartmentType }[] = [
+  { code: "PHONG-AN-SINH", name: "Phòng An Sinh", type: "office" },
+  { code: "PHONG-Y", name: "Phòng Y", type: "sales" },
+  { code: "PHONG-KTTH", name: "Phòng Kế toán tổng hợp", type: "office" },
+  { code: "PHONG-KDTH", name: "Phòng Kinh doanh tổng hợp", type: "office" },
+  { code: "PHONG-DU-AN", name: "Phòng Dự Án", type: "sales" },
+  { code: "PHONG-BTXH", name: "Phòng Bảo trợ xã hội", type: "office" },
+  { code: "KD-1", name: "Phòng Kinh doanh 1", type: "sales" },
+  { code: "KD-2", name: "Phòng Kinh doanh 2", type: "sales" },
+  { code: "KD-3", name: "Phòng Kinh doanh 3", type: "sales" },
+  { code: "KD-4", name: "Phòng Kinh doanh 4", type: "sales" },
+  { code: "KD-5", name: "Phòng Kinh doanh 5", type: "sales" },
+  { code: "KD-6", name: "Phòng Kinh doanh 6", type: "sales" },
+  { code: "KD-7", name: "Phòng Kinh doanh 7", type: "sales" },
+  { code: "KD-8", name: "Phòng Kinh doanh 8", type: "sales" },
+  { code: "KD-9", name: "Phòng Kinh doanh 9", type: "sales" },
 ];
 
 /* ── Bộ quyền theo vị trí đặc thù (ngoài 3 bộ theo chức vụ ở lib/roles) ── */

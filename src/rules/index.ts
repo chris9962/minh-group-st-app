@@ -1,3 +1,4 @@
+import type { DepartmentType } from "@/lib/types";
 import * as period202608 from "./2026-08";
 
 /**
@@ -178,6 +179,25 @@ export function bankingPointsFor(accounts: ScoringAccount[], yearMonth: string):
 export function giftFor(input: GiftInput, at: string): GiftResult | null {
   const rules = rulesFor(at);
   return rules ? rules.gift(input) : null;
+}
+
+/**
+ * Loại phòng này đã có công thức tính điểm chưa (spec §7.0, chốt 2026-08-22).
+ *
+ * `sales` — chín phòng Kinh doanh 1–9 — dùng công thức combo ngân hàng cộng hệ
+ * số loại dịch vụ (spec §7.1 · §7.2). `office` và người không thuộc phòng nào
+ * (Ban giám đốc, tài khoản quản trị) CHƯA có công thức: câu "sáu phòng còn lại
+ * tính điểm bằng gì" vẫn chờ đội KD trả lời.
+ *
+ * Trả `false` nghĩa là CHƯA CHẤM ĐƯỢC, không phải "chấm rồi và được 0 điểm".
+ * `server/kpi.ts` vì thế xoá dòng điểm thay vì ghi số 0.
+ *
+ * Chưa đặt trong file kỳ vì mới có đúng một công thức, và nó không đổi theo
+ * tháng. Ngày `office` có công thức riêng thì chuyển phép chọn này vào
+ * `PeriodRules` — lúc đó mỗi kỳ mới chọn khác nhau được.
+ */
+export function kpiAppliesTo(departmentType: DepartmentType | null): boolean {
+  return departmentType === "sales";
 }
 
 /** Đã có file luật cho kỳ này chưa — nơi gọi dùng để biết số 0 là thật hay là chưa tính. */

@@ -10,7 +10,14 @@
  * Điểm KPI dính tới lương, nên ca thử bám SÁT `mgst-the-le/2026-08.md`: đủ 10
  * dòng bảng điểm, cả hai lưu ý ở mục 4, và bốn quyết định chốt 07/08.
  */
-import { bankingPointsFor, giftFor, hasRulesFor, type GiftResult, type ScoringAccount } from "../src/rules";
+import {
+  bankingPointsFor,
+  giftFor,
+  hasRulesFor,
+  kpiAppliesTo,
+  type GiftResult,
+  type ScoringAccount,
+} from "../src/rules";
 import { comboPointsFor } from "../src/rules/2026-08";
 
 const PERIOD = "2026-08";
@@ -458,6 +465,11 @@ check(
 );
 check("đúng ngày đầu kỳ đã tính được", giftOf(["MB", "VPa"], { at: "2026-08-01" }).caseCode, "TH1");
 check("sang tháng sau vẫn dùng luật này", giftOf(["MB", "VPa"], { at: "2026-09-20" }).caseCode, "TH1");
+
+section("Loại phòng nào có công thức điểm (spec §7.0)");
+check("phòng kinh doanh có công thức", kpiAppliesTo("sales"), true);
+check("phòng văn phòng chưa có công thức", kpiAppliesTo("office"), false);
+check("không thuộc phòng nào thì chưa có công thức", kpiAppliesTo(null), false);
 
 /* ── Kết quả ────────────────────────────────────────────────────────── */
 
