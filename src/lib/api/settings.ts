@@ -174,14 +174,11 @@ export const EMPTY_GIFT: GiftSimulateResult = {
 
 export const KpiTarget = z.object({
   monthlyPoints: z.number(),
-  /** Cảnh báo nhẹ khi còn bấy nhiêu ngày mà chưa đạt (spec §4.8 P-83, mở). */
-  warnDaysLeft: z.number(),
 });
 export type KpiTarget = z.infer<typeof KpiTarget>;
 
 export const KpiTargetForm = z.object({
   monthlyPoints: z.int('Chỉ tiêu phải là số nguyên').min(1, 'Chỉ tiêu phải lớn hơn 0').max(INT_MAX, 'Chỉ tiêu lớn quá'),
-  warnDaysLeft: z.int('Số ngày phải là số nguyên').min(0, 'Số ngày phải từ 0 trở lên').max(31, 'Nhiều nhất 31 ngày'),
 });
 export type KpiTargetForm = z.infer<typeof KpiTargetForm>;
 

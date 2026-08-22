@@ -232,6 +232,13 @@
       "when": 1787416800000,
       "tag": "0032_drop_users_ward",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1787420400000,
+      "tag": "0033_drop_kpi_warn_days",
+      "breakpoints": true
     }
   ]
 }

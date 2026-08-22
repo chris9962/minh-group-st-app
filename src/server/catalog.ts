@@ -838,7 +838,7 @@ export async function getKpiTarget(): Promise<KpiTarget | null> {
     .where(sql`${kpiTargets.departmentId} is null and ${kpiTargets.yearMonth} <= ${month}`)
     .orderBy(desc(kpiTargets.yearMonth))
     .limit(1);
-  return row ? { monthlyPoints: row.monthlyPoints, warnDaysLeft: row.warnDaysLeft } : null;
+  return row ? { monthlyPoints: row.monthlyPoints } : null;
 }
 
 /** Ghi mốc cho THÁNG HIỆN TẠI. Tháng cũ không sửa — sửa là chấm lại quá khứ. */
@@ -854,7 +854,6 @@ export async function setKpiTarget(form: KpiTargetForm, updatedBy: string): Prom
     yearMonth: month,
     departmentId: null,
     monthlyPoints: form.monthlyPoints,
-    warnDaysLeft: form.warnDaysLeft,
     updatedBy,
     updatedAt: new Date(),
   };
@@ -863,7 +862,7 @@ export async function setKpiTarget(form: KpiTargetForm, updatedBy: string): Prom
     ? await db.update(kpiTargets).set(values).where(eq(kpiTargets.id, existing.id)).returning()
     : await db.insert(kpiTargets).values(values).returning();
 
-  return { monthlyPoints: row.monthlyPoints, warnDaysLeft: row.warnDaysLeft };
+  return { monthlyPoints: row.monthlyPoints };
 }
 
 /* ── Địa bàn: tỉnh · xã/phường · ấp ───────────────────────────────────── */

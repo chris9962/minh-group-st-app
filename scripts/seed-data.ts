@@ -270,4 +270,4 @@ export const INSURANCE_PACKAGES = [
    `src/rules/YYYY-MM.ts` (spec §5.3), tài liệu nguồn ở `mgst-the-le/`. */
 
 /** Chỉ tiêu KPI khởi điểm — 100 điểm/tháng, cảnh báo khi còn 7 ngày (P-83). */
-export const KPI_TARGET = { monthlyPoints: 100, warnDaysLeft: 7 };
+export const KPI_TARGET = { monthlyPoints: 100 };

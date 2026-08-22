@@ -28,7 +28,7 @@ export function KpiTargetSection() {
     formState: { errors, isSubmitting },
   } = useForm<KpiTargetForm>({
     resolver: zodResolver(KpiTargetForm),
-    defaultValues: { monthlyPoints: 100, warnDaysLeft: 7 },
+    defaultValues: { monthlyPoints: 100 },
     // `values` chứ không phải effect + `reset`: giá trị suy ra từ dữ liệu đã
     // tải, tính thẳng lúc render (AGENTS.md §7).
     values: data ?? undefined,
@@ -53,12 +53,12 @@ export function KpiTargetSection() {
 
       {/*
         Bám vào `isError`, KHÔNG chỉ `!isPending`. Tải hỏng thì `isPending` cũng
-        thành false, form hiện ra với `defaultValues` 100/7 trông y như số đã
-        lưu — quản trị bấm "Lưu chỉ tiêu" là ghi đè chỉ tiêu thật của cả công ty
-        bằng hai con số bịa.
+        thành false, form hiện ra với `defaultValues` 100 trông y như số đã lưu
+        — quản trị bấm "Lưu chỉ tiêu" là ghi đè chỉ tiêu thật của cả công ty
+        bằng một con số bịa.
 
         `data === null` thì KHÁC: đó là "chưa ai đặt mốc", form phải hiện ra mới
-        đặt được lần đầu, chỉ cần nói rõ hai số đang là gợi ý chứ không phải số
+        đặt được lần đầu, chỉ cần nói rõ con số đang là gợi ý chứ không phải số
         đã lưu.
       */}
       {!isPending && !isError && (
@@ -69,28 +69,18 @@ export function KpiTargetSection() {
         >
           {data === null && (
             <Alert tone="warning">
-              Chưa đặt chỉ tiêu cho tháng này. Hai số dưới đây là{" "}
+              Chưa đặt chỉ tiêu cho tháng này. Con số dưới đây là{" "}
               <strong>gợi ý</strong>, chưa được lưu — sửa lại cho đúng rồi bấm Lưu.
             </Alert>
           )}
 
-          <div className={styles.pair}>
-            <TextField
-              label="Chỉ tiêu điểm mỗi tháng"
-              type="number"
-              inputMode="numeric"
-              error={errors.monthlyPoints?.message}
-              {...register("monthlyPoints", { valueAsNumber: true })}
-            />
-            <TextField
-              label="Cảnh báo khi còn (ngày)"
-              type="number"
-              inputMode="numeric"
-              hint="Số ngày cuối tháng bắt đầu nhắc người chưa đạt"
-              error={errors.warnDaysLeft?.message}
-              {...register("warnDaysLeft", { valueAsNumber: true })}
-            />
-          </div>
+          <TextField
+            label="Chỉ tiêu điểm mỗi tháng"
+            type="number"
+            inputMode="numeric"
+            error={errors.monthlyPoints?.message}
+            {...register("monthlyPoints", { valueAsNumber: true })}
+          />
 
           <div className={styles.footRow}>
             <Button type="submit" disabled={isSubmitting || save.isPending}>

@@ -923,7 +923,6 @@ export const kpiTargets = pgTable(
     /** null = mốc chung toàn công ty; có phòng thì đè mốc chung. */
     departmentId: uuid("department_id").references(() => departments.id),
     monthlyPoints: integer("monthly_points").notNull(),
-    warnDaysLeft: smallint("warn_days_left").notNull().default(0),
     updatedBy: uuid("updated_by").references(() => users.id),
     updatedAt: updatedAt(),
   },
