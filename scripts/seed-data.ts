@@ -70,11 +70,13 @@ export type SeedAccount = {
   title: string;
   role: RoleKey;
   /**
-   * Mã nhân viên. Bảy tài khoản khởi tạo có trước khi trường này thành bắt buộc
-   * nên đang mang mã TẠM `TMP-*`: để trống thì form P-52 chặn không cho sửa gì,
-   * kể cả đổi số điện thoại. Có mã thật thì sửa thẳng ở P-52, không cần seed lại.
+   * Mã nhân viên THẬT, lấy từ file HR (`scripts/data/staff-import.json`) — cùng
+   * mã thì `db:import-staff` nhận ra người đã có và bỏ qua, không dựng hồ sơ thứ
+   * hai chia đôi điểm KPI. Riêng `admin` không phải người nên giữ mã `TMP-ADMIN`.
    */
   staffCode: string;
+  /** Số điện thoại thật, cùng nguồn với `staffCode`. */
+  phone: string;
   /** Mã phòng THUỘC VỀ — null với ban giám đốc. Tra theo `code`, không theo tên. */
   departmentCode: string | null;
   manageScope: ManageScope;
@@ -93,7 +95,8 @@ export type SeedAccount = {
 export const ACCOUNTS: SeedAccount[] = [
   {
     username: "giamdoc",
-    staffCode: "TMP-GIAMDOC",
+    staffCode: "225CONGDH",
+    phone: "0933999010",
     fullName: "Đinh Hoàng Công",
     title: "Giám đốc",
     role: "director",
@@ -104,7 +107,8 @@ export const ACCOUNTS: SeedAccount[] = [
   },
   {
     username: "covan",
-    staffCode: "TMP-COVAN",
+    staffCode: "170MINHDH",
+    phone: "0939980090",
     fullName: "Đinh Hoàng Minh",
     title: "Cố vấn cao cấp",
     role: "deputy-director",
@@ -115,7 +119,8 @@ export const ACCOUNTS: SeedAccount[] = [
   },
   {
     username: "pgd1",
-    staffCode: "TMP-PGD1",
+    staffCode: "271LINHPH",
+    phone: "0948897976",
     fullName: "Phan Hữu Linh",
     title: "Phó Giám Đốc 1",
     role: "deputy-director",
@@ -126,7 +131,8 @@ export const ACCOUNTS: SeedAccount[] = [
   },
   {
     username: "pgd2",
-    staffCode: "TMP-PGD2",
+    staffCode: "006HUENTH",
+    phone: "0989094139",
     fullName: "Nguyễn Thị Hồng Huệ",
     title: "Phó Giám Đốc 2",
     role: "deputy-director",
@@ -137,7 +143,8 @@ export const ACCOUNTS: SeedAccount[] = [
   },
   {
     username: "pgd3",
-    staffCode: "TMP-PGD3",
+    staffCode: "002HUYNHLH",
+    phone: "0907769456",
     fullName: "Lư Hồng Huỳnh",
     title: "Phó Giám Đốc 3",
     role: "deputy-director",
@@ -148,7 +155,8 @@ export const ACCOUNTS: SeedAccount[] = [
   },
   {
     username: "quyenpgd",
-    staffCode: "TMP-QUYENPGD",
+    staffCode: "009TRUONGDM",
+    phone: "0865555416",
     fullName: "Dương Minh Trường",
     title: "Quyền Phó Giám Đốc",
     role: "deputy-director",
@@ -162,6 +170,7 @@ export const ACCOUNTS: SeedAccount[] = [
     // đổi username/mật khẩu của chính tài khoản này.
     username: "admin",
     staffCode: "TMP-ADMIN",
+    phone: "0900000000",
     fullName: "User Admin",
     title: "Quản trị hệ thống",
     role: "staff",

@@ -200,10 +200,11 @@ async function main() {
     const byStaffCode = new Map(existing.filter((u) => u.staffCode).map((u) => [u.staffCode!, u]));
     const usernameTaken = new Set(existing.map((u) => u.username));
     /**
-     * Bảy tài khoản seed mang mã TẠM `TMP-*` vì có trước khi mã nhân viên thành
-     * bắt buộc. Họ nằm trong file HR với mã thật, nên khớp theo HỌ TÊN và chỉ
-     * vá mã — tạo người thứ hai cho cùng một con người là hai hồ sơ chia đôi
-     * điểm KPI. Quyền và phòng quản của họ đã chỉnh tay, script không đụng.
+     * Database dựng trước 2026-08-22 có sáu tài khoản Ban giám đốc mang mã TẠM
+     * `TMP-*`; `scripts/seed-data.ts` từ đó đã mang mã thật nên bản dựng mới
+     * không còn dòng nào như vậy. Nhánh này vá cho những database cũ: khớp theo
+     * HỌ TÊN và chỉ sửa mã — dựng người thứ hai cho cùng một con người là hai hồ
+     * sơ chia đôi điểm KPI. Quyền và phòng quản đã chỉnh tay, script không đụng.
      */
     const temporaryByName = new Map(
       existing.filter((u) => u.staffCode?.startsWith("TMP-")).map((u) => [u.fullName, u]),

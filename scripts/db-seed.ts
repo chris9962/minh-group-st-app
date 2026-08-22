@@ -68,7 +68,7 @@ async function main() {
             staffCode: a.staffCode,
             passwordHash: DEMO_PASSWORD_HASH,
             fullName: a.fullName,
-            phone: "0900000000",
+            phone: a.phone,
             role: a.role,
             title: a.title,
             departmentId: a.departmentCode ? departmentId(a.departmentCode) : null,
