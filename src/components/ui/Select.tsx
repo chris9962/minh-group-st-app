@@ -17,6 +17,8 @@ type Props = {
   required?: boolean;
   /** Thông báo lỗi. Có giá trị thì ô chọn được đánh dấu `aria-invalid` và nối vào câu lỗi. */
   error?: string;
+  /** Câu giải thích dưới ô chọn. Câu lỗi che nó — hai dòng chồng nhau đọc rối. */
+  hint?: string;
   /**
    * Nhãn xếp phía trên, ô chọn rộng hết cỡ — dùng khi đứng cùng hàng với
    * `TextField` trong form. Mặc định nhãn nằm bên trái, hợp cho thanh lọc.
@@ -40,10 +42,13 @@ export function Select({
   disabled,
   required,
   error,
+  hint,
   block = false,
 }: Props) {
   const id = useId();
   const errorId = `${id}-error`;
+  const hintId = `${id}-hint`;
+  const describedBy = [error && errorId, hint && hintId].filter(Boolean).join(" ");
 
   return (
     <span className={block ? styles.blockWrap : styles.wrap}>
@@ -65,7 +70,7 @@ export function Select({
         disabled={disabled}
         aria-required={required || undefined}
         aria-invalid={Boolean(error)}
-        aria-describedby={error ? errorId : undefined}
+        aria-describedby={describedBy || undefined}
         onChange={(e) => onChange(e.target.value)}
       >
         {options.map((o) => (
@@ -79,6 +84,11 @@ export function Select({
         đọc màn hình bấm Lưu, form bị chặn, mà không nghe thấy gì — hộp thoại
         trông như treo.
       */}
+      {hint && !error && (
+        <span id={hintId} className={styles.hint}>
+          {hint}
+        </span>
+      )}
       {error && (
         <span id={errorId} className={styles.error} role="alert">
           {error}

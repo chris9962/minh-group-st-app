@@ -1,4 +1,5 @@
 import { DepartmentForm } from "@/lib/api/org";
+import { DEPARTMENT_TYPE_LABEL } from "@/lib/types";
 import { canOrg, visibleOrgDepartmentIds } from "@/lib/permissions";
 import { logAudit } from "@/server/audit";
 import {
@@ -10,7 +11,7 @@ import {
   notFound,
   unauthorized,
 } from "@/server/auth";
-import { departmentDetailFor, orgError, renameDepartment } from "@/server/org";
+import { departmentDetailFor, orgError, updateDepartment } from "@/server/org";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -41,14 +42,16 @@ export async function POST(request: Request, { params }: Params) {
   const parsed = DepartmentForm.safeParse(await jsonBody(request));
   if (!parsed.success) return badRequest();
 
-  const result = await renameDepartment(id, parsed.data.name);
+  const result = await updateDepartment(id, parsed.data.name, parsed.data.type);
   if (!result) return notFound();
   if (!result.ok) return Response.json(orgError(result.code), { status: 422 });
 
+  // Loại phòng quyết định cách tính điểm KPI, nên nhật ký phải ghi lại nó —
+  // "đổi tên phòng" không nói được rằng cả phòng vừa đổi cách tính lương.
   await logAudit(actor, {
     module: "department",
     action: "update",
-    targetLabel: `Đổi tên phòng thành ${result.department.name}`,
+    targetLabel: `Sửa phòng ${result.department.name} · ${DEPARTMENT_TYPE_LABEL[result.department.type]}`,
     targetTable: "departments",
     targetId: id,
   });

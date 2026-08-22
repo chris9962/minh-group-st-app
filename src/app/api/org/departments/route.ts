@@ -1,4 +1,5 @@
 import { DepartmentForm } from "@/lib/api/org";
+import { DEPARTMENT_TYPE_LABEL } from "@/lib/types";
 import { canOrg, visibleOrgDepartmentIds } from "@/lib/permissions";
 import { logAudit } from "@/server/audit";
 import { badRequest, forbidden, getActor, jsonBody, unauthorized } from "@/server/auth";
@@ -26,13 +27,13 @@ export async function POST(request: Request) {
   const parsed = DepartmentForm.safeParse(await jsonBody(request));
   if (!parsed.success) return badRequest();
 
-  const result = await createDepartment(parsed.data.name);
+  const result = await createDepartment(parsed.data.name, parsed.data.type);
   if (!result.ok) return Response.json(orgError(result.code), { status: 422 });
 
   await logAudit(actor, {
     module: "department",
     action: "create",
-    targetLabel: `Lập phòng ${result.department.name}`,
+    targetLabel: `Lập phòng ${result.department.name} · ${DEPARTMENT_TYPE_LABEL[result.department.type]}`,
     targetTable: "departments",
     targetId: result.department.id,
   });

@@ -1,5 +1,6 @@
 import { and, asc, count, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { businessDay, matchesSearch, monthRange, removeDiacritics, uniqueCode } from "@/lib/format";
+import type { DepartmentType } from "@/lib/types";
 import {
   ORG_ERROR,
   type DepartmentDetail,
@@ -33,6 +34,7 @@ async function rowsWithHeadcount(visible: string[] | null): Promise<DepartmentRo
     .select({
       id: departments.id,
       name: departments.name,
+      type: departments.type,
       active: departments.active,
       headcount: count(users.id),
     })
@@ -126,15 +128,18 @@ async function nextDepartmentCode(name: string): Promise<string> {
   return uniqueCode(name, "PHONG", taken);
 }
 
-export async function createDepartment(name: string): Promise<OrgOutcome> {
+export async function createDepartment(name: string, type: DepartmentType): Promise<OrgOutcome> {
   if (await nameTaken(name)) return { ok: false, code: ORG_ERROR.NAME_TAKEN };
 
   const insert = async (): Promise<OrgOutcome> => {
     const [row] = await db
       .insert(departments)
-      .values({ code: await nextDepartmentCode(name), name })
+      .values({ code: await nextDepartmentCode(name), name, type })
       .returning();
-    return { ok: true, department: { id: row.id, name: row.name, active: row.active, headcount: 0 } };
+    return {
+      ok: true,
+      department: { id: row.id, name: row.name, type: row.type, active: row.active, headcount: 0 },
+    };
   };
 
   // `nameTaken` và `nextDepartmentCode` đều là đọc-rồi-mới-ghi: hai request
@@ -153,7 +158,18 @@ export async function createDepartment(name: string): Promise<OrgOutcome> {
   }
 }
 
-export async function renameDepartment(id: string, name: string): Promise<OrgOutcome | null> {
+/**
+ * Đổi tên và loại phòng.
+ *
+ * ⚠️ Đổi loại là đổi cách tính điểm của cả phòng (spec §7.0). Chuyển sang
+ * `office` thì lượt tính lại kế tiếp XOÁ dòng điểm của mọi người trong phòng,
+ * kể cả của tháng đã trả lương. Nhật ký truy vết ghi lại lượt đổi này.
+ */
+export async function updateDepartment(
+  id: string,
+  name: string,
+  type: DepartmentType,
+): Promise<OrgOutcome | null> {
   const [current] = await db.select().from(departments).where(eq(departments.id, id)).limit(1);
   if (!current) return null;
   if (await nameTaken(name, id)) return { ok: false, code: ORG_ERROR.NAME_TAKEN };
@@ -163,7 +179,7 @@ export async function renameDepartment(id: string, name: string): Promise<OrgOut
   try {
     [row] = await db
       .update(departments)
-      .set({ name, updatedAt: sql`now()` })
+      .set({ name, type, updatedAt: sql`now()` })
       .where(eq(departments.id, id))
       .returning();
   } catch (e) {
@@ -172,7 +188,13 @@ export async function renameDepartment(id: string, name: string): Promise<OrgOut
   }
   return {
     ok: true,
-    department: { id: row.id, name: row.name, active: row.active, headcount: await headcountOf(id) },
+    department: {
+      id: row.id,
+      name: row.name,
+      type: row.type,
+      active: row.active,
+      headcount: await headcountOf(id),
+    },
   };
 }
 
@@ -193,7 +215,10 @@ export async function setDepartmentActive(
     .set({ active, updatedAt: sql`now()` })
     .where(eq(departments.id, id))
     .returning();
-  return { ok: true, department: { id: row.id, name: row.name, active: row.active, headcount } };
+  return {
+    ok: true,
+    department: { id: row.id, name: row.name, type: row.type, active: row.active, headcount },
+  };
 }
 
 /**
@@ -239,6 +264,7 @@ export async function departmentDetailFor(
     department: {
       id: department.id,
       name: department.name,
+      type: department.type,
       active: department.active,
       headcount: await headcountOf(id),
     },

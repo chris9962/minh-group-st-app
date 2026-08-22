@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { DepartmentRanking } from './dashboard';
-import { Department } from '@/lib/types';
+import { Department, DepartmentType } from '@/lib/types';
 
 /**
  * Tổ chức — P-91.
@@ -14,6 +14,8 @@ import { Department } from '@/lib/types';
 export const DepartmentRow = Department.extend({
   /** Gồm cả người đã khoá — họ vẫn thuộc phòng này. */
   headcount: z.number(),
+  /** Loại phòng — quyết định công thức tính điểm KPI (spec §7.0). */
+  type: DepartmentType,
 });
 export type DepartmentRow = z.infer<typeof DepartmentRow>;
 
@@ -50,6 +52,14 @@ export type DepartmentDetail = z.infer<typeof DepartmentDetail>;
  */
 export const DepartmentForm = z.object({
   name: z.string().trim().min(2, 'Chưa nhập tên phòng'),
+  /**
+   * Người lập phòng PHẢI chọn, không có mặc định ở form.
+   *
+   * Cột trong database mặc định `office` để dữ liệu cũ và mọi đường ghi khác
+   * không hỏng. Nhưng ở P-91 thì để người dùng bỏ qua là cấp nhầm công thức
+   * tính lương mà không ai bấm gì — nên form bắt chọn.
+   */
+  type: DepartmentType,
 });
 export type DepartmentForm = z.infer<typeof DepartmentForm>;
 

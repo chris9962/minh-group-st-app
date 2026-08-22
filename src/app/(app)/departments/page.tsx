@@ -213,8 +213,8 @@ export default function DepartmentsPage() {
               <Button
                 variant="secondary"
                 icon
-                tooltip="Đổi tên phòng"
-                aria-label={`Đổi tên ${d.name}`}
+                tooltip="Sửa phòng"
+                aria-label={`Sửa phòng ${d.name}`}
                 onClick={() => setEditing(d)}
               >
                 <Pencil size={16} aria-hidden />

@@ -89,12 +89,13 @@ test("phòng còn người thì khoá nút ngừng VÀ nói vì sao", async ({ p
   await expect(page.locator("main")).toContainText(/chuyển hết người sang phòng khác/i);
 });
 
-test("lập phòng mới rồi đổi tên", async ({ page }) => {
+test("lập phòng mới rồi sửa tên và loại", async ({ page }) => {
   const name = `${TAG} phòng thử`;
 
   await page.getByRole("button", { name: "Thêm phòng ban" }).click();
   const box = dialog(page);
   await box.getByLabel(/Tên phòng/).fill(name);
+  await box.getByLabel(/Loại phòng/).selectOption("office");
   await box.getByRole("button", { name: "Tạo phòng ban" }).click();
   await expect(box).toBeHidden({ timeout: 10_000 });
 
@@ -103,15 +104,25 @@ test("lập phòng mới rồi đổi tên", async ({ page }) => {
   await page.waitForTimeout(500);
   await expect(page.locator("table tbody")).toContainText(name, { timeout: 10_000 });
 
-  const row = page.locator("table tbody tr").filter({ hasText: name }).first();
-  await row.getByRole("button", { name: `Đổi tên ${name}` }).click();
+  const created = page.locator("table tbody tr").filter({ hasText: name }).first();
+  await created.getByRole("button", { name: `Sửa phòng ${name}` }).click();
+
+  // Bảng không có cột Loại phòng — ô chọn trong hộp thoại là chỗ DUY NHẤT đọc
+  // được loại, nên nó phải mang đúng giá trị đã lưu chứ không phải mặc định
+  // `sales` của form.
   const edit = dialog(page);
+  await expect(edit.getByLabel(/Loại phòng/)).toHaveValue("office");
+
   await edit.getByLabel(/Tên phòng/).fill(`${name} 2`);
+  await edit.getByLabel(/Loại phòng/).selectOption("sales");
   await edit.getByRole("button", { name: /Lưu/ }).click();
   await expect(edit).toBeHidden({ timeout: 10_000 });
   await page.getByRole("searchbox", { name: "Tìm phòng ban" }).fill(`${name} 2`);
   await page.waitForTimeout(500);
-  await expect(page.locator("table tbody")).toContainText(`${name} 2`);
+
+  const renamed = page.locator("table tbody tr").filter({ hasText: `${name} 2` }).first();
+  await renamed.getByRole("button", { name: `Sửa phòng ${name} 2` }).click();
+  await expect(dialog(page).getByLabel(/Loại phòng/)).toHaveValue("sales");
 });
 
 /**
