@@ -204,12 +204,20 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
    * này". Bản trước chỉ hỏi `can()` ở mức module: nút hiện trên mọi đơn, bấm
    * vào thì máy chủ trả 404.
    */
+  /**
+   * KHÔNG kẹp theo trạng thái đơn — chốt 2026-08-22.
+   *
+   * Commit `19afde4` (2026-08-18) từng thêm điều kiện `status === "manual-progress"`
+   * với lý do "đơn hoàn thành thì tờ chứng nhận đã nộp". Chủ dự án chốt lại:
+   * đơn hoàn thành rồi vẫn phải đổi được ảnh — tờ chứng nhận chụp mờ hay chụp
+   * nhầm tờ chỉ lộ ra sau đó.
+   *
+   * Đây cũng là điều spec §3.4 viết từ đầu: "ảnh chứng nhận dùng được ở MỌI
+   * trạng thái, không gắn riêng vào bước nào". Máy chủ vốn chưa bao giờ chặn
+   * theo trạng thái, nên chỉ giao diện lệch.
+   */
   const canAttachPhoto = Boolean(
     data &&
-      /* Chỉ đính ảnh khi đơn ĐANG LÀM TAY. Đơn còn trong hàng chờ thì chưa ai
-         cầm, đơn đã hoàn thành thì tờ chứng nhận đã nộp — cả hai ca đều không
-         phải lúc thay ảnh. */
-      data.status === "manual-progress" &&
       (recordInScope(recordVisibility(actor, "insurance", "update"), data) ||
         recordInScope(recordVisibility(actor, "insurance", "handle-fallback"), data) ||
         (canHandleFallback && data.handledById === actor?.id)),
@@ -485,11 +493,7 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                   />
                 </button>
               ) : (
-                <p className="text-muted">
-                  {data.status === "manual-progress"
-                    ? "Chưa có ảnh."
-                    : `Chưa có ảnh — chỉ đính được khi đơn ở trạng thái ${INSURANCE_STATUS_LABEL["manual-progress"]}.`}
-                </p>
+                <p className="text-muted">Chưa có ảnh.</p>
               )}
               {/* Ngoài khối `canAttachPhoto` bên dưới: người chỉ có quyền XEM
                   đơn vẫn cần tải tờ chứng nhận về để gửi khách. */}
