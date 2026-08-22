@@ -8,7 +8,13 @@
 # `bun install` từ con số không. Lockfile đổi thì lệnh install trong CMD cài
 # bù phần chênh — thường xong trong vài giây.
 
-FROM oven/bun:1-alpine
+# Node là RUNTIME, Bun chỉ CÀI GÓI. `next dev` (Turbopack) chạy bằng Bun không
+# nạp được gói external — mọi API route đụng `pg` trả 500 với
+# "Failed to load external module pg-<hash>". Bản prod không dính vì
+# `server.js` build sẵn, không đi qua Turbopack. Trên máy ngoài, `next` cũng
+# chạy bằng Node qua shebang — image này chỉ lặp lại đúng cách đó.
+FROM node:22-alpine
+COPY --from=oven/bun:1-alpine /usr/local/bin/bun /usr/local/bin/bun
 WORKDIR /app
 
 # Cùng lý do với Dockerfile prod: không chặn thì Chromium của playwright về
@@ -27,4 +33,7 @@ EXPOSE 3000
 #
 # `-H 0.0.0.0`: nghe mọi giao diện mạng trong container, không thì cổng ánh xạ
 # ra ngoài gọi vào không tới.
-CMD ["sh", "-c", "bun install --frozen-lockfile && bun run dev -H 0.0.0.0"]
+#
+# Gọi Node ĐÍCH DANH, không qua `bun run dev`: bun run thay shebang node của
+# bin `next` bằng chính bun, và ta quay lại đúng lỗi external ở trên.
+CMD ["sh", "-c", "bun install --frozen-lockfile && exec node node_modules/next/dist/bin/next dev -H 0.0.0.0"]
