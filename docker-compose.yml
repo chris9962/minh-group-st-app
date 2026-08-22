@@ -72,9 +72,13 @@ services:
       db:
         condition: service_healthy
     # 3001 chứ không phải 3000: container prod `mgst-app` (và `next dev` chạy
-    # thẳng trên máy) đều giữ 3000. Kẹp 127.0.0.1 cùng lý do với bản prod.
+    # thẳng trên máy) đều giữ 3000. Kẹp loopback cùng lý do với bản prod.
+    #
+    # PHẢI có cả dòng IPv6: macOS phân giải `localhost` ra `::1` trước, chỉ ánh
+    # xạ 127.0.0.1 thì trình duyệt gõ localhost:3001 không kết nối được.
     ports:
       - "127.0.0.1:3001:3000"
+      - "[::1]:3001:3000"
     env_file:
       - path: .env.local
         required: false
