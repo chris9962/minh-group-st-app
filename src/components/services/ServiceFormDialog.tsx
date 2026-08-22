@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { DepartmentPicker } from "@/components/layout/DepartmentPicker";
+import { BackButton } from "@/components/ui/BackButton";
 import { Button } from "@/components/ui/Button";
 import { Combobox } from "@/components/ui/Combobox";
 import { Dialog } from "@/components/ui/Dialog";
@@ -24,13 +25,19 @@ type Props = {
   onClose: () => void;
   customerId: string;
   customerName: string;
+  /**
+   * Có khi hộp thoại này là bước 2 của `CustomerPickerDialog`. Không có khi mở
+   * thẳng từ hồ sơ khách (P-40, P-42) — ở đó khách đã cố định, không có bước
+   * nào để quay về.
+   */
+  onBack?: () => void;
 };
 
 /**
  * P-30 · Ghi dịch vụ đã hỗ trợ khách — bật từ bảng khách hàng (P-40), giống
  * luồng Tặng quà / Mở ngân hàng. Dịch vụ hiện KHÔNG thu phí (đã chốt ở spec).
  */
-export function ServiceFormDialog({ open, onClose, customerId, customerName }: Props) {
+export function ServiceFormDialog({ open, onClose, customerId, customerName, onBack }: Props) {
   const queryClient = useQueryClient();
 
   const { data: serviceTypes = [] } = useQuery({
@@ -90,6 +97,7 @@ export function ServiceFormDialog({ open, onClose, customerId, customerName }: P
       open={open}
       onClose={onClose}
       title={`Ghi dịch vụ · ${customerName}`}
+      footerStart={onBack && <BackButton onClick={onBack}>Chọn khách khác</BackButton>}
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>

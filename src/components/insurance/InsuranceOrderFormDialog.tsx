@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { UserCheck } from "lucide-react";
 import { DepartmentPicker } from "@/components/layout/DepartmentPicker";
+import { BackButton } from "@/components/ui/BackButton";
 import { Button } from "@/components/ui/Button";
 import { CharCount } from "@/components/ui/CharCount";
 import { Dialog } from "@/components/ui/Dialog";
@@ -36,6 +37,12 @@ type Props = {
   /** Cố định gói — dùng khi mở từ luồng Tặng quà (P-43). */
   prefill?: { packageName: string };
   onCreated?: () => void;
+  /**
+   * Có khi hộp thoại này là bước 2 của `CustomerPickerDialog`. Không có khi mở
+   * thẳng từ hồ sơ khách (P-42) hoặc luồng Tặng quà — ở đó khách đã cố định,
+   * không có bước nào để quay về.
+   */
+  onBack?: () => void;
 };
 
 /**
@@ -110,6 +117,7 @@ export function InsuranceOrderFormDialog({
   source,
   prefill,
   onCreated,
+  onBack,
 }: Props) {
   const queryClient = useQueryClient();
   const [packageName, setPackageName] = useState(prefill?.packageName ?? "");
@@ -394,6 +402,7 @@ export function InsuranceOrderFormDialog({
       open={open}
       onClose={onClose}
       title="Tạo đơn bảo hiểm"
+      footerStart={onBack && <BackButton onClick={onBack}>Chọn khách khác</BackButton>}
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>

@@ -18,8 +18,12 @@ type Props = {
   onClose: () => void;
   /** Tiêu đề của bước chọn khách. */
   title: string;
-  /** Bước tiếp theo, dựng khi đã có khách — hộp thoại mở tài khoản, tạo đơn, ghi dịch vụ. */
-  children: (customer: Customer) => React.ReactNode;
+  /**
+   * Bước tiếp theo, dựng khi đã có khách — hộp thoại mở tài khoản, tạo đơn, ghi
+   * dịch vụ. `back` đưa người dùng về bước chọn khách; hộp thoại bước sau gắn
+   * nó vào nút "Chọn khách khác" của mình.
+   */
+  children: (customer: Customer, back: () => void) => React.ReactNode;
 };
 
 /**
@@ -74,8 +78,21 @@ export function CustomerPickerDialog({ open, onClose, title, children }: Props) 
     enabled: !!pickedId,
   });
 
+  /**
+   * Quay về bước chọn khách. Phải xoá CẢ HAI nguồn — chọn khách có sẵn ghi vào
+   * `pickedId`, còn tạo khách mới ghi vào `readyCustomer`, và chỉ xoá một cái
+   * thì `resolvedCustomer` vẫn có giá trị nên hộp thoại bước sau không đóng.
+   *
+   * Ô tìm giữ nguyên: người dùng bấm nút này vì chọn nhầm người trong CÙNG một
+   * danh sách, xoá đi là bắt họ gõ lại từ đầu.
+   */
+  const back = () => {
+    setPickedId("");
+    setReadyCustomer(null);
+  };
+
   const resolvedCustomer = readyCustomer ?? detail?.customer ?? null;
-  if (resolvedCustomer) return <>{children(resolvedCustomer)}</>;
+  if (resolvedCustomer) return <>{children(resolvedCustomer, back)}</>;
 
   const customers = list?.rows ?? [];
 

@@ -18,12 +18,13 @@ type Props = {
 export function CreateServiceDialog({ open, onClose }: Props) {
   return (
     <CustomerPickerDialog open={open} onClose={onClose} title="Ghi dịch vụ — chọn khách hàng">
-      {(customer) => (
+      {(customer, back) => (
         <ServiceFormDialog
           open
           customerId={customer.id}
           customerName={customer.fullName}
           onClose={onClose}
+          onBack={back}
         />
       )}
     </CustomerPickerDialog>

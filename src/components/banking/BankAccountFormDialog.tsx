@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { CheckCircle2, Trash2 } from "lucide-react";
+import { BackButton } from "@/components/ui/BackButton";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { DepartmentPicker } from "@/components/layout/DepartmentPicker";
@@ -35,6 +36,12 @@ type Props = {
   open: boolean;
   onClose: () => void;
   customerId: string;
+  /**
+   * Có khi hộp thoại này là bước 2 của `CustomerPickerDialog`. Không có khi mở
+   * thẳng từ hồ sơ khách (P-40, P-42) — ở đó khách đã cố định, không có bước
+   * nào để quay về.
+   */
+  onBack?: () => void;
 };
 
 const emptyStartForm = (customerId: string): BankAccountStartForm => ({
@@ -65,6 +72,7 @@ export function BankAccountFormDialog({
   open,
   onClose,
   customerId,
+  onBack,
 }: Props) {
   const queryClient = useQueryClient();
   const [account, setAccount] = useState<BankAccount | null>(null);
@@ -196,6 +204,11 @@ export function BankAccountFormDialog({
       open={open}
       onClose={onClose}
       title={account ? "Hoàn tất tài khoản" : "Mở tài khoản ngân hàng"}
+      footerStart={
+        // Chỉ ở bước MỞ tài khoản. Sang bước hoàn tất thì bản ghi đã nằm trong
+        // database, quay về chọn khách khác là bỏ lại một tài khoản dở dang.
+        !account && onBack ? <BackButton onClick={onBack}>Chọn khách khác</BackButton> : null
+      }
       footer={
         account ? (
           <>

@@ -1,0 +1,20 @@
+/**
+ * Trên điện thoại chỉ còn mũi tên. Hàng nút ở chân hộp thoại phải chứa cả nút
+ * xác nhận, mà nhãn "Chọn khách khác" chiếm gần nửa bề ngang màn hẹp.
+ *
+ * `.sr-only` chứ không phải `display: none`: chữ vẫn phải đọc được bằng trình
+ * đọc màn hình, chỉ là không hiện ra.
+ */
+@media (max-width: bp.$bp-narrow) {
+  .label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+}

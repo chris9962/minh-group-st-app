@@ -19,8 +19,14 @@ type Props = {
   title: string;
   onClose: () => void;
   children: React.ReactNode;
-  /** Hàng nút ở chân hộp thoại. */
+  /** Hàng nút ở chân hộp thoại, canh PHẢI. */
   footer?: React.ReactNode;
+  /**
+   * Nút canh TRÁI ở chân hộp thoại — dành cho hành động đi NGƯỢC luồng, ví dụ
+   * "Chọn khách khác" quay về bước 1. Tách khỏi nhóm bên phải để nó không nằm
+   * lẫn với nút xác nhận và bị bấm nhầm.
+   */
+  footerStart?: React.ReactNode;
 };
 
 /**
@@ -30,7 +36,7 @@ type Props = {
  * phím Esc, lớp phủ và việc chặn phần nền với trình đọc màn hình. Tự dựng bằng
  * div thì phải viết lại từng thứ đó, và thiếu một cái là bàn phím kẹt.
  */
-export function Dialog({ open, title, onClose, children, footer }: Props) {
+export function Dialog({ open, title, onClose, children, footer, footerStart }: Props) {
   const ref = useRef<HTMLDialogElement>(null);
   const [dialogEl, setDialogEl] = useState<HTMLDialogElement | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -151,7 +157,12 @@ export function Dialog({ open, title, onClose, children, footer }: Props) {
               )}
             </div>
 
-            {footer && <footer className={styles.foot}>{footer}</footer>}
+            {(footer || footerStart) && (
+              <footer className={styles.foot}>
+                {footerStart && <div className={styles.footStart}>{footerStart}</div>}
+                {footer}
+              </footer>
+            )}
           </div>
         </DialogPortalContext.Provider>
       )}

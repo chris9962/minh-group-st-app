@@ -112,7 +112,13 @@
 .foot {
   flex: none;
   display: flex;
+  align-items: center;
   justify-content: flex-end;
   gap: 10px;
   padding: 14px 20px 18px;
+}
+
+/* Đẩy nhóm nút xác nhận sang phải, nút đi ngược luồng ở lại bên trái. */
+.footStart {
+  margin-right: auto;
 }

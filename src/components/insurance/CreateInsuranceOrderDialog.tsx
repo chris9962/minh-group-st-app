@@ -20,12 +20,13 @@ export function CreateInsuranceOrderDialog({ open, onClose }: Props) {
   const queryClient = useQueryClient();
   return (
     <CustomerPickerDialog open={open} onClose={onClose} title="Chọn khách hàng">
-      {(customer) => (
+      {(customer, back) => (
         <InsuranceOrderFormDialog
           open
           customer={customer}
           source="self"
           onClose={onClose}
+          onBack={back}
           onCreated={() => queryClient.invalidateQueries({ queryKey: ["insurance-list"] })}
         />
       )}

@@ -22,11 +22,12 @@ export function CreateBankAccountDialog({ open, onClose }: Props) {
       onClose={onClose}
       title="Tạo tài khoản ngân hàng — chọn khách hàng"
     >
-      {(customer) => (
+      {(customer, back) => (
         <BankAccountFormDialog
           open
           customerId={customer.id}
           onClose={onClose}
+          onBack={back}
         />
       )}
     </CustomerPickerDialog>
