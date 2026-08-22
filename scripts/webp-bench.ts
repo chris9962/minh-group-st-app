@@ -6,7 +6,7 @@
  * `canvas.toBlob` là API trình duyệt nên không có cách đo nào khác ngoài mở
  * trình duyệt thật.
  *
- *   bun run webp:bench                  → đo mọi ảnh trong public/uploads
+ *   bun run webp:bench                  → đo mọi ảnh trong scripts/webp-samples
  *   bun run webp:bench <đường dẫn…>     → đo đúng những file đó
  */
 
@@ -46,10 +46,21 @@ async function listImages(dir: string): Promise<string[]> {
   return out;
 }
 
+/**
+ * KHÔNG lấy mặc định là `public/uploads`. Sau U7 thư mục đó toàn ảnh WebP do
+ * chính `toWebpImage` sinh ra, nên đo lại chỉ ra mức giảm gần bằng không.
+ * Mẫu phải là ảnh gốc từ máy ảnh hoặc điện thoại.
+ */
+const SAMPLE_DIR = "scripts/webp-samples";
+
 const args = process.argv.slice(2);
-const files = args.length > 0 ? args : await listImages("public/uploads");
+const files = args.length > 0 ? args : await listImages(SAMPLE_DIR).catch(() => []);
 if (files.length === 0) {
-  console.log("Không có ảnh nào để đo.");
+  console.log(
+    args.length > 0
+      ? "Không có ảnh nào để đo."
+      : `Không có ảnh nào trong ${SAMPLE_DIR}. Chép ảnh gốc vào đó, hoặc truyền đường dẫn file.`,
+  );
   process.exit(0);
 }
 
@@ -72,49 +83,61 @@ const close = raw.lastIndexOf("})();");
 const bundle = `${raw.slice(0, close)}  globalThis.toWebpImage = toWebpImage;\n${raw.slice(close)}`;
 
 const browser = await chromium.launch();
-const page = await browser.newPage();
-await page.setContent("<!doctype html><title>webp bench</title>");
-await page.addScriptTag({ content: bundle });
 
 let totalBefore = 0;
 let totalAfter = 0;
 let keptOriginal = 0;
 
-console.log(
-  `${"ảnh".padEnd(46)} ${"trước".padStart(9)} ${"sau".padStart(9)} ${"giảm".padStart(7)}`,
-);
+// Hỏng giữa chừng vẫn phải đóng, không thì tiến trình Chromium nằm lại.
+try {
+  const page = await browser.newPage();
+  await page.setContent("<!doctype html><title>webp bench</title>");
+  await page.addScriptTag({ content: bundle });
 
-for (const path of files) {
-  const bytes = await readFile(path);
-  const size = (await stat(path)).size;
-  const type = path.toLowerCase().endsWith(".png")
-    ? "image/png"
-    : path.toLowerCase().endsWith(".webp")
-      ? "image/webp"
-      : "image/jpeg";
-
-  const result = await page.evaluate(
-    async ({ data, name, type }) => {
-      const file = new File([Uint8Array.from(data)], name, { type });
-      // @ts-expect-error hàm gắn vào window ở trên
-      const out = await window.toWebpImage(file);
-      return { size: out.size, type: out.type, name: out.name };
-    },
-    { data: Array.from(bytes), name: path.split("/").pop()!, type },
-  );
-
-  const converted = result.type === "image/webp";
-  if (!converted) keptOriginal += 1;
-  totalBefore += size;
-  totalAfter += result.size;
-
-  const drop = converted ? `${(100 - (result.size / size) * 100).toFixed(0)}%` : "giữ gốc";
   console.log(
-    `${path.slice(-46).padEnd(46)} ${kb(size).padStart(9)} ${kb(result.size).padStart(9)} ${drop.padStart(7)}`,
+    `${"ảnh".padEnd(46)} ${"trước".padStart(9)} ${"sau".padStart(9)} ${"giảm".padStart(7)}`,
   );
-}
 
-await browser.close();
+  for (const path of files) {
+    const bytes = await readFile(path);
+    const size = (await stat(path)).size;
+    const type = path.toLowerCase().endsWith(".png")
+      ? "image/png"
+      : path.toLowerCase().endsWith(".webp")
+        ? "image/webp"
+        : "image/jpeg";
+
+    /**
+     * Đưa ảnh sang trang bằng base64, không bằng mảng số. `Array.from(bytes)` đẩy
+     * mỗi byte thành một phần tử JSON: một file 5,3MB mất 14 giây và 30 ảnh điện
+     * thoại là hết bộ nhớ.
+     */
+    const result = await page.evaluate(
+      async ({ base64, name, type }) => {
+        const binary = atob(base64);
+        const data = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i += 1) data[i] = binary.charCodeAt(i);
+        const file = new File([data], name, { type });
+        // @ts-expect-error hàm gắn vào window ở trên
+        const out = await window.toWebpImage(file);
+        return { size: out.size, type: out.type, name: out.name };
+      },
+      { base64: bytes.toString("base64"), name: path.split("/").pop()!, type },
+    );
+
+    const converted = result.type === "image/webp";
+    if (!converted) keptOriginal += 1;
+    totalBefore += size;
+    totalAfter += result.size;
+
+    const drop = converted ? `${(100 - (result.size / size) * 100).toFixed(0)}%` : "giữ gốc";
+    console.log(
+      `${path.slice(-46).padEnd(46)} ${kb(size).padStart(9)} ${kb(result.size).padStart(9)} ${drop.padStart(7)}`,
+    );
+  }
+} finally {
+  await browser.close();
+}
 
 const mb = (n: number) => `${(n / 1024 / 1024).toFixed(2)} MB`;
 console.log("─".repeat(76));
