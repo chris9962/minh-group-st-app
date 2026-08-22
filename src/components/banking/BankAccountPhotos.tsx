@@ -24,18 +24,23 @@ export const savedPhotos = (urls: string[]): PhotoItem[] =>
   urls.map((url) => ({ kind: "saved", url }));
 
 /**
- * Dấu nhận dạng một file để bắt lỗi chọn trùng (spec §U10) — CHỈ tên file.
+ * Dấu nhận dạng một file để bắt lỗi chọn trùng (spec §U10).
  *
- * ⚠️ KHÔNG phải danh tính của ảnh. Hai tấm khác nhau chụp bằng hai điện thoại
- * vẫn cùng tên `IMG_0001.jpg` và bị chặn oan; đổi tên một tấm là nó thành
- * "khác". Đây là phép bắt lỗi BẤM NHẦM — chọn đúng một file hai lần trong hộp
- * chọn — chứ không phải phép chống trùng ảnh.
+ * Ghép TÊN + DUNG LƯỢNG + GIỜ SỬA. Chốt 2026-08-21 là so mỗi tên, và ngày
+ * 2026-08-22 đo trên điện thoại thật thì cách đó chặn oan: máy ảnh của điện
+ * thoại đặt CÙNG một tên cho mọi tấm trong một lượt chụp, nên chụp 10 tấm khác
+ * nhau thì 9 tấm bị từ chối.
  *
- * Chốt 2026-08-21: so tên là đủ. Ghép thêm dung lượng thì chặt hơn, nhưng luật
- * "hai ảnh cùng tên vẫn nhận nếu nặng khác nhau" khó giải thích cho người dùng
- * hơn là "cùng tên thì trùng".
+ * Ba phần ghép lại phân biệt được đúng hai ca cần phân biệt:
+ *
+ *   cùng một file chọn hai lần  →  cả ba phần trùng   →  chặn
+ *   hai tấm chụp liên tiếp      →  giờ sửa khác nhau  →  nhận
+ *
+ * ⚠️ Vẫn KHÔNG phải danh tính của ảnh. Chép một file rồi chọn cả bản gốc lẫn
+ * bản chép thì ba phần vẫn có thể trùng. Đây là phép bắt lỗi BẤM NHẦM — chọn
+ * đúng một file hai lần trong hộp chọn — chứ không phải phép chống trùng ảnh.
  */
-const fileKey = (file: File) => file.name;
+const fileKey = (file: File) => `${file.name}|${file.size}|${file.lastModified}`;
 
 /**
  * Dấu nhận dạng của các ảnh CHƯA tải lên, bỏ qua ô ở vị trí `skip`.
