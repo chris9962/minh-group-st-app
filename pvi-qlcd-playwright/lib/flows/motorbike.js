@@ -64,6 +64,8 @@ function dungGiaTri(payload, homNay = new Date()) {
     mucTrachNhiemLaiPhu: fmtTien(FIXED.mucTrachNhiemLaiPhu),
     hoTen: payload.hoTen,
     diaChi: payload.diaChi,
+    // Không bắt buộc: PVI nhận đơn không có số điện thoại.
+    soDienThoai: payload.soDienThoai || '',
     bienSo: payload.bienSo,
     // PVI vẫn đòi có ký tự trong hai ô này. Cà vẹt không ghi số thì điền dấu
     // cách — bỏ trống là trang chặn lúc bấm Chấp nhận.
@@ -169,6 +171,8 @@ async function dien({ v, dryRun }) {
 
   set('Tên chủ xe', 'NameCustomer', v.hoTen);
   set('Địa chỉ', 'AddressCustomer', v.diaChi);
+  // Payload không truyền thì để trống, không ghi đè bằng chuỗi rỗng cho có.
+  if (v.soDienThoai) set('Số điện thoại', 'DienThoai', v.soDienThoai);
   // Ô Email giữ nguyên giá trị trang điền sẵn (chốt 2026-08-23) — script không đụng.
 
   // Kenh rỗng lúc nạp trang, option đến từ POST /TNDSMotor/GetKenhKT.
@@ -211,6 +215,7 @@ async function dien({ v, dryRun }) {
       loaiXe: doc('select_loaixe'),
       tinhTrangXe: doc('select_ttxe'),
       email: doc('EmailCustomer'),
+      soDienThoai: doc('DienThoai'),
       ngayBatDau: doc('StartDate'),
       gioBatDau: doc('StartTime'),
       ngayKetThuc: doc('EndDate'),
