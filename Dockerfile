@@ -110,11 +110,13 @@ COPY package.json bun.lock ./
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 RUN bun install --frozen-lockfile
 
-# Chỉ ba thư mục worker cần. Không `COPY . .`: `.next`, `e2e`, `public` không
-# tham gia, và mỗi file thừa là một lần mất cache tầng này.
+# Chỉ hai thư mục worker cần. Không `COPY . .`: `.next`, `e2e`, `public`,
+# `scripts` không tham gia, và mỗi file thừa là một lần mất cache tầng này.
+#
+# `src` vẫn phải có: worker ghi `insurance_orders` qua schema Drizzle và đẩy ảnh
+# qua `src/server/storage.ts`, hai thứ dùng chung với app.
 COPY tsconfig.json ./
 COPY src ./src
-COPY scripts ./scripts
 COPY pvi-qlcd-playwright ./pvi-qlcd-playwright
 
 # Phiên đăng nhập PVI phải sống qua các lần dựng lại container, nếu không mỗi lần
@@ -128,4 +130,4 @@ USER pwuser
 
 # Trang PVI có lớp chống bot, chạy headless dễ bị chặn — nên Chromium chạy CÓ
 # giao diện trên màn hình ảo của Xvfb. Bỏ `xvfb-run` là mọi lượt mở trang hỏng.
-CMD ["xvfb-run", "-a", "bun", "scripts/pvi-worker.ts"]
+CMD ["xvfb-run", "-a", "bun", "pvi-qlcd-playwright/worker.ts"]

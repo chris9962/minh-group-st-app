@@ -66,7 +66,7 @@ Duyệt xong đơn chuyển sang trạng thái **"Tạo đơn"** bên PVI, khôn
 
 ## Luồng 2 — lấy giấy chứng nhận
 
-Code ở `src/server/pvi-certificate.ts` và `scripts/pvi-fetch-certificates.ts`.
+Code ở `lib/certificate.ts`, chạy trong vòng lặp của `worker.ts`.
 
 | Bước | Việc | Trạng thái |
 |---|---|---|
@@ -86,13 +86,13 @@ vậy luồng 2 là vòng lặp, không phải một lượt tải.
 về `manual-queued` là bắt người ta tạo lại từ đầu một đơn đã tạo xong. Luồng chỉ
 thôi hỏi, và màn hình đọc `certificate_attempts` rồi hiện lời nhắc đi hỏi người
 có thẩm quyền. Ngưỡng ở `CERTIFICATE_MAX_ATTEMPTS` trong
-`src/lib/api/insuranceOrders.ts` — một chỗ, vì cả script lẫn màn hình đều đọc.
+`src/lib/api/insuranceOrders.ts` — một chỗ, vì cả worker lẫn màn hình đều đọc.
 
 ## Cách chạy: worker trong container
 
 ```
 ┌─ container pvi-worker ────────────────────┐
-│  worker.js --tai-khoan=tk01               │
+│  worker.ts                                │
 │  vòng lặp 10 giây:                        │
 │    1. đơn queued  → tạo, duyệt            │
 │    2. đơn awaiting-certificate → tải file │

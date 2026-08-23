@@ -216,6 +216,8 @@ Script mỗi lần chỉ điền 1 đơn. Khách cần 2 năm thì BE gọi 2 l�
 | `ensure-login.js` | BE gọi trước mỗi đơn. Còn phiên thì thoát 0 ngay; hết phiên thì thoát 2 để báo người vận hành |
 | `import-cookies.js` | Đổi chuỗi cookie copy từ Chrome thành `storageState.json` |
 | `check-session.js` | Kiểm tra phiên còn dùng được không |
+| `worker.ts` | Vòng lặp chính: lấy đơn, tạo, duyệt, tải giấy chứng nhận. Nối database |
+| `lib/certificate.ts` | Tải PDF giấy chứng nhận từ PVI, đổi sang WebP |
 | `create-order.js` | Đọc payload, mở form, gọi hàm điền, in báo cáo |
 | `duyet-don.js` | Luồng 2: lọc bảng Manager, mở màn duyệt đơn Chờ cũ nhất |
 | `lib/duyet.js` | Lõi luồng duyệt: đọc bảng, lấy `pr_key`, điền captcha |

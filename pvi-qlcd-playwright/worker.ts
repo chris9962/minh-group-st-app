@@ -1,8 +1,9 @@
 /**
  * WORKER PVI — vòng lặp tự lấy đơn, tạo, duyệt, rồi lấy giấy chứng nhận.
  *
- *   bun run pvi:worker                 # chạy mãi, quét mỗi 10 giây
- *   bun run pvi:worker -- --mot-vong   # chạy đúng một vòng rồi thoát
+ *   bun run pvi:worker                       # chạy mãi, quét mỗi 10 giây
+ *   bun run pvi:worker -- --mot-vong         # chạy đúng một vòng rồi thoát
+ *   bun run pvi:worker -- --chi-chung-nhan   # bỏ bước tạo đơn, chỉ tải file
  *
  * ⚠️ Mặc định KHÔNG tạo và KHÔNG duyệt đơn thật. Muốn chạy thật phải đặt cả hai:
  *
@@ -25,13 +26,13 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import { CERTIFICATE_MAX_ATTEMPTS } from "../src/lib/api/insuranceOrders";
 import { insuranceOrders } from "../src/server/db/schema";
-import { downloadCertificate, pdfToWebp } from "../src/server/pvi-certificate";
+import { downloadCertificate, pdfToWebp } from "./lib/certificate";
 import { putImage } from "../src/server/storage";
 
-const { taoDon } = require("../pvi-qlcd-playwright/lib/order");
-const { dongBrowser } = require("../pvi-qlcd-playwright/lib/browser");
-const { baoDamPhien } = require("../pvi-qlcd-playwright/lib/phien");
-const { docBangHienTai, timDongVuaTao, duyetTheoPrKey } = require("../pvi-qlcd-playwright/lib/duyet");
+const { taoDon } = require("./lib/order");
+const { dongBrowser } = require("./lib/browser");
+const { baoDamPhien } = require("./lib/phien");
+const { docBangHienTai, timDongVuaTao, duyetTheoPrKey } = require("./lib/duyet");
 
 type Db = ReturnType<typeof drizzle>;
 type Order = typeof insuranceOrders.$inferSelect;
@@ -277,7 +278,21 @@ async function fetchCertificates(db: Db) {
   return waiting.length;
 }
 
+/**
+ * `--chi-chung-nhan` bỏ hẳn bước tạo đơn, chỉ chạy phần tải giấy chứng nhận.
+ *
+ * Dùng khi PVI chưa sinh file cho một loạt đơn cũ và người vận hành muốn hỏi
+ * lại mà không đụng tới hàng chờ tạo đơn.
+ */
+const CERTIFICATES_ONLY = process.argv.includes("--chi-chung-nhan");
+
 async function runOnce(db: Db) {
+  if (CERTIFICATES_ONLY) {
+    const only = await fetchCertificates(db);
+    if (!only) log("Không có đơn nào đang đợi giấy chứng nhận.");
+    return;
+  }
+
   // Trước khi nhận đơn mới: trả lại đơn mà worker chết giữa chừng bỏ lại.
   await reclaimStaleOrders(db);
 
