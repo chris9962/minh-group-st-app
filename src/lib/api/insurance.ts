@@ -59,6 +59,13 @@ export const InsuranceListRow = z.object({
   handledByName: z.string().nullable(),
   /** Ảnh chụp giấy chứng nhận — thay cho PDF, có thể null dù đơn đã hoàn thành. */
   certificatePhotoUrl: z.string().nullable(),
+  /**
+   * Số lần bot đã hỏi PVI mà chưa lấy được giấy chứng nhận.
+   *
+   * Màn hình đọc nó cùng `status` qua `certificateNeedsHelp` để biết đơn nào
+   * đang đợi bình thường và đơn nào bot đã thôi thử.
+   */
+  certificateAttempts: z.number().default(0),
 });
 export type InsuranceListRow = z.infer<typeof InsuranceListRow>;
 

@@ -8,6 +8,11 @@
  * PDF sang PNG, đẩy lên kho, ghi khoá vào `certificate_photo_url` rồi chuyển đơn
  * sang `done`. Chưa có file thì tăng số lần thử và bỏ qua — vòng sau hỏi lại.
  *
+ * Hỏi đủ `CERTIFICATE_MAX_ATTEMPTS` lần mà vẫn chưa có thì luồng NGỪNG hỏi đơn
+ * đó, nhưng KHÔNG đổi trạng thái. Đơn đã duyệt xong bên PVI rồi; đẩy nó về hàng
+ * chờ làm tay là bắt người ta tạo lại từ đầu một đơn đã tạo xong. Giao diện đọc
+ * `certificate_attempts` rồi hiện lời nhắc đi hỏi người có thẩm quyền.
+ *
  * PVI không sinh file ngay lúc duyệt. Đo 2026-08-23: duyệt xong 11 phút mà vẫn
  * chưa có. Vì vậy luồng này là vòng lặp, không phải một lượt tải.
  *
@@ -17,6 +22,7 @@
 import { and, eq, lt, ne, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
+import { CERTIFICATE_MAX_ATTEMPTS } from "../src/lib/api/insuranceOrders";
 import { insuranceOrders } from "../src/server/db/schema";
 import { downloadCertificate, pdfToPng } from "../src/server/pvi-certificate";
 import { putImage } from "../src/server/storage";
@@ -25,20 +31,19 @@ import { putImage } from "../src/server/storage";
 const BATCH = 20;
 
 /**
- * Quá số lần này mà PVI vẫn chưa sinh file thì đơn sang `manual-queued`.
- *
- * Không có ngưỡng thì đơn nào PVI không bao giờ sinh file sẽ nằm lại
- * `awaiting-certificate` mãi, và không ai biết để đi hỏi. 60 lần với nhịp quét
- * 2 phút là khoảng 2 giờ.
+ * Hỏi đủ số lần này thì ngừng hỏi đơn đó. Ngưỡng nằm ở `lib/api/insuranceOrders`
+ * vì giao diện cũng đọc nó để biết dòng nào cần hiện lời nhắc.
  */
-const MAX_ATTEMPTS = Number(process.env.PVI_CERTIFICATE_MAX_ATTEMPTS ?? 60);
+const MAX_ATTEMPTS = Number(
+  process.env.PVI_CERTIFICATE_MAX_ATTEMPTS ?? CERTIFICATE_MAX_ATTEMPTS,
+);
 
 /** Đơn vừa hỏi hụt thì đợi bấy nhiêu giây mới hỏi lại, kể cả khi vòng quét dày hơn. */
 const RETRY_AFTER_SECONDS = Number(process.env.PVI_CERTIFICATE_RETRY_SECONDS ?? 90);
 
 type Db = ReturnType<typeof drizzle>;
 
-type Summary = { taken: number; done: number; waiting: number; givenUp: number; failed: number };
+type Summary = { taken: number; done: number; waiting: number; stalled: number; failed: number };
 
 async function fetchOne(db: Db, order: {
   id: string;
@@ -50,20 +55,18 @@ async function fetchOne(db: Db, order: {
 
   if (!got.ready) {
     const attempts = order.certificateAttempts + 1;
-    const giveUp = attempts >= MAX_ATTEMPTS;
+    // Chạm ngưỡng thì thôi hỏi, KHÔNG đổi trạng thái: đơn đã duyệt xong bên PVI,
+    // đẩy về hàng chờ làm tay là bắt tạo lại một đơn đã tạo xong.
+    const stalled = attempts >= MAX_ATTEMPTS;
     await db
       .update(insuranceOrders)
-      .set({
-        certificateAttempts: attempts,
-        certificateCheckedAt: new Date(),
-        ...(giveUp ? { status: "manual-queued" as const } : {}),
-      })
+      .set({ certificateAttempts: attempts, certificateCheckedAt: new Date() })
       .where(eq(insuranceOrders.id, order.id));
 
     console.log(
-      `${order.orderCode}: ${got.reason} (lần ${attempts}/${MAX_ATTEMPTS})${giveUp ? " → chuyển sang làm tay" : ""}`,
+      `${order.orderCode}: ${got.reason} (lần ${attempts}/${MAX_ATTEMPTS})${stalled ? " → ngừng hỏi, cần người kiểm tra" : ""}`,
     );
-    return giveUp ? "givenUp" : "waiting";
+    return stalled ? "stalled" : "waiting";
   }
 
   let key: string;
@@ -113,6 +116,9 @@ async function sweep(db: Db): Promise<Summary> {
       and(
         eq(insuranceOrders.status, "awaiting-certificate"),
         ne(insuranceOrders.pviPrKey, ""),
+        // Đơn đã hỏi đủ ngưỡng thì luồng không đụng tới nữa. Nó vẫn nằm ở
+        // `awaiting-certificate` cho người có thẩm quyền xem và xử lý.
+        lt(insuranceOrders.certificateAttempts, MAX_ATTEMPTS),
         // Đơn chưa hỏi lần nào đứng đầu hàng; đơn vừa hỏi hụt phải đợi đủ nhịp.
         or(
           sql`${insuranceOrders.certificateCheckedAt} is null`,
@@ -123,7 +129,7 @@ async function sweep(db: Db): Promise<Summary> {
     .orderBy(sql`${insuranceOrders.certificateCheckedAt} asc nulls first`)
     .limit(BATCH);
 
-  const sum: Summary = { taken: orders.length, done: 0, waiting: 0, givenUp: 0, failed: 0 };
+  const sum: Summary = { taken: orders.length, done: 0, waiting: 0, stalled: 0, failed: 0 };
   // Tuần tự chứ không song song: PVI là hệ thống của đối tác, và một vòng 20 đơn
   // chạy tuần tự đã xong trong vài giây.
   for (const o of orders) sum[await fetchOne(db, o)] += 1;
@@ -150,7 +156,7 @@ async function main() {
   do {
     const s = await sweep(db);
     console.log(
-      `Vòng quét: lấy ${s.taken} đơn · xong ${s.done} · còn đợi ${s.waiting} · chuyển làm tay ${s.givenUp} · lỗi ${s.failed}`,
+      `Vòng quét: lấy ${s.taken} đơn · xong ${s.done} · còn đợi ${s.waiting} · ngừng hỏi ${s.stalled} · lỗi ${s.failed}`,
     );
     if (loopSeconds && !stop) await new Promise((r) => setTimeout(r, loopSeconds * 1000));
   } while (loopSeconds && !stop);

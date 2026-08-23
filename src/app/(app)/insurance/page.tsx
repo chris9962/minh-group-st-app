@@ -30,6 +30,7 @@ import {
   type InsuranceListRow,
 } from "@/lib/api/insurance";
 import {
+  certificateNeedsHelp,
   INSURANCE_STATUS_LABEL,
   INSURANCE_STATUS_TONE,
   InsuranceOrderStatus,
@@ -226,11 +227,16 @@ export default function InsurancePage() {
       {
         key: "status",
         label: "Trạng thái",
-        render: (r) => (
-          <StatusTag tone={INSURANCE_STATUS_TONE[r.status]}>
-            {INSURANCE_STATUS_LABEL[r.status]}
-          </StatusTag>
-        ),
+        render: (r) => {
+          // Bot đã thôi hỏi PVI về giấy chứng nhận. Nhãn trạng thái không đủ:
+          // đơn này với đơn vừa duyệt xong đều mang chữ "Đợi giấy chứng nhận".
+          const needsHelp = certificateNeedsHelp(r.status, r.certificateAttempts);
+          return (
+            <StatusTag tone={needsHelp ? "warn" : INSURANCE_STATUS_TONE[r.status]}>
+              {needsHelp ? "Đợi giấy — cần kiểm tra" : INSURANCE_STATUS_LABEL[r.status]}
+            </StatusTag>
+          );
+        },
       },
       { key: "createdByName", label: "Người tạo", render: (r) => r.createdByName ?? "—" },
       ...(canSeeHandler

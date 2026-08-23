@@ -128,7 +128,7 @@ bun run pvi:chung-nhan -- --lap=120 # quét lại mỗi 120 giây
 | 2 | Gọi `GET /Service/DownloadFile?id=<pr_key>&type=3` | |
 | 3a | Trả PDF → đổi sang PNG, đẩy lên kho, ghi khoá | `done` |
 | 3b | Trả HTML → tăng số lần thử, bỏ qua tới vòng sau | giữ nguyên |
-| 3c | Quá 60 lần thử → chuyển sang người xử lý tay | `manual-queued` |
+| 3c | Đủ 60 lần thử → ngừng hỏi đơn đó | giữ nguyên |
 
 **PVI không sinh file ngay lúc duyệt.** Đo 2026-08-23: đơn duyệt xong 11 phút mà
 `/Service/DownloadFile` vẫn trả trang HTML "File trên hệ thống đã bị xóa". Vì
@@ -154,8 +154,17 @@ as a URL` trên đúng header đó. Response không bao giờ đọc xong, lư�
 tới hết thời gian chờ. Dùng `fetch` với header `Cookie` dựng từ
 `storageState.json`.
 
+**Chạm ngưỡng thì KHÔNG đổi trạng thái đơn.** Đơn đã duyệt xong bên PVI. Đẩy nó
+về `manual-queued` là bắt người ta tạo lại từ đầu một đơn đã tạo xong. Luồng chỉ
+thôi hỏi; đơn ở lại `awaiting-certificate`, và màn hình đọc
+`certificate_attempts` rồi hiện lời nhắc đi hỏi người có thẩm quyền.
+
+Ngưỡng nằm ở `CERTIFICATE_MAX_ATTEMPTS` trong `src/lib/api/insuranceOrders.ts` —
+một chỗ, vì cả script lẫn màn hình đều đọc. Hàm `certificateNeedsHelp(status,
+attempts)` trả lời "dòng này có cần hiện lời nhắc không".
+
 **Đổi ảnh hỏng thì KHÔNG tăng số lần thử.** Lỗi đó nằm ở máy mình, không ở PVI.
-Tăng nữa là đơn bị đẩy sang làm tay vì lỗi của bot.
+Tăng nữa là đơn bị coi như PVI không sinh file, trong khi PVI đã sinh.
 
 **Cần `pdftoppm` của poppler trên máy chạy.** `brew install poppler` trên macOS,
 `apt install poppler-utils` trên VPS. Thiếu nó thì luồng 3 báo lỗi ở mọi đơn.

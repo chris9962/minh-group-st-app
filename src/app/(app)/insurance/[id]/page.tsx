@@ -13,12 +13,15 @@ import { downloadImage } from "@/lib/downloadImage";
 import { CopyButton } from "@/components/ui/CopyValue";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusTag } from "@/components/ui/StatusTag";
+import { Alert } from "@/components/ui/Alert";
 import {
   fetchInsuranceDetail,
   setInsuranceOrderPhoto,
   setInsuranceOrderStatus,
 } from "@/lib/api/insurance";
 import {
+  CERTIFICATE_HELP_MESSAGE,
+  certificateNeedsHelp,
   INSURANCE_STATUS_LABEL,
   INSURANCE_STATUS_TONE,
   type InsuranceManualStep,
@@ -331,6 +334,11 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                 <StatusTag tone={INSURANCE_STATUS_TONE[data.status]}>
                   {INSURANCE_STATUS_LABEL[data.status]}
                 </StatusTag>
+                {/* Bot đã thôi hỏi PVI. Không nói ra thì dòng này trông y hệt
+                    đơn vừa duyệt xong và đang đợi bình thường. */}
+                {certificateNeedsHelp(data.status, data.certificateAttempts) && (
+                  <Alert tone="warning">{CERTIFICATE_HELP_MESSAGE}</Alert>
+                )}
                 <p className={styles.summaryLine}>
                   <Link href={`/customers/${data.customerId}`} className={styles.customerLink}>
                     {data.customerName}

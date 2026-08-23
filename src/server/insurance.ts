@@ -289,6 +289,7 @@ const pickPage = (where: SQL | undefined, orderBy: SQL[], limit: number, offset:
       chassisNumber: insuranceOrders.chassisNumber,
       engineNumber: insuranceOrders.engineNumber,
       certificatePhotoUrl: insuranceOrders.certificatePhotoUrl,
+      certificateAttempts: insuranceOrders.certificateAttempts,
       handledBy: insuranceOrders.handledBy,
       handledByDepartmentId: insuranceOrders.handledByDepartmentId,
       createdBy: insuranceOrders.createdBy,
@@ -331,6 +332,7 @@ const decorate = (page: ReturnType<typeof pickPage>) =>
       chassisNumber: page.chassisNumber,
       engineNumber: page.engineNumber,
       certificatePhotoUrl: page.certificatePhotoUrl,
+      certificateAttempts: page.certificateAttempts,
       createdById: page.createdBy,
       createdByName: creator.fullName,
       createdByDepartmentId: page.createdByDepartmentId,
@@ -374,6 +376,7 @@ const toRow = (r: DecoratedRow): InsuranceListRow => ({
   // Database lưu khoá; FE cần URL đọc được. Đổi ở đúng một chỗ vì `toOrder`
   // trải `toRow` ra, nên cả danh sách lẫn chi tiết đi qua đây.
   certificatePhotoUrl: r.certificatePhotoUrl ? imageUrl(r.certificatePhotoUrl) : r.certificatePhotoUrl,
+  certificateAttempts: r.certificateAttempts,
 });
 
 /**

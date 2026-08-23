@@ -88,6 +88,33 @@ export const INSURANCE_STATUS_TONE: Record<InsuranceOrderStatus, StatusTone> = {
 };
 
 /**
+ * Số lần luồng tải giấy chứng nhận hỏi PVI trước khi ngừng hỏi một đơn.
+ *
+ * Với nhịp quét 2 phút thì 60 lần là khoảng 2 giờ. Chạm ngưỡng, luồng thôi hỏi
+ * nhưng KHÔNG đổi trạng thái đơn: đơn đã duyệt xong bên PVI, đẩy nó về hàng chờ
+ * làm tay là bắt người ta tạo lại từ đầu một đơn đã tạo xong.
+ *
+ * Đặt ở đây vì cả hai phía đọc: `scripts/pvi-fetch-certificates.ts` để biết khi
+ * nào ngừng hỏi, và màn hình để biết dòng nào cần hiện lời nhắc.
+ */
+export const CERTIFICATE_MAX_ATTEMPTS = 60;
+
+/**
+ * Đơn đã duyệt xong bên PVI nhưng lấy giấy chứng nhận không được, và bot đã
+ * thôi thử.
+ *
+ * Người xem cần biết để đi hỏi — nếu không, dòng này trông y hệt dòng vừa duyệt
+ * xong và đang đợi bình thường.
+ */
+export const certificateNeedsHelp = (
+  status: InsuranceOrderStatus,
+  attempts: number,
+): boolean => status === 'awaiting-certificate' && attempts >= CERTIFICATE_MAX_ATTEMPTS;
+
+export const CERTIFICATE_HELP_MESSAGE =
+  'Không tải được giấy chứng nhận từ PVI. Liên hệ người có thẩm quyền để nhờ kiểm tra.';
+
+/**
  * Hai bước người xử lý tay bấm được ở P-14 (spec §3.5, §9.2).
  *
  * Máy chủ tự kiểm bước chuyển hợp lệ theo bảng §3.4 — nhận trạng thái tuỳ ý từ
