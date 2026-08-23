@@ -253,6 +253,13 @@
       "when": 1787427600000,
       "tag": "0035_insurance_pvi_keys",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1787431200000,
+      "tag": "0036_insurance_awaiting_certificate",
+      "breakpoints": true
     }
   ]
 }

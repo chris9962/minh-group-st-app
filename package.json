@@ -26,6 +26,7 @@
     "pvi:order": "node pvi-qlcd-playwright/create-order.js",
     "pvi:chay": "node pvi-qlcd-playwright/chay-don.js",
     "pvi:duyet": "node pvi-qlcd-playwright/duyet-don.js",
+    "pvi:chung-nhan": "bun --env-file=.env.local scripts/pvi-fetch-certificates.ts",
     "pvi:order:dry": "node pvi-qlcd-playwright/create-order.js --dry-run",
     "webp:bench": "bun scripts/webp-bench.ts"
   },

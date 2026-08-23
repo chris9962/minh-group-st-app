@@ -21,6 +21,9 @@ tiến trình khác, chạy độc lập, tự đi tìm đơn cần duyệt.
 | 5 | Đóng Playwright | |
 | 6 | Ghi lại trạng thái mới | `pending-approval` |
 
+Nhánh bot đi trọn: `queued` → `creating` → `pending-approval` →
+`awaiting-certificate` → `done`.
+
 Luồng 1 dừng ở đây. Nó **không** biết đơn vừa tạo mang `pr_key` nào.
 
 Lấy đơn phải khoá dòng bằng `for update skip locked`. Không khoá thì hai worker
@@ -110,6 +113,53 @@ Nút "Chấp nhận" là `#btnConfirm`. Nó không submit thẳng: handler so
 lệch thì `alert("Invalid Captcha. try Again")` rồi vẽ captcha mới. Ô captcha
 không có `name` nên không đi theo form.
 
+## Luồng 3 — tải giấy chứng nhận
+
+Code ở `src/server/pvi-certificate.ts` và `scripts/pvi-fetch-certificates.ts`.
+
+```bash
+bun run pvi:chung-nhan              # quét một vòng rồi thoát
+bun run pvi:chung-nhan -- --lap=120 # quét lại mỗi 120 giây
+```
+
+| Bước | Việc | Trạng thái đơn |
+|---|---|---|
+| 1 | Lấy đơn đang đợi file, cũ nhất trước, tối đa 20 đơn một vòng | `awaiting-certificate` |
+| 2 | Gọi `GET /Service/DownloadFile?id=<pr_key>&type=3` | |
+| 3a | Trả PDF → đổi sang PNG, đẩy lên kho, ghi khoá | `done` |
+| 3b | Trả HTML → tăng số lần thử, bỏ qua tới vòng sau | giữ nguyên |
+| 3c | Quá 60 lần thử → chuyển sang người xử lý tay | `manual-queued` |
+
+**PVI không sinh file ngay lúc duyệt.** Đo 2026-08-23: đơn duyệt xong 11 phút mà
+`/Service/DownloadFile` vẫn trả trang HTML "File trên hệ thống đã bị xóa". Vì
+vậy luồng 3 là vòng lặp, không phải một lượt tải.
+
+Đơn vừa hỏi hụt phải đợi 90 giây mới hỏi lại, kể cả khi vòng quét chạy dày hơn.
+
+### Đo trên PVI thật 2026-08-23
+
+| Mục | Giá trị |
+|---|---|
+| PDF | 330 KB, 1 trang, 595,5 × 419,25 pt |
+| Tên file PVI đặt | `_260307461_26_21_14_TNCN_0096557.pdf` |
+| PNG sau khi đổi, 150 DPI | 278 KB |
+| Thời gian một đơn | 1,0 – 2,5 giây |
+
+### Ba chỗ dễ sai
+
+**Không dùng `request` của Playwright để tải file.** PVI trả
+`200 application/pdf` kèm `set-cookie: BNI_persistence=...; Path=/`, và
+`_parseSetCookieHeader` của playwright-core ném `TypeError ... cannot be parsed
+as a URL` trên đúng header đó. Response không bao giờ đọc xong, lượt gọi treo
+tới hết thời gian chờ. Dùng `fetch` với header `Cookie` dựng từ
+`storageState.json`.
+
+**Đổi ảnh hỏng thì KHÔNG tăng số lần thử.** Lỗi đó nằm ở máy mình, không ở PVI.
+Tăng nữa là đơn bị đẩy sang làm tay vì lỗi của bot.
+
+**Cần `pdftoppm` của poppler trên máy chạy.** `brew install poppler` trên macOS,
+`apt install poppler-utils` trên VPS. Thiếu nó thì luồng 3 báo lỗi ở mọi đơn.
+
 ## Cách tra ngược về đơn trong database
 
 Màn duyệt chỉ cho **tên khách** và **loại bảo hiểm**. Hai thứ đó đủ để thu hẹp
@@ -144,9 +194,9 @@ PVI_CHO_PHEP_DUYET=1 bun run pvi:duyet -- --duyet          # bấm Duyệt thậ
 
 1. **Chưa bấm "Chấp nhận" lần nào ở màn duyệt trên PVI thật.** Mọi bước trước đó
    đã đo được 2026-08-23: đọc bảng, lọc, lấy `pr_key`, mở màn duyệt, đọc bốn ô.
-2. **Nối vào database.** Chưa viết: tra đơn theo tên người thụ hưởng cộng sản
-   phẩm, ghi `pvi_electronic_order_no` và `pvi_pr_key`, chuyển trạng thái sang
-   `done`. Hai cột đã có từ migration `0035_insurance_pvi_keys`.
+2. **Nối luồng 2 vào database.** Chưa viết: tra đơn theo tên người thụ hưởng
+   cộng sản phẩm, ghi `pvi_electronic_order_no` và `pvi_pr_key`, chuyển trạng
+   thái sang `awaiting-certificate`. Luồng 3 nhận tiếp từ đó và đã chạy được.
 3. **Captcha màn duyệt có thể được kiểm ở máy chủ.** Bot đọc `window.code` và
    trang tự so ở trình duyệt. PVI kiểm thêm ở phía họ thì cách này không qua
    được — chưa đo.

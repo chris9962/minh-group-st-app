@@ -66,7 +66,11 @@ export const bankAccountStatus = pgEnum("bank_account_status", ["creating", "don
 
 export const insuranceProduct = pgEnum("insurance_product", ["motorbike", "electric-accident"]);
 export const insuranceOrderStatus = pgEnum("insurance_order_status", [
-  "queued", "creating", "pending-approval", "manual-queued", "manual-progress", "done",
+  "queued", "creating", "pending-approval", "manual-queued", "manual-progress",
+  // Duyệt xong bên PVI, còn đợi PVI sinh file giấy chứng nhận. Việc còn lại
+  // không phải thao tác trên PVI nữa — xem `pvi-qlcd-playwright/LUONG-TAO-VA-DUYET.md`.
+  "awaiting-certificate",
+  "done",
 ]);
 export const insuranceOrderSource = pgEnum("insurance_order_source", ["self", "gift"]);
 
@@ -816,6 +820,9 @@ export const insuranceOrders = pgTable(
      * hiện trên màn duyệt — xem `pvi-qlcd-playwright/LUONG-TAO-VA-DUYET.md`.
      */
     pviPrKey: text("pvi_pr_key").notNull().default(""),
+    /** Số lần luồng 3 đã hỏi `/Service/DownloadFile` mà chưa có file. */
+    certificateAttempts: smallint("certificate_attempts").notNull().default(0),
+    certificateCheckedAt: timestamp("certificate_checked_at", { withTimezone: true }),
     /**
       * Người XỬ LÝ TAY — ghi lúc bấm "Nhận đơn xử lý", null với đơn bot chạy
       * trơn. Khác `created_by` (người tạo): hai người khác nhau, và mở đơn phải
@@ -841,6 +848,10 @@ export const insuranceOrders = pgTable(
     index("insurance_orders_status").on(t.status),
     /** Luồng duyệt tra đơn chờ duyệt theo tên người thụ hưởng và sản phẩm. */
     index("insurance_orders_pending_match").on(t.status, t.product, t.beneficiaryName),
+    /** Luồng 3 quét đơn đang đợi file, cũ nhất trước. */
+    index("insurance_orders_awaiting_certificate").on(
+      sql`status, certificate_checked_at nulls first`,
+    ),
     /**
      * Khớp đúng thứ tự P-13 lấy một trang: `created_at desc, id`, có hoặc không
      * kèm bộ lọc phạm vi. Thiếu chỉ mục đúng hình dạng này thì Postgres phải

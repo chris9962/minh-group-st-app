@@ -19,7 +19,8 @@ export type InsuranceOrderSource = z.infer<typeof InsuranceOrderSource>;
  *
  * `queued` (Chờ tạo) — đơn nằm chờ BOT pick lên tạo.
  * `queued` → `creating` (Đang tạo) → `pending-approval` (Chờ duyệt) →
- * `done` (Hoàn thành) là nhánh chính, do hệ thống tự chuyển.
+ * `awaiting-certificate` (Đợi giấy chứng nhận) → `done` (Hoàn thành) là nhánh
+ * chính, do hệ thống tự chuyển.
  * Lỗi ở `creating` hoặc `pending-approval` → `manual-queued` (Chờ làm tay,
  * xếp hàng chờ người xử lý), người xử lý nhận đơn → `manual-progress`
  * (Đang làm tay), xong bấm hoàn thành → `done`.
@@ -36,6 +37,12 @@ export const InsuranceOrderStatus = z.enum([
   'pending-approval',
   'manual-queued',
   'manual-progress',
+  /**
+   * Duyệt xong bên PVI, còn đợi PVI sinh file giấy chứng nhận. Việc còn lại
+   * không phải thao tác trên PVI — luồng 3 tải file rồi mới đẩy sang `done`.
+   * Xem `pvi-qlcd-playwright/LUONG-TAO-VA-DUYET.md`.
+   */
+  'awaiting-certificate',
   'done',
 ]);
 export type InsuranceOrderStatus = z.infer<typeof InsuranceOrderStatus>;
@@ -46,6 +53,7 @@ export const INSURANCE_STATUS_LABEL: Record<InsuranceOrderStatus, string> = {
   'pending-approval': 'Chờ duyệt',
   'manual-queued': 'Chờ làm tay',
   'manual-progress': 'Đang làm tay',
+  'awaiting-certificate': 'Đợi giấy chứng nhận',
   done: 'Hoàn thành',
 };
 
@@ -73,6 +81,9 @@ export const INSURANCE_STATUS_TONE: Record<InsuranceOrderStatus, StatusTone> = {
   // định ở NGOÀI hệ thống, không phải hàng chờ của đội mình. Đơn đọng lâu ở đây
   // là đơn phải đi hỏi, nên nó cần nổi lên khỏi hai nhóm chờ và đang chạy.
   'pending-approval': 'review',
+  // Cùng tông với `pending-approval`: đơn đang đợi một việc bên NGOÀI hệ thống
+  // xong, ở đây là PVI sinh file. Đọng lâu là phải đi hỏi.
+  'awaiting-certificate': 'review',
   done: 'ok',
 };
 

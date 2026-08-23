@@ -14,22 +14,22 @@ luồng duyệt phải làm những bước nào.
 | Bấm nút "Chấp nhận" lúc tạo đơn | Người bấm tay được, bot chưa bấm lần nào |
 | Đọc `pr_key` của đơn vừa tạo | PVI không trả lúc bấm — lấy ở màn Manager |
 | Lọc bảng Manager, lấy `pr_key`, mở màn duyệt | Xong, đo trên PVI thật 2026-08-23 |
-| Màn duyệt: điền captcha, bấm Chấp nhận | Code xong, CHƯA bấm lần nào trên PVI thật |
-| Nối vòng đời đơn trong database | Chưa làm — hai cột `pvi_*` đã có |
+| Màn duyệt: điền captcha, bấm Chấp nhận | Xong. Duyệt thật một đơn 2026-08-23, đơn chuyển sang "Tạo đơn" |
+| Tải giấy chứng nhận, đổi ảnh, đẩy kho (luồng 3) | Xong, đo trên PVI thật 2026-08-23 với hai đơn có file |
+| Nối luồng 2 vào database | Chưa làm — hai cột `pvi_*` đã có |
 | Flow BH xe máy | Chưa làm — chưa khảo sát form của PVI |
 
 ## Việc tiếp theo, theo thứ tự
 
-**1. Bấm "Chấp nhận" một lần ở màn duyệt trên PVI thật.**
+**1. Nối ba luồng vào database.**
 
-Đây là chỗ đứt duy nhất còn lại. Mọi bước trước đó đã đo được 2026-08-23: lọc
-bảng, lấy `pr_key`, mở màn duyệt, đọc bốn ô thông tin.
+Ba luồng đều chạy được trên PVI thật, nhưng chưa luồng nào đọc ghi
+`insurance_orders` trừ luồng 3. Còn thiếu:
 
-```bash
-PVI_CHO_PHEP_DUYET=1 bun run pvi:duyet -- --san-pham=electric-accident --duyet
-```
-
-Không đặt biến đó thì script mở trang rồi dừng.
+- Luồng 1 lấy đơn `queued`, khoá dòng bằng `for update skip locked`, ghi
+  `creating` rồi `pending-approval`.
+- Luồng 2 tra đơn theo tên người thụ hưởng cộng sản phẩm, ghi
+  `pvi_electronic_order_no` và `pvi_pr_key`, đẩy sang `awaiting-certificate`.
 
 **1b. Công cụ khảo sát DOM.**
 
