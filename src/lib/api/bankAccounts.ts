@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { isoDate, isoDateOrEmpty } from '@/lib/types';
+import { businessDay } from '@/lib/format';
+import { isoDate, isoDateOrEmpty, ROLE_RANK, type User } from '@/lib/types';
 
 /**
  * P-20 · Tạo tài khoản ngân hàng (mgst-platform-spec.md §4).
@@ -211,6 +212,32 @@ export type PhotoKind = 'opening' | 'transaction';
  * theo — hai nơi lệch nhau thì người dùng chọn đủ ảnh rồi mới nhận lỗi 400.
  */
 export const PHOTO_MAX = 20;
+
+/**
+ * Ảnh chứng minh của tài khoản ĐÃ HOÀN THÀNH còn sửa được không (chốt 2026-08-23).
+ *
+ * Cửa sổ là NGÀY LỊCH của lúc bấm Hoàn thành, giờ VN — không phải 24 giờ trôi:
+ * nhân viên nhìn lịch để biết còn kịp hay không, chứ không nhẩm giờ. Hết ngày
+ * là ảnh chốt lại, vì bản ghi lúc đó đã tiêu một lượt mã và đã vào điểm KPI.
+ *
+ * Từ Trưởng phòng trở lên không bị hạn này — hết ngày rồi thì không còn đường
+ * chữa nào khác, bản `done` cũng không xoá được.
+ *
+ * `finishedAt = ''` là bản ghi cũ có trước khi cột này được ghi: coi như hết
+ * hạn, không đoán ngày thay người dùng.
+ *
+ * Ảnh giao dịch KHÔNG dính luật này — nó là bằng chứng nộp muộn (spec §4.2
+ * bước 3), hôm sau mới có.
+ */
+export const canEditOpeningPhotos = (
+  actor: User | null,
+  account: { status: BankAccountStatus; finishedAt: string },
+): boolean => {
+  if (!actor) return false;
+  if (account.status !== 'done') return true;
+  if (ROLE_RANK[actor.role] >= ROLE_RANK.head) return true;
+  return account.finishedAt !== '' && businessDay(new Date(account.finishedAt)) === businessDay();
+};
 
 const PHOTO_LABEL: Record<PhotoKind, string> = {
   opening: 'ảnh chứng minh',

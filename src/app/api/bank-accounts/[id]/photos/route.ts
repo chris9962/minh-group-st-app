@@ -63,6 +63,16 @@ export async function PATCH(
   const { photoUrls, kind } = parsed.data;
   const account = await setPhotos(actor, id, photoUrls, kind);
   if (!account) return notFound();
+  // Hết ngày hoàn thành thì ảnh chứng minh chốt lại (spec §4.7). Nói luôn ai
+  // sửa hộ được, không để người dùng đi hỏi vòng.
+  if ("locked" in account)
+    return Response.json(
+      {
+        message:
+          "Ảnh chứng minh chỉ sửa được trong ngày hoàn thành tài khoản. Cần đổi thì nhờ trưởng phòng trở lên.",
+      },
+      { status: 422 },
+    );
   // Tài khoản đã hoàn thành không được tụt xuống dưới mức ảnh bắt buộc — nếu
   // không thì đây là đường vòng để lách chốt ảnh của bước 2.
   if ("tooFew" in account)

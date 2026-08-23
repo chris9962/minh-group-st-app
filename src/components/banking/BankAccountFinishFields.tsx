@@ -38,7 +38,11 @@ type Props = {
   referralOpenUrl: string;
   photos: PhotoItem[];
   requiredPhotos: number;
-  onPhotosChange: (photos: PhotoItem[]) => void;
+  /**
+   * Không truyền = khối ảnh CHỈ XEM. Bản ghi đã hoàn thành quá ngày rơi vào
+   * mặt này (`canEditOpeningPhotos`) — các ô chữ vẫn sửa được.
+   */
+  onPhotosChange?: (photos: PhotoItem[]) => void;
   /** Đang gửi biểu mẫu — khoá phần ảnh để không ai đổi giữa chừng. */
   busy?: boolean;
 };

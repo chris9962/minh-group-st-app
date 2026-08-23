@@ -36,8 +36,8 @@ export type BankAccountRow = z.infer<typeof BankAccountRow>;
 /**
  * P-22 · Xem chi tiết khi `status = done`; khi `status = creating` đây là màn
  * BƯỚC 2 — điền nốt STK/ngày mở/app + đủ ảnh rồi bấm Hoàn thành (spec §4.5).
- * Riêng ẢNH CHỨNG MINH thì luôn xem/thêm/thay được bất kể trạng thái — mỗi
- * ngân hàng yêu cầu số ảnh khác nhau (`requiredPhotos`, P-60).
+ * Số ảnh bắt buộc theo cấu hình từng ngân hàng (`requiredPhotos`, P-60); sau
+ * khi hoàn thành, ảnh chứng minh chỉ sửa được trong ngày (`canEditOpeningPhotos`).
  */
 export const BankAccountDetail = BankAccountRow.extend({
   channelDetail: z.string(),
@@ -52,6 +52,11 @@ export const BankAccountDetail = BankAccountRow.extend({
   transactionAt: z.string(),
   /** Ảnh chuyển khoản. Đếm RIÊNG, không cộng vào `requiredPhotos`. */
   transactionPhotoUrls: z.array(z.string()),
+  /**
+   * Lúc bấm Hoàn thành, dạng ISO; `''` = chưa hoàn thành hoặc bản ghi cũ chưa
+   * ghi mốc. Mốc tính cửa sổ sửa ảnh chứng minh — xem `canEditOpeningPhotos`.
+   */
+  finishedAt: z.string(),
   requiredPhotos: z.number(),
   /** Quyết ô số tài khoản ở bước 2 là ô gõ tay hay ô chọn SĐT. */
   accountNumberMethod: AccountNumberMethod,

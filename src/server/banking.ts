@@ -11,6 +11,7 @@ import {
   type SQL,
   type SQLWrapper,
 } from "drizzle-orm";
+import { canEditOpeningPhotos } from "@/lib/api/bankAccounts";
 import type {
   BankAccount,
   BankAccountFinishForm,
@@ -248,6 +249,8 @@ const pickPage = (where: SQL | undefined, orderBy: SQL[], limit: number, offset:
       note: bankAccounts.note,
       createdBy: bankAccounts.createdBy,
       createdByDepartmentId: bankAccounts.createdByDepartmentId,
+      // Mốc tính cửa sổ sửa ảnh chứng minh (`canEditOpeningPhotos`).
+      finishedAt: bankAccounts.finishedAt,
       status: bankAccounts.status,
     })
     .from(bankAccounts)
@@ -284,6 +287,7 @@ const decorate = (page: ReturnType<typeof pickPage>) =>
       createdByName: users.fullName,
       createdByDepartmentId: page.createdByDepartmentId,
       createdByDepartmentName: departments.name,
+      finishedAt: page.finishedAt,
       status: page.status,
       requiredPhotos: banks.requiredPhotos,
       accountNumberMethod: banks.accountNumberMethod,
@@ -439,6 +443,15 @@ const photoUrlsOf = async (accountId: string, kind: PhotoKind): Promise<string[]
       .orderBy(asc(bankAccountPhotos.sortOrder), asc(bankAccountPhotos.id))
   ).map((r) => imageUrl(r.url));
 
+/**
+ * Hình dạng mà `canEditOpeningPhotos` đọc — luật nằm ở `lib/api/bankAccounts.ts`
+ * để giao diện và máy chủ dùng CHUNG một hàm, không chép luật ra hai nơi.
+ */
+const photoWindowOf = (r: DecoratedRow) => ({
+  status: r.status,
+  finishedAt: r.finishedAt?.toISOString() ?? "",
+});
+
 const rawById = async (id: string): Promise<DecoratedRow | null> =>
   (await decorate(pickPage(eq(bankAccounts.id, id), [], 1, 0)))[0] ?? null;
 
@@ -517,6 +530,7 @@ export async function bankAccountDetail(
     photoUrls: await photoUrlsOf(id, "opening"),
     transactionAt: r.transactionAt,
     transactionPhotoUrls: await photoUrlsOf(id, "transaction"),
+    finishedAt: r.finishedAt?.toISOString() ?? "",
     requiredPhotos: r.requiredPhotos,
     accountNumberMethod: r.accountNumberMethod,
     customerPhones: await customerPhoneNumbers(r.customerId),
@@ -994,12 +1008,23 @@ export async function setPhotos(
   /** KHOÁ trong kho, không phải URL — route đã cắt phần `/api/images/` ra. */
   photoKeys: string[],
   kind: PhotoKind,
-): Promise<BankAccount | { tooFew: number } | null> {
+): Promise<BankAccount | { tooFew: number } | { locked: true } | null> {
   const visible = scopeOf(actor, WRITE_ACTION);
   if (visible.kind === "none") return null;
 
   const current = await rawById(id);
   if (!current || !inScope(visible, current)) return null;
+
+  /**
+   * Hết ngày hoàn thành là ảnh chứng minh chốt lại (chốt 2026-08-23) — luật ở
+   * `canEditOpeningPhotos`, giao diện khoá theo cùng hàm đó.
+   *
+   * Đứng TRƯỚC phép đếm bên dưới: bản ghi đã khoá thì thừa hay thiếu ảnh cũng
+   * không đổi câu trả lời, mà báo "thiếu ảnh" cho một lượt vốn không được phép
+   * là chỉ sai đường sửa.
+   */
+  if (kind === "opening" && !canEditOpeningPhotos(actor, photoWindowOf(current)))
+    return { locked: true } as const;
 
   /**
    * Tài khoản ĐÃ HOÀN THÀNH không được tụt xuống dưới mức ảnh bắt buộc.

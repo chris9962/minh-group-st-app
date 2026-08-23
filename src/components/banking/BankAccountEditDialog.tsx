@@ -11,6 +11,7 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { SkeletonCard } from "@/components/ui/Skeleton";
 import {
   BankAccountFinishForm,
+  canEditOpeningPhotos,
   finishBankAccount,
   setBankAccountPhotos,
   updateBankAccount,
@@ -141,7 +142,7 @@ export function BankAccountEditDialog({ open, onClose, accountId }: Props) {
    * lại kho vĩnh viễn. Mỗi lần thử lại thêm một bộ rác.
    */
   const savePhotosThen = async <T,>(run: () => Promise<T>): Promise<T> => {
-    if (photosChanged(photos, data?.photoUrls ?? [])) {
+    if (photosEditable && photosChanged(photos, data?.photoUrls ?? [])) {
       const urls = await uploadPendingPhotos(photos);
       await setBankAccountPhotos(accountId, urls);
       setEditedPhotos(savedPhotos(urls));
@@ -186,6 +187,12 @@ export function BankAccountEditDialog({ open, onClose, accountId }: Props) {
   });
 
   const draft = data?.status === "creating";
+  /**
+   * Ảnh chứng minh của bản ghi đã hoàn thành chỉ sửa được trong ngày hoàn
+   * thành (chốt 2026-08-23) — cùng một hàm luật với máy chủ, không chép lại
+   * điều kiện ở đây. Khoá rồi thì các ô chữ và bước 3 vẫn sửa bình thường.
+   */
+  const photosEditable = !!data && canWrite && canEditOpeningPhotos(user, data);
   const enoughPhotos = photos.length >= (data?.requiredPhotos ?? 0);
   const busy = finish.isPending || update.isPending;
 
@@ -255,9 +262,15 @@ export function BankAccountEditDialog({ open, onClose, accountId }: Props) {
         referralOpenUrl={data.referralOpenUrl}
             photos={photos}
             requiredPhotos={data.requiredPhotos}
-            onPhotosChange={setEditedPhotos}
+            onPhotosChange={photosEditable ? setEditedPhotos : undefined}
             busy={busy}
           />
+          {!draft && !photosEditable && (
+            <p className="text-muted">
+              Ảnh chứng minh chỉ sửa được trong ngày hoàn thành tài khoản. Cần đổi thì nhờ
+              trưởng phòng trở lên.
+            </p>
+          )}
           {draft && !enoughPhotos && (
             <p className="text-muted">
               Cần đủ {data.requiredPhotos} ảnh chứng minh mới hoàn thành được.
