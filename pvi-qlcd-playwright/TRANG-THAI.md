@@ -3,8 +3,8 @@
 Cập nhật 2026-08-15. Đọc file này trước khi làm tiếp.
 
 `README.md` nói cách CHẠY. File này nói đang làm tới đâu, chỗ nào chưa chắc, và
-việc tiếp theo là gì. `LUONG-TAO-VA-DUYET.md` nói vì sao bot tách hai luồng và
-luồng duyệt phải làm những bước nào.
+việc tiếp theo là gì. `LUONG-TAO-VA-DUYET.md` nói hai luồng gồm bước nào, chạy
+bằng worker trong container ra sao.
 
 ## Chạy được tới đâu
 

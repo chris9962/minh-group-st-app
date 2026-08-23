@@ -221,5 +221,5 @@ Script mỗi lần chỉ điền 1 đơn. Khách cần 2 năm thì BE gọi 2 l�
 | `lib/duyet.js` | Lõi luồng duyệt: đọc bảng, lấy `pr_key`, điền captcha |
 | `lib/phien.js` | Kiểm phiên bằng HTTP, gọi `ensure-login.js` khi hết phiên |
 | `chay-don.js` | Gọi `ensure-login.js` rồi `lib/order.js` trong một lệnh |
-| `LUONG-TAO-VA-DUYET.md` | Vì sao bot tách hai luồng, và luồng duyệt gồm bước nào |
+| `LUONG-TAO-VA-DUYET.md` | Hai luồng gồm bước nào, và cách chạy bằng worker trong container |
 | `VPS-SETUP.md` | Hướng dẫn triển khai VPS từng bước |

@@ -1,82 +1,136 @@
-# Hai luồng: tạo đơn và duyệt đơn
+# Hai luồng: tạo-duyệt và lấy giấy chứng nhận
 
-Chốt 2026-08-23. Đọc file này trước khi code bước duyệt.
+Chốt 2026-08-23. Đọc file này trước khi sửa bot.
 
-Bot chạy **hai luồng rời nhau**, không phải một luồng liền mạch. Lý do: bấm
-"Chấp nhận" xong, PVI **không** trả `pr_key` của đơn vừa tạo. Khoá đó chỉ xuất
-hiện ở màn `https://qlcd.pvi.com.vn/Service/Manager`, trong đường dẫn của nút
-"Duyệt" trên từng dòng.
+Bot chạy **hai luồng**. Luồng 1 tạo đơn rồi duyệt luôn trong cùng một lượt.
+Luồng 2 tách hẳn, vì PVI không sinh file giấy chứng nhận ngay lúc duyệt.
 
-Vì vậy luồng tạo đơn kết thúc ngay sau khi bấm "Chấp nhận". Luồng duyệt là một
-tiến trình khác, chạy độc lập, tự đi tìm đơn cần duyệt.
+## Vòng đời một đơn
 
-## Luồng 1 — tạo đơn
+```
+queued → creating → awaiting-certificate → done
+              ↓
+       pending-approval   tạo xong nhưng bot không khớp được dòng để duyệt
+       manual-queued      lỗi ngay khi điền form
+```
 
-| Bước | Việc | Trạng thái đơn trong database |
+## Luồng 1 — tạo đơn và duyệt
+
+| Bước | Việc | Trạng thái |
 |---|---|---|
-| 1 | Worker quét đơn chờ chạy tự động | `queued` |
-| 2 | Pool Playwright còn chỗ thì lấy đơn **cũ nhất trước** | |
-| 3 | Đánh dấu đang chạy, để worker khác không lấy trùng | `creating` |
-| 4 | Mở form, điền 26 ô, bấm "Chấp nhận" | |
-| 5 | Đóng Playwright | |
-| 6 | Ghi lại trạng thái mới | `pending-approval` |
-
-Nhánh bot đi trọn: `queued` → `creating` → `pending-approval` →
-`awaiting-certificate` → `done`.
-
-Luồng 1 dừng ở đây. Nó **không** biết đơn vừa tạo mang `pr_key` nào.
+| 1 | Lấy đơn cũ nhất đang chờ, khoá dòng | `queued` → `creating` |
+| 2 | Mở form, điền 26 ô | |
+| 3 | Bấm "Chấp nhận" | |
+| 4 | PVI chuyển sang `/Service/Manager`, đọc bảng tìm dòng vừa tạo | |
+| 5 | Khớp được → ghi số đơn và `pr_key`, bấm Duyệt | → `awaiting-certificate` |
+| 5b | Không khớp dòng nào → dừng, để người duyệt tay | → `pending-approval` |
 
 Lấy đơn phải khoá dòng bằng `for update skip locked`. Không khoá thì hai worker
 lấy trùng một đơn và PVI nhận hai đơn giống hệt nhau.
 
-## Luồng 2 — duyệt đơn
+### Bước 4 — tìm đúng dòng vừa tạo
 
-Code ở `lib/duyet.js`, chạy bằng `bun run pvi:duyet`.
+Sau khi bấm "Chấp nhận", PVI trả `302` tới `/Service/Manager`. Đo 2026-08-23:
+đơn vừa tạo nằm ở **dòng đầu** bảng, vì bảng sắp mới nhất trước.
 
-| Bước | Việc | Selector |
-|---|---|---|
-| 1 | Mở `https://qlcd.pvi.com.vn/Service/Manager` | |
-| 2 | Đặt bộ lọc nghiệp vụ | `#nghiepvu` — `TNDT` Hộ SD Điện · `MOTO` Xe máy |
-| 3 | Đặt bộ lọc trạng thái "Chờ" | `#tthai_don` = `01` |
-| 4 | Gọi `clickSearchDataProcess()` của trang | |
-| 5 | Đọc bảng, lấy dòng **cuối** | `#qlpdtable tbody tr` |
-| 6 | Mở màn duyệt bằng `href` đọc được | |
-| 7 | Đọc thông tin, tra ngược về đơn trong database | |
-| 8 | Điền captcha, bấm Chấp nhận | `#cpatchaTextBox` · `#btnConfirm` |
-| 9 | Ghi trạng thái đơn thành `done` | |
+Dòng đầu không phải lúc nào cũng đúng — người khác có thể tạo đơn cùng lúc. Bot
+duyệt từ dòng đầu xuống, lấy dòng đầu tiên khớp **cả năm điều kiện**:
 
-**Bảng sắp MỚI NHẤT TRƯỚC.** Đơn cũ nhất nằm ở dòng cuối, không phải dòng đầu.
+| Điều kiện | So với |
+|---|---|
+| Trạng thái | `Chờ` |
+| Tên khách | tên script vừa điền, bỏ dấu và chuẩn hoá khoảng trắng |
+| Nghiệp vụ | `Hộ SD điện` cho `electric-accident`, `TNDS xe máy` cho `motorbike` |
+| Ngày chứng từ | ngày chạy |
+| Phí | tổng phí script đọc lại từ form |
 
-**Không phải bấm dấu ba chấm.** Mục "Duyệt" nằm sẵn trong DOM của mỗi dòng:
-`<a href="../Service/Assign/?pr_key=...&tthai=DUYET">`. Bot đọc thẳng `href`,
-khỏi mở popover.
+Không dòng nào khớp thì bot **không duyệt gì cả**. Đơn về `pending-approval`,
+người vận hành duyệt tay. Duyệt nhầm đơn của người khác là thao tác không đảo
+ngược được trên dữ liệu không thuộc phạm vi.
 
-Bộ lọc không tải lại trang. `clickSearchDataProcess()` gọi
-`GET /Service/ItemManager?dichvu=&ngay_ctu=&can_bo=&nghiepvu=&loai_ruiro=&tthai_don=`
-bằng XHR đồng bộ rồi ghi HTML vào `#displayContent`.
+### Bước 5 — màn duyệt
 
-Năm mã trạng thái của `#tthai_don`: `01` Chờ · `02` Chuyển · `00` Duyệt đơn ·
-`-01` Hủy · `03` Đã tạo đơn.
-
-Địa chỉ màn duyệt mang `pr_key` trong tham số:
+Đường dẫn nằm sẵn trong `href` của mục "Duyệt" trên dòng đó, không phải bấm dấu
+ba chấm mới hiện:
 
 ```
 https://qlcd.pvi.com.vn/Service/Assign/?pr_key=W6fXX4Fd7%2bI%3d&tthai=DUYET
 ```
 
-`href` trên bảng mang bản đã url-encode; database lưu bản **thô**
-(`W6fXX4Fd7+I=`). Màn duyệt cũng có `#pr_key_dv` chứa bản thô, dùng để đối chiếu.
+Captcha sinh ở trình duyệt bằng canvas, đáp án nằm ở biến toàn cục `code`. Bot
+đọc biến đó, điền `#cpatchaTextBox`, bấm `#btnConfirm`. Đo 2026-08-23: PVI không
+kiểm lại ở máy chủ.
+
+Duyệt xong đơn chuyển sang trạng thái **"Tạo đơn"** bên PVI, không phải "Duyệt
+đơn". Bộ lọc `#tthai_don` = `00` trả về rỗng; `03` mới là "Đã tạo đơn".
+
+## Luồng 2 — lấy giấy chứng nhận
+
+Code ở `src/server/pvi-certificate.ts` và `scripts/pvi-fetch-certificates.ts`.
+
+| Bước | Việc | Trạng thái |
+|---|---|---|
+| 1 | Lấy đơn đang đợi file, cũ nhất trước, tối đa 20 đơn một vòng | `awaiting-certificate` |
+| 2 | Gọi `GET /Service/DownloadFile?id=<pr_key>&type=3` | |
+| 3a | Trả PDF → đổi PNG, đẩy kho, ghi khoá ảnh | → `done` |
+| 3b | Trả HTML → tăng số lần thử, bỏ qua tới vòng sau | giữ nguyên |
+| 3c | Đủ 60 lần thử → ngừng hỏi đơn đó | giữ nguyên |
+
+**PVI không sinh file ngay lúc duyệt.** Đo 2026-08-23: đơn duyệt xong 11 phút mà
+`/Service/DownloadFile` vẫn trả trang HTML "File trên hệ thống đã bị xóa". Vì
+vậy luồng 2 là vòng lặp, không phải một lượt tải.
+
+Đơn vừa hỏi hụt phải đợi 90 giây mới hỏi lại.
+
+**Chạm ngưỡng thì KHÔNG đổi trạng thái đơn.** Đơn đã duyệt xong bên PVI; đẩy nó
+về `manual-queued` là bắt người ta tạo lại từ đầu một đơn đã tạo xong. Luồng chỉ
+thôi hỏi, và màn hình đọc `certificate_attempts` rồi hiện lời nhắc đi hỏi người
+có thẩm quyền. Ngưỡng ở `CERTIFICATE_MAX_ATTEMPTS` trong
+`src/lib/api/insuranceOrders.ts` — một chỗ, vì cả script lẫn màn hình đều đọc.
+
+## Cách chạy: worker trong container
+
+```
+┌─ container pvi-worker ────────────────────┐
+│  worker.js --tai-khoan=tk01               │
+│  vòng lặp 10 giây:                        │
+│    1. đơn queued  → tạo, duyệt            │
+│    2. đơn awaiting-certificate → tải file │
+│    3. ghi heartbeat                       │
+│  Chromium riêng, phiên đăng nhập riêng    │
+└───────────────────────────────────────────┘
+             │ for update skip locked
+             ▼
+      insurance_orders (Postgres)
+```
+
+Bắt đầu **một container**. Mở rộng bằng cách thêm container, mỗi cái một tài
+khoản PVI.
+
+Mỗi tài khoản chỉ thấy đơn của chính nó trên bảng Manager — đo trên 503 dòng
+2026-08-23, cột "Cán bộ tạo" đồng nhất một người. Nếu điều đó đúng với mọi tài
+khoản thì nhiều container chạy song song không cần khoá và không cần điều phối
+viên: bảng của mỗi worker chỉ chứa đơn của nó.
+
+⚠️ Giả định đó **chưa xác nhận bằng tài khoản thứ hai**. Sai thì phải khoá đoạn
+"bấm Chấp nhận rồi đọc bảng" bằng `pg_advisory_lock`, và thông lượng trần rơi
+xuống khoảng 15 đơn/phút.
+
+Ba việc trước khi dựng container: đo RAM còn trống trên VPS, cài
+`docker-compose-plugin` (VM hiện thiếu), và xác nhận giả định trên.
+
+## Dữ liệu lấy từ PVI
 
 ### Mười hai cột của bảng Manager
 
 | # | Tiêu đề | Giá trị mẫu |
 |---|---|---|
-| 1 | Dịch vụ | Nguyễn Văn A |
-| 2 | Số đơn ĐT | 26/21/14/TNCN/0096592 |
+| 1 | Dịch vụ | Nguyễn Văn B |
+| 2 | Số đơn ĐT | 26/21/14/MOTO/0107042 |
 | 3 | Số đơn BH | (trống) |
-| 4 | Nghiệp vụ | Hộ SD điện |
+| 4 | Nghiệp vụ | TNDS xe máy |
 | 5 | Loại rủi ro | Thấp |
-| 6 | Phí | 100 000 |
+| 6 | Phí | 76 000 |
 | 7 | Ngày chứng từ | 23/08/2026 |
 | 8 | Trạng thái | Chờ |
 | 9 | Đơn vị | PVI Tây Nam |
@@ -86,66 +140,56 @@ https://qlcd.pvi.com.vn/Service/Assign/?pr_key=W6fXX4Fd7%2bI%3d&tthai=DUYET
 
 Cột 1 ghi "Dịch vụ" nhưng giá trị là TÊN KHÁCH.
 
-**Số đơn ĐT là thứ định danh đơn bên PVI.** Màn duyệt không hiện số này, nên bot
-phải đọc ở bảng và lưu vào `insurance_orders.pvi_electronic_order_no`. Bỏ qua ở
-bảng là mất luôn.
+Bộ lọc: `#nghiepvu` (`TNDT` Hộ SD Điện, `MOTO` Xe máy) và `#tthai_don` (`01` Chờ,
+`02` Chuyển, `00` Duyệt đơn, `-01` Hủy, `03` Đã tạo đơn). Đặt xong gọi
+`clickSearchDataProcess()` — hàm đó gọi `/Service/ItemManager` bằng XHR đồng bộ,
+không tải lại trang.
 
-### Dữ liệu trên màn duyệt
+### Bảy trường của màn duyệt
 
 | Nhãn | Selector | Giá trị mẫu |
 |---|---|---|
-| Tên dịch vụ | `#ten_dvu` | Nguyễn Văn A |
+| Tên dịch vụ | `#ten_dvu` | Nguyễn Văn B |
 | Loại rủi ro | `#loại_ruiro` | Thấp |
 | Ngày tạo dịch vụ | `#ngay_ctu` | 23/08/2026 |
 | Người tạo dịch vụ | `#canbo_gui` | Hà Khang Vĩ |
 | Trạng thái | `#trangthai-dv` | `00` — 00 ___ Duyệt DV |
 | Ghi chú | `#ghichu` | (trống) |
-| `pr_key` bản thô | `#pr_key_dv` | W6fXX4Fd7+I= |
+| `pr_key` bản thô | `#pr_key_dv` | zPb8i3fvkmQ= |
 
-"Tên dịch vụ" chính là tên khách hàng, không phải tên sản phẩm.
+`id` của ô loại rủi ro có dấu tiếng Việt, đúng như PVI đặt.
 
-`id` của ô loại rủi ro có dấu tiếng Việt — `loại_ruiro`, đúng như PVI đặt.
+### Hai cột trong database
 
-Bốn ô đầu đều `readonly`. Chỉ `#ghichu` và ô captcha nhập được.
+`pvi_electronic_order_no` giữ "Số đơn ĐT" — chỉ hiện ở BẢNG, màn duyệt không có.
+`pvi_pr_key` giữ khoá dạng THÔ (`zPb8i3fvkmQ=`), không lưu bản đã url-encode.
 
-Nút "Chấp nhận" là `#btnConfirm`. Nó không submit thẳng: handler so
-`#cpatchaTextBox` với biến toàn cục `code`, khớp thì `$("#formauto").submit()`,
-lệch thì `alert("Invalid Captcha. try Again")` rồi vẽ captcha mới. Ô captcha
-không có `name` nên không đi theo form.
+## Chỗ sai được, đã chấp nhận
 
-## Luồng 3 — tải giấy chứng nhận
+Một khách mua hai đơn bảo hiểm điện một năm liền kề — `2026-2027` và
+`2027-2028` — thì hai đơn giống nhau mọi thông tin hiện trên bảng Manager, kể cả
+phí và ngày chứng từ. Chỉ khác năm hiệu lực, mà cột đó không có.
 
-Code ở `src/server/pvi-certificate.ts` và `scripts/pvi-fetch-certificates.ts`.
+Với luồng 1 gộp, ca này ít hại hơn hẳn: bot tạo đơn nào thì duyệt ngay đơn đó
+trong cùng lượt, và ghi số đơn vào đúng row nó đang cầm. Hai row luôn nhận hai
+số khác nhau.
 
-```bash
-bun run pvi:chung-nhan              # quét một vòng rồi thoát
-bun run pvi:chung-nhan -- --lap=120 # quét lại mỗi 120 giây
-```
+Ca còn sai: hai worker chạy song song cùng tạo hai đơn của cùng một khách trong
+vài giây. Lúc đó cả hai thấy hai dòng khớp năm điều kiện như nhau. Row nào nhận
+số nào thì không chắc — nhưng khách vẫn nhận đủ hai giấy chứng nhận, nên sai sót
+chỉ nằm ở việc đối soát nội bộ.
 
-| Bước | Việc | Trạng thái đơn |
-|---|---|---|
-| 1 | Lấy đơn đang đợi file, cũ nhất trước, tối đa 20 đơn một vòng | `awaiting-certificate` |
-| 2 | Gọi `GET /Service/DownloadFile?id=<pr_key>&type=3` | |
-| 3a | Trả PDF → đổi sang PNG, đẩy lên kho, ghi khoá | `done` |
-| 3b | Trả HTML → tăng số lần thử, bỏ qua tới vòng sau | giữ nguyên |
-| 3c | Đủ 60 lần thử → ngừng hỏi đơn đó | giữ nguyên |
+## Điều kiện an toàn
 
-**PVI không sinh file ngay lúc duyệt.** Đo 2026-08-23: đơn duyệt xong 11 phút mà
-`/Service/DownloadFile` vẫn trả trang HTML "File trên hệ thống đã bị xóa". Vì
-vậy luồng 3 là vòng lặp, không phải một lượt tải.
-
-Đơn vừa hỏi hụt phải đợi 90 giây mới hỏi lại, kể cả khi vòng quét chạy dày hơn.
-
-### Đo trên PVI thật 2026-08-23
-
-| Mục | Giá trị |
+| Thao tác | Cần |
 |---|---|
-| PDF | 330 KB, 1 trang, 595,5 × 419,25 pt |
-| Tên file PVI đặt | `_260307461_26_21_14_TNCN_0096557.pdf` |
-| PNG sau khi đổi, 150 DPI | 278 KB |
-| Thời gian một đơn | 1,0 – 2,5 giây |
+| Bấm "Chấp nhận" tạo đơn | cờ `--bam-luu` **và** `PVI_CHO_PHEP_LUU=1` |
+| Bấm "Chấp nhận" màn duyệt | cờ `--duyet` **và** `PVI_CHO_PHEP_DUYET=1` |
 
-### Ba chỗ dễ sai
+Thiếu một trong hai thì script làm xong phần điền rồi dừng, và nói ra lý do. Một
+cờ dòng lệnh gõ nhầm không đủ để tạo hay duyệt đơn thật.
+
+## Ba chỗ dễ sai khi lấy giấy chứng nhận
 
 **Không dùng `request` của Playwright để tải file.** PVI trả
 `200 application/pdf` kèm `set-cookie: BNI_persistence=...; Path=/`, và
@@ -154,60 +198,17 @@ as a URL` trên đúng header đó. Response không bao giờ đọc xong, lư�
 tới hết thời gian chờ. Dùng `fetch` với header `Cookie` dựng từ
 `storageState.json`.
 
-**Chạm ngưỡng thì KHÔNG đổi trạng thái đơn.** Đơn đã duyệt xong bên PVI. Đẩy nó
-về `manual-queued` là bắt người ta tạo lại từ đầu một đơn đã tạo xong. Luồng chỉ
-thôi hỏi; đơn ở lại `awaiting-certificate`, và màn hình đọc
-`certificate_attempts` rồi hiện lời nhắc đi hỏi người có thẩm quyền.
-
-Ngưỡng nằm ở `CERTIFICATE_MAX_ATTEMPTS` trong `src/lib/api/insuranceOrders.ts` —
-một chỗ, vì cả script lẫn màn hình đều đọc. Hàm `certificateNeedsHelp(status,
-attempts)` trả lời "dòng này có cần hiện lời nhắc không".
-
 **Đổi ảnh hỏng thì KHÔNG tăng số lần thử.** Lỗi đó nằm ở máy mình, không ở PVI.
-Tăng nữa là đơn bị coi như PVI không sinh file, trong khi PVI đã sinh.
 
 **Cần `pdftoppm` của poppler trên máy chạy.** `brew install poppler` trên macOS,
-`apt install poppler-utils` trên VPS. Thiếu nó thì luồng 3 báo lỗi ở mọi đơn.
-
-## Cách tra ngược về đơn trong database
-
-Màn duyệt chỉ cho **tên khách** và **loại bảo hiểm**. Hai thứ đó đủ để thu hẹp
-xuống một hoặc hai đơn.
-
-### Chỗ sai được, đã chấp nhận
-
-Một khách mua hai đơn bảo hiểm điện một năm — `2026-2027` và `2027-2028` — thì
-hai đơn giống nhau mọi thông tin hiện trên màn duyệt, chỉ khác năm hiệu lực.
-Năm hiệu lực không hiện ở đó, nên bot **không phân biệt được đang duyệt đơn nào**.
-
-Cách xử lý: chọn một trong hai. Sai sót chấp nhận được, vì nhân viên vẫn giao cả
-hai giấy chứng nhận cho cùng một khách. Cái sai chỉ nằm ở việc đơn nào trong
-database mang `pr_key` nào, không ảnh hưởng tới khách.
-
-Đọc thêm được số hợp đồng ở bảng Manager thì vẫn không gỡ được ca này: bảng cũng
-không hiện năm hiệu lực.
-
-## Điều kiện an toàn
-
-Bot **không bấm "Chấp nhận" ở màn duyệt** khi trỏ vào PVI thật, trừ khi người
-chạy đặt `PVI_CHO_PHEP_DUYET=1`. Duyệt là thao tác không đảo ngược được, cùng
-mức với bấm "Chấp nhận" lúc tạo đơn.
-
-```bash
-bun run pvi:duyet -- --san-pham=electric-accident          # chỉ liệt kê
-bun run pvi:duyet -- --san-pham=electric-accident --duyet  # mở màn duyệt, chưa bấm
-PVI_CHO_PHEP_DUYET=1 bun run pvi:duyet -- --duyet          # bấm Duyệt thật
-```
+`apt install poppler-utils` trong container.
 
 ## Việc còn lại
 
-1. **Chưa bấm "Chấp nhận" lần nào ở màn duyệt trên PVI thật.** Mọi bước trước đó
-   đã đo được 2026-08-23: đọc bảng, lọc, lấy `pr_key`, mở màn duyệt, đọc bốn ô.
-2. **Nối luồng 2 vào database.** Chưa viết: tra đơn theo tên người thụ hưởng
-   cộng sản phẩm, ghi `pvi_electronic_order_no` và `pvi_pr_key`, chuyển trạng
-   thái sang `awaiting-certificate`. Luồng 3 nhận tiếp từ đó và đã chạy được.
-3. **Captcha màn duyệt có thể được kiểm ở máy chủ.** Bot đọc `window.code` và
-   trang tự so ở trình duyệt. PVI kiểm thêm ở phía họ thì cách này không qua
-   được — chưa đo.
-4. **Phân trang bảng Manager.** Ảnh chụp 2026-08-23 có 464 dòng trong một trang,
-   không thấy nút phân trang. Chưa biết PVI cắt trang khi bảng lớn hơn.
+1. **Nối luồng 1 vào database.** `chay-don.js` và `duyet-don.js` hiện chạy tay,
+   chưa đọc ghi `insurance_orders`. Luồng 2 đã nối rồi.
+2. **Bảng `pvi_accounts` và cột `pvi_account_id`.**
+3. **Gộp hai luồng thành `worker.js`** chạy vòng lặp.
+4. **Dockerfile** dựa trên image Playwright, thêm `poppler-utils`.
+5. **Xác nhận giả định mỗi tài khoản chỉ thấy đơn của mình** — cần tài khoản thứ hai.
+6. **Đơn nối tiếp bảo hiểm cũ** (`select_ttxe` = `TTTG1.03`) chưa làm.
