@@ -11,23 +11,25 @@ luồng duyệt phải làm những bước nào.
 | Bước | Trạng thái |
 |---|---|
 | Điền 26 ô của form tai nạn điện | Xong. Chạy trên PVI thật 2026-08-23: mọi ô đạt, không ô nào bị trang ghi đè |
-| Bấm nút "Chấp nhận" | Xong trên máy chủ giả lập. CHƯA bấm lần nào trên PVI thật |
-| Đọc `pr_key` của đơn vừa tạo | Có công cụ ghi vết, chưa đo trên PVI thật |
-| Màn duyệt: điền captcha, bấm Chấp nhận | Đo được trên máy chủ giả lập, chưa nối vào bot |
-| Nối vòng đời đơn trong database | Chưa làm |
+| Bấm nút "Chấp nhận" lúc tạo đơn | Người bấm tay được, bot chưa bấm lần nào |
+| Đọc `pr_key` của đơn vừa tạo | PVI không trả lúc bấm — lấy ở màn Manager |
+| Lọc bảng Manager, lấy `pr_key`, mở màn duyệt | Xong, đo trên PVI thật 2026-08-23 |
+| Màn duyệt: điền captcha, bấm Chấp nhận | Code xong, CHƯA bấm lần nào trên PVI thật |
+| Nối vòng đời đơn trong database | Chưa làm — hai cột `pvi_*` đã có |
 | Flow BH xe máy | Chưa làm — chưa khảo sát form của PVI |
 
 ## Việc tiếp theo, theo thứ tự
 
-**1. Khảo sát DOM màn Manager để code luồng duyệt.**
+**1. Bấm "Chấp nhận" một lần ở màn duyệt trên PVI thật.**
 
-Câu hỏi "PVI trả `pr_key` ở đâu sau khi bấm Chấp nhận" đã có đáp án 2026-08-23:
-**PVI không trả**. Khoá đó chỉ xuất hiện ở màn
-`https://qlcd.pvi.com.vn/Service/Manager`, trong đường dẫn nút "Duyệt" của từng
-dòng. Vì vậy bot tách làm hai luồng rời nhau — đọc `LUONG-TAO-VA-DUYET.md`.
+Đây là chỗ đứt duy nhất còn lại. Mọi bước trước đó đã đo được 2026-08-23: lọc
+bảng, lấy `pr_key`, mở màn duyệt, đọc bốn ô thông tin.
 
-Việc còn thiếu là DOM của màn Manager: ô lọc trạng thái, thứ tự sắp xếp bảng,
-selector dấu ba chấm và mục "Duyệt".
+```bash
+PVI_CHO_PHEP_DUYET=1 bun run pvi:duyet -- --san-pham=electric-accident --duyet
+```
+
+Không đặt biến đó thì script mở trang rồi dừng.
 
 **1b. Công cụ khảo sát DOM.**
 
@@ -43,12 +45,12 @@ Bot ghi mọi request, response, header và HTML trang cuối vào
 
 Đơn đó dù sao cũng phải tạo nên không sinh đơn rác, mà lấy được trọn thông tin.
 
-**2. Nối bước duyệt vào bot.** Mở màn duyệt, đọc `window.code`, điền vào
-`#cpatchaTextBox`, bấm `#btnConfirm`.
+**2. Nối luồng duyệt vào database.** Tra đơn theo tên người thụ hưởng cộng sản
+phẩm, ghi `pvi_electronic_order_no` và `pvi_pr_key`, chuyển trạng thái sang
+`done`. Hai cột có từ migration `0035_insurance_pvi_keys`.
 
-⚠️ Hai đường dẫn màn duyệt đang mâu thuẫn: lần khảo sát 2026-08-15 ghi
-`/Service/AssignDuyet?pr_key=...&tthai=DUYET`, còn ghi chép 2026-08-23 ghi
-`/Service/Assign/?pr_key=...&tthai=DUYET`. Phải xác định cái nào đúng.
+Đường dẫn màn duyệt là `/Service/Assign/?pr_key=...&tthai=DUYET`, xác định
+2026-08-23 bằng DOM thật. Ghi chép 2026-08-15 nói `/Service/AssignDuyet` — sai.
 
 **3. Nối vòng đời đơn.** `insurance_orders.status` đã có sẵn sáu trạng thái.
 Worker đọc `queued`, gọi `taoDon`, ghi `creating` → `pending-approval`. Lấy đơn

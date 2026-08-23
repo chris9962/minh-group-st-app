@@ -25,6 +25,7 @@
     "pvi:check": "node pvi-qlcd-playwright/check-session.js",
     "pvi:order": "node pvi-qlcd-playwright/create-order.js",
     "pvi:chay": "node pvi-qlcd-playwright/chay-don.js",
+    "pvi:duyet": "node pvi-qlcd-playwright/duyet-don.js",
     "pvi:order:dry": "node pvi-qlcd-playwright/create-order.js --dry-run",
     "webp:bench": "bun scripts/webp-bench.ts"
   },

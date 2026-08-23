@@ -803,6 +803,20 @@ export const insuranceOrders = pgTable(
     /** KHOÁ trong kho, không phải URL — xem `bank_account_photos.url`. */
     certificatePhotoUrl: text("certificate_photo_url"),
     /**
+     * "Số đơn ĐT" bên PVI — `26/21/14/TNCN/0096592`. Bot đọc ở BẢNG
+     * `/Service/Manager`; màn duyệt không hiện số này.
+     */
+    pviElectronicOrderNo: text("pvi_electronic_order_no").notNull().default(""),
+    /**
+     * Khoá PVI dùng trong mọi đường dẫn thao tác trên đơn. Lưu dạng THÔ
+     * (`W6fXX4Fd7+I=`), mã hoá url lúc dựng địa chỉ.
+     *
+     * KHÔNG unique: bot khớp đơn PVI về đơn của mình bằng tên khách cộng sản
+     * phẩm, mà hai đơn liền kề năm của cùng một khách giống nhau mọi thông tin
+     * hiện trên màn duyệt — xem `pvi-qlcd-playwright/LUONG-TAO-VA-DUYET.md`.
+     */
+    pviPrKey: text("pvi_pr_key").notNull().default(""),
+    /**
       * Người XỬ LÝ TAY — ghi lúc bấm "Nhận đơn xử lý", null với đơn bot chạy
       * trơn. Khác `created_by` (người tạo): hai người khác nhau, và mở đơn phải
       * thấy ngay ai đang cầm để hai người không giẫm chân nhau.
@@ -825,6 +839,8 @@ export const insuranceOrders = pgTable(
   (t) => [
     index("insurance_orders_customer").on(t.customerId),
     index("insurance_orders_status").on(t.status),
+    /** Luồng duyệt tra đơn chờ duyệt theo tên người thụ hưởng và sản phẩm. */
+    index("insurance_orders_pending_match").on(t.status, t.product, t.beneficiaryName),
     /**
      * Khớp đúng thứ tự P-13 lấy một trang: `created_at desc, id`, có hoặc không
      * kèm bộ lọc phạm vi. Thiếu chỉ mục đúng hình dạng này thì Postgres phải

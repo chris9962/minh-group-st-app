@@ -63,6 +63,9 @@ next-env.d.ts
 /pvi-qlcd-playwright/captcha/
 # Vết mạng ghi lúc chạy — chứa HTML trang thật, không phải mã nguồn.
 /pvi-qlcd-playwright/vet/
+# DOM chụp từ màn Manager — chứa TÊN và SỐ ĐƠN của hàng trăm khách hàng THẬT.
+/pvi-qlcd-playwright/lib/flows/Manager.html
+/pvi-qlcd-playwright/dom/
 __pycache__/
 
 # Nhập nhân sự. `staff-import.json` là họ tên và số điện thoại của người thật,

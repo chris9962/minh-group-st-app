@@ -28,16 +28,32 @@ lấy trùng một đơn và PVI nhận hai đơn giống hệt nhau.
 
 ## Luồng 2 — duyệt đơn
 
-| Bước | Việc |
-|---|---|
-| 1 | Mở `https://qlcd.pvi.com.vn/Service/Manager` |
-| 2 | Chọn bộ lọc trạng thái **"Chờ"** |
-| 3 | Lấy dòng **cũ nhất** trong bảng |
-| 4 | Bấm dấu ba chấm ở cột cuối, mở popover |
-| 5 | Bấm "Duyệt" — trang chuyển sang màn duyệt |
-| 6 | Đọc thông tin trên màn duyệt, tra ngược về đơn trong database |
-| 7 | Điền captcha, bấm Chấp nhận |
-| 8 | Ghi trạng thái đơn thành `done` |
+Code ở `lib/duyet.js`, chạy bằng `bun run pvi:duyet`.
+
+| Bước | Việc | Selector |
+|---|---|---|
+| 1 | Mở `https://qlcd.pvi.com.vn/Service/Manager` | |
+| 2 | Đặt bộ lọc nghiệp vụ | `#nghiepvu` — `TNDT` Hộ SD Điện · `MOTO` Xe máy |
+| 3 | Đặt bộ lọc trạng thái "Chờ" | `#tthai_don` = `01` |
+| 4 | Gọi `clickSearchDataProcess()` của trang | |
+| 5 | Đọc bảng, lấy dòng **cuối** | `#qlpdtable tbody tr` |
+| 6 | Mở màn duyệt bằng `href` đọc được | |
+| 7 | Đọc thông tin, tra ngược về đơn trong database | |
+| 8 | Điền captcha, bấm Chấp nhận | `#cpatchaTextBox` · `#btnConfirm` |
+| 9 | Ghi trạng thái đơn thành `done` | |
+
+**Bảng sắp MỚI NHẤT TRƯỚC.** Đơn cũ nhất nằm ở dòng cuối, không phải dòng đầu.
+
+**Không phải bấm dấu ba chấm.** Mục "Duyệt" nằm sẵn trong DOM của mỗi dòng:
+`<a href="../Service/Assign/?pr_key=...&tthai=DUYET">`. Bot đọc thẳng `href`,
+khỏi mở popover.
+
+Bộ lọc không tải lại trang. `clickSearchDataProcess()` gọi
+`GET /Service/ItemManager?dichvu=&ngay_ctu=&can_bo=&nghiepvu=&loai_ruiro=&tthai_don=`
+bằng XHR đồng bộ rồi ghi HTML vào `#displayContent`.
+
+Năm mã trạng thái của `#tthai_don`: `01` Chờ · `02` Chuyển · `00` Duyệt đơn ·
+`-01` Hủy · `03` Đã tạo đơn.
 
 Địa chỉ màn duyệt mang `pr_key` trong tham số:
 
@@ -45,32 +61,54 @@ lấy trùng một đơn và PVI nhận hai đơn giống hệt nhau.
 https://qlcd.pvi.com.vn/Service/Assign/?pr_key=W6fXX4Fd7%2bI%3d&tthai=DUYET
 ```
 
-### Dữ liệu một dòng trong bảng Manager
+`href` trên bảng mang bản đã url-encode; database lưu bản **thô**
+(`W6fXX4Fd7+I=`). Màn duyệt cũng có `#pr_key_dv` chứa bản thô, dùng để đối chiếu.
 
-```
-Nguyễn Văn A · 26/21/14/TNCN/0096592 · Hộ SD điện · Thấp · 100 000 ·
-23/08/2026 · Chờ · PVI Tây Nam · Hà Khang Vĩ · CÔNG TY TNHH MINH GROUP ST
-```
+### Mười hai cột của bảng Manager
 
-Mười cột: tên khách, số hợp đồng, loại bảo hiểm, loại rủi ro, phí, ngày tạo,
-trạng thái, đơn vị, người tạo, công ty.
+| # | Tiêu đề | Giá trị mẫu |
+|---|---|---|
+| 1 | Dịch vụ | Nguyễn Văn A |
+| 2 | Số đơn ĐT | 26/21/14/TNCN/0096592 |
+| 3 | Số đơn BH | (trống) |
+| 4 | Nghiệp vụ | Hộ SD điện |
+| 5 | Loại rủi ro | Thấp |
+| 6 | Phí | 100 000 |
+| 7 | Ngày chứng từ | 23/08/2026 |
+| 8 | Trạng thái | Chờ |
+| 9 | Đơn vị | PVI Tây Nam |
+| 10 | Cán bộ tạo | Hà Khang Vĩ |
+| 11 | Đại lý | CÔNG TY TNHH MINH GROUP ST |
+| 12 | Tác vụ | dấu ba chấm |
 
-**Số hợp đồng `26/21/14/TNCN/0096592` là thứ định danh đơn bên PVI.** Luồng 2
-phải đọc nó ở bước 3 và lưu vào database. Màn duyệt không hiện số này, nên bỏ
-qua ở bảng là mất luôn.
+Cột 1 ghi "Dịch vụ" nhưng giá trị là TÊN KHÁCH.
+
+**Số đơn ĐT là thứ định danh đơn bên PVI.** Màn duyệt không hiện số này, nên bot
+phải đọc ở bảng và lưu vào `insurance_orders.pvi_electronic_order_no`. Bỏ qua ở
+bảng là mất luôn.
 
 ### Dữ liệu trên màn duyệt
 
-| Nhãn | Giá trị mẫu |
-|---|---|
-| Tên dịch vụ | Nguyễn Văn A |
-| Loại rủi ro | Thấp |
-| Ngày tạo dịch vụ | 23/08/2026 |
-| Người tạo dịch vụ | Hà Khang Vĩ |
-| Trạng thái | 00 ___ Duyệt DV |
-| Ghi chú | (trống) |
+| Nhãn | Selector | Giá trị mẫu |
+|---|---|---|
+| Tên dịch vụ | `#ten_dvu` | Nguyễn Văn A |
+| Loại rủi ro | `#loại_ruiro` | Thấp |
+| Ngày tạo dịch vụ | `#ngay_ctu` | 23/08/2026 |
+| Người tạo dịch vụ | `#canbo_gui` | Hà Khang Vĩ |
+| Trạng thái | `#trangthai-dv` | `00` — 00 ___ Duyệt DV |
+| Ghi chú | `#ghichu` | (trống) |
+| `pr_key` bản thô | `#pr_key_dv` | W6fXX4Fd7+I= |
 
 "Tên dịch vụ" chính là tên khách hàng, không phải tên sản phẩm.
+
+`id` của ô loại rủi ro có dấu tiếng Việt — `loại_ruiro`, đúng như PVI đặt.
+
+Bốn ô đầu đều `readonly`. Chỉ `#ghichu` và ô captcha nhập được.
+
+Nút "Chấp nhận" là `#btnConfirm`. Nó không submit thẳng: handler so
+`#cpatchaTextBox` với biến toàn cục `code`, khớp thì `$("#formauto").submit()`,
+lệch thì `alert("Invalid Captcha. try Again")` rồi vẽ captcha mới. Ô captcha
+không có `name` nên không đi theo form.
 
 ## Cách tra ngược về đơn trong database
 
@@ -90,15 +128,27 @@ database mang `pr_key` nào, không ảnh hưởng tới khách.
 Đọc thêm được số hợp đồng ở bảng Manager thì vẫn không gỡ được ca này: bảng cũng
 không hiện năm hiệu lực.
 
-## Việc phải làm trước khi code
+## Điều kiện an toàn
 
-1. **Thêm cột vào `insurance_orders`.** Bảng hiện không có chỗ lưu `pr_key` và
-   số hợp đồng PVI. Xem `src/server/db/schema.ts`.
-2. **Khảo sát DOM màn Manager.** Chưa đo: tên ô bộ lọc trạng thái, cách bảng
-   sắp xếp, selector của dấu ba chấm và mục "Duyệt", cách trang phân trang.
-3. **Đo lại đường dẫn màn duyệt.** File này ghi `/Service/Assign/`, còn
-   `TRANG-THAI.md` ghi `/Service/AssignDuyet` từ lần khảo sát 2026-08-15. Hai
-   đường dẫn khác nhau — phải xác định cái nào đúng trước khi viết code.
-4. **Captcha màn duyệt.** Nó sinh ở trình duyệt bằng canvas, đáp án nằm ở biến
-   toàn cục `code`. Chưa kiểm PVI có kiểm lại ở máy chủ hay không — xem mục
-   "Những điều CHƯA chắc" ở `TRANG-THAI.md`.
+Bot **không bấm "Chấp nhận" ở màn duyệt** khi trỏ vào PVI thật, trừ khi người
+chạy đặt `PVI_CHO_PHEP_DUYET=1`. Duyệt là thao tác không đảo ngược được, cùng
+mức với bấm "Chấp nhận" lúc tạo đơn.
+
+```bash
+bun run pvi:duyet -- --san-pham=electric-accident          # chỉ liệt kê
+bun run pvi:duyet -- --san-pham=electric-accident --duyet  # mở màn duyệt, chưa bấm
+PVI_CHO_PHEP_DUYET=1 bun run pvi:duyet -- --duyet          # bấm Duyệt thật
+```
+
+## Việc còn lại
+
+1. **Chưa bấm "Chấp nhận" lần nào ở màn duyệt trên PVI thật.** Mọi bước trước đó
+   đã đo được 2026-08-23: đọc bảng, lọc, lấy `pr_key`, mở màn duyệt, đọc bốn ô.
+2. **Nối vào database.** Chưa viết: tra đơn theo tên người thụ hưởng cộng sản
+   phẩm, ghi `pvi_electronic_order_no` và `pvi_pr_key`, chuyển trạng thái sang
+   `done`. Hai cột đã có từ migration `0035_insurance_pvi_keys`.
+3. **Captcha màn duyệt có thể được kiểm ở máy chủ.** Bot đọc `window.code` và
+   trang tự so ở trình duyệt. PVI kiểm thêm ở phía họ thì cách này không qua
+   được — chưa đo.
+4. **Phân trang bảng Manager.** Ảnh chụp 2026-08-23 có 464 dòng trong một trang,
+   không thấy nút phân trang. Chưa biết PVI cắt trang khi bảng lớn hơn.
