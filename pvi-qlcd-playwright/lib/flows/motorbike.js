@@ -23,6 +23,9 @@ const FIXED = {
   maKhach: '21.80000000',
   // 270 - XE MAY KHAC. Trang chọn sẵn mã này, script vẫn đặt lại cho chắc.
   nhanHieuXe: '270',
+  // Chốt 2026-08-23: mọi đơn khai là xe mới 100%. Đơn nối tiếp bảo hiểm cũ
+  // (`TTTG1.03`) chưa làm.
+  tinhTrangXe: 'TTTG1.01',
   mucTrachNhiemLaiPhu: 5000000,
   soNguoiToiDa: '2',
 };
@@ -36,7 +39,7 @@ const SO_NAM_TOI_DA = 3;
 // Giờ hiệu lực đặt sau lúc chạy 20 phút, để đơn không mang giờ đã qua khi PVI nhận.
 const BU_PHUT = 20;
 
-const BAT_BUOC = ['hoTen', 'diaChi', 'bienSo', 'email'];
+const BAT_BUOC = ['hoTen', 'diaChi', 'bienSo'];
 
 function dungGiaTri(payload, homNay = new Date()) {
   const thieu = BAT_BUOC.filter((k) => payload[k] === undefined || payload[k] === '');
@@ -61,7 +64,6 @@ function dungGiaTri(payload, homNay = new Date()) {
     mucTrachNhiemLaiPhu: fmtTien(FIXED.mucTrachNhiemLaiPhu),
     hoTen: payload.hoTen,
     diaChi: payload.diaChi,
-    email: payload.email,
     bienSo: payload.bienSo,
     // PVI vẫn đòi có ký tự trong hai ô này. Cà vẹt không ghi số thì điền dấu
     // cách — bỏ trống là trang chặn lúc bấm Chấp nhận.
@@ -146,6 +148,7 @@ async function dien({ v, dryRun }) {
   // đặt sau là lần tính phí đầu chạy với ô rỗng.
   pick('Loại xe', 'select_loaixe', v.loaiXe);
   pick('Nhãn hiệu xe', 'ddlHieuXe', v.nhanHieuXe);
+  pick('Tình trạng xe', 'select_ttxe', v.tinhTrangXe);
 
   // changeNgayBH() ghi đè EndDate thành StartDate + ĐÚNG một năm. Đặt ngày bắt
   // đầu trước, rồi mới ghi ngày kết thúc — đảo lại là mất đơn nhiều năm.
@@ -166,7 +169,7 @@ async function dien({ v, dryRun }) {
 
   set('Tên chủ xe', 'NameCustomer', v.hoTen);
   set('Địa chỉ', 'AddressCustomer', v.diaChi);
-  set('Email', 'EmailCustomer', v.email);
+  // Ô Email giữ nguyên giá trị trang điền sẵn (chốt 2026-08-23) — script không đụng.
 
   // Kenh rỗng lúc nạp trang, option đến từ POST /TNDSMotor/GetKenhKT.
   pick('Nhóm kênh bán hàng', 'NhomKenh', v.nhomKenh);
@@ -206,6 +209,8 @@ async function dien({ v, dryRun }) {
     kiemChung: {
       bienSo: doc('BienKiemSoat'),
       loaiXe: doc('select_loaixe'),
+      tinhTrangXe: doc('select_ttxe'),
+      email: doc('EmailCustomer'),
       ngayBatDau: doc('StartDate'),
       gioBatDau: doc('StartTime'),
       ngayKetThuc: doc('EndDate'),
