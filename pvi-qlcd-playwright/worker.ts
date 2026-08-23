@@ -164,7 +164,13 @@ async function createAndApprove(db: Db, order: Order) {
         ngayChungTu: today,
         tongPhi: ctx.kq?.kiemChung?.tongPhi,
       });
-      if (!row) return { loi: "Không dòng nào khớp năm điều kiện", soDongCho: table.dong.length };
+      if (!row)
+        return {
+          loi: "Không dòng nào khớp năm điều kiện",
+          soDongCho: table.dong.length,
+          tongPhiDocDuoc: ctx.kq?.kiemChung?.tongPhi,
+          viSao: timDongVuaTao.viSao ?? [],
+        };
 
       return { dong: row, duyet: await duyetTheoPrKey(page, row.prKey, { thatSuBam: true }) };
     },
@@ -194,6 +200,9 @@ async function createAndApprove(db: Db, order: Order) {
       .set({ status: "pending-approval", updatedAt: new Date() })
       .where(eq(insuranceOrders.id, order.id));
     log(`${order.orderCode}: đã tạo nhưng không khớp được dòng → chờ người duyệt tay`);
+    const chuanDoan = after as { soDongCho?: number; tongPhiDocDuoc?: string; viSao?: string[] };
+    log(`  ${order.orderCode}: bảng có ${chuanDoan?.soDongCho ?? "?"} dòng Chờ, phí đọc từ form: "${chuanDoan?.tongPhiDocDuoc ?? "?"}"`);
+    for (const v of chuanDoan?.viSao ?? []) log(`  ${order.orderCode}: ${v}`);
     return "pending-approval";
   }
 

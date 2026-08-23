@@ -74,16 +74,33 @@ function timDongVuaTao(dong, { tenKhach, product, ngayChungTu, tongPhi }) {
   const ten = chuanHoaTen(tenKhach);
   const nghiepVu = TEN_NGHIEP_VU[product];
   const phi = chiSo(tongPhi);
-  return (
-    dong.find(
-      (d) =>
-        d.trangThai === 'Chờ' &&
-        chuanHoaTen(d.tenKhach) === ten &&
-        (!nghiepVu || chuanHoaTen(d.nghiepVu) === chuanHoaTen(nghiepVu)) &&
-        (!ngayChungTu || d.ngayChungTu === ngayChungTu) &&
-        (!phi || chiSo(d.phi) === phi),
-    ) ?? null
-  );
+
+  const lech = (d) => {
+    const sai = [];
+    if (d.trangThai !== 'Chờ') sai.push(`trạng thái ${d.trangThai}`);
+    if (chuanHoaTen(d.tenKhach) !== ten) sai.push(`tên "${d.tenKhach}" ≠ "${tenKhach}"`);
+    if (nghiepVu && chuanHoaTen(d.nghiepVu) !== chuanHoaTen(nghiepVu))
+      sai.push(`nghiệp vụ "${d.nghiepVu}" ≠ "${nghiepVu}"`);
+    if (ngayChungTu && d.ngayChungTu !== ngayChungTu)
+      sai.push(`ngày ${d.ngayChungTu} ≠ ${ngayChungTu}`);
+    if (phi && chiSo(d.phi) !== phi) sai.push(`phí "${d.phi}" ≠ "${tongPhi}"`);
+    return sai;
+  };
+
+  for (const d of dong) {
+    if (!lech(d).length) return d;
+  }
+
+  /**
+   * Không dòng nào khớp. Trả về `null` kèm chẩn đoán ở `timDongVuaTao.viSao` —
+   * thiếu nó thì người đọc log chỉ biết "không khớp" mà không biết điều kiện nào
+   * lệch, và phải mở lại bảng Manager để đoán.
+   */
+  timDongVuaTao.viSao = dong
+    .filter((d) => d.trangThai === 'Chờ')
+    .slice(0, 3)
+    .map((d) => `${d.soDonDienTu}: ${lech(d).join(' · ')}`);
+  return null;
 }
 
 /**
@@ -136,8 +153,14 @@ async function docDonCho(page, { product } = {}) {
  * đó, và tốn thêm một lượt nạp bảng 1,7 MB.
  */
 async function docBangHienTai(page) {
-  if (!(await page.locator(SEL.bang).count()))
-    return { loi: 'Trang hiện tại không có bảng đơn' };
+  // Bảng Manager nặng khoảng 1,7 MB. `domcontentloaded` xong không có nghĩa là
+  // `tbody` đã dựng đủ dòng, nên phải đợi dòng đầu tiên xuất hiện. Bỏ bước này
+  // thì hàm đọc một bảng rỗng và người gọi tưởng PVI không nhận đơn.
+  try {
+    await page.waitForSelector(`${SEL.bang} tbody tr`, { timeout: 20000 });
+  } catch {
+    return { loi: 'Bảng đơn không dựng xong sau 20 giây' };
+  }
 
   return page.evaluate((selBang) => {
     const chu = (e) => (e ? e.textContent.replace(/\s+/g, ' ').trim() : '');
