@@ -74,3 +74,57 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD wget -qO- http://127.0.0.1:3000/login > /dev/null || exit 1
 
 CMD ["bun", "server.js"]
+
+# ── Worker PVI ────────────────────────────────────────────────────────────────
+#
+# Tầng RIÊNG, không dựng chung với app: `docker build --target worker`.
+#
+# Nền là image Playwright chứ không phải `oven/bun:alpine` như app. Bot cần
+# Chromium thật cộng Xvfb, và Playwright không hỗ trợ Alpine — thư viện hệ thống
+# của Chromium dựng theo glibc, còn Alpine dùng musl.
+#
+# ⚠️ Image này KHÔNG chứa `.env.local`. Máy chủ truyền lúc chạy bằng `--env-file`.
+FROM mcr.microsoft.com/playwright:v1.62.1-noble AS worker
+WORKDIR /app
+
+# `pdftoppm` đổi giấy chứng nhận PDF sang PNG (src/server/pvi-certificate.ts).
+# `tesseract` cộng ba gói python đọc captcha màn đăng nhập
+# (pvi-qlcd-playwright/capcha-resolver/solve.py). Thiếu chúng thì worker chạy
+# tới lúc hết phiên là dừng, và không tải được giấy chứng nhận nào.
+#
+# `--break-system-packages`: Ubuntu 24.04 đánh dấu python hệ thống là "externally
+# managed", pip từ chối cài nếu không nói rõ. Trong container không có môi trường
+# python nào khác để tranh chấp.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      poppler-utils tesseract-ocr python3-pil python3-numpy python3-pip \
+  && pip3 install --break-system-packages --no-cache-dir pytesseract \
+  && rm -rf /var/lib/apt/lists/*
+
+# Image Playwright có node và npm, không có bun. Worker viết bằng TypeScript nên
+# cần bun để chạy thẳng, khỏi bước biên dịch riêng.
+RUN npm install -g bun@1
+
+COPY package.json bun.lock ./
+# Chromium đã nằm sẵn trong image ở `/ms-playwright`; tải thêm là thừa 150MB.
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+RUN bun install --frozen-lockfile
+
+# Chỉ ba thư mục worker cần. Không `COPY . .`: `.next`, `e2e`, `public` không
+# tham gia, và mỗi file thừa là một lần mất cache tầng này.
+COPY tsconfig.json ./
+COPY src ./src
+COPY scripts ./scripts
+COPY pvi-qlcd-playwright ./pvi-qlcd-playwright
+
+# Phiên đăng nhập PVI phải sống qua các lần dựng lại container, nếu không mỗi lần
+# khởi động là một lần giải captcha. Máy chủ mount thư mục thật vào đây.
+ENV PVI_STATE=/app/session/storageState.json
+RUN mkdir -p /app/session /app/pvi-qlcd-playwright/anh /app/pvi-qlcd-playwright/captcha \
+      /app/pvi-qlcd-playwright/vet \
+  && chown -R pwuser:pwuser /app/session /app/pvi-qlcd-playwright
+
+USER pwuser
+
+# Trang PVI có lớp chống bot, chạy headless dễ bị chặn — nên Chromium chạy CÓ
+# giao diện trên màn hình ảo của Xvfb. Bỏ `xvfb-run` là mọi lượt mở trang hỏng.
+CMD ["xvfb-run", "-a", "bun", "scripts/pvi-worker.ts"]

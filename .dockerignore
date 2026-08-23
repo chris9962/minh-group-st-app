@@ -28,9 +28,10 @@ playwright.config.ts
 playwright-report
 test-results
 docs
-pvi-qlcd-playwright
-scripts
 drizzle
+
+# `pvi-qlcd-playwright` và `scripts` KHÔNG loại trừ: tầng `worker` của Dockerfile
+# cần cả hai. Tầng app không mang chúng — nó chỉ chép `.next/standalone`.
 
 # Sinh ra bởi bản dựng native trên cùng máy. Nằm trong context thì `COPY . .` mất
 # cache mỗi lần chạy `bun run build`, dù mã nguồn không đổi.

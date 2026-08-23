@@ -218,11 +218,36 @@ liệu chưa.
 Code ở `scripts/pvi-worker.ts`. Ba script cũ (`chay-don.js`, `duyet-don.js`,
 `pvi-fetch-certificates.ts`) vẫn chạy tay được, dùng khi cần soi một đơn.
 
+## Container
+
+Worker nằm chung repo và chung `Dockerfile` với app, nhưng là container RIÊNG:
+
+```bash
+docker compose --profile pvi up pvi-worker      # máy local
+docker build --target worker -t mgst-pvi-worker .   # máy chủ, chưa có compose plugin
+```
+
+Tách container chứ không gộp vào app vì ba lý do. Image app là
+`oven/bun:alpine` 155 MB; worker cần Chromium thật cộng Xvfb nên nền là
+`mcr.microsoft.com/playwright`, khoảng 2 GB. Gộp thì mỗi lần deploy web tải thêm
+gần 2 GB cho thứ web không dùng. Worker chết và khởi động lại cũng không được
+kéo web sập theo. Và bật tắt bot phải làm được mà không đụng tới web.
+
+Image worker cài thêm bốn thứ ngoài nền Playwright: `poppler-utils` cho
+`pdftoppm`, `tesseract-ocr` cộng `python3-pil`/`python3-numpy`/`pytesseract` cho
+`capcha-resolver/solve.py`, và `bun` để chạy thẳng TypeScript.
+
+Phiên đăng nhập PVI nằm ở volume `mgst-pvi-session` gắn vào `/app/session`. Mất
+nó là mỗi lần dựng lại container phải giải captcha đăng nhập lần nữa.
+
+Chromium chạy CÓ giao diện trên màn hình ảo của Xvfb — trang PVI có lớp chống
+bot, headless dễ bị chặn.
+
 ## Việc còn lại
 
-1. **Đơn mắc ở `creating`.** Worker chết giữa chừng thì đơn nằm lại đó mãi. Cần
-   một câu quét đưa đơn quá 10 phút về `queued` cho worker khác nhận.
-2. **Dockerfile** dựa trên image Playwright, thêm `poppler-utils`.
+Chưa có lần nào worker chạy trọn vòng thật: lấy đơn → tạo đơn thật trên PVI →
+duyệt → tải giấy chứng nhận → `done`. Mọi phép đo tới 2026-08-23 đều chạy với cờ
+tắt, tức worker dừng trước lúc bấm.
 
 Đơn nối tiếp bảo hiểm cũ (`select_ttxe` = `TTTG1.03`) **bỏ hẳn**, không làm:
 người nhập tự chọn ngày bắt đầu, bot không đi tìm đơn cũ. Mọi đơn khai là xe mới

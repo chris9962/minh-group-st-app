@@ -59,6 +59,46 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  # Worker PVI — bot tạo đơn, duyệt, rồi tải giấy chứng nhận.
+  #
+  # KHÔNG tự dựng khi `docker compose up` trống tay. Gọi đích danh:
+  # `docker compose up pvi-worker`.
+  #
+  # ⚠️ Worker chỉ có việc khi `PVI_WORKER_BAT=1` — biến đó quyết định đơn mới vào
+  # `queued` (bot chạy) hay `manual-queued` (đội KD làm tay). App và worker phải
+  # cùng đọc một giá trị, nếu không thì đơn vào hàng chờ mà không ai nhặt.
+  pvi-worker:
+    build:
+      context: .
+      target: worker
+    container_name: mgst-pvi-worker
+    profiles: ["pvi"]
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - path: .env.local
+        required: false
+    environment:
+      # Cùng lý do như service `app`: trong mạng compose, Postgres là `db:5432`.
+      DATABASE_URL: postgres://mgst:mgst@db:5432/mgst
+      # Hai biến này KHÔNG đặt sẵn ở đây. Worker chạy mà không có chúng thì điền
+      # form rồi dừng — bấm "Chấp nhận" là tạo đơn thật bên PVI, nên người vận
+      # hành phải khai rõ trong `.env.local`:
+      #   PVI_CHO_PHEP_LUU=1
+      #   PVI_CHO_PHEP_DUYET=1
+      PVI_STATE: /app/session/storageState.json
+    volumes:
+      # Phiên đăng nhập PVI sống ngoài container. Mất nó là mỗi lần dựng lại phải
+      # giải captcha đăng nhập lần nữa.
+      - mgst-pvi-session:/app/session
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   # Bản DEV — `next dev` với hot reload, chạy song song với bản prod được vì
   # nghe cổng khác. Không tự dựng khi `docker compose up` trống tay (profiles);
   # gọi đích danh: `docker compose up app-dev`, hoặc `bun run dev:docker`.
@@ -96,5 +136,6 @@ services:
 
 volumes:
   mgst-pgdata:
+  mgst-pvi-session:
   mgst-dev-node-modules:
   mgst-dev-next:

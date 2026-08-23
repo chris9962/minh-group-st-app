@@ -547,21 +547,21 @@ export async function insuranceOrderDetail(
 export type InsuranceOutcome<T> = { ok: true; value: T } | { ok: false; message: string };
 
 /**
- * Tạo đơn — một leg của gói là một đơn (chốt 04/08).
+ * Trạng thái của đơn vừa tạo, quyết định theo việc worker PVI có đang chạy không.
  *
- * ⚠️ Đơn mới sinh ở `manual-queued` (Chờ làm tay) chứ không phải `queued`
- * (Chờ tạo), và đó là mô tả THẬT chứ không phải rút gọn: `queued` nghĩa là
- * "đang xếp hàng chờ BOT pick lên", mà bot PVI chưa được xây. Để ở `queued`
- * thì mọi đơn nằm im vĩnh viễn ở một trạng thái nói dối — người xem tưởng hệ
- * thống đang chạy, còn hàng đợi làm tay (P-15, chính là màn P-13 lọc `Chờ làm
- * tay`) thì rỗng trong khi đó là nơi việc thật sự nằm.
+ * `PVI_WORKER_BAT=1` → `queued`, đơn xếp hàng chờ bot pick lên.
+ * Thiếu biến đó → `manual-queued`, đội KD làm tay như trước.
  *
- * TODO(P-13 Bảo hiểm, chờ bot PVI): đổi lại thành `queued` ở đây, và để bot lo
- * `queued → creating → pending-approval → done`; nhánh làm tay lúc đó chỉ nhận
- * đơn bot đẩy sang (spec §3.5). Gỡ luôn ghi chú cùng nội dung ở
- * `lib/api/insuranceOrders.ts`.
+ * Phải theo trạng thái THẬT của worker chứ không phải mong muốn: bot tắt mà đơn
+ * vẫn vào `queued` thì chúng nằm im vĩnh viễn ở một trạng thái nói dối — người
+ * xem tưởng hệ thống đang chạy, còn hàng chờ làm tay thì rỗng trong khi đó là
+ * nơi việc thật sự nằm.
+ *
+ * Đọc mỗi lần gọi, không chụp một lần lúc nạp module: hai container dùng chung
+ * biến này, và bật tắt worker không nên đòi khởi động lại cả app.
  */
-const NEW_ORDER_STATUS = "manual-queued" as const;
+const newOrderStatus = (): "queued" | "manual-queued" =>
+  process.env.PVI_WORKER_BAT === "1" ? "queued" : "manual-queued";
 
 export async function createInsuranceOrders(
   actor: User,
@@ -642,6 +642,10 @@ export async function createInsuranceOrders(
       (_, i) => `${prefix}${String(first + i).padStart(3, "0")}`,
     );
 
+    // Đọc MỘT lần cho cả lô: mọi đơn của một lần tạo phải cùng một trạng thái,
+    // kể cả khi ai đó bật tắt worker đúng lúc câu insert đang chạy.
+    const newStatus = newOrderStatus();
+
     const rows = await tx
       .insert(insuranceOrders)
       .values(
@@ -655,7 +659,7 @@ export async function createInsuranceOrders(
           orderDate: leg.orderDate,
           startDate: leg.startDate,
           endDate: leg.endDate,
-          status: NEW_ORDER_STATUS,
+          status: newStatus,
           source: form.source,
           beneficiaryName: leg.beneficiaryName,
           // Ô ngày sinh ẩn với đơn xe máy nên chuỗi rỗng là chuyện thường —
@@ -687,7 +691,7 @@ export async function createInsuranceOrders(
       rows.map((r) => ({
         orderId: r.id,
         fromStatus: null,
-        toStatus: NEW_ORDER_STATUS,
+        toStatus: newStatus,
         changedBy: actor.id,
       })),
     );
