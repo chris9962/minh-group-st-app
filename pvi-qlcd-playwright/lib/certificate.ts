@@ -14,7 +14,7 @@
  */
 
 import { execFile } from "node:child_process";
-import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -111,10 +111,11 @@ export async function downloadCertificate(prKey: string): Promise<CertificateDow
 }
 
 /**
- * Đổi PDF sang MỘT ảnh WebP. Nhiều trang thì xếp dọc rồi ghép làm một.
+ * Đổi TRANG ĐẦU của PDF sang một ảnh WebP.
  *
- * Ghép chứ không lấy trang đầu: `certificate_photo_url` chỉ giữ được một khoá,
- * mà bỏ trang sau là bỏ nội dung hợp đồng.
+ * Chỉ trang đầu (chốt 2026-08-23): giấy chứng nhận PVI đo được đều một trang, và
+ * trang đầu mang đủ thông tin người xem cần. Trang sau nếu có là điều khoản in
+ * kèm, không phải nội dung riêng của đơn.
  *
  * Cần hai công cụ trên máy chạy: `pdftoppm` của poppler và `cwebp` của libwebp.
  * macOS: `brew install poppler webp`. Debian: `apt install poppler-utils webp`.
@@ -124,52 +125,29 @@ export async function pdfToWebp(pdf: Buffer): Promise<Buffer> {
   const dir = await mkdtemp(path.join(tmpdir(), "pvi-cert-"));
   try {
     const src = path.join(dir, "in.pdf");
+    const pngPath = path.join(dir, "trang1.png");
+    const webpPath = path.join(dir, "trang1.webp");
     await writeFile(src, pdf);
-    await run("pdftoppm", ["-png", "-r", RENDER_DPI, src, path.join(dir, "page")]);
 
-    const pages = (await readdir(dir))
-      .filter((f) => f.startsWith("page") && f.endsWith(".png"))
-      .sort();
-    if (!pages.length) throw new Error("pdftoppm không xuất được trang nào");
+    // `-f 1 -l 1` giới hạn đúng trang đầu; `-singlefile` bỏ hậu tố `-1` mà
+    // pdftoppm vốn thêm vào tên file, nên đường dẫn dưới đây đọc được ngay.
+    await run("pdftoppm", [
+      "-png",
+      "-r",
+      RENDER_DPI,
+      "-f",
+      "1",
+      "-l",
+      "1",
+      "-singlefile",
+      src,
+      path.join(dir, "trang1"),
+    ]);
 
-    const buffers = await Promise.all(pages.map((f) => readFile(path.join(dir, f))));
-    const png = buffers.length === 1 ? buffers[0] : await stackVertically(buffers);
-
-    const pngPath = path.join(dir, "ghep.png");
-    const webpPath = path.join(dir, "ghep.webp");
-    await writeFile(pngPath, png);
     // `-resize 1600 0` giữ tỉ lệ và chỉ thu nhỏ khi ảnh rộng hơn 1600px.
     await run("cwebp", ["-q", WEBP_QUALITY, "-resize", MAX_EDGE, "0", pngPath, "-o", webpPath]);
     return readFile(webpPath);
   } finally {
     await rm(dir, { recursive: true, force: true });
-  }
-}
-
-/**
- * Ghép nhiều PNG thành một, xếp dọc.
- *
- * Dựng bằng Chromium của Playwright thay vì thêm thư viện xử lý ảnh: Playwright
- * đã là phụ thuộc sẵn có, còn `sharp` hay ImageMagick thì phải cài thêm trên
- * mọi máy chạy.
- */
-async function stackVertically(pages: Buffer[]): Promise<Buffer> {
-  const { chromium } = await import("playwright");
-  const browser = await chromium.launch({ headless: true });
-  try {
-    const page = await browser.newPage();
-    const imgs = pages
-      .map((b) => `<img src="data:image/png;base64,${b.toString("base64")}">`)
-      .join("");
-    await page.setContent(
-      `<body style="margin:0;background:#fff">
-         <div style="display:flex;flex-direction:column">${imgs}</div>
-       </body>`,
-      { waitUntil: "load" },
-    );
-    const el = page.locator("div").first();
-    return await el.screenshot({ type: "png" });
-  } finally {
-    await browser.close().catch(() => {});
   }
 }

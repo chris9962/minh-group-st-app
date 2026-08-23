@@ -204,9 +204,12 @@ tới hết thời gian chờ. Dùng `fetch` với header `Cookie` dựng từ
 **Cần `pdftoppm` của poppler và `cwebp` của libwebp trên máy chạy.**
 macOS: `brew install poppler webp`. Container: `apt install poppler-utils webp`.
 
+Chỉ lấy **trang đầu** của PDF (chốt 2026-08-23). Giấy chứng nhận PVI đo được
+đều một trang, và trang đầu mang đủ thông tin người xem cần.
+
 Ảnh ra ở định dạng WebP, chất lượng 80, cạnh dài nhất 1600px — cùng thông số với
-ảnh người dùng tải lên (`src/lib/toWebpImage.ts`). Đo trên một giấy chứng nhận
-thật 2026-08-23: PDF 330KB → WebP 184KB, 1600×1127, mất 1,4 giây.
+ảnh người dùng tải lên (`src/lib/toWebpImage.ts`). Đo trên giấy chứng nhận của
+đơn `26/21/14/MOTO/0107059`: PDF 921KB → WebP 136KB, 1600×1137, mất 0,45 giây.
 
 ## Chạy worker
 
