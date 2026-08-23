@@ -177,6 +177,16 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
   const { data, isPending, isError, refetch, isFetching } = useQuery({
     queryKey: ["insurance-detail", id],
     queryFn: () => fetchInsuranceDetail(id),
+    /**
+     * Bot PVI đổi trạng thái đơn mà không ai bấm gì trên màn này: `queued` →
+     * `creating` → `awaiting-certificate` → `done`, cộng ảnh giấy chứng nhận
+     * xuất hiện ở bước cuối. Không gọi lại theo chu kỳ thì người mở đơn ra xem
+     * thấy một trạng thái đứng im và tưởng bot dừng.
+     *
+     * Mười giây, cùng nhịp với bảng P-13. Tab ẩn thì dừng:
+     * `refetchIntervalInBackground` mặc định `false`.
+     */
+    refetchInterval: 10_000,
   });
 
   const invalidate = () => {
