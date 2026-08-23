@@ -34,6 +34,9 @@ const NGHI_GIAY = Number(process.env.PVI_WORKER_NGHI ?? 10);
 const MAX_ATTEMPTS = Number(process.env.PVI_CERTIFICATE_MAX_ATTEMPTS ?? CERTIFICATE_MAX_ATTEMPTS);
 const RETRY_AFTER_SECONDS = Number(process.env.PVI_CERTIFICATE_RETRY_SECONDS ?? 90);
 
+/** Đơn nằm ở `creating` lâu hơn ngần này thì coi như worker giữ nó đã chết. */
+const QUA_HAN_PHUT = Number(process.env.PVI_WORKER_QUA_HAN_PHUT ?? 10);
+
 const log = (s: string) => console.log(`[${new Date().toISOString().slice(11, 19)}] ${s}`);
 
 /** Số năm hiệu lực của đơn, suy từ hai cột ngày. PVI cấp tối đa 3 năm một đơn. */
@@ -80,6 +83,37 @@ function payloadFor(order: Order): Record<string, unknown> {
 /** `2026-09-01` → `01/09/2026`, để so với cột "Ngày chứng từ" của bảng Manager. */
 const ngayKieuPvi = (d: Date) =>
   `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+
+/**
+ * Đưa đơn bị bỏ rơi ở `creating` về hàng chờ.
+ *
+ * `nhanDon` COMMIT trạng thái `creating` rồi mới mở trình duyệt, nên khoảng
+ * 10–15 giây sau đó là lúc worker chết thì đơn nằm lại mãi: database không biết
+ * worker còn sống hay không.
+ *
+ * Ngưỡng rộng gấp nhiều lần thời gian chạy thật của một đơn. Hẹp quá thì worker
+ * khác cướp một đơn ĐANG chạy, và PVI nhận hai đơn giống nhau.
+ */
+async function thuHoiDonBoRoi(db: Db) {
+  const cutoff = new Date(Date.now() - QUA_HAN_PHUT * 60 * 1000);
+  const thuHoi = await db
+    .update(insuranceOrders)
+    .set({ status: "queued", updatedAt: new Date() })
+    .where(
+      and(
+        eq(insuranceOrders.status, "creating"),
+        or(
+          sql`${insuranceOrders.updatedAt} is null`,
+          lt(insuranceOrders.updatedAt, cutoff),
+        ),
+      ),
+    )
+    .returning({ orderCode: insuranceOrders.orderCode });
+
+  for (const d of thuHoi)
+    log(`${d.orderCode}: mắc ở creating quá ${QUA_HAN_PHUT} phút → trả về hàng chờ`);
+  return thuHoi.length;
+}
 
 /**
  * Lấy MỘT đơn chờ tạo và đánh dấu đang chạy, trong cùng một transaction.
@@ -246,6 +280,9 @@ async function layGiayChungNhan(db: Db) {
 }
 
 async function motVong(db: Db) {
+  // Trước khi nhận đơn mới: trả lại đơn mà worker chết giữa chừng bỏ lại.
+  await thuHoiDonBoRoi(db);
+
   const don = await nhanDon(db);
   if (don) {
     const phien = await baoDamPhien({ orderId: don.orderCode });
