@@ -465,7 +465,7 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                   tấm mình vừa chọn, kèm nhãn CHỮ nói nó chưa được lưu — màu
                   một mình không đủ (AGENTS.md §8). */}
               {pending ? (
-                <div className={styles.pendingPhoto}>
+                <div className={styles.photoBox}>
                   <button
                     type="button"
                     className={styles.photoZoom}
@@ -475,6 +475,25 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                     <PhotoView key={pending.preview} src={pending.preview} alt="Ảnh vừa chọn" />
                   </button>
                   <span className={styles.pendingBadge}>Chưa lưu</span>
+                  <button
+                    type="button"
+                    className={styles.photoDownload}
+                    title="Tải ảnh về máy"
+                    aria-label="Tải ảnh vừa chọn về máy"
+                    onClick={() => downloadImage(pending.preview, "Ảnh vừa chọn")}
+                  >
+                    <Download size={14} aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.photoEdit}
+                    title="Chọn ảnh khác"
+                    aria-label="Chọn ảnh khác"
+                    disabled={busy}
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <Pencil size={14} aria-hidden />
+                  </button>
                   {/* Nút này không phải component `Button` nên không có prop
                       `tooltip` — dùng `title` của trình duyệt cho cùng tác dụng. */}
                   <button
@@ -489,45 +508,56 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                   </button>
                 </div>
               ) : data.certificatePhotoUrl ? (
-                /* Xem NGAY TẠI TRANG, không mở tab mới. Đội xử lý tay đối
-                   chiếu số trên tờ chứng nhận với số trên đơn — mở tab khác là
-                   mất đơn khỏi màn hình, đúng lý do màn ngân hàng cũng dùng
-                   `ImageLightbox` chứ không phải liên kết. */
-                <button
-                  type="button"
-                  className={styles.photoLink}
-                  aria-label="Xem ảnh chứng nhận cỡ lớn"
-                  onClick={() =>
-                    setZoomed({
-                      src: data.certificatePhotoUrl!,
-                      alt: "Ảnh chứng nhận bảo hiểm",
-                    })
-                  }
-                >
-                  <PhotoView
-                    key={data.certificatePhotoUrl}
-                    src={data.certificatePhotoUrl}
-                    alt="Ảnh chứng nhận bảo hiểm"
-                  />
-                </button>
+                <div className={`${styles.photoBox} ${styles.saved}`}>
+                  {/* Xem NGAY TẠI TRANG, không mở tab mới. Đội xử lý tay đối
+                      chiếu số trên tờ chứng nhận với số trên đơn — mở tab khác
+                      là mất đơn khỏi màn hình, đúng lý do màn ngân hàng cũng
+                      dùng `ImageLightbox` chứ không phải liên kết. */}
+                  <button
+                    type="button"
+                    className={styles.photoZoom}
+                    aria-label="Xem ảnh chứng nhận cỡ lớn"
+                    onClick={() =>
+                      setZoomed({
+                        src: data.certificatePhotoUrl!,
+                        alt: "Ảnh chứng nhận bảo hiểm",
+                      })
+                    }
+                  >
+                    <PhotoView
+                      key={data.certificatePhotoUrl}
+                      src={data.certificatePhotoUrl}
+                      alt="Ảnh chứng nhận bảo hiểm"
+                    />
+                  </button>
+                  {/* Ngoài khối `canAttachPhoto` bên dưới: người chỉ có quyền
+                      XEM đơn vẫn cần tải tờ chứng nhận về để gửi khách. */}
+                  <button
+                    type="button"
+                    className={styles.photoDownload}
+                    title="Tải ảnh về máy"
+                    aria-label="Tải ảnh chứng nhận về máy"
+                    onClick={() =>
+                      downloadImage(data.certificatePhotoUrl!, "Ảnh chứng nhận bảo hiểm")
+                    }
+                  >
+                    <Download size={14} aria-hidden />
+                  </button>
+                  {canAttachPhoto && (
+                    <button
+                      type="button"
+                      className={styles.photoEdit}
+                      title="Đổi ảnh chứng nhận"
+                      aria-label="Đổi ảnh chứng nhận"
+                      disabled={busy}
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <Pencil size={14} aria-hidden />
+                    </button>
+                  )}
+                </div>
               ) : (
                 <p className="text-muted">Chưa có ảnh.</p>
-              )}
-              {/* Ngoài khối `canAttachPhoto` bên dưới: người chỉ có quyền XEM
-                  đơn vẫn cần tải tờ chứng nhận về để gửi khách. */}
-              {(data.certificatePhotoUrl || pending) && (
-                <Button
-                  variant="secondary"
-                  onClick={() =>
-                    downloadImage(
-                      pending?.preview ?? data.certificatePhotoUrl!,
-                      pending ? "Ảnh vừa chọn" : "Ảnh chứng nhận bảo hiểm",
-                    )
-                  }
-                >
-                  <Download size={16} aria-hidden />
-                  Tải ảnh về
-                </Button>
               )}
 
               {canAttachPhoto && (
@@ -546,20 +576,19 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                     }}
                   />
                   <div className={styles.photoActions}>
-                    <Button
-                      variant="secondary"
-                      disabled={busy}
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      {/* `Pencil` khi đã có ảnh, khớp nút Sửa ở P-11 và P-12.
-                          Chưa có ảnh thì việc là THÊM, không phải sửa. */}
-                      {data.certificatePhotoUrl || pending ? (
-                        <Pencil size={16} aria-hidden />
-                      ) : (
+                    {/* Đã có ảnh thì đổi bằng nút bút chì trên góc ảnh, cùng lối
+                        với `BankAccountPhotos`. Nút chữ này chỉ còn cho ô trống —
+                        lúc đó không có góc ảnh nào để đặt nút lên. */}
+                    {!data.certificatePhotoUrl && !pending && (
+                      <Button
+                        variant="secondary"
+                        disabled={busy}
+                        onClick={() => fileInputRef.current?.click()}
+                      >
                         <ImagePlus size={16} aria-hidden />
-                      )}
-                      {data.certificatePhotoUrl || pending ? "Đổi ảnh" : "Chọn ảnh"}
-                    </Button>
+                        Chọn ảnh
+                      </Button>
+                    )}
                     {pending && (
                       <Button disabled={busy} onClick={() => savePhoto.mutate()}>
                         {savePhoto.isPending ? "Đang lưu…" : "Lưu ảnh"}

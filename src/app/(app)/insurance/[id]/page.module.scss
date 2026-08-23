@@ -154,8 +154,7 @@
 /* Khung giữ chỗ đúng kích thước ảnh. `<img>` chỉ đặt max-width/max-height thì
    lúc chưa tải xong nó cao 0, tải xong nhảy lên 240px và đẩy nút bên dưới
    xuống — cùng lý do các trang khác dùng skeleton thay cho chữ "Đang tải…". */
-.photoLink,
-.pendingPhoto {
+.photoBox {
   position: relative;
   display: block;
   width: 320px;
@@ -176,7 +175,6 @@
 
 /* Ô ảnh là NÚT mở lớp xem cỡ lớn. `color: inherit` là bắt buộc: `<button>` thô
    lấy màu chữ của hệ điều hành, mà bên trong có dòng "Đang tải ảnh…". */
-.photoLink,
 .photoZoom {
   padding: 0;
   font: inherit;
@@ -331,7 +329,12 @@
   line-height: 1.4;
 }
 
-/* Nút bỏ ảnh nằm góc phải ảnh — cùng khuôn với ô ảnh ở BankAccountPhotos. */
+/* Ba nút nổi trên góc ảnh — cùng khuôn và cùng thứ tự với `BankAccountPhotos`:
+   tải về ở ngoài cùng, sửa kế bên, bỏ ảnh trong cùng. Ô ảnh là `<button>` mở
+   lớp xem cỡ lớn, nên ba nút này phải là anh em của nó chứ không lồng vào
+   trong — HTML không cho `<button>` chứa `<button>`. */
+.photoDownload,
+.photoEdit,
 .photoRemove {
   position: absolute;
   top: 6px;
@@ -348,19 +351,60 @@
   cursor: pointer;
 }
 
+.photoDownload:hover,
+.photoEdit:hover,
 .photoRemove:hover {
   color: var(--om-orange-mid);
 }
 
+.photoDownload:disabled,
+.photoEdit:disabled,
 .photoRemove:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
+/* Ảnh đã lưu chỉ có hai nút, ảnh chờ lưu có ba. Khe 32px = 26px nút cộng 6px. */
+.photoEdit {
+  right: 38px;
+}
+
+.photoDownload {
+  right: 70px;
+}
+
+/* Ảnh đã lưu không có nút bỏ, nên hai nút dịch vào sát mép. */
+.saved .photoEdit {
+  right: 6px;
+}
+
+.saved .photoDownload {
+  right: 38px;
+}
+
 /* Ngón tay ngoài trời cần 44px (AGENTS.md §8); chuột thì giữ nhỏ để không che ảnh. */
 @media (pointer: coarse) {
+  .photoDownload,
+  .photoEdit,
   .photoRemove {
     width: 44px;
     height: 44px;
+  }
+
+  /* Nút to hơn thì khe cũng phải dịch theo: 44px cộng 6px. */
+  .photoEdit {
+    right: 56px;
+  }
+
+  .photoDownload {
+    right: 106px;
+  }
+
+  .saved .photoEdit {
+    right: 6px;
+  }
+
+  .saved .photoDownload {
+    right: 56px;
   }
 }
