@@ -20,6 +20,7 @@ import type {
   InsuranceSort,
 } from "@/lib/api/insurance";
 import {
+  CERTIFICATE_MAX_ATTEMPTS,
   InsuranceOrderStatus,
   insuranceOrderEditSchema,
   type InsuranceManualStep,
@@ -127,6 +128,22 @@ const inScope = recordInScope;
  */
 const CLAIMABLE_STATUS = "manual-queued" as const;
 
+/**
+ * Đơn bot đã THÔI hỏi PVI về giấy chứng nhận — cũng là kho chung.
+ *
+ * Đơn đã tạo và đã duyệt xong bên PVI, chỉ thiếu tấm ảnh. Không mở cho người có
+ * `handle-fallback` thì nó nằm ở `awaiting-certificate` vĩnh viễn: bot thôi hỏi,
+ * còn người duy nhất thấy đơn là người tạo, mà họ không có quyền xử lý.
+ */
+const stuckCertificateWhere = (): SQL =>
+  and(
+    eq(insuranceOrders.status, "awaiting-certificate"),
+    gte(insuranceOrders.certificateAttempts, CERTIFICATE_MAX_ATTEMPTS),
+  )!;
+
+const certificateStuck = (row: { status: string; certificateAttempts: number }): boolean =>
+  row.status === "awaiting-certificate" && row.certificateAttempts >= CERTIFICATE_MAX_ATTEMPTS;
+
 const visibleOrderWhere = (actor: User): SQL | undefined => {
   const view = scopeOf(actor, "view-detail");
   if (view.kind === "all") return undefined;
@@ -141,6 +158,7 @@ const visibleOrderWhere = (actor: User): SQL | undefined => {
     can(actor, "insurance", "handle-fallback")
       ? eq(insuranceOrders.status, CLAIMABLE_STATUS)
       : undefined,
+    can(actor, "insurance", "handle-fallback") ? stuckCertificateWhere() : undefined,
   ];
 
   const usable = parts.filter((p): p is SQL => p !== undefined && p !== (sql`false` as never));
@@ -155,6 +173,7 @@ const canSeeOrder = (
     handledById: string | null;
     handledByDepartmentId: string | null;
     status: string;
+    certificateAttempts: number;
   },
 ): boolean => {
   const view = scopeOf(actor, "view-detail");
@@ -166,7 +185,8 @@ const canSeeOrder = (
     view.departmentIds.includes(row.handledByDepartmentId)
   )
     return true;
-  return row.status === CLAIMABLE_STATUS && can(actor, "insurance", "handle-fallback");
+  if (!can(actor, "insurance", "handle-fallback")) return false;
+  return row.status === CLAIMABLE_STATUS || certificateStuck(row);
 };
 
 /**
@@ -837,9 +857,17 @@ export async function deleteInsuranceOrder(
  * Bước chuyển hợp lệ của nhánh làm tay (spec §3.4) — máy chủ tự kiểm, không
  * nhận trạng thái tuỳ ý từ client.
  */
-const STEP_FROM: Record<InsuranceManualStep, InsuranceOrderStatus> = {
-  "manual-progress": "manual-queued",
-  done: "manual-progress",
+const STEP_FROM: Record<InsuranceManualStep, InsuranceOrderStatus[]> = {
+  "manual-progress": ["manual-queued"],
+  /**
+   * `done` có HAI nguồn.
+   *
+   * `manual-progress` là nhánh làm tay bình thường. `awaiting-certificate` là
+   * đơn bot tạo và duyệt xong nhưng đã thôi hỏi PVI về giấy chứng nhận — người
+   * có `handle-fallback` tải ảnh lên rồi bấm hoàn thành thay bot. Nguồn thứ hai
+   * chỉ mở khi đơn ĐÃ chạm ngưỡng, xem `certificateStuck`.
+   */
+  done: ["manual-progress", "awaiting-certificate"],
 };
 
 /**
@@ -868,8 +896,18 @@ export async function setInsuranceOrderStatus(
    * Đơn đã rời hàng chờ thì quay về luật thường: chỉ người có phần trong nó —
    * người tạo, người đang cầm, cấp quản lý hai phòng đó — mới bấm tiếp được.
    */
-  const claimable = current.status === CLAIMABLE_STATUS;
+  const claimable = current.status === CLAIMABLE_STATUS || certificateStuck(current);
   if (!claimable && !canSeeOrder(actor, current)) return null;
+
+  /**
+   * Đơn còn ở `awaiting-certificate` mà bot CHƯA thôi hỏi thì không ai bấm tay
+   * được: bot sắp tải ảnh về, và bấm hoàn thành lúc này là chen ngang.
+   */
+  if (current.status === "awaiting-certificate" && !certificateStuck(current))
+    return {
+      ok: false,
+      message: `Bot còn đang hỏi PVI về giấy chứng nhận (lần ${current.certificateAttempts}/${CERTIFICATE_MAX_ATTEMPTS}). Đợi bot thôi hỏi rồi mới xử lý tay được.`,
+    };
 
   /**
    * Hoàn thành thì PHẢI có ảnh chứng nhận (chốt 2026-08-16).
@@ -887,20 +925,30 @@ export async function setInsuranceOrderStatus(
 
   const from = STEP_FROM[next];
 
+  /**
+   * Ghi người xử lý ở hai ca: bấm "Nhận đơn xử lý" (chốt 03/08), và bấm hoàn
+   * thành cho đơn bot bỏ dở. Ca thứ hai đơn chưa qua `manual-progress` nên
+   * chưa ai đứng tên — không ghi thì đơn `done` mà không biết ai làm.
+   *
+   * Bước "Hoàn thành" của nhánh làm tay bình thường thì GIỮ NGUYÊN người đã
+   * nhận, không ghi đè bằng người bấm.
+   *
+   * Chụp luôn phòng của họ: cấp quản lý phòng đó được xem đơn, và họ chuyển
+   * phòng về sau không được làm đổi danh sách người xem (#8).
+   */
+  const takesOwnership =
+    next === "manual-progress" || current.status === "awaiting-certificate";
+
   const updated = await db
     .update(insuranceOrders)
     .set({
       status: next,
-      // Người bấm "Nhận đơn xử lý" thành người xử lý đơn (chốt 03/08). Bước
-      // "Hoàn thành" giữ nguyên người đã nhận, không ghi đè bằng người bấm.
-      // Chụp luôn phòng của họ: cấp quản lý phòng đó được xem đơn, và họ chuyển
-      // phòng về sau không được làm đổi danh sách người xem (#8).
-      ...(next === "manual-progress"
+      ...(takesOwnership
         ? { handledBy: actor.id, handledByDepartmentId: actor.departmentId }
         : {}),
       updatedAt: new Date(),
     })
-    .where(and(eq(insuranceOrders.id, id), eq(insuranceOrders.status, from)))
+    .where(and(eq(insuranceOrders.id, id), inArray(insuranceOrders.status, from)))
     .returning({ id: insuranceOrders.id });
 
   if (updated.length === 0)
@@ -909,12 +957,14 @@ export async function setInsuranceOrderStatus(
       message:
         next === "manual-progress"
           ? "Đơn này vừa có người khác nhận xử lý rồi."
-          : "Đơn này không ở trạng thái Đang làm tay nữa.",
+          : "Đơn này vừa đổi trạng thái. Tải lại trang rồi thử lại.",
     };
 
   await db.insert(insuranceOrderStatusHistory).values({
     orderId: id,
-    fromStatus: from,
+    // `from` là DANH SÁCH nguồn hợp lệ; dòng lịch sử phải mang trạng thái thật
+    // của đơn lúc bấm, không phải phần tử đầu danh sách.
+    fromStatus: current.status,
     toStatus: next,
     changedBy: actor.id,
   });

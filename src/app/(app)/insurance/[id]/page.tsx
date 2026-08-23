@@ -229,11 +229,23 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
    * trạng thái, không gắn riêng vào bước nào". Máy chủ vốn chưa bao giờ chặn
    * theo trạng thái, nên chỉ giao diện lệch.
    */
+  /**
+   * Bot đã thôi hỏi PVI về giấy chứng nhận, nên đơn chỉ đi tiếp được bằng tay.
+   *
+   * Kho chung như `manual-queued`: ai có `handle-fallback` cũng vào được, không
+   * kẹp phạm vi. Kẹp thì người phạm vi `own` chỉ xử lý nổi đơn của chính mình và
+   * đơn của người khác nằm lại vĩnh viễn.
+   */
+  const needsCertificateHelp = Boolean(
+    data && certificateNeedsHelp(data.status, data.certificateAttempts),
+  );
+
   const canAttachPhoto = Boolean(
     data &&
       (recordInScope(recordVisibility(actor, "insurance", "update"), data) ||
         recordInScope(recordVisibility(actor, "insurance", "handle-fallback"), data) ||
-        (canHandleFallback && data.handledById === actor?.id)),
+        (canHandleFallback && data.handledById === actor?.id) ||
+        (canHandleFallback && needsCertificateHelp)),
   );
 
   /**
@@ -604,7 +616,9 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
             </div>
 
             {canHandleFallback &&
-              (data.status === "manual-queued" || data.status === "manual-progress") && (
+              (data.status === "manual-queued" ||
+                data.status === "manual-progress" ||
+                needsCertificateHelp) && (
                 <div className={styles.actions}>
                   {data.status === "manual-queued" && (
                     <Button
@@ -619,7 +633,10 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                       đọc được vì sao chưa bấm được, và ô tải ảnh nằm ngay trên.
                       Máy chủ vẫn từ chối lần nữa — khoá đây chỉ để đỡ một lượt
                       bấm hỏng (AGENTS.md §6). */}
-                  {data.status === "manual-progress" && (
+                  {/* Đơn bot bỏ dở đi thẳng sang `done`, không qua "Nhận đơn
+                      xử lý": nó đã tạo và đã duyệt xong bên PVI, việc còn lại
+                      đúng một tấm ảnh. Người bấm nút này thành người xử lý đơn. */}
+                  {(data.status === "manual-progress" || needsCertificateHelp) && (
                     <>
                       <Button disabled={busy || !hasPhoto} onClick={() => advance.mutate("done")}>
                         <CheckCircle2 size={16} aria-hidden />
@@ -627,7 +644,9 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                       </Button>
                       {!hasPhoto && (
                         <p className={`text-muted ${styles.actionsNote}`}>
-                          Phải đính ảnh chứng nhận bảo hiểm trước khi đánh dấu hoàn thành.
+                          {needsCertificateHelp
+                            ? "Tải giấy chứng nhận từ PVI về rồi đính vào đây trước khi đánh dấu hoàn thành."
+                            : "Phải đính ảnh chứng nhận bảo hiểm trước khi đánh dấu hoàn thành."}
                         </p>
                       )}
                     </>
