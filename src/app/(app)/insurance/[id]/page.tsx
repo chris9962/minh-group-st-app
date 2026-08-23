@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { use, useCallback, useEffect, useRef, useState } from "react";
-import { CheckCircle2, ChevronLeft, Download, EyeOff, History, ImagePlus, ShieldCheck, X } from "lucide-react";
+import { CheckCircle2, ChevronLeft, Download, EyeOff, History, ImagePlus, Pencil, ShieldCheck, X } from "lucide-react";
 import { SkeletonCard } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
@@ -551,7 +551,13 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                       disabled={busy}
                       onClick={() => fileInputRef.current?.click()}
                     >
-                      <ImagePlus size={16} aria-hidden />
+                      {/* `Pencil` khi đã có ảnh, khớp nút Sửa ở P-11 và P-12.
+                          Chưa có ảnh thì việc là THÊM, không phải sửa. */}
+                      {data.certificatePhotoUrl || pending ? (
+                        <Pencil size={16} aria-hidden />
+                      ) : (
+                        <ImagePlus size={16} aria-hidden />
+                      )}
                       {data.certificatePhotoUrl || pending ? "Đổi ảnh" : "Chọn ảnh"}
                     </Button>
                     {pending && (
