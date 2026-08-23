@@ -1,7 +1,11 @@
 // Chạy trọn một đơn bằng MỘT lệnh: bảo đảm phiên đăng nhập rồi điền form.
-// Script KHÔNG bấm Lưu.
 //
 //   cat payload.example.json | node chay-don.js
+//
+// ⚠️ Mặc định KHÔNG bấm "Chấp nhận". Bấm là tạo đơn thật bên PVI, nên cần cả
+// cờ `--bam-luu` lẫn biến `PVI_CHO_PHEP_LUU=1`:
+//
+//   PVI_CHO_PHEP_LUU=1 node chay-don.js --bam-luu
 //
 // Gộp hai bước mà trước đây người chạy phải gọi tay theo thứ tự:
 //   1. ensure-login.js — còn phiên thì thoát ngay, hết phiên thì đăng nhập lại
@@ -62,6 +66,8 @@ const doiStdin = () =>
   const kq = await taoDon(payload, {
     dryRun: process.argv.includes('--dry-run'),
     ghiVet: process.argv.includes('--ghi-vet'),
+    // `lib/order.js` còn đòi PVI_CHO_PHEP_LUU=1 mới thật sự bấm trên PVI thật.
+    bamLuu: process.argv.includes('--bam-luu'),
     choNguoiBamGiay: choGiay,
     moc,
   });

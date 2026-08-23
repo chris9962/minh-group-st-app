@@ -13,14 +13,17 @@ const tenAnToan = (s) => String(s).replace(/[^\w.-]/g, '_');
 /**
  * Bấm nút "Chấp nhận" là TẠO ĐƠN THẬT bên PVI.
  *
- * Mặc định không bấm, và trên hệ thống thật thì từ chối bấm kể cả khi người gọi
- * yêu cầu — chỉ mở khi `PVI_BASE_URL` trỏ sang máy chủ giả lập. Muốn bật trên
- * PVI thật thì phải sửa dòng này, và đó đúng là mức cân nhắc nó xứng đáng.
+ * Mặc định không bấm. Trên PVI thật còn đòi thêm `PVI_CHO_PHEP_LUU=1` — cùng
+ * lối với `PVI_CHO_PHEP_DUYET` ở `lib/duyet.js`, và cùng lý do: tạo đơn không
+ * đảo ngược được, nên một cờ dòng lệnh gõ nhầm không đủ để mở.
  */
 function duocBamLuu(muonBam) {
   if (!muonBam) return { duoc: false };
-  if (!LA_GIA_LAP)
-    return { duoc: false, vi: 'Đang trỏ vào PVI thật — bấm Lưu ở đó là tạo đơn thật, script từ chối' };
+  if (!LA_GIA_LAP && process.env.PVI_CHO_PHEP_LUU !== '1')
+    return {
+      duoc: false,
+      vi: 'Đang trỏ vào PVI thật. Đặt PVI_CHO_PHEP_LUU=1 mới bấm Chấp nhận được',
+    };
   return { duoc: true };
 }
 
