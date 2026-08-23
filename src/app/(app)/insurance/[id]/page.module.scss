@@ -319,7 +319,9 @@
    duy nhất (AGENTS.md §8). */
 .pendingBadge {
   position: absolute;
-  top: 6px;
+  /* Cùng độ cao với ba nút bên phải — lệch nhau thì hai thứ nổi trên cùng một
+     ảnh trông như hai lớp khác nhau. */
+  top: 12px;
   left: 6px;
   padding: 2px 6px;
   border-radius: var(--radius-sm);
