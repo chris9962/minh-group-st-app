@@ -20,7 +20,17 @@ const FIXED = {
   phuongThucKhaiThac: '1',
   daiLy: '21.GROUP ST',
   maTienTe: 'VND',
-  maKhach: '21.80000000',
+  /**
+   * Ô `MaKhach` là autocomplete jQuery UI, KHÔNG phải select.
+   *
+   * Nguồn của nó map `{ label: item.Text, value: item.Text }`, nên người dùng
+   * chọn từ danh sách là ô nhận CHUỖI HIỂN THỊ đầy đủ, không phải mã trần. Đo
+   * `POST /TNDSMotor/GetMaKhach` và `/Electrical/GetMaKhach` 2026-08-23: cả hai
+   * trả `Text = "21.80000000 - KHÁCH LẺ"`, `Value = "21.80000000"`.
+   *
+   * Điền mã trần là ghi khác thứ trang tự ghi khi người ta thao tác tay.
+   */
+  maKhach: '21.80000000 - KHÁCH LẺ',
   // 270 - XE MAY KHAC. Trang chọn sẵn mã này, script vẫn đặt lại cho chắc.
   nhanHieuXe: '270',
   // Chốt 2026-08-23: mọi đơn khai là xe mới 100%. Đơn nối tiếp bảo hiểm cũ
@@ -216,6 +226,7 @@ async function dien({ v, dryRun }) {
       tinhTrangXe: doc('select_ttxe'),
       email: doc('EmailCustomer'),
       soDienThoai: doc('DienThoai'),
+      maKhach: doc('MaKhach'),
       ngayBatDau: doc('StartDate'),
       gioBatDau: doc('StartTime'),
       ngayKetThuc: doc('EndDate'),

@@ -25,8 +25,17 @@ const FIXED = {
   daiLy: '21.GROUP ST',
   maTienTe: 'VND',
   tyLePhi: '0.25',
-  // Chốt 2026-08-23: một mã khách chung cho mọi đơn.
-  maKhach: '21.80000000',
+  /**
+   * Ô `MaKhach` là autocomplete jQuery UI, KHÔNG phải select.
+   *
+   * Nguồn của nó map `{ label: item.Text, value: item.Text }`, nên người dùng
+   * chọn từ danh sách là ô nhận CHUỖI HIỂN THỊ đầy đủ, không phải mã trần. Đo
+   * `POST /TNDSMotor/GetMaKhach` và `/Electrical/GetMaKhach` 2026-08-23: cả hai
+   * trả `Text = "21.80000000 - KHÁCH LẺ"`, `Value = "21.80000000"`.
+   *
+   * Điền mã trần là ghi khác thứ trang tự ghi khi người ta thao tác tay.
+   */
+  maKhach: '21.80000000 - KHÁCH LẺ',
 };
 
 // Giờ hiệu lực đặt sau lúc chạy 10 phút, để đơn không mang giờ đã qua khi PVI nhận.
