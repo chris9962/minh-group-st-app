@@ -156,8 +156,7 @@ export function GiftGivingDialog({ open, onClose, customerId, customerName }: Pr
               ) : (
                 <>
                   <p className={styles.hint}>
-                    Chọn <strong>đúng 1</strong> món dưới đây — rổ trộn giá trị rất khác
-                    nhau, đọc kỹ trước khi chọn:
+                    Chọn <strong>đúng 1</strong> món dưới đây:
                   </p>
                   <div className={styles.cards}>
                     {data.gift.basket.map((item, i) => {
