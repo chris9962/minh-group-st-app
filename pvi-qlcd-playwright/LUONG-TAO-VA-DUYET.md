@@ -104,6 +104,11 @@ có thẩm quyền. Ngưỡng ở `CERTIFICATE_MAX_ATTEMPTS` trong
       insurance_orders (Postgres)
 ```
 
+⚠️ **Sửa code xong phải khởi động lại worker.** Bun nạp file một lần lúc khởi
+động, không theo dõi thay đổi. Đã gặp: sửa sang lấy trang đầu nhưng worker đang
+chạy vẫn ghép sáu trang cho hai đơn tiếp theo. Trên máy chủ:
+`docker restart mgst-pvi-worker`.
+
 Chạy **một container**, một tài khoản PVI. Tài khoản đọc từ `PVI_USER` và
 `PVI_PASS` trong `.env.local`, không có bảng khai tài khoản nào.
 
@@ -204,8 +209,10 @@ tới hết thời gian chờ. Dùng `fetch` với header `Cookie` dựng từ
 **Cần `pdftoppm` của poppler và `cwebp` của libwebp trên máy chạy.**
 macOS: `brew install poppler webp`. Container: `apt install poppler-utils webp`.
 
-Chỉ lấy **trang đầu** của PDF (chốt 2026-08-23). Giấy chứng nhận PVI đo được
-đều một trang, và trang đầu mang đủ thông tin người xem cần.
+Chỉ lấy **trang đầu** của PDF (chốt 2026-08-23). Giấy chứng nhận xe máy đo được
+có SÁU trang: trang đầu là giấy chứng nhận, năm trang sau là điều khoản in kèm,
+giống nhau ở mọi đơn. Ghép cả sáu ra ảnh 1600×6799 nặng 682KB, trong khi trang
+đầu chỉ 1600×1137 và 135KB.
 
 Ảnh ra ở định dạng WebP, chất lượng 80, cạnh dài nhất 1600px — cùng thông số với
 ảnh người dùng tải lên (`src/lib/toWebpImage.ts`). Đo trên giấy chứng nhận của
@@ -258,11 +265,25 @@ nó là mỗi lần dựng lại container phải giải captcha đăng nhập l
 Chromium chạy CÓ giao diện trên màn hình ảo của Xvfb — trang PVI có lớp chống
 bot, headless dễ bị chặn.
 
+## Đã chạy trọn vòng
+
+Đo 2026-08-23 với đơn `DH-2608-192`, không ai can thiệp:
+
+```
+13:18:37   Chromium sẵn sàng
+13:18:40   nạp xong trang form
+13:18:44   điền xong 26 ô
+13:18:51   26/21/14/MOTO/0107060 · đã duyệt
+13:18:51   PVI chưa sinh file (lần 1/60)
+13:20:26   đã lưu giấy chứng nhận → insurance-certificates/...webp
+```
+
+Trọn vòng 109 giây, trong đó 95 giây là chờ PVI sinh file.
+
 ## Việc còn lại
 
-Chưa có lần nào worker chạy trọn vòng thật: lấy đơn → tạo đơn thật trên PVI →
-duyệt → tải giấy chứng nhận → `done`. Mọi phép đo tới 2026-08-23 đều chạy với cờ
-tắt, tức worker dừng trước lúc bấm.
+Chưa chạy qua worker: đơn **tai nạn điện**, và đơn **nhiều leg** (khách mua hai
+năm thành hai đơn).
 
 Đơn nối tiếp bảo hiểm cũ (`select_ttxe` = `TTTG1.03`) **bỏ hẳn**, không làm:
 người nhập tự chọn ngày bắt đầu, bot không đi tìm đơn cũ. Mọi đơn khai là xe mới

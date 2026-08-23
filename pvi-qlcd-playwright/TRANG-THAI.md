@@ -16,7 +16,7 @@ bằng worker trong container ra sao.
 | Lọc bảng Manager, lấy `pr_key`, mở màn duyệt | Xong, đo trên PVI thật 2026-08-23 |
 | Màn duyệt: điền captcha, bấm Chấp nhận | Xong. Duyệt thật một đơn 2026-08-23, đơn chuyển sang "Tạo đơn" |
 | Tải giấy chứng nhận, đổi ảnh, đẩy kho (luồng 3) | Xong, đo trên PVI thật 2026-08-23 với hai đơn có file |
-| Nối luồng 2 vào database | Chưa làm — hai cột `pvi_*` đã có |
+| Worker chạy trọn vòng tự động | Xong. Đơn DH-2608-192 chạy hết 7 bước 2026-08-23, 109 giây |
 | Flow BH TNDS xe máy | Xong. Chạy trên PVI thật 2026-08-23: mọi ô đạt, phí khớp |
 
 ## Việc tiếp theo, theo thứ tự
