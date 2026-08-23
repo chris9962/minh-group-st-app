@@ -3,7 +3,8 @@
 Cập nhật 2026-08-15. Đọc file này trước khi làm tiếp.
 
 `README.md` nói cách CHẠY. File này nói đang làm tới đâu, chỗ nào chưa chắc, và
-việc tiếp theo là gì.
+việc tiếp theo là gì. `LUONG-TAO-VA-DUYET.md` nói vì sao bot tách hai luồng và
+luồng duyệt phải làm những bước nào.
 
 ## Chạy được tới đâu
 
@@ -18,29 +19,36 @@ việc tiếp theo là gì.
 
 ## Việc tiếp theo, theo thứ tự
 
-**1. Đo PVI trả gì sau khi bấm "Chấp nhận".** Đây là chỗ đứt duy nhất của luồng.
-Không biết PVI trả `pr_key` ở đâu thì bot không mở được màn duyệt.
+**1. Khảo sát DOM màn Manager để code luồng duyệt.**
 
-Lần tới bạn cần tạo một đơn thật, chạy lệnh này thay vì làm tay từ đầu:
+Câu hỏi "PVI trả `pr_key` ở đâu sau khi bấm Chấp nhận" đã có đáp án 2026-08-23:
+**PVI không trả**. Khoá đó chỉ xuất hiện ở màn
+`https://qlcd.pvi.com.vn/Service/Manager`, trong đường dẫn nút "Duyệt" của từng
+dòng. Vì vậy bot tách làm hai luồng rời nhau — đọc `LUONG-TAO-VA-DUYET.md`.
+
+Việc còn thiếu là DOM của màn Manager: ô lọc trạng thái, thứ tự sắp xếp bảng,
+selector dấu ba chấm và mục "Duyệt".
+
+**1b. Công cụ khảo sát DOM.**
+
+Chạy lệnh này rồi tự thao tác trên trang trong lúc trình duyệt còn mở:
 
 ```bash
 cat pvi-qlcd-playwright/payload.example.json | \
-  bun run pvi:order -- --ghi-vet --cho-nguoi-bam=120
+  bun run pvi:chay -- --ghi-vet --cho-nguoi-bam=600
 ```
 
-Bot điền xong rồi giữ trình duyệt mở 120 giây. Bạn kiểm rồi tự bấm "Chấp nhận".
-Bot ghi lại mọi request, response, header và HTML trang cuối vào
-`vet/<orderId>-vet.json`, và tự dò `pr_key` trong đó.
+Bot ghi mọi request, response, header và HTML trang cuối vào
+`vet/<orderId>-vet.json`. Mở file đó ra đọc là thấy DOM thật, khỏi chép tay.
 
 Đơn đó dù sao cũng phải tạo nên không sinh đơn rác, mà lấy được trọn thông tin.
 
-Đọc `prKeyTimThay` trong kết quả. Rỗng thì mở thẳng file vết đọc tay — mẫu quét
-hiện dựa trên đúng một ví dụ (`?pr_key=s8K%2bJbKREuM%3d&tthai=DUYET`), PVI đặt
-tên khác là không thấy.
-
-**2. Nối bước duyệt vào bot.** Có `pr_key` rồi thì mở
-`/Service/AssignDuyet?pr_key=...&tthai=DUYET`, đọc `window.code`, điền vào
+**2. Nối bước duyệt vào bot.** Mở màn duyệt, đọc `window.code`, điền vào
 `#cpatchaTextBox`, bấm `#btnConfirm`.
+
+⚠️ Hai đường dẫn màn duyệt đang mâu thuẫn: lần khảo sát 2026-08-15 ghi
+`/Service/AssignDuyet?pr_key=...&tthai=DUYET`, còn ghi chép 2026-08-23 ghi
+`/Service/Assign/?pr_key=...&tthai=DUYET`. Phải xác định cái nào đúng.
 
 **3. Nối vòng đời đơn.** `insurance_orders.status` đã có sẵn sáu trạng thái.
 Worker đọc `queued`, gọi `taoDon`, ghi `creating` → `pending-approval`. Lấy đơn

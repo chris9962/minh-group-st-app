@@ -217,4 +217,5 @@ Script mỗi lần chỉ điền 1 đơn. Khách cần 2 năm thì BE gọi 2 l�
 | `check-session.js` | Kiểm tra phiên còn dùng được không |
 | `create-order.js` | Đọc payload, mở form, gọi hàm điền, in báo cáo |
 | `chay-don.js` | Gọi `ensure-login.js` rồi `lib/order.js` trong một lệnh |
+| `LUONG-TAO-VA-DUYET.md` | Vì sao bot tách hai luồng, và luồng duyệt gồm bước nào |
 | `VPS-SETUP.md` | Hướng dẫn triển khai VPS từng bước |
