@@ -316,7 +316,7 @@ export function BankAccountFormDialog({
                 onChange={(v) => startForm.setValue("referralCode", v, { shouldDirty: true })}
                 options={
                   availableCodes.length === 0
-                    ? [{ value: "", label: "— Hết mã còn chỗ —" }]
+                    ? [{ value: "", label: "— Hết mã —" }]
                     : availableCodes.map((c) => ({
                         value: c.id,
                         // Trừ cả `holding`: tài khoản người khác đang mở dở đã
