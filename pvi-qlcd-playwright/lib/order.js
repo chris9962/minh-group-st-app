@@ -52,6 +52,14 @@ async function taoDon(
     choNguoiBamGiay = 0,
     /** Nhận tên từng chặng để người gọi đo thời gian. Mặc định không làm gì. */
     moc = () => {},
+    /**
+     * Chạy ngay sau khi bấm "Chấp nhận", lúc trang còn mở.
+     *
+     * `async (page, { orderId, product, v, kq }) => any`. Kết quả nằm ở
+     * `daLuu.sauKhiLuu`; ném lỗi thì lỗi nằm ở `daLuu.sauKhiLuuLoi` và luồng
+     * chính vẫn đi tiếp — đơn đã tạo rồi, dừng ở đây không lấy lại được gì.
+     */
+    sauKhiLuu = null,
   } = {},
 ) {
   const orderId = tenAnToan(payload?.orderId || 'khong-co-id');
@@ -135,17 +143,17 @@ async function taoDon(
       ]);
       daLuu = { url: page.url(), tieuDe: await page.title() };
 
-      // Máy chủ giả lập trả trang kiểm kèm `#ket-qua`; PVI thật không có khối
-      // này nên bỏ qua. Đây là chỗ duy nhất nói được "dữ liệu tới nơi hay chưa"
-      // — báo cáo điền của bot chỉ nói nó ghi được vào ô.
-      const o = page.locator('#ket-qua');
-      if (await o.count()) {
-        daLuu.mayChuNhan = {
-          dat: (await o.getAttribute('data-dat')) === '1',
-          soHong: Number(await o.getAttribute('data-so-hong')),
-          tomTat: (await o.innerText()).trim(),
-        };
+      // Chạy TRONG LÚC trang còn mở, ngay sau khi PVI chuyển sang
+      // `/Service/Manager`. Đó là lúc duy nhất đọc được dòng đơn vừa tạo mà
+      // không phải nạp lại bảng 1,7 MB. Người gọi dùng nó để khớp và duyệt.
+      if (sauKhiLuu) {
+        try {
+          daLuu.sauKhiLuu = await sauKhiLuu(page, { orderId, product: flow.product, v, kq });
+        } catch (e) {
+          daLuu.sauKhiLuuLoi = e.message;
+        }
       }
+
       if (chupAnh && anh) {
         const anhSau = anh.replace(/\.png$/, '-sau-luu.png');
         await page.screenshot({ path: anhSau, fullPage: true });

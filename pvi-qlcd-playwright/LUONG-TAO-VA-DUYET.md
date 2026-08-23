@@ -104,20 +104,19 @@ có thẩm quyền. Ngưỡng ở `CERTIFICATE_MAX_ATTEMPTS` trong
       insurance_orders (Postgres)
 ```
 
-Bắt đầu **một container**. Mở rộng bằng cách thêm container, mỗi cái một tài
-khoản PVI.
+Chạy **một container**, một tài khoản PVI. Tài khoản đọc từ `PVI_USER` và
+`PVI_PASS` trong `.env.local`, không có bảng khai tài khoản nào.
 
-Mỗi tài khoản chỉ thấy đơn của chính nó trên bảng Manager — đo trên 503 dòng
-2026-08-23, cột "Cán bộ tạo" đồng nhất một người. Nếu điều đó đúng với mọi tài
-khoản thì nhiều container chạy song song không cần khoá và không cần điều phối
-viên: bảng của mỗi worker chỉ chứa đơn của nó.
+Mở rộng bằng cách thêm container, mỗi cái một tài khoản. Mỗi tài khoản chỉ thấy
+đơn của chính nó trên bảng Manager (xác nhận 2026-08-23), nên nhiều container
+chạy song song không cần khoá và không cần điều phối viên: bảng của mỗi worker
+chỉ chứa đơn của nó.
 
-⚠️ Giả định đó **chưa xác nhận bằng tài khoản thứ hai**. Sai thì phải khoá đoạn
-"bấm Chấp nhận rồi đọc bảng" bằng `pg_advisory_lock`, và thông lượng trần rơi
-xuống khoảng 15 đơn/phút.
+Lúc scale mới cần hai thứ: bảng khai tài khoản, và cột ghi đơn nào do tài khoản
+nào tạo — luồng 2 phải dùng đúng phiên đó mới tải được giấy chứng nhận.
 
-Ba việc trước khi dựng container: đo RAM còn trống trên VPS, cài
-`docker-compose-plugin` (VM hiện thiếu), và xác nhận giả định trên.
+Hai việc trước khi dựng container: đo RAM còn trống trên VPS, và cài
+`docker-compose-plugin` (VM hiện thiếu).
 
 ## Dữ liệu lấy từ PVI
 
@@ -203,12 +202,28 @@ tới hết thời gian chờ. Dùng `fetch` với header `Cookie` dựng từ
 **Cần `pdftoppm` của poppler trên máy chạy.** `brew install poppler` trên macOS,
 `apt install poppler-utils` trong container.
 
+## Chạy worker
+
+```bash
+bun run pvi:worker -- --mot-vong      # một vòng rồi thoát, không tạo đơn thật
+bun run pvi:worker                    # chạy mãi, quét mỗi 10 giây
+
+PVI_CHO_PHEP_LUU=1 PVI_CHO_PHEP_DUYET=1 bun run pvi:worker   # chạy thật
+```
+
+Không bật hai biến đó thì worker vẫn lấy đơn và điền form, nhưng dừng trước lúc
+bấm và đưa đơn về `manual-queued`. Dùng để xem nó chọn đúng đơn và điền đúng dữ
+liệu chưa.
+
+Code ở `scripts/pvi-worker.ts`. Ba script cũ (`chay-don.js`, `duyet-don.js`,
+`pvi-fetch-certificates.ts`) vẫn chạy tay được, dùng khi cần soi một đơn.
+
 ## Việc còn lại
 
-1. **Nối luồng 1 vào database.** `chay-don.js` và `duyet-don.js` hiện chạy tay,
-   chưa đọc ghi `insurance_orders`. Luồng 2 đã nối rồi.
-2. **Bảng `pvi_accounts` và cột `pvi_account_id`.**
-3. **Gộp hai luồng thành `worker.js`** chạy vòng lặp.
-4. **Dockerfile** dựa trên image Playwright, thêm `poppler-utils`.
-5. **Xác nhận giả định mỗi tài khoản chỉ thấy đơn của mình** — cần tài khoản thứ hai.
-6. **Đơn nối tiếp bảo hiểm cũ** (`select_ttxe` = `TTTG1.03`) chưa làm.
+1. **Đơn mắc ở `creating`.** Worker chết giữa chừng thì đơn nằm lại đó mãi. Cần
+   một câu quét đưa đơn quá 10 phút về `queued` cho worker khác nhận.
+2. **Dockerfile** dựa trên image Playwright, thêm `poppler-utils`.
+
+Đơn nối tiếp bảo hiểm cũ (`select_ttxe` = `TTTG1.03`) **bỏ hẳn**, không làm:
+người nhập tự chọn ngày bắt đầu, bot không đi tìm đơn cũ. Mọi đơn khai là xe mới
+100%.

@@ -17,6 +17,12 @@ const NGHIEP_VU = {
 /** Mã bộ lọc "Trạng thái": 01 Chờ · 02 Chuyển · 00 Duyệt đơn · -01 Hủy · 03 Đã tạo đơn. */
 const TRANG_THAI_CHO = '01';
 
+/** Chữ ở cột "Nghiệp vụ" của bảng, để đối chiếu với mã sản phẩm bên mình. */
+const TEN_NGHIEP_VU = {
+  'electric-accident': 'Hộ SD điện',
+  motorbike: 'TNDS xe máy',
+};
+
 const SEL = {
   locNghiepVu: '#nghiepvu',
   locTrangThai: '#tthai_don',
@@ -39,6 +45,45 @@ function duocBamDuyet(muonBam) {
       vi: 'Đang trỏ vào PVI thật. Đặt PVI_CHO_PHEP_DUYET=1 mới bấm Duyệt được',
     };
   return { duoc: true };
+}
+
+/** Bỏ dấu, gộp khoảng trắng, viết hoa — để so tên khách giữa PVI và database. */
+function chuanHoaTen(s) {
+  return String(s ?? '')
+    .replace(/[đĐ]/g, (c) => (c === 'đ' ? 'd' : 'D'))
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toUpperCase();
+}
+
+/** Bỏ mọi ký tự không phải số — phí trên bảng ghi `76 000`, script cầm `76000`. */
+const chiSo = (s) => String(s ?? '').replace(/\D/g, '');
+
+/**
+ * Tìm dòng ứng với đơn script vừa tạo.
+ *
+ * Đơn vừa tạo nằm ở dòng ĐẦU vì bảng sắp mới nhất trước, nhưng dòng đầu không
+ * phải lúc nào cũng đúng — người khác có thể tạo đơn cùng lúc. Nên duyệt từ trên
+ * xuống và đòi khớp CẢ NĂM điều kiện. Không dòng nào khớp thì trả `null`, và
+ * người gọi phải dừng chứ không duyệt bừa: duyệt nhầm đơn của người khác là thao
+ * tác không đảo ngược trên dữ liệu ngoài phạm vi.
+ */
+function timDongVuaTao(dong, { tenKhach, product, ngayChungTu, tongPhi }) {
+  const ten = chuanHoaTen(tenKhach);
+  const nghiepVu = TEN_NGHIEP_VU[product];
+  const phi = chiSo(tongPhi);
+  return (
+    dong.find(
+      (d) =>
+        d.trangThai === 'Chờ' &&
+        chuanHoaTen(d.tenKhach) === ten &&
+        (!nghiepVu || chuanHoaTen(d.nghiepVu) === chuanHoaTen(nghiepVu)) &&
+        (!ngayChungTu || d.ngayChungTu === ngayChungTu) &&
+        (!phi || chiSo(d.phi) === phi),
+    ) ?? null
+  );
 }
 
 /**
@@ -80,6 +125,19 @@ async function docDonCho(page, { product } = {}) {
   if (dat.loi) return dat;
 
   await page.waitForTimeout(1500);
+  return docBangHienTai(page);
+}
+
+/**
+ * Đọc bảng Manager của trang ĐANG mở, không tải lại và không đặt bộ lọc.
+ *
+ * Dùng ngay sau khi bấm "Chấp nhận": PVI trả 302 tới `/Service/Manager` nên
+ * trang đã ở đó rồi, và đơn vừa tạo nằm ở dòng đầu. Tải lại là mất trạng thái
+ * đó, và tốn thêm một lượt nạp bảng 1,7 MB.
+ */
+async function docBangHienTai(page) {
+  if (!(await page.locator(SEL.bang).count()))
+    return { loi: 'Trang hiện tại không có bảng đơn' };
 
   return page.evaluate((selBang) => {
     const chu = (e) => (e ? e.textContent.replace(/\s+/g, ' ').trim() : '');
@@ -179,4 +237,15 @@ async function duyetTheoPrKey(page, prKey, { thatSuBam = false } = {}) {
   };
 }
 
-module.exports = { URL_MANAGER, NGHIEP_VU, TRANG_THAI_CHO, docDonCho, duyetTheoPrKey, duocBamDuyet };
+module.exports = {
+  URL_MANAGER,
+  NGHIEP_VU,
+  TEN_NGHIEP_VU,
+  TRANG_THAI_CHO,
+  docDonCho,
+  docBangHienTai,
+  timDongVuaTao,
+  chuanHoaTen,
+  duyetTheoPrKey,
+  duocBamDuyet,
+};

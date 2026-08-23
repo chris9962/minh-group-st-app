@@ -4,7 +4,7 @@
 const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
-const { request } = require('playwright');
+
 const { URL_FORM, SELECTOR_FORM, STATE_PATH } = require('../config');
 
 const ENV_LOCAL = path.join(__dirname, '..', '..', '.env.local');
@@ -28,6 +28,16 @@ function layTaiKhoan(payload = {}) {
   };
 }
 
+/** Dựng header `Cookie` từ file phiên đã lưu. */
+function headerCookie() {
+  const state = JSON.parse(fs.readFileSync(STATE_PATH, 'utf8'));
+  const host = new URL(URL_FORM).hostname;
+  return (state.cookies ?? [])
+    .filter((c) => host === c.domain || host.endsWith(String(c.domain).replace(/^\./, '.')))
+    .map((c) => `${c.name}=${c.value}`)
+    .join('; ');
+}
+
 /**
  * Kiểm phiên bằng một lượt HTTP, không mở trình duyệt.
  *
@@ -35,21 +45,25 @@ function layTaiKhoan(payload = {}) {
  * — đo trên macOS 2026-08-23: 4,6 giây, so với 1,0 giây của lượt HTTP này.
  * Còn phiên là bỏ được cả lần khởi động ấy.
  *
+ * Dùng `fetch` chứ KHÔNG dùng `request` của Playwright: `_parseSetCookieHeader`
+ * của playwright-core ném `TypeError ... cannot be parsed as a URL` trên header
+ * `set-cookie` mà PVI trả về, và lỗi đó nằm ngoài `try` nên không bắt được.
+ *
  * Trả `null` khi không kết luận được; người gọi cứ chạy `ensure-login.js`.
  */
 async function conPhien() {
   if (!fs.existsSync(STATE_PATH)) return false;
-  let ctx;
   try {
-    ctx = await request.newContext({ storageState: STATE_PATH });
-    const res = await ctx.get(URL_FORM, { timeout: 30000 });
-    if (!res.ok()) return false;
+    const res = await fetch(URL_FORM, {
+      headers: { cookie: headerCookie() },
+      signal: AbortSignal.timeout(30000),
+      redirect: 'follow',
+    });
+    if (!res.ok) return false;
     // Hết phiên thì PVI trả màn hình đăng nhập, không còn ô đầu của form.
     return (await res.text()).includes(`id="${SELECTOR_FORM.replace('#', '')}"`);
   } catch {
     return null;
-  } finally {
-    await ctx?.dispose().catch(() => {});
   }
 }
 
