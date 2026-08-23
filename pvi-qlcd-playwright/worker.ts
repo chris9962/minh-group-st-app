@@ -4,13 +4,14 @@
  *   bun run pvi:worker                       # chạy mãi, quét mỗi 10 giây
  *   bun run pvi:worker -- --mot-vong         # chạy đúng một vòng rồi thoát
  *   bun run pvi:worker -- --chi-chung-nhan   # bỏ bước tạo đơn, chỉ tải file
+ *   bun run pvi:worker -- --thu              # điền form rồi dừng, không bấm gì
  *
- * ⚠️ Mặc định KHÔNG tạo và KHÔNG duyệt đơn thật. Muốn chạy thật phải đặt cả hai:
+ * ⚠️ Worker chạy là chạy THẬT: nó tạo đơn và duyệt đơn trên PVI. Đó là việc của
+ * nó, nên bật sẵn hai điều kiện `PVI_CHO_PHEP_LUU` và `PVI_CHO_PHEP_DUYET` —
+ * hai biến ấy sinh ra để chặn script chạy tay gõ nhầm, không phải để chặn worker.
  *
- *   PVI_CHO_PHEP_LUU=1 PVI_CHO_PHEP_DUYET=1 bun run pvi:worker
- *
- * Thiếu chúng thì worker vẫn quét và điền form, nhưng dừng trước lúc bấm — dùng
- * để xem nó chọn đúng đơn và điền đúng dữ liệu chưa.
+ * `--thu` tắt cả hai: worker vẫn lấy đơn và điền 26 ô, nhưng dừng trước lúc bấm.
+ * Dùng để xem nó chọn đúng đơn và điền đúng dữ liệu chưa.
  *
  * Đơn chỉ vào hàng chờ của worker khi `PVI_WORKER_BAT=1`; xem `newOrderStatus`
  * ở `src/server/insurance.ts`. Hai container phải cùng đọc biến đó.
@@ -286,6 +287,9 @@ async function fetchCertificates(db: Db) {
  */
 const CERTIFICATES_ONLY = process.argv.includes("--chi-chung-nhan");
 
+/** `--thu` giữ worker ở chế độ điền-rồi-dừng. Xem chú thích đầu file. */
+const DRY_RUN = process.argv.includes("--thu");
+
 async function runOnce(db: Db) {
   if (CERTIFICATES_ONLY) {
     const only = await fetchCertificates(db);
@@ -334,9 +338,17 @@ async function main() {
     stopping = true;
   });
 
-  const on = (v: string | undefined) => (v === "1" ? "BẬT" : "tắt");
+  // `duocBamLuu` và `duocBamDuyet` đọc hai biến này lúc GỌI, không lúc nạp
+  // module — nên đặt ở đây là đủ, không cần truyền qua dòng lệnh.
+  if (!DRY_RUN) {
+    process.env.PVI_CHO_PHEP_LUU = "1";
+    process.env.PVI_CHO_PHEP_DUYET = "1";
+  }
+
   log(
-    `Worker chạy. Tạo đơn thật: ${on(process.env.PVI_CHO_PHEP_LUU)} · Duyệt thật: ${on(process.env.PVI_CHO_PHEP_DUYET)}`,
+    DRY_RUN
+      ? "Worker chạy ở chế độ THỬ: điền form rồi dừng, không tạo và không duyệt đơn nào."
+      : "Worker chạy THẬT: tạo đơn và duyệt đơn trên PVI.",
   );
 
   do {

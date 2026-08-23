@@ -180,6 +180,8 @@ chỉ nằm ở việc đối soát nội bộ.
 
 ## Điều kiện an toàn
 
+Chỉ áp cho SCRIPT CHẠY TAY. Worker tự bật cả hai — xem mục trên.
+
 | Thao tác | Cần |
 |---|---|
 | Bấm "Chấp nhận" tạo đơn | cờ `--bam-luu` **và** `PVI_CHO_PHEP_LUU=1` |
@@ -209,18 +211,23 @@ thật 2026-08-23: PDF 330KB → WebP 184KB, 1600×1127, mất 1,4 giây.
 ## Chạy worker
 
 ```bash
-bun run pvi:worker -- --mot-vong      # một vòng rồi thoát, không tạo đơn thật
-bun run pvi:worker                    # chạy mãi, quét mỗi 10 giây
-
-PVI_CHO_PHEP_LUU=1 PVI_CHO_PHEP_DUYET=1 bun run pvi:worker   # chạy thật
+bun run pvi:worker                       # chạy mãi, quét mỗi 10 giây — CHẠY THẬT
+bun run pvi:worker -- --mot-vong         # một vòng rồi thoát
+bun run pvi:worker -- --chi-chung-nhan   # bỏ bước tạo đơn, chỉ tải file
+bun run pvi:worker -- --thu              # điền form rồi dừng, không bấm gì
 ```
 
-Không bật hai biến đó thì worker vẫn lấy đơn và điền form, nhưng dừng trước lúc
-bấm và đưa đơn về `manual-queued`. Dùng để xem nó chọn đúng đơn và điền đúng dữ
-liệu chưa.
+**Worker chạy là chạy thật.** Nó tự bật `PVI_CHO_PHEP_LUU` và
+`PVI_CHO_PHEP_DUYET` lúc khởi động — hai biến ấy sinh ra để chặn script chạy tay
+gõ nhầm, không phải để chặn worker.
 
-Code ở `scripts/pvi-worker.ts`. Ba script cũ (`chay-don.js`, `duyet-don.js`,
-`pvi-fetch-certificates.ts`) vẫn chạy tay được, dùng khi cần soi một đơn.
+`--thu` tắt cả hai: worker vẫn lấy đơn và điền 26 ô, nhưng dừng trước lúc bấm và
+đưa đơn về `manual-queued`. Dùng để xem nó chọn đúng đơn và điền đúng dữ liệu
+chưa.
+
+Code ở `worker.ts`. Ba script cũ (`chay-don.js`, `duyet-don.js`,
+`create-order.js`) vẫn chạy tay được, dùng khi cần soi một đơn — chúng giữ mặc
+định KHÔNG bấm và đòi cả cờ lẫn biến môi trường.
 
 ## Container
 

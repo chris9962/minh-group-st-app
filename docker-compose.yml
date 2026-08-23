@@ -83,11 +83,9 @@ services:
     environment:
       # Cùng lý do như service `app`: trong mạng compose, Postgres là `db:5432`.
       DATABASE_URL: postgres://mgst:mgst@db:5432/mgst
-      # Hai biến này KHÔNG đặt sẵn ở đây. Worker chạy mà không có chúng thì điền
-      # form rồi dừng — bấm "Chấp nhận" là tạo đơn thật bên PVI, nên người vận
-      # hành phải khai rõ trong `.env.local`:
-      #   PVI_CHO_PHEP_LUU=1
-      #   PVI_CHO_PHEP_DUYET=1
+      # Worker tự bật `PVI_CHO_PHEP_LUU` và `PVI_CHO_PHEP_DUYET` lúc khởi động:
+      # nó chạy là chạy thật. Muốn nó điền form rồi dừng thì thêm `--thu` vào
+      # lệnh, không phải sửa biến ở đây.
       PVI_STATE: /app/session/storageState.json
     volumes:
       # Phiên đăng nhập PVI sống ngoài container. Mất nó là mỗi lần dựng lại phải
