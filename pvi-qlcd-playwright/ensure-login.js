@@ -2,9 +2,10 @@
 // Đọc payload JSON từ stdin: { "orderId": "...", "taiKhoan": "...", "matKhau": "..." }
 //
 // Đã đăng nhập  → thoát 0 ngay, không mở form đăng nhập.
-// Chưa đăng nhập → điền tài khoản, lưu ảnh captcha, chờ người vận hành gõ giá trị, bấm Đăng nhập.
+// Chưa đăng nhập → điền tài khoản, chụp ảnh captcha, gọi capcha-resolver/solve.py
+//                  đọc 4 chữ số, điền rồi bấm Đăng nhập.
 //
-// Captcha phải do người gõ. Chạy không có bàn phím thì script thoát mã 2 để BE báo người vận hành.
+// Cần python3 + tesseract-ocr trên máy chạy. Không giải được captcha thì thoát mã 3.
 //
 // Mã thoát: 0 có phiên dùng được · 1 payload sai · 2 cần người vận hành · 3 đăng nhập không thành
 

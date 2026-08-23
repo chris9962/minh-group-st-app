@@ -32,8 +32,7 @@ const inRa = (kq) => {
 
   const kq = await taoDon(payload, {
     dryRun: process.argv.includes('--dry-run'),
-    // Chỉ có tác dụng khi PVI_BASE_URL trỏ sang máy chủ giả lập — `lib/order.js`
-    // từ chối bấm trên hệ thống thật.
+    // `lib/order.js` từ chối bấm khi đang trỏ vào PVI thật.
     bamLuu: process.argv.includes('--bam-luu'),
     ghiVet: process.argv.includes('--ghi-vet'),
     choNguoiBamGiay: cho ? Number(cho[1]) : 0,

@@ -9,7 +9,7 @@ việc tiếp theo là gì.
 
 | Bước | Trạng thái |
 |---|---|
-| Điền 23 ô của form tai nạn điện | Xong, đo trên máy chủ giả lập: 24/24 trường tới nơi |
+| Điền 26 ô của form tai nạn điện | Xong. Chạy trên PVI thật 2026-08-23: mọi ô đạt, không ô nào bị trang ghi đè |
 | Bấm nút "Chấp nhận" | Xong trên máy chủ giả lập. CHƯA bấm lần nào trên PVI thật |
 | Đọc `pr_key` của đơn vừa tạo | Có công cụ ghi vết, chưa đo trên PVI thật |
 | Màn duyệt: điền captcha, bấm Chấp nhận | Đo được trên máy chủ giả lập, chưa nối vào bot |
@@ -59,9 +59,28 @@ PVI thật ghi ở spec.
 ở biến toàn cục `code`, trang tự so sánh trong trình duyệt. Đo cả hai chiều:
 điền đúng thì đi tiếp, điền `SAI123` thì hiện `Invalid Captcha. try Again`.
 
-**14 ô có `id` khác `name`.** Bot thao tác theo `id`, form gửi theo `name`.
-Ví dụ `kenh_bh` gửi lên là `select_kenhbh`, `DanhSach_DaiLy` là `select_DaiLy`,
-`trangthai-dv` là `trang_thai`. Bảng ánh xạ ở `mock/kiem-don.js`.
+**Có ô `id` khác `name`.** Bot thao tác theo `id`, form gửi theo `name`. Bảy ô
+đã đo được, chép lại đây vì file chứa bảng này đã xoá cùng máy chủ giả lập:
+
+| `id` trên DOM | `name` gửi lên |
+|---|---|
+| `kenh_bh` | `select_kenhbh` |
+| `DanhSach_DaiLy` | `select_DaiLy` |
+| `keycode_dv` | `KeyCode` |
+| `dtbh_tanphe` | `dtbh_sinhhoat_nhole` |
+| `dtbh_tamthan_ungthu` | `dtbh_tantat_thuongtat` |
+| `idcapmoi` | `loai_dcap` |
+| `idtaituc` | `loai_dcap_taituc` |
+
+**Hai ô giờ dùng 24 giờ, không dùng AM/PM.** Thẻ HTML render sẵn `2:05 PM`,
+nhưng bootstrap-timepicker của trang chạy với `showMeridian: false` và ghi đè
+thành `14:05` ngay lúc khởi tạo. Đọc `$('#StartTime').data('timepicker')` trên
+trang thật 2026-08-23 để đo. Plugin giữ giờ trong state riêng, nên script gọi
+`timepicker('setTime', ...)` chứ không đặt bằng `.val()`.
+
+**`defaultTime: "current"`.** Trang tự điền giờ nạp trang vào cả hai ô, nên hai
+ô không bao giờ trống. Script vẫn ghi đè: giờ nạp trang lệch với giờ người vận
+hành muốn khi đơn chạy trong hàng đợi.
 
 **Checkbox gửi hai giá trị cùng tên.** ASP.NET MVC đặt một ô `hidden` cùng
 `name` giá trị `false` bên cạnh checkbox, nên tick xong trình duyệt gửi
@@ -87,9 +106,9 @@ thuộc tính `name` nên không đi theo form. Toàn bộ việc kiểm nằm �
 **Máy chủ giả lập trả `pr_key` trong HTML trang kết quả.** Đó là PHỎNG ĐOÁN để
 thử được cách bot đọc lại khoá, không phải điều PVI làm.
 
-**Bốn việc spec ghi là chưa chốt** vẫn chưa chốt: ô `MaKhach`, khối hoá đơn điện
-tử (`ho_ten_kh_vat`, `so_cccd`, `ma_sovat`), `StartTime`/`EndTime`, và trang
-kiểm tra hợp lệ những gì lúc bấm "Chấp nhận".
+**Hai việc spec ghi là chưa chốt** vẫn chưa chốt: khối hoá đơn điện tử
+(`ho_ten_kh_vat`, `so_cccd`, `ma_sovat`), và trang kiểm tra hợp lệ những gì lúc
+bấm "Chấp nhận".
 
 ## Điều kiện an toàn đang có
 
@@ -105,8 +124,7 @@ cho mật khẩu phiên PVI.
 
 ## Không lên git
 
-`storageState.json` (cookie đăng nhập thật), `anh/`, `captcha/`, `mock/don/`,
-`vet/`. Khai ở `.gitignore` của mgst-app.
+`storageState.json` (cookie đăng nhập thật), `anh/`, `captcha/`, `vet/`. Khai ở `.gitignore` của mgst-app.
 
 Bộ 11 ảnh captcha ở `capcha-resolver/example/` thì GIỮ: tên file là đáp án đúng,
 nên đó là bộ đo lại được mỗi lần sửa `solve.py`.

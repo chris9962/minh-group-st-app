@@ -20,32 +20,6 @@ File này chỉ nói cách chạy.
 
 Đơn của sản phẩm chưa có script thoát mã 4, BE đặt về `manual-queued` kèm lý do.
 
-## Máy chủ giả lập
-
-Thử bot mà không đụng PVI thật, không cần phiên đăng nhập:
-
-```bash
-bun run pvi:mock                                     # cửa sổ 1
-cat pvi-qlcd-playwright/payload.example.json | \
-  PVI_BASE_URL=http://localhost:3010 bun run pvi:order -- --bam-luu   # cửa sổ 2
-```
-
-`--bam-luu` cho bot bấm nút "Chấp nhận". Máy chủ nhận form rồi kiểm **từng
-trường ở phía nhận**, in kết quả ra log và trả về trang liệt kê trường nào đạt,
-trường nào không. Bot đọc lại kết quả đó vào `daLuu.mayChuNhan`:
-
-```json
-"mayChuNhan": { "dat": true, "soHong": 0, "tomTat": "Máy chủ nhận đủ và đúng 24/24 trường." }
-```
-
-Đây là thứ duy nhất chứng minh dữ liệu "vào thật". Báo cáo điền của bot chỉ nói
-nó ghi được vào ô — ô `disabled`, ô nằm ngoài thẻ `<form>`, hoặc ô bị trang ghi
-đè sau đó đều báo "ĐÃ ĐIỀN" mà máy chủ không nhận được gì.
-
-⚠️ `--bam-luu` KHÔNG có tác dụng khi trỏ vào PVI thật. Bấm ở đó là tạo đơn thật,
-nên script từ chối và trả `khongBamLuuVi`. Chỉ mở khi `PVI_BASE_URL` trỏ sang máy
-chủ khác.
-
 ## Ghi vết mạng
 
 Dùng cho lần bấm "Chấp nhận" ĐẦU TIÊN trên PVI thật, để biết PVI trả `pr_key` ở
@@ -65,35 +39,20 @@ tự dò `pr_key` trong đó.
 File vết lọc `cookie`, `set-cookie` và `authorization` trước khi ghi — chúng thay
 cho mật khẩu phiên PVI, không được nằm trong file dễ gửi đi.
 
-Máy chủ phục vụ **nguyên văn DOM thật** của PVI ở `mock/html/`, chỉ đổi địa chỉ
-tuyệt đối `https://qlcd.pvi.com.vn` thành đường dẫn tương đối. Không viết lại
-HTML: id, option, `onchange` và cả năm hàm của trang phải giống thật, nếu không
-thì bot chạy đúng ở đây rồi hỏng ở PVI.
+## Cách đăng nhập
 
-Năm endpoint máy chủ tự trả lời:
+Form đăng nhập của PVI có captcha ảnh 4 chữ số `/Capcha1.aspx`.
+`capcha-resolver/solve.py` đọc captcha đó, đạt 11/11 trên bộ ảnh ở
+`capcha-resolver/example/`. `ensure-login.js` gọi nó, nên bước đăng nhập chạy
+không cần người gõ.
 
-| Đường dẫn | Việc |
-|---|---|
-| `GET /API/ConvertDateTimeFormat` | Ngày bắt đầu + 1 năm |
-| `GET /API/GetTongPhi_HoSD_Dien` | Tổng phí, và trạng thái khoá ô |
-| `POST /Electrical/GetKenhKT` | Option kênh bán hàng theo nhóm |
-| `POST /Electrical/GetMaKhach` | Autocomplete mã khách |
-| `POST /API/UploadFile_OCR` | Kết quả OCR ảnh căn cước |
+Cần `python3`, `tesseract-ocr`, `pillow`, `numpy` trên máy chạy. Thiếu một trong
+số đó thì `ensure-login.js` thoát mã 3 kèm đường dẫn ảnh captcha.
 
-⚠️ Công thức phí là **suy đoán**: `STBH × tỷ lệ / 100`, dựng từ một điểm đo trên
-trang thật ngày 2026-08-15 (40 000 000 với 0.25 ra 100 000). Công thức thật của
-PVI có thể còn nhân theo số ngày hiệu lực hoặc số người thuê trọ. Đừng tin con
-số máy chủ này trả ra là con số PVI sẽ tính.
-
-Đơn gửi lên lưu thành JSON ở `mock/don/`, không lên git.
-
-## Vì sao phải đăng nhập tay
-
-Form đăng nhập của PVI có captcha ảnh `/Capcha1.aspx`. Script không giải captcha.
+Đăng nhập xong, script lưu cookie vào `storageState.json` và các lần sau dùng
+lại file đó. `login.js` là cách cũ: mở trình duyệt cho người tự đăng nhập.
 
 Trang còn đặt cookie chống bot `x-bni-ja`, `x-bni-fpc`, `x-bni-rncf`. Chạy headless dễ bị chặn, nên mặc định script chạy có giao diện.
-
-Cách làm: đăng nhập tay 1 lần, lưu cookie vào `storageState.json`, các lần sau dùng lại file đó.
 
 ## Cài
 
@@ -105,6 +64,24 @@ bunx playwright install chromium
 ```
 
 Trên VPS không có màn hình, bạn cài thêm Xvfb rồi chạy qua `xvfb-run`.
+
+## Chạy một lệnh: đăng nhập rồi điền
+
+`pvi:chay` gọi `ensure-login` trước, rồi điền form. Còn phiên thì bước đăng nhập
+thoát ngay, không mở lại form đăng nhập.
+
+```bash
+cat pvi-qlcd-playwright/payload.example.json | bun run pvi:chay
+```
+
+Điền xong, script giữ trình duyệt mở 90 giây cho bạn nhìn form. Đổi bằng
+`--cho-nguoi-bam=<giây>`, đặt `0` để đóng ngay.
+
+Tài khoản lấy theo thứ tự: biến môi trường `PVI_USER`/`PVI_PASS` → `.env.local`
+→ trường `taiKhoan`/`matKhau` trong payload.
+
+Hai lệnh dưới đây là hai bước tách rời của cùng luồng đó. Dùng khi cần chạy
+riêng từng bước.
 
 ## Bước 1 — lưu phiên đăng nhập
 
@@ -223,9 +200,7 @@ Script mỗi lần chỉ điền 1 đơn. Khách cần 2 năm thì BE gọi 2 l�
 ## Chưa làm
 
 1. Bấm Lưu. Chưa xác định nút Lưu và chưa biết trang kiểm tra hợp lệ những gì.
-2. Ô `MaKhach` (Mã khách hàng) là autocomplete gọi API. Spec chưa nói có phải điền không.
-3. Khối hóa đơn điện tử: `ho_ten_kh_vat`, `so_cccd`, `ma_sovat`, `dchi_xhoadon`.
-4. `StartTime` và `EndTime` đang lấy theo giờ nạp trang.
+2. Khối hóa đơn điện tử: `ho_ten_kh_vat`, `so_cccd`, `ma_sovat`, `dchi_xhoadon`.
 
 ## File
 
@@ -241,4 +216,5 @@ Script mỗi lần chỉ điền 1 đơn. Khách cần 2 năm thì BE gọi 2 l�
 | `import-cookies.js` | Đổi chuỗi cookie copy từ Chrome thành `storageState.json` |
 | `check-session.js` | Kiểm tra phiên còn dùng được không |
 | `create-order.js` | Đọc payload, mở form, gọi hàm điền, in báo cáo |
+| `chay-don.js` | Gọi `ensure-login.js` rồi `lib/order.js` trong một lệnh |
 | `VPS-SETUP.md` | Hướng dẫn triển khai VPS từng bước |

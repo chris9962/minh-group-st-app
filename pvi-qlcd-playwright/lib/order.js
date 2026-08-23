@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { STATE_PATH } = require('../config');
+const { STATE_PATH, HEADED } = require('../config');
 const { LA_GIA_LAP } = require('./base-url');
 const { layBrowser } = require('./browser');
 const { flowFor, ChuaCoFlow } = require('./flows');
@@ -47,6 +47,8 @@ async function taoDon(
      * không tốn thêm đơn rác, mà lấy được trọn thông tin để nối bước duyệt.
      */
     choNguoiBamGiay = 0,
+    /** Nhận tên từng chặng để người gọi đo thời gian. Mặc định không làm gì. */
+    moc = () => {},
   } = {},
 ) {
   const orderId = tenAnToan(payload?.orderId || 'khong-co-id');
@@ -79,7 +81,13 @@ async function taoDon(
     };
 
   const browser = await layBrowser();
-  const ctx = await browser.newContext({ storageState: STATE_PATH });
+  moc('Chromium sẵn sàng');
+  // `viewport: null` cho vùng vẽ bám theo cửa sổ thật. Bỏ nó thì Playwright ép
+  // 1280x720 cố định: kéo to cửa sổ ra mà trang không tính lại bố cục.
+  const ctx = await browser.newContext({
+    storageState: STATE_PATH,
+    ...(HEADED ? { viewport: null } : {}),
+  });
   const page = await ctx.newPage();
 
   // Gắn TRƯỚC khi mở trang: lượt tải đầu cũng là dữ liệu, và chuyển hướng lúc
@@ -88,6 +96,7 @@ async function taoDon(
 
   try {
     await page.goto(flow.urlForm, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    moc('nạp xong trang form');
 
     // Hết phiên thì trang chuyển sang màn hình đăng nhập, không còn ô của form.
     if (!(await page.locator(flow.selectorForm).count())) {
@@ -96,6 +105,7 @@ async function taoDon(
     }
 
     const kq = await page.evaluate(flow.dien, { v, dryRun });
+    moc('điền xong 26 ô');
     if (kq.loi) {
       await ctx.close().catch(() => {});
       return { ok: false, ma: 3, thongDiep: kq.loi, orderId, product: flow.product };
@@ -106,6 +116,7 @@ async function taoDon(
       fs.mkdirSync(thuMucAnh, { recursive: true });
       anh = path.join(thuMucAnh, `${orderId}.png`);
       await page.screenshot({ path: anh, fullPage: true });
+      moc('chụp ảnh xong');
     }
 
     const hong = kq.canXem.filter((r) => r.status.startsWith('KHÔNG'));

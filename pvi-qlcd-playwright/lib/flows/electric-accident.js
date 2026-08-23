@@ -4,7 +4,7 @@
 // bắt buộc, giá trị cố định, cách tính ngày, và hàm điền. `lib/order.js` không
 // biết tên ô nào của PVI — thêm sản phẩm mới là thêm một file cạnh file này.
 
-const { fmtNgay, fmtTien, doiISO, congNgay, congNam } = require('../ngay');
+const { fmtNgay, fmtGio, fmtTien, doiISO, congNgay, congNam, congPhut } = require('../ngay');
 const { BASE_URL } = require('../base-url');
 
 const URL_FORM = `${BASE_URL}/Electrical/ElectricalService`;
@@ -25,7 +25,12 @@ const FIXED = {
   daiLy: '21.GROUP ST',
   maTienTe: 'VND',
   tyLePhi: '0.25',
+  // Chốt 2026-08-23: một mã khách chung cho mọi đơn.
+  maKhach: '21.80000000',
 };
+
+// Giờ hiệu lực đặt sau lúc chạy 10 phút, để đơn không mang giờ đã qua khi PVI nhận.
+const BU_PHUT = 10;
 
 const BAT_BUOC = ['hoTen', 'soThanhVien', 'diaChi', 'ngayBatDau', 'soTienBaoHiem'];
 
@@ -34,8 +39,11 @@ function dungGiaTri(payload, homNay = new Date()) {
   if (thieu.length) throw new Error(`Payload thiếu trường: ${thieu.join(', ')}`);
 
   const batDau = doiISO(payload.ngayBatDau);
+  const gio = fmtGio(congPhut(homNay, BU_PHUT));
   return {
     ...FIXED,
+    gioBatDau: gio,
+    gioKetThuc: gio,
     hoTen: payload.hoTen,
     soThanhVien: String(payload.soThanhVien),
     diaChi: payload.diaChi,
@@ -79,6 +87,22 @@ async function dien({ v, dryRun }) {
     rec(field, e.value === value ? 'ĐÃ CHỌN' : 'CHỌN KHÔNG VÀO', `${id} = ${e.value}`);
   };
 
+  // bootstrap-timepicker giữ giờ trong state riêng của plugin. Đặt bằng `.val()`
+  // thì lần plugin vẽ lại là giá trị cũ quay về, nên gọi API của nó trước.
+  const setGio = (field, id, value) => {
+    const e = el(id);
+    if (!e) return rec(field, 'KHÔNG CÓ Ô', id);
+    if (dryRun) return rec(field, 'DRY_RUN', `${id} ← ${value}`);
+    try {
+      $(e).timepicker('setTime', value);
+    } catch {
+      $(e).val(value);
+    }
+    if (e.value !== value) $(e).val(value);
+    $(e).trigger('change').trigger('blur');
+    rec(field, e.value === value ? 'ĐÃ ĐIỀN' : 'GHI KHÔNG VÀO', `${id} = ${e.value}`);
+  };
+
   const check = (field, id, wanted = true) => {
     const e = el(id);
     if (!e) return rec(field, 'KHÔNG CÓ Ô', id);
@@ -100,6 +124,11 @@ async function dien({ v, dryRun }) {
     });
 
   set('Người mua bảo hiểm', 'khach_hang', v.hoTen);
+
+  // MaKhach là ô autocomplete gọi POST /Electrical/GetMaKhach. Script ghi thẳng
+  // giá trị, không qua danh sách gợi ý — form gửi theo `name` nên vẫn tới nơi.
+  set('Mã khách hàng', 'MaKhach', v.maKhach);
+
   set('Email', 'Email', v.email);
   pick('Cán bộ khai thác', 'Select_Ma_CanBo_KT', v.canBoKhaiThac);
   set('Số thành viên', 'SoNguoi_HoKhau', v.soThanhVien);
@@ -110,6 +139,12 @@ async function dien({ v, dryRun }) {
   // change_endDate() gọi API của PVI rồi ghi thoihan_bh. API là nguồn đúng cho ngày kết thúc,
   // script chỉ điền khi API để trống, và báo lại khi API cho ngày khác ngày tự tính.
   set('Ngày bắt đầu', 'ngay_batdau', v.ngayBatDau);
+
+  // StartTime có onblur="change_endDate()". Điền giờ TRƯỚC khi đọc thoihan_bh,
+  // không thì đọc xong trang mới tính lại và con số vừa đọc là của lần trước.
+  setGio('Giờ bắt đầu', 'StartTime', v.gioBatDau);
+  if (!dryRun) await new Promise((r) => setTimeout(r, 1200));
+
   if (dryRun) {
     rec('Ngày kết thúc', 'DRY_RUN', `để trang tự tính, đối chiếu với ${v.ngayKetThuc}`);
   } else {
@@ -122,6 +157,8 @@ async function dien({ v, dryRun }) {
       rec('Ngày kết thúc', 'TRANG KHÁC SCRIPT — GIỮ CỦA TRANG', `trang: ${auto} · script tính: ${v.ngayKetThuc}`);
     }
   }
+
+  setGio('Giờ kết thúc', 'EndTime', v.gioKetThuc);
 
   // change_ngaythanhtoan() ghi ngày chạy khi chọn Thanh toán ngay. Ghi đè sau bước này.
   pick('Phương thức thanh toán', 'select_PhuongThuc_ThanhToan', v.phuongThucThanhToan);
@@ -155,8 +192,11 @@ async function dien({ v, dryRun }) {
     log,
     canXem: log.filter((r) => /KHÔNG|GHI ĐÈ|KHÔNG ĐỔI/.test(r.status)),
     kiemChung: {
+      maKhach: doc('MaKhach'),
       ngayBatDau: doc('ngay_batdau'),
+      gioBatDau: doc('StartTime'),
       ngayKetThuc: doc('thoihan_bh'),
+      gioKetThuc: doc('EndTime'),
       ngayThanhToan: doc('NgayThanhToan'),
       soTienBaoHiem: doc('STBH__quytac_hienhanh'),
       tyLePhi: doc('tyle_phi_quytac_hienhanh'),

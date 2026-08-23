@@ -7,7 +7,11 @@ const kho = (globalThis.__pviPlaywright ??= { browser: null });
 
 async function layBrowser() {
   if (kho.browser && kho.browser.isConnected()) return kho.browser;
-  kho.browser = await chromium.launch({ headless: !HEADED });
+  kho.browser = await chromium.launch({
+    headless: !HEADED,
+    // Cửa sổ mở hết màn hình để người kiểm nhìn được trọn form, khỏi cuộn ngang.
+    args: HEADED ? ['--start-maximized'] : [],
+  });
   return kho.browser;
 }
 
