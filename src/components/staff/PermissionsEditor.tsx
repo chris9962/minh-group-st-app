@@ -106,20 +106,17 @@ export function PermissionsEditor({ value, onChange, actor }: Props) {
       {EDITABLE_MODULES.map((module) => (
         <div key={module} className={styles.module}>
           <h4 className={styles.moduleTitle}>{MODULE_LABEL[module]}</h4>
+          {/* Ô tìm khách đi route riêng và KHÔNG đọc phạm vi này — nói thẳng ra,
+              không thì người cấp quyền tưởng hạ xuống `phòng` là chặn được cả ô
+              tìm, rồi ngạc nhiên khi nhân viên vẫn tra ra khách phòng khác. */}
+          {module === "customer" && (
+            <p className={styles.moduleNote}>
+              Ô tìm khách lúc mở tài khoản, tạo đơn hay ghi dịch vụ luôn tra được toàn công ty để
+              không ai lập hồ sơ trùng. Phạm vi dưới đây không siết ô đó.
+            </p>
+          )}
 
           {actionsForModule(module).map((action) => {
-            // Ngoại lệ đã chốt (spec §2.1b): xem hồ sơ khách hàng luôn mở toàn
-            // công ty, không ai cấp/thu hồi riêng lẻ được.
-            if (module === "customer" && action === "view-detail") {
-              return (
-                <div key={action} className={styles.row}>
-                  <span className={styles.actionLabel}>{ACTION_LABEL[action]}</span>
-                  <span className={`${styles.mark} ${styles.markCompany}`} aria-hidden="true" />
-                  <span className={styles.locked}>Toàn công ty · luôn mở</span>
-                </div>
-              );
-            }
-
             const max = grantScopeFor(actor, module, action);
             // Toàn quyền là 15 dòng module `*`, không có dòng nào mang tên
             // module này — hiện thẳng mức công ty thay vì để ô trống, không thì

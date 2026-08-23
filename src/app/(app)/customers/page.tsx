@@ -123,12 +123,7 @@ export default function CustomersPage() {
 
   const from = range?.from ? iso(range.from) : "";
   const to = range?.to ? iso(range.to) : "";
-  /**
-   * `mine` chỉ bật ở BẢNG NÀY. Ba ô tìm khách của hộp thoại Mở tài khoản, Tạo
-   * đơn bảo hiểm và Ghi dịch vụ gọi chung route nhưng không gửi cờ, nên nhân
-   * viên vẫn tìm được khách của đồng nghiệp ở đó (spec §2.1b).
-   */
-  const asked: CustomerQuery = { ...query, search: debouncedSearch, from, to, mine: true };
+  const asked: CustomerQuery = { ...query, search: debouncedSearch, from, to };
 
   const { data: page = EMPTY_PAGE, isPending, isError, refetch, isFetching } = useQuery({
     queryKey: ["customers", asked],

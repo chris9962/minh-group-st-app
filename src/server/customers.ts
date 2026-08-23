@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, or, sql, type SQL, type SQLWrapper } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, or, sql, type SQL, type SQLWrapper } from "drizzle-orm";
 import type {
   Customer,
   CustomerAccountRow,
@@ -7,6 +7,7 @@ import type {
   CustomerEditForm,
   CustomerForm,
   CustomerInsuranceRow,
+  CustomerLookupRow,
   CustomerRow,
   CustomerServiceRow,
   CustomerSort,
@@ -37,10 +38,13 @@ import {
 /**
  * P-40 · P-41 · P-42 — bản DB của module khách hàng.
  *
- * Hồ sơ khách KHÔNG áp trục phạm vi (spec §2.1b): ai đăng nhập cũng đọc được cả
- * kho, vì không thì chặn trùng CCCD và ô tìm kiếm đều vô dụng. Chỉ BẢN GHI
- * NGHIỆP VỤ treo dưới khách — tài khoản ngân hàng, đơn bảo hiểm — mới lọc theo
- * phòng, và đó là việc của `customerDetailFor`.
+ * Phạm vi ở module này do NƠI GỌI quyết, không do hàm ở đây: bảng P-40 truyền
+ * `departmentIds`/`createdBy` theo quyền người xem (chốt 2026-08-23), còn ô tìm
+ * khách của ba hộp thoại cố ý không truyền gì để nhân viên tra ra khách đồng
+ * nghiệp đã lập (spec §2.1b) — không thì chặn trùng CCCD và ô tìm đều vô dụng.
+ *
+ * Bản ghi nghiệp vụ treo dưới khách — tài khoản ngân hàng, đơn bảo hiểm — lọc
+ * theo phòng ở một đường riêng, việc của `customerDetailFor`.
  */
 
 /** Số CCCD nhìn thấy được khi KHÔNG có `customer:access-id-number` — 4 số cuối. */
@@ -79,6 +83,17 @@ export type CustomerFilters = {
   to: string;
   /** Rỗng = không lọc. Route P-40 đặt = id người xem khi họ là Nhân viên. */
   createdBy?: string;
+  /**
+   * Rỗng hoặc thiếu = không lọc theo phòng.
+   *
+   * CHỈ màn danh sách P-40 đặt trường này (chốt 2026-08-23): cấp quản lý mở
+   * trang Khách hàng thì thấy khách phòng mình, không phải cả công ty.
+   *
+   * Ô tìm khách của ba hộp thoại — Mở tài khoản, Tạo đơn bảo hiểm, Ghi dịch vụ
+   * — CỐ Ý không đặt, vì spec §2.1b: nhân viên phải tìm ra khách đồng nghiệp đã
+   * lập, nếu không họ lập hồ sơ trùng.
+   */
+  departmentIds?: string[];
 };
 
 /**
@@ -131,6 +146,9 @@ function customerFilters(query: CustomerFilters): SQL | undefined {
   const parts = [
     searchWhere(query.search),
     query.createdBy ? eq(customers.createdBy, query.createdBy) : undefined,
+    // Danh sách rỗng nghĩa là "không phòng nào" — người có quyền nhưng chưa
+    // được giao phòng nào thì thấy bảng rỗng, không phải thấy cả kho.
+    query.departmentIds ? inArray(customers.createdByDepartmentId, query.departmentIds) : undefined,
     query.channelId ? eq(customers.channelId, query.channelId) : undefined,
     // Ngày sai định dạng thì BỎ QUA, không trả 400: link cũ hay ô địa chỉ gõ
     // nhầm không đáng làm hỏng cả màn (cùng lối nghĩ với `uuidParam`).
@@ -344,6 +362,42 @@ export async function listCustomers(
 }
 
 /**
+ * Trần cứng của một lượt TRA CỨU. Không có tham số nào nới được nó.
+ *
+ * Đây là thứ phân biệt tra cứu với liệt kê: gõ từ khoá ra 15 người gần đúng
+ * nhất là tra cứu, lật trang tới người thứ 250.000 là đọc cả kho.
+ */
+const LOOKUP_LIMIT = 15;
+
+/**
+ * TRA CỨU khách theo từ khoá — ô tìm khách của ba hộp thoại tạo bản ghi.
+ *
+ * Toàn công ty, KHÔNG áp phạm vi phòng: spec §2.1b bắt nhân viên tìm ra khách
+ * đồng nghiệp đã lập, nếu không họ lập hồ sơ trùng và chặn CCCD trùng chỉ báo
+ * lỗi chứ không chỉ được sang hồ sơ có sẵn.
+ *
+ * Đổi lại, đường này hẹp hết mức có thể mà vẫn làm được việc đó: không nhận
+ * `page`, không trả `total`, chỉ ba trường. Không có địa chỉ, không có ngày
+ * sinh, không có bốn số cuối CCCD — chúng nằm ở `/api/customers/[id]`, và mở
+ * một hồ sơ cụ thể có ghi nhật ký.
+ *
+ * Sắp theo tên chứ không theo ngày tạo: người dùng đang tìm một cái tên.
+ */
+export async function lookupCustomers(search: string): Promise<CustomerLookupRow[]> {
+  const inner = pickPage(
+    searchWhere(search),
+    [asc(customers.searchName), asc(customers.id)] as SQL[],
+    LOOKUP_LIMIT,
+    0,
+  );
+  return decorate(inner)
+    .orderBy(asc(inner.searchName), asc(inner.id))
+    .then((rows) =>
+      rows.map((r) => ({ id: r.id, fullName: r.fullName, primaryPhone: r.primaryPhone })),
+    );
+}
+
+/**
  * Trần cứng của một lượt xuất Excel. Vượt trần thì cắt — file 50.000 dòng không
  * ai mở ra để đọc, và dựng nó là giữ một kết nối DB cùng cả chỗ nhớ ấy rất lâu.
  */
@@ -538,8 +592,9 @@ export async function updateCustomer(
    * thiếu là "có sửa được ĐÚNG hồ sơ này không": nhân viên sửa khách mình tạo,
    * quản lý sửa khách của phòng mình quản (spec §1.1.2).
    *
-   * Chỉ áp cho GHI. Đọc, tìm và xuất vẫn mở toàn công ty (spec §2.1b) — siết cả
-   * hai đầu là hai người nhập trùng một khách mà không ai thấy.
+   * Chỉ áp cho GHI. Ô TÌM khách vẫn mở toàn công ty (spec §2.1b) — siết cả hai
+   * đầu là hai người nhập trùng một khách mà không ai thấy. Bảng P-40 và file
+   * xuất thì có siết, nhưng ở nơi gọi chứ không ở đây.
    *
    * Trả `null` để route ra 404, không ra 403: 403 xác nhận id đó có thật.
    */

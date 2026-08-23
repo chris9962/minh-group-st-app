@@ -55,8 +55,9 @@ const DATE_COLUMN = {
 /**
  * Ô tên khách — bấm sang hồ sơ khách hàng.
  *
- * Hồ sơ khách KHÔNG áp trục phạm vi (spec §2.1b) nên ai đăng nhập cũng mở được;
- * không phải kiểm quyền trước khi dựng link như cột Đơn vị ở bảng nhân sự.
+ * Mở một hồ sơ khách theo id không áp trục phạm vi (spec §2.1b) nên ai đăng nhập
+ * cũng mở được; không phải kiểm quyền trước khi dựng link như cột Đơn vị ở bảng
+ * nhân sự. Phạm vi phòng chỉ siết BẢNG P-40, không siết đường này.
  */
 function CustomerCell({ id, name }: { id: string; name: string }) {
   return (

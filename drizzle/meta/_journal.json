@@ -260,6 +260,20 @@
       "when": 1787431200000,
       "tag": "0036_insurance_awaiting_certificate",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1787434800000,
+      "tag": "0037_customers_department_scope",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1787438400000,
+      "tag": "0038_customer_scope_managers",
+      "breakpoints": true
     }
   ]
 }

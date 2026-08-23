@@ -19,9 +19,20 @@ const p = (
 
 /** Nhân viên kinh doanh — phạm vi hẹp nhất, không hiện thanh chọn phạm vi. */
 const staffPermissions: Permission[] = [
-  /** Hồ sơ khách hàng: xem luôn mở toàn công ty (spec §2.1b), không áp phạm vi
-   *  dù người này chỉ có `own` ở mọi module khác. */
-  p('customer', 'view-detail', 'company'),
+  /**
+   * Bảng P-40 của nhân viên chỉ hiện khách MÌNH lập.
+   *
+   * Trước 2026-08-23 ô này là `company`, và nó không mô tả cái gì thật: bảng
+   * P-40 vẫn lọc theo người tạo bằng một điều kiện `role === 'staff'` đặt thẳng
+   * ở route. Mức `company` chỉ tồn tại để ô tìm khách của ba hộp thoại chạy
+   * được, mà ô đó nay đi `/api/customers/lookup` — route riêng, mở toàn công ty
+   * theo spec §2.1b và không đọc quyền này.
+   *
+   * Hạ xuống `own` rồi thì phạm vi tự lo phần lọc, không cần đọc chức vụ nữa.
+   * Chức vụ KHÔNG phải nguồn quyền (AGENTS.md §6): tài khoản mang vai Nhân viên
+   * nhưng được cấp quyền rộng hơn phải thấy rộng hơn.
+   */
+  p('customer', 'view-detail', 'own'),
   p('customer', 'create', 'own'),
   p('customer', 'update', 'own'),
   p('insurance', 'view-summary', 'own'),
@@ -91,7 +102,12 @@ const staffPermissions: Permission[] = [
 /**
  * Trưởng phòng và Phó GĐ dùng CÙNG bộ hành động với nhân viên, chỉ khác phạm vi.
  * `create` vẫn là `own` — quản lý xem được đơn của lính nhưng không tạo hộ ai.
- * `customer:view-detail` không nới vì đã ở mức rộng nhất (`company`) sẵn rồi.
+ *
+ * `customer:view-detail` là chỗ DUY NHẤT hẹp ĐI so với nhân viên, và đó là cố ý
+ * (chốt 2026-08-23): quản lý nhìn danh sách khách của PHÒNG MÌNH QUẢN, không
+ * nhìn cả kho. Nhân viên giữ `company` vì bảng P-40 của họ đã lọc theo người
+ * tạo rồi, nên `company` chỉ còn tác dụng ở ba ô tìm khách — thứ mà quản lý
+ * cũng vẫn dùng được, vì hộp thoại không gửi `mine=1`.
  *
  * Thêm riêng: quản được người — thêm/sửa/khoá nhân viên trong phòng mình phụ
  * trách (`staff`), và xuất Excel ở phạm vi phòng quản.
@@ -102,11 +118,7 @@ const staffPermissions: Permission[] = [
  * ở `signedIn` bên `server/auth.ts`.
  */
 const managerPermissions: Permission[] = [
-  ...staffPermissions.map((x) =>
-    x.action === 'create' || (x.module === 'customer' && x.action === 'view-detail')
-      ? x
-      : { ...x, scope: 'managed' as const },
-  ),
+  ...staffPermissions.map((x) => (x.action === 'create' ? x : { ...x, scope: 'managed' as const })),
   /**
    * Xuất Excel chỉ từ cấp quản lý trở lên — kéo cả kho về máy khác hẳn xem một
    * bản ghi. Bốn quyền này phải khớp ĐÚNG bốn báo cáo ở màn Xuất dữ liệu; thiếu
@@ -119,16 +131,15 @@ const managerPermissions: Permission[] = [
   /**
    * Xuất danh sách khách — Phó GĐ, Trưởng phòng, Phó phòng (chốt 06/08).
    *
-   * Phạm vi `company` chứ không phải `managed`, và đó là mô tả THẬT chứ không
-   * phải nới tay: hồ sơ khách KHÔNG áp trục phạm vi (spec §2.1b), nên
-   * `listCustomersForExport` không đọc phạm vi ở đâu cả — file luôn gồm mọi
-   * khách khớp bộ lọc. Ghi `managed` ở đây là nói dối cho êm tai: nhìn bảng
-   * quyền tưởng hẹp, mà file xuất ra vẫn là cả kho.
+   * Phạm vi `managed` từ 2026-08-23, trước đó là `company`. Bản cũ ghi `company`
+   * vì `listCustomersForExport` không đọc phạm vi ở đâu cả nên file luôn gồm cả
+   * kho — ghi hẹp hơn lúc đó là nói dối cho êm tai. Giờ hàm xuất đã lọc theo
+   * phạm vi thật, nên con số này mô tả đúng file nhận được.
    *
    * Bản xuất KHÔNG chứa CCCD: `CustomerRow` không có trường đó. CCCD đi đường
    * riêng, gác bằng `customer:access-id-number`.
    */
-  p('customer', 'export', 'company'),
+  p('customer', 'export', 'managed'),
   p('staff', 'view-summary', 'managed'),
   p('staff', 'view-detail', 'managed'),
   p('staff', 'create', 'managed'),

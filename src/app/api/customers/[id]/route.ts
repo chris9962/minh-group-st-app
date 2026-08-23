@@ -19,7 +19,9 @@ export async function GET(request: Request, { params }: Params) {
   /**
    * MỌI lượt mở hồ sơ khách đều vào nhật ký (`mgst-db-design.md` §3 và §6).
    *
-   * Hồ sơ khách không áp trục phạm vi (spec §2.1b) nên mọi nhân viên đọc được
+   * Mở MỘT hồ sơ theo id không áp trục phạm vi (spec §2.1b) — bảng P-40 có siết
+   * theo phòng từ 2026-08-23, đường này thì không, vì ô tìm khách vẫn trả ra
+   * khách phòng khác và bấm vào phải mở được. Nghĩa là mọi nhân viên đọc được
    * địa chỉ và 4 số cuối CCCD của mọi khách trong công ty. Không chốt nào chặn
    * họ, nên nhật ký là thứ duy nhất trả lời được "ai đã đọc hồ sơ này".
    *

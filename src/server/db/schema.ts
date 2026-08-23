@@ -586,6 +586,14 @@ export const customers = pgTable(
      */
     index("customers_creator_date").on(t.createdBy, t.createdAt),
     /**
+     * P-40 lọc theo PHÒNG của người lập từ 2026-08-23: cấp quản lý chỉ thấy
+     * khách phòng mình. Khớp đúng khoá sắp mặc định `created_at desc, id`, nếu
+     * không thì mỗi lượt mở bảng là một lượt xếp lại cả kho để lấy 15 dòng.
+     */
+    index("customers_dept_date").on(
+      sql`created_by_department_id, created_at desc, id`,
+    ),
+    /**
      * P-40 lọc theo trạng thái quà, P-80 đếm "đủ ĐK chưa phát" — cả hai đều hỏi
      * "khách nào có `gift_case`". Chỉ mục một phần vì đại đa số khách chưa đủ
      * combo nào, để `null` ra ngoài thì chỉ mục nhỏ hơn hẳn.

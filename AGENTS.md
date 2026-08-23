@@ -268,10 +268,33 @@ phải soi là bảng **lớn thêm theo ngày làm việc**: `bank_accounts`,
 
 - **Đúng một hàm kiểm quyền**: `src/lib/permissions.ts`. Mọi màn danh sách, chi tiết, xuất Excel đều qua đó
 - Kiểm ở giao diện chỉ để ẩn/hiện. **Ẩn nút không phải là phân quyền** — máy chủ vẫn phải kiểm lại
-- Hồ sơ **khách hàng** tách ĐỌC với GHI (chốt 2026-08-17). **Đọc, tìm, xuất** mở
-  toàn công ty, không áp phạm vi — spec §2.1b, để hai người không nhập trùng một
-  khách. **Sửa** thì áp phạm vi mức DÒNG như mọi bản ghi nghiệp vụ:
-  `recordVisibility` + `recordInScope`, không phải chỉ `can()`
+- Hồ sơ **khách hàng** tách ĐỌC với GHI (chốt 2026-08-17). **Sửa** thì áp phạm vi
+  mức DÒNG như mọi bản ghi nghiệp vụ: `recordVisibility` + `recordInScope`, không
+  phải chỉ `can()`
+- Phần ĐỌC của khách hàng đi **ba route riêng** (chốt 2026-08-23), vì "tra cứu
+  chống nhập trùng" và "xem danh sách" không phải một việc:
+
+  | Route | Ai thấy gì | Hình dạng trả về |
+  |---|---|---|
+  | `/api/customers` — bảng P-40 | theo `customer:view-detail`: nhân viên thấy khách mình lập, quản lý thấy khách phòng mình quản, `company` thấy cả kho | một TRANG `CustomerRow` đầy đủ, có `total` |
+  | `/api/customers/lookup` — ô tìm khách | MỌI người tra được cả kho | tối đa 15 dòng gồm `id` · `fullName` · `primaryPhone`, KHÔNG phân trang, KHÔNG `total` |
+  | `/api/customers/export` — xuất Excel | theo `customer:export`, cấp riêng với `view-detail` | trọn danh sách khớp bộ lọc |
+
+  Route tra cứu phải mở toàn công ty, đó là spec §2.1b: nhân viên không tra ra
+  khách đồng nghiệp đã lập thì họ lập hồ sơ trùng, và chặn CCCD trùng chỉ báo
+  lỗi chứ không chỉ được sang hồ sơ có sẵn. Đổi lại nó hẹp hết mức còn làm được
+  việc đó — bỏ phân trang là chốt chính, và ba trường kia không có địa chỉ,
+  ngày sinh hay bốn số cuối CCCD.
+
+  **Đừng gộp lại thành một route phân biệt bằng tham số.** Bản trước làm vậy với
+  cờ `mine=1`, và bỏ cờ đó khỏi URL là đọc được cả kho — kể cả người mà bảng
+  P-40 chỉ cho thấy một phòng. Cờ do phía gọi gửi không phải phân quyền.
+
+  Hai chỗ dễ sai còn lại: phạm vi `none` (quản lý chưa được giao phòng nào) phải
+  thành **mảng rỗng**, không phải `undefined` — bỏ lọc là kéo trọn kho cho đúng
+  người đáng hẹp nhất. Và `customer` nằm ngoài `RECORD_MODULES` của
+  `permissions.ts`: phạm vi ở module đó nói người này đọc được hồ sơ KHÁCH nào,
+  không nói họ đọc được BẢN GHI NGHIỆP VỤ của phòng nào
 - **`can()` không phải điều kiện kiểm tra mức dòng.** Nó trả lời "người này có
   làm được hành động này không", không trả lời "có làm được lên ĐÚNG bản ghi này
   không". Mọi đường GHI phải hỏi cả hai; hỏi mỗi `can()` là ai có quyền sửa cũng

@@ -9,7 +9,7 @@ import { Dialog } from "@/components/ui/Dialog";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { SearchField } from "@/components/ui/SearchField";
 import { SkeletonTable, SkeletonText } from "@/components/ui/Skeleton";
-import { fetchCustomerDetail, fetchCustomers, type Customer } from "@/lib/api/customers";
+import { fetchCustomerDetail, fetchCustomerLookup, type Customer } from "@/lib/api/customers";
 import { useDebouncedValue } from "@/lib/hooks";
 import styles from "./CustomerPickerDialog.module.scss";
 
@@ -57,17 +57,7 @@ export function CustomerPickerDialog({ open, onClose, title, children }: Props) 
     isFetching: listFetching,
   } = useQuery({
     queryKey: ["customers-picker", searchQuery],
-    queryFn: () =>
-      fetchCustomers({
-        search: searchQuery,
-        channelId: "",
-        staffId: "",
-        from: "",
-        to: "",
-        page: 0,
-        sort: "name",
-        dir: "asc",
-      }),
+    queryFn: () => fetchCustomerLookup(searchQuery),
     enabled: open && !pickedId && !readyCustomer,
     placeholderData: (previous) => previous,
   });
@@ -94,7 +84,7 @@ export function CustomerPickerDialog({ open, onClose, title, children }: Props) 
   const resolvedCustomer = readyCustomer ?? detail?.customer ?? null;
   if (resolvedCustomer) return <>{children(resolvedCustomer, back)}</>;
 
-  const customers = list?.rows ?? [];
+  const customers = list ?? [];
 
   return (
     <>

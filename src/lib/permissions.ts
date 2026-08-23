@@ -434,19 +434,23 @@ function reachOf(user: User): string[] | null {
   for (const p of user.permissions) {
     if (p.scope !== 'company') continue;
     if (!RECORD_ACTIONS.includes(p.action)) continue;
-    // `customer` nằm ngoài `RECORD_MODULES`: hồ sơ khách KHÔNG áp trục phạm vi
-    // (spec §2.1b), nên `customer:view-detail` của MỌI người đều là `company`.
-    // Tính nó vào thì ai cũng thành "toàn công ty" và chốt này mất tác dụng.
+    // `customer` nằm ngoài `RECORD_MODULES`. Phạm vi ở module đó nói người này
+    // đọc được hồ sơ KHÁCH nào, không nói họ đọc được BẢN GHI NGHIỆP VỤ của
+    // phòng nào. Ai được cấp `customer:view-detail` toàn công ty mà tính vào
+    // đây là thành "toàn công ty" ở cả bốn module kia — rộng hơn hẳn thứ người
+    // cấp quyền định cho.
     if (p.module === '*' || RECORD_MODULES.includes(p.module)) return null;
   }
   return [...ids];
 }
 
 /**
- * Hồ sơ KHÁCH HÀNG không áp trục phạm vi — mọi nhân viên xem được toàn công ty
- * (spec mục 2.1b). Chỉ BẢN GHI NGHIỆP VỤ mới áp.
+ * Ai đăng nhập cũng MỞ ĐƯỢC màn khách hàng — hàm này chỉ gác cửa, không nói họ
+ * thấy bao nhiêu dòng. Số dòng do `recordVisibility(user, 'customer', …)` quyết
+ * định ở từng route.
  *
- * Bắt buộc phải như vậy: không thì chặn cứng CCCD trùng và ô tìm kiếm đều vô dụng.
+ * Cửa phải mở cho mọi người: đóng nó lại thì chặn cứng CCCD trùng và ô tìm
+ * kiếm đều vô dụng (spec §2.1b).
  */
 export function canViewCustomers(user: User | null): boolean {
   return user !== null;

@@ -1,5 +1,7 @@
 import { CUSTOMER_ERROR, CustomerForm, type CustomerSort } from "@/lib/api/customers";
 import { logAudit } from "@/server/audit";
+import { recordVisibility } from "@/lib/permissions";
+import type { User } from "@/lib/types";
 import { actorWith, badRequest, jsonBody, signedIn, uuidParam } from "@/server/auth";
 import { createCustomer, listCustomers } from "@/server/customers";
 import { pageArgsFrom } from "@/server/pagination";
@@ -7,11 +9,43 @@ import { pageArgsFrom } from "@/server/pagination";
 const SORTABLE: readonly CustomerSort[] = ["name", "accounts", "insurance", "created"];
 
 /**
+ * Bộ lọc phạm vi của BẢNG P-40, tính theo QUYỀN chứ không theo chức vụ.
+ *
+ * Đọc quyền chứ không đọc `role`: chức vụ chỉ là bộ quyền mặc định lúc tạo hồ
+ * sơ (AGENTS.md §6). Một trưởng phòng được cấp `view-detail` toàn công ty thì
+ * vẫn thấy hết, và cấp đó là quyết định của người quản trị.
+ *
+ * Bốn mức đều phải có nhánh riêng. `none` và `creator` mà rơi về `undefined` là
+ * "không lọc gì" — người đáng hẹp nhất lại thấy trọn kho.
+ */
+function p40Scope(actor: User): { departmentIds?: string[]; createdBy?: string } {
+  const view = recordVisibility(actor, "customer", "view-detail");
+  switch (view.kind) {
+    case "all":
+      return {};
+    case "departments":
+      return { departmentIds: view.departmentIds };
+    case "creator":
+      return { createdBy: view.userId };
+    // Phạm vi `phòng tôi quản` mà chưa được giao phòng nào — ca có thật, hai
+    // Phó GĐ đang ở tình trạng đó. Mảng rỗng cho ra `where false`, đúng nghĩa
+    // "không phòng nào".
+    case "none":
+      return { departmentIds: [] };
+  }
+}
+
+/**
  * P-40 · Danh sách khách hàng.
  *
- * Chỉ chặn ở mức đã đăng nhập: hồ sơ khách không áp trục phạm vi (spec §2.1b),
- * và sidebar cũng hiện mục này cho mọi người — hai nơi phải khớp, lệch nhau thì
- * menu dẫn tới một màn bị chính nó chặn.
+ * Chỉ chặn ở mức đã đăng nhập, và sidebar cũng hiện mục này cho mọi người — hai
+ * nơi phải khớp, lệch nhau thì menu dẫn tới một màn bị chính nó chặn. Số DÒNG
+ * thì áp phạm vi, và áp KHÔNG ĐIỀU KIỆN (chốt 2026-08-23).
+ *
+ * Bản trước nhận tham số `mine=1` và chỉ áp phạm vi khi có nó, vì ô tìm khách
+ * của ba hộp thoại dùng chung route này. Bỏ tham số đó khỏi URL là đọc được cả
+ * kho — cờ do phía gọi gửi không phải phân quyền (AGENTS.md §6). Ô tìm khách
+ * nay đi `/api/customers/lookup`.
  */
 export async function GET(request: Request) {
   const guard = await signedIn(request);
@@ -19,6 +53,7 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const params = url.searchParams;
+  const scope = p40Scope(guard.actor);
 
   return Response.json(
     await listCustomers(
@@ -28,28 +63,14 @@ export async function GET(request: Request) {
         from: params.get("from") ?? "",
         to: params.get("to") ?? "",
         /**
-         * Nhân viên chỉ thấy khách MÌNH tạo — CHỈ khi nơi gọi hỏi bằng `mine=1`.
+         * Phạm vi thắng bộ lọc do người dùng chọn.
          *
-         * Bộ lọc này là một CÁCH XEM của bảng P-40 (chốt 2026-08-15), không
-         * phải phân quyền: spec §2.1b bắt buộc mọi nhân viên xem được mọi hồ sơ
-         * khách, và §2.1b có hẳn mục "Đây không phải tuỳ chọn" nêu lý do.
-         *
-         * Bản trước đặt điều kiện thẳng ở route nên nó áp cho MỌI nơi gọi. Ba ô
-         * tìm khách của hộp thoại Mở tài khoản, Tạo đơn bảo hiểm và Ghi dịch vụ
-         * dùng chung route này, nên nhân viên không tìm ra khách của đồng nghiệp
-         * và không mở nổi tài khoản cho họ. Chính commit `dd2a480` viết là chỉ
-         * áp cho P-40 — code không làm đúng câu đó.
+         * Ô lọc Nhân viên chỉ hiện với người có `staff:view-detail`, nhưng người
+         * mang phạm vi `chỉ mình` không được mượn tham số đó để xem bảng của
+         * người khác — lời gọi nặn tay cũng phải ra một kết quả xác định.
          */
-        /**
-         * `mine=1` thắng `staffId`: bảng P-40 luôn gửi cờ này, còn ô lọc Nhân
-         * viên chỉ hiện với người có `staff:view-detail` — nhân viên không có
-         * quyền đó nên hai tham số không bao giờ chọi nhau ở giao diện. Ưu tiên
-         * tường minh ở đây để lời gọi nặn tay cũng ra một kết quả xác định.
-         */
-        createdBy:
-          params.get("mine") === "1" && guard.actor.role === "staff"
-            ? guard.actor.id
-            : uuidParam(params.get("staffId")),
+        createdBy: scope.createdBy ?? uuidParam(params.get("staffId")),
+        departmentIds: scope.departmentIds,
       },
       pageArgsFrom(url, SORTABLE, "created"),
     ),
