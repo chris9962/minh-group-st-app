@@ -17,7 +17,7 @@ luồng duyệt phải làm những bước nào.
 | Màn duyệt: điền captcha, bấm Chấp nhận | Xong. Duyệt thật một đơn 2026-08-23, đơn chuyển sang "Tạo đơn" |
 | Tải giấy chứng nhận, đổi ảnh, đẩy kho (luồng 3) | Xong, đo trên PVI thật 2026-08-23 với hai đơn có file |
 | Nối luồng 2 vào database | Chưa làm — hai cột `pvi_*` đã có |
-| Flow BH xe máy | Chưa làm — chưa khảo sát form của PVI |
+| Flow BH TNDS xe máy | Xong. Chạy trên PVI thật 2026-08-23: mọi ô đạt, phí khớp |
 
 ## Việc tiếp theo, theo thứ tự
 
@@ -91,6 +91,21 @@ trang thật 2026-08-23 để đo. Plugin giữ giờ trong state riêng, nên s
 **`defaultTime: "current"`.** Trang tự điền giờ nạp trang vào cả hai ô, nên hai
 ô không bao giờ trống. Script vẫn ghi đè: giờ nạp trang lệch với giờ người vận
 hành muốn khi đơn chạy trong hàng đợi.
+
+**Form xe máy đòi tiền có dấu cách phân nghìn.** Điền `5000000` vào
+`MucTrachNhiem_LaiPhu` thì PVI trả `Tong_MTN_LaiPhu = 0` và phí lái phụ 0. Điền
+`5 000 000` thì trả đúng 10 000 000 và phí 10 000. Đo cả hai chiều 2026-08-23.
+
+**`TinhPhiBH()` gọi chồng nhau làm phí ra 0.** Bốn ô của form xe máy tự gọi hàm
+đó lúc `change`: loại xe, ngày bắt đầu, ngày kết thúc, ô tick lái phụ. Nó là
+`$.ajax` bất đồng bộ, nên lượt gọi lúc tick lái phụ — chạy khi mức trách nhiệm
+còn rỗng — về SAU lượt gọi cuối và ghi đè phí đúng bằng 0. Script chờ 1,5 giây
+cho các lượt cũ về hết rồi mới gọi lần cuối.
+
+**`changeNgayBH()` luôn đặt ngày kết thúc bằng ngày bắt đầu cộng ĐÚNG một năm.**
+Đơn 2 hay 3 năm phải ghi `EndDate` SAU khi đặt `StartDate`. Ô `EndDate` không có
+`onchange` nên ghi đè được, nhưng nó mang class `class-phichuan` nên vẫn kích
+hoạt tính lại phí.
 
 **Checkbox gửi hai giá trị cùng tên.** ASP.NET MVC đặt một ô `hidden` cùng
 `name` giá trị `false` bên cạnh checkbox, nên tick xong trình duyệt gửi

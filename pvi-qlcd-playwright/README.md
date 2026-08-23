@@ -16,7 +16,7 @@ File này chỉ nói cách chạy.
 | Sản phẩm | `product` | Trạng thái |
 |---|---|---|
 | BH Tai nạn hộ sử dụng điện | `electric-accident` | chạy được, chưa bấm Lưu |
-| BH xe máy | `motorbike` | chưa có script — chưa khảo sát form của PVI |
+| BH TNDS xe máy | `motorbike` | chạy được, chưa bấm Lưu |
 
 Đơn của sản phẩm chưa có script thoát mã 4, BE đặt về `manual-queued` kèm lý do.
 
@@ -209,6 +209,7 @@ Script mỗi lần chỉ điền 1 đơn. Khách cần 2 năm thì BE gọi 2 l�
 | `config.js` | Phần CHUNG mọi sản phẩm: phiên đăng nhập, cách mở trình duyệt |
 | `lib/flows/index.js` | Bảng đăng ký flow, tra theo `product` |
 | `lib/flows/electric-accident.js` | Flow tai nạn điện: URL form, tên ô, giá trị cố định, hàm điền |
+| `lib/flows/motorbike.js` | Flow TNDS xe máy — cùng hình dạng, khác cán bộ khai thác và cách tính phí |
 | `lib/ngay.js` | Định dạng ngày và tiền theo cách PVI nhận |
 | `lib/order.js` | Chọn flow, lo phiên và ảnh chụp. Không biết tên ô nào của PVI |
 | `login.js` | Mở trình duyệt trên máy bạn để đăng nhập, lưu phiên |

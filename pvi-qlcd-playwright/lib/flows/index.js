@@ -4,11 +4,11 @@
 // mới, và danh sách sản phẩm chạy được nằm gọn ở một chỗ đọc được bằng mắt.
 
 const electricAccident = require('./electric-accident');
+const motorbike = require('./motorbike');
 
 const FLOWS = {
   'electric-accident': electricAccident,
-  // motorbike: CHƯA có flow. Chưa khảo sát form BH xe máy của PVI, mà thiếu
-  // script thì có mã sản phẩm cũng không chạy được (xem `mgst-app/src/lib/pvi.ts`).
+  motorbike,
 };
 
 /** Sản phẩm mặc định khi payload không khai — giữ cho lệnh chạy tay cũ dùng được. */
