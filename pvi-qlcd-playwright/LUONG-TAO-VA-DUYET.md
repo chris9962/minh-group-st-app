@@ -72,7 +72,7 @@ Code ở `src/server/pvi-certificate.ts` và `scripts/pvi-fetch-certificates.ts`
 |---|---|---|
 | 1 | Lấy đơn đang đợi file, cũ nhất trước, tối đa 20 đơn một vòng | `awaiting-certificate` |
 | 2 | Gọi `GET /Service/DownloadFile?id=<pr_key>&type=3` | |
-| 3a | Trả PDF → đổi PNG, đẩy kho, ghi khoá ảnh | → `done` |
+| 3a | Trả PDF → đổi WebP, đẩy kho, ghi khoá ảnh | → `done` |
 | 3b | Trả HTML → tăng số lần thử, bỏ qua tới vòng sau | giữ nguyên |
 | 3c | Đủ 60 lần thử → ngừng hỏi đơn đó | giữ nguyên |
 
@@ -199,8 +199,12 @@ tới hết thời gian chờ. Dùng `fetch` với header `Cookie` dựng từ
 
 **Đổi ảnh hỏng thì KHÔNG tăng số lần thử.** Lỗi đó nằm ở máy mình, không ở PVI.
 
-**Cần `pdftoppm` của poppler trên máy chạy.** `brew install poppler` trên macOS,
-`apt install poppler-utils` trong container.
+**Cần `pdftoppm` của poppler và `cwebp` của libwebp trên máy chạy.**
+macOS: `brew install poppler webp`. Container: `apt install poppler-utils webp`.
+
+Ảnh ra ở định dạng WebP, chất lượng 80, cạnh dài nhất 1600px — cùng thông số với
+ảnh người dùng tải lên (`src/lib/toWebpImage.ts`). Đo trên một giấy chứng nhận
+thật 2026-08-23: PDF 330KB → WebP 184KB, 1600×1127, mất 1,4 giây.
 
 ## Chạy worker
 
@@ -233,9 +237,10 @@ Tách container chứ không gộp vào app vì ba lý do. Image app là
 gần 2 GB cho thứ web không dùng. Worker chết và khởi động lại cũng không được
 kéo web sập theo. Và bật tắt bot phải làm được mà không đụng tới web.
 
-Image worker cài thêm bốn thứ ngoài nền Playwright: `poppler-utils` cho
-`pdftoppm`, `tesseract-ocr` cộng `python3-pil`/`python3-numpy`/`pytesseract` cho
-`capcha-resolver/solve.py`, và `bun` để chạy thẳng TypeScript.
+Image worker cài thêm năm thứ ngoài nền Playwright: `poppler-utils` cho
+`pdftoppm`, `webp` cho `cwebp`, `tesseract-ocr` cộng
+`python3-pil`/`python3-numpy`/`pytesseract` cho `capcha-resolver/solve.py`, và
+`bun` để chạy thẳng TypeScript.
 
 Phiên đăng nhập PVI nằm ở volume `mgst-pvi-session` gắn vào `/app/session`. Mất
 nó là mỗi lần dựng lại container phải giải captcha đăng nhập lần nữa.

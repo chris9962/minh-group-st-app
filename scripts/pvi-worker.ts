@@ -25,7 +25,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import { CERTIFICATE_MAX_ATTEMPTS } from "../src/lib/api/insuranceOrders";
 import { insuranceOrders } from "../src/server/db/schema";
-import { downloadCertificate, pdfToPng } from "../src/server/pvi-certificate";
+import { downloadCertificate, pdfToWebp } from "../src/server/pvi-certificate";
 import { putImage } from "../src/server/storage";
 
 const { taoDon } = require("../pvi-qlcd-playwright/lib/order");
@@ -250,8 +250,8 @@ async function fetchCertificates(db: Db) {
     }
 
     try {
-      const png = await pdfToPng(got.pdf);
-      const file = new File([new Uint8Array(png)], `${row.orderCode}.png`, { type: "image/png" });
+      const webp = await pdfToWebp(got.pdf);
+      const file = new File([new Uint8Array(webp)], `${row.orderCode}.webp`, { type: "image/webp" });
       const put = await putImage(file, "insurance-certificates");
       if (!put.ok) throw new Error(put.message);
 

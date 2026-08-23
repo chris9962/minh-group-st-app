@@ -7,6 +7,10 @@
  *
  * Đổi PDF sang ảnh vì `insurance_orders.certificate_photo_url` lưu KHOÁ ẢNH, và
  * cả đường xem ảnh (`/api/images/<key>`) lẫn kho lưu trữ đều chỉ nhận ảnh.
+ *
+ * Ra WebP, cùng định dạng với ảnh người dùng tải lên (`src/lib/toWebpImage.ts`).
+ * Hàm đó chạy bằng `canvas.toBlob` của TRÌNH DUYỆT nên worker không gọi lại
+ * được; ở đây dùng `cwebp` với cùng chất lượng và cùng giới hạn cạnh.
  */
 
 import { execFile } from "node:child_process";
@@ -39,6 +43,10 @@ const FILE_TYPE = process.env.PVI_CERTIFICATE_TYPE ?? "3";
 
 /** Ngưỡng ảnh của kho lưu trữ là 10MB; 150 DPI cho một trang A4 khoảng 1–2MB. */
 const RENDER_DPI = process.env.PVI_CERTIFICATE_DPI ?? "150";
+
+/** Khớp `src/lib/toWebpImage.ts`: chất lượng 0.8, cạnh dài nhất 1600px. */
+const WEBP_QUALITY = "80";
+const MAX_EDGE = "1600";
 
 export type CertificateDownload =
   /** PVI đã sinh file. */
@@ -103,15 +111,16 @@ export async function downloadCertificate(prKey: string): Promise<CertificateDow
 }
 
 /**
- * Đổi PDF sang MỘT ảnh PNG. Nhiều trang thì xếp dọc rồi ghép làm một.
+ * Đổi PDF sang MỘT ảnh WebP. Nhiều trang thì xếp dọc rồi ghép làm một.
  *
  * Ghép chứ không lấy trang đầu: `certificate_photo_url` chỉ giữ được một khoá,
  * mà bỏ trang sau là bỏ nội dung hợp đồng.
  *
- * Cần `pdftoppm` của poppler trên máy chạy (`brew install poppler`,
- * `apt install poppler-utils`). Thiếu nó thì hàm ném lỗi chứ không trả ảnh rỗng.
+ * Cần hai công cụ trên máy chạy: `pdftoppm` của poppler và `cwebp` của libwebp.
+ * macOS: `brew install poppler webp`. Debian: `apt install poppler-utils webp`.
+ * Thiếu một trong hai thì hàm ném lỗi chứ không trả ảnh rỗng.
  */
-export async function pdfToPng(pdf: Buffer): Promise<Buffer> {
+export async function pdfToWebp(pdf: Buffer): Promise<Buffer> {
   const dir = await mkdtemp(path.join(tmpdir(), "pvi-cert-"));
   try {
     const src = path.join(dir, "in.pdf");
@@ -124,7 +133,14 @@ export async function pdfToPng(pdf: Buffer): Promise<Buffer> {
     if (!pages.length) throw new Error("pdftoppm không xuất được trang nào");
 
     const buffers = await Promise.all(pages.map((f) => readFile(path.join(dir, f))));
-    return buffers.length === 1 ? buffers[0] : stackVertically(buffers);
+    const png = buffers.length === 1 ? buffers[0] : await stackVertically(buffers);
+
+    const pngPath = path.join(dir, "ghep.png");
+    const webpPath = path.join(dir, "ghep.webp");
+    await writeFile(pngPath, png);
+    // `-resize 1600 0` giữ tỉ lệ và chỉ thu nhỏ khi ảnh rộng hơn 1600px.
+    await run("cwebp", ["-q", WEBP_QUALITY, "-resize", MAX_EDGE, "0", pngPath, "-o", webpPath]);
+    return readFile(webpPath);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

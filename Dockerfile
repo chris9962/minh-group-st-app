@@ -87,16 +87,17 @@ CMD ["bun", "server.js"]
 FROM mcr.microsoft.com/playwright:v1.62.1-noble AS worker
 WORKDIR /app
 
-# `pdftoppm` đổi giấy chứng nhận PDF sang PNG (src/server/pvi-certificate.ts).
-# `tesseract` cộng ba gói python đọc captcha màn đăng nhập
-# (pvi-qlcd-playwright/capcha-resolver/solve.py). Thiếu chúng thì worker chạy
-# tới lúc hết phiên là dừng, và không tải được giấy chứng nhận nào.
+# `pdftoppm` của poppler và `cwebp` của libwebp đổi giấy chứng nhận PDF sang
+# WebP (src/server/pvi-certificate.ts). `tesseract` cộng ba gói python đọc
+# captcha màn đăng nhập (pvi-qlcd-playwright/capcha-resolver/solve.py). Thiếu
+# chúng thì worker chạy tới lúc hết phiên là dừng, và không tải được giấy chứng
+# nhận nào.
 #
 # `--break-system-packages`: Ubuntu 24.04 đánh dấu python hệ thống là "externally
 # managed", pip từ chối cài nếu không nói rõ. Trong container không có môi trường
 # python nào khác để tranh chấp.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      poppler-utils tesseract-ocr python3-pil python3-numpy python3-pip \
+      poppler-utils webp tesseract-ocr python3-pil python3-numpy python3-pip \
   && pip3 install --break-system-packages --no-cache-dir pytesseract \
   && rm -rf /var/lib/apt/lists/*
 
