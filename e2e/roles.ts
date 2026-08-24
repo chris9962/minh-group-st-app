@@ -14,12 +14,19 @@ export const LABEL: Record<Role, string> = {
   staff: "Nhân viên",
 };
 
-/** Ai sửa được danh mục — quyết định 05/08: phó phòng trở lên. */
+/**
+ * Ai mở được nhóm màn Cấu hình — từ Phó giám đốc trở lên (chốt 2026-08-24).
+ *
+ * Thu hẹp quyết định 05/08 ("phó phòng trở lên"). Bảy màn đó sửa dữ liệu dùng
+ * chung TOÀN CÔNG TY — kho mã giới thiệu, danh sách ngân hàng, gói bảo hiểm,
+ * chỉ tiêu KPI — nên không thuộc phạm vi một phòng. Trưởng phòng và Phó phòng
+ * cần thì xin cấp lẻ ở thẻ "Quyền", nhóm Hệ thống.
+ */
 export const EDITS_CATALOG: Record<Role, boolean> = {
   director: true,
   "deputy-director": true,
-  head: true,
-  "deputy-head": true,
+  head: false,
+  "deputy-head": false,
   staff: false,
 };
 
