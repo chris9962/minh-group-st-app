@@ -245,6 +245,14 @@ export const banks = pgTable(
      * tự, xem `listBanks`.
      */
     priority: smallint("priority").notNull().default(0),
+    /**
+     * Hướng dẫn mở tài khoản của riêng ngân hàng này (migration 0043).
+     *
+     * Chữ tự do nhiều dòng — người nhập tự đánh số bước và tự ghi chú ảnh
+     * ("Ảnh 1: lúc nhập mã"). KHÔNG tách thành bảng bước riêng: nội dung mỗi
+     * ngân hàng một khác, và mọi cấu trúc dựng ra đều chật với ngân hàng sau.
+     */
+    guide: text("guide"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -784,6 +792,28 @@ export const bankAccountPhotos = pgTable(
     sortOrder: smallint("sort_order").notNull().default(0),
   },
   (t) => [index("bank_account_photos_account").on(t.accountId)],
+);
+
+/**
+ * Ảnh mẫu đi kèm hướng dẫn của một ngân hàng.
+ *
+ * Bảng riêng chứ không phải cột mảng: ảnh có THỨ TỰ, và thứ tự đó phải khớp
+ * phần "Ảnh 1 · Ảnh 2 …" người nhập viết trong `banks.guide`.
+ *
+ * `url` giữ KHOÁ trong kho ảnh, không giữ URL — cùng luật `bank_account_photos`,
+ * tên cột cũng giữ nguyên cho khớp.
+ */
+export const bankGuidePhotos = pgTable(
+  "bank_guide_photos",
+  {
+    id: id(),
+    bankId: uuid("bank_id")
+      .notNull()
+      .references(() => banks.id, { onDelete: "cascade" }),
+    url: text("url").notNull(),
+    sortOrder: smallint("sort_order").notNull().default(0),
+  },
+  (t) => [index("bank_guide_photos_bank").on(t.bankId)],
 );
 
 export const giftGrants = pgTable("gift_grants", {

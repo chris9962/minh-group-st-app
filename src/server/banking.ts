@@ -29,6 +29,7 @@ import { departmentForNewRecord } from "./writeDepartment";
 import {
   bankAccountPhotos,
   bankAccounts,
+  bankGuidePhotos,
   banks,
   channels,
   customerPhones,
@@ -293,6 +294,8 @@ const decorate = (page: ReturnType<typeof pickPage>) =>
       status: page.status,
       requiredPhotos: banks.requiredPhotos,
       accountNumberMethod: banks.accountNumberMethod,
+      // Hướng dẫn mở tài khoản của ngân hàng này (spec §4.4d). `''` = chưa có.
+      bankGuide: sql<string>`coalesce(${banks.guide}, '')`,
     })
     .from(page)
     .innerJoin(customers, eq(customers.id, page.customerId))
@@ -539,7 +542,23 @@ export async function bankAccountDetail(
     customerPhones: await customerPhoneNumbers(r.customerId),
     referralOpenUrl: r.referralOpenUrl,
     referralQrUrl: r.referralQrImage ? imageUrl(r.referralQrImage) : "",
+    bankGuide: r.bankGuide,
+    bankGuidePhotoUrls: await bankGuidePhotoUrls(r.bankId),
   };
+}
+
+/**
+ * Ảnh mẫu trong hướng dẫn của một ngân hàng, đúng thứ tự người nhập xếp.
+ *
+ * Thứ tự là phần của dữ liệu: đoạn hướng dẫn gọi tên chúng là "Ảnh 1", "Ảnh 2".
+ */
+async function bankGuidePhotoUrls(bankId: string): Promise<string[]> {
+  const rows = await db
+    .select({ url: bankGuidePhotos.url })
+    .from(bankGuidePhotos)
+    .where(eq(bankGuidePhotos.bankId, bankId))
+    .orderBy(asc(bankGuidePhotos.sortOrder));
+  return rows.map((r) => imageUrl(r.url));
 }
 
 export type BankingOutcome<T> = { ok: true; value: T } | { ok: false; message: string };

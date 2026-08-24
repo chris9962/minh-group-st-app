@@ -1,0 +1,62 @@
+/* Giữ nguyên xuống dòng người nhập gõ — nội dung là các bước đánh số tay. */
+.guide {
+  margin: 0;
+  white-space: pre-wrap;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--om-text);
+}
+
+.empty {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--om-text-2);
+}
+
+.photos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--om-line);
+}
+
+.photoZoom {
+  position: relative;
+  display: block;
+  width: 150px;
+  height: 112px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: zoom-in;
+}
+
+/* `contain` chứ không `cover`: ảnh chụp màn hình điện thoại rất cao, cắt cạnh
+   là mất đúng phần chữ người xem cần đối chiếu. */
+.photo {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--om-line);
+  background: var(--om-card);
+}
+
+/* Số thứ tự là CHỮ, không phải chỉ đổi màu viền — đoạn hướng dẫn gọi tên chúng
+   là "Ảnh 1", "Ảnh 2" nên số phải đọc được (AGENTS.md §8). */
+.photoIndex {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  min-width: 22px;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--om-orange);
+  color: var(--om-text-on-accent);
+  font-size: 12px;
+  line-height: 1.4;
+  text-align: center;
+}

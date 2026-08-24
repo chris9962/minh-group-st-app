@@ -36,6 +36,7 @@ import { db, uniqueViolationOf } from "./db/client";
 import { recomputeKpiForMonth } from "./kpi";
 import { imageKeyOf, imageUrl } from "./storage";
 import {
+  bankGuidePhotos,
   banks,
   channels,
   giftItems,
@@ -95,7 +96,11 @@ async function catalogWrite<T>(run: () => Promise<T>): Promise<CatalogOutcome<T>
 
 type BankManager = { id: string; fullName: string };
 
-const toBank = (r: typeof banks.$inferSelect, managers: BankManager[] = []): Bank => ({
+const toBank = (
+  r: typeof banks.$inferSelect,
+  managers: BankManager[] = [],
+  guidePhotoKeys: string[] = [],
+): Bank => ({
   id: r.id,
   code: r.code,
   active: r.active,
@@ -105,6 +110,9 @@ const toBank = (r: typeof banks.$inferSelect, managers: BankManager[] = []): Ban
   countsAsApp: r.countsAsApp,
   priority: r.priority,
   managers,
+  guide: r.guide ?? "",
+  // Cột giữ KHOÁ, hợp đồng API trả URL — cùng luật ảnh chứng minh.
+  guidePhotoUrls: guidePhotoKeys.map(imageUrl),
 });
 
 /**
@@ -169,6 +177,57 @@ async function revokeOrphanBankManagers(tx: Tx, droppedIds: string[]) {
         eq(userPermissions.module, "system"),
       ),
     );
+}
+
+/**
+ * Ảnh mẫu của từng ngân hàng, nạp MỘT lượt cho cả danh sách.
+ *
+ * Không truy vấn theo từng ngân hàng: 13 dòng là 13 lượt đi về database cho một
+ * màn (N+1), mà cả bảng chỉ vài chục dòng nên lấy trọn rẻ hơn hẳn.
+ */
+async function guidePhotos(): Promise<Map<string, string[]>> {
+  const rows = await db
+    .select()
+    .from(bankGuidePhotos)
+    .orderBy(asc(bankGuidePhotos.bankId), asc(bankGuidePhotos.sortOrder));
+  const byBank = new Map<string, string[]>();
+  for (const r of rows) {
+    const list = byBank.get(r.bankId) ?? [];
+    list.push(r.url);
+    byBank.set(r.bankId, list);
+  }
+  return byBank;
+}
+
+/** Ảnh mẫu của MỘT ngân hàng, đúng thứ tự người nhập xếp. */
+async function guidePhotosOf(runner: Tx | typeof db, bankId: string): Promise<string[]> {
+  const rows = await runner
+    .select({ url: bankGuidePhotos.url })
+    .from(bankGuidePhotos)
+    .where(eq(bankGuidePhotos.bankId, bankId))
+    .orderBy(asc(bankGuidePhotos.sortOrder));
+  return rows.map((r) => r.url);
+}
+
+/**
+ * Ghi lại ảnh mẫu của một ngân hàng: xoá sạch rồi chèn lại theo đúng thứ tự.
+ *
+ * THỨ TỰ là phần của dữ liệu, không phải chuyện trình bày: người nhập viết
+ * "Ảnh 1: lúc nhập mã" trong `guide`, nên đảo thứ tự là đổi nghĩa của cả đoạn
+ * hướng dẫn.
+ *
+ * Chuỗi nào không phải ảnh trong kho của mình thì `imageKeyOf` trả `null` và
+ * dòng đó bị bỏ — chốt chặn giống `qrImageKey`.
+ */
+async function writeGuidePhotos(tx: Tx, bankId: string, urls: string[]) {
+  await tx.delete(bankGuidePhotos).where(eq(bankGuidePhotos.bankId, bankId));
+
+  const keys = urls.map(imageKeyOf).filter((k): k is string => k !== null);
+  if (keys.length === 0) return;
+
+  await tx
+    .insert(bankGuidePhotos)
+    .values(keys.map((url, i) => ({ bankId, url, sortOrder: i })));
 }
 
 /** Người quản của MỘT ngân hàng, kèm tên. Dùng khi trả một bản ghi ra ngoài. */
@@ -301,11 +360,12 @@ async function writeBankManagers(
  * người dùng bấm nên không bị thứ tự này ràng buộc.
  */
 export async function listBanks(): Promise<Bank[]> {
-  const [rows, managers] = await Promise.all([
+  const [rows, managers, photos] = await Promise.all([
     db.select().from(banks).orderBy(desc(banks.priority), asc(banks.code)),
     bankManagers(),
+    guidePhotos(),
   ]);
-  return rows.map((r) => toBank(r, managers.get(r.id) ?? []));
+  return rows.map((r) => toBank(r, managers.get(r.id) ?? [], photos.get(r.id) ?? []));
 }
 
 /**
@@ -337,10 +397,15 @@ export async function createBank(
           accountNumberMethod: form.accountNumberMethod,
           countsAsApp: form.countsAsApp,
           priority: form.priority,
+          guide: form.guide || null,
         })
         .returning();
       await writeBankManagers(tx, row.id, form.managerIds, canAssign);
-      return { ok: true as const, item: toBank(row, await bankManagersOf(tx, row.id)) };
+      await writeGuidePhotos(tx, row.id, form.guidePhotoUrls);
+      return {
+        ok: true as const,
+        item: toBank(row, await bankManagersOf(tx, row.id), await guidePhotosOf(tx, row.id)),
+      };
     });
   } catch (e) {
     if (uniqueViolationOf(e) !== null) return { ok: false, reason: "code-taken" };
@@ -378,12 +443,17 @@ export async function updateBank(
           accountNumberMethod: form.accountNumberMethod,
           countsAsApp: form.countsAsApp,
           priority: form.priority,
+          guide: form.guide || null,
         })
         .where(eq(banks.id, id))
         .returning();
       if (!row) return null;
       await writeBankManagers(tx, id, form.managerIds, canAssign);
-      return { ok: true as const, item: toBank(row, await bankManagersOf(tx, id)) };
+      await writeGuidePhotos(tx, id, form.guidePhotoUrls);
+      return {
+        ok: true as const,
+        item: toBank(row, await bankManagersOf(tx, id), await guidePhotosOf(tx, id)),
+      };
     });
   } catch (e) {
     if (uniqueViolationOf(e) !== null) return { ok: false, reason: "code-taken" };
@@ -394,7 +464,7 @@ export async function updateBank(
 export async function setBankActive(id: string, active: boolean): Promise<Bank | null> {
   const [row] = await db.update(banks).set({ active }).where(eq(banks.id, id)).returning();
   if (!row) return null;
-  return toBank(row, await bankManagersOf(db, id));
+  return toBank(row, await bankManagersOf(db, id), await guidePhotosOf(db, id));
 }
 
 /* ── Mã giới thiệu ────────────────────────────────────────────────────── */

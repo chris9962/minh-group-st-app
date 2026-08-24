@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Landmark, Pencil } from "lucide-react";
+import { BookOpen, Landmark, Pencil } from "lucide-react";
 import { useState } from "react";
 import { SkeletonTable } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
@@ -19,6 +19,7 @@ import {
 } from "@/lib/api/bankCatalog";
 import { BankFormDialog } from "./BankFormDialog";
 import styles from "./BankCatalogSection.module.scss";
+import { BankGuideDialog } from "@/components/banking/BankGuideDialog";
 import { banksInScope } from "@/lib/permissions";
 import { errorMessage, toast } from "@/lib/toast";
 import { useSession } from "@/store/session";
@@ -38,6 +39,8 @@ export function BankCatalogSection({ creating, onCreatingChange }: Props) {
   const actor = useSession((s) => s.user);
   const [editing, setEditing] = useState<Bank | null>(null);
   const [confirming, setConfirming] = useState<Bank | null>(null);
+  /** Ngân hàng đang xem hướng dẫn; `null` = không mở. */
+  const [viewingGuide, setViewingGuide] = useState<Bank | null>(null);
 
   const { data: allBanks = [], isPending, isError, refetch, isFetching } = useQuery({
     queryKey: ["banks"],
@@ -122,6 +125,19 @@ export function BankCatalogSection({ creating, onCreatingChange }: Props) {
       label: "Thao tác",
       render: (b) => (
         <span className={styles.actions}>
+          {/* Chỉ dựng nút khi có gì để xem — nút mở ra một hộp thoại trống là
+              bắt người dùng bấm để biết rằng không có gì. */}
+          {(b.guide || b.guidePhotoUrls.length > 0) && (
+            <Button
+              variant="secondary"
+              icon
+              tooltip="Xem hướng dẫn mở tài khoản"
+              aria-label={`Xem hướng dẫn ${b.code}`}
+              onClick={() => setViewingGuide(b)}
+            >
+              <BookOpen size={16} aria-hidden />
+            </Button>
+          )}
           <Button
             variant="secondary"
             icon
@@ -176,6 +192,16 @@ export function BankCatalogSection({ creating, onCreatingChange }: Props) {
           khác mã giới thiệu, khác chính sách.
         </p>
       </SectionCard>
+
+      {viewingGuide && (
+        <BankGuideDialog
+          open
+          onClose={() => setViewingGuide(null)}
+          bankCode={viewingGuide.code}
+          guide={viewingGuide.guide}
+          photoUrls={viewingGuide.guidePhotoUrls}
+        />
+      )}
 
       {(creating || editing) && (
         <BankFormDialog

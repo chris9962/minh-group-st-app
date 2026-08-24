@@ -270,6 +270,10 @@ export function BankAccountFormDialog({
             customerPhones={account?.customerPhones ?? []}
             referralOpenUrl={account?.referralOpenUrl ?? ""}
             referralQrUrl={account?.referralQrUrl ?? ""}
+            // Lấy thẳng từ ngân hàng đang chọn — danh sách ngân hàng đã nạp sẵn
+            // ở màn này, khỏi thêm một trường nữa vào bản ghi tài khoản.
+            bankGuide={selectedBank?.guide ?? ""}
+            bankGuidePhotoUrls={selectedBank?.guidePhotoUrls ?? []}
             photos={photos}
             requiredPhotos={requiredPhotos}
             onPhotosChange={setPhotos}

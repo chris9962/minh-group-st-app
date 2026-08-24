@@ -20,6 +20,22 @@ export const ACCOUNT_NUMBER_METHOD_LABEL: Record<AccountNumberMethod, string> = 
   manual: 'Nhập tay',
 };
 
+/**
+ * Chuỗi ảnh do chính `/api/uploads` trả về; `''` = không có ảnh.
+ *
+ * Ở đây chỉ kiểm phần ĐẦU chuỗi. Chốt thật nằm ở máy chủ: `imageKeyOf`
+ * (`server/storage.ts`) khớp trọn hình dạng khoá rồi mới ghi, chuỗi nào không
+ * khớp thì lưu về thành không có ảnh. Chép nguyên mẫu khoá xuống đây là hai bản
+ * luật cho một việc, và chúng lệch nhau ngay lần đổi kho ảnh đầu tiên.
+ */
+export const ImageRef = z
+  .string()
+  .trim()
+  .refine((v) => v === '' || v.startsWith('/api/images/'), 'Ảnh không hợp lệ');
+
+/** Tên cũ, giữ cho hộp thoại mã giới thiệu khỏi phải đổi theo. */
+export const QrImageRef = ImageRef;
+
 export const Bank = z.object({
   id: z.string(),
   code: z.string(),
@@ -51,6 +67,15 @@ export const Bank = z.object({
    * id nghĩa là màn đó phải nạp trọn danh bạ 300 người chỉ để đọc vài cái tên.
    */
   managers: z.array(z.object({ id: z.string(), fullName: z.string() })),
+  /**
+   * Hướng dẫn mở tài khoản của riêng ngân hàng này; `''` = chưa có.
+   *
+   * Chữ tự do nhiều dòng. Nhân viên đọc ở bước 2 của màn mở tài khoản, người
+   * quản đọc ở bảng ngân hàng.
+   */
+  guide: z.string(),
+  /** URL ảnh mẫu, ĐÚNG thứ tự người nhập xếp — khớp với "Ảnh 1 · Ảnh 2…" trong `guide`. */
+  guidePhotoUrls: z.array(z.string()),
 });
 export type Bank = z.infer<typeof Bank>;
 
@@ -83,6 +108,15 @@ export const BankForm = z.object({
    * ngân hàng mình quản, vì đó là đường tự nới quyền.
    */
   managerIds: z.array(z.uuid()),
+  /** Chữ tự do, không bắt buộc. Ngân hàng chưa có quy trình riêng thì để trống. */
+  guide: z.string(),
+  /**
+   * Ảnh mẫu — nhận URL do `/api/uploads` trả về, máy chủ cắt lại thành khoá.
+   *
+   * Không đặt trần số ảnh ở đây: quy trình của một ngân hàng dài bao nhiêu là
+   * việc của ngân hàng đó, thường 2–3 tấm nhưng có ca sáu tấm.
+   */
+  guidePhotoUrls: z.array(ImageRef),
 });
 export type BankForm = z.infer<typeof BankForm>;
 
@@ -176,19 +210,6 @@ export const OpenUrl = z
   .string()
   .trim()
   .refine((v) => v === '' || /^https?:\/\//i.test(v), 'Link phải bắt đầu bằng http:// hoặc https://');
-
-/**
- * Ảnh QR do chính `/api/uploads` trả về; `''` = mã không có ảnh.
- *
- * Ở đây chỉ kiểm phần ĐẦU chuỗi. Chốt thật nằm ở máy chủ: `imageKeyOf`
- * (`server/storage.ts`) khớp trọn hình dạng khoá rồi mới ghi, chuỗi nào không
- * khớp thì mã lưu về không có ảnh. Chép nguyên mẫu khoá xuống đây là hai bản
- * luật cho một việc, và chúng lệch nhau ngay lần đổi kho ảnh đầu tiên.
- */
-export const QrImageRef = z
-  .string()
-  .trim()
-  .refine((v) => v === '' || v.startsWith('/api/images/'), 'Ảnh QR không hợp lệ');
 
 export const ReferralCode = z.object({
   id: z.string(),

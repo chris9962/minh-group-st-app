@@ -3,12 +3,20 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { X } from "lucide-react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { Dialog } from "@/components/ui/Dialog";
+import {
+  BankAccountPhotos,
+  savedPhotos,
+  uploadPendingPhotos,
+  type PhotoItem,
+} from "@/components/banking/BankAccountPhotos";
 import { Combobox } from "@/components/ui/Combobox";
 import { Select } from "@/components/ui/Select";
+import { TextArea } from "@/components/ui/TextArea";
 import { TextField } from "@/components/ui/TextField";
 import {
   ACCOUNT_NUMBER_METHOD_LABEL,
@@ -63,6 +71,16 @@ export function BankFormDialog({ open, onClose, bank }: Props) {
    */
   const savedNames = new Map((bank?.managers ?? []).map((m) => [m.id, m.fullName]));
 
+  /**
+   * Ảnh mẫu — dùng lại khối ảnh của P-20/P-22.
+   *
+   * `max` để rộng: quy trình dài bao nhiêu là việc của từng ngân hàng, thường
+   * 2–3 tấm nhưng có ca sáu tấm. Trần thật vẫn là `PHOTO_MAX` của khối đó.
+   */
+  const [guidePhotos, setGuidePhotos] = useState<PhotoItem[]>(() =>
+    savedPhotos(bank?.guidePhotoUrls ?? []),
+  );
+
   const { data: staffOptions = [] } = useQuery({
     // Khoá GIỐNG bốn màn khác đang gọi cùng hàm này (`banking`, `insurance`,
     // `services`, `customers`). Khoá riêng thì tải trùng ~300 nhân viên, và mọi
@@ -89,11 +107,21 @@ export function BankFormDialog({ open, onClose, bank }: Props) {
       countsAsApp: bank?.countsAsApp ?? true,
       priority: bank?.priority ?? 0,
       managerIds: bank?.managers.map((m) => m.id) ?? [],
+      guide: bank?.guide ?? "",
+      guidePhotoUrls: bank?.guidePhotoUrls ?? [],
     },
   });
 
   const save = useMutation({
-    mutationFn: (form: BankForm) => (bank ? updateBank(bank.id, form) : createBank(form)),
+    mutationFn: async (form: BankForm) => {
+      // Ảnh đi lên TRƯỚC, rồi mới ghi bản ghi — gửi thẳng `blob:` thì tải lại
+      // trang là ảnh vỡ vĩnh viễn, xem `BankAccountPhotos`.
+      const body = {
+        ...form,
+        guidePhotoUrls: await uploadPendingPhotos(guidePhotos, "bank-guides"),
+      };
+      return bank ? updateBank(bank.id, body) : createBank(body);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["banks"] });
       // Mã ngân hàng được nhúng sẵn vào từng dòng của các màn này, đổi mã
@@ -191,6 +219,26 @@ export function BankFormDialog({ open, onClose, bank }: Props) {
           label="Có đi kèm app (tính vào tổng app xét quà)"
           checked={watch("countsAsApp")}
           onCheckedChange={(v) => setValue("countsAsApp", v, { shouldDirty: true })}
+        />
+
+        <TextArea
+          label="Hướng dẫn mở tài khoản"
+          rows={8}
+          placeholder={"Bước 1: …\nBước 2: …\n\nẢnh 1: …\nẢnh 2: …"}
+          hint="Quy trình riêng của ngân hàng này. Nhân viên đọc ở bước 2 của màn mở tài khoản."
+          error={errors.guide?.message}
+          {...register("guide")}
+        />
+
+        {/* Ảnh mẫu đi theo THỨ TỰ: người nhập viết "Ảnh 1: …" trong ô trên, nên
+            đảo thứ tự ở đây là đổi nghĩa của cả đoạn hướng dẫn. */}
+        <BankAccountPhotos
+          photos={guidePhotos}
+          requiredPhotos={0}
+          max={10}
+          title="Ảnh mẫu"
+          onChange={setGuidePhotos}
+          busy={save.isPending}
         />
 
         {canAssign && (

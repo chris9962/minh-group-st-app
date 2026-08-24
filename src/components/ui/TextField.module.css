@@ -35,3 +35,12 @@
   color: var(--color-accent-800);
 }
 
+
+/* Ô nhiều dòng (`TextArea`). Kéo cao được, KHÔNG kéo ngang — kéo ngang là vỡ
+   bố cục hộp thoại, mà bề rộng vốn đã bằng cả biểu mẫu. */
+.textarea {
+  min-height: 96px;
+  resize: vertical;
+  line-height: 1.6;
+  font-family: inherit;
+}

@@ -244,6 +244,8 @@ function FinishAccountCard({
         customerPhones={data.customerPhones}
         referralOpenUrl={data.referralOpenUrl}
         referralQrUrl={data.referralQrUrl}
+        bankGuide={data.bankGuide}
+        bankGuidePhotoUrls={data.bankGuidePhotoUrls}
         photos={photos}
         requiredPhotos={data.requiredPhotos}
         onPhotosChange={setEditedPhotos}

@@ -22,7 +22,7 @@ import { imageUrl, putImage } from "@/server/storage";
  * trong bucket. Nhóm chia theo nơi dùng để về sau dọn rác theo lô — ảnh chứng
  * minh và ảnh QR có vòng đời khác hẳn nhau.
  */
-const FOLDERS = ["bank-accounts", "referral-codes"] as const;
+const FOLDERS = ["bank-accounts", "referral-codes", "bank-guides"] as const;
 type Folder = (typeof FOLDERS)[number];
 
 const folderOf = (value: FormDataEntryValue | null | undefined): Folder =>

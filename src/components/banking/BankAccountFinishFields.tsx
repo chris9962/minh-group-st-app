@@ -7,9 +7,10 @@ import type {
   UseFormWatch,
 } from "react-hook-form";
 import { useState } from "react";
-import { ExternalLink, QrCode } from "lucide-react";
+import { BookOpen, ExternalLink, QrCode } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { ImageLightbox } from "@/components/ui/ImageLightbox";
+import { BankGuideDialog } from "./BankGuideDialog";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { Select } from "@/components/ui/Select";
 import { DateField } from "@/components/ui/DateField";
@@ -40,6 +41,10 @@ type Props = {
   referralOpenUrl: string;
   /** Ảnh QR của mã giới thiệu; `''` = không dựng nút xem. */
   referralQrUrl: string;
+  /** Hướng dẫn mở tài khoản của ngân hàng; `''` = không dựng nút xem. */
+  bankGuide: string;
+  /** Ảnh mẫu kèm hướng dẫn, đúng thứ tự người nhập xếp. */
+  bankGuidePhotoUrls: string[];
   photos: PhotoItem[];
   requiredPhotos: number;
   /**
@@ -69,6 +74,8 @@ export function BankAccountFinishFields({
   customerPhones,
   referralOpenUrl,
   referralQrUrl,
+  bankGuide,
+  bankGuidePhotoUrls,
   photos,
   requiredPhotos,
   onPhotosChange,
@@ -76,6 +83,13 @@ export function BankAccountFinishFields({
 }: Props) {
   /** Đang mở ảnh QR cỡ lớn. */
   const [qrOpen, setQrOpen] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
+
+  /**
+   * Có ảnh mẫu mà chưa có chữ vẫn dựng nút — ảnh chụp từng bước tự nó đã là
+   * hướng dẫn, và hộp thoại nói rõ phần chữ còn trống.
+   */
+  const hasGuide = Boolean(bankGuide) || bankGuidePhotoUrls.length > 0;
 
   return (
     <>
@@ -96,7 +110,7 @@ export function BankAccountFinishFields({
         `rel="noreferrer"`: trang mở ra ở tab mới không được chạm tới
         `window.opener` của app này.
       */}
-      {(referralOpenUrl || referralQrUrl) && (
+      {(referralOpenUrl || referralQrUrl || hasGuide) && (
         <div className={styles.openRow}>
           {referralOpenUrl && (
             <Button
@@ -120,7 +134,29 @@ export function BankAccountFinishFields({
               Xem mã QR
             </Button>
           )}
+
+          {/*
+            Mỗi ngân hàng một quy trình: ngân hàng này bắt nhập mã giới thiệu ở
+            bước định danh, ngân hàng kia đòi hai giao dịch sau khi mở. Nhân viên
+            nhớ sai là tài khoản không được duyệt, mà họ đang đứng trước khách.
+          */}
+          {hasGuide && (
+            <Button variant="secondary" type="button" onClick={() => setGuideOpen(true)}>
+              <BookOpen size={16} aria-hidden />
+              Xem hướng dẫn
+            </Button>
+          )}
         </div>
+      )}
+
+      {guideOpen && (
+        <BankGuideDialog
+          open
+          onClose={() => setGuideOpen(false)}
+          bankCode={bankCode}
+          guide={bankGuide}
+          photoUrls={bankGuidePhotoUrls}
+        />
       )}
 
       {qrOpen && (
