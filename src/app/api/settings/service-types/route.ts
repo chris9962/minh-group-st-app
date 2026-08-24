@@ -13,7 +13,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const guard = await actorWith(request, "services", "configure-catalog");
+  const guard = await actorWith(request, "system", "configure-catalog");
   if (!guard.ok) return guard.response;
 
   const parsed = ServiceTypeForm.safeParse(await jsonBody(request));

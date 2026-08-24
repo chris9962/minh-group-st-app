@@ -12,7 +12,7 @@ import { pageArgsFrom } from "@/server/pagination";
  * ngân hàng cấp, có số lượng — không seed được, phải nhập.
  */
 export async function GET(request: Request) {
-  const guard = await actorWith(request, "banking", "manage-referral-codes");
+  const guard = await actorWith(request, "system", "manage-referral-codes");
   if (!guard.ok) return guard.response;
 
   // Lọc · tìm · sắp · cắt trang đều ở máy chủ (AGENTS.md §5.1). Trạng thái lạ
@@ -36,7 +36,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const guard = await actorWith(request, "banking", "manage-referral-codes");
+  const guard = await actorWith(request, "system", "manage-referral-codes");
   if (!guard.ok) return guard.response;
 
   const parsed = ReferralCodeForm.safeParse(await jsonBody(request));

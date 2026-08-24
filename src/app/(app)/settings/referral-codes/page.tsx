@@ -8,7 +8,7 @@ import styles from "./page.module.scss";
 /** P-61 · Kho mã giới thiệu. */
 export default function ReferralCodesPage() {
   return (
-    <RequirePermission module="banking" action="manage-referral-codes">
+    <RequirePermission module="system" action="manage-referral-codes">
       <TopBar title="Danh sách mã giới thiệu" keepTitleOnMobile />
       <main className={styles.body}>
         <ReferralCodesSection />

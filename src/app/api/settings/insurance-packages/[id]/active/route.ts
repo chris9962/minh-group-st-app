@@ -9,7 +9,7 @@ const Body = z.object({ active: z.boolean() });
 
 /** Ngừng / mở lại — KHÔNG xoá. Bản ghi cũ trỏ vào id, xoá là để lại id chết. */
 export async function POST(request: Request, { params }: Params) {
-  const guard = await actorWith(request, "insurance", "configure-catalog");
+  const guard = await actorWith(request, "system", "configure-catalog");
   if (!guard.ok) return guard.response;
 
   const { id } = await params;

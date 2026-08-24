@@ -13,7 +13,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const guard = await actorWith(request, "banking", "manage-bank-catalog");
+  const guard = await actorWith(request, "system", "manage-bank-catalog");
   if (!guard.ok) return guard.response;
 
   const parsed = BankForm.safeParse(await jsonBody(request));

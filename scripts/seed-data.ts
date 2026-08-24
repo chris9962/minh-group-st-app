@@ -57,8 +57,10 @@ const sysAdminPermissions: Permission[] = [
   p("system", "grant-permission", "company"),
   p("*", "view-detail", "company"),
   p("*", "update", "company"),
-  p("*", "configure-catalog", "company"),
-  p("*", "configure-gift-rules", "company"),
+  // Module `system`, KHÔNG phải `*` (chốt 2026-08-24): lưới cấp quyền chỉ tra
+  // module cụ thể, nên dòng `*` không hiện ra và cũng không tắt được bằng lưới.
+  p("system", "configure-catalog", "company"),
+  p("system", "configure-gift-rules", "company"),
 ];
 
 /* Các bộ quyền vị trí đặc thù khác (đội tạo đơn, KDTH, KTTH…) cấp qua P-53/P-92

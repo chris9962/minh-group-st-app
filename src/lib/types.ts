@@ -154,10 +154,29 @@ export const SCOPELESS_ACTIONS: Action[] = ['manage-org'];
 
 export const SPECIAL_ACTIONS_OF: Partial<Record<ModuleKey, Action[]>> = {
   customer: ['access-id-number'],
-  insurance: ['handle-fallback', 'configure-catalog'],
-  banking: ['grant-gift', 'manage-referral-codes', 'manage-bank-catalog'],
-  services: ['configure-catalog'],
-  system: ['configure-catalog', 'configure-gift-rules', 'manage-org', 'grant-permission'],
+  insurance: ['handle-fallback'],
+  banking: ['grant-gift'],
+  /**
+   * MỌI quyền cấu hình nằm ở `system` (chốt 2026-08-24).
+   *
+   * Trước đó chúng rải theo module nghiệp vụ: `insurance:configure-catalog` mở
+   * danh mục quà, `banking:manage-bank-catalog` mở danh sách ngân hàng. Cách đó
+   * đọc sai ý: bảy màn Cấu hình đều sửa dữ liệu DÙNG CHUNG toàn công ty, không
+   * thuộc phòng nào và không thuộc module nghiệp vụ nào — người quản lý bảo
+   * hiểm không vì thế mà nên sửa được gói bảo hiểm.
+   *
+   * Bốn hành động chứ không phải bảy: `configure-catalog` gác cùng lúc bốn màn
+   * (danh mục quà & gói BH, chỉ tiêu KPI, loại dịch vụ, danh mục kênh) nên cấp
+   * nó là mở cả bốn. Tách thành bảy là việc riêng, chưa làm.
+   */
+  system: [
+    'configure-catalog',
+    'configure-gift-rules',
+    'manage-bank-catalog',
+    'manage-referral-codes',
+    'manage-org',
+    'grant-permission',
+  ],
 };
 
 /** Module cơ bản hiện trong màn cấp quyền lẻ (P-92/thẻ "Quyền") — không có `*`, quá rộng để cấp tay. */

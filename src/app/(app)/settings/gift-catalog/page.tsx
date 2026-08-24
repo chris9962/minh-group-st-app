@@ -8,7 +8,7 @@ import styles from "./page.module.scss";
 /** P-82 · Danh mục quà & gói bảo hiểm. */
 export default function GiftCatalogPage() {
   return (
-    <RequirePermission module="insurance" action="configure-catalog">
+    <RequirePermission module="system" action="configure-catalog">
       <TopBar title="Danh mục quà & gói bảo hiểm" keepTitleOnMobile />
       <main className={styles.body}>
         <GiftCatalogSection />

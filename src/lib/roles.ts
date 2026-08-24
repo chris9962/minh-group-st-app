@@ -112,10 +112,17 @@ const staffPermissions: Permission[] = [
  * Thêm riêng: quản được người — thêm/sửa/khoá nhân viên trong phòng mình phụ
  * trách (`staff`), và xuất Excel ở phạm vi phòng quản.
  *
- * SỬA DANH MỤC cũng nằm ở đây (CEO chốt 05/08). Trước đây bốn quyền danh mục
- * chỉ có ở Giám đốc nên mọi việc bảo trì đều dồn lên một người. Đây là quyền
- * GHI; quyền ĐỌC danh mục không nằm ở đâu cả — ai đăng nhập cũng đọc được, chặn
- * ở `signedIn` bên `server/auth.ts`.
+ * ⚠️ KHÔNG có quyền SỬA DANH MỤC (chốt 2026-08-24, thu hẹp quyết định 05/08).
+ *
+ * Bản trước cấp ba dòng `p('*', …)` cho vai này, nghĩa là mọi Trưởng phòng và
+ * Phó phòng sửa được danh mục dùng chung của cả công ty — kho mã giới thiệu,
+ * danh sách ngân hàng, gói bảo hiểm, chỉ tiêu KPI. Không ai nhìn thấy chúng ở
+ * lưới cấp quyền vì lưới chỉ tra module cụ thể, nên cũng không ai tắt được.
+ *
+ * Ai thật sự cần thì cấp lẻ ở thẻ "Quyền" — nay đủ bốn ô dưới nhóm Hệ thống.
+ *
+ * Quyền ĐỌC danh mục không nằm ở đâu cả — ai đăng nhập cũng đọc được, chặn ở
+ * `signedIn` bên `server/auth.ts`. Thu hẹp ở đây chỉ chạm đường GHI.
  */
 const managerPermissions: Permission[] = [
   ...staffPermissions.map((x) => (x.action === 'create' ? x : { ...x, scope: 'managed' as const })),
@@ -145,9 +152,6 @@ const managerPermissions: Permission[] = [
   p('staff', 'create', 'managed'),
   p('staff', 'update', 'managed'),
   p('staff', 'delete', 'managed'),
-  p('*', 'configure-catalog', 'company'),
-  p('*', 'manage-bank-catalog', 'company'),
-  p('*', 'manage-referral-codes', 'company'),
 ];
 
 /**
@@ -206,6 +210,19 @@ const deputyDirectorPermissions: Permission[] = [
   ...managerPermissions,
   p('department', 'view-summary', 'managed'),
   p('department', 'view-detail', 'managed'),
+  /**
+   * Ba quyền cấu hình GIỮ LẠI ở riêng vai này (chốt 2026-08-24).
+   *
+   * Trưởng phòng và Phó phòng mất chúng, Phó giám đốc thì không: họ đứng trên
+   * nhiều phòng nên là người gần Giám đốc nhất trong việc bảo trì danh mục
+   * dùng chung, mà đó chính là lý do quyết định 05/08 mở quyền này ra.
+   *
+   * Module `system`, không phải `*`: `*` không hiện được ở lưới cấp quyền và
+   * cũng không tắt được bằng lưới.
+   */
+  p('system', 'configure-catalog', 'company'),
+  p('system', 'manage-bank-catalog', 'company'),
+  p('system', 'manage-referral-codes', 'company'),
 ];
 
 export const ROLE_PERMISSIONS: Record<RoleKey, Permission[]> = {

@@ -18,7 +18,7 @@ type Params = { params: Promise<{ id: string }> };
  * được, nên phải nói rõ vì sao không lưu.
  */
 export async function PATCH(request: Request, { params }: Params) {
-  const guard = await actorWith(request, "banking", "manage-referral-codes");
+  const guard = await actorWith(request, "system", "manage-referral-codes");
   if (!guard.ok) return guard.response;
 
   const { id } = await params;

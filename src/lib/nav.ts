@@ -160,15 +160,18 @@ export function navFor(user: User | null): NavEntry[] {
   }
 
   // "Cấu hình" gộp mọi màn thiết lập vào một nhóm, nhưng mục con nào hiện ra
-  // vẫn theo đúng quyền riêng của nó — Kinh doanh tổng hợp thấy ngân hàng/mã
-  // giới thiệu, còn quy tắc quà/danh mục/chỉ tiêu/loại dịch vụ vẫn của CEO
-  // (spec §3.1: "CEO KHÔNG có... kho mã giới thiệu").
+  // vẫn theo đúng quyền riêng của nó.
+  //
+  // Cả bảy mục gác bằng module `system` (chốt 2026-08-24). Chúng sửa dữ liệu
+  // dùng chung toàn công ty nên không thuộc module nghiệp vụ nào — trước đây
+  // `insurance:configure-catalog` và `banking:manage-*` khiến vai quản lý của
+  // hai module đó tự nhiên mở được màn cấu hình.
   const settingsChildren: NavChild[] = [];
 
   if (can(user, 'system', 'configure-gift-rules')) {
     settingsChildren.push({ href: '/settings/gift-rules', label: 'Quy tắc quà', screen: 'P-81' });
   }
-  if (can(user, 'insurance', 'configure-catalog')) {
+  if (can(user, 'system', 'configure-catalog')) {
     settingsChildren.push({
       href: '/settings/gift-catalog',
       label: 'Danh mục quà & gói BH',
@@ -178,17 +181,17 @@ export function navFor(user: User | null): NavEntry[] {
   if (can(user, 'system', 'configure-catalog')) {
     settingsChildren.push({ href: '/settings/kpi-target', label: 'Chỉ tiêu KPI', screen: 'P-83' });
   }
-  if (can(user, 'services', 'configure-catalog')) {
+  if (can(user, 'system', 'configure-catalog')) {
     settingsChildren.push({
       href: '/settings/service-types',
       label: 'Loại dịch vụ',
       screen: 'P-84',
     });
   }
-  if (can(user, 'banking', 'manage-bank-catalog')) {
+  if (can(user, 'system', 'manage-bank-catalog')) {
     settingsChildren.push({ href: '/settings/banks', label: 'Danh sách ngân hàng', screen: 'P-60' });
   }
-  if (can(user, 'banking', 'manage-referral-codes')) {
+  if (can(user, 'system', 'manage-referral-codes')) {
     settingsChildren.push({
       href: '/settings/referral-codes',
       label: 'Danh sách mã giới thiệu',

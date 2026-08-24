@@ -6,7 +6,7 @@ import { updateBank } from "@/server/catalog";
 type Params = { params: Promise<{ id: string }> };
 
 export async function PATCH(request: Request, { params }: Params) {
-  const guard = await actorWith(request, "banking", "manage-bank-catalog");
+  const guard = await actorWith(request, "system", "manage-bank-catalog");
   if (!guard.ok) return guard.response;
 
   const { id } = await params;

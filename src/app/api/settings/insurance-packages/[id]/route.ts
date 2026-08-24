@@ -6,7 +6,7 @@ import { updateInsurancePackage } from "@/server/catalog";
 type Params = { params: Promise<{ id: string }> };
 
 export async function PATCH(request: Request, { params }: Params) {
-  const guard = await actorWith(request, "insurance", "configure-catalog");
+  const guard = await actorWith(request, "system", "configure-catalog");
   if (!guard.ok) return guard.response;
 
   const { id } = await params;

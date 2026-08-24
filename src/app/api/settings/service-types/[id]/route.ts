@@ -6,7 +6,7 @@ import { updateServiceType } from "@/server/catalog";
 type Params = { params: Promise<{ id: string }> };
 
 export async function PATCH(request: Request, { params }: Params) {
-  const guard = await actorWith(request, "services", "configure-catalog");
+  const guard = await actorWith(request, "system", "configure-catalog");
   if (!guard.ok) return guard.response;
 
   const { id } = await params;
