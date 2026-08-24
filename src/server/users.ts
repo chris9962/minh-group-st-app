@@ -25,7 +25,6 @@ export function toUser(
     managedDepartmentIds,
     manageScope: row.manageScope,
     managedBankIds,
-    bankScope: row.bankScope,
     title: row.title,
     permissions,
     active: row.active,

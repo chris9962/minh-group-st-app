@@ -46,8 +46,11 @@ export const Bank = z.object({
    *
    * Rỗng = chưa giao cho ai, và ngân hàng vẫn chạy bình thường — người ở phạm
    * vi `all` sửa được nó như cũ. Danh sách này chỉ mở thêm quyền, không thu hẹp.
+   *
+   * Mang kèm TÊN chứ không chỉ id: bảng P-60 hiện tên ở một cột, mà tra tên từ
+   * id nghĩa là màn đó phải nạp trọn danh bạ 300 người chỉ để đọc vài cái tên.
    */
-  managerIds: z.array(z.string()),
+  managers: z.array(z.object({ id: z.string(), fullName: z.string() })),
 });
 export type Bank = z.infer<typeof Bank>;
 
@@ -102,21 +105,6 @@ async function send(url: string, method: string, body?: unknown) {
     throw new Error(body?.message?.trim() || 'Không lưu được');
   }
   return res.json();
-}
-
-/** Nhân viên chọn được vào ô "Người quản" — chỉ người đã có `system:manage-bank`. */
-export const BankManagerOption = z.object({
-  id: z.string(),
-  fullName: z.string(),
-  username: z.string(),
-  title: z.string(),
-});
-export type BankManagerOption = z.infer<typeof BankManagerOption>;
-
-export async function fetchBankManagerOptions(): Promise<BankManagerOption[]> {
-  const res = await fetch('/api/settings/banks/managers');
-  if (!res.ok) throw new Error('Không tải được danh sách người quản ngân hàng');
-  return z.array(BankManagerOption).parse(await res.json());
 }
 
 export const createBank = (form: BankForm) =>

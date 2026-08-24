@@ -230,18 +230,40 @@ export function visibleDepartmentIds(
 /**
  * Những ngân hàng người này được SỬA — cấu hình ngân hàng lẫn kho mã của nó.
  *
- * `null` = không giới hạn ngân hàng nào. KHÔNG thay bằng "danh sách mọi ngân
- * hàng": lập ngân hàng mới là thiếu ngay, cùng lý do `visibleDepartmentIds`
- * trả `null` cho phạm vi toàn công ty.
+ * Ba kết quả, đọc thẳng từ QUYỀN:
  *
- * Hàm này KHÔNG kiểm quyền — nơi gọi phải hỏi `can(user, 'system', 'manage-bank')`
- * trước. Nó chỉ trả lời "trong phạm vi nào", không trả lời "có được làm không".
+ *   `manage-bank`            →  `null`, nghĩa là không giới hạn
+ *   `manage-assigned-banks`  →  danh sách trong `user_managed_banks`
+ *   không quyền nào          →  mảng rỗng
  *
- * ⚠️ Trục riêng, không đọc `Scope`. Xem `BankScope` ở `lib/types.ts`.
+ * `null` KHÔNG thay bằng "danh sách mọi ngân hàng": lập ngân hàng mới là thiếu
+ * ngay, cùng lý do `visibleDepartmentIds` trả `null` cho phạm vi toàn công ty.
+ *
+ * Mảng RỖNG khác `null` — rỗng là "không ngân hàng nào", và nơi gọi phải hiện
+ * bảng trống chứ không phải hiện tất cả (AGENTS.md §6).
  */
 export function visibleBankIds(user: User | null): string[] | null {
   if (!user) return [];
-  return user.bankScope === 'all' ? null : user.managedBankIds;
+  if (can(user, 'system', 'manage-bank')) return null;
+  if (can(user, 'system', 'manage-assigned-banks')) return user.managedBankIds;
+  return [];
+}
+
+/**
+ * Người này mở được nhóm màn quản lý ngân hàng không — bất kể mọi ngân hàng hay
+ * chỉ ngân hàng được giao.
+ *
+ * Hai quyền mở CÙNG một trang, khác nhau ở chỗ trang đó hiện bao nhiêu ngân
+ * hàng. Nơi gọi hỏi hàm này thay vì tự viết `can(...) || can(...)`: hai chỗ
+ * viết tay là hai chỗ sớm muộn lệch nhau.
+ */
+export function canOpenBankAdmin(user: User | null): boolean {
+  return can(user, 'system', 'manage-bank') || can(user, 'system', 'manage-assigned-banks');
+}
+
+/** Chỉ người quản MỌI ngân hàng mới lập được ngân hàng mới. */
+export function canCreateBank(user: User | null): boolean {
+  return can(user, 'system', 'manage-bank');
 }
 
 /**
@@ -257,7 +279,7 @@ export function banksInScope<T extends { id: string }>(user: User | null, banks:
 
 /** Người này sửa được ngân hàng cụ thể đó không. Đã gộp cả phép kiểm quyền. */
 export function canManageBank(user: User | null, bankId: string): boolean {
-  if (!can(user, 'system', 'manage-bank')) return false;
+  if (!canOpenBankAdmin(user)) return false;
   const allowed = visibleBankIds(user);
   return allowed === null || allowed.includes(bankId);
 }

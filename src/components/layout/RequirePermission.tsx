@@ -4,14 +4,22 @@ import Link from "next/link";
 import { ShieldOff } from "lucide-react";
 import { can } from "@/lib/permissions";
 import { useSession } from "@/store/session";
-import type { Action, ModuleKey } from "@/lib/types";
+import type { Action, ModuleKey, User } from "@/lib/types";
 import styles from "./RequirePermission.module.scss";
 
 type Props = {
-  module: ModuleKey;
-  action: Action;
   children: React.ReactNode;
-};
+} & (
+  | { module: ModuleKey; action: Action; allow?: never }
+  /**
+   * Điều kiện tự viết, cho màn mà HAI quyền cùng mở được.
+   *
+   * Ví dụ trang ngân hàng: `manage-bank` mở nó với cả 13 ngân hàng,
+   * `manage-assigned-banks` mở nó với vài ngân hàng được giao. Truyền thẳng
+   * hàm từ `lib/permissions.ts` để giao diện và máy chủ hỏi CÙNG một hàm.
+   */
+  | { allow: (user: User | null) => boolean; module?: never; action?: never }
+);
 
 /**
  * Chặn cả MÀN khi người dùng không có quyền, thay vì để họ vào rồi bấm nút mới
@@ -26,13 +34,14 @@ type Props = {
  * (AGENTS.md §6). Điều kiện phải khớp đúng điều kiện hiện mục đó trên sidebar ở
  * `lib/nav.ts`; hai nơi lệch nhau thì menu dẫn tới một màn bị chính nó chặn.
  */
-export function RequirePermission({ module, action, children }: Props) {
+export function RequirePermission({ children, ...guard }: Props) {
   const user = useSession((s) => s.user);
 
   // `AppShell` đang đá về /login, đừng chớp một khối "không có quyền" ở giữa.
   if (!user) return null;
 
-  if (!can(user, module, action)) {
+  const allowed = guard.allow ? guard.allow(user) : can(user, guard.module, guard.action);
+  if (!allowed) {
     return (
       <main className={styles.denied}>
         <ShieldOff size={30} aria-hidden />

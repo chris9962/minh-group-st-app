@@ -9,3 +9,23 @@
   font-size: 12px;
   color: var(--color-neutral-600);
 }
+
+/* Nhiều tên trong một ô: xuống dòng thay vì kéo cột rộng ra. Dấu phẩy nằm ở
+   `::after` nên chỉ chữ là bấm được, không dính dấu ngăn cách. */
+.managerNames {
+  display: inline;
+}
+
+.managerLink {
+  color: var(--om-link);
+}
+
+.managerLink:hover {
+  color: var(--om-link-hover);
+  text-decoration: underline;
+}
+
+.managerLink:not(:last-child)::after {
+  content: ", ";
+  color: var(--om-text-2);
+}

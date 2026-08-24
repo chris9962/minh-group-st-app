@@ -1,0 +1,19 @@
+-- Quyền riêng cho người quản MỘT SỐ ngân hàng (chốt 2026-08-24).
+--
+-- Trước đó phạm vi đi bằng cột `users.bank_scope` (`all` / `listed`). Cột đó có
+-- một ô chọn ở thẻ Quyền của hồ sơ nhân viên, mà `checkCeilings` không kiểm nó:
+-- một người ở `listed` gửi `PATCH /api/staff/<chính mình>` đổi mỗi trường đó là
+-- quản được cả 13 ngân hàng.
+--
+-- Hai vai nay là HAI QUYỀN, không phải một quyền với hai phạm vi:
+--
+--   system:manage-bank            →  mọi ngân hàng
+--   system:manage-assigned-banks  →  ngân hàng có tên trong `user_managed_banks`
+--
+-- Quyền cấp ở lưới P-92, nơi đã có trần `checkPermissions`. Không còn ô nào cho
+-- người dùng tự đổi phạm vi của chính mình.
+--
+-- ⚠️ File này CHỈ thêm giá trị enum. Postgres 12+ cho phép ADD VALUE trong
+-- transaction miễn là không dùng giá trị mới trong CÙNG transaction đó — phần
+-- chuyển dữ liệu nằm ở migration kế tiếp, cùng lối migration 0026 đã đi.
+ALTER TYPE "action_key" ADD VALUE IF NOT EXISTS 'manage-assigned-banks' AFTER 'manage-bank';

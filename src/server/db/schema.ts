@@ -47,6 +47,15 @@ export const actionKey = pgEnum("action_key", [
    * phải là nó đã biến mất.
    */
   "manage-bank",
+  /**
+   * Quản ĐÚNG những ngân hàng có tên người đó trong `user_managed_banks`
+   * (migration 0042). Khác `manage-bank` — cái đó là mọi ngân hàng.
+   *
+   * Hai vai là hai QUYỀN, không phải một quyền với hai phạm vi: phạm vi đọc từ
+   * quyền thì nó đi qua trần `checkPermissions` của lưới cấp quyền, còn một cột
+   * riêng thì phải nhớ thêm luật vào `checkCeilings` — và lần đầu đã quên.
+   */
+  "manage-assigned-banks",
   "configure-catalog", "configure-gift-rules",
   "manage-org", "grant-permission",
   // đặc biệt · customer: XEM + SỬA CCCD đầy đủ, gộp một quyền (quyết định 03/08)
@@ -59,13 +68,6 @@ export const roleKey = pgEnum("role_key", [
 ]);
 export const manageScope = pgEnum("manage_scope", ["none", "listed", "company"]);
 
-/**
- * Người này quản MỌI ngân hàng, hay chỉ ngân hàng được giao (migration 0041).
- *
- * Trục riêng, KHÔNG mượn `scope_key`: `own` của trục đó nghĩa là "bản ghi do
- * chính tôi tạo" (spec §1.1.2), mà ngân hàng không thuộc về ai.
- */
-export const bankScope = pgEnum("bank_scope", ["all", "listed"]);
 
 /**
  * Loại phòng — quyết định công thức tính điểm KPI (spec §7.0, chốt 2026-08-22).
@@ -144,8 +146,6 @@ export const users = pgTable(
     /** THUỘC VỀ đúng một phòng; null với Ban giám đốc. */
     departmentId: uuid("department_id").references(() => departments.id),
     manageScope: manageScope("manage_scope").notNull().default("none"),
-    /** Chỉ có nghĩa với người mang `system:manage-bank`. Xem `bankScope` ở trên. */
-    bankScope: bankScope("bank_scope").notNull().default("all"),
     active: boolean("active").notNull().default(true),
     /** C-01: sai 5 lần liên tiếp → khoá 15 phút, quản trị mở lại. */
     failedAttempts: smallint("failed_attempts").notNull().default(0),
@@ -170,7 +170,8 @@ export const userManagedDepartments = pgTable(
 );
 
 /**
- * Ngân hàng nào do ai quản — chỉ có nghĩa khi `users.bank_scope = 'listed'`.
+ * Ngân hàng nào do ai quản — chỉ có nghĩa với người mang
+ * `system:manage-assigned-banks`.
  *
  * Nhiều-nhiều CẢ HAI CHIỀU. Một người quản nhiều ngân hàng, và một ngân hàng có
  * nhiều người quản; khoá chính hai cột cho sẵn điều đó. KHÔNG thêm ràng buộc

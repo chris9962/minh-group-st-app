@@ -130,7 +130,7 @@ export function AccountCard({ staffId }: { staffId: string }) {
             }
           />
         )}
-        {staff.bankScope === "listed" && (
+        {staff.managedBankIds.length > 0 && (
           <Row label="Ngân hàng quản" value={`${staff.managedBankIds.length} ngân hàng`} />
         )}
         <Row

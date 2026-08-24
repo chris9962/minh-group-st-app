@@ -93,7 +93,9 @@ async function catalogWrite<T>(run: () => Promise<T>): Promise<CatalogOutcome<T>
 
 /* ── Ngân hàng ────────────────────────────────────────────────────────── */
 
-const toBank = (r: typeof banks.$inferSelect, managerIds: string[] = []): Bank => ({
+type BankManager = { id: string; fullName: string };
+
+const toBank = (r: typeof banks.$inferSelect, managers: BankManager[] = []): Bank => ({
   id: r.id,
   code: r.code,
   active: r.active,
@@ -102,7 +104,7 @@ const toBank = (r: typeof banks.$inferSelect, managerIds: string[] = []): Bank =
   coefficient: Number(r.coefficient),
   countsAsApp: r.countsAsApp,
   priority: r.priority,
-  managerIds,
+  managers,
 });
 
 /**
@@ -111,45 +113,71 @@ const toBank = (r: typeof banks.$inferSelect, managerIds: string[] = []): Bank =
  * Không truy vấn theo từng ngân hàng: 13 dòng là 13 lượt đi về database cho
  * một màn (N+1), mà cả bảng nối chỉ vài trăm dòng nên lấy trọn rẻ hơn hẳn.
  */
-async function bankManagers(): Promise<Map<string, string[]>> {
-  const rows = await db.select().from(userManagedBanks);
-  const byBank = new Map<string, string[]>();
+async function bankManagers(): Promise<Map<string, BankManager[]>> {
+  const rows = await db
+    .select({
+      bankId: userManagedBanks.bankId,
+      id: users.id,
+      fullName: users.fullName,
+    })
+    .from(userManagedBanks)
+    .innerJoin(users, eq(users.id, userManagedBanks.userId))
+    .orderBy(asc(users.fullName));
+
+  const byBank = new Map<string, BankManager[]>();
   for (const r of rows) {
     const list = byBank.get(r.bankId) ?? [];
-    list.push(r.userId);
+    list.push({ id: r.id, fullName: r.fullName });
     byBank.set(r.bankId, list);
   }
   return byBank;
 }
 
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
 /**
- * Nhân viên CHỌN ĐƯỢC vào ô "Người quản" — những người đã có `system:manage-bank`.
+ * Thu hồi quyền của người vừa bị bỏ khỏi ngân hàng CUỐI CÙNG họ quản.
  *
- * Lọc theo quyền chứ không bày cả danh bạ: có tên trong danh sách người quản mà
- * không có quyền thì vẫn không mở được màn nào, nên một cái tên như vậy chỉ làm
- * người cấp tưởng đã xong việc.
+ * Đối xứng với nhịp thêm: vào danh sách người quản thì được cấp
+ * `manage-assigned-banks`, ra khỏi danh sách cuối cùng thì trả lại. Không thu
+ * hồi thì họ giữ một quyền không dùng được — mục sidebar vẫn hiện, vào màn thấy
+ * bảng trống vì `visibleBankIds` trả mảng rỗng, và không ai hiểu vì sao.
  *
- * `module = '*'` cũng tính — tài khoản toàn quyền mang dạng đó.
+ * ⚠️ CHỈ đụng `manage-assigned-banks`. Người mang `manage-bank` quản mọi ngân
+ * hàng và quyền đó không đến từ danh sách này — bỏ họ khỏi một ngân hàng mà thu
+ * hồi luôn là cắt quyền họ vốn có từ bộ quyền chức vụ.
  */
-export async function listBankManagerCandidates(): Promise<
-  { id: string; fullName: string; username: string; title: string }[]
-> {
-  return db
-    .selectDistinct({
-      id: users.id,
-      fullName: users.fullName,
-      username: users.username,
-      title: users.title,
-    })
-    .from(users)
-    .innerJoin(userPermissions, eq(userPermissions.userId, users.id))
+async function revokeOrphanBankManagers(tx: Tx, droppedIds: string[]) {
+  if (droppedIds.length === 0) return;
+
+  // Ai trong số đó CÒN quản ngân hàng khác thì giữ nguyên.
+  const stillManaging = await tx
+    .selectDistinct({ userId: userManagedBanks.userId })
+    .from(userManagedBanks)
+    .where(inArray(userManagedBanks.userId, droppedIds));
+  const keeps = new Set(stillManaging.map((r) => r.userId));
+
+  const orphans = droppedIds.filter((id) => !keeps.has(id));
+  if (orphans.length === 0) return;
+
+  await tx
+    .delete(userPermissions)
     .where(
       and(
-        eq(users.active, true),
-        eq(userPermissions.action, "manage-bank"),
-        sql`${userPermissions.module} in ('system', '*')`,
+        inArray(userPermissions.userId, orphans),
+        eq(userPermissions.action, "manage-assigned-banks"),
+        eq(userPermissions.module, "system"),
       ),
-    )
+    );
+}
+
+/** Người quản của MỘT ngân hàng, kèm tên. Dùng khi trả một bản ghi ra ngoài. */
+async function bankManagersOf(runner: Tx | typeof db, bankId: string): Promise<BankManager[]> {
+  return runner
+    .select({ id: users.id, fullName: users.fullName })
+    .from(userManagedBanks)
+    .innerJoin(users, eq(users.id, userManagedBanks.userId))
+    .where(eq(userManagedBanks.bankId, bankId))
     .orderBy(asc(users.fullName));
 }
 
@@ -167,13 +195,101 @@ export async function bankManagerIds(bankId: string): Promise<string[]> {
  *
  * Cùng cách `writeCodeDepartments` làm — danh sách nhiều nhất vài chục người,
  * mà phép so từng dòng để chèn/xoá phần chênh là chỗ dễ sai hơn một lượt ghi đè.
+ *
+ * ⚠️ Hàm này CẤP và THU HỒI quyền của người khác, nên nơi gọi phải truyền
+ * `canAssign` — chỉ người có `system:grant-permission` mới bật nó. Bản trước
+ * chạy nhánh cấp quyền cho mọi lượt lưu: một người quản ngân hàng bấm Lưu là
+ * dựng lại quyền mà quản trị vừa thu hồi ở màn nhân sự.
  */
-async function writeBankManagers(bankId: string, managerIds: string[]) {
-  await db.delete(userManagedBanks).where(eq(userManagedBanks.bankId, bankId));
+async function writeBankManagers(
+  tx: Tx,
+  bankId: string,
+  managerIds: string[],
+  canAssign: boolean,
+) {
+  /**
+   * Không có `grant-permission` thì KHÔNG đụng gì — cả bảng nối lẫn quyền.
+   *
+   * Route đã thay `managerIds` bằng danh sách cũ cho người như vậy, nên về lý
+   * thuyết ghi lại cũng ra kết quả cũ. Nhưng dừng hẳn ở đây rẻ hơn và không phụ
+   * thuộc vào việc route nhớ làm đúng: hàm này cấp và thu hồi quyền của người
+   * khác, nên nó tự kiểm chứ không tin nơi gọi.
+   */
+  if (!canAssign) return;
+
+  // Đọc TRƯỚC khi xoá: cần biết ai vừa bị bỏ ra để còn thu hồi quyền cho họ.
+  const before = (
+    await tx
+      .select({ userId: userManagedBanks.userId })
+      .from(userManagedBanks)
+      .where(eq(userManagedBanks.bankId, bankId))
+  ).map((r) => r.userId);
+
+  await tx.delete(userManagedBanks).where(eq(userManagedBanks.bankId, bankId));
+  if (managerIds.length > 0) {
+    await tx
+      .insert(userManagedBanks)
+      .values(managerIds.map((userId) => ({ userId, bankId })))
+      .onConflictDoNothing();
+  }
+
+  await revokeOrphanBankManagers(tx, before.filter((id) => !managerIds.includes(id)));
   if (managerIds.length === 0) return;
-  await db
-    .insert(userManagedBanks)
-    .values(managerIds.map((userId) => ({ userId, bankId })))
+
+  /**
+   * Người được giao mà CHƯA có quyền nào về ngân hàng thì cấp
+   * `manage-assigned-banks`.
+   *
+   * Ô chọn cho tìm trong toàn bộ nhân viên, nên người vừa chọn thường chưa có
+   * quyền gì. Chỉ ghi bảng nối thì tên họ nằm đó mà vẫn không mở được màn nào —
+   * người giao tưởng đã xong việc, còn người được giao không hiểu vì sao không
+   * vào được.
+   *
+   * ⚠️ Ai đã có `manage-bank` thì KHÔNG đụng. Họ quản mọi ngân hàng; thêm quyền
+   * hẹp hơn vào chỉ làm lưới cấp quyền hiện hai ô cùng bật mà không nói thêm gì.
+   */
+  const already = await tx
+    .select({ userId: userPermissions.userId })
+    .from(userPermissions)
+    .where(
+      and(
+        inArray(userPermissions.userId, managerIds),
+        sql`${userPermissions.action} in ('manage-bank', 'manage-assigned-banks')`,
+        sql`${userPermissions.module} in ('system', '*')`,
+      ),
+    );
+  const has = new Set(already.map((r) => r.userId));
+
+  /**
+   * Chỉ cấp cho tài khoản ĐANG HOẠT ĐỘNG.
+   *
+   * Ô chọn ở giao diện đã lọc, nhưng đó là lọc ở trình duyệt — một body nặn tay
+   * gửi uuid của người đã nghỉ việc thì quyền nằm im tới ngày ai đó mở khoá lại
+   * tài khoản (AGENTS.md §6).
+   */
+  const fresh = (
+    await tx
+      .select({ id: users.id })
+      .from(users)
+      .where(
+        and(
+          inArray(users.id, managerIds.filter((id) => !has.has(id))),
+          eq(users.active, true),
+        ),
+      )
+  ).map((r) => r.id);
+  if (fresh.length === 0) return;
+
+  await tx
+    .insert(userPermissions)
+    .values(
+      fresh.map((userId) => ({
+        userId,
+        module: "system" as const,
+        action: "manage-assigned-banks" as const,
+        scope: "company" as const,
+      })),
+    )
     .onConflictDoNothing();
 }
 
@@ -199,20 +315,33 @@ export async function listBanks(): Promise<Bank[]> {
  * KHÔNG nhận `coefficient`: hệ số điểm hết tác dụng từ 03/08, xem
  * `docs/plan-module-cau-hinh.md`. Dòng mới lấy mặc định 1 của DB.
  */
-export async function createBank(form: BankForm): Promise<CatalogOutcome<Bank>> {
+export async function createBank(
+  form: BankForm,
+  canAssign: boolean,
+): Promise<CatalogOutcome<Bank>> {
   try {
-    const [row] = await db
-      .insert(banks)
-      .values({
-        code: form.code,
-        requiredPhotos: form.requiredPhotos,
-        accountNumberMethod: form.accountNumberMethod,
-        countsAsApp: form.countsAsApp,
-        priority: form.priority,
-      })
-      .returning();
-    await writeBankManagers(row.id, form.managerIds);
-    return { ok: true, item: toBank(row, form.managerIds) };
+    /**
+     * Một transaction cho cả hai bảng.
+     *
+     * Bản trước chèn ngân hàng rồi mới ghi người quản. Một uuid không có trong
+     * `users` sinh lỗi khoá ngoại, `uniqueViolationOf` trả `null` nên lỗi ném
+     * ra 500 — mà ngân hàng thì đã nằm trong bảng. Người dùng bấm Lưu lại nhận
+     * "Mã ngân hàng này đã có" và không đoán ra vì sao.
+     */
+    return await db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(banks)
+        .values({
+          code: form.code,
+          requiredPhotos: form.requiredPhotos,
+          accountNumberMethod: form.accountNumberMethod,
+          countsAsApp: form.countsAsApp,
+          priority: form.priority,
+        })
+        .returning();
+      await writeBankManagers(tx, row.id, form.managerIds, canAssign);
+      return { ok: true as const, item: toBank(row, await bankManagersOf(tx, row.id)) };
+    });
   } catch (e) {
     if (uniqueViolationOf(e) !== null) return { ok: false, reason: "code-taken" };
     throw e;
@@ -235,21 +364,27 @@ export async function createBank(form: BankForm): Promise<CatalogOutcome<Bank>> 
  * đây chỉ là chốt chặn phía máy chủ (AGENTS.md §6), không phải đường người dùng
  * đi tới được.
  */
-export async function updateBank(id: string, form: BankForm): Promise<CatalogOutcome<Bank> | null> {
+export async function updateBank(
+  id: string,
+  form: BankForm,
+  canAssign: boolean,
+): Promise<CatalogOutcome<Bank> | null> {
   try {
-    const [row] = await db
-      .update(banks)
-      .set({
-        requiredPhotos: form.requiredPhotos,
-        accountNumberMethod: form.accountNumberMethod,
-        countsAsApp: form.countsAsApp,
-        priority: form.priority,
-      })
-      .where(eq(banks.id, id))
-      .returning();
-    if (!row) return null;
-    await writeBankManagers(id, form.managerIds);
-    return { ok: true, item: toBank(row, form.managerIds) };
+    return await db.transaction(async (tx) => {
+      const [row] = await tx
+        .update(banks)
+        .set({
+          requiredPhotos: form.requiredPhotos,
+          accountNumberMethod: form.accountNumberMethod,
+          countsAsApp: form.countsAsApp,
+          priority: form.priority,
+        })
+        .where(eq(banks.id, id))
+        .returning();
+      if (!row) return null;
+      await writeBankManagers(tx, id, form.managerIds, canAssign);
+      return { ok: true as const, item: toBank(row, await bankManagersOf(tx, id)) };
+    });
   } catch (e) {
     if (uniqueViolationOf(e) !== null) return { ok: false, reason: "code-taken" };
     throw e;
@@ -259,7 +394,7 @@ export async function updateBank(id: string, form: BankForm): Promise<CatalogOut
 export async function setBankActive(id: string, active: boolean): Promise<Bank | null> {
   const [row] = await db.update(banks).set({ active }).where(eq(banks.id, id)).returning();
   if (!row) return null;
-  return toBank(row, (await bankManagers()).get(id) ?? []);
+  return toBank(row, await bankManagersOf(db, id));
 }
 
 /* ── Mã giới thiệu ────────────────────────────────────────────────────── */

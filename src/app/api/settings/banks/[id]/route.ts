@@ -1,8 +1,22 @@
 import { BankForm } from "@/lib/api/bankCatalog";
 import { logAudit } from "@/server/audit";
-import { can, canManageBank } from "@/lib/permissions";
-import { actorWith, badRequest, forbidden, isUuid, jsonBody, notFound } from "@/server/auth";
+import { can, canManageBank, canOpenBankAdmin } from "@/lib/permissions";
+import { actorWith, badRequest, forbidden, getActor, isUuid, jsonBody, notFound, unauthorized } from "@/server/auth";
 import { bankManagerIds, updateBank } from "@/server/catalog";
+
+/**
+ * Gác nhóm màn quản lý ngân hàng — nhận CẢ hai quyền.
+ *
+ * `manage-bank` mở với mọi ngân hàng, `manage-assigned-banks` mở với những
+ * ngân hàng được giao. Chốt phạm vi theo từng ngân hàng nằm ở `canManageBank`,
+ * không phải ở đây.
+ */
+async function bankAdminGuard(request: Request) {
+  const actor = await getActor(request);
+  if (!actor) return { ok: false as const, response: unauthorized() };
+  if (!canOpenBankAdmin(actor)) return { ok: false as const, response: forbidden() };
+  return { ok: true as const, actor };
+}
 
 /**
  * Danh sách người quản chỉ nhận từ người có `grant-permission`.
@@ -17,7 +31,7 @@ import { bankManagerIds, updateBank } from "@/server/catalog";
 type Params = { params: Promise<{ id: string }> };
 
 export async function PATCH(request: Request, { params }: Params) {
-  const guard = await actorWith(request, "system", "manage-bank");
+  const guard = await bankAdminGuard(request);
   if (!guard.ok) return guard.response;
 
   const { id } = await params;
@@ -34,11 +48,12 @@ export async function PATCH(request: Request, { params }: Params) {
   const parsed = BankForm.safeParse(await jsonBody(request));
   if (!parsed.success) return badRequest();
 
-  const form = can(guard.actor, "system", "grant-permission")
+  const canAssign = can(guard.actor, "system", "grant-permission");
+  const form = canAssign
     ? parsed.data
     : { ...parsed.data, managerIds: await bankManagerIds(id) };
 
-  const result = await updateBank(id, form);
+  const result = await updateBank(id, form, canAssign);
   if (!result) return notFound();
   if (!result.ok) return badRequest("Mã ngân hàng này đã có");
 

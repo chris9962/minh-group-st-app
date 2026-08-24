@@ -1,8 +1,22 @@
 import { z } from "zod";
 import { logAudit } from "@/server/audit";
-import { canManageBank } from "@/lib/permissions";
-import { actorWith, badRequest, forbidden, isUuid, jsonBody, notFound } from "@/server/auth";
+import { canManageBank, canOpenBankAdmin } from "@/lib/permissions";
+import { actorWith, badRequest, forbidden, getActor, isUuid, jsonBody, notFound, unauthorized } from "@/server/auth";
 import { setBankActive } from "@/server/catalog";
+
+/**
+ * Gác nhóm màn quản lý ngân hàng — nhận CẢ hai quyền.
+ *
+ * `manage-bank` mở với mọi ngân hàng, `manage-assigned-banks` mở với những
+ * ngân hàng được giao. Chốt phạm vi theo từng ngân hàng nằm ở `canManageBank`,
+ * không phải ở đây.
+ */
+async function bankAdminGuard(request: Request) {
+  const actor = await getActor(request);
+  if (!actor) return { ok: false as const, response: unauthorized() };
+  if (!canOpenBankAdmin(actor)) return { ok: false as const, response: forbidden() };
+  return { ok: true as const, actor };
+}
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -10,7 +24,7 @@ const Body = z.object({ active: z.boolean() });
 
 /** Ngừng / mở lại — KHÔNG xoá. Bản ghi cũ trỏ vào id, xoá là để lại id chết. */
 export async function POST(request: Request, { params }: Params) {
-  const guard = await actorWith(request, "system", "manage-bank");
+  const guard = await bankAdminGuard(request);
   if (!guard.ok) return guard.response;
 
   const { id } = await params;

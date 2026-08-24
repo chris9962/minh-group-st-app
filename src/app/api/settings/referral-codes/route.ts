@@ -1,9 +1,23 @@
 import { CodeStatus, REFERRAL_CODE_SORT, ReferralCodeForm } from "@/lib/api/bankCatalog";
-import { canManageBank, visibleBankIds } from "@/lib/permissions";
+import { canManageBank, canOpenBankAdmin, visibleBankIds } from "@/lib/permissions";
 import { logAudit } from "@/server/audit";
-import { actorWith, badRequest, forbidden, jsonBody, uuidParam } from "@/server/auth";
+import { actorWith, badRequest, forbidden, getActor, jsonBody, unauthorized, uuidParam } from "@/server/auth";
 import { createReferralCode, listReferralCodes } from "@/server/catalog";
 import { pageArgsFrom } from "@/server/pagination";
+
+/**
+ * Gác nhóm màn quản lý ngân hàng — nhận CẢ hai quyền.
+ *
+ * `manage-bank` mở với mọi ngân hàng, `manage-assigned-banks` mở với những
+ * ngân hàng được giao. Chốt phạm vi theo từng ngân hàng nằm ở `canManageBank`,
+ * không phải ở đây.
+ */
+async function bankAdminGuard(request: Request) {
+  const actor = await getActor(request);
+  if (!actor) return { ok: false as const, response: unauthorized() };
+  if (!canOpenBankAdmin(actor)) return { ok: false as const, response: forbidden() };
+  return { ok: true as const, actor };
+}
 
 /**
  * P-61 · Kho mã giới thiệu.
@@ -13,7 +27,7 @@ import { pageArgsFrom } from "@/server/pagination";
  * ngân hàng cấp, có số lượng — không seed được, phải nhập.
  */
 export async function GET(request: Request) {
-  const guard = await actorWith(request, "system", "manage-bank");
+  const guard = await bankAdminGuard(request);
   if (!guard.ok) return guard.response;
 
   // Lọc · tìm · sắp · cắt trang đều ở máy chủ (AGENTS.md §5.1). Trạng thái lạ
@@ -39,7 +53,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const guard = await actorWith(request, "system", "manage-bank");
+  const guard = await bankAdminGuard(request);
   if (!guard.ok) return guard.response;
 
   const parsed = ReferralCodeForm.safeParse(await jsonBody(request));

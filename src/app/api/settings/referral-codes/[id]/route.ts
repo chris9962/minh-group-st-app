@@ -1,8 +1,22 @@
 import { ReferralCodeForm } from "@/lib/api/bankCatalog";
-import { canManageBank } from "@/lib/permissions";
+import { canManageBank, canOpenBankAdmin } from "@/lib/permissions";
 import { logAudit } from "@/server/audit";
-import { actorWith, badRequest, forbidden, isUuid, jsonBody, notFound } from "@/server/auth";
+import { actorWith, badRequest, forbidden, getActor, isUuid, jsonBody, notFound, unauthorized } from "@/server/auth";
 import { bankIdOfReferralCode, updateReferralCode } from "@/server/catalog";
+
+/**
+ * Gác nhóm màn quản lý ngân hàng — nhận CẢ hai quyền.
+ *
+ * `manage-bank` mở với mọi ngân hàng, `manage-assigned-banks` mở với những
+ * ngân hàng được giao. Chốt phạm vi theo từng ngân hàng nằm ở `canManageBank`,
+ * không phải ở đây.
+ */
+async function bankAdminGuard(request: Request) {
+  const actor = await getActor(request);
+  if (!actor) return { ok: false as const, response: unauthorized() };
+  if (!canOpenBankAdmin(actor)) return { ok: false as const, response: forbidden() };
+  return { ok: true as const, actor };
+}
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -19,7 +33,7 @@ type Params = { params: Promise<{ id: string }> };
  * được, nên phải nói rõ vì sao không lưu.
  */
 export async function PATCH(request: Request, { params }: Params) {
-  const guard = await actorWith(request, "system", "manage-bank");
+  const guard = await bankAdminGuard(request);
   if (!guard.ok) return guard.response;
 
   const { id } = await params;

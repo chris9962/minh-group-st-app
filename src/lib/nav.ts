@@ -200,10 +200,26 @@ export function navFor(user: User | null): NavEntry[] {
    * Một quyền thì một mục — tách hai mục ra là bày hai đường vào cùng một thứ,
    * và người dùng phải nhớ mã giới thiệu nằm ở mục nào.
    */
+  /**
+   * Hai quyền, hai NHÃN, cùng một đường dẫn (chốt 2026-08-24).
+   *
+   * `manage-bank` mở trang với cả 13 ngân hàng; `manage-assigned-banks` mở đúng
+   * trang đó nhưng `visibleBankIds` lọc xuống vài ngân hàng được giao. Nhãn
+   * khác nhau để người dùng biết mình đang ở phạm vi nào ngay từ sidebar.
+   *
+   * Nhánh `else if`: ai có cả hai quyền chỉ thấy MỘT mục — bày hai mục cùng
+   * đường dẫn là hai lối vào một chỗ.
+   */
   if (can(user, 'system', 'manage-bank')) {
     settingsChildren.push({
       href: '/settings/banks',
       label: 'Ngân hàng & mã giới thiệu',
+      screen: 'P-60',
+    });
+  } else if (can(user, 'system', 'manage-assigned-banks')) {
+    settingsChildren.push({
+      href: '/settings/banks',
+      label: 'Ngân hàng phụ trách',
       screen: 'P-60',
     });
   }

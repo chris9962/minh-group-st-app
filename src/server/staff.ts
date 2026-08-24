@@ -91,7 +91,6 @@ async function toAccounts(rows: UserWithDepartment[]): Promise<StaffAccount[]> {
     title: r.title,
     manageScope: r.manageScope,
     managedDepartmentIds: managedOf.get(r.id) ?? [],
-    bankScope: r.bankScope,
     managedBankIds: managedBanksOf.get(r.id) ?? [],
     active: r.active,
     permissions: permissionsOf.get(r.id) ?? [],
@@ -500,7 +499,6 @@ async function writeStaff(
         title: form.title,
         departmentId: form.departmentId || null,
         manageScope: form.manageScope,
-        bankScope: form.bankScope,
       });
     } else {
       /**
@@ -540,7 +538,6 @@ async function writeStaff(
           title: form.title,
           departmentId: form.departmentId || null,
           manageScope: form.manageScope,
-          bankScope: form.bankScope,
           updatedAt: new Date(),
           // KHÔNG đụng `active`: khoá/mở khoá đi đường riêng — sửa hồ sơ mà
           // vô tình mở khoá người đã nghỉ việc là chuyện không được xảy ra.
@@ -550,14 +547,14 @@ async function writeStaff(
       await tx.delete(userManagedDepartments).where(eq(userManagedDepartments.userId, id));
 
       /**
-       * Hạ về `all` thì dọn luôn danh sách ngân hàng đã giao.
+       * Bộ quyền mới KHÔNG còn `manage-assigned-banks` thì dọn danh sách ngân
+       * hàng đã giao.
        *
-       * Giữ lại là dữ liệu chết: `visibleBankIds` không đọc tới khi `all`, nên
-       * nâng lên rồi hạ xuống rồi nâng lại là danh sách cũ sống dậy mà không ai
-       * chọn. KHÔNG dọn khi vẫn ở `listed` — hộp thoại nhân viên không có ô sửa
-       * danh sách đó, xoá ở đây là mỗi lượt lưu hồ sơ lại gỡ hết người quản.
+       * Giữ lại là dữ liệu chết — `visibleBankIds` không đọc tới khi không có
+       * quyền đó — và cột "Người quản" ở màn ngân hàng sẽ hiện tên một người
+       * không sửa được gì.
        */
-      if (form.bankScope === "all") {
+      if (!form.permissions.some((p) => p.action === "manage-assigned-banks")) {
         await tx.delete(userManagedBanks).where(eq(userManagedBanks.userId, id));
       }
     }

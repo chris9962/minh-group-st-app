@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { BankScope, ManageScope, Permission, ROLE_LABEL, RoleKey } from '@/lib/types';
+import { ManageScope, Permission, ROLE_LABEL, RoleKey } from '@/lib/types';
 import { pageOf, pageParams, type PageQuery } from './pagination';
 
 /** Hồ sơ nhân viên = tài khoản đăng nhập. Một thứ, không tách (spec §2.2). */
@@ -19,11 +19,6 @@ export const StaffAccount = z.object({
   title: z.string(),
   manageScope: ManageScope,
   managedDepartmentIds: z.array(z.string()),
-  /**
-   * Người này quản MỌI ngân hàng hay chỉ ngân hàng được giao. Chỉ có nghĩa với
-   * người mang `system:manage-bank`.
-   */
-  bankScope: BankScope,
   /**
    * Ngân hàng được giao — CHỈ ĐỌC ở màn nhân sự. Muốn đổi thì sang hộp thoại
    * sửa ngân hàng: câu hỏi ở đó là "ngân hàng này ai quản", và một ngân hàng
@@ -173,15 +168,17 @@ export const StaffForm = z.object({
   title: z.string().trim().min(2, 'Chưa nhập chức danh'),
   manageScope: ManageScope,
   managedDepartmentIds: z.array(z.uuid()),
-  /**
-   * Mọi ngân hàng, hay chỉ ngân hàng được giao. Chỉ có nghĩa với người mang
-   * `system:manage-bank`.
-   *
-   * KHÔNG có `managedBankIds` ở đây: danh sách ngân hàng gán ở hộp thoại sửa
-   * ngân hàng, vì câu hỏi lúc đó là "ngân hàng này ai quản" và một ngân hàng có
-   * nhiều người quản.
-   */
-  bankScope: BankScope,
+  /*
+    KHÔNG có `bankScope` lẫn `managedBankIds` ở đây (chốt 2026-08-24).
+
+    Phạm vi ngân hàng nay đọc từ QUYỀN — `manage-bank` là mọi ngân hàng,
+    `manage-assigned-banks` là danh sách được giao — nên nó đi qua trần
+    `checkPermissions` như mọi quyền khác. Bản trước có một trường riêng mà
+    `checkCeilings` không kiểm, và người dùng tự nâng phạm vi của chính mình được.
+
+    Danh sách ngân hàng gán ở hộp thoại sửa ngân hàng: câu hỏi lúc đó là "ngân
+    hàng này ai quản", và một ngân hàng có nhiều người quản.
+  */
   permissions: z.array(Permission),
 }).superRefine((form, ctx) => {
   const shape = ROLE_SHAPE[form.role];

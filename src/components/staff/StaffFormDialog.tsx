@@ -47,7 +47,6 @@ const emptyForm: StaffForm = {
   title: ROLE_TITLE.staff,
   manageScope: "none",
   managedDepartmentIds: [],
-  bankScope: "all",
   permissions: ROLE_PERMISSIONS.staff,
 };
 
@@ -83,7 +82,6 @@ const toForm = (s: StaffAccount): StaffForm => ({
   title: s.title,
   manageScope: s.manageScope,
   managedDepartmentIds: s.managedDepartmentIds,
-  bankScope: s.bankScope,
   permissions: s.permissions,
 });
 
@@ -427,9 +425,6 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
                   setValue("permissions", permissions, { shouldDirty: true })
                 }
                 actor={actor}
-                bankScope={watch("bankScope")}
-                onBankScopeChange={(v) => setValue("bankScope", v, { shouldDirty: true })}
-                managedBankCount={staff?.managedBankIds.length ?? 0}
               />
               <Button
                 variant="secondary"

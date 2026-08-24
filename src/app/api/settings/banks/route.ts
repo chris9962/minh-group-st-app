@@ -1,8 +1,22 @@
 import { BankForm } from "@/lib/api/bankCatalog";
 import { logAudit } from "@/server/audit";
-import { can, visibleBankIds } from "@/lib/permissions";
-import { actorWith, signedIn, badRequest, forbidden, jsonBody } from "@/server/auth";
+import { can, canOpenBankAdmin, visibleBankIds } from "@/lib/permissions";
+import { actorWith, badRequest, forbidden, getActor, jsonBody, signedIn, unauthorized } from "@/server/auth";
 import { createBank, listBanks } from "@/server/catalog";
+
+/**
+ * Gác nhóm màn quản lý ngân hàng — nhận CẢ hai quyền.
+ *
+ * `manage-bank` mở với mọi ngân hàng, `manage-assigned-banks` mở với những
+ * ngân hàng được giao. Chốt phạm vi theo từng ngân hàng nằm ở `canManageBank`,
+ * không phải ở đây.
+ */
+async function bankAdminGuard(request: Request) {
+  const actor = await getActor(request);
+  if (!actor) return { ok: false as const, response: unauthorized() };
+  if (!canOpenBankAdmin(actor)) return { ok: false as const, response: forbidden() };
+  return { ok: true as const, actor };
+}
 
 /** P-60 · Danh sách ngân hàng. */
 export async function GET(request: Request) {
@@ -14,7 +28,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const guard = await actorWith(request, "system", "manage-bank");
+  const guard = await bankAdminGuard(request);
   if (!guard.ok) return guard.response;
 
   /**
@@ -31,11 +45,10 @@ export async function POST(request: Request) {
 
   // Ngân hàng mới chỉ người `all` lập được (chốt ngay trên), mà muốn giao nó cho
   // ai thì vẫn phải có `grant-permission` — hai quyền khác nhau.
-  const form = can(guard.actor, "system", "grant-permission")
-    ? parsed.data
-    : { ...parsed.data, managerIds: [] };
+  const canAssign = can(guard.actor, "system", "grant-permission");
+  const form = canAssign ? parsed.data : { ...parsed.data, managerIds: [] };
 
-  const result = await createBank(form);
+  const result = await createBank(form, canAssign);
   if (!result.ok) return badRequest("Mã ngân hàng này đã có");
 
   await logAudit(guard.actor, {

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Landmark, Pencil } from "lucide-react";
 import { useState } from "react";
@@ -90,6 +91,26 @@ export function BankCatalogSection({ creating, onCreatingChange }: Props) {
       ),
     },
     {
+      key: "managers",
+      label: "Người quản",
+      /*
+        Danh sách rỗng đọc ra là "chưa giao cho ai" chứ không phải "không ai
+        sửa được" — người ở phạm vi mọi ngân hàng vẫn sửa được như cũ.
+      */
+      render: (b) =>
+        b.managers.length === 0 ? (
+          <span className="text-muted">Chưa giao</span>
+        ) : (
+          <span className={styles.managerNames}>
+            {b.managers.map((m) => (
+              <Link key={m.id} href={`/users/${m.id}`} className={styles.managerLink}>
+                {m.fullName}
+              </Link>
+            ))}
+          </span>
+        ),
+    },
+    {
       key: "active",
       label: "Trạng thái",
       render: (b) => (
@@ -129,7 +150,7 @@ export function BankCatalogSection({ creating, onCreatingChange }: Props) {
         icon={<Landmark size={17} />}
         meta={isPending ? undefined : `${banks.length} dòng`}
       >
-        {isPending && <SkeletonTable rows={5} columns={5} />}
+        {isPending && <SkeletonTable rows={5} columns={6} />}
         {isError && (
           <ErrorState what="kho ngân hàng" onRetry={refetch} retrying={isFetching} />
         )}

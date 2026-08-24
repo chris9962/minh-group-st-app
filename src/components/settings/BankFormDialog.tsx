@@ -2,10 +2,12 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { X } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { Dialog } from "@/components/ui/Dialog";
+import { Combobox } from "@/components/ui/Combobox";
 import { Select } from "@/components/ui/Select";
 import { TextField } from "@/components/ui/TextField";
 import {
@@ -13,10 +15,10 @@ import {
   AccountNumberMethod,
   BankForm,
   createBank,
-  fetchBankManagerOptions,
   updateBank,
   type Bank,
 } from "@/lib/api/bankCatalog";
+import { fetchStaffOptions } from "@/lib/api/staff";
 import { can } from "@/lib/permissions";
 import { useSession } from "@/store/session";
 import styles from "./BankFormDialog.module.scss";
@@ -44,10 +46,32 @@ export function BankFormDialog({ open, onClose, bank }: Props) {
    */
   const canAssign = can(actor, "system", "grant-permission");
 
-  const { data: managerOptions = [] } = useQuery({
-    queryKey: ["bank-manager-options"],
-    queryFn: fetchBankManagerOptions,
-    enabled: canAssign,
+  /**
+   * TOÀN BỘ nhân viên đang làm việc, không lọc theo quyền.
+   *
+   * Người giao ngân hàng thường chọn một nhân viên chưa có quyền gì — máy chủ
+   * cấp `manage-bank` cho họ ngay lúc lưu (`writeBankManagers`). Lọc sẵn theo
+   * quyền thì danh sách gần như trống, và người giao không hiểu vì sao không
+   * tìm thấy ai.
+   */
+  /**
+   * Tên người quản ĐANG CÓ, lấy từ chính bản ghi ngân hàng.
+   *
+   * `staffOptions` chỉ có người đang làm việc, nên người quản đã nghỉ việc tra
+   * không ra và dòng đó in UUID trần. Bản ghi ngân hàng mang sẵn `fullName` —
+   * đó là lý do trường này đổi từ `managerIds` sang `managers`.
+   */
+  const savedNames = new Map((bank?.managers ?? []).map((m) => [m.id, m.fullName]));
+
+  const { data: staffOptions = [] } = useQuery({
+    // Khoá GIỐNG bốn màn khác đang gọi cùng hàm này (`banking`, `insurance`,
+    // `services`, `customers`). Khoá riêng thì tải trùng ~300 nhân viên, và mọi
+    // lệnh nạp lại `["staff"]` trong repo không chạm tới nó.
+    queryKey: ["staff", "options", "active"],
+    queryFn: () => fetchStaffOptions({ status: "active" }),
+    // `/api/staff/options` đòi `staff:view-detail`, KHÁC quyền cấp phát. Thiếu
+    // nó thì gọi vào nhận 403 và ô tìm im lặng không nói vì sao.
+    enabled: canAssign && can(actor, "staff", "view-detail"),
   });
 
   const {
@@ -64,7 +88,7 @@ export function BankFormDialog({ open, onClose, bank }: Props) {
       accountNumberMethod: bank?.accountNumberMethod ?? "phone-match",
       countsAsApp: bank?.countsAsApp ?? true,
       priority: bank?.priority ?? 0,
-      managerIds: bank?.managerIds ?? [],
+      managerIds: bank?.managers.map((m) => m.id) ?? [],
     },
   });
 
@@ -76,6 +100,16 @@ export function BankFormDialog({ open, onClose, bank }: Props) {
       // mà không nạp lại thì chúng hiện mã cũ cho tới khi cache hết hạn.
       queryClient.invalidateQueries({ queryKey: ["referral-codes"] });
       queryClient.invalidateQueries({ queryKey: ["referral-code-options"] });
+      /**
+       * Nạp lại cả NHÂN SỰ: lượt lưu này cấp và thu hồi quyền của người khác
+       * (`writeBankManagers`).
+       *
+       * Không nạp lại thì hồ sơ người vừa được giao còn bộ quyền cũ trong cache.
+       * Ai đó mở hồ sơ đó, sửa một trường bất kỳ rồi Lưu là gửi lên bộ quyền cũ
+       * — thu hồi đúng quyền vừa cấp, mà không ai thấy mình đã làm gì.
+       */
+      queryClient.invalidateQueries({ queryKey: ["staff"] });
+      queryClient.invalidateQueries({ queryKey: ["staff-one"] });
       onClose();
       toast.ok("Đã lưu ngân hàng");
     },
@@ -86,7 +120,9 @@ export function BankFormDialog({ open, onClose, bank }: Props) {
     <Dialog
       open={open}
       onClose={onClose}
-      title={editing ? "Sửa ngân hàng" : "Thêm ngân hàng"}
+      /* Mã lên tiêu đề khi sửa: nó không đổi được nên một ô nhập đã khoá chỉ
+         chiếm chỗ, mà hộp thoại này còn khối chọn người quản ở dưới. */
+      title={editing ? `Sửa ngân hàng ${bank!.code}` : "Thêm ngân hàng"}
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>
@@ -104,17 +140,19 @@ export function BankFormDialog({ open, onClose, bank }: Props) {
         onSubmit={handleSubmit((form) => save.mutate(form))}
         noValidate
       >
-        {/* Khoá khi sửa: mã là danh tính, file luật theo kỳ khớp bằng chính
-            chuỗi này. Đổi nó là xếp lại hạng cho mọi tài khoản đã ghi từ trước.
-            Máy chủ cũng không ghi `code` khi cập nhật — xem `updateBank`. */}
-        <TextField
-          label="Mã ngân hàng"
-          placeholder="VPa"
-          disabled={editing}
-          hint={editing ? "Mã không đổi được sau khi tạo — luật tính điểm và quà khớp theo mã này." : undefined}
-          error={errors.code?.message}
-          {...register("code")}
-        />
+        {/* Ô mã CHỈ hiện lúc tạo. Khi sửa thì mã nằm ở tiêu đề hộp thoại —
+            nó là danh tính, không đổi được, nên một ô đã khoá chỉ chiếm chỗ.
+            Giá trị vẫn nằm trong biểu mẫu (`defaultValues`) để zod không báo
+            thiếu; máy chủ cũng bỏ qua `code` khi cập nhật — xem `updateBank`. */}
+        {!editing && (
+          <TextField
+            label="Mã ngân hàng"
+            placeholder="VPa"
+            hint="Mã không đổi được sau khi tạo — luật tính điểm và quà khớp theo mã này."
+            error={errors.code?.message}
+            {...register("code")}
+          />
+        )}
 
         <div className={styles.pair}>
           <TextField
@@ -130,7 +168,7 @@ export function BankFormDialog({ open, onClose, bank }: Props) {
             type="number"
             inputMode="numeric"
             min={0}
-            hint="Số lớn lên đầu ô chọn lúc mở tài khoản. 0 là mức thường."
+            hint="Số lớn lên đầu ô chọn lúc mở tài khoản."
             error={errors.priority?.message}
             {...register("priority", { valueAsNumber: true })}
           />
@@ -156,55 +194,64 @@ export function BankFormDialog({ open, onClose, bank }: Props) {
         />
 
         {canAssign && (
-          /*
-            Danh sách chỉ gồm người ĐÃ có quyền "Quản lý ngân hàng" — bày cả
-            danh bạ ra thì tick xong vẫn không có tác dụng gì, mà người cấp lại
-            tưởng đã xong việc.
+          <div className={styles.managers}>
+            <Combobox
+              block
+              label="Thêm người quản ngân hàng này"
+              placeholder="Gõ tên hoặc tên đăng nhập…"
+              value=""
+              onChange={(id) => {
+                if (!id) return;
+                const picked = watch("managerIds");
+                if (picked.includes(id)) return;
+                setValue("managerIds", [...picked, id], { shouldDirty: true });
+              }}
+              options={staffOptions
+                // Người đã chọn biến khỏi danh sách gợi ý: để lại là chọn lần
+                // hai không có tác dụng gì mà người dùng vẫn bấm.
+                .filter((s) => !watch("managerIds").includes(s.id))
+                .map((s) => ({
+                  value: s.id,
+                  label: `${s.fullName} · ${s.title || s.username}`,
+                }))}
+            />
 
-            Đóng mở được vì nó là mục dài nhất hộp thoại, cùng cách khối phòng
-            ban ở hộp thoại mã giới thiệu.
-          */
-          <details className={styles.managers} open={watch("managerIds").length > 0}>
-            <summary className={styles.managersSummary}>
-              <span>Người quản ngân hàng này</span>
-              <span className={styles.managersCount}>
-                {watch("managerIds").length}/{managerOptions.length} người
-              </span>
-            </summary>
+            <p className={styles.managersEmpty}>
+              Người được giao sửa được cấu hình và kho mã của riêng ngân hàng
+              này. Ai chưa có quyền thì hệ thống cấp lúc bạn bấm Lưu; ai bị bỏ
+              khỏi ngân hàng cuối cùng họ quản thì bị thu hồi.
+            </p>
 
-            {managerOptions.length === 0 ? (
-              <p className={styles.managersEmpty}>
-                Chưa ai có quyền Quản lý ngân hàng. Cấp quyền đó ở hồ sơ nhân viên
-                trước, rồi quay lại đây giao ngân hàng.
-              </p>
-            ) : (
-              <div
-                className={styles.managersList}
-                role="group"
-                aria-label="Người quản ngân hàng này"
-              >
-                {managerOptions.map((person) => {
-                  const picked = watch("managerIds");
+            {watch("managerIds").length > 0 && (
+              <ul className={styles.managersList}>
+                {watch("managerIds").map((id) => {
+                  const person = staffOptions.find((s) => s.id === id);
+                  const name = person
+                    ? `${person.fullName} · ${person.title || person.username}`
+                    : (savedNames.get(id) ?? "Tài khoản đã ngừng hoạt động");
                   return (
-                    <Checkbox
-                      key={person.id}
-                      label={`${person.fullName} · ${person.title}`}
-                      checked={picked.includes(person.id)}
-                      onCheckedChange={(on) =>
-                        setValue(
-                          "managerIds",
-                          on
-                            ? [...picked, person.id]
-                            : picked.filter((id) => id !== person.id),
-                          { shouldDirty: true },
-                        )
-                      }
-                    />
+                    <li key={id} className={styles.managerRow}>
+                      <span>{name}</span>
+                      <button
+                        type="button"
+                        className={styles.managerRemove}
+                        aria-label={`Bỏ ${person?.fullName ?? savedNames.get(id) ?? "người này"} khỏi danh sách quản ngân hàng`}
+                        onClick={() =>
+                          setValue(
+                            "managerIds",
+                            watch("managerIds").filter((x) => x !== id),
+                            { shouldDirty: true },
+                          )
+                        }
+                      >
+                        <X size={14} aria-hidden />
+                      </button>
+                    </li>
                   );
                 })}
-              </div>
+              </ul>
             )}
-          </details>
+          </div>
         )}
       </form>
     </Dialog>

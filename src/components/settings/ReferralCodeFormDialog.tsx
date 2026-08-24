@@ -242,7 +242,7 @@ export function ReferralCodeFormDialog({ open, onClose, referral }: Props) {
           type="number"
           inputMode="numeric"
           min={0}
-          hint="Số lớn lên đầu ô chọn mã lúc mở tài khoản, trong cùng ngân hàng. 0 là mức thường."
+          hint="Số lớn lên đầu ô chọn mã lúc mở tài khoản, trong cùng ngân hàng."
           error={errors.priority?.message}
           {...register("priority", { valueAsNumber: true })}
         />
