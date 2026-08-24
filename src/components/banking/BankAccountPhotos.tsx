@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Download, ImagePlus, Pencil, X } from "lucide-react";
 import { ImageLightbox } from "@/components/ui/ImageLightbox";
 import { PHOTO_MAX } from "@/lib/api/bankAccounts";
-import { imageProblem, uploadImage } from "@/lib/api/uploads";
+import { imageProblem, uploadImage, type UploadFolder } from "@/lib/api/uploads";
 import { downloadImage } from "@/lib/downloadImage";
 import { toast } from "@/lib/toast";
 import styles from "./BankAccountPhotos.module.scss";
@@ -66,10 +66,13 @@ const pendingKeys = (photos: PhotoItem[], skip: number | null) =>
  * Ném lỗi ra ngoài chứ không nuốt — nơi gọi đang trong lượt "Hoàn thành", nuốt
  * lỗi ở đây là bản ghi lên `done` với ít ảnh hơn mức bắt buộc.
  */
-export async function uploadPendingPhotos(photos: PhotoItem[]): Promise<string[]> {
+export async function uploadPendingPhotos(
+  photos: PhotoItem[],
+  folder: UploadFolder = "bank-accounts",
+): Promise<string[]> {
   const urls: string[] = [];
   for (const photo of photos) {
-    urls.push(photo.kind === "saved" ? photo.url : await uploadImage(photo.file));
+    urls.push(photo.kind === "saved" ? photo.url : await uploadImage(photo.file, folder));
   }
   return urls;
 }

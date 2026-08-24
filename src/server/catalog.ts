@@ -34,6 +34,7 @@ import type {
 import { businessMonth, uniqueCode } from "@/lib/format";
 import { db, uniqueViolationOf } from "./db/client";
 import { recomputeKpiForMonth } from "./kpi";
+import { imageKeyOf, imageUrl } from "./storage";
 import {
   banks,
   channels,
@@ -234,6 +235,9 @@ const codeColumns = {
   // Cột nullable, nhưng hợp đồng API trả chuỗi — `''` đọc ra "không có link"
   // ở mọi nơi dùng, khỏi phải kiểm `null` riêng.
   openUrl: sql<string>`coalesce(${referralCodes.openUrl}, '')`,
+  // Khoá trần, không phải URL. `toCode` dựng URL — cùng luật với ảnh chứng minh
+  // ở `banking.ts`, và đổi đường đọc ảnh thì chỉ sửa `storage.ts`.
+  qrImage: referralCodes.qrImage,
   priority: referralCodes.priority,
   scope: sql<CodeScope>`${referralCodes.scope}`,
   /**
@@ -265,9 +269,23 @@ const codeGroupBy = [
   referralCodes.usedCount,
   referralCodes.holdingCount,
   referralCodes.openUrl,
+  referralCodes.qrImage,
   referralCodes.priority,
   referralCodes.scope,
 ] as const;
+
+type CodeRow = Omit<ReferralCode, "qrImageUrl"> & { qrImage: string | null };
+
+/**
+ * Dòng thô → hợp đồng API: khoá ảnh thành URL đọc được, `null` thành `''`.
+ *
+ * Mọi đường trả mã ra ngoài phải đi qua đây. Trả thẳng dòng thô thì FE nhận
+ * khoá trần và `<img src>` trỏ vào một đường không tồn tại.
+ */
+const toCode = ({ qrImage, ...rest }: CodeRow): ReferralCode => ({
+  ...rest,
+  qrImageUrl: qrImage ? imageUrl(qrImage) : "",
+});
 
 /**
  * Vô hiệu ký tự đại diện của `ILIKE` trong chữ người dùng gõ.
@@ -336,7 +354,7 @@ export async function listReferralCodes(
       .where(where),
   ]);
 
-  return { rows, total: totals?.value ?? 0 };
+  return { rows: rows.map(toCode), total: totals?.value ?? 0 };
 }
 
 /**
@@ -378,7 +396,7 @@ export async function listOpenReferralCodes(
   bankId: string,
   departmentId: string,
 ): Promise<ReferralCode[]> {
-  return db
+  const rows = await db
     .select(codeColumns)
     .from(referralCodes)
     .innerJoin(banks, eq(banks.id, referralCodes.bankId))
@@ -399,6 +417,8 @@ export async function listOpenReferralCodes(
     // Ưu tiên do người dùng đặt đứng trước, rồi mới tới số chỗ trống. Mã đã
     // đầy không nằm trong câu này nên ưu tiên cao cũng không kéo nó trở lại.
     .orderBy(desc(referralCodes.priority), desc(remainingExpr), asc(referralCodes.code));
+
+  return rows.map(toCode);
 }
 
 /**
@@ -438,8 +458,18 @@ async function readCode(
     )
     .where(eq(referralCodes.id, codeId))
     .groupBy(...codeGroupBy);
-  return item;
+  return toCode(item);
 }
+
+/**
+ * URL ảnh FE gửi lên → KHOÁ để ghi database; `null` khi không có ảnh.
+ *
+ * `imageKeyOf` trả `null` cho mọi chuỗi ngoài kho ảnh của mình, nên đây cũng là
+ * chốt chặn: một body nặn tay chứa `javascript:` hay `../../.env.local` lưu về
+ * thành "không có ảnh", không vào nổi database.
+ */
+const qrImageKey = (form: ReferralCodeForm): string | null =>
+  form.qrImageUrl ? imageKeyOf(form.qrImageUrl) : null;
 
 export async function createReferralCode(
   form: ReferralCodeForm,
@@ -455,6 +485,7 @@ export async function createReferralCode(
         // Chuỗi rỗng thành NULL: cột này là "có link hay không", và hai cách
         // biểu diễn cho cùng một trạng thái sớm muộn lệch nhau khi lọc.
         openUrl: form.openUrl || null,
+        qrImage: qrImageKey(form),
         priority: form.priority,
         scope: form.scope,
       })
@@ -536,6 +567,7 @@ export async function updateReferralCode(
           code: form.code,
           total: form.total,
           openUrl: form.openUrl || null,
+          qrImage: qrImageKey(form),
           priority: form.priority,
           scope: form.scope,
         })

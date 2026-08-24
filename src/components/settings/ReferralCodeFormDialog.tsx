@@ -2,9 +2,14 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { QrCode } from "lucide-react";
 import { useRef, useState } from "react";
 import { useForm } from "react-hook-form";
+import {
+  BankAccountPhotos,
+  savedPhotos,
+  uploadPendingPhotos,
+  type PhotoItem,
+} from "@/components/banking/BankAccountPhotos";
 import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { Dialog } from "@/components/ui/Dialog";
@@ -14,6 +19,7 @@ import {
   CODE_SCOPE_LABEL,
   createReferralCode,
   fetchBanks,
+  OpenUrl,
   ReferralCodeForm,
   updateReferralCode,
   type CodeScope,
@@ -66,17 +72,32 @@ export function ReferralCodeFormDialog({ open, onClose, referral }: Props) {
       priority: referral?.priority ?? 0,
       scope: referral?.scope ?? "all",
       departmentIds: referral?.departmentIds ?? [],
+      qrImageUrl: referral?.qrImageUrl ?? "",
     },
   });
 
-  const qrInputRef = useRef<HTMLInputElement>(null);
+  /**
+   * Ô ảnh QR — dùng lại đúng khối ảnh của P-20/P-22, chỉ khác `max` là 1.
+   *
+   * Không dựng nút chọn ảnh riêng: khối kia đã có sẵn ô thêm ảnh, nút thay, nút
+   * bỏ và lượt xem cỡ lớn, và người dùng đã quen đúng bộ nút đó ở ba màn khác.
+   */
+  const [qrPhotos, setQrPhotos] = useState<PhotoItem[]>(() =>
+    savedPhotos(referral?.qrImageUrl ? [referral.qrImageUrl] : []),
+  );
   const [reading, setReading] = useState(false);
+  /** File đã giải rồi — chặn giải lại khi danh sách ảnh đổi vì lý do khác. */
+  const readFile = useRef<File | null>(null);
+  /** Danh sách phòng đang mở. Mã đã chọn xong phòng thì mở hộp thoại ra là đóng. */
+  const [departmentsOpen, setDepartmentsOpen] = useState(
+    (referral?.departmentIds?.length ?? 0) === 0,
+  );
 
   /**
-   * Ảnh QR giải NGAY tại trình duyệt, không gửi lên máy chủ (spec §4.4b).
+   * Giải chuỗi trong ảnh vừa chọn để điền hộ ô link.
    *
-   * Kết quả điền vào ô link — ô đó vẫn sửa được, nên ảnh mờ không đọc ra thì
-   * người dùng dán link bằng tay là xong, không mắc lại.
+   * Giải không ra thì ảnh vẫn giữ — bước 2 của P-20 cần chính tấm ảnh để khách
+   * quét, còn ô link thì người dùng dán tay được. Hai thứ rời nhau.
    */
   const readQr = async (file: File) => {
     setReading(true);
@@ -84,16 +105,48 @@ export function ReferralCodeFormDialog({ open, onClose, referral }: Props) {
     setReading(false);
 
     if (!result.ok) {
-      toast.fail(result.message);
+      toast.warn(`${result.message} Ảnh vẫn được lưu.`);
       return;
     }
+
+    /**
+     * Chuỗi giải ra phải là `http`/`https` mới nhận.
+     *
+     * Ô link không còn hiện ra, nên chuỗi hỏng đặt vào biểu mẫu là người dùng
+     * bấm Lưu và không có gì xảy ra — lỗi nằm ở một ô họ không nhìn thấy. QR
+     * chứa số tài khoản hay chữ thường là ca có thật, không phải nặn tay.
+     */
+    if (!OpenUrl.safeParse(result.text).success) {
+      toast.warn("Mã QR trong ảnh không chứa link http/https. Ảnh vẫn được lưu, nhưng mã này chưa có link mở tài khoản.");
+      return;
+    }
+
     setValue("openUrl", result.text, { shouldDirty: true, shouldValidate: true });
     toast.ok("Đã đọc link từ ảnh QR");
   };
 
+  const takeQrPhotos = (next: PhotoItem[]) => {
+    setQrPhotos(next);
+
+    const first = next[0];
+    if (first?.kind !== "pending") {
+      readFile.current = null;
+      return;
+    }
+    if (first.file === readFile.current) return;
+    readFile.current = first.file;
+    void readQr(first.file);
+  };
+
   const save = useMutation({
-    mutationFn: (form: ReferralCodeForm) =>
-      referral ? updateReferralCode(referral.id, form) : createReferralCode(form),
+    mutationFn: async (form: ReferralCodeForm) => {
+      // Ảnh đi lên TRƯỚC, rồi mới ghi bản ghi. Gửi thẳng `blob:` thì nó chạy
+      // được ở tab đang mở nhưng tải lại trang là ảnh vỡ vĩnh viễn — đúng lỗi
+      // đã xảy ra với ảnh chứng minh, xem `BankAccountPhotos`.
+      const [uploaded] = await uploadPendingPhotos(qrPhotos, "referral-codes");
+      const body = { ...form, qrImageUrl: uploaded ?? "" };
+      return referral ? updateReferralCode(referral.id, body) : createReferralCode(body);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["referral-codes"] });
       // Ô lọc mã ở màn ngân hàng / xuất Excel đi khoá riêng, tiền tố trên
@@ -187,6 +240,36 @@ export function ReferralCodeFormDialog({ open, onClose, referral }: Props) {
           {...register("priority", { valueAsNumber: true })}
         />
 
+        {/*
+          Ô link KHÔNG hiện ra nữa (chốt 2026-08-24). Người dùng chỉ chọn ảnh; link
+          giải ra từ chính ảnh đó và đi lên máy chủ cùng biểu mẫu, bước 2 của P-20
+          đọc nó để dựng nút mở app ngân hàng.
+
+          ⚠️ Đổi lại là mất đường nhập link bằng tay — ảnh mờ không giải ra thì mã
+          đó không có link. Dòng trạng thái dưới khối ảnh nói rõ đang ở ca nào.
+
+          Khối ảnh của P-20/P-22 dùng lại nguyên: `max` là 1 nên có ảnh rồi thì ô
+          thêm ảnh biến mất, chỉ còn nút thay và nút bỏ ngay trên tấm ảnh.
+        */}
+        <BankAccountPhotos
+          photos={qrPhotos}
+          requiredPhotos={0}
+          max={1}
+          title="Ảnh QR"
+          onChange={takeQrPhotos}
+          busy={reading || save.isPending}
+        />
+
+        <p className={styles.qrHint}>
+          {reading
+            ? "Đang đọc mã trong ảnh…"
+            : watch("openUrl")
+              ? "Mã này đã có link mở tài khoản, giải từ ảnh QR. Bước 2 của màn mở tài khoản hiện nút mở app ngân hàng."
+              : "Mã này chưa có link mở tài khoản. Chọn ảnh QR để hệ thống giải link ra — chưa có link thì bước 2 không hiện nút mở app ngân hàng."}
+        </p>
+
+        {/* Cụm phạm vi đứng CUỐI biểu mẫu: nó là mục dài nhất, và phần lớn mã
+            để "Mọi phòng" nên người dùng đi qua nó chứ không dừng lại. */}
         <Select
           block
           required
@@ -202,66 +285,56 @@ export function ReferralCodeFormDialog({ open, onClose, referral }: Props) {
         />
 
         {watch("scope") === "departments" && (
-          <fieldset className={styles.departments}>
-            <legend className={styles.legend}>Phòng dùng được mã này</legend>
-            {departments.map((department) => {
-              const picked = watch("departmentIds");
-              return (
-                <Checkbox
-                  key={department.id}
-                  label={department.name}
-                  checked={picked.includes(department.id)}
-                  onCheckedChange={(on) =>
-                    setValue(
-                      "departmentIds",
-                      on
-                        ? [...picked, department.id]
-                        : picked.filter((id) => id !== department.id),
-                      { shouldDirty: true, shouldValidate: true },
-                    )
-                  }
-                />
-              );
-            })}
+          /*
+            `<details>` gốc, không dựng khối đóng mở bằng tay: trình duyệt lo sẵn
+            phím Enter/Space, tiêu điểm và cách trình đọc màn hình đọc trạng thái
+            đóng/mở. Dựng bằng div + `aria-expanded` là làm lại đúng những thứ đó
+            và làm sai một trong số chúng.
+
+            Danh sách 15 phòng chiếm gần hết hộp thoại, mà mã đặt phạm vi phòng
+            là số ít — đóng sẵn khi mã đã chọn xong phòng.
+          */
+          <details
+            className={styles.departments}
+            // Có lỗi thì mở bằng được: câu báo lỗi nằm trong khối, đóng lại là
+            // người dùng bấm Lưu mà không thấy vì sao không lưu được.
+            open={departmentsOpen || Boolean(errors.departmentIds)}
+            onToggle={(e) => setDepartmentsOpen(e.currentTarget.open)}
+          >
+            <summary className={styles.departmentsSummary}>
+              <span>Phòng dùng được mã này</span>
+              <span className={styles.departmentsCount}>
+                {watch("departmentIds").length}/{departments.length} phòng
+              </span>
+            </summary>
+
+            <div className={styles.departmentsList} role="group" aria-label="Phòng dùng được mã này">
+              {departments.map((department) => {
+                const picked = watch("departmentIds");
+                return (
+                  <Checkbox
+                    key={department.id}
+                    label={department.name}
+                    checked={picked.includes(department.id)}
+                    onCheckedChange={(on) =>
+                      setValue(
+                        "departmentIds",
+                        on
+                          ? [...picked, department.id]
+                          : picked.filter((id) => id !== department.id),
+                        { shouldDirty: true, shouldValidate: true },
+                      )
+                    }
+                  />
+                );
+              })}
+            </div>
+
             {errors.departmentIds && (
               <p className={styles.error}>{errors.departmentIds.message}</p>
             )}
-          </fieldset>
+          </details>
         )}
-
-        <TextField
-          label="Link mở tài khoản"
-          placeholder="https://..."
-          hint="Không bắt buộc. Có link thì bước 2 của màn mở tài khoản hiện nút mở app ngân hàng."
-          error={errors.openUrl?.message}
-          {...register("openUrl")}
-        />
-
-        {/* Nút nằm NGOÀI ô nhập: nó chỉ điền hộ, còn ô mới là nguồn sự thật —
-            người dùng sửa lại hoặc dán tay lúc nào cũng được. */}
-        <Button
-          variant="secondary"
-          type="button"
-          disabled={reading}
-          onClick={() => qrInputRef.current?.click()}
-        >
-          <QrCode size={16} aria-hidden />
-          {reading ? "Đang đọc ảnh…" : "Đọc link từ ảnh QR"}
-        </Button>
-
-        <input
-          ref={qrInputRef}
-          type="file"
-          accept="image/*"
-          className={styles.hiddenInput}
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            // Dọn ô chọn NGAY: giữ nguyên thì chọn lại đúng file đó lần nữa sẽ
-            // không bắn sự kiện `change`.
-            e.target.value = "";
-            if (file) void readQr(file);
-          }}
-        />
       </form>
     </Dialog>
   );

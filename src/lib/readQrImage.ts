@@ -1,10 +1,12 @@
 /**
- * Đọc chuỗi trong ảnh QR — chạy Ở TRÌNH DUYỆT, ảnh không gửi lên máy chủ.
+ * Đọc chuỗi trong ảnh QR — chạy Ở TRÌNH DUYỆT.
  *
- * Ngân hàng đưa link mở tài khoản dưới dạng ảnh QR (spec §4.4b). Hệ thống chỉ
- * lưu chuỗi giải ra, nên ảnh là vật trung gian: giải ngay tại máy người dùng thì
- * không tốn kho ảnh, không tốn băng thông, và họ thấy link trong ô ngay để đọc
- * lại trước khi lưu.
+ * Ngân hàng đưa link mở tài khoản dưới dạng ảnh QR (spec §4.4b). Giải ngay tại
+ * máy người dùng thì họ thấy link trong ô để đọc lại trước khi lưu, và ô đó vẫn
+ * sửa được khi ảnh mờ không ra kết quả.
+ *
+ * Việc LƯU ảnh là đường riêng (`uploadImage`), chạy lúc bấm Lưu. Hàm này chỉ
+ * đọc, không đụng tới kho ảnh.
  *
  * `jsqr` nạp động — nó chỉ cần cho một hộp thoại ở màn P-61, mà người mở màn đó
  * là Kinh doanh tổng hợp ngồi máy tính. Nạp tĩnh thì đội kinh doanh dùng 4G

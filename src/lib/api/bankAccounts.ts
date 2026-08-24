@@ -44,6 +44,13 @@ export const BankAccount = z.object({
    * `''` = mã không có link; bước 2 khi đó không dựng nút mở app ngân hàng.
    */
   referralOpenUrl: z.string(),
+  /**
+   * URL ảnh QR của mã này; `''` = mã không có ảnh và bước 2 không dựng nút xem.
+   *
+   * Rời khỏi `referralOpenUrl`: mã có link mà chưa có ảnh, hoặc ngược lại, đều
+   * là trạng thái hợp lệ ở P-61.
+   */
+  referralQrUrl: z.string(),
   /** '' lúc còn `creating` — chưa chắc đã biết số thật cho tới khi mở xong. */
   accountNumber: z.string(),
   openedDate: z.string(),

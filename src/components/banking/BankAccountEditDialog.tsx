@@ -260,6 +260,7 @@ export function BankAccountEditDialog({ open, onClose, accountId }: Props) {
             accountNumberMethod={data.accountNumberMethod}
         customerPhones={data.customerPhones}
         referralOpenUrl={data.referralOpenUrl}
+        referralQrUrl={data.referralQrUrl}
             photos={photos}
             requiredPhotos={data.requiredPhotos}
             onPhotosChange={photosEditable ? setEditedPhotos : undefined}

@@ -6,8 +6,10 @@ import type {
   UseFormSetValue,
   UseFormWatch,
 } from "react-hook-form";
-import { ExternalLink } from "lucide-react";
+import { useState } from "react";
+import { ExternalLink, QrCode } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { ImageLightbox } from "@/components/ui/ImageLightbox";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { Select } from "@/components/ui/Select";
 import { DateField } from "@/components/ui/DateField";
@@ -36,6 +38,8 @@ type Props = {
   customerPhones: string[];
   /** Link mở tài khoản của mã giới thiệu; `''` = không dựng nút. */
   referralOpenUrl: string;
+  /** Ảnh QR của mã giới thiệu; `''` = không dựng nút xem. */
+  referralQrUrl: string;
   photos: PhotoItem[];
   requiredPhotos: number;
   /**
@@ -64,11 +68,15 @@ export function BankAccountFinishFields({
   accountNumberMethod,
   customerPhones,
   referralOpenUrl,
+  referralQrUrl,
   photos,
   requiredPhotos,
   onPhotosChange,
   busy = false,
 }: Props) {
+  /** Đang mở ảnh QR cỡ lớn. */
+  const [qrOpen, setQrOpen] = useState(false);
+
   return (
     <>
       {/*
@@ -88,16 +96,39 @@ export function BankAccountFinishFields({
         `rel="noreferrer"`: trang mở ra ở tab mới không được chạm tới
         `window.opener` của app này.
       */}
-      {referralOpenUrl && (
-        <Button
-          variant="secondary"
-          type="button"
-          className={styles.openBank}
-          onClick={() => window.open(referralOpenUrl, "_blank", "noopener,noreferrer")}
-        >
-          <ExternalLink size={16} aria-hidden />
-          Mở app ngân hàng
-        </Button>
+      {(referralOpenUrl || referralQrUrl) && (
+        <div className={styles.openRow}>
+          {referralOpenUrl && (
+            <Button
+              variant="secondary"
+              type="button"
+              onClick={() => window.open(referralOpenUrl, "_blank", "noopener,noreferrer")}
+            >
+              <ExternalLink size={16} aria-hidden />
+              Mở app ngân hàng
+            </Button>
+          )}
+
+          {/*
+            Nút thứ hai cho ca khách tự quét. Nút bên trái mở app trên máy NHÂN
+            VIÊN — muốn khách mở trên máy họ thì phải có tấm ảnh để chìa ra, mà
+            mã QR đọc bằng mắt thì không đọc được.
+          */}
+          {referralQrUrl && (
+            <Button variant="secondary" type="button" onClick={() => setQrOpen(true)}>
+              <QrCode size={16} aria-hidden />
+              Xem mã QR
+            </Button>
+          )}
+        </div>
+      )}
+
+      {qrOpen && (
+        <ImageLightbox
+          src={referralQrUrl}
+          alt="Mã QR mở tài khoản"
+          onClose={() => setQrOpen(false)}
+        />
       )}
 
       <form id={formId} className={styles.form} onSubmit={onSubmit} noValidate>

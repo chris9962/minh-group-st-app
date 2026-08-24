@@ -256,6 +256,15 @@ export const referralCodes = pgTable(
      */
     openUrl: text("open_url"),
     /**
+     * KHOÁ của ảnh QR trong kho ảnh (`server/storage.ts`), không phải URL.
+     * `null` = mã chưa có ảnh, gồm mọi mã lập trước migration 0039.
+     *
+     * Lưu cả ảnh chứ không chỉ chuỗi giải ra: bước 2 của P-20 đưa ảnh cho khách
+     * quét bằng điện thoại của họ, mà `open_url` chỉ mở được app trên máy đang
+     * mở màn hình.
+     */
+    qrImage: text("qr_image"),
+    /**
      * Thứ tự trong ô chọn mã lúc mở tài khoản — số LỚN lên đầu, cùng luật với
      * `banks.priority`. Ngân hàng sắp trước, mã sắp trong từng ngân hàng.
      *

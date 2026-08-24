@@ -49,9 +49,19 @@ export function imageProblem(file: File): string | null {
  * ⚠️ Trần 10MB của `imageProblem` vẫn đo trên file GỐC. Ảnh 12MB bị từ chối lúc
  * chọn dù chuyển xong chỉ còn vài trăm KB — đổi thứ tự đó là việc riêng, chưa làm.
  */
-export async function uploadImage(file: File): Promise<string> {
+/**
+ * Nhóm ảnh — quyết thư mục trong kho. Máy chủ có danh sách trắng riêng và tự
+ * hạ về `bank-accounts` khi nhận giá trị lạ.
+ */
+export type UploadFolder = 'bank-accounts' | 'referral-codes';
+
+export async function uploadImage(
+  file: File,
+  folder: UploadFolder = 'bank-accounts',
+): Promise<string> {
   const body = new FormData();
   body.append('file', await toWebpImage(file));
+  body.append('folder', folder);
 
   const res = await fetch('/api/uploads', { method: 'POST', body });
   if (!res.ok) {

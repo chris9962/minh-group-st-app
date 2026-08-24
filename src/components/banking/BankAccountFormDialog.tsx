@@ -269,6 +269,7 @@ export function BankAccountFormDialog({
             accountNumberMethod={selectedBank?.accountNumberMethod ?? "manual"}
             customerPhones={account?.customerPhones ?? []}
             referralOpenUrl={account?.referralOpenUrl ?? ""}
+            referralQrUrl={account?.referralQrUrl ?? ""}
             photos={photos}
             requiredPhotos={requiredPhotos}
             onPhotosChange={setPhotos}

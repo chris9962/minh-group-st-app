@@ -8,9 +8,9 @@ type Params = { params: Promise<{ id: string }> };
 /**
  * P-61 · Sửa một mã giới thiệu.
  *
- * Mã đã nằm trong kho vẫn phải sửa được: link mở tài khoản (spec §4.4b) thêm
- * sau khi ngân hàng gửi ảnh QR, và tổng số lượt thì ngân hàng cấp thêm theo
- * đợt. Không có đường này thì cách duy nhất là xoá mã đi lập lại — mà xoá mã đã
+ * Mã đã nằm trong kho vẫn phải sửa được: link mở tài khoản và ảnh QR (spec
+ * §4.4b) thêm sau khi ngân hàng gửi, và tổng số lượt thì ngân hàng cấp thêm
+ * theo đợt. Không có đường này thì cách duy nhất là xoá mã đi lập lại — mà xoá mã đã
  * có tài khoản là cắt đứt chúng.
  *
  * Ngân hàng của mã KHÔNG đổi được; `updateReferralCode` từ chối, không bỏ qua

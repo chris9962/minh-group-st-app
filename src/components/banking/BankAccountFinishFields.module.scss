@@ -17,9 +17,14 @@
   }
 }
 
-/* Đứng trên biểu mẫu, rộng hết cỡ: đây là bước ĐẦU TIÊN của bước 2 — nhân viên
-   mở app ngân hàng, mở tài khoản thật, rồi mới quay lại điền. */
-.openBank {
-  width: 100%;
+/* Đứng trên biểu mẫu: đây là việc ĐẦU TIÊN của bước 2 — nhân viên mở app ngân
+   hàng hoặc đưa QR cho khách quét, mở tài khoản thật, rồi mới quay lại điền.
+
+   Chia đều bề ngang, và một nút thì nút đó rộng hết cỡ. */
+.openRow {
+  display: grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  gap: 8px;
   margin-bottom: 14px;
 }

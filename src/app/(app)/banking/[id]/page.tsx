@@ -243,6 +243,7 @@ function FinishAccountCard({
         accountNumberMethod={data.accountNumberMethod}
         customerPhones={data.customerPhones}
         referralOpenUrl={data.referralOpenUrl}
+        referralQrUrl={data.referralQrUrl}
         photos={photos}
         requiredPhotos={data.requiredPhotos}
         onPhotosChange={setEditedPhotos}

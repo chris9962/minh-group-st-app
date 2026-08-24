@@ -64,6 +64,8 @@ export const BankAccountDetail = BankAccountRow.extend({
   customerPhones: z.array(z.string()),
   /** Link mở tài khoản của mã giới thiệu; `''` = mã không có link. */
   referralOpenUrl: z.string(),
+  /** Ảnh QR của mã giới thiệu; `''` = mã không có ảnh. */
+  referralQrUrl: z.string(),
 });
 export type BankAccountDetail = z.infer<typeof BankAccountDetail>;
 

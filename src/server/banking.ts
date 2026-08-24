@@ -273,6 +273,8 @@ const decorate = (page: ReturnType<typeof pickPage>) =>
       // Link mở tài khoản của mã này (spec §4.4b). `''` = mã không có link,
       // và bước 2 khi đó không dựng nút "Mở app ngân hàng".
       referralOpenUrl: sql<string>`coalesce(${referralCodes.openUrl}, '')`,
+      // Khoá trần trong kho ảnh; `imageUrl` dựng đường đọc ở nơi trả ra.
+      referralQrImage: referralCodes.qrImage,
       // Cột nullable ở DB nhưng hợp đồng là chuỗi: `''` lúc còn `creating` —
       // chưa mở xong thì chưa biết số thật.
       accountNumber: sql<string>`coalesce(${page.accountNumber}, '')`,
@@ -487,6 +489,7 @@ async function accountById(id: string): Promise<BankAccount | null> {
     referralCodeId: r.referralCodeId,
     referralCode: r.referralCode,
     referralOpenUrl: r.referralOpenUrl,
+    referralQrUrl: r.referralQrImage ? imageUrl(r.referralQrImage) : "",
     accountNumber: r.accountNumber,
     openedDate: r.date,
     channel: r.channel,
@@ -535,6 +538,7 @@ export async function bankAccountDetail(
     accountNumberMethod: r.accountNumberMethod,
     customerPhones: await customerPhoneNumbers(r.customerId),
     referralOpenUrl: r.referralOpenUrl,
+    referralQrUrl: r.referralQrImage ? imageUrl(r.referralQrImage) : "",
   };
 }
 

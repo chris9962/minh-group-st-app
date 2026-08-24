@@ -11,16 +11,6 @@
   color: var(--color-accent-800);
 }
 
-/* Ô chọn file thật — nút bên trên bấm hộ nó. Không dùng `display: none`: một số
-   trình duyệt bỏ qua `.click()` trên phần tử đã bị gỡ khỏi luồng bố cục. */
-.hiddenInput {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
-  pointer-events: none;
-}
-
 /* Câu giải thích cho ô đã khoá. Bám sát ô bên trên: âm lề để nó đọc như phần
    phụ của ô đó, không phải một mục riêng trong biểu mẫu. */
 .lockNote {
@@ -29,19 +19,71 @@
   color: var(--color-neutral-600);
 }
 
-/* Danh sách phòng — chỉ hiện khi phạm vi là "Phòng chỉ định". */
+/* Danh sách phòng — chỉ hiện khi phạm vi là "Phòng chỉ định", và đóng được. */
 .departments {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
   margin: 0;
-  padding: 12px;
+  padding: 0;
   border: 1px solid var(--om-line);
   border-radius: var(--radius-md);
 }
 
-.legend {
-  padding: 0 6px;
+/* Mọi thứ CANH TRÁI, kể cả số phòng đã chọn: đẩy nó sang mép phải thì mắt phải
+   đi hết bề ngang hộp thoại mới đọc được, mà nó là phần của chính nhãn bên trái. */
+.departmentsSummary {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
   font-size: 13px;
   color: var(--color-neutral-700);
+  cursor: pointer;
+}
+
+/* Mũi tên mặc định của Safari nằm sai hàng khi summary là flex. */
+.departmentsSummary::-webkit-details-marker {
+  display: none;
+}
+
+.departmentsSummary::before {
+  content: "▸";
+  font-size: 11px;
+  line-height: 1;
+}
+
+.departments[open] .departmentsSummary::before {
+  content: "▾";
+}
+
+/* Trình duyệt không vẽ vòng tiêu điểm cho `summary` ở mọi nền tảng — vẽ lại
+   bằng đúng biến của hệ thiết kế, không thì bàn phím đi qua khối này mù. */
+.departmentsSummary:focus-visible {
+  outline: 2px solid var(--om-orange-mid);
+  outline-offset: -2px;
+  border-radius: var(--radius-md);
+}
+
+/* Số phòng đã chọn đọc được cả khi khối đóng — đóng lại mà không biết đang
+   chọn mấy phòng thì phải mở ra mới biết. */
+.departmentsCount {
+  font-size: 12px;
+  color: var(--color-neutral-600);
+}
+
+/* 15 phòng xếp dọc cao hơn cả hộp thoại. Cuộn trong khối, không kéo dài hộp
+   thoại — nút Lưu ở chân hộp thoại phải luôn với tới được. */
+.departmentsList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 0 12px 12px;
+}
+
+/* Bám sát khối ảnh bên trên, cùng cách `.lockNote` bám ô đã khoá. */
+.qrHint {
+  margin: -4px 0 0;
+  font-size: 12.5px;
+  color: var(--color-neutral-600);
 }

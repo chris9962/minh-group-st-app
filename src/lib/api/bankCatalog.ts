@@ -155,6 +155,19 @@ export const OpenUrl = z
   .trim()
   .refine((v) => v === '' || /^https?:\/\//i.test(v), 'Link phải bắt đầu bằng http:// hoặc https://');
 
+/**
+ * Ảnh QR do chính `/api/uploads` trả về; `''` = mã không có ảnh.
+ *
+ * Ở đây chỉ kiểm phần ĐẦU chuỗi. Chốt thật nằm ở máy chủ: `imageKeyOf`
+ * (`server/storage.ts`) khớp trọn hình dạng khoá rồi mới ghi, chuỗi nào không
+ * khớp thì mã lưu về không có ảnh. Chép nguyên mẫu khoá xuống đây là hai bản
+ * luật cho một việc, và chúng lệch nhau ngay lần đổi kho ảnh đầu tiên.
+ */
+export const QrImageRef = z
+  .string()
+  .trim()
+  .refine((v) => v === '' || v.startsWith('/api/images/'), 'Ảnh QR không hợp lệ');
+
 export const ReferralCode = z.object({
   id: z.string(),
   bankId: z.string(),
@@ -166,6 +179,8 @@ export const ReferralCode = z.object({
   status: CodeStatus,
   /** `''` = mã không có link mở tài khoản. Bước 2 P-20 khi đó không dựng nút. */
   openUrl: z.string(),
+  /** URL xem ảnh QR; `''` = mã không có ảnh. Bước 2 P-20 khi đó không dựng nút xem. */
+  qrImageUrl: z.string(),
   /** Số lớn lên đầu ô chọn mã, trong phạm vi một ngân hàng. 0 là mức thường. */
   priority: z.number(),
   scope: CodeScope,
@@ -238,10 +253,16 @@ export const ReferralCodeForm = z.object({
   code: z.string().trim().min(1, 'Chưa nhập mã'),
   total: z.int('Tổng số phải là số nguyên').min(1, 'Tổng số phải lớn hơn 0').max(INT_MAX, 'Tổng số lớn quá'),
   /**
-   * Giải ra từ ảnh QR ở trình duyệt, hoặc người dùng gõ tay khi ảnh mờ không
-   * đọc được. Ảnh KHÔNG gửi lên máy chủ — hệ thống chỉ lưu chuỗi này.
+   * Giải ra từ ảnh QR ngay ở trình duyệt, hoặc người dùng gõ tay khi ảnh mờ
+   * không đọc được. Chuỗi này và ảnh ở `qrImageUrl` là hai thứ RỜI NHAU: gõ
+   * link tay mà không có ảnh là hợp lệ, và ngược lại.
    */
   openUrl: OpenUrl,
+  /**
+   * Ảnh QR đã tải lên kho, `''` = không có. Bước 2 của P-20 mở đúng tấm này ra
+   * cho khách quét bằng điện thoại của họ.
+   */
+  qrImageUrl: QrImageRef,
   /**
    * Mức ưu tiên trong ô chọn mã lúc mở tài khoản — số lớn lên đầu, từ 0 trở
    * lên. Cùng luật với `BankForm.priority`, xem lý do ở đó.

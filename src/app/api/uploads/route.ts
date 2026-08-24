@@ -15,6 +15,21 @@ import { imageUrl, putImage } from "@/server/storage";
  * thật nằm ở nhịp GHI — không có quyền thì URL tải lên được cũng không gắn vào
  * bản ghi nào.
  */
+/**
+ * Nhóm ảnh nhận được — DANH SÁCH TRẮNG, đi thẳng vào khoá lưu trữ.
+ *
+ * Nhận chuỗi tự do thì `<nhóm>` trong khoá là chỗ người gọi tự đặt tên thư mục
+ * trong bucket. Nhóm chia theo nơi dùng để về sau dọn rác theo lô — ảnh chứng
+ * minh và ảnh QR có vòng đời khác hẳn nhau.
+ */
+const FOLDERS = ["bank-accounts", "referral-codes"] as const;
+type Folder = (typeof FOLDERS)[number];
+
+const folderOf = (value: FormDataEntryValue | null | undefined): Folder =>
+  typeof value === "string" && (FOLDERS as readonly string[]).includes(value)
+    ? (value as Folder)
+    : "bank-accounts";
+
 export async function POST(request: Request) {
   const actor = await getActor(request);
   if (!actor) return unauthorized();
@@ -41,7 +56,7 @@ export async function POST(request: Request) {
   if (!(file instanceof File))
     return Response.json({ message: "Không nhận được file ảnh." }, { status: 400 });
 
-  const result = await putImage(file, "bank-accounts");
+  const result = await putImage(file, folderOf(form?.get("folder")));
   if (!result.ok) return Response.json({ message: result.message }, { status: 400 });
 
   // Trả URL đọc ảnh chứ không trả khoá trần: nơi gọi cần thứ gắn thẳng vào
