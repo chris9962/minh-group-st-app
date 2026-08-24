@@ -130,6 +130,9 @@ export function AccountCard({ staffId }: { staffId: string }) {
             }
           />
         )}
+        {staff.bankScope === "listed" && (
+          <Row label="Ngân hàng quản" value={`${staff.managedBankIds.length} ngân hàng`} />
+        )}
         <Row
           label="Trạng thái"
           value={

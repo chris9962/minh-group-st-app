@@ -1,6 +1,6 @@
 import { eq, inArray } from "drizzle-orm";
 import { db } from "./db/client";
-import { userManagedDepartments, userPermissions, users } from "./db/schema";
+import { userManagedBanks, userManagedDepartments, userPermissions, users } from "./db/schema";
 import type { Permission, User } from "@/lib/types";
 
 /**
@@ -14,6 +14,7 @@ export function toUser(
   row: UserRow,
   permissions: Permission[],
   managedDepartmentIds: string[],
+  managedBankIds: string[] = [],
 ): User {
   return {
     id: row.id,
@@ -23,6 +24,8 @@ export function toUser(
     departmentId: row.departmentId,
     managedDepartmentIds,
     manageScope: row.manageScope,
+    managedBankIds,
+    bankScope: row.bankScope,
     title: row.title,
     permissions,
     active: row.active,
@@ -33,17 +36,20 @@ export function toUser(
 export async function relationsFor(userIds: string[]): Promise<{
   permissionsOf: Map<string, Permission[]>;
   managedOf: Map<string, string[]>;
+  managedBanksOf: Map<string, string[]>;
 }> {
   const permissionsOf = new Map<string, Permission[]>();
   const managedOf = new Map<string, string[]>();
-  if (userIds.length === 0) return { permissionsOf, managedOf };
+  const managedBanksOf = new Map<string, string[]>();
+  if (userIds.length === 0) return { permissionsOf, managedOf, managedBanksOf };
 
-  const [perms, managed] = await Promise.all([
+  const [perms, managed, managedBanks] = await Promise.all([
     db.select().from(userPermissions).where(inArray(userPermissions.userId, userIds)),
     db
       .select()
       .from(userManagedDepartments)
       .where(inArray(userManagedDepartments.userId, userIds)),
+    db.select().from(userManagedBanks).where(inArray(userManagedBanks.userId, userIds)),
   ]);
 
   for (const p of perms) {
@@ -56,7 +62,12 @@ export async function relationsFor(userIds: string[]): Promise<{
     list.push(m.departmentId);
     managedOf.set(m.userId, list);
   }
-  return { permissionsOf, managedOf };
+  for (const b of managedBanks) {
+    const list = managedBanksOf.get(b.userId) ?? [];
+    list.push(b.bankId);
+    managedBanksOf.set(b.userId, list);
+  }
+  return { permissionsOf, managedOf, managedBanksOf };
 }
 
 export async function loadUser(id: string): Promise<User | null> {
@@ -64,6 +75,11 @@ export async function loadUser(id: string): Promise<User | null> {
   const row = rows[0];
   if (!row) return null;
 
-  const { permissionsOf, managedOf } = await relationsFor([row.id]);
-  return toUser(row, permissionsOf.get(row.id) ?? [], managedOf.get(row.id) ?? []);
+  const { permissionsOf, managedOf, managedBanksOf } = await relationsFor([row.id]);
+  return toUser(
+    row,
+    permissionsOf.get(row.id) ?? [],
+    managedOf.get(row.id) ?? [],
+    managedBanksOf.get(row.id) ?? [],
+  );
 }

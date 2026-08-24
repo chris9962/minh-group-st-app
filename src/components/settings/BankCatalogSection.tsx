@@ -18,7 +18,9 @@ import {
 } from "@/lib/api/bankCatalog";
 import { BankFormDialog } from "./BankFormDialog";
 import styles from "./BankCatalogSection.module.scss";
+import { banksInScope } from "@/lib/permissions";
 import { errorMessage, toast } from "@/lib/toast";
+import { useSession } from "@/store/session";
 
 type Props = {
   /**
@@ -32,13 +34,24 @@ type Props = {
 /** P-60 · Kho ngân hàng — danh sách phẳng, mỗi dòng một ngân hàng độc lập. */
 export function BankCatalogSection({ creating, onCreatingChange }: Props) {
   const queryClient = useQueryClient();
+  const actor = useSession((s) => s.user);
   const [editing, setEditing] = useState<Bank | null>(null);
   const [confirming, setConfirming] = useState<Bank | null>(null);
 
-  const { data: banks = [], isPending, isError, refetch, isFetching } = useQuery({
+  const { data: allBanks = [], isPending, isError, refetch, isFetching } = useQuery({
     queryKey: ["banks"],
     queryFn: fetchBanks,
   });
+
+  /**
+   * Bảng chỉ hiện ngân hàng người này SỬA được.
+   *
+   * `GET /api/settings/banks` cố ý không lọc — mọi form nghiệp vụ cần đủ danh
+   * sách, và nhân viên mở tài khoản phải thấy cả 13 ngân hàng. Lọc ở đây vì
+   * đây là màn cấu hình: bày ra một dòng có nút Sửa mà bấm vào nhận 403 thì
+   * người dùng không đoán được vì sao.
+   */
+  const banks = banksInScope(actor, allBanks);
 
   const toggleActive = useMutation({
     mutationFn: ({ id, next }: { id: string; next: boolean }) => setBankActive(id, next),

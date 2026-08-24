@@ -19,12 +19,19 @@ import {
  * loại lỗi mà test API không bao giờ thấy.
  */
 
+/**
+ * `/settings/referral-codes` KHÔNG còn ở đây: nó đã thành đường chuyển hướng
+ * sang `/settings/banks` (chốt 2026-08-24), nên nó nằm trong `ALWAYS_OPEN` và
+ * không bị chặn tại màn. Ca "gõ thẳng đường dẫn thì bị chặn" soi nó là soi một
+ * trang không còn dựng nội dung gì.
+ *
+ * Kho mã giới thiệu nay là tab thứ hai của `/settings/banks`.
+ */
 const SETTINGS_SCREENS = [
-  ["/settings/banks", "Kho ngân hàng"],
+  ["/settings/banks", "Ngân hàng & mã giới thiệu"],
   ["/settings/channels", "Danh mục kênh"],
   ["/settings/service-types", "Loại dịch vụ"],
   ["/settings/gift-catalog", "Danh mục quà"],
-  ["/settings/referral-codes", "Kho mã giới thiệu"],
   ["/settings/kpi-target", "Chỉ tiêu KPI"],
 ] as const;
 

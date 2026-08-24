@@ -1,7 +1,8 @@
 import { ReferralCodeForm } from "@/lib/api/bankCatalog";
+import { canManageBank } from "@/lib/permissions";
 import { logAudit } from "@/server/audit";
-import { actorWith, badRequest, isUuid, jsonBody, notFound } from "@/server/auth";
-import { updateReferralCode } from "@/server/catalog";
+import { actorWith, badRequest, forbidden, isUuid, jsonBody, notFound } from "@/server/auth";
+import { bankIdOfReferralCode, updateReferralCode } from "@/server/catalog";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -18,7 +19,7 @@ type Params = { params: Promise<{ id: string }> };
  * được, nên phải nói rõ vì sao không lưu.
  */
 export async function PATCH(request: Request, { params }: Params) {
-  const guard = await actorWith(request, "system", "manage-referral-codes");
+  const guard = await actorWith(request, "system", "manage-bank");
   if (!guard.ok) return guard.response;
 
   const { id } = await params;
@@ -26,6 +27,17 @@ export async function PATCH(request: Request, { params }: Params) {
 
   const parsed = ReferralCodeForm.safeParse(await jsonBody(request));
   if (!parsed.success) return badRequest();
+
+  /**
+   * Chốt phạm vi đọc ngân hàng THẬT của mã, không đọc `parsed.data.bankId`.
+   *
+   * `updateReferralCode` vốn từ chối mọi lượt đổi ngân hàng, nhưng đó là phép
+   * kiểm khác việc khác. Tin thân request ở đây thì người ngoài phạm vi gửi
+   * `bankId` của ngân hàng mình quản là sửa được mã của ngân hàng bất kỳ.
+   */
+  const bankId = await bankIdOfReferralCode(id);
+  if (!bankId) return notFound();
+  if (!canManageBank(guard.actor, bankId)) return forbidden();
 
   const result = await updateReferralCode(id, parsed.data);
   if (!result) return notFound();

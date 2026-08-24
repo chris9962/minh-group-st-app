@@ -26,6 +26,8 @@ import {
   type ReferralCode,
 } from "@/lib/api/bankCatalog";
 import { fetchDepartments } from "@/lib/api/departments";
+import { banksInScope } from "@/lib/permissions";
+import { useSession } from "@/store/session";
 import styles from "./ReferralCodeFormDialog.module.scss";
 import { readQrImage } from "@/lib/readQrImage";
 import { errorMessage, toast } from "@/lib/toast";
@@ -46,6 +48,7 @@ type Props = {
 export function ReferralCodeFormDialog({ open, onClose, referral }: Props) {
   const queryClient = useQueryClient();
   const editing = Boolean(referral);
+  const actor = useSession((s) => s.user);
   const { data: banks = [] } = useQuery({ queryKey: ["banks"], queryFn: fetchBanks });
   const { data: departments = [] } = useQuery({
     queryKey: ["departments"],
@@ -54,7 +57,11 @@ export function ReferralCodeFormDialog({ open, onClose, referral }: Props) {
 
   // Lúc thêm mới chỉ hiện ngân hàng đang triển khai. Lúc sửa thì lấy cả ngân
   // hàng đã tắt: mã cũ vẫn thuộc về nó, lọc đi là ô chọn hiện trống trơn.
-  const bankOptions = editing ? banks : banks.filter((b) => b.active);
+  //
+  // Phạm vi ngân hàng lọc TRƯỚC cả hai: người quản VPa không lập được mã cho
+  // MSBa, nên bày ngân hàng đó ra là chọn xong nhận 403.
+  const inScope = banksInScope(actor, banks);
+  const bankOptions = editing ? inScope : inScope.filter((b) => b.active);
 
   const {
     register,

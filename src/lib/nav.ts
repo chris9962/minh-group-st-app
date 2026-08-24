@@ -58,7 +58,12 @@ export const isNavGroup = (entry: NavEntry): entry is NavGroup => 'children' in 
  * lui về khi chặn một màn khác, mà một trang tự chặn chính nó thì thành vòng
  * chuyển hướng không dừng.
  */
-const ALWAYS_OPEN = ['/', '/profile'];
+/**
+ * `/settings/referral-codes` nằm đây vì nó chỉ còn là đường CHUYỂN HƯỚNG sang
+ * `/settings/banks` (chốt 2026-08-24). Không mở sẵn thì chính nó bị chặn trước
+ * khi kịp chuyển, và mọi link cũ dẫn về trang chủ thay vì tới đúng chỗ.
+ */
+const ALWAYS_OPEN = ['/', '/profile', '/settings/referral-codes'];
 
 /**
  * Người này mở được đường dẫn này không — CÙNG nguồn với sidebar.
@@ -188,14 +193,18 @@ export function navFor(user: User | null): NavEntry[] {
       screen: 'P-84',
     });
   }
-  if (can(user, 'system', 'manage-bank-catalog')) {
-    settingsChildren.push({ href: '/settings/banks', label: 'Danh sách ngân hàng', screen: 'P-60' });
-  }
-  if (can(user, 'system', 'manage-referral-codes')) {
+  /**
+   * MỘT mục cho hai màn (chốt 2026-08-24). Trang `/settings/banks` dựng hai tab:
+   * danh sách ngân hàng và kho mã giới thiệu.
+   *
+   * Một quyền thì một mục — tách hai mục ra là bày hai đường vào cùng một thứ,
+   * và người dùng phải nhớ mã giới thiệu nằm ở mục nào.
+   */
+  if (can(user, 'system', 'manage-bank')) {
     settingsChildren.push({
-      href: '/settings/referral-codes',
-      label: 'Danh sách mã giới thiệu',
-      screen: 'P-61',
+      href: '/settings/banks',
+      label: 'Ngân hàng & mã giới thiệu',
+      screen: 'P-60',
     });
   }
   if (can(user, 'system', 'configure-catalog')) {

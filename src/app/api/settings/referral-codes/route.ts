@@ -1,6 +1,7 @@
 import { CodeStatus, REFERRAL_CODE_SORT, ReferralCodeForm } from "@/lib/api/bankCatalog";
+import { canManageBank, visibleBankIds } from "@/lib/permissions";
 import { logAudit } from "@/server/audit";
-import { actorWith, badRequest, jsonBody, uuidParam } from "@/server/auth";
+import { actorWith, badRequest, forbidden, jsonBody, uuidParam } from "@/server/auth";
 import { createReferralCode, listReferralCodes } from "@/server/catalog";
 import { pageArgsFrom } from "@/server/pagination";
 
@@ -12,7 +13,7 @@ import { pageArgsFrom } from "@/server/pagination";
  * ngân hàng cấp, có số lượng — không seed được, phải nhập.
  */
 export async function GET(request: Request) {
-  const guard = await actorWith(request, "system", "manage-referral-codes");
+  const guard = await actorWith(request, "system", "manage-bank");
   if (!guard.ok) return guard.response;
 
   // Lọc · tìm · sắp · cắt trang đều ở máy chủ (AGENTS.md §5.1). Trạng thái lạ
@@ -29,6 +30,8 @@ export async function GET(request: Request) {
         bankId: uuidParam(params.get("bankId")),
         status: status.success ? status.data : "",
         search: (params.get("search") ?? "").trim(),
+        // Phạm vi quyền, không phải bộ lọc người dùng chọn — xem `ReferralCodeFilters`.
+        allowedBankIds: visibleBankIds(guard.actor),
       },
       pageArgsFrom(new URL(request.url), REFERRAL_CODE_SORT, "progress"),
     ),
@@ -36,11 +39,14 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const guard = await actorWith(request, "system", "manage-referral-codes");
+  const guard = await actorWith(request, "system", "manage-bank");
   if (!guard.ok) return guard.response;
 
   const parsed = ReferralCodeForm.safeParse(await jsonBody(request));
   if (!parsed.success) return badRequest();
+
+  // Mã thuộc về một ngân hàng, nên chốt phạm vi đi theo ngân hàng của mã.
+  if (!canManageBank(guard.actor, parsed.data.bankId)) return forbidden();
 
   const result = await createReferralCode(parsed.data);
   if (!result.ok) return badRequest("Mã này đã có trong kho của ngân hàng đó");

@@ -41,6 +41,13 @@ export const Bank = z.object({
   countsAsApp: z.boolean(),
   /** Số lớn lên đầu ô chọn ngân hàng lúc mở tài khoản. 0 là mức thường. */
   priority: z.number(),
+  /**
+   * Nhân viên được giao quản ngân hàng này (chốt 2026-08-24).
+   *
+   * Rỗng = chưa giao cho ai, và ngân hàng vẫn chạy bình thường — người ở phạm
+   * vi `all` sửa được nó như cũ. Danh sách này chỉ mở thêm quyền, không thu hẹp.
+   */
+  managerIds: z.array(z.string()),
 });
 export type Bank = z.infer<typeof Bank>;
 
@@ -61,6 +68,18 @@ export const BankForm = z.object({
     .int('Độ ưu tiên phải là số nguyên')
     .min(0, 'Độ ưu tiên phải từ 0 trở lên')
     .max(SMALLINT_MAX, 'Độ ưu tiên lớn quá'),
+  /**
+   * Ai quản ngân hàng này — ghi thẳng vào `user_managed_banks`.
+   *
+   * Đi thẳng vào cột uuid nên bắt dạng ngay ở đây: để lọt chuỗi bậy xuống
+   * Postgres là lỗi `22P02`, mà tầng dưới chỉ bắt lỗi trùng khoá nên client
+   * nhận 500 thay vì 400.
+   *
+   * ⚠️ Chỉ người có `system:grant-permission` gửi được trường này. Máy chủ bỏ
+   * qua nó với người khác — người quản một ngân hàng KHÔNG tự thêm người vào
+   * ngân hàng mình quản, vì đó là đường tự nới quyền.
+   */
+  managerIds: z.array(z.uuid()),
 });
 export type BankForm = z.infer<typeof BankForm>;
 
@@ -83,6 +102,21 @@ async function send(url: string, method: string, body?: unknown) {
     throw new Error(body?.message?.trim() || 'Không lưu được');
   }
   return res.json();
+}
+
+/** Nhân viên chọn được vào ô "Người quản" — chỉ người đã có `system:manage-bank`. */
+export const BankManagerOption = z.object({
+  id: z.string(),
+  fullName: z.string(),
+  username: z.string(),
+  title: z.string(),
+});
+export type BankManagerOption = z.infer<typeof BankManagerOption>;
+
+export async function fetchBankManagerOptions(): Promise<BankManagerOption[]> {
+  const res = await fetch('/api/settings/banks/managers');
+  if (!res.ok) throw new Error('Không tải được danh sách người quản ngân hàng');
+  return z.array(BankManagerOption).parse(await res.json());
 }
 
 export const createBank = (form: BankForm) =>

@@ -37,8 +37,17 @@ export const moduleKey = pgEnum("module_key", [
 
 export const actionKey = pgEnum("action_key", [
   "view-summary", "view-detail", "create", "update", "delete", "export",
-  "handle-fallback", "grant-gift", "manage-referral-codes",
-  "manage-bank-catalog", "configure-catalog", "configure-gift-rules",
+  "handle-fallback", "grant-gift",
+  /**
+   * Gộp từ `manage-bank-catalog` và `manage-referral-codes` (migration 0040).
+   *
+   * ⚠️ `manage-referral-codes` VẪN nằm trong enum ở database — Postgres không
+   * bỏ được một giá trị enum, và `audit_log` còn giữ lịch sử những lượt cấp
+   * quyền mang tên đó. Bỏ khỏi danh sách này nghĩa là không cấp mới được, không
+   * phải là nó đã biến mất.
+   */
+  "manage-bank",
+  "configure-catalog", "configure-gift-rules",
   "manage-org", "grant-permission",
   // đặc biệt · customer: XEM + SỬA CCCD đầy đủ, gộp một quyền (quyết định 03/08)
   "access-id-number",
@@ -49,6 +58,14 @@ export const roleKey = pgEnum("role_key", [
   "director", "deputy-director", "head", "deputy-head", "staff",
 ]);
 export const manageScope = pgEnum("manage_scope", ["none", "listed", "company"]);
+
+/**
+ * Người này quản MỌI ngân hàng, hay chỉ ngân hàng được giao (migration 0041).
+ *
+ * Trục riêng, KHÔNG mượn `scope_key`: `own` của trục đó nghĩa là "bản ghi do
+ * chính tôi tạo" (spec §1.1.2), mà ngân hàng không thuộc về ai.
+ */
+export const bankScope = pgEnum("bank_scope", ["all", "listed"]);
 
 /**
  * Loại phòng — quyết định công thức tính điểm KPI (spec §7.0, chốt 2026-08-22).
@@ -127,6 +144,8 @@ export const users = pgTable(
     /** THUỘC VỀ đúng một phòng; null với Ban giám đốc. */
     departmentId: uuid("department_id").references(() => departments.id),
     manageScope: manageScope("manage_scope").notNull().default("none"),
+    /** Chỉ có nghĩa với người mang `system:manage-bank`. Xem `bankScope` ở trên. */
+    bankScope: bankScope("bank_scope").notNull().default("all"),
     active: boolean("active").notNull().default(true),
     /** C-01: sai 5 lần liên tiếp → khoá 15 phút, quản trị mở lại. */
     failedAttempts: smallint("failed_attempts").notNull().default(0),
@@ -148,6 +167,25 @@ export const userManagedDepartments = pgTable(
     departmentId: uuid("department_id").notNull().references(() => departments.id),
   },
   (t) => [primaryKey({ columns: [t.userId, t.departmentId] })],
+);
+
+/**
+ * Ngân hàng nào do ai quản — chỉ có nghĩa khi `users.bank_scope = 'listed'`.
+ *
+ * Nhiều-nhiều CẢ HAI CHIỀU. Một người quản nhiều ngân hàng, và một ngân hàng có
+ * nhiều người quản; khoá chính hai cột cho sẵn điều đó. KHÔNG thêm ràng buộc
+ * duy nhất trên `bankId` — đó đúng là thứ chặn người quản thứ hai.
+ *
+ * Gán ở hộp thoại sửa ngân hàng, không ở hồ sơ nhân viên: câu hỏi người dùng
+ * đang hỏi lúc đó là "ngân hàng này ai quản", không phải "người này quản gì".
+ */
+export const userManagedBanks = pgTable(
+  "user_managed_banks",
+  {
+    userId: uuid("user_id").notNull().references(() => users.id),
+    bankId: uuid("bank_id").notNull().references(() => banks.id),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.bankId] })],
 );
 
 /** Nguồn quyền THẬT (spec §1.1) — không suy ngược từ role khi kiểm quyền. */

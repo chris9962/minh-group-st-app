@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, sql, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, sql, type SQL } from "drizzle-orm";
 import { CODE_LOW_RATIO } from "@/lib/api/bankCatalog";
 import type {
   Bank,
@@ -49,6 +49,9 @@ import {
   refWards,
   referralCodeDepartments,
   referralCodes,
+  userManagedBanks,
+  userPermissions,
+  users,
   serviceTypes,
   wards,
 } from "./db/schema";
@@ -90,7 +93,7 @@ async function catalogWrite<T>(run: () => Promise<T>): Promise<CatalogOutcome<T>
 
 /* ── Ngân hàng ────────────────────────────────────────────────────────── */
 
-const toBank = (r: typeof banks.$inferSelect): Bank => ({
+const toBank = (r: typeof banks.$inferSelect, managerIds: string[] = []): Bank => ({
   id: r.id,
   code: r.code,
   active: r.active,
@@ -99,7 +102,80 @@ const toBank = (r: typeof banks.$inferSelect): Bank => ({
   coefficient: Number(r.coefficient),
   countsAsApp: r.countsAsApp,
   priority: r.priority,
+  managerIds,
 });
+
+/**
+ * Người quản của từng ngân hàng, nạp MỘT lượt cho cả danh sách.
+ *
+ * Không truy vấn theo từng ngân hàng: 13 dòng là 13 lượt đi về database cho
+ * một màn (N+1), mà cả bảng nối chỉ vài trăm dòng nên lấy trọn rẻ hơn hẳn.
+ */
+async function bankManagers(): Promise<Map<string, string[]>> {
+  const rows = await db.select().from(userManagedBanks);
+  const byBank = new Map<string, string[]>();
+  for (const r of rows) {
+    const list = byBank.get(r.bankId) ?? [];
+    list.push(r.userId);
+    byBank.set(r.bankId, list);
+  }
+  return byBank;
+}
+
+/**
+ * Nhân viên CHỌN ĐƯỢC vào ô "Người quản" — những người đã có `system:manage-bank`.
+ *
+ * Lọc theo quyền chứ không bày cả danh bạ: có tên trong danh sách người quản mà
+ * không có quyền thì vẫn không mở được màn nào, nên một cái tên như vậy chỉ làm
+ * người cấp tưởng đã xong việc.
+ *
+ * `module = '*'` cũng tính — tài khoản toàn quyền mang dạng đó.
+ */
+export async function listBankManagerCandidates(): Promise<
+  { id: string; fullName: string; username: string; title: string }[]
+> {
+  return db
+    .selectDistinct({
+      id: users.id,
+      fullName: users.fullName,
+      username: users.username,
+      title: users.title,
+    })
+    .from(users)
+    .innerJoin(userPermissions, eq(userPermissions.userId, users.id))
+    .where(
+      and(
+        eq(users.active, true),
+        eq(userPermissions.action, "manage-bank"),
+        sql`${userPermissions.module} in ('system', '*')`,
+      ),
+    )
+    .orderBy(asc(users.fullName));
+}
+
+/** Ai đang quản một ngân hàng cụ thể. Dùng khi giữ nguyên danh sách đang có. */
+export async function bankManagerIds(bankId: string): Promise<string[]> {
+  const rows = await db
+    .select({ userId: userManagedBanks.userId })
+    .from(userManagedBanks)
+    .where(eq(userManagedBanks.bankId, bankId));
+  return rows.map((r) => r.userId);
+}
+
+/**
+ * Ghi lại danh sách người quản của một ngân hàng: xoá sạch rồi chèn lại.
+ *
+ * Cùng cách `writeCodeDepartments` làm — danh sách nhiều nhất vài chục người,
+ * mà phép so từng dòng để chèn/xoá phần chênh là chỗ dễ sai hơn một lượt ghi đè.
+ */
+async function writeBankManagers(bankId: string, managerIds: string[]) {
+  await db.delete(userManagedBanks).where(eq(userManagedBanks.bankId, bankId));
+  if (managerIds.length === 0) return;
+  await db
+    .insert(userManagedBanks)
+    .values(managerIds.map((userId) => ({ userId, bankId })))
+    .onConflictDoNothing();
+}
 
 /**
  * Ưu tiên cao lên trước, rồi tới mã.
@@ -109,7 +185,11 @@ const toBank = (r: typeof banks.$inferSelect): Bank => ({
  * người dùng bấm nên không bị thứ tự này ràng buộc.
  */
 export async function listBanks(): Promise<Bank[]> {
-  return (await db.select().from(banks).orderBy(desc(banks.priority), asc(banks.code))).map(toBank);
+  const [rows, managers] = await Promise.all([
+    db.select().from(banks).orderBy(desc(banks.priority), asc(banks.code)),
+    bankManagers(),
+  ]);
+  return rows.map((r) => toBank(r, managers.get(r.id) ?? []));
 }
 
 /**
@@ -131,7 +211,8 @@ export async function createBank(form: BankForm): Promise<CatalogOutcome<Bank>> 
         priority: form.priority,
       })
       .returning();
-    return { ok: true, item: toBank(row) };
+    await writeBankManagers(row.id, form.managerIds);
+    return { ok: true, item: toBank(row, form.managerIds) };
   } catch (e) {
     if (uniqueViolationOf(e) !== null) return { ok: false, reason: "code-taken" };
     throw e;
@@ -166,7 +247,9 @@ export async function updateBank(id: string, form: BankForm): Promise<CatalogOut
       })
       .where(eq(banks.id, id))
       .returning();
-    return row ? { ok: true, item: toBank(row) } : null;
+    if (!row) return null;
+    await writeBankManagers(id, form.managerIds);
+    return { ok: true, item: toBank(row, form.managerIds) };
   } catch (e) {
     if (uniqueViolationOf(e) !== null) return { ok: false, reason: "code-taken" };
     throw e;
@@ -175,7 +258,8 @@ export async function updateBank(id: string, form: BankForm): Promise<CatalogOut
 
 export async function setBankActive(id: string, active: boolean): Promise<Bank | null> {
   const [row] = await db.update(banks).set({ active }).where(eq(banks.id, id)).returning();
-  return row ? toBank(row) : null;
+  if (!row) return null;
+  return toBank(row, (await bankManagers()).get(id) ?? []);
 }
 
 /* ── Mã giới thiệu ────────────────────────────────────────────────────── */
@@ -307,11 +391,35 @@ function codeFilters(query: ReferralCodeFilters): SQL | undefined {
           return sql`(${referralCodes.code} ilike ${needle} escape '\\' or ${banks.code} ilike ${needle} escape '\\')`;
         })()
       : undefined,
+    /**
+     * Phạm vi ngân hàng — áp cho CẢ câu lấy dòng lẫn câu đếm tổng, vì cả hai
+     * cùng gọi `codeFilters`. Đếm mà không áp thì thanh phân trang hiện tổng
+     * của cả kho trong khi bảng chỉ có mã của vài ngân hàng.
+     *
+     * Danh sách RỖNG khác `null`: rỗng nghĩa là người này chưa được giao ngân
+     * hàng nào, và họ phải thấy bảng trống chứ không phải thấy tất cả.
+     */
+    query.allowedBankIds === null
+      ? undefined
+      : query.allowedBankIds.length === 0
+        ? sql`false`
+        : inArray(referralCodes.bankId, query.allowedBankIds),
   ].filter(Boolean) as SQL[];
   return parts.length > 0 ? and(...parts) : undefined;
 }
 
-export type ReferralCodeFilters = { bankId: string; status: CodeStatus | ""; search: string };
+export type ReferralCodeFilters = {
+  bankId: string;
+  status: CodeStatus | "";
+  search: string;
+  /**
+   * Ngân hàng người gọi được phép thấy; `null` = không giới hạn.
+   *
+   * Khác `bankId` ở trên: cái đó là bộ lọc người dùng CHỌN, cái này là phạm vi
+   * quyền, và người dùng không tắt được nó.
+   */
+  allowedBankIds: string[] | null;
+};
 
 /**
  * MỘT trang mã. Đếm tổng bằng câu thứ hai trên đúng bộ lọc đó — `rows.length`
@@ -470,6 +578,22 @@ async function readCode(
  */
 const qrImageKey = (form: ReferralCodeForm): string | null =>
   form.qrImageUrl ? imageKeyOf(form.qrImageUrl) : null;
+
+/**
+ * Ngân hàng của một mã, đọc thẳng từ database. `null` = không có mã này.
+ *
+ * Chốt phạm vi ở đường SỬA phải hỏi hàm này, KHÔNG đọc `form.bankId`: thân
+ * request là thứ người gọi tự đặt, còn thứ quyết định ai được sửa là ngân hàng
+ * THẬT của mã đang nằm trong kho.
+ */
+export async function bankIdOfReferralCode(id: string): Promise<string | null> {
+  const [row] = await db
+    .select({ bankId: referralCodes.bankId })
+    .from(referralCodes)
+    .where(eq(referralCodes.id, id))
+    .limit(1);
+  return row?.bankId ?? null;
+}
 
 export async function createReferralCode(
   form: ReferralCodeForm,

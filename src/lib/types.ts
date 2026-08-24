@@ -87,8 +87,18 @@ export const Action = z.enum([
   'handle-fallback',
   // Đặc biệt — banking
   'grant-gift',
-  'manage-referral-codes',
-  'manage-bank-catalog',
+  /**
+   * Quản lý ngân hàng — gác CẢ hai màn: danh sách ngân hàng và kho mã giới
+   * thiệu (chốt 2026-08-24, migration 0040).
+   *
+   * Tên cũ `manage-bank-catalog` chỉ nói tới danh mục, còn `manage-referral-codes`
+   * đã gộp vào đây: kho mã thuộc về một ngân hàng, nên quản ngân hàng X mà
+   * không sửa được mã của X là quản một nửa.
+   *
+   * Phạm vi ngân hàng đi bằng trục RIÊNG — `users.bank_scope` cộng bảng
+   * `user_managed_banks`, không phải `Scope`.
+   */
+  'manage-bank',
   // Đặc biệt — insurance/services/system (danh mục dùng chung kiểu chọn-từ-danh-sách)
   'configure-catalog',
   // Đặc biệt — system
@@ -121,8 +131,7 @@ export const ACTION_LABEL: Record<Action, string> = {
   'access-id-number': 'Xem & sửa CCCD đầy đủ',
   'handle-fallback': 'Xử lý đơn lỗi (làm tay)',
   'grant-gift': 'Chốt & phát quà',
-  'manage-referral-codes': 'Quản lý mã giới thiệu',
-  'manage-bank-catalog': 'Quản lý danh sách ngân hàng',
+  'manage-bank': 'Quản lý ngân hàng & mã giới thiệu',
   'configure-catalog': 'Cấu hình danh mục',
   'configure-gift-rules': 'Cấu hình quy tắc quà',
   'manage-org': 'Sửa cơ cấu tổ chức & xem nhật ký truy vết',
@@ -172,8 +181,7 @@ export const SPECIAL_ACTIONS_OF: Partial<Record<ModuleKey, Action[]>> = {
   system: [
     'configure-catalog',
     'configure-gift-rules',
-    'manage-bank-catalog',
-    'manage-referral-codes',
+    'manage-bank',
     'manage-org',
     'grant-permission',
   ],
@@ -326,6 +334,23 @@ export const ROLE_TITLE: Record<RoleKey, string> = {
 export const ManageScope = z.enum(['none', 'listed', 'company']);
 export type ManageScope = z.infer<typeof ManageScope>;
 
+/**
+ * Người này quản MỌI ngân hàng, hay chỉ ngân hàng được giao.
+ *
+ * Trục RIÊNG, không mượn `Scope`. `own` của trục đó nghĩa là "bản ghi do chính
+ * tôi tạo" (spec §1.1.2) — ngân hàng thì không thuộc về ai, bảng `banks` không
+ * có cột chủ sở hữu và ai đăng nhập cũng đọc được danh sách.
+ *
+ * Chỉ có nghĩa với người mang `system:manage-bank`.
+ */
+export const BankScope = z.enum(['all', 'listed']);
+export type BankScope = z.infer<typeof BankScope>;
+
+export const BANK_SCOPE_LABEL: Record<BankScope, string> = {
+  all: 'Mọi ngân hàng',
+  listed: 'Ngân hàng chỉ định',
+};
+
 /* ── Người dùng ─────────────────────────────────────────────────────── */
 
 export const User = z.object({
@@ -338,6 +363,14 @@ export const User = z.object({
   /** QUẢN LÝ — 0..n phòng. Chỉ có giá trị khi manageScope = 'listed'. */
   managedDepartmentIds: z.array(z.string()),
   manageScope: ManageScope,
+  /**
+   * Ngân hàng người này được giao quản. Rỗng khi `bankScope = 'all'` — lúc đó
+   * danh sách không có nghĩa, mọi ngân hàng đều mở.
+   *
+   * Gán ở hộp thoại sửa ngân hàng, không ở hồ sơ nhân viên.
+   */
+  managedBankIds: z.array(z.string()),
+  bankScope: BankScope,
   /** Tên chức danh hiển thị, ví dụ "Phó GĐ 2" — khác với `role`. */
   title: z.string(),
   permissions: z.array(Permission),

@@ -228,6 +228,41 @@ export function visibleDepartmentIds(
 }
 
 /**
+ * Những ngân hàng người này được SỬA — cấu hình ngân hàng lẫn kho mã của nó.
+ *
+ * `null` = không giới hạn ngân hàng nào. KHÔNG thay bằng "danh sách mọi ngân
+ * hàng": lập ngân hàng mới là thiếu ngay, cùng lý do `visibleDepartmentIds`
+ * trả `null` cho phạm vi toàn công ty.
+ *
+ * Hàm này KHÔNG kiểm quyền — nơi gọi phải hỏi `can(user, 'system', 'manage-bank')`
+ * trước. Nó chỉ trả lời "trong phạm vi nào", không trả lời "có được làm không".
+ *
+ * ⚠️ Trục riêng, không đọc `Scope`. Xem `BankScope` ở `lib/types.ts`.
+ */
+export function visibleBankIds(user: User | null): string[] | null {
+  if (!user) return [];
+  return user.bankScope === 'all' ? null : user.managedBankIds;
+}
+
+/**
+ * Lọc một danh sách ngân hàng xuống đúng phạm vi người này SỬA được.
+ *
+ * Dùng ở các màn CẤU HÌNH. Màn nghiệp vụ thì KHÔNG lọc — nhân viên mở tài
+ * khoản phải thấy đủ 13 ngân hàng dù họ không quản cái nào.
+ */
+export function banksInScope<T extends { id: string }>(user: User | null, banks: T[]): T[] {
+  const allowed = visibleBankIds(user);
+  return allowed === null ? banks : banks.filter((b) => allowed.includes(b.id));
+}
+
+/** Người này sửa được ngân hàng cụ thể đó không. Đã gộp cả phép kiểm quyền. */
+export function canManageBank(user: User | null, bankId: string): boolean {
+  if (!can(user, 'system', 'manage-bank')) return false;
+  const allowed = visibleBankIds(user);
+  return allowed === null || allowed.includes(bankId);
+}
+
+/**
  * Ai được đụng vào BẢN GHI NGHIỆP VỤ nào — tài khoản ngân hàng, đơn bảo hiểm,
  * bản ghi dịch vụ.
  *

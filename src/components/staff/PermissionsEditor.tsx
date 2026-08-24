@@ -7,6 +7,7 @@ import { fullPermissions } from "@/lib/roles";
 import {
   ACTION_LABEL,
   BASE_ACTIONS,
+  BANK_SCOPE_LABEL,
   EDITABLE_MODULES,
   MODULE_LABEL,
   SCOPE_LABEL,
@@ -14,6 +15,7 @@ import {
   SCOPELESS_ACTIONS,
   SPECIAL_ACTIONS_OF,
   type Action,
+  type BankScope,
   type ModuleKey,
   type Permission,
   type Scope,
@@ -27,6 +29,11 @@ type Props = {
   onChange: (permissions: Permission[]) => void;
   /** Người đang cấp quyền — dùng để giới hạn lựa chọn không vượt quá quyền của chính họ (mục 1.1.0). */
   actor: User | null;
+  /** Người này quản mọi ngân hàng hay chỉ ngân hàng được giao. */
+  bankScope: BankScope;
+  onBankScopeChange: (scope: BankScope) => void;
+  /** Số ngân hàng đã giao — CHỈ ĐỌC ở đây, gán ở hộp thoại sửa ngân hàng. */
+  managedBankCount: number;
 };
 
 /** `system` không có bản ghi để CRUD — chỉ có hành động đặc biệt. */
@@ -58,7 +65,14 @@ const SCOPE_MARK_CLASS: Record<Scope | "", string> = {
  * "Quyền" trên hồ sơ nhân viên. Không hiện module `*`: cấp nguyên module đó
  * cho một người cụ thể là quá rộng để làm bằng tay, chỉ có ở bộ quyền Giám đốc.
  */
-export function PermissionsEditor({ value, onChange, actor }: Props) {
+export function PermissionsEditor({
+  value,
+  onChange,
+  actor,
+  bankScope,
+  onBankScopeChange,
+  managedBankCount,
+}: Props) {
   const full = isFullAccess(value);
   const canGrantFull = canGrantFullAccess(actor);
 
@@ -182,6 +196,38 @@ export function PermissionsEditor({ value, onChange, actor }: Props) {
               </div>
             );
           })}
+
+          {/*
+            Phạm vi ngân hàng đi ngay dưới ô mở nó — người cấp quyền đọc một
+            mạch: cho quản ngân hàng, rồi quản những ngân hàng nào.
+
+            Trục RIÊNG, không phải `Scope`. `own` của trục kia nghĩa là "bản ghi
+            do chính tôi tạo", mà ngân hàng không thuộc về ai.
+          */}
+          {module === "system" && (full || findScope("system", "manage-bank")) && (
+            <div className={styles.bankScope}>
+              <Select
+                block
+                label="Phạm vi ngân hàng"
+                value={full ? "all" : bankScope}
+                disabled={full}
+                onChange={(v) => onBankScopeChange(v as BankScope)}
+                options={Object.entries(BANK_SCOPE_LABEL).map(([value, label]) => ({
+                  value,
+                  label,
+                }))}
+              />
+              <p className={styles.bankScopeNote}>
+                {full
+                  ? "Toàn quyền thì quản mọi ngân hàng."
+                  : bankScope === "all"
+                    ? "Sửa được cấu hình và kho mã của mọi ngân hàng."
+                    : managedBankCount > 0
+                      ? `Đang giao ${managedBankCount} ngân hàng. Thêm bớt ở hộp thoại sửa ngân hàng — một ngân hàng có thể nhiều người quản.`
+                      : "Chưa giao ngân hàng nào nên chưa sửa được gì. Vào Ngân hàng & mã giới thiệu, mở một ngân hàng rồi thêm tên người này vào ô Người quản."}
+              </p>
+            </div>
+          )}
         </div>
       ))}
     </div>

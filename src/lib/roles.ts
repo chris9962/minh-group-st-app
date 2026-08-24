@@ -221,8 +221,7 @@ const deputyDirectorPermissions: Permission[] = [
    * cũng không tắt được bằng lưới.
    */
   p('system', 'configure-catalog', 'company'),
-  p('system', 'manage-bank-catalog', 'company'),
-  p('system', 'manage-referral-codes', 'company'),
+  p('system', 'manage-bank', 'company'),
 ];
 
 export const ROLE_PERMISSIONS: Record<RoleKey, Permission[]> = {

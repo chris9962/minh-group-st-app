@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
@@ -13,9 +13,12 @@ import {
   AccountNumberMethod,
   BankForm,
   createBank,
+  fetchBankManagerOptions,
   updateBank,
   type Bank,
 } from "@/lib/api/bankCatalog";
+import { can } from "@/lib/permissions";
+import { useSession } from "@/store/session";
 import styles from "./BankFormDialog.module.scss";
 import { errorMessage, toast } from "@/lib/toast";
 
@@ -30,6 +33,22 @@ type Props = {
 export function BankFormDialog({ open, onClose, bank }: Props) {
   const queryClient = useQueryClient();
   const editing = Boolean(bank);
+  const actor = useSession((s) => s.user);
+
+  /**
+   * Chỉ người có `grant-permission` giao được ngân hàng cho ai (chốt 2026-08-24).
+   *
+   * Người quản một ngân hàng KHÔNG tự thêm người vào ngân hàng mình quản — đó
+   * là đường tự nới quyền. Máy chủ giữ nguyên danh sách cũ nếu người khác gửi
+   * lên, ô này ẩn đi cho khớp.
+   */
+  const canAssign = can(actor, "system", "grant-permission");
+
+  const { data: managerOptions = [] } = useQuery({
+    queryKey: ["bank-manager-options"],
+    queryFn: fetchBankManagerOptions,
+    enabled: canAssign,
+  });
 
   const {
     register,
@@ -45,6 +64,7 @@ export function BankFormDialog({ open, onClose, bank }: Props) {
       accountNumberMethod: bank?.accountNumberMethod ?? "phone-match",
       countsAsApp: bank?.countsAsApp ?? true,
       priority: bank?.priority ?? 0,
+      managerIds: bank?.managerIds ?? [],
     },
   });
 
@@ -134,6 +154,58 @@ export function BankFormDialog({ open, onClose, bank }: Props) {
           checked={watch("countsAsApp")}
           onCheckedChange={(v) => setValue("countsAsApp", v, { shouldDirty: true })}
         />
+
+        {canAssign && (
+          /*
+            Danh sách chỉ gồm người ĐÃ có quyền "Quản lý ngân hàng" — bày cả
+            danh bạ ra thì tick xong vẫn không có tác dụng gì, mà người cấp lại
+            tưởng đã xong việc.
+
+            Đóng mở được vì nó là mục dài nhất hộp thoại, cùng cách khối phòng
+            ban ở hộp thoại mã giới thiệu.
+          */
+          <details className={styles.managers} open={watch("managerIds").length > 0}>
+            <summary className={styles.managersSummary}>
+              <span>Người quản ngân hàng này</span>
+              <span className={styles.managersCount}>
+                {watch("managerIds").length}/{managerOptions.length} người
+              </span>
+            </summary>
+
+            {managerOptions.length === 0 ? (
+              <p className={styles.managersEmpty}>
+                Chưa ai có quyền Quản lý ngân hàng. Cấp quyền đó ở hồ sơ nhân viên
+                trước, rồi quay lại đây giao ngân hàng.
+              </p>
+            ) : (
+              <div
+                className={styles.managersList}
+                role="group"
+                aria-label="Người quản ngân hàng này"
+              >
+                {managerOptions.map((person) => {
+                  const picked = watch("managerIds");
+                  return (
+                    <Checkbox
+                      key={person.id}
+                      label={`${person.fullName} · ${person.title}`}
+                      checked={picked.includes(person.id)}
+                      onCheckedChange={(on) =>
+                        setValue(
+                          "managerIds",
+                          on
+                            ? [...picked, person.id]
+                            : picked.filter((id) => id !== person.id),
+                          { shouldDirty: true },
+                        )
+                      }
+                    />
+                  );
+                })}
+              </div>
+            )}
+          </details>
+        )}
       </form>
     </Dialog>
   );

@@ -1,7 +1,7 @@
 "use client";
 
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { ExternalLink, Pencil, Plus, Ticket } from "lucide-react";
+import { ExternalLink, Pencil, Ticket } from "lucide-react";
 import { useState } from "react";
 import { SkeletonTable } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
@@ -21,6 +21,8 @@ import {
   type ReferralCodeQuery,
 } from "@/lib/api/bankCatalog";
 import { fetchDepartments } from "@/lib/api/departments";
+import { banksInScope } from "@/lib/permissions";
+import { useSession } from "@/store/session";
 import { EMPTY_PAGE, PAGE_SIZE } from "@/lib/api/pagination";
 import { useDebouncedValue } from "@/lib/hooks";
 import { ReferralCodeFormDialog } from "./ReferralCodeFormDialog";
@@ -42,9 +44,18 @@ const FIRST_PAGE: ReferralCodeQuery = {
  * giữ CÂU HỎI trong `query` rồi hiện đúng những gì máy chủ trả về — không có
  * chỗ nào lọc lại trên dữ liệu đã tải.
  */
-export function ReferralCodesSection() {
+type Props = {
+  /**
+   * Nút "Thêm mã" nằm ở thanh tiêu đề TRANG, cùng cách `BankCatalogSection`
+   * làm — trang giữ trạng thái mở hộp thoại, khối này chỉ nhận vào.
+   */
+  creating: boolean;
+  onCreatingChange: (creating: boolean) => void;
+};
+
+export function ReferralCodesSection({ creating, onCreatingChange }: Props) {
+  const actor = useSession((s) => s.user);
   const [query, setQuery] = useState<ReferralCodeQuery>(FIRST_PAGE);
-  const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<ReferralCode | null>(null);
 
   // Ô tìm giữ chữ đang gõ riêng, chỉ hoãn xong mới thành câu hỏi gửi đi. Nối
@@ -53,7 +64,10 @@ export function ReferralCodesSection() {
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebouncedValue(search);
 
-  const { data: banks = [] } = useQuery({ queryKey: ["banks"], queryFn: fetchBanks });
+  const { data: allBanks = [] } = useQuery({ queryKey: ["banks"], queryFn: fetchBanks });
+  // Ô lọc chỉ hiện ngân hàng người này quản — máy chủ cũng chỉ trả mã của
+  // những ngân hàng đó, nên lọc theo ngân hàng khác luôn ra bảng trống.
+  const banks = banksInScope(actor, allBanks);
   const { data: departments = [] } = useQuery({
     queryKey: ["departments"],
     queryFn: fetchDepartments,
@@ -173,12 +187,6 @@ export function ReferralCodesSection() {
       title="Kho mã giới thiệu"
       icon={<Ticket size={17} />}
       meta={isPending ? undefined : `${page.total} mã`}
-      action={
-        <Button onClick={() => setCreating(true)}>
-          <Plus size={16} />
-          Thêm mã
-        </Button>
-      }
     >
       <div className={styles.filters}>
         <SearchField
@@ -261,7 +269,7 @@ export function ReferralCodesSection() {
           open
           referral={editing}
           onClose={() => {
-            setCreating(false);
+            onCreatingChange(false);
             setEditing(null);
           }}
         />

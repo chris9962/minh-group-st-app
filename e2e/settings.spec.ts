@@ -88,6 +88,31 @@ test.describe("báo lỗi phải đọc được", () => {
   });
 });
 
+/**
+ * Mở tab "Kho mã giới thiệu" của `/settings/banks`.
+ *
+ * Hai màn gộp làm một trang hai tab ngày 2026-08-24; tab mặc định là danh sách
+ * ngân hàng. Đi thẳng `/settings/referral-codes` vẫn tới nơi nhưng rơi vào tab
+ * đầu, nên ba ca dưới đây phải bấm sang tab thứ hai mới thấy bảng mã.
+ */
+const openCodesTab = async (page: Page) => {
+  await page.goto("/settings/banks");
+  /**
+   * Bấm vào NHÃN, không bấm vào radio.
+   *
+   * `SectionTabs` giấu input bằng class `sr-only` — `clip-path: inset(50%)` và
+   * kích thước 1px — nên Playwright coi nó không nhìn thấy được và `.check()`
+   * chờ tới hết giờ. Người dùng cũng bấm vào nhãn, không bấm vào ô radio 1px.
+   *
+   * Bó trong `role="group"` của thanh tab: chữ "Kho mã giới thiệu" còn là tiêu
+   * đề của thẻ bên trong tab đó, nên không bó thì hai phần tử cùng khớp.
+   */
+  await page
+    .getByRole("group", { name: "Khu vực" })
+    .getByText("Kho mã giới thiệu")
+    .click();
+};
+
 test.describe("kho mã giới thiệu — phân trang ở máy chủ", () => {
   test("gõ tìm chỉ gọi máy chủ một lần, và luôn kèm bộ lọc", async ({ page }) => {
     const calls: string[] = [];
@@ -95,7 +120,7 @@ test.describe("kho mã giới thiệu — phân trang ở máy chủ", () => {
       if (r.url().includes("/api/settings/referral-codes?")) calls.push(r.url());
     });
 
-    await page.goto("/settings/referral-codes");
+    await openCodesTab(page);
     await expect(page.locator("main")).toContainText(/mã/);
     calls.length = 0;
 
@@ -114,7 +139,7 @@ test.describe("kho mã giới thiệu — phân trang ở máy chủ", () => {
     page.on("request", (r) => {
       if (r.url().includes("/api/settings/referral-codes?")) calls.push(r.url());
     });
-    await page.goto("/settings/referral-codes");
+    await openCodesTab(page);
     await page.waitForTimeout(500);
     calls.length = 0;
 
@@ -126,7 +151,7 @@ test.describe("kho mã giới thiệu — phân trang ở máy chủ", () => {
   });
 
   test("kho rỗng nói 'kho đang rỗng', không đổ lỗi cho bộ lọc", async ({ page }) => {
-    await page.goto("/settings/referral-codes");
+    await openCodesTab(page);
     await page.waitForTimeout(600);
     const main = await page.locator("main").innerText();
     if (/Kho mã đang rỗng/.test(main)) {

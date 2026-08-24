@@ -1,0 +1,15 @@
+-- Gộp hai quyền cấu hình ngân hàng thành một (chốt 2026-08-24).
+--
+-- `manage-bank-catalog` và `manage-referral-codes` luôn đi cùng nhau trong thực
+-- tế: kho mã giới thiệu thuộc về một ngân hàng, nên quản ngân hàng X mà không
+-- sửa được mã của X là quản một nửa.
+--
+-- Đổi TÊN chứ không thêm giá trị mới: tên cũ đọc ra "quản lý danh mục ngân
+-- hàng" trong khi nó sắp gác cả kho mã, và một tên sai nghĩa là chỗ người đọc
+-- sau hiểu nhầm phạm vi quyền.
+--
+-- ⚠️ File này CHỈ đổi tên. Phần chuyển dữ liệu nằm ở migration kế tiếp.
+-- `RENAME VALUE` giữ nguyên OID nên dùng ngay trong cùng transaction vẫn chạy,
+-- nhưng tách ra thì không phải nhớ ngoại lệ đó — cùng lý do migration 0026 chỉ
+-- thêm giá trị mà không ghi dòng nào.
+ALTER TYPE "action_key" RENAME VALUE 'manage-bank-catalog' TO 'manage-bank';
