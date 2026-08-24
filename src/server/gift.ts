@@ -2,10 +2,11 @@ import { and, eq, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { GIFT_DECLINED, GIFT_DECLINED_LABEL, GIFT_ERROR } from "@/lib/api/customers";
 import { EMPTY_GIFT, type GiftSimulateInput, type GiftSimulateResult } from "@/lib/api/settings";
-import { businessDay } from "@/lib/format";
+import { businessDay, businessMonth } from "@/lib/format";
 import type { User } from "@/lib/types";
 import { giftFor, type GiftInput, type GiftResult } from "@/rules";
 import { db } from "./db/client";
+import { recomputeKpiForCustomer } from "./kpi";
 import {
   bankAccounts,
   banks,
@@ -72,7 +73,7 @@ export async function giftInputFor(customerId: string): Promise<GiftInput> {
       bankCode: r.bankCode,
       appInstalled: r.appInstalled,
       openedDate: r.openedDate ?? "",
-      household: r.accountType !== "none",
+      household: r.accountType,
     })),
     channelCodes: [...channelCodes],
     departmentCode: customerRow?.departmentCode ?? null,
@@ -226,9 +227,9 @@ export const giftSimulate = (input: GiftSimulateInput): Promise<GiftSimulateResu
       bankCode: a.bankCode,
       appInstalled: a.appInstalled,
       openedDate: businessDay(),
-      // Màn thử P-81 chưa có ô chọn CNKD/HKD — người dùng khai bằng cách thêm
-      // một dòng ngân hàng mã `CNKD`.
-      household: false,
+      // Nắn lại như `finishBankAccount`: CNKD/HKD chỉ có nghĩa với VPa (spec
+      // §4.9), ô chọn chỉ hiện trên thẻ VPa nhưng request nặn tay thì không.
+      household: a.bankCode === "VPa" ? a.accountType : "none",
     })),
     channelCodes: input.channelCodes,
     departmentCode: input.departmentCode,
@@ -299,7 +300,7 @@ export async function recountGiftCases(
         bankCode: row.bankCode,
         appInstalled: row.appInstalled,
         openedDate: row.openedDate ?? "",
-        household: row.accountType !== "none",
+        household: row.accountType,
       });
       byCustomer.set(row.customerId, list);
 
@@ -337,6 +338,29 @@ type GrantOutcome =
   /** `itemLabel` là TÊN món lúc phát — nhật ký truy vết cần chữ đọc được, không cần mã. */
   | { ok: true; customerName: string; itemLabel: string }
   | { ok: false; code: (typeof GIFT_ERROR)[keyof typeof GIFT_ERROR]; message: string };
+
+/**
+ * Những THÁNG mà khách này có tài khoản `done` — mỗi tháng một ô điểm phải tính lại.
+ *
+ * Dùng khi phát quà: từ chốt 2026-08-24 món quà đổi điểm, mà điểm chia theo
+ * tháng mở tài khoản (câu 7.13). Khách mở tài khoản tháng 8 lẫn tháng 9 thì cả
+ * hai ô điểm đều đổi.
+ */
+async function accountMonthsOf(customerId: string): Promise<string[]> {
+  const rows = await db
+    .select({ openedDate: bankAccounts.openedDate })
+    .from(bankAccounts)
+    .where(and(eq(bankAccounts.customerId, customerId), eq(bankAccounts.status, "done")));
+
+  return [
+    ...new Set(
+      rows
+        .map((r) => r.openedDate)
+        .filter((d): d is string => Boolean(d))
+        .map((d) => businessMonth(new Date(`${d}T00:00:00+07:00`))),
+    ),
+  ];
+}
 
 /**
  * P-43 · chốt quà cho một khách. `null` = không có khách đó.
@@ -417,6 +441,20 @@ export async function grantGift(
       code: GIFT_ERROR.ALREADY_GIVEN,
       message: "Khách này đã được tặng quà rồi — mỗi khách chỉ tặng đúng một lần",
     };
+
+  /**
+   * Phát quà ĐỔI ĐIỂM từ chốt 2026-08-24 (thể lệ mục 4c): khách CNKD chưa đủ tổ
+   * hợp mà nhận Mì hoặc Nón thì điểm tụt từ 1,5 xuống 0,7.
+   *
+   * Tính lại theo THÁNG MỞ TÀI KHOẢN, không theo tháng bấm nút: điểm của khách
+   * nằm ở tháng tài khoản mở (câu 7.13). Phát quà tháng 9 cho tài khoản mở
+   * tháng 8 thì phải sửa điểm tháng 8, mà tháng đó có thể đã chốt lương.
+   *
+   * Một khách có tài khoản rải nhiều tháng thì mọi tháng đó đều phải tính lại —
+   * chỉ tính tháng gần nhất là để lại điểm cũ ở các tháng trước.
+   */
+  for (const month of await accountMonthsOf(customerId))
+    await recomputeKpiForCustomer(customerId, month);
 
   return {
     ok: true,

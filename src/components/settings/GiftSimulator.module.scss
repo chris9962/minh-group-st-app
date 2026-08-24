@@ -57,6 +57,11 @@
   font-size: 12.5px;
 }
 
+/* Ô chọn CNKD/HKD nằm dưới ô tích app, cách một nhịp cho hai dòng không dính. */
+.bankType {
+  margin-top: 6px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .bank {
     transition: none;

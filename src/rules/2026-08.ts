@@ -1,4 +1,12 @@
-import type { GiftCash, GiftChoice, GiftInput, GiftResult, ScoringAccount } from "./index";
+import type {
+  GiftCash,
+  GiftChoice,
+  GiftInput,
+  GiftResult,
+  GrantedGifts,
+  HouseholdKind,
+  ScoringAccount,
+} from "./index";
 
 /**
  * Thể lệ kỳ **2026-08** — điểm KPI và quà tặng.
@@ -155,24 +163,84 @@ export const comboPointsFor = (bankCodes: string[]): number => bestComboOf(bankC
  * Hai việc lọc đã làm trước khi tới đây: `src/rules/index.ts` cắt còn tài khoản
  * mở trong đúng tháng đang tính (câu 7.13), tầng gọi cắt còn tài khoản `done`
  * của những khách do NGƯỜI NÀY lập hồ sơ (câu 7.11).
+ *
+ * Điểm mỗi khách gồm HAI phần cộng lại: điểm tổ hợp ngân hàng (mục 2) và điểm
+ * CNKD/HKD (mục 4c). Khách chỉ có CNKD mà không đủ tổ hợp vẫn ra điểm, nên phải
+ * duyệt theo TOÀN BỘ tài khoản của khách chứ không theo danh sách đã lọc combo.
  */
-export function bankingPoints(accounts: ScoringAccount[]): number {
-  const codesByCustomer = new Map<string, string[]>();
-
-  for (const code of comboCodesOf(accounts)) {
-    const codes = codesByCustomer.get(code.customerId);
-    if (codes) codes.push(code.bankCode);
-    else codesByCustomer.set(code.customerId, [code.bankCode]);
+export function bankingPoints(accounts: ScoringAccount[], granted: GrantedGifts): number {
+  const byCustomer = new Map<string, ScoringAccount[]>();
+  for (const account of accounts) {
+    const rows = byCustomer.get(account.customerId);
+    if (rows) rows.push(account);
+    else byCustomer.set(account.customerId, [account]);
   }
 
   let tenths = 0;
-  for (const codes of codesByCustomer.values()) tenths += bestComboOf(codes).tenths;
+  for (const [customerId, rows] of byCustomer) {
+    const combo = bestComboOf(comboCodesOf(rows).map((a) => a.bankCode));
+    tenths += combo.tenths + householdTenths(rows, combo, granted.get(customerId) ?? null);
+  }
   return tenths / 10;
 }
 
 /** Tài khoản còn được vào combo sau khi lọc điều kiện cài app (câu 7.8). */
 const comboCodesOf = (accounts: ScoringAccount[]): ScoringAccount[] =>
   accounts.filter((a) => !REQUIRES_APP.has(a.bankCode) || a.appInstalled);
+
+/* ── Mục 4c · điểm CNKD/HKD (chốt 2026-08-24) ────────────────────────── */
+
+/**
+ * Điểm CNKD, ghi bằng ĐƠN VỊ 1/10 ĐIỂM như bảng combo.
+ *
+ * `HKD` cố ý vắng mặt — nó được 0 điểm. Đo trên `TÍNH ĐIỂM TỔNG T8.xlsx`: cả 39
+ * dòng HKD đều 0, còn 5.925/5.940 dòng CNKD khớp ba mức dưới đây.
+ */
+const CNKD_TENTHS = {
+  /** Khách không đủ tổ hợp nào, và chưa nhận Mì/Nón. */
+  alone: 15,
+  /** Khách có tổ hợp — CNKD chỉ cộng thêm 1 điểm. */
+  withCombo: 10,
+  /** Khách không đủ tổ hợp, nhưng ĐÃ nhận Mì hoặc Nón. */
+  afterGiftItem: 7,
+} as const;
+
+/**
+ * Hai món đưa điểm CNKD xuống mức 0,7 (thông báo Kế toán 2026-08-24).
+ *
+ * Đây là phép CHỌN MỨC, không phải phép trừ: thông báo ghi *"điểm của bạn chỉ
+ * có 0.7"* và *"không tặng thì vẫn hưởng 1.5đ"* — hai mức, không có số bị trừ.
+ * Viết thành `1.5 - 0.8` thì ngày Kế toán đổi mức nền sẽ có người sửa nhầm.
+ *
+ * `QUA-BH-SUC-KHOE` cùng nhóm Phòng Y nhưng KHÔNG nằm đây: thông báo chỉ nêu Mì
+ * và Nón. Kế toán xác nhận thì thêm vào, đừng tự suy ra từ "cùng nhóm".
+ */
+const CNKD_LOWERING_ITEMS = new Set(["QUA-MI", "QUA-NON-BH"]);
+
+/**
+ * Khách này có CNKD hay HKD — đọc CẢ HAI cách ghi (câu 7.16): ô chọn trên dòng
+ * `VPa`, và tài khoản riêng mang mã `CNKD`/`HKD`.
+ *
+ * `CNKD` thắng khi khách có cả hai, vì chỉ nó ra điểm.
+ */
+function householdKindOf(accounts: ScoringAccount[]): HouseholdKind {
+  if (accounts.some((a) => a.bankCode === "CNKD" || a.household === "CNKD")) return "CNKD";
+  if (accounts.some((a) => a.bankCode === "HKD" || a.household === "HKD")) return "HKD";
+  return "none";
+}
+
+/** Phần điểm CNKD của MỘT khách, theo bảng mục 4c. */
+function householdTenths(
+  accounts: ScoringAccount[],
+  combo: Combo,
+  grantedItem: string | null,
+): number {
+  if (householdKindOf(accounts) !== "CNKD") return 0;
+  if (combo.size !== 0) return CNKD_TENTHS.withCombo;
+  return grantedItem && CNKD_LOWERING_ITEMS.has(grantedItem)
+    ? CNKD_TENTHS.afterGiftItem
+    : CNKD_TENTHS.alone;
+}
 
 /* ── Mục 3 · quà tặng ────────────────────────────────────────────────── */
 
@@ -209,13 +277,17 @@ const INSURANCE_BASKET: Record<1 | 2, string[]> = {
 
 /** Món thêm — spec §5.2 bước 2, mọi dòng khớp đều góp, không dừng ở dòng đầu. */
 const ITEMS_CNKD = ["QUA-LOA", "QUA-MICA"];
+/** Lưu ý 2 mục 4: nhóm Phòng Y quy đổi quà sang vật phẩm. Không đòi bậc từ 2026-08-24. */
 const ITEMS_HOSPITAL = ["QUA-MI", "QUA-BH-SUC-KHOE", "QUA-NON-BH"];
-/** Lưu ý 2: Phòng Y quy đổi quà của TH5/TH6 sang vật phẩm. */
 
 const HOSPITAL_CHANNEL = "KENH-BENH-VIEN";
-const PHONG_Y = "PHONG-Y";
-/** Hai mã này ngoài thể lệ nên không vào combo, nhưng vẫn mở thêm rổ quà. */
-const HOUSEHOLD_CODES = new Set(["CNKD", "HKD"]);
+/**
+ * Ba vế của cùng MỘT nhóm khách — thoả một vế là đủ (thể lệ mục 4b).
+ *
+ * `PHONG-DU-AN` thêm 2026-08-24: file `TÍNH ĐIỂM TỔNG T8.xlsx` có 166 dòng `MÌ`
+ * và 22 dòng `NÓN` mang nhóm `DỰ ÁN`, mà bản trước chỉ nhận Phòng Y.
+ */
+const GIFT_ITEM_DEPARTMENTS = new Set(["PHONG-Y", "PHONG-DU-AN"]);
 
 /** Bậc thang mục 3 — KHỚP DÒNG ĐẦU THÌ DỪNG, không cộng dồn. */
 function caseOf(combo: Combo): { code: string; years: 1 | 2; cashBanks: string[] } | null {
@@ -272,37 +344,47 @@ export function gift(input: GiftInput): GiftResult {
     }
   };
 
-  const hasHousehold = input.accounts.some(
-    (a) => HOUSEHOLD_CODES.has(a.bankCode) || a.household,
-  );
-  if (combo.codes.includes("VPa") && hasHousehold) {
+  /**
+   * Xét trên TÀI KHOẢN KHÁCH ĐÃ MỞ, không xét tổ hợp thắng (chốt 2026-08-24).
+   *
+   * Bản trước đọc `combo.codes`, nên khách chỉ mở đúng một tài khoản `VPa` kèm
+   * CNKD không có tổ hợp thắng nào và mất luôn hai món. File
+   * `TÍNH ĐIỂM TỔNG T8.xlsx` có 47 khách đúng dạng đó vẫn nhận Bảng mica.
+   *
+   * Đây là ngoại lệ có ghi của câu 7.15 — bậc quà và tiền mặt thì vẫn xét trên
+   * tổ hợp thắng.
+   */
+  const hasHousehold = householdKindOf(input.accounts) !== "none";
+  if (input.accounts.some((a) => a.bankCode === "VPa") && hasHousehold) {
     addItems(ITEMS_CNKD, "Mở VPa kèm CNKD/HKD");
     explain.push("Mở VPa kèm CNKD hoặc HKD nên rổ có thêm Loa và Bảng mica.");
   }
 
   /**
-   * Phòng Y và kênh Bệnh viện là MỘT nhóm khách — chủ dự án xác nhận 2026-08-22.
-   * Thoả một trong hai vế là đủ.
+   * Phòng Y, phòng Dự án và kênh Bệnh viện là MỘT nhóm khách. Thoả một trong ba
+   * vế là đủ, và KHÔNG vế nào đòi bậc quà (chốt 2026-08-24).
    *
-   * Quy đổi CHỈ ở bậc TH5 hoặc TH6, đúng lưu ý 2 nguyên văn của mục 4: "Phòng Y
-   * được quy đổi quà tặng TH5, TH6 ở Combo3 thành nón bảo hiểm, thùng mì hoặc
-   * một số quà tặng khác."
+   * ⚠️ LẬT chốt 2026-08-22 "phải đạt TH5 hoặc TH6". Thông báo của Kế toán
+   * 2026-08-24 mô tả khách CNKD một tài khoản `VPa` được tặng Mì hoặc Nón như
+   * một ca bình thường, mà khách một tài khoản không bao giờ đạt TH5/TH6.
    *
-   * ⚠️ Đây là LẬT quyết định chốt 2026-08-11 "món thêm không phụ thuộc số tài
-   * khoản". Dòng "Kênh = Bệnh viện" của mục 4b do đội tự thêm, không có trong
-   * ảnh đội KD gửi, và nó phát quà cho nhóm khách mà bảng gốc đòi phải đạt
-   * TH5/TH6. Chốt lại 2026-08-22: theo bảng gốc.
-   *
-   * Ba món giữ nguyên danh sách của kênh Bệnh viện. Bảng gốc chỉ gọi tên nón và
-   * mì, phần "một số quà tặng khác" vẫn treo ở câu 7.9 của file thể lệ.
+   * Ba món giữ nguyên danh sách cũ. Bảng gốc chỉ gọi tên nón và mì, phần "một
+   * số quà tặng khác" vẫn treo ở câu 7.9 của file thể lệ.
    */
-  const isPhongY =
-    input.departmentCode === PHONG_Y || input.channelCodes.includes(HOSPITAL_CHANNEL);
-  if (isPhongY && (matched?.code === "TH5" || matched?.code === "TH6")) {
-    addItems(ITEMS_HOSPITAL, "Phòng Y hoặc kênh Bệnh viện, quy đổi quà TH5/TH6");
+  const inGiftItemGroup =
+    (input.departmentCode !== null && GIFT_ITEM_DEPARTMENTS.has(input.departmentCode)) ||
+    input.channelCodes.includes(HOSPITAL_CHANNEL);
+  if (inGiftItemGroup) {
+    addItems(ITEMS_HOSPITAL, "Phòng Y, phòng Dự án hoặc kênh Bệnh viện");
     explain.push(
-      "Phòng Y hoặc kênh Bệnh viện đạt TH5/TH6 nên rổ có thêm Mì, BH sức khoẻ và Nón bảo hiểm.",
+      "Khách thuộc Phòng Y, phòng Dự án hoặc kênh Bệnh viện nên rổ có thêm Mì, BH sức khoẻ và Nón bảo hiểm.",
     );
+
+    // Nhân viên phải biết TRƯỚC khi bấm chọn, không phải sau khi thấy điểm tụt.
+    if (combo.size === 0 && householdKindOf(input.accounts) === "CNKD")
+      explain.push(
+        "⚠️ Khách CNKD chưa đủ tổ hợp: chọn Mì hoặc Nón làm điểm của khách này giảm từ 1,5 xuống 0,7.",
+      );
   }
 
   if (!matched) {

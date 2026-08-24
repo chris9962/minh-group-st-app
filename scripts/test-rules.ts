@@ -16,6 +16,7 @@ import {
   hasRulesFor,
   kpiAppliesTo,
   type GiftResult,
+  type HouseholdKind,
   type ScoringAccount,
 } from "../src/rules";
 import { comboPointsFor } from "../src/rules/2026-08";
@@ -48,19 +49,26 @@ function section(title: string): void {
 const account = (
   customerId: string,
   bankCode: string,
-  opts: { app?: boolean; date?: string; household?: boolean } = {},
+  opts: { app?: boolean; date?: string; household?: HouseholdKind } = {},
 ): ScoringAccount => ({
   customerId,
   bankCode,
   appInstalled: opts.app ?? true,
   openedDate: opts.date ?? `${PERIOD}-15`,
   /** Ô chọn "Mở tài khoản CNKD / HKD" trên dòng VPa — mặc định không tick. */
-  household: opts.household ?? false,
+  household: opts.household ?? "none",
 });
 
-/** Điểm của cả người, qua đúng cửa vào thật (`src/rules/index.ts`). */
-const points = (accounts: ScoringAccount[], yearMonth = PERIOD): number =>
-  bankingPointsFor(accounts, yearMonth);
+/**
+ * Điểm của cả người, qua đúng cửa vào thật (`src/rules/index.ts`).
+ *
+ * `granted` là món quà từng khách đã nhận — bỏ trống nghĩa là chưa phát gì.
+ */
+const points = (
+  accounts: ScoringAccount[],
+  yearMonth = PERIOD,
+  granted: Record<string, string | null> = {},
+): number => bankingPointsFor(accounts, yearMonth, new Map(Object.entries(granted)));
 
 /* ── Mục 2 · bảng điểm — phải đủ cả 10 dòng ─────────────────────────── */
 
@@ -101,11 +109,96 @@ check("một tài khoản khác", comboPointsFor(["LBP"]), 0);
 
 /* ── Câu 7.2 · ngân hàng ngoài thể lệ ───────────────────────────────── */
 
-section("TCB · CNKD · HKD không tham gia chương trình");
+/** Ba mã này không vào COMBO. Điểm riêng của CNKD nằm ở mục 4c, kiểm bên dưới. */
+section("TCB · CNKD · HKD không vào combo");
 check("MB + TCB", comboPointsFor(["MB", "TCB"]), 0);
 check("ba mã ngoài thể lệ", comboPointsFor(["TCB", "CNKD", "HKD"]), 0);
 check("MB + VPa + TCB rơi về Combo 2", comboPointsFor(["MB", "VPa", "TCB"]), 0.7);
 check("mã lạ hoàn toàn", comboPointsFor(["MB", "VPa", "KHONG-CO-THAT"]), 0.7);
+
+/* ── Mục 4c · điểm CNKD/HKD (chốt 2026-08-24) ───────────────────────── */
+
+/**
+ * Bảng bốn dòng của mục 4c, cộng ca "phát quà làm tụt điểm".
+ *
+ * Đo trên `TÍNH ĐIỂM TỔNG T8.xlsx`: 5.925/5.940 dòng CNKD khớp bảng này, và cả
+ * 39 dòng HKD đều 0 điểm.
+ */
+section("Điểm CNKD/HKD — mục 4c");
+check(
+  "CNKD đứng một mình, chưa phát quà",
+  points([account("kh1", "VPa"), account("kh1", "CNKD")]),
+  1.5,
+);
+check(
+  "ô chọn trên dòng VPa tính y hệt tài khoản CNKD riêng",
+  points([account("kh1", "VPa", { household: "CNKD" })]),
+  1.5,
+);
+check(
+  "CNKD kèm combo 2 — 0,7 combo + 1,0 CNKD",
+  points([account("kh1", "MB"), account("kh1", "VPa", { household: "CNKD" })]),
+  1.7,
+);
+check(
+  "CNKD kèm combo 3 — 1,2 combo + 1,0 CNKD",
+  points([
+    account("kh1", "MB"),
+    account("kh1", "VPa", { household: "CNKD" }),
+    account("kh1", "MSBa"),
+  ]),
+  2.2,
+);
+check("HKD không ra điểm", points([account("kh1", "VPa", { household: "HKD" })]), 0);
+check(
+  "HKD kèm combo chỉ có điểm combo",
+  points([account("kh1", "MB"), account("kh1", "VPa", { household: "HKD" })]),
+  0.7,
+);
+check(
+  "khách có cả CNKD lẫn HKD thì tính theo CNKD",
+  points([account("kh1", "VPa", { household: "HKD" }), account("kh1", "CNKD")]),
+  1.5,
+);
+check(
+  "không CNKD, không combo thì vẫn 0",
+  points([account("kh1", "VPa")]),
+  0,
+);
+
+section("Phát Mì hoặc Nón làm tụt điểm CNKD — thông báo Kế toán 2026-08-24");
+check(
+  "phát Mì → 0,7",
+  points([account("kh1", "VPa", { household: "CNKD" })], PERIOD, { kh1: "QUA-MI" }),
+  0.7,
+);
+check(
+  "phát Nón → 0,7",
+  points([account("kh1", "VPa", { household: "CNKD" })], PERIOD, { kh1: "QUA-NON-BH" }),
+  0.7,
+);
+check(
+  "phát Loa thì KHÔNG tụt",
+  points([account("kh1", "VPa", { household: "CNKD" })], PERIOD, { kh1: "QUA-LOA" }),
+  1.5,
+);
+check(
+  "khách từ chối quà thì KHÔNG tụt",
+  points([account("kh1", "VPa", { household: "CNKD" })], PERIOD, { kh1: null }),
+  1.5,
+);
+check(
+  "khách CNKD ĐÃ có combo thì phát Mì cũng giữ 1,0",
+  points([account("kh1", "MB"), account("kh1", "VPa", { household: "CNKD" })], PERIOD, {
+    kh1: "QUA-MI",
+  }),
+  1.7,
+);
+check(
+  "món của khách khác không đụng điểm khách này",
+  points([account("kh1", "VPa", { household: "CNKD" })], PERIOD, { kh2: "QUA-MI" }),
+  1.5,
+);
 
 /* ── Hai tài khoản cùng một ngân hàng không thành combo ─────────────── */
 
@@ -398,16 +491,16 @@ checkCodes(
 check("CNKD không tự thành combo", giftOf(["MB", "CNKD", "HKD"]).caseCode, null);
 
 /**
- * Món thêm của Phòng Y — chốt lại 2026-08-22.
+ * Món thêm của nhóm Phòng Y — chốt lại 2026-08-24.
  *
- * Phòng Y và kênh Bệnh viện là MỘT nhóm khách, thoả một trong hai vế là đủ.
- * Quy đổi CHỈ ở bậc TH5 hoặc TH6, theo lưu ý 2 nguyên văn của bảng đội KD gửi.
+ * Ba vế của cùng một nhóm: Phòng Y, phòng Dự án, kênh Bệnh viện. Thoả một vế là
+ * đủ, và KHÔNG vế nào đòi bậc quà.
  *
- * Bản trước phát ba món cho MỌI khách kênh Bệnh viện, không cần bậc — dòng đó
- * do đội tự thêm ở mục 4b, không có trong bảng gốc. Các ca dưới đây ghăm lại
- * luật mới để lần sau không ai nới ra mà không đọc bảng gốc.
+ * ⚠️ LẬT chốt 2026-08-22 "phải đạt TH5 hoặc TH6". Thông báo của Kế toán
+ * 2026-08-24 mô tả khách CNKD một tài khoản `VPa` được tặng Mì hoặc Nón, mà
+ * khách một tài khoản không bao giờ đạt TH5/TH6.
  */
-section("Món thêm — Phòng Y và kênh Bệnh viện (lưu ý 2)");
+section("Món thêm — Phòng Y, phòng Dự án, kênh Bệnh viện (lưu ý 2)");
 checkCodes(
   "TH5 ở Phòng Y",
   giftOf(["MB", "VPa", "LBP"], { department: "PHONG-Y" }).basket.map((b) => b.code),
@@ -419,6 +512,11 @@ checkCodes(
   [...BH_2N, "QUA-MI", "QUA-BH-SUC-KHOE", "QUA-NON-BH"],
 );
 checkCodes(
+  "TH5 ở phòng Dự án",
+  giftOf(["MB", "VPa", "LBP"], { department: "PHONG-DU-AN" }).basket.map((b) => b.code),
+  [...BH_2N, "QUA-MI", "QUA-BH-SUC-KHOE", "QUA-NON-BH"],
+);
+checkCodes(
   "vừa Phòng Y vừa kênh Bệnh viện thì món không nhân đôi",
   giftOf(["LBP", "TPB", "VIB"], { channels: ["KENH-BENH-VIEN"], department: "PHONG-Y" }).basket.map(
     (b) => b.code,
@@ -426,14 +524,14 @@ checkCodes(
   [...BH_2N, "QUA-MI", "QUA-BH-SUC-KHOE", "QUA-NON-BH"],
 );
 checkCodes(
-  "TH3 ở Phòng Y KHÔNG được quy đổi",
+  "TH3 ở Phòng Y cũng được quy đổi",
   giftOf(["MB", "VPa", "MSBa"], { department: "PHONG-Y" }).basket.map((b) => b.code),
-  BH_1N,
+  [...BH_1N, "QUA-MI", "QUA-BH-SUC-KHOE", "QUA-NON-BH"],
 );
 checkCodes(
-  "TH1 ở kênh Bệnh viện KHÔNG được quy đổi",
+  "TH1 ở kênh Bệnh viện cũng được quy đổi",
   giftOf(["MB", "VPa"], { channels: ["KENH-BENH-VIEN"] }).basket.map((b) => b.code),
-  BH_1N,
+  [...BH_1N, "QUA-MI", "QUA-BH-SUC-KHOE", "QUA-NON-BH"],
 );
 checkCodes(
   "TH5 ở phòng khác, kênh khác thì không được quy đổi",
@@ -443,18 +541,37 @@ checkCodes(
   BH_2N,
 );
 /**
- * Ca then chốt của lượt chốt lại 2026-08-22: khách kênh Bệnh viện CHƯA đạt bậc
- * nào thì rổ RỖNG. Bản trước trả ba món ở đây.
+ * Ca then chốt của lượt chốt lại 2026-08-24: khách MỘT tài khoản ở nhóm Phòng Y
+ * vẫn nhận ba món, dù chưa đạt bậc nào. Bản 2026-08-22 trả rổ rỗng ở đây.
  */
 checkCodes(
-  "khách một tài khoản ở kênh Bệnh viện KHÔNG còn nhận món thêm",
+  "khách một tài khoản ở kênh Bệnh viện vẫn nhận món thêm",
   giftOf(["MB"], { channels: ["KENH-BENH-VIEN"] }).basket.map((b) => b.code),
-  [],
+  ["QUA-MI", "QUA-BH-SUC-KHOE", "QUA-NON-BH"],
 );
 check(
-  "…và vẫn chưa đạt bậc nào",
+  "…nhưng vẫn chưa đạt bậc nào, không có gói bảo hiểm",
   giftOf(["MB"], { channels: ["KENH-BENH-VIEN"] }).caseCode,
   null,
+);
+check(
+  "…và 0 năm bảo hiểm",
+  giftOf(["MB"], { channels: ["KENH-BENH-VIEN"] }).insuranceYears,
+  0,
+);
+/**
+ * Ca của chính thông báo Kế toán 2026-08-24: khách CNKD, duy nhất một app `VPa`,
+ * ở Phòng Y. Rổ phải có CẢ Loa/Mica lẫn Mì/Nón, dù không có tổ hợp thắng nào.
+ */
+checkCodes(
+  "CNKD một app VPa ở Phòng Y nhận cả hai nhóm món",
+  giftOf(["VPa", "CNKD"], { department: "PHONG-Y" }).basket.map((b) => b.code),
+  ["QUA-LOA", "QUA-MICA", "QUA-MI", "QUA-BH-SUC-KHOE", "QUA-NON-BH"],
+);
+check(
+  "…và có cảnh báo giảm điểm trong phần giải thích",
+  giftOf(["VPa", "CNKD"], { department: "PHONG-Y" }).explain.some((line) => line.includes("1,5 xuống 0,7")),
+  true,
 );
 
 section("Quà tra luật theo NGÀY");

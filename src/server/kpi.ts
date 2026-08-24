@@ -7,6 +7,7 @@ import {
   banks,
   customers,
   departments,
+  giftGrants,
   kpiScores,
   services,
   serviceTypes,
@@ -89,6 +90,9 @@ async function scoringAccountsOf(
       bankCode: banks.code,
       appInstalled: bankAccounts.appInstalled,
       openedDate: bankAccounts.openedDate,
+      // Ô chọn "Mở tài khoản CNKD / HKD" nằm trên chính dòng VPa. Từ chốt
+      // 2026-08-24 nó RA ĐIỂM (thể lệ mục 4c), không còn chỉ mở nhóm quà.
+      accountType: bankAccounts.accountType,
     })
     .from(bankAccounts)
     .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
@@ -107,9 +111,28 @@ async function scoringAccountsOf(
     bankCode: r.bankCode,
     appInstalled: r.appInstalled,
     openedDate: r.openedDate ?? "",
-    // Điểm KPI không xét CNKD/HKD — cờ này chỉ mở nhóm quà vật phẩm.
-    household: false,
+    household: r.accountType,
   }));
+}
+
+/**
+ * Món quà từng khách ĐÃ nhận, trong đúng nhóm khách đang tính điểm.
+ *
+ * Vào của phép tính điểm từ chốt 2026-08-24 (thể lệ mục 4c): phát Mì hay Nón
+ * cho khách CNKD một tài khoản kéo điểm khách đó từ 1,5 xuống 0,7.
+ *
+ * Đọc `chosen_item` chứ không đọc `snapshot`: `snapshot` là rổ lúc chốt, còn
+ * cột này là món khách THẬT SỰ lấy. Khách từ chối thì `chosen_item` mang mã từ
+ * chối, không nằm trong danh sách hạ mức điểm nên không ảnh hưởng.
+ */
+async function grantedGiftsOf(conn: Db, userId: string): Promise<Map<string, string | null>> {
+  const rows = await conn
+    .select({ customerId: giftGrants.customerId, chosenItem: giftGrants.chosenItem })
+    .from(giftGrants)
+    .innerJoin(customers, eq(customers.id, giftGrants.customerId))
+    .where(eq(customers.createdBy, userId));
+
+  return new Map(rows.map((r) => [r.customerId, r.chosenItem]));
 }
 
 /**
@@ -192,8 +215,9 @@ async function recomputeKpiOn(tx: Db, userId: string, yearMonth: string): Promis
   // Nối tiếp chứ không `Promise.all`: một transaction đi trên một kết nối,
   // gửi hai câu cùng lúc lên đó là lỗi giao thức.
   const accounts = await scoringAccountsOf(tx, userId, from, to);
+  const granted = await grantedGiftsOf(tx, userId);
   const service = await servicePointsOf(tx, userId, from, to);
-  const banking = bankingPointsFor(accounts, yearMonth);
+  const banking = bankingPointsFor(accounts, yearMonth, granted);
 
   await tx
     .insert(kpiScores)

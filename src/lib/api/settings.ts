@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { InsuranceProduct } from '@/lib/types';
+import { AccountType } from './bankAccounts';
 import { COEFFICIENT_MAX, INT_MAX, SMALLINT_MAX } from './limits';
 
 /**
@@ -95,6 +96,11 @@ export type InsurancePackageForm = z.infer<typeof InsurancePackageForm>;
 export const GiftSimulateAccount = z.object({
   bankCode: z.string().min(1, 'Chưa chọn ngân hàng'),
   appInstalled: z.boolean(),
+  /**
+   * Chỉ `VPa` mở được CNKD/HKD (spec §4.9) — dòng ngân hàng khác gửi lên thì
+   * `giftSimulate` bỏ qua. `default` để đợt gọi cũ không kèm trường này vẫn chạy.
+   */
+  accountType: AccountType.default('none'),
 });
 export type GiftSimulateAccount = z.infer<typeof GiftSimulateAccount>;
 

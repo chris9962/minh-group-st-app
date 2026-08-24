@@ -30,6 +30,15 @@ import * as period202608 from "./2026-08";
  * thì tháng 9 đổi luật là kẹt, mà dữ liệu cũ ghi theo luật cũ vẫn phải nằm yên.
  * Đã từng có `bank_accounts_transaction_other_day`, bỏ ở migration 0017.
  */
+/**
+ * Kiểu hộ kinh doanh kèm theo tài khoản. `none` = không kèm gì.
+ *
+ * Phải phân biệt `CNKD` với `HKD`, không gộp thành một cờ đúng/sai: từ chốt
+ * 2026-08-24 hai mã ăn điểm khác nhau — `CNKD` được 1,0–1,5 điểm còn `HKD` được
+ * 0 (thể lệ mục 4c). Phần QUÀ thì vẫn xét chung, mục 4b không tách hai mã.
+ */
+export type HouseholdKind = "none" | "CNKD" | "HKD";
+
 export type ScoringAccount = {
   /** Gom theo khách: điểm thuộc về CẢ COMBO của một khách, không cộng lẻ từng tài khoản. */
   customerId: string;
@@ -38,14 +47,26 @@ export type ScoringAccount = {
   appInstalled: boolean;
   openedDate: string;
   /**
-   * Tài khoản này có kèm đăng ký CNKD/HKD không.
+   * Tài khoản này có kèm đăng ký CNKD/HKD không, và là loại nào.
    *
    * Giao diện ghi nó thành một Ô CHỌN trên chính dòng `VPa`, không phải một
    * tài khoản riêng. Luật phải đọc được cả hai cách ghi: ô chọn ở đây, và
    * `bankCode` bằng `CNKD`/`HKD` khi người dùng lập tài khoản riêng.
    */
-  household: boolean;
+  household: HouseholdKind;
 };
+
+/**
+ * Món quà một khách ĐÃ nhận — `null` khi chưa phát hoặc khách từ chối.
+ *
+ * Đầu vào của phép tính ĐIỂM từ chốt 2026-08-24 (thể lệ mục 4c): phát `Mì` hay
+ * `Nón` cho khách CNKD một tài khoản đưa điểm khách đó xuống mức 0,7 thay vì 1,5.
+ *
+ * ⚠️ Trước chốt đó, điểm và quà chạy độc lập nhau. Nay điểm phụ thuộc quà, nên
+ * MỌI đường ghi `gift_grants` phải gọi lại `recomputeKpiForCustomer` — nếu
+ * không thì điểm đứng im sau khi phát quà, và điểm KPI dính tới lương.
+ */
+export type GrantedGifts = ReadonlyMap<string, string | null>;
 
 /**
  * Vào của phép tính QUÀ — mọi thứ đã tra sẵn từ database, hàm luật không tự đọc
@@ -110,7 +131,7 @@ export type GiftResult = {
 };
 
 type PeriodRules = {
-  bankingPoints(accounts: ScoringAccount[]): number;
+  bankingPoints(accounts: ScoringAccount[], granted: GrantedGifts): number;
   gift(input: GiftInput): GiftResult;
 };
 
@@ -155,14 +176,25 @@ function rulesFor(at: string): PeriodRules | null {
  * Công thức CŨ (`Σ banks.coefficient` của tài khoản đã cài app) đã bị bỏ từ
  * 03/08, đừng khôi phục: thang mới nhỏ hơn khoảng 2,5 lần và tính theo tổ hợp
  * hạng ngân hàng trên từng khách (spec §7.1).
+ *
+ * `granted` mang món quà từng khách ĐÃ nhận (chốt 2026-08-24, thể lệ mục 4c).
+ * Bỏ trống thì mọi khách coi như chưa phát quà — dùng được cho ca thử và cho
+ * màn xem thử, KHÔNG dùng cho đường ghi `kpi_scores` thật.
  */
-export function bankingPointsFor(accounts: ScoringAccount[], yearMonth: string): number {
+export function bankingPointsFor(
+  accounts: ScoringAccount[],
+  yearMonth: string,
+  granted: GrantedGifts = new Map(),
+): number {
   const rules = rulesFor(yearMonth);
   if (!rules) return 0;
 
   // Combo chỉ tính tài khoản mở TRONG tháng đang tính, không nối combo qua
   // tháng (chốt 07/08, câu 7.13). Lọc ở đây để file kỳ nào cũng khỏi tự nhớ.
-  return rules.bankingPoints(accounts.filter((a) => a.openedDate.startsWith(`${yearMonth}-`)));
+  return rules.bankingPoints(
+    accounts.filter((a) => a.openedDate.startsWith(`${yearMonth}-`)),
+    granted,
+  );
 }
 
 /**

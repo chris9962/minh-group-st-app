@@ -10,6 +10,7 @@ import { SectionCard } from "@/components/ui/SectionCard";
 import { Select } from "@/components/ui/Select";
 import { errorMessage, toast } from "@/lib/toast";
 import { fetchBanks } from "@/lib/api/bankCatalog";
+import type { AccountType } from "@/lib/api/bankAccounts";
 import { fetchChannels } from "@/lib/api/channelCatalog";
 import { simulateGift } from "@/lib/api/settings";
 import { formatVnd } from "@/lib/format";
@@ -23,6 +24,14 @@ import styles from "./GiftSimulator.module.scss";
  * thẳng ra. Kỳ nào bỏ luật Phòng Y thì bỏ luôn ô này.
  */
 const PHONG_Y = "PHONG-Y";
+
+/** Chỉ VPa mở được CNKD/HKD (spec §4.9) — nhãn giữ đúng chữ của màn P-20. */
+const VPA = "VPa";
+const ACCOUNT_TYPE_LABEL: Record<AccountType, string> = {
+  none: "Không",
+  CNKD: "CNKD",
+  HKD: "HKD",
+};
 
 /**
  * P-81 · Nút thử — chỉ tính toán, không ghi gì (spec §5.3). Không tạo khách,
@@ -38,6 +47,7 @@ export function GiftSimulator() {
   const [apps, setApps] = useState<string[]>([]);
   const [channel, setChannel] = useState("");
   const [phongY, setPhongY] = useState(false);
+  const [vpaAccountType, setVpaAccountType] = useState<AccountType>("none");
 
   const { data: allBanks = [] } = useQuery({ queryKey: ["banks"], queryFn: fetchBanks });
   const activeBanks = allBanks.filter((b) => b.active);
@@ -46,7 +56,11 @@ export function GiftSimulator() {
   const run = useMutation({
     mutationFn: () =>
       simulateGift({
-        accounts: opened.map((bankCode) => ({ bankCode, appInstalled: apps.includes(bankCode) })),
+        accounts: opened.map((bankCode) => ({
+          bankCode,
+          appInstalled: apps.includes(bankCode),
+          accountType: bankCode === VPA ? vpaAccountType : ("none" as AccountType),
+        })),
         channelCodes: channel ? [channel] : [],
         departmentCode: phongY ? PHONG_Y : null,
       }),
@@ -108,6 +122,22 @@ export function GiftSimulator() {
                       checked={apps.includes(bank.code)}
                       onCheckedChange={() => toggleApp(bank.code)}
                     />
+                    {/* Mở VPa kèm CNKD/HKD thì rổ có thêm Loa và Bảng mica —
+                        không có ô này thì màn thử không ra được ca đó. */}
+                    {bank.code === VPA && (
+                      <div className={styles.bankType}>
+                        <Select
+                          block
+                          label="Mở tài khoản CNKD / HKD"
+                          value={vpaAccountType}
+                          onChange={(v) => setVpaAccountType(v as AccountType)}
+                          options={Object.entries(ACCOUNT_TYPE_LABEL).map(([value, label]) => ({
+                            value,
+                            label,
+                          }))}
+                        />
+                      </div>
+                    )}
                   </div>
                 )}
               </li>
