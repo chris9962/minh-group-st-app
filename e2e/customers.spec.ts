@@ -564,13 +564,9 @@ test.describe("nút nghiệp vụ trên dòng khách", () => {
   });
 
   /**
-   * Vào bằng GIÁM ĐỐC, không phải nhân viên.
-   *
-   * App cho mỗi người mở dở đúng MỘT tài khoản: còn cái đang dở thì hộp thoại
-   * báo "Hoàn thành hoặc xoá nó rồi mới mở tài khoản mới". Mà `e2e-seed.ts` cố ý
-   * dựng 7 tài khoản `creating` dưới tên `zz_e2e_staff` để ca khác kiểm cột "Số
-   * tài khoản" chỉ đếm bản `done` — nên vào bằng nhân viên là bị chặn ngay từ
-   * bước 1, mãi mãi. Sửa 2026-08-22.
+   * Vào bằng GIÁM ĐỐC, không phải nhân viên. `e2e-seed.ts` cố ý dựng 7 tài
+   * khoản `creating` dưới tên `zz_e2e_staff` cho ca khác, nên vào bằng nhân
+   * viên là ca này đo lẫn dữ liệu của ca đó.
    */
   test("mở tài khoản ngân hàng từ dòng khách → giữ chỗ mã, sang bước 2", async ({ page }) => {
     await openCustomerList(page, "director");
@@ -584,7 +580,7 @@ test.describe("nút nghiệp vụ trên dòng khách", () => {
      * Thử từng ngân hàng cho tới khi gặp một cái CÒN MÃ.
      *
      * Không lấy đại ngân hàng đầu tiên: kho mã của mỗi ngân hàng là dữ liệu
-     * thật, ngân hàng hết mã thì ô "Mã giới thiệu" hiện "— Hết mã còn chỗ —" và
+     * thật, ngân hàng hết mã thì ô "Mã giới thiệu" hiện "— Hết mã —" và
      * bấm Tiếp tục không đi đâu cả. Ca test đỏ khi đó là đỏ vì kho mã, không
      * phải vì luồng hai bước hỏng.
      */
@@ -604,8 +600,8 @@ test.describe("nút nghiệp vụ trên dòng khách", () => {
 
     /**
      * Kho mã của ngân hàng vừa chọn về sau MỘT LƯỢT GỌI MÁY CHỦ. Đọc ngay lúc
-     * vừa chọn thì ô mã còn đang ở trạng thái rỗng và luôn hiện "Hết mã còn
-     * chỗ" — ca test bỏ qua chính nó, mãi mãi, kể cả khi kho mã đầy.
+     * vừa chọn thì ô mã còn đang ở trạng thái rỗng và luôn hiện "Hết mã" — ca
+     * test bỏ qua chính nó, mãi mãi, kể cả khi kho mã đầy.
      */
     const openCodes = () =>
       box.getByLabel("Mã giới thiệu").locator("option").filter({ hasText: /còn \d+ chỗ/ });
