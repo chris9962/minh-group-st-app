@@ -27,6 +27,7 @@ import { formatVnd } from "@/lib/format";
 import { InsurancePackageFormDialog } from "./InsurancePackageFormDialog";
 import styles from "./GiftCatalogSection.module.scss";
 import { errorMessage, toast } from "@/lib/toast";
+import { reportInvalid } from "@/lib/formErrors";
 
 /** P-82 · Danh mục quà & gói bảo hiểm — hai bảng cạnh nhau. */
 export function GiftCatalogSection() {
@@ -51,6 +52,8 @@ export function GiftCatalogSection() {
     reset,
     formState: { errors },
   } = useForm<CatalogItemForm>({
+    // Focus ô sai do `reportInvalid` lo — xem `lib/formErrors.ts`.
+    shouldFocusError: false,
     resolver: zodResolver(CatalogItemForm),
     defaultValues: { name: "" },
   });
@@ -129,7 +132,7 @@ export function GiftCatalogSection() {
 
         <form
           className={styles.addForm}
-          onSubmit={handleSubmit((form) => addGiftItem.mutate(form))}
+          onSubmit={handleSubmit((form) => addGiftItem.mutate(form), reportInvalid)}
           noValidate
         >
           <TextField

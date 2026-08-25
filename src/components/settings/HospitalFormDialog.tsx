@@ -9,6 +9,7 @@ import { TextField } from "@/components/ui/TextField";
 import { createHospital, HospitalForm } from "@/lib/api/hospitalCatalog";
 import styles from "./HospitalFormDialog.module.scss";
 import { errorMessage, toast } from "@/lib/toast";
+import { reportInvalid } from "@/lib/formErrors";
 
 type Props = { open: boolean; onClose: () => void };
 
@@ -21,6 +22,8 @@ export function HospitalFormDialog({ open, onClose }: Props) {
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<HospitalForm>({
+    // Focus ô sai do `reportInvalid` lo — xem `lib/formErrors.ts`.
+    shouldFocusError: false,
     resolver: zodResolver(HospitalForm),
     defaultValues: { name: "" },
   });
@@ -54,7 +57,7 @@ export function HospitalFormDialog({ open, onClose }: Props) {
       <form
         id="hospital-form"
         className={styles.form}
-        onSubmit={handleSubmit((form) => save.mutate(form))}
+        onSubmit={handleSubmit((form) => save.mutate(form), reportInvalid)}
         noValidate
       >
         <TextField

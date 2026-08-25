@@ -9,6 +9,7 @@ import { TextField } from "@/components/ui/TextField";
 import { createHamlet, HamletForm, type Ward } from "@/lib/api/wardCatalog";
 import styles from "./WardFormDialog.module.scss";
 import { errorMessage, toast } from "@/lib/toast";
+import { reportInvalid } from "@/lib/formErrors";
 
 type Props = { open: boolean; onClose: () => void; ward: Ward };
 
@@ -21,6 +22,8 @@ export function HamletFormDialog({ open, onClose, ward }: Props) {
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<HamletForm>({
+    // Focus ô sai do `reportInvalid` lo — xem `lib/formErrors.ts`.
+    shouldFocusError: false,
     resolver: zodResolver(HamletForm),
     defaultValues: { wardId: ward.id, name: "" },
   });
@@ -54,7 +57,7 @@ export function HamletFormDialog({ open, onClose, ward }: Props) {
       <form
         id="hamlet-form"
         className={styles.form}
-        onSubmit={handleSubmit((form) => save.mutate(form))}
+        onSubmit={handleSubmit((form) => save.mutate(form), reportInvalid)}
         noValidate
       >
         <input type="hidden" {...register("wardId")} />

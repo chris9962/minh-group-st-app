@@ -18,6 +18,7 @@ import {
 import { InsuranceProduct, PRODUCT_LABEL } from "@/lib/types";
 import styles from "./InsurancePackageFormDialog.module.scss";
 import { errorMessage, toast } from "@/lib/toast";
+import { reportInvalid } from "@/lib/formErrors";
 
 type Props = {
   open: boolean;
@@ -39,6 +40,8 @@ export function InsurancePackageFormDialog({ open, onClose, insurancePackage }: 
     control,
     formState: { errors, isSubmitting },
   } = useForm<InsurancePackageForm>({
+    // Focus ô sai do `reportInvalid` lo — xem `lib/formErrors.ts`.
+    shouldFocusError: false,
     resolver: zodResolver(InsurancePackageForm),
     defaultValues: {
       name: insurancePackage?.name ?? "",
@@ -86,7 +89,7 @@ export function InsurancePackageFormDialog({ open, onClose, insurancePackage }: 
       <form
         id="insurance-package-form"
         className={styles.form}
-        onSubmit={handleSubmit((form) => save.mutate(form))}
+        onSubmit={handleSubmit((form) => save.mutate(form), reportInvalid)}
         noValidate
       >
         <TextField

@@ -9,6 +9,7 @@ import { Dialog } from "@/components/ui/Dialog";
 import { addWard, AddWardForm, fetchReferenceWards, type Province } from "@/lib/api/wardCatalog";
 import styles from "./WardFormDialog.module.scss";
 import { errorMessage, toast } from "@/lib/toast";
+import { reportInvalid } from "@/lib/formErrors";
 
 type Props = { open: boolean; onClose: () => void; province: Province };
 
@@ -36,6 +37,8 @@ export function WardFormDialog({ open, onClose, province }: Props) {
     setValue,
     formState: { errors, isSubmitting },
   } = useForm<AddWardForm>({
+    // Focus ô sai do `reportInvalid` lo — xem `lib/formErrors.ts`.
+    shouldFocusError: false,
     resolver: zodResolver(AddWardForm),
     defaultValues: { provinceId: province.id, wardId: "" },
   });
@@ -69,7 +72,7 @@ export function WardFormDialog({ open, onClose, province }: Props) {
       <form
         id="ward-form"
         className={styles.form}
-        onSubmit={handleSubmit((form) => save.mutate(form))}
+        onSubmit={handleSubmit((form) => save.mutate(form), reportInvalid)}
         noValidate
       >
         <Combobox

@@ -15,6 +15,7 @@ import { LoginForm } from "@/lib/types";
 import { useSession } from "@/store/session";
 import styles from "./page.module.scss";
 import { errorMessage, toast } from "@/lib/toast";
+import { reportInvalid } from "@/lib/formErrors";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -26,6 +27,8 @@ export default function LoginPage() {
     control,
     formState: { errors },
   } = useForm<LoginForm>({
+    // Focus ô sai do `reportInvalid` lo — xem `lib/formErrors.ts`.
+    shouldFocusError: false,
     resolver: zodResolver(LoginForm),
     defaultValues: { username: "", password: "", remember: false },
   });
@@ -52,7 +55,7 @@ export default function LoginPage() {
 
           <form
             className={styles.form}
-            onSubmit={handleSubmit((values) => submit.mutate(values))}
+            onSubmit={handleSubmit((values) => submit.mutate(values), reportInvalid)}
             noValidate
           >
             <TextField

@@ -16,6 +16,7 @@ import {
 } from "@/lib/api/settings";
 import styles from "./ServiceTypeFormDialog.module.scss";
 import { errorMessage, toast } from "@/lib/toast";
+import { reportInvalid } from "@/lib/formErrors";
 
 type Props = {
   open: boolean;
@@ -35,6 +36,8 @@ export function ServiceTypeFormDialog({ open, onClose, serviceType }: Props) {
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<ServiceTypeForm>({
+    // Focus ô sai do `reportInvalid` lo — xem `lib/formErrors.ts`.
+    shouldFocusError: false,
     resolver: zodResolver(ServiceTypeForm),
     defaultValues: {
       name: serviceType?.name ?? "",
@@ -93,7 +96,7 @@ export function ServiceTypeFormDialog({ open, onClose, serviceType }: Props) {
       <form
         id="service-type-form"
         className={styles.form}
-        onSubmit={handleSubmit(submit)}
+        onSubmit={handleSubmit(submit, reportInvalid)}
         noValidate
       >
         <TextField

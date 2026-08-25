@@ -14,6 +14,7 @@ import {
 } from "@/lib/api/wardCatalog";
 import styles from "./ProvinceFormDialog.module.scss";
 import { errorMessage, toast } from "@/lib/toast";
+import { reportInvalid } from "@/lib/formErrors";
 
 type Props = { open: boolean; onClose: () => void };
 
@@ -43,6 +44,8 @@ export function ProvinceFormDialog({ open, onClose }: Props) {
     setValue,
     formState: { errors, isSubmitting },
   } = useForm<AddProvinceForm>({
+    // Focus ô sai do `reportInvalid` lo — xem `lib/formErrors.ts`.
+    shouldFocusError: false,
     resolver: zodResolver(AddProvinceForm),
     defaultValues: { provinceId: "" },
   });
@@ -76,7 +79,7 @@ export function ProvinceFormDialog({ open, onClose }: Props) {
       <form
         id="province-form"
         className={styles.form}
-        onSubmit={handleSubmit((form) => save.mutate(form))}
+        onSubmit={handleSubmit((form) => save.mutate(form), reportInvalid)}
         noValidate
       >
         <Combobox

@@ -13,6 +13,7 @@ import { TextField } from "@/components/ui/TextField";
 import { fetchKpiTarget, KpiTargetForm, updateKpiTarget } from "@/lib/api/settings";
 import styles from "./KpiTargetSection.module.scss";
 import { errorMessage, toast } from "@/lib/toast";
+import { reportInvalid } from "@/lib/formErrors";
 
 /** P-83 · Chỉ tiêu KPI theo tháng — một con số chung cho toàn công ty. */
 export function KpiTargetSection() {
@@ -27,6 +28,8 @@ export function KpiTargetSection() {
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<KpiTargetForm>({
+    // Focus ô sai do `reportInvalid` lo — xem `lib/formErrors.ts`.
+    shouldFocusError: false,
     resolver: zodResolver(KpiTargetForm),
     defaultValues: { monthlyPoints: 100 },
     // `values` chứ không phải effect + `reset`: giá trị suy ra từ dữ liệu đã
@@ -64,7 +67,7 @@ export function KpiTargetSection() {
       {!isPending && !isError && (
         <form
           className={styles.form}
-          onSubmit={handleSubmit((form) => save.mutate(form))}
+          onSubmit={handleSubmit((form) => save.mutate(form), reportInvalid)}
           noValidate
         >
           {data === null && (

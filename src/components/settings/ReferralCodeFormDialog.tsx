@@ -31,6 +31,7 @@ import { useSession } from "@/store/session";
 import styles from "./ReferralCodeFormDialog.module.scss";
 import { readQrImage } from "@/lib/readQrImage";
 import { errorMessage, toast } from "@/lib/toast";
+import { reportInvalid } from "@/lib/formErrors";
 
 type Props = {
   open: boolean;
@@ -70,6 +71,8 @@ export function ReferralCodeFormDialog({ open, onClose, referral }: Props) {
     setValue,
     formState: { errors, isSubmitting },
   } = useForm<ReferralCodeForm>({
+    // Focus ô sai do `reportInvalid` lo — xem `lib/formErrors.ts`.
+    shouldFocusError: false,
     resolver: zodResolver(ReferralCodeForm),
     defaultValues: {
       bankId: referral?.bankId ?? "",
@@ -192,7 +195,7 @@ export function ReferralCodeFormDialog({ open, onClose, referral }: Props) {
       <form
         id="referral-code-form"
         className={styles.form}
-        onSubmit={handleSubmit((form) => save.mutate(form))}
+        onSubmit={handleSubmit((form) => save.mutate(form), reportInvalid)}
         noValidate
       >
         <Select

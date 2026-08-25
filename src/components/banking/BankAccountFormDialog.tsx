@@ -31,6 +31,7 @@ import styles from "./BankAccountFormDialog.module.scss";
 import { businessDay } from "@/lib/format";
 import { invalidateKpi } from "@/lib/invalidateKpi";
 import { errorMessage, toast } from "@/lib/toast";
+import { reportInvalid } from "@/lib/formErrors";
 
 type Props = {
   open: boolean;
@@ -83,6 +84,8 @@ export function BankAccountFormDialog({
 
   /* ── Bước 1 ── */
   const startForm = useForm<BankAccountStartForm>({
+    // Focus ô sai do `reportInvalid` lo — xem `lib/formErrors.ts`.
+    shouldFocusError: false,
     resolver: zodResolver(BankAccountStartForm),
     defaultValues: emptyStartForm(customerId),
   });
@@ -116,6 +119,8 @@ export function BankAccountFormDialog({
 
   /* ── Bước 2 ── */
   const finishForm = useForm<BankAccountFinishForm>({
+    // Focus ô sai do `reportInvalid` lo — xem `lib/formErrors.ts`.
+    shouldFocusError: false,
     resolver: zodResolver(BankAccountFinishForm),
     defaultValues: emptyFinishForm,
   });
@@ -260,7 +265,7 @@ export function BankAccountFormDialog({
 
           <BankAccountFinishFields
             formId="finish-account-form"
-            onSubmit={finishForm.handleSubmit((form) => finish.mutate(form))}
+            onSubmit={finishForm.handleSubmit((form) => finish.mutate(form), reportInvalid)}
             register={finishForm.register}
             errors={finishForm.formState.errors}
             watch={finishForm.watch}
@@ -287,7 +292,7 @@ export function BankAccountFormDialog({
         <form
           id="bank-account-form"
           className={styles.form}
-          onSubmit={startForm.handleSubmit((form) => start.mutate(form))}
+          onSubmit={startForm.handleSubmit((form) => start.mutate(form), reportInvalid)}
           noValidate
         >
 

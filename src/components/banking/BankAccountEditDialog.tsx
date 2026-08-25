@@ -31,6 +31,7 @@ import {
   type PhotoItem,
 } from "./BankAccountPhotos";
 import styles from "./BankAccountFormDialog.module.scss";
+import { reportInvalid } from "@/lib/formErrors";
 
 type Props = {
   open: boolean;
@@ -76,6 +77,8 @@ export function BankAccountEditDialog({ open, onClose, accountId }: Props) {
   });
 
   const finishForm = useForm<BankAccountFinishForm>({
+    // Focus ô sai do `reportInvalid` lo — xem `lib/formErrors.ts`.
+    shouldFocusError: false,
     resolver: zodResolver(BankAccountFinishForm),
     // `values` chứ không phải `defaultValues`: chi tiết về SAU lượt render đầu,
     // mà `defaultValues` chỉ đọc một lần nên form sẽ trống mãi.
@@ -249,8 +252,8 @@ export function BankAccountEditDialog({ open, onClose, accountId }: Props) {
             formId="edit-account-form"
             onSubmit={
               draft
-                ? finishForm.handleSubmit((form) => finish.mutate(form))
-                : finishForm.handleSubmit((form) => update.mutate(form))
+                ? finishForm.handleSubmit((form) => finish.mutate(form), reportInvalid)
+                : finishForm.handleSubmit((form) => update.mutate(form), reportInvalid)
             }
             register={finishForm.register}
             errors={finishForm.formState.errors}

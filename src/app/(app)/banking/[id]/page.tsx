@@ -37,6 +37,7 @@ import { errorMessage, toast } from "@/lib/toast";
 import { formatDate, formatPhone, businessDay } from "@/lib/format";
 import { useSession } from "@/store/session";
 import styles from "./page.module.scss";
+import { reportInvalid } from "@/lib/formErrors";
 
 const ACCOUNT_TYPE_LABEL: Record<AccountType, string> = {
   none: "Không",
@@ -114,6 +115,8 @@ function FinishAccountCard({
   const queryClient = useQueryClient();
 
   const finishForm = useForm<BankAccountFinishForm>({
+    // Focus ô sai do `reportInvalid` lo — xem `lib/formErrors.ts`.
+    shouldFocusError: false,
     resolver: zodResolver(BankAccountFinishForm),
     defaultValues: {
       /**
@@ -234,7 +237,7 @@ function FinishAccountCard({
 
       <BankAccountFinishFields
         formId="finish-account-form"
-        onSubmit={finishForm.handleSubmit((form) => finish.mutate(form))}
+        onSubmit={finishForm.handleSubmit((form) => finish.mutate(form), reportInvalid)}
         register={finishForm.register}
         errors={finishForm.formState.errors}
         watch={finishForm.watch}

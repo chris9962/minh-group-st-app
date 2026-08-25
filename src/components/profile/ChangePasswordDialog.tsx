@@ -9,6 +9,7 @@ import { PasswordField } from "@/components/ui/PasswordField";
 import { changePassword, PASSWORD_ERROR, PasswordForm } from "@/lib/api/profile";
 import { errorMessage, toast } from "@/lib/toast";
 import styles from "./ChangePasswordDialog.module.scss";
+import { reportInvalid } from "@/lib/formErrors";
 
 const emptyForm: PasswordForm = {
   currentPassword: "",
@@ -24,6 +25,8 @@ export function ChangePasswordDialog({ open, onClose }: { open: boolean; onClose
     setError,
     formState: { errors, isSubmitting },
   } = useForm<PasswordForm>({
+    // Focus ô sai do `reportInvalid` lo — xem `lib/formErrors.ts`.
+    shouldFocusError: false,
     resolver: zodResolver(PasswordForm),
     defaultValues: emptyForm,
   });
@@ -64,7 +67,7 @@ export function ChangePasswordDialog({ open, onClose }: { open: boolean; onClose
       <form
         id="password-form"
         className={styles.form}
-        onSubmit={handleSubmit((form) => save.mutate(form))}
+        onSubmit={handleSubmit((form) => save.mutate(form), reportInvalid)}
         noValidate
       >
         {/* `off` chứ không phải `current-password`: ô này là bước xác minh người

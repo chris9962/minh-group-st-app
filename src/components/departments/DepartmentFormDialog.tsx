@@ -16,6 +16,7 @@ import {
 import styles from "./DepartmentFormDialog.module.css";
 import { errorMessage, toast } from "@/lib/toast";
 import { DEPARTMENT_TYPE_HINT, DEPARTMENT_TYPE_LABEL, DepartmentType } from "@/lib/types";
+import { reportInvalid } from "@/lib/formErrors";
 
 type Props = {
   open: boolean;
@@ -36,6 +37,8 @@ export function DepartmentFormDialog({ open, onClose, department }: Props) {
     watch,
     formState: { errors, isSubmitting },
   } = useForm<DepartmentForm>({
+    // Focus ô sai do `reportInvalid` lo — xem `lib/formErrors.ts`.
+    shouldFocusError: false,
     resolver: zodResolver(DepartmentForm),
     /**
      * Phòng lập mới mặc định là `sales` ở FORM, khác với mặc định `office` của
@@ -91,7 +94,7 @@ export function DepartmentFormDialog({ open, onClose, department }: Props) {
       <form
         id="department-form"
         className={styles.form}
-        onSubmit={handleSubmit((form) => save.mutate(form))}
+        onSubmit={handleSubmit((form) => save.mutate(form), reportInvalid)}
         noValidate
       >
         <TextField

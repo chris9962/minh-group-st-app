@@ -28,6 +28,7 @@ import { useSession } from "@/store/session";
 import { PermissionsEditor } from "./PermissionsEditor";
 import styles from "./StaffFormDialog.module.scss";
 import { errorMessage, toast } from "@/lib/toast";
+import { reportInvalid } from "@/lib/formErrors";
 
 type Props = {
   open: boolean;
@@ -108,6 +109,8 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
     getValues,
     formState: { errors, isSubmitting },
   } = useForm<StaffForm>({
+    // Focus ô sai do `reportInvalid` lo — xem `lib/formErrors.ts`.
+    shouldFocusError: false,
     // Chuẩn hoá NGAY LÚC MỞ, không chỉ lúc gửi: hồ sơ cũ có thể mang trạng thái
     // mà luật mới cấm, và ô sửa nó lại đang ẩn theo chức vụ — người dùng nhận
     // câu lỗi không có đường chữa.
@@ -239,7 +242,7 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
       <form
         id="staff-form"
         className={styles.form}
-        onSubmit={handleSubmit((form) => save.mutate(form))}
+        onSubmit={handleSubmit((form) => save.mutate(form), reportInvalid)}
         noValidate
       >
         <TextField

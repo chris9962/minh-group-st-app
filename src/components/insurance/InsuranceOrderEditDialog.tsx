@@ -21,6 +21,7 @@ import { SUM_INSURED_OPTIONS, VEHICLE_TYPES } from "@/lib/pvi";
 import { errorMessage, toast } from "@/lib/toast";
 import { PRODUCT_LABEL } from "@/lib/types";
 import styles from "./InsuranceOrderFormDialog.module.scss";
+import { reportInvalid } from "@/lib/formErrors";
 
 type Props = {
   open: boolean;
@@ -73,6 +74,8 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId }: Props) {
   const motorbike = data?.product === "motorbike";
 
   const form = useForm<InsuranceOrderEditForm>({
+    // Focus ô sai do `reportInvalid` lo — xem `lib/formErrors.ts`.
+    shouldFocusError: false,
     // Luật biển số phụ thuộc sản phẩm, mà sản phẩm chỉ biết sau khi chi tiết về
     // — máy chủ kiểm lại đúng luật này với sản phẩm đọc từ database.
     resolver: zodResolver(
@@ -164,7 +167,7 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId }: Props) {
         <form
           id="insurance-edit-form"
           className={styles.form}
-          onSubmit={form.handleSubmit((values) => save.mutate(values))}
+          onSubmit={form.handleSubmit((values) => save.mutate(values), reportInvalid)}
           noValidate
         >
           <p className="text-muted">

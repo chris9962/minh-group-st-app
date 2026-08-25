@@ -28,6 +28,7 @@ import { invalidateKpi } from "@/lib/invalidateKpi";
 import { SUM_INSURED_DEFAULT, SUM_INSURED_OPTIONS, VEHICLE_TYPES } from "@/lib/pvi";
 import { errorMessage, toast } from "@/lib/toast";
 import styles from "./InsuranceOrderFormDialog.module.scss";
+import { reportInvalid } from "@/lib/formErrors";
 
 type Props = {
   open: boolean;
@@ -140,6 +141,8 @@ export function InsuranceOrderFormDialog({
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<InsuranceOrderForm>({
+    // Focus ô sai do `reportInvalid` lo — xem `lib/formErrors.ts`.
+    shouldFocusError: false,
     resolver: zodResolver(InsuranceOrderForm),
     defaultValues: {
       customerId: customer.id,
@@ -210,7 +213,7 @@ export function InsuranceOrderFormDialog({
     onError: (e) => toast.fail(errorMessage(e, "Không tạo được đơn bảo hiểm này.")),
   });
 
-  const onSubmit = handleSubmit((values) => save.mutate(values));
+  const onSubmit = handleSubmit((values) => save.mutate(values), reportInvalid);
 
   const renderVehicleInfo = (i: number) => (
     <fieldset className={styles.fieldset}>

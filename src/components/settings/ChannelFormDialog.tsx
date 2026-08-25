@@ -17,6 +17,7 @@ import {
 } from "@/lib/api/channelCatalog";
 import styles from "./ChannelFormDialog.module.scss";
 import { errorMessage, toast } from "@/lib/toast";
+import { reportInvalid } from "@/lib/formErrors";
 
 type Props = {
   open: boolean;
@@ -41,6 +42,8 @@ export function ChannelFormDialog({ open, onClose, channel }: Props) {
     setValue,
     formState: { errors, isSubmitting },
   } = useForm<ChannelForm>({
+    // Focus ô sai do `reportInvalid` lo — xem `lib/formErrors.ts`.
+    shouldFocusError: false,
     resolver: zodResolver(ChannelForm),
     defaultValues: {
       name: channel?.name ?? "",
@@ -80,7 +83,7 @@ export function ChannelFormDialog({ open, onClose, channel }: Props) {
       <form
         id="channel-form"
         className={styles.form}
-        onSubmit={handleSubmit((form) => save.mutate(form))}
+        onSubmit={handleSubmit((form) => save.mutate(form), reportInvalid)}
         noValidate
       >
         <TextField

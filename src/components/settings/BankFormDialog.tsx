@@ -31,6 +31,7 @@ import { can } from "@/lib/permissions";
 import { useSession } from "@/store/session";
 import styles from "./BankFormDialog.module.scss";
 import { errorMessage, toast } from "@/lib/toast";
+import { reportInvalid } from "@/lib/formErrors";
 
 type Props = {
   open: boolean;
@@ -99,6 +100,8 @@ export function BankFormDialog({ open, onClose, bank }: Props) {
     setValue,
     formState: { errors, isSubmitting },
   } = useForm<BankForm>({
+    // Focus ô sai do `reportInvalid` lo — xem `lib/formErrors.ts`.
+    shouldFocusError: false,
     resolver: zodResolver(BankForm),
     defaultValues: {
       code: bank?.code ?? "",
@@ -165,7 +168,7 @@ export function BankFormDialog({ open, onClose, bank }: Props) {
       <form
         id="bank-form"
         className={styles.form}
-        onSubmit={handleSubmit((form) => save.mutate(form))}
+        onSubmit={handleSubmit((form) => save.mutate(form), reportInvalid)}
         noValidate
       >
         {/* Ô mã CHỈ hiện lúc tạo. Khi sửa thì mã nằm ở tiêu đề hộp thoại —

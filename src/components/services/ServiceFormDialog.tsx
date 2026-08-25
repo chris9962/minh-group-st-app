@@ -19,6 +19,7 @@ import { createService, ServiceForm } from "@/lib/api/services";
 import styles from "./ServiceFormDialog.module.scss";
 import { invalidateKpi } from "@/lib/invalidateKpi";
 import { errorMessage, toast } from "@/lib/toast";
+import { reportInvalid } from "@/lib/formErrors";
 
 type Props = {
   open: boolean;
@@ -65,6 +66,8 @@ export function ServiceFormDialog({ open, onClose, customerId, customerName, onB
     setValue,
     formState: { errors, isSubmitting },
   } = useForm<ServiceForm>({
+    // Focus ô sai do `reportInvalid` lo — xem `lib/formErrors.ts`.
+    shouldFocusError: false,
     resolver: zodResolver(ServiceForm),
     defaultValues: {
       customerId,
@@ -112,7 +115,7 @@ export function ServiceFormDialog({ open, onClose, customerId, customerName, onB
       <form
         id="service-form"
         className={styles.form}
-        onSubmit={handleSubmit((form) => save.mutate(form))}
+        onSubmit={handleSubmit((form) => save.mutate(form), reportInvalid)}
         noValidate
       >
 

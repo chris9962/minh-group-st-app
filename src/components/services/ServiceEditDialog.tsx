@@ -14,6 +14,7 @@ import { businessDay, formatDate } from "@/lib/format";
 import { invalidateKpi } from "@/lib/invalidateKpi";
 import { errorMessage, toast } from "@/lib/toast";
 import styles from "./ServiceFormDialog.module.scss";
+import { reportInvalid } from "@/lib/formErrors";
 
 type Props = {
   open: boolean;
@@ -61,6 +62,8 @@ export function ServiceEditDialog({ open, onClose, service }: Props) {
   const fallback = [{ value: service.serviceTypeId, label: service.serviceTypeName }];
 
   const form = useForm<ServiceEditForm>({
+    // Focus ô sai do `reportInvalid` lo — xem `lib/formErrors.ts`.
+    shouldFocusError: false,
     resolver: zodResolver(ServiceEditForm),
     defaultValues: {
       serviceTypeId: service.serviceTypeId,
@@ -105,7 +108,7 @@ export function ServiceEditDialog({ open, onClose, service }: Props) {
       <form
         id="service-edit-form"
         className={styles.form}
-        onSubmit={form.handleSubmit((values) => save.mutate(values))}
+        onSubmit={form.handleSubmit((values) => save.mutate(values), reportInvalid)}
         noValidate
       >
         <p className="text-muted">

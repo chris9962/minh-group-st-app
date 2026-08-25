@@ -29,6 +29,7 @@ import { fetchProvinces } from "@/lib/api/wardCatalog";
 import { errorMessage, toast } from "@/lib/toast";
 import { useSession } from "@/store/session";
 import styles from "./CustomerFormDialog.module.scss";
+import { reportInvalid } from "@/lib/formErrors";
 
 type Props = {
   open: boolean;
@@ -107,6 +108,8 @@ export function CustomerFormDialog({
     setValue,
     formState: { errors, isSubmitting },
   } = useForm<CustomerForm>({
+    // Focus ô sai do `reportInvalid` lo — xem `lib/formErrors.ts`.
+    shouldFocusError: false,
     // Luồng SỬA cho CCCD để trống: người không có quyền xem số thì ô đó nạp
     // rỗng và bị khoá, giữ luật 12 số là họ không lưu nổi hồ sơ nào.
     resolver: zodResolver(editing ? CustomerEditForm : CustomerForm),
@@ -216,8 +219,9 @@ export function CustomerFormDialog({
       <form
         id="customer-form"
         className={styles.form}
-        onSubmit={handleSubmit((form) =>
-          save.mutate({ ...form, channelDetail: channelDetailToSave(form) }),
+        onSubmit={handleSubmit(
+          (form) => save.mutate({ ...form, channelDetail: channelDetailToSave(form) }),
+          reportInvalid,
         )}
         noValidate
       >
