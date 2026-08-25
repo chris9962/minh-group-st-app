@@ -271,6 +271,18 @@ const bankCountOf = (accounts: ScoringAccount[]): number =>
 /** Phần điểm CNKD của MỘT khách, theo bảng mục 4c. */
 function householdTenths(accounts: ScoringAccount[], grantedItem: string | null): number {
   if (householdKindOf(accounts) !== "CNKD") return 0;
+  /**
+   * Không mở `VPa` thì không có điểm CNKD (Kế toán xác nhận 2026-08-25).
+   *
+   * CNKD là dịch vụ đăng ký KÈM tài khoản `VPa`, nên ghi CNKD cho khách không
+   * mở `VPa` là ghi sai. Công thức `AT` của file Excel không kiểm điều này và
+   * vẫn cộng đủ điểm cho 44 khách dạng đó — Kế toán bác cả cụm, xem M12.
+   *
+   * Giao diện đã ép cùng luật: `banking.ts` chỉ nhận `accountType` trên dòng
+   * `VPa`. Điều kiện ở đây chặn đường còn lại — `householdKindOf` cũng đọc
+   * `bankCode` bằng `CNKD` khi người dùng lập tài khoản riêng (câu 7.16).
+   */
+  if (!accounts.some((a) => a.bankCode === "VPa")) return 0;
   if (bankCountOf(accounts) !== 1) return CNKD_TENTHS.manyBanks;
   return grantedItem && CNKD_LOWERING_ITEMS.has(grantedItem)
     ? CNKD_TENTHS.afterGiftItem

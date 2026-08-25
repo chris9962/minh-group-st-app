@@ -179,9 +179,32 @@ check(
   1.0,
 );
 check(
-  "MB + MSBa: cùng ca, cùng mức 1,0",
+  "MB + VPa kèm CNKD: 2 ngân hàng thành tổ hợp — mức 1,0 cộng 0,7 điểm tổ hợp",
+  points([account("kh1", "MB"), account("kh1", "VPa", { household: "CNKD" })]),
+  1.7,
+);
+
+/**
+ * Không mở `VPa` thì không có điểm CNKD (Kế toán xác nhận 2026-08-25, M12).
+ *
+ * Công thức `AT` của file Excel KHÔNG kiểm điều này — nó chỉ đọc cột `T` và
+ * đếm số ngân hàng. Đừng đọc công thức ra luật ở chỗ này.
+ */
+section("Điểm CNKD đòi khách phải mở VPa");
+check(
+  "MB + MSBa + CNKD riêng, không có VPa — không có điểm CNKD",
   points([account("kh1", "MB"), account("kh1", "MSBa"), account("kh1", "CNKD")]),
-  1.0,
+  0,
+);
+check(
+  "MB + MSBb kèm CNKD, không có VPa — chỉ còn điểm tổ hợp",
+  points([account("kh1", "MB", { household: "CNKD" }), account("kh1", "MSBb")]),
+  0.5,
+);
+check(
+  "VPb + MSBb kèm CNKD, không có VPa — tổ hợp hỏng, tổng 0",
+  points([account("kh1", "VPb", { household: "CNKD" }), account("kh1", "MSBb")]),
+  0,
 );
 check(
   "hai tài khoản CÙNG một ngân hàng vẫn đếm là 1 → mức 1,5",
