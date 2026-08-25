@@ -327,6 +327,18 @@ const ITEMS_CNKD = ["QUA-LOA", "QUA-MICA"];
 /** Lưu ý 2 mục 4: nhóm Phòng Y quy đổi quà sang vật phẩm. Không đòi bậc từ 2026-08-24. */
 const ITEMS_HOSPITAL = ["QUA-MI", "QUA-BH-SUC-KHOE", "QUA-NON-BH"];
 
+/**
+ * Món riêng của PHÒNG Y, không áp cho phòng Dự án và kênh Bệnh viện.
+ *
+ * Lưu ý 2 viết *"nón bảo hiểm, thùng mì hoặc một số quà tặng khác"* — danh sách
+ * để mở, và nó chỉ gọi tên Phòng Y. Bản rà soát của Kế toán 2026-08-25 đánh
+ * `ĐÚNG` cho hai khách Phòng Y nhận Bảng mica dù không có CNKD, đồng thời đánh
+ * `SAI QUÀ` cho bảy khách phòng khác cùng dạng. Bảng mica vì thế nằm trong "quà
+ * tặng khác" của riêng Phòng Y.
+ */
+const ITEMS_PHONG_Y = ["QUA-MICA"];
+const PHONG_Y = "PHONG-Y";
+
 const HOSPITAL_CHANNEL = "KENH-BENH-VIEN";
 /**
  * Ba vế của cùng MỘT nhóm khách — thoả một vế là đủ (thể lệ mục 4b).
@@ -437,8 +449,8 @@ export function gift(input: GiftInput): GiftResult {
    * 2026-08-24 mô tả khách CNKD một tài khoản `VPa` được tặng Mì hoặc Nón như
    * một ca bình thường, mà khách một tài khoản không bao giờ đạt TH5/TH6.
    *
-   * Ba món giữ nguyên danh sách cũ. Bảng gốc chỉ gọi tên nón và mì, phần "một
-   * số quà tặng khác" vẫn treo ở câu 7.9 của file thể lệ.
+   * Ba món chung giữ nguyên danh sách cũ. Riêng Phòng Y có thêm Bảng mica —
+   * xem `ITEMS_PHONG_Y`.
    */
   const inGiftItemGroup =
     (input.departmentCode !== null && GIFT_ITEM_DEPARTMENTS.has(input.departmentCode)) ||
@@ -448,6 +460,11 @@ export function gift(input: GiftInput): GiftResult {
     explain.push(
       "Khách thuộc Phòng Y, phòng Dự án hoặc kênh Bệnh viện nên rổ có thêm Mì, BH sức khoẻ và Nón bảo hiểm.",
     );
+
+    if (input.departmentCode === PHONG_Y) {
+      addItems(ITEMS_PHONG_Y, "Phòng Y quy đổi sang quà tặng khác");
+      explain.push("Khách thuộc Phòng Y nên rổ có thêm Bảng mica.");
+    }
 
     // Nhân viên phải biết TRƯỚC khi bấm chọn, không phải sau khi thấy điểm tụt.
     // Điều kiện phải KHỚP `householdTenths`, nếu không màn cảnh báo một đằng mà

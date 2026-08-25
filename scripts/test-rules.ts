@@ -601,9 +601,9 @@ check("CNKD không tự thành combo", giftOf(["MB", "CNKD", "HKD"]).caseCode, n
  */
 section("Món thêm — Phòng Y, phòng Dự án, kênh Bệnh viện (lưu ý 2)");
 checkCodes(
-  "TH5 ở Phòng Y",
+  "TH5 ở Phòng Y — có thêm Bảng mica",
   giftOf(["MB", "VPa", "LPB"], { department: "PHONG-Y" }).basket.map((b) => b.code),
-  [...BH_2N, "QUA-MI", "QUA-BH-SUC-KHOE", "QUA-NON-BH"],
+  [...BH_2N, "QUA-MI", "QUA-BH-SUC-KHOE", "QUA-NON-BH", "QUA-MICA"],
 );
 checkCodes(
   "TH6 ở kênh Bệnh viện",
@@ -620,12 +620,29 @@ checkCodes(
   giftOf(["LPB", "TPB", "VIB"], { channels: ["KENH-BENH-VIEN"], department: "PHONG-Y" }).basket.map(
     (b) => b.code,
   ),
-  [...BH_2N, "QUA-MI", "QUA-BH-SUC-KHOE", "QUA-NON-BH"],
+  [...BH_2N, "QUA-MI", "QUA-BH-SUC-KHOE", "QUA-NON-BH", "QUA-MICA"],
 );
 checkCodes(
   "TH3 ở Phòng Y cũng được quy đổi",
   giftOf(["MB", "VPa", "MSBa"], { department: "PHONG-Y" }).basket.map((b) => b.code),
-  [...BH_1N, "QUA-MI", "QUA-BH-SUC-KHOE", "QUA-NON-BH"],
+  [...BH_1N, "QUA-MI", "QUA-BH-SUC-KHOE", "QUA-NON-BH", "QUA-MICA"],
+);
+
+/**
+ * Bảng mica là món của RIÊNG Phòng Y (Kế toán xác nhận 2026-08-25, M13).
+ *
+ * Lưu ý 2 chỉ gọi tên Phòng Y. Bản rà soát đánh `SAI QUÀ` cho bảy khách phòng
+ * khác nhận Bảng mica mà không có CNKD, và đánh `ĐÚNG` cho hai khách Phòng Y.
+ */
+checkCodes(
+  "phòng Dự án KHÔNG có Bảng mica",
+  giftOf(["MB", "VPa", "LPB"], { department: "PHONG-DU-AN" }).basket.map((b) => b.code),
+  [...BH_2N, "QUA-MI", "QUA-BH-SUC-KHOE", "QUA-NON-BH"],
+);
+checkCodes(
+  "kênh Bệnh viện KHÔNG có Bảng mica",
+  giftOf(["LPB", "TPB", "VIB"], { channels: ["KENH-BENH-VIEN"] }).basket.map((b) => b.code),
+  [...BH_2N, "QUA-MI", "QUA-BH-SUC-KHOE", "QUA-NON-BH"],
 );
 checkCodes(
   "TH1 ở kênh Bệnh viện cũng được quy đổi",
