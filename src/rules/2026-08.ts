@@ -324,9 +324,21 @@ const HOSPITAL_CHANNEL = "KENH-BENH-VIEN";
  */
 const GIFT_ITEM_DEPARTMENTS = new Set(["PHONG-Y", "PHONG-DU-AN"]);
 
-/** Bậc thang mục 3 — KHỚP DÒNG ĐẦU THÌ DỪNG, không cộng dồn. */
-function caseOf(combo: Combo): { code: string; years: 1 | 2; cashBanks: string[] } | null {
-  const has = (bankCode: string) => combo.codes.includes(bankCode);
+/**
+ * Bậc thang mục 3 — KHỚP DÒNG ĐẦU THÌ DỪNG, không cộng dồn.
+ *
+ * `installed` là những mã ĐÃ THOẢ điều kiện cài app. Điều kiện đó chỉ chặn ở
+ * ĐÂY, không chặn ở phép đếm số ngân hàng của tổ hợp (chốt 2026-08-25).
+ *
+ * Khách mở `VPa` + `LPB` + `MSBa` mà chỉ cài `VPa` vẫn là tổ hợp 3 ngân hàng;
+ * `MSBa` chỉ mất quyền kéo bậc xuống TH3/TH4, nên khách rơi vào TH5 — 2 năm bảo
+ * hiểm, không phải 1 năm.
+ */
+function caseOf(
+  combo: Combo,
+  installed: ReadonlySet<string>,
+): { code: string; years: 1 | 2; cashBanks: string[] } | null {
+  const has = (bankCode: string) => combo.codes.includes(bankCode) && installed.has(bankCode);
 
   if (combo.size === 2) {
     if (has("VPa")) return { code: "TH1", years: 1, cashBanks: ["VPa"] };
@@ -356,9 +368,19 @@ function caseOf(combo: Combo): { code: string; years: 1 | 2; cashBanks: string[]
  * Ca này chỉ xảy ra với dữ liệu dư (luật ngoài đời giới hạn 3 tài khoản).
  */
 export function gift(input: GiftInput): GiftResult {
+  /**
+   * Tổ hợp đếm TRỌN tài khoản khách đã mở, y hệt đường tính điểm (chốt
+   * 2026-08-25). Điều kiện cài app chuyển xuống `caseOf` — nó chỉ quyết định
+   * BẬC, không quyết định khách có mấy ngân hàng.
+   *
+   * Bản trước lọc `comboCodesOf` ngay ở đây, nên `VPa`/`MSBa` chưa cài app làm
+   * khách tụt hẳn một bậc tổ hợp. Đo trên `TÍNH ĐIỂM TỔNG T8.xlsx`: 413 khách
+   * nhận 1 năm bảo hiểm trong khi Kế toán tính 2 năm.
+   */
+  const combo = bestComboOf(input.accounts.map((a) => a.bankCode));
   const eligible = comboCodesOf(input.accounts);
-  const combo = bestComboOf(eligible.map((a) => a.bankCode));
-  const matched = caseOf(combo);
+  const installed = new Set(eligible.map((a) => a.bankCode));
+  const matched = caseOf(combo, installed);
   const explain: string[] = [];
 
   /**

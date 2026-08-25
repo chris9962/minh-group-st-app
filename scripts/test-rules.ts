@@ -507,14 +507,32 @@ check("MB + MSBa không thành Combo 2", giftOf(["MB", "MSBa"]).caseCode, null);
 check("MB + VPb không thành Combo 2", giftOf(["MB", "VPb"]).caseCode, null);
 check("vẫn giải thích được vì sao", giftOf(["MB"]).explain.length > 0, true);
 
-section("Điều kiện cài app cũng áp cho quà");
-check("VPa chưa cài → tụt xuống TH2", giftOf(["MB", "VPa!", "LPB"]).caseCode, "TH2");
+/**
+ * Điều kiện cài app chỉ chặn ở BẬC quà, không chặn ở phép đếm số ngân hàng của
+ * tổ hợp — chốt 2026-08-25, chủ dự án chọn "cách B".
+ *
+ * Công thức `AG` của `TÍNH ĐIỂM TỔNG T8.xlsx` đếm `AN` từ khối MỞ TÀI KHOẢN;
+ * cột app cài chỉ xuất hiện ở tầng chọn bậc. Bản trước lọc ngay ở phép đếm nên
+ * 413 khách nhận 1 năm bảo hiểm trong khi Kế toán tính 2 năm.
+ */
+section("Điều kiện cài app chỉ chặn BẬC quà, không chặn số ngân hàng");
+check("VPa chưa cài → vẫn 3 ngân hàng, rơi xuống TH6", giftOf(["MB", "VPa!", "LPB"]).caseCode, "TH6");
+check("VPa chưa cài → 2 năm bảo hiểm", giftOf(["MB", "VPa!", "LPB"]).insuranceYears, 2);
 check("VPa chưa cài → mất 20k", giftOf(["MB", "VPa!", "LPB"]).cashTotal, 0);
-check("MSBa chưa cài → còn 2 ngân hàng, tụt xuống TH1", giftOf(["MB", "VPa", "MSBa!"]).caseCode, "TH1");
-check("MSBa chưa cài → 2 năm tụt còn 1 năm", giftOf(["MB", "VPa", "MSBa!"]).insuranceYears, 1);
-check("MSBa chưa cài → mất 50k", giftOf(["MB", "VPa", "MSBa!"]).cashTotal, 20_000);
+check("MSBa chưa cài → vẫn 3 ngân hàng, rơi xuống TH5", giftOf(["MB", "VPa", "MSBa!"]).caseCode, "TH5");
+check("MSBa chưa cài → 2 năm bảo hiểm", giftOf(["MB", "VPa", "MSBa!"]).insuranceYears, 2);
+check("MSBa chưa cài → mất 50k, giữ 20k của VPa", giftOf(["MB", "VPa", "MSBa!"]).cashTotal, 20_000);
+check("cả hai chưa cài → TH6", giftOf(["MB", "VPa!", "MSBa!"]).caseCode, "TH6");
+check("cả hai chưa cài → không tiền mặt", giftOf(["MB", "VPa!", "MSBa!"]).cashTotal, 0);
 check("MSBa chưa cài, đủ 3 ngân hàng khác → TH5", giftOf(["MB", "VPa", "LPB", "MSBa!"]).caseCode, "TH5");
 check("LPB chưa cài vẫn tính", giftOf(["MB", "VPa", "LPB!"]).caseCode, "TH5");
+/**
+ * Dòng 2 của `TÍNH ĐIỂM TỔNG T8.xlsx` — `VO VAN CHIEN`, ca then chốt của chốt
+ * 2026-08-25. Mở VPa + LPB + MSBa, chỉ cài app VPa. File ghi "2 năm BH + 20k".
+ */
+check("dòng thật VO VAN CHIEN → TH5", giftOf(["VPa", "LPB", "MSBa!"]).caseCode, "TH5");
+check("…tức 2 năm bảo hiểm", giftOf(["VPa", "LPB", "MSBa!"]).insuranceYears, 2);
+check("…kèm 20k của VPa", giftOf(["VPa", "LPB", "MSBa!"]).cashTotal, 20_000);
 
 section("Rổ bảo hiểm");
 checkCodes("1 năm · hai gói", giftOf(["MB", "VPa"]).basket.map((b) => b.code), BH_1N);
