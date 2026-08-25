@@ -88,13 +88,13 @@ export type AddProvinceForm = z.infer<typeof AddProvinceForm>;
  * dừng lại ở tầng kiểm dữ liệu, chứ không đi tới Postgres rồi thành lỗi 500.
  */
 export const AddWardForm = z.object({
-  provinceId: z.uuid('Chưa chọn tỉnh/thành phố'),
+  provinceId: z.guid('Chưa chọn tỉnh/thành phố'),
   wardId: z.string().min(1, 'Chưa chọn xã/phường'),
 });
 export type AddWardForm = z.infer<typeof AddWardForm>;
 
 export const HamletForm = z.object({
-  wardId: z.uuid('Chưa chọn xã'),
+  wardId: z.guid('Chưa chọn xã'),
   name: z.string().trim().min(1, 'Chưa nhập tên ấp'),
 });
 export type HamletForm = z.infer<typeof HamletForm>;

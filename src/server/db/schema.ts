@@ -717,6 +717,18 @@ export const bankAccounts = pgTable(
   },
   (t) => [
     index("bank_accounts_customer").on(t.customerId),
+    /**
+     * Một khách chỉ mở được MỘT tài khoản ở MỘT ngân hàng (chốt 2026-08-25).
+     *
+     * Tính cả dòng `creating`: dòng đó đã giữ một chỗ mã giới thiệu, nên mở lần
+     * hai cùng ngân hàng là mở trùng chứ không phải mở thêm. Xoá bản nháp thì
+     * chỗ nhả ra và mở lại được.
+     *
+     * Trần 3 tài khoản mỗi khách KHÔNG nằm ở đây — ràng buộc đếm dòng thì phải
+     * dựng trigger. Nó nằm ở `startBankAccount`, trong cùng giao dịch và có
+     * khoá dòng khách.
+     */
+    uniqueIndex("bank_accounts_customer_bank").on(t.customerId, t.bankId),
     index("bank_accounts_referral").on(t.referralCodeId, t.status),
     index("bank_accounts_dept_date").on(t.createdByDepartmentId, t.openedDate),
     // Tính điểm KPI gom theo NGƯỜI TẠO trong một khoảng ngày (§9), không lọc

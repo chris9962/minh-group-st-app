@@ -7,12 +7,13 @@ import type {
   CustomerEditForm,
   CustomerForm,
   CustomerInsuranceRow,
-  CustomerLookupRow,
+  CustomerLookupResult,
   CustomerRow,
   CustomerServiceRow,
   CustomerSort,
 } from "@/lib/api/customers";
 import { GIFT_DECLINED, GIFT_DECLINED_LABEL } from "@/lib/api/customers";
+import { MAX_BANK_ACCOUNTS_PER_CUSTOMER } from "@/lib/api/bankAccounts";
 import type { Page } from "@/lib/api/pagination";
 import type { PageArgs } from "./pagination";
 import { BUSINESS_TIMEZONE, digitsOnly } from "@/lib/format";
@@ -367,6 +368,15 @@ export async function listCustomers(
  * Đây là thứ phân biệt tra cứu với liệt kê: gõ từ khoá ra 15 người gần đúng
  * nhất là tra cứu, lật trang tới người thứ 250.000 là đọc cả kho.
  */
+/**
+ * Số tài khoản ngân hàng của khách, ĐẾM SỐNG.
+ *
+ * Không đọc `customers.account_count`: cột đó chỉ đếm dòng `done` (migration
+ * 0005), còn trần 3 tài khoản tính cả bản nháp `creating` vì bản nháp đã giữ
+ * một chỗ mã giới thiệu.
+ */
+const bankAccountsOfCustomer = sql`(select count(*) from ${bankAccounts} where ${bankAccounts.customerId} = ${customers.id})`;
+
 const LOOKUP_LIMIT = 15;
 
 /**
@@ -383,19 +393,39 @@ const LOOKUP_LIMIT = 15;
  *
  * Sắp theo tên chứ không theo ngày tạo: người dùng đang tìm một cái tên.
  */
-export async function lookupCustomers(search: string): Promise<CustomerLookupRow[]> {
+export async function lookupCustomers(
+  search: string,
+  opts: { forBankAccount?: boolean } = {},
+): Promise<CustomerLookupResult> {
+  const match = searchWhere(search);
+  const where = opts.forBankAccount ? and(match, sql`${bankAccountsOfCustomer} < ${MAX_BANK_ACCOUNTS_PER_CUSTOMER}`) : match;
+
   const inner = pickPage(
-    searchWhere(search),
+    where,
     [asc(customers.searchName), asc(customers.id)] as SQL[],
     LOOKUP_LIMIT,
     0,
   );
-  return decorate(inner)
+  const rows = await decorate(inner)
     .orderBy(asc(inner.searchName), asc(inner.id))
-    .then((rows) =>
-      rows.map((r) => ({ id: r.id, fullName: r.fullName, primaryPhone: r.primaryPhone })),
+    .then((list) =>
+      list.map((r) => ({ id: r.id, fullName: r.fullName, primaryPhone: r.primaryPhone })),
     );
+
+  /**
+   * Chỉ đếm khi người dùng ĐÃ gõ gì đó. Ô tìm để trống thì `match` là
+   * `undefined`, và câu đếm quét cả bảng khách để trả lời một câu không ai hỏi.
+   */
+  if (!opts.forBankAccount || !match) return { rows, hiddenBankFull: 0 };
+
+  const [hidden] = await db
+    .select({ n: count() })
+    .from(customers)
+    .where(and(match, sql`${bankAccountsOfCustomer} >= ${MAX_BANK_ACCOUNTS_PER_CUSTOMER}`));
+
+  return { rows, hiddenBankFull: hidden?.n ?? 0 };
 }
+
 
 /**
  * Trần cứng của một lượt xuất Excel. Vượt trần thì cắt — file 50.000 dòng không

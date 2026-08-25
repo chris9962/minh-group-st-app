@@ -30,3 +30,57 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Danh sách ngân hàng chọn mở — mỗi dòng một ô tích, mã hiện ra khi tích. */
+.pickHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.pickTitle {
+  font-size: 13px;
+  color: var(--om-text-2);
+}
+
+.pickCount {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--om-text-2);
+}
+
+.pickList {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--om-line);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.pickRow {
+  padding: 8px 10px;
+
+  & + & {
+    border-top: 1px solid var(--om-line);
+  }
+}
+
+.pickLabel {
+  font-weight: 600;
+}
+
+.pickCode {
+  padding: 6px 0 2px 30px;
+}
+
+.pickError {
+  font-size: 12.5px;
+  color: var(--color-accent-800);
+}
+
+@media (max-width: bp.$bp-narrow) {
+  .pickCode {
+    padding-left: 0;
+  }
+}

@@ -127,7 +127,22 @@ export const CustomerLookupRow = z.object({
 });
 export type CustomerLookupRow = z.infer<typeof CustomerLookupRow>;
 
-const CustomerLookupResult = z.array(CustomerLookupRow);
+/**
+ * `hiddenBankFull` = số khách KHỚP TỪ KHOÁ nhưng bị bỏ khỏi danh sách vì đã đủ
+ * trần tài khoản ngân hàng.
+ *
+ * Phải trả về, không được lặng lẽ bỏ: người tìm mà không thấy ai sẽ bấm "Tạo KH
+ * mới" và lập một hồ sơ trùng. CCCD không bắt buộc nên khoá trùng CCCD không
+ * chặn được ca đó.
+ *
+ * Luôn 0 khi ô tìm để trống — lúc đó đếm là quét cả bảng khách để trả lời một
+ * câu không ai hỏi.
+ */
+const CustomerLookupResult = z.object({
+  rows: z.array(CustomerLookupRow),
+  hiddenBankFull: z.number(),
+});
+export type CustomerLookupResult = z.infer<typeof CustomerLookupResult>;
 
 /**
  * TRA CỨU khách theo từ khoá, cho ô tìm khách của ba hộp thoại tạo bản ghi.
@@ -140,8 +155,18 @@ const CustomerLookupResult = z.array(CustomerLookupRow);
  * Bỏ phân trang là chốt chính. Bản trước dùng chung route với bảng P-40, nên ai
  * cũng đổi được `page` để lật hết danh bạ khách hàng của công ty.
  */
-export async function fetchCustomerLookup(search: string): Promise<CustomerLookupRow[]> {
-  const res = await fetch(`/api/customers/lookup?search=${encodeURIComponent(search)}`);
+export async function fetchCustomerLookup(
+  search: string,
+  /**
+   * Bật khi ô tìm này đứng trước luồng MỞ TÀI KHOẢN: máy chủ bỏ khách đã đủ
+   * trần khỏi danh sách. Hai luồng còn lại (đơn bảo hiểm, dịch vụ) không có
+   * trần nào nên không truyền.
+   */
+  opts: { forBankAccount?: boolean } = {},
+): Promise<CustomerLookupResult> {
+  const query = new URLSearchParams({ search });
+  if (opts.forBankAccount) query.set('for', 'bank-account');
+  const res = await fetch(`/api/customers/lookup?${query}`);
   if (!res.ok) throw new Error('Không tra được khách hàng');
   return CustomerLookupResult.parse(await res.json());
 }

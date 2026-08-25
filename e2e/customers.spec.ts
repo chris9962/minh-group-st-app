@@ -568,7 +568,7 @@ test.describe("nút nghiệp vụ trên dòng khách", () => {
    * khoản `creating` dưới tên `zz_e2e_staff` cho ca khác, nên vào bằng nhân
    * viên là ca này đo lẫn dữ liệu của ca đó.
    */
-  test("mở tài khoản ngân hàng từ dòng khách → giữ chỗ mã, sang bước 2", async ({ page }) => {
+  test("mở tài khoản ngân hàng từ dòng khách → giữ chỗ mã, về bảng ngân hàng", async ({ page }) => {
     await openCustomerList(page, "director");
     await search(page, "minh dung");
     await rows(page).first().getByRole("button", { name: /Mở ngân hàng/ }).click();
@@ -577,57 +577,63 @@ test.describe("nút nghiệp vụ trên dòng khách", () => {
     await expect(box).toBeVisible();
 
     /**
+     * Danh mục ngân hàng về sau MỘT LƯỢT GỌI MÁY CHỦ. Đọc ngay lúc hộp thoại vừa
+     * mở thì danh sách còn rỗng và ca test tự bỏ qua chính nó.
+     */
+    const ticks = box.getByRole("checkbox");
+    await expect.poll(async () => ticks.count(), { timeout: 10_000 }).toBeGreaterThan(0);
+
+    /**
      * Thử từng ngân hàng cho tới khi gặp một cái CÒN MÃ.
      *
      * Không lấy đại ngân hàng đầu tiên: kho mã của mỗi ngân hàng là dữ liệu
-     * thật, ngân hàng hết mã thì ô "Mã giới thiệu" hiện "— Hết mã —" và
-     * bấm Tiếp tục không đi đâu cả. Ca test đỏ khi đó là đỏ vì kho mã, không
-     * phải vì luồng hai bước hỏng.
+     * thật, ngân hàng hết mã thì ô mã hiện "— Hết mã —" và bấm Tạo không đi đâu
+     * cả. Ca test đỏ khi đó là đỏ vì kho mã, không phải vì luồng hỏng.
+     *
+     * Ô tích của ngân hàng khách ĐÃ CÓ thì bị tắt — bỏ qua, đó là trần mỗi ngân
+     * hàng một tài khoản chứ không phải lỗi.
      */
-    const bankSelect = box.getByLabel("Ngân hàng");
-    // Danh mục ngân hàng cũng về sau một lượt gọi máy chủ: đọc ngay lúc hộp
-    // thoại vừa mở thì ô chọn mới có mỗi dòng "— Chọn ngân hàng —", và ca test
-    // tự bỏ qua chính nó.
-    await expect
-      .poll(async () => bankSelect.locator("option").count(), { timeout: 10_000 })
-      .toBeGreaterThan(1);
+    const count = await ticks.count();
+    let picked = "";
+    for (let i = 0; i < count && !picked; i++) {
+      const tick = ticks.nth(i);
+      if (await tick.isDisabled()) continue;
 
-    const bankIds = (
-      await bankSelect
+      // Nhãn của ô tích khoá bắt đầu bằng mã ngân hàng, phần sau là lý do khoá.
+      const label = (await tick.evaluate((el) => el.closest("label")?.textContent ?? "")).trim();
+      const bankCode = label.split(/\s+/)[0];
+      if (!bankCode) continue;
+
+      await tick.click();
+      /**
+       * Kho mã của ngân hàng vừa tích về sau MỘT LƯỢT GỌI MÁY CHỦ nữa. `waitFor`
+       * tự thử lại tới khi hết giờ; `.count()` chỉ chụp một khoảnh khắc, mà
+       * khoảnh khắc đó thường rơi vào lúc danh sách chưa về.
+       */
+      const open = box
+        .getByLabel(`Mã giới thiệu · ${bankCode}`)
         .locator("option")
-        .evaluateAll((opts) => opts.map((o) => (o as HTMLOptionElement).value))
-    ).filter(Boolean);
-
-    /**
-     * Kho mã của ngân hàng vừa chọn về sau MỘT LƯỢT GỌI MÁY CHỦ. Đọc ngay lúc
-     * vừa chọn thì ô mã còn đang ở trạng thái rỗng và luôn hiện "Hết mã" — ca
-     * test bỏ qua chính nó, mãi mãi, kể cả khi kho mã đầy.
-     */
-    const openCodes = () =>
-      box.getByLabel("Mã giới thiệu").locator("option").filter({ hasText: /còn \d+ chỗ/ });
-
-    let picked = false;
-    for (const id of bankIds) {
-      await bankSelect.selectOption(id);
-      // `waitFor` tự thử lại tới khi hết giờ; `.count()` chỉ chụp một khoảnh
-      // khắc, mà khoảnh khắc đó thường rơi vào lúc danh sách chưa về.
-      picked = await openCodes()
+        .filter({ hasText: /còn \d+ chỗ/ });
+      const ok = await open
         .first()
         .waitFor({ state: "attached", timeout: 3000 })
         .then(() => true)
         .catch(() => false);
-      if (picked) break;
+
+      if (ok) picked = bankCode;
+      else await tick.click();
     }
     test.skip(!picked, "mọi ngân hàng đều hết mã còn chỗ");
 
-    await box.getByRole("button", { name: "Tiếp tục" }).click();
+    await box.getByRole("button", { name: "Tạo tài khoản" }).click();
 
     /**
-     * Bấm "Tiếp tục" là GIỮ CHỖ MÃ và tạo bản ghi `Đang tạo` (spec §4.5), rồi
-     * hộp thoại tự chuyển sang bước 2. Nút của bước 2 hiện ra là bằng chứng bản
-     * ghi đã tạo thật — bước đó chỉ dựng được khi đã có tài khoản để hoàn tất.
+     * Bấm Tạo là GIỮ CHỖ MÃ và tạo bản ghi `Đang tạo` (spec §4.5). Hộp thoại
+     * đóng lại và người dùng về bảng ngân hàng, chỗ có mấy dòng vừa tạo — không
+     * còn bước 2 nằm trong cùng hộp thoại như bản trước.
      */
-    await expect(box.getByRole("button", { name: "Hoàn thành" })).toBeVisible();
+    await expect(box).toBeHidden();
+    await expect(page).toHaveURL(/\/banking$/);
   });
 });
 

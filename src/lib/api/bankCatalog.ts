@@ -107,7 +107,7 @@ export const BankForm = z.object({
    * qua nó với người khác — người quản một ngân hàng KHÔNG tự thêm người vào
    * ngân hàng mình quản, vì đó là đường tự nới quyền.
    */
-  managerIds: z.array(z.uuid()),
+  managerIds: z.array(z.guid()),
   /** Chữ tự do, không bắt buộc. Ngân hàng chưa có quy trình riêng thì để trống. */
   guide: z.string(),
   /**
@@ -292,7 +292,7 @@ export async function fetchOpenReferralCodes(
 /** Thêm một mã lẻ. Nhập hàng loạt từ Excel vẫn là việc riêng của P-62. */
 export const ReferralCodeForm = z.object({
   // Đi thẳng vào cột uuid — xem chú thích cùng loại ở `ServiceForm`.
-  bankId: z.uuid('Chưa chọn ngân hàng'),
+  bankId: z.guid('Chưa chọn ngân hàng'),
   code: z.string().trim().min(1, 'Chưa nhập mã'),
   total: z.int('Tổng số phải là số nguyên').min(1, 'Tổng số phải lớn hơn 0').max(INT_MAX, 'Tổng số lớn quá'),
   /**
@@ -318,7 +318,7 @@ export const ReferralCodeForm = z.object({
     .min(0, 'Độ ưu tiên phải từ 0 trở lên')
     .max(SMALLINT_MAX, 'Độ ưu tiên lớn quá'),
   scope: CodeScope,
-  departmentIds: z.array(z.uuid()),
+  departmentIds: z.array(z.guid()),
 })
   /**
    * Chọn "Phòng chỉ định" mà không tick phòng nào là mã KHÔNG AI dùng được —

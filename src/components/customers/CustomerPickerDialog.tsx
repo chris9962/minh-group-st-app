@@ -3,12 +3,14 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Plus } from "lucide-react";
+import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { CustomerFormDialog } from "@/components/customers/CustomerFormDialog";
 import { Dialog } from "@/components/ui/Dialog";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { SearchField } from "@/components/ui/SearchField";
 import { SkeletonTable, SkeletonText } from "@/components/ui/Skeleton";
+import { MAX_BANK_ACCOUNTS_PER_CUSTOMER } from "@/lib/api/bankAccounts";
 import { fetchCustomerDetail, fetchCustomerLookup, type Customer } from "@/lib/api/customers";
 import { useDebouncedValue } from "@/lib/hooks";
 import styles from "./CustomerPickerDialog.module.scss";
@@ -18,6 +20,11 @@ type Props = {
   onClose: () => void;
   /** Tiêu đề của bước chọn khách. */
   title: string;
+  /**
+   * Bật ở luồng MỞ TÀI KHOẢN NGÂN HÀNG: máy chủ bỏ khách đã đủ trần khỏi danh
+   * sách. Hai luồng còn lại — đơn bảo hiểm, dịch vụ — không có trần nào.
+   */
+  forBankAccount?: boolean;
   /**
    * Bước tiếp theo, dựng khi đã có khách — hộp thoại mở tài khoản, tạo đơn, ghi
    * dịch vụ. `back` đưa người dùng về bước chọn khách; hộp thoại bước sau gắn
@@ -40,7 +47,7 @@ type Props = {
  * Không tìm thấy khách thì tạo mới NGAY tại đây, tạo xong đi THẲNG vào bước
  * tiếp theo, không chặn lại ở một bước xác nhận trung gian.
  */
-export function CustomerPickerDialog({ open, onClose, title, children }: Props) {
+export function CustomerPickerDialog({ open, onClose, title, forBankAccount, children }: Props) {
   const [pickedId, setPickedId] = useState("");
   const [creatingCustomer, setCreatingCustomer] = useState(false);
   // Khách vừa tạo đã có sẵn đủ dữ liệu — khỏi tải lại qua `fetchCustomerDetail`
@@ -56,8 +63,8 @@ export function CustomerPickerDialog({ open, onClose, title, children }: Props) 
     refetch: refetchList,
     isFetching: listFetching,
   } = useQuery({
-    queryKey: ["customers-picker", searchQuery],
-    queryFn: () => fetchCustomerLookup(searchQuery),
+    queryKey: ["customers-picker", searchQuery, forBankAccount ?? false],
+    queryFn: () => fetchCustomerLookup(searchQuery, { forBankAccount }),
     enabled: open && !pickedId && !readyCustomer,
     placeholderData: (previous) => previous,
   });
@@ -84,7 +91,8 @@ export function CustomerPickerDialog({ open, onClose, title, children }: Props) 
   const resolvedCustomer = readyCustomer ?? detail?.customer ?? null;
   if (resolvedCustomer) return <>{children(resolvedCustomer, back)}</>;
 
-  const customers = list ?? [];
+  const customers = list?.rows ?? [];
+  const hiddenBankFull = list?.hiddenBankFull ?? 0;
 
   return (
     <>
@@ -133,11 +141,21 @@ export function CustomerPickerDialog({ open, onClose, title, children }: Props) 
               )}
               {/* `!listError` bắt buộc: tải hỏng thì `customers` cũng rỗng, và khối
                   này mời người dùng tạo hồ sơ cho một người có thể đã có — ra hồ sơ trùng. */}
-              {!listPending && !listError && customers.length === 0 && (
+              {!listPending && !listError && customers.length === 0 && hiddenBankFull === 0 && (
                 <p className="text-muted">
                   Không tìm thấy khách hàng nào khớp “{searchQuery}”. Bấm{" "}
                   <strong>Tạo KH mới</strong> để lập hồ sơ.
                 </p>
+              )}
+              {/* Nói ra số khách đã bị bỏ. Bỏ mà không nói thì người tìm không
+                  thấy ai sẽ bấm "Tạo KH mới" và lập một hồ sơ trùng — CCCD không
+                  bắt buộc nên khoá trùng CCCD không chặn được ca đó. */}
+              {!listPending && !listError && hiddenBankFull > 0 && (
+                <Alert tone="warning">
+                  {hiddenBankFull} khách khớp “{searchQuery}” đã có đủ{" "}
+                  {MAX_BANK_ACCOUNTS_PER_CUSTOMER} tài khoản ngân hàng nên không hiện ở đây. Đừng
+                  lập hồ sơ mới cho họ — mở hồ sơ khách để xem hoặc xoá bớt bản nháp.
+                </Alert>
               )}
               {customers.length > 0 && (
                 <ul className={styles.list}>

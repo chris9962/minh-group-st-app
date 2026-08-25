@@ -185,6 +185,17 @@ const COMBO_CODES = ["MB", "VPa", "MSBa", "LPB", "TPB"] as const;
 const comboBankIds = new Map(
   (await db.select({ id: banks.id, code: banks.code }).from(banks)).map((b) => [b.code, b.id]),
 );
+
+/**
+ * Mỗi tài khoản của MỘT khách phải khác ngân hàng — migration 0045 đặt khoá duy
+ * nhất `(customer_id, bank_id)`.
+ *
+ * Bộ mẫu vẫn cho một khách nhiều hơn 3 tài khoản, tức vượt trần của
+ * `startBankAccount`. Cố ý: nó chèn thẳng vào bảng chứ không đi qua đường ghi
+ * của ứng dụng, và ca sắp xếp danh sách cần một khách có nhiều dòng hơn hẳn
+ * phần còn lại mới chốt được thứ tự.
+ */
+const allBankIds = (await db.select({ id: banks.id }).from(banks)).map((b) => b.id);
 const [seedChannel] = await db.select({ id: channels.id, name: channels.name }).from(channels).limit(1);
 if (!seedBank || !seedChannel) throw new Error("Thiếu danh mục ngân hàng/kênh — chạy `bun db:seed` trước.");
 
@@ -232,12 +243,30 @@ for (const [i, c] of E2E_CUSTOMERS.entries()) {
   if (i === 0)
     await db.insert(customerPhones).values({ customerId: row.id, number: "0987654321", isPrimary: false });
 
+  /**
+   * Danh sách ngân hàng của riêng khách này, mỗi dòng một ngân hàng khác nhau.
+   *
+   * Khách đầu cầm combo thật nên ba ngân hàng đầu phải đúng hạng của thể lệ;
+   * phần còn lại lấy từ danh mục, bỏ những ngân hàng đã dùng cho combo.
+   */
+  const comboBanks =
+    i === 0 ? COMBO_CODES.slice(0, c.done).map((code) => comboBankIds.get(code)!) : [];
+  const bankIdsOfCustomer = [
+    ...comboBanks,
+    ...allBankIds.filter((id) => !comboBanks.includes(id)),
+  ];
+  if (bankIdsOfCustomer.length < c.done + c.nhap)
+    throw new Error(
+      `Danh mục chỉ có ${bankIdsOfCustomer.length} ngân hàng, không đủ cho khách ${c.ten} (${c.done + c.nhap} tài khoản) — chạy \`bun db:seed\` trước.`,
+    );
+
   for (let k = 0; k < c.done; k++) {
-    // Khách đầu cầm combo thật; các khách sau dồn về một ngân hàng nên 0 điểm.
+    // Khách đầu cầm combo thật; các khách sau mở ở những ngân hàng không thành
+    // tổ hợp nào nên ra 0 điểm.
     const comboCode = i === 0 ? COMBO_CODES[k % COMBO_CODES.length] : null;
     await db.insert(bankAccounts).values({
       customerId: row.id,
-      bankId: (comboCode && comboBankIds.get(comboCode)) || seedBank.id,
+      bankId: bankIdsOfCustomer[k],
       referralCodeId: codeId,
       status: "done",
       accountNumber: `ZZE2E${i}${k}`,
@@ -254,7 +283,7 @@ for (const [i, c] of E2E_CUSTOMERS.entries()) {
   for (let k = 0; k < c.nhap; k++)
     await db.insert(bankAccounts).values({
       customerId: row.id,
-      bankId: seedBank.id,
+      bankId: bankIdsOfCustomer[c.done + k],
       referralCodeId: codeId,
       status: "creating",
       createdBy: seedActor?.id ?? null,

@@ -22,39 +22,64 @@ import { toast } from "./toast";
  * thì đúng thứ tự trên xuống, kể cả ô không register.
  */
 export function reportInvalid(errors: FieldErrors, event?: React.BaseSyntheticEvent) {
-  const count = countInvalid(errors);
+  const messages = leafMessages(errors);
   const form = event?.target instanceof HTMLElement ? event.target : null;
 
-  // Đợi React vẽ xong `aria-invalid` rồi mới dò DOM — `handleSubmit` chạy bất
-  // đồng bộ nên lúc gọi vào đây trạng thái lỗi chưa lên màn hình.
-  requestAnimationFrame(() => {
-    const field = form?.querySelector<HTMLElement>('[aria-invalid="true"]') ?? null;
+  findInvalidField(form, (field) => {
     field?.focus({ preventScroll: true });
     field?.scrollIntoView({ block: "center" });
-    toast.fail(invalidMessage(count, labelOf(form, field)));
+    toast.fail(invalidMessage(messages, labelOf(form, field)));
   });
 }
 
-/** Đếm cả lỗi lồng trong mảng leg — `legs.2.fee` cũng tính là một ô. */
-function countInvalid(node: unknown): number {
-  if (!node || typeof node !== "object") return 0;
-  if (typeof (node as { message?: unknown }).message === "string") return 1;
-  return Object.values(node as Record<string, unknown>).reduce<number>(
-    (total, child) => total + countInvalid(child),
-    0,
-  );
+/**
+ * Dò ô sai đầu tiên, thử lại vài khung hình.
+ *
+ * `handleSubmit` gọi hàm này TRƯỚC khi đẩy lỗi sang React (xem `_subjects.state.next`
+ * ở cuối `handleSubmit` của react-hook-form), nên khung hình đầu tiên có thể
+ * chưa có `aria-invalid` nào. Một lượt `requestAnimationFrame` là đủ trong phần
+ * lớn ca, nhưng không phải mọi ca — máy bận thì lượt vẽ của React rơi sau.
+ */
+function findInvalidField(form: HTMLElement | null, done: (field: HTMLElement | null) => void) {
+  let left = 5;
+  const look = () => {
+    const field = form?.querySelector<HTMLElement>('[aria-invalid="true"]') ?? null;
+    if (field || --left <= 0) return done(field);
+    requestAnimationFrame(look);
+  };
+  requestAnimationFrame(look);
+}
+
+/** Câu lỗi của từng ô, giữ thứ tự khai trong schema. */
+function leafMessages(node: unknown): string[] {
+  if (!node || typeof node !== "object") return [];
+  const message = (node as { message?: unknown }).message;
+  if (typeof message === "string") return [message];
+  return Object.values(node as Record<string, unknown>).flatMap(leafMessages);
 }
 
 function labelOf(form: HTMLElement | null, field: HTMLElement | null): string {
   if (!form || !field?.id) return "";
-  // `useId` sinh id chứa dấu hai chấm nên phải escape mới query được.
+  // `useId` sinh id chứa ký tự lạ nên phải escape mới query được.
   const label = form.querySelector(`label[for="${CSS.escape(field.id)}"]`);
   // Nhãn còn chứa dấu * và phần dán thêm (bộ đếm ký tự) — chỉ lấy đoạn chữ đầu.
   return label?.firstChild?.textContent?.trim() ?? "";
 }
 
-function invalidMessage(count: number, label: string): string {
-  if (!label) return `Còn ${count} ô chưa hợp lệ — xem dòng chữ đỏ dưới từng ô.`;
-  if (count === 1) return `Chưa điền đúng ô “${label}”.`;
-  return `Còn ${count} ô chưa hợp lệ, bắt đầu từ ô “${label}”.`;
+/**
+ * Không tìm ra ô nào tô đỏ thì ĐỌC THẲNG câu lỗi của schema.
+ *
+ * Có ô hỏng mà không có giao diện — `customerId` của biểu mẫu mở tài khoản
+ * chẳng hạn, nó do hộp thoại trước truyền vào. Bảo người dùng "xem dòng chữ đỏ
+ * dưới từng ô" lúc đó là chỉ vào chỗ không có gì.
+ */
+function invalidMessage(messages: string[], label: string): string {
+  const count = messages.length;
+  if (label)
+    return count === 1
+      ? `Chưa điền đúng ô “${label}”.`
+      : `Còn ${count} ô chưa hợp lệ, bắt đầu từ ô “${label}”.`;
+
+  const first = messages[0] ?? "Biểu mẫu chưa hợp lệ";
+  return count <= 1 ? `${first}.` : `Còn ${count} ô chưa hợp lệ: ${first}.`;
 }

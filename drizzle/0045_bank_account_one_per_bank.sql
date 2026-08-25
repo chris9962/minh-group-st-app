@@ -1,0 +1,14 @@
+-- Một khách chỉ mở được MỘT tài khoản ở MỘT ngân hàng (chốt 2026-08-25).
+--
+-- Tính cả dòng `creating`: dòng đó đã giữ một chỗ mã giới thiệu, nên mở lần hai
+-- cùng ngân hàng là mở trùng chứ không phải mở thêm. Xoá bản nháp thì chỗ nhả
+-- ra và mở lại được.
+--
+-- ⚠️ Câu này DỪNG nếu dữ liệu đang có cặp trùng. Kiểm trước khi chạy:
+--
+--   SELECT customer_id, bank_id, count(*)
+--   FROM bank_accounts GROUP BY 1, 2 HAVING count(*) > 1;
+--
+-- Có dòng trả về thì phải quyết định giữ dòng nào rồi xoá dòng còn lại — không
+-- có cách gộp tự động, mỗi dòng mang một mã giới thiệu và một bộ ảnh riêng.
+CREATE UNIQUE INDEX "bank_accounts_customer_bank" ON "bank_accounts" USING btree ("customer_id","bank_id");

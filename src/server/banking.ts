@@ -11,12 +11,13 @@ import {
   type SQL,
   type SQLWrapper,
 } from "drizzle-orm";
-import { canEditOpeningPhotos } from "@/lib/api/bankAccounts";
+import { canEditOpeningPhotos, MAX_BANK_ACCOUNTS_PER_CUSTOMER } from "@/lib/api/bankAccounts";
 import type {
   BankAccount,
   BankAccountFinishForm,
   BankAccountStartForm,
   BankAccountUpdateForm,
+  CustomerBankSlots,
   PhotoKind,
 } from "@/lib/api/bankAccounts";
 import type { BankAccountDetail, BankAccountRow, BankAccountSort } from "@/lib/api/banking";
@@ -581,7 +582,8 @@ async function bankGuidePhotoUrls(bankId: string): Promise<string[]> {
 export type BankingOutcome<T> = { ok: true; value: T } | { ok: false; message: string };
 
 /**
- * BƯỚC 1 — giữ chỗ mã và tạo bản ghi `creating`.
+ * BƯỚC GIỮ CHỖ — giữ chỗ mã và tạo bản ghi `creating` cho 1–3 ngân hàng trong
+ * MỘT giao dịch.
  *
  * ⚠️ ĐÂY LÀ CHỖ DỄ SAI NHẤT CỦA CẢ MODULE (spec §4.5, db-design §10).
  *
@@ -594,11 +596,14 @@ export type BankingOutcome<T> = { ok: true; value: T } | { ok: false; message: s
  * mã lại: request thứ hai đứng đợi ở đó, tới lượt nó thì `holding_count` đã
  * tăng và nó thấy đúng con số mới. Ba cột đếm do trigger
  * `mgst_sync_referral_counts` giữ nên chỉ ĐỌC, không tự cộng trừ.
+ *
+ * Một lượt chạm NHIỀU dòng mã, nên thứ tự khoá thành ra quan trọng — xem chú
+ * thích ở vòng lặp bên dưới.
  */
 export async function startBankAccount(
   actor: User,
   form: BankAccountStartForm,
-): Promise<BankingOutcome<BankAccount>> {
+): Promise<BankingOutcome<BankAccount[]>> {
   const department = departmentForNewRecord(actor, "banking", form.departmentId);
   if (!department.ok) return { ok: false, message: department.message };
 
@@ -613,107 +618,195 @@ export async function startBankAccount(
     .limit(1);
   if (!customer) return { ok: false, message: "Không tìm thấy khách hàng này" };
 
-  const [bank] = await db
-    .select({ id: banks.id, active: banks.active })
+  const chosenBanks = await db
+    .select({ id: banks.id, code: banks.code, active: banks.active })
     .from(banks)
-    .where(eq(banks.id, form.bankId))
-    .limit(1);
-  if (!bank) return { ok: false, message: "Không tìm thấy ngân hàng này" };
-  if (!bank.active) return { ok: false, message: "Ngân hàng này đã ngừng triển khai" };
+    .where(inArray(banks.id, form.picks.map((p) => p.bankId)));
+
+  const bankById = new Map(chosenBanks.map((b) => [b.id, b]));
+  for (const pick of form.picks) {
+    const bank = bankById.get(pick.bankId);
+    if (!bank) return { ok: false, message: "Không tìm thấy ngân hàng này" };
+    if (!bank.active)
+      return { ok: false, message: `Ngân hàng ${bank.code} đã ngừng triển khai` };
+  }
 
   const outcome = await db.transaction(async (tx) => {
-    const [code] = await tx
-      .select({
-        id: referralCodes.id,
-        code: referralCodes.code,
-        bankId: referralCodes.bankId,
-        total: referralCodes.total,
-        importedUsed: referralCodes.importedUsed,
-        usedCount: referralCodes.usedCount,
-        holdingCount: referralCodes.holdingCount,
-        scope: referralCodes.scope,
-      })
-      .from(referralCodes)
-      .where(eq(referralCodes.id, form.referralCode))
-      .limit(1)
-      // Khoá dòng mã. Request thứ hai chạm cùng dòng này sẽ ĐỨNG ĐỢI ở đây,
-      // không đọc được con số cũ.
+    /**
+     * Khoá dòng KHÁCH trước khi đếm.
+     *
+     * Hai request mở hai ngân hàng khác nhau cho cùng một khách chạm hai dòng
+     * mã khác nhau, nên khoá mã bên dưới không xếp hàng chúng lại: cả hai cùng
+     * đếm ra 2 dòng cũ và cùng chèn dòng thứ 3, ra 4 tài khoản. Khoá dòng khách
+     * là thứ duy nhất chung cho mọi lượt mở của khách đó.
+     *
+     * Khoá khách TRƯỚC, khoá mã SAU — giữ đúng thứ tự này ở mọi đường ghi để
+     * không có hai giao dịch khoá chéo nhau.
+     */
+    await tx
+      .select({ id: customers.id })
+      .from(customers)
+      .where(eq(customers.id, form.customerId))
       .for("update");
 
-    if (!code) return { ok: false as const, message: "Không tìm thấy mã giới thiệu này" };
-    if (code.bankId !== form.bankId)
-      return { ok: false as const, message: "Mã giới thiệu này không thuộc ngân hàng đã chọn" };
+    const owned = await tx
+      .select({ bankId: bankAccounts.bankId })
+      .from(bankAccounts)
+      .where(eq(bankAccounts.customerId, form.customerId));
 
-    /**
-     * Kiểm LẠI phạm vi phòng ở đây, không tin ô chọn đã lọc (spec §4.4d).
-     *
-     * Ô chọn lọc cho gọn màn hình; đường này mới là chốt. Gọi thẳng API với một
-     * mã của phòng khác thì phải bị từ chối.
-     */
-    if (code.scope !== "all") {
-      const [allowed] = await tx
-        .select({ id: referralCodeDepartments.departmentId })
-        .from(referralCodeDepartments)
-        .where(
-          and(
-            eq(referralCodeDepartments.referralCodeId, code.id),
-            department.departmentId
-              ? eq(referralCodeDepartments.departmentId, department.departmentId)
-              : sql`false`,
-          ),
-        )
-        .limit(1);
-
-      if (!allowed)
-        return {
-          ok: false as const,
-          message: `Mã ${code.code} không dùng được cho phòng đã chọn.`,
-        };
-    }
-
-    const remaining = code.total - code.importedUsed - code.usedCount - code.holdingCount;
-    if (remaining <= 0)
+    // Kiểm trùng ngân hàng TRƯỚC kiểm trần: khách đã có đủ 3 tài khoản mà chọn
+    // lại đúng ngân hàng cũ thì câu "đã có TPB rồi" mới là câu chỉ đúng chỗ.
+    const ownedIds = new Set(owned.map((r) => r.bankId));
+    const trung = form.picks.find((p) => ownedIds.has(p.bankId));
+    if (trung)
       return {
         ok: false as const,
-        message: `Mã ${code.code} vừa hết chỗ — người khác đã lấy chỗ cuối. Chọn mã khác giúp.`,
+        message: `Khách này đã có tài khoản ${bankById.get(trung.bankId)!.code} — mỗi ngân hàng chỉ mở được một tài khoản. Bản nháp cũng tính; xoá bản nháp thì mở lại được.`,
       };
 
-    const [row] = await tx
-      .insert(bankAccounts)
-      .values({
-        customerId: form.customerId,
-        bankId: form.bankId,
-        referralCodeId: code.id,
-        status: "creating",
-        // Kênh CHÉP từ khách lúc mở — kênh thuộc về khách, không nhập lại ở đây,
-        // và chép thì đổi kênh của khách về sau không viết lại lịch sử.
-        channelId: customer.channelId,
-        channelDetail: customer.channelDetail,
-        /**
-         * Ngày mở ghi NGAY từ bước 1, không đợi bước 2.
-         *
-         * Nhân viên giữ chỗ mã rồi mới đi mở tài khoản thật ở ngoài, có thể tới
-         * hôm sau mới quay lại điền nốt. Để cột này trống tới lúc đó thì bản ghi
-         * dở dang không có mốc thời gian nào, và nó rơi xuống cuối bảng P-21 vì
-         * `nulls last` — đúng chỗ khó tìm nhất với người vừa tạo ra nó.
-         *
-         * Bước 2 vẫn sửa được ngày này. Mở tài khoản thật sang ngày khác thì
-         * nhân viên đổi lại cho khớp giấy tờ.
-         */
-        openedDate: businessDay(),
-        createdBy: actor.id,
-        // Đơn vị của người tạo lúc tạo. Người này chuyển phòng thì `writeStaff`
-        // viết lại cột này cho mọi dòng của họ (chốt 13/08). Người không thuộc
-        // phòng nào thì đây là phòng họ chọn ở biểu mẫu.
-        createdByDepartmentId: department.departmentId,
-      })
-      .returning({ id: bankAccounts.id });
+    if (owned.length + form.picks.length > MAX_BANK_ACCOUNTS_PER_CUSTOMER)
+      return {
+        ok: false as const,
+        message: `Khách này đã có ${owned.length} tài khoản ngân hàng, chọn thêm ${form.picks.length} là vượt trần ${MAX_BANK_ACCOUNTS_PER_CUSTOMER}.`,
+      };
 
-    return { ok: true as const, id: row.id };
+    const ids: string[] = [];
+    /**
+     * Khoá các dòng mã theo THỨ TỰ ID TĂNG DẦN, không theo thứ tự người dùng
+     * tích. Hai lượt mở cùng chạm hai mã `A` và `B` mà một lượt khoá A→B còn
+     * lượt kia khoá B→A thì hai giao dịch chờ nhau và Postgres phải huỷ một bên.
+     *
+     * Cả lượt nằm trong MỘT giao dịch: một mã hết chỗ thì không dòng nào được
+     * ghi. Ghi được hai dòng rồi dừng ở dòng thứ ba là để lại một lượt mở dở
+     * mà người dùng không hề chọn.
+     */
+    for (const pick of [...form.picks].sort((a, b) => a.referralCode.localeCompare(b.referralCode))) {
+      const [code] = await tx
+        .select({
+          id: referralCodes.id,
+          code: referralCodes.code,
+          bankId: referralCodes.bankId,
+          total: referralCodes.total,
+          importedUsed: referralCodes.importedUsed,
+          usedCount: referralCodes.usedCount,
+          holdingCount: referralCodes.holdingCount,
+          scope: referralCodes.scope,
+        })
+        .from(referralCodes)
+        .where(eq(referralCodes.id, pick.referralCode))
+        .limit(1)
+        // Khoá dòng mã. Request thứ hai chạm cùng dòng này sẽ ĐỨNG ĐỢI ở đây,
+        // không đọc được con số cũ.
+        .for("update");
+
+      if (!code) return { ok: false as const, message: "Không tìm thấy mã giới thiệu này" };
+      if (code.bankId !== pick.bankId)
+        return { ok: false as const, message: "Mã giới thiệu này không thuộc ngân hàng đã chọn" };
+
+      /**
+       * Kiểm LẠI phạm vi phòng ở đây, không tin ô chọn đã lọc (spec §4.4d).
+       *
+       * Ô chọn lọc cho gọn màn hình; đường này mới là chốt. Gọi thẳng API với một
+       * mã của phòng khác thì phải bị từ chối.
+       */
+      if (code.scope !== "all") {
+        const [allowed] = await tx
+          .select({ id: referralCodeDepartments.departmentId })
+          .from(referralCodeDepartments)
+          .where(
+            and(
+              eq(referralCodeDepartments.referralCodeId, code.id),
+              department.departmentId
+                ? eq(referralCodeDepartments.departmentId, department.departmentId)
+                : sql`false`,
+            ),
+          )
+          .limit(1);
+
+        if (!allowed)
+          return {
+            ok: false as const,
+            message: `Mã ${code.code} không dùng được cho phòng đã chọn.`,
+          };
+      }
+
+      const remaining = code.total - code.importedUsed - code.usedCount - code.holdingCount;
+      if (remaining <= 0)
+        return {
+          ok: false as const,
+          message: `Mã ${code.code} vừa hết chỗ — người khác đã lấy chỗ cuối. Chọn mã khác giúp.`,
+        };
+
+      const [row] = await tx
+        .insert(bankAccounts)
+        .values({
+          customerId: form.customerId,
+          bankId: pick.bankId,
+          referralCodeId: code.id,
+          status: "creating",
+          // Kênh CHÉP từ khách lúc mở — kênh thuộc về khách, không nhập lại ở đây,
+          // và chép thì đổi kênh của khách về sau không viết lại lịch sử.
+          channelId: customer.channelId,
+          channelDetail: customer.channelDetail,
+          /**
+           * Ngày mở ghi NGAY từ bước giữ chỗ, không đợi bước điền nốt.
+           *
+           * Nhân viên giữ chỗ mã rồi mới đi mở tài khoản thật ở ngoài, có thể tới
+           * hôm sau mới quay lại điền nốt. Để cột này trống tới lúc đó thì bản ghi
+           * dở dang không có mốc thời gian nào, và nó rơi xuống cuối bảng P-21 vì
+           * `nulls last` — đúng chỗ khó tìm nhất với người vừa tạo ra nó.
+           *
+           * Bước điền nốt vẫn sửa được ngày này. Mở tài khoản thật sang ngày khác
+           * thì nhân viên đổi lại cho khớp giấy tờ.
+           */
+          openedDate: businessDay(),
+          createdBy: actor.id,
+          // Đơn vị của người tạo lúc tạo. Người này chuyển phòng thì `writeStaff`
+          // viết lại cột này cho mọi dòng của họ (chốt 13/08). Người không thuộc
+          // phòng nào thì đây là phòng họ chọn ở biểu mẫu.
+          createdByDepartmentId: department.departmentId,
+        })
+        .returning({ id: bankAccounts.id });
+
+      ids.push(row.id);
+    }
+
+    return { ok: true as const, ids };
   });
 
   if (!outcome.ok) return { ok: false, message: outcome.message };
-  return { ok: true, value: (await accountById(outcome.id))! };
+
+  const created = await Promise.all(outcome.ids.map((id) => accountById(id)));
+  // Trả lại ĐÚNG thứ tự người dùng tích, không phải thứ tự khoá dòng mã.
+  const byBank = new Map(created.filter((a) => a !== null).map((a) => [a.bankId, a]));
+  return { ok: true, value: form.picks.map((p) => byBank.get(p.bankId)!).filter(Boolean) };
+}
+
+/**
+ * Chỗ mở tài khoản còn lại của một khách — bước 1 P-20 đọc để lọc ô chọn ngân
+ * hàng, thay vì để người dùng chọn xong mã rồi mới bị từ chối.
+ *
+ * KHÔNG áp phạm vi phòng. Trần áp cho khách, nên phải đếm cả tài khoản do phòng
+ * khác mở; lọc theo phạm vi ở đây là báo còn chỗ trong khi máy chủ sẽ từ chối.
+ * Đường này chỉ trả về id ngân hàng và một con số, không lộ bản ghi nào.
+ */
+export async function customerBankSlots(customerId: string): Promise<CustomerBankSlots | null> {
+  const [customer] = await db
+    .select({ id: customers.id })
+    .from(customers)
+    .where(eq(customers.id, customerId))
+    .limit(1);
+  if (!customer) return null;
+
+  const rows = await db
+    .select({ bankId: bankAccounts.bankId })
+    .from(bankAccounts)
+    .where(eq(bankAccounts.customerId, customerId));
+
+  return {
+    usedBankIds: rows.map((r) => r.bankId),
+    remaining: Math.max(0, MAX_BANK_ACCOUNTS_PER_CUSTOMER - rows.length),
+  };
 }
 
 /**

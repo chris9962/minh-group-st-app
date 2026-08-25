@@ -163,11 +163,11 @@ export const StaffForm = z.object({
    * Bắt dạng uuid ngay ở đây: để lọt chuỗi bậy xuống Postgres là `22P02`, mà
    * tầng dưới chỉ bắt `23505` nên client nhận 500 thay vì 400.
    */
-  departmentId: z.union([z.literal(''), z.uuid()]),
+  departmentId: z.union([z.literal(''), z.guid()]),
   role: RoleKey,
   title: z.string().trim().min(2, 'Chưa nhập chức danh'),
   manageScope: ManageScope,
-  managedDepartmentIds: z.array(z.uuid()),
+  managedDepartmentIds: z.array(z.guid()),
   /*
     KHÔNG có `bankScope` lẫn `managedBankIds` ở đây (chốt 2026-08-24).
 

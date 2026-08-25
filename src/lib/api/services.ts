@@ -124,8 +124,8 @@ export const ServiceForm = z.object({
   // `z.uuid` chứ không phải `z.string`: hai id này đi thẳng vào cột uuid, nên
   // chuỗi sai dạng qua được tầng kiểm thì Postgres từ chối bằng `22P02` và cả
   // màn trả 500. Dừng ở đây thì ra 400, đúng loại lỗi.
-  customerId: z.uuid('Chưa chọn khách'),
-  serviceTypeId: z.uuid('Chưa chọn loại dịch vụ'),
+  customerId: z.guid('Chưa chọn khách'),
+  serviceTypeId: z.guid('Chưa chọn loại dịch vụ'),
   date: serviceDate,
   note: z.string().trim(),
   /**

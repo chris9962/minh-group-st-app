@@ -2,36 +2,30 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
-import { CheckCircle2, Trash2 } from "lucide-react";
+import { Alert } from "@/components/ui/Alert";
 import { BackButton } from "@/components/ui/BackButton";
 import { Button } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { Dialog } from "@/components/ui/Dialog";
 import { DepartmentPicker } from "@/components/layout/DepartmentPicker";
 import { Select } from "@/components/ui/Select";
-import { fetchBanks, fetchOpenReferralCodes } from "@/lib/api/bankCatalog";
+import { fetchBanks, fetchOpenReferralCodes, type Bank } from "@/lib/api/bankCatalog";
 import {
-  BankAccountFinishForm,
   BankAccountStartForm,
-  deleteBankAccount,
-  finishBankAccount,
-  setBankAccountPhotos,
+  fetchCustomerBankSlots,
+  MAX_BANK_ACCOUNTS_PER_CUSTOMER,
   startBankAccount,
-  type BankAccount,
+  type BankAccountPick,
 } from "@/lib/api/bankAccounts";
-import { BankAccountFinishFields } from "./BankAccountFinishFields";
-import {
-  photosChanged,
-  savedPhotos,
-  uploadPendingPhotos,
-  type PhotoItem,
-} from "./BankAccountPhotos";
 import styles from "./BankAccountFormDialog.module.scss";
-import { businessDay } from "@/lib/format";
 import { invalidateKpi } from "@/lib/invalidateKpi";
 import { errorMessage, toast } from "@/lib/toast";
 import { reportInvalid } from "@/lib/formErrors";
+
+const BANKING_PATH = "/banking";
 
 type Props = {
   open: boolean;
@@ -39,121 +33,86 @@ type Props = {
   customerId: string;
   /**
    * Có khi hộp thoại này là bước 2 của `CustomerPickerDialog`. Không có khi mở
-   * thẳng từ hồ sơ khách (P-40, P-42) — ở đó khách đã cố định, không có bước
-   * nào để quay về.
+   * thẳng từ bảng khách (P-40) hay hồ sơ khách (P-42) — ở đó khách đã cố định.
    */
   onBack?: () => void;
 };
 
-const emptyStartForm = (customerId: string): BankAccountStartForm => ({
-  customerId,
-  bankId: "",
-  referralCode: "",
-  departmentId: "",
-});
-
-const emptyFinishForm: BankAccountFinishForm = {
-  accountNumber: "",
-  openedDate: "",
-  appInstalled: true,
-  accountType: "none",
-  note: "",
-};
-
 /**
- * P-20 · Mở tài khoản ngân hàng cho khách — hai bước trong CÙNG một hộp
- * thoại (spec §4.2, §4.5): bước 1 chọn ngân hàng + mã, giữ chỗ ngay; bấm
- * "Tiếp tục" xong hộp thoại tự chuyển sang bước 2 (điền STK/ngày mở/ảnh) mà
- * không phải rời màn hình. Nút của cả hai bước đều nằm ở footer hộp thoại,
- * giống mọi hộp thoại khác trong app — không đặt nút hành động trong thân.
- * Đóng ở bước 2 mà chưa hoàn thành thì tài khoản vẫn ở trạng thái `creating`
- * — quay lại tiếp tục sau qua nút "Tiếp tục" trên hồ sơ khách hoặc P-22.
+ * P-20 · Giữ chỗ mã giới thiệu cho 1–3 ngân hàng trong MỘT lượt bấm.
+ *
+ * Mỗi ngân hàng tích chọn sinh một dòng `creating` ở bảng P-21. Số tài khoản,
+ * ngày mở và ảnh chứng minh KHÔNG hỏi ở đây: chúng riêng cho từng dòng, và nhân
+ * viên chỉ điền được sau khi đã mở tài khoản thật ở ngoài — ba lượt đó cách nhau
+ * hàng giờ, có khi sang ngày hôm sau. Điền nốt ở nút "Hoàn tất tài khoản" của
+ * từng dòng (P-21) hoặc màn P-22.
+ *
+ * Đổi lại, mở MỘT tài khoản tốn thêm một lượt bấm so với bản trước — bản đó gộp
+ * luôn bước điền nốt vào cùng hộp thoại.
  */
-export function BankAccountFormDialog({
-  open,
-  onClose,
-  customerId,
-  onBack,
-}: Props) {
+export function BankAccountFormDialog({ open, onClose, customerId, onBack }: Props) {
   const queryClient = useQueryClient();
-  const [account, setAccount] = useState<BankAccount | null>(null);
-  const [photos, setPhotos] = useState<PhotoItem[]>([]);
+  const router = useRouter();
+  const pathname = usePathname();
 
   const { data: banks = [] } = useQuery({ queryKey: ["banks"], queryFn: fetchBanks });
   const activeBanks = banks.filter((b) => b.active);
 
-  /* ── Bước 1 ── */
-  const startForm = useForm<BankAccountStartForm>({
+  /**
+   * Trần tài khoản của khách (chốt 2026-08-25): mỗi ngân hàng một tài khoản, và
+   * tối đa ba tài khoản. Máy chủ mới là chỗ chặn — đọc ở đây để tắt ô tích thay
+   * vì để người dùng chọn xong mã rồi mới bị từ chối.
+   */
+  const { data: slots } = useQuery({
+    queryKey: ["customer-bank-slots", customerId],
+    queryFn: () => fetchCustomerBankSlots(customerId),
+    enabled: open && Boolean(customerId),
+  });
+  const usedBankIds = new Set(slots?.usedBankIds ?? []);
+  const remaining = slots?.remaining ?? MAX_BANK_ACCOUNTS_PER_CUSTOMER;
+
+  const {
+    watch,
+    setValue,
+    getValues,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<BankAccountStartForm>({
     // Focus ô sai do `reportInvalid` lo — xem `lib/formErrors.ts`.
     shouldFocusError: false,
     resolver: zodResolver(BankAccountStartForm),
-    defaultValues: emptyStartForm(customerId),
+    defaultValues: { customerId, picks: [], departmentId: "" },
   });
 
-  const bankId = startForm.watch("bankId");
-  const selectedBank = activeBanks.find((b) => b.id === bankId);
+  const picks = watch("picks");
+  const departmentId = watch("departmentId");
 
   /**
-   * Máy chủ đã lọc "còn chỗ" và lọc theo phạm vi phòng — không lọc lại ở đây
-   * (AGENTS.md §5.1).
+   * Đọc `picks` bằng `getValues`, KHÔNG dùng biến `picks` của lượt render này.
    *
-   * `departmentId` chỉ có giá trị với người không thuộc phòng nào; máy chủ bỏ
-   * qua nó với người có phòng và dùng phòng thật của họ. Nó nằm trong khoá
-   * cache vì đổi phòng là đổi danh sách mã (spec §4.4d).
+   * Hai dòng ngân hàng cùng gợi ý mã trong CÙNG một lượt vẽ — hai effect chạy
+   * nối nhau, mà cả hai đều đóng gói cùng một mảng `picks` cũ. Ghi theo mảng cũ
+   * thì lượt sau xoá mất mã lượt trước vừa đặt. `getValues` đọc trạng thái sống
+   * của biểu mẫu nên lượt sau thấy được lượt trước.
    */
-  const departmentId = startForm.watch("departmentId");
-  const { data: availableCodes = [] } = useQuery({
-    queryKey: ["referral-codes", "open", bankId, departmentId],
-    queryFn: () => fetchOpenReferralCodes(bankId, departmentId),
-    enabled: Boolean(bankId),
-  });
+  const writePicks = (next: (current: BankAccountPick[]) => BankAccountPick[]) =>
+    setValue("picks", next(getValues("picks")), { shouldDirty: true, shouldValidate: true });
 
-  // Gợi ý sẵn mã đầu tiên còn chỗ khi đổi ngân hàng — `codes` tải xong SAU khi
-  // bankId đổi (query bất đồng bộ) nên phải tách riêng effect này, khoá theo
-  // cả `availableCodes.length` chứ không chỉ `bankId`.
-  useEffect(() => {
-    if (!bankId) return;
-    startForm.setValue("referralCode", availableCodes[0]?.id ?? "", { shouldDirty: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bankId, departmentId, availableCodes.length]);
+  const toggleBank = (bankId: string, checked: boolean) =>
+    writePicks((current) =>
+      checked
+        ? [...current, { bankId, referralCode: "" }]
+        : current.filter((p) => p.bankId !== bankId),
+    );
 
-  /* ── Bước 2 ── */
-  const finishForm = useForm<BankAccountFinishForm>({
-    // Focus ô sai do `reportInvalid` lo — xem `lib/formErrors.ts`.
-    shouldFocusError: false,
-    resolver: zodResolver(BankAccountFinishForm),
-    defaultValues: emptyFinishForm,
-  });
-  const requiredPhotos = selectedBank?.requiredPhotos ?? 0;
-  const enoughPhotos = photos.length >= requiredPhotos;
+  const setCode = (bankId: string, referralCode: string) =>
+    writePicks((current) =>
+      current.map((p) => (p.bankId === bankId ? { ...p, referralCode } : p)),
+    );
 
-  const start = useMutation({
+  const create = useMutation({
     mutationFn: (form: BankAccountStartForm) => startBankAccount(form),
     onSuccess: (created) => {
-      setAccount(created);
-      setPhotos(savedPhotos(created.photoUrls));
-      finishForm.reset({
-      /**
-       * Ngân hàng lấy số tài khoản theo SĐT thì điền sẵn SỐ CHÍNH — phần lớn
-       * khách mở bằng số đó. Nhân viên đổi sang số phụ ngay trong ô chọn nếu
-       * khách dùng số khác. `customerPhones[0]` là số chính, máy chủ đã sắp.
-       *
-       * Chỉ điền khi bản ghi CHƯA có số: tài khoản đang sửa mang số thật rồi
-       * thì đè lên là ghi lại hợp đồng theo dữ liệu suy đoán.
-       */
-        accountNumber:
-          created.accountNumber ||
-          (selectedBank?.accountNumberMethod === "phone-match"
-            ? (created.customerPhones[0] ?? "")
-            : ""),
-        openedDate: created.openedDate || businessDay(),
-        appInstalled: true,
-        accountType: "none",
-        note: created.note,
-      });
-      // Bước 1 đã sinh ra một dòng `Đang tạo` thật trong bảng P-21, nên bảng đó
-      // phải tải lại ngay — không đợi tới lúc Hoàn thành. Thiếu dòng này thì
-      // người dùng đóng hộp thoại giữa chừng và không thấy bản ghi dở dang đâu.
       queryClient.invalidateQueries({ queryKey: ["bank-account-list"] });
       queryClient.invalidateQueries({ queryKey: ["customers"] });
       queryClient.invalidateQueries({ queryKey: ["customer", customerId] });
@@ -161,184 +120,241 @@ export function BankAccountFormDialog({
       // Ô lọc "Mã giới thiệu" ở P-21 và màn Xuất dữ liệu đọc key này — giữ chỗ
       // xong là số chỗ còn lại của mã đã đổi.
       queryClient.invalidateQueries({ queryKey: ["referral-code-options"] });
-      toast.ok("Đã giữ chỗ mã giới thiệu — điền nốt để hoàn tất tài khoản");
-    },
-    onError: (e) => toast.fail(errorMessage(e, "Không mở được tài khoản này.")),
-  });
-
-  // Hoàn thành/xoá đều đổi số "đang giữ · đã dùng" của mã — invalidate để hộp
-  // thoại "Mở ngân hàng" không hiện số cũ tới khi hết 30s staleTime mặc định.
-  const invalidateAfterFinishOrDelete = () => {
-    queryClient.invalidateQueries({ queryKey: ["bank-account-list"] });
-    queryClient.invalidateQueries({ queryKey: ["customers"] });
-    queryClient.invalidateQueries({ queryKey: ["referral-codes"] });
-    queryClient.invalidateQueries({ queryKey: ["referral-code-options"] });
-    queryClient.invalidateQueries({ queryKey: ["customer", customerId] });
-    invalidateKpi(queryClient);
-  };
-
-  const finish = useMutation({
-    // Ảnh đi trước, bản ghi đi sau: máy chủ đếm ảnh ngay trong giao dịch hoàn
-    // thành, nên phải ghi xong danh sách URL rồi mới gọi đường hoàn thành.
-    mutationFn: async (form: BankAccountFinishForm) => {
-      const id = account?.id ?? "";
-      if (photosChanged(photos, account?.photoUrls ?? []))
-        await setBankAccountPhotos(id, await uploadPendingPhotos(photos));
-      return finishBankAccount(id, form);
-    },
-    onSuccess: () => {
-      invalidateAfterFinishOrDelete();
+      queryClient.invalidateQueries({ queryKey: ["customer-bank-slots", customerId] });
+      invalidateKpi(queryClient);
       onClose();
-      toast.ok("Đã hoàn tất tài khoản ngân hàng");
+
+      const codes = created.map((a) => a.bankCode).join(", ");
+      toast.ok(
+        created.length === 1
+          ? `Đã giữ chỗ tài khoản ${codes} — bấm Hoàn tất ở dòng đó để điền nốt`
+          : `Đã giữ chỗ ${created.length} tài khoản: ${codes} — điền nốt từng dòng`,
+      );
+
+      /**
+       * Đưa người dùng tới chỗ có mấy dòng vừa tạo.
+       *
+       * Không chuyển trang khi đã đứng ở đó: `push` lên chính trang hiện tại đẩy
+       * thêm một mục vào lịch sử trình duyệt, và nút Quay lại của điện thoại
+       * phải bấm hai lần mới rời đi.
+       */
+      if (pathname !== BANKING_PATH) router.push(BANKING_PATH);
     },
-    onError: (e) => toast.fail(errorMessage(e, "Không hoàn tất được tài khoản này.")),
+    onError: (e) => toast.fail(errorMessage(e, "Không mở được tài khoản nào.")),
   });
 
-  const remove = useMutation({
-    mutationFn: () => deleteBankAccount(account?.id ?? ""),
-    onSuccess: () => {
-      invalidateAfterFinishOrDelete();
-      onClose();
-      toast.ok("Đã xoá tài khoản đang tạo dở, mã giới thiệu được nhả lại");
-    },
-    onError: (e) => toast.fail(errorMessage(e, "Không xoá được tài khoản này.")),
-  });
+  const noSlotLeft = slots ? remaining <= 0 : false;
+  const selectableBanks = activeBanks.filter((b) => !usedBankIds.has(b.id));
+  const noBankLeft = slots ? selectableBanks.length === 0 : false;
+  const blocked = noSlotLeft || noBankLeft;
 
   return (
     <Dialog
       open={open}
       onClose={onClose}
-      title={account ? "Hoàn tất tài khoản" : "Mở tài khoản ngân hàng"}
-      footerStart={
-        // Chỉ ở bước MỞ tài khoản. Sang bước hoàn tất thì bản ghi đã nằm trong
-        // database, quay về chọn khách khác là bỏ lại một tài khoản dở dang.
-        !account && onBack ? <BackButton onClick={onBack}>Chọn khách khác</BackButton> : null
-      }
+      title="Mở tài khoản ngân hàng"
+      footerStart={onBack && <BackButton onClick={onBack}>Chọn khách khác</BackButton>}
       footer={
-        account ? (
-          <>
-            <Button variant="secondary" onClick={onClose}>
-              Để sau
-            </Button>
-            <Button variant="secondary" disabled={remove.isPending} onClick={() => remove.mutate()}>
-              <Trash2 size={16} />
-              Xoá
-            </Button>
-            <Button
-              type="submit"
-              form="finish-account-form"
-              disabled={finishForm.formState.isSubmitting || finish.isPending || !enoughPhotos}
-            >
-              <CheckCircle2 size={16} />
-              Hoàn thành
-            </Button>
-          </>
-        ) : (
-          <>
-            <Button variant="secondary" onClick={onClose}>
-              Huỷ
-            </Button>
-            <Button
-              type="submit"
-              form="bank-account-form"
-              disabled={startForm.formState.isSubmitting || start.isPending}
-            >
-              Tiếp tục
-            </Button>
-          </>
-        )
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            Huỷ
+          </Button>
+          <Button
+            type="submit"
+            form="bank-account-form"
+            disabled={isSubmitting || create.isPending || blocked || picks.length === 0}
+          >
+            {picks.length > 1 ? `Tạo ${picks.length} tài khoản` : "Tạo tài khoản"}
+          </Button>
+        </>
       }
     >
-      {account ? (
-        <div className={styles.form}>
-          <div className={styles.summary}>
-            <strong>{account.bankCode}</strong> · {account.referralCode} · {account.customerName}
-            {account.channel && (
-              <span className="text-muted">
-                {" "}
-                — {account.channel}
-                {account.channelDetail ? ` · ${account.channelDetail}` : ""}
-              </span>
-            )}
-          </div>
-
-
-          <BankAccountFinishFields
-            formId="finish-account-form"
-            onSubmit={finishForm.handleSubmit((form) => finish.mutate(form), reportInvalid)}
-            register={finishForm.register}
-            errors={finishForm.formState.errors}
-            watch={finishForm.watch}
-            setValue={finishForm.setValue}
-            bankCode={account.bankCode}
-            accountNumberMethod={selectedBank?.accountNumberMethod ?? "manual"}
-            customerPhones={account?.customerPhones ?? []}
-            referralOpenUrl={account?.referralOpenUrl ?? ""}
-            referralQrUrl={account?.referralQrUrl ?? ""}
-            // Lấy thẳng từ ngân hàng đang chọn — danh sách ngân hàng đã nạp sẵn
-            // ở màn này, khỏi thêm một trường nữa vào bản ghi tài khoản.
-            bankGuide={selectedBank?.guide ?? ""}
-            bankGuidePhotoUrls={selectedBank?.guidePhotoUrls ?? []}
-            photos={photos}
-            requiredPhotos={requiredPhotos}
-            onPhotosChange={setPhotos}
-            busy={finish.isPending}
-          />
-          {!enoughPhotos && (
-            <p className="text-muted">Cần đủ {requiredPhotos} ảnh chứng minh mới hoàn thành được.</p>
-          )}
-        </div>
+      {blocked ? (
+        /*
+         * Hết chỗ thì hộp thoại chỉ còn câu giải thích — không dựng danh sách
+         * ngân hàng đã tắt hết ô tích dưới một dòng báo lỗi.
+         *
+         * P-21 đã bỏ khách đủ trần khỏi ô tìm, nên đường tới đây là hai nút
+         * "Mở ngân hàng" ở P-40 và P-42, chỗ khách đã cố định sẵn.
+         */
+        <Alert tone="error">
+          {noSlotLeft
+            ? `Khách này đã có đủ ${MAX_BANK_ACCOUNTS_PER_CUSTOMER} tài khoản ngân hàng, không mở thêm được. Bản nháp cũng tính — xoá một bản nháp thì mở thêm được một tài khoản.`
+            : "Khách này đã mở tài khoản ở tất cả ngân hàng đang triển khai."}
+        </Alert>
       ) : (
         <form
           id="bank-account-form"
           className={styles.form}
-          onSubmit={startForm.handleSubmit((form) => start.mutate(form), reportInvalid)}
+          onSubmit={handleSubmit((form) => create.mutate(form), reportInvalid)}
           noValidate
         >
-
           <DepartmentPicker
             module="banking"
-            value={startForm.watch("departmentId")}
-            onChange={(v) => startForm.setValue("departmentId", v, { shouldDirty: true })}
+            value={departmentId}
+            /**
+             * Đổi phòng là đổi danh sách mã dùng được (spec §4.4d). Mã đã chọn
+             * theo phòng cũ có thể không còn dùng được cho phòng mới, mà máy chủ
+             * chỉ từ chối lúc lưu. Xoá hết mã đã chọn để từng dòng gợi ý lại.
+             */
+            onChange={(v) => {
+              setValue("departmentId", v, { shouldDirty: true });
+              writePicks((current) => current.map((p) => ({ ...p, referralCode: "" })));
+            }}
           />
 
-          <Select
-            block
-            label="Ngân hàng"
-            required
-            value={bankId}
-            error={startForm.formState.errors.bankId?.message}
-            onChange={(v) => startForm.setValue("bankId", v, { shouldDirty: true })}
-            options={[
-              { value: "", label: "— Chọn ngân hàng —" },
-              ...activeBanks.map((b) => ({ value: b.id, label: b.code })),
-            ]}
-          />
+          <div className={styles.pickHead}>
+            <span id="bank-pick-label" className={styles.pickTitle}>
+              Chọn ngân hàng
+            </span>
+            <span className={styles.pickCount}>
+              Đã chọn {picks.length}/{remaining}
+            </span>
+          </div>
 
-          {bankId && (
-            <>
-              <Select
-                block
-                label="Mã giới thiệu"
-                required
-                value={startForm.watch("referralCode")}
-                error={startForm.formState.errors.referralCode?.message}
-                onChange={(v) => startForm.setValue("referralCode", v, { shouldDirty: true })}
-                options={
-                  availableCodes.length === 0
-                    ? [{ value: "", label: "— Hết mã —" }]
-                    : availableCodes.map((c) => ({
-                        value: c.id,
-                        // Trừ cả `holding`: tài khoản người khác đang mở dở đã
-                        // chiếm chỗ rồi, không trừ là hứa thừa.
-                        label: `${c.code} · còn ${c.total - c.used - c.holding} chỗ`,
-                      }))
-                }
+          {/*
+            `role="group"` chứ không phải danh sách trơn: trình đọc màn hình phải
+            đọc được "Ngân hàng mở lần này" một lần rồi mới tới từng ô tích, chứ
+            không đọc mười ba ô tích rời rạc không rõ thuộc về câu hỏi nào.
+          */}
+          <div className={styles.pickList} role="group" aria-labelledby="bank-pick-label">
+            {selectableBanks.map((bank) => (
+              <BankPickRow
+                key={bank.id}
+                bank={bank}
+                departmentId={departmentId}
+                pick={picks.find((p) => p.bankId === bank.id)}
+                full={picks.length >= remaining}
+                onToggle={(checked) => toggleBank(bank.id, checked)}
+                onCodeChange={(code) => setCode(bank.id, code)}
               />
-            </>
+            ))}
+          </div>
+
+          {/* Ngân hàng khách đã có bị ẩn hẳn khỏi danh sách. Nói ra số bị ẩn,
+              không thì người dùng tìm không thấy và tưởng danh mục lỗi. */}
+          {usedBankIds.size > 0 && (
+            <p className="text-muted">
+              Đã ẩn {usedBankIds.size} ngân hàng khách có tài khoản rồi — mỗi ngân hàng chỉ mở
+              được một tài khoản.
+            </p>
           )}
+
+          {/* Lỗi mức DANH SÁCH — chưa tích ngân hàng nào, hoặc tích quá trần.
+              Không ô tích nào mang được câu này nên nó đứng riêng ở đây. */}
+          {errors.picks?.message && (
+            <span className={styles.pickError} role="alert">
+              {errors.picks.message}
+            </span>
+          )}
+
+          <p className="text-muted">
+            Lưu là giữ chỗ mã ngay. Số tài khoản, ngày mở và ảnh chứng minh điền sau, ở từng dòng
+            trong bảng.
+          </p>
         </form>
       )}
     </Dialog>
+  );
+}
+
+type RowProps = {
+  bank: Bank;
+  departmentId: string;
+  /** Có giá trị nghĩa là ngân hàng này đang được tích. */
+  pick: BankAccountPick | undefined;
+  /** Đã tích đủ số tài khoản khách mở thêm được. */
+  full: boolean;
+  onToggle: (checked: boolean) => void;
+  onCodeChange: (referralCode: string) => void;
+};
+
+/**
+ * Một dòng ngân hàng: ô tích, và ô chọn mã hiện ra khi tích.
+ *
+ * Tách thành component riêng vì mỗi ngân hàng cần MỘT truy vấn mã của riêng nó —
+ * gọi `useQuery` trong vòng lặp ở component cha là gọi hook có điều kiện.
+ */
+function BankPickRow({
+  bank,
+  departmentId,
+  pick,
+  full,
+  onToggle,
+  onCodeChange,
+}: RowProps) {
+  const checked = pick !== undefined;
+
+  /**
+   * Máy chủ đã lọc "còn chỗ" và lọc theo phạm vi phòng — không lọc lại ở đây
+   * (AGENTS.md §5.1).
+   *
+   * `departmentId` chỉ có giá trị với người không thuộc phòng nào; máy chủ bỏ
+   * qua nó với người có phòng và dùng phòng thật của họ. Nó nằm trong khoá cache
+   * vì đổi phòng là đổi danh sách mã (spec §4.4d).
+   */
+  const { data: codes = [], isPending } = useQuery({
+    queryKey: ["referral-codes", "open", bank.id, departmentId],
+    queryFn: () => fetchOpenReferralCodes(bank.id, departmentId),
+    enabled: checked,
+  });
+
+  /**
+   * Gợi ý sẵn mã đầu còn chỗ. Đây là ĐỒNG BỘ dữ liệu ngoài vào biểu mẫu, không
+   * phải giá trị suy ra được: danh sách mã về sau qua mạng, còn lúc người dùng
+   * tích thì chưa có gì để chọn.
+   *
+   * Chỉ ghi khi ô đang RỖNG — đè lên lựa chọn của người dùng mỗi lần danh sách
+   * tải lại là họ chọn mã khác rồi thấy nó tự nhảy về mã đầu.
+   */
+  const suggested = codes[0]?.id ?? "";
+  useEffect(() => {
+    if (checked && !pick.referralCode && suggested) onCodeChange(suggested);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [checked, pick?.referralCode, suggested]);
+
+  /**
+   * Tích đủ số tài khoản rồi thì các dòng CÒN LẠI khoá, không kèm chữ giải
+   * thích: dòng "Đã chọn 1/1" ở ngay trên đã nói vì sao, viết thêm ở từng dòng
+   * là lặp lại cùng một câu mười ba lần.
+   *
+   * Dòng đang tích thì KHÔNG khoá. Khoá cả nó thì bỏ tích không được nữa —
+   * khách mở thêm được đúng một tài khoản, tích một ngân hàng là mọi dòng khoá
+   * lại, không cách nào đổi sang ngân hàng khác.
+   */
+  const locked = !checked && full;
+
+  return (
+    <div className={styles.pickRow}>
+      <Checkbox
+        block
+        checked={checked}
+        disabled={locked}
+        onCheckedChange={onToggle}
+        label={<strong className={styles.pickLabel}>{bank.code}</strong>}
+      />
+
+      {checked && (
+        <div className={styles.pickCode}>
+          <Select
+            block
+            label={`Mã giới thiệu · ${bank.code}`}
+            required
+            value={pick.referralCode}
+            onChange={onCodeChange}
+            options={
+              codes.length === 0
+                ? [{ value: "", label: isPending ? "— Đang tải mã —" : "— Hết mã —" }]
+                : codes.map((c) => ({
+                    value: c.id,
+                    // Trừ cả `holding`: tài khoản người khác đang mở dở đã chiếm
+                    // chỗ rồi, không trừ là hứa thừa.
+                    label: `${c.code} · còn ${c.total - c.used - c.holding} chỗ`,
+                  }))
+            }
+          />
+        </div>
+      )}
+    </div>
   );
 }

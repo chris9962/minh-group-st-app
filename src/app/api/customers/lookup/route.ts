@@ -22,6 +22,14 @@ export async function GET(request: Request) {
   const guard = await signedIn(request);
   if (!guard.ok) return guard.response;
 
-  const search = new URL(request.url).searchParams.get("search") ?? "";
-  return Response.json(await lookupCustomers(search));
+  const params = new URL(request.url).searchParams;
+  const search = params.get("search") ?? "";
+  /**
+   * `for=bank-account` bỏ khách đã đủ trần tài khoản khỏi danh sách, và trả kèm
+   * số khách bị bỏ. Lọc ở máy chủ chứ không ở trình duyệt (AGENTS.md §5.1): số
+   * dòng trả về đã cắt ở 15, lọc sau khi cắt là danh sách trống trong khi kho
+   * vẫn còn người chọn được.
+   */
+  const forBankAccount = params.get("for") === "bank-account";
+  return Response.json(await lookupCustomers(search, { forBankAccount }));
 }

@@ -21,6 +21,7 @@ export function CreateBankAccountDialog({ open, onClose }: Props) {
       open={open}
       onClose={onClose}
       title="Tạo tài khoản ngân hàng — chọn khách hàng"
+      forBankAccount
     >
       {(customer, back) => (
         <BankAccountFormDialog

@@ -81,20 +81,80 @@ export const BankAccount = z.object({
 });
 export type BankAccount = z.infer<typeof BankAccount>;
 
-/** Bước 1 (P-20) — chỉ chọn ngân hàng + mã. Lưu là giữ chỗ mã ngay, tạo dòng `creating`. */
-export const BankAccountStartForm = z.object({
-  // Bắt dạng uuid ngay ở đây: để lọt chuỗi bậy xuống Postgres là `22P02`, mà
-  // tầng dưới chỉ bắt lỗi trùng khoá nên client nhận 500 thay vì 400.
-  customerId: z.uuid('Chưa chọn khách'),
-  bankId: z.uuid('Chưa chọn ngân hàng'),
-  referralCode: z.uuid('Chưa chọn mã giới thiệu'),
-  /**
-   * Phòng ghi nhận bản ghi này. Chỉ người KHÔNG thuộc phòng nào mới phải chọn —
-   * người có phòng thì máy chủ dùng phòng của họ và bỏ qua giá trị này.
-   */
-  departmentId: z.string(),
+/** Trần số tài khoản ngân hàng của MỘT khách (chốt 2026-08-25). */
+export const MAX_BANK_ACCOUNTS_PER_CUSTOMER = 3;
+
+/**
+ * MỘT ngân hàng khách chọn mở, kèm mã giữ chỗ cho nó.
+ *
+ * `guid` chứ KHÔNG phải `uuid`: `z.uuid()` bắt đúng chuẩn RFC 9562, tức soi hai
+ * ô version và variant. Postgres không soi hai ô đó, và `isUuid` ở
+ * `server/auth.ts` cũng không — nên id do database chấp nhận lại bị biểu mẫu
+ * từ chối.
+ *
+ * Không phải ca giả định: `scripts/db-load-t8.sql` sinh id bằng
+ * `md5('t8:' || stt)::uuid`, và 33.023 trong 37.791 hồ sơ khách rơi ra ngoài
+ * chuẩn RFC. Chọn một khách như vậy rồi bấm Tạo thì biểu mẫu báo thiếu ô mà
+ * không ô nào tô đỏ — ô hỏng là `customerId`, vốn không có giao diện.
+ */
+export const BankAccountPick = z.object({
+  bankId: z.guid('Chưa chọn ngân hàng'),
+  referralCode: z.guid('Chưa chọn mã giới thiệu'),
 });
+export type BankAccountPick = z.infer<typeof BankAccountPick>;
+
+/**
+ * Bước GIỮ CHỖ (P-20) — chọn 1–3 ngân hàng trong MỘT lượt, mỗi ngân hàng một mã.
+ *
+ * Một lượt lưu sinh bấy nhiêu dòng `creating`. Điền nốt số tài khoản, ngày mở và
+ * ảnh là việc riêng của TỪNG dòng, làm ở bảng P-21 hoặc màn P-22 — không nhét ba
+ * bộ ô đó vào cùng hộp thoại này, vì nhân viên vẫn phải mở app ngân hàng thật ba
+ * lần và ba lượt đó cách nhau hàng giờ.
+ */
+export const BankAccountStartForm = z
+  .object({
+    customerId: z.guid('Chưa chọn khách'),
+    picks: z
+      .array(BankAccountPick)
+      .min(1, 'Chưa chọn ngân hàng nào')
+      .max(
+        MAX_BANK_ACCOUNTS_PER_CUSTOMER,
+        `Một khách mở tối đa ${MAX_BANK_ACCOUNTS_PER_CUSTOMER} tài khoản`,
+      ),
+    /**
+     * Phòng ghi nhận bản ghi này. Chỉ người KHÔNG thuộc phòng nào mới phải chọn —
+     * người có phòng thì máy chủ dùng phòng của họ và bỏ qua giá trị này.
+     */
+    departmentId: z.string(),
+  })
+  // Giao diện không cho tích một ngân hàng hai lần, nhưng đây là chỗ chốt: khoá
+  // duy nhất `(customer_id, bank_id)` sẽ từ chối, và lỗi khoá đọc ra như 500.
+  .refine((form) => new Set(form.picks.map((p) => p.bankId)).size === form.picks.length, {
+    message: 'Một ngân hàng chỉ chọn được một lần',
+    path: ['picks'],
+  });
 export type BankAccountStartForm = z.infer<typeof BankAccountStartForm>;
+
+/**
+ * Chỗ mở tài khoản còn lại của một khách — dùng để lọc ô chọn ngân hàng ở bước
+ * 1 P-20, trước khi người dùng mất công chọn mã rồi mới bị máy chủ từ chối.
+ *
+ * Đếm trên TOÀN BỘ tài khoản của khách, kể cả dòng ngoài phạm vi người xem và
+ * kể cả dòng `creating`: trần áp cho KHÁCH, không áp cho người đang xem. Hồ sơ
+ * khách (P-42) đã tính quà theo cùng lối đó (spec §4.4).
+ */
+export const CustomerBankSlots = z.object({
+  usedBankIds: z.array(z.string()),
+  /** Số tài khoản còn mở thêm được, 0 là đã đủ trần. */
+  remaining: z.number(),
+});
+export type CustomerBankSlots = z.infer<typeof CustomerBankSlots>;
+
+export async function fetchCustomerBankSlots(customerId: string): Promise<CustomerBankSlots> {
+  const res = await fetch(`/api/customers/${customerId}/bank-slots`);
+  if (!res.ok) throw await failure(res, 'Không đọc được số tài khoản của khách này');
+  return CustomerBankSlots.parse(await res.json());
+}
 
 /** Bước 2 (P-22, khi tài khoản đang `creating`) — điền nốt sau khi đã mở xong ở ngoài. */
 export const BankAccountFinishForm = z.object({
@@ -159,14 +219,14 @@ async function failure(res: Response, fallback: string): Promise<Error> {
  * lỗi "hết chỗ" NGAY tại đây, không phải đợi tới bước 2 mới biết đã mất công
  * đi mở tài khoản (spec §4.5).
  */
-export async function startBankAccount(form: BankAccountStartForm): Promise<BankAccount> {
+export async function startBankAccount(form: BankAccountStartForm): Promise<BankAccount[]> {
   const res = await fetch('/api/bank-accounts', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(form),
   });
   if (!res.ok) throw await failure(res, 'Không giữ được chỗ mã này');
-  return BankAccount.parse(await res.json());
+  return z.array(BankAccount).parse(await res.json());
 }
 
 /** Bước 2 — điền nốt + đủ ảnh mới cho hoàn thành; lúc này mã mới thật sự bị tiêu. */
