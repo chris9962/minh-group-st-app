@@ -1,0 +1,14 @@
+-- Đổi mã ngân hàng LienVietPostBank từ `LBP` sang `LPB` (chốt 2026-08-25).
+--
+-- `LPB` là mã đúng, chủ dự án xác nhận. `LBP` là lỗi đảo hai chữ cái từ lần seed
+-- đầu, và câu 7.1 của `mgst-the-le/2026-08.md` chép lại đúng lỗi đó nên không ai
+-- phát hiện. Cả hai file Excel của Kế toán đều ghi `LPB`.
+--
+-- ⚠️ Đây KHÔNG phải sửa cho gọn. `bestComboOf` trong `src/rules/2026-08.ts` lọc
+-- `code in TIER_OF` và bỏ mã lạ mà không báo gì. Ngày nào có người lập ngân hàng
+-- mới đúng mã `LPB` theo file Kế toán, mọi tài khoản của ngân hàng đó rơi khỏi
+-- tổ hợp và ra 0 điểm — không lỗi, không cảnh báo, chỉ thấy điểm thấp.
+--
+-- `bank_accounts` trỏ tới `banks.id` chứ không trỏ tới `code`, nên đổi mã không
+-- đụng tới tài khoản nào. `referral_codes` và `user_managed_banks` cũng vậy.
+UPDATE "banks" SET "code" = 'LPB', "updated_at" = now() WHERE "code" = 'LBP';

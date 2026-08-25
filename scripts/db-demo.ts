@@ -258,7 +258,7 @@ const CUSTOMERS: DemoCustomer[] = [
     name: "Trần Thị Bích",
     case: "TH4",
     owner: "demo_kd1_a",
-    accounts: [{ bank: "MB" }, { bank: "MSBa" }, { bank: "LBP" }],
+    accounts: [{ bank: "MB" }, { bank: "MSBa" }, { bank: "LPB" }],
     insurance: 1,
   },
   {
@@ -267,7 +267,7 @@ const CUSTOMERS: DemoCustomer[] = [
     case: "TH5",
     owner: "demo_kd1_b",
     channel: "KENH-BENH-VIEN",
-    accounts: [{ bank: "MB" }, { bank: "VPa" }, { bank: "LBP" }],
+    accounts: [{ bank: "MB" }, { bank: "VPa" }, { bank: "LPB" }],
     services: 2,
   },
   {
@@ -275,7 +275,7 @@ const CUSTOMERS: DemoCustomer[] = [
     name: "Phạm Thị Dung",
     case: "TH6",
     owner: "demo_kd1_b",
-    accounts: [{ bank: "LBP" }, { bank: "TPB" }, { bank: "VIB" }],
+    accounts: [{ bank: "LPB" }, { bank: "TPB" }, { bank: "VIB" }],
   },
   {
     // TH1 · combo 2 có VPa · 0,7đ · rổ 20k
@@ -305,21 +305,21 @@ const CUSTOMERS: DemoCustomer[] = [
     name: "Bùi Thị Lan",
     case: "TH2",
     owner: "demo_kd2_b",
-    accounts: [{ bank: "MB" }, { bank: "VPa", app: false }, { bank: "LBP" }],
+    accounts: [{ bank: "MB" }, { bank: "VPa", app: false }, { bank: "LPB" }],
   },
   {
     // TH1 · VPa kèm CNKD nên rổ có Loa và Mica
     name: "Ngô Văn Nam",
     case: "TH1",
     owner: "demo_kd1_a",
-    accounts: [{ bank: "MB" }, { bank: "VPa", type: "CNKD" }, { bank: "LBP" }],
+    accounts: [{ bank: "MB" }, { bank: "VPa", type: "CNKD" }, { bank: "LPB" }],
   },
   {
     // TH6 · Phòng Y quy đổi sang nón và mì
     name: "Đặng Thị Oanh",
     case: "TH6",
     owner: "demo_y_a",
-    accounts: [{ bank: "LBP" }, { bank: "TPB" }, { bank: "VIB" }],
+    accounts: [{ bank: "LPB" }, { bank: "TPB" }, { bank: "VIB" }],
   },
   {
     // Không đủ điều kiện · mở lẻ 1 tài khoản

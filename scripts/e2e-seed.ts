@@ -181,7 +181,7 @@ const [seedBank] = await db.select({ id: banks.id }).from(banks).limit(1);
  * hàng khác nhau nên họ ra 0 điểm — không ca nào đo được công thức. Khách đầu
  * cầm ba mã khác hạng nhau thì `staff.spec` chốt được đúng một con số.
  */
-const COMBO_CODES = ["MB", "VPa", "MSBa", "LBP", "TPB"] as const;
+const COMBO_CODES = ["MB", "VPa", "MSBa", "LPB", "TPB"] as const;
 const comboBankIds = new Map(
   (await db.select({ id: banks.id, code: banks.code }).from(banks)).map((b) => [b.code, b.id]),
 );

@@ -74,38 +74,38 @@ const points = (
 
 section("Bảng điểm Combo 3 (7 dòng)");
 check("03 ưu tiên", comboPointsFor(["MB", "VPa", "MSBa"]), 1.2);
-check("02 ưu tiên + 01 khác", comboPointsFor(["MB", "VPa", "LBP"]), 1.0);
+check("02 ưu tiên + 01 khác", comboPointsFor(["MB", "VPa", "LPB"]), 1.0);
 check("02 ưu tiên + 01 hạn chế", comboPointsFor(["MB", "VPa", "VPb"]), 0.9);
-check("01 ưu tiên + 02 khác", comboPointsFor(["MB", "LBP", "TPB"]), 0.8);
-check("01 ưu tiên + 01 khác + 01 hạn chế", comboPointsFor(["MB", "LBP", "VPb"]), 0.7);
-check("03 khác", comboPointsFor(["LBP", "TPB", "VIB"]), 0.7);
-check("02 khác + 01 hạn chế", comboPointsFor(["LBP", "TPB", "VPb"]), 0.5);
+check("01 ưu tiên + 02 khác", comboPointsFor(["MB", "LPB", "TPB"]), 0.8);
+check("01 ưu tiên + 01 khác + 01 hạn chế", comboPointsFor(["MB", "LPB", "VPb"]), 0.7);
+check("03 khác", comboPointsFor(["LPB", "TPB", "VIB"]), 0.7);
+check("02 khác + 01 hạn chế", comboPointsFor(["LPB", "TPB", "VPb"]), 0.5);
 
 section("Bảng điểm Combo 2 (3 dòng)");
 check("02 ưu tiên", comboPointsFor(["MB", "VPa"]), 0.7);
-check("01 ưu tiên + 01 khác", comboPointsFor(["MB", "LBP"]), 0.5);
+check("01 ưu tiên + 01 khác", comboPointsFor(["MB", "LPB"]), 0.5);
 check("02 khác", comboPointsFor(["MSBb", "BIDV"]), 0.4);
 
 section("Thứ tự nhập không đổi điểm");
 check("VPa trước MB", comboPointsFor(["VPa", "MB"]), 0.7);
-check("hạn chế đứng đầu", comboPointsFor(["VPb", "TPB", "LBP"]), 0.5);
-check("khác đứng giữa hai ưu tiên", comboPointsFor(["LBP", "MB", "VPa"]), 1.0);
+check("hạn chế đứng đầu", comboPointsFor(["VPb", "TPB", "LPB"]), 0.5);
+check("khác đứng giữa hai ưu tiên", comboPointsFor(["LPB", "MB", "VPa"]), 1.0);
 
 /* ── Mục 4 lưu ý 1 · Combo 2 không triển khai B4a và B2b ────────────── */
 
 section("Lưu ý 1 — MSBa và VPb không vào Combo 2");
 check("MB + MSBa", comboPointsFor(["MB", "MSBa"]), 0);
 check("MB + VPb", comboPointsFor(["MB", "VPb"]), 0);
-check("LBP + VPb", comboPointsFor(["LBP", "VPb"]), 0);
+check("LPB + VPb", comboPointsFor(["LPB", "VPb"]), 0);
 check("MSBa + VPb", comboPointsFor(["MSBa", "VPb"]), 0);
-check("MSBa vẫn vào được Combo 3", comboPointsFor(["MSBa", "LBP", "TPB"]), 0.8);
+check("MSBa vẫn vào được Combo 3", comboPointsFor(["MSBa", "LPB", "TPB"]), 0.8);
 
 /* ── Câu 7.3 · mở lẻ thì không có điểm ──────────────────────────────── */
 
 section("Không đủ combo");
 check("không tài khoản nào", comboPointsFor([]), 0);
 check("một tài khoản ưu tiên", comboPointsFor(["MB"]), 0);
-check("một tài khoản khác", comboPointsFor(["LBP"]), 0);
+check("một tài khoản khác", comboPointsFor(["LPB"]), 0);
 
 /* ── Câu 7.2 · ngân hàng ngoài thể lệ ───────────────────────────────── */
 
@@ -243,16 +243,16 @@ check(
 section("Trùng mã ngân hàng");
 check("MB + MB", comboPointsFor(["MB", "MB"]), 0);
 check("MB + MB + VPa", comboPointsFor(["MB", "MB", "VPa"]), 0.7);
-check("MB + VPa + VPa + LBP", comboPointsFor(["MB", "VPa", "VPa", "LBP"]), 1.0);
+check("MB + VPa + VPa + LPB", comboPointsFor(["MB", "VPa", "VPa", "LPB"]), 1.0);
 
 /* ── Câu 7.4 · từ 4 tài khoản thì lấy tổ hợp 3 cao điểm nhất ────────── */
 
 section("Dư tài khoản — lấy tổ hợp tốt nhất");
 check("MB·VPa·MSBa·VPb", comboPointsFor(["MB", "VPa", "MSBa", "VPb"]), 1.2);
-check("MB·VPa·VPb·LBP bỏ VPb", comboPointsFor(["MB", "VPa", "VPb", "LBP"]), 1.0);
-check("LBP·TPB·VIB·VPb bỏ VPb", comboPointsFor(["LBP", "TPB", "VIB", "VPb"]), 0.7);
-check("năm tài khoản", comboPointsFor(["MB", "VPa", "MSBa", "LBP", "VPb"]), 1.2);
-check("trần mỗi khách là 1.2", comboPointsFor(["MB", "VPa", "MSBa", "LBP", "TPB", "VIB"]), 1.2);
+check("MB·VPa·VPb·LPB bỏ VPb", comboPointsFor(["MB", "VPa", "VPb", "LPB"]), 1.0);
+check("LPB·TPB·VIB·VPb bỏ VPb", comboPointsFor(["LPB", "TPB", "VIB", "VPb"]), 0.7);
+check("năm tài khoản", comboPointsFor(["MB", "VPa", "MSBa", "LPB", "VPb"]), 1.2);
+check("trần mỗi khách là 1.2", comboPointsFor(["MB", "VPa", "MSBa", "LPB", "TPB", "VIB"]), 1.2);
 
 /* ── Câu 7.8 · chỉ VPa và MSBa mới đòi cài app ──────────────────────── */
 
@@ -269,13 +269,13 @@ check(
   points([
     account("kh1", "MB"),
     account("kh1", "VPa", { app: false }),
-    account("kh1", "LBP"),
+    account("kh1", "LPB"),
   ]),
   1.0,
 );
 check(
   "VPa đã cài → cùng một điểm",
-  points([account("kh1", "MB"), account("kh1", "VPa"), account("kh1", "LBP")]),
+  points([account("kh1", "MB"), account("kh1", "VPa"), account("kh1", "LPB")]),
   1.0,
 );
 check(
@@ -283,15 +283,15 @@ check(
   points([
     account("kh1", "MB"),
     account("kh1", "MSBa", { app: false }),
-    account("kh1", "LBP"),
+    account("kh1", "LPB"),
   ]),
   1.0,
 );
 check(
-  "LBP chưa cài vẫn tính",
+  "LPB chưa cài vẫn tính",
   points([
     account("kh1", "MB"),
-    account("kh1", "LBP", { app: false }),
+    account("kh1", "LPB", { app: false }),
     account("kh1", "TPB", { app: false }),
   ]),
   0.8,
@@ -315,14 +315,14 @@ check(
   1.2,
 );
 /**
- * Dòng 2 của `TÍNH ĐIỂM TỔNG T8.xlsx` — `VO VAN CHIEN`. Mở VPa + LBP + MSBa,
+ * Dòng 2 của `TÍNH ĐIỂM TỔNG T8.xlsx` — `VO VAN CHIEN`. Mở VPa + LPB + MSBa,
  * chỉ cài app VPa, có CNKD. File ghi tổng 2,0 điểm.
  */
 check(
   "dòng thật VO VAN CHIEN — khớp cột TỔNG ĐIỂM của file",
   points([
     account("kh1", "VPa", { household: "CNKD" }),
-    account("kh1", "LBP"),
+    account("kh1", "LPB"),
     account("kh1", "MSBa", { app: false }),
   ]),
   2.0,
@@ -337,14 +337,14 @@ check(
     account("kh1", "MB"),
     account("kh1", "VPa"),
     account("kh1", "MSBa"),
-    account("kh2", "LBP"),
+    account("kh2", "LPB"),
     account("kh2", "TPB"),
   ]),
   1.6,
 );
 check(
   "mỗi khách một tài khoản thì không ai có combo",
-  points([account("kh1", "MB"), account("kh2", "VPa"), account("kh3", "LBP")]),
+  points([account("kh1", "MB"), account("kh2", "VPa"), account("kh3", "LPB")]),
   0,
 );
 check(
@@ -367,7 +367,7 @@ check(
   points([
     account("kh1", "MB", { date: "2026-07-31" }),
     account("kh1", "VPa"),
-    account("kh1", "LBP"),
+    account("kh1", "LPB"),
   ]),
   0.5,
 );
@@ -427,7 +427,7 @@ check(
     account("kh1", "MB"),
     account("kh1", "VPa"),
     account("kh2", "MB"),
-    account("kh2", "LBP"),
+    account("kh2", "LPB"),
     account("kh3", "MSBb"),
     account("kh3", "BIDV"),
   ]),
@@ -464,39 +464,39 @@ const BH_2N = ["BH-COMBO-1N", "BH-2N-XEMAY", "BH-2N-DIEN-100K", "BH-1N-DIEN-200K
 
 section("Bậc thang TH1 → TH6 (6 dòng)");
 check("TH1 · Combo 2 có VPa", giftOf(["MB", "VPa"]).caseCode, "TH1");
-check("TH2 · Combo 2 không VPa", giftOf(["MB", "LBP"]).caseCode, "TH2");
+check("TH2 · Combo 2 không VPa", giftOf(["MB", "LPB"]).caseCode, "TH2");
 check("TH3 · Combo 3 có cả MSBa và VPa", giftOf(["MB", "VPa", "MSBa"]).caseCode, "TH3");
-check("TH4 · Combo 3 chỉ có MSBa", giftOf(["MB", "MSBa", "LBP"]).caseCode, "TH4");
-check("TH5 · Combo 3 chỉ có VPa", giftOf(["MB", "VPa", "LBP"]).caseCode, "TH5");
-check("TH6 · Combo 3 không có cả hai", giftOf(["LBP", "TPB", "VIB"]).caseCode, "TH6");
+check("TH4 · Combo 3 chỉ có MSBa", giftOf(["MB", "MSBa", "LPB"]).caseCode, "TH4");
+check("TH5 · Combo 3 chỉ có VPa", giftOf(["MB", "VPa", "LPB"]).caseCode, "TH5");
+check("TH6 · Combo 3 không có cả hai", giftOf(["LPB", "TPB", "VIB"]).caseCode, "TH6");
 
 section("Số năm bảo hiểm theo từng trường hợp");
 check("TH1 · 1 năm", giftOf(["MB", "VPa"]).insuranceYears, 1);
-check("TH2 · 1 năm", giftOf(["MB", "LBP"]).insuranceYears, 1);
+check("TH2 · 1 năm", giftOf(["MB", "LPB"]).insuranceYears, 1);
 check("TH3 · 1 năm", giftOf(["MB", "VPa", "MSBa"]).insuranceYears, 1);
-check("TH4 · 1 năm", giftOf(["MB", "MSBa", "LBP"]).insuranceYears, 1);
-check("TH5 · 2 năm", giftOf(["MB", "VPa", "LBP"]).insuranceYears, 2);
-check("TH6 · 2 năm", giftOf(["LBP", "TPB", "VIB"]).insuranceYears, 2);
+check("TH4 · 1 năm", giftOf(["MB", "MSBa", "LPB"]).insuranceYears, 1);
+check("TH5 · 2 năm", giftOf(["MB", "VPa", "LPB"]).insuranceYears, 2);
+check("TH6 · 2 năm", giftOf(["LPB", "TPB", "VIB"]).insuranceYears, 2);
 
 section("Tiền mặt");
 check("TH1 · 20k", giftOf(["MB", "VPa"]).cashTotal, 20_000);
-check("TH2 · không tiền", giftOf(["MB", "LBP"]).cashTotal, 0);
+check("TH2 · không tiền", giftOf(["MB", "LPB"]).cashTotal, 0);
 check("TH3 · 70k", giftOf(["MB", "VPa", "MSBa"]).cashTotal, 70_000);
-check("TH4 · 50k", giftOf(["MB", "MSBa", "LBP"]).cashTotal, 50_000);
-check("TH5 · 20k", giftOf(["MB", "VPa", "LBP"]).cashTotal, 20_000);
-check("TH6 · không tiền", giftOf(["LBP", "TPB", "VIB"]).cashTotal, 0);
+check("TH4 · 50k", giftOf(["MB", "MSBa", "LPB"]).cashTotal, 50_000);
+check("TH5 · 20k", giftOf(["MB", "VPa", "LPB"]).cashTotal, 20_000);
+check("TH6 · không tiền", giftOf(["LPB", "TPB", "VIB"]).cashTotal, 0);
 checkCodes(
   "TH3 · 70k chia hai ngân hàng",
   giftOf(["MB", "VPa", "MSBa"]).cash.map((c) => `${c.bankCode}:${c.amount}`),
   ["VPa:20000", "MSBa:50000"],
 );
 check("VPa chi trong 3 ngày", giftOf(["MB", "VPa"]).cash[0].withinDays, 3);
-check("MSBa chi trong 10 ngày", giftOf(["MB", "MSBa", "LBP"]).cash[0].withinDays, 10);
+check("MSBa chi trong 10 ngày", giftOf(["MB", "MSBa", "LPB"]).cash[0].withinDays, 10);
 
 section("Bậc thang KHỚP DÒNG ĐẦU THÌ DỪNG, không cộng dồn");
 check("TH3 không lấy thêm 2 năm của TH5", giftOf(["MB", "VPa", "MSBa"]).insuranceYears, 1);
 check("TH3 chỉ có đúng hai khoản tiền", giftOf(["MB", "VPa", "MSBa"]).cash.length, 2);
-check("TH4 không kèm 20k của VPa", giftOf(["MB", "MSBa", "LBP"]).cashTotal, 50_000);
+check("TH4 không kèm 20k của VPa", giftOf(["MB", "MSBa", "LPB"]).cashTotal, 50_000);
 
 section("Không đủ combo thì không có quà");
 check("không tài khoản nào", giftOf([]).caseCode, null);
@@ -508,20 +508,20 @@ check("MB + VPb không thành Combo 2", giftOf(["MB", "VPb"]).caseCode, null);
 check("vẫn giải thích được vì sao", giftOf(["MB"]).explain.length > 0, true);
 
 section("Điều kiện cài app cũng áp cho quà");
-check("VPa chưa cài → tụt xuống TH2", giftOf(["MB", "VPa!", "LBP"]).caseCode, "TH2");
-check("VPa chưa cài → mất 20k", giftOf(["MB", "VPa!", "LBP"]).cashTotal, 0);
+check("VPa chưa cài → tụt xuống TH2", giftOf(["MB", "VPa!", "LPB"]).caseCode, "TH2");
+check("VPa chưa cài → mất 20k", giftOf(["MB", "VPa!", "LPB"]).cashTotal, 0);
 check("MSBa chưa cài → còn 2 ngân hàng, tụt xuống TH1", giftOf(["MB", "VPa", "MSBa!"]).caseCode, "TH1");
 check("MSBa chưa cài → 2 năm tụt còn 1 năm", giftOf(["MB", "VPa", "MSBa!"]).insuranceYears, 1);
 check("MSBa chưa cài → mất 50k", giftOf(["MB", "VPa", "MSBa!"]).cashTotal, 20_000);
-check("MSBa chưa cài, đủ 3 ngân hàng khác → TH5", giftOf(["MB", "VPa", "LBP", "MSBa!"]).caseCode, "TH5");
-check("LBP chưa cài vẫn tính", giftOf(["MB", "VPa", "LBP!"]).caseCode, "TH5");
+check("MSBa chưa cài, đủ 3 ngân hàng khác → TH5", giftOf(["MB", "VPa", "LPB", "MSBa!"]).caseCode, "TH5");
+check("LPB chưa cài vẫn tính", giftOf(["MB", "VPa", "LPB!"]).caseCode, "TH5");
 
 section("Rổ bảo hiểm");
 checkCodes("1 năm · hai gói", giftOf(["MB", "VPa"]).basket.map((b) => b.code), BH_1N);
-checkCodes("2 năm · bốn gói", giftOf(["MB", "VPa", "LBP"]).basket.map((b) => b.code), BH_2N);
+checkCodes("2 năm · bốn gói", giftOf(["MB", "VPa", "LPB"]).basket.map((b) => b.code), BH_2N);
 check(
   "mọi món của mức bảo hiểm đều là gói bảo hiểm",
-  giftOf(["MB", "VPa", "LBP"]).basket.every((b) => b.kind === "insurance-package"),
+  giftOf(["MB", "VPa", "LPB"]).basket.every((b) => b.kind === "insurance-package"),
   true,
 );
 
@@ -538,7 +538,7 @@ checkCodes(
 );
 checkCodes(
   "có CNKD nhưng không có VPa thì không thêm",
-  giftOf(["MB", "LBP", "CNKD"]).basket.map((b) => b.code),
+  giftOf(["MB", "LPB", "CNKD"]).basket.map((b) => b.code),
   BH_1N,
 );
 checkCodes(
@@ -561,22 +561,22 @@ check("CNKD không tự thành combo", giftOf(["MB", "CNKD", "HKD"]).caseCode, n
 section("Món thêm — Phòng Y, phòng Dự án, kênh Bệnh viện (lưu ý 2)");
 checkCodes(
   "TH5 ở Phòng Y",
-  giftOf(["MB", "VPa", "LBP"], { department: "PHONG-Y" }).basket.map((b) => b.code),
+  giftOf(["MB", "VPa", "LPB"], { department: "PHONG-Y" }).basket.map((b) => b.code),
   [...BH_2N, "QUA-MI", "QUA-BH-SUC-KHOE", "QUA-NON-BH"],
 );
 checkCodes(
   "TH6 ở kênh Bệnh viện",
-  giftOf(["LBP", "TPB", "VIB"], { channels: ["KENH-BENH-VIEN"] }).basket.map((b) => b.code),
+  giftOf(["LPB", "TPB", "VIB"], { channels: ["KENH-BENH-VIEN"] }).basket.map((b) => b.code),
   [...BH_2N, "QUA-MI", "QUA-BH-SUC-KHOE", "QUA-NON-BH"],
 );
 checkCodes(
   "TH5 ở phòng Dự án",
-  giftOf(["MB", "VPa", "LBP"], { department: "PHONG-DU-AN" }).basket.map((b) => b.code),
+  giftOf(["MB", "VPa", "LPB"], { department: "PHONG-DU-AN" }).basket.map((b) => b.code),
   [...BH_2N, "QUA-MI", "QUA-BH-SUC-KHOE", "QUA-NON-BH"],
 );
 checkCodes(
   "vừa Phòng Y vừa kênh Bệnh viện thì món không nhân đôi",
-  giftOf(["LBP", "TPB", "VIB"], { channels: ["KENH-BENH-VIEN"], department: "PHONG-Y" }).basket.map(
+  giftOf(["LPB", "TPB", "VIB"], { channels: ["KENH-BENH-VIEN"], department: "PHONG-Y" }).basket.map(
     (b) => b.code,
   ),
   [...BH_2N, "QUA-MI", "QUA-BH-SUC-KHOE", "QUA-NON-BH"],
@@ -593,7 +593,7 @@ checkCodes(
 );
 checkCodes(
   "TH5 ở phòng khác, kênh khác thì không được quy đổi",
-  giftOf(["MB", "VPa", "LBP"], { department: "KD-1", channels: ["KENH-ATM"] }).basket.map(
+  giftOf(["MB", "VPa", "LPB"], { department: "KD-1", channels: ["KENH-ATM"] }).basket.map(
     (b) => b.code,
   ),
   BH_2N,

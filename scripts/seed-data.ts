@@ -189,7 +189,7 @@ export const BANKS = [
   { code: "MB", requiredPhotos: 3, accountNumberMethod: "phone-match", coefficient: "1", countsAsApp: true },
   { code: "VPa", requiredPhotos: 3, accountNumberMethod: "phone-match", coefficient: "1", countsAsApp: true },
   { code: "VPb", requiredPhotos: 3, accountNumberMethod: "phone-match", coefficient: "1.4", countsAsApp: true },
-  { code: "LBP", requiredPhotos: 3, accountNumberMethod: "phone-match", coefficient: "1", countsAsApp: true },
+  { code: "LPB", requiredPhotos: 3, accountNumberMethod: "phone-match", coefficient: "1", countsAsApp: true },
   { code: "MSBa", requiredPhotos: 3, accountNumberMethod: "manual", coefficient: "1", countsAsApp: true },
   { code: "MSBb", requiredPhotos: 3, accountNumberMethod: "manual", coefficient: "1", countsAsApp: true },
   { code: "TCB", requiredPhotos: 3, accountNumberMethod: "phone-match", coefficient: "1", countsAsApp: true },

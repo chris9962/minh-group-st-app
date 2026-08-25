@@ -41,7 +41,7 @@ const TIER_OF: Record<string, Tier> = {
   MB: "priority",
   VPa: "priority",
   MSBa: "priority",
-  LBP: "other",
+  LPB: "other",
   MSBb: "other",
   BIDV: "other",
   TPB: "other",

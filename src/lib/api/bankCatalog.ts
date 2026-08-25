@@ -6,7 +6,7 @@ import { pageOf, pageParams, type Page, type PageQuery } from './pagination';
  * P-60 · Kho ngân hàng · P-61 · Kho mã giới thiệu (mgst-feature-list.md §4.6).
  *
  * Danh sách ngân hàng là DANH SÁCH PHẲNG thật, không phải danh mục tự do:
- * `MB · VPa · VPb · LBP · MSBa · MSBb · TCB · BIDV · TPB · VIB · SHB` + `CNKD`
+ * `MB · VPa · VPb · LPB · MSBa · MSBb · TCB · BIDV · TPB · VIB · SHB` + `CNKD`
  * · `HKD` (mgst-platform-spec.md §2.6, dòng 466-468). VPa/VPb và MSBa/MSBb
  * cùng một nhà băng ngoài đời nhưng khác mã giới thiệu, khác hệ số điểm,
  * khác chính sách — bốn ngân hàng riêng biệt, không gộp cha–con.
