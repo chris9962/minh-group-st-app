@@ -93,7 +93,15 @@ export async function exportExcel<T>({
   const stacked = columns.some((c) => c.group || c.total);
   const headerRow = stacked ? 3 : 1;
 
-  ws.columns = columns.map((c) => ({ key: c.header, width: c.width ?? 18 }));
+  /**
+   * KHÔNG đặt `key` cho cột.
+   *
+   * ExcelJS lập chỉ mục cột theo `key`, và báo cáo Tính điểm tổng có mười một
+   * tên cột lặp lại — `MB`, `VPa`, `LPB`… xuất hiện ở cả khối mở tài khoản lẫn
+   * khối app cài. Đặt `key: header` thì cột sau ghi đè định nghĩa của cột trùng
+   * tên đứng trước, và độ rộng chạy sang nhầm cột.
+   */
+  ws.columns = columns.map((c) => ({ width: c.width ?? 18 }));
 
   /**
    * Định dạng mức CỘT phải đặt TRƯỚC khi dựng đầu bảng.
