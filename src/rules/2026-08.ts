@@ -191,7 +191,7 @@ export function bankingPoints(accounts: ScoringAccount[], granted: GrantedGifts)
   let tenths = 0;
   for (const [customerId, rows] of byCustomer) {
     const combo = bestComboOf(rows.map((a) => a.bankCode));
-    tenths += combo.tenths + householdTenths(rows, combo, granted.get(customerId) ?? null);
+    tenths += combo.tenths + householdTenths(rows, granted.get(customerId) ?? null);
   }
   return tenths / 10;
 }
@@ -209,15 +209,27 @@ const comboCodesOf = (accounts: ScoringAccount[]): ScoringAccount[] =>
 /**
  * Điểm CNKD, ghi bằng ĐƠN VỊ 1/10 ĐIỂM như bảng combo.
  *
- * `HKD` cố ý vắng mặt — nó được 0 điểm. Đo trên `TÍNH ĐIỂM TỔNG T8.xlsx`: cả 39
- * dòng HKD đều 0, còn 5.925/5.940 dòng CNKD khớp ba mức dưới đây.
+ * Mức chọn theo SỐ NGÂN HÀNG khách mở, KHÔNG theo tổ hợp thắng. Đọc thẳng từ
+ * công thức ô `AT` của `TÍNH ĐIỂM TỔNG T8.xlsx`:
+ *
+ *     =IF(AND(T="CNKD", AN=1), 1.5, IF(T="CNKD", 1, "0"))
+ *
+ * `AN` là `=I+J+K+L+M+N+O+P+Q+R`, tức đếm khối MỞ TÀI KHOẢN của 10 mã ngân
+ * hàng. Cột `T` giữ CNKD/HKD và không nằm trong phép đếm đó.
+ *
+ * ⚠️ Hai điều kiện này KHÁC NHAU ở ca khách mở ≥2 ngân hàng mà không thành tổ
+ * hợp nào — `VPa` + `MSBa` chẳng hạn, vì lưu ý 1 cấm `MSBa` vào Combo 2. Bản
+ * trước xét `combo.size === 0` nên cho 1,5; công thức file cho 1,0.
+ *
+ * `HKD` cố ý vắng mặt — công thức trả chuỗi `"0"` cho nó, và `SUM` bỏ qua chuỗi.
+ * Cả 39 dòng HKD của file đều 0 điểm.
  */
 const CNKD_TENTHS = {
-  /** Khách không đủ tổ hợp nào, và chưa nhận Mì/Nón. */
+  /** Khách mở ĐÚNG 1 ngân hàng, và chưa nhận Mì/Nón. */
   alone: 15,
-  /** Khách có tổ hợp — CNKD chỉ cộng thêm 1 điểm. */
-  withCombo: 10,
-  /** Khách không đủ tổ hợp, nhưng ĐÃ nhận Mì hoặc Nón. */
+  /** Mọi ca CNKD còn lại. */
+  manyBanks: 10,
+  /** Khách mở đúng 1 ngân hàng, nhưng ĐÃ nhận Mì hoặc Nón. */
   afterGiftItem: 7,
 } as const;
 
@@ -245,14 +257,21 @@ function householdKindOf(accounts: ScoringAccount[]): HouseholdKind {
   return "none";
 }
 
+/**
+ * Số NGÂN HÀNG khách đã mở — bản dịch của ô `AN` trong file Excel.
+ *
+ * Đếm ngân hàng khác nhau, không đếm bản ghi: file ghi mỗi ngân hàng một ô giá
+ * trị `1`, nên hai tài khoản cùng một ngân hàng vẫn là một. `CNKD`/`HKD` không
+ * vào phép đếm — chúng không có trong `TIER_OF`, giống như cột `T` của file
+ * nằm ngoài công thức `AN`.
+ */
+const bankCountOf = (accounts: ScoringAccount[]): number =>
+  new Set(accounts.filter((a) => a.bankCode in TIER_OF).map((a) => a.bankCode)).size;
+
 /** Phần điểm CNKD của MỘT khách, theo bảng mục 4c. */
-function householdTenths(
-  accounts: ScoringAccount[],
-  combo: Combo,
-  grantedItem: string | null,
-): number {
+function householdTenths(accounts: ScoringAccount[], grantedItem: string | null): number {
   if (householdKindOf(accounts) !== "CNKD") return 0;
-  if (combo.size !== 0) return CNKD_TENTHS.withCombo;
+  if (bankCountOf(accounts) !== 1) return CNKD_TENTHS.manyBanks;
   return grantedItem && CNKD_LOWERING_ITEMS.has(grantedItem)
     ? CNKD_TENTHS.afterGiftItem
     : CNKD_TENTHS.alone;
@@ -397,9 +416,11 @@ export function gift(input: GiftInput): GiftResult {
     );
 
     // Nhân viên phải biết TRƯỚC khi bấm chọn, không phải sau khi thấy điểm tụt.
-    if (combo.size === 0 && householdKindOf(input.accounts) === "CNKD")
+    // Điều kiện phải KHỚP `householdTenths`, nếu không màn cảnh báo một đằng mà
+    // điểm chạy một nẻo.
+    if (bankCountOf(input.accounts) === 1 && householdKindOf(input.accounts) === "CNKD")
       explain.push(
-        "⚠️ Khách CNKD chưa đủ tổ hợp: chọn Mì hoặc Nón làm điểm của khách này giảm từ 1,5 xuống 0,7.",
+        "⚠️ Khách CNKD chỉ mở 1 ngân hàng: chọn Mì hoặc Nón làm điểm của khách này xuống mức 0,7 thay vì 1,5.",
       );
   }
 

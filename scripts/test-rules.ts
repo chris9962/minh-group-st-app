@@ -136,12 +136,12 @@ check(
   1.5,
 );
 check(
-  "CNKD kèm combo 2 — 0,7 combo + 1,0 CNKD",
+  "CNKD kèm 2 ngân hàng thành tổ hợp — 0,7 combo + 1,0 CNKD",
   points([account("kh1", "MB"), account("kh1", "VPa", { household: "CNKD" })]),
   1.7,
 );
 check(
-  "CNKD kèm combo 3 — 1,2 combo + 1,0 CNKD",
+  "CNKD kèm 3 ngân hàng — 1,2 combo + 1,0 CNKD",
   points([
     account("kh1", "MB"),
     account("kh1", "VPa", { household: "CNKD" }),
@@ -166,7 +166,38 @@ check(
   0,
 );
 
-section("Phát Mì hoặc Nón làm tụt điểm CNKD — thông báo Kế toán 2026-08-24");
+/**
+ * Mức điểm CNKD chọn theo SỐ NGÂN HÀNG khách mở, không theo tổ hợp thắng — đọc
+ * thẳng từ công thức ô `AT` của `TÍNH ĐIỂM TỔNG T8.xlsx` (chốt 2026-08-25):
+ *
+ *     =IF(AND(T="CNKD", AN=1), 1.5, IF(T="CNKD", 1, "0"))
+ */
+section("Mức điểm CNKD chọn theo SỐ NGÂN HÀNG, không theo tổ hợp");
+check(
+  "VPa + MSBa: 2 ngân hàng nhưng KHÔNG thành tổ hợp — vẫn là mức 1,0",
+  points([account("kh1", "VPa", { household: "CNKD" }), account("kh1", "MSBa")]),
+  1.0,
+);
+check(
+  "MB + MSBa: cùng ca, cùng mức 1,0",
+  points([account("kh1", "MB"), account("kh1", "MSBa"), account("kh1", "CNKD")]),
+  1.0,
+);
+check(
+  "hai tài khoản CÙNG một ngân hàng vẫn đếm là 1 → mức 1,5",
+  points([
+    account("kh1", "VPa", { household: "CNKD" }),
+    account("kh1", "VPa", { household: "CNKD" }),
+  ]),
+  1.5,
+);
+check(
+  "tài khoản CNKD riêng không cộng vào số ngân hàng",
+  points([account("kh1", "VPa"), account("kh1", "CNKD")]),
+  1.5,
+);
+
+section("Phát Mì hoặc Nón hạ mức điểm CNKD — thông báo Kế toán 2026-08-24");
 check(
   "phát Mì → 0,7",
   points([account("kh1", "VPa", { household: "CNKD" })], PERIOD, { kh1: "QUA-MI" }),
@@ -188,11 +219,18 @@ check(
   1.5,
 );
 check(
-  "khách CNKD ĐÃ có combo thì phát Mì cũng giữ 1,0",
+  "khách CNKD mở từ 2 ngân hàng thì phát Mì cũng giữ 1,0",
   points([account("kh1", "MB"), account("kh1", "VPa", { household: "CNKD" })], PERIOD, {
     kh1: "QUA-MI",
   }),
   1.7,
+);
+check(
+  "khách CNKD 2 ngân hàng không thành tổ hợp, phát Mì cũng giữ 1,0",
+  points([account("kh1", "VPa", { household: "CNKD" }), account("kh1", "MSBa")], PERIOD, {
+    kh1: "QUA-MI",
+  }),
+  1.0,
 );
 check(
   "món của khách khác không đụng điểm khách này",
@@ -589,8 +627,10 @@ checkCodes(
   ["QUA-LOA", "QUA-MICA", "QUA-MI", "QUA-BH-SUC-KHOE", "QUA-NON-BH"],
 );
 check(
-  "…và có cảnh báo giảm điểm trong phần giải thích",
-  giftOf(["VPa", "CNKD"], { department: "PHONG-Y" }).explain.some((line) => line.includes("1,5 xuống 0,7")),
+  "…và có cảnh báo hạ mức điểm trong phần giải thích",
+  giftOf(["VPa", "CNKD"], { department: "PHONG-Y" }).explain.some((line) =>
+    line.includes("xuống mức 0,7"),
+  ),
   true,
 );
 
