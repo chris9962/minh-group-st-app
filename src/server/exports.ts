@@ -3,7 +3,7 @@ import { alias } from "drizzle-orm/pg-core";
 import { bankingPointsFor, bankTierFor, comboPointsAt, giftFor } from "@/rules";
 import type { ScoringAccount } from "@/rules";
 import type { User } from "@/lib/types";
-import { accountExportWhere, EXPORT_LIMIT } from "./banking";
+import { accountExportWhere } from "./banking";
 import { db } from "./db/client";
 import {
   bankAccounts,
@@ -34,6 +34,15 @@ import type { ScoringExportRow } from "@/lib/api/exports";
  *
  * Luật lấy theo NGÀY MỞ TÀI KHOẢN SỚM NHẤT của khách, cùng mốc với cột `NGÀY`.
  */
+
+/**
+ * Trần một lượt xuất, đếm bằng KHÁCH.
+ *
+ * Một tháng thật của công ty là 37.744 khách (đo trên `TÍNH ĐIỂM TỔNG T8.xlsx`),
+ * nên trần phải dư cho cả tháng cộng phần lớn dần. Chạm trần thì `total` nói ra
+ * sự thật và nơi gọi BẮT BUỘC so hai số — file thiếu dòng trông y hệt file đủ.
+ */
+const SCORING_EXPORT_LIMIT = 60_000;
 
 /** Mã ngân hàng ngoài thể lệ nhưng vẫn ghi nhận — không vào tổ hợp, không ra điểm. */
 const HOUSEHOLD_CODES = new Set(["CNKD", "HKD"]);
@@ -108,6 +117,26 @@ export async function listScoringExport(
   const where = await accountExportWhere(actor, filters);
   if (where === null) return { rows: [], total: 0 };
 
+  const done = and(where, eq(bankAccounts.status, "done"));
+
+  /**
+   * Cắt trần theo KHÁCH, không theo tài khoản.
+   *
+   * `EXPORT_LIMIT` của `server/banking.ts` đếm tài khoản, đúng cho báo cáo một
+   * tài khoản một dòng. Ở đây đơn vị là khách, mà một tháng thật có 37.744
+   * khách trên 102.752 tài khoản — cắt 20.000 tài khoản là ra hơn bảy nghìn
+   * khách rồi `capCheck` từ chối xuất, không tháng nào lấy nổi trọn dữ liệu.
+   *
+   * Cắt ở đây bằng câu con nên tài khoản của khách nào đã chọn thì lấy TRỌN;
+   * cắt sau khi nối là khách cuối danh sách bị mất bớt tài khoản, và dòng đó ra
+   * điểm thấp hơn thực tế mà không ai thấy.
+   */
+  const picked = db
+    .selectDistinct({ id: bankAccounts.customerId })
+    .from(bankAccounts)
+    .where(done)
+    .limit(SCORING_EXPORT_LIMIT);
+
   /**
    * Chỉ tài khoản `done`. Bản `creating` là lượt giữ mã, chưa phải tài khoản
    * thật — đưa vào thì khách chưa mở xong đã có điểm.
@@ -124,8 +153,7 @@ export async function listScoringExport(
     })
     .from(bankAccounts)
     .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
-    .where(and(where, eq(bankAccounts.status, "done")))
-    .limit(EXPORT_LIMIT);
+    .where(and(done, inArray(bankAccounts.customerId, picked)));
 
   const byCustomer = new Map<string, AccountRow[]>();
   for (const row of accountRows) {
@@ -282,7 +310,7 @@ export async function listScoringExport(
   const [totals] = await db
     .select({ value: sql<number>`count(distinct ${bankAccounts.customerId})::int` })
     .from(bankAccounts)
-    .where(and(where, eq(bankAccounts.status, "done")));
+    .where(done);
 
   return { rows, total: totals?.value ?? rows.length };
 }
