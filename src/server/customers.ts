@@ -260,6 +260,17 @@ function decorate(page: ReturnType<typeof pickPage>) {
       createdById: page.createdBy,
       createdByDepartmentId: page.createdByDepartmentId,
       primaryPhone: sql<string>`coalesce(${phone.number}, '')`,
+      /**
+       * ĐẾM SỐNG, không đọc `customers.account_count`: cột đó chỉ đếm dòng
+       * `done` (migration 0005), còn trần tính cả bản nháp `creating`.
+       *
+       * Một lượt tra chỉ mục `bank_accounts_customer` cho mỗi dòng của TRANG,
+       * không phải phép gộp trên cả bảng — trang đã cắt xong ở `pickPage`
+       * (AGENTS.md §5.2 cách A).
+       */
+      bankSlotsLeft: sql<number>`greatest(0, ${MAX_BANK_ACCOUNTS_PER_CUSTOMER} - (
+        select count(*) from ${bankAccounts} where ${bankAccounts.customerId} = ${page.id}
+      ))::int`,
     })
     .from(page)
     .leftJoinLateral(phone, sql`true`)
@@ -828,6 +839,12 @@ export async function customerDetailFor(
 
   return {
     customer,
+    /**
+     * `accountRows` là TOÀN BỘ tài khoản của khách — phạm vi phòng áp sau, lúc
+     * dựng `visibleDone`/`visibleDrafts`. Đếm ở đây nên đúng cả bản nháp lẫn
+     * dòng của phòng khác, đúng thứ trần cần.
+     */
+    bankSlotsLeft: Math.max(0, MAX_BANK_ACCOUNTS_PER_CUSTOMER - accountRows.length),
     accounts,
     accountsHiddenCount: doneAccounts.length - visibleDone.length,
     draftAccounts: drafts,

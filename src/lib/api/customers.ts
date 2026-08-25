@@ -79,6 +79,14 @@ export const CustomerRow = z.object({
   createdById: z.string().nullable(),
   createdByDepartmentId: z.string().nullable(),
   primaryPhone: z.string(),
+  /**
+   * Số tài khoản ngân hàng khách còn mở thêm được, 0 là đã đủ trần. Giao diện
+   * đọc để làm mờ nút "Mở ngân hàng" đúng dòng.
+   *
+   * KHÁC `accountCount`: cột đó đếm dòng `done` để hiện lên bảng và để sắp xếp,
+   * còn trần tính cả bản nháp `creating` vì bản nháp đã giữ một chỗ mã.
+   */
+  bankSlotsLeft: z.number(),
 });
 export type CustomerRow = z.infer<typeof CustomerRow>;
 
@@ -363,6 +371,14 @@ export type CustomerServiceRow = z.infer<typeof CustomerServiceRow>;
 
 export const CustomerDetail = z.object({
   customer: Customer,
+  /**
+   * Số tài khoản ngân hàng khách còn mở thêm được, 0 là đã đủ trần.
+   *
+   * Đếm trên TOÀN BỘ tài khoản, kể cả dòng ngoài phạm vi người xem và kể cả bản
+   * nháp — trần áp cho KHÁCH, không áp cho người đang xem. Không cộng từ
+   * `accounts` với `draftAccounts` bên dưới: hai mảng đó đã lọc theo phạm vi.
+   */
+  bankSlotsLeft: z.number(),
   accounts: z.array(CustomerAccountRow),
   /** Tài khoản đang tạo dở, chưa hoàn thành — cùng áp phạm vi như `accounts`. */
   draftAccounts: z.array(CustomerDraftAccountRow),

@@ -3,14 +3,13 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Pencil, Plus, ShieldCheck, Trash2, UserCheck } from "lucide-react";
+import { Pencil, ShieldCheck, Trash2, UserCheck } from "lucide-react";
 import type { DateRange } from "react-day-picker";
 import { SkeletonTable } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
 import { Button } from "@/components/ui/Button";
 import { Combobox } from "@/components/ui/Combobox";
-import buttonStyles from "@/components/ui/Button.module.css";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { DateRangePicker } from "@/components/ui/DateRangePicker";
 import { FilterButton } from "@/components/ui/FilterButton";
@@ -21,7 +20,6 @@ import { SearchField } from "@/components/ui/SearchField";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { Select } from "@/components/ui/Select";
 import { StatusTag } from "@/components/ui/StatusTag";
-import { CreateInsuranceOrderDialog } from "@/components/insurance/CreateInsuranceOrderDialog";
 import { InsuranceOrderEditDialog } from "@/components/insurance/InsuranceOrderEditDialog";
 import {
   deleteInsuranceOrder,
@@ -69,7 +67,6 @@ export default function InsurancePage() {
   // Chỉ sắp theo ngày hiệu lực, và chỉ đổi được chiều — `INSURANCE_SORT` có đúng
   // một khoá vì sắp theo tên khách/người tạo thì phải nối bảng trước khi cắt trang.
   const [dir, setDir] = useState<SortDir>("desc");
-  const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<InsuranceListRow | null>(null);
   const [removing, setRemoving] = useState<InsuranceListRow | null>(null);
 
@@ -404,12 +401,6 @@ export default function InsurancePage() {
             />
           )}
         </FilterButton>
-        {can(user, "insurance", "create") && (
-          <Button aria-label="Tạo đơn bảo hiểm" onClick={() => setCreating(true)}>
-            <Plus size={16} aria-hidden />
-            <span className={buttonStyles.label}>Tạo đơn bảo hiểm</span>
-          </Button>
-        )}
       </TopBar>
 
       <main className={styles.body}>
@@ -496,7 +487,6 @@ export default function InsurancePage() {
           </SectionCard>
         )}
 
-        {creating && <CreateInsuranceOrderDialog open onClose={() => setCreating(false)} />}
         {editing && (
           <InsuranceOrderEditDialog open orderId={editing.id} onClose={() => setEditing(null)} />
         )}

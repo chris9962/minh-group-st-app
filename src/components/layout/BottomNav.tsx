@@ -8,7 +8,6 @@ import { useState } from "react";
 import { Dialog } from "@/components/ui/Dialog";
 import { CreateBankAccountDialog } from "@/components/banking/CreateBankAccountDialog";
 import { CustomerFormDialog } from "@/components/customers/CustomerFormDialog";
-import { CreateInsuranceOrderDialog } from "@/components/insurance/CreateInsuranceOrderDialog";
 import { CreateServiceDialog } from "@/components/services/CreateServiceDialog";
 import { NavIcon } from "./NavIcon";
 import type { NavIconKey } from "@/lib/nav";
@@ -21,7 +20,11 @@ type Entry =
   | { kind: "create"; label: string }
   | { kind: "more"; label: string };
 
-type CreateKind = "customer" | "banking" | "insurance" | "services";
+/**
+ * KHÔNG có `insurance`: đơn bảo hiểm chỉ tạo được qua luồng Tặng quà (chốt
+ * 2026-08-25). Đường tạo đơn lẻ đã gỡ khỏi cả thanh này lẫn màn P-30.
+ */
+type CreateKind = "customer" | "banking" | "services";
 
 const CREATE_OPTIONS: { kind: CreateKind; label: string; icon: NavIconKey; allowed: (u: User) => boolean }[] = [
   { kind: "customer", label: "Tạo khách hàng", icon: "customers", allowed: () => true },
@@ -30,12 +33,6 @@ const CREATE_OPTIONS: { kind: CreateKind; label: string; icon: NavIconKey; allow
     label: "Mở tài khoản ngân hàng",
     icon: "banking",
     allowed: (u) => can(u, "banking", "create"),
-  },
-  {
-    kind: "insurance",
-    label: "Tạo đơn bảo hiểm",
-    icon: "insurance",
-    allowed: (u) => can(u, "insurance", "create"),
   },
   { kind: "services", label: "Ghi dịch vụ", icon: "services", allowed: (u) => can(u, "services", "create") },
 ];
@@ -164,9 +161,6 @@ export function BottomNav({ user, onOpenMenu }: { user: User; onOpenMenu: () => 
       )}
       {creating === "banking" && (
         <CreateBankAccountDialog open onClose={() => setCreating(null)} />
-      )}
-      {creating === "insurance" && (
-        <CreateInsuranceOrderDialog open onClose={() => setCreating(null)} />
       )}
       {creating === "services" && (
         <CreateServiceDialog open onClose={() => setCreating(null)} />

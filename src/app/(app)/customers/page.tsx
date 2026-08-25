@@ -203,7 +203,11 @@ export default function CustomersPage() {
               <Gift size={16} />
               Tặng quà
             </Button>
-            <Button variant="secondary" onClick={() => setOpeningBankFor(c)}>
+            <Button
+              variant="secondary"
+              disabled={c.bankSlotsLeft <= 0}
+              onClick={() => setOpeningBankFor(c)}
+            >
               <Landmark size={16} />
               Mở ngân hàng
             </Button>

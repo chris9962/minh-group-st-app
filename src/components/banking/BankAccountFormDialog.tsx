@@ -231,15 +231,6 @@ export function BankAccountFormDialog({ open, onClose, customerId, onBack }: Pro
             ))}
           </div>
 
-          {/* Ngân hàng khách đã có bị ẩn hẳn khỏi danh sách. Nói ra số bị ẩn,
-              không thì người dùng tìm không thấy và tưởng danh mục lỗi. */}
-          {usedBankIds.size > 0 && (
-            <p className="text-muted">
-              Đã ẩn {usedBankIds.size} ngân hàng khách có tài khoản rồi — mỗi ngân hàng chỉ mở
-              được một tài khoản.
-            </p>
-          )}
-
           {/* Lỗi mức DANH SÁCH — chưa tích ngân hàng nào, hoặc tích quá trần.
               Không ô tích nào mang được câu này nên nó đứng riêng ở đây. */}
           {errors.picks?.message && (
@@ -247,11 +238,6 @@ export function BankAccountFormDialog({ open, onClose, customerId, onBack }: Pro
               {errors.picks.message}
             </span>
           )}
-
-          <p className="text-muted">
-            Lưu là giữ chỗ mã ngay. Số tài khoản, ngày mở và ảnh chứng minh điền sau, ở từng dòng
-            trong bảng.
-          </p>
         </form>
       )}
     </Dialog>
