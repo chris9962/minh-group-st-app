@@ -1,5 +1,6 @@
 import type { DepartmentType } from "@/lib/types";
 import * as period202608 from "./2026-08";
+import type { Tier } from "./2026-08";
 
 /**
  * Cửa vào DUY NHẤT của công thức tính điểm theo kỳ.
@@ -133,6 +134,10 @@ export type GiftResult = {
 type PeriodRules = {
   bankingPoints(accounts: ScoringAccount[], granted: GrantedGifts): number;
   gift(input: GiftInput): GiftResult;
+  /** Hạng của một mã ngân hàng; `null` = ngoài thể lệ kỳ đó. */
+  bankTierOf(bankCode: string): Tier | null;
+  /** Điểm của MỘT tổ hợp mã, không xét khách và không xét cài app. */
+  comboPointsFor(bankCodes: string[]): number;
 };
 
 /**
@@ -235,4 +240,27 @@ export function kpiAppliesTo(departmentType: DepartmentType | null): boolean {
 /** Đã có file luật cho kỳ này chưa — nơi gọi dùng để biết số 0 là thật hay là chưa tính. */
 export function hasRulesFor(yearMonth: string): boolean {
   return rulesFor(yearMonth) !== null;
+}
+
+
+/**
+ * Hạng ngân hàng theo kỳ — `null` khi mã không nằm trong thể lệ, hoặc khi mốc
+ * đó chưa có file luật.
+ *
+ * Báo cáo Tính điểm tổng (P-73 #1) dùng nó để đếm bốn cột `BANK ƯU TIÊN` ·
+ * `BANK KHÁC` · `BANK HẠN CHẾ` của file Kế toán.
+ */
+export function bankTierFor(bankCode: string, at: string): Tier | null {
+  return rulesFor(at)?.bankTierOf(bankCode) ?? null;
+}
+
+/**
+ * Điểm của MỘT tổ hợp mã ngân hàng, theo luật của kỳ.
+ *
+ * KHÔNG lọc điều kiện cài app và không gom theo khách — nơi gọi tự lo. Dùng cho
+ * cột `ĐIỂM COMBO 2` / `ĐIỂM COMBO 3` của báo cáo Tính điểm tổng; đường tính
+ * điểm thật vẫn đi qua `bankingPointsFor`.
+ */
+export function comboPointsAt(bankCodes: string[], at: string): number {
+  return rulesFor(at)?.comboPointsFor(bankCodes) ?? 0;
 }

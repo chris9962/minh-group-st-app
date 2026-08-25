@@ -24,7 +24,7 @@ import type {
  */
 
 /** Ba hạng ở mục 1. Ngân hàng ngoài thể lệ KHÔNG mang hạng nào — xem `TIER_OF`. */
-type Tier = "priority" | "other" | "restricted";
+export type Tier = "priority" | "other" | "restricted";
 
 /**
  * Hạng của từng mã ngân hàng (chốt 07/08, câu 7.1).

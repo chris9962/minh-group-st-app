@@ -413,7 +413,24 @@ export async function listBankAccounts(
  * Trần một lượt xuất Excel. Chạm trần thì `total` nói ra sự thật và nơi gọi
  * BẮT BUỘC so hai số — file thiếu 5.000 dòng trông y hệt file đủ.
  */
-const EXPORT_LIMIT = 20_000;
+export const EXPORT_LIMIT = 20_000;
+
+/**
+ * Điều kiện SQL của một lượt xuất — phạm vi cộng bộ lọc, trả `null` khi người
+ * gọi không thấy dòng nào.
+ *
+ * Mở ra cho `server/exports.ts` dùng chung. Chép luật phân quyền sang file khác
+ * là mở đường cho hai nơi lệch nhau, mà lệch ở đây nghĩa là một báo cáo xuất ra
+ * dòng của phòng khác.
+ */
+export async function accountExportWhere(
+  actor: User,
+  filters: BankAccountFilters,
+): Promise<SQL | undefined | null> {
+  const visible = scopeOf(actor, "export");
+  if (visible.kind === "none") return null;
+  return accountFilters(visible, filters);
+}
 
 export async function listBankAccountsForExport(
   actor: User,

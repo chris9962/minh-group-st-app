@@ -13,7 +13,7 @@ import { SectionCard } from "@/components/ui/SectionCard";
 import { SectionTabs } from "@/components/ui/SectionTabs";
 import { Combobox } from "@/components/ui/Combobox";
 import { Select } from "@/components/ui/Select";
-import { fetchBankAccountsForExport } from "@/lib/api/banking";
+import { fetchScoringExport, type ScoringExportRow } from "@/lib/api/exports";
 import { fetchBanks, fetchReferralCodeOptions, type Bank } from "@/lib/api/bankCatalog";
 import { errorMessage } from "@/lib/toast";
 import { fetchDepartments } from "@/lib/api/departments";
@@ -24,7 +24,7 @@ import { fetchStaffOptions, type StaffOption } from "@/lib/api/staff";
 import { fetchProvinces } from "@/lib/api/wardCatalog";
 import { exportExcel, type ExcelColumn } from "@/lib/excel";
 import { can, scopeFor } from "@/lib/permissions";
-import { DEPARTMENT_TYPE_LABEL, DepartmentType, ROLE_LABEL, type ModuleKey, type Scope } from "@/lib/types";
+import { DEPARTMENT_TYPE_LABEL, DepartmentType, type ModuleKey, type Scope } from "@/lib/types";
 import { useSession } from "@/store/session";
 import styles from "./page.module.scss";
 
@@ -38,9 +38,14 @@ type ReportId = "accounts-by-customer" | "staff-points" | "services-by-ward";
  * Bản trước có bảy. Bốn báo cáo bỏ đi — Dữ liệu tổng, Tổng app đã cài theo ngân
  * hàng theo phòng, Tra tài khoản theo mã giới thiệu, Đơn bảo hiểm theo tháng.
  * Chủ dự án chốt chỉ giữ ba cái đang dùng thật.
+ *
+ * Báo cáo #1 đổi hình dạng 2026-08-25: từ "Danh sách tài khoản, gộp theo khách"
+ * — 8 cột cố định cộng một cột mỗi ngân hàng — sang bản dựng lại đúng sheet
+ * `TỔNG` của `TÍNH ĐIỂM TỔNG T8.xlsx`, 47 cột và đầu bảng ba tầng. Bộ lọc giữ
+ * nguyên ba ô cũ.
  */
 const REPORTS: { id: ReportId; label: string; hint: string; module: ModuleKey }[] = [
-  { id: "accounts-by-customer", label: "Danh sách tài khoản, gộp theo khách", hint: "Ngân hàng · ngày · mã giới thiệu", module: "banking" },
+  { id: "accounts-by-customer", label: "Tính điểm tổng, gộp theo khách", hint: "Ngân hàng · ngày · mã giới thiệu", module: "banking" },
   { id: "staff-points", label: "Nhân viên + điểm", hint: "Tháng · loại phòng · đơn vị", module: "staff" },
   { id: "services-by-ward", label: "Dịch vụ đã làm, có cột xã", hint: "Xã · loại dịch vụ · kỳ", module: "services" },
 ];
@@ -61,8 +66,12 @@ type CatalogColumn = {
   /** Có sẵn tick khi vào báo cáo — cột phụ (mã, id) để tắt, tránh file rối ngay từ đầu. */
   defaultOn: boolean;
   sample: [string, string];
+  /** Nhãn nhóm ở dòng đầu của file — chỉ báo cáo Tính điểm tổng dùng. */
+  group?: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  value: (row: any) => string | number;
+  total?: (rows: any[]) => string | number;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  value: (row: any, index: number) => string | number;
 };
 
 /**
@@ -80,28 +89,74 @@ type CatalogColumn = {
 function catalogFor(report: ReportId, banks: Bank[], staffById: Map<string, StaffOption>): CatalogColumn[] {
   const staffCodeOf = (id: string | null) => (id && staffById.get(id)?.staffCode) || "—";
   switch (report) {
-    case "accounts-by-customer":
+    case "accounts-by-customer": {
+      /**
+       * Dựng lại đúng sheet `TỔNG` của `TÍNH ĐIỂM TỔNG T8.xlsx` — 47 cột, một
+       * khách một dòng, đầu bảng ba tầng (chốt 2026-08-25).
+       *
+       * Ánh xạ từng cột và công thức gốc ghi ở `mgst-the-le/2026-08.md` mục 4c.
+       * Sửa thứ tự cột ở đây là làm lệch file Kế toán đang đối chiếu — đọc mục
+       * đó trước khi đụng vào.
+       *
+       * Hai khối ngân hàng SINH TỪ BẢNG `banks`, không viết cứng 10 mã: thêm
+       * ngân hàng mới thì file mọc thêm cột, đúng chốt 2026-07-28.
+       */
+      const scoring = banksInRuleOrder(banks);
+      const sum = (pick: (r: ScoringExportRow) => number) => (rows: ScoringExportRow[]) =>
+        Number(rows.reduce((t, r) => t + pick(r), 0).toFixed(2));
+      const countIf = (pick: (r: ScoringExportRow) => boolean) => (rows: ScoringExportRow[]) =>
+        rows.filter(pick).length;
+
       return [
-        { key: "customerName", header: "Khách hàng", transform: "name", defaultOn: true, sample: ["NGUYEN THI BICH TRAM", "TRAN VAN DUC"], value: (r) => r.customerName },
-        { key: "customerId", header: "Mã khách hàng", type: "text", defaultOn: false, sample: ["kh-014", "kh-027"], value: (r) => r.customerId || "—" },
-        { key: "createdByNames", header: "Người tạo", defaultOn: true, sample: ["Nguyễn Thị Bích Trâm", "Trần Văn Hậu"], value: (r) => r.createdByNames },
-        // Một khách có thể có tài khoản do NHIỀU nhân viên tạo (mỗi ngân hàng
-        // một người) — mấy cột nhân viên dưới đây nối bằng dấu phẩy y hệt cột
-        // "Người tạo", không phải 1 khách 1 giá trị như báo cáo Nhân viên+điểm.
-        { key: "createdByCodes", header: "Mã nhân viên", type: "text", defaultOn: false, sample: ["MG-0123", "MG-0007"], value: (r) => r.createdByCodes },
-        { key: "createdByDepartments", header: "Đơn vị người tạo", defaultOn: false, sample: ["Phòng Kinh doanh 2", "Phòng Kinh doanh 2"], value: (r) => r.createdByDepartments },
-        { key: "createdByRoles", header: "Chức vụ người tạo", defaultOn: false, sample: ["Nhân viên", "Trưởng phòng"], value: (r) => r.createdByRoles },
-        { key: "createdByTitles", header: "Chức danh người tạo", defaultOn: false, sample: ["Nhân viên kinh doanh", "Trưởng phòng Kinh doanh 2"], value: (r) => r.createdByTitles },
-        { key: "createdByPhones", header: "SĐT người tạo", type: "text", defaultOn: false, sample: ["0900000000", "0900000000"], value: (r) => r.createdByPhones },
-        ...banks.map((b, i): CatalogColumn => ({
-          key: `bank:${b.code}`,
+        { key: "stt", header: "STT", type: "number", defaultOn: true, sample: ["1", "2"], total: (rows) => rows.length, value: (_row, index) => index + 1 },
+        { key: "customerName", header: "TÊN KHÁCH HÀNG", transform: "name", defaultOn: true, sample: ["NGUYEN VAN MEN", "VO VAN CHIEN"], total: countIf((r) => Boolean(r.customerName)), value: (r) => r.customerName },
+        { key: "idNumber", header: "SỐ CCCD", type: "text", defaultOn: true, sample: ["82077017051", "82047005635"], total: countIf((r) => Boolean(r.idNumber)), value: (r) => r.idNumber },
+        { key: "phone", header: "SỐ ĐIỆN THOẠI", type: "text", defaultOn: true, sample: ["336585699", "369907415"], total: countIf((r) => Boolean(r.phone)), value: (r) => r.phone },
+        { key: "date", header: "NGÀY", type: "number", defaultOn: true, sample: ["1", "1"], total: countIf((r) => Boolean(r.date)), value: (r) => Number(r.date.slice(8, 10)) || "" },
+        { key: "hamlet", header: "ẤP", defaultOn: true, sample: ["MỸ TRUNG/HẬU MỸ", "MỸ TRUNG/HẬU MỸ"], total: countIf((r) => Boolean(r.hamlet)), value: (r) => r.hamlet },
+        { key: "channel", header: "KÊNH", defaultOn: true, sample: ["KÊNH ẤP", "KÊNH ẤP"], group: "TỔNG APP:", value: (r) => r.channelName },
+        { key: "apps", header: "CÁC APP", defaultOn: true, sample: ["MB, LPB, MSBb", "VPa, LPB, MSBa"], value: (r) => r.openedBanks.join(", ") },
+        ...scoring.map((b): CatalogColumn => ({
+          key: `open:${b.code}`,
           header: b.code,
-          type: "text",
+          type: "number",
           defaultOn: true,
-          sample: i === 0 ? ["0912345678", "—"] : i === 1 ? ["—", "0987654321"] : ["—", "—"],
-          value: (r) => r.cells[b.code] ?? "",
+          sample: ["1", ""],
+          total: countIf((r) => r.openedBanks.includes(b.code)),
+          value: (r) => (r.openedBanks.includes(b.code) ? 1 : ""),
         })),
+        { key: "msbAccount", header: "STK MSB", type: "text", defaultOn: true, sample: ["80003630480", ""], total: countIf((r) => Boolean(r.msbAccountNumber)), value: (r) => r.msbAccountNumber },
+        { key: "household", header: "HKD/CNKD", defaultOn: true, sample: ["CNKD", ""], total: countIf((r) => Boolean(r.household)), value: (r) => r.household },
+        // Cột ngăn hai khối, luôn trống — file Kế toán có nó nên giữ đúng vị trí cột.
+        { key: "spacer", header: "0", defaultOn: true, sample: ["", ""], group: "APP CÀI TRÊN THIẾT BỊ", value: () => "" },
+        ...scoring.map((b): CatalogColumn => ({
+          key: `app:${b.code}`,
+          header: b.code,
+          type: "number",
+          defaultOn: true,
+          sample: ["1", ""],
+          total: countIf((r) => r.installedBanks.includes(b.code)),
+          value: (r) => (r.installedBanks.includes(b.code) ? 1 : ""),
+        })),
+        { key: "installedCount", header: "TỔNG APP CÀI TRÊN THIẾT BỊ", type: "number", defaultOn: true, sample: ["1", "1"], total: sum((r) => r.installedBanks.length), value: (r) => r.installedBanks.length },
+        { key: "giftReport", header: "QUÀ TẶNG BÁO CÁO", defaultOn: true, sample: ["2 NĂM BH (Không thuộc…)", "MÌ"], total: countIf((r) => Boolean(r.giftReport)), value: (r) => r.giftReport },
+        { key: "giftCombo", header: "QUÀ TẶNG THEO COMBO", defaultOn: true, sample: ["2 năm BH", "2 năm BH + 20k"], total: countIf((r) => Boolean(r.giftCombo)), value: (r) => r.giftCombo },
+        { key: "speaker", header: "LOA", defaultOn: true, sample: ["", "LOA"], total: countIf((r) => Boolean(r.speaker)), value: (r) => r.speaker },
+        { key: "insuranceLabel", header: "LOẠI BẢO HIỂM", defaultOn: true, sample: ["BHX", "BHĐ 100K"], total: countIf((r) => Boolean(r.insuranceLabel)), value: (r) => r.insuranceLabel },
+        { key: "licensePlate", header: "BIỂN SỐ XE", type: "text", defaultOn: true, sample: ["63B1-87397", ""], total: countIf((r) => Boolean(r.licensePlate)), value: (r) => r.licensePlate },
+        { key: "beneficiary", header: "TÊN KHÁCH HÀNG TRÊN BẢO HIỂM", transform: "name", defaultOn: true, sample: ["NGUYEN VAN NGOC", "HUYNH CAM LOAN"], total: countIf((r) => Boolean(r.beneficiaryName)), value: (r) => r.beneficiaryName },
+        { key: "staffCode", header: "MÃ CBNV", type: "text", defaultOn: true, sample: ["243PHUNGVN", "019LYBTC"], total: countIf((r) => Boolean(r.staffCode)), value: (r) => r.staffCode },
+        { key: "department", header: "NHÓM", defaultOn: true, sample: ["PHÒNG 1 - TRANG", "PHÒNG 1 - TRANG"], total: countIf((r) => Boolean(r.departmentName)), value: (r) => r.departmentName },
+        { key: "bankCount", header: "APP", type: "number", defaultOn: true, sample: ["3", "3"], group: "APP", value: (r) => r.openedBanks.length },
+        { key: "priorityCount", header: "BANK ƯU TIÊN", type: "number", defaultOn: true, sample: ["1", "2"], group: "BANK ƯU TIÊN", value: (r) => r.priorityCount },
+        { key: "otherCount", header: "BANK KHÁC", type: "number", defaultOn: true, sample: ["2", "1"], group: "BANK KHÁC", value: (r) => r.otherCount },
+        { key: "restrictedCount", header: "BANK HẠN CHẾ", type: "number", defaultOn: true, sample: ["0", "0"], group: "BANK HẠN CHẾ", value: (r) => r.restrictedCount },
+        { key: "combo2", header: "ĐIỂM COMBO 2", type: "number", defaultOn: true, sample: ["", ""], group: "ĐIỂM COMBO 2", total: sum((r) => r.combo2Points), value: (r) => r.combo2Points || "" },
+        { key: "combo3", header: "ĐIỂM COMBO 3", type: "number", defaultOn: true, sample: ["0,8", "1"], group: "ĐIỂM COMBO 3", total: sum((r) => r.combo3Points), value: (r) => r.combo3Points || "" },
+        { key: "householdPoints", header: "ĐIỂM CNKD", type: "number", defaultOn: true, sample: ["0", "1"], group: "ĐIỂM CNKD", total: sum((r) => r.householdPoints), value: (r) => r.householdPoints || "" },
+        { key: "totalPoints", header: "TỔNG ĐIỂM", type: "number", defaultOn: true, sample: ["0,8", "2"], group: "TỔNG ĐIỂM", total: sum((r) => r.totalPoints), value: (r) => r.totalPoints },
       ];
+    }
     case "staff-points":
       return [
         { key: "staffCode", header: "Mã nhân viên", type: "text", defaultOn: false, sample: ["MG-0123", "MG-0007"], value: (r) => r.staffCode ?? "—" },
@@ -130,13 +185,46 @@ function catalogFor(report: ReportId, banks: Bank[], staffById: Map<string, Staf
   }
 }
 
+/**
+ * Thứ tự cột ngân hàng của file `TÍNH ĐIỂM TỔNG` — theo thể lệ, không theo bảng
+ * chữ cái: `B1 · B2a · B2b · B3 · B4a · B4b · TCB · B6 · B8 · B10 · B12`.
+ *
+ * Danh sách này CHỈ quyết định thứ tự, không quyết định cột nào có mặt. Cột vẫn
+ * sinh từ bảng `banks` (chốt 2026-07-28), nên thêm ngân hàng mới thì file mọc
+ * thêm cột — mã lạ xếp cuối, sau mười một mã đã biết.
+ */
+const RULE_BANK_ORDER = ["MB", "VPa", "VPb", "LPB", "MSBa", "MSBb", "TCB", "BIDV", "TPB", "VIB", "SHB"];
+
+/**
+ * Ngân hàng vào hai khối cột của báo cáo Tính điểm tổng.
+ *
+ * Bỏ `CNKD`/`HKD`: file Kế toán để chúng ở cột `HKD/CNKD` riêng, không nằm
+ * trong khối ngân hàng và không vào phép đếm `AN`.
+ */
+function banksInRuleOrder(banks: Bank[]): Bank[] {
+  const rank = (code: string) => {
+    const i = RULE_BANK_ORDER.indexOf(code);
+    return i === -1 ? RULE_BANK_ORDER.length : i;
+  };
+  return banks
+    .filter((b) => !["CNKD", "HKD"].includes(b.code))
+    .sort((a, b) => rank(a.code) - rank(b.code) || a.code.localeCompare(b.code));
+}
+
 /** Cột thật đưa vào `exportExcel` — đúng những cột đã tick, đúng thứ tự đã sắp. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function buildColumns(catalog: CatalogColumn[], order: string[]): ExcelColumn<any>[] {
   return order
     .map((key) => catalog.find((c) => c.key === key))
     .filter((c): c is CatalogColumn => Boolean(c))
-    .map((c) => ({ header: c.header, type: c.type, transform: c.transform, value: c.value }));
+    .map((c) => ({
+      header: c.header,
+      type: c.type,
+      transform: c.transform,
+      group: c.group,
+      total: c.total,
+      value: c.value,
+    }));
 }
 
 /** P-73 · Trung tâm xuất dữ liệu — một trang, chọn báo cáo, chọn cột, đặt bộ lọc. */
@@ -242,7 +330,14 @@ export default function ExportsPage() {
 
   const RUN: Record<ReportId, () => Promise<number>> = {
     async "accounts-by-customer"() {
-      const { rows, total } = await fetchBankAccountsForExport({
+      /**
+       * Máy chủ gộp theo khách và tính sẵn điểm — xem `server/exports.ts`.
+       *
+       * Bản trước gộp ở đây, nhưng báo cáo này cần thêm CCCD, SĐT, kênh, quà đã
+       * phát, đơn bảo hiểm và điểm của từng khách. Kéo sáu bảng đó về trình
+       * duyệt rồi ghép tay là sáu lượt gọi và sáu chỗ có thể lệch.
+       */
+      const { rows, total } = await fetchScoringExport({
         search: "",
         bankCode,
         from,
@@ -252,54 +347,20 @@ export default function ExportsPage() {
         staffId: "",
         status: "",
       });
-      capCheck(rows.length, total, "tài khoản");
-      // Khoá gộp là `customerId`, KHÔNG phải tên. Database đang có hai khách
-      // trùng tên khác CCCD; gộp theo tên là trộn hồ sơ của hai người vào một
-      // dòng, và dòng đó mang `customerId` của người đến trước — báo cáo đối
-      // soát gửi ngân hàng ghi mã khách của người này cho tài khoản người kia.
-      //
-      // Ô ngân hàng giữ TẬP số: gán đè thì khách có nhiều tài khoản ở cùng ngân
-      // hàng chỉ còn số cuối. Một khách thật đang có 4 tài khoản BIDV.
-      const byCustomer = new Map<
-        string,
-        { customerId: string; customerName: string; createdByNames: Set<string>; createdByIds: Set<string>; cells: Record<string, Set<string>> }
-      >();
-      for (const r of rows) {
-        const row = byCustomer.get(r.customerId) ?? {
-          customerId: r.customerId,
-          customerName: r.customerName,
-          createdByNames: new Set<string>(),
-          createdByIds: new Set<string>(),
-          cells: {},
-        };
-        (row.cells[r.bankCode] ??= new Set<string>()).add(r.accountNumber);
-        if (r.createdByName) row.createdByNames.add(r.createdByName);
-        if (r.createdById) row.createdByIds.add(r.createdById);
-        byCustomer.set(r.customerId, row);
-      }
-      // Một khách có thể có tài khoản do nhiều nhân viên tạo — nối mọi trường
-      // nhân viên bằng dấu phẩy giống "Người tạo", không phải suy ra một người.
-      const grouped = [...byCustomer.values()].map((g) => {
-        const staffs = [...g.createdByIds].map((id) => staffById.get(id)).filter((s): s is (typeof staffOptions)[number] => Boolean(s));
-        return {
-          customerId: g.customerId,
-          customerName: g.customerName,
-          cells: Object.fromEntries(Object.entries(g.cells).map(([code, nums]) => [code, [...nums].join(", ")])),
-          createdByNames: [...g.createdByNames].join(", "),
-          createdByCodes: staffs.map((s) => s.staffCode || "—").join(", ") || "—",
-          createdByDepartments: staffs.map((s) => s.departmentName || "—").join(", ") || "—",
-          createdByRoles: staffs.map((s) => ROLE_LABEL[s.role]).join(", ") || "—",
-          createdByTitles: staffs.map((s) => s.title || "—").join(", ") || "—",
-          createdByPhones: staffs.map((s) => s.phone).join(", ") || "—",
-        };
-      });
+      capCheck(rows.length, total, "khách hàng");
+
+      // Sắp theo NGÀY rồi tên, đúng thứ tự file Kế toán đang đọc quen.
+      const sorted = [...rows].sort(
+        (a, b) => a.date.localeCompare(b.date) || a.customerName.localeCompare(b.customerName),
+      );
+
       await exportExcel({
-        fileName: `tai-khoan-gop-theo-khach-${iso(new Date())}.xlsx`,
-        sheetName: "Tài khoản theo khách",
-        rows: grouped,
+        fileName: `tinh-diem-tong-${iso(new Date())}.xlsx`,
+        sheetName: "TỔNG",
+        rows: sorted,
         columns: buildColumns(catalogFor("accounts-by-customer", banks, staffById), exportOrder),
       });
-      return grouped.length;
+      return sorted.length;
     },
 
     async "staff-points"() {
