@@ -51,8 +51,13 @@ const TIER_OF: Record<string, Tier> = {
 };
 
 /**
- * Hai ngân hàng DUY NHẤT đòi cài app mới được tính vào combo (chốt 07/08, câu
- * 7.8). Chưa cài thì coi như khách không mở ngân hàng đó.
+ * Hai ngân hàng DUY NHẤT đòi cài app mới được tính vào tổ hợp QUÀ (câu 7.8).
+ * Chưa cài thì phần quà coi như khách không mở ngân hàng đó.
+ *
+ * ⚠️ CHỈ ÁP CHO QUÀ, không áp cho điểm — chốt 2026-08-25, thu hẹp chốt
+ * 2026-08-07. File `TÍNH ĐIỂM TỔNG T8.xlsx` xử hai cột theo hai cách: cột điểm
+ * đếm cả tài khoản chưa cài app, cột quà thì không. Bỏ điều kiện khỏi đường
+ * điểm nâng mức khớp từ 98,66% lên 99,94% trên 37.745 dòng.
  *
  * Ngân hàng ngoài hai mã này tính bất kể đã cài app hay chưa — khác hẳn công
  * thức cũ (chỉ cộng điểm tài khoản đã cài app), nên đừng đọc code cũ ra luật.
@@ -166,7 +171,14 @@ export const comboPointsFor = (bankCodes: string[]): number => bestComboOf(bankC
  *
  * Điểm mỗi khách gồm HAI phần cộng lại: điểm tổ hợp ngân hàng (mục 2) và điểm
  * CNKD/HKD (mục 4c). Khách chỉ có CNKD mà không đủ tổ hợp vẫn ra điểm, nên phải
- * duyệt theo TOÀN BỘ tài khoản của khách chứ không theo danh sách đã lọc combo.
+ * duyệt theo TOÀN BỘ tài khoản của khách.
+ *
+ * ⚠️ ĐIỂM KHÔNG áp điều kiện cài app — chốt 2026-08-25, câu 7.8. Mọi tài khoản
+ * khách đã mở đều vào tổ hợp, kể cả `VPa`/`MSBa` chưa cài app. Điều kiện cài app
+ * chỉ còn ở đường QUÀ, xem `gift`.
+ *
+ * Đừng gọi `comboCodesOf` ở đây. Bản trước gọi, và nó làm điểm thấp hơn bảng
+ * lương của Kế toán ở 489 khách trong tháng 8.
  */
 export function bankingPoints(accounts: ScoringAccount[], granted: GrantedGifts): number {
   const byCustomer = new Map<string, ScoringAccount[]>();
@@ -178,13 +190,17 @@ export function bankingPoints(accounts: ScoringAccount[], granted: GrantedGifts)
 
   let tenths = 0;
   for (const [customerId, rows] of byCustomer) {
-    const combo = bestComboOf(comboCodesOf(rows).map((a) => a.bankCode));
+    const combo = bestComboOf(rows.map((a) => a.bankCode));
     tenths += combo.tenths + householdTenths(rows, combo, granted.get(customerId) ?? null);
   }
   return tenths / 10;
 }
 
-/** Tài khoản còn được vào combo sau khi lọc điều kiện cài app (câu 7.8). */
+/**
+ * Tài khoản còn được vào tổ hợp QUÀ sau khi lọc điều kiện cài app (câu 7.8).
+ *
+ * CHỈ dùng cho quà. Đường tính điểm không lọc gì — xem `bankingPoints`.
+ */
 const comboCodesOf = (accounts: ScoringAccount[]): ScoringAccount[] =>
   accounts.filter((a) => !REQUIRES_APP.has(a.bankCode) || a.appInstalled);
 

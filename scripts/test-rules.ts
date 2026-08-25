@@ -218,29 +218,36 @@ check("trần mỗi khách là 1.2", comboPointsFor(["MB", "VPa", "MSBa", "LBP",
 
 /* ── Câu 7.8 · chỉ VPa và MSBa mới đòi cài app ──────────────────────── */
 
-section("Điều kiện cài app");
+/**
+ * ĐIỂM không áp điều kiện cài app — chốt 2026-08-25, thu hẹp chốt 2026-08-07.
+ *
+ * File `TÍNH ĐIỂM TỔNG T8.xlsx` xử hai cột theo hai cách: cột điểm đếm cả tài
+ * khoản chưa cài app, cột quà thì không. Các ca dưới đây ghim lại vế ĐIỂM; vế
+ * QUÀ nằm ở mục "Điều kiện cài app CHỈ áp cho quà".
+ */
+section("Điều kiện cài app KHÔNG áp cho điểm");
 check(
-  "VPa chưa cài → rớt khỏi combo",
+  "VPa chưa cài vẫn vào tổ hợp",
   points([
     account("kh1", "MB"),
     account("kh1", "VPa", { app: false }),
     account("kh1", "LBP"),
   ]),
-  0.5,
+  1.0,
 );
 check(
-  "VPa đã cài → tính đủ",
+  "VPa đã cài → cùng một điểm",
   points([account("kh1", "MB"), account("kh1", "VPa"), account("kh1", "LBP")]),
   1.0,
 );
 check(
-  "MSBa chưa cài → rớt khỏi combo",
+  "MSBa chưa cài vẫn vào tổ hợp",
   points([
     account("kh1", "MB"),
     account("kh1", "MSBa", { app: false }),
     account("kh1", "LBP"),
   ]),
-  0.5,
+  1.0,
 );
 check(
   "LBP chưa cài vẫn tính",
@@ -261,13 +268,26 @@ check(
   0.9,
 );
 check(
-  "cả hai bank đòi app đều chưa cài",
+  "cả hai bank đòi app đều chưa cài vẫn ra điểm đủ",
   points([
     account("kh1", "MB"),
     account("kh1", "VPa", { app: false }),
     account("kh1", "MSBa", { app: false }),
   ]),
-  0,
+  1.2,
+);
+/**
+ * Dòng 2 của `TÍNH ĐIỂM TỔNG T8.xlsx` — `VO VAN CHIEN`. Mở VPa + LBP + MSBa,
+ * chỉ cài app VPa, có CNKD. File ghi tổng 2,0 điểm.
+ */
+check(
+  "dòng thật VO VAN CHIEN — khớp cột TỔNG ĐIỂM của file",
+  points([
+    account("kh1", "VPa", { household: "CNKD" }),
+    account("kh1", "LBP"),
+    account("kh1", "MSBa", { app: false }),
+  ]),
+  2.0,
 );
 
 /* ── Câu 7.11 · gom theo khách, không gom theo người ─────────────────── */
