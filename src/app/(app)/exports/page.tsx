@@ -68,6 +68,10 @@ type CatalogColumn = {
   sample: [string, string];
   /** Nhãn nhóm ở dòng đầu của file — chỉ báo cáo Tính điểm tổng dùng. */
   group?: string;
+  groupColor?: string;
+  align?: "left" | "center";
+  /** Độ rộng cột trong file, tính bằng ký tự. Bỏ trống thì `exportExcel` lấy 18. */
+  width?: number;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   total?: (rows: any[]) => string | number;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -102,59 +106,82 @@ function catalogFor(report: ReportId, banks: Bank[], staffById: Map<string, Staf
        * ngân hàng mới thì file mọc thêm cột, đúng chốt 2026-07-28.
        */
       const scoring = banksInRuleOrder(banks);
+      /**
+       * Bảy khối của file, mỗi khối một nhãn và một màu nhạt.
+       *
+       * File mẫu đặt nhãn lệch cột — `TỔNG APP:` nằm ở cột KÊNH. Ở đây nhãn phủ
+       * đúng khối nó mô tả, vì đó là thứ duy nhất giúp người đọc định vị khi
+       * cuộn ngang qua năm mươi cột.
+       *
+       * Màu chọn nhạt: file hay được in đen trắng, nên ranh giới khối phải đọc
+       * được bằng viền và chữ đậm chứ không chỉ bằng màu.
+       */
+      const KHACH = { group: "KHÁCH HÀNG", groupColor: "FFDCE9F7" };
+      const MO_TK = { group: "MỞ TÀI KHOẢN", groupColor: "FFDFF0E0" };
+      const APP_CAI = { group: "APP CÀI TRÊN THIẾT BỊ", groupColor: "FFFDF2D5" };
+      const QUA = { group: "QUÀ TẶNG", groupColor: "FFF6E2F0" };
+      const BAO_HIEM = { group: "BẢO HIỂM", groupColor: "FFE6E2F6" };
+      const NHAN_SU = { group: "NHÂN SỰ", groupColor: "FFEDEEF0" };
+      const DIEM = { group: "ĐIỂM", groupColor: "FFFBE0DC" };
+      const mark = { align: "center" as const, type: "number" as const };
+
       const sum = (pick: (r: ScoringExportRow) => number) => (rows: ScoringExportRow[]) =>
         Number(rows.reduce((t, r) => t + pick(r), 0).toFixed(2));
       const countIf = (pick: (r: ScoringExportRow) => boolean) => (rows: ScoringExportRow[]) =>
         rows.filter(pick).length;
 
       return [
-        { key: "stt", header: "STT", type: "number", defaultOn: true, sample: ["1", "2"], total: (rows) => rows.length, value: (_row, index) => index + 1 },
-        { key: "customerName", header: "TÊN KHÁCH HÀNG", transform: "name", defaultOn: true, sample: ["NGUYEN VAN MEN", "VO VAN CHIEN"], total: countIf((r) => Boolean(r.customerName)), value: (r) => r.customerName },
-        { key: "idNumber", header: "SỐ CCCD", type: "text", defaultOn: true, sample: ["82077017051", "82047005635"], total: countIf((r) => Boolean(r.idNumber)), value: (r) => r.idNumber },
-        { key: "phone", header: "SỐ ĐIỆN THOẠI", type: "text", defaultOn: true, sample: ["336585699", "369907415"], total: countIf((r) => Boolean(r.phone)), value: (r) => r.phone },
-        { key: "date", header: "NGÀY", type: "number", defaultOn: true, sample: ["1", "1"], total: countIf((r) => Boolean(r.date)), value: (r) => Number(r.date.slice(8, 10)) || "" },
-        { key: "hamlet", header: "ẤP", defaultOn: true, sample: ["MỸ TRUNG/HẬU MỸ", "MỸ TRUNG/HẬU MỸ"], total: countIf((r) => Boolean(r.hamlet)), value: (r) => r.hamlet },
-        { key: "channel", header: "KÊNH", defaultOn: true, sample: ["KÊNH ẤP", "KÊNH ẤP"], group: "TỔNG APP:", value: (r) => r.channelName },
-        { key: "apps", header: "CÁC APP", defaultOn: true, sample: ["MB, LPB, MSBb", "VPa, LPB, MSBa"], value: (r) => r.openedBanks.join(", ") },
+        { key: "stt", header: "STT", ...KHACH, ...mark, width: 7, defaultOn: true, sample: ["1", "2"], total: (rows) => rows.length, value: (_row, index) => index + 1 },
+        { key: "customerName", header: "TÊN KHÁCH HÀNG", ...KHACH, transform: "name", width: 26, defaultOn: true, sample: ["NGUYEN VAN MEN", "VO VAN CHIEN"], total: countIf((r) => Boolean(r.customerName)), value: (r) => r.customerName },
+        { key: "idNumber", header: "SỐ CCCD", ...KHACH, type: "text", width: 15, defaultOn: true, sample: ["82077017051", "82047005635"], total: countIf((r) => Boolean(r.idNumber)), value: (r) => r.idNumber },
+        { key: "phone", header: "SỐ ĐIỆN THOẠI", ...KHACH, type: "text", width: 14, defaultOn: true, sample: ["336585699", "369907415"], total: countIf((r) => Boolean(r.phone)), value: (r) => r.phone },
+        { key: "date", header: "NGÀY", ...KHACH, ...mark, width: 7, defaultOn: true, sample: ["1", "1"], total: countIf((r) => Boolean(r.date)), value: (r) => Number(r.date.slice(8, 10)) || "" },
+        { key: "hamlet", header: "ẤP", ...KHACH, width: 24, defaultOn: true, sample: ["MỸ TRUNG/HẬU MỸ", "MỸ TRUNG/HẬU MỸ"], total: countIf((r) => Boolean(r.hamlet)), value: (r) => r.hamlet },
+        { key: "channel", header: "KÊNH", ...KHACH, width: 13, defaultOn: true, sample: ["KÊNH ẤP", "KÊNH ẤP"], value: (r) => r.channelName },
+        { key: "apps", header: "CÁC APP", ...KHACH, width: 20, defaultOn: true, sample: ["MB, LPB, MSBb", "VPa, LPB, MSBa"], value: (r) => r.openedBanks.join(", ") },
         ...scoring.map((b): CatalogColumn => ({
           key: `open:${b.code}`,
           header: b.code,
-          type: "number",
+          ...MO_TK,
+          ...mark,
+          width: 6,
           defaultOn: true,
           sample: ["1", ""],
           total: countIf((r) => r.openedBanks.includes(b.code)),
           value: (r) => (r.openedBanks.includes(b.code) ? 1 : ""),
         })),
-        { key: "msbAccount", header: "STK MSB", type: "text", defaultOn: true, sample: ["80003630480", ""], total: countIf((r) => Boolean(r.msbAccountNumber)), value: (r) => r.msbAccountNumber },
-        { key: "household", header: "HKD/CNKD", defaultOn: true, sample: ["CNKD", ""], total: countIf((r) => Boolean(r.household)), value: (r) => r.household },
+        { key: "msbAccount", header: "STK MSB", ...MO_TK, type: "text", width: 15, defaultOn: true, sample: ["80003630480", ""], total: countIf((r) => Boolean(r.msbAccountNumber)), value: (r) => r.msbAccountNumber },
+        { key: "household", header: "HKD/CNKD", ...MO_TK, align: "center", width: 10, defaultOn: true, sample: ["CNKD", ""], total: countIf((r) => Boolean(r.household)), value: (r) => r.household },
         // Cột ngăn hai khối, luôn trống — file Kế toán có nó nên giữ đúng vị trí cột.
-        { key: "spacer", header: "0", defaultOn: true, sample: ["", ""], group: "APP CÀI TRÊN THIẾT BỊ", value: () => "" },
+        { key: "spacer", header: "0", ...APP_CAI, width: 4, defaultOn: true, sample: ["", ""], value: () => "" },
         ...scoring.map((b): CatalogColumn => ({
           key: `app:${b.code}`,
           header: b.code,
-          type: "number",
+          ...APP_CAI,
+          ...mark,
+          width: 6,
           defaultOn: true,
           sample: ["1", ""],
           total: countIf((r) => r.installedBanks.includes(b.code)),
           value: (r) => (r.installedBanks.includes(b.code) ? 1 : ""),
         })),
-        { key: "installedCount", header: "TỔNG APP CÀI TRÊN THIẾT BỊ", type: "number", defaultOn: true, sample: ["1", "1"], total: sum((r) => r.installedBanks.length), value: (r) => r.installedBanks.length },
-        { key: "giftReport", header: "QUÀ TẶNG BÁO CÁO", defaultOn: true, sample: ["2 NĂM BH (Không thuộc…)", "MÌ"], total: countIf((r) => Boolean(r.giftReport)), value: (r) => r.giftReport },
-        { key: "giftCombo", header: "QUÀ TẶNG THEO COMBO", defaultOn: true, sample: ["2 năm BH", "2 năm BH + 20k"], total: countIf((r) => Boolean(r.giftCombo)), value: (r) => r.giftCombo },
-        { key: "speaker", header: "LOA", defaultOn: true, sample: ["", "LOA"], total: countIf((r) => Boolean(r.speaker)), value: (r) => r.speaker },
-        { key: "insuranceLabel", header: "LOẠI BẢO HIỂM", defaultOn: true, sample: ["BHX", "BHĐ 100K"], total: countIf((r) => Boolean(r.insuranceLabel)), value: (r) => r.insuranceLabel },
-        { key: "licensePlate", header: "BIỂN SỐ XE", type: "text", defaultOn: true, sample: ["63B1-87397", ""], total: countIf((r) => Boolean(r.licensePlate)), value: (r) => r.licensePlate },
-        { key: "beneficiary", header: "TÊN KHÁCH HÀNG TRÊN BẢO HIỂM", transform: "name", defaultOn: true, sample: ["NGUYEN VAN NGOC", "HUYNH CAM LOAN"], total: countIf((r) => Boolean(r.beneficiaryName)), value: (r) => r.beneficiaryName },
-        { key: "staffCode", header: "MÃ CBNV", type: "text", defaultOn: true, sample: ["243PHUNGVN", "019LYBTC"], total: countIf((r) => Boolean(r.staffCode)), value: (r) => r.staffCode },
-        { key: "department", header: "NHÓM", defaultOn: true, sample: ["PHÒNG 1 - TRANG", "PHÒNG 1 - TRANG"], total: countIf((r) => Boolean(r.departmentName)), value: (r) => r.departmentName },
-        { key: "bankCount", header: "APP", type: "number", defaultOn: true, sample: ["3", "3"], group: "APP", value: (r) => r.openedBanks.length },
-        { key: "priorityCount", header: "BANK ƯU TIÊN", type: "number", defaultOn: true, sample: ["1", "2"], group: "BANK ƯU TIÊN", value: (r) => r.priorityCount },
-        { key: "otherCount", header: "BANK KHÁC", type: "number", defaultOn: true, sample: ["2", "1"], group: "BANK KHÁC", value: (r) => r.otherCount },
-        { key: "restrictedCount", header: "BANK HẠN CHẾ", type: "number", defaultOn: true, sample: ["0", "0"], group: "BANK HẠN CHẾ", value: (r) => r.restrictedCount },
-        { key: "combo2", header: "ĐIỂM COMBO 2", type: "number", defaultOn: true, sample: ["", ""], group: "ĐIỂM COMBO 2", total: sum((r) => r.combo2Points), value: (r) => r.combo2Points || "" },
-        { key: "combo3", header: "ĐIỂM COMBO 3", type: "number", defaultOn: true, sample: ["0,8", "1"], group: "ĐIỂM COMBO 3", total: sum((r) => r.combo3Points), value: (r) => r.combo3Points || "" },
-        { key: "householdPoints", header: "ĐIỂM CNKD", type: "number", defaultOn: true, sample: ["0", "1"], group: "ĐIỂM CNKD", total: sum((r) => r.householdPoints), value: (r) => r.householdPoints || "" },
-        { key: "totalPoints", header: "TỔNG ĐIỂM", type: "number", defaultOn: true, sample: ["0,8", "2"], group: "TỔNG ĐIỂM", total: sum((r) => r.totalPoints), value: (r) => r.totalPoints },
+        { key: "installedCount", header: "TỔNG APP CÀI TRÊN THIẾT BỊ", ...APP_CAI, ...mark, width: 12, defaultOn: true, sample: ["1", "1"], total: sum((r) => r.installedBanks.length), value: (r) => r.installedBanks.length },
+        { key: "giftReport", header: "QUÀ TẶNG BÁO CÁO", ...QUA, width: 40, defaultOn: true, sample: ["2 NĂM BH (Không thuộc…)", "MÌ"], total: countIf((r) => Boolean(r.giftReport)), value: (r) => r.giftReport },
+        { key: "giftCombo", header: "QUÀ TẶNG THEO COMBO", ...QUA, width: 18, defaultOn: true, sample: ["2 năm BH", "2 năm BH + 20k"], total: countIf((r) => Boolean(r.giftCombo)), value: (r) => r.giftCombo },
+        { key: "speaker", header: "LOA", ...QUA, align: "center", width: 7, defaultOn: true, sample: ["", "LOA"], total: countIf((r) => Boolean(r.speaker)), value: (r) => r.speaker },
+        { key: "insuranceLabel", header: "LOẠI BẢO HIỂM", ...BAO_HIEM, width: 13, defaultOn: true, sample: ["BHX", "BHĐ 100K"], total: countIf((r) => Boolean(r.insuranceLabel)), value: (r) => r.insuranceLabel },
+        { key: "licensePlate", header: "BIỂN SỐ XE", ...BAO_HIEM, type: "text", width: 13, defaultOn: true, sample: ["63B1-87397", ""], total: countIf((r) => Boolean(r.licensePlate)), value: (r) => r.licensePlate },
+        { key: "beneficiary", header: "TÊN KHÁCH HÀNG TRÊN BẢO HIỂM", ...BAO_HIEM, transform: "name", width: 26, defaultOn: true, sample: ["NGUYEN VAN NGOC", "HUYNH CAM LOAN"], total: countIf((r) => Boolean(r.beneficiaryName)), value: (r) => r.beneficiaryName },
+        { key: "staffCode", header: "MÃ CBNV", ...NHAN_SU, type: "text", width: 14, defaultOn: true, sample: ["243PHUNGVN", "019LYBTC"], total: countIf((r) => Boolean(r.staffCode)), value: (r) => r.staffCode },
+        { key: "department", header: "NHÓM", ...NHAN_SU, width: 20, defaultOn: true, sample: ["PHÒNG 1 - TRANG", "PHÒNG 1 - TRANG"], total: countIf((r) => Boolean(r.departmentName)), value: (r) => r.departmentName },
+        { key: "bankCount", header: "APP", ...DIEM, ...mark, width: 6, defaultOn: true, sample: ["3", "3"], value: (r) => r.openedBanks.length },
+        { key: "priorityCount", header: "BANK ƯU TIÊN", ...DIEM, ...mark, width: 9, defaultOn: true, sample: ["1", "2"], value: (r) => r.priorityCount },
+        { key: "otherCount", header: "BANK KHÁC", ...DIEM, ...mark, width: 9, defaultOn: true, sample: ["2", "1"], value: (r) => r.otherCount },
+        { key: "restrictedCount", header: "BANK HẠN CHẾ", ...DIEM, ...mark, width: 9, defaultOn: true, sample: ["0", "0"], value: (r) => r.restrictedCount },
+        { key: "combo2", header: "ĐIỂM COMBO 2", ...DIEM, ...mark, width: 10, defaultOn: true, sample: ["", ""], total: sum((r) => r.combo2Points), value: (r) => r.combo2Points || "" },
+        { key: "combo3", header: "ĐIỂM COMBO 3", ...DIEM, ...mark, width: 10, defaultOn: true, sample: ["0,8", "1"], total: sum((r) => r.combo3Points), value: (r) => r.combo3Points || "" },
+        { key: "householdPoints", header: "ĐIỂM CNKD", ...DIEM, ...mark, width: 10, defaultOn: true, sample: ["0", "1"], total: sum((r) => r.householdPoints), value: (r) => r.householdPoints || "" },
+        { key: "totalPoints", header: "TỔNG ĐIỂM", ...DIEM, ...mark, width: 10, defaultOn: true, sample: ["0,8", "2"], total: sum((r) => r.totalPoints), value: (r) => r.totalPoints },
       ];
     }
     case "staff-points":
@@ -222,6 +249,9 @@ function buildColumns(catalog: CatalogColumn[], order: string[]): ExcelColumn<an
       type: c.type,
       transform: c.transform,
       group: c.group,
+      groupColor: c.groupColor,
+      align: c.align,
+      width: c.width,
       total: c.total,
       value: c.value,
     }));

@@ -7,7 +7,14 @@ import { nameForExcel } from './format';
  * ⚠️ Cột SĐT và CCCD phải ép **định dạng text**. Để mặc định thì Excel hiểu là
  * số học: `0912345678` mất số 0 đầu, CCCD 12 số thành `9.12E+11`. Lỗi này chỉ
  * lộ ra lúc gửi file cho ngân hàng — muộn nhất có thể.
+ *
+ * ⚠️ Định dạng đặt ở mức CỘT, không đặt từng ô. Báo cáo Tính điểm tổng có 37.000
+ * dòng trên 50 cột; gán style cho từng ô là gần hai triệu lượt, đủ làm treo tab
+ * trình duyệt. `ws.getColumn()` giữ style một lần cho cả cột.
  */
+
+/** Font dùng chung cho mọi file xuất — Arial có trên cả Windows lẫn macOS. */
+const FONT = 'Arial';
 
 export type ExcelColumn<T> = {
   header: string;
@@ -22,10 +29,37 @@ export type ExcelColumn<T> = {
    * Chỉ có nghĩa khi bảng dựng đầu 3 tầng — xem `exportExcel`.
    */
   group?: string;
+  /**
+   * Màu nền của khối, dạng `FFRRGGBB`. Tô ở CẢ ba dòng đầu bảng để người đọc
+   * thấy ranh giới khối khi cuộn ngang qua năm mươi cột.
+   *
+   * Chọn màu nhạt: file này hay được in đen trắng, nên ranh giới phải đọc được
+   * bằng viền và chữ đậm chứ không chỉ bằng màu.
+   */
+  groupColor?: string;
   /** Số tổng ở dòng thứ hai. Nhận TRỌN danh sách dòng, không nhận từng dòng. */
   total?: (rows: T[]) => string | number;
+  /**
+   * Căn ngang của cột. Mặc định trái — quy ước bảng của dự án.
+   *
+   * `center` chỉ dùng cho ô đánh dấu một ký tự: hai khối ngân hàng ghi số `1`
+   * trên cột rộng ba ký tự, căn trái thì dấu dính sát mép và mắt không dò được
+   * theo hàng.
+   */
+  align?: 'left' | 'center';
   /** `index` là thứ tự dòng trong file, đếm từ 0 — dùng cho cột STT. */
   value: (row: T, index: number) => string | number;
+};
+
+const HEADER_GREY = 'FFE8EAED';
+const TOTAL_GREY = 'FFF5F6F7';
+const LINE = 'FFB0B4BA';
+
+const thinBorder = {
+  top: { style: 'thin' as const, color: { argb: LINE } },
+  left: { style: 'thin' as const, color: { argb: LINE } },
+  bottom: { style: 'thin' as const, color: { argb: LINE } },
+  right: { style: 'thin' as const, color: { argb: LINE } },
 };
 
 export async function exportExcel<T>({
@@ -54,16 +88,49 @@ export async function exportExcel<T>({
    *   dòng 2  số tổng của cột
    *   dòng 3  tên cột
    *
-   * Không cột nào khai thì giữ một tầng như cũ — bảy báo cáo còn lại không đổi.
+   * Không cột nào khai thì giữ một tầng như cũ — hai báo cáo còn lại không đổi.
    */
   const stacked = columns.some((c) => c.group || c.total);
   const headerRow = stacked ? 3 : 1;
 
   ws.columns = columns.map((c) => ({ key: c.header, width: c.width ?? 18 }));
 
+  /**
+   * Định dạng mức CỘT phải đặt TRƯỚC khi dựng đầu bảng.
+   *
+   * ExcelJS áp style cột lên mọi ô của cột, kể cả ô đã có style riêng — đặt sau
+   * thì ba dòng đầu mất chữ đậm và mất căn giữa, chỉ còn nền với viền.
+   *
+   * `numFmt: '@'` giữ số 0 đầu của SĐT và chặn Excel đổi CCCD 12 số sang ký
+   * hiệu mũ.
+   */
+  columns.forEach((c, i) => {
+    const col = ws.getColumn(i + 1);
+    col.font = { name: FONT, size: 10 };
+    col.alignment = { horizontal: c.align === 'center' ? 'center' : 'left' };
+    if (c.type === 'text') col.numFmt = '@';
+  });
+
   if (stacked) {
-    ws.addRow(columns.map((c) => c.group ?? ''));
-    ws.addRow(columns.map((c) => c.total?.(rows) ?? ''));
+    const groupRow = ws.addRow(columns.map((c) => c.group ?? ''));
+    const totalRow = ws.addRow(columns.map((c) => c.total?.(rows) ?? ''));
+    groupRow.height = 22;
+
+    columns.forEach((c, i) => {
+      const fill = c.groupColor ?? HEADER_GREY;
+      const g = groupRow.getCell(i + 1);
+      g.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fill } };
+      g.font = { name: FONT, bold: true, size: 11 };
+      g.alignment = { horizontal: 'center', vertical: 'middle' };
+      g.border = thinBorder;
+
+      const t = totalRow.getCell(i + 1);
+      t.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: TOTAL_GREY } };
+      t.font = { name: FONT, bold: true, size: 9, color: { argb: 'FF5F6368' } };
+      t.alignment = { horizontal: c.align === 'center' ? 'center' : 'left' };
+      t.border = thinBorder;
+    });
+
     // Gộp ô cho từng dải cột liền nhau cùng nhãn nhóm. Không gộp thì nhãn lặp
     // lại trên mười một cột ngân hàng và người đọc không thấy ranh giới nhóm.
     let start = 0;
@@ -74,24 +141,43 @@ export async function exportExcel<T>({
       }
   }
 
-  ws.addRow(columns.map((c) => c.header));
-  ws.getRow(headerRow).font = { bold: true };
-  if (stacked) ws.getRow(1).font = { bold: true };
+  const head = ws.addRow(columns.map((c) => c.header));
+  head.height = stacked ? 34 : 18;
+  columns.forEach((c, i) => {
+    const cell = head.getCell(i + 1);
+    cell.font = { name: FONT, bold: true, size: 10 };
+    cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: stacked };
+    if (stacked) {
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: c.groupColor ?? HEADER_GREY },
+      };
+      cell.border = thinBorder;
+    }
+  });
 
   for (const [index, row] of rows.entries()) {
     const cells = columns.map((c) => {
       const raw = c.value(row, index);
-      return c.transform === 'name' ? nameForExcel(String(raw)) : raw;
+      if (c.transform === 'name') return nameForExcel(String(raw));
+      // Ép chuỗi TRƯỚC khi ghi: `numFmt` mức cột chỉ đổi cách HIỆN, còn giá trị
+      // vẫn là số nên Excel vẫn cắt số 0 đầu lúc mở file.
+      return c.type === 'text' ? String(raw ?? '') : raw;
     });
-    const added = ws.addRow(cells);
+    ws.addRow(cells);
+  }
 
-    columns.forEach((c, i) => {
-      if (c.type === 'text') {
-        const cell = added.getCell(i + 1);
-        cell.numFmt = '@';
-        cell.value = String(cell.value ?? '');
-      }
-    });
+  if (stacked) {
+    // Giữ ba dòng đầu và hai cột đầu khi cuộn — không có nó thì cuộn tới cột
+    // ĐIỂM là mất tên khách, và cuộn xuống dòng 500 là mất tên cột.
+    ws.views = [{ state: 'frozen', xSplit: 2, ySplit: headerRow }];
+    ws.autoFilter = {
+      from: { row: headerRow, column: 1 },
+      to: { row: headerRow + rows.length, column: columns.length },
+    };
+  } else {
+    ws.getRow(1).font = { name: FONT, bold: true, size: 10 };
   }
 
   const buffer = await wb.xlsx.writeBuffer();
