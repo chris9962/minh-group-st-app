@@ -6,6 +6,7 @@ import { FlaskConical } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
+import { DateField } from "@/components/ui/DateField";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { Select } from "@/components/ui/Select";
 import { errorMessage, toast } from "@/lib/toast";
@@ -17,13 +18,36 @@ import { formatVnd } from "@/lib/format";
 import styles from "./GiftSimulator.module.scss";
 
 /**
- * Mã phòng được quy đổi quà (thể lệ 2026-08 lưu ý 2).
+ * Ba lựa chọn phòng, không phải một ô tick.
  *
  * Viết cứng ở đây là CỐ Ý: đây là màn thử luật, và một ô chọn phòng đầy đủ thì
- * người dùng phải tự biết phòng nào có luật riêng mới thử được. Ô tick nói
- * thẳng ra. Kỳ nào bỏ luật Phòng Y thì bỏ luôn ô này.
+ * người dùng phải tự biết phòng nào có luật riêng mới thử được. Danh sách này
+ * nói thẳng ra. Kỳ nào bỏ luật Phòng Y thì bỏ luôn dòng đó.
+ *
+ * ⚠️ Phòng Y và phòng Dự án KHÁC NHAU từ 2026-08-25: cả hai được Mì, BH sức
+ * khoẻ, Nón bảo hiểm, nhưng chỉ Phòng Y có thêm Bảng mica (M13). Bản trước để
+ * một ô tick nên nhánh Dự án không thử được.
  */
-const PHONG_Y = "PHONG-Y";
+const DEPARTMENTS: { value: string; label: string }[] = [
+  { value: "", label: "— Không thuộc phòng có luật riêng —" },
+  { value: "PHONG-Y", label: "Phòng Y — thêm Mì, BH sức khoẻ, Nón, Bảng mica" },
+  { value: "PHONG-DU-AN", label: "Phòng Dự án — thêm Mì, BH sức khoẻ, Nón" },
+];
+
+/**
+ * Món khách ĐÃ nhận. Chỉ liệt kê vật phẩm — gói bảo hiểm không đổi điểm nào.
+ *
+ * Hai món đầu đưa điểm CNKD của khách một ngân hàng xuống 0,7 (thể lệ mục 4c).
+ * Ba món sau có mặt để thử vế ngược lại: nhận món khác thì mức giữ nguyên 1,5.
+ */
+const GRANTED_ITEMS: { value: string; label: string }[] = [
+  { value: "", label: "— Chưa phát quà —" },
+  { value: "QUA-MI", label: "Thùng mì — hạ điểm CNKD xuống 0,7" },
+  { value: "QUA-NON-BH", label: "Nón bảo hiểm — hạ điểm CNKD xuống 0,7" },
+  { value: "QUA-BH-SUC-KHOE", label: "BH sức khoẻ" },
+  { value: "QUA-LOA", label: "Loa" },
+  { value: "QUA-MICA", label: "Bảng mica" },
+];
 
 /** Chỉ VPa mở được CNKD/HKD (spec §4.9) — nhãn giữ đúng chữ của màn P-20. */
 const VPA = "VPa";
@@ -46,7 +70,10 @@ export function GiftSimulator() {
   const [opened, setOpened] = useState<string[]>([]);
   const [apps, setApps] = useState<string[]>([]);
   const [channel, setChannel] = useState("");
-  const [phongY, setPhongY] = useState(false);
+  const [department, setDepartment] = useState("");
+  const [grantedItem, setGrantedItem] = useState("");
+  /** Rỗng nghĩa là để máy chủ dùng ngày làm việc — xem `GiftSimulateInput.at`. */
+  const [at, setAt] = useState("");
   const [vpaAccountType, setVpaAccountType] = useState<AccountType>("none");
 
   const { data: allBanks = [] } = useQuery({ queryKey: ["banks"], queryFn: fetchBanks });
@@ -62,7 +89,9 @@ export function GiftSimulator() {
           accountType: bankCode === VPA ? vpaAccountType : ("none" as AccountType),
         })),
         channelCodes: channel ? [channel] : [],
-        departmentCode: phongY ? PHONG_Y : null,
+        departmentCode: department || null,
+        grantedItem: grantedItem || null,
+        at: at || null,
       }),
     onError: (e) => toast.fail(errorMessage(e, "Chưa chạy thử được.")),
   });
@@ -147,7 +176,12 @@ export function GiftSimulator() {
       </fieldset>
 
       <div className={styles.row}>
-        <Checkbox label="Khách của Phòng Y" checked={phongY} onCheckedChange={setPhongY} />
+        <Select
+          label="Phòng của người phụ trách"
+          value={department}
+          onChange={setDepartment}
+          options={DEPARTMENTS}
+        />
         <Select
           label="Kênh"
           value={channel}
@@ -156,6 +190,24 @@ export function GiftSimulator() {
             { value: "", label: "— Không thuộc kênh nào —" },
             ...channels.map((c) => ({ value: c.code, label: c.name })),
           ]}
+        />
+      </div>
+
+      <div className={styles.row}>
+        <Select
+          label="Quà khách đã nhận"
+          value={grantedItem}
+          onChange={setGrantedItem}
+          options={GRANTED_ITEMS}
+          hint="Đổi mức điểm CNKD, không đổi rổ quà"
+        />
+        {/* Luật tra theo NGÀY: kỳ nào cũng có file riêng và một ngày chỉ thuộc
+            một kỳ. Không có ô này thì màn chỉ thử được kỳ đang hiệu lực. */}
+        <DateField
+          label="Ngày tra luật"
+          value={at}
+          onChange={setAt}
+          hint="Bỏ trống là ngày làm việc"
         />
         <Button onClick={() => run.mutate()} disabled={run.isPending}>
           Thử
@@ -226,8 +278,8 @@ export function GiftSimulator() {
           <div>
             {/* KHÔNG gọi là "Điểm KPI". Màn này thử THỂ LỆ QUÀ, và con số dưới
                 đây là điểm combo — thứ quyết định khách rơi vào TH2 hay TH5.
-                Điểm KPI thật còn lọc theo tháng (thể lệ câu 7.13) mà màn này
-                không hỏi ngày, nên gọi nó là KPI là hứa một con số nó không
+                Điểm KPI thật còn lọc theo tháng (thể lệ câu 7.13), mà màn này
+                tra luật theo MỘT ngày; gọi nó là KPI là hứa một con số nó không
                 tính được. */}
             <dt>Điểm combo</dt>
             <dd>
@@ -237,6 +289,30 @@ export function GiftSimulator() {
                   {run.data.kpiBreakdown.map((b) => `${b.label} ${b.points}`).join(" + ")}
                 </span>
               )}
+            </dd>
+          </div>
+          {/* Điểm CNKD nằm NGOÀI điểm combo và không đổi bậc quà, nên hiện
+              thành dòng riêng. Bản trước bỏ hẳn nó, và khách mở đúng một VPa
+              kèm CNKD ra "0 điểm" trong khi điểm thật là 1,5. */}
+          <div>
+            <dt>Điểm CNKD</dt>
+            <dd>
+              <span className="tabular-nums">{run.data.householdPoints}</span>
+              {run.data.householdNote && (
+                <span className={styles.detail}>{run.data.householdNote}</span>
+              )}
+            </dd>
+          </div>
+          <div>
+            <dt>Tổng điểm</dt>
+            <dd>
+              <strong className="tabular-nums">
+                {Math.round((run.data.kpiPoints + run.data.householdPoints) * 10) / 10}
+              </strong>
+              <span className={styles.detail}>
+                Điểm combo cộng điểm CNKD. Điểm KPI thật còn lọc tài khoản theo
+                tháng (thể lệ câu 7.13).
+              </span>
             </dd>
           </div>
           {run.data.explain.length > 0 && (

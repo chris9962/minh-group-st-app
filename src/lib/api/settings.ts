@@ -112,8 +112,30 @@ export const GiftSimulateInput = z.object({
    * dùng, không chỉ kênh của tài khoản gần nhất.
    */
   channelCodes: z.array(z.string()),
-  /** Mã phòng của người phụ trách — `PHONG-Y` được quy đổi quà (thể lệ lưu ý 2). */
+  /**
+   * Mã phòng của người phụ trách. `PHONG-Y` và `PHONG-DU-AN` được quy đổi quà
+   * (thể lệ lưu ý 2), và từ 2026-08-25 hai phòng cho rổ KHÁC NHAU — riêng
+   * Phòng Y có thêm Bảng mica. Ô chọn ở P-81 vì thế phải là ba lựa chọn, không
+   * phải một ô tick.
+   */
   departmentCode: z.string().nullable(),
+  /**
+   * Món quà khách ĐÃ nhận — mã danh mục, `null` là chưa phát gì.
+   *
+   * Đầu vào của phép tính ĐIỂM từ chốt 2026-08-24 (thể lệ mục 4c): phát `Mì`
+   * hay `Nón` cho khách CNKD một ngân hàng đưa điểm xuống 0,7 thay vì 1,5.
+   * Không có trường này thì màn thử không ra được mức 0,7.
+   *
+   * `default` để đợt gọi cũ không kèm trường này vẫn chạy.
+   */
+  grantedItem: z.string().nullable().default(null),
+  /**
+   * Ngày tra luật, `YYYY-MM-DD`. Bỏ trống thì máy chủ dùng ngày làm việc.
+   *
+   * Cần cho ngày có kỳ thứ hai: `giftFor` chọn file luật theo ngày, nên không
+   * hỏi ngày thì màn chỉ thử được kỳ đang hiệu lực.
+   */
+  at: z.string().nullable().default(null),
 });
 export type GiftSimulateInput = z.infer<typeof GiftSimulateInput>;
 
@@ -159,6 +181,19 @@ export const GiftSimulateResult = z.object({
    */
   kpiPoints: z.number(),
   kpiBreakdown: z.array(z.object({ label: z.string(), points: z.number() })),
+  /**
+   * Phần điểm CNKD/HKD (thể lệ mục 4c) — KHÔNG nằm trong `kpiPoints`.
+   *
+   * Hai trường tách nhau vì trả lời hai câu khác nhau: `kpiPoints` quyết định
+   * bậc quà, con số này thì không. Gộp lại thì màn nói "combo TH2" cạnh một số
+   * điểm không phải của combo nào.
+   *
+   * `default` để snapshot `gift_grants` chốt trước 2026-08-26 vẫn parse được —
+   * snapshot là bản ghi lịch sử, không vá ngược.
+   */
+  householdPoints: z.number().default(0),
+  /** Vì sao ra mức đó — rỗng khi khách không có CNKD. */
+  householdNote: z.string().default(''),
   /** Vì sao ra kết quả này — khách hỏi thì nhân viên đọc thẳng ở màn (spec §5.3). */
   explain: z.array(z.string()),
 });
@@ -173,6 +208,8 @@ export const EMPTY_GIFT: GiftSimulateResult = {
   basket: [],
   kpiPoints: 0,
   kpiBreakdown: [],
+  householdPoints: 0,
+  householdNote: '',
   explain: [],
 };
 

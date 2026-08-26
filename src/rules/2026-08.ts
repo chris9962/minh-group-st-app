@@ -289,6 +289,19 @@ function householdTenths(accounts: ScoringAccount[], grantedItem: string | null)
     : CNKD_TENTHS.alone;
 }
 
+/**
+ * Phần điểm CNKD của một khách, tính bằng ĐIỂM chứ không phải phần mười.
+ *
+ * Mở ra ngoài để màn thử quy tắc quà (P-81) tách được hai phần của cùng một con
+ * số: điểm tổ hợp quyết định BẬC QUÀ, điểm CNKD thì không. Bản trước chỉ hiện
+ * điểm tổ hợp, nên khách mở đúng một `VPa` kèm CNKD ra "0 điểm" trên màn trong
+ * khi điểm thật là 1,5.
+ */
+export const householdPointsOf = (
+  accounts: ScoringAccount[],
+  grantedItem: string | null,
+): number => householdTenths(accounts, grantedItem) / 10;
+
 /* ── Mục 3 · quà tặng ────────────────────────────────────────────────── */
 
 /**

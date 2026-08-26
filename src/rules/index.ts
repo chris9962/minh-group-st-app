@@ -133,6 +133,8 @@ export type GiftResult = {
 
 type PeriodRules = {
   bankingPoints(accounts: ScoringAccount[], granted: GrantedGifts): number;
+  /** Phần điểm CNKD/HKD của MỘT khách, tách khỏi điểm tổ hợp. */
+  householdPointsOf(accounts: ScoringAccount[], grantedItem: string | null): number;
   gift(input: GiftInput): GiftResult;
   /** Hạng của một mã ngân hàng; `null` = ngoài thể lệ kỳ đó. */
   bankTierOf(bankCode: string): Tier | null;
@@ -216,6 +218,24 @@ export function bankingPointsFor(
 export function giftFor(input: GiftInput, at: string): GiftResult | null {
   const rules = rulesFor(at);
   return rules ? rules.gift(input) : null;
+}
+
+/**
+ * Phần điểm CNKD/HKD của MỘT khách, theo luật đang hiệu lực ngày `at`.
+ *
+ * Tách riêng khỏi `bankingPointsFor` vì hai con số trả lời hai câu khác nhau:
+ * điểm tổ hợp quyết định BẬC QUÀ, điểm CNKD thì không. Màn thử quy tắc quà
+ * (P-81) hiện cả hai cạnh nhau — bản trước chỉ hiện điểm tổ hợp, nên khách mở
+ * đúng một `VPa` kèm CNKD ra "0 điểm" trong khi điểm thật là 1,5.
+ *
+ * KHÔNG lọc tài khoản theo tháng: nơi gọi tự lo, giống `giftFor`.
+ */
+export function householdPointsAt(
+  accounts: ScoringAccount[],
+  at: string,
+  grantedItem: string | null = null,
+): number {
+  return rulesFor(at)?.householdPointsOf(accounts, grantedItem) ?? 0;
 }
 
 /**

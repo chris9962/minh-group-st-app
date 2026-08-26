@@ -4,7 +4,7 @@ import { GIFT_DECLINED, GIFT_DECLINED_LABEL, GIFT_ERROR } from "@/lib/api/custom
 import { EMPTY_GIFT, type GiftSimulateInput, type GiftSimulateResult } from "@/lib/api/settings";
 import { businessDay, businessMonth } from "@/lib/format";
 import type { User } from "@/lib/types";
-import { giftFor, type GiftInput, type GiftResult } from "@/rules";
+import { giftFor, householdPointsAt, type GiftInput, type GiftResult } from "@/rules";
 import { db } from "./db/client";
 import { recomputeKpiForCustomer } from "./kpi";
 import {
@@ -158,12 +158,15 @@ async function resolveBasket(items: GiftResult["basket"]) {
 export async function giftResultOf(
   input: GiftInput,
   at: string = businessDay(),
+  grantedItem: string | null = null,
 ): Promise<GiftSimulateResult> {
   const result = giftFor(input, at);
   // Kỳ chưa có file luật: trả rổ rỗng KÈM một câu nói rõ vì sao. Rỗng mà im
   // lặng thì màn hiện "Chưa đủ điều kiện" cho một khách có thể đang đủ.
   if (!result)
     return { ...EMPTY_GIFT, explain: [`Ngày ${at} chưa có thể lệ nào trong hệ thống.`] };
+
+  const householdPoints = householdPointsAt(input.accounts, at, grantedItem);
 
   return {
     caseCode: result.caseCode,
@@ -179,17 +182,48 @@ export async function giftResultOf(
       result.comboPoints > 0
         ? [{ label: `Combo ${result.caseCode ?? ""}`.trim(), points: result.comboPoints }]
         : [],
+    householdPoints,
+    householdNote: householdNoteOf(householdPoints, grantedItem),
     explain: result.explain,
   };
+}
+
+/**
+ * Vì sao điểm CNKD ra đúng mức đó — bốn dòng của bảng mục 4c.
+ *
+ * Đọc từ CON SỐ chứ không tính lại điều kiện: tính lại là dựng bản sao thứ hai
+ * của luật ở tầng máy chủ, và hai bản sao sớm muộn lệch nhau.
+ */
+function householdNoteOf(points: number, grantedItem: string | null): string {
+  if (points === 0) return "";
+  if (points === 1.5) return "CNKD, mở đúng 1 ngân hàng, chưa nhận Mì hoặc Nón";
+  if (points === 0.7)
+    return `CNKD, mở đúng 1 ngân hàng, đã nhận ${grantedItem === "QUA-MI" ? "Mì" : "Nón"} nên xuống mức 0,7`;
+  return "CNKD, mở từ 2 ngân hàng";
 }
 
 /** Hai danh sách mã quà giống nhau không — thứ tự luật sinh ra ổn định nên so thẳng. */
 const sameCodes = (a: string[], b: string[]): boolean =>
   a.length === b.length && a.every((code, i) => code === b[i]);
 
-/** P-42 và P-43 — quà của một khách có thật trong database. */
-export const giftForCustomer = async (customerId: string): Promise<GiftSimulateResult> =>
-  giftResultOf(await giftInputFor(customerId));
+/**
+ * P-42 và P-43 — quà của một khách có thật trong database.
+ *
+ * Đọc thêm món khách ĐÃ nhận: từ chốt 2026-08-24 nó đổi mức điểm CNKD (thể lệ
+ * mục 4c). Bỏ qua thì hồ sơ khách hiện 1,5 cho người đã nhận Mì, trong khi bảng
+ * lương tính 0,7.
+ */
+export async function giftForCustomer(customerId: string): Promise<GiftSimulateResult> {
+  const [input, [grant]] = await Promise.all([
+    giftInputFor(customerId),
+    db
+      .select({ chosenItem: giftGrants.chosenItem })
+      .from(giftGrants)
+      .where(eq(giftGrants.customerId, customerId))
+      .limit(1),
+  ]);
+  return giftResultOf(input, businessDay(), grant?.chosenItem ?? null);
+}
 
 /**
  * Ghi lại `customers.gift_case` cho MỘT khách.
@@ -221,19 +255,24 @@ export async function recomputeGiftCase(customerId: string): Promise<void> {
  * khách tưởng tượng nên mọi dòng mang chung một khoá.
  */
 export const giftSimulate = (input: GiftSimulateInput): Promise<GiftSimulateResult> =>
-  giftResultOf({
-    accounts: input.accounts.map((a) => ({
-      customerId: "simulate",
-      bankCode: a.bankCode,
-      appInstalled: a.appInstalled,
-      openedDate: businessDay(),
-      // Nắn lại như `finishBankAccount`: CNKD/HKD chỉ có nghĩa với VPa (spec
-      // §4.9), ô chọn chỉ hiện trên thẻ VPa nhưng request nặn tay thì không.
-      household: a.bankCode === "VPa" ? a.accountType : "none",
-    })),
-    channelCodes: input.channelCodes,
-    departmentCode: input.departmentCode,
-  });
+  giftResultOf(
+    {
+      accounts: input.accounts.map((a) => ({
+        customerId: "simulate",
+        bankCode: a.bankCode,
+        appInstalled: a.appInstalled,
+        // Ngày mở = ngày tra luật, để tài khoản luôn nằm trong kỳ đang thử.
+        openedDate: input.at || businessDay(),
+        // Nắn lại như `finishBankAccount`: CNKD/HKD chỉ có nghĩa với VPa (spec
+        // §4.9), ô chọn chỉ hiện trên thẻ VPa nhưng request nặn tay thì không.
+        household: a.bankCode === "VPa" ? a.accountType : "none",
+      })),
+      channelCodes: input.channelCodes,
+      departmentCode: input.departmentCode,
+    },
+    input.at || businessDay(),
+    input.grantedItem,
+  );
 
 /**
  * Tính lại `customers.gift_case` cho TOÀN BỘ khách — `bun run db:recount`.
