@@ -43,6 +43,22 @@
   border-color: var(--om-orange-mid);
 }
 
+/* Đã đủ trần 3 ngân hàng: thẻ chưa chọn mờ đi. Ô tick bên trong đã `disabled`,
+   đây chỉ là dấu hiệu nhìn thấy được — §8 cấm truyền đạt chỉ bằng màu, nên
+   legend kèm số đếm "2/3" nói cùng một điều bằng chữ. */
+.bankOff {
+  opacity: 0.45;
+}
+
+.bankOff:hover {
+  border-color: var(--om-line);
+}
+
+.count {
+  font-weight: 600;
+  color: var(--om-text-3);
+}
+
 .bankOn {
   border-color: var(--om-orange);
   background: var(--om-orange-soft);

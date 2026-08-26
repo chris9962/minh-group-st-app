@@ -11,7 +11,7 @@ import { SectionCard } from "@/components/ui/SectionCard";
 import { Select } from "@/components/ui/Select";
 import { errorMessage, toast } from "@/lib/toast";
 import { fetchBanks } from "@/lib/api/bankCatalog";
-import type { AccountType } from "@/lib/api/bankAccounts";
+import { MAX_BANK_ACCOUNTS_PER_CUSTOMER, type AccountType } from "@/lib/api/bankAccounts";
 import { fetchChannels } from "@/lib/api/channelCatalog";
 import { simulateGift } from "@/lib/api/settings";
 import { formatVnd } from "@/lib/format";
@@ -96,6 +96,16 @@ export function GiftSimulator() {
     onError: (e) => toast.fail(errorMessage(e, "Chưa chạy thử được.")),
   });
 
+  /**
+   * Trần 3 ngân hàng — cùng con số `startBankAccount` chặn ở máy chủ và unique
+   * index `bank_accounts_customer_bank` chặn ở database (chốt 2026-08-25).
+   *
+   * Màn thử để đo LUẬT, nên nó chỉ được dựng ra những khách hệ thống dựng được.
+   * Bản trước tick bao nhiêu ngân hàng cũng xong, và khách 5 ngân hàng ra một
+   * kết quả không ai gặp ngoài đời.
+   */
+  const full = opened.length >= MAX_BANK_ACCOUNTS_PER_CUSTOMER;
+
   const toggleOpened = (bank: string) =>
     setOpened((prev) => (prev.includes(bank) ? prev.filter((b) => b !== bank) : [...prev, bank]));
 
@@ -110,7 +120,12 @@ export function GiftSimulator() {
       </p>
 
       <fieldset className={styles.fieldset}>
-        <legend className={styles.legend}>Khách đã mở tài khoản ở</legend>
+        <legend className={styles.legend}>
+          Khách đã mở tài khoản ở{" "}
+          <span className={styles.count}>
+            {opened.length}/{MAX_BANK_ACCOUNTS_PER_CUSTOMER}
+          </span>
+        </legend>
         {/*
           MỖI NGÂN HÀNG MỘT THẺ CHỌN ĐƯỢC, "đã cài app" là dòng CON bên trong.
 
@@ -128,12 +143,19 @@ export function GiftSimulator() {
             return (
               <li
                 key={bank.id}
-                className={clsx(styles.bank, picked && styles.bankOn)}
+                className={clsx(
+                  styles.bank,
+                  picked && styles.bankOn,
+                  !picked && full && styles.bankOff,
+                )}
               >
                 <Checkbox
                   block
                   label={bank.code}
                   checked={picked}
+                  // Bỏ tick thì luôn được, kể cả khi đã đủ trần — nếu không thì
+                  // chọn nhầm ngân hàng thứ ba là phải tải lại trang.
+                  disabled={!picked && full}
                   onCheckedChange={() => toggleOpened(bank.code)}
                 />
                 {picked && (
