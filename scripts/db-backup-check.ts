@@ -20,13 +20,15 @@ function fail(message: string): never {
   process.exit(1);
 }
 
-const endpoint = (process.env.BACKUP_S3_ENDPOINT ?? "").replace(/\/+$/, "");
-const region = process.env.BACKUP_S3_REGION ?? "";
-const bucket = process.env.BACKUP_S3_BUCKET ?? "";
-const accessKeyId = process.env.BACKUP_S3_ACCESS_KEY_ID ?? "";
-const secretAccessKey = process.env.BACKUP_S3_SECRET_ACCESS_KEY ?? "";
-if (!endpoint || !region || !bucket || !accessKeyId || !secretAccessKey)
-  fail("thiếu biến BACKUP_S3_*");
+/** `BACKUP_S3_*` thiếu thì dùng `S3_*` của app — xem ghi chú trong `db-backup.ts`. */
+const env = process.env;
+const endpoint = (env.BACKUP_S3_ENDPOINT || env.S3_ENDPOINT || "").replace(/\/+$/, "");
+const region = env.BACKUP_S3_REGION || env.S3_REGION || "";
+const bucket = env.BACKUP_S3_BUCKET ?? "";
+const accessKeyId = env.BACKUP_S3_ACCESS_KEY_ID || env.S3_ACCESS_KEY_ID || "";
+const secretAccessKey = env.BACKUP_S3_SECRET_ACCESS_KEY || env.S3_SECRET_ACCESS_KEY || "";
+if (!bucket || !endpoint || !region || !accessKeyId || !secretAccessKey)
+  fail("thiếu cấu hình S3 — khai BACKUP_S3_BUCKET, và BACKUP_S3_* hoặc S3_*");
 
 const client = new S3Client({
   endpoint,

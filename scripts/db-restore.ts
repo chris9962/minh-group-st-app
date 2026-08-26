@@ -25,14 +25,30 @@ function fail(message: string): never {
   process.exit(1);
 }
 
+/**
+ * Cấu hình S3 của bucket sao lưu.
+ *
+ * `BACKUP_S3_*` thiếu thì dùng `S3_*` của app. Khoá riêng cho bucket sao lưu là
+ * hình dạng an toàn hơn — app không chạm được vào bản sao lưu — nhưng nó đòi
+ * thêm một cặp khoá phải cấp và phải nhớ. Chọn dùng chung thì chỉ cần khai
+ * `BACKUP_S3_BUCKET`, và ngày muốn tách thì thêm hai dòng khoá vào
+ * `.env.backup`, không phải sửa code.
+ *
+ * BUCKET thì KHÔNG có đường dùng chung: sao lưu nằm chung bucket ảnh nghĩa là
+ * đường xoá ảnh của app quét trúng bản sao lưu.
+ */
 function s3Client(): { client: S3Client; bucket: string } {
-  const endpoint = (process.env.BACKUP_S3_ENDPOINT ?? "").replace(/\/+$/, "");
-  const region = process.env.BACKUP_S3_REGION ?? "";
-  const bucket = process.env.BACKUP_S3_BUCKET ?? "";
-  const accessKeyId = process.env.BACKUP_S3_ACCESS_KEY_ID ?? "";
-  const secretAccessKey = process.env.BACKUP_S3_SECRET_ACCESS_KEY ?? "";
-  if (!endpoint || !region || !bucket || !accessKeyId || !secretAccessKey)
-    fail("thiếu biến BACKUP_S3_* — xem docs/plan-backup-db.md mục 4");
+  const env = process.env;
+  const endpoint = (env.BACKUP_S3_ENDPOINT || env.S3_ENDPOINT || "").replace(/\/+$/, "");
+  const region = env.BACKUP_S3_REGION || env.S3_REGION || "";
+  const bucket = env.BACKUP_S3_BUCKET ?? "";
+  const accessKeyId = env.BACKUP_S3_ACCESS_KEY_ID || env.S3_ACCESS_KEY_ID || "";
+  const secretAccessKey = env.BACKUP_S3_SECRET_ACCESS_KEY || env.S3_SECRET_ACCESS_KEY || "";
+  if (!bucket) fail("thiếu BACKUP_S3_BUCKET — xem docs/plan-backup-db.md mục 8");
+  if (bucket === env.S3_BUCKET)
+    fail(`BACKUP_S3_BUCKET trùng bucket ảnh (${bucket}) — sao lưu phải nằm ở bucket khác`);
+  if (!endpoint || !region || !accessKeyId || !secretAccessKey)
+    fail("thiếu cấu hình S3 — khai BACKUP_S3_* hoặc để script dùng S3_* của app");
 
   return {
     client: new S3Client({

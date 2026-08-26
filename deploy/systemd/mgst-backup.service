@@ -9,6 +9,9 @@ OnFailure=mgst-backup-alert@%n.service
 [Service]
 Type=oneshot
 WorkingDirectory=/opt/mgst-app
+# Hai file, ĐÚNG THỨ TỰ này: .env.local mang khoá S3 của app, .env.backup mang
+# bucket sao lưu và ghi đè khoá nếu ngày nào cấp khoá riêng.
+EnvironmentFile=/opt/mgst-app/.env.local
 EnvironmentFile=/opt/mgst-app/.env.backup
 ExecStart=/root/.bun/bin/bun scripts/db-backup.ts
 # Dump 14 MB mất vài giây; 10 phút là trần chống treo, không phải thời gian mong đợi.
