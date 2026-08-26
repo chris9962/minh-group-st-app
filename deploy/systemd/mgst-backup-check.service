@@ -1,0 +1,11 @@
+[Unit]
+Description=Kiểm bản sao lưu MGST mới nhất có quá cũ không
+After=docker.service
+OnFailure=mgst-backup-alert@%n.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/mgst-app
+EnvironmentFile=/opt/mgst-app/.env.backup
+ExecStart=/root/.bun/bin/bun scripts/db-backup-check.ts
+TimeoutStartSec=120

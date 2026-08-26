@@ -1,0 +1,15 @@
+[Unit]
+Description=Sao lưu database MGST lên S3
+# Không có Docker thì `docker exec pg_dump` chỉ tạo ra file rỗng.
+After=docker.service
+Requires=docker.service
+# Lượt nào hỏng thì gọi unit báo động — xem mgst-backup-alert@.service.
+OnFailure=mgst-backup-alert@%n.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/mgst-app
+EnvironmentFile=/opt/mgst-app/.env.backup
+ExecStart=/root/.bun/bin/bun scripts/db-backup.ts
+# Dump 14 MB mất vài giây; 10 phút là trần chống treo, không phải thời gian mong đợi.
+TimeoutStartSec=600

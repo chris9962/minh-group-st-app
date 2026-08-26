@@ -1,0 +1,15 @@
+[Unit]
+Description=Sao lưu database MGST — 12:00 và 18:00 giờ Việt Nam
+
+[Timer]
+# Máy chủ đặt Asia/Ho_Chi_Minh nên hai mốc này đúng là giờ trên đồng hồ.
+OnCalendar=*-*-* 12:00:00
+OnCalendar=*-*-* 18:00:00
+# Máy chủ dừng qua giờ hẹn thì chạy bù ngay khi bật lại — không bỏ trắng một ngày.
+Persistent=true
+# Lệch ngẫu nhiên tối đa 2 phút: hai timer cùng gọi S3 đúng một giây thì cả hai
+# cùng chờ, và lượt nào cũng chậm như lượt nào.
+RandomizedDelaySec=120
+
+[Install]
+WantedBy=timers.target

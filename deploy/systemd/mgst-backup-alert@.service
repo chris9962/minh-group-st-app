@@ -1,0 +1,10 @@
+[Unit]
+Description=Báo động khi %i hỏng
+
+[Service]
+Type=oneshot
+# Ghi vào journal với mức `err` để `journalctl -p err` lọc ra được, và in 20
+# dòng cuối của unit hỏng ngay cạnh — người đọc không phải đi tra unit nào.
+ExecStart=/bin/sh -c '\
+  echo "SAO LƯU HỎNG: %i" | systemd-cat -t mgst-backup -p err; \
+  journalctl -u %i -n 20 --no-pager | systemd-cat -t mgst-backup -p err'
