@@ -20,12 +20,6 @@ import styles from "./PersonKpiPanel.module.scss";
  */
 type Props = {
   person: PersonDetail;
-  /**
-   * Kỳ đang xem có tính điểm không. Xem theo NGÀY thì không: chỉ tiêu là con số
-   * của cả tháng, đem so với một ngày ra một vòng tròn gần như trống và người
-   * đọc tưởng mình đang tụt.
-   */
-  withKpi: boolean;
 };
 
 /** Hai chữ cái đầu của tên — ảnh đại diện chưa có, và tên viết tắt đọc nhanh hơn một ô xám. */
@@ -37,7 +31,9 @@ const initialsOf = (fullName: string): string => {
 
 const shortMonth = (month: string) => `T${Number(month.slice(5, 7))}`;
 
-export function PersonKpiPanel({ person, withKpi }: Props) {
+/* Khối KPI hiện Ở MỌI KỲ và luôn theo THÁNG HIỆN TẠI (chốt 2026-08-27) — kỳ
+   lọc chỉ đổi các danh sách hoạt động, không đổi điểm. */
+export function PersonKpiPanel({ person }: Props) {
   const chartColors = useChartColors();
 
   return (
@@ -64,51 +60,45 @@ export function PersonKpiPanel({ person, withKpi }: Props) {
           </div>
         </div>
 
-        {withKpi && (
-          <>
-            <KpiScoreBlock
-              sources={person.pointSources}
-              target={person.points.target}
-              ariaLabel={`Điểm ${monthLabel(person.summaryMonth)} trên chỉ tiêu`}
-              facts={
-                <>
-                  {/* Hai con số thay cho một câu văn: người xem chỉ cần biết còn
-                      cách chỉ tiêu bao xa và còn bao nhiêu ngày. */}
-                  <div>
-                    <dt>{person.points.total >= person.points.target ? "Vượt" : "Còn thiếu"}</dt>
-                    <dd className="tabular-nums">
-                      {formatPoints(Math.abs(person.points.target - person.points.total))} điểm
-                    </dd>
-                  </div>
-                  {person.daysLeft > 0 && (
-                    <div>
-                      <dt>Còn lại</dt>
-                      <dd className="tabular-nums">{person.daysLeft} ngày</dd>
-                    </div>
-                  )}
-                </>
-              }
-            />
-          </>
-        )}
+        <KpiScoreBlock
+          sources={person.pointSources}
+          target={person.points.target}
+          ariaLabel={`Điểm ${monthLabel(person.summaryMonth)} trên chỉ tiêu`}
+          facts={
+            <>
+              {/* Hai con số thay cho một câu văn: người xem chỉ cần biết còn
+                  cách chỉ tiêu bao xa và còn bao nhiêu ngày. */}
+              <div>
+                <dt>{person.points.total >= person.points.target ? "Vượt" : "Còn thiếu"}</dt>
+                <dd className="tabular-nums">
+                  {formatPoints(Math.abs(person.points.target - person.points.total))} điểm
+                </dd>
+              </div>
+              {person.daysLeft > 0 && (
+                <div>
+                  <dt>Còn lại</dt>
+                  <dd className="tabular-nums">{person.daysLeft} ngày</dd>
+                </div>
+              )}
+            </>
+          }
+        />
       </div>
 
-      {withKpi && (
-        <SectionCard title="Điểm theo tháng" icon={<ChartColumn size={17} />}>
-          <BarChart
-            rows={person.monthlyPoints.map((m) => ({
-              label: shortMonth(m.month),
-              points: m.points,
-            }))}
-            labelKey="label"
-            series={[{ key: "points", label: "Điểm", color: chartColors.primary }]}
-            highlight={shortMonth(person.summaryMonth)}
-            showLegend={false}
-            height={160}
-            caption="Điểm trong 5 tháng gần nhất"
-          />
-        </SectionCard>
-      )}
+      <SectionCard title="Điểm theo tháng" icon={<ChartColumn size={17} />}>
+        <BarChart
+          rows={person.monthlyPoints.map((m) => ({
+            label: shortMonth(m.month),
+            points: m.points,
+          }))}
+          labelKey="label"
+          series={[{ key: "points", label: "Điểm", color: chartColors.primary }]}
+          highlight={shortMonth(person.summaryMonth)}
+          showLegend={false}
+          height={160}
+          caption="Điểm trong 5 tháng gần nhất"
+        />
+      </SectionCard>
     </>
   );
 }

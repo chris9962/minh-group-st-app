@@ -66,6 +66,29 @@ export const PointSource = z.object({
 });
 export type PointSource = z.infer<typeof PointSource>;
 
+/** Một lần cộng điểm tay trong tháng — quyền `system:adjust-kpi`. */
+export const KpiAdjustment = z.object({
+  id: z.string(),
+  /** Âm là trừ điểm. */
+  points: z.number(),
+  reason: z.string(),
+  /** Ngày ghi, YYYY-MM-DD theo giờ làm việc. */
+  date: z.string(),
+  createdByName: z.string(),
+});
+export type KpiAdjustment = z.infer<typeof KpiAdjustment>;
+
+export const KpiAdjustmentForm = z.object({
+  points: z
+    .number('Chưa nhập số điểm')
+    .refine((v) => v !== 0, 'Số điểm phải khác 0')
+    .min(-999, 'Số điểm ít nhất -999')
+    .max(999, 'Số điểm nhiều nhất 999')
+    .multipleOf(0.01, 'Số điểm nhiều nhất 2 chữ số thập phân'),
+  reason: z.string().trim().min(2, 'Chưa nhập lý do'),
+});
+export type KpiAdjustmentForm = z.infer<typeof KpiAdjustmentForm>;
+
 export const PersonDetail = z.object({
   id: z.string(),
   fullName: z.string(),
@@ -82,10 +105,14 @@ export const PersonDetail = z.object({
   points: z.object({
     banking: z.number(),
     service: z.number(),
+    /** Tổng điểm cộng tay của tháng — âm khi bị trừ nhiều hơn cộng. */
+    adjustment: z.number(),
     total: z.number(),
     target: z.number(),
   }),
   pointSources: z.array(PointSource),
+  /** Từng lần cộng điểm tay của tháng đang xem, cũ trước mới sau. */
+  adjustments: z.array(KpiAdjustment),
   /** Điểm 5 tháng gần nhất, cũ trước mới sau. Luôn theo tháng, không theo ngày. */
   monthlyPoints: z.array(z.object({ month: z.string(), points: z.number() })),
   /**
@@ -114,6 +141,34 @@ export async function fetchPerson(query: {
   if (!res.ok) throw new Error('Không tải được hồ sơ nhân viên');
   return PersonDetail.parse(await res.json());
 }
+
+/* ── Điểm cộng tay — ghi từ P-52, luôn vào tháng hiện tại ─────────────── */
+
+async function send(url: string, method: string, body?: unknown) {
+  const res = await fetch(url, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(data?.message?.trim() || 'Không lưu được');
+  }
+  return res.json();
+}
+
+export const createKpiAdjustment = (personId: string, form: KpiAdjustmentForm) =>
+  send(`/api/people/${encodeURIComponent(personId)}/adjustments`, 'POST', form).then(
+    KpiAdjustment.parse,
+  );
+
+export const updateKpiAdjustment = (personId: string, id: string, form: KpiAdjustmentForm) =>
+  send(`/api/people/${encodeURIComponent(personId)}/adjustments/${id}`, 'PATCH', form).then(
+    KpiAdjustment.parse,
+  );
+
+export const deleteKpiAdjustment = (personId: string, id: string) =>
+  send(`/api/people/${encodeURIComponent(personId)}/adjustments/${id}`, 'DELETE');
 
 /* ── Bốn danh sách hoạt động, mỗi tab một route phân trang (chốt 2026-08-15) ── */
 

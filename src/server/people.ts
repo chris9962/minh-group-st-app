@@ -21,6 +21,7 @@ import {
   customers,
   departments,
   insuranceOrders,
+  kpiAdjustments,
   kpiScores,
   kpiTargets,
   services,
@@ -146,7 +147,24 @@ const targetFor = async (yearMonth: string, departmentId: string | null): Promis
  */
 export const bankingExpr = sql<number>`coalesce(${kpiScores.bankingPoints}, 0)::float`;
 export const serviceExpr = sql<number>`coalesce(${kpiScores.servicePoints}, 0)::float`;
-export const pointsExpr = sql<number>`(coalesce(${kpiScores.bankingPoints}, 0) + coalesce(${kpiScores.servicePoints}, 0))::float`;
+
+/**
+ * Tổng điểm cộng tay của tháng — truy vấn con tương quan theo dòng `users`.
+ *
+ * Không đi qua `kpi_scores`: `recomputeKpiOn` xoá dòng bảng đó khi người thuộc
+ * phòng `office`, điểm cộng tay nằm chung là mất theo lượt tính lại. Truy vấn
+ * con thay vì join để `staffFor` không phải chêm join vào cả ba câu đang dùng
+ * — `kpi_adjustments` là bảng gõ tay vài dòng mỗi tháng, không phải hình dạng
+ * câu hỏi mà §5.2 cấm.
+ */
+export const adjustmentExpr = (yearMonth: string) =>
+  sql<number>`coalesce((select sum(a.points) from ${kpiAdjustments} a
+    where a.user_id = ${users.id} and a.year_month = ${yearMonth}), 0)::float`;
+
+/** Điểm tháng = ngân hàng + dịch vụ + điểm cộng tay. Nhận tháng vì vế thứ ba
+    nằm ngoài `kpi_scores` — bản hằng số cũ không nói được "tháng nào". */
+export const pointsExpr = (yearMonth: string) =>
+  sql<number>`(coalesce(${kpiScores.bankingPoints}, 0) + coalesce(${kpiScores.servicePoints}, 0) + ${adjustmentExpr(yearMonth)})::float`;
 
 /**
  * Chỉ tiêu của ĐÚNG phòng người này, viết thẳng trong SQL.
@@ -424,24 +442,46 @@ async function monthlyPointsFor(
   fromMonth: string,
   toMonth: string,
 ): Promise<Map<string, number>> {
-  const rows = await db
-    .select({
-      yearMonth: kpiScores.yearMonth,
-      banking: kpiScores.bankingPoints,
-      service: kpiScores.servicePoints,
-    })
-    .from(kpiScores)
-    .where(
-      and(
-        eq(kpiScores.userId, userId),
-        gte(kpiScores.yearMonth, fromMonth),
-        lte(kpiScores.yearMonth, toMonth),
+  const [rows, adjustmentRows] = await Promise.all([
+    db
+      .select({
+        yearMonth: kpiScores.yearMonth,
+        banking: kpiScores.bankingPoints,
+        service: kpiScores.servicePoints,
+      })
+      .from(kpiScores)
+      .where(
+        and(
+          eq(kpiScores.userId, userId),
+          gte(kpiScores.yearMonth, fromMonth),
+          lte(kpiScores.yearMonth, toMonth),
+        ),
       ),
-    );
+    // Điểm cộng tay nằm ngoài `kpi_scores` — thiếu vế này thì cột của biểu đồ
+    // 5 tháng lệch với con số headline ngay bên cạnh.
+    db
+      .select({
+        yearMonth: kpiAdjustments.yearMonth,
+        points: sql<number>`sum(${kpiAdjustments.points})::float`,
+      })
+      .from(kpiAdjustments)
+      .where(
+        and(
+          eq(kpiAdjustments.userId, userId),
+          gte(kpiAdjustments.yearMonth, fromMonth),
+          lte(kpiAdjustments.yearMonth, toMonth),
+        ),
+      )
+      .groupBy(kpiAdjustments.yearMonth),
+  ]);
 
-  return new Map(
-    rows.map((r) => [r.yearMonth, roundPoints(Number(r.banking) + Number(r.service))]),
+  const byMonth = new Map(
+    rows.map((r) => [r.yearMonth, Number(r.banking) + Number(r.service)]),
   );
+  for (const r of adjustmentRows)
+    byMonth.set(r.yearMonth, (byMonth.get(r.yearMonth) ?? 0) + Number(r.points));
+
+  return new Map([...byMonth].map(([ym, points]) => [ym, roundPoints(points)]));
 }
 
 export const daysLeftOf = (yearMonth: string): number => {
@@ -525,6 +565,7 @@ export async function peopleForExport(
       departmentName: departments.name,
       bankingPoints: bankingExpr,
       servicePoints: serviceExpr,
+      adjustmentPoints: adjustmentExpr(summaryMonth),
       target: targetExpr(summaryMonth),
     })
     .from(users)
@@ -548,6 +589,7 @@ export async function peopleForExport(
     departmentName: r.departmentName ?? "",
     bankingPoints: r.bankingPoints,
     servicePoints: r.servicePoints,
+    adjustmentPoints: r.adjustmentPoints,
     ...(counts.get(r.id) ?? NO_COUNTS),
     target: r.target,
   }));
@@ -611,6 +653,11 @@ export async function personFor(
     ),
   };
 
+  /* Các cung nguồn điểm gộp theo THÁNG ĐIỂM, không theo kỳ lọc: khối KPI luôn
+     là tháng của `summaryMonth`, còn kỳ lọc chỉ đổi các danh sách hoạt động.
+     Gộp theo kỳ là cung dịch vụ của một kỳ đem cộng với cung ngân hàng của cả
+     tháng — tổng các cung lệch với `points.total` ngay bên cạnh. */
+  const kpiRange = monthRange(summaryMonth);
   const serviceAgg = await db
     .select({
       typeName: serviceTypes.name,
@@ -622,11 +669,27 @@ export async function personFor(
     .where(
       and(
         eq(services.createdBy, id),
-        gte(services.serviceDate, range.from),
-        lte(services.serviceDate, range.to),
+        gte(services.serviceDate, kpiRange.from),
+        lte(services.serviceDate, kpiRange.to),
       ),
     )
     .groupBy(serviceTypes.name);
+
+  /** Từng lần cộng điểm tay của tháng, kèm tên người cộng — bảng ở P-52. */
+  const adjustmentRows = await db
+    .select({
+      id: kpiAdjustments.id,
+      points: kpiAdjustments.points,
+      reason: kpiAdjustments.reason,
+      date: sql<string>`to_char(${kpiAdjustments.createdAt} at time zone ${BUSINESS_TIMEZONE}, 'YYYY-MM-DD')`,
+      createdByName: users.fullName,
+    })
+    .from(kpiAdjustments)
+    .innerJoin(users, eq(users.id, kpiAdjustments.createdBy))
+    .where(and(eq(kpiAdjustments.userId, id), eq(kpiAdjustments.yearMonth, summaryMonth)))
+    .orderBy(asc(kpiAdjustments.createdAt), asc(kpiAdjustments.id));
+  const adjustments = adjustmentRows.map((r) => ({ ...r, points: Number(r.points) }));
+  const adjustmentTotal = adjustments.reduce((sum, r) => sum + r.points, 0);
 
   /* Điểm tháng (phần tóm tắt) + 5 tháng gần nhất. */
   // Hồ sơ một người chỉ cần ĐIỂM của tháng — số đếm ở đây lấy từ chính các danh
@@ -673,6 +736,16 @@ export async function personFor(
       points: bankingTotal,
     });
 
+  /* Điểm cộng tay là một cung — kể cả khi ÂM, vì tổng các cung phải cộng ra
+     ĐÚNG `points.total`. Cung âm không vẽ được thì `ProgressRing` tự bỏ nét,
+     nhưng vẫn trừ vào con số giữa vòng. */
+  if (adjustmentTotal !== 0)
+    pointSources.push({
+      label: "Điểm cộng",
+      detail: `${adjustments.length} lần cộng tay trong tháng`,
+      points: roundPoints(adjustmentTotal),
+    });
+
   pointSources.sort((a, b) => b.points - a.points);
 
   return {
@@ -688,13 +761,15 @@ export async function personFor(
     points: {
       banking: roundPoints(monthAgg.bankingPoints),
       service: roundPoints(monthAgg.servicePoints),
-      // Làm tròn ở TỔNG, đúng cách P-51 làm (`totalPoints`). Hai cột nguồn đã
+      adjustment: roundPoints(adjustmentTotal),
+      // Làm tròn ở TỔNG, đúng cách P-51 làm (`totalPoints`). Ba cột nguồn đã
       // là `numeric(10,2)` nên phép cộng chỉ có thể đẻ đuôi rác của số thực,
       // không đẻ chênh lệch thật — hai màn ra cùng một số.
-      total: roundPoints(monthAgg.bankingPoints + monthAgg.servicePoints),
+      total: roundPoints(monthAgg.bankingPoints + monthAgg.servicePoints + adjustmentTotal),
       target,
     },
     pointSources,
+    adjustments,
     monthlyPoints,
     counts,
   };

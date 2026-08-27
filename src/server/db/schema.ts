@@ -60,6 +60,8 @@ export const actionKey = pgEnum("action_key", [
   "manage-org", "grant-permission",
   // đặc biệt · customer: XEM + SỬA CCCD đầy đủ, gộp một quyền (quyết định 03/08)
   "access-id-number",
+  // đặc biệt · system: cộng/trừ điểm KPI tay theo tháng (migration 0046)
+  "adjust-kpi",
 ]);
 
 export const scopeKey = pgEnum("scope_key", ["own", "managed", "company"]);
@@ -1110,6 +1112,37 @@ export const kpiScores = pgTable(
     primaryKey({ columns: [t.userId, t.yearMonth] }),
     /** Bảng xếp hạng đọc theo tháng rồi sắp theo điểm. */
     index("kpi_scores_month").on(t.yearMonth),
+  ],
+);
+
+/**
+ * Điểm cộng tay theo tháng, mỗi lần cộng một dòng — quyền `system:adjust-kpi`.
+ *
+ * Bảng RIÊNG, không phải cột thứ ba của `kpi_scores`: `recomputeKpiOn` XOÁ dòng
+ * `kpi_scores` khi người đó thuộc phòng `office` — điểm cộng tay nằm chung là
+ * mất theo lượt tính lại. Tổng điểm cộng gộp lúc truy vấn (`adjustmentExpr`).
+ *
+ * `points` cho phép ÂM — trừ điểm cũng đi đường này.
+ */
+export const kpiAdjustments = pgTable(
+  "kpi_adjustments",
+  {
+    id: id(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    /** '2026-08'. Luôn là tháng hiện tại lúc ghi — P-52 không cộng cho tháng cũ. */
+    yearMonth: text("year_month").notNull(),
+    points: numeric("points", { precision: 10, scale: 2 }).notNull(),
+    reason: text("reason").notNull(),
+    createdBy: uuid("created_by")
+      .notNull()
+      .references(() => users.id),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index("kpi_adjustments_user_month").on(t.userId, t.yearMonth),
+    check("kpi_adjustments_points_nonzero", sql`points <> 0`),
   ],
 );
 

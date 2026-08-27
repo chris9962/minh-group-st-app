@@ -114,6 +114,9 @@ export const Action = z.enum([
       cấu phòng ban không cùng việc với luân chuyển một con người. */
   'manage-org',
   'grant-permission',
+  /** Cộng/trừ điểm KPI tay theo tháng, ghi từ hồ sơ nhân viên P-52. Không có
+      trang riêng — quyền chỉ mở nút ghi trên màn đó. */
+  'adjust-kpi',
 ]);
 export type Action = z.infer<typeof Action>;
 
@@ -144,6 +147,7 @@ export const ACTION_LABEL: Record<Action, string> = {
   'configure-gift-rules': 'Cấu hình quy tắc quà',
   'manage-org': 'Sửa cơ cấu tổ chức & xem nhật ký truy vết',
   'grant-permission': 'Cấp quyền',
+  'adjust-kpi': 'Cộng điểm KPI',
 };
 
 /** 6 hành động dùng chung cho mọi module cơ bản — xem mục 1.1.2 spec. */
@@ -167,7 +171,7 @@ export const BASE_ACTIONS: Action[] = ['view-summary', 'view-detail', 'create', 
  * Ô chọn ở P-92 vì vậy chỉ có Bật/Tắt, và máy chủ nắn mọi phạm vi khác về
  * `company` trước khi ghi.
  */
-export const SCOPELESS_ACTIONS: Action[] = ['manage-org'];
+export const SCOPELESS_ACTIONS: Action[] = ['manage-org', 'adjust-kpi'];
 
 export const SPECIAL_ACTIONS_OF: Partial<Record<ModuleKey, Action[]>> = {
   customer: ['access-id-number'],
@@ -193,6 +197,7 @@ export const SPECIAL_ACTIONS_OF: Partial<Record<ModuleKey, Action[]>> = {
     'manage-assigned-banks',
     'manage-org',
     'grant-permission',
+    'adjust-kpi',
   ],
 };
 

@@ -51,7 +51,10 @@ export function ProgressRing({ segments, max, ariaLabel }: Props) {
       <svg viewBox="0 0 120 120" className={styles.svg} aria-hidden focusable="false">
         <circle className={styles.track} cx="60" cy="60" r={RADIUS} />
         {segments.map((s) => {
-          const length = s.value * scale * CIRCUMFERENCE;
+          // Phần ÂM (điểm cộng tay bị trừ) không vẽ được thành cung —
+          // `stroke-dasharray` âm là giá trị SVG không hợp lệ. Bỏ nét nhưng vẫn
+          // giữ trong `total`, nên con số giữa vòng vẫn trừ đúng.
+          const length = Math.max(0, s.value) * scale * CIRCUMFERENCE;
           const start = offset;
           offset += length;
           return (

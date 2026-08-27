@@ -7,6 +7,7 @@ import { ChartColumn, ChevronLeft, ExternalLink } from "lucide-react";
 import { SkeletonCard } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
+import { KpiAdjustmentSection } from "@/components/people/KpiAdjustmentSection";
 import { PersonKpiPanel } from "@/components/people/PersonKpiPanel";
 import { AccountCard } from "@/components/staff/AccountCard";
 import { BarChart } from "@/components/ui/BarChart";
@@ -19,7 +20,7 @@ import { SectionTabs, type SectionOption } from "@/components/ui/SectionTabs";
 import { SegmentedTabs, type TabOption } from "@/components/ui/SegmentedTabs";
 import { StatusTag } from "@/components/ui/StatusTag";
 import { PAGE_SIZE, type SortDir } from "@/lib/api/pagination";
-import { periodMonth, periodParam, showsKpi, type PeriodMode } from "@/lib/api/people";
+import { periodMonth, periodParam, type PeriodMode } from "@/lib/api/people";
 import {
   fetchPerson,
   fetchPersonAccounts,
@@ -232,7 +233,11 @@ export default function PersonPage({
   const [section, setSection] = useState<SectionKey>("kpi");
 
   const current = thisMonth();
-  const summaryMonth = periodMonth(period, current);
+  /* Khối KPI LUÔN theo tháng hiện tại (chốt 2026-08-27) — kỳ lọc chỉ đổi bốn
+     danh sách hoạt động, nên `summaryMonth` không đọc từ `period`. Tháng của
+     kỳ lọc (`listMonth`) chỉ dùng cho khoảng ngày và câu chú của bốn bảng. */
+  const summaryMonth = current;
+  const listMonth = periodMonth(period, current);
   const param = periodParam(period, current);
 
   const { data, isPending, isError, refetch, isFetching } = useQuery({
@@ -247,7 +252,7 @@ export default function PersonPage({
   const range =
     period.kind === "today"
       ? { from: businessDay(), to: businessDay() }
-      : monthRange(summaryMonth);
+      : monthRange(listMonth);
 
   const ZERO_PAGES: Record<TabKey, number> = { customers: 0, accounts: 0, insurance: 0, services: 0 };
   const [tabPages, setTabPages] = useState<Record<TabKey, number>>(ZERO_PAGES);
@@ -291,8 +296,7 @@ export default function PersonPage({
   const canManage = can(actor, "staff", "create") || can(actor, "staff", "update");
   const showAccount = canManage && section === "account";
 
-  const withKpi = showsKpi(period);
-  const periodText = period.kind === "today" ? "Hôm nay" : monthLabel(summaryMonth);
+  const periodText = period.kind === "today" ? "Hôm nay" : monthLabel(listMonth);
 
   // Chỉ hiện thẻ có dòng. Thẻ rỗng chỉ để người dùng bấm vào rồi thấy trống.
   const listQueries = [customersQ, accountsQ, insuranceQ, servicesQ];
@@ -363,7 +367,8 @@ export default function PersonPage({
         {data && !showAccount && (
           <div className={styles.columns}>
             <aside className={styles.side}>
-              <PersonKpiPanel person={data} withKpi={withKpi} />
+              <PersonKpiPanel person={data} />
+              <KpiAdjustmentSection person={data} />
             </aside>
 
             <div className={styles.content}>

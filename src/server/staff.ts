@@ -124,6 +124,7 @@ export async function staffFor(
 
   const summaryMonth = query.summaryMonth || businessMonth();
   const target = targetExpr(summaryMonth);
+  const points = pointsExpr(summaryMonth);
   const daysLeft = daysLeftOf(summaryMonth);
 
   // null = không giới hạn phòng; [] = không thấy ai (người không thuộc phòng nào, phạm vi own).
@@ -173,12 +174,12 @@ export async function staffFor(
     role: [direction(roleRankExpr), asc(sql`mgst_normalize(${users.fullName})`), asc(users.id)],
     // Sắp theo TỈ LỆ đạt, không theo hiệu số: mốc mỗi phòng có thể khác nhau
     // nên "còn thiếu 10" của người mốc 50 nặng hơn của người mốc 200.
-    kpi: [direction(sql`${pointsExpr}::float / nullif(${target}, 0)`), asc(users.id)],
+    kpi: [direction(sql`${points}::float / nullif(${target}, 0)`), asc(users.id)],
   }[page.sort] as SQL[];
 
   const [rows, [totals], [counts]] = await Promise.all([
     db
-      .select({ user: users, departmentName: departments.name, points: pointsExpr, target })
+      .select({ user: users, departmentName: departments.name, points, target })
       .from(users)
       .leftJoin(departments, eq(departments.id, users.departmentId))
       .leftJoin(
@@ -203,7 +204,7 @@ export async function staffFor(
         locked: sql<number>`count(*) filter (where not ${users.active})::int`,
         // Chỉ người đang làm mới có chỉ tiêu. Tính cả tài khoản đã khoá thì họ
         // vào với 0 điểm và "chưa đạt" phồng lên mà không ai thấy vì sao.
-        onTarget: sql<number>`count(*) filter (where ${users.active} and ${pointsExpr} >= ${target})::int`,
+        onTarget: sql<number>`count(*) filter (where ${users.active} and ${points} >= ${target})::int`,
       })
       .from(users)
       .leftJoin(
