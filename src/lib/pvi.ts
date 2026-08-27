@@ -160,14 +160,14 @@ export type PviField = {
 };
 
 export const PVI_FIELDS: readonly PviField[] = [
-  /* ── Người thụ hưởng — chung hai sản phẩm ─────────────────────────── */
+  /* ── Khách hàng — chung hai sản phẩm ──────────────────────────────── */
   {
     key: 'hoTen',
     label: 'Họ tên người được bảo hiểm',
     product: 'both',
     required: true,
     input: 'text',
-    source: 'Người thụ hưởng · Họ tên',
+    source: 'Khách hàng · Họ tên',
     fill: (o) => o.beneficiaryName,
     status: 'assumed',
   },
@@ -180,7 +180,7 @@ export const PVI_FIELDS: readonly PviField[] = [
     // thiếu và bot dừng, trong khi bên PVI không có chỗ nào để điền.
     required: false,
     input: 'text',
-    source: 'Người thụ hưởng · Số điện thoại',
+    source: 'Khách hàng · Số điện thoại',
     fill: (o) => o.beneficiaryPhone,
     status: 'assumed',
     note: 'Form tai nạn điện không hỏi. Form xe máy CHƯA khảo sát — kiểm lại khi làm flow đó.',
@@ -191,7 +191,7 @@ export const PVI_FIELDS: readonly PviField[] = [
     product: 'both',
     required: true,
     input: 'text',
-    source: 'Người thụ hưởng · Địa chỉ',
+    source: 'Khách hàng · Địa chỉ',
     fill: (o) => o.beneficiaryAddress,
     status: 'assumed',
   },
@@ -312,7 +312,7 @@ export const PVI_FIELDS: readonly PviField[] = [
     product: 'electric-accident',
     required: false,
     input: 'text',
-    source: 'Người thụ hưởng · CCCD',
+    source: 'Khách hàng · CCCD',
     fill: (o) => o.beneficiaryIdNumber,
     status: 'assumed',
     note: 'Form chính không hỏi. Chỉ khối hoá đơn điện tử có `so_cccd`, chưa chốt.',
@@ -323,7 +323,7 @@ export const PVI_FIELDS: readonly PviField[] = [
     product: 'electric-accident',
     required: false,
     input: 'date',
-    source: 'Người thụ hưởng · Ngày sinh',
+    source: 'Khách hàng · Ngày sinh',
     fill: (o) => pviDateFromIso(o.beneficiaryDob),
     status: 'assumed',
     note: 'Form BH xe máy đã bỏ ô này (03/08); form tai nạn điện cũng không có.',

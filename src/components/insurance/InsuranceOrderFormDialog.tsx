@@ -69,7 +69,7 @@ function defaultLegsFor(pkg: InsurancePackage | null): InsuranceOrderLegForm[] {
       product: leg.product,
       packageName: pkg.name,
       // Mặc định TẮT — người thụ hưởng có thể là người khác hẳn. Bật lên khi
-      // người dùng bấm "Điền theo khách hàng".
+      // người dùng bấm "Điền theo hồ sơ khách".
       beneficiaryIsCustomer: false,
       // Ngày TẠO đơn, mặc định hôm nay. Khác `startDate` (ngày hiệu lực).
       orderDate: today,
@@ -260,7 +260,7 @@ export function InsuranceOrderFormDialog({
 
   /**
    * Hai ô form PVI hỏi ở đơn tai nạn điện. Đứng thành khối riêng chứ không lẫn
-   * vào "Người thụ hưởng": chúng tả cái HỘ, không tả người đứng tên.
+   * vào "Khách hàng": chúng tả cái HỘ, không tả người đứng tên.
    */
   const renderHouseholdInfo = (i: number) => (
     <fieldset className={styles.fieldset}>
@@ -300,11 +300,11 @@ export function InsuranceOrderFormDialog({
 
   const renderBeneficiary = (i: number) => (
     <fieldset className={styles.fieldset}>
-      <legend className={styles.legend}>Người thụ hưởng</legend>
+      <legend className={styles.legend}>Khách hàng</legend>
 
       <Button variant="secondary" onClick={() => applyCustomerInfo(i)}>
         <UserCheck size={14} aria-hidden />
-        Điền theo khách hàng
+        Điền theo hồ sơ khách
       </Button>
 
       <TextField
@@ -335,7 +335,7 @@ export function InsuranceOrderFormDialog({
             }
             hint={
               watch(`legs.${i}.beneficiaryIsCustomer`)
-                ? "Lấy theo hồ sơ khách khi lưu — gõ vào ô này nếu người thụ hưởng là người khác"
+                ? "Lấy theo hồ sơ khách khi lưu — gõ vào ô này nếu là người khác"
                 : undefined
             }
             error={errors.legs?.[i]?.beneficiaryIdNumber?.message}
@@ -375,7 +375,7 @@ export function InsuranceOrderFormDialog({
             }
             hint={
               watch(`legs.${i}.beneficiaryIsCustomer`)
-                ? "Lấy theo hồ sơ khách khi lưu — gõ vào ô này nếu người thụ hưởng là người khác"
+                ? "Lấy theo hồ sơ khách khi lưu — gõ vào ô này nếu là người khác"
                 : undefined
             }
             error={errors.legs?.[i]?.beneficiaryIdNumber?.message}

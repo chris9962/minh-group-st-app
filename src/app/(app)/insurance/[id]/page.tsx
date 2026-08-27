@@ -347,7 +347,7 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
             <div className={styles.detail}>
               <div className={styles.summary}>
                 {/* Mã đơn là ĐỊNH DANH, không phải tiêu đề nhóm — để `h3` thì
-                    nó đứng ngang hàng với "Người thụ hưởng", "Thông tin xe"
+                    nó đứng ngang hàng với "Khách hàng", "Thông tin xe"
                     trong cây tiêu đề mà không chứa nhóm nào. */}
                 <p className={styles.orderCode}>
                   {data.orderCode}
@@ -389,7 +389,7 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                 </Field>
               </dl>
 
-              <FieldGroup title="Người thụ hưởng">
+              <FieldGroup title="Khách hàng">
                 <Field label="Họ tên" copy={data.beneficiaryName}>
                   {data.beneficiaryName}
                 </Field>
@@ -407,7 +407,7 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                   {data.beneficiaryIdNumberHidden ? (
                     <span
                       className={styles.hiddenValue}
-                      title="Nhận đơn về xử lý thì mới xem được CCCD của người thụ hưởng."
+                      title="Nhận đơn về xử lý thì mới xem được CCCD của khách hàng."
                     >
                       <EyeOff size={15} aria-hidden />
                       Đã ẩn

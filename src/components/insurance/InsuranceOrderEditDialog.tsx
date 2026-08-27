@@ -289,7 +289,7 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId }: Props) {
           )}
 
           <fieldset className={styles.fieldset}>
-            <legend className={styles.legend}>Người thụ hưởng</legend>
+            <legend className={styles.legend}>Khách hàng</legend>
 
             <TextField
               label="Họ tên"

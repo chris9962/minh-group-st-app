@@ -161,7 +161,7 @@ const orderFields = {
   fee: z.number().min(0, 'Mức phí phải từ 0 trở lên'),
   startDate: isoDate('Chưa chọn ngày bắt đầu'),
   endDate: isoDate('Chưa chọn ngày kết thúc'),
-  beneficiaryName: z.string().trim().min(1, 'Chưa nhập tên người thụ hưởng'),
+  beneficiaryName: z.string().trim().min(1, 'Chưa nhập tên khách hàng'),
   /**
    * Ngày sinh người thụ hưởng — BẮT BUỘC với đơn tai nạn điện, bỏ trống với đơn
    * xe máy. Ràng buộc nằm ở `.refine` theo sản phẩm chứ không ở đây: form xe máy
@@ -251,12 +251,12 @@ export const InsuranceOrderLegForm = z
   })
   // Ngày sinh: chỉ đơn tai nạn điện hỏi, và hỏi thì phải có.
   .refine((leg) => leg.product !== 'electric-accident' || leg.beneficiaryDob.length > 0, {
-    message: 'Chưa chọn ngày sinh người thụ hưởng',
+    message: 'Chưa chọn ngày sinh khách hàng',
     path: ['beneficiaryDob'],
   })
   // CCCD: bỏ trống được ĐÚNG khi máy chủ sẽ tự lấy theo hồ sơ khách.
   .refine((leg) => leg.beneficiaryIsCustomer || leg.beneficiaryIdNumber.trim().length > 0, {
-    message: 'Chưa nhập CCCD người thụ hưởng',
+    message: 'Chưa nhập CCCD khách hàng',
     path: ['beneficiaryIdNumber'],
   });
 export type InsuranceOrderLegForm = z.infer<typeof InsuranceOrderLegForm>;
@@ -305,11 +305,11 @@ export const insuranceOrderEditSchema = (product: InsuranceProduct, idHidden = f
       path: ['householdSize'],
     })
     .refine((form) => product !== 'electric-accident' || form.beneficiaryDob.length > 0, {
-      message: 'Chưa chọn ngày sinh người thụ hưởng',
+      message: 'Chưa chọn ngày sinh khách hàng',
       path: ['beneficiaryDob'],
     })
     .refine((form) => idHidden || form.beneficiaryIdNumber.trim().length > 0, {
-      message: 'Chưa nhập CCCD người thụ hưởng',
+      message: 'Chưa nhập CCCD khách hàng',
       path: ['beneficiaryIdNumber'],
     })
     .refine((form) => product !== 'electric-accident' || form.sumInsured > 0, {
