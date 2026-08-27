@@ -330,6 +330,13 @@
       "when": 1787796186000,
       "tag": "0046_kpi_adjustments",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1787799600000,
+      "tag": "0047_referral_code_province_branch",
+      "breakpoints": true
     }
   ]
 }

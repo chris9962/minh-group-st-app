@@ -1,11 +1,12 @@
 "use client";
 
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ExternalLink, Pencil, Ticket } from "lucide-react";
 import { useState } from "react";
 import { SkeletonTable } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { Button } from "@/components/ui/Button";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { SearchField } from "@/components/ui/SearchField";
 import { SectionCard } from "@/components/ui/SectionCard";
@@ -16,6 +17,7 @@ import {
   CODE_STATUS_LABEL,
   fetchBanks,
   fetchReferralCodes,
+  setReferralCodeActive,
   type CodeStatus,
   type ReferralCode,
   type ReferralCodeQuery,
@@ -27,6 +29,7 @@ import { EMPTY_PAGE, PAGE_SIZE } from "@/lib/api/pagination";
 import { useDebouncedValue } from "@/lib/hooks";
 import { ReferralCodeFormDialog } from "./ReferralCodeFormDialog";
 import styles from "./ReferralCodesSection.module.scss";
+import { errorMessage, toast } from "@/lib/toast";
 
 const FIRST_PAGE: ReferralCodeQuery = {
   bankId: "",
@@ -55,8 +58,10 @@ type Props = {
 
 export function ReferralCodesSection({ creating, onCreatingChange }: Props) {
   const actor = useSession((s) => s.user);
+  const queryClient = useQueryClient();
   const [query, setQuery] = useState<ReferralCodeQuery>(FIRST_PAGE);
   const [editing, setEditing] = useState<ReferralCode | null>(null);
+  const [confirming, setConfirming] = useState<ReferralCode | null>(null);
 
   // Ô tìm giữ chữ đang gõ riêng, chỉ hoãn xong mới thành câu hỏi gửi đi. Nối
   // thẳng vào `query` thì mỗi phím là một lượt gọi máy chủ, mà mỗi lượt là một
@@ -95,9 +100,30 @@ export function ReferralCodesSection({ creating, onCreatingChange }: Props) {
   // dùng đi xoá bộ lọc vốn đang trống, thay vì bấm "Thêm mã".
   const filtering = Boolean(debouncedSearch || query.bankId || query.status);
 
+  const toggleActive = useMutation({
+    mutationFn: ({ id, next }: { id: string; next: boolean }) => setReferralCodeActive(id, next),
+    onSuccess: (_item, { next }) => {
+      // Tiền tố phủ luôn khoá ["referral-codes", "open", …] — ô chọn mã ở P-20
+      // bỏ mã vừa ngừng ra ngay, không đợi cache hết hạn.
+      queryClient.invalidateQueries({ queryKey: ["referral-codes"] });
+      toast.ok(next ? "Đã cho dùng lại mã" : "Đã ngừng mã");
+      setConfirming(null);
+    },
+    onError: (e) => toast.fail(errorMessage(e, "Không đổi được trạng thái mã này.")),
+  });
+
   const columns: RankColumn<ReferralCode>[] = [
     { key: "bank", label: "Ngân hàng", sortable: true, render: (c) => c.bankCode },
     { key: "code", label: "Mã", sortable: true, render: (c) => c.code },
+    {
+      // Không cho sắp: khoá sắp phải nằm trong danh sách trắng của máy chủ.
+      key: "province",
+      label: "Tỉnh · Chi nhánh",
+      render: (c) =>
+        [c.province, c.supportBranch].filter(Boolean).join(" · ") || (
+          <span className="text-muted">—</span>
+        ),
+    },
     {
       key: "priority",
       label: "Ưu tiên",
@@ -139,9 +165,14 @@ export function ReferralCodesSection({ creating, onCreatingChange }: Props) {
     {
       key: "status",
       label: "Trạng thái",
-      render: (c) => (
-        <StatusTag ok={c.status === "available"}>{CODE_STATUS_LABEL[c.status]}</StatusTag>
-      ),
+      // "Đã ngừng" đè lên nhãn tiến độ: mã tắt thì còn chỗ hay không cũng không
+      // ai chọn được, hiện "Còn chỗ" là nói dối.
+      render: (c) =>
+        c.active ? (
+          <StatusTag ok={c.status === "available"}>{CODE_STATUS_LABEL[c.status]}</StatusTag>
+        ) : (
+          <StatusTag ok={false}>Đã ngừng</StatusTag>
+        ),
     },
     {
       /* Chỉ báo CÓ hay KHÔNG, không in cả link. Link mở tài khoản dài vài trăm
@@ -169,15 +200,24 @@ export function ReferralCodesSection({ creating, onCreatingChange }: Props) {
       key: "actions",
       label: "Thao tác",
       render: (c) => (
-        <Button
-          variant="secondary"
-          icon
-          tooltip="Sửa mã"
-          aria-label={`Sửa mã ${c.code}`}
-          onClick={() => setEditing(c)}
-        >
-          <Pencil size={16} aria-hidden />
-        </Button>
+        <span className={styles.actions}>
+          <Button
+            variant="secondary"
+            icon
+            tooltip="Sửa mã"
+            aria-label={`Sửa mã ${c.code}`}
+            onClick={() => setEditing(c)}
+          >
+            <Pencil size={16} aria-hidden />
+          </Button>
+          <Button
+            variant="secondary"
+            disabled={toggleActive.isPending}
+            onClick={() => setConfirming(c)}
+          >
+            {c.active ? "Ngừng" : "Dùng lại"}
+          </Button>
+        </span>
       ),
     },
   ];
@@ -274,6 +314,30 @@ export function ReferralCodesSection({ creating, onCreatingChange }: Props) {
           }}
         />
       )}
+
+      <ConfirmDialog
+        open={confirming !== null}
+        title={confirming?.active ? "Ngừng mã giới thiệu" : "Dùng lại mã giới thiệu"}
+        confirmLabel={confirming?.active ? "Ngừng" : "Dùng lại"}
+        pending={toggleActive.isPending}
+        onConfirm={() =>
+          confirming && toggleActive.mutate({ id: confirming.id, next: !confirming.active })
+        }
+        onClose={() => setConfirming(null)}
+        consequence={
+          confirming?.active ? (
+            <>
+              Mã rời ô chọn ở màn mở tài khoản ngay, kể cả khi còn chỗ. Tài
+              khoản đã mở bằng mã này không bị đụng.
+            </>
+          ) : (
+            <>Mã hiện lại trong ô chọn nếu còn chỗ trống.</>
+          )
+        }
+      >
+        {confirming?.active ? "Ngừng" : "Dùng lại"} mã <strong>{confirming?.code}</strong> của
+        ngân hàng <strong>{confirming?.bankCode}</strong>?
+      </ConfirmDialog>
     </SectionCard>
   );
 }

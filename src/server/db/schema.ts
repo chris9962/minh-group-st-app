@@ -328,6 +328,19 @@ export const referralCodes = pgTable(
      * "chưa chọn phòng nào" đều cho bảng nối rỗng nhưng là hai ý trái ngược.
      */
     scope: text("scope").notNull().default("all"),
+    /**
+     * Tên tỉnh của mã, chọn từ 34 tỉnh tham chiếu; `''` = chưa gán. Lưu TÊN
+     * chứ không lưu id — cùng lối `channelDetail` của tài khoản: chuỗi hiện
+     * cho nhân viên đọc ở bước 2, không có phép nối nào cần id.
+     */
+    province: text("province").notNull().default(""),
+    /** Chi nhánh ngân hàng hỗ trợ mã này, người dùng gõ tay; `''` = chưa gán. */
+    supportBranch: text("support_branch").notNull().default(""),
+    /**
+     * Tắt là mã rời ô chọn và bị `startBankAccount` từ chối, kể cả khi còn
+     * chỗ. Trước migration 0047 mã chỉ dừng khi tiêu hết `total`.
+     */
+    active: boolean("active").notNull().default(true),
     createdAt: createdAt(),
   },
   (t) => [

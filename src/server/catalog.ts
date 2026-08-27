@@ -529,6 +529,9 @@ const codeColumns = {
   qrImage: referralCodes.qrImage,
   priority: referralCodes.priority,
   scope: sql<CodeScope>`${referralCodes.scope}`,
+  province: referralCodes.province,
+  supportBranch: referralCodes.supportBranch,
+  active: referralCodes.active,
   /**
    * Gom phòng trong CÙNG câu chọn, không gọi thêm lượt nào cho mỗi dòng.
    *
@@ -561,6 +564,9 @@ const codeGroupBy = [
   referralCodes.qrImage,
   referralCodes.priority,
   referralCodes.scope,
+  referralCodes.province,
+  referralCodes.supportBranch,
+  referralCodes.active,
 ] as const;
 
 type CodeRow = Omit<ReferralCode, "qrImageUrl"> & { qrImage: string | null };
@@ -720,6 +726,9 @@ export async function listOpenReferralCodes(
     .where(
       and(
         eq(referralCodes.bankId, bankId),
+        // Mã ngừng tay rời ô chọn ngay, kể cả khi còn chỗ. Chốt thật vẫn nằm
+        // trong transaction của `startBankAccount`.
+        eq(referralCodes.active, true),
         sql`${remainingExpr} > 0`,
         departmentId
           ? inDepartmentScope(departmentId)
@@ -817,6 +826,8 @@ export async function createReferralCode(
         qrImage: qrImageKey(form),
         priority: form.priority,
         scope: form.scope,
+        province: form.province,
+        supportBranch: form.supportBranch,
       })
       .returning();
 
@@ -899,6 +910,8 @@ export async function updateReferralCode(
           qrImage: qrImageKey(form),
           priority: form.priority,
           scope: form.scope,
+          province: form.province,
+          supportBranch: form.supportBranch,
         })
         .where(eq(referralCodes.id, id));
 
@@ -913,6 +926,23 @@ export async function updateReferralCode(
 
     return { ok: true as const, item: await readCode(tx, id) };
   });
+}
+
+/**
+ * P-61 · Ngừng / dùng lại một mã. Tắt là mã rời ô chọn ngay; chỗ đang giữ và
+ * tài khoản đã mở không bị đụng — bật lại là kho trở về đúng trạng thái cũ.
+ */
+export async function setReferralCodeActive(
+  id: string,
+  active: boolean,
+): Promise<ReferralCode | null> {
+  const [row] = await db
+    .update(referralCodes)
+    .set({ active })
+    .where(eq(referralCodes.id, id))
+    .returning({ id: referralCodes.id });
+  if (!row) return null;
+  return db.transaction((tx) => readCode(tx, id));
 }
 
 /* ── Kênh ─────────────────────────────────────────────────────────────── */

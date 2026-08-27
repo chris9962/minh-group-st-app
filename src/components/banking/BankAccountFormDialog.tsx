@@ -335,10 +335,17 @@ function BankPickRow({
                     value: c.id,
                     // Trừ cả `holding`: tài khoản người khác đang mở dở đã chiếm
                     // chỗ rồi, không trừ là hứa thừa.
-                    label: `${c.code} · còn ${c.total - c.used - c.holding} chỗ`,
+                    label: `${c.code}${c.province ? ` · ${c.province}` : ""} · còn ${c.total - c.used - c.holding} chỗ`,
                   }))
             }
           />
+          {(() => {
+            const picked = codes.find((c) => c.id === pick.referralCode);
+            const detail = picked
+              ? [picked.province, picked.supportBranch].filter(Boolean).join(" · ")
+              : "";
+            return detail ? <p className={styles.codeDetail}>{detail}</p> : null;
+          })()}
         </div>
       )}
     </div>

@@ -691,6 +691,7 @@ export async function startBankAccount(
           usedCount: referralCodes.usedCount,
           holdingCount: referralCodes.holdingCount,
           scope: referralCodes.scope,
+          active: referralCodes.active,
         })
         .from(referralCodes)
         .where(eq(referralCodes.id, pick.referralCode))
@@ -702,6 +703,12 @@ export async function startBankAccount(
       if (!code) return { ok: false as const, message: "Không tìm thấy mã giới thiệu này" };
       if (code.bankId !== pick.bankId)
         return { ok: false as const, message: "Mã giới thiệu này không thuộc ngân hàng đã chọn" };
+      // Ô chọn đã lọc mã ngừng, nhưng đây mới là chốt — cùng lý do với phạm vi phòng.
+      if (!code.active)
+        return {
+          ok: false as const,
+          message: `Mã ${code.code} đã ngừng sử dụng. Chọn mã khác giúp.`,
+        };
 
       /**
        * Kiểm LẠI phạm vi phòng ở đây, không tin ô chọn đã lọc (spec §4.4d).

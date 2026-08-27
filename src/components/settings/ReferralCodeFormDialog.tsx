@@ -12,6 +12,7 @@ import {
 } from "@/components/banking/BankAccountPhotos";
 import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
+import { Combobox } from "@/components/ui/Combobox";
 import { Dialog } from "@/components/ui/Dialog";
 import { Select } from "@/components/ui/Select";
 import { TextField } from "@/components/ui/TextField";
@@ -26,6 +27,8 @@ import {
   type ReferralCode,
 } from "@/lib/api/bankCatalog";
 import { fetchDepartments } from "@/lib/api/departments";
+import { fetchReferenceProvinces } from "@/lib/api/wardCatalog";
+import { digitsOnly, numberValue, numericField } from "@/lib/numberField";
 import { banksInScope } from "@/lib/permissions";
 import { useSession } from "@/store/session";
 import styles from "./ReferralCodeFormDialog.module.scss";
@@ -55,6 +58,10 @@ export function ReferralCodeFormDialog({ open, onClose, referral }: Props) {
     queryKey: ["departments"],
     queryFn: fetchDepartments,
   });
+  const { data: referenceProvinces = [] } = useQuery({
+    queryKey: ["reference-provinces"],
+    queryFn: fetchReferenceProvinces,
+  });
 
   // Lúc thêm mới chỉ hiện ngân hàng đang triển khai. Lúc sửa thì lấy cả ngân
   // hàng đã tắt: mã cũ vẫn thuộc về nó, lọc đi là ô chọn hiện trống trơn.
@@ -83,6 +90,8 @@ export function ReferralCodeFormDialog({ open, onClose, referral }: Props) {
       scope: referral?.scope ?? "all",
       departmentIds: referral?.departmentIds ?? [],
       qrImageUrl: referral?.qrImageUrl ?? "",
+      province: referral?.province ?? "",
+      supportBranch: referral?.supportBranch ?? "",
     },
   });
 
@@ -226,9 +235,31 @@ export function ReferralCodeFormDialog({ open, onClose, referral }: Props) {
           {...register("code")}
         />
 
+        {/* Lưu TÊN tỉnh, không lưu id — xem chú thích cột `province` ở schema.
+            Hai trường này hiện cạnh ô chọn mã ở bước 2 khi mở tài khoản. */}
+        <Combobox
+          block
+          label="Tỉnh"
+          placeholder="Gõ để tìm tỉnh/thành phố…"
+          value={watch("province")}
+          onChange={(v) => setValue("province", v, { shouldDirty: true })}
+          options={[
+            { value: "", label: "— Không gán tỉnh —" },
+            ...referenceProvinces.map((p) => ({ value: p.name, label: p.name })),
+          ]}
+          error={errors.province?.message}
+        />
+
+        <TextField
+          label="Chi nhánh hỗ trợ"
+          placeholder="PGD Cái Bè"
+          error={errors.supportBranch?.message}
+          {...register("supportBranch")}
+        />
+
         <TextField
           label="Tổng số lượt dùng"
-          type="number"
+          type="text"
           inputMode="numeric"
           required
           hint={
@@ -237,17 +268,16 @@ export function ReferralCodeFormDialog({ open, onClose, referral }: Props) {
               : "Số lượt tài khoản có thể mở bằng mã này"
           }
           error={errors.total?.message}
-          {...register("total", { valueAsNumber: true })}
+          {...numericField(register("total", { setValueAs: numberValue }), digitsOnly)}
         />
 
         <TextField
           label="Độ ưu tiên"
-          type="number"
+          type="text"
           inputMode="numeric"
-          min={0}
           hint="Số lớn lên đầu ô chọn mã lúc mở tài khoản, trong cùng ngân hàng."
           error={errors.priority?.message}
-          {...register("priority", { valueAsNumber: true })}
+          {...numericField(register("priority", { setValueAs: numberValue }), digitsOnly)}
         />
 
         {/*

@@ -229,6 +229,12 @@ export const ReferralCode = z.object({
   scope: CodeScope,
   /** Rỗng khi `scope` là `all`. */
   departmentIds: z.array(z.string()),
+  /** Tên tỉnh của mã; `''` = chưa gán. Hiện cạnh ô chọn mã ở bước 2 P-20. */
+  province: z.string(),
+  /** Chi nhánh ngân hàng hỗ trợ; `''` = chưa gán. Cùng chỗ hiện với `province`. */
+  supportBranch: z.string(),
+  /** `false` = đã ngừng tay: mã rời ô chọn và bị từ chối lúc mở tài khoản. */
+  active: z.boolean(),
 });
 export type ReferralCode = z.infer<typeof ReferralCode>;
 
@@ -319,6 +325,10 @@ export const ReferralCodeForm = z.object({
     .max(SMALLINT_MAX, 'Độ ưu tiên lớn quá'),
   scope: CodeScope,
   departmentIds: z.array(z.guid()),
+  /** Tên tỉnh chọn từ danh sách tham chiếu; `''` = không gán. */
+  province: z.string().trim(),
+  /** Chi nhánh hỗ trợ, gõ tay; `''` = không gán. */
+  supportBranch: z.string().trim(),
 })
   /**
    * Chọn "Phòng chỉ định" mà không tick phòng nào là mã KHÔNG AI dùng được —
@@ -342,3 +352,7 @@ export const createReferralCode = (form: ReferralCodeForm) =>
  */
 export const updateReferralCode = (id: string, form: ReferralCodeForm) =>
   send(`/api/settings/referral-codes/${id}`, 'PATCH', form).then(ReferralCode.parse);
+
+/** Ngừng / dùng lại một mã — không xoá, tài khoản cũ vẫn trỏ vào mã. */
+export const setReferralCodeActive = (id: string, active: boolean) =>
+  send(`/api/settings/referral-codes/${id}/active`, 'POST', { active }).then(ReferralCode.parse);
