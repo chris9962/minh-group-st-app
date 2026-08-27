@@ -925,6 +925,24 @@ export const insuranceOrders = pgTable(
      */
     pviElectronicOrderNo: text("pvi_electronic_order_no").notNull().default(""),
     /**
+     * Link file PDF giấy chứng nhận — trường `URL` của callback mục 13 API đối
+     * tác PVI. URL TUYỆT ĐỐI trỏ sang máy chủ PVI, giao diện đưa thẳng vào thẻ
+     * `a`.
+     *
+     * KHÁC `certificate_photo_url`: cột đó là KHOÁ ảnh trong kho S3 do bot
+     * Playwright chụp lại, phải đi qua `GET /api/images/<key>` mới đọc được.
+     *
+     * Rỗng = chưa nhận callback, hoặc đơn do bot tạo chứ không qua API.
+     */
+    pviCertificateUrl: text("pvi_certificate_url").notNull().default(""),
+    /**
+     * Số ấn chỉ điện tử — trường `SerialNumber` của callback mục 13.
+     *
+     * KHÁC `pvi_electronic_order_no` là SỐ ĐƠN dạng `26/21/14/MOTO/0109539`.
+     * Trên màn PVI hai số nằm cạnh nhau: "Số đơn điện tử" và "Số ấn chỉ".
+     */
+    pviSerialNumber: text("pvi_serial_number").notNull().default(""),
+    /**
      * Khoá PVI dùng trong mọi đường dẫn thao tác trên đơn. Lưu dạng THÔ
      * (`W6fXX4Fd7+I=`), mã hoá url lúc dựng địa chỉ.
      *

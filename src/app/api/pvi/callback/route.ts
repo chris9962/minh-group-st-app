@@ -1,4 +1,5 @@
 import { jsonBody } from "@/server/auth";
+import { savePviCertificate } from "@/server/insurance";
 import { pviCallbackReply, verifyPviCallback } from "@/server/pvi-api";
 
 /**
@@ -11,9 +12,8 @@ import { pviCallbackReply, verifyPviCallback } from "@/server/pvi-api";
  * xác thực duy nhất; `verifyPviCallback` kiểm nó trước mọi thứ khác.
  *
  * ⚠️ TRẢ `Status "00"` NGHĨA LÀ ĐÃ NHẬN XONG. PVI ngừng gọi lại `RequestId` này.
- * Vì vậy chỉ trả "00" sau khi đã lưu thành công. Lưu hỏng thì phải trả mã khác
- * để PVI gọi lại — họ cho tối đa 3 lần, hết thì phải liên hệ TTCNTT PVI xử lý
- * tay từng đơn.
+ * Vì vậy chỉ trả "00" SAU KHI đã ghi vào database. Ghi hỏng thì trả mã khác để
+ * PVI gọi lại — họ cho tối đa 3 lần, hết thì phải liên hệ TTCNTT PVI xử lý tay.
  *
  * Luôn trả HTTP 200 kèm thân `{ Status, Message }`, kể cả khi từ chối. Tài liệu
  * PVI chỉ mô tả hợp đồng ở thân request; trả mã HTTP khác 200 thì client của họ
@@ -30,18 +30,22 @@ export async function POST(request: Request) {
     return Response.json(pviCallbackReply(check.status, check.message));
   }
 
-  /**
-   * TODO(pvi-api · callback mục 13, chờ chốt nơi lưu): CHƯA ghi `policyNumber`,
-   * `serialNumber` và `url` vào đơn nào cả — dữ liệu chỉ đi vào log rồi mất.
-   *
-   * Gỡ mốc này khi có hàm ghi vào `insurance_orders` theo `requestId`. Hàm đó
-   * PHẢI chịu được gọi lại nhiều lần với cùng `requestId` (PVI gọi tối đa 3
-   * lần, và mình còn tự tra bằng `getPolicyNumber`), và phải ném lỗi khi ghi
-   * hỏng để nhánh dưới trả mã lỗi cho PVI thay vì trả "00".
-   */
-  console.info(
-    `[pvi-callback] nhận GCN cho ${check.data.requestId}: ${check.data.policyNumber}`,
-  );
+  const { requestId, policyNumber, serialNumber, url } = check.data;
 
+  let saved: boolean;
+  try {
+    saved = await savePviCertificate(requestId, { url, serialNumber });
+  } catch (cause) {
+    // Ghi hỏng thì PVI phải gọi lại — trả `-1` chứ không phải `00`.
+    console.error(`[pvi-callback] ghi hỏng ${requestId}:`, cause);
+    return Response.json(pviCallbackReply("-1", "Lỗi ghi dữ liệu, gửi lại giúp"));
+  }
+
+  if (!saved) {
+    console.warn(`[pvi-callback] không có đơn nào mang mã ${requestId}`);
+    return Response.json(pviCallbackReply("-404", "Không tìm thấy đơn mang RequestId này"));
+  }
+
+  console.info(`[pvi-callback] ${requestId} nhận GCN ${policyNumber}`);
   return Response.json(pviCallbackReply("00", "Thanh cong"));
 }

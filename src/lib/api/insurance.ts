@@ -101,6 +101,18 @@ export const InsuranceOrder = InsuranceListRow.extend({
   engineNumber: z.string(),
   /** Đơn vị của người tạo LÚC TẠO — chụp một lần, không tra động (spec §1.1.5). */
   createdByDepartmentId: z.string().nullable(),
+  /**
+   * Link file PDF giấy chứng nhận do PVI gửi về ở callback mục 13.
+   *
+   * URL tuyệt đối sang máy chủ PVI — khác `certificatePhotoUrl` là ảnh trong kho
+   * của mình. Chuỗi rỗng = chưa nhận callback.
+   *
+   * CỐ Ý không nằm ở dòng danh sách: P-13 không cần link, và mỗi dòng chở thêm
+   * một URL dài là tốn đường truyền cho mười lăm dòng mỗi lần lật trang.
+   */
+  pviCertificateUrl: z.string().default(""),
+  /** Số ấn chỉ điện tử từ cùng callback. Chuỗi rỗng = chưa nhận. */
+  pviSerialNumber: z.string().default(""),
 });
 export type InsuranceOrder = z.infer<typeof InsuranceOrder>;
 

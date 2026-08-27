@@ -310,6 +310,8 @@ const pickPage = (where: SQL | undefined, orderBy: SQL[], limit: number, offset:
       engineNumber: insuranceOrders.engineNumber,
       certificatePhotoUrl: insuranceOrders.certificatePhotoUrl,
       certificateAttempts: insuranceOrders.certificateAttempts,
+      pviCertificateUrl: insuranceOrders.pviCertificateUrl,
+      pviSerialNumber: insuranceOrders.pviSerialNumber,
       handledBy: insuranceOrders.handledBy,
       handledByDepartmentId: insuranceOrders.handledByDepartmentId,
       createdBy: insuranceOrders.createdBy,
@@ -353,6 +355,8 @@ const decorate = (page: ReturnType<typeof pickPage>) =>
       engineNumber: page.engineNumber,
       certificatePhotoUrl: page.certificatePhotoUrl,
       certificateAttempts: page.certificateAttempts,
+      pviCertificateUrl: page.pviCertificateUrl,
+      pviSerialNumber: page.pviSerialNumber,
       createdById: page.createdBy,
       createdByName: creator.fullName,
       createdByDepartmentId: page.createdByDepartmentId,
@@ -416,6 +420,8 @@ const seesBeneficiaryId = (actor: User, r: DecoratedRow): boolean =>
 
 const toOrder = (actor: User, r: DecoratedRow): InsuranceOrder => ({
   ...toRow(r),
+  pviCertificateUrl: r.pviCertificateUrl,
+  pviSerialNumber: r.pviSerialNumber,
   beneficiaryName: r.beneficiaryName,
   beneficiaryDob: r.beneficiaryDob,
   beneficiaryIdNumber: seesBeneficiaryId(actor, r) ? r.beneficiaryIdNumber : "",
@@ -1015,4 +1021,36 @@ export async function setCertificatePhoto(
     .where(eq(insuranceOrders.id, id));
 
   return { ...toOrder(actor, (await rawById(id))!), history: await historyOf(id) };
+}
+
+/**
+ * Ghi số ấn chỉ và link file PDF giấy chứng nhận PVI gửi về ở callback mục 13.
+ *
+ * KHÔNG kiểm quyền: bên gọi là máy chủ PVI, không có phiên đăng nhập nào. Thứ
+ * gác đường này là chữ ký MD5 mà `verifyPviCallback` đã kiểm trước khi tới đây.
+ *
+ * Tra đơn bằng `order_code` vì `RequestId` PVI trả lại chính là `ma_giaodich`
+ * mình gửi lúc tạo đơn, mà mã đó lấy thẳng từ cột này.
+ *
+ * Chạy lại nhiều lần với cùng dữ liệu ra cùng kết quả — PVI gọi callback tối đa
+ * 3 lần, và tác vụ tra `GetPolicyNumber` cũng ghi vào đúng cột này.
+ *
+ * `false` = không có đơn nào mang mã đó. Route trả mã lỗi cho PVI thay vì nuốt
+ * lặng: gọi lại cũng không ra kết quả khác, nhưng ít nhất log hai bên cùng thấy.
+ */
+export async function savePviCertificate(
+  requestId: string,
+  certificate: { url: string; serialNumber: string },
+): Promise<boolean> {
+  const rows = await db
+    .update(insuranceOrders)
+    .set({
+      pviCertificateUrl: certificate.url,
+      pviSerialNumber: certificate.serialNumber,
+      updatedAt: new Date(),
+    })
+    .where(eq(insuranceOrders.orderCode, requestId))
+    .returning({ id: insuranceOrders.id });
+
+  return rows.length > 0;
 }

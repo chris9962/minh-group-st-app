@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { use, useCallback, useEffect, useRef, useState } from "react";
-import { CheckCircle2, ChevronLeft, Download, EyeOff, History, ImagePlus, Pencil, ShieldCheck, X } from "lucide-react";
+import { CheckCircle2, ChevronLeft, Download, ExternalLink, EyeOff, FileText, History, ImagePlus, Pencil, ShieldCheck, X } from "lucide-react";
 import { SkeletonCard } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
@@ -353,6 +353,21 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                   {data.orderCode}
                   <CopyButton value={data.orderCode} label={`mã đơn: ${data.orderCode}`} quiet />
                 </p>
+                {/* Số ấn chỉ PVI đứng NGAY CẠNH mã đơn: đội xử lý tay đối
+                    chiếu hai số này với nhau khi tra đơn bên PVI. Nhãn đi kèm
+                    vì hai chuỗi số cạnh nhau mà không nói cái nào là cái gì thì
+                    đọc ra một mã dài. */}
+                {data.pviSerialNumber && (
+                  <p className={styles.serialInline}>
+                    <span className={styles.serialLabel}>Số</span>
+                    {data.pviSerialNumber}
+                    <CopyButton
+                      value={data.pviSerialNumber}
+                      label={`số ấn chỉ: ${data.pviSerialNumber}`}
+                      quiet
+                    />
+                  </p>
+                )}
                 <StatusTag tone={INSURANCE_STATUS_TONE[data.status]}>
                   {INSURANCE_STATUS_LABEL[data.status]}
                 </StatusTag>
@@ -470,6 +485,23 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                 <Field label="Người tạo">{data.createdByName ?? "—"}</Field>
                 <Field label="Người xử lý">{data.handledByName ?? "—"}</Field>
               </FieldGroup>
+
+            {/* Link PDF do PVI gửi về ở callback. Chưa nhận thì không hiện gì —
+                không dòng chú thích, không nút mờ (AGENTS.md). */}
+            {data.pviCertificateUrl && (
+              <div className={styles.pviBlock}>
+                <a
+                  className={styles.pviCertificate}
+                  href={data.pviCertificateUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <FileText size={16} aria-hidden />
+                  Giấy chứng nhận điện tử (PDF)
+                  <ExternalLink size={14} aria-hidden />
+                </a>
+              </div>
+            )}
 
             <div className={styles.photoSection}>
               <h3 className={styles.photoTitle}>Ảnh chứng nhận bảo hiểm</h3>

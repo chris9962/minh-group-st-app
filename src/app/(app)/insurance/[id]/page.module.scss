@@ -136,6 +136,59 @@
   color: var(--om-link-hover);
 }
 
+/* Số ấn chỉ PVI, đứng cạnh mã đơn. Nhỏ hơn và nhạt hơn mã đơn: mã đơn là định
+   danh bên mình, số ấn chỉ là số đối chiếu bên PVI. */
+.serialInline {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--om-text-2);
+}
+
+.serialLabel {
+  font-weight: 500;
+  font-size: 12.5px;
+  color: var(--om-text-3);
+}
+
+/* Khối link PDF giấy chứng nhận. */
+.pviBlock {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--om-line);
+}
+
+/* Link PDF giấy chứng nhận PVI gửi về. Nằm trên khối ảnh vì cùng một chủ thể,
+   nhưng là LIÊN KẾT ra ngoài chứ không phải ảnh xem tại trang — dùng màu chữ
+   bấm được `--om-link`, và vùng bấm đủ 44px cho màn cảm ứng (AGENTS.md §8). */
+.pviCertificate {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  align-self: flex-start;
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--om-line);
+  border-radius: var(--radius-md);
+  background: var(--om-surface);
+  color: var(--om-link);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.pviCertificate:hover {
+  color: var(--om-link-hover);
+  border-color: var(--om-link-hover);
+}
+
 .photoSection {
   display: flex;
   flex-direction: column;
