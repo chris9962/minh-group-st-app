@@ -28,6 +28,7 @@ import { invalidateKpi } from "@/lib/invalidateKpi";
 import { SUM_INSURED_DEFAULT, SUM_INSURED_OPTIONS, VEHICLE_TYPES } from "@/lib/pvi";
 import { errorMessage, toast } from "@/lib/toast";
 import styles from "./InsuranceOrderFormDialog.module.scss";
+import { digitsOnly, numberValue, numericField } from "@/lib/numberField";
 import { reportInvalid } from "@/lib/formErrors";
 
 type Props = {
@@ -268,12 +269,11 @@ export function InsuranceOrderFormDialog({
       <div className={styles.pair}>
         <TextField
           label="Số thành viên"
-          type="number"
+          type="text"
           inputMode="numeric"
-          min={1}
           required
           error={errors.legs?.[i]?.householdSize?.message}
-          {...register(`legs.${i}.householdSize`, { valueAsNumber: true })}
+          {...numericField(register(`legs.${i}.householdSize`, { setValueAs: numberValue }), digitsOnly)}
         />
         <Select
           label="Số tiền bảo hiểm"
@@ -492,11 +492,11 @@ export function InsuranceOrderFormDialog({
 
               <TextField
                 label="Mức phí (đ)"
-                type="number"
+                type="text"
                 inputMode="numeric"
                 required
                 error={errors.legs?.[i]?.fee?.message}
-                {...register(`legs.${i}.fee`, { valueAsNumber: true })}
+                {...numericField(register(`legs.${i}.fee`, { setValueAs: numberValue }), digitsOnly)}
               />
 
               {(selectedPackage?.legs ?? [])[i].product === "motorbike"
@@ -542,11 +542,11 @@ export function InsuranceOrderFormDialog({
             </div>
             <TextField
               label="Mức phí (đ)"
-              type="number"
+              type="text"
               inputMode="numeric"
               required
               error={errors.legs?.[0]?.fee?.message}
-              {...register("legs.0.fee", { valueAsNumber: true })}
+              {...numericField(register("legs.0.fee", { setValueAs: numberValue }), digitsOnly)}
             />
             {(selectedPackage?.legs ?? [])[0].product === "motorbike"
               ? renderVehicleInfo(0)

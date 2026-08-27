@@ -21,6 +21,7 @@ import { SUM_INSURED_OPTIONS, VEHICLE_TYPES } from "@/lib/pvi";
 import { errorMessage, toast } from "@/lib/toast";
 import { PRODUCT_LABEL } from "@/lib/types";
 import styles from "./InsuranceOrderFormDialog.module.scss";
+import { digitsOnly, numberValue, numericField } from "@/lib/numberField";
 import { reportInvalid } from "@/lib/formErrors";
 
 type Props = {
@@ -212,11 +213,11 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId }: Props) {
 
           <TextField
             label="Mức phí (đ)"
-            type="number"
+            type="text"
             inputMode="numeric"
             required
             error={errors.fee?.message}
-            {...form.register("fee", { valueAsNumber: true })}
+            {...numericField(form.register("fee", { setValueAs: numberValue }), digitsOnly)}
           />
 
           {motorbike && (
@@ -263,12 +264,11 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId }: Props) {
               <div className={styles.pair}>
                 <TextField
                   label="Số thành viên"
-                  type="number"
+                  type="text"
                   inputMode="numeric"
-                  min={1}
                   required
                   error={errors.householdSize?.message}
-                  {...form.register("householdSize", { valueAsNumber: true })}
+                  {...numericField(form.register("householdSize", { setValueAs: numberValue }), digitsOnly)}
                 />
                 <Select
                   label="Số tiền bảo hiểm"

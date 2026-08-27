@@ -16,6 +16,7 @@ import {
 } from "@/lib/api/settings";
 import styles from "./ServiceTypeFormDialog.module.scss";
 import { errorMessage, toast } from "@/lib/toast";
+import { decimalOnly, numberValue, numericField } from "@/lib/numberField";
 import { reportInvalid } from "@/lib/formErrors";
 
 type Props = {
@@ -107,11 +108,11 @@ export function ServiceTypeFormDialog({ open, onClose, serviceType }: Props) {
         />
         <TextField
           label="Hệ số điểm KPI"
-          type="number"
-          inputMode="numeric"
+          type="text"
+          inputMode="decimal"
           hint="Mặc định 1"
           error={errors.coefficient?.message}
-          {...register("coefficient", { valueAsNumber: true })}
+          {...numericField(register("coefficient", { setValueAs: numberValue }), decimalOnly)}
         />
       </form>
     </Dialog>

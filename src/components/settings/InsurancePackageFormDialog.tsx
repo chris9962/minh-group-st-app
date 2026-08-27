@@ -18,6 +18,7 @@ import {
 import { InsuranceProduct, PRODUCT_LABEL } from "@/lib/types";
 import styles from "./InsurancePackageFormDialog.module.scss";
 import { errorMessage, toast } from "@/lib/toast";
+import { digitsOnly, numberValue, numericField } from "@/lib/numberField";
 import { reportInvalid } from "@/lib/formErrors";
 
 type Props = {
@@ -127,17 +128,17 @@ export function InsurancePackageFormDialog({ open, onClose, insurancePackage }: 
               />
               <TextField
                 label="Số năm"
-                type="number"
+                type="text"
                 inputMode="numeric"
                 error={errors.legs?.[i]?.years?.message}
-                {...register(`legs.${i}.years`, { valueAsNumber: true })}
+                {...numericField(register(`legs.${i}.years`, { setValueAs: numberValue }), digitsOnly)}
               />
               <TextField
                 label="Phí trọn thời hạn (đồng)"
-                type="number"
+                type="text"
                 inputMode="numeric"
                 error={errors.legs?.[i]?.fee?.message}
-                {...register(`legs.${i}.fee`, { valueAsNumber: true })}
+                {...numericField(register(`legs.${i}.fee`, { setValueAs: numberValue }), digitsOnly)}
               />
               <Button
                 variant="secondary"

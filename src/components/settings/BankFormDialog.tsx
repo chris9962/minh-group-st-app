@@ -31,6 +31,7 @@ import { can } from "@/lib/permissions";
 import { useSession } from "@/store/session";
 import styles from "./BankFormDialog.module.scss";
 import { errorMessage, toast } from "@/lib/toast";
+import { digitsOnly, numberValue, numericField } from "@/lib/numberField";
 import { reportInvalid } from "@/lib/formErrors";
 
 type Props = {
@@ -188,20 +189,19 @@ export function BankFormDialog({ open, onClose, bank }: Props) {
         <div className={styles.pair}>
           <TextField
             label="Số ảnh bắt buộc"
-            type="number"
+            type="text"
             inputMode="numeric"
             error={errors.requiredPhotos?.message}
-            {...register("requiredPhotos", { valueAsNumber: true })}
+            {...numericField(register("requiredPhotos", { setValueAs: numberValue }), digitsOnly)}
           />
 
           <TextField
             label="Độ ưu tiên"
-            type="number"
+            type="text"
             inputMode="numeric"
-            min={0}
             hint="Số lớn lên đầu ô chọn lúc mở tài khoản."
             error={errors.priority?.message}
-            {...register("priority", { valueAsNumber: true })}
+            {...numericField(register("priority", { setValueAs: numberValue }), digitsOnly)}
           />
         </div>
 

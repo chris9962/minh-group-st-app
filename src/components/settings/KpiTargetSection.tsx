@@ -13,6 +13,7 @@ import { TextField } from "@/components/ui/TextField";
 import { fetchKpiTarget, KpiTargetForm, updateKpiTarget } from "@/lib/api/settings";
 import styles from "./KpiTargetSection.module.scss";
 import { errorMessage, toast } from "@/lib/toast";
+import { digitsOnly, numberValue, numericField } from "@/lib/numberField";
 import { reportInvalid } from "@/lib/formErrors";
 
 /** P-83 · Chỉ tiêu KPI theo tháng — một con số chung cho toàn công ty. */
@@ -79,10 +80,10 @@ export function KpiTargetSection() {
 
           <TextField
             label="Chỉ tiêu điểm mỗi tháng"
-            type="number"
+            type="text"
             inputMode="numeric"
             error={errors.monthlyPoints?.message}
-            {...register("monthlyPoints", { valueAsNumber: true })}
+            {...numericField(register("monthlyPoints", { setValueAs: numberValue }), digitsOnly)}
           />
 
           <div className={styles.footRow}>

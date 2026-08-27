@@ -13,6 +13,7 @@ import {
   type KpiAdjustment,
 } from "@/lib/api/person";
 import { invalidateKpi } from "@/lib/invalidateKpi";
+import { numberValue, numericField, signedDecimalOnly } from "@/lib/numberField";
 import { errorMessage, toast } from "@/lib/toast";
 import { reportInvalid } from "@/lib/formErrors";
 import styles from "./KpiAdjustmentFormDialog.module.scss";
@@ -40,26 +41,6 @@ export function KpiAdjustmentFormDialog({ open, onClose, personId, adjustment }:
     defaultValues: {
       points: adjustment?.points,
       reason: adjustment?.reason ?? "",
-    },
-  });
-
-  /**
-   * Ô điểm là `type="text"` + `inputMode="decimal"`, KHÔNG phải `type="number"`:
-   * Safari không chặn chữ trong ô number, còn `inputMode` mới là thứ quyết định
-   * bàn phím số trên mobile. Chặn chữ bằng tay ở `onChange`.
-   */
-  const sanitizePoints = (v: string) => {
-    const cleaned = v.replace(/[^0-9.,-]/g, "");
-    // Dấu trừ chỉ có nghĩa ở đầu.
-    return (cleaned.startsWith("-") ? "-" : "") + cleaned.replace(/-/g, "");
-  };
-
-  const pointsField = register("points", {
-    // Người Việt gõ dấu phẩy cho phần lẻ; đổi sang dấu chấm trước khi parse.
-    // Chuỗi rỗng thành NaN để zod báo "Chưa nhập số điểm".
-    setValueAs: (v) => {
-      const s = String(v).trim().replace(",", ".");
-      return s === "" || s === "-" ? Number.NaN : Number(s);
     },
   });
 
@@ -108,11 +89,7 @@ export function KpiAdjustmentFormDialog({ open, onClose, personId, adjustment }:
           inputMode="decimal"
           hint="Nhập số âm để trừ điểm"
           error={errors.points?.message}
-          {...pointsField}
-          onChange={(e) => {
-            e.target.value = sanitizePoints(e.target.value);
-            void pointsField.onChange(e);
-          }}
+          {...numericField(register("points", { setValueAs: numberValue }), signedDecimalOnly)}
         />
         <TextField
           label="Lý do"
