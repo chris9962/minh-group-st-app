@@ -27,65 +27,10 @@
   color: var(--om-text-2);
 }
 
-/* Mọi cột — kể cả đang tắt — nằm cùng một hàng ngang, đúng vị trí cố định.
-   Bỏ tick chỉ làm nhạt màu, KHÔNG rời khỏi chỗ — bật lại về đúng vị trí cũ,
-   không bị đẩy xuống cuối. Mũi tên trái/phải khớp hướng đọc bảng ngang. */
-.columnPicker {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-bottom: 14px;
-  padding: 10px 12px;
-  background: var(--om-soft);
-  border-radius: var(--radius-md);
-}
-
-.columnChip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 8px;
-  background: var(--om-card);
-  border: 1px solid var(--om-line);
-  border-radius: 999px;
-}
-
-.columnChipOff {
-  background: transparent;
-  border-style: dashed;
-  opacity: 0.6;
-}
-
-.chipArrow {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  flex: none;
-  padding: 0;
-  color: var(--om-text-2);
-  background: transparent;
-  border: none;
-  border-radius: 50%;
-  cursor: pointer;
-}
-
-.chipArrow:hover:not(:disabled) {
-  background: var(--om-soft);
-  color: var(--om-text);
-}
-
-.chipArrow:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
-}
-
-.columnChips {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
+/* Cột bỏ tick MỜ ĐI chứ không biến mất — còn thấy mà tick lại, và mọi cột giữ
+   đúng vị trí cố định theo file mẫu. */
+.colOff {
+  opacity: 0.45;
 }
 
 .previewScroll {

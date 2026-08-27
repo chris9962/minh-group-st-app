@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { ChevronLeft, ChevronRight, Download, Lock } from "lucide-react";
+import { Download, Lock } from "lucide-react";
 import type { DateRange } from "react-day-picker";
 import { TopBar } from "@/components/layout/TopBar";
 import { Button } from "@/components/ui/Button";
@@ -269,7 +269,6 @@ export default function ExportsPage() {
   // Vị trí TẤT CẢ cột (kể cả tắt) + danh sách cột đang bật, riêng cho từng báo
   // cáo. Tách hai thứ này ra để bỏ tick một cột không làm nó rớt khỏi hàng —
   // bật lại thì về đúng chỗ cũ, không nhảy xuống cuối.
-  const [orderMap, setOrderMap] = useState<Partial<Record<ReportId, string[]>>>({});
   const [enabledMap, setEnabledMap] = useState<Partial<Record<ReportId, string[]>>>({});
 
   // Bộ lọc dùng chung theo từng nhóm báo cáo — khai hết ở đây, mỗi báo cáo chỉ
@@ -306,24 +305,17 @@ export default function ExportsPage() {
   const to = range?.to ? iso(range.to) : "";
 
   const catalog = active ? catalogFor(active, banks, staffById) : [];
-  const fullOrder = active ? (orderMap[active] ?? catalog.map((c) => c.key)) : [];
+  /* Thứ tự cột CỐ ĐỊNH theo file mẫu của từng báo cáo (chốt 2026-08-27, bỏ
+     mũi tên đổi thứ tự) — tick chọn ngay trên bảng xem trước. */
+  const fullOrder = catalog.map((c) => c.key);
   const enabled = active ? (enabledMap[active] ?? catalog.filter((c) => c.defaultOn).map((c) => c.key)) : [];
-  // Cột thật sẽ xuất: đúng những cột đang bật, đúng thứ tự đang xếp.
+  // Cột thật sẽ xuất: đúng những cột đang tick, theo thứ tự file mẫu.
   const exportOrder = fullOrder.filter((key) => enabled.includes(key));
 
   const toggleColumn = (key: string) => {
     if (!active) return;
     const next = enabled.includes(key) ? enabled.filter((k) => k !== key) : [...enabled, key];
     setEnabledMap((m) => ({ ...m, [active]: next }));
-  };
-  const moveColumn = (key: string, dir: -1 | 1) => {
-    if (!active) return;
-    const i = fullOrder.indexOf(key);
-    const j = i + dir;
-    if (i < 0 || j < 0 || j >= fullOrder.length) return;
-    const next = [...fullOrder];
-    [next[i], next[j]] = [next[j], next[i]];
-    setOrderMap((m) => ({ ...m, [active]: next }));
   };
 
   async function run() {
@@ -486,54 +478,37 @@ export default function ExportsPage() {
           >
             <div className={styles.columnPreview}>
               <span className={styles.columnPreviewLabel}>
-                Cột sẽ xuất — tick chọn, mũi tên đổi thứ tự ({exportOrder.length}/{catalog.length}). Bỏ tick không đổi
-                vị trí, bật lại là về đúng chỗ cũ.
+                Tick chọn cột sẽ xuất ({exportOrder.length}/{catalog.length}) — cột bỏ tick mờ đi
+                và không vào file. File mở lên có dạng bên dưới.
               </span>
-              <div className={styles.columnPicker}>
-                <div className={styles.columnChips}>
-                  {fullOrder.map((key, i) => {
-                    const col = catalog.find((c) => c.key === key);
-                    if (!col) return null;
-                    const isOn = enabled.includes(key);
-                    return (
-                      <div key={key} className={`${styles.columnChip} ${isOn ? "" : styles.columnChipOff}`}>
-                        <button
-                          type="button"
-                          className={styles.chipArrow}
-                          aria-label={`Đưa cột ${col.header} sang trái`}
-                          disabled={i === 0}
-                          onClick={() => moveColumn(key, -1)}
-                        >
-                          <ChevronLeft size={14} />
-                        </button>
-                        <Checkbox checked={isOn} onCheckedChange={() => toggleColumn(key)} label={col.header} />
-                        <button
-                          type="button"
-                          className={styles.chipArrow}
-                          aria-label={`Đưa cột ${col.header} sang phải`}
-                          disabled={i === fullOrder.length - 1}
-                          onClick={() => moveColumn(key, 1)}
-                        >
-                          <ChevronRight size={14} />
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <span className={styles.columnPreviewLabel}>Mở file lên sẽ có dạng</span>
+              {/* Tick nằm ngay trên tiêu đề cột (chốt 2026-08-27) — bảng hiện ĐỦ
+                  mọi cột, cột bỏ tick mờ đi chứ không biến mất, để còn thấy mà
+                  tick lại. Thứ tự cố định theo file mẫu. */}
               <div className={styles.previewScroll}>
                 <table className={styles.previewTable}>
                   <thead>
                     <tr>
-                      {exportOrder.map((key) => {
+                      {fullOrder.map((key) => {
                         const col = catalog.find((c) => c.key === key);
                         if (!col) return null;
+                        const isOn = enabled.includes(key);
                         return (
-                          <th key={key} className={col.type === "number" ? styles.alignNum : undefined}>
-                            {col.header}
-                            {col.type === "text" && <span className={styles.textHint}> (văn bản)</span>}
+                          <th
+                            key={key}
+                            className={`${col.type === "number" ? styles.alignNum : ""} ${isOn ? "" : styles.colOff}`}
+                          >
+                            <Checkbox
+                              checked={isOn}
+                              onCheckedChange={() => toggleColumn(key)}
+                              label={
+                                <>
+                                  {col.header}
+                                  {col.type === "text" && (
+                                    <span className={styles.textHint}> (văn bản)</span>
+                                  )}
+                                </>
+                              }
+                            />
                           </th>
                         );
                       })}
@@ -542,11 +517,15 @@ export default function ExportsPage() {
                   <tbody>
                     {[0, 1].map((rowIndex) => (
                       <tr key={rowIndex}>
-                        {exportOrder.map((key) => {
+                        {fullOrder.map((key) => {
                           const col = catalog.find((c) => c.key === key);
                           if (!col) return null;
+                          const isOn = enabled.includes(key);
                           return (
-                            <td key={key} className={col.type === "number" ? styles.alignNum : undefined}>
+                            <td
+                              key={key}
+                              className={`${col.type === "number" ? styles.alignNum : ""} ${isOn ? "" : styles.colOff}`}
+                            >
                               {col.sample[rowIndex]}
                             </td>
                           );
