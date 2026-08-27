@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { readPviApiConfig } from "./config";
 import { PviApiError, pviPost, pviSign, pviText, type PviOrderResult } from "./client";
+import { PVI_CERTIFICATE_EMAIL } from "./constants";
+import { asDateTime, pviPeriod } from "./period";
 
 /**
  * Mục 10 · `TaoDon_XeMay` — tạo đơn TNDS bắt buộc xe máy.
@@ -14,20 +16,11 @@ import { PviApiError, pviPost, pviSign, pviText, type PviOrderResult } from "./c
  * tài liệu — xem `docs/pvi-field-tao-don-xe-may.md`.
  */
 
-const DATE_TIME = /^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}$/;
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const YEAR_OR_EMPTY = /^(\d{4})?$/;
 
-/**
- * Hòm thư nhận giấy chứng nhận — MỘT địa chỉ của nhân viên khai thác cho mọi
- * đơn, không lấy theo khách và cũng không lấy theo người tạo đơn.
- *
- * PVI đánh field này bắt buộc VÀ nối nó vào chữ ký, nên nó phải có giá trị ổn
- * định. Bên mình không lưu email ở đâu cả: `customers` và `insurance_orders`
- * đều không có cột nào. Đơn tai nạn hộ sử dụng điện đã cố định đúng địa chỉ này
- * từ 2026-08-15 (xem `src/lib/pvi.ts`), giữ chung một hòm thư cho cả hai sản
- * phẩm để giấy chứng nhận về cùng một chỗ.
- */
-export const PVI_CERTIFICATE_EMAIL = "ngoctuyenmgst@gmail.com";
+/** Giờ hiệu lực đặt sau lúc gọi 20 phút — cùng số bot Playwright dùng. */
+const MINUTES_AHEAD = 20;
 
 /**
  * Mã nhãn hiệu xe — một giá trị cho mọi đơn, danh mục `HIEUXEMOTOR` của PVI.
@@ -96,9 +89,12 @@ export const MotorbikeOrderInput = z.object({
   tenNguoiMuaBh: z.string().trim().default(""),
   diaChiNguoiMuaBh: z.string().trim().default(""),
 
-  /** `dd/MM/yyyy HH:mm` — sản phẩm xe máy gộp ngày và giờ vào MỘT trường. */
-  ngayDau: z.string().trim().regex(DATE_TIME, "Phải theo dạng dd/MM/yyyy HH:mm"),
-  ngayCuoi: z.string().trim().regex(DATE_TIME, "Phải theo dạng dd/MM/yyyy HH:mm"),
+  /**
+   * Hai cột `date` của đơn, dạng `YYYY-MM-DD`. Module tự ghép giờ và đổi sang
+   * `dd/MM/yyyy HH:mm` mà PVI nhận — xem `pviPeriod`.
+   */
+  ngayBatDau: z.string().trim().regex(ISO_DATE, "Phải theo dạng YYYY-MM-DD"),
+  ngayKetThuc: z.string().trim().regex(ISO_DATE, "Phải theo dạng YYYY-MM-DD"),
 
   bienKiemSoat: z.string().trim().min(1),
   /**
@@ -157,7 +153,10 @@ export type MotorbikeOrderInput = z.infer<typeof MotorbikeOrderInput>;
  * Tách khỏi `createMotorbikeOrder` để test được chữ ký mà không gọi mạng, và
  * để đọc đối chiếu với tài liệu bằng mắt.
  */
-export function buildMotorbikePayload(input: MotorbikeOrderInput): Record<string, unknown> {
+export function buildMotorbikePayload(
+  input: MotorbikeOrderInput,
+  now?: Date,
+): Record<string, unknown> {
   const config = readPviApiConfig();
   if (!config) {
     throw new PviApiError({
@@ -173,6 +172,13 @@ export function buildMotorbikePayload(input: MotorbikeOrderInput): Record<string
   const nhanHieu = pviText(input.nhanHieu);
   const loaiXe = pviText(input.loaiXe);
   const namSanXuat = pviText(input.namSanXuat);
+
+  const period = pviPeriod({
+    startDate: input.ngayBatDau,
+    endDate: input.ngayKetThuc,
+    minutesAhead: MINUTES_AHEAD,
+    now,
+  });
 
   /**
    * Thứ tự lấy nguyên văn ô `Tham số` của mục 10:
@@ -198,8 +204,8 @@ export function buildMotorbikePayload(input: MotorbikeOrderInput): Record<string
     ma_giaodich: pviText(input.maGiaoDich),
     ten_nguoimua_bh: pviText(input.tenNguoiMuaBh),
     diachi_nguoimua_bh: pviText(input.diaChiNguoiMuaBh),
-    ngay_dau: pviText(input.ngayDau),
-    ngay_cuoi: pviText(input.ngayCuoi),
+    ngay_dau: asDateTime(period.startDate, period.startTime),
+    ngay_cuoi: asDateTime(period.endDate, period.endTime),
     bien_kiemsoat: bienKiemSoat,
     so_may: input.soMay,
     so_khung: input.soKhung,
@@ -230,7 +236,8 @@ export function buildMotorbikePayload(input: MotorbikeOrderInput): Record<string
 /** Gọi `TaoDon_XeMay`. Ném `PviApiError` khi PVI từ chối; không tự gọi lại. */
 export async function createMotorbikeOrder(
   input: MotorbikeOrderInput,
+  now?: Date,
 ): Promise<PviOrderResult> {
   const parsed = MotorbikeOrderInput.parse(input);
-  return pviPost("TaoDon_XeMay", buildMotorbikePayload(parsed));
+  return pviPost("TaoDon_XeMay", buildMotorbikePayload(parsed, now));
 }

@@ -8,6 +8,9 @@ import {
   pviText,
   type PviOrderResult,
 } from "./client";
+import { pviDateFromIso } from "@/lib/pvi";
+import { PVI_CERTIFICATE_EMAIL } from "./constants";
+import { pviPeriod } from "./period";
 
 /**
  * Mục 11 · `TaoDon_HSDD_CP` — tạo đơn bảo hiểm Tai nạn hộ sử dụng điện.
@@ -19,7 +22,21 @@ import {
  */
 
 const DATE = /^\d{2}\/\d{2}\/\d{4}$/;
-const TIME = /^\d{2}:\d{2}$/;
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Giờ hiệu lực đặt sau lúc gọi 10 phút — cùng số bot Playwright dùng. */
+const MINUTES_AHEAD = 10;
+
+/** Ngành nghề kinh doanh — cố định cho mọi đơn (chốt 2026-08-15). */
+export const PVI_ELECTRIC_TRADE = "TỰ DO";
+
+/**
+ * Tỷ lệ phí tham gia, đơn vị phần trăm.
+ *
+ * Form web tự ghi `0.26` khi tick điều khoản bổ sung 01; bot ghi đè xuống
+ * `0.25`, và đơn đã cấp thật `26/21/14/TNCN/0099106` ghi `0.25`.
+ */
+export const PVI_ELECTRIC_FEE_RATE = 0.25;
 
 export const ElectricParticipant = z.object({
   tenKhach: z.string().trim().min(1),
@@ -45,21 +62,30 @@ export const ElectricOrderInput = z.object({
   /** Duy nhất trên hệ thống PVI — xem ghi chú ở `MotorbikeOrderInput`. */
   maGiaoDich: z.string().trim().min(1).max(50),
 
-  /** Chủ hộ đứng tên đơn. */
+  /** Người thụ hưởng — cột `beneficiary_name`. */
   khachHang: z.string().trim().min(1),
   cmtKhachHang: z.string().trim().default(""),
+  /**
+   * Ngày sinh người thụ hưởng, `YYYY-MM-DD` — cột `beneficiary_dob`.
+   *
+   * Form của mình bắt buộc ô này với đơn tai nạn hộ sử dụng điện. Cần để dựng
+   * `list_nguoithamgia`: `ngay_sinh` là một trong bảy trường của mỗi người.
+   */
+  ngaySinh: z.string().trim().regex(ISO_DATE, "Phải theo dạng YYYY-MM-DD"),
   diaChi: z.string().trim().min(1),
-  email: z.string().trim().email(),
+  email: z.string().trim().email().default(PVI_CERTIFICATE_EMAIL),
   soDienThoai: z.string().trim().default(""),
-  /** Tài liệu ghi không bắt buộc; luồng của mình cố định `TỰ DO` (chốt 2026-08-15). */
-  nngheKd: z.string().trim().default(""),
+  nngheKd: z.string().trim().default(PVI_ELECTRIC_TRADE),
 
-  /** `dd/MM/yyyy` + `HH:mm` tách riêng — khác hẳn sản phẩm xe máy gộp một trường. */
-  ngayBatDau: z.string().trim().regex(DATE, "Phải theo dạng dd/MM/yyyy"),
-  startTime: z.string().trim().regex(TIME, "Phải theo dạng HH:mm").default("00:00"),
-  /** Ngày KẾT THÚC bảo hiểm, tên trường PVI là `thoihan_bh`. */
-  thoiHanBh: z.string().trim().regex(DATE, "Phải theo dạng dd/MM/yyyy"),
-  endTime: z.string().trim().regex(TIME, "Phải theo dạng HH:mm").default("23:59"),
+  /**
+   * Hai cột `date` của đơn, dạng `YYYY-MM-DD`. Module tự ghép giờ và tách thành
+   * bốn field PVI nhận — xem `pviPeriod`.
+   *
+   * Khác xe máy: mục 11 tách NGÀY và GIỜ thành hai field riêng, không gộp một
+   * chuỗi.
+   */
+  ngayBatDau: z.string().trim().regex(ISO_DATE, "Phải theo dạng YYYY-MM-DD"),
+  ngayKetThuc: z.string().trim().regex(ISO_DATE, "Phải theo dạng YYYY-MM-DD"),
 
   /**
    * Mức CHI TRẢ, không phải phí khách trả. Hai bậc PVI bán: 40tr và 80tr
@@ -72,19 +98,62 @@ export const ElectricOrderInput = z.object({
   soTienBh: z.number().int().positive(),
   /** Tổng phí đồng, cũng đi vào chữ ký nên cũng phải nguyên. */
   tongPhi: z.number().int().nonnegative(),
-  /** Tỷ lệ phí, tài liệu ghi không bắt buộc. `0` = không gửi tỷ lệ. */
-  phiTyLePhi: z.number().nonnegative().default(0),
+  /** Tỷ lệ phí — xem `PVI_ELECTRIC_FEE_RATE`. */
+  phiTyLePhi: z.number().nonnegative().default(PVI_ELECTRIC_FEE_RATE),
 
   /** Số thành viên trong hộ khẩu — khớp `insurance_orders.household_size`. */
   soNguoiHoKhau: z.number().int().nonnegative(),
-  /** Người sống cùng chủ hộ nhưng không có trong hộ khẩu. */
+  /**
+   * Người sống cùng chủ hộ nhưng không có trong hộ khẩu — LUÔN LÀ 0.
+   *
+   * Form web có ba ô đếm người, API chỉ có hai. Chú thích của PVI khớp ô "không
+   * đăng ký thường trú", còn tên trường `Thue` khớp ô "tạm trú hoặc thuê trọ".
+   * Không cần phân biệt: cả hai ô đều là 0 ở mọi đơn, đơn đã cấp thật
+   * `26/21/14/TNCN/0099106` cũng vậy. Bên mình chỉ bán cho hộ gia đình.
+   */
   soNguoiThue: z.number().int().nonnegative().default(0),
 
-  nguoiThamGia: z.array(ElectricParticipant).min(1),
+  /**
+   * Người tham gia bảo hiểm. Để TRỐNG thì module tự dựng đúng MỘT người —
+   * người thụ hưởng của đơn. Xem `nguoiThuHuongThamGia`.
+   *
+   * Bên mình chỉ lưu `household_size` là một con số, không có bảng thành viên
+   * hộ, nên không dựng được người thứ hai. Truyền mảng đầy đủ vào đây khi nào
+   * có bảng đó.
+   */
+  nguoiThamGia: z.array(ElectricParticipant).default([]),
 });
 export type ElectricOrderInput = z.infer<typeof ElectricOrderInput>;
 
-export function buildElectricPayload(input: ElectricOrderInput): Record<string, unknown> {
+/**
+ * Người tham gia duy nhất — NGƯỜI THỤ HƯỞNG của đơn, dựng từ năm cột
+ * `beneficiary_*`.
+ *
+ * Form web PVI ghi ngay dưới nút Tải file mẫu: "không cần nhập thông tin những
+ * người có tên trong đăng ký thường trú", và đơn đã cấp thật
+ * `26/21/14/TNCN/0099106` để trống danh sách. Nhưng request mẫu mục 11 gửi đủ
+ * người, nên gửi ít nhất người thụ hưởng là cách khớp được cả hai nguồn.
+ *
+ * `nhom_khach` là QUAN HỆ VỚI CHỦ HỘ theo cách gọi của PVI, không phải tên
+ * người. Đơn tai nạn hộ sử dụng điện đứng tên người thụ hưởng, nên quan hệ đó
+ * là `Chủ hộ`. `loai: 1` = cùng hộ khẩu.
+ */
+function nguoiThuHuongThamGia(input: ElectricOrderInput): ElectricParticipant {
+  return {
+    tenKhach: input.khachHang,
+    soCmnd: input.cmtKhachHang,
+    diaChi: input.diaChi,
+    ngaySinh: pviDateFromIso(input.ngaySinh),
+    dienThoai: input.soDienThoai,
+    nhomKhach: "Chủ hộ",
+    loai: 1,
+  };
+}
+
+export function buildElectricPayload(
+  input: ElectricOrderInput,
+  now?: Date,
+): Record<string, unknown> {
   const config = readPviApiConfig();
   if (!config) {
     throw new PviApiError({
@@ -94,8 +163,12 @@ export function buildElectricPayload(input: ElectricOrderInput): Record<string, 
     });
   }
 
-  const ngayBatDau = pviText(input.ngayBatDau);
-  const thoiHanBh = pviText(input.thoiHanBh);
+  const period = pviPeriod({
+    startDate: input.ngayBatDau,
+    endDate: input.ngayKetThuc,
+    minutesAhead: MINUTES_AHEAD,
+    now,
+  });
   const maGiaoDich = pviText(input.maGiaoDich);
   const email = pviText(input.email);
   const tongPhi = pviNumber(input.tongPhi);
@@ -114,8 +187,8 @@ export function buildElectricPayload(input: ElectricOrderInput): Record<string, 
    * đó — ký một đằng gửi một nẻo là sai chữ ký.
    */
   const sign = pviSign(config, [
-    ngayBatDau,
-    thoiHanBh,
+    period.startDate,
+    period.endDate,
     maGiaoDich,
     email,
     pviNumber(input.soTienBh),
@@ -126,7 +199,7 @@ export function buildElectricPayload(input: ElectricOrderInput): Record<string, 
     CpId: config.cpId,
     Sign: sign,
     ma_giaodich: maGiaoDich,
-    list_nguoithamgia: input.nguoiThamGia.map((p) => ({
+    list_nguoithamgia: (input.nguoiThamGia.length ? input.nguoiThamGia : [nguoiThuHuongThamGia(input)]).map((p) => ({
       ten_khach: pviText(p.tenKhach),
       so_cmnd: pviText(p.soCmnd),
       dia_chi: pviText(p.diaChi),
@@ -138,13 +211,13 @@ export function buildElectricPayload(input: ElectricOrderInput): Record<string, 
     khach_hang: pviText(input.khachHang),
     cmt_khachhang: pviText(input.cmtKhachHang),
     sotien_bh: input.soTienBh,
-    thoihan_bh: thoiHanBh,
-    endtime: pviText(input.endTime),
+    thoihan_bh: period.endDate,
+    endtime: period.endTime,
     phi_tyle_phi: input.phiTyLePhi,
     tong_phi: tongPhi,
     email,
-    ngay_batdau: ngayBatDau,
-    starttime: pviText(input.startTime),
+    ngay_batdau: period.startDate,
+    starttime: period.startTime,
     dia_chi: pviText(input.diaChi),
     nnghe_kd: pviText(input.nngheKd),
     so_dienthoai: pviText(input.soDienThoai),
@@ -156,7 +229,8 @@ export function buildElectricPayload(input: ElectricOrderInput): Record<string, 
 /** Gọi `TaoDon_HSDD_CP`. Ném `PviApiError` khi PVI từ chối; không tự gọi lại. */
 export async function createElectricAccidentOrder(
   input: ElectricOrderInput,
+  now?: Date,
 ): Promise<PviOrderResult> {
   const parsed = ElectricOrderInput.parse(input);
-  return pviPost("TaoDon_HSDD_CP", buildElectricPayload(parsed));
+  return pviPost("TaoDon_HSDD_CP", buildElectricPayload(parsed, now));
 }

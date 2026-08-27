@@ -50,6 +50,8 @@ export {
   ElectricParticipant,
 } from "./electric";
 export { getPolicyNumber, PolicyLookupInput, type PolicyLookupResult } from "./policy";
+export { PVI_CERTIFICATE_EMAIL } from "./constants";
+export { pviPeriod, type PviPeriod } from "./period";
 export {
   verifyPviCallback,
   pviCallbackReply,
