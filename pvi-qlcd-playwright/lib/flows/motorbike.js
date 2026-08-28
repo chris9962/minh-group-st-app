@@ -214,9 +214,33 @@ async function dien({ v, dryRun }) {
     await new Promise((r) => setTimeout(r, 1500));
     window.TinhPhiBH();
   }
-  await new Promise((r) => setTimeout(r, 2500));
 
   const doc = (id) => (el(id) ? el(id).value : null);
+  /** "10 000 000" → 10000000. Ô rỗng hoặc không đọc được ra 0. */
+  const soCua = (id) => Number(String(doc(id) ?? '').replace(/\D/g, '')) || 0;
+
+  if (dryRun) {
+    await new Promise((r) => setTimeout(r, 2500));
+  } else {
+    /**
+     * Chờ ĐIỀU KIỆN, không chờ một số giây cố định.
+     *
+     * Bản trước chờ 2500ms rồi đọc. Trên máy chủ FPT lượt `$.ajax` về chậm hơn
+     * máy cá nhân, và đơn DH-2608-015 (2026-08-28) đọc trúng lúc hai ô lái phụ
+     * còn 0. Tổng phí thiếu đúng phần lái phụ — form 66 000, PVI tính 76 000 —
+     * nên bot không khớp được dòng bên PVI và đẩy đơn về chờ duyệt tay.
+     *
+     * Đợi tối đa 15 giây. Hết mà vẫn 0 thì ghi vào `canXem` để người đọc kết
+     * quả thấy, chứ không im lặng gửi đi một tổng phí sai.
+     */
+    let dot = 0;
+    while (dot < 75 && !(soCua('Tong_MTN_LaiPhu') > 0 && soCua('Phi_BH_LaiPhu') > 0)) {
+      dot += 1;
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    if (!(soCua('Tong_MTN_LaiPhu') > 0 && soCua('Phi_BH_LaiPhu') > 0))
+      rec('Phí lái phụ', 'PVI KHÔNG TÍNH XONG', `còn 0 sau ${(dot * 200) / 1000} giây`);
+  }
   return {
     log,
     canXem: log.filter((r) => /KHÔNG|GHI ĐÈ|KHÔNG ĐỔI/.test(r.status)),
