@@ -77,10 +77,6 @@ export function HospitalCatalogSection() {
             Thêm bệnh viện
           </Button>
         </div>
-
-        <p className={styles.footnote}>
-          Dùng cho kênh <strong>Bệnh viện</strong> ở P-20 — KD chọn thẳng từ danh sách này.
-        </p>
       </SectionCard>
 
       {creating && <HospitalFormDialog open onClose={() => setCreating(false)} />}

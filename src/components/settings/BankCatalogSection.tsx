@@ -182,15 +182,6 @@ export function BankCatalogSection({ creating, onCreatingChange }: Props) {
             emptyText="Chưa có ngân hàng nào — bấm “Thêm ngân hàng” ở thanh tiêu đề."
           />
         )}
-
-        <p className={styles.footnote}>
-          <strong>Ưu tiên</strong> quyết định thứ tự ô chọn ngân hàng lúc mở tài
-          khoản — số lớn lên đầu, bằng nhau thì xếp theo mã. <strong>Tắt</strong>{" "}
-          chỉ chặn tạo tài khoản mới — tài khoản cũ thuộc
-          ngân hàng đã tắt vẫn hiển thị và xuất được bình thường. VPa/VPb và
-          MSBa/MSBb là bốn ngân hàng riêng biệt dù cùng một nhà băng ngoài đời:
-          khác mã giới thiệu, khác chính sách.
-        </p>
       </SectionCard>
 
       {viewingGuide && (

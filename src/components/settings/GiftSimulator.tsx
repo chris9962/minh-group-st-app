@@ -114,11 +114,6 @@ export function GiftSimulator() {
 
   return (
     <SectionCard title="Nút thử" icon={<FlaskConical size={17} />}>
-      <p className={styles.intro}>
-        Nhập giả định một khách để xem quà và điểm KPI tính ra sao — không tạo
-        khách, không tạo đơn, không trừ mã.
-      </p>
-
       <fieldset className={styles.fieldset}>
         <legend className={styles.legend}>
           Khách đã mở tài khoản ở{" "}

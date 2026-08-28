@@ -295,15 +295,6 @@ export function ReferralCodesSection({ creating, onCreatingChange }: Props) {
         </>
       )}
 
-      <p className={styles.footnote}>
-        <strong>Phạm vi</strong> quyết định phòng nào chọn được mã lúc mở tài
-        khoản; đổi phạm vi KHÔNG đụng tài khoản đã mở.{" "}
-        <strong>Ưu tiên</strong> quyết định thứ tự ô chọn mã lúc mở tài khoản —
-        số lớn lên đầu, chỉ so giữa các mã cùng một ngân hàng, và mã đã đầy thì
-        không hiện dù ưu tiên cao. Thêm từng mã một ở đây. Nhập <strong>hàng loạt</strong> từ Excel vẫn là
-        việc riêng của màn <strong>Nhập mã hàng loạt</strong> (P-62, chưa làm).
-      </p>
-
       {(creating || editing) && (
         <ReferralCodeFormDialog
           open

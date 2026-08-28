@@ -230,10 +230,6 @@ function FinishAccountCard({
         </div>
       </dl>
 
-      <p className="text-muted">
-        Đã mở tài khoản thật xong thì điền nốt bên dưới rồi bấm &quot;Hoàn thành&quot;.
-      </p>
-
 
       <BankAccountFinishFields
         formId="finish-account-form"
@@ -269,9 +265,6 @@ function FinishAccountCard({
           Xoá
         </Button>
       </div>
-      {!enoughPhotos && (
-        <p className="text-muted">Cần đủ {data.requiredPhotos} ảnh chứng minh mới hoàn thành được.</p>
-      )}
     </SectionCard>
   );
 }

@@ -76,11 +76,6 @@ export function ChannelCatalogSection() {
             Thêm kênh
           </Button>
         </div>
-
-        <p className={styles.footnote}>
-          Thêm kênh mới xong chọn đúng <strong>kiểu nhập kèm</strong> là app tự
-          hiện ô tương ứng cho KD — không cần sửa code hay phát hành lại app.
-        </p>
       </SectionCard>
 
       {(creating || editing) && (

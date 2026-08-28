@@ -52,14 +52,6 @@ const emptyForm: StaffForm = {
 };
 
 /** Chức vụ nào nhìn được tới đâu — nói thẳng, vì người tạo không còn ô nào để chọn. */
-const SCOPE_NOTE: Record<StaffForm["role"], string> = {
-  director: "Giám đốc xem được bản ghi của toàn công ty.",
-  "deputy-director": "",
-  head: "Trưởng phòng xem được bản ghi của đúng đơn vị mình thuộc về.",
-  "deputy-head": "Phó phòng xem được bản ghi của đúng đơn vị mình thuộc về.",
-  staff: "Nhân viên xem được bản ghi do chính mình tạo.",
-};
-
 /**
  * Tên đăng nhập gợi ý LÀ mã nhân viên viết thường: `001THAODV` ra `001thaodv`.
  *
@@ -359,13 +351,6 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
           />
         </div>
 
-        {roles.length > 0 && roles.length < 5 && (
-          <p className={styles.note}>
-            Danh sách chức vụ chỉ có những vai <strong>không vượt quá quyền của
-            bạn</strong>. Cần gán vai cao hơn thì nhờ người có quyền cấp quyền.
-          </p>
-        )}
-
         <TextField
           label="Chức danh hiển thị"
           required
@@ -374,7 +359,7 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
           {...register("title")}
         />
 
-        {picksManaged ? (
+        {picksManaged && (
           <fieldset className={styles.fieldset}>
             <legend className={styles.legend}>Phòng phụ trách</legend>
             <div className={styles.checks}>
@@ -395,8 +380,6 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
               </p>
             )}
           </fieldset>
-        ) : (
-          <p className={styles.note}>{SCOPE_NOTE[watch("role")]}</p>
         )}
 
         {/* Sửa hồ sơ CHÍNH MÌNH thì không có thẻ Quyền. Cắt quyền một người mà

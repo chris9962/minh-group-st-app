@@ -201,13 +201,6 @@ export function AccountCard({ staffId }: { staffId: string }) {
         </Button>
       </div>
 
-      {!staff.active && (
-        <p className={styles.note}>
-          Nghỉ việc thì <strong>khoá</strong>, không xoá. Xoá thì mọi bản ghi cũ
-          trỏ vào khoảng không và báo cáo tháng trước mất người tạo.
-        </p>
-      )}
-
       {editing && (
         <StaffFormDialog
           open

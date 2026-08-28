@@ -239,10 +239,6 @@ export default function DepartmentsPage() {
     [toggleActive.isPending, canSeeStats, canManage, canRename, canStop, statsById],
   );
 
-  const blocked = (data?.departments ?? []).filter(
-    (d) => d.active && d.headcount > 0,
-  );
-
   /**
    * Phòng đã ngừng ẩn mặc định.
    *
@@ -351,15 +347,6 @@ export default function DepartmentsPage() {
                 pageSize={10}
                 caption={canManage ? "Phòng ban, số người và trạng thái" : "Phòng ban và số người"}
               />
-
-              {/* Nút mờ mà không nói vì sao chính là chỗ người dùng mắc kẹt. */}
-              {canStop && blocked.length > 0 && (
-                <p className={styles.footnote}>
-                  <strong>Không ngừng hoạt động được</strong>{" "}
-                  {blocked.map((d) => `${d.name} (${d.headcount} người)`).join(", ")}
-                  {" "}— chuyển hết người sang phòng khác trước.
-                </p>
-              )}
 
             </SectionCard>
           </>

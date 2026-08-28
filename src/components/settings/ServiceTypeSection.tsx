@@ -109,11 +109,6 @@ export function ServiceTypeSection({ creating, onCreatingChange }: Props) {
             emptyText="Chưa có loại dịch vụ nào — bấm “Thêm loại dịch vụ” ở đầu trang."
           />
         )}
-
-        <p className={styles.footnote}>
-          Mặc định hệ số <strong>1</strong> cho loại mới — số cụ thể theo từng
-          loại cập nhật sau khi có dữ liệu thật.
-        </p>
       </SectionCard>
 
       {(creating || editing) && (

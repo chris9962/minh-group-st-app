@@ -54,10 +54,6 @@ export default function ProfilePage() {
               <dd className="tabular-nums">{user.permissions.length}</dd>
             </div>
           </dl>
-          <p className={styles.note}>
-            Quyền do quản trị hệ thống cấp, bạn không tự sửa được. Quên mật khẩu
-            thì liên hệ quản trị để được cấp lại.
-          </p>
         </SectionCard>
 
         {/* Chỉ dựng khi mở: form giữ state trong `useForm`, tháo hẳn thì lần mở

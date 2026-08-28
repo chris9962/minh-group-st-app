@@ -304,11 +304,6 @@ export default function DashboardPage() {
                     </div>
                   ))}
                 </dl>
-                <p className={styles.footnote}>
-                  Chưa phát · <span className="tabular-nums">{data.gifts.pending}</span> khách
-                  đủ điều kiện. Tổng ở đây lớn hơn số khách vì mỗi khách nhận tiền
-                  mặt <em>cộng thêm</em> một món trong rổ quà.
-                </p>
               </SectionCard>
             </div>
           </>

@@ -118,12 +118,6 @@ export function WardCatalogSection() {
             Thêm tỉnh/thành phố
           </Button>
         </div>
-
-        <p className={styles.footnote}>
-          Dùng cho kênh <strong>Ấp</strong> và <strong>Định danh</strong> ở P-20 — KD chỉ chọn
-          được trong đúng những tỉnh/xã đã triển khai ở đây, không phải toàn bộ danh sách cả
-          nước.
-        </p>
       </SectionCard>
 
       {addingProvince && <ProvinceFormDialog open onClose={() => setAddingProvince(false)} />}
