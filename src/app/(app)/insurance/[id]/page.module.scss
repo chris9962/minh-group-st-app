@@ -297,6 +297,18 @@
   margin: 0;
 }
 
+/* Ô đặt trạng thái tuỳ ý. Vạch kẻ trên tách nó khỏi hai nút vòng đời — hai
+   việc khác nhau, đứng liền nhau thì người bấm dễ nhầm. */
+.override {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--om-line);
+}
+
 .footnote {
   margin: 10px 0 0;
   font-size: 12px;

@@ -85,6 +85,18 @@ export const Action = z.enum([
   'access-id-number',
   // Đặc biệt — insurance
   'handle-fallback',
+  /**
+   * Đặt trạng thái đơn bảo hiểm sang BẤT KỲ giá trị nào, bỏ qua bảng bước
+   * chuyển hợp lệ (migration 0050).
+   *
+   * Đây là công cụ gỡ đơn mắc, không phải một bước của vòng đời. Vòng đời có
+   * chỗ đơn đi vào rồi không ra được — `pending-approval` từng như vậy — và
+   * không phải chỗ nào cũng lường trước được.
+   *
+   * ⚠️ Đặt tay về `queued` là worker tạo lại đơn đó trên PVI lần hai. Người
+   * được cấp quyền này phải biết điều đó.
+   */
+  'set-status',
   // Đặc biệt — banking
   'grant-gift',
   /**
@@ -140,6 +152,7 @@ export const ACTION_LABEL: Record<Action, string> = {
   export: 'Xuất dữ liệu',
   'access-id-number': 'Xem & sửa CCCD đầy đủ',
   'handle-fallback': 'Xử lý đơn lỗi (làm tay)',
+  'set-status': 'Sửa trạng thái đơn bảo hiểm',
   'grant-gift': 'Chốt & phát quà',
   'manage-bank': 'Quản lý mọi ngân hàng & mã giới thiệu',
   'manage-assigned-banks': 'Quản lý ngân hàng được giao',
@@ -171,11 +184,11 @@ export const BASE_ACTIONS: Action[] = ['view-summary', 'view-detail', 'create', 
  * Ô chọn ở P-92 vì vậy chỉ có Bật/Tắt, và máy chủ nắn mọi phạm vi khác về
  * `company` trước khi ghi.
  */
-export const SCOPELESS_ACTIONS: Action[] = ['manage-org', 'adjust-kpi'];
+export const SCOPELESS_ACTIONS: Action[] = ['manage-org', 'adjust-kpi', 'set-status'];
 
 export const SPECIAL_ACTIONS_OF: Partial<Record<ModuleKey, Action[]>> = {
   customer: ['access-id-number'],
-  insurance: ['handle-fallback'],
+  insurance: ['handle-fallback', 'set-status'],
   banking: ['grant-gift'],
   /**
    * MỌI quyền cấu hình nằm ở `system` (chốt 2026-08-24).

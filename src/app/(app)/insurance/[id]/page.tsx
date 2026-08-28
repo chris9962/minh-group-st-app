@@ -12,10 +12,12 @@ import { ImageLightbox } from "@/components/ui/ImageLightbox";
 import { downloadImage } from "@/lib/downloadImage";
 import { CopyButton } from "@/components/ui/CopyValue";
 import { SectionCard } from "@/components/ui/SectionCard";
+import { Select } from "@/components/ui/Select";
 import { StatusTag } from "@/components/ui/StatusTag";
 import { Alert } from "@/components/ui/Alert";
 import {
   fetchInsuranceDetail,
+  overrideInsuranceOrderStatus,
   setInsuranceOrderPhoto,
   setInsuranceOrderStatus,
 } from "@/lib/api/insurance";
@@ -24,6 +26,7 @@ import {
   certificateNeedsHelp,
   INSURANCE_STATUS_LABEL,
   INSURANCE_STATUS_TONE,
+  InsuranceOrderStatus,
   type InsuranceManualStep,
 } from "@/lib/api/insuranceOrders";
 import { imageProblem, uploadImage } from "@/lib/api/uploads";
@@ -209,6 +212,8 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
   );
 
   const canHandleFallback = can(actor, "insurance", "handle-fallback");
+  /** Đặt trạng thái tuỳ ý — công cụ gỡ đơn mắc, cấp riêng với `handle-fallback`. */
+  const canSetStatus = can(actor, "insurance", "set-status");
   /**
    * Hỏi theo ĐÚNG BẢN GHI này, khớp từng vế với `setCertificatePhoto`.
    *
@@ -318,6 +323,24 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
       );
     },
     onError: (e) => toast.fail(errorMessage(e, "Không đổi được trạng thái đơn này.")),
+  });
+
+  /**
+   * Đặt trạng thái tuỳ ý — công cụ gỡ đơn mắc, tách hẳn khỏi `advance`.
+   *
+   * `advance` đi đúng vòng đời và máy chủ kiểm bảng bước chuyển. Đường này bỏ
+   * qua bảng đó, nên nó phải là một nút riêng chứ không phải một nhánh của nút
+   * cũ: người bấm phải thấy rõ mình đang làm việc khác.
+   */
+  const [overrideTo, setOverrideTo] = useState<string>("");
+  const override = useMutation({
+    mutationFn: (status: InsuranceOrderStatus) => overrideInsuranceOrderStatus(id, status),
+    onSuccess: (order) => {
+      invalidate();
+      setOverrideTo("");
+      toast.ok(`Đơn ${order.orderCode} chuyển sang ${INSURANCE_STATUS_LABEL[order.status]}`);
+    },
+    onError: (e) => toast.fail(errorMessage(e, "Không đặt được trạng thái đơn này.")),
   });
 
   const busy = savePhoto.isPending || advance.isPending;
@@ -698,6 +721,33 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                   )}
                 </div>
               )}
+
+            {/* Đặt trạng thái tuỳ ý — đứng RIÊNG dưới hai nút vòng đời, và chỉ
+                hiện với người được cấp `insurance:set-status`. Nó bỏ qua bảng
+                bước chuyển nên không đứng chung hàng với nút đi đúng vòng đời. */}
+            {canSetStatus && (
+              <div className={styles.override}>
+                <Select
+                  label="Đặt trạng thái"
+                  value={overrideTo}
+                  disabled={override.isPending}
+                  onChange={setOverrideTo}
+                  options={[
+                    { value: "", label: "— chọn trạng thái —" },
+                    ...InsuranceOrderStatus.options
+                      .filter((k) => k !== data.status)
+                      .map((k) => ({ value: k, label: INSURANCE_STATUS_LABEL[k] })),
+                  ]}
+                />
+                <Button
+                  variant="ghost"
+                  disabled={!overrideTo || override.isPending}
+                  onClick={() => override.mutate(overrideTo as InsuranceOrderStatus)}
+                >
+                  {override.isPending ? "Đang đặt…" : "Đặt trạng thái"}
+                </Button>
+              </div>
+            )}
             </div>
           </SectionCard>
         )}

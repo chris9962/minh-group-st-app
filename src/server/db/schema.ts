@@ -62,6 +62,9 @@ export const actionKey = pgEnum("action_key", [
   "access-id-number",
   // đặc biệt · system: cộng/trừ điểm KPI tay theo tháng (migration 0046)
   "adjust-kpi",
+  // đặc biệt · insurance: đặt trạng thái đơn tuỳ ý, bỏ qua bảng bước chuyển
+  // hợp lệ (migration 0050). Công cụ gỡ đơn mắc.
+  "set-status",
 ]);
 
 export const scopeKey = pgEnum("scope_key", ["own", "managed", "company"]);

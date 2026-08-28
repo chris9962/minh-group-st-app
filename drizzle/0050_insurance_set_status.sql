@@ -1,0 +1,12 @@
+-- Quyền đặt trạng thái đơn bảo hiểm tuỳ ý.
+--
+-- Vòng đời đơn (spec §3.4) có chỗ đơn đi vào rồi không ra được. `pending-approval`
+-- là ca đã gặp: bot tạo đơn xong nhưng không khớp được dòng bên PVI nên dừng ở
+-- đó, mà `STEP_FROM` không nhận nó làm nguồn và worker cũng không đọc lại. Đơn
+-- nằm lại vĩnh viễn, không nút nào bấm được.
+--
+-- Quyền này là công cụ gỡ, KHÔNG phải một bước của vòng đời. Nó không chia được
+-- theo phạm vi — xem `SCOPELESS_ACTIONS` ở `src/lib/types.ts`.
+--
+-- ⚠️ Đặt tay về 'queued' là worker tạo lại đơn đó trên PVI lần hai.
+ALTER TYPE "action_key" ADD VALUE IF NOT EXISTS 'set-status';

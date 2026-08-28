@@ -265,6 +265,25 @@ export async function setInsuranceOrderStatus(
   return InsuranceDetail.parse(await res.json());
 }
 
+/**
+ * Đặt trạng thái đơn tuỳ ý — công cụ gỡ đơn mắc, cần quyền `insurance:set-status`.
+ *
+ * Đường RIÊNG với `setInsuranceOrderStatus`: đường kia đi đúng vòng đời và máy
+ * chủ kiểm bước chuyển, đường này bỏ qua bảng đó.
+ */
+export async function overrideInsuranceOrderStatus(
+  id: string,
+  status: InsuranceOrderStatus,
+): Promise<InsuranceDetail> {
+  const res = await fetch(`/api/insurance-orders/${id}/status/override`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status }),
+  });
+  if (!res.ok) throw await failure(res, 'Không đặt được trạng thái đơn này');
+  return InsuranceDetail.parse(await res.json());
+}
+
 /** Đính/thay ảnh chứng nhận — dùng được ở MỌI trạng thái đơn (spec §3.4). */
 export async function setInsuranceOrderPhoto(
   id: string,

@@ -996,6 +996,57 @@ export async function setInsuranceOrderStatus(
 }
 
 /**
+ * Đặt trạng thái đơn sang BẤT KỲ giá trị nào — công cụ gỡ đơn mắc.
+ *
+ * Khác `setInsuranceOrderStatus` ở ba điểm, và cả ba là cố ý:
+ *
+ * 1. KHÔNG kiểm bảng bước chuyển. Vòng đời có chỗ đơn đi vào rồi không ra được
+ *    — `pending-approval` từng như vậy — và không phải chỗ nào cũng lường trước.
+ * 2. KHÔNG đòi ảnh chứng nhận khi đặt `done`. Người cấp quyền này tự chịu.
+ * 3. KHÔNG kiểm phạm vi bản ghi. Quyền `set-status` không chia theo phạm vi
+ *    (`SCOPELESS_ACTIONS`): đơn mắc nằm ở phòng nào cũng phải gỡ được.
+ *
+ * Vẫn ghi dòng lịch sử như mọi lượt đổi khác, nên nhìn dòng thời gian là biết
+ * ai đặt tay và đặt từ đâu sang đâu.
+ *
+ * ⚠️ Đặt về `queued` là worker tạo lại đơn đó trên PVI lần hai. Không chặn ở
+ * đây: chính đó là cách gỡ một đơn bot bỏ dở giữa chừng.
+ */
+export async function overrideInsuranceOrderStatus(
+  actor: User,
+  id: string,
+  next: InsuranceOrderStatus,
+): Promise<InsuranceOutcome<InsuranceDetail> | null> {
+  if (!can(actor, "insurance", "set-status")) return null;
+
+  const current = await rawById(id);
+  if (!current) return null;
+
+  if (current.status === next)
+    return { ok: false, message: `Đơn đang ở trạng thái này rồi.` };
+
+  const updated = await db
+    .update(insuranceOrders)
+    .set({ status: next, updatedAt: new Date() })
+    // Kẹp theo trạng thái ĐANG đọc được: hai người cùng mở trang, người sau
+    // bấm thì phải thấy đơn đã đổi chứ không ghi đè lặng lẽ.
+    .where(and(eq(insuranceOrders.id, id), eq(insuranceOrders.status, current.status)))
+    .returning({ id: insuranceOrders.id });
+
+  if (updated.length === 0)
+    return { ok: false, message: "Đơn này vừa đổi trạng thái. Tải lại trang rồi thử lại." };
+
+  await db.insert(insuranceOrderStatusHistory).values({
+    orderId: id,
+    fromStatus: current.status,
+    toStatus: next,
+    changedBy: actor.id,
+  });
+
+  return { ok: true, value: (await insuranceOrderDetail(actor, id))! };
+}
+
+/**
  * Đính/thay ảnh chứng nhận — dùng được ở MỌI trạng thái đơn (spec §3.4).
  *
  * Nhận URL chứ không nhận file: đẩy ảnh lên kho là việc của `/api/uploads`.

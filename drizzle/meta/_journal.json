@@ -351,6 +351,13 @@
       "when": 1787889600000,
       "tag": "0049_pvi_serial_number",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1787976000000,
+      "tag": "0050_insurance_set_status",
+      "breakpoints": true
     }
   ]
 }
