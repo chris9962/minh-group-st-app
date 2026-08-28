@@ -91,12 +91,6 @@ export function KpiTargetSection() {
               Lưu chỉ tiêu
             </Button>
           </div>
-
-          <p className={styles.footnote}>
-            Áp dụng <strong>chung cho toàn công ty</strong>, chưa tách riêng theo
-            phòng hay từng người. Đổi ở đây thì bảng Nhân sự &amp; KPI (P-51) và
-            hồ sơ từng nhân viên (P-52) đổi theo ngay.
-          </p>
         </form>
       )}
     </SectionCard>
