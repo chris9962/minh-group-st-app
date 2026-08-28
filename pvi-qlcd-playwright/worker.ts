@@ -193,14 +193,41 @@ async function createAndApprove(db: Db, order: Order) {
   }
 
   if (!matched) {
-    // Đơn ĐÃ tạo bên PVI nhưng bot không nhận ra dòng nào là của nó. Không duyệt
-    // bừa: duyệt nhầm đơn người khác là thao tác không đảo ngược.
+    const chuanDoan = after as {
+      soDongCho?: number;
+      tongPhiDocDuoc?: string;
+      viSao?: string[];
+      loi?: string;
+    };
+
+    // PVI trả 302 sang `/Service/Manager` khi nhận đơn. Còn đứng ở trang form
+    // nghĩa là form bị từ chối và ĐƠN CHƯA TỒN TẠI bên PVI — thường vì một ô
+    // không hợp lệ, PVI đưa focus về ô đó thay vì gửi đi.
+    //
+    // Phân biệt hai ca này là bắt buộc: `pending-approval` bảo người dùng vào
+    // PVI duyệt một đơn không có thật, và đơn thì mất vì không ai tạo lại.
+    // Đo 2026-08-28 với DH-2608-011: giờ hiệu lực lệch múi giờ nên PVI từ chối,
+    // bot vẫn báo "đã tạo".
+    const urlSauKhiBam = (result.daLuu as { url?: string })?.url ?? "";
+    if (!/\/Service\/Manager/i.test(urlSauKhiBam)) {
+      await db
+        .update(insuranceOrders)
+        .set({ status: "manual-queued", updatedAt: new Date() })
+        .where(eq(insuranceOrders.id, order.id));
+      log(`${order.orderCode}: PVI từ chối form, đơn CHƯA tạo → làm tay`);
+      log(`  ${order.orderCode}: bấm xong vẫn ở ${urlSauKhiBam || "(không đọc được URL)"}`);
+      if (chuanDoan?.loi) log(`  ${order.orderCode}: ${chuanDoan.loi}`);
+      return "manual-queued";
+    }
+
+    // Tới đây thì đơn ĐÃ tạo bên PVI, chỉ là bot không nhận ra dòng nào của nó.
+    // Không duyệt bừa: duyệt nhầm đơn người khác không đảo ngược được.
     await db
       .update(insuranceOrders)
       .set({ status: "pending-approval", updatedAt: new Date() })
       .where(eq(insuranceOrders.id, order.id));
     log(`${order.orderCode}: đã tạo nhưng không khớp được dòng → chờ người duyệt tay`);
-    const chuanDoan = after as { soDongCho?: number; tongPhiDocDuoc?: string; viSao?: string[] };
+    if (chuanDoan?.loi) log(`  ${order.orderCode}: ${chuanDoan.loi}`);
     log(`  ${order.orderCode}: bảng có ${chuanDoan?.soDongCho ?? "?"} dòng Chờ, phí đọc từ form: "${chuanDoan?.tongPhiDocDuoc ?? "?"}"`);
     for (const v of chuanDoan?.viSao ?? []) log(`  ${order.orderCode}: ${v}`);
     return "pending-approval";

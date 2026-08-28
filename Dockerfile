@@ -122,6 +122,12 @@ COPY pvi-qlcd-playwright ./pvi-qlcd-playwright
 # Phiên đăng nhập PVI phải sống qua các lần dựng lại container, nếu không mỗi lần
 # khởi động là một lần giải captcha. Máy chủ mount thư mục thật vào đây.
 ENV PVI_STATE=/app/session/storageState.json
+
+# `lib/ngay.js` dựng mốc hiệu lực bằng `getHours()`, tức giờ CỤC BỘ của tiến
+# trình. Container mặc định chạy UTC nên nó điền 14:25 trong khi đồng hồ PVI là
+# 21:25 — mốc nằm ở quá khứ 7 tiếng, PVI từ chối form và đơn không được tạo.
+# Đo 2026-08-28 với đơn DH-2608-011.
+ENV TZ=Asia/Ho_Chi_Minh
 RUN mkdir -p /app/session /app/pvi-qlcd-playwright/anh /app/pvi-qlcd-playwright/captcha \
       /app/pvi-qlcd-playwright/vet \
   && chown -R pwuser:pwuser /app/session /app/pvi-qlcd-playwright
