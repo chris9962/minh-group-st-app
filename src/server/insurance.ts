@@ -123,10 +123,17 @@ const inScope = recordInScope;
  *    kể phòng — không thế thì người phạm vi `own` chỉ nhận được đơn của chính
  *    mình và vai "người xử lý tay" vô dụng
  *
- * Đường 4 CỐ Ý chỉ áp cho `manual-queued`. Đơn vừa có người nhận là rơi khỏi
- * kho chung, còn lại đúng những người có phần trong nó.
+ * Đường 4 áp cho hai trạng thái, cả hai đều là "bot dừng, chưa ai cầm". Đơn vừa
+ * có người nhận là rơi khỏi kho chung, còn lại đúng những người có phần trong nó.
+ *
+ * `pending-approval` vào đây từ 2026-08-28. Bot tạo đơn xong nhưng không khớp
+ * được dòng bên PVI nên không dám bấm Duyệt; người phải vào PVI duyệt tay. Trước
+ * đó trạng thái này không có lối ra nào: worker chỉ đọc `queued` và
+ * `awaiting-certificate`, còn `STEP_FROM` không nhận nó làm nguồn.
  */
-const CLAIMABLE_STATUS = "manual-queued" as const;
+const CLAIMABLE_STATUSES = ["manual-queued", "pending-approval"] as const;
+const isClaimable = (status: string) =>
+  (CLAIMABLE_STATUSES as readonly string[]).includes(status);
 
 /**
  * Đơn bot đã THÔI hỏi PVI về giấy chứng nhận — cũng là kho chung.
@@ -156,7 +163,7 @@ const visibleOrderWhere = (actor: User): SQL | undefined => {
       ? inArray(insuranceOrders.handledByDepartmentId, managed)
       : undefined,
     can(actor, "insurance", "handle-fallback")
-      ? eq(insuranceOrders.status, CLAIMABLE_STATUS)
+      ? inArray(insuranceOrders.status, CLAIMABLE_STATUSES)
       : undefined,
     can(actor, "insurance", "handle-fallback") ? stuckCertificateWhere() : undefined,
   ];
@@ -186,7 +193,7 @@ const canSeeOrder = (
   )
     return true;
   if (!can(actor, "insurance", "handle-fallback")) return false;
-  return row.status === CLAIMABLE_STATUS || certificateStuck(row);
+  return isClaimable(row.status) || certificateStuck(row);
 };
 
 /**
@@ -864,7 +871,17 @@ export async function deleteInsuranceOrder(
  * nhận trạng thái tuỳ ý từ client.
  */
 const STEP_FROM: Record<InsuranceManualStep, InsuranceOrderStatus[]> = {
-  "manual-progress": ["manual-queued"],
+  /**
+   * `pending-approval` là nguồn thứ hai (chốt 2026-08-28).
+   *
+   * Bot tạo đơn xong nhưng không khớp được dòng bên PVI nên không dám bấm
+   * Duyệt. Người vào PVI duyệt tay rồi bấm "Đã duyệt" ở đây; đơn đi tiếp nhánh
+   * làm tay và người bấm đứng tên xử lý.
+   *
+   * Không có nguồn này thì đơn nằm ở `pending-approval` vĩnh viễn: worker chỉ
+   * đọc `queued` và `awaiting-certificate`, còn giao diện không có nút nào.
+   */
+  "manual-progress": ["manual-queued", "pending-approval"],
   /**
    * `done` có HAI nguồn.
    *
@@ -902,7 +919,7 @@ export async function setInsuranceOrderStatus(
    * Đơn đã rời hàng chờ thì quay về luật thường: chỉ người có phần trong nó —
    * người tạo, người đang cầm, cấp quản lý hai phòng đó — mới bấm tiếp được.
    */
-  const claimable = current.status === CLAIMABLE_STATUS || certificateStuck(current);
+  const claimable = isClaimable(current.status) || certificateStuck(current);
   if (!claimable && !canSeeOrder(actor, current)) return null;
 
   /**

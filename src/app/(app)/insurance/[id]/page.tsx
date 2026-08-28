@@ -649,6 +649,7 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
 
             {canHandleFallback &&
               (data.status === "manual-queued" ||
+                data.status === "pending-approval" ||
                 data.status === "manual-progress" ||
                 needsCertificateHelp) && (
                 <div className={styles.actions}>
@@ -659,6 +660,18 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                     >
                       <CheckCircle2 size={16} aria-hidden />
                       Nhận đơn xử lý
+                    </Button>
+                  )}
+                  {/* Bot tạo đơn xong nhưng không khớp được dòng bên PVI nên
+                      không bấm Duyệt. Người vào PVI duyệt tay rồi bấm nút này;
+                      họ thành người xử lý đơn (`handledBy`). */}
+                  {data.status === "pending-approval" && (
+                    <Button
+                      disabled={advance.isPending}
+                      onClick={() => advance.mutate("manual-progress")}
+                    >
+                      <CheckCircle2 size={16} aria-hidden />
+                      Đã duyệt trên PVI
                     </Button>
                   )}
                   {/* Thiếu ảnh thì KHOÁ nút, không phải giấu: người dùng phải
