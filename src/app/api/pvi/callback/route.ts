@@ -21,11 +21,25 @@ import { pviCallbackReply, verifyPviCallback } from "@/server/pvi-api";
  */
 
 export async function POST(request: Request) {
-  const check = verifyPviCallback(await jsonBody(request));
+  const body = await jsonBody(request);
+
+  // Ghi log NGAY khi có request, trước cả bước kiểm chữ ký. Lúc chạy thử với
+  // PVI, câu hỏi đầu tiên là "họ có gọi không" — mà một callback sai chữ ký
+  // hay sai cấu hình vẫn là bằng chứng họ đã gọi.
+  //
+  // Chỉ ghi hai mã định danh, KHÔNG ghi cả thân request: nó mang `Sign`, và
+  // một callback giả cũng đủ để bơm rác vào file log.
+  const from = request.headers.get("x-forwarded-for") ?? "?";
+  const seen = body as { RequestId?: unknown; PolicyNumber?: unknown } | null;
+  console.info(
+    `[pvi-callback] nhận request từ ${from}` +
+      ` · RequestId=${String(seen?.RequestId ?? "")}` +
+      ` · PolicyNumber=${String(seen?.PolicyNumber ?? "")}`,
+  );
+
+  const check = verifyPviCallback(body);
 
   if (!check.ok) {
-    // Không ghi thân request ra log: nó mang `Sign`, và một callback giả cũng
-    // đủ để bơm rác vào file log.
     console.warn(`[pvi-callback] từ chối: ${check.status} ${check.message}`);
     return Response.json(pviCallbackReply(check.status, check.message));
   }
