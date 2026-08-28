@@ -107,11 +107,8 @@ const legLabel = (pkg: InsurancePackage | null, i: number): string => {
  * Dùng chung cho luồng Tặng quà (`source='gift'`, gói cố định) và mua tự
  * nguyện (`source='self'`, tự chọn gói).
  *
- * ⚠️ `source='self'` KHÔNG có lối vào từ 2026-08-25: đơn bảo hiểm chỉ tạo được
- * qua luồng Tặng quà, nút tạo đơn lẻ đã gỡ khỏi màn P-30 và thanh điều hướng
- * đáy. Nhánh `!prefill` bên dưới — ô chọn gói — vì thế cũng không chạy tới. Giữ
- * nguyên vì kho dữ liệu vẫn phân biệt hai nguồn (`insurance_orders.source`), và
- * mở lại chỉ là gắn lại một nút.
+ * Lối vào của `source='self'` từng bị gỡ 2026-08-25 và mở lại 2026-08-28 —
+ * nay là nút "Tạo đơn bảo hiểm" ở header màn P-13, qua `CreateInsuranceOrderDialog`.
  *
  * Số form = số leg khai ở gói (chốt 04/08). Mỗi form một bộ ô đầy đủ, kể cả
  * khi hai đơn cùng một người: xe máy định danh bằng GPLX còn tai nạn điện bằng
