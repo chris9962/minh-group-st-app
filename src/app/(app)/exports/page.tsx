@@ -44,10 +44,10 @@ type ReportId = "accounts-by-customer" | "staff-points" | "services-by-ward";
  * `TỔNG` của `TÍNH ĐIỂM TỔNG T8.xlsx`, 47 cột và đầu bảng ba tầng. Bộ lọc giữ
  * nguyên ba ô cũ.
  */
-const REPORTS: { id: ReportId; label: string; hint: string; module: ModuleKey }[] = [
-  { id: "accounts-by-customer", label: "Tính điểm tổng, gộp theo khách", hint: "Ngân hàng · ngày · mã giới thiệu", module: "banking" },
-  { id: "staff-points", label: "Nhân viên + điểm", hint: "Tháng · loại phòng · đơn vị", module: "staff" },
-  { id: "services-by-ward", label: "Dịch vụ đã làm, có cột xã", hint: "Xã · loại dịch vụ · kỳ", module: "services" },
+const REPORTS: { id: ReportId; label: string; module: ModuleKey }[] = [
+  { id: "accounts-by-customer", label: "Tính điểm tổng, gộp theo khách", module: "banking" },
+  { id: "staff-points", label: "Nhân viên + điểm", module: "staff" },
+  { id: "services-by-ward", label: "Dịch vụ đã làm, có cột xã", module: "services" },
 ];
 
 /**
@@ -474,12 +474,10 @@ export default function ExportsPage() {
           <SectionCard
             title={activeReport.label}
             icon={<Download size={17} />}
-            meta={activeReport.hint}
           >
             <div className={styles.columnPreview}>
               <span className={styles.columnPreviewLabel}>
-                Tick chọn cột sẽ xuất ({exportOrder.length}/{catalog.length}) — cột bỏ tick mờ đi
-                và không vào file. File mở lên có dạng bên dưới.
+                Tick chọn cột sẽ xuất ({exportOrder.length}/{catalog.length})
               </span>
               {/* Tick nằm ngay trên tiêu đề cột (chốt 2026-08-27) — bảng hiện ĐỦ
                   mọi cột, cột bỏ tick mờ đi chứ không biến mất, để còn thấy mà
