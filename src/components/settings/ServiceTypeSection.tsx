@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Pencil, Plus, Wrench } from "lucide-react";
+import { Pencil, Wrench } from "lucide-react";
 import { useState } from "react";
 import { SkeletonTable } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
@@ -15,11 +15,19 @@ import { ServiceTypeFormDialog } from "./ServiceTypeFormDialog";
 import styles from "./ServiceTypeSection.module.scss";
 import { errorMessage, toast } from "@/lib/toast";
 
+type Props = {
+  /**
+   * Nút "Thêm loại dịch vụ" nằm ở thanh tiêu đề TRANG, đồng bộ với P-60 và
+   * P-61 — nên trạng thái mở hộp thoại do trang giữ, khối này chỉ nhận vào.
+   */
+  creating: boolean;
+  onCreatingChange: (creating: boolean) => void;
+};
+
 /** P-84 · Danh mục loại dịch vụ + hệ số điểm KPI. */
-export function ServiceTypeSection() {
+export function ServiceTypeSection({ creating, onCreatingChange }: Props) {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<ServiceTypeRow | null>(null);
-  const [creating, setCreating] = useState(false);
   const [confirming, setConfirming] = useState<ServiceTypeRow | null>(null);
 
   const { data: rows = [], isPending, isError, refetch, isFetching } = useQuery({
@@ -84,12 +92,6 @@ export function ServiceTypeSection() {
         title="Loại dịch vụ"
         icon={<Wrench size={17} />}
         meta={isPending ? undefined : `${rows.length} loại`}
-        action={
-          <Button onClick={() => setCreating(true)}>
-            <Plus size={16} />
-            Thêm loại dịch vụ
-          </Button>
-        }
       >
         {isPending && <SkeletonTable rows={5} columns={4} />}
         {isError && (
@@ -104,7 +106,7 @@ export function ServiceTypeSection() {
             defaultSort="name"
             pageSize={10}
             caption="Loại dịch vụ và hệ số điểm KPI"
-            emptyText="Chưa có loại dịch vụ nào — bấm “Thêm loại dịch vụ” ở đầu khối."
+            emptyText="Chưa có loại dịch vụ nào — bấm “Thêm loại dịch vụ” ở đầu trang."
           />
         )}
 
@@ -119,7 +121,7 @@ export function ServiceTypeSection() {
           open
           serviceType={editing}
           onClose={() => {
-            setCreating(false);
+            onCreatingChange(false);
             setEditing(null);
           }}
         />
