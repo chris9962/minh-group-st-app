@@ -130,10 +130,15 @@ ENV PVI_STATE=/app/session/storageState.json
 ENV TZ=Asia/Ho_Chi_Minh
 RUN mkdir -p /app/session /app/pvi-qlcd-playwright/anh /app/pvi-qlcd-playwright/captcha \
       /app/pvi-qlcd-playwright/vet \
+  && chmod +x /app/pvi-qlcd-playwright/docker-entrypoint.sh \
   && chown -R pwuser:pwuser /app/session /app/pvi-qlcd-playwright
 
 USER pwuser
 
 # Trang PVI có lớp chống bot, chạy headless dễ bị chặn — nên Chromium chạy CÓ
-# giao diện trên màn hình ảo của Xvfb. Bỏ `xvfb-run` là mọi lượt mở trang hỏng.
-CMD ["xvfb-run", "-a", "bun", "pvi-qlcd-playwright/worker.ts"]
+# giao diện trên màn hình ảo. Script dựng Xvfb rồi `exec bun`; lý do không dùng
+# `xvfb-run` viết trong chính script đó.
+#
+# ENTRYPOINT chứ không CMD: cờ truyền vào `docker run` đi thẳng tới worker, nên
+# chạy thử được bằng `docker run mgst-worker:latest --thu --mot-vong`.
+ENTRYPOINT ["/app/pvi-qlcd-playwright/docker-entrypoint.sh"]
