@@ -92,6 +92,29 @@ function toIso(digits: string): string {
  */
 export function DateField({ value, onChange, pickerStart, min, max, ...rest }: Props) {
   const [digits, setDigits] = useState(() => toDigits(value));
+
+  /**
+   * Nạp lại khi giá trị từ NGOÀI đổi — hộp thoại sửa nạp dữ liệu sau lượt
+   * render đầu, và `useState` chỉ đọc giá trị khởi tạo đúng một lần.
+   *
+   * Đo 2026-08-29 ở hộp thoại sửa đơn bảo hiểm: mở lần đầu thì ba ô ngày trống,
+   * đóng rồi mở lại mới thấy dữ liệu — lần hai chi tiết đã nằm sẵn trong cache
+   * nên `value` đúng ngay lúc gắn component.
+   *
+   * Chỉnh state khi prop đổi, KHÔNG dùng effect (AGENTS.md §7). Điều kiện
+   * `value !== lastValue` chạy nhiều nhất một lần mỗi lượt prop đổi, nên không
+   * lặp vô hạn.
+   *
+   * Điều kiện thứ hai giữ cho người đang gõ: gõ dở `06/01/199` thì `toIso` trả
+   * chuỗi rỗng và cha cũng nhận rỗng, nạp lại theo cha là xoá sạch thứ họ vừa
+   * gõ. Chỉ nạp khi cha mang một giá trị mà ô này KHÔNG đang giữ.
+   */
+  const [lastValue, setLastValue] = useState(value);
+  if (value !== lastValue) {
+    setLastValue(value);
+    if (value !== toIso(digits)) setDigits(toDigits(value));
+  }
+
   const inputRef = useRef<HTMLInputElement>(null);
   const pickerRef = useRef<HTMLInputElement>(null);
 
