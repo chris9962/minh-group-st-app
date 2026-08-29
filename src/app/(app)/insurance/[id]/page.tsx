@@ -154,10 +154,11 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   /**
-   * Ảnh CHỌN XONG KHÔNG tải lên ngay (chốt 2026-08-16) — cùng lối với ảnh tài
-   * khoản ngân hàng. Nó nằm lại trong máy tới lúc bấm Lưu ảnh hoặc Đánh dấu
-   * hoàn thành. Chọn nhầm tấm thì không tốn một lượt tải và không để lại một
-   * tấm rác trên kho.
+   * Ảnh đang tải lên — chỉ sống trong lúc chờ, để có gì đó hiện lên thay vì một
+   * ô trống.
+   *
+   * Tải xong thì `uploadPending` xoá nó và ảnh thật từ máy chủ thế chỗ. Tải
+   * hỏng thì nó Ở LẠI, nhờ đó bấm lại được mà không phải chọn file lần nữa.
    */
   const [pending, setPending] = useState<PendingPhoto | null>(null);
   // `blob:` chiếm bộ nhớ tới khi được thu hồi và trình duyệt không tự dọn. Giữ
@@ -197,6 +198,35 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
     queryClient.invalidateQueries({ queryKey: ["insurance-list"] });
   };
 
+  /**
+   * Hai nhịp: đẩy file lên kho lấy URL, rồi mới gửi URL vào endpoint nghiệp vụ.
+   * Tách vậy để một lần tải hỏng giữa chừng không kéo theo cả bản ghi.
+   */
+  const uploadPending = useCallback(async () => {
+    const current = pendingRef.current;
+    if (!current) return;
+    await setInsuranceOrderPhoto(id, await uploadImage(current.file));
+    replacePending(null);
+  }, [id, replacePending]);
+
+  const savePhoto = useMutation({
+    mutationFn: uploadPending,
+    onSuccess: () => {
+      invalidate();
+      toast.ok("Đã lưu ảnh chứng nhận");
+    },
+    onError: (e) => toast.fail(errorMessage(e, "Không lưu được ảnh chứng nhận này.")),
+  });
+  // Tách ra biến riêng: object `savePhoto` đổi mỗi lượt render, đưa nó vào
+  // `deps` là `acceptPhoto` đổi theo và effect nghe phím dán gắn lại liên tục.
+  const savePhotoMutate = savePhoto.mutate;
+
+  /**
+   * Chọn ảnh xong TẢI LÊN NGAY (chốt 2026-08-29).
+   *
+   * Bản trước giữ ảnh trong máy tới lúc bấm "Lưu ảnh". Một bước thừa mà người
+   * dùng hay bỏ qua, rồi đóng trang và tưởng ảnh đã lưu.
+   */
   const acceptPhoto = useCallback(
     (file: File) => {
       // Chặn sớm cho người dùng biết ngay, KHÔNG phải để tin tưởng — máy chủ
@@ -206,9 +236,12 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
         toast.fail(problem);
         return;
       }
+      // `replacePending` gán thẳng vào ref nên `uploadPending` đọc được ngay ở
+      // dòng dưới, không phải đợi lượt render kế.
       replacePending({ file, preview: URL.createObjectURL(file) });
+      savePhotoMutate();
     },
-    [replacePending],
+    [replacePending, savePhotoMutate],
   );
 
   const canHandleFallback = can(actor, "insurance", "handle-fallback");
@@ -285,26 +318,6 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
     document.addEventListener("paste", onPaste);
     return () => document.removeEventListener("paste", onPaste);
   }, [canAttachPhoto, acceptPhoto]);
-
-  /**
-   * Hai nhịp: đẩy file lên kho lấy URL, rồi mới gửi URL vào endpoint nghiệp vụ.
-   * Tách vậy để một lần tải hỏng giữa chừng không kéo theo cả bản ghi.
-   */
-  const uploadPending = useCallback(async () => {
-    const current = pendingRef.current;
-    if (!current) return;
-    await setInsuranceOrderPhoto(id, await uploadImage(current.file));
-    replacePending(null);
-  }, [id, replacePending]);
-
-  const savePhoto = useMutation({
-    mutationFn: uploadPending,
-    onSuccess: () => {
-      invalidate();
-      toast.ok("Đã lưu ảnh chứng nhận");
-    },
-    onError: (e) => toast.fail(errorMessage(e, "Không lưu được ảnh chứng nhận này.")),
-  });
 
   const advance = useMutation({
     mutationFn: async (status: InsuranceManualStep) => {
@@ -654,11 +667,6 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                       >
                         <ImagePlus size={16} aria-hidden />
                         Chọn ảnh
-                      </Button>
-                    )}
-                    {pending && (
-                      <Button disabled={busy} onClick={() => savePhoto.mutate()}>
-                        {savePhoto.isPending ? "Đang lưu…" : "Lưu ảnh"}
                       </Button>
                     )}
                   </div>
