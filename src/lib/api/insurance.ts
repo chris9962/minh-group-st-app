@@ -52,6 +52,13 @@ export const InsuranceListRow = z.object({
    */
   createdByDepartmentId: z.string().nullable(),
   /**
+   * TÊN phòng của người tạo, đọc từ `departments` (chốt 2026-08-29).
+   *
+   * Bảng P-13 hiện tên chứ không hiện khoá. `null` khi người tạo không thuộc
+   * phòng nào lúc lập đơn, hoặc phòng đó đã bị xoá.
+   */
+  createdByDepartmentName: z.string().nullable(),
+  /**
    * Người XỬ LÝ TAY (chốt 03/08) — trường khác hẳn `createdBy`. Có giá trị từ
    * lúc bấm "Nhận đơn xử lý"; null với đơn chưa ai cầm.
    */
@@ -160,6 +167,8 @@ export type InsuranceQuery = PageQuery<InsuranceSort> & {
    * theo nhân viên" là câu hỏi mơ hồ nếu không nói rõ vai.
    */
   staffRole: 'creator' | 'handler' | 'any';
+  /** Phòng của NGƯỜI TẠO đơn, uuid. Rỗng = mọi phòng. */
+  departmentId: string;
 };
 
 const InsurancePage = pageOf(InsuranceListRow);
@@ -172,6 +181,7 @@ const listParams = (query: Omit<InsuranceQuery, keyof PageQuery>) => ({
   to: query.to,
   staffId: query.staffId,
   staffRole: query.staffRole,
+  departmentId: query.departmentId,
 });
 
 /** MỘT trang đơn bảo hiểm, đã lọc/tìm/sắp sẵn ở máy chủ (AGENTS.md §5.1). */

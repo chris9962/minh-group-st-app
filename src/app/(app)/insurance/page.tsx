@@ -20,6 +20,7 @@ import { RowActions } from "@/components/ui/RowActions";
 import { SearchField } from "@/components/ui/SearchField";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { Select } from "@/components/ui/Select";
+import { fetchDepartments } from "@/lib/api/departments";
 import { StatusTag } from "@/components/ui/StatusTag";
 import { CreateInsuranceOrderDialog } from "@/components/insurance/CreateInsuranceOrderDialog";
 import { InsuranceOrderEditDialog } from "@/components/insurance/InsuranceOrderEditDialog";
@@ -65,6 +66,8 @@ export default function InsurancePage() {
   const [staffId, setStaffId] = useState("");
   /** Đơn có hai người liên quan — ô lọc phải nói rõ đang hỏi vai nào. */
   const [staffRole, setStaffRole] = useState<"any" | "creator" | "handler">("any");
+  /** Phòng của NGƯỜI TẠO đơn. Chuỗi rỗng = mọi phòng. */
+  const [departmentId, setDepartmentId] = useState("");
   const [page, setPage] = useState(0);
   // Chỉ sắp theo ngày hiệu lực, và chỉ đổi được chiều — `INSURANCE_SORT` có đúng
   // một khoá vì sắp theo tên khách/người tạo thì phải nối bảng trước khi cắt trang.
@@ -98,6 +101,17 @@ export default function InsurancePage() {
     return user ? [{ value: user.id, label: "Của tôi" }] : [];
   }, [canPickAnyStaff, staff, user]);
 
+  /**
+   * Danh sách phòng đổ vào ô lọc. Vài chục dòng do người gõ tay nên `staleTime`
+   * để vô hạn — không có lý do hỏi lại mỗi lần mở màn.
+   */
+  const { data: departments = [] } = useQuery({
+    queryKey: ["departments"],
+    queryFn: fetchDepartments,
+    retry: false,
+    staleTime: Infinity,
+  });
+
   const from = range?.from ? iso(range.from) : "";
   const to = range?.to ? iso(range.to) : "";
 
@@ -108,7 +122,7 @@ export default function InsurancePage() {
   };
 
   const { data = EMPTY_PAGE, isPending, isError, refetch, isFetching } = useQuery({
-    queryKey: ["insurance-list", searchQuery, status, product, from, to, staffId, staffRole, page, dir],
+    queryKey: ["insurance-list", searchQuery, status, product, from, to, staffId, staffRole, departmentId, page, dir],
     queryFn: () =>
       fetchInsuranceOrders({
         search: searchQuery,
@@ -118,6 +132,7 @@ export default function InsurancePage() {
         to,
         staffId,
         staffRole,
+        departmentId,
         page,
         sort: "date",
         dir,
@@ -175,7 +190,11 @@ export default function InsurancePage() {
   });
 
   const activeCount =
-    (status ? 1 : 0) + (product ? 1 : 0) + (from && to ? 1 : 0) + (staffId ? 1 : 0);
+    (status ? 1 : 0) +
+    (product ? 1 : 0) +
+    (from && to ? 1 : 0) +
+    (staffId ? 1 : 0) +
+    (departmentId ? 1 : 0);
   const filtering = Boolean(searchQuery) || activeCount > 0;
   const canEdit = can(user, "insurance", "update");
   const canRemove = can(user, "insurance", "delete");
@@ -239,6 +258,13 @@ export default function InsurancePage() {
         },
       },
       { key: "createdByName", label: "Người tạo", render: (r) => r.createdByName ?? "—" },
+      {
+        key: "createdByDepartmentName",
+        label: "Phòng",
+        // Phòng LÚC LẬP ĐƠN, chụp vào `created_by_department_id`. Người tạo
+        // chuyển phòng về sau không làm đổi cột này của đơn cũ.
+        render: (r) => r.createdByDepartmentName ?? "—",
+      },
       ...(canSeeHandler
         ? [
             {
@@ -351,6 +377,7 @@ export default function InsurancePage() {
               setRange(undefined);
               setStaffId("");
               setStaffRole("any");
+              setDepartmentId("");
             })
           }
         >
@@ -375,6 +402,16 @@ export default function InsurancePage() {
             options={[
               { value: "", label: "Tất cả loại" },
               ...InsuranceProduct.options.map((p) => ({ value: p, label: PRODUCT_LABEL[p] })),
+            ]}
+          />
+          <Select
+            block
+            label="Phòng"
+            value={departmentId}
+            onChange={(v) => refine(() => setDepartmentId(v))}
+            options={[
+              { value: "", label: "Tất cả phòng" },
+              ...departments.map((d) => ({ value: d.id, label: d.name })),
             ]}
           />
           <DateRangePicker label="Khoảng ngày" value={range} onChange={(v) => refine(() => setRange(v))} />
@@ -428,6 +465,14 @@ export default function InsurancePage() {
                   {
                     label: `Loại: ${PRODUCT_LABEL[product]}`,
                     onRemove: () => refine(() => setProduct("")),
+                  },
+                ]
+              : []),
+            ...(departmentId
+              ? [
+                  {
+                    label: `Phòng: ${departments.find((d) => d.id === departmentId)?.name ?? ""}`,
+                    onRemove: () => refine(() => setDepartmentId("")),
                   },
                 ]
               : []),

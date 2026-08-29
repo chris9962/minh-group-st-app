@@ -29,6 +29,7 @@ export async function GET(request: Request) {
         // lọc hỏng chứ đừng làm vỡ cả màn.
         staffId: uuidParam(params.get("staffId")),
         staffRole: params.get("staffRole") ?? "any",
+        departmentId: uuidParam(params.get("departmentId")),
       },
       pageArgsFrom(url, INSURANCE_SORT, "date"),
     ),

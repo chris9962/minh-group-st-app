@@ -39,6 +39,7 @@ import { db } from "./db/client";
 import { departmentForNewRecord } from "./writeDepartment";
 import {
   customers,
+  departments,
   insuranceOrderStatusHistory,
   insuranceOrders,
   insurancePackages,
@@ -78,6 +79,8 @@ export type InsuranceFilters = {
   to: string;
   staffId: string;
   staffRole: string;
+  /** Phòng của NGƯỜI TẠO đơn. Chuỗi rỗng = mọi phòng. */
+  departmentId: string;
 };
 
 /**
@@ -275,6 +278,12 @@ const orderFilters = (actor: User, query: InsuranceFilters): SQL | undefined => 
     usableDate(query.from) ? gte(insuranceOrders.orderDate, query.from) : undefined,
     usableDate(query.to) ? lte(insuranceOrders.orderDate, query.to) : undefined,
     staffFilter(query),
+    // Lọc theo phòng của NGƯỜI TẠO, không phải người xử lý: câu hỏi thường gặp
+    // là "phòng nào lập bao nhiêu đơn", còn người xử lý tay là kho chung nên
+    // phòng của họ không nói lên đơn thuộc về ai.
+    query.departmentId
+      ? eq(insuranceOrders.createdByDepartmentId, query.departmentId)
+      : undefined,
   ].filter(Boolean) as SQL[];
 
   return parts.length > 0 ? and(...parts) : undefined;
@@ -282,6 +291,7 @@ const orderFilters = (actor: User, query: InsuranceFilters): SQL | undefined => 
 
 const creator = alias(users, "creator");
 const handler = alias(users, "handler");
+const creatorDepartment = alias(departments, "creator_department");
 
 /**
  * Chọn ra ĐÚNG những dòng của trang này, chỉ đụng bảng `insurance_orders`.
@@ -367,6 +377,7 @@ const decorate = (page: ReturnType<typeof pickPage>) =>
       createdById: page.createdBy,
       createdByName: creator.fullName,
       createdByDepartmentId: page.createdByDepartmentId,
+      createdByDepartmentName: creatorDepartment.name,
       handledById: page.handledBy,
       handledByDepartmentId: page.handledByDepartmentId,
       handledByName: handler.fullName,
@@ -377,7 +388,11 @@ const decorate = (page: ReturnType<typeof pickPage>) =>
     // trơn thì không có người xử lý. innerJoin thì những dòng đó biến mất khỏi
     // danh sách mà không báo gì.
     .leftJoin(creator, eq(creator.id, page.createdBy))
-    .leftJoin(handler, eq(handler.id, page.handledBy));
+    .leftJoin(handler, eq(handler.id, page.handledBy))
+    // Nối trên `insurance_orders.created_by_department_id` chứ KHÔNG trên
+    // `creator.department_id`: người tạo chuyển phòng về sau thì đơn cũ vẫn
+    // phải hiện đúng phòng lúc lập.
+    .leftJoin(creatorDepartment, eq(creatorDepartment.id, page.createdByDepartmentId));
 
 type DecoratedRow = Awaited<ReturnType<typeof decorate>>[number];
 
@@ -402,6 +417,7 @@ const toRow = (r: DecoratedRow): InsuranceListRow => ({
   createdById: r.createdById,
   createdByName: r.createdByName,
   createdByDepartmentId: r.createdByDepartmentId,
+  createdByDepartmentName: r.createdByDepartmentName,
   handledById: r.handledById,
   handledByName: r.handledByName,
   // Database lưu khoá; FE cần URL đọc được. Đổi ở đúng một chỗ vì `toOrder`
