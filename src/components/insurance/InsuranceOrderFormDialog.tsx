@@ -249,8 +249,18 @@ export function InsuranceOrderFormDialog({
         />
       </div>
       <div className={styles.pair}>
-        <TextField label="Số khung" hint="Không bắt buộc" {...register(`legs.${i}.chassisNumber`)} />
-        <TextField label="Số máy" hint="Không bắt buộc" {...register(`legs.${i}.engineNumber`)} />
+        <TextField
+          label="Số khung"
+          required
+          error={errors.legs?.[i]?.chassisNumber?.message}
+          {...register(`legs.${i}.chassisNumber`)}
+        />
+        <TextField
+          label="Số máy"
+          required
+          error={errors.legs?.[i]?.engineNumber?.message}
+          {...register(`legs.${i}.engineNumber`)}
+        />
       </div>
     </fieldset>
   );

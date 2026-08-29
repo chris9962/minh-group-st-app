@@ -229,8 +229,11 @@ export const InsuranceOrderLegForm = z
      */
     beneficiaryIsCustomer: z.boolean(),
   })
-  // Biển số + loại xe bắt buộc CHỈ với BH xe máy — số khung/số máy luôn không
-  // bắt buộc (khách hay không đọc được/không nhớ), gửi rỗng lên máy chủ nếu bỏ trống.
+  // Bốn ô xe bắt buộc CHỈ với BH xe máy.
+  //
+  // Số khung và số máy vào nhóm bắt buộc từ 2026-08-29. Trước đó chúng để trống
+  // được vì khách hay không đọc ra số; nhưng form PVI chặn lúc bấm "Chấp nhận",
+  // nên đơn thiếu hai ô này chỉ dừng muộn hơn — ở bot, sau khi đã gõ 26 ô.
   .refine((leg) => leg.product !== 'motorbike' || leg.licensePlate.length > 0, {
     message: 'Chưa nhập biển số xe',
     path: ['licensePlate'],
@@ -238,6 +241,14 @@ export const InsuranceOrderLegForm = z
   .refine((leg) => leg.product !== 'motorbike' || leg.vehicleType.length > 0, {
     message: 'Chưa nhập loại xe',
     path: ['vehicleType'],
+  })
+  .refine((leg) => leg.product !== 'motorbike' || leg.chassisNumber.length > 0, {
+    message: 'Chưa nhập số khung',
+    path: ['chassisNumber'],
+  })
+  .refine((leg) => leg.product !== 'motorbike' || leg.engineNumber.length > 0, {
+    message: 'Chưa nhập số máy',
+    path: ['engineNumber'],
   })
   // Hai ô dưới đi ngược lại: bắt buộc với tai nạn điện, bỏ trống với xe máy.
   // Bot PVI dừng ở đúng hai ô này nếu chúng bằng 0, nên chặn ngay lúc nhập.
@@ -299,6 +310,14 @@ export const insuranceOrderEditSchema = (product: InsuranceProduct, idHidden = f
     .refine((form) => product !== 'motorbike' || form.vehicleType.length > 0, {
       message: 'Chưa nhập loại xe',
       path: ['vehicleType'],
+    })
+    .refine((form) => product !== 'motorbike' || form.chassisNumber.length > 0, {
+      message: 'Chưa nhập số khung',
+      path: ['chassisNumber'],
+    })
+    .refine((form) => product !== 'motorbike' || form.engineNumber.length > 0, {
+      message: 'Chưa nhập số máy',
+      path: ['engineNumber'],
     })
     .refine((form) => product !== 'electric-accident' || form.householdSize > 0, {
       message: 'Chưa nhập số thành viên',

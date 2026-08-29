@@ -251,8 +251,18 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId }: Props) {
               </div>
 
               <div className={styles.pair}>
-                <TextField label="Số khung" hint="Không bắt buộc" {...form.register("chassisNumber")} />
-                <TextField label="Số máy" hint="Không bắt buộc" {...form.register("engineNumber")} />
+                <TextField
+                  label="Số khung"
+                  required
+                  error={errors.chassisNumber?.message}
+                  {...form.register("chassisNumber")}
+                />
+                <TextField
+                  label="Số máy"
+                  required
+                  error={errors.engineNumber?.message}
+                  {...form.register("engineNumber")}
+                />
               </div>
             </fieldset>
           )}
