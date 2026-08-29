@@ -18,6 +18,7 @@
     "db:grant-department-read": "bun --env-file=.env.local scripts/db-grant-department-read.ts",
     "db:grant-adjust-kpi": "bun --env-file=.env.local scripts/db-grant-adjust-kpi.ts",
     "db:grant-set-status": "bun --env-file=.env.local scripts/db-grant-set-status.ts",
+    "db:revoke-handle-fallback": "bun --env-file=.env.local scripts/db-revoke-handle-fallback.ts",
     "db:backup": "bun --env-file=.env.local --env-file=.env.backup scripts/db-backup.ts",
     "db:backup:check": "bun --env-file=.env.local --env-file=.env.backup scripts/db-backup-check.ts",
     "db:restore": "bun --env-file=.env.local --env-file=.env.backup scripts/db-restore.ts",
