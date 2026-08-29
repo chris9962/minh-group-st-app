@@ -222,11 +222,17 @@ export default function InsurancePage() {
       },
       {
         key: "orderCode",
-        label: "Mã đơn",
+        // Mã đơn và loại nghiệp vụ chung một ô, xếp hai dòng (chốt 2026-08-29).
+        // Hai cột rời nhau tốn hai đầu bảng cho hai thứ luôn đọc cùng nhau, và
+        // bảng này còn phải chở thêm cột Phòng.
+        label: "Mã đơn · Loại",
         render: (r) => (
-          <Link href={`/insurance/${r.id}`} className={styles.nameLink}>
-            {r.orderCode}
-          </Link>
+          <div className={styles.stack}>
+            <Link href={`/insurance/${r.id}`} className={styles.stackLink}>
+              {r.orderCode}
+            </Link>
+            <span className={styles.stackSub}>{PRODUCT_LABEL[r.product]}</span>
+          </div>
         ),
       },
       {
@@ -237,11 +243,6 @@ export default function InsurancePage() {
             {r.customerName}
           </Link>
         ),
-      },
-      {
-        key: "product",
-        label: "Loại",
-        render: (r) => PRODUCT_LABEL[r.product],
       },
       {
         key: "status",
