@@ -8,7 +8,6 @@ import { UserCheck } from "lucide-react";
 import { DepartmentPicker } from "@/components/layout/DepartmentPicker";
 import { BackButton } from "@/components/ui/BackButton";
 import { Button } from "@/components/ui/Button";
-import { CharCount } from "@/components/ui/CharCount";
 import { Dialog } from "@/components/ui/Dialog";
 import { Select } from "@/components/ui/Select";
 import { DateField } from "@/components/ui/DateField";
@@ -68,9 +67,6 @@ function defaultLegsFor(pkg: InsurancePackage | null): InsuranceOrderLegForm[] {
     const values: InsuranceOrderLegForm = {
       product: leg.product,
       packageName: pkg.name,
-      // Mặc định TẮT — người thụ hưởng có thể là người khác hẳn. Bật lên khi
-      // người dùng bấm "Điền theo hồ sơ khách".
-      beneficiaryIsCustomer: false,
       // Ngày TẠO đơn, mặc định hôm nay. Khác `startDate` (ngày hiệu lực).
       orderDate: today,
       /** Phí khai riêng cho leg này — trọn thời hạn, không phải chia đều giá gói. */
@@ -79,8 +75,6 @@ function defaultLegsFor(pkg: InsurancePackage | null): InsuranceOrderLegForm[] {
       endDate: yearsLater(today, leg.years),
       beneficiaryName: "",
       beneficiaryDob: "",
-      beneficiaryIdNumber: "",
-      beneficiaryPhone: "",
       beneficiaryAddress: "",
       householdSize: 0,
       // Đơn xe máy không có ô này nên để 0; tai nạn điện chọn sẵn bậc hay bán.
@@ -110,10 +104,9 @@ const legLabel = (pkg: InsurancePackage | null, i: number): string => {
  * Lối vào của `source='self'` từng bị gỡ 2026-08-25 và mở lại 2026-08-28 —
  * nay là nút "Tạo đơn bảo hiểm" ở header màn P-13, qua `CreateInsuranceOrderDialog`.
  *
- * Số form = số leg khai ở gói (chốt 04/08). Mỗi form một bộ ô đầy đủ, kể cả
- * khi hai đơn cùng một người: xe máy định danh bằng GPLX còn tai nạn điện bằng
- * CCCD (P-10), chưa chắc cùng một người. Nút "Lấy thông tin khách" ở từng form
- * là đủ — không cần cờ dùng chung người thụ hưởng.
+ * Số form = số leg khai ở gói (chốt 04/08). Mỗi form một bộ ô đầy đủ vì người
+ * thụ hưởng của từng đơn có thể khác nhau. Nút "Lấy thông tin khách" ở từng
+ * form là đủ — không cần cờ dùng chung người thụ hưởng.
  */
 export function InsuranceOrderFormDialog({
   open,
@@ -126,8 +119,6 @@ export function InsuranceOrderFormDialog({
 }: Props) {
   const queryClient = useQueryClient();
   const [packageName, setPackageName] = useState(prefill?.packageName ?? "");
-  const primaryPhone = customer.phones.find((p) => p.primary)?.number ?? "";
-
   // Luôn nạp danh mục gói (kể cả luồng Tặng quà gói cố định) — cần phí gói
   // để prefill ô Mức phí của từng đơn.
   const { data: packages = [] } = useQuery({
@@ -177,18 +168,6 @@ export function InsuranceOrderFormDialog({
 
   const applyCustomerInfo = (i: number) => {
     setValue(`legs.${i}.beneficiaryName`, customer.fullName, { shouldDirty: true });
-    /**
-     * Bật cờ để MÁY CHỦ tự lấy CCCD đầy đủ từ DB.
-     *
-     * Không chép `customer.idNumber` nữa: người không có `customer:access-id-number`
-     * chỉ cầm 4 số cuối, chép vào là hợp đồng mang CCCD cụt và PVI từ chối.
-     * Ô để trống, máy chủ điền hộ lúc tạo đơn.
-     */
-    setValue(`legs.${i}.beneficiaryIsCustomer`, true, { shouldDirty: true });
-    setValue(`legs.${i}.beneficiaryIdNumber`, customer.idNumberMasked ? "" : (customer.idNumber ?? ""), {
-      shouldDirty: true,
-    });
-    setValue(`legs.${i}.beneficiaryPhone`, primaryPhone, { shouldDirty: true });
     setValue(`legs.${i}.beneficiaryAddress`, customer.address, { shouldDirty: true });
     // Đơn xe máy không hỏi ngày sinh (ô đã ẩn) — điền vào là gửi lên dữ liệu
     // người dùng không hề thấy để đối chiếu.
@@ -227,6 +206,7 @@ export function InsuranceOrderFormDialog({
         <TextField
           label="Biển số xe"
           required
+          placeholder="67A1-123.45"
           error={errors.legs?.[i]?.licensePlate?.message}
           {...register(`legs.${i}.licensePlate`)}
         />
@@ -251,13 +231,13 @@ export function InsuranceOrderFormDialog({
       <div className={styles.pair}>
         <TextField
           label="Số khung"
-          required
+          placeholder="Không bắt buộc"
           error={errors.legs?.[i]?.chassisNumber?.message}
           {...register(`legs.${i}.chassisNumber`)}
         />
         <TextField
           label="Số máy"
-          required
+          placeholder="Không bắt buộc"
           error={errors.legs?.[i]?.engineNumber?.message}
           {...register(`legs.${i}.engineNumber`)}
         />
@@ -317,92 +297,22 @@ export function InsuranceOrderFormDialog({
       <TextField
         label="Họ tên"
         required
+        placeholder="Nguyễn Văn A"
         error={errors.legs?.[i]?.beneficiaryName?.message}
         {...register(`legs.${i}.beneficiaryName`)}
       />
-      {/* Đơn BH xe máy không cần ngày sinh — định danh bằng GPLX/biển số, PVI
-          không hỏi trường này (spec P-10). Đơn tai nạn điện thì vẫn cần. */}
-      {(selectedPackage?.legs ?? [])[i]?.product === "motorbike" ? (
-        <TextField
-            label="CCCD"
-            required={!watch(`legs.${i}.beneficiaryIsCustomer`)}
-            inputMode="numeric"
-            maxLength={12}
-            labelAppend={
-              <CharCount value={watch(`legs.${i}.beneficiaryIdNumber`)} max={12} />
-            }
-            /**
-             * Ô rỗng + chấm mờ khi máy chủ sẽ tự điền. KHÔNG hiện 4 số cuối ở
-             * đây: trong một ô nhập, "7872" đọc ra như một CCCD đã điền xong và
-             * người nhập tưởng số đã đủ. Màn hồ sơ khách hiện `•••• •••• 7872`
-             * thì khác — ở đó nó là chữ để đối chiếu giấy tờ, không phải ô gõ.
-             */
-            placeholder={
-              watch(`legs.${i}.beneficiaryIsCustomer`) ? "•••• •••• ••••" : undefined
-            }
-            hint={
-              watch(`legs.${i}.beneficiaryIsCustomer`)
-                ? "Lấy theo hồ sơ khách khi lưu — gõ vào ô này nếu là người khác"
-                : undefined
-            }
-            error={errors.legs?.[i]?.beneficiaryIdNumber?.message}
-            {...register(`legs.${i}.beneficiaryIdNumber`, {
-              // Gõ tay = người thụ hưởng không còn là khách, tắt cờ để máy chủ
-              // dùng đúng số vừa gõ thay vì móc lại CCCD của khách.
-              onChange: () => setValue(`legs.${i}.beneficiaryIsCustomer`, false),
-            })}
-          />
-      ) : (
-        <div className={styles.pair}>
-          <DateField
-            label="Ngày sinh"
-            required
-            value={watch(`legs.${i}.beneficiaryDob`)}
-            onChange={(v) =>
-              setValue(`legs.${i}.beneficiaryDob`, v, { shouldDirty: true, shouldValidate: true })
-            }
-            error={errors.legs?.[i]?.beneficiaryDob?.message}
-          />
-          <TextField
-            label="CCCD"
-            required={!watch(`legs.${i}.beneficiaryIsCustomer`)}
-            inputMode="numeric"
-            maxLength={12}
-            labelAppend={
-              <CharCount value={watch(`legs.${i}.beneficiaryIdNumber`)} max={12} />
-            }
-            /**
-             * Ô rỗng + chấm mờ khi máy chủ sẽ tự điền. KHÔNG hiện 4 số cuối ở
-             * đây: trong một ô nhập, "7872" đọc ra như một CCCD đã điền xong và
-             * người nhập tưởng số đã đủ. Màn hồ sơ khách hiện `•••• •••• 7872`
-             * thì khác — ở đó nó là chữ để đối chiếu giấy tờ, không phải ô gõ.
-             */
-            placeholder={
-              watch(`legs.${i}.beneficiaryIsCustomer`) ? "•••• •••• ••••" : undefined
-            }
-            hint={
-              watch(`legs.${i}.beneficiaryIsCustomer`)
-                ? "Lấy theo hồ sơ khách khi lưu — gõ vào ô này nếu là người khác"
-                : undefined
-            }
-            error={errors.legs?.[i]?.beneficiaryIdNumber?.message}
-            {...register(`legs.${i}.beneficiaryIdNumber`, {
-              // Gõ tay = người thụ hưởng không còn là khách, tắt cờ để máy chủ
-              // dùng đúng số vừa gõ thay vì móc lại CCCD của khách.
-              onChange: () => setValue(`legs.${i}.beneficiaryIsCustomer`, false),
-            })}
-          />
-        </div>
+      {/* Đơn BH xe máy không hỏi ngày sinh; đơn tai nạn điện vẫn cần. */}
+      {(selectedPackage?.legs ?? [])[i]?.product !== "motorbike" && (
+        <DateField
+          label="Ngày sinh"
+          required
+          value={watch(`legs.${i}.beneficiaryDob`)}
+          onChange={(v) =>
+            setValue(`legs.${i}.beneficiaryDob`, v, { shouldDirty: true, shouldValidate: true })
+          }
+          error={errors.legs?.[i]?.beneficiaryDob?.message}
+        />
       )}
-      <TextField
-        label="Số điện thoại"
-        required
-        inputMode="numeric"
-        maxLength={10}
-        labelAppend={<CharCount value={watch(`legs.${i}.beneficiaryPhone`)} max={10} />}
-        error={errors.legs?.[i]?.beneficiaryPhone?.message}
-        {...register(`legs.${i}.beneficiaryPhone`)}
-      />
       <TextField
         label="Địa chỉ"
         required

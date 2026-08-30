@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { use, useCallback, useEffect, useRef, useState } from "react";
-import { Ban, CheckCircle2, ChevronLeft, Download, ExternalLink, EyeOff, FileText, History, ImagePlus, Pencil, ShieldCheck, X } from "lucide-react";
+import { Ban, CheckCircle2, ChevronLeft, Download, ExternalLink, FileText, History, ImagePlus, Pencil, ShieldCheck, X } from "lucide-react";
 import { InsuranceCancelDialog } from "@/components/insurance/InsuranceCancelDialog";
 import { SkeletonCard } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
@@ -31,7 +31,7 @@ import {
   type InsuranceManualStep,
 } from "@/lib/api/insuranceOrders";
 import { imageProblem, uploadImage } from "@/lib/api/uploads";
-import { formatDate, formatIdNumber, formatPhone, formatVnd } from "@/lib/format";
+import { formatDate, formatVnd } from "@/lib/format";
 import { can, recordInScope, recordVisibility } from "@/lib/permissions";
 import { vehicleTypeLabel } from "@/lib/pvi";
 import { errorMessage, toast } from "@/lib/toast";
@@ -61,9 +61,7 @@ const formatDateTime = (value: string): string =>
  * Một trường, kèm nút chép khi `copy` có giá trị.
  *
  * Người xử lý đơn tay phải gõ lại từng trường sang web PVI, nên mỗi lần gõ tay
- * là một lần gõ sai được. CCCD người thụ hưởng CỐ Ý không có nút này — nó là
- * trường gác bằng quyền riêng (`beneficiaryIdNumberHidden`), và một nút chép
- * đứng cạnh chữ "Đã ẩn" là nói sai rằng vẫn lấy được số.
+ * là một lần gõ sai được.
  *
  * `copy` tách khỏi `children` vì hai thứ khác nhau: màn hình hiện
  * "10.000.000 ₫", còn form PVI nhận `10000000`.
@@ -459,30 +457,6 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                   copy={data.beneficiaryDob ? formatDate(data.beneficiaryDob) : undefined}
                 >
                   {data.beneficiaryDob ? formatDate(data.beneficiaryDob) : "—"}
-                </Field>
-                <Field label="CCCD">
-                  {/* Ẩn HẲN số, không hiện 4 số cuối: người chưa nhận đơn không
-                      có việc gì cần tới nó. Icon kèm lời giải thích để người
-                      dùng biết là "chưa được xem", không phải "đơn thiếu dữ
-                      liệu" rồi đi nhập lại. */}
-                  {data.beneficiaryIdNumberHidden ? (
-                    <span
-                      className={styles.hiddenValue}
-                      title="Nhận đơn về xử lý thì mới xem được CCCD của khách hàng."
-                    >
-                      <EyeOff size={15} aria-hidden />
-                      Đã ẩn
-                    </span>
-                  ) : data.beneficiaryIdNumber ? (
-                    formatIdNumber(data.beneficiaryIdNumber)
-                  ) : (
-                    "—"
-                  )}
-                </Field>
-                {/* Chép số THÔ: `formatPhone` chèn khoảng trắng cho dễ đọc, mà
-                    ô SĐT của PVI từ chối khoảng trắng. */}
-                <Field label="Số điện thoại" copy={data.beneficiaryPhone || undefined}>
-                  {data.beneficiaryPhone ? formatPhone(data.beneficiaryPhone) : "—"}
                 </Field>
                 <Field label="Địa chỉ" wide copy={data.beneficiaryAddress || undefined}>
                   {data.beneficiaryAddress || "—"}

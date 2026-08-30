@@ -79,23 +79,12 @@ export type InsuranceListRow = z.infer<typeof InsuranceListRow>;
 /**
  * Trọn bản ghi một đơn.
  *
- * Bốn trường người thụ hưởng KHÔNG nằm ở dòng danh sách: một trong số đó là
- * CCCD, và bảng P-13 không có lý do gì để chở CCCD của mười lăm người qua
- * đường truyền mỗi lần lật trang.
+ * Thông tin người thụ hưởng chỉ có ở màn chi tiết, không chở theo mỗi dòng
+ * của danh sách P-13.
  */
 export const InsuranceOrder = InsuranceListRow.extend({
   beneficiaryName: z.string(),
   beneficiaryDob: z.string(),
-  beneficiaryIdNumber: z.string(),
-  /**
-   * Máy chủ ĐÃ GIẤU số này vì người xem không có phần trong đơn.
-   *
-   * Khác `beneficiaryIdNumber === ''` (đơn vốn không có CCCD): cờ này nói "có
-   * số, nhưng bạn chưa được xem" — màn hình phải nói ra lý do, chứ để trống thì
-   * người dùng tưởng dữ liệu thiếu rồi đi nhập lại.
-   */
-  beneficiaryIdNumberHidden: z.boolean().default(false),
-  beneficiaryPhone: z.string(),
   /** BH tai nạn điện tính theo HỘ nên địa chỉ là thông tin lõi (thêm 03/08). */
   beneficiaryAddress: z.string(),
   /** Hai trường dưới chỉ có giá trị với đơn tai nạn điện — 0 với đơn xe máy. */

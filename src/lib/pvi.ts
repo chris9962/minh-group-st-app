@@ -172,20 +172,6 @@ export const PVI_FIELDS: readonly PviField[] = [
     status: 'assumed',
   },
   {
-    key: 'soDienThoai',
-    label: 'Số điện thoại',
-    product: 'both',
-    // Form tai nạn điện KHÔNG có ô này (khảo sát 2026-08-15, 23 field). Để
-    // `required: true` thì mọi đơn không nhập SĐT đều bị `pviPayloadFor` báo
-    // thiếu và bot dừng, trong khi bên PVI không có chỗ nào để điền.
-    required: false,
-    input: 'text',
-    source: 'Khách hàng · Số điện thoại',
-    fill: (o) => o.beneficiaryPhone,
-    status: 'assumed',
-    note: 'Form tai nạn điện không hỏi. Form xe máy CHƯA khảo sát — kiểm lại khi làm flow đó.',
-  },
-  {
     key: 'diaChi',
     label: 'Địa chỉ',
     product: 'both',
@@ -296,27 +282,7 @@ export const PVI_FIELDS: readonly PviField[] = [
     note: 'Chốt 2026-08-15: luôn là `TỰ DO`.',
   },
 
-  /* ── BH tai nạn điện — hai ô KHÔNG có trên form chính ──────────────
-     Khảo sát 2026-08-15 đếm 23 field trên form tạo đơn tai nạn điện: không có
-     ô CCCD, không có ô ngày sinh. Cả hai vẫn giữ trong bảng này vì khối HOÁ ĐƠN
-     ĐIỆN TỬ có `so_cccd`, mà chưa chốt được khối đó có phải điền hay không
-     (xem "Việc còn phải chốt" ở spec).
-
-     `required: false` để `pviPayloadFor` không báo thiếu: đơn không nhập CCCD
-     là đơn hợp lệ, form PVI không có chỗ nào từ chối nó. Còn `fill` thì giữ —
-     đơn nào có số thì payload vẫn mang theo, khỏi phải sửa lại khi chốt xong
-     khối hoá đơn. */
-  {
-    key: 'cccd',
-    label: 'Số CCCD',
-    product: 'electric-accident',
-    required: false,
-    input: 'text',
-    source: 'Khách hàng · CCCD',
-    fill: (o) => o.beneficiaryIdNumber,
-    status: 'assumed',
-    note: 'Form chính không hỏi. Chỉ khối hoá đơn điện tử có `so_cccd`, chưa chốt.',
-  },
+  /* ── BH tai nạn điện — ngày sinh không có trên form chính ────────── */
   {
     key: 'ngaySinh',
     label: 'Ngày sinh',

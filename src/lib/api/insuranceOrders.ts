@@ -183,20 +183,6 @@ const orderFields = {
    * không có ô này, siết thẳng thì mọi đơn xe máy đều báo thiếu.
    */
   beneficiaryDob: isoDateOrEmpty,
-  /**
-   * CCCD người thụ hưởng — BẮT BUỘC, trừ hai đường hợp lệ dưới đây. Cả hai đều
-   * kiểm bằng `.refine` vì chúng phụ thuộc bối cảnh, không phụ thuộc kiểu:
-   *
-   *  1. Lúc TẠO, `beneficiaryIsCustomer` bật: người nhập không có
-   *     `customer:access-id-number` chỉ thấy 4 số cuối CCCD của khách nên không
-   *     có gì để điền, máy chủ tự lấy số đầy đủ từ DB (`createInsuranceOrders`).
-   *  2. Lúc SỬA, máy chủ giấu CCCD với người không có phần trong đơn: form của
-   *     họ nạp ô rỗng, và máy chủ cũng bỏ qua giá trị họ gửi lên.
-   *
-   * Đừng ràng buộc đủ 12 số — nó chặn đúng người đang dùng đường hợp lệ.
-   */
-  beneficiaryIdNumber: z.string(),
-  beneficiaryPhone: z.string().trim().min(1, 'Chưa nhập số điện thoại'),
   beneficiaryAddress: z.string().trim().min(1, 'Chưa nhập địa chỉ'),
   /**
    * Hai ô của riêng đơn tai nạn điện — form PVI hỏi, đơn xe máy thì không.
@@ -233,22 +219,10 @@ export const InsuranceOrderLegForm = z
     product: InsuranceProduct,
     packageName: z.string().trim().min(1, 'Chưa chọn gói'),
     ...orderFields,
-    /**
-     * Người thụ hưởng CHÍNH LÀ khách của đơn — bật khi bấm "Điền theo khách hàng".
-     *
-     * Chỉ có ở luồng TẠO, không có ở luồng sửa: sửa một đơn đã ghi mà tự dẫn
-     * xuất lại CCCD từ hồ sơ khách là viết lại hợp đồng theo dữ liệu hôm nay.
-     *
-     * Cần cờ tường minh chứ không suy từ "ô CCCD rỗng": đơn mua hộ người thân
-     * cũng để trống ô đó, đoán nhầm là ghi CCCD của khách vào hợp đồng người khác.
-     */
-    beneficiaryIsCustomer: z.boolean(),
   })
-  // Bốn ô xe bắt buộc CHỈ với BH xe máy.
-  //
-  // Số khung và số máy vào nhóm bắt buộc từ 2026-08-29. Trước đó chúng để trống
-  // được vì khách hay không đọc ra số; nhưng form PVI chặn lúc bấm "Chấp nhận",
-  // nên đơn thiếu hai ô này chỉ dừng muộn hơn — ở bot, sau khi đã gõ 26 ô.
+  // Biển số và loại xe bắt buộc CHỈ với BH xe máy. Số khung, số máy được để
+  // trống vì khách có thể không đọc được hoặc không nhớ; đường PVI tự xử lý
+  // trường hợp thiếu theo khả năng của từng kênh tích hợp.
   .refine((leg) => leg.product !== 'motorbike' || leg.licensePlate.length > 0, {
     message: 'Chưa nhập biển số xe',
     path: ['licensePlate'],
@@ -256,14 +230,6 @@ export const InsuranceOrderLegForm = z
   .refine((leg) => leg.product !== 'motorbike' || leg.vehicleType.length > 0, {
     message: 'Chưa nhập loại xe',
     path: ['vehicleType'],
-  })
-  .refine((leg) => leg.product !== 'motorbike' || leg.chassisNumber.length > 0, {
-    message: 'Chưa nhập số khung',
-    path: ['chassisNumber'],
-  })
-  .refine((leg) => leg.product !== 'motorbike' || leg.engineNumber.length > 0, {
-    message: 'Chưa nhập số máy',
-    path: ['engineNumber'],
   })
   // Hai ô dưới đi ngược lại: bắt buộc với tai nạn điện, bỏ trống với xe máy.
   // Bot PVI dừng ở đúng hai ô này nếu chúng bằng 0, nên chặn ngay lúc nhập.
@@ -279,11 +245,6 @@ export const InsuranceOrderLegForm = z
   .refine((leg) => leg.product !== 'electric-accident' || leg.beneficiaryDob.length > 0, {
     message: 'Chưa chọn ngày sinh khách hàng',
     path: ['beneficiaryDob'],
-  })
-  // CCCD: bỏ trống được ĐÚNG khi máy chủ sẽ tự lấy theo hồ sơ khách.
-  .refine((leg) => leg.beneficiaryIsCustomer || leg.beneficiaryIdNumber.trim().length > 0, {
-    message: 'Chưa nhập CCCD khách hàng',
-    path: ['beneficiaryIdNumber'],
   });
 export type InsuranceOrderLegForm = z.infer<typeof InsuranceOrderLegForm>;
 
@@ -313,11 +274,10 @@ export const InsuranceOrderEditFields = z.object(orderFields);
 export type InsuranceOrderEditForm = z.infer<typeof InsuranceOrderEditFields>;
 
 /**
- * `idHidden` = máy chủ đang giấu CCCD của đơn này với người sửa. Bắt buộc ô CCCD
- * mà không tính tới nó thì người không xem được số sẽ không lưu nổi thay đổi nào
- * — họ nạp ô rỗng, gõ gì vào máy chủ cũng bỏ qua (`updateInsuranceOrder`).
+ * CCCD và số điện thoại không thuộc biểu mẫu đơn bảo hiểm. Chúng nằm ở hồ sơ
+ * khách hàng; dữ liệu lịch sử trên đơn cũ vẫn được giữ trong database.
  */
-export const insuranceOrderEditSchema = (product: InsuranceProduct, idHidden = false) =>
+export const insuranceOrderEditSchema = (product: InsuranceProduct) =>
   InsuranceOrderEditFields.refine(
     (form) => product !== 'motorbike' || form.licensePlate.length > 0,
     { message: 'Chưa nhập biển số xe', path: ['licensePlate'] },
@@ -326,14 +286,6 @@ export const insuranceOrderEditSchema = (product: InsuranceProduct, idHidden = f
       message: 'Chưa nhập loại xe',
       path: ['vehicleType'],
     })
-    .refine((form) => product !== 'motorbike' || form.chassisNumber.length > 0, {
-      message: 'Chưa nhập số khung',
-      path: ['chassisNumber'],
-    })
-    .refine((form) => product !== 'motorbike' || form.engineNumber.length > 0, {
-      message: 'Chưa nhập số máy',
-      path: ['engineNumber'],
-    })
     .refine((form) => product !== 'electric-accident' || form.householdSize > 0, {
       message: 'Chưa nhập số thành viên',
       path: ['householdSize'],
@@ -341,10 +293,6 @@ export const insuranceOrderEditSchema = (product: InsuranceProduct, idHidden = f
     .refine((form) => product !== 'electric-accident' || form.beneficiaryDob.length > 0, {
       message: 'Chưa chọn ngày sinh khách hàng',
       path: ['beneficiaryDob'],
-    })
-    .refine((form) => idHidden || form.beneficiaryIdNumber.trim().length > 0, {
-      message: 'Chưa nhập CCCD khách hàng',
-      path: ['beneficiaryIdNumber'],
     })
     .refine((form) => product !== 'electric-accident' || form.sumInsured > 0, {
       message: 'Chưa nhập số tiền bảo hiểm',

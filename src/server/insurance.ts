@@ -316,8 +316,6 @@ const pickPage = (where: SQL | undefined, orderBy: SQL[], limit: number, offset:
       endDate: insuranceOrders.endDate,
       beneficiaryName: insuranceOrders.beneficiaryName,
       beneficiaryDob: insuranceOrders.beneficiaryDob,
-      beneficiaryIdNumber: insuranceOrders.beneficiaryIdNumber,
-      beneficiaryPhone: insuranceOrders.beneficiaryPhone,
       beneficiaryAddress: insuranceOrders.beneficiaryAddress,
       householdSize: insuranceOrders.householdSize,
       sumInsured: insuranceOrders.sumInsured,
@@ -361,8 +359,6 @@ const decorate = (page: ReturnType<typeof pickPage>) =>
       beneficiaryName: page.beneficiaryName,
       // Cột nullable ở DB nhưng hợp đồng là chuỗi: đơn xe máy không hỏi ngày sinh.
       beneficiaryDob: sql<string>`coalesce(${page.beneficiaryDob}::text, '')`,
-      beneficiaryIdNumber: page.beneficiaryIdNumber,
-      beneficiaryPhone: page.beneficiaryPhone,
       beneficiaryAddress: page.beneficiaryAddress,
       householdSize: page.householdSize,
       sumInsured: page.sumInsured,
@@ -397,9 +393,8 @@ const decorate = (page: ReturnType<typeof pickPage>) =>
 type DecoratedRow = Awaited<ReturnType<typeof decorate>>[number];
 
 /**
- * Dòng danh sách CỐ Ý bỏ bốn trường người thụ hưởng — một trong số đó là CCCD.
- * Bảng P-13 không có lý do gì để chở CCCD của mười lăm người qua đường truyền
- * mỗi lần lật trang.
+ * Dòng danh sách cố ý bỏ thông tin riêng của người thụ hưởng. Bảng P-13 không
+ * có lý do gì để chở dữ liệu của mười lăm người qua đường truyền mỗi lần lật trang.
  */
 const toRow = (r: DecoratedRow): InsuranceListRow => ({
   id: r.id,
@@ -426,30 +421,12 @@ const toRow = (r: DecoratedRow): InsuranceListRow => ({
   certificateAttempts: r.certificateAttempts,
 });
 
-/**
- * CCCD người thụ hưởng chỉ hiện với người CÓ PHẦN TRONG ĐƠN.
- *
- * Khác CCCD của KHÁCH (quyết định 02/08, gác bằng `customer:access-id-number`):
- * số này nằm trên hợp đồng, và người nhập đơn sang PVI buộc phải đọc được nó.
- *
- * Nhưng hàng chờ làm tay là kho chung, ai có `handle-fallback` cũng mở được mọi
- * đơn đang chờ — nếu hiện luôn CCCD thì kho chung thành đường đọc CCCD của cả
- * công ty. Nên: thấy đơn ≠ thấy CCCD. Nhận đơn về rồi mới thấy.
- */
-const seesBeneficiaryId = (actor: User, r: DecoratedRow): boolean =>
-  r.createdById === actor.id ||
-  r.handledById === actor.id ||
-  can(actor, "customer", "access-id-number");
-
-const toOrder = (actor: User, r: DecoratedRow): InsuranceOrder => ({
+const toOrder = (r: DecoratedRow): InsuranceOrder => ({
   ...toRow(r),
   pviCertificateUrl: r.pviCertificateUrl,
   pviSerialNumber: r.pviSerialNumber,
   beneficiaryName: r.beneficiaryName,
   beneficiaryDob: r.beneficiaryDob,
-  beneficiaryIdNumber: seesBeneficiaryId(actor, r) ? r.beneficiaryIdNumber : "",
-  beneficiaryIdNumberHidden: !seesBeneficiaryId(actor, r) && r.beneficiaryIdNumber !== "",
-  beneficiaryPhone: r.beneficiaryPhone,
   beneficiaryAddress: r.beneficiaryAddress,
   householdSize: r.householdSize,
   sumInsured: r.sumInsured,
@@ -591,7 +568,7 @@ export async function insuranceOrderDetail(
   const r = await rawById(id);
   if (!r || !canSeeOrder(actor, r)) return null;
 
-  return { ...toOrder(actor, r), history: await historyOf(id) };
+  return { ...toOrder(r), history: await historyOf(id) };
 }
 
 export type InsuranceOutcome<T> = { ok: true; value: T } | { ok: false; message: string };
@@ -620,21 +597,8 @@ export async function createInsuranceOrders(
   const department = departmentForNewRecord(actor, "insurance", form.departmentId);
   if (!department.ok) return { ok: false, message: department.message };
 
-  /**
-   * Lấy luôn CCCD THẬT của khách, không chỉ `id`.
-   *
-   * Người nhập không có `customer:access-id-number` chỉ nhìn thấy 4 số cuối
-   * (`**** 7872`), nên không có gì để gõ vào ô CCCD người thụ hưởng. Trước đây
-   * nút "Điền theo khách hàng" chép thẳng chuỗi 4 số đó vào hợp đồng, mà ô
-   * không ràng buộc độ dài nên đơn lưu im lặng rồi PVI từ chối — bảo hiểm tai
-   * nạn điện định danh theo CCCD (spec §3.2).
-   *
-   * Nay máy chủ tự móc số đầy đủ từ DB khi `beneficiaryIsCustomer` bật. Số
-   * KHÔNG đi ngược ra trình duyệt của người nhập, nên quyền xem CCCD khách
-   * (quyết định 02/08) vẫn nguyên.
-   */
   const [customer] = await db
-    .select({ id: customers.id, idNumber: customers.idNumber })
+    .select({ id: customers.id })
     .from(customers)
     .where(eq(customers.id, form.customerId))
     .limit(1);
@@ -715,12 +679,10 @@ export async function createInsuranceOrders(
           // Ô ngày sinh ẩn với đơn xe máy nên chuỗi rỗng là chuyện thường —
           // `''::date` là lỗi cú pháp, phải về null.
           beneficiaryDob: leg.beneficiaryDob || null,
-          // Người thụ hưởng là chính khách thì lấy CCCD từ DB, KHÔNG tin chuỗi
-          // client gửi — nó có thể là 4 số cuối đã bị che.
-          beneficiaryIdNumber: leg.beneficiaryIsCustomer
-            ? (customer.idNumber ?? "")
-            : leg.beneficiaryIdNumber,
-          beneficiaryPhone: leg.beneficiaryPhone,
+          // Hai cột cũ giữ lại để đọc dữ liệu lịch sử và tương thích PVI. Đơn
+          // mới không còn thu thập CCCD/SĐT trong biểu mẫu nên luôn lưu rỗng.
+          beneficiaryIdNumber: "",
+          beneficiaryPhone: "",
           beneficiaryAddress: leg.beneficiaryAddress,
           householdSize: leg.householdSize,
           sumInsured: leg.sumInsured,
@@ -797,10 +759,7 @@ export async function updateInsuranceOrder(
    * `product` client gửi lên để mà dựa, và gửi kèm `electric-accident` là gỡ
    * được ràng buộc biển số của một đơn xe máy.
    */
-  const parsed = insuranceOrderEditSchema(
-    current.product,
-    !seesBeneficiaryId(actor, current),
-  ).safeParse(body);
+  const parsed = insuranceOrderEditSchema(current.product).safeParse(body);
   if (!parsed.success)
     return { ok: false, message: parsed.error.issues[0]?.message ?? "Dữ liệu không hợp lệ" };
   const form = parsed.data;
@@ -820,17 +779,6 @@ export async function updateInsuranceOrder(
       endDate: form.endDate,
       beneficiaryName: form.beneficiaryName,
       beneficiaryDob: form.beneficiaryDob || null,
-      /**
-       * CCCD chỉ ghi đè khi người sửa ĐANG XEM ĐƯỢC nó.
-       *
-       * `toOrder` trả chuỗi rỗng cho người không có phần trong đơn, nên form của
-       * họ nạp ô CCCD rỗng rồi gửi rỗng ngược lên. Ghi thẳng là xoá số trên hợp
-       * đồng đã ký, và không có bản sao nào để lấy lại.
-       */
-      ...(seesBeneficiaryId(actor, current)
-        ? { beneficiaryIdNumber: form.beneficiaryIdNumber }
-        : {}),
-      beneficiaryPhone: form.beneficiaryPhone,
       beneficiaryAddress: form.beneficiaryAddress,
       householdSize: form.householdSize,
       sumInsured: form.sumInsured,
@@ -1174,7 +1122,7 @@ export async function setCertificatePhoto(
     .set({ certificatePhotoUrl: photoKey, updatedAt: new Date() })
     .where(eq(insuranceOrders.id, id));
 
-  return { ...toOrder(actor, (await rawById(id))!), history: await historyOf(id) };
+  return { ...toOrder((await rawById(id))!), history: await historyOf(id) };
 }
 
 /**

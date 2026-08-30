@@ -4,7 +4,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/Button";
-import { CharCount } from "@/components/ui/CharCount";
 import { Dialog } from "@/components/ui/Dialog";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { Select } from "@/components/ui/Select";
@@ -56,9 +55,8 @@ const sumInsuredOptions = (current: number) => {
  * tính của đơn, đổi chúng là biến bản ghi này thành một đơn khác hẳn. Chúng
  * hiện ra ở đầu hộp thoại để đối chiếu.
  *
- * Tự tải chi tiết theo `orderId` chứ không nhận sẵn dòng bảng: dòng bảng cố ý
- * không mang bốn trường người thụ hưởng (một trong số đó là CCCD), mà thiếu
- * chúng thì không dựng nổi form.
+ * Tự tải chi tiết theo `orderId` chứ không nhận sẵn dòng bảng: form cần các
+ * trường người thụ hưởng và thông tin sản phẩm không nằm trên dòng danh sách.
  *
  * KHÔNG có nút Xoá đơn ở đây: bảng bên ngoài đã có nút xoá kèm hộp xác nhận nói
  * rõ hệ quả. Đường xoá thứ hai nằm sát nút "Huỷ" của hộp thoại là đặt bẫy đúng
@@ -79,12 +77,7 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId }: Props) {
     shouldFocusError: false,
     // Luật biển số phụ thuộc sản phẩm, mà sản phẩm chỉ biết sau khi chi tiết về
     // — máy chủ kiểm lại đúng luật này với sản phẩm đọc từ database.
-    resolver: zodResolver(
-      insuranceOrderEditSchema(
-        data?.product ?? "electric-accident",
-        data?.beneficiaryIdNumberHidden ?? false,
-      ),
-    ),
+    resolver: zodResolver(insuranceOrderEditSchema(data?.product ?? "electric-accident")),
     // `values` chứ không phải `defaultValues`: chi tiết về SAU lượt render đầu,
     // mà `defaultValues` chỉ đọc một lần nên form sẽ trống mãi.
     values: {
@@ -94,8 +87,6 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId }: Props) {
       endDate: data?.endDate ?? "",
       beneficiaryName: data?.beneficiaryName ?? "",
       beneficiaryDob: data?.beneficiaryDob ?? "",
-      beneficiaryIdNumber: data?.beneficiaryIdNumber ?? "",
-      beneficiaryPhone: data?.beneficiaryPhone ?? "",
       beneficiaryAddress: data?.beneficiaryAddress ?? "",
       householdSize: data?.householdSize ?? 0,
       sumInsured: data?.sumInsured ?? 0,
@@ -119,31 +110,6 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId }: Props) {
   });
 
   const { errors } = form.formState;
-
-  /**
-   * Máy chủ giấu CCCD với người không có phần trong đơn, nên ô này nạp rỗng.
-   * Để ô mở là nói sai rằng đơn thiếu dữ liệu, và người sửa gõ số mới đè lên
-   * số họ chưa từng thấy — máy chủ bỏ qua giá trị đó, nhưng họ tưởng đã lưu.
-   */
-  const idField = data?.beneficiaryIdNumberHidden ? (
-    <TextField
-      label="CCCD"
-      value="Đã ẩn"
-      readOnly
-      disabled
-      hint="Nhận đơn về xử lý thì mới xem và sửa được số này."
-    />
-  ) : (
-    <TextField
-      label="CCCD"
-      required
-      inputMode="numeric"
-      maxLength={12}
-      labelAppend={<CharCount value={form.watch("beneficiaryIdNumber")} max={12} />}
-      error={errors.beneficiaryIdNumber?.message}
-      {...form.register("beneficiaryIdNumber")}
-    />
-  );
 
   return (
     <Dialog
@@ -228,6 +194,7 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId }: Props) {
                 <TextField
                   label="Biển số xe"
                   required
+                  placeholder="67A1-123.45"
                   error={errors.licensePlate?.message}
                   {...form.register("licensePlate")}
                 />
@@ -253,13 +220,13 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId }: Props) {
               <div className={styles.pair}>
                 <TextField
                   label="Số khung"
-                  required
+                  placeholder="Không bắt buộc"
                   error={errors.chassisNumber?.message}
                   {...form.register("chassisNumber")}
                 />
                 <TextField
                   label="Số máy"
-                  required
+                  placeholder="Không bắt buộc"
                   error={errors.engineNumber?.message}
                   {...form.register("engineNumber")}
                 />
@@ -304,36 +271,22 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId }: Props) {
             <TextField
               label="Họ tên"
               required
+              placeholder="Nguyễn Văn A"
               error={errors.beneficiaryName?.message}
               {...form.register("beneficiaryName")}
             />
-            {/* Đơn BH xe máy không hỏi ngày sinh — định danh bằng GPLX/biển số,
-                PVI không hỏi trường này (spec P-10). */}
-            {motorbike ? (
-              idField
-            ) : (
-              <div className={styles.pair}>
-                <DateField
-                  label="Ngày sinh"
-                  required
-                  value={form.watch("beneficiaryDob")}
-                  onChange={(v) =>
-                    form.setValue("beneficiaryDob", v, { shouldDirty: true, shouldValidate: true })
-                  }
-                  error={errors.beneficiaryDob?.message}
-                />
-                {idField}
-              </div>
+            {/* Đơn BH xe máy không hỏi ngày sinh; đơn tai nạn điện vẫn cần. */}
+            {!motorbike && (
+              <DateField
+                label="Ngày sinh"
+                required
+                value={form.watch("beneficiaryDob")}
+                onChange={(v) =>
+                  form.setValue("beneficiaryDob", v, { shouldDirty: true, shouldValidate: true })
+                }
+                error={errors.beneficiaryDob?.message}
+              />
             )}
-            <TextField
-              label="Số điện thoại"
-              required
-              inputMode="numeric"
-              maxLength={10}
-              labelAppend={<CharCount value={form.watch("beneficiaryPhone")} max={10} />}
-              error={errors.beneficiaryPhone?.message}
-              {...form.register("beneficiaryPhone")}
-            />
             <TextField
               label="Địa chỉ"
               required
