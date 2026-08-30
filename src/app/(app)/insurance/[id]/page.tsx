@@ -256,16 +256,15 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
    * vào thì máy chủ trả 404.
    */
   /**
-   * KHÔNG kẹp theo trạng thái đơn — chốt 2026-08-22.
+   * Chỉ chặn ở `manual-queued` — chốt 2026-08-30.
    *
-   * Commit `19afde4` (2026-08-18) từng thêm điều kiện `status === "manual-progress"`
-   * với lý do "đơn hoàn thành thì tờ chứng nhận đã nộp". Chủ dự án chốt lại:
-   * đơn hoàn thành rồi vẫn phải đổi được ảnh — tờ chứng nhận chụp mờ hay chụp
-   * nhầm tờ chỉ lộ ra sau đó.
+   * Đơn chưa ai nhận thì chưa có ai đi lấy tờ chứng nhận bên PVI, ảnh đính vào
+   * lúc đó không gắn với người xử lý nào. Người muốn đính ảnh bấm "Nhận đơn xử
+   * lý" trước.
    *
-   * Đây cũng là điều spec §3.4 viết từ đầu: "ảnh chứng nhận dùng được ở MỌI
-   * trạng thái, không gắn riêng vào bước nào". Máy chủ vốn chưa bao giờ chặn
-   * theo trạng thái, nên chỉ giao diện lệch.
+   * Các trạng thái còn lại vẫn đính được, kể cả `done` (chốt 2026-08-22): tờ
+   * chứng nhận chụp mờ hay chụp nhầm tờ chỉ xảy ra sau khi đơn xong. Máy chủ
+   * không chặn theo trạng thái, đây là kẹp riêng của giao diện.
    */
   /**
    * Bot đã thôi hỏi PVI về giấy chứng nhận, nên đơn chỉ đi tiếp được bằng tay.
@@ -280,6 +279,7 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
 
   const canAttachPhoto = Boolean(
     data &&
+      data.status !== "manual-queued" &&
       (recordInScope(recordVisibility(actor, "insurance", "update"), data) ||
         recordInScope(recordVisibility(actor, "insurance", "handle-fallback"), data) ||
         (canHandleFallback && data.handledById === actor?.id) ||
