@@ -42,7 +42,7 @@ export const DAILY_DOCS: DocArticle[] = [
       {
         kind: 'note',
         tone: 'info',
-        body: 'Ô tìm ở màn này chỉ hiện khách trong phạm vi của bạn. Nhân viên chỉ thấy khách chính mình lập. Muốn tìm cả công ty thì bạn mở hộp thoại **Tạo tài khoản ngân hàng**, **Tạo đơn bảo hiểm** hoặc **Ghi dịch vụ**. Ô **Tìm khách hàng** trong ba hộp thoại đó tra được mọi hồ sơ.',
+        body: 'Ô tìm khách ở mọi màn đều chỉ hiện hồ sơ trong phạm vi quyền của bạn. Nhân viên chỉ thấy khách chính mình lập; người quản lý thấy khách do các phòng mình quản lập; chỉ quyền toàn công ty mới tìm được toàn bộ hồ sơ.',
       },
       {
         kind: 'shot',
@@ -207,7 +207,7 @@ export const DAILY_DOCS: DocArticle[] = [
           width: 560,
           height: 348,
           markers: [
-            { n: 1, x: 50, y: 22.2, label: 'Ô Tìm khách hàng — tra được mọi hồ sơ trong công ty.' },
+            { n: 1, x: 50, y: 22.2, label: 'Ô Tìm khách hàng — tra cứu hồ sơ trong phạm vi quyền của bạn.' },
             { n: 2, x: 50, y: 58.5, label: 'Bấm một khách để sang bước điền biểu mẫu.' },
           ],
         },

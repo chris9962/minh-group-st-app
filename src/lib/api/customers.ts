@@ -8,10 +8,9 @@ import { pageOf, pageParams, type Page, type PageQuery } from './pagination';
  * P-40 · Danh sách khách hàng · P-41 · Tạo/sửa · P-42 · Hồ sơ 360°
  * (mgst-platform-spec.md §2.1, §2.1b · mgst-feature-list.md §4.4).
  *
- * Hai đường đọc, hai mức mở khác nhau (chốt 2026-08-23). BẢNG P-40 áp phạm vi
- * như mọi bản ghi nghiệp vụ: nhân viên thấy khách mình lập, quản lý thấy khách
- * phòng mình quản. TRA CỨU theo từ khoá thì mở toàn công ty (§2.1b) — xem
- * `fetchCustomerLookup`.
+ * Bảng P-40 và TRA CỨU theo từ khoá đều áp cùng một phạm vi đọc: nhân viên thấy
+ * khách mình lập, quản lý thấy khách do phòng mình quản lập, và chỉ quyền
+ * `company` mới xem được toàn công ty — xem `fetchCustomerLookup`.
  */
 
 export const CustomerPhone = z.object({
@@ -155,10 +154,9 @@ export type CustomerLookupResult = z.infer<typeof CustomerLookupResult>;
 /**
  * TRA CỨU khách theo từ khoá, cho ô tìm khách của ba hộp thoại tạo bản ghi.
  *
- * Route riêng chứ không phải `fetchCustomers` bỏ bộ lọc phòng. Ba khác biệt cố
- * ý: KHÔNG phân trang, KHÔNG trả `total`, chỉ ba trường. Đó là thứ phân biệt
- * TRA CỨU với LIỆT KÊ — spec §2.1b mở đường tra cứu toàn công ty để nhân viên
- * không lập hồ sơ trùng, nó không mở đường đọc tuần tự cả kho.
+ * Route riêng chứ không phải `fetchCustomers`: TRA CỨU vẫn áp phạm vi quyền,
+ * nhưng KHÔNG phân trang, KHÔNG trả `total`, chỉ ba trường. Vì thế người dùng
+ * chọn được khách trong phạm vi của mình mà không tải tuần tự cả danh bạ.
  *
  * Bỏ phân trang là chốt chính. Bản trước dùng chung route với bảng P-40, nên ai
  * cũng đổi được `page` để lật hết danh bạ khách hàng của công ty.

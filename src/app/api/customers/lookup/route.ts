@@ -11,12 +11,12 @@ import { lookupCustomers } from "@/server/customers";
  * P-40 chỉ cho thấy một phòng. Cờ do phía gọi gửi không phải phân quyền
  * (AGENTS.md §6).
  *
- * Đường này mở toàn công ty theo spec §2.1b, nhưng chỉ trả id, tên và số điện
- * thoại, tối đa 15 dòng, không phân trang. Đủ để nhận ra người cần chọn, không
- * đủ để kéo danh bạ khách hàng của công ty về máy.
+ * Đường này áp đúng phạm vi `customer:view-detail` của người đang đăng nhập:
+ * khách mình lập, khách của các phòng mình quản, hoặc toàn công ty nếu được cấp
+ * quyền đó. Chỉ trả id, tên và số điện thoại, tối đa 15 dòng, không phân trang.
  *
- * Chặn ở mức đã đăng nhập, không hỏi quyền `customer:view-detail`: ai tạo được
- * bản ghi thì phải chọn được khách, mà quyền tạo nằm ở ba module khác nhau.
+ * Chặn ở mức đã đăng nhập; hàm server phía dưới tự áp quyền
+ * `customer:view-detail` lên từng kết quả.
  */
 export async function GET(request: Request) {
   const guard = await signedIn(request);
@@ -31,5 +31,5 @@ export async function GET(request: Request) {
    * vẫn còn người chọn được.
    */
   const forBankAccount = params.get("for") === "bank-account";
-  return Response.json(await lookupCustomers(search, { forBankAccount }));
+  return Response.json(await lookupCustomers(guard.actor, search, { forBankAccount }));
 }

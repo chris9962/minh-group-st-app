@@ -39,10 +39,10 @@ import {
 /**
  * P-40 · P-41 · P-42 — bản DB của module khách hàng.
  *
- * Phạm vi ở module này do NƠI GỌI quyết, không do hàm ở đây: bảng P-40 truyền
- * `departmentIds`/`createdBy` theo quyền người xem (chốt 2026-08-23), còn ô tìm
- * khách của ba hộp thoại cố ý không truyền gì để nhân viên tra ra khách đồng
- * nghiệp đã lập (spec §2.1b) — không thì chặn trùng CCCD và ô tìm đều vô dụng.
+ * Phạm vi ở module này do NƠI GỌI quyết. Bảng P-40 truyền
+ * `departmentIds`/`createdBy` theo quyền người xem; ô tìm khách của ba hộp
+ * thoại cũng nhận `actor` và kẹp theo đúng `customer:view-detail`. Nhờ vậy ô
+ * chọn khách không trở thành đường vòng xem cả kho khách hàng.
  *
  * Bản ghi nghiệp vụ treo dưới khách — tài khoản ngân hàng, đơn bảo hiểm — lọc
  * theo phòng ở một đường riêng, việc của `customerDetailFor`.
@@ -390,12 +390,28 @@ const bankAccountsOfCustomer = sql`(select count(*) from ${bankAccounts} where $
 
 const LOOKUP_LIMIT = 15;
 
+/** Điều kiện phạm vi cho ô tìm khách, tính từ quyền đọc hồ sơ khách. */
+function lookupScope(actor: User): SQL {
+  const visible = recordVisibility(actor, "customer", "view-detail");
+  switch (visible.kind) {
+    case "all":
+      return sql`true`;
+    case "departments":
+      return inArray(customers.createdByDepartmentId, visible.departmentIds);
+    case "creator":
+      return eq(customers.createdBy, visible.userId);
+    case "none":
+      return sql`false`;
+  }
+}
+
 /**
  * TRA CỨU khách theo từ khoá — ô tìm khách của ba hộp thoại tạo bản ghi.
  *
- * Toàn công ty, KHÔNG áp phạm vi phòng: spec §2.1b bắt nhân viên tìm ra khách
- * đồng nghiệp đã lập, nếu không họ lập hồ sơ trùng và chặn CCCD trùng chỉ báo
- * lỗi chứ không chỉ được sang hồ sơ có sẵn.
+ * Phạm vi giống danh sách khách P-40: quyền `customer:view-detail` là `own`
+ * thì chỉ thấy khách mình lập; `managed` thì thấy khách do các phòng mình quản
+ * lập; `company` thì thấy toàn công ty. Điều kiện này chạy ở máy chủ nên không
+ * thể nới rộng bằng cách tự gọi API.
  *
  * Đổi lại, đường này hẹp hết mức có thể mà vẫn làm được việc đó: không nhận
  * `page`, không trả `total`, chỉ ba trường. Không có địa chỉ, không có ngày
@@ -405,11 +421,15 @@ const LOOKUP_LIMIT = 15;
  * Sắp theo tên chứ không theo ngày tạo: người dùng đang tìm một cái tên.
  */
 export async function lookupCustomers(
+  actor: User,
   search: string,
   opts: { forBankAccount?: boolean } = {},
 ): Promise<CustomerLookupResult> {
   const match = searchWhere(search);
-  const where = opts.forBankAccount ? and(match, sql`${bankAccountsOfCustomer} < ${MAX_BANK_ACCOUNTS_PER_CUSTOMER}`) : match;
+  const scope = lookupScope(actor);
+  const where = opts.forBankAccount
+    ? and(scope, match, sql`${bankAccountsOfCustomer} < ${MAX_BANK_ACCOUNTS_PER_CUSTOMER}`)
+    : and(scope, match);
 
   const inner = pickPage(
     where,
@@ -432,7 +452,7 @@ export async function lookupCustomers(
   const [hidden] = await db
     .select({ n: count() })
     .from(customers)
-    .where(and(match, sql`${bankAccountsOfCustomer} >= ${MAX_BANK_ACCOUNTS_PER_CUSTOMER}`));
+    .where(and(scope, match, sql`${bankAccountsOfCustomer} >= ${MAX_BANK_ACCOUNTS_PER_CUSTOMER}`));
 
   return { rows, hiddenBankFull: hidden?.n ?? 0 };
 }

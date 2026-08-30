@@ -24,9 +24,8 @@ const staffPermissions: Permission[] = [
    *
    * Trước 2026-08-23 ô này là `company`, và nó không mô tả cái gì thật: bảng
    * P-40 vẫn lọc theo người tạo bằng một điều kiện `role === 'staff'` đặt thẳng
-   * ở route. Mức `company` chỉ tồn tại để ô tìm khách của ba hộp thoại chạy
-   * được, mà ô đó nay đi `/api/customers/lookup` — route riêng, mở toàn công ty
-   * theo spec §2.1b và không đọc quyền này.
+   * ở route. Ô tìm khách của ba hộp thoại cũng đi `/api/customers/lookup` và
+   * áp đúng quyền này, nên `own` ở đây đồng nghĩa chỉ chọn được khách mình lập.
    *
    * Hạ xuống `own` rồi thì phạm vi tự lo phần lọc, không cần đọc chức vụ nữa.
    * Chức vụ KHÔNG phải nguồn quyền (AGENTS.md §6): tài khoản mang vai Nhân viên
