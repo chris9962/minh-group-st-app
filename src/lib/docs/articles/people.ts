@@ -253,7 +253,7 @@ export const PEOPLE_DOCS: DocArticle[] = [
       {
         kind: 'note',
         tone: 'warning',
-        body: 'Bạn khoá tài khoản thì người đó không đăng nhập được nữa. Dòng của họ biến mất khỏi bảng Nhân sự vì bảng chỉ hiện người đang làm. Bạn mở khoá ở chính hồ sơ của họ.',
+        body: 'Bạn khoá tài khoản thì người đó không đăng nhập được nữa. Ở bảng **Nhân sự**, mở bộ lọc **Trạng thái tài khoản** và chọn **Đã khoá** để rà lại danh sách; bấm vào tên để mở hồ sơ rồi mở khoá khi cần.',
       },
       {
         kind: 'steps',

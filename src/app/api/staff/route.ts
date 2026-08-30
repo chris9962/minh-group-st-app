@@ -38,7 +38,11 @@ export async function GET(request: Request) {
     // gọi khác.
     from: params.get("from") ?? "",
     to: params.get("to") ?? "",
-    status: (params.get("status") ?? "active") as StaffQuery["status"],
+    // URL là dữ liệu bên ngoài: giá trị lạ không được vô tình hiểu là "đã
+    // khoá" chỉ vì `staffFor` so sánh với hai chuỗi hợp lệ.
+    status: ["active", "locked", "all"].includes(params.get("status") ?? "")
+      ? (params.get("status") as StaffQuery["status"])
+      : "active",
     // Lọc qua danh sách vai có thật, cùng lối nghĩ với danh sách trắng khoá
     // sắp: vai lạ đi vào `inArray` trên cột enum là 500, mà URL có ô lọc chức
     // vụ thì người ta chia sẻ link cho nhau.

@@ -3,7 +3,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Lock, Pencil, Plus, Users } from "lucide-react";
+import { Lock, Pencil, Plus, Unlock, Users } from "lucide-react";
 import { SkeletonStats, SkeletonTable } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
@@ -130,6 +130,12 @@ const ROLE_FILTERS = RoleKey.options.map((value) => ({
   label: ROLE_LABEL[value],
 }));
 
+const ACCOUNT_STATUS_FILTERS: { value: StaffQuery["status"]; label: string }[] = [
+  { value: "active", label: "Đang hoạt động" },
+  { value: "locked", label: "Đã khoá" },
+  { value: "all", label: "Tất cả trạng thái" },
+];
+
 /** P-51 · Danh sách nhân viên + chỉ tiêu + quản trị tài khoản. */
 export default function PeoplePage() {
   const user = useSession((s) => s.user);
@@ -151,6 +157,7 @@ export default function PeoplePage() {
   // Mặc định KHÔNG chọn gì = lấy hết. Giữ mảng rỗng thay vì nhồi sẵn cả 6 mục
   // để "chưa lọc" và "lọc đúng 6 mục" không lẫn vào nhau ở tầng gọi API.
   const [roles, setRoles] = useState<RoleKey[]>([]);
+  const [status, setStatus] = useState<StaffQuery["status"]>("active");
   const [page, setPage] = useState(0);
   const [sort, setSort] = useState<StaffSort>("kpi");
   const [dir, setDir] = useState<SortDir>("desc");
@@ -203,9 +210,9 @@ export default function PeoplePage() {
     // phòng ban tách hai trục ra, vì màn đó có bộ chọn kỳ theo ngày.
     from: "",
     to: "",
-    // Chỉ người đang làm. Người đã khoá xem trong hồ sơ của họ, không lẫn vào
-    // danh sách hằng ngày.
-    status: "active",
+    // Mặc định chỉ người đang làm; bộ lọc cho phép rà lại người đã khoá mà
+    // không phải đoán tên rồi mở từng hồ sơ.
+    status,
     roles,
     page,
     sort,
@@ -230,21 +237,21 @@ export default function PeoplePage() {
   const rows = data?.page.rows ?? EMPTY_PAGE.rows;
   const summary = data?.summary;
 
-  const lockAccount = useMutation({
-    mutationFn: (row: StaffRow) => setStaffActive(row.id, false, user?.id ?? ""),
+  const changeAccountStatus = useMutation({
+    mutationFn: (row: StaffRow) => setStaffActive(row.id, !row.active, user?.id ?? ""),
     onSuccess: (_account, row) => {
       // Hai khoá: bảng này và thẻ `AccountCard` ở hồ sơ người đó.
       queryClient.invalidateQueries({ queryKey: ["staff"] });
       queryClient.invalidateQueries({ queryKey: ["staff-one", row.id] });
-      toast.ok(`Đã khoá tài khoản ${row.fullName}`);
+      toast.ok(`${row.active ? "Đã khoá" : "Đã mở khoá"} tài khoản ${row.fullName}`);
       setLocking(null);
     },
-    onError: (e) => toast.fail(errorMessage(e, "Không khoá được tài khoản. Thử lại.")),
+    onError: (e) => toast.fail(errorMessage(e, "Không đổi được trạng thái tài khoản. Thử lại.")),
   });
 
   // Kho rỗng và "lọc không ra gì" là hai chuyện khác nhau. Nói nhầm thì trưởng
   // phòng của một phòng mới đi tìm bộ lọc để xoá, trong khi không có cái nào bật.
-  const filtering = Boolean(searchQuery || departmentId || roles.length > 0);
+  const filtering = Boolean(searchQuery || departmentId || roles.length > 0 || status !== "active");
 
   // Nút chỉ có icon nên `aria-label` phải kèm tên người: giữa mười dòng giống
   // nhau, "Sửa" một mình không nói đang sửa ai.
@@ -267,17 +274,17 @@ export default function PeoplePage() {
                   >
                     <Pencil size={16} aria-hidden />
                   </Button>
-                  {/* Máy chủ chặn tự khoá mình (`/api/staff/[id]/active`) — ẩn
-                      nút ở dòng của chính mình thay vì để bấm rồi nhận 400. */}
+                  {/* Máy chủ chặn tự đổi trạng thái mình (`/api/staff/[id]/active`) —
+                      ẩn nút ở dòng của chính mình thay vì để bấm rồi nhận 400. */}
                   {r.id !== user?.id && (
                     <Button
                       variant="secondary"
                       icon
-                      tooltip="Khoá tài khoản"
-                      aria-label={`Khoá tài khoản ${r.fullName}`}
+                      tooltip={r.active ? "Khoá tài khoản" : "Mở khoá tài khoản"}
+                      aria-label={`${r.active ? "Khoá" : "Mở khoá"} tài khoản ${r.fullName}`}
                       onClick={() => setLocking(r)}
                     >
-                      <Lock size={16} aria-hidden />
+                      {r.active ? <Lock size={16} aria-hidden /> : <Unlock size={16} aria-hidden />}
                     </Button>
                   )}
                 </div>
@@ -303,11 +310,12 @@ export default function PeoplePage() {
           }}
         />
         <FilterButton
-          activeCount={(departmentId ? 1 : 0) + (roles.length > 0 ? 1 : 0)}
+          activeCount={(departmentId ? 1 : 0) + (roles.length > 0 ? 1 : 0) + (status !== "active" ? 1 : 0)}
           onClear={() =>
             refine(() => {
               setDepartmentId("");
               setRoles([]);
+              setStatus("active");
             })
           }
         >
@@ -320,6 +328,13 @@ export default function PeoplePage() {
               { value: "", label: "Tất cả đơn vị" },
               ...departmentOptions.map((d) => ({ value: d.id, label: d.name })),
             ]}
+          />
+
+          <Select
+            label="Trạng thái tài khoản"
+            value={status}
+            onChange={(v) => refine(() => setStatus(v as StaffQuery["status"]))}
+            options={ACCOUNT_STATUS_FILTERS}
           />
 
           <fieldset className={styles.roleSet}>
@@ -371,6 +386,14 @@ export default function PeoplePage() {
                       .map((r) => ROLE_FILTERS.find((x) => x.value === r)?.label ?? r)
                       .join(", ")}`,
                     onRemove: () => refine(() => setRoles([])),
+                  },
+                ]
+              : []),
+            ...(status !== "active"
+              ? [
+                  {
+                    label: `Trạng thái: ${ACCOUNT_STATUS_FILTERS.find((x) => x.value === status)?.label}`,
+                    onRemove: () => refine(() => setStatus("active")),
                   },
                 ]
               : []),
@@ -460,21 +483,22 @@ export default function PeoplePage() {
 
         <ConfirmDialog
           open={locking !== null}
-          title="Khoá tài khoản"
-          confirmLabel="Khoá tài khoản"
-          pending={lockAccount.isPending}
-          onConfirm={() => locking && lockAccount.mutate(locking)}
+          title={locking?.active ? "Khoá tài khoản" : "Mở khoá tài khoản"}
+          confirmLabel={locking?.active ? "Khoá tài khoản" : "Mở khoá"}
+          pending={changeAccountStatus.isPending}
+          onConfirm={() => locking && changeAccountStatus.mutate(locking)}
           onClose={() => setLocking(null)}
           consequence={
-            <>
-              Người này <strong>không đăng nhập được nữa</strong> cho tới khi có
-              người mở khoá. Bảng chỉ hiện người đang làm nên dòng của họ biến
-              mất khỏi đây — mở khoá ở hồ sơ của họ. Các bản ghi cũ vẫn giữ
-              nguyên tên họ.
-            </>
+            locking?.active ? (
+              <>
+                Người này sẽ <strong>không thể đăng nhập</strong>. Khi cần mở khoá,
+                vào bộ lọc <strong>Trạng thái tài khoản</strong>, chọn <strong>Đã khoá</strong>{" "}
+                rồi mở hồ sơ của họ. Các bản ghi cũ vẫn giữ nguyên tên người tạo.
+              </>
+            ) : undefined
           }
         >
-          Khoá tài khoản của <strong>{locking?.fullName}</strong>?
+          {locking?.active ? "Khoá" : "Mở khoá"} tài khoản của <strong>{locking?.fullName}</strong>?
         </ConfirmDialog>
       </main>
     </>

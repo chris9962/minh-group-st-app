@@ -250,8 +250,8 @@ export function AccountCard({ staffId }: { staffId: string }) {
         onClose={() => setConfirming(null)}
         consequence={
           <>
-            Người này <strong>không đăng nhập được nữa</strong> cho tới khi có
-            người mở khoá. Các bản ghi cũ vẫn giữ nguyên tên họ.
+            Người này sẽ <strong>không thể đăng nhập</strong> cho đến khi bạn mở
+            khoá lại. Các bản ghi cũ vẫn giữ nguyên tên người tạo.
           </>
         }
       >
