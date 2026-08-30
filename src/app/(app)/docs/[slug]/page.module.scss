@@ -1,0 +1,30 @@
+.body {
+  flex: 1;
+  padding: 22px 28px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.back {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 13px;
+  color: var(--om-text-2);
+  padding: 12px 4px;
+  margin: -12px 0;
+}
+
+.back:hover {
+  color: var(--om-orange-mid);
+  text-decoration: underline;
+}
+
+@media (max-width: bp.$bp-mobile) {
+  .body {
+    padding: 16px 16px 32px;
+  }
+}

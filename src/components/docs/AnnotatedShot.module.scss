@@ -1,0 +1,72 @@
+.figure {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Nút bấm mang cả khung ảnh — bấm đâu trên ảnh cũng phóng to được. */
+.frame {
+  position: relative;
+  display: block;
+  padding: 0;
+  border: 1px solid var(--om-line);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--om-card);
+  cursor: zoom-in;
+
+  img {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+}
+
+.badge,
+.legendBadge {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--om-orange);
+  color: var(--om-text-on-accent);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.badge {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  /* Viền màu thẻ tách số khỏi nền ảnh, dù ảnh sáng hay tối. */
+  box-shadow: 0 0 0 2px var(--om-card);
+  pointer-events: none;
+}
+
+.legend {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  li {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    color: var(--om-text-2);
+    font-size: 14px;
+  }
+}
+
+.legendBadge {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  font-size: 12px;
+  /* Số và chữ canh theo baseline — vòng tròn tự kéo xuống giữa dòng đầu. */
+  transform: translateY(4px);
+}

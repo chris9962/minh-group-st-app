@@ -1,0 +1,45 @@
+.blocks {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 720px;
+}
+
+.text {
+  margin: 0;
+  color: var(--om-text);
+  line-height: 1.6;
+}
+
+.steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  counter-reset: step;
+
+  li {
+    position: relative;
+    padding-left: 36px;
+    line-height: 1.55;
+    counter-increment: step;
+
+    &::before {
+      content: counter(step);
+      position: absolute;
+      left: 0;
+      top: 1px;
+      display: grid;
+      place-items: center;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: var(--om-orange-soft);
+      color: var(--om-orange-ink);
+      font-size: 13px;
+      font-weight: 600;
+    }
+  }
+}

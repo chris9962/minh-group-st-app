@@ -23,7 +23,8 @@ export type NavIconKey =
   | 'settings'
   | 'exports'
   | 'org'
-  | 'audit';
+  | 'audit'
+  | 'help';
 
 export type NavItem = {
   href: string;
@@ -232,6 +233,10 @@ export function navFor(user: User | null): NavEntry[] {
   if (settingsChildren.length > 0) {
     items.push({ label: 'Cấu hình', icon: 'settings', children: settingsChildren });
   }
+
+  // Hướng dẫn mở cho MỌI người đăng nhập — trang tự lọc BÀI theo quyền
+  // (`lib/docs`), nên không gác gì ở đây.
+  items.push({ href: '/docs', label: 'Hướng dẫn', icon: 'help', screen: 'P-95' });
 
   return items;
 }

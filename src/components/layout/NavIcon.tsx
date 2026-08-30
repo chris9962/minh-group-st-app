@@ -1,4 +1,5 @@
 import {
+  BookOpen,
   Building2,
   ChartNoAxesColumn,
   CircleUserRound,
@@ -34,6 +35,7 @@ const ICONS = {
   exports: Download,
   org: Building2,
   audit: History,
+  help: BookOpen,
 } as const satisfies Record<NavIconKey, unknown>;
 
 export function NavIcon({ name }: { name: NavIconKey }) {
