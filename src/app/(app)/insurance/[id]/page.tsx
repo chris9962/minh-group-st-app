@@ -246,6 +246,8 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
   const canHandleFallback = can(actor, "insurance", "handle-fallback");
   /** Đặt trạng thái tuỳ ý — công cụ gỡ đơn mắc, cấp riêng với `handle-fallback`. */
   const canSetStatus = can(actor, "insurance", "set-status");
+  /** Người tạo chỉ được huỷ đơn đã hoàn thành của chính mình; đơn chưa xong có đường xoá riêng. */
+  const canCancelCompletedOwnOrder = data?.status === "done" && data.createdById === actor?.id;
   /**
    * Hỏi theo ĐÚNG BẢN GHI này, khớp từng vế với `setCertificatePhoto`.
    *
@@ -714,40 +716,43 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                 </div>
               )}
 
-            {/* Đặt trạng thái tuỳ ý — đứng RIÊNG dưới hai nút vòng đời, và chỉ
-                hiện với người được cấp `insurance:set-status`. Nó bỏ qua bảng
-                bước chuyển nên không đứng chung hàng với nút đi đúng vòng đời. */}
-            {canSetStatus && (
+            {/* Đặt trạng thái tuỳ ý chỉ hiện với `set-status`; nút Huỷ đứng cùng
+                hàng nhưng người tạo cũng thấy nó khi đơn của mình đã hoàn thành. */}
+            {(canSetStatus || canCancelCompletedOwnOrder) && (
               <div className={styles.override}>
-                <Select
-                  label="Đặt trạng thái"
-                  hideLabel
-                  value={overrideValue}
-                  disabled={override.isPending}
-                  onChange={setOverrideTo}
-                  options={InsuranceOrderStatus.options
-                    /**
-                     * `cancelled` chỉ xuất hiện khi đơn ĐANG ở đó, để ô chọn còn
-                     * hiển thị đúng trạng thái hiện tại. Nó không phải một lựa
-                     * chọn: nút Đặt khoá khi giá trị trùng trạng thái đơn, nên
-                     * không có đường nào từ đây vào `cancelled` mà không ghi lý
-                     * do. Máy chủ từ chối lần nữa nếu ai gọi thẳng.
-                     */
-                    .filter((k) => k !== "cancelled" || k === data.status)
-                    .map((k) => ({ value: k, label: INSURANCE_STATUS_LABEL[k] }))}
-                />
-                {/* Nút chỉ mang ĐỘNG TỪ. Ô chọn bên trái đã hiện tên trạng thái,
-                    lặp lại cụm "Đặt trạng thái" ở nút là nói hai lần một việc. */}
-                <Button
-                  variant="ghost"
-                  disabled={overrideValue === data.status || override.isPending}
-                  onClick={() => override.mutate(overrideValue as InsuranceOrderStatus)}
-                >
-                  {override.isPending ? "Đang đặt…" : "Đặt"}
-                </Button>
+                {canSetStatus && (
+                  <>
+                    <Select
+                      label="Đặt trạng thái"
+                      hideLabel
+                      value={overrideValue}
+                      disabled={override.isPending}
+                      onChange={setOverrideTo}
+                      options={InsuranceOrderStatus.options
+                        /**
+                         * `cancelled` chỉ xuất hiện khi đơn ĐANG ở đó, để ô chọn còn
+                         * hiển thị đúng trạng thái hiện tại. Nó không phải một lựa
+                         * chọn: nút Đặt khoá khi giá trị trùng trạng thái đơn, nên
+                         * không có đường nào từ đây vào `cancelled` mà không ghi lý
+                         * do. Máy chủ từ chối lần nữa nếu ai gọi thẳng.
+                         */
+                        .filter((k) => k !== "cancelled" || k === data.status)
+                        .map((k) => ({ value: k, label: INSURANCE_STATUS_LABEL[k] }))}
+                    />
+                    {/* Nút chỉ mang ĐỘNG TỪ. Ô chọn bên trái đã hiện tên trạng thái,
+                        lặp lại cụm "Đặt trạng thái" ở nút là nói hai lần một việc. */}
+                    <Button
+                      variant="ghost"
+                      disabled={overrideValue === data.status || override.isPending}
+                      onClick={() => override.mutate(overrideValue as InsuranceOrderStatus)}
+                    >
+                      {override.isPending ? "Đang đặt…" : "Đặt"}
+                    </Button>
+                  </>
+                )}
                 {/* Đẩy sang mép phải: huỷ đơn không phải một lựa chọn khác của ô
                     chọn bên trái, và nó là việc khó lùi nhất trong hàng này. */}
-                {data.status !== "cancelled" && (
+                {data.status !== "cancelled" && (canSetStatus || canCancelCompletedOwnOrder) && (
                   <Button
                     variant="secondary"
                     className={styles.overrideCancel}

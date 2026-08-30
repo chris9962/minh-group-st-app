@@ -26,7 +26,8 @@ export type InsuranceOrderSource = z.infer<typeof InsuranceOrderSource>;
  * (Đang làm tay), xong bấm hoàn thành → `done`.
  *
  * `cancelled` (Huỷ đơn) đứng NGOÀI vòng đời đó: không bước tự động nào dẫn vào,
- * chỉ người có `insurance:set-status` bấm huỷ và ghi lý do mới đưa đơn vào đây.
+ * người có `insurance:set-status`, hoặc người tạo với đơn `Hoàn thành` của
+ * chính mình, bấm huỷ và ghi lý do mới đưa đơn vào đây.
  *
  * TODO(P-13 Bảo hiểm, chờ bot PVI): bốn trạng thái của NHÁNH CHÍNH (`queued`,
  * `creating`, `pending-approval`, và `done` đi qua nhánh đó) hiện KHÔNG có

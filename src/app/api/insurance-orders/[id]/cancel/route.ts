@@ -1,9 +1,7 @@
 import { InsuranceCancelForm } from "@/lib/api/insurance";
-import { can } from "@/lib/permissions";
 import { logAudit } from "@/server/audit";
 import {
   badRequest,
-  forbidden,
   getActor,
   isUuid,
   jsonBody,
@@ -20,13 +18,13 @@ import { cancelInsuranceOrder } from "@/server/insurance";
  * do thành tham số không bắt buộc, và bỏ nó khỏi thân yêu cầu là huỷ được đơn
  * mà không ai biết vì sao.
  *
- * Cùng quyền `insurance:set-status` với ô "Đặt trạng thái" — chốt 2026-08-30:
- * ai đặt được trạng thái tuỳ ý thì huỷ được đơn.
+ * Người có `insurance:set-status` huỷ được mọi đơn. Người tạo cũng được huỷ
+ * đơn `Hoàn thành` của chính mình; chốt quyền và trạng thái nằm ở hàm server
+ * để lời gọi tự tạo không vượt được quy tắc đó.
  */
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const actor = await getActor(request);
   if (!actor) return unauthorized();
-  if (!can(actor, "insurance", "set-status")) return forbidden();
 
   const { id } = await params;
   if (!isUuid(id)) return notFound();

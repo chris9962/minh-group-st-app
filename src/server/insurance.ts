@@ -1040,30 +1040,43 @@ export async function overrideInsuranceOrderStatus(
  * qua `overrideInsuranceOrderStatus`, nên nó được kiểm ở đây chứ không chỉ ở
  * route — route là một đường gọi, hàm này là chỗ luật sống.
  *
- * KHÔNG chặn theo trạng thái hiện tại, kể cả `done`. Quyền `set-status` vốn đã
- * đặt được đơn `done` sang bất kỳ đâu; chặn ở đây chỉ đẩy người ta sang đường
- * đặt tay, và đường đó không ghi lý do.
+ * Người có `set-status` được huỷ bất kỳ đơn nào để gỡ ca nghiệp vụ. Ngoài ra,
+ * chính người tạo được huỷ đơn ĐÃ hoàn thành của mình: đơn chưa hoàn thành đã
+ * có đường xoá riêng với quyền `insurance:delete`, còn đơn hoàn thành là hợp
+ * đồng đã phát hành nên phải giữ vết huỷ và lý do thay vì xoá mất.
  */
 export async function cancelInsuranceOrder(
   actor: User,
   id: string,
   note: string,
 ): Promise<InsuranceOutcome<InsuranceDetail> | null> {
-  if (!can(actor, "insurance", "set-status")) return null;
-
   const reason = note.trim();
   if (reason.length < 2) return { ok: false, message: "Chưa nhập lý do huỷ." };
 
   const current = await rawById(id);
   if (!current) return null;
 
+  const canOverride = can(actor, "insurance", "set-status");
+  const creatorCancellingDone = current.status === "done" && current.createdById === actor.id;
+  if (!canOverride && !creatorCancellingDone) return null;
+
   if (current.status === "cancelled") return { ok: false, message: "Đơn này đã huỷ rồi." };
 
   const updated = await db
     .update(insuranceOrders)
     .set({ status: "cancelled", updatedAt: new Date() })
-    // Kẹp theo trạng thái ĐANG đọc được, cùng lối `overrideInsuranceOrderStatus`.
-    .where(and(eq(insuranceOrders.id, id), eq(insuranceOrders.status, current.status)))
+    // Người tạo chỉ được huỷ đơn của CHÍNH mình khi nó vẫn đang `done`. Điều
+    // kiện nằm trong câu ghi để một lượt đổi trạng thái song song không mở
+    // đường huỷ một đơn đã bị người khác chuyển đi.
+    .where(
+      canOverride
+        ? and(eq(insuranceOrders.id, id), eq(insuranceOrders.status, current.status))
+        : and(
+            eq(insuranceOrders.id, id),
+            eq(insuranceOrders.status, "done"),
+            eq(insuranceOrders.createdBy, actor.id),
+          ),
+    )
     .returning({ id: insuranceOrders.id });
 
   if (updated.length === 0)
