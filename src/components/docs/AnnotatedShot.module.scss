@@ -55,10 +55,15 @@
 
   li {
     display: flex;
-    align-items: baseline;
+    /* Canh theo MÉP TRÊN, không theo baseline: `.legendBadge` là hộp grid nên
+       baseline của nó là baseline của chữ số bên trong, thấp hơn hẳn baseline
+       của dòng chữ bên cạnh. Chú giải dài xuống dòng thì vòng tròn cũng phải ở
+       lại dòng đầu, nên `center` cũng sai. */
+    align-items: flex-start;
     gap: 10px;
     color: var(--om-text-2);
     font-size: 14px;
+    line-height: 20px;
   }
 }
 
@@ -67,6 +72,4 @@
   width: 20px;
   height: 20px;
   font-size: 12px;
-  /* Số và chữ canh theo baseline — vòng tròn tự kéo xuống giữa dòng đầu. */
-  transform: translateY(4px);
 }
