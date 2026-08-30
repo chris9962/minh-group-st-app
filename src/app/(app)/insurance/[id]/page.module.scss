@@ -309,6 +309,12 @@
   border-top: 1px solid var(--om-line);
 }
 
+/* Nút huỷ đơn đứng tách khỏi cặp ô chọn + nút Đặt. Trên màn hẹp thì `margin`
+   này không có tác dụng vì cả hàng đã xuống dòng. */
+.overrideCancel {
+  margin-left: auto;
+}
+
 .footnote {
   margin: 10px 0 0;
   font-size: 12px;
@@ -350,6 +356,15 @@
 
 .stepWho {
   color: var(--om-text-2);
+}
+
+/* Lý do huỷ chiếm trọn một hàng dưới ba cột. Nhét vào cột giữa thì nó ép cột
+   đó vỡ chữ, mà đây là câu dài nhất của cả dòng thời gian. */
+.stepNote {
+  grid-column: 1 / -1;
+  margin: 4px 0 0;
+  color: var(--om-text-2);
+  white-space: pre-wrap;
 }
 
 @media (max-width: bp.$bp-mobile) {

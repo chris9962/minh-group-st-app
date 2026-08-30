@@ -132,8 +132,20 @@ export const InsuranceStatusStep = z.object({
   /** null = hệ thống tự chuyển, không phải người bấm. */
   changedByName: z.string().nullable(),
   changedAt: z.string(),
+  /** Lý do đổi trạng thái. Rỗng ở mọi lượt trừ lượt huỷ đơn. */
+  note: z.string(),
 });
 export type InsuranceStatusStep = z.infer<typeof InsuranceStatusStep>;
+
+/** Lý do huỷ đơn — BẮT BUỘC, xem `cancelInsuranceOrder`. */
+export const InsuranceCancelForm = z.object({
+  note: z
+    .string()
+    .trim()
+    .min(2, 'Chưa nhập lý do huỷ')
+    .max(500, 'Lý do huỷ nhiều nhất 500 ký tự'),
+});
+export type InsuranceCancelForm = z.infer<typeof InsuranceCancelForm>;
 
 /** P-14 · Toàn bộ dữ liệu đã nhập + dòng thời gian trạng thái kèm mốc giờ. */
 export const InsuranceDetail = InsuranceOrder.extend({
@@ -247,14 +259,17 @@ export async function updateInsuranceOrder(
 }
 
 /**
- * Huỷ hẳn một đơn CHƯA hoàn thành — không có trạng thái "đã huỷ", cùng lối với
- * tài khoản ngân hàng bỏ dở (spec §4.5). Đơn đã `Hoàn thành` là hợp đồng đã
- * phát hành bên PVI nên máy chủ từ chối; đơn quà tặng cũng vậy, nó là vết của
- * một đợt tặng quà.
+ * XOÁ HẲN một đơn chưa hoàn thành, cùng lối với tài khoản ngân hàng bỏ dở
+ * (spec §4.5). Đơn đã `Hoàn thành` là hợp đồng đã phát hành bên PVI nên máy chủ
+ * từ chối; đơn quà tặng cũng vậy, nó là vết của một đợt tặng quà.
+ *
+ * KHÁC `cancelInsuranceOrder`: đường này dành cho đơn nhập nhầm, đơn đi mất
+ * cùng dòng thời gian của nó. Đơn có thật mà khách không mua nữa thì huỷ, đừng
+ * xoá — huỷ giữ lại bản ghi và lý do.
  */
 export async function deleteInsuranceOrder(id: string): Promise<void> {
   const res = await fetch(`/api/insurance-list/${id}`, { method: 'DELETE' });
-  if (!res.ok) throw await failure(res, 'Không huỷ được đơn này');
+  if (!res.ok) throw await failure(res, 'Không xoá được đơn này');
 }
 
 /**
@@ -291,6 +306,26 @@ export async function overrideInsuranceOrderStatus(
     body: JSON.stringify({ status }),
   });
   if (!res.ok) throw await failure(res, 'Không đặt được trạng thái đơn này');
+  return InsuranceDetail.parse(await res.json());
+}
+
+/**
+ * Huỷ đơn — đơn sang `cancelled` và Ở LẠI trong kho, kèm lý do trên dòng thời
+ * gian. Quyền `insurance:set-status`, cùng quyền với ô "Đặt trạng thái".
+ *
+ * Khác `deleteInsuranceOrder`: đường kia xoá hẳn dòng đơn lẫn dòng thời gian
+ * của nó, không tra lại được ai huỷ và vì sao.
+ */
+export async function cancelInsuranceOrder(
+  id: string,
+  form: InsuranceCancelForm,
+): Promise<InsuranceDetail> {
+  const res = await fetch(`/api/insurance-orders/${id}/cancel`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(form),
+  });
+  if (!res.ok) throw await failure(res, 'Không huỷ được đơn này');
   return InsuranceDetail.parse(await res.json());
 }
 

@@ -200,12 +200,12 @@ for (const role of ROLES) {
       const row = rowsOf(page).filter({ hasText: code });
       await expect(row).toContainText("Hoàn thành");
       // Cột Thao tác của dòng `done` phải trống — máy chủ từ chối cả sửa lẫn
-      // huỷ, hiện nút ở đây là hứa suông.
+      // xoá, hiện nút ở đây là hứa suông.
       await expect(row.getByRole("button", { name: /^Sửa đơn/ })).toHaveCount(0);
-      await expect(row.getByRole("button", { name: /^Huỷ đơn/ })).toHaveCount(0);
+      await expect(row.getByRole("button", { name: /^Xoá đơn/ })).toHaveCount(0);
     });
 
-    test("sửa và huỷ đơn chưa hoàn thành, có hộp xác nhận", async ({ page }) => {
+    test("sửa và xoá đơn chưa hoàn thành, có hộp xác nhận", async ({ page }) => {
       await openInsurance(page);
       const code = await createOrder(page);
       const row = rowsOf(page).filter({ hasText: code });
@@ -217,12 +217,12 @@ for (const role of ROLES) {
       await editor.getByRole("button", { name: "Lưu" }).click();
       await expect(toast(page, /Đã lưu thay đổi đơn/)).toBeVisible();
 
-      await row.getByRole("button", { name: /^Huỷ đơn/ }).click();
+      await row.getByRole("button", { name: /^Xoá đơn/ }).click();
       // Việc khó lùi thì phải hỏi lại — không xoá thẳng khi bấm icon.
       const confirm = page.getByRole("dialog");
-      await expect(confirm.getByText("Huỷ đơn bảo hiểm này?")).toBeVisible();
-      await confirm.getByRole("button", { name: "Huỷ đơn", exact: true }).click();
-      await expect(toast(page, /Đã huỷ đơn/)).toBeVisible();
+      await expect(confirm.getByText("Xoá hẳn đơn bảo hiểm này?")).toBeVisible();
+      await confirm.getByRole("button", { name: "Xoá đơn", exact: true }).click();
+      await expect(toast(page, /Đã xoá đơn/)).toBeVisible();
       await expect(row).toHaveCount(0);
     });
 

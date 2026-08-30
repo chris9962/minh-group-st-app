@@ -184,9 +184,9 @@ export default function InsurancePage() {
       // thì chỉ biết sau khi máy chủ đã trả về một trang rỗng. Bỏ dòng này thì
       // người dùng thấy chữ "Chưa có đơn nào" suốt một lượt gọi mạng.
       setPage((p) => (data.rows.length === 1 && p > 0 ? p - 1 : p));
-      toast.ok(`Đã huỷ đơn ${row.orderCode}`);
+      toast.ok(`Đã xoá đơn ${row.orderCode}`);
     },
-    onError: (e) => toast.fail(errorMessage(e, "Không huỷ được đơn này.")),
+    onError: (e) => toast.fail(errorMessage(e, "Không xoá được đơn này.")),
   });
 
   const activeCount =
@@ -284,7 +284,7 @@ export default function InsurancePage() {
               label: "Thao tác",
               /**
                * Đơn đã hoàn thành KHÔNG hiện nút nào: hợp đồng đã phát hành bên
-               * PVI, máy chủ từ chối cả sửa lẫn huỷ. Hiện nút rồi trả lỗi là
+               * PVI, máy chủ từ chối cả sửa lẫn xoá. Hiện nút rồi trả lỗi là
                * hứa suông (ảnh chứng nhận vẫn thay được, nhưng ở P-14).
                *
                * Nút chỉ có icon nên `aria-label` phải kèm mã đơn: giữa mười lăm
@@ -294,8 +294,8 @@ export default function InsurancePage() {
                 /**
                  * Hỏi theo TỪNG DÒNG, không chỉ theo module.
                  *
-                 * Xem và sửa/huỷ là hai ô quyền rời nhau: nhân viên kinh doanh
-                 * xem được đơn cả công ty nhưng chỉ sửa/huỷ đơn mình tạo. Bản
+                 * Xem và sửa/xoá là hai ô quyền rời nhau: nhân viên kinh doanh
+                 * xem được đơn cả công ty nhưng chỉ sửa/xoá đơn mình tạo. Bản
                  * trước chỉ hỏi `can()` nên nút hiện trên mọi dòng, bấm vào thì
                  * máy chủ trả 404 — chặn đúng, nhưng người dùng đã bấm rồi.
                  */
@@ -306,7 +306,13 @@ export default function InsurancePage() {
                      được, bất kể phòng. Không kẹp phạm vi, đúng như máy chủ. */
                   claim: canHandleFallback && r.status === "manual-queued",
                 };
-                if (r.status === "done" || (!mine.edit && !mine.remove && !mine.claim))
+                // `cancelled` đứng chung với `done`: cả hai là trạng thái
+                // CUỐI, đơn không còn việc gì để làm trên bảng này.
+                if (
+                  r.status === "done" ||
+                  r.status === "cancelled" ||
+                  (!mine.edit && !mine.remove && !mine.claim)
+                )
                   return <span className="text-muted">—</span>;
 
                 return (
@@ -338,8 +344,8 @@ export default function InsurancePage() {
                       <Button
                         variant="secondary"
                         icon
-                        tooltip="Huỷ đơn"
-                        aria-label={`Huỷ đơn ${r.orderCode} của ${r.customerName}`}
+                        tooltip="Xoá đơn"
+                        aria-label={`Xoá đơn ${r.orderCode} của ${r.customerName}`}
                         onClick={() => setRemoving(r)}
                       >
                         <Trash2 size={16} aria-hidden />
@@ -549,9 +555,9 @@ export default function InsurancePage() {
         {removing && (
           <ConfirmDialog
             open
-            title="Huỷ đơn bảo hiểm này?"
-            consequence="Đơn bị xoá hẳn khỏi hệ thống, không có trạng thái “đã huỷ” để tra lại."
-            confirmLabel="Huỷ đơn"
+            title="Xoá hẳn đơn bảo hiểm này?"
+            consequence="Đơn biến mất khỏi hệ thống cùng dòng thời gian của nó. Muốn giữ lại vết thì mở đơn ra và bấm “Huỷ đơn”: đơn đứng lại ở trạng thái Huỷ đơn kèm lý do."
+            confirmLabel="Xoá đơn"
             pending={remove.isPending}
             onConfirm={() => remove.mutate(removing)}
             onClose={() => setRemoving(null)}

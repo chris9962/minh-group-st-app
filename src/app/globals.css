@@ -69,19 +69,27 @@ a {
  * `--color-accent-800` (nâu cam #643312) — đọc ra chữ thường đậm màu, người
  * dùng gõ sai mật khẩu không nhận ra dòng lỗi đã hiện.
  *
- * Chỉ dùng cho CHỮ báo lỗi và dấu bắt buộc cạnh nhãn. Không dùng cho nền,
- * viền hay nhãn trạng thái — "không đạt" của nhãn trạng thái vẫn theo hệ
- * `--om-green*`.
- *
  * Đã đo tương phản: bộ sáng 6.5:1 trên thẻ trắng, 6.0:1 trên nền kem; bộ tối
  * 5.9:1 trên nền thẻ. Cả ba vượt mức WCAG AA cho cỡ chữ thường.
+ *
+ * `--om-red-soft` và `--om-red-ink` thêm 2026-08-30 cho nhãn trạng thái "Huỷ
+ * đơn", trạng thái duy nhất được dùng hệ đỏ. "Không đạt" của nhãn trạng thái
+ * VẪN theo hệ `--om-green*`: nó nói người đó chưa tới chỉ tiêu, còn đỏ ở đây
+ * nói việc đã dừng hẳn, không ai làm tiếp.
+ *
+ * Đã đo tương phản chữ trên nền nhãn: bộ sáng 8.2:1, bộ tối 8.5:1, cả hai vượt
+ * mức WCAG AAA. Viền dùng chính `--om-red`: 5.3:1 và 5.8:1 trên nền nhãn.
  */
 :root {
   --om-red: #b91c1c;
+  --om-red-soft: #fee2e2;
+  --om-red-ink: #7f1d1d;
 }
 
 :root[data-theme="dark"] {
   --om-red: #f87171;
+  --om-red-soft: #450a0a;
+  --om-red-ink: #fca5a5;
 }
 
 /* Máy tính: sidebar và vùng nội dung tự cuộn bên trong AppShell, còn TÀI LIỆU

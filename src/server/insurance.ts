@@ -568,6 +568,7 @@ async function historyOf(orderId: string): Promise<InsuranceDetail["history"]> {
       toStatus: insuranceOrderStatusHistory.toStatus,
       changedByName: users.fullName,
       changedAt: insuranceOrderStatusHistory.changedAt,
+      note: insuranceOrderStatusHistory.note,
     })
     .from(insuranceOrderStatusHistory)
     .leftJoin(users, eq(users.id, insuranceOrderStatusHistory.changedBy))
@@ -785,6 +786,11 @@ export async function updateInsuranceOrder(
       message: "Đơn đã hoàn thành thì không sửa được nữa — chỉ thay được ảnh chứng nhận.",
     };
 
+  // Trạng thái cuối thứ hai. Sửa nội dung một đơn đã huỷ không đổi được điều
+  // gì, nhưng nó viết lại bản ghi mà lý do huỷ đang trỏ tới.
+  if (current.status === "cancelled")
+    return { ok: false, message: "Đơn đã huỷ thì không sửa được nữa." };
+
   /**
    * Kiểm dữ liệu vào ở ĐÂY chứ không ở route, vì luật biển số/loại xe phụ thuộc
    * sản phẩm mà sản phẩm phải ĐỌC TỪ DATABASE. Route parse trước thì chỉ có
@@ -840,7 +846,8 @@ export async function updateInsuranceOrder(
 }
 
 /**
- * Huỷ hẳn một đơn chưa hoàn thành — không có trạng thái "đã huỷ", cùng lối với
+ * XOÁ HẲN một đơn chưa hoàn thành — khác `cancelInsuranceOrder` là đơn ở lại
+ * kho kèm lý do. Cùng lối với
  * tài khoản ngân hàng bỏ dở (spec §4.5).
  *
  * Trả `null` khi không tìm thấy HOẶC ngoài tầm nhìn: 404 giống hệt nhau để
@@ -857,11 +864,11 @@ export async function deleteInsuranceOrder(
   if (!current || !inScope(visible, current)) return null;
 
   if (current.status === "done")
-    return { ok: false, message: "Đơn đã hoàn thành thì không huỷ được — hợp đồng đã phát hành." };
+    return { ok: false, message: "Đơn đã hoàn thành thì không xoá được — hợp đồng đã phát hành." };
   if (current.source === "gift")
     return {
       ok: false,
-      message: "Đơn quà tặng không huỷ riêng được — nó là vết của một đợt tặng quà.",
+      message: "Đơn quà tặng không xoá riêng được — nó là vết của một đợt tặng quà.",
     };
 
   const row = toRow(current);
@@ -1041,6 +1048,17 @@ export async function overrideInsuranceOrderStatus(
   if (current.status === next)
     return { ok: false, message: `Đơn đang ở trạng thái này rồi.` };
 
+  /**
+   * Huỷ đơn đi đường RIÊNG (`cancelInsuranceOrder`) vì lượt đó phải kèm lý do.
+   * Cho phép ở đây là mở một đường vào `cancelled` không có lý do, và dòng thời
+   * gian mất đúng thông tin duy nhất khiến trạng thái này đáng có.
+   *
+   * Chiều NGƯỢC lại vẫn mở: đặt tay đơn đã huỷ sang trạng thái khác là cách gỡ
+   * một lượt huỷ nhầm.
+   */
+  if (next === "cancelled")
+    return { ok: false, message: "Huỷ đơn phải bấm nút Huỷ đơn để ghi lý do." };
+
   const updated = await db
     .update(insuranceOrders)
     .set({ status: next, updatedAt: new Date() })
@@ -1057,6 +1075,58 @@ export async function overrideInsuranceOrderStatus(
     fromStatus: current.status,
     toStatus: next,
     changedBy: actor.id,
+  });
+
+  return { ok: true, value: (await insuranceOrderDetail(actor, id))! };
+}
+
+/**
+ * Huỷ đơn — đơn sang `cancelled` và Ở LẠI trong kho, kèm lý do trên dòng lịch sử.
+ *
+ * Khác `deleteInsuranceOrder`: đường kia xoá hẳn dòng đơn lẫn dòng thời gian
+ * của nó, nên sau đó không ai tra được đơn nào đã huỷ, ai huỷ và vì sao. Hai
+ * đường cùng tồn tại: xoá dành cho đơn nhập nhầm, huỷ dành cho đơn có thật mà
+ * khách hoặc PVI không làm nữa.
+ *
+ * Lý do BẮT BUỘC. Đó là toàn bộ giá trị của trạng thái này so với việc đặt tay
+ * qua `overrideInsuranceOrderStatus`, nên nó được kiểm ở đây chứ không chỉ ở
+ * route — route là một đường gọi, hàm này là chỗ luật sống.
+ *
+ * KHÔNG chặn theo trạng thái hiện tại, kể cả `done`. Quyền `set-status` vốn đã
+ * đặt được đơn `done` sang bất kỳ đâu; chặn ở đây chỉ đẩy người ta sang đường
+ * đặt tay, và đường đó không ghi lý do.
+ */
+export async function cancelInsuranceOrder(
+  actor: User,
+  id: string,
+  note: string,
+): Promise<InsuranceOutcome<InsuranceDetail> | null> {
+  if (!can(actor, "insurance", "set-status")) return null;
+
+  const reason = note.trim();
+  if (reason.length < 2) return { ok: false, message: "Chưa nhập lý do huỷ." };
+
+  const current = await rawById(id);
+  if (!current) return null;
+
+  if (current.status === "cancelled") return { ok: false, message: "Đơn này đã huỷ rồi." };
+
+  const updated = await db
+    .update(insuranceOrders)
+    .set({ status: "cancelled", updatedAt: new Date() })
+    // Kẹp theo trạng thái ĐANG đọc được, cùng lối `overrideInsuranceOrderStatus`.
+    .where(and(eq(insuranceOrders.id, id), eq(insuranceOrders.status, current.status)))
+    .returning({ id: insuranceOrders.id });
+
+  if (updated.length === 0)
+    return { ok: false, message: "Đơn này vừa đổi trạng thái. Tải lại trang rồi thử lại." };
+
+  await db.insert(insuranceOrderStatusHistory).values({
+    orderId: id,
+    fromStatus: current.status,
+    toStatus: "cancelled",
+    changedBy: actor.id,
+    note: reason,
   });
 
   return { ok: true, value: (await insuranceOrderDetail(actor, id))! };

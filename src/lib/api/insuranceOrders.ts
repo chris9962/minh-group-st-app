@@ -25,6 +25,9 @@ export type InsuranceOrderSource = z.infer<typeof InsuranceOrderSource>;
  * xếp hàng chờ người xử lý), người xử lý nhận đơn → `manual-progress`
  * (Đang làm tay), xong bấm hoàn thành → `done`.
  *
+ * `cancelled` (Huỷ đơn) đứng NGOÀI vòng đời đó: không bước tự động nào dẫn vào,
+ * chỉ người có `insurance:set-status` bấm huỷ và ghi lý do mới đưa đơn vào đây.
+ *
  * TODO(P-13 Bảo hiểm, chờ bot PVI): bốn trạng thái của NHÁNH CHÍNH (`queued`,
  * `creating`, `pending-approval`, và `done` đi qua nhánh đó) hiện KHÔNG có
  * đường nào đi vào — chưa có bot nên đơn mới sinh thẳng ở `manual-queued`.
@@ -44,6 +47,14 @@ export const InsuranceOrderStatus = z.enum([
    */
   'awaiting-certificate',
   'done',
+  /**
+   * Trạng thái CUỐI thứ hai, cạnh `done`. Đơn không đi tiếp được nữa nhưng vẫn
+   * nằm trong kho, khác hẳn `deleteInsuranceOrder` là xoá mất cả dòng thời gian.
+   *
+   * Chỉ vào được qua `cancelInsuranceOrder`, và lượt đó BẮT ghi lý do. Ô "Đặt
+   * trạng thái" cố ý không liệt kê giá trị này — đi đường đó thì không có lý do.
+   */
+  'cancelled',
 ]);
 export type InsuranceOrderStatus = z.infer<typeof InsuranceOrderStatus>;
 
@@ -55,6 +66,7 @@ export const INSURANCE_STATUS_LABEL: Record<InsuranceOrderStatus, string> = {
   'manual-progress': 'Đang làm tay',
   'awaiting-certificate': 'Đợi giấy chứng nhận',
   done: 'Hoàn thành',
+  cancelled: 'Huỷ đơn',
 };
 
 /**
@@ -85,6 +97,9 @@ export const INSURANCE_STATUS_TONE: Record<InsuranceOrderStatus, StatusTone> = {
   // xong, ở đây là PVI sinh file. Đọng lâu là phải đi hỏi.
   'awaiting-certificate': 'review',
   done: 'ok',
+  // Tông RIÊNG, không mượn `warn` cũng không mượn `neutral`: cam gọi người ta
+  // vào xử lý, xám nghĩa là chưa tới lượt. Đơn huỷ thì không còn việc gì.
+  cancelled: 'cancelled',
 };
 
 /**

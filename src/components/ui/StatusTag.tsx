@@ -1,7 +1,14 @@
-import { Check, Clock, Hourglass, Minus, RefreshCw, TriangleAlert } from "lucide-react";
+import { Check, Clock, Hourglass, Minus, RefreshCw, TriangleAlert, X } from "lucide-react";
 import styles from "./StatusTag.module.css";
 
-export type StatusTone = "ok" | "warn" | "neutral" | "waiting" | "progress" | "review";
+export type StatusTone =
+  | "ok"
+  | "warn"
+  | "neutral"
+  | "waiting"
+  | "progress"
+  | "review"
+  | "cancelled";
 
 type Props = {
   /**
@@ -31,6 +38,7 @@ const TONE_CLASS: Record<StatusTone, string> = {
   waiting: styles.neutral,
   progress: styles.progress,
   review: styles.review,
+  cancelled: styles.cancelled,
 };
 
 /**
@@ -46,6 +54,7 @@ const TONE_MARK: Record<StatusTone, React.ReactNode> = {
   waiting: <Clock size={12} />,
   progress: <RefreshCw size={12} strokeWidth={2.5} />,
   review: <Hourglass size={12} />,
+  cancelled: <X size={13} strokeWidth={3} />,
 };
 
 /**

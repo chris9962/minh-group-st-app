@@ -3,7 +3,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { use, useCallback, useEffect, useRef, useState } from "react";
-import { CheckCircle2, ChevronLeft, Download, ExternalLink, EyeOff, FileText, History, ImagePlus, Pencil, ShieldCheck, X } from "lucide-react";
+import { Ban, CheckCircle2, ChevronLeft, Download, ExternalLink, EyeOff, FileText, History, ImagePlus, Pencil, ShieldCheck, X } from "lucide-react";
+import { InsuranceCancelDialog } from "@/components/insurance/InsuranceCancelDialog";
 import { SkeletonCard } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
@@ -346,6 +347,15 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
    * cũ: người bấm phải thấy rõ mình đang làm việc khác.
    */
   const [overrideTo, setOverrideTo] = useState<string>("");
+  const [cancelOpen, setCancelOpen] = useState(false);
+  /**
+   * Ô chọn khởi điểm ở ĐÚNG trạng thái đơn đang mang, không phải một dòng trống.
+   *
+   * Tính khi render chứ không đồng bộ bằng effect (AGENTS.md §7): `data` về sau
+   * lượt render đầu, và `overrideTo` rỗng nghĩa là "người dùng chưa chọn gì",
+   * không phải "chưa có dữ liệu".
+   */
+  const overrideValue = overrideTo || data?.status || "";
   const override = useMutation({
     mutationFn: (status: InsuranceOrderStatus) => overrideInsuranceOrderStatus(id, status),
     onSuccess: (order) => {
@@ -737,23 +747,42 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
               <div className={styles.override}>
                 <Select
                   label="Đặt trạng thái"
-                  value={overrideTo}
+                  hideLabel
+                  value={overrideValue}
                   disabled={override.isPending}
                   onChange={setOverrideTo}
-                  options={[
-                    { value: "", label: "— chọn trạng thái —" },
-                    ...InsuranceOrderStatus.options
-                      .filter((k) => k !== data.status)
-                      .map((k) => ({ value: k, label: INSURANCE_STATUS_LABEL[k] })),
-                  ]}
+                  options={InsuranceOrderStatus.options
+                    /**
+                     * `cancelled` chỉ xuất hiện khi đơn ĐANG ở đó, để ô chọn còn
+                     * hiển thị đúng trạng thái hiện tại. Nó không phải một lựa
+                     * chọn: nút Đặt khoá khi giá trị trùng trạng thái đơn, nên
+                     * không có đường nào từ đây vào `cancelled` mà không ghi lý
+                     * do. Máy chủ từ chối lần nữa nếu ai gọi thẳng.
+                     */
+                    .filter((k) => k !== "cancelled" || k === data.status)
+                    .map((k) => ({ value: k, label: INSURANCE_STATUS_LABEL[k] }))}
                 />
+                {/* Nút chỉ mang ĐỘNG TỪ. Ô chọn bên trái đã hiện tên trạng thái,
+                    lặp lại cụm "Đặt trạng thái" ở nút là nói hai lần một việc. */}
                 <Button
                   variant="ghost"
-                  disabled={!overrideTo || override.isPending}
-                  onClick={() => override.mutate(overrideTo as InsuranceOrderStatus)}
+                  disabled={overrideValue === data.status || override.isPending}
+                  onClick={() => override.mutate(overrideValue as InsuranceOrderStatus)}
                 >
-                  {override.isPending ? "Đang đặt…" : "Đặt trạng thái"}
+                  {override.isPending ? "Đang đặt…" : "Đặt"}
                 </Button>
+                {/* Đẩy sang mép phải: huỷ đơn không phải một lựa chọn khác của ô
+                    chọn bên trái, và nó là việc khó lùi nhất trong hàng này. */}
+                {data.status !== "cancelled" && (
+                  <Button
+                    variant="secondary"
+                    className={styles.overrideCancel}
+                    onClick={() => setCancelOpen(true)}
+                  >
+                    <Ban size={16} aria-hidden />
+                    Huỷ đơn
+                  </Button>
+                )}
               </div>
             )}
             </div>
@@ -773,6 +802,7 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                   </span>
                   {/* Không có người bấm nghĩa là hệ thống tự chuyển (spec §3.4). */}
                   <span className={styles.stepWho}>{step.changedByName ?? "Hệ thống"}</span>
+                  {step.note && <p className={styles.stepNote}>{step.note}</p>}
                 </li>
               ))}
             </ol>
@@ -782,6 +812,16 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
 
       {zoomed && (
         <ImageLightbox src={zoomed.src} alt={zoomed.alt} onClose={() => setZoomed(null)} />
+      )}
+
+      {data && (
+        <InsuranceCancelDialog
+          open={cancelOpen}
+          onClose={() => setCancelOpen(false)}
+          orderId={data.id}
+          orderCode={data.orderCode}
+          onCancelled={invalidate}
+        />
       )}
     </>
   );

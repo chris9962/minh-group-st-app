@@ -60,7 +60,7 @@ const sumInsuredOptions = (current: number) => {
  * không mang bốn trường người thụ hưởng (một trong số đó là CCCD), mà thiếu
  * chúng thì không dựng nổi form.
  *
- * KHÔNG có nút Huỷ đơn ở đây: bảng bên ngoài đã có nút xoá kèm hộp xác nhận nói
+ * KHÔNG có nút Xoá đơn ở đây: bảng bên ngoài đã có nút xoá kèm hộp xác nhận nói
  * rõ hệ quả. Đường xoá thứ hai nằm sát nút "Huỷ" của hộp thoại là đặt bẫy đúng
  * chỗ ngón tay quen bấm.
  */

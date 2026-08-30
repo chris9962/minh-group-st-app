@@ -59,7 +59,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   return Response.json(result.value);
 }
 
-/** Huỷ hẳn một đơn chưa hoàn thành — không có trạng thái "đã huỷ". */
+/** XOÁ HẲN một đơn chưa hoàn thành. Huỷ đơn mà giữ lại vết thì đi `../insurance-orders/[id]/cancel`. */
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const actor = await getActor(request);
   if (!actor) return unauthorized();

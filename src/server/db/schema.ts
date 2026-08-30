@@ -95,6 +95,9 @@ export const insuranceOrderStatus = pgEnum("insurance_order_status", [
   // không phải thao tác trên PVI nữa — xem `pvi-qlcd-playwright/LUONG-TAO-VA-DUYET.md`.
   "awaiting-certificate",
   "done",
+  // Trạng thái CUỐI thứ hai, cạnh 'done'. Không nằm trong vòng đời tự động:
+  // chỉ `cancelInsuranceOrder` đưa đơn vào đây, và lượt đó bắt ghi lý do.
+  "cancelled",
 ]);
 export const insuranceOrderSource = pgEnum("insurance_order_source", ["self", "gift"]);
 
@@ -1041,6 +1044,8 @@ export const insuranceOrderStatusHistory = pgTable(
     toStatus: insuranceOrderStatus("to_status").notNull(),
     /** null = hệ thống/bot tự chuyển. */
     changedBy: uuid("changed_by").references(() => users.id),
+    /** Lý do đổi trạng thái. Rỗng ở mọi lượt trừ lượt huỷ đơn, nơi nó bắt buộc. */
+    note: text("note").notNull().default(""),
     changedAt: timestamp("changed_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("insurance_history_order").on(t.orderId)],

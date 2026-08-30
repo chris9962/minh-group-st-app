@@ -33,6 +33,15 @@
   color: var(--om-orange-ink);
 }
 
+/* Việc đã dừng hẳn: đỏ, nền đặc, ký hiệu dấu X. Tách khỏi xám vì xám nghĩa là
+   "chưa tới lượt" — đơn huỷ thì không còn lượt nào để tới. Cũng tách khỏi cam
+   của `.warn`: cam gọi người ta vào xử lý, đỏ nói không phải xử lý nữa. */
+.cancelled {
+  background: var(--om-red-soft);
+  border: 1px solid var(--om-red);
+  color: var(--om-red-ink);
+}
+
 /* Không đạt cũng không cần để ý — không mượn màu của bên nào. Dấu gạch ngang
    thay cho ✓ / ! là chỗ phân biệt chính, màu chỉ hỗ trợ. */
 .neutral {
