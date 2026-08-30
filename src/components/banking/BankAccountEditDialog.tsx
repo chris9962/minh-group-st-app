@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { SkeletonCard } from "@/components/ui/Skeleton";
+import { CopyValue } from "@/components/ui/CopyValue";
 import {
   BankAccountFinishForm,
   canEditOpeningPhotos,
@@ -236,7 +237,7 @@ export function BankAccountEditDialog({ open, onClose, accountId }: Props) {
       {data && (
         <div className={styles.form}>
           <div className={styles.summary}>
-            <strong>{data.bankCode}</strong> · {data.referralCode} · {data.customerName}
+            <strong>{data.bankCode}</strong> · {data.customerName}
             {data.channel && (
               <span className="text-muted">
                 {" "}
@@ -244,6 +245,13 @@ export function BankAccountEditDialog({ open, onClose, accountId }: Props) {
                 {data.channelDetail ? ` · ${data.channelDetail}` : ""}
               </span>
             )}
+          </div>
+
+          {/* Mã giới thiệu đứng riêng và chép được: nhân viên phải gõ đúng mã này
+              sang app ngân hàng, gõ tay là chỗ dễ sai nhất của cả luồng. */}
+          <div className={styles.referral}>
+            <span className={styles.referralLabel}>Mã giới thiệu</span>
+            <CopyValue value={data.referralCode} label="mã giới thiệu" />
           </div>
 
           {/* Cùng một bộ ô cho cả hai mặt — khác nhau ở chỗ bấm nút thì làm gì.
