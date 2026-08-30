@@ -165,7 +165,7 @@ export const BankAccountFinishForm = z.object({
    * Postgres nhận nhiều dạng ngày mà `Date` của JS không nhận. Gửi `20260806`
    * thì câu `UPDATE` THÀNH CÔNG — tài khoản lên `done`, mã đã tiêu — rồi
    * `businessMonth(new Date(…))` ném lỗi và route trả 500: dữ liệu đã ghi, điểm
-   * KPI không được tính lại, nhật ký truy vết không có dòng nào.
+   * KPI không được tính lại, nhật ký hoạt động không có dòng nào.
    *
    * Đúng hình dạng vẫn chưa đủ: `2026-02-31` khớp regex mà Postgres từ chối
    * bằng `22008`, và người dùng nhận 500 thay vì câu báo lỗi.

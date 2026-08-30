@@ -36,11 +36,11 @@ const formatDateTime = (value: string): string => {
 };
 
 /**
- * P-93 · Nhật ký truy vết — ai · làm gì · lúc nào · trên bản ghi nào.
+ * P-93 · Nhật ký hoạt động — ai · làm gì · lúc nào · trên bản ghi nào.
  *
  * Chỉ GĐ · QTHT xem được — gate bằng `manage-org`, không phải `view-detail`,
  * vì Kế toán tổng hợp cũng có `view-detail` qua wildcard `*` dù không nên
- * thấy nhật ký truy vết.
+ * thấy nhật ký hoạt động.
  */
 export default function AuditLogPage() {
   const user = useSession((s) => s.user);
@@ -116,7 +116,7 @@ export default function AuditLogPage() {
   if (!canView) {
     return (
       <>
-        <TopBar title="Nhật ký truy vết" keepTitleOnMobile />
+        <TopBar title="Nhật ký hoạt động" keepTitleOnMobile />
         <main className={styles.body}>
           <p className="text-muted">Bạn không có quyền xem trang này.</p>
         </main>
@@ -126,7 +126,7 @@ export default function AuditLogPage() {
 
   return (
     <>
-      <TopBar title="Nhật ký truy vết" keepTitleOnMobile>
+      <TopBar title="Nhật ký hoạt động" keepTitleOnMobile>
         <FilterButton
           activeCount={activeCount}
           onClear={() =>
@@ -183,7 +183,7 @@ export default function AuditLogPage() {
 
         {isPending && <SkeletonTable rows={10} columns={4} />}
         {isError && (
-          <ErrorState what="nhật ký truy vết" onRetry={refetch} retrying={isFetching} />
+          <ErrorState what="nhật ký hoạt động" onRetry={refetch} retrying={isFetching} />
         )}
 
         {!isPending && !isError && (
@@ -193,7 +193,7 @@ export default function AuditLogPage() {
               columns={columns}
               rowKey={(r) => r.id}
               defaultSort="at"
-              caption="Nhật ký truy vết theo thời gian gần nhất"
+              caption="Nhật ký hoạt động theo thời gian gần nhất"
               emptyText={
                 filtering
                   ? "Không có hành động nào khớp bộ lọc."

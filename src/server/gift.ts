@@ -374,7 +374,7 @@ export async function recountGiftCases(
 }
 
 type GrantOutcome =
-  /** `itemLabel` là TÊN món lúc phát — nhật ký truy vết cần chữ đọc được, không cần mã. */
+  /** `itemLabel` là TÊN món lúc phát — nhật ký hoạt động cần chữ đọc được, không cần mã. */
   | { ok: true; customerName: string; itemLabel: string }
   | { ok: false; code: (typeof GIFT_ERROR)[keyof typeof GIFT_ERROR]; message: string };
 

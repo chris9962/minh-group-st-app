@@ -153,7 +153,7 @@ export type InsuranceManualStep = z.infer<typeof InsuranceManualStep>;
  * `created_at` KHÔNG đụng tới: nó vẫn là mốc bất biến "dòng dữ liệu ghi lúc
  * nào", và là thứ duy nhất còn đối chiếu được khi ngày tạo đơn bị sửa.
  *
- * ⚠️ Nhật ký truy vết P-93 hiện chỉ ghi "ai sửa đơn nào lúc nào", KHÔNG ghi giá
+ * ⚠️ Nhật ký hoạt động P-93 hiện chỉ ghi "ai sửa đơn nào lúc nào", KHÔNG ghi giá
  * trị cũ và mới (`audit_log.detail` chưa có đường ghi). Nên một lượt kéo đơn từ
  * tháng 8 về tháng 6 để lại vết là có người sửa, chứ không nói kéo đi đâu.
  */

@@ -180,13 +180,18 @@ export const DATA_DOCS: DocArticle[] = [
     ],
   },
   {
+    // Slug giữ nguyên dù màn đã đổi tên thành "Nhật ký hoạt động"
+    // (2026-08-30): nó là ĐƯỜNG DẪN `/docs/nhat-ky-truy-vet`, đổi là mọi link
+    // cũ ai đó đã gửi cho nhau thành 404.
     slug: 'nhat-ky-truy-vet',
-    title: 'Nhật ký truy vết',
+    title: 'Nhật ký hoạt động',
     screen: 'P-93',
     group: 'data',
     summary: 'Tra ai đã sửa hoặc xoá dữ liệu, và sửa lúc nào.',
+    // Giữ 'truy vết' trong từ khoá: người dùng quen tên cũ vẫn tìm ra bài này.
     keywords: [
       'nhật ký',
+      'nhật ký hoạt động',
       'truy vết',
       'audit',
       'lịch sử thao tác',
@@ -205,11 +210,11 @@ export const DATA_DOCS: DocArticle[] = [
         kind: 'shot',
         shot: {
           src: '/docs/audit-log-page.png',
-          alt: 'Màn Nhật ký truy vết với hộp Bộ lọc đang mở',
+          alt: 'Màn Nhật ký hoạt động với hộp Bộ lọc đang mở',
           width: 1280,
           height: 800,
           markers: [
-            { n: 1, x: 9.2, y: 60, label: 'Mục Nhật ký truy vết trên thanh điều hướng.' },
+            { n: 1, x: 9.2, y: 60, label: 'Mục Nhật ký hoạt động trên thanh điều hướng.' },
             { n: 2, x: 80.1, y: 11.8, label: 'Lọc theo người thao tác.' },
             { n: 3, x: 82.1, y: 18.3, label: 'Lọc theo loại hành động.' },
           ],
@@ -218,7 +223,7 @@ export const DATA_DOCS: DocArticle[] = [
       {
         kind: 'steps',
         items: [
-          'Mở mục **Nhật ký truy vết** trên thanh điều hướng.',
+          'Mở mục **Nhật ký hoạt động** trên thanh điều hướng.',
           'Bấm **Bộ lọc** ở góc trên bên phải.',
           'Chọn **Người** để lọc theo người thao tác.',
           'Chọn **Hành động** để lọc theo loại thao tác.',

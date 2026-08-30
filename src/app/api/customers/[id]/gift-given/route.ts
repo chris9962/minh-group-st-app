@@ -35,7 +35,7 @@ export async function POST(request: Request, { params }: Params) {
   await logAudit(guard.actor, {
     module: "banking",
     action: "grant-gift",
-    // `itemLabel` là TÊN món, không phải mã: nhật ký truy vết để người đọc, mà
+    // `itemLabel` là TÊN món, không phải mã: nhật ký hoạt động để người đọc, mà
     // `BH-1N-XEMAY` thì phải đi tra danh mục mới hiểu.
     targetLabel:
       parsed.data.item === GIFT_DECLINED

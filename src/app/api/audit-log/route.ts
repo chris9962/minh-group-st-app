@@ -5,7 +5,7 @@ import { listAuditLog } from "@/server/audit";
 import { pageArgsFrom } from "@/server/pagination";
 
 /**
- * P-93 · Nhật ký truy vết — chiều ĐỌC.
+ * P-93 · Nhật ký hoạt động — chiều ĐỌC.
  *
  * Gác bằng `system:manage-org`, KHÔNG phải `view-detail`: Kế toán tổng hợp cũng
  * có `view-detail` qua wildcard `*` nhưng không nên đọc được ai đã xem CCCD của

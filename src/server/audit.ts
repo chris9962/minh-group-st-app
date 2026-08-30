@@ -8,7 +8,7 @@ import type { PageArgs } from "./pagination";
 import { Action, isRealIsoDate, type ModuleKey, type User } from "@/lib/types";
 
 /**
- * Ghi nhật ký truy vết (P-93) — append-only, không có đường sửa/xoá.
+ * Ghi nhật ký hoạt động (P-93) — append-only, không có đường sửa/xoá.
  * Ghi cho mọi thao tác GHI và các lượt xem nhạy cảm (chi tiết nhân viên…).
  */
 export async function logAudit(
@@ -40,7 +40,7 @@ export async function logAudit(
      * transaction của lệnh ghi vào đây, tức là dời `logAudit` từ route xuống
      * trong `writeStaff` / `createDepartment` — đổi rộng hơn, chưa làm.
      */
-    console.error("[audit] không ghi được nhật ký truy vết:", entry, e);
+    console.error("[audit] không ghi được nhật ký hoạt động:", entry, e);
   }
 }
 
@@ -192,7 +192,7 @@ const decorate = (page: ReturnType<typeof pickPage>) =>
     .innerJoin(users, eq(users.id, page.actorId));
 
 /**
- * MỘT trang nhật ký truy vết (P-93).
+ * MỘT trang nhật ký hoạt động (P-93).
  *
  * KHÔNG có bản "lấy hết" và sẽ không bao giờ có: `audit_log` là bảng phình
  * nhanh nhất hệ thống, phân trang ở đây là bắt buộc tuyệt đối

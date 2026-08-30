@@ -127,7 +127,7 @@ export function PermissionsEditor({ value, onChange, actor }: Props) {
              * Hành động không chia được theo phạm vi — chỉ Bật/Tắt.
              *
              * Hiện ba mức phạm vi cho `manage-org` là mời người ta cấp một
-             * quyền trông như hẹp mà thật ra không: nhật ký truy vết không cắt
+             * quyền trông như hẹp mà thật ra không: nhật ký hoạt động không cắt
              * theo phòng được, ai bật cũng đọc trọn công ty.
              */
             if (SCOPELESS_ACTIONS.includes(action)) {

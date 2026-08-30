@@ -116,7 +116,7 @@ export async function fetchServicesForExport(
  *
  * Chặn ngày TƯƠNG LAI: đây là sổ ghi việc ĐÃ LÀM, một lượt dịch vụ của tuần sau
  * thì chưa xảy ra. Ngày lùi thì để tự do — máy chủ không đoán được nhân viên
- * nhập trễ bao lâu là hợp lý, và mọi lượt sửa đều nằm trong nhật ký truy vết.
+ * nhập trễ bao lâu là hợp lý, và mọi lượt sửa đều nằm trong nhật ký hoạt động.
  */
 const serviceDate = isoDate('Chưa chọn ngày');
 

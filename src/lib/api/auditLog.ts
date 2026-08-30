@@ -3,7 +3,7 @@ import { Action, ModuleKey } from '@/lib/types';
 import { pageOf, pageParams, type Page, type PageQuery } from './pagination';
 
 /**
- * P-93 · Nhật ký truy vết — ai · làm gì · lúc nào · trên bản ghi nào
+ * P-93 · Nhật ký hoạt động — ai · làm gì · lúc nào · trên bản ghi nào
  * (mgst-feature-list.md P-93 · mgst-platform-spec.md §10.4).
  *
  * Chỉ `system:manage-org` mới xem được — KHÔNG dùng `view-detail`, vì Kế toán
@@ -60,7 +60,7 @@ export async function fetchAuditLog(query: AuditLogQuery): Promise<Page<AuditLog
       to: query.to,
     })}`,
   );
-  if (res.status === 403) throw new Error('Bạn không có quyền xem nhật ký truy vết');
-  if (!res.ok) throw new Error('Không tải được nhật ký truy vết');
+  if (res.status === 403) throw new Error('Bạn không có quyền xem nhật ký hoạt động');
+  if (!res.ok) throw new Error('Không tải được nhật ký hoạt động');
   return AuditLogPage.parse(await res.json());
 }

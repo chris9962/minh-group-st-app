@@ -359,7 +359,7 @@ export async function createService(actor: User, form: ServiceForm): Promise<Ser
 
   // Ngày người nhập chọn (chốt 07/08). Máy chủ chỉ chặn ngày TƯƠNG LAI: đây là
   // sổ ghi việc ĐÃ LÀM. Ngày lùi để tự do — nhân viên nhập trễ là chuyện thường,
-  // và mọi lượt ghi đều nằm trong nhật ký truy vết.
+  // và mọi lượt ghi đều nằm trong nhật ký hoạt động.
   const serviceDate = form.date;
   if (serviceDate > businessDay())
     return { ok: false, message: "Ngày thực hiện không được ở tương lai" };

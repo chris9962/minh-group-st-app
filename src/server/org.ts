@@ -163,7 +163,7 @@ export async function createDepartment(name: string, type: DepartmentType): Prom
  *
  * ⚠️ Đổi loại là đổi cách tính điểm của cả phòng (spec §7.0). Chuyển sang
  * `office` thì lượt tính lại kế tiếp XOÁ dòng điểm của mọi người trong phòng,
- * kể cả của tháng đã trả lương. Nhật ký truy vết ghi lại lượt đổi này.
+ * kể cả của tháng đã trả lương. Nhật ký hoạt động ghi lại lượt đổi này.
  */
 export async function updateDepartment(
   id: string,

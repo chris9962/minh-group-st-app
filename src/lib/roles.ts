@@ -170,7 +170,7 @@ const managerPermissions: Permission[] = [
  *   sửa một bản ghi không chuyển công sang người sửa. Sửa vẫn đổi được SỐ ĐIỂM
  *   của người tạo — `app_installed`, `opened_date`, `status`, hệ số loại dịch
  *   vụ đều là trường tính điểm — nhưng đó là rủi ro nghiệp vụ, không phải rủi
- *   ro phân quyền, và mọi lượt ghi đều nằm trong nhật ký truy vết P-93.
+ *   ro phân quyền, và mọi lượt ghi đều nằm trong nhật ký hoạt động P-93.
  *
  * - `grant-permission`. ⚠️ Đây là hành động DUY NHẤT tự nâng quyền được cho
  *   chính mình. Cấp cho vai này nghĩa là: CEO gán được mọi chức vụ, sửa được cả
