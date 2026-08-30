@@ -129,6 +129,9 @@ export const Action = z.enum([
   /** Cộng/trừ điểm KPI tay theo tháng, ghi từ hồ sơ nhân viên P-52. Không có
       trang riêng — quyền chỉ mở nút ghi trên màn đó. */
   'adjust-kpi',
+  /** Đọc hộp góp ý P-96 và đánh dấu đã xử lý. Nút GỬI góp ý thì mọi người
+      đăng nhập đều có, không gác bằng quyền nào. */
+  'handle-feedback',
 ]);
 export type Action = z.infer<typeof Action>;
 
@@ -158,9 +161,10 @@ export const ACTION_LABEL: Record<Action, string> = {
   'manage-assigned-banks': 'Quản lý ngân hàng được giao',
   'configure-catalog': 'Cấu hình danh mục',
   'configure-gift-rules': 'Cấu hình quy tắc quà',
-  'manage-org': 'Sửa cơ cấu tổ chức & xem nhật ký truy vết',
+  'manage-org': 'Sửa cơ cấu tổ chức & xem nhật ký hoạt động',
   'grant-permission': 'Cấp quyền',
   'adjust-kpi': 'Cộng điểm KPI',
+  'handle-feedback': 'Xử lý góp ý',
 };
 
 /** 6 hành động dùng chung cho mọi module cơ bản — xem mục 1.1.2 spec. */
@@ -175,16 +179,24 @@ export const BASE_ACTIONS: Action[] = ['view-summary', 'view-detail', 'create', 
  * Hành động KHÔNG CHIA ĐƯỢC THEO PHẠM VI — có hoặc không, và có thì là toàn
  * công ty.
  *
- * `manage-org` gác NHẬT KÝ TRUY VẾT, và là nhánh tương thích cho những tài
+ * `manage-org` gác NHẬT KÝ HOẠT ĐỘNG, và là nhánh tương thích cho những tài
  * khoản cấp trước module `department` (xem `canOrg`). Cấp nó ở mức `chỉ mình`
  * hay `phòng quản` là dựng ra một con số không có nghĩa — nhật ký không cắt
  * theo phòng được, nên người được cấp "hẹp" vẫn đọc trọn nhật ký công ty. Trông
  * như hẹp mà không hẹp là tệ hơn không hẹp.
  *
+ * `handle-feedback` cùng lý do: hộp góp ý P-96 là một danh sách của cả công ty,
+ * cắt theo phòng ra một tập không ai đặt hàng.
+ *
  * Ô chọn ở P-92 vì vậy chỉ có Bật/Tắt, và máy chủ nắn mọi phạm vi khác về
  * `company` trước khi ghi.
  */
-export const SCOPELESS_ACTIONS: Action[] = ['manage-org', 'adjust-kpi', 'set-status'];
+export const SCOPELESS_ACTIONS: Action[] = [
+  'manage-org',
+  'adjust-kpi',
+  'set-status',
+  'handle-feedback',
+];
 
 export const SPECIAL_ACTIONS_OF: Partial<Record<ModuleKey, Action[]>> = {
   customer: ['access-id-number'],
@@ -211,6 +223,7 @@ export const SPECIAL_ACTIONS_OF: Partial<Record<ModuleKey, Action[]>> = {
     'manage-org',
     'grant-permission',
     'adjust-kpi',
+    'handle-feedback',
   ],
 };
 

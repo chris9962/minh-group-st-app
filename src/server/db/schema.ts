@@ -65,6 +65,8 @@ export const actionKey = pgEnum("action_key", [
   // đặc biệt · insurance: đặt trạng thái đơn tuỳ ý, bỏ qua bảng bước chuyển
   // hợp lệ (migration 0050). Công cụ gỡ đơn mắc.
   "set-status",
+  // đặc biệt · system: đọc và đánh dấu đã xử lý góp ý ở P-96 (migration 0052)
+  "handle-feedback",
 ]);
 
 export const scopeKey = pgEnum("scope_key", ["own", "managed", "company"]);
@@ -113,6 +115,9 @@ export const photoKind = pgEnum("photo_kind", ["opening", "transaction"]);
 export const notificationKind = pgEnum("notification_kind", [
   "order-done", "order-manual", "code-low",
 ]);
+
+/** P-96 · Góp ý đã xử lý hay chưa. Hai trạng thái, thêm ở migration 0052. */
+export const feedbackStatus = pgEnum("feedback_status", ["pending", "done"]);
 
 const id = () => uuid("id").primaryKey().default(sql`gen_random_uuid()`);
 const createdAt = () =>
@@ -1216,6 +1221,35 @@ export const pviAccounts = pgTable("pvi_accounts", {
   note: text("note").notNull().default(""),
   createdAt: createdAt(),
 });
+
+/**
+ * P-96 · Góp ý của nhân viên. Ai đăng nhập cũng gửi được; đọc và đánh dấu đã
+ * xử lý thì cần `system:handle-feedback`.
+ *
+ * Không lưu tên người gửi, nối sang `users` lúc đọc — tên đổi thì góp ý cũ
+ * phải đổi theo, mà bảng này nhỏ nên nối 15 dòng không tốn gì.
+ */
+export const feedbacks = pgTable(
+  "feedbacks",
+  {
+    id: id(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    content: text("content").notNull(),
+    /** Đường dẫn trang lúc người dùng bấm nút Góp ý. */
+    path: text("path").notNull().default(""),
+    status: feedbackStatus("status").notNull().default("pending"),
+    handledBy: uuid("handled_by").references(() => users.id),
+    handledAt: timestamp("handled_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index("feedbacks_created").on(t.createdAt.desc()),
+    index("feedbacks_status_created").on(t.status, t.createdAt.desc()),
+    check("feedbacks_content_not_blank", sql`btrim(content) <> ''`),
+  ],
+);
 
 export const notifications = pgTable(
   "notifications",

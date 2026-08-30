@@ -98,3 +98,12 @@
   text-align: center;
   color: var(--color-neutral-600);
 }
+
+/* Dòng bấm được — xem prop `onRowClick`. Nền sáng lên khi rê chuột để người
+   dùng biết dòng phản hồi lại; ô bấm thật vẫn là `<button>` nằm trong dòng. */
+.clickable {
+  cursor: pointer;
+}
+.clickable:hover {
+  background: var(--om-soft);
+}

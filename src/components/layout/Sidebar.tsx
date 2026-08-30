@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Logo } from "@/components/ui/Logo";
 import { AccountMenu } from "./AccountMenu";
+import { FeedbackButton } from "./FeedbackButton";
 import { NavIcon } from "./NavIcon";
 import { isNavGroup, navFor, type NavGroup } from "@/lib/nav";
 import type { User } from "@/lib/types";
@@ -160,6 +161,7 @@ export function Sidebar({ user, mobileOpen = false, onMobileClose }: Props) {
         </ul>
 
         <div className={styles.foot}>
+          <FeedbackButton onSent={() => onMobileClose?.()} />
           <AccountMenu user={user} />
         </div>
       </nav>

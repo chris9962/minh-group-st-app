@@ -61,6 +61,16 @@ type Props<T> = {
    * đề trống trơn, không phân biệt được "chưa có gì" với "tải xong nhưng hỏng".
    */
   emptyText?: string;
+  /**
+   * Bấm vào một dòng thì mở chi tiết. Có nó thì dòng đổi con trỏ và sáng lên
+   * khi rê chuột.
+   *
+   * ⚠️ Đây là lối tắt cho CHUỘT, không phải cách duy nhất. Thẻ `<tr>` không
+   * nhận tiêu điểm bàn phím, mà gắn `role="button"` lên nó thì trình đọc màn
+   * hình mất luôn cấu trúc bảng. Màn nào dùng prop này PHẢI đặt thêm một
+   * `<button>` thật trong một ô — xem cột "Nội dung" ở P-96.
+   */
+  onRowClick?: (row: T) => void;
 };
 
 /**
@@ -78,6 +88,7 @@ export function RankTable<T>({
   pageSize,
   server,
   emptyText,
+  onRowClick,
 }: Props<T>) {
   const [sortKey, setSortKey] = useState(defaultSort);
   const [asc, setAsc] = useState(false);
@@ -180,7 +191,11 @@ export function RankTable<T>({
             </tr>
           )}
           {visible.map((row) => (
-            <tr key={rowKey(row)}>
+            <tr
+              key={rowKey(row)}
+              className={onRowClick ? styles.clickable : undefined}
+              onClick={onRowClick ? () => onRowClick(row) : undefined}
+            >
               {columns.map((col) => (
                 <td
                   key={col.key}

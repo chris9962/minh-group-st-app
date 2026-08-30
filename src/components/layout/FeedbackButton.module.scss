@@ -1,0 +1,39 @@
+/* Dáng khớp `.item` của Sidebar.module.scss — nút này đứng cùng cột với các mục
+   điều hướng nên phải trông như một mục, chỉ khác là nó mở hộp thoại.
+
+   `color` khai tường minh: nút gốc không kế thừa màu chữ, bỏ ra là chữ đen trên
+   nền tối. */
+.trigger {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 11px;
+  padding: 11px 13px;
+  border: none;
+  background: none;
+  border-radius: var(--radius-md);
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--om-sidebar-ink);
+  cursor: pointer;
+  text-align: left;
+}
+.trigger svg {
+  flex: none;
+  opacity: 0.72;
+}
+.trigger:hover {
+  background: var(--om-sidebar-hover);
+}
+.trigger:focus-visible {
+  outline: 2px solid var(--om-orange);
+  outline-offset: -2px;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-bottom: 4px;
+}

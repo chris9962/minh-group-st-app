@@ -159,10 +159,30 @@ export function navFor(user: User | null): NavEntry[] {
   // không chức vụ nào cầm `grant-permission`; đến khi CEO chuyển sang toàn quyền
   // (`lib/roles.ts`) thì mục hiện ngay và bấm vào ra 404 trắng của Next.
 
+  /**
+   * "Theo dõi" gộp hai màn CHỈ ĐỌC: nhật ký hoạt động và hộp góp ý (chốt
+   * 2026-08-30). Cả hai đều là bản ghi gửi về để người quản trị đọc, không màn
+   * nào sửa dữ liệu nghiệp vụ — khác hẳn nhóm "Cấu hình" bên dưới.
+   *
+   * Hai quyền RIÊNG, mỗi mục con theo quyền của nó: ai chỉ có
+   * `handle-feedback` thì nhóm hiện ra với đúng một mục.
+   */
+  const watchChildren: NavChild[] = [];
+
   // Chỉ GĐ · QTHT xem được (spec P-93) — `manage-org` đúng khớp hai vai này,
   // không dùng `view-detail` vì Kế toán tổng hợp cũng có qua wildcard `*`.
   if (can(user, 'system', 'manage-org')) {
-    items.push({ href: '/audit-log', label: 'Nhật ký truy vết', icon: 'audit', screen: 'P-93' });
+    watchChildren.push({ href: '/audit-log', label: 'Nhật ký hoạt động', screen: 'P-93' });
+  }
+
+  // Mục này chỉ mở HỘP góp ý. Nút GỬI góp ý nằm ở chân sidebar
+  // (`FeedbackButton`) và không gác quyền nào — ai đăng nhập cũng gửi được.
+  if (can(user, 'system', 'handle-feedback')) {
+    watchChildren.push({ href: '/feedback', label: 'Hộp góp ý', screen: 'P-96' });
+  }
+
+  if (watchChildren.length > 0) {
+    items.push({ label: 'Theo dõi', icon: 'audit', children: watchChildren });
   }
 
   // "Cấu hình" gộp mọi màn thiết lập vào một nhóm, nhưng mục con nào hiện ra
