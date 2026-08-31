@@ -3,6 +3,8 @@
  *
  * Mặc định chỉ KIỂM TRA, trên DB được trỏ bởi DATABASE_URL. Xoá thật:
  *   bun scripts/delete-departed-users.ts --xoa-that
+ * Chỉ định một hoặc nhiều username khác khi cần:
+ *   bun scripts/delete-departed-users.ts --users=335giangmt --xoa-that
  *
  * Username khớp không phân biệt hoa/thường; nếu còn thiếu dù chỉ một tên thì
  * script dừng, không xoá một phần. Ảnh S3 của các tài khoản ngân hàng bị xoá
@@ -11,12 +13,17 @@
  */
 import { Pool } from "pg";
 
-const USERNAMES = ["457HUNGPD", "422KHANHNT", "311vyntt", "307phonght", "127MINHNT", "361NGOCLB", "nnt", "mg-nnt"];
+const DEFAULT_USERNAMES = ["457HUNGPD", "422KHANHNT", "311vyntt", "307phonght", "127MINHNT", "361NGOCLB", "nnt", "mg-nnt"];
+const userArgument = process.argv.find((argument) => argument.startsWith("--users="));
+const USERNAMES = userArgument
+  ? [...new Set(userArgument.slice("--users=".length).split(",").map((username) => username.trim()).filter(Boolean))]
+  : DEFAULT_USERNAMES;
 const xoaThat = process.argv.includes("--xoa-that");
 const connectionString = process.env.DATABASE_URL;
 const normalizedUsernames = USERNAMES.map((username) => username.toLowerCase());
 
 if (!connectionString) throw new Error("DATABASE_URL chưa đặt.");
+if (USERNAMES.length === 0) throw new Error("Cần ít nhất một username sau --users=.");
 
 const pool = new Pool({ connectionString });
 const client = await pool.connect();
@@ -38,7 +45,7 @@ try {
     );
     const nearby = candidates.rows.map((row) => row.username).join(", ") || "không có";
     throw new Error(
-      `Không khớp đúng đủ 8 username. Thiếu: ${missing.join(", ") || "—"}. ` +
+      `Không khớp đúng đủ ${USERNAMES.length} username. Thiếu: ${missing.join(", ") || "—"}. ` +
         `Tên có thể tương ứng trong DB: ${nearby}.`,
     );
   }
@@ -94,7 +101,7 @@ try {
     await client.query("DELETE FROM user_managed_banks WHERE user_id IN (SELECT id FROM target_users)");
     await client.query("DELETE FROM users WHERE id IN (SELECT id FROM target_users)");
     await client.query("COMMIT");
-    console.log("Đã xoá dữ liệu database của 8 tài khoản. Ảnh S3 chưa bị xoá.");
+    console.log(`Đã xoá dữ liệu database của ${USERNAMES.length} tài khoản. Ảnh S3 chưa bị xoá.`);
   }
 } catch (error) {
   await client.query("ROLLBACK").catch(() => undefined);
