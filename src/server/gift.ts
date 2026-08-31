@@ -602,27 +602,24 @@ export async function changeGift(
       .select({ id: insuranceOrders.id, status: insuranceOrders.status })
       .from(insuranceOrders)
       .where(and(eq(insuranceOrders.giftGrantId, grant.id), newIds.length ? notInArray(insuranceOrders.id, newIds) : undefined));
-    const doneIds = oldOrders.filter((o) => o.status === "done").map((o) => o.id);
-    const unfinishedIds = oldOrders.filter((o) => o.status !== "done").map((o) => o.id);
-
-    if (doneIds.length) {
+    // Giữ mọi đơn quà cũ để truy được lịch sử. Đơn đã huỷ từ lần đổi trước
+    // giữ nguyên, các trạng thái còn lại đều được chuyển thành huỷ có lý do.
+    const ordersToCancel = oldOrders.filter((o) => o.status !== "cancelled");
+    if (ordersToCancel.length) {
+      const ids = ordersToCancel.map((order) => order.id);
       await tx
         .update(insuranceOrders)
         .set({ status: "cancelled", updatedAt: new Date() })
-        .where(and(inArray(insuranceOrders.id, doneIds), eq(insuranceOrders.status, "done")));
+        .where(inArray(insuranceOrders.id, ids));
       await tx.insert(insuranceOrderStatusHistory).values(
-        doneIds.map((orderId) => ({
-          orderId,
-          fromStatus: "done" as const,
+        ordersToCancel.map((order) => ({
+          orderId: order.id,
+          fromStatus: order.status,
           toStatus: "cancelled" as const,
           changedBy: actor.id,
           note: "Khách đổi quà",
         })),
       );
-    }
-    if (unfinishedIds.length) {
-      await tx.delete(insuranceOrderStatusHistory).where(inArray(insuranceOrderStatusHistory.orderId, unfinishedIds));
-      await tx.delete(insuranceOrders).where(inArray(insuranceOrders.id, unfinishedIds));
     }
     await tx.insert(giftGrantChanges).values({ giftGrantId: grant.id, fromChosenItem: grant.chosenItem, toChosenItem: form.item, reason: form.reason, changedBy: actor.id });
     return true;
