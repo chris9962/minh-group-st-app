@@ -371,6 +371,9 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
   const [zoomed, setZoomed] = useState<{ src: string; alt: string } | null>(null);
   /** Có ảnh để hoàn thành: đã lưu trên máy chủ, hoặc đang chờ lưu ở đây. */
   const hasPhoto = Boolean(data?.certificatePhotoUrl) || pending !== null;
+  const cancellationReason = data?.history.find(
+    (step) => step.toStatus === "cancelled" && step.note,
+  )?.note;
 
   return (
     <>
@@ -390,6 +393,12 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
 
         {data && (
           <SectionCard title="Chi tiết đơn bảo hiểm" icon={<ShieldCheck size={17} />}>
+            {cancellationReason && (
+              <Alert tone="warning">
+                <strong>Lý do huỷ đơn: </strong>
+                {cancellationReason}
+              </Alert>
+            )}
             <div className={styles.detail}>
               <div className={styles.summary}>
                 {/* Mã đơn là ĐỊNH DANH, không phải tiêu đề nhóm — để `h3` thì
@@ -781,7 +790,13 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                   </span>
                   {/* Không có người bấm nghĩa là hệ thống tự chuyển (spec §3.4). */}
                   <span className={styles.stepWho}>{step.changedByName ?? "Hệ thống"}</span>
-                  {step.note && <p className={styles.stepNote}>{step.note}</p>}
+                  {step.note && step.toStatus !== "cancelled" && (
+                    <p
+                      className={styles.stepNote}
+                    >
+                      {step.note}
+                    </p>
+                  )}
                 </li>
               ))}
             </ol>

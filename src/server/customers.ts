@@ -28,6 +28,7 @@ import {
   channels,
   customerPhones,
   customers,
+  giftGrantChanges,
   giftGrants,
   insuranceOrders,
   referralCodes,
@@ -857,6 +858,30 @@ export async function customerDetailFor(
     note: s.note,
   }));
 
+  // Lịch sử này không đi qua phạm vi phòng của đơn/tài khoản: đó là lịch sử
+  // của chính lượt quà trên hồ sơ khách, và chỉ ai có quyền đổi quà mới có thể
+  // tạo thêm dòng mới.
+  const giftChanges = grant
+    ? (await db
+        .select({
+          id: giftGrantChanges.id,
+          fromItem: giftGrantChanges.fromChosenItem,
+          toItem: giftGrantChanges.toChosenItem,
+          reason: giftGrantChanges.reason,
+          changedByName: users.fullName,
+          changedAt: giftGrantChanges.changedAt,
+        })
+        .from(giftGrantChanges)
+        .innerJoin(users, eq(users.id, giftGrantChanges.changedBy))
+        .where(eq(giftGrantChanges.giftGrantId, grant.id))
+        .orderBy(desc(giftGrantChanges.changedAt), desc(giftGrantChanges.id)))
+        .map((change) => ({
+          ...change,
+          fromItem: grantedItemLabel(change.fromItem, grant.snapshot),
+          toItem: grantedItemLabel(change.toItem, grant.snapshot),
+        }))
+    : [];
+
   return {
     customer,
     /**
@@ -887,7 +912,10 @@ export async function customerDetailFor(
           ...(grant.snapshot as GiftSimulateResult),
           given: true,
           givenItem: grantedItemLabel(grant.chosenItem, grant.snapshot),
+          givenCode: grant.chosenItem,
+          givenAt: grant.grantedAt,
+          changes: giftChanges,
         }
-      : { ...(await giftForCustomer(id)), given: false, givenItem: null },
+      : { ...(await giftForCustomer(id)), given: false, givenItem: null, givenCode: null, givenAt: null, changes: [] },
   };
 }

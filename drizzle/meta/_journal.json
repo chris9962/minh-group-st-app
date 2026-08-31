@@ -372,6 +372,13 @@
       "when": 1788066000000,
       "tag": "0052_feedback",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1788073200000,
+      "tag": "0053_gift_changes",
+      "breakpoints": true
     }
   ]
 }

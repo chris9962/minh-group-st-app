@@ -395,6 +395,21 @@ export const CustomerDetail = z.object({
     given: z.boolean(),
     /** Tên món đã tặng — chỉ có giá trị khi given = true. */
     givenItem: z.string().nullable(),
+    /** Mã món đang áp dụng, dùng để không chọn lại chính món đó khi đổi quà. */
+    givenCode: z.string().nullable(),
+    /** Thời điểm khách nhận quà lần đầu — mốc đầu của lịch sử đổi quà. */
+    givenAt: z.coerce.date().nullable(),
+    /** Các lần đổi sau khi đã chốt quà, mới nhất trước. */
+    changes: z.array(
+      z.object({
+        id: z.string(),
+        fromItem: z.string(),
+        toItem: z.string(),
+        reason: z.string(),
+        changedByName: z.string(),
+        changedAt: z.coerce.date(),
+      }),
+    ),
   }),
 });
 export type CustomerDetail = z.infer<typeof CustomerDetail>;
@@ -432,6 +447,15 @@ export const GIFT_ERROR = {
   ITEM_DISCONTINUED: 'ITEM_DISCONTINUED',
 } as const;
 
+/** Một lần đổi món quà đã chốt; rổ quà gốc không bị tính lại. */
+export const GiftChangeForm = z.object({
+  item: z.string().trim().min(1, 'Chưa chọn món quà mới'),
+  reason: z.string().trim().min(2, 'Chưa nhập lý do đổi quà').max(500, 'Lý do nhiều nhất 500 ký tự'),
+  /** Đơn bảo hiểm mới vừa tạo khi đổi sang quà bảo hiểm. */
+  newOrderIds: z.array(z.string()).default([]),
+});
+export type GiftChangeForm = z.infer<typeof GiftChangeForm>;
+
 /**
  * Đánh dấu khách đã được tặng quà — đúng một lần, không có đợt thứ hai
  * (spec §4.4 P-43). `item` là MÃ món đã chọn, hoặc `GIFT_DECLINED`.
@@ -439,16 +463,28 @@ export const GIFT_ERROR = {
  * Mã chứ không phải tên: admin sửa tên món ở P-82 bất cứ lúc nào, và tên đã đổi
  * thì không tra ngược ra món nào nữa (quyết định #74).
  */
-export async function markGiftGiven(customerId: string, item: string): Promise<void> {
+export async function markGiftGiven(customerId: string, item: string, orderIds: string[] = []): Promise<void> {
   const res = await fetch(`/api/customers/${customerId}/gift-given`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ item }),
+    body: JSON.stringify({ item, orderIds }),
   });
   if (!res.ok) {
     // Máy chủ nói rõ vì sao ("Khách này đã được tặng quà rồi") — nuốt đi rồi
     // ném câu chung chung là bắt người dùng tự đoán mình sai chỗ nào.
     const body = (await res.json().catch(() => null)) as { message?: string } | null;
     throw new Error(body?.message?.trim() || 'Không đánh dấu được quà đã tặng');
+  }
+}
+
+export async function changeGift(customerId: string, form: GiftChangeForm): Promise<void> {
+  const res = await fetch(`/api/customers/${customerId}/gift-change`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(form),
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(body?.message?.trim() || 'Không đổi được quà');
   }
 }

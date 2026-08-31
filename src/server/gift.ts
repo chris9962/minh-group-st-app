@@ -1,7 +1,7 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull, notInArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
-import { GIFT_DECLINED, GIFT_DECLINED_LABEL, GIFT_ERROR } from "@/lib/api/customers";
-import { EMPTY_GIFT, type GiftSimulateInput, type GiftSimulateResult } from "@/lib/api/settings";
+import { GIFT_DECLINED, GIFT_DECLINED_LABEL, GIFT_ERROR, type GiftChangeForm } from "@/lib/api/customers";
+import { EMPTY_GIFT, GiftSimulateResult, type GiftSimulateInput } from "@/lib/api/settings";
 import { businessDay, businessMonth } from "@/lib/format";
 import type { User } from "@/lib/types";
 import { giftFor, householdPointsAt, type GiftInput, type GiftResult } from "@/rules";
@@ -13,8 +13,11 @@ import {
   channels,
   customers,
   departments,
+  giftGrantChanges,
   giftGrants,
   giftItems,
+  insuranceOrderStatusHistory,
+  insuranceOrders,
   insurancePackages,
 } from "./db/schema";
 
@@ -418,6 +421,7 @@ export async function grantGift(
   actor: User,
   customerId: string,
   item: string,
+  orderIds: string[] = [],
 ): Promise<GrantOutcome | null> {
   const [customer] = await db
     .select({ fullName: customers.fullName })
@@ -458,23 +462,64 @@ export async function grantGift(
           : `"${picked.name}" không còn trong danh mục quà — báo quản trị thêm lại rồi phát`,
     };
 
-  const inserted = await db
-    .insert(giftGrants)
-    .values({
-      customerId,
-      grantedBy: actor.id,
-      cashTotal: gift.cashTotal,
-      // MÃ món, không phải tên. Tên lúc phát vẫn còn trong `snapshot.basket` —
-      // hai chỗ đọc dùng nó để hiện đúng chữ của thời điểm phát.
-      chosenItem: item,
-      // Đóng băng NGUYÊN kết quả: thể lệ đổi hay admin sửa tên món cũng không
-      // được viết lại thứ đã phát cho khách (spec §5.3).
-      snapshot: gift,
-    })
-    .onConflictDoNothing({ target: giftGrants.customerId })
-    .returning({ id: giftGrants.id });
+  const newIds = [...new Set(orderIds)];
+  // Đơn bảo hiểm được tạo TRƯỚC lượt chốt quà, nên chưa có `gift_grant_id`.
+  // Kiểm tra chúng trước rồi chốt + nối trong cùng transaction: nếu một đơn
+  // sai, không được để lại một lượt quà không có đơn tương ứng.
+  if (newIds.length > 0) {
+    const orders = await db
+      .select({ id: insuranceOrders.id })
+      .from(insuranceOrders)
+      .where(
+        and(
+          inArray(insuranceOrders.id, newIds),
+          eq(insuranceOrders.customerId, customerId),
+          eq(insuranceOrders.source, "gift"),
+          isNull(insuranceOrders.giftGrantId),
+        ),
+      );
+    if (orders.length !== newIds.length)
+      return { ok: false, code: GIFT_ERROR.NOT_IN_BASKET, message: "Đơn quà vừa tạo không hợp lệ." };
+  }
 
-  if (inserted.length === 0)
+  const inserted = await db.transaction(async (tx) => {
+    const rows = await tx
+      .insert(giftGrants)
+      .values({
+        customerId,
+        grantedBy: actor.id,
+        cashTotal: gift.cashTotal,
+        // MÃ món, không phải tên. Tên lúc phát vẫn còn trong `snapshot.basket` —
+        // hai chỗ đọc dùng nó để hiện đúng chữ của thời điểm phát.
+        chosenItem: item,
+        // Đóng băng NGUYÊN kết quả: thể lệ đổi hay admin sửa tên món cũng không
+        // được viết lại thứ đã phát cho khách (spec §5.3).
+        snapshot: gift,
+      })
+      .onConflictDoNothing({ target: giftGrants.customerId })
+      .returning({ id: giftGrants.id });
+    if (rows.length === 0) return null;
+
+    if (newIds.length > 0) {
+      const linked = await tx
+        .update(insuranceOrders)
+        .set({ giftGrantId: rows[0].id })
+        .where(
+          and(
+            inArray(insuranceOrders.id, newIds),
+            eq(insuranceOrders.customerId, customerId),
+            eq(insuranceOrders.source, "gift"),
+            isNull(insuranceOrders.giftGrantId),
+          ),
+        )
+        .returning({ id: insuranceOrders.id });
+      // Nỗ lực song song đã nối một đơn khác thì throw để rollback cả lần chốt.
+      if (linked.length !== newIds.length) throw new Error("Gift order was linked concurrently");
+    }
+    return rows[0];
+  });
+
+  if (!inserted)
     return {
       ok: false,
       code: GIFT_ERROR.ALREADY_GIVEN,
@@ -500,6 +545,93 @@ export async function grantGift(
     customerName: customer.fullName,
     itemLabel: picked?.name ?? GIFT_DECLINED_LABEL,
   };
+}
+
+type ChangeOutcome =
+  | { ok: true; grantId: string; customerName: string; fromLabel: string; toLabel: string }
+  | { ok: false; message: string };
+
+/** Đổi quà đã chốt, giữ lịch sử và dọn đúng các đơn bảo hiểm quà cũ. */
+export async function changeGift(
+  actor: User,
+  customerId: string,
+  form: GiftChangeForm,
+): Promise<ChangeOutcome | null> {
+  const [grant] = await db
+    .select({ id: giftGrants.id, chosenItem: giftGrants.chosenItem, snapshot: giftGrants.snapshot, customerName: customers.fullName })
+    .from(giftGrants)
+    .innerJoin(customers, eq(customers.id, giftGrants.customerId))
+    .where(eq(giftGrants.customerId, customerId))
+    .limit(1);
+  if (!grant) return null;
+
+  const snapshot = GiftSimulateResult.safeParse(grant.snapshot);
+  if (!snapshot.success) return { ok: false, message: "Rổ quà gốc không hợp lệ, không thể đổi." };
+  if (form.item === grant.chosenItem) return { ok: false, message: "Khách đang áp dụng món quà này rồi." };
+
+  const next = form.item === GIFT_DECLINED ? null : snapshot.data.basket.find((b) => b.code === form.item);
+  if (form.item !== GIFT_DECLINED && (!next || !next.id || next.status !== "ok"))
+    return { ok: false, message: "Món quà mới phải thuộc rổ quà gốc và còn cấp được." };
+
+  const [insuranceItem] =
+    form.item === GIFT_DECLINED
+      ? []
+      : await db.select({ id: insurancePackages.id }).from(insurancePackages).where(eq(insurancePackages.code, form.item)).limit(1);
+  if (insuranceItem && form.newOrderIds.length === 0)
+    return { ok: false, message: "Chọn quà bảo hiểm thì phải tạo đơn bảo hiểm mới trước." };
+
+  const newIds = [...new Set(form.newOrderIds)];
+  if (newIds.length > 0) {
+    const newOrders = await db
+      .select({ id: insuranceOrders.id, packageId: insuranceOrders.packageId })
+      .from(insuranceOrders)
+      .where(and(inArray(insuranceOrders.id, newIds), eq(insuranceOrders.customerId, customerId), eq(insuranceOrders.source, "gift"), eq(insuranceOrders.giftGrantId, grant.id)));
+    if (newOrders.length !== newIds.length || newOrders.some((order) => order.packageId !== insuranceItem?.id))
+      return { ok: false, message: "Có đơn bảo hiểm mới không thuộc lượt đổi quà này." };
+  }
+
+  const changed = await db.transaction(async (tx) => {
+    const [updated] = await tx
+      .update(giftGrants)
+      .set({ chosenItem: form.item })
+      .where(and(eq(giftGrants.id, grant.id), eq(giftGrants.chosenItem, grant.chosenItem)))
+      .returning({ id: giftGrants.id });
+    if (!updated) return false;
+
+    const oldOrders = await tx
+      .select({ id: insuranceOrders.id, status: insuranceOrders.status })
+      .from(insuranceOrders)
+      .where(and(eq(insuranceOrders.giftGrantId, grant.id), newIds.length ? notInArray(insuranceOrders.id, newIds) : undefined));
+    const doneIds = oldOrders.filter((o) => o.status === "done").map((o) => o.id);
+    const unfinishedIds = oldOrders.filter((o) => o.status !== "done").map((o) => o.id);
+
+    if (doneIds.length) {
+      await tx
+        .update(insuranceOrders)
+        .set({ status: "cancelled", updatedAt: new Date() })
+        .where(and(inArray(insuranceOrders.id, doneIds), eq(insuranceOrders.status, "done")));
+      await tx.insert(insuranceOrderStatusHistory).values(
+        doneIds.map((orderId) => ({
+          orderId,
+          fromStatus: "done" as const,
+          toStatus: "cancelled" as const,
+          changedBy: actor.id,
+          note: "Khách đổi quà",
+        })),
+      );
+    }
+    if (unfinishedIds.length) {
+      await tx.delete(insuranceOrderStatusHistory).where(inArray(insuranceOrderStatusHistory.orderId, unfinishedIds));
+      await tx.delete(insuranceOrders).where(inArray(insuranceOrders.id, unfinishedIds));
+    }
+    await tx.insert(giftGrantChanges).values({ giftGrantId: grant.id, fromChosenItem: grant.chosenItem, toChosenItem: form.item, reason: form.reason, changedBy: actor.id });
+    return true;
+  });
+
+  if (!changed) return { ok: false, message: "Quà vừa được người khác thay đổi. Tải lại rồi thử lại." };
+  for (const month of await accountMonthsOf(customerId)) await recomputeKpiForCustomer(customerId, month);
+  const label = (item: string) => item === GIFT_DECLINED ? GIFT_DECLINED_LABEL : snapshot.data.basket.find((b) => b.code === item)?.name ?? item;
+  return { ok: true, grantId: grant.id, customerName: grant.customerName, fromLabel: label(grant.chosenItem), toLabel: label(form.item) };
 }
 
 /**

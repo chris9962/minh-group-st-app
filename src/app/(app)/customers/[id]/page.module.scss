@@ -50,6 +50,12 @@
   font-size: 14px;
 }
 
+.currentGift {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
 // Mỗi số một dòng: hai số nằm ngang thì thẻ "Số chính" kẹp giữa hai số,
 // không đọc ra nó thuộc số nào.
 .phone {
@@ -119,6 +125,51 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+
+.giftTimeline {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  position: relative;
+}
+
+.giftTimeline::before {
+  content: "";
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: 5px;
+  border-left: 1px dashed var(--om-line-strong);
+}
+
+.giftTimeline li {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-left: 20px;
+}
+
+.giftTimeline li::before {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  top: 4px;
+  left: 1px;
+  width: 8px;
+  height: 8px;
+  border: 2px solid var(--om-orange-mid);
+  border-radius: 50%;
+  background: var(--om-surface);
+}
+
+.giftTimeline .detail {
+  flex-basis: 100%;
 }
 
 // Món còn trong rổ nhưng danh mục đã ngừng cấp. Đi kèm CHỮ, không chỉ màu —

@@ -37,7 +37,7 @@ type Props = {
   source: InsuranceOrderSource;
   /** Cố định gói — dùng khi mở từ luồng Tặng quà (P-43). */
   prefill?: { packageName: string };
-  onCreated?: () => void;
+  onCreated?: (orders: Awaited<ReturnType<typeof createInsuranceOrders>>) => void;
   /**
    * Có khi hộp thoại này là bước 2 của `CustomerPickerDialog`. Không có khi mở
    * thẳng từ hồ sơ khách (P-42) hoặc luồng Tặng quà — ở đó khách đã cố định,
@@ -183,7 +183,7 @@ export function InsuranceOrderFormDialog({
       queryClient.invalidateQueries({ queryKey: ["customer", customer.id] });
       // Bảng nhân sự P-51 có cột "Đơn BH" đếm từ chính bảng này.
       invalidateKpi(queryClient);
-      onCreated?.();
+      onCreated?.(orders);
       onClose();
       // Một gói khai mấy leg thì tạo bấy nhiêu đơn — nói ra đủ mã, vì người dùng
       // điền một form và dễ tưởng mình vừa tạo đúng một đơn.

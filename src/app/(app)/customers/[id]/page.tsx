@@ -3,13 +3,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { use, useState } from "react";
-import { Briefcase, ChevronLeft, ExternalLink, Gift, Landmark, ShieldCheck, Trash2, User as UserIcon } from "lucide-react";
+import { Briefcase, ChevronLeft, ExternalLink, Gift, History, Landmark, ShieldCheck, Trash2, User as UserIcon } from "lucide-react";
 import { SkeletonCard } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
 import { BankAccountFormDialog } from "@/components/banking/BankAccountFormDialog";
 import { CustomerFormDialog } from "@/components/customers/CustomerFormDialog";
 import { GiftGivingDialog } from "@/components/customers/GiftGivingDialog";
+import { GiftChangeDialog } from "@/components/customers/GiftChangeDialog";
 import { ServiceFormDialog } from "@/components/services/ServiceFormDialog";
 import { Button } from "@/components/ui/Button";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
@@ -34,6 +35,15 @@ const INSURANCE_SOURCE_LABEL: Record<CustomerInsuranceRow["source"], string> = {
   gift: "Quà tặng",
 };
 
+const formatDateTime = (value: Date): string =>
+  new Intl.DateTimeFormat("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(value);
+
 /** P-42 · Hồ sơ khách hàng 360°. */
 export default function CustomerDetailPage({
   params,
@@ -45,6 +55,8 @@ export default function CustomerDetailPage({
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [givingGift, setGivingGift] = useState(false);
+  const [changingGift, setChangingGift] = useState(false);
+  const [showGiftHistory, setShowGiftHistory] = useState(false);
   const [openingBank, setOpeningBank] = useState(false);
   const [loggingService, setLoggingService] = useState(false);
 
@@ -206,14 +218,18 @@ export default function CustomerDetailPage({
                     Sửa thông tin
                   </Button>
                 )}
-                <Button
-                  variant="secondary"
-                  disabled={data.gift.given}
-                  onClick={() => setGivingGift(true)}
-                >
-                  <Gift size={16} />
-                  Tặng quà
-                </Button>
+                {!data.gift.given && (
+                  <Button variant="secondary" onClick={() => setGivingGift(true)}>
+                    <Gift size={16} />
+                    Tặng quà
+                  </Button>
+                )}
+                {data.gift.given && can(actor, "banking", "grant-gift") && (
+                  <Button variant="secondary" onClick={() => setChangingGift(true)}>
+                    <Gift size={16} />
+                    Đổi quà
+                  </Button>
+                )}
                 <Button
                   variant="secondary"
                   disabled={data.bankSlotsLeft <= 0}
@@ -365,8 +381,45 @@ export default function CustomerDetailPage({
                 )}
                 {data.gift.given && data.gift.givenItem && (
                   <div>
-                    <dt>Hiện vật</dt>
-                    <dd>{data.gift.givenItem}</dd>
+                    <dt>Quà hiện tại</dt>
+                    <dd className={styles.currentGift}>
+                      <span>{data.gift.givenItem}</span>
+                      <StatusTag ok>Đang áp dụng</StatusTag>
+                      {data.gift.changes.length > 0 && (
+                        <Button
+                          variant="ghost"
+                          icon
+                          tooltip="Xem lịch sử đổi quà"
+                          aria-label="Xem lịch sử đổi quà"
+                          aria-expanded={showGiftHistory}
+                          onClick={() => setShowGiftHistory((show) => !show)}
+                        >
+                          <History size={16} aria-hidden />
+                        </Button>
+                      )}
+                    </dd>
+                  </div>
+                )}
+                {showGiftHistory && data.gift.changes.length > 0 && (
+                  <div>
+                    <dt>Lịch sử quà</dt>
+                    <dd>
+                      <ul className={styles.giftTimeline}>
+                        {data.gift.changes.map((change, index) => (
+                          <li key={change.id}>
+                            Đổi sang {change.toItem}
+                            {index === 0 && <StatusTag ok>Đang áp dụng</StatusTag>}
+                            <span className={styles.detail}>{formatDateTime(change.changedAt)}</span>
+                          </li>
+                        ))}
+                        {data.gift.givenAt && (
+                          <li>
+                            Đã nhận {data.gift.changes.at(-1)?.fromItem}
+                            <span className={styles.detail}>{formatDateTime(data.gift.givenAt)}</span>
+                          </li>
+                        )}
+                      </ul>
+                    </dd>
                   </div>
                 )}
                 {!data.gift.given && (
@@ -451,6 +504,15 @@ export default function CustomerDetailPage({
             customerId={data.customer.id}
             customerName={data.customer.fullName}
             onClose={() => setGivingGift(false)}
+          />
+        )}
+
+        {changingGift && data && (
+          <GiftChangeDialog
+            open
+            customerId={data.customer.id}
+            customerName={data.customer.fullName}
+            onClose={() => setChangingGift(false)}
           />
         )}
 

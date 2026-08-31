@@ -867,6 +867,25 @@ export const giftGrants = pgTable("gift_grants", {
   snapshot: jsonb("snapshot").notNull(),
 });
 
+/** Mỗi lần đổi quà là một sự kiện độc lập, không ghi đè mất dấu vết đã phát. */
+export const giftGrantChanges = pgTable(
+  "gift_grant_changes",
+  {
+    id: id(),
+    giftGrantId: uuid("gift_grant_id")
+      .notNull()
+      .references(() => giftGrants.id),
+    fromChosenItem: text("from_chosen_item").notNull(),
+    toChosenItem: text("to_chosen_item").notNull(),
+    reason: text("reason").notNull(),
+    changedBy: uuid("changed_by")
+      .notNull()
+      .references(() => users.id),
+    changedAt: timestamp("changed_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("gift_grant_changes_grant_time").on(t.giftGrantId, t.changedAt)],
+);
+
 export const insuranceOrders = pgTable(
   "insurance_orders",
   {

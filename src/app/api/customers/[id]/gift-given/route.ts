@@ -6,7 +6,7 @@ import { grantGift } from "@/server/gift";
 
 type Params = { params: Promise<{ id: string }> };
 
-const Body = z.object({ item: z.string().trim().min(1) });
+const Body = z.object({ item: z.string().trim().min(1), orderIds: z.array(z.string()).default([]) });
 
 /**
  * P-43 · Chốt quà — đúng MỘT lần cho mỗi khách, không có đợt thứ hai
@@ -26,7 +26,7 @@ export async function POST(request: Request, { params }: Params) {
   const parsed = Body.safeParse(await jsonBody(request));
   if (!parsed.success) return badRequest("Chưa chọn món quà nào");
 
-  const result = await grantGift(guard.actor, id, parsed.data.item);
+  const result = await grantGift(guard.actor, id, parsed.data.item, parsed.data.orderIds);
   if (!result) return notFound();
 
   if (!result.ok)

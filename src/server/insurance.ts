@@ -40,6 +40,7 @@ import { departmentForNewRecord } from "./writeDepartment";
 import {
   customers,
   departments,
+  giftGrants,
   insuranceOrderStatusHistory,
   insuranceOrders,
   insurancePackages,
@@ -604,6 +605,18 @@ export async function createInsuranceOrders(
     .limit(1);
   if (!customer) return { ok: false, message: "Không tìm thấy khách hàng này" };
 
+  // Luồng phát quà đầu tiên tạo đơn trước khi có `gift_grants`, nên chưa có
+  // dòng để nối. Khi ĐỔI sang quà bảo hiểm thì đợt quà đã tồn tại: tự nối toàn
+  // bộ đơn mới vào đúng đợt đó, không nhận id từ trình duyệt.
+  const [giftGrant] =
+    form.source === "gift"
+      ? await db
+          .select({ id: giftGrants.id })
+          .from(giftGrants)
+          .where(eq(giftGrants.customerId, form.customerId))
+          .limit(1)
+      : [];
+
   const today = businessDay();
   for (const leg of form.legs) {
     if (leg.endDate < leg.startDate)
@@ -675,6 +688,7 @@ export async function createInsuranceOrders(
           endDate: leg.endDate,
           status: newStatus,
           source: form.source,
+          giftGrantId: giftGrant?.id ?? null,
           beneficiaryName: leg.beneficiaryName,
           // Ô ngày sinh ẩn với đơn xe máy nên chuỗi rỗng là chuyện thường —
           // `''::date` là lỗi cú pháp, phải về null.

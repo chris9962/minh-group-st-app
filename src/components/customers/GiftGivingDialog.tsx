@@ -61,7 +61,8 @@ export function GiftGivingDialog({ open, onClose, customerId, customerName }: Pr
   // Gửi MÃ món lên máy chủ (#74), nhưng toast phải nói TÊN — người dùng không
   // đọc `BH-1N-XEMAY`. Nên mutation nhận cả hai.
   const markGiven = useMutation({
-    mutationFn: ({ code }: { code: string; label: string }) => markGiftGiven(customerId, code),
+    mutationFn: ({ code, orderIds = [] }: { code: string; label: string; orderIds?: string[] }) =>
+      markGiftGiven(customerId, code, orderIds),
     onSuccess: (_data, { code, label }) => {
       queryClient.invalidateQueries({ queryKey: ["customers"] });
       queryClient.invalidateQueries({ queryKey: ["customer", customerId] });
@@ -83,9 +84,13 @@ export function GiftGivingDialog({ open, onClose, customerId, customerName }: Pr
         customer={data.customer}
         source="gift"
         prefill={{ packageName: chosen?.name ?? "" }}
-        onClose={onClose}
-        onCreated={() =>
-          markGiven.mutate({ code: chosen?.code ?? "", label: chosen?.name ?? "Quà tặng" })
+        onClose={() => setCreatingOrder(false)}
+        onCreated={(orders) =>
+          markGiven.mutate({
+            code: chosen?.code ?? "",
+            label: chosen?.name ?? "Quà tặng",
+            orderIds: orders.map((order) => order.id),
+          })
         }
       />
     );
