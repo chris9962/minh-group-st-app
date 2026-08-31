@@ -11,7 +11,7 @@
  */
 import { Pool } from "pg";
 
-const USERNAMES = ["457HUNGPD", "422KHANHNT", "311vyntt", "307phonght", "127MINHNT", "361NGOCLB", "nnt", "mgnnt"];
+const USERNAMES = ["457HUNGPD", "422KHANHNT", "311vyntt", "307phonght", "127MINHNT", "361NGOCLB", "nnt", "mg-nnt"];
 const xoaThat = process.argv.includes("--xoa-that");
 const connectionString = process.env.DATABASE_URL;
 const normalizedUsernames = USERNAMES.map((username) => username.toLowerCase());
