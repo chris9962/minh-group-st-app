@@ -372,7 +372,9 @@ export default function CustomerDetailPage({
                   <div>
                     <dt>Bảo hiểm</dt>
                     <dd>
-                      {data.gift.insuranceYears} năm
+                      {data.gift.caseCode === "TH5"
+                        ? "Chọn gói 1 hoặc 2 năm"
+                        : `${data.gift.insuranceYears} năm`}
                       {data.gift.caseCode && (
                         <span className={styles.detail}>Trường hợp {data.gift.caseCode}</span>
                       )}

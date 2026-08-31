@@ -484,6 +484,7 @@ const giftOf = (
 
 const BH_1N = ["BH-1N-XEMAY", "BH-1N-DIEN"];
 const BH_2N = ["BH-COMBO-1N", "BH-2N-XEMAY", "BH-2N-DIEN-100K", "BH-1N-DIEN-200K"];
+const BH_TH5 = [...BH_2N, ...BH_1N];
 
 section("Bậc thang TH1 → TH6 (6 dòng)");
 check("TH1 · Combo 2 có VPa", giftOf(["MB", "VPa"]).caseCode, "TH1");
@@ -500,6 +501,16 @@ check("TH3 · 1 năm", giftOf(["MB", "VPa", "MSBa"]).insuranceYears, 1);
 check("TH4 · 1 năm", giftOf(["MB", "MSBa", "LPB"]).insuranceYears, 1);
 check("TH5 · 2 năm", giftOf(["MB", "VPa", "LPB"]).insuranceYears, 2);
 check("TH6 · 2 năm", giftOf(["LPB", "TPB", "VIB"]).insuranceYears, 2);
+checkCodes(
+  "TH5 · thêm hai gói 1 năm",
+  giftOf(["MB", "VPa", "LPB"]).basket.map((item) => item.code),
+  BH_TH5,
+);
+checkCodes(
+  "TH6 · giữ rổ 2 năm cũ",
+  giftOf(["LPB", "TPB", "VIB"]).basket.map((item) => item.code),
+  BH_2N,
+);
 
 section("Tiền mặt");
 check("TH1 · 20k", giftOf(["MB", "VPa"]).cashTotal, 20_000);
@@ -559,7 +570,7 @@ check("…kèm 20k của VPa", giftOf(["VPa", "LPB", "MSBa!"]).cashTotal, 20_000
 
 section("Rổ bảo hiểm");
 checkCodes("1 năm · hai gói", giftOf(["MB", "VPa"]).basket.map((b) => b.code), BH_1N);
-checkCodes("2 năm · bốn gói", giftOf(["MB", "VPa", "LPB"]).basket.map((b) => b.code), BH_2N);
+checkCodes("TH5 · sáu gói 1 hoặc 2 năm", giftOf(["MB", "VPa", "LPB"]).basket.map((b) => b.code), BH_TH5);
 check(
   "mọi món của mức bảo hiểm đều là gói bảo hiểm",
   giftOf(["MB", "VPa", "LPB"]).basket.every((b) => b.kind === "insurance-package"),
@@ -603,7 +614,7 @@ section("Món thêm — Phòng Y, phòng Dự án, kênh Bệnh viện (lưu ý 
 checkCodes(
   "TH5 ở Phòng Y — có thêm Bảng mica",
   giftOf(["MB", "VPa", "LPB"], { department: "PHONG-Y" }).basket.map((b) => b.code),
-  [...BH_2N, "QUA-MI", "QUA-BH-SUC-KHOE", "QUA-NON-BH", "QUA-MICA"],
+  [...BH_TH5, "QUA-MI", "QUA-BH-SUC-KHOE", "QUA-NON-BH", "QUA-MICA"],
 );
 checkCodes(
   "TH6 ở kênh Bệnh viện",
@@ -613,7 +624,7 @@ checkCodes(
 checkCodes(
   "TH5 ở phòng Dự án",
   giftOf(["MB", "VPa", "LPB"], { department: "PHONG-DU-AN" }).basket.map((b) => b.code),
-  [...BH_2N, "QUA-MI", "QUA-BH-SUC-KHOE", "QUA-NON-BH"],
+  [...BH_TH5, "QUA-MI", "QUA-BH-SUC-KHOE", "QUA-NON-BH"],
 );
 checkCodes(
   "vừa Phòng Y vừa kênh Bệnh viện thì món không nhân đôi",
@@ -637,7 +648,7 @@ checkCodes(
 checkCodes(
   "phòng Dự án KHÔNG có Bảng mica",
   giftOf(["MB", "VPa", "LPB"], { department: "PHONG-DU-AN" }).basket.map((b) => b.code),
-  [...BH_2N, "QUA-MI", "QUA-BH-SUC-KHOE", "QUA-NON-BH"],
+  [...BH_TH5, "QUA-MI", "QUA-BH-SUC-KHOE", "QUA-NON-BH"],
 );
 checkCodes(
   "kênh Bệnh viện KHÔNG có Bảng mica",
@@ -654,7 +665,7 @@ checkCodes(
   giftOf(["MB", "VPa", "LPB"], { department: "KD-1", channels: ["KENH-ATM"] }).basket.map(
     (b) => b.code,
   ),
-  BH_2N,
+  BH_TH5,
 );
 /**
  * Ca then chốt của lượt chốt lại 2026-08-24: khách MỘT tài khoản ở nhóm Phòng Y

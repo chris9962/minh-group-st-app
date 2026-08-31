@@ -242,7 +242,11 @@ export function GiftSimulator() {
                 <span className="text-muted">Chưa đủ điều kiện</span>
               )}
               {run.data.insuranceYears > 0 && (
-                <span className={styles.detail}>{run.data.insuranceYears} năm bảo hiểm</span>
+                <span className={styles.detail}>
+                  {run.data.caseCode === "TH5"
+                    ? "Chọn gói bảo hiểm 1 hoặc 2 năm"
+                    : `${run.data.insuranceYears} năm bảo hiểm`}
+                </span>
               )}
             </dd>
           </div>
@@ -327,8 +331,8 @@ export function GiftSimulator() {
                 {Math.round((run.data.kpiPoints + run.data.householdPoints) * 10) / 10}
               </strong>
               <span className={styles.detail}>
-                Điểm combo cộng điểm CNKD. Điểm KPI thật còn lọc tài khoản theo
-                tháng (thể lệ câu 7.13).
+                Điểm combo cộng điểm CNKD. Điểm KPI trả lương có thể khác vì
+                tính theo từng tháng mở tài khoản.
               </span>
             </dd>
           </div>

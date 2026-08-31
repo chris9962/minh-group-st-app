@@ -318,7 +318,7 @@ const CASH_OF: Record<string, Omit<GiftCash, "reason">> = {
 };
 
 /**
- * Rổ bảo hiểm theo số năm thể lệ hứa.
+ * Rổ bảo hiểm theo bậc quà.
  *
  * Thể lệ chỉ ghi "01 năm BH" / "02 năm BH" mà không nói gói nào — danh sách gói
  * lấy từ spec §5.2 bước 1, và hai tài liệu khớp nhau từng bậc:
@@ -328,12 +328,18 @@ const CASH_OF: Record<string, Omit<GiftCash, "reason">> = {
  *   spec "app = 2"            = thể lệ TH1/TH2 (Combo 2) → 1 năm
  *
  * Mức 1 năm chỉ có hai gói đơn vì một năm còn lại đã quy đổi thành 50k tiền mặt
- * (spec §5.2, ghi chú dưới bảng).
+ * (spec §5.2, ghi chú dưới bảng). TH5 là ngoại lệ: vẫn thuộc bậc 2 năm nhưng
+ * cho phép chọn thêm gói đơn 1 năm để tối ưu chi phí.
  */
 const INSURANCE_BASKET: Record<1 | 2, string[]> = {
   1: ["BH-1N-XEMAY", "BH-1N-DIEN"],
   2: ["BH-COMBO-1N", "BH-2N-XEMAY", "BH-2N-DIEN-100K", "BH-1N-DIEN-200K"],
 };
+
+// TH5 được chọn thêm hai gói đơn 1 năm để tối ưu chi phí. TH6 vẫn giữ nguyên
+// bốn lựa chọn của mức 2 năm; không dùng chung theo `years` vì hai trường hợp
+// cùng mức quyền lợi này nay có rổ khác nhau.
+const TH5_INSURANCE_BASKET = [...INSURANCE_BASKET[2], "BH-1N-XEMAY", "BH-1N-DIEN"];
 
 /** Món thêm — spec §5.2 bước 2, mọi dòng khớp đều góp, không dừng ở dòng đầu. */
 const ITEMS_CNKD = ["QUA-LOA", "QUA-MICA"];
@@ -517,12 +523,18 @@ export function gift(input: GiftInput): GiftResult {
   for (const c of cash)
     explain.push(`Tặng ${c.amount.toLocaleString("vi-VN")}đ vào ${c.bankCode}, chi trong ${c.withinDays} ngày.`);
 
-  const basket: GiftChoice[] = INSURANCE_BASKET[matched.years].map((code) => ({
+  const insuranceBasket =
+    matched.code === "TH5" ? TH5_INSURANCE_BASKET : INSURANCE_BASKET[matched.years];
+  const basket: GiftChoice[] = insuranceBasket.map((code) => ({
     kind: "insurance-package" as const,
     code,
     reason: `${matched.years} năm bảo hiểm của ${matched.code}`,
   }));
-  explain.push(`Được ${matched.years} năm bảo hiểm — chọn 1 gói trong rổ.`);
+  explain.push(
+    matched.code === "TH5"
+      ? "TH5 được chọn 1 gói bảo hiểm, gồm lựa chọn 1 năm hoặc 2 năm."
+      : `Được ${matched.years} năm bảo hiểm — chọn 1 gói trong rổ.`,
+  );
 
   // Gói bảo hiểm đứng TRƯỚC món thêm trong rổ. Rổ trộn món giá trị rất khác
   // nhau, và khách đọc từ trên xuống (spec §5.2 cảnh báo ca "lấy mì trong khi
