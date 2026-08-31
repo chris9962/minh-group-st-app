@@ -43,6 +43,7 @@ export const BankAccountDetail = BankAccountRow.extend({
   channelDetail: z.string(),
   accountType: AccountType,
   note: z.string(),
+  errorNote: z.string(),
   createdByDepartmentId: z.string().nullable(),
   photoUrls: z.array(z.string()),
   /**

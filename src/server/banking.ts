@@ -16,6 +16,7 @@ import type {
   BankAccount,
   BankAccountFinishForm,
   BankAccountStartForm,
+  BankAccountStatusUpdateForm,
   BankAccountUpdateForm,
   CustomerBankSlots,
   PhotoKind,
@@ -191,7 +192,9 @@ async function referralCodeIdsOf(code: string): Promise<string[] | null> {
 
 /** Chuỗi rỗng hoặc giá trị lạ đều thành "mọi trạng thái". */
 const statusFilter = (raw: string): SQL | undefined =>
-  raw === "creating" || raw === "done" ? eq(bankAccounts.status, raw) : undefined;
+  raw === "creating" || raw === "done" || raw === "error"
+    ? eq(bankAccounts.status, raw)
+    : undefined;
 
 async function accountFilters(
   visible: RecordVisibility,
@@ -249,6 +252,7 @@ const pickPage = (where: SQL | undefined, orderBy: SQL[], limit: number, offset:
       appInstalled: bankAccounts.appInstalled,
       accountType: bankAccounts.accountType,
       note: bankAccounts.note,
+      errorNote: bankAccounts.errorNote,
       createdBy: bankAccounts.createdBy,
       createdByDepartmentId: bankAccounts.createdByDepartmentId,
       // Mốc tính cửa sổ sửa ảnh chứng minh (`canEditOpeningPhotos`).
@@ -287,6 +291,7 @@ const decorate = (page: ReturnType<typeof pickPage>) =>
       appInstalled: page.appInstalled,
       accountType: page.accountType,
       note: page.note,
+      errorNote: page.errorNote,
       createdById: page.createdBy,
       createdByName: users.fullName,
       createdByDepartmentId: page.createdByDepartmentId,
@@ -518,6 +523,7 @@ async function accountById(id: string): Promise<BankAccount | null> {
     appInstalled: r.appInstalled,
     accountType: r.accountType,
     note: r.note,
+    errorNote: r.errorNote,
     createdById: r.createdById,
     createdByName: r.createdByName,
     createdByDepartmentId: r.createdByDepartmentId,
@@ -550,6 +556,7 @@ export async function bankAccountDetail(
     channelDetail: r.channelDetail,
     accountType: r.accountType,
     note: r.note,
+    errorNote: r.errorNote,
     createdByDepartmentId: r.createdByDepartmentId,
     photoUrls: await photoUrlsOf(id, "opening"),
     transactionAt: r.transactionAt,
@@ -1058,6 +1065,51 @@ export async function updateFinishedAccount(
       warnings: await warningsFor(current.customerId),
     },
   };
+}
+
+/**
+ * Đối soát ngược một tài khoản đã hoàn thành.
+ *
+ * `error` loại dòng này khỏi mọi phép tính KPI vì các truy vấn KPI chỉ lấy
+ * `done`. Không gọi `recomputeGiftCase`: quà đã chốt/đã tư vấn không bị đổi
+ * chỉ vì đối soát lại một tài khoản ngân hàng.
+ */
+export async function updateBankAccountStatus(
+  actor: User,
+  id: string,
+  form: BankAccountStatusUpdateForm,
+): Promise<BankingOutcome<BankAccount> | null> {
+  const visible = scopeOf(actor, WRITE_ACTION);
+  if (visible.kind === "none") return null;
+
+  const current = await rawById(id);
+  if (!current || !inScope(visible, current)) return null;
+  if (current.status === "creating")
+    return { ok: false, message: "Tài khoản đang tạo không thể đối soát lỗi." };
+  if (current.status === form.status)
+    return { ok: false, message: "Tài khoản đang ở trạng thái này rồi." };
+
+  const updated = await db
+    .update(bankAccounts)
+    .set({
+      status: form.status,
+      errorNote: form.status === "error" ? form.errorNote : "",
+      updatedAt: new Date(),
+    })
+    .where(and(eq(bankAccounts.id, id), eq(bankAccounts.status, current.status)))
+    .returning({ id: bankAccounts.id });
+  if (updated.length === 0)
+    return { ok: false, message: "Tài khoản vừa được đối soát ở nơi khác." };
+
+  // Tài khoản lỗi bị loại ra, tài khoản khôi phục lại được tính vào. Chỉ tính
+  // tháng mở tài khoản, không phải tháng bấm đối soát.
+  if (current.date)
+    await recomputeKpiForCustomer(
+      current.customerId,
+      businessMonth(new Date(`${current.date}T00:00:00+07:00`)),
+    );
+
+  return { ok: true, value: (await accountById(id))! };
 }
 
 /**

@@ -6,7 +6,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { use, useState } from "react";
 import { useForm } from "react-hook-form";
-import { CheckCircle2, ChevronLeft, Landmark, Pencil, Trash2 } from "lucide-react";
+import { CheckCircle2, ChevronLeft, Landmark, Pencil, RotateCcw, TriangleAlert, Trash2 } from "lucide-react";
+import { Alert } from "@/components/ui/Alert";
+import { Dialog } from "@/components/ui/Dialog";
 import { SkeletonCard } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
@@ -22,12 +24,14 @@ import {
 import { Button } from "@/components/ui/Button";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusTag } from "@/components/ui/StatusTag";
+import { TextArea } from "@/components/ui/TextArea";
 import {
   AccountType,
   BankAccountFinishForm,
   deleteBankAccount,
   finishBankAccount,
   setBankAccountPhotos,
+  updateBankAccountStatus,
 } from "@/lib/api/bankAccounts";
 import { fetchBankAccountDetail, type BankAccountDetail } from "@/lib/api/banking";
 import { fetchDepartments } from "@/lib/api/departments";
@@ -94,7 +98,7 @@ export default function BankAccountDetailPage({
           <FinishAccountCard id={id} data={data} departmentName={departmentName} />
         )}
 
-        {data && data.status === "done" && (
+        {data && (data.status === "done" || data.status === "error") && (
           <DoneAccountCard id={id} data={data} departmentName={departmentName} />
         )}
       </main>
@@ -281,6 +285,24 @@ function DoneAccountCard({
   const user = useSession((s) => s.user);
   const canWrite = can(user, "banking", "update");
   const [editing, setEditing] = useState(false);
+  const [markingError, setMarkingError] = useState(false);
+  const [errorNote, setErrorNote] = useState("");
+  const queryClient = useQueryClient();
+  const statusUpdate = useMutation({
+    mutationFn: (form: { status: "done" | "error"; errorNote: string }) =>
+      updateBankAccountStatus(id, form),
+    onSuccess: (account) => {
+      queryClient.invalidateQueries({ queryKey: ["bank-account-detail", id] });
+      queryClient.invalidateQueries({ queryKey: ["bank-account-list"] });
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
+      queryClient.invalidateQueries({ queryKey: ["customer", data.customerId] });
+      invalidateKpi(queryClient);
+      setMarkingError(false);
+      setErrorNote("");
+      toast.ok(account.status === "error" ? "Đã đánh dấu tài khoản lỗi và tính lại KPI" : "Đã khôi phục tài khoản và tính lại KPI");
+    },
+    onError: (e) => toast.fail(errorMessage(e, "Không đổi được trạng thái tài khoản.")),
+  });
 
   return (
     <SectionCard
@@ -290,17 +312,49 @@ function DoneAccountCard({
          không dựng biểu mẫu thứ hai để rồi hai chỗ lệch luật nhau. */
       action={
         canWrite ? (
-          <Button variant="secondary" onClick={() => setEditing(true)}>
-            <Pencil size={16} aria-hidden />
-            Sửa
-          </Button>
+          <>
+            {data.status === "done" ? (
+              <div className={styles.headerActions}>
+                <Button variant="secondary" onClick={() => setEditing(true)}>
+                  <Pencil size={16} aria-hidden />
+                  Sửa
+                </Button>
+                <Button variant="secondary" onClick={() => setMarkingError(true)}>
+                  <TriangleAlert size={16} aria-hidden />
+                  Đánh dấu lỗi
+                </Button>
+              </div>
+            ) : (
+              <Button
+                variant="secondary"
+                disabled={statusUpdate.isPending}
+                onClick={() => statusUpdate.mutate({ status: "done", errorNote: "" })}
+              >
+                <RotateCcw size={16} aria-hidden />
+                Khôi phục hoàn thành
+              </Button>
+            )}
+          </>
         ) : undefined
       }
     >
+      {data.status === "error" && (
+        <Alert tone="warning">
+          <strong>Tài khoản lỗi — không tính KPI.</strong> {data.errorNote}
+        </Alert>
+      )}
       {editing && (
         <BankAccountEditDialog open onClose={() => setEditing(false)} accountId={id} />
       )}
       <dl className={styles.fields}>
+        <div>
+          <dt>Trạng thái</dt>
+          <dd>
+            <StatusTag tone={data.status === "done" ? "ok" : "warn"}>
+              {data.status === "done" ? "Hoàn thành" : "Lỗi"}
+            </StatusTag>
+          </dd>
+        </div>
         <div>
           <dt>Khách hàng</dt>
           <dd>
@@ -379,6 +433,37 @@ function DoneAccountCard({
         requiredPhotos={0}
         photos={savedPhotos(data.transactionPhotoUrls)}
       />
+
+      {markingError && (
+        <Dialog
+          open
+          title="Đánh dấu tài khoản lỗi"
+          onClose={() => !statusUpdate.isPending && setMarkingError(false)}
+          footer={
+            <>
+              <Button variant="secondary" onClick={() => setMarkingError(false)} disabled={statusUpdate.isPending}>
+                Huỷ
+              </Button>
+              <Button
+                disabled={statusUpdate.isPending || errorNote.trim().length < 2}
+                onClick={() => statusUpdate.mutate({ status: "error", errorNote })}
+              >
+                Đánh dấu lỗi
+              </Button>
+            </>
+          }
+        >
+          <Alert tone="warning">Tài khoản này sẽ bị loại khỏi KPI. Quà của khách giữ nguyên.</Alert>
+          <TextArea
+            label="Lý do lỗi"
+            required
+            rows={3}
+            placeholder="Ví dụ: Tài khoản không hợp lệ khi đối soát"
+            value={errorNote}
+            onChange={(event) => setErrorNote(event.target.value)}
+          />
+        </Dialog>
+      )}
     </SectionCard>
   );
 }

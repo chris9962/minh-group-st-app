@@ -379,6 +379,13 @@
       "when": 1788073200000,
       "tag": "0053_gift_changes",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1788076800000,
+      "tag": "0054_bank_account_error",
+      "breakpoints": true
     }
   ]
 }

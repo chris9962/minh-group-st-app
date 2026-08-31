@@ -25,7 +25,7 @@ export type AccountType = z.infer<typeof AccountType>;
  * đếm sẵn ở `referral_codes.holding_count`. Chỗ được nhả bằng đúng một đường:
  * xoá dòng `creating`.
  */
-export const BankAccountStatus = z.enum(['creating', 'done']);
+export const BankAccountStatus = z.enum(['creating', 'done', 'error']);
 export type BankAccountStatus = z.infer<typeof BankAccountStatus>;
 
 export const BankAccount = z.object({
@@ -61,6 +61,8 @@ export const BankAccount = z.object({
   /** Chỉ có ý nghĩa khi ngân hàng = VPa. */
   accountType: AccountType,
   note: z.string(),
+  /** Lý do đối soát đánh dấu lỗi; chỉ có giá trị khi status = error. */
+  errorNote: z.string(),
   createdById: z.string().nullable(),
   createdByName: z.string().nullable(),
   /** Phòng của người tạo lúc tạo — dùng để lọc theo phạm vi ở P-42, P-21. */
@@ -190,6 +192,18 @@ export const BankAccountUpdateForm = BankAccountFinishForm.extend({
 });
 export type BankAccountUpdateForm = z.infer<typeof BankAccountUpdateForm>;
 
+/** Đối soát trạng thái tài khoản đã hoàn thành. Tài khoản lỗi bị loại khỏi KPI. */
+export const BankAccountStatusUpdateForm = z
+  .object({
+    status: z.enum(['done', 'error']),
+    errorNote: z.string().trim().max(500, 'Lý do nhiều nhất 500 ký tự'),
+  })
+  .superRefine((value, ctx) => {
+    if (value.status === 'error' && value.errorNote.length < 2)
+      ctx.addIssue({ code: 'custom', path: ['errorNote'], message: 'Nhập lý do đánh dấu lỗi' });
+  });
+export type BankAccountStatusUpdateForm = z.infer<typeof BankAccountStatusUpdateForm>;
+
 export const CreateBankAccountResult = z.object({
   account: BankAccount,
   /**
@@ -265,6 +279,20 @@ export async function updateBankAccount(
   return CreateBankAccountResult.parse(await res.json());
 }
 
+/** Đối soát ngược: đổi Done ↔ Lỗi, kèm lý do khi loại tài khoản khỏi KPI. */
+export async function updateBankAccountStatus(
+  id: string,
+  form: BankAccountStatusUpdateForm,
+): Promise<BankAccount> {
+  const res = await fetch(`/api/bank-accounts/${id}/status`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(form),
+  });
+  if (!res.ok) throw await failure(res, 'Không đổi được trạng thái tài khoản');
+  return BankAccount.parse(await res.json());
+}
+
 /** Bỏ dở — chỉ xoá được khi còn `creating`. Nhả mã lại kho ngay (mục 4.5). */
 export async function deleteBankAccount(id: string): Promise<void> {
   const res = await fetch(`/api/bank-accounts/${id}`, { method: 'DELETE' });
@@ -301,7 +329,7 @@ export const canEditOpeningPhotos = (
   account: { status: BankAccountStatus; finishedAt: string },
 ): boolean => {
   if (!actor) return false;
-  if (account.status !== 'done') return true;
+  if (account.status === 'creating') return true;
   if (ROLE_RANK[actor.role] >= ROLE_RANK.head) return true;
   return account.finishedAt !== '' && businessDay(new Date(account.finishedAt)) === businessDay();
 };

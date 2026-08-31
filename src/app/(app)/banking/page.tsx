@@ -42,6 +42,7 @@ const iso = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60_000).
 const STATUS_LABEL: Record<BankAccountStatus, string> = {
   creating: "Đang tạo",
   done: "Hoàn thành",
+  error: "Lỗi",
 };
 
 /** Xuất Excel gộp theo khách — mỗi khách một dòng, một cột riêng cho mỗi ngân hàng (spec §8.2). */
@@ -247,7 +248,9 @@ export default function BankingPage() {
         key: "status",
         label: "Trạng thái",
         render: (r) => (
-          <StatusTag ok={r.status === "done"}>{STATUS_LABEL[r.status]}</StatusTag>
+          <StatusTag tone={r.status === "done" ? "ok" : r.status === "error" ? "warn" : "waiting"}>
+            {STATUS_LABEL[r.status]}
+          </StatusTag>
         ),
       },
       {
@@ -264,7 +267,7 @@ export default function BankingPage() {
         // dòng giống nhau, "Sửa" một mình không nói đang sửa dòng nào.
         render: (r: BankAccountRow) => (
           <RowActions>
-            {canWrite && (
+            {canWrite && r.status !== "error" && (
               <Button
                 variant="secondary"
                 icon

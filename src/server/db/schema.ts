@@ -88,7 +88,7 @@ export const departmentType = pgEnum("department_type", ["sales", "office"]);
 
 export const accountNumberMethod = pgEnum("account_number_method", ["phone-match", "manual"]);
 export const bankAccountType = pgEnum("bank_account_type", ["none", "CNKD", "HKD"]);
-export const bankAccountStatus = pgEnum("bank_account_status", ["creating", "done"]);
+export const bankAccountStatus = pgEnum("bank_account_status", ["creating", "done", "error"]);
 
 export const insuranceProduct = pgEnum("insurance_product", ["motorbike", "electric-accident"]);
 export const insuranceOrderStatus = pgEnum("insurance_order_status", [
@@ -716,6 +716,8 @@ export const bankAccounts = pgTable(
     /** Giữ chỗ NGAY từ bước 1 — tài khoản `creating` chính là lượt giữ (spec §4.5). */
     referralCodeId: uuid("referral_code_id").notNull().references(() => referralCodes.id),
     status: bankAccountStatus("status").notNull().default("creating"),
+    /** Lý do đối soát loại tài khoản ra khỏi KPI; rỗng khi không ở trạng thái lỗi. */
+    errorNote: text("error_note").notNull().default(""),
     accountNumber: text("account_number"),
     openedDate: date("opened_date"),
     /** Trường quyết định quà. */

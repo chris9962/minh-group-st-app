@@ -48,6 +48,12 @@
   border-top: 1px solid var(--om-line);
 }
 
+.headerActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 @media (max-width: bp.$bp-mobile) {
   .body {
     padding: 16px 16px 32px;
