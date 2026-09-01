@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { DateRangePicker } from "@/components/ui/DateRangePicker";
 import { MonthPicker, thisMonth } from "@/components/ui/MonthPicker";
+import { fetchOrderStats, type OrderStatsGroupBy } from "@/lib/api/exports";
+import { exportOrderStats, type OrderStatsMeasures, type OrderStatsSheet } from "@/lib/excelOrderStats";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { SectionTabs } from "@/components/ui/SectionTabs";
 import { Combobox } from "@/components/ui/Combobox";
@@ -30,7 +32,7 @@ import styles from "./page.module.scss";
 
 const iso = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
 
-type ReportId = "accounts-by-customer" | "staff-points" | "services-by-ward";
+type ReportId = "accounts-by-customer" | "staff-points" | "services-by-ward" | "order-stats";
 
 /**
  * Ba báo cáo, chốt 2026-08-22.
@@ -48,7 +50,17 @@ const REPORTS: { id: ReportId; label: string; module: ModuleKey }[] = [
   { id: "accounts-by-customer", label: "Tính điểm tổng, gộp theo khách", module: "banking" },
   { id: "staff-points", label: "Nhân viên + điểm", module: "staff" },
   { id: "services-by-ward", label: "Dịch vụ đã làm, có cột xã", module: "services" },
+  { id: "order-stats", label: "Số liệu cấp đơn bảo hiểm", module: "insurance" },
 ];
+
+/**
+ * Báo cáo #4 KHÔNG cho chọn cột.
+ *
+ * Ba báo cáo kia là bảng phẳng nên tick cột nào cũng ra file đọc được. Báo cáo
+ * này dựng lại đúng hình dạng file Kế toán — đầu bảng hai tầng gộp ô, dòng TỔNG
+ * ở chân — nên bỏ một cột là hỏng cả bố cục.
+ */
+const FIXED_SHAPE: ReportId[] = ["order-stats"];
 
 /**
  * Điều kiện này phải khớp chốt của route xuất tương ứng; lệch nhau thì người
@@ -210,6 +222,10 @@ function catalogFor(report: ReportId, banks: Bank[], staffById: Map<string, Staf
         { key: "createdByName", header: "Người thực hiện", defaultOn: true, sample: ["Lý Hoàng Nam", "Phan Thị Tuyết"], value: (r) => r.createdByName },
         { key: "note", header: "Ghi chú", defaultOn: true, sample: ["—", "Đã hoàn tất hồ sơ"], value: (r) => r.note || "—" },
       ];
+
+    // Báo cáo hình dạng cố định — không có bảng chọn cột, xem `FIXED_SHAPE`.
+    case "order-stats":
+      return [];
   }
 }
 
@@ -277,6 +293,9 @@ export default function ExportsPage() {
   const [range, setRange] = useState<DateRange | undefined>(undefined);
   const [referralCode, setReferralCode] = useState("");
   const [month, setMonth] = useState(thisMonth());
+  const [statsGroupBy, setStatsGroupBy] = useState<OrderStatsGroupBy>("department");
+  /** `day` = mỗi ngày một sheet, `month` = một sheet gộp cả tháng. */
+  const [statsSheets, setStatsSheets] = useState<"day" | "month">("day");
   const [departmentId, setDepartmentId] = useState("");
   const [departmentType, setDepartmentType] = useState<DepartmentType | "">("");
   const [ward, setWard] = useState("");
@@ -320,7 +339,8 @@ export default function ExportsPage() {
 
   async function run() {
     if (!active) return;
-    if (exportOrder.length === 0) {
+    // Báo cáo hình dạng cố định không có bảng chọn cột, nên không có gì để tick.
+    if (!FIXED_SHAPE.includes(active) && exportOrder.length === 0) {
       setLastResult("Chọn ít nhất một cột trước khi xuất.");
       return;
     }
@@ -407,6 +427,73 @@ export default function ExportsPage() {
       return people.length;
     },
 
+    async "order-stats"() {
+      const { groups, cells } = await fetchOrderStats(month, statsGroupBy);
+
+      /** Cộng các ô của cùng một nhóm thành mười con số. */
+      const measuresOf = (rows: typeof cells): Map<string, OrderStatsMeasures> => {
+        const byGroup = new Map<string, OrderStatsMeasures>();
+        for (const c of rows) {
+          const m = byGroup.get(c.groupId) ?? [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+          m[0] += c.motorbike;
+          m[1] += c.motorbikeYears;
+          m[2] += c.electric100;
+          m[3] += c.electric200;
+          m[4] += c.health;
+          m[5] += c.motorbikeCancelled;
+          m[6] += c.motorbikeYearsCancelled;
+          m[7] += c.electric100Cancelled;
+          m[8] += c.electric200Cancelled;
+          m[9] += c.healthCancelled;
+          byGroup.set(c.groupId, m);
+        }
+        return byGroup;
+      };
+
+      /**
+       * Gộp theo PHÒNG thì giữ đủ mọi phòng, kể cả phòng 0 đơn — file Kế toán
+       * so ngang giữa các ngày nên số dòng phải cố định. Gộp theo NHÂN VIÊN thì
+       * chỉ giữ người có số liệu của chính sheet đó.
+       */
+      const sheetOf = (name: string, title: string, rows: typeof cells): OrderStatsSheet => {
+        const byGroup = measuresOf(rows);
+        const zero: OrderStatsMeasures = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        return {
+          name,
+          title,
+          rows: groups
+            .filter((g) => statsGroupBy === "department" || byGroup.has(g.id))
+            .map((g) => ({ label: g.label, measures: byGroup.get(g.id) ?? zero })),
+        };
+      };
+
+      const [year, mm] = month.split("-");
+      const sheets: OrderStatsSheet[] =
+        statsSheets === "month"
+          ? [sheetOf(`Tháng ${mm}`, `TỔNG ĐƠN BẢO HIỂM ĐIỆN TỬ THÁNG ${mm}/${year}`, cells)]
+          : // Chỉ dựng sheet cho ngày CÓ số liệu. Tháng đang chạy dở thì dừng ở
+            // ngày cuối có đơn, không đẻ ra sheet rỗng cho ngày chưa tới.
+            [...new Set(cells.map((c) => c.day))]
+              .sort()
+              .map((day) => {
+                const [, , dd] = day.split("-");
+                return sheetOf(
+                  `${dd}.${mm}`,
+                  `TỔNG ĐƠN BẢO HIỂM ĐIỆN TỬ NGÀY ${dd}/${mm}/${year}`,
+                  cells.filter((c) => c.day === day),
+                );
+              });
+
+      if (sheets.length === 0) throw new Error(`Tháng ${mm}/${year} chưa có đơn bảo hiểm nào.`);
+
+      await exportOrderStats({
+        fileName: `so-lieu-cap-don-${statsGroupBy === "department" ? "theo-phong" : "theo-nhan-vien"}-${month}.xlsx`,
+        shape: statsGroupBy,
+        sheets,
+      });
+      return sheets.reduce((n, s) => n + s.rows.length, 0);
+    },
+
     async "services-by-ward"() {
       const { rows, total } = await fetchServicesForExport({
         search: "",
@@ -475,6 +562,7 @@ export default function ExportsPage() {
             title={activeReport.label}
             icon={<Download size={17} />}
           >
+            {!FIXED_SHAPE.includes(activeReport.id) && (
             <div className={styles.columnPreview}>
               <span className={styles.columnPreviewLabel}>
                 Tick chọn cột sẽ xuất ({exportOrder.length}/{catalog.length})
@@ -534,6 +622,7 @@ export default function ExportsPage() {
                 </table>
               </div>
             </div>
+            )}
 
             <span className={styles.columnPreviewLabel}>Bộ lọc</span>
             <div className={styles.filters} role="group" aria-label="Bộ lọc">
@@ -617,7 +706,40 @@ export default function ExportsPage() {
                 </>
               )}
 
-              {active !== "staff-points" && (
+              {active === "order-stats" && (
+                <>
+                  <div className={styles.field} role="group" aria-label="Tháng">
+                    <span className={styles.fieldLabel} aria-hidden>
+                      Tháng
+                    </span>
+                    <MonthPicker value={month} onChange={setMonth} />
+                  </div>
+                  <Select
+                    block
+                    label="Gộp theo"
+                    value={statsGroupBy}
+                    onChange={(v) => setStatsGroupBy(v as OrderStatsGroupBy)}
+                    options={[
+                      { value: "department", label: "Phòng" },
+                      { value: "staff", label: "Nhân viên nhập đơn" },
+                    ]}
+                  />
+                  {/* Chỉ đổi cách chia sheet, KHÔNG đổi khoảng thời gian: cả hai
+                      lựa chọn đều lấy trọn tháng đã chọn (chốt 2026-09-01). */}
+                  <Select
+                    block
+                    label="Chia sheet"
+                    value={statsSheets}
+                    onChange={(v) => setStatsSheets(v as "day" | "month")}
+                    options={[
+                      { value: "day", label: "Mỗi ngày một sheet" },
+                      { value: "month", label: "Một sheet cả tháng" },
+                    ]}
+                  />
+                </>
+              )}
+
+              {active !== "staff-points" && active !== "order-stats" && (
                 <DateRangePicker label="Khoảng ngày" value={range} onChange={setRange} />
               )}
             </div>

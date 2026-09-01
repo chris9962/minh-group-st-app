@@ -1,7 +1,8 @@
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, sql, type SQLWrapper } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { bankingPointsFor, bankTierFor, comboPointsAt, giftFor } from "@/rules";
 import type { ScoringAccount } from "@/rules";
+import { BUSINESS_TIMEZONE } from "@/lib/format";
 import type { User } from "@/lib/types";
 import { accountExportWhere } from "./banking";
 import { db } from "./db/client";
@@ -12,6 +13,7 @@ import {
   customerPhones,
   customers,
   departments,
+  giftGrantChanges,
   giftGrants,
   giftItems,
   insuranceOrders,
@@ -314,4 +316,267 @@ export async function listScoringExport(
     .where(done);
 
   return { rows, total: totals?.value ?? rows.length };
+}
+
+/* ── Báo cáo #4 · Số liệu cấp đơn bảo hiểm ──────────────────────────── */
+
+/**
+ * Dựng lại hai file Kế toán đang làm tay: `Bao cao so lieu cap don Thang 08` và
+ * bản `theo phong`. Cùng một bộ số, gộp theo hai trục khác nhau.
+ *
+ * Phạm vi luôn là TRỌN một tháng. "Theo ngày" hay "theo tháng" chỉ đổi cách
+ * chia sheet ở giao diện, không đổi khoảng thời gian (chốt 2026-09-01).
+ */
+
+/** Trục gộp — phòng ghi nhận lúc tạo đơn, hoặc người tạo đơn. */
+export type OrderStatsGroupBy = "department" | "staff";
+
+/** Mã món quà đếm vào hai cột BHSK. */
+const HEALTH_GIFT_CODE = "QUA-BH-SUC-KHOE";
+
+/**
+ * Một ô của báo cáo: một NGÀY, một nhóm, mười con số.
+ *
+ * Trả theo ngày kể cả khi người dùng chọn gộp tháng — nơi gọi tự cộng lại. Gộp
+ * sẵn ở máy chủ thì phải chạy hai câu truy vấn khác nhau cho hai kiểu sheet, mà
+ * hai câu đó sớm muộn lệch nhau.
+ */
+export type OrderStatsCell = {
+  /** `YYYY-MM-DD` — ngày tạo đơn, cũng là ngày phát quà. */
+  day: string;
+  groupId: string;
+  motorbike: number;
+  motorbikeYears: number;
+  electric100: number;
+  electric200: number;
+  health: number;
+  motorbikeCancelled: number;
+  motorbikeYearsCancelled: number;
+  electric100Cancelled: number;
+  electric200Cancelled: number;
+  healthCancelled: number;
+};
+
+export type OrderStatsGroup = { id: string; label: string };
+
+export type OrderStatsResult = {
+  /** Đúng thứ tự hiện trong sheet. Nhóm không có số nào vẫn nằm đây khi gộp theo phòng. */
+  groups: OrderStatsGroup[];
+  cells: OrderStatsCell[];
+};
+
+const emptyCell = (day: string, groupId: string): OrderStatsCell => ({
+  day,
+  groupId,
+  motorbike: 0,
+  motorbikeYears: 0,
+  electric100: 0,
+  electric200: 0,
+  health: 0,
+  motorbikeCancelled: 0,
+  motorbikeYearsCancelled: 0,
+  electric100Cancelled: 0,
+  electric200Cancelled: 0,
+  healthCancelled: 0,
+});
+
+/**
+ * Số năm của một đơn xe máy, suy từ hai cột ngày — cùng công thức worker PVI
+ * dùng lúc điền form (`pvi-qlcd-playwright/worker.ts`). PVI cấp tối đa 3 năm.
+ *
+ * Tính trong SQL chứ không kéo từng đơn về Node: một tháng thật có hơn ba vạn
+ * đơn, mà báo cáo chỉ cần tổng.
+ */
+const YEARS_SQL = sql<number>`greatest(1, least(3, round((${insuranceOrders.endDate} - ${insuranceOrders.startDate}) / 365.25)))`;
+
+/**
+ * Số liệu cấp đơn của MỘT tháng, chưa gộp ngày.
+ *
+ * ⚠️ Đơn HUỶ tính vào NGÀY TẠO ĐƠN, không phải ngày bấm huỷ (chốt 2026-09-01).
+ * Nhờ vậy cột "đã dùng" và cột "đã huỷ" của cùng một ngày nói về cùng một tập
+ * đơn, cộng lại ra đúng số đơn nhập ngày đó.
+ */
+export async function listOrderStats(
+  month: string,
+  groupBy: OrderStatsGroupBy,
+): Promise<OrderStatsResult> {
+  const from = `${month}-01`;
+  const to = sql`(${from}::date + interval '1 month')::date`;
+
+  const groupKey =
+    groupBy === "department"
+      ? sql<string>`coalesce(${insuranceOrders.createdByDepartmentId}::text, '')`
+      : sql<string>`coalesce(${insuranceOrders.createdBy}::text, '')`;
+
+  const orderRows = await db
+    .select({
+      day: sql<string>`${insuranceOrders.orderDate}::text`,
+      groupId: groupKey,
+      cancelled: sql<boolean>`${insuranceOrders.status} = 'cancelled'`,
+      motorbike: sql<number>`count(*) filter (where ${insuranceOrders.product} = 'motorbike')::int`,
+      motorbikeYears: sql<number>`coalesce(sum(${YEARS_SQL}) filter (where ${insuranceOrders.product} = 'motorbike'), 0)::int`,
+      // Hai mức phí của BH tai nạn điện là 100.000 và 200.000 chẵn, không có
+      // mức nào ở giữa — xem `insurance_package_legs`.
+      electric100: sql<number>`count(*) filter (where ${insuranceOrders.product} = 'electric-accident' and ${insuranceOrders.fee} < 200000)::int`,
+      electric200: sql<number>`count(*) filter (where ${insuranceOrders.product} = 'electric-accident' and ${insuranceOrders.fee} >= 200000)::int`,
+    })
+    .from(insuranceOrders)
+    .where(
+      and(
+        sql`${insuranceOrders.orderDate} >= ${from}::date`,
+        sql`${insuranceOrders.orderDate} < ${to}`,
+      ),
+    )
+    .groupBy(sql`1`, sql`2`, sql`3`);
+
+  const cells = new Map<string, OrderStatsCell>();
+  const cellOf = (day: string, groupId: string): OrderStatsCell => {
+    const key = `${day}|${groupId}`;
+    const found = cells.get(key);
+    if (found) return found;
+    const made = emptyCell(day, groupId);
+    cells.set(key, made);
+    return made;
+  };
+
+  for (const r of orderRows) {
+    const cell = cellOf(r.day, r.groupId);
+    if (r.cancelled) {
+      cell.motorbikeCancelled += r.motorbike;
+      cell.motorbikeYearsCancelled += r.motorbikeYears;
+      cell.electric100Cancelled += r.electric100;
+      cell.electric200Cancelled += r.electric200;
+    } else {
+      cell.motorbike += r.motorbike;
+      cell.motorbikeYears += r.motorbikeYears;
+      cell.electric100 += r.electric100;
+      cell.electric200 += r.electric200;
+    }
+  }
+
+  await addHealthGiftCounts(cells, cellOf, month, groupBy);
+
+  return { groups: await groupsOf(groupBy, cells), cells: [...cells.values()] };
+}
+
+/**
+ * Hai cột BHSK — đếm món quà `BH sức khoẻ` đã phát, không đếm đơn bảo hiểm
+ * (chốt 2026-09-01). Hệ thống không có sản phẩm bảo hiểm sức khoẻ; `BH sức
+ * khoẻ` là một món trong rổ quà.
+ *
+ * Cột "đã dùng" đọc `gift_grants.chosen_item`, cột "huỷ" đọc lượt ĐỔI đi khỏi
+ * món đó. Hai cột tự loại trừ nhau: `chosen_item` giữ món HIỆN TẠI, nên khách
+ * đổi sang món khác rời cột đầu và vào cột sau.
+ *
+ * ⚠️ Phòng lấy từ `users.department_id` HIỆN TẠI của người phát, không phải
+ * phòng lúc phát. Khác đơn bảo hiểm, `gift_grants` không chụp phòng lúc ghi.
+ */
+async function addHealthGiftCounts(
+  cells: Map<string, OrderStatsCell>,
+  cellOf: (day: string, groupId: string) => OrderStatsCell,
+  month: string,
+  groupBy: OrderStatsGroupBy,
+): Promise<void> {
+  const from = `${month}-01`;
+  // `granted_at` là timestamptz, máy chủ chạy UTC. Không quy múi giờ thì đơn
+  // phát lúc 0h–7h sáng rơi sang ngày hôm trước.
+  const vnDay = (column: SQLWrapper) =>
+    sql<string>`((${column} at time zone ${BUSINESS_TIMEZONE})::date)::text`;
+  const inMonth = (column: SQLWrapper) =>
+    sql`(${column} at time zone ${BUSINESS_TIMEZONE})::date >= ${from}::date
+        and (${column} at time zone ${BUSINESS_TIMEZONE})::date < (${from}::date + interval '1 month')::date`;
+
+  const granter = alias(users, "granter");
+  const changer = alias(users, "changer");
+  const keyOf = (u: { departmentId: SQLWrapper; id: SQLWrapper }) =>
+    groupBy === "department"
+      ? sql<string>`coalesce(${u.departmentId}::text, '')`
+      : sql<string>`coalesce(${u.id}::text, '')`;
+
+  const [granted, changed] = await Promise.all([
+    db
+      .select({
+        day: vnDay(giftGrants.grantedAt),
+        groupId: keyOf(granter),
+        total: sql<number>`count(*)::int`,
+      })
+      .from(giftGrants)
+      .innerJoin(granter, eq(granter.id, giftGrants.grantedBy))
+      .where(and(eq(giftGrants.chosenItem, HEALTH_GIFT_CODE), inMonth(giftGrants.grantedAt)))
+      .groupBy(sql`1`, sql`2`),
+    db
+      .select({
+        day: vnDay(giftGrantChanges.changedAt),
+        groupId: keyOf(changer),
+        total: sql<number>`count(*)::int`,
+      })
+      .from(giftGrantChanges)
+      .innerJoin(changer, eq(changer.id, giftGrantChanges.changedBy))
+      .where(
+        and(
+          eq(giftGrantChanges.fromChosenItem, HEALTH_GIFT_CODE),
+          inMonth(giftGrantChanges.changedAt),
+        ),
+      )
+      .groupBy(sql`1`, sql`2`),
+  ]);
+
+  for (const r of granted) cellOf(r.day, r.groupId).health += r.total;
+  for (const r of changed) cellOf(r.day, r.groupId).healthCancelled += r.total;
+  void cells;
+}
+
+/**
+ * Danh sách dòng của báo cáo, đúng thứ tự hiện trong sheet.
+ *
+ * Gộp theo PHÒNG thì liệt kê MỌI phòng kinh doanh, kể cả phòng không có đơn nào
+ * (chốt 2026-09-01) — file Kế toán giữ đủ dòng để so ngang giữa các ngày.
+ *
+ * Gộp theo NHÂN VIÊN thì chỉ liệt kê người có số liệu: công ty vài trăm người
+ * mà một ngày chỉ vài người nhập đơn.
+ *
+ * Nhóm nào có số liệu mà không nằm trong danh sách chuẩn vẫn được thêm vào
+ * cuối. Cắt đi thì dòng TỔNG không khớp tổng các dòng trên, mà người đọc không
+ * có cách nào biết vì sao.
+ */
+async function groupsOf(
+  groupBy: OrderStatsGroupBy,
+  cells: Map<string, OrderStatsCell>,
+): Promise<OrderStatsGroup[]> {
+  const used = new Set([...cells.values()].map((c) => c.groupId));
+
+  if (groupBy === "department") {
+    const rows = await db
+      .select({ id: departments.id, label: departments.name })
+      .from(departments)
+      .where(and(eq(departments.type, "sales"), eq(departments.active, true)))
+      .orderBy(departments.name);
+
+    const listed = new Set(rows.map((r) => r.id));
+    const extraIds = [...used].filter((id) => id && !listed.has(id));
+    const extras = extraIds.length
+      ? await db
+          .select({ id: departments.id, label: departments.name })
+          .from(departments)
+          .where(inArray(departments.id, extraIds))
+      : [];
+
+    return [
+      ...rows,
+      ...extras,
+      // Đơn không gắn phòng nào — ban giám đốc tạo, hoặc dữ liệu cũ.
+      ...(used.has("") ? [{ id: "", label: "Không thuộc phòng" }] : []),
+    ];
+  }
+
+  const ids = [...used].filter(Boolean);
+  if (ids.length === 0) return [];
+
+  const rows = await db
+    .select({ id: users.id, label: users.fullName })
+    .from(users)
+    .where(inArray(users.id, ids))
+    .orderBy(users.fullName);
+
+  return [...rows, ...(used.has("") ? [{ id: "", label: "Không rõ người tạo" }] : [])];
 }

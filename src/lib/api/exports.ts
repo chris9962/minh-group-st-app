@@ -75,3 +75,43 @@ export async function fetchScoringExport(
   if (!res.ok) throw new Error('Không tải được dữ liệu tính điểm tổng');
   return ScoringExportPage.parse(await res.json());
 }
+
+/* ── Báo cáo #4 · Số liệu cấp đơn bảo hiểm ──────────────────────────── */
+
+/** Trục gộp của báo cáo — phòng ghi nhận lúc tạo đơn, hoặc người tạo đơn. */
+export const OrderStatsGroupBy = z.enum(['department', 'staff']);
+export type OrderStatsGroupBy = z.infer<typeof OrderStatsGroupBy>;
+
+/** Một ngày, một nhóm, mười con số. Máy chủ luôn trả theo NGÀY; gộp tháng là việc của giao diện. */
+export const OrderStatsCell = z.object({
+  day: z.string(),
+  groupId: z.string(),
+  motorbike: z.number(),
+  motorbikeYears: z.number(),
+  electric100: z.number(),
+  electric200: z.number(),
+  health: z.number(),
+  motorbikeCancelled: z.number(),
+  motorbikeYearsCancelled: z.number(),
+  electric100Cancelled: z.number(),
+  electric200Cancelled: z.number(),
+  healthCancelled: z.number(),
+});
+export type OrderStatsCell = z.infer<typeof OrderStatsCell>;
+
+export const OrderStatsResult = z.object({
+  /** Đúng thứ tự dòng trong sheet. Gộp theo phòng thì có cả phòng 0 đơn. */
+  groups: z.array(z.object({ id: z.string(), label: z.string() })),
+  cells: z.array(OrderStatsCell),
+});
+export type OrderStatsResult = z.infer<typeof OrderStatsResult>;
+
+/** Số liệu cấp đơn của TRỌN một tháng, `month` dạng `YYYY-MM`. */
+export async function fetchOrderStats(
+  month: string,
+  groupBy: OrderStatsGroupBy,
+): Promise<OrderStatsResult> {
+  const res = await fetch(`/api/exports/order-stats?month=${month}&groupBy=${groupBy}`);
+  if (!res.ok) throw new Error('Không tải được số liệu cấp đơn');
+  return OrderStatsResult.parse(await res.json());
+}
