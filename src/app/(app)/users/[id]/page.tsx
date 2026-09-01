@@ -2,6 +2,7 @@
 
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { use, useState } from "react";
 import { ChartColumn, ChevronLeft, ExternalLink } from "lucide-react";
 import { SkeletonCard } from "@/components/ui/Skeleton";
@@ -226,6 +227,7 @@ export default function PersonPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
+  const router = useRouter();
   const chartColors = useChartColors();
   const [period, setPeriod] = useState<PeriodMode>({ kind: "this-month" });
   const [tab, setTab] = useState<TabKey>("accounts");
@@ -324,6 +326,15 @@ export default function PersonPage({
     : [];
   const activeTab = tabs.some((t) => t.value === tab) ? tab : tabs[0]?.value;
 
+  /** Danh sách nguồn đã giữ bộ lọc trên URL; ưu tiên lịch sử trình duyệt. */
+  const backToPeople = () => {
+    if (window.history.length > 1) {
+      router.back();
+      return;
+    }
+    router.replace("/users");
+  };
+
   return (
     <>
       <TopBar title={data?.fullName ?? "Nhân viên"}>
@@ -339,10 +350,10 @@ export default function PersonPage({
       </TopBar>
 
       <main className={styles.body}>
-        <Link href="/users" className={styles.back}>
+        <button type="button" className={styles.back} onClick={backToPeople}>
           <ChevronLeft size={15} aria-hidden />
           Nhân sự &amp; KPI
-        </Link>
+        </button>
 
         {isPending && <SkeletonCard lines={5} />}
         {isError && (

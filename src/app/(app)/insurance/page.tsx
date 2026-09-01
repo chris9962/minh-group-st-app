@@ -2,7 +2,8 @@
 
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import { Pencil, ShieldCheck, Trash2, UserCheck } from "lucide-react";
 import type { DateRange } from "react-day-picker";
 import { SkeletonTable } from "@/components/ui/Skeleton";
@@ -41,12 +42,22 @@ import { useDebouncedValue } from "@/lib/hooks";
 import { can, recordInScope, recordVisibility, scopeFor } from "@/lib/permissions";
 import { invalidateKpi } from "@/lib/invalidateKpi";
 import { errorMessage, toast } from "@/lib/toast";
-import { InsuranceProduct, PRODUCT_LABEL } from "@/lib/types";
+import { InsuranceProduct, isRealIsoDate, PRODUCT_LABEL } from "@/lib/types";
 import { useSession } from "@/store/session";
 import styles from "./page.module.scss";
 
 const iso = (d: Date) =>
   new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
+
+/** URL chỉ nhận ngày có thật — `2026-02-31` không được biến thành tháng Ba im lặng. */
+const dateFromUrl = (value: string | null): Date | undefined =>
+  value && isRealIsoDate(value) ? new Date(`${value}T00:00:00`) : undefined;
+
+const pageFromUrl = (value: string | null): number => {
+  const page = Number(value);
+  // URL đếm từ 1 để người dùng đọc được; `RankTable` đếm từ 0 nội bộ.
+  return Number.isSafeInteger(page) && page >= 1 ? page - 1 : 0;
+};
 
 /**
  * P-13 · Danh sách đơn bảo hiểm.
@@ -56,20 +67,36 @@ const iso = (d: Date) =>
  */
 export default function InsurancePage() {
   const user = useSession((s) => s.user);
-  const [search, setSearch] = useState("");
+  const searchParams = useSearchParams();
+  const [search, setSearch] = useState(() => searchParams.get("search") ?? "");
   const searchQuery = useDebouncedValue(search);
-  const [status, setStatus] = useState<InsuranceOrderStatus | "">("");
-  const [product, setProduct] = useState<InsuranceProduct | "">("");
-  const [range, setRange] = useState<DateRange | undefined>(undefined);
-  const [staffId, setStaffId] = useState("");
+  const [status, setStatus] = useState<InsuranceOrderStatus | "">(() => {
+    const parsed = InsuranceOrderStatus.safeParse(searchParams.get("status"));
+    return parsed.success ? parsed.data : "";
+  });
+  const [product, setProduct] = useState<InsuranceProduct | "">(() => {
+    const parsed = InsuranceProduct.safeParse(searchParams.get("product"));
+    return parsed.success ? parsed.data : "";
+  });
+  const [range, setRange] = useState<DateRange | undefined>(() => {
+    const from = dateFromUrl(searchParams.get("from"));
+    const to = dateFromUrl(searchParams.get("to"));
+    return from || to ? { from, to } : undefined;
+  });
+  const [staffId, setStaffId] = useState(() => searchParams.get("staffId") ?? "");
   /** Đơn có hai người liên quan — ô lọc phải nói rõ đang hỏi vai nào. */
-  const [staffRole, setStaffRole] = useState<"any" | "creator" | "handler">("any");
+  const [staffRole, setStaffRole] = useState<"any" | "creator" | "handler">(() => {
+    const value = searchParams.get("staffRole");
+    return value === "creator" || value === "handler" ? value : "any";
+  });
   /** Phòng của NGƯỜI TẠO đơn. Chuỗi rỗng = mọi phòng. */
-  const [departmentId, setDepartmentId] = useState("");
-  const [page, setPage] = useState(0);
+  const [departmentId, setDepartmentId] = useState(() => searchParams.get("departmentId") ?? "");
+  const [page, setPage] = useState(() => pageFromUrl(searchParams.get("page")));
   // Chỉ sắp theo ngày hiệu lực, và chỉ đổi được chiều — `INSURANCE_SORT` có đúng
   // một khoá vì sắp theo tên khách/người tạo thì phải nối bảng trước khi cắt trang.
-  const [dir, setDir] = useState<SortDir>("desc");
+  const [dir, setDir] = useState<SortDir>(() =>
+    searchParams.get("dir") === "asc" ? "asc" : "desc",
+  );
   const [editing, setEditing] = useState<InsuranceListRow | null>(null);
   const [removing, setRemoving] = useState<InsuranceListRow | null>(null);
 
@@ -111,6 +138,31 @@ export default function InsurancePage() {
 
   const from = range?.from ? iso(range.from) : "";
   const to = range?.to ? iso(range.to) : "";
+
+  /**
+   * Danh sách là một trạng thái có thể quay lại và chia sẻ được, nên mọi thứ
+   * làm đổi kết quả đều nằm trên URL. `replaceState` không nhồi một lịch sử
+   * mới theo từng ký tự gõ; lúc mở chi tiết, chính URL này được gửi làm `returnTo`.
+   */
+  const listUrl = useMemo(() => {
+    const params = new URLSearchParams();
+    if (search) params.set("search", search);
+    if (status) params.set("status", status);
+    if (product) params.set("product", product);
+    if (from) params.set("from", from);
+    if (to) params.set("to", to);
+    if (staffId) params.set("staffId", staffId);
+    if (staffId && staffRole !== "any") params.set("staffRole", staffRole);
+    if (departmentId) params.set("departmentId", departmentId);
+    if (page > 0) params.set("page", String(page + 1));
+    if (dir === "asc") params.set("dir", dir);
+    const query = params.toString();
+    return query ? `/insurance?${query}` : "/insurance";
+  }, [departmentId, dir, from, page, product, search, staffId, staffRole, status, to]);
+
+  useEffect(() => {
+    window.history.replaceState(null, "", listUrl);
+  }, [listUrl]);
 
   /** Đổi bộ lọc thì về trang đầu — giữ trang 5 của kết quả cũ là hiện khúc rỗng. */
   const refine = (apply: () => void) => {
@@ -355,7 +407,7 @@ export default function InsurancePage() {
           ]
         : []),
     ],
-    [canEdit, canRemove, canHandleFallback, canSeeHandler, claim, editVisible, removeVisible],
+    [canEdit, canRemove, canHandleFallback, canSeeHandler, claim, editVisible, listUrl, removeVisible],
   );
 
   return (

@@ -2,7 +2,8 @@
 
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import { Lock, Pencil, Plus, Unlock, Users } from "lucide-react";
 import { SkeletonStats, SkeletonTable } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
@@ -24,6 +25,7 @@ import {
   isOnTarget,
   pointsGap,
   setStaffActive,
+  STAFF_SORT,
   type StaffAccount,
   type StaffQuery,
   type StaffRow,
@@ -136,9 +138,27 @@ const ACCOUNT_STATUS_FILTERS: { value: StaffQuery["status"]; label: string }[] =
   { value: "all", label: "Tất cả trạng thái" },
 ];
 
+const monthFromUrl = (value: string | null): string =>
+  value && /^\d{4}-(0[1-9]|1[0-2])$/.test(value) ? value : thisMonth();
+
+const pageFromUrl = (value: string | null): number => {
+  const page = Number(value);
+  // URL đếm từ 1 cho người đọc; `RankTable` đếm từ 0 ở bên trong.
+  return Number.isSafeInteger(page) && page >= 1 ? page - 1 : 0;
+};
+
+const rolesFromUrl = (value: string | null): RoleKey[] => {
+  const roles = [...new Set((value ?? "").split(",").filter((role): role is RoleKey =>
+    RoleKey.options.includes(role as RoleKey),
+  ))];
+  // Mọi chức vụ = không lọc, cùng quy ước của bộ lọc trên màn hình.
+  return roles.length === RoleKey.options.length ? [] : roles;
+};
+
 /** P-51 · Danh sách nhân viên + chỉ tiêu + quản trị tài khoản. */
 export default function PeoplePage() {
   const user = useSession((s) => s.user);
+  const searchParams = useSearchParams();
   // Phạm vi phải hỏi theo ĐÚNG module đang liệt kê. Trước đây hỏi theo
   // `banking`: tài khoản quản trị không có `banking:view-summary` nên rơi về
   // `own`, mà `own` lại là "phòng của tôi" — quản trị không thuộc phòng nào nên
@@ -150,17 +170,25 @@ export default function PeoplePage() {
   const scopes = availableScopes(user, "staff", "view-detail");
   const scope: Scope = scopes.at(-1) ?? "own";
 
-  const [month, setMonth] = useState(thisMonth());
-  const [departmentId, setDepartmentId] = useState("");
-  const [search, setSearch] = useState("");
+  const [month, setMonth] = useState(() => monthFromUrl(searchParams.get("month")));
+  const [departmentId, setDepartmentId] = useState(() => searchParams.get("departmentId") ?? "");
+  const [search, setSearch] = useState(() => searchParams.get("search") ?? "");
   const searchQuery = useDebouncedValue(search);
   // Mặc định KHÔNG chọn gì = lấy hết. Giữ mảng rỗng thay vì nhồi sẵn cả 6 mục
   // để "chưa lọc" và "lọc đúng 6 mục" không lẫn vào nhau ở tầng gọi API.
-  const [roles, setRoles] = useState<RoleKey[]>([]);
-  const [status, setStatus] = useState<StaffQuery["status"]>("active");
-  const [page, setPage] = useState(0);
-  const [sort, setSort] = useState<StaffSort>("kpi");
-  const [dir, setDir] = useState<SortDir>("desc");
+  const [roles, setRoles] = useState<RoleKey[]>(() => rolesFromUrl(searchParams.get("roles")));
+  const [status, setStatus] = useState<StaffQuery["status"]>(() => {
+    const value = searchParams.get("status");
+    return value === "locked" || value === "all" ? value : "active";
+  });
+  const [page, setPage] = useState(() => pageFromUrl(searchParams.get("page")));
+  const [sort, setSort] = useState<StaffSort>(() => {
+    const value = searchParams.get("sort");
+    return STAFF_SORT.includes(value as StaffSort) ? (value as StaffSort) : "kpi";
+  });
+  const [dir, setDir] = useState<SortDir>(() =>
+    searchParams.get("dir") === "asc" ? "asc" : "desc",
+  );
   const [editing, setEditing] = useState<StaffAccount | null>(null);
   const [creating, setCreating] = useState(false);
   const [locking, setLocking] = useState<StaffRow | null>(null);
@@ -194,6 +222,29 @@ export default function PeoplePage() {
     const visible = visibleDepartmentIds(user, scopeFor(user, "staff", action) ?? "own");
     return visible === null ? departments : departments.filter((d) => visible.includes(d.id));
   }, [departments, editing, user]);
+
+  /**
+   * Nhân sự thường được mở từng hồ sơ rồi quay lại so sánh tiếp. Lưu câu hỏi
+   * của bảng trên URL để Browser Back khôi phục đúng kỳ, bộ lọc, trang và thứ
+   * tự; `replaceState` không tạo một lịch sử mới theo từng ký tự tìm kiếm.
+   */
+  const listUrl = useMemo(() => {
+    const params = new URLSearchParams();
+    if (month !== thisMonth()) params.set("month", month);
+    if (departmentId) params.set("departmentId", departmentId);
+    if (search) params.set("search", search);
+    if (roles.length > 0) params.set("roles", [...roles].sort().join(","));
+    if (status !== "active") params.set("status", status);
+    if (page > 0) params.set("page", String(page + 1));
+    if (sort !== "kpi") params.set("sort", sort);
+    if (dir !== "desc") params.set("dir", dir);
+    const query = params.toString();
+    return query ? `/users?${query}` : "/users";
+  }, [departmentId, dir, month, page, roles, search, sort, status]);
+
+  useEffect(() => {
+    window.history.replaceState(null, "", listUrl);
+  }, [listUrl]);
 
   /** Đổi bộ lọc thì về trang đầu — giữ nguyên trang 5 của kết quả cũ là hiện một khúc rỗng. */
   const refine = (apply: () => void) => {
