@@ -20,6 +20,12 @@ import type {
  * thêm `2026-09.ts`, không sửa file này: sửa nó là đổi điểm của một kỳ đã trả
  * lương xong và đổi quà đã hứa với khách.
  *
+ * ⚠️ Ngoại lệ DUY NHẤT đã dùng: `soloCashOf` thêm 2026-09-01, thể lệ mục 3b.
+ * Đó KHÔNG phải
+ * thể lệ mới — Kế toán xác nhận 20k của `VPa` xưa nay vẫn không đòi bậc quà,
+ * code cũ hiểu thiếu. Sửa vào đây chứ không mở kỳ mới, vì mở kỳ mới nghĩa là
+ * khai tháng 8 chạy đúng luật của nó, mà nó chạy sai.
+ *
  * Chạy thử: `bun run test:rules` (`scripts/test-rules.ts`).
  */
 
@@ -399,6 +405,48 @@ function caseOf(
 }
 
 /**
+ * Gắn vào TỪNG món số tiền khách nhận nếu lấy đúng món đó.
+ *
+ * `blocked` là tổng tiền khi khách lấy một món chặn tiền, `kept` là khi lấy món
+ * không chặn. Ở bậc TH1–TH6 hai số bằng nhau — tiền và quà cộng dồn nên chọn gì
+ * cũng không đổi.
+ */
+const withCashIfChosen = (
+  basket: GiftChoice[],
+  kept: number,
+  blocked: number,
+): GiftChoice[] =>
+  basket.map((item) => ({
+    ...item,
+    cashIfChosen: CNKD_LOWERING_ITEMS.has(item.code) ? blocked : kept,
+  }));
+
+/**
+ * 20.000đ của `VPa` cho khách CHƯA đủ tổ hợp nào — thể lệ mục 3b, chốt
+ * 2026-09-01.
+ *
+ * Khác hẳn TH1–TH6. Ở các bậc đó tiền VÀ quà cộng dồn; ở đây là tiền HOẶC quà:
+ * khách lấy `Mì` hay `Nón` thì mất 20k, lấy `Loa` hay `Bảng mica` thì vẫn giữ,
+ * và từ chối không lấy gì cũng vẫn giữ.
+ *
+ * Dùng chung `CNKD_LOWERING_ITEMS` với phép hạ điểm 1,5 → 0,7, không dựng tập
+ * thứ hai: đây là MỘT quyết định của Kế toán với hai hệ quả, tách ra hai danh
+ * sách là có ngày sửa một bên quên bên kia.
+ *
+ * Điều kiện `installed.has("VPa")` đã gộp cả hai vế: khách có `VPa` và `VPa` đó
+ * đã cài app.
+ */
+function soloCashOf(
+  installed: ReadonlySet<string>,
+  hasHousehold: boolean,
+  grantedItem: string | null,
+): GiftCash[] {
+  if (!installed.has("VPa") || !hasHousehold) return [];
+  if (grantedItem && CNKD_LOWERING_ITEMS.has(grantedItem)) return [];
+  return [{ ...CASH_OF.VPa, reason: "Mở VPa kèm CNKD/HKD" }];
+}
+
+/**
  * Quà của MỘT khách.
  *
  * Ba bước, đúng thứ tự spec §5.2: tiền mặt cộng dồn (khách không phải chọn) →
@@ -440,7 +488,8 @@ export function gift(input: GiftInput): GiftResult {
   const addItems = (codes: string[], reason: string) => {
     for (const code of codes) {
       if (extras.some((b) => b.code === code)) continue;
-      extras.push({ kind: "gift-item", code, reason });
+      // `cashIfChosen` điền ở cuối, lúc đã biết tổng tiền — xem `withCashIfChosen`.
+      extras.push({ kind: "gift-item", code, reason, cashIfChosen: 0 });
     }
   };
 
@@ -497,17 +546,36 @@ export function gift(input: GiftInput): GiftResult {
   if (!matched) {
     explain.push(
       combo.size === 0 && eligible.length > 0
-        ? "Khách chưa đủ tổ hợp 2 ngân hàng theo thể lệ nên chưa có quà."
+        ? "Khách chưa đủ tổ hợp 2 ngân hàng theo thể lệ nên chưa có gói bảo hiểm."
         : "Khách chưa mở tài khoản nào tính được vào thể lệ.",
     );
+
+    const soloCash = soloCashOf(installed, hasHousehold, input.grantedItem);
+    const soloCashTotal = soloCash.reduce((sum, c) => sum + c.amount, 0);
+    for (const c of soloCash)
+      explain.push(
+        `Tặng ${c.amount.toLocaleString("vi-VN")}đ vào ${c.bankCode}, chi trong ${c.withinDays} ngày.`,
+      );
+
+    // Nhân viên phải biết TRƯỚC khi bấm chọn, không phải sau khi thấy tiền biến
+    // mất. Chỉ nói khi rổ THẬT SỰ có Mì và Nón — nhóm khác không chọn được hai
+    // món đó nên câu này với họ là chữ thừa.
+    if (soloCash.length > 0 && inGiftItemGroup)
+      explain.push("⚠️ Chọn Mì hoặc Nón thì mất 20.000đ. Chọn Loa hoặc Bảng mica thì vẫn giữ.");
+    if (soloCash.length === 0 && installed.has("VPa") && hasHousehold)
+      explain.push("Khách đã nhận Mì hoặc Nón nên không còn 20.000đ của VPa.");
+
     return {
       caseCode: null,
       insuranceYears: 0,
       comboPoints: combo.tenths / 10,
-      cash: [],
-      cashTotal: 0,
+      cash: soloCash,
+      cashTotal: soloCashTotal,
       // Chưa đạt bậc nào thì không có gói bảo hiểm, nhưng món thêm vẫn phát.
-      basket: extras,
+      //
+      // Lấy Mì hoặc Nón thì mất trọn 20k, nên `blocked` là 0. Đây đúng là chỗ
+      // "tiền HOẶC quà" mà thể lệ nói.
+      basket: withCashIfChosen(extras, soloCashTotal, 0),
       explain,
     };
   }
@@ -525,10 +593,12 @@ export function gift(input: GiftInput): GiftResult {
 
   const insuranceBasket =
     matched.code === "TH5" ? TH5_INSURANCE_BASKET : INSURANCE_BASKET[matched.years];
+  const cashTotal = cash.reduce((sum, c) => sum + c.amount, 0);
   const basket: GiftChoice[] = insuranceBasket.map((code) => ({
     kind: "insurance-package" as const,
     code,
     reason: `${matched.years} năm bảo hiểm của ${matched.code}`,
+    cashIfChosen: cashTotal,
   }));
   explain.push(
     matched.code === "TH5"
@@ -546,8 +616,9 @@ export function gift(input: GiftInput): GiftResult {
     insuranceYears: matched.years,
     comboPoints: combo.tenths / 10,
     cash,
-    cashTotal: cash.reduce((sum, c) => sum + c.amount, 0),
-    basket,
+    cashTotal,
+    // Đủ bậc thì tiền VÀ quà cộng dồn: chọn món nào cũng giữ nguyên số tiền.
+    basket: withCashIfChosen(basket, cashTotal, cashTotal),
     explain,
   };
 }

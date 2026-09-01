@@ -96,6 +96,17 @@ export function GiftGivingDialog({ open, onClose, customerId, customerName }: Pr
     );
   }
 
+  /**
+   * Tiền mặt ứng với món ĐANG chọn. Chưa chọn gì hoặc chọn "Từ chối" thì lấy số
+   * mặc định — từ chối quà không làm mất tiền.
+   */
+  const cashOfChoice =
+    selected && selected !== DECLINE
+      ? (data?.gift.basket.find((b) => b.id === selected)?.cashIfChosen ??
+        data?.gift.cashTotal ??
+        0)
+      : (data?.gift.cashTotal ?? 0);
+
   const confirm = () => {
     if (!selected) return;
     // Chốt chặn thứ hai, sau nút bị vô hiệu: không biết món nào là bảo hiểm thì
@@ -152,8 +163,17 @@ export function GiftGivingDialog({ open, onClose, customerId, customerName }: Pr
             </Alert>
           ) : (
             <>
+              {/*
+                Số tiền đổi theo món đang chọn: chưa đủ tổ hợp mà lấy Mì hoặc
+                Nón là mất 20k của VPa, lấy Loa hay Bảng mica thì giữ. Con số
+                từng món do luật trả về (`cashIfChosen`), giao diện không tự
+                biết món nào chặn tiền.
+
+                Chưa chọn gì và "Từ chối" đều dùng `cashTotal` — từ chối quà
+                không làm mất tiền.
+              */}
               <p className={styles.cash}>
-                Tiền mặt tự động: <strong>{formatVnd(data.gift.cashTotal)}</strong>
+                Tiền mặt tự động: <strong>{formatVnd(cashOfChoice)}</strong>
               </p>
 
               {data.gift.basket.length === 0 ? (

@@ -242,6 +242,7 @@ export async function listScoringExport(
             accounts: scoring,
             channelCodes: customer?.channelCode ? [customer.channelCode] : [],
             departmentCode: customer?.departmentCode ?? null,
+            grantedItem: grant?.chosenItem ?? null,
           },
           firstDate,
         )

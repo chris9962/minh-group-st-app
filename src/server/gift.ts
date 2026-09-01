@@ -78,6 +78,8 @@ export async function giftInputFor(customerId: string): Promise<GiftInput> {
       openedDate: r.openedDate ?? "",
       household: r.accountType,
     })),
+    // Nơi gọi biết món đã phát thì tự ghi đè — xem `giftResultOf`.
+    grantedItem: null,
     channelCodes: [...channelCodes],
     departmentCode: customerRow?.departmentCode ?? null,
   };
@@ -141,6 +143,7 @@ async function resolveBasket(items: GiftResult["basket"]) {
         name: item.code,
         source: item.reason,
         status: "missing" as const,
+        cashIfChosen: item.cashIfChosen,
       };
     return {
       id: row.id,
@@ -148,6 +151,7 @@ async function resolveBasket(items: GiftResult["basket"]) {
       name: row.name,
       source: item.reason,
       status: row.active ? ("ok" as const) : ("discontinued" as const),
+      cashIfChosen: item.cashIfChosen,
     };
   });
 }
@@ -163,7 +167,9 @@ export async function giftResultOf(
   at: string = businessDay(),
   grantedItem: string | null = null,
 ): Promise<GiftSimulateResult> {
-  const result = giftFor(input, at);
+  // Món đã phát đổi phần tiền mặt từ kỳ 2026-09 (`soloCashOf`), nên phải vào
+  // TẬN hàm luật chứ không chỉ dùng cho điểm CNKD như trước.
+  const result = giftFor({ ...input, grantedItem }, at);
   // Kỳ chưa có file luật: trả rổ rỗng KÈM một câu nói rõ vì sao. Rỗng mà im
   // lặng thì màn hiện "Chưa đủ điều kiện" cho một khách có thể đang đủ.
   if (!result)
@@ -216,7 +222,17 @@ const sameCodes = (a: string[], b: string[]): boolean =>
  * mục 4c). Bỏ qua thì hồ sơ khách hiện 1,5 cho người đã nhận Mì, trong khi bảng
  * lương tính 0,7.
  */
-export async function giftForCustomer(customerId: string): Promise<GiftSimulateResult> {
+export async function giftForCustomer(
+  customerId: string,
+  /**
+   * Món ĐANG chọn của một lượt phát chưa ghi vào database.
+   *
+   * Bỏ trống thì đọc món đã phát từ `gift_grants`. Truyền vào để biết số tiền
+   * SẼ chi nếu chốt món đó — `grantGift` và `changeGift` cần con số ấy trước
+   * khi ghi, xem `soloCashOf` của kỳ 2026-09.
+   */
+  choosing?: string,
+): Promise<GiftSimulateResult> {
   const [input, [grant]] = await Promise.all([
     giftInputFor(customerId),
     db
@@ -225,7 +241,7 @@ export async function giftForCustomer(customerId: string): Promise<GiftSimulateR
       .where(eq(giftGrants.customerId, customerId))
       .limit(1),
   ]);
-  return giftResultOf(input, businessDay(), grant?.chosenItem ?? null);
+  return giftResultOf(input, businessDay(), choosing ?? grant?.chosenItem ?? null);
 }
 
 /**
@@ -272,6 +288,8 @@ export const giftSimulate = (input: GiftSimulateInput): Promise<GiftSimulateResu
       })),
       channelCodes: input.channelCodes,
       departmentCode: input.departmentCode,
+      // `giftResultOf` ghi đè bằng tham số thứ ba; dòng này chỉ cho đủ kiểu.
+      grantedItem: input.grantedItem,
     },
     input.at || businessDay(),
     input.grantedItem,
@@ -362,6 +380,8 @@ export async function recountGiftCases(
           accounts: byCustomer.get(customer.id) ?? [],
           channelCodes: [...codes],
           departmentCode: customer.departmentCode,
+          // Chỉ đọc `basket`, mà rổ không phụ thuộc món đã phát.
+          grantedItem: null,
         },
         today,
       );
@@ -482,19 +502,29 @@ export async function grantGift(
       return { ok: false, code: GIFT_ERROR.NOT_IN_BASKET, message: "Đơn quà vừa tạo không hợp lệ." };
   }
 
+  /**
+   * Tính lại KÈM món vừa chọn. Lượt tính ở đầu hàm chạy lúc chưa biết khách
+   * lấy gì, mà từ kỳ 2026-09 tiền mặt phụ thuộc đúng điều đó: khách chưa đủ tổ
+   * hợp lấy Mì hoặc Nón thì mất 20k của VPa.
+   *
+   * Rổ không đổi giữa hai lượt tính — nó không đọc món đã chọn — nên phép kiểm
+   * món hợp lệ ở trên vẫn đứng.
+   */
+  const granted = await giftForCustomer(customerId, item);
+
   const inserted = await db.transaction(async (tx) => {
     const rows = await tx
       .insert(giftGrants)
       .values({
         customerId,
         grantedBy: actor.id,
-        cashTotal: gift.cashTotal,
+        cashTotal: granted.cashTotal,
         // MÃ món, không phải tên. Tên lúc phát vẫn còn trong `snapshot.basket` —
         // hai chỗ đọc dùng nó để hiện đúng chữ của thời điểm phát.
         chosenItem: item,
         // Đóng băng NGUYÊN kết quả: thể lệ đổi hay admin sửa tên món cũng không
         // được viết lại thứ đã phát cho khách (spec §5.3).
-        snapshot: gift,
+        snapshot: granted,
       })
       .onConflictDoNothing({ target: giftGrants.customerId })
       .returning({ id: giftGrants.id });
@@ -590,10 +620,18 @@ export async function changeGift(
       return { ok: false, message: "Có đơn bảo hiểm mới không thuộc lượt đổi quà này." };
   }
 
+  /**
+   * Số tiền đi theo món MỚI. Đổi từ Bảng mica sang Mì là mất 20k của VPa, đổi
+   * ngược lại là lấy về — cột `cash_total` phải nói đúng số đang nợ khách.
+   *
+   * `snapshot` giữ nguyên: nó là rổ của lúc phát, không phải số tiền hiện tại.
+   */
+  const nextGift = await giftForCustomer(customerId, form.item);
+
   const changed = await db.transaction(async (tx) => {
     const [updated] = await tx
       .update(giftGrants)
-      .set({ chosenItem: form.item })
+      .set({ chosenItem: form.item, cashTotal: nextGift.cashTotal })
       .where(and(eq(giftGrants.id, grant.id), eq(giftGrants.chosenItem, grant.chosenItem)))
       .returning({ id: giftGrants.id });
     if (!updated) return false;

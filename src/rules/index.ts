@@ -84,6 +84,16 @@ export type GiftInput = {
   channelCodes: string[];
   /** Mã phòng của người phụ trách khách; `null` khi không thuộc phòng nào. */
   departmentCode: string | null;
+  /**
+   * Món khách ĐÃ nhận; `null` khi chưa phát hoặc khách từ chối.
+   *
+   * Nó đổi phần TIỀN MẶT: khách chưa đủ tổ hợp nhận 20k của `VPa`, nhưng lấy
+   * `Mì` hay `Nón` thì mất khoản đó (`soloCashOf`).
+   *
+   * KHÔNG đổi rổ quà. Rổ tính xong trước, khách chọn sau, rồi tiền mới biết
+   * mình còn hay mất — không có vòng lặp giữa hai thứ.
+   */
+  grantedItem: string | null;
 };
 
 /** Một khoản tiền mặt. Thể lệ ghi rõ tiền vào ngân hàng NÀO và hạn chi mấy ngày. */
@@ -103,6 +113,14 @@ export type GiftChoice = {
   kind: "insurance-package" | "gift-item";
   code: string;
   reason: string;
+  /**
+   * Tổng tiền mặt khách nhận NẾU lấy đúng món này.
+   *
+   * Có mặt vì hai món cùng rổ cho ra hai số khác nhau: khách chưa đủ tổ hợp lấy
+   * `Loa` thì vẫn giữ 20k, lấy `Mì` thì mất. Không có trường này thì hộp thoại
+   * phát quà phải tự biết món nào chặn tiền — tức chép luật xuống giao diện.
+   */
+  cashIfChosen: number;
 };
 
 export type GiftResult = {

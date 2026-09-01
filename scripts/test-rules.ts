@@ -465,16 +465,27 @@ check(
  */
 const giftOf = (
   bankCodes: string[],
-  opts: { channels?: string[]; department?: string; at?: string } = {},
+  opts: {
+    channels?: string[];
+    department?: string;
+    at?: string;
+    household?: HouseholdKind;
+    granted?: string | null;
+  } = {},
 ): GiftResult => {
   const accounts = bankCodes.map((spec) =>
-    account("kh1", spec.replace("!", ""), { app: !spec.endsWith("!") }),
+    account("kh1", spec.replace("!", ""), {
+      app: !spec.endsWith("!"),
+      // Ô chọn CNKD/HKD nằm trên chính dòng VPa, giống `finishBankAccount`.
+      household: spec.replace("!", "") === "VPa" ? opts.household : undefined,
+    }),
   );
   const result = giftFor(
     {
       accounts,
       channelCodes: opts.channels ?? [],
       departmentCode: opts.department ?? null,
+      grantedItem: opts.granted ?? null,
     },
     opts.at ?? `${PERIOD}-15`,
   );
@@ -706,11 +717,64 @@ check(
 section("Quà tra luật theo NGÀY");
 check(
   "trước ngày thể lệ có hiệu lực thì chưa tính được",
-  giftFor({ accounts: [], channelCodes: [], departmentCode: null }, "2026-07-31") === null,
+  giftFor(
+    { accounts: [], channelCodes: [], departmentCode: null, grantedItem: null },
+    "2026-07-31",
+  ) === null,
   true,
 );
 check("đúng ngày đầu kỳ đã tính được", giftOf(["MB", "VPa"], { at: "2026-08-01" }).caseCode, "TH1");
-check("sang tháng sau vẫn dùng luật này", giftOf(["MB", "VPa"], { at: "2026-09-20" }).caseCode, "TH1");
+check("sang kỳ sau bậc quà không đổi", giftOf(["MB", "VPa"], { at: "2026-09-20" }).caseCode, "TH1");
+
+section("20k của VPa khi khách chưa đủ tổ hợp");
+
+/** Ca của Kế toán: một VPa đã cài app, có CNKD. */
+const solo = (granted?: string | null) =>
+  giftOf(["VPa"], { household: "CNKD", granted, department: "PHONG-Y" });
+
+check("chưa phát gì → 20k", solo().cashTotal, 20_000);
+check("chưa đủ tổ hợp nên không có bậc", solo().caseCode, null);
+check("và không có gói bảo hiểm", solo().insuranceYears, 0);
+check("chọn Loa → vẫn 20k", solo("QUA-LOA").cashTotal, 20_000);
+check("chọn Bảng mica → vẫn 20k", solo("QUA-MICA").cashTotal, 20_000);
+check("từ chối nhận quà → vẫn 20k", solo("DECLINED").cashTotal, 20_000);
+check("chọn Mì → mất 20k", solo("QUA-MI").cashTotal, 0);
+check("chọn Nón → mất 20k", solo("QUA-NON-BH").cashTotal, 0);
+
+check("HKD cũng được 20k", giftOf(["VPa"], { household: "HKD" }).cashTotal, 20_000);
+check("VPa chưa cài app → không có 20k", giftOf(["VPa!"], { household: "CNKD" }).cashTotal, 0);
+check("VPa không kèm CNKD/HKD → không có 20k", giftOf(["VPa"]).cashTotal, 0);
+check(
+  "VPa + MSBa không thành tổ hợp vẫn được 20k",
+  giftOf(["VPa", "MSBa"], { household: "CNKD" }).cashTotal,
+  20_000,
+);
+check(
+  "nhắc trước là chọn Mì hoặc Nón thì mất tiền",
+  solo().explain.some((line) => line.includes("mất 20.000đ")),
+  true,
+);
+check(
+  "đủ bậc thì chọn Mì không làm mất tiền",
+  giftOf(["MB", "VPa"], { household: "CNKD", granted: "QUA-MI" }).cashTotal,
+  20_000,
+);
+
+/** Số tiền gắn sẵn trên từng món — hộp thoại phát quà đọc nó để đổi số ngay. */
+const cashIfChosen = (result: GiftResult, code: string): number =>
+  result.basket.find((item) => item.code === code)?.cashIfChosen ?? -1;
+
+check("chọn Loa thì rổ nói vẫn còn 20k", cashIfChosen(solo(), "QUA-LOA"), 20_000);
+check("chọn Bảng mica thì rổ nói vẫn còn 20k", cashIfChosen(solo(), "QUA-MICA"), 20_000);
+check("chọn Mì thì rổ nói mất tiền", cashIfChosen(solo(), "QUA-MI"), 0);
+check("chọn Nón thì rổ nói mất tiền", cashIfChosen(solo(), "QUA-NON-BH"), 0);
+check(
+  "đủ bậc thì mọi món trong rổ đều giữ nguyên tiền",
+  giftOf(["MB", "VPa"], { household: "CNKD", department: "PHONG-Y" }).basket.every(
+    (item) => item.cashIfChosen === 20_000,
+  ),
+  true,
+);
 
 section("Loại phòng nào có công thức điểm (spec §7.0)");
 check("phòng kinh doanh có công thức", kpiAppliesTo("sales"), true);

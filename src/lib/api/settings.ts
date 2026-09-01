@@ -167,6 +167,17 @@ export const GiftSimulateResult = z.object({
       source: z.string(),
       /** Món phát được ở thời điểm chốt, nên đợt cũ quy về `ok`. */
       status: z.enum(['ok', 'discontinued', 'missing']).default('ok'),
+      /**
+       * Tổng tiền mặt khách nhận nếu lấy đúng món này.
+       *
+       * Hộp thoại phát quà đọc nó để đổi số ngay lúc người dùng bấm chọn: khách
+       * chưa đủ tổ hợp lấy `Mì` thì mất 20k, lấy `Loa` thì giữ. Không có nó thì
+       * giao diện phải tự biết món nào chặn tiền, tức chép luật xuống FE.
+       *
+       * `default` cho snapshot của đợt chốt trước 2026-09-01 — snapshot là bản
+       * ghi lịch sử, không vá ngược.
+       */
+      cashIfChosen: z.number().default(0),
     }),
   ),
   /**
