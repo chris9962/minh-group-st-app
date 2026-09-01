@@ -41,6 +41,8 @@ const FIRST_PAGE: ReferralCodeQuery = {
   dir: "desc",
 };
 
+const ACCOUNT_TYPE_LABEL = { none: "Thường", CNKD: "CNKD", HKD: "HKD" } as const;
+
 /**
  * P-61 · Kho mã giới thiệu — thêm mã lẻ ở đây; nhập hàng loạt từ Excel vẫn là P-62 (chưa làm).
  *
@@ -116,6 +118,7 @@ export function ReferralCodesSection({ creating, onCreatingChange }: Props) {
   const columns: RankColumn<ReferralCode>[] = [
     { key: "bank", label: "Ngân hàng", sortable: true, render: (c) => c.bankCode },
     { key: "code", label: "Mã", sortable: true, render: (c) => c.code },
+    { key: "accountType", label: "Loại TK", render: (c) => ACCOUNT_TYPE_LABEL[c.accountType] },
     {
       // Không cho sắp: khoá sắp phải nằm trong danh sách trắng của máy chủ.
       key: "province",

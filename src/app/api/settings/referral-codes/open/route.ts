@@ -1,4 +1,5 @@
 import { actorWith, uuidParam } from "@/server/auth";
+import { AccountType } from "@/lib/api/bankAccounts";
 import { listOpenReferralCodes } from "@/server/catalog";
 import { departmentForNewRecord } from "@/server/writeDepartment";
 
@@ -31,8 +32,13 @@ export async function GET(request: Request) {
    * phải lượt ghi, nên trả rỗng cả danh sách là chặn quá tay.
    */
   const department = departmentForNewRecord(guard.actor, "banking", uuidParam(params.get("departmentId")));
+  const accountType = AccountType.safeParse(params.get("accountType"));
 
   return Response.json(
-    await listOpenReferralCodes(bankId, department.ok ? (department.departmentId ?? "") : ""),
+    await listOpenReferralCodes(
+      bankId,
+      department.ok ? (department.departmentId ?? "") : "",
+      accountType.success ? accountType.data : "",
+    ),
   );
 }

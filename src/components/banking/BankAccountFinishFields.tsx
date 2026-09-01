@@ -15,16 +15,10 @@ import { Checkbox } from "@/components/ui/Checkbox";
 import { Select } from "@/components/ui/Select";
 import { DateField } from "@/components/ui/DateField";
 import { TextField } from "@/components/ui/TextField";
-import { AccountType, BankAccountFinishForm } from "@/lib/api/bankAccounts";
+import { BankAccountFinishForm } from "@/lib/api/bankAccounts";
 import type { AccountNumberMethod } from "@/lib/api/bankCatalog";
 import { BankAccountPhotos, type PhotoItem } from "./BankAccountPhotos";
 import styles from "./BankAccountFinishFields.module.scss";
-
-const ACCOUNT_TYPE_LABEL: Record<AccountType, string> = {
-  none: "Không",
-  CNKD: "CNKD",
-  HKD: "HKD",
-};
 
 type Props = {
   formId: string;
@@ -213,16 +207,6 @@ export function BankAccountFinishFields({
             onChange={(v) => setValue("openedDate", v, { shouldDirty: true, shouldValidate: true })}
           />
         </div>
-
-        {bankCode === "VPa" && (
-          <Select
-            block
-            label="Mở tài khoản CNKD / HKD"
-            value={watch("accountType")}
-            onChange={(v) => setValue("accountType", v as AccountType, { shouldDirty: true })}
-            options={Object.entries(ACCOUNT_TYPE_LABEL).map(([value, label]) => ({ value, label }))}
-          />
-        )}
 
         <Checkbox
           label="Khách đã cài app ngân hàng trên điện thoại"

@@ -534,6 +534,7 @@ const codeColumns = {
   // ở `banking.ts`, và đổi đường đọc ảnh thì chỉ sửa `storage.ts`.
   qrImage: referralCodes.qrImage,
   priority: referralCodes.priority,
+  accountType: referralCodes.accountType,
   scope: sql<CodeScope>`${referralCodes.scope}`,
   province: referralCodes.province,
   supportBranch: referralCodes.supportBranch,
@@ -569,6 +570,7 @@ const codeGroupBy = [
   referralCodes.openUrl,
   referralCodes.qrImage,
   referralCodes.priority,
+  referralCodes.accountType,
   referralCodes.scope,
   referralCodes.province,
   referralCodes.supportBranch,
@@ -739,6 +741,7 @@ export const inDepartmentScope = (departmentId: string): SQL =>
 export async function listOpenReferralCodes(
   bankId: string,
   departmentId: string,
+  accountType = "",
 ): Promise<ReferralCode[]> {
   const rows = await db
     .select(codeColumns)
@@ -751,6 +754,7 @@ export async function listOpenReferralCodes(
     .where(
       and(
         eq(referralCodes.bankId, bankId),
+        accountType ? eq(referralCodes.accountType, accountType as "none" | "CNKD" | "HKD") : undefined,
         // Mã ngừng tay rời ô chọn ngay, kể cả khi còn chỗ. Chốt thật vẫn nằm
         // trong transaction của `startBankAccount`.
         eq(referralCodes.active, true),
@@ -850,6 +854,7 @@ export async function createReferralCode(
         openUrl: form.openUrl || null,
         qrImage: qrImageKey(form),
         priority: form.priority,
+        accountType: form.accountType,
         scope: form.scope,
         province: form.province,
         supportBranch: form.supportBranch,
@@ -905,6 +910,7 @@ export async function updateReferralCode(
         importedUsed: referralCodes.importedUsed,
         usedCount: referralCodes.usedCount,
         holdingCount: referralCodes.holdingCount,
+        accountType: referralCodes.accountType,
       })
       .from(referralCodes)
       .where(eq(referralCodes.id, id))
@@ -919,6 +925,11 @@ export async function updateReferralCode(
     // Phần đã tiêu CỘNG phần đang giữ. Hạ tổng xuống dưới con số này là kho
     // hiện "còn -2 chỗ", và mọi tài khoản đang mở dở mất chỗ đã chiếm.
     const taken = current.importedUsed + current.usedCount + current.holdingCount;
+    if (taken > 0 && form.accountType !== current.accountType)
+      return {
+        ok: false as const,
+        message: "Mã này đã được dùng hoặc đang giữ chỗ — không đổi được loại tài khoản",
+      };
     if (form.total < taken)
       return {
         ok: false as const,
@@ -934,6 +945,7 @@ export async function updateReferralCode(
           openUrl: form.openUrl || null,
           qrImage: qrImageKey(form),
           priority: form.priority,
+          accountType: form.accountType,
           scope: form.scope,
           province: form.province,
           supportBranch: form.supportBranch,

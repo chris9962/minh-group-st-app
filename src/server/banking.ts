@@ -299,6 +299,10 @@ const decorate = (page: ReturnType<typeof pickPage>) =>
       bankCode: banks.code,
       referralCodeId: page.referralCodeId,
       referralCode: referralCodes.code,
+      // Bản ghi trước migration 0056 chưa chụp loại tài khoản vào chính đơn.
+      // Mã đã được dùng không đổi loại được, nên đây là nguồn dự phòng an toàn
+      // để màn chi tiết vẫn hiện đúng CNKD/HKD cho dữ liệu cũ.
+      referralAccountType: referralCodes.accountType,
       // Link mở tài khoản của mã này (spec §4.4b). `''` = mã không có link,
       // và bước 2 khi đó không dựng nút "Mở app ngân hàng".
       referralOpenUrl: sql<string>`coalesce(${referralCodes.openUrl}, '')`,
@@ -338,6 +342,10 @@ const decorate = (page: ReturnType<typeof pickPage>) =>
     .leftJoin(channels, eq(channels.id, page.channelId));
 
 type DecoratedRow = Awaited<ReturnType<typeof decorate>>[number];
+
+/** Loại đã chụp trên đơn; dữ liệu cũ chưa có thì đọc từ mã giới thiệu đã dùng. */
+const accountTypeOf = (row: DecoratedRow) =>
+  row.accountType === "none" ? row.referralAccountType : row.accountType;
 
 const toRow = (r: DecoratedRow): BankAccountRow => ({
   id: r.id,
@@ -544,7 +552,7 @@ async function accountById(id: string): Promise<BankAccount | null> {
     channel: r.channel,
     channelDetail: r.channelDetail,
     appInstalled: r.appInstalled,
-    accountType: r.accountType,
+    accountType: accountTypeOf(r),
     note: r.note,
     errorNote: r.errorNote,
     createdById: r.createdById,
@@ -577,7 +585,7 @@ export async function bankAccountDetail(
   return {
     ...toRow(r),
     channelDetail: r.channelDetail,
-    accountType: r.accountType,
+    accountType: accountTypeOf(r),
     note: r.note,
     errorNote: r.errorNote,
     createdByDepartmentId: r.createdByDepartmentId,
@@ -734,6 +742,7 @@ export async function startBankAccount(
           importedUsed: referralCodes.importedUsed,
           usedCount: referralCodes.usedCount,
           holdingCount: referralCodes.holdingCount,
+          accountType: referralCodes.accountType,
           scope: referralCodes.scope,
           active: referralCodes.active,
         })
@@ -747,6 +756,11 @@ export async function startBankAccount(
       if (!code) return { ok: false as const, message: "Không tìm thấy mã giới thiệu này" };
       if (code.bankId !== pick.bankId)
         return { ok: false as const, message: "Mã giới thiệu này không thuộc ngân hàng đã chọn" };
+      if (code.accountType !== pick.accountType)
+        return {
+          ok: false as const,
+          message: `Mã ${code.code} không thuộc loại tài khoản đã chọn. Chọn lại mã giúp.`,
+        };
       // Ô chọn đã lọc mã ngừng, nhưng đây mới là chốt — cùng lý do với phạm vi phòng.
       if (!code.active)
         return {
@@ -816,6 +830,7 @@ export async function startBankAccount(
           // viết lại cột này cho mọi dòng của họ (chốt 13/08). Người không thuộc
           // phòng nào thì đây là phòng họ chọn ở biểu mẫu.
           createdByDepartmentId: department.departmentId,
+          accountType: pick.accountType,
         })
         .returning({ id: bankAccounts.id });
 
@@ -938,9 +953,9 @@ export async function finishBankAccount(
   if (current.status !== "creating")
     return { ok: false, message: "Tài khoản này đã hoàn thành rồi" };
 
-  // CNKD/HKD chỉ có nghĩa với VPa (spec §4.9). Máy chủ nắn lại thay vì tin
-  // giao diện: ô chọn đó chỉ hiện khi chọn VPa, nhưng request nặn tay thì không.
-  const accountType = current.bankCode === "VPa" ? form.accountType : "none";
+  // Loại tài khoản đã chốt cùng mã giới thiệu ở bước giữ chỗ. Bước hoàn tất chỉ
+  // bổ sung chứng từ, không được đổi loại rồi giữ một mã của nhánh khác.
+  const accountType = current.accountType;
 
   /**
    * Ngân hàng lấy số tài khoản THEO SĐT thì số gửi lên phải là một số của chính
@@ -1067,7 +1082,8 @@ export async function updateFinishedAccount(
       };
   }
 
-  const accountType = current.bankCode === "VPa" ? form.accountType : "none";
+  // Mã giới thiệu và loại tài khoản là lịch sử đã chốt, không đổi ở màn sửa.
+  const accountType = current.accountType;
   const previousDate = current.date;
 
   // Điều kiện `done` nằm ngay trong câu ghi, không chỉ ở phép kiểm bên trên:

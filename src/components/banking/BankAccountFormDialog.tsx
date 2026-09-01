@@ -18,6 +18,7 @@ import {
   fetchCustomerBankSlots,
   MAX_BANK_ACCOUNTS_PER_CUSTOMER,
   startBankAccount,
+  AccountType,
   type BankAccountPick,
 } from "@/lib/api/bankAccounts";
 import styles from "./BankAccountFormDialog.module.scss";
@@ -26,6 +27,11 @@ import { errorMessage, toast } from "@/lib/toast";
 import { reportInvalid } from "@/lib/formErrors";
 
 const BANKING_PATH = "/banking";
+const ACCOUNT_TYPE_LABEL: Record<AccountType, string> = {
+  none: "Thường",
+  CNKD: "CNKD",
+  HKD: "HKD",
+};
 
 type Props = {
   open: boolean;
@@ -102,13 +108,18 @@ export function BankAccountFormDialog({ open, onClose, customerId, onBack }: Pro
   const toggleBank = (bankId: string, checked: boolean) =>
     writePicks((current) =>
       checked
-        ? [...current, { bankId, referralCode: "" }]
+        ? [...current, { bankId, referralCode: "", accountType: "none" }]
         : current.filter((p) => p.bankId !== bankId),
     );
 
   const setCode = (bankId: string, referralCode: string) =>
     writePicks((current) =>
       current.map((p) => (p.bankId === bankId ? { ...p, referralCode } : p)),
+    );
+
+  const setAccountType = (bankId: string, accountType: AccountType) =>
+    writePicks((current) =>
+      current.map((p) => (p.bankId === bankId ? { ...p, accountType, referralCode: "" } : p)),
     );
 
   const create = useMutation({
@@ -232,6 +243,7 @@ export function BankAccountFormDialog({ open, onClose, customerId, onBack }: Pro
                 full={picks.length >= remaining}
                 onToggle={(checked) => toggleBank(bank.id, checked)}
                 onCodeChange={(code) => setCode(bank.id, code)}
+                onAccountTypeChange={(type) => setAccountType(bank.id, type)}
               />
             ))}
           </div>
@@ -258,6 +270,7 @@ type RowProps = {
   full: boolean;
   onToggle: (checked: boolean) => void;
   onCodeChange: (referralCode: string) => void;
+  onAccountTypeChange: (accountType: AccountType) => void;
 };
 
 /**
@@ -273,6 +286,7 @@ function BankPickRow({
   full,
   onToggle,
   onCodeChange,
+  onAccountTypeChange,
 }: RowProps) {
   const checked = pick !== undefined;
 
@@ -284,11 +298,25 @@ function BankPickRow({
    * qua nó với người có phòng và dùng phòng thật của họ. Nó nằm trong khoá cache
    * vì đổi phòng là đổi danh sách mã (spec §4.4d).
    */
-  const { data: codes = [], isPending } = useQuery({
-    queryKey: ["referral-codes", "open", bank.id, departmentId],
+  const { data: allCodes = [], isPending: allCodesPending } = useQuery({
+    queryKey: ["referral-codes", "open", bank.id, departmentId, "all-types"],
     queryFn: () => fetchOpenReferralCodes(bank.id, departmentId),
     enabled: checked,
   });
+  const availableTypes = [...new Set(allCodes.map((code) => code.accountType))];
+  const accountType = pick?.accountType ?? "none";
+  const { data: codes = [], isPending } = useQuery({
+    queryKey: ["referral-codes", "open", bank.id, departmentId, accountType],
+    queryFn: () => fetchOpenReferralCodes(bank.id, departmentId, accountType),
+    enabled: checked && availableTypes.includes(accountType),
+  });
+
+  // Ngân hàng chỉ có một loại (VD VPb chỉ CNKD) tự chốt loại đó; không bày
+  // thêm ô chọn một giá trị duy nhất.
+  useEffect(() => {
+    if (checked && availableTypes.length === 1 && accountType !== availableTypes[0])
+      onAccountTypeChange(availableTypes[0]);
+  }, [accountType, availableTypes, checked, onAccountTypeChange]);
 
   /**
    * Gợi ý sẵn mã đầu còn chỗ. Đây là ĐỒNG BỘ dữ liệu ngoài vào biểu mẫu, không
@@ -327,6 +355,18 @@ function BankPickRow({
 
       {checked && (
         <div className={styles.pickCode}>
+          {availableTypes.length > 1 ? (
+            <Select
+              block
+              required
+              label={`Loại tài khoản · ${bank.code}`}
+              value={accountType}
+              onChange={(v) => onAccountTypeChange(v as AccountType)}
+              options={availableTypes.map((value) => ({ value, label: ACCOUNT_TYPE_LABEL[value] }))}
+            />
+          ) : availableTypes.length === 1 && availableTypes[0] !== "none" ? (
+            <p className={styles.codeDetail}>Loại tài khoản: {ACCOUNT_TYPE_LABEL[availableTypes[0]]}</p>
+          ) : null}
           <Select
             block
             label={`Mã giới thiệu · ${bank.code}`}
@@ -335,7 +375,7 @@ function BankPickRow({
             onChange={onCodeChange}
             options={
               codes.length === 0
-                ? [{ value: "", label: isPending ? "— Đang tải mã —" : "— Hết mã —" }]
+                ? [{ value: "", label: isPending || allCodesPending ? "— Đang tải mã —" : "— Hết mã —" }]
                 : codes.map((c) => ({
                     value: c.id,
                     // Trừ cả `holding`: tài khoản người khác đang mở dở đã chiếm

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { AccountType } from './bankAccounts';
 import { INT_MAX, SMALLINT_MAX } from './limits';
 import { pageOf, pageParams, type Page, type PageQuery } from './pagination';
 
@@ -241,6 +242,8 @@ export const ReferralCode = z.object({
   qrImageUrl: z.string(),
   /** Số lớn lên đầu ô chọn mã, trong phạm vi một ngân hàng. 0 là mức thường. */
   priority: z.number(),
+  /** Loại tài khoản phải chọn trước để thấy và giữ mã này. */
+  accountType: AccountType,
   scope: CodeScope,
   /** Rỗng khi `scope` là `all`. */
   departmentIds: z.array(z.string()),
@@ -304,10 +307,12 @@ export async function fetchReferralCodeOptions(): Promise<string[]> {
 export async function fetchOpenReferralCodes(
   bankId: string,
   departmentId = '',
+  accountType = '',
 ): Promise<ReferralCode[]> {
   const res = await fetch(
     `/api/settings/referral-codes/open?bankId=${encodeURIComponent(bankId)}` +
-      (departmentId ? `&departmentId=${encodeURIComponent(departmentId)}` : ''),
+      (departmentId ? `&departmentId=${encodeURIComponent(departmentId)}` : '') +
+      (accountType ? `&accountType=${encodeURIComponent(accountType)}` : ''),
   );
   if (!res.ok) throw new Error('Không tải được mã giới thiệu còn chỗ');
   return z.array(ReferralCode).parse(await res.json());
@@ -341,6 +346,7 @@ export const ReferralCodeForm = z.object({
     .int('Độ ưu tiên phải là số nguyên')
     .min(0, 'Độ ưu tiên phải từ 0 trở lên')
     .max(SMALLINT_MAX, 'Độ ưu tiên lớn quá'),
+  accountType: AccountType,
   scope: CodeScope,
   departmentIds: z.array(z.guid()),
   /** Tên tỉnh chọn từ danh sách tham chiếu; `''` = không gán. */

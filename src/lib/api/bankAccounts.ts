@@ -102,6 +102,8 @@ export const MAX_BANK_ACCOUNTS_PER_CUSTOMER = 3;
 export const BankAccountPick = z.object({
   bankId: z.guid('Chưa chọn ngân hàng'),
   referralCode: z.guid('Chưa chọn mã giới thiệu'),
+  /** Chốt cùng mã ở bước giữ chỗ, không chọn lại khi hoàn tất tài khoản. */
+  accountType: AccountType,
 });
 export type BankAccountPick = z.infer<typeof BankAccountPick>;
 

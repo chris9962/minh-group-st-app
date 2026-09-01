@@ -340,6 +340,8 @@ export const referralCodes = pgTable(
      * Ô chọn chỉ hiện mã còn chỗ, nên số này KHÔNG kéo mã đã đầy trở lại.
      */
     priority: smallint("priority").notNull().default(0),
+    /** Loại tài khoản mà ngân hàng cấp mã này. Chốt trước khi giữ chỗ mã. */
+    accountType: bankAccountType("account_type").notNull().default("none"),
     /**
      * `all` = mọi phòng dùng được; `departments` = chỉ những phòng có dòng
      * trong `referral_code_departments` (spec §4.4d).

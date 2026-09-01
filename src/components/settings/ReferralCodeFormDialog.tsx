@@ -26,6 +26,7 @@ import {
   type CodeScope,
   type ReferralCode,
 } from "@/lib/api/bankCatalog";
+import { AccountType } from "@/lib/api/bankAccounts";
 import { fetchDepartments } from "@/lib/api/departments";
 import { fetchReferenceProvinces } from "@/lib/api/wardCatalog";
 import { digitsOnly, numberValue, numericField } from "@/lib/numberField";
@@ -87,6 +88,7 @@ export function ReferralCodeFormDialog({ open, onClose, referral }: Props) {
       total: referral?.total ?? 100,
       openUrl: referral?.openUrl ?? "",
       priority: referral?.priority ?? 0,
+      accountType: referral?.accountType ?? "none",
       scope: referral?.scope ?? "all",
       departmentIds: referral?.departmentIds ?? [],
       qrImageUrl: referral?.qrImageUrl ?? "",
@@ -226,6 +228,21 @@ export function ReferralCodeFormDialog({ open, onClose, referral }: Props) {
             hàng đó — kéo mã sang nhà băng khác là bỏ chúng lại phía sau.
           </p>
         )}
+
+        <Select
+          block
+          required
+          label="Loại tài khoản"
+          disabled={Boolean(referral && referral.used + referral.holding > 0)}
+          value={watch("accountType")}
+          onChange={(v) => setValue("accountType", v as AccountType, { shouldDirty: true })}
+          options={[
+            { value: "none", label: "Thường" },
+            { value: "CNKD", label: "CNKD" },
+            { value: "HKD", label: "HKD" },
+          ]}
+          error={errors.accountType?.message}
+        />
 
         <TextField
           label="Mã giới thiệu"
