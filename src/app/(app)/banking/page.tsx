@@ -3,7 +3,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Download, Landmark, Pencil, Plus, Trash2 } from "lucide-react";
+import { Landmark, Pencil, Plus, Trash2 } from "lucide-react";
 import type { DateRange } from "react-day-picker";
 import { SkeletonTable } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
@@ -23,13 +23,16 @@ import { SearchField } from "@/components/ui/SearchField";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { Select } from "@/components/ui/Select";
 import { StatusTag } from "@/components/ui/StatusTag";
-import { BankAccountStatus, deleteBankAccount } from "@/lib/api/bankAccounts";
-import { fetchBankAccounts, fetchBankAccountsForExport, type BankAccountRow } from "@/lib/api/banking";
+import {
+  BANK_ACCOUNT_STATUS_LABEL as STATUS_LABEL,
+  BankAccountStatus,
+  deleteBankAccount,
+} from "@/lib/api/bankAccounts";
+import { fetchBankAccounts, type BankAccountRow } from "@/lib/api/banking";
 import { fetchBanks, fetchReferralCodeOptions } from "@/lib/api/bankCatalog";
 import { fetchChannels } from "@/lib/api/channelCatalog";
 import { fetchStaffOptions } from "@/lib/api/staff";
 import { EMPTY_PAGE, PAGE_SIZE, type SortDir } from "@/lib/api/pagination";
-import { exportExcel } from "@/lib/excel";
 import { formatDate, formatPhone } from "@/lib/format";
 import { useDebouncedValue } from "@/lib/hooks";
 import { can, scopeFor } from "@/lib/permissions";
@@ -38,48 +41,6 @@ import { useSession } from "@/store/session";
 import styles from "./page.module.scss";
 
 const iso = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
-
-const STATUS_LABEL: Record<BankAccountStatus, string> = {
-  creating: "Đang tạo",
-  done: "Hoàn thành",
-  error: "Lỗi",
-};
-
-/** Xuất Excel gộp theo khách — mỗi khách một dòng, một cột riêng cho mỗi ngân hàng (spec §8.2). */
-function exportByCustomer(rows: BankAccountRow[], bankCodes: string[]) {
-  // Khoá gộp là `customerId`, KHÔNG phải tên. Database đang có hai khách trùng
-  // tên khác CCCD; gộp theo tên là trộn hồ sơ của hai người vào một dòng.
-  //
-  // Ô ngân hàng giữ TẬP số, không phải một chuỗi: gán đè thì khách có nhiều tài
-  // khoản ở cùng ngân hàng chỉ còn số cuối. Một khách thật đang có 4 tài khoản
-  // BIDV. `Set` cũng gộp luôn các số trùng nhau.
-  const byCustomer = new Map<string, { customerName: string; createdByNames: Set<string>; cells: Record<string, Set<string>> }>();
-  for (const r of rows) {
-    const row = byCustomer.get(r.customerId) ?? {
-      customerName: r.customerName,
-      createdByNames: new Set<string>(),
-      cells: {},
-    };
-    (row.cells[r.bankCode] ??= new Set<string>()).add(r.accountNumber);
-    if (r.createdByName) row.createdByNames.add(r.createdByName);
-    byCustomer.set(r.customerId, row);
-  }
-
-  return exportExcel({
-    fileName: `tai-khoan-ngan-hang-${iso(new Date())}.xlsx`,
-    sheetName: "Tài khoản ngân hàng",
-    rows: [...byCustomer.values()],
-    columns: [
-      { header: "Khách hàng", transform: "name", value: (r) => r.customerName },
-      { header: "Người tạo", value: (r) => [...r.createdByNames].join(", ") },
-      ...bankCodes.map((code) => ({
-        header: code,
-        type: "text" as const,
-        value: (r: { cells: Record<string, Set<string>> }) => [...(r.cells[code] ?? [])].join(", "),
-      })),
-    ],
-  });
-}
 
 /** P-21 · Danh sách tài khoản ngân hàng. */
 export default function BankingPage() {
@@ -99,7 +60,6 @@ export default function BankingPage() {
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [removing, setRemoving] = useState<BankAccountRow | null>(null);
-  const [exporting, setExporting] = useState(false);
 
   const { data: banks = [] } = useQuery({ queryKey: ["banks"], queryFn: fetchBanks });
   const { data: codes = [] } = useQuery({
@@ -180,30 +140,6 @@ export default function BankingPage() {
     placeholderData: keepPreviousData,
   });
 
-  /**
-   * Xuất Excel đi qua đường RIÊNG, không dựng file từ trang đang xem.
-   *
-   * Dựng từ `data.rows` thì file chỉ có 15 dòng của trang hiện tại mà trông y
-   * hệt file đầy đủ — người nhận không có cách nào biết.
-   */
-  const exportAll = async () => {
-    setExporting(true);
-    try {
-      const { rows, total } = await fetchBankAccountsForExport(filters);
-      if (rows.length < total) {
-        throw new Error(
-          `Bộ lọc này có ${total.toLocaleString("vi-VN")} tài khoản, vượt trần ${rows.length.toLocaleString("vi-VN")} dòng một lần xuất. Thu hẹp khoảng ngày rồi xuất làm nhiều đợt.`,
-        );
-      }
-      await exportByCustomer(rows, banks.map((b) => b.code));
-      toast.ok(`Đã xuất ${rows.length.toLocaleString("vi-VN")} tài khoản`);
-    } catch (e) {
-      toast.fail(errorMessage(e, "Không xuất được file Excel."));
-    } finally {
-      setExporting(false);
-    }
-  };
-
   const activeCount =
     (bankCode ? 1 : 0) +
     (from && to ? 1 : 0) +
@@ -258,7 +194,19 @@ export default function BankingPage() {
         label: "Đã cài app",
         render: (r) => <StatusTag ok={r.appInstalled}>{r.appInstalled ? "Có" : "Không"}</StatusTag>,
       },
-      { key: "createdByName", label: "Người tạo", render: (r) => r.createdByName ?? "—" },
+      {
+        key: "createdByName",
+        label: "Người tạo",
+        /*
+          Mã nhân viên chứ không phải tên: app khác của công ty định danh theo
+          mã, mà người đối chiếu hai bên ngồi ngay trên bảng này. Chưa gán mã
+          thì hiện tên — ô trống không nói được ai đã tạo dòng đó.
+        */
+        render: (r) =>
+          [r.createdByStaffCode || r.createdByName, r.createdByDepartmentName]
+            .filter(Boolean)
+            .join(" - ") || "—",
+      },
       ...(canWrite || canRemove
         ? [{
         key: "actions",
@@ -389,17 +337,6 @@ export default function BankingPage() {
               onChange={(v) => refine(() => setStaffId(v))}
               options={[{ value: "", label: "Tất cả nhân viên" }, ...staffOptions]}
             />
-          )}
-          {can(user, "banking", "export") && (
-            <Button
-              variant="secondary"
-              block
-              onClick={exportAll}
-              disabled={exporting || data.total === 0}
-            >
-              <Download size={16} aria-hidden />
-              Xuất Excel
-            </Button>
           )}
         </FilterButton>
         {can(user, "banking", "create") && (

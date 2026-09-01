@@ -68,7 +68,15 @@ export function BankCatalogSection({ creating, onCreatingChange }: Props) {
   });
 
   const columns: RankColumn<Bank>[] = [
-    { key: "code", label: "Mã ngân hàng", render: (b) => b.code },
+    {
+      key: "code",
+      label: "Mã ngân hàng",
+      render: (b) => (
+        <Link href={`/settings/banks/${b.id}`} className={styles.nameLink}>
+          {b.code}
+        </Link>
+      ),
+    },
     {
       key: "priority",
       label: "Ưu tiên",

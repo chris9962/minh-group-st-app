@@ -28,6 +28,12 @@ export type AccountType = z.infer<typeof AccountType>;
 export const BankAccountStatus = z.enum(['creating', 'done', 'error']);
 export type BankAccountStatus = z.infer<typeof BankAccountStatus>;
 
+export const BANK_ACCOUNT_STATUS_LABEL: Record<BankAccountStatus, string> = {
+  creating: 'Đang tạo',
+  done: 'Hoàn thành',
+  error: 'Lỗi',
+};
+
 export const BankAccount = z.object({
   id: z.string(),
   customerId: z.string(),

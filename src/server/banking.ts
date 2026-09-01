@@ -323,6 +323,8 @@ const decorate = (page: ReturnType<typeof pickPage>) =>
       createdById: page.createdBy,
       createdByName: users.fullName,
       createdByDepartmentId: page.createdByDepartmentId,
+      // Không tốn thêm phép nối — `users` đã có mặt cho `createdByName`.
+      createdByStaffCode: sql<string>`coalesce(${users.staffCode}, '')`,
       createdByDepartmentName: departments.name,
       finishedAt: page.finishedAt,
       status: page.status,
@@ -360,6 +362,7 @@ const toRow = (r: DecoratedRow): BankAccountRow => ({
   date: r.date,
   createdById: r.createdById,
   createdByName: r.createdByName,
+  createdByStaffCode: r.createdByStaffCode,
   createdByDepartmentName: r.createdByDepartmentName,
   status: r.status,
 });
@@ -448,10 +451,96 @@ export async function listBankAccounts(
 }
 
 /**
+ * MỘT trang tài khoản của ĐÚNG một ngân hàng — trang chi tiết ngân hàng (P-60).
+ *
+ * KHÔNG kẹp phạm vi phòng hay người tạo, khác `listBankAccounts`. Người được
+ * giao quản một ngân hàng phải đọc được mọi tài khoản của ngân hàng đó để đối
+ * chiếu với ngân hàng, kể cả tài khoản do phòng khác mở (chốt 2026-09-01).
+ *
+ * ⚠️ Vì bỏ phạm vi nên chốt duy nhất là `canManageBank` ở route. Gọi hàm này ở
+ * chỗ khác mà quên chốt đó là mở cả kho tài khoản cho người không được xem.
+ */
+export type BankOfBankFilters = {
+  from: string;
+  to: string;
+  status: string;
+  referralCodeId: string;
+  /** Phòng GHI NHẬN lúc tạo bản ghi, chụp một lần (spec §1.1.5). */
+  departmentId: string;
+};
+
+/** Bảng trên màn và file Excel dùng CHUNG điều kiện này — hai bản là hai kết quả. */
+const bankAccountsOfBankWhere = (bankId: string, filters: BankOfBankFilters): SQL =>
+  and(
+    eq(bankAccounts.bankId, bankId),
+    ...([
+      usableDate(filters.from) ? gte(bankAccounts.openedDate, filters.from) : undefined,
+      usableDate(filters.to) ? lte(bankAccounts.openedDate, filters.to) : undefined,
+      statusFilter(filters.status),
+      // Lọc theo ID, không theo mã text: mã QR-only để trống cột `code`.
+      filters.referralCodeId
+        ? eq(bankAccounts.referralCodeId, filters.referralCodeId)
+        : undefined,
+      filters.departmentId
+        ? eq(bankAccounts.createdByDepartmentId, filters.departmentId)
+        : undefined,
+    ].filter(Boolean) as SQL[]),
+  )!;
+
+export async function listBankAccountsOfBank(
+  bankId: string,
+  filters: BankOfBankFilters,
+  page: PageArgs<BankAccountSort>,
+): Promise<Page<BankAccountRow>> {
+  const where = bankAccountsOfBankWhere(bankId, filters);
+
+  const [rows, [totals]] = await Promise.all([
+    orderedPage(where, page.dir, page.limit, page.offset),
+    db.select({ value: count() }).from(bankAccounts).where(where),
+  ]);
+
+  return { rows: rows.map(toRow), total: totals?.value ?? 0 };
+}
+
+/**
  * Trần một lượt xuất Excel. Chạm trần thì `total` nói ra sự thật và nơi gọi
  * BẮT BUỘC so hai số — file thiếu 5.000 dòng trông y hệt file đủ.
  */
 export const EXPORT_LIMIT = 20_000;
+
+/**
+ * Trần một sheet Excel. KHÔNG phải trần do hệ thống đặt ra — quá số này thì
+ * `exceljs` ghi ra một file Excel không mở được, chứ không phải file thiếu dòng.
+ *
+ * Trang chi tiết ngân hàng cố ý KHÔNG dùng `EXPORT_LIMIT`: bảng đã khoá theo
+ * một ngân hàng và còn lọc thêm, mà người quản cần trọn kho để đối chiếu với
+ * ngân hàng (chốt 2026-09-01).
+ */
+export const EXCEL_ROW_LIMIT = 1_048_575;
+
+/**
+ * TRỌN danh sách khớp bộ lọc của một ngân hàng, CHỈ cho việc xuất Excel.
+ *
+ * Đường riêng chứ không mở tham số "lấy hết" trên route đã phân trang
+ * (AGENTS.md §5.1, điều 4). Phân quyền giống `listBankAccountsOfBank`: chốt là
+ * `canManageBank` ở route.
+ *
+ * ⚠️ Toàn bộ kết quả nằm trong RAM của Node rồi mới dựng JSON. Chấp nhận được
+ * vì phạm vi là một ngân hàng; đừng chép cách này sang danh sách toàn công ty.
+ */
+export async function listBankAccountsOfBankForExport(
+  bankId: string,
+  filters: BankOfBankFilters,
+): Promise<Page<BankAccountRow>> {
+  const where = bankAccountsOfBankWhere(bankId, filters);
+
+  const [rows, [totals]] = await Promise.all([
+    orderedPage(where, "desc", EXCEL_ROW_LIMIT, 0),
+    db.select({ value: count() }).from(bankAccounts).where(where),
+  ]);
+
+  return { rows: rows.map(toRow), total: totals?.value ?? 0 };
+}
 
 /**
  * Điều kiện SQL của một lượt xuất — phạm vi cộng bộ lọc, trả `null` khi người

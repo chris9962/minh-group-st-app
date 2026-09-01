@@ -1,6 +1,7 @@
 "use client";
 
 import { Plus } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { RequirePermission } from "@/components/layout/RequirePermission";
 import { TopBar } from "@/components/layout/TopBar";
@@ -20,8 +21,9 @@ import styles from "./page.module.scss";
  * hai, nên hai mục sidebar là hai đường vào cùng một thứ — và người dùng phải
  * nhớ kho mã nằm ở mục nào.
  *
- * Tab là state trong trang, không đổi đường dẫn, cùng cách màn Xuất dữ liệu
- * (P-73) làm với bốn báo cáo của nó.
+ * Tab đang mở nằm trên URL (`?tab=codes`). Tải lại trang hay chia sẻ link thì
+ * người nhận thấy đúng tab người gửi đang xem — trước đó tab là state trong
+ * trang nên mọi lần tải lại đều quay về Danh sách ngân hàng (chốt 2026-09-01).
  *
  * Nút thêm nằm ở THANH TIÊU ĐỀ TRANG, cùng chỗ với "Thêm khách hàng" (P-40) và
  * "Thêm nhân viên" (P-51): người dùng đi qua lại giữa mấy màn này cả ngày, để
@@ -37,7 +39,10 @@ const TAB_OPTIONS = [
 
 export default function BanksPage() {
   const user = useSession((s) => s.user);
-  const [tab, setTab] = useState<Tab>("banks");
+  const searchParams = useSearchParams();
+  const [tab, setTab] = useState<Tab>(() =>
+    searchParams.get("tab") === "codes" ? "codes" : "banks",
+  );
   const [creatingBank, setCreatingBank] = useState(false);
   const [creatingCode, setCreatingCode] = useState(false);
 
@@ -50,6 +55,21 @@ export default function BanksPage() {
    * chính ngân hàng đó.
    */
   const canAddBank = canCreateBank(user);
+
+  /**
+   * `replaceState` chứ không phải `push`: đổi tab không phải một bước điều
+   * hướng, nhồi nó vào lịch sử thì nút Quay lại phải bấm nhiều lần mới ra khỏi
+   * màn. Đi thẳng qua `history` chứ không qua router Next — đổi tab không cần
+   * dựng lại trang, mà `router.replace` thì có.
+   */
+  const openTab = (next: Tab) => {
+    setTab(next);
+    window.history.replaceState(
+      null,
+      "",
+      next === "codes" ? "/settings/banks?tab=codes" : "/settings/banks",
+    );
+  };
 
   return (
     <RequirePermission allow={canOpenBankAdmin}>
@@ -74,7 +94,7 @@ export default function BanksPage() {
         <SectionTabs
           label="Khu vực"
           value={tab}
-          onChange={(v) => setTab(v as Tab)}
+          onChange={(v) => openTab(v as Tab)}
           options={TAB_OPTIONS}
         />
 

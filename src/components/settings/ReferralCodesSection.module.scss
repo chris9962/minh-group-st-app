@@ -1,3 +1,17 @@
+/* Vùng bấm cao hết ô: cột mã ngân hàng hẹp, chữ "MB" một mình khó trúng bằng
+   ngón tay. */
+.nameLink {
+  display: block;
+  padding: 12px 0;
+  margin: -12px 0;
+  color: var(--om-link);
+}
+
+.nameLink:hover {
+  color: var(--om-link-hover);
+  text-decoration: underline;
+}
+
 .filters {
   display: flex;
   flex-wrap: wrap;

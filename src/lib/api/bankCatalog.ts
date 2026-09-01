@@ -277,6 +277,23 @@ export async function fetchReferralCodes(query: ReferralCodeQuery): Promise<Page
   return ReferralCodePage.parse(await res.json());
 }
 
+export const BankReferralCodeOption = z.object({ id: z.string(), name: z.string() });
+export type BankReferralCodeOption = z.infer<typeof BankReferralCodeOption>;
+
+/**
+ * Tên mã của MỘT ngân hàng, cho ô lọc ở trang chi tiết ngân hàng.
+ *
+ * Trả ID chứ không phải mã text: mã QR-only không có mã text nên lọc theo chuỗi
+ * thì chúng không chọn được.
+ */
+export async function fetchBankReferralCodeOptions(
+  bankId: string,
+): Promise<BankReferralCodeOption[]> {
+  const res = await fetch(`/api/settings/banks/${bankId}/referral-codes`);
+  if (!res.ok) throw new Error('Không tải được danh sách mã của ngân hàng');
+  return z.array(BankReferralCodeOption).parse(await res.json());
+}
+
 /** Tên mã cho ô LỌC ở màn ngân hàng / xuất Excel — gồm cả mã đã đầy. */
 export async function fetchReferralCodeOptions(): Promise<string[]> {
   const res = await fetch('/api/settings/referral-codes/options');

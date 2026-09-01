@@ -721,6 +721,26 @@ export async function listReferralCodeOptions(): Promise<string[]> {
 }
 
 /**
+ * MỌI mã của một ngân hàng, cho ô lọc ở trang chi tiết ngân hàng.
+ *
+ * Khác `listReferralCodeOptions` ở hai chỗ: khoá theo một ngân hàng, và trả về
+ * ID kèm tên chứ không phải mã text. Mã QR-only không có mã text, lọc theo
+ * chuỗi thì chúng không chọn được.
+ *
+ * Không cắt trang: ô chọn mà chỉ có 15 mã đầu là ô chọn nói dối. Một ngân hàng
+ * nhiều nhất vài trăm mã.
+ */
+export async function listBankReferralCodeOptions(
+  bankId: string,
+): Promise<{ id: string; name: string }[]> {
+  return db
+    .select({ id: referralCodes.id, name: referralCodes.displayName })
+    .from(referralCodes)
+    .where(eq(referralCodes.bankId, bankId))
+    .orderBy(asc(referralCodes.displayName));
+}
+
+/**
  * Mã còn chỗ của một ngân hàng, nhiều chỗ trống lên trước. Ô chọn nên không cắt trang.
  *
  * "Còn chỗ" ở đây trừ CẢ phần đang giữ (`holding`), khác với nhãn trạng thái ở

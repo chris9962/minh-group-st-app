@@ -1,6 +1,7 @@
 "use client";
 
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
 import { Pencil, Ticket } from "lucide-react";
 import { useState } from "react";
 import { SkeletonTable } from "@/components/ui/Skeleton";
@@ -116,14 +117,34 @@ export function ReferralCodesSection({ creating, onCreatingChange }: Props) {
   });
 
   const columns: RankColumn<ReferralCode>[] = [
-    { key: "bank", label: "Ngân hàng", sortable: true, render: (c) => c.bankCode },
+    {
+      key: "bank",
+      label: "Ngân hàng",
+      sortable: true,
+      render: (c) => (
+        <Link href={`/settings/banks/${c.bankId}`} className={styles.nameLink}>
+          {c.bankCode}
+        </Link>
+      ),
+    },
     {
       key: "code",
       label: "Tên hiển thị",
       sortable: true,
       // Cache từ trước khi thêm cột chưa có `displayName`; không để bảng hiện
       // trống trong lúc TanStack Query nạp lại dữ liệu mới.
-      render: (c) => c.displayName || c.code,
+      //
+      // Link mang sẵn `referralCodeId`: câu hỏi hay gặp nhất khi nhìn một mã là
+      // "mã này đã mở cho những ai", mà trang chi tiết ngân hàng trả lời đúng
+      // câu đó — bắt người dùng vào rồi tự chọn lại mã trong ô lọc là thừa.
+      render: (c) => (
+        <Link
+          href={`/settings/banks/${c.bankId}?referralCodeId=${c.id}`}
+          className={styles.nameLink}
+        >
+          {c.displayName || c.code}
+        </Link>
+      ),
     },
     { key: "accountType", label: "Loại TK", render: (c) => ACCOUNT_TYPE_LABEL[c.accountType] },
     {

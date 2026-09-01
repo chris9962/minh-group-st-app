@@ -27,6 +27,13 @@ export const BankAccountRow = z.object({
   date: z.string(),
   createdById: z.string().nullable(),
   createdByName: z.string().nullable(),
+  /**
+   * Mã nhân viên của người tạo; `''` = chưa gán mã, hoặc người tạo đã bị xoá.
+   *
+   * Bảng P-21 và file Excel đều hiện mã chứ không hiện tên: app khác của công
+   * ty định danh theo mã (chốt 2026-09-01).
+   */
+  createdByStaffCode: z.string(),
   /** Đơn vị của người tạo LÚC TẠO — chụp một lần, không tra động (spec §1.1.5). Dùng cho báo cáo xuất theo phòng (P-73 #4). */
   createdByDepartmentName: z.string().nullable(),
   status: BankAccountStatus,
@@ -131,6 +138,64 @@ export async function fetchBankAccountsForExport(
 ): Promise<Page<BankAccountRow>> {
   const res = await fetch(`/api/bank-account-list/export?${new URLSearchParams(listParams(query))}`);
   if (!res.ok) throw new Error('Không tải được danh sách tài khoản ngân hàng');
+  return BankAccountPage.parse(await res.json());
+}
+
+/**
+ * Bảng "Xem toàn bộ tài khoản theo ngân hàng" ở trang chi tiết ngân hàng.
+ *
+ * Ít bộ lọc hơn P-21 — chỉ ngày mở và trạng thái. Ngân hàng đã nằm trong đường
+ * dẫn nên không có ô chọn ngân hàng, và người quản ngân hàng cần đọc nhanh cả
+ * kho chứ không đi tìm một dòng.
+ */
+export type BankAccountsOfBankQuery = PageQuery<BankAccountSort> & {
+  /** Khoảng NGÀY MỞ, YYYY-MM-DD. Rỗng = không giới hạn. */
+  from: string;
+  to: string;
+  status: BankAccountStatus | '';
+  /** ID mã giới thiệu, không phải mã text — mã QR-only không có mã text. */
+  referralCodeId: string;
+  /** Phòng ghi nhận lúc tạo bản ghi. Rỗng = mọi phòng. */
+  departmentId: string;
+};
+
+/**
+ * TRỌN danh sách khớp bộ lọc, CHỈ cho việc xuất Excel.
+ *
+ * `total` có thể lớn hơn `rows.length` khi chạm trần — nơi gọi BẮT BUỘC so hai
+ * số rồi dừng, vì file thiếu dòng trông y hệt file đủ.
+ */
+export async function fetchBankAccountsOfBankForExport(
+  bankId: string,
+  query: Omit<BankAccountsOfBankQuery, keyof PageQuery>,
+): Promise<Page<BankAccountRow>> {
+  const params = new URLSearchParams();
+  if (query.from) params.set('from', query.from);
+  if (query.to) params.set('to', query.to);
+  if (query.status) params.set('status', query.status);
+  if (query.referralCodeId) params.set('referralCodeId', query.referralCodeId);
+  if (query.departmentId) params.set('departmentId', query.departmentId);
+
+  const res = await fetch(`/api/settings/banks/${bankId}/accounts/export?${params}`);
+  if (res.status === 403) throw new Error('Bạn không quản ngân hàng này');
+  if (!res.ok) throw new Error('Không tải được danh sách tài khoản của ngân hàng');
+  return BankAccountPage.parse(await res.json());
+}
+
+export async function fetchBankAccountsOfBank(
+  bankId: string,
+  query: BankAccountsOfBankQuery,
+): Promise<Page<BankAccountRow>> {
+  const params = pageParams(query, {
+    from: query.from,
+    to: query.to,
+    status: query.status,
+    referralCodeId: query.referralCodeId,
+    departmentId: query.departmentId,
+  });
+  const res = await fetch(`/api/settings/banks/${bankId}/accounts?${params}`);
+  if (res.status === 403) throw new Error('Bạn không quản ngân hàng này');
+  if (!res.ok) throw new Error('Không tải được danh sách tài khoản của ngân hàng');
   return BankAccountPage.parse(await res.json());
 }
 
