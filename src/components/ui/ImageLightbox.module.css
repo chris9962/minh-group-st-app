@@ -7,6 +7,16 @@
   max-height: calc(100dvh - 96px);
 }
 
+/* Xếp dọc ảnh và chú thích. Phải gắn vào `[open]`: đặt `display` thẳng trên
+   `.lightbox` là đè mất `display: none` mà trình duyệt áp cho dialog đang đóng,
+   nên ảnh hiện ra một nhịp trước khi `showModal()` chạy. */
+.lightbox[open] {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
 /* Đậm hơn lớp phủ của Dialog: phần nền chỉ cần mờ đi cho ảnh nổi lên. */
 .lightbox::backdrop {
   background: rgb(32 30 29 / 70%);
@@ -17,6 +27,35 @@
   max-width: calc(100vw - 96px);
   max-height: calc(100dvh - 96px);
   border-radius: var(--radius-md);
+}
+
+/* Chừa chỗ cho dòng chú thích: một dòng chữ cộng khoảng cách. Không chừa thì
+   ảnh cao hết khung nhìn và đẩy chú thích ra ngoài mép dưới. */
+.withCaption .image {
+  max-height: calc(100dvh - 96px - 56px);
+}
+
+.caption {
+  flex: none;
+  padding: 8px 16px;
+  border-radius: var(--radius-md);
+  background: var(--om-card);
+  color: var(--om-text);
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.caption a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--om-orange-mid);
+  text-decoration: none;
+}
+
+.caption a:hover {
+  text-decoration: underline;
 }
 
 /* `fixed` trong top layer tính theo khung nhìn — nút neo góc màn hình, không
@@ -64,5 +103,9 @@
   .image {
     max-width: calc(100vw - 32px);
     max-height: calc(100dvh - 76px);
+  }
+
+  .withCaption .image {
+    max-height: calc(100dvh - 76px - 56px);
   }
 }

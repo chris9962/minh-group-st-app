@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { clsx } from "clsx";
 import { Download, X } from "lucide-react";
 import { downloadImage } from "@/lib/downloadImage";
 import { useDialogLayer } from "@/store/dialogLayer";
@@ -10,6 +11,8 @@ type Props = {
   src: string;
   alt: string;
   onClose: () => void;
+  /** Dòng nội dung ngay dưới ảnh — chỗ đặt link hoặc chú thích của nơi gọi. */
+  caption?: React.ReactNode;
 };
 
 /**
@@ -19,7 +22,7 @@ type Props = {
  * ảnh cần cả khung nhìn. Vẫn là `<dialog>` gốc để trình duyệt lo lớp phủ, bẫy
  * tiêu điểm và phím Esc.
  */
-export function ImageLightbox({ src, alt, onClose }: Props) {
+export function ImageLightbox({ src, alt, onClose, caption }: Props) {
   const ref = useRef<HTMLDialogElement>(null);
   const [saving, setSaving] = useState(false);
 
@@ -43,7 +46,7 @@ export function ImageLightbox({ src, alt, onClose }: Props) {
   return (
     <dialog
       ref={ref}
-      className={styles.lightbox}
+      className={clsx(styles.lightbox, caption && styles.withCaption)}
       aria-label={alt}
       onCancel={(e) => {
         e.preventDefault();
@@ -69,6 +72,7 @@ export function ImageLightbox({ src, alt, onClose }: Props) {
         <X size={18} aria-hidden />
       </button>
       <img src={src} alt={alt} className={styles.image} />
+      {caption && <div className={styles.caption}>{caption}</div>}
     </dialog>
   );
 }

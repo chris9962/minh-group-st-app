@@ -6,8 +6,8 @@ import type {
   UseFormSetValue,
   UseFormWatch,
 } from "react-hook-form";
-import { useState } from "react";
-import { BookOpen, QrCode } from "lucide-react";
+import { useEffect, useState } from "react";
+import { BookOpen, ExternalLink, QrCode } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { ImageLightbox } from "@/components/ui/ImageLightbox";
 import { BankGuideDialog } from "./BankGuideDialog";
@@ -18,6 +18,7 @@ import { TextField } from "@/components/ui/TextField";
 import { BankAccountFinishForm } from "@/lib/api/bankAccounts";
 import type { AccountNumberMethod } from "@/lib/api/bankCatalog";
 import { BankAccountPhotos, type PhotoItem } from "./BankAccountPhotos";
+import { httpLinkIn, readQrImageUrl } from "@/lib/readQrImage";
 import styles from "./BankAccountFinishFields.module.scss";
 
 type Props = {
@@ -75,6 +76,32 @@ export function BankAccountFinishFields({
   /** Đang mở ảnh QR cỡ lớn. */
   const [qrOpen, setQrOpen] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
+  /**
+   * Kết quả giải ảnh QR, kèm URL của tấm ảnh đã giải. Giữ URL để lượt sửa nào
+   * đổi sang mã giới thiệu khác thì link cũ không còn được nhận.
+   */
+  const [decodedQr, setDecodedQr] = useState({ url: "", link: "" });
+
+  /**
+   * Giải ảnh QR khi người dùng phóng to nó, không giải sẵn lúc mở màn.
+   *
+   * Link chỉ hiện trong lượt xem cỡ lớn, mà giải ảnh phải tải thêm `jsqr` và
+   * chính tấm ảnh — đội kinh doanh dùng 4G ngoài trời, đa số lượt vào màn này
+   * không mở QR.
+   */
+  useEffect(() => {
+    if (!qrOpen || !referralQrUrl || decodedQr.url === referralQrUrl) return;
+
+    let live = true;
+    readQrImageUrl(referralQrUrl).then((r) => {
+      if (live) setDecodedQr({ url: referralQrUrl, link: r.ok ? httpLinkIn(r.text) : "" });
+    });
+    return () => {
+      live = false;
+    };
+  }, [qrOpen, referralQrUrl, decodedQr.url]);
+
+  const qrLink = decodedQr.url === referralQrUrl ? decodedQr.link : "";
 
   /**
    * Có ảnh mẫu mà chưa có chữ vẫn dựng nút — ảnh chụp từng bước tự nó đã là
@@ -89,7 +116,7 @@ export function BankAccountFinishFields({
           {referralQrUrl && (
             <Button variant="secondary" type="button" className={styles.openAction} onClick={() => setQrOpen(true)}>
               <QrCode size={16} aria-hidden />
-              Hiện QR để khách quét
+              Hiện QR giới thiệu
             </Button>
           )}
 
@@ -120,8 +147,16 @@ export function BankAccountFinishFields({
       {qrOpen && (
         <ImageLightbox
           src={referralQrUrl}
-          alt="Mã QR để khách quét"
+          alt="Mã QR giới thiệu"
           onClose={() => setQrOpen(false)}
+          caption={
+            qrLink ? (
+              <a href={qrLink} target="_blank" rel="noreferrer">
+                <ExternalLink size={16} aria-hidden />
+                Quét QR code
+              </a>
+            ) : undefined
+          }
         />
       )}
 
