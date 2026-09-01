@@ -49,10 +49,10 @@ export function GiftChangeDialog({ open, onClose, customerId, customerName }: Pr
   };
 
   return <Dialog open={open} onClose={onClose} title={`Đổi quà · ${customerName}`} footer={<><Button variant="secondary" onClick={onClose}>Đóng</Button><Button onClick={confirm} disabled={!selected || reason.trim().length < 2 || save.isPending || packages.isPending}>Xác nhận đổi quà</Button></>}>
-    {detail.isPending && <p className="text-muted">Đang tải rổ quà gốc…</p>}
-    {detail.isError && <ErrorState what="rổ quà gốc" onRetry={detail.refetch} retrying={detail.isFetching} />}
+    {detail.isPending && <p className="text-muted">Đang tải danh sách quà ban đầu…</p>}
+    {detail.isError && <ErrorState what="danh sách quà ban đầu" onRetry={detail.refetch} retrying={detail.isFetching} />}
     {detail.data && <div className={styles.body}>
-      <Alert tone="warning">Chỉ chọn được món trong rổ quà lúc khách được tặng. Đơn bảo hiểm quà cũ sẽ được xử lý tự động.</Alert>
+      <Alert tone="warning">Chỉ chọn được món trong danh sách quà lúc khách được tặng. Đơn bảo hiểm quà cũ sẽ được xử lý tự động.</Alert>
       <div className={styles.cards}>{detail.data.gift.basket.map((item, i) => <label key={`${item.code}-${i}`} className={clsx(styles.card, selected === item.code && styles.cardActive, item.code === detail.data.gift.givenCode && styles.cardOff)}><input type="radio" name="gift-change" disabled={item.code === detail.data.gift.givenCode || item.status !== "ok"} checked={selected === item.code} onChange={() => setSelected(item.code)} /><span className={styles.cardName}>{item.name}</span><span className={styles.cardKind}>{item.code === detail.data.gift.givenCode ? "Đang áp dụng" : item.status === "ok" ? "Chọn đổi" : "Không còn cấp"}</span></label>)}</div>
       {detail.data.gift.givenCode !== GIFT_DECLINED && <label className={clsx(styles.card, selected === DECLINE && styles.cardActive)}><input type="radio" name="gift-change" checked={selected === DECLINE} onChange={() => setSelected(DECLINE)} /><span className={styles.cardName}>Từ chối, không lấy gì</span></label>}
       <TextArea label="Lý do đổi quà" required rows={3} placeholder="Khách đổi quà" value={reason} onChange={(event) => setReason(event.target.value)} />

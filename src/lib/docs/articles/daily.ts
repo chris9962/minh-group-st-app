@@ -513,12 +513,12 @@ export const DAILY_DOCS: DocArticle[] = [
     title: 'Tặng quà cho khách',
     screen: 'P-41',
     group: 'daily',
-    summary: 'Chọn quà trong rổ quà của khách rồi xác nhận đã phát.',
+    summary: 'Chọn quà trong danh sách quà của khách rồi xác nhận đã phát.',
     keywords: [
       'tặng quà',
       'phát quà',
       'chốt quà',
-      'rổ quà',
+      'danh sách quà',
       'khách đủ điều kiện nhận quà',
       'quà của khách',
     ],
@@ -526,14 +526,14 @@ export const DAILY_DOCS: DocArticle[] = [
     blocks: [
       {
         kind: 'text',
-        body: 'Hệ thống tự tính khách đủ điều kiện nhận quà nào. Bạn chọn một món trong rổ quà đó rồi xác nhận đã phát.',
+        body: 'Hệ thống tự tính khách đủ điều kiện nhận quà nào. Bạn chọn một món trong danh sách quà đó rồi xác nhận đã phát.',
       },
       {
         kind: 'steps',
         items: [
           'Mở mục **Khách hàng**, hoặc mở hồ sơ của khách.',
           'Bấm nút **Tặng quà** ở dòng của khách.',
-          'Hộp thoại hiện rổ quà khách đủ điều kiện nhận.',
+          'Hộp thoại hiện danh sách quà khách đủ điều kiện nhận.',
           'Chọn một món quà.',
           'Bấm **Xác nhận**.',
         ],
@@ -558,7 +558,7 @@ export const DAILY_DOCS: DocArticle[] = [
       {
         kind: 'note',
         tone: 'info',
-        body: 'Rổ quà rỗng nghĩa là khách chưa đủ điều kiện. Bạn xem luật ở màn **Cấu hình → Quy tắc quà**.',
+        body: 'Danh sách quà trống nghĩa là khách chưa đủ điều kiện. Bạn xem luật ở màn **Cấu hình → Quy tắc quà**.',
       },
     ],
   },

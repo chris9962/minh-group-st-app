@@ -426,7 +426,7 @@ export default function CustomerDetailPage({
                 )}
                 {!data.gift.given && (
                   <div>
-                    <dt>Rổ quà</dt>
+                    <dt>Danh sách quà</dt>
                     <dd>
                       {/* Rổ rỗng có HAI lý do khác hẳn nhau: khách chưa đủ
                           combo, hoặc đủ rồi mà admin vừa tắt hết món trong danh

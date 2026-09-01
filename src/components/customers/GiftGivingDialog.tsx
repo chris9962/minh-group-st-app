@@ -133,9 +133,9 @@ export function GiftGivingDialog({ open, onClose, customerId, customerName }: Pr
         </>
       }
     >
-      {isPending && <SkeletonText lines={3} label="Đang tải rổ quà" />}
+      {isPending && <SkeletonText lines={3} label="Đang tải danh sách quà" />}
       {/* Thiếu nhánh này thì tải hỏng ra hộp thoại RỖNG: không chữ, không nút thử lại. */}
-      {isError && <ErrorState what="rổ quà của khách" onRetry={refetch} retrying={isFetching} />}
+      {isError && <ErrorState what="danh sách quà của khách" onRetry={refetch} retrying={isFetching} />}
       {packagesError && (
         <ErrorState
           what="danh mục gói bảo hiểm"

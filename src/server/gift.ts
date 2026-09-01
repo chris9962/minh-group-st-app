@@ -447,7 +447,7 @@ export async function grantGift(
     return {
       ok: false,
       code: GIFT_ERROR.NOT_IN_BASKET,
-      message: `"${item}" không nằm trong rổ quà của khách này`,
+      message: `"${item}" không nằm trong danh sách quà của khách này`,
     };
 
   // Rổ giữ lại cả món đã ngừng để màn nói được lý do, nên chốt chặn phải tự
@@ -566,12 +566,12 @@ export async function changeGift(
   if (!grant) return null;
 
   const snapshot = GiftSimulateResult.safeParse(grant.snapshot);
-  if (!snapshot.success) return { ok: false, message: "Rổ quà gốc không hợp lệ, không thể đổi." };
+  if (!snapshot.success) return { ok: false, message: "Danh sách quà ban đầu không hợp lệ, không thể đổi." };
   if (form.item === grant.chosenItem) return { ok: false, message: "Khách đang áp dụng món quà này rồi." };
 
   const next = form.item === GIFT_DECLINED ? null : snapshot.data.basket.find((b) => b.code === form.item);
   if (form.item !== GIFT_DECLINED && (!next || !next.id || next.status !== "ok"))
-    return { ok: false, message: "Món quà mới phải thuộc rổ quà gốc và còn cấp được." };
+    return { ok: false, message: "Món quà mới phải thuộc danh sách quà ban đầu và còn cấp được." };
 
   const [insuranceItem] =
     form.item === GIFT_DECLINED

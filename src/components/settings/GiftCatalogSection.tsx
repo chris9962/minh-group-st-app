@@ -229,11 +229,11 @@ export function GiftCatalogSection() {
         consequence={
           confirmingGift?.active ? (
             <>
-              Món này <strong>không vào rổ quà của khách mới nữa</strong>. Quà đã
+              Món này <strong>không vào danh sách quà của khách mới nữa</strong>. Quà đã
               tặng vẫn nằm nguyên trong lịch sử của khách, dùng lại lúc nào cũng được.
             </>
           ) : (
-            <>Món này lại được xét vào rổ quà của khách mới.</>
+            <>Món này lại được xét vào danh sách quà của khách mới.</>
           )
         }
       >

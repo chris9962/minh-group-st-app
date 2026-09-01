@@ -216,7 +216,7 @@ export function GiftSimulator() {
           value={grantedItem}
           onChange={setGrantedItem}
           options={GRANTED_ITEMS}
-          hint="Đổi mức điểm CNKD, không đổi rổ quà"
+          hint="Đổi mức điểm CNKD, không đổi danh sách quà"
         />
         {/* Luật tra theo NGÀY: kỳ nào cũng có file riêng và một ngày chỉ thuộc
             một kỳ. Không có ô này thì màn chỉ thử được kỳ đang hiệu lực. */}
@@ -264,7 +264,7 @@ export function GiftSimulator() {
             </dd>
           </div>
           <div>
-            <dt>Rổ quà</dt>
+            <dt>Danh sách quà</dt>
             <dd>
               {run.data.basket.length === 0 ? (
                 "Không có món nào"
