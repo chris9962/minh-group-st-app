@@ -44,9 +44,9 @@ import styles from "./page.module.scss";
 import { reportInvalid } from "@/lib/formErrors";
 
 const ACCOUNT_TYPE_LABEL: Record<AccountType, string> = {
-  none: "Không",
-  CNKD: "CNKD",
-  HKD: "HKD",
+  none: "Tài khoản thường",
+  CNKD: "Tài khoản CNKD",
+  HKD: "Tài khoản HKD",
 };
 
 /**
@@ -395,7 +395,7 @@ function DoneAccountCard({
           </dd>
         </div>
         <div>
-          <dt>CNKD / HKD</dt>
+          <dt>Loại tài khoản</dt>
           <dd>{ACCOUNT_TYPE_LABEL[data.accountType]}</dd>
         </div>
         <div>
