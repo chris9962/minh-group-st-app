@@ -7,6 +7,26 @@
   border-top: 1px solid var(--om-line);
 }
 
+/* Form mã giới thiệu đặt QR cạnh mã text: đây là MỘT ô nhận diện, không phải
+   cả một phần "ảnh chứng minh", nên bỏ đường chia và thu nhịp xuống. */
+.compact {
+  gap: 8px;
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.compact .photoGrid {
+  width: 100%;
+}
+
+.compact .photoTile,
+.compact .photoAdd {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+}
+
 .photoTitle {
   margin: 0;
   display: flex;

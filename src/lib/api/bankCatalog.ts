@@ -39,6 +39,7 @@ export const QrImageRef = ImageRef;
 
 export const Bank = z.object({
   id: z.string(),
+  /** `''` khi mã này chỉ có ảnh QR. */
   code: z.string(),
   /** Đang triển khai — tắt thì không hiện cho KD chọn lúc tạo mới. */
   active: z.boolean(),
@@ -212,16 +213,7 @@ export const CODE_LOW_RATIO = 0.8;
  * Chỗ còn nhận được tài khoản mới là `total - used - holding`, không phải
  * `total - used`.
  */
-/**
- * Link mở tài khoản — CHỈ nhận `http` và `https`.
- *
- * Chuỗi này đi thẳng vào `href` của nút "Mở app ngân hàng" ở bước 2 P-20.
- * Không chặn thì một QR chứa `javascript:` biến nút đó thành đường chạy mã tuỳ
- * ý trên máy nhân viên. Máy chủ kiểm LẠI bằng đúng schema này — ảnh QR giải ở
- * trình duyệt nên chuỗi gửi lên nặn tay được.
- *
- * `''` = không có link, hợp lệ. Ngân hàng nào không phát link thì ô để trống.
- */
+/** Link cũ còn giữ để tương thích dữ liệu; giao diện không dùng để mở app. */
 export const OpenUrl = z
   .string()
   .trim()
@@ -231,6 +223,8 @@ export const ReferralCode = z.object({
   id: z.string(),
   bankId: z.string(),
   bankCode: z.string(),
+  /** Nhãn chính trong danh sách; QR-only vẫn cần tên này để nhận biết. */
+  displayName: z.string(),
   code: z.string(),
   used: z.number(),
   holding: z.number(),
@@ -322,13 +316,11 @@ export async function fetchOpenReferralCodes(
 export const ReferralCodeForm = z.object({
   // Đi thẳng vào cột uuid — xem chú thích cùng loại ở `ServiceForm`.
   bankId: z.guid('Chưa chọn ngân hàng'),
-  code: z.string().trim().min(1, 'Chưa nhập mã'),
+  displayName: z.string().trim().min(1, 'Chưa nhập tên hiển thị'),
+  /** Bỏ trống khi ngân hàng chỉ cấp QR; máy chủ vẫn bắt buộc có QR lúc lưu. */
+  code: z.string().trim(),
   total: z.int('Tổng số phải là số nguyên').min(1, 'Tổng số phải lớn hơn 0').max(INT_MAX, 'Tổng số lớn quá'),
-  /**
-   * Giải ra từ ảnh QR ngay ở trình duyệt, hoặc người dùng gõ tay khi ảnh mờ
-   * không đọc được. Chuỗi này và ảnh ở `qrImageUrl` là hai thứ RỜI NHAU: gõ
-   * link tay mà không có ảnh là hợp lệ, và ngược lại.
-   */
+  /** Dữ liệu link cũ để tương thích; biểu mẫu mới không nhập hoặc đọc từ QR. */
   openUrl: OpenUrl,
   /**
    * Ảnh QR đã tải lên kho, `''` = không có. Bước 2 của P-20 mở đúng tấm này ra

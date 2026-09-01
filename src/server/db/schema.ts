@@ -288,7 +288,10 @@ export const referralCodes = pgTable(
   {
     id: id(),
     bankId: uuid("bank_id").notNull().references(() => banks.id),
-    code: text("code").notNull(),
+    /** Tên nhân viên dùng để nhận biết một mã hoặc QR trong danh sách. */
+    displayName: text("display_name").notNull(),
+    /** Mã text do ngân hàng cấp; QR-only thì để null. */
+    code: text("code"),
     total: integer("total").notNull(),
     /** Số đã dùng TRƯỚC khi nhập vào hệ thống (P-62) — không có dòng `bank_accounts` nào để đếm. */
     importedUsed: integer("imported_used").notNull().default(0),
@@ -367,6 +370,11 @@ export const referralCodes = pgTable(
   },
   (t) => [
     uniqueIndex("referral_codes_bank_code").on(t.bankId, t.code),
+    uniqueIndex("referral_codes_bank_display_name").on(t.bankId, t.displayName),
+    check(
+      "referral_codes_text_or_qr",
+      sql`nullif(btrim(${t.code}), '') is not null or ${t.qrImage} is not null`,
+    ),
     check("referral_codes_total_positive", sql`total > 0`),
     // Số đếm âm là trigger sai. Vỡ ra ở đây còn hơn để nó âm thầm làm màn P-61
     // hiện "còn -3 chỗ" và chốt "còn chỗ" mở cửa cho mã đã đầy.

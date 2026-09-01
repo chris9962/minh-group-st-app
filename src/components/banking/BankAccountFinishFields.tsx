@@ -7,7 +7,7 @@ import type {
   UseFormWatch,
 } from "react-hook-form";
 import { useState } from "react";
-import { BookOpen, ExternalLink, QrCode } from "lucide-react";
+import { BookOpen, QrCode } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { ImageLightbox } from "@/components/ui/ImageLightbox";
 import { BankGuideDialog } from "./BankGuideDialog";
@@ -31,8 +31,6 @@ type Props = {
   accountNumberMethod: AccountNumberMethod;
   /** Mọi SĐT của khách, số chính đứng đầu — nguồn cho ô chọn khi `phone-match`. */
   customerPhones: string[];
-  /** Link mở tài khoản của mã giới thiệu; `''` = không dựng nút. */
-  referralOpenUrl: string;
   /** Ảnh QR của mã giới thiệu; `''` = không dựng nút xem. */
   referralQrUrl: string;
   /** Hướng dẫn mở tài khoản của ngân hàng; `''` = không dựng nút xem. */
@@ -66,7 +64,6 @@ export function BankAccountFinishFields({
   bankCode,
   accountNumberMethod,
   customerPhones,
-  referralOpenUrl,
   referralQrUrl,
   bankGuide,
   bankGuidePhotoUrls,
@@ -87,46 +84,12 @@ export function BankAccountFinishFields({
 
   return (
     <>
-      {/*
-        NÚT "Mở app ngân hàng", không phải tab tự mở (spec §4.4b, chốt 2026-08-19).
-
-        Link trong QR là deep link của ngân hàng: trên điện thoại nó mở thẳng app
-        nếu máy đã cài, không thì trình duyệt mở trang tải app. Đó là lý do nhãn
-        nói "app" chứ không nói "trang".
-
-        Ba lý do. Đội kinh doanh làm trên điện thoại, nơi tab mới là chuyển hẳn
-        cửa sổ và đường quay lại hộp thoại đang mở dở không rõ ràng. Nhân viên có
-        thể chưa muốn mở ngay — đang nói với khách, hoặc vừa chọn nhầm mã. Và
-        trình duyệt CHẶN `window.open` chạy sau `await`, nên đường tự mở phải mở
-        một tab trống trước rồi gán địa chỉ sau; nút bấm nằm trong đúng lượt
-        tương tác nên không dính chuyện đó.
-
-        `rel="noreferrer"`: trang mở ra ở tab mới không được chạm tới
-        `window.opener` của app này.
-      */}
-      {(referralOpenUrl || referralQrUrl || hasGuide) && (
+      {(referralQrUrl || hasGuide) && (
         <div className={styles.openRow}>
-          {referralOpenUrl && (
-            <Button
-              variant="secondary"
-              type="button"
-              className={styles.openAction}
-              onClick={() => window.open(referralOpenUrl, "_blank", "noopener,noreferrer")}
-            >
-              <ExternalLink size={16} aria-hidden />
-              Mở app ngân hàng
-            </Button>
-          )}
-
-          {/*
-            Nút thứ hai cho ca khách tự quét. Nút bên trái mở app trên máy NHÂN
-            VIÊN — muốn khách mở trên máy họ thì phải có tấm ảnh để chìa ra, mà
-            mã QR đọc bằng mắt thì không đọc được.
-          */}
           {referralQrUrl && (
             <Button variant="secondary" type="button" className={styles.openAction} onClick={() => setQrOpen(true)}>
               <QrCode size={16} aria-hidden />
-              Xem mã QR
+              Hiện QR để khách quét
             </Button>
           )}
 
@@ -157,7 +120,7 @@ export function BankAccountFinishFields({
       {qrOpen && (
         <ImageLightbox
           src={referralQrUrl}
-          alt="Mã QR mở tài khoản"
+          alt="Mã QR để khách quét"
           onClose={() => setQrOpen(false)}
         />
       )}

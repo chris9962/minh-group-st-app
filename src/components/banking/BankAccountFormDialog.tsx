@@ -380,7 +380,7 @@ function BankPickRow({
                     value: c.id,
                     // Trừ cả `holding`: tài khoản người khác đang mở dở đã chiếm
                     // chỗ rồi, không trừ là hứa thừa.
-                    label: `${c.code}${c.province ? ` · ${c.province}` : ""} · còn ${c.total - c.used - c.holding} chỗ`,
+                    label: `${c.displayName || c.code}${c.code && (c.displayName || c.code) !== c.code ? ` — ${c.code}` : ""}${c.province ? ` · ${c.province}` : ""} · còn ${c.total - c.used - c.holding} chỗ`,
                   }))
             }
           />

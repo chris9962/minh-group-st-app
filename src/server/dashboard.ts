@@ -603,7 +603,7 @@ export async function draftAccountsFor(actorId: string): Promise<DashboardDraftA
     .select({
       id: bankAccounts.id,
       bankCode: banks.code,
-      referralCode: referralCodes.code,
+      referralCode: referralCodes.displayName,
       customerId: bankAccounts.customerId,
       customerName: customers.fullName,
       createdAt: sql<string>`to_char(${bankAccounts.createdAt} at time zone ${BUSINESS_TIMEZONE}, 'YYYY-MM-DD')`,

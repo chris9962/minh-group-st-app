@@ -1,7 +1,7 @@
 "use client";
 
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ExternalLink, Pencil, Ticket } from "lucide-react";
+import { Pencil, Ticket } from "lucide-react";
 import { useState } from "react";
 import { SkeletonTable } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
@@ -117,7 +117,14 @@ export function ReferralCodesSection({ creating, onCreatingChange }: Props) {
 
   const columns: RankColumn<ReferralCode>[] = [
     { key: "bank", label: "Ngân hàng", sortable: true, render: (c) => c.bankCode },
-    { key: "code", label: "Mã", sortable: true, render: (c) => c.code },
+    {
+      key: "code",
+      label: "Tên hiển thị",
+      sortable: true,
+      // Cache từ trước khi thêm cột chưa có `displayName`; không để bảng hiện
+      // trống trong lúc TanStack Query nạp lại dữ liệu mới.
+      render: (c) => c.displayName || c.code,
+    },
     { key: "accountType", label: "Loại TK", render: (c) => ACCOUNT_TYPE_LABEL[c.accountType] },
     {
       // Không cho sắp: khoá sắp phải nằm trong danh sách trắng của máy chủ.
@@ -179,28 +186,6 @@ export function ReferralCodesSection({ creating, onCreatingChange }: Props) {
         ),
     },
     {
-      /* Chỉ báo CÓ hay KHÔNG, không in cả link. Link mở tài khoản dài vài trăm
-         ký tự — in ra thì bảng tràn ngang mà không ai đọc chuỗi đó bằng mắt.
-         Người cần xem đầy đủ thì mở hộp thoại sửa mã. */
-      key: "openUrl",
-      label: "Link mở TK",
-      render: (c) =>
-        c.openUrl ? (
-          <a
-            href={c.openUrl}
-            target="_blank"
-            rel="noreferrer"
-            className={styles.openLink}
-            title={c.openUrl}
-          >
-            <ExternalLink size={14} aria-hidden />
-            Mở
-          </a>
-        ) : (
-          <span className="text-muted">—</span>
-        ),
-    },
-    {
       key: "actions",
       label: "Thao tác",
       render: (c) => (
@@ -209,7 +194,7 @@ export function ReferralCodesSection({ creating, onCreatingChange }: Props) {
             variant="secondary"
             icon
             tooltip="Sửa mã"
-            aria-label={`Sửa mã ${c.code}`}
+            aria-label={`Sửa mã ${c.displayName || c.code}`}
             onClick={() => setEditing(c)}
           >
             <Pencil size={16} aria-hidden />
@@ -339,7 +324,7 @@ export function ReferralCodesSection({ creating, onCreatingChange }: Props) {
           )
         }
       >
-        {confirming?.active ? "Ngừng" : "Dùng lại"} mã <strong>{confirming?.code}</strong> của
+        {confirming?.active ? "Ngừng" : "Dùng lại"} mã <strong>{confirming?.displayName || confirming?.code}</strong> của
         ngân hàng <strong>{confirming?.bankCode}</strong>?
       </ConfirmDialog>
     </SectionCard>

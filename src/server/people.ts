@@ -859,7 +859,7 @@ export async function personAccountsFor(
       account: bankAccounts,
       bankCode: banks.code,
       customerName: customers.fullName,
-      referralCode: sql<string>`(select code from referral_codes rc where rc.id = ${bankAccounts.referralCodeId})`,
+      referralCode: sql<string>`(select display_name from referral_codes rc where rc.id = ${bankAccounts.referralCodeId})`,
     })
     .from(bankAccounts)
     .innerJoin(banks, eq(banks.id, bankAccounts.bankId))

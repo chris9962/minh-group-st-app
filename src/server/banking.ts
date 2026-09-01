@@ -298,13 +298,14 @@ const decorate = (page: ReturnType<typeof pickPage>) =>
       bankId: page.bankId,
       bankCode: banks.code,
       referralCodeId: page.referralCodeId,
-      referralCode: referralCodes.code,
+      // Lịch sử tài khoản phải đọc được cả với mã QR-only.
+      referralCode: referralCodes.displayName,
       // Bản ghi trước migration 0056 chưa chụp loại tài khoản vào chính đơn.
       // Mã đã được dùng không đổi loại được, nên đây là nguồn dự phòng an toàn
       // để màn chi tiết vẫn hiện đúng CNKD/HKD cho dữ liệu cũ.
       referralAccountType: referralCodes.accountType,
-      // Link mở tài khoản của mã này (spec §4.4b). `''` = mã không có link,
-      // và bước 2 khi đó không dựng nút "Mở app ngân hàng".
+      // Dữ liệu link cũ còn trả về để tương thích bản ghi đã có; giao diện
+      // không dùng nó để mở app.
       referralOpenUrl: sql<string>`coalesce(${referralCodes.openUrl}, '')`,
       // Khoá trần trong kho ảnh; `imageUrl` dựng đường đọc ở nơi trả ra.
       referralQrImage: referralCodes.qrImage,

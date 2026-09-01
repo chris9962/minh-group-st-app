@@ -16,16 +16,3 @@
   display: inline-block;
   min-inline-size: 140px;
 }
-
-/* Chỉ báo mã CÓ link, không in cả chuỗi — địa chỉ đầy đủ nằm ở `title`. */
-.openLink {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--om-link);
-  font-size: 13px;
-}
-
-.openLink:hover {
-  color: var(--om-link-hover);
-}

@@ -109,6 +109,8 @@ type Props = {
   onChange?: (photos: PhotoItem[]) => void;
   /** Đang gửi biểu mẫu — khoá lại để không ai đổi ảnh giữa chừng. */
   busy?: boolean;
+  /** Dạng gọn cho một ô QR nằm cạnh trường nhập liệu trong biểu mẫu. */
+  compact?: boolean;
 };
 
 /**
@@ -139,6 +141,7 @@ export function BankAccountPhotos({
   headingAs: Heading = "h3",
   onChange,
   busy = false,
+  compact = false,
 }: Props) {
   /**
    * Kẹp bởi trần của máy chủ. `banks.required_photos` là số admin gõ ở P-60 và
@@ -252,7 +255,7 @@ export function BankAccountPhotos({
   };
 
   return (
-    <div className={styles.photoSection}>
+    <div className={`${styles.photoSection} ${compact ? styles.compact : ""}`}>
       <Heading className={styles.photoTitle}>
         {title} ({photos.length}
         {requiredPhotos > 0 ? `/${requiredPhotos}` : ""})

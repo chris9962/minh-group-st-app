@@ -19,6 +19,14 @@
   color: var(--color-neutral-600);
 }
 
+/* Hai lựa chọn xác định mã này thuộc ngân hàng nào và dùng cho loại tài khoản
+   nào; đặt cạnh nhau để đọc như một quyết định duy nhất. */
+.bankTypeFields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
 /* Danh sách phòng — chỉ hiện khi phạm vi là "Phòng chỉ định", và đóng được. */
 .departments {
   margin: 0;
@@ -70,20 +78,31 @@
   color: var(--color-neutral-600);
 }
 
-/* 15 phòng xếp dọc cao hơn cả hộp thoại. Cuộn trong khối, không kéo dài hộp
-   thoại — nút Lưu ở chân hộp thoại phải luôn với tới được. */
+/* Danh sách nằm trong vùng cuộn duy nhất của hộp thoại. Không tạo thêm cuộn
+   bên trong: hai thanh cuộn khiến thao tác chọn phòng bị rối. */
 .departmentsList {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  max-height: 200px;
-  overflow-y: auto;
   padding: 0 12px 12px;
 }
 
-/* Bám sát khối ảnh bên trên, cùng cách `.lockNote` bám ô đã khoá. */
-.qrHint {
-  margin: -4px 0 0;
-  font-size: 12.5px;
-  color: var(--color-neutral-600);
+/* QR và mã text là hai cách nhận diện thay thế nhau, nên đặt cạnh nhau để người
+   nhập nhìn thấy ngay có thể điền một trong hai. */
+.identifierFields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 14px;
+}
+
+.qrField {
+  min-width: 0;
+}
+
+@media (max-width: bp.$bp-mobile) {
+  .bankTypeFields,
+  .identifierFields {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

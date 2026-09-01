@@ -751,7 +751,7 @@ export async function customerDetailFor(
         status: bankAccounts.status,
         date: bankAccounts.openedDate,
         bankName: banks.code,
-        referralCode: referralCodes.code,
+        referralCode: referralCodes.displayName,
         appInstalled: bankAccounts.appInstalled,
         departmentId: bankAccounts.createdByDepartmentId,
         createdById: bankAccounts.createdBy,

@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import {
   BankAccountPhotos,
@@ -20,7 +20,6 @@ import {
   CODE_SCOPE_LABEL,
   createReferralCode,
   fetchBanks,
-  OpenUrl,
   ReferralCodeForm,
   updateReferralCode,
   type CodeScope,
@@ -33,7 +32,6 @@ import { digitsOnly, numberValue, numericField } from "@/lib/numberField";
 import { banksInScope } from "@/lib/permissions";
 import { useSession } from "@/store/session";
 import styles from "./ReferralCodeFormDialog.module.scss";
-import { readQrImage } from "@/lib/readQrImage";
 import { errorMessage, toast } from "@/lib/toast";
 import { reportInvalid } from "@/lib/formErrors";
 
@@ -47,7 +45,7 @@ type Props = {
 /**
  * P-61 · Thêm / sửa một mã giới thiệu lẻ. Nhập hàng loạt từ Excel là việc của P-62.
  *
- * Sửa được `mã`, `tổng số lượt` và `link mở tài khoản`; ngân hàng thì không —
+ * Sửa được tên hiển thị, mã text, ảnh QR và tổng số lượt; ngân hàng thì không —
  * lý do đầy đủ ở `updateReferralCode` (`server/catalog.ts`).
  */
 export function ReferralCodeFormDialog({ open, onClose, referral }: Props) {
@@ -77,6 +75,7 @@ export function ReferralCodeFormDialog({ open, onClose, referral }: Props) {
     handleSubmit,
     watch,
     setValue,
+    setError,
     formState: { errors, isSubmitting },
   } = useForm<ReferralCodeForm>({
     // Focus ô sai do `reportInvalid` lo — xem `lib/formErrors.ts`.
@@ -84,6 +83,9 @@ export function ReferralCodeFormDialog({ open, onClose, referral }: Props) {
     resolver: zodResolver(ReferralCodeForm),
     defaultValues: {
       bankId: referral?.bankId ?? "",
+      // Cache từ phiên trước migration chưa có trường này; dùng mã text làm
+      // phương án dự phòng để mở hộp thoại sửa không bị trống tên.
+      displayName: referral?.displayName ?? referral?.code ?? "",
       code: referral?.code ?? "",
       total: referral?.total ?? 100,
       openUrl: referral?.openUrl ?? "",
@@ -106,58 +108,32 @@ export function ReferralCodeFormDialog({ open, onClose, referral }: Props) {
   const [qrPhotos, setQrPhotos] = useState<PhotoItem[]>(() =>
     savedPhotos(referral?.qrImageUrl ? [referral.qrImageUrl] : []),
   );
-  const [reading, setReading] = useState(false);
-  /** File đã giải rồi — chặn giải lại khi danh sách ảnh đổi vì lý do khác. */
-  const readFile = useRef<File | null>(null);
   /** Danh sách phòng đang mở. Mã đã chọn xong phòng thì mở hộp thoại ra là đóng. */
   const [departmentsOpen, setDepartmentsOpen] = useState(
     (referral?.departmentIds?.length ?? 0) === 0,
   );
+  const departmentsRef = useRef<HTMLDetailsElement>(null);
+  const scope = watch("scope");
+  const previousScope = useRef(scope);
 
-  /**
-   * Giải chuỗi trong ảnh vừa chọn để điền hộ ô link.
-   *
-   * Giải không ra thì ảnh vẫn giữ — bước 2 của P-20 cần chính tấm ảnh để khách
-   * quét, còn ô link thì người dùng dán tay được. Hai thứ rời nhau.
-   */
-  const readQr = async (file: File) => {
-    setReading(true);
-    const result = await readQrImage(file);
-    setReading(false);
+  // Danh sách phòng vừa được thêm ngay SAU ô phạm vi. Nếu giữ nguyên vị trí
+  // cuộn, nó nằm khuất dưới chân hộp thoại và trông như chọn xong mà không có
+  // gì xảy ra. Chỉ cuộn khi người dùng VỪA đổi sang "Phòng chỉ định"; mở lại
+  // một mã cũ không bị nhảy vị trí.
+  useEffect(() => {
+    const changedToDepartments =
+      previousScope.current !== scope && scope === "departments";
+    previousScope.current = scope;
+    if (!changedToDepartments) return;
 
-    if (!result.ok) {
-      toast.warn(`${result.message} Ảnh vẫn được lưu.`);
-      return;
-    }
+    const frame = requestAnimationFrame(() => {
+      departmentsRef.current?.scrollIntoView({ block: "nearest" });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [scope]);
 
-    /**
-     * Chuỗi giải ra phải là `http`/`https` mới nhận.
-     *
-     * Ô link không còn hiện ra, nên chuỗi hỏng đặt vào biểu mẫu là người dùng
-     * bấm Lưu và không có gì xảy ra — lỗi nằm ở một ô họ không nhìn thấy. QR
-     * chứa số tài khoản hay chữ thường là ca có thật, không phải nặn tay.
-     */
-    if (!OpenUrl.safeParse(result.text).success) {
-      toast.warn("Mã QR trong ảnh không chứa link http/https. Ảnh vẫn được lưu, nhưng mã này chưa có link mở tài khoản.");
-      return;
-    }
-
-    setValue("openUrl", result.text, { shouldDirty: true, shouldValidate: true });
-    toast.ok("Đã đọc link từ ảnh QR");
-  };
-
-  const takeQrPhotos = (next: PhotoItem[]) => {
-    setQrPhotos(next);
-
-    const first = next[0];
-    if (first?.kind !== "pending") {
-      readFile.current = null;
-      return;
-    }
-    if (first.file === readFile.current) return;
-    readFile.current = first.file;
-    void readQr(first.file);
-  };
+  // QR chỉ được đưa ra cho khách quét; không giải ảnh thành link hay mở app từ đây.
+  const takeQrPhotos = (next: PhotoItem[]) => setQrPhotos(next);
 
   const save = useMutation({
     mutationFn: async (form: ReferralCodeForm) => {
@@ -173,8 +149,8 @@ export function ReferralCodeFormDialog({ open, onClose, referral }: Props) {
       // Ô lọc mã ở màn ngân hàng / xuất Excel đi khoá riêng, tiền tố trên
       // không với tới — không nạp thì mã vừa thêm chưa hiện ở đó.
       queryClient.invalidateQueries({ queryKey: ["referral-code-options"] });
-      // Mỗi dòng tài khoản mang sẵn tên mã và link mở app của mã đó. Sửa mã mà
-      // không nạp lại thì bước 2 của P-20 còn mở link cũ cho tới khi cache hết hạn.
+      // Mỗi dòng tài khoản mang sẵn tên mã và ảnh QR của mã đó. Sửa mã thì nạp
+      // lại để bước 2 hiện đúng mã mới ngay.
       queryClient.invalidateQueries({ queryKey: ["bank-account-list"] });
       queryClient.invalidateQueries({ queryKey: ["bank-account-detail"] });
       onClose();
@@ -206,22 +182,45 @@ export function ReferralCodeFormDialog({ open, onClose, referral }: Props) {
       <form
         id="referral-code-form"
         className={styles.form}
-        onSubmit={handleSubmit((form) => save.mutate(form), reportInvalid)}
+        onSubmit={handleSubmit((form) => {
+          if (!form.code && qrPhotos.length === 0) {
+            setError("code", { message: "Nhập mã text hoặc chọn ảnh QR" });
+            return;
+          }
+          save.mutate(form);
+        }, reportInvalid)}
         noValidate
       >
-        <Select
-          block
-          required
-          label="Ngân hàng"
-          disabled={editing}
-          value={watch("bankId")}
-          onChange={(v) => setValue("bankId", v, { shouldDirty: true })}
-          options={[
-            { value: "", label: "— Chọn ngân hàng —" },
-            ...bankOptions.map((b) => ({ value: b.id, label: b.code })),
-          ]}
-          error={errors.bankId?.message}
-        />
+        <div className={styles.bankTypeFields}>
+          <Select
+            block
+            required
+            label="Ngân hàng"
+            disabled={editing}
+            value={watch("bankId")}
+            onChange={(v) => setValue("bankId", v, { shouldDirty: true })}
+            options={[
+              { value: "", label: "— Chọn ngân hàng —" },
+              ...bankOptions.map((b) => ({ value: b.id, label: b.code })),
+            ]}
+            error={errors.bankId?.message}
+          />
+
+          <Select
+            block
+            required
+            label="Loại tài khoản"
+            disabled={Boolean(referral && referral.used + referral.holding > 0)}
+            value={watch("accountType")}
+            onChange={(v) => setValue("accountType", v as AccountType, { shouldDirty: true })}
+            options={[
+              { value: "none", label: "Thường" },
+              { value: "CNKD", label: "CNKD" },
+              { value: "HKD", label: "HKD" },
+            ]}
+            error={errors.accountType?.message}
+          />
+        </div>
         {editing && (
           <p className={styles.lockNote}>
             Ngân hàng không đổi được. Tài khoản đã mở bằng mã này thuộc về ngân
@@ -229,28 +228,36 @@ export function ReferralCodeFormDialog({ open, onClose, referral }: Props) {
           </p>
         )}
 
-        <Select
-          block
+        <TextField
+          label="Tên hiển thị"
+          placeholder="VPA CNKD QR 01"
           required
-          label="Loại tài khoản"
-          disabled={Boolean(referral && referral.used + referral.holding > 0)}
-          value={watch("accountType")}
-          onChange={(v) => setValue("accountType", v as AccountType, { shouldDirty: true })}
-          options={[
-            { value: "none", label: "Thường" },
-            { value: "CNKD", label: "CNKD" },
-            { value: "HKD", label: "HKD" },
-          ]}
-          error={errors.accountType?.message}
+          hint="Tên dùng để nhận biết trong danh sách và lúc chọn mở tài khoản."
+          error={errors.displayName?.message}
+          {...register("displayName")}
         />
 
-        <TextField
-          label="Mã giới thiệu"
-          placeholder="VPA-2026-01"
-          required
-          error={errors.code?.message}
-          {...register("code")}
-        />
+        <div className={styles.identifierFields}>
+          <div className={styles.qrField}>
+            <BankAccountPhotos
+              photos={qrPhotos}
+              requiredPhotos={0}
+              max={1}
+              title="Ảnh QR"
+              onChange={takeQrPhotos}
+              busy={save.isPending}
+              compact
+            />
+          </div>
+
+          <TextField
+            label="Mã text"
+            placeholder="VPA-2026-01"
+            hint="Có thể để trống nếu ngân hàng chỉ cấp QR."
+            error={errors.code?.message}
+            {...register("code")}
+          />
+        </div>
 
         {/* Lưu TÊN tỉnh, không lưu id — xem chú thích cột `province` ở schema.
             Hai trường này hiện cạnh ô chọn mã ở bước 2 khi mở tài khoản. */}
@@ -297,41 +304,13 @@ export function ReferralCodeFormDialog({ open, onClose, referral }: Props) {
           {...numericField(register("priority", { setValueAs: numberValue }), digitsOnly)}
         />
 
-        {/*
-          Ô link KHÔNG hiện ra nữa (chốt 2026-08-24). Người dùng chỉ chọn ảnh; link
-          giải ra từ chính ảnh đó và đi lên máy chủ cùng biểu mẫu, bước 2 của P-20
-          đọc nó để dựng nút mở app ngân hàng.
-
-          ⚠️ Đổi lại là mất đường nhập link bằng tay — ảnh mờ không giải ra thì mã
-          đó không có link. Dòng trạng thái dưới khối ảnh nói rõ đang ở ca nào.
-
-          Khối ảnh của P-20/P-22 dùng lại nguyên: `max` là 1 nên có ảnh rồi thì ô
-          thêm ảnh biến mất, chỉ còn nút thay và nút bỏ ngay trên tấm ảnh.
-        */}
-        <BankAccountPhotos
-          photos={qrPhotos}
-          requiredPhotos={0}
-          max={1}
-          title="Ảnh QR"
-          onChange={takeQrPhotos}
-          busy={reading || save.isPending}
-        />
-
-        <p className={styles.qrHint}>
-          {reading
-            ? "Đang đọc mã trong ảnh…"
-            : watch("openUrl")
-              ? "Mã này đã có link mở tài khoản, giải từ ảnh QR. Bước 2 của màn mở tài khoản hiện nút mở app ngân hàng."
-              : "Mã này chưa có link mở tài khoản. Chọn ảnh QR để hệ thống giải link ra — chưa có link thì bước 2 không hiện nút mở app ngân hàng."}
-        </p>
-
         {/* Cụm phạm vi đứng CUỐI biểu mẫu: nó là mục dài nhất, và phần lớn mã
             để "Mọi phòng" nên người dùng đi qua nó chứ không dừng lại. */}
         <Select
           block
           required
           label="Phạm vi sử dụng"
-          value={watch("scope")}
+          value={scope}
           onChange={(v) => {
             setValue("scope", v as CodeScope, { shouldDirty: true });
             // Về "Mọi phòng" thì dọn luôn danh sách: giữ lại là lần sau mở ra
@@ -341,7 +320,7 @@ export function ReferralCodeFormDialog({ open, onClose, referral }: Props) {
           options={Object.entries(CODE_SCOPE_LABEL).map(([value, label]) => ({ value, label }))}
         />
 
-        {watch("scope") === "departments" && (
+        {scope === "departments" && (
           /*
             `<details>` gốc, không dựng khối đóng mở bằng tay: trình duyệt lo sẵn
             phím Enter/Space, tiêu điểm và cách trình đọc màn hình đọc trạng thái
@@ -352,6 +331,7 @@ export function ReferralCodeFormDialog({ open, onClose, referral }: Props) {
             là số ít — đóng sẵn khi mã đã chọn xong phòng.
           */
           <details
+            ref={departmentsRef}
             className={styles.departments}
             // Có lỗi thì mở bằng được: câu báo lỗi nằm trong khối, đóng lại là
             // người dùng bấm Lưu mà không thấy vì sao không lưu được.

@@ -203,7 +203,7 @@ if (!seedBank || !seedChannel) throw new Error("Thiếu danh mục ngân hàng/k
 // hôm sau nhân viên mở tài khoản không có mã dùng.
 const [seedCode] = await db
   .insert(referralCodes)
-  .values({ bankId: seedBank.id, code: `ZZE2E-MA`, total: 999 })
+  .values({ bankId: seedBank.id, displayName: `ZZE2E-MA`, code: `ZZE2E-MA`, total: 999 })
   .onConflictDoNothing()
   .returning({ id: referralCodes.id });
 const codeId =

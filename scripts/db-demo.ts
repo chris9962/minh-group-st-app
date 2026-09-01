@@ -446,7 +446,12 @@ async function build() {
   for (const [code, id] of bankIdByCode) {
     const [row] = await db
       .insert(referralCodes)
-      .values({ bankId: id, code: `${CODE_PREFIX}-${code}`, total: 200 })
+      .values({
+        bankId: id,
+        displayName: `${CODE_PREFIX}-${code}`,
+        code: `${CODE_PREFIX}-${code}`,
+        total: 200,
+      })
       // Mã cũ còn sót vì có tài khoản người dùng trỏ tới — dùng lại chính nó,
       // không dựng bản trùng.
       .onConflictDoNothing({ target: [referralCodes.bankId, referralCodes.code] })

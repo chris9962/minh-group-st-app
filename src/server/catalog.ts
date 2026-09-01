@@ -70,7 +70,7 @@ import {
 /** Trùng khoá duy nhất → kết quả route đọc được, thay vì 500. */
 export type CatalogOutcome<T> =
   | { ok: true; item: T }
-  | { ok: false; reason: "code-taken" | "name-taken" };
+  | { ok: false; reason: "code-taken" | "name-taken" | "identifier-required" };
 
 /**
  * Chạy một lệnh ghi danh mục, đổi lỗi trùng khoá của Postgres thành `ok: false`.
@@ -522,7 +522,9 @@ const codeColumns = {
   id: referralCodes.id,
   bankId: referralCodes.bankId,
   bankCode: banks.code,
-  code: referralCodes.code,
+  displayName: referralCodes.displayName,
+  // Hợp đồng API dùng chuỗi rỗng cho QR-only; không đẩy `null` sang mọi nơi dùng.
+  code: sql<string>`coalesce(${referralCodes.code}, '')`,
   total: referralCodes.total,
   used: usedExpr,
   holding: referralCodes.holdingCount,
@@ -562,6 +564,7 @@ const codeGroupBy = [
   referralCodes.id,
   banks.code,
   referralCodes.bankId,
+  referralCodes.displayName,
   referralCodes.code,
   referralCodes.total,
   referralCodes.importedUsed,
@@ -619,12 +622,11 @@ function codeFilters(query: ReferralCodeFilters): SQL | undefined {
         )`
       : undefined,
     query.status ? eq(statusExpr, query.status) : undefined,
-    // Tìm trên mã lẫn tên ngân hàng: gõ "VPa" ra cả kho của ngân hàng đó, gõ
-    // "884" ra đúng mã chứa số ấy.
+    // Tìm trên tên hiển thị, mã text lẫn tên ngân hàng.
     query.search
       ? (() => {
           const needle = `%${likeEscape(query.search)}%`;
-          return sql`(${referralCodes.code} ilike ${needle} escape '\\' or ${banks.code} ilike ${needle} escape '\\')`;
+          return sql`(${referralCodes.displayName} ilike ${needle} escape '\\' or ${referralCodes.code} ilike ${needle} escape '\\' or ${banks.code} ilike ${needle} escape '\\')`;
         })()
       : undefined,
     /**
@@ -671,10 +673,10 @@ export async function listReferralCodes(
   const where = codeFilters(filters);
   const direction = page.dir === "asc" ? asc : desc;
   const orderBy = {
-    bank: [direction(banks.code), asc(referralCodes.code)],
-    code: [direction(referralCodes.code)],
-    progress: [direction(sql`${usedExpr}::float / ${referralCodes.total}`), asc(referralCodes.code)],
-    priority: [direction(referralCodes.priority), asc(banks.code), asc(referralCodes.code)],
+    bank: [direction(banks.code), asc(referralCodes.displayName)],
+    code: [direction(referralCodes.displayName)],
+    progress: [direction(sql`${usedExpr}::float / ${referralCodes.total}`), asc(referralCodes.displayName)],
+    priority: [direction(referralCodes.priority), asc(banks.code), asc(referralCodes.displayName)],
   }[page.sort];
 
   const [rows, [totals]] = await Promise.all([
@@ -713,8 +715,9 @@ export async function listReferralCodeOptions(): Promise<string[]> {
   const rows = await db
     .selectDistinct({ code: referralCodes.code })
     .from(referralCodes)
+    .where(sql`${referralCodes.code} is not null`)
     .orderBy(asc(referralCodes.code));
-  return rows.map((r) => r.code);
+  return rows.map((r) => r.code!);
 }
 
 /**
@@ -841,13 +844,19 @@ export async function bankIdOfReferralCode(id: string): Promise<string | null> {
 export async function createReferralCode(
   form: ReferralCodeForm,
 ): Promise<CatalogOutcome<ReferralCode>> {
+  if (!form.code && !qrImageKey(form))
+    return { ok: false, reason: "identifier-required" };
+
   try {
     return await db.transaction(async (tx) => {
       const [row] = await tx
-        .insert(referralCodes)
+      .insert(referralCodes)
       .values({
         bankId: form.bankId,
-        code: form.code,
+        // Giai đoạn chuyển đổi: mã text đang là tên nhận diện. Khi hỗ trợ QR
+        // không có mã, biểu mẫu sẽ gửi một tên riêng vào trường này.
+        displayName: form.displayName,
+        code: form.code || null,
         total: form.total,
         // Chuỗi rỗng thành NULL: cột này là "có link hay không", và hai cách
         // biểu diễn cho cùng một trạng thái sớm muộn lệch nhau khi lọc.
@@ -903,6 +912,9 @@ export async function updateReferralCode(
   id: string,
   form: ReferralCodeForm,
 ): Promise<ReferralCodeUpdate> {
+  if (!form.code && !qrImageKey(form))
+    return { ok: false, message: "Nhập mã text hoặc chọn ảnh QR" };
+
   return db.transaction(async (tx) => {
     const [current] = await tx
       .select({
@@ -940,7 +952,8 @@ export async function updateReferralCode(
       await tx
         .update(referralCodes)
         .set({
-          code: form.code,
+          displayName: form.displayName,
+          code: form.code || null,
           total: form.total,
           openUrl: form.openUrl || null,
           qrImage: qrImageKey(form),

@@ -60,7 +60,7 @@ export async function PATCH(request: Request, { params }: Params) {
   await logAudit(guard.actor, {
     module: "banking",
     action: "update",
-    targetLabel: `Sửa mã giới thiệu ${result.item.code}`,
+    targetLabel: `Sửa mã giới thiệu ${result.item.displayName}`,
     targetTable: "referral_codes",
     targetId: id,
   });

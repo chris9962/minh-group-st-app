@@ -245,7 +245,6 @@ function FinishAccountCard({
         bankCode={data.bankCode}
         accountNumberMethod={data.accountNumberMethod}
         customerPhones={data.customerPhones}
-        referralOpenUrl={data.referralOpenUrl}
         referralQrUrl={data.referralQrUrl}
         bankGuide={data.bankGuide}
         bankGuidePhotoUrls={data.bankGuidePhotoUrls}

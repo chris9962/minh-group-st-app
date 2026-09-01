@@ -64,12 +64,17 @@ export async function POST(request: Request) {
   if (!canManageBank(guard.actor, parsed.data.bankId)) return forbidden();
 
   const result = await createReferralCode(parsed.data);
-  if (!result.ok) return badRequest("Mã này đã có trong kho của ngân hàng đó");
+  if (!result.ok)
+    return badRequest(
+      result.reason === "identifier-required"
+        ? "Nhập mã text hoặc chọn ảnh QR"
+        : "Mã này đã có trong kho của ngân hàng đó",
+    );
 
   await logAudit(guard.actor, {
     module: "banking",
     action: "create",
-    targetLabel: `Thêm mã giới thiệu ${result.item.code}`,
+    targetLabel: `Thêm mã giới thiệu ${result.item.displayName}`,
     targetTable: "referral_codes",
     targetId: result.item.id,
   });

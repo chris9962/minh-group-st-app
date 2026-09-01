@@ -400,6 +400,20 @@
       "when": 1788336000000,
       "tag": "0056_referral_code_account_type",
       "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1788422400000,
+      "tag": "0057_referral_code_display_name",
+      "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1788508800000,
+      "tag": "0058_referral_code_qr_only",
+      "breakpoints": true
     }
   ]
 }
