@@ -28,3 +28,12 @@
   gap: 8px;
   margin-bottom: 14px;
 }
+
+@media (max-width: bp.$bp-mobile) {
+  .openAction {
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+    min-height: 64px;
+  }
+}

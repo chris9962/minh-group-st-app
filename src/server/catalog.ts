@@ -599,6 +599,23 @@ const likeEscape = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
 function codeFilters(query: ReferralCodeFilters): SQL | undefined {
   const parts = [
     query.bankId ? eq(referralCodes.bankId, query.bankId) : undefined,
+    /**
+     * Chọn một phòng nghĩa là tìm những mã PHÒNG ĐÓ dùng được. Mã "mọi phòng"
+     * cũng dùng được ở phòng đã chọn, nên phải giữ lại thay vì chỉ lấy mã có
+     * dòng nối trực tiếp. `exists` tránh nhân đôi mã khi bảng nối có nhiều phòng
+     * và đi được từ index `referral_code_departments_department`.
+     */
+    query.departmentId
+      ? sql`(
+          ${referralCodes.scope} = 'all'
+          or exists (
+            select 1
+            from ${referralCodeDepartments}
+            where ${referralCodeDepartments.referralCodeId} = ${referralCodes.id}
+              and ${referralCodeDepartments.departmentId} = ${query.departmentId}
+          )
+        )`
+      : undefined,
     query.status ? eq(statusExpr, query.status) : undefined,
     // Tìm trên mã lẫn tên ngân hàng: gõ "VPa" ra cả kho của ngân hàng đó, gõ
     // "884" ra đúng mã chứa số ấy.
@@ -627,6 +644,8 @@ function codeFilters(query: ReferralCodeFilters): SQL | undefined {
 
 export type ReferralCodeFilters = {
   bankId: string;
+  /** Phòng người quản lý đang muốn kiểm tra; rỗng = không thu hẹp theo phòng. */
+  departmentId: string;
   status: CodeStatus | "";
   search: string;
   /**

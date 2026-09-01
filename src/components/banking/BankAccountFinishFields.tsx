@@ -116,6 +116,7 @@ export function BankAccountFinishFields({
             <Button
               variant="secondary"
               type="button"
+              className={styles.openAction}
               onClick={() => window.open(referralOpenUrl, "_blank", "noopener,noreferrer")}
             >
               <ExternalLink size={16} aria-hidden />
@@ -129,7 +130,7 @@ export function BankAccountFinishFields({
             mã QR đọc bằng mắt thì không đọc được.
           */}
           {referralQrUrl && (
-            <Button variant="secondary" type="button" onClick={() => setQrOpen(true)}>
+            <Button variant="secondary" type="button" className={styles.openAction} onClick={() => setQrOpen(true)}>
               <QrCode size={16} aria-hidden />
               Xem mã QR
             </Button>
@@ -141,7 +142,7 @@ export function BankAccountFinishFields({
             nhớ sai là tài khoản không được duyệt, mà họ đang đứng trước khách.
           */}
           {hasGuide && (
-            <Button variant="secondary" type="button" onClick={() => setGuideOpen(true)}>
+            <Button variant="secondary" type="button" className={styles.openAction} onClick={() => setGuideOpen(true)}>
               <BookOpen size={16} aria-hidden />
               Xem hướng dẫn
             </Button>

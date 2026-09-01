@@ -33,6 +33,7 @@ import { errorMessage, toast } from "@/lib/toast";
 
 const FIRST_PAGE: ReferralCodeQuery = {
   bankId: "",
+  departmentId: "",
   status: "",
   search: "",
   page: 0,
@@ -98,7 +99,7 @@ export function ReferralCodesSection({ creating, onCreatingChange }: Props) {
 
   // Kho rỗng và "lọc không ra gì" là hai chuyện khác nhau. Nói nhầm thì người
   // dùng đi xoá bộ lọc vốn đang trống, thay vì bấm "Thêm mã".
-  const filtering = Boolean(debouncedSearch || query.bankId || query.status);
+  const filtering = Boolean(debouncedSearch || query.bankId || query.departmentId || query.status);
 
   const toggleActive = useMutation({
     mutationFn: ({ id, next }: { id: string; next: boolean }) => setReferralCodeActive(id, next),
@@ -157,8 +158,8 @@ export function ReferralCodesSection({ creating, onCreatingChange }: Props) {
         c.scope === "all" ? (
           CODE_SCOPE_LABEL.all
         ) : (
-          <span title={c.departmentIds.map((id) => departmentName.get(id) ?? id).join(", ")}>
-            {c.departmentIds.length} phòng
+          <span className={styles.scopeNames}>
+            {c.departmentIds.map((id) => departmentName.get(id) ?? id).join(", ")}
           </span>
         ),
     },
@@ -247,6 +248,15 @@ export function ReferralCodesSection({ creating, onCreatingChange }: Props) {
           options={[
             { value: "", label: "Tất cả ngân hàng" },
             ...banks.map((b) => ({ value: b.id, label: b.code })),
+          ]}
+        />
+        <Select
+          label="Phòng áp dụng"
+          value={query.departmentId}
+          onChange={(v) => refine({ departmentId: v })}
+          options={[
+            { value: "", label: "Tất cả phòng" },
+            ...departments.map((department) => ({ value: department.id, label: department.name })),
           ]}
         />
         <Select

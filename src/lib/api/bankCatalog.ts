@@ -258,6 +258,8 @@ export type ReferralCodeSort = (typeof REFERRAL_CODE_SORT)[number];
 
 export type ReferralCodeQuery = PageQuery<ReferralCodeSort> & {
   bankId: string;
+  /** Rỗng = không giới hạn theo phòng. Mã `all` vẫn khớp khi đã chọn phòng. */
+  departmentId: string;
   status: CodeStatus | '';
   search: string;
 };
@@ -269,6 +271,7 @@ export async function fetchReferralCodes(query: ReferralCodeQuery): Promise<Page
   const res = await fetch(
     `/api/settings/referral-codes?${pageParams(query, {
       bankId: query.bankId,
+      departmentId: query.departmentId,
       status: query.status,
       search: query.search,
     })}`,

@@ -42,6 +42,7 @@ export async function GET(request: Request) {
         // uuid sai dạng đi thẳng vào SQL là lỗi cast của Postgres → 500 màn
         // trắng. Bỏ bộ lọc, cùng cách đang xử lý `status` lạ ngay dưới.
         bankId: uuidParam(params.get("bankId")),
+        departmentId: uuidParam(params.get("departmentId")),
         status: status.success ? status.data : "",
         search: (params.get("search") ?? "").trim(),
         // Phạm vi quyền, không phải bộ lọc người dùng chọn — xem `ReferralCodeFilters`.
