@@ -82,6 +82,20 @@ export function BankCatalogSection({ creating, onCreatingChange }: Props) {
       render: (b) => b.requiredPhotos,
     },
     {
+      key: "ageRange",
+      label: "Độ tuổi mở tài khoản",
+      render: (b) =>
+        b.minAge === null && b.maxAge === null ? (
+          <span className="text-muted">Không giới hạn</span>
+        ) : b.minAge !== null && b.maxAge !== null ? (
+          `${b.minAge}–${b.maxAge} tuổi`
+        ) : b.minAge !== null ? (
+          `Từ ${b.minAge} tuổi`
+        ) : (
+          `Đến ${b.maxAge} tuổi`
+        ),
+    },
+    {
       key: "accountNumberMethod",
       label: "Cách lấy số tài khoản",
       render: (b) => ACCOUNT_NUMBER_METHOD_LABEL[b.accountNumberMethod],

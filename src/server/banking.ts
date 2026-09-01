@@ -70,6 +70,29 @@ const likeEscape = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
  */
 const usableDate = isRealIsoDate;
 
+type BankAgeRule = { minAge: number | null; maxAge: number | null };
+
+/** Tuổi tròn theo ngày làm việc Việt Nam, không tính năm sinh đơn thuần. */
+function ageOn(dob: string, at: string): number | null {
+  if (!isRealIsoDate(dob) || !isRealIsoDate(at)) return null;
+  const [birthYear, birthMonth, birthDay] = dob.split("-").map(Number);
+  const [year, month, day] = at.split("-").map(Number);
+  return year - birthYear - (month < birthMonth || (month === birthMonth && day < birthDay) ? 1 : 0);
+}
+
+function meetsBankAgeRule(dob: string | null, rule: BankAgeRule, at = businessDay()): boolean {
+  if (rule.minAge === null && rule.maxAge === null) return true;
+  if (!dob) return false;
+  const age = ageOn(dob, at);
+  return age !== null && (rule.minAge === null || age >= rule.minAge) && (rule.maxAge === null || age <= rule.maxAge);
+}
+
+function ageRuleLabel(rule: BankAgeRule): string {
+  if (rule.minAge !== null && rule.maxAge !== null) return `${rule.minAge}–${rule.maxAge} tuổi`;
+  if (rule.minAge !== null) return `từ ${rule.minAge} tuổi`;
+  return `tối đa ${rule.maxAge} tuổi`;
+}
+
 export type BankAccountFilters = {
   search: string;
   bankCode: string;
@@ -617,6 +640,7 @@ export async function startBankAccount(
   const [customer] = await db
     .select({
       id: customers.id,
+      dob: customers.dob,
       channelId: customers.channelId,
       channelDetail: customers.channelDetail,
     })
@@ -626,7 +650,13 @@ export async function startBankAccount(
   if (!customer) return { ok: false, message: "Không tìm thấy khách hàng này" };
 
   const chosenBanks = await db
-    .select({ id: banks.id, code: banks.code, active: banks.active })
+    .select({
+      id: banks.id,
+      code: banks.code,
+      active: banks.active,
+      minAge: banks.minAge,
+      maxAge: banks.maxAge,
+    })
     .from(banks)
     .where(inArray(banks.id, form.picks.map((p) => p.bankId)));
 
@@ -636,6 +666,13 @@ export async function startBankAccount(
     if (!bank) return { ok: false, message: "Không tìm thấy ngân hàng này" };
     if (!bank.active)
       return { ok: false, message: `Ngân hàng ${bank.code} đã ngừng triển khai` };
+    if (!meetsBankAgeRule(customer.dob, bank))
+      return {
+        ok: false,
+        message: customer.dob
+          ? `Khách không thuộc độ tuổi mở tài khoản ${bank.code} (${ageRuleLabel(bank)}).`
+          : `Ngân hàng ${bank.code} yêu cầu ngày sinh khách hàng để kiểm tra độ tuổi.`,
+      };
   }
 
   const outcome = await db.transaction(async (tx) => {
@@ -806,19 +843,23 @@ export async function startBankAccount(
  */
 export async function customerBankSlots(customerId: string): Promise<CustomerBankSlots | null> {
   const [customer] = await db
-    .select({ id: customers.id })
+    .select({ id: customers.id, dob: customers.dob })
     .from(customers)
     .where(eq(customers.id, customerId))
     .limit(1);
   if (!customer) return null;
 
-  const rows = await db
-    .select({ bankId: bankAccounts.bankId })
-    .from(bankAccounts)
-    .where(eq(bankAccounts.customerId, customerId));
+  const [rows, bankRows] = await Promise.all([
+    db
+      .select({ bankId: bankAccounts.bankId })
+      .from(bankAccounts)
+      .where(eq(bankAccounts.customerId, customerId)),
+    db.select({ id: banks.id, minAge: banks.minAge, maxAge: banks.maxAge }).from(banks),
+  ]);
 
   return {
     usedBankIds: rows.map((r) => r.bankId),
+    eligibleBankIds: bankRows.filter((bank) => meetsBankAgeRule(customer.dob, bank)).map((bank) => bank.id),
     remaining: Math.max(0, MAX_BANK_ACCOUNTS_PER_CUSTOMER - rows.length),
   };
 }

@@ -109,6 +109,8 @@ const toBank = (
   coefficient: Number(r.coefficient),
   countsAsApp: r.countsAsApp,
   priority: r.priority,
+  minAge: r.minAge,
+  maxAge: r.maxAge,
   managers,
   guide: r.guide ?? "",
   // Cột giữ KHOÁ, hợp đồng API trả URL — cùng luật ảnh chứng minh.
@@ -397,6 +399,8 @@ export async function createBank(
           accountNumberMethod: form.accountNumberMethod,
           countsAsApp: form.countsAsApp,
           priority: form.priority,
+          minAge: form.minAge,
+          maxAge: form.maxAge,
           guide: form.guide || null,
         })
         .returning();
@@ -443,6 +447,8 @@ export async function updateBank(
           accountNumberMethod: form.accountNumberMethod,
           countsAsApp: form.countsAsApp,
           priority: form.priority,
+          minAge: form.minAge,
+          maxAge: form.maxAge,
           guide: form.guide || null,
         })
         .where(eq(banks.id, id))

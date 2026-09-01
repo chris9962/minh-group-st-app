@@ -258,6 +258,10 @@ export const banks = pgTable(
      * tự, xem `listBanks`.
      */
     priority: smallint("priority").notNull().default(0),
+    /** null = ngân hàng không giới hạn tuổi mở tài khoản. */
+    minAge: smallint("min_age"),
+    /** null = ngân hàng không giới hạn tuổi mở tài khoản. */
+    maxAge: smallint("max_age"),
     /**
      * Hướng dẫn mở tài khoản của riêng ngân hàng này (migration 0043).
      *
@@ -271,7 +275,12 @@ export const banks = pgTable(
   },
   // Số âm hay 0 làm chốt chặn ảnh mất tác dụng: tài khoản lên "Hoàn thành" mà
   // không có tấm ảnh nào, và mã giới thiệu thì đã bị tiêu vĩnh viễn.
-  (t) => [check("banks_required_photos_non_negative", sql`${t.requiredPhotos} >= 0`)],
+  (t) => [
+    check("banks_required_photos_non_negative", sql`${t.requiredPhotos} >= 0`),
+    check("banks_min_age_non_negative", sql`${t.minAge} is null or ${t.minAge} >= 0`),
+    check("banks_max_age_non_negative", sql`${t.maxAge} is null or ${t.maxAge} >= 0`),
+    check("banks_age_range_valid", sql`${t.minAge} is null or ${t.maxAge} is null or ${t.minAge} <= ${t.maxAge}`),
+  ],
 );
 
 export const referralCodes = pgTable(

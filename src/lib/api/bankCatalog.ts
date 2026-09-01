@@ -57,6 +57,10 @@ export const Bank = z.object({
   countsAsApp: z.boolean(),
   /** Số lớn lên đầu ô chọn ngân hàng lúc mở tài khoản. 0 là mức thường. */
   priority: z.number(),
+  /** null = không giới hạn độ tuổi phía dưới. */
+  minAge: z.number().nullable(),
+  /** null = không giới hạn độ tuổi phía trên. */
+  maxAge: z.number().nullable(),
   /**
    * Nhân viên được giao quản ngân hàng này (chốt 2026-08-24).
    *
@@ -79,6 +83,12 @@ export const Bank = z.object({
 });
 export type Bank = z.infer<typeof Bank>;
 
+const OptionalAge = z
+  .int("Độ tuổi phải là số nguyên")
+  .min(0, "Độ tuổi phải từ 0 trở lên")
+  .max(130, "Độ tuổi tối đa là 130")
+  .nullable();
+
 export const BankForm = z.object({
   code: z.string().trim().min(1, 'Chưa nhập mã ngân hàng'),
   requiredPhotos: z.int('Số ảnh phải là số nguyên').min(0, 'Số ảnh phải từ 0 trở lên').max(SMALLINT_MAX, 'Số ảnh lớn quá'),
@@ -96,6 +106,8 @@ export const BankForm = z.object({
     .int('Độ ưu tiên phải là số nguyên')
     .min(0, 'Độ ưu tiên phải từ 0 trở lên')
     .max(SMALLINT_MAX, 'Độ ưu tiên lớn quá'),
+  minAge: OptionalAge,
+  maxAge: OptionalAge,
   /**
    * Ai quản ngân hàng này — ghi thẳng vào `user_managed_banks`.
    *
@@ -117,6 +129,9 @@ export const BankForm = z.object({
    * việc của ngân hàng đó, thường 2–3 tấm nhưng có ca sáu tấm.
    */
   guidePhotoUrls: z.array(ImageRef),
+}).superRefine((value, ctx) => {
+  if (value.minAge !== null && value.maxAge !== null && value.minAge > value.maxAge)
+    ctx.addIssue({ code: "custom", path: ["maxAge"], message: "Tuổi tối đa phải lớn hơn hoặc bằng tuổi tối thiểu" });
 });
 export type BankForm = z.infer<typeof BankForm>;
 

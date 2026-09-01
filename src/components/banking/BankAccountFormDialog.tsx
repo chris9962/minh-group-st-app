@@ -69,6 +69,7 @@ export function BankAccountFormDialog({ open, onClose, customerId, onBack }: Pro
     enabled: open && Boolean(customerId),
   });
   const usedBankIds = new Set(slots?.usedBankIds ?? []);
+  const eligibleBankIds = new Set(slots?.eligibleBankIds ?? []);
   const remaining = slots?.remaining ?? MAX_BANK_ACCOUNTS_PER_CUSTOMER;
 
   const {
@@ -144,8 +145,10 @@ export function BankAccountFormDialog({ open, onClose, customerId, onBack }: Pro
   });
 
   const noSlotLeft = slots ? remaining <= 0 : false;
-  const selectableBanks = activeBanks.filter((b) => !usedBankIds.has(b.id));
+  const unownedActiveBanks = activeBanks.filter((b) => !usedBankIds.has(b.id));
+  const selectableBanks = unownedActiveBanks.filter((b) => !slots || eligibleBankIds.has(b.id));
   const noBankLeft = slots ? selectableBanks.length === 0 : false;
+  const noAgeEligibleBank = slots ? unownedActiveBanks.length > 0 && selectableBanks.length === 0 : false;
   const blocked = noSlotLeft || noBankLeft;
 
   return (
@@ -180,7 +183,9 @@ export function BankAccountFormDialog({ open, onClose, customerId, onBack }: Pro
         <Alert tone="error">
           {noSlotLeft
             ? `Khách này đã có đủ ${MAX_BANK_ACCOUNTS_PER_CUSTOMER} tài khoản ngân hàng, không mở thêm được. Bản nháp cũng tính — xoá một bản nháp thì mở thêm được một tài khoản.`
-            : "Khách này đã mở tài khoản ở tất cả ngân hàng đang triển khai."}
+            : noAgeEligibleBank
+              ? "Không có ngân hàng phù hợp với độ tuổi của khách này."
+              : "Khách này đã mở tài khoản ở tất cả ngân hàng đang triển khai."}
         </Alert>
       ) : (
         <form

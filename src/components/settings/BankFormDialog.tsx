@@ -110,6 +110,8 @@ export function BankFormDialog({ open, onClose, bank }: Props) {
       accountNumberMethod: bank?.accountNumberMethod ?? "phone-match",
       countsAsApp: bank?.countsAsApp ?? true,
       priority: bank?.priority ?? 0,
+      minAge: bank?.minAge ?? null,
+      maxAge: bank?.maxAge ?? null,
       managerIds: bank?.managers.map((m) => m.id) ?? [],
       guide: bank?.guide ?? "",
       guidePhotoUrls: bank?.guidePhotoUrls ?? [],
@@ -202,6 +204,34 @@ export function BankFormDialog({ open, onClose, bank }: Props) {
             hint="Số lớn lên đầu ô chọn lúc mở tài khoản."
             error={errors.priority?.message}
             {...numericField(register("priority", { setValueAs: numberValue }), digitsOnly)}
+          />
+        </div>
+
+        <div className={styles.pair}>
+          <TextField
+            label="Tuổi tối thiểu"
+            type="text"
+            inputMode="numeric"
+            placeholder="Không giới hạn"
+            hint="Để trống nếu không giới hạn phía dưới."
+            error={errors.minAge?.message}
+            {...numericField(
+              register("minAge", { setValueAs: (value) => (value === "" ? null : numberValue(value)) }),
+              digitsOnly,
+            )}
+          />
+
+          <TextField
+            label="Tuổi tối đa"
+            type="text"
+            inputMode="numeric"
+            placeholder="Không giới hạn"
+            hint="Để trống nếu không giới hạn phía trên."
+            error={errors.maxAge?.message}
+            {...numericField(
+              register("maxAge", { setValueAs: (value) => (value === "" ? null : numberValue(value)) }),
+              digitsOnly,
+            )}
           />
         </div>
 

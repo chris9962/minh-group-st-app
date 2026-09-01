@@ -147,6 +147,8 @@ export type BankAccountStartForm = z.infer<typeof BankAccountStartForm>;
  */
 export const CustomerBankSlots = z.object({
   usedBankIds: z.array(z.string()),
+  /** Ngân hàng khách đủ tuổi mở; ngân hàng không giới hạn tuổi luôn có mặt. */
+  eligibleBankIds: z.array(z.string()),
   /** Số tài khoản còn mở thêm được, 0 là đã đủ trần. */
   remaining: z.number(),
 });
