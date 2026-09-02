@@ -172,6 +172,23 @@ export default function DepartmentsPage() {
               sortBy: (d) => statsById.get(d.id)?.customers ?? -1,
               render: (d) => statsById.get(d.id)?.customers ?? "—",
             },
+            {
+              key: "points",
+              label: "Điểm",
+              // ⚠️ Gom theo NGƯỜI LẬP HỒ SƠ KHÁCH, ba cột đếm bên trái gom theo
+              // người mở tài khoản (thể lệ câu 7.11). Hai cách lệch nhau ở ca mở
+              // hộ tài khoản cho khách của đồng nghiệp, và cột điểm phải khớp
+              // bảng lương.
+              sortBy: (d) => statsById.get(d.id)?.points ?? -1,
+              render: (d) => {
+                const p = statsById.get(d.id)?.points;
+                return p === undefined || p === null ? (
+                  "—"
+                ) : (
+                  <span className="tabular-nums">{p}</span>
+                );
+              },
+            },
           ] satisfies RankColumn<DepartmentRow>[])
         : []),
       {
@@ -265,14 +282,14 @@ export default function DepartmentsPage() {
         {canSeeStats && (
           <>
             <div className={styles.periodInline}>
-              <PeriodPicker value={period} onChange={setPeriod} />
+              <PeriodPicker value={period} onChange={setPeriod} sameMonthOnly />
             </div>
             <div className={styles.periodCollapsed}>
               <FilterButton
                 activeCount={period.kind === "today" ? 0 : 1}
                 onClear={() => setPeriod(DEFAULT_PERIOD)}
               >
-                <PeriodPicker value={period} onChange={setPeriod} />
+                <PeriodPicker value={period} onChange={setPeriod} sameMonthOnly />
               </FilterButton>
             </div>
           </>

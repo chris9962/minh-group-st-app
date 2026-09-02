@@ -11,6 +11,7 @@ import {
 } from "@/lib/api/org";
 import { db, uniqueViolationOf } from "./db/client";
 import { bankAccounts, banks, departments, userManagedDepartments, users } from "./db/schema";
+import { pointsByStaffInRange } from "./kpi";
 
 /**
  * P-91 · Phòng ban — bản DB của src/mocks/org.ts, cùng luật:
@@ -405,7 +406,7 @@ export async function departmentStatsFor(
 
   const { current, previous } = periodRanges(periodKey, businessDay());
 
-  const [rows, now, before] = await Promise.all([
+  const [rows, now, before, points] = await Promise.all([
     db
       .select({ id: departments.id, name: departments.name })
       .from(departments)
@@ -417,15 +418,31 @@ export async function departmentStatsFor(
       .orderBy(asc(departments.name)),
     statsByDepartment(current),
     previous ? statsByDepartment(previous) : Promise.resolve(null),
+    pointsByStaffInRange(current),
   ]);
+
+  /**
+   * Điểm cuộn lên phòng — cùng cách với màn Tổng quan.
+   *
+   * ⚠️ Gom theo NGƯỜI LẬP HỒ SƠ KHÁCH, khác ba cột đếm bên cạnh: chúng gom theo
+   * người mở tài khoản (thể lệ câu 7.11). Hai cách lệch nhau ở ca mở hộ tài
+   * khoản cho khách của đồng nghiệp, và cột điểm phải khớp bảng lương.
+   */
+  const pointsByDepartment = new Map<string, number>();
+  for (const { departmentId, points: p } of points.values()) {
+    if (!departmentId) continue;
+    pointsByDepartment.set(
+      departmentId,
+      Math.round(((pointsByDepartment.get(departmentId) ?? 0) + p) * 10) / 10,
+    );
+  }
 
   return {
     departments: rows.map((d) => {
       const s = now.get(d.id);
       const p = before?.get(d.id);
       return {
-        // Bảng Phòng ban (P-91) không có cột điểm — chỉ màn Tổng quan điền.
-        points: null,
+        points: pointsByDepartment.get(d.id) ?? 0,
         id: d.id,
         name: d.name,
         accountsOpened: s?.accountsOpened ?? 0,
