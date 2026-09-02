@@ -31,12 +31,14 @@ DELETE FROM audit_log;
 -- tiên của kỳ tạo lại dòng và nhận mã DH-2608-001.
 DELETE FROM order_code_counters;
 
--- Tài khoản `mg-nnt` đã tắt nhưng còn 1.00 điểm dịch vụ, sinh từ một dòng
--- `services` vừa xoá ở trên. `recomputeKpiForMonth` chỉ duyệt nhân viên đang
--- bật (src/server/kpi.ts:288) nên bước tính lại KPI không chạm tới dòng này.
--- Chỉ xoá dòng điểm, tài khoản giữ nguyên.
+-- Điểm KPI của nhân viên ĐÃ TẮT không tự về 0: `recomputeKpiForMonth` chỉ duyệt
+-- nhân viên đang bật (src/server/kpi.ts:288). Xoá thẳng dòng điểm của họ; tài
+-- khoản giữ nguyên.
+--
+-- Đợt 2026-08-30 chỉ có một tài khoản dạng này là `mg-nnt`, và nó đã bị xoá
+-- khỏi `users` từ sau đợt đó. Câu dưới viết theo ĐIỀU KIỆN chứ không theo tên,
+-- để lần chạy nào cũng đúng.
 DELETE FROM kpi_scores
-WHERE user_id = (SELECT id FROM users WHERE username = 'mg-nnt')
-  AND year_month = '2026-08';
+WHERE user_id IN (SELECT id FROM users WHERE active = false);
 
 COMMIT;
