@@ -1,6 +1,7 @@
 import { and, asc, eq, gte, lte, sql } from "drizzle-orm";
 import { monthRange } from "@/lib/format";
 import { bankingPointsFor, kpiAppliesTo, type ScoringAccount } from "@/rules";
+import type { Range } from "./org";
 import { db } from "./db/client";
 import {
   bankAccounts,
@@ -290,4 +291,126 @@ export async function recomputeKpiForMonth(yearMonth: string): Promise<number> {
     for (const row of rows) await recomputeKpiOn(tx, row.id, yearMonth);
     return rows.length;
   });
+}
+
+/* ── Điểm theo KHOẢNG NGÀY — cho màn Tổng quan ─────────────────────────── */
+
+/**
+ * Điểm của từng người trong một KHOẢNG NGÀY tuỳ ý, gom theo người.
+ *
+ * `kpi_scores` chỉ lưu theo THÁNG, nên màn Tổng quan không đọc bảng đó được khi
+ * người dùng chọn "hôm nay" hay một khoảng tự đặt. Hàm này tính lại từ dữ liệu
+ * gốc, đúng công thức của `recomputeKpiOn`, chỉ khác ở chỗ nhận `from`/`to`.
+ *
+ * ⚠️ KHÔNG ghi vào `kpi_scores`. Bảng đó vẫn là số chốt theo tháng, dùng cho
+ * lương. Con số ở đây để XEM theo kỳ, và hai số trùng nhau khi kỳ xem đúng bằng
+ * một tháng.
+ *
+ * Khoảng vắt hai tháng thì tách ra tính theo TỪNG THÁNG rồi cộng: mỗi tháng một
+ * file luật, và tổ hợp không nối qua tháng (thể lệ câu 7.13).
+ *
+ * Chỉ tính người thuộc phòng loại `sales` — cùng điều kiện `kpiAppliesTo` mà
+ * `recomputeKpiOn` dùng. Người phòng khác chưa có công thức, không phải được 0.
+ */
+export async function pointsByStaffInRange(
+  range: Range,
+): Promise<Map<string, { departmentId: string | null; points: number }>> {
+  const [accountRows, serviceRows, grantRows] = await Promise.all([
+    db
+      .select({
+        userId: customers.createdBy,
+        departmentId: users.departmentId,
+        customerId: bankAccounts.customerId,
+        bankCode: banks.code,
+        appInstalled: bankAccounts.appInstalled,
+        openedDate: bankAccounts.openedDate,
+        accountType: bankAccounts.accountType,
+      })
+      .from(bankAccounts)
+      .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
+      .innerJoin(customers, eq(customers.id, bankAccounts.customerId))
+      .innerJoin(users, eq(users.id, customers.createdBy))
+      .innerJoin(departments, eq(departments.id, users.departmentId))
+      .where(
+        and(
+          eq(departments.type, "sales"),
+          eq(bankAccounts.status, "done"),
+          gte(bankAccounts.openedDate, range.from),
+          lte(bankAccounts.openedDate, range.to),
+        ),
+      ),
+    db
+      .select({
+        userId: services.createdBy,
+        departmentId: users.departmentId,
+        points: sql<number>`coalesce(sum(${serviceTypes.coefficient}), 0)::float`,
+      })
+      .from(services)
+      .innerJoin(serviceTypes, eq(serviceTypes.id, services.serviceTypeId))
+      .innerJoin(users, eq(users.id, services.createdBy))
+      .innerJoin(departments, eq(departments.id, users.departmentId))
+      .where(
+        and(
+          eq(departments.type, "sales"),
+          gte(services.serviceDate, range.from),
+          lte(services.serviceDate, range.to),
+        ),
+      )
+      .groupBy(services.createdBy, users.departmentId),
+    // Món khách đã nhận — vào của phép tính điểm ở kỳ 2026-08. Kéo trọn bảng
+    // vì nó nhỏ, và lọc theo khách thì phải biết trước danh sách khách.
+    db.select({ customerId: giftGrants.customerId, chosenItem: giftGrants.chosenItem }).from(giftGrants),
+  ]);
+
+  const granted = new Map(grantRows.map((r) => [r.customerId, r.chosenItem]));
+
+  /** Tài khoản gom theo người rồi theo tháng — mỗi tháng một file luật. */
+  const byStaff = new Map<string, { departmentId: string | null; months: Map<string, ScoringAccount[]> }>();
+  for (const r of accountRows) {
+    if (!r.userId) continue;
+    const month = (r.openedDate ?? "").slice(0, 7);
+    if (!month) continue;
+
+    let staff = byStaff.get(r.userId);
+    if (!staff) {
+      staff = { departmentId: r.departmentId, months: new Map() };
+      byStaff.set(r.userId, staff);
+    }
+    const rows = staff.months.get(month);
+    const account: ScoringAccount = {
+      customerId: r.customerId,
+      bankCode: r.bankCode,
+      appInstalled: r.appInstalled,
+      openedDate: r.openedDate ?? "",
+      household: r.accountType,
+    };
+    if (rows) rows.push(account);
+    else staff.months.set(month, [account]);
+  }
+
+  const out = new Map<string, { departmentId: string | null; points: number }>();
+  const add = (userId: string, departmentId: string | null, points: number) => {
+    const cur = out.get(userId);
+    if (cur) cur.points = Math.round((cur.points + points) * 10) / 10;
+    else out.set(userId, { departmentId, points: Math.round(points * 10) / 10 });
+  };
+
+  for (const [userId, staff] of byStaff)
+    for (const [month, accounts] of staff.months)
+      add(userId, staff.departmentId, bankingPointsFor(accounts, month, granted));
+
+  for (const r of serviceRows) if (r.userId) add(r.userId, r.departmentId, r.points);
+
+  return out;
+}
+
+/** Cùng con số, cuộn lên PHÒNG của người lập hồ sơ. */
+export async function pointsByDepartmentInRange(range: Range): Promise<Map<string, number>> {
+  const byStaff = await pointsByStaffInRange(range);
+  const out = new Map<string, number>();
+  for (const { departmentId, points } of byStaff.values()) {
+    if (!departmentId) continue;
+    out.set(departmentId, Math.round(((out.get(departmentId) ?? 0) + points) * 10) / 10);
+  }
+  return out;
 }

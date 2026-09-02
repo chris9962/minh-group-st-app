@@ -424,6 +424,8 @@ export async function departmentStatsFor(
       const s = now.get(d.id);
       const p = before?.get(d.id);
       return {
+        // Bảng Phòng ban (P-91) không có cột điểm — chỉ màn Tổng quan điền.
+        points: null,
         id: d.id,
         name: d.name,
         accountsOpened: s?.accountsOpened ?? 0,

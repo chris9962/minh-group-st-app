@@ -21,6 +21,18 @@ export const DepartmentRanking = z.object({
    * để so — người dùng tự chọn khoảng ngày.
    */
   previousInstallRate: z.number().nullable(),
+  /**
+   * Tổng điểm KPI của dòng này TRONG KỲ XEM.
+   *
+   * `null` khi nơi gọi không tính điểm — bảng Phòng ban (P-91) dùng chung kiểu
+   * này nhưng không có cột điểm.
+   *
+   * ⚠️ Gom theo NGƯỜI LẬP HỒ SƠ KHÁCH, khác ba cột kia — chúng gom theo người
+   * mở tài khoản (thể lệ câu 7.11). Hai cách gom lệch nhau ở ca mở hộ tài khoản
+   * cho khách của đồng nghiệp, và cột điểm phải khớp bảng lương chứ không khớp
+   * ba cột bên cạnh.
+   */
+  points: z.number().nullable().default(null),
 });
 export type DepartmentRanking = z.infer<typeof DepartmentRanking>;
 
@@ -38,16 +50,13 @@ export const DashboardData = z.object({
     previousPercent: z.number().nullable(),
   }),
   /**
-   * Tổng điểm KPI của cả công ty trong tháng — `null` với người xem phạm vi
+   * Tổng điểm KPI của cả công ty TRONG KỲ XEM — `null` với người xem phạm vi
    * hẹp hơn toàn công ty.
    *
-   * Điểm ghi theo THÁNG nên `yearMonth` đi kèm: kỳ xem của màn có thể là một
-   * ngày hoặc một khoảng tuỳ chọn, mà con số này luôn của trọn tháng.
+   * Tính lại từ dữ liệu gốc theo đúng khoảng ngày người dùng chọn, không đọc
+   * `kpi_scores` (bảng đó chỉ lưu theo tháng).
    */
-  companyPoints: z
-    .object({ yearMonth: z.string(), points: z.number() })
-    .nullable()
-    .default(null),
+  companyPoints: z.number().nullable().default(null),
   banking: z.object({
     accountsOpened: z.number(),
     appsInstalled: z.number(),

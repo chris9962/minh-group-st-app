@@ -76,6 +76,15 @@ const rankingColumns = (kind: "department" | "staff"): RankColumn<DepartmentRank
     sortBy: (d) => d.customers,
     render: (d) => d.customers,
   },
+  {
+    key: "points",
+    label: "Điểm",
+    // ⚠️ Cột này gom theo NGƯỜI LẬP HỒ SƠ KHÁCH, bốn cột kia gom theo người mở
+    // tài khoản (thể lệ câu 7.11). Hai cách lệch nhau ở ca mở hộ tài khoản cho
+    // khách của đồng nghiệp, và cột điểm phải khớp bảng lương.
+    sortBy: (d) => d.points ?? 0,
+    render: (d) => <span className="tabular-nums">{d.points ?? 0}</span>,
+  },
 ];
 
 /**
@@ -172,7 +181,9 @@ export default function DashboardPage() {
               Phạm vi: <strong>{overview!.scopeLabel}</strong>
             </p>
 
-            <div className={clsx(styles.headline, data.companyPoints && styles.headlineWide)}>
+            <div
+              className={clsx(styles.headline, data.companyPoints !== null && styles.headlineWide)}
+            >
               <KpiHighlight
                 ariaLabel="Tỉ lệ cài app trên số tài khoản mở"
                 percent={data.installRate.percent}
@@ -218,13 +229,13 @@ export default function DashboardPage() {
               {/* Chỉ người xem phạm vi toàn công ty mới có ô này — máy chủ trả
                   `null` cho người khác, xem `companyPoints`.
 
-                  Nhãn ghi rõ THÁNG chứ không dùng `periodLabel`: điểm KPI ghi
-                  theo tháng, mà kỳ xem của màn có thể là một ngày. */}
-              {data.companyPoints && (
+                  `!== null` chứ không kiểm trung thực: công ty được 0 điểm vẫn
+                  phải hiện ô, chứ không phải ẩn đi như người không có quyền. */}
+              {data.companyPoints !== null && (
                 <StatCard
-                  value={data.companyPoints.points}
+                  value={data.companyPoints}
                   label="điểm tổng cty"
-                  detail={`Cả công ty, tháng ${data.companyPoints.yearMonth}`}
+                  detail={`Cả công ty ${periodLabel}`}
                 />
               )}
             </div>

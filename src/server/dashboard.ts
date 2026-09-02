@@ -10,13 +10,13 @@ import {
   departments,
   giftGrants,
   insuranceOrders,
-  kpiScores,
   referralCodes,
   serviceTypes,
   services,
   users,
 } from "./db/schema";
 import { giftItemNames } from "./gift";
+import { pointsByStaffInRange } from "./kpi";
 import { statsByDepartment, statsByStaff, type Range } from "./org";
 
 /**
@@ -470,6 +470,8 @@ const rankRow = (
 ): DepartmentRanking => ({
   id,
   name,
+  // `dashboardFor` điền vào sau, khi đã có bản đồ điểm theo kỳ.
+  points: null,
   accountsOpened: now?.accountsOpened ?? 0,
   appsInstalled: now?.appsInstalled ?? 0,
   customers: now?.customers ?? 0,
@@ -547,33 +549,19 @@ async function ranking(
   };
 }
 
-/* ── Điểm tổng toàn công ty ────────────────────────────────────────────── */
+/* ── Điểm theo kỳ ──────────────────────────────────────────────────────── */
 
 /**
- * Tổng điểm KPI của CẢ CÔNG TY trong tháng — chỉ tính cho người xem phạm vi
- * toàn công ty (P-80, chốt 2026-09-03).
+ * Điểm KPI gom theo phòng, TRONG ĐÚNG KỲ NGƯỜI DÙNG CHỌN.
  *
- * Đọc thẳng `kpi_scores`, không tính lại: bảng đó là số đã chốt, cùng nguồn với
- * bảng xếp hạng và với lương. Tính lại ở đây là dựng đường thứ hai ra cùng con
- * số, và hai đường sớm muộn lệch nhau.
+ * Không đọc `kpi_scores`: bảng đó chỉ lưu theo THÁNG, mà kỳ xem của màn có thể
+ * là một ngày hoặc một khoảng tự đặt. `pointsByDepartmentInRange` tính lại từ
+ * dữ liệu gốc theo đúng công thức của `recomputeKpiOn`.
  *
- * ⚠️ Điểm KPI ghi theo THÁNG (`year_month`), còn kỳ xem của màn có thể là một
- * ngày hoặc một khoảng tuỳ chọn. Hàm lấy tháng của NGÀY CUỐI kỳ, và trả kèm
- * `yearMonth` để màn nói rõ số này của tháng nào.
+ * ⚠️ Gom theo NGƯỜI LẬP HỒ SƠ KHÁCH, khác `statsByDepartment` — hàm đó gom theo
+ * người mở tài khoản. Hai cách gom lệch nhau ở ca mở hộ tài khoản cho khách của
+ * đồng nghiệp, và cột điểm phải khớp bảng lương chứ không khớp ba cột cạnh nó.
  */
-async function companyPoints(range: Range): Promise<{ yearMonth: string; points: number }> {
-  const yearMonth = range.to.slice(0, 7);
-  const [row] = await db
-    .select({
-      total: sql<string>`coalesce(sum(${kpiScores.bankingPoints} + ${kpiScores.servicePoints}), 0)`,
-    })
-    .from(kpiScores)
-    .where(eq(kpiScores.yearMonth, yearMonth));
-
-  // `sum` của Postgres trả numeric dạng chuỗi. Làm tròn một chữ số như mọi con
-  // số điểm khác trong hệ thống.
-  return { yearMonth, points: Math.round(Number(row?.total ?? 0) * 10) / 10 };
-}
 
 /* ── Ghép lại ──────────────────────────────────────────────────────────── */
 
@@ -584,7 +572,7 @@ export async function dashboardFor(
   const v = dashboardVisibility(actor);
   const { current, previous } = periodRanges(periodKey, businessDay());
 
-  const [banking, previousBanking, insurance, servicesData, gifts, ranked, scopeLabel, company] =
+  const [banking, previousBanking, insurance, servicesData, gifts, ranked, scopeLabel, points] =
     await Promise.all([
       bankingTotals(v, actor.id, current),
       previous ? bankingTotals(v, actor.id, previous) : Promise.resolve(null),
@@ -593,10 +581,28 @@ export async function dashboardFor(
       giftsBlock(v, actor.id, current),
       ranking(actor, v, current, previous),
       visibilityLabel(v),
-      // Chỉ người xem toàn công ty mới thấy ô này, nên người khác không tốn
-      // thêm một câu truy vấn.
-      v.kind === "company" ? companyPoints(current) : Promise.resolve(null),
+      pointsByStaffInRange(current),
     ]);
+
+  /**
+   * Điểm cuộn lên phòng, tính TẠI CHỖ từ bản đồ theo người — một lượt đọc dữ
+   * liệu cho cả ba chỗ dùng: cột điểm của bảng xếp hạng phòng, bảng xếp hạng
+   * nhân viên, và ô điểm tổng công ty.
+   */
+  const pointsByDepartment = new Map<string, number>();
+  for (const { departmentId, points: p } of points.values()) {
+    if (!departmentId) continue;
+    pointsByDepartment.set(
+      departmentId,
+      Math.round(((pointsByDepartment.get(departmentId) ?? 0) + p) * 10) / 10,
+    );
+  }
+
+  const rowsWithPoints = ranked.rows.map((r) => ({
+    ...r,
+    points:
+      ranked.kind === "staff" ? (points.get(r.id)?.points ?? 0) : (pointsByDepartment.get(r.id) ?? 0),
+  }));
 
   return {
     scopeLabel,
@@ -619,9 +625,18 @@ export async function dashboardFor(
         giftsPending: gifts.pending,
       },
       insurance,
-      companyPoints: company,
+      /**
+       * Chỉ người xem toàn công ty mới thấy ô này. Tổng lấy từ CHÍNH bản đồ
+       * điểm theo phòng, nên hai con số trên màn luôn khớp nhau.
+       */
+      companyPoints:
+        v.kind === "company"
+          ? Math.round(
+              [...points.values()].reduce((sum, p) => sum + p.points, 0) * 10,
+            ) / 10
+          : null,
       rankingKind: ranked.kind,
-      departments: ranked.rows,
+      departments: rowsWithPoints,
       services: servicesData,
       gifts,
     },
