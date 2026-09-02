@@ -1,19 +1,18 @@
 "use client";
 
 import { clsx } from "clsx";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { FlaskConical } from "lucide-react";
 import { useState } from "react";
-import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { DateField } from "@/components/ui/DateField";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { Select } from "@/components/ui/Select";
-import { errorMessage, toast } from "@/lib/toast";
+import { errorMessage } from "@/lib/toast";
 import { fetchBanks } from "@/lib/api/bankCatalog";
 import { MAX_BANK_ACCOUNTS_PER_CUSTOMER, type AccountType } from "@/lib/api/bankAccounts";
 import { fetchChannels } from "@/lib/api/channelCatalog";
-import { simulateGift } from "@/lib/api/settings";
+import { simulateGift, type GiftSimulateInput } from "@/lib/api/settings";
 import { formatVnd } from "@/lib/format";
 import styles from "./GiftSimulator.module.scss";
 
@@ -30,27 +29,33 @@ import styles from "./GiftSimulator.module.scss";
  */
 const DEPARTMENTS: { value: string; label: string }[] = [
   { value: "", label: "— Không thuộc phòng có luật riêng —" },
-  { value: "PHONG-Y", label: "Phòng Y — thêm Mì, BH sức khoẻ, Nón, Bảng mica" },
-  { value: "PHONG-DU-AN", label: "Phòng Dự án — thêm Mì, BH sức khoẻ, Nón" },
+  { value: "PHONG-Y", label: "Phòng Y — quy đổi quà ở TH5, TH6" },
+  { value: "PHONG-DU-AN", label: "Phòng Dự án — quy đổi quà ở TH5, TH6" },
 ];
 
 /**
- * Món khách ĐÃ nhận. Chỉ liệt kê vật phẩm — gói bảo hiểm không đổi điểm nào.
+ * Món khách ĐÃ nhận. Chỉ liệt kê vật phẩm — gói bảo hiểm không đổi gì.
  *
- * Hai món đầu đưa điểm CNKD của khách một ngân hàng xuống 0,7 (thể lệ mục 4c).
- * Ba món sau có mặt để thử vế ngược lại: nhận món khác thì mức giữ nguyên 1,5.
+ * Kỳ 2026-09 món đã nhận KHÔNG đổi tiền lẫn rổ quà: Kế toán bỏ luật "chọn Mì
+ * hoặc Nón thì mất 20k" ngày 2026-09-02. Ô này giữ lại vì màn tra luật theo
+ * NGÀY, và kỳ 2026-08 thì món đã nhận có đổi tiền.
  */
 const GRANTED_ITEMS: { value: string; label: string }[] = [
   { value: "", label: "— Chưa phát quà —" },
-  { value: "QUA-MI", label: "Thùng mì — hạ điểm CNKD xuống 0,7" },
-  { value: "QUA-NON-BH", label: "Nón bảo hiểm — hạ điểm CNKD xuống 0,7" },
+  { value: "QUA-MI", label: "Thùng mì" },
+  { value: "QUA-NON-BH", label: "Nón bảo hiểm" },
   { value: "QUA-BH-SUC-KHOE", label: "BH sức khoẻ" },
   { value: "QUA-LOA", label: "Loa" },
   { value: "QUA-MICA", label: "Bảng mica" },
 ];
 
-/** Chỉ VPa mở được CNKD/HKD (spec §4.9) — nhãn giữ đúng chữ của màn P-20. */
-const VPA = "VPa";
+/**
+ * Hai ngân hàng chủ của CNKD/HKD — nhãn giữ đúng chữ của màn P-20.
+ *
+ * Kỳ 2026-08 chỉ có `VPa`. Kỳ 2026-09 thêm `VPb`: lưu ý 3 cho CNKD chọn `VPBb`,
+ * và Kế toán chốt 2026-09-02 rằng `HKD` cũng mở khoá `VPb`.
+ */
+const HOUSEHOLD_HOST_BANKS = ["VPa", "VPb"];
 const ACCOUNT_TYPE_LABEL: Record<AccountType, string> = {
   none: "Không",
   CNKD: "CNKD",
@@ -60,6 +65,8 @@ const ACCOUNT_TYPE_LABEL: Record<AccountType, string> = {
 /**
  * P-81 · Nút thử — chỉ tính toán, không ghi gì (spec §5.3). Không tạo khách,
  * không tạo đơn, không trừ mã. Bấm bao nhiêu lần cũng được.
+ *
+ * Không có nút bấm: chọn tới đâu máy trả kết quả tới đó.
  *
  * Ô nhập khai TỪNG TÀI KHOẢN chứ không khai "tổng số app đã cài" như bản cũ:
  * luật từ kỳ 2026-08 xét tổ hợp hạng ngân hàng, và chỉ `VPa` với `MSBa` mới đòi
@@ -74,26 +81,46 @@ export function GiftSimulator() {
   const [grantedItem, setGrantedItem] = useState("");
   /** Rỗng nghĩa là để máy chủ dùng ngày làm việc — xem `GiftSimulateInput.at`. */
   const [at, setAt] = useState("");
-  const [vpaAccountType, setVpaAccountType] = useState<AccountType>("none");
+  /** Một mã cho mỗi ngân hàng chủ — khách tick CNKD trên VPa hay VPb là hai ca khác nhau. */
+  const [accountTypes, setAccountTypes] = useState<Record<string, AccountType>>({});
 
   const { data: allBanks = [] } = useQuery({ queryKey: ["banks"], queryFn: fetchBanks });
   const activeBanks = allBanks.filter((b) => b.active);
   const { data: channels = [] } = useQuery({ queryKey: ["channels"], queryFn: fetchChannels });
 
-  const run = useMutation({
-    mutationFn: () =>
-      simulateGift({
-        accounts: opened.map((bankCode) => ({
-          bankCode,
-          appInstalled: apps.includes(bankCode),
-          accountType: bankCode === VPA ? vpaAccountType : ("none" as AccountType),
-        })),
-        channelCodes: channel ? [channel] : [],
-        departmentCode: department || null,
-        grantedItem: grantedItem || null,
-        at: at || null,
-      }),
-    onError: (e) => toast.fail(errorMessage(e, "Chưa chạy thử được.")),
+  /**
+   * Tình huống đang khai, tính THẲNG khi render — không giữ trong state.
+   *
+   * Nó là giá trị suy ra từ sáu ô nhập, nên `useEffect` để đồng bộ là thừa
+   * (AGENTS.md §7). Chính nó cũng là khoá truy vấn: ô nào đổi thì khoá đổi và
+   * TanStack Query chạy lại.
+   */
+  const input: GiftSimulateInput = {
+    accounts: opened.map((bankCode) => ({
+      bankCode,
+      appInstalled: apps.includes(bankCode),
+      accountType: accountTypes[bankCode] ?? ("none" as AccountType),
+    })),
+    channelCodes: channel ? [channel] : [],
+    departmentCode: department || null,
+    grantedItem: grantedItem || null,
+    at: at || null,
+  };
+
+  /**
+   * Chọn tới đâu ra kết quả tới đó, không có nút bấm.
+   *
+   * `placeholderData` giữ kết quả của lần chọn trước trong lúc gọi máy chủ. Bỏ
+   * nó thì mỗi lần tick một ô là cả khối kết quả biến mất rồi hiện lại.
+   *
+   * `enabled` chặn lượt gọi khi khách chưa mở ngân hàng nào: kết quả lúc đó
+   * luôn là rổ rỗng, không đáng một lượt đi mạng.
+   */
+  const run = useQuery({
+    queryKey: ["gift-simulate", input],
+    queryFn: () => simulateGift(input),
+    enabled: opened.length > 0,
+    placeholderData: (prev) => prev,
   });
 
   /**
@@ -168,15 +195,18 @@ export function GiftSimulator() {
                       checked={apps.includes(bank.code)}
                       onCheckedChange={() => toggleApp(bank.code)}
                     />
-                    {/* Mở VPa kèm CNKD/HKD thì rổ có thêm Loa và Bảng mica —
-                        không có ô này thì màn thử không ra được ca đó. */}
-                    {bank.code === VPA && (
+                    {/* HKD thì rổ có thêm Loa và Bảng mica, còn CNKD hoặc HKD
+                        trên VPb thì mở khoá bậc TH7 — không có ô này thì màn
+                        thử không ra được hai ca đó. */}
+                    {HOUSEHOLD_HOST_BANKS.includes(bank.code) && (
                       <div className={styles.bankType}>
                         <Select
                           block
                           label="Mở tài khoản CNKD / HKD"
-                          value={vpaAccountType}
-                          onChange={(v) => setVpaAccountType(v as AccountType)}
+                          value={accountTypes[bank.code] ?? "none"}
+                          onChange={(v) =>
+                            setAccountTypes((prev) => ({ ...prev, [bank.code]: v as AccountType }))
+                          }
                           options={Object.entries(ACCOUNT_TYPE_LABEL).map(([value, label]) => ({
                             value,
                             label,
@@ -216,7 +246,6 @@ export function GiftSimulator() {
           value={grantedItem}
           onChange={setGrantedItem}
           options={GRANTED_ITEMS}
-          hint="Đổi mức điểm CNKD, không đổi danh sách quà"
         />
         {/* Luật tra theo NGÀY: kỳ nào cũng có file riêng và một ngày chỉ thuộc
             một kỳ. Không có ô này thì màn chỉ thử được kỳ đang hiệu lực. */}
@@ -226,12 +255,16 @@ export function GiftSimulator() {
           onChange={setAt}
           hint="Bỏ trống là ngày làm việc"
         />
-        <Button onClick={() => run.mutate()} disabled={run.isPending}>
-          Thử
-        </Button>
       </div>
 
-      {run.data && (
+      {run.error && (
+        <p className={styles.failed}>{errorMessage(run.error, "Chưa chạy thử được.")}</p>
+      )}
+
+      {/* Bỏ tick hết ngân hàng thì xoá luôn kết quả. `placeholderData` giữ số
+          của lần chọn trước, nên không có dòng này là màn hiện kết quả của một
+          tình huống người dùng vừa xoá. */}
+      {opened.length > 0 && run.data && (
         <dl className={styles.result}>
           <div>
             <dt>Trường hợp</dt>
@@ -294,46 +327,6 @@ export function GiftSimulator() {
                   </ol>
                 </>
               )}
-            </dd>
-          </div>
-          <div>
-            {/* KHÔNG gọi là "Điểm KPI". Màn này thử THỂ LỆ QUÀ, và con số dưới
-                đây là điểm combo — thứ quyết định khách rơi vào TH2 hay TH5.
-                Điểm KPI thật còn lọc theo tháng (thể lệ câu 7.13), mà màn này
-                tra luật theo MỘT ngày; gọi nó là KPI là hứa một con số nó không
-                tính được. */}
-            <dt>Điểm combo</dt>
-            <dd>
-              <span className="tabular-nums">{run.data.kpiPoints}</span>
-              {run.data.kpiBreakdown.length > 0 && (
-                <span className={styles.detail}>
-                  {run.data.kpiBreakdown.map((b) => `${b.label} ${b.points}`).join(" + ")}
-                </span>
-              )}
-            </dd>
-          </div>
-          {/* Điểm CNKD nằm NGOÀI điểm combo và không đổi bậc quà, nên hiện
-              thành dòng riêng. Bản trước bỏ hẳn nó, và khách mở đúng một VPa
-              kèm CNKD ra "0 điểm" trong khi điểm thật là 1,5. */}
-          <div>
-            <dt>Điểm CNKD</dt>
-            <dd>
-              <span className="tabular-nums">{run.data.householdPoints}</span>
-              {run.data.householdNote && (
-                <span className={styles.detail}>{run.data.householdNote}</span>
-              )}
-            </dd>
-          </div>
-          <div>
-            <dt>Tổng điểm</dt>
-            <dd>
-              <strong className="tabular-nums">
-                {Math.round((run.data.kpiPoints + run.data.householdPoints) * 10) / 10}
-              </strong>
-              <span className={styles.detail}>
-                Điểm combo cộng điểm CNKD. Điểm KPI trả lương có thể khác vì
-                tính theo từng tháng mở tài khoản.
-              </span>
             </dd>
           </div>
           {run.data.explain.length > 0 && (

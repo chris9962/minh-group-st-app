@@ -1,5 +1,6 @@
 import type { DepartmentType } from "@/lib/types";
 import * as period202608 from "./2026-08";
+import * as period202609 from "./2026-09";
 import type { Tier } from "./2026-08";
 
 /**
@@ -168,6 +169,7 @@ type PeriodRules = {
  */
 const PERIODS: Record<string, PeriodRules> = {
   "2026-08": period202608,
+  "2026-09": period202609,
 };
 
 /**

@@ -282,9 +282,12 @@ export const giftSimulate = (input: GiftSimulateInput): Promise<GiftSimulateResu
         appInstalled: a.appInstalled,
         // Ngày mở = ngày tra luật, để tài khoản luôn nằm trong kỳ đang thử.
         openedDate: input.at || businessDay(),
-        // Nắn lại như `finishBankAccount`: CNKD/HKD chỉ có nghĩa với VPa (spec
-        // §4.9), ô chọn chỉ hiện trên thẻ VPa nhưng request nặn tay thì không.
-        household: a.bankCode === "VPa" ? a.accountType : "none",
+        // Nắn lại như `finishBankAccount`: CNKD/HKD chỉ có nghĩa với VPa và
+        // VPb, ô chọn chỉ hiện trên hai thẻ đó nhưng request nặn tay thì không.
+        //
+        // `VPb` thêm từ kỳ 2026-09: lưu ý 3 cho CNKD chọn VPBb, và Kế toán chốt
+        // 2026-09-02 rằng HKD cũng mở khoá VPb.
+        household: a.bankCode === "VPa" || a.bankCode === "VPb" ? a.accountType : "none",
       })),
       channelCodes: input.channelCodes,
       departmentCode: input.departmentCode,

@@ -418,20 +418,26 @@ check("mọi tài khoản đều lệch tháng", points([account("kh1", "MB", { 
 section("Kỳ nào áp luật nào");
 check("tháng trước kỳ đầu tiên chưa có luật", hasRulesFor("2026-07"), false);
 check("kỳ 2026-08 có luật", hasRulesFor("2026-08"), true);
-check("tháng sau vẫn dùng luật 2026-08", hasRulesFor("2026-09"), true);
-check("sang năm vẫn dùng luật 2026-08", hasRulesFor("2027-03"), true);
+check("kỳ 2026-09 có file luật riêng", hasRulesFor("2026-09"), true);
+check("sang năm vẫn có luật", hasRulesFor("2027-03"), true);
 check(
   "tháng 7 không tính điểm dù có dữ liệu",
   points([account("kh1", "MB", { date: "2026-07-10" }), account("kh1", "VPa", { date: "2026-07-11" })], "2026-07"),
   0,
 );
+/**
+ * Ranh giới hai kỳ. Kỳ 2026-08 không có Combo 1 nên một tài khoản lẻ là 0 điểm;
+ * kỳ 2026-09 cho 0,3. Ca này ghim lại rằng tháng 9 KHÔNG còn đọc file này nữa.
+ */
 check(
-  "tháng 9 tính bằng luật tháng 8",
-  points(
-    [account("kh1", "MB", { date: "2026-09-10" }), account("kh1", "VPa", { date: "2026-09-11" })],
-    "2026-09",
-  ),
-  0.7,
+  "tháng 8 không có Combo 1",
+  points([account("kh1", "MB", { date: "2026-08-10" })], "2026-08"),
+  0,
+);
+check(
+  "tháng 9 đã sang luật kỳ 2026-09",
+  points([account("kh1", "MB", { date: "2026-09-10" })], "2026-09"),
+  0.3,
 );
 
 /* ── Cộng dồn không được có sai số dấu phẩy động ─────────────────────── */
@@ -724,7 +730,7 @@ check(
   true,
 );
 check("đúng ngày đầu kỳ đã tính được", giftOf(["MB", "VPa"], { at: "2026-08-01" }).caseCode, "TH1");
-check("sang kỳ sau bậc quà không đổi", giftOf(["MB", "VPa"], { at: "2026-09-20" }).caseCode, "TH1");
+check("MB + VPa vẫn là TH1 ở kỳ 2026-09", giftOf(["MB", "VPa"], { at: "2026-09-20" }).caseCode, "TH1");
 
 section("20k của VPa khi khách chưa đủ tổ hợp");
 

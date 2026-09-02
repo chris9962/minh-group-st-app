@@ -612,7 +612,7 @@ export const customers = pgTable(
     accountCount: integer("account_count").notNull().default(0),
     insuranceCount: integer("insurance_count").notNull().default(0),
     /**
-     * Trường hợp quà khách đang khớp (`TH1`…`TH6`), `null` = chưa đủ điều kiện.
+     * Trường hợp quà khách đang khớp (`TH1`…`TH8`), `null` = chưa đủ điều kiện.
      *
      * LƯU SẴN, và là ngoại lệ KHÁC HẲN hai cột đếm bên trên: trigger ở database
      * không giữ nổi cột này, vì giá trị của nó do một hàm JavaScript quyết định
@@ -642,7 +642,7 @@ export const customers = pgTable(
      * JavaScript quyết định (`src/rules/`), và thể lệ đổi hình dạng theo kỳ.
      * `recomputeGiftCase` (`server/gift.ts`) lo việc ghi.
      *
-     * Cột này thay `gift_case` cũ (mã bậc `TH1`…`TH6`). Mã bậc trả lời sai ca
+     * Cột này thay `gift_case` cũ (mã bậc `TH1`…`TH8`). Mã bậc trả lời sai ca
      * khách chưa đủ tổ hợp ngân hàng nhưng có món thêm: bậc `null` mà rổ có món.
      *
      * Phụ thuộc BA nguồn, khác `gift_case` cũ chỉ phụ thuộc tài khoản: tài khoản

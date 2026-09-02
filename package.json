@@ -24,7 +24,7 @@
     "db:backup:check": "bun --env-file=.env.local --env-file=.env.backup scripts/db-backup-check.ts",
     "db:restore": "bun --env-file=.env.local --env-file=.env.backup scripts/db-restore.ts",
     "kpi:recompute": "bun --env-file=.env.local scripts/kpi-recompute.ts",
-    "test:rules": "bun scripts/test-rules.ts",
+    "test:rules": "bun scripts/test-rules.ts && bun scripts/test-rules-2026-09.ts",
     "e2e": "bun --env-file=.env.local scripts/e2e-clean.ts && bun --env-file=.env.local scripts/e2e-seed.ts && playwright test; bun --env-file=.env.local scripts/e2e-clean.ts",
     "e2e:ui": "bun --env-file=.env.local scripts/e2e-seed.ts && playwright test --ui",
     "pvi:login": "node pvi-qlcd-playwright/login.js",

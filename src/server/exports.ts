@@ -90,8 +90,12 @@ function insuranceLabelOf(product: string, packageName: string): string {
  * Chuỗi bậc quà, đúng chữ cột `QUÀ TẶNG BÁO CÁO` của file Kế toán.
  *
  * ⚠️ Cột đó trong file là chữ GÕ TAY, không có công thức — 37.425 dòng gõ tay,
- * 320 dòng bỏ trống. Sáu chuỗi dưới đây chép từ giá trị xuất hiện nhiều nhất
+ * 320 dòng bỏ trống. Sáu chuỗi TH1–TH6 chép từ giá trị xuất hiện nhiều nhất
  * trong file. Kế toán đổi cách ghi thì sửa ở đây.
+ *
+ * `TH7` và `TH8` là bậc Combo 1, mới từ kỳ 2026-09. File tháng 8 chưa có bậc
+ * này nên hai chuỗi đó do đội tự đặt theo cùng khuôn — Kế toán gửi file tháng 9
+ * thì đối chiếu lại.
  */
 const GIFT_REPORT_LABEL: Record<string, string> = {
   TH1: "1 NĂM BH + 20K (Khi cài đặt được VPa) - COMBO 2,3",
@@ -100,6 +104,8 @@ const GIFT_REPORT_LABEL: Record<string, string> = {
   TH4: "1 NĂM BH + 50K (Khi cài đặt được MSBa) - COMBO 3",
   TH5: "2 NĂM BH + 20K (Khi cài đặt được VPa và MSBb) - COMBO 3",
   TH6: "2 NĂM BH (Không thuộc các trường hợp trên hoặc thiết bị không phù hợp)",
+  TH7: "1 NĂM BH - COMBO 1",
+  TH8: "1 NĂM BH + 20K (Khi cài đặt được VPa) - COMBO 1",
 };
 
 /** Nhãn ngắn của cột `QUÀ TẶNG THEO COMBO`, cùng chữ với công thức `AG` của file. */
@@ -110,6 +116,8 @@ const GIFT_COMBO_LABEL: Record<string, string> = {
   TH4: "1 năm BH + 50k",
   TH5: "2 năm BH + 20k",
   TH6: "2 năm BH",
+  TH7: "1 năm BH",
+  TH8: "1 năm BH + 20k",
 };
 
 export async function listScoringExport(
@@ -289,8 +297,8 @@ export async function listScoringExport(
       installedBanks: [
         ...new Set(accounts.filter((a) => a.appInstalled).map((a) => a.bankCode)),
       ].filter((code) => !HOUSEHOLD_CODES.has(code)),
-      giftReport: grant?.itemName ?? (gift?.caseCode ? GIFT_REPORT_LABEL[gift.caseCode] : ""),
-      giftCombo: gift?.caseCode ? GIFT_COMBO_LABEL[gift.caseCode] : "",
+      giftReport: grant?.itemName ?? (gift?.caseCode ? (GIFT_REPORT_LABEL[gift.caseCode] ?? "") : ""),
+      giftCombo: gift?.caseCode ? (GIFT_COMBO_LABEL[gift.caseCode] ?? "") : "",
       speaker: grant?.chosenItem === "QUA-LOA" ? "LOA" : "",
       insuranceLabel: insurance
         ? insuranceLabelOf(insurance.product, insurance.packageName)
