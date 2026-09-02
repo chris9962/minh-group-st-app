@@ -95,6 +95,7 @@ export default function DashboardPage() {
   const { data: view, isPending, isError, refetch, isFetching } = useQuery({
     queryKey: ["dashboard", periodKey(period)],
     queryFn: () => fetchDashboard(period),
+    refetchInterval: 15_000,
   });
 
   const overview = view && view.kind === "overview" ? view : null;

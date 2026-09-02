@@ -94,6 +94,7 @@ export function ReferralCodesSection({ creating, onCreatingChange }: Props) {
      * trống, còn người dùng bàn phím thì mất tiêu điểm (AGENTS.md §8).
      */
     placeholderData: keepPreviousData,
+    refetchInterval: 10_000,
   });
 
   /** Đổi bộ lọc thì về trang đầu — giữ nguyên trang 5 của kết quả cũ là hiện một khúc rỗng. */

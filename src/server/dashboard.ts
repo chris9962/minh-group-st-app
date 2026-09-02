@@ -529,8 +529,12 @@ async function ranking(
       .from(departments)
       .where(
         v.kind === "company"
-          ? eq(departments.active, true)
-          : and(eq(departments.active, true), inArray(departments.id, v.departmentIds)),
+          ? and(eq(departments.active, true), eq(departments.type, "sales"))
+          : and(
+              eq(departments.active, true),
+              eq(departments.type, "sales"),
+              inArray(departments.id, v.departmentIds),
+            ),
       ),
     statsByDepartment(current),
     previous ? statsByDepartment(previous) : Promise.resolve(null),
