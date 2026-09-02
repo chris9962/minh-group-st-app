@@ -212,28 +212,28 @@ export const comboPointsFor = (bankCodes: string[]): number =>
 /* ── Mục 4c và 4d · điểm CNKD và HKD ─────────────────────────────────── */
 
 /**
- * Điểm CNKD, ghi bằng ĐƠN VỊ 1/10 ĐIỂM như bảng combo (thể lệ mục 4c).
+ * Điểm CNKD — MỘT MỨC DUY NHẤT 1,0, Kế toán chốt 2026-09-02.
  *
- * Mức chọn theo SỐ NGÂN HÀNG khách mở, KHÔNG theo tổ hợp thắng. Từ kỳ này mọi
- * khách mở 1 ngân hàng ưu tiên hoặc khác đều có tổ hợp Combo 1, nên hai khái
- * niệm càng phải tách.
+ * Nguyên văn: *"vẫn giữ quy tắc +1 điểm đối với các trường hợp phát sinh CNKD,
+ * bao gồm CNKD VPBa trong combo 2"*. "Các trường hợp" là mọi trường hợp.
+ *
+ * ⚠️ Kỳ 2026-08 có BA mức — 1,5 khi kèm `VPa` mở đúng 1 ngân hàng, 0,7 khi
+ * khách đó đã nhận Mì hoặc Nón, 1,0 cho phần còn lại. Kỳ này bỏ cả 1,5 lẫn 0,7.
+ * Đừng chép bảng cũ sang.
+ *
+ * Hai con số Kế toán đưa tự chứng minh mức 1,0:
+ *
+ *   CNKD đi một mình là `VPb` = 1,0 → 0 của Combo 1 hạng hạn chế + 1,0
+ *   CNKD đi một mình là `VPa` = 1,3 → 0,3 của Combo 1 hạng ưu tiên + 1,0
  */
-const CNKD_TENTHS = {
-  /** Kèm `VPa`, mở ĐÚNG 1 ngân hàng, và chưa nhận Mì/Nón. */
-  aloneWithVPa: 15,
-  /** Kèm `VPa` nhiều ngân hàng, hoặc kèm `VPb`. Đây là "CNKD kèm combo +1đ". */
-  withCombo: 10,
-  /** Kèm `VPa`, mở đúng 1 ngân hàng, nhưng ĐÃ nhận Mì hoặc Nón. */
-  afterGiftItem: 7,
-} as const;
+const CNKD_TENTHS = 10;
 
 /**
  * Điểm HKD (thể lệ mục 4d, yêu cầu 2026-09-02) — 3,0 điểm, không đòi điều kiện.
  *
  * Kỳ 2026-08 cho HKD 0 điểm. Yêu cầu viết trần *"HKD 3đ"* và không nhắc điều
- * kiện nào, trong khi CNKD đòi ba điều: phải có ngân hàng chủ, mức đổi theo số
- * ngân hàng, tụt xuống 0,7 khi khách nhận Mì hoặc Nón. Đây là giả định G1 của
- * thể lệ — Kế toán trả lời khác thì sửa đúng chỗ này.
+ * kiện nào, trong khi CNKD đòi có ngân hàng chủ. Đây là giả định G1 của thể lệ —
+ * Kế toán trả lời khác thì sửa đúng chỗ này.
  */
 const HKD_TENTHS = 30;
 
@@ -245,17 +245,6 @@ const HKD_TENTHS = 30;
  * khách không có điểm CNKD.
  */
 const CNKD_HOST_BANKS = new Set(["VPa", "VPb"]);
-
-/**
- * Hai món đưa điểm CNKD xuống mức 0,7 (thông báo Kế toán 2026-08-24).
- *
- * Đây là phép CHỌN MỨC, không phải phép trừ. Viết thành `1.5 - 0.8` thì ngày Kế
- * toán đổi mức nền sẽ có người sửa nhầm.
- *
- * Cùng tập này chặn luôn 20k của `VPa` — một quyết định, hai hệ quả, nên chỉ có
- * một hằng.
- */
-const CNKD_LOWERING_ITEMS = new Set(["QUA-MI", "QUA-NON-BH"]);
 
 /**
  * Khách này có những mã hộ kinh doanh nào — đọc CẢ HAI cách ghi (câu 7.16): ô
@@ -283,30 +272,18 @@ const bankCountOf = (accounts: ScoringAccount[]): number =>
   new Set(accounts.filter((a) => a.bankCode in TIER_OF).map((a) => a.bankCode)).size;
 
 /**
- * Khách CNKD mở ĐÚNG MỘT ngân hàng, và ngân hàng đó là `VPa`.
+ * Phần điểm CNKD của MỘT khách — mục 4c.
  *
- * Một điều kiện, ba hệ quả — nên chỉ có một hàm:
+ * Đòi ĐÚNG MỘT điều kiện: khách mở `VPa` hoặc `VPb`. CNKD là dịch vụ đăng ký kèm
+ * tài khoản VPB, nên ghi CNKD cho khách không mở mã nào trong hai mã đó là ghi
+ * sai, và khách đó được 0 điểm (Kế toán chốt 2026-09-02).
  *
- *   1. điểm CNKD lấy mức 1,5 thay vì 1,0
- *   2. chọn Mì hoặc Nón thì mức đó xuống 0,7
- *   3. chọn Mì hoặc Nón thì mất luôn 20k của `VPa` (thể lệ kỳ 2026-08 mục 3b)
- *
- * Tách thành ba phép kiểm riêng là có ngày sửa một chỗ quên hai chỗ, và lúc đó
- * màn hình cảnh báo một đằng còn điểm chạy một nẻo.
+ * KHÔNG xét số ngân hàng, KHÔNG xét tổ hợp thắng, KHÔNG xét món khách đã nhận.
  */
-const isCnkdSoloVPa = (accounts: ScoringAccount[]): boolean =>
-  householdKindsOf(accounts).has("CNKD") &&
-  accounts.some((a) => a.bankCode === "VPa") &&
-  bankCountOf(accounts) === 1;
-
-/** Phần điểm CNKD của MỘT khách, theo bảng mục 4c. */
-function cnkdTenths(accounts: ScoringAccount[], grantedItem: string | null): number {
+function cnkdTenths(accounts: ScoringAccount[]): number {
   if (!householdKindsOf(accounts).has("CNKD")) return 0;
   if (!accounts.some((a) => CNKD_HOST_BANKS.has(a.bankCode))) return 0;
-  if (!isCnkdSoloVPa(accounts)) return CNKD_TENTHS.withCombo;
-  return grantedItem && CNKD_LOWERING_ITEMS.has(grantedItem)
-    ? CNKD_TENTHS.afterGiftItem
-    : CNKD_TENTHS.aloneWithVPa;
+  return CNKD_TENTHS;
 }
 
 /**
@@ -314,13 +291,13 @@ function cnkdTenths(accounts: ScoringAccount[], grantedItem: string | null): num
  *
  * Khách có cả hai mã thì lấy MỨC CAO HƠN, không cộng dồn (giả định G2 của thể
  * lệ). Viết bằng `Math.max` chứ không viết `if HKD thì trả 30`, để ngày Kế toán
- * hạ mức HKD xuống dưới 1,5 thì luật vẫn đúng ý "lấy mức cao hơn".
+ * hạ mức HKD xuống dưới 1,0 thì luật vẫn đúng ý "lấy mức cao hơn".
  */
-function householdTenths(accounts: ScoringAccount[], grantedItem: string | null): number {
+function householdTenths(accounts: ScoringAccount[]): number {
   const kinds = householdKindsOf(accounts);
   let tenths = 0;
   if (kinds.has("HKD")) tenths = Math.max(tenths, HKD_TENTHS);
-  if (kinds.has("CNKD")) tenths = Math.max(tenths, cnkdTenths(accounts, grantedItem));
+  if (kinds.has("CNKD")) tenths = Math.max(tenths, cnkdTenths(accounts));
   return tenths;
 }
 
@@ -336,8 +313,12 @@ function householdTenths(accounts: ScoringAccount[], grantedItem: string | null)
  *
  * ⚠️ ĐIỂM KHÔNG áp điều kiện cài app — chốt 2026-08-25, câu 7.8. Điều kiện cài
  * app chỉ còn ở đường QUÀ, xem `gift`.
+ *
+ * `_granted` không dùng ở kỳ này: món khách đã nhận KHÔNG còn đổi điểm nào từ
+ * chốt 2026-09-02. Tham số giữ lại vì `PeriodRules` dùng chung với kỳ 2026-08,
+ * và kỳ đó thì món đã nhận có hạ điểm CNKD.
  */
-export function bankingPoints(accounts: ScoringAccount[], granted: GrantedGifts): number {
+export function bankingPoints(accounts: ScoringAccount[], _granted: GrantedGifts): number {
   const byCustomer = new Map<string, ScoringAccount[]>();
   for (const account of accounts) {
     const rows = byCustomer.get(account.customerId);
@@ -346,12 +327,12 @@ export function bankingPoints(accounts: ScoringAccount[], granted: GrantedGifts)
   }
 
   let tenths = 0;
-  for (const [customerId, rows] of byCustomer) {
+  for (const rows of byCustomer.values()) {
     const combo = bestComboOf(
       rows.map((a) => a.bankCode),
       householdKindsOf(rows).size > 0,
     );
-    tenths += combo.tenths + householdTenths(rows, granted.get(customerId) ?? null);
+    tenths += combo.tenths + householdTenths(rows);
   }
   return tenths / 10;
 }
@@ -367,13 +348,13 @@ const comboCodesOf = (accounts: ScoringAccount[]): ScoringAccount[] =>
 /**
  * Phần điểm hộ kinh doanh của một khách, tính bằng ĐIỂM chứ không phải phần mười.
  *
- * Mở ra ngoài để màn thử quy tắc quà (P-81) tách được hai phần của cùng một con
- * số: điểm tổ hợp quyết định BẬC QUÀ, điểm hộ kinh doanh thì không.
+ * `_grantedItem` không dùng ở kỳ này — xem `bankingPoints`. Tham số giữ lại cho
+ * khớp `PeriodRules`.
  */
 export const householdPointsOf = (
   accounts: ScoringAccount[],
-  grantedItem: string | null,
-): number => householdTenths(accounts, grantedItem) / 10;
+  _grantedItem: string | null,
+): number => householdTenths(accounts) / 10;
 
 /* ── Mục 3 · quà tặng ────────────────────────────────────────────────── */
 

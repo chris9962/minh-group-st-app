@@ -156,21 +156,21 @@ check("trần mỗi khách là 1.2", comboPointsFor(["MB", "VPa", "MSBa", "LPB",
 /* ── Mục 4c · điểm CNKD ─────────────────────────────────────────────── */
 
 /**
- * Bốn mức của mục 4c, cộng vào điểm tổ hợp.
+ * CNKD có ĐÚNG MỘT mức: 1,0. Kế toán chốt 2026-09-02.
  *
- * Kỳ 2026-08 khách `VPa` + CNKD một ngân hàng được 1,5. Kỳ này được 1,8, vì
- * Combo 1 hạng ưu tiên cộng thêm 0,3.
+ * Kỳ 2026-08 có ba mức 1,5 / 1,0 / 0,7. Kỳ này bỏ 1,5 lẫn 0,7, và điều kiện duy
+ * nhất còn lại là khách phải mở `VPa` hoặc `VPb`.
  */
-section("Điểm CNKD — mục 4c");
+section("Điểm CNKD — mục 4c, một mức 1,0");
 check(
-  "VPa + CNKD, 1 ngân hàng — 0,3 tổ hợp + 1,5 CNKD",
+  "VPa + CNKD, 1 ngân hàng — 0,3 tổ hợp + 1,0 CNKD",
   points([account("kh1", "VPa"), account("kh1", "CNKD")]),
-  1.8,
+  1.3,
 );
 check(
   "ô chọn trên dòng VPa tính y hệt tài khoản CNKD riêng",
   points([account("kh1", "VPa", { household: "CNKD" })]),
-  1.8,
+  1.3,
 );
 check(
   "MB + VPa kèm CNKD — 0,7 tổ hợp + 1,0 CNKD",
@@ -192,17 +192,17 @@ check(
   1.3,
 );
 check(
-  "hai tài khoản CÙNG một ngân hàng vẫn đếm là 1 → mức 1,5",
+  "hai tài khoản CÙNG một ngân hàng vẫn đếm là 1",
   points([
     account("kh1", "VPa", { household: "CNKD" }),
     account("kh1", "VPa", { household: "CNKD" }),
   ]),
-  1.8,
+  1.3,
 );
 check(
   "tài khoản CNKD riêng không cộng vào số ngân hàng",
   points([account("kh1", "VPa"), account("kh1", "CNKD")]),
-  1.8,
+  1.3,
 );
 check(
   "không CNKD, không HKD thì chỉ còn điểm tổ hợp",
@@ -246,8 +246,14 @@ check(
   ]),
   1.5,
 );
+/** VPa và VPb cùng mức CNKD 1,0; chênh 0,3 là do điểm TỔ HỢP, không do CNKD. */
 check(
-  "mức 1,5 vẫn đòi VPa — VPb một ngân hàng chỉ được 1,0",
+  "CNKD kèm VPa — 0,3 tổ hợp + 1,0 CNKD",
+  points([account("kh1", "VPa", { household: "CNKD" })]),
+  1.3,
+);
+check(
+  "CNKD kèm VPb — 0 tổ hợp + 1,0 CNKD",
   points([account("kh1", "VPb", { household: "CNKD" })]),
   1.0,
 );
@@ -264,29 +270,35 @@ check(
   0.5,
 );
 
-section("Phát Mì hoặc Nón hạ mức điểm CNKD — thông báo Kế toán 2026-08-24");
+/**
+ * Món khách đã nhận KHÔNG còn đổi điểm nào — Kế toán chốt 2026-09-02.
+ *
+ * Kỳ 2026-08 phát Mì hoặc Nón cho khách CNKD một ngân hàng thì điểm xuống 0,7.
+ * Mức nền 1,5 đã bỏ nên mốc đó cũng mất.
+ */
+section("Món đã nhận KHÔNG đổi điểm");
 check(
-  "phát Mì → 0,3 tổ hợp + 0,7 CNKD",
+  "phát Mì → vẫn 1,3",
   points([account("kh1", "VPa", { household: "CNKD" })], PERIOD, { kh1: "QUA-MI" }),
-  1.0,
+  1.3,
 );
 check(
-  "phát Nón → 0,3 tổ hợp + 0,7 CNKD",
+  "phát Nón → vẫn 1,3",
   points([account("kh1", "VPa", { household: "CNKD" })], PERIOD, { kh1: "QUA-NON-BH" }),
-  1.0,
+  1.3,
 );
 check(
-  "phát Loa thì KHÔNG tụt",
+  "phát Loa → vẫn 1,3",
   points([account("kh1", "VPa", { household: "CNKD" })], PERIOD, { kh1: "QUA-LOA" }),
-  1.8,
+  1.3,
 );
 check(
-  "khách từ chối quà thì KHÔNG tụt",
+  "khách từ chối quà → vẫn 1,3",
   points([account("kh1", "VPa", { household: "CNKD" })], PERIOD, { kh1: null }),
-  1.8,
+  1.3,
 );
 check(
-  "G6 · khách CNKD mở từ 2 ngân hàng thì phát Mì cũng giữ 1,0",
+  "khách CNKD mở từ 2 ngân hàng, phát Mì cũng giữ 1,0",
   points([account("kh1", "MB"), account("kh1", "VPa", { household: "CNKD" })], PERIOD, {
     kh1: "QUA-MI",
   }),
@@ -300,7 +312,7 @@ check(
 check(
   "món của khách khác không đụng điểm khách này",
   points([account("kh1", "VPa", { household: "CNKD" })], PERIOD, { kh2: "QUA-MI" }),
-  1.8,
+  1.3,
 );
 
 /* ── Mục 4d · điểm HKD ──────────────────────────────────────────────── */
