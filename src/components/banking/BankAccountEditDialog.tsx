@@ -240,7 +240,10 @@ export function BankAccountEditDialog({ open, onClose, accountId }: Props) {
       {data && (
         <div className={styles.form}>
           <div className={styles.summary}>
-            <strong>{data.bankCode}</strong> · {data.customerName}
+            <strong>{data.bankCode}</strong>
+            {/* CNKD/HKD có hướng dẫn và số ảnh riêng — ghi loại ra để người điền
+                biết mình đang theo bản nào; loại thường thì không cần nói. */}
+            {data.accountType !== "none" && <> · {data.accountType}</>} · {data.customerName}
             {data.channel && (
               <span className="text-muted">
                 {" "}

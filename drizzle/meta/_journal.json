@@ -428,6 +428,13 @@
       "when": 1788681600000,
       "tag": "0060_bank_account_number_length",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1788768000000,
+      "tag": "0061_bank_guide_variants",
+      "breakpoints": true
     }
   ]
 }

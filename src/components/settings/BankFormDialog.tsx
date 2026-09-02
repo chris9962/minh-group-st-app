@@ -15,16 +15,19 @@ import {
   type PhotoItem,
 } from "@/components/banking/BankAccountPhotos";
 import { Combobox } from "@/components/ui/Combobox";
+import { SegmentedTabs } from "@/components/ui/SegmentedTabs";
 import { Select } from "@/components/ui/Select";
 import { TextArea } from "@/components/ui/TextArea";
 import { TextField } from "@/components/ui/TextField";
 import {
   ACCOUNT_NUMBER_METHOD_LABEL,
   AccountNumberMethod,
+  BANK_GUIDE_VARIANT_TYPES,
   BankForm,
   createBank,
   updateBank,
   type Bank,
+  type BankGuideVariantType,
 } from "@/lib/api/bankCatalog";
 import { fetchStaffOptions } from "@/lib/api/staff";
 import { can } from "@/lib/permissions";
@@ -39,6 +42,29 @@ type Props = {
   onClose: () => void;
   /** Có thì là sửa, không có thì là thêm ngân hàng mới. */
   bank?: Bank | null;
+};
+
+/**
+ * Bản nháp một bản hướng dẫn theo loại (CNKD/HKD). Nằm ngoài react-hook-form:
+ * schema của form là mảng phẳng — gom về mảng lúc gửi đơn giản hơn là nắn
+ * schema theo giao diện. Ba bản TÁCH HẲN nhau (chốt 2026-09-02): loại chưa cài
+ * gì thì bước 2 không có hướng dẫn, không lấy bản Thường thay.
+ */
+type VariantDraft = {
+  requiredPhotos: string;
+  guide: string;
+  photos: PhotoItem[];
+};
+
+const variantDraftFrom = (bank: Bank | null | undefined, type: BankGuideVariantType): VariantDraft => {
+  const saved = bank?.guideVariants.find((v) => v.accountType === type);
+  return {
+    // Chưa có bản riêng thì mượn SỐ của bản thường làm giá trị khởi đầu — chỉ
+    // là số điền sẵn trong ô, không phải quy tắc dùng thay lúc chạy.
+    requiredPhotos: String(saved?.requiredPhotos ?? bank?.requiredPhotos ?? 3),
+    guide: saved?.guide ?? "",
+    photos: savedPhotos(saved?.guidePhotoUrls ?? []),
+  };
 };
 
 /** P-60 · Lập / sửa một dòng ngân hàng. */
@@ -83,6 +109,15 @@ export function BankFormDialog({ open, onClose, bank }: Props) {
     savedPhotos(bank?.guidePhotoUrls ?? []),
   );
 
+  /** Ba bản hướng dẫn — `none` là bản thường đang nằm trong react-hook-form. */
+  const [guideTab, setGuideTab] = useState("none");
+  const [variants, setVariants] = useState<Record<BankGuideVariantType, VariantDraft>>({
+    CNKD: variantDraftFrom(bank, "CNKD"),
+    HKD: variantDraftFrom(bank, "HKD"),
+  });
+  const patchVariant = (type: BankGuideVariantType, patch: Partial<VariantDraft>) =>
+    setVariants((prev) => ({ ...prev, [type]: { ...prev[type], ...patch } }));
+
   const { data: staffOptions = [] } = useQuery({
     // Khoá GIỐNG bốn màn khác đang gọi cùng hàm này (`banking`, `insurance`,
     // `services`, `customers`). Khoá riêng thì tải trùng ~300 nhân viên, và mọi
@@ -117,16 +152,36 @@ export function BankFormDialog({ open, onClose, bank }: Props) {
       managerIds: bank?.managers.map((m) => m.id) ?? [],
       guide: bank?.guide ?? "",
       guidePhotoUrls: bank?.guidePhotoUrls ?? [],
+      // Giá trị thật gom từ `variants` lúc gửi — xem `mutationFn`.
+      guideVariants: [],
     },
   });
 
   const save = useMutation({
     mutationFn: async (form: BankForm) => {
+      // Luôn gửi đủ CẢ HAI bản CNKD/HKD — mỗi bản đứng riêng, không có chuyện
+      // vắng bản này thì dùng bản kia hay bản Thường thay.
+      const guideVariants: BankForm["guideVariants"] = [];
+      for (const type of BANK_GUIDE_VARIANT_TYPES) {
+        const draft = variants[type];
+        const requiredPhotos = Number(draft.requiredPhotos);
+        // Ô này nằm ngoài react-hook-form nên kiểm ở đây, cùng chữ với lỗi zod.
+        if (!Number.isInteger(requiredPhotos) || requiredPhotos < 0)
+          throw new Error(`Số ảnh bắt buộc của bản ${type} phải là số từ 0 trở lên.`);
+        guideVariants.push({
+          accountType: type,
+          requiredPhotos,
+          guide: draft.guide,
+          guidePhotoUrls: await uploadPendingPhotos(draft.photos, "bank-guides"),
+        });
+      }
+
       // Ảnh đi lên TRƯỚC, rồi mới ghi bản ghi — gửi thẳng `blob:` thì tải lại
       // trang là ảnh vỡ vĩnh viễn, xem `BankAccountPhotos`.
       const body = {
         ...form,
         guidePhotoUrls: await uploadPendingPhotos(guidePhotos, "bank-guides"),
+        guideVariants,
       };
       return bank ? updateBank(bank.id, body) : createBank(body);
     },
@@ -190,24 +245,14 @@ export function BankFormDialog({ open, onClose, bank }: Props) {
           />
         )}
 
-        <div className={styles.pair}>
-          <TextField
-            label="Số ảnh bắt buộc"
-            type="text"
-            inputMode="numeric"
-            error={errors.requiredPhotos?.message}
-            {...numericField(register("requiredPhotos", { setValueAs: numberValue }), digitsOnly)}
-          />
-
-          <TextField
-            label="Độ ưu tiên"
-            type="text"
-            inputMode="numeric"
-            hint="Số lớn lên đầu ô chọn lúc mở tài khoản."
-            error={errors.priority?.message}
-            {...numericField(register("priority", { setValueAs: numberValue }), digitsOnly)}
-          />
-        </div>
+        <TextField
+          label="Độ ưu tiên"
+          type="text"
+          inputMode="numeric"
+          hint="Số lớn lên đầu ô chọn lúc mở tài khoản."
+          error={errors.priority?.message}
+          {...numericField(register("priority", { setValueAs: numberValue }), digitsOnly)}
+        />
 
         <div className={styles.pair}>
           <TextField
@@ -283,25 +328,87 @@ export function BankFormDialog({ open, onClose, bank }: Props) {
           onCheckedChange={(v) => setValue("countsAsApp", v, { shouldDirty: true })}
         />
 
-        <TextArea
-          label="Hướng dẫn mở tài khoản"
-          rows={8}
-          placeholder={"Bước 1: …\nBước 2: …\n\nẢnh 1: …\nẢnh 2: …"}
-          hint="Quy trình riêng của ngân hàng này. Nhân viên đọc ở bước 2 của màn mở tài khoản."
-          error={errors.guide?.message}
-          {...register("guide")}
+        {/* CNKD/HKD mở theo quy trình khác bản thường ở vài ngân hàng (chốt
+            2026-09-02) — mỗi loại một bản hướng dẫn + ảnh mẫu + số ảnh riêng.
+            Bước 2 tự chọn bản theo loại đã chốt từ mã giới thiệu. */}
+        <SegmentedTabs
+          label="Bản hướng dẫn theo loại tài khoản"
+          options={[
+            { value: "none", label: "Thường" },
+            { value: "CNKD", label: "CNKD" },
+            { value: "HKD", label: "HKD" },
+          ]}
+          value={guideTab}
+          onChange={setGuideTab}
         />
 
-        {/* Ảnh mẫu đi theo THỨ TỰ: người nhập viết "Ảnh 1: …" trong ô trên, nên
-            đảo thứ tự ở đây là đổi nghĩa của cả đoạn hướng dẫn. */}
-        <BankAccountPhotos
-          photos={guidePhotos}
-          requiredPhotos={0}
-          max={10}
-          title="Ảnh mẫu"
-          onChange={setGuidePhotos}
-          busy={save.isPending}
-        />
+        {guideTab === "none" && (
+          <>
+            {/* Số ảnh nằm CÙNG tab với hướng dẫn của bản đó — ba tab cùng một
+                bố cục, không có ô nào của bản Thường lạc lên đầu hộp thoại. */}
+            <TextField
+              label="Số ảnh bắt buộc"
+              type="text"
+              inputMode="numeric"
+              error={errors.requiredPhotos?.message}
+              {...numericField(register("requiredPhotos", { setValueAs: numberValue }), digitsOnly)}
+            />
+            <TextArea
+              label="Hướng dẫn mở tài khoản"
+              rows={8}
+              placeholder={"Bước 1: …\nBước 2: …\n\nẢnh 1: …\nẢnh 2: …"}
+              hint="Quy trình riêng của ngân hàng này. Nhân viên đọc ở bước 2 của màn mở tài khoản."
+              error={errors.guide?.message}
+              {...register("guide")}
+            />
+
+            {/* Ảnh mẫu đi theo THỨ TỰ: người nhập viết "Ảnh 1: …" trong ô trên, nên
+                đảo thứ tự ở đây là đổi nghĩa của cả đoạn hướng dẫn. */}
+            <BankAccountPhotos
+              photos={guidePhotos}
+              requiredPhotos={0}
+              max={10}
+              title="Ảnh mẫu"
+              onChange={setGuidePhotos}
+              busy={save.isPending}
+            />
+          </>
+        )}
+
+        {(guideTab === "CNKD" || guideTab === "HKD") &&
+          (() => {
+            const type = guideTab as BankGuideVariantType;
+            const draft = variants[type];
+            return (
+              <>
+                <TextField
+                  label={`Số ảnh bắt buộc (${type})`}
+                  type="text"
+                  inputMode="numeric"
+                  value={draft.requiredPhotos}
+                  onChange={(e) =>
+                    patchVariant(type, { requiredPhotos: e.target.value.replace(/[^0-9]/g, "") })
+                  }
+                />
+                <TextArea
+                  label={`Hướng dẫn mở tài khoản (${type})`}
+                  rows={8}
+                  placeholder={"Bước 1: …\nBước 2: …\n\nẢnh 1: …\nẢnh 2: …"}
+                  hint={`Để trống thì tài khoản ${type} không có hướng dẫn ở bước 2.`}
+                  value={draft.guide}
+                  onChange={(e) => patchVariant(type, { guide: e.target.value })}
+                />
+                <BankAccountPhotos
+                  photos={draft.photos}
+                  requiredPhotos={0}
+                  max={10}
+                  title={`Ảnh mẫu (${type})`}
+                  onChange={(p) => patchVariant(type, { photos: p })}
+                  busy={save.isPending}
+                />
+              </>
+            );
+          })()}
 
         {canAssign && (
           <div className={styles.managers}>

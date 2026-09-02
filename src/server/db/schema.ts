@@ -880,10 +880,38 @@ export const bankGuidePhotos = pgTable(
     bankId: uuid("bank_id")
       .notNull()
       .references(() => banks.id, { onDelete: "cascade" }),
+    /** Ảnh mẫu thuộc bản nào: `none` = bản thường, CNKD/HKD = bản riêng (migration 0061). */
+    accountType: bankAccountType("account_type").notNull().default("none"),
     url: text("url").notNull(),
     sortOrder: smallint("sort_order").notNull().default(0),
   },
   (t) => [index("bank_guide_photos_bank").on(t.bankId)],
+);
+
+/**
+ * Bản hướng dẫn theo loại tài khoản (CNKD/HKD) của một ngân hàng — VPa/VPb mở
+ * CNKD/HKD theo quy trình khác bản thường (chốt 2026-09-02).
+ *
+ * BA BẢN TÁCH HẲN nhau: loại chưa cài thì không có hướng dẫn, không lấy bản
+ * thường thay. Hộp thoại sửa ngân hàng luôn ghi đủ dòng CNKD + HKD mỗi lượt
+ * Lưu. Luật "đủ ảnh mới cho Hoàn thành" đếm theo bản của đúng loại.
+ */
+export const bankGuideVariants = pgTable(
+  "bank_guide_variants",
+  {
+    id: id(),
+    bankId: uuid("bank_id").notNull().references(() => banks.id),
+    /** Chỉ nhận CNKD/HKD — bản thường không lặp lại ở đây. */
+    accountType: bankAccountType("account_type").notNull(),
+    requiredPhotos: smallint("required_photos").notNull().default(3),
+    guide: text("guide"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex("bank_guide_variants_bank_type").on(t.bankId, t.accountType),
+    check("bank_guide_variants_type", sql`account_type in ('CNKD', 'HKD')`),
+    check("bank_guide_variants_photos", sql`required_photos >= 0`),
+  ],
 );
 
 export const giftGrants = pgTable("gift_grants", {

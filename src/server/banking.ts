@@ -33,6 +33,7 @@ import {
   bankAccountPhotos,
   bankAccounts,
   bankGuidePhotos,
+  bankGuideVariants,
   banks,
   channels,
   customerPhones,
@@ -757,10 +758,16 @@ export async function bankAccountDetail(
   const r = await rawById(id);
   if (!r || !inScope(visible, r)) return null;
 
+  // CNKD/HKD đọc bản của ĐÚNG loại mình — chưa cài thì không có hướng dẫn,
+  // không lấy bản thường thay (chốt 2026-09-02).
+  const accountType = accountTypeOf(r);
+  const separateGuide = accountType === "CNKD" || accountType === "HKD";
+  const variant = await guideVariantFor(r.bankId, accountType);
+
   return {
     ...toRow(r),
     channelDetail: r.channelDetail,
-    accountType: accountTypeOf(r),
+    accountType,
     note: r.note,
     errorNote: r.errorNote,
     createdByDepartmentId: r.createdByDepartmentId,
@@ -768,15 +775,18 @@ export async function bankAccountDetail(
     transactionAt: r.transactionAt,
     transactionPhotoUrls: await photoUrlsOf(id, "transaction"),
     finishedAt: r.finishedAt?.toISOString() ?? "",
-    requiredPhotos: r.requiredPhotos,
+    requiredPhotos: variant?.requiredPhotos ?? r.requiredPhotos,
     accountNumberMethod: r.accountNumberMethod,
     accountNumberPrefix: r.accountNumberPrefix,
     accountNumberLength: r.accountNumberLength,
     customerPhones: await customerPhoneNumbers(r.customerId),
     referralOpenUrl: r.referralOpenUrl,
     referralQrUrl: r.referralQrImage ? imageUrl(r.referralQrImage) : "",
-    bankGuide: r.bankGuide,
-    bankGuidePhotoUrls: await bankGuidePhotoUrls(r.bankId),
+    bankGuide: separateGuide ? (variant?.guide ?? "") : r.bankGuide,
+    bankGuidePhotoUrls: await bankGuidePhotoUrls(
+      r.bankId,
+      separateGuide ? (accountType as "CNKD" | "HKD") : "none",
+    ),
   };
 }
 
@@ -785,13 +795,37 @@ export async function bankAccountDetail(
  *
  * Thứ tự là phần của dữ liệu: đoạn hướng dẫn gọi tên chúng là "Ảnh 1", "Ảnh 2".
  */
-async function bankGuidePhotoUrls(bankId: string): Promise<string[]> {
+async function bankGuidePhotoUrls(
+  bankId: string,
+  accountType: "none" | "CNKD" | "HKD" = "none",
+): Promise<string[]> {
   const rows = await db
     .select({ url: bankGuidePhotos.url })
     .from(bankGuidePhotos)
-    .where(eq(bankGuidePhotos.bankId, bankId))
+    .where(and(eq(bankGuidePhotos.bankId, bankId), eq(bankGuidePhotos.accountType, accountType)))
     .orderBy(asc(bankGuidePhotos.sortOrder));
   return rows.map((r) => imageUrl(r.url));
+}
+
+/**
+ * Bản hướng dẫn theo loại tài khoản (chốt 2026-09-02) — BA BẢN TÁCH HẲN nhau:
+ * CNKD/HKD chưa cài thì KHÔNG có hướng dẫn, không lấy bản thường thay. `null`
+ * chỉ xảy ra với dòng cũ chưa lưu lại lần nào; khi đó phần chữ/ảnh coi như
+ * trống, riêng SỐ ẢNH bắt buộc lui về số của ngân hàng — 0 ảnh là hoàn thành
+ * không cần chứng minh, không được là mặc định. Luật "đủ ảnh mới cho Hoàn
+ * thành" cũng đọc `requiredPhotos` từ đây, không chỉ phần hiển thị.
+ */
+async function guideVariantFor(
+  bankId: string,
+  accountType: string,
+): Promise<{ requiredPhotos: number; guide: string } | null> {
+  if (accountType !== "CNKD" && accountType !== "HKD") return null;
+  const [row] = await db
+    .select({ requiredPhotos: bankGuideVariants.requiredPhotos, guide: bankGuideVariants.guide })
+    .from(bankGuideVariants)
+    .where(and(eq(bankGuideVariants.bankId, bankId), eq(bankGuideVariants.accountType, accountType)))
+    .limit(1);
+  return row ? { requiredPhotos: row.requiredPhotos, guide: row.guide ?? "" } : null;
 }
 
 export type BankingOutcome<T> = { ok: true; value: T } | { ok: false; message: string };
@@ -1134,6 +1168,11 @@ export async function finishBankAccount(
   // bổ sung chứng từ, không được đổi loại rồi giữ một mã của nhánh khác.
   const accountType = current.accountType;
 
+  // CNKD/HKD có bản riêng thì số ảnh bắt buộc đọc từ bản đó (chốt 2026-09-02).
+  const requiredPhotos =
+    (await guideVariantFor(current.bankId, accountTypeOf(current)))?.requiredPhotos ??
+    current.requiredPhotos;
+
   /**
    * Ngân hàng lấy số tài khoản THEO SĐT thì số gửi lên phải là một số của chính
    * khách này. Giao diện dựng ô chọn, nhưng ô chọn không phải chốt chặn —
@@ -1177,10 +1216,10 @@ export async function finishBankAccount(
       .where(and(eq(bankAccountPhotos.accountId, id), eq(bankAccountPhotos.kind, "opening")));
 
     const have = photos?.n ?? 0;
-    if (have < current.requiredPhotos)
+    if (have < requiredPhotos)
       return {
         ok: false as const,
-        message: `Ngân hàng ${current.bankCode} cần ${current.requiredPhotos} ảnh chứng minh, hiện mới có ${have}.`,
+        message: `Ngân hàng ${current.bankCode} cần ${requiredPhotos} ảnh chứng minh, hiện mới có ${have}.`,
       };
 
     const updated = await tx
@@ -1447,8 +1486,11 @@ export async function setPhotos(
    * Ảnh giao dịch KHÔNG bị chốt này: nó là bằng chứng nộp muộn, để trống hay bỏ
    * đi đều hợp lệ, và `banks.required_photos` không nói gì về nó.
    */
-  if (kind === "opening" && current.status === "done" && photoKeys.length < current.requiredPhotos)
-    return { tooFew: current.requiredPhotos } as const;
+  const requiredPhotos =
+    (await guideVariantFor(current.bankId, accountTypeOf(current)))?.requiredPhotos ??
+    current.requiredPhotos;
+  if (kind === "opening" && current.status === "done" && photoKeys.length < requiredPhotos)
+    return { tooFew: requiredPhotos } as const;
 
   await db.transaction(async (tx) => {
     await tx

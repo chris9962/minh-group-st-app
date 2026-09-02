@@ -204,8 +204,16 @@ function FinishAccountCard({
   });
 
   return (
-    <SectionCard title="Hoàn tất tài khoản" icon={<Landmark size={17} />} meta="Đang tạo">
+    <SectionCard title="Hoàn tất tài khoản" icon={<Landmark size={17} />}>
       <dl className={styles.fields}>
+        {/* Nhãn trạng thái cùng kiểu với mặt đã hoàn thành — chữ meta thường
+            quá mờ cho một trạng thái cần thấy ngay. */}
+        <div>
+          <dt>Trạng thái</dt>
+          <dd>
+            <StatusTag tone="waiting">Đang tạo</StatusTag>
+          </dd>
+        </div>
         <div>
           <dt>Khách hàng</dt>
           <dd>
@@ -223,6 +231,13 @@ function FinishAccountCard({
         <div>
           <dt>Mã giới thiệu</dt>
           <dd>{data.referralCode}</dd>
+        </div>
+        {/* Loại đã chốt từ mã giới thiệu, và hướng dẫn + số ảnh bắt buộc bên
+            dưới đi theo loại — không hiện thì người điền không biết mình đang
+            theo bản nào. */}
+        <div>
+          <dt>Loại tài khoản</dt>
+          <dd>{ACCOUNT_TYPE_LABEL[data.accountType]}</dd>
         </div>
         <div>
           <dt>Kênh</dt>

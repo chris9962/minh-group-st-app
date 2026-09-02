@@ -93,8 +93,23 @@ export const Bank = z.object({
   guide: z.string(),
   /** URL ảnh mẫu, ĐÚNG thứ tự người nhập xếp — khớp với "Ảnh 1 · Ảnh 2…" trong `guide`. */
   guidePhotoUrls: z.array(z.string()),
+  /**
+   * Bản hướng dẫn theo loại tài khoản (chốt 2026-09-02) — BA BẢN TÁCH HẲN:
+   * CNKD/HKD chưa cài thì không có hướng dẫn, không lấy bản thường thay.
+   */
+  guideVariants: z.array(
+    z.object({
+      accountType: z.enum(['CNKD', 'HKD']),
+      requiredPhotos: z.number(),
+      guide: z.string(),
+      guidePhotoUrls: z.array(z.string()),
+    }),
+  ),
 });
 export type Bank = z.infer<typeof Bank>;
+
+export const BANK_GUIDE_VARIANT_TYPES = ['CNKD', 'HKD'] as const;
+export type BankGuideVariantType = (typeof BANK_GUIDE_VARIANT_TYPES)[number];
 
 const OptionalAge = z
   .int("Độ tuổi phải là số nguyên")
@@ -154,6 +169,18 @@ export const BankForm = z.object({
    * việc của ngân hàng đó, thường 2–3 tấm nhưng có ca sáu tấm.
    */
   guidePhotoUrls: z.array(ImageRef),
+  /** Hộp thoại luôn gửi đủ CNKD + HKD — ba bản tách hẳn, không có quy tắc dùng thay. */
+  guideVariants: z.array(
+    z.object({
+      accountType: z.enum(['CNKD', 'HKD']),
+      requiredPhotos: z
+        .int('Số ảnh phải là số nguyên')
+        .min(0, 'Số ảnh phải từ 0 trở lên')
+        .max(SMALLINT_MAX, 'Số ảnh lớn quá'),
+      guide: z.string(),
+      guidePhotoUrls: z.array(ImageRef),
+    }),
+  ),
 }).superRefine((value, ctx) => {
   if (value.minAge !== null && value.maxAge !== null && value.minAge > value.maxAge)
     ctx.addIssue({ code: "custom", path: ["maxAge"], message: "Tuổi tối đa phải lớn hơn hoặc bằng tuổi tối thiểu" });

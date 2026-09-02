@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, inArray, sql, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, ne, sql, type SQL } from "drizzle-orm";
 import { CODE_LOW_RATIO } from "@/lib/api/bankCatalog";
 import type {
   Bank,
@@ -37,6 +37,7 @@ import { recomputeKpiForMonth } from "./kpi";
 import { imageKeyOf, imageUrl } from "./storage";
 import {
   bankGuidePhotos,
+  bankGuideVariants,
   banks,
   channels,
   giftItems,
@@ -100,6 +101,7 @@ const toBank = (
   r: typeof banks.$inferSelect,
   managers: BankManager[] = [],
   guidePhotoKeys: string[] = [],
+  guideVariants: Bank["guideVariants"] = [],
 ): Bank => ({
   id: r.id,
   code: r.code,
@@ -117,6 +119,7 @@ const toBank = (
   guide: r.guide ?? "",
   // Cột giữ KHOÁ, hợp đồng API trả URL — cùng luật ảnh chứng minh.
   guidePhotoUrls: guidePhotoKeys.map(imageUrl),
+  guideVariants,
 });
 
 /**
@@ -189,6 +192,7 @@ async function revokeOrphanBankManagers(tx: Tx, droppedIds: string[]) {
  * Không truy vấn theo từng ngân hàng: 13 dòng là 13 lượt đi về database cho một
  * màn (N+1), mà cả bảng chỉ vài chục dòng nên lấy trọn rẻ hơn hẳn.
  */
+/** Khoá gộp `bankId|accountType` — mỗi bản hướng dẫn một bộ ảnh riêng. */
 async function guidePhotos(): Promise<Map<string, string[]>> {
   const rows = await db
     .select()
@@ -196,21 +200,74 @@ async function guidePhotos(): Promise<Map<string, string[]>> {
     .orderBy(asc(bankGuidePhotos.bankId), asc(bankGuidePhotos.sortOrder));
   const byBank = new Map<string, string[]>();
   for (const r of rows) {
-    const list = byBank.get(r.bankId) ?? [];
+    const key = `${r.bankId}|${r.accountType}`;
+    const list = byBank.get(key) ?? [];
     list.push(r.url);
-    byBank.set(r.bankId, list);
+    byBank.set(key, list);
   }
   return byBank;
 }
 
-/** Ảnh mẫu của MỘT ngân hàng, đúng thứ tự người nhập xếp. */
-async function guidePhotosOf(runner: Tx | typeof db, bankId: string): Promise<string[]> {
+/** Ảnh mẫu của MỘT bản hướng dẫn, đúng thứ tự người nhập xếp. */
+async function guidePhotosOf(
+  runner: Tx | typeof db,
+  bankId: string,
+  accountType: "none" | "CNKD" | "HKD" = "none",
+): Promise<string[]> {
   const rows = await runner
     .select({ url: bankGuidePhotos.url })
     .from(bankGuidePhotos)
-    .where(eq(bankGuidePhotos.bankId, bankId))
+    .where(and(eq(bankGuidePhotos.bankId, bankId), eq(bankGuidePhotos.accountType, accountType)))
     .orderBy(asc(bankGuidePhotos.sortOrder));
   return rows.map((r) => r.url);
+}
+
+/** Bản hướng dẫn riêng theo loại của MỘT ngân hàng, kèm ảnh đã đổi sang URL. */
+async function guideVariantsOf(
+  runner: Tx | typeof db,
+  bankId: string,
+): Promise<Bank["guideVariants"]> {
+  const rows = await runner
+    .select()
+    .from(bankGuideVariants)
+    .where(eq(bankGuideVariants.bankId, bankId))
+    .orderBy(asc(bankGuideVariants.accountType));
+
+  const variants: Bank["guideVariants"] = [];
+  for (const v of rows) {
+    if (v.accountType === "none") continue;
+    variants.push({
+      accountType: v.accountType,
+      requiredPhotos: v.requiredPhotos,
+      guide: v.guide ?? "",
+      guidePhotoUrls: (await guidePhotosOf(runner, bankId, v.accountType)).map(imageUrl),
+    });
+  }
+  return variants;
+}
+
+/** Bản riêng của TỪNG ngân hàng, nạp MỘT lượt cho cả danh sách — cùng lý do `guidePhotos`. */
+async function guideVariantsAll(
+  photosByKey: Map<string, string[]>,
+): Promise<Map<string, Bank["guideVariants"]>> {
+  const rows = await db
+    .select()
+    .from(bankGuideVariants)
+    .orderBy(asc(bankGuideVariants.bankId), asc(bankGuideVariants.accountType));
+
+  const byBank = new Map<string, Bank["guideVariants"]>();
+  for (const v of rows) {
+    if (v.accountType === "none") continue;
+    const list = byBank.get(v.bankId) ?? [];
+    list.push({
+      accountType: v.accountType,
+      requiredPhotos: v.requiredPhotos,
+      guide: v.guide ?? "",
+      guidePhotoUrls: (photosByKey.get(`${v.bankId}|${v.accountType}`) ?? []).map(imageUrl),
+    });
+    byBank.set(v.bankId, list);
+  }
+  return byBank;
 }
 
 /**
@@ -223,15 +280,50 @@ async function guidePhotosOf(runner: Tx | typeof db, bankId: string): Promise<st
  * Chuỗi nào không phải ảnh trong kho của mình thì `imageKeyOf` trả `null` và
  * dòng đó bị bỏ — chốt chặn giống `qrImageKey`.
  */
-async function writeGuidePhotos(tx: Tx, bankId: string, urls: string[]) {
-  await tx.delete(bankGuidePhotos).where(eq(bankGuidePhotos.bankId, bankId));
+async function writeGuidePhotos(
+  tx: Tx,
+  bankId: string,
+  urls: string[],
+  accountType: "none" | "CNKD" | "HKD" = "none",
+) {
+  await tx
+    .delete(bankGuidePhotos)
+    .where(and(eq(bankGuidePhotos.bankId, bankId), eq(bankGuidePhotos.accountType, accountType)));
 
   const keys = urls.map(imageKeyOf).filter((k): k is string => k !== null);
   if (keys.length === 0) return;
 
   await tx
     .insert(bankGuidePhotos)
-    .values(keys.map((url, i) => ({ bankId, url, sortOrder: i })));
+    .values(keys.map((url, i) => ({ bankId, accountType, url, sortOrder: i })));
+}
+
+/**
+ * Ghi lại TRỌN bộ bản riêng theo loại: xoá hết rồi chèn theo biểu mẫu. Loại
+ * không gửi lên nghĩa là bỏ bản riêng — ảnh của nó xoá theo, ảnh bản thường
+ * (`none`) không bị đụng.
+ */
+async function writeGuideVariants(tx: Tx, bankId: string, variants: BankForm["guideVariants"]) {
+  await tx.delete(bankGuideVariants).where(eq(bankGuideVariants.bankId, bankId));
+  await tx
+    .delete(bankGuidePhotos)
+    .where(and(eq(bankGuidePhotos.bankId, bankId), ne(bankGuidePhotos.accountType, "none")));
+
+  const seen = new Set<string>();
+  for (const v of variants) {
+    // Trùng loại trong một biểu mẫu là lỗi phía gọi — giữ bản đầu, bỏ bản sau,
+    // đừng để lỗi trùng khoá biến thành thông báo "Mã ngân hàng này đã có".
+    if (seen.has(v.accountType)) continue;
+    seen.add(v.accountType);
+
+    await tx.insert(bankGuideVariants).values({
+      bankId,
+      accountType: v.accountType,
+      requiredPhotos: v.requiredPhotos,
+      guide: v.guide || null,
+    });
+    await writeGuidePhotos(tx, bankId, v.guidePhotoUrls, v.accountType);
+  }
 }
 
 /** Người quản của MỘT ngân hàng, kèm tên. Dùng khi trả một bản ghi ra ngoài. */
@@ -369,7 +461,10 @@ export async function listBanks(): Promise<Bank[]> {
     bankManagers(),
     guidePhotos(),
   ]);
-  return rows.map((r) => toBank(r, managers.get(r.id) ?? [], photos.get(r.id) ?? []));
+  const variants = await guideVariantsAll(photos);
+  return rows.map((r) =>
+    toBank(r, managers.get(r.id) ?? [], photos.get(`${r.id}|none`) ?? [], variants.get(r.id) ?? []),
+  );
 }
 
 /**
@@ -410,9 +505,15 @@ export async function createBank(
         .returning();
       await writeBankManagers(tx, row.id, form.managerIds, canAssign);
       await writeGuidePhotos(tx, row.id, form.guidePhotoUrls);
+      await writeGuideVariants(tx, row.id, form.guideVariants);
       return {
         ok: true as const,
-        item: toBank(row, await bankManagersOf(tx, row.id), await guidePhotosOf(tx, row.id)),
+        item: toBank(
+          row,
+          await bankManagersOf(tx, row.id),
+          await guidePhotosOf(tx, row.id),
+          await guideVariantsOf(tx, row.id),
+        ),
       };
     });
   } catch (e) {
@@ -462,9 +563,15 @@ export async function updateBank(
       if (!row) return null;
       await writeBankManagers(tx, id, form.managerIds, canAssign);
       await writeGuidePhotos(tx, id, form.guidePhotoUrls);
+      await writeGuideVariants(tx, id, form.guideVariants);
       return {
         ok: true as const,
-        item: toBank(row, await bankManagersOf(tx, id), await guidePhotosOf(tx, id)),
+        item: toBank(
+          row,
+          await bankManagersOf(tx, id),
+          await guidePhotosOf(tx, id),
+          await guideVariantsOf(tx, id),
+        ),
       };
     });
   } catch (e) {
@@ -476,7 +583,12 @@ export async function updateBank(
 export async function setBankActive(id: string, active: boolean): Promise<Bank | null> {
   const [row] = await db.update(banks).set({ active }).where(eq(banks.id, id)).returning();
   if (!row) return null;
-  return toBank(row, await bankManagersOf(db, id), await guidePhotosOf(db, id));
+  return toBank(
+    row,
+    await bankManagersOf(db, id),
+    await guidePhotosOf(db, id),
+    await guideVariantsOf(db, id),
+  );
 }
 
 /* ── Mã giới thiệu ────────────────────────────────────────────────────── */
