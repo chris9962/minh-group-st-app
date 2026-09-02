@@ -68,6 +68,10 @@ export const BankAccountDetail = BankAccountRow.extend({
   requiredPhotos: z.number(),
   /** Quyết ô số tài khoản ở bước 2 là ô gõ tay hay ô chọn SĐT. */
   accountNumberMethod: AccountNumberMethod,
+  /** Tiền tố điền sẵn vào ô số tài khoản khi gõ tay; `''` = không có. */
+  accountNumberPrefix: z.string(),
+  /** Độ dài số tài khoản khi gõ tay — tổng, tính cả tiền tố; null = không kiểm. */
+  accountNumberLength: z.number().nullable(),
   /** Mọi SĐT của khách, số chính đứng đầu — nguồn cho ô chọn khi `phone-match`. */
   customerPhones: z.array(z.string()),
   /** Link mở tài khoản của mã giới thiệu; `''` = mã không có link. */

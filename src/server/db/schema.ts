@@ -246,6 +246,17 @@ export const banks = pgTable(
     accountNumberMethod: accountNumberMethod("account_number_method")
       .notNull()
       .default("phone-match"),
+    /**
+     * Tiền tố điền sẵn vào ô số tài khoản ở bước 2 khi phương thức là `manual`
+     * — vài ngân hàng luôn mở đầu số tài khoản bằng một cụm cố định (`1000`,
+     * `0000`). `''` = không có tiền tố.
+     */
+    accountNumberPrefix: text("account_number_prefix").notNull().default(""),
+    /**
+     * Độ dài số tài khoản khi phương thức là `manual` — TỔNG số chữ số, tính cả
+     * tiền tố. null = ngân hàng không cố định độ dài, không kiểm.
+     */
+    accountNumberLength: smallint("account_number_length"),
     /** Hệ số điểm KPI — VPb = 1.4. */
     coefficient: numeric("coefficient", { precision: 4, scale: 2 }).notNull().default("1"),
     /** false với CNKD/HKD — tính điểm nhưng không đếm vào tổng app xét quà. */

@@ -330,6 +330,8 @@ const decorate = (page: ReturnType<typeof pickPage>) =>
       status: page.status,
       requiredPhotos: banks.requiredPhotos,
       accountNumberMethod: banks.accountNumberMethod,
+      accountNumberPrefix: banks.accountNumberPrefix,
+      accountNumberLength: banks.accountNumberLength,
       // Hướng dẫn mở tài khoản của ngân hàng này (spec §4.4d). `''` = chưa có.
       bankGuide: sql<string>`coalesce(${banks.guide}, '')`,
     })
@@ -685,6 +687,8 @@ export async function bankAccountDetail(
     finishedAt: r.finishedAt?.toISOString() ?? "",
     requiredPhotos: r.requiredPhotos,
     accountNumberMethod: r.accountNumberMethod,
+    accountNumberPrefix: r.accountNumberPrefix,
+    accountNumberLength: r.accountNumberLength,
     customerPhones: await customerPhoneNumbers(r.customerId),
     referralOpenUrl: r.referralOpenUrl,
     referralQrUrl: r.referralQrImage ? imageUrl(r.referralQrImage) : "",
@@ -1062,6 +1066,18 @@ export async function finishBankAccount(
       };
   }
 
+  // Ô nhập đã giới hạn độ dài, nhưng ô nhập không phải chốt chặn — cùng lý do
+  // với phép kiểm phone-match ngay trên.
+  if (
+    current.accountNumberMethod === "manual" &&
+    current.accountNumberLength !== null &&
+    form.accountNumber.length !== current.accountNumberLength
+  )
+    return {
+      ok: false,
+      message: `Số tài khoản ${current.bankCode} phải đủ ${current.accountNumberLength} chữ số.`,
+    };
+
   /**
    * Đếm ảnh và ghi phải nằm TRONG CÙNG MỘT GIAO DỊCH, và câu ghi phải mang lại
    * điều kiện `status = 'creating'`.
@@ -1171,6 +1187,16 @@ export async function updateFinishedAccount(
         message: `Ngân hàng ${current.bankCode} lấy số tài khoản theo SĐT — chọn một số điện thoại của khách.`,
       };
   }
+
+  if (
+    current.accountNumberMethod === "manual" &&
+    current.accountNumberLength !== null &&
+    form.accountNumber.length !== current.accountNumberLength
+  )
+    return {
+      ok: false,
+      message: `Số tài khoản ${current.bankCode} phải đủ ${current.accountNumberLength} chữ số.`,
+    };
 
   // Mã giới thiệu và loại tài khoản là lịch sử đã chốt, không đổi ở màn sửa.
   const accountType = current.accountType;

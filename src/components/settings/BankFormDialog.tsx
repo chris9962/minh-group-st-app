@@ -108,6 +108,8 @@ export function BankFormDialog({ open, onClose, bank }: Props) {
       code: bank?.code ?? "",
       requiredPhotos: bank?.requiredPhotos ?? 3,
       accountNumberMethod: bank?.accountNumberMethod ?? "phone-match",
+      accountNumberPrefix: bank?.accountNumberPrefix ?? "",
+      accountNumberLength: bank?.accountNumberLength ?? null,
       countsAsApp: bank?.countsAsApp ?? true,
       priority: bank?.priority ?? 0,
       minAge: bank?.minAge ?? null,
@@ -247,6 +249,33 @@ export function BankFormDialog({ open, onClose, bank }: Props) {
             label,
           }))}
         />
+
+        {watch("accountNumberMethod") === "manual" && (
+          <div className={styles.pair}>
+            <TextField
+              label="Tiền tố số tài khoản"
+              type="text"
+              inputMode="numeric"
+              placeholder="1000"
+              hint="Điền sẵn vào đầu ô số tài khoản ở bước 2. Để trống nếu không có."
+              error={errors.accountNumberPrefix?.message}
+              {...numericField(register("accountNumberPrefix"), digitsOnly)}
+            />
+
+            <TextField
+              label="Độ dài số tài khoản"
+              type="text"
+              inputMode="numeric"
+              placeholder="Không cố định"
+              hint="Tổng số chữ số, tính cả tiền tố. Để trống nếu không cố định."
+              error={errors.accountNumberLength?.message}
+              {...numericField(
+                register("accountNumberLength", { setValueAs: (value) => (value === "" ? null : numberValue(value)) }),
+                digitsOnly,
+              )}
+            />
+          </div>
+        )}
 
         <Checkbox
           label="Có đi kèm app (tính vào tổng app xét quà)"

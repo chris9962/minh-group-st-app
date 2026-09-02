@@ -46,6 +46,17 @@ export const Bank = z.object({
   requiredPhotos: z.number(),
   accountNumberMethod: AccountNumberMethod,
   /**
+   * Tiền tố điền sẵn vào ô số tài khoản ở bước 2 khi ngân hàng nhập tay — vài
+   * ngân hàng luôn mở đầu số tài khoản bằng một cụm cố định (`1000`, `0000`).
+   * `''` = không có tiền tố.
+   */
+  accountNumberPrefix: z.string(),
+  /**
+   * Độ dài số tài khoản khi nhập tay — TỔNG số chữ số, tính cả tiền tố.
+   * null = ngân hàng không cố định độ dài, không kiểm.
+   */
+  accountNumberLength: z.number().nullable(),
+  /**
    * Hệ số điểm KPI cũ. HẾT TÁC DỤNG từ 03/08 — điểm giờ tính theo tổ hợp combo
    * của từng khách trong `src/rules/YYYY-MM.ts`, không cộng hệ số từng ngân
    * hàng (`mgst-db-design.md`:458).
@@ -95,6 +106,18 @@ export const BankForm = z.object({
   code: z.string().trim().min(1, 'Chưa nhập mã ngân hàng'),
   requiredPhotos: z.int('Số ảnh phải là số nguyên').min(0, 'Số ảnh phải từ 0 trở lên').max(SMALLINT_MAX, 'Số ảnh lớn quá'),
   accountNumberMethod: AccountNumberMethod,
+  /** Chỉ có nghĩa khi nhập tay; vẫn lưu khi đổi phương thức để đổi lại không mất. */
+  accountNumberPrefix: z
+    .string()
+    .trim()
+    .regex(/^\d*$/, 'Tiền tố chỉ gồm chữ số')
+    .max(10, 'Tiền tố dài quá'),
+  /** TỔNG số chữ số, tính cả tiền tố. null = không cố định độ dài. */
+  accountNumberLength: z
+    .int('Độ dài phải là số nguyên')
+    .min(1, 'Độ dài phải lớn hơn 0')
+    .max(30, 'Độ dài lớn quá')
+    .nullable(),
   countsAsApp: z.boolean(),
   /**
    * Mức ưu tiên trong ô chọn ngân hàng lúc mở tài khoản — số lớn lên đầu.
@@ -134,6 +157,10 @@ export const BankForm = z.object({
 }).superRefine((value, ctx) => {
   if (value.minAge !== null && value.maxAge !== null && value.minAge > value.maxAge)
     ctx.addIssue({ code: "custom", path: ["maxAge"], message: "Tuổi tối đa phải lớn hơn hoặc bằng tuổi tối thiểu" });
+  // Độ dài là TỔNG, tính cả tiền tố — tiền tố chiếm trọn độ dài thì không còn
+  // chỗ cho phần nhân viên gõ.
+  if (value.accountNumberLength !== null && value.accountNumberPrefix.length >= value.accountNumberLength)
+    ctx.addIssue({ code: "custom", path: ["accountNumberLength"], message: "Độ dài phải lớn hơn số chữ số của tiền tố" });
 });
 export type BankForm = z.infer<typeof BankForm>;
 

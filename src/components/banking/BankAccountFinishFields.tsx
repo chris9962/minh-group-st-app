@@ -11,6 +11,7 @@ import { BookOpen, ExternalLink, QrCode } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { ImageLightbox } from "@/components/ui/ImageLightbox";
 import { BankGuideDialog } from "./BankGuideDialog";
+import { CharCount } from "@/components/ui/CharCount";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { Select } from "@/components/ui/Select";
 import { DateField } from "@/components/ui/DateField";
@@ -30,6 +31,8 @@ type Props = {
   setValue: UseFormSetValue<BankAccountFinishForm>;
   bankCode: string;
   accountNumberMethod: AccountNumberMethod;
+  /** Độ dài số tài khoản khi gõ tay — tổng, tính cả tiền tố; null = không kiểm. */
+  accountNumberLength: number | null;
   /** Mọi SĐT của khách, số chính đứng đầu — nguồn cho ô chọn khi `phone-match`. */
   customerPhones: string[];
   /** Ảnh QR của mã giới thiệu; `''` = không dựng nút xem. */
@@ -64,6 +67,7 @@ export function BankAccountFinishFields({
   setValue,
   bankCode,
   accountNumberMethod,
+  accountNumberLength,
   customerPhones,
   referralQrUrl,
   bankGuide,
@@ -193,6 +197,13 @@ export function BankAccountFinishFields({
               required
               inputMode="numeric"
               pattern="[0-9]*"
+              maxLength={accountNumberLength ?? undefined}
+              labelAppend={
+                accountNumberLength ? (
+                  <CharCount value={watch("accountNumber")} max={accountNumberLength} />
+                ) : undefined
+              }
+              hint={accountNumberLength ? `Đủ ${accountNumberLength} chữ số.` : undefined}
               error={errors.accountNumber?.message}
               {...register("accountNumber")}
             />

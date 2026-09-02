@@ -414,6 +414,20 @@
       "when": 1788508800000,
       "tag": "0058_referral_code_qr_only",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1788595200000,
+      "tag": "0059_bank_account_number_prefix",
+      "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1788681600000,
+      "tag": "0060_bank_account_number_length",
+      "breakpoints": true
     }
   ]
 }
