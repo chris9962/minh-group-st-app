@@ -328,6 +328,7 @@ const pickPage = (where: SQL | undefined, orderBy: SQL[], limit: number, offset:
       certificateAttempts: insuranceOrders.certificateAttempts,
       pviCertificateUrl: insuranceOrders.pviCertificateUrl,
       pviSerialNumber: insuranceOrders.pviSerialNumber,
+      pviPrKey: insuranceOrders.pviPrKey,
       handledBy: insuranceOrders.handledBy,
       handledByDepartmentId: insuranceOrders.handledByDepartmentId,
       createdBy: insuranceOrders.createdBy,
@@ -371,6 +372,7 @@ const decorate = (page: ReturnType<typeof pickPage>) =>
       certificateAttempts: page.certificateAttempts,
       pviCertificateUrl: page.pviCertificateUrl,
       pviSerialNumber: page.pviSerialNumber,
+      pviPrKey: page.pviPrKey,
       createdById: page.createdBy,
       createdByName: creator.fullName,
       createdByDepartmentId: page.createdByDepartmentId,
@@ -422,10 +424,26 @@ const toRow = (r: DecoratedRow): InsuranceListRow => ({
   certificateAttempts: r.certificateAttempts,
 });
 
+/**
+ * Màn đơn trên QLCD của PVI — đường dẫn theo sản phẩm, trùng URL form tạo đơn
+ * của bot (`pvi-qlcd-playwright/lib/flows/*`). `pr_key` lưu THÔ nên mã hoá url
+ * ở đây (xem ghi chú cột `pvi_pr_key` trong schema).
+ */
+const PVI_ORDER_PATH: Record<InsuranceProduct, string> = {
+  motorbike: "TNDSMotor/Motor",
+  "electric-accident": "Electrical/ElectricalService",
+};
+
+const pviOrderUrlFor = (product: InsuranceProduct, prKey: string): string =>
+  prKey
+    ? `https://qlcd.pvi.com.vn/${PVI_ORDER_PATH[product]}/?pr_key=${encodeURIComponent(prKey)}&status=1`
+    : "";
+
 const toOrder = (r: DecoratedRow): InsuranceOrder => ({
   ...toRow(r),
   pviCertificateUrl: r.pviCertificateUrl,
   pviSerialNumber: r.pviSerialNumber,
+  pviOrderUrl: pviOrderUrlFor(r.product, r.pviPrKey),
   beneficiaryName: r.beneficiaryName,
   beneficiaryDob: r.beneficiaryDob,
   beneficiaryAddress: r.beneficiaryAddress,

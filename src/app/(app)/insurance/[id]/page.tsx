@@ -532,20 +532,35 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                 <Field label="Người xử lý">{data.handledByName ?? "—"}</Field>
               </FieldGroup>
 
-            {/* Link PDF do PVI gửi về ở callback. Chưa nhận thì không hiện gì —
+            {/* Hai link sang PVI: màn đơn trên QLCD (có từ lúc bot ghi `pr_key`)
+                và PDF do PVI gửi về ở callback. Chưa có thì không hiện gì —
                 không dòng chú thích, không nút mờ (AGENTS.md). */}
-            {data.pviCertificateUrl && (
+            {(data.pviOrderUrl || data.pviCertificateUrl) && (
               <div className={styles.pviBlock}>
-                <a
-                  className={styles.pviCertificate}
-                  href={data.pviCertificateUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  <FileText size={16} aria-hidden />
-                  Giấy chứng nhận điện tử (PDF)
-                  <ExternalLink size={14} aria-hidden />
-                </a>
+                {data.pviOrderUrl && (
+                  <a
+                    className={styles.pviCertificate}
+                    href={data.pviOrderUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <ShieldCheck size={16} aria-hidden />
+                    Xem đơn trên PVI
+                    <ExternalLink size={14} aria-hidden />
+                  </a>
+                )}
+                {data.pviCertificateUrl && (
+                  <a
+                    className={styles.pviCertificate}
+                    href={data.pviCertificateUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <FileText size={16} aria-hidden />
+                    Giấy chứng nhận điện tử (PDF)
+                    <ExternalLink size={14} aria-hidden />
+                  </a>
+                )}
               </div>
             )}
 

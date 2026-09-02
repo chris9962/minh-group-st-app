@@ -109,6 +109,8 @@ export const InsuranceOrder = InsuranceListRow.extend({
   pviCertificateUrl: z.string().default(""),
   /** Số ấn chỉ điện tử từ cùng callback. Chuỗi rỗng = chưa nhận. */
   pviSerialNumber: z.string().default(""),
+  /** Link màn đơn trên QLCD của PVI. Chuỗi rỗng = đơn chưa có `pr_key`. */
+  pviOrderUrl: z.string().default(""),
 });
 export type InsuranceOrder = z.infer<typeof InsuranceOrder>;
 
