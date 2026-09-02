@@ -410,7 +410,9 @@ export const householdPointsOf = (
  */
 const CASH_OF: Record<string, Omit<GiftCash, "reason">> = {
   VPa: { bankCode: "VPa", amount: 20_000, withinDays: 3 },
-  MSBa: { bankCode: "MSBa", amount: 50_000, withinDays: 10 },
+  // Hạn chi của `MSBa` rút từ 10 ngày xuống 5 — chốt 2026-09-03. Kỳ 2026-08
+  // giữ 10 ngày.
+  MSBa: { bankCode: "MSBa", amount: 50_000, withinDays: 5 },
 };
 
 /**

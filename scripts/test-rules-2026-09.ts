@@ -769,6 +769,17 @@ check("TH1 · 20k", giftOf(["MB", "VPa"]).cashTotal, 20_000);
 check("TH2 · không tiền", giftOf(["MB", "LPB"]).cashTotal, 0);
 check("TH3 · 70k", giftOf(["MB", "VPa", "MSBa"]).cashTotal, 70_000);
 check("TH4 · 50k", giftOf(["MB", "MSBa", "LPB"]).cashTotal, 50_000);
+/** Hạn chi 50k của MSBa rút xuống 5 ngày — chốt 2026-09-03. Kỳ 2026-08 giữ 10 ngày. */
+check(
+  "TH4 · hạn chi 50k là 5 ngày",
+  giftOf(["MB", "MSBa", "LPB"]).cash.find((c) => c.bankCode === "MSBa")?.withinDays ?? -1,
+  5,
+);
+check(
+  "TH1 · hạn chi 20k của VPa giữ 3 ngày",
+  giftOf(["MB", "VPa"]).cash.find((c) => c.bankCode === "VPa")?.withinDays ?? -1,
+  3,
+);
 check("TH5 · 20k", giftOf(["MB", "VPa", "LPB"]).cashTotal, 20_000);
 check("TH6 · không tiền", giftOf(["LPB", "TPB", "VIB"]).cashTotal, 0);
 check("TH7 · không tiền", giftOf(["LPB"]).cashTotal, 0);
