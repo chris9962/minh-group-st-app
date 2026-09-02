@@ -1431,17 +1431,74 @@ export async function addWard(provinceId: string, wardRefId: string): Promise<Pr
  * lại vài lần rồi đi hỏi. Trùng tên giữa hai xã khác nhau thì vẫn cho — "Ấp 3"
  * là tên phổ biến, xã nào cũng có.
  */
+/**
+ * Chỉ mục `hamlets_ward_name` so đúng từng byte nên "Ấp 2" với "ấp 2" vẫn chèn
+ * được cả hai. So ở app: hạ chữ thường bằng `toLowerCase` (lower() của
+ * Postgres bỏ qua chữ có dấu khi locale là C) và gộp khoảng trắng thừa.
+ */
+const hamletNameKey = (name: string) => name.replace(/\s+/g, " ").trim().toLowerCase();
+
+async function hamletNameTaken(
+  wardId: string,
+  name: string,
+  exceptId: string | null,
+): Promise<boolean> {
+  const siblings = await db
+    .select({ id: hamlets.id, name: hamlets.name })
+    .from(hamlets)
+    .where(eq(hamlets.wardId, wardId));
+  const key = hamletNameKey(name);
+  return siblings.some((h) => h.id !== exceptId && hamletNameKey(h.name) === key);
+}
+
 export async function addHamlet(
   wardId: string,
   name: string,
 ): Promise<CatalogOutcome<Province | null>> {
-  return catalogWrite(async () => {
-    const [ward] = await db.select().from(wards).where(eq(wards.id, wardId)).limit(1);
-    if (!ward) return null;
+  const [ward] = await db.select().from(wards).where(eq(wards.id, wardId)).limit(1);
+  if (!ward) return { ok: true, item: null };
+  if (await hamletNameTaken(wardId, name, null)) return { ok: false, reason: "name-taken" };
 
+  return catalogWrite(async () => {
     await db.insert(hamlets).values({ wardId, name });
     return provinceById(ward.provinceId);
   });
+}
+
+/**
+ * Đổi tên / xoá ấp KHÔNG đụng bản ghi nghiệp vụ (chốt 2026-09-02): kênh ấp lưu
+ * CHUỖI TÊN trong `channelDetail` chứ không lưu id, bản cũ giữ nguyên tên cũ,
+ * chỉ ô chọn ấp về sau đổi theo.
+ */
+export async function renameHamlet(
+  hamletId: string,
+  name: string,
+): Promise<CatalogOutcome<{ previousName: string; province: Province | null } | null>> {
+  const [hamlet] = await db.select().from(hamlets).where(eq(hamlets.id, hamletId)).limit(1);
+  if (!hamlet) return { ok: true, item: null };
+  const [ward] = await db.select().from(wards).where(eq(wards.id, hamlet.wardId)).limit(1);
+  if (!ward) return { ok: true, item: null };
+  // Trừ chính nó ra để vẫn sửa được kiểu chữ của tên đang có ("ấp 2" → "Ấp 2").
+  if (await hamletNameTaken(hamlet.wardId, name, hamletId)) {
+    return { ok: false, reason: "name-taken" };
+  }
+
+  return catalogWrite(async () => {
+    await db.update(hamlets).set({ name }).where(eq(hamlets.id, hamletId));
+    return { previousName: hamlet.name, province: await provinceById(ward.provinceId) };
+  });
+}
+
+export async function deleteHamlet(
+  hamletId: string,
+): Promise<{ deletedName: string; province: Province | null } | null> {
+  const [hamlet] = await db.select().from(hamlets).where(eq(hamlets.id, hamletId)).limit(1);
+  if (!hamlet) return null;
+  const [ward] = await db.select().from(wards).where(eq(wards.id, hamlet.wardId)).limit(1);
+  if (!ward) return null;
+
+  await db.delete(hamlets).where(eq(hamlets.id, hamletId));
+  return { deletedName: hamlet.name, province: await provinceById(ward.provinceId) };
 }
 
 /* ── Tham chiếu hành chính — chỉ đọc ──────────────────────────────────── */

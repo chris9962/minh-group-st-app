@@ -1,15 +1,17 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
-import { MapPin, Plus } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { MapPin, Pencil, Plus, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { SkeletonTable } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { Button } from "@/components/ui/Button";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { SearchField } from "@/components/ui/SearchField";
 import { SectionCard } from "@/components/ui/SectionCard";
-import { fetchProvinces, type Province, type Ward } from "@/lib/api/wardCatalog";
+import { deleteHamlet, fetchProvinces, type Hamlet, type Province, type Ward } from "@/lib/api/wardCatalog";
 import { matchesSearch } from "@/lib/format";
+import { errorMessage, toast } from "@/lib/toast";
 import { HamletFormDialog } from "./HamletFormDialog";
 import { ProvinceFormDialog } from "./ProvinceFormDialog";
 import { WardFormDialog } from "./WardFormDialog";
@@ -29,7 +31,20 @@ export function WardCatalogSection() {
   const [addingProvince, setAddingProvince] = useState(false);
   const [addingWardTo, setAddingWardTo] = useState<Province | null>(null);
   const [addingHamletTo, setAddingHamletTo] = useState<Ward | null>(null);
+  const [editingHamlet, setEditingHamlet] = useState<{ ward: Ward; hamlet: Hamlet } | null>(null);
+  const [deletingHamlet, setDeletingHamlet] = useState<Hamlet | null>(null);
   const [search, setSearch] = useState("");
+  const queryClient = useQueryClient();
+
+  const removeHamlet = useMutation({
+    mutationFn: deleteHamlet,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["provinces"] });
+      setDeletingHamlet(null);
+      toast.ok("Đã xoá ấp");
+    },
+    onError: (e) => toast.fail(errorMessage(e, "Không xoá được ấp này.")),
+  });
 
   const { data: provinces = [], isPending, isError, refetch, isFetching } = useQuery({
     queryKey: ["provinces"],
@@ -100,6 +115,26 @@ export function WardCatalogSection() {
                           {ward.hamlets.map((h) => (
                             <li key={h.id} className={styles.hamlet}>
                               {h.name}
+                              <span className={styles.hamletActions}>
+                                <Button
+                                  variant="secondary"
+                                  icon
+                                  tooltip="Sửa tên ấp"
+                                  aria-label={`Sửa ấp ${h.name}`}
+                                  onClick={() => setEditingHamlet({ ward, hamlet: h })}
+                                >
+                                  <Pencil size={14} aria-hidden />
+                                </Button>
+                                <Button
+                                  variant="secondary"
+                                  icon
+                                  tooltip="Xoá ấp"
+                                  aria-label={`Xoá ấp ${h.name}`}
+                                  onClick={() => setDeletingHamlet(h)}
+                                >
+                                  <Trash2 size={14} aria-hidden />
+                                </Button>
+                              </span>
                             </li>
                           ))}
                         </ul>
@@ -126,6 +161,27 @@ export function WardCatalogSection() {
       )}
       {addingHamletTo && (
         <HamletFormDialog open ward={addingHamletTo} onClose={() => setAddingHamletTo(null)} />
+      )}
+      {editingHamlet && (
+        <HamletFormDialog
+          open
+          ward={editingHamlet.ward}
+          hamlet={editingHamlet.hamlet}
+          onClose={() => setEditingHamlet(null)}
+        />
+      )}
+      {deletingHamlet && (
+        <ConfirmDialog
+          open
+          title="Xoá ấp"
+          confirmLabel="Xoá ấp"
+          pending={removeHamlet.isPending}
+          onConfirm={() => removeHamlet.mutate(deletingHamlet.id)}
+          onClose={() => setDeletingHamlet(null)}
+          consequence="Hồ sơ cũ gắn ấp này giữ nguyên tên đã lưu; ô chọn ấp không hiện tên này nữa."
+        >
+          Xoá ấp {deletingHamlet.name}?
+        </ConfirmDialog>
       )}
     </>
   );

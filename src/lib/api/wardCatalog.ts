@@ -99,6 +99,11 @@ export const HamletForm = z.object({
 });
 export type HamletForm = z.infer<typeof HamletForm>;
 
+export const HamletRenameForm = z.object({
+  name: z.string().trim().min(1, 'Chưa nhập tên ấp'),
+});
+export type HamletRenameForm = z.infer<typeof HamletRenameForm>;
+
 /**
  * Máy chủ đã nói rõ vì sao ("Xã này đã có ấp trùng tên") — nuốt đi rồi ném câu
  * chung chung là bắt người dùng tự đoán mình sai chỗ nào.
@@ -142,5 +147,21 @@ export async function createHamlet(form: HamletForm): Promise<Province> {
     body: JSON.stringify(form),
   });
   if (!res.ok) throw await failure(res, 'Không lưu được ấp này');
+  return Province.parse(await res.json());
+}
+
+export async function renameHamlet(id: string, form: HamletRenameForm): Promise<Province> {
+  const res = await fetch(`/api/settings/hamlets/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(form),
+  });
+  if (!res.ok) throw await failure(res, 'Không sửa được ấp này');
+  return Province.parse(await res.json());
+}
+
+export async function deleteHamlet(id: string): Promise<Province> {
+  const res = await fetch(`/api/settings/hamlets/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw await failure(res, 'Không xoá được ấp này');
   return Province.parse(await res.json());
 }
