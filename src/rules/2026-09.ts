@@ -19,10 +19,11 @@ import type {
  * riêng và đóng băng vĩnh viễn (spec §5.3). Dùng chung hàm nghĩa là ngày sửa kỳ
  * này sẽ đổi luôn điểm của kỳ đã trả lương xong.
  *
- * Mười chỗ khác kỳ 2026-08, xem mục 5 của thể lệ:
+ * Mười một chỗ khác kỳ 2026-08, xem mục 5 của thể lệ:
  *
  *   1. `TCB` vào nhóm Bank khác
- *   2. Combo 1 có điểm: ưu tiên 0,3 · khác 0,2 · hạn chế 0
+ *   2. Combo 1 có điểm: ưu tiên 0,3 · khác 0,2 · hạn chế 0; `MSBa` và `VPb`
+ *      không vào Combo 1
  *   3. Combo 1 có quà: TH7 một năm bảo hiểm, TH8 thêm 20k khi có `VPa`
  *   4. CNKD đi kèm `VPa` HOẶC `VPb`; HKD chỉ đi kèm `VPa`
  *   5. HKD được 3,0 điểm, CNKD còn MỘT mức 1,0
@@ -31,6 +32,7 @@ import type {
  *   8. Bỏ luật "chọn Mì hoặc Nón thì mất 20k"
  *   9. `VPa` hoặc `MSBa` chưa cài app, đứng một mình thì KHÔNG có quà nào
  *  10. Món khách đã nhận không còn đổi điểm nào
+ *  11. Khách mở cả `VPa` lẫn `VPb` là dữ liệu sai — 0 điểm
  *
  * Chạy thử: `bun run test:rules` (`scripts/test-rules-2026-09.ts`).
  */
@@ -83,6 +85,18 @@ const REQUIRES_APP = new Set(["VPa", "MSBa"]);
  * một mình không ra gì, còn `VPb` kèm CNKD ra 1,0 qua đường điểm CNKD.
  */
 const OUT_OF_COMBO_2 = new Set(["MSBa", "VPb"]);
+
+/**
+ * Mã KHÔNG được vào Combo 1 — Kế toán chốt 2026-09-02: *"MSBa cũng không được
+ * trong combo 1 và combo 2"*.
+ *
+ * `VPb` không cần có tên ở đây: bảng `COMBO_1_TENTHS` vốn không có dòng hạng
+ * hạn chế, nên `VPb` đứng một mình đã ra 0 điểm tổ hợp.
+ *
+ * Hệ quả: khách mở đúng một `MSBa` không thành tổ hợp nào. `MSBa` vẫn vào Combo
+ * 3 bình thường — bảng mục 2 có ba dòng chứa hạng ưu tiên đi cùng `MSBa`.
+ */
+const OUT_OF_COMBO_1 = new Set(["MSBa"]);
 
 /** Ký hiệu tra bảng điểm; `rank` để chữ ký không đổi theo thứ tự tài khoản nhập vào. */
 const SIGNATURE_OF: Record<Tier, { letter: string; rank: number }> = {
@@ -153,7 +167,8 @@ function bestComboOf(bankCodes: string[], hasCnkd: boolean): Combo {
   };
 
   for (let i = 0; i < codes.length; i += 1) {
-    keep(COMBO_1_TENTHS[signatureOf([codes[i]])] ?? 0, 1, [codes[i]]);
+    if (!OUT_OF_COMBO_1.has(codes[i]))
+      keep(COMBO_1_TENTHS[signatureOf([codes[i]])] ?? 0, 1, [codes[i]]);
 
     for (let j = i + 1; j < codes.length; j += 1) {
       for (let k = j + 1; k < codes.length; k += 1) {
@@ -201,8 +216,11 @@ export const bankTierOf = (bankCode: string): Tier | null => TIER_OF[bankCode] ?
  * `hasCnkd` để `false` vì ca `VPb` kèm CNKD ra 0 điểm tổ hợp dù xét cách nào —
  * nó chỉ đổi BẬC QUÀ, không đổi điểm.
  */
-export const comboPointsFor = (bankCodes: string[]): number =>
-  bestComboOf(bankCodes, false).tenths / 10;
+export const comboPointsFor = (bankCodes: string[]): number => {
+  const accounts = bankCodes.map((bankCode) => ({ bankCode }) as ScoringAccount);
+  if (hasBothVpModes(accounts)) return 0;
+  return bestComboOf(bankCodes, false).tenths / 10;
+};
 
 /* ── Mục 4c và 4d · điểm CNKD và HKD ─────────────────────────────────── */
 
@@ -270,6 +288,27 @@ const bankCountOf = (accounts: ScoringAccount[]): number =>
   new Set(accounts.filter((a) => a.bankCode in TIER_OF).map((a) => a.bankCode)).size;
 
 /**
+ * Khách mở CẢ `VPa` LẪN `VPb` — dữ liệu sai, khách đó KHÔNG góp điểm nào.
+ *
+ * `VPa` và `VPb` là hai cách đăng ký của CÙNG MỘT ngân hàng, nên một khách
+ * không thể có cả hai (Kế toán chốt 2026-09-02):
+ *
+ * > *"VPa và VPb không thể xảy ra cùng 1 combo được, bản chất nó là 1 ngân
+ * > hàng, chỉ khác cách đăng ký thôi"*
+ *
+ * ⚠️ CHỈ chặn ở đường ĐIỂM. Màn mở tài khoản vẫn cho nhân viên nhập cả hai —
+ * unique index `bank_accounts_customer_bank` khoá theo từng mã ngân hàng, mà
+ * `VPa` với `VPb` là hai mã. Kế toán chốt để nguyên: *"việc mở tài khoản nhân
+ * viên làm sai nhân viên chịu, nếu nhân viên mở sai VPa VPb cho khách, cứ cho
+ * 0 điểm"*.
+ *
+ * Dòng "02 Bank ưu tiên + 01 Bank hạn chế = 0,9" của bảng mục 2 KHÔNG chết theo
+ * luật này: nó vẫn đạt được bằng `MB` + `MSBa` + `VPb`.
+ */
+const hasBothVpModes = (accounts: ScoringAccount[]): boolean =>
+  accounts.some((a) => a.bankCode === "VPa") && accounts.some((a) => a.bankCode === "VPb");
+
+/**
  * Mã hộ kinh doanh này CÓ TÍNH không — khách phải mở đúng ngân hàng chủ của nó.
  *
  * Dùng chung cho cả điểm lẫn quà. Một điều kiện, hai đường đọc, nên chỉ có một
@@ -294,6 +333,7 @@ const hasHousehold = (
  * hạ mức HKD xuống dưới 1,0 thì luật vẫn đúng ý "lấy mức cao hơn".
  */
 function householdTenths(accounts: ScoringAccount[]): number {
+  if (hasBothVpModes(accounts)) return 0;
   let tenths = 0;
   if (hasHousehold(accounts, "HKD")) tenths = Math.max(tenths, HKD_TENTHS);
   if (hasHousehold(accounts, "CNKD")) tenths = Math.max(tenths, CNKD_TENTHS);
@@ -327,6 +367,10 @@ export function bankingPoints(accounts: ScoringAccount[], _granted: GrantedGifts
 
   let tenths = 0;
   for (const rows of byCustomer.values()) {
+    // Khách mở cả VPa lẫn VPb là dữ liệu sai — bỏ TRỌN khách đó, kể cả phần
+    // điểm hộ kinh doanh. Xem `hasBothVpModes`.
+    if (hasBothVpModes(rows)) continue;
+
     const combo = bestComboOf(
       rows.map((a) => a.bankCode),
       hasHousehold(rows, "CNKD"),

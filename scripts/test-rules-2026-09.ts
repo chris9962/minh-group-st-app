@@ -75,7 +75,7 @@ const points = (
 section("Bảng điểm Combo 3 (7 dòng)");
 check("03 ưu tiên", comboPointsFor(["MB", "VPa", "MSBa"]), 1.2);
 check("02 ưu tiên + 01 khác", comboPointsFor(["MB", "VPa", "LPB"]), 1.0);
-check("02 ưu tiên + 01 hạn chế", comboPointsFor(["MB", "VPa", "VPb"]), 0.9);
+check("02 ưu tiên + 01 hạn chế", comboPointsFor(["MB", "MSBa", "VPb"]), 0.9);
 check("01 ưu tiên + 02 khác", comboPointsFor(["MB", "LPB", "TPB"]), 0.8);
 check("01 ưu tiên + 01 khác + 01 hạn chế", comboPointsFor(["MB", "LPB", "VPb"]), 0.7);
 check("03 khác", comboPointsFor(["LPB", "TPB", "VIB"]), 0.7);
@@ -94,6 +94,7 @@ check("02 khác", comboPointsFor(["MSBb", "BIDV"]), 0.4);
  */
 section("Bảng điểm Combo 1 (3 dòng) — mới");
 check("01 ưu tiên · MB", comboPointsFor(["MB"]), 0.3);
+check("MSBa KHÔNG vào Combo 1", comboPointsFor(["MSBa"]), 0);
 check("01 ưu tiên · VPa", comboPointsFor(["VPa"]), 0.3);
 check("01 khác · LPB", comboPointsFor(["LPB"]), 0.2);
 check("01 hạn chế đứng một mình không có điểm tổ hợp", comboPointsFor(["VPb"]), 0);
@@ -127,10 +128,54 @@ section("Lưu ý 1 — MSBa và VPb không vào Combo 2");
 check("MB + MSBa rơi xuống Combo 1", comboPointsFor(["MB", "MSBa"]), 0.3);
 check("MB + VPb rơi xuống Combo 1", comboPointsFor(["MB", "VPb"]), 0.3);
 check("LPB + VPb rơi xuống Combo 1", comboPointsFor(["LPB", "VPb"]), 0.2);
-check("MSBa + VPb rơi xuống Combo 1", comboPointsFor(["MSBa", "VPb"]), 0.3);
+check("MSBa + VPb — cả hai đều ngoài Combo 1 và Combo 2, ra 0", comboPointsFor(["MSBa", "VPb"]), 0);
 check("MSBa vẫn vào được Combo 3", comboPointsFor(["MSBa", "LPB", "TPB"]), 0.8);
-/** Giả định G4: lưu ý 1 chỉ cấm MSBa ở Combo 2, không cấm ở Combo 1. */
-check("G4 · MSBa đứng một mình vẫn được 0,3", comboPointsFor(["MSBa"]), 0.3);
+/** Kế toán chốt 2026-09-02: "MSBa cũng không được trong combo 1 và combo 2". */
+check("MSBa đứng một mình — 0 điểm", comboPointsFor(["MSBa"]), 0);
+
+/* ── VPa và VPb không cùng một khách ─────────────────────────────────── */
+
+/**
+ * `VPa` và `VPb` là hai cách đăng ký của CÙNG MỘT ngân hàng — Kế toán chốt
+ * 2026-09-02. Khách có cả hai là dữ liệu sai, và khách đó KHÔNG góp điểm nào.
+ *
+ * Màn mở tài khoản vẫn cho nhập cả hai. Kế toán chốt để nguyên: nhân viên mở
+ * sai thì nhân viên chịu.
+ */
+section("Khách mở cả VPa lẫn VPb — 0 điểm");
+check("VPa + VPb", points([account("kh1", "VPa"), account("kh1", "VPb")]), 0);
+check(
+  "MB + VPa + VPb — mất luôn 0,9 của Combo 3",
+  points([account("kh1", "MB"), account("kh1", "VPa"), account("kh1", "VPb")]),
+  0,
+);
+check(
+  "VPa + VPb kèm CNKD — mất luôn điểm CNKD",
+  points([account("kh1", "VPa"), account("kh1", "VPb", { household: "CNKD" })]),
+  0,
+);
+check(
+  "VPa + VPb kèm HKD — mất luôn 3,0 của HKD",
+  points([account("kh1", "VPa", { household: "HKD" }), account("kh1", "VPb")]),
+  0,
+);
+check("comboPointsFor cũng trả 0", comboPointsFor(["MB", "VPa", "VPb"]), 0);
+/** Dòng PPR của bảng mục 2 KHÔNG chết theo luật này — vẫn đạt bằng MB + MSBa + VPb. */
+check(
+  "02 ưu tiên + 01 hạn chế vẫn đạt được bằng MB + MSBa + VPb",
+  points([account("kh1", "MB"), account("kh1", "MSBa"), account("kh1", "VPb")]),
+  0.9,
+);
+check(
+  "khách sai không kéo theo khách khác",
+  points([
+    account("kh1", "VPa"),
+    account("kh1", "VPb"),
+    account("kh2", "MB"),
+    account("kh2", "VPa"),
+  ]),
+  0.7,
+);
 
 /* ── Mã ngoài thể lệ ────────────────────────────────────────────────── */
 
@@ -147,10 +192,10 @@ check("MB + MB + VPa", comboPointsFor(["MB", "MB", "VPa"]), 0.7);
 check("MB + VPa + VPa + LPB", comboPointsFor(["MB", "VPa", "VPa", "LPB"]), 1.0);
 
 section("Dư tài khoản — lấy tổ hợp tốt nhất");
-check("MB·VPa·MSBa·VPb", comboPointsFor(["MB", "VPa", "MSBa", "VPb"]), 1.2);
-check("MB·VPa·VPb·LPB bỏ VPb", comboPointsFor(["MB", "VPa", "VPb", "LPB"]), 1.0);
+check("MB·VPa·MSBa·LPB", comboPointsFor(["MB", "VPa", "MSBa", "LPB"]), 1.2);
+check("MB·MSBa·VPb·LPB bỏ VPb", comboPointsFor(["MB", "MSBa", "VPb", "LPB"]), 1.0);
 check("LPB·TPB·VIB·VPb bỏ VPb", comboPointsFor(["LPB", "TPB", "VIB", "VPb"]), 0.7);
-check("năm tài khoản", comboPointsFor(["MB", "VPa", "MSBa", "LPB", "VPb"]), 1.2);
+check("năm tài khoản", comboPointsFor(["MB", "VPa", "MSBa", "LPB", "TPB"]), 1.2);
 check("trần mỗi khách là 1.2", comboPointsFor(["MB", "VPa", "MSBa", "LPB", "TPB", "VIB"]), 1.2);
 
 /* ── Mục 4c · điểm CNKD ─────────────────────────────────────────────── */
@@ -634,7 +679,7 @@ check(
 check("MB chưa cài app vẫn được TH7", giftOf(["MB!"]).caseCode, "TH7");
 check("MSBa chưa cài app, đứng một mình — KHÔNG có bậc nào", giftOf(["MSBa!"]).caseCode, null);
 check("MSBa chưa cài app — không có bảo hiểm", giftOf(["MSBa!"]).insuranceYears, 0);
-check("MSBa chưa cài app vẫn được 0,3 điểm Combo 1", points([account("kh1", "MSBa", { app: false })]), 0.3);
+check("MSBa chưa cài app cũng 0 điểm — MSBa ngoài Combo 1", points([account("kh1", "MSBa", { app: false })]), 0);
 check("VPa chưa cài kèm MB — Combo 2 hợp lệ, ra TH2 vì VPa chưa cài", giftOf(["VPa!", "MB"]).caseCode, "TH2");
 check("VPa chưa cài kèm MSBa chưa cài — hai ngân hàng, vẫn không có app nào", giftOf(["VPa!", "MSBa!"]).caseCode, "TH7");
 check(
