@@ -50,12 +50,14 @@ export type OrderStatsSheet = {
   name: string;
   /** Dòng tiêu đề gộp trọn bề ngang. */
   title: string;
-  rows: { label: string; measures: OrderStatsMeasures }[];
+  /** `department` chỉ dùng ở bản theo nhân viên — cột PHÒNG. */
+  rows: { label: string; department?: string; measures: OrderStatsMeasures }[];
 };
 
 /**
  * Cột đầu khác nhau giữa hai trục gộp: theo phòng chỉ có `PHÒNG`, theo nhân
- * viên có `STT` cộng `HỌ VÀ TÊN`. Phần còn lại giống hệt.
+ * viên có `STT` · `HỌ VÀ TÊN` · `PHÒNG` (cột phòng chốt 2026-09-02). Phần còn
+ * lại giống hệt.
  */
 export type OrderStatsShape = 'department' | 'staff';
 
@@ -70,11 +72,11 @@ function buildSheet(
   // Excel cấm * ? : \ / [ ] trong tên sheet và giới hạn 31 ký tự.
   const ws = wb.addWorksheet(sheet.name.replace(/[*?:\\/[\]]/g, '-').slice(0, 31) || 'Sheet1');
 
-  const leadWidth = shape === 'staff' ? 2 : 1;
+  const leadWidth = shape === 'staff' ? 3 : 1;
   const total = leadWidth + 10 + 1;
 
   ws.columns = [
-    ...(shape === 'staff' ? [{ width: 6 }, { width: 42 }] : [{ width: 26 }]),
+    ...(shape === 'staff' ? [{ width: 6 }, { width: 42 }, { width: 22 }] : [{ width: 26 }]),
     ...USED_HEADERS.map(() => ({ width: 16 })),
     ...CANCELLED_HEADERS.map(() => ({ width: 16 })),
     { width: 18 },
@@ -100,7 +102,7 @@ function buildSheet(
   // Dòng 2 và 3 — hai tầng đầu bảng.
   ws.addRow([]);
   ws.addRow([]);
-  const lead = shape === 'staff' ? ['STT', 'HỌ VÀ TÊN'] : ['PHÒNG'];
+  const lead = shape === 'staff' ? ['STT', 'HỌ VÀ TÊN', 'PHÒNG'] : ['PHÒNG'];
   lead.forEach((label, i) => {
     ws.getCell(2, i + 1).value = label;
     ws.mergeCells(2, i + 1, 3, i + 1);
@@ -129,13 +131,15 @@ function buildSheet(
 
   for (const [index, row] of sheet.rows.entries())
     ws.addRow([
-      ...(shape === 'staff' ? [index + 1, nameForExcel(row.label)] : [row.label]),
+      ...(shape === 'staff'
+        ? [index + 1, nameForExcel(row.label), row.department ?? '']
+        : [row.label]),
       ...row.measures,
       '',
     ]);
 
   const totalRow = ws.addRow([
-    ...(shape === 'staff' ? ['TỔNG', ''] : ['TỔNG']),
+    ...(shape === 'staff' ? ['TỔNG', '', ''] : ['TỔNG']),
     ...USED_HEADERS.map((_, i) => sum(sheet.rows, i)),
     ...CANCELLED_HEADERS.map((_, i) => sum(sheet.rows, i + 5)),
     '',
@@ -146,8 +150,8 @@ function buildSheet(
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: TOTAL_GREY } };
     cell.border = thinBorder;
   }
-  // Bản theo nhân viên gộp ô TỔNG qua cột tên, đúng như file Kế toán.
-  if (shape === 'staff') ws.mergeCells(totalRow.number, 1, totalRow.number, 2);
+  // Bản theo nhân viên gộp ô TỔNG qua cột tên và cột phòng, đúng như file Kế toán.
+  if (shape === 'staff') ws.mergeCells(totalRow.number, 1, totalRow.number, leadWidth);
 
   // Giữ ba dòng đầu và cột tên khi cuộn — bảng theo nhân viên dài tới vài chục
   // dòng, cuộn xuống là mất tên cột.

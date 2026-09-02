@@ -100,8 +100,8 @@ export const OrderStatsCell = z.object({
 export type OrderStatsCell = z.infer<typeof OrderStatsCell>;
 
 export const OrderStatsResult = z.object({
-  /** Đúng thứ tự dòng trong sheet. Gộp theo phòng thì có cả phòng 0 đơn. */
-  groups: z.array(z.object({ id: z.string(), label: z.string() })),
+  /** Đúng thứ tự dòng trong sheet. Gộp theo phòng thì có cả phòng 0 đơn; trục nhân viên kèm tên phòng. */
+  groups: z.array(z.object({ id: z.string(), label: z.string(), department: z.string().optional() })),
   cells: z.array(OrderStatsCell),
 });
 export type OrderStatsResult = z.infer<typeof OrderStatsResult>;

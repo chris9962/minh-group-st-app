@@ -463,7 +463,11 @@ export default function ExportsPage() {
           title,
           rows: groups
             .filter((g) => statsGroupBy === "department" || byGroup.has(g.id))
-            .map((g) => ({ label: g.label, measures: byGroup.get(g.id) ?? zero })),
+            .map((g) => ({
+              label: g.label,
+              department: g.department,
+              measures: byGroup.get(g.id) ?? zero,
+            })),
         };
       };
 

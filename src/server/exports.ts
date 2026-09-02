@@ -357,7 +357,8 @@ export type OrderStatsCell = {
   healthCancelled: number;
 };
 
-export type OrderStatsGroup = { id: string; label: string };
+/** `department` chỉ có ở trục nhân viên — cột PHÒNG cạnh cột HỌ VÀ TÊN. */
+export type OrderStatsGroup = { id: string; label: string; department?: string };
 
 export type OrderStatsResult = {
   /** Đúng thứ tự hiện trong sheet. Nhóm không có số nào vẫn nằm đây khi gộp theo phòng. */
@@ -573,10 +574,21 @@ async function groupsOf(
   if (ids.length === 0) return [];
 
   const rows = await db
-    .select({ id: users.id, label: users.fullName })
+    .select({
+      id: users.id,
+      label: users.fullName,
+      // Phòng HIỆN TẠI của người nhập (chốt 2026-09-02) — hai cột BHSK vốn đã
+      // gộp theo phòng hiện tại (xem `addHealthGiftCounts`), lấy cùng nguồn
+      // thì cột PHÒNG không mâu thuẫn với chính số liệu trên dòng.
+      department: sql<string>`coalesce(${departments.name}, '')`,
+    })
     .from(users)
+    .leftJoin(departments, eq(departments.id, users.departmentId))
     .where(inArray(users.id, ids))
     .orderBy(users.fullName);
 
-  return [...rows, ...(used.has("") ? [{ id: "", label: "Không rõ người tạo" }] : [])];
+  return [
+    ...rows,
+    ...(used.has("") ? [{ id: "", label: "Không rõ người tạo", department: "" }] : []),
+  ];
 }
