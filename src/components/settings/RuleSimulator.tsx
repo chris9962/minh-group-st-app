@@ -34,22 +34,6 @@ const DEPARTMENTS: { value: string; label: string }[] = [
 ];
 
 /**
- * Món khách ĐÃ nhận. Chỉ liệt kê vật phẩm — gói bảo hiểm không đổi gì.
- *
- * Kỳ 2026-09 món đã nhận KHÔNG đổi tiền lẫn rổ quà: Kế toán bỏ luật "chọn Mì
- * hoặc Nón thì mất 20k" ngày 2026-09-02. Ô này giữ lại vì màn tra luật theo
- * NGÀY, và kỳ 2026-08 thì món đã nhận có đổi tiền.
- */
-const GRANTED_ITEMS: { value: string; label: string }[] = [
-  { value: "", label: "— Chưa phát quà —" },
-  { value: "QUA-MI", label: "Thùng mì" },
-  { value: "QUA-NON-BH", label: "Nón bảo hiểm" },
-  { value: "QUA-BH-SUC-KHOE", label: "BH sức khoẻ" },
-  { value: "QUA-LOA", label: "Loa" },
-  { value: "QUA-MICA", label: "Bảng mica" },
-];
-
-/**
  * Hai ngân hàng chủ của CNKD/HKD — nhãn giữ đúng chữ của màn P-20.
  *
  * Kỳ 2026-08 chỉ có `VPa`. Kỳ 2026-09 thêm `VPb` cho CNKD, theo lưu ý 3.
@@ -88,7 +72,6 @@ export function RuleSimulator({ view }: { view: RuleView }) {
   const [apps, setApps] = useState<string[]>([]);
   const [channel, setChannel] = useState("");
   const [department, setDepartment] = useState("");
-  const [grantedItem, setGrantedItem] = useState("");
   /** Rỗng nghĩa là để máy chủ dùng ngày làm việc — xem `GiftSimulateInput.at`. */
   const [at, setAt] = useState("");
   /** Một mã cho mỗi ngân hàng chủ — khách tick CNKD trên VPa hay VPb là hai ca khác nhau. */
@@ -113,7 +96,14 @@ export function RuleSimulator({ view }: { view: RuleView }) {
     })),
     channelCodes: channel ? [channel] : [],
     departmentCode: department || null,
-    grantedItem: grantedItem || null,
+    /**
+     * Màn thử KHÔNG khai món khách đã nhận — bỏ ô đó 2026-09-03.
+     *
+     * Từ kỳ 2026-09 món đã nhận không đổi tiền lẫn rổ quà, nên ô ấy chỉ còn
+     * nghĩa khi tra ngược ngày của kỳ 2026-08. Giữ lại thì Kế toán phải đoán
+     * xem nó có tác dụng gì.
+     */
+    grantedItem: null,
     at: at || null,
   };
 
@@ -254,16 +244,6 @@ export function RuleSimulator({ view }: { view: RuleView }) {
       </div>
 
       <div className={styles.row}>
-        {/* Món đã nhận chỉ đổi kết quả ở tab quà, và chỉ với kỳ 2026-08. Tab
-            điểm không hiện ô này: kỳ 2026-09 bỏ luật món ảnh hưởng điểm. */}
-        {view === "gift" && (
-          <Select
-            label="Quà khách đã nhận"
-            value={grantedItem}
-            onChange={setGrantedItem}
-            options={GRANTED_ITEMS}
-          />
-        )}
         {/* Luật tra theo NGÀY: kỳ nào cũng có file riêng và một ngày chỉ thuộc
             một kỳ. Không có ô này thì màn chỉ thử được kỳ đang hiệu lực. */}
         <DateField
