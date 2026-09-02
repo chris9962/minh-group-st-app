@@ -20,6 +20,7 @@ import {
   type InsuranceOrderLegForm,
   type InsuranceOrderSource,
 } from "@/lib/api/insuranceOrders";
+import { isRealIsoDate } from "@/lib/types";
 import { PRODUCT_LABEL } from "@/lib/types";
 import { fetchInsurancePackages, type InsurancePackage } from "@/lib/api/settings";
 import { businessDay, formatVnd } from "@/lib/format";
@@ -164,6 +165,22 @@ export function InsuranceOrderFormDialog({
   const selectPackage = (value: string) => {
     setPackageName(value);
     legsField.replace(defaultLegsFor(packages.find((p) => p.name === value) ?? null));
+  };
+
+  /**
+   * Sửa ngày bắt đầu thì tính lại ngày kết thúc theo số năm của LEG ĐÓ (chốt
+   * 2026-09-02) — KD đổi ngày hiệu lực rồi hay quên kéo ngày kết thúc theo.
+   * Ngày kết thúc vẫn sửa tay được sau đó.
+   */
+  const changeStartDate = (i: number, v: string) => {
+    setValue(`legs.${i}.startDate`, v, { shouldDirty: true, shouldValidate: true });
+    const years = selectedPackage?.legs[i]?.years;
+    if (years && isRealIsoDate(v)) {
+      setValue(`legs.${i}.endDate`, yearsLater(v, years), {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+    }
   };
 
   const applyCustomerInfo = (i: number) => {
@@ -392,9 +409,7 @@ export function InsuranceOrderFormDialog({
                   required
                   error={errors.legs?.[i]?.startDate?.message}
                   value={watch(`legs.${i}.startDate`)}
-                  onChange={(v) =>
-                    setValue(`legs.${i}.startDate`, v, { shouldDirty: true, shouldValidate: true })
-                  }
+                  onChange={(v) => changeStartDate(i, v)}
                 />
                 <DateField
                   label="Ngày kết thúc"
@@ -443,9 +458,7 @@ export function InsuranceOrderFormDialog({
                 required
                 error={errors.legs?.[0]?.startDate?.message}
                 value={watch("legs.0.startDate")}
-                onChange={(v) =>
-                  setValue("legs.0.startDate", v, { shouldDirty: true, shouldValidate: true })
-                }
+                onChange={(v) => changeStartDate(0, v)}
               />
               <DateField
                 label="Ngày kết thúc"
