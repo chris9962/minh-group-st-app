@@ -13,6 +13,8 @@ type Props = {
   onChange: (range: DateRange | undefined) => void;
   /** Không cho chọn ngày sau hôm nay. */
   maxDate?: Date;
+  /** Không cho chọn ngày trước mốc này. Bỏ trống nghĩa là không chặn phía trước. */
+  minDate?: Date;
   /**
    * Có nhãn thì đổi sang dáng đứng: nhãn trên, ô rộng hết cỡ — cùng dáng
    * `block` của `Select` và `Combobox`, để bảng lọc xếp thẳng một cột.
@@ -31,7 +33,7 @@ const show = (r: DateRange | undefined) => {
  * Dùng react-day-picker vì tự viết lịch có khoảng là rất dễ sai ở tuần giao
  * tháng, năm nhuận và điều hướng bàn phím.
  */
-export function DateRangePicker({ value, onChange, maxDate = new Date(), label }: Props) {
+export function DateRangePicker({ value, onChange, maxDate = new Date(), minDate, label }: Props) {
   const id = useId();
   const triggerRef = useRef<HTMLButtonElement>(null);
   return (
@@ -85,7 +87,7 @@ export function DateRangePicker({ value, onChange, maxDate = new Date(), label }
             defaultMonth={value?.from}
             selected={value}
             onSelect={onChange}
-            disabled={{ after: maxDate }}
+            disabled={minDate ? [{ after: maxDate }, { before: minDate }] : { after: maxDate }}
             className={styles.calendar}
           />
           <Popover.Arrow className={styles.arrow} />

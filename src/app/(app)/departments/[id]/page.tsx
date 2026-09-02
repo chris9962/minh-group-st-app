@@ -144,14 +144,14 @@ export default function DepartmentDetailPage({
     <>
       <TopBar title={data?.department.name ?? "Phòng ban"}>
         <div className={styles.periodInline}>
-          <PeriodPicker value={period} onChange={refinePeriod} />
+          <PeriodPicker value={period} onChange={refinePeriod} sameMonthOnly />
         </div>
         <div className={styles.periodCollapsed}>
           <FilterButton
             activeCount={period.kind === "today" ? 0 : 1}
             onClear={() => refinePeriod(DEFAULT_PERIOD)}
           >
-            <PeriodPicker value={period} onChange={refinePeriod} />
+            <PeriodPicker value={period} onChange={refinePeriod} sameMonthOnly />
           </FilterButton>
         </div>
       </TopBar>

@@ -136,7 +136,7 @@ export default function DashboardPage() {
     <>
       <TopBar title="Tổng quan" keepTitleOnMobile>
         <div className="desktop-only">
-          <PeriodPicker value={period} onChange={setPeriod} />
+          <PeriodPicker value={period} onChange={setPeriod} sameMonthOnly />
         </div>
         {/* Trên desktop bộ chọn kỳ đã hiện thẳng ở trên — nút "Bộ lọc" ở đây
             chỉ có việc trên điện thoại, ẩn hẳn (không chỉ ẩn nội dung) ở
@@ -146,7 +146,7 @@ export default function DashboardPage() {
             activeCount={period.kind === "today" ? 0 : 1}
             onClear={() => setPeriod(DEFAULT_PERIOD)}
           >
-            <PeriodPicker value={period} onChange={setPeriod} />
+            <PeriodPicker value={period} onChange={setPeriod} sameMonthOnly />
           </FilterButton>
         </div>
       </TopBar>
