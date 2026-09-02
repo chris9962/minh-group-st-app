@@ -186,6 +186,16 @@ export async function fetchBankAccountsOfBankForExport(
   return BankAccountPage.parse(await res.json());
 }
 
+/** Chi tiết một tài khoản trong trang chi tiết ngân hàng — gác bằng quyền quản ngân hàng. */
+export async function fetchBankAccountOfBank(
+  bankId: string,
+  accountId: string,
+): Promise<BankAccountDetail> {
+  const res = await fetch(`/api/settings/banks/${bankId}/accounts/${accountId}`);
+  if (!res.ok) throw new Error('Không tải được tài khoản này');
+  return BankAccountDetail.parse(await res.json());
+}
+
 export async function fetchBankAccountsOfBank(
   bankId: string,
   query: BankAccountsOfBankQuery,

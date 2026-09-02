@@ -2,7 +2,7 @@
 
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { use, useEffect, useMemo, useState } from "react";
 import { ChevronLeft, Download, Landmark } from "lucide-react";
 import type { DateRange } from "react-day-picker";
@@ -114,6 +114,7 @@ const TAB_OPTIONS = [
 export default function BankDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const user = useSession((s) => s.user);
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [tab, setTab] = useState<Tab>(() =>
     searchParams.get("tab") === "photos" ? "photos" : "accounts",
@@ -449,6 +450,9 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
               columns={COLUMNS}
               rowKey={(r) => r.id}
               defaultSort="date"
+              // Bấm dòng mở trang chi tiết tài khoản trong khu quản ngân hàng
+              // (chốt 2026-09-02) — cùng chốt canManageBank, không phải P-22.
+              onRowClick={(r) => router.push(`/settings/banks/${id}/${r.id}`)}
               caption="Tài khoản đã mở ở ngân hàng này, mọi phòng"
               emptyText={
                 !inScope

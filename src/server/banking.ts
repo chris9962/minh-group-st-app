@@ -757,7 +757,25 @@ export async function bankAccountDetail(
 
   const r = await rawById(id);
   if (!r || !inScope(visible, r)) return null;
+  return detailBody(r);
+}
 
+/**
+ * Chi tiết MỘT tài khoản cho trang chi tiết ngân hàng — KHÔNG kẹp phạm vi
+ * phòng, cùng lý do và cùng chốt `canManageBank` (ở route) với
+ * `listBankAccountsOfBank`. Id không thuộc ngân hàng trên URL thì 404.
+ */
+export async function bankAccountDetailOfBank(
+  bankId: string,
+  accountId: string,
+): Promise<BankAccountDetail | null> {
+  const r = await rawById(accountId);
+  if (!r || r.bankId !== bankId) return null;
+  return detailBody(r);
+}
+
+/** Trọn thân chi tiết — P-22 và trang chi tiết ngân hàng dùng chung. */
+async function detailBody(r: DecoratedRow): Promise<BankAccountDetail> {
   // CNKD/HKD đọc bản của ĐÚNG loại mình — chưa cài thì không có hướng dẫn,
   // không lấy bản thường thay (chốt 2026-09-02).
   const accountType = accountTypeOf(r);
@@ -771,9 +789,9 @@ export async function bankAccountDetail(
     note: r.note,
     errorNote: r.errorNote,
     createdByDepartmentId: r.createdByDepartmentId,
-    photoUrls: await photoUrlsOf(id, "opening"),
+    photoUrls: await photoUrlsOf(r.id, "opening"),
     transactionAt: r.transactionAt,
-    transactionPhotoUrls: await photoUrlsOf(id, "transaction"),
+    transactionPhotoUrls: await photoUrlsOf(r.id, "transaction"),
     finishedAt: r.finishedAt?.toISOString() ?? "",
     requiredPhotos: variant?.requiredPhotos ?? r.requiredPhotos,
     accountNumberMethod: r.accountNumberMethod,
