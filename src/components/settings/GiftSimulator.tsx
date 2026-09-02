@@ -52,8 +52,11 @@ const GRANTED_ITEMS: { value: string; label: string }[] = [
 /**
  * Hai ngân hàng chủ của CNKD/HKD — nhãn giữ đúng chữ của màn P-20.
  *
- * Kỳ 2026-08 chỉ có `VPa`. Kỳ 2026-09 thêm `VPb`: lưu ý 3 cho CNKD chọn `VPBb`,
- * và Kế toán chốt 2026-09-02 rằng `HKD` cũng mở khoá `VPb`.
+ * Kỳ 2026-08 chỉ có `VPa`. Kỳ 2026-09 thêm `VPb` cho CNKD, theo lưu ý 3.
+ *
+ * Ô chọn vẫn hiện cả `CNKD` lẫn `HKD` trên dòng `VPb`, dù `HKD` kèm `VPb` là
+ * dữ liệu sai: màn này để THỬ luật, nên nó phải dựng được cả ca sai để người
+ * dùng thấy kết quả ra rỗng.
  */
 const HOUSEHOLD_HOST_BANKS = ["VPa", "VPb"];
 const ACCOUNT_TYPE_LABEL: Record<AccountType, string> = {
@@ -195,9 +198,9 @@ export function GiftSimulator() {
                       checked={apps.includes(bank.code)}
                       onCheckedChange={() => toggleApp(bank.code)}
                     />
-                    {/* HKD thì rổ có thêm Loa và Bảng mica, còn CNKD hoặc HKD
-                        trên VPb thì mở khoá bậc TH7 — không có ô này thì màn
-                        thử không ra được hai ca đó. */}
+                    {/* HKD kèm VPa thì rổ có thêm Loa và Bảng mica, còn CNKD
+                        kèm VPb thì mở bậc TH7 — không có ô này thì màn thử
+                        không dựng được hai ca đó. */}
                     {HOUSEHOLD_HOST_BANKS.includes(bank.code) && (
                       <div className={styles.bankType}>
                         <Select
