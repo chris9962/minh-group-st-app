@@ -132,6 +132,10 @@ export default function CustomersPage() {
     // skeleton mỗi lần gõ, nút "Sau" rời khỏi DOM và người dùng bàn phím mất
     // tiêu điểm giữa chừng (AGENTS.md §8).
     placeholderData: keepPreviousData,
+    // Nhiều người cùng nhập khách — bảng tự tải lại để thấy dòng đồng nghiệp
+    // vừa thêm. Mặc định toàn app tắt refetch khi quay lại cửa sổ, màn này bật.
+    refetchInterval: 15_000,
+    refetchOnWindowFocus: true,
   });
 
   /** Đổi bộ lọc thì về trang đầu — giữ nguyên trang 5 của kết quả cũ là hiện một khúc rỗng. */
