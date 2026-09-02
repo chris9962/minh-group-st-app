@@ -320,28 +320,33 @@ check(
 /**
  * HKD 3,0 điểm — yêu cầu 2026-09-02. Kỳ 2026-08 cho HKD 0 điểm.
  *
- * Giả định G1: mức này không đòi điều kiện nào. Bốn ca dưới ghim đúng ba vế mà
- * CNKD có còn HKD không: không đòi ngân hàng chủ, không đổi theo số ngân hàng,
- * không tụt khi khách nhận Mì hoặc Nón.
+ * ⚠️ HKD chỉ tính khi khách mở `VPa` — Kế toán chốt 2026-09-02: *"HKD luôn đi
+ * kèm VPa. VPb không có HKD, VPb chỉ có CNKD"*. Ghi HKD cho khách không mở
+ * `VPa` là dữ liệu sai, khách đó được 0 điểm HKD.
  */
-section("Điểm HKD — mục 4d, mới");
+section("Điểm HKD — mục 4d, chỉ tính khi kèm VPa");
 check(
   "VPa + HKD — 0,3 tổ hợp + 3,0 HKD",
   points([account("kh1", "VPa", { household: "HKD" })]),
   3.3,
 );
 check(
-  "G1 · HKD không đòi ngân hàng chủ",
+  "HKD không kèm VPa — 0 điểm HKD, chỉ còn điểm tổ hợp",
   points([account("kh1", "MB"), account("kh1", "MSBb"), account("kh1", "HKD")]),
-  3.5,
+  0.5,
 );
 check(
-  "G1 · HKD một mình, không ngân hàng nào",
+  "HKD một mình, không ngân hàng nào — 0 điểm",
   points([account("kh1", "HKD")]),
-  3.0,
+  0,
 );
 check(
-  "G1 · HKD không đổi theo số ngân hàng",
+  "VPb + HKD — VPb không nhận HKD nên 0 điểm",
+  points([account("kh1", "VPb", { household: "HKD" })]),
+  0,
+);
+check(
+  "HKD không đổi theo số ngân hàng",
   points([
     account("kh1", "MB"),
     account("kh1", "VPa", { household: "HKD" }),
@@ -350,14 +355,14 @@ check(
   4.2,
 );
 check(
-  "G1 · phát Mì không hạ điểm HKD",
+  "phát Mì không hạ điểm HKD",
   points([account("kh1", "VPa", { household: "HKD" })], PERIOD, { kh1: "QUA-MI" }),
   3.3,
 );
 check(
-  "G1 · phát Nón không hạ điểm HKD",
-  points([account("kh1", "VPb", { household: "HKD" })], PERIOD, { kh1: "QUA-NON-BH" }),
-  3.0,
+  "phát Nón không hạ điểm HKD",
+  points([account("kh1", "VPa", { household: "HKD" })], PERIOD, { kh1: "QUA-NON-BH" }),
+  3.3,
 );
 
 /**
@@ -367,12 +372,12 @@ check(
  */
 section("G2 · khách có cả CNKD lẫn HKD");
 check(
-  "lấy 3,0 của HKD, không lấy 1,5 của CNKD",
+  "lấy 3,0 của HKD, không lấy 1,0 của CNKD",
   points([account("kh1", "VPa", { household: "HKD" }), account("kh1", "CNKD")]),
   3.3,
 );
 check(
-  "không cộng dồn 3,0 với 1,5",
+  "không cộng dồn 3,0 với 1,0",
   points([account("kh1", "VPa", { household: "CNKD" }), account("kh1", "HKD")]),
   3.3,
 );
@@ -653,8 +658,9 @@ check(
   giftOf(["VPb"]).caseCode,
   null,
 );
-check("VPb kèm HKD cũng là tổ hợp Combo 1, được TH7", giftOf(["VPb"], { household: "HKD" }).caseCode, "TH7");
-check("VPb kèm HKD có 01 năm bảo hiểm", giftOf(["VPb"], { household: "HKD" }).insuranceYears, 1);
+/** VPb chỉ nhận CNKD. `VPb` + HKD là dữ liệu sai, không đạt bậc nào. */
+check("VPb kèm HKD KHÔNG đạt bậc nào", giftOf(["VPb"], { household: "HKD" }).caseCode, null);
+check("VPb kèm HKD không có bảo hiểm", giftOf(["VPb"], { household: "HKD" }).insuranceYears, 0);
 check("VPb kèm HKD không có tiền mặt", giftOf(["VPb"], { household: "HKD" }).cashTotal, 0);
 check(
   "G3 · VPb kèm CNKD là tổ hợp Combo 1, được TH7",
@@ -743,13 +749,18 @@ checkCodes(
   ITEMS_HKD,
 );
 checkCodes(
-  "VPb kèm HKD — HKD mở khoá VPb y hệt CNKD, nên có cả gói bảo hiểm",
+  "VPb kèm HKD — rổ RỖNG, vì VPb không nhận HKD",
   giftOf(["VPb"], { household: "HKD" }).basket.map((i) => i.code),
-  [...BH_1N, ...ITEMS_HKD],
+  [],
 );
 checkCodes(
-  "MB kèm HKD — không đòi ngân hàng chủ",
+  "MB kèm HKD — không mở VPa nên KHÔNG có Loa lẫn Bảng mica",
   giftOf(["MB"], { household: "HKD" }).basket.map((i) => i.code),
+  BH_1N,
+);
+checkCodes(
+  "MB + VPa kèm HKD — có VPa nên có Loa và Bảng mica",
+  giftOf(["MB", "VPa"], { household: "HKD" }).basket.map((i) => i.code),
   [...BH_1N, ...ITEMS_HKD],
 );
 checkCodes(
@@ -835,9 +846,9 @@ checkCodes(
   [],
 );
 checkCodes(
-  "VPb kèm HKD ở Phòng Y — đạt TH7 nhưng TH7 không được quy đổi quà",
+  "VPb kèm HKD ở Phòng Y — rổ RỖNG hoàn toàn",
   giftOf(["VPb"], { household: "HKD", department: "PHONG-Y" }).basket.map((i) => i.code),
-  [...BH_1N, ...ITEMS_HKD],
+  [],
 );
 checkCodes(
   "TH8 kèm HKD, Phòng Y — chỉ có Loa và Bảng mica",

@@ -24,13 +24,13 @@ import type {
  *   1. `TCB` vào nhóm Bank khác
  *   2. Combo 1 có điểm: ưu tiên 0,3 · khác 0,2 · hạn chế 0
  *   3. Combo 1 có quà: TH7 một năm bảo hiểm, TH8 thêm 20k khi có `VPa`
- *   4. CNKD đi kèm `VPa` HOẶC `VPb` (lưu ý 3)
- *   5. HKD được 3,0 điểm
+ *   4. CNKD đi kèm `VPa` HOẶC `VPb`; HKD chỉ đi kèm `VPa`
+ *   5. HKD được 3,0 điểm, CNKD còn MỘT mức 1,0
  *   6. Món thêm Loa · Bảng mica chỉ dành cho `HKD`
  *   7. Quy đổi quà của Phòng Y đòi bậc TH5 hoặc TH6
  *   8. Bỏ luật "chọn Mì hoặc Nón thì mất 20k"
  *   9. `VPa` hoặc `MSBa` chưa cài app, đứng một mình thì KHÔNG có quà nào
- *  10. `HKD` mở khoá `VPb` ở Combo 1 y hệt `CNKD`
+ *  10. Món khách đã nhận không còn đổi điểm nào
  *
  * Chạy thử: `bun run test:rules` (`scripts/test-rules-2026-09.ts`).
  */
@@ -81,9 +81,6 @@ const REQUIRES_APP = new Set(["VPa", "MSBa"]);
  * Lưu ý 1 kỳ này dài thêm một vế — *"chỉ triển khai B2b khi làm với CNKD hoặc
  * Combo3"*. Vế đó đã tự thoả: Combo 1 hạng hạn chế cho 0 điểm nên `VPb` đứng
  * một mình không ra gì, còn `VPb` kèm CNKD ra 1,0 qua đường điểm CNKD.
- *
- * Phần QUÀ thì `HKD` cũng mở khoá `VPb` — Kế toán chốt 2026-09-02. Điểm thì
- * không: `HKD` không có dòng nào trong bảng Combo 1.
  */
 const OUT_OF_COMBO_2 = new Set(["MSBa", "VPb"]);
 
@@ -142,11 +139,10 @@ const NO_COMBO: Combo = { tenths: 0, size: 0, codes: [] };
  * nhất của Combo 3 là 0,5 so với 0,4 — nên tổ hợp lớn hợp lệ thì luôn thắng và
  * không bao giờ hoà. Duyệt tổ hợp nhỏ chỉ đỡ ca bảng không có dòng nào khớp.
  *
- * `hasHousehold` chỉ dùng cho một ca: `VPb` kèm CNKD hoặc HKD là tổ hợp Combo 1
- * hợp lệ nhưng 0 điểm, nên nó không thắng được bằng phép so điểm. Xem khối cuối
- * hàm.
+ * `hasCnkd` chỉ dùng cho một ca: `VPb` kèm CNKD là tổ hợp Combo 1 hợp lệ nhưng
+ * 0 điểm, nên nó không thắng được bằng phép so điểm. Xem khối cuối hàm.
  */
-function bestComboOf(bankCodes: string[], hasHousehold: boolean): Combo {
+function bestComboOf(bankCodes: string[], hasCnkd: boolean): Combo {
   // Trùng mã chỉ tính một lần: "02 Bank ưu tiên" nghĩa là hai NGÂN HÀNG khác
   // nhau, hai tài khoản cùng một ngân hàng không thành combo.
   const codes = [...new Set(bankCodes)].filter((code) => code in TIER_OF);
@@ -176,16 +172,15 @@ function bestComboOf(bankCodes: string[], hasHousehold: boolean): Combo {
    * Dòng "Bank hạn chế (B2b) + CNKD" của Combo 1: 0 điểm tổ hợp, nhưng VẪN là
    * một tổ hợp nên khách vẫn có bậc quà TH7.
    *
-   * `HKD` mở khoá `VPb` y hệt `CNKD` — Kế toán chốt 2026-09-02: khách mở mỗi
-   * `VPb` kèm `HKD` được 01 năm bảo hiểm. Bảng thể lệ chỉ ghi tên `CNKD` ở dòng
-   * này, đừng đọc bảng ra điều kiện.
+   * ⚠️ CHỈ `CNKD`. Kế toán chốt 2026-09-02: *"VPb không có HKD, VPb chỉ có
+   * CNKD"*. Khách `VPb` kèm `HKD` là dữ liệu sai, không đạt bậc nào.
    *
    * Phải xét sau vòng lặp và phải kèm `best.size === 0`. Cho nó vào `keep` thì
    * không được: `keep` so bằng dấu lớn hơn, mà 0 không lớn hơn 0. Nới `keep`
    * thành lớn hơn hoặc bằng thì mọi cặp không khớp bảng — `keep(0, 2, …)` —
    * cũng thành tổ hợp 2 ngân hàng giả, và bậc quà chạy sai theo.
    */
-  if (best.size === 0 && hasHousehold) {
+  if (best.size === 0 && hasCnkd) {
     const restricted = codes.find((code) => TIER_OF[code] === "restricted");
     if (restricted) best = { tenths: 0, size: 1, codes: [restricted] };
   }
@@ -203,8 +198,8 @@ export const bankTierOf = (bankCode: string): Tier | null => TIER_OF[bankCode] ?
  * `ĐIỂM COMBO` của báo cáo Kế toán và cho ca thử. Đường tính điểm thật đi qua
  * `bankingPoints`.
  *
- * `hasHousehold` để `false` vì ca `VPb` kèm CNKD hoặc HKD ra 0 điểm tổ hợp dù
- * xét cách nào — nó chỉ đổi BẬC QUÀ, không đổi điểm.
+ * `hasCnkd` để `false` vì ca `VPb` kèm CNKD ra 0 điểm tổ hợp dù xét cách nào —
+ * nó chỉ đổi BẬC QUÀ, không đổi điểm.
  */
 export const comboPointsFor = (bankCodes: string[]): number =>
   bestComboOf(bankCodes, false).tenths / 10;
@@ -228,23 +223,26 @@ export const comboPointsFor = (bankCodes: string[]): number =>
  */
 const CNKD_TENTHS = 10;
 
-/**
- * Điểm HKD (thể lệ mục 4d, yêu cầu 2026-09-02) — 3,0 điểm, không đòi điều kiện.
- *
- * Kỳ 2026-08 cho HKD 0 điểm. Yêu cầu viết trần *"HKD 3đ"* và không nhắc điều
- * kiện nào, trong khi CNKD đòi có ngân hàng chủ. Đây là giả định G1 của thể lệ —
- * Kế toán trả lời khác thì sửa đúng chỗ này.
- */
+/** Điểm HKD (thể lệ mục 4d, yêu cầu 2026-09-02). */
 const HKD_TENTHS = 30;
 
 /**
- * Ngân hàng CHỦ của CNKD — lưu ý 3 cho khách chọn `VPBa` hoặc `VPBb`.
+ * Ngân hàng CHỦ của từng mã hộ kinh doanh — chốt 2026-09-02.
  *
- * Kỳ 2026-08 chỉ nhận `VPa`, vì lúc đó CNKD là dịch vụ đăng ký kèm đúng tài
- * khoản đó. Không mở ngân hàng nào trong tập này thì ghi CNKD là ghi sai, và
- * khách không có điểm CNKD.
+ * Nguyên văn: *"HKD luôn đi kèm VPa. VPb không có HKD, VPb chỉ có CNKD. Đây là
+ * 2 luật hiện tại, nên những HKD CNKD còn lại đều vô nghĩa"*.
+ *
+ *   `CNKD` → `VPa` hoặc `VPb`   (lưu ý 3 của thể lệ)
+ *   `HKD`  → CHỈ `VPa`
+ *
+ * Ghi mã hộ kinh doanh cho khách không mở ngân hàng chủ tương ứng là DỮ LIỆU
+ * SAI, và khách đó được 0 điểm cho phần này. Kỳ 2026-08 chỉ đặt điều kiện cho
+ * `CNKD`, còn `HKD` thì không có điểm nên không cần điều kiện.
  */
-const CNKD_HOST_BANKS = new Set(["VPa", "VPb"]);
+const HOUSEHOLD_HOST_BANKS: Record<Exclude<HouseholdKind, "none">, ReadonlySet<string>> = {
+  CNKD: new Set(["VPa", "VPb"]),
+  HKD: new Set(["VPa"]),
+};
 
 /**
  * Khách này có những mã hộ kinh doanh nào — đọc CẢ HAI cách ghi (câu 7.16): ô
@@ -272,32 +270,33 @@ const bankCountOf = (accounts: ScoringAccount[]): number =>
   new Set(accounts.filter((a) => a.bankCode in TIER_OF).map((a) => a.bankCode)).size;
 
 /**
- * Phần điểm CNKD của MỘT khách — mục 4c.
+ * Mã hộ kinh doanh này CÓ TÍNH không — khách phải mở đúng ngân hàng chủ của nó.
  *
- * Đòi ĐÚNG MỘT điều kiện: khách mở `VPa` hoặc `VPb`. CNKD là dịch vụ đăng ký kèm
- * tài khoản VPB, nên ghi CNKD cho khách không mở mã nào trong hai mã đó là ghi
- * sai, và khách đó được 0 điểm (Kế toán chốt 2026-09-02).
- *
- * KHÔNG xét số ngân hàng, KHÔNG xét tổ hợp thắng, KHÔNG xét món khách đã nhận.
+ * Dùng chung cho cả điểm lẫn quà. Một điều kiện, hai đường đọc, nên chỉ có một
+ * hàm: tách ra là có ngày điểm cho 3,0 mà rổ quà lại rỗng.
  */
-function cnkdTenths(accounts: ScoringAccount[]): number {
-  if (!householdKindsOf(accounts).has("CNKD")) return 0;
-  if (!accounts.some((a) => CNKD_HOST_BANKS.has(a.bankCode))) return 0;
-  return CNKD_TENTHS;
-}
+const hasHousehold = (
+  accounts: ScoringAccount[],
+  kind: Exclude<HouseholdKind, "none">,
+): boolean =>
+  householdKindsOf(accounts).has(kind) &&
+  accounts.some((a) => HOUSEHOLD_HOST_BANKS[kind].has(a.bankCode));
 
 /**
  * Phần điểm hộ kinh doanh của MỘT khách — CNKD (mục 4c) và HKD (mục 4d).
+ *
+ * Mỗi mã đòi đúng ngân hàng chủ của nó, xem `HOUSEHOLD_HOST_BANKS`. Ngoài vế đó
+ * thì KHÔNG xét gì thêm: không xét số ngân hàng, không xét tổ hợp thắng, không
+ * xét món khách đã nhận.
  *
  * Khách có cả hai mã thì lấy MỨC CAO HƠN, không cộng dồn (giả định G2 của thể
  * lệ). Viết bằng `Math.max` chứ không viết `if HKD thì trả 30`, để ngày Kế toán
  * hạ mức HKD xuống dưới 1,0 thì luật vẫn đúng ý "lấy mức cao hơn".
  */
 function householdTenths(accounts: ScoringAccount[]): number {
-  const kinds = householdKindsOf(accounts);
   let tenths = 0;
-  if (kinds.has("HKD")) tenths = Math.max(tenths, HKD_TENTHS);
-  if (kinds.has("CNKD")) tenths = Math.max(tenths, cnkdTenths(accounts));
+  if (hasHousehold(accounts, "HKD")) tenths = Math.max(tenths, HKD_TENTHS);
+  if (hasHousehold(accounts, "CNKD")) tenths = Math.max(tenths, CNKD_TENTHS);
   return tenths;
 }
 
@@ -330,7 +329,7 @@ export function bankingPoints(accounts: ScoringAccount[], _granted: GrantedGifts
   for (const rows of byCustomer.values()) {
     const combo = bestComboOf(
       rows.map((a) => a.bankCode),
-      householdKindsOf(rows).size > 0,
+      hasHousehold(rows, "CNKD"),
     );
     tenths += combo.tenths + householdTenths(rows);
   }
@@ -483,8 +482,6 @@ const withCashIfChosen = (basket: GiftChoice[], cashTotal: number): GiftChoice[]
  * tài khoản mà `VPa` không nằm trong tổ hợp thắng thì không tính 20k của `VPa`.
  */
 export function gift(input: GiftInput): GiftResult {
-  const kinds = householdKindsOf(input.accounts);
-
   /**
    * Tổ hợp đếm TRỌN tài khoản khách đã mở, y hệt đường tính điểm (chốt
    * 2026-08-25). Điều kiện cài app chuyển xuống `caseOf` — nó chỉ quyết định
@@ -492,7 +489,7 @@ export function gift(input: GiftInput): GiftResult {
    */
   const combo = bestComboOf(
     input.accounts.map((a) => a.bankCode),
-    kinds.size > 0,
+    hasHousehold(input.accounts, "CNKD"),
   );
   const eligible = comboCodesOf(input.accounts);
   const installed = new Set(eligible.map((a) => a.bankCode));
@@ -543,7 +540,7 @@ export function gift(input: GiftInput): GiftResult {
    * này bỏ cả hai: khách `CNKD` KHÔNG còn hai món này, và khách `HKD` nhận bất
    * kể mở ngân hàng nào.
    */
-  if (kinds.has("HKD")) {
+  if (hasHousehold(input.accounts, "HKD")) {
     addItems(ITEMS_HKD, "Khách có HKD");
     explain.push("Khách có HKD nên rổ có thêm Loa và Bảng mica.");
   }
