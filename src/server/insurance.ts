@@ -1094,6 +1094,25 @@ export async function cancelInsuranceOrder(
 
   if (current.status === "cancelled") return { ok: false, message: "Đơn này đã huỷ rồi." };
 
+  /**
+   * Người tạo chỉ TỰ huỷ được trong ngày lập đơn (chốt 2026-09-02) — qua ngày
+   * thì nhờ người có `set-status`. Mốc là `createdAt` hệ thống, không phải
+   * `orderDate`: ngày tạo đơn sửa tay được ("nhập bù"), lấy nó làm mốc thì sửa
+   * ngày là tự mở lại được cửa huỷ.
+   */
+  if (!canOverride) {
+    const [created] = await db
+      .select({ at: insuranceOrders.createdAt })
+      .from(insuranceOrders)
+      .where(eq(insuranceOrders.id, id))
+      .limit(1);
+    if (!created || businessDay(created.at) !== businessDay())
+      return {
+        ok: false,
+        message: "Chỉ tự huỷ được trong ngày lập đơn. Quá ngày thì báo người quản trị huỷ giúp.",
+      };
+  }
+
   const updated = await db
     .update(insuranceOrders)
     .set({ status: "cancelled", updatedAt: new Date() })

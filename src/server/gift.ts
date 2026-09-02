@@ -588,12 +588,19 @@ export async function changeGift(
   form: GiftChangeForm,
 ): Promise<ChangeOutcome | null> {
   const [grant] = await db
-    .select({ id: giftGrants.id, chosenItem: giftGrants.chosenItem, snapshot: giftGrants.snapshot, customerName: customers.fullName })
+    .select({ id: giftGrants.id, chosenItem: giftGrants.chosenItem, snapshot: giftGrants.snapshot, grantedAt: giftGrants.grantedAt, customerName: customers.fullName })
     .from(giftGrants)
     .innerJoin(customers, eq(customers.id, giftGrants.customerId))
     .where(eq(giftGrants.customerId, customerId))
     .limit(1);
   if (!grant) return null;
+
+  /**
+   * Đổi quà chỉ được làm TRONG NGÀY phát quà (chốt 2026-09-02). Qua ngày là
+   * quà đã chốt: điểm KPI và tiền mặt của khách đã tính theo món đang giữ.
+   */
+  if (businessDay(grant.grantedAt) !== businessDay())
+    return { ok: false, message: "Chỉ đổi quà được trong ngày phát quà." };
 
   const snapshot = GiftSimulateResult.safeParse(grant.snapshot);
   if (!snapshot.success) return { ok: false, message: "Danh sách quà ban đầu không hợp lệ, không thể đổi." };
