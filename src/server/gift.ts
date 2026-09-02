@@ -4,7 +4,13 @@ import { GIFT_DECLINED, GIFT_DECLINED_LABEL, GIFT_ERROR, type GiftChangeForm } f
 import { EMPTY_GIFT, GiftSimulateResult, type GiftSimulateInput } from "@/lib/api/settings";
 import { businessDay, businessMonth } from "@/lib/format";
 import type { User } from "@/lib/types";
-import { giftFor, householdPointsAt, type GiftInput, type GiftResult } from "@/rules";
+import {
+  bankingPointsFor,
+  giftFor,
+  householdPointsAt,
+  type GiftInput,
+  type GiftResult,
+} from "@/rules";
 import { db } from "./db/client";
 import { recomputeKpiForCustomer } from "./kpi";
 import {
@@ -177,6 +183,30 @@ export async function giftResultOf(
 
   const householdPoints = householdPointsAt(input.accounts, at, grantedItem);
 
+  /**
+   * TỔNG điểm chạy qua đúng cửa `bankingPointsFor`, không cộng tay hai phần.
+   *
+   * Hai số kia trả điểm của PHẦN mình, còn hàm này áp cả luật hồ sơ sai: khách
+   * mở cả `VPa` lẫn `VPb` bị cắt trọn điểm dù từng phần vẫn ra số. Cộng tay là
+   * màn hiện một con số không ai được trả.
+   *
+   * `at` cắt còn `YYYY-MM` vì `bankingPointsFor` lọc theo tháng (câu 7.13), mà
+   * mọi tài khoản của màn thử đều mang ngày mở bằng đúng ngày tra luật.
+   */
+  const totalPoints = bankingPointsFor(input.accounts, at.slice(0, 7), new Map());
+
+  /**
+   * Chỉ để VIẾT CÂU giải thích, không tham gia phép tính — con số vẫn do
+   * `bankingPointsFor` quyết.
+   *
+   * Kiểm thẳng hình dạng hồ sơ chứ không so `totalPoints` với tổng hai phần:
+   * hai số đó còn lệch nhau ở ca khách mở tài khoản vắt hai tháng, mà ca đó
+   * không sai gì cả.
+   */
+  const bothVpModes =
+    input.accounts.some((a) => a.bankCode === "VPa") &&
+    input.accounts.some((a) => a.bankCode === "VPb");
+
   return {
     caseCode: result.caseCode,
     insuranceYears: result.insuranceYears,
@@ -193,6 +223,10 @@ export async function giftResultOf(
         : [],
     householdPoints,
     householdNote: householdNoteOf(householdPoints, grantedItem),
+    totalPoints,
+    pointsNote: bothVpModes
+      ? "Hồ sơ khách sai nên không được tính điểm nào. Khách không thể vừa mở VPa vừa mở VPb — hai mã là hai cách đăng ký của cùng một ngân hàng."
+      : "",
     explain: result.explain,
   };
 }

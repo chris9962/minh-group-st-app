@@ -205,6 +205,18 @@ export const GiftSimulateResult = z.object({
   householdPoints: z.number().default(0),
   /** Vì sao ra mức đó — rỗng khi khách không có CNKD. */
   householdNote: z.string().default(''),
+  /**
+   * TỔNG điểm thật của khách, chạy qua đúng đường tính điểm KPI.
+   *
+   * Thường bằng `kpiPoints` cộng `householdPoints`, nhưng KHÔNG phải luôn luôn:
+   * hồ sơ sai — khách mở cả `VPa` lẫn `VPb` chẳng hạn — bị cắt trọn điểm, trong
+   * khi hai trường kia vẫn trả số của phần mình. Tab Quy tắc điểm đọc số này.
+   *
+   * `default` cho snapshot `gift_grants` chốt trước 2026-09-03 vẫn parse được.
+   */
+  totalPoints: z.number().default(0),
+  /** Vì sao tổng khác tổng hai phần — rỗng khi hồ sơ khách bình thường. */
+  pointsNote: z.string().default(''),
   /** Vì sao ra kết quả này — khách hỏi thì nhân viên đọc thẳng ở màn (spec §5.3). */
   explain: z.array(z.string()),
 });
@@ -221,6 +233,8 @@ export const EMPTY_GIFT: GiftSimulateResult = {
   kpiBreakdown: [],
   householdPoints: 0,
   householdNote: '',
+  totalPoints: 0,
+  pointsNote: '',
   explain: [],
 };
 

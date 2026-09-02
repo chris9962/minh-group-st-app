@@ -14,7 +14,7 @@ import { MAX_BANK_ACCOUNTS_PER_CUSTOMER, type AccountType } from "@/lib/api/bank
 import { fetchChannels } from "@/lib/api/channelCatalog";
 import { simulateGift, type GiftSimulateInput } from "@/lib/api/settings";
 import { formatVnd } from "@/lib/format";
-import styles from "./GiftSimulator.module.scss";
+import styles from "./RuleSimulator.module.scss";
 
 /**
  * Ba lựa chọn phòng, không phải một ô tick.
@@ -65,18 +65,25 @@ const ACCOUNT_TYPE_LABEL: Record<AccountType, string> = {
   HKD: "HKD",
 };
 
+/** Tab đang xem quyết định KHỐI KẾT QUẢ; ô nhập thì hai tab dùng chung. */
+export type RuleView = "gift" | "points";
+
 /**
  * P-81 · Nút thử — chỉ tính toán, không ghi gì (spec §5.3). Không tạo khách,
  * không tạo đơn, không trừ mã. Bấm bao nhiêu lần cũng được.
  *
  * Không có nút bấm: chọn tới đâu máy trả kết quả tới đó.
  *
+ * MỘT component cho cả hai tab, khác nhau đúng khối kết quả. Ô nhập giống hệt
+ * nhau, và để chung một component thì người dùng khai khách MỘT lần rồi lật qua
+ * lại xem quà với điểm — tách hai component là khai lại từ đầu mỗi lần đổi tab.
+ *
  * Ô nhập khai TỪNG TÀI KHOẢN chứ không khai "tổng số app đã cài" như bản cũ:
  * luật từ kỳ 2026-08 xét tổ hợp hạng ngân hàng, và chỉ `VPa` với `MSBa` mới đòi
  * cài app. Gộp thành một con số thì không diễn tả được ca "mở VPa nhưng chưa
  * cài" — đúng ca hay gặp nhất ngoài hiện trường.
  */
-export function GiftSimulator() {
+export function RuleSimulator({ view }: { view: RuleView }) {
   const [opened, setOpened] = useState<string[]>([]);
   const [apps, setApps] = useState<string[]>([]);
   const [channel, setChannel] = useState("");
@@ -143,7 +150,10 @@ export function GiftSimulator() {
     setApps((prev) => (prev.includes(bank) ? prev.filter((b) => b !== bank) : [...prev, bank]));
 
   return (
-    <SectionCard title="Nút thử" icon={<FlaskConical size={17} />}>
+    <SectionCard
+      title={view === "gift" ? "Thử quy tắc quà" : "Thử quy tắc điểm"}
+      icon={<FlaskConical size={17} />}
+    >
       <fieldset className={styles.fieldset}>
         <legend className={styles.legend}>
           Khách đã mở tài khoản ở{" "}
@@ -244,12 +254,16 @@ export function GiftSimulator() {
       </div>
 
       <div className={styles.row}>
-        <Select
-          label="Quà khách đã nhận"
-          value={grantedItem}
-          onChange={setGrantedItem}
-          options={GRANTED_ITEMS}
-        />
+        {/* Món đã nhận chỉ đổi kết quả ở tab quà, và chỉ với kỳ 2026-08. Tab
+            điểm không hiện ô này: kỳ 2026-09 bỏ luật món ảnh hưởng điểm. */}
+        {view === "gift" && (
+          <Select
+            label="Quà khách đã nhận"
+            value={grantedItem}
+            onChange={setGrantedItem}
+            options={GRANTED_ITEMS}
+          />
+        )}
         {/* Luật tra theo NGÀY: kỳ nào cũng có file riêng và một ngày chỉ thuộc
             một kỳ. Không có ô này thì màn chỉ thử được kỳ đang hiệu lực. */}
         <DateField
@@ -269,6 +283,44 @@ export function GiftSimulator() {
           tình huống người dùng vừa xoá. */}
       {opened.length > 0 && run.data && (
         <dl className={styles.result}>
+          {view === "points" && (
+            <>
+              <div>
+                <dt>Điểm tổ hợp</dt>
+                <dd>
+                  <span className="tabular-nums">{run.data.kpiPoints}</span>
+                  {run.data.kpiBreakdown.length > 0 && (
+                    <span className={styles.detail}>
+                      {run.data.kpiBreakdown.map((b) => `${b.label} ${b.points}`).join(" + ")}
+                    </span>
+                  )}
+                </dd>
+              </div>
+              {/* Điểm CNKD/HKD nằm NGOÀI điểm tổ hợp và không đổi bậc quà, nên
+                  hiện thành dòng riêng. */}
+              <div>
+                <dt>Điểm CNKD / HKD</dt>
+                <dd>
+                  <span className="tabular-nums">{run.data.householdPoints}</span>
+                  {run.data.householdNote && (
+                    <span className={styles.detail}>{run.data.householdNote}</span>
+                  )}
+                </dd>
+              </div>
+              <div>
+                <dt>Tổng điểm</dt>
+                <dd>
+                  <strong className="tabular-nums">{run.data.totalPoints}</strong>
+                  {run.data.pointsNote && (
+                    <span className={styles.detail}>{run.data.pointsNote}</span>
+                  )}
+                </dd>
+              </div>
+            </>
+          )}
+
+          {view === "gift" && (
+            <>
           <div>
             <dt>Trường hợp</dt>
             <dd>
@@ -332,6 +384,9 @@ export function GiftSimulator() {
               )}
             </dd>
           </div>
+            </>
+          )}
+
           {run.data.explain.length > 0 && (
             <div>
               <dt>Vì sao</dt>
