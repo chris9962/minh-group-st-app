@@ -10,6 +10,7 @@ import {
   departments,
   giftGrants,
   insuranceOrders,
+  kpiScores,
   referralCodes,
   serviceTypes,
   services,
@@ -546,6 +547,34 @@ async function ranking(
   };
 }
 
+/* ── Điểm tổng toàn công ty ────────────────────────────────────────────── */
+
+/**
+ * Tổng điểm KPI của CẢ CÔNG TY trong tháng — chỉ tính cho người xem phạm vi
+ * toàn công ty (P-80, chốt 2026-09-03).
+ *
+ * Đọc thẳng `kpi_scores`, không tính lại: bảng đó là số đã chốt, cùng nguồn với
+ * bảng xếp hạng và với lương. Tính lại ở đây là dựng đường thứ hai ra cùng con
+ * số, và hai đường sớm muộn lệch nhau.
+ *
+ * ⚠️ Điểm KPI ghi theo THÁNG (`year_month`), còn kỳ xem của màn có thể là một
+ * ngày hoặc một khoảng tuỳ chọn. Hàm lấy tháng của NGÀY CUỐI kỳ, và trả kèm
+ * `yearMonth` để màn nói rõ số này của tháng nào.
+ */
+async function companyPoints(range: Range): Promise<{ yearMonth: string; points: number }> {
+  const yearMonth = range.to.slice(0, 7);
+  const [row] = await db
+    .select({
+      total: sql<string>`coalesce(sum(${kpiScores.bankingPoints} + ${kpiScores.servicePoints}), 0)`,
+    })
+    .from(kpiScores)
+    .where(eq(kpiScores.yearMonth, yearMonth));
+
+  // `sum` của Postgres trả numeric dạng chuỗi. Làm tròn một chữ số như mọi con
+  // số điểm khác trong hệ thống.
+  return { yearMonth, points: Math.round(Number(row?.total ?? 0) * 10) / 10 };
+}
+
 /* ── Ghép lại ──────────────────────────────────────────────────────────── */
 
 export async function dashboardFor(
@@ -555,7 +584,7 @@ export async function dashboardFor(
   const v = dashboardVisibility(actor);
   const { current, previous } = periodRanges(periodKey, businessDay());
 
-  const [banking, previousBanking, insurance, servicesData, gifts, ranked, scopeLabel] =
+  const [banking, previousBanking, insurance, servicesData, gifts, ranked, scopeLabel, company] =
     await Promise.all([
       bankingTotals(v, actor.id, current),
       previous ? bankingTotals(v, actor.id, previous) : Promise.resolve(null),
@@ -564,6 +593,9 @@ export async function dashboardFor(
       giftsBlock(v, actor.id, current),
       ranking(actor, v, current, previous),
       visibilityLabel(v),
+      // Chỉ người xem toàn công ty mới thấy ô này, nên người khác không tốn
+      // thêm một câu truy vấn.
+      v.kind === "company" ? companyPoints(current) : Promise.resolve(null),
     ]);
 
   return {
@@ -587,6 +619,7 @@ export async function dashboardFor(
         giftsPending: gifts.pending,
       },
       insurance,
+      companyPoints: company,
       rankingKind: ranked.kind,
       departments: ranked.rows,
       services: servicesData,

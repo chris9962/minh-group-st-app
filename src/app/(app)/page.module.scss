@@ -18,6 +18,11 @@
   align-items: stretch;
 }
 
+/* Người xem toàn công ty có thêm ô "điểm tổng cty" — bốn ô trên một hàng. */
+.headlineWide {
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+}
+
 @media (max-width: bp.$bp-tablet) {
   .headline {
     grid-template-columns: minmax(0, 1fr);

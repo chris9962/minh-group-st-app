@@ -1,5 +1,6 @@
 "use client";
 
+import { clsx } from "clsx";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Briefcase, Gift, ShieldCheck, Trophy } from "lucide-react";
@@ -171,7 +172,7 @@ export default function DashboardPage() {
               Phạm vi: <strong>{overview!.scopeLabel}</strong>
             </p>
 
-            <div className={styles.headline}>
+            <div className={clsx(styles.headline, data.companyPoints && styles.headlineWide)}>
               <KpiHighlight
                 ariaLabel="Tỉ lệ cài app trên số tài khoản mở"
                 percent={data.installRate.percent}
@@ -213,6 +214,19 @@ export default function DashboardPage() {
                   },
                 ]}
               />
+
+              {/* Chỉ người xem phạm vi toàn công ty mới có ô này — máy chủ trả
+                  `null` cho người khác, xem `companyPoints`.
+
+                  Nhãn ghi rõ THÁNG chứ không dùng `periodLabel`: điểm KPI ghi
+                  theo tháng, mà kỳ xem của màn có thể là một ngày. */}
+              {data.companyPoints && (
+                <StatCard
+                  value={data.companyPoints.points}
+                  label="điểm tổng cty"
+                  detail={`Cả công ty, tháng ${data.companyPoints.yearMonth}`}
+                />
+              )}
             </div>
 
             <div className={styles.grid}>

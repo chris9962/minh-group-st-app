@@ -37,6 +37,17 @@ export const DashboardData = z.object({
      */
     previousPercent: z.number().nullable(),
   }),
+  /**
+   * Tổng điểm KPI của cả công ty trong tháng — `null` với người xem phạm vi
+   * hẹp hơn toàn công ty.
+   *
+   * Điểm ghi theo THÁNG nên `yearMonth` đi kèm: kỳ xem của màn có thể là một
+   * ngày hoặc một khoảng tuỳ chọn, mà con số này luôn của trọn tháng.
+   */
+  companyPoints: z
+    .object({ yearMonth: z.string(), points: z.number() })
+    .nullable()
+    .default(null),
   banking: z.object({
     accountsOpened: z.number(),
     appsInstalled: z.number(),
