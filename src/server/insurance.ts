@@ -1,3 +1,4 @@
+import { randomInt } from "node:crypto";
 import {
   and,
   asc,
@@ -593,10 +594,33 @@ export async function insuranceOrderDetail(
 export type InsuranceOutcome<T> = { ok: true; value: T } | { ok: false; message: string };
 
 /**
+ * Phần đơn giao cho bot khi worker đang chạy, tính theo phần trăm.
+ *
+ * `50` nghĩa là một nửa số lượt tạo vào hàng chờ bot, nửa còn lại vào hàng chờ
+ * làm tay. Đặt `100` để bot nhận hết như trước.
+ *
+ * Đọc từ `PVI_TY_LE_BOT` để đổi được mà không phải dựng lại image — đây là con
+ * số của giai đoạn chạy thử, còn phải chỉnh vài lần. Giá trị lạ hoặc thiếu thì
+ * lấy 50.
+ */
+const botSharePercent = (): number => {
+  const raw = Number(process.env.PVI_TY_LE_BOT);
+  return Number.isInteger(raw) && raw >= 0 && raw <= 100 ? raw : 50;
+};
+
+/**
  * Trạng thái của đơn vừa tạo, quyết định theo việc worker PVI có đang chạy không.
  *
- * `PVI_WORKER_BAT=1` → `queued`, đơn xếp hàng chờ bot pick lên.
- * Thiếu biến đó → `manual-queued`, đội KD làm tay như trước.
+ * Worker TẮT → `manual-queued`, đội KD làm tay như trước.
+ * Worker BẬT → chia ngẫu nhiên theo `botSharePercent`: rơi vào phần của bot thì
+ * `queued` cho bot pick lên, phần còn lại `manual-queued`.
+ *
+ * Chia đôi là cố ý (chốt 2026-09-03): giai đoạn chạy thử không giao hết đơn cho
+ * bot, để đội KD vẫn có việc làm tay mà đối chiếu, và một lỗi của bot không kéo
+ * theo trọn ngày đơn.
+ *
+ * Chia MỘT lần cho cả lô ở `createInsuranceOrders`, nên mọi đơn của một lần tạo
+ * cùng một trạng thái. Tỉ lệ vẫn về 50/50 sau nhiều lượt tạo.
  *
  * Phải theo trạng thái THẬT của worker chứ không phải mong muốn: bot tắt mà đơn
  * vẫn vào `queued` thì chúng nằm im vĩnh viễn ở một trạng thái nói dối — người
@@ -606,8 +630,10 @@ export type InsuranceOutcome<T> = { ok: true; value: T } | { ok: false; message:
  * Đọc mỗi lần gọi, không chụp một lần lúc nạp module: hai container dùng chung
  * biến này, và bật tắt worker không nên đòi khởi động lại cả app.
  */
-const newOrderStatus = (): "queued" | "manual-queued" =>
-  process.env.PVI_WORKER_BAT === "1" ? "queued" : "manual-queued";
+const newOrderStatus = (): "queued" | "manual-queued" => {
+  if (process.env.PVI_WORKER_BAT !== "1") return "manual-queued";
+  return randomInt(100) < botSharePercent() ? "queued" : "manual-queued";
+};
 
 export async function createInsuranceOrders(
   actor: User,
