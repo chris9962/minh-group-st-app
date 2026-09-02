@@ -58,6 +58,14 @@ const EMPLOYEE_COLUMNS: RankColumn<StaffRow>[] = [
   { key: "customers", label: "Khách hàng", render: (s) => <Count n={s.customers} /> },
   { key: "accounts", label: "TK ngân hàng", render: (s) => <Count n={s.accounts} /> },
   { key: "services", label: "Dịch vụ", render: (s) => <Count n={s.services} /> },
+  {
+    key: "rangePoints",
+    label: "Điểm",
+    // ⚠️ Gom theo NGƯỜI LẬP HỒ SƠ KHÁCH, ba cột đếm bên trái thì đếm theo người
+    // TẠO bản ghi (thể lệ câu 7.11). Hai cách lệch nhau ở ca mở hộ tài khoản
+    // cho khách của đồng nghiệp, và cột điểm phải khớp bảng lương.
+    render: (s) => <span className="tabular-nums">{s.rangePoints ?? 0}</span>,
+  },
 ];
 
 /** Chi tiết một phòng ban — mở rộng P-91: bấm tên phòng ở bảng đi tới đây. */
@@ -182,7 +190,13 @@ export default function DepartmentDetailPage({
             <SectionCard
               title="Nhân viên"
               icon={<Users size={17} />}
-              meta={staffPending ? undefined : `${total} người`}
+              meta={
+                staffPending
+                  ? undefined
+                  : staffData?.departmentPoints === null || staffData === undefined
+                    ? `${total} người`
+                    : `${total} người · ${staffData.departmentPoints} điểm`
+              }
             >
               {/* Hỏng hoặc bị kẹp phạm vi thì bảng cũng rỗng, và câu "chưa có
                   nhân viên nào" nói ra một điều KHÔNG đúng về phòng đang mở —

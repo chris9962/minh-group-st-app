@@ -57,6 +57,18 @@ export const StaffRow = StaffAccount.extend({
   customers: z.number(),
   accounts: z.number(),
   services: z.number(),
+  /**
+   * Điểm KPI trong ĐÚNG KHOẢNG NGÀY đang xem — `null` khi nơi gọi không gửi
+   * `from`/`to` (màn P-51 dùng cột `points` theo tháng).
+   *
+   * Khác `points`: cột đó đọc `kpi_scores`, mà bảng ấy lưu theo THÁNG. Màn chi
+   * tiết phòng ban xem theo khoảng ngày nên phải có số của đúng khoảng đó, nếu
+   * không thì cột điểm nói chuyện tháng còn ba cột đếm nói chuyện tuần.
+   *
+   * ⚠️ Gom theo NGƯỜI LẬP HỒ SƠ KHÁCH, khác ba cột đếm — chúng đếm theo người
+   * tạo bản ghi (thể lệ câu 7.11).
+   */
+  rangePoints: z.number().nullable().default(null),
 });
 export type StaffRow = z.infer<typeof StaffRow>;
 
@@ -75,6 +87,14 @@ export const StaffList = z.object({
   daysLeft: z.number(),
   /** Đếm trên PHẠM VI + ĐƠN VỊ, cố ý bỏ qua tìm kiếm / trạng thái / chức vụ. */
   summary: StaffSummary,
+  /**
+   * Tổng điểm của CẢ PHÒNG trong khoảng ngày đang xem — `null` khi nơi gọi
+   * không lọc theo một phòng, hoặc không gửi `from`/`to`.
+   *
+   * Cộng trên TOÀN phòng chứ không phải trên trang đang xem: bảng cắt 15 dòng
+   * một trang, cộng theo trang thì mỗi lần bấm sang trang lại ra một tổng khác.
+   */
+  departmentPoints: z.number().nullable().default(null),
   page: pageOf(StaffRow),
 });
 export type StaffList = z.infer<typeof StaffList>;

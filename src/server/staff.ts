@@ -29,6 +29,7 @@ import {
 } from "@/lib/types";
 import { forbidden, isUuid, notFound } from "./auth";
 import { db, uniqueViolationOf } from "./db/client";
+import { pointsByStaffInRange } from "./kpi";
 import {
   bankAccounts,
   customers,
@@ -133,6 +134,7 @@ export async function staffFor(
       summaryMonth,
       daysLeft,
       summary: { active: 0, locked: 0, onTarget: 0, offTarget: 0 },
+      departmentPoints: null,
       page: { rows: [], total: 0 },
     };
 
@@ -227,12 +229,37 @@ export async function staffFor(
    * nhau — đó là màn P-51. Màn chi tiết phòng ban gửi khoảng ngày và bỏ hẳn
    * cột Chỉ tiêu, vì "chỉ tiêu của ngày 05/08 đến 12/08" không có nghĩa.
    */
-  const countsById = await countsInRange(
-    rows.map((r) => r.user.id),
+  const countsRange =
     usableDate(query.from) && usableDate(query.to)
       ? { from: query.from, to: query.to }
-      : monthRange(summaryMonth),
-  );
+      : monthRange(summaryMonth);
+  const countsById = await countsInRange(rows.map((r) => r.user.id), countsRange);
+
+  /**
+   * Điểm theo ĐÚNG KHOẢNG NGÀY đang xem — chỉ tính khi nơi gọi gửi `from`/`to`.
+   *
+   * Màn P-51 không gửi, và ở đó cột điểm đọc `kpi_scores` theo tháng. Tính thêm
+   * cho nó là một lượt đọc thừa ra cùng con số.
+   */
+  const rangePoints =
+    usableDate(query.from) && usableDate(query.to)
+      ? await pointsByStaffInRange(countsRange)
+      : null;
+
+  /**
+   * Tổng điểm CẢ PHÒNG, cộng trên toàn phòng chứ không trên trang đang xem.
+   *
+   * Bảng cắt 15 dòng một trang; cộng theo trang thì mỗi lần bấm sang trang lại
+   * ra một tổng khác.
+   */
+  const departmentPoints =
+    rangePoints && query.departmentId
+      ? Math.round(
+          [...rangePoints.values()]
+            .filter((p) => p.departmentId === query.departmentId)
+            .reduce((sum, p) => sum + p.points, 0) * 10,
+        ) / 10
+      : null;
 
   const active = counts?.active ?? 0;
   const onTarget = counts?.onTarget ?? 0;
@@ -241,6 +268,7 @@ export async function staffFor(
     summaryMonth,
     daysLeft,
     summary: { active, locked: counts?.locked ?? 0, onTarget, offTarget: active - onTarget },
+    departmentPoints,
     page: {
       rows: accounts.map((a) => ({
         ...a,
@@ -249,6 +277,7 @@ export async function staffFor(
         customers: countsById.get(a.id)?.customers ?? 0,
         accounts: countsById.get(a.id)?.accounts ?? 0,
         services: countsById.get(a.id)?.services ?? 0,
+        rangePoints: rangePoints ? (rangePoints.get(a.id)?.points ?? 0) : null,
       })),
       total: totals?.value ?? 0,
     },
