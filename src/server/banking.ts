@@ -23,6 +23,7 @@ import type {
 } from "@/lib/api/bankAccounts";
 import type { BankAccountDetail, BankAccountRow, BankAccountSort } from "@/lib/api/banking";
 import type { Page } from "@/lib/api/pagination";
+import type { BankPhoto, BankPhotoRow } from "@/lib/api/bankPhotos";
 import { businessDay, businessMonth } from "@/lib/format";
 import { recordVisibility, type RecordVisibility } from "@/lib/permissions";
 import { isRealIsoDate, type User } from "@/lib/types";
@@ -577,6 +578,88 @@ export async function listBankAccountsForExport(
   ]);
 
   return { rows: rows.map(toRow), total: totals?.value ?? 0 };
+}
+
+/**
+ * Tab Ảnh của trang chi tiết ngân hàng — MỘT trang tài khoản CÓ ảnh của đúng
+ * một ngân hàng, mỗi dòng kèm TRỌN ảnh của nó.
+ *
+ * Cùng bộ lọc và cùng chốt phân quyền với `listBankAccountsOfBank`: KHÔNG kẹp
+ * phạm vi phòng, chốt duy nhất là `canManageBank` ở route.
+ *
+ * Chỉ lấy tài khoản CÓ ảnh — lọc ở máy chủ, không phải cắt ở giao diện: cắt
+ * sau khi phân trang là trang thưa dòng mà `total` vẫn đếm cả tài khoản trắng
+ * ảnh. `exists` đi chỉ mục `bank_account_photos_account`. Ảnh của trang lấy
+ * MỘT câu `in`, không truy vấn từng tài khoản (N+1, AGENTS.md §5.2).
+ */
+export async function listBankPhotos(
+  bankId: string,
+  filters: BankOfBankFilters,
+  page: PageArgs<BankAccountSort>,
+): Promise<Page<BankPhotoRow>> {
+  const hasPhotos = sql`exists (
+    select 1 from ${bankAccountPhotos} p where p.account_id = ${bankAccounts.id}
+  )`;
+  const where = and(bankAccountsOfBankWhere(bankId, filters), hasPhotos)!;
+
+  const [rows, [totals]] = await Promise.all([
+    orderedPage(where, page.dir, page.limit, page.offset),
+    db.select({ value: count() }).from(bankAccounts).where(where),
+  ]);
+
+  const ids = rows.map((r) => r.id);
+  const photoRows = ids.length
+    ? await db
+        .select({
+          id: bankAccountPhotos.id,
+          accountId: bankAccountPhotos.accountId,
+          kind: bankAccountPhotos.kind,
+          url: bankAccountPhotos.url,
+        })
+        .from(bankAccountPhotos)
+        .where(inArray(bankAccountPhotos.accountId, ids))
+        // `kind` sắp theo thứ tự khai enum: ảnh mở tài khoản đứng trước ảnh giao dịch.
+        .orderBy(
+          asc(bankAccountPhotos.kind),
+          asc(bankAccountPhotos.sortOrder),
+          asc(bankAccountPhotos.id),
+        )
+    : [];
+
+  const photosByAccount = new Map<string, BankPhoto[]>();
+  for (const p of photoRows) {
+    const list = photosByAccount.get(p.accountId) ?? [];
+    list.push({ id: p.id, url: imageUrl(p.url), kind: p.kind });
+    photosByAccount.set(p.accountId, list);
+  }
+
+  return {
+    rows: rows.map((r) => ({ ...toRow(r), photos: photosByAccount.get(r.id) ?? [] })),
+    total: totals?.value ?? 0,
+  };
+}
+
+/**
+ * Dữ liệu dựng file zip cho ĐÚNG danh sách ảnh đã chọn: khoá trong kho ảnh
+ * cộng các mảnh đặt tên file. Kẹp theo `bankId` — route so số dòng trả về với
+ * số id đã gửi để từ chối ảnh của ngân hàng khác, không bỏ qua lặng lẽ.
+ */
+export async function photosForDownload(bankId: string, photoIds: string[]) {
+  if (photoIds.length === 0) return [];
+  return db
+    .select({
+      id: bankAccountPhotos.id,
+      key: bankAccountPhotos.url,
+      kind: bankAccountPhotos.kind,
+      bankCode: banks.code,
+      customerName: customers.fullName,
+      accountNumber: sql<string>`coalesce(${bankAccounts.accountNumber}, '')`,
+    })
+    .from(bankAccountPhotos)
+    .innerJoin(bankAccounts, eq(bankAccounts.id, bankAccountPhotos.accountId))
+    .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
+    .innerJoin(customers, eq(customers.id, bankAccounts.customerId))
+    .where(and(inArray(bankAccountPhotos.id, photoIds), eq(bankAccounts.bankId, bankId)));
 }
 
 /**

@@ -8,7 +8,9 @@ import { ChevronLeft, Download, Landmark } from "lucide-react";
 import type { DateRange } from "react-day-picker";
 import { RequirePermission } from "@/components/layout/RequirePermission";
 import { TopBar } from "@/components/layout/TopBar";
+import { BankPhotoGallery } from "@/components/banking/BankPhotoGallery";
 import { Button } from "@/components/ui/Button";
+import { SectionTabs } from "@/components/ui/SectionTabs";
 import { Combobox } from "@/components/ui/Combobox";
 import { DateRangePicker } from "@/components/ui/DateRangePicker";
 import { ErrorState } from "@/components/ui/ErrorState";
@@ -93,8 +95,17 @@ const COLUMNS: RankColumn<BankAccountRow>[] = [
   { key: "department", label: "Phòng", render: (r) => r.createdByDepartmentName ?? "—" },
 ];
 
+type Tab = "accounts" | "photos";
+
+const TAB_OPTIONS = [
+  { value: "accounts", label: "Tài khoản" },
+  { value: "photos", label: "Ảnh chứng minh" },
+];
+
 /**
  * Chi tiết một ngân hàng — mở rộng P-60: bấm mã ngân hàng ở bảng đi tới đây.
+ * Hai tab dùng chung bộ lọc: bảng tài khoản và lưới ảnh chứng minh để tải hàng
+ * loạt (chốt 2026-09-02, thay cho trang thư viện ảnh riêng).
  *
  * Bảng tài khoản ở đây KHÔNG kẹp phạm vi phòng: ai được giao quản ngân hàng thì
  * đọc được mọi tài khoản của ngân hàng đó (chốt 2026-09-01). Chốt thật nằm ở
@@ -104,6 +115,9 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
   const { id } = use(params);
   const user = useSession((s) => s.user);
   const searchParams = useSearchParams();
+  const [tab, setTab] = useState<Tab>(() =>
+    searchParams.get("tab") === "photos" ? "photos" : "accounts",
+  );
   const [range, setRange] = useState<DateRange | undefined>(() => {
     const from = dateFromUrl(searchParams.get("from"));
     const to = dateFromUrl(searchParams.get("to"));
@@ -120,7 +134,16 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
   const [departmentId, setDepartmentId] = useState(
     () => searchParams.get("departmentId") ?? "",
   );
-  const [page, setPage] = useState(() => pageFromUrl(searchParams.get("page")));
+  /**
+   * Hai tab hai trang RIÊNG, `page` trên URL thuộc về tab đang mở. Nạp lẫn
+   * trang của tab kia là mở link ra một trang không khớp số trên URL.
+   */
+  const [page, setPage] = useState(() =>
+    searchParams.get("tab") === "photos" ? 0 : pageFromUrl(searchParams.get("page")),
+  );
+  const [photoPage, setPhotoPage] = useState(() =>
+    searchParams.get("tab") === "photos" ? pageFromUrl(searchParams.get("page")) : 0,
+  );
   // Chỉ sắp theo ngày mở, và chỉ đổi được chiều — cùng lý do với P-21: khoá sắp
   // phải nằm trong chính bảng `bank_accounts`.
   const [dir, setDir] = useState<SortDir>(() =>
@@ -167,16 +190,19 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
    */
   const listUrl = useMemo(() => {
     const params = new URLSearchParams();
+    if (tab === "photos") params.set("tab", tab);
     if (from) params.set("from", from);
     if (to) params.set("to", to);
     if (status) params.set("status", status);
     if (referralCodeId) params.set("referralCodeId", referralCodeId);
     if (departmentId) params.set("departmentId", departmentId);
-    if (page > 0) params.set("page", String(page + 1));
-    if (dir === "asc") params.set("dir", dir);
+    // `page` là trang của TAB ĐANG MỞ; `dir` chỉ có nghĩa với bảng tài khoản.
+    const shownPage = tab === "photos" ? photoPage : page;
+    if (shownPage > 0) params.set("page", String(shownPage + 1));
+    if (tab === "accounts" && dir === "asc") params.set("dir", dir);
     const query = params.toString();
     return query ? `/settings/banks/${id}?${query}` : `/settings/banks/${id}`;
-  }, [departmentId, dir, from, id, page, referralCodeId, status, to]);
+  }, [departmentId, dir, from, id, page, photoPage, referralCodeId, status, tab, to]);
 
   useEffect(() => {
     window.history.replaceState(null, "", listUrl);
@@ -209,10 +235,11 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
     placeholderData: keepPreviousData,
   });
 
-  /** Đổi bộ lọc thì về trang đầu — giữ trang 5 của kết quả cũ là hiện khúc rỗng. */
+  /** Đổi bộ lọc thì cả hai tab về trang đầu — giữ trang 5 của kết quả cũ là hiện khúc rỗng. */
   const refine = (apply: () => void) => {
     apply();
     setPage(0);
+    setPhotoPage(0);
   };
 
   /**
@@ -384,6 +411,25 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
           ]}
         />
 
+        <SectionTabs label="Khu vực" options={TAB_OPTIONS} value={tab} onChange={(v) => setTab(v as Tab)} />
+
+        {tab === "photos" ? (
+          <BankPhotoGallery
+            /*
+              `key` theo bộ lọc: đổi bộ lọc là dựng lại component, mất lượt chọn
+              và về trang đầu (AGENTS.md §7 — reset state bằng key, không effect).
+              Giữ lượt chọn qua bộ lọc là tải nhầm cả ảnh đã bị bộ lọc ẩn đi.
+            */
+            key={`${from}|${to}|${status}|${referralCodeId}|${departmentId}`}
+            bankId={id}
+            bankCode={bank?.code ?? ""}
+            filters={{ from, to, status, referralCodeId, departmentId }}
+            page={photoPage}
+            onPageChange={setPhotoPage}
+            inScope={inScope}
+            hasActiveFilters={activeCount > 0}
+          />
+        ) : (
         <SectionCard
           title="Xem toàn bộ tài khoản theo ngân hàng"
           icon={<Landmark size={17} />}
@@ -426,6 +472,7 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
             />
           )}
         </SectionCard>
+        )}
       </main>
     </RequirePermission>
   );

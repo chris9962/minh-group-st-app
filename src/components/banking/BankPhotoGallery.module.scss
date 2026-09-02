@@ -1,0 +1,126 @@
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.toolbarActions {
+  display: flex;
+  gap: 8px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--om-card);
+  border: 1px solid var(--om-line);
+  border-radius: var(--radius-md);
+}
+
+.view {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+
+  img {
+    display: block;
+    width: 100%;
+    aspect-ratio: 3 / 4;
+    /* Co vừa khung, không phóng cắt ảnh — người dùng cần thấy trọn nội dung chứng minh. */
+    object-fit: contain;
+    background: var(--om-soft);
+  }
+}
+
+/* Outline chứ không đổi bề dày border — đổi border là cả lưới xê dịch 1px. */
+.cardSelected {
+  border-color: var(--om-orange);
+  outline: 2px solid var(--om-orange);
+  outline-offset: -2px;
+}
+
+.pickedMark {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  color: var(--om-text-on-accent);
+  background: var(--om-orange);
+  border-radius: 999px;
+}
+
+.kindTag {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  padding: 1px 8px;
+  font-size: 11px;
+  background: var(--om-card);
+  border: 1px solid var(--om-line);
+  border-radius: 999px;
+}
+
+.caption {
+  padding: 4px 8px 6px;
+  font-size: 12px;
+  color: var(--om-text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Neo ngay trên dòng chú thích (~27px), nằm trong góc dưới phải của ảnh. */
+.zoom {
+  position: absolute;
+  right: 6px;
+  bottom: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  color: var(--om-text);
+  background: var(--om-card);
+  border: 1px solid var(--om-line);
+  border-radius: 999px;
+  cursor: zoom-in;
+}
+
+@media (pointer: coarse) {
+  .zoom {
+    width: 44px;
+    height: 44px;
+  }
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: var(--space-2);
+  font-size: 13px;
+  color: var(--om-text-2);
+}

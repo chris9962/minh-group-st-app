@@ -27,6 +27,8 @@ export function pageArgsFrom<Sort extends string>(
   url: URL,
   sortable: readonly Sort[],
   fallback: Sort,
+  /** Cỡ trang do ROUTE quyết định, không đọc từ URL — hai đầu phải cùng một hằng. */
+  size: number = PAGE_SIZE,
 ): PageArgs<Sort> {
   const params = url.searchParams;
 
@@ -48,5 +50,5 @@ export function pageArgsFrom<Sort extends string>(
   const page =
     Number.isInteger(askedPage) && askedPage > 0 ? Math.min(askedPage, MAX_PAGE) : 0;
 
-  return { limit: PAGE_SIZE, offset: page * PAGE_SIZE, sort, dir: dir.success ? dir.data : "desc" };
+  return { limit: size, offset: page * size, sort, dir: dir.success ? dir.data : "desc" };
 }
