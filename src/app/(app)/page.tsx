@@ -182,7 +182,7 @@ export default function DashboardPage() {
             </p>
 
             <div
-              className={clsx(styles.headline, data.companyPoints !== null && styles.headlineWide)}
+              className={clsx(styles.headline, data.scopePoints !== null && styles.headlineWide)}
             >
               <KpiHighlight
                 ariaLabel="Tỉ lệ cài app trên số tài khoản mở"
@@ -226,16 +226,19 @@ export default function DashboardPage() {
                 ]}
               />
 
-              {/* Chỉ người xem phạm vi toàn công ty mới có ô này — máy chủ trả
-                  `null` cho người khác, xem `companyPoints`.
+              {/* Giám đốc thấy điểm cả công ty; Trưởng phòng, Phó phòng và Phó
+                  GĐ thấy điểm phòng mình. Nhân viên xem mặt cá nhân nên máy chủ
+                  trả `null`.
 
-                  `!== null` chứ không kiểm trung thực: công ty được 0 điểm vẫn
+                  `!== null` chứ không kiểm trung thực: phạm vi được 0 điểm vẫn
                   phải hiện ô, chứ không phải ẩn đi như người không có quyền. */}
-              {data.companyPoints !== null && (
+              {data.scopePoints !== null && (
                 <StatCard
-                  value={data.companyPoints}
-                  label="điểm tổng cty"
-                  detail={`Cả công ty ${periodLabel}`}
+                  value={data.scopePoints.points}
+                  label={
+                    data.scopePoints.kind === "company" ? "điểm tổng cty" : "điểm tổng phòng"
+                  }
+                  detail={`${overview!.scopeLabel} ${periodLabel}`}
                 />
               )}
             </div>

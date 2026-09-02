@@ -50,13 +50,18 @@ export const DashboardData = z.object({
     previousPercent: z.number().nullable(),
   }),
   /**
-   * Tổng điểm KPI của cả công ty TRONG KỲ XEM — `null` với người xem phạm vi
-   * hẹp hơn toàn công ty.
+   * Tổng điểm KPI của PHẠM VI người xem, trong kỳ xem.
+   *
+   * Giám đốc thấy điểm cả công ty; Trưởng phòng, Phó phòng và Phó GĐ thấy điểm
+   * của phòng mình. Nhân viên xem mặt cá nhân của màn nên không có ô này.
    *
    * Tính lại từ dữ liệu gốc theo đúng khoảng ngày người dùng chọn, không đọc
    * `kpi_scores` (bảng đó chỉ lưu theo tháng).
    */
-  companyPoints: z.number().nullable().default(null),
+  scopePoints: z
+    .object({ kind: z.enum(['company', 'departments']), points: z.number() })
+    .nullable()
+    .default(null),
   banking: z.object({
     accountsOpened: z.number(),
     appsInstalled: z.number(),

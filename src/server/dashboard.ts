@@ -626,14 +626,30 @@ export async function dashboardFor(
       },
       insurance,
       /**
-       * Chỉ người xem toàn công ty mới thấy ô này. Tổng lấy từ CHÍNH bản đồ
-       * điểm theo phòng, nên hai con số trên màn luôn khớp nhau.
+       * Tổng của CHÍNH bản đồ điểm theo phòng, nên ô này và cột Điểm của bảng
+       * xếp hạng luôn khớp nhau.
+       *
+       * Phạm vi `personal` và `none` không có ô này: mặt cá nhân của màn nói
+       * chuyện của một người, "tổng phạm vi" ở đó là chính người đó.
        */
-      companyPoints:
-        v.kind === "company"
-          ? Math.round(
-              [...points.values()].reduce((sum, p) => sum + p.points, 0) * 10,
-            ) / 10
+      scopePoints:
+        v.kind === "company" || v.kind === "departments"
+          ? {
+              kind: v.kind,
+              /**
+               * Phạm vi PHÒNG chỉ cộng phòng người đó thấy.
+               *
+               * `pointsByStaffInRange` trả trọn công ty, nên cộng thẳng cả bản
+               * đồ là Trưởng phòng đọc ra điểm của cả công ty.
+               */
+              points:
+                Math.round(
+                  (v.kind === "company"
+                    ? [...pointsByDepartment.values()]
+                    : v.departmentIds.map((id) => pointsByDepartment.get(id) ?? 0)
+                  ).reduce((sum, p) => sum + p, 0) * 10,
+                ) / 10,
+            }
           : null,
       rankingKind: ranked.kind,
       departments: rowsWithPoints,
