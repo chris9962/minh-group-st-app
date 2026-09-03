@@ -242,12 +242,19 @@ async function insuranceBlock(
 ): Promise<DashboardData["insurance"]> {
   const scope = scopeCondition(v, actorId, insuranceCols);
 
+  /**
+   * Đơn huỷ đứng RIÊNG, không cộng vào ba số đầu. Đơn huỷ là việc không tồn
+   * tại, mà từ 2026-09-03 một đơn sai còn cấp lại được — để chung thì một đơn
+   * thành hai trên báo cáo sản lượng. Cộng `created` với `cancelled` ra tổng
+   * số đơn đã lập.
+   */
   const [totals] = await db
     .select({
-      created: sql<number>`count(*)::int`,
-      electric: sql<number>`count(*) filter (where ${insuranceOrders.product} = 'electric-accident')::int`,
-      motorbike: sql<number>`count(*) filter (where ${insuranceOrders.product} = 'motorbike')::int`,
+      created: sql<number>`count(*) filter (where ${insuranceOrders.status} <> 'cancelled')::int`,
+      electric: sql<number>`count(*) filter (where ${insuranceOrders.product} = 'electric-accident' and ${insuranceOrders.status} <> 'cancelled')::int`,
+      motorbike: sql<number>`count(*) filter (where ${insuranceOrders.product} = 'motorbike' and ${insuranceOrders.status} <> 'cancelled')::int`,
       completed: sql<number>`count(*) filter (where ${insuranceOrders.status} = 'done')::int`,
+      cancelled: sql<number>`count(*) filter (where ${insuranceOrders.status} = 'cancelled')::int`,
     })
     .from(insuranceOrders)
     .where(and(createdInRange(range), scope));
@@ -324,6 +331,7 @@ async function insuranceBlock(
     motorbikeCount: totals?.motorbike ?? 0,
     completed: totals?.completed ?? 0,
     completedPercent: created === 0 ? 0 : Math.round(((totals?.completed ?? 0) / created) * 100),
+    cancelled: totals?.cancelled ?? 0,
     pending: (pending?.bot ?? 0) + (pending?.manual ?? 0),
     pendingBot: pending?.bot ?? 0,
     pendingManual: pending?.manual ?? 0,

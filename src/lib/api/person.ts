@@ -121,7 +121,9 @@ export const PersonDetail = z.object({
    */
   counts: z.object({
     accounts: z.number(),
+    /** Đơn huỷ KHÔNG nằm trong số này — nó đứng riêng ở `insuranceCancelled`. */
     insurance: z.number(),
+    insuranceCancelled: z.number(),
     services: z.number(),
   }),
 });

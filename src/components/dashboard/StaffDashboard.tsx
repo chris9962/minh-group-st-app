@@ -38,7 +38,13 @@ export function StaffDashboard({ person, draftAccounts, periodLabel }: Props) {
     <div className={styles.wrap}>
       <div className={styles.statRow}>
         <StatCard value={person.counts.accounts} label={`tài khoản mở ${periodLabel}`} />
-        <StatCard value={person.counts.insurance} label={`đơn bảo hiểm ${periodLabel}`} />
+        {/* Đơn huỷ KHÔNG nằm trong ô bên trái, nên nó là dòng phụ chứ không
+            phải một ô ngang hàng: người xem cần thấy sản lượng trước. */}
+        <StatCard
+          value={person.counts.insurance}
+          label={`đơn bảo hiểm ${periodLabel}`}
+          detail={person.counts.insuranceCancelled > 0 ? `${person.counts.insuranceCancelled} đơn huỷ` : undefined}
+        />
         <StatCard value={person.counts.services} label={`lượt dịch vụ ${periodLabel}`} />
       </div>
 

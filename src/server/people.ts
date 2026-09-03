@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, isNotNull, lte, sql, type AnyColumn, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNotNull, lte, ne, sql, type AnyColumn, type SQL } from "drizzle-orm";
 import type { PersonScore } from "@/lib/api/people";
 import type {
   PersonAccount,
@@ -375,6 +375,8 @@ async function countsFor(userIds: string[], range: Period): Promise<Map<string, 
         ),
       )
       .groupBy(bankAccounts.createdBy),
+    // Đơn huỷ ra ngoài: cột này là sản lượng đem đi đối chiếu, đơn huỷ vào đó
+    // là sai số. Cùng luật với `counts.insurance` ở `personFor`.
     db
       .select({ createdBy: insuranceOrders.createdBy, n: sql<number>`count(*)::int` })
       .from(insuranceOrders)
@@ -382,6 +384,7 @@ async function countsFor(userIds: string[], range: Period): Promise<Map<string, 
         and(
           inArray(insuranceOrders.createdBy, userIds),
           orderedInRange(range),
+          ne(insuranceOrders.status, "cancelled"),
         ),
       )
       .groupBy(insuranceOrders.createdBy),
@@ -639,9 +642,26 @@ export async function personFor(
         lte(bankAccounts.openedDate, range.to),
       ),
     ),
+    /**
+     * Đơn huỷ KHÔNG tính vào sản lượng, cùng lối với `accounts` ngay trên (chỉ
+     * đếm tài khoản `done`). Đơn huỷ là việc không tồn tại, mà từ 2026-09-03
+     * một đơn sai còn cấp lại được — để nguyên thì một đơn thành hai.
+     */
     insurance: await countOf(
       insuranceOrders,
-      and(eq(insuranceOrders.createdBy, id), orderedInRange(range)),
+      and(
+        eq(insuranceOrders.createdBy, id),
+        orderedInRange(range),
+        ne(insuranceOrders.status, "cancelled"),
+      ),
+    ),
+    insuranceCancelled: await countOf(
+      insuranceOrders,
+      and(
+        eq(insuranceOrders.createdBy, id),
+        orderedInRange(range),
+        eq(insuranceOrders.status, "cancelled"),
+      ),
     ),
     services: await countOf(
       services,

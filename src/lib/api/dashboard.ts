@@ -77,6 +77,8 @@ export const DashboardData = z.object({
     motorbikeCount: z.number(),
     completed: z.number(),
     completedPercent: z.number(),
+    /** Đơn huỷ trong kỳ. KHÔNG nằm trong `createdToday` — hai số cộng lại ra tổng đơn đã lập. */
+    cancelled: z.number(),
     /** Số tức thời — "ngay lúc này còn bao nhiêu đơn chưa xong", không theo kỳ. */
     pending: z.number(),
     pendingBot: z.number(),

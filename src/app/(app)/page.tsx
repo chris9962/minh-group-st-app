@@ -265,6 +265,9 @@ export default function DashboardPage() {
                     label="đơn tồn hiện tại"
                     detail={`${data.insurance.pendingBot} đang chạy · ${data.insurance.pendingManual} chờ làm tay`}
                   />
+                  {/* Đứng riêng vì nó KHÔNG nằm trong ô "đơn BH tạo" bên trái —
+                      hai số cộng lại mới ra tổng đơn đã lập trong kỳ. */}
+                  <StatCard value={data.insurance.cancelled} label={`huỷ ${periodLabel}`} />
                 </div>
 
                 <BarChart

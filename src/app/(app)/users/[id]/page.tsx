@@ -437,6 +437,14 @@ export default function PersonPage({
 
                   {activeTab === "insurance" && (
                     <div className={styles.panel}>
+                      {/* Bảng liệt kê CẢ đơn huỷ để tra cứu được, nhưng ô sản
+                          lượng ở màn Tổng quan thì không tính chúng. Nói rõ có
+                          bao nhiêu đơn huỷ để hai con số đọc ra khớp nhau. */}
+                      {data.counts.insuranceCancelled > 0 && (
+                        <p className="text-muted">
+                          {data.counts.insuranceCancelled} đơn huỷ {periodText}
+                        </p>
+                      )}
                       <RankTable
                         rows={insuranceQ.data?.rows ?? []}
                         columns={INSURANCE_COLUMNS}
