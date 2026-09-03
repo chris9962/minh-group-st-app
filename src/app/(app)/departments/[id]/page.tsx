@@ -18,11 +18,11 @@ import {
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusTag } from "@/components/ui/StatusTag";
-import { EMPTY_PAGE, PAGE_SIZE, type SortDir } from "@/lib/api/pagination";
+import { EMPTY_PAGE } from "@/lib/api/pagination";
 import { fetchDepartmentDetail } from "@/lib/api/org";
-import { fetchStaff, type StaffQuery, type StaffRow, type StaffSort } from "@/lib/api/staff";
+import { fetchDepartmentStaff, type StaffRow } from "@/lib/api/staff";
 import { scopeFor, visibleDepartmentIds } from "@/lib/permissions";
-import { ROLE_LABEL } from "@/lib/types";
+import { ROLE_LABEL, ROLE_RANK } from "@/lib/types";
 import { useSession } from "@/store/session";
 import styles from "./page.module.scss";
 
@@ -33,37 +33,61 @@ import styles from "./page.module.scss";
  * của ngày 05/08 đến 12/08" không có nghĩa. Bảng phòng ban ở P-91 cũng không có
  * cột đó, và nó dùng đúng bộ chọn kỳ này.
  *
- * `sortable` chỉ đặt ở cột nào máy chủ sắp được (`STAFF_SORT`). Ba cột đếm nằm
- * ngoài vì máy chủ đếm SAU khi đã cắt trang — xem `countsInRange`.
+ * Sắp xếp do TRÌNH DUYỆT làm, nên mỗi cột mang `sortBy` hoặc `sortText` chứ
+ * không mang `sortable` — xem `fetchDepartmentStaff` cho lý do bỏ phân trang.
  */
 const EMPLOYEE_COLUMNS: RankColumn<StaffRow>[] = [
   {
     key: "name",
     label: "Tên",
-    sortable: true,
+    sortText: (s) => s.fullName,
     render: (s) => (
       <Link href={`/users/${s.id}`} className={styles.nameLink}>
         {s.fullName}
       </Link>
     ),
   },
-  { key: "role", label: "Chức vụ", sortable: true, render: (s) => ROLE_LABEL[s.role] },
+  {
+    key: "role",
+    label: "Chức vụ",
+    // `ROLE_RANK` chứ không phải chuỗi `role`: số càng cao chức vụ càng cao, nên
+    // mũi tên ↓ đẩy Trưởng phòng lên đầu như người đọc trông đợi.
+    sortBy: (s) => ROLE_RANK[s.role],
+    render: (s) => ROLE_LABEL[s.role],
+  },
   {
     key: "active",
     label: "Trạng thái",
+    sortBy: (s) => (s.active ? 1 : 0),
     render: (s) => (
       <StatusTag ok={s.active}>{s.active ? "Đang hoạt động" : "Đã khoá"}</StatusTag>
     ),
   },
-  { key: "customers", label: "Khách hàng", render: (s) => <Count n={s.customers} /> },
-  { key: "accounts", label: "TK ngân hàng", render: (s) => <Count n={s.accounts} /> },
-  { key: "services", label: "Dịch vụ", render: (s) => <Count n={s.services} /> },
+  {
+    key: "customers",
+    label: "Khách hàng",
+    sortBy: (s) => s.customers,
+    render: (s) => <Count n={s.customers} />,
+  },
+  {
+    key: "accounts",
+    label: "TK ngân hàng",
+    sortBy: (s) => s.accounts,
+    render: (s) => <Count n={s.accounts} />,
+  },
+  {
+    key: "services",
+    label: "Dịch vụ",
+    sortBy: (s) => s.services,
+    render: (s) => <Count n={s.services} />,
+  },
   {
     key: "rangePoints",
     label: "Điểm",
     // ⚠️ Gom theo NGƯỜI LẬP HỒ SƠ KHÁCH, ba cột đếm bên trái thì đếm theo người
     // TẠO bản ghi (thể lệ câu 7.11). Hai cách lệch nhau ở ca mở hộ tài khoản
     // cho khách của đồng nghiệp, và cột điểm phải khớp bảng lương.
+    sortBy: (s) => s.rangePoints ?? 0,
     render: (s) => <span className="tabular-nums">{s.rangePoints ?? 0}</span>,
   },
 ];
@@ -77,9 +101,6 @@ export default function DepartmentDetailPage({
   const { id } = use(params);
   const user = useSession((s) => s.user);
   const [period, setPeriod] = useState<Period>(DEFAULT_PERIOD);
-  const [page, setPage] = useState(0);
-  const [sort, setSort] = useState<StaffSort>("role");
-  const [dir, setDir] = useState<SortDir>("desc");
 
   const { data, isPending, isError, refetch, isFetching } = useQuery({
     queryKey: ["org-department", id],
@@ -87,27 +108,10 @@ export default function DepartmentDetailPage({
   });
 
   /**
-   * Dùng chung route với bảng nhân sự P-51, chỉ khác ba tham số: khoá theo
-   * phòng đang mở, lấy cả người đã khoá, và gửi kỳ cho ba cột đếm.
-   *
-   * `summaryMonth` để rỗng — máy chủ tự lấy tháng làm việc. Bảng này không có
-   * cột Chỉ tiêu nên tháng đó chỉ còn dùng cho luật `createdByEndOf`.
+   * Trọn danh sách nhân viên của phòng, một lượt gọi cho cả kỳ. Trình duyệt tự
+   * sắp — xem `fetchDepartmentStaff` cho lý do bỏ phân trang.
    */
   const { from, to } = periodDates(period);
-  const query: StaffQuery = {
-    scope: "company",
-    departmentId: id,
-    search: "",
-    summaryMonth: "",
-    from,
-    to,
-    status: "all",
-    roles: [],
-    page,
-    sort,
-    dir,
-  };
-
   const {
     data: staffData,
     isPending: staffPending,
@@ -115,8 +119,8 @@ export default function DepartmentDetailPage({
     refetch: refetchStaff,
     isFetching: staffFetching,
   } = useQuery({
-    queryKey: ["staff-by-department", query],
-    queryFn: () => fetchStaff(query),
+    queryKey: ["staff-by-department", id, from, to],
+    queryFn: () => fetchDepartmentStaff(id, { from, to }),
     enabled: Boolean(data),
     placeholderData: keepPreviousData,
   });
@@ -134,24 +138,18 @@ export default function DepartmentDetailPage({
   const rows = staffData?.page.rows ?? EMPTY_PAGE.rows;
   const total = staffData?.page.total ?? 0;
 
-  /** Đổi kỳ thì về trang đầu — giữ trang 3 của kết quả cũ là hiện một khúc rỗng. */
-  const refinePeriod = (next: Period) => {
-    setPeriod(next);
-    setPage(0);
-  };
-
   return (
     <>
       <TopBar title={data?.department.name ?? "Phòng ban"}>
         <div className={styles.periodInline}>
-          <PeriodPicker value={period} onChange={refinePeriod} sameMonthOnly />
+          <PeriodPicker value={period} onChange={setPeriod} sameMonthOnly />
         </div>
         <div className={styles.periodCollapsed}>
           <FilterButton
             activeCount={period.kind === "today" ? 0 : 1}
-            onClear={() => refinePeriod(DEFAULT_PERIOD)}
+            onClear={() => setPeriod(DEFAULT_PERIOD)}
           >
-            <PeriodPicker value={period} onChange={refinePeriod} sameMonthOnly />
+            <PeriodPicker value={period} onChange={setPeriod} sameMonthOnly />
           </FilterButton>
         </div>
       </TopBar>
@@ -221,19 +219,6 @@ export default function DepartmentDetailPage({
                       ? "Phòng này chưa có nhân viên nào."
                       : "Bạn không xem được danh sách nhân viên của phòng này."
                   }
-                  server={{
-                    sort,
-                    dir,
-                    page,
-                    total,
-                    pageSize: PAGE_SIZE,
-                    onSortChange: (nextSort, nextDir) => {
-                      setSort(nextSort as StaffSort);
-                      setDir(nextDir);
-                      setPage(0);
-                    },
-                    onPageChange: setPage,
-                  }}
                 />
               )}
             </SectionCard>

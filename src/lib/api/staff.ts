@@ -319,6 +319,35 @@ export async function fetchStaff(query: StaffQuery): Promise<StaffList> {
   return StaffList.parse(await res.json());
 }
 
+/**
+ * TRỌN danh sách nhân viên của MỘT phòng, KHÔNG phân trang (chốt 2026-09-03).
+ *
+ * Route riêng chứ không phải tham số "lấy hết" của `/api/staff` (AGENTS.md §5.1
+ * điều 4) — đường đó mở ra một lần là mọi màn sau đều lách qua nó.
+ *
+ * Ngoại lệ có chủ đích của §5.1, hai lý do:
+ *
+ * 1. Một phòng nhiều nhất vài chục người. Phòng lớn nhất có 30, đo trên
+ *    production 2026-09-03, và số này lớn theo tuyển dụng chứ không theo ngày
+ *    làm việc.
+ * 2. Ba cột đếm và cột Điểm KHÔNG sắp được trong SQL: ba cột đếm nằm ở bảng
+ *    khác, còn điểm do hàm luật ở `src/rules/` tính. Sắp theo chúng ở máy chủ
+ *    buộc phải tính cho cả phòng TRƯỚC khi cắt trang — đúng bằng phần việc của
+ *    bản không cắt trang, cộng thêm một tầng phức tạp.
+ *
+ * Trình duyệt nhận đủ dòng rồi tự sắp. Phòng nào vượt trần của route thì
+ * `total` lớn hơn `page.rows.length`, và lúc đó trang phải quay lại phân trang.
+ */
+export async function fetchDepartmentStaff(
+  departmentId: string,
+  range: { from: string; to: string },
+): Promise<StaffList> {
+  const params = new URLSearchParams({ from: range.from, to: range.to });
+  const res = await fetch(`/api/org/departments/${departmentId}/staff?${params}`);
+  if (!res.ok) throw new Error('Không tải được danh sách nhân viên của phòng');
+  return StaffList.parse(await res.json());
+}
+
 /** Dùng ở P-52 (hồ sơ một người) để hiện khối "Quyền" — P-51 chỉ trả danh sách rút gọn. */
 export async function fetchStaffMember(id: string): Promise<StaffAccount> {
   const res = await fetch(`/api/staff/${id}`);

@@ -10,6 +10,14 @@ export type RankColumn<T> = {
   /** Giá trị dùng để sắp xếp ở chế độ trình duyệt. Không có thì cột không bấm sắp được. */
   sortBy?: (row: T) => number;
   /**
+   * Bản CHỮ của `sortBy`, cho cột chứa tên. So bằng `localeCompare` nên `Đặng`
+   * xếp sau `Dũng` chứ không nhảy xuống cuối bảng như khi so mã ký tự.
+   *
+   * Tách khỏi `sortBy` chứ không cho nó trả cả hai kiểu: `sortBy` còn quyết định
+   * ô có dùng `tabular-nums` hay không, mà cột tên thì không phải cột số.
+   */
+  sortText?: (row: T) => string;
+  /**
    * Bấm sắp được hay không, khi việc sắp do máy chủ làm (`server`) nên không có
    * `sortBy`. Khoá gửi lên máy chủ chính là `key`.
    *
@@ -100,9 +108,15 @@ export function RankTable<T>({
   const sorted = useMemo(() => {
     if (server) return rows;
     const col = columns.find((c) => c.key === sortKey);
-    if (!col?.sortBy) return rows;
-    const by = col.sortBy;
-    return [...rows].sort((a, b) => (asc ? by(a) - by(b) : by(b) - by(a)));
+    if (!col) return rows;
+    const { sortBy, sortText } = col;
+    if (sortText)
+      return [...rows].sort((a, b) => {
+        const d = sortText(a).localeCompare(sortText(b), "vi");
+        return asc ? d : -d;
+      });
+    if (!sortBy) return rows;
+    return [...rows].sort((a, b) => (asc ? sortBy(a) - sortBy(b) : sortBy(b) - sortBy(a)));
   }, [server, rows, columns, sortKey, asc]);
 
   const size = server ? server.pageSize : pageSize;
@@ -153,7 +167,9 @@ export function RankTable<T>({
           <tr>
             {columns.map((col) => {
               const active = col.key === activeSort;
-              const canSort = server ? (col.sortable ?? false) : Boolean(col.sortBy);
+              const canSort = server
+                ? (col.sortable ?? false)
+                : Boolean(col.sortBy || col.sortText);
               return (
                 <th
                   key={col.key}
