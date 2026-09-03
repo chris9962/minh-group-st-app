@@ -2,7 +2,8 @@
 
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import { Briefcase, Gift, Landmark, Pencil, Plus, Users } from "lucide-react";
 import type { DateRange } from "react-day-picker";
 import { SkeletonTable } from "@/components/ui/Skeleton";
@@ -26,15 +27,18 @@ import { fetchChannels } from "@/lib/api/channelCatalog";
 import { fetchDepartments } from "@/lib/api/departments";
 import { fetchHospitals } from "@/lib/api/hospitalCatalog";
 import {
+  CUSTOMER_SORT,
   fetchCustomerDetail,
   fetchCustomers,
   type CustomerQuery,
   type CustomerRow,
+  type CustomerSort,
 } from "@/lib/api/customers";
 import { EMPTY_PAGE, PAGE_SIZE } from "@/lib/api/pagination";
 import { formatDate, formatPhone } from "@/lib/format";
 import { useDebouncedValue } from "@/lib/hooks";
 import { can, recordInScope, recordVisibility } from "@/lib/permissions";
+import { isRealIsoDate } from "@/lib/types";
 import { fetchStaffOptions } from "@/lib/api/staff";
 import { useSession } from "@/store/session";
 import styles from "./page.module.scss";
@@ -53,6 +57,38 @@ const FIRST_PAGE: CustomerQuery = {
   page: 0,
   sort: "created",
   dir: "desc",
+};
+
+/** URL chỉ nhận ngày có thật — `2026-02-31` không được thành tháng Ba mà không báo gì. */
+const dateFromUrl = (value: string | null): Date | undefined =>
+  value && isRealIsoDate(value) ? new Date(`${value}T00:00:00`) : undefined;
+
+const pageFromUrl = (value: string | null): number => {
+  const page = Number(value);
+  // URL đếm từ 1 để người dùng đọc được; `RankTable` đếm từ 0 nội bộ.
+  return Number.isSafeInteger(page) && page >= 1 ? page - 1 : 0;
+};
+
+/**
+ * Câu hỏi ban đầu dựng từ địa chỉ trang, để link chia sẻ mở ra đúng bộ lọc.
+ *
+ * `from`/`to` cố ý giữ rỗng: khoảng ngày nằm ở state `range`, và `asked` ghi hai
+ * trường này từ đó mỗi lần render.
+ */
+const queryFromUrl = (params: URLSearchParams): CustomerQuery => {
+  const sort = params.get("sort");
+  return {
+    ...FIRST_PAGE,
+    search: params.get("search") ?? "",
+    channelId: params.get("channelId") ?? "",
+    channelDetail: params.get("channelDetail") ?? "",
+    staffId: params.get("staffId") ?? "",
+    departmentId: params.get("departmentId") ?? "",
+    page: pageFromUrl(params.get("page")),
+    // Khoá lạ rơi về mặc định, không làm hỏng màn — cùng lối với `pageArgsFrom`.
+    sort: CUSTOMER_SORT.includes(sort as CustomerSort) ? (sort as CustomerSort) : "created",
+    dir: params.get("dir") === "asc" ? "asc" : "desc",
+  };
 };
 
 /**
@@ -89,7 +125,8 @@ function EditCustomerDialog({ id, onClose }: { id: string; onClose: () => void }
  */
 export default function CustomersPage() {
   const user = useSession((s) => s.user);
-  const [query, setQuery] = useState<CustomerQuery>(FIRST_PAGE);
+  const searchParams = useSearchParams();
+  const [query, setQuery] = useState<CustomerQuery>(() => queryFromUrl(searchParams));
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [givingGiftTo, setGivingGiftTo] = useState<CustomerRow | null>(null);
@@ -98,9 +135,13 @@ export default function CustomersPage() {
 
   // Ô tìm giữ chữ đang gõ riêng, chỉ hoãn xong mới thành câu hỏi gửi đi — nối
   // thẳng vào `query` thì mỗi phím là một lượt gọi máy chủ.
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(() => searchParams.get("search") ?? "");
   const debouncedSearch = useDebouncedValue(search);
-  const [range, setRange] = useState<DateRange | undefined>(undefined);
+  const [range, setRange] = useState<DateRange | undefined>(() => {
+    const from = dateFromUrl(searchParams.get("from"));
+    const to = dateFromUrl(searchParams.get("to"));
+    return from || to ? { from, to } : undefined;
+  });
 
   const { data: channels = [] } = useQuery({ queryKey: ["channels"], queryFn: fetchChannels });
 
@@ -171,6 +212,34 @@ export default function CustomersPage() {
   const from = range?.from ? iso(range.from) : "";
   const to = range?.to ? iso(range.to) : "";
   const asked: CustomerQuery = { ...query, search: debouncedSearch, from, to };
+
+  /**
+   * Danh sách là một trạng thái quay lại và chia sẻ được, nên mọi thứ làm đổi
+   * kết quả đều nằm trên URL. `replaceState` không thêm một mục lịch sử theo
+   * từng ký tự gõ.
+   */
+  const listUrl = (() => {
+    const params = new URLSearchParams();
+    if (asked.search) params.set("search", asked.search);
+    if (asked.from) params.set("from", asked.from);
+    if (asked.to) params.set("to", asked.to);
+    if (asked.departmentId) params.set("departmentId", asked.departmentId);
+    if (asked.channelId) params.set("channelId", asked.channelId);
+    if (asked.channelDetail) params.set("channelDetail", asked.channelDetail);
+    if (asked.staffId) params.set("staffId", asked.staffId);
+    if (asked.page > 0) params.set("page", String(asked.page + 1));
+    if (asked.sort !== "created") params.set("sort", asked.sort);
+    if (asked.dir === "asc") params.set("dir", asked.dir);
+    const query = params.toString();
+    return query ? `/customers?${query}` : "/customers";
+  })();
+
+  // Chuỗi so bằng giá trị nên effect chỉ chạy khi địa chỉ thật sự đổi. Không
+  // bọc `useMemo`: `asked` là object mới mỗi lần render, đặt nó làm phụ thuộc
+  // thì memo tính lại y như không có memo.
+  useEffect(() => {
+    window.history.replaceState(null, "", listUrl);
+  }, [listUrl]);
 
   const { data: page = EMPTY_PAGE, isPending, isError, refetch, isFetching } = useQuery({
     queryKey: ["customers", asked],

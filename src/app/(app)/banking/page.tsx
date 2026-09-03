@@ -2,7 +2,8 @@
 
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import { Landmark, Pencil, Plus, Trash2 } from "lucide-react";
 import type { DateRange } from "react-day-picker";
 import { SkeletonTable } from "@/components/ui/Skeleton";
@@ -38,26 +39,47 @@ import { formatDate, formatPhone } from "@/lib/format";
 import { useDebouncedValue } from "@/lib/hooks";
 import { can, recordVisibility, scopeFor } from "@/lib/permissions";
 import { errorMessage, toast } from "@/lib/toast";
+import { isRealIsoDate } from "@/lib/types";
 import { useSession } from "@/store/session";
 import styles from "./page.module.scss";
 
 const iso = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
 
+/** URL chỉ nhận ngày có thật — `2026-02-31` không được thành tháng Ba mà không báo gì. */
+const dateFromUrl = (value: string | null): Date | undefined =>
+  value && isRealIsoDate(value) ? new Date(`${value}T00:00:00`) : undefined;
+
+const pageFromUrl = (value: string | null): number => {
+  const page = Number(value);
+  // URL đếm từ 1 để người dùng đọc được; `RankTable` đếm từ 0 nội bộ.
+  return Number.isSafeInteger(page) && page >= 1 ? page - 1 : 0;
+};
+
 /** P-21 · Danh sách tài khoản ngân hàng. */
 export default function BankingPage() {
   const user = useSession((s) => s.user);
-  const [search, setSearch] = useState("");
+  const searchParams = useSearchParams();
+  const [search, setSearch] = useState(() => searchParams.get("search") ?? "");
   const searchQuery = useDebouncedValue(search);
-  const [bankCode, setBankCode] = useState("");
-  const [range, setRange] = useState<DateRange | undefined>(undefined);
-  const [departmentId, setDepartmentId] = useState("");
-  const [channelId, setChannelId] = useState("");
-  const [staffId, setStaffId] = useState("");
-  const [status, setStatus] = useState<BankAccountStatus | "">("");
-  const [page, setPage] = useState(0);
+  const [bankCode, setBankCode] = useState(() => searchParams.get("bankCode") ?? "");
+  const [range, setRange] = useState<DateRange | undefined>(() => {
+    const from = dateFromUrl(searchParams.get("from"));
+    const to = dateFromUrl(searchParams.get("to"));
+    return from || to ? { from, to } : undefined;
+  });
+  const [departmentId, setDepartmentId] = useState(() => searchParams.get("departmentId") ?? "");
+  const [channelId, setChannelId] = useState(() => searchParams.get("channelId") ?? "");
+  const [staffId, setStaffId] = useState(() => searchParams.get("staffId") ?? "");
+  const [status, setStatus] = useState<BankAccountStatus | "">(() => {
+    const parsed = BankAccountStatus.safeParse(searchParams.get("status"));
+    return parsed.success ? parsed.data : "";
+  });
+  const [page, setPage] = useState(() => pageFromUrl(searchParams.get("page")));
   // Chỉ sắp theo ngày mở, và chỉ đổi được chiều — sắp theo tên khách thì phải
   // nối bảng trước khi cắt trang, trên bảng lớn nhất hệ thống.
-  const [dir, setDir] = useState<SortDir>("desc");
+  const [dir, setDir] = useState<SortDir>(() =>
+    searchParams.get("dir") === "asc" ? "asc" : "desc",
+  );
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [removing, setRemoving] = useState<BankAccountRow | null>(null);
@@ -148,6 +170,31 @@ export default function BankingPage() {
 
   const from = range?.from ? iso(range.from) : "";
   const to = range?.to ? iso(range.to) : "";
+
+  /**
+   * Danh sách là một trạng thái quay lại và chia sẻ được, nên mọi thứ làm đổi
+   * kết quả đều nằm trên URL. `replaceState` không thêm một mục lịch sử theo
+   * từng ký tự gõ.
+   */
+  const listUrl = useMemo(() => {
+    const params = new URLSearchParams();
+    if (searchQuery) params.set("search", searchQuery);
+    if (bankCode) params.set("bankCode", bankCode);
+    if (from) params.set("from", from);
+    if (to) params.set("to", to);
+    if (departmentId) params.set("departmentId", departmentId);
+    if (channelId) params.set("channelId", channelId);
+    if (staffId) params.set("staffId", staffId);
+    if (status) params.set("status", status);
+    if (page > 0) params.set("page", String(page + 1));
+    if (dir === "asc") params.set("dir", dir);
+    const query = params.toString();
+    return query ? `/banking?${query}` : "/banking";
+  }, [bankCode, channelId, departmentId, dir, from, page, searchQuery, staffId, status, to]);
+
+  useEffect(() => {
+    window.history.replaceState(null, "", listUrl);
+  }, [listUrl]);
 
   const filters = {
     search: searchQuery,
