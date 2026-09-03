@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Figtree } from "next/font/google";
+import Script from "next/script";
 import { Providers } from "./providers";
 import "./globals.css";
 
@@ -81,19 +82,20 @@ export default function RootLayout({
       className={fontSans.variable}
       suppressHydrationWarning
     >
-      <head>
+      <body>
         {/*
           Gắn data-theme TRƯỚC khi vẽ. Để React gắn trong effect thì khung hình
           đầu tiên luôn là bộ sáng, ai chọn bộ tối sẽ thấy chớp trắng mỗi lần
           tải trang.
+
+          Đi qua `next/script` chứ không viết thẳng thẻ `<script>`: React 19.2
+          cảnh báo mọi thẻ script nằm trong cây component, vì lượt render ở
+          trình duyệt không chạy chúng. `beforeInteractive` để Next chèn script
+          vào HTML, ngoài cây React, nên nó chạy trước hydration như cũ.
         */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `try{var t=JSON.parse(localStorage.getItem("mgst-theme")||"{}").state?.theme;if(t)document.documentElement.dataset.theme=t}catch(e){}`,
-          }}
-        />
-      </head>
-      <body>
+        <Script id="mgst-theme-init" strategy="beforeInteractive">
+          {`try{var t=JSON.parse(localStorage.getItem("mgst-theme")||"{}").state?.theme;if(t)document.documentElement.dataset.theme=t}catch(e){}`}
+        </Script>
         <Providers>{children}</Providers>
       </body>
     </html>
