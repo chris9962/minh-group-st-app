@@ -195,7 +195,11 @@ export function navFor(user: User | null): NavEntry[] {
   const settingsChildren: NavChild[] = [];
 
   if (can(user, 'system', 'configure-gift-rules')) {
-    settingsChildren.push({ href: '/settings/gift-rules', label: 'Quy tắc quà', screen: 'P-81' });
+    settingsChildren.push({
+      href: '/settings/gift-rules',
+      label: 'Quy tắc quà & điểm',
+      screen: 'P-81',
+    });
   }
   if (can(user, 'system', 'configure-catalog')) {
     settingsChildren.push({

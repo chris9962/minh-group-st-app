@@ -155,10 +155,10 @@ export const CONFIG_DOCS: DocArticle[] = [
   },
   {
     slug: 'quy-tac-qua',
-    title: 'Quy tắc quà',
+    title: 'Quy tắc quà & điểm',
     screen: 'P-81',
     group: 'config',
-    summary: 'Thử một tình huống khách để xem hệ thống trả danh sách quà nào.',
+    summary: 'Thử một tình huống khách để xem hệ thống trả quà nào và bao nhiêu điểm.',
     keywords: [
       'quy tắc quà',
       'thể lệ',
@@ -179,11 +179,11 @@ export const CONFIG_DOCS: DocArticle[] = [
         kind: 'shot',
         shot: {
           src: '/docs/gift-rules-page.png',
-          alt: 'Màn Quy tắc quà với khối Nút thử',
+          alt: 'Màn Quy tắc quà & điểm với khối Nút thử',
           width: 1280,
           height: 800,
           markers: [
-            { n: 1, x: 9.2, y: 70.9, label: 'Đường vào: Cấu hình → Quy tắc quà.' },
+            { n: 1, x: 9.2, y: 70.9, label: 'Đường vào: Cấu hình → Quy tắc quà & điểm.' },
             { n: 2, x: 60.8, y: 15.2, label: 'Khối Nút thử — nhập tình huống khách.' },
           ],
         },
@@ -191,12 +191,11 @@ export const CONFIG_DOCS: DocArticle[] = [
       {
         kind: 'steps',
         items: [
-          'Mở **Cấu hình → Quy tắc quà**.',
+          'Mở **Cấu hình → Quy tắc quà & điểm**.',
           'Ở khối **Nút thử**, bạn tích các ngân hàng khách đã mở.',
           'Chọn **Phòng của người phụ trách** và **Kênh**.',
-          'Chọn **Quà khách đã nhận** nếu khách đã nhận quà trước đó.',
           'Chọn **Ngày tra luật**.',
-          'Hệ thống hiện danh sách quà khách đủ điều kiện nhận.',
+          'Hệ thống hiện danh sách quà khách đủ điều kiện nhận, kèm số điểm.',
         ],
       },
       {

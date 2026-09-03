@@ -49,25 +49,22 @@ const ACCOUNT_TYPE_LABEL: Record<AccountType, string> = {
   HKD: "HKD",
 };
 
-/** Tab đang xem quyết định KHỐI KẾT QUẢ; ô nhập thì hai tab dùng chung. */
-export type RuleView = "gift" | "points";
-
 /**
  * P-81 · Nút thử — chỉ tính toán, không ghi gì (spec §5.3). Không tạo khách,
  * không tạo đơn, không trừ mã. Bấm bao nhiêu lần cũng được.
  *
  * Không có nút bấm: chọn tới đâu máy trả kết quả tới đó.
  *
- * MỘT component cho cả hai tab, khác nhau đúng khối kết quả. Ô nhập giống hệt
- * nhau, và để chung một component thì người dùng khai khách MỘT lần rồi lật qua
- * lại xem quà với điểm — tách hai component là khai lại từ đầu mỗi lần đổi tab.
+ * Quà và điểm nằm CHUNG một khối kết quả (chốt 2026-09-03). Hai phần đi ra từ
+ * cùng một lượt gọi `simulateGift`, nên tách làm hai tab chỉ giấu đi nửa số
+ * liệu đã tải về sẵn.
  *
  * Ô nhập khai TỪNG TÀI KHOẢN chứ không khai "tổng số app đã cài" như bản cũ:
  * luật từ kỳ 2026-08 xét tổ hợp hạng ngân hàng, và chỉ `VPa` với `MSBa` mới đòi
  * cài app. Gộp thành một con số thì không diễn tả được ca "mở VPa nhưng chưa
  * cài" — đúng ca hay gặp nhất ngoài hiện trường.
  */
-export function RuleSimulator({ view }: { view: RuleView }) {
+export function RuleSimulator() {
   const [opened, setOpened] = useState<string[]>([]);
   const [apps, setApps] = useState<string[]>([]);
   const [channel, setChannel] = useState("");
@@ -139,9 +136,32 @@ export function RuleSimulator({ view }: { view: RuleView }) {
   const toggleApp = (bank: string) =>
     setApps((prev) => (prev.includes(bank) ? prev.filter((b) => b !== bank) : [...prev, bank]));
 
+  /**
+   * Hai phần cấu thành tổng điểm, gộp thành MỘT dòng phụ dưới con số tổng.
+   *
+   * Bản trước dựng ba dòng nhãn/giá trị ngang hàng nhau, nên người đọc phải tự
+   * cộng để biết dòng nào ra dòng nào.
+   */
+  const pointsDetail = run.data
+    ? [
+        `Tổ hợp ${run.data.kpiPoints}${
+          run.data.kpiBreakdown.length > 0
+            ? ` (${run.data.kpiBreakdown.map((b) => b.label).join(" + ")})`
+            : ""
+        }`,
+        `CNKD/HKD ${run.data.householdPoints}${
+          run.data.householdNote ? ` (${run.data.householdNote})` : ""
+        }`,
+      ].join(" + ")
+    : "";
+
+  /** Nguồn chung của cả rổ; `''` = mỗi món một nguồn, lúc đó in ở từng dòng. */
+  const basketSources = new Set(run.data?.basket.map((item) => item.source) ?? []);
+  const sharedSource = basketSources.size === 1 ? [...basketSources][0] : "";
+
   return (
     <SectionCard
-      title={view === "gift" ? "Thử quy tắc quà" : "Thử quy tắc điểm"}
+      title="Thử quy tắc quà & điểm"
       icon={<FlaskConical size={17} />}
     >
       <fieldset className={styles.fieldset}>
@@ -262,90 +282,77 @@ export function RuleSimulator({ view }: { view: RuleView }) {
           của lần chọn trước, nên không có dòng này là màn hiện kết quả của một
           tình huống người dùng vừa xoá. */}
       {opened.length > 0 && run.data && (
-        <dl className={styles.result}>
-          {view === "points" && (
-            <>
-              <div>
-                <dt>Điểm tổ hợp</dt>
-                <dd>
-                  <span className="tabular-nums">{run.data.kpiPoints}</span>
-                  {run.data.kpiBreakdown.length > 0 && (
-                    <span className={styles.detail}>
-                      {run.data.kpiBreakdown.map((b) => `${b.label} ${b.points}`).join(" + ")}
-                    </span>
-                  )}
-                </dd>
-              </div>
-              {/* Điểm CNKD/HKD nằm NGOÀI điểm tổ hợp và không đổi bậc quà, nên
-                  hiện thành dòng riêng. */}
-              <div>
-                <dt>Điểm CNKD / HKD</dt>
-                <dd>
-                  <span className="tabular-nums">{run.data.householdPoints}</span>
-                  {run.data.householdNote && (
-                    <span className={styles.detail}>{run.data.householdNote}</span>
-                  )}
-                </dd>
-              </div>
-              <div>
-                <dt>Tổng điểm</dt>
-                <dd>
-                  <strong className="tabular-nums">{run.data.totalPoints}</strong>
-                  {run.data.pointsNote && (
-                    <span className={styles.detail}>{run.data.pointsNote}</span>
-                  )}
-                </dd>
-              </div>
-            </>
-          )}
-
-          {view === "gift" && (
-            <>
-          <div>
-            <dt>Trường hợp</dt>
-            <dd>
-              {run.data.caseCode ? (
-                <span className={styles.caseTag}>{run.data.caseCode}</span>
-              ) : (
-                <span className="text-muted">Chưa đủ điều kiện</span>
-              )}
-              {run.data.insuranceYears > 0 && (
-                <span className={styles.detail}>
-                  {run.data.caseCode === "TH5"
-                    ? "Chọn gói bảo hiểm 1 hoặc 2 năm"
-                    : `${run.data.insuranceYears} năm bảo hiểm`}
-                </span>
-              )}
-            </dd>
-          </div>
-          <div>
-            <dt>Tiền mặt</dt>
-            <dd>
-              <span className="tabular-nums">{formatVnd(run.data.cashTotal)}</span>
-              {run.data.cashBreakdown.length > 0 && (
-                <span className={styles.detail}>
-                  {run.data.cashBreakdown
-                    .map((b) => `${formatVnd(b.amount)} (${b.label})`)
-                    .join(" + ")}
-                </span>
-              )}
-            </dd>
-          </div>
-          <div>
-            <dt>Danh sách quà</dt>
-            <dd>
-              {run.data.basket.length === 0 ? (
-                "Không có món nào"
-              ) : (
-                <>
-                  <span>
-                    Khách chọn <strong>đúng 1</strong> trong{" "}
-                    <span className="tabular-nums">{run.data.basket.length}</span> món dưới đây
-                    (hoặc từ chối, không lấy gì):
+        <div className={styles.result}>
+          {/* Ba con số kết luận đứng thành hàng riêng: người dùng mở màn này để
+              biết khách rơi vào bậc nào, được bao nhiêu tiền và bao nhiêu điểm.
+              Bản trước xếp chúng lẫn vào bảy dòng nhãn/giá trị nên phải đọc hết
+              mới nhặt ra ba số đó. */}
+          <dl className={styles.stats}>
+            <div className={styles.stat}>
+              <dt>Trường hợp</dt>
+              <dd>
+                {run.data.caseCode ? (
+                  <span className={styles.caseTag}>{run.data.caseCode}</span>
+                ) : (
+                  <span className="text-muted">Chưa đủ điều kiện</span>
+                )}
+                {run.data.insuranceYears > 0 && (
+                  <span className={styles.statNote}>
+                    {run.data.caseCode === "TH5"
+                      ? "Chọn gói bảo hiểm 1 hoặc 2 năm"
+                      : `${run.data.insuranceYears} năm bảo hiểm`}
                   </span>
-                  <ol className={styles.basket}>
-                    {run.data.basket.map((item, i) => (
-                      <li key={`${item.code}-${i}`}>
+                )}
+              </dd>
+            </div>
+
+            <div className={styles.stat}>
+              <dt>Tiền mặt</dt>
+              <dd>
+                <strong className="tabular-nums">{formatVnd(run.data.cashTotal)}</strong>
+                {run.data.cashBreakdown.length > 0 && (
+                  <span className={styles.statNote}>
+                    {run.data.cashBreakdown
+                      .map((b) => `${formatVnd(b.amount)} (${b.label})`)
+                      .join(" + ")}
+                  </span>
+                )}
+              </dd>
+            </div>
+
+            {/* Điểm CNKD/HKD nằm NGOÀI điểm tổ hợp và không đổi bậc quà, nhưng
+                cộng vào tổng — nên nó là dòng phụ của tổng, không phải một ô số
+                liệu ngang hàng. */}
+            <div className={styles.stat}>
+              <dt>Tổng điểm</dt>
+              <dd>
+                <strong className="tabular-nums">{run.data.totalPoints}</strong>
+                <span className={styles.statNote}>{pointsDetail}</span>
+                {run.data.pointsNote && (
+                  <span className={styles.statNote}>{run.data.pointsNote}</span>
+                )}
+              </dd>
+            </div>
+          </dl>
+
+          <section className={styles.block}>
+            <h3 className={styles.blockTitle}>Danh sách quà</h3>
+            {run.data.basket.length === 0 ? (
+              <p className={styles.blockText}>Không có món nào</p>
+            ) : (
+              <>
+                <p className={styles.blockText}>
+                  Khách chọn <strong>đúng 1</strong> trong{" "}
+                  <span className="tabular-nums">{run.data.basket.length}</span> món dưới đây, hoặc
+                  từ chối không lấy gì.
+                  {/* Cả rổ cùng một nguồn là ca thường gặp — in nguồn ở từng
+                      dòng thì cùng một câu lặp lại bốn lần. */}
+                  {sharedSource && <span className={styles.statNote}>{sharedSource}</span>}
+                </p>
+                <ol className={styles.basket}>
+                  {run.data.basket.map((item, i) => (
+                    <li key={`${item.code}-${i}`}>
+                      <span>
                         {item.name}
                         {/* Màn thử của quản trị — đây đúng là chỗ phải thấy món
                             nào đang tắt, vì họ là người bấm cái công tắc đó. */}
@@ -356,30 +363,26 @@ export function RuleSimulator({ view }: { view: RuleView }) {
                               : " (không còn trong danh mục)"}
                           </strong>
                         )}
-                        <span className={styles.detail}>{item.source}</span>
-                      </li>
-                    ))}
-                  </ol>
-                </>
-              )}
-            </dd>
-          </div>
-            </>
-          )}
-
-          {run.data.explain.length > 0 && (
-            <div>
-              <dt>Vì sao</dt>
-              <dd>
-                <ol className={styles.basket}>
-                  {run.data.explain.map((line, i) => (
-                    <li key={i}>{line}</li>
+                      </span>
+                      {!sharedSource && <span className={styles.detail}>{item.source}</span>}
+                    </li>
                   ))}
                 </ol>
-              </dd>
-            </div>
+              </>
+            )}
+          </section>
+
+          {run.data.explain.length > 0 && (
+            <section className={styles.block}>
+              <h3 className={styles.blockTitle}>Vì sao</h3>
+              <ol className={styles.reasons}>
+                {run.data.explain.map((line, i) => (
+                  <li key={i}>{line}</li>
+                ))}
+              </ol>
+            </section>
           )}
-        </dl>
+        </div>
       )}
     </SectionCard>
   );

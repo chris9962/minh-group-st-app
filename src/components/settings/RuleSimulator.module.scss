@@ -91,27 +91,73 @@
   margin: 16px 0 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 14px;
 }
 
-.result > div {
+/* Ba ô số liệu đứng thành hàng, mỗi ô một khối nền — ba con số kết luận của cả
+   màn phải nhặt ra được bằng mắt, không phải đọc hết bảy dòng mới thấy. */
+.stats {
+  margin: 0;
   display: grid;
-  grid-template-columns: 100px minmax(0, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 10px;
-  align-items: baseline;
 }
 
-.result dt {
-  font-size: 13px;
-  color: var(--om-text-2);
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  background: var(--om-soft);
+  border-radius: var(--radius-md);
 }
 
-.result dd {
+.stat dt {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--om-text-3);
+}
+
+.stat dd {
   margin: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  font-size: 14px;
+  align-items: flex-start;
+  gap: 3px;
+  font-size: 18px;
+}
+
+/* `block` chứ không để mặc định: dòng phụ luôn xuống hàng riêng, kể cả khi nó
+   nằm trong một câu chữ chảy như `.blockText`. */
+.statNote {
+  display: block;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--om-text-2);
+}
+
+/* Khối chữ dưới dải số liệu: danh sách quà và phần Vì sao. Ngăn bằng vạch mảnh
+   thay vì thêm thẻ lồng trong thẻ. */
+.block {
+  padding-top: 12px;
+  border-top: 1px solid var(--om-line);
+}
+
+.blockTitle {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--om-text-2);
+}
+
+/* Chữ chảy bình thường — `flex` ở đây sẽ tách `<strong>` và số đếm giữa câu
+   thành từng dòng riêng. */
+.blockText {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.5;
 }
 
 .detail {
@@ -123,12 +169,13 @@
    dòng chữ như một chi tiết phụ. */
 .caseTag {
   align-self: flex-start;
-  padding: 2px 10px;
+  padding: 3px 12px;
   border-radius: 999px;
   background: var(--om-orange);
   color: var(--om-text-on-accent);
   font-weight: 600;
-  font-size: 13px;
+  /* Cân với con số 18px của hai ô bên cạnh — nhỏ hơn nữa thì ba ô lệch hàng. */
+  font-size: 15px;
 }
 
 .failed {
@@ -137,16 +184,29 @@
   color: var(--om-red);
 }
 
+/* Tên món và nguồn của nó xuống dòng riêng. Để chung một dòng thì hai chuỗi
+   dính liền nhau, đọc ra thành một câu không có nghĩa. */
 .basket {
-  margin: 4px 0 0;
-  padding-left: 18px;
+  margin: 8px 0 0;
+  padding-left: 20px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 6px;
+  font-size: 13.5px;
 }
 
-@media (max-width: bp.$bp-narrow) {
-  .result > div {
-    grid-template-columns: minmax(0, 1fr);
-  }
+.basket li {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.reasons {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13.5px;
+  color: var(--om-text-2);
 }

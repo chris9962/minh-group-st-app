@@ -558,7 +558,7 @@ export const DAILY_DOCS: DocArticle[] = [
       {
         kind: 'note',
         tone: 'info',
-        body: 'Danh sách quà trống nghĩa là khách chưa đủ điều kiện. Bạn xem luật ở màn **Cấu hình → Quy tắc quà**.',
+        body: 'Danh sách quà trống nghĩa là khách chưa đủ điều kiện. Bạn xem luật ở màn **Cấu hình → Quy tắc quà & điểm**.',
       },
     ],
   },
