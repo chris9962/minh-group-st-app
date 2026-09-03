@@ -355,26 +355,6 @@ export default function BankingPage() {
             })
           }
         >
-          <Select
-            block
-            label="Ngân hàng"
-            value={bankCode}
-            onChange={(v) => refine(() => setBankCode(v))}
-            options={[
-              { value: "", label: "Tất cả ngân hàng" },
-              ...banks.map((b) => ({ value: b.code, label: b.code })),
-            ]}
-          />
-          <Select
-            block
-            label="Trạng thái"
-            value={status}
-            onChange={(v) => refine(() => setStatus(v as BankAccountStatus | ""))}
-            options={[
-              { value: "", label: "Tất cả trạng thái" },
-              ...BankAccountStatus.options.map((s) => ({ value: s, label: STATUS_LABEL[s] })),
-            ]}
-          />
           <DateRangePicker label="Khoảng ngày" value={range} onChange={(v) => refine(() => setRange(v))} />
           {canFilterByDepartment && (
             <Select
@@ -387,6 +367,16 @@ export default function BankingPage() {
           )}
           <Select
             block
+            label="Ngân hàng"
+            value={bankCode}
+            onChange={(v) => refine(() => setBankCode(v))}
+            options={[
+              { value: "", label: "Tất cả ngân hàng" },
+              ...banks.map((b) => ({ value: b.code, label: b.code })),
+            ]}
+          />
+          <Select
+            block
             label="Kênh"
             value={channelId}
             onChange={(v) => refine(() => setChannelId(v))}
@@ -395,6 +385,16 @@ export default function BankingPage() {
               // Lọc theo ID kênh, không theo tên: kênh đổi tên thì lọc theo
               // tên bỏ sót đúng những dòng cũ cần tìm.
               ...channels.map((c) => ({ value: c.id, label: c.name })),
+            ]}
+          />
+          <Select
+            block
+            label="Trạng thái"
+            value={status}
+            onChange={(v) => refine(() => setStatus(v as BankAccountStatus | ""))}
+            options={[
+              { value: "", label: "Tất cả trạng thái" },
+              ...BankAccountStatus.options.map((s) => ({ value: s, label: STATUS_LABEL[s] })),
             ]}
           />
           {canFilterByStaff && (
@@ -421,7 +421,6 @@ export default function BankingPage() {
       <main className={styles.body}>
         <FilterChips
           chips={[
-            ...(bankCode ? [{ label: `Ngân hàng: ${bankCode}`, onRemove: () => refine(() => setBankCode("")) }] : []),
             ...(from && to
               ? [{ label: `Ngày: ${formatDate(from)} → ${formatDate(to)}`, onRemove: () => refine(() => setRange(undefined)) }]
               : []),
@@ -433,6 +432,7 @@ export default function BankingPage() {
                   },
                 ]
               : []),
+            ...(bankCode ? [{ label: `Ngân hàng: ${bankCode}`, onRemove: () => refine(() => setBankCode("")) }] : []),
             ...(channelId
               ? [
                   {
