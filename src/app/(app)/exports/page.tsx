@@ -516,6 +516,7 @@ export default function ExportsPage() {
         serviceTypeId,
         from,
         to,
+        departmentId: "",
         wardId: ward,
         staffId: "",
       });

@@ -22,6 +22,7 @@ import { RowActions } from "@/components/ui/RowActions";
 import { SearchField } from "@/components/ui/SearchField";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { Select } from "@/components/ui/Select";
+import { fetchDepartments } from "@/lib/api/departments";
 import { EMPTY_PAGE, PAGE_SIZE, type SortDir } from "@/lib/api/pagination";
 import { deleteService, fetchServices, type ServiceRow } from "@/lib/api/services";
 import { fetchServiceTypes } from "@/lib/api/settings";
@@ -29,7 +30,7 @@ import { fetchStaffOptions } from "@/lib/api/staff";
 import { fetchProvinces } from "@/lib/api/wardCatalog";
 import { formatDate } from "@/lib/format";
 import { useDebouncedValue } from "@/lib/hooks";
-import { can, scopeFor } from "@/lib/permissions";
+import { can, recordVisibility, scopeFor } from "@/lib/permissions";
 import { invalidateKpi } from "@/lib/invalidateKpi";
 import { errorMessage, toast } from "@/lib/toast";
 import { isRealIsoDate } from "@/lib/types";
@@ -63,6 +64,9 @@ export default function ServicesPage() {
     const to = dateFromUrl(searchParams.get("to"));
     return from || to ? { from, to } : undefined;
   });
+  const [departmentId, setDepartmentId] = useState(
+    () => searchParams.get("departmentId") ?? "",
+  );
   const [wardId, setWardId] = useState(() => searchParams.get("wardId") ?? "");
   const [staffId, setStaffId] = useState(() => searchParams.get("staffId") ?? "");
   const [page, setPage] = useState(() => pageFromUrl(searchParams.get("page")));
@@ -93,6 +97,35 @@ export default function ServicesPage() {
   // không có ai khác để chọn, và lời gọi danh sách nhân viên chắc chắn 403.
   const canFilterByStaff = scopeFor(user, "services", "view-detail") !== "own";
 
+  /**
+   * Ô lọc "Phòng" chỉ có nghĩa khi phạm vi đọc của người xem trải qua NHIỀU
+   * phòng. Quản lý đúng một phòng thì mọi dòng đã cùng phòng đó — ô lọc ra
+   * chính bảng đang xem.
+   */
+  const canFilterByDepartment = useMemo(() => {
+    const scope = recordVisibility(user, "services", "view-detail");
+    return scope.kind === "all" || (scope.kind === "departments" && scope.departmentIds.length > 1);
+  }, [user]);
+  const { data: departments = [] } = useQuery({
+    queryKey: ["departments"],
+    queryFn: fetchDepartments,
+    retry: false,
+    staleTime: Infinity,
+    enabled: canFilterByDepartment,
+  });
+  /**
+   * Danh sách cắt theo phạm vi người xem: phòng ngoài phạm vi luôn cho bảng
+   * rỗng, và một dòng chọn luôn ra rỗng là dòng đặt sai chỗ.
+   */
+  const departmentOptions = useMemo(() => {
+    const scope = recordVisibility(user, "services", "view-detail");
+    const inScope =
+      scope.kind === "departments"
+        ? departments.filter((d) => scope.departmentIds.includes(d.id))
+        : departments;
+    return inScope.map((d) => ({ value: d.id, label: d.name }));
+  }, [user, departments]);
+
   const { data: staff = [] } = useQuery({
     queryKey: ["staff", "options", "active"],
     queryFn: () => fetchStaffOptions({ status: "active" }),
@@ -119,13 +152,14 @@ export default function ServicesPage() {
     if (serviceTypeId) params.set("serviceTypeId", serviceTypeId);
     if (from) params.set("from", from);
     if (to) params.set("to", to);
+    if (departmentId) params.set("departmentId", departmentId);
     if (wardId) params.set("wardId", wardId);
     if (staffId) params.set("staffId", staffId);
     if (page > 0) params.set("page", String(page + 1));
     if (dir === "asc") params.set("dir", dir);
     const query = params.toString();
     return query ? `/services?${query}` : "/services";
-  }, [dir, from, page, searchQuery, serviceTypeId, staffId, to, wardId]);
+  }, [departmentId, dir, from, page, searchQuery, serviceTypeId, staffId, to, wardId]);
 
   useEffect(() => {
     window.history.replaceState(null, "", listUrl);
@@ -138,13 +172,25 @@ export default function ServicesPage() {
   };
 
   const { data = EMPTY_PAGE, isPending, isError, refetch, isFetching } = useQuery({
-    queryKey: ["services", searchQuery, serviceTypeId, from, to, wardId, staffId, page, dir],
+    queryKey: [
+      "services",
+      searchQuery,
+      serviceTypeId,
+      from,
+      to,
+      departmentId,
+      wardId,
+      staffId,
+      page,
+      dir,
+    ],
     queryFn: () =>
       fetchServices({
         search: searchQuery,
         serviceTypeId,
         from,
         to,
+        departmentId,
         wardId,
         staffId,
         page,
@@ -155,7 +201,11 @@ export default function ServicesPage() {
   });
 
   const activeCount =
-    (serviceTypeId ? 1 : 0) + (from && to ? 1 : 0) + (wardId ? 1 : 0) + (staffId ? 1 : 0);
+    (serviceTypeId ? 1 : 0) +
+    (from && to ? 1 : 0) +
+    (departmentId ? 1 : 0) +
+    (wardId ? 1 : 0) +
+    (staffId ? 1 : 0);
   // Cột Thao tác chỉ dựng khi bấm vào có tác dụng — một cột nút bấm không được
   // là lời hứa suông (AGENTS.md §6: ẩn nút không phải phân quyền, nhưng hiện
   // nút không làm gì thì là nói dối).
@@ -270,11 +320,22 @@ export default function ServicesPage() {
             refine(() => {
               setServiceTypeId("");
               setRange(undefined);
+              setDepartmentId("");
               setWardId("");
               setStaffId("");
             })
           }
         >
+          <DateRangePicker label="Khoảng ngày" value={range} onChange={(v) => refine(() => setRange(v))} />
+          {canFilterByDepartment && (
+            <Select
+              block
+              label="Phòng"
+              value={departmentId}
+              onChange={(v) => refine(() => setDepartmentId(v))}
+              options={[{ value: "", label: "Tất cả phòng" }, ...departmentOptions]}
+            />
+          )}
           <Select
             block
             label="Loại dịch vụ"
@@ -285,7 +346,6 @@ export default function ServicesPage() {
               ...serviceTypes.map((t) => ({ value: t.id, label: t.name })),
             ]}
           />
-          <DateRangePicker label="Khoảng ngày" value={range} onChange={(v) => refine(() => setRange(v))} />
           <Select
             block
             label="Xã"
@@ -322,19 +382,27 @@ export default function ServicesPage() {
       <main className={styles.body}>
         <FilterChips
           chips={[
-            ...(serviceTypeId
-              ? [
-                  {
-                    label: `Loại dịch vụ: ${serviceTypes.find((t) => t.id === serviceTypeId)?.name ?? ""}`,
-                    onRemove: () => refine(() => setServiceTypeId("")),
-                  },
-                ]
-              : []),
             ...(from && to
               ? [
                   {
                     label: `Ngày: ${formatDate(from)} → ${formatDate(to)}`,
                     onRemove: () => refine(() => setRange(undefined)),
+                  },
+                ]
+              : []),
+            ...(departmentId
+              ? [
+                  {
+                    label: `Phòng: ${departments.find((d) => d.id === departmentId)?.name ?? ""}`,
+                    onRemove: () => refine(() => setDepartmentId("")),
+                  },
+                ]
+              : []),
+            ...(serviceTypeId
+              ? [
+                  {
+                    label: `Loại dịch vụ: ${serviceTypes.find((t) => t.id === serviceTypeId)?.name ?? ""}`,
+                    onRemove: () => refine(() => setServiceTypeId("")),
                   },
                 ]
               : []),

@@ -25,6 +25,7 @@ export async function GET(request: Request) {
         serviceTypeId: uuidParam(params.get("serviceTypeId")),
         from: params.get("from") ?? "",
         to: params.get("to") ?? "",
+        departmentId: uuidParam(params.get("departmentId")),
         wardId: uuidParam(params.get("wardId")),
         staffId: uuidParam(params.get("staffId")),
       },

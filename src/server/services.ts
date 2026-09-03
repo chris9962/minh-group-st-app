@@ -51,6 +51,7 @@ export type ServiceFilters = {
   serviceTypeId: string;
   from: string;
   to: string;
+  departmentId: string;
   wardId: string;
   staffId: string;
 };
@@ -100,6 +101,10 @@ const serviceFilters = (
     // nhầm không đáng làm hỏng cả màn (cùng lối nghĩ với `uuidParam`).
     usableDate(query.from) ? gte(services.serviceDate, query.from) : undefined,
     usableDate(query.to) ? lte(services.serviceDate, query.to) : undefined,
+    // Đứng cạnh `scopeWhere` chứ không thay nó: đây là ô lọc người xem tự chọn,
+    // còn phạm vi quyền là điều kiện bắt buộc. Chọn phòng ngoài phạm vi thì hai
+    // điều kiện giao nhau ra rỗng, đúng như mong đợi.
+    query.departmentId ? eq(services.createdByDepartmentId, query.departmentId) : undefined,
     query.wardId ? eq(services.wardId, query.wardId) : undefined,
     query.staffId ? eq(services.createdBy, query.staffId) : undefined,
   ].filter(Boolean) as SQL[];

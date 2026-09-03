@@ -55,6 +55,11 @@ export type ServiceQuery = PageQuery<ServiceSort> & {
   from: string;
   to: string;
   /**
+   * Phòng đã ghi vào bản ghi lúc tạo, không phải phòng hiện tại của người làm —
+   * nhân viên chuyển phòng thì dịch vụ cũ vẫn thuộc phòng cũ.
+   */
+  departmentId: string;
+  /**
    * Lọc theo xã bằng `wardId`, không bằng tên: bản ghi chụp cả hai, mà xã đổi
    * tên thì lọc theo tên bỏ sót đúng những dòng cũ cần tìm.
    */
@@ -75,6 +80,7 @@ export async function fetchServices(query: ServiceQuery): Promise<Page<ServiceRo
       serviceTypeId: query.serviceTypeId,
       from: query.from,
       to: query.to,
+      departmentId: query.departmentId,
       wardId: query.wardId,
       staffId: query.staffId,
     })}`,
@@ -98,6 +104,7 @@ export async function fetchServicesForExport(
     serviceTypeId: query.serviceTypeId,
     from: query.from,
     to: query.to,
+    departmentId: query.departmentId,
     wardId: query.wardId,
     staffId: query.staffId,
   });
