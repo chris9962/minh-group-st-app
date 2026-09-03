@@ -1,9 +1,10 @@
-import { and, eq, inArray, sql, type SQLWrapper } from "drizzle-orm";
+import { and, count, eq, exists, gte, inArray, lt, or, sql, type SQL, type SQLWrapper } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { bankingPointsFor, bankTierFor, comboPointsAt, giftFor } from "@/rules";
 import type { ScoringAccount } from "@/rules";
 import { BUSINESS_TIMEZONE } from "@/lib/format";
-import type { User } from "@/lib/types";
+import { recordVisibility } from "@/lib/permissions";
+import { isRealIsoDate, type User } from "@/lib/types";
 import { accountExportWhere } from "./banking";
 import { db } from "./db/client";
 import {
@@ -45,6 +46,75 @@ import type { ScoringExportRow } from "@/lib/api/exports";
  * sự thật và nơi gọi BẮT BUỘC so hai số — file thiếu dòng trông y hệt file đủ.
  */
 const SCORING_EXPORT_LIMIT = 60_000;
+
+/**
+ * Khách nào vào file (chốt 2026-09-03).
+ *
+ * `with-accounts` — chỉ khách có tài khoản `done` khớp bộ lọc. Đây là hình dạng
+ * cũ và vẫn là mặc định: file này đối chiếu điểm, mà khách chưa mở tài khoản thì
+ * không có điểm nào để đối.
+ *
+ * `all` — thêm khách đã lập hồ sơ nhưng CHƯA có tài khoản `done` nào. Đội cần nó
+ * để soát ngược: hồ sơ lập trong ngày nhiều hơn hẳn số dòng trong file, và chênh
+ * lệch đó không tra được từ chính file.
+ */
+export type ScoringInclude = "with-accounts" | "all";
+
+/**
+ * Khách CHƯA có tài khoản `done` — nhóm chỉ chế độ `all` lấy thêm.
+ *
+ * Tuỳ chọn "có tài khoản hay không" là MỘT vế AND cạnh các ô lọc khác, không
+ * phải một chế độ làm các ô kia mất tác dụng. Hệ quả trực tiếp: lọc theo ngân
+ * hàng hoặc mã giới thiệu thì nhóm này rỗng, vì khách chưa có tài khoản nào
+ * không thể khớp một mã ngân hàng. Trả `null` để bỏ hẳn nhánh, đúng phép AND.
+ *
+ * Ba ô còn lại vẫn áp, chỉ đổi cột đọc: ngày đọc `customers.created_at` thay cho
+ * `bank_accounts.opened_date`, kênh và người tạo đọc cột của chính bảng khách.
+ * Không đổi cột thì mọi điều kiện đều trượt và khách nào cũng vào file.
+ */
+function customerOnlyWhere(actor: User, filters: BankAccountFilters): SQL | undefined | null {
+  const visible = recordVisibility(actor, "banking", "export");
+  if (visible.kind === "none") return null;
+  if (filters.bankCode || filters.referralCode) return null;
+
+  const parts = [
+    // Ô tìm soi TÊN KHÁCH ở cả hai nhánh, chỉ khác chỗ neo: nhánh tài khoản đi
+    // qua `exists`, nhánh này đọc thẳng cột của bảng khách.
+    ...filters.search
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .map(
+        (term) =>
+          sql`${customers.searchName} like '%' || mgst_normalize(${term.replace(/[\\%_]/g, "\\$&")}) || '%' escape '\\'`,
+      ),
+    visible.kind === "departments"
+      ? inArray(customers.createdByDepartmentId, visible.departmentIds)
+      : visible.kind === "creator"
+        ? eq(customers.createdBy, visible.userId)
+        : undefined,
+    // `created_at` là timestamp, `from`/`to` là ngày làm việc Việt Nam — quy về
+    // cùng múi giờ trước khi so, cùng cách làm với `server/people.ts`.
+    isRealIsoDate(filters.from)
+      ? gte(
+          customers.createdAt,
+          sql`((${filters.from}::date)::timestamp at time zone ${BUSINESS_TIMEZONE})`,
+        )
+      : undefined,
+    // `<` chứ không phải `<=`, khớp `server/people.ts`: mốc 00:00 của ngày kế
+    // tiếp thuộc về ngày sau, không đếm vào cả hai ngày.
+    isRealIsoDate(filters.to)
+      ? lt(
+          customers.createdAt,
+          sql`((${filters.to}::date + 1)::timestamp at time zone ${BUSINESS_TIMEZONE})`,
+        )
+      : undefined,
+    filters.channelId ? eq(customers.channelId, filters.channelId) : undefined,
+    filters.staffId ? eq(customers.createdBy, filters.staffId) : undefined,
+  ].filter(Boolean) as SQL[];
+
+  return parts.length > 0 ? and(...parts) : undefined;
+}
 
 /** Mã ngân hàng ngoài thể lệ nhưng vẫn ghi nhận — không vào tổ hợp, không ra điểm. */
 const HOUSEHOLD_CODES = new Set(["CNKD", "HKD"]);
@@ -123,6 +193,7 @@ const GIFT_COMBO_LABEL: Record<string, string> = {
 export async function listScoringExport(
   actor: User,
   filters: BankAccountFilters,
+  include: ScoringInclude = "with-accounts",
 ): Promise<{ rows: ScoringExportRow[]; total: number }> {
   const where = await accountExportWhere(actor, filters);
   if (where === null) return { rows: [], total: 0 };
@@ -170,6 +241,25 @@ export async function listScoringExport(
     const list = byCustomer.get(row.customerId);
     if (list) list.push(row);
     else byCustomer.set(row.customerId, [row]);
+  }
+
+  /**
+   * Chế độ `all` bổ sung khách CHƯA có tài khoản `done` nào.
+   *
+   * Thêm sau khi đã gom tài khoản, và chỉ thêm khoá rỗng: khách đã có tài khoản
+   * thì giữ nguyên danh sách tài khoản của họ, không ghi đè thành mảng rỗng.
+   *
+   * Trần đếm chung với nhóm trên — `SCORING_EXPORT_LIMIT` là trần của cả lượt
+   * xuất, không phải trần của từng nhóm.
+   */
+  const customerWhere = include === "all" ? customerOnlyWhere(actor, filters) : null;
+  if (customerWhere !== null) {
+    const extra = await db
+      .select({ id: customers.id })
+      .from(customers)
+      .where(customerWhere)
+      .limit(SCORING_EXPORT_LIMIT);
+    for (const row of extra) if (!byCustomer.has(row.id)) byCustomer.set(row.id, []);
   }
 
   const ids = [...byCustomer.keys()];
@@ -318,10 +408,31 @@ export async function listScoringExport(
     });
   }
 
-  const [totals] = await db
-    .select({ value: sql<number>`count(distinct ${bankAccounts.customerId})::int` })
-    .from(bankAccounts)
-    .where(done);
+  /**
+   * `total` phải đếm ĐÚNG tập khách của chế độ đang chạy, vì nơi gọi so nó với
+   * số dòng nhận về để biết đã chạm trần chưa. Đếm nhầm tập thì file thiếu dòng
+   * mà không ai được báo.
+   */
+  const [totals] =
+    customerWhere === null
+      ? await db
+          .select({ value: sql<number>`count(distinct ${bankAccounts.customerId})::int` })
+          .from(bankAccounts)
+          .where(done)
+      : await db
+          .select({ value: count() })
+          .from(customers)
+          .where(
+            or(
+              customerWhere,
+              exists(
+                db
+                  .select({ one: sql`1` })
+                  .from(bankAccounts)
+                  .where(and(done, eq(bankAccounts.customerId, customers.id))),
+              ),
+            ),
+          );
 
   return { rows, total: totals?.value ?? rows.length };
 }

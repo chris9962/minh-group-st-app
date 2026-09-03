@@ -53,6 +53,19 @@ const ScoringExportPage = z.object({
 });
 
 /**
+ * Khách nào vào file — xem `ScoringInclude` ở `server/exports.ts`.
+ *
+ * `with-accounts` là mặc định và là hình dạng cũ của báo cáo.
+ */
+export const SCORING_INCLUDE = ['with-accounts', 'all'] as const;
+export type ScoringInclude = (typeof SCORING_INCLUDE)[number];
+
+export const SCORING_INCLUDE_LABEL: Record<ScoringInclude, string> = {
+  'with-accounts': 'Chỉ khách có tài khoản',
+  all: 'Tất cả khách',
+};
+
+/**
  * TRỌN danh sách khớp bộ lọc, đã gộp theo khách ở máy chủ.
  *
  * `total` đếm KHÁCH, không đếm tài khoản — nơi gọi so với `rows.length` để biết
@@ -60,6 +73,7 @@ const ScoringExportPage = z.object({
  */
 export async function fetchScoringExport(
   query: Omit<BankAccountQuery, keyof PageQuery>,
+  include: ScoringInclude = 'with-accounts',
 ): Promise<{ rows: ScoringExportRow[]; total: number }> {
   const params = new URLSearchParams({
     search: query.search,
@@ -70,6 +84,7 @@ export async function fetchScoringExport(
     channelId: query.channelId,
     staffId: query.staffId,
     status: query.status,
+    include,
   });
   const res = await fetch(`/api/exports/scoring?${params}`);
   if (!res.ok) throw new Error('Không tải được dữ liệu tính điểm tổng');

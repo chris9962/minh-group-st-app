@@ -29,17 +29,23 @@ export async function GET(request: Request) {
     channelId: uuidParam(params.get("channelId")),
     staffId: uuidParam(params.get("staffId")),
     status: params.get("status") ?? "",
-  });
+  },
+  // Giá trị lạ rơi về `with-accounts` — hình dạng cũ, cùng lối với khoá sắp xếp.
+  params.get("include") === "all" ? "all" : "with-accounts");
 
   // Cột CCCD chỉ đi ra khi người xuất có quyền đọc số đầy đủ.
   const rows = can(actor, "customer", "access-id-number")
     ? result.rows
     : result.rows.map((r) => ({ ...r, idNumber: "" }));
 
+  // Nhãn ghi luôn phạm vi khách: hai lượt xuất cùng bộ lọc mà khác chế độ ra hai
+  // số khác nhau, không ghi thì tra nhật ký về sau không phân biệt được.
   await logAudit(actor, {
     module: "banking",
     action: "export",
-    targetLabel: `Tính điểm tổng · ${rows.length}/${result.total} khách`,
+    targetLabel: `Tính điểm tổng · ${rows.length}/${result.total} khách · ${
+      params.get("include") === "all" ? "tất cả khách" : "khách có tài khoản"
+    }`,
   });
 
   return Response.json({ rows, total: result.total });

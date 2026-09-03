@@ -15,7 +15,13 @@ import { SectionCard } from "@/components/ui/SectionCard";
 import { SectionTabs } from "@/components/ui/SectionTabs";
 import { Combobox } from "@/components/ui/Combobox";
 import { Select } from "@/components/ui/Select";
-import { fetchScoringExport, type ScoringExportRow } from "@/lib/api/exports";
+import {
+  SCORING_INCLUDE,
+  SCORING_INCLUDE_LABEL,
+  fetchScoringExport,
+  type ScoringExportRow,
+  type ScoringInclude,
+} from "@/lib/api/exports";
 import { fetchBanks, fetchReferralCodeOptions, type Bank } from "@/lib/api/bankCatalog";
 import { errorMessage } from "@/lib/toast";
 import { fetchDepartments } from "@/lib/api/departments";
@@ -292,6 +298,8 @@ export default function ExportsPage() {
   const [bankCode, setBankCode] = useState("");
   const [range, setRange] = useState<DateRange | undefined>(undefined);
   const [referralCode, setReferralCode] = useState("");
+  /** Báo cáo #1: chỉ khách có tài khoản, hay cả khách chưa mở tài khoản nào. */
+  const [scoringInclude, setScoringInclude] = useState<ScoringInclude>("with-accounts");
   const [month, setMonth] = useState(thisMonth());
   const [statsGroupBy, setStatsGroupBy] = useState<OrderStatsGroupBy>("department");
   /** `day` = mỗi ngày một sheet, `month` = một sheet gộp cả tháng. */
@@ -380,16 +388,19 @@ export default function ExportsPage() {
        * phát, đơn bảo hiểm và điểm của từng khách. Kéo sáu bảng đó về trình
        * duyệt rồi ghép tay là sáu lượt gọi và sáu chỗ có thể lệch.
        */
-      const { rows, total } = await fetchScoringExport({
-        search: "",
-        bankCode,
-        from,
-        to,
-        referralCode,
-        channelId: "",
-        staffId: "",
-        status: "",
-      });
+      const { rows, total } = await fetchScoringExport(
+        {
+          search: "",
+          bankCode,
+          from,
+          to,
+          referralCode,
+          channelId: "",
+          staffId: "",
+          status: "",
+        },
+        scoringInclude,
+      );
       capCheck(rows.length, total, "khách hàng");
 
       // Sắp theo NGÀY rồi tên, đúng thứ tự file Kế toán đang đọc quen.
@@ -630,6 +641,19 @@ export default function ExportsPage() {
 
             <span className={styles.columnPreviewLabel}>Bộ lọc</span>
             <div className={styles.filters} role="group" aria-label="Bộ lọc">
+              {active === "accounts-by-customer" && (
+                <Select
+                  block
+                  label="Khách đưa vào file"
+                  value={scoringInclude}
+                  onChange={(v) => setScoringInclude(v as ScoringInclude)}
+                  options={SCORING_INCLUDE.map((value) => ({
+                    value,
+                    label: SCORING_INCLUDE_LABEL[value],
+                  }))}
+                />
+              )}
+
               {active === "accounts-by-customer" && (
                 <Select
                   block
