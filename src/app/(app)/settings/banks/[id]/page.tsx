@@ -21,7 +21,11 @@ import { SectionCard } from "@/components/ui/SectionCard";
 import { Select } from "@/components/ui/Select";
 import { SkeletonTable } from "@/components/ui/Skeleton";
 import { StatusTag } from "@/components/ui/StatusTag";
-import { BANK_ACCOUNT_STATUS_LABEL, BankAccountStatus } from "@/lib/api/bankAccounts";
+import {
+  ACCOUNT_TYPE_LABEL,
+  BANK_ACCOUNT_STATUS_LABEL,
+  BankAccountStatus,
+} from "@/lib/api/bankAccounts";
 import { fetchBankReferralCodeOptions, fetchBanks } from "@/lib/api/bankCatalog";
 import { fetchDepartments } from "@/lib/api/departments";
 import {
@@ -276,7 +280,16 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
           // `text` cho STK và mã: để mặc định thì Excel hiểu là số học và cắt
           // mất số 0 đầu.
           { header: "STK", type: "text", value: (r) => r.accountNumber },
-          { header: "Mã giới thiệu", type: "text", value: (r) => r.referralCode },
+          // Mã text ĐỨNG TRƯỚC tên hiển thị: file này đem đối chiếu với bảng
+          // của ngân hàng, mà bên đó chỉ có chuỗi mã. Mã QR-only không có chuỗi
+          // nào nên ô chỉ còn tên.
+          {
+            header: "Mã giới thiệu",
+            type: "text",
+            value: (r) =>
+              [r.referralCodeText, r.referralCode].filter(Boolean).join(" - "),
+          },
+          { header: "Loại TK", value: (r) => ACCOUNT_TYPE_LABEL[r.accountType] },
           { header: "Trạng thái", value: (r) => BANK_ACCOUNT_STATUS_LABEL[r.status] },
           { header: "Đã cài app", value: (r) => (r.appInstalled ? "Có" : "Không") },
           // MÃ nhân viên chứ không phải tên: file này đem đối chiếu với app khác

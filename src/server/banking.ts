@@ -369,6 +369,8 @@ const toRow = (r: DecoratedRow): BankAccountRow => ({
   bankCode: r.bankCode,
   accountNumber: r.accountNumber,
   referralCode: r.referralCode,
+  referralCodeText: r.referralCodeText,
+  accountType: accountTypeOf(r),
   channel: r.channel,
   appInstalled: r.appInstalled,
   date: r.date,

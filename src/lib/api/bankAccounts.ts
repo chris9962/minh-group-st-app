@@ -15,6 +15,13 @@ import { isoDate, isoDateOrEmpty, ROLE_RANK, type User } from '@/lib/types';
 export const AccountType = z.enum(['none', 'CNKD', 'HKD']);
 export type AccountType = z.infer<typeof AccountType>;
 
+/** Nhãn tiếng Việt của loại tài khoản. `none` đọc ra "Thường", không phải rỗng. */
+export const ACCOUNT_TYPE_LABEL: Record<AccountType, string> = {
+  none: 'Thường',
+  CNKD: 'CNKD',
+  HKD: 'HKD',
+};
+
 /**
  * Hai bước, không phải một (spec §4.5): KD chọn ngân hàng + mã rồi đi mở tài
  * khoản THẬT bên ngoài (có thể mất nhiều giờ, qua ngày khác) — không nhập hết

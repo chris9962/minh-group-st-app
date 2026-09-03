@@ -21,7 +21,11 @@ export const BankAccountRow = z.object({
   customerName: z.string(),
   bankCode: z.string(),
   accountNumber: z.string(),
+  /** TÊN hiển thị của mã giới thiệu. Chuỗi mã ngân hàng cấp nằm ở `referralCodeText`. */
   referralCode: z.string(),
+  /** Mã text ngân hàng cấp; `''` = mã QR-only, không có chuỗi nào để ghi. */
+  referralCodeText: z.string(),
+  accountType: AccountType,
   channel: z.string(),
   appInstalled: z.boolean(),
   date: z.string(),
