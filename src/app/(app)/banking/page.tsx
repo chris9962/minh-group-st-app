@@ -29,13 +29,14 @@ import {
   deleteBankAccount,
 } from "@/lib/api/bankAccounts";
 import { fetchBankAccounts, type BankAccountRow } from "@/lib/api/banking";
-import { fetchBanks, fetchReferralCodeOptions } from "@/lib/api/bankCatalog";
+import { fetchBanks } from "@/lib/api/bankCatalog";
 import { fetchChannels } from "@/lib/api/channelCatalog";
+import { fetchDepartments } from "@/lib/api/departments";
 import { fetchStaffOptions } from "@/lib/api/staff";
 import { EMPTY_PAGE, PAGE_SIZE, type SortDir } from "@/lib/api/pagination";
 import { formatDate, formatPhone } from "@/lib/format";
 import { useDebouncedValue } from "@/lib/hooks";
-import { can, scopeFor } from "@/lib/permissions";
+import { can, recordVisibility, scopeFor } from "@/lib/permissions";
 import { errorMessage, toast } from "@/lib/toast";
 import { useSession } from "@/store/session";
 import styles from "./page.module.scss";
@@ -49,7 +50,7 @@ export default function BankingPage() {
   const searchQuery = useDebouncedValue(search);
   const [bankCode, setBankCode] = useState("");
   const [range, setRange] = useState<DateRange | undefined>(undefined);
-  const [referralCode, setReferralCode] = useState("");
+  const [departmentId, setDepartmentId] = useState("");
   const [channelId, setChannelId] = useState("");
   const [staffId, setStaffId] = useState("");
   const [status, setStatus] = useState<BankAccountStatus | "">("");
@@ -62,11 +63,36 @@ export default function BankingPage() {
   const [removing, setRemoving] = useState<BankAccountRow | null>(null);
 
   const { data: banks = [] } = useQuery({ queryKey: ["banks"], queryFn: fetchBanks });
-  const { data: codes = [] } = useQuery({
-    queryKey: ["referral-code-options"],
-    queryFn: fetchReferralCodeOptions,
-  });
   const { data: channels = [] } = useQuery({ queryKey: ["channels"], queryFn: fetchChannels });
+
+  /**
+   * Ô lọc "Phòng" chỉ có nghĩa khi phạm vi đọc của người xem trải qua NHIỀU
+   * phòng. Nhân viên chỉ thấy tài khoản mình mở, còn trưởng phòng thì mọi dòng
+   * đã cùng một phòng — ô lọc ra chính bảng đang xem.
+   */
+  const canFilterByDepartment = useMemo(() => {
+    const scope = recordVisibility(user, "banking", "view-detail");
+    return scope.kind === "all" || (scope.kind === "departments" && scope.departmentIds.length > 1);
+  }, [user]);
+  const { data: departments = [] } = useQuery({
+    queryKey: ["departments"],
+    queryFn: fetchDepartments,
+    retry: false,
+    staleTime: Infinity,
+    enabled: canFilterByDepartment,
+  });
+  /**
+   * Danh sách cắt theo phạm vi người xem: phòng ngoài phạm vi luôn cho bảng
+   * rỗng, và một dòng chọn luôn ra rỗng là dòng đặt sai chỗ.
+   */
+  const departmentOptions = useMemo(() => {
+    const scope = recordVisibility(user, "banking", "view-detail");
+    const inScope =
+      scope.kind === "departments"
+        ? departments.filter((d) => scope.departmentIds.includes(d.id))
+        : departments;
+    return inScope.map((d) => ({ value: d.id, label: d.name }));
+  }, [user, departments]);
 
   /**
    * Ô lọc "Nhân viên" đọc TRỌN danh sách, không gom từ các dòng đang hiện.
@@ -128,9 +154,12 @@ export default function BankingPage() {
     bankCode,
     from,
     to,
-    referralCode,
+    // Trang này bỏ ô lọc theo mã (chốt 2026-09-03): trang chi tiết ngân hàng đã
+    // lọc theo mã, và ở đó ô chọn đi bằng id nên mã QR-only cũng chọn được.
+    referralCode: "",
     channelId,
     staffId,
+    departmentId,
     status,
   };
 
@@ -143,7 +172,7 @@ export default function BankingPage() {
   const activeCount =
     (bankCode ? 1 : 0) +
     (from && to ? 1 : 0) +
-    (referralCode ? 1 : 0) +
+    (departmentId ? 1 : 0) +
     (channelId ? 1 : 0) +
     (staffId ? 1 : 0) +
     (status ? 1 : 0);
@@ -179,7 +208,7 @@ export default function BankingPage() {
         label: "STK",
         render: (r) => <span className="tabular-nums">{formatPhone(r.accountNumber)}</span>,
       },
-      { key: "referralCode", label: "Mã giới thiệu", render: (r) => r.referralCode },
+      { key: "department", label: "Phòng", render: (r) => r.createdByDepartmentName ?? "—" },
       {
         key: "status",
         label: "Trạng thái",
@@ -272,7 +301,7 @@ export default function BankingPage() {
             refine(() => {
               setBankCode("");
               setRange(undefined);
-              setReferralCode("");
+              setDepartmentId("");
               setChannelId("");
               setStaffId("");
               setStatus("");
@@ -300,20 +329,15 @@ export default function BankingPage() {
             ]}
           />
           <DateRangePicker label="Khoảng ngày" value={range} onChange={(v) => refine(() => setRange(v))} />
-          <Combobox
-            block
-            // Combobox chứ không phải Select: mỗi ngân hàng có nhiều mã và kho
-            // mã lớn thêm mỗi đợt Kinh doanh tổng hợp nhập vào, mà `<select>`
-            // gốc không gõ tìm được — cùng lý do với ô lọc Nhân viên bên dưới.
-            label="Mã giới thiệu"
-            placeholder="Gõ để tìm mã…"
-            value={referralCode}
-            onChange={(v) => refine(() => setReferralCode(v))}
-            options={[
-              { value: "", label: "Tất cả mã giới thiệu" },
-              ...codes.map((code) => ({ value: code, label: code })),
-            ]}
-          />
+          {canFilterByDepartment && (
+            <Select
+              block
+              label="Phòng"
+              value={departmentId}
+              onChange={(v) => refine(() => setDepartmentId(v))}
+              options={[{ value: "", label: "Tất cả phòng" }, ...departmentOptions]}
+            />
+          )}
           <Select
             block
             label="Kênh"
@@ -354,8 +378,13 @@ export default function BankingPage() {
             ...(from && to
               ? [{ label: `Ngày: ${formatDate(from)} → ${formatDate(to)}`, onRemove: () => refine(() => setRange(undefined)) }]
               : []),
-            ...(referralCode
-              ? [{ label: `Mã giới thiệu: ${referralCode}`, onRemove: () => refine(() => setReferralCode("")) }]
+            ...(departmentId
+              ? [
+                  {
+                    label: `Phòng: ${departmentOptions.find((o) => o.value === departmentId)?.label ?? ""}`,
+                    onRemove: () => refine(() => setDepartmentId("")),
+                  },
+                ]
               : []),
             ...(channelId
               ? [

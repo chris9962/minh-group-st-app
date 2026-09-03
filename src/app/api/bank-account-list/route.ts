@@ -32,6 +32,7 @@ export async function GET(request: Request) {
         // Chuỗi không phải uuid đi thẳng vào SQL là `22P02` → 500.
         channelId: uuidParam(params.get("channelId")),
         staffId: uuidParam(params.get("staffId")),
+        departmentId: uuidParam(params.get("departmentId")),
         status: params.get("status") ?? "",
       },
       pageArgsFrom(url, BANK_ACCOUNT_SORT, "date"),

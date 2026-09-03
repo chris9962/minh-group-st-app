@@ -23,6 +23,7 @@ export async function GET(request: Request) {
     referralCode: params.get("referralCode") ?? "",
     channelId: uuidParam(params.get("channelId")),
     staffId: uuidParam(params.get("staffId")),
+    departmentId: uuidParam(params.get("departmentId")),
     status: params.get("status") ?? "",
   });
 

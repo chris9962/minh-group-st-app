@@ -103,6 +103,13 @@ export type BankAccountFilters = {
   referralCode: string;
   channelId: string;
   staffId: string;
+  /**
+   * Phòng do NGƯỜI DÙNG chọn, rỗng = không lọc.
+   *
+   * Nối bằng VÀ với `scopeWhere`, không thay nó: chọn phòng ngoài phạm vi cho
+   * ra bảng rỗng chứ không nới phạm vi.
+   */
+  departmentId: string;
   status: string;
 };
 
@@ -247,6 +254,7 @@ async function accountFilters(
     usableDate(query.to) ? lte(bankAccounts.openedDate, query.to) : undefined,
     query.channelId ? eq(bankAccounts.channelId, query.channelId) : undefined,
     query.staffId ? eq(bankAccounts.createdBy, query.staffId) : undefined,
+    query.departmentId ? eq(bankAccounts.createdByDepartmentId, query.departmentId) : undefined,
     statusFilter(query.status),
   ].filter(Boolean) as SQL[];
 

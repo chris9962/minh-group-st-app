@@ -397,6 +397,7 @@ export default function ExportsPage() {
           referralCode,
           channelId: "",
           staffId: "",
+          departmentId: "",
           status: "",
         },
         scoringInclude,

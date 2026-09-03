@@ -120,10 +120,17 @@ export type BankAccountQuery = PageQuery<BankAccountSort> & {
   /** Khoảng NGÀY MỞ, YYYY-MM-DD. Rỗng = không giới hạn. */
   from: string;
   to: string;
+  /**
+   * Mã giới thiệu dạng CHUỖI. Chỉ màn Xuất dữ liệu còn dùng — trang Ngân hàng
+   * bỏ ô này (chốt 2026-09-03) vì trang chi tiết ngân hàng đã lọc theo mã, và
+   * lọc theo chuỗi thì mã QR-only không chọn được.
+   */
   referralCode: string;
   /** Lọc theo id kênh, không theo tên: kênh đổi tên thì lọc theo tên bỏ sót dòng cũ. */
   channelId: string;
   staffId: string;
+  /** Phòng ghi nhận lúc tạo bản ghi. Rỗng = mọi phòng. */
+  departmentId: string;
   status: BankAccountStatus | '';
 };
 
@@ -137,6 +144,7 @@ const listParams = (query: Omit<BankAccountQuery, keyof PageQuery>) => ({
   referralCode: query.referralCode,
   channelId: query.channelId,
   staffId: query.staffId,
+  departmentId: query.departmentId,
   status: query.status,
 });
 
