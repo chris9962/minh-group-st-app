@@ -17,9 +17,24 @@ import { listScoringExport } from "@/server/exports";
 export async function GET(request: Request) {
   const actor = await getActor(request);
   if (!actor) return unauthorized();
-  if (!can(actor, "banking", "export")) return forbidden();
 
   const params = new URL(request.url).searchParams;
+  const staffId = uuidParam(params.get("staffId"));
+
+  /**
+   * `omitPii=1` — bảng hiện trên màn, KHÔNG phải file Excel (chốt 2026-09-04).
+   *
+   * Máy chủ bỏ CCCD và số điện thoại khỏi mỗi dòng, nên lượt gọi này không mang
+   * dữ liệu định danh nào. Nhờ vậy người TỰ XEM MÌNH đi qua được mà không cần
+   * `banking:export`: chức vụ Nhân viên không có quyền đó, mà bảng điểm của
+   * chính họ thì họ phải xem được.
+   *
+   * Không có cờ, hoặc xem người khác: vẫn gác `banking:export` như cũ.
+   */
+  const omitPii = params.get("omitPii") === "1";
+  const selfView = omitPii && staffId === actor.id;
+  if (!selfView && !can(actor, "banking", "export")) return forbidden();
+
   const result = await listScoringExport(actor, {
     search: params.get("search") ?? "",
     bankCode: params.get("bankCode") ?? "",
@@ -27,12 +42,15 @@ export async function GET(request: Request) {
     to: params.get("to") ?? "",
     referralCode: params.get("referralCode") ?? "",
     channelId: uuidParam(params.get("channelId")),
-    staffId: uuidParam(params.get("staffId")),
+    staffId,
     departmentId: uuidParam(params.get("departmentId")),
     status: params.get("status") ?? "",
   },
   // Giá trị lạ rơi về `with-accounts` — hình dạng cũ, cùng lối với khoá sắp xếp.
-  params.get("include") === "all" ? "all" : "with-accounts");
+  params.get("include") === "all" ? "all" : "with-accounts",
+  omitPii,
+  // Người tự xem mình đọc đúng bản ghi của chính họ, không rộng hơn một dòng.
+  selfView ? { kind: "creator", userId: actor.id } : undefined);
 
   // Cột CCCD chỉ đi ra khi người xuất có quyền đọc số đầy đủ.
   const rows = can(actor, "customer", "access-id-number")

@@ -572,11 +572,20 @@ export async function listBankAccountsOfBankForExport(
  * là mở đường cho hai nơi lệch nhau, mà lệch ở đây nghĩa là một báo cáo xuất ra
  * dòng của phòng khác.
  */
+/**
+ * `scope` thay cho phạm vi đọc từ quyền — chỉ nơi gọi đã tự chứng minh được
+ * người xem có quyền đọc đúng nhóm bản ghi đó mới truyền vào.
+ *
+ * Dùng ở một chỗ: bảng điểm của CHÍNH người đang đăng nhập (route
+ * `/api/exports/scoring` với `omitPii=1`). Chức vụ Nhân viên không có
+ * `banking:export`, nên phạm vi đọc từ quyền là `none` và bảng ra rỗng.
+ */
 export async function accountExportWhere(
   actor: User,
   filters: BankAccountFilters,
+  scope?: RecordVisibility,
 ): Promise<SQL | undefined | null> {
-  const visible = scopeOf(actor, "export");
+  const visible = scope ?? scopeOf(actor, "export");
   if (visible.kind === "none") return null;
   return accountFilters(visible, filters);
 }

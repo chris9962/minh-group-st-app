@@ -1,0 +1,63 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+/* Hai ô lọc nằm ngang khi đủ chỗ, xuống dòng khi hẹp. Ô nhân viên rộng gấp đôi
+   vì tên người dài hơn hẳn một khoảng ngày. */
+.filters {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: end;
+}
+
+/* Khoá cứng vào một nhân viên thì chỉ còn ô ngày — để nó rộng cả hàng là một
+   khoảng trống dài bên phải, nên giữ đúng bề ngang của ô. */
+.oneFilter {
+  display: grid;
+  grid-template-columns: minmax(0, 260px);
+  gap: var(--space-4);
+}
+
+@media (max-width: bp.$bp-mobile) {
+  .filters,
+  .oneFilter {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Bảng 14 cột không vừa bề ngang màn — cho nó cuộn trong khung của chính nó,
+   không để cả trang cuộn ngang (AGENTS.md §8). */
+.scroll {
+  overflow-x: auto;
+}
+
+/* MỖI Ô ĐÚNG MỘT HÀNG. Bảng này để đối chiếu số theo dòng: một ô xuống hai hàng
+   là dòng đó cao gấp đôi, và mắt người đọc mất mốc khi rà ngang qua mười bốn
+   cột. Bề ngang thiếu thì cuộn, không xuống dòng. */
+.scroll :global(th),
+.scroll :global(td) {
+  white-space: nowrap;
+}
+
+.banks {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.bank {
+  padding: 1px 6px;
+  border: 1px solid var(--om-line);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+/* Khách chưa mở ngân hàng nào vẫn nằm trong bảng — ô này nói rõ là trống, không
+   để người đọc tưởng dữ liệu chưa tải xong. */
+.none {
+  color: var(--om-text-3);
+}

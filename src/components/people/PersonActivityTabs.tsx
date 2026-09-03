@@ -4,6 +4,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState } from "react";
 import { ExternalLink } from "lucide-react";
+import { ScoringTable } from "@/components/exports/ScoringTable";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { SkeletonCard } from "@/components/ui/Skeleton";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
@@ -200,9 +201,15 @@ const SERVICE_COLUMNS: RankColumn<PersonService>[] = [
   },
 ];
 
-type TabKey = "customers" | "accounts" | "insurance" | "services";
+/**
+ * `scoring` KHÁC bốn tab kia: nó không đọc kỳ của trang và không phân trang ở
+ * máy chủ. Bảng điểm có ô chọn khoảng ngày riêng bên trong.
+ */
+type TabKey = "customers" | "accounts" | "insurance" | "services" | "scoring";
 
-const ZERO_PAGES: Record<TabKey, number> = {
+type ListTabKey = Exclude<TabKey, "scoring">;
+
+const ZERO_PAGES: Record<ListTabKey, number> = {
   customers: 0,
   accounts: 0,
   insurance: 0,
@@ -245,8 +252,8 @@ export function PersonActivityTabs({
   personName,
 }: Props) {
   const [tab, setTab] = useState<TabKey>("customers");
-  const [tabPages, setTabPages] = useState<Record<TabKey, number>>(ZERO_PAGES);
-  const [tabDirs, setTabDirs] = useState<Record<TabKey, SortDir>>({
+  const [tabPages, setTabPages] = useState<Record<ListTabKey, number>>(ZERO_PAGES);
+  const [tabDirs, setTabDirs] = useState<Record<ListTabKey, SortDir>>({
     customers: "desc",
     accounts: "desc",
     insurance: "desc",
@@ -256,7 +263,7 @@ export function PersonActivityTabs({
   /* Bốn tab, mỗi tab một route phân trang — gọi CẢ BỐN ngay khi mở để biết tab
      nào có dòng mà hiện; đổi kỳ thì khoá truy vấn đổi, cả bốn tự gọi lại. */
   const listQuery = <T,>(
-    key: TabKey,
+    key: ListTabKey,
     fetcher: (q: {
       id: string;
       from: string;
@@ -276,7 +283,7 @@ export function PersonActivityTabs({
   const insuranceQ = useQuery(listQuery("insurance", fetchPersonInsurance));
   const servicesQ = useQuery(listQuery("services", fetchPersonServices));
 
-  const serverFor = (key: TabKey, total: number) => ({
+  const serverFor = (key: ListTabKey, total: number) => ({
     sort: "date",
     dir: tabDirs[key],
     page: tabPages[key],
@@ -312,7 +319,11 @@ export function PersonActivityTabs({
           { value: "insurance", label: "Đơn bảo hiểm", count: insuranceQ.data?.total ?? 0 },
           { value: "services", label: "Dịch vụ", count: servicesQ.data?.total ?? 0 },
         ] as TabOption[]
-      ).filter((t) => (t.count ?? 0) > 0)
+      )
+        .filter((t) => (t.count ?? 0) > 0)
+        // Bảng điểm LUÔN hiện, kể cả khi bốn tab kia rỗng: nó chạy theo khoảng
+        // ngày riêng, nên kỳ của trang không nói được nó có dòng hay không.
+        .concat([{ value: "scoring", label: "Bảng điểm" }])
     : [];
   const activeTab = tabs.some((t) => t.value === tab) ? tab : tabs[0]?.value;
 
@@ -402,6 +413,10 @@ export function PersonActivityTabs({
           />
         </div>
       )}
+
+      {/* Không bọc `styles.panel`: `ScoringTable` tự dựng thẻ của nó, lồng hai
+          lớp thẻ vào nhau là hai đường viền chồng lên nhau. */}
+      {activeTab === "scoring" && <ScoringTable lockedStaffId={staffId} pageSize={50} />}
     </div>
   );
 }

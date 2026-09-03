@@ -74,6 +74,14 @@ export const SCORING_INCLUDE_LABEL: Record<ScoringInclude, string> = {
 export async function fetchScoringExport(
   query: Omit<BankAccountQuery, keyof PageQuery>,
   include: ScoringInclude = 'with-accounts',
+  /**
+   * Bỏ CCCD và số điện thoại khỏi mỗi dòng — bảng hiện trên màn bật cờ này,
+   * đường xuất Excel thì không (chốt 2026-09-04).
+   *
+   * Cờ cũng là điều kiện để NGƯỜI TỰ XEM MÌNH đi qua cửa quyền: xem
+   * `/api/exports/scoring`.
+   */
+  omitPii = false,
 ): Promise<{ rows: ScoringExportRow[]; total: number }> {
   const params = new URLSearchParams({
     search: query.search,
@@ -85,6 +93,7 @@ export async function fetchScoringExport(
     staffId: query.staffId,
     status: query.status,
     include,
+    ...(omitPii ? { omitPii: '1' } : {}),
   });
   const res = await fetch(`/api/exports/scoring?${params}`);
   if (!res.ok) throw new Error('Không tải được dữ liệu tính điểm tổng');

@@ -3,7 +3,7 @@ import { alias } from "drizzle-orm/pg-core";
 import { bankingPointsFor, bankTierFor, comboPointsAt, giftFor } from "@/rules";
 import type { ScoringAccount } from "@/rules";
 import { BUSINESS_TIMEZONE } from "@/lib/format";
-import { recordVisibility } from "@/lib/permissions";
+import { recordVisibility, type RecordVisibility } from "@/lib/permissions";
 import { isRealIsoDate, type User } from "@/lib/types";
 import { accountExportWhere } from "./banking";
 import { db } from "./db/client";
@@ -72,8 +72,12 @@ export type ScoringInclude = "with-accounts" | "all";
  * `bank_accounts.opened_date`, kênh và người tạo đọc cột của chính bảng khách.
  * Không đổi cột thì mọi điều kiện đều trượt và khách nào cũng vào file.
  */
-function customerOnlyWhere(actor: User, filters: BankAccountFilters): SQL | undefined | null {
-  const visible = recordVisibility(actor, "banking", "export");
+function customerOnlyWhere(
+  actor: User,
+  filters: BankAccountFilters,
+  scope?: RecordVisibility,
+): SQL | undefined | null {
+  const visible = scope ?? recordVisibility(actor, "banking", "export");
   if (visible.kind === "none") return null;
   if (filters.bankCode || filters.referralCode) return null;
 
@@ -190,12 +194,21 @@ const GIFT_COMBO_LABEL: Record<string, string> = {
   TH8: "1 năm BH + 20k",
 };
 
+/**
+ * Bỏ CCCD và số điện thoại khỏi mỗi dòng (chốt 2026-09-04).
+ *
+ * Hai trường đó CHỈ tồn tại trong file Excel. Bảng hiện trên màn gọi cùng đường
+ * dữ liệu này nhưng bật cờ, nên hai trường không rời máy chủ — xoá cột ở giao
+ * diện là chưa đủ, dữ liệu vẫn nằm trong lượt gọi mạng cho ai mở ra cũng đọc.
+ */
 export async function listScoringExport(
   actor: User,
   filters: BankAccountFilters,
   include: ScoringInclude = "with-accounts",
+  omitPii = false,
+  scope?: RecordVisibility,
 ): Promise<{ rows: ScoringExportRow[]; total: number }> {
-  const where = await accountExportWhere(actor, filters);
+  const where = await accountExportWhere(actor, filters, scope);
   if (where === null) return { rows: [], total: 0 };
 
   const done = and(where, eq(bankAccounts.status, "done"));
@@ -252,7 +265,7 @@ export async function listScoringExport(
    * Trần đếm chung với nhóm trên — `SCORING_EXPORT_LIMIT` là trần của cả lượt
    * xuất, không phải trần của từng nhóm.
    */
-  const customerWhere = include === "all" ? customerOnlyWhere(actor, filters) : null;
+  const customerWhere = include === "all" ? customerOnlyWhere(actor, filters, scope) : null;
   if (customerWhere !== null) {
     const extra = await db
       .select({ id: customers.id })
@@ -372,8 +385,8 @@ export async function listScoringExport(
     rows.push({
       customerId,
       customerName: customer?.fullName ?? "",
-      idNumber: customer?.idNumber ?? "",
-      phone: phoneById.get(customerId) ?? "",
+      idNumber: omitPii ? "" : (customer?.idNumber ?? ""),
+      phone: omitPii ? "" : (phoneById.get(customerId) ?? ""),
       date: firstDate,
       hamlet: hamletOf(customer?.channelDetail ?? ""),
       channelName: customer?.channelName ?? "",

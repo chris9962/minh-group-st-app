@@ -1,8 +1,10 @@
+/* Rộng hết bề ngang khu nội dung: bảng điểm ở cuối màn có mười bốn cột, kẹp nó
+   trong 980px là cuộn ngang ngay cả trên màn hình rộng. */
 .wrap {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  max-width: 980px;
+  min-width: 0;
 }
 
 .statRow {

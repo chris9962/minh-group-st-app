@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ChartColumn, Landmark, Target } from "lucide-react";
 import { BarChart } from "@/components/ui/BarChart";
 import { monthLabel } from "@/components/ui/MonthPicker";
+import { ScoringTable } from "@/components/exports/ScoringTable";
 import { KpiScoreBlock } from "@/components/people/KpiScoreBlock";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatCard } from "@/components/ui/StatCard";
@@ -117,6 +118,11 @@ export function StaffDashboard({ person, draftAccounts, periodLabel }: Props) {
           </ul>
         </SectionCard>
       )}
+
+      {/* Bảng điểm từng khách, CHẠY RIÊNG: nó có ô chọn khoảng ngày của chính
+          nó và không đọc kỳ đang chọn ở thanh trên. Ba thẻ đếm đi theo kỳ, bảng
+          này đi theo tháng — hai câu hỏi khác nhau, đừng nối vào nhau. */}
+      <ScoringTable lockedStaffId={person.id} pageSize={50} />
     </div>
   );
 }
