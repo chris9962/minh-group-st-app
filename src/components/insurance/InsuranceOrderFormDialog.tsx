@@ -28,10 +28,10 @@ import { fetchInsurancePackages, type InsurancePackage } from "@/lib/api/setting
 import { businessDay, formatVnd } from "@/lib/format";
 import { invalidateKpi } from "@/lib/invalidateKpi";
 import {
-  SUM_INSURED_DEFAULT,
   SUM_INSURED_OPTIONS,
   VEHICLE_TYPE_DEFAULT,
   VEHICLE_TYPES,
+  sumInsuredForFee,
 } from "@/lib/pvi";
 import { errorMessage, toast } from "@/lib/toast";
 import styles from "./InsuranceOrderFormDialog.module.scss";
@@ -87,8 +87,8 @@ function defaultLegsFor(pkg: InsurancePackage | null): InsuranceOrderLegForm[] {
       beneficiaryDob: "",
       beneficiaryAddress: "",
       householdSize: 0,
-      // Đơn xe máy không có ô này nên để 0; tai nạn điện chọn sẵn bậc hay bán.
-      sumInsured: leg.product === "electric-accident" ? SUM_INSURED_DEFAULT : 0,
+      // Đơn xe máy không có ô này nên để 0; tai nạn điện chọn sẵn mức đi kèm phí.
+      sumInsured: leg.product === "electric-accident" ? sumInsuredForFee(leg.fee) : 0,
       licensePlate: "",
       vehicleType: VEHICLE_TYPE_DEFAULT,
       chassisNumber: "",

@@ -56,6 +56,22 @@ export const VEHICLE_TYPE_DEFAULT = '1002';
 export const SUM_INSURED_OPTIONS = [40_000_000, 80_000_000] as const;
 export const SUM_INSURED_DEFAULT = SUM_INSURED_OPTIONS[0];
 
+/**
+ * Phí đơn → mức trách nhiệm PVI bán kèm mức phí đó (chốt 2026-09-03).
+ *
+ * Bảng tra chứ không phải phép nhân: hai dòng này là hai gói PVI bán, không
+ * phải một công thức. Hãng thêm gói thứ ba với tỉ lệ khác thì chỉ thêm một dòng.
+ *
+ * Phí ngoài bảng lui về `SUM_INSURED_DEFAULT`; ô chọn vẫn đổi tay được.
+ */
+const SUM_INSURED_BY_FEE: Record<number, number> = {
+  100_000: 40_000_000,
+  200_000: 80_000_000,
+};
+
+export const sumInsuredForFee = (fee: number): number =>
+  SUM_INSURED_BY_FEE[fee] ?? SUM_INSURED_DEFAULT;
+
 /* ── Định dạng & giá trị tự sinh ───────────────────────────────────── */
 
 /**
