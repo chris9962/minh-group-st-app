@@ -22,6 +22,7 @@ import type { GiftSimulateResult } from "@/lib/api/settings";
 import { isRealIsoDate, type User } from "@/lib/types";
 import { db, uniqueViolationOf } from "./db/client";
 import { giftForCustomer, grantedItemLabel, recomputeGiftCase } from "./gift";
+import { bankingPointsByCustomer } from "./kpi";
 import {
   bankAccounts,
   banks,
@@ -396,7 +397,17 @@ export async function listCustomers(
     db.select({ value: count() }).from(customers).where(where),
   ]);
 
-  return { rows, total: totals?.value ?? 0 };
+  /* Cột Điểm chỉ có nghĩa khi người xem đã chọn khoảng ngày: luật điểm là luật
+     của một tháng, và ô lọc buộc khoảng nằm trọn một tháng nên `from` đủ nói
+     tháng nào. Chưa lọc thì trả `null`, màn để trống ô đó. */
+  const points = filters.from
+    ? await bankingPointsByCustomer(rows.map((r) => r.id), filters.from.slice(0, 7))
+    : null;
+
+  return {
+    rows: rows.map((r) => ({ ...r, points: points ? (points.get(r.id) ?? 0) : null })),
+    total: totals?.value ?? 0,
+  };
 }
 
 /**
@@ -519,7 +530,15 @@ export async function listCustomersForExport(
     decorate(inner).orderBy(desc(inner.createdInstant), asc(inner.id)),
     db.select({ value: count() }).from(customers).where(where),
   ]);
-  return { rows, total: totals?.value ?? 0 };
+
+  const points = filters.from
+    ? await bankingPointsByCustomer(rows.map((r) => r.id), filters.from.slice(0, 7))
+    : null;
+
+  return {
+    rows: rows.map((r) => ({ ...r, points: points ? (points.get(r.id) ?? 0) : null })),
+    total: totals?.value ?? 0,
+  };
 }
 
 /* ── P-41 · Tạo / sửa ─────────────────────────────────────────────────── */

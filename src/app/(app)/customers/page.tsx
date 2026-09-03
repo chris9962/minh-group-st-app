@@ -35,7 +35,7 @@ import {
   type CustomerSort,
 } from "@/lib/api/customers";
 import { EMPTY_PAGE, PAGE_SIZE } from "@/lib/api/pagination";
-import { formatDate, formatPhone } from "@/lib/format";
+import { formatDate, formatPhone, formatPoints } from "@/lib/format";
 import { useDebouncedValue } from "@/lib/hooks";
 import { can, recordInScope, recordVisibility } from "@/lib/permissions";
 import { isRealIsoDate } from "@/lib/types";
@@ -267,6 +267,9 @@ export default function CustomersPage() {
   // thì người dùng đi xoá bộ lọc vốn đang trống, thay vì bấm "Thêm khách hàng".
   const filtering = Boolean(debouncedSearch) || activeCount > 0;
 
+  /** Bảng có nửa cột Điểm hay không — theo việc người xem đã chọn khoảng ngày. */
+  const showPoints = Boolean(range?.from && range.to);
+
   const columns = useMemo<RankColumn<CustomerRow>[]>(() => {
     /**
      * Phạm vi sửa hồ sơ khách, tính một lần cho cả bảng. `recordVisibility` đã
@@ -294,9 +297,21 @@ export default function CustomersPage() {
       },
       {
         key: "accounts",
-        label: "Số tài khoản",
+        // Nửa "Điểm" chỉ có khi người xem đã chọn khoảng ngày: luật điểm là luật
+        // của một tháng, chưa lọc thì không có tháng nào để chọn file luật.
+        label: showPoints ? "Số tài khoản / Điểm" : "Số tài khoản",
+        // Sắp theo số tài khoản, không sắp theo điểm: `CUSTOMER_SORT` chỉ có
+        // khoá `accounts`, mà điểm nằm ngoài bảng `customers` nên đưa vào
+        // `ORDER BY` là phải gộp cả kho trước khi cắt trang (AGENTS.md §5.2).
         sortable: true,
-        render: (c) => <span className="tabular-nums">{c.accountCount}</span>,
+        // Hai số đo hai mốc: `accountCount` là tổng từ trước tới giờ, `points`
+        // chỉ tính tài khoản mở trong tháng của bộ lọc.
+        render: (c) => (
+          <span className="tabular-nums">
+            {c.accountCount}
+            {c.points === null ? "" : ` / ${formatPoints(c.points)}`}
+          </span>
+        ),
       },
       {
         key: "insurance",
@@ -359,7 +374,7 @@ export default function CustomersPage() {
         ),
       },
     ];
-  }, [user]);
+  }, [user, showPoints]);
 
   return (
     <>
@@ -385,6 +400,9 @@ export default function CustomersPage() {
           <DateRangePicker
             label="Khoảng ngày"
             value={range}
+            // Cột Điểm đọc tháng từ ngày đầu khoảng, mà luật điểm là luật của
+            // MỘT tháng — khoảng vắt hai tháng thì không có file luật nào đúng.
+            sameMonthOnly
             onChange={(next) => {
               setRange(next);
               setQuery((q) => ({ ...q, page: 0 }));

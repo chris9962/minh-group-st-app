@@ -20,6 +20,15 @@ type Props = {
    * `block` của `Select` và `Combobox`, để bảng lọc xếp thẳng một cột.
    */
   label?: string;
+  /**
+   * Khoảng ngày phải nằm TRỌN trong một tháng.
+   *
+   * Bật ở màn có cột ĐIỂM. Điểm KPI tính theo từng tháng và tổ hợp không nối
+   * qua tháng (thể lệ câu 7.13), nên một khoảng vắt hai tháng ra con số không
+   * ai đoán được: khách mở `VPa` ngày 30/08 và `MB` ngày 02/09 KHÔNG thành
+   * Combo 2, dù cả hai đều nằm trong khoảng đang chọn.
+   */
+  sameMonthOnly?: boolean;
 };
 
 const show = (r: DateRange | undefined) => {
@@ -28,14 +37,49 @@ const show = (r: DateRange | undefined) => {
   return r.to ? `${from} → ${format(r.to, "dd/MM/yyyy")}` : `${from} → …`;
 };
 
+/** Ngày sớm hơn trong hai ngày. */
+const earlier = (a: Date, b: Date): Date => (a.getTime() <= b.getTime() ? a : b);
+
+const firstOfMonth = (d: Date): Date => new Date(d.getFullYear(), d.getMonth(), 1);
+const lastOfMonth = (d: Date): Date => new Date(d.getFullYear(), d.getMonth() + 1, 0);
+
+/**
+ * Cắt ngày cuối về cuối tháng của ngày đầu, khi màn đòi khoảng nằm trọn một
+ * tháng. Không bật thì trả nguyên khoảng.
+ */
+const clampToMonth = (r: DateRange | undefined, on: boolean): DateRange | undefined => {
+  if (!on || !r?.from || !r.to) return r;
+  const last = lastOfMonth(r.from);
+  return r.to.getTime() > last.getTime() ? { from: r.from, to: last } : r;
+};
+
 /**
  * Chọn khoảng ngày bằng MỘT lịch: bấm ngày đầu rồi kéo tới ngày cuối.
  * Dùng react-day-picker vì tự viết lịch có khoảng là rất dễ sai ở tuần giao
  * tháng, năm nhuận và điều hướng bàn phím.
  */
-export function DateRangePicker({ value, onChange, maxDate = new Date(), minDate, label }: Props) {
+export function DateRangePicker({
+  value,
+  onChange,
+  maxDate = new Date(),
+  minDate,
+  label,
+  sameMonthOnly = false,
+}: Props) {
   const id = useId();
   const triggerRef = useRef<HTMLButtonElement>(null);
+
+  /**
+   * Đang chọn dở — đã bấm ngày đầu, chưa bấm ngày cuối. Lúc đó lịch khoá vào
+   * tháng của ngày đầu, những ngày ngoài tháng mờ đi.
+   *
+   * Chỉ khoá lúc chọn dở, không khoá lúc đã xong: chọn xong rồi thì người dùng
+   * phải bấm được sang tháng khác để bắt đầu khoảng mới.
+   */
+  const picking = sameMonthOnly && value?.from && !value.to ? value.from : null;
+  const from = picking ? firstOfMonth(picking) : minDate;
+  const to = picking ? earlier(lastOfMonth(picking), maxDate) : maxDate;
+
   return (
     <Popover.Root>
       {/*
@@ -86,8 +130,10 @@ export function DateRangePicker({ value, onChange, maxDate = new Date(), minDate
             numberOfMonths={2}
             defaultMonth={value?.from}
             selected={value}
-            onSelect={onChange}
-            disabled={minDate ? [{ after: maxDate }, { before: minDate }] : { after: maxDate }}
+            // Lưới lịch đã khoá, dòng này chặn nốt đường còn lại: giá trị cũ
+            // đọc từ URL, hoặc khoảng chọn xong trước khi bật `sameMonthOnly`.
+            onSelect={(range) => onChange(clampToMonth(range, sameMonthOnly))}
+            disabled={from ? [{ after: to }, { before: from }] : { after: to }}
             className={styles.calendar}
           />
           <Popover.Arrow className={styles.arrow} />

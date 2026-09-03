@@ -96,6 +96,15 @@ export const CustomerRow = z.object({
    * còn trần tính cả bản nháp `creating` vì bản nháp đã giữ một chỗ mã.
    */
   bankSlotsLeft: z.number(),
+  /**
+   * Điểm combo ngân hàng của riêng khách này (`src/rules/`), hiện chung ô với
+   * `accountCount` chứ không đứng thành cột riêng.
+   *
+   * `null` khi người xem CHƯA chọn khoảng ngày. Luật điểm là luật của một tháng
+   * và mỗi tháng một file ở `src/rules/`, nên không có khoảng ngày thì không có
+   * tháng để chọn file — màn để trống chứ không đoán.
+   */
+  points: z.number().nullable(),
 });
 export type CustomerRow = z.infer<typeof CustomerRow>;
 

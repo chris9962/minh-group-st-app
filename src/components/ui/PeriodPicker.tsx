@@ -12,19 +12,6 @@ export type Period =
 
 export const DEFAULT_PERIOD: Period = { kind: "today" };
 
-/** Ngày sớm hơn trong hai ngày. */
-const minDate = (a: Date, b: Date): Date => (a.getTime() <= b.getTime() ? a : b);
-
-/**
- * Cắt ngày cuối về cuối tháng của ngày đầu, khi màn đòi khoảng nằm trọn một
- * tháng. Không bật thì trả nguyên khoảng.
- */
-const clampToMonth = (r: DateRange | undefined, on: boolean): DateRange | undefined => {
-  if (!on || !r?.from || !r.to) return r;
-  const last = new Date(r.from.getFullYear(), r.from.getMonth() + 1, 0);
-  return r.to.getTime() > last.getTime() ? { from: r.from, to: last } : r;
-};
-
 const iso = (d: Date) =>
   new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
 
@@ -83,22 +70,9 @@ type Props = {
   sameMonthOnly?: boolean;
 };
 
-const lastOfMonth = (d: Date): Date => new Date(d.getFullYear(), d.getMonth() + 1, 0);
-
 /** Chọn kỳ xem số liệu: hôm nay · tháng này · khoảng ngày tự chọn. */
 export function PeriodPicker({ value, onChange, sameMonthOnly = false }: Props) {
   const id = useId();
-
-  /**
-   * Đang chọn dở — đã bấm ngày đầu, chưa bấm ngày cuối. Lúc đó lịch khoá vào
-   * tháng của ngày đầu, những ngày ngoài tháng mờ đi.
-   *
-   * Chỉ khoá lúc chọn dở, không khoá lúc đã xong: chọn xong rồi thì người dùng
-   * phải bấm được sang tháng khác để bắt đầu khoảng mới.
-   */
-  const picking = sameMonthOnly && value.kind === "range" && value.range?.from && !value.range.to
-    ? value.range.from
-    : null;
 
   return (
     <div className={styles.wrap}>
@@ -140,16 +114,8 @@ export function PeriodPicker({ value, onChange, sameMonthOnly = false }: Props) 
       {value.kind === "range" && (
         <DateRangePicker
           value={value.range}
-          minDate={picking ? new Date(picking.getFullYear(), picking.getMonth(), 1) : undefined}
-          maxDate={picking ? minDate(lastOfMonth(picking), new Date()) : new Date()}
-          onChange={(range) =>
-            onChange({
-              kind: "range",
-              // Lưới lịch đã khoá, dòng này chặn nốt đường còn lại: giá trị cũ
-              // đọc từ URL, hoặc khoảng chọn xong trước khi bật `sameMonthOnly`.
-              range: clampToMonth(range, sameMonthOnly),
-            })
-          }
+          sameMonthOnly={sameMonthOnly}
+          onChange={(range) => onChange({ kind: "range", range })}
         />
       )}
 
