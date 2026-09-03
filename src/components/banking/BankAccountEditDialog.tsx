@@ -254,11 +254,15 @@ export function BankAccountEditDialog({ open, onClose, accountId }: Props) {
           </div>
 
           {/* Mã giới thiệu đứng riêng và chép được: nhân viên phải gõ đúng mã này
-              sang app ngân hàng, gõ tay là chỗ dễ sai nhất của cả luồng. */}
-          <div className={styles.referral}>
-            <span className={styles.referralLabel}>Mã giới thiệu</span>
-            <CopyValue value={data.referralCode} label="mã giới thiệu" />
-          </div>
+              sang app ngân hàng, gõ tay là chỗ dễ sai nhất của cả luồng. Mã
+              QR-only không có chuỗi nào để chép nên khối này biến mất — đường đi
+              của ca đó là nút QR bên dưới. */}
+          {data.referralCodeText && (
+            <div className={styles.referral}>
+              <span className={styles.referralLabel}>Mã giới thiệu</span>
+              <CopyValue value={data.referralCodeText} label="mã giới thiệu" />
+            </div>
+          )}
 
           {/* Cùng một bộ ô cho cả hai mặt — khác nhau ở chỗ bấm nút thì làm gì.
               Ảnh vẫn lưu ngay khi thả, không chờ nút, ở cả hai mặt. */}
