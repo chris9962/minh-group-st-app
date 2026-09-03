@@ -24,6 +24,7 @@ import { SectionCard } from "@/components/ui/SectionCard";
 import { Select } from "@/components/ui/Select";
 import { fetchChannels } from "@/lib/api/channelCatalog";
 import { fetchDepartments } from "@/lib/api/departments";
+import { fetchHospitals } from "@/lib/api/hospitalCatalog";
 import {
   fetchCustomerDetail,
   fetchCustomers,
@@ -44,6 +45,7 @@ const iso = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60_000).
 const FIRST_PAGE: CustomerQuery = {
   search: "",
   channelId: "",
+  channelDetail: "",
   staffId: "",
   departmentId: "",
   from: "",
@@ -101,6 +103,20 @@ export default function CustomersPage() {
   const [range, setRange] = useState<DateRange | undefined>(undefined);
 
   const { data: channels = [] } = useQuery({ queryKey: ["channels"], queryFn: fetchChannels });
+
+  /**
+   * Ô lọc bệnh viện chỉ có nghĩa khi kênh đang chọn nhận đầu vào là bệnh viện.
+   * Đọc `inputKind` chứ không so tên kênh: admin đổi tên kênh bất cứ lúc nào,
+   * và spec §2.3 đã nói rõ đây là dữ liệu chứ không phải nhánh code theo tên.
+   */
+  const channelTakesHospital =
+    channels.find((c) => c.id === query.channelId)?.inputKind === "hospital";
+  const { data: hospitals = [] } = useQuery({
+    queryKey: ["hospitals"],
+    queryFn: fetchHospitals,
+    staleTime: Infinity,
+    enabled: channelTakesHospital,
+  });
 
   /**
    * Ô lọc "Nhân viên" đọc TRỌN danh sách nhân sự, không gom từ các dòng đang
@@ -174,6 +190,7 @@ export default function CustomersPage() {
 
   const activeCount =
     (query.channelId ? 1 : 0) +
+    (query.channelDetail ? 1 : 0) +
     (query.departmentId ? 1 : 0) +
     (query.staffId ? 1 : 0) +
     (from && to ? 1 : 0);
@@ -293,18 +310,16 @@ export default function CustomersPage() {
           activeCount={activeCount}
           onClear={() => {
             setRange(undefined);
-            refine({ channelId: "", departmentId: "", staffId: "" });
+            refine({ channelId: "", channelDetail: "", departmentId: "", staffId: "" });
           }}
         >
-          <Select
-            block
-            label="Kênh"
-            value={query.channelId}
-            onChange={(v) => refine({ channelId: v })}
-            options={[
-              { value: "", label: "Tất cả kênh" },
-              ...channels.map((c) => ({ value: c.id, label: c.name })),
-            ]}
+          <DateRangePicker
+            label="Khoảng ngày"
+            value={range}
+            onChange={(next) => {
+              setRange(next);
+              setQuery((q) => ({ ...q, page: 0 }));
+            }}
           />
           {canFilterByDepartment && (
             <Select
@@ -313,6 +328,34 @@ export default function CustomersPage() {
               value={query.departmentId}
               onChange={(v) => refine({ departmentId: v })}
               options={[{ value: "", label: "Tất cả phòng" }, ...departmentOptions]}
+            />
+          )}
+          <Select
+            block
+            label="Kênh"
+            value={query.channelId}
+            // Đổi kênh thì bỏ luôn bệnh viện đã chọn — giữ lại là lọc một bệnh
+            // viện trong một kênh không có bệnh viện nào, bảng ra rỗng.
+            onChange={(v) => refine({ channelId: v, channelDetail: "" })}
+            options={[
+              { value: "", label: "Tất cả kênh" },
+              ...channels.map((c) => ({ value: c.id, label: c.name })),
+            ]}
+          />
+          {channelTakesHospital && (
+            <Combobox
+              block
+              // Combobox chứ không phải Select: danh mục bệnh viện dài dần theo
+              // từng đợt mở kênh, mà `<select>` gốc không gõ tìm được.
+              label="Bệnh viện"
+              placeholder="Gõ để tìm bệnh viện…"
+              value={query.channelDetail}
+              onChange={(v) => refine({ channelDetail: v })}
+              options={[
+                { value: "", label: "Tất cả bệnh viện" },
+                // Giá trị là TÊN, không phải id: cột `channelDetail` lưu tên.
+                ...hospitals.map((h) => ({ value: h.name, label: h.name })),
+              ]}
             />
           )}
           {canFilterByStaff && (
@@ -327,14 +370,6 @@ export default function CustomersPage() {
               options={[{ value: "", label: "Tất cả nhân viên" }, ...staffOptions]}
             />
           )}
-          <DateRangePicker
-            label="Khoảng ngày"
-            value={range}
-            onChange={(next) => {
-              setRange(next);
-              setQuery((q) => ({ ...q, page: 0 }));
-            }}
-          />
         </FilterButton>
         {can(user, "customer", "create") && (
           <Button aria-label="Thêm khách hàng" onClick={() => setCreating(true)}>
@@ -347,11 +382,14 @@ export default function CustomersPage() {
       <main className={styles.body}>
         <FilterChips
           chips={[
-            ...(query.channelId
+            ...(from && to
               ? [
                   {
-                    label: `Kênh: ${channels.find((c) => c.id === query.channelId)?.name ?? query.channelId}`,
-                    onRemove: () => refine({ channelId: "" }),
+                    label: `Ngày tạo: ${formatDate(from)} → ${formatDate(to)}`,
+                    onRemove: () => {
+                      setRange(undefined);
+                      setQuery((q) => ({ ...q, page: 0 }));
+                    },
                   },
                 ]
               : []),
@@ -363,22 +401,27 @@ export default function CustomersPage() {
                   },
                 ]
               : []),
+            ...(query.channelId
+              ? [
+                  {
+                    label: `Kênh: ${channels.find((c) => c.id === query.channelId)?.name ?? query.channelId}`,
+                    onRemove: () => refine({ channelId: "", channelDetail: "" }),
+                  },
+                ]
+              : []),
+            ...(query.channelDetail
+              ? [
+                  {
+                    label: `Bệnh viện: ${query.channelDetail}`,
+                    onRemove: () => refine({ channelDetail: "" }),
+                  },
+                ]
+              : []),
             ...(query.staffId
               ? [
                   {
                     label: `Nhân viên: ${staffOptions.find((o) => o.value === query.staffId)?.label ?? ""}`,
                     onRemove: () => refine({ staffId: "" }),
-                  },
-                ]
-              : []),
-            ...(from && to
-              ? [
-                  {
-                    label: `Ngày tạo: ${formatDate(from)} → ${formatDate(to)}`,
-                    onRemove: () => {
-                      setRange(undefined);
-                      setQuery((q) => ({ ...q, page: 0 }));
-                    },
                   },
                 ]
               : []),

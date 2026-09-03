@@ -109,6 +109,13 @@ export type CustomerSort = (typeof CUSTOMER_SORT)[number];
 export type CustomerQuery = PageQuery<CustomerSort> & {
   search: string;
   channelId: string;
+  /**
+   * Chi tiết kênh, so khớp ĐÚNG CHUỖI. Rỗng = không lọc.
+   *
+   * Kênh Bệnh viện dùng nó để lọc theo một bệnh viện. `channelDetail` lưu TÊN
+   * chứ không lưu id, nên giá trị gửi lên là tên bệnh viện.
+   */
+  channelDetail: string;
   /** Khoảng NGÀY TẠO, YYYY-MM-DD. Rỗng = không giới hạn. */
   from: string;
   to: string;
@@ -135,6 +142,7 @@ export async function fetchCustomers(query: CustomerQuery): Promise<Page<Custome
     `/api/customers?${pageParams(query, {
       search: query.search,
       channelId: query.channelId,
+      channelDetail: query.channelDetail,
       from: query.from,
       to: query.to,
       staffId: query.staffId,

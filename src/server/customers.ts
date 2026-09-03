@@ -82,6 +82,13 @@ const usableDate = isRealIsoDate;
 export type CustomerFilters = {
   search: string;
   channelId: string;
+  /**
+   * Chi tiết kênh, so khớp ĐÚNG CHUỖI. Rỗng hoặc thiếu = không lọc.
+   *
+   * Cột lưu TÊN chứ không lưu id, cùng lối với `channelDetail` của tài khoản
+   * ngân hàng. Giá trị gửi lên là tên bệnh viện, không phải uuid.
+   */
+  channelDetail?: string;
   from: string;
   to: string;
   /** Rỗng = không lọc. Route P-40 đặt = id người xem khi họ là Nhân viên. */
@@ -163,6 +170,7 @@ function customerFilters(query: CustomerFilters): SQL | undefined {
     query.departmentIds ? inArray(customers.createdByDepartmentId, query.departmentIds) : undefined,
     query.departmentId ? eq(customers.createdByDepartmentId, query.departmentId) : undefined,
     query.channelId ? eq(customers.channelId, query.channelId) : undefined,
+    query.channelDetail ? eq(customers.channelDetail, query.channelDetail) : undefined,
     // Ngày sai định dạng thì BỎ QUA, không trả 400: link cũ hay ô địa chỉ gõ
     // nhầm không đáng làm hỏng cả màn (cùng lối nghĩ với `uuidParam`).
     usableDate(query.from) ? sql`${createdDay} >= ${query.from}::date` : undefined,
