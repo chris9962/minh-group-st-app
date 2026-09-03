@@ -228,10 +228,15 @@ function FinishAccountCard({
           <dt>Ngân hàng</dt>
           <dd>{data.bankCode}</dd>
         </div>
-        <div>
-          <dt>Mã giới thiệu</dt>
-          <dd>{data.referralCode}</dd>
-        </div>
+        {/* Mã QR-only không có chuỗi nào để gõ vào form ngân hàng — hiện tên mã
+            ở đây thì nhân viên gõ nhầm tên vào ô mã. Nút "Hiện QR giới thiệu"
+            bên dưới là đường đi đúng của ca đó. */}
+        {data.referralCodeText && (
+          <div>
+            <dt>Mã giới thiệu</dt>
+            <dd>{data.referralCodeText}</dd>
+          </div>
+        )}
         {/* Loại đã chốt từ mã giới thiệu, và hướng dẫn + số ảnh bắt buộc bên
             dưới đi theo loại — không hiện thì người điền không biết mình đang
             theo bản nào. */}
@@ -391,10 +396,12 @@ function DoneAccountCard({
           <dt>Số tài khoản</dt>
           <dd className="tabular-nums">{formatPhone(data.accountNumber)}</dd>
         </div>
-        <div>
-          <dt>Mã giới thiệu</dt>
-          <dd>{data.referralCode}</dd>
-        </div>
+        {data.referralCodeText && (
+          <div>
+            <dt>Mã giới thiệu</dt>
+            <dd>{data.referralCodeText}</dd>
+          </div>
+        )}
         <div>
           <dt>Ngày mở</dt>
           <dd>{formatDate(data.date)}</dd>

@@ -74,6 +74,8 @@ export const BankAccountDetail = BankAccountRow.extend({
   accountNumberLength: z.number().nullable(),
   /** Mọi SĐT của khách, số chính đứng đầu — nguồn cho ô chọn khi `phone-match`. */
   customerPhones: z.array(z.string()),
+  /** Mã text ngân hàng cấp; `''` = mã QR-only, không có chuỗi nào để gõ. */
+  referralCodeText: z.string(),
   /** Link mở tài khoản của mã giới thiệu; `''` = mã không có link. */
   referralOpenUrl: z.string(),
   /** Ảnh QR của mã giới thiệu; `''` = mã không có ảnh. */

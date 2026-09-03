@@ -45,6 +45,8 @@ export const BankAccount = z.object({
   /** Id thật của mã — dùng để đối chiếu/tiêu mã. `referralCode` là chuỗi hiển thị. */
   referralCodeId: z.string(),
   referralCode: z.string(),
+  /** Mã text ngân hàng cấp; `''` = mã QR-only, không có gì để gõ. */
+  referralCodeText: z.string(),
   /** Dữ liệu link cũ để tương thích; giao diện không dùng để mở app. */
   referralOpenUrl: z.string(),
   /** URL ảnh QR; `''` = mã text-only và bước 2 không dựng nút QR. */
