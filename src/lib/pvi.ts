@@ -39,6 +39,12 @@ export const vehicleTypeLabel = (code: string): string =>
   VEHICLE_TYPES.find((v) => v.code === code)?.label ?? code;
 
 /**
+ * Loại xe duy nhất KD đang bán. Form tạo đơn chỉ mở đúng mã này và chọn sẵn.
+ * `VEHICLE_TYPES` vẫn giữ đủ năm mã để đọc lại nhãn của đơn cũ và để sửa đơn.
+ */
+export const VEHICLE_TYPE_DEFAULT = '1002';
+
+/**
  * Mức chi trả của BH tai nạn hộ sử dụng điện — hai bậc PVI bán, không phải số
  * người nhập tự đặt.
  *

@@ -25,7 +25,12 @@ import { PRODUCT_LABEL } from "@/lib/types";
 import { fetchInsurancePackages, type InsurancePackage } from "@/lib/api/settings";
 import { businessDay, formatVnd } from "@/lib/format";
 import { invalidateKpi } from "@/lib/invalidateKpi";
-import { SUM_INSURED_DEFAULT, SUM_INSURED_OPTIONS, VEHICLE_TYPES } from "@/lib/pvi";
+import {
+  SUM_INSURED_DEFAULT,
+  SUM_INSURED_OPTIONS,
+  VEHICLE_TYPE_DEFAULT,
+  VEHICLE_TYPES,
+} from "@/lib/pvi";
 import { errorMessage, toast } from "@/lib/toast";
 import styles from "./InsuranceOrderFormDialog.module.scss";
 import { digitsOnly, numberValue, numericField } from "@/lib/numberField";
@@ -54,17 +59,19 @@ type Props = {
  * Người thụ hưởng để trống: có thể là người khác hẳn khách hàng (spec §5.4),
  * mặc định sẵn tên khách thì hay gặp ca gõ nhầm rồi phải xoá lại.
  *
- * Mỗi đơn mặc định hôm nay → hôm nay + số năm của LEG ĐÓ. Cố ý KHÔNG tự nối
- * ngày giữa các đơn: gói hai năm tai nạn điện thì KD tự sửa ngày đơn thứ hai
- * cho khớp, còn gói ghép thì hai sản phẩm vốn cùng bắt đầu hôm nay — không có
- * cấu hình nào phân biệt hai ca đó nữa.
+ * Ngày mặc định theo `chainsToPrevious` (chốt 2026-09-03): combo nhiều năm CÙNG
+ * một loại BH thì đơn sau nối tiếp ngày kết thúc đơn trước, vì khách mua liền
+ * mạch chứ không mua hai đơn chạy song song. Gói ghép hai sản phẩm khác nhau
+ * vẫn cùng bắt đầu hôm nay.
  */
 function defaultLegsFor(pkg: InsurancePackage | null): InsuranceOrderLegForm[] {
   if (!pkg) return [];
   // `toISOString()` cắt theo UTC, mà máy chủ chạy UTC: đơn lập lúc 0-7h sáng
   // giờ Việt Nam mặc định lùi về HÔM QUA (xem lib/format.ts).
   const today = businessDay();
-  return pkg.legs.map((leg) => {
+  const legs: InsuranceOrderLegForm[] = [];
+  pkg.legs.forEach((leg, i) => {
+    const startDate = chainsToPrevious(pkg, i) ? legs[i - 1].endDate : today;
     const values: InsuranceOrderLegForm = {
       product: leg.product,
       packageName: pkg.name,
@@ -72,8 +79,8 @@ function defaultLegsFor(pkg: InsurancePackage | null): InsuranceOrderLegForm[] {
       orderDate: today,
       /** Phí khai riêng cho leg này — trọn thời hạn, không phải chia đều giá gói. */
       fee: leg.fee,
-      startDate: today,
-      endDate: yearsLater(today, leg.years),
+      startDate,
+      endDate: yearsLater(startDate, leg.years),
       beneficiaryName: "",
       beneficiaryDob: "",
       beneficiaryAddress: "",
@@ -81,13 +88,18 @@ function defaultLegsFor(pkg: InsurancePackage | null): InsuranceOrderLegForm[] {
       // Đơn xe máy không có ô này nên để 0; tai nạn điện chọn sẵn bậc hay bán.
       sumInsured: leg.product === "electric-accident" ? SUM_INSURED_DEFAULT : 0,
       licensePlate: "",
-      vehicleType: "",
+      vehicleType: VEHICLE_TYPE_DEFAULT,
       chassisNumber: "",
       engineNumber: "",
     };
-    return values;
+    legs.push(values);
   });
+  return legs;
 }
+
+/** Đơn thứ `i` nối tiếp đơn liền trước khi hai đơn cùng một loại sản phẩm. */
+const chainsToPrevious = (pkg: InsurancePackage | null, i: number): boolean =>
+  i > 0 && !!pkg && pkg.legs[i - 1]?.product === pkg.legs[i]?.product;
 
 /** Nhãn từng form. Nhiều đơn thì đánh số để KD biết đang điền đơn nào. */
 const legLabel = (pkg: InsurancePackage | null, i: number): string => {
@@ -170,16 +182,22 @@ export function InsuranceOrderFormDialog({
   /**
    * Sửa ngày bắt đầu thì tính lại ngày kết thúc theo số năm của LEG ĐÓ (chốt
    * 2026-09-02) — KD đổi ngày hiệu lực rồi hay quên kéo ngày kết thúc theo.
+   * Các đơn nối tiếp phía sau (`chainsToPrevious`) dời theo luôn, nếu không thì
+   * KD sửa đơn 1 xong đơn 2 vẫn nằm ở khoảng thời gian cũ và chồng lên đơn 1.
    * Ngày kết thúc vẫn sửa tay được sau đó.
    */
   const changeStartDate = (i: number, v: string) => {
     setValue(`legs.${i}.startDate`, v, { shouldDirty: true, shouldValidate: true });
-    const years = selectedPackage?.legs[i]?.years;
-    if (years && isRealIsoDate(v)) {
-      setValue(`legs.${i}.endDate`, yearsLater(v, years), {
-        shouldDirty: true,
-        shouldValidate: true,
-      });
+    if (!isRealIsoDate(v)) return;
+    let start = v;
+    for (let j = i; j < (selectedPackage?.legs.length ?? 0); j++) {
+      const years = selectedPackage?.legs[j]?.years;
+      if (!years) break;
+      const end = yearsLater(start, years);
+      setValue(`legs.${j}.startDate`, start, { shouldDirty: true, shouldValidate: true });
+      setValue(`legs.${j}.endDate`, end, { shouldDirty: true, shouldValidate: true });
+      if (!chainsToPrevious(selectedPackage, j + 1)) break;
+      start = end;
     }
   };
 
@@ -239,10 +257,10 @@ export function InsuranceOrderFormDialog({
           onChange={(v) =>
             setValue(`legs.${i}.vehicleType`, v, { shouldDirty: true, shouldValidate: true })
           }
-          options={[
-            { value: "", label: "— Chọn loại xe —" },
-            ...VEHICLE_TYPES.map((v) => ({ value: v.code, label: `${v.code} – ${v.label}` })),
-          ]}
+          options={VEHICLE_TYPES.filter((v) => v.code === VEHICLE_TYPE_DEFAULT).map((v) => ({
+            value: v.code,
+            label: `${v.code} – ${v.label}`,
+          }))}
         />
       </div>
       <div className={styles.pair}>
