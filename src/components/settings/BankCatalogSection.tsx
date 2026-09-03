@@ -33,6 +33,17 @@ type Props = {
   onCreatingChange: (creating: boolean) => void;
 };
 
+/**
+ * Ngân hàng có ít nhất một bản hướng dẫn để xem.
+ *
+ * Xét cả CNKD/HKD: ba bản tách hẳn nhau (chốt 2026-09-02), nên ngân hàng chỉ
+ * cấu hình bản CNKD mà bỏ trống bản Thường vẫn có thứ để đọc.
+ */
+const hasGuide = (b: Bank) =>
+  Boolean(b.guide) ||
+  b.guidePhotoUrls.length > 0 ||
+  b.guideVariants.some((v) => v.guide || v.guidePhotoUrls.length > 0);
+
 /** P-60 · Kho ngân hàng — danh sách phẳng, mỗi dòng một ngân hàng độc lập. */
 export function BankCatalogSection({ creating, onCreatingChange }: Props) {
   const queryClient = useQueryClient();
@@ -149,7 +160,7 @@ export function BankCatalogSection({ creating, onCreatingChange }: Props) {
         <span className={styles.actions}>
           {/* Chỉ dựng nút khi có gì để xem — nút mở ra một hộp thoại trống là
               bắt người dùng bấm để biết rằng không có gì. */}
-          {(b.guide || b.guidePhotoUrls.length > 0) && (
+          {hasGuide(b) && (
             <Button
               variant="secondary"
               icon
@@ -213,6 +224,7 @@ export function BankCatalogSection({ creating, onCreatingChange }: Props) {
           bankCode={viewingGuide.code}
           guide={viewingGuide.guide}
           photoUrls={viewingGuide.guidePhotoUrls}
+          variants={viewingGuide.guideVariants}
         />
       )}
 

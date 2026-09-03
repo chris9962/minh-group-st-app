@@ -1,3 +1,8 @@
+/* Vùng cuộn của hộp thoại không có `gap`, nên khoảng cách đặt ở đây. */
+.typeTabs {
+  margin-bottom: 14px;
+}
+
 /* Giữ nguyên xuống dòng người nhập gõ — nội dung là các bước đánh số tay. */
 .guide {
   margin: 0;
