@@ -25,25 +25,6 @@
   font-size: 13.5px;
 }
 
-.referral {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  padding: 10px 12px;
-  background: var(--om-orange-soft);
-  border: 1px solid var(--om-orange);
-  border-radius: var(--radius-md);
-}
-
-.referralLabel {
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--om-orange-ink);
-}
-
 @media (max-width: bp.$bp-narrow) {
   .pair {
     grid-template-columns: minmax(0, 1fr);

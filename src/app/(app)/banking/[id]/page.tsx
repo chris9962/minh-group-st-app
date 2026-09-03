@@ -14,6 +14,7 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
 import { BankAccountEditDialog } from "@/components/banking/BankAccountEditDialog";
 import { BankAccountFinishFields } from "@/components/banking/BankAccountFinishFields";
+import { ReferralCodeCard } from "@/components/banking/ReferralCodeCard";
 import {
   BankAccountPhotos,
   photosChanged,
@@ -228,15 +229,6 @@ function FinishAccountCard({
           <dt>Ngân hàng</dt>
           <dd>{data.bankCode}</dd>
         </div>
-        {/* Mã QR-only không có chuỗi nào để gõ vào form ngân hàng — hiện tên mã
-            ở đây thì nhân viên gõ nhầm tên vào ô mã. Nút "Hiện QR giới thiệu"
-            bên dưới là đường đi đúng của ca đó. */}
-        {data.referralCodeText && (
-          <div>
-            <dt>Mã giới thiệu</dt>
-            <dd>{data.referralCodeText}</dd>
-          </div>
-        )}
         {/* Loại đã chốt từ mã giới thiệu, và hướng dẫn + số ảnh bắt buộc bên
             dưới đi theo loại — không hiện thì người điền không biết mình đang
             theo bản nào. */}
@@ -257,6 +249,7 @@ function FinishAccountCard({
         </div>
       </dl>
 
+      <ReferralCodeCard account={data} />
 
       <BankAccountFinishFields
         formId="finish-account-form"
@@ -396,12 +389,6 @@ function DoneAccountCard({
           <dt>Số tài khoản</dt>
           <dd className="tabular-nums">{formatPhone(data.accountNumber)}</dd>
         </div>
-        {data.referralCodeText && (
-          <div>
-            <dt>Mã giới thiệu</dt>
-            <dd>{data.referralCodeText}</dd>
-          </div>
-        )}
         <div>
           <dt>Ngày mở</dt>
           <dd>{formatDate(data.date)}</dd>
@@ -446,6 +433,8 @@ function DoneAccountCard({
           <dd>{departmentName ?? "—"}</dd>
         </div>
       </dl>
+
+      <ReferralCodeCard account={data} />
 
       {/* Hai khối ảnh CHỈ XEM (chốt 2026-08-16): thêm/thay/xoá ảnh đi qua hộp
           thoại Sửa cùng với các ô còn lại, không thao tác thẳng ngoài trang. */}

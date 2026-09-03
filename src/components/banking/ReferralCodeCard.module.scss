@@ -1,0 +1,20 @@
+/* Nhãn cột trái, giá trị cột phải — ba dòng đọc thẳng hàng nhau. Xếp ngang thì
+   ba cặp nhãn/giá trị trôi thành một dải chữ, không rõ nhãn nào của giá trị nào. */
+.card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 6px 12px;
+  padding: 10px 12px;
+  background: var(--om-orange-soft);
+  border: 1px solid var(--om-orange);
+  border-radius: var(--radius-md);
+}
+
+.label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--om-orange-ink);
+}

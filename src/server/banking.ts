@@ -314,6 +314,11 @@ const decorate = (page: ReturnType<typeof pickPage>) =>
       referralOpenUrl: sql<string>`coalesce(${referralCodes.openUrl}, '')`,
       // Khoá trần trong kho ảnh; `imageUrl` dựng đường đọc ở nơi trả ra.
       referralQrImage: referralCodes.qrImage,
+      // Tỉnh và chi nhánh hỗ trợ của mã — bước 2 ghép hai cột thành dòng
+      // "CN PGD". Bước 1 đã hiện chúng lúc chọn mã, nên bước 2 phải hiện lại:
+      // nhân viên mở app xong còn phải liên hệ đúng chi nhánh đó.
+      referralProvince: referralCodes.province,
+      referralSupportBranch: referralCodes.supportBranch,
       // Cột nullable ở DB nhưng hợp đồng là chuỗi: `''` lúc còn `creating` —
       // chưa mở xong thì chưa biết số thật.
       accountNumber: sql<string>`coalesce(${page.accountNumber}, '')`,
@@ -803,6 +808,8 @@ async function detailBody(r: DecoratedRow): Promise<BankAccountDetail> {
     accountNumberLength: r.accountNumberLength,
     customerPhones: await customerPhoneNumbers(r.customerId),
     referralCodeText: r.referralCodeText,
+    referralProvince: r.referralProvince,
+    referralSupportBranch: r.referralSupportBranch,
     referralOpenUrl: r.referralOpenUrl,
     referralQrUrl: r.referralQrImage ? imageUrl(r.referralQrImage) : "",
     bankGuide: separateGuide ? (variant?.guide ?? "") : r.bankGuide,
