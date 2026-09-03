@@ -91,6 +91,11 @@ export default function InsurancePage() {
   });
   /** Phòng của NGƯỜI TẠO đơn. Chuỗi rỗng = mọi phòng. */
   const [departmentId, setDepartmentId] = useState(() => searchParams.get("departmentId") ?? "");
+  /** Bot hay nhân viên đã xử lý đơn. Chuỗi rỗng = không lọc. */
+  const [handler, setHandler] = useState<"bot" | "staff" | "">(() => {
+    const value = searchParams.get("handler");
+    return value === "bot" || value === "staff" ? value : "";
+  });
   const [page, setPage] = useState(() => pageFromUrl(searchParams.get("page")));
   // Chỉ sắp theo ngày hiệu lực, và chỉ đổi được chiều — `INSURANCE_SORT` có đúng
   // một khoá vì sắp theo tên khách/người tạo thì phải nối bảng trước khi cắt trang.
@@ -154,11 +159,12 @@ export default function InsurancePage() {
     if (staffId) params.set("staffId", staffId);
     if (staffId && staffRole !== "any") params.set("staffRole", staffRole);
     if (departmentId) params.set("departmentId", departmentId);
+    if (handler) params.set("handler", handler);
     if (page > 0) params.set("page", String(page + 1));
     if (dir === "asc") params.set("dir", dir);
     const query = params.toString();
     return query ? `/insurance?${query}` : "/insurance";
-  }, [departmentId, dir, from, page, product, search, staffId, staffRole, status, to]);
+  }, [departmentId, dir, from, handler, page, product, search, staffId, staffRole, status, to]);
 
   useEffect(() => {
     window.history.replaceState(null, "", listUrl);
@@ -171,7 +177,7 @@ export default function InsurancePage() {
   };
 
   const { data = EMPTY_PAGE, isPending, isError, refetch, isFetching } = useQuery({
-    queryKey: ["insurance-list", searchQuery, status, product, from, to, staffId, staffRole, departmentId, page, dir],
+    queryKey: ["insurance-list", searchQuery, status, product, from, to, staffId, staffRole, departmentId, handler, page, dir],
     queryFn: () =>
       fetchInsuranceOrders({
         search: searchQuery,
@@ -182,6 +188,7 @@ export default function InsurancePage() {
         staffId,
         staffRole,
         departmentId,
+        handler,
         page,
         sort: "date",
         dir,
@@ -243,7 +250,8 @@ export default function InsurancePage() {
     (product ? 1 : 0) +
     (from && to ? 1 : 0) +
     (staffId ? 1 : 0) +
-    (departmentId ? 1 : 0);
+    (departmentId ? 1 : 0) +
+    (handler ? 1 : 0);
   const filtering = Boolean(searchQuery) || activeCount > 0;
   const canEdit = can(user, "insurance", "update");
   const canRemove = can(user, "insurance", "delete");
@@ -434,6 +442,7 @@ export default function InsurancePage() {
               setStaffId("");
               setStaffRole("any");
               setDepartmentId("");
+              setHandler("");
             })
           }
         >
@@ -496,6 +505,20 @@ export default function InsurancePage() {
               ]}
             />
           )}
+          {/* Bot chạy trơn thì cột "Người xử lý" để trống, nên hai giá trị này
+              đọc thẳng `handled_by` ở máy chủ. Đơn chưa ai xử lý không khớp giá
+              trị nào — xem `handlerFilter` ở server/insurance.ts. */}
+          <Select
+            block
+            label="Xử lý bởi"
+            value={handler}
+            onChange={(v) => refine(() => setHandler(v as typeof handler))}
+            options={[
+              { value: "", label: "Bot và nhân viên" },
+              { value: "bot", label: "Bot" },
+              { value: "staff", label: "Nhân viên" },
+            ]}
+          />
         </FilterButton>
       </TopBar>
 
@@ -549,6 +572,14 @@ export default function InsurancePage() {
                         setStaffId("");
                         setStaffRole("any");
                       }),
+                  },
+                ]
+              : []),
+            ...(handler
+              ? [
+                  {
+                    label: `Xử lý bởi: ${handler === "bot" ? "Bot" : "Nhân viên"}`,
+                    onRemove: () => refine(() => setHandler("")),
                   },
                 ]
               : []),

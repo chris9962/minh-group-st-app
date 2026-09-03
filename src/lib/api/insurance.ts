@@ -172,6 +172,14 @@ export type InsuranceQuery = PageQuery<InsuranceSort> & {
   staffRole: 'creator' | 'handler' | 'any';
   /** Phòng của NGƯỜI TẠO đơn, uuid. Rỗng = mọi phòng. */
   departmentId: string;
+  /**
+   * Bot hay nhân viên đã xử lý đơn. Rỗng = không lọc.
+   *
+   * Đơn chưa ai xử lý — còn nằm hàng chờ làm tay, hoặc huỷ trước khi ai cầm —
+   * KHÔNG khớp giá trị nào: gộp chúng vào `bot` là cộng thêm việc bot chưa làm
+   * vào số của bot.
+   */
+  handler: 'bot' | 'staff' | '';
 };
 
 const InsurancePage = pageOf(InsuranceListRow);
@@ -185,6 +193,7 @@ const listParams = (query: Omit<InsuranceQuery, keyof PageQuery>) => ({
   staffId: query.staffId,
   staffRole: query.staffRole,
   departmentId: query.departmentId,
+  handler: query.handler,
 });
 
 /** MỘT trang đơn bảo hiểm, đã lọc/tìm/sắp sẵn ở máy chủ (AGENTS.md §5.1). */

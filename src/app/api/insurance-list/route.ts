@@ -30,6 +30,7 @@ export async function GET(request: Request) {
         staffId: uuidParam(params.get("staffId")),
         staffRole: params.get("staffRole") ?? "any",
         departmentId: uuidParam(params.get("departmentId")),
+        handler: params.get("handler") ?? "",
       },
       pageArgsFrom(url, INSURANCE_SORT, "date"),
     ),

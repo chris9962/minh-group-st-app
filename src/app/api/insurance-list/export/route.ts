@@ -24,6 +24,7 @@ export async function GET(request: Request) {
     to: params.get("to") ?? "",
     staffId: uuidParam(params.get("staffId")),
     departmentId: uuidParam(params.get("departmentId")),
+    handler: params.get("handler") ?? "",
   });
 
   // Lượt xuất nào cũng để lại vết (spec §10.4).

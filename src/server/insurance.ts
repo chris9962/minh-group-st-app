@@ -7,7 +7,10 @@ import {
   eq,
   gte,
   inArray,
+  isNotNull,
+  isNull,
   lte,
+  notInArray,
   or,
   sql,
   type SQL,
@@ -83,6 +86,8 @@ export type InsuranceFilters = {
   staffRole: string;
   /** Phòng của NGƯỜI TẠO đơn. Chuỗi rỗng = mọi phòng. */
   departmentId: string;
+  /** `bot` · `staff` · chuỗi rỗng = không lọc. Xem `handlerFilter`. */
+  handler: string;
 };
 
 /**
@@ -248,6 +253,36 @@ const staffFilter = (q: { staffId: string; staffRole: string }): SQL | undefined
   return or(eq(insuranceOrders.createdBy, q.staffId), eq(insuranceOrders.handledBy, q.staffId));
 };
 
+/**
+ * Trạng thái mà đơn CHƯA ai xử lý: còn nằm hàng chờ làm tay, hoặc huỷ trước khi
+ * có người cầm. Cả hai đều có `handled_by` null nhưng bot cũng chưa làm gì.
+ */
+const UNHANDLED_STATUSES = ["manual-queued", "cancelled"] as const;
+
+/**
+ * Bot hay nhân viên đã xử lý đơn.
+ *
+ * `handled_by` là chốt duy nhất: mọi đường người làm đều ghi tên vào cột đó —
+ * bấm "Nhận đơn xử lý", và bấm hoàn thành thay bot cho đơn bot bỏ dở. Bot chạy
+ * trơn thì cột để trống.
+ *
+ * Cột trống KHÔNG đủ để kết luận "bot làm": đơn nằm hàng chờ làm tay và đơn huỷ
+ * sớm cũng trống. Trừ hai trạng thái đó ra, nếu không số của bot phồng lên bằng
+ * đúng phần việc chưa ai đụng tới. Đổi lại, hai nhóm này không khớp giá trị lọc
+ * nào — cộng số đơn của "Bot" với "Nhân viên" không ra tổng.
+ *
+ * Giá trị lạ thành "không lọc", cùng lối với khoá sắp xếp.
+ */
+const handlerFilter = (raw: string): SQL | undefined => {
+  if (raw === "staff") return isNotNull(insuranceOrders.handledBy);
+  if (raw === "bot")
+    return and(
+      isNull(insuranceOrders.handledBy),
+      notInArray(insuranceOrders.status, [...UNHANDLED_STATUSES]),
+    );
+  return undefined;
+};
+
 /** Chuỗi rỗng hoặc giá trị lạ đều thành "mọi trạng thái" / "mọi loại". */
 const statusFilter = (raw: string): SQL | undefined => {
   const parsed = InsuranceOrderStatus.safeParse(raw);
@@ -280,6 +315,7 @@ const orderFilters = (actor: User, query: InsuranceFilters): SQL | undefined => 
     usableDate(query.from) ? gte(insuranceOrders.orderDate, query.from) : undefined,
     usableDate(query.to) ? lte(insuranceOrders.orderDate, query.to) : undefined,
     staffFilter(query),
+    handlerFilter(query.handler),
     // Lọc theo phòng của NGƯỜI TẠO, không phải người xử lý: câu hỏi thường gặp
     // là "phòng nào lập bao nhiêu đơn", còn người xử lý tay là kho chung nên
     // phòng của họ không nói lên đơn thuộc về ai.
