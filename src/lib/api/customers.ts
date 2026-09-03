@@ -78,6 +78,8 @@ export const CustomerRow = z.object({
   channel: z.string(),
   createdAt: z.string(),
   createdByName: z.string(),
+  /** Tên phòng LÚC LẬP hồ sơ. `''` khi hồ sơ chưa gắn phòng nào. */
+  createdByDepartmentName: z.string(),
   /**
    * Hai trường dưới KHÔNG hiện lên màn. Chúng để giao diện gọi `recordInScope`
    * mà ẩn nút Sửa đúng dòng — sửa hồ sơ khách áp phạm vi mức dòng, còn đọc thì
@@ -112,6 +114,14 @@ export type CustomerQuery = PageQuery<CustomerSort> & {
   to: string;
   /** Lọc theo người lập hồ sơ. Rỗng = mọi người. */
   staffId: string;
+  /**
+   * Lọc theo PHÒNG chụp lúc lập hồ sơ, không phải phòng người đó đang thuộc về.
+   * Rỗng = mọi phòng.
+   *
+   * Máy chủ giao nó với phạm vi đọc của người xem, không thay thế: chọn phòng
+   * ngoài phạm vi thì ra bảng rỗng.
+   */
+  departmentId: string;
 };
 
 const CustomerPage = pageOf(CustomerRow);
@@ -128,6 +138,7 @@ export async function fetchCustomers(query: CustomerQuery): Promise<Page<Custome
       from: query.from,
       to: query.to,
       staffId: query.staffId,
+      departmentId: query.departmentId,
     })}`,
   );
   if (!res.ok) throw new Error('Không tải được danh sách khách hàng');

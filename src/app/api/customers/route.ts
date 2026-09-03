@@ -71,6 +71,7 @@ export async function GET(request: Request) {
          */
         createdBy: scope.createdBy ?? uuidParam(params.get("staffId")),
         departmentIds: scope.departmentIds,
+        departmentId: uuidParam(params.get("departmentId")),
       },
       pageArgsFrom(url, SORTABLE, "created"),
     ),

@@ -23,6 +23,7 @@ import { SearchField } from "@/components/ui/SearchField";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { Select } from "@/components/ui/Select";
 import { fetchChannels } from "@/lib/api/channelCatalog";
+import { fetchDepartments } from "@/lib/api/departments";
 import {
   fetchCustomerDetail,
   fetchCustomers,
@@ -44,6 +45,7 @@ const FIRST_PAGE: CustomerQuery = {
   search: "",
   channelId: "",
   staffId: "",
+  departmentId: "",
   from: "",
   to: "",
   page: 0,
@@ -121,6 +123,35 @@ export default function CustomersPage() {
     [staff],
   );
 
+  /**
+   * Ô lọc "Phòng" chỉ có nghĩa khi phạm vi đọc của người xem trải qua NHIỀU
+   * phòng. Nhân viên chỉ thấy khách mình lập, còn quản lý đúng một phòng thì mọi
+   * dòng đã cùng phòng đó — ô lọc ra chính bảng đang xem.
+   */
+  const canFilterByDepartment = useMemo(() => {
+    const scope = recordVisibility(user, "customer", "view-detail");
+    return scope.kind === "all" || (scope.kind === "departments" && scope.departmentIds.length > 1);
+  }, [user]);
+  const { data: departments = [] } = useQuery({
+    queryKey: ["departments"],
+    queryFn: fetchDepartments,
+    retry: false,
+    staleTime: Infinity,
+    enabled: canFilterByDepartment,
+  });
+  /**
+   * Danh sách cắt theo phạm vi người xem: phòng ngoài phạm vi luôn cho bảng
+   * rỗng, và một dòng chọn luôn ra rỗng là dòng đặt sai chỗ.
+   */
+  const departmentOptions = useMemo(() => {
+    const scope = recordVisibility(user, "customer", "view-detail");
+    const inScope =
+      scope.kind === "departments"
+        ? departments.filter((d) => scope.departmentIds.includes(d.id))
+        : departments;
+    return inScope.map((d) => ({ value: d.id, label: d.name }));
+  }, [user, departments]);
+
   const from = range?.from ? iso(range.from) : "";
   const to = range?.to ? iso(range.to) : "";
   const asked: CustomerQuery = { ...query, search: debouncedSearch, from, to };
@@ -142,7 +173,10 @@ export default function CustomersPage() {
   const refine = (patch: Partial<CustomerQuery>) => setQuery((q) => ({ ...q, ...patch, page: 0 }));
 
   const activeCount =
-    (query.channelId ? 1 : 0) + (query.staffId ? 1 : 0) + (from && to ? 1 : 0);
+    (query.channelId ? 1 : 0) +
+    (query.departmentId ? 1 : 0) +
+    (query.staffId ? 1 : 0) +
+    (from && to ? 1 : 0);
   // "Chưa có khách nào" và "lọc không ra gì" là hai chuyện khác nhau. Nói nhầm
   // thì người dùng đi xoá bộ lọc vốn đang trống, thay vì bấm "Thêm khách hàng".
   const filtering = Boolean(debouncedSearch) || activeCount > 0;
@@ -191,8 +225,10 @@ export default function CustomersPage() {
       },
       {
         key: "createdByName",
-        label: "Người tạo",
-        render: (c) => c.createdByName || "",
+        label: "Người tạo - Phòng",
+        // Thiếu một trong hai vế thì bỏ luôn dấu nối, không để chuỗi treo đầu
+        // hoặc treo đuôi.
+        render: (c) => [c.createdByName, c.createdByDepartmentName].filter(Boolean).join(" - "),
       },
       {
         key: "actions",
@@ -257,7 +293,7 @@ export default function CustomersPage() {
           activeCount={activeCount}
           onClear={() => {
             setRange(undefined);
-            refine({ channelId: "", staffId: "" });
+            refine({ channelId: "", departmentId: "", staffId: "" });
           }}
         >
           <Select
@@ -270,6 +306,15 @@ export default function CustomersPage() {
               ...channels.map((c) => ({ value: c.id, label: c.name })),
             ]}
           />
+          {canFilterByDepartment && (
+            <Select
+              block
+              label="Phòng"
+              value={query.departmentId}
+              onChange={(v) => refine({ departmentId: v })}
+              options={[{ value: "", label: "Tất cả phòng" }, ...departmentOptions]}
+            />
+          )}
           {canFilterByStaff && (
             <Combobox
               block
@@ -307,6 +352,14 @@ export default function CustomersPage() {
                   {
                     label: `Kênh: ${channels.find((c) => c.id === query.channelId)?.name ?? query.channelId}`,
                     onRemove: () => refine({ channelId: "" }),
+                  },
+                ]
+              : []),
+            ...(query.departmentId
+              ? [
+                  {
+                    label: `Phòng: ${departmentOptions.find((o) => o.value === query.departmentId)?.label ?? ""}`,
+                    onRemove: () => refine({ departmentId: "" }),
                   },
                 ]
               : []),

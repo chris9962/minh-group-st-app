@@ -97,6 +97,15 @@ export type CustomerFilters = {
    * lập, nếu không họ lập hồ sơ trùng.
    */
   departmentIds?: string[];
+  /**
+   * Phòng do NGƯỜI DÙNG chọn ở ô lọc, rỗng hoặc thiếu = không lọc.
+   *
+   * Tách khỏi `departmentIds` vì hai thứ khác nghĩa: trường trên là phạm vi
+   * người xem được phép đọc, trường này là câu hỏi họ đặt trong phạm vi đó. Hai
+   * điều kiện nối bằng VÀ, nên chọn phòng ngoài phạm vi cho ra bảng rỗng chứ
+   * không nới phạm vi.
+   */
+  departmentId?: string;
 };
 
 /**
@@ -152,6 +161,7 @@ function customerFilters(query: CustomerFilters): SQL | undefined {
     // Danh sách rỗng nghĩa là "không phòng nào" — người có quyền nhưng chưa
     // được giao phòng nào thì thấy bảng rỗng, không phải thấy cả kho.
     query.departmentIds ? inArray(customers.createdByDepartmentId, query.departmentIds) : undefined,
+    query.departmentId ? eq(customers.createdByDepartmentId, query.departmentId) : undefined,
     query.channelId ? eq(customers.channelId, query.channelId) : undefined,
     // Ngày sai định dạng thì BỎ QUA, không trả 400: link cũ hay ô địa chỉ gõ
     // nhầm không đáng làm hỏng cả màn (cùng lối nghĩ với `uuidParam`).
@@ -255,6 +265,11 @@ function decorate(page: ReturnType<typeof pickPage>) {
       createdAt: page.createdAt,
       createdByName: sql<string>`coalesce(${users.fullName}, '')`,
       /**
+       * Phòng LÚC LẬP hồ sơ, không phải phòng người đó đang thuộc về — người
+       * chuyển phòng thì hồ sơ cũ vẫn thuộc phòng đã lập nó.
+       */
+      createdByDepartmentName: sql<string>`coalesce(${departments.name}, '')`,
+      /**
        * Hai cột dưới KHÔNG hiện ở màn nào — chúng để giao diện ẩn nút Sửa đúng
        * dòng, dùng chung `recordInScope` với máy chủ (AGENTS.md §6). Hai bản
        * chép tay là hai chỗ sớm muộn lệch nhau.
@@ -278,7 +293,8 @@ function decorate(page: ReturnType<typeof pickPage>) {
     .leftJoinLateral(phone, sql`true`)
     .leftJoin(giftGrants, eq(giftGrants.customerId, page.id))
     .leftJoin(channels, eq(channels.id, page.channelId))
-    .leftJoin(users, eq(users.id, page.createdBy));
+    .leftJoin(users, eq(users.id, page.createdBy))
+    .leftJoin(departments, eq(departments.id, page.createdByDepartmentId));
 }
 
 /**
