@@ -28,21 +28,6 @@
   text-decoration: underline;
 }
 
-/* Ô bấm cao bằng cả dòng: bấm trúng tên khách là vào hồ sơ, không cần nhắm đúng
-   chữ. Gạch chân chỉ khi di chuột để bảng không rối. Cùng dáng với cột tên ở
-   các bảng danh sách. */
-.nameLink {
-  display: block;
-  padding: 12px 0;
-  margin: -12px 0;
-  color: var(--om-link);
-}
-
-.nameLink:hover {
-  color: var(--om-link-hover);
-  text-decoration: underline;
-}
-
 /* Cột trái là chân dung nhân viên và điểm — đọc một lần rồi để đó. Cột phải là
    thứ người dùng thật sự lật qua lật lại, nên rộng và không bị cắt. */
 .columns {
@@ -64,23 +49,6 @@
   flex-direction: column;
   gap: 14px;
   min-width: 0;
-}
-
-
-/* Bảng ở cột phải cũng là một thẻ — cùng nền, cùng viền, cùng bóng với các
-   thẻ bên trái, nếu không nó trông như đang nằm rơi trên nền trang. */
-.panel {
-  background: var(--om-card);
-  border: 1px solid var(--om-line);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
-  padding: var(--space-4);
-}
-
-.footnote {
-  margin: 10px 0 0;
-  font-size: 12px;
-  color: var(--color-neutral-600);
 }
 
 /* Dưới 1100px cột trái hết chỗ để thở, xếp dọc lại. */

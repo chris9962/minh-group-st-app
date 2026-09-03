@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, lte, sql } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { monthRange } from "@/lib/format";
 import { bankingPointsFor, kpiAppliesTo, type ScoringAccount } from "@/rules";
 import type { Range } from "./org";
@@ -134,6 +134,79 @@ async function grantedGiftsOf(conn: Db, userId: string): Promise<Map<string, str
     .where(eq(customers.createdBy, userId));
 
   return new Map(rows.map((r) => [r.customerId, r.chosenItem]));
+}
+
+/**
+ * Điểm combo ngân hàng của TỪNG khách trong danh sách, cho ĐÚNG trang đang hiện.
+ *
+ * Bước "dán phần phụ sau" của cách A ở AGENTS.md §5.2: câu chính đã cắt trang,
+ * hàm này chỉ chạy trên 15 id đó. Truyền cả danh sách khách của một tháng vào
+ * đây là quay lại hình dạng câu hỏi mà §5.2 cấm.
+ *
+ * `yearMonth` BẮT BUỘC, và nơi gọi chỉ có nó khi người xem đã chọn khoảng ngày
+ * (chốt 2026-09-04). Không có khoảng ngày thì không có tháng, không có tháng
+ * thì không có file luật — màn để trống ô điểm chứ không đoán một tháng nào đó.
+ *
+ * Chỉ tính tài khoản MỞ trong tháng ấy: tổ hợp không nối qua tháng (thể lệ câu
+ * 7.13). Mốc là `opened_date`, không phải ngày lập hồ sơ khách.
+ *
+ * `giftGrants` phải đi kèm: kỳ 2026-08 hạ điểm CNKD của khách đã nhận Mì hoặc
+ * Nón. Bỏ nó thì điểm của tháng đó cao hơn điểm thật.
+ */
+export async function bankingPointsByCustomer(
+  customerIds: string[],
+  yearMonth: string,
+): Promise<Map<string, number>> {
+  const points = new Map<string, number>();
+  if (customerIds.length === 0) return points;
+
+  const { from, to } = monthRange(yearMonth);
+  const rows = await db
+    .select({
+      customerId: bankAccounts.customerId,
+      bankCode: banks.code,
+      appInstalled: bankAccounts.appInstalled,
+      openedDate: bankAccounts.openedDate,
+      household: bankAccounts.accountType,
+    })
+    .from(bankAccounts)
+    .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
+    .where(
+      and(
+        inArray(bankAccounts.customerId, customerIds),
+        eq(bankAccounts.status, "done"),
+        gte(bankAccounts.openedDate, from),
+        lte(bankAccounts.openedDate, to),
+      ),
+    );
+
+  const granted = new Map(
+    (
+      await db
+        .select({ customerId: giftGrants.customerId, chosenItem: giftGrants.chosenItem })
+        .from(giftGrants)
+        .where(inArray(giftGrants.customerId, customerIds))
+    ).map((g) => [g.customerId, g.chosenItem]),
+  );
+
+  const byCustomer = new Map<string, ScoringAccount[]>();
+  for (const r of rows) {
+    const account: ScoringAccount = {
+      customerId: r.customerId,
+      bankCode: r.bankCode,
+      appInstalled: r.appInstalled,
+      openedDate: r.openedDate ?? "",
+      household: r.household,
+    };
+    const kept = byCustomer.get(r.customerId);
+    if (kept) kept.push(account);
+    else byCustomer.set(r.customerId, [account]);
+  }
+
+  for (const [customerId, accounts] of byCustomer) {
+    points.set(customerId, bankingPointsFor(accounts, yearMonth, granted));
+  }
+  return points;
 }
 
 /**

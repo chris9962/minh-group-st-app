@@ -31,6 +31,13 @@ export const PersonCustomer = z.object({
   /** Hai cột đếm lưu sẵn của khách — xem `customers.account_count` ở db-design §9. */
   accountCount: z.number(),
   insuranceCount: z.number(),
+  /**
+   * Điểm combo ngân hàng của riêng khách này trong THÁNG đang xem (`src/rules/`).
+   *
+   * KHÔNG gồm điểm dịch vụ: tab Dịch vụ đã có cột Điểm riêng, cộng vào đây là
+   * một con số đếm hai lần ở hai tab.
+   */
+  points: z.number(),
 });
 export type PersonCustomer = z.infer<typeof PersonCustomer>;
 

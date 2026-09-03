@@ -1,0 +1,31 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+/* Ô bấm cao bằng cả dòng: bấm trúng tên khách là vào hồ sơ, không cần nhắm đúng
+   chữ. Gạch chân chỉ khi di chuột để bảng không rối. Cùng dáng với cột tên ở
+   các bảng danh sách. */
+.nameLink {
+  display: block;
+  padding: 12px 0;
+  margin: -12px 0;
+  color: var(--om-link);
+}
+
+.nameLink:hover {
+  color: var(--om-link-hover);
+  text-decoration: underline;
+}
+
+/* Bảng cũng là một thẻ — cùng nền, cùng viền, cùng bóng với các thẻ khác, nếu
+   không nó trông như đang nằm rơi trên nền trang. */
+.panel {
+  background: var(--om-card);
+  border: 1px solid var(--om-line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-4);
+}

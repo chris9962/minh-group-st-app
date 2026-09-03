@@ -12,6 +12,7 @@ import { BUSINESS_TIMEZONE, businessDay, businessMonth, monthRange, roundPoints 
 import { clampScope, inVisibleScope, visibleDepartmentIds } from "@/lib/permissions";
 import { DepartmentType, ROLE_RANK, Scope, type User } from "@/lib/types";
 import { db } from "./db/client";
+import { bankingPointsByCustomer } from "./kpi";
 import type { PageArgs } from "./pagination";
 import {
   bankAccounts,
@@ -856,7 +857,15 @@ export async function personCustomersFor(
     .from(customers)
     .where(where);
 
-  return { rows, total };
+  const points = await bankingPointsByCustomer(
+    rows.map((r) => r.id),
+    range.from.slice(0, 7),
+  );
+
+  return {
+    rows: rows.map((r) => ({ ...r, points: points.get(r.id) ?? 0 })),
+    total,
+  };
 }
 
 export async function personAccountsFor(
