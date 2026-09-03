@@ -63,6 +63,8 @@ next-env.d.ts
 /pvi-qlcd-playwright/captcha/
 # Vết mạng ghi lúc chạy — chứa HTML trang thật, không phải mã nguồn.
 /pvi-qlcd-playwright/vet/
+# Nhật ký worker ghi lúc chạy — mã đơn và số đơn điện tử thật, sinh lại được.
+/pvi-qlcd-playwright/worker.log
 # DOM chụp từ trang PVI. `Manager.html` chứa TÊN và SỐ ĐƠN của hàng trăm khách
 # hàng THẬT; `moto.html` chứa danh sách 293 cán bộ khai thác và 325 môi giới.
 /pvi-qlcd-playwright/lib/flows/Manager.html
