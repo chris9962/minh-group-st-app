@@ -769,16 +769,16 @@ check("TH1 · 20k", giftOf(["MB", "VPa"]).cashTotal, 20_000);
 check("TH2 · không tiền", giftOf(["MB", "LPB"]).cashTotal, 0);
 check("TH3 · 70k", giftOf(["MB", "VPa", "MSBa"]).cashTotal, 70_000);
 check("TH4 · 50k", giftOf(["MB", "MSBa", "LPB"]).cashTotal, 50_000);
-/** Hạn chi 50k của MSBa rút xuống 5 ngày — chốt 2026-09-03. Kỳ 2026-08 giữ 10 ngày. */
 check(
-  "TH4 · hạn chi 50k là 5 ngày",
+  "TH4 · hạn chi 50k của MSBa giữ 10 ngày",
   giftOf(["MB", "MSBa", "LPB"]).cash.find((c) => c.bankCode === "MSBa")?.withinDays ?? -1,
-  5,
+  10,
 );
+/** Hạn chi 20k của VPa nới lên 5 ngày, bảng khách gửi 2026-09-03. Kỳ 2026-08 ghi 3 ngày. */
 check(
-  "TH1 · hạn chi 20k của VPa giữ 3 ngày",
+  "TH1 · hạn chi 20k của VPa là 5 ngày",
   giftOf(["MB", "VPa"]).cash.find((c) => c.bankCode === "VPa")?.withinDays ?? -1,
-  3,
+  5,
 );
 check("TH5 · 20k", giftOf(["MB", "VPa", "LPB"]).cashTotal, 20_000);
 check("TH6 · không tiền", giftOf(["LPB", "TPB", "VIB"]).cashTotal, 0);
@@ -788,6 +788,40 @@ check(
   "VPa chưa cài app trong Combo 3 thì không có 20k",
   giftOf(["MB", "VPa!", "LPB"]).cashTotal,
   0,
+);
+
+/**
+ * Ghi chú 20k của `VPb` — thể lệ mục 3c, đội chốt 2026-09-03.
+ *
+ * Chỉ là chữ đọc: không vào `cashTotal`, không sinh món trong rổ. Hiện đúng hai
+ * ca thể lệ cho phép triển khai `VPb`.
+ */
+section("Ghi chú 20k của VPb");
+check(
+  "Combo 3 có VPb thì có ghi chú",
+  giftOf(["LPB", "TCB", "VPb"]).giftNote !== undefined,
+  true,
+);
+check(
+  "VPb kèm CNKD thì có ghi chú",
+  giftOf(["VPb"], { household: "CNKD" }).giftNote !== undefined,
+  true,
+);
+check("Ghi chú KHÔNG cộng vào tiền mặt", giftOf(["LPB", "TCB", "VPb"]).cashTotal, 0);
+check(
+  "VPb đứng một mình, không CNKD, không có ghi chú",
+  giftOf(["VPb"]).giftNote === undefined,
+  true,
+);
+check(
+  "VPb kèm MB, tổ hợp thắng là Combo 1 của MB nên không có ghi chú",
+  giftOf(["MB", "VPb"]).giftNote === undefined,
+  true,
+);
+check(
+  "Khách không có VPb thì không có ghi chú",
+  giftOf(["MB", "VPa"]).giftNote === undefined,
+  true,
 );
 
 /* ── Mục 4b · món thêm ──────────────────────────────────────────────── */

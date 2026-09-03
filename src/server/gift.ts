@@ -228,6 +228,7 @@ export async function giftResultOf(
       ? "Hồ sơ khách sai nên không được tính điểm nào. Khách không thể vừa mở VPa vừa mở VPb — hai mã là hai cách đăng ký của cùng một ngân hàng."
       : "",
     explain: result.explain,
+    giftNote: result.giftNote ?? "",
   };
 }
 

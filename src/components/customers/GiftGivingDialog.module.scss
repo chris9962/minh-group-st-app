@@ -76,6 +76,12 @@
   color: var(--om-text-2);
 }
 
+.note {
+  margin: 0;
+  font-size: 13px;
+  color: var(--om-text-2);
+}
+
 @media (max-width: bp.$bp-narrow) {
   .cards {
     grid-template-columns: minmax(0, 1fr);

@@ -407,12 +407,17 @@ export const householdPointsOf = (
  * `withinDays` là HẠN CÔNG TY PHẢI CHI, và nó CHỈ ĐỂ HIỆN CHO NGƯỜI ĐỌC — việc
  * chi tiền nằm ngoài hệ thống này (chốt 07/08). Đừng dựng lịch nhắc hay cột
  * trạng thái dựa trên con số này.
+ *
+ * ⚠️ `VPb` cố ý VẮNG MẶT, đội chốt 2026-09-03, xem thể lệ mục 3c. Mục 1 của thể
+ * lệ ghi *"KH sẽ được tặng 20k khi PSGD trong vòng 07 ngày"* cho `VPb`, nhưng
+ * bảng quà mục 3 không có dòng nào cho nó. Khoản đó còn đòi tra soát khách có
+ * phát sinh giao dịch hay không, mà việc tra soát nằm ngoài hệ thống.
  */
 const CASH_OF: Record<string, Omit<GiftCash, "reason">> = {
-  VPa: { bankCode: "VPa", amount: 20_000, withinDays: 3 },
-  // Hạn chi của `MSBa` rút từ 10 ngày xuống 5 — chốt 2026-09-03. Kỳ 2026-08
-  // giữ 10 ngày.
-  MSBa: { bankCode: "MSBa", amount: 50_000, withinDays: 5 },
+  // Hạn chi của `VPa` nới từ 3 ngày lên 5, bảng khách gửi 2026-09-03. `MSBa`
+  // giữ nguyên 10 ngày như kỳ 2026-08.
+  VPa: { bankCode: "VPa", amount: 20_000, withinDays: 5 },
+  MSBa: { bankCode: "MSBa", amount: 50_000, withinDays: 10 },
 };
 
 /**
@@ -505,6 +510,25 @@ function caseOf(
 
   return null;
 }
+
+/**
+ * Ghi chú 20k của `VPb`, CHỈ ĐỂ ĐỌC. Nó không sinh món chọn được và không cộng
+ * vào `cashTotal`. Đội chốt 2026-09-03, xem thể lệ mục 3c.
+ *
+ * Khoản này đòi tra soát khách có phát sinh giao dịch trong 07 ngày hay không,
+ * mà việc tra soát nằm ngoài hệ thống. Nhân viên vẫn phải biết để nói với
+ * khách, nên câu này hiện dưới phần quà.
+ *
+ * Xét trên TỔ HỢP THẮNG, không xét mọi tài khoản khách có. `VPb` chỉ được
+ * triển khai ở Combo 3 và ở ca `VPb` kèm CNKD (lưu ý 1 mục 4), và đúng hai ca
+ * đó mới đưa `VPb` vào tổ hợp thắng. Khách mở `VPb` kèm một ngân hàng khác thì
+ * tổ hợp thắng là Combo 1 của ngân hàng kia, nên không có câu này.
+ */
+const VPB_NOTE =
+  "Khách mở VPb được tặng 20.000đ nếu phát sinh giao dịch trong 07 ngày. Khoản này ngoài hệ thống, không nằm trong tiền mặt ở trên.";
+
+const giftNoteOf = (combo: Combo): string | undefined =>
+  combo.codes.includes("VPb") ? VPB_NOTE : undefined;
 
 /**
  * Gắn vào TỪNG món số tiền khách nhận nếu lấy đúng món đó.
@@ -636,6 +660,7 @@ export function gift(input: GiftInput): GiftResult {
       // Chưa đạt bậc nào thì không có gói bảo hiểm, nhưng món thêm vẫn phát.
       basket: withCashIfChosen(extras, 0),
       explain,
+      giftNote: giftNoteOf(combo),
     };
   }
 
@@ -689,5 +714,6 @@ export function gift(input: GiftInput): GiftResult {
     cashTotal,
     basket: withCashIfChosen(basket, cashTotal),
     explain,
+    giftNote: giftNoteOf(combo),
   };
 }

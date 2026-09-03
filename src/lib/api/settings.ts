@@ -219,6 +219,15 @@ export const GiftSimulateResult = z.object({
   pointsNote: z.string().default(''),
   /** Vì sao ra kết quả này — khách hỏi thì nhân viên đọc thẳng ở màn (spec §5.3). */
   explain: z.array(z.string()),
+  /**
+   * Quyền lợi NGOÀI hệ thống, chỉ để đọc: kỳ 2026-09 là 20k của `VPb`.
+   *
+   * Không sinh món chọn được và không nằm trong `cashTotal`. Rỗng khi khách
+   * không có khoản nào.
+   *
+   * `default` cho snapshot `gift_grants` chốt trước 2026-09-03 vẫn parse được.
+   */
+  giftNote: z.string().default(''),
 });
 export type GiftSimulateResult = z.infer<typeof GiftSimulateResult>;
 
@@ -236,6 +245,7 @@ export const EMPTY_GIFT: GiftSimulateResult = {
   totalPoints: 0,
   pointsNote: '',
   explain: [],
+  giftNote: '',
 };
 
 /* ── P-83 · Chỉ tiêu KPI theo tháng ──────────────────────────────────── */

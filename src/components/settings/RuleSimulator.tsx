@@ -370,6 +370,8 @@ export function RuleSimulator() {
                 </ol>
               </>
             )}
+            {/* Khoản ngoài hệ thống, không phải món chọn được. */}
+            {run.data.giftNote && <p className={styles.blockText}>{run.data.giftNote}</p>}
           </section>
 
           {run.data.explain.length > 0 && (

@@ -500,6 +500,11 @@ export default function CustomerDetailPage({
                   ))}
                 </ul>
               )}
+              {/* Khoản ngoài hệ thống, tách khỏi `giftExplain` để nhân viên không
+                  đọc nhầm thành tiền công ty đã tính ở ô Tiền mặt. */}
+              {data.gift.giftNote && (
+                <p className={styles.footnote}>{data.gift.giftNote}</p>
+              )}
               <p className={styles.footnote}>
                 Quà tính trên <strong>toàn bộ</strong> tài khoản của khách, kể cả tài khoản
                 ngoài phạm vi xem của bạn.

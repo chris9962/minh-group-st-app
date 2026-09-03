@@ -148,6 +148,16 @@ export type GiftResult = {
    * 1 năm mà người kia được 2 năm" thì nhân viên phải trả lời ngay tại màn.
    */
   explain: string[];
+  /**
+   * Quyền lợi khách được hưởng NGOÀI hệ thống, chỉ để đọc.
+   *
+   * Khác `explain`: `explain` nói vì sao ra kết quả đã tính, trường này nói tới
+   * khoản hệ thống KHÔNG tính. Rỗng khi khách không có khoản nào.
+   *
+   * Không sinh ra món chọn được, không cộng vào `cashTotal`. Kỳ 2026-09 dùng nó
+   * cho 20k của `VPb`, xem thể lệ mục 3c.
+   */
+  giftNote?: string;
 };
 
 type PeriodRules = {

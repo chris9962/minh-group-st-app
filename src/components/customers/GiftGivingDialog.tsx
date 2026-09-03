@@ -233,6 +233,10 @@ export function GiftGivingDialog({ open, onClose, customerId, customerName }: Pr
                   </div>
                 </>
               )}
+
+              {/* Khoản ngoài hệ thống, không phải món chọn được. Đặt dưới danh
+                  sách quà để nhân viên nói với khách sau khi chốt món. */}
+              {data.gift.giftNote && <p className={styles.note}>{data.gift.giftNote}</p>}
             </>
           )}
         </div>
