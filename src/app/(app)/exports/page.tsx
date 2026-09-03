@@ -300,6 +300,8 @@ export default function ExportsPage() {
   const [referralCode, setReferralCode] = useState("");
   /** Báo cáo #1: chỉ khách có tài khoản, hay cả khách chưa mở tài khoản nào. */
   const [scoringInclude, setScoringInclude] = useState<ScoringInclude>("with-accounts");
+  /** Báo cáo #1: lọc theo NGƯỜI LẬP HỒ SƠ khách, đúng người nhận điểm. */
+  const [scoringStaffId, setScoringStaffId] = useState("");
   const [month, setMonth] = useState(thisMonth());
   const [statsGroupBy, setStatsGroupBy] = useState<OrderStatsGroupBy>("department");
   /** `day` = mỗi ngày một sheet, `month` = một sheet gộp cả tháng. */
@@ -396,7 +398,7 @@ export default function ExportsPage() {
           to,
           referralCode,
           channelId: "",
-          staffId: "",
+          staffId: scoringStaffId,
           departmentId: "",
           status: "",
         },
@@ -653,6 +655,22 @@ export default function ExportsPage() {
                     value,
                     label: SCORING_INCLUDE_LABEL[value],
                   }))}
+                />
+              )}
+
+              {active === "accounts-by-customer" && (
+                <Combobox
+                  block
+                  // Lọc theo NGƯỜI LẬP HỒ SƠ khách, đúng người nhận điểm combo
+                  // (thể lệ câu 7.11) — không phải người mở tài khoản.
+                  label="Nhân viên"
+                  placeholder="Gõ để tìm nhân viên…"
+                  value={scoringStaffId}
+                  onChange={setScoringStaffId}
+                  options={[
+                    { value: "", label: "Tất cả nhân viên" },
+                    ...staffOptions.map((s) => ({ value: s.id, label: s.fullName })),
+                  ]}
                 />
               )}
 
