@@ -361,7 +361,7 @@ export default function DepartmentsPage() {
                 columns={columns}
                 rowKey={(d) => d.id}
                 defaultSort="headcount"
-                pageSize={10}
+                pageSize={20}
                 caption={canManage ? "Phòng ban, số người và trạng thái" : "Phòng ban và số người"}
               />
 
