@@ -624,7 +624,41 @@ export async function insuranceOrderDetail(
   const r = await rawById(id);
   if (!r || !canSeeOrder(actor, r)) return null;
 
-  return { ...toOrder(r), history: await historyOf(id) };
+  return { ...toOrder(r), history: await historyOf(id), ...(await replacementOf(id)) };
+}
+
+/**
+ * Hai đầu của một lượt cấp lại: đơn này thay cho đơn nào, và đơn nào đã thay
+ * cho nó. Chỉ màn chi tiết cần — bảng danh sách không hiện, nên hai câu này
+ * đứng ngoài `decorate`.
+ */
+async function replacementOf(id: string): Promise<{
+  replacesOrderId: string;
+  replacesOrderCode: string;
+  replacedById: string;
+  replacedByOrderCode: string;
+}> {
+  const origin = alias(insuranceOrders, "replaces_origin");
+  const [[back], [forward]] = await Promise.all([
+    db
+      .select({ id: origin.id, orderCode: origin.orderCode })
+      .from(insuranceOrders)
+      .innerJoin(origin, eq(origin.id, insuranceOrders.replacesOrderId))
+      .where(eq(insuranceOrders.id, id))
+      .limit(1),
+    db
+      .select({ id: insuranceOrders.id, orderCode: insuranceOrders.orderCode })
+      .from(insuranceOrders)
+      .where(eq(insuranceOrders.replacesOrderId, id))
+      .limit(1),
+  ]);
+
+  return {
+    replacesOrderId: back?.id ?? "",
+    replacesOrderCode: back?.orderCode ?? "",
+    replacedById: forward?.id ?? "",
+    replacedByOrderCode: forward?.orderCode ?? "",
+  };
 }
 
 export type InsuranceOutcome<T> = { ok: true; value: T } | { ok: false; message: string };
@@ -675,15 +709,22 @@ export async function createInsuranceOrders(
   actor: User,
   form: InsuranceOrderForm,
 ): Promise<InsuranceOutcome<InsuranceListRow[]>> {
-  const department = departmentForNewRecord(actor, "insurance", form.departmentId);
-  if (!department.ok) return { ok: false, message: department.message };
-
+  // Đọc khách TRƯỚC khi chốt phòng: phòng của hồ sơ khách là giá trị mặc định
+  // cho người không thuộc phòng nào (chốt 2026-09-03).
   const [customer] = await db
-    .select({ id: customers.id })
+    .select({ id: customers.id, departmentId: customers.createdByDepartmentId })
     .from(customers)
     .where(eq(customers.id, form.customerId))
     .limit(1);
   if (!customer) return { ok: false, message: "Không tìm thấy khách hàng này" };
+
+  const department = departmentForNewRecord(
+    actor,
+    "insurance",
+    form.departmentId,
+    customer.departmentId,
+  );
+  if (!department.ok) return { ok: false, message: department.message };
 
   // Luồng phát quà đầu tiên tạo đơn trước khi có `gift_grants`, nên chưa có
   // dòng để nối. Khi ĐỔI sang quà bảo hiểm thì đợt quà đã tồn tại: tự nối toàn
@@ -1207,6 +1248,157 @@ export async function cancelInsuranceOrder(
 }
 
 /**
+ * Cấp lại một đơn đã huỷ (chốt 2026-09-03) — lập đơn MỚI thay cho nó.
+ *
+ * Ca thật: đơn đã hoàn thành mới lộ ra sai biển số hay sai tên người thụ
+ * hưởng. Đơn `done` không sửa được vì hợp đồng đã phát hành bên PVI, nên đường
+ * chữa là huỷ rồi lập lại. Trước lượt này người nhập phải gõ lại từ đầu và
+ * không còn vết nào nối hai đơn với nhau.
+ *
+ * Đơn mới là đơn MỚI HOÀN TOÀN: mã mới, ngày tạo đơn của lượt cấp lại, trạng
+ * thái đầu hàng chờ, người tạo là người bấm. Không kế thừa gì của đơn cũ ngoài
+ * ba thứ KHÔNG cho sửa:
+ *
+ *  - `product` và `packageName`/`packageId`: đổi gói là biến nó thành đơn khác
+ *    hẳn, mà với đơn quà thì gói còn phải khớp món đã chốt ở `gift_grants`.
+ *    Đổi gói là việc của chức năng đổi quà.
+ *  - `giftGrantId`: đơn quà phải ở lại đúng đợt tặng của nó. Đơn cũ GIỮ NGUYÊN
+ *    liên kết, cùng lối với `changeGift` — mất nó là mất vết đợt quà này từng
+ *    phát đơn nào.
+ *
+ * Ba thứ đó máy chủ tự đọc từ đơn cũ, không nhận từ client.
+ *
+ * Mỗi đơn cấp lại đúng MỘT lần; đơn mới cũng vậy nên chuỗi kéo dài được. Chốt
+ * chặn thật nằm ở unique index `insurance_orders_replaces` — hai lượt bấm cùng
+ * lúc thì phép kiểm ở đây đọc cùng một trạng thái cũ và cho qua cả hai.
+ */
+export async function recreateInsuranceOrder(
+  actor: User,
+  id: string,
+  body: unknown,
+  departmentId: string,
+): Promise<InsuranceOutcome<InsuranceListRow> | null> {
+  const visible = scopeOf(actor, "view-detail");
+  if (visible.kind === "none") return null;
+
+  const current = await rawById(id);
+  if (!current || !inScope(visible, current)) return null;
+
+  if (current.status !== "cancelled")
+    return { ok: false, message: "Chỉ cấp lại được đơn đã huỷ." };
+
+  const [already] = await db
+    .select({ orderCode: insuranceOrders.orderCode })
+    .from(insuranceOrders)
+    .where(eq(insuranceOrders.replacesOrderId, id))
+    .limit(1);
+  if (already)
+    return { ok: false, message: `Đơn này đã cấp lại thành ${already.orderCode} rồi.` };
+
+  /**
+   * Hai cột KHÔNG có trong `decorate` — câu danh sách không cần chúng, và thêm
+   * vào đó là bắt mọi màn bảng kéo thêm hai cột chỉ để phục vụ lượt cấp lại.
+   */
+  const [origin] = await db
+    .select({
+      packageId: insuranceOrders.packageId,
+      giftGrantId: insuranceOrders.giftGrantId,
+    })
+    .from(insuranceOrders)
+    .where(eq(insuranceOrders.id, id))
+    .limit(1);
+
+  /**
+   * Đơn cũ đã thuộc về một phòng, nên đơn thay nó ghi vào chính phòng ấy khi
+   * người bấm không thuộc phòng nào và không chọn gì. Lấy phòng của ĐƠN chứ
+   * không của hồ sơ khách: hai bản ghi có thể khác phòng, mà thứ đang được cấp
+   * lại là cái đơn.
+   */
+  const department = departmentForNewRecord(
+    actor,
+    "insurance",
+    departmentId,
+    current.createdByDepartmentId,
+  );
+  if (!department.ok) return { ok: false, message: department.message };
+
+  // Sản phẩm ĐỌC TỪ DATABASE, cùng lý do với `updateInsuranceOrder`: gửi kèm
+  // `product` khác là gỡ được ràng buộc biển số của một đơn xe máy.
+  const parsed = insuranceOrderEditSchema(current.product).safeParse(body);
+  if (!parsed.success)
+    return { ok: false, message: parsed.error.issues[0]?.message ?? "Dữ liệu không hợp lệ" };
+  const form = parsed.data;
+
+  if (form.endDate < form.startDate)
+    return { ok: false, message: "Ngày kết thúc phải sau ngày bắt đầu" };
+  if (form.orderDate > businessDay())
+    return { ok: false, message: "Ngày tạo đơn không được ở tương lai" };
+
+  const yearMonth = businessMonth();
+  const newStatus = newOrderStatus();
+
+  const created = await db.transaction(async (tx) => {
+    // Cùng câu nguyên tử với `createInsuranceOrders` — xem chú thích ở đó.
+    const [counter] = await tx
+      .insert(orderCodeCounters)
+      .values({ yearMonth, lastNumber: 1 })
+      .onConflictDoUpdate({
+        target: orderCodeCounters.yearMonth,
+        set: { lastNumber: sql`${orderCodeCounters.lastNumber} + 1` },
+      })
+      .returning({ last: orderCodeCounters.lastNumber });
+
+    const orderCode = `DH-${yearMonth.slice(2, 4)}${yearMonth.slice(5, 7)}-${String(
+      counter.last,
+    ).padStart(3, "0")}`;
+
+    const [row] = await tx
+      .insert(insuranceOrders)
+      .values({
+        orderCode,
+        customerId: current.customerId,
+        product: current.product,
+        packageId: origin.packageId,
+        packageName: current.packageName,
+        fee: form.fee,
+        orderDate: form.orderDate,
+        startDate: form.startDate,
+        endDate: form.endDate,
+        status: newStatus,
+        source: current.source,
+        giftGrantId: origin.giftGrantId,
+        beneficiaryName: form.beneficiaryName,
+        beneficiaryDob: form.beneficiaryDob || null,
+        beneficiaryIdNumber: "",
+        beneficiaryPhone: "",
+        beneficiaryAddress: form.beneficiaryAddress,
+        householdSize: form.householdSize,
+        sumInsured: form.sumInsured,
+        licensePlate: form.licensePlate,
+        vehicleType: form.vehicleType,
+        chassisNumber: form.chassisNumber,
+        engineNumber: form.engineNumber,
+        createdBy: actor.id,
+        createdByDepartmentId: department.departmentId,
+        replacesOrderId: id,
+      })
+      .returning({ id: insuranceOrders.id });
+
+    await tx.insert(insuranceOrderStatusHistory).values({
+      orderId: row.id,
+      fromStatus: null,
+      toStatus: newStatus,
+      changedBy: actor.id,
+      note: `Cấp lại cho đơn ${current.orderCode}`,
+    });
+
+    return row.id;
+  });
+
+  return { ok: true, value: toRow((await rawById(created))!) };
+}
+
+/**
  * Đính/thay ảnh chứng nhận — dùng được ở MỌI trạng thái đơn (spec §3.4).
  *
  * Nhận URL chứ không nhận file: đẩy ảnh lên kho là việc của `/api/uploads`.
@@ -1248,7 +1440,11 @@ export async function setCertificatePhoto(
     .set({ certificatePhotoUrl: photoKey, updatedAt: new Date() })
     .where(eq(insuranceOrders.id, id));
 
-  return { ...toOrder((await rawById(id))!), history: await historyOf(id) };
+  return {
+    ...toOrder((await rawById(id))!),
+    history: await historyOf(id),
+    ...(await replacementOf(id)),
+  };
 }
 
 /**

@@ -390,6 +390,7 @@ export default function CustomersPage() {
           <BankAccountFormDialog
             open
             customerId={openingBankFor.id}
+            customerDepartmentId={openingBankFor.createdByDepartmentId}
             onClose={() => setOpeningBankFor(null)}
           />
         )}
@@ -399,6 +400,7 @@ export default function CustomersPage() {
             open
             customerId={loggingServiceFor.id}
             customerName={loggingServiceFor.fullName}
+            customerDepartmentId={loggingServiceFor.createdByDepartmentId}
             onClose={() => setLoggingServiceFor(null)}
           />
         )}

@@ -27,6 +27,7 @@ export function CreateBankAccountDialog({ open, onClose }: Props) {
         <BankAccountFormDialog
           open
           customerId={customer.id}
+          customerDepartmentId={customer.createdByDepartmentId}
           onClose={onClose}
           onBack={back}
         />

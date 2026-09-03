@@ -2,6 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
@@ -10,7 +11,14 @@ import { Select } from "@/components/ui/Select";
 import { SkeletonCard } from "@/components/ui/Skeleton";
 import { DateField } from "@/components/ui/DateField";
 import { TextField } from "@/components/ui/TextField";
-import { fetchInsuranceDetail, updateInsuranceOrder } from "@/lib/api/insurance";
+import { AddressField } from "@/components/ui/AddressField";
+import { useAddressSuggestions } from "@/lib/useAddressSuggestions";
+import {
+  fetchInsuranceDetail,
+  recreateInsuranceOrder,
+  updateInsuranceOrder,
+} from "@/lib/api/insurance";
+import { DepartmentPicker } from "@/components/layout/DepartmentPicker";
 import {
   insuranceOrderEditSchema,
   type InsuranceOrderEditForm,
@@ -27,6 +35,12 @@ type Props = {
   open: boolean;
   onClose: () => void;
   orderId: string;
+  /**
+   * `recreate` = lập đơn MỚI thay cho đơn đã huỷ này (chốt 2026-09-03), thay vì
+   * ghi đè lên chính nó. Cùng bộ ô nên dùng chung hộp thoại: tách ra hai
+   * component là hai nơi sớm muộn lệch nhau về luật biển số và ô số thành viên.
+   */
+  mode?: "edit" | "recreate";
 };
 
 /**
@@ -62,15 +76,26 @@ const sumInsuredOptions = (current: number) => {
  * rõ hệ quả. Đường xoá thứ hai nằm sát nút "Huỷ" của hộp thoại là đặt bẫy đúng
  * chỗ ngón tay quen bấm.
  */
-export function InsuranceOrderEditDialog({ open, onClose, orderId }: Props) {
+export function InsuranceOrderEditDialog({ open, onClose, orderId, mode = "edit" }: Props) {
   const queryClient = useQueryClient();
-
+  const recreating = mode === "recreate";
+  /** Chỉ người KHÔNG thuộc phòng nào mới phải chọn; máy chủ bỏ qua với người có phòng. */
+  const [pickedDepartmentId, setPickedDepartmentId] = useState("");
   const { data, isPending, isError, refetch, isFetching } = useQuery({
     queryKey: ["insurance-detail", orderId],
     queryFn: () => fetchInsuranceDetail(orderId),
   });
 
   const motorbike = data?.product === "motorbike";
+  const addressSuggestions = useAddressSuggestions();
+
+  /**
+   * Phòng của đơn CŨ là mặc định — đơn thay nó nằm cùng phòng. Tính thẳng khi
+   * render chứ không đồng bộ vào state bằng effect: chi tiết đơn về sau lượt
+   * render đầu, mà giá trị này suy ra được từ nó (AGENTS.md §7).
+   */
+  const departmentId = pickedDepartmentId || (data?.createdByDepartmentId ?? "");
+
 
   const form = useForm<InsuranceOrderEditForm>({
     // Focus ô sai do `reportInvalid` lo — xem `lib/formErrors.ts`.
@@ -81,7 +106,9 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId }: Props) {
     // `values` chứ không phải `defaultValues`: chi tiết về SAU lượt render đầu,
     // mà `defaultValues` chỉ đọc một lần nên form sẽ trống mãi.
     values: {
-      orderDate: data?.orderDate ?? "",
+      // Cấp lại sinh một đơn MỚI HOÀN TOÀN nên ngày tạo đơn là ngày bấm, không
+      // phải ngày của đơn cũ (chốt 2026-09-03).
+      orderDate: recreating ? businessDay() : (data?.orderDate ?? ""),
       fee: data?.fee ?? 0,
       startDate: data?.startDate ?? "",
       endDate: data?.endDate ?? "",
@@ -98,15 +125,21 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId }: Props) {
   });
 
   const save = useMutation({
-    mutationFn: (values: InsuranceOrderEditForm) => updateInsuranceOrder(orderId, values),
+    mutationFn: (values: InsuranceOrderEditForm) =>
+      recreating
+        ? recreateInsuranceOrder(orderId, { ...values, departmentId })
+        : updateInsuranceOrder(orderId, values),
     onSuccess: (order) => {
       queryClient.invalidateQueries({ queryKey: ["insurance-list"] });
       queryClient.invalidateQueries({ queryKey: ["insurance-detail", orderId] });
       queryClient.invalidateQueries({ queryKey: ["customer", order.customerId] });
       onClose();
-      toast.ok(`Đã lưu thay đổi đơn ${order.orderCode}`);
+      toast.ok(
+        recreating ? `Đã cấp lại thành đơn ${order.orderCode}` : `Đã lưu thay đổi đơn ${order.orderCode}`,
+      );
     },
-    onError: (e) => toast.fail(errorMessage(e, "Không lưu được thay đổi này.")),
+    onError: (e) =>
+      toast.fail(errorMessage(e, recreating ? "Không cấp lại được đơn này." : "Không lưu được thay đổi này.")),
   });
 
   const { errors } = form.formState;
@@ -115,14 +148,14 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId }: Props) {
     <Dialog
       open={open}
       onClose={onClose}
-      title="Sửa đơn bảo hiểm"
+      title={recreating ? "Cấp lại đơn bảo hiểm" : "Sửa đơn bảo hiểm"}
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>
             Huỷ
           </Button>
           <Button type="submit" form="insurance-edit-form" disabled={!data || save.isPending}>
-            Lưu
+            {recreating ? "Cấp lại" : "Lưu"}
           </Button>
         </>
       }
@@ -141,6 +174,16 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId }: Props) {
             {data.orderCode} · {PRODUCT_LABEL[data.product]} · {data.packageName} ·{" "}
             {data.customerName}
           </p>
+
+          {/* Phòng ghi nhận đơn MỚI. Lượt sửa không có ô này: đơn đã có phòng
+              của nó rồi, đổi phòng là viết lại lịch sử ghi nhận. */}
+          {recreating && (
+            <DepartmentPicker
+              module="insurance"
+              value={departmentId}
+              onChange={setPickedDepartmentId}
+            />
+          )}
 
           {/* Ngày TẠO đơn — đổi nó là đổi tháng mà đơn này được tính. Khác hẳn
               ngày hiệu lực bên dưới. */}
@@ -287,11 +330,19 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId }: Props) {
                 error={errors.beneficiaryDob?.message}
               />
             )}
-            <TextField
+            <AddressField
               label="Địa chỉ"
               required
+              placeholder="Gõ để tìm Ấp, Xã, Tỉnh"
+              suggestions={addressSuggestions}
+              value={form.watch("beneficiaryAddress")}
+              onChange={(v) =>
+                form.setValue("beneficiaryAddress", v, {
+                  shouldDirty: true,
+                  shouldValidate: true,
+                })
+              }
               error={errors.beneficiaryAddress?.message}
-              {...form.register("beneficiaryAddress")}
             />
           </fieldset>
         </form>

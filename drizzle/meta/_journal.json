@@ -435,6 +435,13 @@
       "when": 1788768000000,
       "tag": "0061_bank_guide_variants",
       "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1788854400000,
+      "tag": "0062_insurance_order_replaces",
+      "breakpoints": true
     }
   ]
 }

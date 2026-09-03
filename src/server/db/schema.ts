@@ -15,6 +15,7 @@ import {
   timestamp,
   uniqueIndex,
   uuid,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 
 /**
@@ -1061,6 +1062,15 @@ export const insuranceOrders = pgTable(
     handledByDepartmentId: uuid("handled_by_department_id").references(() => departments.id),
     createdBy: uuid("created_by").references(() => users.id),
     createdByDepartmentId: uuid("created_by_department_id").references(() => departments.id),
+    /**
+     * Đơn mà đơn này thay thế (chốt 2026-09-03). Đơn đã hoàn thành mà sai thì
+     * không sửa được nữa, đường chữa là huỷ rồi lập đơn mới.
+     *
+     * UNIQUE ở migration 0062: một đơn huỷ chỉ đẻ ra đúng MỘT đơn thay thế.
+     * Đó là chỗ chặn cấp lại lần hai — hai lượt bấm cùng lúc thì phép kiểm ở
+     * máy chủ đọc cùng một trạng thái cũ và cho qua cả hai.
+     */
+    replacesOrderId: uuid("replaces_order_id").references((): AnyPgColumn => insuranceOrders.id),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -1104,6 +1114,8 @@ export const insuranceOrders = pgTable(
       sql`handled_by, order_date desc, created_at desc, id`,
     ),
     index("insurance_orders_date").on(sql`order_date desc, created_at desc, id`),
+    /** Một đơn huỷ chỉ đẻ ra đúng MỘT đơn thay thế — xem `replacesOrderId`. */
+    uniqueIndex("insurance_orders_replaces").on(t.replacesOrderId),
     check(
       "insurance_orders_motorbike_plate",
       sql`product <> 'motorbike' or license_plate <> ''`,

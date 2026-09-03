@@ -52,6 +52,14 @@ export const Customer = z.object({
   /** Xem chú thích cùng tên ở `CustomerRow` — hai trường này để ẩn nút Sửa. */
   createdById: z.string().nullable(),
   createdByDepartmentId: z.string().nullable(),
+  /**
+   * TÊN người lập hồ sơ và TÊN phòng lúc lập, để hiện thành chữ trên hồ sơ
+   * (chốt 2026-09-03). Hai id ở trên chỉ dùng để so phạm vi, không đọc ra được.
+   *
+   * `''` khi người tạo đã bị xoá khỏi hệ thống, hoặc hồ sơ chưa gắn phòng nào.
+   */
+  createdByName: z.string(),
+  createdByDepartmentName: z.string(),
 });
 export type Customer = z.infer<typeof Customer>;
 

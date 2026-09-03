@@ -28,6 +28,7 @@ import {
   channels,
   customerPhones,
   customers,
+  departments,
   giftGrantChanges,
   giftGrants,
   insuranceOrders,
@@ -513,9 +514,15 @@ async function customerById(id: string, actor: User): Promise<Customer | null> {
       createdAt: createdDayText,
       createdById: customers.createdBy,
       createdByDepartmentId: customers.createdByDepartmentId,
+      // leftJoin cả hai: người tạo có thể đã bị xoá khỏi hệ thống, và hồ sơ cũ
+      // nhập từ file có thể chưa gắn phòng nào.
+      createdByName: sql<string>`coalesce(${users.fullName}, '')`,
+      createdByDepartmentName: sql<string>`coalesce(${departments.name}, '')`,
     })
     .from(customers)
     .leftJoin(channels, eq(channels.id, customers.channelId))
+    .leftJoin(users, eq(users.id, customers.createdBy))
+    .leftJoin(departments, eq(departments.id, customers.createdByDepartmentId))
     .where(eq(customers.id, id))
     .limit(1);
   if (!row) return null;

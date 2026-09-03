@@ -883,20 +883,28 @@ export async function startBankAccount(
   actor: User,
   form: BankAccountStartForm,
 ): Promise<BankingOutcome<BankAccount[]>> {
-  const department = departmentForNewRecord(actor, "banking", form.departmentId);
-  if (!department.ok) return { ok: false, message: department.message };
-
+  // Đọc khách TRƯỚC khi chốt phòng: phòng của hồ sơ khách là giá trị mặc định
+  // cho người không thuộc phòng nào (chốt 2026-09-03).
   const [customer] = await db
     .select({
       id: customers.id,
       dob: customers.dob,
       channelId: customers.channelId,
       channelDetail: customers.channelDetail,
+      departmentId: customers.createdByDepartmentId,
     })
     .from(customers)
     .where(eq(customers.id, form.customerId))
     .limit(1);
   if (!customer) return { ok: false, message: "Không tìm thấy khách hàng này" };
+
+  const department = departmentForNewRecord(
+    actor,
+    "banking",
+    form.departmentId,
+    customer.departmentId,
+  );
+  if (!department.ok) return { ok: false, message: department.message };
 
   const chosenBanks = await db
     .select({

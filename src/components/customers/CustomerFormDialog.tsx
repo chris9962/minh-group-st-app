@@ -25,7 +25,7 @@ import {
   type Customer,
 } from "@/lib/api/customers";
 import { fetchHospitals } from "@/lib/api/hospitalCatalog";
-import { fetchProvinces } from "@/lib/api/wardCatalog";
+import { useAddressSuggestions } from "@/lib/useAddressSuggestions";
 import { errorMessage, toast } from "@/lib/toast";
 import { useSession } from "@/store/session";
 import styles from "./CustomerFormDialog.module.scss";
@@ -124,29 +124,7 @@ export function CustomerFormDialog({
   const { data: channels = [] } = useQuery({ queryKey: ["channels"], queryFn: fetchChannels });
   const selectedChannel = channels.find((c) => c.id === channelId);
 
-  const { data: provinces = [] } = useQuery({
-    queryKey: ["provinces"],
-    queryFn: fetchProvinces,
-  });
-
-  /**
-   * Gợi ý địa chỉ `Tỉnh, Xã, Ấp` ghép từ danh mục (spec §U9) — dấu PHẨY, đúng
-   * cách người ta viết địa chỉ, không phải `·` của channelDetail cũ.
-   *
-   * Ghép ở trình duyệt là đủ: mỗi ấp thuộc đúng một xã nên số dòng = số ấp
-   * cộng số xã, không phải tích chéo — cả nước mọi ấp cũng chỉ ~20.000 chuỗi,
-   * một lượt flatMap ~10ms. Xã chưa có ấp vẫn có gợi ý mức xã.
-   */
-  const addressSuggestions = useMemo(
-    () =>
-      provinces.flatMap((p) =>
-        p.wards.flatMap((w) => [
-          `${p.name}, ${w.name}`,
-          ...w.hamlets.map((h) => `${p.name}, ${w.name}, ${h.name}`),
-        ]),
-      ),
-    [provinces],
-  );
+  const addressSuggestions = useAddressSuggestions();
 
   const { data: hospitals = [] } = useQuery({
     queryKey: ["hospitals"],
@@ -284,7 +262,7 @@ export function CustomerFormDialog({
           <AddressField
             label="Địa chỉ"
             required
-            placeholder="Gõ để tìm Tỉnh, Xã, Ấp — chọn xong gõ thêm số nhà"
+            placeholder="Gõ để tìm Ấp, Xã, Tỉnh"
             suggestions={addressSuggestions}
             value={watch("address")}
             onChange={(v) => setValue("address", v, { shouldDirty: true, shouldValidate: true })}

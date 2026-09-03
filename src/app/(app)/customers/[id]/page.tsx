@@ -204,6 +204,18 @@ export default function CustomerDetailPage({
                     ))}
                   </dd>
                 </div>
+                {/* Phòng đi kèm tên: mọi bản ghi mở cho khách này mặc định ghi
+                    vào phòng của hồ sơ, nên người xem phải biết đó là phòng nào
+                    trước khi bấm nút mở tài khoản hay tạo đơn. */}
+                <div>
+                  <dt>Người tạo</dt>
+                  <dd>
+                    {data.customer.createdByName || "Không rõ"}
+                    {data.customer.createdByDepartmentName
+                      ? ` - ${data.customer.createdByDepartmentName}`
+                      : ""}
+                  </dd>
+                </div>
               </dl>
               <div className={styles.footRow}>
                 {/* Ẩn nút khi máy chủ sẽ từ chối — bấm xong nhận 404 thì câu báo
@@ -522,6 +534,7 @@ export default function CustomerDetailPage({
           <BankAccountFormDialog
             open
             customerId={data.customer.id}
+            customerDepartmentId={data.customer.createdByDepartmentId}
             onClose={() => setOpeningBank(false)}
           />
         )}
@@ -531,6 +544,7 @@ export default function CustomerDetailPage({
             open
             customerId={data.customer.id}
             customerName={data.customer.fullName}
+            customerDepartmentId={data.customer.createdByDepartmentId}
             onClose={() => setLoggingService(false)}
           />
         )}

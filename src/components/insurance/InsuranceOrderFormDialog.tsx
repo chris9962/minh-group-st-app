@@ -12,6 +12,8 @@ import { Dialog } from "@/components/ui/Dialog";
 import { Select } from "@/components/ui/Select";
 import { DateField } from "@/components/ui/DateField";
 import { TextField } from "@/components/ui/TextField";
+import { AddressField } from "@/components/ui/AddressField";
+import { useAddressSuggestions } from "@/lib/useAddressSuggestions";
 import type { Customer } from "@/lib/api/customers";
 import { createInsuranceOrders } from "@/lib/api/insurance";
 import {
@@ -156,7 +158,10 @@ export function InsuranceOrderFormDialog({
       customerId: customer.id,
       source,
       legs: defaultLegsFor(selectedPackage),
-      departmentId: "",
+      // Hồ sơ khách đã thuộc về một phòng, nên đơn mở cho khách đó mặc định
+      // ghi vào chính phòng ấy (chốt 2026-09-03). Người không thuộc phòng nào
+      // vẫn đổi được; máy chủ chốt lại cùng một luật.
+      departmentId: customer.createdByDepartmentId ?? "",
     },
   });
   const legsField = useFieldArray({ control, name: "legs" });
@@ -232,6 +237,8 @@ export function InsuranceOrderFormDialog({
   });
 
   const onSubmit = handleSubmit((values) => save.mutate(values), reportInvalid);
+
+  const addressSuggestions = useAddressSuggestions();
 
   const renderVehicleInfo = (i: number) => (
     <fieldset className={styles.fieldset}>
@@ -348,12 +355,16 @@ export function InsuranceOrderFormDialog({
           error={errors.legs?.[i]?.beneficiaryDob?.message}
         />
       )}
-      <TextField
+      <AddressField
         label="Địa chỉ"
         required
-        placeholder="123 Nguyễn Trãi, Phường Tân Bình"
+        placeholder="Gõ để tìm Ấp, Xã, Tỉnh"
+        suggestions={addressSuggestions}
+        value={watch(`legs.${i}.beneficiaryAddress`)}
+        onChange={(v) =>
+          setValue(`legs.${i}.beneficiaryAddress`, v, { shouldDirty: true, shouldValidate: true })
+        }
         error={errors.legs?.[i]?.beneficiaryAddress?.message}
-        {...register(`legs.${i}.beneficiaryAddress`)}
       />
     </fieldset>
   );

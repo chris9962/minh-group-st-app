@@ -27,6 +27,13 @@ type Props = {
   customerId: string;
   customerName: string;
   /**
+   * Phòng của hồ sơ khách — giá trị mặc định cho ô "Ghi nhận vào phòng"
+   * (chốt 2026-09-03). Khách đã thuộc về một phòng nên bản ghi mở cho khách đó
+   * ghi vào chính phòng ấy; người không thuộc phòng nào vẫn đổi được.
+   */
+  customerDepartmentId?: string | null;
+
+  /**
    * Có khi hộp thoại này là bước 2 của `CustomerPickerDialog`. Không có khi mở
    * thẳng từ hồ sơ khách (P-40, P-42) — ở đó khách đã cố định, không có bước
    * nào để quay về.
@@ -38,7 +45,14 @@ type Props = {
  * P-30 · Ghi dịch vụ đã hỗ trợ khách — bật từ bảng khách hàng (P-40), giống
  * luồng Tặng quà / Mở ngân hàng. Dịch vụ hiện KHÔNG thu phí (đã chốt ở spec).
  */
-export function ServiceFormDialog({ open, onClose, customerId, customerName, onBack }: Props) {
+export function ServiceFormDialog({
+  open,
+  onClose,
+  customerId,
+  customerName,
+  customerDepartmentId,
+  onBack,
+}: Props) {
   const queryClient = useQueryClient();
 
   const { data: serviceTypes = [] } = useQuery({
@@ -74,7 +88,7 @@ export function ServiceFormDialog({ open, onClose, customerId, customerName, onB
       serviceTypeId: "",
       date: businessDay(),
       note: "",
-      departmentId: "",
+      departmentId: customerDepartmentId ?? "",
       wardId: "",
     },
   });

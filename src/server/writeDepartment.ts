@@ -16,15 +16,27 @@ export function departmentForNewRecord(
   actor: User,
   module: ModuleKey,
   requested: string,
+  /**
+   * Phòng của HỒ SƠ KHÁCH mà bản ghi này gắn vào (chốt 2026-09-03). Dùng khi
+   * người tạo không thuộc phòng nào và không chọn gì: đơn bảo hiểm, tài khoản
+   * ngân hàng và lượt dịch vụ đều mở cho một khách đã có hồ sơ, mà hồ sơ đó đã
+   * thuộc về một phòng rồi — bắt cấp quản lý chọn lại là hỏi một câu mà dữ liệu
+   * đã trả lời.
+   *
+   * Vẫn đi qua phép kiểm phạm vi bên dưới: phòng của khách nằm ngoài phần người
+   * này phụ trách thì họ phải chọn tay, không mượn nó để ghi sang phòng khác.
+   */
+  customerDepartmentId: string | null = null,
 ): { ok: true; departmentId: string | null } | { ok: false; message: string } {
   if (actor.departmentId) return { ok: true, departmentId: actor.departmentId };
 
-  if (!requested)
+  const target = requested || customerDepartmentId || "";
+  if (!target)
     return { ok: false, message: "Bạn không thuộc phòng nào — chọn phòng ghi nhận bản ghi này." };
 
   const allowed = writableDepartmentIds(actor, module);
-  if (allowed !== null && !allowed.includes(requested))
+  if (allowed !== null && !allowed.includes(target))
     return { ok: false, message: "Bạn không phụ trách phòng này." };
 
-  return { ok: true, departmentId: requested };
+  return { ok: true, departmentId: target };
 }

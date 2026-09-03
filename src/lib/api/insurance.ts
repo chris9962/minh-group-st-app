@@ -141,6 +141,16 @@ export type InsuranceCancelForm = z.infer<typeof InsuranceCancelForm>;
 /** P-14 · Toàn bộ dữ liệu đã nhập + dòng thời gian trạng thái kèm mốc giờ. */
 export const InsuranceDetail = InsuranceOrder.extend({
   history: z.array(InsuranceStatusStep),
+  /**
+   * Hai đầu của một lượt cấp lại (chốt 2026-09-03); `''` = không có.
+   *
+   * `replacedBy*` có giá trị nghĩa là đơn này ĐÃ cấp lại rồi, và đó là điều
+   * kiện tắt nút Cấp lại — mỗi đơn chỉ cấp lại một lần.
+   */
+  replacesOrderId: z.string(),
+  replacesOrderCode: z.string(),
+  replacedById: z.string(),
+  replacedByOrderCode: z.string(),
 });
 export type InsuranceDetail = z.infer<typeof InsuranceDetail>;
 
@@ -255,6 +265,28 @@ export async function updateInsuranceOrder(
     body: JSON.stringify(form),
   });
   if (!res.ok) throw await failure(res, 'Không lưu được thay đổi này');
+  return InsuranceListRow.parse(await res.json());
+}
+
+/**
+ * Cấp lại một đơn ĐÃ HUỶ — lập đơn mới thay cho nó (chốt 2026-09-03).
+ *
+ * Biểu mẫu là bộ ô của lượt SỬA, không phải của lượt tạo: khách, sản phẩm, gói
+ * và đợt quà đều lấy từ đơn cũ và không sửa được. Máy chủ tự đọc bốn thứ đó,
+ * gửi kèm cũng không có tác dụng.
+ *
+ * Mỗi đơn cấp lại đúng một lần. Lượt thứ hai nhận 409 kèm mã đơn đã cấp.
+ */
+export async function recreateInsuranceOrder(
+  id: string,
+  form: InsuranceOrderEditForm & { departmentId: string },
+): Promise<InsuranceListRow> {
+  const res = await fetch(`/api/insurance-orders/${id}/recreate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(form),
+  });
+  if (!res.ok) throw await failure(res, 'Không cấp lại được đơn này');
   return InsuranceListRow.parse(await res.json());
 }
 

@@ -23,6 +23,7 @@ export function CreateServiceDialog({ open, onClose }: Props) {
           open
           customerId={customer.id}
           customerName={customer.fullName}
+          customerDepartmentId={customer.createdByDepartmentId}
           onClose={onClose}
           onBack={back}
         />

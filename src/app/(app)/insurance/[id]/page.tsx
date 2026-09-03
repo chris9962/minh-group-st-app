@@ -4,8 +4,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { use, useCallback, useEffect, useRef, useState } from "react";
-import { Ban, CheckCircle2, ChevronLeft, Download, ExternalLink, FileText, History, ImagePlus, Pencil, ShieldCheck, X } from "lucide-react";
+import { Ban, CheckCircle2, ChevronLeft, Download, ExternalLink, FileText, History, ImagePlus, Pencil, RotateCcw, ShieldCheck, X } from "lucide-react";
 import { InsuranceCancelDialog } from "@/components/insurance/InsuranceCancelDialog";
+import { InsuranceOrderEditDialog } from "@/components/insurance/InsuranceOrderEditDialog";
 import { SkeletonCard } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
@@ -248,6 +249,7 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
   const canHandleFallback = can(actor, "insurance", "handle-fallback");
   /** Đặt trạng thái tuỳ ý — công cụ gỡ đơn mắc, cấp riêng với `handle-fallback`. */
   const canSetStatus = can(actor, "insurance", "set-status");
+  const canCreate = can(actor, "insurance", "create");
   /** Người tạo chỉ được huỷ đơn đã hoàn thành của chính mình; đơn chưa xong có đường xoá riêng. */
   const canCancelCompletedOwnOrder = data?.status === "done" && data.createdById === actor?.id;
   /**
@@ -350,6 +352,7 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
    */
   const [overrideTo, setOverrideTo] = useState<string>("");
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [recreateOpen, setRecreateOpen] = useState(false);
   /**
    * Ô chọn khởi điểm ở ĐÚNG trạng thái đơn đang mang, không phải một dòng trống.
    *
@@ -412,6 +415,21 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
               <Alert tone="warning">
                 <strong>Lý do huỷ đơn: </strong>
                 {cancellationReason}
+              </Alert>
+            )}
+            {/* Hai đầu của một lượt cấp lại. Không có hai dòng này thì đơn huỷ
+                và đơn thay nó nằm rời nhau trong kho, mà đối soát với PVI luôn
+                bắt đầu từ một trong hai. */}
+            {data.replacedByOrderCode && (
+              <Alert tone="info">
+                Đơn này đã cấp lại thành{" "}
+                <Link href={`/insurance/${data.replacedById}`}>{data.replacedByOrderCode}</Link>.
+              </Alert>
+            )}
+            {data.replacesOrderCode && (
+              <Alert tone="info">
+                Đơn này cấp lại cho{" "}
+                <Link href={`/insurance/${data.replacesOrderId}`}>{data.replacesOrderCode}</Link>.
               </Alert>
             )}
             <div className={styles.detail}>
@@ -757,7 +775,7 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
 
             {/* Đặt trạng thái tuỳ ý chỉ hiện với `set-status`; nút Huỷ đứng cùng
                 hàng nhưng người tạo cũng thấy nó khi đơn của mình đã hoàn thành. */}
-            {(canSetStatus || canCancelCompletedOwnOrder) && (
+            {(canSetStatus || canCancelCompletedOwnOrder || (data.status === "cancelled" && canCreate)) && (
               <div className={styles.override}>
                 {canSetStatus && (
                   <>
@@ -801,6 +819,19 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                     Huỷ đơn
                   </Button>
                 )}
+                {/* Đơn huỷ vì sai thông tin thì đường chữa là lập đơn mới. Mỗi
+                    đơn một lần: đã cấp lại rồi thì nút biến mất, và mã đơn thay
+                    thế nằm ngay trên khối thông tin. */}
+                {data.status === "cancelled" && canCreate && !data.replacedById && (
+                  <Button
+                    variant="secondary"
+                    className={styles.overrideCancel}
+                    onClick={() => setRecreateOpen(true)}
+                  >
+                    <RotateCcw size={16} aria-hidden />
+                    Cấp lại
+                  </Button>
+                )}
               </div>
             )}
             </div>
@@ -836,6 +867,15 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
 
       {zoomed && (
         <ImageLightbox src={zoomed.src} alt={zoomed.alt} onClose={() => setZoomed(null)} />
+      )}
+
+      {data && recreateOpen && (
+        <InsuranceOrderEditDialog
+          open
+          mode="recreate"
+          orderId={data.id}
+          onClose={() => setRecreateOpen(false)}
+        />
       )}
 
       {data && (

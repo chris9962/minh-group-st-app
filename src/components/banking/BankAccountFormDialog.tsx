@@ -38,6 +38,12 @@ type Props = {
   onClose: () => void;
   customerId: string;
   /**
+   * Phòng của hồ sơ khách — giá trị mặc định cho ô "Ghi nhận vào phòng"
+   * (chốt 2026-09-03). Khách đã thuộc về một phòng nên bản ghi mở cho khách đó
+   * ghi vào chính phòng ấy; người không thuộc phòng nào vẫn đổi được.
+   */
+  customerDepartmentId?: string | null;
+  /**
    * Có khi hộp thoại này là bước 2 của `CustomerPickerDialog`. Không có khi mở
    * thẳng từ bảng khách (P-40) hay hồ sơ khách (P-42) — ở đó khách đã cố định.
    */
@@ -56,7 +62,13 @@ type Props = {
  * Đổi lại, mở MỘT tài khoản tốn thêm một lượt bấm so với bản trước — bản đó gộp
  * luôn bước điền nốt vào cùng hộp thoại.
  */
-export function BankAccountFormDialog({ open, onClose, customerId, onBack }: Props) {
+export function BankAccountFormDialog({
+  open,
+  onClose,
+  customerId,
+  customerDepartmentId,
+  onBack,
+}: Props) {
   const queryClient = useQueryClient();
   const router = useRouter();
   const pathname = usePathname();
@@ -88,7 +100,7 @@ export function BankAccountFormDialog({ open, onClose, customerId, onBack }: Pro
     // Focus ô sai do `reportInvalid` lo — xem `lib/formErrors.ts`.
     shouldFocusError: false,
     resolver: zodResolver(BankAccountStartForm),
-    defaultValues: { customerId, picks: [], departmentId: "" },
+    defaultValues: { customerId, picks: [], departmentId: customerDepartmentId ?? "" },
   });
 
   const picks = watch("picks");

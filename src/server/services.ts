@@ -322,9 +322,6 @@ const serviceById = async (id: string): Promise<ServiceRow | null> =>
  * vào công của mình.
  */
 export async function createService(actor: User, form: ServiceForm): Promise<ServiceOutcome> {
-  const department = departmentForNewRecord(actor, "services", form.departmentId);
-  if (!department.ok) return { ok: false, message: department.message };
-
   const [type] = await db
     .select({ id: serviceTypes.id, active: serviceTypes.active })
     .from(serviceTypes)
@@ -336,11 +333,21 @@ export async function createService(actor: User, form: ServiceForm): Promise<Ser
   if (!type.active) return { ok: false, message: "Loại dịch vụ này đã ngừng dùng" };
 
   const [customer] = await db
-    .select({ id: customers.id })
+    .select({ id: customers.id, departmentId: customers.createdByDepartmentId })
     .from(customers)
     .where(eq(customers.id, form.customerId))
     .limit(1);
   if (!customer) return { ok: false, message: "Không tìm thấy khách hàng này" };
+
+  // Phòng của hồ sơ khách là giá trị mặc định cho người không thuộc phòng nào
+  // (chốt 2026-09-03), nên phép chốt phòng đứng SAU lượt đọc khách.
+  const department = departmentForNewRecord(
+    actor,
+    "services",
+    form.departmentId,
+    customer.departmentId,
+  );
+  if (!department.ok) return { ok: false, message: department.message };
 
   /**
    * Xã do NGƯỜI NHẬP chọn, không suy từ `users.ward_id` nữa (đổi 2026-08-19).
