@@ -446,6 +446,17 @@ export default function InsurancePage() {
             })
           }
         >
+          <DateRangePicker label="Khoảng ngày" value={range} onChange={(v) => refine(() => setRange(v))} />
+          <Select
+            block
+            label="Phòng"
+            value={departmentId}
+            onChange={(v) => refine(() => setDepartmentId(v))}
+            options={[
+              { value: "", label: "Tất cả phòng" },
+              ...departments.map((d) => ({ value: d.id, label: d.name })),
+            ]}
+          />
           <Select
             block
             label="Trạng thái"
@@ -469,17 +480,20 @@ export default function InsurancePage() {
               ...InsuranceProduct.options.map((p) => ({ value: p, label: PRODUCT_LABEL[p] })),
             ]}
           />
+          {/* Bot chạy trơn thì cột "Người xử lý" để trống, nên hai giá trị này
+              đọc thẳng `handled_by` ở máy chủ. Đơn chưa ai xử lý không khớp giá
+              trị nào — xem `handlerFilter` ở server/insurance.ts. */}
           <Select
             block
-            label="Phòng"
-            value={departmentId}
-            onChange={(v) => refine(() => setDepartmentId(v))}
+            label="Xử lý bởi"
+            value={handler}
+            onChange={(v) => refine(() => setHandler(v as typeof handler))}
             options={[
-              { value: "", label: "Tất cả phòng" },
-              ...departments.map((d) => ({ value: d.id, label: d.name })),
+              { value: "", label: "Bot và nhân viên" },
+              { value: "bot", label: "Bot" },
+              { value: "staff", label: "Nhân viên" },
             ]}
           />
-          <DateRangePicker label="Khoảng ngày" value={range} onChange={(v) => refine(() => setRange(v))} />
           <Combobox
             block
             // Combobox chứ không phải Select: công ty có hàng trăm nhân viên,
@@ -505,26 +519,28 @@ export default function InsurancePage() {
               ]}
             />
           )}
-          {/* Bot chạy trơn thì cột "Người xử lý" để trống, nên hai giá trị này
-              đọc thẳng `handled_by` ở máy chủ. Đơn chưa ai xử lý không khớp giá
-              trị nào — xem `handlerFilter` ở server/insurance.ts. */}
-          <Select
-            block
-            label="Xử lý bởi"
-            value={handler}
-            onChange={(v) => refine(() => setHandler(v as typeof handler))}
-            options={[
-              { value: "", label: "Bot và nhân viên" },
-              { value: "bot", label: "Bot" },
-              { value: "staff", label: "Nhân viên" },
-            ]}
-          />
         </FilterButton>
       </TopBar>
 
       <main className={styles.body}>
         <FilterChips
           chips={[
+            ...(from && to
+              ? [
+                  {
+                    label: `Ngày: ${formatDate(from)} → ${formatDate(to)}`,
+                    onRemove: () => refine(() => setRange(undefined)),
+                  },
+                ]
+              : []),
+            ...(departmentId
+              ? [
+                  {
+                    label: `Phòng: ${departments.find((d) => d.id === departmentId)?.name ?? ""}`,
+                    onRemove: () => refine(() => setDepartmentId("")),
+                  },
+                ]
+              : []),
             ...(status
               ? [
                   {
@@ -541,19 +557,11 @@ export default function InsurancePage() {
                   },
                 ]
               : []),
-            ...(departmentId
+            ...(handler
               ? [
                   {
-                    label: `Phòng: ${departments.find((d) => d.id === departmentId)?.name ?? ""}`,
-                    onRemove: () => refine(() => setDepartmentId("")),
-                  },
-                ]
-              : []),
-            ...(from && to
-              ? [
-                  {
-                    label: `Ngày: ${formatDate(from)} → ${formatDate(to)}`,
-                    onRemove: () => refine(() => setRange(undefined)),
+                    label: `Xử lý bởi: ${handler === "bot" ? "Bot" : "Nhân viên"}`,
+                    onRemove: () => refine(() => setHandler("")),
                   },
                 ]
               : []),
@@ -572,14 +580,6 @@ export default function InsurancePage() {
                         setStaffId("");
                         setStaffRole("any");
                       }),
-                  },
-                ]
-              : []),
-            ...(handler
-              ? [
-                  {
-                    label: `Xử lý bởi: ${handler === "bot" ? "Bot" : "Nhân viên"}`,
-                    onRemove: () => refine(() => setHandler("")),
                   },
                 ]
               : []),
