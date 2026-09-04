@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { InsuranceProduct } from '@/lib/types';
+import { BankAccountStatus } from './bankAccounts';
 import { InsuranceOrderStatus } from './insuranceOrders';
 import { pageOf, pageParams, SortDir, type Page } from './pagination';
 
@@ -17,6 +18,11 @@ export const PersonAccount = z.object({
   appInstalled: z.boolean(),
   /** Loại đăng ký app. `none` khi khách chưa cài app. */
   accountType: z.enum(['none', 'CNKD', 'HKD']),
+  /**
+   * `done` · `error` · `fixed`. Bảng liệt kê CẢ tài khoản lỗi (chốt 2026-09-04):
+   * lọc chúng đi thì nhân viên không có màn nào tìm ra tài khoản cần sửa.
+   */
+  status: BankAccountStatus,
 });
 export type PersonAccount = z.infer<typeof PersonAccount>;
 

@@ -31,14 +31,37 @@ export const ACCOUNT_TYPE_LABEL: Record<AccountType, string> = {
  * "Đang giữ" của một mã giới thiệu = số tài khoản `creating` tham chiếu mã đó,
  * đếm sẵn ở `referral_codes.holding_count`. Chỗ được nhả bằng đúng một đường:
  * xoá dòng `creating`.
+ *
+ * `error` = đối soát đánh dấu sai, loại khỏi KPI. `fixed` = nhân viên đã sửa,
+ * chờ người quản ngân hàng duyệt (chốt 2026-09-04). Cả hai đều KHÔNG tính điểm
+ * — điểm quay lại đúng lúc bấm Duyệt.
  */
-export const BankAccountStatus = z.enum(['creating', 'done', 'error']);
+export const BankAccountStatus = z.enum(['creating', 'done', 'error', 'fixed']);
 export type BankAccountStatus = z.infer<typeof BankAccountStatus>;
 
 export const BANK_ACCOUNT_STATUS_LABEL: Record<BankAccountStatus, string> = {
   creating: 'Đang tạo',
   done: 'Hoàn thành',
   error: 'Lỗi',
+  fixed: 'Chờ duyệt lại',
+};
+
+/**
+ * Màu nhãn trạng thái — MỘT bảng cho mọi màn, không chép ternary ở từng bảng.
+ *
+ * `fixed` dùng `review` (tím, đồng hồ cát) chứ không phải `waiting` (xám):
+ * `--om-violet*` là màu dành riêng cho "chờ một quyết định ở ngoài"
+ * (AGENTS.md §3), và ở đây đúng là đang chờ người quản ngân hàng bấm Duyệt.
+ * Xám của `waiting` đọc ra như một ô trống, không gọi được ai vào xử lý.
+ */
+export const BANK_ACCOUNT_STATUS_TONE: Record<
+  BankAccountStatus,
+  'ok' | 'warn' | 'waiting' | 'review'
+> = {
+  creating: 'waiting',
+  done: 'ok',
+  error: 'warn',
+  fixed: 'review',
 };
 
 export const BankAccount = z.object({
@@ -301,6 +324,18 @@ export async function updateBankAccountStatus(
     body: JSON.stringify(form),
   });
   if (!res.ok) throw await failure(res, 'Không đổi được trạng thái tài khoản');
+  return BankAccount.parse(await res.json());
+}
+
+/**
+ * Duyệt tài khoản đã sửa sau khi bị đánh lỗi — `Chờ duyệt lại` → `Hoàn thành`.
+ *
+ * Chỉ người quản ngân hàng đó bấm được; máy chủ trả 404 với người khác. Điểm
+ * KPI quay lại đúng lúc này.
+ */
+export async function approveBankAccount(id: string): Promise<BankAccount> {
+  const res = await fetch(`/api/bank-accounts/${id}/approve`, { method: 'POST' });
+  if (!res.ok) throw await failure(res, 'Không duyệt được tài khoản này');
   return BankAccount.parse(await res.json());
 }
 

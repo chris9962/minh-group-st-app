@@ -16,7 +16,11 @@ import { Button } from "@/components/ui/Button";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusTag } from "@/components/ui/StatusTag";
-import { deleteBankAccount } from "@/lib/api/bankAccounts";
+import {
+  BANK_ACCOUNT_STATUS_LABEL,
+  BANK_ACCOUNT_STATUS_TONE,
+  deleteBankAccount,
+} from "@/lib/api/bankAccounts";
 import {
   fetchCustomerDetail,
   type CustomerAccountRow,
@@ -86,6 +90,15 @@ export default function CustomerDetailPage({
       key: "appInstalled",
       label: "Đã cài app",
       render: (a) => <StatusTag ok={a.appInstalled}>{a.appInstalled ? "Có" : "Chưa"}</StatusTag>,
+    },
+    {
+      key: "status",
+      label: "Trạng thái",
+      render: (a) => (
+        <StatusTag tone={BANK_ACCOUNT_STATUS_TONE[a.status]}>
+          {BANK_ACCOUNT_STATUS_LABEL[a.status]}
+        </StatusTag>
+      ),
     },
     {
       key: "open",

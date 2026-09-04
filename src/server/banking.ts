@@ -12,7 +12,11 @@ import {
   type SQL,
   type SQLWrapper,
 } from "drizzle-orm";
-import { canEditOpeningPhotos, MAX_BANK_ACCOUNTS_PER_CUSTOMER } from "@/lib/api/bankAccounts";
+import {
+  BankAccountStatus,
+  canEditOpeningPhotos,
+  MAX_BANK_ACCOUNTS_PER_CUSTOMER,
+} from "@/lib/api/bankAccounts";
 import type {
   BankAccount,
   BankAccountFinishForm,
@@ -26,7 +30,7 @@ import type { BankAccountDetail, BankAccountRow, BankAccountSort } from "@/lib/a
 import type { Page } from "@/lib/api/pagination";
 import type { BankPhoto, BankPhotoRow } from "@/lib/api/bankPhotos";
 import { businessDay, businessMonth } from "@/lib/format";
-import { recordVisibility, type RecordVisibility } from "@/lib/permissions";
+import { canManageBank, recordVisibility, type RecordVisibility } from "@/lib/permissions";
 import { isRealIsoDate, type User } from "@/lib/types";
 import { searchTerms } from "@/lib/search";
 import { db } from "./db/client";
@@ -260,8 +264,8 @@ const accountTypeFilter = (raw: string): SQL | undefined => {
 
 /** Chuỗi rỗng hoặc giá trị lạ đều thành "mọi trạng thái". */
 const statusFilter = (raw: string): SQL | undefined =>
-  raw === "creating" || raw === "done" || raw === "error"
-    ? eq(bankAccounts.status, raw)
+  BankAccountStatus.safeParse(raw).success
+    ? eq(bankAccounts.status, raw as BankAccountStatus)
     : undefined;
 
 async function accountFilters(
@@ -852,6 +856,7 @@ async function detailBody(r: DecoratedRow): Promise<BankAccountDetail> {
 
   return {
     ...toRow(r),
+    bankId: r.bankId,
     channelDetail: r.channelDetail,
     accountType,
     note: r.note,
@@ -1394,8 +1399,21 @@ export async function updateFinishedAccount(
   const current = await rawById(id);
   if (!current || !inScope(visible, current)) return null;
 
-  if (current.status !== "done")
+  if (current.status === "creating")
     return { ok: false, message: "Tài khoản này chưa hoàn thành — dùng bước Hoàn thành" };
+
+  /**
+   * Sửa một bản ĐANG LỖI là nộp lại để duyệt, không phải sửa xong là xong
+   * (chốt 2026-09-04). Lưu xong dòng chuyển sang `fixed`, và người quản ngân
+   * hàng bấm Duyệt mới đưa về `done` — xem `approveFixedAccount`.
+   *
+   * Bản `fixed` sửa tiếp thì vẫn `fixed`: nhân viên sửa lại lần hai trong lúc
+   * chờ duyệt không được tự đẩy mình về `done`.
+   *
+   * `errorNote` GIỮ NGUYÊN qua bước này. Người duyệt cần đọc lại lý do đánh dấu
+   * lỗi để biết nhân viên đã sửa đúng chỗ chưa; xoá đi là bắt họ tra nhật ký.
+   */
+  const nextStatus = current.status === "error" ? "fixed" : current.status;
 
   // Cùng chốt chặn với `finishBankAccount`: đường sửa cũng ghi đè số tài khoản.
   if (current.accountNumberMethod === "phone-match") {
@@ -1421,8 +1439,8 @@ export async function updateFinishedAccount(
   const accountType = current.accountType;
   const previousDate = current.date;
 
-  // Điều kiện `done` nằm ngay trong câu ghi, không chỉ ở phép kiểm bên trên:
-  // giữa lúc đọc và lúc ghi, người khác có thể vừa xoá bản ghi này.
+  // Trạng thái ĐANG ĐỌC ĐƯỢC nằm ngay trong câu ghi, không chỉ ở phép kiểm bên
+  // trên: giữa lúc đọc và lúc ghi, người khác có thể vừa đối soát bản ghi này.
   const updated = await db
     .update(bankAccounts)
     .set({
@@ -1434,9 +1452,10 @@ export async function updateFinishedAccount(
       appInstalled: form.appInstalled,
       accountType,
       note: form.note,
+      status: nextStatus,
       updatedAt: new Date(),
     })
-    .where(and(eq(bankAccounts.id, id), eq(bankAccounts.status, "done")))
+    .where(and(eq(bankAccounts.id, id), eq(bankAccounts.status, current.status)))
     .returning({ id: bankAccounts.id });
 
   if (updated.length === 0)
@@ -1460,6 +1479,47 @@ export async function updateFinishedAccount(
 }
 
 /**
+ * Duyệt một tài khoản đã sửa xong sau khi bị đánh lỗi — `fixed` → `done`.
+ *
+ * Gác bằng `canManageBank` chứ KHÔNG bằng `banking:update` (chốt 2026-09-04):
+ * nhân viên cũng có `banking:update` ở phạm vi tài khoản mình mở, nên dùng
+ * quyền đó là họ tự sửa rồi tự duyệt, và vòng duyệt mất tác dụng. Người full
+ * quyền và người quản ngân hàng đi qua; người chỉ được giao vài ngân hàng thì
+ * duyệt được đúng tài khoản của những ngân hàng đó.
+ *
+ * Điểm KPI quay lại ĐÚNG LÚC NÀY, không phải lúc nhân viên bấm Lưu: mọi truy
+ * vấn KPI chỉ lấy `done`, nên `fixed` không được tính cho tới khi có người duyệt.
+ */
+export async function approveFixedAccount(
+  actor: User,
+  id: string,
+): Promise<BankingOutcome<BankAccount> | null> {
+  const current = await rawById(id);
+  if (!current) return null;
+  if (!canManageBank(actor, current.bankId)) return null;
+  if (current.status !== "fixed")
+    return { ok: false, message: "Tài khoản này không ở trạng thái chờ duyệt lại." };
+
+  const updated = await db
+    .update(bankAccounts)
+    .set({ status: "done", errorNote: "", updatedAt: new Date() })
+    .where(and(eq(bankAccounts.id, id), eq(bankAccounts.status, "fixed")))
+    .returning({ id: bankAccounts.id });
+  if (updated.length === 0)
+    return { ok: false, message: "Tài khoản vừa được đối soát ở nơi khác." };
+
+  // Chỉ tháng MỞ tài khoản, không phải tháng bấm duyệt — cùng lối với
+  // `updateBankAccountStatus`.
+  if (current.date)
+    await recomputeKpiForCustomer(
+      current.customerId,
+      businessMonth(new Date(`${current.date}T00:00:00+07:00`)),
+    );
+
+  return { ok: true, value: (await accountById(id))! };
+}
+
+/**
  * Đối soát ngược một tài khoản đã hoàn thành.
  *
  * `error` loại dòng này khỏi mọi phép tính KPI vì các truy vấn KPI chỉ lấy
@@ -1480,6 +1540,23 @@ export async function updateBankAccountStatus(
     return { ok: false, message: "Tài khoản đang tạo không thể đối soát lỗi." };
   if (current.status === form.status)
     return { ok: false, message: "Tài khoản đang ở trạng thái này rồi." };
+
+  /**
+   * KHÔI PHỤC thẳng về `done` là đường đi tắt qua vòng duyệt, nên chỉ người
+   * quản ngân hàng đó bấm được (chốt 2026-09-04).
+   *
+   * `banking:update` một mình không đủ: nhân viên cũng có quyền đó ở phạm vi
+   * tài khoản mình mở, nên họ tự đánh dấu lỗi rồi tự khôi phục, và cả vòng
+   * sửa - duyệt mất tác dụng.
+   *
+   * Chiều ngược lại — đánh dấu lỗi — giữ nguyên `banking:update`: nó chỉ TRỪ
+   * điểm của chính người bấm, không ai tự có lợi bằng đường đó.
+   */
+  if (form.status === "done" && !canManageBank(actor, current.bankId))
+    return {
+      ok: false,
+      message: "Chỉ người quản ngân hàng này khôi phục được tài khoản. Sửa lỗi rồi gửi duyệt.",
+    };
 
   const updated = await db
     .update(bankAccounts)

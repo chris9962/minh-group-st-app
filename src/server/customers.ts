@@ -867,7 +867,9 @@ export async function customerDetailFor(
     }
   };
 
-  const doneAccounts = accountRows.filter((a) => a.status === "done");
+  // MỌI trạng thái trừ bản nháp (chốt 2026-09-04). Tài khoản bị đánh lỗi phải
+  // hiện ở đây, nếu không người dùng không có màn nào tìm ra nó.
+  const doneAccounts = accountRows.filter((a) => a.status !== "creating");
   const draftAccounts = accountRows.filter((a) => a.status === "creating");
   const visibleDone = visible(doneAccounts, bankingVisible);
   const visibleDrafts = visible(draftAccounts, bankingVisible);
@@ -880,6 +882,7 @@ export async function customerDetailFor(
     bankName: a.bankName,
     referralCode: a.referralCode,
     appInstalled: a.appInstalled,
+    status: a.status,
   }));
 
   const drafts: CustomerDraftAccountRow[] = visibleDrafts.map((a) => ({

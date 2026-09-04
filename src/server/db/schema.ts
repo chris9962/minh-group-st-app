@@ -89,7 +89,13 @@ export const departmentType = pgEnum("department_type", ["sales", "office"]);
 
 export const accountNumberMethod = pgEnum("account_number_method", ["phone-match", "manual"]);
 export const bankAccountType = pgEnum("bank_account_type", ["none", "CNKD", "HKD"]);
-export const bankAccountStatus = pgEnum("bank_account_status", ["creating", "done", "error"]);
+export const bankAccountStatus = pgEnum("bank_account_status", [
+  "creating",
+  "done",
+  "error",
+  /** Đã sửa sau khi bị đánh lỗi, chờ người quản ngân hàng duyệt (migration 0064). */
+  "fixed",
+]);
 
 export const insuranceProduct = pgEnum("insurance_product", ["motorbike", "electric-accident"]);
 export const insuranceOrderStatus = pgEnum("insurance_order_status", [

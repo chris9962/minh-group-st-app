@@ -1,23 +1,29 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { use } from "react";
-import { ChevronLeft, Landmark } from "lucide-react";
+import { use, useState } from "react";
+import { Check, ChevronLeft, Landmark } from "lucide-react";
 import { RequirePermission } from "@/components/layout/RequirePermission";
 import { TopBar } from "@/components/layout/TopBar";
 import { BankAccountPhotos, savedPhotos } from "@/components/banking/BankAccountPhotos";
+import { Button } from "@/components/ui/Button";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { SkeletonCard } from "@/components/ui/Skeleton";
 import { StatusTag } from "@/components/ui/StatusTag";
 import {
   BANK_ACCOUNT_STATUS_LABEL,
+  BANK_ACCOUNT_STATUS_TONE,
+  approveBankAccount,
   type AccountType,
 } from "@/lib/api/bankAccounts";
 import { fetchBankAccountOfBank } from "@/lib/api/banking";
 import { formatDate, formatPhone } from "@/lib/format";
+import { invalidateKpi } from "@/lib/invalidateKpi";
 import { canManageBank, canOpenBankAdmin } from "@/lib/permissions";
+import { errorMessage, toast } from "@/lib/toast";
 import { useSession } from "@/store/session";
 import styles from "./page.module.scss";
 
@@ -49,6 +55,21 @@ export default function BankAccountOfBankPage({
     enabled: inScope,
   });
 
+  const queryClient = useQueryClient();
+  const [approving, setApproving] = useState(false);
+  const approve = useMutation({
+    mutationFn: () => approveBankAccount(accountId),
+    onSuccess: () => {
+      setApproving(false);
+      queryClient.invalidateQueries({ queryKey: ["bank-account-of-bank", id, accountId] });
+      queryClient.invalidateQueries({ queryKey: ["bank-accounts-of-bank"] });
+      queryClient.invalidateQueries({ queryKey: ["bank-account-list"] });
+      invalidateKpi(queryClient);
+      toast.ok("Đã duyệt tài khoản và tính lại KPI");
+    },
+    onError: (e) => toast.fail(errorMessage(e, "Không duyệt được tài khoản này.")),
+  });
+
   return (
     <RequirePermission allow={canOpenBankAdmin}>
       <TopBar title={data ? `${data.bankCode} · ${data.customerName}` : "Tài khoản"} keepTitleOnMobile />
@@ -66,14 +87,28 @@ export default function BankAccountOfBankPage({
         )}
 
         {inScope && data && (
-          <SectionCard title="Thông tin tài khoản" icon={<Landmark size={17} />}>
+          <SectionCard
+            title="Thông tin tài khoản"
+            icon={<Landmark size={17} />}
+            /*
+              Nút DUY NHẤT của màn chỉ-xem này. Đặt ở đây vì người quản ngân hàng
+              vào đúng màn này để đối chiếu, còn P-22 thì họ thường không mở được
+              — hai màn gác theo hai phạm vi khác nhau.
+            */
+            action={
+              data.status === "fixed" ? (
+                <Button disabled={approve.isPending} onClick={() => setApproving(true)}>
+                  <Check size={16} aria-hidden />
+                  Duyệt
+                </Button>
+              ) : undefined
+            }
+          >
             <dl className={styles.fields}>
               <div>
                 <dt>Trạng thái</dt>
                 <dd>
-                  <StatusTag
-                    tone={data.status === "done" ? "ok" : data.status === "error" ? "warn" : "waiting"}
-                  >
+                  <StatusTag tone={BANK_ACCOUNT_STATUS_TONE[data.status]}>
                     {BANK_ACCOUNT_STATUS_LABEL[data.status]}
                   </StatusTag>
                 </dd>
@@ -156,6 +191,21 @@ export default function BankAccountOfBankPage({
               />
             )}
           </SectionCard>
+        )}
+
+        {approving && data && (
+          <ConfirmDialog
+            open
+            title="Duyệt tài khoản đã sửa?"
+            consequence="Tài khoản về Hoàn thành và điểm KPI của người mở được tính lại ngay."
+            confirmLabel="Duyệt"
+            pending={approve.isPending}
+            onConfirm={() => approve.mutate()}
+            onClose={() => setApproving(false)}
+          >
+            Tài khoản <strong>{data.bankCode}</strong> của {data.customerName}. Lý do đánh dấu
+            lỗi trước đó: {data.errorNote || "không ghi"}.
+          </ConfirmDialog>
         )}
       </main>
     </RequirePermission>

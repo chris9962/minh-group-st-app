@@ -28,6 +28,7 @@ import {
   ACCOUNT_TYPE_LABEL,
   AccountType,
   BANK_ACCOUNT_STATUS_LABEL as STATUS_LABEL,
+  BANK_ACCOUNT_STATUS_TONE as STATUS_TONE,
   BankAccountStatus,
   deleteBankAccount,
 } from "@/lib/api/bankAccounts";
@@ -55,6 +56,14 @@ const pageFromUrl = (value: string | null): number => {
   const page = Number(value);
   // URL đếm từ 1 để người dùng đọc được; `RankTable` đếm từ 0 nội bộ.
   return Number.isSafeInteger(page) && page >= 1 ? page - 1 : 0;
+};
+
+/** Nhãn nút sửa của MỘT dòng — cùng hộp thoại, khác chữ theo trạng thái. */
+const ROW_EDIT_LABEL: Record<BankAccountStatus, string> = {
+  creating: "Hoàn tất tài khoản",
+  done: "Ảnh chứng minh",
+  error: "Sửa lỗi",
+  fixed: "Sửa lại",
 };
 
 /** P-21 · Danh sách tài khoản ngân hàng. */
@@ -269,9 +278,7 @@ export default function BankingPage() {
         key: "status",
         label: "Trạng thái",
         render: (r) => (
-          <StatusTag tone={r.status === "done" ? "ok" : r.status === "error" ? "warn" : "waiting"}>
-            {STATUS_LABEL[r.status]}
-          </StatusTag>
+          <StatusTag tone={STATUS_TONE[r.status]}>{STATUS_LABEL[r.status]}</StatusTag>
         ),
       },
       {
@@ -301,19 +308,17 @@ export default function BankingPage() {
         render: (r: BankAccountRow) => (
           <RowActions>
             {/* Bản `error` VẪN sửa được, cùng cửa sổ trong ngày với bản `done`
-                — luật ở `canEditOpeningPhotos`, và máy chủ chưa từng chặn theo
-                trạng thái này. Đánh dấu lỗi là để đối soát trừ KPI, không phải
-                để khoá bản ghi lại. */}
+                — luật ở `canEditOpeningPhotos`. Đánh dấu lỗi là để đối soát trừ
+                KPI, không phải để khoá bản ghi lại.
+
+                Nhãn đổi theo trạng thái: bản lỗi ghi "Sửa lỗi" để nhân viên biết
+                đây là đường chữa, cùng một hộp thoại với đường sửa thường. */}
             {canWrite && (
               <Button
                 variant="secondary"
                 icon
-                tooltip={r.status === "creating" ? "Hoàn tất tài khoản" : "Ảnh chứng minh"}
-                aria-label={
-                  r.status === "creating"
-                    ? `Hoàn tất tài khoản ${r.bankCode} của ${r.customerName}`
-                    : `Ảnh chứng minh tài khoản ${r.bankCode} của ${r.customerName}`
-                }
+                tooltip={ROW_EDIT_LABEL[r.status]}
+                aria-label={`${ROW_EDIT_LABEL[r.status]} tài khoản ${r.bankCode} của ${r.customerName}`}
                 onClick={() => setEditingId(r.id)}
               >
                 <Pencil size={16} aria-hidden />

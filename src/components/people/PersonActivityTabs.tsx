@@ -11,6 +11,10 @@ import { SkeletonCard } from "@/components/ui/Skeleton";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { SegmentedTabs, type TabOption } from "@/components/ui/SegmentedTabs";
 import { StatusTag } from "@/components/ui/StatusTag";
+import {
+  BANK_ACCOUNT_STATUS_LABEL,
+  BANK_ACCOUNT_STATUS_TONE,
+} from "@/lib/api/bankAccounts";
 import { INSURANCE_STATUS_LABEL } from "@/lib/api/insuranceOrders";
 import { PAGE_SIZE, type SortDir } from "@/lib/api/pagination";
 import {
@@ -139,6 +143,15 @@ const ACCOUNT_COLUMNS: RankColumn<PersonAccount>[] = [
       ) : (
         <StatusTag ok={false}>Chưa</StatusTag>
       ),
+  },
+  {
+    key: "status",
+    label: "Trạng thái",
+    render: (a) => (
+      <StatusTag tone={BANK_ACCOUNT_STATUS_TONE[a.status]}>
+        {BANK_ACCOUNT_STATUS_LABEL[a.status]}
+      </StatusTag>
+    ),
   },
   { key: "open", label: "Chi tiết", render: (a) => <AccountLinkCell id={a.id} /> },
 ];

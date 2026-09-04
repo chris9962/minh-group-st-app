@@ -879,7 +879,9 @@ export async function personAccountsFor(
 
   const where = and(
     eq(bankAccounts.createdBy, id),
-    eq(bankAccounts.status, "done"),
+    // MỌI trạng thái trừ bản nháp (chốt 2026-09-04). Tài khoản bị đánh lỗi phải
+    // hiện ở đây, nếu không nhân viên không có màn nào tìm ra nó để sửa.
+    ne(bankAccounts.status, "creating"),
     gte(bankAccounts.openedDate, range.from),
     lte(bankAccounts.openedDate, range.to),
   );
@@ -915,6 +917,7 @@ export async function personAccountsFor(
       channel: r.account.channelDetail,
       appInstalled: r.account.appInstalled,
       accountType: r.account.accountType,
+      status: r.account.status,
     })),
     total,
   };

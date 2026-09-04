@@ -6,8 +6,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { use, useState } from "react";
 import { useForm } from "react-hook-form";
-import { CheckCircle2, ChevronLeft, Landmark, Pencil, RotateCcw, TriangleAlert, Trash2 } from "lucide-react";
+import { Check, CheckCircle2, ChevronLeft, Landmark, Pencil, RotateCcw, TriangleAlert, Trash2 } from "lucide-react";
 import { Alert } from "@/components/ui/Alert";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Dialog } from "@/components/ui/Dialog";
 import { SkeletonCard } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
@@ -28,7 +29,10 @@ import { StatusTag } from "@/components/ui/StatusTag";
 import { TextArea } from "@/components/ui/TextArea";
 import {
   AccountType,
+  BANK_ACCOUNT_STATUS_LABEL,
+  BANK_ACCOUNT_STATUS_TONE,
   BankAccountFinishForm,
+  approveBankAccount,
   deleteBankAccount,
   finishBankAccount,
   setBankAccountPhotos,
@@ -37,7 +41,7 @@ import {
 import { fetchBankAccountDetail, type BankAccountDetail } from "@/lib/api/banking";
 import { fetchDepartments } from "@/lib/api/departments";
 import { invalidateKpi } from "@/lib/invalidateKpi";
-import { can } from "@/lib/permissions";
+import { can, canManageBank } from "@/lib/permissions";
 import { errorMessage, toast } from "@/lib/toast";
 import { formatDate, formatPhone, businessDay } from "@/lib/format";
 import { useSession } from "@/store/session";
@@ -99,7 +103,7 @@ export default function BankAccountDetailPage({
           <FinishAccountCard id={id} data={data} departmentName={departmentName} />
         )}
 
-        {data && (data.status === "done" || data.status === "error") && (
+        {data && data.status !== "creating" && (
           <DoneAccountCard id={id} data={data} departmentName={departmentName} />
         )}
       </main>
@@ -320,6 +324,21 @@ function DoneAccountCard({
     onError: (e) => toast.fail(errorMessage(e, "Không đổi được trạng thái tài khoản.")),
   });
 
+  const [approving, setApproving] = useState(false);
+  const approve = useMutation({
+    mutationFn: () => approveBankAccount(id),
+    onSuccess: () => {
+      setApproving(false);
+      queryClient.invalidateQueries({ queryKey: ["bank-account-detail", id] });
+      queryClient.invalidateQueries({ queryKey: ["bank-account-list"] });
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
+      queryClient.invalidateQueries({ queryKey: ["customer", data.customerId] });
+      invalidateKpi(queryClient);
+      toast.ok("Đã duyệt tài khoản và tính lại KPI");
+    },
+    onError: (e) => toast.fail(errorMessage(e, "Không duyệt được tài khoản này.")),
+  });
+
   return (
     <SectionCard
       title="Chi tiết tài khoản"
@@ -328,21 +347,25 @@ function DoneAccountCard({
          không dựng biểu mẫu thứ hai để rồi hai chỗ lệch luật nhau. */
       action={
         canWrite ? (
-          /* Nút Sửa có ở CẢ HAI trạng thái. Bản `error` sửa được đúng cửa sổ
-             trong ngày như bản `done` — đánh dấu lỗi là để đối soát trừ KPI,
-             không phải để khoá bản ghi lại. Nút thứ hai mới đổi theo trạng
-             thái: `done` thì đánh dấu lỗi, `error` thì khôi phục. */
+          /* Nút sửa có ở MỌI trạng thái, chỉ khác chữ: bản lỗi ghi "Sửa lỗi" để
+             nhân viên biết đây là đường chữa. Cùng một hộp thoại.
+
+             Nút thứ hai đổi theo trạng thái: `done` thì đánh dấu lỗi, `error`
+             thì khôi phục thẳng, `fixed` thì duyệt. */
           <div className={styles.headerActions}>
             <Button variant="secondary" onClick={() => setEditing(true)}>
               <Pencil size={16} aria-hidden />
-              Sửa
+              {data.status === "error" ? "Sửa lỗi" : "Sửa"}
             </Button>
-            {data.status === "done" ? (
+            {data.status === "done" && (
               <Button variant="secondary" onClick={() => setMarkingError(true)}>
                 <TriangleAlert size={16} aria-hidden />
                 Đánh dấu lỗi
               </Button>
-            ) : (
+            )}
+            {/* Khôi phục là đường ĐI TẮT qua vòng duyệt, nên chỉ người quản
+                ngân hàng thấy. Nhân viên sửa lỗi rồi gửi duyệt như mọi lượt. */}
+            {data.status === "error" && canManageBank(user, data.bankId) && (
               <Button
                 variant="secondary"
                 disabled={statusUpdate.isPending}
@@ -350,6 +373,17 @@ function DoneAccountCard({
               >
                 <RotateCcw size={16} aria-hidden />
                 Khôi phục hoàn thành
+              </Button>
+            )}
+            {/* Chỉ người quản CHÍNH ngân hàng này duyệt được. Ẩn nút thay vì
+                hiện rồi báo lỗi — nút bấm không làm gì là lời hứa suông. */}
+            {/* `primary` chứ không phải `secondary`: đây là việc DUY NHẤT màn
+                này đang chờ người xem làm, và nó đứng cạnh nút Sửa. Hai nút
+                cùng dáng viền thì không đọc ra cái nào là việc chính. */}
+            {data.status === "fixed" && canManageBank(user, data.bankId) && (
+              <Button disabled={approve.isPending} onClick={() => setApproving(true)}>
+                <Check size={16} aria-hidden />
+                Duyệt
               </Button>
             )}
           </div>
@@ -361,15 +395,37 @@ function DoneAccountCard({
           <strong>Tài khoản lỗi — không tính KPI.</strong> {data.errorNote}
         </Alert>
       )}
+      {/* Lý do đánh dấu lỗi GIỮ NGUYÊN qua bước sửa: người duyệt cần đọc lại để
+          biết nhân viên đã sửa đúng chỗ chưa. */}
+      {data.status === "fixed" && (
+        <Alert tone="warning">
+          <strong>Đã sửa, chờ duyệt lại — chưa tính KPI.</strong> Lý do đánh dấu lỗi:{" "}
+          {data.errorNote}
+        </Alert>
+      )}
       {editing && (
         <BankAccountEditDialog open onClose={() => setEditing(false)} accountId={id} />
+      )}
+      {approving && (
+        <ConfirmDialog
+          open
+          title="Duyệt tài khoản đã sửa?"
+          consequence="Tài khoản về Hoàn thành và điểm KPI của người mở được tính lại ngay."
+          confirmLabel="Duyệt"
+          pending={approve.isPending}
+          onConfirm={() => approve.mutate()}
+          onClose={() => setApproving(false)}
+        >
+          Tài khoản <strong>{data.bankCode}</strong> của {data.customerName}. Lý do đánh dấu
+          lỗi trước đó: {data.errorNote || "không ghi"}.
+        </ConfirmDialog>
       )}
       <dl className={styles.fields}>
         <div>
           <dt>Trạng thái</dt>
           <dd>
-            <StatusTag tone={data.status === "done" ? "ok" : "warn"}>
-              {data.status === "done" ? "Hoàn thành" : "Lỗi"}
+            <StatusTag tone={BANK_ACCOUNT_STATUS_TONE[data.status]}>
+              {BANK_ACCOUNT_STATUS_LABEL[data.status]}
             </StatusTag>
           </dd>
         </div>

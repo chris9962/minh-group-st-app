@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { InsuranceProduct } from '@/lib/types';
+import { BankAccountStatus } from './bankAccounts';
 import { InsuranceOrderStatus } from './insuranceOrders';
 import { GiftSimulateResult } from './settings';
 import { pageOf, pageParams, type Page, type PageQuery } from './pagination';
@@ -366,6 +367,12 @@ export const CustomerAccountRow = z.object({
   bankName: z.string(),
   referralCode: z.string(),
   appInstalled: z.boolean(),
+  /**
+   * `done` · `error` · `fixed`. Bảng liệt kê CẢ tài khoản lỗi (chốt 2026-09-04):
+   * lọc chúng đi thì người dùng không có màn nào tìm ra tài khoản bị đánh lỗi
+   * của khách mình.
+   */
+  status: BankAccountStatus,
 });
 export type CustomerAccountRow = z.infer<typeof CustomerAccountRow>;
 

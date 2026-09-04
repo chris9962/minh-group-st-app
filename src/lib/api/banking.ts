@@ -51,6 +51,8 @@ export type BankAccountRow = z.infer<typeof BankAccountRow>;
  * khi hoàn thành, ảnh chứng minh chỉ sửa được trong ngày (`canEditOpeningPhotos`).
  */
 export const BankAccountDetail = BankAccountRow.extend({
+  /** Id ngân hàng — màn chi tiết hỏi `canManageBank` để quyết có bày nút Duyệt. */
+  bankId: z.string(),
   channelDetail: z.string(),
   accountType: AccountType,
   note: z.string(),

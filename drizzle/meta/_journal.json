@@ -449,6 +449,13 @@
       "when": 1788940800000,
       "tag": "0063_gift_grants_list_index",
       "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1788941000000,
+      "tag": "0064_bank_account_fixed",
+      "breakpoints": true
     }
   ]
 }
