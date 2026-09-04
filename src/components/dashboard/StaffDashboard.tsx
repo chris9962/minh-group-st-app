@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ChartColumn, Landmark, Target } from "lucide-react";
 import { BarChart } from "@/components/ui/BarChart";
 import { monthLabel } from "@/components/ui/MonthPicker";
+import { ScoringTable } from "@/components/exports/ScoringTable";
 import { HandledOrdersSection } from "@/components/people/HandledOrdersTable";
 import { KpiScoreBlock } from "@/components/people/KpiScoreBlock";
 import { SectionCard } from "@/components/ui/SectionCard";
@@ -133,16 +134,10 @@ export function StaffDashboard({ person, draftAccounts, periodLabel, from, to }:
         periodText={periodLabel}
       />
 
-      {/*
-        Bảng điểm từng khách TẠM ẨN 2026-09-04 — nó tính lại điểm và quà cho
-        từng khách lúc gọi, không đọc `kpi_scores`, nên mỗi lượt mở màn là một
-        lượt gộp nặng trên database. Màn này mọi nhân viên mở mỗi ngày.
-
-        Bảng vẫn còn ở tab "Bảng điểm" của hồ sơ nhân viên P-52, nơi người xem
-        chủ động bấm vào. Bật lại ở đây khi phép tính đọc được số đã lưu sẵn.
-
-        <ScoringTable lockedStaffId={person.id} pageSize={50} />
-      */}
+      {/* Bảng điểm từng khách, CHẠY RIÊNG: nó có ô chọn khoảng ngày của chính
+          nó và không đọc kỳ đang chọn ở thanh trên. Ba thẻ đếm đi theo kỳ, bảng
+          này đi theo tháng — hai câu hỏi khác nhau, đừng nối vào nhau. */}
+      <ScoringTable lockedStaffId={person.id} pageSize={50} />
     </div>
   );
 }
