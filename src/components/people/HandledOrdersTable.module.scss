@@ -1,0 +1,28 @@
+/* Ô bấm cao bằng cả dòng: bấm trúng tên khách là vào hồ sơ, không cần nhắm đúng
+   chữ. Cùng dáng với cột tên ở các bảng danh sách. */
+.nameLink {
+  display: block;
+  padding: 12px 0;
+  margin: -12px 0;
+  color: var(--om-link);
+}
+
+.nameLink:hover {
+  color: var(--om-link-hover);
+  text-decoration: underline;
+}
+
+/* Icon tab mới nằm cùng dòng với mã đơn — báo trước rằng bấm vào sẽ mở tab
+   khác, không phải điều hướng tại chỗ như mọi link còn lại của bảng. */
+.newTab {
+  margin-left: 5px;
+  vertical-align: -2px;
+}
+
+/* Hàng công cụ trên bảng: nút đứng bên phải, cách bảng ra để không dính vào
+   dòng tiêu đề cột. */
+.tools {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--space-3);
+}

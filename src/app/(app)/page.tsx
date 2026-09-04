@@ -15,6 +15,7 @@ import { RateDelta } from "@/components/ui/RateDelta";
 import {
   DEFAULT_PERIOD,
   PeriodPicker,
+  periodDates,
   periodKey,
   type Period,
 } from "@/components/ui/PeriodPicker";
@@ -169,6 +170,7 @@ export default function DashboardPage() {
             person={view.person}
             draftAccounts={view.draftAccounts}
             periodLabel={periodLabel}
+            {...periodDates(period)}
           />
         )}
 

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { ExternalLink } from "lucide-react";
 import { ScoringTable } from "@/components/exports/ScoringTable";
+import { HandledOrdersTable } from "@/components/people/HandledOrdersTable";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { SkeletonCard } from "@/components/ui/Skeleton";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
@@ -15,6 +16,7 @@ import { PAGE_SIZE, type SortDir } from "@/lib/api/pagination";
 import {
   fetchPersonAccounts,
   fetchPersonCustomers,
+  fetchPersonHandled,
   fetchPersonInsurance,
   fetchPersonServices,
   type PersonAccount,
@@ -205,7 +207,7 @@ const SERVICE_COLUMNS: RankColumn<PersonService>[] = [
  * `scoring` KHÁC bốn tab kia: nó không đọc kỳ của trang và không phân trang ở
  * máy chủ. Bảng điểm có ô chọn khoảng ngày riêng bên trong.
  */
-type TabKey = "customers" | "accounts" | "insurance" | "services" | "scoring";
+type TabKey = "customers" | "accounts" | "insurance" | "handled" | "services" | "scoring";
 
 type ListTabKey = Exclude<TabKey, "scoring">;
 
@@ -213,6 +215,7 @@ const ZERO_PAGES: Record<ListTabKey, number> = {
   customers: 0,
   accounts: 0,
   insurance: 0,
+  handled: 0,
   services: 0,
 };
 
@@ -257,6 +260,7 @@ export function PersonActivityTabs({
     customers: "desc",
     accounts: "desc",
     insurance: "desc",
+    handled: "desc",
     services: "desc",
   });
 
@@ -281,6 +285,7 @@ export function PersonActivityTabs({
   const customersQ = useQuery(listQuery("customers", fetchPersonCustomers));
   const accountsQ = useQuery(listQuery("accounts", fetchPersonAccounts));
   const insuranceQ = useQuery(listQuery("insurance", fetchPersonInsurance));
+  const handledQ = useQuery(listQuery("handled", fetchPersonHandled));
   const servicesQ = useQuery(listQuery("services", fetchPersonServices));
 
   const serverFor = (key: ListTabKey, total: number) => ({
@@ -297,7 +302,7 @@ export function PersonActivityTabs({
   });
 
   // Chỉ hiện thẻ có dòng. Thẻ rỗng chỉ để người dùng bấm vào rồi thấy trống.
-  const listQueries = [customersQ, accountsQ, insuranceQ, servicesQ];
+  const listQueries = [customersQ, accountsQ, insuranceQ, handledQ, servicesQ];
   const listsReady = listQueries.every((q) => q.isSuccess);
   /**
    * Tải HỎNG khác tải CHƯA XONG, dù `listsReady` cho ra `false` ở cả hai.
@@ -317,6 +322,11 @@ export function PersonActivityTabs({
           { value: "customers", label: "Khách hàng", count: customersQ.data?.total ?? 0 },
           { value: "accounts", label: "Tài khoản", count: accountsQ.data?.total ?? 0 },
           { value: "insurance", label: "Đơn bảo hiểm", count: insuranceQ.data?.total ?? 0 },
+          /* Chỉ hiện khi người này thật sự đã xử lý đơn nào — cùng luật với bốn
+             tab kia. Không hỏi quyền `insurance:handle-fallback` của họ: quyền
+             của NGƯỜI KHÁC không có ở trình duyệt, mà người không có quyền đó
+             thì không bao giờ có dòng nào ở đây. */
+          { value: "handled", label: "Đơn đã xử lý", count: handledQ.data?.total ?? 0 },
           { value: "services", label: "Dịch vụ", count: servicesQ.data?.total ?? 0 },
         ] as TabOption[]
       )
@@ -397,6 +407,22 @@ export function PersonActivityTabs({
             defaultSort="date"
             caption={`Đơn bảo hiểm đã tạo ${periodText}`}
             server={serverFor("insurance", insuranceQ.data?.total ?? 0)}
+          />
+        </div>
+      )}
+
+      {activeTab === "handled" && (
+        <div className={styles.panel}>
+          <HandledOrdersTable
+            staffId={staffId}
+            from={from}
+            to={to}
+            periodText={periodText}
+            page={tabPages.handled}
+            dir={tabDirs.handled}
+            onPageChange={(next) => setTabPages((p) => ({ ...p, handled: next }))}
+            onDirChange={(next) => setTabDirs((d) => ({ ...d, handled: next }))}
+            data={handledQ.data}
           />
         </div>
       )}

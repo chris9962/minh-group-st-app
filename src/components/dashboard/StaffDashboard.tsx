@@ -5,6 +5,7 @@ import { ChartColumn, Landmark, Target } from "lucide-react";
 import { BarChart } from "@/components/ui/BarChart";
 import { monthLabel } from "@/components/ui/MonthPicker";
 import { ScoringTable } from "@/components/exports/ScoringTable";
+import { HandledOrdersSection } from "@/components/people/HandledOrdersTable";
 import { KpiScoreBlock } from "@/components/people/KpiScoreBlock";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatCard } from "@/components/ui/StatCard";
@@ -20,6 +21,9 @@ type Props = {
   draftAccounts: DashboardDraftAccount[];
   /** "hôm nay" · "tháng này" · "khoảng đã chọn" — nhãn cho ba thẻ đếm. */
   periodLabel: string;
+  /** Kỳ đang chọn, đã quy về hai ngày — khối Đơn đã xử lý đi theo kỳ này. */
+  from: string;
+  to: string;
 };
 
 const shortMonth = (month: string) => `T${Number(month.slice(5, 7))}`;
@@ -32,7 +36,7 @@ const shortMonth = (month: string) => `T${Number(month.slice(5, 7))}`;
  * nội dung chính của cả màn thì lửng lơ giữa trang. Ở đây người xem là chính
  * chủ, không cần tự giới thiệu; điểm và việc đang dở là thứ đứng đầu.
  */
-export function StaffDashboard({ person, draftAccounts, periodLabel }: Props) {
+export function StaffDashboard({ person, draftAccounts, periodLabel, from, to }: Props) {
   const chartColors = useChartColors();
 
   return (
@@ -118,6 +122,17 @@ export function StaffDashboard({ person, draftAccounts, periodLabel }: Props) {
           </ul>
         </SectionCard>
       )}
+
+      {/* Đơn xử lý tay — khối tự vắng mặt khi người này chưa xử lý đơn nào.
+          `key` theo kỳ: đổi kỳ là danh sách đổi nội dung, giữ trang 3 của kỳ cũ
+          là hiện một khúc rỗng (AGENTS.md §7). */}
+      <HandledOrdersSection
+        key={`${from}:${to}`}
+        staffId={person.id}
+        from={from}
+        to={to}
+        periodText={periodLabel}
+      />
 
       {/* Bảng điểm từng khách, CHẠY RIÊNG: nó có ô chọn khoảng ngày của chính
           nó và không đọc kỳ đang chọn ở thanh trên. Ba thẻ đếm đi theo kỳ, bảng

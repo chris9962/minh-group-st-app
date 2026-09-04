@@ -65,6 +65,26 @@ export const PersonInsurance = z.object({
 });
 export type PersonInsurance = z.infer<typeof PersonInsurance>;
 
+/**
+ * Một đơn người này ĐÃ XỬ LÝ TAY, quyền `insurance:handle-fallback`.
+ *
+ * Khác `PersonInsurance` là đơn họ TẠO: người xử lý tay nhặt đơn từ kho chung
+ * nên phần lớn đơn ở đây do người khác lập. Không có cột trạng thái — đơn đã qua
+ * tay họ thì việc cần đọc là khách nào, loại gì, mấy năm.
+ */
+export const PersonHandledOrder = z.object({
+  id: z.string(),
+  date: z.string(),
+  /** DH-YYMM-NNN — số người dùng đọc và đối chiếu, khác `id` là uuid nội bộ. */
+  orderCode: z.string(),
+  customerId: z.string(),
+  customerName: z.string(),
+  product: InsuranceProduct,
+  /** Số năm hiệu lực, đọc từ `insurance_package_legs.years` ở máy chủ. */
+  years: z.number(),
+});
+export type PersonHandledOrder = z.infer<typeof PersonHandledOrder>;
+
 /** Một nguồn điểm — để trả lời "68/100 thì thiếu ở đâu". */
 export const PointSource = z.object({
   label: z.string(),
@@ -209,3 +229,22 @@ export const fetchPersonCustomers = personListPage(PersonCustomer, 'customers');
 export const fetchPersonAccounts = personListPage(PersonAccount, 'accounts');
 export const fetchPersonInsurance = personListPage(PersonInsurance, 'insurance');
 export const fetchPersonServices = personListPage(PersonService, 'services');
+export const fetchPersonHandled = personListPage(PersonHandledOrder, 'handled');
+
+/**
+ * TRỌN danh sách đơn đã xử lý trong kỳ, cho nút Xuất Excel của tab.
+ *
+ * Đường riêng chứ không mở tham số "lấy hết" trên route đã phân trang
+ * (AGENTS.md §5.1, điều 4).
+ */
+export async function fetchPersonHandledForExport(
+  query: Omit<PersonListQuery, 'page' | 'dir'>,
+): Promise<PersonHandledOrder[]> {
+  const qs = new URLSearchParams({ from: query.from, to: query.to });
+  const res = await fetch(
+    `/api/people/${encodeURIComponent(query.id)}/handled/export?${qs}`,
+  );
+  if (res.status === 404) throw new Error('Không tìm thấy nhân viên này');
+  if (!res.ok) throw new Error('Không tải được danh sách đơn đã xử lý');
+  return z.array(PersonHandledOrder).parse(await res.json());
+}

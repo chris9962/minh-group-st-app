@@ -4,6 +4,7 @@ import type {
   PersonAccount,
   PersonCustomer,
   PersonDetail,
+  PersonHandledOrder,
   PersonInsurance,
   PersonService,
 } from "@/lib/api/person";
@@ -22,6 +23,7 @@ import {
   customers,
   departments,
   insuranceOrders,
+  insurancePackageLegs,
   kpiAdjustments,
   kpiScores,
   kpiTargets,
@@ -956,6 +958,100 @@ export async function personInsuranceFor(
     })),
     total,
   };
+}
+
+/**
+ * Số năm hiệu lực của đơn — đọc SỐ KHAI ở `insurance_package_legs.years`.
+ *
+ * Đơn không giữ lại mình sinh từ leg nào, nên khớp bằng `package_id` cộng
+ * `product`. Gói có hai leg cùng loại bảo hiểm thì hai leg đó mang cùng số năm —
+ * gói "2 năm" là HAI đơn 1 năm nối tiếp, mỗi leg `years = 1` — nên lấy leg đầu
+ * là đủ.
+ *
+ * Hiệu hai ngày chỉ là phương án dự phòng cho đơn không còn gói (`package_id`
+ * null với đơn nhập trước khi có danh mục gói). Không dùng nó làm nguồn chính:
+ * người nhập sửa tay được ngày kết thúc, và một đơn sửa lệch vài tháng sẽ đọc ra
+ * số năm sai.
+ */
+const orderYears = sql<number>`coalesce(
+  (select l.years
+     from ${insurancePackageLegs} l
+    where l.package_id = ${insuranceOrders.packageId}
+      and l.product = ${insuranceOrders.product}
+    order by l.ord
+    limit 1),
+  extract(year from age(${insuranceOrders.endDate}, ${insuranceOrders.startDate}))::int
+)::int`;
+
+const handledWhere = (id: string, range: Period): SQL =>
+  and(eq(insuranceOrders.handledBy, id), orderedInRange(range)) as SQL;
+
+const handledRows = (id: string, range: Period) =>
+  db
+    .select({
+      id: insuranceOrders.id,
+      date: insuranceOrders.orderDate,
+      orderCode: insuranceOrders.orderCode,
+      customerId: insuranceOrders.customerId,
+      customerName: customers.fullName,
+      product: insuranceOrders.product,
+      years: orderYears,
+    })
+    .from(insuranceOrders)
+    .innerJoin(customers, eq(customers.id, insuranceOrders.customerId))
+    .where(handledWhere(id, range));
+
+/**
+ * Đơn bảo hiểm người này ĐÃ XỬ LÝ TAY — khác `personInsuranceFor` là đơn họ TẠO.
+ *
+ * Hai tập gần như rời nhau: người xử lý tay nhặt đơn từ kho chung, phần lớn do
+ * người khác lập. Lọc theo `handled_by`, cột ghi lúc bấm "Nhận đơn xử lý".
+ *
+ * Kỳ vẫn tính theo NGÀY ĐƠN như bốn tab kia. Không có cột nào lưu ngày nhận xử
+ * lý, nên đây là mốc thời gian duy nhất dùng được.
+ */
+export async function personHandledFor(
+  actor: User,
+  id: string,
+  range: Period,
+  page: PageArgs<"date">,
+): Promise<Page<PersonHandledOrder> | null> {
+  // Tự xem mình luôn đi qua: chức vụ Nhân viên KHÔNG có `staff:view-detail`,
+  // mà màn Tổng quan của chính họ phải hiện được khối này. Cùng lối với đường
+  // `selfView` của route chấm điểm.
+  if (actor.id !== id && !(await visibleStaffId(actor, id))) return null;
+
+  const [rows, [totals]] = await Promise.all([
+    handledRows(id, range)
+      .orderBy(...orderedBy(insuranceOrders.orderDate, page.dir, insuranceOrders.id))
+      .limit(page.limit)
+      .offset(page.offset),
+    db
+      .select({ total: sql<number>`count(*)::int` })
+      .from(insuranceOrders)
+      .where(handledWhere(id, range)),
+  ]);
+
+  return { rows, total: totals?.total ?? 0 };
+}
+
+/**
+ * TRỌN danh sách đơn đã xử lý trong kỳ, CHỈ cho việc xuất Excel — đường riêng
+ * chứ không mở tham số "lấy hết" trên route đã phân trang (AGENTS.md §5.1, điều 4).
+ *
+ * Phạm vi là đơn của MỘT người trong MỘT kỳ nên không đặt trần: kỳ dài nhất mà
+ * màn chọn được là một tháng.
+ */
+export async function personHandledForExport(
+  actor: User,
+  id: string,
+  range: Period,
+): Promise<PersonHandledOrder[] | null> {
+  if (actor.id !== id && !(await visibleStaffId(actor, id))) return null;
+
+  return handledRows(id, range).orderBy(
+    ...orderedBy(insuranceOrders.orderDate, "desc", insuranceOrders.id),
+  );
 }
 
 export async function personServicesFor(
