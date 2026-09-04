@@ -1,7 +1,7 @@
 import { and, count, eq, exists, gte, inArray, lt, or, sql, type SQL, type SQLWrapper } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { bankingPointsFor, bankTierFor, comboPointsAt, giftFor } from "@/rules";
-import type { ScoringAccount } from "@/rules";
+import type { GiftResult, ScoringAccount } from "@/rules";
 import { BUSINESS_TIMEZONE } from "@/lib/format";
 import { recordVisibility, type RecordVisibility } from "@/lib/permissions";
 import { isRealIsoDate, type User } from "@/lib/types";
@@ -19,6 +19,7 @@ import {
   giftGrants,
   giftItems,
   insuranceOrders,
+  insurancePackages,
   users,
 } from "./db/schema";
 import type { BankAccountFilters } from "./banking";
@@ -179,6 +180,54 @@ const GIFT_REPORT_LABEL: Record<string, string> = {
   TH8: "1 NĂM BH + 20K (Khi cài đặt được VPa) - COMBO 1",
 };
 
+/** `20000` ra `20k`. Số lẻ nghìn thì in đủ, không làm tròn thay người đọc. */
+const shortCash = (amount: number): string =>
+  amount % 1000 === 0 ? `${amount / 1000}k` : amount.toLocaleString("vi-VN");
+
+/**
+ * Cột `QUÀ TẶNG THEO COMBO` — TRỌN rổ quà khách được chọn (chốt 2026-09-04).
+ *
+ * Bản trước ghi một nhãn cố định theo bậc (`GIFT_COMBO_LABEL`), chép công thức
+ * `AG` của file Kế toán. Nhãn đó chỉ mô tả phần bảo hiểm gốc nên đọc ra SAI: một
+ * khách Phòng Y bậc TH5 được chọn một trong tám món, mà ô chỉ ghi "2 năm BH +
+ * 20k" — người đọc tưởng khách chỉ được đúng thứ đó. Món thêm của mục 4b thể lệ
+ * không xuất hiện ở đâu cả.
+ *
+ * Khách ĐÃ phát quà đọc rổ đóng băng trong `snapshot`: tên lúc phát mới là thứ
+ * đã hứa với khách, đổi tên món hôm nay không được viết lại lịch sử (spec §5.3).
+ * Khách chưa phát thì rổ do hàm luật tính ra, chỉ mang mã, nên tra `catalogName`.
+ */
+function basketLabel(
+  snapshot: unknown,
+  gift: GiftResult | null,
+  catalogName: Map<string, string>,
+): string {
+  const frozen = (snapshot as { basket?: { name?: string }[] } | null)?.basket;
+  if (frozen?.length)
+    return frozen
+      .map((b: { name?: string }) => b.name ?? "")
+      .filter(Boolean)
+      .join(", ");
+  if (!gift?.basket.length) return "";
+  return gift.basket.map((b) => catalogName.get(b.code) ?? b.code).join(", ");
+}
+
+/**
+ * Cột `QUÀ TẶNG BÁO CÁO` — món ĐÃ GIAO, kèm tiền mặt (chốt 2026-09-04).
+ *
+ * Tên món trong danh mục không mang tiền, nên khách đổi sang `Nón bảo hiểm` mà
+ * vẫn nhận 20k thì ô cũ chỉ ghi "Nón bảo hiểm" và mất hẳn phần tiền. Nhãn theo
+ * bậc thì ngược lại, tiền đã nằm sẵn trong chuỗi nên không cộng thêm lần nữa.
+ */
+function grantedLabel(
+  itemName: string | null,
+  cashTotal: number,
+  caseCode: string | null,
+): string {
+  if (itemName) return cashTotal > 0 ? `${itemName} + ${shortCash(cashTotal)}` : itemName;
+  return caseCode ? (GIFT_REPORT_LABEL[caseCode] ?? "") : "";
+}
+
 /** Nhãn ngắn của cột `QUÀ TẶNG THEO COMBO`, cùng chữ với công thức `AG` của file. */
 const GIFT_COMBO_LABEL: Record<string, string> = {
   TH1: "1 năm BH + 20k",
@@ -276,7 +325,8 @@ export async function listScoringExport(
   if (ids.length === 0) return { rows: [], total: 0 };
 
   const ownerDepartment = alias(departments, "owner_department");
-  const [customerRows, phoneRows, insuranceRows, grantRows] = await Promise.all([
+  const [customerRows, phoneRows, insuranceRows, grantRows, giftItemRows, packageRows] =
+    await Promise.all([
     db
       .select({
         id: customers.id,
@@ -313,11 +363,32 @@ export async function listScoringExport(
         customerId: giftGrants.customerId,
         chosenItem: giftGrants.chosenItem,
         itemName: giftItems.name,
+        cashTotal: giftGrants.cashTotal,
+        // Rổ quà ĐÓNG BĂNG lúc phát — nguồn duy nhất nói đúng khách được chọn
+        // những món nào, kể cả món thêm của mục 4b thể lệ.
+        snapshot: giftGrants.snapshot,
       })
       .from(giftGrants)
       .leftJoin(giftItems, eq(giftItems.code, giftGrants.chosenItem))
       .where(inArray(giftGrants.customerId, ids)),
+    /*
+      TRỌN danh mục quà và gói bảo hiểm, mã → tên. Hai bảng này vài chục dòng do
+      người gõ tay nên lấy hết một lượt; tra tên theo từng khách là mấy nghìn
+      lượt gọi cho một lượt xuất.
+
+      Chỉ dùng cho khách CHƯA phát quà: rổ của họ do hàm luật tính ra và chỉ mang
+      mã. Khách đã phát thì đọc tên trong `snapshot`, vì tên lúc phát mới là thứ
+      đã hứa với khách.
+    */
+    db.select({ code: giftItems.code, name: giftItems.name }).from(giftItems),
+    db
+      .select({ code: insurancePackages.code, name: insurancePackages.name })
+      .from(insurancePackages),
   ]);
+
+  const catalogName = new Map(
+    [...giftItemRows, ...packageRows].map((r) => [r.code, r.name]),
+  );
 
   const customerById = new Map(customerRows.map((c) => [c.id, c]));
   const phoneById = new Map(phoneRows.map((p) => [p.customerId, p.number]));
@@ -397,8 +468,8 @@ export async function listScoringExport(
       installedBanks: [
         ...new Set(accounts.filter((a) => a.appInstalled).map((a) => a.bankCode)),
       ].filter((code) => !HOUSEHOLD_CODES.has(code)),
-      giftReport: grant?.itemName ?? (gift?.caseCode ? (GIFT_REPORT_LABEL[gift.caseCode] ?? "") : ""),
-      giftCombo: gift?.caseCode ? (GIFT_COMBO_LABEL[gift.caseCode] ?? "") : "",
+      giftReport: grantedLabel(grant?.itemName ?? null, grant?.cashTotal ?? 0, gift?.caseCode ?? null),
+      giftCombo: basketLabel(grant?.snapshot ?? null, gift, catalogName),
       speaker: grant?.chosenItem === "QUA-LOA" ? "LOA" : "",
       insuranceLabel: insurance
         ? insuranceLabelOf(insurance.product, insurance.packageName)
