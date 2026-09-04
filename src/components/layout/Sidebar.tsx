@@ -88,7 +88,8 @@ type Props = {
  */
 export function Sidebar({ user, mobileOpen = false, onMobileClose }: Props) {
   const pathname = usePathname();
-  const entries = navFor(user);
+  // Mục `hidden` vẫn nằm trong `navFor` để `canOpenPath` cho qua, chỉ không vẽ.
+  const entries = navFor(user).filter((entry) => isNavGroup(entry) || !entry.hidden);
 
   useEffect(() => {
     if (!mobileOpen) return;

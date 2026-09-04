@@ -33,6 +33,14 @@ export type NavItem = {
   icon: NavIconKey;
   /** Mã màn hình trong mgst-feature-list.md — để đối chiếu khi rà soát. */
   screen: string;
+  /**
+   * Không vẽ mục này trên sidebar, nhưng `canOpenPath` VẪN tính nó.
+   *
+   * Dành cho màn đã xong mà chưa mở cho người dùng: gõ đúng đường dẫn thì vào
+   * được, còn menu chưa bày ra. Bỏ hẳn khỏi `navFor` thì chính màn đó bị chặn,
+   * vì hai thứ đọc chung một nguồn (xem `canOpenPath`).
+   */
+  hidden?: boolean;
 };
 
 /** Mục con trong một nhóm mở rộng — không có icon riêng, đi theo icon của nhóm. */
@@ -119,9 +127,18 @@ export function navFor(user: User | null): NavEntry[] {
   /**
    * Quà sinh ra từ combo tài khoản ngân hàng, nên màn đọc đi theo phạm vi của
    * module đó — KHÔNG theo `banking:grant-gift`, quyền kia là quyền PHÁT quà.
+   *
+   * `hidden` tạm thời: màn đã chạy nhưng chưa mở cho người dùng. Vào bằng
+   * `/gifts` thì được, menu chưa bày. Bỏ cờ này khi chốt mở màn.
    */
   if (can(user, 'banking', 'view-detail')) {
-    items.push({ href: '/gifts', label: 'Quà đã phát', icon: 'gift', screen: 'P-44' });
+    items.push({
+      href: '/gifts',
+      label: 'Quà đã phát',
+      icon: 'gift',
+      screen: 'P-44',
+      hidden: true,
+    });
   }
 
   // Vào được màn Nhân sự bằng HAI đường: quản phòng thì xem điểm của lính, còn
