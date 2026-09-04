@@ -115,7 +115,12 @@ export type BankAccountSort = (typeof BANK_ACCOUNT_SORT)[number];
 export type BankAccountQuery = PageQuery<BankAccountSort> & {
   /** Tìm theo TÊN KHÁCH — không dấu, không phụ thuộc thứ tự từ. */
   search: string;
-  /** Mã ngân hàng dạng chuỗi ('VPa'), không phải uuid — ô chọn hiện mã. */
+  /**
+   * Mã ngân hàng dạng chuỗi ('VPa'), không phải uuid — ô chọn hiện mã.
+   *
+   * Màn Xuất dữ liệu gửi NHIỀU mã ngăn bằng dấu phẩy (`VPa,VPb`), đúng những
+   * ngân hàng người dùng còn tích ở phần chọn cột.
+   */
   bankCode: string;
   /** Khoảng NGÀY MỞ, YYYY-MM-DD. Rỗng = không giới hạn. */
   from: string;

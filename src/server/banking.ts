@@ -99,6 +99,7 @@ function ageRuleLabel(rule: BankAgeRule): string {
 
 export type BankAccountFilters = {
   search: string;
+  /** Một mã (`VPa`) hoặc nhiều mã ngăn bằng dấu phẩy (`VPa,VPb`). */
   bankCode: string;
   from: string;
   to: string;
@@ -210,8 +211,12 @@ function searchWhere(raw: string): SQL | undefined {
  * cả kho.
  */
 async function bankIdsOf(code: string): Promise<string[] | null> {
-  if (!code) return null;
-  const rows = await db.select({ id: banks.id }).from(banks).where(eq(banks.code, code));
+  // NHIỀU mã ngăn bằng dấu phẩy — màn Xuất dữ liệu gửi đúng những ngân hàng
+  // người dùng còn tích ở phần chọn cột. Mã ngân hàng không chứa dấu phẩy nên
+  // tách thẳng được; một mã lẻ vẫn đi qua đây không đổi hành vi.
+  const codes = code.split(",").map((c) => c.trim()).filter(Boolean);
+  if (codes.length === 0) return null;
+  const rows = await db.select({ id: banks.id }).from(banks).where(inArray(banks.code, codes));
   return rows.map((r) => r.id);
 }
 

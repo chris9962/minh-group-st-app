@@ -295,7 +295,6 @@ export default function ExportsPage() {
 
   // Bộ lọc dùng chung theo từng nhóm báo cáo — khai hết ở đây, mỗi báo cáo chỉ
   // hiện đúng vài ô liên quan, tránh tách ba component riêng cho ba form nhỏ.
-  const [bankCode, setBankCode] = useState("");
   const [range, setRange] = useState<DateRange | undefined>(undefined);
   const [referralCode, setReferralCode] = useState("");
   /** Báo cáo #1: chỉ khách có tài khoản, hay cả khách chưa mở tài khoản nào. */
@@ -340,6 +339,28 @@ export default function ExportsPage() {
   const enabled = active ? (enabledMap[active] ?? catalog.filter((c) => c.defaultOn).map((c) => c.key)) : [];
   // Cột thật sẽ xuất: đúng những cột đang tick, theo thứ tự file mẫu.
   const exportOrder = fullOrder.filter((key) => enabled.includes(key));
+
+  /**
+   * Ngân hàng còn tích ở phần chọn cột — DÙNG LUÔN LÀM BỘ LỌC DÒNG (chốt 2026-09-04).
+   *
+   * Trước đó bỏ tích chỉ ẩn cột: khách chỉ có `MB` vẫn ra một dòng với mọi ô
+   * ngân hàng trống, đọc ra như khách không có tài khoản nào. Người dùng bỏ
+   * tích để LỌC, không phải để giấu cột.
+   *
+   * Lấy HỢP của hai khối `open:` và `app:` — bỏ tích một ngân hàng ở cả hai
+   * khối mới coi là không quan tâm ngân hàng đó.
+   *
+   * Tích đủ hết thì trả rỗng, nghĩa là không lọc: người chưa đụng vào bảng cột
+   * phải nhận đúng file như trước.
+   */
+  const bankCodeOf = (key: string) =>
+    key.startsWith("open:") || key.startsWith("app:") ? key.split(":")[1] : null;
+  const allBankColumns = new Set(fullOrder.map(bankCodeOf).filter(Boolean) as string[]);
+  const onBankColumns = new Set(exportOrder.map(bankCodeOf).filter(Boolean) as string[]);
+  const bankColumnCodes =
+    active !== "accounts-by-customer" || onBankColumns.size === allBankColumns.size
+      ? ""
+      : [...onBankColumns].join(",");
 
   const toggleColumn = (key: string) => {
     if (!active) return;
@@ -393,7 +414,7 @@ export default function ExportsPage() {
       const { rows, total } = await fetchScoringExport(
         {
           search: "",
-          bankCode,
+          bankCode: bankColumnCodes,
           from,
           to,
           referralCode,
@@ -672,16 +693,6 @@ export default function ExportsPage() {
                     { value: "", label: "Tất cả nhân viên" },
                     ...staffOptions.map((s) => ({ value: s.id, label: s.fullName })),
                   ]}
-                />
-              )}
-
-              {active === "accounts-by-customer" && (
-                <Select
-                  block
-                  label="Ngân hàng"
-                  value={bankCode}
-                  onChange={setBankCode}
-                  options={[{ value: "", label: "Tất cả ngân hàng" }, ...banks.map((b) => ({ value: b.code, label: b.code }))]}
                 />
               )}
 
