@@ -328,18 +328,20 @@ function DoneAccountCard({
          không dựng biểu mẫu thứ hai để rồi hai chỗ lệch luật nhau. */
       action={
         canWrite ? (
-          <>
+          /* Nút Sửa có ở CẢ HAI trạng thái. Bản `error` sửa được đúng cửa sổ
+             trong ngày như bản `done` — đánh dấu lỗi là để đối soát trừ KPI,
+             không phải để khoá bản ghi lại. Nút thứ hai mới đổi theo trạng
+             thái: `done` thì đánh dấu lỗi, `error` thì khôi phục. */
+          <div className={styles.headerActions}>
+            <Button variant="secondary" onClick={() => setEditing(true)}>
+              <Pencil size={16} aria-hidden />
+              Sửa
+            </Button>
             {data.status === "done" ? (
-              <div className={styles.headerActions}>
-                <Button variant="secondary" onClick={() => setEditing(true)}>
-                  <Pencil size={16} aria-hidden />
-                  Sửa
-                </Button>
-                <Button variant="secondary" onClick={() => setMarkingError(true)}>
-                  <TriangleAlert size={16} aria-hidden />
-                  Đánh dấu lỗi
-                </Button>
-              </div>
+              <Button variant="secondary" onClick={() => setMarkingError(true)}>
+                <TriangleAlert size={16} aria-hidden />
+                Đánh dấu lỗi
+              </Button>
             ) : (
               <Button
                 variant="secondary"
@@ -350,7 +352,7 @@ function DoneAccountCard({
                 Khôi phục hoàn thành
               </Button>
             )}
-          </>
+          </div>
         ) : undefined
       }
     >

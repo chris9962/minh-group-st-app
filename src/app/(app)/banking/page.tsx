@@ -300,7 +300,11 @@ export default function BankingPage() {
         // dòng giống nhau, "Sửa" một mình không nói đang sửa dòng nào.
         render: (r: BankAccountRow) => (
           <RowActions>
-            {canWrite && r.status !== "error" && (
+            {/* Bản `error` VẪN sửa được, cùng cửa sổ trong ngày với bản `done`
+                — luật ở `canEditOpeningPhotos`, và máy chủ chưa từng chặn theo
+                trạng thái này. Đánh dấu lỗi là để đối soát trừ KPI, không phải
+                để khoá bản ghi lại. */}
+            {canWrite && (
               <Button
                 variant="secondary"
                 icon
