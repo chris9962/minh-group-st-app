@@ -1,3 +1,18 @@
+/* Hành động đánh hỏng một bản ghi đang tốt. Hệ `--om-red` nói "cái này sai,
+   sửa rồi gửi lại" — đúng nghĩa nút này, xem ghi chú token ở globals.css.
+
+   Viền chứ không nền đặc: nút thường đứng cạnh một nút chính nền cam, hai nền
+   đặc cạnh nhau thì không đọc ra cái nào là việc chính của màn. Icon tam giác
+   cảnh báo vẫn là kênh truyền đạt chính, màu chỉ hỗ trợ (§8). */
+.danger {
+  border-color: var(--om-red);
+  color: var(--om-red);
+}
+
+.danger:hover {
+  background: var(--om-red-soft);
+}
+
 /* Vùng bấm tối thiểu 44px — ngón tay ngoài hiện trường, không phải con trỏ chuột. */
 .large {
   padding: 14px;

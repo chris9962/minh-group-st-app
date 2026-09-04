@@ -1,7 +1,7 @@
 import { clsx } from "clsx";
 import styles from "./Button.module.css";
 
-type Variant = "primary" | "secondary" | "ghost";
+type Variant = "primary" | "secondary" | "ghost" | "danger";
 
 type Props = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: Variant;
@@ -37,6 +37,9 @@ export function Button({
         "btn",
         styles.base,
         `btn-${variant}`,
+        // `organic.css` không có `.btn-danger` — file đó đồng bộ từ design
+        // system và không sửa tay được, nên màu của variant này nằm ở module.
+        variant === "danger" && styles.danger,
         block && "btn-block",
         large && styles.large,
         icon && `btn-icon ${styles.icon}`,

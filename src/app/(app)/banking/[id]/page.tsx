@@ -370,7 +370,7 @@ function DoneAccountCard({
                 duyệt chỉ có hai lối: duyệt, hoặc bỏ đó. */}
             {(data.status === "done" ||
               (data.status === "fixed" && canManageBank(user, data.bankId))) && (
-              <Button variant="secondary" onClick={() => setMarkingError(true)}>
+              <Button variant="danger" onClick={() => setMarkingError(true)}>
                 <TriangleAlert size={16} aria-hidden />
                 Đánh dấu lỗi
               </Button>
@@ -529,6 +529,7 @@ function DoneAccountCard({
                 Huỷ
               </Button>
               <Button
+                variant="danger"
                 disabled={statusUpdate.isPending || errorNote.trim().length < 2}
                 onClick={() => statusUpdate.mutate({ status: "error", errorNote })}
               >
