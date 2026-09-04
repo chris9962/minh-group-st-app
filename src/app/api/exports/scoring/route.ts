@@ -45,6 +45,7 @@ export async function GET(request: Request) {
     staffId,
     departmentId: uuidParam(params.get("departmentId")),
     status: params.get("status") ?? "",
+    accountType: params.get("accountType") ?? "",
   },
   // Giá trị lạ rơi về `with-accounts` — hình dạng cũ, cùng lối với khoá sắp xếp.
   params.get("include") === "all" ? "all" : "with-accounts",

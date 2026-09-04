@@ -26,6 +26,7 @@ import { Select } from "@/components/ui/Select";
 import { StatusTag } from "@/components/ui/StatusTag";
 import {
   ACCOUNT_TYPE_LABEL,
+  AccountType,
   BANK_ACCOUNT_STATUS_LABEL as STATUS_LABEL,
   BankAccountStatus,
   deleteBankAccount,
@@ -73,6 +74,10 @@ export default function BankingPage() {
   const [staffId, setStaffId] = useState(() => searchParams.get("staffId") ?? "");
   const [status, setStatus] = useState<BankAccountStatus | "">(() => {
     const parsed = BankAccountStatus.safeParse(searchParams.get("status"));
+    return parsed.success ? parsed.data : "";
+  });
+  const [accountType, setAccountType] = useState<AccountType | "">(() => {
+    const parsed = AccountType.safeParse(searchParams.get("accountType"));
     return parsed.success ? parsed.data : "";
   });
   const [page, setPage] = useState(() => pageFromUrl(searchParams.get("page")));
@@ -187,11 +192,12 @@ export default function BankingPage() {
     if (channelId) params.set("channelId", channelId);
     if (staffId) params.set("staffId", staffId);
     if (status) params.set("status", status);
+    if (accountType) params.set("accountType", accountType);
     if (page > 0) params.set("page", String(page + 1));
     if (dir === "asc") params.set("dir", dir);
     const query = params.toString();
     return query ? `/banking?${query}` : "/banking";
-  }, [bankCode, channelId, departmentId, dir, from, page, searchQuery, staffId, status, to]);
+  }, [accountType, bankCode, channelId, departmentId, dir, from, page, searchQuery, staffId, status, to]);
 
   useEffect(() => {
     window.history.replaceState(null, "", listUrl);
@@ -209,6 +215,7 @@ export default function BankingPage() {
     staffId,
     departmentId,
     status,
+    accountType,
   };
 
   const { data = EMPTY_PAGE, isPending, isError, refetch, isFetching } = useQuery({
@@ -223,7 +230,8 @@ export default function BankingPage() {
     (departmentId ? 1 : 0) +
     (channelId ? 1 : 0) +
     (staffId ? 1 : 0) +
-    (status ? 1 : 0);
+    (status ? 1 : 0) +
+    (accountType ? 1 : 0);
 
   const columns = useMemo<RankColumn<BankAccountRow>[]>(
     () => [
@@ -353,6 +361,7 @@ export default function BankingPage() {
               setChannelId("");
               setStaffId("");
               setStatus("");
+              setAccountType("");
             })
           }
         >
@@ -374,6 +383,16 @@ export default function BankingPage() {
             options={[
               { value: "", label: "Tất cả ngân hàng" },
               ...banks.map((b) => ({ value: b.code, label: b.code })),
+            ]}
+          />
+          <Select
+            block
+            label="Loại TK"
+            value={accountType}
+            onChange={(v) => refine(() => setAccountType(v as AccountType | ""))}
+            options={[
+              { value: "", label: "Tất cả loại" },
+              ...AccountType.options.map((t) => ({ value: t, label: ACCOUNT_TYPE_LABEL[t] })),
             ]}
           />
           <Select
@@ -434,6 +453,14 @@ export default function BankingPage() {
                 ]
               : []),
             ...(bankCode ? [{ label: `Ngân hàng: ${bankCode}`, onRemove: () => refine(() => setBankCode("")) }] : []),
+            ...(accountType
+              ? [
+                  {
+                    label: `Loại TK: ${ACCOUNT_TYPE_LABEL[accountType]}`,
+                    onRemove: () => refine(() => setAccountType("")),
+                  },
+                ]
+              : []),
             ...(channelId
               ? [
                   {

@@ -34,6 +34,7 @@ export async function GET(request: Request) {
         staffId: uuidParam(params.get("staffId")),
         departmentId: uuidParam(params.get("departmentId")),
         status: params.get("status") ?? "",
+        accountType: params.get("accountType") ?? "",
       },
       pageArgsFrom(url, BANK_ACCOUNT_SORT, "date"),
     ),

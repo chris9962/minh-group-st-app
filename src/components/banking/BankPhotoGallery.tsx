@@ -27,6 +27,7 @@ type Filters = {
   status: string;
   referralCodeId: string;
   departmentId: string;
+  accountType: string;
 };
 
 type Props = {

@@ -23,6 +23,7 @@ import { SkeletonTable } from "@/components/ui/Skeleton";
 import { StatusTag } from "@/components/ui/StatusTag";
 import {
   ACCOUNT_TYPE_LABEL,
+  AccountType,
   BANK_ACCOUNT_STATUS_LABEL,
   BankAccountStatus,
 } from "@/lib/api/bankAccounts";
@@ -144,6 +145,10 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
   const [departmentId, setDepartmentId] = useState(
     () => searchParams.get("departmentId") ?? "",
   );
+  const [accountType, setAccountType] = useState<AccountType | "">(() => {
+    const parsed = AccountType.safeParse(searchParams.get("accountType"));
+    return parsed.success ? parsed.data : "";
+  });
   /**
    * Hai tab hai trang RIÊNG, `page` trên URL thuộc về tab đang mở. Nạp lẫn
    * trang của tab kia là mở link ra một trang không khớp số trên URL.
@@ -206,13 +211,14 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
     if (status) params.set("status", status);
     if (referralCodeId) params.set("referralCodeId", referralCodeId);
     if (departmentId) params.set("departmentId", departmentId);
+    if (accountType) params.set("accountType", accountType);
     // `page` là trang của TAB ĐANG MỞ; `dir` chỉ có nghĩa với bảng tài khoản.
     const shownPage = tab === "photos" ? photoPage : page;
     if (shownPage > 0) params.set("page", String(shownPage + 1));
     if (tab === "accounts" && dir === "asc") params.set("dir", dir);
     const query = params.toString();
     return query ? `/settings/banks/${id}?${query}` : `/settings/banks/${id}`;
-  }, [departmentId, dir, from, id, page, photoPage, referralCodeId, status, tab, to]);
+  }, [accountType, departmentId, dir, from, id, page, photoPage, referralCodeId, status, tab, to]);
 
   useEffect(() => {
     window.history.replaceState(null, "", listUrl);
@@ -227,6 +233,7 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
       status,
       referralCodeId,
       departmentId,
+      accountType,
       page,
       dir,
     ],
@@ -237,6 +244,7 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
         status,
         referralCodeId,
         departmentId,
+        accountType,
         page,
         sort: "date",
         dir,
@@ -267,6 +275,7 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
         status,
         referralCodeId,
         departmentId,
+        accountType,
       });
       // Chỉ xảy ra khi số dòng vượt sức chứa của một sheet Excel. Không có
       // trần do hệ thống đặt ra ở đây.
@@ -318,7 +327,8 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
     (from && to ? 1 : 0) +
     (status ? 1 : 0) +
     (referralCodeId ? 1 : 0) +
-    (departmentId ? 1 : 0);
+    (departmentId ? 1 : 0) +
+    (accountType ? 1 : 0);
   const codeName = codes.find((c) => c.id === referralCodeId)?.name ?? "";
 
   return (
@@ -332,6 +342,7 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
               setStatus("");
               setReferralCodeId("");
               setDepartmentId("");
+              setAccountType("");
             })
           }
         >
@@ -351,6 +362,16 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
                 value: s,
                 label: BANK_ACCOUNT_STATUS_LABEL[s],
               })),
+            ]}
+          />
+          <Select
+            block
+            label="Loại TK"
+            value={accountType}
+            onChange={(v) => refine(() => setAccountType(v as AccountType | ""))}
+            options={[
+              { value: "", label: "Tất cả loại" },
+              ...AccountType.options.map((t) => ({ value: t, label: ACCOUNT_TYPE_LABEL[t] })),
             ]}
           />
           <Combobox
@@ -412,6 +433,14 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
                   },
                 ]
               : []),
+            ...(accountType
+              ? [
+                  {
+                    label: `Loại TK: ${ACCOUNT_TYPE_LABEL[accountType]}`,
+                    onRemove: () => refine(() => setAccountType("")),
+                  },
+                ]
+              : []),
             ...(departmentId
               ? [
                   {
@@ -442,10 +471,10 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
               và về trang đầu (AGENTS.md §7 — reset state bằng key, không effect).
               Giữ lượt chọn qua bộ lọc là tải nhầm cả ảnh đã bị bộ lọc ẩn đi.
             */
-            key={`${from}|${to}|${status}|${referralCodeId}|${departmentId}`}
+            key={`${from}|${to}|${status}|${referralCodeId}|${departmentId}|${accountType}`}
             bankId={id}
             bankCode={bank?.code ?? ""}
-            filters={{ from, to, status, referralCodeId, departmentId }}
+            filters={{ from, to, status, referralCodeId, departmentId, accountType }}
             page={photoPage}
             onPageChange={setPhotoPage}
             inScope={inScope}

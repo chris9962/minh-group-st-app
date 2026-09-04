@@ -132,6 +132,8 @@ export type BankAccountQuery = PageQuery<BankAccountSort> & {
   /** Phòng ghi nhận lúc tạo bản ghi. Rỗng = mọi phòng. */
   departmentId: string;
   status: BankAccountStatus | '';
+  /** Loại tài khoản. Rỗng = mọi loại. */
+  accountType: AccountType | '';
 };
 
 const BankAccountPage = pageOf(BankAccountRow);
@@ -146,6 +148,7 @@ const listParams = (query: Omit<BankAccountQuery, keyof PageQuery>) => ({
   staffId: query.staffId,
   departmentId: query.departmentId,
   status: query.status,
+  accountType: query.accountType,
 });
 
 /** MỘT trang tài khoản, đã lọc/tìm/sắp sẵn ở máy chủ (AGENTS.md §5.1). */
@@ -186,6 +189,8 @@ export type BankAccountsOfBankQuery = PageQuery<BankAccountSort> & {
   referralCodeId: string;
   /** Phòng ghi nhận lúc tạo bản ghi. Rỗng = mọi phòng. */
   departmentId: string;
+  /** Loại tài khoản. Rỗng = mọi loại. */
+  accountType: AccountType | '';
 };
 
 /**
@@ -204,6 +209,7 @@ export async function fetchBankAccountsOfBankForExport(
   if (query.status) params.set('status', query.status);
   if (query.referralCodeId) params.set('referralCodeId', query.referralCodeId);
   if (query.departmentId) params.set('departmentId', query.departmentId);
+  if (query.accountType) params.set('accountType', query.accountType);
 
   const res = await fetch(`/api/settings/banks/${bankId}/accounts/export?${params}`);
   if (res.status === 403) throw new Error('Bạn không quản ngân hàng này');
@@ -231,6 +237,7 @@ export async function fetchBankAccountsOfBank(
     status: query.status,
     referralCodeId: query.referralCodeId,
     departmentId: query.departmentId,
+    accountType: query.accountType,
   });
   const res = await fetch(`/api/settings/banks/${bankId}/accounts?${params}`);
   if (res.status === 403) throw new Error('Bạn không quản ngân hàng này');

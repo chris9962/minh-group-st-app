@@ -48,6 +48,7 @@ export type BankPhotosQuery = PageQuery<BankAccountSort> & {
   status: string;
   referralCodeId: string;
   departmentId: string;
+  accountType: string;
 };
 
 const BankPhotoPage = pageOf(BankPhotoRow);
@@ -63,6 +64,7 @@ export async function fetchBankPhotos(
       status: query.status,
       referralCodeId: query.referralCodeId,
       departmentId: query.departmentId,
+      accountType: query.accountType,
     })}`,
   );
   if (!res.ok) throw new Error('Không tải được ảnh của ngân hàng này');

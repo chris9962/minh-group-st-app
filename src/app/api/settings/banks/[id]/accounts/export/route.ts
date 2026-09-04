@@ -29,6 +29,7 @@ export async function GET(request: Request, { params }: Params) {
       status: query.get("status") ?? "",
       referralCodeId: uuidParam(query.get("referralCodeId")),
       departmentId: uuidParam(query.get("departmentId")),
+      accountType: query.get("accountType") ?? "",
     }),
   );
 }

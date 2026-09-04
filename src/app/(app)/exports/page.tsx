@@ -401,6 +401,7 @@ export default function ExportsPage() {
           staffId: scoringStaffId,
           departmentId: "",
           status: "",
+          accountType: "",
         },
         scoringInclude,
       );

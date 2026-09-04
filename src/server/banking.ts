@@ -7,6 +7,7 @@ import {
   gte,
   inArray,
   lte,
+  or,
   sql,
   type SQL,
   type SQLWrapper,
@@ -111,6 +112,8 @@ export type BankAccountFilters = {
    */
   departmentId: string;
   status: string;
+  /** `none` · `CNKD` · `HKD`. Rỗng hoặc giá trị lạ = mọi loại. */
+  accountType: string;
 };
 
 /**
@@ -222,6 +225,33 @@ async function referralCodeIdsOf(code: string): Promise<string[] | null> {
   return rows.map((r) => r.id);
 }
 
+/**
+ * Lọc theo loại tài khoản — phải khớp với `accountTypeOf`, không chỉ đọc cột đơn.
+ *
+ * Đơn trước migration 0056 để cột `account_type` là `none` và loại thật nằm ở mã
+ * giới thiệu đã dùng. Lọc thẳng trên cột đơn thì mọi bản ghi cũ vắng mặt khỏi
+ * kết quả `CNKD`/`HKD` dù bảng vẫn hiện đúng loại cho chúng.
+ *
+ * Danh sách mã của một ngân hàng chỉ vài trăm dòng nên phép nửa-nối này rẻ; chỗ
+ * đắt là để `LIMIT` rơi xuống sau một phép gộp, không phải ở đây.
+ */
+const accountTypeFilter = (raw: string): SQL | undefined => {
+  if (raw !== "none" && raw !== "CNKD" && raw !== "HKD") return undefined;
+
+  const codesOfType = inArray(
+    bankAccounts.referralCodeId,
+    db
+      .select({ id: referralCodes.id })
+      .from(referralCodes)
+      .where(eq(referralCodes.accountType, raw)),
+  );
+  const fromCode = and(eq(bankAccounts.accountType, "none"), codesOfType)!;
+
+  // `none` không có vế "đọc thẳng cột đơn": đơn cũ mang `none` mà mã là CNKD thì
+  // hiện ra là CNKD, nên nó KHÔNG được lọt vào kết quả "Thường".
+  return raw === "none" ? fromCode : or(eq(bankAccounts.accountType, raw), fromCode);
+};
+
 /** Chuỗi rỗng hoặc giá trị lạ đều thành "mọi trạng thái". */
 const statusFilter = (raw: string): SQL | undefined =>
   raw === "creating" || raw === "done" || raw === "error"
@@ -256,6 +286,7 @@ async function accountFilters(
     query.staffId ? eq(bankAccounts.createdBy, query.staffId) : undefined,
     query.departmentId ? eq(bankAccounts.createdByDepartmentId, query.departmentId) : undefined,
     statusFilter(query.status),
+    accountTypeFilter(query.accountType),
   ].filter(Boolean) as SQL[];
 
   return parts.length > 0 ? and(...parts) : undefined;
@@ -489,6 +520,8 @@ export type BankOfBankFilters = {
   referralCodeId: string;
   /** Phòng GHI NHẬN lúc tạo bản ghi, chụp một lần (spec §1.1.5). */
   departmentId: string;
+  /** `none` · `CNKD` · `HKD`. Rỗng hoặc giá trị lạ = mọi loại. */
+  accountType: string;
 };
 
 /** Bảng trên màn và file Excel dùng CHUNG điều kiện này — hai bản là hai kết quả. */
@@ -506,6 +539,7 @@ const bankAccountsOfBankWhere = (bankId: string, filters: BankOfBankFilters): SQ
       filters.departmentId
         ? eq(bankAccounts.createdByDepartmentId, filters.departmentId)
         : undefined,
+      accountTypeFilter(filters.accountType),
     ].filter(Boolean) as SQL[]),
   )!;
 
