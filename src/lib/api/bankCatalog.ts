@@ -412,7 +412,7 @@ export const ReferralCodeForm = z.object({
   accountType: AccountType,
   scope: CodeScope,
   departmentIds: z.array(z.guid()),
-  /** Tên tỉnh chọn từ danh sách tham chiếu; `''` = không gán. */
+  /** Tên tỉnh, gõ tay; `''` = không gán. */
   province: z.string().trim(),
   /** Chi nhánh hỗ trợ, gõ tay; `''` = không gán. */
   supportBranch: z.string().trim(),

@@ -12,7 +12,6 @@ import {
 } from "@/components/banking/BankAccountPhotos";
 import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
-import { Combobox } from "@/components/ui/Combobox";
 import { Dialog } from "@/components/ui/Dialog";
 import { Select } from "@/components/ui/Select";
 import { TextField } from "@/components/ui/TextField";
@@ -27,7 +26,6 @@ import {
 } from "@/lib/api/bankCatalog";
 import { AccountType } from "@/lib/api/bankAccounts";
 import { fetchDepartments } from "@/lib/api/departments";
-import { fetchReferenceProvinces } from "@/lib/api/wardCatalog";
 import { digitsOnly, numberValue, numericField } from "@/lib/numberField";
 import { banksInScope } from "@/lib/permissions";
 import { useSession } from "@/store/session";
@@ -56,10 +54,6 @@ export function ReferralCodeFormDialog({ open, onClose, referral }: Props) {
   const { data: departments = [] } = useQuery({
     queryKey: ["departments"],
     queryFn: fetchDepartments,
-  });
-  const { data: referenceProvinces = [] } = useQuery({
-    queryKey: ["reference-provinces"],
-    queryFn: fetchReferenceProvinces,
   });
 
   // Lúc thêm mới chỉ hiện ngân hàng đang triển khai. Lúc sửa thì lấy cả ngân
@@ -260,18 +254,16 @@ export function ReferralCodeFormDialog({ open, onClose, referral }: Props) {
         </div>
 
         {/* Lưu TÊN tỉnh, không lưu id — xem chú thích cột `province` ở schema.
-            Hai trường này hiện cạnh ô chọn mã ở bước 2 khi mở tài khoản. */}
-        <Combobox
-          block
+            Hai trường này hiện cạnh ô chọn mã ở bước 2 khi mở tài khoản.
+
+            Gõ tay chứ không chọn từ danh mục tham chiếu: ngân hàng đặt tên chi
+            nhánh theo địa giới của riêng họ, có mã phủ vùng không trùng tên
+            tỉnh nào trong danh mục. */}
+        <TextField
           label="Tỉnh"
-          placeholder="Gõ để tìm tỉnh/thành phố…"
-          value={watch("province")}
-          onChange={(v) => setValue("province", v, { shouldDirty: true })}
-          options={[
-            { value: "", label: "— Không gán tỉnh —" },
-            ...referenceProvinces.map((p) => ({ value: p.name, label: p.name })),
-          ]}
+          placeholder="Tiền Giang"
           error={errors.province?.message}
+          {...register("province")}
         />
 
         <TextField
