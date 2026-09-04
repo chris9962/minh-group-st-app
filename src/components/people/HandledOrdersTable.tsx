@@ -14,7 +14,7 @@ import {
 } from "@/lib/api/person";
 import { PAGE_SIZE, type Page, type SortDir } from "@/lib/api/pagination";
 import { exportExcel } from "@/lib/excel";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatVnd } from "@/lib/format";
 import { can } from "@/lib/permissions";
 import { errorMessage, toast } from "@/lib/toast";
 import { PRODUCT_LABEL } from "@/lib/types";
@@ -74,6 +74,13 @@ const COLUMNS: RankColumn<PersonHandledOrder>[] = [
   },
   { key: "product", label: "Loại bảo hiểm", render: (o) => PRODUCT_LABEL[o.product] },
   { key: "years", label: "Số năm", sortBy: (o) => o.years, render: (o) => o.years },
+  {
+    key: "fee",
+    label: "Phí",
+    sortBy: (o) => o.fee,
+    render: (o) => <span className="tabular-nums">{formatVnd(o.fee)}</span>,
+  },
+  { key: "department", label: "Phòng", render: (o) => o.departmentName ?? "—" },
 ];
 
 type Props = {
@@ -135,6 +142,9 @@ export function HandledOrdersTable({
           { header: "Khách hàng", transform: "name", value: (o) => o.customerName },
           { header: "Loại bảo hiểm", value: (o) => PRODUCT_LABEL[o.product] },
           { header: "Số năm", type: "number", value: (o) => o.years },
+          // Số trần, không kèm chữ `đ`: file này đem cộng lại trong Excel.
+          { header: "Phí", type: "number", value: (o) => o.fee },
+          { header: "Phòng", value: (o) => o.departmentName ?? "" },
         ],
       });
       toast.ok(`Đã xuất ${rows.length.toLocaleString("vi-VN")} đơn`);

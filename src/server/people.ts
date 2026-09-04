@@ -998,9 +998,20 @@ const handledRows = (id: string, range: Period) =>
       customerName: customers.fullName,
       product: insuranceOrders.product,
       years: orderYears,
+      fee: insuranceOrders.fee,
+      departmentName: departments.name,
     })
     .from(insuranceOrders)
     .innerJoin(customers, eq(customers.id, insuranceOrders.customerId))
+    /*
+      Phòng của NGƯỜI LẬP ĐƠN, đọc từ cột snapshot `created_by_department_id`.
+      Không lấy phòng người xử lý: cả bảng là việc của một người nên cột đó
+      giống nhau ở mọi dòng, không nói được gì.
+
+      leftJoin vì ban giám đốc không thuộc phòng nào; innerJoin thì những dòng
+      đó biến mất mà không báo gì.
+    */
+    .leftJoin(departments, eq(departments.id, insuranceOrders.createdByDepartmentId))
     .where(handledWhere(id, range));
 
 /**

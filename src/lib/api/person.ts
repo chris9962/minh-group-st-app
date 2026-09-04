@@ -88,6 +88,14 @@ export const PersonHandledOrder = z.object({
   product: InsuranceProduct,
   /** Số năm hiệu lực, đọc từ `insurance_package_legs.years` ở máy chủ. */
   years: z.number(),
+  /** Phí TRỌN THỜI HẠN của đơn, đồng. */
+  fee: z.number(),
+  /**
+   * Phòng của NGƯỜI LẬP ĐƠN, không phải người xử lý — cả bảng là việc của một
+   * người nên phòng người xử lý giống nhau ở mọi dòng. `null` = người lập không
+   * thuộc phòng nào.
+   */
+  departmentName: z.string().nullable(),
 });
 export type PersonHandledOrder = z.infer<typeof PersonHandledOrder>;
 
