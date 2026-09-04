@@ -2,6 +2,7 @@
 
 import { Search, X } from "lucide-react";
 import { useId } from "react";
+import { SEARCH_MAX_LENGTH } from "@/lib/search";
 import styles from "./SearchField.module.scss";
 
 type Props = {
@@ -35,6 +36,7 @@ export function SearchField({ label, placeholder, value, onChange, block = false
         className={`input ${styles.input} ${block ? styles.blockInput : ""}`}
         value={value}
         placeholder={placeholder}
+        maxLength={SEARCH_MAX_LENGTH}
         onChange={(e) => onChange(e.target.value)}
       />
       {value !== "" && (

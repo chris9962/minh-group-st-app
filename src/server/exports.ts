@@ -6,6 +6,7 @@ import { BUSINESS_TIMEZONE } from "@/lib/format";
 import { recordVisibility, type RecordVisibility } from "@/lib/permissions";
 import { isRealIsoDate, type User } from "@/lib/types";
 import { accountExportWhere } from "./banking";
+import { searchTerms } from "@/lib/search";
 import { db } from "./db/client";
 import {
   bankAccounts,
@@ -84,14 +85,10 @@ function customerOnlyWhere(
   const parts = [
     // Ô tìm soi TÊN KHÁCH ở cả hai nhánh, chỉ khác chỗ neo: nhánh tài khoản đi
     // qua `exists`, nhánh này đọc thẳng cột của bảng khách.
-    ...filters.search
-      .trim()
-      .split(/\s+/)
-      .filter(Boolean)
-      .map(
-        (term) =>
-          sql`${customers.searchName} like '%' || mgst_normalize(${term.replace(/[\\%_]/g, "\\$&")}) || '%' escape '\\'`,
-      ),
+    ...searchTerms(filters.search).map(
+      (term) =>
+        sql`${customers.searchName} like '%' || mgst_normalize(${term.replace(/[\\%_]/g, "\\$&")}) || '%' escape '\\'`,
+    ),
     visible.kind === "departments"
       ? inArray(customers.createdByDepartmentId, visible.departmentIds)
       : visible.kind === "creator"

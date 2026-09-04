@@ -28,6 +28,7 @@ import type { BankPhoto, BankPhotoRow } from "@/lib/api/bankPhotos";
 import { businessDay, businessMonth } from "@/lib/format";
 import { recordVisibility, type RecordVisibility } from "@/lib/permissions";
 import { isRealIsoDate, type User } from "@/lib/types";
+import { searchTerms } from "@/lib/search";
 import { db } from "./db/client";
 import { departmentForNewRecord } from "./writeDepartment";
 import {
@@ -185,7 +186,7 @@ function searchWhere(raw: string): SQL | undefined {
   if (!text) return undefined;
 
   return and(
-    ...text.split(/\s+/).map(
+    ...searchTerms(text).map(
       (term) =>
         sql`exists (
           select 1 from ${customers} c

@@ -15,6 +15,7 @@ import {
   type GiftInput,
   type GiftResult,
 } from "@/rules";
+import { searchTerms } from "@/lib/search";
 import { db } from "./db/client";
 import { recomputeKpiForCustomer } from "./kpi";
 import {
@@ -822,7 +823,7 @@ async function giftGrantWhere(actor: User, query: GiftGrantFilters): Promise<SQL
   const searchWhere =
     search.length > 0
       ? and(
-          ...search.split(/\s+/).map(
+          ...searchTerms(search).map(
             (term) =>
               sql`exists (
                 select 1 from ${customers} c

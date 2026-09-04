@@ -20,6 +20,7 @@ import { BUSINESS_TIMEZONE, digitsOnly } from "@/lib/format";
 import { can, recordInScope, recordVisibility, type RecordVisibility } from "@/lib/permissions";
 import type { GiftSimulateResult } from "@/lib/api/settings";
 import { isRealIsoDate, type User } from "@/lib/types";
+import { searchTerms } from "@/lib/search";
 import { db, uniqueViolationOf } from "./db/client";
 import { giftForCustomer, grantedItemLabel, recomputeGiftCase } from "./gift";
 import { bankingPointsByCustomer } from "./kpi";
@@ -153,12 +154,10 @@ function searchWhere(raw: string): SQL | undefined {
   // ở giao diện, `bich tram nguyen` vẫn ra `Nguyễn Thị Bích Trâm`. Mỗi từ một
   // điều kiện VÀ trên cột sinh `search_name`, có chỉ mục trigram đỡ.
   return and(
-    ...text
-      .split(/\s+/)
-      .map(
-        (term) =>
-          sql`${customers.searchName} like '%' || mgst_normalize(${likeEscape(term)}) || '%' escape '\\'`,
-      ),
+    ...searchTerms(text).map(
+      (term) =>
+        sql`${customers.searchName} like '%' || mgst_normalize(${likeEscape(term)}) || '%' escape '\\'`,
+    ),
   );
 }
 

@@ -12,6 +12,7 @@ import type { Page } from "@/lib/api/pagination";
 import { BUSINESS_TIMEZONE, businessDay, businessMonth, monthRange, roundPoints } from "@/lib/format";
 import { clampScope, inVisibleScope, visibleDepartmentIds } from "@/lib/permissions";
 import { DepartmentType, ROLE_RANK, Scope, type User } from "@/lib/types";
+import { searchTerms } from "@/lib/search";
 import { db } from "./db/client";
 import { bankingPointsByCustomer } from "./kpi";
 import type { PageArgs } from "./pagination";
@@ -317,11 +318,9 @@ export function staffSearchWhere(search: string): SQL | undefined {
     sql`mgst_normalize(${col}) like '%' || mgst_normalize(${likeEscape(term)}) || '%' escape '\\'`;
 
   return and(
-    ...text
-      .split(/\s+/)
-      .map((term) =>
-        sql`(${like(users.fullName, term)} or ${like(users.username, term)} or ${like(sql`coalesce(${departments.name}, '')`, term)})`,
-      ),
+    ...searchTerms(text).map((term) =>
+      sql`(${like(users.fullName, term)} or ${like(users.username, term)} or ${like(sql`coalesce(${departments.name}, '')`, term)})`,
+    ),
   );
 }
 

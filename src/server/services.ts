@@ -16,6 +16,7 @@ import type { ServiceEditForm, ServiceForm, ServiceRow, ServiceSort } from "@/li
 import { businessDay, businessMonth } from "@/lib/format";
 import { recordVisibility, type RecordVisibility } from "@/lib/permissions";
 import { isRealIsoDate, type User } from "@/lib/types";
+import { searchTerms } from "@/lib/search";
 import { db } from "./db/client";
 import { departmentForNewRecord } from "./writeDepartment";
 import { customers, serviceTypes, services, users, wards } from "./db/schema";
@@ -72,7 +73,7 @@ function searchWhere(raw: string): SQL | undefined {
   if (!text) return undefined;
 
   return and(
-    ...text.split(/\s+/).map(
+    ...searchTerms(text).map(
       (term) =>
         sql`exists (
           select 1 from ${customers} c
