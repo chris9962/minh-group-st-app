@@ -1,10 +1,10 @@
 "use client";
 
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { Briefcase, Gift, Landmark, Pencil, Plus, Users } from "lucide-react";
+import { Briefcase, Gift, Landmark, Pencil, Plus, Trash2, Users } from "lucide-react";
 import type { DateRange } from "react-day-picker";
 import { SkeletonTable } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
@@ -28,12 +28,15 @@ import { fetchDepartments } from "@/lib/api/departments";
 import { fetchHospitals } from "@/lib/api/hospitalCatalog";
 import {
   CUSTOMER_SORT,
+  deleteCustomer,
   fetchCustomerDetail,
   fetchCustomers,
   type CustomerQuery,
   type CustomerRow,
   type CustomerSort,
 } from "@/lib/api/customers";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { errorMessage, toast } from "@/lib/toast";
 import { EMPTY_PAGE, PAGE_SIZE } from "@/lib/api/pagination";
 import { formatDate, formatPhone, formatPoints } from "@/lib/format";
 import { useDebouncedValue } from "@/lib/hooks";
@@ -132,6 +135,7 @@ export default function CustomersPage() {
   const [givingGiftTo, setGivingGiftTo] = useState<CustomerRow | null>(null);
   const [openingBankFor, setOpeningBankFor] = useState<CustomerRow | null>(null);
   const [loggingServiceFor, setLoggingServiceFor] = useState<CustomerRow | null>(null);
+  const [deletingCustomer, setDeletingCustomer] = useState<CustomerRow | null>(null);
 
   // Ô tìm giữ chữ đang gõ riêng, chỉ hoãn xong mới thành câu hỏi gửi đi — nối
   // thẳng vào `query` thì mỗi phím là một lượt gọi máy chủ.
@@ -179,6 +183,19 @@ export default function CustomersPage() {
     () => staff.map((s) => ({ value: s.id, label: s.fullName })),
     [staff],
   );
+
+  const queryClient = useQueryClient();
+  const removeCustomer = useMutation({
+    mutationFn: (customerId: string) => deleteCustomer(customerId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
+      setDeletingCustomer(null);
+      toast.ok("Đã xoá hồ sơ khách");
+    },
+    // Giữ hộp thoại mở: câu báo nói khách còn mấy tài khoản, mấy đơn, và người
+    // dùng cần đọc nó cạnh tên khách chứ không phải trên một bảng đã đóng.
+    onError: (e) => toast.fail(errorMessage(e, "Không xoá được hồ sơ khách này.")),
+  });
 
   /**
    * Ô lọc "Phòng" chỉ có nghĩa khi phạm vi đọc của người xem trải qua NHIỀU
@@ -277,6 +294,7 @@ export default function CustomersPage() {
      * cần hỏi `recordInScope`, không cần kiểm hai lớp.
      */
     const editScope = recordVisibility(user, "customer", "update");
+    const deleteScope = recordVisibility(user, "customer", "delete");
 
     return [
       {
@@ -368,6 +386,21 @@ export default function CustomersPage() {
                 onClick={() => setEditingId(c.id)}
               >
                 <Pencil size={16} aria-hidden />
+              </Button>
+            )}
+            {/* Nút KHÔNG khoá theo số tài khoản hiện trên dòng: con số đó đã lọc
+                theo phạm vi người xem, nên người thấy 0 vẫn có thể đang xem một
+                khách có tài khoản của phòng khác. Máy chủ quyết, và trả về câu
+                nói rõ vướng gì. */}
+            {recordInScope(deleteScope, c) && (
+              <Button
+                variant="secondary"
+                icon
+                tooltip="Xoá hồ sơ khách"
+                aria-label={`Xoá hồ sơ khách ${c.fullName}`}
+                onClick={() => setDeletingCustomer(c)}
+              >
+                <Trash2 size={16} aria-hidden />
               </Button>
             )}
           </span>
@@ -586,6 +619,20 @@ export default function CustomersPage() {
             customerDepartmentId={loggingServiceFor.createdByDepartmentId}
             onClose={() => setLoggingServiceFor(null)}
           />
+        )}
+
+        {deletingCustomer && (
+          <ConfirmDialog
+            open
+            title="Xoá hồ sơ khách"
+            confirmLabel="Xoá hồ sơ"
+            pending={removeCustomer.isPending}
+            onConfirm={() => removeCustomer.mutate(deletingCustomer.id)}
+            onClose={() => setDeletingCustomer(null)}
+          >
+            Xoá hẳn hồ sơ của <strong>{deletingCustomer.fullName}</strong> cùng mọi số điện
+            thoại của khách?
+          </ConfirmDialog>
         )}
       </main>
     </>

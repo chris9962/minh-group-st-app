@@ -326,6 +326,8 @@ export type CustomerEditForm = z.infer<typeof CustomerEditForm>;
 
 export const CUSTOMER_ERROR = {
   DUPLICATE_ID: 'duplicate-id-number',
+  /** Còn tài khoản, đơn bảo hiểm, lượt dịch vụ hoặc đợt phát quà trỏ tới khách. */
+  HAS_RECORDS: 'customer-has-records',
 } as const;
 
 /**
@@ -358,6 +360,20 @@ export const createCustomer = (form: CustomerForm) =>
 
 export const updateCustomer = (id: string, form: CustomerForm) =>
   send(`/api/customers/${id}`, 'PATCH', form).then(Customer.parse);
+
+/**
+ * Xoá hẳn hồ sơ khách. Chỉ chạy được khi khách chưa có bản ghi nghiệp vụ nào.
+ *
+ * Còn vướng thì máy chủ trả 422 kèm câu nói rõ vướng mấy tài khoản, mấy đơn —
+ * ném nguyên câu đó ra để toast hiện đúng thứ người dùng phải xoá trước.
+ */
+export async function deleteCustomer(id: string): Promise<void> {
+  const res = await fetch(`/api/customers/${id}`, { method: 'DELETE' });
+  if (!res.ok) {
+    const payload = (await res.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(payload?.message?.trim() || 'Không xoá được hồ sơ khách này');
+  }
+}
 
 /* ── P-42 · Hồ sơ 360° ────────────────────────────────────────────────── */
 

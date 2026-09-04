@@ -765,6 +765,88 @@ export async function updateCustomer(
   return result.customer ? { ok: true, customer: result.customer, idNumberWritten } : null;
 }
 
+/* ── Xoá hồ sơ khách ──────────────────────────────────────────────────── */
+
+/**
+ * Bảng nghiệp vụ chặn xoá khách, và tên gọi của nó cho người dùng đọc.
+ *
+ * `customer_phones` cố ý VẮNG MẶT: số điện thoại thuộc về chính hồ sơ khách,
+ * không phải bản ghi nghiệp vụ. Nó xoá cùng khách trong `deleteCustomer`. Đưa
+ * nó vào đây là không khách nào xoá được, vì khách nào cũng có một số.
+ *
+ * Danh sách này phải khớp `references(() => customers.id)` trong `schema.ts`.
+ * Thêm bảng mới trỏ tới `customers` thì thêm một dòng ở đây — thiếu thì lượt
+ * xoá chạy tới câu `delete` rồi mới hỏng vì khoá ngoại, và người dùng nhận lỗi
+ * 500 thay vì câu nói rõ vướng gì.
+ */
+const BLOCKING_TABLES = [
+  { table: bankAccounts, label: "tài khoản ngân hàng" },
+  { table: insuranceOrders, label: "đơn bảo hiểm" },
+  { table: services, label: "lượt dịch vụ" },
+  { table: giftGrants, label: "đợt phát quà" },
+] as const;
+
+/** Một loại bản ghi đang giữ khách lại, kèm số dòng. */
+export type CustomerLink = { label: string; count: number };
+
+export type DeleteCustomerResult =
+  | { ok: true; fullName: string }
+  /** Còn bản ghi nghiệp vụ — `links` luôn có ít nhất một phần tử. */
+  | { ok: false; links: CustomerLink[] };
+
+/**
+ * Xoá hẳn hồ sơ khách, CHỈ KHI không bảng nghiệp vụ nào còn trỏ tới.
+ *
+ * Trả `null` khi không tìm thấy HOẶC nằm ngoài phạm vi của người bấm: route ra
+ * 404 cho cả hai, để endpoint không thành chỗ dò id có thật.
+ *
+ * ⚠️ Phép đếm và câu xoá phải nằm trong CÙNG một transaction, và phải khoá dòng
+ * khách trước khi đếm. Postgres lấy khoá `FOR KEY SHARE` trên dòng cha mỗi lần
+ * có dòng con mang khoá ngoại được thêm vào, nên `FOR UPDATE` ở đây chặn được
+ * lượt mở tài khoản đang chạy song song. Đếm ngoài khoá thì có cửa sổ giữa lúc
+ * đếm ra 0 và lúc xoá, vừa đủ cho một tài khoản mới chen vào.
+ */
+export async function deleteCustomer(
+  actor: User,
+  id: string,
+): Promise<DeleteCustomerResult | null> {
+  const [owner] = await db
+    .select({
+      createdById: customers.createdBy,
+      createdByDepartmentId: customers.createdByDepartmentId,
+    })
+    .from(customers)
+    .where(eq(customers.id, id))
+    .limit(1);
+  if (!owner) return null;
+  if (!recordInScope(recordVisibility(actor, "customer", "delete"), owner)) return null;
+
+  return db.transaction(async (tx) => {
+    const [locked] = await tx
+      .select({ fullName: customers.fullName })
+      .from(customers)
+      .where(eq(customers.id, id))
+      .for("update")
+      .limit(1);
+    // Người khác vừa xoá xong trong lúc mình chờ khoá.
+    if (!locked) return null;
+
+    const links: CustomerLink[] = [];
+    for (const { table, label } of BLOCKING_TABLES) {
+      const [row] = await tx
+        .select({ n: count() })
+        .from(table)
+        .where(eq(table.customerId, id));
+      if (row.n > 0) links.push({ label, count: row.n });
+    }
+    if (links.length > 0) return { ok: false, links };
+
+    await tx.delete(customerPhones).where(eq(customerPhones.customerId, id));
+    await tx.delete(customers).where(eq(customers.id, id));
+    return { ok: true, fullName: locked.fullName };
+  });
+}
+
 /* ── P-42 · Hồ sơ 360° ────────────────────────────────────────────────── */
 
 /**

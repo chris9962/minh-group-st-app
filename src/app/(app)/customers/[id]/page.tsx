@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { use, useState } from "react";
 import { Briefcase, ChevronLeft, ExternalLink, Gift, History, Landmark, ShieldCheck, Trash2, User as UserIcon } from "lucide-react";
 import { SkeletonCard } from "@/components/ui/Skeleton";
@@ -22,11 +23,13 @@ import {
   deleteBankAccount,
 } from "@/lib/api/bankAccounts";
 import {
+  deleteCustomer,
   fetchCustomerDetail,
   type CustomerAccountRow,
   type CustomerInsuranceRow,
   type CustomerServiceRow,
 } from "@/lib/api/customers";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { INSURANCE_STATUS_LABEL, INSURANCE_STATUS_TONE } from "@/lib/api/insuranceOrders";
 import { formatDate, formatIdNumber, formatPhone, formatVnd } from "@/lib/format";
 import { can, recordInScope, recordVisibility } from "@/lib/permissions";
@@ -57,7 +60,9 @@ export default function CustomerDetailPage({
   const { id } = use(params);
   const actor = useSession((s) => s.user);
   const queryClient = useQueryClient();
+  const router = useRouter();
   const [editing, setEditing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [givingGift, setGivingGift] = useState(false);
   const [changingGift, setChangingGift] = useState(false);
   const [showGiftHistory, setShowGiftHistory] = useState(false);
@@ -80,6 +85,26 @@ export default function CustomerDetailPage({
       toast.ok("Đã xoá tài khoản đang tạo dở, mã giới thiệu được nhả lại");
     },
     onError: (e) => toast.fail(errorMessage(e, "Không xoá được tài khoản này.")),
+  });
+
+  /**
+   * Máy chủ quyết khách này xoá được hay không, giao diện không đoán trước.
+   *
+   * Số tài khoản và số đơn hiện trên màn đã lọc theo phạm vi của người xem, nên
+   * người thấy 0 dòng vẫn có thể đang xem một khách có 3 tài khoản của phòng
+   * khác. Khoá nút theo con số đó là khoá nhầm người.
+   */
+  const removeCustomer = useMutation({
+    mutationFn: () => deleteCustomer(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
+      toast.ok("Đã xoá hồ sơ khách");
+      router.replace("/customers");
+    },
+    onError: (e) => {
+      setDeleting(false);
+      toast.fail(errorMessage(e, "Không xoá được hồ sơ khách này."));
+    },
   });
 
   const accountColumns: RankColumn<CustomerAccountRow>[] = [
@@ -267,6 +292,17 @@ export default function CustomerDetailPage({
                   <Briefcase size={16} />
                   Ghi dịch vụ
                 </Button>
+                {/* Cùng điều kiện phạm vi mức DÒNG với `deleteCustomer` ở máy
+                    chủ — xem nút Sửa thông tin ở trên. */}
+                {recordInScope(
+                  recordVisibility(actor, "customer", "delete"),
+                  data.customer,
+                ) && (
+                  <Button variant="secondary" onClick={() => setDeleting(true)}>
+                    <Trash2 size={16} />
+                    Xoá hồ sơ
+                  </Button>
+                )}
               </div>
             </SectionCard>
 
@@ -565,6 +601,20 @@ export default function CustomerDetailPage({
             customerDepartmentId={data.customer.createdByDepartmentId}
             onClose={() => setLoggingService(false)}
           />
+        )}
+
+        {deleting && data && (
+          <ConfirmDialog
+            open
+            title="Xoá hồ sơ khách"
+            confirmLabel="Xoá hồ sơ"
+            pending={removeCustomer.isPending}
+            onConfirm={() => removeCustomer.mutate()}
+            onClose={() => setDeleting(false)}
+          >
+            Xoá hẳn hồ sơ của <strong>{data.customer.fullName}</strong> cùng mọi số điện
+            thoại của khách?
+          </ConfirmDialog>
         )}
       </main>
     </>

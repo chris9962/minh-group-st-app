@@ -1,7 +1,7 @@
 import { CUSTOMER_ERROR, CustomerEditForm } from "@/lib/api/customers";
 import { logAudit } from "@/server/audit";
 import { actorWith, badRequest, isUuid, jsonBody, notFound, signedIn } from "@/server/auth";
-import { customerDetailFor, updateCustomer } from "@/server/customers";
+import { customerDetailFor, deleteCustomer, updateCustomer } from "@/server/customers";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -97,4 +97,39 @@ export async function PATCH(request: Request, { params }: Params) {
     targetId: id,
   });
   return Response.json(result.customer);
+}
+
+/**
+ * Xoá hẳn hồ sơ khách. Không có trạng thái "đã ẩn".
+ *
+ * Chỉ xoá được khách chưa có bản ghi nghiệp vụ nào. Còn tài khoản, đơn bảo hiểm,
+ * lượt dịch vụ hay đợt phát quà thì trả 422 kèm danh sách thứ đang vướng — người
+ * dùng cần biết phải xoá gì trước, nói mỗi "không xoá được" là họ đoán mò.
+ */
+export async function DELETE(request: Request, { params }: Params) {
+  const guard = await actorWith(request, "customer", "delete");
+  if (!guard.ok) return guard.response;
+
+  const { id } = await params;
+  if (!isUuid(id)) return notFound();
+
+  const result = await deleteCustomer(guard.actor, id);
+  if (!result) return notFound();
+  if (!result.ok)
+    return Response.json(
+      {
+        code: CUSTOMER_ERROR.HAS_RECORDS,
+        message: `Khách còn ${result.links.map((l) => `${l.count} ${l.label}`).join(", ")}. Xoá hết những thứ đó rồi mới xoá được hồ sơ.`,
+      },
+      { status: 422 },
+    );
+
+  await logAudit(guard.actor, {
+    module: "customer",
+    action: "delete",
+    targetLabel: `Xoá hồ sơ khách ${result.fullName}`,
+    targetTable: "customers",
+    targetId: id,
+  });
+  return new Response(null, { status: 204 });
 }
