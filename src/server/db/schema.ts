@@ -915,18 +915,35 @@ export const bankGuideVariants = pgTable(
   ],
 );
 
-export const giftGrants = pgTable("gift_grants", {
-  id: id(),
-  /** Một khách đúng MỘT đợt tặng — không có đợt thứ hai (P-43). */
-  customerId: uuid("customer_id").notNull().unique().references(() => customers.id),
-  grantedBy: uuid("granted_by").notNull().references(() => users.id),
-  grantedAt: timestamp("granted_at", { withTimezone: true }).notNull().defaultNow(),
-  cashTotal: integer("cash_total").notNull().default(0),
-  /** Tên món đã chọn, hoặc câu mô tả việc từ chối. */
-  chosenItem: text("chosen_item").notNull(),
-  /** Rổ quà + breakdown ĐÓNG BĂNG lúc chốt — chỗ jsonb có chủ đích duy nhất. */
-  snapshot: jsonb("snapshot").notNull(),
-});
+export const giftGrants = pgTable(
+  "gift_grants",
+  {
+    id: id(),
+    /** Một khách đúng MỘT đợt tặng — không có đợt thứ hai (P-43). */
+    customerId: uuid("customer_id").notNull().unique().references(() => customers.id),
+    grantedBy: uuid("granted_by").notNull().references(() => users.id),
+    grantedAt: timestamp("granted_at", { withTimezone: true }).notNull().defaultNow(),
+    cashTotal: integer("cash_total").notNull().default(0),
+    /** Tên món đã chọn, hoặc câu mô tả việc từ chối. */
+    chosenItem: text("chosen_item").notNull(),
+    /** Rổ quà + breakdown ĐÓNG BĂNG lúc chốt — chỗ jsonb có chủ đích duy nhất. */
+    snapshot: jsonb("snapshot").notNull(),
+  },
+  (t) => [
+    /**
+     * Khớp đúng thứ tự P-44 lấy một trang (migration 0063). `id` là khoá phá
+     * hoà — nhiều đợt cùng một mốc giờ thì thiếu nó, thứ tự giữa các trang
+     * không ổn định và một dòng hiện ở cả trang 1 lẫn trang 2.
+     */
+    index("gift_grants_date").on(sql`granted_at desc, id`),
+    /**
+     * Trục NGƯỜI PHÁT. Phạm vi bản ghi đổi thành danh sách người trước khi lọc
+     * (`departmentUserIds` ở `server/gift.ts`), nên cả bộ lọc phòng lẫn bộ lọc
+     * nhân viên đều đi qua cột này.
+     */
+    index("gift_grants_granter_date").on(sql`granted_by, granted_at desc, id`),
+  ],
+);
 
 /** Mỗi lần đổi quà là một sự kiện độc lập, không ghi đè mất dấu vết đã phát. */
 export const giftGrantChanges = pgTable(

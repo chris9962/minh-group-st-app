@@ -20,6 +20,7 @@ export type NavIconKey =
   | 'people'
   | 'profile'
   | 'target'
+  | 'gift'
   | 'settings'
   | 'exports'
   | 'org'
@@ -114,6 +115,14 @@ export function navFor(user: User | null): NavEntry[] {
 
   // Hồ sơ khách hàng không áp trục phạm vi — ai đăng nhập được cũng thấy.
   items.push({ href: '/customers', label: 'Khách hàng', icon: 'customers', screen: 'P-40' });
+
+  /**
+   * Quà sinh ra từ combo tài khoản ngân hàng, nên màn đọc đi theo phạm vi của
+   * module đó — KHÔNG theo `banking:grant-gift`, quyền kia là quyền PHÁT quà.
+   */
+  if (can(user, 'banking', 'view-detail')) {
+    items.push({ href: '/gifts', label: 'Quà đã phát', icon: 'gift', screen: 'P-44' });
+  }
 
   // Vào được màn Nhân sự bằng HAI đường: quản phòng thì xem điểm của lính, còn
   // `staff:create` thì vào để tạo người mới — quản trị hệ thống không quản

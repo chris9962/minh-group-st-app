@@ -1,9 +1,13 @@
-import { and, eq, inArray, isNull, notInArray } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNull, notInArray, sql, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { GIFT_DECLINED, GIFT_DECLINED_LABEL, GIFT_ERROR, type GiftChangeForm } from "@/lib/api/customers";
+import { GIFT_EXPORT_LIMIT, type GiftGrantRow } from "@/lib/api/gifts";
+import type { Page } from "@/lib/api/pagination";
 import { EMPTY_GIFT, GiftSimulateResult, type GiftSimulateInput } from "@/lib/api/settings";
-import { businessDay, businessMonth } from "@/lib/format";
-import type { User } from "@/lib/types";
+import { BUSINESS_TIMEZONE, businessDay, businessMonth } from "@/lib/format";
+import { recordVisibility } from "@/lib/permissions";
+import { isRealIsoDate, type User } from "@/lib/types";
+import type { PageArgs } from "./pagination";
 import {
   bankingPointsFor,
   giftFor,
@@ -25,6 +29,7 @@ import {
   insuranceOrderStatusHistory,
   insuranceOrders,
   insurancePackages,
+  users,
 } from "./db/schema";
 
 /**
@@ -753,4 +758,176 @@ export function grantedItemLabel(chosenItem: string, snapshot: unknown): string 
   if (chosenItem === GIFT_DECLINED) return GIFT_DECLINED_LABEL;
   const basket = (snapshot as GiftSimulateResult | null)?.basket ?? [];
   return basket.find((b) => b.code === chosenItem)?.name ?? chosenItem;
+}
+
+/* ── P-44 · Danh sách quà đã phát ─────────────────────────────────────────── */
+
+const likeEscape = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
+
+export type GiftGrantFilters = {
+  /** Tìm theo TÊN KHÁCH — không dấu, không phụ thuộc thứ tự từ. */
+  search: string;
+  /** Khoảng NGÀY PHÁT, YYYY-MM-DD. Rỗng = không giới hạn. */
+  from: string;
+  to: string;
+  /** Phòng của người phát, đọc động từ `users` — xem `departmentUserIds`. */
+  departmentId: string;
+  staffId: string;
+};
+
+/**
+ * Phạm vi bản ghi đi theo module `banking`: quà sinh ra từ combo tài khoản ngân
+ * hàng, nên ai đọc được tài khoản của một phòng thì đọc được quà phòng đó phát.
+ *
+ * `gift_grants` KHÔNG chụp phòng của người phát, khác `insurance_orders` và
+ * `bank_accounts`. Nên phạm vi phòng phải đổi thành danh sách người TRƯỚC khi
+ * lọc — cùng lối với `bankIdsOf` ở `server/banking.ts`.
+ *
+ * ⚠️ Hệ quả: người phát chuyển phòng thì đợt quà cũ của họ đi theo phòng MỚI.
+ * Muốn lịch sử đứng yên thì phải chụp phòng vào một cột riêng, cần migration.
+ */
+async function departmentUserIds(departmentIds: string[]): Promise<string[]> {
+  if (departmentIds.length === 0) return [];
+  const rows = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(inArray(users.departmentId, departmentIds));
+  return rows.map((r) => r.id);
+}
+
+async function giftGrantWhere(actor: User, query: GiftGrantFilters): Promise<SQL | undefined> {
+  const visible = recordVisibility(actor, "banking", "view-detail");
+
+  let scope: SQL | undefined;
+  if (visible.kind === "departments") {
+    const ids = await departmentUserIds(visible.departmentIds);
+    // `[]` = phạm vi không có ai → không dòng nào khớp. Bỏ qua điều kiện là mở
+    // cả kho cho đúng người đáng hẹp nhất.
+    scope = ids.length > 0 ? inArray(giftGrants.grantedBy, ids) : sql`false`;
+  } else if (visible.kind === "creator") {
+    scope = eq(giftGrants.grantedBy, visible.userId);
+  } else if (visible.kind !== "all") {
+    scope = sql`false`;
+  }
+
+  // Ô lọc phòng nối bằng VÀ với phạm vi, không thay nó: chọn phòng ngoài phạm vi
+  // cho ra bảng rỗng chứ không nới phạm vi.
+  let departmentPick: SQL | undefined;
+  if (query.departmentId) {
+    const ids = await departmentUserIds([query.departmentId]);
+    departmentPick = ids.length > 0 ? inArray(giftGrants.grantedBy, ids) : sql`false`;
+  }
+
+  const search = query.search.trim();
+  const searchWhere =
+    search.length > 0
+      ? and(
+          ...search.split(/\s+/).map(
+            (term) =>
+              sql`exists (
+                select 1 from ${customers} c
+                where c.id = ${giftGrants.customerId}
+                  and c.search_name like '%' || mgst_normalize(${likeEscape(term)}) || '%' escape '\\'
+              )`,
+          ),
+        )
+      : undefined;
+
+  const parts = [
+    scope,
+    searchWhere,
+    departmentPick,
+    // Ngày sai định dạng thì bỏ qua, không trả 400 — link cũ hay ô địa chỉ gõ
+    // nhầm không đáng làm hỏng cả màn.
+    isRealIsoDate(query.from)
+      ? sql`(${giftGrants.grantedAt} at time zone ${BUSINESS_TIMEZONE})::date >= ${query.from}::date`
+      : undefined,
+    isRealIsoDate(query.to)
+      ? sql`(${giftGrants.grantedAt} at time zone ${BUSINESS_TIMEZONE})::date <= ${query.to}::date`
+      : undefined,
+    query.staffId ? eq(giftGrants.grantedBy, query.staffId) : undefined,
+  ].filter(Boolean) as SQL[];
+
+  return parts.length > 0 ? and(...parts) : undefined;
+}
+
+const giftGrantRows = (where: SQL | undefined) =>
+  db
+    .select({
+      id: giftGrants.id,
+      customerId: giftGrants.customerId,
+      customerName: customers.fullName,
+      grantedAt: giftGrants.grantedAt,
+      cashTotal: giftGrants.cashTotal,
+      chosenItem: giftGrants.chosenItem,
+      snapshot: giftGrants.snapshot,
+      grantedByName: users.fullName,
+      grantedByStaffCode: sql<string>`coalesce(${users.staffCode}, '')`,
+      grantedByDepartmentName: departments.name,
+    })
+    .from(giftGrants)
+    .innerJoin(customers, eq(customers.id, giftGrants.customerId))
+    // leftJoin: người phát có thể đã bị xoá khỏi hệ thống, và ban giám đốc không
+    // thuộc phòng nào. innerJoin thì những dòng đó biến mất mà không báo gì.
+    .leftJoin(users, eq(users.id, giftGrants.grantedBy))
+    .leftJoin(departments, eq(departments.id, users.departmentId))
+    .where(where);
+
+type GiftGrantQueryRow = Awaited<ReturnType<typeof giftGrantRows>>[number];
+
+const toGiftGrantRow = (r: GiftGrantQueryRow): GiftGrantRow => ({
+  id: r.id,
+  customerId: r.customerId,
+  customerName: r.customerName,
+  date: businessDay(r.grantedAt),
+  cashTotal: r.cashTotal,
+  // Tên LÚC PHÁT trong rổ đóng băng, không tra danh mục hiện tại (spec §5.3).
+  item: grantedItemLabel(r.chosenItem, r.snapshot),
+  declined: r.chosenItem === GIFT_DECLINED,
+  grantedByName: r.grantedByName,
+  grantedByStaffCode: r.grantedByStaffCode,
+  grantedByDepartmentName: r.grantedByDepartmentName,
+});
+
+/** MỘT trang quà đã phát, đã lọc/tìm/sắp sẵn ở máy chủ (AGENTS.md §5.1). */
+export async function listGiftGrants(
+  actor: User,
+  query: GiftGrantFilters,
+  page: PageArgs<"date">,
+): Promise<Page<GiftGrantRow>> {
+  const where = await giftGrantWhere(actor, query);
+  const order =
+    page.dir === "asc"
+      ? [asc(giftGrants.grantedAt), asc(giftGrants.id)]
+      : [desc(giftGrants.grantedAt), desc(giftGrants.id)];
+
+  const [rows, [totals]] = await Promise.all([
+    giftGrantRows(where).orderBy(...order).limit(page.limit).offset(page.offset),
+    db.select({ value: count() }).from(giftGrants).where(where),
+  ]);
+
+  return { rows: rows.map(toGiftGrantRow), total: totals?.value ?? 0 };
+}
+
+/**
+ * TRỌN danh sách khớp bộ lọc, CHỈ cho việc xuất Excel — đường riêng chứ không
+ * mở tham số "lấy hết" trên route đã phân trang (AGENTS.md §5.1, điều 4).
+ *
+ * `total` có thể lớn hơn `rows.length` khi chạm trần; nơi gọi BẮT BUỘC so hai
+ * số rồi dừng, vì file thiếu dòng trông y hệt file đủ.
+ */
+export async function listGiftGrantsForExport(
+  actor: User,
+  query: GiftGrantFilters,
+): Promise<Page<GiftGrantRow>> {
+  const where = await giftGrantWhere(actor, query);
+
+  const [rows, [totals]] = await Promise.all([
+    giftGrantRows(where)
+      .orderBy(desc(giftGrants.grantedAt), desc(giftGrants.id))
+      .limit(GIFT_EXPORT_LIMIT),
+    db.select({ value: count() }).from(giftGrants).where(where),
+  ]);
+
+  return { rows: rows.map(toGiftGrantRow), total: totals?.value ?? 0 };
 }

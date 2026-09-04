@@ -1,0 +1,28 @@
+.body {
+  flex: 1;
+  padding: 22px 28px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+/* Ô bấm cao bằng cả dòng: bấm trúng tên khách là vào hồ sơ, không cần nhắm đúng
+   chữ. Cùng dáng với cột tên ở các bảng danh sách khác. */
+.nameLink {
+  display: block;
+  padding: 12px 0;
+  margin: -12px 0;
+  color: var(--om-link);
+}
+
+.nameLink:hover {
+  color: var(--om-link-hover);
+  text-decoration: underline;
+}
+
+@media (max-width: bp.$bp-mobile) {
+  .body {
+    padding: 16px 16px 32px;
+  }
+}
