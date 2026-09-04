@@ -76,6 +76,11 @@ const COLUMNS: RankColumn<BankAccountRow>[] = [
   },
   { key: "referralCode", label: "Mã giới thiệu", render: (r) => r.referralCode },
   {
+    key: "accountType",
+    label: "Loại TK",
+    render: (r) => (r.accountType === "none" ? "—" : ACCOUNT_TYPE_LABEL[r.accountType]),
+  },
+  {
     key: "status",
     label: "Trạng thái",
     render: (r) => (
@@ -289,7 +294,10 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
             value: (r) =>
               [r.referralCodeText, r.referralCode].filter(Boolean).join(" - "),
           },
-          { header: "Loại TK", value: (r) => ACCOUNT_TYPE_LABEL[r.accountType] },
+          {
+            header: "Loại TK",
+            value: (r) => (r.accountType === "none" ? "" : ACCOUNT_TYPE_LABEL[r.accountType]),
+          },
           { header: "Trạng thái", value: (r) => BANK_ACCOUNT_STATUS_LABEL[r.status] },
           { header: "Đã cài app", value: (r) => (r.appInstalled ? "Có" : "Không") },
           // MÃ nhân viên chứ không phải tên: file này đem đối chiếu với app khác

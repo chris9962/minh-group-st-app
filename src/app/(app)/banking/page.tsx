@@ -25,6 +25,7 @@ import { SectionCard } from "@/components/ui/SectionCard";
 import { Select } from "@/components/ui/Select";
 import { StatusTag } from "@/components/ui/StatusTag";
 import {
+  ACCOUNT_TYPE_LABEL,
   BANK_ACCOUNT_STATUS_LABEL as STATUS_LABEL,
   BankAccountStatus,
   deleteBankAccount,
@@ -237,7 +238,7 @@ export default function BankingPage() {
         label: "Ngân hàng",
         render: (r) => (
           <Link href={`/banking/${r.id}`} className={styles.nameLink}>
-            {r.bankCode}
+            {r.accountType === "none" ? r.bankCode : `${r.bankCode} - ${ACCOUNT_TYPE_LABEL[r.accountType]}`}
           </Link>
         ),
       },
