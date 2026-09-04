@@ -42,12 +42,12 @@ export async function POST(request: Request) {
    * tài khoản đăng nhập hợp lệ gửi file 2GB là tiến trình Node phình theo body
    * rồi mới trả 400 — hết RAM, cả app chết, không cần quyền gì thêm.
    *
-   * Trần ở đây rộng hơn trần ảnh (10MB) một chút vì `multipart` có phần bao.
+   * Trần ở đây rộng hơn trần ảnh (20MB) một chút vì `multipart` có phần bao.
    */
   const declared = Number(request.headers.get("content-length") ?? 0);
-  if (declared > 12 * 1024 * 1024)
+  if (declared > 22 * 1024 * 1024)
     return Response.json(
-      { message: "Ảnh nặng quá 10MB." },
+      { message: "Ảnh nặng quá 20MB." },
       { status: 413 },
     );
 

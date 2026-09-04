@@ -23,7 +23,7 @@ export const UploadResult = z.object({ url: z.string() });
 export type UploadResult = z.infer<typeof UploadResult>;
 
 /** Trần dung lượng một ảnh — kiểm ở CẢ hai đầu, máy chủ mới là chốt thật. */
-export const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+export const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
 
 export const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic'];
 
@@ -33,7 +33,7 @@ export const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'i
  */
 export function imageProblem(file: File): string | null {
   if (file.size > MAX_IMAGE_BYTES)
-    return `Ảnh "${file.name}" nặng ${(file.size / 1024 / 1024).toFixed(1)}MB, vượt mức 10MB.`;
+    return `Ảnh "${file.name}" nặng ${(file.size / 1024 / 1024).toFixed(1)}MB, vượt mức 20MB.`;
   if (file.type && !ACCEPTED_IMAGE_TYPES.includes(file.type))
     return `"${file.name}" không phải ảnh. Chỉ nhận JPG, PNG, WEBP hoặc HEIC.`;
   return null;
@@ -46,7 +46,7 @@ export function imageProblem(file: File): string | null {
  * một chỗ là đủ. Ảnh xem trước vẫn dựng từ file gốc — người dùng thấy ảnh ngay
  * lúc chọn, không phải đợi chuyển xong.
  *
- * ⚠️ Trần 10MB của `imageProblem` vẫn đo trên file GỐC. Ảnh 12MB bị từ chối lúc
+ * ⚠️ Trần 20MB của `imageProblem` vẫn đo trên file GỐC. Ảnh 22MB bị từ chối lúc
  * chọn dù chuyển xong chỉ còn vài trăm KB — đổi thứ tự đó là việc riêng, chưa làm.
  */
 /**

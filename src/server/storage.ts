@@ -146,7 +146,7 @@ export function imageKeyOf(value: string): string | null {
 /** Dạng dùng cho `z.refine`. Cặp với `imageKeyOf` ở bước `transform`. */
 export const isImageRef = (value: string): boolean => imageKeyOf(value) !== null;
 
-const MAX_BYTES = 10 * 1024 * 1024;
+const MAX_BYTES = 20 * 1024 * 1024;
 
 export type PutResult =
   | { ok: true; key: string }
@@ -170,7 +170,7 @@ export async function putImage(file: File, folder: string): Promise<PutResult> {
   if (file.size > MAX_BYTES)
     return {
       ok: false,
-      message: `Ảnh nặng ${(file.size / 1024 / 1024).toFixed(1)}MB, vượt mức 10MB.`,
+      message: `Ảnh nặng ${(file.size / 1024 / 1024).toFixed(1)}MB, vượt mức 20MB.`,
     };
 
   const bytes = new Uint8Array(await file.arrayBuffer());
