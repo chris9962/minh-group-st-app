@@ -319,7 +319,15 @@ function DoneAccountCard({
       invalidateKpi(queryClient);
       setMarkingError(false);
       setErrorNote("");
-      toast.ok(account.status === "error" ? "Đã đánh dấu tài khoản lỗi và tính lại KPI" : "Đã khôi phục tài khoản và tính lại KPI");
+      // `data.status` là trạng thái TRƯỚC lượt bấm: từ `fixed` đi ra thì KPI
+      // không đổi số nào, vì chỉ `done` mới vào phép tính.
+      toast.ok(
+        account.status !== "error"
+          ? "Đã khôi phục tài khoản và tính lại KPI"
+          : data.status === "fixed"
+            ? "Đã trả tài khoản về trạng thái lỗi"
+            : "Đã đánh dấu tài khoản lỗi và tính lại KPI",
+      );
     },
     onError: (e) => toast.fail(errorMessage(e, "Không đổi được trạng thái tài khoản.")),
   });
@@ -357,7 +365,11 @@ function DoneAccountCard({
               <Pencil size={16} aria-hidden />
               {data.status === "error" ? "Sửa lỗi" : "Sửa"}
             </Button>
-            {data.status === "done" && (
+            {/* Ở `fixed` đây là nút TỪ CHỐI của vòng duyệt, nên chỉ người quản
+                ngân hàng thấy — cùng người bấm Duyệt. Không có nút này thì người
+                duyệt chỉ có hai lối: duyệt, hoặc bỏ đó. */}
+            {(data.status === "done" ||
+              (data.status === "fixed" && canManageBank(user, data.bankId))) && (
               <Button variant="secondary" onClick={() => setMarkingError(true)}>
                 <TriangleAlert size={16} aria-hidden />
                 Đánh dấu lỗi
@@ -525,7 +537,13 @@ function DoneAccountCard({
             </>
           }
         >
-          <Alert tone="warning">Tài khoản này sẽ bị loại khỏi KPI. Quà của khách giữ nguyên.</Alert>
+          {/* Tài khoản `fixed` vốn đã ngoài KPI — chỉ `done` mới vào phép tính.
+              Nói "sẽ bị loại khỏi KPI" ở đó là nói một thứ đã xảy ra rồi. */}
+          <Alert tone="warning">
+            {data.status === "fixed"
+              ? "Tài khoản quay về trạng thái lỗi. Nhân viên sửa tiếp rồi gửi duyệt lại."
+              : "Tài khoản này sẽ bị loại khỏi KPI. Quà của khách giữ nguyên."}
+          </Alert>
           <TextArea
             label="Lý do lỗi"
             required
