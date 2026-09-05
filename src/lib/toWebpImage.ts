@@ -61,36 +61,20 @@ function drawScaled(source: Source, edge: number): HTMLCanvasElement | null {
 }
 
 /**
- * Đường đọc dự phòng khi `createImageBitmap` từ chối file.
+ * ĐÚNG MỘT đường đọc: `createImageBitmap`. Không đọc được thì trả `null` và ảnh
+ * lên kho nguyên gốc — `server/toWebpOnServer.ts` ép nó về WebP trong trần.
  *
- * Thẻ `<img>` dựng được ảnh mà `createImageBitmap` bỏ, rõ nhất là ảnh JPEG
- * thiếu vài byte cuối: đo 2026-09-05 trên 4 ảnh chụp màn hình của một tài
- * khoản MSBb, cả bốn mất marker `FFD9` nên Chromium ném `InvalidStateError`,
- * còn `<img>` dựng đủ 1080x2392. Bốn ảnh đó lên kho nguyên gốc, tổng 2.794KB
- * thay vì 267KB.
+ * ❌ ĐỪNG thêm lại đường dự phòng bằng thẻ `<img>`. Bản 2026-09-05 làm vậy để
+ * cứu ảnh JPEG thiếu byte cuối, và nó ghi ẢNH TRỐNG lên kho: `img.onload` chỉ
+ * báo dữ liệu đã tải và kích thước đã đọc được, KHÔNG báo trình duyệt đã giải
+ * mã xong. `drawImage` gọi ngay sau đó vẽ ra canvas rỗng. Chromium máy tính giải
+ * mã kịp nên không thấy gì; điện thoại của đội kinh doanh thì không, và một tài
+ * khoản TPB nhận 4 ảnh 722x1600 nặng 3KB với mọi kênh màu bằng 0.
  *
- * Hướng ảnh vẫn đúng: `<img>` áp hướng EXIF theo mặc định, trùng với
- * `imageOrientation: "from-image"` của đường thứ nhất.
+ * Máy chủ nay đọc được đúng loại ảnh đó — `sharp` mở với `failOn: "none"` nên
+ * ảnh cắt cụt vẫn dựng được phần đã có. Ảnh hiếm này tải lên nặng hơn một lần,
+ * đổi lại không còn đường nào sinh ra ảnh trống.
  */
-function decodeWithImgTag(file: File): Promise<Source | null> {
-  return new Promise((resolve) => {
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () =>
-      resolve({
-        image: img,
-        width: img.naturalWidth,
-        height: img.naturalHeight,
-        release: () => URL.revokeObjectURL(url),
-      });
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      resolve(null);
-    };
-    img.src = url;
-  });
-}
-
 async function docAnh(file: File): Promise<Source | null> {
   try {
     // `from-image`: ảnh chụp dọc bằng điện thoại mang hướng trong EXIF. Bỏ qua
@@ -103,7 +87,7 @@ async function docAnh(file: File): Promise<Source | null> {
       release: () => bitmap.close(),
     };
   } catch {
-    return decodeWithImgTag(file);
+    return null;
   }
 }
 
@@ -165,10 +149,12 @@ async function nenDenNguong(
  * nên không nén tới trần dung lượng được: ảnh chụp màn hình 1179x2556 để dạng
  * PNG là 8.704KB, qua JPEG còn 228KB. Ảnh chứng minh không cần nền trong suốt.
  *
- * Hai đường trả về file gốc, đều là đường đi tiếp chứ không phải lỗi:
+ * Hai đường trả về file gốc, đều là đường đi tiếp chứ không phải lỗi. Máy chủ
+ * nhận nguyên bản rồi ép về WebP trong trần, nên không đường nào để ảnh quá cỡ
+ * nằm lại trong kho:
  *
- * 1. CẢ HAI đường đọc đều không giải được ảnh — HEIC trên Chrome máy tính. Máy
- *    chủ nhận nguyên bản như trước đây.
+ * 1. `createImageBitmap` không giải được ảnh — HEIC ở mọi trình duyệt ngoài
+ *    Safari, và ảnh JPEG thiếu byte cuối.
  * 2. Bản nén không nhỏ hơn bản gốc. Ảnh vốn đã nhỏ và nén kỹ thì nén lần nữa
  *    chỉ tốn thêm dung lượng.
  */
