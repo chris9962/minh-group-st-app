@@ -35,6 +35,27 @@
   position: relative;
 }
 
+/**
+ * Hộp thoại đang mở thì vùng nội dung ĐỨNG YÊN.
+ *
+ * `overscroll-behavior` của hộp thoại chỉ chặn được lượt cuộn bắt đầu TRONG
+ * vùng cuộn của nó. Đặt con trỏ lên tiêu đề, hàng nút hay lớp phủ rồi lăn thì
+ * lượt cuộn đó đi thẳng lên khung cuộn gần nhất, và nền sau hộp thoại trôi lên
+ * trong khi hộp thoại đứng yên ở top layer.
+ *
+ * Bắt từ `.shell` chứ không phải `.main`: `BottomNav` là anh em của `.main`,
+ * mà nó cũng mở bốn hộp thoại.
+ *
+ * Chỉ áp cho máy tính. Ở điện thoại `.main` không phải khung cuộn, khoá nó là
+ * dựng một khối định dạng mới và làm hỏng `position: sticky` bên trong; chỗ
+ * cần khoá ở đó là tài liệu, xem `globals.css`.
+ */
+@media (min-width: 900.02px) {
+  .shell:has(dialog[open]) .main {
+    overflow: hidden;
+  }
+}
+
 /* Trên điện thoại sidebar trượt ra từ mép trái khi mở (xem Sidebar.module.scss),
    mặc định nằm ngoài khung hình — nút "Thêm" trong BottomNav mở lại, khỏi cần
    thêm một hàng hamburger riêng ở đầu trang. */

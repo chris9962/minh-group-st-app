@@ -83,10 +83,15 @@
   flex-direction: column;
 }
 
+/* `overscroll-behavior: contain` chặn CUỘN NỐI: cuộn hết biểu mẫu rồi mà còn
+   lăn tiếp thì trình duyệt chuyển lượt cuộn sang khung cuộn bao ngoài, và nền
+   sau hộp thoại trôi lên. Ở máy tính khung đó là vùng nội dung của AppShell, ở
+   điện thoại là chính tài liệu. */
 .body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 0 20px 4px;
 }
 

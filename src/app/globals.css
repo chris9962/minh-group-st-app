@@ -126,6 +126,23 @@ a {
   }
 }
 
+/* Điện thoại: cả trang cuộn được, nên hộp thoại mở ra là phải khoá tài liệu
+   lại. Không khoá thì lăn con lăn hay kéo tay ở lớp phủ, ở tiêu đề hay ở hàng
+   nút đều cuộn nền phía sau, trong khi hộp thoại đứng yên ở top layer — nền
+   trôi lên còn hộp thoại thì không, đọc ra như giao diện bị đẩy.
+
+   `html` ở khổ này để `overflow: visible`, nên giá trị của `body` mới là giá
+   trị truyền lên khung nhìn. Vị trí cuộn giữ nguyên và trở lại khi đóng hộp
+   thoại, khác hẳn cách `position: fixed` vốn nhảy về đầu trang.
+
+   `showModal()` đặt sẵn thuộc tính `open`, nên không cần thêm state nào ở
+   JavaScript: hộp thoại đóng là luật này tự hết tác dụng. */
+@media (max-width: 900px) {
+  body:has(dialog[open]) {
+    overflow: hidden;
+  }
+}
+
 /* KHÔNG đặt lại max-width: 100vw ở đây. 100vw tính cả bề dày thanh cuộn dọc,
    nên chính nó là thứ đẩy body rộng hơn phần nhìn thấy và sinh ra tràn ngang.
    Bảng rộng thì cuộn trong khung của nó bằng .table-scroll.
