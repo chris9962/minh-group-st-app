@@ -14,6 +14,7 @@ Thông số máy chủ, chứng chỉ, tài khoản nằm ở `docs/deploy-fpt-c
 | `nginx/app.conf` | khối `location` của app, chế độ bảo trì, trần dung lượng ảnh |
 | `nginx/proxy.conf` | header chuyển tiếp dùng chung, `nginx/app.conf` include vào |
 | `maintenance/index.html` | trang bảo trì, tự đếm ngược và tự tải lại |
+| `deploy.sh` | deploy một bản mới: dựng và thử image không bảo trì, rồi bật bảo trì 20 giây để đổi container; kiểm không đạt thì tự lùi |
 | `maintenance-on.sh` | bật bảo trì, tham số là số phút dự kiến |
 | `maintenance-off.sh` | tắt bảo trì |
 | `upload-existing-images.ts` | đẩy ảnh còn trên đĩa lên FPT, chạy một lần lúc chuyển kho |
