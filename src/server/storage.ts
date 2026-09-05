@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { heicToJpeg } from "./heicToJpeg";
 
 /**
  * Kho lưu trữ ảnh — hai ngả sau CÙNG một cửa.
@@ -173,16 +174,24 @@ export async function putImage(file: File, folder: string): Promise<PutResult> {
       message: `Ảnh nặng ${(file.size / 1024 / 1024).toFixed(1)}MB, vượt mức 20MB.`,
     };
 
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  const kind = IMAGE_SIGNATURES.find((s) => s.test(bytes));
+  const raw = new Uint8Array(await file.arrayBuffer());
+  const kind = IMAGE_SIGNATURES.find((s) => s.test(raw));
   if (!kind)
     return { ok: false, message: "File này không phải ảnh. Chỉ nhận JPG, PNG, WEBP hoặc HEIC." };
 
+  // HEIC vào kho là ảnh không xem lại được ngoài Safari — chuyển ngay tại đây
+  // để mọi đường tải ảnh đều được, không riêng route `/api/uploads`. Chuyển
+  // hỏng thì giữ nguyên bản gốc như trước, xem ghi chú ở `heicToJpeg`.
+  const converted = kind.ext === "heic" ? await heicToJpeg(raw) : null;
+  const bytes = converted ?? raw;
+  const ext = converted ? "jpg" : kind.ext;
+  const mime = converted ? "image/jpeg" : kind.mime;
+
   const day = new Date().toISOString().slice(0, 10);
-  const key = `${folder}/${day}/${randomUUID()}.${kind.ext}`;
+  const key = `${folder}/${day}/${randomUUID()}.${ext}`;
 
   const config = readConfig();
-  return config ? putToS3(config, key, bytes, kind.mime) : putToDisk(key, bytes);
+  return config ? putToS3(config, key, bytes, mime) : putToDisk(key, bytes);
 }
 
 function clientFor(config: StorageConfig): S3Client {

@@ -45,16 +45,66 @@ const EDGE_STEPS = [MAX_EDGE, 1400, 1200];
 
 const renameTo = (name: string, ext: string) => `${name.replace(/\.[^.]+$/, "")}.${ext}`;
 
-function drawScaled(bitmap: ImageBitmap, edge: number): HTMLCanvasElement | null {
-  const scale = Math.min(1, edge / Math.max(bitmap.width, bitmap.height));
+/** Ảnh đã giải mã, chung cho cả hai đường đọc ở `docAnh`. */
+type Source = { image: CanvasImageSource; width: number; height: number; release: () => void };
+
+function drawScaled(source: Source, edge: number): HTMLCanvasElement | null {
+  const scale = Math.min(1, edge / Math.max(source.width, source.height));
   const canvas = document.createElement("canvas");
-  canvas.width = Math.round(bitmap.width * scale);
-  canvas.height = Math.round(bitmap.height * scale);
+  canvas.width = Math.round(source.width * scale);
+  canvas.height = Math.round(source.height * scale);
 
   const ctx = canvas.getContext("2d");
   if (!ctx) return null;
-  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  ctx.drawImage(source.image, 0, 0, canvas.width, canvas.height);
   return canvas;
+}
+
+/**
+ * Đường đọc dự phòng khi `createImageBitmap` từ chối file.
+ *
+ * Thẻ `<img>` dựng được ảnh mà `createImageBitmap` bỏ, rõ nhất là ảnh JPEG
+ * thiếu vài byte cuối: đo 2026-09-05 trên 4 ảnh chụp màn hình của một tài
+ * khoản MSBb, cả bốn mất marker `FFD9` nên Chromium ném `InvalidStateError`,
+ * còn `<img>` dựng đủ 1080x2392. Bốn ảnh đó lên kho nguyên gốc, tổng 2.794KB
+ * thay vì 267KB.
+ *
+ * Hướng ảnh vẫn đúng: `<img>` áp hướng EXIF theo mặc định, trùng với
+ * `imageOrientation: "from-image"` của đường thứ nhất.
+ */
+function decodeWithImgTag(file: File): Promise<Source | null> {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () =>
+      resolve({
+        image: img,
+        width: img.naturalWidth,
+        height: img.naturalHeight,
+        release: () => URL.revokeObjectURL(url),
+      });
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve(null);
+    };
+    img.src = url;
+  });
+}
+
+async function docAnh(file: File): Promise<Source | null> {
+  try {
+    // `from-image`: ảnh chụp dọc bằng điện thoại mang hướng trong EXIF. Bỏ qua
+    // nó là ảnh lưu lên nằm ngang.
+    const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+    return {
+      image: bitmap,
+      width: bitmap.width,
+      height: bitmap.height,
+      release: () => bitmap.close(),
+    };
+  } catch {
+    return decodeWithImgTag(file);
+  }
 }
 
 const toBlob = (canvas: HTMLCanvasElement, mime: string, quality: number): Promise<Blob | null> =>
@@ -82,14 +132,14 @@ async function canWriteWebp(canvas: HTMLCanvasElement): Promise<boolean> {
 
 /** Bậc đầu tiên lọt trần, hoặc bậc thấp nhất khi không bậc nào lọt. */
 async function nenDenNguong(
-  bitmap: ImageBitmap,
+  source: Source,
   mime: string,
 ): Promise<{ blob: Blob; ext: string } | null> {
   const ext = mime === "image/webp" ? "webp" : "jpg";
   let cuoiCung: Blob | null = null;
 
   for (const edge of EDGE_STEPS) {
-    const canvas = drawScaled(bitmap, edge);
+    const canvas = drawScaled(source, edge);
     if (!canvas) return null;
 
     for (const quality of QUALITY_STEPS) {
@@ -117,31 +167,25 @@ async function nenDenNguong(
  *
  * Hai đường trả về file gốc, đều là đường đi tiếp chứ không phải lỗi:
  *
- * 1. Trình duyệt không giải được ảnh — HEIC trên Chrome máy tính. Máy chủ nhận
- *    nguyên bản như trước đây.
+ * 1. CẢ HAI đường đọc đều không giải được ảnh — HEIC trên Chrome máy tính. Máy
+ *    chủ nhận nguyên bản như trước đây.
  * 2. Bản nén không nhỏ hơn bản gốc. Ảnh vốn đã nhỏ và nén kỹ thì nén lần nữa
  *    chỉ tốn thêm dung lượng.
  */
 export async function toWebpImage(file: File): Promise<File> {
-  let bitmap: ImageBitmap;
-  try {
-    // `from-image`: ảnh chụp dọc bằng điện thoại mang hướng trong EXIF. Bỏ qua
-    // nó là ảnh lưu lên nằm ngang.
-    bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
-  } catch {
-    return file;
-  }
+  const source = await docAnh(file);
+  if (!source) return file;
 
   try {
-    const thu = drawScaled(bitmap, MAX_EDGE);
+    const thu = drawScaled(source, MAX_EDGE);
     if (!thu) return file;
 
     const mime = (await canWriteWebp(thu)) ? "image/webp" : "image/jpeg";
-    const ket = await nenDenNguong(bitmap, mime);
+    const ket = await nenDenNguong(source, mime);
     if (!ket || ket.blob.size >= file.size) return file;
 
     return new File([ket.blob], renameTo(file.name, ket.ext), { type: mime });
   } finally {
-    bitmap.close();
+    source.release();
   }
 }
