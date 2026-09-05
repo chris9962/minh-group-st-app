@@ -3,6 +3,7 @@
 import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import { clsx } from "clsx";
 import { Check, Download, Images, X, ZoomIn } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
@@ -215,7 +216,16 @@ export function BankPhotoGallery({
                       <ZoomIn size={16} aria-hidden />
                     </button>
                     <span className={styles.caption}>
-                      {row.customerName}
+                      {/* Tới thẳng tài khoản của ảnh này, cùng chốt "dòng là
+                          LINK" của tab tài khoản (2026-09-05): người quản đối
+                          chiếu nhiều tài khoản một lượt nên cần mở tab mới. */}
+                      <Link
+                        href={`/settings/banks/${bankId}/${row.id}`}
+                        className={styles.captionLink}
+                        aria-label={`Xem tài khoản của ${row.customerName}`}
+                      >
+                        {row.customerName}
+                      </Link>
                       {row.date ? ` · ${formatDate(row.date)}` : ""}
                     </span>
                   </li>

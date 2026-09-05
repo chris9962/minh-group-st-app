@@ -90,6 +90,15 @@
   text-overflow: ellipsis;
 }
 
+.captionLink {
+  color: var(--om-link);
+}
+
+.captionLink:hover {
+  color: var(--om-link-hover);
+  text-decoration: underline;
+}
+
 /* Neo ngay trên dòng chú thích (~27px), nằm trong góc dưới phải của ảnh. */
 .zoom {
   position: absolute;
@@ -112,6 +121,25 @@
   .zoom {
     width: 44px;
     height: 44px;
+    /* Dòng chú thích cao 43px khi tên khách nhận thêm lề bấm — xem dưới. */
+    bottom: 50px;
+  }
+
+  /* Tên khách 12px một mình quá nhỏ để trúng bằng ngón tay. Lề dọc nâng vùng
+     bấm lên 43px và đẩy cả dòng chú thích cao theo, nên `.zoom` neo lại.
+     `inline-block` không nhận dấu ba chấm của thẻ cha, nên tên dài phải tự cắt
+     lấy — thiếu ba dòng dưới là tên bị cắt cụt không báo gì. */
+  .captionLink {
+    display: inline-block;
+    padding: 13px 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    vertical-align: bottom;
+  }
+
+  .caption {
+    padding: 0 8px;
   }
 }
 
