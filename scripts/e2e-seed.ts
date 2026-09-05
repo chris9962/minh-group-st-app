@@ -220,9 +220,13 @@ const [seedActor] = await db
 const seededCustomerIds: string[] = [];
 
 for (const [i, c] of E2E_CUSTOMERS.entries()) {
+  // Hồ sơ gốc trỏ về chính nó, nên id phải sinh trước khi chèn.
+  const customerId = crypto.randomUUID();
   const [row] = await db
     .insert(customers)
     .values({
+      id: customerId,
+      rootCustomerId: customerId,
       fullName: `${E2E_CUSTOMER_TAG} ${c.ten}`,
       idNumber: c.cccd,
       address: "ZZE2E địa chỉ",
@@ -266,6 +270,7 @@ for (const [i, c] of E2E_CUSTOMERS.entries()) {
     const comboCode = i === 0 ? COMBO_CODES[k % COMBO_CODES.length] : null;
     await db.insert(bankAccounts).values({
       customerId: row.id,
+      rootCustomerId: row.id,
       bankId: bankIdsOfCustomer[k],
       referralCodeId: codeId,
       status: "done",
@@ -283,6 +288,7 @@ for (const [i, c] of E2E_CUSTOMERS.entries()) {
   for (let k = 0; k < c.nhap; k++)
     await db.insert(bankAccounts).values({
       customerId: row.id,
+      rootCustomerId: row.id,
       bankId: bankIdsOfCustomer[c.done + k],
       referralCodeId: codeId,
       status: "creating",
@@ -333,10 +339,13 @@ export const E2E_PAGING_TAG = "ZZE2E-PG";
 export const E2E_PAGING_COUNT = 22;
 
 for (let i = 0; i < E2E_PAGING_COUNT; i++) {
+  const pagingId = crypto.randomUUID();
   const [row] = await db
     .insert(customers)
     // Cùng tên y hệt nhau — xem chú thích trên. Số thứ tự chỉ nằm ở SĐT.
     .values({
+      id: pagingId,
+      rootCustomerId: pagingId,
       fullName: `${E2E_PAGING_TAG} Nguyễn Văn An`,
       createdBy: seedActor?.id ?? null,
       createdByDepartmentId: seedActor?.departmentId ?? null,

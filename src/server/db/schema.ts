@@ -89,6 +89,18 @@ export const departmentType = pgEnum("department_type", ["sales", "office"]);
 
 export const accountNumberMethod = pgEnum("account_number_method", ["phone-match", "manual"]);
 export const bankAccountType = pgEnum("bank_account_type", ["none", "CNKD", "HKD"]);
+
+/** Trường của hồ sơ khách có ghi nhật ký khi sửa — xem `customerChanges`. */
+export const customerChangeField = pgEnum("customer_change_field", [
+  "full_name",
+  "dob",
+  "id_number",
+  "address",
+  "phones",
+  "channel",
+  /** Không phải một trường — lượt XOÁ hồ sơ, ghi vào cùng dòng thời gian. */
+  "profile_deleted",
+]);
 export const bankAccountStatus = pgEnum("bank_account_status", [
   "creating",
   "done",
@@ -590,6 +602,28 @@ export const customers = pgTable(
   "customers",
   {
     id: id(),
+    /**
+     * Hồ sơ GỐC của người này — hồ sơ gốc trỏ về CHÍNH NÓ, không bao giờ `null`.
+     *
+     * Một người mở nhiều lần thì mỗi lần một hồ sơ riêng, vì luật điểm và quà
+     * gom theo hồ sơ: một hồ sơ một combo, một bậc TH, một đợt `gift_grants`.
+     * Cột này nối các lần lại cho ba câu hỏi: đồng bộ tên/ngày sinh/CCCD, khoá
+     * duy nhất CCCD, và "người này đã mở ngân hàng nào rồi".
+     *
+     * ⚠️ Trỏ về chính nó chứ KHÔNG để `null` cho hồ sơ gốc: có `null` thì mọi
+     * câu phải viết `id = X or root_customer_id = X`, hai cách viết cho một ý.
+     */
+    rootCustomerId: uuid("root_customer_id")
+      .notNull()
+      .references((): AnyPgColumn => customers.id),
+    /**
+     * Hồ sơ thứ mấy của người này — hồ sơ gốc là 1, mỗi hồ sơ sau cộng một.
+     *
+     * Chỉ để HIỂN THỊ, không tham gia luật nào. Lưu chứ không đếm sống: đếm sống
+     * thì mỗi lượt mở danh sách phải gộp thêm theo nhóm, và số thứ tự đổi khi ai
+     * đó xoá một hồ sơ ở giữa.
+     */
+    seq: integer("seq").notNull().default(1),
     fullName: text("full_name").notNull(),
     /** Cột chuẩn hoá cho C-06 — sinh bằng mgst_normalize (đ/Đ → d/D), index trigram. */
     searchName: text("search_name").generatedAlwaysAs(sql`mgst_normalize(full_name)`),
@@ -679,7 +713,17 @@ export const customers = pgTable(
     updatedAt: updatedAt(),
   },
   (t) => [
-    uniqueIndex("customers_id_number").on(t.idNumber).where(sql`id_number is not null`),
+    /**
+     * CCCD duy nhất trong phạm vi HỒ SƠ GỐC, không phải toàn bảng.
+     *
+     * Hồ sơ lần 2 mang đúng CCCD của lần 1, nên khoá trên cả bảng từ chối nó.
+     * `root_customer_id = id` chỉ chừa hồ sơ gốc lại: vẫn không có hai hồ sơ gốc
+     * cùng CCCD, mà các lần sau không vướng.
+     */
+    uniqueIndex("customers_id_number")
+      .on(t.idNumber)
+      .where(sql`id_number is not null and root_customer_id = id`),
+    index("customers_root").on(t.rootCustomerId),
     index("customers_search_name_trgm").using("gin", sql`search_name gin_trgm_ops`),
     index("customers_id_last4").on(sql`right(id_number, 4)`).where(sql`id_number is not null`),
     // Khớp đúng thứ tự sắp mặc định của P-40 (nhiều nhất lên trước, đồng hạng
@@ -749,6 +793,15 @@ export const bankAccounts = pgTable(
   {
     id: id(),
     customerId: uuid("customer_id").notNull().references(() => customers.id),
+    /**
+     * Hồ sơ gốc của khách, chép lúc mở tài khoản — chỉ để khoá duy nhất
+     * `(root_customer_id, bank_id)` chạy được.
+     *
+     * Postgres không đặt unique index trên cột của bảng khác, nên trục "một
+     * ngân hàng một lần cho mỗi người" phải nằm ngay trên bảng này. Giá trị
+     * không bao giờ đổi: root của một hồ sơ cố định từ lúc tạo.
+     */
+    rootCustomerId: uuid("root_customer_id").notNull().references(() => customers.id),
     bankId: uuid("bank_id").notNull().references(() => banks.id),
     /** Giữ chỗ NGAY từ bước 1 — tài khoản `creating` chính là lượt giữ (spec §4.5). */
     referralCodeId: uuid("referral_code_id").notNull().references(() => referralCodes.id),
@@ -783,17 +836,22 @@ export const bankAccounts = pgTable(
   (t) => [
     index("bank_accounts_customer").on(t.customerId),
     /**
-     * Một khách chỉ mở được MỘT tài khoản ở MỘT ngân hàng (chốt 2026-08-25).
+     * Một NGƯỜI chỉ mở được MỘT tài khoản ở MỘT ngân hàng (chốt 2026-08-25, đổi
+     * trục sang `root_customer_id` 2026-09-05).
+     *
+     * Trục là hồ sơ GỐC chứ không phải hồ sơ đang mở: một người mở nhiều lần
+     * thì mỗi lần một hồ sơ, và khoá theo `customer_id` cho lần 2 mở lại đúng
+     * ngân hàng của lần 1.
      *
      * Tính cả dòng `creating`: dòng đó đã giữ một chỗ mã giới thiệu, nên mở lần
      * hai cùng ngân hàng là mở trùng chứ không phải mở thêm. Xoá bản nháp thì
      * chỗ nhả ra và mở lại được.
      *
-     * Trần 3 tài khoản mỗi khách KHÔNG nằm ở đây — ràng buộc đếm dòng thì phải
+     * Trần 3 tài khoản mỗi hồ sơ KHÔNG nằm ở đây — ràng buộc đếm dòng thì phải
      * dựng trigger. Nó nằm ở `startBankAccount`, trong cùng giao dịch và có
      * khoá dòng khách.
      */
-    uniqueIndex("bank_accounts_customer_bank").on(t.customerId, t.bankId),
+    uniqueIndex("bank_accounts_root_bank").on(t.rootCustomerId, t.bankId),
     index("bank_accounts_referral").on(t.referralCodeId, t.status),
     index("bank_accounts_dept_date").on(t.createdByDepartmentId, t.openedDate),
     // Tính điểm KPI gom theo NGƯỜI TẠO trong một khoảng ngày (§9), không lọc
@@ -952,6 +1010,59 @@ export const giftGrants = pgTable(
 );
 
 /** Mỗi lần đổi quà là một sự kiện độc lập, không ghi đè mất dấu vết đã phát. */
+/**
+ * Nhật ký sửa thông tin khách (chốt 2026-09-05).
+ *
+ * Thông tin cá nhân đồng bộ giữa MỌI LẦN của một người, nên một lượt sửa đụng
+ * cả nhóm. Không có nhật ký thì nhân viên A sửa địa chỉ, nhân viên B mở hồ sơ
+ * thấy khác lúc mình nhập và không tra được ai đổi.
+ *
+ * Mỗi trường đổi một dòng, không gộp cả lượt vào một dòng jsonb: khối lịch sử
+ * đọc theo từng dòng, và lọc "ai đổi CCCD" phải là một điều kiện `where`.
+ */
+export const customerChanges = pgTable(
+  "customer_changes",
+  {
+    id: id(),
+    /** Nhóm theo NGƯỜI — hồ sơ nào cũng đọc chung một dòng thời gian. */
+    rootCustomerId: uuid("root_customer_id").notNull().references(() => customers.id),
+    /**
+     * Hồ sơ người sửa đang ĐỨNG lúc bấm Lưu. `null` = hồ sơ đó đã bị xoá.
+     *
+     * Nhận `null` chứ không xoá dòng theo hồ sơ (chốt 2026-09-05): xoá hồ sơ 2
+     * mà mất luôn lịch sử của nó thì nhóm không còn dấu vết ai đã sửa gì trước
+     * đó, đúng thứ bảng này sinh ra để giữ.
+     */
+    customerId: uuid("customer_id").references(() => customers.id),
+    /**
+     * Hồ sơ thứ mấy, chép lúc GHI.
+     *
+     * Đọc sống từ `customers.seq` thì dòng của hồ sơ đã xoá mất số, và người đọc
+     * không biết lượt sửa đó thuộc về hồ sơ nào.
+     */
+    seq: integer("seq").notNull().default(1),
+    changedBy: uuid("changed_by").references(() => users.id),
+    changedAt: timestamp("changed_at", { withTimezone: true }).notNull().defaultNow(),
+    field: customerChangeField("field").notNull(),
+    /**
+     * CCCD ghi HAI CHUỖI RỖNG — nhật ký chỉ nói "đã đổi CCCD".
+     *
+     * Đây là trường bảo mật, mọi màn khác chỉ trả 4 số cuối. Ghi giá trị vào
+     * đây là mở một đường đọc số đầy đủ mà không ai gác.
+     */
+    fromValue: text("from_value").notNull().default(""),
+    toValue: text("to_value").notNull().default(""),
+  },
+  (t) => [
+    // `id` phá hoà: nhiều trường đổi trong CÙNG một lượt Lưu mang cùng
+    // `changed_at`, thiếu nó thì thứ tự giữa các trang không ổn định.
+    index("customer_changes_root_date").on(sql`root_customer_id, changed_at desc, id`),
+    // Lượt xoá hồ sơ chuyển các dòng của nó sang `null`, và câu xoá `customers`
+    // buộc Postgres kiểm khoá ngoại này. Thiếu chỉ mục thì cả hai quét toàn bảng.
+    index("customer_changes_customer").on(t.customerId),
+  ],
+);
+
 export const giftGrantChanges = pgTable(
   "gift_grant_changes",
   {

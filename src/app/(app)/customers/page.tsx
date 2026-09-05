@@ -36,6 +36,7 @@ import {
   type CustomerSort,
 } from "@/lib/api/customers";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { seqLabeller } from "@/lib/customerLabel";
 import { errorMessage, toast } from "@/lib/toast";
 import { EMPTY_PAGE, PAGE_SIZE } from "@/lib/api/pagination";
 import { formatDate, formatPhone, formatPoints } from "@/lib/format";
@@ -287,6 +288,9 @@ export default function CustomersPage() {
   /** Bảng có nửa cột Điểm hay không — theo việc người xem đã chọn khoảng ngày. */
   const showPoints = Boolean(range?.from && range.to);
 
+  /** Tính trên TRANG đang hiện, nên phải nằm trong phụ thuộc của `columns`. */
+  const nameOf = useMemo(() => seqLabeller(page.rows), [page.rows]);
+
   const columns = useMemo<RankColumn<CustomerRow>[]>(() => {
     /**
      * Phạm vi sửa hồ sơ khách, tính một lần cho cả bảng. `recordVisibility` đã
@@ -309,7 +313,7 @@ export default function CustomersPage() {
         sortable: true,
         render: (c) => (
           <Link href={`/customers/${c.id}`} className={styles.nameLink}>
-            {c.fullName}
+            {nameOf(c)}
           </Link>
         ),
       },
@@ -407,7 +411,7 @@ export default function CustomersPage() {
         ),
       },
     ];
-  }, [user, showPoints]);
+  }, [user, showPoints, nameOf]);
 
   return (
     <>

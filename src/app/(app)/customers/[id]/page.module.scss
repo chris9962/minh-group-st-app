@@ -56,6 +56,13 @@
   gap: 4px;
 }
 
+// Chiếm trọn hàng để dòng thời gian nằm DƯỚI "Quà hiện tại", không nằm ngang
+// hàng với nó: đây là khối cao nhiều dòng, xếp cạnh một ô một dòng thì hai bên
+// lệch chiều cao và mắt không đọc ra nó thuộc về ô nào.
+.giftHistory {
+  grid-column: 1 / -1;
+}
+
 // Mỗi số một dòng: hai số nằm ngang thì thẻ "Số chính" kẹp giữa hai số,
 // không đọc ra nó thuộc số nào.
 .phone {
@@ -177,6 +184,35 @@
 .basketOff {
   color: var(--om-text-3);
   font-size: 12px;
+}
+
+.changeList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+
+  li {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--om-line);
+    font-size: 13px;
+    color: var(--om-text);
+  }
+
+  li:last-child {
+    padding-bottom: 0;
+    border-bottom: none;
+  }
+}
+
+.changeHead {
+  font-size: 12px;
+  color: var(--om-text-3);
 }
 
 .giftExplain {

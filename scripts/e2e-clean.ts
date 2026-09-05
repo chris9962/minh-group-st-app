@@ -16,13 +16,14 @@
  * rồi mới xoá được tài khoản. Đây là nhật ký do chính test sinh ra, không phải
  * dấu vết thật của người dùng.
  */
-import { eq, inArray, like, sql } from "drizzle-orm";
+import { eq, inArray, like, or, sql } from "drizzle-orm";
 import { db } from "../src/server/db/client";
 import {
   auditLog,
   bankAccounts,
   banks,
   channels,
+  customerChanges,
   customerPhones,
   customers,
   departments,
@@ -74,6 +75,13 @@ for (const c of testCustomers) {
   await db.delete(giftGrants).where(eq(giftGrants.customerId, c.id));
   await db.delete(bankAccounts).where(eq(bankAccounts.customerId, c.id));
   await db.delete(customerPhones).where(eq(customerPhones.customerId, c.id));
+  // Nhật ký sửa trỏ tới khách bằng hai cột; thiếu câu này thì khoá ngoại từ
+  // chối câu xoá bên dưới và cả lượt dọn dừng giữa chừng.
+  await db
+    .delete(customerChanges)
+    .where(
+      or(eq(customerChanges.customerId, c.id), eq(customerChanges.rootCustomerId, c.id)),
+    );
   await db.delete(customers).where(eq(customers.id, c.id));
 }
 if (testCustomers.length) wiped.push(`khách hàng: ${testCustomers.length}`);

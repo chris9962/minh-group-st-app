@@ -3,9 +3,10 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Trash2 } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { Button } from "@/components/ui/Button";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { CharCount } from "@/components/ui/CharCount";
 import { Combobox } from "@/components/ui/Combobox";
 import { Dialog } from "@/components/ui/Dialog";
@@ -19,9 +20,11 @@ import {
   createCustomer,
   CustomerEditForm,
   CustomerForm,
+  DuplicateIdError,
   pickerStartForDob,
   updateCustomer,
   type Customer,
+  type DuplicateIdInfo,
 } from "@/lib/api/customers";
 import { fetchHospitals } from "@/lib/api/hospitalCatalog";
 import { useAddressSuggestions } from "@/lib/useAddressSuggestions";
@@ -163,9 +166,19 @@ export function CustomerFormDialog({
   const channelDetailToSave = (form: CustomerForm) =>
     selectedChannel?.inputKind === "ward-hamlet" ? form.address : form.channelDetail;
 
+  /**
+   * CCCD đã có hồ sơ — không còn là ngõ dừng.
+   *
+   * Khách quay lại mở combo mới thì hồ sơ thứ hai là chuyện đúng, nên máy chủ
+   * trả kèm `rootId` và lượt lưu kế tiếp gửi nó lên. `openDraftId` khác `null`
+   * nghĩa là chính người này đang giữ một lần chưa chốt quà, và lúc đó không
+   * tạo thêm được.
+   */
+  const [duplicate, setDuplicate] = useState<DuplicateIdInfo | null>(null);
+
   const save = useMutation({
-    mutationFn: (form: CustomerForm) =>
-      customer ? updateCustomer(customer.id, form) : createCustomer(form),
+    mutationFn: ({ form, linkToRootId }: { form: CustomerForm; linkToRootId?: string }) =>
+      customer ? updateCustomer(customer.id, form) : createCustomer(form, linkToRootId),
     onSuccess: (saved) => {
       queryClient.invalidateQueries({ queryKey: ["customers"] });
       if (customer) {
@@ -173,11 +186,22 @@ export function CustomerFormDialog({
       } else {
         onCreated?.(saved);
       }
+      setDuplicate(null);
       onClose();
       toast.ok(customer ? `Đã lưu hồ sơ ${saved.fullName}` : `Đã thêm khách hàng ${saved.fullName}`);
     },
-    onError: (err) => toast.fail(errorMessage(err, "Không lưu được hồ sơ khách này.")),
+    onError: (err) => {
+      if (err instanceof DuplicateIdError) {
+        setDuplicate(err.info);
+        return;
+      }
+      setDuplicate(null);
+      toast.fail(errorMessage(err, "Không lưu được hồ sơ khách này."));
+    },
   });
+
+  const submit = (form: CustomerForm, linkToRootId?: string) =>
+    save.mutate({ form: { ...form, channelDetail: channelDetailToSave(form) }, linkToRootId });
 
   const makePrimary = (index: number) => {
     phones.forEach((_, i) => setValue(`phones.${i}.primary`, i === index, { shouldDirty: true }));
@@ -217,10 +241,7 @@ export function CustomerFormDialog({
       <form
         id="customer-form"
         className={styles.form}
-        onSubmit={handleSubmit(
-          (form) => save.mutate({ ...form, channelDetail: channelDetailToSave(form) }),
-          reportInvalid,
-        )}
+        onSubmit={handleSubmit((form) => submit(form), reportInvalid)}
         noValidate
       >
           <TextField
@@ -376,6 +397,33 @@ export function CustomerFormDialog({
           </fieldset>
       </form>
       )}
+
+      {/* Hộp thoại hỏi lại, KHÔNG phải khối cảnh báo trong biểu mẫu.
+          Nó chặn ô CCCD phía dưới, nên không có ca người dùng sửa số rồi bấm
+          nút vẫn mang `rootId` của số cũ và nối nhầm vào hồ sơ một khách khác. */}
+      <ConfirmDialog
+        open={Boolean(duplicate) && !duplicate?.openDraftId}
+        title="CCCD này đã có hồ sơ"
+        confirmLabel="Tạo hồ sơ mới"
+        pending={save.isPending}
+        onConfirm={handleSubmit((form) => submit(form, duplicate?.rootId), reportInvalid)}
+        onClose={() => setDuplicate(null)}
+      >
+        Khách này đã có hồ sơ trong hệ thống. Tạo thêm một hồ sơ để mở combo mới?
+      </ConfirmDialog>
+
+      {/* Người này đang giữ một hồ sơ dở dang của chính khách đó: chỉ báo, không
+          hỏi, vì không có lựa chọn nào để chọn. */}
+      <ConfirmDialog
+        open={Boolean(duplicate?.openDraftId)}
+        title="Chưa chốt quà hồ sơ trước"
+        confirmLabel="Đã hiểu"
+        onConfirm={() => setDuplicate(null)}
+        onClose={() => setDuplicate(null)}
+      >
+        Bạn đang có một hồ sơ chưa chốt quà cho khách này. Chốt quà hồ sơ đó rồi mới tạo hồ sơ
+        mới.
+      </ConfirmDialog>
     </Dialog>
   );
 }

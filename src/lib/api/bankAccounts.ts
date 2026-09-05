@@ -178,11 +178,22 @@ export type BankAccountStartForm = z.infer<typeof BankAccountStartForm>;
  * khách (P-42) đã tính quà theo cùng lối đó (spec §4.4).
  */
 export const CustomerBankSlots = z.object({
+  /** Ngân hàng người này đã mở, tính trên MỌI hồ sơ của họ. */
   usedBankIds: z.array(z.string()),
+  /**
+   * Ngân hàng đã mở ở CHÍNH hồ sơ đang xem — tập con của `usedBankIds`.
+   *
+   * Hai tập tách nhau để dòng lý do nói đúng chỗ: "hồ sơ này đã có" và "lần
+   * trước đã mở" dẫn nhân viên đi hai đường khác nhau, mà nhìn ô tích mờ thì
+   * không đoán ra được đường nào.
+   */
+  usedHereBankIds: z.array(z.string()),
   /** Ngân hàng khách đủ tuổi mở; ngân hàng không giới hạn tuổi luôn có mặt. */
   eligibleBankIds: z.array(z.string()),
   /** Số tài khoản còn mở thêm được, 0 là đã đủ trần. */
   remaining: z.number(),
+  /** false thì mọi ngân hàng có giới hạn tuổi đều ngoài `eligibleBankIds`. */
+  hasDob: z.boolean(),
 });
 export type CustomerBankSlots = z.infer<typeof CustomerBankSlots>;
 

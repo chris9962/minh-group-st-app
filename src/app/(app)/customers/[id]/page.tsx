@@ -23,6 +23,7 @@ import {
   deleteBankAccount,
 } from "@/lib/api/bankAccounts";
 import {
+  CUSTOMER_FIELD_LABEL,
   deleteCustomer,
   fetchCustomerDetail,
   type CustomerAccountRow,
@@ -33,6 +34,7 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { INSURANCE_STATUS_LABEL, INSURANCE_STATUS_TONE } from "@/lib/api/insuranceOrders";
 import { formatDate, formatIdNumber, formatPhone, formatVnd } from "@/lib/format";
 import { can, recordInScope, recordVisibility } from "@/lib/permissions";
+import { PRODUCT_LABEL } from "@/lib/types";
 import { useSession } from "@/store/session";
 import { errorMessage, toast } from "@/lib/toast";
 import styles from "./page.module.scss";
@@ -144,7 +146,19 @@ export default function CustomerDetailPage({
 
   const insuranceColumns: RankColumn<CustomerInsuranceRow>[] = [
     { key: "date", label: "Ngày tạo", sortBy: (i) => Number(i.date.replace(/-/g, "")), render: (i) => formatDate(i.date) },
-    { key: "product", label: "Sản phẩm", render: (i) => `${i.product} · ${i.packageName}` },
+    {
+      key: "product",
+      label: "Sản phẩm",
+      // Tên gói đứng trước vì nó nói cả số năm và mức phí; loại bảo hiểm ghi
+      // dòng dưới vì gói combo mang tên cả hai loại, đọc tên gói không biết đơn
+      // này thuộc loại nào.
+      render: (i) => (
+        <>
+          {i.packageName}
+          <span className={styles.detail}>{PRODUCT_LABEL[i.product]}</span>
+        </>
+      ),
+    },
     { key: "source", label: "Nguồn", render: (i) => INSURANCE_SOURCE_LABEL[i.source] },
     {
       key: "status",
@@ -186,7 +200,17 @@ export default function CustomerDetailPage({
 
   return (
     <>
-      <TopBar title={data?.customer.fullName ?? "Khách hàng"} keepTitleOnMobile />
+      {/* Hồ sơ 1 không ghi số — đại đa số khách chỉ có một hồ sơ. */}
+      <TopBar
+        title={
+          data
+            ? data.customer.seq > 1
+              ? `${data.customer.fullName} - hồ sơ ${data.customer.seq}`
+              : data.customer.fullName
+            : "Khách hàng"
+        }
+        keepTitleOnMobile
+      />
 
       <main className={styles.body}>
         <Link href="/customers" className={styles.back}>
@@ -306,113 +330,126 @@ export default function CustomerDetailPage({
               </div>
             </SectionCard>
 
-            <SectionCard
-              title="Tài khoản ngân hàng"
-              icon={<Landmark size={17} />}
-              meta={`${data.accounts.length} tài khoản`}
-            >
-              {data.draftAccounts.length > 0 && (
-                <ul className={styles.drafts}>
-                  {data.draftAccounts.map((a) => (
-                    <li key={a.id} className={styles.draftRow}>
-                      <span>
-                        <strong>{a.bankName}</strong> · {a.referralCode} — đang tạo, chưa hoàn thành
-                      </span>
-                      <span className={styles.draftActions}>
-                        <Link href={`/banking/${a.id}`} className="btn btn-secondary">
-                          Tiếp tục
-                        </Link>
-                        <Button
-                          variant="secondary"
-                          icon
-                          tooltip="Xoá tài khoản"
-                          aria-label={`Xoá tài khoản đang tạo ${a.bankName}`}
-                          disabled={removeDraft.isPending}
-                          onClick={() => removeDraft.mutate(a.id)}
-                        >
-                          <Trash2 size={16} aria-hidden />
-                        </Button>
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {data.draftAccountsHiddenCount > 0 && (
-                <p className={styles.footnote}>
-                  Còn <strong>{data.draftAccountsHiddenCount}</strong> tài khoản đang tạo của
-                  phòng khác, ngoài phạm vi xem của bạn.
-                </p>
-              )}
+            {/* Khối rỗng thì ẩn hẳn, nhưng CHỈ khi không có dòng nào bị giấu:
+                câu "Còn N tài khoản của phòng khác" là thứ giữ nhân viên khỏi mở
+                trùng cho một khách đã có tài khoản. Ẩn cả câu đó thì màn nói
+                khách trắng trong khi khách không trắng. */}
+            {(data.accounts.length > 0 ||
+              data.draftAccounts.length > 0 ||
+              data.accountsHiddenCount > 0 ||
+              data.draftAccountsHiddenCount > 0) && (
+              <SectionCard
+                title="Tài khoản ngân hàng"
+                icon={<Landmark size={17} />}
+                meta={`${data.accounts.length} tài khoản`}
+              >
+                {data.draftAccounts.length > 0 && (
+                  <ul className={styles.drafts}>
+                    {data.draftAccounts.map((a) => (
+                      <li key={a.id} className={styles.draftRow}>
+                        <span>
+                          <strong>{a.bankName}</strong> · {a.referralCode} — đang tạo, chưa hoàn thành
+                        </span>
+                        <span className={styles.draftActions}>
+                          <Link href={`/banking/${a.id}`} className="btn btn-secondary">
+                            Tiếp tục
+                          </Link>
+                          <Button
+                            variant="secondary"
+                            icon
+                            tooltip="Xoá tài khoản"
+                            aria-label={`Xoá tài khoản đang tạo ${a.bankName}`}
+                            disabled={removeDraft.isPending}
+                            onClick={() => removeDraft.mutate(a.id)}
+                          >
+                            <Trash2 size={16} aria-hidden />
+                          </Button>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {data.draftAccountsHiddenCount > 0 && (
+                  <p className={styles.footnote}>
+                    Còn <strong>{data.draftAccountsHiddenCount}</strong> tài khoản đang tạo của
+                    phòng khác, ngoài phạm vi xem của bạn.
+                  </p>
+                )}
 
-              {data.accounts.length === 0 ? (
-                <p className="text-muted">Chưa có tài khoản ngân hàng nào trong phạm vi xem.</p>
-              ) : (
-                <RankTable
-                  rows={data.accounts}
-                  columns={accountColumns}
-                  rowKey={(a) => a.id}
-                  defaultSort="date"
-                  pageSize={10}
-                  caption="Tài khoản ngân hàng của khách"
-                />
-              )}
-              {data.accountsHiddenCount > 0 && (
-                <p className={styles.footnote}>
-                  Còn <strong>{data.accountsHiddenCount}</strong> tài khoản của phòng khác,
-                  ngoài phạm vi xem của bạn.
-                </p>
-              )}
-            </SectionCard>
+                {data.accounts.length === 0 ? (
+                  <p className="text-muted">Chưa có tài khoản ngân hàng nào trong phạm vi xem.</p>
+                ) : (
+                  <RankTable
+                    rows={data.accounts}
+                    columns={accountColumns}
+                    rowKey={(a) => a.id}
+                    defaultSort="date"
+                    pageSize={10}
+                    caption="Tài khoản ngân hàng của khách"
+                  />
+                )}
+                {data.accountsHiddenCount > 0 && (
+                  <p className={styles.footnote}>
+                    Còn <strong>{data.accountsHiddenCount}</strong> tài khoản của phòng khác,
+                    ngoài phạm vi xem của bạn.
+                  </p>
+                )}
+              </SectionCard>
+            )}
 
-            <SectionCard
-              title="Đơn bảo hiểm"
-              icon={<ShieldCheck size={17} />}
-              meta={`${data.insurance.length} đơn`}
-            >
-              {data.insurance.length === 0 ? (
-                <p className="text-muted">Chưa có đơn bảo hiểm nào trong phạm vi xem.</p>
-              ) : (
-                <RankTable
-                  rows={data.insurance}
-                  columns={insuranceColumns}
-                  rowKey={(i) => i.id}
-                  defaultSort="date"
-                  pageSize={10}
-                  caption="Đơn bảo hiểm của khách"
-                />
-              )}
-              {data.insuranceHiddenCount > 0 && (
-                <p className={styles.footnote}>
-                  Còn <strong>{data.insuranceHiddenCount}</strong> đơn của phòng khác, ngoài
-                  phạm vi xem của bạn.
-                </p>
-              )}
-            </SectionCard>
+            {(data.insurance.length > 0 || data.insuranceHiddenCount > 0) && (
+              <SectionCard
+                title="Đơn bảo hiểm"
+                icon={<ShieldCheck size={17} />}
+                meta={`${data.insurance.length} đơn`}
+              >
+                {data.insurance.length === 0 ? (
+                  <p className="text-muted">Chưa có đơn bảo hiểm nào trong phạm vi xem.</p>
+                ) : (
+                  <RankTable
+                    rows={data.insurance}
+                    columns={insuranceColumns}
+                    rowKey={(i) => i.id}
+                    defaultSort="date"
+                    pageSize={10}
+                    caption="Đơn bảo hiểm của khách"
+                  />
+                )}
+                {data.insuranceHiddenCount > 0 && (
+                  <p className={styles.footnote}>
+                    Còn <strong>{data.insuranceHiddenCount}</strong> đơn của phòng khác, ngoài
+                    phạm vi xem của bạn.
+                  </p>
+                )}
+              </SectionCard>
+            )}
 
-            <SectionCard
-              title="Dịch vụ đã làm"
-              icon={<Briefcase size={17} />}
-              meta={`${data.services.length} lượt`}
-            >
-              {data.services.length === 0 ? (
-                <p className="text-muted">Chưa hỗ trợ dịch vụ nào trong phạm vi xem.</p>
-              ) : (
-                <RankTable
-                  rows={data.services}
-                  columns={serviceColumns}
-                  rowKey={(s) => s.id}
-                  defaultSort="date"
-                  pageSize={10}
-                  caption="Dịch vụ đã thực hiện cho khách"
-                />
-              )}
-              {data.servicesHiddenCount > 0 && (
-                <p className={styles.footnote}>
-                  Còn <strong>{data.servicesHiddenCount}</strong> lượt của phòng khác, ngoài
-                  phạm vi xem của bạn.
-                </p>
-              )}
-            </SectionCard>
+            {(data.services.length > 0 || data.servicesHiddenCount > 0) && (
+              <SectionCard
+                title="Dịch vụ đã làm"
+                icon={<Briefcase size={17} />}
+                meta={`${data.services.length} lượt`}
+              >
+                {data.services.length === 0 ? (
+                  <p className="text-muted">Chưa hỗ trợ dịch vụ nào trong phạm vi xem.</p>
+                ) : (
+                  <RankTable
+                    rows={data.services}
+                    columns={serviceColumns}
+                    rowKey={(s) => s.id}
+                    defaultSort="date"
+                    pageSize={10}
+                    caption="Dịch vụ đã thực hiện cho khách"
+                  />
+                )}
+                {data.servicesHiddenCount > 0 && (
+                  <p className={styles.footnote}>
+                    Còn <strong>{data.servicesHiddenCount}</strong> lượt của phòng khác, ngoài
+                    phạm vi xem của bạn.
+                  </p>
+                )}
+              </SectionCard>
+            )}
 
             <SectionCard title="Quà" icon={<Gift size={17} />}>
               <dl className={styles.giftInfo}>
@@ -460,28 +497,6 @@ export default function CustomerDetailPage({
                           <History size={16} aria-hidden />
                         </Button>
                       )}
-                    </dd>
-                  </div>
-                )}
-                {showGiftHistory && data.gift.changes.length > 0 && (
-                  <div>
-                    <dt>Lịch sử quà</dt>
-                    <dd>
-                      <ul className={styles.giftTimeline}>
-                        {data.gift.changes.map((change, index) => (
-                          <li key={change.id}>
-                            Đổi sang {change.toItem}
-                            {index === 0 && <StatusTag ok>Đang áp dụng</StatusTag>}
-                            <span className={styles.detail}>{formatDateTime(change.changedAt)}</span>
-                          </li>
-                        ))}
-                        {data.gift.givenAt && (
-                          <li>
-                            Đã nhận {data.gift.changes.at(-1)?.fromItem}
-                            <span className={styles.detail}>{formatDateTime(data.gift.givenAt)}</span>
-                          </li>
-                        )}
-                      </ul>
                     </dd>
                   </div>
                 )}
@@ -539,6 +554,31 @@ export default function CustomerDetailPage({
                     </StatusTag>
                   </dd>
                 </div>
+                {/* Đứng CUỐI danh sách và chiếm trọn hàng: nó cao nhiều dòng,
+                    chen vào giữa lưới hai cột thì Trạng thái bị đẩy xuống dưới
+                    nó và mất chỗ quen thuộc bên phải Quà hiện tại. */}
+                {showGiftHistory && data.gift.changes.length > 0 && (
+                  <div className={styles.giftHistory}>
+                    <dt>Lịch sử quà</dt>
+                    <dd>
+                      <ul className={styles.giftTimeline}>
+                        {data.gift.changes.map((change, index) => (
+                          <li key={change.id}>
+                            Đổi sang {change.toItem}
+                            {index === 0 && <StatusTag ok>Đang áp dụng</StatusTag>}
+                            <span className={styles.detail}>{formatDateTime(change.changedAt)}</span>
+                          </li>
+                        ))}
+                        {data.gift.givenAt && (
+                          <li>
+                            Đã nhận {data.gift.changes.at(-1)?.fromItem}
+                            <span className={styles.detail}>{formatDateTime(data.gift.givenAt)}</span>
+                          </li>
+                        )}
+                      </ul>
+                    </dd>
+                  </div>
+                )}
               </dl>
               {/* Lý do phải hiện ngay tại màn, không giấu sau nút: khách đứng đó
                   hỏi "sao tôi chỉ được 1 năm" thì nhân viên đọc thẳng ra. */}
@@ -559,6 +599,39 @@ export default function CustomerDetailPage({
                 ngoài phạm vi xem của bạn.
               </p>
             </SectionCard>
+
+            {/* Thông tin cá nhân đồng bộ giữa MỌI LẦN của một người, nên khối
+                này đọc chung cho cả nhóm — mở hồ sơ lần nào cũng thấy một dòng
+                thời gian. Không có nó thì nhân viên A sửa địa chỉ, nhân viên B
+                thấy khác lúc mình nhập và không tra được ai đổi. */}
+            {data.changes.length > 0 && (
+              <SectionCard title="Lịch sử sửa thông tin" icon={<History size={17} />}>
+                <ol className={styles.changeList}>
+                  {data.changes.map((c) => (
+                    <li key={c.id}>
+                      <span className={styles.changeHead}>
+                        {c.changedByName || "Người dùng đã xoá"} - {formatDateTime(c.changedAt)}
+                        {c.seq > 1 && ` - hồ sơ ${c.seq}`}
+                      </span>
+                      {/* Ba dạng dòng, không gộp được: lượt xoá hồ sơ không có
+                          trường nào, và CCCD cố ý không mang giá trị (chốt
+                          2026-09-05) nên in mũi tên rỗng là đọc ra như dữ liệu
+                          hỏng. */}
+                      {c.field === "profile_deleted" ? (
+                        <span>Đã xoá hồ sơ {c.seq}</span>
+                      ) : c.field === "id_number" ? (
+                        <span>Đã đổi CCCD</span>
+                      ) : (
+                        <span>
+                          {CUSTOMER_FIELD_LABEL[c.field]}: {c.fromValue || "(trống)"} →{" "}
+                          {c.toValue || "(trống)"}
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ol>
+              </SectionCard>
+            )}
           </>
         )}
 

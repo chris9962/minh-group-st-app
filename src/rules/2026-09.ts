@@ -297,7 +297,7 @@ const bankCountOf = (accounts: ScoringAccount[]): number =>
  * > hàng, chỉ khác cách đăng ký thôi"*
  *
  * ⚠️ CHỈ chặn ở đường ĐIỂM. Màn mở tài khoản vẫn cho nhân viên nhập cả hai —
- * unique index `bank_accounts_customer_bank` khoá theo từng mã ngân hàng, mà
+ * unique index `bank_accounts_root_bank` khoá theo từng mã ngân hàng, mà
  * `VPa` với `VPb` là hai mã. Kế toán chốt để nguyên: *"việc mở tài khoản nhân
  * viên làm sai nhân viên chịu, nếu nhân viên mở sai VPa VPb cho khách, cứ cho
  * 0 điểm"*.

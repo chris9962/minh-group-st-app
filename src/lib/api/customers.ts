@@ -24,6 +24,15 @@ export type CustomerPhone = z.infer<typeof CustomerPhone>;
 export const Customer = z.object({
   id: z.string(),
   fullName: z.string(),
+  /**
+   * Lần thứ mấy của người này — 1 là hồ sơ gốc.
+   *
+   * Một người mở nhiều combo thì mỗi combo một hồ sơ riêng, và số này để người
+   * dùng nhận ra mình đang mở hồ sơ nào mà không phải đối chiếu ngân hàng.
+   */
+  seq: z.number(),
+  /** Hồ sơ gốc của người này — mọi câu hỏi "các hồ sơ khác" lọc theo cột này. */
+  rootId: z.string(),
   /** null hoặc ngày sinh dạng YYYY-MM-DD. */
   dob: z.string().nullable(),
   /**
@@ -71,6 +80,10 @@ export type Customer = z.infer<typeof Customer>;
 export const CustomerRow = z.object({
   id: z.string(),
   fullName: z.string(),
+  /** Hồ sơ thứ mấy của người này. 1 = hồ sơ gốc. */
+  seq: z.number(),
+  /** Hồ sơ gốc — để nhận ra hai dòng là cùng một người, không phải trùng tên. */
+  rootId: z.string(),
   accountCount: z.number(),
   insuranceCount: z.number(),
   giftStatus: z.enum(['none', 'eligible', 'given']),
@@ -168,6 +181,10 @@ export const CustomerLookupRow = z.object({
   id: z.string(),
   fullName: z.string(),
   primaryPhone: z.string(),
+  /** Hồ sơ thứ mấy của người này. 1 = hồ sơ gốc. */
+  seq: z.number(),
+  /** Hồ sơ gốc — để nhận ra hai dòng là cùng một người, không phải trùng tên. */
+  rootId: z.string(),
 });
 export type CustomerLookupRow = z.infer<typeof CustomerLookupRow>;
 
@@ -328,7 +345,33 @@ export const CUSTOMER_ERROR = {
   DUPLICATE_ID: 'duplicate-id-number',
   /** Còn tài khoản, đơn bảo hiểm, lượt dịch vụ hoặc đợt phát quà trỏ tới khách. */
   HAS_RECORDS: 'customer-has-records',
+  /** Người này đang giữ một lần chưa chốt quà cho chính khách đó. */
+  OPEN_DRAFT: 'open-draft-exists',
 } as const;
+
+/**
+ * Máy chủ trả kèm khi CCCD đã có hồ sơ — vừa đủ để giao diện dựng nút "Tạo thêm
+ * lần", không hơn.
+ *
+ * KHÔNG có tên, số điện thoại hay số tài khoản của hồ sơ đang giữ CCCD đó (chốt
+ * 2026-08-18): một lượt ghi hỏng không được kéo theo một lượt đọc hồ sơ người
+ * khác. `openDraftId` chỉ nói hồ sơ dở dang ấy là CỦA CHÍNH người đang gõ.
+ */
+export const DuplicateIdInfo = z.object({
+  code: z.literal(CUSTOMER_ERROR.DUPLICATE_ID),
+  message: z.string(),
+  rootId: z.string(),
+  openDraftId: z.string().nullable(),
+});
+export type DuplicateIdInfo = z.infer<typeof DuplicateIdInfo>;
+
+/** Lỗi mang theo thông tin lần trùng — `createCustomer` ném ra thay `Error` thường. */
+export class DuplicateIdError extends Error {
+  constructor(readonly info: DuplicateIdInfo) {
+    super(info.message);
+    this.name = 'DuplicateIdError';
+  }
+}
 
 /**
  * ⚠️ ĐÃ BỎ (chốt 2026-08-18): `ExistingCustomer`, `DuplicateCustomerError`,
@@ -355,8 +398,32 @@ async function send(url: string, method: string, body: unknown) {
   return res.json();
 }
 
-export const createCustomer = (form: CustomerForm) =>
-  send('/api/customers', 'POST', form).then(Customer.parse);
+/**
+ * Tạo hồ sơ khách. `linkToRootId` = tạo THÊM MỘT LẦN cho người đã có hồ sơ.
+ *
+ * Trùng CCCD không còn là ngõ dừng: máy chủ trả kèm `rootId` để lượt gọi kế
+ * tiếp truyền vào `linkToRootId`. Ném `DuplicateIdError` chứ không `Error`
+ * thường, vì giao diện phải đọc được `rootId` từ đó.
+ */
+export async function createCustomer(
+  form: CustomerForm,
+  linkToRootId?: string,
+): Promise<Customer> {
+  const res = await fetch('/api/customers', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(linkToRootId ? { ...form, linkToRootId } : form),
+  });
+  if (!res.ok) {
+    const payload = await res.json().catch(() => null);
+    const duplicate = DuplicateIdInfo.safeParse(payload);
+    if (duplicate.success) throw new DuplicateIdError(duplicate.data);
+    throw new Error(
+      (payload as { message?: string } | null)?.message?.trim() || 'Không lưu được',
+    );
+  }
+  return Customer.parse(await res.json());
+}
 
 export const updateCustomer = (id: string, form: CustomerForm) =>
   send(`/api/customers/${id}`, 'PATCH', form).then(Customer.parse);
@@ -426,8 +493,61 @@ export const CustomerServiceRow = z.object({
 });
 export type CustomerServiceRow = z.infer<typeof CustomerServiceRow>;
 
+/**
+ * Loại sự kiện trong nhật ký — khớp enum `customer_change_field` ở database.
+ *
+ * `profile_deleted` không phải một trường: nó là lượt XOÁ hồ sơ, nằm cùng dòng
+ * thời gian vì hồ sơ biến mất mà không ghi lại thì nhóm mất dấu vết.
+ */
+export const CustomerChangeField = z.enum([
+  'full_name',
+  'dob',
+  'id_number',
+  'address',
+  'phones',
+  'channel',
+  'profile_deleted',
+]);
+export type CustomerChangeField = z.infer<typeof CustomerChangeField>;
+
+export const CUSTOMER_FIELD_LABEL: Record<CustomerChangeField, string> = {
+  full_name: 'Họ tên',
+  dob: 'Ngày sinh',
+  id_number: 'CCCD',
+  address: 'Địa chỉ',
+  phones: 'Số điện thoại',
+  channel: 'Kênh',
+  profile_deleted: 'Xoá hồ sơ',
+};
+
+/**
+ * Một lượt sửa MỘT trường của hồ sơ khách.
+ *
+ * `fromValue` và `toValue` của CCCD luôn rỗng (chốt 2026-09-05): nhật ký chỉ nói
+ * "đã đổi CCCD", không mang số. Giao diện phải xử lý ca rỗng đó, đừng in
+ * `"" → ""`.
+ */
+export const CustomerChange = z.object({
+  id: z.string(),
+  field: CustomerChangeField,
+  fromValue: z.string(),
+  toValue: z.string(),
+  changedByName: z.string(),
+  changedAt: z.coerce.date(),
+  /** Lần mà người sửa đang đứng lúc bấm Lưu. */
+  seq: z.number(),
+});
+export type CustomerChange = z.infer<typeof CustomerChange>;
+
 export const CustomerDetail = z.object({
   customer: Customer,
+  /**
+   * Nhật ký sửa thông tin, mới nhất trước — chung cho MỌI LẦN của người này.
+   *
+   * Thông tin cá nhân đồng bộ giữa các lần, nên một lượt sửa thuộc về cả nhóm.
+   * Hồ sơ nào cũng đọc chung một dòng thời gian.
+   */
+  changes: z.array(CustomerChange),
   /**
    * Số tài khoản ngân hàng khách còn mở thêm được, 0 là đã đủ trần.
    *

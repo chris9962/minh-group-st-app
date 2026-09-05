@@ -29,7 +29,7 @@ import type {
 import type { BankAccountDetail, BankAccountRow, BankAccountSort } from "@/lib/api/banking";
 import type { Page } from "@/lib/api/pagination";
 import type { BankPhoto, BankPhotoRow } from "@/lib/api/bankPhotos";
-import { businessDay, businessMonth } from "@/lib/format";
+import { ageRangeLabel, businessDay, businessMonth } from "@/lib/format";
 import { canManageBank, recordVisibility, type RecordVisibility } from "@/lib/permissions";
 import { isRealIsoDate, type User } from "@/lib/types";
 import { searchTerms } from "@/lib/search";
@@ -95,11 +95,6 @@ function meetsBankAgeRule(dob: string | null, rule: BankAgeRule, at = businessDa
   return age !== null && (rule.minAge === null || age >= rule.minAge) && (rule.maxAge === null || age <= rule.maxAge);
 }
 
-function ageRuleLabel(rule: BankAgeRule): string {
-  if (rule.minAge !== null && rule.maxAge !== null) return `${rule.minAge}–${rule.maxAge} tuổi`;
-  if (rule.minAge !== null) return `từ ${rule.minAge} tuổi`;
-  return `tối đa ${rule.maxAge} tuổi`;
-}
 
 export type BankAccountFilters = {
   search: string;
@@ -955,15 +950,42 @@ export async function startBankAccount(
   const [customer] = await db
     .select({
       id: customers.id,
+      rootCustomerId: customers.rootCustomerId,
       dob: customers.dob,
       channelId: customers.channelId,
       channelDetail: customers.channelDetail,
       departmentId: customers.createdByDepartmentId,
+      createdBy: customers.createdBy,
     })
     .from(customers)
     .where(eq(customers.id, form.customerId))
     .limit(1);
   if (!customer) return { ok: false, message: "Không tìm thấy khách hàng này" };
+
+  /**
+   * Nhân viên chỉ mở tài khoản vào hồ sơ CỦA CHÍNH MÌNH (chốt 2026-09-05).
+   *
+   * Từ khi một người có nhiều hồ sơ, mỗi hồ sơ là một combo và một đợt quà của
+   * đúng một nhân viên. Mở chéo hồ sơ thì combo của A gồm tài khoản do B mở, và
+   * không ai nói được đợt quà đó thuộc về ai.
+   *
+   * Chốt này KHÔNG áp cho người đọc rộng hơn một phòng: trưởng phòng làm thay
+   * cho nhân viên nghỉ là việc có thật, chặn cứng thì họ phải tạo hồ sơ mới cho
+   * khách chỉ vì lý do kỹ thuật. Ô tìm khách vốn đã hẹp theo cùng phạm vi đó,
+   * đây là chốt phía máy chủ cho lời gọi nặn tay.
+   *
+   * ⚠️ Liệt kê hai mức ĐƯỢC PHÉP, không loại trừ mức `creator`. Phạm vi `none`
+   * hẹp hơn `creator` chứ không rộng hơn — quản lý chưa được giao phòng nào rơi
+   * vào đó (AGENTS.md §6), và viết `kind === "creator"` là để mức hẹp nhất đi
+   * qua được.
+   */
+  const khachThay = recordVisibility(actor, "customer", "view-detail");
+  if (
+    khachThay.kind !== "all" &&
+    khachThay.kind !== "departments" &&
+    customer.createdBy !== actor.id
+  )
+    return { ok: false, message: "Hồ sơ khách này do người khác lập. Tạo hồ sơ của bạn cho khách này rồi mở tài khoản." };
 
   const department = departmentForNewRecord(
     actor,
@@ -994,7 +1016,7 @@ export async function startBankAccount(
       return {
         ok: false,
         message: customer.dob
-          ? `Khách không thuộc độ tuổi mở tài khoản ${bank.code} (${ageRuleLabel(bank)}).`
+          ? `Khách không thuộc độ tuổi mở tài khoản ${bank.code} (${ageRangeLabel(bank)}).`
           : `Ngân hàng ${bank.code} yêu cầu ngày sinh khách hàng để kiểm tra độ tuổi.`,
       };
   }
@@ -1017,25 +1039,38 @@ export async function startBankAccount(
       .where(eq(customers.id, form.customerId))
       .for("update");
 
-    const owned = await tx
+    /**
+     * Hai câu hỏi khác trục, nên hai phép đếm.
+     *
+     * Ngân hàng đã mở tính trên MỌI LẦN của người này (`root_customer_id`) —
+     * khoá duy nhất `bank_accounts_root_bank` cũng theo trục đó. Trần 3 thì
+     * tính trên hồ sơ ĐANG mở: mỗi hồ sơ là một combo riêng, gộp cả các lần cũ
+     * vào là lần thứ hai không mở được tài khoản nào.
+     */
+    const ownedByPerson = await tx
+      .select({ bankId: bankAccounts.bankId })
+      .from(bankAccounts)
+      .where(eq(bankAccounts.rootCustomerId, customer.rootCustomerId));
+
+    const ownedHere = await tx
       .select({ bankId: bankAccounts.bankId })
       .from(bankAccounts)
       .where(eq(bankAccounts.customerId, form.customerId));
 
     // Kiểm trùng ngân hàng TRƯỚC kiểm trần: khách đã có đủ 3 tài khoản mà chọn
     // lại đúng ngân hàng cũ thì câu "đã có TPB rồi" mới là câu chỉ đúng chỗ.
-    const ownedIds = new Set(owned.map((r) => r.bankId));
+    const ownedIds = new Set(ownedByPerson.map((r) => r.bankId));
     const trung = form.picks.find((p) => ownedIds.has(p.bankId));
     if (trung)
       return {
         ok: false as const,
-        message: `Khách này đã có tài khoản ${bankById.get(trung.bankId)!.code} — mỗi ngân hàng chỉ mở được một tài khoản. Bản nháp cũng tính; xoá bản nháp thì mở lại được.`,
+        message: `Khách này đã có tài khoản ${bankById.get(trung.bankId)!.code} — mỗi ngân hàng chỉ mở được một tài khoản, tính cả những lần trước. Bản nháp cũng tính; xoá bản nháp thì mở lại được.`,
       };
 
-    if (owned.length + form.picks.length > MAX_BANK_ACCOUNTS_PER_CUSTOMER)
+    if (ownedHere.length + form.picks.length > MAX_BANK_ACCOUNTS_PER_CUSTOMER)
       return {
         ok: false as const,
-        message: `Khách này đã có ${owned.length} tài khoản ngân hàng, chọn thêm ${form.picks.length} là vượt trần ${MAX_BANK_ACCOUNTS_PER_CUSTOMER}.`,
+        message: `Hồ sơ này đã có ${ownedHere.length} tài khoản ngân hàng, chọn thêm ${form.picks.length} là vượt trần ${MAX_BANK_ACCOUNTS_PER_CUSTOMER}.`,
       };
 
     const ids: string[] = [];
@@ -1122,6 +1157,9 @@ export async function startBankAccount(
         .insert(bankAccounts)
         .values({
           customerId: form.customerId,
+          // Chép để khoá duy nhất `(root_customer_id, bank_id)` chạy được —
+          // Postgres không đặt unique index qua bảng khác.
+          rootCustomerId: customer.rootCustomerId,
           bankId: pick.bankId,
           referralCodeId: code.id,
           status: "creating",
@@ -1174,13 +1212,22 @@ export async function startBankAccount(
  */
 export async function customerBankSlots(customerId: string): Promise<CustomerBankSlots | null> {
   const [customer] = await db
-    .select({ id: customers.id, dob: customers.dob })
+    .select({ id: customers.id, rootCustomerId: customers.rootCustomerId, dob: customers.dob })
     .from(customers)
     .where(eq(customers.id, customerId))
     .limit(1);
   if (!customer) return null;
 
-  const [rows, bankRows] = await Promise.all([
+  /**
+   * Hai trục, đúng như `startBankAccount`: ngân hàng đã mở tính trên MỌI LẦN của
+   * người này, còn trần 3 tính trên hồ sơ đang mở. Đọc cùng một trục cho cả hai
+   * thì ô chọn nói khác máy chủ, và người dùng chọn xong mới bị từ chối.
+   */
+  const [byPerson, here, bankRows] = await Promise.all([
+    db
+      .select({ bankId: bankAccounts.bankId })
+      .from(bankAccounts)
+      .where(eq(bankAccounts.rootCustomerId, customer.rootCustomerId)),
     db
       .select({ bankId: bankAccounts.bankId })
       .from(bankAccounts)
@@ -1189,9 +1236,17 @@ export async function customerBankSlots(customerId: string): Promise<CustomerBan
   ]);
 
   return {
-    usedBankIds: rows.map((r) => r.bankId),
+    usedBankIds: byPerson.map((r) => r.bankId),
+    usedHereBankIds: here.map((r) => r.bankId),
     eligibleBankIds: bankRows.filter((bank) => meetsBankAgeRule(customer.dob, bank)).map((bank) => bank.id),
-    remaining: Math.max(0, MAX_BANK_ACCOUNTS_PER_CUSTOMER - rows.length),
+    remaining: Math.max(0, MAX_BANK_ACCOUNTS_PER_CUSTOMER - here.length),
+    /**
+     * Không có ngày sinh thì `meetsBankAgeRule` từ chối MỌI ngân hàng có giới
+     * hạn tuổi. Thiếu trường này, giao diện viết "khách ngoài độ tuổi" cho một
+     * khách mà không ai biết tuổi — sai, và nhân viên không biết phải đi bổ
+     * sung ngày sinh.
+     */
+    hasDob: customer.dob !== null,
   };
 }
 

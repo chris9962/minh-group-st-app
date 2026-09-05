@@ -3,7 +3,7 @@ import { logAudit } from "@/server/audit";
 import { recordVisibility } from "@/lib/permissions";
 import type { User } from "@/lib/types";
 import { actorWith, badRequest, jsonBody, signedIn, uuidParam } from "@/server/auth";
-import { createCustomer, listCustomers } from "@/server/customers";
+import { createCustomer, duplicateIdNumberInfo, listCustomers } from "@/server/customers";
 import { pageArgsFrom } from "@/server/pagination";
 
 const SORTABLE: readonly CustomerSort[] = ["name", "accounts", "insurance", "created"];
@@ -84,18 +84,58 @@ export async function POST(request: Request) {
   const guard = await actorWith(request, "customer", "create");
   if (!guard.ok) return guard.response;
 
-  const parsed = CustomerForm.safeParse(await jsonBody(request));
+  const body = await jsonBody(request);
+  const parsed = CustomerForm.safeParse(body);
   if (!parsed.success) return badRequest();
 
-  const result = await createCustomer(guard.actor, parsed.data);
+  // Tạo THÊM một lần cho người đã có hồ sơ. `uuidParam` lọc chuỗi bậy — id không
+  // phải uuid đi thẳng vào SQL là `22P02` → 500.
+  const raw = (body as { linkToRootId?: unknown } | null)?.linkToRootId;
+  const linkToRootId = uuidParam(typeof raw === "string" ? raw : null);
+
+  const result = await createCustomer(guard.actor, parsed.data, linkToRootId || undefined);
   if (!result.ok) {
+    if (result.reason === "open-draft-exists")
+      return Response.json(
+        {
+          code: CUSTOMER_ERROR.OPEN_DRAFT,
+          message: "Bạn đang có một hồ sơ chưa chốt quà cho khách này. Chốt quà hồ sơ đó rồi mới tạo hồ sơ mới.",
+        },
+        { status: 422 },
+      );
+
+    if (result.reason === "id-number-mismatch")
+      return badRequest("CCCD không khớp hồ sơ đang nối. Kiểm tra lại số CCCD.");
+
     // Câu báo bám theo TÊN CHỈ MỤC bị đụng, không suy từ việc tra được hồ sơ
     // hay không. Khoá duy nhất khác `customers_id_number` là ràng buộc nội bộ,
     // nói "CCCD trùng" lúc đó là chỉ sai chỗ.
     if (result.reason !== "duplicate-id-number")
       return badRequest("Không lưu được hồ sơ khách này");
+
+    /**
+     * Trả kèm `rootId` để giao diện hỏi lại "tạo hồ sơ mới cho khách này?" —
+     * vẫn KHÔNG trả tên hay số điện thoại của hồ sơ đang giữ CCCD đó (chốt
+     * 2026-08-18).
+     *
+     * `openDraftId` nói người đang gõ có sẵn một hồ sơ dở dang của chính họ hay
+     * không, tức hộp thoại hỏi lại hay chỉ báo rồi dừng.
+     */
+    const info = await duplicateIdNumberInfo(parsed.data.idNumber, guard.actor.id);
+
+    // Tra không ra hồ sơ gốc — dòng giữ CCCD đó vừa bị xoá xen giữa. Không có
+    // `rootId` thì cũng không có gì để nối vào, nên báo rồi dừng.
+    if (!info) return badRequest("CCCD này đã có hồ sơ trong hệ thống");
+
     return Response.json(
-      { code: CUSTOMER_ERROR.DUPLICATE_ID, message: "CCCD này đã có hồ sơ trong hệ thống" },
+      {
+        code: CUSTOMER_ERROR.DUPLICATE_ID,
+        message: info.openDraftId
+          ? "Bạn đang có một hồ sơ chưa chốt quà cho khách này."
+          : "CCCD này đã có hồ sơ trong hệ thống",
+        rootId: info.rootId,
+        openDraftId: info.openDraftId,
+      },
       { status: 422 },
     );
   }

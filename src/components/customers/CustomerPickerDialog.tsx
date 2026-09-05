@@ -12,6 +12,7 @@ import { SearchField } from "@/components/ui/SearchField";
 import { SkeletonTable, SkeletonText } from "@/components/ui/Skeleton";
 import { MAX_BANK_ACCOUNTS_PER_CUSTOMER } from "@/lib/api/bankAccounts";
 import { fetchCustomerDetail, fetchCustomerLookup, type Customer } from "@/lib/api/customers";
+import { seqLabeller } from "@/lib/customerLabel";
 import { useDebouncedValue } from "@/lib/hooks";
 import styles from "./CustomerPickerDialog.module.scss";
 
@@ -92,6 +93,7 @@ export function CustomerPickerDialog({ open, onClose, title, forBankAccount, chi
   if (resolvedCustomer) return <>{children(resolvedCustomer, back)}</>;
 
   const customers = list?.rows ?? [];
+  const nameOf = seqLabeller(customers);
   const hiddenBankFull = list?.hiddenBankFull ?? 0;
 
   return (
@@ -166,7 +168,7 @@ export function CustomerPickerDialog({ open, onClose, title, forBankAccount, chi
                         className={styles.row}
                         onClick={() => setPickedId(c.id)}
                       >
-                        <span className={styles.rowName}>{c.fullName}</span>
+                        <span className={styles.rowName}>{nameOf(c)}</span>
                         <span className={styles.rowPhone}>{c.primaryPhone}</span>
                       </button>
                     </li>

@@ -12,7 +12,7 @@
  * Chạy lại nhiều lần: tự dọn phần cũ trước khi dựng lại.
  */
 import { hashSync } from "bcryptjs";
-import { and, eq, inArray, like } from "drizzle-orm";
+import { and, eq, inArray, like, or } from "drizzle-orm";
 import { businessDay, businessMonth } from "../src/lib/format";
 import { ROLE_PERMISSIONS } from "../src/lib/roles";
 import { db } from "../src/server/db/client";
@@ -23,6 +23,7 @@ import {
   bankAccounts,
   banks,
   channels,
+  customerChanges,
   customerPhones,
   customers,
   departments,
@@ -129,6 +130,16 @@ async function clean() {
     await db.delete(giftGrants).where(inArray(giftGrants.customerId, customerIds));
     await db.delete(bankAccounts).where(inArray(bankAccounts.customerId, customerIds));
     await db.delete(customerPhones).where(inArray(customerPhones.customerId, customerIds));
+    // Nhật ký sửa trỏ tới khách bằng hai cột; thiếu câu này thì khoá ngoại từ
+    // chối câu xoá bên dưới.
+    await db
+      .delete(customerChanges)
+      .where(
+        or(
+          inArray(customerChanges.customerId, customerIds),
+          inArray(customerChanges.rootCustomerId, customerIds),
+        ),
+      );
     await db.delete(customers).where(inArray(customers.id, customerIds));
   }
 
@@ -479,9 +490,13 @@ async function build() {
     const deptId = deptIdByCode.get(STAFF.find((s) => s.username === c.owner)!.dept)!;
     touchedOwners.add(ownerId);
 
+    // Hồ sơ gốc trỏ về chính nó, nên id phải sinh trước khi chèn.
+    const customerId = crypto.randomUUID();
     const [customer] = await db
       .insert(customers)
       .values({
+        id: customerId,
+        rootCustomerId: customerId,
         fullName: c.name,
         idNumber: c.idNumber ?? null,
         address: DEMO_ADDRESS,
@@ -506,6 +521,7 @@ async function build() {
     for (const [k, a] of c.accounts.entries()) {
       await db.insert(bankAccounts).values({
         customerId: customer.id,
+        rootCustomerId: customer.id,
         bankId: bankIdByCode.get(a.bank)!,
         referralCodeId: codeIdByBank.get(a.bank)!,
         status: a.draft ? "creating" : "done",
@@ -578,9 +594,12 @@ async function build() {
   const fillerOwner = userIdByName.get("demo_kd2_a")!;
   const fillerDept = deptIdByCode.get(STAFF.find((s) => s.username === "demo_kd2_a")!.dept)!;
   for (let i = 0; i < FILLER_COUNT; i++) {
+    const fillerId = crypto.randomUUID();
     const [row] = await db
       .insert(customers)
       .values({
+        id: fillerId,
+        rootCustomerId: fillerId,
         fullName: `Khách độn ${i + 1}`,
         address: DEMO_ADDRESS,
         createdBy: fillerOwner,
@@ -612,6 +631,65 @@ async function build() {
       chosenItem: snapshot.basket[0]?.code ?? "DECLINED",
       snapshot,
     });
+
+    /**
+     * HỒ SƠ 2 của chính khách đó — do nhân viên PHÒNG KHÁC lập sau khi hồ sơ 1
+     * đã chốt quà (migration 0065). Không có ca này thì bộ mẫu không đi qua
+     * nhánh nào của `root_customer_id`: khoá "một ngân hàng một lần cho mỗi
+     * người", nhãn "hồ sơ 2", nhật ký chung của cả nhóm.
+     *
+     * Ghi thẳng vào bảng nên phải tự chép những gì `createCustomer` chép:
+     * `root_customer_id` trỏ về gốc, `seq` = 2, và nhật ký kèm `seq`.
+     */
+    const goc = CUSTOMERS[gifted];
+    const nguoiLap2 = "demo_kd2_a";
+    const owner2 = userIdByName.get(nguoiLap2)!;
+    const dept2 = deptIdByCode.get(STAFF.find((s) => s.username === nguoiLap2)!.dept)!;
+    const hoSo2Id = crypto.randomUUID();
+    await db.insert(customers).values({
+      id: hoSo2Id,
+      rootCustomerId: customerId,
+      seq: 2,
+      fullName: goc.name,
+      idNumber: goc.idNumber ?? null,
+      address: DEMO_ADDRESS,
+      channelId: goc.channel ? (channelIdByCode.get(goc.channel) ?? null) : null,
+      createdBy: owner2,
+      createdByDepartmentId: dept2,
+    });
+    // Số điện thoại đồng bộ theo nhóm: hồ sơ 2 mang đúng số của hồ sơ 1.
+    const sdtGoc = await db
+      .select({ number: customerPhones.number, isPrimary: customerPhones.isPrimary })
+      .from(customerPhones)
+      .where(eq(customerPhones.customerId, customerId));
+    await db.insert(customerPhones).values(sdtGoc.map((p) => ({ ...p, customerId: hoSo2Id })));
+    // LPB là ngân hàng hồ sơ 1 CHƯA mở — mở lại MB/VPa/MSBa là đụng khoá
+    // `bank_accounts_root_bank`, đúng thứ ca này minh hoạ.
+    await db.insert(bankAccounts).values({
+      customerId: hoSo2Id,
+      rootCustomerId: customerId,
+      bankId: bankIdByCode.get("LPB")!,
+      referralCodeId: codeIdByBank.get("LPB")!,
+      status: "done",
+      accountNumber: `19${String(90_000_000 + 99_00)}`,
+      openedDate: day(22),
+      appInstalled: true,
+      createdBy: owner2,
+      createdByDepartmentId: dept2,
+    });
+    // Một lượt sửa từ hồ sơ 2 để khối "Lịch sử sửa thông tin" có gì mà hiện.
+    await db.insert(customerChanges).values({
+      rootCustomerId: customerId,
+      customerId: hoSo2Id,
+      seq: 2,
+      changedBy: owner2,
+      field: "address",
+      fromValue: "Chưa có địa chỉ",
+      toValue: DEMO_ADDRESS,
+    });
+    await recomputeGiftCase(hoSo2Id);
+    touchedOwners.add(owner2);
+    await recomputeKpi(owner2, MONTH);
   }
 
   console.log(

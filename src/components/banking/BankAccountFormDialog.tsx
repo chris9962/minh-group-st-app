@@ -12,7 +12,9 @@ import { Checkbox } from "@/components/ui/Checkbox";
 import { Dialog } from "@/components/ui/Dialog";
 import { DepartmentPicker } from "@/components/layout/DepartmentPicker";
 import { Select } from "@/components/ui/Select";
+import { SkeletonText } from "@/components/ui/Skeleton";
 import { fetchBanks, fetchOpenReferralCodes, type Bank } from "@/lib/api/bankCatalog";
+import { ageRangeLabel } from "@/lib/format";
 import {
   BankAccountStartForm,
   fetchCustomerBankSlots,
@@ -74,7 +76,6 @@ export function BankAccountFormDialog({
   const pathname = usePathname();
 
   const { data: banks = [] } = useQuery({ queryKey: ["banks"], queryFn: fetchBanks });
-  const activeBanks = banks.filter((b) => b.active);
 
   /**
    * Trần tài khoản của khách (chốt 2026-08-25): mỗi ngân hàng một tài khoản, và
@@ -86,8 +87,6 @@ export function BankAccountFormDialog({
     queryFn: () => fetchCustomerBankSlots(customerId),
     enabled: open && Boolean(customerId),
   });
-  const usedBankIds = new Set(slots?.usedBankIds ?? []);
-  const eligibleBankIds = new Set(slots?.eligibleBankIds ?? []);
   const remaining = slots?.remaining ?? MAX_BANK_ACCOUNTS_PER_CUSTOMER;
 
   const {
@@ -168,11 +167,38 @@ export function BankAccountFormDialog({
   });
 
   const noSlotLeft = slots ? remaining <= 0 : false;
-  const unownedActiveBanks = activeBanks.filter((b) => !usedBankIds.has(b.id));
-  const selectableBanks = unownedActiveBanks.filter((b) => !slots || eligibleBankIds.has(b.id));
-  const noBankLeft = slots ? selectableBanks.length === 0 : false;
-  const noAgeEligibleBank = slots ? unownedActiveBanks.length > 0 && selectableBanks.length === 0 : false;
-  const blocked = noSlotLeft || noBankLeft;
+
+  /**
+   * Ngân hàng KHÔNG tích được vẫn nằm trong danh sách, khoá lại và mang một
+   * dòng lý do (chốt 2026-09-05). Bản trước lọc chúng ra khỏi danh sách, nên
+   * nhân viên không có cách nào biết vì sao ngân hàng họ đang tìm lại không có
+   * ở đó. Nặng nhất là ca "lần trước đã mở": hồ sơ đang xem không hiện tài
+   * khoản của lần trước, nên dòng đó biến mất mà không có gì thay thế.
+   *
+   * Thứ tự lý do là thứ tự dứt khoát dần. Ngân hàng ngừng triển khai thì không
+   * ai mở được nữa; ba lý do sau đều gắn với riêng khách này.
+   */
+  const reasonFor = (bank: Bank): string | null => {
+    if (!bank.active) return "Ngừng triển khai";
+    if (!slots) return null;
+    if (slots.usedHereBankIds.includes(bank.id)) return "Hồ sơ này đã có tài khoản";
+    if (slots.usedBankIds.includes(bank.id)) return "Khách đã mở ở hồ sơ trước";
+    if (slots.eligibleBankIds.includes(bank.id)) return null;
+    return slots.hasDob
+      ? `Khách ngoài độ tuổi (${ageRangeLabel(bank)})`
+      : "Chưa có ngày sinh của khách";
+  };
+
+  /**
+   * Sắp lại ở trình duyệt là ngoại lệ có chủ ý của AGENTS.md §5.1. Đây là danh
+   * mục đóng vài chục dòng, và thứ hạng phụ thuộc dữ liệu của KHÁCH chứ không
+   * phải của ngân hàng: sắp ở máy chủ nghĩa là sắp lại riêng cho từng khách.
+   * Thứ tự ưu tiên của `listBanks` giữ nguyên trong từng nhóm.
+   */
+  const options = banks.map((bank) => ({ bank, reason: reasonFor(bank) }));
+  const selectableBanks = options.filter((o) => o.reason === null);
+  const orderedOptions = [...selectableBanks, ...options.filter((o) => o.reason !== null)];
+  const blocked = noSlotLeft;
 
   return (
     <Dialog
@@ -188,7 +214,7 @@ export function BankAccountFormDialog({
           <Button
             type="submit"
             form="bank-account-form"
-            disabled={isSubmitting || create.isPending || blocked || picks.length === 0}
+            disabled={isSubmitting || create.isPending || blocked || !slots || picks.length === 0}
           >
             {picks.length > 1 ? `Tạo ${picks.length} tài khoản` : "Tạo tài khoản"}
           </Button>
@@ -197,19 +223,25 @@ export function BankAccountFormDialog({
     >
       {blocked ? (
         /*
-         * Hết chỗ thì hộp thoại chỉ còn câu giải thích — không dựng danh sách
-         * ngân hàng đã tắt hết ô tích dưới một dòng báo lỗi.
+         * Đủ trần thì hộp thoại chỉ còn câu giải thích. Không dựng danh sách
+         * ngân hàng mà MỌI dòng mang cùng một lý do.
          *
          * P-21 đã bỏ khách đủ trần khỏi ô tìm, nên đường tới đây là hai nút
          * "Mở ngân hàng" ở P-40 và P-42, chỗ khách đã cố định sẵn.
          */
         <Alert tone="error">
-          {noSlotLeft
-            ? `Khách này đã có đủ ${MAX_BANK_ACCOUNTS_PER_CUSTOMER} tài khoản ngân hàng, không mở thêm được. Bản nháp cũng tính — xoá một bản nháp thì mở thêm được một tài khoản.`
-            : noAgeEligibleBank
-              ? "Không có ngân hàng phù hợp với độ tuổi của khách này."
-              : "Khách này đã mở tài khoản ở tất cả ngân hàng đang triển khai."}
+          {`Khách này đã có đủ ${MAX_BANK_ACCOUNTS_PER_CUSTOMER} tài khoản ngân hàng, không mở thêm được. Bản nháp cũng tính — xoá một bản nháp thì mở thêm được một tài khoản.`}
         </Alert>
+      ) : !slots ? (
+        /*
+         * Chưa biết chỗ trống thì CHƯA vẽ danh sách.
+         *
+         * Vẽ trước rồi sắp lại khi dữ liệu về thì trong khoảng một giây đầu mọi
+         * ngân hàng đều tích được: người dùng tích trúng một ngân hàng sắp
+         * khoá, dòng đó tụt xuống cuối, mà dấu tích vẫn nằm trong biểu mẫu và
+         * máy chủ mới từ chối lúc lưu.
+         */
+        <SkeletonText lines={4} label="Đang tải danh sách ngân hàng" />
       ) : (
         <form
           id="bank-account-form"
@@ -246,13 +278,14 @@ export function BankAccountFormDialog({
             không đọc mười ba ô tích rời rạc không rõ thuộc về câu hỏi nào.
           */}
           <div className={styles.pickList} role="group" aria-labelledby="bank-pick-label">
-            {selectableBanks.map((bank) => (
+            {orderedOptions.map(({ bank, reason }) => (
               <BankPickRow
                 key={bank.id}
                 bank={bank}
                 departmentId={departmentId}
                 pick={picks.find((p) => p.bankId === bank.id)}
                 full={picks.length >= remaining}
+                reason={reason}
                 onToggle={(checked) => toggleBank(bank.id, checked)}
                 onCodeChange={(code) => setCode(bank.id, code)}
                 onAccountTypeChange={(type) => setAccountType(bank.id, type)}
@@ -280,6 +313,8 @@ type RowProps = {
   pick: BankAccountPick | undefined;
   /** Đã tích đủ số tài khoản khách mở thêm được. */
   full: boolean;
+  /** Có giá trị nghĩa là ngân hàng này không mở được, và đây là vì sao. */
+  reason: string | null;
   onToggle: (checked: boolean) => void;
   onCodeChange: (referralCode: string) => void;
   onAccountTypeChange: (accountType: AccountType) => void;
@@ -296,6 +331,7 @@ function BankPickRow({
   departmentId,
   pick,
   full,
+  reason,
   onToggle,
   onCodeChange,
   onAccountTypeChange,
@@ -356,13 +392,23 @@ function BankPickRow({
   const locked = !checked && full;
 
   return (
-    <div className={styles.pickRow}>
+    <div className={reason ? `${styles.pickRow} ${styles.pickRowOff}` : styles.pickRow}>
       <Checkbox
         block
         checked={checked}
-        disabled={locked}
+        disabled={locked || reason !== null}
         onCheckedChange={onToggle}
-        label={<strong className={styles.pickLabel}>{bank.code}</strong>}
+        /*
+         * Lý do nằm TRONG nhãn của ô tích, không phải một dòng chữ đứng cạnh:
+         * trình đọc màn hình đọc nhãn của ô tích đang khoá, nên phải nghe được
+         * "VPb, khách đã mở ở hồ sơ trước" trong cùng một câu.
+         */
+        label={
+          <span className={styles.pickLabelBox}>
+            <strong className={styles.pickLabel}>{bank.code}</strong>
+            {reason && <span className={styles.pickReason}>{reason}</span>}
+          </span>
+        }
       />
 
       {checked && (

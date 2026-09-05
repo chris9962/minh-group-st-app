@@ -1,4 +1,5 @@
-import { and, asc, count, desc, eq, inArray, or, sql, type SQL, type SQLWrapper } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNull, ne, or, sql, type SQL, type SQLWrapper } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import type {
   Customer,
   CustomerAccountRow,
@@ -28,6 +29,8 @@ import {
   bankAccounts,
   banks,
   channels,
+  customerChangeField,
+  customerChanges,
   customerPhones,
   customers,
   departments,
@@ -194,6 +197,8 @@ const pickPage = (where: SQL | undefined, orderBy: SQL[], limit: number, offset:
     .select({
       id: customers.id,
       fullName: customers.fullName,
+      seq: customers.seq,
+      rootId: customers.rootCustomerId,
       accountCount: customers.accountCount,
       insuranceCount: customers.insuranceCount,
       giftBasket: customers.giftBasket,
@@ -244,6 +249,8 @@ function decorate(page: ReturnType<typeof pickPage>) {
     .select({
       id: page.id,
       fullName: page.fullName,
+      seq: page.seq,
+      rootId: page.rootId,
       accountCount: page.accountCount,
       insuranceCount: page.insuranceCount,
       /**
@@ -476,7 +483,13 @@ export async function lookupCustomers(
   const rows = await decorate(inner)
     .orderBy(asc(inner.searchName), asc(inner.id))
     .then((list) =>
-      list.map((r) => ({ id: r.id, fullName: r.fullName, primaryPhone: r.primaryPhone })),
+      list.map((r) => ({
+        id: r.id,
+        fullName: r.fullName,
+        primaryPhone: r.primaryPhone,
+        seq: r.seq,
+        rootId: r.rootId,
+      })),
     );
 
   /**
@@ -547,6 +560,8 @@ async function customerById(id: string, actor: User): Promise<Customer | null> {
     .select({
       id: customers.id,
       fullName: customers.fullName,
+      seq: customers.seq,
+      rootId: customers.rootCustomerId,
       dob: customers.dob,
       idNumber: customers.idNumber,
       address: customers.address,
@@ -602,6 +617,52 @@ export type CustomerOutcome<T> =
   | { ok: true; customer: T }
   | { ok: false; reason: CustomerConflict };
 
+/**
+ * Hồ sơ CHƯA CHỐT QUÀ của chính người đang thao tác, cho một CCCD.
+ *
+ * `null` = họ chưa giữ lần nào, tạo lần mới được. Có giá trị = họ đang giữ một
+ * lần dở dang; tạo thêm là chính họ phải chọn giữa hai hồ sơ mà không có gì
+ * phân biệt (chốt 2026-09-05).
+ *
+ * Trục là NGƯỜI TẠO, không phải cả công ty: nhân viên B mở lần của B cho cùng
+ * khách là hợp lệ, vì hai người bán hai combo khác nhau.
+ */
+async function openDraftOf(rootId: string, actorId: string): Promise<string | null> {
+  const [row] = await db
+    .select({ id: customers.id })
+    .from(customers)
+    .where(
+      and(
+        eq(customers.rootCustomerId, rootId),
+        eq(customers.createdBy, actorId),
+        sql`not exists (select 1 from ${giftGrants} g where g.customer_id = ${customers.id})`,
+      ),
+    )
+    .limit(1);
+  return row?.id ?? null;
+}
+
+/**
+ * Hồ sơ gốc mang CCCD này, cùng tình trạng lần dở dang của người đang thao tác.
+ *
+ * Chỉ trả `rootId` và một cờ, KHÔNG trả tên hay số điện thoại — giữ đúng chốt
+ * 2026-08-18: một lượt ghi hỏng không kéo theo lượt đọc hồ sơ người khác. Hai
+ * giá trị này chỉ đủ để giao diện chọn giữa "tạo thêm lần" và "bạn đang có một
+ * lần chưa chốt quà".
+ */
+export async function duplicateIdNumberInfo(
+  idNumber: string,
+  actorId: string,
+): Promise<{ rootId: string; openDraftId: string | null } | null> {
+  const [root] = await db
+    .select({ id: customers.id })
+    .from(customers)
+    .where(and(eq(customers.idNumber, idNumber), sql`root_customer_id = id`))
+    .limit(1);
+  if (!root) return null;
+  return { rootId: root.id, openDraftId: await openDraftOf(root.id, actorId) };
+}
+
 /** Đúng MỘT số chính. Form nào cũng gửi cờ, nhưng không tin — index sẽ chặn. */
 const phoneRows = (customerId: string, form: CustomerForm) => {
   const primaryAt = Math.max(
@@ -636,15 +697,97 @@ async function writeGuarded<T>(run: () => Promise<T>): Promise<CustomerOutcome<T
   }
 }
 
+/**
+ * Tạo hồ sơ khách. `linkToRootId` = tạo THÊM MỘT LẦN cho người đã có hồ sơ.
+ *
+ * Không có `linkToRootId` thì đây là hồ sơ GỐC và `root_customer_id` trỏ về
+ * chính nó, nên id phải sinh ở đây chứ không để `gen_random_uuid()` của cột lo:
+ * cột đó trả giá trị sau khi chèn xong, mà `root_customer_id` cần nó ngay lúc
+ * chèn.
+ *
+ * Có `linkToRootId` thì CCCD trùng là chuyện đúng — khoá duy nhất chỉ áp cho hồ
+ * sơ gốc. Chốt duy nhất ở đây là một người không giữ hai lần dở dang cùng lúc.
+ */
 export async function createCustomer(
   actor: User,
   form: CustomerForm,
-): Promise<CustomerOutcome<Customer>> {
-  return writeGuarded(async () => {
+  linkToRootId?: string,
+): Promise<
+  CustomerOutcome<Customer> | { ok: false; reason: "open-draft-exists" | "id-number-mismatch" }
+> {
+  if (linkToRootId) {
+    const [root] = await db
+      .select({ id: customers.id, idNumber: customers.idNumber })
+      .from(customers)
+      .where(and(eq(customers.id, linkToRootId), sql`root_customer_id = id`))
+      .limit(1);
+    if (!root) return { ok: false, reason: "unknown" };
+
+    /**
+     * CCCD phải khớp hồ sơ đang nối.
+     *
+     * `linkToRootId` chỉ đến từ phản hồi 422 do chính CCCD đó sinh ra, nên giao
+     * diện gửi lên hai giá trị vốn đã khớp. Chốt này dành cho lời gọi nặn tay:
+     * nối nhầm là ghi đè trọn thông tin của một khách khác, và không có đường
+     * gỡ hai người ra khỏi một nhóm.
+     */
+    if ((root.idNumber ?? "") !== form.idNumber)
+      return { ok: false, reason: "id-number-mismatch" };
+
+    if (await openDraftOf(linkToRootId, actor.id)) return { ok: false, reason: "open-draft-exists" };
+  }
+
+  const result = await writeGuarded(async () => {
+    const newId = crypto.randomUUID();
     const id = await db.transaction(async (tx) => {
+      /**
+       * Khoá dòng GỐC trước khi đọc số lần lớn nhất.
+       *
+       * Hai lượt tạo lần mới cùng lúc cho một người thì cả hai đọc ra cùng con
+       * số và cùng ghi `seq` đó — hai hồ sơ mang "lần 2". Dòng gốc là thứ duy
+       * nhất chung cho mọi lần, khoá nó là hai lượt xếp hàng.
+       */
+      let seq = 1;
+      if (linkToRootId) {
+        await tx
+          .select({ id: customers.id })
+          .from(customers)
+          .where(eq(customers.id, linkToRootId))
+          .for("update");
+
+        /**
+         * Kiểm LẠI hồ sơ dở dang ở đây, sau khoá dòng gốc.
+         *
+         * Phép kiểm ở đầu hàm chạy ngoài giao dịch, nên hai request song song
+         * cùng đọc ra "chưa có" rồi cùng tạo. Nó vẫn giữ lại vì trả câu báo
+         * đúng cho ca thường; đây mới là chốt.
+         */
+        const [dangGiu] = await tx
+          .select({ id: customers.id })
+          .from(customers)
+          .where(
+            and(
+              eq(customers.rootCustomerId, linkToRootId),
+              eq(customers.createdBy, actor.id),
+              sql`not exists (select 1 from ${giftGrants} g where g.customer_id = ${customers.id})`,
+            ),
+          )
+          .limit(1);
+        if (dangGiu) return null;
+
+        const [last] = await tx
+          .select({ max: sql<number>`coalesce(max(${customers.seq}), 0)` })
+          .from(customers)
+          .where(eq(customers.rootCustomerId, linkToRootId));
+        seq = (last?.max ?? 0) + 1;
+      }
+
       const [row] = await tx
         .insert(customers)
         .values({
+          id: newId,
+          rootCustomerId: linkToRootId ?? newId,
+          seq,
           fullName: form.fullName,
           // Ô ngày để trống gửi lên chuỗi rỗng, mà cột là `date` — vào thẳng là
           // lỗi cast, không phải "chưa có ngày sinh".
@@ -660,10 +803,230 @@ export async function createCustomer(
         })
         .returning({ id: customers.id });
       await tx.insert(customerPhones).values(phoneRows(row.id, form));
+
+      /**
+       * Lần mới cũng ĐỒNG BỘ ngược lên các lần cũ, và ghi nhật ký nếu khác.
+       *
+       * Không có bước này thì ngay sau lượt tạo, lần 1 và lần 2 mang hai địa chỉ
+       * khác nhau — đúng thứ luật đồng bộ sinh ra để chặn. Người tạo lần mới
+       * đang ngồi với khách nên giá trị họ gõ là giá trị mới nhất; ai muốn tra
+       * lại thì đọc nhật ký.
+       */
+      if (linkToRootId)
+        await dongBoNhom(tx, {
+          rootCustomerId: linkToRootId,
+          customerId: newId,
+          // Hồ sơ GỐC làm bản cũ — hồ sơ vừa tạo đã mang giá trị mới rồi.
+          mocId: linkToRootId,
+          seq,
+          actorId: actor.id,
+          form,
+          ghiCccd: true,
+        });
+
       return row.id;
     });
 
-    return (await customerById(id, actor))!;
+    // `null` = giao dịch dừng vì người này đã giữ một hồ sơ dở dang; nơi gọi
+    // đổi nó thành `open-draft-exists`.
+    return id ? await customerById(id, actor) : null;
+  });
+
+  return result.ok && result.customer === null
+    ? { ok: false, reason: "open-draft-exists" }
+    : (result as CustomerOutcome<Customer>);
+}
+
+type CustomerChangeField = (typeof customerChangeField.enumValues)[number];
+
+/**
+ * Danh sách số điện thoại thành MỘT chuỗi, số chính đứng đầu và có dấu.
+ *
+ * Dấu "(chính)" phải nằm trong chuỗi: bỏ nó ra thì chuyển dấu số chính từ số
+ * này sang số kia không đổi chuỗi nào, và nhật ký bỏ qua một lượt sửa thật.
+ * Sắp lại theo cùng khoá ở cả hai đầu, không thì thứ tự người dùng gõ khác thứ
+ * tự đọc từ database và mỗi lượt Lưu sinh một dòng "đổi SĐT" giả.
+ */
+const phoneLabel = (rows: readonly { number: string; isPrimary: boolean }[]): string =>
+  [...rows]
+    .sort((a, b) => Number(b.isPrimary) - Number(a.isPrimary) || a.number.localeCompare(b.number))
+    .map((p) => (p.isPrimary ? `${p.number} (chính)` : p.number))
+    .join(", ");
+
+/** Bốn trường so được bằng chuỗi. CCCD tách riêng vì nhật ký không ghi giá trị. */
+type SnapshotKhach = Record<"fullName" | "dob" | "address" | "phones", string>;
+
+const FIELD_OF: Record<keyof SnapshotKhach, CustomerChangeField> = {
+  fullName: "full_name",
+  dob: "dob",
+  address: "address",
+  phones: "phones",
+};
+
+/**
+ * Ghi nhật ký sửa — mỗi trường ĐỔI THẬT một dòng, trường không đổi thì không ghi.
+ *
+ * Ghi cả trường không đổi thì mỗi lượt Lưu sinh sáu dòng, và khối lịch sử đầy
+ * những dòng "Địa chỉ: X → X".
+ */
+async function ghiNhatKy(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  arg: {
+    rootCustomerId: string;
+    customerId: string;
+    seq: number;
+    actorId: string;
+    truoc: SnapshotKhach;
+    sau: SnapshotKhach;
+    idNumberDoi: boolean;
+  },
+): Promise<void> {
+  const chung = {
+    rootCustomerId: arg.rootCustomerId,
+    customerId: arg.customerId,
+    seq: arg.seq,
+    changedBy: arg.actorId,
+  };
+
+  const rows = (Object.keys(FIELD_OF) as (keyof SnapshotKhach)[])
+    .filter((k) => arg.truoc[k] !== arg.sau[k])
+    .map((k) => ({ ...chung, field: FIELD_OF[k], fromValue: arg.truoc[k], toValue: arg.sau[k] }));
+
+  // CCCD chỉ ghi "đã đổi", hai giá trị để rỗng (chốt 2026-09-05).
+  if (arg.idNumberDoi)
+    rows.push({ ...chung, field: "id_number", fromValue: "", toValue: "" });
+
+  if (rows.length > 0) await tx.insert(customerChanges).values(rows);
+}
+
+/**
+ * Ghi TOÀN BỘ thông tin cá nhân của `form` lên MỌI LẦN cùng root, kèm nhật ký.
+ *
+ * Dùng chung cho hai đường ghi — sửa hồ sơ, và tạo thêm một lần. Hai đường phải
+ * đi qua đây chứ không tự viết lấy: lệch nhau nghĩa là một đường đồng bộ còn
+ * đường kia không, và hai lần của một người mang hai địa chỉ.
+ *
+ * `mocId` là hồ sơ lấy làm bản CŨ để so. Lượt sửa thì chính hồ sơ đang sửa;
+ * lượt tạo lần mới thì hồ sơ gốc, vì hồ sơ vừa tạo đã mang giá trị mới rồi.
+ */
+async function dongBoNhom(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  arg: {
+    rootCustomerId: string;
+    /** Hồ sơ người dùng đang đứng — ghi vào nhật ký. */
+    customerId: string;
+    mocId: string;
+    /** Số hồ sơ NGƯỜI DÙNG ĐANG ĐỨNG, khác `mocId` ở lượt tạo hồ sơ mới. */
+    seq: number;
+    actorId: string;
+    form: CustomerForm;
+    /** Lượt này có được ghi đè CCCD không — xem ba nhóm ở `updateCustomer`. */
+    ghiCccd: boolean;
+  },
+): Promise<void> {
+  const { rootCustomerId, customerId, mocId, seq, actorId, form, ghiCccd } = arg;
+
+  const [truoc] = await tx
+    .select({
+      fullName: customers.fullName,
+      dob: customers.dob,
+      idNumber: customers.idNumber,
+      address: customers.address,
+    })
+    .from(customers)
+    .where(eq(customers.id, mocId))
+    .limit(1);
+  if (!truoc) return;
+
+  const phoneTruoc = await tx
+    .select({ number: customerPhones.number, isPrimary: customerPhones.isPrimary })
+    .from(customerPhones)
+    .where(eq(customerPhones.customerId, mocId))
+    .orderBy(desc(customerPhones.isPrimary), asc(customerPhones.number));
+
+  /**
+   * KÊNH KHÔNG ĐỒNG BỘ (chốt 2026-09-05).
+   *
+   * Một khách tới từ nhiều kênh khác nhau là chuyện thật: hồ sơ 1 qua kênh Ấp,
+   * hồ sơ 2 qua kênh Bệnh viện. Mọi chỗ đọc kênh đều đọc theo TỪNG hồ sơ — luật
+   * quà, bảng nhân sự, tài khoản ngân hàng chép kênh lúc mở, file xuất Excel —
+   * nên giữ riêng là đúng, và rổ quà của hồ sơ anh em cũng không phải tính lại.
+   */
+  await tx
+    .update(customers)
+    .set({
+      channelId: form.channelId || null,
+      channelDetail: form.channelDetail,
+      updatedAt: new Date(),
+    })
+    .where(eq(customers.id, customerId));
+
+  await tx
+    .update(customers)
+    .set({
+      fullName: form.fullName,
+      // Ô ngày để trống gửi lên chuỗi rỗng, mà cột là `date` — vào thẳng là lỗi
+      // cast, không phải "chưa có ngày sinh".
+      dob: form.dob || null,
+      // Rỗng là "không đụng tới", không phải "xoá" — xem ba nhóm ở `updateCustomer`.
+      ...(ghiCccd ? { idNumber: form.idNumber } : {}),
+      address: form.address,
+      updatedAt: new Date(),
+    })
+    .where(eq(customers.rootCustomerId, rootCustomerId));
+
+  /**
+   * Kênh Ấp và Định danh lấy ĐỊA CHỈ làm chi tiết kênh (spec §U9), mà địa chỉ
+   * thì đồng bộ. Không chạy câu này thì hồ sơ anh em mang kênh loại đó giữ
+   * nguyên địa chỉ cũ trong cột chi tiết, lệch với cột địa chỉ ngay bên cạnh.
+   */
+  await tx
+    .update(customers)
+    .set({ channelDetail: form.address })
+    .where(
+      and(
+        eq(customers.rootCustomerId, rootCustomerId),
+        sql`exists (select 1 from ${channels} c where c.id = ${customers.channelId} and c.input_kind = 'ward-hamlet')`,
+      ),
+    );
+
+  /**
+   * Số điện thoại xoá theo NHÓM rồi chèn lại cho từng hồ sơ.
+   *
+   * Mỗi hồ sơ giữ dòng riêng chứ không trỏ chung: khoá duy nhất
+   * `customer_phones_one_primary` tính theo `customer_id`, và mọi câu tra số
+   * điện thoại hiện có đều nối qua cột đó.
+   */
+  const nhom = await tx
+    .select({ id: customers.id })
+    .from(customers)
+    .where(eq(customers.rootCustomerId, rootCustomerId));
+
+  await tx.delete(customerPhones).where(
+    inArray(customerPhones.customerId, nhom.map((r) => r.id)),
+  );
+  await tx.insert(customerPhones).values(nhom.flatMap((r) => phoneRows(r.id, form)));
+
+  await ghiNhatKy(tx, {
+    rootCustomerId,
+    customerId,
+    seq,
+    actorId,
+    truoc: {
+      fullName: truoc.fullName,
+      dob: truoc.dob ?? "",
+      address: truoc.address,
+      phones: phoneLabel(phoneTruoc),
+    },
+    sau: {
+      fullName: form.fullName,
+      dob: form.dob || "",
+      address: form.address,
+      // Qua `phoneRows` chứ không đọc thẳng `form.phones`: hàm đó mới là nơi
+      // quyết số nào là số chính, và cũng là nơi ghi xuống database.
+      phones: phoneLabel(phoneRows("", form)),
+    },
+    idNumberDoi: ghiCccd && (truoc.idNumber ?? "") !== form.idNumber,
   });
 }
 
@@ -713,6 +1076,7 @@ export async function updateCustomer(
     .select({
       createdById: customers.createdBy,
       createdByDepartmentId: customers.createdByDepartmentId,
+      rootCustomerId: customers.rootCustomerId,
     })
     .from(customers)
     .where(eq(customers.id, id))
@@ -727,24 +1091,43 @@ export async function updateCustomer(
 
   const result = await writeGuarded(async () => {
     const updated = await db.transaction(async (tx) => {
-      const [row] = await tx
-        .update(customers)
-        .set({
-          fullName: form.fullName,
-          dob: form.dob || null,
-          // Xem bảng ba nhóm ở đầu hàm. Rỗng là "không đụng tới", không phải "xoá".
-          ...(idNumberWritten ? { idNumber: form.idNumber } : {}),
-          address: form.address,
-          channelId: form.channelId || null,
-          channelDetail: form.channelDetail,
-          updatedAt: new Date(),
-        })
-        .where(eq(customers.id, id))
-        .returning({ id: customers.id });
-      if (!row) return false;
+      /**
+       * Khoá dòng GỐC trước khi đọc rồi ghi cả nhóm.
+       *
+       * Hai người sửa hai hồ sơ của cùng khách thì cả hai đọc ra giá trị cũ
+       * giống nhau, cả hai ghi, người sau thắng, và nhật ký nói cả hai lượt đều
+       * đã vào. Dòng gốc là thứ duy nhất chung cho mọi hồ sơ; khoá nó theo đúng
+       * thứ tự mà `createCustomer` đang dùng, không có hai đường khoá chéo nhau.
+       */
+      await tx
+        .select({ id: customers.id })
+        .from(customers)
+        .where(eq(customers.id, owner.rootCustomerId))
+        .for("update");
 
-      await tx.delete(customerPhones).where(eq(customerPhones.customerId, id));
-      await tx.insert(customerPhones).values(phoneRows(id, form));
+      const [ton] = await tx
+        .select({ seq: customers.seq })
+        .from(customers)
+        .where(eq(customers.id, id))
+        .limit(1);
+      if (!ton) return false;
+
+      /**
+       * Mọi thông tin cá nhân đi chung cho cả nhóm (chốt 2026-09-05).
+       *
+       * `mocId` là chính hồ sơ đang sửa: mọi lần đã mang cùng giá trị, và người
+       * sửa đối chiếu với thứ họ đang nhìn.
+       */
+      await dongBoNhom(tx, {
+        rootCustomerId: owner.rootCustomerId,
+        customerId: id,
+        mocId: id,
+        seq: ton.seq,
+        actorId: actor.id,
+        form,
+        ghiCccd: idNumberWritten,
+      });
+
       return true;
     });
 
@@ -814,6 +1197,7 @@ export async function deleteCustomer(
     .select({
       createdById: customers.createdBy,
       createdByDepartmentId: customers.createdByDepartmentId,
+      rootCustomerId: customers.rootCustomerId,
     })
     .from(customers)
     .where(eq(customers.id, id))
@@ -823,7 +1207,7 @@ export async function deleteCustomer(
 
   return db.transaction(async (tx) => {
     const [locked] = await tx
-      .select({ fullName: customers.fullName })
+      .select({ fullName: customers.fullName, seq: customers.seq })
       .from(customers)
       .where(eq(customers.id, id))
       .for("update")
@@ -831,15 +1215,68 @@ export async function deleteCustomer(
     // Người khác vừa xoá xong trong lúc mình chờ khoá.
     if (!locked) return null;
 
+    /**
+     * Đếm trên MỌI LẦN của người này, không riêng hồ sơ đang xoá (chốt
+     * 2026-09-05).
+     *
+     * Thông tin cá nhân đã đồng bộ và các lần nối với nhau qua
+     * `root_customer_id`, nên xoá một hồ sơ là đụng tới cả nhóm. Đếm riêng hồ sơ
+     * đang xoá thì câu báo nói "không vướng gì" trong khi lần khác của chính
+     * khách đó còn tài khoản ngân hàng.
+     */
+    const nhomIds = (
+      await tx
+        .select({ id: customers.id })
+        .from(customers)
+        .where(eq(customers.rootCustomerId, owner.rootCustomerId))
+    ).map((r) => r.id);
+
     const links: CustomerLink[] = [];
     for (const { table, label } of BLOCKING_TABLES) {
       const [row] = await tx
         .select({ n: count() })
         .from(table)
-        .where(eq(table.customerId, id));
+        .where(inArray(table.customerId, nhomIds));
       if (row.n > 0) links.push({ label, count: row.n });
     }
+
+    /**
+     * Lần sau của cùng người này trỏ về hồ sơ gốc, nên xoá gốc là đụng khoá
+     * ngoại. Đếm ở đây để câu báo nói đúng thứ đang vướng — để khoá ngoại từ
+     * chối thì người dùng nhận một lỗi 500 không đọc được.
+     */
+    const [laterRows] = await tx
+      .select({ n: count() })
+      .from(customers)
+      .where(and(eq(customers.rootCustomerId, id), ne(customers.id, id)));
+    if (laterRows.n > 0) links.push({ label: "hồ sơ sau của khách này", count: laterRows.n });
+
     if (links.length > 0) return { ok: false, links };
+
+    /**
+     * Nhật ký GIỮ NGUYÊN, chỉ cắt liên kết tới hồ sơ sắp mất (chốt 2026-09-05).
+     *
+     * Bản trước xoá luôn các dòng đó, và vì `nhomIds` là cả nhóm nên xoá một hồ
+     * sơ là mất trọn lịch sử của những hồ sơ còn sống. Nay chuyển `customer_id`
+     * sang `null`: nội dung ở lại, `seq` đã chép sẵn nên vẫn đọc được lượt sửa
+     * đó thuộc hồ sơ mấy.
+     */
+    await tx
+      .update(customerChanges)
+      .set({ customerId: null })
+      .where(eq(customerChanges.customerId, id));
+
+    // Chính lượt xoá cũng là một dòng trong nhật ký — không có nó thì hồ sơ biến
+    // mất khỏi dòng thời gian mà không ai biết ai xoá.
+    await tx.insert(customerChanges).values({
+      rootCustomerId: owner.rootCustomerId,
+      customerId: null,
+      seq: locked.seq,
+      changedBy: actor.id,
+      field: "profile_deleted",
+      fromValue: locked.fullName,
+      toValue: "",
+    });
 
     await tx.delete(customerPhones).where(eq(customerPhones.customerId, id));
     await tx.delete(customers).where(eq(customers.id, id));
@@ -870,6 +1307,60 @@ export async function customerDetailFor(
 ): Promise<CustomerDetail | null> {
   const customer = await customerById(id, actor);
   if (!customer) return null;
+
+  /**
+   * Nhật ký đọc theo NHÓM, không theo hồ sơ đang mở: thông tin cá nhân đồng bộ
+   * giữa các lần nên một lượt sửa thuộc về cả nhóm.
+   *
+   * Cắt 50 dòng gần nhất. Khối này để tra "ai đổi cái gì", không phải để lật
+   * trang; hồ sơ sửa quá 50 lượt thì phần cũ tra ở nhật ký hệ thống.
+   */
+  /**
+   * Nhật ký áp PHẠM VI ĐỌC HỒ SƠ KHÁCH (chốt 2026-09-05).
+   *
+   * Khối này mang tên nhân viên đã sửa và giá trị cũ của từng trường, tức hoạt
+   * động của người khác chứ không riêng dữ liệu khách. Lọc theo phạm vi của
+   * người xem, giống bốn khối bản ghi nghiệp vụ bên dưới.
+   *
+   * Lọc theo NGƯỜI LẬP hồ sơ mà lượt sửa nhắm tới, không theo người sửa: câu hỏi
+   * là "bạn có được đọc hồ sơ đó không", không phải "bạn có được đọc người đó
+   * không". Dòng của hồ sơ đã xoá luôn hiện — hồ sơ mất rồi thì không còn chủ để
+   * so, mà giấu đi là mất dấu vết lượt xoá.
+   */
+  const changeVisible = recordVisibility(actor, "customer", "view-detail");
+  const chuHoSo = alias(customers, "chu_ho_so");
+
+  const changeScope =
+    changeVisible.kind === "all"
+      ? undefined
+      : changeVisible.kind === "departments"
+        ? or(
+            isNull(customerChanges.customerId),
+            inArray(chuHoSo.createdByDepartmentId, changeVisible.departmentIds),
+          )
+        : changeVisible.kind === "creator"
+          ? or(isNull(customerChanges.customerId), eq(chuHoSo.createdBy, changeVisible.userId))
+          : isNull(customerChanges.customerId);
+
+  const changeRows = await db
+    .select({
+      id: customerChanges.id,
+      field: customerChanges.field,
+      fromValue: customerChanges.fromValue,
+      toValue: customerChanges.toValue,
+      changedAt: customerChanges.changedAt,
+      changedByName: sql<string>`coalesce(${users.fullName}, '')`,
+      // Đọc `seq` từ chính dòng nhật ký, KHÔNG nối sang `customers`: hồ sơ bị
+      // xoá thì dòng của nó mang `customer_id` rỗng, nối vào là mất luôn dòng.
+      seq: customerChanges.seq,
+    })
+    .from(customerChanges)
+    .leftJoin(users, eq(users.id, customerChanges.changedBy))
+    // `leftJoin` chứ không `innerJoin`: dòng của hồ sơ đã xoá mang `null`.
+    .leftJoin(chuHoSo, eq(chuHoSo.id, customerChanges.customerId))
+    .where(and(eq(customerChanges.rootCustomerId, customer.rootId), changeScope))
+    .orderBy(desc(customerChanges.changedAt), desc(customerChanges.id))
+    .limit(50);
 
   const bankingVisible = scopeOf(actor, "banking");
   const insuranceVisible = scopeOf(actor, "insurance");
@@ -1018,6 +1509,7 @@ export async function customerDetailFor(
 
   return {
     customer,
+    changes: changeRows,
     /**
      * `accountRows` là TOÀN BỘ tài khoản của khách — phạm vi phòng áp sau, lúc
      * dựng `visibleDone`/`visibleDrafts`. Đếm ở đây nên đúng cả bản nháp lẫn

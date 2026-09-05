@@ -49,6 +49,20 @@ export function formatIdNumber(idNumber: string): string {
 export const isValidPhone = (v: string): boolean => digitsOnly(v).length === 10;
 export const isValidIdNumber = (v: string): boolean => digitsOnly(v).length === 12;
 
+/**
+ * Khoảng tuổi mở tài khoản của một ngân hàng. `null` cả hai đầu là không giới
+ * hạn, gọi hàm này lúc đó không có nghĩa nên trả chuỗi rỗng.
+ *
+ * Nằm ở đây vì hai nơi cùng đọc: câu máy chủ từ chối lúc lưu, và dòng lý do
+ * dưới ô tích ngân hàng ở P-20. Hai câu lệch nhau thì cùng một ngân hàng nói
+ * hai khoảng tuổi khác nhau.
+ */
+export function ageRangeLabel(rule: { minAge: number | null; maxAge: number | null }): string {
+  if (rule.minAge !== null && rule.maxAge !== null) return `${rule.minAge}–${rule.maxAge} tuổi`;
+  if (rule.minAge !== null) return `từ ${rule.minAge} tuổi`;
+  return rule.maxAge !== null ? `tối đa ${rule.maxAge} tuổi` : '';
+}
+
 /** Tên khi XUẤT Excel: VIẾT HOA, BỎ DẤU. Lúc nhập không ràng buộc gì. */
 export const nameForExcel = (name: string): string =>
   removeDiacritics(name).toUpperCase();
