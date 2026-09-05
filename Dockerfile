@@ -57,6 +57,14 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 
+# `sharp` là module NATIVE, và `.next/standalone` chép thiếu một nửa của nó:
+# nó mang `@img/sharp-linuxmusl-x64` nhưng bỏ `@img/sharp-libvips-linuxmusl-x64`
+# — chính là gói chứa `libvips-cpp.so`. Thiếu file đó thì mọi route nạp
+# `server/storage.ts` chết với `ERR_DLOPEN_FAILED`, kể cả route không đụng ảnh:
+# danh sách khách hàng trả lỗi vì cùng nạp module đó. Chép trọn `@img` sang là
+# đủ; `apk add vips` KHÔNG thay được vì bản dựng sẵn đòi đúng số hiệu phiên bản.
+COPY --from=builder /app/node_modules/@img ./node_modules/@img
+
 # Hai thư mục app PHẢI ghi được, mở riêng đúng hai cái:
 #   .next/cache  — Next lưu ảnh đã tối ưu của `next/image`
 #   .uploads     — ngả ghi đĩa khi thiếu biến S3_*, xem src/server/storage.ts
