@@ -7,7 +7,6 @@ import { useMemo } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { Button } from "@/components/ui/Button";
 import { CharCount } from "@/components/ui/CharCount";
-import { AddressField } from "@/components/ui/AddressField";
 import { Combobox } from "@/components/ui/Combobox";
 import { Dialog } from "@/components/ui/Dialog";
 import { ErrorState } from "@/components/ui/ErrorState";
@@ -100,6 +99,29 @@ export function CustomerFormDialog({
   // P-40). Memo theo `customer` — mỗi render một object mới là form reset liên tục.
   const formValues = useMemo(() => (customer ? toForm(customer) : undefined), [customer]);
 
+  /**
+   * Địa chỉ CHỈ chọn từ danh mục, không gõ tự do (chốt 2026-09-05). Chuỗi lưu
+   * phải khớp đúng một dòng `Ấp, Xã, Tỉnh` để kênh ấp và thống kê theo xã/ấp
+   * đọc lại được; bản trước cho gõ nối số nhà nên cùng một ấp ra nhiều dạng.
+   *
+   * Hồ sơ cũ mang chuỗi ngoài danh mục thì ô hiện trống và lượt Lưu dừng ở
+   * "Chọn địa chỉ từ danh sách": người sửa phải chọn lại.
+   */
+  const addressSuggestions = useAddressSuggestions();
+  const addressOptions = useMemo(
+    () => addressSuggestions.map((s) => ({ value: s, label: s })),
+    [addressSuggestions],
+  );
+  const addressSet = useMemo(() => new Set(addressSuggestions), [addressSuggestions]);
+  const schema = useMemo(
+    () =>
+      (editing ? CustomerEditForm : CustomerForm).refine((f) => addressSet.has(f.address), {
+        path: ["address"],
+        message: "Chọn địa chỉ từ danh sách",
+      }),
+    [editing, addressSet],
+  );
+
   const {
     register,
     handleSubmit,
@@ -112,7 +134,7 @@ export function CustomerFormDialog({
     shouldFocusError: false,
     // Luồng SỬA cho CCCD để trống: người không có quyền xem số thì ô đó nạp
     // rỗng và bị khoá, giữ luật 12 số là họ không lưu nổi hồ sơ nào.
-    resolver: zodResolver(editing ? CustomerEditForm : CustomerForm),
+    resolver: zodResolver(schema),
     defaultValues: customer ? toForm(customer) : emptyForm,
     values: formValues,
   });
@@ -123,8 +145,6 @@ export function CustomerFormDialog({
   const channelId = watch("channelId");
   const { data: channels = [] } = useQuery({ queryKey: ["channels"], queryFn: fetchChannels });
   const selectedChannel = channels.find((c) => c.id === channelId);
-
-  const addressSuggestions = useAddressSuggestions();
 
   const { data: hospitals = [] } = useQuery({
     queryKey: ["hospitals"],
@@ -259,11 +279,12 @@ export function CustomerFormDialog({
             )}
           </div>
 
-          <AddressField
-            label="Địa chỉ"
+          <Combobox
+            block
             required
+            label="Địa chỉ"
             placeholder="Gõ để tìm Ấp, Xã, Tỉnh"
-            suggestions={addressSuggestions}
+            options={addressOptions}
             value={watch("address")}
             onChange={(v) => setValue("address", v, { shouldDirty: true, shouldValidate: true })}
             error={errors.address?.message}

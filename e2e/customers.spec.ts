@@ -139,7 +139,22 @@ async function fillRequired(scope: ReturnType<typeof dialog>, idNumber: string) 
   // biểu mẫu dừng ở "Chưa nhập ngày sinh".
   await scope.getByLabel("Ngày sinh").fill("01011990");
   await scope.getByLabel("CCCD").fill(idNumber);
-  await scope.getByLabel("Địa chỉ").fill(`${TAG} dia chi`);
+  await pickAddress(scope);
+}
+
+/**
+ * Địa chỉ CHỈ chọn từ danh mục từ 2026-09-05, không gõ tự do: `fill` một chuỗi
+ * bất kỳ thì form dừng ở "Chọn địa chỉ từ danh sách". Mở ô rồi lấy dòng đầu.
+ *
+ * Danh mục là tỉnh/xã công ty đã triển khai ở P-71, không phải bảng tham chiếu,
+ * nên một database chưa thêm tỉnh nào thì ô này không có gì để chọn.
+ */
+async function pickAddress(scope: ReturnType<typeof dialog>) {
+  await scope.getByRole("combobox", { name: /^Địa chỉ/ }).click();
+  const options = scope.getByRole("option");
+  await options.first().waitFor({ timeout: 5_000 }).catch(() => {});
+  test.skip((await options.count()) === 0, "chưa triển khai tỉnh nào");
+  await options.first().click();
 }
 
 /** Ô nhập SĐT thứ `i` — phải chỉ rõ là ô nhập, nút "Xoá số điện thoại i" trùng nhãn. */
@@ -428,7 +443,7 @@ test.describe("thao tác nào cũng báo kết quả", () => {
      * như đây — chốt 2026-08-22.
      */
     await box.getByLabel("Ngày sinh").fill("01011990");
-    await box.getByLabel("Địa chỉ").fill(`ZZE2E địa chỉ ${Date.now()}`);
+    await pickAddress(box);
     await box.getByRole("button", { name: /^Lưu$/ }).click();
 
     await expect(toast(page)).toContainText(/Đã lưu hồ sơ/);

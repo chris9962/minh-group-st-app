@@ -19,7 +19,14 @@ type Props = {
   error?: string;
   /** Nhãn xếp phía trên, ô rộng hết cỡ — dùng khi đứng cùng hàng với TextField trong form. */
   block?: boolean;
+  required?: boolean;
 };
+
+/**
+ * Danh sách địa chỉ cả nước có thể tới ~20.000 dòng, vẽ hết là khựng khi mở.
+ * Người dùng gõ thêm chữ thì danh sách tự thu, nên chỉ cần một trang đầu.
+ */
+const MAX_SHOWN = 50;
 
 /**
  * Ô chọn có gõ để lọc — dùng thay `Select` khi danh sách quá dài để lướt tay
@@ -40,6 +47,7 @@ export function Combobox({
   placeholder,
   error,
   block = false,
+  required,
 }: Props) {
   const id = useId();
   const listId = `${id}-list`;
@@ -63,6 +71,7 @@ export function Combobox({
   const selected = options.find((o) => o.value === value);
   const displayValue = editing ? query : (selected?.label ?? "");
   const filtered = query.trim() ? options.filter((o) => matchesSearch(o.label, query)) : options;
+  const shown = filtered.slice(0, MAX_SHOWN);
 
   const commit = (option: ComboboxOption) => {
     onChange(option.value);
@@ -97,6 +106,11 @@ export function Combobox({
           onClick={(e) => e.preventDefault()}
         >
           {label}
+          {required && (
+            <span className={styles.required} aria-hidden>
+              {" *"}
+            </span>
+          )}
         </label>
         <Popover.Anchor asChild>
           <input
@@ -107,6 +121,7 @@ export function Combobox({
             aria-expanded={open}
             aria-controls={listId}
             aria-autocomplete="list"
+            aria-required={required || undefined}
             aria-activedescendant={activeIndex >= 0 ? `${listId}-${activeIndex}` : undefined}
             aria-invalid={Boolean(error)}
             aria-errormessage={error ? errorId : undefined}
@@ -138,14 +153,14 @@ export function Combobox({
               if (e.key === "ArrowDown") {
                 e.preventDefault();
                 setOpen(true);
-                setActiveIndex((i) => Math.min(i + 1, filtered.length - 1));
+                setActiveIndex((i) => Math.min(i + 1, shown.length - 1));
               } else if (e.key === "ArrowUp") {
                 e.preventDefault();
                 setActiveIndex((i) => Math.max(i - 1, 0));
               } else if (e.key === "Enter") {
-                if (open && filtered[activeIndex]) {
+                if (open && shown[activeIndex]) {
                   e.preventDefault();
-                  commit(filtered[activeIndex]);
+                  commit(shown[activeIndex]);
                 }
               } else if (e.key === "Escape") {
                 setOpen(false);
@@ -175,7 +190,7 @@ export function Combobox({
             {filtered.length === 0 ? (
               <li className={styles.empty}>Không tìm thấy</li>
             ) : (
-              filtered.map((o, i) => (
+              shown.map((o, i) => (
                 <li
                   key={o.value}
                   id={`${listId}-${i}`}
@@ -189,6 +204,11 @@ export function Combobox({
                   {o.label}
                 </li>
               ))
+            )}
+            {filtered.length > MAX_SHOWN && (
+              <li className={styles.empty} aria-hidden>
+                … còn {filtered.length - MAX_SHOWN} gợi ý, gõ thêm để thu hẹp
+              </li>
             )}
           </ul>
         </Popover.Content>
