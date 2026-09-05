@@ -1,6 +1,7 @@
 "use client";
 
 import { clsx } from "clsx";
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import styles from "./RankTable.module.css";
 
@@ -79,6 +80,21 @@ type Props<T> = {
    * `<button>` thật trong một ô — xem cột "Nội dung" ở P-96.
    */
   onRowClick?: (row: T) => void;
+  /**
+   * Dòng thành LINK thật thay vì `onRowClick` — chuột phải mở tab mới được, và
+   * Ctrl/Cmd+bấm cũng vậy (chốt 2026-09-05).
+   *
+   * Mỗi ô mang một `<a>` phủ kín ô, nên chuột phải ở đâu trong dòng cũng ra
+   * menu. Chỉ ô ĐẦU nhận tiêu điểm bàn phím; các ô sau mang `tabIndex={-1}` và
+   * `aria-hidden` để bàn phím với trình đọc màn hình chỉ thấy MỘT link mỗi
+   * dòng, thay vì đọc lại cùng một đường dẫn chín lần.
+   *
+   * Đi kèm `rowLabel`: nhãn của link đầu là nội dung ô đầu, mà ô đầu thường là
+   * ngày — "05/09/2026" không nói được nó dẫn tới đâu.
+   */
+  rowHref?: (row: T) => string;
+  /** Câu đọc lên cho link của dòng. Chỉ có nghĩa khi có `rowHref`. */
+  rowLabel?: (row: T) => string;
 };
 
 /**
@@ -97,6 +113,8 @@ export function RankTable<T>({
   server,
   emptyText,
   onRowClick,
+  rowHref,
+  rowLabel,
 }: Props<T>) {
   const [sortKey, setSortKey] = useState(defaultSort);
   const [asc, setAsc] = useState(false);
@@ -206,21 +224,16 @@ export function RankTable<T>({
               </td>
             </tr>
           )}
-          {visible.map((row) => (
-            <tr
-              key={rowKey(row)}
-              className={onRowClick ? styles.clickable : undefined}
-              onClick={onRowClick ? () => onRowClick(row) : undefined}
-            >
-              {columns.map((col) => (
-                <td
-                  key={col.key}
-                  className={clsx(
-                    col.align === "right" ? styles.right : undefined,
-                    col.sortBy ? "tabular-nums" : undefined,
-                  )}
-                >
-                  {col.ratio ? (
+          {visible.map((row) => {
+            const href = rowHref?.(row);
+            return (
+              <tr
+                key={rowKey(row)}
+                className={onRowClick || href ? styles.clickable : undefined}
+                onClick={onRowClick ? () => onRowClick(row) : undefined}
+              >
+                {columns.map((col, index) => {
+                  const content = col.ratio ? (
                     <span className={styles.ratioCell}>
                       <span className={styles.track} aria-hidden>
                         <span
@@ -232,11 +245,36 @@ export function RankTable<T>({
                     </span>
                   ) : (
                     col.render(row)
-                  )}
-                </td>
-              ))}
-            </tr>
-          ))}
+                  );
+
+                  return (
+                    <td
+                      key={col.key}
+                      className={clsx(
+                        col.align === "right" ? styles.right : undefined,
+                        col.sortBy ? "tabular-nums" : undefined,
+                        href ? styles.linkCell : undefined,
+                      )}
+                    >
+                      {href ? (
+                        <Link
+                          href={href}
+                          className={styles.rowLink}
+                          aria-label={index === 0 ? rowLabel?.(row) : undefined}
+                          aria-hidden={index > 0}
+                          tabIndex={index > 0 ? -1 : undefined}
+                        >
+                          {content}
+                        </Link>
+                      ) : (
+                        content
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
 

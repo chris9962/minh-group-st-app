@@ -43,6 +43,8 @@ export type PhotoDownloadForm = z.infer<typeof PhotoDownloadForm>;
 
 /** Cùng bộ lọc với bảng tài khoản của trang — hai tab dùng chung ô lọc. */
 export type BankPhotosQuery = PageQuery<BankAccountSort> & {
+  /** Tìm theo TÊN KHÁCH — không dấu, không phụ thuộc thứ tự từ. */
+  search: string;
   from: string;
   to: string;
   status: string;
@@ -59,6 +61,7 @@ export async function fetchBankPhotos(
 ): Promise<Page<BankPhotoRow>> {
   const res = await fetch(
     `/api/settings/banks/${bankId}/photos?${pageParams(query, {
+      search: query.search,
       from: query.from,
       to: query.to,
       status: query.status,

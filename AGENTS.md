@@ -66,14 +66,47 @@ tiền tố này**, không thì rác nằm lại và ca "đếm số dòng" củ
 
 ## 0.2 Máy chủ chạy thật
 
+### CẤM tự SSH vào máy chủ
+
+**Không SSH vào máy chủ khi chủ dự án chưa cho phép trong chính lượt đó.** Cấm
+cả `ssh`, `scp`, `docker` từ xa, `psql` qua container, và mọi lệnh khác chạm vào
+`79.108.219.111`.
+
+Cho phép nghĩa là một câu như "deploy đi", "lên server chạy giúp", "check trên
+prod". Những thứ sau KHÔNG phải cho phép:
+
+- Câu hỏi. "Tại sao lỗi", "sao lần này hỏng", "cái này là gì" — trả lời bằng
+  chữ rồi dừng.
+- Một lượt cho phép trước đó. Cho phép hết hiệu lực khi việc đó xong.
+- Tự thấy cấu hình lệch chuẩn. Đề nghị và đợi trả lời, đừng tự sửa.
+
+Chốt 2026-09-05 sau khi tôi tự dựng lại container bốn lượt liền, hỏng production
+giữa giờ làm. Nhân viên đang nhập liệu trên máy thật; mỗi lượt dựng lại là một
+lần họ mất việc đang làm.
+
+Sửa xong thì commit, push, báo "máy chủ đang chạy commit X, thiếu N commit" rồi
+dừng. Muốn deploy thì đề nghị bằng một câu và đợi.
+
+### Cách vận hành
+
 Bản `main` chạy trên một VM FPT Cloud tại **https://app.mgst.com.vn**. Toàn bộ
 cách vận hành nằm ở `docs/deploy-fpt-cloud.md`: đường SSH, systemd unit, container
 Postgres, Nginx, chứng chỉ HTTPS, thứ tự cập nhật bản mới, Security Group.
 
-**Đọc file đó trước khi đụng vào máy chủ.** Ba chỗ dễ sai: `next start` không tự
-build lại nên phải `bun run build` xong mới `systemctl restart mgst-app`; Docker
-trên VM thiếu plugin `compose` nên `docker compose` không chạy được; ảnh tải lên
-phải đi qua Nginx mới đọc lại được, vì Next chỉ quét `public/` lúc khởi động.
+**Mở `docs/deploy-fpt-cloud.md` ra đọc trước khi đụng vào máy chủ.** Không phải
+lướt câu này rồi tự gõ lệnh theo trí nhớ — mục "Cập nhật bản mới" có sẵn lệnh
+đầy đủ, chép nguyên. Ba chỗ dễ sai: `next start` không tự build lại nên phải
+`bun run build` xong mới `systemctl restart mgst-app`; Docker trên VM thiếu
+plugin `compose` nên `docker compose` không chạy được; ảnh tải lên phải đi qua
+Nginx mới đọc lại được, vì Next chỉ quét `public/` lúc khởi động.
+
+Hai chỗ đã hỏng production 2026-09-05 vì gõ lệnh theo trí nhớ, cả hai đều nằm
+sẵn trong tài liệu:
+
+| Bỏ sót | Hậu quả |
+|---|---|
+| `docker build --target runner` | Tầng cuối Dockerfile là `worker`, nên container app khởi động bằng bot PVI chứ không phải `bun server.js`. |
+| `--add-host host.docker.internal:host-gateway` và `-e DATABASE_URL=…@host.docker.internal:5433/…` | App không nối được database. `localhost:5433` trong `.env.local` chỉ đúng khi gọi từ máy chủ, không đúng từ trong container. |
 
 Hợp đồng là POC, hết hạn 2026-08-25. Không đưa dữ liệu thật lên.
 

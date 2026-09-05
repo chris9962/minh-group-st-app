@@ -22,6 +22,8 @@ import { errorMessage, toast } from "@/lib/toast";
 import styles from "./BankPhotoGallery.module.scss";
 
 type Filters = {
+  /** Tìm theo TÊN KHÁCH — không dấu, không phụ thuộc thứ tự từ. */
+  search: string;
   from: string;
   to: string;
   status: string;

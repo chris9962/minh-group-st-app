@@ -27,6 +27,7 @@ export async function GET(request: Request, { params }: Params) {
     await listBankPhotos(
       id,
       {
+        search: query.get("search") ?? "",
         from: query.get("from") ?? "",
         to: query.get("to") ?? "",
         status: query.get("status") ?? "",

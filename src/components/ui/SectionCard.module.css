@@ -50,7 +50,13 @@
 }
 
 /* `.title` có `flex: 1` nên khối này tự bị đẩy sang phải. */
+/* `flex` chứ không phải block: khối này nhận NHIỀU nút — trang chi tiết tài
+   khoản của khu quản ngân hàng có cả Duyệt lẫn Đánh dấu lỗi, để block thì hai
+   nút dính vào nhau. */
 .action {
   flex: none;
   margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
 }

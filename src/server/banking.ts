@@ -524,6 +524,8 @@ export async function listBankAccounts(
  * chỗ khác mà quên chốt đó là mở cả kho tài khoản cho người không được xem.
  */
 export type BankOfBankFilters = {
+  /** Tìm theo TÊN KHÁCH — không dấu, không phụ thuộc thứ tự từ. */
+  search: string;
   from: string;
   to: string;
   status: string;
@@ -539,6 +541,7 @@ const bankAccountsOfBankWhere = (bankId: string, filters: BankOfBankFilters): SQ
   and(
     eq(bankAccounts.bankId, bankId),
     ...([
+      searchWhere(filters.search),
       usableDate(filters.from) ? gte(bankAccounts.openedDate, filters.from) : undefined,
       usableDate(filters.to) ? lte(bankAccounts.openedDate, filters.to) : undefined,
       statusFilter(filters.status),
@@ -1510,6 +1513,60 @@ export async function approveFixedAccount(
 
   // Chỉ tháng MỞ tài khoản, không phải tháng bấm duyệt — cùng lối với
   // `updateBankAccountStatus`.
+  if (current.date)
+    await recomputeKpiForCustomer(
+      current.customerId,
+      businessMonth(new Date(`${current.date}T00:00:00+07:00`)),
+    );
+
+  return { ok: true, value: (await accountById(id))! };
+}
+
+/**
+ * Đánh dấu lỗi một tài khoản, gác bằng QUYỀN QUẢN NGÂN HÀNG.
+ *
+ * Đường song song với `updateBankAccountStatus`, dành riêng cho trang chi tiết
+ * ngân hàng (chốt 2026-09-05). Hai đường vì hai nhóm người khác nhau:
+ *
+ * | Đường | Ai đi | Gác bằng |
+ * |---|---|---|
+ * | `updateBankAccountStatus` (P-22) | người mở tài khoản, quản lý phòng | `banking:update` + phạm vi ghi |
+ * | hàm này (trang ngân hàng) | người quản ngân hàng | `canManageBank` |
+ *
+ * Người quản ngân hàng thường có phạm vi ghi `creator` hoặc không có
+ * `banking:update`, nên đường P-22 chặn họ ngay ở phạm vi — họ DUYỆT LẠI được
+ * tài khoản của nhân viên khác mà không đánh dấu lỗi được chính tài khoản đó.
+ * Ghép chung vào một hàm thì phải nới phạm vi của P-22, và nới ở đó là nhân
+ * viên đụng được bản ghi của phòng khác.
+ *
+ * Nhận `done` → `error` và `fixed` → `error`. Chiều thứ hai là TỪ CHỐI bản sửa:
+ * người quản ngân hàng xem xong thấy chưa đạt thì trả về lỗi kèm lý do mới, thay
+ * vì chỉ có mỗi nút Duyệt. Chiều ngược lại vẫn đi `approveFixedAccount`.
+ */
+export async function markAccountErrorByBankManager(
+  actor: User,
+  id: string,
+  errorNote: string,
+): Promise<BankingOutcome<BankAccount> | null> {
+  const current = await rawById(id);
+  if (!current) return null;
+  if (!canManageBank(actor, current.bankId)) return null;
+  if (current.status !== "done" && current.status !== "fixed")
+    return {
+      ok: false,
+      message: "Chỉ tài khoản đã hoàn thành hoặc chờ duyệt lại mới đánh dấu lỗi được.",
+    };
+
+  const updated = await db
+    .update(bankAccounts)
+    .set({ status: "error", errorNote, updatedAt: new Date() })
+    .where(and(eq(bankAccounts.id, id), eq(bankAccounts.status, current.status)))
+    .returning({ id: bankAccounts.id });
+  if (updated.length === 0)
+    return { ok: false, message: "Tài khoản vừa được đối soát ở nơi khác." };
+
+  // Chỉ tháng MỞ tài khoản, không phải tháng bấm đánh dấu — cùng lối với
+  // `updateBankAccountStatus` và `approveFixedAccount`.
   if (current.date)
     await recomputeKpiForCustomer(
       current.customerId,

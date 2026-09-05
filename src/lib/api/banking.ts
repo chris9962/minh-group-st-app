@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { AccountNumberMethod } from './bankCatalog';
-import { AccountType, BankAccountStatus } from './bankAccounts';
+import { AccountType, BankAccount, BankAccountStatus } from './bankAccounts';
 import { pageOf, pageParams, type Page, type PageQuery } from './pagination';
 
 /**
@@ -188,6 +188,8 @@ export async function fetchBankAccountsForExport(
  * kho chứ không đi tìm một dòng.
  */
 export type BankAccountsOfBankQuery = PageQuery<BankAccountSort> & {
+  /** Tìm theo TÊN KHÁCH — không dấu, không phụ thuộc thứ tự từ. */
+  search: string;
   /** Khoảng NGÀY MỞ, YYYY-MM-DD. Rỗng = không giới hạn. */
   from: string;
   to: string;
@@ -211,6 +213,7 @@ export async function fetchBankAccountsOfBankForExport(
   query: Omit<BankAccountsOfBankQuery, keyof PageQuery>,
 ): Promise<Page<BankAccountRow>> {
   const params = new URLSearchParams();
+  if (query.search) params.set('search', query.search);
   if (query.from) params.set('from', query.from);
   if (query.to) params.set('to', query.to);
   if (query.status) params.set('status', query.status);
@@ -239,6 +242,7 @@ export async function fetchBankAccountsOfBank(
   query: BankAccountsOfBankQuery,
 ): Promise<Page<BankAccountRow>> {
   const params = pageParams(query, {
+    search: query.search,
     from: query.from,
     to: query.to,
     status: query.status,
@@ -250,6 +254,30 @@ export async function fetchBankAccountsOfBank(
   if (res.status === 403) throw new Error('Bạn không quản ngân hàng này');
   if (!res.ok) throw new Error('Không tải được danh sách tài khoản của ngân hàng');
   return BankAccountPage.parse(await res.json());
+}
+
+/**
+ * Đánh dấu lỗi một tài khoản từ trang chi tiết ngân hàng — `Hoàn thành` → `Lỗi`.
+ *
+ * Đường RIÊNG với `updateBankAccountStatus` của P-22: route này gác bằng quyền
+ * quản ngân hàng, không kẹp phạm vi phòng. Người quản ngân hàng thường không đi
+ * được đường P-22.
+ */
+export async function markBankAccountError(
+  bankId: string,
+  accountId: string,
+  errorNote: string,
+): Promise<BankAccount> {
+  const res = await fetch(`/api/settings/banks/${bankId}/accounts/${accountId}/error`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ errorNote }),
+  });
+  if (!res.ok) {
+    const detail = (await res.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(detail?.message?.trim() || 'Không đánh dấu lỗi được tài khoản này');
+  }
+  return BankAccount.parse(await res.json());
 }
 
 export async function fetchBankAccountDetail(id: string): Promise<BankAccountDetail> {

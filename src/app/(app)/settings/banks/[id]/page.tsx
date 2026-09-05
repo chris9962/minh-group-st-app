@@ -2,7 +2,7 @@
 
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { use, useEffect, useMemo, useState } from "react";
 import { ChevronLeft, Download, Landmark } from "lucide-react";
 import type { DateRange } from "react-day-picker";
@@ -17,6 +17,7 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { FilterButton } from "@/components/ui/FilterButton";
 import { FilterChips } from "@/components/ui/FilterChips";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
+import { SearchField } from "@/components/ui/SearchField";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { Select } from "@/components/ui/Select";
 import { SkeletonTable } from "@/components/ui/Skeleton";
@@ -25,6 +26,7 @@ import {
   ACCOUNT_TYPE_LABEL,
   AccountType,
   BANK_ACCOUNT_STATUS_LABEL,
+  BANK_ACCOUNT_STATUS_TONE,
   BankAccountStatus,
 } from "@/lib/api/bankAccounts";
 import { fetchBankReferralCodeOptions, fetchBanks } from "@/lib/api/bankCatalog";
@@ -37,6 +39,7 @@ import {
 import { EMPTY_PAGE, PAGE_SIZE, type SortDir } from "@/lib/api/pagination";
 import { exportExcel } from "@/lib/excel";
 import { formatDate, formatPhone } from "@/lib/format";
+import { useDebouncedValue } from "@/lib/hooks";
 import { canManageBank, canOpenBankAdmin } from "@/lib/permissions";
 import { errorMessage, toast } from "@/lib/toast";
 import { isRealIsoDate } from "@/lib/types";
@@ -63,9 +66,10 @@ const pageFromUrl = (value: string | null): number => {
  * gộp tài khoản của mọi phòng — người quản ngân hàng cần biết dòng nào của phòng
  * nào để hỏi lại đúng người.
  *
- * Không có link sang chi tiết tài khoản hay chi tiết khách: hai màn đó gác theo
- * phạm vi của `banking` và `customer`, mà người quản ngân hàng thường chỉ có
- * phạm vi phòng mình — link dẫn thẳng tới 404.
+ * Dòng dẫn sang chi tiết tài khoản TRONG KHU QUẢN NGÂN HÀNG, không sang P-22 và
+ * cũng không sang hồ sơ khách: hai màn đó gác theo phạm vi của `banking` và
+ * `customer`, mà người quản ngân hàng thường chỉ có phạm vi phòng mình — link
+ * dẫn thẳng tới 404.
  */
 const COLUMNS: RankColumn<BankAccountRow>[] = [
   { key: "date", label: "Ngày", sortable: true, render: (r) => (r.date ? formatDate(r.date) : "—") },
@@ -85,7 +89,7 @@ const COLUMNS: RankColumn<BankAccountRow>[] = [
     key: "status",
     label: "Trạng thái",
     render: (r) => (
-      <StatusTag tone={r.status === "done" ? "ok" : r.status === "error" ? "warn" : "waiting"}>
+      <StatusTag tone={BANK_ACCOUNT_STATUS_TONE[r.status]}>
         {BANK_ACCOUNT_STATUS_LABEL[r.status]}
       </StatusTag>
     ),
@@ -124,11 +128,12 @@ const TAB_OPTIONS = [
 export default function BankDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const user = useSession((s) => s.user);
-  const router = useRouter();
   const searchParams = useSearchParams();
   const [tab, setTab] = useState<Tab>(() =>
     searchParams.get("tab") === "photos" ? "photos" : "accounts",
   );
+  const [search, setSearch] = useState(() => searchParams.get("search") ?? "");
+  const searchQuery = useDebouncedValue(search);
   const [range, setRange] = useState<DateRange | undefined>(() => {
     const from = dateFromUrl(searchParams.get("from"));
     const to = dateFromUrl(searchParams.get("to"));
@@ -206,6 +211,7 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
   const listUrl = useMemo(() => {
     const params = new URLSearchParams();
     if (tab === "photos") params.set("tab", tab);
+    if (searchQuery) params.set("search", searchQuery);
     if (from) params.set("from", from);
     if (to) params.set("to", to);
     if (status) params.set("status", status);
@@ -218,7 +224,20 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
     if (tab === "accounts" && dir === "asc") params.set("dir", dir);
     const query = params.toString();
     return query ? `/settings/banks/${id}?${query}` : `/settings/banks/${id}`;
-  }, [accountType, departmentId, dir, from, id, page, photoPage, referralCodeId, status, tab, to]);
+  }, [
+    accountType,
+    departmentId,
+    dir,
+    from,
+    id,
+    page,
+    photoPage,
+    referralCodeId,
+    searchQuery,
+    status,
+    tab,
+    to,
+  ]);
 
   useEffect(() => {
     window.history.replaceState(null, "", listUrl);
@@ -228,6 +247,7 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
     queryKey: [
       "bank-accounts-of-bank",
       id,
+      searchQuery,
       from,
       to,
       status,
@@ -239,6 +259,7 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
     ],
     queryFn: () =>
       fetchBankAccountsOfBank(id, {
+        search: searchQuery,
         from,
         to,
         status,
@@ -270,6 +291,7 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
     setExporting(true);
     try {
       const { rows, total } = await fetchBankAccountsOfBankForExport(id, {
+        search: searchQuery,
         from,
         to,
         status,
@@ -334,6 +356,17 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
   return (
     <RequirePermission allow={canOpenBankAdmin}>
       <TopBar title={bank?.code ?? "Ngân hàng"} keepTitleOnMobile>
+        {/* Cùng bộ lọc cho cả hai tab, nên ô tìm cũng lọc lưới ảnh theo tên khách. */}
+        <SearchField
+          label="Tìm khách hàng"
+          placeholder="Tìm tên khách hàng…"
+          value={search}
+          onChange={(v) => {
+            // Về trang đầu ngay lúc gõ, không đợi hoãn xong: đang ở trang 3 mà
+            // kết quả mới chỉ có 2 dòng thì trang 3 là một khúc rỗng.
+            refine(() => setSearch(v));
+          }}
+        />
         <FilterButton
           activeCount={activeCount}
           onClear={() =>
@@ -474,11 +507,21 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
             key={`${from}|${to}|${status}|${referralCodeId}|${departmentId}|${accountType}`}
             bankId={id}
             bankCode={bank?.code ?? ""}
-            filters={{ from, to, status, referralCodeId, departmentId, accountType }}
+            filters={{
+              search: searchQuery,
+              from,
+              to,
+              status,
+              referralCodeId,
+              departmentId,
+              accountType,
+            }}
             page={photoPage}
             onPageChange={setPhotoPage}
             inScope={inScope}
-            hasActiveFilters={activeCount > 0}
+            // Ô tìm cũng thu hẹp lưới ảnh, nên câu "chưa có ảnh nào" phải đổi
+            // thành "không khớp bộ lọc" khi người dùng đang gõ tìm.
+            hasActiveFilters={activeCount > 0 || searchQuery.length > 0}
           />
         ) : (
         <SectionCard
@@ -500,9 +543,12 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
               columns={COLUMNS}
               rowKey={(r) => r.id}
               defaultSort="date"
-              // Bấm dòng mở trang chi tiết tài khoản trong khu quản ngân hàng
-              // (chốt 2026-09-02) — cùng chốt canManageBank, không phải P-22.
-              onRowClick={(r) => router.push(`/settings/banks/${id}/${r.id}`)}
+              // Dòng là LINK, không phải `onRowClick` (chốt 2026-09-05): người
+              // quản ngân hàng đối chiếu nhiều tài khoản một lượt nên cần chuột
+              // phải mở tab mới. Trang tới cùng chốt `canManageBank`, không phải
+              // P-22.
+              rowHref={(r) => `/settings/banks/${id}/${r.id}`}
+              rowLabel={(r) => `Xem tài khoản của ${r.customerName}`}
               caption="Tài khoản đã mở ở ngân hàng này, mọi phòng"
               emptyText={
                 !inScope

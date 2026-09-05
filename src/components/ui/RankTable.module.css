@@ -107,3 +107,24 @@
 .clickable:hover {
   background: var(--om-soft);
 }
+
+/* Dòng là LINK — xem prop `rowHref`. Ô bỏ hết đệm và giao nó cho thẻ `<a>` bên
+   trong, để vùng bấm cùng vùng chuột phải phủ trọn ô chứ không chỉ phần chữ. */
+.linkCell {
+  padding: 0;
+}
+
+.rowLink {
+  display: block;
+  /* Đúng bằng `.table td` của design system — đổi ở đó thì đổi cả ở đây. */
+  padding: var(--space-2);
+  color: inherit;
+  text-decoration: none;
+}
+
+/* Ô đầu là link duy nhất nhận tiêu điểm bàn phím, nên viền tiêu điểm phải thấy
+   được. Lùi vào trong để viền không bị ô bên cạnh cắt mất. */
+.rowLink:focus-visible {
+  outline: 2px solid var(--om-orange);
+  outline-offset: -2px;
+}

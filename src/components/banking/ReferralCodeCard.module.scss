@@ -1,20 +1,22 @@
 /* Nhãn cột trái, giá trị cột phải — ba dòng đọc thẳng hàng nhau. Xếp ngang thì
    ba cặp nhãn/giá trị trôi thành một dải chữ, không rõ nhãn nào của giá trị nào. */
+/* Nền `--om-soft` và viền `--om-line` thay cho cặp cam đậm (chốt 2026-09-05):
+   khối cũ dùng nền `--om-orange-soft` cộng viền `--om-orange` cộng nhãn in hoa
+   màu cam đậm, ba lớp cam chồng nhau trong một khối 3 dòng đọc rất chói. Nó chỉ
+   cần TÁCH khỏi phần xung quanh, không cần đòi chú ý như một cảnh báo. */
 .card {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: 6px 12px;
   padding: 10px 12px;
-  background: var(--om-orange-soft);
-  border: 1px solid var(--om-orange);
+  background: var(--om-soft);
+  border: 1px solid var(--om-line);
   border-radius: var(--radius-md);
 }
 
 .label {
   font-size: 12px;
   font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--om-orange-ink);
+  color: var(--om-text-2);
 }

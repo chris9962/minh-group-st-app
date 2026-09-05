@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
-import { heicToJpeg } from "./heicToJpeg";
+import { toWebpOnServer } from "./toWebpOnServer";
 
 /**
  * Kho lưu trữ ảnh — hai ngả sau CÙNG một cửa.
@@ -179,13 +179,13 @@ export async function putImage(file: File, folder: string): Promise<PutResult> {
   if (!kind)
     return { ok: false, message: "File này không phải ảnh. Chỉ nhận JPG, PNG, WEBP hoặc HEIC." };
 
-  // HEIC vào kho là ảnh không xem lại được ngoài Safari — chuyển ngay tại đây
-  // để mọi đường tải ảnh đều được, không riêng route `/api/uploads`. Chuyển
-  // hỏng thì giữ nguyên bản gốc như trước, xem ghi chú ở `heicToJpeg`.
-  const converted = kind.ext === "heic" ? await heicToJpeg(raw) : null;
+  // Kho chỉ giữ MỘT định dạng. Đổi ngay tại đây chứ không ở route `/api/uploads`
+  // để mọi đường tải ảnh đều đi qua. Đổi hỏng thì giữ nguyên bản gốc như trước,
+  // xem ghi chú ở `toWebpOnServer`.
+  const converted = await toWebpOnServer(raw, kind.ext);
   const bytes = converted ?? raw;
-  const ext = converted ? "jpg" : kind.ext;
-  const mime = converted ? "image/jpeg" : kind.mime;
+  const ext = converted ? "webp" : kind.ext;
+  const mime = converted ? "image/webp" : kind.mime;
 
   const day = new Date().toISOString().slice(0, 10);
   const key = `${folder}/${day}/${randomUUID()}.${ext}`;

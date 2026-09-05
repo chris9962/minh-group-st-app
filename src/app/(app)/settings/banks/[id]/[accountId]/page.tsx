@@ -3,23 +3,26 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { use, useState } from "react";
-import { Check, ChevronLeft, Landmark } from "lucide-react";
+import { Check, ChevronLeft, Landmark, TriangleAlert } from "lucide-react";
 import { RequirePermission } from "@/components/layout/RequirePermission";
 import { TopBar } from "@/components/layout/TopBar";
 import { BankAccountPhotos, savedPhotos } from "@/components/banking/BankAccountPhotos";
+import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { Dialog } from "@/components/ui/Dialog";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { SkeletonCard } from "@/components/ui/Skeleton";
 import { StatusTag } from "@/components/ui/StatusTag";
+import { TextArea } from "@/components/ui/TextArea";
 import {
   BANK_ACCOUNT_STATUS_LABEL,
   BANK_ACCOUNT_STATUS_TONE,
   approveBankAccount,
   type AccountType,
 } from "@/lib/api/bankAccounts";
-import { fetchBankAccountOfBank } from "@/lib/api/banking";
+import { fetchBankAccountOfBank, markBankAccountError } from "@/lib/api/banking";
 import { formatDate, formatPhone } from "@/lib/format";
 import { invalidateKpi } from "@/lib/invalidateKpi";
 import { canManageBank, canOpenBankAdmin } from "@/lib/permissions";
@@ -57,17 +60,35 @@ export default function BankAccountOfBankPage({
 
   const queryClient = useQueryClient();
   const [approving, setApproving] = useState(false);
+  const [markingError, setMarkingError] = useState(false);
+  const [errorNote, setErrorNote] = useState("");
+
+  const refreshAfterChange = () => {
+    queryClient.invalidateQueries({ queryKey: ["bank-account-of-bank", id, accountId] });
+    queryClient.invalidateQueries({ queryKey: ["bank-accounts-of-bank"] });
+    queryClient.invalidateQueries({ queryKey: ["bank-account-list"] });
+    invalidateKpi(queryClient);
+  };
+
   const approve = useMutation({
     mutationFn: () => approveBankAccount(accountId),
     onSuccess: () => {
       setApproving(false);
-      queryClient.invalidateQueries({ queryKey: ["bank-account-of-bank", id, accountId] });
-      queryClient.invalidateQueries({ queryKey: ["bank-accounts-of-bank"] });
-      queryClient.invalidateQueries({ queryKey: ["bank-account-list"] });
-      invalidateKpi(queryClient);
+      refreshAfterChange();
       toast.ok("Đã duyệt tài khoản và tính lại KPI");
     },
     onError: (e) => toast.fail(errorMessage(e, "Không duyệt được tài khoản này.")),
+  });
+
+  const markError = useMutation({
+    mutationFn: () => markBankAccountError(id, accountId, errorNote),
+    onSuccess: () => {
+      setMarkingError(false);
+      setErrorNote("");
+      refreshAfterChange();
+      toast.ok("Đã đánh dấu lỗi và tính lại KPI");
+    },
+    onError: (e) => toast.fail(errorMessage(e, "Không đánh dấu lỗi được tài khoản này.")),
   });
 
   return (
@@ -91,16 +112,31 @@ export default function BankAccountOfBankPage({
             title="Thông tin tài khoản"
             icon={<Landmark size={17} />}
             /*
-              Nút DUY NHẤT của màn chỉ-xem này. Đặt ở đây vì người quản ngân hàng
-              vào đúng màn này để đối chiếu, còn P-22 thì họ thường không mở được
-              — hai màn gác theo hai phạm vi khác nhau.
+              Hai nút DUY NHẤT của màn chỉ-xem này. Đặt ở đây vì người quản ngân
+              hàng vào đúng màn này để đối chiếu, còn P-22 thì họ thường không mở
+              được — hai màn gác theo hai phạm vi khác nhau.
+
+              `fixed` hiện CẢ HAI: có Duyệt thì phải có đường từ chối, không thì
+              người xem thấy bản sửa chưa đạt mà không làm gì được ngoài duyệt.
             */
             action={
-              data.status === "fixed" ? (
-                <Button disabled={approve.isPending} onClick={() => setApproving(true)}>
-                  <Check size={16} aria-hidden />
-                  Duyệt
-                </Button>
+              data.status === "done" || data.status === "fixed" ? (
+                <>
+                  {data.status === "fixed" && (
+                    <Button disabled={approve.isPending} onClick={() => setApproving(true)}>
+                      <Check size={16} aria-hidden />
+                      Duyệt
+                    </Button>
+                  )}
+                  <Button
+                    variant="danger"
+                    disabled={markError.isPending}
+                    onClick={() => setMarkingError(true)}
+                  >
+                    <TriangleAlert size={16} aria-hidden />
+                    Đánh dấu lỗi
+                  </Button>
+                </>
               ) : undefined
             }
           >
@@ -206,6 +242,48 @@ export default function BankAccountOfBankPage({
             Tài khoản <strong>{data.bankCode}</strong> của {data.customerName}. Lý do đánh dấu
             lỗi trước đó: {data.errorNote || "không ghi"}.
           </ConfirmDialog>
+        )}
+
+        {markingError && data && (
+          <Dialog
+            open
+            title="Đánh dấu tài khoản lỗi"
+            onClose={() => !markError.isPending && setMarkingError(false)}
+            footer={
+              <>
+                <Button
+                  variant="secondary"
+                  onClick={() => setMarkingError(false)}
+                  disabled={markError.isPending}
+                >
+                  Huỷ
+                </Button>
+                <Button
+                  variant="danger"
+                  disabled={markError.isPending || errorNote.trim().length < 2}
+                  onClick={() => markError.mutate()}
+                >
+                  Đánh dấu lỗi
+                </Button>
+              </>
+            }
+          >
+            {/* Tài khoản `fixed` vốn đã ngoài KPI — chỉ `done` mới vào phép tính.
+                Nói "sẽ bị loại khỏi KPI" ở đó là nói một thứ đã xảy ra rồi. */}
+            <Alert tone="warning">
+              {data.status === "fixed"
+                ? "Tài khoản quay về trạng thái lỗi. Nhân viên sửa tiếp rồi gửi duyệt lại."
+                : "Tài khoản này sẽ bị loại khỏi KPI của người mở. Quà của khách giữ nguyên."}
+            </Alert>
+            <TextArea
+              label="Lý do lỗi"
+              required
+              rows={3}
+              placeholder="Ví dụ: Tài khoản không hợp lệ khi đối soát"
+              value={errorNote}
+              onChange={(event) => setErrorNote(event.target.value)}
+            />
+          </Dialog>
         )}
       </main>
     </RequirePermission>
