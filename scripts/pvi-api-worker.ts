@@ -139,7 +139,7 @@ async function reclaimStaleOrders() {
 
   for (const row of stale) {
     await setStatus(row.id, "creating", "queued", {
-      note: `Worker giữ đơn đã dừng: mắc ở Đang tạo quá ${STALE_AFTER_MINUTES} phút. Trả về hàng chờ, lượt sau gửi lại đúng mã giao dịch cũ.`,
+      note: `Mắc ở Đang tạo quá ${STALE_AFTER_MINUTES} phút, worker giữ đơn đã dừng.`,
     });
     log(`${row.orderCode}: mắc ở creating quá ${STALE_AFTER_MINUTES} phút, trả về hàng chờ`);
   }
@@ -186,7 +186,7 @@ async function claim(id: string): Promise<boolean> {
       orderId: id,
       fromStatus: "queued",
       toStatus: "creating",
-      note: "Worker đường API nhận đơn, đang gọi PVI.",
+      note: "Worker đường API nhận đơn.",
     });
     return true;
   });
@@ -206,7 +206,7 @@ async function createOne(order: OrderForPvi) {
       pviPrKeyNumber: result.prKey,
       // Về null để vòng tra giấy chứng nhận hỏi ngay, không đợi hết chu kỳ.
       certificateCheckedAt: null,
-      note: `PVI nhận đơn, Pr_key ${result.prKey ?? "(không có)"}. Đang đợi giấy chứng nhận.`,
+      note: `PVI nhận đơn, Pr_key ${result.prKey ?? "(không có)"}.`,
     });
     log(`${order.orderCode}: tạo xong, Pr_key ${result.prKey ?? "(không có)"}`);
     return "awaiting-certificate";
@@ -229,7 +229,7 @@ async function failed(order: OrderForPvi, e: unknown) {
   if (err?.status === "-555") {
     await setStatus(order.id, "creating", "awaiting-certificate", {
       certificateCheckedAt: null,
-      note: "PVI trả -555 mã giao dịch đã tồn tại: đơn đã tạo ở lượt trước, không tạo lại.",
+      note: "PVI trả -555 mã giao dịch đã tồn tại.",
     });
     log(`${order.orderCode}: PVI báo mã giao dịch đã tồn tại, đơn đã tạo ở lượt trước`);
     return "awaiting-certificate";
@@ -242,9 +242,7 @@ async function failed(order: OrderForPvi, e: unknown) {
     const giveUp = attempts >= MAX_CREATE_ATTEMPTS;
     await setStatus(order.id, "creating", giveUp ? "manual-queued" : "queued", {
       pviAttempts: attempts,
-      note: giveUp
-        ? `Gọi PVI hỏng ${attempts} lần vì mạng, lần cuối: ${describeError(e)}. Chuyển sang làm tay.`
-        : `Gọi PVI hỏng vì mạng (lần ${attempts}/${MAX_CREATE_ATTEMPTS}): ${describeError(e)}. Giữ trong hàng chờ, lượt sau gửi lại đúng mã giao dịch cũ.`,
+      note: `Gọi PVI hỏng (lần ${attempts}/${MAX_CREATE_ATTEMPTS}): ${describeError(e)}`,
     });
     log(
       `${order.orderCode}: ${describeError(e)} (lần ${attempts}/${MAX_CREATE_ATTEMPTS})` +
@@ -269,7 +267,7 @@ async function failed(order: OrderForPvi, e: unknown) {
       orderId: order.id,
       fromStatus: "creating",
       toStatus: "queued",
-      note: `Máy chủ thiếu cấu hình PVI: ${describeError(e)}. Đơn nằm lại hàng chờ.`,
+      note: `Máy chủ thiếu cấu hình PVI: ${describeError(e)}`,
     });
     log(`${order.orderCode}: ${describeError(e)} — trả về hàng chờ, sửa cấu hình rồi worker tự chạy tiếp`);
     return "queued";
@@ -278,7 +276,7 @@ async function failed(order: OrderForPvi, e: unknown) {
   // Còn lại là PVI từ chối vì dữ liệu, hoặc zod chặn ngay trước khi gửi. Thử
   // lại cũng ra cùng kết quả, nên người xử lý tay phải xem.
   await setStatus(order.id, "creating", "manual-queued", {
-    note: `PVI từ chối đơn: ${describeError(e)}. Gửi lại cũng ra cùng kết quả, người xử lý tay phải xem.`,
+    note: `PVI từ chối: ${describeError(e)}`,
   });
   log(`${order.orderCode}: ${describeError(e)} → làm tay`);
   return "manual-queued";
@@ -354,7 +352,7 @@ async function fetchCertificates() {
       pviSerialNumber: policy.serialNumber,
       certificatePhotoUrl: saved.photoKey,
       certificateCheckedAt: new Date(),
-      note: `PVI cấp giấy chứng nhận ${policy.policyNumber}, đã lưu ảnh trang đầu.`,
+      note: `PVI cấp giấy chứng nhận ${policy.policyNumber}.`,
     });
     log(`${row.orderCode}: ${policy.policyNumber} → done`);
   }
