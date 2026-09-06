@@ -18,7 +18,13 @@ const DECLINE = "__decline__";
 
 type Props = { open: boolean; onClose: () => void; customerId: string; customerName: string };
 
-/** Đổi món trong rổ quà đã chốt; đơn bảo hiểm cũ được server xử lý cùng lượt. */
+/**
+ * Đổi món quà của khách đã chốt; đơn bảo hiểm cũ được server xử lý cùng lượt.
+ *
+ * Danh sách lấy rổ TÍNH THEO TÀI KHOẢN HIỆN TẠI, không phải rổ lúc phát (chốt
+ * 2026-09-06) — khách mở thêm tài khoản trong ngày thì đổi lên món của combo
+ * cao hơn ngay tại đây.
+ */
 export function GiftChangeDialog({ open, onClose, customerId, customerName }: Props) {
   const queryClient = useQueryClient();
   const [selected, setSelected] = useState("");
@@ -38,7 +44,7 @@ export function GiftChangeDialog({ open, onClose, customerId, customerName }: Pr
     onError: (e) => toast.fail(errorMessage(e, "Không đổi được quà.")),
   });
 
-  const chosen = detail.data?.gift.basket.find((item) => item.code === selected);
+  const chosen = detail.data?.gift.liveBasket.find((item) => item.code === selected);
   if (creatingOrder && detail.data && chosen) {
     return <InsuranceOrderFormDialog open customer={detail.data.customer} source="gift" prefill={{ packageName: chosen.name }} onClose={() => setCreatingOrder(false)} onCreated={(orders) => save.mutate(orders.map((o) => o.id))} />;
   }
@@ -49,11 +55,15 @@ export function GiftChangeDialog({ open, onClose, customerId, customerName }: Pr
   };
 
   return <Dialog open={open} onClose={onClose} title={`Đổi quà · ${customerName}`} footer={<><Button variant="secondary" onClick={onClose}>Đóng</Button><Button onClick={confirm} disabled={!selected || reason.trim().length < 2 || save.isPending || packages.isPending}>Xác nhận đổi quà</Button></>}>
-    {detail.isPending && <p className="text-muted">Đang tải danh sách quà ban đầu…</p>}
-    {detail.isError && <ErrorState what="danh sách quà ban đầu" onRetry={detail.refetch} retrying={detail.isFetching} />}
+    {detail.isPending && <p className="text-muted">Đang tải danh sách quà…</p>}
+    {detail.isError && <ErrorState what="danh sách quà" onRetry={detail.refetch} retrying={detail.isFetching} />}
     {detail.data && <div className={styles.body}>
-      <Alert tone="warning">Chỉ chọn được món trong danh sách quà lúc khách được tặng. Đơn bảo hiểm quà cũ sẽ được xử lý tự động.</Alert>
-      <div className={styles.cards}>{detail.data.gift.basket.map((item, i) => <label key={`${item.code}-${i}`} className={clsx(styles.card, selected === item.code && styles.cardActive, item.code === detail.data.gift.givenCode && styles.cardOff)}><input type="radio" name="gift-change" disabled={item.code === detail.data.gift.givenCode || item.status !== "ok"} checked={selected === item.code} onChange={() => setSelected(item.code)} /><span className={styles.cardName}>{item.name}</span><span className={styles.cardKind}>{item.code === detail.data.gift.givenCode ? "Đang áp dụng" : item.status === "ok" ? "Chọn đổi" : "Không còn cấp"}</span></label>)}</div>
+      {/* Món đang tặng đọc từ lượt đã chốt, không đọc danh sách bên dưới: rổ
+          tính lại có thể không còn chứa nó, và lúc đó đây là chỗ duy nhất nhân
+          viên thấy mình đang đổi từ món nào. */}
+      <p className={styles.current}>Quà đang tặng: <strong>{detail.data.gift.givenItem}</strong></p>
+      <Alert tone="warning">Danh sách quà tính theo tài khoản hiện tại của khách. Đơn bảo hiểm quà cũ sẽ được huỷ tự động.</Alert>
+      <div className={styles.cards}>{detail.data.gift.liveBasket.map((item, i) => <label key={`${item.code}-${i}`} className={clsx(styles.card, selected === item.code && styles.cardActive, item.code === detail.data.gift.givenCode && styles.cardOff)}><input type="radio" name="gift-change" disabled={item.code === detail.data.gift.givenCode || item.status !== "ok"} checked={selected === item.code} onChange={() => setSelected(item.code)} /><span className={styles.cardName}>{item.name}</span><span className={styles.cardKind}>{item.code === detail.data.gift.givenCode ? "Đang áp dụng" : item.status === "ok" ? "Chọn đổi" : "Không còn cấp"}</span></label>)}</div>
       {detail.data.gift.givenCode !== GIFT_DECLINED && <label className={clsx(styles.card, selected === DECLINE && styles.cardActive)}><input type="radio" name="gift-change" checked={selected === DECLINE} onChange={() => setSelected(DECLINE)} /><span className={styles.cardName}>Từ chối, không lấy gì</span></label>}
       <TextArea label="Lý do đổi quà" required rows={3} placeholder="Khách đổi quà" value={reason} onChange={(event) => setReason(event.target.value)} />
     </div>}

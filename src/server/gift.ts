@@ -625,7 +625,12 @@ type ChangeOutcome =
   | { ok: true; grantId: string; customerName: string; fromLabel: string; toLabel: string }
   | { ok: false; message: string };
 
-/** Đổi quà đã chốt, giữ lịch sử và dọn đúng các đơn bảo hiểm quà cũ. */
+/**
+ * Đổi quà đã chốt, giữ lịch sử và dọn đúng các đơn bảo hiểm quà cũ.
+ *
+ * Đây cũng là đường NÂNG BẬC: rổ tính lại theo tài khoản hiện tại nên khách mở
+ * thêm tài khoản trong ngày thì chọn được món của combo cao hơn.
+ */
 export async function changeGift(
   actor: User,
   customerId: string,
@@ -646,13 +651,24 @@ export async function changeGift(
   if (businessDay(grant.grantedAt) !== businessDay())
     return { ok: false, message: "Chỉ đổi quà được trong ngày phát quà." };
 
-  const snapshot = GiftSimulateResult.safeParse(grant.snapshot);
-  if (!snapshot.success) return { ok: false, message: "Danh sách quà ban đầu không hợp lệ, không thể đổi." };
   if (form.item === grant.chosenItem) return { ok: false, message: "Khách đang áp dụng món quà này rồi." };
 
-  const next = form.item === GIFT_DECLINED ? null : snapshot.data.basket.find((b) => b.code === form.item);
+  /**
+   * Rổ TÍNH LẠI theo tài khoản hiện tại, không phải rổ đóng băng lúc phát
+   * (chốt 2026-09-06). Khách mở thêm tài khoản trong ngày thì combo lên bậc, và
+   * đây là đường nâng bậc: rổ lúc phát không chứa món của bậc mới.
+   *
+   * Chiều ngược lại đi cùng lối — tài khoản bị đánh lỗi thì rổ nhỏ lại và nhân
+   * viên chỉ chọn được món của bậc thấp hơn.
+   *
+   * Số tiền cũng đi theo món MỚI: đổi từ Bảng mica sang Mì là mất 20k của VPa,
+   * đổi ngược lại là lấy về. Rổ không phụ thuộc món đang chọn, nên một lượt
+   * tính vừa kiểm được món hợp lệ vừa cho ra số tiền.
+   */
+  const nextGift = await giftForCustomer(customerId, form.item);
+  const next = form.item === GIFT_DECLINED ? null : nextGift.basket.find((b) => b.code === form.item);
   if (form.item !== GIFT_DECLINED && (!next || !next.id || next.status !== "ok"))
-    return { ok: false, message: "Món quà mới phải thuộc danh sách quà ban đầu và còn cấp được." };
+    return { ok: false, message: "Món quà mới phải nằm trong danh sách quà hiện tại của khách và còn cấp được." };
 
   const [insuranceItem] =
     form.item === GIFT_DECLINED
@@ -671,18 +687,18 @@ export async function changeGift(
       return { ok: false, message: "Có đơn bảo hiểm mới không thuộc lượt đổi quà này." };
   }
 
-  /**
-   * Số tiền đi theo món MỚI. Đổi từ Bảng mica sang Mì là mất 20k của VPa, đổi
-   * ngược lại là lấy về — cột `cash_total` phải nói đúng số đang nợ khách.
-   *
-   * `snapshot` giữ nguyên: nó là rổ của lúc phát, không phải số tiền hiện tại.
-   */
-  const nextGift = await giftForCustomer(customerId, form.item);
-
   const changed = await db.transaction(async (tx) => {
     const [updated] = await tx
       .update(giftGrants)
-      .set({ chosenItem: form.item, cashTotal: nextGift.cashTotal })
+      /**
+       * `snapshot` ghi đè bằng kết quả vừa tính, không giữ rổ lúc phát.
+       *
+       * Mọi màn hiển thị đọc `snapshot`. Giữ rổ cũ mà món mới nằm ngoài rổ đó
+       * thì hồ sơ khách hiện bậc combo cũ, và tên món ra mã thô kiểu
+       * `BH-2N-XEMAY-2XE`. Đóng băng vẫn còn nghĩa, chỉ đổi mốc: đóng băng tại
+       * lần xác nhận GẦN NHẤT, và lần đó luôn nằm trong ngày phát quà.
+       */
+      .set({ chosenItem: form.item, cashTotal: nextGift.cashTotal, snapshot: nextGift })
       .where(and(eq(giftGrants.id, grant.id), eq(giftGrants.chosenItem, grant.chosenItem)))
       .returning({ id: giftGrants.id });
     if (!updated) return false;
@@ -716,8 +732,15 @@ export async function changeGift(
 
   if (!changed) return { ok: false, message: "Quà vừa được người khác thay đổi. Tải lại rồi thử lại." };
   for (const month of await accountMonthsOf(customerId)) await recomputeKpiForCustomer(customerId, month);
-  const label = (item: string) => item === GIFT_DECLINED ? GIFT_DECLINED_LABEL : snapshot.data.basket.find((b) => b.code === item)?.name ?? item;
-  return { ok: true, grantId: grant.id, customerName: grant.customerName, fromLabel: label(grant.chosenItem), toLabel: label(form.item) };
+  // Món CŨ lấy tên trong rổ lúc phát, món MỚI lấy tên trong rổ vừa tính — sau
+  // lượt ghi đè, rổ mới không còn chứa món cũ.
+  return {
+    ok: true,
+    grantId: grant.id,
+    customerName: grant.customerName,
+    fromLabel: grantedItemLabel(grant.chosenItem, grant.snapshot),
+    toLabel: grantedItemLabel(form.item, nextGift),
+  };
 }
 
 /**

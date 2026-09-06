@@ -23,7 +23,7 @@ import type { GiftSimulateResult } from "@/lib/api/settings";
 import { isRealIsoDate, type User } from "@/lib/types";
 import { searchTerms } from "@/lib/search";
 import { db, uniqueViolationOf } from "./db/client";
-import { giftForCustomer, grantedItemLabel, recomputeGiftCase } from "./gift";
+import { giftForCustomer, giftItemNames, grantedItemLabel, recomputeGiftCase } from "./gift";
 import { bankingPointsByCustomer } from "./kpi";
 import {
   bankAccounts,
@@ -1565,8 +1565,8 @@ export async function customerDetailFor(
   // Lịch sử này không đi qua phạm vi phòng của đơn/tài khoản: đó là lịch sử
   // của chính lượt quà trên hồ sơ khách, và chỉ ai có quyền đổi quà mới có thể
   // tạo thêm dòng mới.
-  const giftChanges = grant
-    ? (await db
+  const giftChangeRows = grant
+    ? await db
         .select({
           id: giftGrantChanges.id,
           fromItem: giftGrantChanges.fromChosenItem,
@@ -1578,13 +1578,39 @@ export async function customerDetailFor(
         .from(giftGrantChanges)
         .innerJoin(users, eq(users.id, giftGrantChanges.changedBy))
         .where(eq(giftGrantChanges.giftGrantId, grant.id))
-        .orderBy(desc(giftGrantChanges.changedAt), desc(giftGrantChanges.id)))
-        .map((change) => ({
-          ...change,
-          fromItem: grantedItemLabel(change.fromItem, grant.snapshot),
-          toItem: grantedItemLabel(change.toItem, grant.snapshot),
-        }))
+        .orderBy(desc(giftGrantChanges.changedAt), desc(giftGrantChanges.id))
     : [];
+
+  /**
+   * Tên món của lịch sử: lấy trong rổ đóng băng trước, thiếu thì tra danh mục.
+   *
+   * `snapshot` ghi đè mỗi lượt đổi quà (chốt 2026-09-06), nên món của lượt
+   * trước không còn nằm trong rổ. Thiếu bước tra danh mục thì dòng lịch sử hiện
+   * mã thô. Tên đóng băng vẫn thắng khi còn — spec §5.3.
+   */
+  const frozenLabel = (code: string) => grantedItemLabel(code, grant?.snapshot ?? null);
+  const missingCodes = giftChangeRows
+    .flatMap((change) => [change.fromItem, change.toItem])
+    .filter((code) => frozenLabel(code) === code);
+  const catalogNames = missingCodes.length
+    ? await giftItemNames(missingCodes)
+    : new Map<string, string>();
+  const itemLabel = (code: string) => {
+    const frozen = frozenLabel(code);
+    return frozen === code ? (catalogNames.get(code) ?? code) : frozen;
+  };
+  const giftChanges = giftChangeRows.map((change) => ({
+    ...change,
+    fromItem: itemLabel(change.fromItem),
+    toItem: itemLabel(change.toItem),
+  }));
+
+  /**
+   * Rổ tính theo tài khoản HIỆN TẠI. Khách đã chốt quà vẫn tính, vì hộp thoại
+   * đổi quà chọn món trong rổ này chứ không trong rổ lúc phát (chốt
+   * 2026-09-06) — đó là cách khách mở thêm tài khoản trong ngày nâng được bậc.
+   */
+  const liveGift = await giftForCustomer(id);
 
   return {
     customer,
@@ -1619,12 +1645,21 @@ export async function customerDetailFor(
     gift: grant
       ? {
           ...(grant.snapshot as GiftSimulateResult),
+          liveBasket: liveGift.basket,
           given: true,
           givenItem: grantedItemLabel(grant.chosenItem, grant.snapshot),
           givenCode: grant.chosenItem,
           givenAt: grant.grantedAt,
           changes: giftChanges,
         }
-      : { ...(await giftForCustomer(id)), given: false, givenItem: null, givenCode: null, givenAt: null, changes: [] },
+      : {
+          ...liveGift,
+          liveBasket: liveGift.basket,
+          given: false,
+          givenItem: null,
+          givenCode: null,
+          givenAt: null,
+          changes: [],
+        },
   };
 }

@@ -593,6 +593,14 @@ export const CustomerDetail = z.object({
    * được (spec §4.4 P-42 lỗi thường gặp #2) — dùng chung máy tính với P-81.
    */
   gift: GiftSimulateResult.extend({
+    /**
+     * Rổ tính theo tài khoản HIỆN TẠI của khách, khác `basket` của đợt đã chốt.
+     *
+     * Hộp thoại đổi quà chọn món trong rổ này (chốt 2026-09-06): khách mở thêm
+     * tài khoản trong ngày thì combo lên bậc, và rổ đóng băng lúc phát không
+     * chứa món của bậc mới. Khách chưa chốt quà thì hai rổ bằng nhau.
+     */
+    liveBasket: GiftSimulateResult.shape.basket,
     given: z.boolean(),
     /** Tên món đã tặng — chỉ có giá trị khi given = true. */
     givenItem: z.string().nullable(),
