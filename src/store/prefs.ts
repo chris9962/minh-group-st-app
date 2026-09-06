@@ -24,6 +24,12 @@ type Prefs = {
    */
   compactInsuranceTable: boolean;
   setCompactInsuranceTable: (value: boolean) => void;
+  /**
+   * P-40 — bảng khách hàng bỏ bốn cột: Ngày tạo, Số đơn BH, Kênh,
+   * Người tạo - Phòng. Còn Tên khách hàng, Số tài khoản, Thao tác.
+   */
+  compactCustomerTable: boolean;
+  setCompactCustomerTable: (value: boolean) => void;
 };
 
 export const usePrefs = create<Prefs>()(
@@ -33,6 +39,8 @@ export const usePrefs = create<Prefs>()(
       setShowStoppedDepartments: (showStoppedDepartments) => set({ showStoppedDepartments }),
       compactInsuranceTable: false,
       setCompactInsuranceTable: (compactInsuranceTable) => set({ compactInsuranceTable }),
+      compactCustomerTable: false,
+      setCompactCustomerTable: (compactCustomerTable) => set({ compactCustomerTable }),
     }),
     { name: 'mgst-prefs' },
   ),

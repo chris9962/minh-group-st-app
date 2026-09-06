@@ -14,6 +14,7 @@ import { CustomerFormDialog } from "@/components/customers/CustomerFormDialog";
 import { GiftGivingDialog } from "@/components/customers/GiftGivingDialog";
 import { ServiceFormDialog } from "@/components/services/ServiceFormDialog";
 import { Button } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { Combobox } from "@/components/ui/Combobox";
 import buttonStyles from "@/components/ui/Button.module.css";
 import { DateRangePicker } from "@/components/ui/DateRangePicker";
@@ -45,6 +46,7 @@ import { useDebouncedValue } from "@/lib/hooks";
 import { can, recordInScope, recordVisibility } from "@/lib/permissions";
 import { isRealIsoDate } from "@/lib/types";
 import { fetchStaffOptions } from "@/lib/api/staff";
+import { usePrefs } from "@/store/prefs";
 import { useSession } from "@/store/session";
 import styles from "./page.module.scss";
 
@@ -132,6 +134,9 @@ function EditCustomerDialog({ id, onClose }: { id: string; onClose: () => void }
  */
 export default function CustomersPage() {
   const user = useSession((s) => s.user);
+  // Nhớ theo máy — mở lại trang không phải tích lại.
+  const compact = usePrefs((s) => s.compactCustomerTable);
+  const setCompact = usePrefs((s) => s.setCompactCustomerTable);
   const searchParams = useSearchParams();
   const [query, setQuery] = useState<CustomerQuery>(() => queryFromUrl(searchParams));
   const [creating, setCreating] = useState(false);
@@ -312,12 +317,18 @@ export default function CustomersPage() {
     const deleteScope = recordVisibility(user, "customer", "delete");
 
     return [
-      {
-        key: "created",
-        label: "Ngày tạo",
-        sortable: true,
-        render: (c) => <span className="tabular-nums">{formatDate(c.createdAt)}</span>,
-      },
+      ...(compact
+        ? []
+        : [
+            {
+              key: "created",
+              label: "Ngày tạo",
+              sortable: true,
+              render: (c: CustomerRow) => (
+                <span className="tabular-nums">{formatDate(c.createdAt)}</span>
+              ),
+            },
+          ]),
       {
         key: "name",
         label: "Tên khách hàng",
@@ -346,24 +357,31 @@ export default function CustomersPage() {
           </span>
         ),
       },
-      {
-        key: "insurance",
-        label: "Số đơn BH",
-        sortable: true,
-        render: (c) => <span className="tabular-nums">{c.insuranceCount}</span>,
-      },
-      {
-        key: "channel",
-        label: "Kênh",
-        render: (c) => c.channel || "",
-      },
-      {
-        key: "createdByName",
-        label: "Người tạo - Phòng",
-        // Thiếu một trong hai vế thì bỏ luôn dấu nối, không để chuỗi treo đầu
-        // hoặc treo đuôi.
-        render: (c) => [c.createdByName, c.createdByDepartmentName].filter(Boolean).join(" - "),
-      },
+      ...(compact
+        ? []
+        : [
+            {
+              key: "insurance",
+              label: "Số đơn BH",
+              sortable: true,
+              render: (c: CustomerRow) => (
+                <span className="tabular-nums">{c.insuranceCount}</span>
+              ),
+            },
+            {
+              key: "channel",
+              label: "Kênh",
+              render: (c: CustomerRow) => c.channel || "",
+            },
+            {
+              key: "createdByName",
+              label: "Người tạo - Phòng",
+              // Thiếu một trong hai vế thì bỏ luôn dấu nối, không để chuỗi treo
+              // đầu hoặc treo đuôi.
+              render: (c: CustomerRow) =>
+                [c.createdByName, c.createdByDepartmentName].filter(Boolean).join(" - "),
+            },
+          ]),
       {
         key: "actions",
         label: "Thao tác",
@@ -422,7 +440,7 @@ export default function CustomersPage() {
         ),
       },
     ];
-  }, [user, showPoints, nameOf]);
+  }, [user, showPoints, nameOf, compact]);
 
   return (
     <>
@@ -597,6 +615,9 @@ export default function CustomersPage() {
             title="Khách hàng"
             icon={<Users size={17} />}
             meta={filtering ? `khớp ${page.total}` : `${page.total} khách`}
+            action={
+              <Checkbox checked={compact} onCheckedChange={setCompact} label="Bảng gọn" />
+            }
           >
             {page.total === 0 ? (
               <p className="text-muted">
