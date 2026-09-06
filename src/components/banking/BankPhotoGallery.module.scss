@@ -143,12 +143,29 @@
   }
 }
 
+/* Dính đáy khung cuộn (chốt 2026-09-06): lưới ảnh dài nhiều màn hình, người
+   quản đối chiếu xong một trang là bấm Sau ngay, không kéo xuống cuối. Nền và
+   viền trên để ảnh cuộn bên dưới không lẫn vào hàng nút. */
 .pager {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 10px;
   margin-top: var(--space-2);
+  padding: 8px 0;
+  background: var(--om-card);
+  border-top: 1px solid var(--om-line);
   font-size: 13px;
   color: var(--om-text-2);
+}
+
+/* Điện thoại: khung cuộn là tài liệu, và thanh điều hướng đáy đè lên đúng
+   52px cộng vùng an toàn — dính sát 0 là hàng nút nằm dưới thanh đó. */
+@media (max-width: bp.$bp-mobile) {
+  .pager {
+    bottom: calc(52px + env(safe-area-inset-bottom, 0px));
+  }
 }
