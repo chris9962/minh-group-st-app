@@ -61,6 +61,7 @@ export async function GET(request: Request) {
         search: params.get("search") ?? "",
         channelId: uuidParam(params.get("channelId")),
         channelDetail: params.get("channelDetail") ?? "",
+        address: params.get("address") ?? "",
         from: params.get("from") ?? "",
         to: params.get("to") ?? "",
         /**

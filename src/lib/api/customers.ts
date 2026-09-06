@@ -139,6 +139,14 @@ export type CustomerQuery = PageQuery<CustomerSort> & {
    * chứ không lưu id, nên giá trị gửi lên là tên bệnh viện.
    */
   channelDetail: string;
+  /**
+   * Địa chỉ khách, so khớp ĐÚNG CHUỖI của danh mục. Rỗng = không lọc.
+   *
+   * Giá trị là một dòng của `useAddressSuggestions`: `Ấp, Xã, Tỉnh` hoặc
+   * `Xã, Tỉnh`. Dạng hai phần lấy cả khách gắn ấp trong xã đó, xem
+   * `customerFilters` ở `server/customers.ts`.
+   */
+  address: string;
   /** Khoảng NGÀY TẠO, YYYY-MM-DD. Rỗng = không giới hạn. */
   from: string;
   to: string;
@@ -166,6 +174,7 @@ export async function fetchCustomers(query: CustomerQuery): Promise<Page<Custome
       search: query.search,
       channelId: query.channelId,
       channelDetail: query.channelDetail,
+      address: query.address,
       from: query.from,
       to: query.to,
       staffId: query.staffId,

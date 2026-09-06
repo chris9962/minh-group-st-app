@@ -764,6 +764,15 @@ export const customers = pgTable(
       sql`created_by_department_id, created_at desc, id`,
     ),
     /**
+     * P-40 lọc theo ẤP: ô lọc gửi lên chính chuỗi `Ấp, Xã, Tỉnh` đang lưu ở
+     * cột này, nên vế so là `=`. Khoá sắp mặc định đi kèm, cùng lý do như
+     * `customers_dept_date`.
+     *
+     * Lọc mức XÃ so đuôi chuỗi nên KHÔNG dùng được chỉ mục này. Chấp nhận: một
+     * xã có vài ấp, người dùng thường dừng ở mức ấp.
+     */
+    index("customers_address_date").on(sql`address, created_at desc, id`),
+    /**
      * P-40 lọc theo trạng thái quà, P-80 đếm "đủ ĐK chưa phát" — cả hai đều hỏi
      * "khách nào có `gift_case`". Chỉ mục một phần vì đại đa số khách chưa đủ
      * combo nào, để `null` ra ngoài thì chỉ mục nhỏ hơn hẳn.

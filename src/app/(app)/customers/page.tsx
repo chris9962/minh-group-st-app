@@ -40,6 +40,7 @@ import { seqLabeller } from "@/lib/customerLabel";
 import { errorMessage, toast } from "@/lib/toast";
 import { EMPTY_PAGE, PAGE_SIZE } from "@/lib/api/pagination";
 import { formatDate, formatPhone, formatPoints } from "@/lib/format";
+import { useAddressSuggestions } from "@/lib/useAddressSuggestions";
 import { useDebouncedValue } from "@/lib/hooks";
 import { can, recordInScope, recordVisibility } from "@/lib/permissions";
 import { isRealIsoDate } from "@/lib/types";
@@ -54,6 +55,7 @@ const FIRST_PAGE: CustomerQuery = {
   search: "",
   channelId: "",
   channelDetail: "",
+  address: "",
   staffId: "",
   departmentId: "",
   from: "",
@@ -86,6 +88,7 @@ const queryFromUrl = (params: URLSearchParams): CustomerQuery => {
     search: params.get("search") ?? "",
     channelId: params.get("channelId") ?? "",
     channelDetail: params.get("channelDetail") ?? "",
+    address: params.get("address") ?? "",
     staffId: params.get("staffId") ?? "",
     departmentId: params.get("departmentId") ?? "",
     page: pageFromUrl(params.get("page")),
@@ -149,6 +152,12 @@ export default function CustomersPage() {
   });
 
   const { data: channels = [] } = useQuery({ queryKey: ["channels"], queryFn: fetchChannels });
+
+  const addressSuggestions = useAddressSuggestions();
+  const addressOptions = useMemo(
+    () => addressSuggestions.map((s) => ({ value: s, label: s })),
+    [addressSuggestions],
+  );
 
   /**
    * Ô lọc bệnh viện chỉ có nghĩa khi kênh đang chọn nhận đầu vào là bệnh viện.
@@ -244,6 +253,7 @@ export default function CustomersPage() {
     if (asked.departmentId) params.set("departmentId", asked.departmentId);
     if (asked.channelId) params.set("channelId", asked.channelId);
     if (asked.channelDetail) params.set("channelDetail", asked.channelDetail);
+    if (asked.address) params.set("address", asked.address);
     if (asked.staffId) params.set("staffId", asked.staffId);
     if (asked.page > 0) params.set("page", String(asked.page + 1));
     if (asked.sort !== "created") params.set("sort", asked.sort);
@@ -278,6 +288,7 @@ export default function CustomersPage() {
   const activeCount =
     (query.channelId ? 1 : 0) +
     (query.channelDetail ? 1 : 0) +
+    (query.address ? 1 : 0) +
     (query.departmentId ? 1 : 0) +
     (query.staffId ? 1 : 0) +
     (from && to ? 1 : 0);
@@ -431,7 +442,13 @@ export default function CustomersPage() {
           activeCount={activeCount}
           onClear={() => {
             setRange(undefined);
-            refine({ channelId: "", channelDetail: "", departmentId: "", staffId: "" });
+            refine({
+              channelId: "",
+              channelDetail: "",
+              address: "",
+              departmentId: "",
+              staffId: "",
+            });
           }}
         >
           <DateRangePicker
@@ -454,6 +471,16 @@ export default function CustomersPage() {
               options={[{ value: "", label: "Tất cả phòng" }, ...departmentOptions]}
             />
           )}
+          <Combobox
+            block
+            // Cùng danh sách với ô Địa chỉ của hộp thoại khách, nên giá trị lọc
+            // ghép ra đúng chuỗi đang lưu trong `customers.address`.
+            label="Ấp"
+            placeholder="Gõ để tìm Ấp, Xã, Tỉnh…"
+            value={query.address}
+            onChange={(v) => refine({ address: v })}
+            options={[{ value: "", label: "Tất cả ấp" }, ...addressOptions]}
+          />
           <Select
             block
             label="Kênh"
@@ -522,6 +549,14 @@ export default function CustomersPage() {
                   {
                     label: `Phòng: ${departmentOptions.find((o) => o.value === query.departmentId)?.label ?? ""}`,
                     onRemove: () => refine({ departmentId: "" }),
+                  },
+                ]
+              : []),
+            ...(query.address
+              ? [
+                  {
+                    label: `Ấp: ${query.address}`,
+                    onRemove: () => refine({ address: "" }),
                   },
                 ]
               : []),

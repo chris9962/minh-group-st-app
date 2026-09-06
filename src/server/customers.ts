@@ -94,6 +94,14 @@ export type CustomerFilters = {
    * ngân hàng. Giá trị gửi lên là tên bệnh viện, không phải uuid.
    */
   channelDetail?: string;
+  /**
+   * Một dòng của danh mục địa chỉ — `Ấp, Xã, Tỉnh` hoặc `Xã, Tỉnh`. Rỗng hoặc
+   * thiếu = không lọc.
+   *
+   * Ấp KHÔNG có cột id trên `customers`: ô Địa chỉ lưu chuỗi ghép từ danh mục
+   * (chốt 2026-09-03), nên bộ lọc so chính chuỗi đó.
+   */
+  address?: string;
   from: string;
   to: string;
   /** Rỗng = không lọc. Route P-40 đặt = id người xem khi họ là Nhân viên. */
@@ -164,6 +172,27 @@ function searchWhere(raw: string): SQL | undefined {
   );
 }
 
+/**
+ * Lọc theo địa chỉ đã chọn trong danh mục.
+ *
+ * Chuỗi ba phần là một ẤP, so bằng `=` — ô nhập bắt chọn từ danh mục nên hai
+ * đầu ghép cùng một dạng chuỗi. Chuỗi hai phần là một XÃ, và khách của xã đó
+ * nằm ở hai dạng: người chọn thẳng mức xã, và người chọn một ấp trong xã —
+ * chuỗi của họ kết thúc bằng `, Xã, Tỉnh`.
+ *
+ * Vế đuôi không dùng được chỉ mục, chấp nhận: danh sách xã ngắn hơn danh sách
+ * ấp nhiều lần nên ô này ít khi dừng ở mức xã.
+ */
+function addressWhere(address: string | undefined): SQL | undefined {
+  const value = address?.trim();
+  if (!value) return undefined;
+  if (value.split(",").length > 2) return eq(customers.address, value);
+  return or(
+    eq(customers.address, value),
+    sql`${customers.address} like '%, ' || ${likeEscape(value)} escape '\\'`,
+  );
+}
+
 function customerFilters(query: CustomerFilters): SQL | undefined {
   const parts = [
     searchWhere(query.search),
@@ -174,6 +203,7 @@ function customerFilters(query: CustomerFilters): SQL | undefined {
     query.departmentId ? eq(customers.createdByDepartmentId, query.departmentId) : undefined,
     query.channelId ? eq(customers.channelId, query.channelId) : undefined,
     query.channelDetail ? eq(customers.channelDetail, query.channelDetail) : undefined,
+    addressWhere(query.address),
     // Ngày sai định dạng thì BỎ QUA, không trả 400: link cũ hay ô địa chỉ gõ
     // nhầm không đáng làm hỏng cả màn (cùng lối nghĩ với `uuidParam`).
     usableDate(query.from) ? sql`${createdDay} >= ${query.from}::date` : undefined,
