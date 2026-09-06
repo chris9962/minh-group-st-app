@@ -469,9 +469,22 @@ async function main() {
 
   /** Đánh thức vòng lặp. Nhiều thông báo dồn lại chỉ thành một lần chạy. */
   let wake: (() => void) | null = null;
-  const stopListener = startListener(() => wake?.());
+  /**
+   * Có thông báo tới trong lúc worker ĐANG chạy một vòng.
+   *
+   * `wake` chỉ khác null lúc worker đang ngủ. Đơn thứ hai lập ngay sau đơn thứ
+   * nhất thì thông báo của nó tới đúng lúc worker còn đang gọi PVI cho đơn đầu,
+   * và lời gọi rơi vào chỗ trống. Không nhớ lại thì đơn đó đợi hết giấc ngủ,
+   * tức mất tác dụng của LISTEN đúng lúc cần nhất.
+   */
+  let notifiedWhileBusy = false;
+  const stopListener = startListener(() => {
+    if (wake) wake();
+    else notifiedWhileBusy = true;
+  });
 
   while (!stopping) {
+    notifiedWhileBusy = false;
     try {
       await runOnce();
     } catch (e) {
@@ -479,6 +492,8 @@ async function main() {
       log(`Lỗi trong vòng quét: ${describeError(e)}`);
     }
     if (stopping) break;
+    // Bỏ giấc ngủ, chạy vòng kế ngay.
+    if (notifiedWhileBusy) continue;
     await new Promise<void>((resolve) => {
       const timer = setTimeout(finish, SLEEP_SECONDS * 1000);
       function finish() {
