@@ -30,6 +30,12 @@ type Prefs = {
    */
   compactCustomerTable: boolean;
   setCompactCustomerTable: (value: boolean) => void;
+  /**
+   * P-21 — bảng tài khoản ngân hàng bỏ năm cột: Ngày, STK, Phòng, Đã cài app,
+   * Người tạo. Còn Ngân hàng, Khách hàng, Trạng thái, Thao tác.
+   */
+  compactBankingTable: boolean;
+  setCompactBankingTable: (value: boolean) => void;
 };
 
 export const usePrefs = create<Prefs>()(
@@ -41,6 +47,8 @@ export const usePrefs = create<Prefs>()(
       setCompactInsuranceTable: (compactInsuranceTable) => set({ compactInsuranceTable }),
       compactCustomerTable: false,
       setCompactCustomerTable: (compactCustomerTable) => set({ compactCustomerTable }),
+      compactBankingTable: false,
+      setCompactBankingTable: (compactBankingTable) => set({ compactBankingTable }),
     }),
     { name: 'mgst-prefs' },
   ),
