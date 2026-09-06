@@ -7,14 +7,12 @@ import {
   gte,
   inArray,
   lte,
-  ne,
   or,
   sql,
   type SQL,
   type SQLWrapper,
 } from "drizzle-orm";
 import {
-  type AccountType,
   BankAccountStatus,
   canEditOpeningPhotos,
   MAX_BANK_ACCOUNTS_PER_CUSTOMER,
@@ -223,104 +221,6 @@ async function lockUsableCode(
     };
 
   return { ok: true, code: { id: code.id, code: code.code } };
-}
-
-/**
- * Loại tài khoản của một dòng ĐÃ CÓ, sau lượt sửa: giữ nguyên, hay đổi sang loại
- * mới kèm một mã của loại đó (chốt 2026-09-06).
- *
- * Bản trước khoá cứng loại ở bước giữ chỗ. Nhưng khách đăng ký CNKD sau khi
- * đã mở tài khoản thường là chuyện thật, và không có đường sửa thì nhân viên
- * phải xoá rồi mở lại, mất luôn ảnh chứng minh. Đổi loại KÈM đổi mã vì mã
- * tách theo loại và giữ chỗ riêng: giữ mã cũ là kho mã lệch một chỗ mỗi lần.
- *
- * Đổi loại là đổi chỗ trong ngân hàng (chính hay HKD), nên phải kiểm lại đúng
- * ba luật của `slotConflict` với các dòng CÒN LẠI của cùng người, và kiểm trần
- * 3 khi một dòng HKD quay về dòng chính. Khoá dòng khách TRƯỚC, khoá mã SAU,
- * cùng thứ tự với `startBankAccount`.
- *
- * Trigger `bank_accounts_sync_referral_counts` liệt kê `referral_code_id`
- * trong `UPDATE OF`, nên đổi mã ở đây là bộ đếm của hai mã tự lệch đúng chiều.
- */
-async function resolveAccountType(
-  tx: Tx,
-  accountId: string,
-  form: { accountType: AccountType; referralCode?: string },
-): Promise<
-  { ok: true; accountType: AccountType; referralCodeId: string } | { ok: false; message: string }
-> {
-  const [row] = await tx
-    .select({
-      customerId: bankAccounts.customerId,
-      rootCustomerId: bankAccounts.rootCustomerId,
-      bankId: bankAccounts.bankId,
-      bankCode: banks.code,
-      accountType: bankAccounts.accountType,
-      referralCodeId: bankAccounts.referralCodeId,
-      departmentId: bankAccounts.createdByDepartmentId,
-    })
-    .from(bankAccounts)
-    .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
-    .where(eq(bankAccounts.id, accountId))
-    .limit(1);
-  if (!row) return { ok: false, message: "Không tìm thấy tài khoản này" };
-
-  if (form.accountType === row.accountType)
-    return { ok: true, accountType: row.accountType, referralCodeId: row.referralCodeId };
-
-  if (!form.referralCode)
-    return {
-      ok: false,
-      message: `Đổi loại tài khoản ${row.bankCode} thì phải chọn mã giới thiệu của loại mới.`,
-    };
-
-  await tx
-    .select({ id: customers.id })
-    .from(customers)
-    .where(eq(customers.id, row.customerId))
-    .for("update");
-
-  const siblings = await tx
-    .select({ bankId: bankAccounts.bankId, accountType: bankAccounts.accountType })
-    .from(bankAccounts)
-    .where(
-      and(
-        eq(bankAccounts.rootCustomerId, row.rootCustomerId),
-        eq(bankAccounts.bankId, row.bankId),
-        ne(bankAccounts.id, accountId),
-      ),
-    );
-  const conflict = slotConflict(siblings, { bankId: row.bankId, accountType: form.accountType });
-  if (conflict)
-    return {
-      ok: false,
-      message: slotConflictMessage(conflict, row.bankCode, isHkd(form.accountType)),
-    };
-
-  if (isHkd(row.accountType) && !isHkd(form.accountType)) {
-    const [main] = await tx
-      .select({ n: count() })
-      .from(bankAccounts)
-      .where(
-        and(eq(bankAccounts.customerId, row.customerId), ne(bankAccounts.accountType, "HKD")),
-      );
-    const n = main?.n ?? 0;
-    if (n >= MAX_BANK_ACCOUNTS_PER_CUSTOMER)
-      return {
-        ok: false,
-        message: `Hồ sơ này đã có ${n} tài khoản ngân hàng, đổi dòng HKD thành tài khoản chính là vượt trần ${MAX_BANK_ACCOUNTS_PER_CUSTOMER}.`,
-      };
-  }
-
-  const locked = await lockUsableCode(
-    tx,
-    form.referralCode,
-    row.bankId,
-    form.accountType,
-    row.departmentId,
-  );
-  if (!locked.ok) return locked;
-  return { ok: true, accountType: form.accountType, referralCodeId: locked.code.id };
 }
 
 export type BankAccountFilters = {
@@ -1522,12 +1422,10 @@ export async function finishBankAccount(
     return { ok: false, message: "Tài khoản này đã hoàn thành rồi" };
 
   /**
-   * Bước 2 KHÔNG đổi loại tài khoản (chốt 2026-09-06). Loại đã chốt từ mã giới
-   * thiệu lúc giữ chỗ, và bước này chỉ điền nốt số tài khoản, ngày mở, ảnh.
-   * Đổi loại thì đi màn sửa tài khoản (P-22) — xem `updateFinishedAccount`.
-   *
-   * `form.accountType` vẫn nằm trong biểu mẫu nhưng bỏ qua ở đây, nên request
-   * nặn tay gửi loại khác cũng không đổi được gì.
+   * Loại tài khoản KHÔNG đổi ở bất kỳ bước nào sau giữ chỗ (chốt 2026-09-06):
+   * nó cố định từ mã giới thiệu chọn lúc giữ chỗ, và mã tách theo loại. Bước
+   * này chỉ điền nốt số tài khoản, ngày mở, ảnh. Số ảnh bắt buộc đọc theo loại
+   * đang có: CNKD/HKD có bản hướng dẫn riêng (chốt 2026-09-02).
    */
   const targetType = accountTypeOf(current);
   const requiredPhotos =
@@ -1696,16 +1594,11 @@ export async function updateFinishedAccount(
   const previousDate = current.date;
 
   /**
-   * Khách và ngân hàng vẫn không đổi ở màn sửa. Loại tài khoản thì đổi được từ
-   * 2026-09-06, kèm mã của loại mới — xem `resolveAccountType`.
-   *
-   * Cả lượt nằm trong MỘT giao dịch: đổi loại phải khoá dòng khách và dòng mã
-   * trước khi ghi. Không đổi loại thì giao dịch chỉ có đúng câu ghi như trước.
+   * Khách, ngân hàng và LOẠI tài khoản không đổi ở màn sửa (chốt 2026-09-06):
+   * loại cố định từ mã giới thiệu chọn lúc giữ chỗ, và mã tách theo loại. Câu
+   * ghi dưới không đụng `accountType` lẫn `referralCodeId`.
    */
   const outcome = await db.transaction(async (tx) => {
-    const resolved = await resolveAccountType(tx, id, form);
-    if (!resolved.ok) return { ok: false as const, message: resolved.message };
-
     // Trạng thái ĐANG ĐỌC ĐƯỢC nằm ngay trong câu ghi, không chỉ ở phép kiểm bên
     // trên: giữa lúc đọc và lúc ghi, người khác có thể vừa đối soát bản ghi này.
     const updated = await tx
@@ -1717,8 +1610,6 @@ export async function updateFinishedAccount(
         // xoá ngày đi rồi bấm Lưu thì phải mất thật.
         transactionAt: form.transactionAt || null,
         appInstalled: form.appInstalled,
-        accountType: resolved.accountType,
-        referralCodeId: resolved.referralCodeId,
         note: form.note,
         status: nextStatus,
         updatedAt: new Date(),

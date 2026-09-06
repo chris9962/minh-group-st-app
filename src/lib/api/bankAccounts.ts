@@ -256,14 +256,11 @@ export const BankAccountFinishForm = z.object({
    */
   openedDate: isoDate('Chưa chọn ngày mở'),
   appInstalled: z.boolean(),
-  accountType: AccountType,
   /**
-   * Chỉ có giá trị khi ĐỔI loại tài khoản (chốt 2026-09-06). Mã giới thiệu tách
-   * theo loại và giữ chỗ riêng, nên đổi loại là phải lấy một mã của loại mới;
-   * gửi loại mới mà không gửi mã thì máy chủ từ chối. Không đổi loại thì để
-   * trống, máy chủ giữ mã cũ.
+   * KHÔNG có loại tài khoản ở đây (chốt 2026-09-06): loại cố định từ mã giới
+   * thiệu chọn lúc giữ chỗ, và mã tách theo loại. Muốn loại khác thì mở dòng
+   * mới với mã của loại đó.
    */
-  referralCode: z.string().optional(),
   note: z.string(),
 });
 export type BankAccountFinishForm = z.infer<typeof BankAccountFinishForm>;
