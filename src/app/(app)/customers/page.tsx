@@ -343,7 +343,15 @@ export default function CustomersPage() {
         key: "accounts",
         // Nửa "Điểm" chỉ có khi người xem đã chọn khoảng ngày: luật điểm là luật
         // của một tháng, chưa lọc thì không có tháng nào để chọn file luật.
-        label: showPoints ? "Số tài khoản / Điểm" : "Số tài khoản",
+        // Bảng gọn rút "Số tài khoản" còn "TK": màn hình điện thoại hẹp, mà đây
+        // là cột số nên đầu cột dài kéo giãn cả cột.
+        label: compact
+          ? showPoints
+            ? "TK / Điểm"
+            : "TK"
+          : showPoints
+            ? "Số tài khoản / Điểm"
+            : "Số tài khoản",
         // Sắp theo số tài khoản, không sắp theo điểm: `CUSTOMER_SORT` chỉ có
         // khoá `accounts`, mà điểm nằm ngoài bảng `customers` nên đưa vào
         // `ORDER BY` là phải gộp cả kho trước khi cắt trang (AGENTS.md §5.2).
