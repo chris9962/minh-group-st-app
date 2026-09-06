@@ -106,7 +106,10 @@ export function BankAccountEditDialog({ open, onClose, accountId }: Props) {
           ? (data.customerPhones[0] ?? "")
           : (data?.accountNumberPrefix ?? "")),
       openedDate: data?.date || businessDay(),
-      appInstalled: data?.appInstalled ?? true,
+      // Bản nháp chưa ai tích ô này, nên lấy mặc định của ngân hàng (P-60).
+      // Tài khoản đã hoàn thành thì đọc giá trị đã lưu.
+      appInstalled:
+        data?.status === "creating" ? (data.appDefault ?? false) : (data?.appInstalled ?? false),
       accountType: data?.accountType ?? "none",
       // Chỉ có giá trị khi người dùng đổi loại — xem khối "Loại tài khoản".
       referralCode: "",
@@ -131,7 +134,8 @@ export function BankAccountEditDialog({ open, onClose, accountId }: Props) {
   const { data: allCodes = [] } = useQuery({
     queryKey: ["referral-codes", "open", data?.bankId, codeDepartment, "all-types"],
     queryFn: () => fetchOpenReferralCodes(data!.bankId, codeDepartment),
-    enabled: !!data && canWrite,
+    // Bước Hoàn tất không có ô đổi loại, nên không phải hỏi kho mã.
+    enabled: !!data && canWrite && data.status !== "creating",
   });
   const { data: newCodes = [], isPending: newCodesPending } = useQuery({
     queryKey: ["referral-codes", "open", data?.bankId, codeDepartment, accountType],
@@ -289,7 +293,10 @@ export function BankAccountEditDialog({ open, onClose, accountId }: Props) {
             )}
           </div>
 
-          {canWrite && typeOptions.length > 1 && (
+          {/* Bước Hoàn tất không đổi loại (chốt 2026-09-06): loại đã chốt từ mã
+              giới thiệu lúc giữ chỗ, bước này chỉ điền nốt số tài khoản, ngày
+              mở và ảnh. Đổi loại làm ở màn sửa tài khoản. */}
+          {canWrite && !draft && typeOptions.length > 1 && (
             <div className={styles.pickCode}>
               <Select
                 block

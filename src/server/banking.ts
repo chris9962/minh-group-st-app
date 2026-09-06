@@ -1522,13 +1522,14 @@ export async function finishBankAccount(
     return { ok: false, message: "Tài khoản này đã hoàn thành rồi" };
 
   /**
-   * Loại tài khoản đổi được ở đây từ 2026-09-06, kèm mã của loại mới — xem
-   * `resolveAccountType`, chạy TRONG giao dịch bên dưới. Số ảnh bắt buộc đọc
-   * theo loại SẮP ghi: CNKD/HKD có bản hướng dẫn riêng (chốt 2026-09-02), đổi
-   * sang loại đó là đòi đúng số ảnh của bản đó.
+   * Bước 2 KHÔNG đổi loại tài khoản (chốt 2026-09-06). Loại đã chốt từ mã giới
+   * thiệu lúc giữ chỗ, và bước này chỉ điền nốt số tài khoản, ngày mở, ảnh.
+   * Đổi loại thì đi màn sửa tài khoản (P-22) — xem `updateFinishedAccount`.
+   *
+   * `form.accountType` vẫn nằm trong biểu mẫu nhưng bỏ qua ở đây, nên request
+   * nặn tay gửi loại khác cũng không đổi được gì.
    */
-  const targetType =
-    form.accountType === current.accountType ? accountTypeOf(current) : form.accountType;
+  const targetType = accountTypeOf(current);
   const requiredPhotos =
     (await guideVariantFor(current.bankId, targetType))?.requiredPhotos ??
     current.requiredPhotos;
@@ -1570,9 +1571,6 @@ export async function finishBankAccount(
    * với lúc ghi thì tài khoản lên `done` với ít ảnh hơn mức bắt buộc.
    */
   const outcome = await db.transaction(async (tx) => {
-    const resolved = await resolveAccountType(tx, id, form);
-    if (!resolved.ok) return { ok: false as const, message: resolved.message };
-
     const [photos] = await tx
       .select({ n: count() })
       .from(bankAccountPhotos)
@@ -1591,8 +1589,6 @@ export async function finishBankAccount(
         accountNumber: form.accountNumber,
         openedDate: form.openedDate,
         appInstalled: form.appInstalled,
-        accountType: resolved.accountType,
-        referralCodeId: resolved.referralCodeId,
         note: form.note,
         status: "done",
         finishedAt: new Date(),
