@@ -24,7 +24,11 @@ import { and, eq, isNull, lt, or, sql } from "drizzle-orm";
 import { Client } from "pg";
 import { CERTIFICATE_MAX_ATTEMPTS } from "../src/lib/api/insuranceOrders";
 import { db } from "../src/server/db/client";
-import { customers, insuranceOrders } from "../src/server/db/schema";
+import {
+  customers,
+  insuranceOrders,
+  insuranceOrderStatusHistory,
+} from "../src/server/db/schema";
 import { saveCertificateFrom } from "../src/server/pvi-api/certificate";
 import { PviApiError } from "../src/server/pvi-api/client";
 import { createElectricAccidentOrder } from "../src/server/pvi-api/electric";
@@ -69,12 +73,49 @@ const MAX_CERTIFICATE_ATTEMPTS = Number(
 
 const log = (s: string) => console.log(`[${new Date().toISOString().slice(11, 19)}] ${s}`);
 
+type OrderStatus = (typeof insuranceOrders.$inferSelect)["status"];
+
 const describeError = (e: unknown): string =>
   e instanceof PviApiError
     ? `${e.kind}${e.status ? ` ${e.status}` : ""} - ${e.message}`
     : e instanceof Error
       ? e.message
       : String(e);
+
+/**
+ * Đổi trạng thái một đơn VÀ ghi một dòng lịch sử, trong cùng transaction.
+ *
+ * MỌI lượt đổi trạng thái của worker phải đi qua đây (chốt 2026-09-06). Bản
+ * trước chỉ `update` cột `status`, nên người xử lý tay mở đơn ra thấy "Chờ làm
+ * tay" mà không biết vì sao — lý do PVI trả về chỉ nằm trong log container.
+ *
+ * `changedBy` để null: cột đó nhận null nghĩa là máy tự chuyển, không phải
+ * người bấm.
+ *
+ * Vòng tra giấy chứng nhận KHÔNG gọi hàm này khi chỉ tăng `certificate_attempts`
+ * — trạng thái không đổi, mà ghi 300 dòng "vẫn đang đợi" là chôn mất ba dòng
+ * đáng đọc.
+ */
+async function setStatus(
+  id: string,
+  from: OrderStatus,
+  to: OrderStatus,
+  extra: { note: string } & Partial<typeof insuranceOrders.$inferInsert>,
+) {
+  const { note, ...columns } = extra;
+  await db.transaction(async (tx) => {
+    await tx
+      .update(insuranceOrders)
+      .set({ ...columns, status: to, updatedAt: new Date() })
+      .where(eq(insuranceOrders.id, id));
+    await tx.insert(insuranceOrderStatusHistory).values({
+      orderId: id,
+      fromStatus: from,
+      toStatus: to,
+      note,
+    });
+  });
+}
 
 /**
  * Đưa đơn bị bỏ rơi ở `creating` về hàng chờ.
@@ -85,21 +126,24 @@ const describeError = (e: unknown): string =>
  */
 async function reclaimStaleOrders() {
   const cutoff = new Date(Date.now() - STALE_AFTER_MINUTES * 60 * 1000);
-  const reclaimed = await db
-    .update(insuranceOrders)
-    .set({ status: "queued", updatedAt: new Date() })
+  const stale = await db
+    .select({ id: insuranceOrders.id, orderCode: insuranceOrders.orderCode })
+    .from(insuranceOrders)
     .where(
       and(
         eq(insuranceOrders.status, "creating"),
         eq(insuranceOrders.pviRoute, "api"),
         or(isNull(insuranceOrders.updatedAt), lt(insuranceOrders.updatedAt, cutoff)),
       ),
-    )
-    .returning({ orderCode: insuranceOrders.orderCode });
+    );
 
-  for (const r of reclaimed)
-    log(`${r.orderCode}: mắc ở creating quá ${STALE_AFTER_MINUTES} phút, trả về hàng chờ`);
-  return reclaimed.length;
+  for (const row of stale) {
+    await setStatus(row.id, "creating", "queued", {
+      note: `Worker giữ đơn đã dừng: mắc ở Đang tạo quá ${STALE_AFTER_MINUTES} phút. Trả về hàng chờ, lượt sau gửi lại đúng mã giao dịch cũ.`,
+    });
+    log(`${row.orderCode}: mắc ở creating quá ${STALE_AFTER_MINUTES} phút, trả về hàng chờ`);
+  }
+  return stale.length;
 }
 
 /** Danh sách đơn chờ tạo. KHÔNG đổi trạng thái ở đây — xem `claim`. */
@@ -138,6 +182,12 @@ async function claim(id: string): Promise<boolean> {
       .update(insuranceOrders)
       .set({ status: "creating", updatedAt: new Date() })
       .where(eq(insuranceOrders.id, id));
+    await tx.insert(insuranceOrderStatusHistory).values({
+      orderId: id,
+      fromStatus: "queued",
+      toStatus: "creating",
+      note: "Worker đường API nhận đơn, đang gọi PVI.",
+    });
     return true;
   });
 }
@@ -152,16 +202,12 @@ async function createOne(order: OrderForPvi) {
         ? await createMotorbikeOrder(motorbikeInputFor(order))
         : await createElectricAccidentOrder(electricInputFor(order));
 
-    await db
-      .update(insuranceOrders)
-      .set({
-        pviPrKeyNumber: result.prKey,
-        status: "awaiting-certificate",
-        // Về null để vòng tra giấy chứng nhận hỏi ngay, không đợi hết chu kỳ.
-        certificateCheckedAt: null,
-        updatedAt: new Date(),
-      })
-      .where(eq(insuranceOrders.id, order.id));
+    await setStatus(order.id, "creating", "awaiting-certificate", {
+      pviPrKeyNumber: result.prKey,
+      // Về null để vòng tra giấy chứng nhận hỏi ngay, không đợi hết chu kỳ.
+      certificateCheckedAt: null,
+      note: `PVI nhận đơn, Pr_key ${result.prKey ?? "(không có)"}. Đang đợi giấy chứng nhận.`,
+    });
     log(`${order.orderCode}: tạo xong, Pr_key ${result.prKey ?? "(không có)"}`);
     return "awaiting-certificate";
   } catch (e) {
@@ -181,10 +227,10 @@ async function failed(order: OrderForPvi, e: unknown) {
    * `order_code` qua `GetPolicyNumber`.
    */
   if (err?.status === "-555") {
-    await db
-      .update(insuranceOrders)
-      .set({ status: "awaiting-certificate", certificateCheckedAt: null, updatedAt: new Date() })
-      .where(eq(insuranceOrders.id, order.id));
+    await setStatus(order.id, "creating", "awaiting-certificate", {
+      certificateCheckedAt: null,
+      note: "PVI trả -555 mã giao dịch đã tồn tại: đơn đã tạo ở lượt trước, không tạo lại.",
+    });
     log(`${order.orderCode}: PVI báo mã giao dịch đã tồn tại, đơn đã tạo ở lượt trước`);
     return "awaiting-certificate";
   }
@@ -194,14 +240,12 @@ async function failed(order: OrderForPvi, e: unknown) {
   if (transient) {
     const attempts = order.pviAttempts + 1;
     const giveUp = attempts >= MAX_CREATE_ATTEMPTS;
-    await db
-      .update(insuranceOrders)
-      .set({
-        pviAttempts: attempts,
-        status: giveUp ? "manual-queued" : "queued",
-        updatedAt: new Date(),
-      })
-      .where(eq(insuranceOrders.id, order.id));
+    await setStatus(order.id, "creating", giveUp ? "manual-queued" : "queued", {
+      pviAttempts: attempts,
+      note: giveUp
+        ? `Gọi PVI hỏng ${attempts} lần vì mạng, lần cuối: ${describeError(e)}. Chuyển sang làm tay.`
+        : `Gọi PVI hỏng vì mạng (lần ${attempts}/${MAX_CREATE_ATTEMPTS}): ${describeError(e)}. Giữ trong hàng chờ, lượt sau gửi lại đúng mã giao dịch cũ.`,
+    });
     log(
       `${order.orderCode}: ${describeError(e)} (lần ${attempts}/${MAX_CREATE_ATTEMPTS})` +
         (giveUp ? " → làm tay" : ""),
@@ -221,16 +265,21 @@ async function failed(order: OrderForPvi, e: unknown) {
       .update(insuranceOrders)
       .set({ status: "queued", updatedAt: new Date() })
       .where(eq(insuranceOrders.id, order.id));
+    await db.insert(insuranceOrderStatusHistory).values({
+      orderId: order.id,
+      fromStatus: "creating",
+      toStatus: "queued",
+      note: `Máy chủ thiếu cấu hình PVI: ${describeError(e)}. Đơn nằm lại hàng chờ.`,
+    });
     log(`${order.orderCode}: ${describeError(e)} — trả về hàng chờ, sửa cấu hình rồi worker tự chạy tiếp`);
     return "queued";
   }
 
   // Còn lại là PVI từ chối vì dữ liệu, hoặc zod chặn ngay trước khi gửi. Thử
   // lại cũng ra cùng kết quả, nên người xử lý tay phải xem.
-  await db
-    .update(insuranceOrders)
-    .set({ status: "manual-queued", updatedAt: new Date() })
-    .where(eq(insuranceOrders.id, order.id));
+  await setStatus(order.id, "creating", "manual-queued", {
+    note: `PVI từ chối đơn: ${describeError(e)}. Gửi lại cũng ra cùng kết quả, người xử lý tay phải xem.`,
+  });
   log(`${order.orderCode}: ${describeError(e)} → làm tay`);
   return "manual-queued";
 }
@@ -300,17 +349,13 @@ async function fetchCertificates() {
       continue;
     }
 
-    await db
-      .update(insuranceOrders)
-      .set({
-        pviPolicyNumber: policy.policyNumber,
-        pviSerialNumber: policy.serialNumber,
-        certificatePhotoUrl: saved.photoKey,
-        status: "done",
-        certificateCheckedAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .where(eq(insuranceOrders.id, row.id));
+    await setStatus(row.id, "awaiting-certificate", "done", {
+      pviPolicyNumber: policy.policyNumber,
+      pviSerialNumber: policy.serialNumber,
+      certificatePhotoUrl: saved.photoKey,
+      certificateCheckedAt: new Date(),
+      note: `PVI cấp giấy chứng nhận ${policy.policyNumber}, đã lưu ảnh trang đầu.`,
+    });
     log(`${row.orderCode}: ${policy.policyNumber} → done`);
   }
 
