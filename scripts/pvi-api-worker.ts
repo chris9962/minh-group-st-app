@@ -360,10 +360,11 @@ async function fetchCertificates() {
   return waiting.length;
 }
 
-async function runOnce() {
+async function runOnce(reason: string) {
   await reclaimStaleOrders();
 
   const pending = await pendingOrders();
+  if (pending.length) log(`Vòng chạy vì ${reason}: ${pending.length} đơn chờ tạo.`);
   for (const order of pending) await createOne(order);
 
   const asked = await fetchCertificates();
@@ -455,7 +456,7 @@ async function main() {
   log(`Worker API chạy THẬT: tạo đơn trên ${process.env.PVI_API_BASE_URL ?? "(chưa cấu hình)"}.`);
 
   if (onceOnly) {
-    await runOnce();
+    await runOnce("--mot-vong");
     return;
   }
 
@@ -483,17 +484,30 @@ async function main() {
     else notifiedWhileBusy = true;
   });
 
+  /**
+   * Lý do vòng này chạy. Ghi ra để đo được `LISTEN` có tác dụng thật hay không.
+   *
+   * `hết giờ` nhiều mà `thông báo` ít nghĩa là kết nối `LISTEN` đang đứt, hoặc
+   * đường tạo đơn quên gọi `pg_notify` — hai hỏng hóc không có triệu chứng nào
+   * khác, vì đơn vẫn chạy, chỉ chậm hơn.
+   */
+  let reason = "khởi động";
+
   while (!stopping) {
     notifiedWhileBusy = false;
     try {
-      await runOnce();
+      await runOnce(reason);
     } catch (e) {
       // Một vòng hỏng không được làm chết worker: vòng sau thử lại.
       log(`Lỗi trong vòng quét: ${describeError(e)}`);
     }
     if (stopping) break;
     // Bỏ giấc ngủ, chạy vòng kế ngay.
-    if (notifiedWhileBusy) continue;
+    if (notifiedWhileBusy) {
+      reason = "thông báo tới lúc đang chạy";
+      continue;
+    }
+    const sleptFrom = Date.now();
     await new Promise<void>((resolve) => {
       const timer = setTimeout(finish, SLEEP_SECONDS * 1000);
       function finish() {
@@ -503,6 +517,9 @@ async function main() {
       }
       wake = finish;
     });
+    // Ngủ chưa hết giờ nghĩa là có thông báo cắt ngang.
+    reason =
+      Date.now() - sleptFrom < SLEEP_SECONDS * 1000 - 200 ? "thông báo" : "hết giờ";
   }
 
   stopListener();
