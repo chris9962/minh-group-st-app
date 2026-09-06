@@ -300,8 +300,11 @@ function decorate(page: ReturnType<typeof pickPage>) {
        * không phải phép gộp trên cả bảng — trang đã cắt xong ở `pickPage`
        * (AGENTS.md §5.2 cách A).
        */
+      // Không đếm dòng HKD: nó không phải ngân hàng nên không chiếm chỗ trong
+      // trần 3 (chốt 2026-09-06). Cùng phép đếm với `startBankAccount`.
       bankSlotsLeft: sql<number>`greatest(0, ${MAX_BANK_ACCOUNTS_PER_CUSTOMER} - (
-        select count(*) from ${bankAccounts} where ${bankAccounts.customerId} = ${page.id}
+        select count(*) from ${bankAccounts}
+        where ${bankAccounts.customerId} = ${page.id} and ${bankAccounts.accountType} <> 'HKD'
       ))::int`,
     })
     .from(page)
@@ -429,7 +432,8 @@ export async function listCustomers(
  * 0005), còn trần 3 tài khoản tính cả bản nháp `creating` vì bản nháp đã giữ
  * một chỗ mã giới thiệu.
  */
-const bankAccountsOfCustomer = sql`(select count(*) from ${bankAccounts} where ${bankAccounts.customerId} = ${customers.id})`;
+// Không đếm dòng HKD, cùng phép đếm trần với `startBankAccount` (chốt 2026-09-06).
+const bankAccountsOfCustomer = sql`(select count(*) from ${bankAccounts} where ${bankAccounts.customerId} = ${customers.id} and ${bankAccounts.accountType} <> 'HKD')`;
 
 const LOOKUP_LIMIT = 15;
 
@@ -1449,6 +1453,7 @@ export async function customerDetailFor(
   const visibleInsurance = visible(insuranceRows, insuranceVisible);
   const visibleServices = visible(serviceRows, servicesVisible);
 
+        accountType: bankAccounts.accountType,
   const accounts: CustomerAccountRow[] = visibleDone.map((a) => ({
     id: a.id,
     date: a.date ?? "",
@@ -1515,7 +1520,11 @@ export async function customerDetailFor(
      * dựng `visibleDone`/`visibleDrafts`. Đếm ở đây nên đúng cả bản nháp lẫn
      * dòng của phòng khác, đúng thứ trần cần.
      */
-    bankSlotsLeft: Math.max(0, MAX_BANK_ACCOUNTS_PER_CUSTOMER - accountRows.length),
+    bankSlotsLeft: Math.max(
+      0,
+      // Dòng HKD không chiếm chỗ trong trần (chốt 2026-09-06).
+      MAX_BANK_ACCOUNTS_PER_CUSTOMER - accountRows.filter((a) => a.accountType !== "HKD").length,
+    ),
     accounts,
     accountsHiddenCount: doneAccounts.length - visibleDone.length,
     draftAccounts: drafts,

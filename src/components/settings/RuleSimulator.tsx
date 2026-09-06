@@ -122,7 +122,7 @@ export function RuleSimulator() {
 
   /**
    * Trần 3 ngân hàng — cùng con số `startBankAccount` chặn ở máy chủ và unique
-   * index `bank_accounts_root_bank` chặn ở database (chốt 2026-08-25).
+   * index `bank_accounts_root_bank_slot` chặn ở database (chốt 2026-08-25).
    *
    * Màn thử để đo LUẬT, nên nó chỉ được dựng ra những khách hệ thống dựng được.
    * Bản trước tick bao nhiêu ngân hàng cũng xong, và khách 5 ngân hàng ra một

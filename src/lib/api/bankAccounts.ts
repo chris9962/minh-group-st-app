@@ -148,25 +148,47 @@ export type BankAccountPick = z.infer<typeof BankAccountPick>;
 export const BankAccountStartForm = z
   .object({
     customerId: z.guid('Chưa chọn khách'),
-    picks: z
-      .array(BankAccountPick)
-      .min(1, 'Chưa chọn ngân hàng nào')
-      .max(
-        MAX_BANK_ACCOUNTS_PER_CUSTOMER,
-        `Một khách mở tối đa ${MAX_BANK_ACCOUNTS_PER_CUSTOMER} tài khoản`,
-      ),
+    picks: z.array(BankAccountPick).min(1, 'Chưa chọn ngân hàng nào'),
     /**
      * Phòng ghi nhận bản ghi này. Chỉ người KHÔNG thuộc phòng nào mới phải chọn —
      * người có phòng thì máy chủ dùng phòng của họ và bỏ qua giá trị này.
      */
     departmentId: z.string(),
   })
-  // Giao diện không cho tích một ngân hàng hai lần, nhưng đây là chỗ chốt: khoá
-  // duy nhất `(customer_id, bank_id)` sẽ từ chối, và lỗi khoá đọc ra như 500.
-  .refine((form) => new Set(form.picks.map((p) => p.bankId)).size === form.picks.length, {
-    message: 'Một ngân hàng chỉ chọn được một lần',
-    path: ['picks'],
-  });
+  /**
+   * Trần 3 đếm dòng CHÍNH, không đếm dòng HKD (chốt 2026-09-06): HKD không phải
+   * ngân hàng nên không chiếm chỗ. Vì thế không dùng `.max(3)` trên cả mảng —
+   * ba dòng chính cộng một dòng HKD là bốn phần tử hợp lệ.
+   */
+  .refine(
+    (form) =>
+      form.picks.filter((p) => p.accountType !== 'HKD').length <= MAX_BANK_ACCOUNTS_PER_CUSTOMER,
+    {
+      message: `Một khách mở tối đa ${MAX_BANK_ACCOUNTS_PER_CUSTOMER} tài khoản`,
+      path: ['picks'],
+    },
+  )
+  // Giao diện không cho tích trùng, nhưng đây là chỗ chốt: khoá duy nhất
+  // `bank_accounts_root_bank_slot` sẽ từ chối, và lỗi khoá đọc ra như 500. Khoá
+  // theo cặp (ngân hàng, có phải HKD), nên một ngân hàng chọn được đúng một
+  // dòng chính và một dòng HKD.
+  .refine(
+    (form) =>
+      new Set(form.picks.map((p) => `${p.bankId}:${p.accountType === 'HKD'}`)).size ===
+      form.picks.length,
+    { message: 'Mỗi ngân hàng chỉ chọn được một dòng chính và một dòng HKD', path: ['picks'] },
+  )
+  // Thường và CNKD là một tài khoản, HKD là tài khoản khác; khách có HKD thì tài
+  // khoản chính phải là loại thường. Máy chủ kiểm lại với cả dòng đã có.
+  .refine(
+    (form) =>
+      !form.picks.some(
+        (p) =>
+          p.accountType === 'CNKD' &&
+          form.picks.some((q) => q.bankId === p.bankId && q.accountType === 'HKD'),
+      ),
+    { message: 'CNKD và HKD không đi chung một ngân hàng', path: ['picks'] },
+  );
 export type BankAccountStartForm = z.infer<typeof BankAccountStartForm>;
 
 /**
@@ -177,20 +199,35 @@ export type BankAccountStartForm = z.infer<typeof BankAccountStartForm>;
  * kể cả dòng `creating`: trần áp cho KHÁCH, không áp cho người đang xem. Hồ sơ
  * khách (P-42) đã tính quà theo cùng lối đó (spec §4.4).
  */
+/**
+ * Một dòng tài khoản người này đã có, tính trên MỌI hồ sơ của họ.
+ *
+ * `hkd` phân biệt dòng HKD với dòng chính: một ngân hàng có tối đa một dòng mỗi
+ * kiểu (chốt 2026-09-06). `here` nói dòng đó thuộc hồ sơ đang xem hay hồ sơ
+ * trước, để dòng lý do dẫn đúng đường. `cnkd` chỉ có nghĩa ở dòng chính: dòng
+ * chính đang CNKD thì không mở thêm được dòng HKD.
+ */
+export const UsedBankSlot = z.object({
+  bankId: z.string(),
+  hkd: z.boolean(),
+  here: z.boolean(),
+  cnkd: z.boolean(),
+});
+export type UsedBankSlot = z.infer<typeof UsedBankSlot>;
+
 export const CustomerBankSlots = z.object({
-  /** Ngân hàng người này đã mở, tính trên MỌI hồ sơ của họ. */
-  usedBankIds: z.array(z.string()),
-  /**
-   * Ngân hàng đã mở ở CHÍNH hồ sơ đang xem — tập con của `usedBankIds`.
-   *
-   * Hai tập tách nhau để dòng lý do nói đúng chỗ: "hồ sơ này đã có" và "lần
-   * trước đã mở" dẫn nhân viên đi hai đường khác nhau, mà nhìn ô tích mờ thì
-   * không đoán ra được đường nào.
-   */
-  usedHereBankIds: z.array(z.string()),
+  used: z.array(UsedBankSlot),
   /** Ngân hàng khách đủ tuổi mở; ngân hàng không giới hạn tuổi luôn có mặt. */
   eligibleBankIds: z.array(z.string()),
-  /** Số tài khoản còn mở thêm được, 0 là đã đủ trần. */
+  /**
+   * Ngân hàng có mã giới thiệu loại HKD, tức có dòng HKD để mở. Đọc từ kho mã
+   * chứ không viết cứng `VPa`: ngày ngân hàng khác có HKD thì chỉ cần nhập mã.
+   */
+  hkdBankIds: z.array(z.string()),
+  /**
+   * Số tài khoản còn mở thêm được, 0 là đã đủ trần. KHÔNG đếm dòng HKD: nó
+   * không phải ngân hàng, không vào combo, nên không chiếm chỗ trong trần 3.
+   */
   remaining: z.number(),
   /** false thì mọi ngân hàng có giới hạn tuổi đều ngoài `eligibleBankIds`. */
   hasDob: z.boolean(),
@@ -220,6 +257,13 @@ export const BankAccountFinishForm = z.object({
   openedDate: isoDate('Chưa chọn ngày mở'),
   appInstalled: z.boolean(),
   accountType: AccountType,
+  /**
+   * Chỉ có giá trị khi ĐỔI loại tài khoản (chốt 2026-09-06). Mã giới thiệu tách
+   * theo loại và giữ chỗ riêng, nên đổi loại là phải lấy một mã của loại mới;
+   * gửi loại mới mà không gửi mã thì máy chủ từ chối. Không đổi loại thì để
+   * trống, máy chủ giữ mã cũ.
+   */
+  referralCode: z.string().optional(),
   note: z.string(),
 });
 export type BankAccountFinishForm = z.infer<typeof BankAccountFinishForm>;

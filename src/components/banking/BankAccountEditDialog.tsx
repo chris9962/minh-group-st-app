@@ -9,14 +9,18 @@ import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { SkeletonCard } from "@/components/ui/Skeleton";
+import { Select } from "@/components/ui/Select";
 import { ReferralCodeCard } from "./ReferralCodeCard";
 import {
+  ACCOUNT_TYPE_LABEL,
+  type AccountType,
   BankAccountFinishForm,
   canEditOpeningPhotos,
   finishBankAccount,
   setBankAccountPhotos,
   updateBankAccount,
 } from "@/lib/api/bankAccounts";
+import { fetchOpenReferralCodes } from "@/lib/api/bankCatalog";
 import { BankAccountTransaction } from "./BankAccountTransaction";
 import { fetchBankAccountDetail } from "@/lib/api/banking";
 import { invalidateKpi } from "@/lib/invalidateKpi";
@@ -51,8 +55,9 @@ type Props = {
  *                 quên tích "đã cài app" thì không có đường chữa nào, vì bản
  *                 `done` cũng không xoá được.
  *
- * Khách, ngân hàng và mã giới thiệu KHÔNG sửa được ở cả hai mặt: đổi chúng là
- * viết lại lịch sử kho mã, không phải sửa một chỗ gõ nhầm.
+ * Khách và ngân hàng KHÔNG sửa được ở cả hai mặt: đổi chúng là viết lại lịch
+ * sử kho mã, không phải sửa một chỗ gõ nhầm. Loại tài khoản thì đổi được từ
+ * 2026-09-06, kèm một mã của loại mới — mã cũ nhả chỗ, mã mới giữ chỗ.
  *
  * Tự tải chi tiết theo `accountId` chứ không nhận sẵn từ dòng bảng: dòng bảng
  * không có `photoUrls`, `requiredPhotos` lẫn `accountNumberMethod`, mà thiếu ba
@@ -103,9 +108,40 @@ export function BankAccountEditDialog({ open, onClose, accountId }: Props) {
       openedDate: data?.date || businessDay(),
       appInstalled: data?.appInstalled ?? true,
       accountType: data?.accountType ?? "none",
+      // Chỉ có giá trị khi người dùng đổi loại — xem khối "Loại tài khoản".
+      referralCode: "",
       note: data?.note ?? "",
     },
   });
+
+  /**
+   * Đổi loại tài khoản trên dòng đã có (chốt 2026-09-06): thường ↔ CNKD trên
+   * dòng chính, hoặc chuyển một dòng sang HKD. Mã giới thiệu tách theo loại nên
+   * đổi loại là phải chọn mã của loại mới; máy chủ từ chối cặp CNKD với HKD và
+   * dòng trùng chỗ, câu báo hiện qua toast.
+   *
+   * Hai truy vấn: kho mã mọi loại để biết ngân hàng này có những loại nào, và
+   * kho mã của loại MỚI để chọn. Cả hai đọc theo phòng ghi nhận bản ghi, cùng
+   * phạm vi mà máy chủ sẽ kiểm.
+   */
+  const accountType = finishForm.watch("accountType");
+  const newReferralCode = finishForm.watch("referralCode") ?? "";
+  const typeChanged = !!data && accountType !== data.accountType;
+  const codeDepartment = data?.createdByDepartmentId ?? "";
+  const { data: allCodes = [] } = useQuery({
+    queryKey: ["referral-codes", "open", data?.bankId, codeDepartment, "all-types"],
+    queryFn: () => fetchOpenReferralCodes(data!.bankId, codeDepartment),
+    enabled: !!data && canWrite,
+  });
+  const { data: newCodes = [], isPending: newCodesPending } = useQuery({
+    queryKey: ["referral-codes", "open", data?.bankId, codeDepartment, accountType],
+    queryFn: () => fetchOpenReferralCodes(data!.bankId, codeDepartment, accountType),
+    enabled: typeChanged,
+  });
+  // Loại đang ghi luôn có mặt dù kho mã của nó đã hết, để ô chọn không tự nhảy.
+  const typeOptions: AccountType[] = [
+    ...new Set<AccountType>([...(data ? [data.accountType] : []), ...allCodes.map((c) => c.accountType)]),
+  ];
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["bank-account-detail", accountId] });
@@ -252,6 +288,43 @@ export function BankAccountEditDialog({ open, onClose, accountId }: Props) {
               </span>
             )}
           </div>
+
+          {canWrite && typeOptions.length > 1 && (
+            <div className={styles.pickCode}>
+              <Select
+                block
+                label="Loại tài khoản"
+                value={accountType}
+                onChange={(v) => {
+                  finishForm.setValue("accountType", v as AccountType, { shouldDirty: true });
+                  finishForm.setValue("referralCode", "", { shouldDirty: true });
+                }}
+                options={typeOptions.map((value) => ({ value, label: ACCOUNT_TYPE_LABEL[value] }))}
+                hint={
+                  typeChanged
+                    ? "Đổi loại thì chọn mã giới thiệu của loại mới. Mã cũ được nhả chỗ."
+                    : undefined
+                }
+              />
+              {typeChanged && (
+                <Select
+                  block
+                  required
+                  label="Mã giới thiệu mới"
+                  value={newReferralCode}
+                  onChange={(v) => finishForm.setValue("referralCode", v, { shouldDirty: true })}
+                  options={
+                    newCodes.length === 0
+                      ? [{ value: "", label: newCodesPending ? "— Đang tải mã —" : "— Hết mã —" }]
+                      : newCodes.map((c) => ({
+                          value: c.id,
+                          label: `${c.displayName || c.code}${c.province ? ` · ${c.province}` : ""} · còn ${c.total - c.used - c.holding} chỗ`,
+                        }))
+                  }
+                />
+              )}
+            </div>
+          )}
 
           <ReferralCodeCard account={data} />
 

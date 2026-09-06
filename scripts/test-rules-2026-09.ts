@@ -365,14 +365,43 @@ check(
 /**
  * HKD 3,0 điểm — yêu cầu 2026-09-02. Kỳ 2026-08 cho HKD 0 điểm.
  *
- * ⚠️ HKD chỉ tính khi khách mở `VPa` — Kế toán chốt 2026-09-02: *"HKD luôn đi
- * kèm VPa. VPb không có HKD, VPb chỉ có CNKD"*. Ghi HKD cho khách không mở
- * `VPa` là dữ liệu sai, khách đó được 0 điểm HKD.
+ * Dòng HKD là một tài khoản `VPa` RIÊNG, nằm cạnh tài khoản chính (chủ dự án
+ * chốt 2026-09-06). Nó KHÔNG vào combo và KHÔNG đếm là ngân hàng: chỉ mang 3,0
+ * điểm và hai món Loa, Bảng mica. `VPa` chỉ là ngân hàng khi khách có dòng
+ * chính, loại thường hoặc CNKD.
+ *
+ * Ghi HKD theo cách cũ, tài khoản mang mã `HKD` (câu 7.16), thì vẫn phải kèm
+ * `VPa` mới có điểm — Kế toán chốt 2026-09-02: *"HKD luôn đi kèm VPa. VPb
+ * không có HKD, VPb chỉ có CNKD"*.
  */
-section("Điểm HKD — mục 4d, chỉ tính khi kèm VPa");
+section("Điểm HKD — mục 4d, dòng HKD không phải ngân hàng");
 check(
-  "VPa + HKD — 0,3 tổ hợp + 3,0 HKD",
+  "chỉ dòng VPa HKD — 3,0, không có combo",
   points([account("kh1", "VPa", { household: "HKD" })]),
+  3.0,
+);
+check(
+  "VPa thường + dòng VPa HKD — 0,3 Combo 1 của VPa + 3,0",
+  points([account("kh1", "VPa"), account("kh1", "VPa", { household: "HKD" })]),
+  3.3,
+);
+check(
+  "dòng VPa HKD + LPB — Combo 1 của LPB (0,2) + 3,0, không phải Combo 2",
+  points([account("kh1", "VPa", { household: "HKD" }), account("kh1", "LPB")]),
+  3.2,
+);
+check(
+  "VPa thường + dòng HKD + MB — Combo 2 (0,7) + 3,0",
+  points([
+    account("kh1", "VPa"),
+    account("kh1", "VPa", { household: "HKD" }),
+    account("kh1", "MB"),
+  ]),
+  3.7,
+);
+check(
+  "dòng HKD chưa cài app không làm VPa thường mất TH8: điểm không xét app",
+  points([account("kh1", "VPa"), account("kh1", "VPa", { household: "HKD", app: false })]),
   3.3,
 );
 check(
@@ -394,6 +423,7 @@ check(
   "HKD không đổi theo số ngân hàng",
   points([
     account("kh1", "MB"),
+    account("kh1", "VPa"),
     account("kh1", "VPa", { household: "HKD" }),
     account("kh1", "MSBa"),
   ]),
@@ -401,12 +431,16 @@ check(
 );
 check(
   "phát Mì không hạ điểm HKD",
-  points([account("kh1", "VPa", { household: "HKD" })], PERIOD, { kh1: "QUA-MI" }),
+  points([account("kh1", "VPa"), account("kh1", "VPa", { household: "HKD" })], PERIOD, {
+    kh1: "QUA-MI",
+  }),
   3.3,
 );
 check(
   "phát Nón không hạ điểm HKD",
-  points([account("kh1", "VPa", { household: "HKD" })], PERIOD, { kh1: "QUA-NON-BH" }),
+  points([account("kh1", "VPa"), account("kh1", "VPa", { household: "HKD" })], PERIOD, {
+    kh1: "QUA-NON-BH",
+  }),
   3.3,
 );
 
@@ -418,7 +452,11 @@ check(
 section("G2 · khách có cả CNKD lẫn HKD");
 check(
   "lấy 3,0 của HKD, không lấy 1,0 của CNKD",
-  points([account("kh1", "VPa", { household: "HKD" }), account("kh1", "CNKD")]),
+  points([
+    account("kh1", "VPa"),
+    account("kh1", "VPa", { household: "HKD" }),
+    account("kh1", "CNKD"),
+  ]),
   3.3,
 );
 check(
@@ -428,9 +466,11 @@ check(
 );
 check(
   "phát Mì cũng không kéo xuống, vì mức thắng là HKD",
-  points([account("kh1", "VPa", { household: "HKD" }), account("kh1", "CNKD")], PERIOD, {
-    kh1: "QUA-MI",
-  }),
+  points(
+    [account("kh1", "VPa"), account("kh1", "VPa", { household: "HKD" }), account("kh1", "CNKD")],
+    PERIOD,
+    { kh1: "QUA-MI" },
+  ),
   3.3,
 );
 
@@ -591,6 +631,7 @@ check(
   points([
     account("kh1", "MB"),
     account("kh1", "LPB"),
+    account("kh2", "VPa"),
     account("kh2", "VPa", { household: "HKD" }),
   ]),
   3.8,
@@ -863,6 +904,45 @@ checkCodes(
   giftOf(["VPb"], { household: "CNKD" }).basket.map((i) => i.code),
   BH_1N,
 );
+
+/**
+ * Dòng HKD là tài khoản `VPa` riêng, không vào combo (chủ dự án chốt
+ * 2026-09-06). `giftOf` chỉ dựng được một dòng mỗi ngân hàng nên hai dòng VPa
+ * ghép tay bằng `giftFor`.
+ */
+const giftRows = (accounts: ScoringAccount[]): GiftResult =>
+  giftFor({ accounts, channelCodes: [], departmentCode: null, grantedItem: null }, AT)!;
+const vpaHkd = account("kh1", "VPa", { household: "HKD" });
+
+section("Dòng HKD — không vào combo, chỉ mang Loa và Bảng mica");
+check("chỉ dòng HKD — không có bậc quà", giftRows([vpaHkd]).caseCode, null);
+checkCodes("chỉ dòng HKD — rổ chỉ có Loa và Bảng mica", giftRows([vpaHkd]).basket.map((i) => i.code), ITEMS_HKD);
+check("chỉ dòng HKD — không có tiền mặt", giftRows([vpaHkd]).cashTotal, 0);
+check(
+  "VPa thường + dòng HKD — TH8 của VPa, vẫn Combo 1",
+  giftRows([account("kh1", "VPa"), vpaHkd]).caseCode,
+  "TH8",
+);
+checkCodes(
+  "VPa thường + dòng HKD — rổ TH8 cộng Loa và Bảng mica",
+  giftRows([account("kh1", "VPa"), vpaHkd]).basket.map((i) => i.code),
+  ITEMS_HKD,
+);
+check(
+  "dòng HKD + LPB — TH7 của LPB, không phải TH2",
+  giftRows([vpaHkd, account("kh1", "LPB")]).caseCode,
+  "TH7",
+);
+check(
+  "VPa thường + dòng HKD + MB — TH1, dòng HKD không thành ngân hàng thứ ba",
+  giftRows([account("kh1", "VPa"), vpaHkd, account("kh1", "MB")]).caseCode,
+  "TH1",
+);
+check(
+  "VPa thường chưa cài app + dòng HKD đã cài — vẫn không có quà combo",
+  giftRows([account("kh1", "VPa", { app: false }), vpaHkd]).caseCode,
+  null,
+);
 /** Khách VPa một mình, không HKD, không thuộc nhóm quà: rổ RỖNG, chỉ có 20k. */
 checkCodes(
   "VPa không kèm gì thì rổ rỗng hoàn toàn",
@@ -941,7 +1021,7 @@ checkCodes(
   [],
 );
 checkCodes(
-  "TH8 kèm HKD, Phòng Y — chỉ có Loa và Bảng mica",
+  "chỉ dòng HKD, Phòng Y — không có bậc nên chỉ có Loa và Bảng mica",
   giftOf(["VPa"], { household: "HKD", department: "PHONG-Y" }).basket.map((i) => i.code),
   ITEMS_HKD,
 );
@@ -965,7 +1045,19 @@ check("đã nhận Mì → vẫn 20k", soloVPa("QUA-MI").cashTotal, 20_000);
 check("đã nhận Nón → vẫn 20k", soloVPa("QUA-NON-BH").cashTotal, 20_000);
 check("đã nhận Loa → vẫn 20k", soloVPa("QUA-LOA").cashTotal, 20_000);
 check("đã nhận Bảng mica → vẫn 20k", soloVPa("QUA-MICA").cashTotal, 20_000);
-check("khách HKD đã nhận Mì → vẫn 20k", giftOf(["VPa"], { household: "HKD", granted: "QUA-MI" }).cashTotal, 20_000);
+check(
+  "khách HKD đã nhận Mì → vẫn 20k",
+  giftFor(
+    {
+      accounts: [account("kh1", "VPa"), vpaHkd],
+      channelCodes: [],
+      departmentCode: null,
+      grantedItem: "QUA-MI",
+    },
+    AT,
+  )!.cashTotal,
+  20_000,
+);
 check("khách không CNKD không HKD đã nhận Mì → vẫn 20k", giftOf(["VPa"], { granted: "QUA-MI" }).cashTotal, 20_000);
 check("TH1 đã nhận Mì → vẫn 20k", giftOf(["MB", "VPa"], { granted: "QUA-MI" }).cashTotal, 20_000);
 check("TH3 đã nhận Nón → vẫn 70k", giftOf(["MB", "VPa", "MSBa"], { granted: "QUA-NON-BH" }).cashTotal, 70_000);
@@ -997,9 +1089,14 @@ check(
   true,
 );
 check(
-  "TH8 kèm HKD · chọn Loa ghi 20k",
-  cashIfChosen(giftOf(["VPa"], { household: "HKD" }), "QUA-LOA"),
+  "TH8 kèm dòng HKD · chọn Loa ghi 20k",
+  cashIfChosen(giftRows([account("kh1", "VPa"), vpaHkd]), "QUA-LOA"),
   20_000,
+);
+check(
+  "chỉ dòng HKD · không có bậc nên chọn Loa ghi 0đ",
+  cashIfChosen(giftRows([vpaHkd]), "QUA-LOA"),
+  0,
 );
 check(
   "TH6 Phòng Y · không tiền thì mọi món đều 0đ",

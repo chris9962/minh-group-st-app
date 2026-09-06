@@ -7,12 +7,14 @@ import {
   gte,
   inArray,
   lte,
+  ne,
   or,
   sql,
   type SQL,
   type SQLWrapper,
 } from "drizzle-orm";
 import {
+  type AccountType,
   BankAccountStatus,
   canEditOpeningPhotos,
   MAX_BANK_ACCOUNTS_PER_CUSTOMER,
@@ -95,6 +97,231 @@ function meetsBankAgeRule(dob: string | null, rule: BankAgeRule, at = businessDa
   return age !== null && (rule.minAge === null || age >= rule.minAge) && (rule.maxAge === null || age <= rule.maxAge);
 }
 
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * Dòng HKD là tài khoản THẬT thứ hai của cùng ngân hàng, không phải một cách
+ * đăng ký của tài khoản chính như CNKD (chủ dự án chốt 2026-09-06). Mọi phép
+ * đếm "ngân hàng đã mở" và "trần 3" đều tách theo vế này.
+ */
+const isHkd = (accountType: string): boolean => accountType === "HKD";
+
+type SlotRow = { bankId: string; accountType: string };
+type SlotConflict = "duplicate" | "hkd-over-cnkd" | "cnkd-over-hkd";
+
+/**
+ * Dòng sắp ghi có đụng dòng đã có của CÙNG NGƯỜI ở CÙNG ngân hàng không.
+ *
+ * Mỗi ngân hàng có hai chỗ: dòng chính (thường hoặc CNKD) và dòng HKD. Ba cách
+ * đụng: trùng chỗ; thêm HKD khi dòng chính đang CNKD; thêm CNKD khi đã có dòng
+ * HKD. Hai cách sau là một luật: khách có HKD thì tài khoản chính phải là loại
+ * thường, không ai vừa CNKD vừa HKD.
+ *
+ * Khoá duy nhất `bank_accounts_root_bank_slot` chỉ đỡ được cách đụng thứ nhất,
+ * vì hai cách sau đọc hai dòng khác nhau. Nên phép kiểm này phải chạy trong
+ * giao dịch đã khoá dòng khách, ở cả đường mở lẫn đường đổi loại.
+ */
+function slotConflict(owned: SlotRow[], incoming: SlotRow): SlotConflict | null {
+  const sameBank = owned.filter((r) => r.bankId === incoming.bankId);
+  if (sameBank.some((r) => isHkd(r.accountType) === isHkd(incoming.accountType))) return "duplicate";
+  if (isHkd(incoming.accountType) && sameBank.some((r) => r.accountType === "CNKD"))
+    return "hkd-over-cnkd";
+  if (incoming.accountType === "CNKD" && sameBank.some((r) => isHkd(r.accountType)))
+    return "cnkd-over-hkd";
+  return null;
+}
+
+function slotConflictMessage(kind: SlotConflict, bankCode: string, hkd: boolean): string {
+  switch (kind) {
+    case "duplicate":
+      return hkd
+        ? `Khách này đã có tài khoản ${bankCode} HKD, tính cả những lần trước. Bản nháp cũng tính; xoá bản nháp thì mở lại được.`
+        : `Khách này đã có tài khoản ${bankCode}. Mỗi ngân hàng chỉ mở được một tài khoản chính, tính cả những lần trước. Bản nháp cũng tính; xoá bản nháp thì mở lại được.`;
+    case "hkd-over-cnkd":
+      return `Tài khoản ${bankCode} của khách đang là CNKD nên không mở thêm HKD. Một khách chỉ có CNKD hoặc HKD.`;
+    case "cnkd-over-hkd":
+      return `Khách đã có tài khoản ${bankCode} HKD nên tài khoản chính phải là loại thường, không chọn CNKD.`;
+  }
+}
+
+/**
+ * Khoá dòng mã và kiểm nó dùng được cho (ngân hàng, loại, phòng) này không.
+ *
+ * Dùng chung cho lượt mở và lượt đổi loại: hai đường cùng ghi một mã vào một
+ * dòng tài khoản, mà hai bản kiểm rời nhau là có ngày một bên quên phạm vi
+ * phòng.
+ *
+ * Khoá dòng mã bằng `for update`: request thứ hai chạm cùng dòng sẽ ĐỨNG ĐỢI ở
+ * đây, không đọc được con số cũ.
+ */
+async function lockUsableCode(
+  tx: Tx,
+  codeId: string,
+  bankId: string,
+  accountType: string,
+  departmentId: string | null,
+): Promise<
+  { ok: true; code: { id: string; code: string | null } } | { ok: false; message: string }
+> {
+  const [code] = await tx
+    .select({
+      id: referralCodes.id,
+      code: referralCodes.code,
+      bankId: referralCodes.bankId,
+      total: referralCodes.total,
+      importedUsed: referralCodes.importedUsed,
+      usedCount: referralCodes.usedCount,
+      holdingCount: referralCodes.holdingCount,
+      accountType: referralCodes.accountType,
+      scope: referralCodes.scope,
+      active: referralCodes.active,
+    })
+    .from(referralCodes)
+    .where(eq(referralCodes.id, codeId))
+    .limit(1)
+    .for("update");
+
+  if (!code) return { ok: false, message: "Không tìm thấy mã giới thiệu này" };
+  if (code.bankId !== bankId)
+    return { ok: false, message: "Mã giới thiệu này không thuộc ngân hàng đã chọn" };
+  if (code.accountType !== accountType)
+    return {
+      ok: false,
+      message: `Mã ${code.code} không thuộc loại tài khoản đã chọn. Chọn lại mã giúp.`,
+    };
+  // Ô chọn đã lọc mã ngừng, nhưng đây mới là chốt — cùng lý do với phạm vi phòng.
+  if (!code.active)
+    return { ok: false, message: `Mã ${code.code} đã ngừng sử dụng. Chọn mã khác giúp.` };
+
+  /**
+   * Kiểm LẠI phạm vi phòng ở đây, không tin ô chọn đã lọc (spec §4.4d).
+   *
+   * Ô chọn lọc cho gọn màn hình; đường này mới là chốt. Gọi thẳng API với một
+   * mã của phòng khác thì phải bị từ chối.
+   */
+  if (code.scope !== "all") {
+    const [allowed] = await tx
+      .select({ id: referralCodeDepartments.departmentId })
+      .from(referralCodeDepartments)
+      .where(
+        and(
+          eq(referralCodeDepartments.referralCodeId, code.id),
+          departmentId ? eq(referralCodeDepartments.departmentId, departmentId) : sql`false`,
+        ),
+      )
+      .limit(1);
+
+    if (!allowed)
+      return { ok: false, message: `Mã ${code.code} không dùng được cho phòng đã chọn.` };
+  }
+
+  const remaining = code.total - code.importedUsed - code.usedCount - code.holdingCount;
+  if (remaining <= 0)
+    return {
+      ok: false,
+      message: `Mã ${code.code} vừa hết chỗ — người khác đã lấy chỗ cuối. Chọn mã khác giúp.`,
+    };
+
+  return { ok: true, code: { id: code.id, code: code.code } };
+}
+
+/**
+ * Loại tài khoản của một dòng ĐÃ CÓ, sau lượt sửa: giữ nguyên, hay đổi sang loại
+ * mới kèm một mã của loại đó (chốt 2026-09-06).
+ *
+ * Bản trước khoá cứng loại ở bước giữ chỗ. Nhưng khách đăng ký CNKD sau khi
+ * đã mở tài khoản thường là chuyện thật, và không có đường sửa thì nhân viên
+ * phải xoá rồi mở lại, mất luôn ảnh chứng minh. Đổi loại KÈM đổi mã vì mã
+ * tách theo loại và giữ chỗ riêng: giữ mã cũ là kho mã lệch một chỗ mỗi lần.
+ *
+ * Đổi loại là đổi chỗ trong ngân hàng (chính hay HKD), nên phải kiểm lại đúng
+ * ba luật của `slotConflict` với các dòng CÒN LẠI của cùng người, và kiểm trần
+ * 3 khi một dòng HKD quay về dòng chính. Khoá dòng khách TRƯỚC, khoá mã SAU,
+ * cùng thứ tự với `startBankAccount`.
+ *
+ * Trigger `bank_accounts_sync_referral_counts` liệt kê `referral_code_id`
+ * trong `UPDATE OF`, nên đổi mã ở đây là bộ đếm của hai mã tự lệch đúng chiều.
+ */
+async function resolveAccountType(
+  tx: Tx,
+  accountId: string,
+  form: { accountType: AccountType; referralCode?: string },
+): Promise<
+  { ok: true; accountType: AccountType; referralCodeId: string } | { ok: false; message: string }
+> {
+  const [row] = await tx
+    .select({
+      customerId: bankAccounts.customerId,
+      rootCustomerId: bankAccounts.rootCustomerId,
+      bankId: bankAccounts.bankId,
+      bankCode: banks.code,
+      accountType: bankAccounts.accountType,
+      referralCodeId: bankAccounts.referralCodeId,
+      departmentId: bankAccounts.createdByDepartmentId,
+    })
+    .from(bankAccounts)
+    .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
+    .where(eq(bankAccounts.id, accountId))
+    .limit(1);
+  if (!row) return { ok: false, message: "Không tìm thấy tài khoản này" };
+
+  if (form.accountType === row.accountType)
+    return { ok: true, accountType: row.accountType, referralCodeId: row.referralCodeId };
+
+  if (!form.referralCode)
+    return {
+      ok: false,
+      message: `Đổi loại tài khoản ${row.bankCode} thì phải chọn mã giới thiệu của loại mới.`,
+    };
+
+  await tx
+    .select({ id: customers.id })
+    .from(customers)
+    .where(eq(customers.id, row.customerId))
+    .for("update");
+
+  const siblings = await tx
+    .select({ bankId: bankAccounts.bankId, accountType: bankAccounts.accountType })
+    .from(bankAccounts)
+    .where(
+      and(
+        eq(bankAccounts.rootCustomerId, row.rootCustomerId),
+        eq(bankAccounts.bankId, row.bankId),
+        ne(bankAccounts.id, accountId),
+      ),
+    );
+  const conflict = slotConflict(siblings, { bankId: row.bankId, accountType: form.accountType });
+  if (conflict)
+    return {
+      ok: false,
+      message: slotConflictMessage(conflict, row.bankCode, isHkd(form.accountType)),
+    };
+
+  if (isHkd(row.accountType) && !isHkd(form.accountType)) {
+    const [main] = await tx
+      .select({ n: count() })
+      .from(bankAccounts)
+      .where(
+        and(eq(bankAccounts.customerId, row.customerId), ne(bankAccounts.accountType, "HKD")),
+      );
+    const n = main?.n ?? 0;
+    if (n >= MAX_BANK_ACCOUNTS_PER_CUSTOMER)
+      return {
+        ok: false,
+        message: `Hồ sơ này đã có ${n} tài khoản ngân hàng, đổi dòng HKD thành tài khoản chính là vượt trần ${MAX_BANK_ACCOUNTS_PER_CUSTOMER}.`,
+      };
+  }
+
+  const locked = await lockUsableCode(
+    tx,
+    form.referralCode,
+    row.bankId,
+    form.accountType,
+    row.departmentId,
+  );
+  if (!locked.ok) return locked;
+  return { ok: true, accountType: form.accountType, referralCodeId: locked.code.id };
+}
 
 export type BankAccountFilters = {
   search: string;
@@ -1043,34 +1270,44 @@ export async function startBankAccount(
      * Hai câu hỏi khác trục, nên hai phép đếm.
      *
      * Ngân hàng đã mở tính trên MỌI LẦN của người này (`root_customer_id`) —
-     * khoá duy nhất `bank_accounts_root_bank` cũng theo trục đó. Trần 3 thì
-     * tính trên hồ sơ ĐANG mở: mỗi hồ sơ là một combo riêng, gộp cả các lần cũ
-     * vào là lần thứ hai không mở được tài khoản nào.
+     * khoá duy nhất `bank_accounts_root_bank_slot` cũng theo trục đó. Trần 3
+     * thì tính trên hồ sơ ĐANG mở: mỗi hồ sơ là một combo riêng, gộp cả các lần
+     * cũ vào là lần thứ hai không mở được tài khoản nào.
+     *
+     * Cả hai phép đếm đọc kèm `account_type`: dòng HKD là chỗ riêng trong ngân
+     * hàng và KHÔNG chiếm chỗ trong trần 3 (chốt 2026-09-06).
      */
     const ownedByPerson = await tx
-      .select({ bankId: bankAccounts.bankId })
+      .select({ bankId: bankAccounts.bankId, accountType: bankAccounts.accountType })
       .from(bankAccounts)
       .where(eq(bankAccounts.rootCustomerId, customer.rootCustomerId));
 
     const ownedHere = await tx
-      .select({ bankId: bankAccounts.bankId })
+      .select({ bankId: bankAccounts.bankId, accountType: bankAccounts.accountType })
       .from(bankAccounts)
       .where(eq(bankAccounts.customerId, form.customerId));
 
     // Kiểm trùng ngân hàng TRƯỚC kiểm trần: khách đã có đủ 3 tài khoản mà chọn
     // lại đúng ngân hàng cũ thì câu "đã có TPB rồi" mới là câu chỉ đúng chỗ.
-    const ownedIds = new Set(ownedByPerson.map((r) => r.bankId));
-    const trung = form.picks.find((p) => ownedIds.has(p.bankId));
-    if (trung)
-      return {
-        ok: false as const,
-        message: `Khách này đã có tài khoản ${bankById.get(trung.bankId)!.code} — mỗi ngân hàng chỉ mở được một tài khoản, tính cả những lần trước. Bản nháp cũng tính; xoá bản nháp thì mở lại được.`,
-      };
+    for (const pick of form.picks) {
+      const conflict = slotConflict(ownedByPerson, pick);
+      if (conflict)
+        return {
+          ok: false as const,
+          message: slotConflictMessage(
+            conflict,
+            bankById.get(pick.bankId)!.code,
+            isHkd(pick.accountType),
+          ),
+        };
+    }
 
-    if (ownedHere.length + form.picks.length > MAX_BANK_ACCOUNTS_PER_CUSTOMER)
+    const mainHere = ownedHere.filter((r) => !isHkd(r.accountType)).length;
+    const mainPicks = form.picks.filter((p) => !isHkd(p.accountType)).length;
+    if (mainHere + mainPicks > MAX_BANK_ACCOUNTS_PER_CUSTOMER)
       return {
         ok: false as const,
-        message: `Hồ sơ này đã có ${ownedHere.length} tài khoản ngân hàng, chọn thêm ${form.picks.length} là vượt trần ${MAX_BANK_ACCOUNTS_PER_CUSTOMER}.`,
+        message: `Hồ sơ này đã có ${mainHere} tài khoản ngân hàng, chọn thêm ${mainPicks} là vượt trần ${MAX_BANK_ACCOUNTS_PER_CUSTOMER}.`,
       };
 
     const ids: string[] = [];
@@ -1084,74 +1321,15 @@ export async function startBankAccount(
      * mà người dùng không hề chọn.
      */
     for (const pick of [...form.picks].sort((a, b) => a.referralCode.localeCompare(b.referralCode))) {
-      const [code] = await tx
-        .select({
-          id: referralCodes.id,
-          code: referralCodes.code,
-          bankId: referralCodes.bankId,
-          total: referralCodes.total,
-          importedUsed: referralCodes.importedUsed,
-          usedCount: referralCodes.usedCount,
-          holdingCount: referralCodes.holdingCount,
-          accountType: referralCodes.accountType,
-          scope: referralCodes.scope,
-          active: referralCodes.active,
-        })
-        .from(referralCodes)
-        .where(eq(referralCodes.id, pick.referralCode))
-        .limit(1)
-        // Khoá dòng mã. Request thứ hai chạm cùng dòng này sẽ ĐỨNG ĐỢI ở đây,
-        // không đọc được con số cũ.
-        .for("update");
-
-      if (!code) return { ok: false as const, message: "Không tìm thấy mã giới thiệu này" };
-      if (code.bankId !== pick.bankId)
-        return { ok: false as const, message: "Mã giới thiệu này không thuộc ngân hàng đã chọn" };
-      if (code.accountType !== pick.accountType)
-        return {
-          ok: false as const,
-          message: `Mã ${code.code} không thuộc loại tài khoản đã chọn. Chọn lại mã giúp.`,
-        };
-      // Ô chọn đã lọc mã ngừng, nhưng đây mới là chốt — cùng lý do với phạm vi phòng.
-      if (!code.active)
-        return {
-          ok: false as const,
-          message: `Mã ${code.code} đã ngừng sử dụng. Chọn mã khác giúp.`,
-        };
-
-      /**
-       * Kiểm LẠI phạm vi phòng ở đây, không tin ô chọn đã lọc (spec §4.4d).
-       *
-       * Ô chọn lọc cho gọn màn hình; đường này mới là chốt. Gọi thẳng API với một
-       * mã của phòng khác thì phải bị từ chối.
-       */
-      if (code.scope !== "all") {
-        const [allowed] = await tx
-          .select({ id: referralCodeDepartments.departmentId })
-          .from(referralCodeDepartments)
-          .where(
-            and(
-              eq(referralCodeDepartments.referralCodeId, code.id),
-              department.departmentId
-                ? eq(referralCodeDepartments.departmentId, department.departmentId)
-                : sql`false`,
-            ),
-          )
-          .limit(1);
-
-        if (!allowed)
-          return {
-            ok: false as const,
-            message: `Mã ${code.code} không dùng được cho phòng đã chọn.`,
-          };
-      }
-
-      const remaining = code.total - code.importedUsed - code.usedCount - code.holdingCount;
-      if (remaining <= 0)
-        return {
-          ok: false as const,
-          message: `Mã ${code.code} vừa hết chỗ — người khác đã lấy chỗ cuối. Chọn mã khác giúp.`,
-        };
+      const locked = await lockUsableCode(
+        tx,
+        pick.referralCode,
+        pick.bankId,
+        pick.accountType,
+        department.departmentId,
+      );
+      if (!locked.ok) return { ok: false as const, message: locked.message };
+      const code = locked.code;
 
       const [row] = await tx
         .insert(bankAccounts)
@@ -1223,23 +1401,36 @@ export async function customerBankSlots(customerId: string): Promise<CustomerBan
    * người này, còn trần 3 tính trên hồ sơ đang mở. Đọc cùng một trục cho cả hai
    * thì ô chọn nói khác máy chủ, và người dùng chọn xong mới bị từ chối.
    */
-  const [byPerson, here, bankRows] = await Promise.all([
+  const [byPerson, bankRows, hkdBanks] = await Promise.all([
     db
-      .select({ bankId: bankAccounts.bankId })
+      .select({
+        bankId: bankAccounts.bankId,
+        customerId: bankAccounts.customerId,
+        accountType: bankAccounts.accountType,
+      })
       .from(bankAccounts)
       .where(eq(bankAccounts.rootCustomerId, customer.rootCustomerId)),
-    db
-      .select({ bankId: bankAccounts.bankId })
-      .from(bankAccounts)
-      .where(eq(bankAccounts.customerId, customerId)),
     db.select({ id: banks.id, minAge: banks.minAge, maxAge: banks.maxAge }).from(banks),
+    // Ngân hàng nào có dòng HKD để mở: đọc từ kho mã, không viết cứng `VPa`.
+    db
+      .selectDistinct({ bankId: referralCodes.bankId })
+      .from(referralCodes)
+      .where(and(eq(referralCodes.accountType, "HKD"), eq(referralCodes.active, true))),
   ]);
 
+  // Trần 3 chỉ đếm dòng CHÍNH của hồ sơ đang mở; dòng HKD không phải ngân hàng.
+  const mainHere = byPerson.filter((r) => r.customerId === customerId && !isHkd(r.accountType)).length;
+
   return {
-    usedBankIds: byPerson.map((r) => r.bankId),
-    usedHereBankIds: here.map((r) => r.bankId),
+    used: byPerson.map((r) => ({
+      bankId: r.bankId,
+      hkd: isHkd(r.accountType),
+      here: r.customerId === customerId,
+      cnkd: r.accountType === "CNKD",
+    })),
     eligibleBankIds: bankRows.filter((bank) => meetsBankAgeRule(customer.dob, bank)).map((bank) => bank.id),
-    remaining: Math.max(0, MAX_BANK_ACCOUNTS_PER_CUSTOMER - here.length),
+    hkdBankIds: hkdBanks.map((r) => r.bankId),
+    remaining: Math.max(0, MAX_BANK_ACCOUNTS_PER_CUSTOMER - mainHere),
     /**
      * Không có ngày sinh thì `meetsBankAgeRule` từ chối MỌI ngân hàng có giới
      * hạn tuổi. Thiếu trường này, giao diện viết "khách ngoài độ tuổi" cho một
@@ -1278,7 +1469,11 @@ async function warningsFor(customerId: string): Promise<string[]> {
     .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
     .where(and(eq(bankAccounts.customerId, customerId), eq(bankAccounts.status, "done")));
 
-  const totalApps = rows.filter((r) => r.appInstalled && r.countsAsApp).length;
+  // Dòng HKD không đếm như một app (thể lệ 4b); nó là tài khoản thứ hai của
+  // cùng ngân hàng, đếm nó là khách một app thành hai.
+  const totalApps = rows.filter(
+    (r) => r.appInstalled && r.countsAsApp && !isHkd(r.accountType),
+  ).length;
   const warnings: string[] = [];
 
   if (rows.some((r) => r.bankCode === "MSBa") && totalApps < 3)
@@ -1324,13 +1519,16 @@ export async function finishBankAccount(
   if (current.status !== "creating")
     return { ok: false, message: "Tài khoản này đã hoàn thành rồi" };
 
-  // Loại tài khoản đã chốt cùng mã giới thiệu ở bước giữ chỗ. Bước hoàn tất chỉ
-  // bổ sung chứng từ, không được đổi loại rồi giữ một mã của nhánh khác.
-  const accountType = current.accountType;
-
-  // CNKD/HKD có bản riêng thì số ảnh bắt buộc đọc từ bản đó (chốt 2026-09-02).
+  /**
+   * Loại tài khoản đổi được ở đây từ 2026-09-06, kèm mã của loại mới — xem
+   * `resolveAccountType`, chạy TRONG giao dịch bên dưới. Số ảnh bắt buộc đọc
+   * theo loại SẮP ghi: CNKD/HKD có bản hướng dẫn riêng (chốt 2026-09-02), đổi
+   * sang loại đó là đòi đúng số ảnh của bản đó.
+   */
+  const targetType =
+    form.accountType === current.accountType ? accountTypeOf(current) : form.accountType;
   const requiredPhotos =
-    (await guideVariantFor(current.bankId, accountTypeOf(current)))?.requiredPhotos ??
+    (await guideVariantFor(current.bankId, targetType))?.requiredPhotos ??
     current.requiredPhotos;
 
   /**
@@ -1370,6 +1568,9 @@ export async function finishBankAccount(
    * với lúc ghi thì tài khoản lên `done` với ít ảnh hơn mức bắt buộc.
    */
   const outcome = await db.transaction(async (tx) => {
+    const resolved = await resolveAccountType(tx, id, form);
+    if (!resolved.ok) return { ok: false as const, message: resolved.message };
+
     const [photos] = await tx
       .select({ n: count() })
       .from(bankAccountPhotos)
@@ -1388,7 +1589,8 @@ export async function finishBankAccount(
         accountNumber: form.accountNumber,
         openedDate: form.openedDate,
         appInstalled: form.appInstalled,
-        accountType,
+        accountType: resolved.accountType,
+        referralCodeId: resolved.referralCodeId,
         note: form.note,
         status: "done",
         finishedAt: new Date(),
@@ -1493,31 +1695,45 @@ export async function updateFinishedAccount(
       message: `Số tài khoản ${current.bankCode} phải đủ ${current.accountNumberLength} chữ số.`,
     };
 
-  // Mã giới thiệu và loại tài khoản là lịch sử đã chốt, không đổi ở màn sửa.
-  const accountType = current.accountType;
   const previousDate = current.date;
 
-  // Trạng thái ĐANG ĐỌC ĐƯỢC nằm ngay trong câu ghi, không chỉ ở phép kiểm bên
-  // trên: giữa lúc đọc và lúc ghi, người khác có thể vừa đối soát bản ghi này.
-  const updated = await db
-    .update(bankAccounts)
-    .set({
-      accountNumber: form.accountNumber,
-      openedDate: form.openedDate,
-      // Ô để trống nghĩa là XOÁ ghi nhận, không phải "giữ nguyên" — người dùng
-      // xoá ngày đi rồi bấm Lưu thì phải mất thật.
-      transactionAt: form.transactionAt || null,
-      appInstalled: form.appInstalled,
-      accountType,
-      note: form.note,
-      status: nextStatus,
-      updatedAt: new Date(),
-    })
-    .where(and(eq(bankAccounts.id, id), eq(bankAccounts.status, current.status)))
-    .returning({ id: bankAccounts.id });
+  /**
+   * Khách và ngân hàng vẫn không đổi ở màn sửa. Loại tài khoản thì đổi được từ
+   * 2026-09-06, kèm mã của loại mới — xem `resolveAccountType`.
+   *
+   * Cả lượt nằm trong MỘT giao dịch: đổi loại phải khoá dòng khách và dòng mã
+   * trước khi ghi. Không đổi loại thì giao dịch chỉ có đúng câu ghi như trước.
+   */
+  const outcome = await db.transaction(async (tx) => {
+    const resolved = await resolveAccountType(tx, id, form);
+    if (!resolved.ok) return { ok: false as const, message: resolved.message };
 
-  if (updated.length === 0)
-    return { ok: false, message: "Tài khoản này vừa bị đổi ở nơi khác" };
+    // Trạng thái ĐANG ĐỌC ĐƯỢC nằm ngay trong câu ghi, không chỉ ở phép kiểm bên
+    // trên: giữa lúc đọc và lúc ghi, người khác có thể vừa đối soát bản ghi này.
+    const updated = await tx
+      .update(bankAccounts)
+      .set({
+        accountNumber: form.accountNumber,
+        openedDate: form.openedDate,
+        // Ô để trống nghĩa là XOÁ ghi nhận, không phải "giữ nguyên" — người dùng
+        // xoá ngày đi rồi bấm Lưu thì phải mất thật.
+        transactionAt: form.transactionAt || null,
+        appInstalled: form.appInstalled,
+        accountType: resolved.accountType,
+        referralCodeId: resolved.referralCodeId,
+        note: form.note,
+        status: nextStatus,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(bankAccounts.id, id), eq(bankAccounts.status, current.status)))
+      .returning({ id: bankAccounts.id });
+
+    if (updated.length === 0)
+      return { ok: false as const, message: "Tài khoản này vừa bị đổi ở nơi khác" };
+    return { ok: true as const };
+  });
+
+  if (!outcome.ok) return { ok: false, message: outcome.message };
 
   const months = new Set(
     [previousDate, form.openedDate]

@@ -470,6 +470,13 @@
       "when": 1789113800000,
       "tag": "0066_customer_changes",
       "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1789200200000,
+      "tag": "0067_bank_account_hkd_slot",
+      "breakpoints": true
     }
   ]
 }

@@ -664,7 +664,7 @@ async function build() {
       .where(eq(customerPhones.customerId, customerId));
     await db.insert(customerPhones).values(sdtGoc.map((p) => ({ ...p, customerId: hoSo2Id })));
     // LPB là ngân hàng hồ sơ 1 CHƯA mở — mở lại MB/VPa/MSBa là đụng khoá
-    // `bank_accounts_root_bank`, đúng thứ ca này minh hoạ.
+    // `bank_accounts_root_bank_slot`, đúng thứ ca này minh hoạ.
     await db.insert(bankAccounts).values({
       customerId: hoSo2Id,
       rootCustomerId: customerId,

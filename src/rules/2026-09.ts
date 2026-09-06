@@ -19,7 +19,7 @@ import type {
  * riêng và đóng băng vĩnh viễn (spec §5.3). Dùng chung hàm nghĩa là ngày sửa kỳ
  * này sẽ đổi luôn điểm của kỳ đã trả lương xong.
  *
- * Mười một chỗ khác kỳ 2026-08, xem mục 5 của thể lệ:
+ * Mười hai chỗ khác kỳ 2026-08, xem mục 5 của thể lệ:
  *
  *   1. `TCB` vào nhóm Bank khác
  *   2. Combo 1 có điểm: ưu tiên 0,3 · khác 0,2 · hạn chế 0; `MSBa` và `VPb`
@@ -33,6 +33,8 @@ import type {
  *   9. `VPa` hoặc `MSBa` chưa cài app, đứng một mình thì KHÔNG có quà nào
  *  10. Món khách đã nhận không còn đổi điểm nào
  *  11. Khách mở cả `VPa` lẫn `VPb` là dữ liệu sai — 0 điểm
+ *  12. Dòng HKD là tài khoản `VPa` riêng, KHÔNG vào combo và KHÔNG đếm là
+ *      ngân hàng (chốt 2026-09-06), xem `comboRowsOf`
  *
  * Chạy thử: `bun run test:rules` (`scripts/test-rules-2026-09.ts`).
  */
@@ -279,13 +281,33 @@ function householdKindsOf(accounts: ScoringAccount[]): Set<Exclude<HouseholdKind
 }
 
 /**
+ * Những dòng ĐƯỢC TÍNH là ngân hàng — bỏ dòng HKD (chủ dự án chốt 2026-09-06).
+ *
+ * Dòng HKD là một tài khoản VPa riêng, nằm cạnh tài khoản chính. Nó chỉ mang
+ * điểm HKD (mục 4d) và hai món Loa, Bảng mica (mục 4b); nó KHÔNG vào combo và
+ * KHÔNG đếm vào số ngân hàng. Khách chỉ có dòng HKD thì không có combo nào, còn
+ * khách có dòng HKD kèm `LPB` thì là Combo 1 của `LPB`, không phải Combo 2.
+ * `VPa` chỉ là ngân hàng khi khách có dòng chính, loại thường hoặc CNKD.
+ *
+ * `hasBothVpModes` và `hasHousehold` cố ý đọc CẢ dòng HKD: dòng đó vẫn là VPa
+ * khi xét "VPa cùng VPb là dữ liệu sai", và vẫn là ngân hàng chủ của chính nó.
+ */
+const comboRowsOf = (accounts: ScoringAccount[]): ScoringAccount[] =>
+  accounts.filter((a) => a.household !== "HKD");
+
+/**
  * Số NGÂN HÀNG khách đã mở — bản dịch của ô `AN` trong file Excel của Kế toán.
  *
  * Đếm ngân hàng khác nhau, không đếm bản ghi: hai tài khoản cùng một ngân hàng
- * vẫn là một. `CNKD`/`HKD` không vào phép đếm vì chúng không có trong `TIER_OF`.
+ * vẫn là một. `CNKD`/`HKD` không vào phép đếm vì chúng không có trong `TIER_OF`,
+ * và dòng HKD của `VPa` cũng không, xem `comboRowsOf`.
  */
 const bankCountOf = (accounts: ScoringAccount[]): number =>
-  new Set(accounts.filter((a) => a.bankCode in TIER_OF).map((a) => a.bankCode)).size;
+  new Set(
+    comboRowsOf(accounts)
+      .filter((a) => a.bankCode in TIER_OF)
+      .map((a) => a.bankCode),
+  ).size;
 
 /**
  * Khách mở CẢ `VPa` LẪN `VPb` — dữ liệu sai, khách đó KHÔNG góp điểm nào.
@@ -297,7 +319,7 @@ const bankCountOf = (accounts: ScoringAccount[]): number =>
  * > hàng, chỉ khác cách đăng ký thôi"*
  *
  * ⚠️ CHỈ chặn ở đường ĐIỂM. Màn mở tài khoản vẫn cho nhân viên nhập cả hai —
- * unique index `bank_accounts_root_bank` khoá theo từng mã ngân hàng, mà
+ * unique index `bank_accounts_root_bank_slot` khoá theo từng mã ngân hàng, mà
  * `VPa` với `VPb` là hai mã. Kế toán chốt để nguyên: *"việc mở tài khoản nhân
  * viên làm sai nhân viên chịu, nếu nhân viên mở sai VPa VPb cho khách, cứ cho
  * 0 điểm"*.
@@ -372,7 +394,7 @@ export function bankingPoints(accounts: ScoringAccount[], _granted: GrantedGifts
     if (hasBothVpModes(rows)) continue;
 
     const combo = bestComboOf(
-      rows.map((a) => a.bankCode),
+      comboRowsOf(rows).map((a) => a.bankCode),
       hasHousehold(rows, "CNKD"),
     );
     tenths += combo.tenths + householdTenths(rows);
@@ -558,10 +580,10 @@ export function gift(input: GiftInput): GiftResult {
    * BẬC, không quyết định khách có mấy ngân hàng.
    */
   const combo = bestComboOf(
-    input.accounts.map((a) => a.bankCode),
+    comboRowsOf(input.accounts).map((a) => a.bankCode),
     hasHousehold(input.accounts, "CNKD"),
   );
-  const eligible = comboCodesOf(input.accounts);
+  const eligible = comboCodesOf(comboRowsOf(input.accounts));
   const installed = new Set(eligible.map((a) => a.bankCode));
 
   /**
@@ -576,11 +598,14 @@ export function gift(input: GiftInput): GiftResult {
    * `VPa` chưa cài kèm `MB` có hai ngân hàng, nên vẫn được TH7 của `MB` — luật
    * này chỉ chặn khách mở đúng một ngân hàng.
    */
+  // Xét trên dòng ngân hàng, không xét dòng HKD: khách `VPa` chưa cài app kèm
+  // dòng HKD đã cài vẫn là "một ngân hàng bắt buộc cài app mà chưa cài".
+  const bankRows = comboRowsOf(input.accounts);
   const onlyUninstalledAppBank =
-    bankCountOf(input.accounts) === 1 &&
-    input.accounts.every((a) => !(a.bankCode in TIER_OF) || REQUIRES_APP.has(a.bankCode)) &&
-    input.accounts.some((a) => a.bankCode in TIER_OF) &&
-    !input.accounts.some((a) => a.bankCode in TIER_OF && a.appInstalled);
+    bankCountOf(bankRows) === 1 &&
+    bankRows.every((a) => !(a.bankCode in TIER_OF) || REQUIRES_APP.has(a.bankCode)) &&
+    bankRows.some((a) => a.bankCode in TIER_OF) &&
+    !bankRows.some((a) => a.bankCode in TIER_OF && a.appInstalled);
 
   const matched = onlyUninstalledAppBank ? null : caseOf(combo, installed);
   const explain: string[] = [];

@@ -16,6 +16,7 @@ import { SkeletonText } from "@/components/ui/Skeleton";
 import { fetchBanks, fetchOpenReferralCodes, type Bank } from "@/lib/api/bankCatalog";
 import { ageRangeLabel } from "@/lib/format";
 import {
+  ACCOUNT_TYPE_LABEL,
   BankAccountStartForm,
   fetchCustomerBankSlots,
   MAX_BANK_ACCOUNTS_PER_CUSTOMER,
@@ -29,11 +30,6 @@ import { errorMessage, toast } from "@/lib/toast";
 import { reportInvalid } from "@/lib/formErrors";
 
 const BANKING_PATH = "/banking";
-const ACCOUNT_TYPE_LABEL: Record<AccountType, string> = {
-  none: "Thường",
-  CNKD: "CNKD",
-  HKD: "HKD",
-};
 
 type Props = {
   open: boolean;
@@ -116,21 +112,32 @@ export function BankAccountFormDialog({
   const writePicks = (next: (current: BankAccountPick[]) => BankAccountPick[]) =>
     setValue("picks", next(getValues("picks")), { shouldDirty: true, shouldValidate: true });
 
-  const toggleBank = (bankId: string, checked: boolean) =>
+  /**
+   * Một ngân hàng có HAI dòng tích: dòng chính (thường hoặc CNKD) và dòng HKD
+   * (chốt 2026-09-06). Hai dòng là hai pick riêng, nhận ra nhau bằng cặp (ngân
+   * hàng, có phải HKD), không bằng ngân hàng đơn thuần.
+   */
+  const samePick = (p: BankAccountPick, bankId: string, hkd: boolean) =>
+    p.bankId === bankId && (p.accountType === "HKD") === hkd;
+
+  const toggleBank = (bankId: string, hkd: boolean, checked: boolean) =>
     writePicks((current) =>
       checked
-        ? [...current, { bankId, referralCode: "", accountType: "none" }]
-        : current.filter((p) => p.bankId !== bankId),
+        ? [...current, { bankId, referralCode: "", accountType: hkd ? "HKD" : "none" }]
+        : current.filter((p) => !samePick(p, bankId, hkd)),
     );
 
-  const setCode = (bankId: string, referralCode: string) =>
+  const setCode = (bankId: string, hkd: boolean, referralCode: string) =>
     writePicks((current) =>
-      current.map((p) => (p.bankId === bankId ? { ...p, referralCode } : p)),
+      current.map((p) => (samePick(p, bankId, hkd) ? { ...p, referralCode } : p)),
     );
 
+  // Chỉ dòng chính đổi được loại, và chỉ giữa thường và CNKD.
   const setAccountType = (bankId: string, accountType: AccountType) =>
     writePicks((current) =>
-      current.map((p) => (p.bankId === bankId ? { ...p, accountType, referralCode: "" } : p)),
+      current.map((p) =>
+        samePick(p, bankId, false) ? { ...p, accountType, referralCode: "" } : p,
+      ),
     );
 
   const create = useMutation({
@@ -167,6 +174,8 @@ export function BankAccountFormDialog({
   });
 
   const noSlotLeft = slots ? remaining <= 0 : false;
+  // Trần 3 chỉ đếm dòng chính; dòng HKD không phải ngân hàng nên không chiếm chỗ.
+  const mainPicks = picks.filter((p) => p.accountType !== "HKD").length;
 
   /**
    * Ngân hàng KHÔNG tích được vẫn nằm trong danh sách, khoá lại và mang một
@@ -176,13 +185,19 @@ export function BankAccountFormDialog({
    * khoản của lần trước, nên dòng đó biến mất mà không có gì thay thế.
    *
    * Thứ tự lý do là thứ tự dứt khoát dần. Ngân hàng ngừng triển khai thì không
-   * ai mở được nữa; ba lý do sau đều gắn với riêng khách này.
+   * ai mở được nữa; các lý do sau đều gắn với riêng khách này.
+   *
+   * `hkd` là dòng HKD của ngân hàng đó: một chỗ riêng, so với dòng HKD đã có
+   * chứ không so với dòng chính. Dòng chính đang CNKD thì dòng HKD khoá, vì
+   * một khách chỉ có CNKD hoặc HKD.
    */
-  const reasonFor = (bank: Bank): string | null => {
+  const reasonFor = (bank: Bank, hkd: boolean): string | null => {
     if (!bank.active) return "Ngừng triển khai";
     if (!slots) return null;
-    if (slots.usedHereBankIds.includes(bank.id)) return "Hồ sơ này đã có tài khoản";
-    if (slots.usedBankIds.includes(bank.id)) return "Khách đã mở ở hồ sơ trước";
+    const mine = slots.used.filter((u) => u.bankId === bank.id);
+    const taken = mine.find((u) => u.hkd === hkd);
+    if (taken) return taken.here ? "Hồ sơ này đã có tài khoản" : "Khách đã mở ở hồ sơ trước";
+    if (hkd && mine.some((u) => !u.hkd && u.cnkd)) return "Tài khoản chính đang là CNKD";
     if (slots.eligibleBankIds.includes(bank.id)) return null;
     return slots.hasDob
       ? `Khách ngoài độ tuổi (${ageRangeLabel(bank)})`
@@ -190,15 +205,34 @@ export function BankAccountFormDialog({
   };
 
   /**
+   * Cùng luật CNKD/HKD nhưng xét trên những dòng ĐANG TÍCH trong biểu mẫu này:
+   * dòng chính đang chọn CNKD thì dòng HKD khoá. Chiều ngược lại xử lý ở ô chọn
+   * loại của dòng chính (`hideCnkd`), nên hai chiều không bao giờ cùng xảy ra.
+   */
+  const inFormReason = (bankId: string, hkd: boolean): string | null =>
+    hkd && picks.some((p) => samePick(p, bankId, false) && p.accountType === "CNKD")
+      ? "Tài khoản chính đang chọn CNKD"
+      : null;
+
+  /**
    * Sắp lại ở trình duyệt là ngoại lệ có chủ ý của AGENTS.md §5.1. Đây là danh
    * mục đóng vài chục dòng, và thứ hạng phụ thuộc dữ liệu của KHÁCH chứ không
    * phải của ngân hàng: sắp ở máy chủ nghĩa là sắp lại riêng cho từng khách.
    * Thứ tự ưu tiên của `listBanks` giữ nguyên trong từng nhóm.
+   *
+   * Ngân hàng có mã HKD ra HAI dòng, dòng HKD đứng ngay sau dòng chính.
    */
-  const options = banks.map((bank) => ({ bank, reason: reasonFor(bank) }));
-  const selectableBanks = options.filter((o) => o.reason === null);
-  const orderedOptions = [...selectableBanks, ...options.filter((o) => o.reason !== null)];
-  const blocked = noSlotLeft;
+  type PickOption = { bank: Bank; hkd: boolean; reason: string | null };
+  const options: PickOption[] = banks.flatMap((bank) => {
+    const rows: PickOption[] = [{ bank, hkd: false, reason: reasonFor(bank, false) }];
+    if (slots?.hkdBankIds.includes(bank.id))
+      rows.push({ bank, hkd: true, reason: reasonFor(bank, true) });
+    return rows;
+  });
+  const orderedOptions = [
+    ...options.filter((o) => o.reason === null),
+    ...options.filter((o) => o.reason !== null),
+  ];
 
   return (
     <Dialog
@@ -214,25 +248,14 @@ export function BankAccountFormDialog({
           <Button
             type="submit"
             form="bank-account-form"
-            disabled={isSubmitting || create.isPending || blocked || !slots || picks.length === 0}
+            disabled={isSubmitting || create.isPending || !slots || picks.length === 0}
           >
             {picks.length > 1 ? `Tạo ${picks.length} tài khoản` : "Tạo tài khoản"}
           </Button>
         </>
       }
     >
-      {blocked ? (
-        /*
-         * Đủ trần thì hộp thoại chỉ còn câu giải thích. Không dựng danh sách
-         * ngân hàng mà MỌI dòng mang cùng một lý do.
-         *
-         * P-21 đã bỏ khách đủ trần khỏi ô tìm, nên đường tới đây là hai nút
-         * "Mở ngân hàng" ở P-40 và P-42, chỗ khách đã cố định sẵn.
-         */
-        <Alert tone="error">
-          {`Khách này đã có đủ ${MAX_BANK_ACCOUNTS_PER_CUSTOMER} tài khoản ngân hàng, không mở thêm được. Bản nháp cũng tính — xoá một bản nháp thì mở thêm được một tài khoản.`}
-        </Alert>
-      ) : !slots ? (
+      {!slots ? (
         /*
          * Chưa biết chỗ trống thì CHƯA vẽ danh sách.
          *
@@ -249,6 +272,18 @@ export function BankAccountFormDialog({
           onSubmit={handleSubmit((form) => create.mutate(form), reportInvalid)}
           noValidate
         >
+          {/*
+            Đủ trần vẫn dựng danh sách: dòng HKD không chiếm chỗ trong trần
+            nên khách đủ 3 tài khoản vẫn mở thêm được dòng HKD (chốt
+            2026-09-06). Các dòng chính khoá theo `full`, câu này nói vì sao.
+            P-21 đã bỏ khách đủ trần khỏi ô tìm, nên đường tới đây là hai nút
+            "Mở ngân hàng" ở P-40 và P-42, chỗ khách đã cố định sẵn.
+          */}
+          {noSlotLeft && (
+            <Alert tone="warning">
+              {`Hồ sơ này đã có đủ ${MAX_BANK_ACCOUNTS_PER_CUSTOMER} tài khoản ngân hàng, chỉ còn mở thêm được dòng HKD. Bản nháp cũng tính; xoá một bản nháp thì mở thêm được một tài khoản.`}
+            </Alert>
+          )}
           <DepartmentPicker
             module="banking"
             value={departmentId}
@@ -268,7 +303,7 @@ export function BankAccountFormDialog({
               Chọn ngân hàng
             </span>
             <span className={styles.pickCount}>
-              Đã chọn {picks.length}/{remaining}
+              Đã chọn {mainPicks}/{remaining}
             </span>
           </div>
 
@@ -278,16 +313,18 @@ export function BankAccountFormDialog({
             không đọc mười ba ô tích rời rạc không rõ thuộc về câu hỏi nào.
           */}
           <div className={styles.pickList} role="group" aria-labelledby="bank-pick-label">
-            {orderedOptions.map(({ bank, reason }) => (
+            {orderedOptions.map(({ bank, hkd, reason }) => (
               <BankPickRow
-                key={bank.id}
+                key={`${bank.id}:${hkd ? "hkd" : "main"}`}
                 bank={bank}
+                hkd={hkd}
                 departmentId={departmentId}
-                pick={picks.find((p) => p.bankId === bank.id)}
-                full={picks.length >= remaining}
-                reason={reason}
-                onToggle={(checked) => toggleBank(bank.id, checked)}
-                onCodeChange={(code) => setCode(bank.id, code)}
+                pick={picks.find((p) => samePick(p, bank.id, hkd))}
+                full={!hkd && mainPicks >= remaining}
+                reason={reason ?? inFormReason(bank.id, hkd)}
+                hideCnkd={picks.some((p) => samePick(p, bank.id, true))}
+                onToggle={(checked) => toggleBank(bank.id, hkd, checked)}
+                onCodeChange={(code) => setCode(bank.id, hkd, code)}
                 onAccountTypeChange={(type) => setAccountType(bank.id, type)}
               />
             ))}
@@ -308,6 +345,8 @@ export function BankAccountFormDialog({
 
 type RowProps = {
   bank: Bank;
+  /** Dòng HKD của ngân hàng này, không phải dòng chính. Loại cố định là HKD. */
+  hkd: boolean;
   departmentId: string;
   /** Có giá trị nghĩa là ngân hàng này đang được tích. */
   pick: BankAccountPick | undefined;
@@ -315,6 +354,8 @@ type RowProps = {
   full: boolean;
   /** Có giá trị nghĩa là ngân hàng này không mở được, và đây là vì sao. */
   reason: string | null;
+  /** Dòng HKD của ngân hàng này đang tích, nên dòng chính không được chọn CNKD. */
+  hideCnkd: boolean;
   onToggle: (checked: boolean) => void;
   onCodeChange: (referralCode: string) => void;
   onAccountTypeChange: (accountType: AccountType) => void;
@@ -328,15 +369,18 @@ type RowProps = {
  */
 function BankPickRow({
   bank,
+  hkd,
   departmentId,
   pick,
   full,
   reason,
+  hideCnkd,
   onToggle,
   onCodeChange,
   onAccountTypeChange,
 }: RowProps) {
   const checked = pick !== undefined;
+  const rowLabel = hkd ? `${bank.code} HKD` : bank.code;
 
   /**
    * Máy chủ đã lọc "còn chỗ" và lọc theo phạm vi phòng — không lọc lại ở đây
@@ -349,10 +393,19 @@ function BankPickRow({
   const { data: allCodes = [], isPending: allCodesPending } = useQuery({
     queryKey: ["referral-codes", "open", bank.id, departmentId, "all-types"],
     queryFn: () => fetchOpenReferralCodes(bank.id, departmentId),
-    enabled: checked,
+    enabled: checked && !hkd,
   });
-  const availableTypes = [...new Set(allCodes.map((code) => code.accountType))];
-  const accountType = pick?.accountType ?? "none";
+  /**
+   * Dòng chính chỉ chọn giữa thường và CNKD; HKD là dòng riêng ngay dưới. Đã
+   * tích dòng HKD thì bỏ luôn CNKD khỏi ô chọn: một khách chỉ có CNKD hoặc
+   * HKD, và máy chủ từ chối cặp đó.
+   */
+  const availableTypes: AccountType[] = hkd
+    ? ["HKD"]
+    : [...new Set(allCodes.map((code) => code.accountType))].filter(
+        (t) => t !== "HKD" && !(hideCnkd && t === "CNKD"),
+      );
+  const accountType = pick?.accountType ?? (hkd ? "HKD" : "none");
   const { data: codes = [], isPending } = useQuery({
     queryKey: ["referral-codes", "open", bank.id, departmentId, accountType],
     queryFn: () => fetchOpenReferralCodes(bank.id, departmentId, accountType),
@@ -360,11 +413,11 @@ function BankPickRow({
   });
 
   // Ngân hàng chỉ có một loại (VD VPb chỉ CNKD) tự chốt loại đó; không bày
-  // thêm ô chọn một giá trị duy nhất.
+  // thêm ô chọn một giá trị duy nhất. Dòng HKD cố định loại từ lúc tích.
   useEffect(() => {
-    if (checked && availableTypes.length === 1 && accountType !== availableTypes[0])
+    if (checked && !hkd && availableTypes.length === 1 && accountType !== availableTypes[0])
       onAccountTypeChange(availableTypes[0]);
-  }, [accountType, availableTypes, checked, onAccountTypeChange]);
+  }, [accountType, availableTypes, checked, hkd, onAccountTypeChange]);
 
   /**
    * Gợi ý sẵn mã đầu còn chỗ. Đây là ĐỒNG BỘ dữ liệu ngoài vào biểu mẫu, không
@@ -390,9 +443,13 @@ function BankPickRow({
    * lại, không cách nào đổi sang ngân hàng khác.
    */
   const locked = !checked && full;
+  // Mờ cả mã ngân hàng khi khoá vì bất kỳ lý do nào: ô tích khoá tự mờ nhưng
+  // chữ bên cạnh thì không, và nhìn bằng mắt không phân biệt được dòng nào còn
+  // tích được.
+  const off = locked || reason !== null;
 
   return (
-    <div className={reason ? `${styles.pickRow} ${styles.pickRowOff}` : styles.pickRow}>
+    <div className={off ? `${styles.pickRow} ${styles.pickRowOff}` : styles.pickRow}>
       <Checkbox
         block
         checked={checked}
@@ -405,7 +462,7 @@ function BankPickRow({
          */
         label={
           <span className={styles.pickLabelBox}>
-            <strong className={styles.pickLabel}>{bank.code}</strong>
+            <strong className={styles.pickLabel}>{rowLabel}</strong>
             {reason && <span className={styles.pickReason}>{reason}</span>}
           </span>
         }
@@ -417,7 +474,7 @@ function BankPickRow({
             <Select
               block
               required
-              label={`Loại tài khoản · ${bank.code}`}
+              label={`Loại tài khoản · ${rowLabel}`}
               value={accountType}
               onChange={(v) => onAccountTypeChange(v as AccountType)}
               options={availableTypes.map((value) => ({ value, label: ACCOUNT_TYPE_LABEL[value] }))}
@@ -427,7 +484,7 @@ function BankPickRow({
           ) : null}
           <Select
             block
-            label={`Mã giới thiệu · ${bank.code}`}
+            label={`Mã giới thiệu · ${rowLabel}`}
             required
             value={pick.referralCode}
             onChange={onCodeChange}

@@ -91,6 +91,12 @@
   color: var(--om-text-3);
 }
 
+/* Con trỏ "cấm" phủ cả dòng, không chỉ ô tích: vùng bấm là trọn dòng nên con
+   trỏ tay ở chữ bên cạnh ô tích khoá đọc như dòng vẫn bấm được. */
+.pickRowOff label {
+  cursor: not-allowed;
+}
+
 .pickCode {
   padding: 6px 0 2px 30px;
 }

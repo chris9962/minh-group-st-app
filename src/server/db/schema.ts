@@ -836,8 +836,19 @@ export const bankAccounts = pgTable(
   (t) => [
     index("bank_accounts_customer").on(t.customerId),
     /**
-     * Một NGƯỜI chỉ mở được MỘT tài khoản ở MỘT ngân hàng (chốt 2026-08-25, đổi
-     * trục sang `root_customer_id` 2026-09-05).
+     * Một NGƯỜI ở MỘT ngân hàng có tối đa một dòng CHÍNH và một dòng HKD (chốt
+     * 2026-08-25, đổi trục sang `root_customer_id` 2026-09-05, thêm vế HKD
+     * 2026-09-06).
+     *
+     * Dòng chính mang loại thường hoặc CNKD: hai loại đó là MỘT tài khoản thật,
+     * chỉ khác cách đăng ký. HKD là tài khoản thật thứ hai của cùng ngân hàng,
+     * nên có dòng riêng. Vế thứ ba của khoá là `account_type = 'HKD'`, không
+     * phải `account_type`: khoá theo cả ba loại thì thường và CNKD thành hai
+     * dòng được, sai với nghiệp vụ.
+     *
+     * Luật "dòng chính đang CNKD thì không có dòng HKD" đọc hai dòng khác nhau
+     * nên không viết được thành index. Nó nằm ở `startBankAccount` và đường
+     * sửa loại, trong giao dịch có khoá dòng khách.
      *
      * Trục là hồ sơ GỐC chứ không phải hồ sơ đang mở: một người mở nhiều lần
      * thì mỗi lần một hồ sơ, và khoá theo `customer_id` cho lần 2 mở lại đúng
@@ -851,7 +862,11 @@ export const bankAccounts = pgTable(
      * dựng trigger. Nó nằm ở `startBankAccount`, trong cùng giao dịch và có
      * khoá dòng khách.
      */
-    uniqueIndex("bank_accounts_root_bank").on(t.rootCustomerId, t.bankId),
+    uniqueIndex("bank_accounts_root_bank_slot").on(
+      t.rootCustomerId,
+      t.bankId,
+      sql`(${t.accountType} = 'HKD')`,
+    ),
     index("bank_accounts_referral").on(t.referralCodeId, t.status),
     index("bank_accounts_dept_date").on(t.createdByDepartmentId, t.openedDate),
     // Tính điểm KPI gom theo NGƯỜI TẠO trong một khoảng ngày (§9), không lọc
