@@ -686,9 +686,9 @@ const botSharePercent = (): number => {
 /**
  * Trạng thái và đường đi của đơn vừa tạo.
  *
- * `PVI_DUONG` chọn đường máy đang chạy, MỘT đường mỗi lúc (chốt 2026-09-06):
+ * `PVI_ROUTE` chọn đường máy đang chạy, MỘT đường mỗi lúc (chốt 2026-09-06):
  *
- * | `PVI_DUONG` | Đơn mới đi đâu |
+ * | `PVI_ROUTE` | Đơn mới đi đâu |
  * |---|---|
  * | `api` | `queued` + `pvi_route='api'`, TOÀN BỘ. Worker API lấy |
  * | `bot` | chia theo `botSharePercent`: `queued` + `pvi_route='bot'`, hoặc làm tay |
@@ -711,9 +711,9 @@ const botSharePercent = (): number => {
  * biến này, và đổi đường không nên đòi khởi động lại cả app.
  */
 const newOrderRoute = (): { status: "queued" | "manual-queued"; route: PviRoute } => {
-  const duong = (process.env.PVI_DUONG ?? "").trim();
-  if (duong === "api") return { status: "queued", route: "api" };
-  if (duong === "bot" && randomInt(100) < botSharePercent())
+  const configured = (process.env.PVI_ROUTE ?? "").trim();
+  if (configured === "api") return { status: "queued", route: "api" };
+  if (configured === "bot" && randomInt(100) < botSharePercent())
     return { status: "queued", route: "bot" };
   return { status: "manual-queued", route: "" };
 };

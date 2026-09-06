@@ -55,7 +55,7 @@ docker run -d --name "$TEN_THU" \
   -p "127.0.0.1:${CONG_THU}:3000" \
   --env-file "$GOC/.env.local" \
   -e DATABASE_URL="$DB_URL" \
-  -e PVI_DUONG=tay \
+  -e PVI_ROUTE=tay \
   mgst-app:new >/dev/null
 sleep 8
 

@@ -9,4 +9,4 @@
 export type PviRoute = "" | "bot" | "api";
 
 /** Kênh `NOTIFY` báo có đơn mới cho worker API. Xem `pviNotifyNewOrder`. */
-export const PVI_NEW_ORDER_CHANNEL = "pvi_don_moi";
+export const PVI_NEW_ORDER_CHANNEL = "pvi_new_order";

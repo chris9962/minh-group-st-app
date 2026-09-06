@@ -64,11 +64,11 @@ services:
   # KHÔNG tự dựng khi `docker compose up` trống tay. Gọi đích danh:
   # `docker compose up pvi-worker`.
   #
-  # ⚠️ Worker chỉ có việc khi `PVI_DUONG=bot` — biến đó quyết định đơn mới vào
+  # ⚠️ Worker chỉ có việc khi `PVI_ROUTE=bot` — biến đó quyết định đơn mới vào
   # `queued` (máy chạy) hay `manual-queued` (đội KD làm tay). App và worker phải
   # cùng đọc một giá trị, nếu không thì đơn vào hàng chờ mà không ai nhặt.
   #
-  # `PVI_DUONG=api` là đường khác hẳn: `bun run pvi:api-worker` gọi API đối tác,
+  # `PVI_ROUTE=api` là đường khác hẳn: `bun run pvi:api-worker` gọi API đối tác,
   # không dùng container này.
   pvi-worker:
     build:
@@ -105,8 +105,8 @@ services:
   # KHÔNG tự dựng khi `docker compose up` trống tay. Gọi đích danh:
   # `docker compose up pvi-api-worker`.
   #
-  # ⚠️ Worker chỉ có việc khi `PVI_DUONG=api`. Chạy cùng lúc với `pvi-worker` là
-  # sai: hai đường không chạy song song, và `PVI_DUONG` chỉ nhận một giá trị.
+  # ⚠️ Worker chỉ có việc khi `PVI_ROUTE=api`. Chạy cùng lúc với `pvi-worker` là
+  # sai: hai đường không chạy song song, và `PVI_ROUTE` chỉ nhận một giá trị.
   #
   # ⚠️ PVI chặn theo IP. Container này phải nằm trên máy chủ đã whitelist.
   pvi-api-worker:

@@ -10,7 +10,7 @@
  * ⚠️ PVI chặn theo IP. Worker phải chạy trên máy chủ đã whitelist, chạy ở máy
  * khác thì mọi lệnh gọi hết giờ chờ mà không có thông báo nào rõ hơn.
  *
- * Đơn chỉ vào hàng chờ của worker này khi `PVI_DUONG=api`; xem `newOrderRoute`
+ * Đơn chỉ vào hàng chờ của worker này khi `PVI_ROUTE=api`; xem `newOrderRoute`
  * ở `src/server/insurance.ts`. Hai container phải cùng đọc biến đó.
  *
  * Khác bot Playwright ở `pvi-qlcd-playwright/worker.ts`: không mở trình duyệt,
@@ -38,11 +38,11 @@ import { createMotorbikeOrder } from "../src/server/pvi-api/motorbike";
 import { getPolicyNumber } from "../src/server/pvi-api/policy";
 import { PVI_NEW_ORDER_CHANNEL } from "../src/server/pvi-api/route";
 
-const SLEEP_SECONDS = Number(process.env.PVI_API_WORKER_NGHI ?? 10);
+const SLEEP_SECONDS = Number(process.env.PVI_API_WORKER_SLEEP ?? 10);
 
 /** Mỗi vòng lấy tối đa ngần này đơn, gọi PVI TUẦN TỰ trong cùng vòng. */
-const CREATE_BATCH = Number(process.env.PVI_API_LO_TAO ?? 10);
-const CERTIFICATE_BATCH = Number(process.env.PVI_API_LO_CHUNG_NHAN ?? 20);
+const CREATE_BATCH = Number(process.env.PVI_API_CREATE_BATCH ?? 10);
+const CERTIFICATE_BATCH = Number(process.env.PVI_API_CERTIFICATE_BATCH ?? 20);
 
 /**
  * Số lần gọi tạo đơn hỏng vì MẠNG trước khi bỏ đơn sang làm tay.
@@ -50,7 +50,7 @@ const CERTIFICATE_BATCH = Number(process.env.PVI_API_LO_CHUNG_NHAN ?? 20);
  * Lỗi nghiệp vụ không đếm ở đây: PVI trả mã rõ thì đơn về `manual-queued` ngay
  * lượt đầu, thử lại cũng ra cùng kết quả.
  */
-const MAX_CREATE_ATTEMPTS = Number(process.env.PVI_API_SO_LAN_TAO ?? 5);
+const MAX_CREATE_ATTEMPTS = Number(process.env.PVI_API_MAX_CREATE_ATTEMPTS ?? 5);
 
 /**
  * Đơn nằm ở `creating` lâu hơn ngần này thì coi như worker giữ nó đã chết.
@@ -59,17 +59,17 @@ const MAX_CREATE_ATTEMPTS = Number(process.env.PVI_API_SO_LAN_TAO ?? 5);
  * không đơn nào ở `creating` quá ngần đó cộng một lần ghi database, nên 2 phút
  * là chắc chắn worker đã dừng. Bot dùng 10 phút vì nó phải mở Chromium.
  */
-const STALE_AFTER_MINUTES = Number(process.env.PVI_API_QUA_HAN_PHUT ?? 2);
+const STALE_AFTER_MINUTES = Number(process.env.PVI_API_STALE_MINUTES ?? 2);
 
 /** Khoảng cách giữa hai lần hỏi `GetPolicyNumber` cho cùng một đơn. */
-const CERTIFICATE_RETRY_SECONDS = Number(process.env.PVI_API_HOI_LAI_GIAY ?? 60);
+const CERTIFICATE_RETRY_SECONDS = Number(process.env.PVI_API_CERTIFICATE_RETRY_SECONDS ?? 60);
 const MAX_CERTIFICATE_ATTEMPTS = Number(
-  process.env.PVI_API_SO_LAN_HOI_GIAY ?? CERTIFICATE_MAX_ATTEMPTS * 5,
+  process.env.PVI_API_MAX_CERTIFICATE_ATTEMPTS ?? CERTIFICATE_MAX_ATTEMPTS * 5,
 );
 
 const log = (s: string) => console.log(`[${new Date().toISOString().slice(11, 19)}] ${s}`);
 
-const ke = (e: unknown): string =>
+const describeError = (e: unknown): string =>
   e instanceof PviApiError
     ? `${e.kind}${e.status ? ` ${e.status}` : ""} - ${e.message}`
     : e instanceof Error
@@ -203,7 +203,7 @@ async function failed(order: OrderForPvi, e: unknown) {
       })
       .where(eq(insuranceOrders.id, order.id));
     log(
-      `${order.orderCode}: ${ke(e)} (lần ${attempts}/${MAX_CREATE_ATTEMPTS})` +
+      `${order.orderCode}: ${describeError(e)} (lần ${attempts}/${MAX_CREATE_ATTEMPTS})` +
         (giveUp ? " → làm tay" : ""),
     );
     return giveUp ? "manual-queued" : "queued";
@@ -221,7 +221,7 @@ async function failed(order: OrderForPvi, e: unknown) {
       .update(insuranceOrders)
       .set({ status: "queued", updatedAt: new Date() })
       .where(eq(insuranceOrders.id, order.id));
-    log(`${order.orderCode}: ${ke(e)} — trả về hàng chờ, sửa cấu hình rồi worker tự chạy tiếp`);
+    log(`${order.orderCode}: ${describeError(e)} — trả về hàng chờ, sửa cấu hình rồi worker tự chạy tiếp`);
     return "queued";
   }
 
@@ -231,7 +231,7 @@ async function failed(order: OrderForPvi, e: unknown) {
     .update(insuranceOrders)
     .set({ status: "manual-queued", updatedAt: new Date() })
     .where(eq(insuranceOrders.id, order.id));
-  log(`${order.orderCode}: ${ke(e)} → làm tay`);
+  log(`${order.orderCode}: ${describeError(e)} → làm tay`);
   return "manual-queued";
 }
 
@@ -285,7 +285,7 @@ async function fetchCertificates() {
       // `-500` nghĩa là PVI chưa cấp xong, KHÔNG phải đơn không tồn tại. Đo
       // 2026-09-03: đơn tạo thành công tra ngay vẫn ra `-500`, vài phút sau mới
       // ra đủ trường.
-      await missed(ke(e), true);
+      await missed(describeError(e), true);
       continue;
     }
 
@@ -433,7 +433,7 @@ async function main() {
       await runOnce();
     } catch (e) {
       // Một vòng hỏng không được làm chết worker: vòng sau thử lại.
-      log(`Lỗi trong vòng quét: ${ke(e)}`);
+      log(`Lỗi trong vòng quét: ${describeError(e)}`);
     }
     if (stopping) break;
     await new Promise<void>((resolve) => {
