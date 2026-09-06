@@ -100,6 +100,37 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  # Worker đường API đối tác PVI — gọi API, không mở trình duyệt.
+  #
+  # KHÔNG tự dựng khi `docker compose up` trống tay. Gọi đích danh:
+  # `docker compose up pvi-api-worker`.
+  #
+  # ⚠️ Worker chỉ có việc khi `PVI_DUONG=api`. Chạy cùng lúc với `pvi-worker` là
+  # sai: hai đường không chạy song song, và `PVI_DUONG` chỉ nhận một giá trị.
+  #
+  # ⚠️ PVI chặn theo IP. Container này phải nằm trên máy chủ đã whitelist.
+  pvi-api-worker:
+    build:
+      context: .
+      target: api-worker
+    container_name: mgst-pvi-api-worker
+    profiles: ["pvi-api"]
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - path: .env.local
+        required: false
+    environment:
+      # Cùng lý do như service `app`: trong mạng compose, Postgres là `db:5432`.
+      DATABASE_URL: postgres://mgst:mgst@db:5432/mgst
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   # Bản DEV — `next dev` với hot reload, chạy song song với bản prod được vì
   # nghe cổng khác. Không tự dựng khi `docker compose up` trống tay (profiles);
   # gọi đích danh: `docker compose up app-dev`, hoặc `bun run dev:docker`.

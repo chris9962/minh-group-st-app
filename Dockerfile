@@ -150,3 +150,42 @@ USER pwuser
 # ENTRYPOINT chứ không CMD: cờ truyền vào `docker run` đi thẳng tới worker, nên
 # chạy thử được bằng `docker run mgst-worker:latest --thu --mot-vong`.
 ENTRYPOINT ["/app/pvi-qlcd-playwright/docker-entrypoint.sh"]
+
+# ── Worker đường API đối tác PVI ────────────────────────────────────────────
+#
+# Nền là `oven/bun:1-alpine` như app, KHÔNG phải image Playwright: đường API chỉ
+# gửi lệnh POST, không mở trình duyệt. Bỏ Chromium là image nhỏ hơn image bot
+# khoảng mười lần.
+#
+# Không có Xvfb nên cũng không cần entrypoint script — bun chạy thẳng ở PID 1,
+# `docker stop` gửi SIGTERM tới đúng nó.
+#
+# ⚠️ Image này KHÔNG chứa `.env.local`. Máy chủ truyền lúc chạy bằng `--env-file`.
+FROM oven/bun:1-alpine AS api-worker
+WORKDIR /app
+
+# `pdftoppm` của poppler và `cwebp` của libwebp đổi giấy chứng nhận PDF sang WebP
+# (src/server/pvi-api/certificate.ts). Thiếu chúng thì worker tạo được đơn nhưng
+# không lưu được giấy chứng nhận nào, và đơn nằm mãi ở `awaiting-certificate`.
+RUN apk add --no-cache poppler-utils libwebp-tools
+
+COPY package.json bun.lock ./
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+RUN bun install --frozen-lockfile
+
+# Ba thứ worker cần: schema Drizzle, module PVI, và kho ảnh — tất cả nằm trong
+# `src`. Cộng chính file worker ở `scripts`.
+COPY tsconfig.json ./
+COPY src ./src
+COPY scripts/pvi-api-worker.ts ./scripts/pvi-api-worker.ts
+
+# `period.ts` dựng mốc hiệu lực bằng giờ CỤC BỘ của tiến trình. Container mặc
+# định chạy UTC nên nó gửi mốc lệch 7 tiếng về quá khứ, và PVI từ chối đơn với
+# `-505` hoặc `-401`. Cùng lý do với worker bot.
+ENV TZ=Asia/Ho_Chi_Minh
+
+USER bun
+
+# ENTRYPOINT chứ không CMD: cờ truyền vào `docker run` đi thẳng tới worker, nên
+# chạy thử một vòng được bằng `docker run mgst-api-worker:latest --mot-vong`.
+ENTRYPOINT ["bun", "scripts/pvi-api-worker.ts"]
