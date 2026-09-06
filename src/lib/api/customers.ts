@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { InsuranceProduct } from '@/lib/types';
-import { BankAccountStatus } from './bankAccounts';
+import { AccountType, BankAccountStatus } from './bankAccounts';
 import { InsuranceOrderStatus } from './insuranceOrders';
 import { GiftSimulateResult } from './settings';
 import { pageOf, pageParams, type Page, type PageQuery } from './pagination';
@@ -470,6 +470,7 @@ export const CustomerAccountRow = z.object({
   id: z.string(),
   date: z.string(),
   bankName: z.string(),
+  accountType: AccountType,
   referralCode: z.string(),
   appInstalled: z.boolean(),
   /**

@@ -1532,6 +1532,7 @@ export async function customerDetailFor(
     id: a.id,
     date: a.date ?? "",
     bankName: a.bankName,
+    accountType: a.accountType,
     referralCode: a.referralCode,
     appInstalled: a.appInstalled,
     status: a.status,

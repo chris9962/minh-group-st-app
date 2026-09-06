@@ -18,6 +18,7 @@ import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusTag } from "@/components/ui/StatusTag";
 import {
+  ACCOUNT_TYPE_LABEL,
   BANK_ACCOUNT_STATUS_LABEL,
   BANK_ACCOUNT_STATUS_TONE,
   deleteBankAccount,
@@ -111,7 +112,14 @@ export default function CustomerDetailPage({
 
   const accountColumns: RankColumn<CustomerAccountRow>[] = [
     { key: "date", label: "Ngày mở", sortBy: (a) => Number(a.date.replace(/-/g, "")), render: (a) => formatDate(a.date) },
-    { key: "bankName", label: "Ngân hàng", render: (a) => a.bankName },
+    {
+      key: "bankName",
+      label: "Ngân hàng",
+      render: (a) =>
+        a.accountType === "none"
+          ? a.bankName
+          : `${a.bankName} - ${ACCOUNT_TYPE_LABEL[a.accountType]}`,
+    },
     { key: "referralCode", label: "Mã giới thiệu", render: (a) => a.referralCode },
     {
       key: "appInstalled",
