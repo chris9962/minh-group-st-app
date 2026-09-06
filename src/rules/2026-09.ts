@@ -454,11 +454,15 @@ const CASH_OF: Record<string, Omit<GiftCash, "reason">> = {
  *
  * TH7 dùng chung rổ 1 năm với TH1–TH4, vì thể lệ ghi đúng một chữ "01 năm BH"
  * cho cả hai chỗ. Đây là giả định G5 của thể lệ.
+ *
+ * `BH-2N-XEMAY-2XE` là hai đơn xe máy 1 năm cho hai xe khác nhau (chủ dự án
+ * chốt 2026-09-06): tổng vẫn hai năm bảo hiểm nên đứng cùng mức với gói 2 năm
+ * một xe. Gói chèn bằng migration 0068 để mã cố định khớp chuỗi ở đây.
  */
 const INSURANCE_BASKET: Record<0 | 1 | 2, string[]> = {
   0: [],
   1: ["BH-1N-XEMAY", "BH-1N-DIEN"],
-  2: ["BH-COMBO-1N", "BH-2N-XEMAY", "BH-2N-DIEN-100K", "BH-1N-DIEN-200K"],
+  2: ["BH-COMBO-1N", "BH-2N-XEMAY", "BH-2N-XEMAY-2XE", "BH-2N-DIEN-100K", "BH-1N-DIEN-200K"],
 };
 
 // TH5 được chọn thêm hai gói đơn 1 năm để tối ưu chi phí. TH6 vẫn giữ nguyên

@@ -258,11 +258,21 @@ export const GIFT_ITEMS = [
 export const INSURANCE_PACKAGES = [
   /** Xe máy có hợp đồng nhiều năm THẬT — một đơn dài, không tách. */
   { code: "BH-1N-XEMAY", name: "1 năm BH xe máy",
-    legs: [{ product: "motorbike", years: 1, fee: 100000 }] },
+    legs: [{ product: "motorbike", years: 1, fee: 76000 }] },
   { code: "BH-2N-XEMAY", name: "2 năm BH xe máy",
-    legs: [{ product: "motorbike", years: 2, fee: 200000 }] },
+    legs: [{ product: "motorbike", years: 2, fee: 152000 }] },
   { code: "BH-3N-XEMAY", name: "3 năm BH xe máy",
-    legs: [{ product: "motorbike", years: 3, fee: 300000 }] },
+    legs: [{ product: "motorbike", years: 3, fee: 228000 }] },
+  /**
+   * Hai xe khác nhau, mỗi xe một đơn 1 năm, CÙNG bắt đầu một ngày (chốt
+   * 2026-09-06). Cùng mức quà với gói 2 năm một xe. Database đang chạy nhận gói
+   * này qua migration 0068, không qua seed.
+   */
+  { code: "BH-2N-XEMAY-2XE", name: "2 năm BH xe máy cho 2 xe",
+    legs: [
+      { product: "motorbike", years: 1, fee: 76000 },
+      { product: "motorbike", years: 1, fee: 76000 },
+    ] },
 
   { code: "BH-1N-DIEN", name: "1 năm BH tai nạn điện",
     legs: [{ product: "electric-accident", years: 1, fee: 100000 }] },
@@ -279,7 +289,7 @@ export const INSURANCE_PACKAGES = [
   /** Gói ghép chỉ khác gói trên ở `product` của từng leg. */
   { code: "BH-COMBO-1N", name: "1 năm xe máy + 1 năm tai nạn điện",
     legs: [
-      { product: "motorbike", years: 1, fee: 100000 },
+      { product: "motorbike", years: 1, fee: 76000 },
       { product: "electric-accident", years: 1, fee: 100000 },
     ] },
 ] as const;

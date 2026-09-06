@@ -61,10 +61,12 @@ type Props = {
  * Người thụ hưởng để trống: có thể là người khác hẳn khách hàng (spec §5.4),
  * mặc định sẵn tên khách thì hay gặp ca gõ nhầm rồi phải xoá lại.
  *
- * Ngày mặc định theo `chainsToPrevious` (chốt 2026-09-03): combo nhiều năm CÙNG
- * một loại BH thì đơn sau nối tiếp ngày kết thúc đơn trước, vì khách mua liền
- * mạch chứ không mua hai đơn chạy song song. Gói ghép hai sản phẩm khác nhau
- * vẫn cùng bắt đầu hôm nay.
+ * Ngày mặc định theo `chainsToPrevious` (chốt 2026-09-03, thu hẹp 2026-09-06):
+ * CHỈ đơn tai nạn điện nối tiếp nhau, vì hãng chỉ phát hành hợp đồng 1 năm nên
+ * gói 2 năm là hai đơn liền mạch cho cùng một người. Đơn xe máy KHÔNG nối
+ * tiếp: gói nhiều năm một xe là MỘT đơn dài, còn gói hai xe là hai đơn cho hai
+ * xe khác nhau, cùng bắt đầu hôm nay. Gói ghép hai sản phẩm khác nhau cũng
+ * cùng bắt đầu hôm nay.
  */
 function defaultLegsFor(pkg: InsurancePackage | null): InsuranceOrderLegForm[] {
   if (!pkg) return [];
@@ -99,9 +101,12 @@ function defaultLegsFor(pkg: InsurancePackage | null): InsuranceOrderLegForm[] {
   return legs;
 }
 
-/** Đơn thứ `i` nối tiếp đơn liền trước khi hai đơn cùng một loại sản phẩm. */
+/** Đơn thứ `i` nối tiếp đơn liền trước: chỉ khi CẢ HAI là tai nạn điện. */
 const chainsToPrevious = (pkg: InsurancePackage | null, i: number): boolean =>
-  i > 0 && !!pkg && pkg.legs[i - 1]?.product === pkg.legs[i]?.product;
+  i > 0 &&
+  !!pkg &&
+  pkg.legs[i - 1]?.product === "electric-accident" &&
+  pkg.legs[i]?.product === "electric-accident";
 
 /** Nhãn từng form. Nhiều đơn thì đánh số để KD biết đang điền đơn nào. */
 const legLabel = (pkg: InsurancePackage | null, i: number): string => {

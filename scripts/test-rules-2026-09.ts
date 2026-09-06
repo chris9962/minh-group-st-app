@@ -680,7 +680,7 @@ const giftOf = (
 };
 
 const BH_1N = ["BH-1N-XEMAY", "BH-1N-DIEN"];
-const BH_2N = ["BH-COMBO-1N", "BH-2N-XEMAY", "BH-2N-DIEN-100K", "BH-1N-DIEN-200K"];
+const BH_2N = ["BH-COMBO-1N", "BH-2N-XEMAY", "BH-2N-XEMAY-2XE", "BH-2N-DIEN-100K", "BH-1N-DIEN-200K"];
 const BH_TH5 = [...BH_2N, ...BH_1N];
 const ITEMS_HKD = ["QUA-LOA", "QUA-MICA"];
 const ITEMS_HOSPITAL = ["QUA-MI", "QUA-BH-SUC-KHOE", "QUA-NON-BH"];
