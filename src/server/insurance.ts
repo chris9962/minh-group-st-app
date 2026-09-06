@@ -53,6 +53,7 @@ import {
   users,
 } from "./db/schema";
 import type { PageArgs } from "./pagination";
+import { PVI_NEW_ORDER_CHANNEL, type PviRoute } from "./pvi-api/route";
 import { imageUrl } from "./storage";
 
 /**
@@ -680,31 +681,63 @@ const botSharePercent = (): number => {
 };
 
 /**
- * Trạng thái của đơn vừa tạo, quyết định theo việc worker PVI có đang chạy không.
+ * Trạng thái và đường đi của đơn vừa tạo.
  *
- * Worker TẮT → `manual-queued`, đội KD làm tay như trước.
- * Worker BẬT → chia ngẫu nhiên theo `botSharePercent`: rơi vào phần của bot thì
- * `queued` cho bot pick lên, phần còn lại `manual-queued`.
+ * `PVI_DUONG` chọn đường máy đang chạy, MỘT đường mỗi lúc (chốt 2026-09-06):
  *
- * Chia đôi là cố ý (chốt 2026-09-03): giai đoạn chạy thử không giao hết đơn cho
- * bot, để đội KD vẫn có việc làm tay mà đối chiếu, và một lỗi của bot không kéo
- * theo trọn ngày đơn.
+ * | `PVI_DUONG` | Đơn mới đi đâu |
+ * |---|---|
+ * | `api` | `queued` + `pvi_route='api'`, TOÀN BỘ. Worker API lấy |
+ * | `bot` | chia theo `botSharePercent`: `queued` + `pvi_route='bot'`, hoặc làm tay |
+ * | khác, hoặc thiếu | `manual-queued`, đội KD làm tay như trước |
+ *
+ * Đường API nhận 100%, không chia. Chia đôi sinh ra vì bot hỏng ở hai bước mà
+ * API không có: khớp dòng trên bảng `/Service/Manager` và giải captcha. Lỗi còn
+ * lại của đường API là dữ liệu sai, PVI trả mã rõ và worker tự đẩy đơn về
+ * `manual-queued`.
  *
  * Chia MỘT lần cho cả lô ở `createInsuranceOrders`, nên mọi đơn của một lần tạo
- * cùng một trạng thái. Tỉ lệ vẫn về 50/50 sau nhiều lượt tạo.
+ * cùng một trạng thái. Tỉ lệ vẫn đúng sau nhiều lượt tạo.
  *
- * Phải theo trạng thái THẬT của worker chứ không phải mong muốn: bot tắt mà đơn
- * vẫn vào `queued` thì chúng nằm im vĩnh viễn ở một trạng thái nói dối — người
- * xem tưởng hệ thống đang chạy, còn hàng chờ làm tay thì rỗng trong khi đó là
- * nơi việc thật sự nằm.
+ * Phải theo trạng thái THẬT của worker chứ không phải mong muốn: worker tắt mà
+ * đơn vẫn vào `queued` thì chúng nằm im vĩnh viễn ở một trạng thái nói dối —
+ * người xem tưởng hệ thống đang chạy, còn hàng chờ làm tay thì rỗng trong khi
+ * đó là nơi việc thật sự nằm.
  *
  * Đọc mỗi lần gọi, không chụp một lần lúc nạp module: hai container dùng chung
- * biến này, và bật tắt worker không nên đòi khởi động lại cả app.
+ * biến này, và đổi đường không nên đòi khởi động lại cả app.
  */
-const newOrderStatus = (): "queued" | "manual-queued" => {
-  if (process.env.PVI_WORKER_BAT !== "1") return "manual-queued";
-  return randomInt(100) < botSharePercent() ? "queued" : "manual-queued";
+const newOrderRoute = (): { status: "queued" | "manual-queued"; route: PviRoute } => {
+  const duong = (process.env.PVI_DUONG ?? "").trim();
+  if (duong === "api") return { status: "queued", route: "api" };
+  if (duong === "bot" && randomInt(100) < botSharePercent())
+    return { status: "queued", route: "bot" };
+  return { status: "manual-queued", route: "" };
 };
+
+/**
+ * Đánh thức worker API ngay khi có đơn mới, thay vì để nó đợi hết vòng 10 giây.
+ *
+ * `pg_notify` chạy TRONG transaction nên Postgres chỉ phát khi transaction
+ * commit. Không có trigger nào: gọi thẳng ở đây thì đọc code là thấy, còn
+ * trigger nằm ở database và người sửa hàm này không biết nó tồn tại.
+ *
+ * Thông báo KHÔNG phải hàng chờ. Nó mất khi worker đang đứt kết nối, và hàng
+ * chờ thật vẫn là cột `status` — worker có vòng quét định kỳ để lấy phần đã mất.
+ * Vì vậy lỗi ở đây không được làm hỏng lượt tạo đơn.
+ */
+async function notifyPviWorker(
+  tx: Pick<typeof db, "execute">,
+  route: PviRoute,
+  status: "queued" | "manual-queued",
+) {
+  if (route !== "api" || status !== "queued") return;
+  try {
+    await tx.execute(sql`select pg_notify(${PVI_NEW_ORDER_CHANNEL}, '')`);
+  } catch (cause) {
+    console.warn("[pvi] không gửi được pg_notify:", cause);
+  }
+}
 
 export async function createInsuranceOrders(
   actor: User,
@@ -792,8 +825,8 @@ export async function createInsuranceOrders(
     );
 
     // Đọc MỘT lần cho cả lô: mọi đơn của một lần tạo phải cùng một trạng thái,
-    // kể cả khi ai đó bật tắt worker đúng lúc câu insert đang chạy.
-    const newStatus = newOrderStatus();
+    // kể cả khi ai đó đổi đường đúng lúc câu insert đang chạy.
+    const { status: newStatus, route } = newOrderRoute();
 
     const rows = await tx
       .insert(insuranceOrders)
@@ -809,6 +842,7 @@ export async function createInsuranceOrders(
           startDate: leg.startDate,
           endDate: leg.endDate,
           status: newStatus,
+          pviRoute: route,
           source: form.source,
           giftGrantId: giftGrant?.id ?? null,
           beneficiaryName: leg.beneficiaryName,
@@ -843,6 +877,8 @@ export async function createInsuranceOrders(
         changedBy: actor.id,
       })),
     );
+
+    await notifyPviWorker(tx, route, newStatus);
 
     return rows.map((r) => r.id);
   });
@@ -1336,7 +1372,7 @@ export async function recreateInsuranceOrder(
     return { ok: false, message: "Ngày tạo đơn không được ở tương lai" };
 
   const yearMonth = businessMonth();
-  const newStatus = newOrderStatus();
+  const { status: newStatus, route } = newOrderRoute();
 
   const created = await db.transaction(async (tx) => {
     // Cùng câu nguyên tử với `createInsuranceOrders` — xem chú thích ở đó.
@@ -1366,6 +1402,7 @@ export async function recreateInsuranceOrder(
         startDate: form.startDate,
         endDate: form.endDate,
         status: newStatus,
+        pviRoute: route,
         source: current.source,
         giftGrantId: origin.giftGrantId,
         beneficiaryName: form.beneficiaryName,
@@ -1392,6 +1429,8 @@ export async function recreateInsuranceOrder(
       changedBy: actor.id,
       note: `Cấp lại cho đơn ${current.orderCode}`,
     });
+
+    await notifyPviWorker(tx, route, newStatus);
 
     return row.id;
   });
@@ -1465,16 +1504,35 @@ export async function setCertificatePhoto(
  */
 export async function savePviCertificate(
   requestId: string,
-  certificate: { url: string; serialNumber: string },
+  certificate: { policyNumber: string; serialNumber: string },
 ): Promise<boolean> {
   const rows = await db
     .update(insuranceOrders)
     .set({
-      pviCertificateUrl: certificate.url,
+      pviPolicyNumber: certificate.policyNumber,
       pviSerialNumber: certificate.serialNumber,
+      /**
+       * Đặt lại mốc hỏi để worker tra `GetPolicyNumber` ngay vòng kế.
+       *
+       * Callback KHÔNG tự tải file giấy chứng nhận: PVI đang đợi phản hồi, mà
+       * tải PDF cộng đổi ảnh cộng đẩy kho là ba việc chậm và hỏng được. Hỏng thì
+       * route phải trả `-1` và PVI gọi lại một callback vốn đã ghi xong.
+       *
+       * Địa chỉ file trong callback cũng không lưu: nó mang `CpId` và một chữ ký
+       * ngay trong tham số. Worker hỏi lại `GetPolicyNumber` để lấy địa chỉ đó
+       * rồi tải ngay, không cất vào database.
+       */
+      certificateCheckedAt: null,
       updatedAt: new Date(),
     })
-    .where(eq(insuranceOrders.orderCode, requestId))
+    .where(
+      and(
+        eq(insuranceOrders.orderCode, requestId),
+        // Callback mang `order_code`, mà đơn của bot cũng có cột đó. Không lọc
+        // thì một callback đến nhầm ghi đè lên đơn bot đang chạy.
+        eq(insuranceOrders.pviRoute, "api"),
+      ),
+    )
     .returning({ id: insuranceOrders.id });
 
   return rows.length > 0;

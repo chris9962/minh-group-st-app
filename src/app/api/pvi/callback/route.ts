@@ -44,11 +44,11 @@ export async function POST(request: Request) {
     return Response.json(pviCallbackReply(check.status, check.message));
   }
 
-  const { requestId, policyNumber, serialNumber, url } = check.data;
+  const { requestId, policyNumber, serialNumber } = check.data;
 
   let saved: boolean;
   try {
-    saved = await savePviCertificate(requestId, { url, serialNumber });
+    saved = await savePviCertificate(requestId, { policyNumber, serialNumber });
   } catch (cause) {
     // Ghi hỏng thì PVI phải gọi lại — trả `-1` chứ không phải `00`.
     console.error(`[pvi-callback] ghi hỏng ${requestId}:`, cause);
@@ -56,7 +56,9 @@ export async function POST(request: Request) {
   }
 
   if (!saved) {
-    console.warn(`[pvi-callback] không có đơn nào mang mã ${requestId}`);
+    // Cũng rơi vào đây khi đơn có thật nhưng đi đường bot: `savePviCertificate`
+    // chỉ ghi lên đơn `pvi_route='api'`.
+    console.warn(`[pvi-callback] không có đơn đường API nào mang mã ${requestId}`);
     return Response.json(pviCallbackReply("-404", "Không tìm thấy đơn mang RequestId này"));
   }
 

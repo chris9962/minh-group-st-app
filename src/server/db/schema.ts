@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  bigint,
   boolean,
   check,
   date,
@@ -1207,6 +1208,36 @@ export const insuranceOrders = pgTable(
      * hiện trên màn duyệt — xem `pvi-qlcd-playwright/LUONG-TAO-VA-DUYET.md`.
      */
     pviPrKey: text("pvi_pr_key").notNull().default(""),
+    /**
+     * Đường máy nào xử lý đơn này: `bot` cho Playwright, `api` cho API đối tác,
+     * rỗng cho đơn làm tay và mọi đơn có trước 2026-09-06.
+     *
+     * Hai worker cùng đọc bảng này nên phải có cột phân biệt, dù mỗi lúc chỉ một
+     * đường chạy. Lúc đổi đường, đơn `queued` cũ vẫn thuộc đường cũ; không có
+     * cột này thì worker mới lấy nhầm đơn của worker cũ.
+     */
+    pviRoute: text("pvi_route").notNull().default(""),
+    /**
+     * `PolicyNumber` của API đối tác — `26/21/14/MOTO/0000004`.
+     *
+     * Cột RIÊNG chứ không dùng chung `pvi_electronic_order_no`: cột đó của bot,
+     * đọc từ bảng `/Service/Manager` bằng mắt. Hai nguồn khác nhau thì hai cột,
+     * để tra ngược được đơn nào đi đường nào (chốt 2026-09-03).
+     */
+    pviPolicyNumber: text("pvi_policy_number").notNull().default(""),
+    /**
+     * `Pr_key` của API đối tác — số nguyên, ví dụ `162677`.
+     *
+     * Cột RIÊNG chứ không dùng chung `pvi_pr_key`: cột đó giữ chuỗi
+     * `W6fXX4Fd7+I=` của bot. Trộn hai định dạng vào một cột thì mọi chỗ đọc
+     * phải đoán đơn này đi đường nào.
+     *
+     * Null khi PVI trả `-555`: đơn đã tạo ở lượt trước, phản hồi đó không mang
+     * `Pr_key`. Không sao — số giấy chứng nhận tra bằng `order_code`.
+     */
+    pviPrKeyNumber: bigint("pvi_pr_key_number", { mode: "number" }),
+    /** Số lần worker API gọi tạo đơn mà hỏng vì mạng. Đủ ngưỡng thì đơn về làm tay. */
+    pviAttempts: smallint("pvi_attempts").notNull().default(0),
     /** Số lần luồng 3 đã hỏi `/Service/DownloadFile` mà chưa có file. */
     certificateAttempts: smallint("certificate_attempts").notNull().default(0),
     certificateCheckedAt: timestamp("certificate_checked_at", { withTimezone: true }),
@@ -1242,6 +1273,8 @@ export const insuranceOrders = pgTable(
   (t) => [
     index("insurance_orders_customer").on(t.customerId),
     index("insurance_orders_status").on(t.status),
+    /** Hai worker lấy đơn theo cặp trạng thái cộng đường đi. */
+    index("insurance_orders_route").on(t.status, t.pviRoute),
     /** Luồng duyệt tra đơn chờ duyệt theo tên người thụ hưởng và sản phẩm. */
     index("insurance_orders_pending_match").on(t.status, t.product, t.beneficiaryName),
     /** Luồng 3 quét đơn đang đợi file, cũ nhất trước. */
