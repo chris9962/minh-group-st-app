@@ -66,7 +66,7 @@ const MAX_CREATE_ATTEMPTS = Number(process.env.PVI_API_MAX_CREATE_ATTEMPTS ?? 5)
 const STALE_AFTER_MINUTES = Number(process.env.PVI_API_STALE_MINUTES ?? 2);
 
 /** Khoảng cách giữa hai lần hỏi `GetPolicyNumber` cho cùng một đơn. */
-const CERTIFICATE_RETRY_SECONDS = Number(process.env.PVI_API_CERTIFICATE_RETRY_SECONDS ?? 60);
+const CERTIFICATE_RETRY_SECONDS = Number(process.env.PVI_API_CERTIFICATE_RETRY_SECONDS ?? 30);
 const MAX_CERTIFICATE_ATTEMPTS = Number(
   process.env.PVI_API_MAX_CERTIFICATE_ATTEMPTS ?? CERTIFICATE_MAX_ATTEMPTS * 5,
 );
