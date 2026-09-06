@@ -140,6 +140,26 @@ async function fillRequired(scope: ReturnType<typeof dialog>, idNumber: string) 
   await scope.getByLabel("Ngày sinh").fill("01011990");
   await scope.getByLabel("CCCD").fill(idNumber);
   await pickAddress(scope);
+  await pickChannel(scope);
+}
+
+/**
+ * Kênh BẮT BUỘC từ 2026-09-06, và kênh Bệnh viện hay Tự do đòi thêm chi tiết.
+ * Dòng 0 của ô Kênh là "— Chọn kênh —", lấy dòng 1; thứ tự kênh do danh mục
+ * quyết định nên không đoán trước loại, cứ ô nào hiện ra thì điền ô đó.
+ */
+async function pickChannel(scope: ReturnType<typeof dialog>) {
+  await scope.getByLabel("Kênh").selectOption({ index: 1 });
+  const hospital = scope.getByRole("combobox", { name: /^Bệnh viện/ });
+  if (await hospital.count()) {
+    await hospital.click();
+    const options = scope.getByRole("option");
+    await options.first().waitFor({ timeout: 5_000 }).catch(() => {});
+    test.skip((await options.count()) === 0, "danh mục bệnh viện trống");
+    await options.first().click();
+  }
+  const detail = scope.getByLabel("Chi tiết kênh");
+  if (await detail.count()) await detail.fill("ZZE2E chi tiết");
 }
 
 /**
@@ -444,6 +464,8 @@ test.describe("thao tác nào cũng báo kết quả", () => {
      */
     await box.getByLabel("Ngày sinh").fill("01011990");
     await pickAddress(box);
+    // Kênh bắt buộc từ 2026-09-06; hồ sơ mẫu lập trước đó có thể chưa có.
+    await pickChannel(box);
     await box.getByRole("button", { name: /^Lưu$/ }).click();
 
     await expect(toast(page)).toContainText(/Đã lưu hồ sơ/);

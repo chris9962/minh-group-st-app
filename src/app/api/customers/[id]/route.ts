@@ -1,7 +1,12 @@
 import { CUSTOMER_ERROR, CustomerEditForm } from "@/lib/api/customers";
 import { logAudit } from "@/server/audit";
 import { actorWith, badRequest, isUuid, jsonBody, notFound, signedIn } from "@/server/auth";
-import { customerDetailFor, deleteCustomer, updateCustomer } from "@/server/customers";
+import {
+  channelDetailMissing,
+  customerDetailFor,
+  deleteCustomer,
+  updateCustomer,
+} from "@/server/customers";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -65,6 +70,8 @@ export async function PATCH(request: Request, { params }: Params) {
 
   const parsed = CustomerEditForm.safeParse(await jsonBody(request));
   if (!parsed.success) return badRequest();
+  const thieuChiTiet = await channelDetailMissing(parsed.data);
+  if (thieuChiTiet) return badRequest(thieuChiTiet);
 
   const result = await updateCustomer(guard.actor, id, parsed.data);
   if (!result) return notFound();

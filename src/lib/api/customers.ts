@@ -327,7 +327,8 @@ export const CustomerForm = z.object({
     .refine((v) => /^\d{12}$/.test(v), 'CCCD phải đủ 12 số'),
   address: z.string().trim().min(1, 'Chưa nhập địa chỉ'),
   phones: z.array(CustomerPhoneForm).min(1, 'Cần ít nhất một số điện thoại'),
-  channelId: z.string(),
+  /** Bắt buộc từ 2026-09-06: hồ sơ nào cũng phải nói khách tới từ đâu. */
+  channelId: z.string().min(1, 'Chưa chọn kênh'),
   channelDetail: z.string(),
 });
 export type CustomerForm = z.infer<typeof CustomerForm>;

@@ -1694,3 +1694,26 @@ export async function customerDetailFor(
         },
   };
 }
+
+/**
+ * Kênh Bệnh viện và Tự do đòi chi tiết (chốt 2026-09-06): kênh nói khách tới
+ * từ đâu, mà "Bệnh viện" không có tên bệnh viện thì không lọc được theo bệnh
+ * viện ở P-40. Kênh ấp lấy địa chỉ làm chi tiết (spec §U9) nên không kiểm.
+ *
+ * Kiểm ở máy chủ vì hộp thoại chỉ ẩn/hiện ô theo loại kênh; request nặn tay
+ * gửi chuỗi rỗng vẫn tới đây. Trả câu báo để route đưa thẳng cho người dùng,
+ * `null` = đủ.
+ */
+export async function channelDetailMissing(
+  form: Pick<CustomerForm, "channelId" | "channelDetail">,
+): Promise<string | null> {
+  if (!form.channelId || form.channelDetail.trim()) return null;
+  const [channel] = await db
+    .select({ inputKind: channels.inputKind })
+    .from(channels)
+    .where(eq(channels.id, form.channelId))
+    .limit(1);
+  if (channel?.inputKind === "hospital") return "Chưa chọn bệnh viện";
+  if (channel?.inputKind === "free-text") return "Chưa nhập chi tiết kênh";
+  return null;
+}

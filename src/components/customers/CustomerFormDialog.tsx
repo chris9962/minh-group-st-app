@@ -119,13 +119,26 @@ export function CustomerFormDialog({
     [addressSuggestions],
   );
   const addressSet = useMemo(() => new Set(addressSuggestions), [addressSuggestions]);
+  const { data: channels = [] } = useQuery({ queryKey: ["channels"], queryFn: fetchChannels });
   const schema = useMemo(
     () =>
-      (editing ? CustomerEditForm : CustomerForm).refine((f) => addressSet.has(f.address), {
-        path: ["address"],
-        message: "Chọn địa chỉ từ danh sách",
-      }),
-    [editing, addressSet],
+      (editing ? CustomerEditForm : CustomerForm)
+        .refine((f) => addressSet.has(f.address), {
+          path: ["address"],
+          message: "Chọn địa chỉ từ danh sách",
+        })
+        // Kênh Bệnh viện và Tự do đòi chi tiết (chốt 2026-09-06). Kênh ấp lấy
+        // địa chỉ làm chi tiết lúc lưu nên không kiểm ở đây. Máy chủ kiểm lại
+        // cùng luật ở `channelDetailMissing`.
+        .superRefine((f, ctx) => {
+          if (f.channelDetail.trim()) return;
+          const kind = channels.find((c) => c.id === f.channelId)?.inputKind;
+          if (kind === "hospital")
+            ctx.addIssue({ code: "custom", path: ["channelDetail"], message: "Chưa chọn bệnh viện" });
+          if (kind === "free-text")
+            ctx.addIssue({ code: "custom", path: ["channelDetail"], message: "Chưa nhập chi tiết kênh" });
+        }),
+    [editing, addressSet, channels],
   );
 
   const {
@@ -149,7 +162,6 @@ export function CustomerFormDialog({
   const phones = watch("phones");
 
   const channelId = watch("channelId");
-  const { data: channels = [] } = useQuery({ queryKey: ["channels"], queryFn: fetchChannels });
   const selectedChannel = channels.find((c) => c.id === channelId);
 
   const { data: hospitals = [] } = useQuery({
@@ -327,20 +339,24 @@ export function CustomerFormDialog({
             error={errors.address?.message}
           />
 
+          {/* Bắt buộc từ 2026-09-06. Dòng đầu vẫn là giá trị rỗng để hồ sơ mới
+              không tự nhận kênh đầu danh sách; zod chặn lúc Lưu. */}
           <Select
             block
-            label="Kênh (tuỳ chọn)"
+            required
+            label="Kênh"
             value={channelId}
             onChange={(v) => {
-              setValue("channelId", v, { shouldDirty: true });
+              setValue("channelId", v, { shouldDirty: true, shouldValidate: true });
               // Chi tiết cũ hết nghĩa khi đổi kênh. Kênh kiểu ấp không đọc ô
               // này — nó kế thừa Địa chỉ lúc lưu (spec §U9).
               setValue("channelDetail", "", { shouldDirty: true });
             }}
             options={[
-              { value: "", label: "Không có" },
+              { value: "", label: "— Chọn kênh —" },
               ...channels.map((c) => ({ value: c.id, label: c.name })),
             ]}
+            error={errors.channelId?.message}
           />
 
           {selectedChannel?.inputKind === "ward-hamlet" && (
@@ -352,16 +368,23 @@ export function CustomerFormDialog({
           {selectedChannel?.inputKind === "hospital" && (
             <Combobox
               block
+              required
               label="Bệnh viện"
               placeholder="Gõ để tìm bệnh viện…"
               value={watch("channelDetail")}
-              onChange={(v) => setValue("channelDetail", v, { shouldDirty: true })}
+              onChange={(v) => setValue("channelDetail", v, { shouldDirty: true, shouldValidate: true })}
               options={hospitals.map((h) => ({ value: h.name, label: h.name }))}
+              error={errors.channelDetail?.message}
             />
           )}
 
           {selectedChannel?.inputKind === "free-text" && (
-            <TextField label="Chi tiết kênh" {...register("channelDetail")} />
+            <TextField
+              label="Chi tiết kênh"
+              required
+              error={errors.channelDetail?.message}
+              {...register("channelDetail")}
+            />
           )}
 
           <fieldset className={styles.fieldset}>

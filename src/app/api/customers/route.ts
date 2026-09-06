@@ -3,7 +3,12 @@ import { logAudit } from "@/server/audit";
 import { recordVisibility } from "@/lib/permissions";
 import type { User } from "@/lib/types";
 import { actorWith, badRequest, jsonBody, signedIn, uuidParam } from "@/server/auth";
-import { createCustomer, duplicateIdNumberInfo, listCustomers } from "@/server/customers";
+import {
+  channelDetailMissing,
+  createCustomer,
+  duplicateIdNumberInfo,
+  listCustomers,
+} from "@/server/customers";
 import { pageArgsFrom } from "@/server/pagination";
 
 const SORTABLE: readonly CustomerSort[] = ["name", "accounts", "insurance", "created"];
@@ -88,6 +93,8 @@ export async function POST(request: Request) {
   const body = await jsonBody(request);
   const parsed = CustomerForm.safeParse(body);
   if (!parsed.success) return badRequest();
+  const thieuChiTiet = await channelDetailMissing(parsed.data);
+  if (thieuChiTiet) return badRequest(thieuChiTiet);
 
   // Tạo THÊM một lần cho người đã có hồ sơ. `uuidParam` lọc chuỗi bậy — id không
   // phải uuid đi thẳng vào SQL là `22P02` → 500.
