@@ -13,7 +13,7 @@
  * `--thu` tắt cả hai: worker vẫn lấy đơn và điền 26 ô, nhưng dừng trước lúc bấm.
  * Dùng để xem nó chọn đúng đơn và điền đúng dữ liệu chưa.
  *
- * Đơn chỉ vào hàng chờ của worker khi `PVI_WORKER_BAT=1`; xem `newOrderStatus`
+ * Đơn chỉ vào hàng chờ của worker khi `PVI_DUONG=bot`; xem `newOrderRoute`
  * ở `src/server/insurance.ts`. Hai container phải cùng đọc biến đó.
  *
  * Tên trường trong kết quả trả về từ `pvi-qlcd-playwright/lib/*` giữ nguyên
@@ -110,6 +110,9 @@ async function reclaimStaleOrders(db: Db) {
     .where(
       and(
         eq(insuranceOrders.status, "creating"),
+        // Đường API có worker riêng và ngưỡng thu hồi riêng (2 phút thay vì 10).
+        // Không lọc thì bot cướp đơn của nó lúc đổi đường.
+        eq(insuranceOrders.pviRoute, "bot"),
         or(sql`${insuranceOrders.updatedAt} is null`, lt(insuranceOrders.updatedAt, cutoff)),
       ),
     )
@@ -131,7 +134,7 @@ async function claimOrder(db: Db): Promise<Order | null> {
     const [order] = await tx
       .select()
       .from(insuranceOrders)
-      .where(eq(insuranceOrders.status, "queued"))
+      .where(and(eq(insuranceOrders.status, "queued"), eq(insuranceOrders.pviRoute, "bot")))
       .orderBy(sql`${insuranceOrders.orderDate} asc, ${insuranceOrders.createdAt} asc`)
       .limit(1)
       .for("update", { skipLocked: true });
@@ -264,6 +267,7 @@ async function fetchCertificates(db: Db) {
     .where(
       and(
         eq(insuranceOrders.status, "awaiting-certificate"),
+        eq(insuranceOrders.pviRoute, "bot"),
         ne(insuranceOrders.pviPrKey, ""),
         lt(insuranceOrders.certificateAttempts, MAX_ATTEMPTS),
         or(

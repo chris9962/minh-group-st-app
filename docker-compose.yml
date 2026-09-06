@@ -64,9 +64,12 @@ services:
   # KHÔNG tự dựng khi `docker compose up` trống tay. Gọi đích danh:
   # `docker compose up pvi-worker`.
   #
-  # ⚠️ Worker chỉ có việc khi `PVI_WORKER_BAT=1` — biến đó quyết định đơn mới vào
-  # `queued` (bot chạy) hay `manual-queued` (đội KD làm tay). App và worker phải
+  # ⚠️ Worker chỉ có việc khi `PVI_DUONG=bot` — biến đó quyết định đơn mới vào
+  # `queued` (máy chạy) hay `manual-queued` (đội KD làm tay). App và worker phải
   # cùng đọc một giá trị, nếu không thì đơn vào hàng chờ mà không ai nhặt.
+  #
+  # `PVI_DUONG=api` là đường khác hẳn: `bun run pvi:api-worker` gọi API đối tác,
+  # không dùng container này.
   pvi-worker:
     build:
       context: .

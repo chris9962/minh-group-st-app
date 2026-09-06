@@ -37,6 +37,23 @@ const DOWNLOAD_TIMEOUT_MS = 30_000;
 const isPdf = (bytes: Buffer): boolean => bytes.subarray(0, 5).toString("latin1") === "%PDF-";
 
 /**
+ * Địa chỉ thật sự gọi tới, và header đi kèm.
+ *
+ * Máy chủ chạy thật tải thẳng từ PVI. Máy cá nhân không tới được vì PVI chặn
+ * theo IP, nên nó đi vòng qua `/api/pvi/file` của bản đã triển khai — cùng cách
+ * `PVI_API_PROXY_TOKEN` làm với các lệnh gọi API.
+ */
+function through(url: string): { url: string; headers: Record<string, string> } {
+  const token = (process.env.PVI_API_PROXY_TOKEN ?? "").trim();
+  const base = (process.env.PVI_API_BASE_URL ?? "").trim().replace(/\/+$/, "");
+  if (!token || !base) return { url, headers: {} };
+  return {
+    url: `${base}/api/pvi/file?url=${encodeURIComponent(url)}`,
+    headers: { "x-pvi-proxy-token": token },
+  };
+}
+
+/**
  * Đổi TRANG ĐẦU của PDF sang một ảnh WebP.
  *
  * Chỉ trang đầu: giấy chứng nhận PVI đo được đều một trang, và trang đầu mang đủ
@@ -94,9 +111,11 @@ export async function saveCertificateFrom(
   url: string,
   orderCode: string,
 ): Promise<CertificateResult> {
+  const via = through(url);
   let response: Response;
   try {
-    response = await fetch(url, {
+    response = await fetch(via.url, {
+      headers: via.headers,
       cache: "no-store",
       signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS),
     });

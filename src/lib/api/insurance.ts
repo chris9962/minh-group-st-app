@@ -98,17 +98,26 @@ export const InsuranceOrder = InsuranceListRow.extend({
   /** Đơn vị của người tạo LÚC TẠO — chụp một lần, không tra động (spec §1.1.5). */
   createdByDepartmentId: z.string().nullable(),
   /**
-   * Link file PDF giấy chứng nhận do PVI gửi về ở callback mục 13.
+   * Link file PDF giấy chứng nhận trên máy chủ PVI.
    *
-   * URL tuyệt đối sang máy chủ PVI — khác `certificatePhotoUrl` là ảnh trong kho
-   * của mình. Chuỗi rỗng = chưa nhận callback.
+   * ⚠️ LUÔN RỖNG từ 2026-09-06. Không đường nào ghi cột này nữa: địa chỉ PVI trả
+   * về mang `CpId` và một chữ ký ngay trong tham số, lưu lại là lộ `CpId` cho
+   * mọi người mở được đơn. Worker tải file rồi lưu ảnh vào
+   * `certificatePhotoUrl`. Cột giữ lại để đọc dữ liệu cũ.
    *
    * CỐ Ý không nằm ở dòng danh sách: P-13 không cần link, và mỗi dòng chở thêm
    * một URL dài là tốn đường truyền cho mười lăm dòng mỗi lần lật trang.
    */
   pviCertificateUrl: z.string().default(""),
-  /** Số ấn chỉ điện tử từ cùng callback. Chuỗi rỗng = chưa nhận. */
+  /** Số ấn chỉ điện tử. Chuỗi rỗng = PVI chưa cấp. */
   pviSerialNumber: z.string().default(""),
+  /**
+   * Số giấy chứng nhận của đường API — `26/21/14/MOTO/0000004`.
+   *
+   * Chuỗi rỗng với đơn đi đường bot: bot ghi số của nó vào
+   * `pvi_electronic_order_no`, cột đó không đường nào đọc.
+   */
+  pviPolicyNumber: z.string().default(""),
   /** Link màn đơn trên QLCD của PVI. Chuỗi rỗng = đơn chưa có `pr_key`. */
   pviOrderUrl: z.string().default(""),
 });

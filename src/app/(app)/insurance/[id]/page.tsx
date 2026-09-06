@@ -456,6 +456,17 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                     />
                   </p>
                 )}
+                {data.pviPolicyNumber && (
+                  <p className={styles.serialInline}>
+                    <span className={styles.serialLabel}>GCN</span>
+                    {data.pviPolicyNumber}
+                    <CopyButton
+                      value={data.pviPolicyNumber}
+                      label={`số giấy chứng nhận: ${data.pviPolicyNumber}`}
+                      quiet
+                    />
+                  </p>
+                )}
                 <StatusTag tone={INSURANCE_STATUS_TONE[data.status]}>
                   {INSURANCE_STATUS_LABEL[data.status]}
                 </StatusTag>
