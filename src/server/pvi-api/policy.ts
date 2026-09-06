@@ -11,6 +11,14 @@ import { PviApiError, pviRequest, pviSign, pviText } from "./client";
  *    nên đơn nào quá hạn mà chưa có `policyNumber` thì phải tự tra.
  * 2. `createXOrder` ném lỗi `network`. Lúc đó KHÔNG biết PVI đã ghi đơn hay
  *    chưa — tra `ma_giaodich` cũ trước, có kết quả thì đừng tạo lại.
+ *
+ * ⚠️ Việc 2 KHÔNG dùng hàm này được. Đo thật trên `piastest` ngày 2026-09-03:
+ * đơn vừa tạo xong trả `-500 Khong ton tai requestId`, tra lại sau vài phút mới
+ * trả `Status 00` kèm số giấy chứng nhận. Trong khoảng chờ đó, `-500` không
+ * phân biệt "PVI chưa cấp giấy chứng nhận" với "không có đơn nào mang mã này" —
+ * mà đúng khoảng đó là lúc cần biết. Đọc nó ra quyết định tạo lại là ra hai đơn
+ * cho một khách. Dùng `-555 Mã giao dịch đã tồn tại` của chính API tạo đơn: gửi
+ * lại cùng `ma_giaodich`, PVI trả `-555` thì đơn cũ đã ghi.
  */
 
 export const PolicyLookupInput = z.object({

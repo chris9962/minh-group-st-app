@@ -10,13 +10,22 @@ import { readPviApiConfig, type PviApiConfig } from "./config";
  * thứ đó.
  */
 
-/** Mã lỗi ở "Bảng mã lỗi" cuối tài liệu PVI, cộng `-504` mà mục 4 dùng. */
+/**
+ * Mã lỗi ở "Bảng mã lỗi" cuối tài liệu PVI, cộng `-504` mà mục 4 dùng.
+ *
+ * Bốn mã cuối không có trong tài liệu. Chúng đến từ lần gọi thật đầu tiên trên
+ * `piastest` ngày 2026-09-03, xem `docs/plan-pvi-api-2026-08-26.md`.
+ */
 const ERROR_MESSAGES: Record<string, string> = {
   "-404": "Dữ liệu không hợp lệ",
   "-400": "Lỗi dữ liệu",
   "-105": "Sai chữ ký",
   "-504": "Đơn vi phạm, không được phép tạo đơn",
   "-1": "Lỗi exception phía PVI",
+  "-555": "Mã giao dịch đã tồn tại",
+  "-505": "Ngày bắt đầu nhỏ hơn ngày hiện tại",
+  "-401": "Ngày bắt đầu nhỏ hơn ngày hiện tại",
+  "-500": "Không tra được mã giao dịch",
 };
 
 export type PviApiErrorKind =
@@ -139,11 +148,22 @@ export async function pviRequest(
 
   const url = `${config.baseUrl}/API_CP/ManagerApplication/${endpoint}`;
 
+  /**
+   * Token của proxy chạy thử — xem `src/app/API_CP/ManagerApplication/[endpoint]`.
+   *
+   * Chỉ đặt trên máy cá nhân, lúc `PVI_API_BASE_URL` trỏ sang mgst-app thay vì
+   * PVI. Gửi thẳng lên PVI cũng không sao, họ bỏ qua header lạ.
+   */
+  const proxyToken = (process.env.PVI_API_PROXY_TOKEN ?? "").trim();
+
   let response: Response;
   try {
     response = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(proxyToken ? { "x-pvi-proxy-token": proxyToken } : {}),
+      },
       body: JSON.stringify(body),
       cache: "no-store",
       signal: AbortSignal.timeout(config.timeoutMs),

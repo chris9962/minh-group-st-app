@@ -21,8 +21,22 @@ process.env.PVI_API_BASE_URL ??= "http://piastest.pvi.com.vn";
 const config = readPviApiConfig();
 if (!config) throw new Error("Thiếu PVI_API_BASE_URL / PVI_API_CPID / PVI_API_KEY");
 
-// Mã giao dịch phải khác nhau mỗi lần chạy; giờ chạy đủ để tách.
-const STAMP = new Date().toISOString().replace(/\D/g, "").slice(2, 14);
+/**
+ * Mã giao dịch phải khác nhau mỗi lần chạy; giờ chạy đủ để tách.
+ *
+ * `PVI_SMOKE_STAMP` đặt lại đúng mã của một lần chạy trước, để thử xem PVI có
+ * chặn `ma_giaodich` trùng hay không.
+ */
+const STAMP = process.env.PVI_SMOKE_STAMP || new Date().toISOString().replace(/\D/g, "").slice(2, 14);
+
+/**
+ * Ngày hiệu lực tính từ ngày chạy, không viết cố định.
+ *
+ * PVI trả `-505` cho mục 10 và `-401` cho mục 11 khi ngày bắt đầu nhỏ hơn ngày
+ * hiện tại, nên một ngày viết cố định chỉ chạy được tới hôm đó rồi hỏng.
+ */
+const NGAY_BAT_DAU = new Date().toISOString().slice(0, 10);
+const NGAY_KET_THUC = `${Number(NGAY_BAT_DAU.slice(0, 4)) + 1}${NGAY_BAT_DAU.slice(4)}`;
 
 function ke(e: unknown): string {
   if (e instanceof PviApiError)
@@ -72,8 +86,8 @@ console.log("Mã giao dịch:", STAMP, "\n");
     soMay: "",
     soKhung: "",
     loaiXe: "1",
-    ngayBatDau: "2026-08-29",
-    ngayKetThuc: "2027-08-29",
+    ngayBatDau: NGAY_BAT_DAU,
+    ngayKetThuc: NGAY_KET_THUC,
   });
   console.log("\n── Mục 10 · TaoDon_XeMay");
   console.log("   gửi đi:", che(buildMotorbikePayload(input)));
@@ -93,8 +107,8 @@ console.log("Mã giao dịch:", STAMP, "\n");
     ngaySinh: "1990-05-15",
     diaChi: "Ấp 1, Xã An Xuyên, Cà Mau",
     soDienThoai: "0901110000",
-    ngayBatDau: "2026-08-29",
-    ngayKetThuc: "2027-08-29",
+    ngayBatDau: NGAY_BAT_DAU,
+    ngayKetThuc: NGAY_KET_THUC,
     soTienBh: 20_000_000,
     tongPhi: 50_000,
     soNguoiHoKhau: 4,
