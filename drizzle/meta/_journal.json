@@ -484,6 +484,13 @@
       "when": 1789286600000,
       "tag": "0068_insurance_package_2xe",
       "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1789373000000,
+      "tag": "0069_bank_app_default",
+      "breakpoints": true
     }
   ]
 }

@@ -68,6 +68,8 @@ export const Bank = z.object({
   coefficient: z.number(),
   /** false với CNKD/HKD — tính điểm nhưng không cộng vào tổng app xét quà. */
   countsAsApp: z.boolean(),
+  /** Ô "đã cài app" ở bước 2 có tick sẵn không. Không liên quan `countsAsApp`. */
+  appDefault: z.boolean(),
   /** Số lớn lên đầu ô chọn ngân hàng lúc mở tài khoản. 0 là mức thường. */
   priority: z.number(),
   /** null = không giới hạn độ tuổi phía dưới. */
@@ -134,6 +136,7 @@ export const BankForm = z.object({
     .max(30, 'Độ dài lớn quá')
     .nullable(),
   countsAsApp: z.boolean(),
+  appDefault: z.boolean(),
   /**
    * Mức ưu tiên trong ô chọn ngân hàng lúc mở tài khoản — số lớn lên đầu.
    *

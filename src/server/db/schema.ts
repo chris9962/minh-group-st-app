@@ -281,6 +281,13 @@ export const banks = pgTable(
     /** false với CNKD/HKD — tính điểm nhưng không đếm vào tổng app xét quà. */
     countsAsApp: boolean("counts_as_app").notNull().default(true),
     /**
+     * Ô "đã cài app" ở bước 2 có tick sẵn không (migration 0069).
+     *
+     * Không dính dáng `countsAsApp`: cột kia là luật đếm app xét quà, cột này
+     * chỉ đặt giá trị mặc định lúc mở biểu mẫu. Nhân viên vẫn sửa được.
+     */
+    appDefault: boolean("app_default").notNull().default(false),
+    /**
      * Thứ tự trong ô chọn ngân hàng lúc mở tài khoản — số LỚN lên đầu.
      *
      * Ngân hàng đang đẩy mạnh đặt số cao thì Kinh doanh chọn được ngay, không

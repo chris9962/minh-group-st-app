@@ -78,6 +78,8 @@ export const BankAccountDetail = BankAccountRow.extend({
   accountNumberPrefix: z.string(),
   /** Độ dài số tài khoản khi gõ tay — tổng, tính cả tiền tố; null = không kiểm. */
   accountNumberLength: z.number().nullable(),
+  /** Ô "đã cài app" ở bước 2 tick sẵn không — cấu hình của ngân hàng (P-60). */
+  appDefault: z.boolean(),
   /** Mọi SĐT của khách, số chính đứng đầu — nguồn cho ô chọn khi `phone-match`. */
   customerPhones: z.array(z.string()),
   /** Mã text ngân hàng cấp; `''` = mã QR-only, không có chuỗi nào để gõ. */

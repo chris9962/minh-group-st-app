@@ -145,7 +145,9 @@ function FinishAccountCard({
           ? (data.customerPhones[0] ?? "")
           : data.accountNumberPrefix),
       openedDate: data.date || businessDay(),
-      appInstalled: true,
+      // Từng ngân hàng tự chọn tick sẵn hay không (P-60) — vài ngân hàng khách
+      // hiếm khi cài app, để tick sẵn là nhân viên phải bỏ tick từng lượt.
+      appInstalled: data.appDefault,
       accountType: "none",
       note: data.note,
     },

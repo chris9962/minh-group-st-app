@@ -613,6 +613,7 @@ const decorate = (page: ReturnType<typeof pickPage>) =>
       accountNumberMethod: banks.accountNumberMethod,
       accountNumberPrefix: banks.accountNumberPrefix,
       accountNumberLength: banks.accountNumberLength,
+      appDefault: banks.appDefault,
       // Hướng dẫn mở tài khoản của ngân hàng này (spec §4.4d). `''` = chưa có.
       bankGuide: sql<string>`coalesce(${banks.guide}, '')`,
     })
@@ -1095,6 +1096,7 @@ async function detailBody(r: DecoratedRow): Promise<BankAccountDetail> {
     accountNumberMethod: r.accountNumberMethod,
     accountNumberPrefix: r.accountNumberPrefix,
     accountNumberLength: r.accountNumberLength,
+    appDefault: r.appDefault,
     customerPhones: await customerPhoneNumbers(r.customerId),
     referralCodeText: r.referralCodeText,
     referralProvince: r.referralProvince,

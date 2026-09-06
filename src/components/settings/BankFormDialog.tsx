@@ -146,6 +146,7 @@ export function BankFormDialog({ open, onClose, bank }: Props) {
       accountNumberPrefix: bank?.accountNumberPrefix ?? "",
       accountNumberLength: bank?.accountNumberLength ?? null,
       countsAsApp: bank?.countsAsApp ?? true,
+      appDefault: bank?.appDefault ?? false,
       priority: bank?.priority ?? 0,
       minAge: bank?.minAge ?? null,
       maxAge: bank?.maxAge ?? null,
@@ -326,6 +327,12 @@ export function BankFormDialog({ open, onClose, bank }: Props) {
           label="Có đi kèm app (tính vào tổng app xét quà)"
           checked={watch("countsAsApp")}
           onCheckedChange={(v) => setValue("countsAsApp", v, { shouldDirty: true })}
+        />
+
+        <Checkbox
+          label="Tick sẵn &quot;đã cài app&quot; ở bước 2"
+          checked={watch("appDefault")}
+          onCheckedChange={(v) => setValue("appDefault", v, { shouldDirty: true })}
         />
 
         {/* CNKD/HKD mở theo quy trình khác bản thường ở vài ngân hàng (chốt
