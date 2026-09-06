@@ -15,6 +15,15 @@ type Prefs = {
   /** P-91 — phòng đã ngừng ẩn mặc định, xem `departments/page.tsx`. */
   showStoppedDepartments: boolean;
   setShowStoppedDepartments: (value: boolean) => void;
+  /**
+   * P-13 — bảng đơn bảo hiểm bỏ bốn cột, còn Mã đơn, Khách hàng, Trạng thái.
+   *
+   * Dành cho người theo dõi trên điện thoại. Bảy cột không lọt màn hình, và bốn
+   * cột bỏ đi là thứ người theo dõi không cần: ngày tạo đơn, người tạo, phòng,
+   * người xử lý.
+   */
+  compactInsuranceTable: boolean;
+  setCompactInsuranceTable: (value: boolean) => void;
 };
 
 export const usePrefs = create<Prefs>()(
@@ -22,6 +31,8 @@ export const usePrefs = create<Prefs>()(
     (set) => ({
       showStoppedDepartments: false,
       setShowStoppedDepartments: (showStoppedDepartments) => set({ showStoppedDepartments }),
+      compactInsuranceTable: false,
+      setCompactInsuranceTable: (compactInsuranceTable) => set({ compactInsuranceTable }),
     }),
     { name: 'mgst-prefs' },
   ),

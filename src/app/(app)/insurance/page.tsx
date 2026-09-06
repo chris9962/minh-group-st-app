@@ -10,6 +10,7 @@ import { SkeletonTable } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
 import { Button } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { Combobox } from "@/components/ui/Combobox";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { DateRangePicker } from "@/components/ui/DateRangePicker";
@@ -43,6 +44,7 @@ import { can, recordInScope, recordVisibility, scopeFor } from "@/lib/permission
 import { invalidateKpi } from "@/lib/invalidateKpi";
 import { errorMessage, toast } from "@/lib/toast";
 import { InsuranceProduct, isRealIsoDate, PRODUCT_LABEL } from "@/lib/types";
+import { usePrefs } from "@/store/prefs";
 import { useSession } from "@/store/session";
 import styles from "./page.module.scss";
 
@@ -102,6 +104,9 @@ export default function InsurancePage() {
   const [dir, setDir] = useState<SortDir>(() =>
     searchParams.get("dir") === "asc" ? "asc" : "desc",
   );
+  // Nhớ theo máy — mở lại trang không phải tích lại.
+  const compact = usePrefs((s) => s.compactInsuranceTable);
+  const setCompact = usePrefs((s) => s.setCompactInsuranceTable);
   const [editing, setEditing] = useState<InsuranceListRow | null>(null);
   const [removing, setRemoving] = useState<InsuranceListRow | null>(null);
 
@@ -269,14 +274,27 @@ export default function InsurancePage() {
   const editVisible = useMemo(() => recordVisibility(user, "insurance", "update"), [user]);
   const removeVisible = useMemo(() => recordVisibility(user, "insurance", "delete"), [user]);
 
+  /**
+   * Bốn cột bỏ đi ở chế độ gọn: Ngày tạo đơn, Người tạo, Phòng, Người xử lý.
+   *
+   * Bảy cột không lọt màn hình điện thoại. Bốn cột này là thứ người theo dõi
+   * không cần — họ đọc đơn nào đang ở trạng thái nào, của khách nào.
+   *
+   * Cột Thao tác GIỮ LẠI: người mở trang trên điện thoại vẫn phải nhận đơn xử
+   * lý được.
+   */
   const columns = useMemo<RankColumn<InsuranceListRow>[]>(
     () => [
-      {
-        key: "date",
-        label: "Ngày tạo đơn",
-        sortable: true,
-        render: (r) => formatDate(r.orderDate),
-      },
+      ...(compact
+        ? []
+        : [
+            {
+              key: "date",
+              label: "Ngày tạo đơn",
+              sortable: true,
+              render: (r: InsuranceListRow) => formatDate(r.orderDate),
+            },
+          ]),
       {
         key: "orderCode",
         // Mã đơn và loại nghiệp vụ chung một ô, xếp hai dòng (chốt 2026-08-29).
@@ -315,15 +333,23 @@ export default function InsurancePage() {
           );
         },
       },
-      { key: "createdByName", label: "Người tạo", render: (r) => r.createdByName ?? "—" },
-      {
-        key: "createdByDepartmentName",
-        label: "Phòng",
-        // Phòng LÚC LẬP ĐƠN, chụp vào `created_by_department_id`. Người tạo
-        // chuyển phòng về sau không làm đổi cột này của đơn cũ.
-        render: (r) => r.createdByDepartmentName ?? "—",
-      },
-      ...(canSeeHandler
+      ...(compact
+        ? []
+        : [
+            {
+              key: "createdByName",
+              label: "Người tạo",
+              render: (r: InsuranceListRow) => r.createdByName ?? "—",
+            },
+            {
+              key: "createdByDepartmentName",
+              label: "Phòng",
+              // Phòng LÚC LẬP ĐƠN, chụp vào `created_by_department_id`. Người
+              // tạo chuyển phòng về sau không làm đổi cột này của đơn cũ.
+              render: (r: InsuranceListRow) => r.createdByDepartmentName ?? "—",
+            },
+          ]),
+      ...(!compact && canSeeHandler
         ? [
             {
               key: "handledByName",
@@ -415,7 +441,7 @@ export default function InsurancePage() {
           ]
         : []),
     ],
-    [canEdit, canRemove, canHandleFallback, canSeeHandler, claim, editVisible, listUrl, removeVisible],
+    [canEdit, canRemove, canHandleFallback, canSeeHandler, claim, compact, editVisible, listUrl, removeVisible],
   );
 
   return (
@@ -596,6 +622,13 @@ export default function InsurancePage() {
             title="Đơn bảo hiểm"
             icon={<ShieldCheck size={17} />}
             meta={`${data.total} đơn`}
+            action={
+              <Checkbox
+                checked={compact}
+                onCheckedChange={setCompact}
+                label="Bảng gọn"
+              />
+            }
           >
             <RankTable
               rows={data.rows}
