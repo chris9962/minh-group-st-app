@@ -13,6 +13,7 @@ import { BankAccountEditDialog } from "@/components/banking/BankAccountEditDialo
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { CreateBankAccountDialog } from "@/components/banking/CreateBankAccountDialog";
 import { Button } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { Combobox } from "@/components/ui/Combobox";
 import buttonStyles from "@/components/ui/Button.module.css";
 import { DateRangePicker } from "@/components/ui/DateRangePicker";
@@ -43,6 +44,7 @@ import { useDebouncedValue } from "@/lib/hooks";
 import { can, recordVisibility, scopeFor } from "@/lib/permissions";
 import { errorMessage, toast } from "@/lib/toast";
 import { isRealIsoDate } from "@/lib/types";
+import { usePrefs } from "@/store/prefs";
 import { useSession } from "@/store/session";
 import styles from "./page.module.scss";
 
@@ -69,6 +71,9 @@ const ROW_EDIT_LABEL: Record<BankAccountStatus, string> = {
 /** P-21 · Danh sách tài khoản ngân hàng. */
 export default function BankingPage() {
   const user = useSession((s) => s.user);
+  // Nhớ theo máy — mở lại trang không phải tích lại.
+  const compact = usePrefs((s) => s.compactBankingTable);
+  const setCompact = usePrefs((s) => s.setCompactBankingTable);
   const searchParams = useSearchParams();
   const [search, setSearch] = useState(() => searchParams.get("search") ?? "");
   const searchQuery = useDebouncedValue(search);
@@ -244,12 +249,16 @@ export default function BankingPage() {
 
   const columns = useMemo<RankColumn<BankAccountRow>[]>(
     () => [
-      {
-        key: "date",
-        label: "Ngày",
-        sortable: true,
-        render: (r) => (r.date ? formatDate(r.date) : "—"),
-      },
+      ...(compact
+        ? []
+        : [
+            {
+              key: "date",
+              label: "Ngày",
+              sortable: true,
+              render: (r: BankAccountRow) => (r.date ? formatDate(r.date) : "—"),
+            },
+          ]),
       {
         key: "bankCode",
         label: "Ngân hàng",
@@ -268,12 +277,22 @@ export default function BankingPage() {
           </Link>
         ),
       },
-      {
-        key: "accountNumber",
-        label: "STK",
-        render: (r) => <span className="tabular-nums">{formatPhone(r.accountNumber)}</span>,
-      },
-      { key: "department", label: "Phòng", render: (r) => r.createdByDepartmentName ?? "—" },
+      ...(compact
+        ? []
+        : [
+            {
+              key: "accountNumber",
+              label: "STK",
+              render: (r: BankAccountRow) => (
+                <span className="tabular-nums">{formatPhone(r.accountNumber)}</span>
+              ),
+            },
+            {
+              key: "department",
+              label: "Phòng",
+              render: (r: BankAccountRow) => r.createdByDepartmentName ?? "—",
+            },
+          ]),
       {
         key: "status",
         label: "Trạng thái",
@@ -281,24 +300,30 @@ export default function BankingPage() {
           <StatusTag tone={STATUS_TONE[r.status]}>{STATUS_LABEL[r.status]}</StatusTag>
         ),
       },
-      {
-        key: "appInstalled",
-        label: "Đã cài app",
-        render: (r) => <StatusTag ok={r.appInstalled}>{r.appInstalled ? "Có" : "Không"}</StatusTag>,
-      },
-      {
-        key: "createdByName",
-        label: "Người tạo",
-        /*
-          Mã nhân viên chứ không phải tên: app khác của công ty định danh theo
-          mã, mà người đối chiếu hai bên ngồi ngay trên bảng này. Chưa gán mã
-          thì hiện tên — ô trống không nói được ai đã tạo dòng đó.
-        */
-        render: (r) =>
-          [r.createdByStaffCode || r.createdByName, r.createdByDepartmentName]
-            .filter(Boolean)
-            .join(" - ") || "—",
-      },
+      ...(compact
+        ? []
+        : [
+            {
+              key: "appInstalled",
+              label: "Đã cài app",
+              render: (r: BankAccountRow) => (
+                <StatusTag ok={r.appInstalled}>{r.appInstalled ? "Có" : "Không"}</StatusTag>
+              ),
+            },
+            {
+              key: "createdByName",
+              label: "Người tạo",
+              /*
+                Mã nhân viên chứ không phải tên: app khác của công ty định danh
+                theo mã, mà người đối chiếu hai bên ngồi ngay trên bảng này. Chưa
+                gán mã thì hiện tên — ô trống không nói được ai đã tạo dòng đó.
+              */
+              render: (r: BankAccountRow) =>
+                [r.createdByStaffCode || r.createdByName, r.createdByDepartmentName]
+                  .filter(Boolean)
+                  .join(" - ") || "—",
+            },
+          ]),
       ...(canWrite || canRemove
         ? [{
         key: "actions",
@@ -343,7 +368,7 @@ export default function BankingPage() {
       }]
         : []),
     ],
-    [canWrite, canRemove],
+    [canWrite, canRemove, compact],
   );
 
   return (
@@ -502,6 +527,9 @@ export default function BankingPage() {
             title="Tài khoản ngân hàng"
             icon={<Landmark size={17} />}
             meta={`${data.total} dòng`}
+            action={
+              <Checkbox checked={compact} onCheckedChange={setCompact} label="Bảng gọn" />
+            }
           >
             <RankTable
               rows={data.rows}
