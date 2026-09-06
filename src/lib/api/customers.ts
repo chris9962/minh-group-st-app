@@ -357,11 +357,31 @@ export const CUSTOMER_ERROR = {
  * 2026-08-18): một lượt ghi hỏng không được kéo theo một lượt đọc hồ sơ người
  * khác. `openDraftId` chỉ nói hồ sơ dở dang ấy là CỦA CHÍNH người đang gõ.
  */
+export const DuplicateField = z.enum(['fullName', 'dob', 'address']);
+export type DuplicateField = z.infer<typeof DuplicateField>;
+
+export const DUPLICATE_FIELD_LABEL: Record<DuplicateField, string> = {
+  fullName: 'tên',
+  dob: 'ngày sinh',
+  address: 'địa chỉ',
+};
+
 export const DuplicateIdInfo = z.object({
   code: z.literal(CUSTOMER_ERROR.DUPLICATE_ID),
   message: z.string(),
   rootId: z.string(),
   openDraftId: z.string().nullable(),
+  /**
+   * Ba trường của hồ sơ gốc để nhân viên đối chiếu với khách (chốt
+   * 2026-09-06). Không có số điện thoại, không có số bản ghi.
+   */
+  existing: z.object({
+    fullName: z.string(),
+    dob: z.string().nullable(),
+    address: z.string(),
+  }),
+  /** Trường nào của biểu mẫu KHÁC hồ sơ gốc; rỗng là trùng khớp hoàn toàn. */
+  mismatch: z.array(DuplicateField),
 });
 export type DuplicateIdInfo = z.infer<typeof DuplicateIdInfo>;
 
@@ -408,11 +428,13 @@ async function send(url: string, method: string, body: unknown) {
 export async function createCustomer(
   form: CustomerForm,
   linkToRootId?: string,
+  /** Chép tên, ngày sinh, địa chỉ, SĐT của hồ sơ gốc thay vì ghi đè nó. */
+  keepExisting = false,
 ): Promise<Customer> {
   const res = await fetch('/api/customers', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(linkToRootId ? { ...form, linkToRootId } : form),
+    body: JSON.stringify(linkToRootId ? { ...form, linkToRootId, keepExisting } : form),
   });
   if (!res.ok) {
     const payload = await res.json().catch(() => null);

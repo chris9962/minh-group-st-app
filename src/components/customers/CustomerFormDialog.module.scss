@@ -68,3 +68,47 @@
     flex-wrap: wrap;
   }
 }
+
+/* Hộp thoại đối chiếu khi CCCD trùng: hai cột, dòng lệch tô đậm kèm màu.
+   Cột nào cũng canh trái. */
+.compare {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+
+  p {
+    margin: 0;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+  }
+
+  th,
+  td {
+    text-align: left;
+    padding: 6px 8px;
+    border-top: 1px solid var(--om-line);
+    vertical-align: top;
+  }
+
+  thead th {
+    border-top: 0;
+    color: var(--om-text-2);
+    font-weight: 500;
+    font-size: 12.5px;
+  }
+
+  tbody th {
+    color: var(--om-text-2);
+    font-weight: 500;
+    white-space: nowrap;
+  }
+}
+
+.compareDiff td {
+  font-weight: 600;
+  color: var(--om-orange-ink);
+}

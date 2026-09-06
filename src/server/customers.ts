@@ -17,7 +17,7 @@ import { GIFT_DECLINED, GIFT_DECLINED_LABEL } from "@/lib/api/customers";
 import { MAX_BANK_ACCOUNTS_PER_CUSTOMER } from "@/lib/api/bankAccounts";
 import type { Page } from "@/lib/api/pagination";
 import type { PageArgs } from "./pagination";
-import { BUSINESS_TIMEZONE, digitsOnly } from "@/lib/format";
+import { BUSINESS_TIMEZONE, digitsOnly, searchKey } from "@/lib/format";
 import { can, recordInScope, recordVisibility, type RecordVisibility } from "@/lib/permissions";
 import type { GiftSimulateResult } from "@/lib/api/settings";
 import { isRealIsoDate, type User } from "@/lib/types";
@@ -654,17 +654,51 @@ async function openDraftOf(rootId: string, actorId: string): Promise<string | nu
  * giá trị này chỉ đủ để giao diện chọn giữa "tạo thêm lần" và "bạn đang có một
  * lần chưa chốt quà".
  */
+/** Ba trường máy chủ đem so với hồ sơ gốc khi CCCD trùng. Kênh không so. */
+export type DuplicateField = "fullName" | "dob" | "address";
+
+/**
+ * Hồ sơ gốc đang giữ CCCD này, kèm ba trường để nhân viên đối chiếu với khách
+ * đang ngồi trước mặt (chủ dự án chốt 2026-09-06, đảo lại chốt 2026-08-18).
+ *
+ * Trùng CCCD chưa chắc là cùng một người: gõ nhầm một số là đụng hồ sơ của
+ * người khác. Tên, ngày sinh, địa chỉ lệch thì giao diện bày hai cột cho nhân
+ * viên hỏi khách, và cho chọn ghi theo bên nào. Tên và địa chỉ so sau khi bỏ
+ * dấu, gộp khoảng trắng, không phân biệt hoa thường; ngày sinh so đúng chuỗi.
+ */
 export async function duplicateIdNumberInfo(
   idNumber: string,
   actorId: string,
-): Promise<{ rootId: string; openDraftId: string | null } | null> {
+  form: Pick<CustomerForm, "fullName" | "dob" | "address">,
+): Promise<{
+  rootId: string;
+  openDraftId: string | null;
+  existing: { fullName: string; dob: string | null; address: string };
+  mismatch: DuplicateField[];
+} | null> {
   const [root] = await db
-    .select({ id: customers.id })
+    .select({
+      id: customers.id,
+      fullName: customers.fullName,
+      dob: customers.dob,
+      address: customers.address,
+    })
     .from(customers)
     .where(and(eq(customers.idNumber, idNumber), sql`root_customer_id = id`))
     .limit(1);
   if (!root) return null;
-  return { rootId: root.id, openDraftId: await openDraftOf(root.id, actorId) };
+
+  const mismatch: DuplicateField[] = [];
+  if (searchKey(root.fullName) !== searchKey(form.fullName)) mismatch.push("fullName");
+  if ((root.dob ?? "") !== (form.dob ?? "")) mismatch.push("dob");
+  if (searchKey(root.address) !== searchKey(form.address)) mismatch.push("address");
+
+  return {
+    rootId: root.id,
+    openDraftId: await openDraftOf(root.id, actorId),
+    existing: { fullName: root.fullName, dob: root.dob, address: root.address },
+    mismatch,
+  };
 }
 
 /** Đúng MỘT số chính. Form nào cũng gửi cờ, nhưng không tin — index sẽ chặn. */
@@ -711,11 +745,17 @@ async function writeGuarded<T>(run: () => Promise<T>): Promise<CustomerOutcome<T
  *
  * Có `linkToRootId` thì CCCD trùng là chuyện đúng — khoá duy nhất chỉ áp cho hồ
  * sơ gốc. Chốt duy nhất ở đây là một người không giữ hai lần dở dang cùng lúc.
+ *
+ * `keepExisting` (chốt 2026-09-06): hồ sơ mới CHÉP tên, ngày sinh, địa chỉ, số
+ * điện thoại của hồ sơ gốc thay vì lấy từ biểu mẫu, và không đồng bộ gì ngược
+ * lên. Dành cho ca nhân viên đối chiếu với khách và thấy hồ sơ đang có mới
+ * đúng. Kênh vẫn lấy từ biểu mẫu vì kênh là của từng hồ sơ.
  */
 export async function createCustomer(
   actor: User,
   form: CustomerForm,
   linkToRootId?: string,
+  keepExisting = false,
 ): Promise<
   CustomerOutcome<Customer> | { ok: false; reason: "open-draft-exists" | "id-number-mismatch" }
 > {
@@ -786,18 +826,43 @@ export async function createCustomer(
         seq = (last?.max ?? 0) + 1;
       }
 
+      /**
+       * Nguồn của bốn trường đồng bộ: biểu mẫu, hay hồ sơ gốc khi `keepExisting`.
+       * Đọc gốc SAU khoá dòng gốc để không chép một bản đang bị người khác sửa.
+       */
+      const goc =
+        linkToRootId && keepExisting
+          ? (
+              await tx
+                .select({
+                  fullName: customers.fullName,
+                  dob: customers.dob,
+                  address: customers.address,
+                })
+                .from(customers)
+                .where(eq(customers.id, linkToRootId))
+                .limit(1)
+            )[0]
+          : null;
+      const gocPhones = goc
+        ? await tx
+            .select({ number: customerPhones.number, isPrimary: customerPhones.isPrimary })
+            .from(customerPhones)
+            .where(eq(customerPhones.customerId, linkToRootId!))
+        : [];
+
       const [row] = await tx
         .insert(customers)
         .values({
           id: newId,
           rootCustomerId: linkToRootId ?? newId,
           seq,
-          fullName: form.fullName,
+          fullName: goc ? goc.fullName : form.fullName,
           // Ô ngày để trống gửi lên chuỗi rỗng, mà cột là `date` — vào thẳng là
           // lỗi cast, không phải "chưa có ngày sinh".
-          dob: form.dob || null,
+          dob: goc ? goc.dob : form.dob || null,
           idNumber: form.idNumber || null,
-          address: form.address,
+          address: goc ? goc.address : form.address,
           channelId: form.channelId || null,
           channelDetail: form.channelDetail,
           createdBy: actor.id,
@@ -806,7 +871,13 @@ export async function createCustomer(
           createdByDepartmentId: actor.departmentId,
         })
         .returning({ id: customers.id });
-      await tx.insert(customerPhones).values(phoneRows(row.id, form));
+      await tx
+        .insert(customerPhones)
+        .values(
+          goc
+            ? gocPhones.map((p) => ({ customerId: row.id, number: p.number, isPrimary: p.isPrimary }))
+            : phoneRows(row.id, form),
+        );
 
       /**
        * Lần mới cũng ĐỒNG BỘ ngược lên các lần cũ, và ghi nhật ký nếu khác.
@@ -815,8 +886,11 @@ export async function createCustomer(
        * khác nhau — đúng thứ luật đồng bộ sinh ra để chặn. Người tạo lần mới
        * đang ngồi với khách nên giá trị họ gõ là giá trị mới nhất; ai muốn tra
        * lại thì đọc nhật ký.
+       *
+       * `keepExisting` thì bỏ qua: hồ sơ mới đã chép từ gốc, không có gì để
+       * đồng bộ và không có dòng nhật ký nào.
        */
-      if (linkToRootId)
+      if (linkToRootId && !keepExisting)
         await dongBoNhom(tx, {
           rootCustomerId: linkToRootId,
           customerId: newId,
@@ -1379,6 +1453,7 @@ export async function customerDetailFor(
         bankName: banks.code,
         referralCode: referralCodes.displayName,
         appInstalled: bankAccounts.appInstalled,
+        accountType: bankAccounts.accountType,
         departmentId: bankAccounts.createdByDepartmentId,
         createdById: bankAccounts.createdBy,
       })
@@ -1453,7 +1528,6 @@ export async function customerDetailFor(
   const visibleInsurance = visible(insuranceRows, insuranceVisible);
   const visibleServices = visible(serviceRows, servicesVisible);
 
-        accountType: bankAccounts.accountType,
   const accounts: CustomerAccountRow[] = visibleDone.map((a) => ({
     id: a.id,
     date: a.date ?? "",

@@ -90,10 +90,17 @@ export async function POST(request: Request) {
 
   // Tạo THÊM một lần cho người đã có hồ sơ. `uuidParam` lọc chuỗi bậy — id không
   // phải uuid đi thẳng vào SQL là `22P02` → 500.
-  const raw = (body as { linkToRootId?: unknown } | null)?.linkToRootId;
-  const linkToRootId = uuidParam(typeof raw === "string" ? raw : null);
+  const raw = (body as { linkToRootId?: unknown; keepExisting?: unknown } | null) ?? {};
+  const linkToRootId = uuidParam(typeof raw.linkToRootId === "string" ? raw.linkToRootId : null);
+  // Chép hồ sơ gốc thay vì ghi đè nó — chỉ có nghĩa khi đang nối.
+  const keepExisting = Boolean(linkToRootId) && raw.keepExisting === true;
 
-  const result = await createCustomer(guard.actor, parsed.data, linkToRootId || undefined);
+  const result = await createCustomer(
+    guard.actor,
+    parsed.data,
+    linkToRootId || undefined,
+    keepExisting,
+  );
   if (!result.ok) {
     if (result.reason === "open-draft-exists")
       return Response.json(
@@ -114,14 +121,16 @@ export async function POST(request: Request) {
       return badRequest("Không lưu được hồ sơ khách này");
 
     /**
-     * Trả kèm `rootId` để giao diện hỏi lại "tạo hồ sơ mới cho khách này?" —
-     * vẫn KHÔNG trả tên hay số điện thoại của hồ sơ đang giữ CCCD đó (chốt
-     * 2026-08-18).
+     * Trả kèm `rootId` để giao diện hỏi lại "tạo hồ sơ mới cho khách này?", và
+     * trả cả tên, ngày sinh, địa chỉ của hồ sơ gốc cùng danh sách trường lệch
+     * (chủ dự án chốt 2026-09-06, đảo lại chốt 2026-08-18): trùng CCCD chưa
+     * chắc là cùng người, nhân viên phải đối chiếu với khách trước khi nối.
+     * Số điện thoại và số bản ghi vẫn không trả.
      *
      * `openDraftId` nói người đang gõ có sẵn một hồ sơ dở dang của chính họ hay
      * không, tức hộp thoại hỏi lại hay chỉ báo rồi dừng.
      */
-    const info = await duplicateIdNumberInfo(parsed.data.idNumber, guard.actor.id);
+    const info = await duplicateIdNumberInfo(parsed.data.idNumber, guard.actor.id, parsed.data);
 
     // Tra không ra hồ sơ gốc — dòng giữ CCCD đó vừa bị xoá xen giữa. Không có
     // `rootId` thì cũng không có gì để nối vào, nên báo rồi dừng.
@@ -132,9 +141,13 @@ export async function POST(request: Request) {
         code: CUSTOMER_ERROR.DUPLICATE_ID,
         message: info.openDraftId
           ? "Bạn đang có một hồ sơ chưa chốt quà cho khách này."
-          : "CCCD này đã có hồ sơ trong hệ thống",
+          : info.mismatch.length > 0
+            ? "CCCD này đã có hồ sơ trong hệ thống nhưng thông tin khách không khớp"
+            : "CCCD này đã có hồ sơ trong hệ thống",
         rootId: info.rootId,
         openDraftId: info.openDraftId,
+        existing: info.existing,
+        mismatch: info.mismatch,
       },
       { status: 422 },
     );
