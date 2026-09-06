@@ -4,12 +4,13 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { Pencil, ShieldCheck, Trash2, UserCheck } from "lucide-react";
+import { Pencil, Plus, ShieldCheck, Trash2, UserCheck } from "lucide-react";
 import type { DateRange } from "react-day-picker";
 import { SkeletonTable } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
 import { Button } from "@/components/ui/Button";
+import buttonStyles from "@/components/ui/Button.module.css";
 import { Combobox } from "@/components/ui/Combobox";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { DateRangePicker } from "@/components/ui/DateRangePicker";
@@ -22,6 +23,7 @@ import { SectionCard } from "@/components/ui/SectionCard";
 import { Select } from "@/components/ui/Select";
 import { fetchDepartments } from "@/lib/api/departments";
 import { StatusTag } from "@/components/ui/StatusTag";
+import { CreateInsuranceOrderDialog } from "@/components/insurance/CreateInsuranceOrderDialog";
 import { InsuranceOrderEditDialog } from "@/components/insurance/InsuranceOrderEditDialog";
 import {
   deleteInsuranceOrder,
@@ -102,6 +104,7 @@ export default function InsurancePage() {
   const [dir, setDir] = useState<SortDir>(() =>
     searchParams.get("dir") === "asc" ? "asc" : "desc",
   );
+  const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<InsuranceListRow | null>(null);
   const [removing, setRemoving] = useState<InsuranceListRow | null>(null);
 
@@ -520,6 +523,12 @@ export default function InsurancePage() {
             />
           )}
         </FilterButton>
+        {can(user, "insurance", "create") && (
+          <Button aria-label="Lập đơn bảo hiểm" onClick={() => setCreating(true)}>
+            <Plus size={16} aria-hidden />
+            <span className={buttonStyles.label}>Lập đơn</span>
+          </Button>
+        )}
       </TopBar>
 
       <main className={styles.body}>
@@ -640,6 +649,8 @@ export default function InsurancePage() {
             {formatDate(removing.orderDate)}.
           </ConfirmDialog>
         )}
+
+        {creating && <CreateInsuranceOrderDialog open onClose={() => setCreating(false)} />}
       </main>
     </>
   );
