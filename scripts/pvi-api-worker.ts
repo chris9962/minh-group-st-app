@@ -186,7 +186,7 @@ async function claim(id: string): Promise<boolean> {
       orderId: id,
       fromStatus: "queued",
       toStatus: "creating",
-      note: "Worker đường API nhận đơn.",
+      note: "Hệ thống API xử lý đơn",
     });
     return true;
   });
