@@ -395,25 +395,42 @@ export default function CustomersPage() {
         label: "Thao tác",
         render: (c) => (
           <span className={styles.actions}>
+            {/* Bảng gọn bỏ chữ, còn icon cộng tooltip — cùng khuôn với hai nút
+                Sửa và Xoá bên dưới. Ba nút mang chữ chiếm gần trọn bề ngang màn
+                hình điện thoại. `aria-label` kèm tên khách ở cả hai chế độ:
+                giữa mười lăm dòng giống nhau, "Tặng quà" một mình không nói
+                đang tặng cho ai. */}
             <Button
               variant="secondary"
+              icon={compact}
+              tooltip={compact ? "Tặng quà" : undefined}
+              aria-label={`Tặng quà cho ${c.fullName}`}
               disabled={c.giftStatus === "given"}
               onClick={() => setGivingGiftTo(c)}
             >
-              <Gift size={16} />
-              Tặng quà
+              <Gift size={16} aria-hidden />
+              {!compact && "Tặng quà"}
             </Button>
             <Button
               variant="secondary"
+              icon={compact}
+              tooltip={compact ? "Mở ngân hàng" : undefined}
+              aria-label={`Mở ngân hàng cho ${c.fullName}`}
               disabled={c.bankSlotsLeft <= 0}
               onClick={() => setOpeningBankFor(c)}
             >
-              <Landmark size={16} />
-              Mở ngân hàng
+              <Landmark size={16} aria-hidden />
+              {!compact && "Mở ngân hàng"}
             </Button>
-            <Button variant="secondary" onClick={() => setLoggingServiceFor(c)}>
-              <Briefcase size={16} />
-              Ghi dịch vụ
+            <Button
+              variant="secondary"
+              icon={compact}
+              tooltip={compact ? "Ghi dịch vụ" : undefined}
+              aria-label={`Ghi dịch vụ cho ${c.fullName}`}
+              onClick={() => setLoggingServiceFor(c)}
+            >
+              <Briefcase size={16} aria-hidden />
+              {!compact && "Ghi dịch vụ"}
             </Button>
             {/* Phạm vi mức DÒNG, không phải `can()` mức module: quản lý thấy
                 khách của cả công ty nhưng chỉ sửa được khách phòng mình quản.
