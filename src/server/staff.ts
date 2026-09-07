@@ -460,6 +460,9 @@ const samePermissions = (current: StaffAccount, form: StaffForm): boolean => {
   return had.size === sent.size && [...had].every((k) => sent.has(k));
 };
 
+const sameIdSet = (a: string[], b: string[]): boolean =>
+  a.length === b.length && a.every((id) => b.includes(id));
+
 const strippedPermissions = (current: StaffAccount, form: StaffForm) =>
   current.permissions.filter(
     (had) =>
@@ -701,6 +704,22 @@ export async function updateStaff(actor: User, id: string, form: StaffForm): Pro
 
   const written = await writeGuarded(id, form, "update");
   if ("code" in written) return { ok: false, code: written.code };
+
+  /**
+   * Đổi quyền, chức vụ hay phòng phụ trách thì xoá hết phiên của người đó
+   * (chốt 2026-09-07).
+   *
+   * Trình duyệt giữ bộ quyền LÚC ĐĂNG NHẬP trong localStorage để ẩn hiện nút,
+   * còn máy chủ đọc quyền mới ngay ở lượt gọi sau. Hai bên lệch nhau cho tới
+   * khi người đó đăng nhập lại: được cấp quyền sửa khách mà nút Sửa vẫn không
+   * hiện. Xoá phiên là bắt đăng nhập lại và nạp đúng bộ quyền mới. Tự sửa
+   * mình mà đổi quyền đã bị chặn ở trên, nên không có ca tự đá mình ra.
+   */
+  const accessChanged =
+    !samePermissions(current, form) ||
+    current.role !== form.role ||
+    !sameIdSet(current.managedDepartmentIds, form.managedDepartmentIds);
+  if (accessChanged) await db.delete(sessions).where(eq(sessions.userId, id));
 
   /**
    * Rổ quà tính lại sau khi chuyển phòng — chốt 13/08.
