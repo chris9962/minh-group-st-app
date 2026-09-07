@@ -32,10 +32,8 @@ export const ScoringExportRow = z.object({
   /** Món đã giao kèm tiền đã ghi, đọc từ đợt phát. Rỗng khi chưa phát. */
   giftReport: z.string(),
   giftCombo: z.string(),
-  /** Bậc quà lúc phát, đọc từ `snapshot`. Rỗng khi chưa phát. */
-  giftCaseAtGrant: z.string(),
-  /** Bậc quà theo tài khoản hiện tại. Khác cột trên là khách cần đổi quà. */
-  giftCaseNow: z.string(),
+  /** Trọn rổ lúc phát, đọc từ `snapshot`. Rỗng khi chưa phát. */
+  giftBasketAtGrant: z.string(),
   speaker: z.string(),
   insuranceLabel: z.string(),
   licensePlate: z.string(),

@@ -164,32 +164,37 @@ const shortCash = (amount: number): string =>
   amount % 1000 === 0 ? `${amount / 1000}k` : amount.toLocaleString("vi-VN");
 
 /**
- * Cột `QUÀ TẶNG THEO COMBO` — TRỌN rổ quà khách được chọn (chốt 2026-09-04).
- *
- * Bản trước ghi một nhãn cố định theo bậc (`GIFT_COMBO_LABEL`), chép công thức
- * `AG` của file Kế toán. Nhãn đó chỉ mô tả phần bảo hiểm gốc nên đọc ra SAI: một
- * khách Phòng Y bậc TH5 được chọn một trong tám món, mà ô chỉ ghi "2 năm BH +
- * 20k" — người đọc tưởng khách chỉ được đúng thứ đó. Món thêm của mục 4b thể lệ
- * không xuất hiện ở đâu cả.
- *
- * Khách ĐÃ phát quà đọc rổ đóng băng trong `snapshot`: tên lúc phát mới là thứ
- * đã hứa với khách, đổi tên món hôm nay không được viết lại lịch sử (spec §5.3).
- * Khách chưa phát thì rổ do hàm luật tính ra, chỉ mang mã, nên tra `catalogName`.
+ * Rổ ĐÓNG BĂNG lúc phát, đọc trong `snapshot`: tên lúc phát mới là thứ đã hứa
+ * với khách, đổi tên món hôm nay không được viết lại lịch sử (spec §5.3). Rỗng
+ * khi khách chưa phát.
  */
-function basketLabel(
+const frozenBasketLabel = (snapshot: unknown): string =>
+  ((snapshot as { basket?: { name?: string }[] } | null)?.basket ?? [])
+    .map((b) => b.name ?? "")
+    .filter(Boolean)
+    .join(", ");
+
+/** Rổ hàm luật tính theo tài khoản HIỆN TẠI — chỉ mang mã, nên tra `catalogName`. */
+const liveBasketLabel = (gift: GiftResult | null, catalogName: Map<string, string>): string =>
+  gift?.basket.map((b) => catalogName.get(b.code) ?? b.code).join(", ") ?? "";
+
+/**
+ * Hai cột rổ quà, mỗi cột TRỌN danh sách món (chốt 2026-09-04, thêm cột lúc
+ * chốt 2026-09-07). Nhãn cố định theo bậc như công thức `AG` của file Kế toán
+ * đọc ra SAI: khách Phòng Y bậc TH5 được chọn một trong tám món mà ô chỉ ghi
+ * "2 năm BH + 20k", và món thêm của mục 4b thể lệ không xuất hiện ở đâu cả.
+ *
+ *   `QUÀ TẶNG THEO COMBO`  rổ đang áp dụng: đóng băng nếu đã phát, luật sống nếu chưa
+ *   `QUÀ COMBO LÚC CHỐT`   rổ đóng băng lúc phát, rỗng khi chưa phát
+ *
+ * Chủ dự án bỏ cột "rổ theo tài khoản hiện tại" cùng ngày 2026-09-07: chưa ai
+ * chốt thì không đưa vào file báo cáo.
+ */
+const basketLabel = (
   snapshot: unknown,
   gift: GiftResult | null,
   catalogName: Map<string, string>,
-): string {
-  const frozen = (snapshot as { basket?: { name?: string }[] } | null)?.basket;
-  if (frozen?.length)
-    return frozen
-      .map((b: { name?: string }) => b.name ?? "")
-      .filter(Boolean)
-      .join(", ");
-  if (!gift?.basket.length) return "";
-  return gift.basket.map((b) => catalogName.get(b.code) ?? b.code).join(", ");
-}
+): string => frozenBasketLabel(snapshot) || liveBasketLabel(gift, catalogName);
 
 /**
  * Cột `QUÀ TẶNG BÁO CÁO` — món ĐÃ GIAO kèm tiền ĐÃ GHI, đọc từ đợt phát (chốt
@@ -211,27 +216,6 @@ function grantedLabel(
   const name = grantedItemLabel(grant.chosenItem, grant.snapshot);
   return grant.cashTotal > 0 ? `${name} + ${shortCash(grant.cashTotal)}` : name;
 }
-
-/**
- * Nhãn bậc quà cho hai cột `QUÀ COMBO LÚC CHỐT` và `QUÀ COMBO HIỆN TẠI` (chốt
- * 2026-09-07), cùng chữ với công thức `AG` của file Kế toán.
- *
- * Hai cột đặt cạnh nhau để Kế toán lọc ra khách có bậc đổi sau lượt phát: sửa
- * tài khoản đổi bậc thì đợt phát vẫn giữ bậc cũ, và khách đó phải đi qua Đổi quà.
- */
-const GIFT_COMBO_LABEL: Record<string, string> = {
-  TH1: "1 năm BH + 20k",
-  TH2: "1 năm BH",
-  TH3: "1 năm BH + 70k",
-  TH4: "1 năm BH + 50k",
-  TH5: "2 năm BH + 20k",
-  TH6: "2 năm BH",
-  TH7: "1 năm BH",
-  TH8: "1 năm BH + 20k",
-};
-
-const caseLabelOf = (caseCode: string | null | undefined): string =>
-  caseCode ? (GIFT_COMBO_LABEL[caseCode] ?? caseCode) : "";
 
 /**
  * Bỏ CCCD và số điện thoại khỏi mỗi dòng (chốt 2026-09-04).
@@ -461,10 +445,7 @@ export async function listScoringExport(
       ].filter((code) => !HOUSEHOLD_CODES.has(code)),
       giftReport: grantedLabel(grant),
       giftCombo: basketLabel(grant?.snapshot ?? null, gift, catalogName),
-      giftCaseAtGrant: caseLabelOf(
-        (grant?.snapshot as { caseCode?: string | null } | null)?.caseCode,
-      ),
-      giftCaseNow: caseLabelOf(gift?.caseCode),
+      giftBasketAtGrant: frozenBasketLabel(grant?.snapshot ?? null),
       speaker: grant?.chosenItem === "QUA-LOA" ? "LOA" : "",
       insuranceLabel: insurance
         ? insuranceLabelOf(insurance.product, insurance.packageName)
