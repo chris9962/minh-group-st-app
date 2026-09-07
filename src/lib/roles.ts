@@ -47,29 +47,15 @@ const staffPermissions: Permission[] = [
    */
   p('insurance', 'delete', 'own'),
   /**
-   * Xử lý đơn tay — CẤP CHO MỌI NGƯỜI (chốt 06/08), không riêng một đội.
+   * KHÔNG có `insurance:handle-fallback` ở đây (chốt 2026-09-07).
    *
-   * Chưa có bot PVI nên MỌI đơn đều phải có người mở web PVI nhập tay; đơn sinh
-   * thẳng ở `Chờ làm tay` (xem `NEW_ORDER_STATUS` ở `server/insurance.ts`).
-   * Gói quyền này vào một nhóm nhỏ thì cả công ty tạo đơn mà chỉ vài người đẩy
-   * được đơn đi, và hàng đợi dồn lại ngay ngày đầu.
-   *
-   * ⚠️ Phạm vi `own` ở đây KHÔNG áp cho lượt NHẬN đơn ở hàng chờ (chốt
-   * 2026-08-18, xác nhận lại thiết kế có sẵn).
-   *
-   * Đơn đang ở `Chờ làm tay` là KHO CHUNG: ai có quyền này cũng nhận được, bất
-   * kể phòng nào tạo ra đơn. Kẹp phạm vi ở đó thì người `own` chỉ nhận nổi đơn
-   * của chính mình, và vai "người xử lý tay" không dùng được — đúng cái hàng
-   * chờ sinh ra để tránh. Xem `setInsuranceOrderStatus` ở `server/insurance.ts`.
-   *
-   * Phạm vi CÓ áp cho mọi thứ còn lại: xem danh sách, xem chi tiết, và bấm tiếp
-   * trên đơn ĐÃ rời hàng chờ. Người cầm đơn về rồi thì thấy được CCCD người thụ
-   * hưởng của đơn đó — đây là hệ quả đã cân nhắc, không phải bỏ sót.
-   *
-   * Bản trước của comment này viết "nhân viên xử lý đơn của chính mình", ngược
-   * với code. Chính câu đó làm một lượt review kết luận nhầm là lỗi phân quyền.
+   * Quyền đó mở kho chung: ai có nó cũng thấy và nhận được đơn `Chờ làm tay` của
+   * mọi phòng, không kẹp phạm vi (xem `CLAIMABLE_STATUSES` ở
+   * `server/insurance.ts`). Bản trước cấp cho mọi vai vì chưa có bot PVI; nay
+   * chỉ Phòng Kinh doanh tổng hợp xử lý đơn tay, và chủ dự án cấp lẻ ở lưới
+   * P-92. Trưởng phòng, Phó phòng, Phó giám đốc kế thừa danh sách này nên cũng
+   * không có; Giám đốc có qua `fullPermissions`.
    */
-  p('insurance', 'handle-fallback', 'own'),
   p('banking', 'view-summary', 'own'),
   p('banking', 'view-detail', 'own'),
   p('banking', 'create', 'own'),
