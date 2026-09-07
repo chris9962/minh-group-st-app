@@ -278,13 +278,18 @@ export const banks = pgTable(
     accountNumberLength: smallint("account_number_length"),
     /** Hệ số điểm KPI — VPb = 1.4. */
     coefficient: numeric("coefficient", { precision: 4, scale: 2 }).notNull().default("1"),
-    /** false với CNKD/HKD — tính điểm nhưng không đếm vào tổng app xét quà. */
+    /**
+     * Bản THƯỜNG có đi kèm app không — tài khoản cài app mới đếm vào tổng app.
+     * CNKD/HKD có cột riêng ở `bank_guide_variants` (migration 0071).
+     */
     countsAsApp: boolean("counts_as_app").notNull().default(true),
     /**
-     * Ô "đã cài app" ở bước 2 có tick sẵn không (migration 0069).
+     * Ô "đã cài app" ở bước 2 có tick sẵn không, cho bản THƯỜNG (migration
+     * 0069); CNKD/HKD đọc `bank_guide_variants`.
      *
-     * Không dính dáng `countsAsApp`: cột kia là luật đếm app xét quà, cột này
-     * chỉ đặt giá trị mặc định lúc mở biểu mẫu. Nhân viên vẫn sửa được.
+     * Chỉ có nghĩa khi `countsAsApp` bật: loại không đếm app thì ô đó không
+     * cộng vào đâu, nên `createBank`/`updateBank` ép về false. Nhân viên vẫn
+     * sửa được ô ở bước 2.
      */
     appDefault: boolean("app_default").notNull().default(false),
     /**
@@ -985,8 +990,9 @@ export const bankGuidePhotos = pgTable(
 );
 
 /**
- * Bản hướng dẫn theo loại tài khoản (CNKD/HKD) của một ngân hàng — VPa/VPb mở
- * CNKD/HKD theo quy trình khác bản thường (chốt 2026-09-02).
+ * Cấu hình theo loại tài khoản (CNKD/HKD) của một ngân hàng: bản hướng dẫn
+ * riêng và hai cột đi kèm app. VPa/VPb mở CNKD/HKD theo quy trình khác bản
+ * thường (chốt 2026-09-02).
  *
  * BA BẢN TÁCH HẲN nhau: loại chưa cài thì không có hướng dẫn, không lấy bản
  * thường thay. Hộp thoại sửa ngân hàng luôn ghi đủ dòng CNKD + HKD mỗi lượt
@@ -1001,6 +1007,13 @@ export const bankGuideVariants = pgTable(
     accountType: bankAccountType("account_type").notNull(),
     requiredPhotos: smallint("required_photos").notNull().default(3),
     guide: text("guide"),
+    /**
+     * Hai cột đi kèm app của loại này (migration 0071) — cùng nghĩa với
+     * `banks.countsAsApp`/`appDefault` của bản thường. Mặc định false: spec
+     * §2.6 chốt CNKD/HKD không đi kèm app.
+     */
+    countsAsApp: boolean("counts_as_app").notNull().default(false),
+    appDefault: boolean("app_default").notNull().default(false),
     createdAt: createdAt(),
   },
   (t) => [

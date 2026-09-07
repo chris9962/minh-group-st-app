@@ -242,6 +242,8 @@ async function guideVariantsOf(
       requiredPhotos: v.requiredPhotos,
       guide: v.guide ?? "",
       guidePhotoUrls: (await guidePhotosOf(runner, bankId, v.accountType)).map(imageUrl),
+      countsAsApp: v.countsAsApp,
+      appDefault: v.appDefault,
     });
   }
   return variants;
@@ -265,6 +267,8 @@ async function guideVariantsAll(
       requiredPhotos: v.requiredPhotos,
       guide: v.guide ?? "",
       guidePhotoUrls: (photosByKey.get(`${v.bankId}|${v.accountType}`) ?? []).map(imageUrl),
+      countsAsApp: v.countsAsApp,
+      appDefault: v.appDefault,
     });
     byBank.set(v.bankId, list);
   }
@@ -322,6 +326,8 @@ async function writeGuideVariants(tx: Tx, bankId: string, variants: BankForm["gu
       accountType: v.accountType,
       requiredPhotos: v.requiredPhotos,
       guide: v.guide || null,
+      countsAsApp: v.countsAsApp,
+      appDefault: v.countsAsApp && v.appDefault,
     });
     await writeGuidePhotos(tx, bankId, v.guidePhotoUrls, v.accountType);
   }
@@ -498,7 +504,7 @@ export async function createBank(
           accountNumberPrefix: form.accountNumberPrefix,
           accountNumberLength: form.accountNumberLength,
           countsAsApp: form.countsAsApp,
-          appDefault: form.appDefault,
+          appDefault: form.countsAsApp && form.appDefault,
           priority: form.priority,
           minAge: form.minAge,
           maxAge: form.maxAge,
@@ -555,7 +561,7 @@ export async function updateBank(
           accountNumberPrefix: form.accountNumberPrefix,
           accountNumberLength: form.accountNumberLength,
           countsAsApp: form.countsAsApp,
-          appDefault: form.appDefault,
+          appDefault: form.countsAsApp && form.appDefault,
           priority: form.priority,
           minAge: form.minAge,
           maxAge: form.maxAge,

@@ -34,7 +34,7 @@ import { can } from "@/lib/permissions";
 import { useSession } from "@/store/session";
 import styles from "./BankFormDialog.module.scss";
 import { errorMessage, toast } from "@/lib/toast";
-import { digitsOnly, numberValue, numericField } from "@/lib/numberField";
+import { digitsOnly, numberValue, numericField, optionalNumberValue } from "@/lib/numberField";
 import { reportInvalid } from "@/lib/formErrors";
 
 type Props = {
@@ -54,6 +54,8 @@ type VariantDraft = {
   requiredPhotos: string;
   guide: string;
   photos: PhotoItem[];
+  countsAsApp: boolean;
+  appDefault: boolean;
 };
 
 const variantDraftFrom = (bank: Bank | null | undefined, type: BankGuideVariantType): VariantDraft => {
@@ -64,8 +66,46 @@ const variantDraftFrom = (bank: Bank | null | undefined, type: BankGuideVariantT
     requiredPhotos: String(saved?.requiredPhotos ?? bank?.requiredPhotos ?? 3),
     guide: saved?.guide ?? "",
     photos: savedPhotos(saved?.guidePhotoUrls ?? []),
+    // KHÔNG mượn của bản thường: spec §2.6 chốt CNKD/HKD mặc định không đi kèm app.
+    countsAsApp: saved?.countsAsApp ?? false,
+    appDefault: saved?.appDefault ?? false,
   };
 };
+
+type AppFlagsPatch = Partial<Pick<VariantDraft, "countsAsApp" | "appDefault">>;
+
+/** Hai ô đi kèm app của MỘT loại tài khoản — ô tick sẵn là con của ô đi kèm. */
+function AppFlags({
+  countsAsApp,
+  appDefault,
+  onChange,
+}: {
+  countsAsApp: boolean;
+  appDefault: boolean;
+  onChange: (patch: AppFlagsPatch) => void;
+}) {
+  return (
+    <div className={styles.appFlags}>
+      <Checkbox
+        label="Có đi kèm app (tính vào tổng app xét quà)"
+        checked={countsAsApp}
+        // Loại không đi kèm app thì ô "đã cài app" ở bước 2 không đếm vào đâu,
+        // nên không có gì để tick sẵn.
+        onCheckedChange={(v) =>
+          onChange(v ? { countsAsApp: true } : { countsAsApp: false, appDefault: false })
+        }
+      />
+      <div className={styles.appFlagsChild}>
+        <Checkbox
+          label="Tick sẵn ô &quot;Đã cài app ngân hàng này trên điện thoại khách&quot; ở bước 2"
+          checked={appDefault}
+          disabled={!countsAsApp}
+          onCheckedChange={(v) => onChange({ appDefault: v })}
+        />
+      </div>
+    </div>
+  );
+}
 
 /** P-60 · Lập / sửa một dòng ngân hàng. */
 export function BankFormDialog({ open, onClose, bank }: Props) {
@@ -174,6 +214,8 @@ export function BankFormDialog({ open, onClose, bank }: Props) {
           requiredPhotos,
           guide: draft.guide,
           guidePhotoUrls: await uploadPendingPhotos(draft.photos, "bank-guides"),
+          countsAsApp: draft.countsAsApp,
+          appDefault: draft.countsAsApp && draft.appDefault,
         });
       }
 
@@ -264,7 +306,7 @@ export function BankFormDialog({ open, onClose, bank }: Props) {
             hint="Để trống nếu không giới hạn phía dưới."
             error={errors.minAge?.message}
             {...numericField(
-              register("minAge", { setValueAs: (value) => (value === "" ? null : numberValue(value)) }),
+              register("minAge", { setValueAs: optionalNumberValue }),
               digitsOnly,
             )}
           />
@@ -277,7 +319,7 @@ export function BankFormDialog({ open, onClose, bank }: Props) {
             hint="Để trống nếu không giới hạn phía trên."
             error={errors.maxAge?.message}
             {...numericField(
-              register("maxAge", { setValueAs: (value) => (value === "" ? null : numberValue(value)) }),
+              register("maxAge", { setValueAs: optionalNumberValue }),
               digitsOnly,
             )}
           />
@@ -316,30 +358,19 @@ export function BankFormDialog({ open, onClose, bank }: Props) {
               hint="Tổng số chữ số, tính cả tiền tố. Để trống nếu không cố định."
               error={errors.accountNumberLength?.message}
               {...numericField(
-                register("accountNumberLength", { setValueAs: (value) => (value === "" ? null : numberValue(value)) }),
+                register("accountNumberLength", { setValueAs: optionalNumberValue }),
                 digitsOnly,
               )}
             />
           </div>
         )}
 
-        <Checkbox
-          label="Có đi kèm app (tính vào tổng app xét quà)"
-          checked={watch("countsAsApp")}
-          onCheckedChange={(v) => setValue("countsAsApp", v, { shouldDirty: true })}
-        />
-
-        <Checkbox
-          label="Tick sẵn &quot;đã cài app&quot; ở bước 2"
-          checked={watch("appDefault")}
-          onCheckedChange={(v) => setValue("appDefault", v, { shouldDirty: true })}
-        />
-
         {/* CNKD/HKD mở theo quy trình khác bản thường ở vài ngân hàng (chốt
-            2026-09-02) — mỗi loại một bản hướng dẫn + ảnh mẫu + số ảnh riêng.
-            Bước 2 tự chọn bản theo loại đã chốt từ mã giới thiệu. */}
+            2026-09-02) — mỗi loại một bản hướng dẫn + ảnh mẫu + số ảnh riêng,
+            và hai ô đi kèm app (chốt 2026-09-07). Bước 2 tự chọn bản theo loại
+            đã chốt từ mã giới thiệu. */}
         <SegmentedTabs
-          label="Bản hướng dẫn theo loại tài khoản"
+          label="Cấu hình theo loại tài khoản"
           options={[
             { value: "none", label: "Thường" },
             { value: "CNKD", label: "CNKD" },
@@ -351,6 +382,16 @@ export function BankFormDialog({ open, onClose, bank }: Props) {
 
         {guideTab === "none" && (
           <>
+            <AppFlags
+              countsAsApp={watch("countsAsApp")}
+              appDefault={watch("appDefault")}
+              onChange={(patch) => {
+                if (patch.countsAsApp !== undefined)
+                  setValue("countsAsApp", patch.countsAsApp, { shouldDirty: true });
+                if (patch.appDefault !== undefined)
+                  setValue("appDefault", patch.appDefault, { shouldDirty: true });
+              }}
+            />
             {/* Số ảnh nằm CÙNG tab với hướng dẫn của bản đó — ba tab cùng một
                 bố cục, không có ô nào của bản Thường lạc lên đầu hộp thoại. */}
             <TextField
@@ -388,6 +429,11 @@ export function BankFormDialog({ open, onClose, bank }: Props) {
             const draft = variants[type];
             return (
               <>
+                <AppFlags
+                  countsAsApp={draft.countsAsApp}
+                  appDefault={draft.appDefault}
+                  onChange={(patch) => patchVariant(type, patch)}
+                />
                 <TextField
                   label={`Số ảnh bắt buộc (${type})`}
                   type="text"

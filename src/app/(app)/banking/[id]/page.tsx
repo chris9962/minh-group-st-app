@@ -188,13 +188,10 @@ function FinishAccountCard({
         await setBankAccountPhotos(id, await uploadPendingPhotos(photos));
       return finishBankAccount(id, form);
     },
-    onSuccess: (result) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["bank-account-detail", id] });
       invalidateShared();
       toast.ok("Đã hoàn tất tài khoản ngân hàng");
-      // Cảnh báo mềm mức khách hàng (spec §4.8) — hiện SAU khi đã lưu xong, mỗi
-      // luật một dòng riêng để không dồn thành một câu dài không ai đọc.
-      for (const w of result.warnings) toast.warn(w);
     },
     onError: (e) => toast.fail(errorMessage(e, "Không hoàn tất được tài khoản này.")),
   });
@@ -272,6 +269,7 @@ function FinishAccountCard({
         bankGuidePhotoUrls={data.bankGuidePhotoUrls}
         photos={photos}
         requiredPhotos={data.requiredPhotos}
+        countsAsApp={data.countsAsApp}
         onPhotosChange={setEditedPhotos}
         busy={finish.isPending}
       />

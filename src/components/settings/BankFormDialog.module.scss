@@ -17,6 +17,18 @@
   }
 }
 
+/* Hai ô đi kèm app của một loại tài khoản: ô "tick sẵn" thụt vào một nhịp để
+   đọc ra là con của ô "có đi kèm app". */
+.appFlags {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.appFlagsChild {
+  padding-left: 26px;
+}
+
 /* Khối giao ngân hàng: ô tìm ở trên, danh sách đã chọn ngay dưới. */
 .managers {
   display: flex;

@@ -514,6 +514,7 @@ const decorate = (page: ReturnType<typeof pickPage>) =>
       accountNumberPrefix: banks.accountNumberPrefix,
       accountNumberLength: banks.accountNumberLength,
       appDefault: banks.appDefault,
+      countsAsApp: banks.countsAsApp,
       // Hướng dẫn mở tài khoản của ngân hàng này (spec §4.4d). `''` = chưa có.
       bankGuide: sql<string>`coalesce(${banks.guide}, '')`,
     })
@@ -996,7 +997,10 @@ async function detailBody(r: DecoratedRow): Promise<BankAccountDetail> {
     accountNumberMethod: r.accountNumberMethod,
     accountNumberPrefix: r.accountNumberPrefix,
     accountNumberLength: r.accountNumberLength,
-    appDefault: r.appDefault,
+    // Hai cờ app đi theo LOẠI: CNKD/HKD đọc dòng riêng, chưa có dòng thì không
+    // đi kèm app và không tick sẵn.
+    appDefault: separateGuide ? (variant?.appDefault ?? false) : r.appDefault,
+    countsAsApp: separateGuide ? (variant?.countsAsApp ?? false) : r.countsAsApp,
     customerPhones: await customerPhoneNumbers(r.customerId),
     referralCodeText: r.referralCodeText,
     referralProvince: r.referralProvince,
@@ -1039,14 +1043,26 @@ async function bankGuidePhotoUrls(
 async function guideVariantFor(
   bankId: string,
   accountType: string,
-): Promise<{ requiredPhotos: number; guide: string } | null> {
+): Promise<{ requiredPhotos: number; guide: string; countsAsApp: boolean; appDefault: boolean } | null> {
   if (accountType !== "CNKD" && accountType !== "HKD") return null;
   const [row] = await db
-    .select({ requiredPhotos: bankGuideVariants.requiredPhotos, guide: bankGuideVariants.guide })
+    .select({
+      requiredPhotos: bankGuideVariants.requiredPhotos,
+      guide: bankGuideVariants.guide,
+      countsAsApp: bankGuideVariants.countsAsApp,
+      appDefault: bankGuideVariants.appDefault,
+    })
     .from(bankGuideVariants)
     .where(and(eq(bankGuideVariants.bankId, bankId), eq(bankGuideVariants.accountType, accountType)))
     .limit(1);
-  return row ? { requiredPhotos: row.requiredPhotos, guide: row.guide ?? "" } : null;
+  return row
+    ? {
+        requiredPhotos: row.requiredPhotos,
+        guide: row.guide ?? "",
+        countsAsApp: row.countsAsApp,
+        appDefault: row.appDefault,
+      }
+    : null;
 }
 
 export type BankingOutcome<T> = { ok: true; value: T } | { ok: false; message: string };
@@ -1344,74 +1360,17 @@ export async function customerBankSlots(customerId: string): Promise<CustomerBan
 }
 
 /**
- * Cảnh báo mềm mức KHÁCH HÀNG (spec §4.8) — hiện ra rồi vẫn lưu, không chặn.
- *
- * Đếm trên TOÀN BỘ tài khoản `done` của khách, không đếm trong một bản ghi:
- * nhân viên có thể mở tài khoản thứ hai vào một ngày khác, tới lúc đó mới đủ dữ
- * liệu để biết khách đã đạt hay chưa (spec §4.2).
- *
- * CNKD/HKD có `counts_as_app = false`: tính điểm KPI nhưng KHÔNG cộng vào tổng
- * app khi xét quà (spec §4.9) — nên phép đếm này lọc theo `counts_as_app`.
- *
- * TODO(P-20, chờ chốt câu 7.2 và 7.3): spec §4.8 đòi ba luật này nằm CÙNG chỗ
- * với quy tắc quà, vì chúng đổi cùng nhau theo chương trình của ngân hàng.
- * Chuyển sang `src/rules/` được rồi, nhưng ba câu cảnh báo đang đếm theo "tổng
- * app" của luật CŨ — viết lại theo combo thì phải biết `TCB`/`CNKD`/`HKD` có
- * tham gia không (câu 7.2) và mở lẻ một tài khoản có cảnh báo gì không (7.3).
- */
-async function warningsFor(customerId: string): Promise<string[]> {
-  const rows = await db
-    .select({
-      bankCode: banks.code,
-      appInstalled: bankAccounts.appInstalled,
-      countsAsApp: banks.countsAsApp,
-      accountType: bankAccounts.accountType,
-    })
-    .from(bankAccounts)
-    .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
-    .where(and(eq(bankAccounts.customerId, customerId), eq(bankAccounts.status, "done")));
-
-  // Dòng HKD không đếm như một app (thể lệ 4b); nó là tài khoản thứ hai của
-  // cùng ngân hàng, đếm nó là khách một app thành hai.
-  const totalApps = rows.filter(
-    (r) => r.appInstalled && r.countsAsApp && !isHkd(r.accountType),
-  ).length;
-  const warnings: string[] = [];
-
-  if (rows.some((r) => r.bankCode === "MSBa") && totalApps < 3)
-    warnings.push(
-      `Khách có MSBa mà mới cài ${totalApps} app — cài MSBa bắt buộc đủ 3 app, không đủ sẽ bị phạt.`,
-    );
-
-  /**
-   * Luật 3: một app nhưng là VPa có mở CNKD/HKD thì HỢP LỆ, không cảnh báo.
-   *
-   * Phải kiểm cả `appInstalled` trên chính dòng VPa đó: ngoại lệ của spec §4.9
-   * nói về trường hợp app DUY NHẤT ấy là VPa. Khách có VPa+CNKD nhưng CHƯA cài
-   * app, cộng thêm một VPb đã cài, thì app duy nhất là VPb — không thuộc ngoại
-   * lệ, mà bỏ vế này thì hệ thống im lặng.
-   */
-  const vpaWithExtra = rows.some(
-    (r) => r.bankCode === "VPa" && r.accountType !== "none" && r.appInstalled,
-  );
-  if (totalApps === 1 && !vpaWithExtra)
-    warnings.push("Khách mới cài 1 app — nên tư vấn khách cài thêm.");
-
-  return warnings;
-}
-
-/**
  * BƯỚC 2 — điền nốt rồi Hoàn thành. Lúc này mã mới thật sự bị tiêu.
  *
  * Chốt ảnh là chốt CỨNG duy nhất của module (spec §4.8 luật 4): thiếu ảnh là
- * thiếu dữ liệu chứ không phải một quyết định kinh doanh. Ba luật còn lại chỉ
- * cảnh báo.
+ * thiếu dữ liệu chứ không phải một quyết định kinh doanh. Ba luật cảnh báo mềm
+ * còn lại của §4.8 đã bỏ (2026-09-07): chúng đếm "tổng app" theo luật quà cũ.
  */
 export async function finishBankAccount(
   actor: User,
   id: string,
   form: BankAccountFinishForm,
-): Promise<BankingOutcome<{ account: BankAccount; warnings: string[] }> | null> {
+): Promise<BankingOutcome<{ account: BankAccount }> | null> {
   const visible = scopeOf(actor, WRITE_ACTION);
   if (visible.kind === "none") return null;
 
@@ -1517,10 +1476,7 @@ export async function finishBankAccount(
 
   return {
     ok: true,
-    value: {
-      account: (await accountById(id))!,
-      warnings: await warningsFor(current.customerId),
-    },
+    value: { account: (await accountById(id))! },
   };
 }
 
@@ -1548,7 +1504,7 @@ export async function updateFinishedAccount(
   actor: User,
   id: string,
   form: BankAccountUpdateForm,
-): Promise<BankingOutcome<{ account: BankAccount; warnings: string[] }> | null> {
+): Promise<BankingOutcome<{ account: BankAccount }> | null> {
   const visible = scopeOf(actor, WRITE_ACTION);
   if (visible.kind === "none") return null;
 
@@ -1634,10 +1590,7 @@ export async function updateFinishedAccount(
 
   return {
     ok: true,
-    value: {
-      account: (await accountById(id))!,
-      warnings: await warningsFor(current.customerId),
-    },
+    value: { account: (await accountById(id))! },
   };
 }
 

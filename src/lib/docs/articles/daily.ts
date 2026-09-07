@@ -297,7 +297,7 @@ export const DAILY_DOCS: DocArticle[] = [
       {
         kind: 'note',
         tone: 'info',
-        body: 'Hai ô **Mở tài khoản CNKD / HKD** và **Khách đã cài app ngân hàng** ảnh hưởng điểm KPI và trường hợp quà. Bạn tích đúng thực tế.',
+        body: 'Hai ô **Mở tài khoản CNKD / HKD** và **Đã cài app ngân hàng này trên điện thoại khách** ảnh hưởng điểm KPI và trường hợp quà. Bạn tích đúng thực tế.',
       },
       {
         kind: 'note',
