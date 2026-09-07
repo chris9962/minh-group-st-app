@@ -179,22 +179,17 @@ const liveBasketLabel = (gift: GiftResult | null, catalogName: Map<string, strin
   gift?.basket.map((b) => catalogName.get(b.code) ?? b.code).join(", ") ?? "";
 
 /**
- * Hai cột rổ quà, mỗi cột TRỌN danh sách món (chốt 2026-09-04, thêm cột lúc
- * chốt 2026-09-07). Nhãn cố định theo bậc như công thức `AG` của file Kế toán
- * đọc ra SAI: khách Phòng Y bậc TH5 được chọn một trong tám món mà ô chỉ ghi
- * "2 năm BH + 20k", và món thêm của mục 4b thể lệ không xuất hiện ở đâu cả.
+ * Hai cột rổ quà, mỗi cột TRỌN danh sách món (chốt 2026-09-04, tách hai cột
+ * 2026-09-07). Nhãn cố định theo bậc như công thức `AG` của file Kế toán đọc ra
+ * SAI: khách Phòng Y bậc TH5 được chọn một trong tám món mà ô chỉ ghi "2 năm BH
+ * + 20k", và món thêm của mục 4b thể lệ không xuất hiện ở đâu cả.
  *
- *   `QUÀ TẶNG THEO COMBO`  rổ đang áp dụng: đóng băng nếu đã phát, luật sống nếu chưa
+ *   `QUÀ TẶNG THEO COMBO`  rổ luật sống tính theo tài khoản HIỆN TẠI, mọi khách
  *   `QUÀ COMBO LÚC CHỐT`   rổ đóng băng lúc phát, rỗng khi chưa phát
  *
- * Chủ dự án bỏ cột "rổ theo tài khoản hiện tại" cùng ngày 2026-09-07: chưa ai
- * chốt thì không đưa vào file báo cáo.
+ * Bản trước cột THEO COMBO đổi nghĩa theo khách: đóng băng nếu đã phát, luật
+ * sống nếu chưa. Đọc file thì không biết ô đang nói rổ nào, nên tách hẳn.
  */
-const basketLabel = (
-  snapshot: unknown,
-  gift: GiftResult | null,
-  catalogName: Map<string, string>,
-): string => frozenBasketLabel(snapshot) || liveBasketLabel(gift, catalogName);
 
 /**
  * Cột `QUÀ TẶNG BÁO CÁO` — món ĐÃ GIAO kèm tiền ĐÃ GHI, đọc từ đợt phát (chốt
@@ -444,7 +439,7 @@ export async function listScoringExport(
         ...new Set(accounts.filter((a) => a.appInstalled).map((a) => a.bankCode)),
       ].filter((code) => !HOUSEHOLD_CODES.has(code)),
       giftReport: grantedLabel(grant),
-      giftCombo: basketLabel(grant?.snapshot ?? null, gift, catalogName),
+      giftCombo: liveBasketLabel(gift, catalogName),
       giftBasketAtGrant: frozenBasketLabel(grant?.snapshot ?? null),
       speaker: grant?.chosenItem === "QUA-LOA" ? "LOA" : "",
       insuranceLabel: insurance
