@@ -298,6 +298,16 @@ export default function ExportsPage() {
   // hiện đúng vài ô liên quan, tránh tách ba component riêng cho ba form nhỏ.
   const [range, setRange] = useState<DateRange | undefined>(undefined);
   const [referralCode, setReferralCode] = useState("");
+  /**
+   * Báo cáo #1: ngân hàng CHỌN KHÁCH (chốt 2026-09-07). Rỗng = mọi khách; tick
+   * vài mã = khách có mở ít nhất một trong các ngân hàng đó, và dòng của khách
+   * vẫn gộp trọn tài khoản — xem `listScoringExport`.
+   *
+   * Thay cho cơ chế "bỏ tick cột ngân hàng = lọc" của chốt 2026-09-04: hai việc
+   * ẩn cột và lọc khách dính vào một ô tick thì người dùng muốn giấu cột cũng
+   * làm mất khách, và ngược lại.
+   */
+  const [bankCodes, setBankCodes] = useState<string[]>([]);
   /** Báo cáo #1: chỉ khách có tài khoản, hay cả khách chưa mở tài khoản nào. */
   const [scoringInclude, setScoringInclude] = useState<ScoringInclude>("with-accounts");
   /** Báo cáo #1: lọc theo NGƯỜI LẬP HỒ SƠ khách, đúng người nhận điểm. */
@@ -341,28 +351,7 @@ export default function ExportsPage() {
   // Cột thật sẽ xuất: đúng những cột đang tick, theo thứ tự file mẫu.
   const exportOrder = fullOrder.filter((key) => enabled.includes(key));
 
-  /**
-   * Ngân hàng còn tích ở phần chọn cột — DÙNG LUÔN LÀM BỘ LỌC DÒNG (chốt 2026-09-04).
-   *
-   * Trước đó bỏ tích chỉ ẩn cột: khách chỉ có `MB` vẫn ra một dòng với mọi ô
-   * ngân hàng trống, đọc ra như khách không có tài khoản nào. Người dùng bỏ
-   * tích để LỌC, không phải để giấu cột.
-   *
-   * Lấy HỢP của hai khối `open:` và `app:` — bỏ tích một ngân hàng ở cả hai
-   * khối mới coi là không quan tâm ngân hàng đó.
-   *
-   * Tích đủ hết thì trả rỗng, nghĩa là không lọc: người chưa đụng vào bảng cột
-   * phải nhận đúng file như trước.
-   */
-  const bankCodeOf = (key: string) =>
-    key.startsWith("open:") || key.startsWith("app:") ? key.split(":")[1] : null;
-  const allBankColumns = new Set(fullOrder.map(bankCodeOf).filter(Boolean) as string[]);
-  const onBankColumns = new Set(exportOrder.map(bankCodeOf).filter(Boolean) as string[]);
-  const bankColumnCodes =
-    active !== "accounts-by-customer" || onBankColumns.size === allBankColumns.size
-      ? ""
-      : [...onBankColumns].join(",");
-
+  // Bỏ tick một cột chỉ ẩn cột đó khỏi file, không lọc gì (chốt 2026-09-07).
   const toggleColumn = (key: string) => {
     if (!active) return;
     const next = enabled.includes(key) ? enabled.filter((k) => k !== key) : [...enabled, key];
@@ -415,7 +404,7 @@ export default function ExportsPage() {
       const { rows, total } = await fetchScoringExport(
         {
           search: "",
-          bankCode: bankColumnCodes,
+          bankCode: bankCodes.join(","),
           from,
           to,
           referralCode,
@@ -709,6 +698,32 @@ export default function ExportsPage() {
                   onChange={setReferralCode}
                   options={[{ value: "", label: "Tất cả mã giới thiệu" }, ...codes.map((code) => ({ value: code, label: code }))]}
                 />
+              )}
+
+              {active === "accounts-by-customer" && (
+                <div
+                  className={`${styles.field} ${styles.bankField}`}
+                  role="group"
+                  aria-label="Ngân hàng"
+                >
+                  <span className={styles.fieldLabel} aria-hidden>
+                    Ngân hàng
+                  </span>
+                  <div className={styles.bankPicks}>
+                    {banksInRuleOrder(banks).map((b) => (
+                      <Checkbox
+                        key={b.id}
+                        checked={bankCodes.includes(b.code)}
+                        onCheckedChange={(on) =>
+                          setBankCodes((current) =>
+                            on ? [...current, b.code] : current.filter((c) => c !== b.code),
+                          )
+                        }
+                        label={b.code}
+                      />
+                    ))}
+                  </div>
+                </div>
               )}
 
               {active === "staff-points" && (
