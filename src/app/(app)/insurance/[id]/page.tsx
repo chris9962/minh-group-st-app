@@ -441,6 +441,19 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                   {data.orderCode}
                   <CopyButton value={data.orderCode} label={`mã đơn: ${data.orderCode}`} quiet />
                 </p>
+                {/* Mã giao dịch gửi PVI là `id` của đơn, không phải mã đơn
+                    (chốt 2026-09-07, lý do ở `pvi-api/from-order.ts`). Đối
+                    soát với PVI thì đọc dòng này, không đọc `DH-…`. Chỉ hiện
+                    khi đơn đã hoặc đang đi qua PVI. */}
+                {(data.pviPolicyNumber ||
+                  data.status === "creating" ||
+                  data.status === "awaiting-certificate") && (
+                  <p className={styles.serialInline}>
+                    <span className={styles.serialLabel}>Mã GD</span>
+                    {data.id}
+                    <CopyButton value={data.id} label={`mã giao dịch PVI: ${data.id}`} quiet />
+                  </p>
+                )}
                 {/* Số ấn chỉ PVI đứng NGAY CẠNH mã đơn: đội xử lý tay đối
                     chiếu hai số này với nhau khi tra đơn bên PVI. Nhãn đi kèm
                     vì hai chuỗi số cạnh nhau mà không nói cái nào là cái gì thì

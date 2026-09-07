@@ -5,8 +5,9 @@
  * component client là mang khoá bí mật xuống trình duyệt, nên mọi lệnh gọi
  * phải đi qua route handler hoặc server action.
  *
- * Tài liệu có 14 mục. Đã làm 4 (`API_Tham khao.docx` v1.0, 11/02/2026):
+ * Tài liệu có 14 mục. Đã làm 5 (`API_Tham khao.docx` v1.0, 11/02/2026):
  *
+ *   mục 3   `Get_DanhMuc`       đọc danh mục, và kiểm cấu hình lúc khởi động
  *   mục 10  `TaoDon_XeMay`      tạo đơn TNDS xe máy
  *   mục 11  `TaoDon_HSDD_CP`    tạo đơn tai nạn hộ sử dụng điện
  *   mục 13  callback            kiểm chữ ký PVI gửi tới (`verifyPviCallback`)
@@ -50,6 +51,8 @@ export {
   ElectricParticipant,
 } from "./electric";
 export { getPolicyNumber, PolicyLookupInput, type PolicyLookupResult } from "./policy";
+export { getCatalog, checkPviAccess, type PviAccessCheck } from "./catalog";
+export { PVI_PRODUCTS, preparePviOrder, type PreparedPviOrder } from "./products";
 export { PVI_CERTIFICATE_EMAIL } from "./constants";
 export { pviPeriod, type PviPeriod } from "./period";
 export {

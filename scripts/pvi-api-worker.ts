@@ -3,6 +3,7 @@
  *
  *   bun run pvi:api-worker                  # chạy mãi
  *   bun run pvi:api-worker -- --mot-vong    # chạy đúng một vòng rồi thoát
+ *   bun run pvi:api-check                   # chỉ kiểm cấu hình và kết nối PVI, dùng lúc deploy
  *
  * ⚠️ Worker chạy là tạo đơn THẬT trên PVI. Xem `PVI_API_BASE_URL` trỏ đâu trước
  * khi bật: `piastest.pvi.com.vn` là môi trường thử.
@@ -17,11 +18,13 @@
  * không có bước duyệt tay, không có trạng thái `pending-approval`. Bốn đơn thử
  * trên `piastest` ngày 2026-09-03 ra giấy chứng nhận mà không ai duyệt.
  *
- * Kế hoạch đầy đủ ở `docs/plan-pvi-api-noi-luong-2026-09-03.md`.
+ * Kế hoạch đầy đủ ở `docs/plan-pvi-api-noi-luong-2026-09-03.md`, các quyết định
+ * về mã lỗi ở `docs/review-pvi-api-flow-2026-09-07.md`.
  */
 
 import { and, eq, isNull, lt, or, sql } from "drizzle-orm";
 import { Client } from "pg";
+import { ZodError } from "zod";
 import { CERTIFICATE_MAX_ATTEMPTS } from "../src/lib/api/insuranceOrders";
 import { db } from "../src/server/db/client";
 import {
@@ -29,17 +32,12 @@ import {
   insuranceOrders,
   insuranceOrderStatusHistory,
 } from "../src/server/db/schema";
+import { checkPviAccess } from "../src/server/pvi-api/catalog";
 import { saveCertificateFrom } from "../src/server/pvi-api/certificate";
 import { PviApiError } from "../src/server/pvi-api/client";
-import { createElectricAccidentOrder } from "../src/server/pvi-api/electric";
-import {
-  electricInputFor,
-  motorbikeInputFor,
-  orderForPviColumns,
-  type OrderForPvi,
-} from "../src/server/pvi-api/from-order";
-import { createMotorbikeOrder } from "../src/server/pvi-api/motorbike";
-import { getPolicyNumber } from "../src/server/pvi-api/policy";
+import { orderForPviColumns, type OrderForPvi } from "../src/server/pvi-api/from-order";
+import { getPolicyNumber, type PolicyLookupResult } from "../src/server/pvi-api/policy";
+import { preparePviOrder, type PreparedPviOrder } from "../src/server/pvi-api/products";
 import { PVI_NEW_ORDER_CHANNEL } from "../src/server/pvi-api/route";
 
 const SLEEP_SECONDS = Number(process.env.PVI_API_WORKER_SLEEP ?? 10);
@@ -47,9 +45,15 @@ const SLEEP_SECONDS = Number(process.env.PVI_API_WORKER_SLEEP ?? 10);
 /** Mỗi vòng lấy tối đa ngần này đơn, gọi PVI TUẦN TỰ trong cùng vòng. */
 const CREATE_BATCH = Number(process.env.PVI_API_CREATE_BATCH ?? 10);
 const CERTIFICATE_BATCH = Number(process.env.PVI_API_CERTIFICATE_BATCH ?? 20);
+/**
+ * Số lệnh `GetPolicyNumber` gửi cùng lúc (chốt 2026-09-07). Đo cùng ngày: 11
+ * lượt × 10 lệnh cùng lúc, không lỗi, mỗi lượt dưới 1,6 giây. Chỉ là chờ mạng,
+ * không tốn CPU hay RAM như bước chụp ảnh.
+ */
+const POLICY_LOOKUP_PARALLEL = Number(process.env.PVI_API_POLICY_LOOKUP_PARALLEL ?? 10);
 
 /**
- * Số lần gọi tạo đơn hỏng vì MẠNG trước khi bỏ đơn sang làm tay.
+ * Số lần gọi tạo đơn mà KHÔNG BIẾT kết quả trước khi bỏ đơn sang làm tay.
  *
  * Lỗi nghiệp vụ không đếm ở đây: PVI trả mã rõ thì đơn về `manual-queued` ngay
  * lượt đầu, thử lại cũng ra cùng kết quả.
@@ -65,10 +69,17 @@ const MAX_CREATE_ATTEMPTS = Number(process.env.PVI_API_MAX_CREATE_ATTEMPTS ?? 5)
  */
 const STALE_AFTER_MINUTES = Number(process.env.PVI_API_STALE_MINUTES ?? 2);
 
-/** Khoảng cách giữa hai lần hỏi `GetPolicyNumber` cho cùng một đơn. */
+/** Khoảng cách giữa hai lần hỏi `GetPolicyNumber` cho cùng một đơn, trong `CERTIFICATE_MAX_ATTEMPTS` lần đầu. */
 const CERTIFICATE_RETRY_SECONDS = Number(process.env.PVI_API_CERTIFICATE_RETRY_SECONDS ?? 30);
-const MAX_CERTIFICATE_ATTEMPTS = Number(
-  process.env.PVI_API_MAX_CERTIFICATE_ATTEMPTS ?? CERTIFICATE_MAX_ATTEMPTS * 5,
+/**
+ * Nhịp hỏi sau khi đã quá `CERTIFICATE_MAX_ATTEMPTS` lần (chốt 2026-09-07).
+ *
+ * Đo thật PVI cấp trong vài phút. Sau 30 phút mà chưa có thì hỏi 30 giây một
+ * lần cũng không ra thông tin mới, chỉ tốn lượt gọi. KHÔNG có trần: đơn đã có
+ * bên PVI, thôi hỏi là bắt người làm tay tạo lại một đơn đã tạo xong.
+ */
+const CERTIFICATE_SLOW_RETRY_SECONDS = Number(
+  process.env.PVI_API_CERTIFICATE_SLOW_RETRY_SECONDS ?? 300,
 );
 
 const log = (s: string) => console.log(`[${new Date().toISOString().slice(11, 19)}] ${s}`);
@@ -78,9 +89,12 @@ type OrderStatus = (typeof insuranceOrders.$inferSelect)["status"];
 const describeError = (e: unknown): string =>
   e instanceof PviApiError
     ? `${e.kind}${e.status ? ` ${e.status}` : ""} - ${e.message}`
-    : e instanceof Error
-      ? e.message
-      : String(e);
+    : e instanceof ZodError
+      // `message` của ZodError là cả mảng issue dạng JSON, người xử lý tay không đọc nổi.
+      ? e.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")
+      : e instanceof Error
+        ? e.message
+        : String(e);
 
 /**
  * Đổi trạng thái một đơn VÀ ghi một dòng lịch sử, trong cùng transaction.
@@ -89,31 +103,41 @@ const describeError = (e: unknown): string =>
  * trước chỉ `update` cột `status`, nên người xử lý tay mở đơn ra thấy "Chờ làm
  * tay" mà không biết vì sao — lý do PVI trả về chỉ nằm trong log container.
  *
+ * Kẹp theo trạng thái NGUỒN (chốt 2026-09-07): người có quyền vừa nhận đơn về
+ * làm tay, hay vừa đặt tay trạng thái khác, thì worker không được ghi đè, kể cả
+ * khi PVI trả kết quả đúng lúc đó. Trả `false` khi không ghi được dòng nào.
+ *
  * `changedBy` để null: cột đó nhận null nghĩa là máy tự chuyển, không phải
  * người bấm.
  *
  * Vòng tra giấy chứng nhận KHÔNG gọi hàm này khi chỉ tăng `certificate_attempts`
- * — trạng thái không đổi, mà ghi 300 dòng "vẫn đang đợi" là chôn mất ba dòng
- * đáng đọc.
+ * — trạng thái không đổi, mà ghi hàng trăm dòng "vẫn đang đợi" là chôn mất ba
+ * dòng đáng đọc.
  */
 async function setStatus(
   id: string,
   from: OrderStatus,
   to: OrderStatus,
   extra: { note: string } & Partial<typeof insuranceOrders.$inferInsert>,
-) {
+): Promise<boolean> {
   const { note, ...columns } = extra;
-  await db.transaction(async (tx) => {
-    await tx
+  return db.transaction(async (tx) => {
+    const updated = await tx
       .update(insuranceOrders)
       .set({ ...columns, status: to, updatedAt: new Date() })
-      .where(eq(insuranceOrders.id, id));
+      .where(and(eq(insuranceOrders.id, id), eq(insuranceOrders.status, from)))
+      .returning({ id: insuranceOrders.id });
+    if (updated.length === 0) {
+      log(`${id}: không còn ở ${from}, bỏ lượt chuyển sang ${to}`);
+      return false;
+    }
     await tx.insert(insuranceOrderStatusHistory).values({
       orderId: id,
       fromStatus: from,
       toStatus: to,
       note,
     });
+    return true;
   });
 }
 
@@ -196,11 +220,25 @@ async function claim(id: string): Promise<boolean> {
 async function createOne(order: OrderForPvi) {
   if (!(await claim(order.id))) return null;
 
+  /**
+   * Dựng payload TRƯỚC, ngoài `try` của lệnh gọi. Lỗi ở đây là zod hoặc
+   * `pviPeriod` từ chối dữ liệu đơn: chưa có lệnh gọi nào, chắc chắn PVI chưa
+   * có đơn, người làm tay lập thẳng. Gộp chung với lỗi gọi PVI thì ghi chú ghi
+   * "PVI từ chối" cho một thứ PVI chưa hề thấy.
+   */
+  let prepared: PreparedPviOrder;
   try {
-    const result =
-      order.product === "motorbike"
-        ? await createMotorbikeOrder(motorbikeInputFor(order))
-        : await createElectricAccidentOrder(electricInputFor(order));
+    prepared = preparePviOrder(order);
+  } catch (e) {
+    await setStatus(order.id, "creating", "manual-queued", {
+      note: `Dữ liệu đơn không hợp lệ: ${describeError(e)}`,
+    });
+    log(`${order.orderCode}: dữ liệu không hợp lệ, ${describeError(e)} → làm tay`);
+    return "manual-queued";
+  }
+
+  try {
+    const result = await prepared.send();
 
     await setStatus(order.id, "creating", "awaiting-certificate", {
       pviPrKeyNumber: result.prKey,
@@ -215,7 +253,7 @@ async function createOne(order: OrderForPvi) {
   }
 }
 
-/** Ghi kết quả hỏng của một lượt tạo đơn. Ba nhóm lỗi ba đường đi khác nhau. */
+/** Ghi kết quả hỏng của một lượt gọi PVI. Bốn nhóm lỗi bốn đường đi khác nhau. */
 async function failed(order: OrderForPvi, e: unknown) {
   const err = e instanceof PviApiError ? e : null;
 
@@ -235,14 +273,24 @@ async function failed(order: OrderForPvi, e: unknown) {
     return "awaiting-certificate";
   }
 
-  // Lỗi mạng: giữ đơn trong hàng chờ và thử lại vòng sau với ĐÚNG mã cũ.
-  const transient = err && (err.kind === "network" || err.kind === "http" || err.kind === "malformed");
-  if (transient) {
+  /**
+   * KHÔNG BIẾT PVI đã ghi đơn hay chưa: mạng đứt giữa chừng, HTTP lạ, thân trả
+   * về không đọc được, và `-1` là exception bên PVI có thể xảy ra SAU khi họ đã
+   * ghi. Giữ đơn trong hàng chờ, thử lại với ĐÚNG mã cũ: đã có thì `-555`.
+   * Đủ số lần thì sang làm tay, ghi chú phải nói rõ đơn có thể đã có bên PVI
+   * (chốt 2026-09-07).
+   */
+  const unknownOutcome =
+    err &&
+    (err.kind === "network" || err.kind === "http" || err.kind === "malformed" || err.status === "-1");
+  if (unknownOutcome) {
     const attempts = order.pviAttempts + 1;
     const giveUp = attempts >= MAX_CREATE_ATTEMPTS;
     await setStatus(order.id, "creating", giveUp ? "manual-queued" : "queued", {
       pviAttempts: attempts,
-      note: `Gọi PVI hỏng (lần ${attempts}/${MAX_CREATE_ATTEMPTS}): ${describeError(e)}`,
+      note: giveUp
+        ? `Gọi PVI hỏng ${attempts} lần, lần cuối: ${describeError(e)}. Đơn CÓ THỂ đã có trên PVI, tra GetPolicyNumber trước khi lập tay.`
+        : `Gọi PVI hỏng (lần ${attempts}/${MAX_CREATE_ATTEMPTS}): ${describeError(e)}`,
     });
     log(
       `${order.orderCode}: ${describeError(e)} (lần ${attempts}/${MAX_CREATE_ATTEMPTS})` +
@@ -252,29 +300,21 @@ async function failed(order: OrderForPvi, e: unknown) {
   }
 
   /**
-   * `config` là lỗi vận hành, không phải lỗi của đơn.
-   *
-   * Thiếu `PVI_API_CPID` thì MỌI đơn hỏng. Đẩy cả hàng chờ sang làm tay vì một
-   * dòng thiếu trong `.env.local` là hỏng gấp nhiều lần cái nó sửa. Trả đơn về
-   * `queued` và để vòng sau thử lại.
+   * Lỗi cấu hình: thiếu biến `.env`, hoặc PVI trả `-105 Sai chữ ký`. Mọi đơn
+   * hỏng như nhau, làm tiếp là đẩy cả hàng chờ sang làm tay. Trả đơn về hàng
+   * chờ rồi THOÁT (chốt 2026-09-07): khởi động lại thì `checkPviAccess` ở
+   * `main` chặn cho tới khi sửa xong `.env`, và lịch sử đơn chỉ có một dòng.
    */
-  if (err?.kind === "config") {
-    await db
-      .update(insuranceOrders)
-      .set({ status: "queued", updatedAt: new Date() })
-      .where(eq(insuranceOrders.id, order.id));
-    await db.insert(insuranceOrderStatusHistory).values({
-      orderId: order.id,
-      fromStatus: "creating",
-      toStatus: "queued",
-      note: `Máy chủ thiếu cấu hình PVI: ${describeError(e)}`,
+  if (err?.kind === "config" || err?.status === "-105") {
+    await setStatus(order.id, "creating", "queued", {
+      note: `Cấu hình PVI sai: ${describeError(e)}. Worker dừng.`,
     });
-    log(`${order.orderCode}: ${describeError(e)} — trả về hàng chờ, sửa cấu hình rồi worker tự chạy tiếp`);
-    return "queued";
+    log(`${order.orderCode}: ${describeError(e)} — worker dừng, sửa cấu hình rồi khởi động lại`);
+    process.exit(1);
   }
 
-  // Còn lại là PVI từ chối vì dữ liệu, hoặc zod chặn ngay trước khi gửi. Thử
-  // lại cũng ra cùng kết quả, nên người xử lý tay phải xem.
+  // Còn lại là PVI từ chối vì dữ liệu. Thử lại cũng ra cùng kết quả, nên người
+  // xử lý tay phải xem.
   await setStatus(order.id, "creating", "manual-queued", {
     note: `PVI từ chối: ${describeError(e)}`,
   });
@@ -288,9 +328,26 @@ async function failed(order: OrderForPvi, e: unknown) {
  * Worker LUÔN hỏi, không chỉ khi callback vắng: mình không lưu địa chỉ file của
  * PVI, mà muốn tải thì phải có địa chỉ đó. Callback chỉ rút ngắn thời gian chờ
  * bằng cách đặt `certificate_checked_at` về null.
+ *
+ * Nhịp hỏi theo số lần đã hỏi: `CERTIFICATE_RETRY_SECONDS` trong
+ * `CERTIFICATE_MAX_ATTEMPTS` lần đầu, sau đó `CERTIFICATE_SLOW_RETRY_SECONDS`.
+ * Tính trong câu SQL vì mỗi dòng một nhịp.
+ *
+ * Mốc "bây giờ" lấy từ đồng hồ của worker, KHÔNG dùng `now()` của Postgres:
+ * `certificate_checked_at` do worker ghi bằng đồng hồ của nó, so với đồng hồ
+ * khác là sai. Đo 2026-09-07: Postgres trong Docker local chậm 21 giờ 47 phút,
+ * `now()` làm không đơn nào tới hạn và worker thôi hỏi hẳn.
  */
 async function fetchCertificates() {
-  const cutoff = new Date(Date.now() - CERTIFICATE_RETRY_SECONDS * 1000);
+  const now = new Date();
+  const due = sql`(
+    ${insuranceOrders.certificateCheckedAt} is null
+    or ${insuranceOrders.certificateCheckedAt} < ${now}::timestamptz - make_interval(secs =>
+      case when ${insuranceOrders.certificateAttempts} < ${sql.raw(String(CERTIFICATE_MAX_ATTEMPTS))}
+        then ${sql.raw(String(CERTIFICATE_RETRY_SECONDS))}
+        else ${sql.raw(String(CERTIFICATE_SLOW_RETRY_SECONDS))}
+      end)
+  )`;
   const waiting = await db
     .select({
       id: insuranceOrders.id,
@@ -303,64 +360,77 @@ async function fetchCertificates() {
         eq(insuranceOrders.status, "awaiting-certificate"),
         eq(insuranceOrders.pviRoute, "api"),
         isNull(insuranceOrders.certificatePhotoUrl),
-        lt(insuranceOrders.certificateAttempts, MAX_CERTIFICATE_ATTEMPTS),
-        or(
-          isNull(insuranceOrders.certificateCheckedAt),
-          lt(insuranceOrders.certificateCheckedAt, cutoff),
-        ),
+        due,
       ),
     )
     .orderBy(sql`${insuranceOrders.certificateCheckedAt} asc nulls first`)
     .limit(CERTIFICATE_BATCH);
 
-  for (const row of waiting) {
-    const missed = async (reason: string, pviFault: boolean) => {
-      // Lỗi ở máy mình thì KHÔNG cộng số lần thử: hết `pdftoppm` mà cứ cộng là
-      // đơn chạm ngưỡng rồi bị bỏ, dù PVI đã cấp giấy chứng nhận từ lâu.
-      const attempts = pviFault ? row.attempts + 1 : row.attempts;
-      await db
-        .update(insuranceOrders)
-        .set({ certificateAttempts: attempts, certificateCheckedAt: new Date() })
-        .where(eq(insuranceOrders.id, row.id));
-      log(`${row.orderCode}: ${reason} (lần ${attempts}/${MAX_CERTIFICATE_ATTEMPTS})`);
-    };
+  type Waiting = (typeof waiting)[number];
+  const missed = async (row: Waiting, reason: string, pviFault: boolean) => {
+    // Lỗi ở máy mình thì KHÔNG cộng số lần thử: hết `pdftoppm` mà cứ cộng là
+    // đơn chạm ngưỡng nhắc dù PVI đã cấp giấy chứng nhận từ lâu.
+    const attempts = pviFault ? row.attempts + 1 : row.attempts;
+    await db
+      .update(insuranceOrders)
+      .set({ certificateAttempts: attempts, certificateCheckedAt: new Date() })
+      .where(eq(insuranceOrders.id, row.id));
+    log(`${row.orderCode}: ${reason} (lần ${attempts})`);
+  };
 
-    let policy;
-    try {
-      policy = await getPolicyNumber({ requestId: row.orderCode });
-    } catch (e) {
+  // Hỏi PVI song song từng nhóm. Tải PDF và chụp ảnh phía dưới vẫn TUẦN TỰ:
+  // mỗi lượt chụp 30 MB RAM, mười lượt cùng lúc là 300 MB trên máy chủ từng OOM.
+  const looked: Array<{ row: Waiting; policy?: PolicyLookupResult; error?: unknown }> = [];
+  for (let i = 0; i < waiting.length; i += POLICY_LOOKUP_PARALLEL) {
+    const chunk = waiting.slice(i, i + POLICY_LOOKUP_PARALLEL);
+    looked.push(
+      ...(await Promise.all(
+        chunk.map(async (row) => {
+          try {
+            return { row, policy: await getPolicyNumber({ requestId: row.id }) };
+          } catch (error) {
+            return { row, error };
+          }
+        }),
+      )),
+    );
+  }
+
+  for (const { row, policy, error } of looked) {
+    if (!policy) {
       // `-500` nghĩa là PVI chưa cấp xong, KHÔNG phải đơn không tồn tại. Đo
       // 2026-09-03: đơn tạo thành công tra ngay vẫn ra `-500`, vài phút sau mới
       // ra đủ trường.
-      await missed(describeError(e), true);
+      await missed(row, describeError(error), true);
       continue;
     }
 
     if (!policy.issued) {
-      await missed("PVI chưa cấp xong giấy chứng nhận", true);
+      await missed(row, "PVI chưa cấp xong giấy chứng nhận", true);
       continue;
     }
 
     const saved = await saveCertificateFrom(policy.url, row.orderCode);
     if (!saved.ok) {
-      await missed(saved.reason, saved.pviFault);
+      await missed(row, saved.reason, saved.pviFault);
       continue;
     }
 
-    await setStatus(row.id, "awaiting-certificate", "done", {
+    const done = await setStatus(row.id, "awaiting-certificate", "done", {
       pviPolicyNumber: policy.policyNumber,
       pviSerialNumber: policy.serialNumber,
       certificatePhotoUrl: saved.photoKey,
       certificateCheckedAt: new Date(),
       note: `PVI cấp giấy chứng nhận ${policy.policyNumber}.`,
     });
-    log(`${row.orderCode}: ${policy.policyNumber} → done`);
+    if (done) log(`${row.orderCode}: ${policy.policyNumber} → done`);
   }
 
   return waiting.length;
 }
 
-async function runOnce(reason: string) {
+/** Một vòng quét. Trả `true` khi vòng lấy đủ lô, tức hàng chờ còn nữa. */
+async function runOnce(reason: string): Promise<boolean> {
   await reclaimStaleOrders();
 
   const pending = await pendingOrders();
@@ -368,7 +438,7 @@ async function runOnce(reason: string) {
   for (const order of pending) await createOne(order);
 
   const asked = await fetchCertificates();
-  if (!pending.length && !asked) log("Không có việc.");
+  return pending.length >= CREATE_BATCH || asked >= CERTIFICATE_BATCH;
 }
 
 /**
@@ -452,8 +522,26 @@ async function main() {
     throw new Error("DATABASE_URL chưa đặt — tạo .env.local từ .env.example rồi chạy lại");
 
   const onceOnly = process.argv.includes("--mot-vong");
+  const checkOnly = process.argv.includes("--check");
 
   log(`Worker API chạy THẬT: tạo đơn trên ${process.env.PVI_API_BASE_URL ?? "(chưa cấu hình)"}.`);
+
+  /**
+   * Kiểm cấu hình và kết nối PVI TRƯỚC khi đụng đơn nào (chốt 2026-09-07).
+   *
+   * Sai cấu hình thì thoát, không đơn nào bị đẩy sang làm tay. Lỗi mạng thì vẫn
+   * chạy: đơn tự thử lại theo vòng. `--check` dùng lúc deploy nên mọi lỗi đều
+   * thoát mã 1, kể cả lỗi mạng — máy chủ chưa được whitelist cũng là lỗi deploy.
+   */
+  const access = await checkPviAccess();
+  if (!access.ok) {
+    log(`Kiểm PVI không qua: ${access.message}`);
+    if (access.fatal || checkOnly) process.exit(1);
+    log("Lỗi mạng, worker vẫn chạy: đơn tự thử lại theo vòng.");
+  } else {
+    log("Kiểm PVI: kết nối và chữ ký đúng.");
+  }
+  if (checkOnly) return;
 
   if (onceOnly) {
     await runOnce("--mot-vong");
@@ -495,13 +583,20 @@ async function main() {
 
   while (!stopping) {
     notifiedWhileBusy = false;
+    let full = false;
     try {
-      await runOnce(reason);
+      full = await runOnce(reason);
     } catch (e) {
       // Một vòng hỏng không được làm chết worker: vòng sau thử lại.
       log(`Lỗi trong vòng quét: ${describeError(e)}`);
     }
     if (stopping) break;
+    // Lô vừa rồi đầy thì hàng chờ còn nữa: 100 đơn mà ngủ 10 giây giữa mỗi lô
+    // 10 là mất 90 giây không làm gì (chốt 2026-09-07).
+    if (full) {
+      reason = "lô đầy";
+      continue;
+    }
     // Bỏ giấc ngủ, chạy vòng kế ngay.
     if (notifiedWhileBusy) {
       reason = "thông báo tới lúc đang chạy";

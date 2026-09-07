@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { VEHICLE_TYPES } from "@/lib/pvi";
 import { readPviApiConfig } from "./config";
 import { PviApiError, pviPost, pviSign, pviText, type PviOrderResult } from "./client";
 import { PVI_CERTIFICATE_EMAIL } from "./constants";
@@ -18,6 +19,14 @@ import { asDateTime, pviPeriod } from "./period";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const YEAR_OR_EMPTY = /^(\d{4})?$/;
+const DIGITS_OR_EMPTY = /^\d*$/;
+
+/**
+ * PVI KHÔNG kiểm mã loại xe: đo 2026-09-07, `loai_xe` = `9999` hay rỗng đều ra
+ * đơn thật. Sai ở đây thành giấy chứng nhận in sai, không thành lỗi, nên chặn
+ * trước khi gửi.
+ */
+const VEHICLE_TYPE_CODES = new Set(VEHICLE_TYPES.map((v) => v.code));
 
 /** Giờ hiệu lực đặt sau lúc gọi 20 phút — cùng số bot Playwright dùng. */
 const MINUTES_AHEAD = 20;
@@ -74,9 +83,8 @@ export const MotorbikeOrderInput = z.object({
    * Mã giao dịch, cũng chính là `RequestId` PVI trả lại ở callback mục 13 và
    * nhận ở mục 14 `GetPolicyNumber`.
    *
-   * Truyền thẳng `insurance_orders.order_code` — cột đó duy nhất, không đổi,
-   * không tái sử dụng. PVI đòi duy nhất trong phạm vi một `CpId`, và môi trường
-   * test chạy trên host riêng nên không phải thêm tiền tố.
+   * Truyền `insurance_orders.id`, lý do ở `from-order.ts`. PVI nhận chuỗi 36
+   * ký tự, đo 2026-09-07.
    */
   maGiaoDich: z.string().trim().min(1).max(50),
 
@@ -111,7 +119,10 @@ export const MotorbikeOrderInput = z.object({
   soKhung: z.string().default(""),
 
   /** Mã danh mục `LOAIXEMOTOR` của PVI, ví dụ `1002`. Xem `VEHICLE_TYPES`. */
-  loaiXe: z.string().trim().min(1),
+  loaiXe: z
+    .string()
+    .trim()
+    .refine((v) => VEHICLE_TYPE_CODES.has(v), "Loại xe không có trong danh mục PVI"),
   /** Mã danh mục `HIEUXEMOTOR`. PVI đánh không bắt buộc; xem `PVI_VEHICLE_BRAND`. */
   nhanHieu: z.string().trim().default(PVI_VEHICLE_BRAND),
   /**
@@ -124,8 +135,8 @@ export const MotorbikeOrderInput = z.object({
   /** Địa chỉ chủ xe trên cà vẹt — KHÁC `diaChiNguoiMuaBh` khi mua hộ. */
   diaChi: z.string().trim().min(1),
   email: z.string().trim().email().default(PVI_CERTIFICATE_EMAIL),
-  /** PVI đánh KHÔNG bắt buộc, dù form của mình bắt buộc. */
-  soDienThoai: z.string().trim().default(""),
+  /** PVI đánh KHÔNG bắt buộc và không kiểm: đo 2026-09-07, `09abc` vẫn ra đơn. */
+  soDienThoai: z.string().trim().regex(DIGITS_OR_EMPTY, "Số điện thoại chỉ gồm chữ số").default(""),
 
   /**
    * Bảo hiểm bồi thường cho người ngồi trên xe — BÁN KÈM MỌI ĐƠN.

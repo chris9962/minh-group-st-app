@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { StatusTone } from '@/components/ui/StatusTag';
+import { businessDay } from '@/lib/format';
 import { InsuranceProduct, isoDate, isoDateOrEmpty } from '@/lib/types';
 
 /**
@@ -104,22 +105,23 @@ export const INSURANCE_STATUS_TONE: Record<InsuranceOrderStatus, StatusTone> = {
 };
 
 /**
- * Số lần luồng tải giấy chứng nhận hỏi PVI trước khi ngừng hỏi một đơn.
+ * Số lần hỏi PVI trước khi màn hình hiện lời nhắc và mở đường làm tay.
  *
- * Với nhịp quét 2 phút thì 60 lần là khoảng 2 giờ. Chạm ngưỡng, luồng thôi hỏi
- * nhưng KHÔNG đổi trạng thái đơn: đơn đã duyệt xong bên PVI, đẩy nó về hàng chờ
- * làm tay là bắt người ta tạo lại từ đầu một đơn đã tạo xong.
+ * Worker API hỏi 30 giây một lần trong 60 lần đầu, tức 30 phút, rồi giãn ra
+ * 5 phút một lần và KHÔNG bao giờ thôi hỏi (chốt 2026-09-07): đơn đã có bên
+ * PVI, đẩy về làm tay là bắt người ta tạo lại một đơn đã tạo xong. Chạm ngưỡng
+ * chỉ đổi hai thứ: màn hình hiện lời nhắc, và người có quyền được nhận đơn về
+ * làm tay. Bot Playwright cũ thì thôi hỏi ở ngưỡng này.
  *
- * Đặt ở đây vì cả hai phía đọc: `scripts/pvi-fetch-certificates.ts` để biết khi
- * nào ngừng hỏi, và màn hình để biết dòng nào cần hiện lời nhắc.
+ * Đặt ở đây vì cả hai phía đọc: `scripts/pvi-api-worker.ts` để giãn nhịp, và
+ * màn hình để biết dòng nào cần hiện lời nhắc.
  */
 export const CERTIFICATE_MAX_ATTEMPTS = 60;
 
 /**
- * Đơn đã duyệt xong bên PVI nhưng lấy giấy chứng nhận không được, và bot đã
- * thôi thử.
+ * Đơn PVI đã nhận nhưng quá 30 phút chưa cấp giấy chứng nhận.
  *
- * Người xem cần biết để đi hỏi — nếu không, dòng này trông y hệt dòng vừa duyệt
+ * Người xem cần biết để đi hỏi — nếu không, dòng này trông y hệt dòng vừa tạo
  * xong và đang đợi bình thường.
  */
 export const certificateNeedsHelp = (
@@ -128,7 +130,7 @@ export const certificateNeedsHelp = (
 ): boolean => status === 'awaiting-certificate' && attempts >= CERTIFICATE_MAX_ATTEMPTS;
 
 export const CERTIFICATE_HELP_MESSAGE =
-  'Không tải được giấy chứng nhận từ PVI. Liên hệ người có thẩm quyền để nhờ kiểm tra.';
+  'Hỏi PVI 60 lần trong 30 phút mà chưa có giấy chứng nhận. Liên hệ phòng cấp đơn PVI để kiểm tra. Hệ thống vẫn hỏi tiếp 5 phút một lần.';
 
 /**
  * Hai bước người xử lý tay bấm được ở P-14 (spec §3.5, §9.2).
@@ -246,6 +248,16 @@ export const InsuranceOrderLegForm = z
   .refine((leg) => leg.product !== 'electric-accident' || leg.beneficiaryDob.length > 0, {
     message: 'Chưa chọn ngày sinh khách hàng',
     path: ['beneficiaryDob'],
+  })
+  // PVI từ chối ngày bắt đầu đã qua (`-505` xe máy, `-401` tai nạn điện), tính
+  // theo giờ Việt Nam. Chặn ở form thay vì để đơn về Chờ làm tay.
+  .refine((leg) => leg.startDate >= businessDay(), {
+    message: 'Ngày bắt đầu không được ở quá khứ',
+    path: ['startDate'],
+  })
+  .refine((leg) => leg.endDate > leg.startDate, {
+    message: 'Ngày kết thúc phải sau ngày bắt đầu',
+    path: ['endDate'],
   });
 export type InsuranceOrderLegForm = z.infer<typeof InsuranceOrderLegForm>;
 

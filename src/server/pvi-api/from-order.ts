@@ -1,4 +1,6 @@
 import { eq, sql } from "drizzle-orm";
+import { businessDay, digitsOnly } from "@/lib/format";
+import type { InsuranceProduct } from "@/lib/types";
 import { db } from "../db/client";
 import { customerPhones, customers, insuranceOrders } from "../db/schema";
 import { ElectricOrderInput } from "./electric";
@@ -16,13 +18,19 @@ import { MotorbikeOrderInput } from "./motorbike";
  * KHÔNG gửi CCCD lên PVI (chốt 2026-09-07). Đo cùng ngày: PVI khớp `-556 Chủ hộ
  * đã tham gia` theo CCCD, và nhận đơn có CCCD rỗng. Gửi CCCD của hồ sơ khách là
  * tự chặn đơn cấp lại cho khách cũ mà không được gì.
+ *
+ * `ma_giaodich` là `insurance_orders.id`, KHÔNG phải `order_code` (chốt
+ * 2026-09-07). Mã đơn `DH-YYMM-NNN` đếm theo tháng nên database local, bản khôi
+ * phục và máy chủ thật cùng có `DH-2609-001`. Callback của ba đơn thử từ local
+ * đã ghi đè ba đơn thật ngày 2026-09-07. UUID sinh ngẫu nhiên nên đơn tạo ở đâu
+ * cũng không trùng đơn ở nơi khác.
  */
 
 /** Đơn cộng phần hồ sơ khách mà PVI cần. */
 export type OrderForPvi = {
   id: string;
   orderCode: string;
-  product: string;
+  product: InsuranceProduct;
   fee: number;
   startDate: string;
   endDate: string;
@@ -95,9 +103,12 @@ export async function orderForPvi(id: string): Promise<OrderForPvi | null> {
  * tai nạn điện. Đơn nằm trong hàng chờ qua đêm là rơi vào đó, nên dịch mốc bắt
  * đầu lên ngày chạy. Mốc kết thúc giữ nguyên: hợp đồng ngắn đi vài giờ còn hơn
  * đơn không tạo được.
+ *
+ * "Ngày chạy" theo giờ Việt Nam. Máy chủ chạy UTC, `toISOString()` từ 0h tới 7h
+ * sáng vẫn là ngày hôm trước và PVI từ chối.
  */
 export function startDateFor(order: { startDate: string }, now = new Date()): string {
-  const today = now.toISOString().slice(0, 10);
+  const today = businessDay(now);
   return order.startDate < today ? today : order.startDate;
 }
 
@@ -108,10 +119,10 @@ const nonEmpty = (...values: (string | null | undefined)[]): string => {
 
 export function motorbikeInputFor(order: OrderForPvi, now = new Date()) {
   return MotorbikeOrderInput.parse({
-    maGiaoDich: order.orderCode,
+    maGiaoDich: order.id,
     tenChuXe: nonEmpty(order.beneficiaryName, order.customerName),
     diaChi: nonEmpty(order.beneficiaryAddress, order.customerAddress),
-    soDienThoai: order.customerPhone ?? "",
+    soDienThoai: digitsOnly(order.customerPhone ?? ""),
     bienKiemSoat: order.licensePlate,
     soMay: order.engineNumber,
     soKhung: order.chassisNumber,
@@ -123,11 +134,11 @@ export function motorbikeInputFor(order: OrderForPvi, now = new Date()) {
 
 export function electricInputFor(order: OrderForPvi, now = new Date()) {
   return ElectricOrderInput.parse({
-    maGiaoDich: order.orderCode,
+    maGiaoDich: order.id,
     khachHang: nonEmpty(order.beneficiaryName, order.customerName),
     ngaySinh: nonEmpty(order.beneficiaryDob, order.customerDob),
     diaChi: nonEmpty(order.beneficiaryAddress, order.customerAddress),
-    soDienThoai: order.customerPhone ?? "",
+    soDienThoai: digitsOnly(order.customerPhone ?? ""),
     ngayBatDau: startDateFor(order, now),
     ngayKetThuc: order.endDate,
     soTienBh: order.sumInsured,

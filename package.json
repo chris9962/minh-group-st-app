@@ -36,6 +36,7 @@
     "pvi:chung-nhan": "bun --env-file=.env.local pvi-qlcd-playwright/worker.ts --chi-chung-nhan --mot-vong",
     "pvi:worker": "bun --env-file=.env.local pvi-qlcd-playwright/worker.ts",
     "pvi:api-worker": "bun --env-file=.env.local scripts/pvi-api-worker.ts",
+    "pvi:api-check": "bun --env-file=.env.local scripts/pvi-api-worker.ts --check",
     "pvi:order:dry": "node pvi-qlcd-playwright/create-order.js --dry-run",
     "webp:bench": "bun scripts/webp-bench.ts"
   },

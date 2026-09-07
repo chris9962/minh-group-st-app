@@ -735,6 +735,10 @@ async function notifyPviWorker(
   status: "queued" | "manual-queued",
 ) {
   if (route !== "api" || status !== "queued") return;
+  await wakePviWorker(tx);
+}
+
+async function wakePviWorker(tx: Pick<typeof db, "execute">) {
   try {
     await tx.execute(sql`select pg_notify(${PVI_NEW_ORDER_CHANNEL}, '')`);
   } catch (cause) {
@@ -777,8 +781,10 @@ export async function createInsuranceOrders(
 
   const today = businessDay();
   for (const leg of form.legs) {
-    if (leg.endDate < leg.startDate)
+    if (leg.endDate <= leg.startDate)
       return { ok: false, message: "Ngày kết thúc phải sau ngày bắt đầu" };
+    // PVI từ chối ngày bắt đầu đã qua: `-505` xe máy, `-401` tai nạn điện.
+    if (leg.startDate < today) return { ok: false, message: "Ngày bắt đầu không được ở quá khứ" };
     // Sổ ghi việc ĐÃ LÀM: một đơn của tuần sau thì chưa bán cho ai.
     if (leg.orderDate > today) return { ok: false, message: "Ngày tạo đơn không được ở tương lai" };
   }
@@ -939,9 +945,14 @@ export async function updateInsuranceOrder(
     return { ok: false, message: parsed.error.issues[0]?.message ?? "Dữ liệu không hợp lệ" };
   const form = parsed.data;
 
-  if (form.endDate < form.startDate)
+  const today = businessDay();
+  if (form.endDate <= form.startDate)
     return { ok: false, message: "Ngày kết thúc phải sau ngày bắt đầu" };
-  if (form.orderDate > businessDay())
+  // Chỉ chặn khi ĐỔI ngày bắt đầu: đơn cũ đang ở Chờ làm tay sửa mỗi phí thì
+  // ngày bắt đầu cũ vẫn giữ được.
+  if (form.startDate !== current.startDate && form.startDate < today)
+    return { ok: false, message: "Ngày bắt đầu không được ở quá khứ" };
+  if (form.orderDate > today)
     return { ok: false, message: "Ngày tạo đơn không được ở tương lai" };
 
   await db
@@ -1069,13 +1080,15 @@ export async function setInsuranceOrderStatus(
   if (!claimable && !canSeeOrder(actor, current)) return null;
 
   /**
-   * Đơn còn ở `awaiting-certificate` mà bot CHƯA thôi hỏi thì không ai bấm tay
-   * được: bot sắp tải ảnh về, và bấm hoàn thành lúc này là chen ngang.
+   * Đơn còn ở `awaiting-certificate` chưa quá ngưỡng thì không ai bấm tay
+   * được: hệ thống sắp tải ảnh về, và bấm hoàn thành lúc này là chen ngang.
+   * Quá ngưỡng thì người được nhận; worker vẫn hỏi tiếp nhưng `setStatus` bên
+   * đó kẹp trạng thái nguồn nên không ghi đè lên đơn người đang cầm.
    */
   if (current.status === "awaiting-certificate" && !certificateStuck(current))
     return {
       ok: false,
-      message: `Bot còn đang hỏi PVI về giấy chứng nhận (lần ${current.certificateAttempts}/${CERTIFICATE_MAX_ATTEMPTS}). Đợi bot thôi hỏi rồi mới xử lý tay được.`,
+      message: `Hệ thống còn đang hỏi PVI về giấy chứng nhận (lần ${current.certificateAttempts}/${CERTIFICATE_MAX_ATTEMPTS}). Quá ${CERTIFICATE_MAX_ATTEMPTS} lần mới xử lý tay được.`,
     };
 
   /**
@@ -1156,7 +1169,9 @@ export async function setInsuranceOrderStatus(
  * ai đặt tay và đặt từ đâu sang đâu.
  *
  * ⚠️ Đặt về `queued` là worker tạo lại đơn đó trên PVI lần hai. Không chặn ở
- * đây: chính đó là cách gỡ một đơn bot bỏ dở giữa chừng.
+ * đây: chính đó là cách gỡ một đơn bot bỏ dở giữa chừng. Đường đi gán lại theo
+ * `PVI_ROUTE` lúc bấm (chốt 2026-09-07): đơn cũ mang `pvi_route='bot'` mà bot
+ * đã tắt thì nằm ở Chờ tạo mãi, không worker nào lấy.
  */
 export async function overrideInsuranceOrderStatus(
   actor: User,
@@ -1182,9 +1197,16 @@ export async function overrideInsuranceOrderStatus(
   if (next === "cancelled")
     return { ok: false, message: "Huỷ đơn phải bấm nút Huỷ đơn để ghi lý do." };
 
+  const route = next === "queued" ? newOrderRoute() : null;
+  if (route && route.status !== "queued")
+    return {
+      ok: false,
+      message: "PVI_ROUTE chưa bật, đặt về Chờ tạo thì không worker nào lấy đơn.",
+    };
+
   const updated = await db
     .update(insuranceOrders)
-    .set({ status: next, updatedAt: new Date() })
+    .set({ status: next, ...(route ? { pviRoute: route.route } : {}), updatedAt: new Date() })
     // Kẹp theo trạng thái ĐANG đọc được: hai người cùng mở trang, người sau
     // bấm thì phải thấy đơn đã đổi chứ không ghi đè lặng lẽ.
     .where(and(eq(insuranceOrders.id, id), eq(insuranceOrders.status, current.status)))
@@ -1199,6 +1221,8 @@ export async function overrideInsuranceOrderStatus(
     toStatus: next,
     changedBy: actor.id,
   });
+
+  if (route) await notifyPviWorker(db, route.route, "queued");
 
   return { ok: true, value: (await insuranceOrderDetail(actor, id))! };
 }
@@ -1236,6 +1260,17 @@ export async function cancelInsuranceOrder(
   if (!canOverride && !creatorCancellingDone) return null;
 
   if (current.status === "cancelled") return { ok: false, message: "Đơn này đã huỷ rồi." };
+
+  /**
+   * Đơn đang trong tay PVI (chốt 2026-09-07): worker đang gọi, hoặc PVI đã
+   * nhận và đang cấp giấy. Huỷ lúc này thì bên mình ghi huỷ mà bên PVI vẫn ra
+   * hợp đồng thật, và worker vẫn đẩy nó sang Hoàn thành.
+   */
+  if (current.status === "creating" || current.status === "awaiting-certificate")
+    return {
+      ok: false,
+      message: "Đơn đang được PVI xử lý, chưa huỷ được. Đợi đơn hoàn thành hoặc về Chờ làm tay.",
+    };
 
   /**
    * Người tạo chỉ TỰ huỷ được trong ngày lập đơn (chốt 2026-09-02) — qua ngày
@@ -1369,9 +1404,14 @@ export async function recreateInsuranceOrder(
     return { ok: false, message: parsed.error.issues[0]?.message ?? "Dữ liệu không hợp lệ" };
   const form = parsed.data;
 
-  if (form.endDate < form.startDate)
+  const today = businessDay();
+  if (form.endDate <= form.startDate)
     return { ok: false, message: "Ngày kết thúc phải sau ngày bắt đầu" };
-  if (form.orderDate > businessDay())
+  // Cấp lại hay mang nguyên ngày của đơn cũ. PVI từ chối ngày đã qua, và đơn
+  // về Chờ làm tay với mã `-401` mà không ai hiểu vì sao (ca thật 2026-09-06).
+  if (form.startDate < today)
+    return { ok: false, message: "Ngày bắt đầu không được ở quá khứ" };
+  if (form.orderDate > today)
     return { ok: false, message: "Ngày tạo đơn không được ở tương lai" };
 
   const yearMonth = businessMonth();
@@ -1496,8 +1536,11 @@ export async function setCertificatePhoto(
  * KHÔNG kiểm quyền: bên gọi là máy chủ PVI, không có phiên đăng nhập nào. Thứ
  * gác đường này là chữ ký MD5 mà `verifyPviCallback` đã kiểm trước khi tới đây.
  *
- * Tra đơn bằng `order_code` vì `RequestId` PVI trả lại chính là `ma_giaodich`
- * mình gửi lúc tạo đơn, mà mã đó lấy thẳng từ cột này.
+ * Tra đơn bằng `id` vì `RequestId` PVI trả lại chính là `ma_giaodich` mình gửi
+ * lúc tạo đơn, mà mã đó là `insurance_orders.id` từ 2026-09-07 (lý do ở
+ * `pvi-api/from-order.ts`). Chuỗi không đúng dạng UUID thì trả `false` ngay:
+ * cột `id` kiểu uuid, đem so với chuỗi lạ là Postgres báo lỗi cú pháp và route
+ * trả `-1` bắt PVI gọi lại một thứ không bao giờ khớp.
  *
  * Chạy lại nhiều lần với cùng dữ liệu ra cùng kết quả — PVI gọi callback tối đa
  * 3 lần, và tác vụ tra `GetPolicyNumber` cũng ghi vào đúng cột này.
@@ -1509,6 +1552,8 @@ export async function savePviCertificate(
   requestId: string,
   certificate: { policyNumber: string; serialNumber: string },
 ): Promise<boolean> {
+  if (!UUID_RE.test(requestId)) return false;
+
   const rows = await db
     .update(insuranceOrders)
     .set({
@@ -1530,13 +1575,20 @@ export async function savePviCertificate(
     })
     .where(
       and(
-        eq(insuranceOrders.orderCode, requestId),
-        // Callback mang `order_code`, mà đơn của bot cũng có cột đó. Không lọc
-        // thì một callback đến nhầm ghi đè lên đơn bot đang chạy.
+        eq(insuranceOrders.id, requestId),
+        // Bản khôi phục ở máy khác mang cùng `id` với đơn thật. Không lọc thì
+        // một callback của đơn thử ghi đè lên đơn thật đi đường bot.
         eq(insuranceOrders.pviRoute, "api"),
       ),
     )
     .returning({ id: insuranceOrders.id });
 
+  // Đánh thức worker để nó hỏi `GetPolicyNumber` ngay, thay vì đợi hết vòng
+  // 10 giây (chốt 2026-09-07). Worker chỉ hỏi đơn tới hạn, mà callback vừa đặt
+  // `certificate_checked_at` về null cho đúng đơn này.
+  if (rows.length > 0) await wakePviWorker(db);
+
   return rows.length > 0;
 }
+
+const UUID_RE =/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

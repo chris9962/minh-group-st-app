@@ -13,8 +13,8 @@ import { readPviApiConfig, type PviApiConfig } from "./config";
 /**
  * Mã lỗi ở "Bảng mã lỗi" cuối tài liệu PVI, cộng `-504` mà mục 4 dùng.
  *
- * Bốn mã cuối không có trong tài liệu. Chúng đến từ lần gọi thật đầu tiên trên
- * `piastest` ngày 2026-09-03, xem `docs/plan-pvi-api-2026-08-26.md`.
+ * Từ `-555` trở xuống không có trong tài liệu. Bốn mã đầu đo trên `piastest`
+ * 2026-09-03, bốn mã sau đo 2026-09-07 bằng `scripts/pvi-api-probe-errors.ts`.
  */
 const ERROR_MESSAGES: Record<string, string> = {
   "-404": "Dữ liệu không hợp lệ",
@@ -25,7 +25,11 @@ const ERROR_MESSAGES: Record<string, string> = {
   "-555": "Mã giao dịch đã tồn tại",
   "-505": "Ngày bắt đầu nhỏ hơn ngày hiện tại",
   "-401": "Ngày bắt đầu nhỏ hơn ngày hiện tại",
-  "-500": "Không tra được mã giao dịch",
+  "-500": "Không tìm thấy dữ liệu",
+  "-503": "Mã giao dịch rỗng",
+  "-506": "Ngày bắt đầu phải nhỏ hơn ngày kết thúc",
+  "-955": "Email không hợp lệ",
+  "-309": "Thiếu danh sách người tham gia",
 };
 
 export type PviApiErrorKind =
