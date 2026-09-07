@@ -207,6 +207,13 @@ const deputyDirectorPermissions: Permission[] = [
    */
   p('system', 'configure-catalog', 'company'),
   p('system', 'manage-bank', 'company'),
+  /**
+   * Địa bàn và trưởng ấp của vùng mình phụ trách (chốt 2026-09-07). Ghi tường
+   * minh dù `configure-catalog` ở trên đã mở được P-71: ngày thu hẹp quyền
+   * danh mục của vai này thì đường vào xã/ấp vẫn còn. Tài khoản đã tạo trước
+   * đó cấp bù bằng `db:grant-configure-wards`.
+   */
+  p('system', 'configure-wards', 'company'),
 ];
 
 export const ROLE_PERMISSIONS: Record<RoleKey, Permission[]> = {

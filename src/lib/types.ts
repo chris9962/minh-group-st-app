@@ -120,6 +120,15 @@ export const Action = z.enum([
   'manage-assigned-banks',
   // Đặc biệt — insurance/services/system (danh mục dùng chung kiểu chọn-từ-danh-sách)
   'configure-catalog',
+  /**
+   * Sửa RIÊNG danh mục tỉnh / xã / ấp P-71 (migration 0072, chốt 2026-09-07).
+   *
+   * Tách khỏi `configure-catalog` vì quyền đó mở luôn danh mục quà, chỉ tiêu
+   * KPI, loại dịch vụ — quá rộng để cấp cho người chỉ cần cập nhật địa bàn và
+   * trưởng ấp của vùng mình phụ trách. `configure-catalog` vẫn mở được P-71,
+   * xem `canConfigureWards`.
+   */
+  'configure-wards',
   // Đặc biệt — system
   'configure-gift-rules',
   /** Lập phòng, đổi tên, cho ngừng hoạt động. Tách khỏi CRUD của `staff`: sửa cơ
@@ -160,6 +169,7 @@ export const ACTION_LABEL: Record<Action, string> = {
   'manage-bank': 'Quản lý mọi ngân hàng & mã giới thiệu',
   'manage-assigned-banks': 'Quản lý ngân hàng được giao',
   'configure-catalog': 'Cấu hình danh mục',
+  'configure-wards': 'Cấu hình xã / ấp',
   'configure-gift-rules': 'Cấu hình quy tắc quà',
   'manage-org': 'Sửa cơ cấu tổ chức & xem nhật ký hoạt động',
   'grant-permission': 'Cấp quyền',
@@ -196,6 +206,8 @@ export const SCOPELESS_ACTIONS: Action[] = [
   'adjust-kpi',
   'set-status',
   'handle-feedback',
+  // Địa bàn là danh mục dùng chung — không cắt theo phòng được.
+  'configure-wards',
 ];
 
 export const SPECIAL_ACTIONS_OF: Partial<Record<ModuleKey, Action[]>> = {
@@ -217,6 +229,7 @@ export const SPECIAL_ACTIONS_OF: Partial<Record<ModuleKey, Action[]>> = {
    */
   system: [
     'configure-catalog',
+    'configure-wards',
     'configure-gift-rules',
     'manage-bank',
     'manage-assigned-banks',

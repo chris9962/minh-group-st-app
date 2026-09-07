@@ -1,31 +1,37 @@
-import { HamletRenameForm } from "@/lib/api/wardCatalog";
+import { HamletUpdateForm } from "@/lib/api/wardCatalog";
+import { canConfigureWards } from "@/lib/permissions";
 import { logAudit } from "@/server/audit";
-import { actorWith, badRequest, isUuid, jsonBody, notFound } from "@/server/auth";
-import { deleteHamlet, renameHamlet } from "@/server/catalog";
+import { actorPassing, badRequest, isUuid, jsonBody, notFound } from "@/server/auth";
+import { deleteHamlet, updateHamlet } from "@/server/catalog";
 
 type Params = { params: Promise<{ id: string }> };
 
 export async function PATCH(request: Request, { params }: Params) {
-  const guard = await actorWith(request, "system", "configure-catalog");
+  const guard = await actorPassing(request, canConfigureWards);
   if (!guard.ok) return guard.response;
 
   const { id } = await params;
   if (!isUuid(id)) return notFound();
 
-  const parsed = HamletRenameForm.safeParse(await jsonBody(request));
+  const parsed = HamletUpdateForm.safeParse(await jsonBody(request));
   if (!parsed.success) return badRequest();
 
-  const result = await renameHamlet(id, parsed.data.name);
+  const result = await updateHamlet(id, parsed.data);
   if (!result.ok) return badRequest("Xã này đã có ấp trùng tên");
   const item = result.item;
   if (!item) return notFound();
   const province = item.province;
   if (!province) return notFound();
 
+  // Đổi tên là việc đáng tra lại sau này (kênh ấp lưu chuỗi tên, xem
+  // `updateHamlet`), nên nhật ký ghi rõ tên cũ khi tên đổi.
+  const renamed = item.previousName !== parsed.data.name;
   await logAudit(guard.actor, {
     module: "system",
     action: "update",
-    targetLabel: `Đổi tên ấp ${item.previousName} thành ${parsed.data.name} (${province.name})`,
+    targetLabel: renamed
+      ? `Đổi tên ấp ${item.previousName} thành ${parsed.data.name} (${province.name})`
+      : `Cập nhật ấp ${parsed.data.name} (${province.name})`,
     targetTable: "hamlets",
     targetId: id,
   });
@@ -33,7 +39,7 @@ export async function PATCH(request: Request, { params }: Params) {
 }
 
 export async function DELETE(request: Request, { params }: Params) {
-  const guard = await actorWith(request, "system", "configure-catalog");
+  const guard = await actorPassing(request, canConfigureWards);
   if (!guard.ok) return guard.response;
 
   const { id } = await params;

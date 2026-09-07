@@ -68,6 +68,8 @@ export const actionKey = pgEnum("action_key", [
   "set-status",
   // đặc biệt · system: đọc và đánh dấu đã xử lý góp ý ở P-96 (migration 0052)
   "handle-feedback",
+  // đặc biệt · system: sửa riêng danh mục tỉnh/xã/ấp P-71 (migration 0072)
+  "configure-wards",
 ]);
 
 export const scopeKey = pgEnum("scope_key", ["own", "managed", "company"]);
@@ -577,6 +579,9 @@ export const wards = pgTable(
     provinceId: uuid("province_id").notNull().references(() => provinces.id),
     refId: text("ref_id").notNull().unique().references(() => refWards.id),
     name: text("name").notNull(),
+    /** Trưởng xã — tên và SĐT liên hệ, nhập tay (migration 0072). Rỗng = chưa có. */
+    leaderName: text("leader_name").notNull().default(""),
+    leaderPhone: text("leader_phone").notNull().default(""),
     createdAt: createdAt(),
   },
   // Ô chọn tỉnh → xã lọc theo province_id mỗi lần mở form khách hàng / mở TK.
@@ -590,6 +595,9 @@ export const hamlets = pgTable(
     wardId: uuid("ward_id").notNull().references(() => wards.id),
     /** Ấp KHÔNG có nguồn tham chiếu — luôn nhập tay. */
     name: text("name").notNull(),
+    /** Trưởng ấp — tên và SĐT liên hệ (migration 0072). Rỗng = chưa có. */
+    leaderName: text("leader_name").notNull().default(""),
+    leaderPhone: text("leader_phone").notNull().default(""),
     createdAt: createdAt(),
   },
   (t) => [

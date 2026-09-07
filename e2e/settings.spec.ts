@@ -162,10 +162,15 @@ test.describe("kho mã giới thiệu — phân trang ở máy chủ", () => {
 
 test.describe("danh mục tỉnh/xã", () => {
   test("ô chọn tỉnh không liệt kê tỉnh đã thêm", async ({ page }) => {
-    await page.goto("/settings/channels");
+    await page.goto("/settings/wards");
     await page.waitForTimeout(700);
 
-    const added = await page.locator("[class*=provinceName]").allInnerTexts();
+    // Mỗi thẻ tỉnh mang kèm số xã ("Tỉnh An Giang 4") — cắt số ở đuôi để so tên.
+    const tabs = await page
+      .getByRole("group", { name: "Tỉnh/thành phố" })
+      .locator("label")
+      .allInnerTexts();
+    const added = tabs.map((s) => s.replace(/\s*\d+\s*$/, "").trim()).filter(Boolean);
     test.skip(added.length === 0, "chưa triển khai tỉnh nào");
 
     await page.getByRole("button", { name: /Thêm tỉnh/ }).click();
@@ -173,7 +178,7 @@ test.describe("danh mục tỉnh/xã", () => {
     await page.waitForTimeout(400);
     const offered = await page.locator("li").allInnerTexts();
 
-    for (const name of added.map((s) => s.trim()).filter(Boolean)) {
+    for (const name of added) {
       expect(offered.map((s) => s.trim()), `${name} đã thêm rồi mà vẫn còn trong ô chọn`).not.toContain(name);
     }
   });
@@ -211,9 +216,10 @@ test.describe("chỉ tiêu KPI", () => {
 
 test.describe("danh mục ấp", () => {
   test("hai ấp trùng tên trong cùng một xã bị chặn, báo rõ lý do", async ({ page }) => {
-    await page.goto("/settings/channels");
+    await page.goto("/settings/wards");
     await page.waitForLoadState("networkidle");
 
+    // Xã đầu của tỉnh đầu tự được chọn — nút "Thêm ấp" chỉ hiện khi có xã.
     const addHamlet = page.getByRole("button", { name: /Thêm ấp/ }).first();
     test.skip((await addHamlet.count()) === 0, "chưa triển khai xã nào");
 

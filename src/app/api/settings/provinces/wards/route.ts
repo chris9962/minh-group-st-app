@@ -1,11 +1,12 @@
 import { AddWardForm } from "@/lib/api/wardCatalog";
+import { canConfigureWards } from "@/lib/permissions";
 import { logAudit } from "@/server/audit";
-import { actorWith, badRequest, jsonBody, notFound } from "@/server/auth";
+import { actorPassing, badRequest, jsonBody, notFound } from "@/server/auth";
 import { addWard } from "@/server/catalog";
 
 /** Trả về ĐÚNG tỉnh vừa nhận xã mới — hợp đồng ở `wardCatalog.ts` parse một `Province`. */
 export async function POST(request: Request) {
-  const guard = await actorWith(request, "system", "configure-catalog");
+  const guard = await actorPassing(request, canConfigureWards);
   if (!guard.ok) return guard.response;
 
   const parsed = AddWardForm.safeParse(await jsonBody(request));

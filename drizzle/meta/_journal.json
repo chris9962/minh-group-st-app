@@ -505,6 +505,13 @@
       "when": 1789632200000,
       "tag": "0071_bank_variant_app_flags",
       "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1789718600000,
+      "tag": "0072_ward_leaders",
+      "breakpoints": true
     }
   ]
 }
