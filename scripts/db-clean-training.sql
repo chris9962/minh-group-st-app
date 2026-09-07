@@ -26,6 +26,9 @@ DELETE FROM gift_grant_changes;
 DELETE FROM gift_grants;
 DELETE FROM bank_accounts;
 DELETE FROM customer_phones;
+-- `customer_changes` trỏ `customers` và KHÔNG có on delete cascade, cùng lỗi với
+-- `gift_grant_changes`. Lượt chạy 2026-09-07 trên máy cá nhân dừng ở đây.
+DELETE FROM customer_changes;
 DELETE FROM customers;
 
 DELETE FROM audit_log;
