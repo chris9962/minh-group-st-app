@@ -423,9 +423,13 @@ export async function listScoringExport(
      * Bốn cột đếm của file — `AN` `AO` `AP` `AQ`. Chúng đếm khối MỞ TÀI KHOẢN,
      * KHÔNG đếm khối app cài; `CNKD`/`HKD` nằm ngoài phép đếm.
      */
-    const bankCodes = [...new Set(accounts.map((a) => a.bankCode))].filter(
-      (code) => !HOUSEHOLD_CODES.has(code),
-    );
+    // Dòng HKD là tài khoản VPa riêng, không vào combo và không đếm là ngân
+    // hàng, khớp `comboRowsOf` ở `rules/2026-09.ts`. Khách chỉ có VPa HKD thì
+    // cột CÁC APP và cột APP không có VPa; bản Thường và CNKD vẫn có (chốt
+    // 2026-09-07).
+    const bankCodes = [
+      ...new Set(accounts.filter((a) => a.accountType !== "HKD").map((a) => a.bankCode)),
+    ].filter((code) => !HOUSEHOLD_CODES.has(code));
     const tierCount = (tier: string) =>
       bankCodes.filter((code) => bankTierFor(code, firstDate) === tier).length;
 
@@ -455,6 +459,8 @@ export async function listScoringExport(
       household: household === "none" ? "" : household,
       // Khử trùng như `bankCodes`: khách có hai tài khoản cùng một ngân hàng
       // thì ô app cài vẫn là một, y hệt file Kế toán ghi mỗi ngân hàng một ô.
+      // Khác `bankCodes`, khối này đọc CẢ dòng HKD (chốt 2026-09-07): ô VPa
+      // đánh 1 khi bất kỳ dòng VPa nào của khách đã cài app, kể cả dòng HKD.
       installedBanks: [
         ...new Set(accounts.filter((a) => a.appInstalled).map((a) => a.bankCode)),
       ].filter((code) => !HOUSEHOLD_CODES.has(code)),
