@@ -240,7 +240,11 @@ export async function fetchCustomerLookup(
   return CustomerLookupResult.parse(await res.json());
 }
 
-export type CustomerExportQuery = Pick<CustomerQuery, 'search' | 'channelId' | 'from' | 'to'>;
+/** Cùng bộ ô lọc với bảng P-40, trừ trang và sắp xếp. */
+export type CustomerExportQuery = Pick<
+  CustomerQuery,
+  'search' | 'channelId' | 'channelDetail' | 'address' | 'staffId' | 'departmentId' | 'from' | 'to'
+>;
 
 /**
  * `total` là tổng số dòng KHỚP BỘ LỌC. Lớn hơn `rows.length` nghĩa là máy chủ

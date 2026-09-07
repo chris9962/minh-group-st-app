@@ -29,9 +29,13 @@ export async function GET(request: Request) {
    */
   const view = recordVisibility(guard.actor, "customer", "export");
 
+  // Cùng bộ ô lọc với route P-40: nút Xuất trên màn Khách hàng gửi đúng bộ lọc
+  // đang xem (chốt 2026-09-07), thiếu ô nào thì file rộng hơn bảng.
   const result = await listCustomersForExport({
     search: params.get("search") ?? "",
     channelId: uuidParam(params.get("channelId")),
+    channelDetail: params.get("channelDetail") ?? "",
+    address: params.get("address") ?? "",
     from: params.get("from") ?? "",
     to: params.get("to") ?? "",
     // Mảng rỗng ở ca `none` chứ không phải `undefined` — cùng lý do đã ghi ở
@@ -39,7 +43,10 @@ export async function GET(request: Request) {
     // đáng hẹp nhất.
     departmentIds:
       view.kind === "departments" ? view.departmentIds : view.kind === "none" ? [] : undefined,
-    createdBy: view.kind === "creator" ? view.userId : undefined,
+    departmentId: uuidParam(params.get("departmentId")),
+    // Phạm vi `creator` đè lên ô Nhân viên: người chỉ xuất được khách mình lập
+    // không chọn được người khác qua tham số.
+    createdBy: view.kind === "creator" ? view.userId : uuidParam(params.get("staffId")),
   });
 
   /**

@@ -4,7 +4,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { Briefcase, Gift, Landmark, Pencil, Plus, Trash2, Users } from "lucide-react";
+import { Briefcase, Download, Gift, Landmark, Pencil, Plus, Trash2, Users } from "lucide-react";
 import type { DateRange } from "react-day-picker";
 import { SkeletonTable } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
@@ -31,6 +31,7 @@ import {
   deleteCustomer,
   fetchCustomerDetail,
   fetchCustomers,
+  fetchCustomersForExport,
   type CustomerQuery,
   type CustomerRow,
   type CustomerSort,
@@ -39,6 +40,7 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { seqLabeller } from "@/lib/customerLabel";
 import { errorMessage, toast } from "@/lib/toast";
 import { EMPTY_PAGE, PAGE_SIZE } from "@/lib/api/pagination";
+import { exportExcel, type ExcelColumn } from "@/lib/excel";
 import { formatDate, formatPhone, formatPoints } from "@/lib/format";
 import { useAddressSuggestions } from "@/lib/useAddressSuggestions";
 import { useDebouncedValue } from "@/lib/hooks";
@@ -140,6 +142,7 @@ export default function CustomersPage() {
   const [openingBankFor, setOpeningBankFor] = useState<CustomerRow | null>(null);
   const [loggingServiceFor, setLoggingServiceFor] = useState<CustomerRow | null>(null);
   const [deletingCustomer, setDeletingCustomer] = useState<CustomerRow | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   // Ô tìm giữ chữ đang gõ riêng, chỉ hoãn xong mới thành câu hỏi gửi đi — nối
   // thẳng vào `query` thì mỗi phím là một lượt gọi máy chủ.
@@ -298,6 +301,74 @@ export default function CustomersPage() {
 
   /** Bảng có nửa cột Điểm hay không — theo việc người xem đã chọn khoảng ngày. */
   const showPoints = Boolean(range?.from && range.to);
+
+  /**
+   * Xuất đúng bộ lọc đang xem, trọn danh sách không phân trang (chốt
+   * 2026-09-07, cho Trưởng phòng và Phó phòng). Máy chủ áp phạm vi
+   * `customer:export` của người bấm, không phải phạm vi bảng đang hiện.
+   *
+   * Nhãn "hồ sơ 2" dựng lại từ chính dòng xuất, không dùng `nameOf` của trang:
+   * trang chỉ có 15 dòng nên không biết hồ sơ anh em nằm ở trang khác.
+   */
+  const xuatExcel = async () => {
+    setExporting(true);
+    try {
+      const { rows, total } = await fetchCustomersForExport({
+        search: asked.search,
+        channelId: asked.channelId,
+        channelDetail: asked.channelDetail,
+        address: asked.address,
+        staffId: asked.staffId,
+        departmentId: asked.departmentId,
+        from: asked.from,
+        to: asked.to,
+      });
+      const label = seqLabeller(rows);
+      const columns: ExcelColumn<CustomerRow>[] = [
+        { header: "STT", width: 6, type: "number", value: (_c, i) => i + 1 },
+        { header: "NGÀY TẠO", width: 12, value: (c) => formatDate(c.createdAt) },
+        { header: "TÊN KHÁCH HÀNG", width: 28, transform: "name", value: (c) => label(c) },
+        { header: "SỐ ĐIỆN THOẠI", width: 14, type: "text", value: (c) => c.primaryPhone },
+        { header: "SỐ TÀI KHOẢN", width: 12, type: "number", value: (c) => c.accountCount },
+        ...(showPoints
+          ? [
+              {
+                header: "ĐIỂM",
+                width: 8,
+                type: "number" as const,
+                value: (c: CustomerRow) => c.points ?? 0,
+              },
+            ]
+          : []),
+        { header: "SỐ ĐƠN BH", width: 10, type: "number", value: (c) => c.insuranceCount },
+        { header: "KÊNH", width: 14, value: (c) => c.channel },
+        {
+          header: "QUÀ",
+          width: 26,
+          value: (c) =>
+            c.giftStatus === "given"
+              ? (c.givenItem ?? "Đã tặng")
+              : c.giftStatus === "eligible"
+                ? "Đủ điều kiện"
+                : "",
+        },
+        { header: "NGƯỜI TẠO", width: 24, value: (c) => c.createdByName },
+        { header: "PHÒNG", width: 24, value: (c) => c.createdByDepartmentName },
+      ];
+      await exportExcel({
+        fileName: `khach-hang-${iso(new Date())}.xlsx`,
+        sheetName: "Khách hàng",
+        columns,
+        rows,
+      });
+      if (total > rows.length)
+        toast.warn(`File có ${rows.length} trên ${total} khách khớp bộ lọc. Thu hẹp bộ lọc để lấy đủ.`);
+    } catch (e) {
+      toast.fail(errorMessage(e, "Không xuất được file"));
+    } finally {
+      setExporting(false);
+    }
+  };
 
   /** Tính trên TRANG đang hiện, nên phải nằm trong phụ thuộc của `columns`. */
   const nameOf = useMemo(() => seqLabeller(page.rows), [page.rows]);
@@ -522,6 +593,17 @@ export default function CustomersPage() {
             />
           )}
         </FilterButton>
+        {can(user, "customer", "export") && (
+          <Button
+            variant="secondary"
+            aria-label="Xuất Excel"
+            disabled={exporting}
+            onClick={() => void xuatExcel()}
+          >
+            <Download size={16} aria-hidden />
+            <span className={buttonStyles.label}>{exporting ? "Đang xuất…" : "Xuất Excel"}</span>
+          </Button>
+        )}
         {can(user, "customer", "create") && (
           <Button aria-label="Thêm khách hàng" onClick={() => setCreating(true)}>
             <Plus size={16} aria-hidden />
