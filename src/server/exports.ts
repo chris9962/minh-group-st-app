@@ -184,11 +184,12 @@ const liveBasketLabel = (gift: GiftResult | null, catalogName: Map<string, strin
  * SAI: khách Phòng Y bậc TH5 được chọn một trong tám món mà ô chỉ ghi "2 năm BH
  * + 20k", và món thêm của mục 4b thể lệ không xuất hiện ở đâu cả.
  *
- *   `QUÀ TẶNG THEO COMBO`  rổ luật sống tính theo tài khoản HIỆN TẠI, mọi khách
- *   `QUÀ COMBO LÚC CHỐT`   rổ đóng băng lúc phát, rỗng khi chưa phát
+ *   `QUÀ TẶNG THEO COMBO HIỆN TẠI`  rổ luật sống tính theo tài khoản hiện tại, mọi khách
+ *   `QUÀ COMBO LÚC CHỐT`            rổ đóng băng lúc phát, rỗng khi chưa phát
  *
- * Bản trước cột THEO COMBO đổi nghĩa theo khách: đóng băng nếu đã phát, luật
- * sống nếu chưa. Đọc file thì không biết ô đang nói rổ nào, nên tách hẳn.
+ * Bản trước cột này tên `QUÀ TẶNG THEO COMBO` và đổi nghĩa theo khách: đóng
+ * băng nếu đã phát, luật sống nếu chưa. Đọc file thì không biết ô đang nói rổ
+ * nào, nên tách hẳn và ghi chữ "hiện tại" vào tên cột.
  */
 
 /**

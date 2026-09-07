@@ -185,7 +185,7 @@ function catalogFor(report: ReportId, banks: Bank[], staffById: Map<string, Staf
         })),
         { key: "installedCount", header: "TỔNG APP CÀI TRÊN THIẾT BỊ", ...APP_CAI, ...mark, width: 16, defaultOn: true, sample: ["1", "1"], total: sum((r) => r.installedBanks.length), value: (r) => r.installedBanks.length },
         { key: "giftReport", header: "QUÀ TẶNG BÁO CÁO", ...QUA, width: 40, defaultOn: true, sample: ["1 năm tai nạn điện gói 200k + 20k", ""], total: countIf((r) => Boolean(r.giftReport)), value: (r) => r.giftReport },
-        { key: "giftCombo", header: "QUÀ TẶNG THEO COMBO", ...QUA, width: 40, defaultOn: true, sample: ["1 năm BH xe máy, 1 năm BH tai nạn điện", "2 năm BH xe máy, 1 năm tai nạn điện gói 200k"], total: countIf((r) => Boolean(r.giftCombo)), value: (r) => r.giftCombo },
+        { key: "giftCombo", header: "QUÀ TẶNG THEO COMBO HIỆN TẠI", ...QUA, width: 40, defaultOn: true, sample: ["1 năm BH xe máy, 1 năm BH tai nạn điện", "2 năm BH xe máy, 1 năm tai nạn điện gói 200k"], total: countIf((r) => Boolean(r.giftCombo)), value: (r) => r.giftCombo },
         { key: "giftBasketAtGrant", header: "QUÀ COMBO LÚC CHỐT", ...QUA, width: 40, defaultOn: true, sample: ["2 năm BH xe máy, 1 năm tai nạn điện gói 200k", ""], total: countIf((r) => Boolean(r.giftBasketAtGrant)), value: (r) => r.giftBasketAtGrant },
         { key: "speaker", header: "LOA", ...QUA, align: "center", width: 7, defaultOn: true, sample: ["", "LOA"], total: countIf((r) => Boolean(r.speaker)), value: (r) => r.speaker },
         { key: "insuranceLabel", header: "LOẠI BẢO HIỂM", ...BAO_HIEM, width: 13, defaultOn: true, sample: ["BHX", "BHĐ 100K"], total: countIf((r) => Boolean(r.insuranceLabel)), value: (r) => r.insuranceLabel },
