@@ -443,7 +443,7 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
         title="Đặt lại quyền theo chức vụ mới?"
         confirmLabel="Đặt lại quyền"
         cancelLabel="Giữ quyền hiện tại"
-        consequence="Quyền cấp thêm riêng cho người này sẽ mất. Người này phải đăng xuất rồi đăng nhập lại để quyền mới có hiệu lực."
+        consequence="Quyền cấp thêm riêng cho người này sẽ mất. Sau khi lưu, hệ thống tự đăng xuất người này để nạp quyền mới."
         onConfirm={() => {
           if (roleToReset)
             setValue("permissions", ROLE_PERMISSIONS[roleToReset], { shouldDirty: true });
