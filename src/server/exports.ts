@@ -233,6 +233,25 @@ export async function listScoringExport(
   const done = and(where, eq(bankAccounts.status, "done"));
 
   /**
+   * Ngân hàng và mã giới thiệu CHỌN KHÁCH, không cắt tài khoản (chốt 2026-09-07).
+   *
+   * Người dùng bỏ tick `TPB` nghĩa là "tìm khách có mở VPa, MSBa…", không phải
+   * "giấu dòng TPB của khách đó". Bản trước áp hai ô này lên từng dòng tài
+   * khoản, nên khách LE VAN MANH mở VPa + TPB + MSBa ra dòng chỉ còn 2 ngân
+   * hàng, điểm tụt từ Combo 3 xuống Combo 1 và quà tính sai theo.
+   *
+   * `done` giữ đủ bộ lọc để chọn khách và đếm `total`; `rowDone` bỏ hai ô đó để
+   * dòng của khách gộp trọn tài khoản. Phạm vi quyền và các ô còn lại vẫn áp ở
+   * mức tài khoản như cũ.
+   */
+  const rowWhere = await accountExportWhere(
+    actor,
+    { ...filters, bankCode: "", referralCode: "" },
+    scope,
+  );
+  const rowDone = and(rowWhere ?? undefined, eq(bankAccounts.status, "done"));
+
+  /**
    * Cắt trần theo KHÁCH, không theo tài khoản.
    *
    * `EXPORT_LIMIT` của `server/banking.ts` đếm tài khoản, đúng cho báo cáo một
@@ -266,7 +285,7 @@ export async function listScoringExport(
     })
     .from(bankAccounts)
     .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
-    .where(and(done, inArray(bankAccounts.customerId, picked)));
+    .where(and(rowDone, inArray(bankAccounts.customerId, picked)));
 
   const byCustomer = new Map<string, AccountRow[]>();
   for (const row of accountRows) {
