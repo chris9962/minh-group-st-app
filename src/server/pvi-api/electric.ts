@@ -40,8 +40,6 @@ export const PVI_ELECTRIC_FEE_RATE = 0.25;
 
 export const ElectricParticipant = z.object({
   tenKhach: z.string().trim().min(1),
-  /** CMND/CCCD — request mẫu của PVI để rỗng, nên không bắt buộc. */
-  soCmnd: z.string().trim().default(""),
   diaChi: z.string().trim().min(1),
   ngaySinh: z.string().trim().regex(DATE, "Phải theo dạng dd/MM/yyyy"),
   dienThoai: z.string().trim().default(""),
@@ -64,7 +62,6 @@ export const ElectricOrderInput = z.object({
 
   /** Người thụ hưởng — cột `beneficiary_name`. */
   khachHang: z.string().trim().min(1),
-  cmtKhachHang: z.string().trim().default(""),
   /**
    * Ngày sinh người thụ hưởng, `YYYY-MM-DD` — cột `beneficiary_dob`.
    *
@@ -141,7 +138,6 @@ export type ElectricOrderInput = z.infer<typeof ElectricOrderInput>;
 function nguoiThuHuongThamGia(input: ElectricOrderInput): ElectricParticipant {
   return {
     tenKhach: input.khachHang,
-    soCmnd: input.cmtKhachHang,
     diaChi: input.diaChi,
     ngaySinh: pviDateFromIso(input.ngaySinh),
     dienThoai: input.soDienThoai,
@@ -199,9 +195,11 @@ export function buildElectricPayload(
     CpId: config.cpId,
     Sign: sign,
     ma_giaodich: maGiaoDich,
+    // Không gửi CCCD (chốt 2026-09-07): PVI khớp `-556 Chủ hộ đã tham gia` theo
+    // số này và nhận đơn CCCD rỗng. Giữ hai ô rỗng cho đúng class của PVI.
     list_nguoithamgia: (input.nguoiThamGia.length ? input.nguoiThamGia : [nguoiThuHuongThamGia(input)]).map((p) => ({
       ten_khach: pviText(p.tenKhach),
-      so_cmnd: pviText(p.soCmnd),
+      so_cmnd: "",
       dia_chi: pviText(p.diaChi),
       ngay_sinh: pviText(p.ngaySinh),
       dien_thoai: pviText(p.dienThoai),
@@ -209,7 +207,7 @@ export function buildElectricPayload(
       loai: p.loai,
     })),
     khach_hang: pviText(input.khachHang),
-    cmt_khachhang: pviText(input.cmtKhachHang),
+    cmt_khachhang: "",
     sotien_bh: input.soTienBh,
     thoihan_bh: period.endDate,
     endtime: period.endTime,

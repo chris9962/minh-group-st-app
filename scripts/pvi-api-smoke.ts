@@ -85,7 +85,7 @@ console.log("Mã giao dịch:", STAMP, "\n");
     bienKiemSoat: "69B1-12345",
     soMay: "",
     soKhung: "",
-    loaiXe: "1",
+    loaiXe: "1002",
     ngayBatDau: NGAY_BAT_DAU,
     ngayKetThuc: NGAY_KET_THUC,
   });
@@ -103,7 +103,6 @@ console.log("Mã giao dịch:", STAMP, "\n");
   const input = ElectricOrderInput.parse({
     maGiaoDich: `MGST-HSDD-${STAMP}`,
     khachHang: "NGUYEN VAN TEST",
-    cmtKhachHang: "272866539",
     ngaySinh: "1990-05-15",
     diaChi: "Ấp 1, Xã An Xuyên, Cà Mau",
     soDienThoai: "0901110000",

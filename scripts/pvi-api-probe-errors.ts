@@ -43,24 +43,18 @@ function motorbike(): Payload {
       diaChi: "Ấp 1, Xã An Xuyên, Cà Mau",
       soDienThoai: "0901110000",
       bienKiemSoat: "69B1-99999",
-      loaiXe: "1",
+      loaiXe: "1002",
       ngayBatDau: NGAY_BAT_DAU,
       ngayKetThuc: NGAY_KET_THUC,
     }),
   );
 }
 
-/**
- * Mỗi ca một số CCCD riêng. Lượt đo 2026-09-07 dùng chung một số: ca đầu được
- * chấp nhận thì năm ca sau đều `-556 Chủ hộ đã tham gia`, không đo được gì.
- */
 function electric(): Payload {
-  const code = nextCode();
   return buildElectricPayload(
     ElectricOrderInput.parse({
-      maGiaoDich: code,
+      maGiaoDich: nextCode(),
       khachHang: "NGUYEN VAN PROBE",
-      cmtKhachHang: `9${STAMP.slice(-6)}${code.slice(-2)}`,
       ngaySinh: "1990-05-15",
       diaChi: "Ấp 1, Xã An Xuyên, Cà Mau",
       soDienThoai: "0901110000",
@@ -149,37 +143,37 @@ const CASES: Case[] = [
   dien("điện · thiếu hẳn trường list_nguoithamgia", (p) => { delete p.list_nguoithamgia; }, "-309"),
   dien("điện · dia_chi rỗng", (p) => { p.dia_chi = ""; }, ACCEPTED),
 
-  // ── Chưa đo: năm ca điện bị `-556` che vì trùng CCCD ──
-  dien("điện · khach_hang rỗng", (p) => { p.khach_hang = ""; }),
+  // ── Lượt đo 2026-09-07, lần hai. Lần đầu năm ca điện dùng chung CCCD nên bị `-556` che ──
+  dien("điện · khach_hang rỗng", (p) => { p.khach_hang = ""; }, ACCEPTED),
   dien("điện · ngay_sinh người tham gia dạng ISO", (p) => {
     (p.list_nguoithamgia as Payload[])[0].ngay_sinh = "1990-05-15";
-  }),
-  dien("điện · sotien_bh = 0", (p) => { p.sotien_bh = 0; }),
-  dien("điện · sotien_bh = chuỗi \"20000000\"", (p) => { p.sotien_bh = "20000000"; }),
-  dien("điện · SoNguoi_HoKhau = 0", (p) => { p.SoNguoi_HoKhau = 0; }),
-  // ── Chưa đo: điện, thêm ──
+  }, "-1 SoapException OleDbException"),
+  dien("điện · sotien_bh = 0", (p) => { p.sotien_bh = 0; }, ACCEPTED),
+  dien("điện · sotien_bh = chuỗi \"20000000\"", (p) => { p.sotien_bh = "20000000"; }, ACCEPTED),
+  dien("điện · SoNguoi_HoKhau = 0", (p) => { p.SoNguoi_HoKhau = 0; }, ACCEPTED),
   dien("điện · ten_khach người tham gia rỗng", (p) => {
     (p.list_nguoithamgia as Payload[])[0].ten_khach = "";
-  }),
+  }, ACCEPTED),
   dien("điện · so_cmnd người tham gia rỗng, cmt_khachhang rỗng", (p) => {
     (p.list_nguoithamgia as Payload[])[0].so_cmnd = "";
     p.cmt_khachhang = "";
-  }),
-  dien("điện · ngay_batdau dạng ISO", (p) => { p.ngay_batdau = NGAY_BAT_DAU; }),
-  dien("điện · tong_phi = chuỗi rỗng", (p) => { p.tong_phi = ""; }),
-  // ── Chưa đo: xe máy, thêm ──
-  xm("xe máy · nam_sanxuat = abcd", (p) => { p.nam_sanxuat = "abcd"; }),
-  xm("xe máy · nhan_hieu = 999999 không có trong danh mục", (p) => { p.nhan_hieu = "999999"; }),
-  xm("xe máy · an_bien_ks = chuỗi \"x\"", (p) => { p.an_bien_ks = "x"; }),
-  xm("xe máy · so_nguoi_tgia_laiphu = -1", (p) => { p.so_nguoi_tgia_laiphu = -1; }),
-  xm("xe máy · thêm trường lạ truong_la", (p) => { p.truong_la = "x"; }),
-  xm("xe máy · ngay_dau = null", (p) => { p.ngay_dau = null; }),
-  xm("xe máy · CpId không tồn tại", (p) => { p.CpId = "00000000000000000000000000000000"; }),
-  { label: "xe máy · Sign sai", endpoint: "TaoDon_XeMay", build: () => { const p = motorbike(); p.Sign = "0".repeat(32); return p; } },
-  // ── Chưa đo: hai API còn lại ──
+  }, ACCEPTED),
+  dien("điện · ngay_batdau dạng ISO", (p) => { p.ngay_batdau = NGAY_BAT_DAU; }, "-401"),
+  dien("điện · tong_phi = chuỗi rỗng", (p) => { p.tong_phi = ""; }, "-1 FormatException ParseDouble"),
+  xm("xe máy · nam_sanxuat = abcd", (p) => { p.nam_sanxuat = "abcd"; }, ACCEPTED),
+  xm("xe máy · nhan_hieu = 999999 không có trong danh mục", (p) => { p.nhan_hieu = "999999"; }, ACCEPTED),
+  xm("xe máy · an_bien_ks = chuỗi \"x\"", (p) => { p.an_bien_ks = "x"; }, "-1 JsonSerializationException Boolean"),
+  xm("xe máy · so_nguoi_tgia_laiphu = -1", (p) => { p.so_nguoi_tgia_laiphu = -1; }, ACCEPTED),
+  xm("xe máy · thêm trường lạ truong_la", (p) => { p.truong_la = "x"; }, ACCEPTED),
+  xm("xe máy · ngay_dau = null", (p) => { p.ngay_dau = null; }, "-505"),
+  xm("xe máy · CpId không tồn tại", (p) => { p.CpId = "00000000000000000000000000000000"; }, "-1 NullReferenceException"),
+  { label: "xe máy · Sign sai", endpoint: "TaoDon_XeMay", measured: "-105 Chu ky xac thuc khong chinh xac", build: () => { const p = motorbike(); p.Sign = "0".repeat(32); return p; } },
+  xm("xe máy · email hợp lệ khác hằng PVI_CERTIFICATE_EMAIL", (p) => { p.email = "mgst.probe.2026@gmail.com"; }, ACCEPTED),
+  xm("xe máy · ma_giaodich là UUID 36 ký tự", (p) => { p.ma_giaodich = crypto.randomUUID(); }, ACCEPTED),
   {
     label: "Get_DanhMuc · ten_dmuc không tồn tại",
     endpoint: "Get_DanhMuc",
+    measured: "-500 Khong ton tai du lieu trong danh muc",
     build: () => ({
       parent_value: "",
       ten_dmuc: "KHONGCO",
@@ -193,6 +187,7 @@ const CASES: Case[] = [
   {
     label: "Get_DanhMuc · ten_dmuc rỗng",
     endpoint: "Get_DanhMuc",
+    measured: "-500",
     build: () => ({
       parent_value: "",
       ten_dmuc: "",
@@ -206,11 +201,13 @@ const CASES: Case[] = [
   {
     label: "GetPolicyNumber · RequestId rỗng",
     endpoint: "GetPolicyNumber",
+    measured: "-500 Khong ton tai requestId",
     build: () => ({ CpId: config.cpId, Sign: pviSign(config, [""]), RequestId: "" }),
   },
   {
     label: "GetPolicyNumber · RequestId không tồn tại",
     endpoint: "GetPolicyNumber",
+    measured: "-500 Khong ton tai requestId",
     build: () => ({ CpId: config.cpId, Sign: pviSign(config, ["KHONG-CO"]), RequestId: "KHONG-CO" }),
   },
 ];
