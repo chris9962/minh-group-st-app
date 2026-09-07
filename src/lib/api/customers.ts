@@ -102,6 +102,8 @@ export const CustomerRow = z.object({
   createdById: z.string().nullable(),
   createdByDepartmentId: z.string().nullable(),
   primaryPhone: z.string(),
+  /** Địa chỉ khách, cho cột ĐỊA CHỈ của file xuất từ P-40. Bảng không hiện. */
+  address: z.string(),
   /**
    * Số tài khoản ngân hàng khách còn mở thêm được, 0 là đã đủ trần. Giao diện
    * đọc để làm mờ nút "Mở ngân hàng" đúng dòng.

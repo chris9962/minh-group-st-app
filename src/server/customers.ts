@@ -233,6 +233,7 @@ const pickPage = (where: SQL | undefined, orderBy: SQL[], limit: number, offset:
       insuranceCount: customers.insuranceCount,
       giftBasket: customers.giftBasket,
       channelId: customers.channelId,
+      address: customers.address,
       createdBy: customers.createdBy,
       createdByDepartmentId: customers.createdByDepartmentId,
       // Cột tính bằng `sql` nằm trong truy vấn con thì BẮT BUỘC có bí danh —
@@ -322,6 +323,7 @@ function decorate(page: ReturnType<typeof pickPage>) {
       createdById: page.createdBy,
       createdByDepartmentId: page.createdByDepartmentId,
       primaryPhone: sql<string>`coalesce(${phone.number}, '')`,
+      address: page.address,
       /**
        * ĐẾM SỐNG, không đọc `customers.account_count`: cột đó chỉ đếm dòng
        * `done` (migration 0005), còn trần tính cả bản nháp `creating`.

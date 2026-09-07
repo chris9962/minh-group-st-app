@@ -329,6 +329,7 @@ export default function CustomersPage() {
         { header: "NGÀY TẠO", width: 12, value: (c) => formatDate(c.createdAt) },
         { header: "TÊN KHÁCH HÀNG", width: 28, transform: "name", value: (c) => label(c) },
         { header: "SỐ ĐIỆN THOẠI", width: 14, type: "text", value: (c) => c.primaryPhone },
+        { header: "ĐỊA CHỈ", width: 36, value: (c) => c.address },
         { header: "SỐ TÀI KHOẢN", width: 12, type: "number", value: (c) => c.accountCount },
         ...(showPoints
           ? [
