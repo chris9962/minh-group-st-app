@@ -10,10 +10,12 @@ import { MotorbikeOrderInput } from "./motorbike";
  * Tách khỏi worker để đọc đối chiếu với `docs/pvi-field-tao-don-*.md` bằng mắt,
  * và để chạy thử một đơn mà không phải bật cả vòng lặp.
  *
- * ⚠️ ĐỌC CẢ HỒ SƠ KHÁCH, không chỉ cột của đơn. Đo trên máy chủ chạy thật
- * 2026-09-03: cả 220 đơn tai nạn điện `done` đều có `beneficiary_id_number`
- * rỗng, mà mục 11 cần `cmt_khachhang`. Số điện thoại thì đơn không có cột nào,
- * nó nằm ở bảng `customer_phones`.
+ * ⚠️ ĐỌC CẢ HỒ SƠ KHÁCH, không chỉ cột của đơn. Số điện thoại thì đơn không có
+ * cột nào, nó nằm ở bảng `customer_phones`.
+ *
+ * KHÔNG gửi CCCD lên PVI (chốt 2026-09-07). Đo cùng ngày: PVI khớp `-556 Chủ hộ
+ * đã tham gia` theo CCCD, và nhận đơn có CCCD rỗng. Gửi CCCD của hồ sơ khách là
+ * tự chặn đơn cấp lại cho khách cũ mà không được gì.
  */
 
 /** Đơn cộng phần hồ sơ khách mà PVI cần. */
@@ -26,7 +28,6 @@ export type OrderForPvi = {
   endDate: string;
   beneficiaryName: string;
   beneficiaryDob: string | null;
-  beneficiaryIdNumber: string;
   beneficiaryAddress: string;
   householdSize: number;
   sumInsured: number;
@@ -36,7 +37,6 @@ export type OrderForPvi = {
   engineNumber: string;
   pviAttempts: number;
   customerName: string;
-  customerIdNumber: string | null;
   customerDob: string | null;
   customerAddress: string;
   customerPhone: string | null;
@@ -52,7 +52,6 @@ export const orderForPviColumns = {
   endDate: insuranceOrders.endDate,
   beneficiaryName: insuranceOrders.beneficiaryName,
   beneficiaryDob: insuranceOrders.beneficiaryDob,
-  beneficiaryIdNumber: insuranceOrders.beneficiaryIdNumber,
   beneficiaryAddress: insuranceOrders.beneficiaryAddress,
   householdSize: insuranceOrders.householdSize,
   sumInsured: insuranceOrders.sumInsured,
@@ -62,7 +61,6 @@ export const orderForPviColumns = {
   engineNumber: insuranceOrders.engineNumber,
   pviAttempts: insuranceOrders.pviAttempts,
   customerName: customers.fullName,
-  customerIdNumber: customers.idNumber,
   customerDob: customers.dob,
   customerAddress: customers.address,
   /**
@@ -127,7 +125,6 @@ export function electricInputFor(order: OrderForPvi, now = new Date()) {
   return ElectricOrderInput.parse({
     maGiaoDich: order.orderCode,
     khachHang: nonEmpty(order.beneficiaryName, order.customerName),
-    cmtKhachHang: nonEmpty(order.beneficiaryIdNumber, order.customerIdNumber),
     ngaySinh: nonEmpty(order.beneficiaryDob, order.customerDob),
     diaChi: nonEmpty(order.beneficiaryAddress, order.customerAddress),
     soDienThoai: order.customerPhone ?? "",
