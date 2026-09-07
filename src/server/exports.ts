@@ -6,6 +6,7 @@ import { BUSINESS_TIMEZONE } from "@/lib/format";
 import { recordVisibility, type RecordVisibility } from "@/lib/permissions";
 import { isRealIsoDate, type User } from "@/lib/types";
 import { accountExportWhere } from "./banking";
+import { grantedItemLabel } from "./gift";
 import { searchTerms } from "@/lib/search";
 import { db } from "./db/client";
 import {
@@ -158,28 +159,6 @@ function insuranceLabelOf(product: string, packageName: string): string {
   return "BHĐ 100K";
 }
 
-/**
- * Chuỗi bậc quà, đúng chữ cột `QUÀ TẶNG BÁO CÁO` của file Kế toán.
- *
- * ⚠️ Cột đó trong file là chữ GÕ TAY, không có công thức — 37.425 dòng gõ tay,
- * 320 dòng bỏ trống. Sáu chuỗi TH1–TH6 chép từ giá trị xuất hiện nhiều nhất
- * trong file. Kế toán đổi cách ghi thì sửa ở đây.
- *
- * `TH7` và `TH8` là bậc Combo 1, mới từ kỳ 2026-09. File tháng 8 chưa có bậc
- * này nên hai chuỗi đó do đội tự đặt theo cùng khuôn — Kế toán gửi file tháng 9
- * thì đối chiếu lại.
- */
-const GIFT_REPORT_LABEL: Record<string, string> = {
-  TH1: "1 NĂM BH + 20K (Khi cài đặt được VPa) - COMBO 2,3",
-  TH2: "1 NĂM BH - COMBO 2",
-  TH3: "1 NĂM BH + 70K (Khi cài đặt được VPa và MSBa) - COMBO 3",
-  TH4: "1 NĂM BH + 50K (Khi cài đặt được MSBa) - COMBO 3",
-  TH5: "2 NĂM BH + 20K (Khi cài đặt được VPa và MSBb) - COMBO 3",
-  TH6: "2 NĂM BH (Không thuộc các trường hợp trên hoặc thiết bị không phù hợp)",
-  TH7: "1 NĂM BH - COMBO 1",
-  TH8: "1 NĂM BH + 20K (Khi cài đặt được VPa) - COMBO 1",
-};
-
 /** `20000` ra `20k`. Số lẻ nghìn thì in đủ, không làm tròn thay người đọc. */
 const shortCash = (amount: number): string =>
   amount % 1000 === 0 ? `${amount / 1000}k` : amount.toLocaleString("vi-VN");
@@ -213,22 +192,33 @@ function basketLabel(
 }
 
 /**
- * Cột `QUÀ TẶNG BÁO CÁO` — món ĐÃ GIAO, kèm tiền mặt (chốt 2026-09-04).
+ * Cột `QUÀ TẶNG BÁO CÁO` — món ĐÃ GIAO kèm tiền ĐÃ GHI, đọc từ đợt phát (chốt
+ * 2026-09-07). Khách chưa phát thì ô trống.
  *
- * Tên món trong danh mục không mang tiền, nên khách đổi sang `Nón bảo hiểm` mà
- * vẫn nhận 20k thì ô cũ chỉ ghi "Nón bảo hiểm" và mất hẳn phần tiền. Nhãn theo
- * bậc thì ngược lại, tiền đã nằm sẵn trong chuỗi nên không cộng thêm lần nữa.
+ * Bản trước chỉ tra tên ở `gift_items`, mà 5.636 trong 5.885 đợt phát chọn gói
+ * bảo hiểm nằm ở `insurance_packages`, nên phép nối trả rỗng và ô chuyển sang
+ * nhãn bậc tính theo tài khoản HIỆN TẠI. Khách được đánh dấu cài app sau lượt
+ * phát thì file ghi 70k trong khi đợt phát chỉ ghi 20k. Tên lúc phát nằm sẵn
+ * trong `snapshot.basket`, `grantedItemLabel` đọc đúng chỗ đó.
+ *
+ * Tên món không mang tiền, nên khách đổi sang `Nón bảo hiểm` mà vẫn nhận 20k
+ * thì phải cộng tiền vào sau tên.
  */
 function grantedLabel(
-  itemName: string | null,
-  cashTotal: number,
-  caseCode: string | null,
+  grant: { chosenItem: string; cashTotal: number; snapshot: unknown } | undefined,
 ): string {
-  if (itemName) return cashTotal > 0 ? `${itemName} + ${shortCash(cashTotal)}` : itemName;
-  return caseCode ? (GIFT_REPORT_LABEL[caseCode] ?? "") : "";
+  if (!grant) return "";
+  const name = grantedItemLabel(grant.chosenItem, grant.snapshot);
+  return grant.cashTotal > 0 ? `${name} + ${shortCash(grant.cashTotal)}` : name;
 }
 
-/** Nhãn ngắn của cột `QUÀ TẶNG THEO COMBO`, cùng chữ với công thức `AG` của file. */
+/**
+ * Nhãn bậc quà cho hai cột `QUÀ COMBO LÚC CHỐT` và `QUÀ COMBO HIỆN TẠI` (chốt
+ * 2026-09-07), cùng chữ với công thức `AG` của file Kế toán.
+ *
+ * Hai cột đặt cạnh nhau để Kế toán lọc ra khách có bậc đổi sau lượt phát: sửa
+ * tài khoản đổi bậc thì đợt phát vẫn giữ bậc cũ, và khách đó phải đi qua Đổi quà.
+ */
 const GIFT_COMBO_LABEL: Record<string, string> = {
   TH1: "1 năm BH + 20k",
   TH2: "1 năm BH",
@@ -239,6 +229,9 @@ const GIFT_COMBO_LABEL: Record<string, string> = {
   TH7: "1 năm BH",
   TH8: "1 năm BH + 20k",
 };
+
+const caseLabelOf = (caseCode: string | null | undefined): string =>
+  caseCode ? (GIFT_COMBO_LABEL[caseCode] ?? caseCode) : "";
 
 /**
  * Bỏ CCCD và số điện thoại khỏi mỗi dòng (chốt 2026-09-04).
@@ -362,14 +355,12 @@ export async function listScoringExport(
       .select({
         customerId: giftGrants.customerId,
         chosenItem: giftGrants.chosenItem,
-        itemName: giftItems.name,
         cashTotal: giftGrants.cashTotal,
         // Rổ quà ĐÓNG BĂNG lúc phát — nguồn duy nhất nói đúng khách được chọn
-        // những món nào, kể cả món thêm của mục 4b thể lệ.
+        // những món nào, tên món lúc phát, và bậc lúc phát.
         snapshot: giftGrants.snapshot,
       })
       .from(giftGrants)
-      .leftJoin(giftItems, eq(giftItems.code, giftGrants.chosenItem))
       .where(inArray(giftGrants.customerId, ids)),
     /*
       TRỌN danh mục quà và gói bảo hiểm, mã → tên. Hai bảng này vài chục dòng do
@@ -468,8 +459,12 @@ export async function listScoringExport(
       installedBanks: [
         ...new Set(accounts.filter((a) => a.appInstalled).map((a) => a.bankCode)),
       ].filter((code) => !HOUSEHOLD_CODES.has(code)),
-      giftReport: grantedLabel(grant?.itemName ?? null, grant?.cashTotal ?? 0, gift?.caseCode ?? null),
+      giftReport: grantedLabel(grant),
       giftCombo: basketLabel(grant?.snapshot ?? null, gift, catalogName),
+      giftCaseAtGrant: caseLabelOf(
+        (grant?.snapshot as { caseCode?: string | null } | null)?.caseCode,
+      ),
+      giftCaseNow: caseLabelOf(gift?.caseCode),
       speaker: grant?.chosenItem === "QUA-LOA" ? "LOA" : "",
       insuranceLabel: insurance
         ? insuranceLabelOf(insurance.product, insurance.packageName)
