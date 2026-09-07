@@ -73,6 +73,11 @@ export const InsuranceListRow = z.object({
    * đang đợi bình thường và đơn nào bot đã thôi thử.
    */
   certificateAttempts: z.number().default(0),
+  /**
+   * Đường đi của đơn: `api`, `bot`, hoặc rỗng khi làm tay. Bảng P-13 đọc để
+   * giấu nút Sửa và Xoá với đơn đường API đã gửi PVI (chốt 2026-09-07).
+   */
+  pviRoute: z.string().default(''),
 });
 export type InsuranceListRow = z.infer<typeof InsuranceListRow>;
 

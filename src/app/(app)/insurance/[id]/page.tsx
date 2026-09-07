@@ -281,14 +281,27 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
   const needsCertificateHelp = Boolean(
     data && certificateNeedsHelp(data.status, data.certificateAttempts),
   );
+  /**
+   * Đơn đường API mà PVI đã nhận là hợp đồng thật (chốt 2026-09-07): không sửa,
+   * không đặt trạng thái, không đính ảnh tay. Chỉ còn Huỷ đơn rồi Cấp lại.
+   * Máy chủ từ chối lần nữa; giấu nút để người dùng không bấm hỏng.
+   */
+  const lockedByPvi = Boolean(
+    data &&
+      data.pviRoute === "api" &&
+      (data.status === "creating" || data.status === "awaiting-certificate" || data.status === "done"),
+  );
+  /** Đơn BOT quá ngưỡng thì người đính ảnh rồi bấm hoàn thành; đơn API thì không. */
+  const manualCertificateAllowed = needsCertificateHelp && data?.pviRoute !== "api";
 
   const canAttachPhoto = Boolean(
     data &&
+      !lockedByPvi &&
       data.status !== "manual-queued" &&
       (recordInScope(recordVisibility(actor, "insurance", "update"), data) ||
         recordInScope(recordVisibility(actor, "insurance", "handle-fallback"), data) ||
         (canHandleFallback && data.handledById === actor?.id) ||
-        (canHandleFallback && needsCertificateHelp)),
+        (canHandleFallback && manualCertificateAllowed)),
   );
 
   /**
@@ -749,7 +762,7 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
               (data.status === "manual-queued" ||
                 data.status === "pending-approval" ||
                 data.status === "manual-progress" ||
-                needsCertificateHelp) && (
+                manualCertificateAllowed) && (
                 <div className={styles.actions}>
                   {data.status === "manual-queued" && (
                     <Button
@@ -779,7 +792,7 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                   {/* Đơn bot bỏ dở đi thẳng sang `done`, không qua "Nhận đơn
                       xử lý": nó đã tạo và đã duyệt xong bên PVI, việc còn lại
                       đúng một tấm ảnh. Người bấm nút này thành người xử lý đơn. */}
-                  {(data.status === "manual-progress" || needsCertificateHelp) && (
+                  {(data.status === "manual-progress" || manualCertificateAllowed) && (
                     <>
                       <Button disabled={busy || !hasPhoto} onClick={() => advance.mutate("done")}>
                         <CheckCircle2 size={16} aria-hidden />
@@ -787,7 +800,7 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                       </Button>
                       {!hasPhoto && (
                         <p className={`text-muted ${styles.actionsNote}`}>
-                          {needsCertificateHelp
+                          {manualCertificateAllowed
                             ? "Tải giấy chứng nhận từ PVI về rồi đính vào đây trước khi đánh dấu hoàn thành."
                             : "Phải đính ảnh chứng nhận bảo hiểm trước khi đánh dấu hoàn thành."}
                         </p>
@@ -801,7 +814,7 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                 hàng nhưng người tạo cũng thấy nó khi đơn của mình đã hoàn thành. */}
             {(canSetStatus || canCancelCompletedOwnOrder || (data.status === "cancelled" && canCreate)) && (
               <div className={styles.override}>
-                {canSetStatus && (
+                {canSetStatus && !lockedByPvi && (
                   <>
                     <Select
                       label="Đặt trạng thái"

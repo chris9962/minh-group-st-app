@@ -369,6 +369,7 @@ const pickPage = (where: SQL | undefined, orderBy: SQL[], limit: number, offset:
       pviSerialNumber: insuranceOrders.pviSerialNumber,
       pviPolicyNumber: insuranceOrders.pviPolicyNumber,
       pviPrKey: insuranceOrders.pviPrKey,
+      pviRoute: insuranceOrders.pviRoute,
       handledBy: insuranceOrders.handledBy,
       handledByDepartmentId: insuranceOrders.handledByDepartmentId,
       createdBy: insuranceOrders.createdBy,
@@ -414,6 +415,7 @@ const decorate = (page: ReturnType<typeof pickPage>) =>
       pviSerialNumber: page.pviSerialNumber,
       pviPolicyNumber: page.pviPolicyNumber,
       pviPrKey: page.pviPrKey,
+      pviRoute: page.pviRoute,
       createdById: page.createdBy,
       createdByName: creator.fullName,
       createdByDepartmentId: page.createdByDepartmentId,
@@ -463,6 +465,7 @@ const toRow = (r: DecoratedRow): InsuranceListRow => ({
   // trải `toRow` ra, nên cả danh sách lẫn chi tiết đi qua đây.
   certificatePhotoUrl: r.certificatePhotoUrl ? imageUrl(r.certificatePhotoUrl) : r.certificatePhotoUrl,
   certificateAttempts: r.certificateAttempts,
+  pviRoute: r.pviRoute,
 });
 
 /**
@@ -479,6 +482,20 @@ const pviOrderUrlFor = (product: InsuranceProduct, prKey: string): string =>
   prKey
     ? `https://qlcd.pvi.com.vn/${PVI_ORDER_PATH[product]}/?pr_key=${encodeURIComponent(prKey)}&status=1`
     : "";
+
+/**
+ * Đơn đường API mà PVI đã nhận, hoặc đang nhận, là hợp đồng thật bên PVI (chốt
+ * 2026-09-07). Từ đó bên mình KHÔNG đổi trạng thái, không sửa, không xoá bằng
+ * tay: sửa bản ghi của mình chỉ làm nó lệch với hợp đồng thật. Đường chữa duy
+ * nhất là huỷ kèm lý do rồi cấp lại, để lúc xuất Excel còn thấy đơn nào đã huỷ.
+ *
+ * `creating` cũng khoá: lệnh gọi đang chạy, chưa biết PVI đã ghi hay chưa.
+ */
+const lockedByPvi = (row: { pviRoute: string; status: string }): boolean =>
+  row.pviRoute === "api" &&
+  (row.status === "creating" || row.status === "awaiting-certificate" || row.status === "done");
+
+const PVI_LOCKED_MESSAGE = "Đơn đã gửi PVI, không đổi bằng tay được. Huỷ rồi cấp lại.";
 
 const toOrder = (r: DecoratedRow): InsuranceOrder => ({
   ...toRow(r),
@@ -934,6 +951,8 @@ export async function updateInsuranceOrder(
   if (current.status === "cancelled")
     return { ok: false, message: "Đơn đã huỷ thì không sửa được nữa." };
 
+  if (lockedByPvi(current)) return { ok: false, message: PVI_LOCKED_MESSAGE };
+
   /**
    * Kiểm dữ liệu vào ở ĐÂY chứ không ở route, vì luật biển số/loại xe phụ thuộc
    * sản phẩm mà sản phẩm phải ĐỌC TỪ DATABASE. Route parse trước thì chỉ có
@@ -999,6 +1018,7 @@ export async function deleteInsuranceOrder(
 
   if (current.status === "done")
     return { ok: false, message: "Đơn đã hoàn thành thì không xoá được — hợp đồng đã phát hành." };
+  if (lockedByPvi(current)) return { ok: false, message: PVI_LOCKED_MESSAGE };
   if (current.source === "gift")
     return {
       ok: false,
@@ -1080,15 +1100,22 @@ export async function setInsuranceOrderStatus(
   if (!claimable && !canSeeOrder(actor, current)) return null;
 
   /**
-   * Đơn còn ở `awaiting-certificate` chưa quá ngưỡng thì không ai bấm tay
-   * được: hệ thống sắp tải ảnh về, và bấm hoàn thành lúc này là chen ngang.
-   * Quá ngưỡng thì người được nhận; worker vẫn hỏi tiếp nhưng `setStatus` bên
-   * đó kẹp trạng thái nguồn nên không ghi đè lên đơn người đang cầm.
+   * Đơn đường API ở `awaiting-certificate` không bao giờ xử lý tay, kể cả quá
+   * ngưỡng (chốt 2026-09-07): PVI đã có hợp đồng, worker tra tiếp không có trần.
+   * Quá 30 phút chưa có giấy thì huỷ rồi cấp lại, không đính ảnh tay.
+   */
+  if (current.status === "awaiting-certificate" && current.pviRoute === "api")
+    return { ok: false, message: PVI_LOCKED_MESSAGE };
+
+  /**
+   * Đơn BOT còn ở `awaiting-certificate` chưa quá ngưỡng thì không ai bấm tay
+   * được: bot sắp tải ảnh về, và bấm hoàn thành lúc này là chen ngang. Quá
+   * ngưỡng thì bot đã thôi hỏi, người được nhận.
    */
   if (current.status === "awaiting-certificate" && !certificateStuck(current))
     return {
       ok: false,
-      message: `Hệ thống còn đang hỏi PVI về giấy chứng nhận (lần ${current.certificateAttempts}/${CERTIFICATE_MAX_ATTEMPTS}). Quá ${CERTIFICATE_MAX_ATTEMPTS} lần mới xử lý tay được.`,
+      message: "Đơn chưa quá 30 phút chờ giấy chứng nhận, chưa xử lý tay được.",
     };
 
   /**
@@ -1197,6 +1224,8 @@ export async function overrideInsuranceOrderStatus(
   if (next === "cancelled")
     return { ok: false, message: "Huỷ đơn phải bấm nút Huỷ đơn để ghi lý do." };
 
+  if (lockedByPvi(current)) return { ok: false, message: PVI_LOCKED_MESSAGE };
+
   const route = next === "queued" ? newOrderRoute() : null;
   if (route && route.status !== "queued")
     return {
@@ -1262,15 +1291,14 @@ export async function cancelInsuranceOrder(
   if (current.status === "cancelled") return { ok: false, message: "Đơn này đã huỷ rồi." };
 
   /**
-   * Đơn đang trong tay PVI (chốt 2026-09-07): worker đang gọi, hoặc PVI đã
-   * nhận và đang cấp giấy. Huỷ lúc này thì bên mình ghi huỷ mà bên PVI vẫn ra
-   * hợp đồng thật, và worker vẫn đẩy nó sang Hoàn thành.
+   * Đang gọi PVI thì chưa biết bên đó ghi hay chưa; tối đa 2 phút là worker ghi
+   * kết quả hoặc `reclaimStaleOrders` trả về Chờ tạo. `awaiting-certificate`
+   * thì huỷ ĐƯỢC (chốt 2026-09-07): đó là đường duy nhất cho đơn API quá 30
+   * phút chưa có giấy. Worker có tra được giấy sau đó cũng bỏ qua, vì
+   * `setStatus` bên đó kẹp trạng thái nguồn.
    */
-  if (current.status === "creating" || current.status === "awaiting-certificate")
-    return {
-      ok: false,
-      message: "Đơn đang được PVI xử lý, chưa huỷ được. Đợi đơn hoàn thành hoặc về Chờ làm tay.",
-    };
+  if (current.status === "creating")
+    return { ok: false, message: "Đơn đang gửi PVI, đợi tối đa 2 phút rồi huỷ." };
 
   /**
    * Người tạo chỉ TỰ huỷ được trong ngày lập đơn (chốt 2026-09-02) — qua ngày

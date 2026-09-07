@@ -130,7 +130,7 @@ export const certificateNeedsHelp = (
 ): boolean => status === 'awaiting-certificate' && attempts >= CERTIFICATE_MAX_ATTEMPTS;
 
 export const CERTIFICATE_HELP_MESSAGE =
-  'Hỏi PVI 60 lần trong 30 phút mà chưa có giấy chứng nhận. Liên hệ phòng cấp đơn PVI để kiểm tra. Hệ thống vẫn hỏi tiếp 5 phút một lần.';
+  'Đã quá 30 phút chưa có giấy chứng nhận, vui lòng liên hệ đơn vị cấp đơn.';
 
 /**
  * Hai bước người xử lý tay bấm được ở P-14 (spec §3.5, §9.2).

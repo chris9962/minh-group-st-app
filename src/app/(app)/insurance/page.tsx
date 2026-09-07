@@ -394,9 +394,15 @@ export default function InsurancePage() {
                 };
                 // `cancelled` đứng chung với `done`: cả hai là trạng thái
                 // CUỐI, đơn không còn việc gì để làm trên bảng này.
+                // Đơn đường API đang trong tay PVI thì không sửa, không xoá:
+                // huỷ rồi cấp lại ở trang chi tiết (chốt 2026-09-07).
+                const lockedByPvi =
+                  r.pviRoute === "api" &&
+                  (r.status === "creating" || r.status === "awaiting-certificate");
                 if (
                   r.status === "done" ||
                   r.status === "cancelled" ||
+                  lockedByPvi ||
                   (!mine.edit && !mine.remove && !mine.claim)
                 )
                   return <span className="text-muted">—</span>;

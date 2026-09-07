@@ -22,7 +22,7 @@
  * về mã lỗi ở `docs/review-pvi-api-flow-2026-09-07.md`.
  */
 
-import { and, eq, isNull, lt, or, sql } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 import { Client } from "pg";
 import { ZodError } from "zod";
 import { CERTIFICATE_MAX_ATTEMPTS } from "../src/lib/api/insuranceOrders";
@@ -81,6 +81,14 @@ const CERTIFICATE_RETRY_SECONDS = Number(process.env.PVI_API_CERTIFICATE_RETRY_S
 const CERTIFICATE_SLOW_RETRY_SECONDS = Number(
   process.env.PVI_API_CERTIFICATE_SLOW_RETRY_SECONDS ?? 300,
 );
+/**
+ * Đơn ĐÃ HUỶ bên mình nhưng PVI đã nhận thì vẫn tra giấy (chốt 2026-09-07): PVI
+ * không biết mình huỷ, hợp đồng vẫn phát hành, và lúc đối soát phải có số hợp
+ * đồng, seri, ảnh của đơn đó. Khác đơn đang đợi, đơn huỷ có trần: 120 lần là
+ * 30 phút nhịp 30 giây cộng 5 giờ nhịp 5 phút, PVI cấp trong vài phút nên quá
+ * đó là họ không cấp nữa.
+ */
+const CANCELLED_CERTIFICATE_MAX_ATTEMPTS = CERTIFICATE_MAX_ATTEMPTS * 2;
 
 const log = (s: string) => console.log(`[${new Date().toISOString().slice(11, 19)}] ${s}`);
 
@@ -352,14 +360,23 @@ async function fetchCertificates() {
     .select({
       id: insuranceOrders.id,
       orderCode: insuranceOrders.orderCode,
+      status: insuranceOrders.status,
       attempts: insuranceOrders.certificateAttempts,
     })
     .from(insuranceOrders)
     .where(
       and(
-        eq(insuranceOrders.status, "awaiting-certificate"),
         eq(insuranceOrders.pviRoute, "api"),
         isNull(insuranceOrders.certificatePhotoUrl),
+        or(
+          eq(insuranceOrders.status, "awaiting-certificate"),
+          // `pvi_pr_key_number` khác null nghĩa là PVI đã nhận đơn trước lúc huỷ.
+          and(
+            eq(insuranceOrders.status, "cancelled"),
+            isNotNull(insuranceOrders.pviPrKeyNumber),
+            lt(insuranceOrders.certificateAttempts, CANCELLED_CERTIFICATE_MAX_ATTEMPTS),
+          ),
+        ),
         due,
       ),
     )
@@ -416,14 +433,18 @@ async function fetchCertificates() {
       continue;
     }
 
-    const done = await setStatus(row.id, "awaiting-certificate", "done", {
+    // Đơn đã huỷ thì giữ nguyên Huỷ, chỉ ghi số hợp đồng, seri, ảnh để đối soát.
+    const cancelled = row.status === "cancelled";
+    const done = await setStatus(row.id, row.status, cancelled ? "cancelled" : "done", {
       pviPolicyNumber: policy.policyNumber,
       pviSerialNumber: policy.serialNumber,
       certificatePhotoUrl: saved.photoKey,
       certificateCheckedAt: new Date(),
-      note: `PVI cấp giấy chứng nhận ${policy.policyNumber}.`,
+      note: cancelled
+        ? `PVI cấp giấy chứng nhận ${policy.policyNumber} sau khi đơn đã huỷ.`
+        : `PVI cấp giấy chứng nhận ${policy.policyNumber}.`,
     });
-    if (done) log(`${row.orderCode}: ${policy.policyNumber} → done`);
+    if (done) log(`${row.orderCode}: ${policy.policyNumber} → ${cancelled ? "đã huỷ, ghi đủ giấy" : "done"}`);
   }
 
   return waiting.length;
