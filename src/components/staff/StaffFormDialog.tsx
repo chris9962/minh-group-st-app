@@ -345,15 +345,20 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
               // `manageScope: none` và thấy 0 bản ghi.
               const next = normalizeStaffForm({ ...getValues(), role });
               // `normalizeStaffForm` cố ý không đụng vai Nhân viên, nên phòng
-              // phụ trách của vai vừa bỏ còn nguyên. Lúc TẠO MỚI không có hồ sơ
-              // cũ nào để giữ — xoá đi, không thì ô tích hiện ra và người tạo
-              // phải tự bỏ tích từng phòng.
-              const dropManaged = !editing && ROLE_SHAPE[role].manages === "free";
+              // phụ trách của vai vừa bỏ còn nguyên: đổi Nhân viên → Phó phòng
+              // → Nhân viên trong cùng hộp thoại là khối Phòng phụ trách hiện
+              // ra với phòng vừa tự điền. Vai Nhân viên lấy lại đúng giá trị
+              // lúc mở hộp thoại; tạo mới thì không có gì để giữ.
+              const free = ROLE_SHAPE[role].manages === "free";
               setValue("departmentId", next.departmentId, { shouldDirty: true });
-              setValue("manageScope", dropManaged ? "none" : next.manageScope, { shouldDirty: true });
+              setValue(
+                "manageScope",
+                free ? (staff?.manageScope ?? "none") : next.manageScope,
+                { shouldDirty: true },
+              );
               setValue(
                 "managedDepartmentIds",
-                dropManaged ? [] : next.managedDepartmentIds,
+                free ? (staff?.managedDepartmentIds ?? []) : next.managedDepartmentIds,
                 { shouldDirty: true },
               );
             }}
