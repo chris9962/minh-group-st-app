@@ -21,3 +21,12 @@ export const variantOfAccount = sql`${bankGuideVariants.bankId} = ${bankAccounts
  * biết vì sao.
  */
 export const appCounted = sql`${bankAccounts.appInstalled} and case when ${effectiveAccountType} = 'none' then ${banks.countsAsApp} else coalesce(${bankGuideVariants.countsAsApp}, false) end`;
+
+/**
+ * Số app đã cài, đếm theo cặp KHÁCH GỐC và NGÂN HÀNG (chốt 2026-09-07).
+ *
+ * Một người ở một ngân hàng chỉ cài một app. Dòng chính và dòng HKD cùng ngân
+ * hàng là hai dòng `bank_accounts` nhưng một app; đếm theo dòng thì ra 2, lệch
+ * với khối APP CÀI TRÊN THIẾT BỊ của file Excel vốn gộp theo ngân hàng.
+ */
+export const appsInstalledCount = sql<number>`count(distinct (${bankAccounts.rootCustomerId}, ${bankAccounts.bankId})) filter (where ${appCounted})::int`;

@@ -2,7 +2,7 @@ import { and, desc, eq, gte, inArray, lte, sql, type SQL } from "drizzle-orm";
 import type { DashboardData, DashboardDraftAccount, DepartmentRanking } from "@/lib/api/dashboard";
 import { BUSINESS_TIMEZONE, businessDay, monthRange } from "@/lib/format";
 import type { User } from "@/lib/types";
-import { appCounted, variantOfAccount } from "./appCounted";
+import { appsInstalledCount, variantOfAccount } from "./appCounted";
 import { db } from "./db/client";
 import {
   bankAccounts,
@@ -204,7 +204,7 @@ async function bankingTotals(
   const [row] = await db
     .select({
       accountsOpened: sql<number>`count(*)::int`,
-      appsInstalled: sql<number>`count(*) filter (where ${appCounted})::int`,
+      appsInstalled: appsInstalledCount,
       customers: sql<number>`count(distinct ${bankAccounts.customerId})::int`,
     })
     .from(bankAccounts)

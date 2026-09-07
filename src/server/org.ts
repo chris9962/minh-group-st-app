@@ -10,7 +10,7 @@ import {
   type OrgErrorCode,
 } from "@/lib/api/org";
 import { db, uniqueViolationOf } from "./db/client";
-import { appCounted, variantOfAccount } from "./appCounted";
+import { appsInstalledCount, variantOfAccount } from "./appCounted";
 import {
   bankAccounts,
   bankGuideVariants,
@@ -341,7 +341,7 @@ export async function statsByDepartment(range: Range) {
     .select({
       departmentId: bankAccounts.createdByDepartmentId,
       accountsOpened: sql<number>`count(*)::int`,
-      appsInstalled: sql<number>`count(*) filter (where ${appCounted})::int`,
+      appsInstalled: appsInstalledCount,
       customers: sql<number>`count(distinct ${bankAccounts.customerId})::int`,
     })
     .from(bankAccounts)
@@ -381,7 +381,7 @@ export async function statsByStaff(range: Range, departmentIds: string[]) {
     .select({
       staffId: bankAccounts.createdBy,
       accountsOpened: sql<number>`count(*)::int`,
-      appsInstalled: sql<number>`count(*) filter (where ${appCounted})::int`,
+      appsInstalled: appsInstalledCount,
       customers: sql<number>`count(distinct ${bankAccounts.customerId})::int`,
     })
     .from(bankAccounts)

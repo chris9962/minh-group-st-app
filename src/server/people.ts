@@ -34,7 +34,7 @@ import {
   serviceTypes,
   users,
 } from "./db/schema";
-import { appCounted, variantOfAccount } from "./appCounted";
+import { appsInstalledCount, variantOfAccount } from "./appCounted";
 
 /**
  * P-51 · P-52 — điểm KPI tính SỐNG từ bản ghi nghiệp vụ × hệ số danh mục
@@ -367,7 +367,7 @@ async function countsFor(userIds: string[], range: Period): Promise<Map<string, 
         accounts: sql<number>`count(*)::int`,
         // Loại không đi kèm app (CNKD/HKD mặc định): vẫn TÍNH ĐIỂM nhưng không
         // đếm vào tổng app, nên hai cột này lọc khác nhau (mgst-db-design.md §9).
-        apps: sql<number>`count(*) filter (where ${appCounted})::int`,
+        apps: appsInstalledCount,
       })
       .from(bankAccounts)
       .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
