@@ -5,18 +5,6 @@
   margin-bottom: 14px;
 }
 
-.formFields {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-
-@media (max-width: bp.$bp-mobile) {
-  .formFields {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
 /* Đứng trên biểu mẫu: đây là việc ĐẦU TIÊN của bước 2 — nhân viên đưa QR cho
    khách quét, mở tài khoản thật, rồi mới quay lại điền.
 

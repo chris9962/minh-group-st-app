@@ -144,7 +144,13 @@ function FinishAccountCard({
         (data.accountNumberMethod === "phone-match"
           ? (data.customerPhones[0] ?? "")
           : data.accountNumberPrefix),
-      openedDate: data.date || businessDay(),
+      /**
+       * NGÀY BẤM HOÀN TẤT, không phải ngày lập bản nháp (chốt 2026-09-08). Sổ
+       * chốt theo ngày: bản nháp giữ chỗ hôm trước mà điền nốt hôm sau thì tài
+       * khoản thuộc về ngày điền nốt, vì chỉ `done` mới vào điểm KPI và báo
+       * cáo. Khối này chỉ dựng cho bản nháp nên không có nhánh nào khác.
+       */
+      openedDate: businessDay(),
       // Từng ngân hàng tự chọn tick sẵn hay không (P-60) — vài ngân hàng khách
       // hiếm khi cài app, để tick sẵn là nhân viên phải bỏ tick từng lượt.
       appInstalled: data.appDefault,

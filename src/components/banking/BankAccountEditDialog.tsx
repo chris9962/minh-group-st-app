@@ -102,7 +102,13 @@ export function BankAccountEditDialog({ open, onClose, accountId }: Props) {
         (data?.accountNumberMethod === "phone-match"
           ? (data.customerPhones[0] ?? "")
           : (data?.accountNumberPrefix ?? "")),
-      openedDate: data?.date || businessDay(),
+      /**
+       * Bản nháp lấy NGÀY BẤM HOÀN TẤT, không lấy ngày lập bản nháp (chốt
+       * 2026-09-08). Sổ chốt theo ngày: bản nháp giữ chỗ hôm trước mà điền nốt
+       * hôm sau thì tài khoản đó thuộc về ngày điền nốt, vì chỉ `done` mới vào
+       * điểm KPI và báo cáo. Ô nhập ngày đã bỏ nên không ai sửa tay được nữa.
+       */
+      openedDate: data?.status === "creating" ? businessDay() : (data?.date || businessDay()),
       // Bản nháp chưa ai tích ô này, nên lấy mặc định của ngân hàng (P-60).
       // Tài khoản đã hoàn thành thì đọc giá trị đã lưu.
       appInstalled:

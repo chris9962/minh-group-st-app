@@ -14,7 +14,6 @@ import { BankGuideDialog } from "./BankGuideDialog";
 import { CharCount } from "@/components/ui/CharCount";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { Select } from "@/components/ui/Select";
-import { DateField } from "@/components/ui/DateField";
 import { TextField } from "@/components/ui/TextField";
 import { BankAccountFinishForm } from "@/lib/api/bankAccounts";
 import type { AccountNumberMethod } from "@/lib/api/bankCatalog";
@@ -168,57 +167,54 @@ export function BankAccountFinishFields({
       )}
 
       <form id={formId} className={styles.form} onSubmit={onSubmit} noValidate>
-        <div className={styles.formFields}>
-          {/*
+        {/*
+            Không có ô "Ngày mở" (chốt 2026-09-08): sổ chốt theo ngày, không
+            nhập bù, nên ngày mở là ngày bấm Hoàn thành và không sửa tay được.
+            `openedDate` vẫn nằm trong biểu mẫu và vẫn gửi lên — nơi gọi đặt giá
+            trị, xem `BankAccountEditDialog` và trang P-22.
+          */}
+        {/*
             Ngân hàng lấy số tài khoản THEO SĐT thì số đó phải là một trong các
             số của khách — nhưng KHÔNG nhất thiết là số chính. Khách mở tài
             khoản bằng số phụ là chuyện thường, nên đây là ô CHỌN chứ không phải
             ô khoá tự điền: áp cứng số chính là ghi sai số tài khoản vào hợp
             đồng, mà bản ghi đã `done` thì không sửa được nữa.
           */}
-          {accountNumberMethod === "phone-match" ? (
-            <Select
-              block
-              required
-              label="Số tài khoản"
-              value={watch("accountNumber")}
-              error={errors.accountNumber?.message}
-              onChange={(v) => setValue("accountNumber", v, { shouldDirty: true })}
-              options={[
-                { value: "", label: "— Chọn số điện thoại —" },
-                ...customerPhones.map((phone, i) => ({
-                  value: phone,
-                  label: i === 0 ? `${phone} · SĐT chính` : phone,
-                })),
-              ]}
-            />
-          ) : (
-            /* Giữ `type="text"`: ô `number` cắt số 0 đầu của số tài khoản.
-               `inputMode` mở bàn phím số, `pattern` cho Safari cũ. */
-            <TextField
-              label="Số tài khoản"
-              required
-              inputMode="numeric"
-              pattern="[0-9]*"
-              maxLength={accountNumberLength ?? undefined}
-              labelAppend={
-                accountNumberLength ? (
-                  <CharCount value={watch("accountNumber")} max={accountNumberLength} />
-                ) : undefined
-              }
-              hint={accountNumberLength ? `Đủ ${accountNumberLength} chữ số.` : undefined}
-              error={errors.accountNumber?.message}
-              {...register("accountNumber")}
-            />
-          )}
-          <DateField
-            label="Ngày mở"
+        {accountNumberMethod === "phone-match" ? (
+          <Select
+            block
             required
-            error={errors.openedDate?.message}
-            value={watch("openedDate")}
-            onChange={(v) => setValue("openedDate", v, { shouldDirty: true, shouldValidate: true })}
+            label="Số tài khoản"
+            value={watch("accountNumber")}
+            error={errors.accountNumber?.message}
+            onChange={(v) => setValue("accountNumber", v, { shouldDirty: true })}
+            options={[
+              { value: "", label: "— Chọn số điện thoại —" },
+              ...customerPhones.map((phone, i) => ({
+                value: phone,
+                label: i === 0 ? `${phone} · SĐT chính` : phone,
+              })),
+            ]}
           />
-        </div>
+        ) : (
+          /* Giữ `type="text"`: ô `number` cắt số 0 đầu của số tài khoản.
+             `inputMode` mở bàn phím số, `pattern` cho Safari cũ. */
+          <TextField
+            label="Số tài khoản"
+            required
+            inputMode="numeric"
+            pattern="[0-9]*"
+            maxLength={accountNumberLength ?? undefined}
+            labelAppend={
+              accountNumberLength ? (
+                <CharCount value={watch("accountNumber")} max={accountNumberLength} />
+              ) : undefined
+            }
+            hint={accountNumberLength ? `Đủ ${accountNumberLength} chữ số.` : undefined}
+            error={errors.accountNumber?.message}
+            {...register("accountNumber")}
+          />
+        )}
 
         {/* Loại không đi kèm app thì không có app để cài — ô này không có nghĩa
             và giá trị của nó không đếm vào đâu (P-60, chốt 2026-09-07). */}
