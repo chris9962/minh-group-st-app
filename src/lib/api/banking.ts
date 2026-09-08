@@ -261,11 +261,12 @@ export async function fetchBankAccountsOfBank(
 }
 
 /**
- * Đánh dấu lỗi một tài khoản từ trang chi tiết ngân hàng — `Hoàn thành` → `Lỗi`.
+ * Đánh dấu lỗi một tài khoản — `Hoàn thành` → `Lỗi`, hoặc `Chờ duyệt lại` → `Lỗi`.
+ * Dùng ở trang chi tiết ngân hàng và ở P-22.
  *
- * Đường RIÊNG với `updateBankAccountStatus` của P-22: route này gác bằng quyền
- * quản ngân hàng, không kẹp phạm vi phòng. Người quản ngân hàng thường không đi
- * được đường P-22.
+ * Đường RIÊNG với `updateBankAccountStatus`: route này gác bằng quyền quản ngân
+ * hàng, không kẹp phạm vi phòng. Người quản ngân hàng thường có phạm vi ghi
+ * `creator` nên không đi được đường đổi trạng thái với tài khoản của người khác.
  */
 export async function markBankAccountError(
   bankId: string,

@@ -1643,14 +1643,15 @@ export async function approveFixedAccount(
  *
  * | Đường | Ai đi | Gác bằng |
  * |---|---|---|
- * | `updateBankAccountStatus` (P-22) | người mở tài khoản, quản lý phòng | `banking:update` + phạm vi ghi |
- * | hàm này (trang ngân hàng) | người quản ngân hàng | `canManageBank` |
+ * | `updateBankAccountStatus` (P-22) | người quản ngân hàng, kể cả khôi phục | `canManageBank` + `banking:update` + phạm vi ghi |
+ * | hàm này (trang ngân hàng và P-22) | người quản ngân hàng | `canManageBank` |
  *
  * Người quản ngân hàng thường có phạm vi ghi `creator` hoặc không có
  * `banking:update`, nên đường P-22 chặn họ ngay ở phạm vi — họ DUYỆT LẠI được
  * tài khoản của nhân viên khác mà không đánh dấu lỗi được chính tài khoản đó.
  * Ghép chung vào một hàm thì phải nới phạm vi của P-22, và nới ở đó là nhân
- * viên đụng được bản ghi của phòng khác.
+ * viên đụng được bản ghi của phòng khác. Vì vậy từ 2026-09-08 nút Đánh dấu lỗi
+ * ở P-22 cũng gọi hàm này.
  *
  * Nhận `done` → `error` và `fixed` → `error`. Chiều thứ hai là TỪ CHỐI bản sửa:
  * người quản ngân hàng xem xong thấy chưa đạt thì trả về lỗi kèm lý do mới, thay
@@ -1712,20 +1713,24 @@ export async function updateBankAccountStatus(
     return { ok: false, message: "Tài khoản đang ở trạng thái này rồi." };
 
   /**
-   * KHÔI PHỤC thẳng về `done` là đường đi tắt qua vòng duyệt, nên chỉ người
-   * quản ngân hàng đó bấm được (chốt 2026-09-04).
+   * CẢ HAI chiều chỉ người quản ngân hàng đó bấm được (chốt 2026-09-08).
    *
    * `banking:update` một mình không đủ: nhân viên cũng có quyền đó ở phạm vi
-   * tài khoản mình mở, nên họ tự đánh dấu lỗi rồi tự khôi phục, và cả vòng
-   * sửa - duyệt mất tác dụng.
-   *
-   * Chiều ngược lại — đánh dấu lỗi — giữ nguyên `banking:update`: nó chỉ TRỪ
-   * điểm của chính người bấm, không ai tự có lợi bằng đường đó.
+   * tài khoản mình mở. Khôi phục thẳng về `done` là đường đi tắt qua vòng duyệt
+   * (chặn từ 2026-09-04). Đánh dấu lỗi là kết luận đối soát với ngân hàng, và
+   * lý do lỗi là nhận xét của người đối soát — nhân viên tự ghi thì cột đó mất
+   * nghĩa, còn bấm nhầm thì họ không tự khôi phục được, người quản nhận một
+   * yêu cầu duyệt cho lỗi họ chưa từng phát hiện. Bản trước để mở chiều này vì
+   * "chỉ trừ điểm của chính người bấm", nhưng nhân viên không có việc gì cần nó:
+   * nhập sai trong ngày thì Sửa, qua ngày thì báo người quản ngân hàng.
    */
-  if (form.status === "done" && !canManageBank(actor, current.bankId))
+  if (!canManageBank(actor, current.bankId))
     return {
       ok: false,
-      message: "Chỉ người quản ngân hàng này khôi phục được tài khoản. Sửa lỗi rồi gửi duyệt.",
+      message:
+        form.status === "done"
+          ? "Chỉ người quản ngân hàng này khôi phục được tài khoản. Sửa lỗi rồi gửi duyệt."
+          : "Chỉ người quản ngân hàng này đánh dấu lỗi được tài khoản.",
     };
 
   const updated = await db
