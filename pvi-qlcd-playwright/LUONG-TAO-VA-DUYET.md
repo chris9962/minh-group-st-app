@@ -10,8 +10,9 @@ Luồng 2 tách hẳn, vì PVI không sinh file giấy chứng nhận ngay lúc 
 ```
 queued → creating → awaiting-certificate → done
               ↓
-       pending-approval   tạo xong nhưng bot không khớp được dòng để duyệt
-       manual-queued      lỗi ngay khi điền form
+       manual-queued      lỗi ngay khi điền form; hoặc tạo xong mà bot không
+                          khớp được dòng / không bấm Duyệt được (từ 2026-09-08,
+                          trước đó hai ca sau về pending-approval)
 ```
 
 ## Luồng 1 — tạo đơn và duyệt
@@ -23,7 +24,7 @@ queued → creating → awaiting-certificate → done
 | 3 | Bấm "Chấp nhận" | |
 | 4 | PVI chuyển sang `/Service/Manager`, đọc bảng tìm dòng vừa tạo | |
 | 5 | Khớp được → ghi số đơn và `pr_key`, bấm Duyệt | → `awaiting-certificate` |
-| 5b | Không khớp dòng nào → dừng, để người duyệt tay | → `pending-approval` |
+| 5b | Không khớp dòng nào, hoặc bấm Duyệt không thành → dừng, để người duyệt tay | → `manual-queued` |
 
 Lấy đơn phải khoá dòng bằng `for update skip locked`. Không khoá thì hai worker
 lấy trùng một đơn và PVI nhận hai đơn giống hệt nhau.
@@ -44,9 +45,10 @@ duyệt từ dòng đầu xuống, lấy dòng đầu tiên khớp **cả năm �
 | Ngày chứng từ | ngày chạy |
 | Phí | tổng phí script đọc lại từ form |
 
-Không dòng nào khớp thì bot **không duyệt gì cả**. Đơn về `pending-approval`,
-người vận hành duyệt tay. Duyệt nhầm đơn của người khác là thao tác không đảo
-ngược được trên dữ liệu không thuộc phạm vi.
+Không dòng nào khớp thì bot **không duyệt gì cả**. Đơn về `manual-queued`,
+người vận hành vào PVI duyệt tay rồi hoàn thành trong app. Đơn ĐÃ có bên PVI,
+đừng tạo lại. Duyệt nhầm đơn của người khác là thao tác không đảo ngược được
+trên dữ liệu không thuộc phạm vi.
 
 ### Bước 5 — màn duyệt
 

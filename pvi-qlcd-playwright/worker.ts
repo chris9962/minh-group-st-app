@@ -204,8 +204,10 @@ async function createAndApprove(db: Db, order: Order) {
     // nghĩa là form bị từ chối và ĐƠN CHƯA TỒN TẠI bên PVI — thường vì một ô
     // không hợp lệ, PVI đưa focus về ô đó thay vì gửi đi.
     //
-    // Phân biệt hai ca này là bắt buộc: `pending-approval` bảo người dùng vào
-    // PVI duyệt một đơn không có thật, và đơn thì mất vì không ai tạo lại.
+    // Cả hai ca đều về `manual-queued` (chốt 2026-09-08: bot không sinh
+    // `pending-approval` nữa, vì người vận hành đằng nào cũng phải chuyển tay
+    // sang làm tay). Vẫn phải phân biệt trong LOG: ca dưới đơn ĐÃ có bên PVI,
+    // người làm tay vào duyệt chứ không tạo lại — tạo lại là PVI có hai đơn.
     // Đo 2026-08-28 với DH-2608-011: giờ hiệu lực lệch múi giờ nên PVI từ chối,
     // bot vẫn báo "đã tạo".
     const urlSauKhiBam = (result.daLuu as { url?: string })?.url ?? "";
@@ -221,16 +223,17 @@ async function createAndApprove(db: Db, order: Order) {
     }
 
     // Tới đây thì đơn ĐÃ tạo bên PVI, chỉ là bot không nhận ra dòng nào của nó.
-    // Không duyệt bừa: duyệt nhầm đơn người khác không đảo ngược được.
+    // Không duyệt bừa: duyệt nhầm đơn người khác không đảo ngược được. Không có
+    // số đơn để ghi lại, nên log là chỗ duy nhất nói đơn này đã có bên PVI.
     await db
       .update(insuranceOrders)
-      .set({ status: "pending-approval", updatedAt: new Date() })
+      .set({ status: "manual-queued", updatedAt: new Date() })
       .where(eq(insuranceOrders.id, order.id));
-    log(`${order.orderCode}: đã tạo nhưng không khớp được dòng → chờ người duyệt tay`);
+    log(`${order.orderCode}: đã tạo bên PVI nhưng không khớp được dòng → làm tay, VÀO DUYỆT chứ đừng tạo lại`);
     if (chuanDoan?.loi) log(`  ${order.orderCode}: ${chuanDoan.loi}`);
     log(`  ${order.orderCode}: bảng có ${chuanDoan?.soDongCho ?? "?"} dòng Chờ, phí đọc từ form: "${chuanDoan?.tongPhiDocDuoc ?? "?"}"`);
     for (const v of chuanDoan?.viSao ?? []) log(`  ${order.orderCode}: ${v}`);
-    return "pending-approval";
+    return "manual-queued";
   }
 
   const approved = approval?.daDuyet === true;
@@ -239,15 +242,18 @@ async function createAndApprove(db: Db, order: Order) {
     .set({
       pviElectronicOrderNo: matched.soDonDienTu,
       pviPrKey: matched.prKey,
-      // Duyệt không thành thì đơn vẫn đang "Chờ" bên PVI — người duyệt tay.
-      status: approved ? "awaiting-certificate" : "pending-approval",
+      // Duyệt không thành thì đơn vẫn đang "Chờ" bên PVI — về làm tay, người
+      // vận hành vào duyệt theo số đơn đã ghi ở trên.
+      status: approved ? "awaiting-certificate" : "manual-queued",
       updatedAt: new Date(),
     })
     .where(eq(insuranceOrders.id, order.id));
 
   const why = approval?.khongDuyetVi ?? approval?.thongDiep;
-  log(`${order.orderCode}: ${matched.soDonDienTu} · ${approved ? "đã duyệt" : `chưa duyệt (${why})`}`);
-  return approved ? "awaiting-certificate" : "pending-approval";
+  log(
+    `${order.orderCode}: ${matched.soDonDienTu} · ${approved ? "đã duyệt" : `chưa duyệt (${why}) → làm tay, VÀO DUYỆT chứ đừng tạo lại`}`,
+  );
+  return approved ? "awaiting-certificate" : "manual-queued";
 }
 
 /** Tải giấy chứng nhận cho các đơn đã duyệt xong. */
