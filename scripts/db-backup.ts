@@ -1,8 +1,9 @@
 /**
  * Sao lưu database lên S3 — `bun run db:backup`.
  *
- * Chạy mỗi giờ, 24 lượt một ngày (chốt 2026-09-08), qua systemd timer
- * `mgst-backup.timer`. Xem `docs/plan-backup-db.md`.
+ * Chạy mỗi giờ từ 06:00 đến 21:00 giờ Việt Nam, 16 lượt một ngày (chốt
+ * 2026-09-08), qua systemd timer `mgst-backup.timer`. Xem
+ * `docs/plan-backup-db.md`.
  *
  * ⚠️ Bucket sao lưu KHÁC bucket ảnh, và dùng CẶP KHOÁ RIÊNG. Bucket ảnh là dữ
  * liệu của ứng dụng đang chạy — app có quyền xoá trong đó. Bản sao lưu phải nằm
@@ -14,7 +15,7 @@
  *   BACKUP_S3_ACCESS_KEY_ID · BACKUP_S3_SECRET_ACCESS_KEY
  *   BACKUP_KEEP_DAYS   số ngày giữ trên S3, mặc định 1
  *   BACKUP_LOCAL_DIR   thư mục giữ bản trên đĩa, mặc định /root/mgst-backup
- *   BACKUP_KEEP_LOCAL  số file giữ trên đĩa, mặc định 24 — 24 giờ gần nhất
+ *   BACKUP_KEEP_LOCAL  số file giữ trên đĩa, mặc định 16 — trọn một ngày làm việc
  */
 import { spawnSync } from "node:child_process";
 import { mkdirSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
@@ -32,7 +33,7 @@ const MIN_DUMP_BYTES = 100 * 1024;
 
 const CONTAINER_DB = process.env.BACKUP_DB_CONTAINER ?? "mgst-db";
 const LOCAL_DIR = process.env.BACKUP_LOCAL_DIR ?? "/root/mgst-backup";
-const KEEP_LOCAL = Number(process.env.BACKUP_KEEP_LOCAL ?? 24);
+const KEEP_LOCAL = Number(process.env.BACKUP_KEEP_LOCAL ?? 16);
 const KEEP_DAYS = Number(process.env.BACKUP_KEEP_DAYS ?? 1);
 
 function fail(message: string): never {
@@ -101,7 +102,7 @@ function s3Client(): { client: S3Client; bucket: string } {
 
 const { day, time } = stampVn();
 const fileName = `mgst-${day}-${time}.dump`;
-/** Một thư mục mỗi ngày, 24 file trong đó (chốt 2026-09-08). */
+/** Một thư mục mỗi ngày, 16 file trong đó (chốt 2026-09-08). */
 const objectKey = `${day}/${fileName}`;
 const localFile = path.join(LOCAL_DIR, fileName);
 
@@ -157,7 +158,7 @@ for (const stale of local.slice(KEEP_LOCAL)) {
  * giữ được không còn đoán ra từ con số cấu hình.
  *
  * Hệ quả với KEEP_DAYS=1: mốc rơi vào ngày trước nên bucket giữ HAI thư mục
- * ngày, tức 24 đến 48 file tuỳ lúc chạy. Đó không phải lỗi.
+ * ngày, tức 16 đến 32 file tuỳ lúc chạy. Đó không phải lỗi.
  */
 const cutoff = new Date(Date.now() - KEEP_DAYS * 86_400_000)
   .toLocaleDateString("sv-SE", { timeZone: "Asia/Ho_Chi_Minh" });
