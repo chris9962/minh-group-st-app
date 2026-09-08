@@ -38,7 +38,7 @@ import {
   setBankAccountPhotos,
   updateBankAccountStatus,
 } from "@/lib/api/bankAccounts";
-import { fetchBankAccountDetail, type BankAccountDetail } from "@/lib/api/banking";
+import { fetchBankAccountDetail, markBankAccountError, type BankAccountDetail } from "@/lib/api/banking";
 import { fetchDepartments } from "@/lib/api/departments";
 import { invalidateKpi } from "@/lib/invalidateKpi";
 import { can, canManageBank } from "@/lib/permissions";
@@ -307,28 +307,38 @@ function DoneAccountCard({
   const [markingError, setMarkingError] = useState(false);
   const [errorNote, setErrorNote] = useState("");
   const queryClient = useQueryClient();
+  const afterStatusChange = (account: { status: string }) => {
+    queryClient.invalidateQueries({ queryKey: ["bank-account-detail", id] });
+    queryClient.invalidateQueries({ queryKey: ["bank-account-list"] });
+    queryClient.invalidateQueries({ queryKey: ["customers"] });
+    queryClient.invalidateQueries({ queryKey: ["customer", data.customerId] });
+    invalidateKpi(queryClient);
+    setMarkingError(false);
+    setErrorNote("");
+    // `data.status` là trạng thái TRƯỚC lượt bấm: từ `fixed` đi ra thì KPI
+    // không đổi số nào, vì chỉ `done` mới vào phép tính.
+    toast.ok(
+      account.status !== "error"
+        ? "Đã khôi phục tài khoản và tính lại KPI"
+        : data.status === "fixed"
+          ? "Đã trả tài khoản về trạng thái lỗi"
+          : "Đã đánh dấu tài khoản lỗi và tính lại KPI",
+    );
+  };
   const statusUpdate = useMutation({
-    mutationFn: (form: { status: "done" | "error"; errorNote: string }) =>
-      updateBankAccountStatus(id, form),
-    onSuccess: (account) => {
-      queryClient.invalidateQueries({ queryKey: ["bank-account-detail", id] });
-      queryClient.invalidateQueries({ queryKey: ["bank-account-list"] });
-      queryClient.invalidateQueries({ queryKey: ["customers"] });
-      queryClient.invalidateQueries({ queryKey: ["customer", data.customerId] });
-      invalidateKpi(queryClient);
-      setMarkingError(false);
-      setErrorNote("");
-      // `data.status` là trạng thái TRƯỚC lượt bấm: từ `fixed` đi ra thì KPI
-      // không đổi số nào, vì chỉ `done` mới vào phép tính.
-      toast.ok(
-        account.status !== "error"
-          ? "Đã khôi phục tài khoản và tính lại KPI"
-          : data.status === "fixed"
-            ? "Đã trả tài khoản về trạng thái lỗi"
-            : "Đã đánh dấu tài khoản lỗi và tính lại KPI",
-      );
-    },
+    mutationFn: (form: { status: "done"; errorNote: string }) => updateBankAccountStatus(id, form),
+    onSuccess: afterStatusChange,
     onError: (e) => toast.fail(errorMessage(e, "Không đổi được trạng thái tài khoản.")),
+  });
+  /**
+   * Đi route của người quản ngân hàng, không đi route đổi trạng thái: route đó
+   * kẹp thêm phạm vi ghi `banking:update`, mà người quản ngân hàng thường có
+   * phạm vi `creator` nên không đụng được tài khoản của nhân viên khác.
+   */
+  const markError = useMutation({
+    mutationFn: (note: string) => markBankAccountError(data.bankId, id, note),
+    onSuccess: afterStatusChange,
+    onError: (e) => toast.fail(errorMessage(e, "Không đánh dấu lỗi được tài khoản này.")),
   });
 
   const [approving, setApproving] = useState(false);
@@ -358,22 +368,25 @@ function DoneAccountCard({
              nhân viên biết đây là đường chữa. Cùng một hộp thoại.
 
              Nút thứ hai đổi theo trạng thái: `done` thì đánh dấu lỗi, `error`
-             thì khôi phục thẳng, `fixed` thì duyệt. */
+             thì khôi phục thẳng, `fixed` thì duyệt hoặc từ chối. Cả ba chỉ
+             người quản ngân hàng thấy — đó là vòng đối soát của họ, nhân viên
+             chỉ sửa rồi gửi duyệt. */
           <div className={styles.headerActions}>
             <Button variant="secondary" onClick={() => setEditing(true)}>
               <Pencil size={16} aria-hidden />
               {data.status === "error" ? "Sửa lỗi" : "Sửa"}
             </Button>
-            {/* Ở `fixed` đây là nút TỪ CHỐI của vòng duyệt, nên chỉ người quản
-                ngân hàng thấy — cùng người bấm Duyệt. Không có nút này thì người
-                duyệt chỉ có hai lối: duyệt, hoặc bỏ đó. */}
-            {(data.status === "done" ||
-              (data.status === "fixed" && canManageBank(user, data.bankId))) && (
-              <Button variant="danger" onClick={() => setMarkingError(true)}>
-                <TriangleAlert size={16} aria-hidden />
-                Đánh dấu lỗi
-              </Button>
-            )}
+            {/* Ở `fixed` đây là nút TỪ CHỐI của vòng duyệt. Không có nút này thì
+                người duyệt chỉ có hai lối: duyệt, hoặc bỏ đó. Ở `done` bản trước
+                cho cả người mở tài khoản bấm; bỏ từ 2026-09-08, lý do ở
+                `updateBankAccountStatus`. */}
+            {(data.status === "done" || data.status === "fixed") &&
+              canManageBank(user, data.bankId) && (
+                <Button variant="danger" onClick={() => setMarkingError(true)}>
+                  <TriangleAlert size={16} aria-hidden />
+                  Đánh dấu lỗi
+                </Button>
+              )}
             {/* Khôi phục là đường ĐI TẮT qua vòng duyệt, nên chỉ người quản
                 ngân hàng thấy. Nhân viên sửa lỗi rồi gửi duyệt như mọi lượt. */}
             {data.status === "error" && canManageBank(user, data.bankId) && (
@@ -521,16 +534,16 @@ function DoneAccountCard({
         <Dialog
           open
           title="Đánh dấu tài khoản lỗi"
-          onClose={() => !statusUpdate.isPending && setMarkingError(false)}
+          onClose={() => !markError.isPending && setMarkingError(false)}
           footer={
             <>
-              <Button variant="secondary" onClick={() => setMarkingError(false)} disabled={statusUpdate.isPending}>
+              <Button variant="secondary" onClick={() => setMarkingError(false)} disabled={markError.isPending}>
                 Huỷ
               </Button>
               <Button
                 variant="danger"
-                disabled={statusUpdate.isPending || errorNote.trim().length < 2}
-                onClick={() => statusUpdate.mutate({ status: "error", errorNote })}
+                disabled={markError.isPending || errorNote.trim().length < 2}
+                onClick={() => markError.mutate(errorNote)}
               >
                 Đánh dấu lỗi
               </Button>
