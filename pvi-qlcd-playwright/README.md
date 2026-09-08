@@ -209,7 +209,7 @@ Script mỗi lần chỉ điền 1 đơn. Khách cần 2 năm thì BE gọi 2 l�
 | `config.js` | Phần CHUNG mọi sản phẩm: phiên đăng nhập, cách mở trình duyệt |
 | `lib/flows/index.js` | Bảng đăng ký flow, tra theo `product` |
 | `lib/flows/electric-accident.js` | Flow tai nạn điện: URL form, tên ô, giá trị cố định, hàm điền |
-| `lib/flows/motorbike.js` | Flow TNDS xe máy — cùng hình dạng, khác cách tính phí. Cán bộ khai thác và email dùng chung với flow tai nạn điện từ 2026-09-08 |
+| `lib/flows/motorbike.js` | Flow TNDS xe máy — cùng hình dạng, khác cách tính phí. Cán bộ khai thác dùng chung với flow tai nạn điện từ 2026-09-08; ô Email để PVI tự điền |
 | `lib/ngay.js` | Định dạng ngày và tiền theo cách PVI nhận |
 | `lib/order.js` | Chọn flow, lo phiên và ảnh chụp. Không biết tên ô nào của PVI |
 | `login.js` | Mở trình duyệt trên máy bạn để đăng nhập, lưu phiên |
