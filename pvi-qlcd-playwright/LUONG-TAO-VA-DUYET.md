@@ -93,7 +93,7 @@ có thẩm quyền. Ngưỡng ở `CERTIFICATE_MAX_ATTEMPTS` trong
 ```
 ┌─ container pvi-worker ────────────────────┐
 │  worker.ts                                │
-│  vòng lặp 10 giây:                        │
+│  vòng lặp, hết việc mới nghỉ 10 giây:     │
 │    1. đơn queued  → tạo, duyệt            │
 │    2. đơn awaiting-certificate → tải file │
 │    3. ghi heartbeat                       │
@@ -221,7 +221,7 @@ giống nhau ở mọi đơn. Ghép cả sáu ra ảnh 1600×6799 nặng 682KB, 
 ## Chạy worker
 
 ```bash
-bun run pvi:worker                       # chạy mãi, quét mỗi 10 giây — CHẠY THẬT
+bun run pvi:worker                       # chạy mãi; hết việc mới nghỉ 10 giây — CHẠY THẬT
 bun run pvi:worker -- --mot-vong         # một vòng rồi thoát
 bun run pvi:worker -- --chi-chung-nhan   # bỏ bước tạo đơn, chỉ tải file
 bun run pvi:worker -- --thu              # điền form rồi dừng, không bấm gì

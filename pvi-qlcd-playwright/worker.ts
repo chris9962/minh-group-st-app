@@ -1,7 +1,7 @@
 /**
  * WORKER PVI — vòng lặp tự lấy đơn, tạo, duyệt, rồi lấy giấy chứng nhận.
  *
- *   bun run pvi:worker                       # chạy mãi, quét mỗi 10 giây
+ *   bun run pvi:worker                       # chạy mãi; hết việc mới nghỉ 10 giây rồi quét lại
  *   bun run pvi:worker -- --mot-vong         # chạy đúng một vòng rồi thoát
  *   bun run pvi:worker -- --chi-chung-nhan   # bỏ bước tạo đơn, chỉ tải file
  *   bun run pvi:worker -- --thu              # điền form rồi dừng, không bấm gì
@@ -326,11 +326,16 @@ const CERTIFICATES_ONLY = process.argv.includes("--chi-chung-nhan");
 /** `--thu` giữ worker ở chế độ điền-rồi-dừng. Xem chú thích đầu file. */
 const DRY_RUN = process.argv.includes("--thu");
 
-async function runOnce(db: Db) {
+/**
+ * Một vòng quét. Trả `true` khi vừa xử lý xong một đơn: hàng chờ có thể còn
+ * đơn, vòng sau chạy ngay không nghỉ. Giờ cao điểm mỗi giây nghỉ là một đơn
+ * đứng chờ thêm (chốt 2026-09-08).
+ */
+async function runOnce(db: Db): Promise<boolean> {
   if (CERTIFICATES_ONLY) {
     const only = await fetchCertificates(db);
     if (!only) log("Không có đơn nào đang đợi giấy chứng nhận.");
-    return;
+    return false;
   }
 
   // Trước khi nhận đơn mới: trả lại đơn mà worker chết giữa chừng bỏ lại.
@@ -346,14 +351,20 @@ async function runOnce(db: Db) {
         .set({ status: "queued", updatedAt: new Date() })
         .where(eq(insuranceOrders.id, order.id));
       log(`Phiên đăng nhập không dùng được: ${session.bao?.thongDiep}. Trả đơn về hàng chờ.`);
-      return;
+      return false;
     }
     await createAndApprove(db, order);
-    await dongBrowser();
   }
 
   const asked = await fetchCertificates(db);
-  if (!order && !asked) log("Không có việc.");
+  if (order) return true;
+
+  // Hết việc mới đóng Chromium. Giữa hai đơn liên tiếp thì giữ nó mở: `taoDon`
+  // tự mở và đóng context riêng cho mỗi đơn, còn mở lại Chromium mất vài giây
+  // một đơn. Đóng lúc rảnh để không giữ RAM suốt giờ vắng.
+  await dongBrowser();
+  if (!asked) log("Không có việc.");
+  return false;
 }
 
 async function main() {
@@ -388,14 +399,17 @@ async function main() {
   );
 
   do {
+    let busy = false;
     try {
-      await runOnce(db);
+      busy = await runOnce(db);
     } catch (e) {
-      // Một vòng hỏng không được làm chết worker: vòng sau thử lại.
+      // Một vòng hỏng không được làm chết worker: vòng sau thử lại — sau khi
+      // nghỉ, để một lỗi lặp không thành vòng quay không ngừng.
       log(`Lỗi trong vòng quét: ${(e as Error).message}`);
       await dongBrowser().catch(() => {});
     }
-    if (!onceOnly && !stopping) await new Promise((r) => setTimeout(r, SLEEP_SECONDS * 1000));
+    if (!onceOnly && !stopping && !busy)
+      await new Promise((r) => setTimeout(r, SLEEP_SECONDS * 1000));
   } while (!onceOnly && !stopping);
 
   await dongBrowser().catch(() => {});
