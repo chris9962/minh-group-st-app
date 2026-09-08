@@ -340,9 +340,15 @@ export const referralCodes = pgTable(
     /** Số đã dùng TRƯỚC khi nhập vào hệ thống (P-62) — không có dòng `bank_accounts` nào để đếm. */
     importedUsed: integer("imported_used").notNull().default(0),
     /**
-     * Số tài khoản `done` và số tài khoản `creating` đang giữ chỗ mã này —
+     * Số tài khoản đã tiêu chỗ và số tài khoản `creating` đang giữ chỗ mã này —
      * LƯU SẴN, ngoại lệ có chủ đích của luật §9 "used/holding thì đếm sống"
      * (`mgst-db-design.md` §9, mục đã ghi lại ngoại lệ này).
+     *
+     * "Đã tiêu chỗ" gồm `done`, `error` và `fixed` (migration 0074). Đánh lỗi
+     * một tài khoản KHÔNG nhả chỗ: tài khoản vẫn nằm ở ngân hàng, mã vẫn tiêu
+     * một suất. Đếm khác đi thì mã hiện ra chỗ trống không có thật, người khác
+     * lấy chỗ đó, và duyệt sửa xong là mã vượt trần — đã xảy ra 2026-09-08.
+     * Khác KPI: điểm chỉ tính `done`.
      *
      * ⚠️ KHÔNG code nào được tự cộng trừ hai cột này. Trigger
      * `mgst_sync_referral_counts` giữ chúng, nên mọi đường ghi đều đúng: mở tài

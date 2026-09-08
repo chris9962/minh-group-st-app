@@ -607,7 +607,7 @@ export async function setBankActive(id: string, active: boolean): Promise<Bank |
 
 /**
  * `used` = số đã tiêu TRƯỚC khi nhập mã vào hệ thống (`imported_used`, P-62)
- * cộng số tài khoản `done` đang mang mã.
+ * cộng số tài khoản `done`, `error` và `fixed` đang mang mã.
  *
  * Vế thứ hai đọc từ cột lưu sẵn `used_count` do trigger giữ, KHÔNG đếm sống nữa
  * (lý do đầy đủ ở `db/schema.ts`, bảng `referral_codes`). Bản cũ nối cả bảng
@@ -1143,6 +1143,55 @@ export async function setReferralCodeActive(
     .returning({ id: referralCodes.id });
   if (!row) return null;
   return db.transaction((tx) => readCode(tx, id));
+}
+
+export type ReferralCountDrift = {
+  id: string;
+  code: string | null;
+  storedUsed: number;
+  realUsed: number;
+  storedHolding: number;
+  realHolding: number;
+};
+
+/**
+ * Đếm lại `used_count` và `holding_count` từ chính bảng `bank_accounts`, rồi
+ * ghi đè. Trả về những dòng ĐANG lệch trước khi ghi.
+ *
+ * Công thức phải khớp trigger `mgst_sync_referral_counts` (migration 0074):
+ * `done` · `error` · `fixed` là chỗ đã tiêu, `creating` là chỗ đang giữ. Lệch
+ * một chữ giữa hai nơi thì mỗi lần đếm lại là một lần ghi sai số.
+ *
+ * KHÔNG đụng `imported_used`: số nhập tay ở P-62 không có dòng `bank_accounts`
+ * nào để đếm lại, gộp vào là xoá sạch phần đó.
+ */
+export async function recountReferralCodes(): Promise<ReferralCountDrift[]> {
+  const real = sql`(
+    select referral_code_id,
+           count(*) filter (where status in ('done', 'error', 'fixed'))::int as used,
+           count(*) filter (where status = 'creating')::int as holding
+    from bank_accounts group by referral_code_id
+  )`;
+
+  const drift = await db.execute<ReferralCountDrift>(sql`
+    select r.id, r.code,
+           r.used_count as "storedUsed", coalesce(a.used, 0) as "realUsed",
+           r.holding_count as "storedHolding", coalesce(a.holding, 0) as "realHolding"
+    from referral_codes r
+    left join ${real} a on a.referral_code_id = r.id
+    where r.used_count <> coalesce(a.used, 0) or r.holding_count <> coalesce(a.holding, 0)
+  `);
+
+  await db.execute(sql`
+    update referral_codes r
+    set used_count = coalesce(a.used, 0), holding_count = coalesce(a.holding, 0)
+    from (select id from referral_codes) x
+    left join ${real} a on a.referral_code_id = x.id
+    where r.id = x.id
+      and (r.used_count <> coalesce(a.used, 0) or r.holding_count <> coalesce(a.holding, 0))
+  `);
+
+  return drift.rows;
 }
 
 /* ── Kênh ─────────────────────────────────────────────────────────────── */
