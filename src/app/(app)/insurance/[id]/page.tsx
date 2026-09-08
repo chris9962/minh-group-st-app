@@ -27,6 +27,7 @@ import {
 import {
   CERTIFICATE_HELP_MESSAGE,
   certificateNeedsHelp,
+  INTAKE_PHOTO_LABEL,
   INSURANCE_STATUS_LABEL,
   INSURANCE_STATUS_TONE,
   InsuranceOrderStatus,
@@ -619,6 +620,47 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
               </div>
             )}
 
+            {/* Hai ảnh của một đơn đứng cạnh nhau, cùng khuôn: ảnh KD chụp
+                lúc lập đơn (CCCD hay cà vẹt xe theo sản phẩm, chốt 2026-09-07)
+                và tờ chứng nhận PVI phát về sau. Ảnh lúc lập đơn CHỈ XEM ở
+                đây — thay thì qua hộp thoại Sửa đơn, cùng luật với mọi trường
+                khác của đơn. */}
+            <div className={styles.photoRow}>
+            <div className={styles.photoSection}>
+              <h3 className={styles.photoTitle}>{INTAKE_PHOTO_LABEL[data.product]}</h3>
+              {data.intakePhotoUrl ? (
+                <div className={`${styles.photoBox} ${styles.viewOnly}`}>
+                  <button
+                    type="button"
+                    className={styles.photoZoom}
+                    aria-label={`Xem ${INTAKE_PHOTO_LABEL[data.product].toLowerCase()} cỡ lớn`}
+                    onClick={() =>
+                      setZoomed({ src: data.intakePhotoUrl!, alt: INTAKE_PHOTO_LABEL[data.product] })
+                    }
+                  >
+                    <PhotoView
+                      key={data.intakePhotoUrl}
+                      src={data.intakePhotoUrl}
+                      alt={INTAKE_PHOTO_LABEL[data.product]}
+                    />
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.photoDownload}
+                    title="Tải ảnh về máy"
+                    aria-label={`Tải ${INTAKE_PHOTO_LABEL[data.product].toLowerCase()} về máy`}
+                    onClick={() =>
+                      downloadImage(data.intakePhotoUrl!, INTAKE_PHOTO_LABEL[data.product])
+                    }
+                  >
+                    <Download size={14} aria-hidden />
+                  </button>
+                </div>
+              ) : (
+                <p className="text-muted">Chưa có ảnh.</p>
+              )}
+            </div>
+
             <div className={styles.photoSection}>
               <h3 className={styles.photoTitle}>Ảnh chứng nhận bảo hiểm</h3>
               {/* Ảnh đang chờ lưu che lên ảnh cũ: người dùng phải thấy đúng
@@ -757,6 +799,7 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                 </>
               )}
             </div>
+            </div>
 
             {canHandleFallback &&
               (data.status === "manual-queued" ||
@@ -815,7 +858,7 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
             {(canSetStatus || canCancelCompletedOwnOrder || (data.status === "cancelled" && canCreate)) && (
               <div className={styles.override}>
                 {canSetStatus && !lockedByPvi && (
-                  <>
+                  <div className={styles.overrideSet}>
                     <Select
                       label="Đặt trạng thái"
                       hideLabel
@@ -842,7 +885,7 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                     >
                       {override.isPending ? "Đang đặt…" : "Đặt"}
                     </Button>
-                  </>
+                  </div>
                 )}
                 {/* Đẩy sang mép phải: huỷ đơn không phải một lựa chọn khác của ô
                     chọn bên trái, và nó là việc khó lùi nhất trong hàng này. */}

@@ -1,4 +1,4 @@
-import { can, canOpenBankAdmin } from '@/lib/permissions';
+import { can, canConfigureWards, canOpenBankAdmin } from '@/lib/permissions';
 import type { DocArticle } from '../types';
 
 /**
@@ -370,14 +370,9 @@ export const CONFIG_DOCS: DocArticle[] = [
     keywords: [
       'kênh',
       'danh mục kênh',
-      'ấp',
-      'xã',
       'bệnh viện',
       'nguồn khách',
-      'không tìm thấy ấp',
-      'thiếu xã',
       'thêm bệnh viện',
-      'thêm tỉnh',
     ],
     visibleTo: (user) => can(user, 'system', 'configure-catalog'),
     blocks: [
@@ -387,7 +382,7 @@ export const CONFIG_DOCS: DocArticle[] = [
       },
       {
         kind: 'text',
-        body: 'Màn này có thêm hai danh mục. Kênh Ấp và kênh Định danh lấy địa bàn từ danh mục xã/ấp. Kênh Bệnh viện lấy tên từ danh mục bệnh viện.',
+        body: 'Màn này có thêm danh mục bệnh viện cho kênh Bệnh viện. Kênh Ấp và kênh Định danh lấy địa bàn từ màn **Danh mục xã / ấp**, xem bài **Thêm xã, ấp và trưởng ấp**.',
       },
       {
         kind: 'shot',
@@ -399,7 +394,6 @@ export const CONFIG_DOCS: DocArticle[] = [
           markers: [
             { n: 1, x: 9.2, y: 98.5, label: 'Đường vào: Cấu hình → Danh mục kênh.' },
             { n: 2, x: 59.1, y: 15.2, label: 'Bảng kênh nguồn khách.' },
-            { n: 3, x: 57.1, y: 80.7, label: 'Danh mục xã/ấp — địa bàn cho kênh Ấp và kênh Định danh.' },
           ],
         },
       },
@@ -408,9 +402,57 @@ export const CONFIG_DOCS: DocArticle[] = [
         items: [
           'Mở **Cấu hình → Danh mục kênh**.',
           'Thêm hoặc sửa kênh ở bảng trên cùng.',
-          'Thêm địa bàn mới: bạn thêm tỉnh trước, rồi thêm xã, rồi thêm ấp.',
           'Thêm bệnh viện: bạn cuộn xuống khối **Danh mục bệnh viện** ở cuối trang.',
         ],
+      },
+    ],
+  },
+  {
+    slug: 'danh-muc-xa-ap',
+    title: 'Thêm xã, ấp và trưởng ấp',
+    screen: 'P-71',
+    group: 'config',
+    summary: 'Địa bàn công ty đang làm: tỉnh, xã/phường, ấp, kèm trưởng xã và trưởng ấp.',
+    keywords: [
+      'xã',
+      'ấp',
+      'phường',
+      'tỉnh',
+      'địa bàn',
+      'trưởng ấp',
+      'trưởng xã',
+      'số điện thoại trưởng ấp',
+      'không tìm thấy ấp',
+      'thiếu xã',
+      'thêm tỉnh',
+      'thêm xã',
+      'thêm ấp',
+    ],
+    visibleTo: canConfigureWards,
+    blocks: [
+      {
+        kind: 'text',
+        body: 'Danh mục này quyết định xã và ấp nào hiện ra ở ô địa chỉ, kênh Ấp và kênh Định danh. Bạn chỉ thêm xã công ty thật sự có khách.',
+      },
+      {
+        kind: 'text',
+        body: 'Màn chia hai cột. Cột trái là danh sách xã/phường của tỉnh đang chọn. Cột phải là ấp của xã đang chọn, kèm trưởng xã và trưởng ấp.',
+      },
+      {
+        kind: 'steps',
+        items: [
+          'Mở **Cấu hình → Danh mục xã / ấp**.',
+          'Chọn tỉnh ở hàng thẻ trên cùng. Chưa có tỉnh thì bạn bấm **Thêm tỉnh/thành phố** rồi tìm trong danh sách cả nước.',
+          'Bấm **Thêm xã/phường** dưới cột trái rồi tìm xã trong danh sách của tỉnh đó.',
+          'Bấm vào một xã ở cột trái để xem ấp của xã đó.',
+          'Bấm **Sửa trưởng xã** để ghi tên và số điện thoại trưởng xã.',
+          'Bấm **Thêm ấp** rồi nhập tên ấp. Trưởng ấp và số điện thoại để trống được, bạn bổ sung sau bằng nút Sửa trên dòng ấp.',
+        ],
+      },
+      {
+        kind: 'note',
+        tone: 'info',
+        body: 'Đổi tên hoặc xoá ấp không đổi hồ sơ khách đã lưu. Hồ sơ cũ giữ nguyên tên cũ, chỉ ô chọn về sau đổi theo.',
       },
     ],
   },

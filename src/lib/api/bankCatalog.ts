@@ -66,9 +66,9 @@ export const Bank = z.object({
    * chừng nào công thức tạm còn đọc nó thì điểm KPI đổi thật mà không ai báo.
    */
   coefficient: z.number(),
-  /** false với CNKD/HKD — tính điểm nhưng không cộng vào tổng app xét quà. */
+  /** Bản Thường có đi kèm app không — CNKD/HKD nằm ở `guideVariants`. */
   countsAsApp: z.boolean(),
-  /** Ô "đã cài app" ở bước 2 có tick sẵn không. Không liên quan `countsAsApp`. */
+  /** Ô "đã cài app" ở bước 2 có tick sẵn không. Chỉ bật được khi `countsAsApp` bật. */
   appDefault: z.boolean(),
   /** Số lớn lên đầu ô chọn ngân hàng lúc mở tài khoản. 0 là mức thường. */
   priority: z.number(),
@@ -105,6 +105,8 @@ export const Bank = z.object({
       requiredPhotos: z.number(),
       guide: z.string(),
       guidePhotoUrls: z.array(z.string()),
+      countsAsApp: z.boolean(),
+      appDefault: z.boolean(),
     }),
   ),
 });
@@ -182,6 +184,8 @@ export const BankForm = z.object({
         .max(SMALLINT_MAX, 'Số ảnh lớn quá'),
       guide: z.string(),
       guidePhotoUrls: z.array(ImageRef),
+      countsAsApp: z.boolean(),
+      appDefault: z.boolean(),
     }),
   ),
 }).superRefine((value, ctx) => {

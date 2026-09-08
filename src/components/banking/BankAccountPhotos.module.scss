@@ -208,3 +208,30 @@
     aspect-ratio: 1 / 1;
   }
 }
+
+/* Dấu bắt buộc cạnh tiêu đề — cùng màu với `TextField`. */
+.required {
+  color: var(--om-red);
+}
+
+/* Ô nhỏ cho MỘT tấm ảnh đứng đầu biểu mẫu (đơn bảo hiểm, chốt 2026-09-08):
+   không đường chia. Khung 160x100, tỉ lệ 1,6:1 đúng cỡ thẻ CCCD và cà vẹt xe
+   nên ảnh chụp thẻ không bị cắt hai bên; hai nút 44px trên điện thoại vẫn còn
+   chỗ. Đặt sau khối màn hẹp để thắng luật "ô rộng hết cột" ở đó. */
+.small {
+  gap: 6px;
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.small .photoGrid {
+  display: flex;
+}
+
+.small .photoTile,
+.small .photoAdd {
+  width: 160px;
+  height: 100px;
+  aspect-ratio: auto;
+}

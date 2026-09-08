@@ -18,6 +18,7 @@ import { bankingPointsByCustomer } from "./kpi";
 import type { PageArgs } from "./pagination";
 import {
   bankAccounts,
+  bankGuideVariants,
   banks,
   channels,
   customerPhones,
@@ -28,10 +29,12 @@ import {
   kpiAdjustments,
   kpiScores,
   kpiTargets,
+  referralCodes,
   services,
   serviceTypes,
   users,
 } from "./db/schema";
+import { appsInstalledCount, variantOfAccount } from "./appCounted";
 
 /**
  * P-51 · P-52 — điểm KPI tính SỐNG từ bản ghi nghiệp vụ × hệ số danh mục
@@ -362,12 +365,14 @@ async function countsFor(userIds: string[], range: Period): Promise<Map<string, 
       .select({
         createdBy: bankAccounts.createdBy,
         accounts: sql<number>`count(*)::int`,
-        // CNKD/HKD có `counts_as_app = false`: vẫn TÍNH ĐIỂM nhưng không đếm vào
-        // tổng app, nên hai cột này lọc khác nhau (mgst-db-design.md §9).
-        apps: sql<number>`count(*) filter (where ${bankAccounts.appInstalled} and ${banks.countsAsApp})::int`,
+        // Loại không đi kèm app (CNKD/HKD mặc định): vẫn TÍNH ĐIỂM nhưng không
+        // đếm vào tổng app, nên hai cột này lọc khác nhau (mgst-db-design.md §9).
+        apps: appsInstalledCount,
       })
       .from(bankAccounts)
       .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
+      .innerJoin(referralCodes, eq(referralCodes.id, bankAccounts.referralCodeId))
+      .leftJoin(bankGuideVariants, variantOfAccount)
       .where(
         and(
           inArray(bankAccounts.createdBy, userIds),

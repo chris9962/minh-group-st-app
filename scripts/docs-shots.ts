@@ -321,9 +321,19 @@ await page.getByRole("main").getByRole("heading", { name: "Danh mục kênh" }).
 await shoot(page, "channels-page", [
   { n: 1, target: nav(page).getByRole("link", { name: "Danh mục kênh" }), label: "Đường vào: Cấu hình → Danh mục kênh." },
   { n: 2, target: page.getByRole("main").getByRole("heading", { name: "Danh mục kênh" }), label: "Bảng kênh nguồn khách." },
-  { n: 3, target: page.getByRole("heading", { name: "Danh mục tỉnh / xã / ấp" }), label: "Danh mục xã/ấp — địa bàn cho kênh Ấp và kênh Định danh." },
-  // Khối Danh mục bệnh viện nằm dưới mép khung nhìn — ngoài khung ảnh,
-  // không đánh số được; bước hướng dẫn trong bài vẫn nhắc tới nó.
+]);
+
+// P-71 tách trang riêng từ 2026-09-07. Nút "Thêm xã/phường" và "Thêm ấp" chỉ
+// hiện khi đã có tỉnh và xã — database chụp ảnh phải có sẵn địa bàn.
+await page.goto(`${BASE_URL}/settings/wards`);
+await openSettingsGroup(page);
+await page.getByRole("heading", { name: "Danh mục tỉnh / xã / ấp" }).waitFor();
+await shoot(page, "wards-page", [
+  { n: 1, target: nav(page).getByRole("link", { name: "Danh mục xã / ấp" }), label: "Đường vào: Cấu hình → Danh mục xã / ấp." },
+  { n: 2, target: page.getByRole("group", { name: "Tỉnh/thành phố" }), label: "Hàng thẻ tỉnh/thành phố, mỗi thẻ kèm số xã." },
+  { n: 3, target: page.getByRole("button", { name: "Thêm xã/phường" }), label: "Nút Thêm xã/phường, dưới danh sách xã." },
+  { n: 4, target: page.getByRole("button", { name: "Sửa trưởng xã" }), label: "Nút Sửa trưởng xã của xã đang chọn." },
+  { n: 5, target: page.getByRole("button", { name: "Thêm ấp" }), label: "Nút Thêm ấp." },
 ]);
 
 /* ── Xuất dữ liệu & nhật ký ── */

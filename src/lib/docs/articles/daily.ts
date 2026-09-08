@@ -297,7 +297,7 @@ export const DAILY_DOCS: DocArticle[] = [
       {
         kind: 'note',
         tone: 'info',
-        body: 'Hai ô **Mở tài khoản CNKD / HKD** và **Khách đã cài app ngân hàng** ảnh hưởng điểm KPI và trường hợp quà. Bạn tích đúng thực tế.',
+        body: 'Hai ô **Mở tài khoản CNKD / HKD** và **Đã cài app ngân hàng này trên điện thoại khách** ảnh hưởng điểm KPI và trường hợp quà. Bạn tích đúng thực tế.',
       },
       {
         kind: 'note',
@@ -357,7 +357,8 @@ export const DAILY_DOCS: DocArticle[] = [
           'Gói xe máy bắt buộc có **Biển số xe** và **Loại xe**. **Số khung**, **Số máy** điền khi có thông tin.',
           'Gói tai nạn điện thì bạn điền **Số thành viên** và **Số tiền bảo hiểm**.',
           'Ở khối **Khách hàng**, bạn bấm **Điền theo hồ sơ khách** để lấy sẵn họ tên, ngày sinh và địa chỉ.',
-          'Bấm **Tạo đơn**.',
+          'Ở ô ảnh đầu khối đơn, bạn bấm **Thêm ảnh**: đơn tai nạn điện chọn **Ảnh CCCD** của khách, đơn xe máy chọn **Ảnh cà vẹt xe**. Gói 2 đơn thì mỗi đơn một ảnh.',
+          'Bấm **Tạo đơn**. Nút chỉ bấm được khi mỗi đơn đã có ảnh.',
         ],
       },
       {

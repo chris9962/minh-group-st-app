@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isValidPhone } from '@/lib/format';
 
 /**
  * P-71 · Danh mục xã / ấp — CÂY BA CẤP: Tỉnh/Thành phố → Xã/Phường → Ấp/Khu vực
@@ -53,7 +54,14 @@ export async function fetchReferenceWards(provinceId: string): Promise<Reference
 
 /* ── Đang dùng — danh mục thật của công ty, bắt đầu rỗng ──────────────── */
 
-export const Hamlet = z.object({ id: z.string(), name: z.string() });
+/**
+ * Người đứng đầu địa bàn — trưởng xã trên `Ward`, trưởng ấp trên `Hamlet`
+ * (chốt 2026-09-07). Chuỗi rỗng = chưa có, không dùng null: ô nhập và câu tìm
+ * kiếm chỉ phải xử lý một kiểu "trống".
+ */
+const leaderShape = { leaderName: z.string(), leaderPhone: z.string() };
+
+export const Hamlet = z.object({ id: z.string(), name: z.string(), ...leaderShape });
 export type Hamlet = z.infer<typeof Hamlet>;
 
 export const Ward = z.object({
@@ -64,6 +72,7 @@ export const Ward = z.object({
    */
   refId: z.string(),
   name: z.string(),
+  ...leaderShape,
   hamlets: z.array(Hamlet),
 });
 export type Ward = z.infer<typeof Ward>;
@@ -93,16 +102,34 @@ export const AddWardForm = z.object({
 });
 export type AddWardForm = z.infer<typeof AddWardForm>;
 
+/**
+ * Trưởng xã / trưởng ấp — cả hai ô đều để trống được: nhiều ấp thêm vào trước
+ * khi ai biết trưởng ấp là ai. Có SĐT thì phải đủ 10 số, cùng luật với SĐT khách.
+ */
+const leaderFormShape = {
+  leaderName: z.string().trim().max(120, 'Tên quá dài'),
+  leaderPhone: z
+    .string()
+    .trim()
+    .refine((v) => v === '' || isValidPhone(v), 'Số điện thoại phải đủ 10 số'),
+};
+
 export const HamletForm = z.object({
   wardId: z.guid('Chưa chọn xã'),
   name: z.string().trim().min(1, 'Chưa nhập tên ấp'),
+  ...leaderFormShape,
 });
 export type HamletForm = z.infer<typeof HamletForm>;
 
-export const HamletRenameForm = z.object({
+export const HamletUpdateForm = z.object({
   name: z.string().trim().min(1, 'Chưa nhập tên ấp'),
+  ...leaderFormShape,
 });
-export type HamletRenameForm = z.infer<typeof HamletRenameForm>;
+export type HamletUpdateForm = z.infer<typeof HamletUpdateForm>;
+
+/** Tên xã lấy từ tham chiếu, không sửa — chỉ sửa được người đứng đầu. */
+export const WardUpdateForm = z.object(leaderFormShape);
+export type WardUpdateForm = z.infer<typeof WardUpdateForm>;
 
 /**
  * Máy chủ đã nói rõ vì sao ("Xã này đã có ấp trùng tên") — nuốt đi rồi ném câu
@@ -150,13 +177,23 @@ export async function createHamlet(form: HamletForm): Promise<Province> {
   return Province.parse(await res.json());
 }
 
-export async function renameHamlet(id: string, form: HamletRenameForm): Promise<Province> {
+export async function updateHamlet(id: string, form: HamletUpdateForm): Promise<Province> {
   const res = await fetch(`/api/settings/hamlets/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(form),
   });
   if (!res.ok) throw await failure(res, 'Không sửa được ấp này');
+  return Province.parse(await res.json());
+}
+
+export async function updateWard(id: string, form: WardUpdateForm): Promise<Province> {
+  const res = await fetch(`/api/settings/wards/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(form),
+  });
+  if (!res.ok) throw await failure(res, 'Không sửa được xã/phường này');
   return Province.parse(await res.json());
 }
 

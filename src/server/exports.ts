@@ -6,6 +6,7 @@ import { BUSINESS_TIMEZONE } from "@/lib/format";
 import { recordVisibility, type RecordVisibility } from "@/lib/permissions";
 import { isRealIsoDate, type User } from "@/lib/types";
 import { accountExportWhere } from "./banking";
+import { grantedItemLabel } from "./gift";
 import { searchTerms } from "@/lib/search";
 import { db } from "./db/client";
 import {
@@ -158,87 +159,69 @@ function insuranceLabelOf(product: string, packageName: string): string {
   return "BHĐ 100K";
 }
 
-/**
- * Chuỗi bậc quà, đúng chữ cột `QUÀ TẶNG BÁO CÁO` của file Kế toán.
- *
- * ⚠️ Cột đó trong file là chữ GÕ TAY, không có công thức — 37.425 dòng gõ tay,
- * 320 dòng bỏ trống. Sáu chuỗi TH1–TH6 chép từ giá trị xuất hiện nhiều nhất
- * trong file. Kế toán đổi cách ghi thì sửa ở đây.
- *
- * `TH7` và `TH8` là bậc Combo 1, mới từ kỳ 2026-09. File tháng 8 chưa có bậc
- * này nên hai chuỗi đó do đội tự đặt theo cùng khuôn — Kế toán gửi file tháng 9
- * thì đối chiếu lại.
- */
-const GIFT_REPORT_LABEL: Record<string, string> = {
-  TH1: "1 NĂM BH + 20K (Khi cài đặt được VPa) - COMBO 2,3",
-  TH2: "1 NĂM BH - COMBO 2",
-  TH3: "1 NĂM BH + 70K (Khi cài đặt được VPa và MSBa) - COMBO 3",
-  TH4: "1 NĂM BH + 50K (Khi cài đặt được MSBa) - COMBO 3",
-  TH5: "2 NĂM BH + 20K (Khi cài đặt được VPa và MSBb) - COMBO 3",
-  TH6: "2 NĂM BH (Không thuộc các trường hợp trên hoặc thiết bị không phù hợp)",
-  TH7: "1 NĂM BH - COMBO 1",
-  TH8: "1 NĂM BH + 20K (Khi cài đặt được VPa) - COMBO 1",
-};
-
 /** `20000` ra `20k`. Số lẻ nghìn thì in đủ, không làm tròn thay người đọc. */
 const shortCash = (amount: number): string =>
   amount % 1000 === 0 ? `${amount / 1000}k` : amount.toLocaleString("vi-VN");
 
 /**
- * Cột `QUÀ TẶNG THEO COMBO` — TRỌN rổ quà khách được chọn (chốt 2026-09-04).
- *
- * Bản trước ghi một nhãn cố định theo bậc (`GIFT_COMBO_LABEL`), chép công thức
- * `AG` của file Kế toán. Nhãn đó chỉ mô tả phần bảo hiểm gốc nên đọc ra SAI: một
- * khách Phòng Y bậc TH5 được chọn một trong tám món, mà ô chỉ ghi "2 năm BH +
- * 20k" — người đọc tưởng khách chỉ được đúng thứ đó. Món thêm của mục 4b thể lệ
- * không xuất hiện ở đâu cả.
- *
- * Khách ĐÃ phát quà đọc rổ đóng băng trong `snapshot`: tên lúc phát mới là thứ
- * đã hứa với khách, đổi tên món hôm nay không được viết lại lịch sử (spec §5.3).
- * Khách chưa phát thì rổ do hàm luật tính ra, chỉ mang mã, nên tra `catalogName`.
+ * Rổ ĐÓNG BĂNG lúc phát, đọc trong `snapshot`: tên lúc phát mới là thứ đã hứa
+ * với khách, đổi tên món hôm nay không được viết lại lịch sử (spec §5.3). Rỗng
+ * khi khách chưa phát.
  */
-function basketLabel(
-  snapshot: unknown,
-  gift: GiftResult | null,
-  catalogName: Map<string, string>,
-): string {
-  const frozen = (snapshot as { basket?: { name?: string }[] } | null)?.basket;
-  if (frozen?.length)
-    return frozen
-      .map((b: { name?: string }) => b.name ?? "")
-      .filter(Boolean)
-      .join(", ");
-  if (!gift?.basket.length) return "";
-  return gift.basket.map((b) => catalogName.get(b.code) ?? b.code).join(", ");
-}
+const frozenBasketLabel = (snapshot: unknown): string =>
+  ((snapshot as { basket?: { name?: string }[] } | null)?.basket ?? [])
+    .map((b) => b.name ?? "")
+    .filter(Boolean)
+    .join(", ");
+
+/** Rổ hàm luật tính theo tài khoản HIỆN TẠI — chỉ mang mã, nên tra `catalogName`. */
+const liveBasketLabel = (gift: GiftResult | null, catalogName: Map<string, string>): string =>
+  gift?.basket.map((b) => catalogName.get(b.code) ?? b.code).join(", ") ?? "";
 
 /**
- * Cột `QUÀ TẶNG BÁO CÁO` — món ĐÃ GIAO, kèm tiền mặt (chốt 2026-09-04).
+ * Hai cột rổ quà, mỗi cột TRỌN danh sách món (chốt 2026-09-04, tách hai cột
+ * 2026-09-07). Nhãn cố định theo bậc như công thức `AG` của file Kế toán đọc ra
+ * SAI: khách Phòng Y bậc TH5 được chọn một trong tám món mà ô chỉ ghi "2 năm BH
+ * + 20k", và món thêm của mục 4b thể lệ không xuất hiện ở đâu cả.
  *
- * Tên món trong danh mục không mang tiền, nên khách đổi sang `Nón bảo hiểm` mà
- * vẫn nhận 20k thì ô cũ chỉ ghi "Nón bảo hiểm" và mất hẳn phần tiền. Nhãn theo
- * bậc thì ngược lại, tiền đã nằm sẵn trong chuỗi nên không cộng thêm lần nữa.
+ *   `QUÀ TẶNG THEO COMBO HIỆN TẠI`  rổ luật sống tính theo tài khoản hiện tại, mọi khách
+ *   `QUÀ COMBO LÚC CHỐT`            rổ đóng băng lúc phát, rỗng khi chưa phát
+ *
+ * Bản trước cột này tên `QUÀ TẶNG THEO COMBO` và đổi nghĩa theo khách: đóng
+ * băng nếu đã phát, luật sống nếu chưa. Đọc file thì không biết ô đang nói rổ
+ * nào, nên tách hẳn và ghi chữ "hiện tại" vào tên cột.
+ */
+
+/**
+ * Cột `QUÀ TẶNG BÁO CÁO` — món ĐÃ GIAO kèm tiền ĐÃ GHI, đọc từ đợt phát (chốt
+ * 2026-09-07). Khách chưa phát thì ô trống.
+ *
+ * Bản trước chỉ tra tên ở `gift_items`, mà 5.636 trong 5.885 đợt phát chọn gói
+ * bảo hiểm nằm ở `insurance_packages`, nên phép nối trả rỗng và ô chuyển sang
+ * nhãn bậc tính theo tài khoản HIỆN TẠI. Khách được đánh dấu cài app sau lượt
+ * phát thì file ghi 70k trong khi đợt phát chỉ ghi 20k. Tên lúc phát nằm sẵn
+ * trong `snapshot.basket`, `grantedItemLabel` đọc đúng chỗ đó.
+ *
+ * Tên món không mang tiền, nên khách đổi sang `Nón bảo hiểm` mà vẫn nhận 20k
+ * thì phải cộng tiền vào sau tên.
  */
 function grantedLabel(
-  itemName: string | null,
-  cashTotal: number,
-  caseCode: string | null,
+  grant: { chosenItem: string; cashTotal: number; snapshot: unknown } | undefined,
 ): string {
-  if (itemName) return cashTotal > 0 ? `${itemName} + ${shortCash(cashTotal)}` : itemName;
-  return caseCode ? (GIFT_REPORT_LABEL[caseCode] ?? "") : "";
+  if (!grant) return "";
+  const name = grantedItemLabel(grant.chosenItem, grant.snapshot);
+  return grant.cashTotal > 0 ? `${name} + ${shortCash(grant.cashTotal)}` : name;
 }
 
-/** Nhãn ngắn của cột `QUÀ TẶNG THEO COMBO`, cùng chữ với công thức `AG` của file. */
-const GIFT_COMBO_LABEL: Record<string, string> = {
-  TH1: "1 năm BH + 20k",
-  TH2: "1 năm BH",
-  TH3: "1 năm BH + 70k",
-  TH4: "1 năm BH + 50k",
-  TH5: "2 năm BH + 20k",
-  TH6: "2 năm BH",
-  TH7: "1 năm BH",
-  TH8: "1 năm BH + 20k",
-};
+/** Tên người có bảng điểm, để dòng nhật ký nói rõ xem bảng của ai. */
+export async function staffNameOf(id: string): Promise<string | null> {
+  const rows = await db
+    .select({ fullName: users.fullName })
+    .from(users)
+    .where(eq(users.id, id))
+    .limit(1);
+  return rows[0]?.fullName ?? null;
+}
 
 /**
  * Bỏ CCCD và số điện thoại khỏi mỗi dòng (chốt 2026-09-04).
@@ -258,6 +241,25 @@ export async function listScoringExport(
   if (where === null) return { rows: [], total: 0 };
 
   const done = and(where, eq(bankAccounts.status, "done"));
+
+  /**
+   * Ngân hàng và mã giới thiệu CHỌN KHÁCH, không cắt tài khoản (chốt 2026-09-07).
+   *
+   * Người dùng bỏ tick `TPB` nghĩa là "tìm khách có mở VPa, MSBa…", không phải
+   * "giấu dòng TPB của khách đó". Bản trước áp hai ô này lên từng dòng tài
+   * khoản, nên khách LE VAN MANH mở VPa + TPB + MSBa ra dòng chỉ còn 2 ngân
+   * hàng, điểm tụt từ Combo 3 xuống Combo 1 và quà tính sai theo.
+   *
+   * `done` giữ đủ bộ lọc để chọn khách và đếm `total`; `rowDone` bỏ hai ô đó để
+   * dòng của khách gộp trọn tài khoản. Phạm vi quyền và các ô còn lại vẫn áp ở
+   * mức tài khoản như cũ.
+   */
+  const rowWhere = await accountExportWhere(
+    actor,
+    { ...filters, bankCode: "", referralCode: "" },
+    scope,
+  );
+  const rowDone = and(rowWhere ?? undefined, eq(bankAccounts.status, "done"));
 
   /**
    * Cắt trần theo KHÁCH, không theo tài khoản.
@@ -293,7 +295,7 @@ export async function listScoringExport(
     })
     .from(bankAccounts)
     .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
-    .where(and(done, inArray(bankAccounts.customerId, picked)));
+    .where(and(rowDone, inArray(bankAccounts.customerId, picked)));
 
   const byCustomer = new Map<string, AccountRow[]>();
   for (const row of accountRows) {
@@ -362,14 +364,12 @@ export async function listScoringExport(
       .select({
         customerId: giftGrants.customerId,
         chosenItem: giftGrants.chosenItem,
-        itemName: giftItems.name,
         cashTotal: giftGrants.cashTotal,
         // Rổ quà ĐÓNG BĂNG lúc phát — nguồn duy nhất nói đúng khách được chọn
-        // những món nào, kể cả món thêm của mục 4b thể lệ.
+        // những món nào, tên món lúc phát, và bậc lúc phát.
         snapshot: giftGrants.snapshot,
       })
       .from(giftGrants)
-      .leftJoin(giftItems, eq(giftItems.code, giftGrants.chosenItem))
       .where(inArray(giftGrants.customerId, ids)),
     /*
       TRỌN danh mục quà và gói bảo hiểm, mã → tên. Hai bảng này vài chục dòng do
@@ -433,9 +433,13 @@ export async function listScoringExport(
      * Bốn cột đếm của file — `AN` `AO` `AP` `AQ`. Chúng đếm khối MỞ TÀI KHOẢN,
      * KHÔNG đếm khối app cài; `CNKD`/`HKD` nằm ngoài phép đếm.
      */
-    const bankCodes = [...new Set(accounts.map((a) => a.bankCode))].filter(
-      (code) => !HOUSEHOLD_CODES.has(code),
-    );
+    // Dòng HKD là tài khoản VPa riêng, không vào combo và không đếm là ngân
+    // hàng, khớp `comboRowsOf` ở `rules/2026-09.ts`. Khách chỉ có VPa HKD thì
+    // cột CÁC APP và cột APP không có VPa; bản Thường và CNKD vẫn có (chốt
+    // 2026-09-07).
+    const bankCodes = [
+      ...new Set(accounts.filter((a) => a.accountType !== "HKD").map((a) => a.bankCode)),
+    ].filter((code) => !HOUSEHOLD_CODES.has(code));
     const tierCount = (tier: string) =>
       bankCodes.filter((code) => bankTierFor(code, firstDate) === tier).length;
 
@@ -465,11 +469,14 @@ export async function listScoringExport(
       household: household === "none" ? "" : household,
       // Khử trùng như `bankCodes`: khách có hai tài khoản cùng một ngân hàng
       // thì ô app cài vẫn là một, y hệt file Kế toán ghi mỗi ngân hàng một ô.
+      // Khác `bankCodes`, khối này đọc CẢ dòng HKD (chốt 2026-09-07): ô VPa
+      // đánh 1 khi bất kỳ dòng VPa nào của khách đã cài app, kể cả dòng HKD.
       installedBanks: [
         ...new Set(accounts.filter((a) => a.appInstalled).map((a) => a.bankCode)),
       ].filter((code) => !HOUSEHOLD_CODES.has(code)),
-      giftReport: grantedLabel(grant?.itemName ?? null, grant?.cashTotal ?? 0, gift?.caseCode ?? null),
-      giftCombo: basketLabel(grant?.snapshot ?? null, gift, catalogName),
+      giftReport: grantedLabel(grant),
+      giftCombo: liveBasketLabel(gift, catalogName),
+      giftBasketAtGrant: frozenBasketLabel(grant?.snapshot ?? null),
       speaker: grant?.chosenItem === "QUA-LOA" ? "LOA" : "",
       insuranceLabel: insurance
         ? insuranceLabelOf(insurance.product, insurance.packageName)

@@ -23,14 +23,19 @@ export const ScoringExportRow = z.object({
   /** Dạng `ẤP/XÃ`, tách từ `customers.channel_detail`. */
   hamlet: z.string(),
   channelName: z.string(),
-  /** Mã ngân hàng khách đã mở, KHÔNG gồm `CNKD`/`HKD`. */
+  /** Mã ngân hàng khách đã mở tính vào combo, KHÔNG gồm `CNKD`/`HKD` và không gồm dòng VPa HKD. */
   openedBanks: z.array(z.string()),
   msbAccountNumber: z.string(),
   /** `CNKD` · `HKD` · rỗng. */
   household: z.string(),
+  /** Mã ngân hàng đã cài app trên thiết bị, đọc cả dòng VPa HKD. */
   installedBanks: z.array(z.string()),
+  /** Món đã giao kèm tiền đã ghi, đọc từ đợt phát. Rỗng khi chưa phát. */
   giftReport: z.string(),
+  /** Trọn rổ luật tính theo tài khoản hiện tại, mọi khách. */
   giftCombo: z.string(),
+  /** Trọn rổ lúc phát, đọc từ `snapshot`. Rỗng khi chưa phát. Khác cột trên là khách cần đổi quà. */
+  giftBasketAtGrant: z.string(),
   speaker: z.string(),
   insuranceLabel: z.string(),
   licensePlate: z.string(),

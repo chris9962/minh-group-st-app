@@ -122,9 +122,15 @@ export function BankCatalogSection({ creating, onCreatingChange }: Props) {
     {
       key: "countsAsApp",
       label: "Đi kèm app",
-      render: (b) => (
-        <StatusTag ok={b.countsAsApp}>{b.countsAsApp ? "Có" : "Không"}</StatusTag>
-      ),
+      // Liệt kê LOẠI tài khoản có đi kèm app: cấu hình này đi theo loại
+      // (Thường/CNKD/HKD), không theo ngân hàng.
+      render: (b) => {
+        const types = [
+          ...(b.countsAsApp ? ["Thường"] : []),
+          ...b.guideVariants.filter((v) => v.countsAsApp).map((v) => v.accountType),
+        ];
+        return types.length > 0 ? types.join(", ") : "Không";
+      },
     },
     {
       key: "managers",

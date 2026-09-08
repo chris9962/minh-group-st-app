@@ -292,11 +292,6 @@ export type BankAccountStatusUpdateForm = z.infer<typeof BankAccountStatusUpdate
 
 export const CreateBankAccountResult = z.object({
   account: BankAccount,
-  /**
-   * Cảnh báo mềm — đếm trên TOÀN BỘ tài khoản của khách, không chặn lưu
-   * (spec §4.8). Người dùng vẫn đã lưu xong khi thấy các dòng này.
-   */
-  warnings: z.array(z.string()),
 });
 export type CreateBankAccountResult = z.infer<typeof CreateBankAccountResult>;
 

@@ -43,6 +43,8 @@ type Props = {
   bankGuidePhotoUrls: string[];
   photos: PhotoItem[];
   requiredPhotos: number;
+  /** Loại tài khoản này có đi kèm app không; false thì không hiện ô "đã cài app". */
+  countsAsApp: boolean;
   /**
    * Không truyền = khối ảnh CHỈ XEM. Bản ghi đã hoàn thành quá ngày rơi vào
    * mặt này (`canEditOpeningPhotos`) — các ô chữ vẫn sửa được.
@@ -74,6 +76,7 @@ export function BankAccountFinishFields({
   bankGuidePhotoUrls,
   photos,
   requiredPhotos,
+  countsAsApp,
   onPhotosChange,
   busy = false,
 }: Props) {
@@ -217,11 +220,15 @@ export function BankAccountFinishFields({
           />
         </div>
 
-        <Checkbox
-          label="Khách đã cài app ngân hàng trên điện thoại"
-          checked={watch("appInstalled")}
-          onCheckedChange={(v) => setValue("appInstalled", v, { shouldDirty: true })}
-        />
+        {/* Loại không đi kèm app thì không có app để cài — ô này không có nghĩa
+            và giá trị của nó không đếm vào đâu (P-60, chốt 2026-09-07). */}
+        {countsAsApp && (
+          <Checkbox
+            label="Đã cài app ngân hàng này trên điện thoại khách"
+            checked={watch("appInstalled")}
+            onCheckedChange={(v) => setValue("appInstalled", v, { shouldDirty: true })}
+          />
+        )}
 
         <TextField label="Ghi chú" {...register("note")} />
       </form>

@@ -60,6 +60,7 @@ const sysAdminPermissions: Permission[] = [
   // Module `system`, KHÔNG phải `*` (chốt 2026-08-24): lưới cấp quyền chỉ tra
   // module cụ thể, nên dòng `*` không hiện ra và cũng không tắt được bằng lưới.
   p("system", "configure-catalog", "company"),
+  p("system", "configure-wards", "company"),
   p("system", "configure-gift-rules", "company"),
 ];
 

@@ -28,6 +28,17 @@ export const numberValue = (v: unknown): number => {
   return s === '' || s === '-' ? Number.NaN : Number(s);
 };
 
+/**
+ * `setValueAs` cho ô số KHÔNG bắt buộc (schema `.nullable()`).
+ *
+ * react-hook-form gọi `setValueAs` ngay lúc gắn ô, với chính giá trị trong
+ * `defaultValues`. Mặc định `null` đi qua `numberValue` thành `String(null)`
+ * = "null" rồi NaN: ô hiện trống, bấm Lưu thì zod báo "phải là số nguyên" mà
+ * không có gì để sửa.
+ */
+export const optionalNumberValue = (v: unknown): number | null =>
+  v === null || v === undefined || String(v).trim() === '' ? null : numberValue(v);
+
 /** Gắn bộ lọc ký tự vào field đã `register` — spread kết quả vào `TextField`. */
 export function numericField<T extends string>(
   field: UseFormRegisterReturn<T>,

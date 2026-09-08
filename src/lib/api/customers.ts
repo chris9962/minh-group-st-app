@@ -102,6 +102,8 @@ export const CustomerRow = z.object({
   createdById: z.string().nullable(),
   createdByDepartmentId: z.string().nullable(),
   primaryPhone: z.string(),
+  /** Địa chỉ khách, cho cột ĐỊA CHỈ của file xuất từ P-40. Bảng không hiện. */
+  address: z.string(),
   /**
    * Số tài khoản ngân hàng khách còn mở thêm được, 0 là đã đủ trần. Giao diện
    * đọc để làm mờ nút "Mở ngân hàng" đúng dòng.
@@ -240,7 +242,11 @@ export async function fetchCustomerLookup(
   return CustomerLookupResult.parse(await res.json());
 }
 
-export type CustomerExportQuery = Pick<CustomerQuery, 'search' | 'channelId' | 'from' | 'to'>;
+/** Cùng bộ ô lọc với bảng P-40, trừ trang và sắp xếp. */
+export type CustomerExportQuery = Pick<
+  CustomerQuery,
+  'search' | 'channelId' | 'channelDetail' | 'address' | 'staffId' | 'departmentId' | 'from' | 'to'
+>;
 
 /**
  * `total` là tổng số dòng KHỚP BỘ LỌC. Lớn hơn `rows.length` nghĩa là máy chủ

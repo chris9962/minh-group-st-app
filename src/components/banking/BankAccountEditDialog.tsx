@@ -169,13 +169,10 @@ export function BankAccountEditDialog({ open, onClose, accountId }: Props) {
   const finish = useMutation({
     mutationFn: (form: BankAccountFinishForm) =>
       savePhotosThen(() => finishBankAccount(accountId, form)),
-    onSuccess: (result) => {
+    onSuccess: () => {
       invalidate();
       onClose();
       toast.ok("Đã hoàn tất tài khoản ngân hàng");
-      // Cảnh báo mềm mức khách hàng (spec §4.8) — mỗi luật một dòng, hiện SAU
-      // khi đã lưu xong nên không được dùng tông lỗi.
-      for (const w of result.warnings) toast.warn(w);
     },
     onError: (e) => toast.fail(errorMessage(e, "Không hoàn tất được tài khoản này.")),
   });
@@ -188,11 +185,10 @@ export function BankAccountEditDialog({ open, onClose, accountId }: Props) {
   const update = useMutation({
     mutationFn: (form: BankAccountFinishForm) =>
       savePhotosThen(() => updateBankAccount(accountId, { ...form, transactionAt })),
-    onSuccess: (result) => {
+    onSuccess: () => {
       invalidate();
       onClose();
       toast.ok("Đã lưu thay đổi cho tài khoản này");
-      for (const w of result.warnings) toast.warn(w);
     },
     onError: (e) => toast.fail(errorMessage(e, "Không lưu được thay đổi cho tài khoản này.")),
   });
@@ -281,6 +277,7 @@ export function BankAccountEditDialog({ open, onClose, accountId }: Props) {
         bankGuidePhotoUrls={data.bankGuidePhotoUrls}
             photos={photos}
             requiredPhotos={data.requiredPhotos}
+            countsAsApp={data.countsAsApp}
             onPhotosChange={photosEditable ? setEditedPhotos : undefined}
             busy={busy}
           />

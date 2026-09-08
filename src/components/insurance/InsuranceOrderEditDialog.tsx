@@ -4,6 +4,12 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
+import {
+  BankAccountPhotos,
+  savedPhotos,
+  uploadPendingPhotos,
+  type PhotoItem,
+} from "@/components/banking/BankAccountPhotos";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { ErrorState } from "@/components/ui/ErrorState";
@@ -20,6 +26,7 @@ import {
 } from "@/lib/api/insurance";
 import { DepartmentPicker } from "@/components/layout/DepartmentPicker";
 import {
+  INTAKE_PHOTO_LABEL,
   insuranceOrderEditSchema,
   type InsuranceOrderEditForm,
 } from "@/lib/api/insuranceOrders";
@@ -96,6 +103,15 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId, mode = "edit"
    */
   const departmentId = pickedDepartmentId || (data?.createdByDepartmentId ?? "");
 
+  /**
+   * Ảnh hồ sơ (chốt 2026-09-07). `null` = người dùng chưa đụng vào ô, hiện ảnh
+   * đang lưu của đơn — suy ra khi render, không đồng bộ bằng effect (AGENTS.md
+   * §7). Cấp lại điền sẵn ảnh đơn cũ: giữ nguyên thì đơn mới dùng lại tấm đó,
+   * đổi thì chọn tấm khác, ảnh cũ vẫn ở đơn đã huỷ.
+   */
+  const [pickedPhotos, setPickedPhotos] = useState<PhotoItem[] | null>(null);
+  const photos =
+    pickedPhotos ?? savedPhotos(data?.intakePhotoUrl ? [data.intakePhotoUrl] : []);
 
   const form = useForm<InsuranceOrderEditForm>({
     // Focus ô sai do `reportInvalid` lo — xem `lib/formErrors.ts`.
@@ -121,14 +137,24 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId, mode = "edit"
       vehicleType: data?.vehicleType ?? "",
       chassisNumber: data?.chassisNumber ?? "",
       engineNumber: data?.engineNumber ?? "",
+      // Ghi đè lúc gửi bằng ảnh ở ô `photos` — xem `save`.
+      intakePhotoUrl: data?.intakePhotoUrl ?? "",
     },
   });
 
   const save = useMutation({
-    mutationFn: (values: InsuranceOrderEditForm) =>
-      recreating
-        ? recreateInsuranceOrder(orderId, { ...values, departmentId })
-        : updateInsuranceOrder(orderId, values),
+    /**
+     * Ảnh lên kho trước rồi mới ghi đơn. Ô trống gửi chuỗi rỗng: lượt sửa hiểu
+     * là bỏ ảnh, lượt cấp lại thì máy chủ từ chối — nút đã khoá sẵn ở dưới.
+     */
+    mutationFn: async (values: InsuranceOrderEditForm) => {
+      const [url] = await uploadPendingPhotos(photos, "insurance-orders");
+      if (url) setPickedPhotos([{ kind: "saved", url }]);
+      const payload = { ...values, intakePhotoUrl: url ?? "" };
+      return recreating
+        ? recreateInsuranceOrder(orderId, { ...payload, departmentId })
+        : updateInsuranceOrder(orderId, payload);
+    },
     onSuccess: (order) => {
       queryClient.invalidateQueries({ queryKey: ["insurance-list"] });
       queryClient.invalidateQueries({ queryKey: ["insurance-detail", orderId] });
@@ -154,8 +180,12 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId, mode = "edit"
           <Button variant="secondary" onClick={onClose}>
             Huỷ
           </Button>
-          <Button type="submit" form="insurance-edit-form" disabled={!data || save.isPending}>
-            {recreating ? "Cấp lại" : "Lưu"}
+          <Button
+            type="submit"
+            form="insurance-edit-form"
+            disabled={!data || save.isPending || (recreating && photos.length === 0)}
+          >
+            {save.isPending ? "Đang lưu…" : recreating ? "Cấp lại" : "Lưu"}
           </Button>
         </>
       }
@@ -174,6 +204,20 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId, mode = "edit"
             {data.orderCode} · {PRODUCT_LABEL[data.product]} · {data.packageName} ·{" "}
             {data.customerName}
           </p>
+
+          {/* Cùng ô với lúc tạo đơn, đứng đầu biểu mẫu, tên theo sản phẩm. Bắt
+              buộc khi cấp lại; lượt sửa thì không, vì đơn lập trước khi có ảnh
+              vẫn phải sửa được. */}
+          <BankAccountPhotos
+            title={INTAKE_PHOTO_LABEL[data.product]}
+            requiredPhotos={1}
+            max={1}
+            small
+            required={recreating}
+            photos={photos}
+            onChange={setPickedPhotos}
+            busy={save.isPending}
+          />
 
           {/* Phòng ghi nhận đơn MỚI. Lượt sửa không có ô này: đơn đã có phòng
               của nó rồi, đổi phòng là viết lại lịch sử ghi nhận. */}

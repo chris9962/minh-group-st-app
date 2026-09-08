@@ -267,6 +267,19 @@ export function canCreateBank(user: User | null): boolean {
 }
 
 /**
+ * Người này sửa được danh mục tỉnh / xã / ấp (P-71) không.
+ *
+ * Hai quyền cùng mở một màn: `configure-wards` cấp riêng cho người chỉ lo địa
+ * bàn (Phó giám đốc), còn `configure-catalog` là quyền danh mục chung nên đương
+ * nhiên gồm cả xã/ấp — bản trước P-71 chỉ gác bằng quyền đó, và những tài khoản
+ * đang cầm nó phải tiếp tục vào được. Nơi gọi hỏi hàm này thay vì tự viết
+ * `can(...) || can(...)`: sidebar, chốt màn và máy chủ phải cùng một câu.
+ */
+export function canConfigureWards(user: User | null): boolean {
+  return can(user, 'system', 'configure-wards') || can(user, 'system', 'configure-catalog');
+}
+
+/**
  * Lọc một danh sách ngân hàng xuống đúng phạm vi người này SỬA được.
  *
  * Dùng ở các màn CẤU HÌNH. Màn nghiệp vụ thì KHÔNG lọc — nhân viên mở tài

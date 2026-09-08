@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { fetchMe } from "@/lib/api/profile";
 import { canOpenPath } from "@/lib/nav";
 import { useSession } from "@/store/session";
 import { AppLoading } from "./AppLoading";
@@ -29,6 +30,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // luận quyền ngay lúc đó thì tải lại `/users` là bị đưa về trang chủ, dù
   // người đó có quyền — đợi `hydrated` rồi mới xét.
   const hydrated = useSession((s) => s.hydrated);
+  const logout = useSession((s) => s.logout);
+  const refresh = useSession((s) => s.refresh);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   const allowed = hydrated && canOpenPath(user, pathname);
@@ -41,6 +44,42 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
     if (!allowed) router.replace("/");
   }, [allowed, hydrated, isValid, router]);
+
+  /**
+   * Nạp lại bộ quyền từ máy chủ lúc mở app và mỗi lần quay lại tab.
+   *
+   * Phiên ở localStorage giữ `User` lúc đăng nhập, nên quản trị đổi quyền sau
+   * đó thì nút Sửa, Xoá vẫn theo bộ cũ. Máy chủ trả 401 khi phiên đã bị xoá vì
+   * đổi quyền (`updateStaff`) hay hết hạn: lúc đó về màn đăng nhập ngay, thay
+   * vì để mọi lời gọi sau đều 401 mà màn vẫn đứng yên.
+   */
+  useEffect(() => {
+    if (!hydrated || !isValid()) return;
+    let cancelled = false;
+    const sync = async () => {
+      try {
+        const me = await fetchMe();
+        if (cancelled) return;
+        if (me === null) {
+          logout();
+          router.replace("/login");
+        } else {
+          refresh(me);
+        }
+      } catch {
+        // Mất mạng thì giữ phiên đang có, lượt quay lại tab sau thử lại.
+      }
+    };
+    void sync();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void sync();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      cancelled = true;
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [hydrated, isValid, logout, refresh, router]);
 
   // Không dựng nội dung của màn đang bị chặn: `router.replace` chạy sau lượt
   // render này, nên vẽ ra rồi mới chuyển đi là một nhịp nhấp nháy, kèm một lượt

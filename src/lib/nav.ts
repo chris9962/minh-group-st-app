@@ -1,4 +1,4 @@
-import { can, canOrg } from './permissions';
+import { can, canConfigureWards, canOrg } from './permissions';
 import type { User } from './types';
 
 /**
@@ -275,9 +275,16 @@ export function navFor(user: User | null): NavEntry[] {
     });
   }
   if (can(user, 'system', 'configure-catalog')) {
-    // P-71 (xã/ấp) gộp chung trang với P-70 — chỉ dùng để phục vụ kênh
-    // Ấp/Định danh, không cần mục riêng trên sidebar.
     settingsChildren.push({ href: '/settings/channels', label: 'Danh mục kênh', screen: 'P-70' });
+  }
+  /**
+   * P-71 tách khỏi trang Danh mục kênh (chốt 2026-09-07). Có quyền riêng
+   * `configure-wards` cho Phó giám đốc — người chỉ cầm quyền đó không mở được
+   * trang kênh, nên xã/ấp phải có cửa riêng. `canConfigureWards` gồm cả
+   * `configure-catalog`, cùng một hàm với chốt màn và máy chủ.
+   */
+  if (canConfigureWards(user)) {
+    settingsChildren.push({ href: '/settings/wards', label: 'Danh mục xã / ấp', screen: 'P-71' });
   }
 
   if (settingsChildren.length > 0) {

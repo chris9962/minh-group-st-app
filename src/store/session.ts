@@ -28,6 +28,8 @@ type SessionState = {
    */
   hydrated: boolean;
   login: (user: User, remember: boolean) => void;
+  /** Thay `user` bằng bản máy chủ vừa trả, giữ nguyên hạn phiên. */
+  refresh: (user: User) => void;
   logout: () => void;
   isValid: () => boolean;
   markHydrated: () => void;
@@ -42,6 +44,8 @@ export const useSession = create<SessionState>()(
 
       login: (user, remember) =>
         set({ user, expiresAt: sessionExpiry(remember) }),
+
+      refresh: (user) => set({ user }),
 
       logout: () => set({ user: null, expiresAt: null }),
 

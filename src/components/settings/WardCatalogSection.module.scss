@@ -1,87 +1,140 @@
-.provinces {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+/* Xã bên trái, ấp của xã đang chọn bên phải. Cột trái giữ bề ngang cố định để
+   đổi xã không làm bảng ấp nhảy chỗ. */
+.split {
+  display: grid;
+  grid-template-columns: minmax(240px, 320px) minmax(0, 1fr);
+  gap: var(--space-4);
+  margin-top: var(--space-3);
 }
 
-.provinceCard {
+.wardPane {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  min-width: 0;
+}
+
+.wardList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  /* Cần Thơ có 23 xã — cuộn trong khung, không kéo dài cả trang. */
+  max-height: 520px;
+  overflow-y: auto;
+}
+
+.wardItem {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  /* `<button>` thô không kế thừa màu chữ — bộ tối ra chữ đen trên nền tối. */
+  color: var(--om-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.wardItem:hover {
+  background: var(--om-soft);
+}
+
+.wardItem:focus-visible {
+  outline: 2px solid var(--om-orange);
+  outline-offset: 2px;
+}
+
+.wardItemActive,
+.wardItemActive:hover {
+  background: var(--om-orange-soft);
+  border-color: var(--om-orange);
+}
+
+.wardItemName {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.wardItemMeta {
+  font-size: 12.5px;
+  color: var(--om-text-2);
+}
+
+.detailPane {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
   padding: 14px 16px;
   border: 1px solid var(--om-line);
   border-radius: var(--radius-md);
   background: var(--om-soft);
 }
 
-.provinceHead {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.provinceName {
-  font-size: 15px;
-  font-weight: 600;
-}
-
-.wards {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding-left: 16px;
-  border-left: 2px solid var(--om-line);
-}
-
-.wardCard {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px 14px;
-  background: var(--om-card);
-  border: 1px solid var(--om-line);
-  border-radius: var(--radius-md);
-}
-
-.wardHead {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.wardName {
-  font-size: 13.5px;
-  font-weight: 600;
-}
-
-.hamlets {
+.detailHead {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.detailTitle {
   margin: 0;
-  padding: 0;
-  list-style: none;
+  font-size: 16px;
+  font-weight: 600;
 }
 
-.hamlet {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 2px 4px 2px 12px;
-  background: var(--om-soft);
-  border-radius: 999px;
+.detailSub {
+  margin: 2px 0 0;
   font-size: 12.5px;
+  color: var(--om-text-2);
 }
 
-.hamletActions {
-  display: inline-flex;
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px 16px;
+  margin: 0;
+}
+
+.facts div {
+  display: flex;
+  flex-direction: column;
   gap: 2px;
+}
+
+.facts dt {
+  font-size: 12px;
+  color: var(--om-text-2);
+}
+
+.facts dd {
+  margin: 0;
+  font-size: 13.5px;
 }
 
 .footRow {
   display: flex;
   justify-content: flex-start;
-  margin-top: var(--space-3);
+  margin-top: var(--space-2);
+}
+
+@media (max-width: bp.$bp-mobile) {
+  .split {
+    grid-template-columns: 1fr;
+  }
+
+  .wardList {
+    max-height: 260px;
+  }
 }

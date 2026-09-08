@@ -6,89 +6,74 @@ import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { TextField } from "@/components/ui/TextField";
-import { createHamlet, updateHamlet, HamletForm, type Hamlet, type Ward } from "@/lib/api/wardCatalog";
+import { updateWard, WardUpdateForm, type Ward } from "@/lib/api/wardCatalog";
 import styles from "./WardFormDialog.module.scss";
 import { errorMessage, toast } from "@/lib/toast";
 import { reportInvalid } from "@/lib/formErrors";
 
-type Props = { open: boolean; onClose: () => void; ward: Ward; hamlet?: Hamlet };
+type Props = { open: boolean; onClose: () => void; ward: Ward };
 
-/** P-71 · Thêm một ấp vào xã đã chọn sẵn; truyền `hamlet` thì thành sửa ấp đó. */
-export function HamletFormDialog({ open, onClose, ward, hamlet }: Props) {
+/**
+ * P-71 · Sửa trưởng xã của một xã/phường đang dùng.
+ *
+ * Không có ô tên xã: tên chép từ tham chiếu lúc thêm (`WardFormDialog`), người
+ * dùng không đổi được. Đổi tên hành chính thật thì sửa bảng tham chiếu.
+ */
+export function WardInfoDialog({ open, onClose, ward }: Props) {
   const queryClient = useQueryClient();
 
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
-  } = useForm<HamletForm>({
+  } = useForm<WardUpdateForm>({
     // Focus ô sai do `reportInvalid` lo — xem `lib/formErrors.ts`.
     shouldFocusError: false,
-    resolver: zodResolver(HamletForm),
-    defaultValues: {
-      wardId: ward.id,
-      name: hamlet?.name ?? "",
-      leaderName: hamlet?.leaderName ?? "",
-      leaderPhone: hamlet?.leaderPhone ?? "",
-    },
+    resolver: zodResolver(WardUpdateForm),
+    defaultValues: { leaderName: ward.leaderName, leaderPhone: ward.leaderPhone },
   });
 
   const save = useMutation({
-    mutationFn: (form: HamletForm) =>
-      hamlet
-        ? updateHamlet(hamlet.id, {
-            name: form.name,
-            leaderName: form.leaderName,
-            leaderPhone: form.leaderPhone,
-          })
-        : createHamlet(form),
+    mutationFn: (form: WardUpdateForm) => updateWard(ward.id, form),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["provinces"] });
       onClose();
-      toast.ok("Đã lưu ấp");
+      toast.ok("Đã lưu thông tin xã");
     },
-    onError: (e) => toast.fail(errorMessage(e, "Không lưu được ấp này.")),
+    onError: (e) => toast.fail(errorMessage(e, "Không lưu được thông tin xã này.")),
   });
 
   return (
     <Dialog
       open={open}
       onClose={onClose}
-      title={hamlet ? `Sửa ấp - ${ward.name}` : `Thêm ấp - ${ward.name}`}
+      title={`Trưởng xã - ${ward.name}`}
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>
             Huỷ
           </Button>
-          <Button type="submit" form="hamlet-form" disabled={isSubmitting || save.isPending}>
-            {hamlet ? "Lưu" : "Tạo ấp"}
+          <Button type="submit" form="ward-info-form" disabled={isSubmitting || save.isPending}>
+            Lưu
           </Button>
         </>
       }
     >
       <form
-        id="hamlet-form"
+        id="ward-info-form"
         className={styles.form}
         onSubmit={handleSubmit((form) => save.mutate(form), reportInvalid)}
         noValidate
       >
-        <input type="hidden" {...register("wardId")} />
         <TextField
-          label="Tên ấp"
-          required
-          placeholder="Ấp 4"
-          error={errors.name?.message}
-          {...register("name")}
-        />
-        <TextField
-          label="Trưởng ấp"
+          label="Trưởng xã"
           placeholder="Nguyễn Văn A"
           autoComplete="off"
           error={errors.leaderName?.message}
           {...register("leaderName")}
         />
         <TextField
-          label="Số điện thoại trưởng ấp"
+          label="Số điện thoại trưởng xã"
           placeholder="0901 234 567"
           inputMode="tel"
           autoComplete="off"

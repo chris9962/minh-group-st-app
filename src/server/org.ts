@@ -10,7 +10,16 @@ import {
   type OrgErrorCode,
 } from "@/lib/api/org";
 import { db, uniqueViolationOf } from "./db/client";
-import { bankAccounts, banks, departments, userManagedDepartments, users } from "./db/schema";
+import { appsInstalledCount, variantOfAccount } from "./appCounted";
+import {
+  bankAccounts,
+  bankGuideVariants,
+  banks,
+  departments,
+  referralCodes,
+  userManagedDepartments,
+  users,
+} from "./db/schema";
 import { pointsByStaffInRange } from "./kpi";
 
 /**
@@ -321,9 +330,9 @@ function periodRanges(key: string, today: string): { current: Range; previous: R
  * cùng kết quả, nhưng mất bốn chỉ mục `*_dept_date` và buộc nối trước khi cắt
  * trang — đúng hình dạng câu hỏi mà AGENTS.md §5.2 cấm.
  *
- * "App đã cài" đếm tài khoản có `app_installed` VÀ ngân hàng đó `counts_as_app`
- * — cùng định nghĩa với cảnh báo mềm ở `server/banking.ts`. Đây là phép ĐẾM dữ
- * liệu thô, khác hẳn công thức tính ĐIỂM đang chờ file luật của kỳ: thể lệ
+ * "App đã cài" đếm theo `appCounted` (`server/appCounted.ts`) — đã cài app VÀ
+ * loại tài khoản đó của ngân hàng có đi kèm app. Đây là phép ĐẾM dữ liệu thô,
+ * khác hẳn công thức tính ĐIỂM đang chờ file luật của kỳ: thể lệ
  * 03/08 viết lại cách quy điểm cho một combo, không viết lại chuyện một tài
  * khoản có cài app hay không.
  */
@@ -332,11 +341,13 @@ export async function statsByDepartment(range: Range) {
     .select({
       departmentId: bankAccounts.createdByDepartmentId,
       accountsOpened: sql<number>`count(*)::int`,
-      appsInstalled: sql<number>`count(*) filter (where ${bankAccounts.appInstalled} and ${banks.countsAsApp})::int`,
+      appsInstalled: appsInstalledCount,
       customers: sql<number>`count(distinct ${bankAccounts.customerId})::int`,
     })
     .from(bankAccounts)
     .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
+    .innerJoin(referralCodes, eq(referralCodes.id, bankAccounts.referralCodeId))
+    .leftJoin(bankGuideVariants, variantOfAccount)
     .where(
       and(
         // Bản `creating` mới là lượt giữ chỗ mã, chưa phải tài khoản thật.
@@ -370,11 +381,13 @@ export async function statsByStaff(range: Range, departmentIds: string[]) {
     .select({
       staffId: bankAccounts.createdBy,
       accountsOpened: sql<number>`count(*)::int`,
-      appsInstalled: sql<number>`count(*) filter (where ${bankAccounts.appInstalled} and ${banks.countsAsApp})::int`,
+      appsInstalled: appsInstalledCount,
       customers: sql<number>`count(distinct ${bankAccounts.customerId})::int`,
     })
     .from(bankAccounts)
     .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
+    .innerJoin(referralCodes, eq(referralCodes.id, bankAccounts.referralCodeId))
+    .leftJoin(bankGuideVariants, variantOfAccount)
     .where(
       and(
         eq(bankAccounts.status, "done"),

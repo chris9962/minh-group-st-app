@@ -1,6 +1,7 @@
 import { AddProvinceForm } from "@/lib/api/wardCatalog";
+import { canConfigureWards } from "@/lib/permissions";
 import { logAudit } from "@/server/audit";
-import { actorWith, signedIn, badRequest, jsonBody, notFound } from "@/server/auth";
+import { actorPassing, signedIn, badRequest, jsonBody, notFound } from "@/server/auth";
 import { addProvince, listProvinceTree } from "@/server/catalog";
 
 /** P-71 · Địa bàn công ty — cây tỉnh · xã/phường · ấp. */
@@ -13,7 +14,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const guard = await actorWith(request, "system", "configure-catalog");
+  const guard = await actorPassing(request, canConfigureWards);
   if (!guard.ok) return guard.response;
 
   const parsed = AddProvinceForm.safeParse(await jsonBody(request));

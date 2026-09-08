@@ -132,3 +132,14 @@
     padding: 16px 14px 32px;
   }
 }
+
+/* Ô chọn ngân hàng chiếm trọn hàng lưới: mười ô tích không vừa một cột 210px. */
+.bankField {
+  grid-column: 1 / -1;
+}
+
+.bankPicks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+}

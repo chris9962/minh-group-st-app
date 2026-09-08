@@ -130,6 +130,23 @@ export async function actorWith(
 }
 
 /**
+ * Gác bằng một điều kiện tự viết, cho route mà HAI quyền cùng mở được.
+ *
+ * Truyền thẳng hàm từ `lib/permissions.ts` (`canConfigureWards`,
+ * `canOpenBankAdmin`) để máy chủ và sidebar hỏi CÙNG một câu — mỗi route tự
+ * viết `can(...) || can(...)` là hai chỗ sớm muộn lệch nhau.
+ */
+export async function actorPassing(
+  request: Request,
+  allow: (actor: User) => boolean,
+): Promise<{ ok: true; actor: User } | { ok: false; response: Response }> {
+  const actor = await getActor(request);
+  if (!actor) return { ok: false, response: unauthorized() };
+  if (!allow(actor)) return { ok: false, response: forbidden() };
+  return { ok: true, actor };
+}
+
+/**
  * Gác cho DANH MỤC DÙNG CHUNG: chỉ cần có phiên, không đòi quyền gì thêm.
  *
  * Tên ngân hàng, tên kênh, tên bệnh viện, danh sách xã… là dữ liệu tham chiếu —

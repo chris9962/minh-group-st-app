@@ -69,6 +69,8 @@ export const actionKey = pgEnum("action_key", [
   "set-status",
   // đặc biệt · system: đọc và đánh dấu đã xử lý góp ý ở P-96 (migration 0052)
   "handle-feedback",
+  // đặc biệt · system: sửa riêng danh mục tỉnh/xã/ấp P-71 (migration 0072)
+  "configure-wards",
 ]);
 
 export const scopeKey = pgEnum("scope_key", ["own", "managed", "company"]);
@@ -279,13 +281,18 @@ export const banks = pgTable(
     accountNumberLength: smallint("account_number_length"),
     /** Hệ số điểm KPI — VPb = 1.4. */
     coefficient: numeric("coefficient", { precision: 4, scale: 2 }).notNull().default("1"),
-    /** false với CNKD/HKD — tính điểm nhưng không đếm vào tổng app xét quà. */
+    /**
+     * Bản THƯỜNG có đi kèm app không — tài khoản cài app mới đếm vào tổng app.
+     * CNKD/HKD có cột riêng ở `bank_guide_variants` (migration 0071).
+     */
     countsAsApp: boolean("counts_as_app").notNull().default(true),
     /**
-     * Ô "đã cài app" ở bước 2 có tick sẵn không (migration 0069).
+     * Ô "đã cài app" ở bước 2 có tick sẵn không, cho bản THƯỜNG (migration
+     * 0069); CNKD/HKD đọc `bank_guide_variants`.
      *
-     * Không dính dáng `countsAsApp`: cột kia là luật đếm app xét quà, cột này
-     * chỉ đặt giá trị mặc định lúc mở biểu mẫu. Nhân viên vẫn sửa được.
+     * Chỉ có nghĩa khi `countsAsApp` bật: loại không đếm app thì ô đó không
+     * cộng vào đâu, nên `createBank`/`updateBank` ép về false. Nhân viên vẫn
+     * sửa được ô ở bước 2.
      */
     appDefault: boolean("app_default").notNull().default(false),
     /**
@@ -573,6 +580,9 @@ export const wards = pgTable(
     provinceId: uuid("province_id").notNull().references(() => provinces.id),
     refId: text("ref_id").notNull().unique().references(() => refWards.id),
     name: text("name").notNull(),
+    /** Trưởng xã — tên và SĐT liên hệ, nhập tay (migration 0072). Rỗng = chưa có. */
+    leaderName: text("leader_name").notNull().default(""),
+    leaderPhone: text("leader_phone").notNull().default(""),
     createdAt: createdAt(),
   },
   // Ô chọn tỉnh → xã lọc theo province_id mỗi lần mở form khách hàng / mở TK.
@@ -586,6 +596,9 @@ export const hamlets = pgTable(
     wardId: uuid("ward_id").notNull().references(() => wards.id),
     /** Ấp KHÔNG có nguồn tham chiếu — luôn nhập tay. */
     name: text("name").notNull(),
+    /** Trưởng ấp — tên và SĐT liên hệ (migration 0072). Rỗng = chưa có. */
+    leaderName: text("leader_name").notNull().default(""),
+    leaderPhone: text("leader_phone").notNull().default(""),
     createdAt: createdAt(),
   },
   (t) => [
@@ -986,8 +999,9 @@ export const bankGuidePhotos = pgTable(
 );
 
 /**
- * Bản hướng dẫn theo loại tài khoản (CNKD/HKD) của một ngân hàng — VPa/VPb mở
- * CNKD/HKD theo quy trình khác bản thường (chốt 2026-09-02).
+ * Cấu hình theo loại tài khoản (CNKD/HKD) của một ngân hàng: bản hướng dẫn
+ * riêng và hai cột đi kèm app. VPa/VPb mở CNKD/HKD theo quy trình khác bản
+ * thường (chốt 2026-09-02).
  *
  * BA BẢN TÁCH HẲN nhau: loại chưa cài thì không có hướng dẫn, không lấy bản
  * thường thay. Hộp thoại sửa ngân hàng luôn ghi đủ dòng CNKD + HKD mỗi lượt
@@ -1002,6 +1016,13 @@ export const bankGuideVariants = pgTable(
     accountType: bankAccountType("account_type").notNull(),
     requiredPhotos: smallint("required_photos").notNull().default(3),
     guide: text("guide"),
+    /**
+     * Hai cột đi kèm app của loại này (migration 0071) — cùng nghĩa với
+     * `banks.countsAsApp`/`appDefault` của bản thường. Mặc định false: spec
+     * §2.6 chốt CNKD/HKD không đi kèm app.
+     */
+    countsAsApp: boolean("counts_as_app").notNull().default(false),
+    appDefault: boolean("app_default").notNull().default(false),
     createdAt: createdAt(),
   },
   (t) => [
@@ -1176,6 +1197,12 @@ export const insuranceOrders = pgTable(
     /** Ảnh chứng nhận — thay PDF, đính được ở mọi trạng thái. */
     /** KHOÁ trong kho, không phải URL — xem `bank_account_photos.url`. */
     certificatePhotoUrl: text("certificate_photo_url"),
+    /**
+     * Ảnh hồ sơ — KD chụp lúc lập đơn, một đơn một ảnh (chốt 2026-09-07,
+     * migration 0073). KHÁC `certificate_photo_url`: cột đó là tờ chứng nhận
+     * PVI phát về sau. Null với đơn lập trước migration.
+     */
+    intakePhotoUrl: text("intake_photo_url"),
     /**
      * "Số đơn ĐT" bên PVI — `26/21/14/TNCN/0096592`. Bot đọc ở BẢNG
      * `/Service/Manager`; màn duyệt không hiện số này.

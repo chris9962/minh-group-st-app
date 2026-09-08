@@ -2,9 +2,11 @@ import { and, desc, eq, gte, inArray, lte, sql, type SQL } from "drizzle-orm";
 import type { DashboardData, DashboardDraftAccount, DepartmentRanking } from "@/lib/api/dashboard";
 import { BUSINESS_TIMEZONE, businessDay, monthRange } from "@/lib/format";
 import type { User } from "@/lib/types";
+import { appsInstalledCount, variantOfAccount } from "./appCounted";
 import { db } from "./db/client";
 import {
   bankAccounts,
+  bankGuideVariants,
   banks,
   customers,
   departments,
@@ -190,9 +192,9 @@ const EMPTY_BANKING: BankingTotals = { accountsOpened: 0, appsInstalled: 0, cust
  * Tài khoản `done` mở trong kỳ. Bản `creating` là lượt giữ chỗ mã, chưa phải
  * tài khoản thật (spec §4.5).
  *
- * "App đã cài" đếm tài khoản có `app_installed` VÀ ngân hàng đó `counts_as_app`
- * — cùng định nghĩa với cảnh báo mềm ở `server/banking.ts` và với bảng phòng
- * ban P-91. Đây là phép ĐẾM dữ liệu thô, không phải công thức tính điểm.
+ * "App đã cài" đếm theo `appCounted` — đã cài app VÀ loại tài khoản đó của
+ * ngân hàng có đi kèm app — cùng định nghĩa với bảng phòng ban P-91. Đây là
+ * phép ĐẾM dữ liệu thô, không phải công thức tính điểm.
  */
 async function bankingTotals(
   v: DashboardVisibility,
@@ -202,11 +204,13 @@ async function bankingTotals(
   const [row] = await db
     .select({
       accountsOpened: sql<number>`count(*)::int`,
-      appsInstalled: sql<number>`count(*) filter (where ${bankAccounts.appInstalled} and ${banks.countsAsApp})::int`,
+      appsInstalled: appsInstalledCount,
       customers: sql<number>`count(distinct ${bankAccounts.customerId})::int`,
     })
     .from(bankAccounts)
     .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
+    .innerJoin(referralCodes, eq(referralCodes.id, bankAccounts.referralCodeId))
+    .leftJoin(bankGuideVariants, variantOfAccount)
     .where(
       and(
         eq(bankAccounts.status, "done"),

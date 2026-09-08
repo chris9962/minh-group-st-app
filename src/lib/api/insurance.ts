@@ -103,6 +103,11 @@ export const InsuranceOrder = InsuranceListRow.extend({
   /** Đơn vị của người tạo LÚC TẠO — chụp một lần, không tra động (spec §1.1.5). */
   createdByDepartmentId: z.string().nullable(),
   /**
+   * Ảnh hồ sơ KD chụp lúc lập đơn (chốt 2026-09-07) — URL đọc được, null với
+   * đơn lập trước khi có ảnh. Chỉ ở màn chi tiết, bảng P-13 không cần.
+   */
+  intakePhotoUrl: z.string().nullable(),
+  /**
    * Link file PDF giấy chứng nhận trên máy chủ PVI.
    *
    * ⚠️ LUÔN RỖNG từ 2026-09-06. Không đường nào ghi cột này nữa: địa chỉ PVI trả

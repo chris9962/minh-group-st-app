@@ -142,6 +142,16 @@ export const MANUAL_STEPS = ['manual-progress', 'done'] as const;
 export const InsuranceManualStep = z.enum(MANUAL_STEPS);
 export type InsuranceManualStep = z.infer<typeof InsuranceManualStep>;
 
+/**
+ * Tên tấm ảnh KD chụp lúc lập đơn, theo SẢN PHẨM (chốt 2026-09-08): đơn tai
+ * nạn điện chụp CCCD của khách, đơn xe máy chụp cà vẹt xe. Một cột
+ * `intake_photo_url` cho cả hai — khác nhau chỉ ở tên gọi trên màn.
+ */
+export const INTAKE_PHOTO_LABEL: Record<InsuranceProduct, string> = {
+  'electric-accident': 'Ảnh CCCD',
+  motorbike: 'Ảnh cà vẹt xe',
+};
+
 /* Loại xe (`VEHICLE_TYPES`) nằm ở `@/lib/pvi` cùng toàn bộ hợp đồng field
    của PVI — nó là danh sách của PVI, không phải danh mục của mình. */
 
@@ -209,6 +219,18 @@ const orderFields = {
   vehicleType: z.string().trim(),
   chassisNumber: z.string().trim(),
   engineNumber: z.string().trim(),
+  /**
+   * Ảnh KD chụp lúc lập đơn — CCCD hay cà vẹt xe tuỳ sản phẩm, xem
+   * `INTAKE_PHOTO_LABEL` — URL `/api/images/<key>` sau khi tải lên kho (chốt
+   * 2026-09-07).
+   *
+   * Không `min(1)` ở đây dù lúc TẠO và CẤP LẠI là bắt buộc: ảnh nằm trong máy
+   * người dùng tới lúc bấm nút, URL chỉ có sau khi tải lên, nên form không có
+   * gì để kiểm trước đó. Giao diện khoá nút khi thiếu ảnh, máy chủ từ chối lần
+   * nữa (`createInsuranceOrders`, `recreateInsuranceOrder`). Lượt SỬA thì để
+   * trống được: đơn lập trước khi có ảnh hồ sơ vẫn phải sửa được.
+   */
+  intakePhotoUrl: z.string().trim(),
 };
 
 /**

@@ -8,6 +8,7 @@ import { useForm } from "react-hook-form";
 import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { CharCount } from "@/components/ui/CharCount";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { CopyButton } from "@/components/ui/CopyValue";
 import { Dialog } from "@/components/ui/Dialog";
 import { Select } from "@/components/ui/Select";
@@ -83,6 +84,13 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
   const actor = useSession((s) => s.user);
   const queryClient = useQueryClient();
   const editing = Boolean(staff);
+  /**
+   * Chức vụ vừa chọn ở lượt SỬA, đang chờ người dùng trả lời có đặt lại quyền
+   * theo chức vụ đó không (chốt 2026-09-07). Nút "Đặt lại theo chức vụ" nằm
+   * cuối khối Quyền đang gập, admin đổi chức vụ xong không thấy nó, và người
+   * được nâng chức vẫn mang quyền cũ.
+   */
+  const [roleToReset, setRoleToReset] = useState<StaffForm["role"] | null>(null);
   /**
    * Thông tin đăng nhập vừa cấp. Khác `null` thì hộp thoại đổi hẳn nội dung.
    *
@@ -326,24 +334,31 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
               }
               // Chỉ tự điền lại quyền khi TẠO MỚI — sửa người đã có thì giữ
               // nguyên quyền hiện tại, đổi chức vụ không được xoá mất phần
-              // admin đã cấp thêm riêng cho người đó.
+              // admin đã cấp thêm riêng cho người đó. Lượt sửa thì hỏi.
               if (!editing) {
                 setValue("permissions", ROLE_PERMISSIONS[role], { shouldDirty: true });
+              } else if (role !== previous) {
+                setRoleToReset(role);
               }
               // Đơn vị và phòng phụ trách suy ra từ chức vụ, người dùng không
               // tích tay. Bỏ bước này thì Trưởng phòng mới lập giữ nguyên
               // `manageScope: none` và thấy 0 bản ghi.
               const next = normalizeStaffForm({ ...getValues(), role });
               // `normalizeStaffForm` cố ý không đụng vai Nhân viên, nên phòng
-              // phụ trách của vai vừa bỏ còn nguyên. Lúc TẠO MỚI không có hồ sơ
-              // cũ nào để giữ — xoá đi, không thì ô tích hiện ra và người tạo
-              // phải tự bỏ tích từng phòng.
-              const dropManaged = !editing && ROLE_SHAPE[role].manages === "free";
+              // phụ trách của vai vừa bỏ còn nguyên: đổi Nhân viên → Phó phòng
+              // → Nhân viên trong cùng hộp thoại là khối Phòng phụ trách hiện
+              // ra với phòng vừa tự điền. Vai Nhân viên lấy lại đúng giá trị
+              // lúc mở hộp thoại; tạo mới thì không có gì để giữ.
+              const free = ROLE_SHAPE[role].manages === "free";
               setValue("departmentId", next.departmentId, { shouldDirty: true });
-              setValue("manageScope", dropManaged ? "none" : next.manageScope, { shouldDirty: true });
+              setValue(
+                "manageScope",
+                free ? (staff?.manageScope ?? "none") : next.manageScope,
+                { shouldDirty: true },
+              );
               setValue(
                 "managedDepartmentIds",
-                dropManaged ? [] : next.managedDepartmentIds,
+                free ? (staff?.managedDepartmentIds ?? []) : next.managedDepartmentIds,
                 { shouldDirty: true },
               );
             }}
@@ -427,6 +442,23 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
         )}
       </form>
       )}
+
+      <ConfirmDialog
+        open={roleToReset !== null}
+        title="Đặt lại quyền theo chức vụ mới?"
+        confirmLabel="Đặt lại quyền"
+        cancelLabel="Giữ quyền hiện tại"
+        consequence="Quyền cấp thêm riêng cho người này sẽ mất. Sau khi lưu, hệ thống tự đăng xuất người này để nạp quyền mới."
+        onConfirm={() => {
+          if (roleToReset)
+            setValue("permissions", ROLE_PERMISSIONS[roleToReset], { shouldDirty: true });
+          setRoleToReset(null);
+        }}
+        onClose={() => setRoleToReset(null)}
+      >
+        Bạn vừa đổi chức vụ thành {roleToReset ? ROLE_LABEL[roleToReset] : ""}. Đặt lại toàn bộ
+        quyền của người này theo bộ mặc định của chức vụ đó?
+      </ConfirmDialog>
     </Dialog>
   );
 }

@@ -15,10 +15,13 @@ import type { Channel, ChannelForm } from "@/lib/api/channelCatalog";
 import type { Hospital, HospitalForm } from "@/lib/api/hospitalCatalog";
 import type {
   Hamlet,
+  HamletForm,
+  HamletUpdateForm,
   Province,
   ReferenceProvince,
   ReferenceWard,
   Ward,
+  WardUpdateForm,
 } from "@/lib/api/wardCatalog";
 import type {
   CatalogItemForm,
@@ -31,7 +34,7 @@ import type {
   ServiceTypeForm,
   ServiceTypeRow,
 } from "@/lib/api/settings";
-import { businessMonth, uniqueCode } from "@/lib/format";
+import { businessMonth, digitsOnly, uniqueCode } from "@/lib/format";
 import { db, uniqueViolationOf } from "./db/client";
 import { recomputeKpiForMonth } from "./kpi";
 import { imageKeyOf, imageUrl } from "./storage";
@@ -242,6 +245,8 @@ async function guideVariantsOf(
       requiredPhotos: v.requiredPhotos,
       guide: v.guide ?? "",
       guidePhotoUrls: (await guidePhotosOf(runner, bankId, v.accountType)).map(imageUrl),
+      countsAsApp: v.countsAsApp,
+      appDefault: v.appDefault,
     });
   }
   return variants;
@@ -265,6 +270,8 @@ async function guideVariantsAll(
       requiredPhotos: v.requiredPhotos,
       guide: v.guide ?? "",
       guidePhotoUrls: (photosByKey.get(`${v.bankId}|${v.accountType}`) ?? []).map(imageUrl),
+      countsAsApp: v.countsAsApp,
+      appDefault: v.appDefault,
     });
     byBank.set(v.bankId, list);
   }
@@ -322,6 +329,8 @@ async function writeGuideVariants(tx: Tx, bankId: string, variants: BankForm["gu
       accountType: v.accountType,
       requiredPhotos: v.requiredPhotos,
       guide: v.guide || null,
+      countsAsApp: v.countsAsApp,
+      appDefault: v.countsAsApp && v.appDefault,
     });
     await writeGuidePhotos(tx, bankId, v.guidePhotoUrls, v.accountType);
   }
@@ -498,7 +507,7 @@ export async function createBank(
           accountNumberPrefix: form.accountNumberPrefix,
           accountNumberLength: form.accountNumberLength,
           countsAsApp: form.countsAsApp,
-          appDefault: form.appDefault,
+          appDefault: form.countsAsApp && form.appDefault,
           priority: form.priority,
           minAge: form.minAge,
           maxAge: form.maxAge,
@@ -555,7 +564,7 @@ export async function updateBank(
           accountNumberPrefix: form.accountNumberPrefix,
           accountNumberLength: form.accountNumberLength,
           countsAsApp: form.countsAsApp,
-          appDefault: form.appDefault,
+          appDefault: form.countsAsApp && form.appDefault,
           priority: form.priority,
           minAge: form.minAge,
           maxAge: form.maxAge,
@@ -1472,14 +1481,21 @@ export async function listProvinceTree(): Promise<Province[]> {
   const hamletsByWard = new Map<string, Hamlet[]>();
   for (const h of hamletRows) {
     const list = hamletsByWard.get(h.wardId) ?? [];
-    list.push({ id: h.id, name: h.name });
+    list.push({ id: h.id, name: h.name, leaderName: h.leaderName, leaderPhone: h.leaderPhone });
     hamletsByWard.set(h.wardId, list);
   }
 
   const wardsByProvince = new Map<string, Ward[]>();
   for (const w of wardRows) {
     const list = wardsByProvince.get(w.provinceId) ?? [];
-    list.push({ id: w.id, refId: w.refId, name: w.name, hamlets: hamletsByWard.get(w.id) ?? [] });
+    list.push({
+      id: w.id,
+      refId: w.refId,
+      name: w.name,
+      leaderName: w.leaderName,
+      leaderPhone: w.leaderPhone,
+      hamlets: hamletsByWard.get(w.id) ?? [],
+    });
     wardsByProvince.set(w.provinceId, list);
   }
 
@@ -1566,16 +1582,26 @@ async function hamletNameTaken(
   return siblings.some((h) => h.id !== exceptId && hamletNameKey(h.name) === key);
 }
 
-export async function addHamlet(
-  wardId: string,
-  name: string,
-): Promise<CatalogOutcome<Province | null>> {
-  const [ward] = await db.select().from(wards).where(eq(wards.id, wardId)).limit(1);
+/**
+ * SĐT lưu chỉ chữ số — người nhập gõ "0901 234 567" hay "0901.234.567" đều
+ * thành một dạng, `formatPhone` lo phần hiện. Tên chỉ cắt khoảng trắng thừa.
+ */
+const leaderColumns = (form: { leaderName: string; leaderPhone: string }) => ({
+  leaderName: form.leaderName.trim(),
+  leaderPhone: digitsOnly(form.leaderPhone),
+});
+
+export async function addHamlet(form: HamletForm): Promise<CatalogOutcome<Province | null>> {
+  const [ward] = await db.select().from(wards).where(eq(wards.id, form.wardId)).limit(1);
   if (!ward) return { ok: true, item: null };
-  if (await hamletNameTaken(wardId, name, null)) return { ok: false, reason: "name-taken" };
+  if (await hamletNameTaken(form.wardId, form.name, null)) {
+    return { ok: false, reason: "name-taken" };
+  }
 
   return catalogWrite(async () => {
-    await db.insert(hamlets).values({ wardId, name });
+    await db
+      .insert(hamlets)
+      .values({ wardId: form.wardId, name: form.name, ...leaderColumns(form) });
     return provinceById(ward.provinceId);
   });
 }
@@ -1585,23 +1611,38 @@ export async function addHamlet(
  * CHUỖI TÊN trong `channelDetail` chứ không lưu id, bản cũ giữ nguyên tên cũ,
  * chỉ ô chọn ấp về sau đổi theo.
  */
-export async function renameHamlet(
+export async function updateHamlet(
   hamletId: string,
-  name: string,
+  form: HamletUpdateForm,
 ): Promise<CatalogOutcome<{ previousName: string; province: Province | null } | null>> {
   const [hamlet] = await db.select().from(hamlets).where(eq(hamlets.id, hamletId)).limit(1);
   if (!hamlet) return { ok: true, item: null };
   const [ward] = await db.select().from(wards).where(eq(wards.id, hamlet.wardId)).limit(1);
   if (!ward) return { ok: true, item: null };
   // Trừ chính nó ra để vẫn sửa được kiểu chữ của tên đang có ("ấp 2" → "Ấp 2").
-  if (await hamletNameTaken(hamlet.wardId, name, hamletId)) {
+  if (await hamletNameTaken(hamlet.wardId, form.name, hamletId)) {
     return { ok: false, reason: "name-taken" };
   }
 
   return catalogWrite(async () => {
-    await db.update(hamlets).set({ name }).where(eq(hamlets.id, hamletId));
+    await db
+      .update(hamlets)
+      .set({ name: form.name, ...leaderColumns(form) })
+      .where(eq(hamlets.id, hamletId));
     return { previousName: hamlet.name, province: await provinceById(ward.provinceId) };
   });
+}
+
+/** Chỉ trưởng xã — tên xã đi theo bảng tham chiếu, xem route `wards/[id]`. */
+export async function updateWard(
+  wardId: string,
+  form: WardUpdateForm,
+): Promise<{ wardName: string; province: Province | null } | null> {
+  const [ward] = await db.select().from(wards).where(eq(wards.id, wardId)).limit(1);
+  if (!ward) return null;
+
+  await db.update(wards).set(leaderColumns(form)).where(eq(wards.id, wardId));
+  return { wardName: ward.name, province: await provinceById(ward.provinceId) };
 }
 
 export async function deleteHamlet(

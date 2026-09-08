@@ -1,4 +1,13 @@
 import { z } from 'zod';
+import { User } from '@/lib/types';
+
+/** `null` = phiên không còn: hết hạn, bị xoá vì đổi quyền, hoặc tài khoản bị khoá. */
+export async function fetchMe(): Promise<User | null> {
+  const res = await fetch('/api/profile');
+  if (res.status === 401) return null;
+  if (!res.ok) throw new Error('Không đọc được phiên đăng nhập');
+  return User.parse(await res.json());
+}
 
 /**
  * C-02 · Tự đổi mật khẩu: mật khẩu hiện tại → mới → nhập lại.

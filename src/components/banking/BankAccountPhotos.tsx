@@ -111,6 +111,10 @@ type Props = {
   busy?: boolean;
   /** Dạng gọn cho một ô QR nằm cạnh trường nhập liệu trong biểu mẫu. */
   compact?: boolean;
+  /** Ô nhỏ 112px, không đường chia — cho một tấm ảnh đứng đầu biểu mẫu. */
+  small?: boolean;
+  /** Hiện dấu * cạnh tiêu đề, cùng lối với `TextField`. Nơi gọi tự khoá nút gửi. */
+  required?: boolean;
 };
 
 /**
@@ -142,6 +146,8 @@ export function BankAccountPhotos({
   onChange,
   busy = false,
   compact = false,
+  small = false,
+  required = false,
 }: Props) {
   /**
    * Kẹp bởi trần của máy chủ. `banks.required_photos` là số admin gõ ở P-60 và
@@ -255,9 +261,17 @@ export function BankAccountPhotos({
   };
 
   return (
-    <div className={`${styles.photoSection} ${compact ? styles.compact : ""}`}>
+    <div
+      className={`${styles.photoSection} ${compact ? styles.compact : ""} ${small ? styles.small : ""}`}
+    >
       <Heading className={styles.photoTitle}>
-        {title} ({photos.length}
+        {title}
+        {required && (
+          <span className={styles.required} aria-hidden>
+            {" *"}
+          </span>
+        )}{" "}
+        ({photos.length}
         {requiredPhotos > 0 ? `/${requiredPhotos}` : ""})
       </Heading>
 
