@@ -25,6 +25,7 @@ import type {
 } from "@/lib/api/insurance";
 import {
   CERTIFICATE_MAX_ATTEMPTS,
+  INTAKE_PHOTO_LABEL,
   InsuranceOrderStatus,
   insuranceOrderEditSchema,
   type InsuranceManualStep,
@@ -53,7 +54,7 @@ import {
   users,
 } from "./db/schema";
 import type { PageArgs } from "./pagination";
-import { imageUrl } from "./storage";
+import { imageKeyOf, imageUrl } from "./storage";
 
 /**
  * P-13 · P-14 — bản DB của module bảo hiểm.
@@ -363,6 +364,7 @@ const pickPage = (where: SQL | undefined, orderBy: SQL[], limit: number, offset:
       chassisNumber: insuranceOrders.chassisNumber,
       engineNumber: insuranceOrders.engineNumber,
       certificatePhotoUrl: insuranceOrders.certificatePhotoUrl,
+      intakePhotoUrl: insuranceOrders.intakePhotoUrl,
       certificateAttempts: insuranceOrders.certificateAttempts,
       pviCertificateUrl: insuranceOrders.pviCertificateUrl,
       pviSerialNumber: insuranceOrders.pviSerialNumber,
@@ -407,6 +409,7 @@ const decorate = (page: ReturnType<typeof pickPage>) =>
       chassisNumber: page.chassisNumber,
       engineNumber: page.engineNumber,
       certificatePhotoUrl: page.certificatePhotoUrl,
+      intakePhotoUrl: page.intakePhotoUrl,
       certificateAttempts: page.certificateAttempts,
       pviCertificateUrl: page.pviCertificateUrl,
       pviSerialNumber: page.pviSerialNumber,
@@ -479,6 +482,7 @@ const pviOrderUrlFor = (product: InsuranceProduct, prKey: string): string =>
 
 const toOrder = (r: DecoratedRow): InsuranceOrder => ({
   ...toRow(r),
+  intakePhotoUrl: r.intakePhotoUrl ? imageUrl(r.intakePhotoUrl) : null,
   pviCertificateUrl: r.pviCertificateUrl,
   pviSerialNumber: r.pviSerialNumber,
   pviOrderUrl: pviOrderUrlFor(r.product, r.pviPrKey),
@@ -740,11 +744,23 @@ export async function createInsuranceOrders(
       : [];
 
   const today = businessDay();
-  for (const leg of form.legs) {
+  const intakePhotoKeys: string[] = [];
+  for (const [i, leg] of form.legs.entries()) {
     if (leg.endDate < leg.startDate)
       return { ok: false, message: "Ngày kết thúc phải sau ngày bắt đầu" };
     // Sổ ghi việc ĐÃ LÀM: một đơn của tuần sau thì chưa bán cho ai.
     if (leg.orderDate > today) return { ok: false, message: "Ngày tạo đơn không được ở tương lai" };
+    // Mỗi đơn một ảnh (CCCD hay cà vẹt xe theo sản phẩm), bắt buộc (chốt
+    // 2026-09-07). Giao diện đã khoá nút; đây là chốt thật. `imageKeyOf` cũng
+    // chặn luôn chuỗi ngoài kho.
+    const key = imageKeyOf(leg.intakePhotoUrl);
+    if (!key) {
+      return {
+        ok: false,
+        message: `Chưa chọn ${INTAKE_PHOTO_LABEL[leg.product].toLowerCase()} cho đơn ${i + 1}`,
+      };
+    }
+    intakePhotoKeys.push(key);
   }
 
   /**
@@ -826,6 +842,7 @@ export async function createInsuranceOrders(
           vehicleType: leg.vehicleType,
           chassisNumber: leg.chassisNumber,
           engineNumber: leg.engineNumber,
+          intakePhotoUrl: intakePhotoKeys[i],
           createdBy: actor.id,
           // Đơn vị của người tạo lúc tạo. Người này chuyển phòng thì
           // `writeStaff` viết lại cột này cho mọi dòng của họ (chốt 13/08).
@@ -905,11 +922,21 @@ export async function updateInsuranceOrder(
   if (form.orderDate > businessDay())
     return { ok: false, message: "Ngày tạo đơn không được ở tương lai" };
 
+  /**
+   * Lượt sửa cho phép KHÔNG có ảnh hồ sơ: đơn lập trước migration 0073 không có
+   * ảnh, bắt bổ sung mới sửa được là chặn việc sửa mọi đơn cũ. Có gửi ảnh thì
+   * phải là ảnh trong kho.
+   */
+  const intakePhotoKey = form.intakePhotoUrl ? imageKeyOf(form.intakePhotoUrl) : null;
+  if (form.intakePhotoUrl && !intakePhotoKey)
+    return { ok: false, message: `${INTAKE_PHOTO_LABEL[current.product]} không hợp lệ` };
+
   await db
     .update(insuranceOrders)
     .set({
       // Đổi ngày tạo đơn là đổi tháng mà đơn này được tính vào.
       orderDate: form.orderDate,
+      intakePhotoUrl: intakePhotoKey,
       fee: form.fee,
       startDate: form.startDate,
       endDate: form.endDate,
@@ -1335,6 +1362,16 @@ export async function recreateInsuranceOrder(
   if (form.orderDate > businessDay())
     return { ok: false, message: "Ngày tạo đơn không được ở tương lai" };
 
+  // Đơn mới thì bắt buộc có ảnh hồ sơ như lượt tạo. Giao diện điền sẵn ảnh của
+  // đơn cũ, người bấm giữ hay đổi tuỳ ý — nhưng không được để trống.
+  const intakePhotoKey = imageKeyOf(form.intakePhotoUrl);
+  if (!intakePhotoKey) {
+    return {
+      ok: false,
+      message: `Chưa chọn ${INTAKE_PHOTO_LABEL[current.product].toLowerCase()}`,
+    };
+  }
+
   const yearMonth = businessMonth();
   const newStatus = newOrderStatus();
 
@@ -1379,6 +1416,7 @@ export async function recreateInsuranceOrder(
         vehicleType: form.vehicleType,
         chassisNumber: form.chassisNumber,
         engineNumber: form.engineNumber,
+        intakePhotoUrl: intakePhotoKey,
         createdBy: actor.id,
         createdByDepartmentId: department.departmentId,
         replacesOrderId: id,

@@ -5,6 +5,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { UserCheck } from "lucide-react";
+import {
+  BankAccountPhotos,
+  uploadPendingPhotos,
+  type PhotoItem,
+} from "@/components/banking/BankAccountPhotos";
 import { DepartmentPicker } from "@/components/layout/DepartmentPicker";
 import { BackButton } from "@/components/ui/BackButton";
 import { Button } from "@/components/ui/Button";
@@ -17,6 +22,7 @@ import { useAddressSuggestions } from "@/lib/useAddressSuggestions";
 import type { Customer } from "@/lib/api/customers";
 import { createInsuranceOrders } from "@/lib/api/insurance";
 import {
+  INTAKE_PHOTO_LABEL,
   yearsLater,
   InsuranceOrderForm,
   type InsuranceOrderLegForm,
@@ -95,6 +101,8 @@ function defaultLegsFor(pkg: InsurancePackage | null): InsuranceOrderLegForm[] {
       vehicleType: VEHICLE_TYPE_DEFAULT,
       chassisNumber: "",
       engineNumber: "",
+      // Điền lúc gửi, sau khi ảnh lên kho — xem `save` bên dưới.
+      intakePhotoUrl: "",
     };
     legs.push(values);
   });
@@ -172,6 +180,22 @@ export function InsuranceOrderFormDialog({
   const legsField = useFieldArray({ control, name: "legs" });
 
   /**
+   * Ảnh hồ sơ của TỪNG đơn, theo chỉ số leg (chốt 2026-09-07). Nằm ngoài
+   * react-hook-form: ảnh là `File` trong máy người dùng tới lúc bấm Tạo đơn,
+   * còn form chỉ giữ URL sau khi tải lên. Đổi gói là bỏ hết — số đơn đổi theo.
+   */
+  const [photos, setPhotos] = useState<PhotoItem[][]>([]);
+  const photosOf = (i: number): PhotoItem[] => photos[i] ?? [];
+  const setPhotosOf = (i: number, next: PhotoItem[]) =>
+    setPhotos((prev) => {
+      const copy = [...prev];
+      copy[i] = next;
+      return copy;
+    });
+  /** Mỗi đơn một ảnh, thiếu là nút Tạo đơn khoá — máy chủ kiểm lại lần nữa. */
+  const missingPhoto = legsField.fields.some((_, i) => photosOf(i).length === 0);
+
+  /**
    * Luồng Tặng quà mở hộp thoại với gói CỐ ĐỊNH, nhưng danh mục gói về sau qua
    * query — lúc dựng form chưa biết gói có mấy leg nên `legs` rỗng. Dựng lại
    * một lần khi danh mục về, và chỉ khi người dùng chưa gõ gì.
@@ -187,6 +211,7 @@ export function InsuranceOrderFormDialog({
   const selectPackage = (value: string) => {
     setPackageName(value);
     legsField.replace(defaultLegsFor(packages.find((p) => p.name === value) ?? null));
+    setPhotos([]);
   };
 
   /**
@@ -221,7 +246,21 @@ export function InsuranceOrderFormDialog({
   };
 
   const save = useMutation({
-    mutationFn: (form: InsuranceOrderForm) => createInsuranceOrders(form),
+    /**
+     * Ảnh lên kho TRƯỚC, ghi đơn SAU, từng đơn một. Ảnh nào lên xong thì đổi
+     * ô đó sang `saved` ngay: lượt ghi đơn hỏng (409, mất mạng) rồi bấm lại
+     * thì không tải lại tấm đã lên. Đưa `blob:` vào bản ghi là ảnh vỡ sau khi
+     * tải lại trang — xem chú thích ở `BankAccountPhotos`.
+     */
+    mutationFn: async (form: InsuranceOrderForm) => {
+      const legs: InsuranceOrderLegForm[] = [];
+      for (let i = 0; i < form.legs.length; i++) {
+        const [url] = await uploadPendingPhotos(photosOf(i), "insurance-orders");
+        if (url) setPhotosOf(i, [{ kind: "saved", url }]);
+        legs.push({ ...form.legs[i], intakePhotoUrl: url ?? "" });
+      }
+      return createInsuranceOrders({ ...form, legs });
+    },
     onSuccess: (orders) => {
       queryClient.invalidateQueries({ queryKey: ["insurance-list"] });
       queryClient.invalidateQueries({ queryKey: ["customers"] });
@@ -244,6 +283,25 @@ export function InsuranceOrderFormDialog({
   const onSubmit = handleSubmit((values) => save.mutate(values), reportInvalid);
 
   const addressSuggestions = useAddressSuggestions();
+
+  /**
+   * Một ô ảnh nhỏ cho MỖI đơn, đứng ĐẦU khối của đơn đó (chốt 2026-09-08): gói
+   * 2 đơn thì 2 ô. Tên ô theo sản phẩm của đơn: CCCD với tai nạn điện, cà vẹt
+   * xe với xe máy. Dùng lại ô chọn ảnh của màn ngân hàng — chọn xong ảnh còn
+   * trong máy, bấm Tạo đơn mới tải lên.
+   */
+  const renderIntakePhoto = (i: number) => (
+    <BankAccountPhotos
+      title={INTAKE_PHOTO_LABEL[(selectedPackage?.legs ?? [])[i]?.product ?? "electric-accident"]}
+      requiredPhotos={1}
+      max={1}
+      small
+      required
+      photos={photosOf(i)}
+      onChange={(next) => setPhotosOf(i, next)}
+      busy={save.isPending}
+    />
+  );
 
   const renderVehicleInfo = (i: number) => (
     <fieldset className={styles.fieldset}>
@@ -388,9 +446,14 @@ export function InsuranceOrderFormDialog({
           <Button
             type="submit"
             form="insurance-order-form"
-            disabled={isSubmitting || save.isPending || (selectedPackage?.legs ?? []).length === 0}
+            disabled={
+              isSubmitting ||
+              save.isPending ||
+              (selectedPackage?.legs ?? []).length === 0 ||
+              missingPhoto
+            }
           >
-            Tạo đơn
+            {save.isPending ? "Đang lưu…" : "Tạo đơn"}
           </Button>
         </>
       }
@@ -424,6 +487,8 @@ export function InsuranceOrderFormDialog({
           legsField.fields.map((field, i) => (
             <fieldset key={field.id} className={styles.legCard}>
               <legend className={styles.legTitle}>{legLabel(selectedPackage, i)}</legend>
+
+              {renderIntakePhoto(i)}
 
               <DateField
                 label="Ngày tạo đơn"
@@ -474,6 +539,8 @@ export function InsuranceOrderFormDialog({
 
         {legsField.fields.length === 1 && (
           <>
+            {renderIntakePhoto(0)}
+
             <DateField
               label="Ngày tạo đơn"
               required

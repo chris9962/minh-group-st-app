@@ -512,6 +512,13 @@
       "when": 1789718600000,
       "tag": "0072_ward_leaders",
       "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1789805000000,
+      "tag": "0073_insurance_intake_photo",
+      "breakpoints": true
     }
   ]
 }

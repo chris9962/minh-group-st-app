@@ -50,15 +50,16 @@ async function openInsurance(page: Page) {
  * ảnh" hoặc "Đánh dấu hoàn thành". Dùng `setInputFiles` thẳng vào ô file vì ô
  * đó cố ý ẩn — người dùng thật bấm nút "Chọn ảnh" hoặc dán bằng Ctrl+V.
  */
+// PNG 1x1 hợp lệ — máy chủ kiểm chữ ký đầu file nên không dùng chuỗi bịa.
+const PNG_1X1 = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+  "base64",
+);
+
 async function attachPhoto(page: Page) {
-  // PNG 1x1 hợp lệ — máy chủ kiểm chữ ký đầu file nên không dùng chuỗi bịa.
-  const png = Buffer.from(
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
-    "base64",
-  );
   await page
     .locator('input[type="file"]')
-    .setInputFiles({ name: `${TAG}-chung-nhan.png`, mimeType: "image/png", buffer: png });
+    .setInputFiles({ name: `${TAG}-chung-nhan.png`, mimeType: "image/png", buffer: PNG_1X1 });
   await expect(page.getByText("Chưa lưu")).toBeVisible();
 }
 
@@ -88,6 +89,12 @@ async function createOrder(page: Page): Promise<string> {
   await dialog.getByLabel("Họ tên").fill(`${TAG} Nguoi thu huong`);
   await dialog.getByLabel("Ngày sinh").fill("01011990");
   await dialog.getByLabel("Địa chỉ").fill(`${TAG} dia chi`);
+  // Ảnh hồ sơ bắt buộc từ chốt 2026-09-07 — nút Tạo đơn khoá tới khi có ảnh.
+  // Ô file cố ý ẩn, người thật bấm "Thêm ảnh hồ sơ".
+  await dialog
+    .locator('input[type="file"]')
+    .setInputFiles({ name: `${TAG}-ho-so.png`, mimeType: "image/png", buffer: PNG_1X1 });
+  await expect(dialog.getByText("Chưa tải lên")).toBeVisible();
   await dialog.getByRole("button", { name: "Tạo đơn" }).click();
 
   // Toast là bằng chứng thao tác chạy tới nơi — hộp thoại tự đóng thôi thì

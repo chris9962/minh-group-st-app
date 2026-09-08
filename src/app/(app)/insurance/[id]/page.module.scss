@@ -315,8 +315,45 @@
 
 /* Nút huỷ đơn đứng tách khỏi cặp ô chọn + nút Đặt. Trên màn hẹp thì `margin`
    này không có tác dụng vì cả hàng đã xuống dòng. */
+/* Ô chọn và nút Đặt là MỘT cụm: gom lại để trên màn hẹp chúng vẫn đứng cùng
+   hàng, không rớt mỗi thứ một dòng. */
+.overrideSet {
+  display: flex;
+  align-items: end;
+  gap: 10px;
+}
+
 .overrideCancel {
   margin-left: auto;
+}
+
+/* Màn hẹp: xếp dọc. Ô chọn 220px cộng nút Đặt vừa một hàng, nhưng Huỷ đơn bị
+   `margin-left: auto` đẩy sang hàng dưới sát mép phải, trông như lạc khỏi cụm.
+   Cho ô chọn rộng hết phần còn lại của hàng, và nút huỷ / cấp lại rộng hết hàng. */
+@media (max-width: bp.$bp-mobile) {
+  .override {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .overrideSet {
+    width: 100%;
+  }
+
+  .overrideSet > :first-child {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .overrideSet select {
+    width: 100%;
+    max-width: none;
+  }
+
+  .overrideCancel {
+    width: 100%;
+    margin-left: 0;
+  }
 }
 
 .footnote {
@@ -484,5 +521,33 @@
 
   .saved .photoDownload {
     right: 56px;
+  }
+}
+
+/* Hai ảnh của đơn đứng cạnh nhau (chốt 2026-09-07): ảnh hồ sơ lúc lập đơn
+   và ảnh chứng nhận PVI. Đường chia đặt ở hàng, không ở từng cột — hai cột
+   cùng một khối. */
+.photoRow {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--om-line);
+}
+
+.photoRow .photoSection {
+  padding-top: 0;
+  border-top: 0;
+}
+
+/* Ô chỉ xem có đúng một nút tải về, nên nó đứng sát mép như nút ngoài cùng của
+   ô có ba nút. Đặt sau khối `pointer: coarse` để thắng `.saved .photoDownload`. */
+.viewOnly .photoDownload {
+  right: 6px;
+}
+
+@media (max-width: bp.$bp-mobile) {
+  .photoRow {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
