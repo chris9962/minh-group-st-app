@@ -18,6 +18,10 @@ import {
 } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type {
+  CancelledInsuranceQuery,
+  CancelledInsuranceRow,
+} from "@/lib/api/exports";
+import type {
   InsuranceDetail,
   InsuranceListRow,
   InsuranceOrder,
@@ -32,7 +36,7 @@ import {
   type InsuranceOrderForm,
 } from "@/lib/api/insuranceOrders";
 import type { Page } from "@/lib/api/pagination";
-import { businessDay, businessMonth } from "@/lib/format";
+import { BUSINESS_TIMEZONE, businessDay, businessMonth } from "@/lib/format";
 import {
   can,
   recordInScope,
@@ -592,6 +596,137 @@ export async function listInsuranceOrdersForExport(
   ]);
 
   return { rows: rows.map(toRow), total: totals?.value ?? 0 };
+}
+
+/* ── P-73 báo cáo #5 · Đơn bảo hiểm huỷ ─────────────────────────────── */
+
+const canceller = alias(users, "canceller");
+
+/**
+ * TRỌN danh sách đơn ĐANG ở trạng thái huỷ, kèm lượt huỷ mới nhất của từng đơn.
+ *
+ * Lọc theo NGÀY HUỶ, không theo ngày lập đơn (chốt 2026-09-08). Câu hỏi của
+ * người dùng là "hôm nay đội huỷ những đơn nào", mà đơn lập hôm trước huỷ hôm
+ * sau thì lọc theo ngày lập là mất nó. Khác `listInsuranceOrdersForExport` ở
+ * đúng chỗ đó.
+ *
+ * Lấy `status = 'cancelled'` chứ không lấy mọi LƯỢT huỷ trong bảng lịch sử: đơn
+ * huỷ rồi được `insurance:set-status` đưa về trạng thái khác thì không còn là
+ * đơn huỷ. Đo trên dữ liệu thật 2026-09-08: 224 lượt huỷ trong 30 ngày, 220 đơn
+ * đang ở `cancelled`.
+ *
+ * `innerJoinLateral` chạy lại cho TỪNG đơn huỷ, mỗi lượt một lần tra chỉ mục
+ * `insurance_history_order` — không phải phép gộp trên cả bảng lịch sử
+ * (AGENTS.md §5.2 cách A).
+ */
+export async function listCancelledInsuranceExport(
+  actor: User,
+  filters: CancelledInsuranceQuery,
+): Promise<{ rows: CancelledInsuranceRow[]; total: number }> {
+  // `export`, không phải `view-detail` — cùng lý do với
+  // `listInsuranceOrdersForExport`.
+  const visible = scopeOf(actor, "export");
+  if (visible.kind === "none") return { rows: [], total: 0 };
+
+  const cancel = db
+    .select({
+      at: insuranceOrderStatusHistory.changedAt,
+      note: insuranceOrderStatusHistory.note,
+      by: insuranceOrderStatusHistory.changedBy,
+      fromStatus: insuranceOrderStatusHistory.fromStatus,
+    })
+    .from(insuranceOrderStatusHistory)
+    .where(
+      and(
+        eq(insuranceOrderStatusHistory.orderId, insuranceOrders.id),
+        eq(insuranceOrderStatusHistory.toStatus, "cancelled"),
+        /**
+         * Bỏ dòng `cancelled` → `cancelled`: đó là GHI CHÚ trên một đơn đã huyỷ,
+         * không phải lượt huỷ. Đường API của PVI ghi một dòng như vậy khi PVI
+         * cấp giấy chứng nhận sau lúc huỷ; lấy nhầm nó thì cột "Lý do huỷ" ra
+         * câu của hệ thống và "Ngày giờ huỷ" ra mốc muộn hơn thật.
+         *
+         * `is distinct from` chứ không phải `<>`: `from_status` null ở dòng khởi
+         * tạo, mà `null <> 'cancelled'` ra null nên dòng đó rơi khỏi kết quả.
+         */
+        sql`${insuranceOrderStatusHistory.fromStatus} is distinct from 'cancelled'`,
+      ),
+    )
+    .orderBy(desc(insuranceOrderStatusHistory.changedAt))
+    .limit(1)
+    .as("cancel");
+
+  const product = InsuranceProduct.safeParse(filters.product);
+
+  /**
+   * Khoảng ngày so THẲNG trên cột `changed_at`, không bọc `at time zone` quanh
+   * nó — cùng lối với `server/audit.ts`. Đầu `to` lấy 0h ngày HÔM SAU và so `<`:
+   * so `<=` với một cột thời điểm thì mất trọn ngày cuối trừ giây đầu tiên.
+   *
+   * ⚠️ Phải ép `::timestamp` TRƯỚC `at time zone`. `AT TIME ZONE` chạy hai chiều
+   * ngược nhau tuỳ kiểu vế trái, và viết `date at time zone` rơi vào chiều sai —
+   * lệch 14 tiếng, lọc đúng một ngày ra 0 dòng.
+   */
+  const where = and(
+    ...([
+      eq(insuranceOrders.status, "cancelled"),
+      scopeWhere(visible),
+      product.success ? eq(insuranceOrders.product, product.data) : undefined,
+      filters.staffId ? eq(insuranceOrders.createdBy, filters.staffId) : undefined,
+      filters.departmentId
+        ? eq(insuranceOrders.createdByDepartmentId, filters.departmentId)
+        : undefined,
+      // Ngày sai định dạng thì bỏ qua, không trả 400 — cùng lối nghĩ với `uuidParam`.
+      usableDate(filters.from)
+        ? sql`${cancel.at} >= ((${filters.from}::date)::timestamp at time zone ${BUSINESS_TIMEZONE})`
+        : undefined,
+      usableDate(filters.to)
+        ? sql`${cancel.at} < ((${filters.to}::date + 1)::timestamp at time zone ${BUSINESS_TIMEZONE})`
+        : undefined,
+    ].filter(Boolean) as SQL[]),
+  );
+
+  const [rows, [totals]] = await Promise.all([
+    db
+      .select({
+        id: insuranceOrders.id,
+        orderCode: insuranceOrders.orderCode,
+        product: insuranceOrders.product,
+        packageName: insuranceOrders.packageName,
+        at: cancel.at,
+        reason: cancel.note,
+        // Cột nullable ở DB nhưng hợp đồng là chuỗi — người tạo có thể đã bị xoá.
+        createdById: sql<string>`coalesce(${insuranceOrders.createdBy}::text, '')`,
+        createdByName: sql<string>`coalesce(${creator.fullName}, '')`,
+        departmentName: sql<string>`coalesce(${creatorDepartment.name}, '')`,
+        customerName: customers.fullName,
+        fee: insuranceOrders.fee,
+        orderDate: insuranceOrders.orderDate,
+        // `null` = bot hay hệ thống tự chuyển, không phải người bấm.
+        cancelledByName: sql<string>`coalesce(${canceller.fullName}, '')`,
+        previousStatus: sql<string>`coalesce(${cancel.fromStatus}::text, '')`,
+        pviElectronicOrderNo: insuranceOrders.pviElectronicOrderNo,
+      })
+      .from(insuranceOrders)
+      .innerJoinLateral(cancel, sql`true`)
+      .innerJoin(customers, eq(customers.id, insuranceOrders.customerId))
+      .leftJoin(creator, eq(creator.id, insuranceOrders.createdBy))
+      .leftJoin(creatorDepartment, eq(creatorDepartment.id, insuranceOrders.createdByDepartmentId))
+      .leftJoin(canceller, eq(canceller.id, cancel.by))
+      .where(where)
+      .orderBy(desc(cancel.at))
+      .limit(EXPORT_LIMIT),
+    db
+      .select({ value: count() })
+      .from(insuranceOrders)
+      .innerJoinLateral(cancel, sql`true`)
+      .where(where),
+  ]);
+
+  return {
+    rows: rows.map(({ at, ...r }) => ({ ...r, cancelledAt: at.toISOString() })),
+    total: totals?.value ?? 0,
+  };
 }
 
 const rawById = async (id: string): Promise<DecoratedRow | null> =>

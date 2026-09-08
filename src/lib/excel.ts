@@ -49,11 +49,21 @@ export type ExcelColumn<T> = {
   align?: 'left' | 'center';
   /** `index` là thứ tự dòng trong file, đếm từ 0 — dùng cho cột STT. */
   value: (row: T, index: number) => string | number;
+  /**
+   * Địa chỉ mở khi người đọc bấm vào ô. Chuỗi rỗng = ô chữ thường.
+   *
+   * `value` vẫn quyết định chữ hiện ra, hàm này chỉ gắn địa chỉ vào ô đó. Ghi
+   * thẳng URL vào ô thì Excel để nguyên chữ, không bấm được — báo cáo đơn huỷ
+   * cần người đọc mở được đúng đơn từ file.
+   */
+  link?: (row: T) => string;
 };
 
 const HEADER_GREY = 'FFE8EAED';
 const TOTAL_GREY = 'FFF5F6F7';
 const LINE = 'FFB0B4BA';
+/** Xanh gạch chân — màu Excel dùng sẵn cho ô bấm được, người đọc nhận ra ngay. */
+const LINK_BLUE = 'FF0563C1';
 
 const thinBorder = {
   top: { style: 'thin' as const, color: { argb: LINE } },
@@ -173,7 +183,17 @@ export async function exportExcel<T>({
       // vẫn là số nên Excel vẫn cắt số 0 đầu lúc mở file.
       return c.type === 'text' ? String(raw ?? '') : raw;
     });
-    ws.addRow(cells);
+    const added = ws.addRow(cells);
+
+    // Gắn địa chỉ SAU khi ghi dòng: `addRow` nhận giá trị thường, còn ô bấm
+    // được cần hình dạng `{ text, hyperlink }` của ExcelJS.
+    columns.forEach((c, i) => {
+      const href = c.link?.(row);
+      if (!href) return;
+      const cell = added.getCell(i + 1);
+      cell.value = { text: String(cell.value ?? ''), hyperlink: href };
+      cell.font = { name: FONT, size: 10, color: { argb: LINK_BLUE }, underline: true };
+    });
   }
 
   if (stacked) {

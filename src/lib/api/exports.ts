@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { InsuranceProduct } from '@/lib/types';
 import type { BankAccountQuery } from './banking';
 import type { PageQuery } from './pagination';
 
@@ -143,4 +144,67 @@ export async function fetchOrderStats(
   const res = await fetch(`/api/exports/order-stats?month=${month}&groupBy=${groupBy}`);
   if (!res.ok) throw new Error('Không tải được số liệu cấp đơn');
   return OrderStatsResult.parse(await res.json());
+}
+
+/* ── Báo cáo #5 · Đơn bảo hiểm huỷ ──────────────────────────────────── */
+
+/**
+ * MỘT ĐƠN ĐÃ HUỶ một dòng, kèm lượt huỷ MỚI NHẤT của đơn đó.
+ *
+ * Đơn huỷ rồi được người có `insurance:set-status` đưa về trạng thái khác thì
+ * không còn là đơn huỷ, nên không vào báo cáo — đo trên dữ liệu thật
+ * 2026-09-08: 224 lượt huỷ trong 30 ngày nhưng chỉ 220 đơn đang ở `cancelled`.
+ */
+export const CancelledInsuranceRow = z.object({
+  id: z.string(),
+  orderCode: z.string(),
+  product: InsuranceProduct,
+  packageName: z.string(),
+  /** Mốc huỷ dạng ISO — giao diện tự đổi sang giờ Việt Nam. */
+  cancelledAt: z.string(),
+  /** Lý do người huỷ gõ, chữ tự do. Không có danh mục nên không lọc được. */
+  reason: z.string(),
+  /** Người LẬP đơn, không phải người bấm huỷ. `''` khi tài khoản đã bị xoá. */
+  createdById: z.string(),
+  createdByName: z.string(),
+  /** Tên phòng của người lập lúc lập đơn. */
+  departmentName: z.string(),
+  customerName: z.string(),
+  fee: z.number(),
+  orderDate: z.string(),
+  /** Người bấm huỷ. Trùng người lập ở phần lớn đơn, khác khi quản trị huỷ giúp. */
+  cancelledByName: z.string(),
+  /** Trạng thái ngay trước lượt huỷ, mã thô — giao diện tra nhãn. */
+  previousStatus: z.string(),
+  pviElectronicOrderNo: z.string(),
+});
+export type CancelledInsuranceRow = z.infer<typeof CancelledInsuranceRow>;
+
+const CancelledInsurancePage = z.object({
+  rows: z.array(CancelledInsuranceRow),
+  total: z.number(),
+});
+
+export type CancelledInsuranceQuery = {
+  /** Khoảng NGÀY HUỶ, không phải ngày lập đơn. */
+  from: string;
+  to: string;
+  staffId: string;
+  departmentId: string;
+  product: InsuranceProduct | '';
+};
+
+/**
+ * TRỌN danh sách đơn huỷ khớp bộ lọc.
+ *
+ * `total` đếm mọi đơn khớp lọc, kể cả phần vượt trần một lần xuất — nơi gọi so
+ * với `rows.length` để biết đã chạm trần chưa.
+ */
+export async function fetchCancelledInsuranceExport(
+  query: CancelledInsuranceQuery,
+): Promise<{ rows: CancelledInsuranceRow[]; total: number }> {
+  const params = new URLSearchParams(query);
+  const res = await fetch(`/api/exports/cancelled-insurance?${params}`);
+  if (!res.ok) throw new Error('Không tải được danh sách đơn bảo hiểm huỷ');
+  return CancelledInsurancePage.parse(await res.json());
 }

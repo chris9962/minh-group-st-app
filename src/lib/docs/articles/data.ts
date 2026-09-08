@@ -82,6 +82,10 @@ export const DATA_DOCS: DocArticle[] = [
       'file lưu ở đâu',
       'xuất danh sách khách',
       'chọn cột',
+      'đơn huỷ',
+      'đơn bảo hiểm huỷ',
+      'lý do huỷ',
+      'xuất đơn huỷ',
     ],
     visibleTo: (user) =>
       can(user, 'insurance', 'export') ||
@@ -125,6 +129,11 @@ export const DATA_DOCS: DocArticle[] = [
         kind: 'note',
         tone: 'info',
         body: 'Tên khách trong file xuất viết hoa và bỏ dấu theo yêu cầu của ngân hàng. Hệ thống để cột số điện thoại và CCCD ở dạng chữ. Số 0 đầu vì vậy không mất.',
+      },
+      {
+        kind: 'note',
+        tone: 'info',
+        body: 'Báo cáo **Đơn bảo hiểm huỷ** lọc theo **ngày huỷ**, không phải ngày lập đơn. Đơn lập hôm trước mà huỷ hôm sau nằm ở ngày huỷ. Cột **Link đơn** bấm được: file mở thẳng đơn đó trên hệ thống.',
       },
     ],
   },
