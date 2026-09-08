@@ -273,7 +273,7 @@ export const DAILY_DOCS: DocArticle[] = [
           'Mở mục **Ngân hàng**.',
           'Bấm vào dòng tài khoản đang ở trạng thái *Đang tạo*.',
           'Hộp thoại **Hoàn tất tài khoản** mở ra.',
-          'Điền **Số tài khoản**. Ngày mở là ngày bạn bấm Hoàn thành, không sửa được.',
+          'Điền **Số tài khoản**. Ngày mở là ngày bạn tạo tài khoản ở bước 1, không sửa được.',
           'Khách mở tài khoản hộ kinh doanh thì bạn tích **Mở tài khoản CNKD / HKD**.',
           'Khách đã cài app ngân hàng thì bạn tích ô tương ứng.',
           'Tải đủ ảnh chứng minh.',

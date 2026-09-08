@@ -1271,11 +1271,10 @@ export async function startBankAccount(
            * dở dang không có mốc thời gian nào, và nó rơi xuống cuối bảng P-21 vì
            * `nulls last` — đúng chỗ khó tìm nhất với người vừa tạo ra nó.
            *
-           * Bước điền nốt GHI ĐÈ bằng ngày bấm Hoàn tất (chốt 2026-09-08): sổ
-           * chốt theo ngày, không nhập bù, nên bản nháp giữ chỗ hôm trước mà
-           * điền nốt hôm sau thì tài khoản thuộc về ngày điền nốt. Giao diện
-           * không còn ô nhập ngày; giá trị do nơi gọi đặt, xem
-           * `BankAccountEditDialog` và trang P-22.
+           * Ngày này là CHỐT (2026-09-08): sổ chốt theo ngày, không nhập bù, nên
+           * bước điền nốt không đổi được nữa. Giao diện đã bỏ ô nhập ngày và gửi
+           * lại đúng giá trị ghi ở đây — xem `BankAccountEditDialog` và trang
+           * P-22.
            */
           openedDate: businessDay(),
           createdBy: actor.id,

@@ -169,9 +169,10 @@ export function BankAccountFinishFields({
       <form id={formId} className={styles.form} onSubmit={onSubmit} noValidate>
         {/*
             Không có ô "Ngày mở" (chốt 2026-09-08): sổ chốt theo ngày, không
-            nhập bù, nên ngày mở là ngày bấm Hoàn thành và không sửa tay được.
-            `openedDate` vẫn nằm trong biểu mẫu và vẫn gửi lên — nơi gọi đặt giá
-            trị, xem `BankAccountEditDialog` và trang P-22.
+            nhập bù. Ngày mở là ngày máy chủ ghi ở bước 1 lúc giữ chỗ mã giới
+            thiệu, bước 2 không đổi được. `openedDate` vẫn nằm trong biểu mẫu và
+            vẫn gửi lên nguyên giá trị đó — xem `BankAccountEditDialog` và trang
+            P-22.
           */}
         {/*
             Ngân hàng lấy số tài khoản THEO SĐT thì số đó phải là một trong các
