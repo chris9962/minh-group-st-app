@@ -174,7 +174,7 @@ tai nạn điện; flow khác khai danh sách riêng ở `batBuoc`.
 
 Các giá trị cố định nằm ở `fixed` trong `lib/flows/electric-accident.js`: email, ngành nghề, cán bộ khai thác, nhóm kênh, kênh bán hàng, phương thức khai thác, đại lý, mã tiền tệ, tỷ lệ phí.
 
-Email và ngành nghề chốt ngày 2026-08-15 là cố định: `ngoctuyenmgst@gmail.com` và `TỰ DO`. BE không gửi hai trường này nữa.
+Email và ngành nghề chốt ngày 2026-08-15 là cố định: `duyenntn98@gmail.com` và `TỰ DO`. BE không gửi hai trường này nữa. Email đổi sang hòm thư của NGÔ THỊ NGỌC DUYÊN ngày 2026-09-08, cùng lượt đổi cán bộ khai thác.
 
 ## Kết quả trả về
 
@@ -209,7 +209,7 @@ Script mỗi lần chỉ điền 1 đơn. Khách cần 2 năm thì BE gọi 2 l�
 | `config.js` | Phần CHUNG mọi sản phẩm: phiên đăng nhập, cách mở trình duyệt |
 | `lib/flows/index.js` | Bảng đăng ký flow, tra theo `product` |
 | `lib/flows/electric-accident.js` | Flow tai nạn điện: URL form, tên ô, giá trị cố định, hàm điền |
-| `lib/flows/motorbike.js` | Flow TNDS xe máy — cùng hình dạng, khác cán bộ khai thác và cách tính phí |
+| `lib/flows/motorbike.js` | Flow TNDS xe máy — cùng hình dạng, khác cách tính phí. Cán bộ khai thác và email dùng chung với flow tai nạn điện từ 2026-09-08 |
 | `lib/ngay.js` | Định dạng ngày và tiền theo cách PVI nhận |
 | `lib/order.js` | Chọn flow, lo phiên và ảnh chụp. Không biết tên ô nào của PVI |
 | `login.js` | Mở trình duyệt trên máy bạn để đăng nhập, lưu phiên |

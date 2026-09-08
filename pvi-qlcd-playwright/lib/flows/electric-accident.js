@@ -14,10 +14,13 @@ const SELECTOR_FORM = '#khach_hang';
 
 const FIXED = {
   // Chốt 2026-08-15: một tài khoản khai thác cho mọi đơn, không lấy email của
-  // người tạo đơn bên mình.
-  email: 'ngoctuyenmgst@gmail.com',
+  // người tạo đơn bên mình. Đổi sang NGÔ THỊ NGỌC DUYÊN 2026-09-08.
+  email: 'duyenntn98@gmail.com',
   nganhNghe: 'TỰ DO',
-  canBoKhaiThac: '21.CN062364',
+  // Chốt 2026-09-08: một cán bộ khai thác cho CẢ HAI sản phẩm. Trước đó đơn
+  // điện đứng tên ĐẶNG THỊ Ý NHẠT (`21.CN062364`), đơn xe máy đứng tên TRẦN
+  // KIỀU PHƯƠNG (`21.CN062367`).
+  canBoKhaiThac: '21.CN062362',
   nhomKenh: '012',
   kenhBanHang: '907',
   phuongThucThanhToan: '1',

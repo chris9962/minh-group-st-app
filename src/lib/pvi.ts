@@ -289,7 +289,7 @@ export const PVI_FIELDS: readonly PviField[] = [
     fill: null,
     filledByScript: true,
     status: 'confirmed',
-    note: 'Chốt 2026-08-15: luôn là `ngoctuyenmgst@gmail.com`, không lấy theo người tạo đơn.',
+    note: 'Chốt 2026-08-15: một địa chỉ cố định, không lấy theo người tạo đơn. Từ 2026-09-08 là `duyenntn98@gmail.com`.',
   },
   {
     key: 'nganhNghe',
