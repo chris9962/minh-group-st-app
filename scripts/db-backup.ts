@@ -12,9 +12,9 @@
  *
  *   BACKUP_S3_ENDPOINT · BACKUP_S3_REGION · BACKUP_S3_BUCKET
  *   BACKUP_S3_ACCESS_KEY_ID · BACKUP_S3_SECRET_ACCESS_KEY
- *   BACKUP_KEEP_DAYS   số ngày giữ trên S3, mặc định 3
+ *   BACKUP_KEEP_DAYS   số ngày giữ trên S3, mặc định 1
  *   BACKUP_LOCAL_DIR   thư mục giữ bản trên đĩa, mặc định /root/mgst-backup
- *   BACKUP_KEEP_LOCAL  số file giữ trên đĩa, mặc định 72 — 24 lượt × 3 ngày
+ *   BACKUP_KEEP_LOCAL  số file giữ trên đĩa, mặc định 24 — 24 giờ gần nhất
  */
 import { spawnSync } from "node:child_process";
 import { mkdirSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
@@ -32,8 +32,8 @@ const MIN_DUMP_BYTES = 100 * 1024;
 
 const CONTAINER_DB = process.env.BACKUP_DB_CONTAINER ?? "mgst-db";
 const LOCAL_DIR = process.env.BACKUP_LOCAL_DIR ?? "/root/mgst-backup";
-const KEEP_LOCAL = Number(process.env.BACKUP_KEEP_LOCAL ?? 72);
-const KEEP_DAYS = Number(process.env.BACKUP_KEEP_DAYS ?? 3);
+const KEEP_LOCAL = Number(process.env.BACKUP_KEEP_LOCAL ?? 24);
+const KEEP_DAYS = Number(process.env.BACKUP_KEEP_DAYS ?? 1);
 
 function fail(message: string): never {
   console.error(`[backup] HỎNG — ${message}`);
@@ -155,6 +155,9 @@ for (const stale of local.slice(KEEP_LOCAL)) {
  *
  * Đếm file thì một ngày chạy lỗi nửa chừng sẽ đẩy cả cụm lệch đi, và số ngày
  * giữ được không còn đoán ra từ con số cấu hình.
+ *
+ * Hệ quả với KEEP_DAYS=1: mốc rơi vào ngày trước nên bucket giữ HAI thư mục
+ * ngày, tức 24 đến 48 file tuỳ lúc chạy. Đó không phải lỗi.
  */
 const cutoff = new Date(Date.now() - KEEP_DAYS * 86_400_000)
   .toLocaleDateString("sv-SE", { timeZone: "Asia/Ho_Chi_Minh" });
