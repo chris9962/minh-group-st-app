@@ -1421,6 +1421,19 @@ export async function finishBankAccount(
     };
 
   /**
+   * NGÀY MỞ do máy chủ quyết, KHÔNG đọc `form.openedDate` (chốt 2026-09-08).
+   *
+   * Sổ chốt theo ngày, không nhập bù: ngày mở chốt từ bước 1 lúc giữ chỗ mã giới
+   * thiệu. Giao diện đã bỏ ô nhập; bỏ qua ở đây để lời gọi nặn tay cũng không
+   * đặt được ngày khác. Trường vẫn nằm trong `BankAccountFinishForm` để hợp đồng
+   * không vỡ với bản giao diện cũ đang mở trên máy nhân viên.
+   *
+   * Bản nháp cũ chưa có ngày — lập trước khi bước 1 ghi cột này — thì điền ngày
+   * hoàn tất, không để trống: `businessMonth` phía dưới cần một ngày có thật.
+   */
+  const openedDate = current.date || businessDay();
+
+  /**
    * Đếm ảnh và ghi phải nằm TRONG CÙNG MỘT GIAO DỊCH, và câu ghi phải mang lại
    * điều kiện `status = 'creating'`.
    *
@@ -1446,7 +1459,7 @@ export async function finishBankAccount(
       .update(bankAccounts)
       .set({
         accountNumber: form.accountNumber,
-        openedDate: form.openedDate,
+        openedDate,
         appInstalled: form.appInstalled,
         note: form.note,
         status: "done",
@@ -1470,7 +1483,7 @@ export async function finishBankAccount(
   // phải người bấm nút, cũng không phải tháng hiện tại.
   await recomputeKpiForCustomer(
     current.customerId,
-    businessMonth(new Date(`${form.openedDate}T00:00:00+07:00`)),
+    businessMonth(new Date(`${openedDate}T00:00:00+07:00`)),
   );
   // Tài khoản mới `done` có thể vừa làm khách đủ combo — P-40 và P-80 đọc cột
   // lưu sẵn nên phải ghi lại ngay tại đây, không có trigger nào lo hộ.
@@ -1563,9 +1576,11 @@ export async function updateFinishedAccount(
       .update(bankAccounts)
       .set({
         accountNumber: form.accountNumber,
-        openedDate: form.openedDate,
+        // KHÔNG đụng `openedDate`: ngày mở chốt từ bước 1 và lượt sửa không đổi
+        // được (chốt 2026-09-08) — xem `finishBankAccount`.
+        //
         // Ô để trống nghĩa là XOÁ ghi nhận, không phải "giữ nguyên" — người dùng
-        // xoá ngày đi rồi bấm Lưu thì phải mất thật.
+        // xoá ngày giao dịch đi rồi bấm Lưu thì phải mất thật.
         transactionAt: form.transactionAt || null,
         appInstalled: form.appInstalled,
         note: form.note,
@@ -1582,12 +1597,14 @@ export async function updateFinishedAccount(
 
   if (!outcome.ok) return { ok: false, message: outcome.message };
 
-  const months = new Set(
-    [previousDate, form.openedDate]
-      .filter((d): d is string => Boolean(d))
-      .map((d) => businessMonth(new Date(`${d}T00:00:00+07:00`))),
-  );
-  for (const month of months) await recomputeKpiForCustomer(current.customerId, month);
+  // Ngày mở không đổi được nữa nên chỉ còn MỘT tháng phải tính lại — trước
+  // 2026-09-08 lượt sửa dời được ngày sang tháng khác, và cả hai tháng phải
+  // tính lại.
+  if (previousDate)
+    await recomputeKpiForCustomer(
+      current.customerId,
+      businessMonth(new Date(`${previousDate}T00:00:00+07:00`)),
+    );
   await recomputeGiftCase(current.customerId);
 
   return {

@@ -748,8 +748,6 @@ export async function createInsuranceOrders(
   for (const [i, leg] of form.legs.entries()) {
     if (leg.endDate < leg.startDate)
       return { ok: false, message: "Ngày kết thúc phải sau ngày bắt đầu" };
-    // Sổ ghi việc ĐÃ LÀM: một đơn của tuần sau thì chưa bán cho ai.
-    if (leg.orderDate > today) return { ok: false, message: "Ngày tạo đơn không được ở tương lai" };
     // Mỗi đơn một ảnh (CCCD hay cà vẹt xe theo sản phẩm), bắt buộc (chốt
     // 2026-09-07). Giao diện đã khoá nút; đây là chốt thật. `imageKeyOf` cũng
     // chặn luôn chuỗi ngoài kho.
@@ -821,7 +819,14 @@ export async function createInsuranceOrders(
           packageId: packageIds.get(leg.packageName) ?? null,
           packageName: leg.packageName,
           fee: leg.fee,
-          orderDate: leg.orderDate,
+          /**
+           * NGÀY TẠO ĐƠN do máy chủ quyết, KHÔNG đọc `leg.orderDate` (chốt
+           * 2026-09-08). Sổ chốt theo ngày, không nhập bù. Giao diện đã bỏ ô
+           * nhập; bỏ qua ở đây để lời gọi nặn tay cũng không đặt được ngày khác,
+           * kể cả ngày tương lai. Trường vẫn nằm trong biểu mẫu để hợp đồng
+           * không vỡ với bản giao diện cũ đang mở trên máy nhân viên.
+           */
+          orderDate: today,
           startDate: leg.startDate,
           endDate: leg.endDate,
           status: newStatus,
@@ -919,8 +924,6 @@ export async function updateInsuranceOrder(
 
   if (form.endDate < form.startDate)
     return { ok: false, message: "Ngày kết thúc phải sau ngày bắt đầu" };
-  if (form.orderDate > businessDay())
-    return { ok: false, message: "Ngày tạo đơn không được ở tương lai" };
 
   /**
    * Lượt sửa cho phép KHÔNG có ảnh hồ sơ: đơn lập trước migration 0073 không có
@@ -934,8 +937,8 @@ export async function updateInsuranceOrder(
   await db
     .update(insuranceOrders)
     .set({
-      // Đổi ngày tạo đơn là đổi tháng mà đơn này được tính vào.
-      orderDate: form.orderDate,
+      // KHÔNG đụng `orderDate`: ngày tạo đơn chốt lúc lập và lượt sửa không đổi
+      // được (chốt 2026-09-08) — xem `createInsuranceOrders`.
       intakePhotoUrl: intakePhotoKey,
       fee: form.fee,
       startDate: form.startDate,
@@ -1359,8 +1362,6 @@ export async function recreateInsuranceOrder(
 
   if (form.endDate < form.startDate)
     return { ok: false, message: "Ngày kết thúc phải sau ngày bắt đầu" };
-  if (form.orderDate > businessDay())
-    return { ok: false, message: "Ngày tạo đơn không được ở tương lai" };
 
   // Đơn mới thì bắt buộc có ảnh hồ sơ như lượt tạo. Giao diện điền sẵn ảnh của
   // đơn cũ, người bấm giữ hay đổi tuỳ ý — nhưng không được để trống.
@@ -1399,7 +1400,9 @@ export async function recreateInsuranceOrder(
         packageId: origin.packageId,
         packageName: current.packageName,
         fee: form.fee,
-        orderDate: form.orderDate,
+        // Đơn thay thế là đơn MỚI, nên mang ngày bấm cấp lại (chốt 2026-09-03),
+        // và máy chủ tự đặt như lượt tạo (chốt 2026-09-08).
+        orderDate: businessDay(),
         startDate: form.startDate,
         endDate: form.endDate,
         status: newStatus,
