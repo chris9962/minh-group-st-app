@@ -24,7 +24,7 @@ queued → creating → awaiting-certificate → done
 | 3 | Bấm "Chấp nhận" | |
 | 4 | PVI chuyển sang `/Service/Manager`, đọc bảng tìm dòng vừa tạo | |
 | 5 | Khớp được → ghi số đơn và `pr_key`, bấm Duyệt | → `awaiting-certificate` |
-| 5b | Không khớp dòng nào, hoặc bấm Duyệt không thành → dừng, để người duyệt tay | → `manual-queued` |
+| 5b | Không khớp dòng nào, hoặc bấm Duyệt không thành → dừng, để người làm tay; KHÔNG ghi số đơn và `pr_key` vào đơn | → `manual-queued` |
 
 Lấy đơn phải khoá dòng bằng `for update skip locked`. Không khoá thì hai worker
 lấy trùng một đơn và PVI nhận hai đơn giống hệt nhau.

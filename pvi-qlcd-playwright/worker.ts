@@ -240,10 +240,12 @@ async function createAndApprove(db: Db, order: Order) {
   await db
     .update(insuranceOrders)
     .set({
-      pviElectronicOrderNo: matched.soDonDienTu,
-      pviPrKey: matched.prKey,
-      // Duyệt không thành thì đơn vẫn đang "Chờ" bên PVI — về làm tay, người
-      // vận hành vào duyệt theo số đơn đã ghi ở trên.
+      // Duyệt không thành thì đơn về làm tay và KHÔNG ghi số đơn / pr_key vào
+      // đơn (chốt 2026-09-08): người làm tay có thể xử lý một đơn khác bên PVI,
+      // mà đơn trong app lại mang số của đơn bot vừa tạo — hai bên lệch nhau.
+      // Số đơn chỉ còn trong log, để tra khi cần.
+      pviElectronicOrderNo: approved ? matched.soDonDienTu : "",
+      pviPrKey: approved ? matched.prKey : "",
       status: approved ? "awaiting-certificate" : "manual-queued",
       updatedAt: new Date(),
     })
