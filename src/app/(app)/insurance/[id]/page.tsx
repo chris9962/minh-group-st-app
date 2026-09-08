@@ -251,6 +251,13 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
   /** Đặt trạng thái tuỳ ý — công cụ gỡ đơn mắc, cấp riêng với `handle-fallback`. */
   const canSetStatus = can(actor, "insurance", "set-status");
   const canCreate = can(actor, "insurance", "create");
+  /**
+   * Ba dòng đối soát với PVI (Mã GD, Số, GCN) ẩn với Nhân viên (chốt
+   * 2026-09-08): họ không đối soát với PVI, ba chuỗi số chỉ làm rối phần đầu
+   * đơn. Đây là chuyện HIỂN THỊ theo chức vụ, không phải phân quyền — API vẫn
+   * trả đủ cho ai mở được đơn.
+   */
+  const showPviRefs = actor?.role !== "staff";
   /** Người tạo chỉ được huỷ đơn đã hoàn thành của chính mình; đơn chưa xong có đường xoá riêng. */
   const canCancelCompletedOwnOrder = data?.status === "done" && data.createdById === actor?.id;
   /**
@@ -459,9 +466,10 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                     (chốt 2026-09-07, lý do ở `pvi-api/from-order.ts`). Đối
                     soát với PVI thì đọc dòng này, không đọc `DH-…`. Chỉ hiện
                     khi đơn đã hoặc đang đi qua PVI. */}
-                {(data.pviPolicyNumber ||
-                  data.status === "creating" ||
-                  data.status === "awaiting-certificate") && (
+                {showPviRefs &&
+                  (data.pviPolicyNumber ||
+                    data.status === "creating" ||
+                    data.status === "awaiting-certificate") && (
                   <p className={styles.serialInline}>
                     <span className={styles.serialLabel}>Mã GD</span>
                     {data.id}
@@ -472,7 +480,7 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                     chiếu hai số này với nhau khi tra đơn bên PVI. Nhãn đi kèm
                     vì hai chuỗi số cạnh nhau mà không nói cái nào là cái gì thì
                     đọc ra một mã dài. */}
-                {data.pviSerialNumber && (
+                {showPviRefs && data.pviSerialNumber && (
                   <p className={styles.serialInline}>
                     <span className={styles.serialLabel}>Số</span>
                     {data.pviSerialNumber}
@@ -483,7 +491,7 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                     />
                   </p>
                 )}
-                {data.pviPolicyNumber && (
+                {showPviRefs && data.pviPolicyNumber && (
                   <p className={styles.serialInline}>
                     <span className={styles.serialLabel}>GCN</span>
                     {data.pviPolicyNumber}
