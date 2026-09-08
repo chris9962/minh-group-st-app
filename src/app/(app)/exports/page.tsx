@@ -539,7 +539,7 @@ export default function ExportsPage() {
       // ở trên: file thiếu dòng trông y hệt file đủ.
       if (rows.length < total) {
         throw new Error(
-          `Khoảng ngày này có ${total.toLocaleString("vi-VN")} lượt dịch vụ, vượt trần ${rows.length.toLocaleString("vi-VN")} dòng một lần xuất. Thu hẹp khoảng ngày rồi xuất làm nhiều đợt.`,
+          `Khoảng ngày này có ${total.toLocaleString("vi-VN")} dịch vụ đã làm, vượt trần ${rows.length.toLocaleString("vi-VN")} dòng một lần xuất. Thu hẹp khoảng ngày rồi xuất làm nhiều đợt.`,
         );
       }
       await exportExcel({

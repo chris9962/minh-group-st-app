@@ -331,7 +331,7 @@ export const CONFIG_DOCS: DocArticle[] = [
     blocks: [
       {
         kind: 'text',
-        body: 'Mỗi loại dịch vụ mang một hệ số điểm KPI. Nhân viên ghi một lượt dịch vụ thì hệ thống tính điểm theo hệ số của loại đó.',
+        body: 'Mỗi loại dịch vụ mang một hệ số điểm KPI. Nhân viên ghi một dịch vụ đã làm thì hệ thống tính điểm theo hệ số của loại đó.',
       },
       {
         kind: 'shot',

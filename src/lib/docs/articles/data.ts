@@ -31,7 +31,7 @@ export const DATA_DOCS: DocArticle[] = [
       },
       {
         kind: 'text',
-        body: 'Nhân viên thấy số liệu của chính mình: số tài khoản mở, số đơn bảo hiểm, số lượt dịch vụ, điểm tháng và chỉ tiêu. Khối điểm ghi rõ bạn còn thiếu bao nhiêu điểm hoặc đã vượt bao nhiêu.',
+        body: 'Nhân viên thấy số liệu của chính mình: số tài khoản mở, số đơn bảo hiểm, số dịch vụ đã làm, điểm tháng và chỉ tiêu. Khối điểm ghi rõ bạn còn thiếu bao nhiêu điểm hoặc đã vượt bao nhiêu.',
       },
       {
         kind: 'note',

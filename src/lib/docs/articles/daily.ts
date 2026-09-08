@@ -446,7 +446,7 @@ export const DAILY_DOCS: DocArticle[] = [
     title: 'Ghi dịch vụ',
     screen: 'P-31',
     group: 'daily',
-    summary: 'Ghi một lượt dịch vụ đã làm cho khách. Điểm KPI tính theo loại dịch vụ.',
+    summary: 'Ghi một dịch vụ đã làm cho khách. Điểm KPI tính theo loại dịch vụ.',
     keywords: [
       'ghi dịch vụ',
       'dịch vụ',
@@ -460,7 +460,7 @@ export const DAILY_DOCS: DocArticle[] = [
     blocks: [
       {
         kind: 'text',
-        body: 'Bạn ghi lại một lượt dịch vụ đã làm cho khách. Hệ thống tính điểm KPI theo hệ số của loại dịch vụ bạn chọn.',
+        body: 'Bạn ghi lại một dịch vụ đã làm cho khách. Hệ thống tính điểm KPI theo hệ số của loại dịch vụ bạn chọn.',
       },
       {
         kind: 'shot',
