@@ -353,7 +353,7 @@ export const DAILY_DOCS: DocArticle[] = [
           'Bấm **Tạo đơn bảo hiểm** ở góc trên bên phải.',
           'Gõ vào ô **Tìm khách hàng**, rồi bấm vào khách trong danh sách.',
           'Chọn **Gói bảo hiểm**.',
-          'Điền **Ngày tạo đơn**, **Ngày bắt đầu**, **Ngày kết thúc**, **Mức phí (đ)**.',
+          'Điền **Ngày bắt đầu**, **Ngày kết thúc**, **Mức phí (đ)**. Ngày tạo đơn là ngày bạn lập, không sửa được.',
           'Gói xe máy bắt buộc có **Biển số xe** và **Loại xe**. **Số khung**, **Số máy** điền khi có thông tin.',
           'Gói tai nạn điện thì bạn điền **Số thành viên** và **Số tiền bảo hiểm**.',
           'Ở khối **Khách hàng**, bạn bấm **Điền theo hồ sơ khách** để lấy sẵn họ tên, ngày sinh và địa chỉ.',

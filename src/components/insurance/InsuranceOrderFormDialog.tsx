@@ -490,18 +490,8 @@ export function InsuranceOrderFormDialog({
 
               {renderIntakePhoto(i)}
 
-              <DateField
-                label="Ngày tạo đơn"
-                required
-                max={businessDay()}
-                hint="Nhập bù cho hôm trước thì sửa lại ngày này"
-                error={errors.legs?.[i]?.orderDate?.message}
-                value={watch(`legs.${i}.orderDate`)}
-                onChange={(v) =>
-                  setValue(`legs.${i}.orderDate`, v, { shouldDirty: true, shouldValidate: true })
-                }
-              />
-
+              {/* Không có ô Ngày tạo đơn (chốt 2026-09-08): sổ chốt theo ngày,
+                  không nhập bù. `orderDate` vẫn gửi lên, luôn là ngày lập. */}
               <div className={styles.pair}>
                 <DateField
                   label="Ngày bắt đầu"
@@ -540,18 +530,6 @@ export function InsuranceOrderFormDialog({
         {legsField.fields.length === 1 && (
           <>
             {renderIntakePhoto(0)}
-
-            <DateField
-              label="Ngày tạo đơn"
-              required
-              max={businessDay()}
-              hint="Nhập bù cho hôm trước thì sửa lại ngày này"
-              error={errors.legs?.[0]?.orderDate?.message}
-              value={watch("legs.0.orderDate")}
-              onChange={(v) =>
-                setValue("legs.0.orderDate", v, { shouldDirty: true, shouldValidate: true })
-              }
-            />
 
             <div className={styles.pair}>
               <DateField

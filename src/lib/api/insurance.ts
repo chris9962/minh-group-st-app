@@ -31,13 +31,13 @@ export const InsuranceListRow = z.object({
   status: InsuranceOrderStatus,
   source: InsuranceOrderSource,
   /**
-   * NGÀY TẠO ĐƠN — ngày nhân viên thật sự lập đơn cho khách, và là ngày dùng để
-   * tính kỳ (KPI, dashboard, bộ lọc P-13).
+   * NGÀY TẠO ĐƠN — ngày nhân viên lập đơn cho khách, và là ngày dùng để tính kỳ
+   * (KPI, dashboard, bộ lọc P-13).
    *
-   * Đọc từ `created_at`, và cột đó SỬA ĐƯỢC (chốt 07/08): hệ thống sập hay mất
-   * mạng ngoài hiện trường thì hôm sau nhập bù vẫn ghi được đúng ngày đã làm.
-   * Vết kiểm toán không nằm ở đây mà ở bảng `audit_log` (P-93), nên cho sửa cột
-   * này không xoá dấu vết gì.
+   * Chốt 2026-08-07 từng cho sửa tay để "nhập bù" hôm sau. Bỏ từ 2026-09-08:
+   * sổ chốt theo ngày, qua ngày là không nhập bù được, nên giao diện không còn
+   * ô nhập ngày này; biểu mẫu gửi đúng ngày lập, cấp lại thì là ngày bấm. Máy
+   * chủ vẫn nhận giá trị gửi lên, không tự ép.
    */
   orderDate: z.string(),
   /** Ngày hợp đồng bắt đầu có hiệu lực — KHÁC ngày tạo đơn, người nhập tự chọn. */
