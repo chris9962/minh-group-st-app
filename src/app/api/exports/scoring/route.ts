@@ -1,7 +1,8 @@
+import { formatDate } from "@/lib/format";
 import { can } from "@/lib/permissions";
 import { logAudit } from "@/server/audit";
 import { forbidden, getActor, unauthorized, uuidParam } from "@/server/auth";
-import { listScoringExport } from "@/server/exports";
+import { listScoringExport, staffNameOf } from "@/server/exports";
 
 /**
  * P-73 báo cáo #1 · Tính điểm tổng, gộp theo khách.
@@ -58,12 +59,32 @@ export async function GET(request: Request) {
     ? result.rows
     : result.rows.map((r) => ({ ...r, idNumber: "" }));
 
+  /**
+   * Xem bảng trên màn và tải file là hai việc, ghi hai hành động khác nhau
+   * (chốt 2026-09-08). Bản trước ghi cả lượt mở bảng điểm thành "Xuất dữ liệu",
+   * nên tra nhật ký không biết ai thật sự tải file về.
+   */
+  if (omitPii) {
+    const from = params.get("from") ?? "";
+    const to = params.get("to") ?? "";
+    const staffName = selfView ? actor.fullName : staffId ? await staffNameOf(staffId) : null;
+    const range = from && to ? ` - ${formatDate(from)} đến ${formatDate(to)}` : "";
+    await logAudit(actor, {
+      module: "banking",
+      action: "view-detail",
+      targetLabel: `Bảng điểm${staffName ? ` của ${staffName}` : ""} - ${rows.length} khách${range}`,
+      targetTable: staffId ? "users" : undefined,
+      targetId: staffId ?? undefined,
+    });
+    return Response.json({ rows, total: result.total });
+  }
+
   // Nhãn ghi luôn phạm vi khách: hai lượt xuất cùng bộ lọc mà khác chế độ ra hai
   // số khác nhau, không ghi thì tra nhật ký về sau không phân biệt được.
   await logAudit(actor, {
     module: "banking",
     action: "export",
-    targetLabel: `Tính điểm tổng · ${rows.length}/${result.total} khách · ${
+    targetLabel: `Tính điểm tổng - ${rows.length}/${result.total} khách - ${
       params.get("include") === "all" ? "tất cả khách" : "khách có tài khoản"
     }`,
   });

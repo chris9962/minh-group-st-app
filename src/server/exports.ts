@@ -213,6 +213,16 @@ function grantedLabel(
   return grant.cashTotal > 0 ? `${name} + ${shortCash(grant.cashTotal)}` : name;
 }
 
+/** Tên người có bảng điểm, để dòng nhật ký nói rõ xem bảng của ai. */
+export async function staffNameOf(id: string): Promise<string | null> {
+  const rows = await db
+    .select({ fullName: users.fullName })
+    .from(users)
+    .where(eq(users.id, id))
+    .limit(1);
+  return rows[0]?.fullName ?? null;
+}
+
 /**
  * Bỏ CCCD và số điện thoại khỏi mỗi dòng (chốt 2026-09-04).
  *
