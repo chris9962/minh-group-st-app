@@ -30,7 +30,12 @@ import type { BankAccountDetail, BankAccountRow, BankAccountSort } from "@/lib/a
 import type { Page } from "@/lib/api/pagination";
 import type { BankPhoto, BankPhotoRow } from "@/lib/api/bankPhotos";
 import { ageRangeLabel, businessDay, businessMonth } from "@/lib/format";
-import { canManageBank, recordVisibility, type RecordVisibility } from "@/lib/permissions";
+import {
+  canDeleteFinished,
+  canManageBank,
+  recordVisibility,
+  type RecordVisibility,
+} from "@/lib/permissions";
 import { isRealIsoDate, type User } from "@/lib/types";
 import { searchTerms } from "@/lib/search";
 import { db } from "./db/client";
@@ -45,6 +50,7 @@ import {
   customerPhones,
   customers,
   departments,
+  giftGrants,
   referralCodeDepartments,
   referralCodes,
   users,
@@ -908,6 +914,22 @@ async function customerPhoneNumbers(customerId: string): Promise<string[]> {
     .map((r) => r.number);
 }
 
+/**
+ * Món quà khách ĐÃ nhận; `''` = chưa có đợt phát nào.
+ *
+ * Chỉ để cảnh báo trước lượt xoá tài khoản đã hoàn thành: rổ quà đóng băng
+ * trong `gift_grants.snapshot` lúc phát, nên xoá bớt một tài khoản là rổ tính
+ * lại lệch với rổ đã trao và không phép tính nào chữa được.
+ */
+async function grantedGiftItemOf(customerId: string): Promise<string> {
+  const [row] = await db
+    .select({ chosenItem: giftGrants.chosenItem })
+    .from(giftGrants)
+    .where(eq(giftGrants.customerId, customerId))
+    .limit(1);
+  return row?.chosenItem ?? "";
+}
+
 async function accountById(id: string): Promise<BankAccount | null> {
   const r = await rawById(id);
   if (!r) return null;
@@ -1002,6 +1024,7 @@ async function detailBody(r: DecoratedRow): Promise<BankAccountDetail> {
     appDefault: separateGuide ? (variant?.appDefault ?? false) : r.appDefault,
     countsAsApp: separateGuide ? (variant?.countsAsApp ?? false) : r.countsAsApp,
     customerPhones: await customerPhoneNumbers(r.customerId),
+    customerGiftItem: await grantedGiftItemOf(r.customerId),
     referralCodeText: r.referralCodeText,
     referralProvince: r.referralProvince,
     referralSupportBranch: r.referralSupportBranch,
@@ -1776,32 +1799,69 @@ export async function updateBankAccountStatus(
 }
 
 /**
- * Bỏ dở — chỉ xoá được khi còn `creating` (db-design §10).
+ * Xoá một tài khoản — bản nháp bỏ dở, hoặc dòng đã hoàn thành nhập nhầm.
  *
- * Xoá dòng đó là NHẢ CHỖ mã về kho: trigger `mgst_sync_referral_counts` hạ
- * `holding_count` theo. Ảnh đi kèm chết theo nhờ `on delete cascade`.
+ * Hai ca đi CHUNG một hàm vì phần thân giống hệt nhau: cùng phạm vi bản ghi,
+ * cùng câu xoá có kẹp trạng thái, cùng đường nhả chỗ mã. Khác nhau ở hai chốt
+ * và ở phần dọn sau khi xoá, viết thành hai nhánh dưới đây.
+ *
+ * Trigger DB lo hai cột đếm ở MỌI trạng thái: `mgst_sync_referral_counts` nhả
+ * chỗ mã, `mgst_sync_account_count` hạ số tài khoản của khách. Ảnh đi kèm chết
+ * theo nhờ `on delete cascade`. Điểm KPI và rổ quà thì KHÔNG có trigger nào
+ * giữ, nên nhánh `done` phải tự gọi hai phép tính lại.
+ *
+ * `null` = không có, ngoài phạm vi, hoặc không đủ quyền cho dòng đã hoàn thành
+ * — route trả 404 cho cả ba, vì phân biệt chúng là xác nhận id nào có thật.
  */
-export async function deleteDraft(actor: User, id: string): Promise<BankAccount | null> {
+export async function deleteAccount(
+  actor: User,
+  id: string,
+  reason: string,
+): Promise<{ ok: true; value: BankAccount } | { ok: false; message: string } | null> {
   const visible = scopeOf(actor, "delete");
   if (visible.kind === "none") return null;
 
   const current = await accountById(id);
   if (!current || !inScope(visible, current)) return null;
-  // Tài khoản đã hoàn thành thì không xoá — nó đã tiêu một lượt mã và đã vào
-  // điểm KPI. Trả `null` để route ra 404 y như "không có".
-  if (current.status !== "creating") return null;
 
-  // Điều kiện `creating` nằm ngay trong câu xoá, không chỉ ở phép kiểm bên trên:
-  // giữa lúc đọc và lúc xoá, người khác có thể vừa bấm Hoàn thành xong — xoá
-  // trúng thì mất một bản ghi `done` thật, mã đã tiêu bị nhả lại, còn điểm KPI
-  // thì giữ nguyên cho tới lần tính lại sau.
+  const finished = current.status !== "creating";
+  // Dòng đã hoàn thành cần phạm vi rộng hơn một người — nhân viên bỏ dở bản
+  // nháp của mình thì được, xoá một tài khoản đã vào điểm thì không.
+  if (finished && !canDeleteFinished(actor, "banking")) return null;
+  // Lý do chỉ bắt ở nhánh đã hoàn thành: dòng đó biến mất khỏi kho và nhật ký
+  // là vết duy nhất còn lại. Bản nháp chưa là gì cả, hỏi lý do là hỏi thừa.
+  if (finished && reason.trim().length < 2)
+    return { ok: false, message: "Chưa nhập lý do xoá." };
+
+  // Trạng thái ĐANG ĐỌC nằm ngay trong câu xoá, không chỉ ở phép kiểm bên trên:
+  // giữa lúc đọc và lúc xoá, người khác có thể vừa bấm Hoàn thành hay vừa đánh
+  // dấu lỗi — xoá trúng thì mất một bản ghi khác hẳn bản ghi người này đã xem,
+  // và phần dọn bên dưới chạy theo nhánh sai.
   const removed = await db
     .delete(bankAccounts)
-    .where(and(eq(bankAccounts.id, id), eq(bankAccounts.status, "creating")))
+    .where(and(eq(bankAccounts.id, id), eq(bankAccounts.status, current.status)))
     .returning({ id: bankAccounts.id });
-  if (removed.length === 0) return null;
+  if (removed.length === 0)
+    return { ok: false, message: "Tài khoản này vừa đổi trạng thái. Tải lại trang rồi thử lại." };
 
-  return current;
+  /**
+   * Chỉ dòng `done` mới nằm trong điểm KPI và rổ quà — hai phép tính đều lọc
+   * đúng trạng thái đó.
+   *
+   * Dòng `error` và `fixed` KHÔNG gọi tính lại: `markAccountErrorByBankManager`
+   * cố ý giữ rổ quà của lúc còn `done`, và gọi ở đây là ghi đè quyết định đó
+   * bằng một lượt xoá. Điểm của chúng cũng đã bị loại từ lúc đánh dấu lỗi.
+   */
+  if (current.status === "done") {
+    if (current.openedDate)
+      await recomputeKpiForCustomer(
+        current.customerId,
+        businessMonth(new Date(`${current.openedDate}T00:00:00+07:00`)),
+      );
+    await recomputeGiftCase(current.customerId);
+  }
+
+  return { ok: true, value: current };
 }
 
 /**

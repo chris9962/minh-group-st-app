@@ -377,6 +377,23 @@ export function recordInScope(
 }
 
 /**
+ * Xoá được bản ghi ĐÃ hoàn thành của module này không (chốt 2026-09-09).
+ *
+ * Hẹp hơn `banking:delete` một bậc CÓ CHỦ ĐÍCH. Nhân viên giữ quyền đó ở phạm
+ * vi `own` để bỏ dở tài khoản mình đang tạo, và bản nháp chưa vào điểm KPI lẫn
+ * chưa tiêu chỗ mã giới thiệu nên xoá nó không đụng ai. Dòng đã hoàn thành thì
+ * ngược lại: nó nằm trong điểm của người lập hồ sơ khách và trong rổ quà đã
+ * phát, nên xoá là việc của người nhìn được nhiều hơn bản ghi của chính mình.
+ *
+ * Phạm vi `creator` không đủ, `departments` và `all` thì đủ — tức Trưởng phòng,
+ * Phó phòng, Phó giám đốc, Giám đốc.
+ */
+export function canDeleteFinished(user: User | null, module: ModuleKey): boolean {
+  const visibility = recordVisibility(user, module, 'delete');
+  return visibility.kind === 'all' || visibility.kind === 'departments';
+}
+
+/**
  * Những chức vụ người này được phép gán cho người khác.
  *
  * ⚠️ Đây là chốt chặn tự nâng quyền (spec mục 10.1). `quản trị người dùng` được

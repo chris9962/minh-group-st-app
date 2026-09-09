@@ -17,9 +17,10 @@ import { recomputeKpiForCustomer } from "../src/server/kpi";
  * Xoá MỘT dòng `bank_accounts` và chỉnh lại đúng phần lưu sẵn của dòng đó —
  * `bun run db:delete-bank-account <id> [--yes]`.
  *
- * App KHÔNG có đường xoá tài khoản đã hoàn thành (`deleteDraft` chỉ nhận
- * `creating`), nên ca đối soát phải xoá tay. Xoá tay bằng `psql` thì hai cột
- * lưu sẵn không có trigger giữ nằm lại số cũ: `customers.gift_basket` và
+ * App đã có nút xoá tài khoản đã hoàn thành (`deleteAccount`), dành cho quản lý
+ * và bắt nhập lý do. Lệnh này là đường của người vận hành: chạy được khi app
+ * không lên, và in ra số trước/sau để đối chiếu. Xoá tay bằng `psql` thì hai
+ * cột lưu sẵn không có trigger giữ nằm lại số cũ: `customers.gift_basket` và
  * `kpi_scores`.
  *
  * Hẹp có chủ đích, khác hai lệnh sẵn có:

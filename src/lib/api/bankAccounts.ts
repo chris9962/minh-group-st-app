@@ -386,10 +386,19 @@ export async function approveBankAccount(id: string): Promise<BankAccount> {
   return BankAccount.parse(await res.json());
 }
 
-/** Bỏ dở — chỉ xoá được khi còn `creating`. Nhả mã lại kho ngay (mục 4.5). */
-export async function deleteBankAccount(id: string): Promise<void> {
-  const res = await fetch(`/api/bank-accounts/${id}`, { method: 'DELETE' });
-  if (!res.ok) throw await failure(res, 'Không xoá được tài khoản đang tạo này');
+/**
+ * Xoá một tài khoản — nhả chỗ mã về kho ngay (mục 4.5).
+ *
+ * `reason` chỉ bắt buộc với tài khoản ĐÃ hoàn thành, và máy chủ mới là nơi
+ * kiểm: bản nháp bỏ dở không hỏi lý do, nên nơi gọi ở bước 2 không truyền gì.
+ */
+export async function deleteBankAccount(id: string, reason = ''): Promise<void> {
+  const res = await fetch(`/api/bank-accounts/${id}`, {
+    method: 'DELETE',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ reason }),
+  });
+  if (!res.ok) throw await failure(res, 'Không xoá được tài khoản này');
 }
 
 /** Hai loại ảnh của một tài khoản, đếm tách nhau (spec §4.2 bước 3). */

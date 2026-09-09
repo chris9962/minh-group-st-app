@@ -84,6 +84,13 @@ export const BankAccountDetail = BankAccountRow.extend({
   countsAsApp: z.boolean(),
   /** Mọi SĐT của khách, số chính đứng đầu — nguồn cho ô chọn khi `phone-match`. */
   customerPhones: z.array(z.string()),
+  /**
+   * Món quà khách ĐÃ nhận; `''` = chưa phát đợt nào.
+   *
+   * Chỉ dùng cho hộp xác nhận xoá: rổ quà đã phát đóng băng, nên xoá bớt một
+   * tài khoản là rổ tính lại lệch với rổ đã trao, và không phép tính nào chữa.
+   */
+  customerGiftItem: z.string(),
   /** Mã text ngân hàng cấp; `''` = mã QR-only, không có chuỗi nào để gõ. */
   referralCodeText: z.string(),
   /** Tỉnh của mã; `''` = chưa gán. Ghép với `referralSupportBranch` thành dòng "CN PGD". */
