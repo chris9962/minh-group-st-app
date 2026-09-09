@@ -700,10 +700,22 @@ export const customers = pgTable(
     /**
      * DANH SÁCH MÃ QUÀ khách đang được nhận — rỗng nghĩa là chưa có gì để phát.
      *
+     * ⚠️ KHÔNG phải rổ quà mà màn phát quà và hộp đổi quà đọc. Hai màn đó gọi
+     * `giftForCustomer` (`server/gift.ts`), tính sống từ tài khoản `done` hiện
+     * tại — chốt 2026-09-06, để khách mở thêm tài khoản trong ngày nâng được
+     * bậc. Đợt ĐÃ phát thì đóng băng ở `gift_grants.snapshot`. Ba nguồn khác
+     * nhau, và cột này là nguồn HẸP NHẤT.
+     *
+     * Đúng ra chỉ có hai chỗ đọc, và cả hai chỉ hỏi RỖNG HAY KHÔNG, không đọc
+     * nội dung mảng: cột trạng thái quà ở bảng P-40 (`server/customers.ts`) và
+     * số khách chờ phát ở màn Tổng quan P-80 (`server/dashboard.ts`). Giữ cả
+     * danh sách mã chứ không phải một trường đánh dấu là có chủ đích — đem so
+     * với `gift_grants.snapshot` thì thấy ngay khách nào có rổ lệch rổ đã phát.
+     *
      * LƯU SẴN, ngoại lệ của luật "tính ra được thì không lưu" (db-design §9),
-     * cùng lý do với hai cột đếm bên trên: P-40 lọc theo trạng thái quà và P-80
-     * đếm khách chờ phát. Chạy hàm luật cho từng dòng nghĩa là kéo tài khoản của
-     * cả kho về tầng ứng dụng (AGENTS.md §5.2).
+     * cùng lý do với hai cột đếm bên trên: hai màn đó chạy trên danh sách dài.
+     * Chạy hàm luật cho từng dòng nghĩa là kéo tài khoản của cả kho về tầng ứng
+     * dụng (AGENTS.md §5.2).
      *
      * ⚠️ Trigger ở database KHÔNG giữ nổi cột này: giá trị của nó do một hàm
      * JavaScript quyết định (`src/rules/`), và thể lệ đổi hình dạng theo kỳ.
