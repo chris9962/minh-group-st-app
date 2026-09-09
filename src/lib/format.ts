@@ -106,9 +106,29 @@ export const BUSINESS_TIMEZONE = 'Asia/Ho_Chi_Minh';
  * KHÔNG dùng `toISOString().slice(0, 10)`: hàm đó trả ngày theo UTC, mà Việt Nam
  * là UTC+7 nên từ 0h đến 7h sáng nó vẫn đang ở ngày hôm trước. Lọc "Hôm nay"
  * bằng ngày đó là ra dữ liệu của hôm qua, và ngày mùng 1 thì ra cả tháng trước.
+ *
+ * ⚠️ KHÔNG đọc chuỗi `format()` trả ra, dù `en-CA` có ra đúng `YYYY-MM-DD` trên
+ * máy người viết. Thứ tự ba mảnh do dữ liệu locale quyết định, mà máy thiếu dữ
+ * liệu `en-CA` thì trình duyệt chuyển sang locale mặc định và trả `9/9/2026` —
+ * giá trị đó trượt `isRealIsoDate`, và ô ngày ẩn của form tạo đơn bảo hiểm báo
+ * "Ngày không hợp lệ" mà người dùng không thấy ô nào để sửa. `formatToParts`
+ * trả từng mảnh rời nên thứ tự do mình ghép.
+ *
+ * Hai phần mở rộng của thẻ locale chặn nốt hai kiểu lệch còn lại: `ca-gregory`
+ * giữ lịch Gregory (máy đặt lịch Phật giáo trả năm 2569), `nu-latn` giữ chữ số
+ * Latin (máy đặt chữ số Ả Rập trả `٢٠٢٦`).
  */
-export const businessDay = (at: Date = new Date()): string =>
-  new Intl.DateTimeFormat('en-CA', { timeZone: BUSINESS_TIMEZONE }).format(at);
+export const businessDay = (at: Date = new Date()): string => {
+  const parts = new Intl.DateTimeFormat('en-CA-u-ca-gregory-nu-latn', {
+    timeZone: BUSINESS_TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(at);
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((p) => p.type === type)?.value ?? '';
+  return `${part('year')}-${part('month')}-${part('day')}`;
+};
 
 /** Tháng làm việc `YYYY-MM` theo giờ Việt Nam. */
 export const businessMonth = (at: Date = new Date()): string => businessDay(at).slice(0, 7);
