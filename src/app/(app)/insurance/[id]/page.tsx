@@ -194,6 +194,8 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
      * `refetchIntervalInBackground` mặc định `false`.
      */
     refetchInterval: 10_000,
+    /** Cùng lý do với bảng P-13 — xem ghi chú ở `insurance/page.tsx`. */
+    staleTime: 0,
   });
 
   const invalidate = () => {

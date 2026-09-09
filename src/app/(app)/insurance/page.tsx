@@ -208,6 +208,12 @@ export default function InsurancePage() {
      * Tab ẩn thì dừng: `refetchIntervalInBackground` mặc định `false`.
      */
     refetchInterval: 10_000,
+    /**
+     * Bỏ `staleTime` 30 giây của `providers.tsx`: bảng này phải đúng từng lượt
+     * mở. Bot đổi trạng thái đơn liên tục, và người xem quay lại trang trong 30
+     * giây thì bản cũ vẫn hiện ra dù máy chủ đã có số khác.
+     */
+    staleTime: 0,
   });
 
   const queryClient = useQueryClient();
