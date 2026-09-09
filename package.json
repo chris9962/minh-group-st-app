@@ -14,6 +14,7 @@
     "db:recount": "bun --env-file=.env.local scripts/db-recount.ts",
     "db:recount-codes": "bun --env-file=.env.local scripts/db-recount-codes.ts",
     "db:delete-bank-account": "bun --env-file=.env.local scripts/db-delete-bank-account.ts",
+    "db:transfer-customer": "bun --env-file=.env.local scripts/db-transfer-customer.ts",
     "db:demo": "bun --env-file=.env.local scripts/db-demo.ts",
     "db:import-staff": "bun --env-file=.env.local scripts/db-import-staff.ts",
     "db:grant-missing": "bun --env-file=.env.local scripts/db-grant-missing-permissions.ts",
