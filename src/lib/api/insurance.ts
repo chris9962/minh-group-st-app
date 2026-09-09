@@ -328,6 +328,19 @@ export async function setInsuranceOrderStatus(
 }
 
 /**
+ * Rút đơn khỏi hàng chờ của bot: `Chờ tạo` → `Chờ làm tay`. Chỉ Giám đốc.
+ *
+ * Đường RIÊNG với `overrideInsuranceOrderStatus`: đường kia nhận trạng thái tuỳ
+ * ý và đi theo quyền `insurance:set-status`, đường này cố định đúng một bước và
+ * đi theo chức vụ.
+ */
+export async function sendInsuranceOrderToManual(id: string): Promise<InsuranceDetail> {
+  const res = await fetch(`/api/insurance-orders/${id}/to-manual`, { method: 'PATCH' });
+  if (!res.ok) throw await failure(res, 'Không chuyển được đơn này sang làm tay');
+  return InsuranceDetail.parse(await res.json());
+}
+
+/**
  * Đặt trạng thái đơn tuỳ ý — công cụ gỡ đơn mắc, cần quyền `insurance:set-status`.
  *
  * Đường RIÊNG với `setInsuranceOrderStatus`: đường kia đi đúng vòng đời và máy

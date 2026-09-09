@@ -29,6 +29,7 @@ import type {
 } from "@/lib/api/insurance";
 import {
   CERTIFICATE_MAX_ATTEMPTS,
+  INSURANCE_STATUS_LABEL,
   INTAKE_PHOTO_LABEL,
   InsuranceOrderStatus,
   insuranceOrderEditSchema,
@@ -1323,6 +1324,58 @@ export async function overrideInsuranceOrderStatus(
     orderId: id,
     fromStatus: current.status,
     toStatus: next,
+    changedBy: actor.id,
+  });
+
+  return { ok: true, value: (await insuranceOrderDetail(actor, id))! };
+}
+
+/**
+ * Rút đơn khỏi hàng chờ của bot: `queued` → `manual-queued` (chốt 2026-09-09).
+ *
+ * Chỉ GIÁM ĐỐC, và đây là ngoại lệ thứ hai của luật "chức vụ không phải nguồn
+ * quyền" (AGENTS.md §6.1). Lý do: quyền `insurance:set-status` cấp theo từng
+ * người ở `user_permissions` và admin nới cho ai cũng được, còn đường này đổi
+ * đơn đang giao cho bot sang việc tay nên phải buộc vào một người cố định. Ai
+ * cầm `set-status` vẫn đặt trạng thái tuỳ ý ở P-14 như cũ, không đi qua đây.
+ *
+ * Đọc `actor.role` ở HÀM chứ không chỉ ở route: route là một đường gọi, hàm
+ * này là chỗ luật sống.
+ *
+ * Chỉ nhận đúng `queued`. Đơn đã sang `creating` là bot đang nói chuyện với
+ * PVI, kéo về làm tay lúc đó thì hai bên cùng tạo một đơn trên hệ thống PVI.
+ */
+export async function sendInsuranceOrderToManual(
+  actor: User,
+  id: string,
+): Promise<InsuranceOutcome<InsuranceDetail> | null> {
+  if (actor.role !== "director") return null;
+
+  const current = await rawById(id);
+  if (!current) return null;
+
+  if (current.status !== "queued")
+    return {
+      ok: false,
+      message: `Chỉ đơn ${INSURANCE_STATUS_LABEL.queued} mới chuyển sang làm tay được.`,
+    };
+
+  const updated = await db
+    .update(insuranceOrders)
+    .set({ status: "manual-queued", updatedAt: new Date() })
+    // Kẹp theo `queued`: bot nhặt đơn giữa lượt đọc và lượt ghi thì lượt ghi
+    // này không đổi dòng nào, và người bấm được báo thay vì kéo mất đơn bot
+    // đang chạy.
+    .where(and(eq(insuranceOrders.id, id), eq(insuranceOrders.status, "queued")))
+    .returning({ id: insuranceOrders.id });
+
+  if (updated.length === 0)
+    return { ok: false, message: "Bot vừa nhận đơn này. Tải lại trang rồi xem lại." };
+
+  await db.insert(insuranceOrderStatusHistory).values({
+    orderId: id,
+    fromStatus: "queued",
+    toStatus: "manual-queued",
     changedBy: actor.id,
   });
 
