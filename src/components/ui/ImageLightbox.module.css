@@ -27,6 +27,17 @@
   max-width: calc(100vw - 96px);
   max-height: calc(100dvh - 96px);
   border-radius: var(--radius-md);
+  transition: transform 180ms ease;
+  /* Chừa `pinch-zoom` lại cho người dùng phóng to tấm ảnh — chỉ chặn kéo ngang,
+     phần cử chỉ mà trình xem tự xử lý. */
+  touch-action: pan-y pinch-zoom;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+/* Đang kéo thì ảnh phải bám ngón tay, không được chạy sau một nhịp. */
+.dragging {
+  transition: none;
 }
 
 /* Chừa chỗ cho dòng chú thích: một dòng chữ cộng khoảng cách. Không chừa thì
@@ -92,6 +103,54 @@
   opacity: 0.6;
 }
 
+/* Nút lướt neo giữa hai mép màn hình, cỡ 44px cho ngón tay (AGENTS.md §8). */
+.nav {
+  position: fixed;
+  top: 50%;
+  translate: 0 -50%;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: var(--om-card);
+  color: var(--om-text);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+}
+
+.prev {
+  left: 16px;
+}
+
+.next {
+  right: 16px;
+}
+
+.nav:hover:not(:disabled) {
+  color: var(--om-orange-mid);
+}
+
+.nav:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* Số thứ tự nằm góc trên trái — góc phải đã có nút tải và nút đóng. */
+.counter {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: var(--om-card);
+  color: var(--om-text);
+  box-shadow: var(--shadow-sm);
+  font-size: 13px;
+  font-weight: 600;
+}
+
 /* Màn hẹp thì 96px là mất gần nửa bề ngang. Đỉnh vẫn chừa 76px cho nút đóng
    đang neo góc trên trái, không thì ảnh cao chui xuống dưới nút. */
 @media (max-width: 640px) {
@@ -107,5 +166,13 @@
 
   .withCaption .image {
     max-height: calc(100dvh - 76px - 56px);
+  }
+
+  .prev {
+    left: 4px;
+  }
+
+  .next {
+    right: 4px;
   }
 }
