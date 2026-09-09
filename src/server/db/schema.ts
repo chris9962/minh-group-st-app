@@ -855,6 +855,8 @@ export const bankAccounts = pgTable(
     status: bankAccountStatus("status").notNull().default("creating"),
     /** Lý do đối soát loại tài khoản ra khỏi KPI; rỗng khi không ở trạng thái lỗi. */
     errorNote: text("error_note").notNull().default(""),
+    /** Lần đánh lỗi gần nhất; chỉ quản trị đánh lỗi mới mở lại hạn sửa ảnh. */
+    lastErrorAt: timestamp("last_error_at", { withTimezone: true }),
     accountNumber: text("account_number"),
     openedDate: date("opened_date"),
     /** Trường quyết định quà. */
@@ -962,6 +964,22 @@ export const bankAccounts = pgTable(
        theo chữ "khác ngày mở tk" của thể lệ mục 1, nhưng CEO xác nhận đọc vậy
        là sai — giao dịch ngay trong ngày mở vẫn tính. */
   ],
+);
+
+/** Mỗi lần đối soát giữ nguyên lý do và người thực hiện, kể cả khi đã duyệt lại. */
+export const bankAccountStatusHistory = pgTable(
+  "bank_account_status_history",
+  {
+    id: id(),
+    accountId: uuid("account_id").notNull().references(() => bankAccounts.id, { onDelete: "cascade" }),
+    fromStatus: bankAccountStatus("from_status").notNull(),
+    toStatus: bankAccountStatus("to_status").notNull(),
+    changedBy: uuid("changed_by").references(() => users.id),
+    changedByName: text("changed_by_name").notNull(),
+    note: text("note").notNull().default(""),
+    changedAt: timestamp("changed_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("bank_account_history_account_time").on(t.accountId, t.changedAt, t.id)],
 );
 
 export const bankAccountPhotos = pgTable(

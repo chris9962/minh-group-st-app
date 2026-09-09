@@ -1,4 +1,5 @@
 "use client";
+import { BankAccountHistory } from "@/components/banking/BankAccountHistory";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
@@ -228,6 +229,8 @@ export default function BankAccountOfBankPage({
             )}
           </SectionCard>
         )}
+
+        {data && <BankAccountHistory history={data.history} />}
 
         {approving && data && (
           <ConfirmDialog

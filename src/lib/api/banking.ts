@@ -50,6 +50,16 @@ export type BankAccountRow = z.infer<typeof BankAccountRow>;
  * Số ảnh bắt buộc theo cấu hình từng ngân hàng (`requiredPhotos`, P-60); sau
  * khi hoàn thành, ảnh chứng minh chỉ sửa được trong ngày (`canEditOpeningPhotos`).
  */
+export const BankAccountStatusStep = z.object({
+  id: z.string(),
+  fromStatus: BankAccountStatus,
+  toStatus: BankAccountStatus,
+  changedByName: z.string(),
+  changedAt: z.string(),
+  note: z.string(),
+});
+export type BankAccountStatusStep = z.infer<typeof BankAccountStatusStep>;
+
 export const BankAccountDetail = BankAccountRow.extend({
   /** Id ngân hàng — màn chi tiết hỏi `canManageBank` để quyết có bày nút Duyệt. */
   bankId: z.string(),
@@ -71,6 +81,8 @@ export const BankAccountDetail = BankAccountRow.extend({
    * ghi mốc. Mốc tính cửa sổ sửa ảnh chứng minh — xem `canEditOpeningPhotos`.
    */
   finishedAt: z.string(),
+  lastErrorAt: z.string(),
+  history: z.array(BankAccountStatusStep),
   requiredPhotos: z.number(),
   /** Quyết ô số tài khoản ở bước 2 là ô gõ tay hay ô chọn SĐT. */
   accountNumberMethod: AccountNumberMethod,

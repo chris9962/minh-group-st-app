@@ -100,6 +100,15 @@ export function formatDate(value: Date | string): string {
  */
 export const BUSINESS_TIMEZONE = 'Asia/Ho_Chi_Minh';
 
+/** Mốc giờ nghiệp vụ cho hạn sửa và dòng thời gian, luôn theo giờ Việt Nam. */
+export function formatDateTime(value: Date | string): string {
+  return new Intl.DateTimeFormat('vi-VN', {
+    timeZone: BUSINESS_TIMEZONE,
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  }).format(typeof value === 'string' ? new Date(value) : value);
+}
+
 /**
  * Ngày làm việc `YYYY-MM-DD` theo giờ Việt Nam.
  *
@@ -166,4 +175,3 @@ export const uniqueCode = (name: string, fallback: string, taken: Set<string>): 
   if (!taken.has(base)) return base;
   for (let i = 2; ; i++) if (!taken.has(`${base}-${i}`)) return `${base}-${i}`;
 };
-

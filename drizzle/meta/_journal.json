@@ -526,6 +526,13 @@
       "when": 1789848200000,
       "tag": "0074_referral_counts_error_fixed",
       "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "7",
+      "when": 1789891400001,
+      "tag": "0075_bank_account_status_history",
+      "breakpoints": true
     }
   ]
 }

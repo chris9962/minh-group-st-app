@@ -14,6 +14,7 @@ import { SkeletonCard } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
 import { BankAccountEditDialog } from "@/components/banking/BankAccountEditDialog";
+import { BankAccountHistory } from "@/components/banking/BankAccountHistory";
 import { BankAccountFinishFields } from "@/components/banking/BankAccountFinishFields";
 import { ReferralCodeCard } from "@/components/banking/ReferralCodeCard";
 import {
@@ -106,6 +107,7 @@ export default function BankAccountDetailPage({
         {data && data.status !== "creating" && (
           <DoneAccountCard id={id} data={data} departmentName={departmentName} />
         )}
+        {data && <BankAccountHistory history={data.history} />}
       </main>
     </>
   );

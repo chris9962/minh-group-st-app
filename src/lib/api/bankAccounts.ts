@@ -426,14 +426,24 @@ export const PHOTO_MAX = 20;
  * Ảnh giao dịch KHÔNG dính luật này — nó là bằng chứng nộp muộn (spec §4.2
  * bước 3), hôm sau mới có.
  */
+/** Hạn sửa lỗi tính đúng 24 giờ trôi, không làm tròn theo ngày lịch. */
+export const errorPhotoDeadline = (account: { status: BankAccountStatus; lastErrorAt?: string }): string | null => {
+  if (account.status !== 'error' && account.status !== 'fixed') return null;
+  const markedAt = Date.parse(account.lastErrorAt ?? '');
+  return Number.isFinite(markedAt) ? new Date(markedAt + 24 * 60 * 60 * 1000).toISOString() : null;
+};
+
 export const canEditOpeningPhotos = (
   actor: User | null,
-  account: { status: BankAccountStatus; finishedAt: string },
+  account: { status: BankAccountStatus; finishedAt: string; lastErrorAt?: string },
+  now: Date = new Date(),
 ): boolean => {
   if (!actor) return false;
   if (account.status === 'creating') return true;
   if (ROLE_RANK[actor.role] >= ROLE_RANK.head) return true;
-  return account.finishedAt !== '' && businessDay(new Date(account.finishedAt)) === businessDay();
+  const deadline = errorPhotoDeadline(account);
+  if (deadline && now.getTime() < Date.parse(deadline)) return true;
+  return account.finishedAt !== '' && businessDay(new Date(account.finishedAt)) === businessDay(now);
 };
 
 const PHOTO_LABEL: Record<PhotoKind, string> = {
