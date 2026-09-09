@@ -271,8 +271,11 @@ export function BankAccountPhotos({
             {" *"}
           </span>
         )}{" "}
+        {/* Mẫu số là TRẦN, không phải số ảnh bắt buộc: chỗ nhận 2 ảnh mà bắt
+            buộc 1 thì hiện "1/1", và người nhập đọc ra là đã xong, không biết
+            còn thêm được tấm nữa. Dấu * bên trên mới là chỗ nói bắt buộc. */}
         ({photos.length}
-        {requiredPhotos > 0 ? `/${requiredPhotos}` : ""})
+        {requiredPhotos > 0 ? `/${Math.max(requiredPhotos, max)}` : ""})
       </Heading>
 
       <div className={styles.photoGrid}>

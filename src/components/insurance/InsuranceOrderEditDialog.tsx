@@ -111,7 +111,12 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId, mode = "edit"
    */
   const [pickedPhotos, setPickedPhotos] = useState<PhotoItem[] | null>(null);
   const photos =
-    pickedPhotos ?? savedPhotos(data?.intakePhotoUrl ? [data.intakePhotoUrl] : []);
+    pickedPhotos ??
+    savedPhotos(
+      [data?.intakePhotoUrl, data?.intakePhotoBackUrl].filter(
+        (url): url is string => Boolean(url),
+      ),
+    );
 
   const form = useForm<InsuranceOrderEditForm>({
     // Focus ô sai do `reportInvalid` lo — xem `lib/formErrors.ts`.
@@ -139,6 +144,7 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId, mode = "edit"
       engineNumber: data?.engineNumber ?? "",
       // Ghi đè lúc gửi bằng ảnh ở ô `photos` — xem `save`.
       intakePhotoUrl: data?.intakePhotoUrl ?? "",
+      intakePhotoBackUrl: data?.intakePhotoBackUrl ?? "",
     },
   });
 
@@ -148,9 +154,14 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId, mode = "edit"
      * là bỏ ảnh, lượt cấp lại thì máy chủ từ chối — nút đã khoá sẵn ở dưới.
      */
     mutationFn: async (values: InsuranceOrderEditForm) => {
-      const [url] = await uploadPendingPhotos(photos, "insurance-orders");
-      if (url) setPickedPhotos([{ kind: "saved", url }]);
-      const payload = { ...values, intakePhotoUrl: url ?? "" };
+      const urls = await uploadPendingPhotos(photos, "insurance-orders");
+      if (urls.length > 0)
+        setPickedPhotos(urls.map((url) => ({ kind: "saved", url })));
+      const payload = {
+        ...values,
+        intakePhotoUrl: urls[0] ?? "",
+        intakePhotoBackUrl: urls[1] ?? "",
+      };
       return recreating
         ? recreateInsuranceOrder(orderId, { ...payload, departmentId })
         : updateInsuranceOrder(orderId, payload);
@@ -211,7 +222,7 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId, mode = "edit"
           <BankAccountPhotos
             title={INTAKE_PHOTO_LABEL[data.product]}
             requiredPhotos={1}
-            max={1}
+            max={data.product === "electric-accident" ? 2 : 1}
             small
             required={recreating}
             photos={photos}

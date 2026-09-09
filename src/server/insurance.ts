@@ -370,6 +370,7 @@ const pickPage = (where: SQL | undefined, orderBy: SQL[], limit: number, offset:
       engineNumber: insuranceOrders.engineNumber,
       certificatePhotoUrl: insuranceOrders.certificatePhotoUrl,
       intakePhotoUrl: insuranceOrders.intakePhotoUrl,
+      intakePhotoBackUrl: insuranceOrders.intakePhotoBackUrl,
       certificateAttempts: insuranceOrders.certificateAttempts,
       pviCertificateUrl: insuranceOrders.pviCertificateUrl,
       pviSerialNumber: insuranceOrders.pviSerialNumber,
@@ -415,6 +416,7 @@ const decorate = (page: ReturnType<typeof pickPage>) =>
       engineNumber: page.engineNumber,
       certificatePhotoUrl: page.certificatePhotoUrl,
       intakePhotoUrl: page.intakePhotoUrl,
+      intakePhotoBackUrl: page.intakePhotoBackUrl,
       certificateAttempts: page.certificateAttempts,
       pviCertificateUrl: page.pviCertificateUrl,
       pviSerialNumber: page.pviSerialNumber,
@@ -488,6 +490,7 @@ const pviOrderUrlFor = (product: InsuranceProduct, prKey: string): string =>
 const toOrder = (r: DecoratedRow): InsuranceOrder => ({
   ...toRow(r),
   intakePhotoUrl: r.intakePhotoUrl ? imageUrl(r.intakePhotoUrl) : null,
+  intakePhotoBackUrl: r.intakePhotoBackUrl ? imageUrl(r.intakePhotoBackUrl) : null,
   pviCertificateUrl: r.pviCertificateUrl,
   pviSerialNumber: r.pviSerialNumber,
   pviOrderUrl: pviOrderUrlFor(r.product, r.pviPrKey),
@@ -880,21 +883,23 @@ export async function createInsuranceOrders(
       : [];
 
   const today = businessDay();
-  const intakePhotoKeys: string[] = [];
+  const intakePhotoKeys: { first: string; back: string | null }[] = [];
   for (const [i, leg] of form.legs.entries()) {
     if (leg.endDate < leg.startDate)
       return { ok: false, message: "Ngày kết thúc phải sau ngày bắt đầu" };
-    // Mỗi đơn một ảnh (CCCD hay cà vẹt xe theo sản phẩm), bắt buộc (chốt
-    // 2026-09-07). Giao diện đã khoá nút; đây là chốt thật. `imageKeyOf` cũng
-    // chặn luôn chuỗi ngoài kho.
-    const key = imageKeyOf(leg.intakePhotoUrl);
-    if (!key) {
+    // Ảnh đầu bắt buộc; ảnh thứ hai tùy chọn cho mặt sau CCCD. Giao diện đã
+    // khoá nút khi thiếu ảnh đầu, đây là chốt thật ở máy chủ.
+    const first = imageKeyOf(leg.intakePhotoUrl);
+    if (!first) {
       return {
         ok: false,
         message: `Chưa chọn ${INTAKE_PHOTO_LABEL[leg.product].toLowerCase()} cho đơn ${i + 1}`,
       };
     }
-    intakePhotoKeys.push(key);
+    const back = leg.intakePhotoBackUrl ? imageKeyOf(leg.intakePhotoBackUrl) : null;
+    if (leg.intakePhotoBackUrl && !back)
+      return { ok: false, message: `Ảnh CCCD thứ hai của đơn ${i + 1} không hợp lệ` };
+    intakePhotoKeys.push({ first, back });
   }
 
   /**
@@ -983,7 +988,8 @@ export async function createInsuranceOrders(
           vehicleType: leg.vehicleType,
           chassisNumber: leg.chassisNumber,
           engineNumber: leg.engineNumber,
-          intakePhotoUrl: intakePhotoKeys[i],
+          intakePhotoUrl: intakePhotoKeys[i].first,
+          intakePhotoBackUrl: intakePhotoKeys[i].back,
           createdBy: actor.id,
           // Đơn vị của người tạo lúc tạo. Người này chuyển phòng thì
           // `writeStaff` viết lại cột này cho mọi dòng của họ (chốt 13/08).
@@ -1069,6 +1075,11 @@ export async function updateInsuranceOrder(
   const intakePhotoKey = form.intakePhotoUrl ? imageKeyOf(form.intakePhotoUrl) : null;
   if (form.intakePhotoUrl && !intakePhotoKey)
     return { ok: false, message: `${INTAKE_PHOTO_LABEL[current.product]} không hợp lệ` };
+  const intakePhotoBackKey = form.intakePhotoBackUrl
+    ? imageKeyOf(form.intakePhotoBackUrl)
+    : null;
+  if (form.intakePhotoBackUrl && !intakePhotoBackKey)
+    return { ok: false, message: "Ảnh CCCD thứ hai không hợp lệ" };
 
   await db
     .update(insuranceOrders)
@@ -1076,6 +1087,7 @@ export async function updateInsuranceOrder(
       // KHÔNG đụng `orderDate`: ngày tạo đơn chốt lúc lập và lượt sửa không đổi
       // được (chốt 2026-09-08) — xem `createInsuranceOrders`.
       intakePhotoUrl: intakePhotoKey,
+      intakePhotoBackUrl: intakePhotoBackKey,
       fee: form.fee,
       startDate: form.startDate,
       endDate: form.endDate,
@@ -1560,6 +1572,11 @@ export async function recreateInsuranceOrder(
       message: `Chưa chọn ${INTAKE_PHOTO_LABEL[current.product].toLowerCase()}`,
     };
   }
+  const intakePhotoBackKey = form.intakePhotoBackUrl
+    ? imageKeyOf(form.intakePhotoBackUrl)
+    : null;
+  if (form.intakePhotoBackUrl && !intakePhotoBackKey)
+    return { ok: false, message: "Ảnh CCCD thứ hai không hợp lệ" };
 
   const yearMonth = businessMonth();
   const newStatus = newOrderStatus();
@@ -1608,6 +1625,7 @@ export async function recreateInsuranceOrder(
         chassisNumber: form.chassisNumber,
         engineNumber: form.engineNumber,
         intakePhotoUrl: intakePhotoKey,
+        intakePhotoBackUrl: intakePhotoBackKey,
         createdBy: actor.id,
         createdByDepartmentId: department.departmentId,
         replacesOrderId: id,

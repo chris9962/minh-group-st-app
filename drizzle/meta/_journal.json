@@ -547,6 +547,13 @@
       "when": 1789891400003,
       "tag": "0077_referral_code_unique_account_type",
       "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1789891400004,
+      "tag": "0078_insurance_intake_photo_back",
+      "breakpoints": true
     }
   ]
 }

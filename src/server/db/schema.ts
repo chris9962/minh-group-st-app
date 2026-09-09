@@ -1242,12 +1242,10 @@ export const insuranceOrders = pgTable(
     /** Ảnh chứng nhận — thay PDF, đính được ở mọi trạng thái. */
     /** KHOÁ trong kho, không phải URL — xem `bank_account_photos.url`. */
     certificatePhotoUrl: text("certificate_photo_url"),
-    /**
-     * Ảnh hồ sơ — KD chụp lúc lập đơn, một đơn một ảnh (chốt 2026-09-07,
-     * migration 0073). KHÁC `certificate_photo_url`: cột đó là tờ chứng nhận
-     * PVI phát về sau. Null với đơn lập trước migration.
-     */
+    /** Ảnh hồ sơ thứ nhất — bắt buộc với đơn mới. */
     intakePhotoUrl: text("intake_photo_url"),
+    /** Ảnh hồ sơ thứ hai — mặt sau CCCD, tùy chọn; null với đơn chỉ cần một ảnh. */
+    intakePhotoBackUrl: text("intake_photo_back_url"),
     /**
      * "Số đơn ĐT" bên PVI — `26/21/14/TNCN/0096592`. Bot đọc ở BẢNG
      * `/Service/Manager`; màn duyệt không hiện số này.
