@@ -221,6 +221,8 @@ export type BankAccountsOfBankQuery = PageQuery<BankAccountSort> & {
   referralCodeId: string;
   /** Phòng ghi nhận lúc tạo bản ghi. Rỗng = mọi phòng. */
   departmentId: string;
+  /** Kênh chụp lúc tạo tài khoản. Rỗng = mọi kênh. */
+  channelId: string;
   /** Loại tài khoản. Rỗng = mọi loại. */
   accountType: AccountType | '';
 };
@@ -242,6 +244,7 @@ export async function fetchBankAccountsOfBankForExport(
   if (query.status) params.set('status', query.status);
   if (query.referralCodeId) params.set('referralCodeId', query.referralCodeId);
   if (query.departmentId) params.set('departmentId', query.departmentId);
+  if (query.channelId) params.set('channelId', query.channelId);
   if (query.accountType) params.set('accountType', query.accountType);
 
   const res = await fetch(`/api/settings/banks/${bankId}/accounts/export?${params}`);
@@ -271,6 +274,7 @@ export async function fetchBankAccountsOfBank(
     status: query.status,
     referralCodeId: query.referralCodeId,
     departmentId: query.departmentId,
+    channelId: query.channelId,
     accountType: query.accountType,
   });
   const res = await fetch(`/api/settings/banks/${bankId}/accounts?${params}`);

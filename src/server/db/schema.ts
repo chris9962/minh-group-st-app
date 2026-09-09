@@ -921,6 +921,10 @@ export const bankAccounts = pgTable(
     // Tính điểm KPI gom theo NGƯỜI TẠO trong một khoảng ngày (§9), không lọc
     // theo phòng — index dẫn đầu bằng department_id ở trên không dùng được.
     index("bank_accounts_creator_date").on(t.createdBy, t.openedDate),
+    /** Trang quản lý một ngân hàng lọc theo kênh rồi lấy trang theo ngày. */
+    index("bank_accounts_bank_channel_opened").on(
+      sql`bank_id, channel_id, opened_date desc nulls last, created_at desc, id`,
+    ),
     /**
      * Khớp ĐÚNG `ORDER BY` của P-21:
      * `opened_date desc nulls last, created_at desc, id`.

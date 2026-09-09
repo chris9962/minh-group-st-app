@@ -30,6 +30,7 @@ type Filters = {
   status: string;
   referralCodeId: string;
   departmentId: string;
+  channelId: string;
   accountType: string;
 };
 

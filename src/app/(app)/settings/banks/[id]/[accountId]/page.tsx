@@ -2,7 +2,7 @@
 import { BankAccountHistory } from "@/components/banking/BankAccountHistory";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { use, useState } from "react";
 import { Check, ChevronLeft, Landmark, TriangleAlert } from "lucide-react";
 import { RequirePermission } from "@/components/layout/RequirePermission";
@@ -50,6 +50,7 @@ export default function BankAccountOfBankPage({
   params: Promise<{ id: string; accountId: string }>;
 }) {
   const { id, accountId } = use(params);
+  const router = useRouter();
   const user = useSession((s) => s.user);
   const inScope = canManageBank(user, id);
 
@@ -63,6 +64,15 @@ export default function BankAccountOfBankPage({
   const [approving, setApproving] = useState(false);
   const [markingError, setMarkingError] = useState(false);
   const [errorNote, setErrorNote] = useState("");
+
+  /** Quay lại đúng bộ lọc/trang trước đó; mở link trực tiếp thì về chi tiết ngân hàng. */
+  const backToBank = () => {
+    if (window.history.length > 1) {
+      router.back();
+      return;
+    }
+    router.replace(`/settings/banks/${id}`);
+  };
 
   const refreshAfterChange = () => {
     queryClient.invalidateQueries({ queryKey: ["bank-account-of-bank", id, accountId] });
@@ -97,10 +107,10 @@ export default function BankAccountOfBankPage({
       <TopBar title={data ? `${data.bankCode} · ${data.customerName}` : "Tài khoản"} keepTitleOnMobile />
 
       <main className={styles.body}>
-        <Link href={`/settings/banks/${id}`} className={styles.back}>
+        <button type="button" className={styles.back} onClick={backToBank}>
           <ChevronLeft size={15} aria-hidden />
           Chi tiết ngân hàng
-        </Link>
+        </button>
 
         {!inScope && <p className="text-muted">Bạn không quản ngân hàng này.</p>}
         {inScope && isPending && <SkeletonCard lines={8} />}

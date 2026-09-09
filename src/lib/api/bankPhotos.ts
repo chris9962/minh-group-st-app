@@ -50,6 +50,7 @@ export type BankPhotosQuery = PageQuery<BankAccountSort> & {
   status: string;
   referralCodeId: string;
   departmentId: string;
+  channelId: string;
   accountType: string;
 };
 
@@ -67,6 +68,7 @@ export async function fetchBankPhotos(
       status: query.status,
       referralCodeId: query.referralCodeId,
       departmentId: query.departmentId,
+      channelId: query.channelId,
       accountType: query.accountType,
     })}`,
   );

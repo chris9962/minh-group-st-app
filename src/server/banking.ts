@@ -702,6 +702,8 @@ export type BankOfBankFilters = {
   referralCodeId: string;
   /** Phòng GHI NHẬN lúc tạo bản ghi, chụp một lần (spec §1.1.5). */
   departmentId: string;
+  /** Kênh chụp lúc tạo tài khoản. */
+  channelId: string;
   /** `none` · `CNKD` · `HKD`. Rỗng hoặc giá trị lạ = mọi loại. */
   accountType: string;
 };
@@ -722,6 +724,7 @@ const bankAccountsOfBankWhere = (bankId: string, filters: BankOfBankFilters): SQ
       filters.departmentId
         ? eq(bankAccounts.createdByDepartmentId, filters.departmentId)
         : undefined,
+      filters.channelId ? eq(bankAccounts.channelId, filters.channelId) : undefined,
       accountTypeFilter(filters.accountType),
     ].filter(Boolean) as SQL[]),
   )!;
