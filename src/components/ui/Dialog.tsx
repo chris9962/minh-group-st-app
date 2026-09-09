@@ -1,6 +1,7 @@
 "use client";
 
 import { ChevronDown, X } from "lucide-react";
+import { clsx } from "clsx";
 import { createContext, useCallback, useEffect, useRef, useState } from "react";
 import { useDialogLayer } from "@/store/dialogLayer";
 import styles from "./Dialog.module.css";
@@ -27,6 +28,8 @@ type Props = {
    * lẫn với nút xác nhận và bị bấm nhầm.
    */
   footerStart?: React.ReactNode;
+  /** Hộp rộng cho nội dung dạng lưới; mặc định giữ 560px cho biểu mẫu. */
+  wide?: boolean;
 };
 
 /**
@@ -36,7 +39,7 @@ type Props = {
  * phím Esc, lớp phủ và việc chặn phần nền với trình đọc màn hình. Tự dựng bằng
  * div thì phải viết lại từng thứ đó, và thiếu một cái là bàn phím kẹt.
  */
-export function Dialog({ open, title, onClose, children, footer, footerStart }: Props) {
+export function Dialog({ open, title, onClose, children, footer, footerStart, wide = false }: Props) {
   const ref = useRef<HTMLDialogElement>(null);
   const [dialogEl, setDialogEl] = useState<HTMLDialogElement | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -133,7 +136,7 @@ export function Dialog({ open, title, onClose, children, footer, footerStart }: 
       {open && (
         <DialogPortalContext.Provider value={dialogEl}>
           {/* `tabIndex={-1}` để `focus()` gọi được, nhưng Tab không dừng ở đây. */}
-          <div ref={panelRef} className={styles.panel} tabIndex={-1}>
+          <div ref={panelRef} className={clsx(styles.panel, wide && styles.wide)} tabIndex={-1}>
             <header className={styles.head}>
               <h2 className={styles.title}>{title}</h2>
               <button

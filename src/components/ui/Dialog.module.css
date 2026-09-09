@@ -25,6 +25,10 @@
   box-shadow: var(--shadow-lg);
 }
 
+.wide {
+  width: min(960px, calc(100vw - 32px));
+}
+
 /* Khung hộp thoại nhận tiêu điểm lúc mở (xem `Dialog.tsx`) nhưng không phải thứ
    bấm được, nên không vẽ viền tiêu điểm. Các nút bên trong vẫn giữ viền của
    chúng. */

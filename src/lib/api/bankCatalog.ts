@@ -338,6 +338,33 @@ export async function fetchReferralCodes(query: ReferralCodeQuery): Promise<Page
   return ReferralCodePage.parse(await res.json());
 }
 
+export const BulkStopReferralCode = z.object({
+  id: z.string(),
+  bankCode: z.string(),
+  displayName: z.string(),
+});
+export type BulkStopReferralCode = z.infer<typeof BulkStopReferralCode>;
+
+/** Danh sách rút gọn của mọi mã đang dùng, theo đúng bộ lọc trên màn kho mã. */
+export async function fetchBulkStopReferralCodes(
+  query: Pick<ReferralCodeQuery, 'bankId' | 'departmentId' | 'status' | 'search'>,
+): Promise<BulkStopReferralCode[]> {
+  const params = new URLSearchParams();
+  if (query.bankId) params.set('bankId', query.bankId);
+  if (query.departmentId) params.set('departmentId', query.departmentId);
+  if (query.status) params.set('status', query.status);
+  if (query.search) params.set('search', query.search);
+  const res = await fetch(`/api/settings/referral-codes/bulk-stop?${params}`);
+  if (!res.ok) throw new Error('Không tải được danh sách mã có thể ngừng');
+  return z.array(BulkStopReferralCode).parse(await res.json());
+}
+
+/** Ngừng nhiều mã trong một request; máy chủ vẫn kiểm quyền theo từng ngân hàng. */
+export async function stopReferralCodesBulk(ids: string[]): Promise<{ stopped: number }> {
+  const result = await send('/api/settings/referral-codes/bulk-stop', 'POST', { ids });
+  return z.object({ stopped: z.number() }).parse(result);
+}
+
 export const BankReferralCodeOption = z.object({ id: z.string(), name: z.string() });
 export type BankReferralCodeOption = z.infer<typeof BankReferralCodeOption>;
 
