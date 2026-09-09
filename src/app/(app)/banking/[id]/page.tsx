@@ -205,7 +205,7 @@ function FinishAccountCard({
     mutationFn: () => deleteBankAccount(id),
     onSuccess: () => {
       invalidateShared();
-      toast.ok("Đã xoá tài khoản đang tạo dở, mã giới thiệu dùng được thêm một tài khoản");
+      toast.ok("Đã xoá tài khoản đang tạo dở, mã giới thiệu được trả lại");
       router.push(data.customerId ? `/customers/${data.customerId}` : "/banking");
     },
     onError: (e) => toast.fail(errorMessage(e, "Không xoá được tài khoản này.")),
@@ -652,8 +652,8 @@ function DoneAccountCard({
           {/* Chỉ `done` mới nằm trong điểm; bản lỗi đã ra khỏi phép tính từ lúc
               đánh dấu, nói "tính lại KPI" ở đó là nói một thứ không xảy ra. */}
           <Alert tone="warning">
-            Tài khoản mất hẳn, không lấy lại được. Mã giới thiệu {data.referralCode} dùng
-            được thêm một tài khoản
+            Tài khoản mất hẳn, không lấy lại được. Mã giới thiệu {data.referralCode} được
+            trả lại
             {data.status === "done" ? ". Điểm KPI của người lập hồ sơ khách tính lại" : ""}.
           </Alert>
           {/* Rổ đã trao đóng băng trong `gift_grants`, lượt xoá không sửa được
