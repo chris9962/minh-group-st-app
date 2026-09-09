@@ -893,8 +893,8 @@ export async function stopReferralCodesBulk(ids: string[]): Promise<number> {
 /**
  * Chỉ TÊN mã, cho các ô lọc ở màn báo cáo và xuất Excel.
  *
- * `distinct` vì hai ngân hàng được phép trùng tên mã (khoá duy nhất là bank +
- * code) — để lọt thì ô chọn hiện hai dòng y hệt nhau.
+ * `distinct` vì hai ngân hàng hoặc hai loại tài khoản được phép trùng mã text —
+ * để lọt thì ô chọn báo cáo hiện nhiều dòng y hệt nhau.
  */
 export async function listReferralCodeOptions(): Promise<string[]> {
   const rows = await db
@@ -1175,7 +1175,10 @@ export async function updateReferralCode(
       await writeCodeDepartments(tx, id, form);
     } catch (e) {
       if (uniqueViolationOf(e) !== null)
-        return { ok: false as const, message: "Mã này đã có trong kho của ngân hàng đó" };
+        return {
+          ok: false as const,
+          message: "Tên hiển thị hoặc mã text đã tồn tại cho loại tài khoản này",
+        };
       throw e;
     }
 

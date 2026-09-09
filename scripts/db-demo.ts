@@ -465,7 +465,9 @@ async function build() {
       })
       // Mã cũ còn sót vì có tài khoản người dùng trỏ tới — dùng lại chính nó,
       // không dựng bản trùng.
-      .onConflictDoNothing({ target: [referralCodes.bankId, referralCodes.code] })
+      .onConflictDoNothing({
+        target: [referralCodes.bankId, referralCodes.accountType, referralCodes.code],
+      })
       .returning({ id: referralCodes.id });
     const codeId =
       row?.id ??
@@ -473,7 +475,13 @@ async function build() {
         await db
           .select({ id: referralCodes.id })
           .from(referralCodes)
-          .where(and(eq(referralCodes.bankId, id), eq(referralCodes.code, `${CODE_PREFIX}-${code}`)))
+          .where(
+            and(
+              eq(referralCodes.bankId, id),
+              eq(referralCodes.accountType, "none"),
+              eq(referralCodes.code, `${CODE_PREFIX}-${code}`),
+            ),
+          )
           .limit(1)
       )[0].id;
     codeIdByBank.set(code, codeId);

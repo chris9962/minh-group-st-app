@@ -419,8 +419,14 @@ export const referralCodes = pgTable(
     createdAt: createdAt(),
   },
   (t) => [
-    uniqueIndex("referral_codes_bank_code").on(t.bankId, t.code),
-    uniqueIndex("referral_codes_bank_display_name").on(t.bankId, t.displayName),
+    // Cùng tên/mã được dùng cho loại tài khoản khác: VPA · CNKD và VPA · HKD
+    // là hai suất độc lập. Chỉ cấm trùng trong đúng ngân hàng + loại tài khoản.
+    uniqueIndex("referral_codes_bank_code").on(t.bankId, t.accountType, t.code),
+    uniqueIndex("referral_codes_bank_display_name").on(
+      t.bankId,
+      t.accountType,
+      t.displayName,
+    ),
     check(
       "referral_codes_text_or_qr",
       sql`nullif(btrim(${t.code}), '') is not null or ${t.qrImage} is not null`,
