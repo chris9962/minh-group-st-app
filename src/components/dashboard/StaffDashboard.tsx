@@ -50,7 +50,7 @@ export function StaffDashboard({ person, draftAccounts, periodLabel, from, to }:
           label={`đơn bảo hiểm ${periodLabel}`}
           detail={person.counts.insuranceCancelled > 0 ? `${person.counts.insuranceCancelled} đơn huỷ` : undefined}
         />
-        <StatCard value={person.counts.services} label={`lượt dịch vụ ${periodLabel}`} />
+        <StatCard value={person.counts.services} label={`dịch vụ đã làm ${periodLabel}`} />
       </div>
 
       <div className={styles.grid}>

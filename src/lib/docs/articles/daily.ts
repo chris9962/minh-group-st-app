@@ -273,7 +273,7 @@ export const DAILY_DOCS: DocArticle[] = [
           'Mở mục **Ngân hàng**.',
           'Bấm vào dòng tài khoản đang ở trạng thái *Đang tạo*.',
           'Hộp thoại **Hoàn tất tài khoản** mở ra.',
-          'Điền **Số tài khoản** và **Ngày mở**.',
+          'Điền **Số tài khoản**. Ngày mở là ngày bạn tạo tài khoản ở bước 1, không sửa được.',
           'Khách mở tài khoản hộ kinh doanh thì bạn tích **Mở tài khoản CNKD / HKD**.',
           'Khách đã cài app ngân hàng thì bạn tích ô tương ứng.',
           'Tải đủ ảnh chứng minh.',
@@ -287,10 +287,12 @@ export const DAILY_DOCS: DocArticle[] = [
           alt: 'Màn Hoàn tất tài khoản ngân hàng',
           width: 1280,
           height: 800,
+          // TODO(P-95 Hoàn tất tài khoản, chờ chụp lại ảnh): ảnh này còn ô "Ngày
+          // mở" đã bỏ 2026-09-08, và toạ độ hai mốc dưới tính theo bố cục cũ.
+          // Gỡ mốc này sau khi chạy `scripts/docs-shots.ts` rồi chỉnh lại x/y.
           markers: [
             { n: 1, x: 40.4, y: 58.2, label: 'Số tài khoản ngân hàng vừa mở.' },
-            { n: 2, x: 78, y: 58.2, label: 'Ngày mở tài khoản.' },
-            { n: 3, x: 59.2, y: 91.6, label: 'Ảnh chứng minh — tải đủ số ảnh thì nút Hoàn thành mới bấm được.' },
+            { n: 2, x: 59.2, y: 91.6, label: 'Ảnh chứng minh — tải đủ số ảnh thì nút Hoàn thành mới bấm được.' },
           ],
         },
       },
@@ -353,7 +355,7 @@ export const DAILY_DOCS: DocArticle[] = [
           'Bấm **Tạo đơn bảo hiểm** ở góc trên bên phải.',
           'Gõ vào ô **Tìm khách hàng**, rồi bấm vào khách trong danh sách.',
           'Chọn **Gói bảo hiểm**.',
-          'Điền **Ngày tạo đơn**, **Ngày bắt đầu**, **Ngày kết thúc**, **Mức phí (đ)**.',
+          'Điền **Ngày bắt đầu**, **Ngày kết thúc**, **Mức phí (đ)**. Ngày tạo đơn là ngày bạn lập, không sửa được.',
           'Gói xe máy bắt buộc có **Biển số xe** và **Loại xe**. **Số khung**, **Số máy** điền khi có thông tin.',
           'Gói tai nạn điện thì bạn điền **Số thành viên** và **Số tiền bảo hiểm**.',
           'Ở khối **Khách hàng**, bạn bấm **Điền theo hồ sơ khách** để lấy sẵn họ tên, ngày sinh và địa chỉ.',
@@ -446,7 +448,7 @@ export const DAILY_DOCS: DocArticle[] = [
     title: 'Ghi dịch vụ',
     screen: 'P-31',
     group: 'daily',
-    summary: 'Ghi một lượt dịch vụ đã làm cho khách. Điểm KPI tính theo loại dịch vụ.',
+    summary: 'Ghi một dịch vụ đã làm cho khách. Điểm KPI tính theo loại dịch vụ.',
     keywords: [
       'ghi dịch vụ',
       'dịch vụ',
@@ -460,7 +462,7 @@ export const DAILY_DOCS: DocArticle[] = [
     blocks: [
       {
         kind: 'text',
-        body: 'Bạn ghi lại một lượt dịch vụ đã làm cho khách. Hệ thống tính điểm KPI theo hệ số của loại dịch vụ bạn chọn.',
+        body: 'Bạn ghi lại một dịch vụ đã làm cho khách. Hệ thống tính điểm KPI theo hệ số của loại dịch vụ bạn chọn.',
       },
       {
         kind: 'shot',

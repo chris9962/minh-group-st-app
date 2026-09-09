@@ -1,7 +1,7 @@
 /**
  * WORKER PVI — vòng lặp tự lấy đơn, tạo, duyệt, rồi lấy giấy chứng nhận.
  *
- *   bun run pvi:worker                       # chạy mãi, quét mỗi 10 giây
+ *   bun run pvi:worker                       # chạy mãi; hết việc mới nghỉ 10 giây rồi quét lại
  *   bun run pvi:worker -- --mot-vong         # chạy đúng một vòng rồi thoát
  *   bun run pvi:worker -- --chi-chung-nhan   # bỏ bước tạo đơn, chỉ tải file
  *   bun run pvi:worker -- --thu              # điền form rồi dừng, không bấm gì
@@ -207,8 +207,10 @@ async function createAndApprove(db: Db, order: Order) {
     // nghĩa là form bị từ chối và ĐƠN CHƯA TỒN TẠI bên PVI — thường vì một ô
     // không hợp lệ, PVI đưa focus về ô đó thay vì gửi đi.
     //
-    // Phân biệt hai ca này là bắt buộc: `pending-approval` bảo người dùng vào
-    // PVI duyệt một đơn không có thật, và đơn thì mất vì không ai tạo lại.
+    // Cả hai ca đều về `manual-queued` (chốt 2026-09-08: bot không sinh
+    // `pending-approval` nữa, vì người vận hành đằng nào cũng phải chuyển tay
+    // sang làm tay). Vẫn phải phân biệt trong LOG: ca dưới đơn ĐÃ có bên PVI,
+    // người làm tay vào duyệt chứ không tạo lại — tạo lại là PVI có hai đơn.
     // Đo 2026-08-28 với DH-2608-011: giờ hiệu lực lệch múi giờ nên PVI từ chối,
     // bot vẫn báo "đã tạo".
     const urlSauKhiBam = (result.daLuu as { url?: string })?.url ?? "";
@@ -224,33 +226,39 @@ async function createAndApprove(db: Db, order: Order) {
     }
 
     // Tới đây thì đơn ĐÃ tạo bên PVI, chỉ là bot không nhận ra dòng nào của nó.
-    // Không duyệt bừa: duyệt nhầm đơn người khác không đảo ngược được.
+    // Không duyệt bừa: duyệt nhầm đơn người khác không đảo ngược được. Không có
+    // số đơn để ghi lại, nên log là chỗ duy nhất nói đơn này đã có bên PVI.
     await db
       .update(insuranceOrders)
-      .set({ status: "pending-approval", updatedAt: new Date() })
+      .set({ status: "manual-queued", updatedAt: new Date() })
       .where(eq(insuranceOrders.id, order.id));
-    log(`${order.orderCode}: đã tạo nhưng không khớp được dòng → chờ người duyệt tay`);
+    log(`${order.orderCode}: đã tạo bên PVI nhưng không khớp được dòng → làm tay, VÀO DUYỆT chứ đừng tạo lại`);
     if (chuanDoan?.loi) log(`  ${order.orderCode}: ${chuanDoan.loi}`);
     log(`  ${order.orderCode}: bảng có ${chuanDoan?.soDongCho ?? "?"} dòng Chờ, phí đọc từ form: "${chuanDoan?.tongPhiDocDuoc ?? "?"}"`);
     for (const v of chuanDoan?.viSao ?? []) log(`  ${order.orderCode}: ${v}`);
-    return "pending-approval";
+    return "manual-queued";
   }
 
   const approved = approval?.daDuyet === true;
   await db
     .update(insuranceOrders)
     .set({
-      pviElectronicOrderNo: matched.soDonDienTu,
-      pviPrKey: matched.prKey,
-      // Duyệt không thành thì đơn vẫn đang "Chờ" bên PVI — người duyệt tay.
-      status: approved ? "awaiting-certificate" : "pending-approval",
+      // Duyệt không thành thì đơn về làm tay và KHÔNG ghi số đơn / pr_key vào
+      // đơn (chốt 2026-09-08): người làm tay có thể xử lý một đơn khác bên PVI,
+      // mà đơn trong app lại mang số của đơn bot vừa tạo — hai bên lệch nhau.
+      // Số đơn chỉ còn trong log, để tra khi cần.
+      pviElectronicOrderNo: approved ? matched.soDonDienTu : "",
+      pviPrKey: approved ? matched.prKey : "",
+      status: approved ? "awaiting-certificate" : "manual-queued",
       updatedAt: new Date(),
     })
     .where(eq(insuranceOrders.id, order.id));
 
   const why = approval?.khongDuyetVi ?? approval?.thongDiep;
-  log(`${order.orderCode}: ${matched.soDonDienTu} · ${approved ? "đã duyệt" : `chưa duyệt (${why})`}`);
-  return approved ? "awaiting-certificate" : "pending-approval";
+  log(
+    `${order.orderCode}: ${matched.soDonDienTu} · ${approved ? "đã duyệt" : `chưa duyệt (${why}) → làm tay, VÀO DUYỆT chứ đừng tạo lại`}`,
+  );
+  return approved ? "awaiting-certificate" : "manual-queued";
 }
 
 /** Tải giấy chứng nhận cho các đơn đã duyệt xong. */
@@ -330,11 +338,16 @@ const CERTIFICATES_ONLY = process.argv.includes("--chi-chung-nhan");
 /** `--thu` giữ worker ở chế độ điền-rồi-dừng. Xem chú thích đầu file. */
 const DRY_RUN = process.argv.includes("--thu");
 
-async function runOnce(db: Db) {
+/**
+ * Một vòng quét. Trả `true` khi vừa xử lý xong một đơn: hàng chờ có thể còn
+ * đơn, vòng sau chạy ngay không nghỉ. Giờ cao điểm mỗi giây nghỉ là một đơn
+ * đứng chờ thêm (chốt 2026-09-08).
+ */
+async function runOnce(db: Db): Promise<boolean> {
   if (CERTIFICATES_ONLY) {
     const only = await fetchCertificates(db);
     if (!only) log("Không có đơn nào đang đợi giấy chứng nhận.");
-    return;
+    return false;
   }
 
   // Trước khi nhận đơn mới: trả lại đơn mà worker chết giữa chừng bỏ lại.
@@ -350,14 +363,20 @@ async function runOnce(db: Db) {
         .set({ status: "queued", updatedAt: new Date() })
         .where(eq(insuranceOrders.id, order.id));
       log(`Phiên đăng nhập không dùng được: ${session.bao?.thongDiep}. Trả đơn về hàng chờ.`);
-      return;
+      return false;
     }
     await createAndApprove(db, order);
-    await dongBrowser();
   }
 
   const asked = await fetchCertificates(db);
-  if (!order && !asked) log("Không có việc.");
+  if (order) return true;
+
+  // Hết việc mới đóng Chromium. Giữa hai đơn liên tiếp thì giữ nó mở: `taoDon`
+  // tự mở và đóng context riêng cho mỗi đơn, còn mở lại Chromium mất vài giây
+  // một đơn. Đóng lúc rảnh để không giữ RAM suốt giờ vắng.
+  await dongBrowser();
+  if (!asked) log("Không có việc.");
+  return false;
 }
 
 async function main() {
@@ -392,14 +411,17 @@ async function main() {
   );
 
   do {
+    let busy = false;
     try {
-      await runOnce(db);
+      busy = await runOnce(db);
     } catch (e) {
-      // Một vòng hỏng không được làm chết worker: vòng sau thử lại.
+      // Một vòng hỏng không được làm chết worker: vòng sau thử lại — sau khi
+      // nghỉ, để một lỗi lặp không thành vòng quay không ngừng.
       log(`Lỗi trong vòng quét: ${(e as Error).message}`);
       await dongBrowser().catch(() => {});
     }
-    if (!onceOnly && !stopping) await new Promise((r) => setTimeout(r, SLEEP_SECONDS * 1000));
+    if (!onceOnly && !stopping && !busy)
+      await new Promise((r) => setTimeout(r, SLEEP_SECONDS * 1000));
   } while (!onceOnly && !stopping);
 
   await dongBrowser().catch(() => {});

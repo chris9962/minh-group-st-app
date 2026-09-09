@@ -34,7 +34,7 @@ import {
   type InsuranceManualStep,
 } from "@/lib/api/insuranceOrders";
 import { imageProblem, uploadImage } from "@/lib/api/uploads";
-import { formatDate, formatVnd } from "@/lib/format";
+import { businessDay, formatDate, formatVnd } from "@/lib/format";
 import { can, recordInScope, recordVisibility } from "@/lib/permissions";
 import { vehicleTypeLabel } from "@/lib/pvi";
 import { errorMessage, toast } from "@/lib/toast";
@@ -194,6 +194,8 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
      * `refetchIntervalInBackground` mặc định `false`.
      */
     refetchInterval: 10_000,
+    /** Cùng lý do với bảng P-13 — xem ghi chú ở `insurance/page.tsx`. */
+    staleTime: 0,
   });
 
   const invalidate = () => {
@@ -260,6 +262,18 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
   const showPviRefs = actor?.role !== "staff";
   /** Người tạo chỉ được huỷ đơn đã hoàn thành của chính mình; đơn chưa xong có đường xoá riêng. */
   const canCancelCompletedOwnOrder = data?.status === "done" && data.createdById === actor?.id;
+  /**
+   * Nút Huỷ chỉ hiện trong NGÀY LẬP ĐƠN, so `orderDate` với ngày làm việc hiện
+   * tại (chốt 2026-09-08). Chặn cả người có `set-status`: đơn của một ngày đã
+   * chốt mà huỷ sau thì số đơn huỷ trên Tổng quan của ngày ấy đổi, còn ngày
+   * huỷ thật lại nằm ở ngày khác — hai bảng không khớp nhau. Đo 2026-09-08:
+   * DH-2609-8150 lập 07/09, huỷ 08/09, Tổng quan đếm 54 mà lịch sử huỷ ghi 55.
+   *
+   * Chỉ chặn ở giao diện. Máy chủ vẫn nhận lời gọi thẳng để quản trị xử lý ca
+   * ngoại lệ, và máy chủ so `createdAt` chứ không so `orderDate` — xem
+   * `cancelInsuranceOrder` ở `server/insurance.ts`.
+   */
+  const canCancelToday = data?.orderDate === businessDay();
   /**
    * Hỏi theo ĐÚNG BẢN GHI này, khớp từng vế với `setCertificatePhoto`.
    *
@@ -862,8 +876,11 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
               )}
 
             {/* Đặt trạng thái tuỳ ý chỉ hiện với `set-status`; nút Huỷ đứng cùng
-                hàng nhưng người tạo cũng thấy nó khi đơn của mình đã hoàn thành. */}
-            {(canSetStatus || canCancelCompletedOwnOrder || (data.status === "cancelled" && canCreate)) && (
+                hàng nhưng người tạo cũng thấy nó khi đơn của mình đã hoàn thành
+                và vẫn trong ngày lập đơn. */}
+            {(canSetStatus ||
+              (canCancelCompletedOwnOrder && canCancelToday) ||
+              (data.status === "cancelled" && canCreate)) && (
               <div className={styles.override}>
                 {canSetStatus && !lockedByPvi && (
                   <div className={styles.overrideSet}>
@@ -897,7 +914,9 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                 )}
                 {/* Đẩy sang mép phải: huỷ đơn không phải một lựa chọn khác của ô
                     chọn bên trái, và nó là việc khó lùi nhất trong hàng này. */}
-                {data.status !== "cancelled" && (canSetStatus || canCancelCompletedOwnOrder) && (
+                {data.status !== "cancelled" &&
+                  canCancelToday &&
+                  (canSetStatus || canCancelCompletedOwnOrder) && (
                   <Button
                     variant="secondary"
                     className={styles.overrideCancel}

@@ -18,6 +18,10 @@ import {
 } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type {
+  CancelledInsuranceQuery,
+  CancelledInsuranceRow,
+} from "@/lib/api/exports";
+import type {
   InsuranceDetail,
   InsuranceListRow,
   InsuranceOrder,
@@ -25,6 +29,7 @@ import type {
 } from "@/lib/api/insurance";
 import {
   CERTIFICATE_MAX_ATTEMPTS,
+  INSURANCE_STATUS_LABEL,
   INTAKE_PHOTO_LABEL,
   InsuranceOrderStatus,
   insuranceOrderEditSchema,
@@ -32,7 +37,7 @@ import {
   type InsuranceOrderForm,
 } from "@/lib/api/insuranceOrders";
 import type { Page } from "@/lib/api/pagination";
-import { businessDay, businessMonth } from "@/lib/format";
+import { BUSINESS_TIMEZONE, businessDay, businessMonth } from "@/lib/format";
 import {
   can,
   recordInScope,
@@ -615,6 +620,137 @@ export async function listInsuranceOrdersForExport(
   return { rows: rows.map(toRow), total: totals?.value ?? 0 };
 }
 
+/* ── P-73 báo cáo #5 · Đơn bảo hiểm huỷ ─────────────────────────────── */
+
+const canceller = alias(users, "canceller");
+
+/**
+ * TRỌN danh sách đơn ĐANG ở trạng thái huỷ, kèm lượt huỷ mới nhất của từng đơn.
+ *
+ * Lọc theo NGÀY HUỶ, không theo ngày lập đơn (chốt 2026-09-08). Câu hỏi của
+ * người dùng là "hôm nay đội huỷ những đơn nào", mà đơn lập hôm trước huỷ hôm
+ * sau thì lọc theo ngày lập là mất nó. Khác `listInsuranceOrdersForExport` ở
+ * đúng chỗ đó.
+ *
+ * Lấy `status = 'cancelled'` chứ không lấy mọi LƯỢT huỷ trong bảng lịch sử: đơn
+ * huỷ rồi được `insurance:set-status` đưa về trạng thái khác thì không còn là
+ * đơn huỷ. Đo trên dữ liệu thật 2026-09-08: 224 lượt huỷ trong 30 ngày, 220 đơn
+ * đang ở `cancelled`.
+ *
+ * `innerJoinLateral` chạy lại cho TỪNG đơn huỷ, mỗi lượt một lần tra chỉ mục
+ * `insurance_history_order` — không phải phép gộp trên cả bảng lịch sử
+ * (AGENTS.md §5.2 cách A).
+ */
+export async function listCancelledInsuranceExport(
+  actor: User,
+  filters: CancelledInsuranceQuery,
+): Promise<{ rows: CancelledInsuranceRow[]; total: number }> {
+  // `export`, không phải `view-detail` — cùng lý do với
+  // `listInsuranceOrdersForExport`.
+  const visible = scopeOf(actor, "export");
+  if (visible.kind === "none") return { rows: [], total: 0 };
+
+  const cancel = db
+    .select({
+      at: insuranceOrderStatusHistory.changedAt,
+      note: insuranceOrderStatusHistory.note,
+      by: insuranceOrderStatusHistory.changedBy,
+      fromStatus: insuranceOrderStatusHistory.fromStatus,
+    })
+    .from(insuranceOrderStatusHistory)
+    .where(
+      and(
+        eq(insuranceOrderStatusHistory.orderId, insuranceOrders.id),
+        eq(insuranceOrderStatusHistory.toStatus, "cancelled"),
+        /**
+         * Bỏ dòng `cancelled` → `cancelled`: đó là GHI CHÚ trên một đơn đã huyỷ,
+         * không phải lượt huỷ. Đường API của PVI ghi một dòng như vậy khi PVI
+         * cấp giấy chứng nhận sau lúc huỷ; lấy nhầm nó thì cột "Lý do huỷ" ra
+         * câu của hệ thống và "Ngày giờ huỷ" ra mốc muộn hơn thật.
+         *
+         * `is distinct from` chứ không phải `<>`: `from_status` null ở dòng khởi
+         * tạo, mà `null <> 'cancelled'` ra null nên dòng đó rơi khỏi kết quả.
+         */
+        sql`${insuranceOrderStatusHistory.fromStatus} is distinct from 'cancelled'`,
+      ),
+    )
+    .orderBy(desc(insuranceOrderStatusHistory.changedAt))
+    .limit(1)
+    .as("cancel");
+
+  const product = InsuranceProduct.safeParse(filters.product);
+
+  /**
+   * Khoảng ngày so THẲNG trên cột `changed_at`, không bọc `at time zone` quanh
+   * nó — cùng lối với `server/audit.ts`. Đầu `to` lấy 0h ngày HÔM SAU và so `<`:
+   * so `<=` với một cột thời điểm thì mất trọn ngày cuối trừ giây đầu tiên.
+   *
+   * ⚠️ Phải ép `::timestamp` TRƯỚC `at time zone`. `AT TIME ZONE` chạy hai chiều
+   * ngược nhau tuỳ kiểu vế trái, và viết `date at time zone` rơi vào chiều sai —
+   * lệch 14 tiếng, lọc đúng một ngày ra 0 dòng.
+   */
+  const where = and(
+    ...([
+      eq(insuranceOrders.status, "cancelled"),
+      scopeWhere(visible),
+      product.success ? eq(insuranceOrders.product, product.data) : undefined,
+      filters.staffId ? eq(insuranceOrders.createdBy, filters.staffId) : undefined,
+      filters.departmentId
+        ? eq(insuranceOrders.createdByDepartmentId, filters.departmentId)
+        : undefined,
+      // Ngày sai định dạng thì bỏ qua, không trả 400 — cùng lối nghĩ với `uuidParam`.
+      usableDate(filters.from)
+        ? sql`${cancel.at} >= ((${filters.from}::date)::timestamp at time zone ${BUSINESS_TIMEZONE})`
+        : undefined,
+      usableDate(filters.to)
+        ? sql`${cancel.at} < ((${filters.to}::date + 1)::timestamp at time zone ${BUSINESS_TIMEZONE})`
+        : undefined,
+    ].filter(Boolean) as SQL[]),
+  );
+
+  const [rows, [totals]] = await Promise.all([
+    db
+      .select({
+        id: insuranceOrders.id,
+        orderCode: insuranceOrders.orderCode,
+        product: insuranceOrders.product,
+        packageName: insuranceOrders.packageName,
+        at: cancel.at,
+        reason: cancel.note,
+        // Cột nullable ở DB nhưng hợp đồng là chuỗi — người tạo có thể đã bị xoá.
+        createdById: sql<string>`coalesce(${insuranceOrders.createdBy}::text, '')`,
+        createdByName: sql<string>`coalesce(${creator.fullName}, '')`,
+        departmentName: sql<string>`coalesce(${creatorDepartment.name}, '')`,
+        customerName: customers.fullName,
+        fee: insuranceOrders.fee,
+        orderDate: insuranceOrders.orderDate,
+        // `null` = bot hay hệ thống tự chuyển, không phải người bấm.
+        cancelledByName: sql<string>`coalesce(${canceller.fullName}, '')`,
+        previousStatus: sql<string>`coalesce(${cancel.fromStatus}::text, '')`,
+        pviElectronicOrderNo: insuranceOrders.pviElectronicOrderNo,
+      })
+      .from(insuranceOrders)
+      .innerJoinLateral(cancel, sql`true`)
+      .innerJoin(customers, eq(customers.id, insuranceOrders.customerId))
+      .leftJoin(creator, eq(creator.id, insuranceOrders.createdBy))
+      .leftJoin(creatorDepartment, eq(creatorDepartment.id, insuranceOrders.createdByDepartmentId))
+      .leftJoin(canceller, eq(canceller.id, cancel.by))
+      .where(where)
+      .orderBy(desc(cancel.at))
+      .limit(EXPORT_LIMIT),
+    db
+      .select({ value: count() })
+      .from(insuranceOrders)
+      .innerJoinLateral(cancel, sql`true`)
+      .where(where),
+  ]);
+
+  return {
+    rows: rows.map(({ at, ...r }) => ({ ...r, cancelledAt: at.toISOString() })),
+    total: totals?.value ?? 0,
+  };
+}
+
 const rawById = async (id: string): Promise<DecoratedRow | null> =>
   (await decorate(pickPage(eq(insuranceOrders.id, id), [], 1, 0)))[0] ?? null;
 
@@ -807,8 +943,6 @@ export async function createInsuranceOrders(
       return { ok: false, message: "Ngày kết thúc phải sau ngày bắt đầu" };
     // PVI từ chối ngày bắt đầu đã qua: `-505` xe máy, `-401` tai nạn điện.
     if (leg.startDate < today) return { ok: false, message: "Ngày bắt đầu không được ở quá khứ" };
-    // Sổ ghi việc ĐÃ LÀM: một đơn của tuần sau thì chưa bán cho ai.
-    if (leg.orderDate > today) return { ok: false, message: "Ngày tạo đơn không được ở tương lai" };
     // Mỗi đơn một ảnh (CCCD hay cà vẹt xe theo sản phẩm), bắt buộc (chốt
     // 2026-09-07). Giao diện đã khoá nút; đây là chốt thật. `imageKeyOf` cũng
     // chặn luôn chuỗi ngoài kho.
@@ -880,7 +1014,14 @@ export async function createInsuranceOrders(
           packageId: packageIds.get(leg.packageName) ?? null,
           packageName: leg.packageName,
           fee: leg.fee,
-          orderDate: leg.orderDate,
+          /**
+           * NGÀY TẠO ĐƠN do máy chủ quyết, KHÔNG đọc `leg.orderDate` (chốt
+           * 2026-09-08). Sổ chốt theo ngày, không nhập bù. Giao diện đã bỏ ô
+           * nhập; bỏ qua ở đây để lời gọi nặn tay cũng không đặt được ngày khác,
+           * kể cả ngày tương lai. Trường vẫn nằm trong biểu mẫu để hợp đồng
+           * không vỡ với bản giao diện cũ đang mở trên máy nhân viên.
+           */
+          orderDate: today,
           startDate: leg.startDate,
           endDate: leg.endDate,
           status: newStatus,
@@ -988,8 +1129,6 @@ export async function updateInsuranceOrder(
   // ngày bắt đầu cũ vẫn giữ được.
   if (form.startDate !== current.startDate && form.startDate < today)
     return { ok: false, message: "Ngày bắt đầu không được ở quá khứ" };
-  if (form.orderDate > today)
-    return { ok: false, message: "Ngày tạo đơn không được ở tương lai" };
 
   /**
    * Lượt sửa cho phép KHÔNG có ảnh hồ sơ: đơn lập trước migration 0073 không có
@@ -1003,8 +1142,8 @@ export async function updateInsuranceOrder(
   await db
     .update(insuranceOrders)
     .set({
-      // Đổi ngày tạo đơn là đổi tháng mà đơn này được tính vào.
-      orderDate: form.orderDate,
+      // KHÔNG đụng `orderDate`: ngày tạo đơn chốt lúc lập và lượt sửa không đổi
+      // được (chốt 2026-09-08) — xem `createInsuranceOrders`.
       intakePhotoUrl: intakePhotoKey,
       fee: form.fee,
       startDate: form.startDate,
@@ -1284,6 +1423,58 @@ export async function overrideInsuranceOrderStatus(
 }
 
 /**
+ * Rút đơn khỏi hàng chờ của bot: `queued` → `manual-queued` (chốt 2026-09-09).
+ *
+ * Chỉ GIÁM ĐỐC, và đây là ngoại lệ thứ hai của luật "chức vụ không phải nguồn
+ * quyền" (AGENTS.md §6.1). Lý do: quyền `insurance:set-status` cấp theo từng
+ * người ở `user_permissions` và admin nới cho ai cũng được, còn đường này đổi
+ * đơn đang giao cho bot sang việc tay nên phải buộc vào một người cố định. Ai
+ * cầm `set-status` vẫn đặt trạng thái tuỳ ý ở P-14 như cũ, không đi qua đây.
+ *
+ * Đọc `actor.role` ở HÀM chứ không chỉ ở route: route là một đường gọi, hàm
+ * này là chỗ luật sống.
+ *
+ * Chỉ nhận đúng `queued`. Đơn đã sang `creating` là bot đang nói chuyện với
+ * PVI, kéo về làm tay lúc đó thì hai bên cùng tạo một đơn trên hệ thống PVI.
+ */
+export async function sendInsuranceOrderToManual(
+  actor: User,
+  id: string,
+): Promise<InsuranceOutcome<InsuranceDetail> | null> {
+  if (actor.role !== "director") return null;
+
+  const current = await rawById(id);
+  if (!current) return null;
+
+  if (current.status !== "queued")
+    return {
+      ok: false,
+      message: `Chỉ đơn ${INSURANCE_STATUS_LABEL.queued} mới chuyển sang làm tay được.`,
+    };
+
+  const updated = await db
+    .update(insuranceOrders)
+    .set({ status: "manual-queued", updatedAt: new Date() })
+    // Kẹp theo `queued`: bot nhặt đơn giữa lượt đọc và lượt ghi thì lượt ghi
+    // này không đổi dòng nào, và người bấm được báo thay vì kéo mất đơn bot
+    // đang chạy.
+    .where(and(eq(insuranceOrders.id, id), eq(insuranceOrders.status, "queued")))
+    .returning({ id: insuranceOrders.id });
+
+  if (updated.length === 0)
+    return { ok: false, message: "Bot vừa nhận đơn này. Tải lại trang rồi xem lại." };
+
+  await db.insert(insuranceOrderStatusHistory).values({
+    orderId: id,
+    fromStatus: "queued",
+    toStatus: "manual-queued",
+    changedBy: actor.id,
+  });
+
+  return { ok: true, value: (await insuranceOrderDetail(actor, id))! };
+}
+
+/**
  * Huỷ đơn — đơn sang `cancelled` và Ở LẠI trong kho, kèm lý do trên dòng lịch sử.
  *
  * Khác `deleteInsuranceOrder`: đường kia xoá hẳn dòng đơn lẫn dòng thời gian
@@ -1466,8 +1657,6 @@ export async function recreateInsuranceOrder(
   // về Chờ làm tay với mã `-401` mà không ai hiểu vì sao (ca thật 2026-09-06).
   if (form.startDate < today)
     return { ok: false, message: "Ngày bắt đầu không được ở quá khứ" };
-  if (form.orderDate > today)
-    return { ok: false, message: "Ngày tạo đơn không được ở tương lai" };
 
   // Đơn mới thì bắt buộc có ảnh hồ sơ như lượt tạo. Giao diện điền sẵn ảnh của
   // đơn cũ, người bấm giữ hay đổi tuỳ ý — nhưng không được để trống.
@@ -1506,7 +1695,9 @@ export async function recreateInsuranceOrder(
         packageId: origin.packageId,
         packageName: current.packageName,
         fee: form.fee,
-        orderDate: form.orderDate,
+        // Đơn thay thế là đơn MỚI, nên mang ngày bấm cấp lại (chốt 2026-09-03),
+        // và máy chủ tự đặt như lượt tạo (chốt 2026-09-08).
+        orderDate: businessDay(),
         startDate: form.startDate,
         endDate: form.endDate,
         status: newStatus,

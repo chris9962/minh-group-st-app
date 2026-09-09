@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { DateRangePicker } from "@/components/ui/DateRangePicker";
 import { MonthPicker, thisMonth } from "@/components/ui/MonthPicker";
-import { fetchOrderStats, type OrderStatsGroupBy } from "@/lib/api/exports";
+import { fetchCancelledInsuranceExport, fetchOrderStats, type OrderStatsGroupBy } from "@/lib/api/exports";
 import { exportOrderStats, type OrderStatsMeasures, type OrderStatsSheet } from "@/lib/excelOrderStats";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { SectionTabs } from "@/components/ui/SectionTabs";
@@ -31,14 +31,46 @@ import { fetchServiceTypes } from "@/lib/api/settings";
 import { fetchStaffOptions, type StaffOption } from "@/lib/api/staff";
 import { fetchProvinces } from "@/lib/api/wardCatalog";
 import { exportExcel, type ExcelColumn } from "@/lib/excel";
+import { BUSINESS_TIMEZONE, formatDate } from "@/lib/format";
 import { can, scopeFor } from "@/lib/permissions";
-import { DEPARTMENT_TYPE_LABEL, DepartmentType, type ModuleKey, type Scope } from "@/lib/types";
+import {
+  INSURANCE_STATUS_LABEL,
+  type InsuranceOrderStatus,
+} from "@/lib/api/insuranceOrders";
+import {
+  DEPARTMENT_TYPE_LABEL,
+  DepartmentType,
+  InsuranceProduct as InsuranceProductEnum,
+  PRODUCT_LABEL,
+  type InsuranceProduct,
+  type ModuleKey,
+  type Scope,
+} from "@/lib/types";
 import { useSession } from "@/store/session";
 import styles from "./page.module.scss";
 
 const iso = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
 
-type ReportId = "accounts-by-customer" | "staff-points" | "services-by-ward" | "order-stats";
+/** Mốc ISO → `08/09/2026 15:55` giờ Việt Nam — cột "Ngày giờ huỷ" của báo cáo #5. */
+const formatDateTime = (value: string): string =>
+  new Intl.DateTimeFormat("vi-VN", {
+    timeZone: BUSINESS_TIMEZONE,
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  })
+    .format(new Date(value))
+    .replace(",", "");
+
+type ReportId =
+  | "accounts-by-customer"
+  | "staff-points"
+  | "services-by-ward"
+  | "order-stats"
+  | "cancelled-insurance";
 
 /**
  * Ba báo cáo, chốt 2026-08-22.
@@ -57,6 +89,9 @@ const REPORTS: { id: ReportId; label: string; module: ModuleKey }[] = [
   { id: "staff-points", label: "Nhân viên + điểm", module: "staff" },
   { id: "services-by-ward", label: "Dịch vụ đã làm, có cột xã", module: "services" },
   { id: "order-stats", label: "Số liệu cấp đơn bảo hiểm", module: "insurance" },
+  // Thêm 2026-09-08: đối soát đơn huỷ. Báo cáo #4 chỉ đếm gộp đơn huỷ theo ngày
+  // và theo phòng, không nói đơn nào và vì sao huỷ.
+  { id: "cancelled-insurance", label: "Đơn bảo hiểm huỷ", module: "insurance" },
 ];
 
 /**
@@ -94,6 +129,9 @@ type CatalogColumn = {
   total?: (rows: any[]) => string | number;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   value: (row: any, index: number) => string | number;
+  /** Địa chỉ mở khi bấm vào ô — xem `ExcelColumn.link`. Bỏ trống = ô chữ thường. */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  link?: (row: any) => string;
 };
 
 /**
@@ -230,6 +268,35 @@ function catalogFor(report: ReportId, banks: Bank[], staffById: Map<string, Staf
         { key: "note", header: "Ghi chú", defaultOn: true, sample: ["—", "Đã hoàn tất hồ sơ"], value: (r) => r.note || "—" },
       ];
 
+    /**
+     * Tám cột đầu tick sẵn — đúng bộ chủ dự án chốt 2026-09-08. Bảy cột sau để
+     * tắt: chúng trả lời câu hỏi phụ (đối soát tiền, tra đơn bên PVI) nên bật
+     * sẵn là file rối ngay từ đầu.
+     */
+    case "cancelled-insurance":
+      return [
+        { key: "cancelledAt", header: "Ngày giờ huỷ", width: 17, defaultOn: true, sample: ["08/09/2026 08:12", "08/09/2026 15:55"], value: (r) => formatDateTime(r.cancelledAt) },
+        { key: "orderCode", header: "Mã đơn", type: "text", width: 15, defaultOn: true, sample: ["DH-2609-6945", "DH-2609-8150"], value: (r) => r.orderCode },
+        { key: "product", header: "Loại bảo hiểm", width: 16, defaultOn: true, sample: ["BH xe máy", "BH tai nạn điện"], value: (r) => PRODUCT_LABEL[r.product as InsuranceProduct] },
+        { key: "reason", header: "Lý do huỷ", width: 34, defaultOn: true, sample: ["Sai thông tin", "Khách đổi ý"], value: (r) => r.reason || "—" },
+        { key: "createdByName", header: "Nhân viên", width: 26, defaultOn: true, sample: ["Phan Thị Thanh Trang", "Lý Hoàng Nam"], value: (r) => r.createdByName || "—" },
+        { key: "createdByCode", header: "Mã nhân viên", type: "text", width: 14, defaultOn: true, sample: ["163TRANGPTT", "MG-0007"], value: (r) => staffCodeOf(r.createdById || null) },
+        { key: "departmentName", header: "Phòng", width: 22, defaultOn: true, sample: ["Phòng Kinh doanh 3", "Phòng Kinh doanh 7"], value: (r) => r.departmentName || "—" },
+        /**
+         * Ô BẤM ĐƯỢC, không phải cột chữ dài: người đối soát mở thẳng đơn từ
+         * file. Địa chỉ dựng lúc xuất chứ không lúc render — `window` chưa có ở
+         * lượt dựng trang trên máy chủ.
+         */
+        { key: "orderUrl", header: "Link đơn", width: 14, defaultOn: true, sample: ["Mở đơn", "Mở đơn"], value: () => "Mở đơn", link: (r) => `${window.location.origin}/insurance/${r.id}` },
+        { key: "packageName", header: "Gói", width: 22, defaultOn: false, sample: ["1 năm BH xe máy", "BH tai nạn điện 100k"], value: (r) => r.packageName },
+        { key: "fee", header: "Phí (đ)", type: "number", width: 11, defaultOn: false, sample: ["76000", "100000"], value: (r) => r.fee, total: (rows) => rows.reduce((t, r) => t + r.fee, 0) },
+        { key: "orderDate", header: "Ngày cấp đơn", width: 14, defaultOn: false, sample: ["08/09/2026", "07/09/2026"], value: (r) => formatDate(r.orderDate) },
+        { key: "customerName", header: "Khách hàng", transform: "name", width: 26, defaultOn: false, sample: ["NGUYEN VAN MEN", "VO VAN CHIEN"], value: (r) => r.customerName },
+        { key: "cancelledByName", header: "Người huỷ", width: 26, defaultOn: false, sample: ["Phan Thị Thanh Trang", "Trần Thị Hồng Thẩm"], value: (r) => r.cancelledByName || "—" },
+        { key: "previousStatus", header: "Trạng thái trước khi huỷ", width: 22, defaultOn: false, sample: ["Hoàn thành", "Chờ làm tay"], value: (r) => INSURANCE_STATUS_LABEL[r.previousStatus as InsuranceOrderStatus] ?? "—" },
+        { key: "pviElectronicOrderNo", header: "Số đơn PVI", type: "text", width: 22, defaultOn: false, sample: ["26/21/14/MOTO/0107042", "—"], value: (r) => r.pviElectronicOrderNo || "—" },
+      ];
+
     // Báo cáo hình dạng cố định — không có bảng chọn cột, xem `FIXED_SHAPE`.
     case "order-stats":
       return [];
@@ -278,6 +345,7 @@ function buildColumns(catalog: CatalogColumn[], order: string[]): ExcelColumn<an
       width: c.width,
       total: c.total,
       value: c.value,
+      link: c.link,
     }));
 }
 
@@ -320,6 +388,9 @@ export default function ExportsPage() {
   const [departmentType, setDepartmentType] = useState<DepartmentType | "">("");
   const [ward, setWard] = useState("");
   const [serviceTypeId, setServiceTypeId] = useState("");
+  /** Báo cáo #5: lọc theo NGƯỜI LẬP đơn, không phải người bấm huỷ. */
+  const [cancelStaffId, setCancelStaffId] = useState("");
+  const [cancelProduct, setCancelProduct] = useState<InsuranceProduct | "">("");
 
   const { data: banks = [] } = useQuery({ queryKey: ["banks"], queryFn: fetchBanks });
   const { data: codes = [] } = useQuery({
@@ -539,7 +610,7 @@ export default function ExportsPage() {
       // ở trên: file thiếu dòng trông y hệt file đủ.
       if (rows.length < total) {
         throw new Error(
-          `Khoảng ngày này có ${total.toLocaleString("vi-VN")} lượt dịch vụ, vượt trần ${rows.length.toLocaleString("vi-VN")} dòng một lần xuất. Thu hẹp khoảng ngày rồi xuất làm nhiều đợt.`,
+          `Khoảng ngày này có ${total.toLocaleString("vi-VN")} dịch vụ đã làm, vượt trần ${rows.length.toLocaleString("vi-VN")} dòng một lần xuất. Thu hẹp khoảng ngày rồi xuất làm nhiều đợt.`,
         );
       }
       await exportExcel({
@@ -547,6 +618,29 @@ export default function ExportsPage() {
         sheetName: "Dịch vụ",
         rows,
         columns: buildColumns(catalogFor("services-by-ward", banks, staffById), exportOrder),
+      });
+      return rows.length;
+    },
+
+    async "cancelled-insurance"() {
+      const { rows, total } = await fetchCancelledInsuranceExport({
+        from,
+        to,
+        staffId: cancelStaffId,
+        departmentId,
+        product: cancelProduct,
+      });
+      capCheck(rows.length, total, "đơn huỷ");
+
+      if (rows.length === 0) throw new Error("Khoảng ngày này không có đơn nào bị huỷ.");
+
+      await exportExcel({
+        // Tên file mang khoảng NGÀY HUỶ đang lọc, không mang ngày bấm xuất: hai
+        // lượt xuất cùng ngày cho hai khoảng khác nhau phải ra hai tên khác nhau.
+        fileName: `don-bao-hiem-huy-${from || "tat-ca"}-den-${to || "tat-ca"}.xlsx`,
+        sheetName: "Đơn huỷ",
+        rows,
+        columns: buildColumns(catalogFor("cancelled-insurance", banks, staffById), exportOrder),
       });
       return rows.length;
     },
@@ -815,8 +909,50 @@ export default function ExportsPage() {
                 </>
               )}
 
+              {active === "cancelled-insurance" && (
+                <>
+                  <Select
+                    block
+                    label="Loại bảo hiểm"
+                    value={cancelProduct}
+                    onChange={(v) => setCancelProduct(v as InsuranceProduct | "")}
+                    options={[
+                      { value: "", label: "Tất cả loại" },
+                      ...InsuranceProductEnum.options.map((p) => ({ value: p, label: PRODUCT_LABEL[p] })),
+                    ]}
+                  />
+                  <Select
+                    block
+                    label="Phòng"
+                    value={departmentId}
+                    onChange={setDepartmentId}
+                    options={[{ value: "", label: "Tất cả phòng" }, ...departments.map((d) => ({ value: d.id, label: d.name }))]}
+                  />
+                  <Combobox
+                    block
+                    // Người LẬP đơn, không phải người bấm huỷ: câu hỏi thường gặp
+                    // là "đội nào huỷ nhiều", mà quản trị huỷ giúp thì người bấm
+                    // không nói lên đơn thuộc về ai.
+                    label="Nhân viên lập đơn"
+                    placeholder="Gõ để tìm nhân viên…"
+                    value={cancelStaffId}
+                    onChange={setCancelStaffId}
+                    options={[
+                      { value: "", label: "Tất cả nhân viên" },
+                      ...staffOptions.map((s) => ({ value: s.id, label: s.fullName })),
+                    ]}
+                  />
+                </>
+              )}
+
               {active !== "staff-points" && active !== "order-stats" && (
-                <DateRangePicker label="Khoảng ngày" value={range} onChange={setRange} />
+                <DateRangePicker
+                  // Báo cáo #5 lọc theo NGÀY HUỶ, các báo cáo khác theo ngày
+                  // nghiệp vụ của chúng — nói rõ để người dùng không tra nhầm.
+                  label={active === "cancelled-insurance" ? "Khoảng ngày huỷ" : "Khoảng ngày"}
+                  value={range}
+                  onChange={setRange}
+                />
               )}
             </div>
 

@@ -229,20 +229,9 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId, mode = "edit"
             />
           )}
 
-          {/* Ngày TẠO đơn — đổi nó là đổi tháng mà đơn này được tính. Khác hẳn
-              ngày hiệu lực bên dưới. */}
-          <DateField
-            label="Ngày tạo đơn"
-            required
-            max={businessDay()}
-            hint="Nhập bù cho hôm trước thì sửa lại ngày này"
-            error={errors.orderDate?.message}
-            value={form.watch("orderDate")}
-            onChange={(v) =>
-              form.setValue("orderDate", v, { shouldDirty: true, shouldValidate: true })
-            }
-          />
-
+          {/* Không có ô Ngày tạo đơn (chốt 2026-09-08): sổ chốt theo ngày, không
+              nhập bù, nên ngày đó không sửa tay. `orderDate` vẫn gửi nguyên giá
+              trị cũ; cấp lại thì là ngày bấm. */}
           <div className={styles.pair}>
             <DateField
               label="Ngày bắt đầu"

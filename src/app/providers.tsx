@@ -54,7 +54,17 @@ export function Providers({ children }: { children: React.ReactNode }) {
     () =>
       new QueryClient({
         defaultOptions: {
-          queries: { staleTime: 30_000, retry: 1, refetchOnWindowFocus: false },
+          /**
+           * Gọi lại khi cửa sổ nhận lại focus (chốt 2026-09-09). Đội KD dùng
+           * điện thoại: họ ra màn hình chính rồi quay lại, trang khôi phục từ
+           * bfcache nên React không chạy lại và nhịp `refetchInterval` đã dừng
+           * lúc tab ẩn. Tắt cờ này thì màn hiện số cũ tới khi họ đóng hẳn trang.
+           *
+           * `staleTime` 30 giây vẫn chặn lượt gọi thừa: quay lại trong 30 giây
+           * thì dữ liệu chưa cũ nên không gọi. Màn nào cần đứng im hẳn thì ghi
+           * đè tại chỗ, như ô tra khách ở P-40.
+           */
+          queries: { staleTime: 30_000, retry: 1, refetchOnWindowFocus: true },
         },
       }),
   );

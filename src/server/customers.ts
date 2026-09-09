@@ -1275,7 +1275,7 @@ export async function updateCustomer(
 const BLOCKING_TABLES = [
   { table: bankAccounts, label: "tài khoản ngân hàng" },
   { table: insuranceOrders, label: "đơn bảo hiểm" },
-  { table: services, label: "lượt dịch vụ" },
+  { table: services, label: "dịch vụ đã làm" },
   { table: giftGrants, label: "đợt phát quà" },
 ] as const;
 

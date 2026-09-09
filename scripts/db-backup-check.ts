@@ -8,12 +8,13 @@
  * thì không có lượt chạy nào để mà hỏng, và mọi thứ trông vẫn ổn cho tới ngày
  * cần khôi phục. Câu hỏi "bản mới nhất bao nhiêu tuổi" phải đến từ bên ngoài.
  *
- * Ngưỡng mặc định 20 giờ: hai lượt sao lưu cách nhau 12:00 → 18:00 → 12:00, tức
- * khoảng cách dài nhất là 18 giờ. Thêm 2 giờ dư cho lượt chạy trễ.
+ * Ngưỡng mặc định 10 giờ (chốt 2026-09-08): sao lưu chạy 06:00 đến 21:00, nên
+ * khoảng trống dài nhất là 21:00 → 06:00 hôm sau, tức 9 giờ. Thêm 1 giờ dư.
+ * Ngưỡng thấp hơn thì lượt chạy tay lúc rạng sáng báo hỏng dù không có gì hỏng.
  */
 import { ListObjectsV2Command, S3Client } from "@aws-sdk/client-s3";
 
-const MAX_AGE_HOURS = Number(process.env.BACKUP_MAX_AGE_HOURS ?? 20);
+const MAX_AGE_HOURS = Number(process.env.BACKUP_MAX_AGE_HOURS ?? 10);
 
 function fail(message: string): never {
   console.error(`[backup-check] HỎNG — ${message}`);

@@ -144,6 +144,11 @@ function FinishAccountCard({
         (data.accountNumberMethod === "phone-match"
           ? (data.customerPhones[0] ?? "")
           : data.accountNumberPrefix),
+      /**
+       * Gửi lại ĐÚNG ngày máy chủ ghi ở bước 1, không đặt ngày mới (chốt
+       * 2026-09-08). Ngày mở là ngày giữ chỗ mã giới thiệu; bước 2 chỉ điền nốt
+       * số tài khoản và ảnh. Ô nhập ngày đã bỏ nên không ai sửa tay được nữa.
+       */
       openedDate: data.date || businessDay(),
       // Từng ngân hàng tự chọn tick sẵn hay không (P-60) — vài ngân hàng khách
       // hiếm khi cài app, để tick sẵn là nhân viên phải bỏ tick từng lượt.

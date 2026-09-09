@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
+import { recountReferralCodes } from "../src/server/catalog";
 import { recountGiftCases } from "../src/server/gift";
 
 /**
@@ -65,42 +66,16 @@ async function main() {
       and (c.account_count <> coalesce(a.n, 0) or c.insurance_count <> coalesce(i.n, 0))
   `);
 
-  // `imported_used` KHÔNG đụng tới: nó là số nhập tay ở P-62, không có dòng
-  // `bank_accounts` nào để đếm lại. Gộp nó vào `used_count` là xoá sạch phần đó.
-  const codeDrift = await db.execute(sql`
-    select r.id, r.code,
-           r.used_count as stored_used, coalesce(a.done, 0) as real_used,
-           r.holding_count as stored_holding, coalesce(a.creating, 0) as real_holding
-    from referral_codes r
-    left join (
-      select referral_code_id,
-             count(*) filter (where status = 'done')::int as done,
-             count(*) filter (where status = 'creating')::int as creating
-      from bank_accounts group by referral_code_id
-    ) a on a.referral_code_id = r.id
-    where r.used_count <> coalesce(a.done, 0) or r.holding_count <> coalesce(a.creating, 0)
-  `);
+  // Công thức nằm ở `recountReferralCodes` để dùng chung với `db:recount-codes`.
+  // Hai bản chép tay thì sớm muộn một bản quên theo trigger.
+  const codeDrift = await recountReferralCodes();
 
-  if (codeDrift.rows.length === 0) {
+  if (codeDrift.length === 0) {
     console.log("Không có mã giới thiệu nào lệch.");
   } else {
-    console.log(`${codeDrift.rows.length} mã giới thiệu lệch:`);
-    for (const r of codeDrift.rows) console.log(" ", JSON.stringify(r));
+    console.log(`${codeDrift.length} mã giới thiệu lệch:`);
+    for (const r of codeDrift) console.log(" ", JSON.stringify(r));
   }
-
-  await db.execute(sql`
-    update referral_codes r
-    set used_count = coalesce(a.done, 0), holding_count = coalesce(a.creating, 0)
-    from (select id from referral_codes) x
-    left join (
-      select referral_code_id,
-             count(*) filter (where status = 'done')::int as done,
-             count(*) filter (where status = 'creating')::int as creating
-      from bank_accounts group by referral_code_id
-    ) a on a.referral_code_id = x.id
-    where r.id = x.id
-      and (r.used_count <> coalesce(a.done, 0) or r.holding_count <> coalesce(a.creating, 0))
-  `);
 
   const giftDrift = await recountGiftCases();
   if (giftDrift.length === 0) {

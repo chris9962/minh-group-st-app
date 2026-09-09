@@ -4,7 +4,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { Pencil, Plus, ShieldCheck, Trash2, UserCheck } from "lucide-react";
+import { BotOff, Pencil, Plus, ShieldCheck, Trash2, UserCheck } from "lucide-react";
 import type { DateRange } from "react-day-picker";
 import { SkeletonTable } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
@@ -29,6 +29,7 @@ import { InsuranceOrderEditDialog } from "@/components/insurance/InsuranceOrderE
 import {
   deleteInsuranceOrder,
   fetchInsuranceOrders,
+  sendInsuranceOrderToManual,
   setInsuranceOrderStatus,
   type InsuranceListRow,
 } from "@/lib/api/insurance";
@@ -112,6 +113,7 @@ export default function InsurancePage() {
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<InsuranceListRow | null>(null);
   const [removing, setRemoving] = useState<InsuranceListRow | null>(null);
+  const [handingOver, setHandingOver] = useState<InsuranceListRow | null>(null);
 
   /**
    * Ô lọc "Nhân viên" đọc TRỌN danh sách, không gom từ các dòng đang hiện.
@@ -211,6 +213,12 @@ export default function InsurancePage() {
      * Tab ẩn thì dừng: `refetchIntervalInBackground` mặc định `false`.
      */
     refetchInterval: 10_000,
+    /**
+     * Bỏ `staleTime` 30 giây của `providers.tsx`: bảng này phải đúng từng lượt
+     * mở. Bot đổi trạng thái đơn liên tục, và người xem quay lại trang trong 30
+     * giây thì bản cũ vẫn hiện ra dù máy chủ đã có số khác.
+     */
+    staleTime: 0,
   });
 
   const queryClient = useQueryClient();
@@ -232,6 +240,24 @@ export default function InsurancePage() {
       toast.ok(`Bạn đang xử lý đơn ${order.orderCode}`);
     },
     onError: (e) => toast.fail(errorMessage(e, "Không nhận được đơn này.")),
+  });
+
+  /**
+   * Rút đơn khỏi hàng chờ của bot, đưa về hàng chờ làm tay.
+   *
+   * Bot chạy thử theo tỉ lệ nên có lúc nó ôm đơn gấp mà đội KD cần làm ngay.
+   * Máy chủ chỉ nhận đơn còn ở `Chờ tạo` và chỉ nhận Giám đốc — nút này ẩn với
+   * người khác, nhưng ẩn nút không phải phân quyền.
+   */
+  const handOver = useMutation({
+    mutationFn: (row: InsuranceListRow) => sendInsuranceOrderToManual(row.id),
+    onSuccess: (order) => {
+      queryClient.invalidateQueries({ queryKey: ["insurance-list"] });
+      queryClient.invalidateQueries({ queryKey: ["insurance-detail", order.id] });
+      setHandingOver(null);
+      toast.ok(`Đơn ${order.orderCode} đã sang hàng chờ làm tay`);
+    },
+    onError: (e) => toast.fail(errorMessage(e, "Không chuyển được đơn này sang làm tay.")),
   });
 
   const remove = useMutation({
@@ -264,6 +290,11 @@ export default function InsurancePage() {
   const canEdit = can(user, "insurance", "update");
   const canRemove = can(user, "insurance", "delete");
   const canHandleFallback = can(user, "insurance", "handle-fallback");
+  /**
+   * Rút đơn khỏi bot buộc vào CHỨC VỤ, không vào quyền — ngoại lệ thứ hai của
+   * AGENTS.md §6.1, cùng lý do ghi ở `sendInsuranceOrderToManual`.
+   */
+  const isDirector = user?.role === "director";
   /**
    * Cột "Người xử lý" chỉ hiện với cấp quản lý. Nhân viên nhìn đơn của người
    * khác để tra cứu, không để theo dõi ai đang cầm đơn nào. Ranh giới lấy theo
@@ -391,6 +422,9 @@ export default function InsurancePage() {
                   /* Hàng chờ là KHO CHUNG — ai có `handle-fallback` cũng nhặt
                      được, bất kể phòng. Không kẹp phạm vi, đúng như máy chủ. */
                   claim: canHandleFallback && r.status === "manual-queued",
+                  /* Chỉ `queued`. Đơn đã sang `creating` là bot đang nói chuyện
+                     với PVI, kéo về lúc đó thì hai bên cùng tạo một đơn. */
+                  handOver: isDirector && r.status === "queued",
                 };
                 // `cancelled` đứng chung với `done`: cả hai là trạng thái
                 // CUỐI, đơn không còn việc gì để làm trên bảng này.
@@ -403,12 +437,24 @@ export default function InsurancePage() {
                   r.status === "done" ||
                   r.status === "cancelled" ||
                   lockedByPvi ||
-                  (!mine.edit && !mine.remove && !mine.claim)
+                  (!mine.edit && !mine.remove && !mine.claim && !mine.handOver)
                 )
                   return <span className="text-muted">—</span>;
 
                 return (
                   <RowActions>
+                    {mine.handOver && (
+                      <Button
+                        variant="secondary"
+                        icon
+                        tooltip="Chuyển sang làm tay"
+                        aria-label={`Chuyển đơn ${r.orderCode} của ${r.customerName} sang làm tay`}
+                        disabled={handOver.isPending}
+                        onClick={() => setHandingOver(r)}
+                      >
+                        <BotOff size={16} aria-hidden />
+                      </Button>
+                    )}
                     {mine.claim && (
                       <Button
                         variant="secondary"
@@ -690,6 +736,21 @@ export default function InsurancePage() {
         )}
 
         {creating && <CreateInsuranceOrderDialog open onClose={() => setCreating(false)} />}
+        {handingOver && (
+          <ConfirmDialog
+            open
+            title="Chuyển đơn này sang làm tay?"
+            consequence="Bot thôi không tạo đơn này nữa. Đơn về hàng chờ làm tay để đội KD nhận và gõ tay trên web PVI."
+            confirmLabel="Chuyển sang làm tay"
+            pending={handOver.isPending}
+            onConfirm={() => handOver.mutate(handingOver)}
+            onClose={() => setHandingOver(null)}
+          >
+            <strong>{handingOver.orderCode}</strong> · {PRODUCT_LABEL[handingOver.product]} ·{" "}
+            {handingOver.packageName}, của {handingOver.customerName}, bán ngày{" "}
+            {formatDate(handingOver.orderDate)}.
+          </ConfirmDialog>
+        )}
       </main>
     </>
   );

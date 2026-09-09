@@ -12,9 +12,10 @@ const URL_FORM = `${BASE_URL}/TNDSMotor/Motor`;
 const SELECTOR_FORM = '#BienKiemSoat';
 
 const FIXED = {
-  // Chốt 2026-08-23. Cán bộ khai thác KHÁC flow tai nạn điện: đơn xe máy do
-  // TRẦN KIỀU PHƯƠNG đứng tên, đơn điện do ĐẶNG THỊ Ý NHẠT.
-  canBoKhaiThac: '21.CN062367',
+  // Chốt 2026-09-08: một cán bộ khai thác cho CẢ HAI sản phẩm, NGÔ THỊ NGỌC
+  // DUYÊN. Trước đó đơn xe máy đứng tên TRẦN KIỀU PHƯƠNG (`21.CN062367`), đơn
+  // điện đứng tên ĐẶNG THỊ Ý NHẠT (`21.CN062364`).
+  canBoKhaiThac: '21.CN062362',
   nhomKenh: '012',
   kenhBanHang: '907',
   phuongThucKhaiThac: '1',
@@ -183,7 +184,9 @@ async function dien({ v, dryRun }) {
   set('Địa chỉ', 'AddressCustomer', v.diaChi);
   // Payload không truyền thì để trống, không ghi đè bằng chuỗi rỗng cho có.
   if (v.soDienThoai) set('Số điện thoại', 'DienThoai', v.soDienThoai);
-  // Ô Email giữ nguyên giá trị trang điền sẵn (chốt 2026-08-23) — script không đụng.
+  // Ô Email giữ nguyên giá trị trang điền sẵn (chốt 2026-08-23) — script không
+  // đụng. Giữ chốt đó khi đổi cán bộ khai thác 2026-09-08: PVI điền sẵn theo
+  // tài khoản đăng nhập, nên nó tự ra đúng hòm thư của người khai thác.
 
   // Kenh rỗng lúc nạp trang, option đến từ POST /TNDSMotor/GetKenhKT.
   pick('Nhóm kênh bán hàng', 'NhomKenh', v.nhomKenh);

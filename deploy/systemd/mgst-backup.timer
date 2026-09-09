@@ -1,10 +1,10 @@
 [Unit]
-Description=Sao lưu database MGST — 12:00 và 18:00 giờ Việt Nam
+Description=Sao lưu database MGST — mỗi giờ từ 06:00 đến 21:00
 
 [Timer]
-# Máy chủ đặt Asia/Ho_Chi_Minh nên hai mốc này đúng là giờ trên đồng hồ.
-OnCalendar=*-*-* 12:00:00
-OnCalendar=*-*-* 18:00:00
+# Đầu mỗi giờ theo đồng hồ máy chủ (Asia/Ho_Chi_Minh), 16 lượt một ngày.
+# Từ 22:00 đến 05:00 không ai nhập liệu nên không sao lưu (chốt 2026-09-08).
+OnCalendar=*-*-* 06..21:00:00
 # Máy chủ dừng qua giờ hẹn thì chạy bù ngay khi bật lại — không bỏ trắng một ngày.
 Persistent=true
 # Lệch ngẫu nhiên tối đa 2 phút: hai timer cùng gọi S3 đúng một giây thì cả hai

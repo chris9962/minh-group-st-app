@@ -102,6 +102,11 @@ export function BankAccountEditDialog({ open, onClose, accountId }: Props) {
         (data?.accountNumberMethod === "phone-match"
           ? (data.customerPhones[0] ?? "")
           : (data?.accountNumberPrefix ?? "")),
+      /**
+       * Gửi lại ĐÚNG ngày máy chủ ghi ở bước 1, không đặt ngày mới (chốt
+       * 2026-09-08). Ngày mở là ngày giữ chỗ mã giới thiệu; bước 2 chỉ điền nốt
+       * số tài khoản và ảnh. Ô nhập ngày đã bỏ nên không ai sửa tay được nữa.
+       */
       openedDate: data?.date || businessDay(),
       // Bản nháp chưa ai tích ô này, nên lấy mặc định của ngân hàng (P-60).
       // Tài khoản đã hoàn thành thì đọc giá trị đã lưu.
