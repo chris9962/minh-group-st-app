@@ -193,8 +193,9 @@ const liveBasketLabel = (gift: GiftResult | null, catalogName: Map<string, strin
  */
 
 /**
- * Cột `QUÀ TẶNG BÁO CÁO` — món ĐÃ GIAO kèm tiền ĐÃ GHI, đọc từ đợt phát (chốt
- * 2026-09-07). Khách chưa phát thì ô trống.
+ * Cột `QUÀ TẶNG BÁO CÁO` — món ĐÃ GIAO giữ theo đợt phát. Riêng 20k của VPa
+ * tính động theo trạng thái cài app hiện tại (chốt 2026-09-10): tick app sau
+ * khi phát thì báo cáo phải cộng 20k; bỏ tick thì phải bỏ 20k.
  *
  * Bản trước chỉ tra tên ở `gift_items`, mà 5.636 trong 5.885 đợt phát chọn gói
  * bảo hiểm nằm ở `insurance_packages`, nên phép nối trả rỗng và ô chuyển sang
@@ -202,15 +203,44 @@ const liveBasketLabel = (gift: GiftResult | null, catalogName: Map<string, strin
  * phát thì file ghi 70k trong khi đợt phát chỉ ghi 20k. Tên lúc phát nằm sẵn
  * trong `snapshot.basket`, `grantedItemLabel` đọc đúng chỗ đó.
  *
- * Tên món không mang tiền, nên khách đổi sang `Nón bảo hiểm` mà vẫn nhận 20k
- * thì phải cộng tiền vào sau tên.
+ * Các khoản tiền khác vẫn giữ theo thời điểm chốt. Vì vậy không dùng thẳng
+ * `gift.cashTotal`: làm vậy sẽ biến cả 50k MSBa thành dữ liệu động.
  */
-function grantedLabel(
+export function giftReportLabel(
   grant: { chosenItem: string; cashTotal: number; snapshot: unknown } | undefined,
+  currentGift: Pick<GiftResult, "cash"> | null,
 ): string {
   if (!grant) return "";
   const name = grantedItemLabel(grant.chosenItem, grant.snapshot);
-  return grant.cashTotal > 0 ? `${name} + ${shortCash(grant.cashTotal)}` : name;
+
+  // Không có dữ liệu sống để đối chiếu thì giữ nguyên số đã chốt, không tự
+  // xoá tiền khỏi báo cáo chỉ vì một hồ sơ cũ thiếu ngày mở tài khoản.
+  if (!currentGift)
+    return grant.cashTotal > 0 ? `${name} + ${shortCash(grant.cashTotal)}` : name;
+
+  const snapshot = grant.snapshot as {
+    caseCode?: unknown;
+    cashBreakdown?: { label?: unknown; amount?: unknown }[];
+  } | null;
+  const breakdown = Array.isArray(snapshot?.cashBreakdown) ? snapshot.cashBreakdown : [];
+  let frozenVpa = breakdown
+    .filter((cash) => typeof cash.label === "string" && /^VPa(?:,|$)/.test(cash.label))
+    .reduce((sum, cash) => sum + (typeof cash.amount === "number" ? cash.amount : 0), 0);
+
+  // Snapshot rất cũ có thể chưa mang breakdown. Bốn bậc này luôn có đúng 20k
+  // VPa; TH3 còn 50k MSBa nên chỉ tách 20k, không lấy trọn cashTotal.
+  if (
+    breakdown.length === 0 &&
+    typeof snapshot?.caseCode === "string" &&
+    ["TH1", "TH3", "TH5", "TH8"].includes(snapshot.caseCode)
+  ) frozenVpa = Math.min(20_000, grant.cashTotal);
+
+  const frozenOtherCash = Math.max(0, grant.cashTotal - frozenVpa);
+  const currentVpa = currentGift.cash
+    .filter((cash) => cash.bankCode === "VPa")
+    .reduce((sum, cash) => sum + cash.amount, 0);
+  const cashTotal = frozenOtherCash + currentVpa;
+  return cashTotal > 0 ? `${name} + ${shortCash(cashTotal)}` : name;
 }
 
 /** Tên người có bảng điểm, để dòng nhật ký nói rõ xem bảng của ai. */
@@ -474,7 +504,7 @@ export async function listScoringExport(
       installedBanks: [
         ...new Set(accounts.filter((a) => a.appInstalled).map((a) => a.bankCode)),
       ].filter((code) => !HOUSEHOLD_CODES.has(code)),
-      giftReport: grantedLabel(grant),
+      giftReport: giftReportLabel(grant, gift),
       giftCombo: liveBasketLabel(gift, catalogName),
       giftBasketAtGrant: frozenBasketLabel(grant?.snapshot ?? null),
       speaker: grant?.chosenItem === "QUA-LOA" ? "LOA" : "",
