@@ -14,7 +14,12 @@ import {
 } from "@/lib/api/notificationPrefs";
 import { can } from "@/lib/permissions";
 import { useSession } from "@/store/session";
-import { sendTestPush, subscribeToPush, unsubscribeFromPush } from "@/lib/api/push";
+import {
+  fetchPushPublicKey,
+  sendTestPush,
+  subscribeToPush,
+  unsubscribeFromPush,
+} from "@/lib/api/push";
 import { errorMessage, toast } from "@/lib/toast";
 import styles from "./NotificationSettings.module.css";
 
@@ -33,8 +38,6 @@ import styles from "./NotificationSettings.module.css";
  * trong tab Safari thì thiếu hẳn `PushManager`, nên khối hiện dòng hướng dẫn
  * thay cho công tắc. Giới hạn của Apple từ iOS 16.4.
  */
-
-const PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? "";
 
 /**
  * Khoá VAPID là base64url; `applicationServerKey` đòi mảng byte.
@@ -91,6 +94,23 @@ export function NotificationSettings() {
     queryFn: fetchNotificationPrefs,
   });
 
+  /**
+   * Khoá công khai hỏi TỪ MÁY CHỦ, không đọc từ `process.env`.
+   *
+   * Trình duyệt không có `process.env`, nên Next thay biến `NEXT_PUBLIC_*` bằng
+   * chuỗi nguyên văn lúc `next build`. Bản dựng của máy chủ chạy trong Docker,
+   * nơi `.dockerignore` đã loại `.env.*`, nên chuỗi đóng băng là rỗng và cả khối
+   * này biến mất. Máy người viết code không dính vì bản dựng ở đó đọc thẳng
+   * `.env.local` trên đĩa. Xem `app/api/push/key/route.ts`.
+   *
+   * `staleTime: Infinity` vì khoá chỉ đổi khi máy chủ khởi động lại.
+   */
+  const { data: publicKey, isPending: keyPending } = useQuery({
+    queryKey: ["push-key"],
+    queryFn: fetchPushPublicKey,
+    staleTime: Infinity,
+  });
+
   const savePref = useMutation({
     mutationFn: saveNotificationPref,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["notification-prefs"] }),
@@ -98,10 +118,15 @@ export function NotificationSettings() {
   });
 
   useEffect(() => {
+    // Chưa đọc xong khoá thì chưa kết luận được máy này nhận thông báo được hay
+    // không. `device` vẫn là "dang-doc", và khối chưa vẽ ra.
+    if (keyPending) return;
+
     let alive = true;
+    const key = publicKey ?? "";
 
     async function read() {
-      if (!PUBLIC_KEY) return alive && setDevice("khong-ho-tro");
+      if (!key) return alive && setDevice("khong-ho-tro");
       if (!("serviceWorker" in navigator) || !("Notification" in window)) {
         return alive && setDevice("khong-ho-tro");
       }
@@ -144,7 +169,7 @@ export function NotificationSettings() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [keyPending, publicKey]);
 
   async function toggleDevice(on: boolean) {
     setBusy(true);
@@ -162,7 +187,7 @@ export function NotificationSettings() {
           // Chuẩn đòi mọi thông báo phải hiện ra cho người dùng thấy. Safari
           // thu hồi quyền của trang nào nhận gói tin mà không hiện gì.
           userVisibleOnly: true,
-          applicationServerKey: keyToBytes(PUBLIC_KEY),
+          applicationServerKey: keyToBytes(publicKey ?? ""),
         });
         await save(sub);
         setDevice("bat");

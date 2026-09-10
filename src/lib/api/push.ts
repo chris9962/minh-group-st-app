@@ -20,6 +20,8 @@ export const PushUnsubscribeBody = z.object({
 });
 export type PushUnsubscribeBody = z.infer<typeof PushUnsubscribeBody>;
 
+export const PushKey = z.object({ publicKey: z.string() });
+
 /** Kết quả một lượt gửi, dùng cho nút gửi thử. */
 export const PushSendResult = z.object({
   sent: z.number().int().nonnegative(),
@@ -28,6 +30,16 @@ export const PushSendResult = z.object({
   failed: z.number().int().nonnegative(),
 });
 export type PushSendResult = z.infer<typeof PushSendResult>;
+
+/**
+ * Khoá công khai hỏi TỪ MÁY CHỦ, không đọc từ `process.env` ở trình duyệt.
+ * Lý do viết ở `app/api/push/key/route.ts`.
+ */
+export async function fetchPushPublicKey(): Promise<string> {
+  const res = await fetch('/api/push/key');
+  if (!res.ok) throw new Error('Không đọc được khoá thông báo đẩy');
+  return PushKey.parse(await res.json()).publicKey;
+}
 
 export async function subscribeToPush(body: PushSubscriptionBody): Promise<void> {
   const res = await fetch('/api/push/subscribe', {

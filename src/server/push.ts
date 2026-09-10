@@ -40,6 +40,15 @@ function readVapid(): { publicKey: string; privateKey: string } | null {
 
 export const pushConfigured = (): boolean => readVapid() !== null;
 
+/**
+ * Khoá công khai cho trình duyệt đăng ký. Chuỗi rỗng nghĩa là chưa cấu hình.
+ *
+ * Đòi ĐỦ CẢ CẶP mới trả về, vì `readVapid` trả `null` khi thiếu khoá riêng.
+ * Thiếu khoá riêng thì máy chủ không gửi được gói tin nào, nên cho trình duyệt
+ * đăng ký chỉ dựng thêm một dòng chết trong `push_subscriptions`.
+ */
+export const vapidPublicKey = (): string => readVapid()?.publicKey ?? "";
+
 export type SubscriptionInput = {
   endpoint: string;
   p256dh: string;
