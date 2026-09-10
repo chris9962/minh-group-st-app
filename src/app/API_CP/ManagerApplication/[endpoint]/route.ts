@@ -1,4 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
+import { pviEndpointUrl, readPviApiEnv } from "@/server/pvi-api/config";
 
 /**
  * Chuyển tiếp lệnh gọi API đối tác PVI, để máy cá nhân chạy thử được.
@@ -6,10 +7,10 @@ import { timingSafeEqual } from "node:crypto";
  * PVI chặn theo IP và chỉ whitelist máy chủ chạy thật. Không có đường này thì
  * mọi lần chạy thử phải SSH vào máy chủ.
  *
- * Đường dẫn cố ý trùng KHUÔN của PVI: `/API_CP/ManagerApplication/<endpoint>`.
- * Nhờ vậy máy cá nhân chỉ đổi `PVI_API_BASE_URL` sang tên miền của mgst-app là
- * chạy, không sửa dòng code nào. Lúc triển khai thật thì đổi biến đó về tên miền
- * PVI, proxy không còn nằm trên đường đi.
+ * Đường dẫn proxy cố định `/API_CP/ManagerApplication/<endpoint>`, theo khuôn
+ * bản test của PVI. Máy cá nhân đặt `PVI_API_PROXY_ORIGIN=https://app.mgst.com.vn`
+ * là gọi qua đây; máy chủ chuyển tiếp tới bản test hay bản thật theo
+ * `PVI_API_ENV` của chính nó, vì hai bản khác cả tên miền lẫn đường dẫn.
  *
  * ⚠️ ROUTE CÔNG KHAI, và nó tạo đơn THẬT trên PVI. Hai điều kiện kiểm tra:
  * `PVI_PROXY_TOKEN` phải đặt trên máy chủ, và người gọi phải gửi đúng chuỗi đó ở
@@ -52,10 +53,9 @@ export async function POST(request: Request, { params }: Params) {
   const { endpoint } = await params;
   if (!ALLOWED.has(endpoint)) return notFound();
 
-  const baseUrl = (process.env.PVI_API_BASE_URL ?? "").trim().replace(/\/+$/, "");
-  if (!baseUrl) {
-    return Response.json({ Status: "-1", Message: "Máy chủ chưa cấu hình PVI_API_BASE_URL" });
-  }
+  // Máy chủ PVI chọn theo `PVI_API_ENV` của MÁY CHỦ, không theo máy gọi: hai
+  // môi trường khác cả tên miền lẫn đường dẫn, xem `PVI_ENDPOINT_PREFIX`.
+  const env = readPviApiEnv();
 
   // Chuyển tiếp thân request NGUYÊN VĂN, không parse rồi dựng lại. Chữ ký MD5
   // của PVI băm đúng chuỗi mình gửi, nên một lần `JSON.stringify` lại là đủ đổi
@@ -66,11 +66,11 @@ export async function POST(request: Request, { params }: Params) {
   const timeout = Number(process.env.PVI_API_TIMEOUT_MS);
   const timeoutMs = Number.isFinite(timeout) && timeout > 0 ? timeout : 30_000;
 
-  console.info(`[pvi-proxy] ${endpoint} · ${body.length} byte`);
+  console.info(`[pvi-proxy] ${env} ${endpoint} · ${body.length} byte`);
 
   let response: Response;
   try {
-    response = await fetch(`${baseUrl}/API_CP/ManagerApplication/${endpoint}`, {
+    response = await fetch(pviEndpointUrl(env, endpoint), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body,

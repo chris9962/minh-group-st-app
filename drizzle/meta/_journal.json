@@ -530,8 +530,36 @@
     {
       "idx": 75,
       "version": "7",
-      "when": 1789891400000,
-      "tag": "0075_pvi_api_route",
+      "when": 1789891400001,
+      "tag": "0075_bank_account_status_history",
+      "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "7",
+      "when": 1789891400002,
+      "tag": "0076_bank_accounts_bank_channel",
+      "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "7",
+      "when": 1789891400003,
+      "tag": "0077_referral_code_unique_account_type",
+      "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1789891400004,
+      "tag": "0078_insurance_intake_photo_back",
+      "breakpoints": true
+    },
+    {
+      "idx": 79,
+      "version": "7",
+      "when": 1789891400005,
+      "tag": "0079_pvi_api_route",
       "breakpoints": true
     }
   ]

@@ -107,6 +107,8 @@ export const InsuranceOrder = InsuranceListRow.extend({
    * đơn lập trước khi có ảnh. Chỉ ở màn chi tiết, bảng P-13 không cần.
    */
   intakePhotoUrl: z.string().nullable(),
+  /** Ảnh hồ sơ thứ hai, thường là mặt sau CCCD; null khi chỉ có một ảnh. */
+  intakePhotoBackUrl: z.string().nullable(),
   /**
    * Link file PDF giấy chứng nhận trên máy chủ PVI.
    *

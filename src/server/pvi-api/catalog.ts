@@ -20,7 +20,7 @@ export async function getCatalog(name: string): Promise<unknown[]> {
     throw new PviApiError({
       kind: "config",
       endpoint: "Get_DanhMuc",
-      message: "Chưa cấu hình PVI_API_BASE_URL / PVI_API_CPID / PVI_API_KEY trong .env.local",
+      message: "Chưa cấu hình PVI_API_CPID / PVI_API_KEY trong .env.local",
     });
   }
 

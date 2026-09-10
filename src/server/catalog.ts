@@ -835,11 +835,66 @@ export async function listReferralCodes(
   return { rows: rows.map(toCode), total: totals?.value ?? 0 };
 }
 
+export type BulkStopReferralCodeRow = {
+  id: string;
+  bankId: string;
+  bankCode: string;
+  displayName: string;
+};
+
+/**
+ * Danh sách gọn cho hộp ngừng hàng loạt. Chỉ lấy bốn cột cần dùng và chỉ chạy
+ * khi người quản lý chủ động mở hộp, tránh tải cả kho theo mỗi lần vào trang.
+ */
+export async function listActiveReferralCodesForBulkStop(
+  filters: ReferralCodeFilters,
+): Promise<BulkStopReferralCodeRow[]> {
+  return db
+    .select({
+      id: referralCodes.id,
+      bankId: referralCodes.bankId,
+      bankCode: banks.code,
+      displayName: referralCodes.displayName,
+    })
+    .from(referralCodes)
+    .innerJoin(banks, eq(banks.id, referralCodes.bankId))
+    .where(and(codeFilters(filters), eq(referralCodes.active, true)))
+    .orderBy(asc(banks.code), asc(referralCodes.displayName));
+}
+
+/** Đọc phạm vi thật của một nhóm mã trước khi route cho phép cập nhật. */
+export async function referralCodesForBulkPermission(
+  ids: string[],
+): Promise<BulkStopReferralCodeRow[]> {
+  if (ids.length === 0) return [];
+  return db
+    .select({
+      id: referralCodes.id,
+      bankId: referralCodes.bankId,
+      bankCode: banks.code,
+      displayName: referralCodes.displayName,
+    })
+    .from(referralCodes)
+    .innerJoin(banks, eq(banks.id, referralCodes.bankId))
+    .where(inArray(referralCodes.id, ids));
+}
+
+/** Một câu UPDATE cho cả đợt; mã đã bị người khác ngừng trước đó được bỏ qua. */
+export async function stopReferralCodesBulk(ids: string[]): Promise<number> {
+  if (ids.length === 0) return 0;
+  const rows = await db
+    .update(referralCodes)
+    .set({ active: false })
+    .where(and(inArray(referralCodes.id, ids), eq(referralCodes.active, true)))
+    .returning({ id: referralCodes.id });
+  return rows.length;
+}
+
 /**
  * Chỉ TÊN mã, cho các ô lọc ở màn báo cáo và xuất Excel.
  *
- * `distinct` vì hai ngân hàng được phép trùng tên mã (khoá duy nhất là bank +
- * code) — để lọt thì ô chọn hiện hai dòng y hệt nhau.
+ * `distinct` vì hai ngân hàng hoặc hai loại tài khoản được phép trùng mã text —
+ * để lọt thì ô chọn báo cáo hiện nhiều dòng y hệt nhau.
  */
 export async function listReferralCodeOptions(): Promise<string[]> {
   const rows = await db
@@ -1120,7 +1175,10 @@ export async function updateReferralCode(
       await writeCodeDepartments(tx, id, form);
     } catch (e) {
       if (uniqueViolationOf(e) !== null)
-        return { ok: false as const, message: "Mã này đã có trong kho của ngân hàng đó" };
+        return {
+          ok: false as const,
+          message: "Tên hiển thị hoặc mã text đã tồn tại cho loại tài khoản này",
+        };
       throw e;
     }
 

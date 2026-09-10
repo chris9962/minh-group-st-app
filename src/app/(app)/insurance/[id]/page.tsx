@@ -650,33 +650,37 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
             <div className={styles.photoRow}>
             <div className={styles.photoSection}>
               <h3 className={styles.photoTitle}>{INTAKE_PHOTO_LABEL[data.product]}</h3>
-              {data.intakePhotoUrl ? (
-                <div className={`${styles.photoBox} ${styles.viewOnly}`}>
-                  <button
-                    type="button"
-                    className={styles.photoZoom}
-                    aria-label={`Xem ${INTAKE_PHOTO_LABEL[data.product].toLowerCase()} cỡ lớn`}
-                    onClick={() =>
-                      setZoomed({ src: data.intakePhotoUrl!, alt: INTAKE_PHOTO_LABEL[data.product] })
-                    }
-                  >
-                    <PhotoView
-                      key={data.intakePhotoUrl}
-                      src={data.intakePhotoUrl}
-                      alt={INTAKE_PHOTO_LABEL[data.product]}
-                    />
-                  </button>
-                  <button
-                    type="button"
-                    className={styles.photoDownload}
-                    title="Tải ảnh về máy"
-                    aria-label={`Tải ${INTAKE_PHOTO_LABEL[data.product].toLowerCase()} về máy`}
-                    onClick={() =>
-                      downloadImage(data.intakePhotoUrl!, INTAKE_PHOTO_LABEL[data.product])
-                    }
-                  >
-                    <Download size={14} aria-hidden />
-                  </button>
+              {data.intakePhotoUrl || data.intakePhotoBackUrl ? (
+                <div className={styles.intakePhotoGrid}>
+                  {[data.intakePhotoUrl, data.intakePhotoBackUrl]
+                    .filter((src): src is string => Boolean(src))
+                    .map((src, index, photos) => {
+                      const label =
+                        photos.length > 1
+                          ? `${INTAKE_PHOTO_LABEL[data.product]} ${index + 1}`
+                          : INTAKE_PHOTO_LABEL[data.product];
+                      return (
+                        <div className={`${styles.photoBox} ${styles.viewOnly}`} key={src}>
+                          <button
+                            type="button"
+                            className={styles.photoZoom}
+                            aria-label={`Xem ${label.toLowerCase()} cỡ lớn`}
+                            onClick={() => setZoomed({ src, alt: label })}
+                          >
+                            <PhotoView key={src} src={src} alt={label} />
+                          </button>
+                          <button
+                            type="button"
+                            className={styles.photoDownload}
+                            title="Tải ảnh về máy"
+                            aria-label={`Tải ${label.toLowerCase()} về máy`}
+                            onClick={() => downloadImage(src, label)}
+                          >
+                            <Download size={14} aria-hidden />
+                          </button>
+                        </div>
+                      );
+                    })}
                 </div>
               ) : (
                 <p className="text-muted">Chưa có ảnh.</p>

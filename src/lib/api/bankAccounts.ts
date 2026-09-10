@@ -103,6 +103,8 @@ export const BankAccount = z.object({
   transactionAt: z.string(),
   /** Ảnh chuyển khoản — đếm RIÊNG, không cộng vào `photoUrls`. */
   transactionPhotoUrls: z.array(z.string()),
+  /** Mốc hoàn thành dùng để áp hạn xoá theo ngày cho cấp Trưởng/Phó phòng. */
+  finishedAt: z.string(),
   /**
    * Mọi SĐT của khách, số chính đứng đầu. Ngân hàng lấy số tài khoản theo SĐT
    * thì bước 2 cho chọn trong danh sách này — khách mở bằng số phụ là chuyện
@@ -386,10 +388,19 @@ export async function approveBankAccount(id: string): Promise<BankAccount> {
   return BankAccount.parse(await res.json());
 }
 
-/** Bỏ dở — chỉ xoá được khi còn `creating`. Nhả mã lại kho ngay (mục 4.5). */
-export async function deleteBankAccount(id: string): Promise<void> {
-  const res = await fetch(`/api/bank-accounts/${id}`, { method: 'DELETE' });
-  if (!res.ok) throw await failure(res, 'Không xoá được tài khoản đang tạo này');
+/**
+ * Xoá một tài khoản — nhả chỗ mã về kho ngay (mục 4.5).
+ *
+ * `reason` chỉ bắt buộc với tài khoản ĐÃ hoàn thành, và máy chủ mới là nơi
+ * kiểm: bản nháp bỏ dở không hỏi lý do, nên nơi gọi ở bước 2 không truyền gì.
+ */
+export async function deleteBankAccount(id: string, reason = ''): Promise<void> {
+  const res = await fetch(`/api/bank-accounts/${id}`, {
+    method: 'DELETE',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ reason }),
+  });
+  if (!res.ok) throw await failure(res, 'Không xoá được tài khoản này');
 }
 
 /** Hai loại ảnh của một tài khoản, đếm tách nhau (spec §4.2 bước 3). */
@@ -417,14 +428,24 @@ export const PHOTO_MAX = 20;
  * Ảnh giao dịch KHÔNG dính luật này — nó là bằng chứng nộp muộn (spec §4.2
  * bước 3), hôm sau mới có.
  */
+/** Hạn sửa lỗi tính đúng 24 giờ trôi, không làm tròn theo ngày lịch. */
+export const errorPhotoDeadline = (account: { status: BankAccountStatus; lastErrorAt?: string }): string | null => {
+  if (account.status !== 'error' && account.status !== 'fixed') return null;
+  const markedAt = Date.parse(account.lastErrorAt ?? '');
+  return Number.isFinite(markedAt) ? new Date(markedAt + 24 * 60 * 60 * 1000).toISOString() : null;
+};
+
 export const canEditOpeningPhotos = (
   actor: User | null,
-  account: { status: BankAccountStatus; finishedAt: string },
+  account: { status: BankAccountStatus; finishedAt: string; lastErrorAt?: string },
+  now: Date = new Date(),
 ): boolean => {
   if (!actor) return false;
   if (account.status === 'creating') return true;
   if (ROLE_RANK[actor.role] >= ROLE_RANK.head) return true;
-  return account.finishedAt !== '' && businessDay(new Date(account.finishedAt)) === businessDay();
+  const deadline = errorPhotoDeadline(account);
+  if (deadline && now.getTime() < Date.parse(deadline)) return true;
+  return account.finishedAt !== '' && businessDay(new Date(account.finishedAt)) === businessDay(now);
 };
 
 const PHOTO_LABEL: Record<PhotoKind, string> = {

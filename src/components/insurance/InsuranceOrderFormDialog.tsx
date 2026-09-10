@@ -103,6 +103,7 @@ function defaultLegsFor(pkg: InsurancePackage | null): InsuranceOrderLegForm[] {
       engineNumber: "",
       // Điền lúc gửi, sau khi ảnh lên kho — xem `save` bên dưới.
       intakePhotoUrl: "",
+      intakePhotoBackUrl: "",
     };
     legs.push(values);
   });
@@ -192,7 +193,7 @@ export function InsuranceOrderFormDialog({
       copy[i] = next;
       return copy;
     });
-  /** Mỗi đơn một ảnh, thiếu là nút Tạo đơn khoá — máy chủ kiểm lại lần nữa. */
+  /** Ảnh đầu của mỗi đơn bắt buộc; ảnh CCCD thứ hai tùy tình trạng hồ sơ. */
   const missingPhoto = legsField.fields.some((_, i) => photosOf(i).length === 0);
 
   /**
@@ -255,9 +256,13 @@ export function InsuranceOrderFormDialog({
     mutationFn: async (form: InsuranceOrderForm) => {
       const legs: InsuranceOrderLegForm[] = [];
       for (let i = 0; i < form.legs.length; i++) {
-        const [url] = await uploadPendingPhotos(photosOf(i), "insurance-orders");
-        if (url) setPhotosOf(i, [{ kind: "saved", url }]);
-        legs.push({ ...form.legs[i], intakePhotoUrl: url ?? "" });
+        const urls = await uploadPendingPhotos(photosOf(i), "insurance-orders");
+        if (urls.length > 0) setPhotosOf(i, urls.map((url) => ({ kind: "saved", url })));
+        legs.push({
+          ...form.legs[i],
+          intakePhotoUrl: urls[0] ?? "",
+          intakePhotoBackUrl: urls[1] ?? "",
+        });
       }
       return createInsuranceOrders({ ...form, legs });
     },
@@ -285,23 +290,24 @@ export function InsuranceOrderFormDialog({
   const addressSuggestions = useAddressSuggestions();
 
   /**
-   * Một ô ảnh nhỏ cho MỖI đơn, đứng ĐẦU khối của đơn đó (chốt 2026-09-08): gói
-   * 2 đơn thì 2 ô. Tên ô theo sản phẩm của đơn: CCCD với tai nạn điện, cà vẹt
-   * xe với xe máy. Dùng lại ô chọn ảnh của màn ngân hàng — chọn xong ảnh còn
-   * trong máy, bấm Tạo đơn mới tải lên.
+   * Một nhóm ảnh cho MỖI đơn, đứng đầu khối. CCCD nhận tối đa hai mặt nhưng chỉ
+   * bắt buộc một; cà vẹt xe vẫn một ảnh. Ảnh chỉ tải lên khi bấm Tạo đơn.
    */
-  const renderIntakePhoto = (i: number) => (
-    <BankAccountPhotos
-      title={INTAKE_PHOTO_LABEL[(selectedPackage?.legs ?? [])[i]?.product ?? "electric-accident"]}
-      requiredPhotos={1}
-      max={1}
-      small
-      required
-      photos={photosOf(i)}
-      onChange={(next) => setPhotosOf(i, next)}
-      busy={save.isPending}
-    />
-  );
+  const renderIntakePhoto = (i: number) => {
+    const product = (selectedPackage?.legs ?? [])[i]?.product ?? "electric-accident";
+    return (
+      <BankAccountPhotos
+        title={INTAKE_PHOTO_LABEL[product]}
+        requiredPhotos={1}
+        max={product === "electric-accident" ? 2 : 1}
+        small
+        required
+        photos={photosOf(i)}
+        onChange={(next) => setPhotosOf(i, next)}
+        busy={save.isPending}
+      />
+    );
+  };
 
   const renderVehicleInfo = (i: number) => (
     <fieldset className={styles.fieldset}>

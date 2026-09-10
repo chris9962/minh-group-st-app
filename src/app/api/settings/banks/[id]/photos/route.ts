@@ -34,6 +34,7 @@ export async function GET(request: Request, { params }: Params) {
         // Chuỗi không phải uuid đi thẳng vào SQL là `22P02` → 500.
         referralCodeId: uuidParam(query.get("referralCodeId")),
         departmentId: uuidParam(query.get("departmentId")),
+        channelId: uuidParam(query.get("channelId")),
         accountType: query.get("accountType") ?? "",
       },
       pageArgsFrom(url, BANK_ACCOUNT_SORT, "date", BANK_PHOTOS_PAGE_SIZE),

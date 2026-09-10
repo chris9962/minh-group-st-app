@@ -420,8 +420,14 @@ export const referralCodes = pgTable(
     createdAt: createdAt(),
   },
   (t) => [
-    uniqueIndex("referral_codes_bank_code").on(t.bankId, t.code),
-    uniqueIndex("referral_codes_bank_display_name").on(t.bankId, t.displayName),
+    // Cùng tên/mã được dùng cho loại tài khoản khác: VPA · CNKD và VPA · HKD
+    // là hai suất độc lập. Chỉ cấm trùng trong đúng ngân hàng + loại tài khoản.
+    uniqueIndex("referral_codes_bank_code").on(t.bankId, t.accountType, t.code),
+    uniqueIndex("referral_codes_bank_display_name").on(
+      t.bankId,
+      t.accountType,
+      t.displayName,
+    ),
     check(
       "referral_codes_text_or_qr",
       sql`nullif(btrim(${t.code}), '') is not null or ${t.qrImage} is not null`,
@@ -701,10 +707,22 @@ export const customers = pgTable(
     /**
      * DANH SÁCH MÃ QUÀ khách đang được nhận — rỗng nghĩa là chưa có gì để phát.
      *
+     * ⚠️ KHÔNG phải rổ quà mà màn phát quà và hộp đổi quà đọc. Hai màn đó gọi
+     * `giftForCustomer` (`server/gift.ts`), tính sống từ tài khoản `done` hiện
+     * tại — chốt 2026-09-06, để khách mở thêm tài khoản trong ngày nâng được
+     * bậc. Đợt ĐÃ phát thì đóng băng ở `gift_grants.snapshot`. Ba nguồn khác
+     * nhau, và cột này là nguồn HẸP NHẤT.
+     *
+     * Đúng ra chỉ có hai chỗ đọc, và cả hai chỉ hỏi RỖNG HAY KHÔNG, không đọc
+     * nội dung mảng: cột trạng thái quà ở bảng P-40 (`server/customers.ts`) và
+     * số khách chờ phát ở màn Tổng quan P-80 (`server/dashboard.ts`). Giữ cả
+     * danh sách mã chứ không phải một trường đánh dấu là có chủ đích — đem so
+     * với `gift_grants.snapshot` thì thấy ngay khách nào có rổ lệch rổ đã phát.
+     *
      * LƯU SẴN, ngoại lệ của luật "tính ra được thì không lưu" (db-design §9),
-     * cùng lý do với hai cột đếm bên trên: P-40 lọc theo trạng thái quà và P-80
-     * đếm khách chờ phát. Chạy hàm luật cho từng dòng nghĩa là kéo tài khoản của
-     * cả kho về tầng ứng dụng (AGENTS.md §5.2).
+     * cùng lý do với hai cột đếm bên trên: hai màn đó chạy trên danh sách dài.
+     * Chạy hàm luật cho từng dòng nghĩa là kéo tài khoản của cả kho về tầng ứng
+     * dụng (AGENTS.md §5.2).
      *
      * ⚠️ Trigger ở database KHÔNG giữ nổi cột này: giá trị của nó do một hàm
      * JavaScript quyết định (`src/rules/`), và thể lệ đổi hình dạng theo kỳ.
@@ -844,6 +862,8 @@ export const bankAccounts = pgTable(
     status: bankAccountStatus("status").notNull().default("creating"),
     /** Lý do đối soát loại tài khoản ra khỏi KPI; rỗng khi không ở trạng thái lỗi. */
     errorNote: text("error_note").notNull().default(""),
+    /** Lần đánh lỗi gần nhất; chỉ quản trị đánh lỗi mới mở lại hạn sửa ảnh. */
+    lastErrorAt: timestamp("last_error_at", { withTimezone: true }),
     accountNumber: text("account_number"),
     openedDate: date("opened_date"),
     /** Trường quyết định quà. */
@@ -908,6 +928,10 @@ export const bankAccounts = pgTable(
     // Tính điểm KPI gom theo NGƯỜI TẠO trong một khoảng ngày (§9), không lọc
     // theo phòng — index dẫn đầu bằng department_id ở trên không dùng được.
     index("bank_accounts_creator_date").on(t.createdBy, t.openedDate),
+    /** Trang quản lý một ngân hàng lọc theo kênh rồi lấy trang theo ngày. */
+    index("bank_accounts_bank_channel_opened").on(
+      sql`bank_id, channel_id, opened_date desc nulls last, created_at desc, id`,
+    ),
     /**
      * Khớp ĐÚNG `ORDER BY` của P-21:
      * `opened_date desc nulls last, created_at desc, id`.
@@ -951,6 +975,22 @@ export const bankAccounts = pgTable(
        theo chữ "khác ngày mở tk" của thể lệ mục 1, nhưng CEO xác nhận đọc vậy
        là sai — giao dịch ngay trong ngày mở vẫn tính. */
   ],
+);
+
+/** Mỗi lần đối soát giữ nguyên lý do và người thực hiện, kể cả khi đã duyệt lại. */
+export const bankAccountStatusHistory = pgTable(
+  "bank_account_status_history",
+  {
+    id: id(),
+    accountId: uuid("account_id").notNull().references(() => bankAccounts.id, { onDelete: "cascade" }),
+    fromStatus: bankAccountStatus("from_status").notNull(),
+    toStatus: bankAccountStatus("to_status").notNull(),
+    changedBy: uuid("changed_by").references(() => users.id),
+    changedByName: text("changed_by_name").notNull(),
+    note: text("note").notNull().default(""),
+    changedAt: timestamp("changed_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("bank_account_history_account_time").on(t.accountId, t.changedAt, t.id)],
 );
 
 export const bankAccountPhotos = pgTable(
@@ -1203,12 +1243,10 @@ export const insuranceOrders = pgTable(
     /** Ảnh chứng nhận — thay PDF, đính được ở mọi trạng thái. */
     /** KHOÁ trong kho, không phải URL — xem `bank_account_photos.url`. */
     certificatePhotoUrl: text("certificate_photo_url"),
-    /**
-     * Ảnh hồ sơ — KD chụp lúc lập đơn, một đơn một ảnh (chốt 2026-09-07,
-     * migration 0073). KHÁC `certificate_photo_url`: cột đó là tờ chứng nhận
-     * PVI phát về sau. Null với đơn lập trước migration.
-     */
+    /** Ảnh hồ sơ thứ nhất — bắt buộc với đơn mới. */
     intakePhotoUrl: text("intake_photo_url"),
+    /** Ảnh hồ sơ thứ hai — mặt sau CCCD, tùy chọn; null với đơn chỉ cần một ảnh. */
+    intakePhotoBackUrl: text("intake_photo_back_url"),
     /**
      * "Số đơn ĐT" bên PVI — `26/21/14/TNCN/0096592`. Bot đọc ở BẢNG
      * `/Service/Manager`; màn duyệt không hiện số này.

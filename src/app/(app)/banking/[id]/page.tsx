@@ -14,6 +14,7 @@ import { SkeletonCard } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
 import { BankAccountEditDialog } from "@/components/banking/BankAccountEditDialog";
+import { BankAccountHistory } from "@/components/banking/BankAccountHistory";
 import { BankAccountFinishFields } from "@/components/banking/BankAccountFinishFields";
 import { ReferralCodeCard } from "@/components/banking/ReferralCodeCard";
 import {
@@ -41,7 +42,7 @@ import {
 import { fetchBankAccountDetail, markBankAccountError, type BankAccountDetail } from "@/lib/api/banking";
 import { fetchDepartments } from "@/lib/api/departments";
 import { invalidateKpi } from "@/lib/invalidateKpi";
-import { can, canManageBank } from "@/lib/permissions";
+import { can, canDeleteFinished, canManageBank } from "@/lib/permissions";
 import { errorMessage, toast } from "@/lib/toast";
 import { formatDate, formatPhone, businessDay } from "@/lib/format";
 import { useSession } from "@/store/session";
@@ -106,6 +107,7 @@ export default function BankAccountDetailPage({
         {data && data.status !== "creating" && (
           <DoneAccountCard id={id} data={data} departmentName={departmentName} />
         )}
+        {data && <BankAccountHistory history={data.history} />}
       </main>
     </>
   );
@@ -205,7 +207,7 @@ function FinishAccountCard({
     mutationFn: () => deleteBankAccount(id),
     onSuccess: () => {
       invalidateShared();
-      toast.ok("Đã xoá tài khoản đang tạo dở, mã giới thiệu được nhả lại");
+      toast.ok("Đã xoá tài khoản đang tạo dở, mã giới thiệu được trả lại");
       router.push(data.customerId ? `/customers/${data.customerId}` : "/banking");
     },
     onError: (e) => toast.fail(errorMessage(e, "Không xoá được tài khoản này.")),
@@ -308,9 +310,20 @@ function DoneAccountCard({
 }) {
   const user = useSession((s) => s.user);
   const canWrite = can(user, "banking", "update");
+  /**
+   * Xoá một tài khoản ĐÃ hoàn thành là việc của quản lý (chốt 2026-09-10).
+   *
+   * Nhân viên vẫn xoá được bản nháp của mình ở thẻ bước 2, nên không dùng
+   * `can(user, "banking", "delete")` ở đây: quyền đó họ cũng có. Cấp phòng
+   * chỉ thấy nút trong ngày hoàn thành; Ban giám đốc không bị giới hạn ngày.
+   */
+  const canRemove = canDeleteFinished(user, "banking", data);
   const [editing, setEditing] = useState(false);
   const [markingError, setMarkingError] = useState(false);
   const [errorNote, setErrorNote] = useState("");
+  const [removing, setRemoving] = useState(false);
+  const [removeReason, setRemoveReason] = useState("");
+  const router = useRouter();
   const queryClient = useQueryClient();
   const afterStatusChange = (account: { status: string }) => {
     queryClient.invalidateQueries({ queryKey: ["bank-account-detail", id] });
@@ -361,6 +374,27 @@ function DoneAccountCard({
     onError: (e) => toast.fail(errorMessage(e, "Không duyệt được tài khoản này.")),
   });
 
+  const remove = useMutation({
+    mutationFn: (reason: string) => deleteBankAccount(id, reason),
+    onSuccess: () => {
+      // Dòng đã mất, không invalidate bản ghi này — rời trang trước rồi mới dọn
+      // các bảng còn lại, không thì màn nháy qua trạng thái "không tìm thấy".
+      router.push(data.customerId ? `/customers/${data.customerId}` : "/banking");
+      queryClient.invalidateQueries({ queryKey: ["bank-account-list"] });
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
+      queryClient.invalidateQueries({ queryKey: ["referral-codes"] });
+      if (data.customerId)
+        queryClient.invalidateQueries({ queryKey: ["customer", data.customerId] });
+      invalidateKpi(queryClient);
+      toast.ok(
+        data.status === "done"
+          ? "Đã xoá tài khoản và tính lại KPI"
+          : "Đã xoá tài khoản",
+      );
+    },
+    onError: (e) => toast.fail(errorMessage(e, "Không xoá được tài khoản này.")),
+  });
+
   return (
     <SectionCard
       title="Chi tiết tài khoản"
@@ -368,7 +402,7 @@ function DoneAccountCard({
       /* Bản `done` sửa được từ 07/08 — dùng lại đúng hộp thoại của bảng P-21,
          không dựng biểu mẫu thứ hai để rồi hai chỗ lệch luật nhau. */
       action={
-        canWrite ? (
+        canWrite || canRemove ? (
           /* Nút sửa có ở MỌI trạng thái, chỉ khác chữ: bản lỗi ghi "Sửa lỗi" để
              nhân viên biết đây là đường chữa. Cùng một hộp thoại.
 
@@ -377,42 +411,59 @@ function DoneAccountCard({
              người quản ngân hàng thấy — đó là vòng đối soát của họ, nhân viên
              chỉ sửa rồi gửi duyệt. */
           <div className={styles.headerActions}>
-            <Button variant="secondary" onClick={() => setEditing(true)}>
-              <Pencil size={16} aria-hidden />
-              {data.status === "error" ? "Sửa lỗi" : "Sửa"}
-            </Button>
-            {/* Ở `fixed` đây là nút TỪ CHỐI của vòng duyệt. Không có nút này thì
-                người duyệt chỉ có hai lối: duyệt, hoặc bỏ đó. Ở `done` bản trước
-                cho cả người mở tài khoản bấm; bỏ từ 2026-09-08, lý do ở
-                `updateBankAccountStatus`. */}
-            {(data.status === "done" || data.status === "fixed") &&
-              canManageBank(user, data.bankId) && (
-                <Button variant="danger" onClick={() => setMarkingError(true)}>
-                  <TriangleAlert size={16} aria-hidden />
-                  Đánh dấu lỗi
+            {canWrite && (
+              <>
+                <Button variant="secondary" onClick={() => setEditing(true)}>
+                  <Pencil size={16} aria-hidden />
+                  {data.status === "error" ? "Sửa lỗi" : "Sửa"}
                 </Button>
-              )}
-            {/* Khôi phục là đường ĐI TẮT qua vòng duyệt, nên chỉ người quản
-                ngân hàng thấy. Nhân viên sửa lỗi rồi gửi duyệt như mọi lượt. */}
-            {data.status === "error" && canManageBank(user, data.bankId) && (
-              <Button
-                variant="secondary"
-                disabled={statusUpdate.isPending}
-                onClick={() => statusUpdate.mutate({ status: "done", errorNote: "" })}
-              >
-                <RotateCcw size={16} aria-hidden />
-                Khôi phục hoàn thành
-              </Button>
+                {/* Ở `fixed` đây là nút TỪ CHỐI của vòng duyệt. Không có nút này
+                    thì người duyệt chỉ có hai lối: duyệt, hoặc bỏ đó. Ở `done`
+                    bản trước cho cả người mở tài khoản bấm; bỏ từ 2026-09-08,
+                    lý do ở `updateBankAccountStatus`. */}
+                {(data.status === "done" || data.status === "fixed") &&
+                  canManageBank(user, data.bankId) && (
+                    <Button variant="danger" onClick={() => setMarkingError(true)}>
+                      <TriangleAlert size={16} aria-hidden />
+                      Đánh dấu lỗi
+                    </Button>
+                  )}
+                {/* Khôi phục là đường ĐI TẮT qua vòng duyệt, nên chỉ người quản
+                    ngân hàng thấy. Nhân viên sửa lỗi rồi gửi duyệt như mọi lượt. */}
+                {data.status === "error" && canManageBank(user, data.bankId) && (
+                  <Button
+                    variant="secondary"
+                    disabled={statusUpdate.isPending}
+                    onClick={() => statusUpdate.mutate({ status: "done", errorNote: "" })}
+                  >
+                    <RotateCcw size={16} aria-hidden />
+                    Khôi phục hoàn thành
+                  </Button>
+                )}
+                {/* Chỉ người quản CHÍNH ngân hàng này duyệt được. Ẩn nút thay vì
+                    hiện rồi báo lỗi — nút bấm không làm gì là lời hứa suông. */}
+                {/* `primary` chứ không phải `secondary`: đây là việc DUY NHẤT màn
+                    này đang chờ người xem làm, và nó đứng cạnh nút Sửa. Hai nút
+                    cùng dáng viền thì không đọc ra cái nào là việc chính. */}
+                {data.status === "fixed" && canManageBank(user, data.bankId) && (
+                  <Button disabled={approve.isPending} onClick={() => setApproving(true)}>
+                    <Check size={16} aria-hidden />
+                    Duyệt
+                  </Button>
+                )}
+              </>
             )}
-            {/* Chỉ người quản CHÍNH ngân hàng này duyệt được. Ẩn nút thay vì
-                hiện rồi báo lỗi — nút bấm không làm gì là lời hứa suông. */}
-            {/* `primary` chứ không phải `secondary`: đây là việc DUY NHẤT màn
-                này đang chờ người xem làm, và nó đứng cạnh nút Sửa. Hai nút
-                cùng dáng viền thì không đọc ra cái nào là việc chính. */}
-            {data.status === "fixed" && canManageBank(user, data.bankId) && (
-              <Button disabled={approve.isPending} onClick={() => setApproving(true)}>
-                <Check size={16} aria-hidden />
-                Duyệt
+            {/* Xoá đứng CUỐI hàng: nó là đường không lùi được, còn mọi nút bên
+                trái đều sửa lại được. Ẩn với nhân viên — họ vẫn xoá được bản
+                nháp của mình ở thẻ bước 2, chỗ đó không có gì để mất. */}
+            {canRemove && (
+              <Button
+                variant="danger"
+                disabled={remove.isPending}
+                onClick={() => setRemoving(true)}
+              >
+                <Trash2 size={16} aria-hidden />
+                Xoá
               </Button>
             )}
           </div>
@@ -569,6 +620,60 @@ function DoneAccountCard({
             placeholder="Ví dụ: Tài khoản không hợp lệ khi đối soát"
             value={errorNote}
             onChange={(event) => setErrorNote(event.target.value)}
+          />
+        </Dialog>
+      )}
+
+      {removing && (
+        <Dialog
+          open
+          title="Xoá tài khoản này?"
+          onClose={() => !remove.isPending && setRemoving(false)}
+          footer={
+            <>
+              <Button
+                variant="secondary"
+                onClick={() => setRemoving(false)}
+                disabled={remove.isPending}
+              >
+                Huỷ
+              </Button>
+              <Button
+                variant="danger"
+                disabled={remove.isPending || removeReason.trim().length < 2}
+                onClick={() => remove.mutate(removeReason)}
+              >
+                Xoá tài khoản
+              </Button>
+            </>
+          }
+        >
+          <p>
+            {data.bankCode} số {formatPhone(data.accountNumber)} của {data.customerName}, mở{" "}
+            {formatDate(data.date)}.
+          </p>
+          {/* Chỉ `done` mới nằm trong điểm; bản lỗi đã ra khỏi phép tính từ lúc
+              đánh dấu, nói "tính lại KPI" ở đó là nói một thứ không xảy ra. */}
+          <Alert tone="warning">
+            Tài khoản mất hẳn, không lấy lại được. Mã giới thiệu {data.referralCode} được
+            trả lại
+            {data.status === "done" ? ". Điểm KPI của người lập hồ sơ khách tính lại" : ""}.
+          </Alert>
+          {/* Rổ đã trao đóng băng trong `gift_grants`, lượt xoá không sửa được
+              nó — người bấm phải biết mình đang tạo ra một chỗ lệch. */}
+          {data.customerGiftItem && (
+            <Alert tone="warning">
+              Khách đã nhận quà: {data.customerGiftItem}. Rổ quà đã phát giữ nguyên và sẽ lệch
+              với rổ tính lại sau khi xoá.
+            </Alert>
+          )}
+          <TextArea
+            label="Lý do xoá"
+            required
+            rows={3}
+            placeholder="Ví dụ: Nhập trùng, tài khoản này không có thật"
+            value={removeReason}
+            onChange={(event) => setRemoveReason(event.target.value)}
           />
         </Dialog>
       )}

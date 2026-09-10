@@ -31,6 +31,7 @@ import {
 } from "@/lib/api/bankAccounts";
 import { fetchBankReferralCodeOptions, fetchBanks } from "@/lib/api/bankCatalog";
 import { fetchDepartments } from "@/lib/api/departments";
+import { fetchChannels } from "@/lib/api/channelCatalog";
 import {
   fetchBankAccountsOfBank,
   fetchBankAccountsOfBankForExport,
@@ -150,6 +151,7 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
   const [departmentId, setDepartmentId] = useState(
     () => searchParams.get("departmentId") ?? "",
   );
+  const [channelId, setChannelId] = useState(() => searchParams.get("channelId") ?? "");
   const [accountType, setAccountType] = useState<AccountType | "">(() => {
     const parsed = AccountType.safeParse(searchParams.get("accountType"));
     return parsed.success ? parsed.data : "";
@@ -196,6 +198,11 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
     queryFn: fetchDepartments,
     staleTime: Infinity,
   });
+  const { data: channels = [] } = useQuery({
+    queryKey: ["channels"],
+    queryFn: fetchChannels,
+    staleTime: Infinity,
+  });
 
   const from = range?.from ? iso(range.from) : "";
   const to = range?.to ? iso(range.to) : "";
@@ -217,6 +224,7 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
     if (status) params.set("status", status);
     if (referralCodeId) params.set("referralCodeId", referralCodeId);
     if (departmentId) params.set("departmentId", departmentId);
+    if (channelId) params.set("channelId", channelId);
     if (accountType) params.set("accountType", accountType);
     // `page` là trang của TAB ĐANG MỞ; `dir` chỉ có nghĩa với bảng tài khoản.
     const shownPage = tab === "photos" ? photoPage : page;
@@ -226,6 +234,7 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
     return query ? `/settings/banks/${id}?${query}` : `/settings/banks/${id}`;
   }, [
     accountType,
+    channelId,
     departmentId,
     dir,
     from,
@@ -253,6 +262,7 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
       status,
       referralCodeId,
       departmentId,
+      channelId,
       accountType,
       page,
       dir,
@@ -265,6 +275,7 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
         status,
         referralCodeId,
         departmentId,
+        channelId,
         accountType,
         page,
         sort: "date",
@@ -297,6 +308,7 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
         status,
         referralCodeId,
         departmentId,
+        channelId,
         accountType,
       });
       // Chỉ xảy ra khi số dòng vượt sức chứa của một sheet Excel. Không có
@@ -350,6 +362,7 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
     (status ? 1 : 0) +
     (referralCodeId ? 1 : 0) +
     (departmentId ? 1 : 0) +
+    (channelId ? 1 : 0) +
     (accountType ? 1 : 0);
   const codeName = codes.find((c) => c.id === referralCodeId)?.name ?? "";
 
@@ -375,6 +388,7 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
               setStatus("");
               setReferralCodeId("");
               setDepartmentId("");
+              setChannelId("");
               setAccountType("");
             })
           }
@@ -430,6 +444,16 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
               ...departments.map((d) => ({ value: d.id, label: d.name })),
             ]}
           />
+          <Select
+            block
+            label="Kênh"
+            value={channelId}
+            onChange={(v) => refine(() => setChannelId(v))}
+            options={[
+              { value: "", label: "Tất cả kênh" },
+              ...channels.map((channel) => ({ value: channel.id, label: channel.name })),
+            ]}
+          />
           <Button
             variant="secondary"
             block
@@ -482,6 +506,14 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
                   },
                 ]
               : []),
+            ...(channelId
+              ? [
+                  {
+                    label: `Kênh: ${channels.find((channel) => channel.id === channelId)?.name ?? ""}`,
+                    onRemove: () => refine(() => setChannelId("")),
+                  },
+                ]
+              : []),
             ...(referralCodeId
               ? [
                   {
@@ -504,7 +536,7 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
               và về trang đầu (AGENTS.md §7 — reset state bằng key, không effect).
               Giữ lượt chọn qua bộ lọc là tải nhầm cả ảnh đã bị bộ lọc ẩn đi.
             */
-            key={`${from}|${to}|${status}|${referralCodeId}|${departmentId}|${accountType}`}
+            key={`${from}|${to}|${status}|${referralCodeId}|${departmentId}|${channelId}|${accountType}`}
             bankId={id}
             bankCode={bank?.code ?? ""}
             filters={{
@@ -514,6 +546,7 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
               status,
               referralCodeId,
               departmentId,
+              channelId,
               accountType,
             }}
             page={photoPage}

@@ -540,6 +540,12 @@
   border-top: 0;
 }
 
+.intakePhotoGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--space-3);
+}
+
 /* Ô chỉ xem có đúng một nút tải về, nên nó đứng sát mép như nút ngoài cùng của
    ô có ba nút. Đặt sau khối `pointer: coarse` để thắng `.saved .photoDownload`. */
 .viewOnly .photoDownload {

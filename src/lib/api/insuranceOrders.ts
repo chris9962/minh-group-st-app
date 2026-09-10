@@ -231,6 +231,8 @@ const orderFields = {
    * trống được: đơn lập trước khi có ảnh hồ sơ vẫn phải sửa được.
    */
   intakePhotoUrl: z.string().trim(),
+  /** Mặt sau CCCD; tùy chọn vì có hồ sơ thực tế chỉ nhận được một mặt. */
+  intakePhotoBackUrl: z.string().trim(),
 };
 
 /**

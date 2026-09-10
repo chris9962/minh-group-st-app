@@ -30,6 +30,7 @@ type Filters = {
   status: string;
   referralCodeId: string;
   departmentId: string;
+  channelId: string;
   accountType: string;
 };
 
@@ -65,7 +66,8 @@ export function BankPhotoGallery({
   hasActiveFilters,
 }: Props) {
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
-  const [lightbox, setLightbox] = useState<{ url: string; alt: string } | null>(null);
+  /** Vị trí ảnh đang xem cỡ lớn trong `cells`; `null` = không mở. */
+  const [lightboxAt, setLightboxAt] = useState<number | null>(null);
 
   const { data = EMPTY_PAGE, isPending, isError, refetch, isFetching } = useQuery({
     queryKey: ["bank-photos", bankId, filters, page],
@@ -115,7 +117,21 @@ export function BankPhotoGallery({
     onError: (e) => toast.fail(errorMessage(e, "Không tải được ảnh về máy.")),
   });
 
-  const pageIds = data.rows.flatMap((r) => r.photos.map((p) => p.id));
+  /**
+   * Ảnh của cả trang, đã trải phẳng khỏi từng tài khoản.
+   *
+   * Lưới và trình xem cỡ lớn đọc CHUNG mảng này — hai bên đánh số lệch nhau thì
+   * bấm tấm thứ 7 mở ra tấm khác.
+   */
+  const cells = data.rows.flatMap((row) =>
+    row.photos.map((photo) => ({
+      photo,
+      row,
+      alt: `Ảnh ${photo.kind === "transaction" ? "giao dịch" : "mở tài khoản"} · ${row.customerName}`,
+    })),
+  );
+
+  const pageIds = cells.map((cell) => cell.photo.id);
   const allPicked = pageIds.length > 0 && pageIds.every((id) => selected.has(id));
   const pageCount = Math.max(1, Math.ceil(data.total / BANK_PHOTOS_PAGE_SIZE));
 
@@ -181,57 +197,54 @@ export function BankPhotoGallery({
           </div>
 
           <ul className={styles.grid}>
-            {data.rows.flatMap((row) =>
-              row.photos.map((photo) => {
-                const picked = selected.has(photo.id);
-                const alt = `Ảnh ${photo.kind === "transaction" ? "giao dịch" : "mở tài khoản"} · ${row.customerName}`;
-                return (
-                  <li key={photo.id} className={clsx(styles.card, picked && styles.cardSelected)}>
-                    {/* Bấm vào ẢNH là chọn; xem lớn đi nút kính lúp riêng. */}
-                    <button
-                      type="button"
-                      className={styles.view}
-                      aria-pressed={picked}
-                      aria-label={`Chọn ${alt}`}
-                      onClick={() => togglePhoto(photo.id, !picked)}
-                    >
-                      <img src={photo.url} alt={alt} loading="lazy" />
-                    </button>
-                    {/* Dấu tick + viền cam cùng báo "đang chọn" — icon để không
-                        truyền đạt trạng thái chỉ bằng màu (AGENTS.md §8). */}
-                    {picked && (
-                      <span className={styles.pickedMark} aria-hidden>
-                        <Check size={14} />
-                      </span>
-                    )}
-                    {photo.kind === "transaction" && (
-                      <span className={styles.kindTag}>Giao dịch</span>
-                    )}
-                    <button
-                      type="button"
-                      className={styles.zoom}
-                      aria-label={`Xem lớn: ${alt}`}
-                      onClick={() => setLightbox({ url: photo.url, alt })}
-                    >
-                      <ZoomIn size={16} aria-hidden />
-                    </button>
-                    <span className={styles.caption}>
-                      {/* Tới thẳng tài khoản của ảnh này, cùng chốt "dòng là
-                          LINK" của tab tài khoản (2026-09-05): người quản đối
-                          chiếu nhiều tài khoản một lượt nên cần mở tab mới. */}
-                      <Link
-                        href={`/settings/banks/${bankId}/${row.id}`}
-                        className={styles.captionLink}
-                        aria-label={`Xem tài khoản của ${row.customerName}`}
-                      >
-                        {row.customerName}
-                      </Link>
-                      {row.date ? ` · ${formatDate(row.date)}` : ""}
+            {cells.map(({ photo, row, alt }, i) => {
+              const picked = selected.has(photo.id);
+              return (
+                <li key={photo.id} className={clsx(styles.card, picked && styles.cardSelected)}>
+                  {/* Bấm vào ẢNH là chọn; xem lớn đi nút kính lúp riêng. */}
+                  <button
+                    type="button"
+                    className={styles.view}
+                    aria-pressed={picked}
+                    aria-label={`Chọn ${alt}`}
+                    onClick={() => togglePhoto(photo.id, !picked)}
+                  >
+                    <img src={photo.url} alt={alt} loading="lazy" />
+                  </button>
+                  {/* Dấu tick + viền cam cùng báo "đang chọn" — icon để không
+                      truyền đạt trạng thái chỉ bằng màu (AGENTS.md §8). */}
+                  {picked && (
+                    <span className={styles.pickedMark} aria-hidden>
+                      <Check size={14} />
                     </span>
-                  </li>
-                );
-              }),
-            )}
+                  )}
+                  {photo.kind === "transaction" && (
+                    <span className={styles.kindTag}>Giao dịch</span>
+                  )}
+                  <button
+                    type="button"
+                    className={styles.zoom}
+                    aria-label={`Xem lớn: ${alt}`}
+                    onClick={() => setLightboxAt(i)}
+                  >
+                    <ZoomIn size={16} aria-hidden />
+                  </button>
+                  <span className={styles.caption}>
+                    {/* Tới thẳng tài khoản của ảnh này, cùng chốt "dòng là
+                        LINK" của tab tài khoản (2026-09-05): người quản đối
+                        chiếu nhiều tài khoản một lượt nên cần mở tab mới. */}
+                    <Link
+                      href={`/settings/banks/${bankId}/${row.id}`}
+                      className={styles.captionLink}
+                      aria-label={`Xem tài khoản của ${row.customerName}`}
+                    >
+                      {row.customerName}
+                    </Link>
+                    {row.date ? ` · ${formatDate(row.date)}` : ""}
+                  </span>
+                </li>
+              );
+            })}
           </ul>
 
           {pageCount > 1 && (
@@ -263,8 +276,26 @@ export function BankPhotoGallery({
         </>
       )}
 
-      {lightbox && (
-        <ImageLightbox src={lightbox.url} alt={lightbox.alt} onClose={() => setLightbox(null)} />
+      {lightboxAt !== null && (
+        <ImageLightbox
+          photos={cells.map(({ photo, row, alt }) => ({
+            src: photo.url,
+            alt,
+            caption: (
+              <>
+                <Link
+                  href={`/settings/banks/${bankId}/${row.id}`}
+                  aria-label={`Xem tài khoản của ${row.customerName}`}
+                >
+                  {row.customerName}
+                </Link>
+                {row.date ? ` · ${formatDate(row.date)}` : ""}
+              </>
+            ),
+          }))}
+          startIndex={lightboxAt}
+          onClose={() => setLightboxAt(null)}
+        />
       )}
     </SectionCard>
   );

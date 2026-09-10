@@ -2,7 +2,7 @@
 
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { Pencil, Ticket } from "lucide-react";
+import { Ban, Pencil, Ticket } from "lucide-react";
 import { useState } from "react";
 import { SkeletonTable } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
@@ -29,6 +29,7 @@ import { useSession } from "@/store/session";
 import { EMPTY_PAGE, PAGE_SIZE } from "@/lib/api/pagination";
 import { useDebouncedValue } from "@/lib/hooks";
 import { ReferralCodeFormDialog } from "./ReferralCodeFormDialog";
+import { BulkStopReferralCodesDialog } from "./BulkStopReferralCodesDialog";
 import styles from "./ReferralCodesSection.module.scss";
 import { errorMessage, toast } from "@/lib/toast";
 
@@ -66,6 +67,7 @@ export function ReferralCodesSection({ creating, onCreatingChange }: Props) {
   const [query, setQuery] = useState<ReferralCodeQuery>(FIRST_PAGE);
   const [editing, setEditing] = useState<ReferralCode | null>(null);
   const [confirming, setConfirming] = useState<ReferralCode | null>(null);
+  const [bulkStopping, setBulkStopping] = useState(false);
 
   // Ô tìm giữ chữ đang gõ riêng, chỉ hoãn xong mới thành câu hỏi gửi đi. Nối
   // thẳng vào `query` thì mỗi phím là một lượt gọi máy chủ, mà mỗi lượt là một
@@ -239,6 +241,13 @@ export function ReferralCodesSection({ creating, onCreatingChange }: Props) {
       icon={<Ticket size={17} />}
       meta={isPending ? undefined : `${page.total} mã`}
     >
+      <div className={styles.bulkBar}>
+        <Button variant="secondary" onClick={() => setBulkStopping(true)}>
+          <Ban size={16} aria-hidden />
+          Ngừng mã hàng loạt
+        </Button>
+      </div>
+
       <div className={styles.filters}>
         <SearchField
           label="Tìm mã"
@@ -323,6 +332,18 @@ export function ReferralCodesSection({ creating, onCreatingChange }: Props) {
             onCreatingChange(false);
             setEditing(null);
           }}
+        />
+      )}
+
+      {bulkStopping && (
+        <BulkStopReferralCodesDialog
+          filters={{
+            bankId: query.bankId,
+            departmentId: query.departmentId,
+            status: query.status,
+            search: debouncedSearch,
+          }}
+          onClose={() => setBulkStopping(false)}
         />
       )}
 

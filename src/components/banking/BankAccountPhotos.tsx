@@ -161,8 +161,8 @@ export function BankAccountPhotos({
   /** Ô đang thay ảnh; `null` = đang thêm mới. */
   const replacingSlot = useRef<number | null>(null);
   const previews = useRef(new Set<string>());
-  /** Ảnh đang xem cỡ lớn; `null` = không mở. */
-  const [zoomed, setZoomed] = useState<{ src: string; label: string } | null>(null);
+  /** Vị trí ảnh đang xem cỡ lớn; `null` = không mở. */
+  const [zoomedAt, setZoomedAt] = useState<number | null>(null);
 
   // `blob:` chiếm bộ nhớ tới khi được thu hồi, và trình duyệt không tự dọn khi
   // component biến mất. Đây là tài nguyên ngoài React nên đúng chỗ cho effect.
@@ -271,8 +271,11 @@ export function BankAccountPhotos({
             {" *"}
           </span>
         )}{" "}
+        {/* Mẫu số là TRẦN, không phải số ảnh bắt buộc: chỗ nhận 2 ảnh mà bắt
+            buộc 1 thì hiện "1/1", và người nhập đọc ra là đã xong, không biết
+            còn thêm được tấm nữa. Dấu * bên trên mới là chỗ nói bắt buộc. */}
         ({photos.length}
-        {requiredPhotos > 0 ? `/${requiredPhotos}` : ""})
+        {requiredPhotos > 0 ? `/${Math.max(requiredPhotos, max)}` : ""})
       </Heading>
 
       <div className={styles.photoGrid}>
@@ -284,7 +287,7 @@ export function BankAccountPhotos({
                 type="button"
                 className={styles.photoZoom}
                 aria-label={`Xem ${noun} ${i + 1} cỡ lớn`}
-                onClick={() => setZoomed({ src, label: `${title} ${i + 1}` })}
+                onClick={() => setZoomedAt(i)}
               >
                 <img src={src} alt={`${title} ${i + 1}`} className={styles.photo} />
               </button>
@@ -349,8 +352,15 @@ export function BankAccountPhotos({
         <p className="text-muted">Chưa có {noun} nào.</p>
       )}
 
-      {zoomed && (
-        <ImageLightbox src={zoomed.src} alt={zoomed.label} onClose={() => setZoomed(null)} />
+      {zoomedAt !== null && (
+        <ImageLightbox
+          photos={photos.map((photo, i) => ({
+            src: photo.kind === "saved" ? photo.url : photo.preview,
+            alt: `${title} ${i + 1}`,
+          }))}
+          startIndex={zoomedAt}
+          onClose={() => setZoomedAt(null)}
+        />
       )}
 
       {onChange && (

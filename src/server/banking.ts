@@ -30,13 +30,19 @@ import type { BankAccountDetail, BankAccountRow, BankAccountSort } from "@/lib/a
 import type { Page } from "@/lib/api/pagination";
 import type { BankPhoto, BankPhotoRow } from "@/lib/api/bankPhotos";
 import { ageRangeLabel, businessDay, businessMonth } from "@/lib/format";
-import { canManageBank, recordVisibility, type RecordVisibility } from "@/lib/permissions";
+import {
+  canDeleteFinished,
+  canManageBank,
+  recordVisibility,
+  type RecordVisibility,
+} from "@/lib/permissions";
 import { isRealIsoDate, type User } from "@/lib/types";
 import { searchTerms } from "@/lib/search";
 import { db } from "./db/client";
 import { departmentForNewRecord } from "./writeDepartment";
 import {
   bankAccountPhotos,
+  bankAccountStatusHistory,
   bankAccounts,
   bankGuidePhotos,
   bankGuideVariants,
@@ -45,6 +51,7 @@ import {
   customerPhones,
   customers,
   departments,
+  giftGrants,
   referralCodeDepartments,
   referralCodes,
   users,
@@ -96,6 +103,43 @@ function meetsBankAgeRule(dob: string | null, rule: BankAgeRule, at = businessDa
 }
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/** Trạng thái và lịch sử ghi cùng giao dịch; lỗi ghi lịch sử phải rollback cả lượt đổi. */
+async function changeAccountStatus(
+  tx: Tx,
+  actor: User,
+  id: string,
+  fromStatus: BankAccountStatus,
+  toStatus: BankAccountStatus,
+  changes: Partial<typeof bankAccounts.$inferInsert>,
+  note = "",
+) {
+  // Chờ xong khóa mới lấy giờ đổi trạng thái; cùng khóa với đường sửa ảnh.
+  await tx.select({ id: bankAccounts.id }).from(bankAccounts)
+    .where(eq(bankAccounts.id, id)).for("update");
+  const rows = await tx.update(bankAccounts).set({
+    ...changes,
+    status: toStatus,
+    updatedAt: sql`statement_timestamp()`,
+    ...(toStatus === "error" && fromStatus !== "error"
+      ? { lastErrorAt: sql`statement_timestamp()` }
+      : {}),
+  }).where(and(eq(bankAccounts.id, id), eq(bankAccounts.status, fromStatus)))
+    .returning({ id: bankAccounts.id, changedAt: bankAccounts.updatedAt });
+
+  if (rows[0] && fromStatus !== toStatus) {
+    await tx.insert(bankAccountStatusHistory).values({
+      accountId: id,
+      fromStatus,
+      toStatus,
+      changedBy: actor.id,
+      changedByName: actor.fullName,
+      note,
+      changedAt: rows[0].changedAt!,
+    });
+  }
+  return rows;
+}
 
 /**
  * Dòng HKD là tài khoản THẬT thứ hai của cùng ngân hàng, không phải một cách
@@ -453,6 +497,7 @@ const pickPage = (where: SQL | undefined, orderBy: SQL[], limit: number, offset:
       createdByDepartmentId: bankAccounts.createdByDepartmentId,
       // Mốc tính cửa sổ sửa ảnh chứng minh (`canEditOpeningPhotos`).
       finishedAt: bankAccounts.finishedAt,
+      lastErrorAt: bankAccounts.lastErrorAt,
       status: bankAccounts.status,
     })
     .from(bankAccounts)
@@ -508,6 +553,7 @@ const decorate = (page: ReturnType<typeof pickPage>) =>
       createdByStaffCode: sql<string>`coalesce(${users.staffCode}, '')`,
       createdByDepartmentName: departments.name,
       finishedAt: page.finishedAt,
+      lastErrorAt: page.lastErrorAt,
       status: page.status,
       requiredPhotos: banks.requiredPhotos,
       accountNumberMethod: banks.accountNumberMethod,
@@ -656,6 +702,8 @@ export type BankOfBankFilters = {
   referralCodeId: string;
   /** Phòng GHI NHẬN lúc tạo bản ghi, chụp một lần (spec §1.1.5). */
   departmentId: string;
+  /** Kênh chụp lúc tạo tài khoản. */
+  channelId: string;
   /** `none` · `CNKD` · `HKD`. Rỗng hoặc giá trị lạ = mọi loại. */
   accountType: string;
 };
@@ -676,6 +724,7 @@ const bankAccountsOfBankWhere = (bankId: string, filters: BankOfBankFilters): SQ
       filters.departmentId
         ? eq(bankAccounts.createdByDepartmentId, filters.departmentId)
         : undefined,
+      filters.channelId ? eq(bankAccounts.channelId, filters.channelId) : undefined,
       accountTypeFilter(filters.accountType),
     ].filter(Boolean) as SQL[]),
   )!;
@@ -883,6 +932,7 @@ const photoUrlsOf = async (accountId: string, kind: PhotoKind): Promise<string[]
 const photoWindowOf = (r: DecoratedRow) => ({
   status: r.status,
   finishedAt: r.finishedAt?.toISOString() ?? "",
+  lastErrorAt: r.lastErrorAt?.toISOString() ?? "",
 });
 
 const rawById = async (id: string): Promise<DecoratedRow | null> =>
@@ -906,6 +956,22 @@ async function customerPhoneNumbers(customerId: string): Promise<string[]> {
   return rows
     .sort((a, b) => Number(b.isPrimary) - Number(a.isPrimary))
     .map((r) => r.number);
+}
+
+/**
+ * Món quà khách ĐÃ nhận; `''` = chưa có đợt phát nào.
+ *
+ * Chỉ để cảnh báo trước lượt xoá tài khoản đã hoàn thành: rổ quà đóng băng
+ * trong `gift_grants.snapshot` lúc phát, nên xoá bớt một tài khoản là rổ tính
+ * lại lệch với rổ đã trao và không phép tính nào chữa được.
+ */
+async function grantedGiftItemOf(customerId: string): Promise<string> {
+  const [row] = await db
+    .select({ chosenItem: giftGrants.chosenItem })
+    .from(giftGrants)
+    .where(eq(giftGrants.customerId, customerId))
+    .limit(1);
+  return row?.chosenItem ?? "";
 }
 
 async function accountById(id: string): Promise<BankAccount | null> {
@@ -936,6 +1002,7 @@ async function accountById(id: string): Promise<BankAccount | null> {
     photoUrls: await photoUrlsOf(id, "opening"),
     transactionAt: r.transactionAt,
     transactionPhotoUrls: await photoUrlsOf(id, "transaction"),
+    finishedAt: r.finishedAt?.toISOString() ?? "",
     customerPhones: await customerPhoneNumbers(r.customerId),
     status: r.status,
   };
@@ -993,6 +1060,11 @@ async function detailBody(r: DecoratedRow): Promise<BankAccountDetail> {
     transactionAt: r.transactionAt,
     transactionPhotoUrls: await photoUrlsOf(r.id, "transaction"),
     finishedAt: r.finishedAt?.toISOString() ?? "",
+    lastErrorAt: r.lastErrorAt?.toISOString() ?? "",
+    history: (await db.select().from(bankAccountStatusHistory)
+      .where(eq(bankAccountStatusHistory.accountId, r.id))
+      .orderBy(asc(bankAccountStatusHistory.changedAt), asc(bankAccountStatusHistory.id)))
+      .map((step) => ({ ...step, changedAt: step.changedAt.toISOString() })),
     requiredPhotos: variant?.requiredPhotos ?? r.requiredPhotos,
     accountNumberMethod: r.accountNumberMethod,
     accountNumberPrefix: r.accountNumberPrefix,
@@ -1002,6 +1074,7 @@ async function detailBody(r: DecoratedRow): Promise<BankAccountDetail> {
     appDefault: separateGuide ? (variant?.appDefault ?? false) : r.appDefault,
     countsAsApp: separateGuide ? (variant?.countsAsApp ?? false) : r.countsAsApp,
     customerPhones: await customerPhoneNumbers(r.customerId),
+    customerGiftItem: await grantedGiftItemOf(r.customerId),
     referralCodeText: r.referralCodeText,
     referralProvince: r.referralProvince,
     referralSupportBranch: r.referralSupportBranch,
@@ -1443,6 +1516,9 @@ export async function finishBankAccount(
    * với lúc ghi thì tài khoản lên `done` với ít ảnh hơn mức bắt buộc.
    */
   const outcome = await db.transaction(async (tx) => {
+    // Cùng khóa với setPhotos: không cho thay ảnh xen vào lúc hoàn thành.
+    await tx.select({ id: bankAccounts.id }).from(bankAccounts)
+      .where(eq(bankAccounts.id, id)).for("update");
     const [photos] = await tx
       .select({ n: count() })
       .from(bankAccountPhotos)
@@ -1455,21 +1531,13 @@ export async function finishBankAccount(
         message: `Ngân hàng ${current.bankCode} cần ${requiredPhotos} ảnh chứng minh, hiện mới có ${have}.`,
       };
 
-    const updated = await tx
-      .update(bankAccounts)
-      .set({
-        accountNumber: form.accountNumber,
-        openedDate,
-        appInstalled: form.appInstalled,
-        note: form.note,
-        status: "done",
-        finishedAt: new Date(),
-        updatedAt: new Date(),
-      })
-      // Điều kiện trạng thái nằm ngay trong câu ghi — người thứ hai không ghi
-      // trúng dòng nào và biết ngay là mình chậm chân.
-      .where(and(eq(bankAccounts.id, id), eq(bankAccounts.status, "creating")))
-      .returning({ id: bankAccounts.id });
+    const updated = await changeAccountStatus(tx, actor, id, "creating", "done", {
+      accountNumber: form.accountNumber,
+      openedDate,
+      appInstalled: form.appInstalled,
+      note: form.note,
+      finishedAt: new Date(),
+    });
 
     if (updated.length === 0)
       return { ok: false as const, message: "Tài khoản này vừa được hoàn thành ở nơi khác" };
@@ -1572,23 +1640,12 @@ export async function updateFinishedAccount(
   const outcome = await db.transaction(async (tx) => {
     // Trạng thái ĐANG ĐỌC ĐƯỢC nằm ngay trong câu ghi, không chỉ ở phép kiểm bên
     // trên: giữa lúc đọc và lúc ghi, người khác có thể vừa đối soát bản ghi này.
-    const updated = await tx
-      .update(bankAccounts)
-      .set({
-        accountNumber: form.accountNumber,
-        // KHÔNG đụng `openedDate`: ngày mở chốt từ bước 1 và lượt sửa không đổi
-        // được (chốt 2026-09-08) — xem `finishBankAccount`.
-        //
-        // Ô để trống nghĩa là XOÁ ghi nhận, không phải "giữ nguyên" — người dùng
-        // xoá ngày giao dịch đi rồi bấm Lưu thì phải mất thật.
-        transactionAt: form.transactionAt || null,
-        appInstalled: form.appInstalled,
-        note: form.note,
-        status: nextStatus,
-        updatedAt: new Date(),
-      })
-      .where(and(eq(bankAccounts.id, id), eq(bankAccounts.status, current.status)))
-      .returning({ id: bankAccounts.id });
+    const updated = await changeAccountStatus(tx, actor, id, current.status, nextStatus, {
+      accountNumber: form.accountNumber,
+      transactionAt: form.transactionAt || null,
+      appInstalled: form.appInstalled,
+      note: form.note,
+    });
 
     if (updated.length === 0)
       return { ok: false as const, message: "Tài khoản này vừa bị đổi ở nơi khác" };
@@ -1635,11 +1692,9 @@ export async function approveFixedAccount(
   if (current.status !== "fixed")
     return { ok: false, message: "Tài khoản này không ở trạng thái chờ duyệt lại." };
 
-  const updated = await db
-    .update(bankAccounts)
-    .set({ status: "done", errorNote: "", updatedAt: new Date() })
-    .where(and(eq(bankAccounts.id, id), eq(bankAccounts.status, "fixed")))
-    .returning({ id: bankAccounts.id });
+  const updated = await db.transaction((tx) =>
+    changeAccountStatus(tx, actor, id, "fixed", "done", { errorNote: "" }),
+  );
   if (updated.length === 0)
     return { ok: false, message: "Tài khoản vừa được đối soát ở nơi khác." };
 
@@ -1690,11 +1745,9 @@ export async function markAccountErrorByBankManager(
       message: "Chỉ tài khoản đã hoàn thành hoặc chờ duyệt lại mới đánh dấu lỗi được.",
     };
 
-  const updated = await db
-    .update(bankAccounts)
-    .set({ status: "error", errorNote, updatedAt: new Date() })
-    .where(and(eq(bankAccounts.id, id), eq(bankAccounts.status, current.status)))
-    .returning({ id: bankAccounts.id });
+  const updated = await db.transaction((tx) =>
+    changeAccountStatus(tx, actor, id, current.status, "error", { errorNote }, errorNote),
+  );
   if (updated.length === 0)
     return { ok: false, message: "Tài khoản vừa được đối soát ở nơi khác." };
 
@@ -1752,15 +1805,11 @@ export async function updateBankAccountStatus(
           : "Chỉ người quản ngân hàng này đánh dấu lỗi được tài khoản.",
     };
 
-  const updated = await db
-    .update(bankAccounts)
-    .set({
-      status: form.status,
+  const updated = await db.transaction((tx) =>
+    changeAccountStatus(tx, actor, id, current.status, form.status, {
       errorNote: form.status === "error" ? form.errorNote : "",
-      updatedAt: new Date(),
-    })
-    .where(and(eq(bankAccounts.id, id), eq(bankAccounts.status, current.status)))
-    .returning({ id: bankAccounts.id });
+    }, form.status === "error" ? form.errorNote : "Khôi phục tài khoản"),
+  );
   if (updated.length === 0)
     return { ok: false, message: "Tài khoản vừa được đối soát ở nơi khác." };
 
@@ -1776,32 +1825,69 @@ export async function updateBankAccountStatus(
 }
 
 /**
- * Bỏ dở — chỉ xoá được khi còn `creating` (db-design §10).
+ * Xoá một tài khoản — bản nháp bỏ dở, hoặc dòng đã hoàn thành nhập nhầm.
  *
- * Xoá dòng đó là NHẢ CHỖ mã về kho: trigger `mgst_sync_referral_counts` hạ
- * `holding_count` theo. Ảnh đi kèm chết theo nhờ `on delete cascade`.
+ * Hai ca đi CHUNG một hàm vì phần thân giống hệt nhau: cùng phạm vi bản ghi,
+ * cùng câu xoá có kẹp trạng thái, cùng đường nhả chỗ mã. Khác nhau ở hai chốt
+ * và ở phần dọn sau khi xoá, viết thành hai nhánh dưới đây.
+ *
+ * Trigger DB lo hai cột đếm ở MỌI trạng thái: `mgst_sync_referral_counts` nhả
+ * chỗ mã, `mgst_sync_account_count` hạ số tài khoản của khách. Ảnh đi kèm chết
+ * theo nhờ `on delete cascade`. Điểm KPI và rổ quà thì KHÔNG có trigger nào
+ * giữ, nên nhánh `done` phải tự gọi hai phép tính lại.
+ *
+ * `null` = không có, ngoài phạm vi, hoặc không đủ quyền cho dòng đã hoàn thành
+ * — route trả 404 cho cả ba, vì phân biệt chúng là xác nhận id nào có thật.
  */
-export async function deleteDraft(actor: User, id: string): Promise<BankAccount | null> {
+export async function deleteAccount(
+  actor: User,
+  id: string,
+  reason: string,
+): Promise<{ ok: true; value: BankAccount } | { ok: false; message: string } | null> {
   const visible = scopeOf(actor, "delete");
   if (visible.kind === "none") return null;
 
   const current = await accountById(id);
   if (!current || !inScope(visible, current)) return null;
-  // Tài khoản đã hoàn thành thì không xoá — nó đã tiêu một lượt mã và đã vào
-  // điểm KPI. Trả `null` để route ra 404 y như "không có".
-  if (current.status !== "creating") return null;
 
-  // Điều kiện `creating` nằm ngay trong câu xoá, không chỉ ở phép kiểm bên trên:
-  // giữa lúc đọc và lúc xoá, người khác có thể vừa bấm Hoàn thành xong — xoá
-  // trúng thì mất một bản ghi `done` thật, mã đã tiêu bị nhả lại, còn điểm KPI
-  // thì giữ nguyên cho tới lần tính lại sau.
+  const finished = current.status !== "creating";
+  // Dòng đã hoàn thành cần phạm vi rộng hơn một người. Cấp phòng còn bị kẹp
+  // trong ngày hoàn thành; Ban giám đốc không bị giới hạn ngày.
+  if (finished && !canDeleteFinished(actor, "banking", current)) return null;
+  // Lý do chỉ bắt ở nhánh đã hoàn thành: dòng đó biến mất khỏi kho và nhật ký
+  // là vết duy nhất còn lại. Bản nháp chưa là gì cả, hỏi lý do là hỏi thừa.
+  if (finished && reason.trim().length < 2)
+    return { ok: false, message: "Chưa nhập lý do xoá." };
+
+  // Trạng thái ĐANG ĐỌC nằm ngay trong câu xoá, không chỉ ở phép kiểm bên trên:
+  // giữa lúc đọc và lúc xoá, người khác có thể vừa bấm Hoàn thành hay vừa đánh
+  // dấu lỗi — xoá trúng thì mất một bản ghi khác hẳn bản ghi người này đã xem,
+  // và phần dọn bên dưới chạy theo nhánh sai.
   const removed = await db
     .delete(bankAccounts)
-    .where(and(eq(bankAccounts.id, id), eq(bankAccounts.status, "creating")))
+    .where(and(eq(bankAccounts.id, id), eq(bankAccounts.status, current.status)))
     .returning({ id: bankAccounts.id });
-  if (removed.length === 0) return null;
+  if (removed.length === 0)
+    return { ok: false, message: "Tài khoản này vừa đổi trạng thái. Tải lại trang rồi thử lại." };
 
-  return current;
+  /**
+   * Chỉ dòng `done` mới nằm trong điểm KPI và rổ quà — hai phép tính đều lọc
+   * đúng trạng thái đó.
+   *
+   * Dòng `error` và `fixed` KHÔNG gọi tính lại: `markAccountErrorByBankManager`
+   * cố ý giữ rổ quà của lúc còn `done`, và gọi ở đây là ghi đè quyết định đó
+   * bằng một lượt xoá. Điểm của chúng cũng đã bị loại từ lúc đánh dấu lỗi.
+   */
+  if (current.status === "done") {
+    if (current.openedDate)
+      await recomputeKpiForCustomer(
+        current.customerId,
+        businessMonth(new Date(`${current.openedDate}T00:00:00+07:00`)),
+      );
+    await recomputeGiftCase(current.customerId);
+  }
+
+  return { ok: true, value: current };
 }
 
 /**
@@ -1860,7 +1946,23 @@ export async function setPhotos(
   if (kind === "opening" && current.status === "done" && photoKeys.length < requiredPhotos)
     return { tooFew: requiredPhotos } as const;
 
-  await db.transaction(async (tx) => {
+  const rejected = await db.transaction(async (tx) => {
+    const [locked] = await tx.select().from(bankAccounts)
+      .where(eq(bankAccounts.id, id)).for("update");
+    if (!locked || !inScope(visible, {
+      createdById: locked.createdBy,
+      createdByDepartmentId: locked.createdByDepartmentId,
+    })) return { locked: true } as const;
+    // Giờ của DB quyết định hạn; client không được gửi giờ để nới cửa sổ.
+    const [clock] = await tx.select({ now: sql<Date>`clock_timestamp()` }).from(bankAccounts)
+      .where(eq(bankAccounts.id, id));
+    if (kind === "opening" && !canEditOpeningPhotos(actor, {
+      status: locked.status,
+      finishedAt: locked.finishedAt?.toISOString() ?? "",
+      lastErrorAt: locked.lastErrorAt?.toISOString() ?? "",
+    }, new Date(clock.now))) return { locked: true } as const;
+    if (kind === "opening" && locked.status === "done" && photoKeys.length < requiredPhotos)
+      return { tooFew: requiredPhotos } as const;
     await tx
       .delete(bankAccountPhotos)
       .where(and(eq(bankAccountPhotos.accountId, id), eq(bankAccountPhotos.kind, kind)));
@@ -1869,6 +1971,8 @@ export async function setPhotos(
         photoKeys.map((url, i) => ({ accountId: id, kind, url, sortOrder: i })),
       );
   });
+
+  if (rejected) return rejected;
 
   return accountById(id);
 }

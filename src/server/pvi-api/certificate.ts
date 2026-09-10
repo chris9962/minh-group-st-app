@@ -45,10 +45,10 @@ const isPdf = (bytes: Buffer): boolean => bytes.subarray(0, 5).toString("latin1"
  */
 function through(url: string): { url: string; headers: Record<string, string> } {
   const token = (process.env.PVI_API_PROXY_TOKEN ?? "").trim();
-  const base = (process.env.PVI_API_BASE_URL ?? "").trim().replace(/\/+$/, "");
-  if (!token || !base) return { url, headers: {} };
+  const origin = (process.env.PVI_API_PROXY_ORIGIN ?? "").trim().replace(/\/+$/, "");
+  if (!token || !origin) return { url, headers: {} };
   return {
-    url: `${base}/api/pvi/file?url=${encodeURIComponent(url)}`,
+    url: `${origin}/api/pvi/file?url=${encodeURIComponent(url)}`,
     headers: { "x-pvi-proxy-token": token },
   };
 }

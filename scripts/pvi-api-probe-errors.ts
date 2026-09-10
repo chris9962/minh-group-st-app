@@ -8,18 +8,26 @@
  * kết quả vào `measured`, và mặc định KHÔNG gửi lại: mỗi ca PVI chấp nhận là
  * một đơn thật trên máy chủ test. `--all` gửi lại toàn bộ.
  *
- * ⚠️ Chỉ chạy với `PVI_API_BASE_URL` trỏ về `piastest` hoặc proxy trỏ về đó.
+ * ⚠️ Script ép `PVI_API_ENV=test`: gửi payload hỏng lên máy chủ thật là hợp đồng
+ * thật in sai. Proxy trên máy chủ cũng phải đang ở `test`.
  *
  * Chạy: bun scripts/pvi-api-probe-errors.ts [--all]
  */
 
 import { PviApiError, pviRequest, pviSign } from "@/server/pvi-api/client";
-import { readPviApiConfig } from "@/server/pvi-api/config";
+import {
+  PVI_ENDPOINT_PREFIX,
+  PVI_PROXY_PATH,
+  pviEndpointUrl,
+  readPviApiConfig,
+} from "@/server/pvi-api/config";
 import { MotorbikeOrderInput, PVI_MA_USER, buildMotorbikePayload } from "@/server/pvi-api/motorbike";
 import { ElectricOrderInput, buildElectricPayload } from "@/server/pvi-api/electric";
 
+process.env.PVI_API_ENV = "test";
+
 const config = readPviApiConfig();
-if (!config) throw new Error("Thiếu PVI_API_BASE_URL / PVI_API_CPID / PVI_API_KEY");
+if (!config) throw new Error("Thiếu PVI_API_CPID / PVI_API_KEY");
 
 const RUN_ALL = process.argv.includes("--all");
 
@@ -226,7 +234,16 @@ function describe(e: unknown): string {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-console.log("Máy chủ:", config.baseUrl, "· mã:", `MGST-PROBE-${STAMP}-*`, "· ngày bắt đầu:", NGAY_BAT_DAU, "\n");
+console.log(
+  "Máy chủ:",
+  PVI_ENDPOINT_PREFIX[config.env],
+  config.proxyOrigin ? `qua proxy ${config.proxyOrigin}` : "gọi thẳng",
+  "· mã:",
+  `MGST-PROBE-${STAMP}-*`,
+  "· ngày bắt đầu:",
+  NGAY_BAT_DAU,
+  "\n",
+);
 
 for (const c of CASES) {
   if (c.measured && !RUN_ALL) {
@@ -253,7 +270,10 @@ for (const c of RAW_BODIES) {
   }
   process.stdout.write(`${c.label.padEnd(56)} → `);
   try {
-    const res = await fetch(`${config.baseUrl}/API_CP/ManagerApplication/${c.endpoint}`, {
+    const rawUrl = config.proxyOrigin
+      ? `${config.proxyOrigin}${PVI_PROXY_PATH}/${c.endpoint}`
+      : pviEndpointUrl(config.env, c.endpoint);
+    const res = await fetch(rawUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

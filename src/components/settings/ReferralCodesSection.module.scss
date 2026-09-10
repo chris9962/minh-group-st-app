@@ -19,6 +19,12 @@
   margin-bottom: var(--space-3);
 }
 
+.bulkBar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--space-3);
+}
+
 .actions {
   display: flex;
   gap: 6px;

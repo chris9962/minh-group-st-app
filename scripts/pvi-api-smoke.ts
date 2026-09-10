@@ -12,14 +12,15 @@
  */
 
 import { PviApiError, pviRequest, pviSign } from "@/server/pvi-api/client";
-import { readPviApiConfig } from "@/server/pvi-api/config";
+import { PVI_ENDPOINT_PREFIX, readPviApiConfig } from "@/server/pvi-api/config";
 import { MotorbikeOrderInput, buildMotorbikePayload, createMotorbikeOrder } from "@/server/pvi-api/motorbike";
 import { ElectricOrderInput, buildElectricPayload, createElectricAccidentOrder } from "@/server/pvi-api/electric";
 
-process.env.PVI_API_BASE_URL ??= "http://piastest.pvi.com.vn";
+// Script này tạo đơn thật nên KHÔNG được vô tình trỏ sang bản thật của PVI.
+process.env.PVI_API_ENV = "test";
 
 const config = readPviApiConfig();
-if (!config) throw new Error("Thiếu PVI_API_BASE_URL / PVI_API_CPID / PVI_API_KEY");
+if (!config) throw new Error("Thiếu PVI_API_CPID / PVI_API_KEY");
 
 /**
  * Mã giao dịch phải khác nhau mỗi lần chạy; giờ chạy đủ để tách.
@@ -47,7 +48,13 @@ function ke(e: unknown): string {
 const che = (o: unknown) =>
   JSON.stringify(o, null, 2).replace(/("(?:CpId|Sign)": ")[^"]+/g, "$1…");
 
-console.log("Máy chủ:", config.baseUrl, "· chữ ký:", config.signUppercase ? "HOA" : "thường");
+console.log(
+  "Máy chủ:",
+  PVI_ENDPOINT_PREFIX[config.env],
+  config.proxyOrigin ? `qua proxy ${config.proxyOrigin}` : "gọi thẳng",
+  "· chữ ký:",
+  config.signUppercase ? "HOA" : "thường",
+);
 console.log("Mã giao dịch:", STAMP, "\n");
 
 // ── Mục 3 · Get_DanhMuc ────────────────────────────────────────────────────

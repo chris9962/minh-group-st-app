@@ -13,6 +13,7 @@ import { ReferralCodeCard } from "./ReferralCodeCard";
 import {
   BankAccountFinishForm,
   canEditOpeningPhotos,
+  errorPhotoDeadline,
   finishBankAccount,
   setBankAccountPhotos,
   updateBankAccount,
@@ -21,7 +22,7 @@ import { BankAccountTransaction } from "./BankAccountTransaction";
 import { fetchBankAccountDetail } from "@/lib/api/banking";
 import { invalidateKpi } from "@/lib/invalidateKpi";
 import { can } from "@/lib/permissions";
-import { businessDay } from "@/lib/format";
+import { businessDay, formatDateTime } from "@/lib/format";
 import { errorMessage, toast } from "@/lib/toast";
 import { useSession } from "@/store/session";
 import { BankAccountFinishFields } from "./BankAccountFinishFields";
@@ -158,6 +159,9 @@ export function BankAccountEditDialog({ open, onClose, accountId }: Props) {
    * lại kho vĩnh viễn. Mỗi lần thử lại thêm một bộ rác.
    */
   const savePhotosThen = async <T,>(run: () => Promise<T>): Promise<T> => {
+    if (data && photosChanged(photos, data.photoUrls) && !canEditOpeningPhotos(user, data)) {
+      throw new Error("Đã hết hạn sửa ảnh. Liên hệ quản trị nếu cần mở lại.");
+    }
     if (photosEditable && photosChanged(photos, data?.photoUrls ?? [])) {
       const urls = await uploadPendingPhotos(photos);
       await setBankAccountPhotos(accountId, urls);
@@ -205,6 +209,7 @@ export function BankAccountEditDialog({ open, onClose, accountId }: Props) {
    * điều kiện ở đây. Khoá rồi thì các ô chữ và bước 3 vẫn sửa bình thường.
    */
   const photosEditable = !!data && canWrite && canEditOpeningPhotos(user, data);
+  const photoDeadline = data ? errorPhotoDeadline(data) : null;
   const enoughPhotos = photos.length >= (data?.requiredPhotos ?? 0);
   const busy = finish.isPending || update.isPending;
 
@@ -286,10 +291,16 @@ export function BankAccountEditDialog({ open, onClose, accountId }: Props) {
             onPhotosChange={photosEditable ? setEditedPhotos : undefined}
             busy={busy}
           />
+          {!draft && photoDeadline && (
+            <p className="text-muted">
+              Hạn sửa ảnh sau lần đánh lỗi gần nhất: {formatDateTime(photoDeadline)}.
+              Lưu hoặc gửi duyệt không gia hạn thêm.
+            </p>
+          )}
           {!draft && !photosEditable && (
             <p className="text-muted">
-              Ảnh chứng minh chỉ sửa được trong ngày hoàn thành tài khoản. Cần đổi thì nhờ
-              trưởng phòng trở lên.
+              Ảnh chứng minh đã khóa. Bạn được sửa trong ngày hoàn thành hoặc trong 24 giờ
+              sau lần đánh lỗi gần nhất, khi tài khoản chưa được duyệt lại. Cần hỗ trợ thì liên hệ quản trị.
             </p>
           )}
           {draft && !enoughPhotos && (

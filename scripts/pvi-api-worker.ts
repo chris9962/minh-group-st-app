@@ -5,8 +5,8 @@
  *   bun run pvi:api-worker -- --mot-vong    # chạy đúng một vòng rồi thoát
  *   bun run pvi:api-check                   # chỉ kiểm cấu hình và kết nối PVI, dùng lúc deploy
  *
- * ⚠️ Worker chạy là tạo đơn THẬT trên PVI. Xem `PVI_API_BASE_URL` trỏ đâu trước
- * khi bật: `piastest.pvi.com.vn` là môi trường thử.
+ * ⚠️ Worker chạy là tạo đơn THẬT trên PVI. Xem `PVI_API_ENV` là `test` hay
+ * `prod` trước khi bật: `test` là `piastest.pvi.com.vn`, `prod` là hợp đồng thật.
  *
  * ⚠️ PVI chặn theo IP. Worker phải chạy trên máy chủ đã whitelist, chạy ở máy
  * khác thì mọi lệnh gọi hết giờ chờ mà không có thông báo nào rõ hơn.
@@ -33,6 +33,7 @@ import {
   insuranceOrderStatusHistory,
 } from "../src/server/db/schema";
 import { checkPviAccess } from "../src/server/pvi-api/catalog";
+import { PVI_ENDPOINT_PREFIX, readPviApiConfig } from "../src/server/pvi-api/config";
 import { saveCertificateFrom } from "../src/server/pvi-api/certificate";
 import { PviApiError } from "../src/server/pvi-api/client";
 import { orderForPviColumns, type OrderForPvi } from "../src/server/pvi-api/from-order";
@@ -545,7 +546,14 @@ async function main() {
   const onceOnly = process.argv.includes("--mot-vong");
   const checkOnly = process.argv.includes("--check");
 
-  log(`Worker API chạy THẬT: tạo đơn trên ${process.env.PVI_API_BASE_URL ?? "(chưa cấu hình)"}.`);
+  const config = readPviApiConfig();
+  log(
+    config
+      ? `Worker API chạy THẬT: PVI ${config.env}, ${PVI_ENDPOINT_PREFIX[config.env]}` +
+          (config.proxyOrigin ? ` qua proxy ${config.proxyOrigin}` : "") +
+          "."
+      : "Worker API: chưa cấu hình PVI_API_CPID / PVI_API_KEY.",
+  );
 
   /**
    * Kiểm cấu hình và kết nối PVI TRƯỚC khi đụng đơn nào (chốt 2026-09-07).

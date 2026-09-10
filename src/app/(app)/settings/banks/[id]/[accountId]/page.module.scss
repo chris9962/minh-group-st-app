@@ -8,6 +8,10 @@
 }
 
 .back {
+  border: 0;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
   align-self: flex-start;
   display: inline-flex;
   align-items: center;

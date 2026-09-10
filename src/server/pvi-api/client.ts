@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { readPviApiConfig, type PviApiConfig } from "./config";
+import { PVI_PROXY_PATH, pviEndpointUrl, readPviApiConfig, type PviApiConfig } from "./config";
 
 /**
  * Tầng vận chuyển dùng chung cho mọi API của PVI: ký MD5, gửi POST, đọc kết quả.
@@ -146,19 +146,21 @@ export async function pviRequest(
     throw new PviApiError({
       kind: "config",
       endpoint,
-      message: "Chưa cấu hình PVI_API_BASE_URL / PVI_API_CPID / PVI_API_KEY trong .env.local",
+      message: "Chưa cấu hình PVI_API_CPID / PVI_API_KEY trong .env.local",
     });
   }
 
-  const url = `${config.baseUrl}/API_CP/ManagerApplication/${endpoint}`;
-
   /**
-   * Token của proxy chạy thử — xem `src/app/API_CP/ManagerApplication/[endpoint]`.
-   *
-   * Chỉ đặt trên máy cá nhân, lúc `PVI_API_BASE_URL` trỏ sang mgst-app thay vì
-   * PVI. Gửi thẳng lên PVI cũng không sao, họ bỏ qua header lạ.
+   * Có `proxyOrigin` thì gọi qua proxy chạy thử ở
+   * `src/app/API_CP/ManagerApplication/[endpoint]`, đường dẫn proxy cố định.
+   * Proxy tự chọn máy chủ PVI theo `PVI_API_ENV` của nó. Không có thì gọi
+   * thẳng PVI theo môi trường.
    */
-  const proxyToken = (process.env.PVI_API_PROXY_TOKEN ?? "").trim();
+  const url = config.proxyOrigin
+    ? `${config.proxyOrigin}${PVI_PROXY_PATH}/${endpoint}`
+    : pviEndpointUrl(config.env, endpoint);
+
+  const proxyToken = config.proxyOrigin ? (process.env.PVI_API_PROXY_TOKEN ?? "").trim() : "";
 
   let response: Response;
   try {

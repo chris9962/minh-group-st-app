@@ -50,6 +50,16 @@ export type BankAccountRow = z.infer<typeof BankAccountRow>;
  * Số ảnh bắt buộc theo cấu hình từng ngân hàng (`requiredPhotos`, P-60); sau
  * khi hoàn thành, ảnh chứng minh chỉ sửa được trong ngày (`canEditOpeningPhotos`).
  */
+export const BankAccountStatusStep = z.object({
+  id: z.string(),
+  fromStatus: BankAccountStatus,
+  toStatus: BankAccountStatus,
+  changedByName: z.string(),
+  changedAt: z.string(),
+  note: z.string(),
+});
+export type BankAccountStatusStep = z.infer<typeof BankAccountStatusStep>;
+
 export const BankAccountDetail = BankAccountRow.extend({
   /** Id ngân hàng — màn chi tiết hỏi `canManageBank` để quyết có bày nút Duyệt. */
   bankId: z.string(),
@@ -71,6 +81,8 @@ export const BankAccountDetail = BankAccountRow.extend({
    * ghi mốc. Mốc tính cửa sổ sửa ảnh chứng minh — xem `canEditOpeningPhotos`.
    */
   finishedAt: z.string(),
+  lastErrorAt: z.string(),
+  history: z.array(BankAccountStatusStep),
   requiredPhotos: z.number(),
   /** Quyết ô số tài khoản ở bước 2 là ô gõ tay hay ô chọn SĐT. */
   accountNumberMethod: AccountNumberMethod,
@@ -84,6 +96,13 @@ export const BankAccountDetail = BankAccountRow.extend({
   countsAsApp: z.boolean(),
   /** Mọi SĐT của khách, số chính đứng đầu — nguồn cho ô chọn khi `phone-match`. */
   customerPhones: z.array(z.string()),
+  /**
+   * Món quà khách ĐÃ nhận; `''` = chưa phát đợt nào.
+   *
+   * Chỉ dùng cho hộp xác nhận xoá: rổ quà đã phát đóng băng, nên xoá bớt một
+   * tài khoản là rổ tính lại lệch với rổ đã trao, và không phép tính nào chữa.
+   */
+  customerGiftItem: z.string(),
   /** Mã text ngân hàng cấp; `''` = mã QR-only, không có chuỗi nào để gõ. */
   referralCodeText: z.string(),
   /** Tỉnh của mã; `''` = chưa gán. Ghép với `referralSupportBranch` thành dòng "CN PGD". */
@@ -202,6 +221,8 @@ export type BankAccountsOfBankQuery = PageQuery<BankAccountSort> & {
   referralCodeId: string;
   /** Phòng ghi nhận lúc tạo bản ghi. Rỗng = mọi phòng. */
   departmentId: string;
+  /** Kênh chụp lúc tạo tài khoản. Rỗng = mọi kênh. */
+  channelId: string;
   /** Loại tài khoản. Rỗng = mọi loại. */
   accountType: AccountType | '';
 };
@@ -223,6 +244,7 @@ export async function fetchBankAccountsOfBankForExport(
   if (query.status) params.set('status', query.status);
   if (query.referralCodeId) params.set('referralCodeId', query.referralCodeId);
   if (query.departmentId) params.set('departmentId', query.departmentId);
+  if (query.channelId) params.set('channelId', query.channelId);
   if (query.accountType) params.set('accountType', query.accountType);
 
   const res = await fetch(`/api/settings/banks/${bankId}/accounts/export?${params}`);
@@ -252,6 +274,7 @@ export async function fetchBankAccountsOfBank(
     status: query.status,
     referralCodeId: query.referralCodeId,
     departmentId: query.departmentId,
+    channelId: query.channelId,
     accountType: query.accountType,
   });
   const res = await fetch(`/api/settings/banks/${bankId}/accounts?${params}`);

@@ -69,7 +69,7 @@ export async function PATCH(
     return Response.json(
       {
         message:
-          "Ảnh chứng minh chỉ sửa được trong ngày hoàn thành tài khoản. Cần đổi thì nhờ trưởng phòng trở lên.",
+          "Ảnh chứng minh đã khóa. Chỉ sửa trong ngày hoàn thành hoặc trong 24 giờ sau lần đánh lỗi gần nhất khi chưa được duyệt lại. Liên hệ quản trị nếu cần hỗ trợ.",
       },
       { status: 422 },
     );

@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { BankAccountUpdateForm } from "@/lib/api/bankAccounts";
 import { can } from "@/lib/permissions";
 import { logAudit } from "@/server/audit";
@@ -10,7 +11,12 @@ import {
   notFound,
   unauthorized,
 } from "@/server/auth";
-import { deleteDraft, updateFinishedAccount } from "@/server/banking";
+import { deleteAccount, updateFinishedAccount } from "@/server/banking";
+
+/** Lý do rỗng hợp lệ ở tầng này — `deleteAccount` mới biết ca nào bắt buộc. */
+const DeleteForm = z.object({
+  reason: z.string().trim().max(500, "Lý do nhiều nhất 500 ký tự").optional().transform((v) => v ?? ""),
+});
 
 /**
  * Sửa một tài khoản ĐÃ hoàn thành (chốt 07/08).
@@ -62,11 +68,14 @@ export async function PATCH(
 }
 
 /**
- * Bỏ dở một tài khoản đang tạo — nhả chỗ mã về kho ngay (spec §4.5).
+ * Xoá một tài khoản — bỏ dở bản nháp, hoặc gỡ một dòng đã hoàn thành nhập nhầm.
  *
- * Tài khoản đã hoàn thành KHÔNG xoá được: nó đã tiêu một lượt mã và đã vào điểm
- * KPI. Tầng dưới trả `null` cho ca đó, và ở đây thành 404 y như "không có" —
- * phân biệt hai ca là nói cho người gọi biết id nào có thật.
+ * Nhả chỗ mã về kho ngay (spec §4.5). Dòng đã hoàn thành thì cần phạm vi rộng
+ * hơn `own` và một lý do; hai chốt đó nằm ở `deleteAccount` chứ không ở đây,
+ * vì route chỉ là một đường gọi còn hàm kia là chỗ luật sống.
+ *
+ * Không đủ quyền cho dòng đã hoàn thành cũng ra 404 như "không có": 403 là xác
+ * nhận id đó có thật.
  */
 export async function DELETE(
   request: Request,
@@ -79,13 +88,24 @@ export async function DELETE(
   const { id } = await params;
   if (!isUuid(id)) return notFound();
 
-  const removed = await deleteDraft(actor, id);
-  if (!removed) return notFound();
+  // Body rỗng vẫn hợp lệ — đường bỏ dở bản nháp không gửi gì.
+  const parsed = DeleteForm.safeParse((await jsonBody(request)) ?? {});
+  if (!parsed.success) return badRequest();
 
+  const result = await deleteAccount(actor, id, parsed.data.reason);
+  if (result === null) return notFound();
+  if (!result.ok) return Response.json({ message: result.message }, { status: 422 });
+
+  const removed = result.value;
+  const draft = removed.status === "creating";
   await logAudit(actor, {
     module: "banking",
     action: "delete",
-    targetLabel: `Bỏ dở tài khoản ${removed.bankCode} của ${removed.customerName}, nhả mã ${removed.referralCode}`,
+    // Dòng đã hoàn thành biến mất khỏi kho, nên nhãn này là vết duy nhất còn
+    // lại: đủ số tài khoản, ngày mở và lý do để đối chiếu sau.
+    targetLabel: draft
+      ? `Bỏ dở tài khoản ${removed.bankCode} của ${removed.customerName}, nhả mã ${removed.referralCode}`
+      : `Xoá tài khoản ${removed.bankCode} số ${removed.accountNumber} mở ${removed.openedDate} của ${removed.customerName}, mã ${removed.referralCode}: ${parsed.data.reason}`,
     targetTable: "bank_accounts",
     targetId: removed.id,
   });
