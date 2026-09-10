@@ -601,7 +601,16 @@ export default function InsurancePage() {
             />
           )}
         </FilterButton>
-        {can(user, "insurance", "create") && (
+        {/*
+          Chỉ Giám đốc thấy nút này (chốt 2026-09-10). Đây là lối vào của đơn mua
+          TỰ NGUYỆN `source='self'`, đang dùng để chạy thử đường PVI, chưa mở cho
+          đội KD. Đơn theo quà `source='gift'` đi lối khác nên không đụng tới.
+
+          Đọc `role` ở đây KHÔNG phá luật "chức vụ không phải nguồn quyền" (§6):
+          nó chỉ ẩn hiện, và `/api/insurance-orders` vẫn kiểm `insurance:create`
+          như cũ. Mở cho đội KD thì bỏ vế `role` đi, không phải cấp quyền mới.
+        */}
+        {isDirector && can(user, "insurance", "create") && (
           <Button aria-label="Lập đơn bảo hiểm" onClick={() => setCreating(true)}>
             <Plus size={16} aria-hidden />
             <span className={buttonStyles.label}>Lập đơn</span>
