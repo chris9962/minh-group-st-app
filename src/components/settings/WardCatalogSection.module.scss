@@ -1,5 +1,9 @@
 /* Xã bên trái, ấp của xã đang chọn bên phải. Cột trái giữ bề ngang cố định để
    đổi xã không làm bảng ấp nhảy chỗ. */
+.provincePicker {
+  display: none;
+}
+
 .split {
   display: grid;
   grid-template-columns: minmax(240px, 320px) minmax(0, 1fr);
@@ -130,6 +134,14 @@
 }
 
 @media (max-width: bp.$bp-mobile) {
+  .provinceTabs {
+    display: none;
+  }
+
+  .provincePicker {
+    display: block;
+  }
+
   .split {
     grid-template-columns: 1fr;
   }

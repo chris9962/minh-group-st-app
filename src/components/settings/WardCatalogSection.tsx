@@ -7,6 +7,7 @@ import { useState } from "react";
 import { SkeletonTable } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { Button } from "@/components/ui/Button";
+import { Combobox } from "@/components/ui/Combobox";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { RowActions } from "@/components/ui/RowActions";
@@ -87,6 +88,12 @@ export function WardCatalogSection() {
     0,
   );
 
+  const selectProvince = (id: string) => {
+    setProvinceId(id);
+    // Xã đang chọn thuộc tỉnh cũ — bỏ để rơi về xã đầu của tỉnh mới.
+    setWardId(null);
+  };
+
   const hamletColumns: RankColumn<Hamlet>[] = [
     { key: "name", label: "Ấp", sortText: (h) => h.name, render: (h) => h.name },
     {
@@ -153,16 +160,34 @@ export function WardCatalogSection() {
 
         {province && (
           <>
-            <SegmentedTabs
-              label="Tỉnh/thành phố"
-              options={provinces.map((p) => ({ value: p.id, label: p.name, count: p.wards.length }))}
-              value={province.id}
-              onChange={(id) => {
-                setProvinceId(id);
-                // Xã đang chọn thuộc tỉnh cũ — bỏ để rơi về xã đầu của tỉnh mới.
-                setWardId(null);
-              }}
-            />
+            <div className={styles.provinceTabs}>
+              <SegmentedTabs
+                label="Tỉnh/thành phố"
+                options={provinces.map((p) => ({
+                  value: p.id,
+                  label: p.name,
+                  count: p.wards.length,
+                }))}
+                value={province.id}
+                onChange={selectProvince}
+              />
+            </div>
+
+            {/* Nhiều tỉnh biến dải tab thành vài màn hình trên điện thoại. Ô
+                tìm kiếm giữ việc chọn tỉnh trong đúng một hàng. */}
+            <div className={styles.provincePicker}>
+              <Combobox
+                block
+                label="Tỉnh/thành phố"
+                value={province.id}
+                options={provinces.map((p) => ({
+                  value: p.id,
+                  label: `${p.name} · ${p.wards.length} xã/phường`,
+                }))}
+                onChange={selectProvince}
+                placeholder="Gõ tên tỉnh/thành phố"
+              />
+            </div>
 
             <div className={styles.split}>
               <div className={styles.wardPane}>
