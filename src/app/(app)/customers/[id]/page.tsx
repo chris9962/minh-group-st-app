@@ -298,6 +298,7 @@ export default function CustomerDetailPage({
                       <Button
                         variant="ghost"
                         icon
+                        className={styles.noteEdit}
                         tooltip="Sửa ghi chú"
                         aria-label="Sửa ghi chú khách hàng"
                         onClick={() => setEditingNote(true)}
