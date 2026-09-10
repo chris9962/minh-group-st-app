@@ -162,7 +162,7 @@ export function buildMotorbikePayload(
     throw new PviApiError({
       kind: "config",
       endpoint: "TaoDon_XeMay",
-      message: "Chưa cấu hình PVI_API_BASE_URL / PVI_API_CPID / PVI_API_KEY trong .env.local",
+      message: "Chưa cấu hình PVI_API_CPID / PVI_API_KEY trong .env.local",
     });
   }
 

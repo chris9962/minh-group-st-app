@@ -13,7 +13,13 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 set -a; source .env.local; set +a
 
-BASE="${PVI_API_BASE_URL:-http://piastest.pvi.com.vn}"
+# Hai môi trường khác cả tên miền lẫn đường dẫn, xem PVI_ENDPOINT_PREFIX trong
+# src/server/pvi-api/config.ts.
+if [ "${PVI_API_ENV:-test}" = "prod" ]; then
+  BASE="https://apiwebview.pvi.com.vn/ManagerApplication"
+else
+  BASE="http://piastest.pvi.com.vn/API_CP/ManagerApplication"
+fi
 CPID="${PVI_API_CPID:-${PVI_CPID:-}}"
 KEY="${PVI_API_KEY:-${PVI_KEY:-}}"
 REQ="${1:-MGST-SMOKE-KHONG-TON-TAI}"
@@ -23,7 +29,7 @@ REQ="${1:-MGST-SMOKE-KHONG-TON-TAI}"
 [ -n "$KEY" ]  || { echo "Thiếu PVI_KEY trong .env.local" >&2; exit 1; }
 
 SIGN=$(printf '%s' "${KEY}${REQ}" | openssl md5 -r | cut -d' ' -f1)
-URL="${BASE}/API_CP/ManagerApplication/GetPolicyNumber"
+URL="${BASE}/GetPolicyNumber"
 BODY=$(printf '{"RequestId":"%s","CpId":"%s","Sign":"%s"}' "$REQ" "$CPID" "$SIGN")
 
 echo "curl -sS --max-time 30 -X POST '$URL' \\"

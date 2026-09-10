@@ -12,8 +12,8 @@ import { timingSafeEqual } from "node:crypto";
  * `PVI_PROXY_TOKEN` phải đặt trên máy chủ, và người gọi phải gửi đúng chuỗi đó ở
  * header `x-pvi-proxy-token`. Biến rỗng thì route trả 404 như không tồn tại.
  *
- * ⚠️ CHỈ tải được từ đúng máy chủ PVI đang cấu hình. Không có điều kiện đó thì
- * route thành một đường để người ngoài bắt máy chủ gọi tới địa chỉ bất kỳ.
+ * ⚠️ CHỈ tải được từ tên miền `*.pvi.com.vn`. Không có điều kiện đó thì route
+ * thành một đường để người ngoài bắt máy chủ gọi tới địa chỉ bất kỳ.
  */
 
 const MAX_BYTES = 20 * 1024 * 1024;
@@ -32,18 +32,17 @@ export async function GET(request: Request) {
   if (!sameToken(request.headers.get("x-pvi-proxy-token") ?? "", token)) return notFound();
 
   const target = new URL(request.url).searchParams.get("url") ?? "";
-  const base = (process.env.PVI_API_BASE_URL ?? "").trim();
-  if (!target || !base) return notFound();
+  if (!target) return notFound();
 
   let wanted: URL;
-  let allowed: URL;
   try {
     wanted = new URL(target);
-    allowed = new URL(base);
   } catch {
     return notFound();
   }
-  if (wanted.host !== allowed.host) return notFound();
+  // Chỉ tải từ máy chủ của PVI. Link giấy chứng nhận mà `GetPolicyNumber` trả
+  // về không nhất thiết cùng tên miền với API, nên kiểm theo đuôi tên miền.
+  if (!wanted.hostname.endsWith(".pvi.com.vn")) return notFound();
 
   let response: Response;
   try {
