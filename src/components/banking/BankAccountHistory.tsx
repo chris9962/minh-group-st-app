@@ -8,7 +8,7 @@ import styles from "./BankAccountHistory.module.scss";
 /** Cùng dòng thời gian ở trang nhân viên và trang đối soát ngân hàng. */
 export function BankAccountHistory({ history }: { history: BankAccountStatusStep[] }) {
   return (
-    <SectionCard title="Dòng thời gian đối soát" icon={<History size={17} />}>
+    <SectionCard title="Dòng thời gian" icon={<History size={17} />}>
       {history.length === 0 ? (
         <p className="text-muted">Chưa có lịch sử được ghi nhận.</p>
       ) : (

@@ -7,7 +7,6 @@
    `--shadow-sm`. Không dùng thẳng component đó vì nó bắt buộc có tiêu đề, mà
    khối này cố ý không có — thanh trên đã ghi "Thông báo". */
 .card {
-  max-width: 720px;
   background: var(--om-card);
   border: 1px solid var(--om-line);
   border-radius: var(--radius-lg);

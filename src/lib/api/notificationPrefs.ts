@@ -4,8 +4,8 @@ import type { Action, ModuleKey } from '../types';
 /**
  * C-09 · Loại thông báo người dùng muốn nhận.
  *
- * Ba loại này khớp enum `notification_kind` trong database. Thêm loại mới thì
- * sửa ĐỦ BA chỗ: enum trong migration, mảng dưới đây, và bảng nhãn. Thiếu một
+ * Danh sách này khớp enum `notification_kind` trong database. Thêm loại mới thì
+ * sửa ĐỦ BA chỗ: enum trong migration, enum dưới đây, và bảng nhãn. Thiếu một
  * chỗ thì công tắc hiện ra mà lưu không được, hoặc lưu được mà không ai thấy.
  */
 export const NotificationKind = z.enum([
@@ -18,14 +18,24 @@ export const NotificationKind = z.enum([
 ]);
 export type NotificationKind = z.infer<typeof NotificationKind>;
 
-/** Thứ tự trong mảng cũng là thứ tự công tắc hiện trên màn hình. */
+/**
+ * Loại ĐANG hiện công tắc. Thứ tự trong mảng cũng là thứ tự trên màn hình.
+ *
+ * Mảng này hẹp hơn enum, và cố ý hẹp hơn: chỉ liệt kê loại ĐÃ có nơi gửi. Hai
+ * loại còn thiếu nơi gửi nên tạm gỡ khỏi đây (2026-09-10):
+ *
+ *   order-done  chưa có ai gọi notify() lúc đơn nhận được giấy chứng nhận
+ *   code-low    chưa chốt ngưỡng "sắp hết", chưa chốt kiểm lúc nào
+ *
+ * Bày công tắc cho loại chưa có nơi gửi là người dùng bật lên rồi chờ mãi không
+ * thấy gì, và họ báo hệ thống hỏng. Nối xong nơi gửi thì thêm lại vào đây, không
+ * phải sửa enum hay migration.
+ */
 export const NOTIFICATION_KINDS: NotificationKind[] = [
   'order-manual',
-  'order-done',
   'bank-error',
   'bank-pending',
   'bank-approved',
-  'code-low',
 ];
 
 export const NOTIFICATION_KIND_LABEL: Record<NotificationKind, string> = {
