@@ -85,7 +85,7 @@ export const StaffList = z.object({
   summaryMonth: z.string(),
   /** Số ngày còn lại của tháng. 0 nếu không phải tháng hiện tại. */
   daysLeft: z.number(),
-  /** Đếm trên PHẠM VI + ĐƠN VỊ, cố ý bỏ qua tìm kiếm / trạng thái / chức vụ. */
+  /** Đếm theo phạm vi + đơn vị + trạng thái; bỏ qua tìm kiếm / chức vụ. */
   summary: StaffSummary,
   /**
    * Tổng điểm của CẢ PHÒNG trong khoảng ngày đang xem — `null` khi nơi gọi

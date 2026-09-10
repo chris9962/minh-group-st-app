@@ -139,7 +139,8 @@ export async function staffFor(
     };
 
   /**
-   * Phạm vi + ô lọc đơn vị + mốc thời điểm. Thẻ tóm tắt đếm trên ĐÚNG tập này.
+   * Phạm vi + ô lọc đơn vị + mốc thời điểm + trạng thái tài khoản.
+   * Thẻ tóm tắt và bảng cùng áp dụng trạng thái đang chọn.
    *
    * `createdByEndOf` nằm ở đây chứ không ở `where`: thẻ tóm tắt cũng phải bỏ
    * người chưa có tài khoản trong tháng đang xem, nếu không thì thẻ "chưa đạt"
@@ -149,11 +150,11 @@ export async function staffFor(
     visible === null ? undefined : inArray(users.departmentId, visible),
     query.departmentId ? eq(users.departmentId, query.departmentId) : undefined,
     createdByEndOf(summaryMonth),
+    query.status === "all" ? undefined : eq(users.active, query.status === "active"),
   );
 
   const where = and(
     inScope,
-    query.status === "all" ? undefined : eq(users.active, query.status === "active"),
     // Rỗng nghĩa là lấy hết — hiểu thành "không lấy gì" thì lần đầu mở trang bảng trống trơn.
     query.roles.length > 0 ? inArray(users.role, query.roles) : undefined,
     staffSearchWhere(query.search),
@@ -198,7 +199,7 @@ export async function staffFor(
       .from(users)
       .leftJoin(departments, eq(departments.id, users.departmentId))
       .where(where),
-    // Tóm tắt cố ý KHÔNG áp tìm kiếm / trạng thái / chức vụ: gõ tên một người
+    // Tóm tắt cố ý KHÔNG áp tìm kiếm / chức vụ: gõ tên một người
     // không có nghĩa công ty chỉ còn một người.
     db
       .select({
