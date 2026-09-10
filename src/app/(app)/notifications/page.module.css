@@ -44,6 +44,11 @@
   font: inherit;
   color: var(--om-text);
   cursor: pointer;
+  /* Lỗi PVI trả về là stack trace .NET: có đoạn dài không khoảng trắng như
+     `D:\TT_CNTT\Soure_TFS\...\Reference.cs`. Ngắt theo từ thì đoạn đó tràn ra
+     ngoài thẻ và đẩy giãn cả trang trên điện thoại. `anywhere` chứ không phải
+     `break-word` vì chỉ `anywhere` hạ luôn chiều rộng min-content. */
+  overflow-wrap: anywhere;
 }
 
 .item:hover {

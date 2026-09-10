@@ -383,9 +383,16 @@
    đó vỡ chữ, mà đây là câu dài nhất của cả dòng thời gian. */
 .stepNote {
   grid-column: 1 / -1;
+  min-width: 0;
   margin: 4px 0 0;
   color: var(--om-text-2);
   white-space: pre-wrap;
+  /* Ghi chú của worker chép nguyên lỗi PVI, tức stack trace .NET: có đoạn dài
+     không khoảng trắng như `D:\TT_CNTT\Soure_TFS\...\Reference.cs`. Ô này trải
+     hết ba cột nên min-content của nó kéo giãn cả lưới, vỡ dòng thời gian trên
+     điện thoại. `anywhere` chứ không phải `break-word` vì chỉ `anywhere` hạ
+     luôn chiều rộng min-content. */
+  overflow-wrap: anywhere;
 }
 
 @media (max-width: bp.$bp-mobile) {

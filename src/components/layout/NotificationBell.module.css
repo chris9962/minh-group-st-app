@@ -105,6 +105,9 @@
   font: inherit;
   color: var(--om-text);
   cursor: pointer;
+  /* Xem ghi chú ở trang /notifications: nội dung lỗi PVI có đoạn dài không
+     khoảng trắng, ngắt theo từ thì `.panel` cắt cụt mất phần đuôi. */
+  overflow-wrap: anywhere;
 }
 
 .item:last-child {
