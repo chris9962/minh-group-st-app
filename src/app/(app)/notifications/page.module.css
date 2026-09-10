@@ -26,10 +26,16 @@
   list-style: none;
 }
 
+/*
+ * Hai khối nằm ngang: icon module bên trái, khối chữ bên phải.
+ *
+ * Icon rộng cố định nên icon của mọi dòng thẳng hàng nhau, mắt lướt dọc là tách
+ * được nhóm.
+ */
 .item {
   display: flex;
-  flex-direction: column;
-  gap: 3px;
+  align-items: flex-start;
+  gap: var(--space-3);
   width: 100%;
   /* 44px cho ngón tay — đội KD dùng điện thoại ngoài trời (§8). */
   min-height: 44px;
@@ -54,15 +60,52 @@
   background: var(--om-soft);
 }
 
-/* Chưa đọc: một vạch cam ở mép trái. Không dùng riêng màu chữ — màu một mình
-   không được là kênh truyền đạt duy nhất (§8). */
-.unread {
-  box-shadow: inset 3px 0 0 var(--om-orange);
+
+/*
+ * Bề rộng cố định và KHÔNG co lại, để icon mọi dòng nằm đúng một cột.
+ *
+ * Icon mang luôn tín hiệu chưa đọc: cam là chưa đọc, xám là đã đọc. Nó thay hẳn
+ * vạch cam ở mép trái của bản trước. Vạch đó chạy dọc suốt chiều cao thẻ nên các
+ * dòng gần nhau đọc ra một cột liền.
+ */
+.itemIcon {
+  flex: 0 0 22px;
+  display: flex;
+  justify-content: center;
+  padding-top: 1px;
+  color: var(--om-text-3);
 }
 
+.unread .itemIcon {
+  color: var(--om-orange);
+}
+
+/* `min-width: 0` là điều kiện để chuỗi lỗi dài co lại được. Thiếu nó thì kích
+   thước tối thiểu của khối chữ bằng từ dài nhất, và nó đẩy giãn cả thẻ. */
+.itemText {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+/*
+ * Chưa đọc thì tiêu đề đậm và đen, đã đọc thì nhẹ và mờ đi.
+ *
+ * Đây là kênh thứ hai bên cạnh màu icon. Màu một mình không được là kênh truyền
+ * đạt duy nhất (§8), mà người không phân biệt được cam với xám vẫn phải biết
+ * dòng nào chưa đọc.
+ */
 .itemTitle {
   font-size: 14px;
+  font-weight: 500;
+  color: var(--om-text-2);
+}
+
+.unread .itemTitle {
   font-weight: 600;
+  color: var(--om-text);
 }
 
 .itemBody {

@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { CheckCheck } from "lucide-react";
+import { NavIcon } from "@/components/layout/NavIcon";
 import { TopBar } from "@/components/layout/TopBar";
 import { Button } from "@/components/ui/Button";
 import buttonStyles from "@/components/ui/Button.module.css";
@@ -13,6 +14,7 @@ import {
   markNotificationsRead,
   type NotificationRow,
 } from "@/lib/api/notifications";
+import { NOTIFICATION_KIND_ICON } from "@/lib/api/notificationPrefs";
 import { formatDateTime } from "@/lib/format";
 import { errorMessage, toast } from "@/lib/toast";
 import styles from "./page.module.css";
@@ -123,9 +125,21 @@ export default function NotificationsPage() {
                     className={row.read ? styles.item : `${styles.item} ${styles.unread}`}
                     onClick={() => go(row)}
                   >
-                    <span className={styles.itemTitle}>{row.title}</span>
-                    <span className={styles.itemBody}>{row.body}</span>
-                    <span className={styles.itemAt}>{formatDateTime(row.at)}</span>
+                    {/* Icon module đứng riêng một cột, thẳng hàng nhau qua mọi
+                        dòng — mắt lướt dọc là tách được tin bảo hiểm với tin
+                        ngân hàng mà không phải đọc chữ. */}
+                    <span className={styles.itemIcon}>
+                      <NavIcon name={NOTIFICATION_KIND_ICON[row.kind]} />
+                    </span>
+                    {/* Ba dòng chữ nằm trong MỘT khối, không đặt thẳng vào hàng
+                        ngang cùng icon: để rời thì chúng tự xếp vào ô trống kế
+                        tiếp, và dòng nội dung rơi vào cột icon rộng 22px rồi gãy
+                        từng chữ. */}
+                    <span className={styles.itemText}>
+                      <span className={styles.itemTitle}>{row.title}</span>
+                      <span className={styles.itemBody}>{row.body}</span>
+                      <span className={styles.itemAt}>{formatDateTime(row.at)}</span>
+                    </span>
                   </button>
                 </li>
               ))}

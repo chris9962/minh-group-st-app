@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { NavIconKey } from '../nav';
 import type { Action, ModuleKey } from '../types';
 
 /**
@@ -45,6 +46,26 @@ export const NOTIFICATION_KIND_LABEL: Record<NotificationKind, string> = {
   'bank-pending': 'Tài khoản chờ duyệt lại',
   'bank-approved': 'Tài khoản của tôi được duyệt',
   'code-low': 'Kho mã giới thiệu sắp hết',
+};
+
+/**
+ * Icon của từng loại, để nhìn một cái là biết tin thuộc module nào.
+ *
+ * Lấy ĐÚNG icon module ở thanh điều hướng, không vẽ bộ mới: người dùng đã quen
+ * cái khiên là Bảo hiểm và cái nhà băng là Ngân hàng, nên dùng lại thì không
+ * phải học thêm gì.
+ *
+ * `code-low` là kho mã giới thiệu. Nó nằm ở màn cấu hình chứ không ở màn Ngân
+ * hàng, nhưng người nhận là người quản ngân hàng và mã giới thiệu gắn với ngân
+ * hàng, nên xếp cùng nhóm đó.
+ */
+export const NOTIFICATION_KIND_ICON: Record<NotificationKind, NavIconKey> = {
+  'order-manual': 'insurance',
+  'order-done': 'insurance',
+  'bank-error': 'banking',
+  'bank-pending': 'banking',
+  'bank-approved': 'banking',
+  'code-low': 'banking',
 };
 
 /**

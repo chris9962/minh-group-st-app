@@ -11,7 +11,9 @@ import {
   markNotificationsRead,
   type NotificationRow,
 } from "@/lib/api/notifications";
+import { NOTIFICATION_KIND_ICON } from "@/lib/api/notificationPrefs";
 import { formatDateTime } from "@/lib/format";
+import { NavIcon } from "./NavIcon";
 import { useUnreadCount } from "./useUnreadCount";
 import styles from "./NotificationBell.module.css";
 
@@ -114,9 +116,16 @@ export function NotificationBell() {
                   className={row.read ? styles.item : `${styles.item} ${styles.unread}`}
                   onClick={() => go(row)}
                 >
-                  <span className={styles.itemTitle}>{row.title}</span>
-                  <span className={styles.itemBody}>{row.body}</span>
-                  <span className={styles.itemAt}>{formatDateTime(row.at)}</span>
+                  {/* Cùng khuôn với trang /notifications: icon một bên, ba dòng
+                      chữ gom trong một khối bên kia. */}
+                  <span className={styles.itemIcon}>
+                    <NavIcon name={NOTIFICATION_KIND_ICON[row.kind]} />
+                  </span>
+                  <span className={styles.itemText}>
+                    <span className={styles.itemTitle}>{row.title}</span>
+                    <span className={styles.itemBody}>{row.body}</span>
+                    <span className={styles.itemAt}>{formatDateTime(row.at)}</span>
+                  </span>
                 </button>
               </Popover.Close>
             ))}
