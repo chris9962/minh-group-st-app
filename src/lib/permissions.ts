@@ -1,4 +1,5 @@
 import { ROLE_PERMISSIONS } from './roles';
+import { businessDay } from './format';
 import {
   Action,
   ROLE_RANK,
@@ -385,12 +386,28 @@ export function recordInScope(
  * ngược lại: nó nằm trong điểm của người lập hồ sơ khách và trong rổ quà đã
  * phát, nên xoá là việc của người nhìn được nhiều hơn bản ghi của chính mình.
  *
- * Phạm vi `creator` không đủ, `departments` và `all` thì đủ — tức Trưởng phòng,
- * Phó phòng, Phó giám đốc, Giám đốc.
+ * Phạm vi `creator` không đủ, `departments` và `all` thì đủ. Trưởng phòng và
+ * Phó phòng chỉ xoá trong ngày hoàn thành; Phó giám đốc và Giám đốc không bị
+ * giới hạn ngày.
+ *
+ * `finishedAt = ''` là bản ghi cũ không có mốc hoàn thành, nên cấp phòng không
+ * được xoá. Không đoán từ ngày mở tài khoản vì đó là hai sự kiện khác nhau.
  */
-export function canDeleteFinished(user: User | null, module: ModuleKey): boolean {
+export function canDeleteFinished(
+  user: User | null,
+  module: ModuleKey,
+  account: { finishedAt: string },
+  now: Date = new Date(),
+): boolean {
+  if (!user) return false;
   const visibility = recordVisibility(user, module, 'delete');
-  return visibility.kind === 'all' || visibility.kind === 'departments';
+  if (visibility.kind !== 'all' && visibility.kind !== 'departments') return false;
+
+  if (ROLE_RANK[user.role] > ROLE_RANK.head) return true;
+  if (user.role !== 'head' && user.role !== 'deputy-head') return false;
+
+  const finishedAt = Date.parse(account.finishedAt);
+  return Number.isFinite(finishedAt) && businessDay(new Date(finishedAt)) === businessDay(now);
 }
 
 /**

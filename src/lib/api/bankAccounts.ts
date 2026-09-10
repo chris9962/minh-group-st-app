@@ -103,6 +103,8 @@ export const BankAccount = z.object({
   transactionAt: z.string(),
   /** Ảnh chuyển khoản — đếm RIÊNG, không cộng vào `photoUrls`. */
   transactionPhotoUrls: z.array(z.string()),
+  /** Mốc hoàn thành dùng để áp hạn xoá theo ngày cho cấp Trưởng/Phó phòng. */
+  finishedAt: z.string(),
   /**
    * Mọi SĐT của khách, số chính đứng đầu. Ngân hàng lấy số tài khoản theo SĐT
    * thì bước 2 cho chọn trong danh sách này — khách mở bằng số phụ là chuyện

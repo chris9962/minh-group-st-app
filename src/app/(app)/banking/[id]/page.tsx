@@ -311,12 +311,13 @@ function DoneAccountCard({
   const user = useSession((s) => s.user);
   const canWrite = can(user, "banking", "update");
   /**
-   * Xoá một tài khoản ĐÃ hoàn thành là việc của quản lý (chốt 2026-09-09).
+   * Xoá một tài khoản ĐÃ hoàn thành là việc của quản lý (chốt 2026-09-10).
    *
    * Nhân viên vẫn xoá được bản nháp của mình ở thẻ bước 2, nên không dùng
-   * `can(user, "banking", "delete")` ở đây: quyền đó họ cũng có.
+   * `can(user, "banking", "delete")` ở đây: quyền đó họ cũng có. Cấp phòng
+   * chỉ thấy nút trong ngày hoàn thành; Ban giám đốc không bị giới hạn ngày.
    */
-  const canRemove = canDeleteFinished(user, "banking");
+  const canRemove = canDeleteFinished(user, "banking", data);
   const [editing, setEditing] = useState(false);
   const [markingError, setMarkingError] = useState(false);
   const [errorNote, setErrorNote] = useState("");

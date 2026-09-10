@@ -1002,6 +1002,7 @@ async function accountById(id: string): Promise<BankAccount | null> {
     photoUrls: await photoUrlsOf(id, "opening"),
     transactionAt: r.transactionAt,
     transactionPhotoUrls: await photoUrlsOf(id, "transaction"),
+    finishedAt: r.finishedAt?.toISOString() ?? "",
     customerPhones: await customerPhoneNumbers(r.customerId),
     status: r.status,
   };
@@ -1850,9 +1851,9 @@ export async function deleteAccount(
   if (!current || !inScope(visible, current)) return null;
 
   const finished = current.status !== "creating";
-  // Dòng đã hoàn thành cần phạm vi rộng hơn một người — nhân viên bỏ dở bản
-  // nháp của mình thì được, xoá một tài khoản đã vào điểm thì không.
-  if (finished && !canDeleteFinished(actor, "banking")) return null;
+  // Dòng đã hoàn thành cần phạm vi rộng hơn một người. Cấp phòng còn bị kẹp
+  // trong ngày hoàn thành; Ban giám đốc không bị giới hạn ngày.
+  if (finished && !canDeleteFinished(actor, "banking", current)) return null;
   // Lý do chỉ bắt ở nhánh đã hoàn thành: dòng đó biến mất khỏi kho và nhật ký
   // là vết duy nhất còn lại. Bản nháp chưa là gì cả, hỏi lý do là hỏi thừa.
   if (finished && reason.trim().length < 2)
