@@ -132,3 +132,36 @@
 .pickerRow:hover {
   border-color: var(--om-orange-mid);
 }
+
+/* Bọc icon để ô đếm bám vào icon, không bám vào cả ô nút — bám vào ô nút thì
+   nó trôi theo bề rộng nhãn và lệch giữa các mục. */
+.iconWrap {
+  position: relative;
+  display: inline-flex;
+  line-height: 0;
+}
+
+/*
+ * Ô đếm dùng màu cam, không dùng đỏ.
+ *
+ * Đỏ trong dự án này nói "hỏng" hoặc "đã huỷ" (`--om-red`). Thông báo chưa đọc
+ * không phải lỗi, nên nó lấy màu nhấn.
+ */
+.badge {
+  position: absolute;
+  top: -5px;
+  left: 11px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--om-orange);
+  color: var(--om-text-on-accent);
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}

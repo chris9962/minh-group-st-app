@@ -1,17 +1,23 @@
 "use client";
 
 import { useState } from "react";
-import { KeyRound } from "lucide-react";
 import { TopBar } from "@/components/layout/TopBar";
 import { ChangePasswordDialog } from "@/components/profile/ChangePasswordDialog";
-import { Button } from "@/components/ui/Button";
-import buttonStyles from "@/components/ui/Button.module.css";
-import { SectionCard } from "@/components/ui/SectionCard";
+import { NotificationSettings } from "@/components/profile/NotificationSettings";
+import { SettingsAction, SettingsGroup, SettingsRow } from "@/components/ui/SettingsList";
 import { ROLE_LABEL } from "@/lib/types";
 import { useSession } from "@/store/session";
 import styles from "./page.module.css";
 
-/** C-04 · Hồ sơ cá nhân — xem thông tin mình, không tự sửa quyền. */
+/**
+ * C-04 · Hồ sơ cá nhân — xem thông tin mình và đổi cài đặt của riêng mình.
+ *
+ * Dựng bằng `SettingsGroup` thay cho `SectionCard`: màn này toàn dòng nhãn cộng
+ * giá trị hoặc nhãn cộng công tắc, không có nội dung tự do nào. Danh sách dòng
+ * đọc nhanh hơn trên điện thoại, và mỗi dòng cao 44px cho ngón tay.
+ *
+ * Người dùng KHÔNG tự sửa quyền ở đây. Quyền nằm ở P-92, do quản trị cấp.
+ */
 export default function ProfilePage() {
   const user = useSession((s) => s.user);
   const [changingPassword, setChangingPassword] = useState(false);
@@ -19,42 +25,26 @@ export default function ProfilePage() {
 
   return (
     <>
-      <TopBar title="Thông tin cá nhân" keepTitleOnMobile />
+      <TopBar title="Cá nhân" keepTitleOnMobile />
 
       <main className={styles.body}>
-        <SectionCard
-          title="Tài khoản"
-          className={styles.card}
-          action={
-            <Button variant="secondary" onClick={() => setChangingPassword(true)}>
-              <KeyRound size={16} aria-hidden />
-              <span className={buttonStyles.label}>Đổi mật khẩu</span>
-            </Button>
-          }
-        >
-          <dl className={styles.pairs}>
-            <div>
-              <dt>Họ tên</dt>
-              <dd>{user.fullName}</dd>
-            </div>
-            <div>
-              <dt>Tên đăng nhập</dt>
-              <dd className="tabular-nums">{user.username}</dd>
-            </div>
-            <div>
-              <dt>Chức danh</dt>
-              <dd>{user.title}</dd>
-            </div>
-            <div>
-              <dt>Chức vụ</dt>
-              <dd>{ROLE_LABEL[user.role]}</dd>
-            </div>
-            <div>
-              <dt>Số quyền được cấp</dt>
-              <dd className="tabular-nums">{user.permissions.length}</dd>
-            </div>
-          </dl>
-        </SectionCard>
+        <div className={styles.column}>
+          <SettingsGroup title="Thông tin cá nhân">
+            <SettingsRow label="Họ tên" value={user.fullName} />
+            <SettingsRow
+              label="Tên đăng nhập"
+              value={<span className="tabular-nums">{user.username}</span>}
+            />
+            <SettingsRow label="Chức danh" value={user.title} />
+            <SettingsRow label="Chức vụ" value={ROLE_LABEL[user.role]} />
+          </SettingsGroup>
+
+          <NotificationSettings />
+
+          <SettingsGroup title="Bảo mật">
+            <SettingsAction label="Đổi mật khẩu" onClick={() => setChangingPassword(true)} />
+          </SettingsGroup>
+        </div>
 
         {/* Chỉ dựng khi mở: form giữ state trong `useForm`, tháo hẳn thì lần mở
             sau bắt đầu từ ba ô rỗng mà không cần gọi `reset`. */}

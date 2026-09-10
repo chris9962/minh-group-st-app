@@ -1614,6 +1614,65 @@ export const feedbacks = pgTable(
   ],
 );
 
+/**
+ * Một dòng cho một THIẾT BỊ đã cho phép nhận thông báo đẩy, không phải một dòng
+ * cho một người. Người dùng có điện thoại và máy tính là hai dòng.
+ *
+ * `endpoint` là địa chỉ dịch vụ đẩy của hãng trình duyệt, và nó là khoá tự
+ * nhiên: cùng một máy đăng ký lại thì trình duyệt trả đúng chuỗi cũ. Đặt duy
+ * nhất trên cột đó để đăng ký lại là ghi đè, không sinh dòng thứ hai.
+ *
+ * ⚠️ Dòng ở đây HẾT HẠN mà không báo. Người dùng gỡ ứng dụng khỏi màn hình
+ * chính, hoặc iOS tự huỷ đăng ký khi lâu không mở. Lúc đó dịch vụ đẩy trả HTTP
+ * 404 hoặc 410, và nơi gửi phải xoá dòng — giữ lại là mỗi lần gửi tốn một lượt
+ * gọi mạng cho một máy không còn tồn tại.
+ */
+export const pushSubscriptions = pgTable(
+  "push_subscriptions",
+  {
+    id: id(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    endpoint: text("endpoint").notNull(),
+    /** Hai khoá mã hoá trình duyệt sinh ra. Thiếu một trong hai là không gửi được. */
+    p256dh: text("p256dh").notNull(),
+    auth: text("auth").notNull(),
+    /** Để người dùng nhận ra máy nào trong danh sách thiết bị của mình. */
+    userAgent: text("user_agent").notNull().default(""),
+    createdAt: createdAt(),
+    /** Cập nhật mỗi lần máy đó đăng ký lại lúc mở app. */
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex("push_subscriptions_endpoint").on(t.endpoint),
+    index("push_subscriptions_user").on(t.userId),
+  ],
+);
+
+/**
+ * Người dùng TẮT loại thông báo nào.
+ *
+ * Chỉ lưu dòng cho loại người dùng đã đụng vào. Không có dòng nghĩa là BẬT, nên
+ * thêm một loại thông báo mới thì mọi người nhận được ngay mà không phải chèn
+ * 290 dòng mặc định.
+ *
+ * Khác `push_subscriptions`: bảng kia theo THIẾT BỊ, bảng này theo NGƯỜI. Tắt
+ * một loại là tắt trên mọi máy của họ.
+ */
+export const notificationPrefs = pgTable(
+  "notification_prefs",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    kind: notificationKind("kind").notNull(),
+    enabled: boolean("enabled").notNull(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.kind] })],
+);
+
 export const notifications = pgTable(
   "notifications",
   {
@@ -1624,5 +1683,14 @@ export const notifications = pgTable(
     readAt: timestamp("read_at", { withTimezone: true }),
     createdAt: createdAt(),
   },
-  (t) => [index("notifications_user").on(t.userId, t.createdAt.desc())],
+  (t) => [
+    index("notifications_user").on(t.userId, t.createdAt.desc()),
+    /**
+     * Chỉ mục MỘT PHẦN cho câu đếm chưa đọc của chuông.
+     *
+     * Đọc xong là dòng rơi khỏi chỉ mục, nên nó luôn nhỏ dù bảng lớn thêm mỗi
+     * ngày. Chỉ mục kia sắp theo `created_at` nên không phục vụ được câu đếm.
+     */
+    index("notifications_unread").on(t.userId).where(sql`${t.readAt} is null`),
+  ],
 );

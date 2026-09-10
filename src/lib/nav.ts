@@ -25,7 +25,8 @@ export type NavIconKey =
   | 'exports'
   | 'org'
   | 'audit'
-  | 'help';
+  | 'help'
+  | 'notifications';
 
 export type NavItem = {
   href: string;
@@ -73,7 +74,7 @@ export const isNavGroup = (entry: NavEntry): entry is NavGroup => 'children' in 
  * `/settings/banks` (chốt 2026-08-24). Không mở sẵn thì chính nó bị chặn trước
  * khi kịp chuyển, và mọi link cũ dẫn về trang chủ thay vì tới đúng chỗ.
  */
-const ALWAYS_OPEN = ['/', '/profile', '/settings/referral-codes'];
+const ALWAYS_OPEN = ['/', '/profile', '/notifications', '/settings/referral-codes'];
 
 /**
  * Người này mở được đường dẫn này không — CÙNG nguồn với sidebar.

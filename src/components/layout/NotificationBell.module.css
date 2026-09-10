@@ -1,0 +1,179 @@
+.bell {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* 44px cho ngón tay — đội KD dùng điện thoại ngoài trời (§8). */
+  width: 44px;
+  height: 44px;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-md);
+  color: var(--om-text-2);
+  cursor: pointer;
+}
+
+.bell:hover {
+  background: var(--om-soft);
+  color: var(--om-text);
+}
+
+.bell:focus-visible {
+  outline: 2px solid var(--om-orange);
+  outline-offset: 2px;
+}
+
+/*
+ * Ô đếm dùng màu cam, không dùng đỏ.
+ *
+ * Đỏ trong dự án này nói "hỏng" hoặc "đã huỷ" (`--om-red`). Thông báo chưa đọc
+ * không phải lỗi, nên nó lấy màu nhấn.
+ */
+.badge {
+  position: absolute;
+  top: 5px;
+  right: 4px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--om-orange);
+  color: var(--om-text-on-accent);
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.panel {
+  width: min(360px, calc(100vw - 24px));
+  background: var(--om-card);
+  border: 1px solid var(--om-line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  z-index: 60;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--om-line);
+}
+
+.headTitle {
+  font-family: var(--font-heading);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.readAll {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--om-link);
+  cursor: pointer;
+}
+
+.readAll:disabled {
+  color: var(--om-text-3);
+  cursor: default;
+}
+
+.list {
+  max-height: min(60vh, 420px);
+  overflow-y: auto;
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--om-line);
+  text-align: left;
+  font: inherit;
+  color: var(--om-text);
+  cursor: pointer;
+}
+
+.item:last-child {
+  border-bottom: 0;
+}
+
+.item:hover {
+  background: var(--om-soft);
+}
+
+/* Chưa đọc: một vạch cam ở mép trái. Không dùng riêng màu chữ — màu một mình
+   không được là kênh truyền đạt duy nhất (§8). */
+.unread {
+  box-shadow: inset 3px 0 0 var(--om-orange);
+}
+
+.itemTitle {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.unread .itemTitle {
+  color: var(--om-text);
+}
+
+.itemBody {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--om-text-2);
+}
+
+.itemAt {
+  font-size: 11.5px;
+  color: var(--om-text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.empty {
+  margin: 0;
+  padding: var(--space-6) var(--space-4);
+  text-align: center;
+  font-size: 13px;
+  color: var(--om-text-3);
+}
+
+.foot {
+  padding: var(--space-2) var(--space-4);
+  border-top: 1px solid var(--om-line);
+  text-align: center;
+}
+
+.all {
+  font-size: 13px;
+  color: var(--om-link);
+}
+
+.all:hover {
+  color: var(--om-link-hover);
+}
+
+/*
+ * Ẩn trên điện thoại: thanh điều hướng đáy đã có ô Thông báo mang cùng ô đếm.
+ *
+ * Số 900px khớp `$bp-mobile` trong `src/styles/_breakpoints.scss`, cũng là mốc
+ * `BottomNav` hiện ra. File này là `.css` nên không dùng được biến SCSS, đổi mốc
+ * thì phải sửa cả hai chỗ.
+ */
+@media (max-width: 900px) {
+  .bell {
+    display: none;
+  }
+}

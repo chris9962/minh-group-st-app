@@ -1,0 +1,116 @@
+.body {
+  flex: 1;
+  padding: 22px 28px 40px;
+}
+
+/* Cùng dáng thẻ với `SectionCard` (§3): nền `--om-card`, viền `--om-line`,
+   `--shadow-sm`. Không dùng thẳng component đó vì nó bắt buộc có tiêu đề, mà
+   khối này cố ý không có — thanh trên đã ghi "Thông báo". */
+.card {
+  max-width: 720px;
+  background: var(--om-card);
+  border: 1px solid var(--om-line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-3) 0;
+}
+
+.head {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 var(--space-4) var(--space-2);
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+  /* 44px cho ngón tay — đội KD dùng điện thoại ngoài trời (§8). */
+  min-height: 44px;
+  padding: var(--space-3) var(--space-4);
+  background: none;
+  border: 0;
+  border-top: 1px solid var(--om-line);
+  /* KHÔNG bo góc: vạch cam của dòng chưa đọc vẽ bằng `box-shadow: inset` nên
+     nó cong theo góc bo, và đầu vạch trông như bị cắt cụt. */
+  text-align: left;
+  font: inherit;
+  color: var(--om-text);
+  cursor: pointer;
+}
+
+.item:hover {
+  background: var(--om-soft);
+}
+
+/* Chưa đọc: một vạch cam ở mép trái. Không dùng riêng màu chữ — màu một mình
+   không được là kênh truyền đạt duy nhất (§8). */
+.unread {
+  box-shadow: inset 3px 0 0 var(--om-orange);
+}
+
+.itemTitle {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.itemBody {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--om-text-2);
+}
+
+.itemAt {
+  font-size: 12px;
+  color: var(--om-text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.empty {
+  margin: 0;
+  padding: var(--space-8) 0;
+  text-align: center;
+  color: var(--om-text-3);
+}
+
+.more {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-3) var(--space-4) var(--space-1);
+  border-top: 1px solid var(--om-line);
+}
+
+/*
+ * Một nút, hai chỗ đứng. Mốc 900px khớp `$bp-mobile` ở
+ * `src/styles/_breakpoints.scss`, cũng là mốc `BottomNav` hiện ra.
+ */
+.onMobile {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .body {
+    padding: 16px 14px 32px;
+  }
+
+  .onMobile {
+    display: inline-flex;
+  }
+
+  /* Hàng này chỉ đựng nút, mà nút đã lên thanh trên. Để lại là một khoảng
+     trống ở đầu thẻ. */
+  .head {
+    display: none;
+  }
+
+  .card {
+    padding-top: 0;
+  }
+}

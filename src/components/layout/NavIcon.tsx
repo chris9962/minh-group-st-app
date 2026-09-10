@@ -1,4 +1,5 @@
 import {
+  Bell,
   BookOpen,
   Building2,
   ChartNoAxesColumn,
@@ -38,6 +39,7 @@ const ICONS = {
   org: Building2,
   audit: History,
   help: BookOpen,
+  notifications: Bell,
 } as const satisfies Record<NavIconKey, unknown>;
 
 export function NavIcon({ name }: { name: NavIconKey }) {

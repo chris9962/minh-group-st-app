@@ -10,6 +10,14 @@ type Props = {
   /** Câu giải thích dưới nhãn — nói rõ bật lên thì điều gì đổi. */
   hint?: string;
   disabled?: boolean;
+  /**
+   * Giấu nhãn khỏi mắt nhưng giữ cho trình đọc màn hình.
+   *
+   * Dùng khi công tắc nằm trong `SettingsRow`: dòng đó đã in nhãn bên trái rồi,
+   * in thêm lần nữa là đọc lên hai lần. KHÔNG bỏ `label` đi — bỏ là công tắc
+   * mất tên, người dùng trình đọc màn hình nghe "bật tắt" mà không biết của gì.
+   */
+  hideLabel?: boolean;
 };
 
 /**
@@ -22,12 +30,19 @@ type Props = {
  * Khác `Checkbox`: ô tích là một mục trong danh sách chọn nhiều, còn công tắc
  * đổi ngay một trạng thái của màn hình đang mở.
  */
-export function Switch({ checked, onCheckedChange, label, hint, disabled }: Props) {
+export function Switch({
+  checked,
+  onCheckedChange,
+  label,
+  hint,
+  disabled,
+  hideLabel,
+}: Props) {
   const id = useId();
   const hintId = `${id}-hint`;
 
   return (
-    <div className={styles.wrap}>
+    <div className={hideLabel ? `${styles.wrap} ${styles.bare}` : styles.wrap}>
       <input
         id={id}
         type="checkbox"
@@ -42,7 +57,7 @@ export function Switch({ checked, onCheckedChange, label, hint, disabled }: Prop
         <span className={styles.track} aria-hidden>
           <span className={styles.thumb} />
         </span>
-        <span className={styles.text}>{label}</span>
+        <span className={hideLabel ? "sr-only" : styles.text}>{label}</span>
       </label>
       {hint && (
         <p id={hintId} className={styles.hint}>

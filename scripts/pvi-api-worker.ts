@@ -32,6 +32,7 @@ import {
   insuranceOrders,
   insuranceOrderStatusHistory,
 } from "../src/server/db/schema";
+import { notifyUsers, recipientsFor } from "../src/server/notifications";
 import { checkPviAccess } from "../src/server/pvi-api/catalog";
 import { PVI_ENDPOINT_PREFIX, readPviApiConfig } from "../src/server/pvi-api/config";
 import { saveCertificateFrom } from "../src/server/pvi-api/certificate";
@@ -225,6 +226,33 @@ async function claim(id: string): Promise<boolean> {
   });
 }
 
+/**
+ * Báo cho người xử lý đơn làm tay (C-09).
+ *
+ * Gọi SAU `setStatus`: đơn phải nằm ở `manual-queued` trước, không thì người
+ * nhận bấm vào thông báo mà đơn chưa chuyển trạng thái.
+ *
+ * Nuốt mọi lỗi. Đơn đã ghi xong rồi, và người xử lý vẫn thấy nó trong danh
+ * sách làm tay dù báo tin hỏng. Ném lỗi ra ngoài là làm hỏng cả vòng quét, kéo
+ * theo những đơn khác đang chờ.
+ *
+ * Người nhận là MỌI người có `insurance:handle-fallback` và chưa tắt loại này.
+ * Kho đơn làm tay là kho chung toàn công ty, không kẹp phạm vi phòng ban.
+ */
+async function baoDonLamTay(order: OrderForPvi, note: string) {
+  try {
+    const nguoiNhan = await recipientsFor("insurance", "handle-fallback", "order-manual");
+    const sent = await notifyUsers(nguoiNhan, "order-manual", {
+      title: "Đơn cần làm tay",
+      body: `${order.orderCode} · ${note}`,
+      url: `/insurance/${order.id}`,
+    });
+    if (sent > 0) log(`${order.orderCode}: đã báo ${sent} người xử lý đơn làm tay`);
+  } catch (e) {
+    log(`${order.orderCode}: không báo được cho người xử lý — ${describeError(e)}`);
+  }
+}
+
 /** Gọi PVI tạo một đơn rồi ghi kết quả. Trả trạng thái mới. */
 async function createOne(order: OrderForPvi) {
   if (!(await claim(order.id))) return null;
@@ -239,10 +267,10 @@ async function createOne(order: OrderForPvi) {
   try {
     prepared = preparePviOrder(order);
   } catch (e) {
-    await setStatus(order.id, "creating", "manual-queued", {
-      note: `Dữ liệu đơn không hợp lệ: ${describeError(e)}`,
-    });
+    const note = `Dữ liệu đơn không hợp lệ: ${describeError(e)}`;
+    await setStatus(order.id, "creating", "manual-queued", { note });
     log(`${order.orderCode}: dữ liệu không hợp lệ, ${describeError(e)} → làm tay`);
+    await baoDonLamTay(order, note);
     return "manual-queued";
   }
 
@@ -295,16 +323,20 @@ async function failed(order: OrderForPvi, e: unknown) {
   if (unknownOutcome) {
     const attempts = order.pviAttempts + 1;
     const giveUp = attempts >= MAX_CREATE_ATTEMPTS;
+    const note = giveUp
+      ? `Gọi PVI hỏng ${attempts} lần, lần cuối: ${describeError(e)}. Đơn CÓ THỂ đã có trên PVI, tra GetPolicyNumber trước khi làm tay.`
+      : `Gọi PVI hỏng (lần ${attempts}/${MAX_CREATE_ATTEMPTS}): ${describeError(e)}`;
     await setStatus(order.id, "creating", giveUp ? "manual-queued" : "queued", {
       pviAttempts: attempts,
-      note: giveUp
-        ? `Gọi PVI hỏng ${attempts} lần, lần cuối: ${describeError(e)}. Đơn CÓ THỂ đã có trên PVI, tra GetPolicyNumber trước khi lập tay.`
-        : `Gọi PVI hỏng (lần ${attempts}/${MAX_CREATE_ATTEMPTS}): ${describeError(e)}`,
+      note,
     });
     log(
       `${order.orderCode}: ${describeError(e)} (lần ${attempts}/${MAX_CREATE_ATTEMPTS})` +
         (giveUp ? " → làm tay" : ""),
     );
+    // Chỉ báo khi ĐÃ bỏ cuộc. Còn thử lại thì đơn vẫn nằm trong hàng chờ của
+    // worker, chưa ai phải làm gì.
+    if (giveUp) await baoDonLamTay(order, note);
     return giveUp ? "manual-queued" : "queued";
   }
 
@@ -324,10 +356,10 @@ async function failed(order: OrderForPvi, e: unknown) {
 
   // Còn lại là PVI từ chối vì dữ liệu. Thử lại cũng ra cùng kết quả, nên người
   // xử lý tay phải xem.
-  await setStatus(order.id, "creating", "manual-queued", {
-    note: `PVI từ chối: ${describeError(e)}`,
-  });
+  const note = `PVI từ chối: ${describeError(e)}`;
+  await setStatus(order.id, "creating", "manual-queued", { note });
   log(`${order.orderCode}: ${describeError(e)} → làm tay`);
+  await baoDonLamTay(order, note);
   return "manual-queued";
 }
 

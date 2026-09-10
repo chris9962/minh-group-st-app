@@ -1,0 +1,102 @@
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.groupTitle {
+  margin: 0;
+  padding-left: var(--space-3);
+  font-family: var(--font-heading);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--om-text-3);
+}
+
+.rows {
+  background: var(--om-card);
+  border: 1px solid var(--om-line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 44px;
+  padding: var(--space-2) var(--space-4);
+  text-align: left;
+}
+
+/*
+ * Vạch ngăn thụt vào bằng lề trái của nhãn, để khối đọc ra một danh sách liền.
+ *
+ * Vẽ bằng phần tử giả chứ không bằng `border-top` cộng `margin-left`: cách kia
+ * kéo cả dòng sang phải, nên nền lúc di chuột của dòng bấm được hụt một khoảng
+ * ở mép trái và trông như lỗi.
+ */
+.row + .row::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: var(--space-4);
+  right: 0;
+  border-top: 1px solid var(--om-line);
+}
+
+.main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.label {
+  font-size: 14px;
+  color: var(--om-text);
+}
+
+.detail {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--om-text-2);
+}
+
+.value {
+  flex: none;
+  font-size: 14px;
+  color: var(--om-text-2);
+  text-align: right;
+}
+
+.action {
+  background: none;
+  border: 0;
+  cursor: pointer;
+  color: var(--om-text);
+  font: inherit;
+}
+
+.action:hover:not(:disabled) {
+  background: var(--om-soft);
+}
+
+.action:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.danger .label {
+  color: var(--om-red);
+}
+
+.chevron {
+  flex: none;
+  margin-right: var(--space-4);
+  color: var(--om-text-3);
+}

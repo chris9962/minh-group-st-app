@@ -1,42 +1,19 @@
 .body {
   flex: 1;
   padding: 22px 28px 40px;
+}
+
+/* Cột hẹp: danh sách cài đặt đọc theo chiều dọc, kéo hết bề ngang màn hình lớn
+   thì nhãn và công tắc xa nhau tới mức không còn đọc ra một dòng. */
+.column {
+  max-width: 560px;
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-6);
 }
 
-.card {
-  max-width: 520px;
-}
-
-.pairs {
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.pairs > div {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-  padding: 8px 0;
-  border-bottom: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent);
-}
-
-.pairs > div:last-child {
-  border-bottom: 0;
-}
-
-.pairs dt {
-  flex: none;
-  width: 160px;
-  font-size: 13px;
-  color: var(--color-neutral-700);
-}
-
-.pairs dd {
-  margin: 0;
-  font-size: 14px;
+@media (max-width: 640px) {
+  .body {
+    padding: 16px 14px 32px;
+  }
 }

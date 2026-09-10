@@ -75,6 +75,7 @@
     "react-hook-form": "^7.83.0",
     "recharts": "^3.10.1",
     "sharp": "^0.35.4",
+    "web-push": "^3.6.7",
     "zod": "^4.4.3",
     "zustand": "^5.0.14"
   },
@@ -86,6 +87,7 @@
     "@types/pg": "^8.20.3",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/web-push": "^3.6.4",
     "drizzle-kit": "^0.31.10",
     "eslint": "^9",
     "eslint-config-next": "16.2.12",

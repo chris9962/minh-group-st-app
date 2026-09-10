@@ -10,6 +10,7 @@ import { CreateBankAccountDialog } from "@/components/banking/CreateBankAccountD
 import { CustomerFormDialog } from "@/components/customers/CustomerFormDialog";
 import { CreateServiceDialog } from "@/components/services/CreateServiceDialog";
 import { NavIcon } from "./NavIcon";
+import { useUnreadCount } from "./useUnreadCount";
 import type { NavIconKey } from "@/lib/nav";
 import { can, canOrg } from "@/lib/permissions";
 import type { User } from "@/lib/types";
@@ -54,10 +55,10 @@ export function BottomNav({ user, onOpenMenu }: { user: User; onOpenMenu: () => 
   const pathname = usePathname();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [creating, setCreating] = useState<CreateKind | null>(null);
+  const unread = useUnreadCount();
 
   const canCreateBusinessRecord =
     can(user, "banking", "create") || can(user, "insurance", "create") || can(user, "services", "create");
-  const managesPeople = user.manageScope !== "none" || can(user, "staff", "create");
   const canSeeOverview =
     can(user, "insurance", "view-summary") ||
     can(user, "banking", "view-summary") ||
@@ -65,13 +66,6 @@ export function BottomNav({ user, onOpenMenu }: { user: User; onOpenMenu: () => 
   // Cùng luật với sidebar (`navFor`) — lệch nhau thì điện thoại thiếu lối tắt
   // tới đúng màn người dùng thấy trên máy tính.
   const canReadOrg = canOrg(user, "view-detail");
-
-  // Người không quản phòng thấy ô "Cá nhân" thay cho "Nhân sự". Trước đó ô này
-  // là "Chỉ tiêu của tôi" trỏ /my-target — trang chưa bao giờ tồn tại (sidebar
-  // đã bỏ từ 2026-08-06, xem nav.ts); đổi sang /profile ngày 2026-08-15.
-  const peopleEntry: Entry = managesPeople
-    ? { kind: "link", href: "/users", label: "Nhân sự", icon: "people" }
-    : { kind: "link", href: "/profile", label: "Cá nhân", icon: "profile" };
 
   const thirdEntry: Entry | null = canCreateBusinessRecord
     ? { kind: "create", label: "Tạo mới" }
@@ -83,7 +77,15 @@ export function BottomNav({ user, onOpenMenu }: { user: User; onOpenMenu: () => 
     ...(canSeeOverview ? [{ kind: "link", href: "/", label: "Tổng quan", icon: "overview" } as Entry] : []),
     { kind: "link", href: "/customers", label: "Khách hàng", icon: "customers" },
     ...(thirdEntry ? [thirdEntry] : []),
-    peopleEntry,
+    /**
+     * Ô áp chót là Thông báo, thay chỗ "Nhân sự" / "Cá nhân" trước đây (chốt
+     * 2026-09-10). Hai màn kia vẫn mở được từ sidebar qua nút Thêm, còn thông
+     * báo là thứ người dùng phải thấy ngay khi có việc mới.
+     *
+     * Bấm vào MỞ TRANG chứ không mở hộp thả xuống như chuông ở máy tính. Màn
+     * điện thoại không đủ chỗ cho một hộp thả xuống đọc được.
+     */
+    { kind: "link", href: "/notifications", label: "Thông báo", icon: "notifications" },
     { kind: "more", label: "Thêm" },
   ];
 
@@ -96,14 +98,25 @@ export function BottomNav({ user, onOpenMenu }: { user: User; onOpenMenu: () => 
         {entries.map((entry) => {
           if (entry.kind === "link") {
             const active = isActive(entry.href);
+            const badge = entry.href === "/notifications" && unread > 0;
             return (
               <Link
                 key={entry.href}
                 href={entry.href}
                 className={clsx(styles.item, active && styles.active)}
                 aria-current={active ? "page" : undefined}
+                aria-label={badge ? `${entry.label}, ${unread} chưa đọc` : undefined}
               >
-                <NavIcon name={entry.icon} />
+                <span className={styles.iconWrap}>
+                  <NavIcon name={entry.icon} />
+                  {/* Quá 99 thì in "99+": ô đếm chỉ đủ chỗ hai chữ số, và con
+                      số chính xác không đổi việc người dùng làm. */}
+                  {badge && (
+                    <span className={styles.badge} aria-hidden>
+                      {unread > 99 ? "99+" : unread}
+                    </span>
+                  )}
+                </span>
                 <span>{entry.label}</span>
               </Link>
             );
