@@ -4,13 +4,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { use, useState } from "react";
-import { Briefcase, ChevronLeft, ExternalLink, Gift, History, Landmark, ShieldCheck, Trash2, User as UserIcon } from "lucide-react";
+import { Briefcase, ChevronLeft, ExternalLink, Gift, History, Landmark, Pencil, ShieldCheck, Trash2, User as UserIcon } from "lucide-react";
 import { SkeletonCard } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
 import { BankAccountFormDialog } from "@/components/banking/BankAccountFormDialog";
 import { CustomerFormDialog } from "@/components/customers/CustomerFormDialog";
-import { CustomerNoteCard } from "@/components/customers/CustomerNoteCard";
+import { CustomerNoteDialog } from "@/components/customers/CustomerNoteDialog";
 import { GiftGivingDialog } from "@/components/customers/GiftGivingDialog";
 import { GiftChangeDialog } from "@/components/customers/GiftChangeDialog";
 import { ServiceFormDialog } from "@/components/services/ServiceFormDialog";
@@ -66,6 +66,7 @@ export default function CustomerDetailPage({
   const queryClient = useQueryClient();
   const router = useRouter();
   const [editing, setEditing] = useState(false);
+  const [editingNote, setEditingNote] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [givingGift, setGivingGift] = useState(false);
   const [changingGift, setChangingGift] = useState(false);
@@ -287,6 +288,26 @@ export default function CustomerDetailPage({
                       : ""}
                   </dd>
                 </div>
+                <div className={styles.noteRow}>
+                  <dt>
+                    <span>Ghi chú</span>
+                    {recordInScope(
+                      recordVisibility(actor, "customer", "update"),
+                      data.customer,
+                    ) && (
+                      <Button
+                        variant="ghost"
+                        icon
+                        tooltip="Sửa ghi chú"
+                        aria-label="Sửa ghi chú khách hàng"
+                        onClick={() => setEditingNote(true)}
+                      >
+                        <Pencil size={15} aria-hidden />
+                      </Button>
+                    )}
+                  </dt>
+                  <dd className={styles.noteText}>{data.customer.note || "Chưa có ghi chú"}</dd>
+                </div>
               </dl>
               <div className={styles.footRow}>
                 {/* Ẩn nút khi máy chủ sẽ từ chối — bấm xong nhận 404 thì câu báo
@@ -338,9 +359,6 @@ export default function CustomerDetailPage({
                 )}
               </div>
             </SectionCard>
-
-            <CustomerNoteCard key={id} id={id} note={data.customer.note}
-              canEdit={recordInScope(recordVisibility(actor, "customer", "update"), data.customer)} />
 
             {/* Khối rỗng thì ẩn hẳn, nhưng CHỈ khi không có dòng nào bị giấu:
                 câu "Còn N tài khoản của phòng khác" là thứ giữ nhân viên khỏi mở
@@ -633,6 +651,8 @@ export default function CustomerDetailPage({
                         <span>Đã xoá hồ sơ {c.seq}</span>
                       ) : c.field === "id_number" ? (
                         <span>Đã đổi CCCD</span>
+                      ) : c.field === "note" ? (
+                        <span>Đã sửa ghi chú</span>
                       ) : (
                         <span>
                           {CUSTOMER_FIELD_LABEL[c.field]}: {c.fromValue || "(trống)"} →{" "}
@@ -649,6 +669,15 @@ export default function CustomerDetailPage({
 
         {editing && data && (
           <CustomerFormDialog open customer={data.customer} onClose={() => setEditing(false)} />
+        )}
+
+        {editingNote && data && (
+          <CustomerNoteDialog
+            key={`${id}:${data.customer.note}`}
+            id={id}
+            note={data.customer.note}
+            onClose={() => setEditingNote(false)}
+          />
         )}
 
         {givingGift && data && (

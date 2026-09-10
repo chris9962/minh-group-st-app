@@ -9,12 +9,11 @@ import type {
   CustomerForm,
   CustomerInsuranceRow,
   CustomerLookupResult,
-  CustomerRow,
   CustomerExportRow,
   CustomerServiceRow,
   CustomerSort,
 } from "@/lib/api/customers";
-import { GIFT_DECLINED, GIFT_DECLINED_LABEL } from "@/lib/api/customers";
+import { CustomerRow, GIFT_DECLINED, GIFT_DECLINED_LABEL } from "@/lib/api/customers";
 import { MAX_BANK_ACCOUNTS_PER_CUSTOMER } from "@/lib/api/bankAccounts";
 import type { Page } from "@/lib/api/pagination";
 import type { PageArgs } from "./pagination";
@@ -451,7 +450,12 @@ export async function listCustomers(
     : null;
 
   return {
-    rows: rows.map((r) => ({ ...r, points: points ? (points.get(r.id) ?? 0) : null })),
+    // Schema bỏ `note`: ghi chú chỉ đi theo hồ sơ chi tiết và route xuất Excel,
+    // không nới payload của bảng khách hàng.
+    rows: rows.map((r) => CustomerRow.parse({
+      ...r,
+      points: points ? (points.get(r.id) ?? 0) : null,
+    })),
     total: totals?.value ?? 0,
   };
 }

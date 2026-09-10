@@ -50,6 +50,23 @@
   font-size: 14px;
 }
 
+.noteRow {
+  grid-column: 1 / -1;
+}
+
+.noteRow dt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 36px;
+}
+
+.noteText {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--om-text);
+}
+
 .currentGift {
   display: inline-flex;
   align-items: center;
