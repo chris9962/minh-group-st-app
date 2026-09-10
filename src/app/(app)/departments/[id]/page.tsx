@@ -5,6 +5,7 @@ import Link from "next/link";
 import { use, useState } from "react";
 import { ChevronLeft, UserCog, Users } from "lucide-react";
 import { SkeletonCard, SkeletonTable } from "@/components/ui/Skeleton";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { Count } from "@/components/ui/Count";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
@@ -136,7 +137,17 @@ export default function DepartmentDetailPage({
   const staffInScope = staffVisible === null || staffVisible.includes(id);
 
   const rows = staffData?.page.rows ?? EMPTY_PAGE.rows;
-  const total = staffData?.page.total ?? 0;
+
+  /**
+   * Tài khoản đã khoá ẩn mặc định.
+   *
+   * Người rời công ty vẫn nằm trong phòng cũ để giữ lịch sử bản ghi, nên bảng
+   * phòng lâu năm lẫn nhiều dòng không còn làm việc. Lọc ở TRÌNH DUYỆT được vì
+   * `fetchDepartmentStaff` trả trọn danh sách, không phân trang.
+   */
+  const [showLocked, setShowLocked] = useState(false);
+  const lockedCount = rows.filter((s) => !s.active).length;
+  const visibleRows = showLocked ? rows : rows.filter((s) => s.active);
 
   return (
     <>
@@ -192,8 +203,17 @@ export default function DepartmentDetailPage({
                 staffPending
                   ? undefined
                   : staffData?.departmentPoints === null || staffData === undefined
-                    ? `${total} người`
-                    : `${total} người · ${staffData.departmentPoints} điểm`
+                    ? `${visibleRows.length} người`
+                    : `${visibleRows.length} người · ${staffData.departmentPoints} điểm`
+              }
+              action={
+                lockedCount > 0 ? (
+                  <Checkbox
+                    checked={showLocked}
+                    onCheckedChange={setShowLocked}
+                    label={`Hiện ${lockedCount} tài khoản đã khoá`}
+                  />
+                ) : undefined
               }
             >
               {/* Hỏng hoặc bị kẹp phạm vi thì bảng cũng rỗng, và câu "chưa có
@@ -209,15 +229,17 @@ export default function DepartmentDetailPage({
                 <SkeletonTable rows={5} columns={EMPLOYEE_COLUMNS.length} />
               ) : (
                 <RankTable
-                  rows={rows}
+                  rows={visibleRows}
                   columns={EMPLOYEE_COLUMNS}
                   rowKey={(s) => s.id}
                   defaultSort="role"
                   caption="Nhân viên của phòng, Trưởng và Phó phòng nằm đầu bảng"
                   emptyText={
-                    staffInScope
-                      ? "Phòng này chưa có nhân viên nào."
-                      : "Bạn không xem được danh sách nhân viên của phòng này."
+                    !staffInScope
+                      ? "Bạn không xem được danh sách nhân viên của phòng này."
+                      : rows.length > 0
+                        ? "Phòng này chỉ còn tài khoản đã khoá."
+                        : "Phòng này chưa có nhân viên nào."
                   }
                 />
               )}
