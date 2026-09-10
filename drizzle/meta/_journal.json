@@ -589,6 +589,13 @@
       "when": 1789891400009,
       "tag": "0083_notifications_unread",
       "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "7",
+      "when": 1789891400010,
+      "tag": "0084_notification_kind_bank",
+      "breakpoints": true
     }
   ]
 }

@@ -105,6 +105,41 @@ export async function recipientsFor(
 }
 
 /**
+ * Ai quản MỘT ngân hàng cụ thể — và đã bỏ người tự tắt loại đó.
+ *
+ * Hai đường vào, khớp `visibleBankIds` ở `lib/permissions.ts`:
+ *
+ *   manage-bank            quản MỌI ngân hàng, không cần dòng nào trong bảng giao
+ *   manage-assigned-banks  chỉ ngân hàng có trong `user_managed_banks`
+ *
+ * Viết bằng SQL thô vì đây là phép hợp của hai tập, mà một trong hai còn phụ
+ * thuộc bảng giao. Dựng bằng trình xây truy vấn thì dài hơn và khó đọc hơn.
+ */
+export async function bankManagersFor(
+  bankId: string,
+  kind: NotificationKind,
+): Promise<string[]> {
+  const rows = await db.execute<{ id: string }>(sql`
+    select distinct u.id
+    from users u
+    join user_permissions p
+      on p.user_id = u.id
+     and p.module in ('system', '*')
+     and p.action in ('manage-bank', 'manage-assigned-banks')
+    left join user_managed_banks m
+      on m.user_id = u.id and m.bank_id = ${bankId}
+    where u.active
+      and (p.action = 'manage-bank' or m.bank_id is not null)
+      and coalesce((
+        select np.enabled from notification_prefs np
+        where np.user_id = u.id and np.kind = ${kind}
+      ), true)
+  `);
+
+  return rows.rows.map((r) => r.id);
+}
+
+/**
  * Gửi cho một danh sách người ĐÃ LỌC sẵn.
  *
  * ⚠️ Hàm này KHÔNG kiểm `notification_prefs`. Nơi gọi phải lọc trước, và

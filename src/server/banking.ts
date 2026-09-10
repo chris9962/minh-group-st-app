@@ -39,6 +39,7 @@ import {
 import { isRealIsoDate, type User } from "@/lib/types";
 import { searchTerms } from "@/lib/search";
 import { db } from "./db/client";
+import { bankManagersFor, notify, notifyUsers } from "./notifications";
 import { departmentForNewRecord } from "./writeDepartment";
 import {
   bankAccountPhotos,
@@ -938,6 +939,57 @@ const photoWindowOf = (r: DecoratedRow) => ({
 const rawById = async (id: string): Promise<DecoratedRow | null> =>
   (await decorate(pickPage(eq(bankAccounts.id, id), [], 1, 0)))[0] ?? null;
 
+/* ── Thông báo (C-09) ─────────────────────────────────────────────────── */
+
+/**
+ * Nhãn nhận ra một tài khoản trong thông báo.
+ *
+ * Mã ngân hàng cộng mã giới thiệu, KHÔNG có tên khách và KHÔNG có số tài khoản.
+ * Thông báo hiện trên màn hình khoá, ai cầm máy cũng đọc được mà không mở khoá.
+ * Hai thứ kia là dữ liệu cá nhân và dữ liệu tài chính; mã giới thiệu là mã nội
+ * bộ, đủ để người nhận biết đơn nào rồi mở app xem tiếp.
+ */
+const nhanTaiKhoan = (row: DecoratedRow) => `${row.bankCode} · ${row.referralCode}`;
+
+/**
+ * Báo cho CHỦ tài khoản, tức người đã mở tài khoản đó.
+ *
+ * Nuốt mọi lỗi: bản ghi đã đổi trạng thái xong rồi, và người dùng vẫn thấy
+ * trạng thái mới trên màn danh sách dù báo tin hỏng. Ném lỗi ra ngoài là lượt
+ * đánh dấu lỗi hay lượt duyệt trả về thất bại cho một việc đã thành công.
+ */
+async function baoChuTaiKhoan(
+  row: DecoratedRow,
+  kind: "bank-error" | "bank-approved",
+  title: string,
+  detail: string,
+): Promise<void> {
+  if (!row.createdById) return;
+  try {
+    await notify(row.createdById, kind, {
+      title,
+      body: detail ? `${nhanTaiKhoan(row)} · ${detail}` : nhanTaiKhoan(row),
+      url: `/banking/${row.id}`,
+    });
+  } catch {
+    // Không có nơi nào ghi log ở tầng này; bỏ qua để lượt ghi chính vẫn thành công.
+  }
+}
+
+/** Báo cho người quản NGÂN HÀNG ĐÓ rằng có tài khoản chờ duyệt lại. */
+async function baoNguoiDuyet(row: DecoratedRow): Promise<void> {
+  try {
+    const nguoiNhan = await bankManagersFor(row.bankId, "bank-pending");
+    await notifyUsers(nguoiNhan, "bank-pending", {
+      title: "Tài khoản chờ duyệt lại",
+      body: `${nhanTaiKhoan(row)} · chờ duyệt`,
+      url: `/settings/banks/${row.bankId}/${row.id}`,
+    });
+  } catch {
+    // Cùng lý do với `baoChuTaiKhoan`.
+  }
+}
+
 /** Dạng đầy đủ mà các endpoint GHI trả về (hợp đồng `BankAccount`). */
 /**
  * Mọi số điện thoại của khách, SỐ CHÍNH đứng đầu.
@@ -1664,6 +1716,11 @@ export async function updateFinishedAccount(
     );
   await recomputeGiftCase(current.customerId);
 
+  // Chỉ báo khi lượt sửa này ĐƯA tài khoản vào hàng chờ duyệt. Sửa tiếp một bản
+  // đang `fixed` thì người quản đã nhận tin từ lượt trước, báo lần nữa là hai
+  // dòng cho một việc.
+  if (current.status === "error" && nextStatus === "fixed") await baoNguoiDuyet(current);
+
   return {
     ok: true,
     value: { account: (await accountById(id))! },
@@ -1705,6 +1762,8 @@ export async function approveFixedAccount(
       current.customerId,
       businessMonth(new Date(`${current.date}T00:00:00+07:00`)),
     );
+
+  await baoChuTaiKhoan(current, "bank-approved", "Tài khoản đã được duyệt", "");
 
   return { ok: true, value: (await accountById(id))! };
 }
@@ -1758,6 +1817,8 @@ export async function markAccountErrorByBankManager(
       current.customerId,
       businessMonth(new Date(`${current.date}T00:00:00+07:00`)),
     );
+
+  await baoChuTaiKhoan(current, "bank-error", "Tài khoản bị đánh lỗi", errorNote);
 
   return { ok: true, value: (await accountById(id))! };
 }
@@ -1820,6 +1881,12 @@ export async function updateBankAccountStatus(
       current.customerId,
       businessMonth(new Date(`${current.date}T00:00:00+07:00`)),
     );
+
+  // Khôi phục thẳng về `done` cũng là tin tốt cho chủ tài khoản, dùng chung loại
+  // `bank-approved` nhưng khác câu chữ: họ không bấm gửi duyệt lần nào.
+  if (form.status === "error")
+    await baoChuTaiKhoan(current, "bank-error", "Tài khoản bị đánh lỗi", form.errorNote);
+  else await baoChuTaiKhoan(current, "bank-approved", "Tài khoản đã được khôi phục", "");
 
   return { ok: true, value: (await accountById(id))! };
 }

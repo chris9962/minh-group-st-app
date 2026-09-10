@@ -8,19 +8,32 @@ import type { Action, ModuleKey } from '../types';
  * sửa ĐỦ BA chỗ: enum trong migration, mảng dưới đây, và bảng nhãn. Thiếu một
  * chỗ thì công tắc hiện ra mà lưu không được, hoặc lưu được mà không ai thấy.
  */
-export const NotificationKind = z.enum(['order-done', 'order-manual', 'code-low']);
+export const NotificationKind = z.enum([
+  'order-done',
+  'order-manual',
+  'code-low',
+  'bank-error',
+  'bank-pending',
+  'bank-approved',
+]);
 export type NotificationKind = z.infer<typeof NotificationKind>;
 
 /** Thứ tự trong mảng cũng là thứ tự công tắc hiện trên màn hình. */
 export const NOTIFICATION_KINDS: NotificationKind[] = [
   'order-manual',
   'order-done',
+  'bank-error',
+  'bank-pending',
+  'bank-approved',
   'code-low',
 ];
 
 export const NOTIFICATION_KIND_LABEL: Record<NotificationKind, string> = {
   'order-manual': 'Đơn chuyển sang làm tay',
   'order-done': 'Đơn đã có giấy chứng nhận',
+  'bank-error': 'Tài khoản của tôi bị đánh lỗi',
+  'bank-pending': 'Tài khoản chờ duyệt lại',
+  'bank-approved': 'Tài khoản của tôi được duyệt',
   'code-low': 'Kho mã giới thiệu sắp hết',
 };
 
@@ -38,6 +51,11 @@ export const NOTIFICATION_KIND_NEEDS: Partial<
   Record<NotificationKind, { module: ModuleKey; actions: Action[] }>
 > = {
   'order-manual': { module: 'insurance', actions: ['handle-fallback'] },
+  /** Hai loại của CHỦ tài khoản: ai mở được tài khoản thì mới sở hữu tài khoản. */
+  'bank-error': { module: 'banking', actions: ['create'] },
+  'bank-approved': { module: 'banking', actions: ['create'] },
+  /** Loại của NGƯỜI DUYỆT — hai quyền mở cùng màn quản lý ngân hàng. */
+  'bank-pending': { module: 'system', actions: ['manage-bank', 'manage-assigned-banks'] },
   'code-low': { module: 'system', actions: ['manage-bank', 'manage-assigned-banks'] },
 };
 
@@ -45,6 +63,9 @@ export const NOTIFICATION_KIND_NEEDS: Partial<
 export const ALL_ON: Record<NotificationKind, boolean> = {
   'order-manual': true,
   'order-done': true,
+  'bank-error': true,
+  'bank-pending': true,
+  'bank-approved': true,
   'code-low': true,
 };
 

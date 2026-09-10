@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import * as Popover from "@radix-ui/react-popover";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -31,14 +32,21 @@ const PREVIEW = 8;
 export function NotificationBell() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
 
   const unread = useUnreadCount();
 
+  /**
+   * Chỉ tải khi hộp thả xuống ĐANG MỞ, và bật tắt bằng `enabled`.
+   *
+   * KHÔNG dùng `enabled: false` rồi gọi `refetchQueries` lúc mở:
+   * `refetchQueries` bỏ qua truy vấn đang tắt, nên nó không chạy lần nào và
+   * `isPending` đứng mãi ở true — hộp hiện "Đang tải…" không bao giờ hết.
+   */
   const { data, isPending } = useQuery({
-    queryKey: ["notifications", 0],
+    queryKey: ["notifications", "bell"],
     queryFn: () => fetchNotifications({ page: 0, sort: "at", dir: "desc" }),
-    // Chỉ tải khi người dùng đã mở chuông ít nhất một lần.
-    enabled: false,
+    enabled: open,
   });
 
   const read = useMutation({
@@ -49,10 +57,6 @@ export function NotificationBell() {
     },
   });
 
-  function open(next: boolean) {
-    if (next) queryClient.refetchQueries({ queryKey: ["notifications", 0] });
-  }
-
   function go(row: NotificationRow) {
     if (!row.read) read.mutate(row.id);
     if (row.url) router.push(row.url);
@@ -61,7 +65,7 @@ export function NotificationBell() {
   const rows = data?.rows.slice(0, PREVIEW) ?? [];
 
   return (
-    <Popover.Root onOpenChange={open}>
+    <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger asChild>
         <button
           type="button"

@@ -137,6 +137,8 @@ export const photoKind = pgEnum("photo_kind", ["opening", "transaction"]);
 
 export const notificationKind = pgEnum("notification_kind", [
   "order-done", "order-manual", "code-low",
+  // Ngân hàng, thêm ở migration 0084.
+  "bank-error", "bank-pending", "bank-approved",
 ]);
 
 /** P-96 · Góp ý đã xử lý hay chưa. Hai trạng thái, thêm ở migration 0052. */
