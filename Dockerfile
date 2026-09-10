@@ -172,7 +172,19 @@ WORKDIR /app
 # nên thiếu gói này thì container chạy UTC dù đã đặt biến, và mốc hiệu lực lệch
 # 7 tiếng về quá khứ. Đo trên máy chủ 2026-09-10: container in 16:19 UTC trong
 # khi máy chủ 23:19 +07. Image bot không dính vì nền Ubuntu có sẵn tzdata.
-RUN apk add --no-cache poppler-utils libwebp-tools tzdata
+#
+# `ttf-liberation` và `font-noto` để `pdftoppm` VẼ ĐƯỢC CHỮ. Giấy chứng nhận PVI
+# KHÔNG nhúng font cho phần dữ liệu: `pdffonts` cho `ArialMT`, `Arial-BoldMT`,
+# `TimesNewRomanPSMT` ở cột `emb = no`. Font không nhúng thì máy vẽ phải tự có.
+# Alpine trắng trơn, `fc-list` đếm 0, nên poppler bỏ trắng đúng những ô dữ liệu:
+# số hợp đồng, biển số, số tiền, thời hạn đều mất, còn khung mẫu vẫn hiện vì
+# khung có nhúng font. Đo trên máy chủ 2026-09-10 với đơn DH-2609-12561, poppler
+# in khoảng 200 dòng `Couldn't find a font for 'TimesNewRomanPSMT'`.
+#
+# `ttf-liberation` KHỚP SỐ ĐO của Arial và Times New Roman nên chữ nằm đúng chỗ,
+# không lệch dòng. `font-noto` phủ dấu tiếng Việt. Image bot không dính vì nền
+# Ubuntu mang sẵn 50 font.
+RUN apk add --no-cache poppler-utils libwebp-tools tzdata ttf-liberation font-noto
 
 COPY package.json bun.lock ./
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
