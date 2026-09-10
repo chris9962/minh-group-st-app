@@ -47,6 +47,10 @@ next-env.d.ts
 # script dựng bằng chứng khi review — chạy tay, chỉ đọc, không phải mã sản phẩm
 /.probe
 
+# Script chạy tay có KHOÁ THẬT viết thẳng trong file, ví dụ `CpId` và `Key` bản
+# thật của PVI. Lên repo là ai đọc được repo cũng tạo được hợp đồng bảo hiểm.
+/scripts/*.local.*
+
 # Playwright
 /test-results/
 /playwright-report/
