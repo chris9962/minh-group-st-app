@@ -7,27 +7,6 @@
   min-width: 0;
 }
 
-.back {
-  align-self: flex-start;
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  font: inherit;
-  font-size: 13px;
-  color: var(--om-text-2);
-  /* Vùng bấm 44px cho ngón tay — thanh trên đã chật, đây là đường về duy nhất. */
-  padding: 12px 4px;
-  margin: -12px 0;
-  border: 0;
-  background: transparent;
-  cursor: pointer;
-}
-
-.back:hover {
-  color: var(--om-orange-mid);
-  text-decoration: underline;
-}
-
 /* Cột trái là chân dung nhân viên và điểm — đọc một lần rồi để đó. Cột phải là
    thứ người dùng thật sự lật qua lật lại, nên rộng và không bị cắt. */
 .columns {

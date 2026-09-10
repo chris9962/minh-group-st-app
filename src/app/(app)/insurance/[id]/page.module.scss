@@ -7,26 +7,6 @@
   min-width: 0;
 }
 
-.back {
-  align-self: flex-start;
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  font: inherit;
-  font-size: 13px;
-  color: var(--om-text-2);
-  padding: 12px 4px;
-  margin: -12px 0;
-  border: 0;
-  background: transparent;
-  cursor: pointer;
-}
-
-.back:hover {
-  color: var(--om-orange-mid);
-  text-decoration: underline;
-}
-
 /* Các nhóm trong thẻ chi tiết cách nhau bằng gap, không bằng margin của từng
    khối — thêm bớt nhóm theo loại sản phẩm thì khoảng cách vẫn đều. */
 .detail {

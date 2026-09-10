@@ -1,9 +1,8 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
 import { use, useState } from "react";
-import { ChevronLeft } from "lucide-react";
+import { BackLink } from "@/components/ui/BackLink";
 import { SkeletonCard } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
@@ -40,7 +39,6 @@ export default function PersonPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
-  const router = useRouter();
   const [period, setPeriod] = useState<PeriodMode>({ kind: "this-month" });
   /** Tab ngoài: hồ sơ KPI hay thẻ tài khoản đăng nhập. */
   const [section, setSection] = useState<SectionKey>("kpi");
@@ -72,15 +70,6 @@ export default function PersonPage({
 
   const periodText = period.kind === "today" ? "Hôm nay" : monthLabel(listMonth);
 
-  /** Danh sách nguồn đã giữ bộ lọc trên URL; ưu tiên lịch sử trình duyệt. */
-  const backToPeople = () => {
-    if (window.history.length > 1) {
-      router.back();
-      return;
-    }
-    router.replace("/users");
-  };
-
   return (
     <>
       <TopBar title={data?.fullName ?? "Nhân viên"}>
@@ -90,10 +79,7 @@ export default function PersonPage({
       </TopBar>
 
       <main className={styles.body}>
-        <button type="button" className={styles.back} onClick={backToPeople}>
-          <ChevronLeft size={15} aria-hidden />
-          Nhân sự &amp; KPI
-        </button>
+        <BackLink href="/users">Nhân sự &amp; KPI</BackLink>
 
         {isPending && <SkeletonCard lines={5} />}
         {isError && (

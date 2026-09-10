@@ -4,7 +4,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { use, useState } from "react";
-import { Briefcase, ChevronLeft, ExternalLink, Gift, History, Landmark, Pencil, ShieldCheck, Trash2, User as UserIcon } from "lucide-react";
+import { Briefcase, ChevronRight, Gift, History, Landmark, Pencil, ShieldCheck, Trash2, User as UserIcon } from "lucide-react";
+import { BackLink } from "@/components/ui/BackLink";
 import { SkeletonCard } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
@@ -140,16 +141,16 @@ export default function CustomerDetailPage({
     {
       key: "open",
       label: "Thao tác",
+      // Không gắn `onClick`: lượt bấm nổi lên `onRowClick` của dòng và mở đúng
+      // một lần. Nút vẫn phải có thật — `<tr>` không nhận tiêu điểm bàn phím.
       render: (a) => (
-        <a
+        <button
+          type="button"
           className="btn btn-secondary"
-          href={`/banking/${a.id}`}
-          target="_blank"
-          rel="noreferrer"
-          aria-label="Mở chi tiết tài khoản trong tab mới"
+          aria-label={`Mở chi tiết tài khoản ${a.bankName}`}
         >
-          <ExternalLink size={16} aria-hidden />
-        </a>
+          <ChevronRight size={16} aria-hidden />
+        </button>
       ),
     },
   ];
@@ -183,15 +184,13 @@ export default function CustomerDetailPage({
       key: "open",
       label: "Thao tác",
       render: (i) => (
-        <a
+        <button
+          type="button"
           className="btn btn-secondary"
-          href={`/insurance/${i.id}`}
-          target="_blank"
-          rel="noreferrer"
-          aria-label="Mở chi tiết đơn trong tab mới"
+          aria-label={`Mở chi tiết đơn ${i.packageName}`}
         >
-          <ExternalLink size={16} aria-hidden />
-        </a>
+          <ChevronRight size={16} aria-hidden />
+        </button>
       ),
     },
   ];
@@ -223,10 +222,7 @@ export default function CustomerDetailPage({
       />
 
       <main className={styles.body}>
-        <Link href="/customers" className={styles.back}>
-          <ChevronLeft size={15} aria-hidden />
-          Khách hàng
-        </Link>
+        <BackLink href="/customers">Khách hàng</BackLink>
 
         {isPending && <SkeletonCard lines={5} />}
         {isError && (
@@ -416,6 +412,7 @@ export default function CustomerDetailPage({
                     rowKey={(a) => a.id}
                     defaultSort="date"
                     pageSize={10}
+                    onRowClick={(a) => router.push(`/banking/${a.id}`)}
                     caption="Tài khoản ngân hàng của khách"
                   />
                 )}
@@ -443,6 +440,7 @@ export default function CustomerDetailPage({
                     rowKey={(i) => i.id}
                     defaultSort="date"
                     pageSize={10}
+                    onRowClick={(i) => router.push(`/insurance/${i.id}`)}
                     caption="Đơn bảo hiểm của khách"
                   />
                 )}

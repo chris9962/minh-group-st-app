@@ -1,14 +1,14 @@
 "use client";
 
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { use, useEffect, useMemo, useState } from "react";
-import { ChevronLeft, Download, Landmark } from "lucide-react";
+import { Download, Landmark } from "lucide-react";
 import type { DateRange } from "react-day-picker";
 import { RequirePermission } from "@/components/layout/RequirePermission";
 import { TopBar } from "@/components/layout/TopBar";
 import { BankPhotoGallery } from "@/components/banking/BankPhotoGallery";
+import { BackLink } from "@/components/ui/BackLink";
 import { Button } from "@/components/ui/Button";
 import { SectionTabs } from "@/components/ui/SectionTabs";
 import { Combobox } from "@/components/ui/Combobox";
@@ -467,10 +467,7 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
       </TopBar>
 
       <main className={styles.body}>
-        <Link href="/settings/banks" className={styles.back}>
-          <ChevronLeft size={15} aria-hidden />
-          Ngân hàng &amp; mã giới thiệu
-        </Link>
+        <BackLink href="/settings/banks">Ngân hàng &amp; mã giới thiệu</BackLink>
 
         <FilterChips
           chips={[

@@ -6,8 +6,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { use, useState } from "react";
 import { useForm } from "react-hook-form";
-import { Check, CheckCircle2, ChevronLeft, Landmark, Pencil, RotateCcw, TriangleAlert, Trash2 } from "lucide-react";
+import { Check, CheckCircle2, Landmark, Pencil, RotateCcw, TriangleAlert, Trash2 } from "lucide-react";
 import { Alert } from "@/components/ui/Alert";
+import { BackLink } from "@/components/ui/BackLink";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Dialog } from "@/components/ui/Dialog";
 import { SkeletonCard } from "@/components/ui/Skeleton";
@@ -90,10 +91,7 @@ export default function BankAccountDetailPage({
       />
 
       <main className={styles.body}>
-        <Link href="/banking" className={styles.back}>
-          <ChevronLeft size={15} aria-hidden />
-          Ngân hàng
-        </Link>
+        <BackLink href="/banking">Ngân hàng</BackLink>
 
         {isPending && <SkeletonCard lines={5} />}
         {isError && (

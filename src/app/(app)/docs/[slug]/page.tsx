@@ -1,11 +1,10 @@
 "use client";
 
-import { ChevronLeft } from "lucide-react";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { use } from "react";
 import { RequirePermission } from "@/components/layout/RequirePermission";
 import { TopBar } from "@/components/layout/TopBar";
+import { BackLink } from "@/components/ui/BackLink";
 import { DocBlocks } from "@/components/docs/DocBlocks";
 import { docBySlug } from "@/lib/docs";
 import styles from "./page.module.scss";
@@ -30,10 +29,7 @@ export default function DocArticlePage({
     <RequirePermission allow={(user) => user !== null && article.visibleTo(user)}>
       <TopBar title={article.title} keepTitleOnMobile />
       <main className={styles.body}>
-        <Link href="/docs" className={styles.back}>
-          <ChevronLeft size={15} aria-hidden />
-          Hướng dẫn
-        </Link>
+        <BackLink href="/docs">Hướng dẫn</BackLink>
 
         <DocBlocks blocks={article.blocks} />
       </main>

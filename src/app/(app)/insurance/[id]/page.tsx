@@ -2,11 +2,11 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { use, useCallback, useEffect, useRef, useState } from "react";
-import { Ban, CheckCircle2, ChevronLeft, Download, ExternalLink, FileText, History, ImagePlus, Pencil, RotateCcw, ShieldCheck, X } from "lucide-react";
+import { Ban, CheckCircle2, Download, ExternalLink, FileText, History, ImagePlus, Pencil, RotateCcw, ShieldCheck, X } from "lucide-react";
 import { InsuranceCancelDialog } from "@/components/insurance/InsuranceCancelDialog";
 import { InsuranceOrderEditDialog } from "@/components/insurance/InsuranceOrderEditDialog";
+import { BackLink } from "@/components/ui/BackLink";
 import { SkeletonCard } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
@@ -151,7 +151,6 @@ function PhotoView({ src, alt }: { src: string; alt: string }) {
  */
 export default function InsuranceDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const router = useRouter();
   const actor = useSession((s) => s.user);
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -415,19 +414,6 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
     (step) => step.toStatus === "cancelled" && step.note,
   )?.note;
 
-  /**
-   * Có trang trước thì quay đúng lịch sử của trình duyệt — URL danh sách đã
-   * giữ sẵn toàn bộ bộ lọc. Mở thẳng link chi tiết (không có lịch sử) thì về
-   * danh sách mặc định, thay vì gọi `back()` ra một trang không liên quan.
-   */
-  const backToList = () => {
-    if (window.history.length > 1) {
-      router.back();
-      return;
-    }
-    router.replace("/insurance");
-  };
-
   return (
     <>
       <TopBar
@@ -436,10 +422,7 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
       />
 
       <main className={styles.body}>
-        <button type="button" className={styles.back} onClick={backToList}>
-          <ChevronLeft size={15} aria-hidden />
-          Bảo hiểm
-        </button>
+        <BackLink href="/insurance">Bảo hiểm</BackLink>
 
         {isPending && <SkeletonCard lines={5} />}
         {isError && <ErrorState what="đơn bảo hiểm này" onRetry={refetch} retrying={isFetching} />}

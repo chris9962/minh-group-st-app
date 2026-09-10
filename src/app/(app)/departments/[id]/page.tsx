@@ -3,7 +3,8 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { use, useState } from "react";
-import { ChevronLeft, UserCog, Users } from "lucide-react";
+import { UserCog, Users } from "lucide-react";
+import { BackLink } from "@/components/ui/BackLink";
 import { SkeletonCard, SkeletonTable } from "@/components/ui/Skeleton";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { Count } from "@/components/ui/Count";
@@ -166,10 +167,7 @@ export default function DepartmentDetailPage({
       </TopBar>
 
       <main className={styles.body}>
-        <Link href="/departments" className={styles.back}>
-          <ChevronLeft size={15} aria-hidden />
-          Phòng ban
-        </Link>
+        <BackLink href="/departments">Phòng ban</BackLink>
 
         {isPending && <SkeletonCard lines={4} />}
         {isError && (
