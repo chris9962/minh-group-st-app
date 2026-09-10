@@ -44,6 +44,7 @@ export const Customer = z.object({
    */
   idNumber: z.string().nullable(),
   idNumberMasked: z.boolean(),
+  note: z.string(),
   address: z.string(),
   phones: z.array(CustomerPhone),
   /**
@@ -252,7 +253,9 @@ export type CustomerExportQuery = Pick<
  * `total` là tổng số dòng KHỚP BỘ LỌC. Lớn hơn `rows.length` nghĩa là máy chủ
  * đã cắt ở trần — nơi gọi phải nói ra, không được lặng lẽ đưa file thiếu.
  */
-const CustomerExportPage = z.object({ rows: z.array(CustomerRow), total: z.number() });
+export const CustomerExportRow = CustomerRow.extend({ note: z.string() });
+export type CustomerExportRow = z.infer<typeof CustomerExportRow>;
+const CustomerExportPage = z.object({ rows: z.array(CustomerExportRow), total: z.number() });
 
 /**
  * TRỌN danh sách khớp bộ lọc, cho màn Xuất dữ liệu — không phân trang.
@@ -263,7 +266,7 @@ const CustomerExportPage = z.object({ rows: z.array(CustomerRow), total: z.numbe
  */
 export async function fetchCustomersForExport(
   query: CustomerExportQuery,
-): Promise<Page<CustomerRow>> {
+): Promise<Page<CustomerExportRow>> {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(query)) {
     if (value) params.set(key, value);
@@ -466,6 +469,13 @@ export async function createCustomer(
 export const updateCustomer = (id: string, form: CustomerForm) =>
   send(`/api/customers/${id}`, 'PATCH', form).then(Customer.parse);
 
+export const CustomerNoteForm = z.object({
+  note: z.string().max(5000, 'Ghi chú tối đa 5.000 ký tự'),
+});
+
+export const updateCustomerNote = (id: string, note: string) =>
+  send(`/api/customers/${id}/note`, 'PATCH', { note }).then(CustomerNoteForm.parse);
+
 /**
  * Xoá hẳn hồ sơ khách. Chỉ chạy được khi khách chưa có bản ghi nghiệp vụ nào.
  *
@@ -546,6 +556,7 @@ export const CustomerChangeField = z.enum([
   'phones',
   'channel',
   'profile_deleted',
+  'note',
 ]);
 export type CustomerChangeField = z.infer<typeof CustomerChangeField>;
 
@@ -557,6 +568,7 @@ export const CUSTOMER_FIELD_LABEL: Record<CustomerChangeField, string> = {
   phones: 'Số điện thoại',
   channel: 'Kênh',
   profile_deleted: 'Xoá hồ sơ',
+  note: 'Ghi chú',
 };
 
 /**

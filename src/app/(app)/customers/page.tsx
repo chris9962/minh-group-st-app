@@ -35,6 +35,7 @@ import {
   fetchCustomersForExport,
   type CustomerQuery,
   type CustomerRow,
+  type CustomerExportRow,
   type CustomerSort,
 } from "@/lib/api/customers";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
@@ -329,7 +330,7 @@ export default function CustomersPage() {
         to: asked.to,
       });
       const label = seqLabeller(rows);
-      const columns: ExcelColumn<CustomerRow>[] = [
+      const columns: ExcelColumn<CustomerExportRow>[] = [
         { header: "STT", width: 6, type: "number", value: (_c, i) => i + 1 },
         { header: "NGÀY TẠO", width: 12, value: (c) => formatDate(c.createdAt) },
         { header: "TÊN KHÁCH HÀNG", width: 28, transform: "name", value: (c) => label(c) },
@@ -360,6 +361,7 @@ export default function CustomersPage() {
         },
         { header: "NGƯỜI TẠO", width: 24, value: (c) => c.createdByName },
         { header: "PHÒNG", width: 24, value: (c) => c.createdByDepartmentName },
+        { header: "GHI CHÚ", width: 48, type: "text", value: (c) => c.note },
       ];
       await exportExcel({
         fileName: `khach-hang-${iso(new Date())}.xlsx`,

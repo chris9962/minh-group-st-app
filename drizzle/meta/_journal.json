@@ -561,6 +561,13 @@
       "when": 1789891400005,
       "tag": "0079_pvi_api_route",
       "breakpoints": true
+    },
+    {
+      "idx": 80,
+      "version": "7",
+      "when": 1789891400006,
+      "tag": "0080_customer_note",
+      "breakpoints": true
     }
   ]
 }

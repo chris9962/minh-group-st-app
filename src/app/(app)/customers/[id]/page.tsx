@@ -10,6 +10,7 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
 import { BankAccountFormDialog } from "@/components/banking/BankAccountFormDialog";
 import { CustomerFormDialog } from "@/components/customers/CustomerFormDialog";
+import { CustomerNoteCard } from "@/components/customers/CustomerNoteCard";
 import { GiftGivingDialog } from "@/components/customers/GiftGivingDialog";
 import { GiftChangeDialog } from "@/components/customers/GiftChangeDialog";
 import { ServiceFormDialog } from "@/components/services/ServiceFormDialog";
@@ -337,6 +338,9 @@ export default function CustomerDetailPage({
                 )}
               </div>
             </SectionCard>
+
+            <CustomerNoteCard key={id} id={id} note={data.customer.note}
+              canEdit={recordInScope(recordVisibility(actor, "customer", "update"), data.customer)} />
 
             {/* Khối rỗng thì ẩn hẳn, nhưng CHỈ khi không có dòng nào bị giấu:
                 câu "Còn N tài khoản của phòng khác" là thứ giữ nhân viên khỏi mở

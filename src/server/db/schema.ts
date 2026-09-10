@@ -103,6 +103,7 @@ export const customerChangeField = pgEnum("customer_change_field", [
   "channel",
   /** Không phải một trường — lượt XOÁ hồ sơ, ghi vào cùng dòng thời gian. */
   "profile_deleted",
+  "note",
 ]);
 export const bankAccountStatus = pgEnum("bank_account_status", [
   "creating",
@@ -664,6 +665,8 @@ export const customers = pgTable(
     /** CCCD — trường bảo mật: API mặc định chỉ trả 4 số cuối (quyết định 03/08). */
     idNumber: text("id_number"),
     address: text("address").notNull().default(""),
+    /** Ghi chú riêng của từng hồ sơ, không đồng bộ giữa các lần mở. */
+    note: text("note").notNull().default(""),
     /** Kênh thuộc về KHÁCH, nhập đúng một lần (spec §2.3). */
     channelId: uuid("channel_id").references(() => channels.id),
     channelDetail: text("channel_detail").notNull().default(""),

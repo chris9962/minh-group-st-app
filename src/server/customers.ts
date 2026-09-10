@@ -10,6 +10,7 @@ import type {
   CustomerInsuranceRow,
   CustomerLookupResult,
   CustomerRow,
+  CustomerExportRow,
   CustomerServiceRow,
   CustomerSort,
 } from "@/lib/api/customers";
@@ -234,6 +235,7 @@ const pickPage = (where: SQL | undefined, orderBy: SQL[], limit: number, offset:
       accountCount: customers.accountCount,
       insuranceCount: customers.insuranceCount,
       giftBasket: customers.giftBasket,
+      note: customers.note,
       channelId: customers.channelId,
       address: customers.address,
       createdBy: customers.createdBy,
@@ -285,6 +287,7 @@ function decorate(page: ReturnType<typeof pickPage>) {
       seq: page.seq,
       rootId: page.rootId,
       accountCount: page.accountCount,
+      note: page.note,
       insuranceCount: page.insuranceCount,
       /**
        * Ba trạng thái đọc từ HAI nguồn lưu sẵn, không chạy luật ở đây: đợt đã
@@ -566,7 +569,7 @@ const EXPORT_LIMIT = 20_000;
  */
 export async function listCustomersForExport(
   filters: CustomerFilters,
-): Promise<{ rows: CustomerRow[]; total: number }> {
+): Promise<{ rows: CustomerExportRow[]; total: number }> {
   const where = customerFilters(filters);
   const inner = pickPage(
     where,
@@ -591,6 +594,34 @@ export async function listCustomersForExport(
   };
 }
 
+/** Chỉ sửa ghi chú của hồ sơ đang xem, ghi lịch sử trong cùng giao dịch. */
+export async function updateCustomerNote(actor: User, id: string, note: string) {
+  if (!can(actor, "customer", "update")) return null;
+  const [root] = await db.select({ id: customers.rootCustomerId })
+    .from(customers).where(eq(customers.id, id)).limit(1);
+  if (!root) return null;
+
+  return db.transaction(async (tx) => {
+    // Cùng thứ tự khoá với sửa hồ sơ: gốc trước, hồ sơ đang xem sau.
+    await tx.select({ id: customers.id }).from(customers)
+      .where(eq(customers.id, root.id)).for("update");
+    const [row] = await tx.select({
+      note: customers.note, fullName: customers.fullName, seq: customers.seq,
+      createdById: customers.createdBy,
+      createdByDepartmentId: customers.createdByDepartmentId,
+    }).from(customers).where(eq(customers.id, id)).for("update");
+    if (!row || !recordInScope(recordVisibility(actor, "customer", "update"), row)) return null;
+    if (row.note !== note) {
+      await tx.update(customers).set({ note }).where(eq(customers.id, id));
+      await tx.insert(customerChanges).values({
+        rootCustomerId: root.id, customerId: id, seq: row.seq,
+        changedBy: actor.id, field: "note", fromValue: row.note, toValue: note,
+      });
+    }
+    return { note, fullName: row.fullName };
+  });
+}
+
 /* ── P-41 · Tạo / sửa ─────────────────────────────────────────────────── */
 
 async function customerById(id: string, actor: User): Promise<Customer | null> {
@@ -602,6 +633,7 @@ async function customerById(id: string, actor: User): Promise<Customer | null> {
       rootId: customers.rootCustomerId,
       dob: customers.dob,
       idNumber: customers.idNumber,
+      note: customers.note,
       address: customers.address,
       channelId: customers.channelId,
       channel: sql<string>`coalesce(${channels.name}, '')`,
