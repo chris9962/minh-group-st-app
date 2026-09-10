@@ -130,7 +130,7 @@ export type CustomerFilters = {
 
 /**
  * Chia theo HÌNH DẠNG chữ người dùng gõ: có chữ cái thì tìm tên, toàn số thì
- * tìm số điện thoại và 4 số cuối CCCD.
+ * tìm số điện thoại, 4 số cuối CCCD hoặc CCCD đầy đủ 12 số.
  *
  * ⚠️ Đừng gộp cả ba nhánh bằng `or` cho gọn. Phép HOẶC bắc qua hai bảng khác
  * nhau (`customers` và `customer_phones`) chặn hết chỉ mục: Postgres buộc phải
@@ -141,9 +141,8 @@ export type CustomerFilters = {
  * Tách ra cũng đúng nghĩa hơn: tìm `"0912345"` trong tên khách thì không đời
  * nào khớp, còn tìm `"Trâm"` trong số điện thoại cũng vậy.
  *
- * Tìm theo 4 số cuối CCCD KHÔNG cần quyền `access-id-number`: đó là thứ nhân
- * viên đọc từ giấy tờ khách đang cầm để tra hồ sơ, và khớp một hậu tố không làm
- * lộ số đầy đủ.
+ * Tìm theo CCCD không cần quyền `access-id-number`: người dùng cung cấp số
+ * để tra hồ sơ. Kết quả vẫn áp phạm vi và che CCCD theo quyền hiện có.
  */
 function searchWhere(raw: string): SQL | undefined {
   const text = raw.trim();
@@ -151,6 +150,9 @@ function searchWhere(raw: string): SQL | undefined {
 
   const digits = digitsOnly(text);
   const allDigits = digits.length === text.replace(/\s/g, "").length;
+
+  // CCCD đủ 12 số thì so chính xác, giữ cả số 0 đầu và không tìm lẫn qua SĐT.
+  if (allDigits && digits.length === 12) return eq(customers.idNumber, digits);
 
   if (allDigits && digits.length >= 3) {
     const byPhone = sql`exists (select 1 from ${customerPhones} where ${customerPhones.customerId} = ${customers.id} and ${customerPhones.number} like ${`%${digits}%`})`;

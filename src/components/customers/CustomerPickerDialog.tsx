@@ -120,7 +120,7 @@ export function CustomerPickerDialog({ open, onClose, title, forBankAccount, chi
           <SearchField
             block
             label="Tìm khách hàng"
-            placeholder="Tìm tên hoặc số điện thoại…"
+            placeholder="Tên, SĐT, CCCD 12 số hoặc 4 số cuối…"
             value={search}
             onChange={setSearch}
           />

@@ -544,7 +544,7 @@ export default function CustomersPage() {
       <TopBar title="Khách hàng">
         <SearchField
           label="Tìm khách hàng"
-          placeholder="Tên, SĐT, hoặc 4 số cuối CCCD…"
+          placeholder="Tên, SĐT, CCCD 12 số hoặc 4 số cuối…"
           value={search}
           onChange={(v) => {
             // Về trang đầu ngay lúc gõ, không đợi hoãn xong: đang ở trang 3 mà
