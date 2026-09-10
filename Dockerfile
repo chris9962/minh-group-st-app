@@ -167,7 +167,12 @@ WORKDIR /app
 # `pdftoppm` của poppler và `cwebp` của libwebp đổi giấy chứng nhận PDF sang WebP
 # (src/server/pvi-api/certificate.ts). Thiếu chúng thì worker tạo được đơn nhưng
 # không lưu được giấy chứng nhận nào, và đơn nằm mãi ở `awaiting-certificate`.
-RUN apk add --no-cache poppler-utils libwebp-tools
+#
+# `tzdata` để `ENV TZ` dưới đây có tác dụng. Alpine KHÔNG mang sẵn bảng múi giờ,
+# nên thiếu gói này thì container chạy UTC dù đã đặt biến, và mốc hiệu lực lệch
+# 7 tiếng về quá khứ. Đo trên máy chủ 2026-09-10: container in 16:19 UTC trong
+# khi máy chủ 23:19 +07. Image bot không dính vì nền Ubuntu có sẵn tzdata.
+RUN apk add --no-cache poppler-utils libwebp-tools tzdata
 
 COPY package.json bun.lock ./
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
