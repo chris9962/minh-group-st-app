@@ -106,7 +106,6 @@ export default function BankAccountDetailPage({
         {data && data.status !== "creating" && (
           <DoneAccountCard id={id} data={data} departmentName={departmentName} />
         )}
-        {data && <PhotoCheckPanel check={data.photoCheck} />}
         {data && <BankAccountHistory history={data.history} />}
       </main>
     </>
@@ -396,8 +395,9 @@ function DoneAccountCard({
   });
 
   return (
-    <SectionCard
-      title="Chi tiết tài khoản"
+    <>
+      <SectionCard
+        title="Chi tiết tài khoản"
       icon={<Landmark size={17} />}
       /* Bản `done` sửa được từ 07/08 — dùng lại đúng hộp thoại của bảng P-21,
          không dựng biểu mẫu thứ hai để rồi hai chỗ lệch luật nhau. */
@@ -678,5 +678,18 @@ function DoneAccountCard({
         </Dialog>
       )}
     </SectionCard>
+      {/* Nút Đánh dấu lỗi ở ngay khối kết quả, cùng hộp thoại với nút ở khối trên. */}
+      <PhotoCheckPanel
+        check={data.photoCheck}
+        onMarkError={
+          (data.status === "done" || data.status === "fixed") && canManageBank(user, data.bankId)
+            ? (note) => {
+                setErrorNote(note);
+                setMarkingError(true);
+              }
+            : undefined
+        }
+      />
+    </>
   );
 }

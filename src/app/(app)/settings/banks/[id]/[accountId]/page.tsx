@@ -228,7 +228,19 @@ export default function BankAccountOfBankPage({
           </SectionCard>
         )}
 
-        {data && <PhotoCheckPanel check={data.photoCheck} />}
+        {data && (
+          <PhotoCheckPanel
+            check={data.photoCheck}
+            onMarkError={
+              data.status === "done" || data.status === "fixed"
+                ? (note) => {
+                    setErrorNote(note);
+                    setMarkingError(true);
+                  }
+                : undefined
+            }
+          />
+        )}
         {data && <BankAccountHistory history={data.history} />}
 
         {approving && data && (
