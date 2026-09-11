@@ -503,8 +503,8 @@ export default function InsurancePage() {
     <>
       <TopBar title="Bảo hiểm">
         <SearchField
-          label="Tìm khách hàng hoặc mã đơn"
-          placeholder="Tìm tên khách hoặc mã đơn…"
+          label="Tìm khách hàng, mã đơn hoặc số trên giấy"
+          placeholder="Tìm tên khách, mã đơn, số trên giấy…"
           value={search}
           onChange={(v) => {
             // Về trang đầu ngay lúc gõ, không đợi hoãn xong: đang ở trang 3 mà
