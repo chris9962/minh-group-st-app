@@ -20,6 +20,12 @@
   border-bottom: 0;
 }
 
+/* Cột nhãn rộng cố định để ba dòng thẳng cột: "Đạt" ngắn hơn "Không đạt" gần
+   một nửa, để nhãn tự co thì phần chữ của mỗi dòng bắt đầu ở một chỗ khác. */
+.verdict {
+  flex: 0 0 7rem;
+}
+
 .text {
   display: flex;
   flex-direction: column;

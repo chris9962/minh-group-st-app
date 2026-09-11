@@ -55,7 +55,9 @@ export function PhotoCheckPanel({ check }: { check: PhotoCheck | null }) {
             const verdict = item?.verdict ?? "missing";
             return (
               <li key={key}>
-                <StatusTag tone={VERDICT_TONE[verdict]}>{VERDICT_TEXT[verdict]}</StatusTag>
+                <span className={styles.verdict}>
+                  <StatusTag tone={VERDICT_TONE[verdict]}>{VERDICT_TEXT[verdict]}</StatusTag>
+                </span>
                 <div className={styles.text}>
                   <span className={styles.label}>{PHOTO_CHECK_LABEL[key]}</span>
                   {item?.found && (
