@@ -565,4 +565,91 @@ export const DAILY_DOCS: DocArticle[] = [
       },
     ],
   },
+  {
+    slug: 'bat-thong-bao',
+    title: 'Nhận thông báo',
+    screen: 'C-09',
+    group: 'daily',
+    summary:
+      'Bật thông báo về điện thoại, và biết từng loại thông báo nghĩa là gì.',
+    keywords: [
+      'thông báo',
+      'bật thông báo',
+      'nhận thông báo',
+      'chuông',
+      'thông báo đẩy',
+      'điện thoại không kêu',
+      'không nhận được thông báo',
+      'tắt thông báo',
+      'iphone thông báo',
+      'thêm vào màn hình chính',
+      'đơn làm tay',
+      'tài khoản bị đánh lỗi',
+      'chờ duyệt',
+      'thông báo chung',
+    ],
+    visibleTo: () => true,
+    blocks: [
+      {
+        kind: 'text',
+        body: 'Bật một lần cho mỗi máy. Bật rồi thì điện thoại kêu và hiện tin ngay cả khi bạn không mở app.',
+      },
+      {
+        kind: 'note',
+        tone: 'warning',
+        body: 'Trên iPhone, bạn phải thêm app vào Màn hình chính trước, nếu không thì không nhận được. Mở app trong Safari, bấm nút **Chia sẻ**, chọn **Thêm vào Màn hình chính**, rồi mở app từ biểu tượng đó. Android và máy tính không cần bước này.',
+      },
+      {
+        kind: 'shot',
+        shot: {
+          src: '/docs/profile-notifications.png',
+          alt: 'Trang Cá nhân với hai nhóm công tắc Thiết bị này và Loại thông báo',
+          width: 1280,
+          height: 800,
+          markers: [
+            { n: 1, x: 61.4, y: 45.3, label: 'Công tắc Nhận thông báo — bật để máy này kêu khi có tin.' },
+            { n: 2, x: 42.5, y: 52.3, label: 'Nhóm Loại thông báo — chọn loại tin muốn nhận.' },
+          ],
+        },
+      },
+      {
+        kind: 'steps',
+        items: [
+          'Mở mục **Cá nhân** ở góc dưới thanh điều hướng, hoặc bấm vào tên bạn.',
+          'Ở nhóm **Thiết bị này**, bạn bật công tắc **Nhận thông báo**.',
+          'Máy hỏi có cho phép không, bạn chọn **Cho phép**.',
+          'Bấm **Gửi thông báo thử** để kiểm. Máy hiện thông báo thử là xong.',
+        ],
+      },
+      {
+        kind: 'note',
+        tone: 'info',
+        body: 'Công tắc **Thiết bị này** chỉ áp cho đúng máy bạn đang cầm. Tắt nó thì máy này im, tin vẫn vào app và máy khác vẫn nhận. Bạn vẫn xem lại được mọi tin ở chuông và ở trang Thông báo.',
+      },
+      {
+        kind: 'text',
+        body: '**Chọn loại tin muốn nhận.** Ở nhóm **Loại thông báo**, bạn tắt loại nào không cần. Tắt một loại thì loại đó không vào app nữa, không đếm ở chuông, và không xem lại được. Muốn yên tĩnh mà vẫn xem lại được thì bạn tắt **Thiết bị này**, đừng tắt loại.',
+      },
+      {
+        kind: 'text',
+        body: '**Đơn chuyển sang làm tay** — một đơn bảo hiểm gửi sang PVI không được. Bạn nhận tin này khi có quyền xử lý đơn lỗi. Bấm vào tin để mở đơn, nhập tay lên PVI rồi cập nhật lại.',
+      },
+      {
+        kind: 'text',
+        body: '**Tài khoản của tôi bị đánh lỗi** — người quản lý ngân hàng đánh dấu một tài khoản bạn mở có lỗi. Bấm vào tin để mở tài khoản, xem lỗi gì, sửa rồi bấm hoàn tất lại.',
+      },
+      {
+        kind: 'text',
+        body: '**Tài khoản chờ duyệt lại** — nhân viên đã sửa một tài khoản từng bị đánh lỗi, đang chờ bạn duyệt. Bạn nhận tin này khi quản lý ngân hàng đó.',
+      },
+      {
+        kind: 'text',
+        body: '**Tài khoản của tôi được duyệt** — tài khoản bạn mở đã được duyệt, hoặc được khôi phục sau khi bị đánh lỗi.',
+      },
+      {
+        kind: 'text',
+        body: '**Thông báo chung** — tin của công ty gửi cho mọi nhân viên. Loại này không tắt được.',
+      },
+    ],
+  },
 ];
