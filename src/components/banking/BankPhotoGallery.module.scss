@@ -152,7 +152,6 @@
   z-index: 1;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
   gap: 10px;
   margin-top: var(--space-2);
   padding: 8px 0;
@@ -162,10 +161,26 @@
   color: var(--om-text-2);
 }
 
+/* Đoạn "1–15 trên 240 tài khoản" chiếm phần trống bên trái, đẩy ba nút sang
+   phải — cùng khuôn với `RankTable`. */
+.range {
+  flex: 1;
+  font-variant-numeric: tabular-nums;
+}
+
 /* Điện thoại: khung cuộn là tài liệu, và thanh điều hướng đáy đè lên đúng
-   52px cộng vùng an toàn — dính sát 0 là hàng nút nằm dưới thanh đó. */
+   52px cộng vùng an toàn — dính sát 0 là hàng nút nằm dưới thanh đó.
+
+   Giấu đoạn chữ dài: bốn thứ trên một hàng 375px là chữ chiếm hết chỗ và nút
+   dồn về mép. Số "1 / 16" đã nói đang ở trang nào, ba nút còn lại xếp đều giữa
+   hàng. */
 @media (max-width: bp.$bp-mobile) {
   .pager {
     bottom: calc(52px + env(safe-area-inset-bottom, 0px));
+    justify-content: center;
+  }
+
+  .range {
+    display: none;
   }
 }

@@ -249,7 +249,7 @@ export function BankPhotoGallery({
 
           {pageCount > 1 && (
             <div className={styles.pager}>
-              <span>
+              <span className={styles.range}>
                 {page * BANK_PHOTOS_PAGE_SIZE + 1}–{Math.min((page + 1) * BANK_PHOTOS_PAGE_SIZE, data.total)} trên {data.total} tài khoản
               </span>
               <button
