@@ -470,6 +470,9 @@ async function fetchCertificates() {
     const cancelled = row.status === "cancelled";
     const done = await setStatus(row.id, row.status, cancelled ? "cancelled" : "done", {
       pviPolicyNumber: policy.policyNumber,
+      // Ghi cả chuỗi rỗng: đơn xe máy PVI trả rỗng, và rỗng khác NULL. NULL là
+      // "chưa từng hỏi", script lấp chỉ nhắm vào NULL. Xem ghi chú ở cột.
+      pviPolicyGcn: policy.policyGcn,
       pviSerialNumber: policy.serialNumber,
       certificatePhotoUrl: saved.photoKey,
       certificateCheckedAt: new Date(),

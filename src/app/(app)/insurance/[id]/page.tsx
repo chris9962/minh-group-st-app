@@ -488,13 +488,17 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                     />
                   </p>
                 )}
-                {showPviRefs && data.pviPolicyNumber && (
+                {/* Dòng GCN là số IN TRÊN GIẤY, tức `Policy_GCN`, không phải
+                    `PolicyNumber` (chốt 2026-09-11). Khách gọi lên đọc số trên
+                    giấy, đội KD phải thấy đúng số đó. Đơn xe máy và đơn bot không
+                    có nên dòng này ẩn; giấy xe máy in số ấn chỉ ở dòng Số. */}
+                {showPviRefs && data.pviPolicyGcn && (
                   <p className={styles.serialInline}>
                     <span className={styles.serialLabel}>GCN</span>
-                    {data.pviPolicyNumber}
+                    {data.pviPolicyGcn}
                     <CopyButton
-                      value={data.pviPolicyNumber}
-                      label={`số giấy chứng nhận: ${data.pviPolicyNumber}`}
+                      value={data.pviPolicyGcn}
+                      label={`số giấy chứng nhận: ${data.pviPolicyGcn}`}
                       quiet
                     />
                   </p>

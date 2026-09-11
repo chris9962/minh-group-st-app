@@ -130,6 +130,11 @@ export const InsuranceOrder = InsuranceListRow.extend({
    * `pvi_electronic_order_no`, cột đó không đường nào đọc.
    */
   pviPolicyNumber: z.string().default(""),
+  /**
+   * Số IN TRÊN GIẤY của đơn tai nạn điện, `26/21/14/TNCN/P013011`. Rỗng với
+   * đơn xe máy, đơn bot, và đơn điện chưa lấp. Đây là số khách đọc khi gọi lên.
+   */
+  pviPolicyGcn: z.string().default(""),
   /** Link màn đơn trên QLCD của PVI. Chuỗi rỗng = đơn chưa có `pr_key`. */
   pviOrderUrl: z.string().default(""),
 });

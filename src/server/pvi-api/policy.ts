@@ -34,6 +34,12 @@ export type PolicyLookupResult = {
   requestId: string;
   /** Số giấy chứng nhận điện tử. Rỗng khi PVI chưa cấp xong. */
   policyNumber: string;
+  /**
+   * Số IN TRÊN GIẤY của đơn tai nạn điện, `26/21/14/TNCN/P013011`. Khác
+   * `policyNumber`. Đơn xe máy thì rỗng, giấy của nó in `serialNumber`.
+   * Đo 2026-09-11, xem ghi chú ở cột `pvi_policy_gcn`.
+   */
+  policyGcn: string;
   serialNumber: string;
   /** Đường dẫn file PDF giấy chứng nhận. Rỗng khi chưa cấp xong. */
   url: string;
@@ -77,6 +83,7 @@ export async function getPolicyNumber(input: PolicyLookupInput): Promise<PolicyL
     // trị lệch nhau là dấu hiệu PVI tra nhầm đơn, và nơi gọi phải thấy được.
     requestId: pviText(raw.RequestId as string) || requestId,
     policyNumber,
+    policyGcn: pviText(raw.Policy_GCN as string),
     serialNumber: pviText(raw.SerialNumber as string),
     url,
     issued: policyNumber !== "" && url !== "",

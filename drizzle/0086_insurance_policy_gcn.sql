@@ -1,0 +1,15 @@
+-- Số in trên giấy chứng nhận của đơn tai nạn điện.
+--
+-- PVI trả HAI số cho sản phẩm điện trong cùng phản hồi `GetPolicyNumber` (đo
+-- 2026-09-11 với đơn DH-2609-12562):
+--
+--   PolicyNumber  26/21/14/TNCN/0105790   khoá tra file PDF, đã lưu ở pvi_policy_number
+--   Policy_GCN    26/21/14/TNCN/P013011   in trên giấy khách cầm, cột này
+--
+-- Đơn xe máy thì Policy_GCN rỗng, giấy in SerialNumber đã lưu. Nên cột này chỉ
+-- có giá trị cho đơn điện, và NULL nghĩa là chưa lấy chứ không phải không có.
+--
+-- Chỉ đơn đi đường API lấy được: GetPolicyNumber nhận RequestId = id đơn, mà
+-- bot điền form web không gửi mã giao dịch nào, nên 5.608 đơn điện đường bot
+-- không tra ngược được. Chốt 2026-09-11: không lấp cho đơn bot.
+ALTER TABLE "insurance_orders" ADD COLUMN IF NOT EXISTS "pvi_policy_gcn" text;

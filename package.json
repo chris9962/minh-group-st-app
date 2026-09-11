@@ -23,6 +23,7 @@
     "db:grant-set-status": "bun --env-file=.env.local scripts/db-grant-set-status.ts",
     "db:grant-handle-feedback": "bun --env-file=.env.local scripts/db-grant-handle-feedback.ts",
     "db:grant-send-announcement": "bun --env-file=.env.local scripts/db-grant-send-announcement.ts",
+    "db:backfill-policy-gcn": "bun --env-file=.env.local scripts/db-backfill-policy-gcn.ts",
     "db:grant-configure-wards": "bun --env-file=.env.local scripts/db-grant-configure-wards.ts",
     "db:revoke-handle-fallback": "bun --env-file=.env.local scripts/db-revoke-handle-fallback.ts",
     "db:backup": "bun --env-file=.env.local --env-file=.env.backup scripts/db-backup.ts",

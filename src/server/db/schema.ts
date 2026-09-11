@@ -1306,6 +1306,23 @@ export const insuranceOrders = pgTable(
      */
     pviPolicyNumber: text("pvi_policy_number").notNull().default(""),
     /**
+     * `Policy_GCN` của API đối tác — số IN TRÊN GIẤY của đơn tai nạn điện,
+     * `26/21/14/TNCN/P013011` (migration 0086).
+     *
+     * Khác `pvi_policy_number`: PVI trả cả hai cho sản phẩm điện, và hai số
+     * khác nhau. `PolicyNumber` là khoá tra file PDF, `Policy_GCN` là số khách
+     * cầm trên tay. Đội KD tra theo số khách đọc, nên phải lưu cái này.
+     *
+     * Ba giá trị, ba nghĩa:
+     *
+     *   NULL   chưa từng hỏi PVI — đơn xong trước migration 0086, hoặc đơn bot
+     *   ''     đã hỏi, PVI trả rỗng — đơn xe máy
+     *   'x'    đã hỏi, có số — đơn điện
+     *
+     * Script `db:backfill-policy-gcn` chỉ nhắm vào NULL của đơn điện đường API.
+     */
+    pviPolicyGcn: text("pvi_policy_gcn"),
+    /**
      * `Pr_key` của API đối tác — số nguyên, ví dụ `162677`.
      *
      * Cột RIÊNG chứ không dùng chung `pvi_pr_key`: cột đó giữ chuỗi

@@ -223,8 +223,13 @@ const canSeeOrder = (
  * chọn trang thì bảng khách đi cùng suốt phép sắp xếp (AGENTS.md §5.2).
  *
  * Mỗi từ một điều kiện VÀ, không phụ thuộc thứ tự — `tram nguyen` vẫn ra
- * `Nguyễn Thị Bích Trâm`. Từng từ khớp MỘT trong hai: tên khách, hoặc mã đơn
- * ngay trên dòng đơn (`ilike` để gõ `dh-2608` thường vẫn ra).
+ * `Nguyễn Thị Bích Trâm`. Từng từ khớp MỘT trong ba: tên khách, mã đơn, hoặc số
+ * in trên giấy chứng nhận `pvi_policy_gcn` (`ilike` để gõ `dh-2608` hay
+ * `p013011` thường vẫn ra).
+ *
+ * Số trên giấy vào đây từ 2026-09-11: khách gọi lên đọc `P013011`, đội KD gõ
+ * đúng chuỗi đó là ra đơn. Cột không có chỉ mục, nhưng `order_code ilike` cũng
+ * không dùng được chỉ mục, nên thêm một cột nữa không đổi hình dạng câu.
  */
 function searchWhere(raw: string): SQL | undefined {
   const text = raw.trim();
@@ -240,6 +245,7 @@ function searchWhere(raw: string): SQL | undefined {
               and c.search_name like '%' || mgst_normalize(${likeEscape(term)}) || '%' escape '\\'
           )`,
           sql`${insuranceOrders.orderCode} ilike '%' || ${likeEscape(term)} || '%' escape '\\'`,
+          sql`${insuranceOrders.pviPolicyGcn} ilike '%' || ${likeEscape(term)} || '%' escape '\\'`,
         ),
     ),
   );
@@ -376,6 +382,7 @@ const pickPage = (where: SQL | undefined, orderBy: SQL[], limit: number, offset:
       pviCertificateUrl: insuranceOrders.pviCertificateUrl,
       pviSerialNumber: insuranceOrders.pviSerialNumber,
       pviPolicyNumber: insuranceOrders.pviPolicyNumber,
+      pviPolicyGcn: insuranceOrders.pviPolicyGcn,
       pviPrKey: insuranceOrders.pviPrKey,
       pviRoute: insuranceOrders.pviRoute,
       handledBy: insuranceOrders.handledBy,
@@ -424,6 +431,7 @@ const decorate = (page: ReturnType<typeof pickPage>) =>
       pviCertificateUrl: page.pviCertificateUrl,
       pviSerialNumber: page.pviSerialNumber,
       pviPolicyNumber: page.pviPolicyNumber,
+      pviPolicyGcn: page.pviPolicyGcn,
       pviPrKey: page.pviPrKey,
       pviRoute: page.pviRoute,
       createdById: page.createdBy,
@@ -514,6 +522,7 @@ const toOrder = (r: DecoratedRow): InsuranceOrder => ({
   pviCertificateUrl: r.pviCertificateUrl,
   pviSerialNumber: r.pviSerialNumber,
   pviPolicyNumber: r.pviPolicyNumber,
+  pviPolicyGcn: r.pviPolicyGcn ?? "",
   pviOrderUrl: pviOrderUrlFor(r.product, r.pviPrKey),
   beneficiaryName: r.beneficiaryName,
   beneficiaryDob: r.beneficiaryDob,
