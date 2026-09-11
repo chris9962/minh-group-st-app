@@ -1,0 +1,13 @@
+-- Bỏ khoá ngoại customer_changes.root_customer_id → customers.id.
+--
+-- Xoá hồ sơ GỐC luôn trả 500 từ migration 0066 tới 2026-09-11. Hồ sơ gốc có
+-- root_customer_id = chính nó, còn lượt xoá ghi một dòng nhật ký `profile_deleted`
+-- mang root_customer_id = id ngay trước câu DELETE. Khoá ngoại từ chối câu DELETE
+-- vì dòng vừa ghi trỏ tới nó. Hồ sơ thứ 2+ xoá được vì gốc còn sống.
+--
+-- Nhật ký sinh ra để giữ dấu vết SAU khi hồ sơ mất (chốt 2026-09-05: chuyển
+-- customer_id sang null chứ không xoá dòng). Khoá ngoại này bắt điều ngược lại,
+-- nên bỏ. Cột và chỉ mục customer_changes_root_date giữ nguyên; chỗ ghi duy nhất
+-- là customers.ts, luôn chép root_customer_id từ dòng customers vừa đọc trong
+-- cùng transaction, nên không có đường ghi uuid sai.
+ALTER TABLE "customer_changes" DROP CONSTRAINT IF EXISTS "customer_changes_root_customer_id_customers_id_fk";

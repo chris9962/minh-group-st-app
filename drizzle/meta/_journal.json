@@ -610,6 +610,13 @@
       "when": 1789891400012,
       "tag": "0086_insurance_policy_gcn",
       "breakpoints": true
+    },
+    {
+      "idx": 87,
+      "version": "7",
+      "when": 1789891400013,
+      "tag": "0087_customer_changes_drop_root_fk",
+      "breakpoints": true
     }
   ]
 }

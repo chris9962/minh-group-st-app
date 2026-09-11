@@ -1132,8 +1132,17 @@ export const customerChanges = pgTable(
   "customer_changes",
   {
     id: id(),
-    /** Nhóm theo NGƯỜI — hồ sơ nào cũng đọc chung một dòng thời gian. */
-    rootCustomerId: uuid("root_customer_id").notNull().references(() => customers.id),
+    /**
+     * Nhóm theo NGƯỜI — hồ sơ nào cũng đọc chung một dòng thời gian.
+     *
+     * CỐ Ý không có khoá ngoại (bỏ ở migration 0087). Hồ sơ gốc có
+     * `root_customer_id` = chính nó, và lượt xoá ghi dòng `profile_deleted`
+     * ngay trước câu DELETE, nên khoá ngoại từ chối mọi lượt xoá gốc. Nhật ký
+     * phải sống lâu hơn hồ sơ; sau khi xoá gốc, cột này trỏ tới một uuid không
+     * còn trong `customers`, và không màn nào đọc tới vì dòng thời gian mở từ
+     * trang hồ sơ.
+     */
+    rootCustomerId: uuid("root_customer_id").notNull(),
     /**
      * Hồ sơ người sửa đang ĐỨNG lúc bấm Lưu. `null` = hồ sơ đó đã bị xoá.
      *
