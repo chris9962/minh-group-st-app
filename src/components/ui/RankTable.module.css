@@ -99,6 +99,19 @@
   color: var(--color-neutral-600);
 }
 
+/* Hàng tổng tách khỏi dữ liệu bằng nền nhẹ và đường kẻ rõ. Giữ cùng nhịp ô
+   với phần thân để số ở từng cột vẫn thẳng hàng khi bảng cuộn ngang. */
+.summaryRow {
+  background: var(--om-soft);
+  color: var(--om-text);
+  font-weight: 600;
+}
+
+:global(.table) .summaryRow td {
+  border-top: 1px solid var(--om-line);
+  border-bottom: 0;
+}
+
 /* Dòng bấm được — xem prop `onRowClick`. Nền sáng lên khi rê chuột để người
    dùng biết dòng phản hồi lại; ô bấm thật vẫn là `<button>` nằm trong dòng. */
 .clickable {

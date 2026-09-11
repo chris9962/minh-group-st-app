@@ -71,6 +71,11 @@ type Props<T> = {
    */
   emptyText?: string;
   /**
+   * Một hàng tổng nằm cuối bảng. Mảng phải đi đúng thứ tự `columns`; bảng chỉ
+   * lo hình thức để mỗi màn tự quyết định số nào có nghĩa để cộng.
+   */
+  summaryRow?: React.ReactNode[];
+  /**
    * Bấm vào một dòng thì mở chi tiết. Có nó thì dòng đổi con trỏ và sáng lên
    * khi rê chuột.
    *
@@ -112,6 +117,7 @@ export function RankTable<T>({
   pageSize,
   server,
   emptyText,
+  summaryRow,
   onRowClick,
   rowHref,
   rowLabel,
@@ -276,6 +282,23 @@ export function RankTable<T>({
             );
           })}
         </tbody>
+        {summaryRow && rows.length > 0 && (
+          <tfoot>
+            <tr className={styles.summaryRow}>
+              {columns.map((col, index) => (
+                <td
+                  key={col.key}
+                  className={clsx(
+                    col.align === "right" ? styles.right : undefined,
+                    col.sortBy ? "tabular-nums" : undefined,
+                  )}
+                >
+                  {summaryRow[index] ?? null}
+                </td>
+              ))}
+            </tr>
+          </tfoot>
+        )}
       </table>
 
       {size && pageCount > 1 && (

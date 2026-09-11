@@ -149,6 +149,16 @@ export default function DepartmentDetailPage({
   const [showLocked, setShowLocked] = useState(false);
   const lockedCount = rows.filter((s) => !s.active).length;
   const visibleRows = showLocked ? rows : rows.filter((s) => s.active);
+  const totals = visibleRows.reduce(
+    (sum, staff) => ({
+      customers: sum.customers + staff.customers,
+      accounts: sum.accounts + staff.accounts,
+      services: sum.services + staff.services,
+      points: sum.points + (staff.rangePoints ?? 0),
+    }),
+    { customers: 0, accounts: 0, services: 0, points: 0 },
+  );
+  const totalPoints = Math.round(totals.points * 10) / 10;
 
   return (
     <>
@@ -232,6 +242,21 @@ export default function DepartmentDetailPage({
                   rowKey={(s) => s.id}
                   defaultSort="role"
                   caption="Nhân viên của phòng, Trưởng và Phó phòng nằm đầu bảng"
+                  summaryRow={
+                    visibleRows.length > 0
+                      ? [
+                          "Tổng",
+                          null,
+                          null,
+                          <Count key="customers" n={totals.customers} />,
+                          <Count key="accounts" n={totals.accounts} />,
+                          <Count key="services" n={totals.services} />,
+                          <span key="points" className="tabular-nums">
+                            {totalPoints}
+                          </span>,
+                        ]
+                      : undefined
+                  }
                   emptyText={
                     !staffInScope
                       ? "Bạn không xem được danh sách nhân viên của phòng này."
