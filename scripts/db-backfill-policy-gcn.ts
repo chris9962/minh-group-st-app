@@ -50,30 +50,40 @@ async function main() {
   let empty = 0;
   let failed = 0;
 
-  // Tuần tự, không song song: lượt này chạy cuối ngày, không vội, và PVI không
-  // nói giới hạn tần suất là bao nhiêu.
-  for (const row of rows) {
-    let gcn: string;
-    try {
-      const policy = await getPolicyNumber({ requestId: row.id });
-      gcn = policy.policyGcn;
-    } catch (e) {
-      failed += 1;
-      console.log(`  ${row.orderCode}  HỎNG  ${e instanceof Error ? e.message : String(e)}`);
-      continue;
-    }
+  // PVI xác nhận 2026-09-11 là không giới hạn tần suất gọi. Vẫn giữ 20 luồng
+  // để một lượt lỗi không kéo theo cả nghìn request treo cùng lúc.
+  const CONCURRENCY = 20;
+  let next = 0;
 
-    if (gcn) filled += 1;
-    else empty += 1;
-    console.log(`  ${row.orderCode}  ${row.policyNumber}  →  ${gcn || "(rỗng)"}`);
+  async function worker() {
+    while (next < rows.length) {
+      const row = rows[next];
+      next += 1;
 
-    if (!dryRun) {
-      await db
-        .update(insuranceOrders)
-        .set({ pviPolicyGcn: gcn })
-        .where(eq(insuranceOrders.id, row.id));
+      let gcn: string;
+      try {
+        const policy = await getPolicyNumber({ requestId: row.id });
+        gcn = policy.policyGcn;
+      } catch (e) {
+        failed += 1;
+        console.log(`  ${row.orderCode}  HỎNG  ${e instanceof Error ? e.message : String(e)}`);
+        continue;
+      }
+
+      if (gcn) filled += 1;
+      else empty += 1;
+      console.log(`  ${row.orderCode}  ${row.policyNumber}  →  ${gcn || "(rỗng)"}`);
+
+      if (!dryRun) {
+        await db
+          .update(insuranceOrders)
+          .set({ pviPolicyGcn: gcn })
+          .where(eq(insuranceOrders.id, row.id));
+      }
     }
   }
+
+  await Promise.all(Array.from({ length: CONCURRENCY }, worker));
 
   console.log(
     `\nCó số: ${filled}. PVI trả rỗng: ${empty}. Hỏng: ${failed}.` +
