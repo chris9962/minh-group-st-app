@@ -184,17 +184,27 @@ WORKDIR /app
 # `ttf-liberation` KHỚP SỐ ĐO của Arial và Times New Roman nên chữ nằm đúng chỗ,
 # không lệch dòng. `font-noto` phủ dấu tiếng Việt. Image bot không dính vì nền
 # Ubuntu mang sẵn 50 font.
-RUN apk add --no-cache poppler-utils libwebp-tools tzdata ttf-liberation font-noto
+#
+# `tesseract-ocr` và gói tiếng Việt để đọc chữ trên ảnh chứng minh tài khoản
+# ngân hàng (src/server/ocr/image.ts).
+RUN apk add --no-cache poppler-utils libwebp-tools tzdata ttf-liberation font-noto \
+  tesseract-ocr tesseract-ocr-data-vie
+
+# Tesseract mặc định mở nhiều luồng OpenMP cho MỘT ảnh. Đo 2026-09-11 không
+# nhanh hơn một luồng, mà vài ảnh song song là vài chục luồng tranh 4 lõi với
+# app và Postgres. Song song thì làm ở tầng tiến trình, mỗi tiến trình một luồng.
+ENV OMP_THREAD_LIMIT=1
 
 COPY package.json bun.lock ./
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 RUN bun install --frozen-lockfile
 
 # Ba thứ worker cần: schema Drizzle, module PVI, và kho ảnh — tất cả nằm trong
-# `src`. Cộng chính file worker ở `scripts`.
+# `src`. Cộng chính file worker ở `scripts`, và script thử OCR để chạy tay trong
+# container bằng `--entrypoint bun`.
 COPY tsconfig.json ./
 COPY src ./src
-COPY scripts/pvi-api-worker.ts ./scripts/pvi-api-worker.ts
+COPY scripts/pvi-api-worker.ts scripts/ocr-try.ts ./scripts/
 
 # `period.ts` dựng mốc hiệu lực bằng giờ CỤC BỘ của tiến trình. Container mặc
 # định chạy UTC nên nó gửi mốc lệch 7 tiếng về quá khứ, và PVI từ chối đơn với
