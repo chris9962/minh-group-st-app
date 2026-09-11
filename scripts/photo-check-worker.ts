@@ -5,22 +5,18 @@
  * với hệ thống rồi ghi kết quả. Kết quả chỉ để gợi ý cho người duyệt, worker
  * không đổi `bank_accounts.status`.
  *
- * Chạy trong container riêng, cùng image với `mgst-api-worker`, đổi entrypoint:
- *
- *   docker run -d --name mgst-photo-check --restart unless-stopped \
- *     --add-host host.docker.internal:host-gateway --memory 1g \
- *     --log-opt max-size=10m --log-opt max-file=3 \
- *     --env-file /opt/mgst-app/.env.local \
- *     -e DATABASE_URL=postgres://mgst:mgst@host.docker.internal:5433/mgst \
- *     --entrypoint bun mgst-api-worker:latest scripts/photo-check-worker.ts
+ * Chạy trong container riêng `mgst-photo-check`, cùng image với
+ * `mgst-api-worker`, đổi entrypoint. Dựng và thay bằng `deploy/workers.sh`,
+ * không gõ tay `docker run`.
  *
  * Tách container khỏi worker PVI để OCR hỏng không kéo theo tạo đơn bảo hiểm.
  *
  * Cờ:
  *   --mot-vong   chạy một vòng rồi thoát, để thử tay
  *
- * Tesseract mất khoảng 0,55 giây một lượt trên máy chủ, mỗi ảnh hai lượt.
- * `PARALLEL` tài khoản chạy cùng lúc, mỗi tài khoản đọc ảnh tuần tự.
+ * Tesseract mất khoảng 0,55 giây một lượt trên máy chủ, mỗi ảnh ba lượt chạy
+ * song song. `PARALLEL` tài khoản chạy cùng lúc, mỗi tài khoản đọc ảnh tuần
+ * tự: 4 × 3 = 12 tiến trình Tesseract là trần, container giới hạn `--cpus 4`.
  */
 
 import { Client } from "pg";
@@ -35,7 +31,7 @@ import {
 
 const SLEEP_SECONDS = Number(process.env.PHOTO_CHECK_SLEEP ?? 30);
 const BATCH = Number(process.env.PHOTO_CHECK_BATCH ?? 20);
-/** Máy chủ 8 lõi, còn app và Postgres: 4 tiến trình Tesseract là trần. */
+/** Mỗi tài khoản mở 3 tiến trình Tesseract; 4 tài khoản là 12, trong `--cpus 4`. */
 const PARALLEL = Number(process.env.PHOTO_CHECK_PARALLEL ?? 4);
 
 const log = (msg: string) => console.log(`[${new Date().toISOString()}] ${msg}`);
