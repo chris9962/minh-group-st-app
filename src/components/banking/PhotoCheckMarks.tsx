@@ -22,7 +22,7 @@ const VERDICT_MARK: Record<PhotoCheckVerdict, React.ReactNode> = {
 };
 
 /**
- * Ba ký hiệu cho cột "Kiểm ảnh" của bảng, thứ tự cố định mở tài khoản, màn hình
+ * Ba ký hiệu cho cột "Xác thực" của bảng, thứ tự cố định mở tài khoản, màn hình
  * chính, chuyển khoản. Người duyệt học vị trí một lần rồi nhìn cột là biết.
  *
  * Ký hiệu là kênh chính, màu chỉ hỗ trợ (AGENTS.md §8). `aria-label` đọc trọn
@@ -33,14 +33,14 @@ export function PhotoCheckMarks({ check }: { check: PhotoCheck | null }) {
 
   if (check.status === "pending")
     return (
-      <span className={`${styles.marks} ${styles.pending}`} aria-label="Đang kiểm ảnh">
+      <span className={`${styles.marks} ${styles.pending}`} aria-label="Đang xác thực ảnh">
         <Clock size={12} aria-hidden />
       </span>
     );
 
   if (check.status === "failed")
     return (
-      <span className={`${styles.marks} ${styles.failed}`} aria-label={`Kiểm ảnh hỏng: ${check.error}`}>
+      <span className={`${styles.marks} ${styles.failed}`} aria-label={`Xác thực ảnh hỏng: ${check.error}`}>
         <TriangleAlert size={11} aria-hidden />
       </span>
     );

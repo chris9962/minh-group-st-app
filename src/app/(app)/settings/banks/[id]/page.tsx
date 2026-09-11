@@ -98,7 +98,7 @@ const COLUMNS: RankColumn<BankAccountRow>[] = [
   },
   {
     key: "photoCheck",
-    label: "Kiểm ảnh",
+    label: "Xác thực",
     render: (r) => <PhotoCheckMarks check={r.photoCheck} />,
   },
   {

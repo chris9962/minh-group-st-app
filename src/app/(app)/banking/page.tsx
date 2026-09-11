@@ -303,7 +303,7 @@ export default function BankingPage() {
       },
       {
         key: "photoCheck",
-        label: "Kiểm ảnh",
+        label: "Xác thực",
         render: (r) => <PhotoCheckMarks check={r.photoCheck} />,
       },
       ...(compact

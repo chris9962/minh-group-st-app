@@ -25,7 +25,7 @@ const VERDICT_TEXT: Record<PhotoCheckVerdict, string> = {
 };
 
 /**
- * Khối "Kiểm ảnh tự động" trên màn chi tiết tài khoản, cùng một khối ở trang
+ * Khối "Xác thực ảnh" trên màn chi tiết tài khoản, cùng một khối ở trang
  * nhân viên và trang đối soát ngân hàng.
  *
  * Chỉ để GỢI Ý. Mỗi dòng in cả giá trị OCR đọc được lẫn giá trị hệ thống để
@@ -39,13 +39,13 @@ export function PhotoCheckPanel({ check }: { check: PhotoCheck | null }) {
 
   const meta =
     check.status === "pending"
-      ? "Đang kiểm"
+      ? "Đang xác thực"
       : check.status === "failed"
-        ? "Kiểm hỏng"
+        ? "Xác thực hỏng"
         : formatDateTime(check.checkedAt);
 
   return (
-    <SectionCard title="Kiểm ảnh tự động" icon={<ScanLine size={17} />} meta={meta}>
+    <SectionCard title="Xác thực ảnh" icon={<ScanLine size={17} />} meta={meta}>
       {check.status === "pending" && <p className="text-muted">Worker đang đọc ảnh.</p>}
       {check.status === "failed" && <p className={styles.error}>{check.error}</p>}
       {check.status === "done" && (
