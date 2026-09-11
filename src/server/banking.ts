@@ -60,6 +60,7 @@ import {
 import { recomputeGiftCase } from "./gift";
 import { recomputeKpiForCustomer } from "./kpi";
 import type { PageArgs } from "./pagination";
+import { enqueuePhotoCheck, latestPhotoCheck, toPhotoCheck } from "./photoCheck";
 import { imageUrl } from "./storage";
 
 /**
@@ -508,8 +509,9 @@ const pickPage = (where: SQL | undefined, orderBy: SQL[], limit: number, offset:
     .offset(offset)
     .as("page");
 
-const decorate = (page: ReturnType<typeof pickPage>) =>
-  db
+const decorate = (page: ReturnType<typeof pickPage>) => {
+  const check = latestPhotoCheck(page.id);
+  return db
     .select({
       id: page.id,
       customerId: page.customerId,
@@ -564,6 +566,11 @@ const decorate = (page: ReturnType<typeof pickPage>) =>
       countsAsApp: banks.countsAsApp,
       // Hướng dẫn mở tài khoản của ngân hàng này (spec §4.4d). `''` = chưa có.
       bankGuide: sql<string>`coalesce(${banks.guide}, '')`,
+      // Lượt kiểm ảnh OCR mới nhất; bốn cột null = chưa có lượt nào.
+      photoCheckStatus: check.status,
+      photoCheckResult: check.result,
+      photoCheckError: check.error,
+      photoCheckedAt: check.checkedAt,
     })
     .from(page)
     .innerJoin(customers, eq(customers.id, page.customerId))
@@ -574,7 +581,9 @@ const decorate = (page: ReturnType<typeof pickPage>) =>
     // đó biến mất khỏi danh sách mà không báo gì.
     .leftJoin(users, eq(users.id, page.createdBy))
     .leftJoin(departments, eq(departments.id, page.createdByDepartmentId))
-    .leftJoin(channels, eq(channels.id, page.channelId));
+    .leftJoin(channels, eq(channels.id, page.channelId))
+    .leftJoinLateral(check, sql`true`);
+};
 
 type DecoratedRow = Awaited<ReturnType<typeof decorate>>[number];
 
@@ -599,6 +608,12 @@ const toRow = (r: DecoratedRow): BankAccountRow => ({
   createdByStaffCode: r.createdByStaffCode,
   createdByDepartmentName: r.createdByDepartmentName,
   status: r.status,
+  photoCheck: toPhotoCheck({
+    status: r.photoCheckStatus,
+    result: r.photoCheckResult,
+    error: r.photoCheckError,
+    checkedAt: r.photoCheckedAt,
+  }),
 });
 
 /**
@@ -1593,6 +1608,7 @@ export async function finishBankAccount(
 
     if (updated.length === 0)
       return { ok: false as const, message: "Tài khoản này vừa được hoàn thành ở nơi khác" };
+    await enqueuePhotoCheck(tx, id);
     return { ok: true as const };
   });
 
@@ -1701,6 +1717,8 @@ export async function updateFinishedAccount(
 
     if (updated.length === 0)
       return { ok: false as const, message: "Tài khoản này vừa bị đổi ở nơi khác" };
+    // Phép kiểm so số tài khoản trên ảnh với số đã nhập, đổi số là phải kiểm lại.
+    if (form.accountNumber !== current.accountNumber) await enqueuePhotoCheck(tx, id);
     return { ok: true as const };
   });
 
@@ -2037,6 +2055,8 @@ export async function setPhotos(
       await tx.insert(bankAccountPhotos).values(
         photoKeys.map((url, i) => ({ accountId: id, kind, url, sortOrder: i })),
       );
+    // Ảnh đổi là kết quả kiểm cũ hết đúng. Bản `creating` thì hàm này tự bỏ qua.
+    await enqueuePhotoCheck(tx, id);
   });
 
   if (rejected) return rejected;

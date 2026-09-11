@@ -25,6 +25,7 @@ import { SearchField } from "@/components/ui/SearchField";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { Select } from "@/components/ui/Select";
 import { StatusTag } from "@/components/ui/StatusTag";
+import { PhotoCheckMarks } from "@/components/banking/PhotoCheckMarks";
 import {
   ACCOUNT_TYPE_LABEL,
   AccountType,
@@ -299,6 +300,11 @@ export default function BankingPage() {
         render: (r) => (
           <StatusTag tone={STATUS_TONE[r.status]}>{STATUS_LABEL[r.status]}</StatusTag>
         ),
+      },
+      {
+        key: "photoCheck",
+        label: "Kiểm ảnh",
+        render: (r) => <PhotoCheckMarks check={r.photoCheck} />,
       },
       ...(compact
         ? []

@@ -8,6 +8,7 @@ import type { DateRange } from "react-day-picker";
 import { RequirePermission } from "@/components/layout/RequirePermission";
 import { TopBar } from "@/components/layout/TopBar";
 import { BankPhotoGallery } from "@/components/banking/BankPhotoGallery";
+import { PhotoCheckMarks } from "@/components/banking/PhotoCheckMarks";
 import { BackLink } from "@/components/ui/BackLink";
 import { Button } from "@/components/ui/Button";
 import { SectionTabs } from "@/components/ui/SectionTabs";
@@ -94,6 +95,11 @@ const COLUMNS: RankColumn<BankAccountRow>[] = [
         {BANK_ACCOUNT_STATUS_LABEL[r.status]}
       </StatusTag>
     ),
+  },
+  {
+    key: "photoCheck",
+    label: "Kiểm ảnh",
+    render: (r) => <PhotoCheckMarks check={r.photoCheck} />,
   },
   {
     key: "appInstalled",

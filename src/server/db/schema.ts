@@ -137,6 +137,11 @@ export const channelInputKind = pgEnum("channel_input_kind", [
 /** Ảnh mở tài khoản đếm theo `banks.required_photos`; ảnh giao dịch thì không. */
 export const photoKind = pgEnum("photo_kind", ["opening", "transaction"]);
 
+/** Một lượt kiểm ảnh tự động: chờ worker, xong, hoặc worker hỏng. Migration 0088. */
+export const bankAccountCheckStatus = pgEnum("bank_account_check_status", [
+  "pending", "done", "failed",
+]);
+
 export const notificationKind = pgEnum("notification_kind", [
   "order-done", "order-manual", "code-low",
   // Ngân hàng, thêm ở migration 0084.
@@ -1027,6 +1032,38 @@ export const bankAccountPhotos = pgTable(
     sortOrder: smallint("sort_order").notNull().default(0),
   },
   (t) => [index("bank_account_photos_account").on(t.accountId)],
+);
+
+/**
+ * Một lượt kiểm ảnh chứng minh bằng OCR (migration 0088, `server/photoCheck.ts`).
+ *
+ * Nhiều dòng một tài khoản: nhân viên đổi ảnh là một lượt mới, màn đọc lượt mới
+ * nhất. Không ghi đè một dòng vì người duyệt cần biết lượt trước nói gì khi
+ * nhân viên vừa thay ảnh sau lúc bị đánh lỗi.
+ *
+ * Chỉ để GỢI Ý cho người duyệt, không tự đổi `bank_accounts.status`.
+ */
+export const bankAccountChecks = pgTable(
+  "bank_account_checks",
+  {
+    id: id(),
+    /** Cascade như ảnh: lượt kiểm chết theo tài khoản. */
+    accountId: uuid("account_id")
+      .notNull()
+      .references(() => bankAccounts.id, { onDelete: "cascade" }),
+    status: bankAccountCheckStatus("status").notNull().default("pending"),
+    /** `PhotoCheckResult` ở `lib/api/photoCheck.ts`; null khi chưa xong hoặc hỏng. */
+    result: jsonb("result"),
+    /** Lý do worker hỏng, chỉ khi `status = failed`. */
+    error: text("error").notNull().default(""),
+    createdAt: createdAt(),
+    checkedAt: timestamp("checked_at", { withTimezone: true }),
+  },
+  (t) => [
+    // Màn đọc "lượt mới nhất của tài khoản này", worker đọc "dòng pending cũ nhất".
+    index("bank_account_checks_account_time").on(t.accountId, t.createdAt),
+    index("bank_account_checks_pending").on(t.status, t.createdAt),
+  ],
 );
 
 /**

@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { AccountNumberMethod } from './bankCatalog';
 import { AccountType, BankAccount, BankAccountStatus } from './bankAccounts';
 import { pageOf, pageParams, type Page, type PageQuery } from './pagination';
+import { PhotoCheck } from './photoCheck';
 
 /**
  * P-21 · Danh sách tài khoản ngân hàng · P-22 · Chi tiết / hoàn tất tài khoản
@@ -41,6 +42,11 @@ export const BankAccountRow = z.object({
   /** Đơn vị của người tạo LÚC TẠO — chụp một lần, không tra động (spec §1.1.5). Dùng cho báo cáo xuất theo phòng (P-73 #4). */
   createdByDepartmentName: z.string().nullable(),
   status: BankAccountStatus,
+  /**
+   * Lượt kiểm ảnh tự động mới nhất. `null` = ngân hàng chưa có bộ nhãn OCR,
+   * hoặc tài khoản chưa hoàn thành. Chỉ để gợi ý cho người duyệt.
+   */
+  photoCheck: PhotoCheck.nullable(),
 });
 export type BankAccountRow = z.infer<typeof BankAccountRow>;
 

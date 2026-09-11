@@ -16,6 +16,7 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
 import { BankAccountEditDialog } from "@/components/banking/BankAccountEditDialog";
 import { BankAccountHistory } from "@/components/banking/BankAccountHistory";
+import { PhotoCheckPanel } from "@/components/banking/PhotoCheckPanel";
 import { BankAccountFinishFields } from "@/components/banking/BankAccountFinishFields";
 import { ReferralCodeCard } from "@/components/banking/ReferralCodeCard";
 import {
@@ -105,6 +106,7 @@ export default function BankAccountDetailPage({
         {data && data.status !== "creating" && (
           <DoneAccountCard id={id} data={data} departmentName={departmentName} />
         )}
+        {data && <PhotoCheckPanel check={data.photoCheck} />}
         {data && <BankAccountHistory history={data.history} />}
       </main>
     </>

@@ -30,10 +30,11 @@ test-results
 docs
 drizzle
 scripts
-# Trừ hai file tầng `api-worker` của Dockerfile chép vào. Loại cả thư mục
+# Trừ ba file tầng `api-worker` của Dockerfile chép vào. Loại cả thư mục
 # `scripts` thì `COPY scripts/pvi-api-worker.ts` hỏng với "not found", vì
 # Docker lọc context TRƯỚC khi đọc Dockerfile. Dòng sau thắng dòng trước.
 !scripts/pvi-api-worker.ts
+!scripts/photo-check-worker.ts
 !scripts/ocr-try.ts
 
 # `pvi-qlcd-playwright` KHÔNG loại trừ: tầng `worker` của Dockerfile cần trọn

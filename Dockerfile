@@ -200,11 +200,11 @@ ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 RUN bun install --frozen-lockfile
 
 # Ba thứ worker cần: schema Drizzle, module PVI, và kho ảnh — tất cả nằm trong
-# `src`. Cộng chính file worker ở `scripts`, và script thử OCR để chạy tay trong
-# container bằng `--entrypoint bun`.
+# `src`. Cộng ba file ở `scripts`: worker PVI, worker kiểm ảnh (chạy bằng
+# `--entrypoint bun`, container riêng), và script thử OCR bằng tay.
 COPY tsconfig.json ./
 COPY src ./src
-COPY scripts/pvi-api-worker.ts scripts/ocr-try.ts ./scripts/
+COPY scripts/pvi-api-worker.ts scripts/photo-check-worker.ts scripts/ocr-try.ts ./scripts/
 
 # `period.ts` dựng mốc hiệu lực bằng giờ CỤC BỘ của tiến trình. Container mặc
 # định chạy UTC nên nó gửi mốc lệch 7 tiếng về quá khứ, và PVI từ chối đơn với

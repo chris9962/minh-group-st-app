@@ -30,22 +30,46 @@ const MAX_EDGE = 1600;
  */
 const PSM = "6";
 
+/**
+ * Chữ của HAI lượt đọc nối nhau: ảnh gốc trước, ảnh xám đảo màu sau.
+ *
+ * Tesseract chỉ đọc tốt chữ tối trên nền sáng. Màn mở tài khoản TPBank là
+ * chữ tối nền trắng, ảnh gốc đọc 6/6; màn hình chính là chữ trắng nền tím,
+ * ảnh gốc mất trọn tên khách và số tài khoản, đảo màu mới đọc được. Nhưng đảo
+ * màu cả ảnh mở tài khoản thì chỉ còn 2/6 (đo 2026-09-11). Không có một bước
+ * tiền xử lý đúng cho cả hai, nên đọc hai lượt và nối lại. Parser lấy dòng
+ * khớp đầu tiên, lượt gốc đứng trước nên thắng khi nó đọc được.
+ *
+ * Giá: hai lần thời gian, khoảng 1,1 giây một ảnh trên máy chủ.
+ */
 export async function ocrImage(image: Buffer): Promise<string> {
   const dir = await mkdtemp(path.join(tmpdir(), "mgst-ocr-"));
   try {
     // Tesseract không đọc WebP, mà kho ảnh lưu WebP. Đổi sang PNG không mất
     // chất lượng, kèm thu về MAX_EDGE cho ảnh gốc từ ngoài kho.
-    const png = path.join(dir, "in.png");
-    await sharp(image)
-      .resize({ width: MAX_EDGE, height: MAX_EDGE, fit: "inside", withoutEnlargement: true })
-      .png()
-      .toFile(png);
+    const base = sharp(image).resize({
+      width: MAX_EDGE,
+      height: MAX_EDGE,
+      fit: "inside",
+      withoutEnlargement: true,
+    });
+    const plain = path.join(dir, "plain.png");
+    const negated = path.join(dir, "negated.png");
+    await Promise.all([
+      base.clone().png().toFile(plain),
+      base.clone().grayscale().negate().png().toFile(negated),
+    ]);
 
-    // Tên file ra không có đuôi: Tesseract tự thêm `.txt`.
-    const out = path.join(dir, "out");
-    await run("tesseract", [png, out, "-l", "vie", "--psm", PSM]);
-    return (await readFile(`${out}.txt`, "utf8")).trim();
+    const [a, b] = await Promise.all([tesseract(plain), tesseract(negated)]);
+    return `${a}\n${b}`.trim();
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+}
+
+async function tesseract(png: string): Promise<string> {
+  // Tên file ra không có đuôi: Tesseract tự thêm `.txt`.
+  const out = `${png}.out`;
+  await run("tesseract", [png, out, "-l", "vie", "--psm", PSM]);
+  return (await readFile(`${out}.txt`, "utf8")).trim();
 }

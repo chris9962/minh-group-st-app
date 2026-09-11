@@ -1,5 +1,6 @@
 "use client";
 import { BankAccountHistory } from "@/components/banking/BankAccountHistory";
+import { PhotoCheckPanel } from "@/components/banking/PhotoCheckPanel";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { use, useState } from "react";
@@ -227,6 +228,7 @@ export default function BankAccountOfBankPage({
           </SectionCard>
         )}
 
+        {data && <PhotoCheckPanel check={data.photoCheck} />}
         {data && <BankAccountHistory history={data.history} />}
 
         {approving && data && (
