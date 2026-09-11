@@ -71,6 +71,8 @@ export const actionKey = pgEnum("action_key", [
   "handle-feedback",
   // đặc biệt · system: sửa riêng danh mục tỉnh/xã/ấp P-71 (migration 0072)
   "configure-wards",
+  // đặc biệt · system: gửi thông báo chung cho toàn công ty (migration 0085)
+  "send-announcement",
 ]);
 
 export const scopeKey = pgEnum("scope_key", ["own", "managed", "company"]);
@@ -139,6 +141,8 @@ export const notificationKind = pgEnum("notification_kind", [
   "order-done", "order-manual", "code-low",
   // Ngân hàng, thêm ở migration 0084.
   "bank-error", "bank-pending", "bank-approved",
+  // Thông báo chung toàn công ty, thêm ở migration 0085.
+  "announcement",
 ]);
 
 /** P-96 · Góp ý đã xử lý hay chưa. Hai trạng thái, thêm ở migration 0052. */

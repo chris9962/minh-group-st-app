@@ -16,30 +16,45 @@ export const NotificationKind = z.enum([
   'bank-error',
   'bank-pending',
   'bank-approved',
+  'announcement',
 ]);
 export type NotificationKind = z.infer<typeof NotificationKind>;
 
 /**
  * Loại ĐANG hiện công tắc. Thứ tự trong mảng cũng là thứ tự trên màn hình.
  *
- * Mảng này hẹp hơn enum, và cố ý hẹp hơn: chỉ liệt kê loại ĐÃ có nơi gửi. Hai
- * loại còn thiếu nơi gửi nên tạm gỡ khỏi đây (2026-09-10):
+ * Mảng này hẹp hơn enum, và cố ý hẹp hơn. Ba loại nằm ngoài (2026-09-11):
  *
- *   order-done  chưa có ai gọi notify() lúc đơn nhận được giấy chứng nhận
- *   code-low    chưa chốt ngưỡng "sắp hết", chưa chốt kiểm lúc nào
+ *   order-done    chưa có ai gọi notify() lúc đơn nhận được giấy chứng nhận
+ *   code-low      chưa chốt ngưỡng "sắp hết", chưa chốt kiểm lúc nào
+ *   announcement  KHÔNG cho tắt, xem ngay dưới
+ *
+ * `announcement` là thông báo chung của công ty, chốt 2026-09-11 là không cho
+ * tắt. Người tắt sẽ không biết công ty nghỉ lễ hay đổi lịch. Nơi gửi cũng bỏ
+ * qua `notification_prefs`, xem `notifyEveryone`.
  *
  * Bày công tắc cho loại chưa có nơi gửi là người dùng bật lên rồi chờ mãi không
  * thấy gì, và họ báo hệ thống hỏng. Nối xong nơi gửi thì thêm lại vào đây, không
  * phải sửa enum hay migration.
  */
-export const NOTIFICATION_KINDS: NotificationKind[] = [
+export const NOTIFICATION_KINDS: SwitchableKind[] = [
   'order-manual',
   'bank-error',
   'bank-pending',
   'bank-approved',
 ];
 
-export const NOTIFICATION_KIND_LABEL: Record<NotificationKind, string> = {
+/**
+ * Loại CÓ thể có công tắc.
+ *
+ * `announcement` đứng ngoài và sẽ đứng ngoài mãi: thông báo chung của công ty
+ * không cho tắt, nên nó không có nhãn công tắc, không có ô quyền để lọc, và
+ * không bao giờ vào `NOTIFICATION_KINDS`.
+ */
+export type SwitchableKind = Exclude<NotificationKind, 'announcement'>;
+
+/** Nhãn của CÔNG TẮC. Chỉ dùng ở danh sách công tắc trong trang cá nhân. */
+export const NOTIFICATION_KIND_LABEL: Record<SwitchableKind, string> = {
   'order-manual': 'Đơn chuyển sang làm tay',
   'order-done': 'Đơn đã có giấy chứng nhận',
   'bank-error': 'Tài khoản của tôi bị đánh lỗi',
@@ -66,6 +81,8 @@ export const NOTIFICATION_KIND_ICON: Record<NotificationKind, NavIconKey> = {
   'bank-pending': 'banking',
   'bank-approved': 'banking',
   'code-low': 'banking',
+  /** Toà nhà, cùng icon với màn Cơ cấu tổ chức: tin này của cả công ty. */
+  announcement: 'org',
 };
 
 /**
@@ -98,6 +115,7 @@ export const ALL_ON: Record<NotificationKind, boolean> = {
   'bank-pending': true,
   'bank-approved': true,
   'code-low': true,
+  announcement: true,
 };
 
 export const NotificationPrefs = z.record(NotificationKind, z.boolean());

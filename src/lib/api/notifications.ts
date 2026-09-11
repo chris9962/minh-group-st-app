@@ -60,3 +60,41 @@ export async function markNotificationsRead(id?: string): Promise<void> {
 
 export const MarkReadBody = z.object({ id: z.string().uuid().optional() });
 export type MarkReadBody = z.infer<typeof MarkReadBody>;
+
+/**
+ * Thông báo chung gửi cho toàn công ty.
+ *
+ * Giới hạn độ dài KHÔNG phải chống phá hoại, mà để tin đọc được trên thanh
+ * thông báo của điện thoại: iOS và Android đều cắt bớt phần thừa.
+ */
+export const AnnouncementBody = z.object({
+  title: z.string().trim().min(1, 'Nhập tiêu đề').max(80),
+  body: z.string().trim().min(1, 'Nhập nội dung').max(300),
+  /**
+   * Đường dẫn mở ra khi bấm vào thông báo. Bỏ trống thì dòng chỉ để đọc.
+   *
+   * Phải bắt đầu bằng `/`, và đó là ràng buộc KỸ THUẬT chứ không phải nghi ngờ
+   * người gửi: cả hai đường bấm đều mở trong app — `router.push` ở danh sách và
+   * `clients.openWindow` ở service worker. Địa chỉ ngoài không mở đúng ở đó.
+   */
+  url: z
+    .string()
+    .trim()
+    .max(200)
+    .refine((v) => v === '' || v.startsWith('/'), 'Đường dẫn phải bắt đầu bằng /'),
+});
+export type AnnouncementBody = z.infer<typeof AnnouncementBody>;
+
+/** Số người đã nhận, để màn gửi báo lại con số thật. */
+export const AnnouncementResult = z.object({ sent: z.number().int().nonnegative() });
+export type AnnouncementResult = z.infer<typeof AnnouncementResult>;
+
+export async function sendAnnouncement(body: AnnouncementBody): Promise<AnnouncementResult> {
+  const res = await fetch('/api/notifications/announce', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error('Không gửi được thông báo chung');
+  return AnnouncementResult.parse(await res.json());
+}

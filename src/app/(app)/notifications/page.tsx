@@ -1,10 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { CheckCheck } from "lucide-react";
+import { CheckCheck, Megaphone } from "lucide-react";
 import { NavIcon } from "@/components/layout/NavIcon";
 import { TopBar } from "@/components/layout/TopBar";
+import { AnnouncementDialog } from "@/components/notifications/AnnouncementDialog";
 import { Button } from "@/components/ui/Button";
 import buttonStyles from "@/components/ui/Button.module.css";
 import { ErrorState } from "@/components/ui/ErrorState";
@@ -16,6 +18,8 @@ import {
 } from "@/lib/api/notifications";
 import { NOTIFICATION_KIND_ICON } from "@/lib/api/notificationPrefs";
 import { formatDateTime } from "@/lib/format";
+import { can } from "@/lib/permissions";
+import { useSession } from "@/store/session";
 import { errorMessage, toast } from "@/lib/toast";
 import styles from "./page.module.css";
 
@@ -34,6 +38,8 @@ import styles from "./page.module.css";
 export default function NotificationsPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const user = useSession((s) => s.user);
+  const [announcing, setAnnouncing] = useState(false);
 
   const {
     data,
@@ -98,10 +104,20 @@ export default function NotificationsPage() {
     </Button>
   );
 
+  /* Gửi thông báo chung. Chỉ người có quyền thấy nút, và máy chủ kiểm lại ở
+     `/api/notifications/announce` — ẩn nút không phải là phân quyền (§6). */
+  const announce = can(user, "system", "send-announcement") && (
+    <Button aria-label="Gửi thông báo chung" onClick={() => setAnnouncing(true)}>
+      <Megaphone size={16} aria-hidden />
+      <span className={buttonStyles.label}>Thông báo chung</span>
+    </Button>
+  );
+
   return (
     <>
       <TopBar title="Thông báo" keepTitleOnMobile>
         <span className={styles.onMobile}>{markAllRead}</span>
+        {announce}
       </TopBar>
 
       <main className={styles.body}>
@@ -159,6 +175,8 @@ export default function NotificationsPage() {
           )}
         </section>
       </main>
+
+      {announcing && <AnnouncementDialog open onClose={() => setAnnouncing(false)} />}
     </>
   );
 }

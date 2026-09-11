@@ -8,7 +8,7 @@ import {
   NOTIFICATION_KINDS,
   NOTIFICATION_KIND_LABEL,
   NOTIFICATION_KIND_NEEDS,
-  type NotificationKind,
+  type SwitchableKind,
   fetchNotificationPrefs,
   saveNotificationPref,
 } from "@/lib/api/notificationPrefs";
@@ -262,7 +262,7 @@ export function NotificationSettings() {
 
       {kinds.length > 0 && (
         <SettingsGroup title="Loại thông báo">
-          {kinds.map((kind: NotificationKind) => (
+          {kinds.map((kind: SwitchableKind) => (
             <SettingsRow
               key={kind}
               label={NOTIFICATION_KIND_LABEL[kind]}

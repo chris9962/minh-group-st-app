@@ -174,6 +174,24 @@ export async function notifyUsers(
   return userIds.length;
 }
 
+/**
+ * Gửi cho MỌI nhân viên đang hoạt động. Dùng cho thông báo chung của công ty.
+ *
+ * ⚠️ KHÔNG hỏi `notification_prefs`, và đó là chủ ý. Loại `announcement` không
+ * có công tắc ở trang cá nhân, xem ghi chú ở `NOTIFICATION_KINDS`.
+ *
+ * Người đã khoá tài khoản thì bỏ qua: họ không đăng nhập được nên dòng ghi cho
+ * họ chỉ nằm đó.
+ */
+export async function notifyEveryone(message: NotifyMessage): Promise<number> {
+  const rows = await db.select({ id: users.id }).from(users).where(eq(users.active, true));
+  return notifyUsers(
+    rows.map((r) => r.id),
+    "announcement",
+    message,
+  );
+}
+
 export async function unreadCount(userId: string): Promise<number> {
   const [row] = await db
     .select({ value: count() })

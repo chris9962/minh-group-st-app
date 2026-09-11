@@ -141,6 +141,14 @@ export const Action = z.enum([
   /** Đọc hộp góp ý P-96 và đánh dấu đã xử lý. Nút GỬI góp ý thì mọi người
       đăng nhập đều có, không gác bằng quyền nào. */
   'handle-feedback',
+  /**
+   * Gửi thông báo chung cho TOÀN BỘ nhân viên đang hoạt động (migration 0085).
+   *
+   * Khác bốn loại thông báo còn lại: chúng do worker hoặc một bước nghiệp vụ
+   * sinh ra, còn cái này do người thật gõ và bấm gửi. Một lượt bấm là hàng trăm
+   * dòng thông báo cộng hàng trăm gói tin đẩy, và không thu hồi được.
+   */
+  'send-announcement',
 ]);
 export type Action = z.infer<typeof Action>;
 
@@ -175,6 +183,7 @@ export const ACTION_LABEL: Record<Action, string> = {
   'grant-permission': 'Cấp quyền',
   'adjust-kpi': 'Cộng điểm KPI',
   'handle-feedback': 'Xử lý góp ý',
+  'send-announcement': 'Gửi thông báo chung',
 };
 
 /** 6 hành động dùng chung cho mọi module cơ bản — xem mục 1.1.2 spec. */
