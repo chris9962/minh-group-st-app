@@ -1,6 +1,7 @@
 import { and, desc, eq, gte, inArray, lte, sql, type SQL } from "drizzle-orm";
 import type { DashboardData, DashboardDraftAccount, DepartmentRanking } from "@/lib/api/dashboard";
 import { BUSINESS_TIMEZONE, businessDay, monthRange } from "@/lib/format";
+import { recordVisibility } from "@/lib/permissions";
 import type { User } from "@/lib/types";
 import { appsInstalledCount, variantOfAccount } from "./appCounted";
 import { db } from "./db/client";
@@ -53,8 +54,15 @@ export type DashboardVisibility =
  * ba ô quyền rời nhau, không ai đoán trước được họ sẽ thấy gì.
  *
  * Chức vụ cho một câu trả lời duy nhất cho mỗi người, đọc ra được từ hồ sơ.
+ *
+ * Một ngoại lệ của ngoại lệ (chốt 2026-09-12): người được cấp `view-detail`
+ * TOÀN CÔNG TY ở CẢ BA module thì xem như Giám đốc, bất kể chức vụ. Họ đã đọc
+ * được trọn ba bảng ở ba màn kia, màn Tổng quan không lộ thêm gì; và lỗi
+ * "hẹp nhất trong số module có quyền" ở trên không xảy ra vì đòi đủ cả ba.
  */
 export function dashboardVisibility(actor: User): DashboardVisibility {
+  if (hasCompanyWideView(actor)) return { kind: "company" };
+
   switch (actor.role) {
     case "director":
       return { kind: "company" };
@@ -80,6 +88,11 @@ export function dashboardVisibility(actor: User): DashboardVisibility {
       return { kind: "personal" };
   }
 }
+
+const DASHBOARD_MODULES = ["banking", "insurance", "services"] as const;
+
+const hasCompanyWideView = (actor: User): boolean =>
+  DASHBOARD_MODULES.every((m) => recordVisibility(actor, m, "view-detail").kind === "all");
 
 /** Câu chữ hiện trên màn để người xem biết mình đang nhìn phạm vi nào. */
 export async function visibilityLabel(v: DashboardVisibility): Promise<string> {

@@ -354,6 +354,11 @@ quyền rời nhau, không ai đoán trước được họ thấy gì.
 Bảng xếp hạng cũng đổi theo chức vụ: Trưởng phòng và Phó phòng thấy **xếp hạng
 nhân viên** trong phòng, vì bảng phòng của họ chỉ có một dòng.
 
+Một ngoại lệ của ngoại lệ (chốt 2026-09-12): người được cấp `view-detail` toàn
+công ty ở **cả ba** module ngân hàng, bảo hiểm, dịch vụ thì thấy như Giám đốc,
+bất kể chức vụ. Đòi đủ cả ba nên lỗi "hẹp nhất trong số module có quyền" ở trên
+không xảy ra.
+
 **Ngoại lệ này KHÔNG mở rộng sang màn khác.** Màn danh sách, chi tiết và xuất
 Excel vẫn kiểm quyền qua `permissions.ts`.
 
