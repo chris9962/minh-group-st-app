@@ -1,5 +1,6 @@
-import { and, asc, desc, eq, sql, type SQLWrapper } from "drizzle-orm";
+import { and, asc, desc, eq, sql, type SQL, type SQLWrapper } from "drizzle-orm";
 import {
+  PhotoCheckFilter,
   PhotoCheckResult,
   type PhotoCheck,
   type PhotoCheckItem,
@@ -82,6 +83,8 @@ export const latestPhotoCheck = (accountId: SQLWrapper) =>
       result: bankAccountChecks.result,
       error: bankAccountChecks.error,
       checkedAt: bankAccountChecks.checkedAt,
+      passed: bankAccountChecks.passed,
+      total: bankAccountChecks.total,
     })
     .from(bankAccountChecks)
     .where(eq(bankAccountChecks.accountId, accountId))
@@ -89,12 +92,32 @@ export const latestPhotoCheck = (accountId: SQLWrapper) =>
     .limit(1)
     .as("photo_check");
 
+/**
+ * Điều kiện lọc theo lượt kiểm MỚI NHẤT của từng tài khoản, đặt trong `where`
+ * của `bank_accounts`. Một lượt tra chỉ mục `bank_account_checks_account_time`
+ * cho mỗi dòng Postgres xét; giá trị lạ hay rỗng = không lọc.
+ */
+export function photoCheckFilter(raw: string): SQL | undefined {
+  const parsed = PhotoCheckFilter.safeParse(raw);
+  if (!parsed.success) return undefined;
+  const latest = sql`(
+    select c.status = 'done' and ${parsed.data === "fail" ? sql`c.passed < c.total` : sql`c.total > 0 and c.passed = c.total`}
+    from ${bankAccountChecks} c
+    where c.account_id = ${bankAccounts.id}
+    order by c.created_at desc
+    limit 1
+  )`;
+  return sql`${latest} is true`;
+}
+
 /** Dòng lateral sang hợp đồng `PhotoCheck`; mọi cột null = chưa có lượt nào. */
 export function toPhotoCheck(row: {
   status: PhotoCheckStatus | null;
   result: unknown;
   error: string | null;
   checkedAt: Date | null;
+  passed: number | null;
+  total: number | null;
 }): PhotoCheck | null {
   if (!row.status) return null;
   const parsed = PhotoCheckResult.safeParse(row.result);
@@ -103,6 +126,8 @@ export function toPhotoCheck(row: {
     checkedAt: row.checkedAt?.toISOString() ?? "",
     error: row.error ?? "",
     items: parsed.success ? parsed.data.items : [],
+    passed: row.passed ?? 0,
+    total: row.total ?? 0,
   };
 }
 
@@ -182,7 +207,14 @@ export async function runPhotoCheck(run: PhotoCheckRun): Promise<PhotoCheckItem[
 export async function finishPhotoCheck(checkId: string, items: PhotoCheckItem[]): Promise<void> {
   await db
     .update(bankAccountChecks)
-    .set({ status: "done", result: { items }, error: "", checkedAt: new Date() })
+    .set({
+      status: "done",
+      result: { items },
+      passed: items.filter((i) => i.verdict === "pass").length,
+      total: items.length,
+      error: "",
+      checkedAt: new Date(),
+    })
     .where(eq(bankAccountChecks.id, checkId));
 }
 

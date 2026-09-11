@@ -25,7 +25,8 @@ import { SearchField } from "@/components/ui/SearchField";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { Select } from "@/components/ui/Select";
 import { StatusTag } from "@/components/ui/StatusTag";
-import { PhotoCheckMarks } from "@/components/banking/PhotoCheckMarks";
+import { PhotoCheckScore } from "@/components/banking/PhotoCheckScore";
+import { PHOTO_CHECK_FILTER_LABEL, PhotoCheckFilter } from "@/lib/api/photoCheck";
 import {
   ACCOUNT_TYPE_LABEL,
   AccountType,
@@ -93,6 +94,10 @@ export default function BankingPage() {
   });
   const [accountType, setAccountType] = useState<AccountType | "">(() => {
     const parsed = AccountType.safeParse(searchParams.get("accountType"));
+    return parsed.success ? parsed.data : "";
+  });
+  const [photoCheck, setPhotoCheck] = useState<PhotoCheckFilter | "">(() => {
+    const parsed = PhotoCheckFilter.safeParse(searchParams.get("photoCheck"));
     return parsed.success ? parsed.data : "";
   });
   const [page, setPage] = useState(() => pageFromUrl(searchParams.get("page")));
@@ -208,11 +213,12 @@ export default function BankingPage() {
     if (staffId) params.set("staffId", staffId);
     if (status) params.set("status", status);
     if (accountType) params.set("accountType", accountType);
+    if (photoCheck) params.set("photoCheck", photoCheck);
     if (page > 0) params.set("page", String(page + 1));
     if (dir === "asc") params.set("dir", dir);
     const query = params.toString();
     return query ? `/banking?${query}` : "/banking";
-  }, [accountType, bankCode, channelId, departmentId, dir, from, page, searchQuery, staffId, status, to]);
+  }, [accountType, bankCode, channelId, departmentId, dir, from, page, photoCheck, searchQuery, staffId, status, to]);
 
   useEffect(() => {
     window.history.replaceState(null, "", listUrl);
@@ -231,6 +237,7 @@ export default function BankingPage() {
     departmentId,
     status,
     accountType,
+    photoCheck,
   };
 
   const { data = EMPTY_PAGE, isPending, isError, refetch, isFetching } = useQuery({
@@ -246,7 +253,8 @@ export default function BankingPage() {
     (channelId ? 1 : 0) +
     (staffId ? 1 : 0) +
     (status ? 1 : 0) +
-    (accountType ? 1 : 0);
+    (accountType ? 1 : 0) +
+    (photoCheck ? 1 : 0);
 
   const columns = useMemo<RankColumn<BankAccountRow>[]>(
     () => [
@@ -304,7 +312,7 @@ export default function BankingPage() {
       {
         key: "photoCheck",
         label: "Xác thực",
-        render: (r) => <PhotoCheckMarks check={r.photoCheck} />,
+        render: (r) => <PhotoCheckScore check={r.photoCheck} />,
       },
       ...(compact
         ? []
@@ -402,6 +410,7 @@ export default function BankingPage() {
               setStaffId("");
               setStatus("");
               setAccountType("");
+              setPhotoCheck("");
             })
           }
         >
@@ -433,6 +442,16 @@ export default function BankingPage() {
             options={[
               { value: "", label: "Tất cả loại" },
               ...AccountType.options.map((t) => ({ value: t, label: ACCOUNT_TYPE_LABEL[t] })),
+            ]}
+          />
+          <Select
+            block
+            label="Xác thực ảnh"
+            value={photoCheck}
+            onChange={(v) => refine(() => setPhotoCheck(v as PhotoCheckFilter | ""))}
+            options={[
+              { value: "", label: "Tất cả" },
+              ...PhotoCheckFilter.options.map((f) => ({ value: f, label: PHOTO_CHECK_FILTER_LABEL[f] })),
             ]}
           />
           <Select
@@ -498,6 +517,14 @@ export default function BankingPage() {
                   {
                     label: `Loại TK: ${ACCOUNT_TYPE_LABEL[accountType]}`,
                     onRemove: () => refine(() => setAccountType("")),
+                  },
+                ]
+              : []),
+            ...(photoCheck
+              ? [
+                  {
+                    label: `Xác thực: ${PHOTO_CHECK_FILTER_LABEL[photoCheck]}`,
+                    onRemove: () => refine(() => setPhotoCheck("")),
                   },
                 ]
               : []),

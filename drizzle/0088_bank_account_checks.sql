@@ -16,6 +16,10 @@ CREATE TABLE "bank_account_checks" (
   "status" "bank_account_check_status" DEFAULT 'pending' NOT NULL,
   -- PhotoCheckResult ở lib/api/photoCheck.ts. NULL khi chưa xong hoặc hỏng.
   "result" jsonb,
+  -- Số phép kiểm đạt trên tổng số, worker ghi cùng lúc với result. Lưu riêng
+  -- để bảng lọc "có điểm không đạt" bằng hai cột số, không phải đọc jsonb.
+  "passed" smallint DEFAULT 0 NOT NULL,
+  "total" smallint DEFAULT 0 NOT NULL,
   -- Lý do worker hỏng, chỉ khi status = failed.
   "error" text DEFAULT '' NOT NULL,
   "created_at" timestamp with time zone DEFAULT now() NOT NULL,

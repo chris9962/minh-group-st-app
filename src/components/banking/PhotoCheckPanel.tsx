@@ -39,14 +39,14 @@ export function PhotoCheckPanel({ check }: { check: PhotoCheck | null }) {
 
   const meta =
     check.status === "pending"
-      ? "Đang xác thực"
+      ? "Đang phân tích"
       : check.status === "failed"
         ? "Xác thực hỏng"
         : formatDateTime(check.checkedAt);
 
   return (
     <SectionCard title="Xác thực ảnh" icon={<ScanLine size={17} />} meta={meta}>
-      {check.status === "pending" && <p className="text-muted">Worker đang đọc ảnh.</p>}
+      {check.status === "pending" && <p className="text-muted">Đang phân tích ảnh.</p>}
       {check.status === "failed" && <p className={styles.error}>{check.error}</p>}
       {check.status === "done" && (
         <ul className={styles.list}>

@@ -484,6 +484,7 @@ export default function ExportsPage() {
           departmentId: "",
           status: "",
           accountType: "",
+          photoCheck: "",
         },
         scoringInclude,
       );

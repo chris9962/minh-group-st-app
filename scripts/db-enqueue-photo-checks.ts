@@ -1,4 +1,4 @@
-import { and, eq, gte, isNull, ne, sql } from "drizzle-orm";
+import { and, desc, eq, gte, isNull, ne, sql } from "drizzle-orm";
 import { db } from "../src/server/db/client";
 import { bankAccountChecks, bankAccounts, banks } from "../src/server/db/schema";
 import { hasPhotoChecker, PHOTO_CHECK_CHANNEL } from "../src/server/photoCheck";
@@ -12,7 +12,9 @@ import { hasPhotoChecker, PHOTO_CHECK_CHANNEL } from "../src/server/photoCheck";
  *
  *   bun --env-file=.env.local scripts/db-enqueue-photo-checks.ts --bank=TPB --from=2026-09-01
  *   bun --env-file=.env.local scripts/db-enqueue-photo-checks.ts --bank=TPB --from=2026-09-01 --dry-run
+ *   bun --env-file=.env.local scripts/db-enqueue-photo-checks.ts --bank=TPB --from=2026-09-01 --limit=50
  *
+ * `--limit` lấy N tài khoản MỚI NHẤT, để chạy thử một lô nhỏ trước.
  * Chạy lại bao nhiêu lần cũng an toàn: tài khoản đã có lượt kiểm thì bỏ qua.
  */
 
@@ -23,6 +25,7 @@ async function main() {
   const bankCode = arg("bank");
   const from = arg("from");
   const dryRun = process.argv.includes("--dry-run");
+  const limit = Number(arg("limit") || 0);
 
   if (!bankCode || !hasPhotoChecker(bankCode))
     throw new Error(`--bank phải là ngân hàng đã có bộ nhãn OCR, ví dụ --bank=TPB. Nhận: "${bankCode}"`);
@@ -40,7 +43,9 @@ async function main() {
         gte(bankAccounts.createdAt, new Date(`${from}T00:00:00+07:00`)),
         isNull(bankAccountChecks.id),
       ),
-    );
+    )
+    .orderBy(desc(bankAccounts.createdAt))
+    .limit(limit > 0 ? limit : 1_000_000);
 
   console.log(
     `${rows.length} tài khoản ${bankCode} từ ${from} chưa có lượt kiểm${dryRun ? " (CHẠY KHÔ — không ghi gì)" : ""}.`,

@@ -26,6 +26,7 @@ export async function GET(request: Request) {
     departmentId: uuidParam(params.get("departmentId")),
     status: params.get("status") ?? "",
     accountType: params.get("accountType") ?? "",
+    photoCheck: params.get("photoCheck") ?? "",
   });
 
   // Lượt xuất nào cũng để lại vết (spec §10.4).

@@ -29,7 +29,7 @@ export type TpbOpenSuccess = {
   missing: (keyof Omit<TpbOpenSuccess, "missing">)[];
 };
 
-const OPEN_FIELDS: Record<Exclude<keyof TpbOpenSuccess, "success" | "missing">, FieldSpec> = {
+const OPEN_FIELDS: Record<Exclude<keyof TpbOpenSuccess, "success" | "missing" | "referralCode">, FieldSpec> = {
   username: { labels: ["TENDANGNHAP", "DANGNHAP"], value: /0\d{9}/ },
   accountNumber: {
     labels: ["SOTAIKHOANTHANHTOAN", "THANHTOAN"],
@@ -41,13 +41,29 @@ const OPEN_FIELDS: Record<Exclude<keyof TpbOpenSuccess, "success" | "missing">, 
     value: /\d{2}\/\d{2}\/\d{4}/,
     clean: isoDate,
   },
-  // Mã đứng cuối dòng, sau nhãn.
-  referralCode: {
-    labels: ["MAGIOITHIEU", "THIEU"],
-    value: /[A-Za-z0-9]{3,12}\s*$/,
-    clean: (v) => v.trim().toUpperCase(),
-  },
 };
+
+/**
+ * Mã giới thiệu: cụm chữ số ngay SAU chữ "thiệu", vì OCR hay dính rác vào đuôi
+ * dòng (`Mã giới thiệu AT107 " \``) nên không lấy "cụm cuối dòng" được.
+ *
+ * Nhãn ngắn là `OITHIEU` chứ không phải `THIEU`: rác đầu dòng ghép với chữ
+ * kế thành `NHIEU` ở dòng `Ñ Hiệu lực từ 11/09/2026`, sai 1 ký tự so với
+ * `THIEU` nên bị nhận nhầm và mã đọc ra `2026` (đo 2026-09-12).
+ */
+function referralCodeIn(lines: string[]): string {
+  for (const label of ["MAGIOITHIEU", "OITHIEU"]) {
+    for (const line of lines) {
+      if (!hasLabel(line, label)) continue;
+      const plain = stripAccents(line);
+      const after = plain.match(/thieu[^A-Za-z0-9]*([A-Za-z0-9]{3,12})/i);
+      if (after) return after[1].toUpperCase();
+      const last = plain.match(/([A-Za-z0-9]{3,12})[^A-Za-z0-9]*$/);
+      if (last) return last[1].toUpperCase();
+    }
+  }
+  return "";
+}
 
 export function parseTpbOpenSuccess(ocrText: string): TpbOpenSuccess {
   const lines = splitLines(ocrText);
@@ -60,12 +76,12 @@ export function parseTpbOpenSuccess(ocrText: string): TpbOpenSuccess {
     username: pickField(lines, OPEN_FIELDS.username),
     accountNumber: pickField(lines, OPEN_FIELDS.accountNumber),
     effectiveFrom: pickField(lines, OPEN_FIELDS.effectiveFrom),
-    referralCode: pickField(lines, OPEN_FIELDS.referralCode),
+    referralCode: referralCodeIn(lines),
     missing: [],
   };
 
   if (!out.success) out.missing.push("success");
-  for (const key of Object.keys(OPEN_FIELDS) as (keyof typeof OPEN_FIELDS)[]) {
+  for (const key of [...(Object.keys(OPEN_FIELDS) as (keyof typeof OPEN_FIELDS)[]), "referralCode"] as const) {
     if (!out[key]) out.missing.push(key);
   }
   return out;
@@ -99,8 +115,9 @@ export type TpbHome = {
 
 /**
  * Nhặt tên ra khỏi dòng có rác: giữ các từ toàn chữ cái, dài từ 2 ký tự, và
- * in hoa ít nhất 3/4 số chữ. `ToNVANPHUC` giữ, `Ao` và `Ba` bỏ, `Q` bỏ. Lấy
- * chuỗi từ liên tiếp dài nhất.
+ * in hoa ít nhất 3/4 số chữ; từ 2 chữ thì chỉ cần chữ đầu in hoa vì OCR hay
+ * đọc `TO` thành `Tô`. `ToNVANPHUC` giữ, `Ba` giữ, `ao` bỏ, `Q` bỏ. Lấy chuỗi
+ * từ liên tiếp dài nhất.
  */
 function nameIn(line: string): string {
   const tokens = stripAccents(line).replace(/[^A-Za-z]+/g, " ").trim().split(" ");
@@ -108,7 +125,8 @@ function nameIn(line: string): string {
   let cur: string[] = [];
   for (const t of tokens) {
     const upper = t.replace(/[^A-Z]/g, "").length;
-    if (t.length >= 2 && upper * 4 >= t.length * 3) cur.push(t.toUpperCase());
+    const keep = t.length === 2 ? /^[A-Z]/.test(t) : t.length >= 3 && upper * 4 >= t.length * 3;
+    if (keep) cur.push(t.toUpperCase());
     else {
       if (cur.length > best.length) best = cur;
       cur = [];
@@ -123,15 +141,39 @@ function nameIn(line: string): string {
 const ACCOUNT = /(?<!\d)\d{4} ?\d{4} ?\d{3}(?!\d)/;
 const PHONE = /(?<!\d)0\d{2} ?\d{3} ?\d{4}(?!\d)/;
 
+/** Dòng "số tài khoản  số điện thoại" ngay dưới tên trên màn hình chính. */
+const isAccountLine = (l: string) => ACCOUNT.test(stripAccents(l)) && PHONE.test(stripAccents(l));
+
+/** Tên có ít nhất 4 chữ cái; ngắn hơn là rác OCR như `TY`. */
+const usableName = (s: string) => compact(s).length >= 4;
+
 export function parseTpbHome(ocrText: string): TpbHome {
   const lines = splitLines(ocrText);
+  const greetedAt = lines.findIndex((l) => hasLabel(l, "XINCHAO"));
+  const accountAt = lines.findIndex(isAccountLine);
 
+  /**
+   * Tên có thể dính cùng dòng "Xin chào", hoặc nằm 1 tới 2 dòng dưới: OCR hay
+   * chen một dòng rác giữa hai dòng đó (`lê 2 TỶ = @`). Ảnh bị cắt mất "Xin
+   * chào" thì lấy dòng ngay trên dòng số tài khoản.
+   */
   let customerName = "";
   for (let i = 0; i < lines.length && !customerName; i++) {
     if (!hasLabel(lines[i], "XINCHAO")) continue;
-    // Tên có thể dính cùng dòng "Xin chào" hoặc nằm dòng kế.
-    const same = nameIn(lines[i].replace(/xin\s*ch[aà]o/i, ""));
-    customerName = same.length >= 4 ? same : (nameIn(lines[i + 1] ?? ""));
+    for (const candidate of [
+      nameIn(lines[i].replace(/xin\s*ch[aà]o/i, "")),
+      nameIn(lines[i + 1] ?? ""),
+      nameIn(lines[i + 2] ?? ""),
+    ]) {
+      if (usableName(candidate)) {
+        customerName = candidate;
+        break;
+      }
+    }
+  }
+  if (!customerName && accountAt > 0) {
+    const above = nameIn(lines[accountAt - 1]);
+    if (usableName(above)) customerName = above;
   }
 
   const digits = (re: RegExp): string => {
@@ -143,7 +185,9 @@ export function parseTpbHome(ocrText: string): TpbHome {
   };
 
   const out: TpbHome = {
-    greeted: lines.some((l) => hasLabel(l, "XINCHAO")),
+    // Hai dấu hiệu: dòng "Xin chào", hoặc dòng số tài khoản đi cùng số điện
+    // thoại. Ảnh chụp cắt mất mép trên vẫn còn dấu hiệu thứ hai.
+    greeted: greetedAt >= 0 || accountAt >= 0,
     customerName,
     accountNumber: digits(ACCOUNT),
     phone: digits(PHONE),
@@ -262,6 +306,19 @@ const codeKey = (s: string) =>
 const digitsOf = (s: string) => s.replace(/\D/g, "");
 
 /**
+ * Hai dãy số cùng độ dài, khác nhau tối đa MỘT chữ số. Dùng cho số tài khoản
+ * trên màn hình chính: chữ trắng nền tím, Tesseract đọc `1000` thành `4000`
+ * (đo 2026-09-12). Số của người khác lệch nhiều hơn một chữ số, và số nhân
+ * viên gõ sai đã bị màn mở tài khoản bắt bằng phép so đúng từng chữ số.
+ */
+function digitsClose(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length && diff <= 1; i++) if (a[i] !== b[i]) diff++;
+  return diff <= 1;
+}
+
+/**
  * Chạy cả ba parser trên mọi ảnh, mỗi phép kiểm lấy ảnh nhận ra rõ nhất.
  *
  * Không có nhãn "ảnh này là màn gì": nhân viên nộp 3 ảnh `opening` không theo
@@ -308,7 +365,7 @@ export function checkTpbank(texts: string[], ctx: TpbCheckContext): PhotoCheckIt
     if (!home.customerName) notes.push("Không đọc được tên khách.");
     else if (!nameMatches(home.customerName, ctx.customerName))
       notes.push(`Tên trên ảnh ${home.customerName}, tên khách ${ctx.customerName}.`);
-    if (home.accountNumber && ctx.accountNumber && home.accountNumber !== digitsOf(ctx.accountNumber))
+    if (home.accountNumber && ctx.accountNumber && !digitsClose(home.accountNumber, digitsOf(ctx.accountNumber)))
       notes.push(`Số tài khoản trên ảnh ${home.accountNumber}, đã nhập ${ctx.accountNumber}.`);
     items.push({
       key: "home",

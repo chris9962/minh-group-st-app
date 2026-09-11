@@ -39,6 +39,7 @@ export async function GET(request: Request, { params }: Params) {
         departmentId: uuidParam(query.get("departmentId")),
         channelId: uuidParam(query.get("channelId")),
         accountType: query.get("accountType") ?? "",
+        photoCheck: query.get("photoCheck") ?? "",
       },
       pageArgsFrom(url, BANK_ACCOUNT_SORT, "date"),
     ),

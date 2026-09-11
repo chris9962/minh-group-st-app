@@ -8,7 +8,8 @@ import type { DateRange } from "react-day-picker";
 import { RequirePermission } from "@/components/layout/RequirePermission";
 import { TopBar } from "@/components/layout/TopBar";
 import { BankPhotoGallery } from "@/components/banking/BankPhotoGallery";
-import { PhotoCheckMarks } from "@/components/banking/PhotoCheckMarks";
+import { PhotoCheckScore } from "@/components/banking/PhotoCheckScore";
+import { PHOTO_CHECK_FILTER_LABEL, PhotoCheckFilter } from "@/lib/api/photoCheck";
 import { BackLink } from "@/components/ui/BackLink";
 import { Button } from "@/components/ui/Button";
 import { SectionTabs } from "@/components/ui/SectionTabs";
@@ -99,7 +100,7 @@ const COLUMNS: RankColumn<BankAccountRow>[] = [
   {
     key: "photoCheck",
     label: "Xác thực",
-    render: (r) => <PhotoCheckMarks check={r.photoCheck} />,
+    render: (r) => <PhotoCheckScore check={r.photoCheck} />,
   },
   {
     key: "appInstalled",
@@ -160,6 +161,10 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
   const [channelId, setChannelId] = useState(() => searchParams.get("channelId") ?? "");
   const [accountType, setAccountType] = useState<AccountType | "">(() => {
     const parsed = AccountType.safeParse(searchParams.get("accountType"));
+    return parsed.success ? parsed.data : "";
+  });
+  const [photoCheck, setPhotoCheck] = useState<PhotoCheckFilter | "">(() => {
+    const parsed = PhotoCheckFilter.safeParse(searchParams.get("photoCheck"));
     return parsed.success ? parsed.data : "";
   });
   /**
@@ -232,6 +237,7 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
     if (departmentId) params.set("departmentId", departmentId);
     if (channelId) params.set("channelId", channelId);
     if (accountType) params.set("accountType", accountType);
+    if (photoCheck) params.set("photoCheck", photoCheck);
     // `page` là trang của TAB ĐANG MỞ; `dir` chỉ có nghĩa với bảng tài khoản.
     const shownPage = tab === "photos" ? photoPage : page;
     if (shownPage > 0) params.set("page", String(shownPage + 1));
@@ -246,6 +252,7 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
     from,
     id,
     page,
+    photoCheck,
     photoPage,
     referralCodeId,
     searchQuery,
@@ -270,6 +277,7 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
       departmentId,
       channelId,
       accountType,
+      photoCheck,
       page,
       dir,
     ],
@@ -283,6 +291,7 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
         departmentId,
         channelId,
         accountType,
+        photoCheck,
         page,
         sort: "date",
         dir,
@@ -316,6 +325,7 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
         departmentId,
         channelId,
         accountType,
+        photoCheck,
       });
       // Chỉ xảy ra khi số dòng vượt sức chứa của một sheet Excel. Không có
       // trần do hệ thống đặt ra ở đây.
@@ -369,7 +379,8 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
     (referralCodeId ? 1 : 0) +
     (departmentId ? 1 : 0) +
     (channelId ? 1 : 0) +
-    (accountType ? 1 : 0);
+    (accountType ? 1 : 0) +
+    (photoCheck ? 1 : 0);
   const codeName = codes.find((c) => c.id === referralCodeId)?.name ?? "";
 
   return (
@@ -396,6 +407,7 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
               setDepartmentId("");
               setChannelId("");
               setAccountType("");
+              setPhotoCheck("");
             })
           }
         >
@@ -425,6 +437,16 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
             options={[
               { value: "", label: "Tất cả loại" },
               ...AccountType.options.map((t) => ({ value: t, label: ACCOUNT_TYPE_LABEL[t] })),
+            ]}
+          />
+          <Select
+            block
+            label="Xác thực ảnh"
+            value={photoCheck}
+            onChange={(v) => refine(() => setPhotoCheck(v as PhotoCheckFilter | ""))}
+            options={[
+              { value: "", label: "Tất cả" },
+              ...PhotoCheckFilter.options.map((f) => ({ value: f, label: PHOTO_CHECK_FILTER_LABEL[f] })),
             ]}
           />
           <Combobox
@@ -501,6 +523,14 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
                   },
                 ]
               : []),
+            ...(photoCheck
+              ? [
+                  {
+                    label: `Xác thực: ${PHOTO_CHECK_FILTER_LABEL[photoCheck]}`,
+                    onRemove: () => refine(() => setPhotoCheck("")),
+                  },
+                ]
+              : []),
             ...(departmentId
               ? [
                   {
@@ -539,7 +569,7 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
               và về trang đầu (AGENTS.md §7 — reset state bằng key, không effect).
               Giữ lượt chọn qua bộ lọc là tải nhầm cả ảnh đã bị bộ lọc ẩn đi.
             */
-            key={`${from}|${to}|${status}|${referralCodeId}|${departmentId}|${channelId}|${accountType}`}
+            key={`${from}|${to}|${status}|${referralCodeId}|${departmentId}|${channelId}|${accountType}|${photoCheck}`}
             bankId={id}
             bankCode={bank?.code ?? ""}
             filters={{

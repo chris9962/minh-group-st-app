@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { AccountNumberMethod } from './bankCatalog';
 import { AccountType, BankAccount, BankAccountStatus } from './bankAccounts';
 import { pageOf, pageParams, type Page, type PageQuery } from './pagination';
-import { PhotoCheck } from './photoCheck';
+import { PhotoCheck, type PhotoCheckFilter } from './photoCheck';
 
 /**
  * P-21 · Danh sách tài khoản ngân hàng · P-22 · Chi tiết / hoàn tất tài khoản
@@ -170,6 +170,8 @@ export type BankAccountQuery = PageQuery<BankAccountSort> & {
   status: BankAccountStatus | '';
   /** Loại tài khoản. Rỗng = mọi loại. */
   accountType: AccountType | '';
+  /** Theo lượt xác thực ảnh mới nhất. Rỗng = không lọc. */
+  photoCheck: PhotoCheckFilter | '';
 };
 
 const BankAccountPage = pageOf(BankAccountRow);
@@ -185,6 +187,7 @@ const listParams = (query: Omit<BankAccountQuery, keyof PageQuery>) => ({
   departmentId: query.departmentId,
   status: query.status,
   accountType: query.accountType,
+  photoCheck: query.photoCheck,
 });
 
 /** MỘT trang tài khoản, đã lọc/tìm/sắp sẵn ở máy chủ (AGENTS.md §5.1). */
@@ -231,6 +234,8 @@ export type BankAccountsOfBankQuery = PageQuery<BankAccountSort> & {
   channelId: string;
   /** Loại tài khoản. Rỗng = mọi loại. */
   accountType: AccountType | '';
+  /** Theo lượt xác thực ảnh mới nhất. Rỗng = không lọc. */
+  photoCheck: PhotoCheckFilter | '';
 };
 
 /**
@@ -252,6 +257,7 @@ export async function fetchBankAccountsOfBankForExport(
   if (query.departmentId) params.set('departmentId', query.departmentId);
   if (query.channelId) params.set('channelId', query.channelId);
   if (query.accountType) params.set('accountType', query.accountType);
+  if (query.photoCheck) params.set('photoCheck', query.photoCheck);
 
   const res = await fetch(`/api/settings/banks/${bankId}/accounts/export?${params}`);
   if (res.status === 403) throw new Error('Bạn không quản ngân hàng này');
@@ -282,6 +288,7 @@ export async function fetchBankAccountsOfBank(
     departmentId: query.departmentId,
     channelId: query.channelId,
     accountType: query.accountType,
+    photoCheck: query.photoCheck,
   });
   const res = await fetch(`/api/settings/banks/${bankId}/accounts?${params}`);
   if (res.status === 403) throw new Error('Bạn không quản ngân hàng này');

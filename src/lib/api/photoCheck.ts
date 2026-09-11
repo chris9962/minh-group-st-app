@@ -56,11 +56,23 @@ export const PhotoCheck = z.object({
   error: z.string(),
   /** Rỗng khi chưa xong hoặc hỏng. */
   items: z.array(PhotoCheckItem),
+  /**
+   * Số phép kiểm đạt trên tổng số, ví dụ 2/3. Bảng hiện con số này chứ không
+   * hiện từng phép kiểm: ngân hàng khác có thể có 6 phép, cột không nở theo.
+   */
+  passed: z.number(),
+  total: z.number(),
 });
 export type PhotoCheck = z.infer<typeof PhotoCheck>;
 
-/** Cả ba đạt thì đạt; một cái không đạt hay thiếu ảnh thì không. */
-export const photoCheckPassed = (check: PhotoCheck): boolean =>
-  check.status === 'done' &&
-  check.items.length > 0 &&
-  check.items.every((i) => i.verdict === 'pass');
+/**
+ * Ô lọc trên bảng. `fail` = lượt mới nhất đã xong và có phép kiểm không đạt;
+ * `pass` = đã xong và đạt hết. Rỗng = không lọc.
+ */
+export const PhotoCheckFilter = z.enum(['fail', 'pass']);
+export type PhotoCheckFilter = z.infer<typeof PhotoCheckFilter>;
+
+export const PHOTO_CHECK_FILTER_LABEL: Record<PhotoCheckFilter, string> = {
+  fail: 'Có điểm không đạt',
+  pass: 'Đạt hết',
+};

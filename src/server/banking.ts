@@ -60,7 +60,7 @@ import {
 import { recomputeGiftCase } from "./gift";
 import { recomputeKpiForCustomer } from "./kpi";
 import type { PageArgs } from "./pagination";
-import { enqueuePhotoCheck, latestPhotoCheck, toPhotoCheck } from "./photoCheck";
+import { enqueuePhotoCheck, latestPhotoCheck, photoCheckFilter, toPhotoCheck } from "./photoCheck";
 import { imageUrl } from "./storage";
 
 /**
@@ -288,6 +288,8 @@ export type BankAccountFilters = {
   status: string;
   /** `none` · `CNKD` · `HKD`. Rỗng hoặc giá trị lạ = mọi loại. */
   accountType: string;
+  /** `fail` · `pass` theo lượt xác thực ảnh mới nhất. Rỗng hoặc giá trị lạ = không lọc. */
+  photoCheck: string;
 };
 
 /**
@@ -465,6 +467,7 @@ async function accountFilters(
     query.departmentId ? eq(bankAccounts.createdByDepartmentId, query.departmentId) : undefined,
     statusFilter(query.status),
     accountTypeFilter(query.accountType),
+    photoCheckFilter(query.photoCheck),
   ].filter(Boolean) as SQL[];
 
   return parts.length > 0 ? and(...parts) : undefined;
@@ -571,6 +574,8 @@ const decorate = (page: ReturnType<typeof pickPage>) => {
       photoCheckResult: check.result,
       photoCheckError: check.error,
       photoCheckedAt: check.checkedAt,
+      photoCheckPassed: check.passed,
+      photoCheckTotal: check.total,
     })
     .from(page)
     .innerJoin(customers, eq(customers.id, page.customerId))
@@ -613,6 +618,8 @@ const toRow = (r: DecoratedRow): BankAccountRow => ({
     result: r.photoCheckResult,
     error: r.photoCheckError,
     checkedAt: r.photoCheckedAt,
+    passed: r.photoCheckPassed,
+    total: r.photoCheckTotal,
   }),
 });
 
@@ -722,6 +729,8 @@ export type BankOfBankFilters = {
   channelId: string;
   /** `none` · `CNKD` · `HKD`. Rỗng hoặc giá trị lạ = mọi loại. */
   accountType: string;
+  /** `fail` · `pass` theo lượt xác thực ảnh mới nhất. Rỗng hoặc giá trị lạ = không lọc. */
+  photoCheck: string;
 };
 
 /** Bảng trên màn và file Excel dùng CHUNG điều kiện này — hai bản là hai kết quả. */
@@ -742,6 +751,7 @@ const bankAccountsOfBankWhere = (bankId: string, filters: BankOfBankFilters): SQ
         : undefined,
       filters.channelId ? eq(bankAccounts.channelId, filters.channelId) : undefined,
       accountTypeFilter(filters.accountType),
+      photoCheckFilter(filters.photoCheck),
     ].filter(Boolean) as SQL[]),
   )!;
 

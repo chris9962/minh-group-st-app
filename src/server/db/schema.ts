@@ -1054,6 +1054,12 @@ export const bankAccountChecks = pgTable(
     status: bankAccountCheckStatus("status").notNull().default("pending"),
     /** `PhotoCheckResult` ở `lib/api/photoCheck.ts`; null khi chưa xong hoặc hỏng. */
     result: jsonb("result"),
+    /**
+     * Số phép kiểm đạt trên tổng số, ghi cùng lúc với `result`. Lưu riêng để
+     * bảng lọc "có điểm không đạt" bằng hai cột số, không phải đọc jsonb.
+     */
+    passed: smallint("passed").notNull().default(0),
+    total: smallint("total").notNull().default(0),
     /** Lý do worker hỏng, chỉ khi `status = failed`. */
     error: text("error").notNull().default(""),
     createdAt: createdAt(),

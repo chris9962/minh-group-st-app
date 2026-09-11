@@ -222,6 +222,7 @@ export function ScoringTable({ defaultStaffId = "", lockedStaffId, pageSize }: P
           departmentId: "",
           status: "",
           accountType: "",
+          photoCheck: "",
         },
         "all",
         // Máy chủ bỏ CCCD và số điện thoại: hai trường đó chỉ tồn tại trong file
