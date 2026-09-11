@@ -222,7 +222,9 @@ export function nameMatches(ocrName: string, expected: string): boolean {
 /* ── Màn "Chuyển thành công" ──────────────────────────────────────────── */
 
 /**
- * Màn kết quả chuyển khoản, đo trên 7 ảnh 2026-09-11, iPhone và Android:
+ * Màn kết quả chuyển khoản, HAI biến thể (đo 2026-09-11 và 2026-09-12).
+ *
+ * Biến thể 1, ngay sau khi chuyển:
  *
  *   TPBank                              logo, OCR đọc ra chữ
  *   Chuyển thành công!
@@ -231,12 +233,30 @@ export function nameMatches(ocrName: string, expected: string): boolean {
  *   MB BANK  0907 8386 71               ngân hàng nhận (bỏ)
  *   Lời nhắn: ...                       (bỏ, không dùng để kiểm)
  *   Chuyển nhanh 247: 19:04 11/09/2026
+ *
+ * Biến thể 2, mở lại từ lịch sử giao dịch:
+ *
+ *   Chi Tiết Giao Dịch
+ *   Giao dịch thành công
+ *   -50,000 VND
+ *   Từ tài khoản
+ *   LE QUANG VINH                       người gửi = khách, so được với hệ thống
+ *   1000 5477 068                       số tài khoản người gửi
+ *   Tới tài khoản ...
+ *   Thời gian thực hiện: 19:08 11/09/2026
+ *
+ * Biến thể 2 KHÔNG có chữ TPBank, chỉ có logo. Nhận ra bằng bố cục riêng của
+ * app TPBank: tiêu đề "Chi Tiết Giao Dịch" cộng nhãn "Từ tài khoản".
  */
 export type TpbTransfer = {
-  /** Có chữ "TPBank" trên màn. */
+  /** Có chữ "TPBank", hoặc bố cục "Chi Tiết Giao Dịch" + "Từ tài khoản" của app TPBank. */
   bank: boolean;
-  /** Có dòng "Chuyển thành công". */
+  /** Có dòng "Chuyển thành công" hoặc "Giao dịch thành công". */
   success: boolean;
+  /** Tên người gửi, chỉ biến thể 2. In hoa không dấu, có thể mất khoảng trắng. */
+  fromName: string;
+  /** Số tài khoản người gửi, chỉ biến thể 2, đã bỏ khoảng trắng. */
+  fromAccount: string;
   /**
    * Số tiền ĐÚNG NHƯ OCR ĐỌC, ví dụ `52,000 VND`. Rỗng khi không thấy.
    *
@@ -271,9 +291,31 @@ export function parseTpbTransfer(ocrText: string): TpbTransfer {
     }
   }
 
+  // Biến thể 2: tên và số tài khoản người gửi nằm 1 tới 3 dòng dưới nhãn
+  // "Từ tài khoản". Dừng ở nhãn "Tới tài khoản" để không lấy nhầm người nhận.
+  let fromName = "";
+  let fromAccount = "";
+  const fromAt = lines.findIndex((l) => hasLabel(l, "TUTAIKHOAN"));
+  if (fromAt >= 0) {
+    for (let i = fromAt + 1; i < Math.min(lines.length, fromAt + 4); i++) {
+      if (hasLabel(lines[i], "TOITAIKHOAN")) break;
+      const plain = stripAccents(lines[i]);
+      const acct = plain.match(ACCOUNT);
+      if (acct && !fromAccount) fromAccount = acct[0].replace(/\s/g, "");
+      else if (!fromName) {
+        const name = nameIn(plain);
+        if (usableName(name)) fromName = name;
+      }
+    }
+  }
+
+  const detailLayout = hasPhrase(lines, "CHITIETGIAODICH") && fromAt >= 0;
+
   const out: TpbTransfer = {
-    bank: hasPhrase(lines, "TPBANK"),
-    success: hasPhrase(lines, "CHUYENTHANHCONG"),
+    bank: hasPhrase(lines, "TPBANK") || detailLayout,
+    success: hasPhrase(lines, "CHUYENTHANHCONG") || hasPhrase(lines, "GIAODICHTHANHCONG"),
+    fromName,
+    fromAccount,
     amountText,
     transferredAt,
     missing: [],
@@ -376,16 +418,23 @@ export function checkTpbank(texts: string[], ctx: TpbCheckContext): PhotoCheckIt
     });
   }
 
-  // 3. Chuyển khoản: có TPBank, có "thành công", có số tiền.
+  // 3. Chuyển khoản: có TPBank, có "thành công", có số tiền. Biến thể 2 in
+  // thêm người gửi, có thì so với khách và số đã nhập.
   if (!transfer) {
     items.push({ key: "transfer", verdict: "missing", found: "", expected: "", note: "Không ảnh nào là màn chuyển khoản thành công." });
   } else {
+    const notes: string[] = [];
+    if (!transfer.amountText) notes.push("Không đọc được số tiền.");
+    if (transfer.fromName && !nameMatches(transfer.fromName, ctx.customerName))
+      notes.push(`Người gửi trên ảnh ${transfer.fromName}, tên khách ${ctx.customerName}.`);
+    if (transfer.fromAccount && ctx.accountNumber && !digitsClose(transfer.fromAccount, digitsOf(ctx.accountNumber)))
+      notes.push(`Tài khoản gửi trên ảnh ${transfer.fromAccount}, đã nhập ${ctx.accountNumber}.`);
     items.push({
       key: "transfer",
-      verdict: transfer.amountText ? "pass" : "fail",
-      found: [transfer.amountText, transfer.transferredAt].filter(Boolean).join(" - "),
-      expected: "",
-      note: transfer.amountText ? "" : "Không đọc được số tiền.",
+      verdict: notes.length ? "fail" : "pass",
+      found: [transfer.amountText, transfer.transferredAt, transfer.fromName, transfer.fromAccount].filter(Boolean).join(" - "),
+      expected: transfer.fromName || transfer.fromAccount ? [ctx.customerName, ctx.accountNumber].filter(Boolean).join(" - ") : "",
+      note: notes.join(" "),
     });
   }
 
