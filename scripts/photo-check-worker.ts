@@ -6,7 +6,7 @@
  * không đổi `bank_accounts.status`.
  *
  * Chạy trong container riêng `mgst-photo-check`, cùng image với
- * `mgst-api-worker`, đổi entrypoint. Dựng và thay bằng `deploy/workers.sh`,
+ * `mgst-api-worker`, đổi entrypoint. Dựng và thay bằng `deploy/worker-photo.sh`,
  * không gõ tay `docker run`.
  *
  * Tách container khỏi worker PVI để OCR hỏng không kéo theo tạo đơn bảo hiểm.
