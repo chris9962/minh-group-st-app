@@ -21,7 +21,6 @@ import {
   unsubscribeFromPush,
 } from "@/lib/api/push";
 import { errorMessage, toast } from "@/lib/toast";
-import styles from "./NotificationSettings.module.css";
 
 /**
  * Cài đặt thông báo — một công tắc cho THIẾT BỊ, và một công tắc cho mỗi LOẠI.
@@ -266,18 +265,26 @@ export function NotificationSettings() {
           {kinds.map((kind: NotificationKind) => (
             <SettingsRow
               key={kind}
-              label={
-                <span className={on ? undefined : styles.dim}>{NOTIFICATION_KIND_LABEL[kind]}</span>
-              }
+              label={NOTIFICATION_KIND_LABEL[kind]}
               control={
                 <Switch
                   checked={prefs?.[kind] ?? true}
                   onCheckedChange={(enabled) => savePref.mutate({ kind, enabled })}
                   label={NOTIFICATION_KIND_LABEL[kind]}
                   hideLabel
-                  // Máy này tắt thì mọi loại đều im, nên công tắc loại mờ đi. Giá
-                  // trị vẫn giữ nguyên để bật lại là dùng lại được.
-                  disabled={!on || savePref.isPending}
+                  /*
+                   * KHÔNG khoá theo công tắc "Thiết bị này". Hai nhóm quyết định
+                   * hai thứ khác nhau:
+                   *
+                   *   Thiết bị này  máy đang cầm có kêu không
+                   *   Loại          tin đó có được GHI vào app không
+                   *
+                   * Tắt một loại là máy chủ không ghi dòng nào, nên chuông không
+                   * đếm và trang Thông báo cũng không có. Khoá nhóm này theo
+                   * nhóm kia thì người tắt tiếng máy mình mất luôn quyền chọn
+                   * loại nào được lưu lại.
+                   */
+                  disabled={savePref.isPending}
                 />
               }
             />
