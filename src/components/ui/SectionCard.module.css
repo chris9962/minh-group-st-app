@@ -53,10 +53,17 @@
 /* `flex` chứ không phải block: khối này nhận NHIỀU nút — trang chi tiết tài
    khoản của khu quản ngân hàng có cả Duyệt lẫn Đánh dấu lỗi, để block thì hai
    nút dính vào nhau. */
+/* `flex: none` cũ có `flex-shrink: 0` — cấm co lại, nên dù bên trong đã
+   `flex-wrap` thì cụm nút không bao giờ bị ép hẹp để mà xuống dòng, cứ thế
+   tràn ra ngoài thẻ khi ba nút cộng chữ dài như "Khôi phục hoàn thành". Cho
+   co (`flex-shrink: 1`) và `min-width: 0` thì mới có cơ sở để wrap. */
 .action {
-  flex: none;
+  flex: 0 1 auto;
+  min-width: 0;
   margin-left: auto;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: var(--space-2);
 }
