@@ -21,6 +21,7 @@ import {
 import { canManageBank } from "@/lib/permissions";
 import type { User } from "@/lib/types";
 import { bankManagersFor, notify, notifyUsers } from "./notifications";
+import { checkLpb, type LpbCheckContext } from "./ocr/banks/lpb";
 import { checkMsb, type MsbCheckContext } from "./ocr/banks/msb";
 import { checkTpbank, type TpbCheckContext } from "./ocr/banks/tpbank";
 import { ocrImage } from "./ocr/image";
@@ -40,7 +41,8 @@ import { readImage } from "./storage";
 export const PHOTO_CHECK_CHANNEL = "bank_photo_check";
 
 type PhotoCheckContext = TpbCheckContext &
-  Pick<MsbCheckContext, "referralName" | "supportBranch">;
+  Pick<MsbCheckContext, "referralName" | "supportBranch"> &
+  Pick<LpbCheckContext, "openedDate">;
 
 type Checker = (texts: string[], ctx: PhotoCheckContext) => PhotoCheckItem[];
 
@@ -49,6 +51,7 @@ const CHECKERS: Record<string, Checker> = {
   MSBa: checkMsb,
   MSBb: checkMsb,
   TPB: checkTpbank,
+  LPB: checkLpb,
 };
 
 export const hasPhotoChecker = (bankCode: string): boolean => bankCode in CHECKERS;
@@ -268,6 +271,7 @@ export async function runPhotoCheck(run: PhotoCheckRun): Promise<PhotoCheckItem[
     .select({
       bankCode: banks.code,
       accountNumber: bankAccounts.accountNumber,
+      openedDate: bankAccounts.openedDate,
       customerName: customers.fullName,
       referralCode: referralCodes.code,
       referralName: referralCodes.displayName,
@@ -305,6 +309,7 @@ export async function runPhotoCheck(run: PhotoCheckRun): Promise<PhotoCheckItem[
     supportBranch: account.supportBranch,
     customerName: account.customerName,
     accountNumber: account.accountNumber ?? "",
+    openedDate: account.openedDate ?? "",
   });
 }
 
