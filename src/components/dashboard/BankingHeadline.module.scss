@@ -1,0 +1,19 @@
+/* Thẻ chỉ số chính rộng gấp đôi hai thẻ số bên phải: nó là câu trả lời cho
+   "kỳ này chạy tốt không", hai thẻ kia chỉ là số thô đỡ nó. */
+.headline {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 16px;
+  align-items: stretch;
+}
+
+/* Có thẻ thêm ở cuối hàng (ô điểm tổng của Tổng quan): bốn ô trên một hàng. */
+.headlineWide {
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+}
+
+@media (max-width: bp.$bp-tablet) {
+  .headline {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

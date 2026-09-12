@@ -168,7 +168,7 @@ export default function DepartmentsPage() {
             },
             {
               key: "customers",
-              label: "Khách hàng",
+              label: "Khách có TK",
               sortBy: (d) => statsById.get(d.id)?.customers ?? -1,
               render: (d) => statsById.get(d.id)?.customers ?? "—",
             },

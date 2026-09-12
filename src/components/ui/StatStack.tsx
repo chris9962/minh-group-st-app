@@ -5,6 +5,8 @@ export type StatStackItem = {
   label: string;
   /** Nhãn nhỏ nằm cạnh số, ví dụ điều kiện đi kèm. */
   badge?: string;
+  /** Tách con số theo loại: mỗi phần một số nhỏ kèm nhãn, xếp ngang dưới nhãn chính. */
+  breakdown?: { value: React.ReactNode; label: string }[];
 };
 
 /**
@@ -24,6 +26,16 @@ export function StatStack({ items }: { items: StatStackItem[] }) {
             {item.badge && <span className={styles.badge}>{item.badge}</span>}
           </div>
           <span className={styles.label}>{item.label}</span>
+          {item.breakdown && (
+            <dl className={styles.breakdown}>
+              {item.breakdown.map((part) => (
+                <div key={part.label}>
+                  <dt>{part.label}</dt>
+                  <dd className="tabular-nums">{part.value}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
         </div>
       ))}
     </div>

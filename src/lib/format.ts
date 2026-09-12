@@ -71,6 +71,11 @@ export function formatVnd(amount: number): string {
   return new Intl.NumberFormat('vi-VN').format(amount) + 'đ';
 }
 
+/** Số đếm cho người đọc: `1234` ra `1.234`. */
+export function formatCount(count: number): string {
+  return new Intl.NumberFormat('vi-VN').format(count);
+}
+
 /**
  * Điểm KPI cho người đọc: `1.2` ra `1,2`, `2` ra `2`, `8.400000000000001` ra `8,4`.
  *

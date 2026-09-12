@@ -44,6 +44,42 @@
   color: var(--om-text-2);
 }
 
+/* Số trên, nhãn dưới cho khớp bố cục của số chính. DOM giữ dt trước dd cho
+   đúng ngữ nghĩa nên đảo chiều bằng column-reverse. */
+.breakdown {
+  display: flex;
+  margin: 6px 0 0;
+}
+
+.breakdown > div {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 2px;
+  padding: 0 14px;
+}
+
+.breakdown > div:first-child {
+  padding-left: 0;
+}
+
+.breakdown > div + div {
+  border-left: 1px solid var(--om-line);
+}
+
+.breakdown dt {
+  font-size: 11.5px;
+  color: var(--om-text-3);
+  white-space: nowrap;
+}
+
+.breakdown dd {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.1;
+  color: var(--om-text);
+}
+
 .badge {
   flex: none;
   padding: 5px 11px;

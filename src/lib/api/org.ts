@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { DepartmentRanking } from './dashboard';
+import { BankingSummary, DepartmentRanking } from './dashboard';
 import { Department, DepartmentType } from '@/lib/types';
 
 /**
@@ -106,6 +106,17 @@ export async function fetchDepartmentDetail(id: string): Promise<DepartmentDetai
   const res = await fetch(`/api/org/departments/${id}`);
   if (!res.ok) throw new Error('Không tải được phòng ban này');
   return DepartmentDetail.parse(await res.json());
+}
+
+/** Khối số ngân hàng của một phòng trong kỳ — cùng hình dạng với Tổng quan. */
+export async function fetchDepartmentSummary(
+  id: string,
+  periodKey: string,
+): Promise<BankingSummary> {
+  const params = new URLSearchParams({ period: periodKey });
+  const res = await fetch(`/api/org/departments/${id}/summary?${params}`);
+  if (!res.ok) throw new Error('Không tải được số liệu của phòng');
+  return BankingSummary.parse(await res.json());
 }
 
 /** Lỗi nghiệp vụ ném ra dạng OrgError để form gắn được vào đúng ô nhập. */

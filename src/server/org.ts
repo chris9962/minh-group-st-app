@@ -1,5 +1,12 @@
-import { and, asc, count, eq, gte, inArray, lte, sql } from "drizzle-orm";
-import { businessDay, matchesSearch, monthRange, removeDiacritics, uniqueCode } from "@/lib/format";
+import { and, asc, count, eq, gt, gte, inArray, lte, sql } from "drizzle-orm";
+import {
+  BUSINESS_TIMEZONE,
+  businessDay,
+  matchesSearch,
+  monthRange,
+  removeDiacritics,
+  uniqueCode,
+} from "@/lib/format";
 import type { DepartmentType } from "@/lib/types";
 import {
   ORG_ERROR,
@@ -15,6 +22,7 @@ import {
   bankAccounts,
   bankGuideVariants,
   banks,
+  customers,
   departments,
   referralCodes,
   userManagedDepartments,
@@ -322,7 +330,9 @@ function periodRanges(key: string, today: string): { current: Range; previous: R
 }
 
 /**
- * Đếm tài khoản mở, app đã cài và số khách theo phòng, trong một khoảng ngày.
+ * Đếm tài khoản mở, app đã cài và khách có tài khoản theo phòng, trong một
+ * khoảng ngày. Hai số đầu đếm trên `bank_accounts` theo ngày mở, số khách đếm
+ * trên `customers` theo ngày lập hồ sơ — xem `customersWithAccountsIn`.
  *
  * Gộp theo `created_by_department_id` — cột trên chính dòng dữ liệu, không nối
  * sang `users`. Người chuyển phòng thì `writeStaff` viết lại cột đó cho mọi dòng
@@ -337,32 +347,86 @@ function periodRanges(key: string, today: string): { current: Range; previous: R
  * khoản có cài app hay không.
  */
 export async function statsByDepartment(range: Range) {
-  const rows = await db
-    .select({
-      departmentId: bankAccounts.createdByDepartmentId,
-      accountsOpened: sql<number>`count(*)::int`,
-      appsInstalled: appsInstalledCount,
-      customers: sql<number>`count(distinct ${bankAccounts.customerId})::int`,
-    })
-    .from(bankAccounts)
-    .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
-    .innerJoin(referralCodes, eq(referralCodes.id, bankAccounts.referralCodeId))
-    .leftJoin(bankGuideVariants, variantOfAccount)
-    .where(
-      and(
-        // Bản `creating` mới là lượt giữ chỗ mã, chưa phải tài khoản thật.
-        eq(bankAccounts.status, "done"),
-        gte(bankAccounts.openedDate, range.from),
-        lte(bankAccounts.openedDate, range.to),
-      ),
-    )
-    .groupBy(bankAccounts.createdByDepartmentId);
+  const [accountRows, customerRows] = await Promise.all([
+    db
+      .select({
+        departmentId: bankAccounts.createdByDepartmentId,
+        accountsOpened: sql<number>`count(*)::int`,
+        appsInstalled: appsInstalledCount,
+      })
+      .from(bankAccounts)
+      .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
+      .innerJoin(referralCodes, eq(referralCodes.id, bankAccounts.referralCodeId))
+      .leftJoin(bankGuideVariants, variantOfAccount)
+      .where(
+        and(
+          // Bản `creating` mới là lượt giữ chỗ mã, chưa phải tài khoản thật.
+          eq(bankAccounts.status, "done"),
+          gte(bankAccounts.openedDate, range.from),
+          lte(bankAccounts.openedDate, range.to),
+        ),
+      )
+      .groupBy(bankAccounts.createdByDepartmentId),
+    db
+      .select({
+        departmentId: customers.createdByDepartmentId,
+        customers: sql<number>`count(*)::int`,
+      })
+      .from(customers)
+      .where(customersWithAccountsIn(range))
+      .groupBy(customers.createdByDepartmentId),
+  ]);
 
-  return new Map(
-    rows
-      .filter((r) => r.departmentId !== null)
-      .map((r) => [r.departmentId as string, r]),
+  return mergeStats(accountRows, customerRows, (r) => r.departmentId);
+}
+
+type OrgStats = { accountsOpened: number; appsInstalled: number; customers: number };
+
+/**
+ * Cột "Khách có TK": hồ sơ LẬP trong kỳ và có ít nhất một tài khoản hoàn
+ * thành (chốt 2026-09-12). Cùng trục với thẻ khách hàng ở Tổng quan và cột
+ * cùng tên của bảng nhân viên.
+ *
+ * Trục cũ đếm khách theo tài khoản MỞ trong kỳ, nên cùng chữ "Khách hàng" mà
+ * ba màn ra ba số. Đọc `account_count` do trigger giữ, không nối `bank_accounts`.
+ */
+const customersWithAccountsIn = (range: Range) =>
+  and(
+    sql`${customers.createdAt} >= ((${range.from}::date)::timestamp at time zone ${BUSINESS_TIMEZONE})`,
+    sql`${customers.createdAt} < ((${range.to}::date + 1)::timestamp at time zone ${BUSINESS_TIMEZONE})`,
+    gt(customers.accountCount, 0),
   );
+
+/**
+ * Ghép hai lượt đếm theo cùng một khoá. Khoá chỉ có ở một bên vẫn có dòng:
+ * phòng có khách lập hồ sơ mà chưa mở tài khoản nào vẫn phải hiện số khách.
+ */
+function mergeStats<K extends { accountsOpened: number; appsInstalled: number }, C>(
+  accountRows: K[],
+  customerRows: (C & { customers: number })[],
+  keyOf: (row: K | C) => string | null,
+): Map<string, OrgStats> {
+  const map = new Map<string, OrgStats>();
+  const entry = (key: string): OrgStats => {
+    let s = map.get(key);
+    if (!s) {
+      s = { accountsOpened: 0, appsInstalled: 0, customers: 0 };
+      map.set(key, s);
+    }
+    return s;
+  };
+  for (const r of accountRows) {
+    const key = keyOf(r);
+    if (key === null) continue;
+    const s = entry(key);
+    s.accountsOpened = r.accountsOpened;
+    s.appsInstalled = r.appsInstalled;
+  }
+  for (const r of customerRows) {
+    const key = keyOf(r);
+    if (key !== null) entry(key).customers = r.customers;
+  }
+  return map;
 }
 
 /**
@@ -377,28 +441,39 @@ export async function statsByDepartment(range: Range) {
  * trong bảng của Giám đốc.
  */
 export async function statsByStaff(range: Range, departmentIds: string[]) {
-  const rows = await db
-    .select({
-      staffId: bankAccounts.createdBy,
-      accountsOpened: sql<number>`count(*)::int`,
-      appsInstalled: appsInstalledCount,
-      customers: sql<number>`count(distinct ${bankAccounts.customerId})::int`,
-    })
-    .from(bankAccounts)
-    .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
-    .innerJoin(referralCodes, eq(referralCodes.id, bankAccounts.referralCodeId))
-    .leftJoin(bankGuideVariants, variantOfAccount)
-    .where(
-      and(
-        eq(bankAccounts.status, "done"),
-        gte(bankAccounts.openedDate, range.from),
-        lte(bankAccounts.openedDate, range.to),
-        inArray(bankAccounts.createdByDepartmentId, departmentIds),
-      ),
-    )
-    .groupBy(bankAccounts.createdBy);
+  const [accountRows, customerRows] = await Promise.all([
+    db
+      .select({
+        staffId: bankAccounts.createdBy,
+        accountsOpened: sql<number>`count(*)::int`,
+        appsInstalled: appsInstalledCount,
+      })
+      .from(bankAccounts)
+      .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
+      .innerJoin(referralCodes, eq(referralCodes.id, bankAccounts.referralCodeId))
+      .leftJoin(bankGuideVariants, variantOfAccount)
+      .where(
+        and(
+          eq(bankAccounts.status, "done"),
+          gte(bankAccounts.openedDate, range.from),
+          lte(bankAccounts.openedDate, range.to),
+          inArray(bankAccounts.createdByDepartmentId, departmentIds),
+        ),
+      )
+      .groupBy(bankAccounts.createdBy),
+    db
+      .select({ staffId: customers.createdBy, customers: sql<number>`count(*)::int` })
+      .from(customers)
+      .where(
+        and(
+          customersWithAccountsIn(range),
+          inArray(customers.createdByDepartmentId, departmentIds),
+        ),
+      )
+      .groupBy(customers.createdBy),
+  ]);
 
-  return new Map(rows.filter((r) => r.staffId !== null).map((r) => [r.staffId as string, r]));
+  return mergeStats(accountRows, customerRows, (r) => r.staffId);
 }
 
 const rateOf = (opened: number, installed: number): number =>

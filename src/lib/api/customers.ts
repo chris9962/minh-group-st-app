@@ -163,6 +163,8 @@ export type CustomerQuery = PageQuery<CustomerSort> & {
    * ngoài phạm vi thì ra bảng rỗng.
    */
   departmentId: string;
+  /** Chỉ hồ sơ có ít nhất một tài khoản hoàn thành. `false` = không lọc. */
+  hasAccounts: boolean;
 };
 
 const CustomerPage = pageOf(CustomerRow);
@@ -182,6 +184,7 @@ export async function fetchCustomers(query: CustomerQuery): Promise<Page<Custome
       to: query.to,
       staffId: query.staffId,
       departmentId: query.departmentId,
+      hasAccounts: query.hasAccounts ? '1' : '',
     })}`,
   );
   if (!res.ok) throw new Error('Không tải được danh sách khách hàng');
@@ -246,7 +249,15 @@ export async function fetchCustomerLookup(
 /** Cùng bộ ô lọc với bảng P-40, trừ trang và sắp xếp. */
 export type CustomerExportQuery = Pick<
   CustomerQuery,
-  'search' | 'channelId' | 'channelDetail' | 'address' | 'staffId' | 'departmentId' | 'from' | 'to'
+  | 'search'
+  | 'channelId'
+  | 'channelDetail'
+  | 'address'
+  | 'staffId'
+  | 'departmentId'
+  | 'from'
+  | 'to'
+  | 'hasAccounts'
 >;
 
 /**
@@ -269,7 +280,7 @@ export async function fetchCustomersForExport(
 ): Promise<Page<CustomerExportRow>> {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(query)) {
-    if (value) params.set(key, value);
+    if (value) params.set(key, value === true ? '1' : value);
   }
   const res = await fetch(`/api/customers/export?${params}`);
   if (!res.ok) throw new Error('Không tải được danh sách khách hàng để xuất');

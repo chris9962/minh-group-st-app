@@ -221,8 +221,19 @@ else 0 end`;
 export const createdByEndOf = (yearMonth: string): SQL =>
   sql`${users.createdAt} < ((${monthRange(yearMonth).to}::date + 1)::timestamp at time zone ${BUSINESS_TIMEZONE})`;
 
-export type StaffCounts = { customers: number; accounts: number; services: number };
-const NO_STAFF_COUNTS: StaffCounts = { customers: 0, accounts: 0, services: 0 };
+export type StaffCounts = {
+  customers: number;
+  /** Trong `customers`, hồ sơ có ít nhất một tài khoản hoàn thành (`account_count > 0`). */
+  customersWithAccounts: number;
+  accounts: number;
+  services: number;
+};
+const NO_STAFF_COUNTS: StaffCounts = {
+  customers: 0,
+  customersWithAccounts: 0,
+  accounts: 0,
+  services: 0,
+};
 
 /**
  * Ba số đếm của một KHOẢNG NGÀY cho một NHÓM NGƯỜI CỤ THỂ, gộp theo người tạo.
@@ -261,7 +272,11 @@ export async function countsInRange(
 
   const [customerRows, accountRows, serviceRows] = await Promise.all([
     db
-      .select({ createdBy: customers.createdBy, n: sql<number>`count(*)::int` })
+      .select({
+        createdBy: customers.createdBy,
+        n: sql<number>`count(*)::int`,
+        withAccounts: sql<number>`count(*) filter (where ${customers.accountCount} > 0)::int`,
+      })
       .from(customers)
       .where(
         and(
@@ -298,7 +313,11 @@ export async function countsInRange(
       .groupBy(services.createdBy),
   ]);
 
-  for (const r of customerRows) entry(r.createdBy).customers = Number(r.n);
+  for (const r of customerRows) {
+    const c = entry(r.createdBy);
+    c.customers = Number(r.n);
+    c.customersWithAccounts = Number(r.withAccounts);
+  }
   for (const r of accountRows) entry(r.createdBy).accounts = Number(r.n);
   for (const r of serviceRows) entry(r.createdBy).services = Number(r.n);
   return map;

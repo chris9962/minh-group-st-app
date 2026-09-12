@@ -55,6 +55,8 @@ export const StaffRow = StaffAccount.extend({
    * chuyển sang cột đếm do trigger giữ, kèm đủ 5 điều kiện của db-design §9.
    */
   customers: z.number(),
+  /** Trong `customers`, hồ sơ có ít nhất một tài khoản hoàn thành. */
+  customersWithAccounts: z.number(),
   accounts: z.number(),
   services: z.number(),
   /**

@@ -116,12 +116,17 @@ const BASE_COLUMNS: RankColumn<StaffRow>[] = [
   },
   { key: "role", label: "Chức vụ", sortable: true, render: (r) => ROLE_LABEL[r.role] },
   /**
-   * Ba cột đếm của ĐÚNG tháng đang chọn, gộp theo người tạo.
+   * Bốn cột đếm của ĐÚNG tháng đang chọn, gộp theo người tạo.
    *
    * Không có `sortable` — máy chủ đếm SAU khi đã cắt trang nên nó không biết số
    * của những người ngoài trang. Xem `countsInRange` ở `server/people.ts`.
    */
-  { key: "customers", label: "Khách hàng", render: (r) => <Count n={r.customers} /> },
+  { key: "customers", label: "Tổng khách", render: (r) => <Count n={r.customers} /> },
+  {
+    key: "customersWithAccounts",
+    label: "Khách có TK",
+    render: (r) => <Count n={r.customersWithAccounts} />,
+  },
   { key: "accounts", label: "TK ngân hàng", render: (r) => <Count n={r.accounts} /> },
   { key: "services", label: "Dịch vụ", render: (r) => <Count n={r.services} /> },
   { key: "kpi", label: "Chỉ tiêu", sortable: true, render: (r) => <KpiGap row={r} /> },

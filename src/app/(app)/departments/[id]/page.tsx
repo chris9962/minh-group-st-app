@@ -5,7 +5,7 @@ import Link from "next/link";
 import { use, useState } from "react";
 import { UserCog, Users } from "lucide-react";
 import { BackLink } from "@/components/ui/BackLink";
-import { SkeletonCard, SkeletonTable } from "@/components/ui/Skeleton";
+import { SkeletonCard, SkeletonStats, SkeletonTable } from "@/components/ui/Skeleton";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { Count } from "@/components/ui/Count";
 import { ErrorState } from "@/components/ui/ErrorState";
@@ -16,12 +16,14 @@ import {
   type Period,
   PeriodPicker,
   periodDates,
+  periodKey,
 } from "@/components/ui/PeriodPicker";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusTag } from "@/components/ui/StatusTag";
+import { BankingHeadline } from "@/components/dashboard/BankingHeadline";
 import { EMPTY_PAGE } from "@/lib/api/pagination";
-import { fetchDepartmentDetail } from "@/lib/api/org";
+import { fetchDepartmentDetail, fetchDepartmentSummary } from "@/lib/api/org";
 import { fetchDepartmentStaff, type StaffRow } from "@/lib/api/staff";
 import { scopeFor, visibleDepartmentIds } from "@/lib/permissions";
 import { ROLE_LABEL, ROLE_RANK } from "@/lib/types";
@@ -67,9 +69,15 @@ const EMPLOYEE_COLUMNS: RankColumn<StaffRow>[] = [
   },
   {
     key: "customers",
-    label: "Khách hàng",
+    label: "Tổng khách",
     sortBy: (s) => s.customers,
     render: (s) => <Count n={s.customers} />,
+  },
+  {
+    key: "customersWithAccounts",
+    label: "Khách có TK",
+    sortBy: (s) => s.customersWithAccounts,
+    render: (s) => <Count n={s.customersWithAccounts} />,
   },
   {
     key: "accounts",
@@ -127,6 +135,21 @@ export default function DepartmentDetailPage({
     placeholderData: keepPreviousData,
   });
 
+  /** Khối số ngân hàng của phòng, cùng hàm đếm và cùng ba thẻ với Tổng quan. */
+  const { data: summary } = useQuery({
+    queryKey: ["org-department-summary", id, periodKey(period)],
+    queryFn: () => fetchDepartmentSummary(id, periodKey(period)),
+    enabled: Boolean(data),
+    placeholderData: keepPreviousData,
+  });
+
+  const periodLabel =
+    period.kind === "today"
+      ? "hôm nay"
+      : period.kind === "this-month"
+        ? "tháng này"
+        : "khoảng đã chọn";
+
   /**
    * Phòng ban mở được rộng hơn danh sách nhân viên của nó.
    *
@@ -152,11 +175,12 @@ export default function DepartmentDetailPage({
   const totals = visibleRows.reduce(
     (sum, staff) => ({
       customers: sum.customers + staff.customers,
+      customersWithAccounts: sum.customersWithAccounts + staff.customersWithAccounts,
       accounts: sum.accounts + staff.accounts,
       services: sum.services + staff.services,
       points: sum.points + (staff.rangePoints ?? 0),
     }),
-    { customers: 0, accounts: 0, services: 0, points: 0 },
+    { customers: 0, customersWithAccounts: 0, accounts: 0, services: 0, points: 0 },
   );
   const totalPoints = Math.round(totals.points * 10) / 10;
 
@@ -186,6 +210,12 @@ export default function DepartmentDetailPage({
 
         {data && (
           <>
+            {summary ? (
+              <BankingHeadline summary={summary} periodLabel={periodLabel} />
+            ) : (
+              <SkeletonStats count={3} />
+            )}
+
             <SectionCard title="Người quản lý" icon={<UserCog size={17} />}>
               <ul className={styles.managers}>
                 {data.managers.map((m) => (
@@ -249,6 +279,7 @@ export default function DepartmentDetailPage({
                           null,
                           null,
                           <Count key="customers" n={totals.customers} />,
+                          <Count key="customersWithAccounts" n={totals.customersWithAccounts} />,
                           <Count key="accounts" n={totals.accounts} />,
                           <Count key="services" n={totals.services} />,
                           <span key="points" className="tabular-nums">

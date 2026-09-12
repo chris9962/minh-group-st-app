@@ -47,6 +47,7 @@ export async function GET(request: Request) {
     // Phạm vi `creator` đè lên ô Nhân viên: người chỉ xuất được khách mình lập
     // không chọn được người khác qua tham số.
     createdBy: view.kind === "creator" ? view.userId : uuidParam(params.get("staffId")),
+    hasAccounts: params.get("hasAccounts") === "1",
   });
 
   /**

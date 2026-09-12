@@ -1,6 +1,5 @@
 "use client";
 
-import { clsx } from "clsx";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Briefcase, Gift, ShieldCheck, Trophy } from "lucide-react";
@@ -9,7 +8,6 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
 import { BarChart } from "@/components/ui/BarChart";
 import { FilterButton } from "@/components/ui/FilterButton";
-import { KpiHighlight } from "@/components/ui/KpiHighlight";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { RateDelta } from "@/components/ui/RateDelta";
 import {
@@ -21,10 +19,11 @@ import {
 } from "@/components/ui/PeriodPicker";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatCard } from "@/components/ui/StatCard";
-import { StatStack } from "@/components/ui/StatStack";
+import { BankingHeadline } from "@/components/dashboard/BankingHeadline";
 import { StaffDashboard } from "@/components/dashboard/StaffDashboard";
 import { fetchDashboard, type DepartmentRanking } from "@/lib/api/dashboard";
 import { useChartColors } from "@/lib/chart-colors";
+import { formatCount, formatPoints } from "@/lib/format";
 import styles from "./page.module.scss";
 
 /** Trục ngang của biểu đồ đổi theo kỳ — một ngày thì chia giờ, dài hơn thì chia ngày. */
@@ -48,13 +47,13 @@ const rankingColumns = (kind: "department" | "staff"): RankColumn<DepartmentRank
     key: "accountsOpened",
     label: "TK mở",
     sortBy: (d) => d.accountsOpened,
-    render: (d) => d.accountsOpened,
+    render: (d) => formatCount(d.accountsOpened),
   },
   {
     key: "appsInstalled",
     label: "App cài",
     sortBy: (d) => d.appsInstalled,
-    render: (d) => d.appsInstalled,
+    render: (d) => formatCount(d.appsInstalled),
   },
   {
     key: "installRate",
@@ -73,9 +72,9 @@ const rankingColumns = (kind: "department" | "staff"): RankColumn<DepartmentRank
   },
   {
     key: "customers",
-    label: "Khách hàng",
+    label: "Khách có TK",
     sortBy: (d) => d.customers,
-    render: (d) => d.customers,
+    render: (d) => formatCount(d.customers),
   },
   {
     key: "points",
@@ -84,7 +83,7 @@ const rankingColumns = (kind: "department" | "staff"): RankColumn<DepartmentRank
     // tài khoản (thể lệ câu 7.11). Hai cách lệch nhau ở ca mở hộ tài khoản cho
     // khách của đồng nghiệp, và cột điểm phải khớp bảng lương.
     sortBy: (d) => d.points ?? 0,
-    render: (d) => <span className="tabular-nums">{d.points ?? 0}</span>,
+    render: (d) => <span className="tabular-nums">{formatPoints(d.points ?? 0)}</span>,
   },
 ];
 
@@ -130,8 +129,8 @@ export default function DashboardPage() {
         ? "tháng trước"
         : null;
 
-  const previous = data?.installRate.previousPercent ?? null;
-  const installGap = previous === null ? null : data!.installRate.percent - previous;
+  const previous = data?.banking.previousInstallPercent ?? null;
+  const installGap = previous === null ? null : data!.banking.installPercent - previous;
 
   return (
     <>
@@ -183,51 +182,23 @@ export default function DashboardPage() {
               Phạm vi: <strong>{overview!.scopeLabel}</strong>
             </p>
 
-            <div
-              className={clsx(styles.headline, data.scopePoints !== null && styles.headlineWide)}
+            <BankingHeadline
+              summary={data.banking}
+              periodLabel={periodLabel}
+              delta={
+                installGap === null
+                  ? undefined
+                  : {
+                      up: installGap >= 0,
+                      text: `${previousLabel} ${previous}% (${installGap >= 0 ? "↑" : "↓"} ${Math.abs(installGap)}%)`,
+                    }
+              }
+              appsCompanion={{
+                value: formatCount(data.banking.giftsPending),
+                label: "chưa phát thưởng",
+                badge: "Đủ ĐK quà",
+              }}
             >
-              <KpiHighlight
-                ariaLabel="Tỉ lệ cài app trên số tài khoản mở"
-                percent={data.installRate.percent}
-                description={
-                  <>
-                    tỉ lệ cài app trên
-                    <br />
-                    số tài khoản mở
-                  </>
-                }
-                detail={`${data.installRate.appsInstalled} app / ${data.installRate.accountsOpened} tài khoản mở ${periodLabel}`}
-                delta={
-                  installGap === null
-                    ? undefined
-                    : {
-                        up: installGap >= 0,
-                        text: `${previousLabel} ${previous}% (${installGap >= 0 ? "↑" : "↓"} ${Math.abs(installGap)}%)`,
-                      }
-                }
-              />
-
-              <StatStack
-                items={[
-                  { value: data.banking.accountsOpened, label: "tài khoản mở" },
-                  {
-                    value: data.banking.customers,
-                    label: `khách hàng ${periodLabel}`,
-                  },
-                ]}
-              />
-
-              <StatStack
-                items={[
-                  { value: data.banking.appsInstalled, label: "app đã cài" },
-                  {
-                    value: data.banking.giftsPending,
-                    label: "chưa phát thưởng",
-                    badge: "Đủ ĐK quà",
-                  },
-                ]}
-              />
-
               {/* Giám đốc thấy điểm cả công ty; Trưởng phòng, Phó phòng và Phó
                   GĐ thấy điểm phòng mình. Nhân viên xem mặt cá nhân nên máy chủ
                   trả `null`.
@@ -236,14 +207,14 @@ export default function DashboardPage() {
                   phải hiện ô, chứ không phải ẩn đi như người không có quyền. */}
               {data.scopePoints !== null && (
                 <StatCard
-                  value={data.scopePoints.points}
+                  value={formatPoints(data.scopePoints.points)}
                   label={
                     data.scopePoints.kind === "company" ? "điểm tổng cty" : "điểm tổng phòng"
                   }
                   detail={`${overview!.scopeLabel} ${periodLabel}`}
                 />
               )}
-            </div>
+            </BankingHeadline>
 
             <div className={styles.grid}>
               <SectionCard
@@ -253,23 +224,26 @@ export default function DashboardPage() {
               >
                 <div className={styles.statRow}>
                   <StatCard
-                    value={data.insurance.createdToday}
+                    value={formatCount(data.insurance.createdToday)}
                     label={`đơn BH tạo ${periodLabel}`}
-                    detail={`BH tai nạn điện ${data.insurance.electricCount} · BH xe máy ${data.insurance.motorbikeCount}`}
+                    detail={`BH tai nạn điện ${formatCount(data.insurance.electricCount)} · BH xe máy ${formatCount(data.insurance.motorbikeCount)}`}
                   />
                   <StatCard
-                    value={data.insurance.completed}
+                    value={formatCount(data.insurance.completed)}
                     label="hoàn thành"
                     detail={`${data.insurance.completedPercent}%`}
                   />
                   <StatCard
-                    value={data.insurance.pending}
+                    value={formatCount(data.insurance.pending)}
                     label="đơn tồn hiện tại"
-                    detail={`${data.insurance.pendingBot} đang chạy · ${data.insurance.pendingManual} chờ làm tay`}
+                    detail={`${formatCount(data.insurance.pendingBot)} đang chạy · ${formatCount(data.insurance.pendingManual)} chờ làm tay`}
                   />
                   {/* Đứng riêng vì nó KHÔNG nằm trong ô "đơn BH tạo" bên trái —
                       hai số cộng lại mới ra tổng đơn đã lập trong kỳ. */}
-                  <StatCard value={data.insurance.cancelled} label={`huỷ ${periodLabel}`} />
+                  <StatCard
+                    value={formatCount(data.insurance.cancelled)}
+                    label={`huỷ ${periodLabel}`}
+                  />
                 </div>
 
                 <BarChart
@@ -300,8 +274,8 @@ export default function DashboardPage() {
                   defaultSort="accountsOpened"
                   caption={
                     data.rankingKind === "staff"
-                      ? "Xếp hạng nhân viên trong phòng theo số tài khoản mở, app đã cài, tỉ lệ cài app và số khách hàng"
-                      : "Xếp hạng phòng kinh doanh theo số tài khoản mở, app đã cài, tỉ lệ cài app và số khách hàng"
+                      ? "Xếp hạng nhân viên trong phòng theo số tài khoản mở, app đã cài, tỉ lệ cài app và số khách có tài khoản"
+                      : "Xếp hạng phòng kinh doanh theo số tài khoản mở, app đã cài, tỉ lệ cài app và số khách có tài khoản"
                   }
                 />
               </SectionCard>
@@ -315,13 +289,13 @@ export default function DashboardPage() {
                   {data.services.byType.map((s) => (
                     <div key={s.label}>
                       <dt>{s.label}</dt>
-                      <dd className="tabular-nums">{s.count}</dd>
+                      <dd className="tabular-nums">{formatCount(s.count)}</dd>
                     </div>
                   ))}
                 </dl>
                 <p className={styles.footnote}>
                   Xã nhiều nhất · {data.services.topWard.name}{" "}
-                  <span className="tabular-nums">{data.services.topWard.count}</span>
+                  <span className="tabular-nums">{formatCount(data.services.topWard.count)}</span>
                 </p>
               </SectionCard>
 
@@ -334,7 +308,7 @@ export default function DashboardPage() {
                   {data.gifts.byType.map((g) => (
                     <div key={g.label}>
                       <dt>{g.label}</dt>
-                      <dd className="tabular-nums">{g.count}</dd>
+                      <dd className="tabular-nums">{formatCount(g.count)}</dd>
                     </div>
                   ))}
                 </dl>

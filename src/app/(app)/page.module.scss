@@ -9,26 +9,6 @@
   min-width: 0;
 }
 
-/* Thẻ chỉ số chính rộng gấp đôi hai thẻ số bên phải: nó là câu trả lời cho
-   "hôm nay công ty chạy tốt không", hai thẻ kia chỉ là số thô đỡ nó. */
-.headline {
-  display: grid;
-  grid-template-columns: 2fr 1fr 1fr;
-  gap: 16px;
-  align-items: stretch;
-}
-
-/* Người xem toàn công ty có thêm ô "điểm tổng cty" — bốn ô trên một hàng. */
-.headlineWide {
-  grid-template-columns: 2fr 1fr 1fr 1fr;
-}
-
-@media (max-width: bp.$bp-tablet) {
-  .headline {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
 .grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -92,14 +72,6 @@
 }
 
 @media (max-width: bp.$bp-tablet) {
-  .headline {
-    flex-direction: column;
-  }
-
-  .headline > :first-child {
-    width: auto;
-  }
-
   .grid {
     grid-template-columns: 1fr;
   }

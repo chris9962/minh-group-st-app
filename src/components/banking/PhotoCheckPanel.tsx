@@ -41,7 +41,9 @@ const VERDICT_TEXT: Record<PhotoCheckVerdict, string> = {
  *
  * `onConfirm` có thì bày nút "Xác nhận đạt" khi máy chấm không đạt hết: người
  * duyệt xem ảnh, thấy máy đọc sai, bấm là cột ngoài bảng thành đạt hết. Đã xác
- * nhận thì nút đổi thành "Bỏ xác nhận". Cả hai nút chỉ người quản ngân hàng có.
+ * nhận thì nút đổi thành "Bỏ xác nhận" và khối ẩn danh sách từng ảnh: kết quả
+ * máy chấm không còn giá trị, chỉ giữ dòng ai xác nhận lúc nào. Cả hai nút chỉ
+ * người quản ngân hàng có.
  */
 export function PhotoCheckPanel({
   check,
@@ -101,7 +103,7 @@ export function PhotoCheckPanel({
           Người duyệt xác nhận đạt: <b>{check.confirmedByName}</b>, {formatDateTime(check.confirmedAt)}
         </p>
       )}
-      {check.status === "done" && (
+      {check.status === "done" && !confirmed && (
         <ul className={styles.list}>
           {ORDER.map((key) => {
             const item = check.items.find((i) => i.key === key);

@@ -15,6 +15,11 @@ export const DepartmentRanking = z.object({
   name: z.string(),
   accountsOpened: z.number(),
   appsInstalled: z.number(),
+  /**
+   * Khách CÓ tài khoản: hồ sơ LẬP trong kỳ và có ít nhất một tài khoản hoàn
+   * thành (chốt 2026-09-12). Trục khác hai số trên (tài khoản MỞ trong kỳ),
+   * cùng trục với `BankingSummary.customersWithAccounts`.
+   */
   customers: z.number(),
   /**
    * Tỉ lệ cài của kỳ liền trước, để so tăng/giảm. `null` khi không có kỳ nào
@@ -36,18 +41,54 @@ export const DepartmentRanking = z.object({
 });
 export type DepartmentRanking = z.infer<typeof DepartmentRanking>;
 
+/**
+ * Khối số ngân hàng của một phạm vi trong một kỳ. Tổng quan P-80 và chi tiết
+ * phòng ban P-91 cùng đọc hình dạng này, máy chủ tính ở một chỗ
+ * (`bankingSummaryFor` ở `server/dashboard.ts`).
+ */
+export const BankingSummary = z.object({
+  accountsOpened: z.number(),
+  appsInstalled: z.number(),
+  /** Tỉ lệ cài app trên số tài khoản mở, 0–100. */
+  installPercent: z.number(),
+  /**
+   * Tỉ lệ riêng của những ngân hàng đội theo dõi sát, thứ tự do máy chủ quyết
+   * (`INSTALL_RATE_BANKS` ở `server/dashboard.ts`). Cùng cách đếm với ba số
+   * trên, chỉ lọc thêm theo ngân hàng.
+   */
+  installRateByBank: z.array(
+    z.object({
+      code: z.string(),
+      percent: z.number(),
+      appsInstalled: z.number(),
+      accountsOpened: z.number(),
+    }),
+  ),
+  /**
+   * Số hồ sơ khách LẬP trong kỳ — trục khác ba số trên (tài khoản MỞ trong
+   * kỳ), vì thẻ này phải đếm được cả khách chưa hoàn thành tài khoản nào.
+   */
+  customers: z.number(),
+  /** Trong `customers`, hồ sơ có ít nhất một tài khoản hoàn thành. */
+  customersWithAccounts: z.number(),
+  /**
+   * `customers` chia theo số tài khoản hoàn thành 0, 1, 2, 3: phần tử thứ i là
+   * số khách có i tài khoản. Không dính gì tới cài app. Bốn số cộng lại bằng
+   * `customers`; ba số sau cộng lại bằng `customersWithAccounts`.
+   */
+  customersByAccounts: z.tuple([z.number(), z.number(), z.number(), z.number()]),
+});
+export type BankingSummary = z.infer<typeof BankingSummary>;
+
 export const DashboardData = z.object({
-  /** Chỉ số quan trọng nhất: tỉ lệ cài app trên số tài khoản mở. */
-  installRate: z.object({
-    percent: z.number(),
-    appsInstalled: z.number(),
-    accountsOpened: z.number(),
+  banking: BankingSummary.extend({
     /**
-     * Tỉ lệ của kỳ liền trước: hôm nay so hôm qua, tháng này so tháng trước.
-     * `null` khi người dùng tự chọn khoảng ngày — một khoảng tuỳ ý không có
-     * "kỳ liền trước" nào định nghĩa được.
+     * Tỉ lệ cài app của kỳ liền trước: hôm nay so hôm qua, tháng này so tháng
+     * trước. `null` khi người dùng tự chọn khoảng ngày — một khoảng tuỳ ý không
+     * có "kỳ liền trước" nào định nghĩa được.
      */
-    previousPercent: z.number().nullable(),
+    previousInstallPercent: z.number().nullable(),
+    giftsPending: z.number(),
   }),
   /**
    * Tổng điểm KPI của PHẠM VI người xem, trong kỳ xem.
@@ -62,13 +103,6 @@ export const DashboardData = z.object({
     .object({ kind: z.enum(['company', 'departments']), points: z.number() })
     .nullable()
     .default(null),
-  banking: z.object({
-    accountsOpened: z.number(),
-    appsInstalled: z.number(),
-    /** Số khách hàng có phát sinh trong kỳ. */
-    customers: z.number(),
-    giftsPending: z.number(),
-  }),
   insurance: z.object({
     createdToday: z.number(),
     /** Bảo hiểm tai nạn hộ sử dụng điện. */

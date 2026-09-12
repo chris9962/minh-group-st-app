@@ -1,5 +1,10 @@
 import { and, desc, eq, gte, inArray, lte, sql, type SQL } from "drizzle-orm";
-import type { DashboardData, DashboardDraftAccount, DepartmentRanking } from "@/lib/api/dashboard";
+import type {
+  BankingSummary,
+  DashboardData,
+  DashboardDraftAccount,
+  DepartmentRanking,
+} from "@/lib/api/dashboard";
 import { BUSINESS_TIMEZONE, businessDay, monthRange } from "@/lib/format";
 import { recordVisibility } from "@/lib/permissions";
 import type { User } from "@/lib/types";
@@ -194,12 +199,17 @@ const serviceCols: Scoped = {
   departmentId: services.createdByDepartmentId,
   createdBy: services.createdBy,
 };
+/** Cột đọc là `created_by_department_id`, snapshot lúc lập hồ sơ (#8). */
+const customerCols: Scoped = {
+  departmentId: customers.createdByDepartmentId,
+  createdBy: customers.createdBy,
+};
 
 /* ── Từng khối số liệu ─────────────────────────────────────────────────── */
 
-type BankingTotals = { accountsOpened: number; appsInstalled: number; customers: number };
+type BankingTotals = { accountsOpened: number; appsInstalled: number };
 
-const EMPTY_BANKING: BankingTotals = { accountsOpened: 0, appsInstalled: 0, customers: 0 };
+const EMPTY_BANKING: BankingTotals = { accountsOpened: 0, appsInstalled: 0 };
 
 /**
  * Tài khoản `done` mở trong kỳ. Bản `creating` là lượt giữ chỗ mã, chưa phải
@@ -218,25 +228,137 @@ async function bankingTotals(
     .select({
       accountsOpened: sql<number>`count(*)::int`,
       appsInstalled: appsInstalledCount,
-      customers: sql<number>`count(distinct ${bankAccounts.customerId})::int`,
     })
     .from(bankAccounts)
     .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
     .innerJoin(referralCodes, eq(referralCodes.id, bankAccounts.referralCodeId))
     .leftJoin(bankGuideVariants, variantOfAccount)
+    .where(doneInRange(v, actorId, range));
+  return row ?? EMPTY_BANKING;
+}
+
+const doneInRange = (v: DashboardVisibility, actorId: string, range: Range): SQL =>
+  and(
+    eq(bankAccounts.status, "done"),
+    gte(bankAccounts.openedDate, range.from),
+    lte(bankAccounts.openedDate, range.to),
+    scopeCondition(v, actorId, bankingCols),
+  ) as SQL;
+
+type CustomersByAccounts = {
+  customers: number;
+  customersWithAccounts: number;
+  byAccounts: [number, number, number, number];
+};
+
+/**
+ * Hồ sơ khách LẬP trong kỳ, chia theo số tài khoản hoàn thành 0, 1, 2, 3
+ * (chốt 2026-09-12). Không dính gì tới cài app.
+ *
+ * Trục khác `bankingTotals`: bên đó đếm tài khoản MỞ trong kỳ, nên khách chưa
+ * hoàn thành tài khoản nào không có mặt. Thẻ này phải đếm được cả họ, nên đọc
+ * bảng `customers` theo ngày lập hồ sơ.
+ *
+ * Đọc cột `account_count` do trigger giữ (số tài khoản `done` của hồ sơ), không
+ * đếm lại `bank_accounts`. Ô 3 viết `>= 3` chứ không `= 3`: dòng HKD không
+ * chiếm trần 3 nên một hồ sơ có thể quá 3 dòng; hồ sơ đó vẫn nằm trong một ô,
+ * bốn ô cộng lại luôn bằng `customers`.
+ */
+async function customersByAccounts(
+  v: DashboardVisibility,
+  actorId: string,
+  range: Range,
+): Promise<CustomersByAccounts> {
+  const [row] = await db
+    .select({
+      customers: sql<number>`count(*)::int`,
+      zero: sql<number>`count(*) filter (where ${customers.accountCount} = 0)::int`,
+      one: sql<number>`count(*) filter (where ${customers.accountCount} = 1)::int`,
+      two: sql<number>`count(*) filter (where ${customers.accountCount} = 2)::int`,
+      three: sql<number>`count(*) filter (where ${customers.accountCount} >= 3)::int`,
+    })
+    .from(customers)
     .where(
       and(
-        eq(bankAccounts.status, "done"),
-        gte(bankAccounts.openedDate, range.from),
-        lte(bankAccounts.openedDate, range.to),
-        scopeCondition(v, actorId, bankingCols),
+        sql`${customers.createdAt} >= ((${range.from}::date)::timestamp at time zone ${BUSINESS_TIMEZONE})`,
+        sql`${customers.createdAt} < ((${range.to}::date + 1)::timestamp at time zone ${BUSINESS_TIMEZONE})`,
+        scopeCondition(v, actorId, customerCols),
       ),
     );
-  return row ?? EMPTY_BANKING;
+  const byAccounts: CustomersByAccounts["byAccounts"] = [
+    row?.zero ?? 0,
+    row?.one ?? 0,
+    row?.two ?? 0,
+    row?.three ?? 0,
+  ];
+  return {
+    customers: row?.customers ?? 0,
+    customersWithAccounts: byAccounts[1] + byAccounts[2] + byAccounts[3],
+    byAccounts,
+  };
 }
 
 const rateOf = (opened: number, installed: number): number =>
   opened === 0 ? 0 : Math.round((installed / opened) * 100);
+
+/**
+ * Ngân hàng hiện tỉ lệ cài app riêng dưới thanh tổng, đúng thứ tự này (chốt
+ * 2026-09-12). VPa và VPb, MSBa và MSBb là bốn ngân hàng riêng trong hệ thống
+ * (spec §2.6) nên phải ghi đúng mã, không ghi "MSB".
+ */
+const INSTALL_RATE_BANKS = ["VPa", "MSBb"];
+
+/** Ngân hàng không có tài khoản nào trong kỳ vẫn có dòng, số 0. */
+async function installRateByBank(
+  v: DashboardVisibility,
+  actorId: string,
+  range: Range,
+): Promise<BankingSummary["installRateByBank"]> {
+  const rows = await db
+    .select({
+      code: banks.code,
+      accountsOpened: sql<number>`count(*)::int`,
+      appsInstalled: appsInstalledCount,
+    })
+    .from(bankAccounts)
+    .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
+    .innerJoin(referralCodes, eq(referralCodes.id, bankAccounts.referralCodeId))
+    .leftJoin(bankGuideVariants, variantOfAccount)
+    .where(and(doneInRange(v, actorId, range), inArray(banks.code, INSTALL_RATE_BANKS)))
+    .groupBy(banks.code);
+
+  return INSTALL_RATE_BANKS.map((code) => {
+    const row = rows.find((r) => r.code === code);
+    const accountsOpened = row?.accountsOpened ?? 0;
+    const appsInstalled = row?.appsInstalled ?? 0;
+    return { code, percent: rateOf(accountsOpened, appsInstalled), appsInstalled, accountsOpened };
+  });
+}
+
+/**
+ * Khối số ngân hàng của một phạm vi trong một kỳ — Tổng quan P-80 và chi tiết
+ * phòng ban P-91 cùng gọi, để hai màn không bao giờ đếm khác nhau.
+ */
+export async function bankingSummaryFor(
+  v: DashboardVisibility,
+  actorId: string,
+  range: Range,
+): Promise<BankingSummary> {
+  const [totals, profiles, byBank] = await Promise.all([
+    bankingTotals(v, actorId, range),
+    customersByAccounts(v, actorId, range),
+    installRateByBank(v, actorId, range),
+  ]);
+  return {
+    accountsOpened: totals.accountsOpened,
+    appsInstalled: totals.appsInstalled,
+    installPercent: rateOf(totals.accountsOpened, totals.appsInstalled),
+    installRateByBank: byBank,
+    customers: profiles.customers,
+    customersWithAccounts: profiles.customersWithAccounts,
+    customersByAccounts: profiles.byAccounts,
+  };
+}
 
 /**
  * Đơn bảo hiểm đếm theo `order_date`, KHÔNG theo `start_date`.
@@ -599,7 +721,7 @@ export async function dashboardFor(
 
   const [banking, previousBanking, insurance, servicesData, gifts, ranked, scopeLabel, points] =
     await Promise.all([
-      bankingTotals(v, actor.id, current),
+      bankingSummaryFor(v, actor.id, current),
       previous ? bankingTotals(v, actor.id, previous) : Promise.resolve(null),
       insuranceBlock(v, actor.id, current),
       servicesBlock(v, actor.id, current),
@@ -632,21 +754,14 @@ export async function dashboardFor(
   return {
     scopeLabel,
     data: {
-      installRate: {
-        percent: rateOf(banking.accountsOpened, banking.appsInstalled),
-        appsInstalled: banking.appsInstalled,
-        accountsOpened: banking.accountsOpened,
+      banking: {
+        ...banking,
         // Kỳ trước không mở tài khoản nào thì KHÔNG có tỉ lệ để so: 0% so với
         // "chưa có gì" là phép trừ vô nghĩa, và mũi tên giảm đọc ra như tai nạn.
-        previousPercent:
+        previousInstallPercent:
           previousBanking && previousBanking.accountsOpened > 0
             ? rateOf(previousBanking.accountsOpened, previousBanking.appsInstalled)
             : null,
-      },
-      banking: {
-        accountsOpened: banking.accountsOpened,
-        appsInstalled: banking.appsInstalled,
-        customers: banking.customers,
         giftsPending: gifts.pending,
       },
       insurance,

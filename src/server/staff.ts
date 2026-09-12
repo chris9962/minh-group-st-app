@@ -276,6 +276,7 @@ export async function staffFor(
         points: scoreById.get(a.id)?.points ?? 0,
         target: scoreById.get(a.id)?.target ?? 100,
         customers: countsById.get(a.id)?.customers ?? 0,
+        customersWithAccounts: countsById.get(a.id)?.customersWithAccounts ?? 0,
         accounts: countsById.get(a.id)?.accounts ?? 0,
         services: countsById.get(a.id)?.services ?? 0,
         rangePoints: rangePoints ? (rangePoints.get(a.id)?.points ?? 0) : null,
