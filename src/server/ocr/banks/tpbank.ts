@@ -222,7 +222,7 @@ export function nameMatches(ocrName: string, expected: string): boolean {
 /* ── Màn "Chuyển thành công" ──────────────────────────────────────────── */
 
 /**
- * Màn kết quả chuyển khoản, HAI biến thể (đo 2026-09-11 và 2026-09-12).
+ * Màn kết quả chuyển khoản, BA biến thể (đo 2026-09-11 và 2026-09-12).
  *
  * Biến thể 1, ngay sau khi chuyển:
  *
@@ -247,11 +247,34 @@ export function nameMatches(ocrName: string, expected: string): boolean {
  *
  * Biến thể 2 KHÔNG có chữ TPBank, chỉ có logo. Nhận ra bằng bố cục riêng của
  * app TPBank: tiêu đề "Chi Tiết Giao Dịch" cộng nhãn "Từ tài khoản".
+ *
+ * Biến thể 3, màn danh sách lịch sử giao dịch (đo 2026-09-12):
+ *
+ *   1000 5490 258                       số tài khoản của khách, đầu màn
+ *   Lịch sử giao dịch                   tên tab, dùng để nhận ra màn này
+ *   Thông tin tài khoản
+ *   12/09/2026 - Thứ Bảy
+ *   Tới: LE VAN KHANH                   người kia, KHÔNG phải khách
+ *   Nguyen Thi Bich Thuy chuyen tien QR
+ *   - 52,000 VND
+ *   SD: 2,000 VND
+ *   Từ: LE VAN KHANH chuyen tien
+ *   FT26255378752305
+ *   + 52,000 VND
+ *   SD: 54,000 VND
+ *
+ * Không có chữ "thành công": số dư "SD:" in ngay sau mỗi dòng tự nói giao dịch
+ * đã chốt sổ, coi như thành công. Tên người kia ở nhãn "Từ:"/"Tới:" không phải
+ * khách nên KHÔNG lấy làm `fromName` — chỉ lấy được `fromAccount` từ số tài
+ * khoản in ở đầu màn, và `amountText` từ dòng tiền của giao dịch đầu tiên.
  */
 export type TpbTransfer = {
-  /** Có chữ "TPBank", hoặc bố cục "Chi Tiết Giao Dịch" + "Từ tài khoản" của app TPBank. */
+  /**
+   * Có chữ "TPBank", bố cục "Chi Tiết Giao Dịch" + "Từ tài khoản", hoặc tên
+   * tab "Lịch sử giao dịch" của app TPBank.
+   */
   bank: boolean;
-  /** Có dòng "Chuyển thành công" hoặc "Giao dịch thành công". */
+  /** Có dòng "Chuyển thành công", "Giao dịch thành công", hoặc là màn lịch sử giao dịch. */
   success: boolean;
   /** Tên người gửi, chỉ biến thể 2. In hoa không dấu, có thể mất khoảng trắng. */
   fromName: string;
@@ -310,10 +333,25 @@ export function parseTpbTransfer(ocrText: string): TpbTransfer {
   }
 
   const detailLayout = hasPhrase(lines, "CHITIETGIAODICH") && fromAt >= 0;
+  const historyLayout = hasPhrase(lines, "LICHSUGIAODICH");
+
+  // Biến thể 3: số tài khoản của khách in ở đầu màn, trước mọi dòng giao
+  // dịch. Không lấy nhầm số tham chiếu `FT...`: đó là chữ cái đứng đầu, còn
+  // `ACCOUNT` chỉ khớp cụm toàn chữ số.
+  if (historyLayout && !fromAccount) {
+    for (const raw of lines) {
+      const m = stripAccents(raw).match(ACCOUNT);
+      if (m) {
+        fromAccount = m[0].replace(/\s/g, "");
+        break;
+      }
+    }
+  }
 
   const out: TpbTransfer = {
-    bank: hasPhrase(lines, "TPBANK") || detailLayout,
-    success: hasPhrase(lines, "CHUYENTHANHCONG") || hasPhrase(lines, "GIAODICHTHANHCONG"),
+    bank: hasPhrase(lines, "TPBANK") || detailLayout || historyLayout,
+    success:
+      hasPhrase(lines, "CHUYENTHANHCONG") || hasPhrase(lines, "GIAODICHTHANHCONG") || (historyLayout && !!amountText),
     fromName,
     fromAccount,
     amountText,
