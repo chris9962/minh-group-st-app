@@ -150,6 +150,8 @@ export const notificationKind = pgEnum("notification_kind", [
   "announcement",
   // Ảnh chứng minh chưa đạt xác thực OCR, cho nhân viên tạo tài khoản, migration 0089.
   "bank-photo-fail",
+  // Tài khoản không đạt xác thực ảnh, cho người quản lý ngân hàng, migration 0091.
+  "bank-photo-review",
 ]);
 
 /** P-96 · Góp ý đã xử lý hay chưa. Hai trạng thái, thêm ở migration 0052. */

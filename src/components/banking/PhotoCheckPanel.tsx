@@ -4,6 +4,7 @@ import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusTag, type StatusTone } from "@/components/ui/StatusTag";
 import {
   PHOTO_CHECK_LABEL,
+  photoCheckIssueLabels,
   type PhotoCheck,
   type PhotoCheckKey,
   type PhotoCheckVerdict,
@@ -108,13 +109,17 @@ export function PhotoCheckPanel({
           {ORDER.map((key) => {
             const item = check.items.find((i) => i.key === key);
             const verdict = item?.verdict ?? "missing";
+            const label =
+              item && verdict !== "pass"
+                ? photoCheckIssueLabels(item).join(", ")
+                : item?.label || PHOTO_CHECK_LABEL[key];
             return (
               <li key={key}>
                 <span className={styles.verdict}>
                   <StatusTag tone={VERDICT_TONE[verdict]}>{VERDICT_TEXT[verdict]}</StatusTag>
                 </span>
                 <div className={styles.text}>
-                  <span className={styles.label}>{PHOTO_CHECK_LABEL[key]}</span>
+                  <span className={styles.label}>{label}</span>
                   {item?.found && (
                     <span>
                       Trên ảnh: <b>{item.found}</b>

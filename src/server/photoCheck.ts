@@ -1,8 +1,8 @@
 import { and, asc, desc, eq, sql, type SQL, type SQLWrapper } from "drizzle-orm";
 import {
-  PHOTO_CHECK_LABEL,
   PhotoCheckFilter,
   PhotoCheckResult,
+  photoCheckIssueLabels,
   type PhotoCheck,
   type PhotoCheckItem,
   type PhotoCheckStatus,
@@ -20,7 +20,8 @@ import {
 } from "./db/schema";
 import { canManageBank } from "@/lib/permissions";
 import type { User } from "@/lib/types";
-import { notify } from "./notifications";
+import { bankManagersFor, notify, notifyUsers } from "./notifications";
+import { checkMsb, type MsbCheckContext } from "./ocr/banks/msb";
 import { checkTpbank, type TpbCheckContext } from "./ocr/banks/tpbank";
 import { ocrImage } from "./ocr/image";
 import { readImage } from "./storage";
@@ -38,10 +39,15 @@ import { readImage } from "./storage";
 
 export const PHOTO_CHECK_CHANNEL = "bank_photo_check";
 
-type Checker = (texts: string[], ctx: TpbCheckContext) => PhotoCheckItem[];
+type PhotoCheckContext = TpbCheckContext &
+  Pick<MsbCheckContext, "referralName" | "supportBranch">;
+
+type Checker = (texts: string[], ctx: PhotoCheckContext) => PhotoCheckItem[];
 
 /** Ngân hàng đã có bộ nhãn, khoá là `banks.code`. Thêm ngân hàng là thêm một dòng. */
 const CHECKERS: Record<string, Checker> = {
+  MSBa: checkMsb,
+  MSBb: checkMsb,
   TPB: checkTpbank,
 };
 
@@ -264,6 +270,8 @@ export async function runPhotoCheck(run: PhotoCheckRun): Promise<PhotoCheckItem[
       accountNumber: bankAccounts.accountNumber,
       customerName: customers.fullName,
       referralCode: referralCodes.code,
+      referralName: referralCodes.displayName,
+      supportBranch: referralCodes.supportBranch,
     })
     .from(bankAccounts)
     .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
@@ -293,6 +301,8 @@ export async function runPhotoCheck(run: PhotoCheckRun): Promise<PhotoCheckItem[
 
   return check(texts, {
     referralCode: account.referralCode ?? "",
+    referralName: account.referralName,
+    supportBranch: account.supportBranch,
     customerName: account.customerName,
     accountNumber: account.accountNumber ?? "",
   });
@@ -319,13 +329,16 @@ export async function finishPhotoCheck(run: PhotoCheckRun, items: PhotoCheckItem
     `Xác thực ảnh ${items.length - failing.length}/${items.length}` +
       (failing.length
         ? ". " +
-          failing
-            .map((i) => `${PHOTO_CHECK_LABEL[i.key]}: ${i.verdict === "missing" ? "thiếu ảnh" : i.note || "không đạt"}`)
-            .join(" ")
+          failing.flatMap(photoCheckIssueLabels).join(", ")
         : ""),
   );
 
-  if (run.notify && failing.length > 0) await notifyCreator(run.accountId, failing);
+  if (run.notify && failing.length > 0) {
+    await Promise.all([
+      notifyCreator(run.accountId, failing),
+      notifyBankManagers(run.accountId, failing),
+    ]);
+  }
 }
 
 /**
@@ -354,9 +367,7 @@ async function notifyCreator(accountId: string, failing: PhotoCheckItem[]): Prom
       .limit(1);
     if (!row?.createdBy) return;
 
-    const parts = failing.map(
-      (i) => `${PHOTO_CHECK_LABEL[i.key]} ${i.verdict === "missing" ? "thiếu ảnh" : "không đạt"}`,
-    );
+    const parts = failing.flatMap(photoCheckIssueLabels);
     await notify(row.createdBy, "bank-photo-fail", {
       title: "Ảnh tài khoản ngân hàng không đạt",
       body: `${row.bankCode} - ${row.referral}: ${parts.join(", ")}.`,
@@ -364,6 +375,45 @@ async function notifyCreator(accountId: string, failing: PhotoCheckItem[]): Prom
     });
   } catch (e) {
     console.warn("[photo-check] không gửi được thông báo:", e instanceof Error ? e.message : e);
+  }
+}
+
+/**
+ * Báo cho người có quyền quản lý ngân hàng khi một tài khoản không đạt xác
+ * thực ảnh. Người có `manage-bank` nhận mọi ngân hàng; người có
+ * `manage-assigned-banks` chỉ nhận ngân hàng được phân công. Danh sách người
+ * nhận đồng thời loại người đã tắt công tắc `bank-photo-review`.
+ *
+ * Nội dung không chứa tên khách hay số tài khoản vì thông báo có thể hiện trên
+ * màn hình khoá. Chi tiết mở thẳng màn duyệt của đúng ngân hàng và tài khoản.
+ */
+async function notifyBankManagers(accountId: string, failing: PhotoCheckItem[]): Promise<void> {
+  try {
+    const [row] = await db
+      .select({
+        bankId: bankAccounts.bankId,
+        bankCode: banks.code,
+        referral: referralCodes.displayName,
+      })
+      .from(bankAccounts)
+      .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
+      .innerJoin(referralCodes, eq(referralCodes.id, bankAccounts.referralCodeId))
+      .where(eq(bankAccounts.id, accountId))
+      .limit(1);
+    if (!row) return;
+
+    const recipients = await bankManagersFor(row.bankId, "bank-photo-review");
+    const parts = failing.flatMap(photoCheckIssueLabels);
+    await notifyUsers(recipients, "bank-photo-review", {
+      title: "Tài khoản không đạt xác thực ảnh",
+      body: `${row.bankCode} - ${row.referral}: ${parts.join(", ")}.`,
+      url: `/settings/banks/${row.bankId}/${accountId}`,
+    });
+  } catch (e) {
+    console.warn(
+      "[photo-check] không gửi được thông báo cho quản lý:",
+      e instanceof Error ? e.message : e,
+    );
   }
 }
 

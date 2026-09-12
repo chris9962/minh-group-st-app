@@ -382,17 +382,38 @@ export function checkTpbank(texts: string[], ctx: TpbCheckContext): PhotoCheckIt
 
   // 1. Mở tài khoản: mã giới thiệu, và số tài khoản khớp số nhân viên nhập.
   if (!open) {
-    items.push({ key: "open", verdict: "missing", found: "", expected: ctx.referralCode, note: "Không ảnh nào là màn mở tài khoản thành công." });
+    items.push({
+      key: "open",
+      verdict: "missing",
+      label: "Mã giới thiệu và số tài khoản",
+      issues: ["Thiếu ảnh xác thực mã giới thiệu và số tài khoản"],
+      found: "",
+      expected: ctx.referralCode,
+      note: "Không ảnh nào là màn mở tài khoản thành công.",
+    });
   } else {
     const notes: string[] = [];
-    if (!open.referralCode) notes.push("Không đọc được mã giới thiệu.");
-    else if (ctx.referralCode && codeKey(open.referralCode) !== codeKey(ctx.referralCode))
+    const issues: string[] = [];
+    if (!open.referralCode) {
+      notes.push("Không đọc được mã giới thiệu.");
+      issues.push("Không đọc được mã giới thiệu");
+    } else if (ctx.referralCode && codeKey(open.referralCode) !== codeKey(ctx.referralCode)) {
       notes.push(`Mã trên ảnh ${open.referralCode}, mã đã chọn ${ctx.referralCode}.`);
-    if (open.accountNumber && ctx.accountNumber && digitsOf(open.accountNumber) !== digitsOf(ctx.accountNumber))
+      issues.push("Mã giới thiệu không khớp");
+    }
+    if (
+      open.accountNumber &&
+      ctx.accountNumber &&
+      digitsOf(open.accountNumber) !== digitsOf(ctx.accountNumber)
+    ) {
       notes.push(`Số tài khoản trên ảnh ${open.accountNumber}, đã nhập ${ctx.accountNumber}.`);
+      issues.push("Số tài khoản không khớp");
+    }
     items.push({
       key: "open",
       verdict: notes.length ? "fail" : "pass",
+      label: "Mã giới thiệu và số tài khoản",
+      issues,
       found: [open.referralCode, open.accountNumber].filter(Boolean).join(" - "),
       expected: [ctx.referralCode, ctx.accountNumber].filter(Boolean).join(" - "),
       note: notes.join(" "),
@@ -401,17 +422,38 @@ export function checkTpbank(texts: string[], ctx: TpbCheckContext): PhotoCheckIt
 
   // 2. Màn hình chính: tên khách, và số tài khoản khớp số đã nhập.
   if (!home) {
-    items.push({ key: "home", verdict: "missing", found: "", expected: ctx.customerName, note: "Không ảnh nào là màn hình chính app." });
+    items.push({
+      key: "home",
+      verdict: "missing",
+      label: "Tên khách hàng và số tài khoản",
+      issues: ["Thiếu ảnh xác thực tên khách hàng và số tài khoản"],
+      found: "",
+      expected: ctx.customerName,
+      note: "Không ảnh nào là màn hình chính app.",
+    });
   } else {
     const notes: string[] = [];
-    if (!home.customerName) notes.push("Không đọc được tên khách.");
-    else if (!nameMatches(home.customerName, ctx.customerName))
+    const issues: string[] = [];
+    if (!home.customerName) {
+      notes.push("Không đọc được tên khách.");
+      issues.push("Không đọc được tên khách hàng");
+    } else if (!nameMatches(home.customerName, ctx.customerName)) {
       notes.push(`Tên trên ảnh ${home.customerName}, tên khách ${ctx.customerName}.`);
-    if (home.accountNumber && ctx.accountNumber && !digitsClose(home.accountNumber, digitsOf(ctx.accountNumber)))
+      issues.push("Tên khách hàng không khớp");
+    }
+    if (
+      home.accountNumber &&
+      ctx.accountNumber &&
+      !digitsClose(home.accountNumber, digitsOf(ctx.accountNumber))
+    ) {
       notes.push(`Số tài khoản trên ảnh ${home.accountNumber}, đã nhập ${ctx.accountNumber}.`);
+      issues.push("Số tài khoản không khớp");
+    }
     items.push({
       key: "home",
       verdict: notes.length ? "fail" : "pass",
+      label: "Tên khách hàng và số tài khoản",
+      issues,
       found: [home.customerName, home.accountNumber].filter(Boolean).join(" - "),
       expected: [ctx.customerName, ctx.accountNumber].filter(Boolean).join(" - "),
       note: notes.join(" "),
@@ -421,19 +463,46 @@ export function checkTpbank(texts: string[], ctx: TpbCheckContext): PhotoCheckIt
   // 3. Chuyển khoản: có TPBank, có "thành công", có số tiền. Biến thể 2 in
   // thêm người gửi, có thì so với khách và số đã nhập.
   if (!transfer) {
-    items.push({ key: "transfer", verdict: "missing", found: "", expected: "", note: "Không ảnh nào là màn chuyển khoản thành công." });
+    items.push({
+      key: "transfer",
+      verdict: "missing",
+      label: "Giao dịch thành công",
+      issues: ["Thiếu ảnh giao dịch thành công"],
+      found: "",
+      expected: "",
+      note: "Không ảnh nào là màn chuyển khoản thành công.",
+    });
   } else {
     const notes: string[] = [];
-    if (!transfer.amountText) notes.push("Không đọc được số tiền.");
-    if (transfer.fromName && !nameMatches(transfer.fromName, ctx.customerName))
+    const issues: string[] = [];
+    if (!transfer.amountText) {
+      notes.push("Không đọc được số tiền.");
+      issues.push("Không đọc được số tiền giao dịch");
+    }
+    if (transfer.fromName && !nameMatches(transfer.fromName, ctx.customerName)) {
       notes.push(`Người gửi trên ảnh ${transfer.fromName}, tên khách ${ctx.customerName}.`);
-    if (transfer.fromAccount && ctx.accountNumber && !digitsClose(transfer.fromAccount, digitsOf(ctx.accountNumber)))
+      issues.push("Tên người gửi không khớp");
+    }
+    if (
+      transfer.fromAccount &&
+      ctx.accountNumber &&
+      !digitsClose(transfer.fromAccount, digitsOf(ctx.accountNumber))
+    ) {
       notes.push(`Tài khoản gửi trên ảnh ${transfer.fromAccount}, đã nhập ${ctx.accountNumber}.`);
+      issues.push("Tài khoản gửi không khớp");
+    }
     items.push({
       key: "transfer",
       verdict: notes.length ? "fail" : "pass",
-      found: [transfer.amountText, transfer.transferredAt, transfer.fromName, transfer.fromAccount].filter(Boolean).join(" - "),
-      expected: transfer.fromName || transfer.fromAccount ? [ctx.customerName, ctx.accountNumber].filter(Boolean).join(" - ") : "",
+      label: "Giao dịch thành công",
+      issues,
+      found: [transfer.amountText, transfer.transferredAt, transfer.fromName, transfer.fromAccount]
+        .filter(Boolean)
+        .join(" - "),
+      expected:
+        transfer.fromName || transfer.fromAccount
+          ? [ctx.customerName, ctx.accountNumber].filter(Boolean).join(" - ")
+          : "",
       note: notes.join(" "),
     });
   }

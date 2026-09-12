@@ -638,6 +638,13 @@
       "when": 1789891400016,
       "tag": "0090_photo_check_confirm",
       "breakpoints": true
+    },
+    {
+      "idx": 91,
+      "version": "7",
+      "when": 1789891400017,
+      "tag": "0091_notification_bank_photo_review",
+      "breakpoints": true
     }
   ]
 }

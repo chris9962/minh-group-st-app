@@ -10,18 +10,17 @@ import { z } from 'zod';
  *
  * Ba phép kiểm, mỗi ngân hàng một bộ nhãn ở `server/ocr/banks/<mã>.ts`:
  *
- *   open      màn "Mở tài khoản thành công": mã giới thiệu đúng mã đã chọn,
- *             số tài khoản đúng số đã nhập
- *   home      màn hình chính app: tên khách đúng, số tài khoản đúng
- *   transfer  màn chuyển khoản thành công: có tên ngân hàng, chữ thành công, số tiền
+ *   open      màn hoàn tất mở/đăng ký tài khoản; trường cần so do từng ngân hàng quy định
+ *   home      màn thông tin trong app (màn chính hoặc bước bổ sung thông tin)
+ *   transfer  màn giao dịch/chuyển khoản thành công
  */
 export const PhotoCheckKey = z.enum(['open', 'home', 'transfer']);
 export type PhotoCheckKey = z.infer<typeof PhotoCheckKey>;
 
 export const PHOTO_CHECK_LABEL: Record<PhotoCheckKey, string> = {
   open: 'Mở tài khoản',
-  home: 'Màn hình chính',
-  transfer: 'Chuyển khoản',
+  home: 'Thông tin trong app',
+  transfer: 'Giao dịch',
 };
 
 /** `missing` = không ảnh nào là màn này. Khác `fail`: có ảnh nhưng đọc ra sai. */
@@ -31,6 +30,10 @@ export type PhotoCheckVerdict = z.infer<typeof PhotoCheckVerdict>;
 export const PhotoCheckItem = z.object({
   key: PhotoCheckKey,
   verdict: PhotoCheckVerdict,
+  /** Tên phép đối chiếu theo ngôn ngữ nghiệp vụ, không phải tên màn hình app. */
+  label: z.string().optional(),
+  /** Các lỗi ngắn để hiện trên cảnh báo và thông báo đẩy. */
+  issues: z.array(z.string()).optional(),
   /** Giá trị OCR đọc được, để người duyệt đối chiếu. `''` khi không có. */
   found: z.string(),
   /** Giá trị trong hệ thống. `''` khi phép kiểm không so với gì. */
@@ -39,6 +42,44 @@ export const PhotoCheckItem = z.object({
   note: z.string(),
 });
 export type PhotoCheckItem = z.infer<typeof PhotoCheckItem>;
+
+/**
+ * Lỗi nghiệp vụ ngắn gọn của một kết quả không đạt.
+ *
+ * `issues` có ở các lượt OCR mới. Phần nhận dạng từ `note` giữ tương thích với
+ * dữ liệu JSON đã lưu trước khi thêm trường này, nên không phải chạy lại toàn
+ * bộ tài khoản chỉ để đổi cách hiển thị.
+ */
+export function photoCheckIssueLabels(item: PhotoCheckItem): string[] {
+  if (item.issues?.length) return item.issues;
+
+  const note = item.note;
+  const issues: string[] = [];
+  const add = (value: string) => {
+    if (!issues.includes(value)) issues.push(value);
+  };
+
+  if (/không đọc được mã giới thiệu/i.test(note)) add('Không đọc được mã giới thiệu');
+  else if (/mã trên ảnh/i.test(note)) add('Mã giới thiệu không khớp');
+
+  if (/không đọc được (?:tên khách|tên chủ tài khoản)/i.test(note))
+    add('Không đọc được tên khách hàng');
+  else if (/tên trên ảnh/i.test(note)) add('Tên khách hàng không khớp');
+
+  if (/số tài khoản trên ảnh/i.test(note)) add('Số tài khoản không khớp');
+  if (/không đọc được chi nhánh\/PGD/i.test(note)) add('Không đọc được Chi nhánh/PGD');
+  else if (/chi nhánh\/PGD trên ảnh/i.test(note)) add('Chi nhánh/PGD không khớp');
+  if (/không đọc được số tiền/i.test(note)) add('Không đọc được số tiền giao dịch');
+  if (/người gửi trên ảnh/i.test(note)) add('Tên người gửi không khớp');
+  if (/tài khoản gửi trên ảnh/i.test(note)) add('Tài khoản gửi không khớp');
+
+  if (issues.length) return issues;
+  if (item.verdict === 'missing') {
+    if (item.key === 'transfer') return ['Thiếu ảnh giao dịch thành công'];
+    return [`Thiếu ảnh xác thực ${item.label?.toLocaleLowerCase('vi') || 'thông tin tài khoản'}`];
+  }
+  return [`${item.label || PHOTO_CHECK_LABEL[item.key]} không đạt`];
+}
 
 /** Thứ worker ghi vào `bank_account_checks.result`. */
 export const PhotoCheckResult = z.object({ items: z.array(PhotoCheckItem) });
@@ -84,6 +125,6 @@ export const PhotoCheckFilter = z.enum(['fail', 'pass']);
 export type PhotoCheckFilter = z.infer<typeof PhotoCheckFilter>;
 
 export const PHOTO_CHECK_FILTER_LABEL: Record<PhotoCheckFilter, string> = {
-  fail: 'Có điểm không đạt',
-  pass: 'Đạt hết',
+  fail: 'Không đạt',
+  pass: 'Đạt',
 };
