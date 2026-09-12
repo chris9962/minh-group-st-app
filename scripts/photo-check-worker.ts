@@ -42,7 +42,7 @@ const describeError = (e: unknown): string =>
 async function runOne(run: PhotoCheckRun): Promise<void> {
   try {
     const items = await runPhotoCheck(run);
-    await finishPhotoCheck(run.checkId, items);
+    await finishPhotoCheck(run, items);
     log(`${run.accountId}  ${items.map((i) => `${i.key}:${i.verdict}`).join(" ")}`);
   } catch (e) {
     const reason = describeError(e);

@@ -148,6 +148,8 @@ export const notificationKind = pgEnum("notification_kind", [
   "bank-error", "bank-pending", "bank-approved",
   // Thông báo chung toàn công ty, thêm ở migration 0085.
   "announcement",
+  // Ảnh chứng minh chưa đạt xác thực OCR, cho nhân viên tạo tài khoản, migration 0089.
+  "bank-photo-fail",
 ]);
 
 /** P-96 · Góp ý đã xử lý hay chưa. Hai trạng thái, thêm ở migration 0052. */
@@ -1060,6 +1062,11 @@ export const bankAccountChecks = pgTable(
      */
     passed: smallint("passed").notNull().default(0),
     total: smallint("total").notNull().default(0),
+    /**
+     * Xong mà có phép kiểm không đạt thì báo cho nhân viên tạo tài khoản không.
+     * Script quét bù ghi false: hàng nghìn tài khoản cũ, báo là dội tin.
+     */
+    notify: boolean("notify").notNull().default(true),
     /** Lý do worker hỏng, chỉ khi `status = failed`. */
     error: text("error").notNull().default(""),
     createdAt: createdAt(),

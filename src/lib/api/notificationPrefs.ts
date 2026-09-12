@@ -17,6 +17,7 @@ export const NotificationKind = z.enum([
   'bank-pending',
   'bank-approved',
   'announcement',
+  'bank-photo-fail',
 ]);
 export type NotificationKind = z.infer<typeof NotificationKind>;
 
@@ -42,6 +43,7 @@ export const NOTIFICATION_KINDS: SwitchableKind[] = [
   'bank-error',
   'bank-pending',
   'bank-approved',
+  'bank-photo-fail',
 ];
 
 /**
@@ -60,6 +62,7 @@ export const NOTIFICATION_KIND_LABEL: Record<SwitchableKind, string> = {
   'bank-error': 'Tài khoản của tôi bị đánh lỗi',
   'bank-pending': 'Tài khoản chờ duyệt lại',
   'bank-approved': 'Tài khoản của tôi được duyệt',
+  'bank-photo-fail': 'Ảnh tài khoản của tôi chưa đạt xác thực',
   'code-low': 'Kho mã giới thiệu sắp hết',
 };
 
@@ -80,6 +83,7 @@ export const NOTIFICATION_KIND_ICON: Record<NotificationKind, NavIconKey> = {
   'bank-error': 'banking',
   'bank-pending': 'banking',
   'bank-approved': 'banking',
+  'bank-photo-fail': 'banking',
   'code-low': 'banking',
   /** Toà nhà, cùng icon với màn Cơ cấu tổ chức: tin này của cả công ty. */
   announcement: 'org',
@@ -102,6 +106,7 @@ export const NOTIFICATION_KIND_NEEDS: Partial<
   /** Hai loại của CHỦ tài khoản: ai mở được tài khoản thì mới sở hữu tài khoản. */
   'bank-error': { module: 'banking', actions: ['create'] },
   'bank-approved': { module: 'banking', actions: ['create'] },
+  'bank-photo-fail': { module: 'banking', actions: ['create'] },
   /** Loại của NGƯỜI DUYỆT — hai quyền mở cùng màn quản lý ngân hàng. */
   'bank-pending': { module: 'system', actions: ['manage-bank', 'manage-assigned-banks'] },
   'code-low': { module: 'system', actions: ['manage-bank', 'manage-assigned-banks'] },
@@ -114,6 +119,7 @@ export const ALL_ON: Record<NotificationKind, boolean> = {
   'bank-error': true,
   'bank-pending': true,
   'bank-approved': true,
+  'bank-photo-fail': true,
   'code-low': true,
   announcement: true,
 };

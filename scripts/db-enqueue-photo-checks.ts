@@ -16,6 +16,9 @@ import { hasPhotoChecker, PHOTO_CHECK_CHANNEL } from "../src/server/photoCheck";
  *
  * `--limit` lấy N tài khoản MỚI NHẤT, để chạy thử một lô nhỏ trước.
  * Chạy lại bao nhiêu lần cũng an toàn: tài khoản đã có lượt kiểm thì bỏ qua.
+ *
+ * Lượt xếp bằng script KHÔNG báo tin cho nhân viên (`notify = false`): tài
+ * khoản cũ hàng nghìn cái, báo là dội tin về việc đã qua.
  */
 
 const arg = (name: string): string =>
@@ -53,7 +56,7 @@ async function main() {
   if (rows.length === 0 || dryRun) return;
 
   await db.transaction(async (tx) => {
-    await tx.insert(bankAccountChecks).values(rows.map((r) => ({ accountId: r.id })));
+    await tx.insert(bankAccountChecks).values(rows.map((r) => ({ accountId: r.id, notify: false })));
     await tx.execute(sql`select pg_notify(${PHOTO_CHECK_CHANNEL}, '')`);
   });
   console.log("Đã xếp hàng. Worker mgst-photo-check tự chạy.");

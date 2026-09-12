@@ -648,6 +648,10 @@ export const DAILY_DOCS: DocArticle[] = [
       },
       {
         kind: 'text',
+        body: '**Ảnh tài khoản của tôi chưa đạt xác thực** — hệ thống đọc ảnh chứng minh bạn nộp và thấy mã giới thiệu, tên khách hoặc số tài khoản không khớp, hoặc thiếu ảnh. Mở tài khoản để xem dòng nào chưa đạt và thay ảnh trong ngày.',
+      },
+      {
+        kind: 'text',
         body: '**Thông báo chung** — tin của công ty gửi cho mọi nhân viên. Loại này không tắt được.',
       },
     ],

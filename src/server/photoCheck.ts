@@ -1,5 +1,6 @@
 import { and, asc, desc, eq, sql, type SQL, type SQLWrapper } from "drizzle-orm";
 import {
+  PHOTO_CHECK_LABEL,
   PhotoCheckFilter,
   PhotoCheckResult,
   type PhotoCheck,
@@ -15,6 +16,7 @@ import {
   customers,
   referralCodes,
 } from "./db/schema";
+import { notify } from "./notifications";
 import { checkTpbank, type TpbCheckContext } from "./ocr/banks/tpbank";
 import { ocrImage } from "./ocr/image";
 import { readImage } from "./storage";
@@ -143,12 +145,18 @@ async function imageBuffer(key: string): Promise<Buffer | null> {
 export type PhotoCheckRun = {
   checkId: string;
   accountId: string;
+  /** Xong mà có dòng không đạt thì báo nhân viên tạo tài khoản không. */
+  notify: boolean;
 };
 
 /** Dòng `pending` cũ nhất, tối đa `limit`. */
 export async function pendingPhotoChecks(limit: number): Promise<PhotoCheckRun[]> {
   const rows = await db
-    .select({ checkId: bankAccountChecks.id, accountId: bankAccountChecks.accountId })
+    .select({
+      checkId: bankAccountChecks.id,
+      accountId: bankAccountChecks.accountId,
+      notify: bankAccountChecks.notify,
+    })
     .from(bankAccountChecks)
     .where(eq(bankAccountChecks.status, "pending"))
     .orderBy(asc(bankAccountChecks.createdAt))
@@ -204,18 +212,60 @@ export async function runPhotoCheck(run: PhotoCheckRun): Promise<PhotoCheckItem[
   });
 }
 
-export async function finishPhotoCheck(checkId: string, items: PhotoCheckItem[]): Promise<void> {
+export async function finishPhotoCheck(run: PhotoCheckRun, items: PhotoCheckItem[]): Promise<void> {
+  const failing = items.filter((i) => i.verdict !== "pass");
   await db
     .update(bankAccountChecks)
     .set({
       status: "done",
       result: { items },
-      passed: items.filter((i) => i.verdict === "pass").length,
+      passed: items.length - failing.length,
       total: items.length,
       error: "",
       checkedAt: new Date(),
     })
-    .where(eq(bankAccountChecks.id, checkId));
+    .where(eq(bankAccountChecks.id, run.checkId));
+
+  if (run.notify && failing.length > 0) await notifyCreator(run.accountId, failing);
+}
+
+/**
+ * Báo cho nhân viên đã mở tài khoản: dòng nào không đạt hay thiếu ảnh, để họ
+ * thay ảnh trong ngày trước khi người duyệt đánh lỗi.
+ *
+ * Thân tin chỉ có tên phép kiểm, KHÔNG có tên khách, số tài khoản hay mã trên
+ * ảnh: thông báo hiện trên màn hình khoá. Chi tiết nằm ở màn tài khoản, đường
+ * dẫn kèm theo. `notify()` tự hỏi công tắc `bank-photo-fail` của người nhận.
+ *
+ * Nuốt lỗi: kết quả đã ghi xong, báo tin hỏng không được làm lượt kiểm thành
+ * `failed`.
+ */
+async function notifyCreator(accountId: string, failing: PhotoCheckItem[]): Promise<void> {
+  try {
+    const [row] = await db
+      .select({
+        createdBy: bankAccounts.createdBy,
+        bankCode: banks.code,
+        referral: referralCodes.displayName,
+      })
+      .from(bankAccounts)
+      .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
+      .innerJoin(referralCodes, eq(referralCodes.id, bankAccounts.referralCodeId))
+      .where(eq(bankAccounts.id, accountId))
+      .limit(1);
+    if (!row?.createdBy) return;
+
+    const parts = failing.map(
+      (i) => `${PHOTO_CHECK_LABEL[i.key]} ${i.verdict === "missing" ? "thiếu ảnh" : "không đạt"}`,
+    );
+    await notify(row.createdBy, "bank-photo-fail", {
+      title: "Ảnh tài khoản chưa đạt xác thực",
+      body: `${row.bankCode} - ${row.referral}: ${parts.join(", ")}.`,
+      url: `/banking/${accountId}`,
+    });
+  } catch (e) {
+    console.warn("[photo-check] không gửi được thông báo:", e instanceof Error ? e.message : e);
+  }
 }
 
 export async function failPhotoCheck(checkId: string, error: string): Promise<void> {
