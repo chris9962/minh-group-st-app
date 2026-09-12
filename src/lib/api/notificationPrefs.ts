@@ -62,7 +62,7 @@ export const NOTIFICATION_KIND_LABEL: Record<SwitchableKind, string> = {
   'bank-error': 'Tài khoản của tôi bị đánh lỗi',
   'bank-pending': 'Tài khoản chờ duyệt lại',
   'bank-approved': 'Tài khoản của tôi được duyệt',
-  'bank-photo-fail': 'Ảnh tài khoản của tôi chưa đạt xác thực',
+  'bank-photo-fail': 'Ảnh tài khoản ngân hàng của tôi không đạt',
   'code-low': 'Kho mã giới thiệu sắp hết',
 };
 

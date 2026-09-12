@@ -259,7 +259,7 @@ async function notifyCreator(accountId: string, failing: PhotoCheckItem[]): Prom
       (i) => `${PHOTO_CHECK_LABEL[i.key]} ${i.verdict === "missing" ? "thiếu ảnh" : "không đạt"}`,
     );
     await notify(row.createdBy, "bank-photo-fail", {
-      title: "Ảnh tài khoản chưa đạt xác thực",
+      title: "Ảnh tài khoản ngân hàng không đạt",
       body: `${row.bankCode} - ${row.referral}: ${parts.join(", ")}.`,
       url: `/banking/${accountId}`,
     });
