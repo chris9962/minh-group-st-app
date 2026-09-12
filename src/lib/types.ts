@@ -41,6 +41,17 @@ export const isoDateOrEmpty = z
   .trim()
   .refine((v) => v === '' || isRealIsoDate(v), 'Ngày không hợp lệ');
 
+/**
+ * Cận dưới cho mọi ngày SINH trong hệ thống — khách hàng, người thụ hưởng đơn
+ * bảo hiểm. Chặn lỗi gõ tay kiểu thiếu một phím (`06/04/0996` thay vì
+ * `06/04/1996`), không chặn người thật cao tuổi.
+ */
+export const MIN_BIRTH_YEAR = 1900;
+
+/** Năm của một chuỗi `YYYY-MM-DD` không sớm hơn `MIN_BIRTH_YEAR`. Rỗng thì bỏ qua. */
+export const bornAfterMinYear = (v: string): boolean =>
+  v === '' || Number(v.slice(0, 4)) >= MIN_BIRTH_YEAR;
+
 /* ── Phân quyền: ba trục (spec mục 1.1) ─────────────────────────────── */
 
 /**

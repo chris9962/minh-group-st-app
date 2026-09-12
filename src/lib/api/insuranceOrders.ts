@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { StatusTone } from '@/components/ui/StatusTag';
 import { businessDay } from '@/lib/format';
-import { InsuranceProduct, isoDate, isoDateOrEmpty } from '@/lib/types';
+import { bornAfterMinYear, InsuranceProduct, isoDate, isoDateOrEmpty, MIN_BIRTH_YEAR } from '@/lib/types';
 
 /**
  * Vòng đời và BIỂU MẪU của đơn bảo hiểm. Phần đọc (danh sách, chi tiết, các
@@ -192,10 +192,16 @@ const orderFields = {
   beneficiaryName: z.string().trim().min(1, 'Chưa nhập tên khách hàng'),
   /**
    * Ngày sinh người thụ hưởng — BẮT BUỘC với đơn tai nạn điện, bỏ trống với đơn
-   * xe máy. Ràng buộc nằm ở `.refine` theo sản phẩm chứ không ở đây: form xe máy
-   * không có ô này, siết thẳng thì mọi đơn xe máy đều báo thiếu.
+   * xe máy. Ràng buộc BẮT BUỘC nằm ở `.refine` theo sản phẩm chứ không ở đây:
+   * form xe máy không có ô này, siết thẳng thì mọi đơn xe máy đều báo thiếu.
+   *
+   * `bornAfterMinYear` vẫn áp cho cả hai sản phẩm — chặn lỗi gõ tay kiểu thiếu
+   * một phím, và bỏ qua khi rỗng nên không đụng tới đơn xe máy.
    */
-  beneficiaryDob: isoDateOrEmpty,
+  beneficiaryDob: isoDateOrEmpty.refine(
+    bornAfterMinYear,
+    `Năm sinh không được trước ${MIN_BIRTH_YEAR}`,
+  ),
   beneficiaryAddress: z.string().trim().min(1, 'Chưa nhập địa chỉ'),
   /**
    * Hai ô của riêng đơn tai nạn điện — form PVI hỏi, đơn xe máy thì không.

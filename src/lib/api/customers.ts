@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { InsuranceProduct } from '@/lib/types';
+import { InsuranceProduct, MIN_BIRTH_YEAR } from '@/lib/types';
 import { AccountType, BankAccountStatus } from './bankAccounts';
 import { InsuranceOrderStatus } from './insuranceOrders';
 import { GiftSimulateResult } from './settings';
@@ -309,11 +309,10 @@ export type CustomerPhoneForm = z.infer<typeof CustomerPhoneForm>;
  * (2026-08-21): nhân viên nhìn năm sinh là biết ngay đạt hay không, không phải
  * nhẩm ngày sinh nhật.
  *
- * Cận dưới 1900 chặn lỗi gõ tay — `06/04/0996` là thiếu một phím, không phải
- * một khách 1030 tuổi.
+ * Cận dưới `MIN_BIRTH_YEAR` (`lib/types.ts`) chặn lỗi gõ tay — `06/04/0996` là
+ * thiếu một phím, không phải một khách 1030 tuổi.
  */
 export const MIN_AGE = 15;
-const MIN_BIRTH_YEAR = 1900;
 
 /**
  * Ngày lịch của ô ngày sinh mở sẵn khi ô còn trống: 01/01 của năm sinh MUỘN
