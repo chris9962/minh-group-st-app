@@ -24,10 +24,17 @@ export const BankPhotoRow = BankAccountRow.extend({
 export type BankPhotoRow = z.infer<typeof BankPhotoRow>;
 
 /**
- * Trần MỘT lượt tải zip. Máy chủ đọc từng ảnh vào RAM rồi mới đóng gói —
- * không có trần thì một lượt "chọn hết" kéo cả kho ảnh vào bộ nhớ tiến trình.
+ * Trần MỘT lượt gọi máy chủ, tức một file zip. Máy chủ đọc từng ảnh vào RAM
+ * rồi mới đóng gói — không có trần thì một lượt "chọn hết" kéo cả kho ảnh vào
+ * bộ nhớ tiến trình.
  */
 export const PHOTO_DOWNLOAD_LIMIT = 200;
+
+/**
+ * Trần chọn TỔNG ở giao diện, gấp đôi `PHOTO_DOWNLOAD_LIMIT`. Vượt một lượt
+ * gọi thì `downloadBankPhotoZip` tự chia thành nhiều file zip, gọi tuần tự.
+ */
+export const PHOTO_SELECT_LIMIT = PHOTO_DOWNLOAD_LIMIT * 2;
 
 /**
  * Cỡ trang RIÊNG của lưới ảnh (chốt 2026-09-02) — 50 tài khoản ≈ 150 ảnh một
@@ -76,24 +83,38 @@ export async function fetchBankPhotos(
   return BankPhotoPage.parse(await res.json());
 }
 
-/** Gửi danh sách ảnh đã chọn, nhận về MỘT file zip và lưu xuống máy. */
+/**
+ * Gửi danh sách ảnh đã chọn, nhận về một hoặc nhiều file zip và lưu xuống máy.
+ *
+ * Chia thành từng đợt tối đa `PHOTO_DOWNLOAD_LIMIT` ảnh, gọi TUẦN TỰ — máy chủ
+ * đọc cả đợt vào RAM trước khi đóng gói, gọi song song nhiều đợt cùng lúc là
+ * mất tác dụng của trần đó. Một đợt ra một file zip, đánh số khi có từ hai đợt.
+ */
 export async function downloadBankPhotoZip(
   bankId: string,
   bankCode: string,
   photoIds: string[],
 ): Promise<void> {
-  const res = await fetch(`/api/settings/banks/${bankId}/photos/download`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ photoIds }),
-  });
-  if (!res.ok) throw new Error('Không tải được ảnh về máy');
+  const chunks: string[][] = [];
+  for (let i = 0; i < photoIds.length; i += PHOTO_DOWNLOAD_LIMIT) {
+    chunks.push(photoIds.slice(i, i + PHOTO_DOWNLOAD_LIMIT));
+  }
 
-  const blob = await res.blob();
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `anh-${bankCode || 'ngan-hang'}-${new Date().toISOString().slice(0, 10)}.zip`;
-  a.click();
-  URL.revokeObjectURL(url);
+  for (const [i, chunk] of chunks.entries()) {
+    const res = await fetch(`/api/settings/banks/${bankId}/photos/download`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ photoIds: chunk }),
+    });
+    if (!res.ok) throw new Error(`Không tải được ảnh về máy (phần ${i + 1}/${chunks.length})`);
+
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const suffix = chunks.length > 1 ? `-${i + 1}` : '';
+    a.download = `anh-${bankCode || 'ngan-hang'}-${new Date().toISOString().slice(0, 10)}${suffix}.zip`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 }

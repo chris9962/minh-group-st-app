@@ -15,7 +15,7 @@ import {
   BANK_PHOTOS_PAGE_SIZE,
   downloadBankPhotoZip,
   fetchBankPhotos,
-  PHOTO_DOWNLOAD_LIMIT,
+  PHOTO_SELECT_LIMIT,
 } from "@/lib/api/bankPhotos";
 import { EMPTY_PAGE } from "@/lib/api/pagination";
 import { formatDate } from "@/lib/format";
@@ -79,8 +79,8 @@ export function BankPhotoGallery({
   const addCapped = (prev: ReadonlySet<string>, ids: string[]): ReadonlySet<string> => {
     const next = new Set(prev);
     for (const id of ids) {
-      if (!next.has(id) && next.size >= PHOTO_DOWNLOAD_LIMIT) {
-        toast.fail(`Chỉ tải được tối đa ${PHOTO_DOWNLOAD_LIMIT} ảnh một lượt.`);
+      if (!next.has(id) && next.size >= PHOTO_SELECT_LIMIT) {
+        toast.fail(`Chỉ tải được tối đa ${PHOTO_SELECT_LIMIT} ảnh một lượt.`);
         break;
       }
       next.add(id);
