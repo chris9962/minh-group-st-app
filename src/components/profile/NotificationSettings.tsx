@@ -4,8 +4,11 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { SettingsAction, SettingsGroup, SettingsRow } from "@/components/ui/SettingsList";
 import { Switch } from "@/components/ui/Switch";
+import type { NavIconKey } from "@/lib/nav";
 import {
+  NOTIFICATION_GROUP_LABEL,
   NOTIFICATION_KINDS,
+  NOTIFICATION_KIND_ICON,
   NOTIFICATION_KIND_LABEL,
   NOTIFICATION_KIND_NEEDS,
   type SwitchableKind,
@@ -55,6 +58,12 @@ function keyToBytes(base64url: string): ArrayBuffer {
 
 type DeviceState = "dang-doc" | "khong-ho-tro" | "chua-cai-iphone" | "bi-tu-choi" | "tat" | "bat";
 
+/**
+ * Thứ tự khối trên màn — theo đúng thứ tự module ở thanh điều hướng
+ * (`lib/nav.ts`), để trang cài đặt đọc quen mắt như sidebar.
+ */
+const GROUP_ORDER: NavIconKey[] = ["insurance", "banking"];
+
 /** Safari trên iPhone chỉ mở `PushManager` khi trang chạy từ Màn hình chính. */
 const standalone = (): boolean =>
   window.matchMedia("(display-mode: standalone)").matches ||
@@ -87,6 +96,13 @@ export function NotificationSettings() {
     const need = NOTIFICATION_KIND_NEEDS[kind];
     return !need || need.actions.some((action) => can(user, need.module, action));
   });
+
+  /** Cùng danh sách `kinds`, chia theo module — bỏ khối nào không còn loại nào. */
+  const groups = GROUP_ORDER.map((icon) => ({
+    icon,
+    label: NOTIFICATION_GROUP_LABEL[icon] ?? icon,
+    kinds: kinds.filter((kind) => NOTIFICATION_KIND_ICON[kind] === icon),
+  })).filter((g) => g.kinds.length > 0);
 
   const { data: prefs } = useQuery({
     queryKey: ["notification-prefs"],
@@ -260,9 +276,9 @@ export function NotificationSettings() {
         {on && <SettingsAction label="Gửi thông báo thử" onClick={test} disabled={busy} />}
       </SettingsGroup>
 
-      {kinds.length > 0 && (
-        <SettingsGroup title="Loại thông báo">
-          {kinds.map((kind: SwitchableKind) => (
+      {groups.map((group) => (
+        <SettingsGroup key={group.icon} title={group.label}>
+          {group.kinds.map((kind: SwitchableKind) => (
             <SettingsRow
               key={kind}
               label={NOTIFICATION_KIND_LABEL[kind]}
@@ -290,7 +306,7 @@ export function NotificationSettings() {
             />
           ))}
         </SettingsGroup>
-      )}
+      ))}
     </>
   );
 }

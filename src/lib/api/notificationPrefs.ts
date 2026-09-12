@@ -19,6 +19,7 @@ export const NotificationKind = z.enum([
   'announcement',
   'bank-photo-fail',
   'bank-photo-review',
+  'bank-deleted',
 ]);
 export type NotificationKind = z.infer<typeof NotificationKind>;
 
@@ -46,6 +47,7 @@ export const NOTIFICATION_KINDS: SwitchableKind[] = [
   'bank-approved',
   'bank-photo-fail',
   'bank-photo-review',
+  'bank-deleted',
 ];
 
 /**
@@ -66,7 +68,20 @@ export const NOTIFICATION_KIND_LABEL: Record<SwitchableKind, string> = {
   'bank-approved': 'Tài khoản của tôi được duyệt',
   'bank-photo-fail': 'Ảnh tài khoản ngân hàng của tôi không đạt',
   'bank-photo-review': 'Tài khoản không đạt xác thực ảnh',
+  'bank-deleted': 'Tài khoản đang tạo của tôi bị xoá',
   'code-low': 'Kho mã giới thiệu sắp hết',
+};
+
+/**
+ * Nhóm CÔNG TẮC theo module, để trang cài đặt bày theo từng khối thay vì một
+ * danh sách phẳng — người dùng quét nhanh biết loại nào của module nào.
+ *
+ * Chỉ liệt kê icon nào thật sự đứng trước MỘT loại switchable — `announcement`
+ * (icon `org`) không nằm trong `NOTIFICATION_KINDS` nên không cần nhóm.
+ */
+export const NOTIFICATION_GROUP_LABEL: Partial<Record<NavIconKey, string>> = {
+  insurance: 'Bảo hiểm',
+  banking: 'Ngân hàng',
 };
 
 /**
@@ -88,6 +103,7 @@ export const NOTIFICATION_KIND_ICON: Record<NotificationKind, NavIconKey> = {
   'bank-approved': 'banking',
   'bank-photo-fail': 'banking',
   'bank-photo-review': 'banking',
+  'bank-deleted': 'banking',
   'code-low': 'banking',
   /** Toà nhà, cùng icon với màn Cơ cấu tổ chức: tin này của cả công ty. */
   announcement: 'org',
@@ -111,6 +127,7 @@ export const NOTIFICATION_KIND_NEEDS: Partial<
   'bank-error': { module: 'banking', actions: ['create'] },
   'bank-approved': { module: 'banking', actions: ['create'] },
   'bank-photo-fail': { module: 'banking', actions: ['create'] },
+  'bank-deleted': { module: 'banking', actions: ['create'] },
   /** Loại của NGƯỜI DUYỆT — hai quyền mở cùng màn quản lý ngân hàng. */
   'bank-pending': { module: 'system', actions: ['manage-bank', 'manage-assigned-banks'] },
   'bank-photo-review': { module: 'system', actions: ['manage-bank', 'manage-assigned-banks'] },
@@ -126,6 +143,7 @@ export const ALL_ON: Record<NotificationKind, boolean> = {
   'bank-approved': true,
   'bank-photo-fail': true,
   'bank-photo-review': true,
+  'bank-deleted': true,
   'code-low': true,
   announcement: true,
 };

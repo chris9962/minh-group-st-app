@@ -321,6 +321,23 @@ export async function markBankAccountError(
   return BankAccount.parse(await res.json());
 }
 
+/**
+ * Xoá một tài khoản ĐANG TẠO từ trang chi tiết ngân hàng.
+ *
+ * Đường RIÊNG với `deleteBankAccount` (`lib/api/bankAccounts.ts`), cùng lý do
+ * với `markBankAccountError`: route này gác bằng quyền quản ngân hàng, không
+ * đòi `banking:delete` — người quản ngân hàng thường không có quyền đó.
+ */
+export async function deleteBankAccountOfBank(bankId: string, accountId: string): Promise<void> {
+  const res = await fetch(`/api/settings/banks/${bankId}/accounts/${accountId}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) {
+    const detail = (await res.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(detail?.message?.trim() || 'Không xoá được tài khoản này');
+  }
+}
+
 export async function fetchBankAccountDetail(id: string): Promise<BankAccountDetail> {
   const res = await fetch(`/api/bank-account-list/${id}`);
   if (res.status === 404) throw new Error('Không tìm thấy tài khoản này');

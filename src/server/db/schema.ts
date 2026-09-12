@@ -152,6 +152,8 @@ export const notificationKind = pgEnum("notification_kind", [
   "bank-photo-fail",
   // Tài khoản không đạt xác thực ảnh, cho người quản lý ngân hàng, migration 0091.
   "bank-photo-review",
+  // Tài khoản đang tạo bị người quản ngân hàng xoá, cho chủ tài khoản, migration 0092.
+  "bank-deleted",
 ]);
 
 /** P-96 · Góp ý đã xử lý hay chưa. Hai trạng thái, thêm ở migration 0052. */

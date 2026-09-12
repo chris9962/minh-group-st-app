@@ -645,6 +645,13 @@
       "when": 1789891400017,
       "tag": "0091_notification_bank_photo_review",
       "breakpoints": true
+    },
+    {
+      "idx": 92,
+      "version": "7",
+      "when": 1789891400018,
+      "tag": "0092_notification_bank_deleted",
+      "breakpoints": true
     }
   ]
 }

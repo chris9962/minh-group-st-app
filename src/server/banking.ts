@@ -989,7 +989,7 @@ const nhanTaiKhoan = (row: DecoratedRow) => `${row.bankCode} · ${row.referralCo
  */
 async function baoChuTaiKhoan(
   row: DecoratedRow,
-  kind: "bank-error" | "bank-approved",
+  kind: "bank-error" | "bank-approved" | "bank-deleted",
   title: string,
   detail: string,
 ): Promise<void> {
@@ -998,7 +998,9 @@ async function baoChuTaiKhoan(
     await notify(row.createdById, kind, {
       title,
       body: detail ? `${nhanTaiKhoan(row)} · ${detail}` : nhanTaiKhoan(row),
-      url: `/banking/${row.id}`,
+      // Dòng `bank-deleted` không còn tài khoản nào để mở — trỏ về danh sách
+      // thay vì một đường dẫn 404.
+      url: kind === "bank-deleted" ? "/banking" : `/banking/${row.id}`,
     });
   } catch {
     // Không có nơi nào ghi log ở tầng này; bỏ qua để lượt ghi chính vẫn thành công.
@@ -1853,6 +1855,47 @@ export async function markAccountErrorByBankManager(
   await baoChuTaiKhoan(current, "bank-error", "Tài khoản bị đánh lỗi", errorNote);
 
   return { ok: true, value: (await accountById(id))! };
+}
+
+/**
+ * Xoá một tài khoản ĐANG TẠO từ trang chi tiết ngân hàng — người quản ngân
+ * hàng dọn bản nháp bỏ dở của người khác (chốt 2026-09-12).
+ *
+ * CHỈ nhận `creating`. Tài khoản đã hoàn thành đi đường `deleteAccount`, đòi lý
+ * do và phạm vi rộng hơn một người — không mở đường tắt ở đây.
+ *
+ * KHÔNG gác `banking:delete`: người quản ngân hàng thường không có quyền đó,
+ * hoặc có ở phạm vi `creator` nên không đụng được bản nháp của người khác. Chốt
+ * quyền đọc `canManageBank` theo đúng ngân hàng của tài khoản, cùng lối với
+ * `markAccountErrorByBankManager`.
+ */
+export async function deleteCreatingAccountByBankManager(
+  actor: User,
+  id: string,
+): Promise<BankingOutcome<DecoratedRow> | null> {
+  const current = await rawById(id);
+  if (!current) return null;
+  if (!canManageBank(actor, current.bankId)) return null;
+  if (current.status !== "creating")
+    return { ok: false, message: "Chỉ xoá được tài khoản đang tạo." };
+
+  // Trạng thái đọc lúc kiểm quyền có thể vừa đổi giữa chừng — khoá điều kiện
+  // ngay trong câu xoá, cùng lối với `deleteAccount`.
+  const removed = await db
+    .delete(bankAccounts)
+    .where(and(eq(bankAccounts.id, id), eq(bankAccounts.status, "creating")))
+    .returning({ id: bankAccounts.id });
+  if (removed.length === 0)
+    return { ok: false, message: "Tài khoản này vừa đổi trạng thái. Tải lại trang rồi thử lại." };
+
+  await baoChuTaiKhoan(
+    current,
+    "bank-deleted",
+    "Tài khoản đang tạo đã bị xoá",
+    `xoá bởi ${actor.fullName}`,
+  );
+
+  return { ok: true, value: current };
 }
 
 /**
