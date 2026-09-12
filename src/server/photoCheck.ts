@@ -12,10 +12,14 @@ import {
   bankAccountChecks,
   bankAccountPhotos,
   bankAccounts,
+  bankAccountStatusHistory,
   banks,
   customers,
   referralCodes,
+  users,
 } from "./db/schema";
+import { canManageBank } from "@/lib/permissions";
+import type { User } from "@/lib/types";
 import { notify } from "./notifications";
 import { checkTpbank, type TpbCheckContext } from "./ocr/banks/tpbank";
 import { ocrImage } from "./ocr/image";
@@ -87,8 +91,11 @@ export const latestPhotoCheck = (accountId: SQLWrapper) =>
       checkedAt: bankAccountChecks.checkedAt,
       passed: bankAccountChecks.passed,
       total: bankAccountChecks.total,
+      confirmedAt: bankAccountChecks.confirmedAt,
+      confirmedByName: users.fullName,
     })
     .from(bankAccountChecks)
+    .leftJoin(users, eq(users.id, bankAccountChecks.confirmedBy))
     .where(eq(bankAccountChecks.accountId, accountId))
     .orderBy(desc(bankAccountChecks.createdAt))
     .limit(1)
@@ -102,8 +109,13 @@ export const latestPhotoCheck = (accountId: SQLWrapper) =>
 export function photoCheckFilter(raw: string): SQL | undefined {
   const parsed = PhotoCheckFilter.safeParse(raw);
   if (!parsed.success) return undefined;
+  // Xác nhận của người duyệt thắng điểm máy ở cả hai nhánh.
   const latest = sql`(
-    select c.status = 'done' and ${parsed.data === "fail" ? sql`c.passed < c.total` : sql`c.total > 0 and c.passed = c.total`}
+    select c.status = 'done' and ${
+      parsed.data === "fail"
+        ? sql`c.passed < c.total and c.confirmed_at is null`
+        : sql`((c.total > 0 and c.passed = c.total) or c.confirmed_at is not null)`
+    }
     from ${bankAccountChecks} c
     where c.account_id = ${bankAccounts.id}
     order by c.created_at desc
@@ -120,6 +132,8 @@ export function toPhotoCheck(row: {
   checkedAt: Date | null;
   passed: number | null;
   total: number | null;
+  confirmedAt: Date | null;
+  confirmedByName: string | null;
 }): PhotoCheck | null {
   if (!row.status) return null;
   const parsed = PhotoCheckResult.safeParse(row.result);
@@ -130,7 +144,79 @@ export function toPhotoCheck(row: {
     items: parsed.success ? parsed.data.items : [],
     passed: row.passed ?? 0,
     total: row.total ?? 0,
+    confirmedAt: row.confirmedAt?.toISOString() ?? "",
+    confirmedByName: row.confirmedByName ?? "",
   };
+}
+
+/* ── Người duyệt xác nhận ─────────────────────────────────────────────── */
+
+/**
+ * Một dòng trên "Dòng thời gian" của tài khoản mà KHÔNG đổi trạng thái:
+ * `from = to`, giao diện in `note` làm tiêu đề. Dùng cho lượt kiểm ảnh xong và
+ * lượt người duyệt xác nhận, để lịch sử tài khoản có đủ cả hai.
+ */
+async function timelineEvent(
+  accountId: string,
+  actor: { id: string | null; fullName: string },
+  note: string,
+): Promise<void> {
+  const [row] = await db
+    .select({ status: bankAccounts.status })
+    .from(bankAccounts)
+    .where(eq(bankAccounts.id, accountId))
+    .limit(1);
+  if (!row) return;
+  await db.insert(bankAccountStatusHistory).values({
+    accountId,
+    fromStatus: row.status,
+    toStatus: row.status,
+    changedBy: actor.id,
+    changedByName: actor.fullName,
+    note,
+  });
+}
+
+export type ConfirmOutcome = { ok: true } | { ok: false; message: string } | null;
+
+/**
+ * Người duyệt xác nhận ảnh đạt, hoặc bỏ xác nhận, trên lượt kiểm MỚI NHẤT.
+ *
+ * Chỉ người quản ngân hàng đó; nhân viên tạo tài khoản tự xác nhận được thì
+ * phép kiểm mất tác dụng. Ngoài quyền trả `null` để route ra 404.
+ */
+export async function setPhotoCheckConfirmed(
+  actor: User,
+  accountId: string,
+  confirmed: boolean,
+): Promise<ConfirmOutcome> {
+  const [account] = await db
+    .select({ bankId: bankAccounts.bankId })
+    .from(bankAccounts)
+    .where(eq(bankAccounts.id, accountId))
+    .limit(1);
+  if (!account || !canManageBank(actor, account.bankId)) return null;
+
+  const [latest] = await db
+    .select({ id: bankAccountChecks.id, status: bankAccountChecks.status })
+    .from(bankAccountChecks)
+    .where(eq(bankAccountChecks.accountId, accountId))
+    .orderBy(desc(bankAccountChecks.createdAt))
+    .limit(1);
+  if (!latest || latest.status !== "done")
+    return { ok: false, message: "Tài khoản này chưa có lượt xác thực ảnh nào xong." };
+
+  await db
+    .update(bankAccountChecks)
+    .set(confirmed ? { confirmedBy: actor.id, confirmedAt: new Date() } : { confirmedBy: null, confirmedAt: null })
+    .where(eq(bankAccountChecks.id, latest.id));
+
+  await timelineEvent(
+    accountId,
+    { id: actor.id, fullName: actor.fullName },
+    confirmed ? "Người duyệt xác nhận ảnh đạt" : "Bỏ xác nhận ảnh đạt",
+  );
+  return { ok: true };
 }
 
 /* ── Nửa worker ───────────────────────────────────────────────────────── */
@@ -225,6 +311,19 @@ export async function finishPhotoCheck(run: PhotoCheckRun, items: PhotoCheckItem
       checkedAt: new Date(),
     })
     .where(eq(bankAccountChecks.id, run.checkId));
+
+  // Dòng thời gian ghi cả lượt đạt hết, để đọc lịch sử biết máy đã kiểm lúc nào.
+  await timelineEvent(
+    run.accountId,
+    { id: null, fullName: "Hệ thống" },
+    `Xác thực ảnh ${items.length - failing.length}/${items.length}` +
+      (failing.length
+        ? ". " +
+          failing
+            .map((i) => `${PHOTO_CHECK_LABEL[i.key]}: ${i.verdict === "missing" ? "thiếu ảnh" : i.note || "không đạt"}`)
+            .join(" ")
+        : ""),
+  );
 
   if (run.notify && failing.length > 0) await notifyCreator(run.accountId, failing);
 }

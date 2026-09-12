@@ -1,5 +1,5 @@
 import { StatusTag, type StatusTone } from "@/components/ui/StatusTag";
-import type { PhotoCheck } from "@/lib/api/photoCheck";
+import { effectiveScore, type PhotoCheck } from "@/lib/api/photoCheck";
 
 /**
  * Điểm xác thực ảnh cho cột của bảng: `2/3` = 2 phép kiểm đạt trên 3.
@@ -8,22 +8,21 @@ import type { PhotoCheck } from "@/lib/api/photoCheck";
  * cột không nở theo. Màu theo tỉ lệ đạt, càng thấp càng mạnh: đạt hết xanh,
  * từ nửa trở lên cam viền, dưới nửa đỏ. Ký hiệu của `StatusTag` đi kèm nên
  * không chỉ dựa vào màu (AGENTS.md §8).
+ *
+ * Người duyệt xác nhận thì hiện đạt hết, xem `effectiveScore`.
  */
 export function PhotoCheckScore({ check }: { check: PhotoCheck | null }) {
   if (!check) return <span className="text-muted">—</span>;
   if (check.status === "pending") return <StatusTag tone="waiting">Đang phân tích</StatusTag>;
   if (check.status === "failed") return <StatusTag tone="warn">Hỏng</StatusTag>;
 
+  const { passed, total } = effectiveScore(check);
   const tone: StatusTone =
-    check.total > 0 && check.passed === check.total
-      ? "ok"
-      : check.passed * 2 >= check.total
-        ? "warn"
-        : "cancelled";
+    total > 0 && passed === total ? "ok" : passed * 2 >= total ? "warn" : "cancelled";
   return (
     <StatusTag tone={tone}>
       <span className="tabular-nums">
-        {check.passed}/{check.total}
+        {passed}/{total}
       </span>
     </StatusTag>
   );

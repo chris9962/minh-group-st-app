@@ -62,12 +62,23 @@ export const PhotoCheck = z.object({
    */
   passed: z.number(),
   total: z.number(),
+  /**
+   * Người duyệt xác nhận ảnh đạt dù máy chấm không đạt. `''` = chưa ai xác
+   * nhận. Có xác nhận thì điểm hiệu lực là đạt hết, xem `effectiveScore`.
+   */
+  confirmedByName: z.string(),
+  confirmedAt: z.string(),
 });
 export type PhotoCheck = z.infer<typeof PhotoCheck>;
 
+/** Điểm hiện ra và dùng để lọc: người duyệt xác nhận thì đạt hết, chưa thì điểm máy. */
+export const effectiveScore = (check: PhotoCheck): { passed: number; total: number } =>
+  check.confirmedAt ? { passed: check.total, total: check.total } : { passed: check.passed, total: check.total };
+
 /**
- * Ô lọc trên bảng. `fail` = lượt mới nhất đã xong và có phép kiểm không đạt;
- * `pass` = đã xong và đạt hết. Rỗng = không lọc.
+ * Ô lọc trên bảng. `fail` = lượt mới nhất đã xong, máy chấm không đạt hết, và
+ * chưa ai xác nhận; `pass` = máy chấm đạt hết hoặc người duyệt đã xác nhận.
+ * Rỗng = không lọc.
  */
 export const PhotoCheckFilter = z.enum(['fail', 'pass']);
 export type PhotoCheckFilter = z.infer<typeof PhotoCheckFilter>;

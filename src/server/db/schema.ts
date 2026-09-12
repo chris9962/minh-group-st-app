@@ -1069,6 +1069,13 @@ export const bankAccountChecks = pgTable(
     notify: boolean("notify").notNull().default(true),
     /** Lý do worker hỏng, chỉ khi `status = failed`. */
     error: text("error").notNull().default(""),
+    /**
+     * Người duyệt xác nhận ảnh đạt dù máy chấm không đạt (migration 0090).
+     * `result` giữ nguyên để còn biết máy đọc sai gì. Điểm hiệu lực = có xác
+     * nhận thì đạt hết. Lượt kiểm mới không mang xác nhận cũ.
+     */
+    confirmedBy: uuid("confirmed_by").references(() => users.id, { onDelete: "set null" }),
+    confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
     createdAt: createdAt(),
     checkedAt: timestamp("checked_at", { withTimezone: true }),
   },

@@ -22,6 +22,7 @@ import {
   BANK_ACCOUNT_STATUS_LABEL,
   BANK_ACCOUNT_STATUS_TONE,
   approveBankAccount,
+  setPhotoCheckConfirmed,
   type AccountType,
 } from "@/lib/api/bankAccounts";
 import { fetchBankAccountOfBank, markBankAccountError } from "@/lib/api/banking";
@@ -91,6 +92,15 @@ export default function BankAccountOfBankPage({
       toast.ok("Đã đánh dấu lỗi và tính lại KPI");
     },
     onError: (e) => toast.fail(errorMessage(e, "Không đánh dấu lỗi được tài khoản này.")),
+  });
+
+  const confirmPhotos = useMutation({
+    mutationFn: (confirmed: boolean) => setPhotoCheckConfirmed(accountId, confirmed),
+    onSuccess: (_, confirmed) => {
+      refreshAfterChange();
+      toast.ok(confirmed ? "Đã xác nhận ảnh đạt" : "Đã bỏ xác nhận");
+    },
+    onError: (e) => toast.fail(errorMessage(e, "Không ghi được xác nhận ảnh.")),
   });
 
   return (
@@ -239,6 +249,8 @@ export default function BankAccountOfBankPage({
                   }
                 : undefined
             }
+            onConfirm={(confirmed) => confirmPhotos.mutate(confirmed)}
+            confirming={confirmPhotos.isPending}
           />
         )}
         {data && <BankAccountHistory history={data.history} />}

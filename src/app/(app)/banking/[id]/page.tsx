@@ -39,6 +39,7 @@ import {
   deleteBankAccount,
   finishBankAccount,
   setBankAccountPhotos,
+  setPhotoCheckConfirmed,
   updateBankAccountStatus,
 } from "@/lib/api/bankAccounts";
 import { fetchBankAccountDetail, markBankAccountError, type BankAccountDetail } from "@/lib/api/banking";
@@ -359,6 +360,16 @@ function DoneAccountCard({
   });
 
   const [approving, setApproving] = useState(false);
+  const confirmPhotos = useMutation({
+    mutationFn: (confirmed: boolean) => setPhotoCheckConfirmed(id, confirmed),
+    onSuccess: (_, confirmed) => {
+      queryClient.invalidateQueries({ queryKey: ["bank-account-detail", id] });
+      queryClient.invalidateQueries({ queryKey: ["bank-account-list"] });
+      toast.ok(confirmed ? "Đã xác nhận ảnh đạt" : "Đã bỏ xác nhận");
+    },
+    onError: (e) => toast.fail(errorMessage(e, "Không ghi được xác nhận ảnh.")),
+  });
+
   const approve = useMutation({
     mutationFn: () => approveBankAccount(id),
     onSuccess: () => {
@@ -689,6 +700,10 @@ function DoneAccountCard({
               }
             : undefined
         }
+        onConfirm={
+          canManageBank(user, data.bankId) ? (confirmed) => confirmPhotos.mutate(confirmed) : undefined
+        }
+        confirming={confirmPhotos.isPending}
       />
     </>
   );

@@ -54,3 +54,12 @@
   margin: 0;
   overflow-wrap: anywhere;
 }
+
+.confirmed {
+  margin: 0 0 var(--space-3);
+  color: var(--om-green-ink);
+}
+
+.confirmed b {
+  font-weight: 600;
+}

@@ -1,4 +1,4 @@
-import { ScanLine, TriangleAlert } from "lucide-react";
+import { Check, ScanLine, TriangleAlert, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusTag, type StatusTone } from "@/components/ui/StatusTag";
@@ -38,26 +38,51 @@ const VERDICT_TEXT: Record<PhotoCheckVerdict, string> = {
  * `onMarkError` có thì khối bày nút "Đánh dấu lỗi" ngay cạnh kết quả khi có
  * dòng không đạt, kèm lý do đọc được để điền sẵn vào ô ghi chú. Người duyệt
  * không phải kéo lên nút ở khối trạng thái phía trên.
+ *
+ * `onConfirm` có thì bày nút "Xác nhận đạt" khi máy chấm không đạt hết: người
+ * duyệt xem ảnh, thấy máy đọc sai, bấm là cột ngoài bảng thành đạt hết. Đã xác
+ * nhận thì nút đổi thành "Bỏ xác nhận". Cả hai nút chỉ người quản ngân hàng có.
  */
 export function PhotoCheckPanel({
   check,
   onMarkError,
+  onConfirm,
+  confirming = false,
 }: {
   check: PhotoCheck | null;
   onMarkError?: (note: string) => void;
+  onConfirm?: (confirmed: boolean) => void;
+  confirming?: boolean;
 }) {
   if (!check) return null;
 
   const failing = check.status === "done" ? check.items.filter((i) => i.verdict !== "pass") : [];
+  const confirmed = Boolean(check.confirmedAt);
   const action =
-    onMarkError && failing.length > 0 ? (
-      <Button
-        variant="danger"
-        onClick={() => onMarkError(failing.map((i) => i.note).filter(Boolean).join(" "))}
-      >
-        <TriangleAlert size={16} aria-hidden />
-        Đánh dấu lỗi
-      </Button>
+    check.status === "done" && (failing.length > 0 || confirmed) ? (
+      <>
+        {onConfirm && confirmed && (
+          <Button variant="secondary" disabled={confirming} onClick={() => onConfirm(false)}>
+            <Undo2 size={16} aria-hidden />
+            Bỏ xác nhận
+          </Button>
+        )}
+        {onConfirm && !confirmed && (
+          <Button variant="secondary" disabled={confirming} onClick={() => onConfirm(true)}>
+            <Check size={16} aria-hidden />
+            Xác nhận đạt
+          </Button>
+        )}
+        {onMarkError && !confirmed && (
+          <Button
+            variant="danger"
+            onClick={() => onMarkError(failing.map((i) => i.note).filter(Boolean).join(" "))}
+          >
+            <TriangleAlert size={16} aria-hidden />
+            Đánh dấu lỗi
+          </Button>
+        )}
+      </>
     ) : undefined;
 
   const meta =
@@ -71,6 +96,11 @@ export function PhotoCheckPanel({
     <SectionCard title="Xác thực ảnh" icon={<ScanLine size={17} />} meta={meta} action={action}>
       {check.status === "pending" && <p className="text-muted">Đang phân tích ảnh.</p>}
       {check.status === "failed" && <p className={styles.error}>{check.error}</p>}
+      {confirmed && (
+        <p className={styles.confirmed}>
+          Người duyệt xác nhận đạt: <b>{check.confirmedByName}</b>, {formatDateTime(check.confirmedAt)}
+        </p>
+      )}
       {check.status === "done" && (
         <ul className={styles.list}>
           {ORDER.map((key) => {

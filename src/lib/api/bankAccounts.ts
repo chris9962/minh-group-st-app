@@ -382,6 +382,17 @@ export async function updateBankAccountStatus(
  * Chỉ người quản ngân hàng đó bấm được; máy chủ trả 404 với người khác. Điểm
  * KPI quay lại đúng lúc này.
  */
+/**
+ * Người duyệt xác nhận ảnh đạt trên lượt xác thực mới nhất, hoặc bỏ xác nhận.
+ * Không đổi trạng thái tài khoản; chỉ điểm ở cột Xác thực đổi.
+ */
+export async function setPhotoCheckConfirmed(id: string, confirmed: boolean): Promise<void> {
+  const res = await fetch(`/api/bank-accounts/${id}/photo-check`, {
+    method: confirmed ? 'POST' : 'DELETE',
+  });
+  if (!res.ok) throw await failure(res, 'Không ghi được xác nhận ảnh');
+}
+
 export async function approveBankAccount(id: string): Promise<BankAccount> {
   const res = await fetch(`/api/bank-accounts/${id}/approve`, { method: 'POST' });
   if (!res.ok) throw await failure(res, 'Không duyệt được tài khoản này');

@@ -576,6 +576,8 @@ const decorate = (page: ReturnType<typeof pickPage>) => {
       photoCheckedAt: check.checkedAt,
       photoCheckPassed: check.passed,
       photoCheckTotal: check.total,
+      photoCheckConfirmedAt: check.confirmedAt,
+      photoCheckConfirmedByName: check.confirmedByName,
     })
     .from(page)
     .innerJoin(customers, eq(customers.id, page.customerId))
@@ -620,6 +622,8 @@ const toRow = (r: DecoratedRow): BankAccountRow => ({
     checkedAt: r.photoCheckedAt,
     passed: r.photoCheckPassed,
     total: r.photoCheckTotal,
+    confirmedAt: r.photoCheckConfirmedAt,
+    confirmedByName: r.photoCheckConfirmedByName,
   }),
 });
 
