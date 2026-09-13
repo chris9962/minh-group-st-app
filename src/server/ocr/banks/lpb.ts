@@ -1,6 +1,6 @@
-import type { PhotoCheckItem } from "@/lib/api/photoCheck";
 import { nameMatches } from "./tpbank";
 import { compact, hasLabel, isoDate, levenshtein, pickField, splitLines, stripAccents, type FieldSpec } from "../text";
+import { indexed, type CheckedItem } from "../types";
 
 /**
  * Bộ nhãn LPBank đo trên 12 tài khoản hoàn thành trong dữ liệu local
@@ -315,22 +315,27 @@ function referralCodeMatches(found: string, expected: string, foundName: string,
  * đúng cả 7 ảnh của người này) — ưu tiên ảnh có dữ liệu KHỚP với tài khoản
  * đang kiểm, chỉ rơi về "ít trường thiếu nhất" khi không ảnh nào khớp.
  */
-export function checkLpb(texts: string[], ctx: LpbCheckContext): PhotoCheckItem[] {
+export function checkLpb(texts: string[], ctx: LpbCheckContext): CheckedItem[] {
   const best = <T extends { missing: unknown[] }>(rs: T[]): T | undefined =>
     rs.sort((a, b) => a.missing.length - b.missing.length)[0];
 
-  const infos = texts.map(parseLpbAccountInfo).filter((r) => r.customerName || r.openedDateLoose);
-  const referrals = texts.map(parseLpbReferral).filter((r) => r.recognized);
-  const transfer = texts.map(parseLpbTransfer).find((r) => r.success);
+  const infos = indexed(texts, parseLpbAccountInfo).filter((r) => r.customerName || r.openedDateLoose);
+  const referrals = indexed(texts, parseLpbReferral).filter((r) => r.recognized);
+  const transfer = indexed(texts, parseLpbTransfer).find((r) => r.success);
 
+  const matchingInfos = infos.filter((r) => r.customerName && nameMatches(r.customerName, ctx.customerName));
+  // Một ảnh có thể đọc được tên nhưng mất ngày; ưu tiên ảnh cùng khách có đủ
+  // dữ liệu (ví dụ lượt đọc lại bằng Paddle) thay vì ảnh khớp tên đầu tiên.
   const info =
-    infos.find((r) => r.customerName && nameMatches(r.customerName, ctx.customerName)) ?? best(infos);
+    matchingInfos.find((r) => r.openedDate && r.openedDate === ctx.openedDate) ??
+    best(matchingInfos) ??
+    best(infos);
   const referral =
     referrals.find(
       (r) => r.referralCode && referralCodeMatches(r.referralCode, ctx.referralCode, r.referralName, ctx.referralName),
     ) ?? best(referrals);
 
-  const items: PhotoCheckItem[] = [];
+  const items: CheckedItem[] = [];
 
   // 1. Ảnh "Giới thiệu bạn bè": mã giới thiệu.
   if (!referral) {
@@ -364,6 +369,7 @@ export function checkLpb(texts: string[], ctx: LpbCheckContext): PhotoCheckItem[
       found: [referral.referralCode, referral.referralName].filter(Boolean).join(" - "),
       expected: ctx.referralCode,
       note: notes.join(" "),
+      photoIndex: referral.photoIndex,
     });
   }
 
@@ -408,6 +414,7 @@ export function checkLpb(texts: string[], ctx: LpbCheckContext): PhotoCheckItem[
       found: [info.customerName, info.openedDate || info.openedDateLoose].filter(Boolean).join(" - "),
       expected: [ctx.customerName, ctx.openedDate].filter(Boolean).join(" - "),
       note: notes.join(" "),
+      photoIndex: info.photoIndex,
     });
   }
 
@@ -422,6 +429,7 @@ export function checkLpb(texts: string[], ctx: LpbCheckContext): PhotoCheckItem[
           found: "Có thông tin giao dịch thành công",
           expected: "",
           note: "",
+          photoIndex: transfer.photoIndex,
         }
       : {
           key: "transfer",

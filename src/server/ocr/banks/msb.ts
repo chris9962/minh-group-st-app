@@ -1,6 +1,6 @@
-import type { PhotoCheckItem } from "@/lib/api/photoCheck";
 import { nameMatches } from "./tpbank";
 import { compact, hasLabel, hasPhrase, levenshtein, splitLines, stripAccents } from "../text";
+import { indexed, type CheckedItem } from "../types";
 
 /**
  * Bộ nhãn MSB đo trên 10 tài khoản hoàn thành trong dữ liệu local 2026-09-12.
@@ -245,12 +245,12 @@ function branchMatches(found: string, expected: string): boolean {
   return levenshtein(a, b) <= Math.max(1, Math.floor(b.length / 10));
 }
 
-export function checkMsb(texts: string[], ctx: MsbCheckContext): PhotoCheckItem[] {
+export function checkMsb(texts: string[], ctx: MsbCheckContext): CheckedItem[] {
   const best = <T extends { missing: unknown[] }>(values: T[]): T | undefined =>
     values.sort((a, b) => a.missing.length - b.missing.length)[0];
 
-  const opens = texts.map(parseMsbOpenSuccess).filter((value) => value.success);
-  const supplements = texts.map(parseMsbSupplement).filter((value) => value.supplement);
+  const opens = indexed(texts, parseMsbOpenSuccess).filter((value) => value.success);
+  const supplements = indexed(texts, parseMsbSupplement).filter((value) => value.supplement);
   // Một tài khoản nhập cũ có thể chứa cả ảnh chụp nhầm của khách kế tiếp. Nếu
   // trong bộ vẫn có ảnh đúng, ưu tiên chính giá trị cần đối chiếu thay vì thứ tự.
   const open =
@@ -269,10 +269,10 @@ export function checkMsb(texts: string[], ctx: MsbCheckContext): PhotoCheckItem[
           branchMatches(value.branch, ctx.supportBranch)),
     ) ?? best(supplements);
   const transfer = best(
-    texts.map(parseMsbTransfer).filter((value) => value.bank && value.success),
+    indexed(texts, parseMsbTransfer).filter((value) => value.bank && value.success),
   );
   const referral = expectedReferral(ctx);
-  const items: PhotoCheckItem[] = [];
+  const items: CheckedItem[] = [];
 
   if (!open) {
     items.push({
@@ -302,6 +302,7 @@ export function checkMsb(texts: string[], ctx: MsbCheckContext): PhotoCheckItem[
       found: [open.customerName, open.accountNumber].filter(Boolean).join(" - "),
       expected: ctx.customerName,
       note: notes.join(" "),
+      photoIndex: open.photoIndex,
     });
   }
 
@@ -346,6 +347,7 @@ export function checkMsb(texts: string[], ctx: MsbCheckContext): PhotoCheckItem[
       found: [supplement.referralCode, supplement.branch].filter(Boolean).join(" - "),
       expected: [referral, ctx.supportBranch].filter(Boolean).join(" - "),
       note: notes.join(" "),
+      photoIndex: supplement.photoIndex,
     });
   }
 
@@ -362,6 +364,7 @@ export function checkMsb(texts: string[], ctx: MsbCheckContext): PhotoCheckItem[
               : "Chuyển tiền thành công",
           expected: "",
           note: "",
+          photoIndex: transfer.photoIndex,
         }
       : {
           key: "transfer",

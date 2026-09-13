@@ -22,9 +22,13 @@ import { canManageBank } from "@/lib/permissions";
 import type { User } from "@/lib/types";
 import { bankManagersFor, notify, notifyUsers } from "./notifications";
 import { checkLpb, type LpbCheckContext } from "./ocr/banks/lpb";
+import { checkMb, type MbCheckContext } from "./ocr/banks/mb";
 import { checkMsb, type MsbCheckContext } from "./ocr/banks/msb";
 import { checkTpbank, type TpbCheckContext } from "./ocr/banks/tpbank";
 import { ocrImage } from "./ocr/image";
+import { adaptPaddleText, fallbackPhotoIndexes } from "./ocr/fallback";
+import { ocrWithPaddle, paddleAvailable } from "./ocr/paddle";
+import type { CheckedItem } from "./ocr/types";
 import { readImage } from "./storage";
 
 /**
@@ -42,9 +46,10 @@ export const PHOTO_CHECK_CHANNEL = "bank_photo_check";
 
 type PhotoCheckContext = TpbCheckContext &
   Pick<MsbCheckContext, "referralName" | "supportBranch"> &
+  Pick<MbCheckContext, "province"> &
   Pick<LpbCheckContext, "openedDate">;
 
-type Checker = (texts: string[], ctx: PhotoCheckContext) => PhotoCheckItem[];
+type Checker = (texts: string[], ctx: PhotoCheckContext) => CheckedItem[];
 
 /** Ngân hàng đã có bộ nhãn, khoá là `banks.code`. Thêm ngân hàng là thêm một dòng. */
 const CHECKERS: Record<string, Checker> = {
@@ -52,6 +57,7 @@ const CHECKERS: Record<string, Checker> = {
   MSBb: checkMsb,
   TPB: checkTpbank,
   LPB: checkLpb,
+  MB: checkMb,
 };
 
 export const hasPhotoChecker = (bankCode: string): boolean => bankCode in CHECKERS;
@@ -275,6 +281,7 @@ export async function runPhotoCheck(run: PhotoCheckRun): Promise<PhotoCheckItem[
       customerName: customers.fullName,
       referralCode: referralCodes.code,
       referralName: referralCodes.displayName,
+      province: referralCodes.province,
       supportBranch: referralCodes.supportBranch,
     })
     .from(bankAccounts)
@@ -291,25 +298,57 @@ export async function runPhotoCheck(run: PhotoCheckRun): Promise<PhotoCheckItem[
   // Cả ảnh mở tài khoản lẫn ảnh giao dịch: nhân viên hay nộp màn chuyển khoản
   // vào nhóm nào cũng có, bộ kiểm tự nhận ra từng màn.
   const photos = await db
-    .select({ key: bankAccountPhotos.url })
+    .select({ id: bankAccountPhotos.id, key: bankAccountPhotos.url })
     .from(bankAccountPhotos)
     .where(eq(bankAccountPhotos.accountId, run.accountId))
     .orderBy(asc(bankAccountPhotos.kind), asc(bankAccountPhotos.sortOrder));
 
+  // Chỉ giữ ảnh trong RAM khi lượt đọc lại chạy được; không thì chữ là đủ.
+  const canRetry = paddleAvailable();
+  const images: Buffer[] = [];
   const texts: string[] = [];
   for (const { key } of photos) {
     const image = await imageBuffer(key);
     if (!image) throw new Error(`Không đọc được ảnh ${key} từ kho.`);
     texts.push(await ocrImage(image));
+    if (canRetry) images.push(image);
   }
-
-  return check(texts, {
+  const context: PhotoCheckContext = {
     referralCode: account.referralCode ?? "",
     referralName: account.referralName,
+    province: account.province,
     supportBranch: account.supportBranch,
     customerName: account.customerName,
     accountNumber: account.accountNumber ?? "",
     openedDate: account.openedDate ?? "",
+  };
+  const initial = check(texts, context);
+  let items = initial;
+  const retryIndexes = canRetry ? fallbackPhotoIndexes(initial, texts.length) : [];
+  if (retryIndexes.length) {
+    console.info(`[photo-check] ${account.bankCode}: PaddleOCR đọc lại ảnh số ${retryIndexes.map((index) => index + 1).join(", ")}.`);
+    try {
+      const linesByPhoto = await ocrWithPaddle(retryIndexes.map((index) => images[index]));
+      const extra = linesByPhoto.map((lines) => adaptPaddleText(account.bankCode, lines));
+      const combined = check([...texts, ...extra], context);
+      items = initial.map((item) => {
+        if (item.verdict === "pass") return item;
+        const next = combined.find((candidate) => candidate.key === item.key);
+        return next && next.verdict !== "missing" ? next : item;
+      });
+    } catch (error) {
+      // Lượt dự phòng hỏng không được làm mất kết quả Tesseract đã tính xong.
+      console.warn(`[photo-check] PaddleOCR không chạy được: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  // `photoIndex` trỏ vào mảng chữ: phần đầu là lượt Tesseract theo đúng thứ tự
+  // ảnh, phần đuôi là lượt Paddle đọc lại các ảnh ở `retryIndexes`.
+  return items.map(({ photoIndex, ...item }) => {
+    if (photoIndex === undefined) return item;
+    const fromPaddle = photoIndex >= texts.length;
+    const photo = photos[fromPaddle ? retryIndexes[photoIndex - texts.length] : photoIndex];
+    return { ...item, photoId: photo.id, ocrEngine: fromPaddle ? "paddle" : "tesseract" };
   });
 }
 

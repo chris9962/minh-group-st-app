@@ -290,4 +290,18 @@ assert.equal(
   "pass",
 );
 
+// Tesseract đọc được tên nhưng không đọc ngày; lượt Paddle cùng ảnh đọc đủ.
+const nameWithoutDate = accountInfo.replace("Ngày mở tài khoản: 08/09/2026", "Ngày mở tài khoản:");
+assert.equal(
+  checkLpb([nameWithoutDate, accountInfo, referralTab, transferSuccess], context).find((i) => i.key === "home")
+    ?.verdict,
+  "pass",
+);
+// Có nhiều ảnh cùng tên thì ngày đúng phải thắng ảnh ngày sai đứng trước.
+assert.equal(
+  checkLpb([wrongDate, accountInfo, referralTab, transferSuccess], context).find((i) => i.key === "home")
+    ?.verdict,
+  "pass",
+);
+
 console.log("LPB photo parser: OK");

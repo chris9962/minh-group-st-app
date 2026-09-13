@@ -1,5 +1,5 @@
-import type { PhotoCheckItem } from "@/lib/api/photoCheck";
 import { compact, hasLabel, hasPhrase, isoDate, pickField, splitLines, stripAccents, type FieldSpec } from "../text";
+import { indexed, type CheckedItem } from "../types";
 
 /* ── Màn "Mở Tài Khoản Thành Công" ────────────────────────────────────── */
 
@@ -406,17 +406,17 @@ function digitsClose(a: string, b: string): boolean {
  * có `greeted`, chuyển khoản có `bank` và `success`. Một ảnh khớp nhiều màn
  * thì ưu tiên màn thiếu ít trường nhất.
  */
-export function checkTpbank(texts: string[], ctx: TpbCheckContext): PhotoCheckItem[] {
-  const opens = texts.map(parseTpbOpenSuccess).filter((r) => r.success);
-  const homes = texts.map(parseTpbHome).filter((r) => r.greeted);
-  const transfers = texts.map(parseTpbTransfer).filter((r) => r.bank && r.success);
+export function checkTpbank(texts: string[], ctx: TpbCheckContext): CheckedItem[] {
+  const opens = indexed(texts, parseTpbOpenSuccess).filter((r) => r.success);
+  const homes = indexed(texts, parseTpbHome).filter((r) => r.greeted);
+  const transfers = indexed(texts, parseTpbTransfer).filter((r) => r.bank && r.success);
   const best = <T extends { missing: unknown[] }>(rs: T[]) =>
     rs.sort((a, b) => a.missing.length - b.missing.length)[0];
 
   const open = best(opens);
   const home = best(homes);
   const transfer = best(transfers);
-  const items: PhotoCheckItem[] = [];
+  const items: CheckedItem[] = [];
 
   // 1. Mở tài khoản: mã giới thiệu, và số tài khoản khớp số nhân viên nhập.
   if (!open) {
@@ -455,6 +455,7 @@ export function checkTpbank(texts: string[], ctx: TpbCheckContext): PhotoCheckIt
       found: [open.referralCode, open.accountNumber].filter(Boolean).join(" - "),
       expected: [ctx.referralCode, ctx.accountNumber].filter(Boolean).join(" - "),
       note: notes.join(" "),
+      photoIndex: open.photoIndex,
     });
   }
 
@@ -495,6 +496,7 @@ export function checkTpbank(texts: string[], ctx: TpbCheckContext): PhotoCheckIt
       found: [home.customerName, home.accountNumber].filter(Boolean).join(" - "),
       expected: [ctx.customerName, ctx.accountNumber].filter(Boolean).join(" - "),
       note: notes.join(" "),
+      photoIndex: home.photoIndex,
     });
   }
 
@@ -542,6 +544,7 @@ export function checkTpbank(texts: string[], ctx: TpbCheckContext): PhotoCheckIt
           ? [ctx.customerName, ctx.accountNumber].filter(Boolean).join(" - ")
           : "",
       note: notes.join(" "),
+      photoIndex: transfer.photoIndex,
     });
   }
 

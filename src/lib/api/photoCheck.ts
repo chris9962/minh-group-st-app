@@ -40,6 +40,10 @@ export const PhotoCheckItem = z.object({
   expected: z.string(),
   /** Vì sao không đạt, một câu. */
   note: z.string(),
+  /** Ảnh đã cung cấp bằng chứng cho mục này, nếu bộ kiểm xác định được. */
+  photoId: z.string().uuid().optional(),
+  /** OCR nào đã cung cấp bằng chứng; chỉ có ở lượt kiểm hỗ trợ truy vết. */
+  ocrEngine: z.enum(['tesseract', 'paddle']).optional(),
 });
 export type PhotoCheckItem = z.infer<typeof PhotoCheckItem>;
 

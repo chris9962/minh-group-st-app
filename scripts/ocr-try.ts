@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { ocrImage } from "../src/server/ocr/image";
 import { parseMsbOpenSuccess, parseMsbSupplement, parseMsbTransfer } from "../src/server/ocr/banks/msb";
+import { parseMbProfile, parseMbRegistration, parseMbTransfer } from "../src/server/ocr/banks/mb";
 import { parseTpbHome, parseTpbOpenSuccess, parseTpbTransfer } from "../src/server/ocr/banks/tpbank";
 
 /**
@@ -15,6 +16,9 @@ import { parseTpbHome, parseTpbOpenSuccess, parseTpbTransfer } from "../src/serv
  */
 
 const PARSERS: Record<string, (text: string) => unknown> = {
+  "mb-registration": parseMbRegistration,
+  "mb-profile": parseMbProfile,
+  "mb-transfer": parseMbTransfer,
   "msb-open": parseMsbOpenSuccess,
   "msb-supplement": parseMsbSupplement,
   "msb-transfer": parseMsbTransfer,
