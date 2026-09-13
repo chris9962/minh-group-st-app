@@ -35,12 +35,20 @@ export function levenshtein(a: string, b: string): number {
  *
  * Cho sai 1 ký tự mỗi 6 ký tự nhãn, ít nhất 1. Không đòi "bắt đầu bằng nhãn":
  * ảnh chụp cả viền điện thoại thì OCR nhét rác trước nhãn.
+ *
+ * Cửa sổ so sánh rộng từ `label.length - tolerance` tới `label.length +
+ * tolerance`. Bản trước chỉ so cửa sổ đúng bằng độ dài nhãn, nên nhãn bị RỤNG
+ * ký tự không bao giờ khớp: PaddleOCR đọc "Mở Tài Khoản Thành Công" ra
+ * `MTAIKHONTHANHCONG` dài 17, ngắn hơn nhãn 19 ký tự, vòng lặp không chạy lần
+ * nào (đo 2026-09-13, cả 38 ảnh TPBank đọc lại đều mất trắng vì lỗi này).
  */
 export function hasLabel(line: string, label: string): boolean {
   const c = compact(line);
   const tolerance = Math.max(1, Math.floor(label.length / 6));
-  for (let i = 0; i + label.length <= c.length; i++) {
-    if (levenshtein(c.slice(i, i + label.length), label) <= tolerance) return true;
+  for (let width = Math.max(1, label.length - tolerance); width <= label.length + tolerance; width++) {
+    for (let i = 0; i + width <= c.length; i++) {
+      if (levenshtein(c.slice(i, i + width), label) <= tolerance) return true;
+    }
   }
   return false;
 }

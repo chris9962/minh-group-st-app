@@ -70,9 +70,11 @@ export function parseTpbOpenSuccess(ocrText: string): TpbOpenSuccess {
 
   const out: TpbOpenSuccess = {
     // Nhận cả khi OCR rớt chữ "MỞ": hai cụm còn lại đủ nói đây là màn này.
+    // Dùng `hasLabel` chứ không `hasPhrase`: `hasPhrase` so khớp nguyên văn nên
+    // PaddleOCR đọc "M Tài Khon Thành Công" là trượt (đo 2026-09-13).
     success:
-      hasPhrase(lines, "MOTAIKHOANTHANHCONG") ||
-      lines.some((l) => hasPhrase([l], "TAIKHOAN") && hasPhrase([l], "THANHCONG")),
+      lines.some((l) => hasLabel(l, "MOTAIKHOANTHANHCONG")) ||
+      lines.some((l) => hasLabel(l, "TAIKHOAN") && hasLabel(l, "THANHCONG")),
     username: pickField(lines, OPEN_FIELDS.username),
     accountNumber: pickField(lines, OPEN_FIELDS.accountNumber),
     effectiveFrom: pickField(lines, OPEN_FIELDS.effectiveFrom),
@@ -413,8 +415,20 @@ export function checkTpbank(texts: string[], ctx: TpbCheckContext): CheckedItem[
   const best = <T extends { missing: unknown[] }>(rs: T[]) =>
     rs.sort((a, b) => a.missing.length - b.missing.length)[0];
 
-  const open = best(opens);
-  const home = best(homes);
+  /**
+   * Chọn theo SỐ TRƯỜNG KHỚP dữ liệu hệ thống trước, rồi mới tới số trường
+   * thiếu — giống MB. Bản trước chỉ so số trường thiếu, nên một ảnh đọc đủ
+   * trường mà sai giá trị vẫn thắng bản đọc đúng của lượt Paddle.
+   */
+  const pick = <T extends { missing: unknown[] }>(rs: T[], score: (value: T) => number): T | undefined =>
+    rs.sort((a, b) => score(b) - score(a) || a.missing.length - b.missing.length)[0];
+
+  const open = pick(opens, (r) =>
+    Number(Boolean(r.referralCode && ctx.referralCode) && codeKey(r.referralCode) === codeKey(ctx.referralCode)) +
+    Number(Boolean(r.accountNumber && ctx.accountNumber) && digitsOf(r.accountNumber) === digitsOf(ctx.accountNumber)));
+  const home = pick(homes, (r) =>
+    Number(Boolean(r.customerName) && nameMatches(r.customerName, ctx.customerName)) +
+    Number(Boolean(r.accountNumber && ctx.accountNumber) && digitsClose(r.accountNumber, digitsOf(ctx.accountNumber))));
   const transfer = best(transfers);
   const items: CheckedItem[] = [];
 

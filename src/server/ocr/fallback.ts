@@ -1,6 +1,14 @@
 import { adaptMbPaddleText } from "./banks/mbFallback";
-import { compact } from "./text";
+import { compact, levenshtein } from "./text";
 import type { CheckedItem } from "./types";
+
+/**
+ * Dòng CHỈ CÓ nhãn, không kèm giá trị, cho sai vài ký tự vì Paddle rụng nguyên
+ * âm. Khác `hasLabel` ở chỗ đòi cả dòng khớp: dòng "Xin chào NGUYEN VAN A" mà
+ * thay bằng nhãn chuẩn là mất luôn tên khách.
+ */
+const only = (label: string, expected: string): boolean =>
+  levenshtein(label, expected) <= Math.max(1, Math.floor(expected.length / 6));
 
 /**
  * Trần ảnh một lượt Paddle. `PHOTO_MAX` cho phép 20 ảnh mỗi loại, nên không
@@ -46,6 +54,8 @@ export function adaptPaddleText(bankCode: string, lines: string[]): string {
   const bank = bankCode.startsWith("MSB") ? "MSB" : bankCode;
   const normalized = lines.map((line) => {
     const label = compact(line);
+    // TPBank in chú thích trong ngoặc sau nhãn: "Mã ưu đãi/giới thiệu (nếu có)".
+    const bare = compact(line.replace(/\(.*?\)/g, ""));
     if (bank === "LPB") {
       if (label.startsWith("NGAYM") && label.includes("TAIKH") && !/\d{1,2}\/\d{2}\/\d{4}/.test(line)) return "Ngày mở tài khoản";
       if (label === "CHUTAIKHOAN" || label === "CHUTAIKHON") return "Chủ tài khoản";
@@ -62,9 +72,12 @@ export function adaptPaddleText(bankCode: string, lines: string[]): string {
       if (label === "MAGIAODICH") return "Mã giao dịch";
     }
     if (bank === "TPB") {
-      if (label === "XINCHAO") return "Xin chào";
-      if (label === "MOTAIKHOANTHANHCONG") return "Mở tài khoản thành công";
-      if (label === "LICHSUGIAODICH") return "Lịch sử giao dịch";
+      if (only(bare, "MOTAIKHOANTHANHCONG")) return "Mở tài khoản thành công";
+      if (only(bare, "TENDANGNHAP")) return "Tên đăng nhập:";
+      if (only(bare, "SOTAIKHOANTHANHTOAN")) return "Số tài khoản thanh toán:";
+      if (only(bare, "MAUUDAIGIOITHIEU") || only(bare, "MAGIOITHIEU")) return "Mã giới thiệu";
+      if (only(bare, "XINCHAO")) return "Xin chào";
+      if (only(bare, "LICHSUGIAODICH")) return "Lịch sử giao dịch";
     }
     return line;
   });
@@ -78,6 +91,19 @@ export function adaptPaddleText(bankCode: string, lines: string[]): string {
       if (normalized[i] === "Ngày mở tài khoản" && /^\d{1,2}\/\d{2}\/\d{4}$/.test(normalized[i + 1])) {
         normalized[i] += `: ${normalized[i + 1]}`;
       }
+    }
+  }
+  /**
+   * TPBank: Paddle tách NHÃN và GIÁ TRỊ thành hai hộp chữ, còn `pickField` đòi
+   * chúng cùng một dòng. Ghép dòng nhãn không có chữ số với dòng sau có chữ số.
+   * Đo 2026-09-13: thiếu bước này thì cả 38 ảnh đọc lại đều ra rỗng trường.
+   */
+  if (bank === "TPB") {
+    const LABELS = ["Tên đăng nhập:", "Số tài khoản thanh toán:", "Mã giới thiệu"];
+    for (let i = 0; i < normalized.length - 1; i++) {
+      if (!LABELS.includes(normalized[i])) continue;
+      if (!/^[A-Z0-9][\dA-Z /]*$/i.test(normalized[i + 1].trim())) continue;
+      normalized[i] += ` ${normalized[i + 1]}`;
     }
   }
   // Paddle tách số tiền sang hộp chữ riêng; parser giao dịch có thể chờ cùng dòng.

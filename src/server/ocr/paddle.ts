@@ -19,13 +19,40 @@ export const paddleAvailable = (): boolean =>
   existsSync(path.join(cache(), "official_models/PP-OCRv6_medium_rec")) &&
   existsSync(path.join(process.cwd(), "scripts/paddle-ocr.py"));
 
-/** Một tiến trình Paddle tại một thời điểm để không làm nghẽn CPU/RAM worker. */
-let queue: Promise<unknown> = Promise.resolve();
+/**
+ * Số tiến trình Paddle chạy cùng lúc, mặc định 1.
+ *
+ * Worker kiểm ảnh đã chạy 4 tài khoản song song trong `--cpus 4`, mỗi tài khoản
+ * mở 3 tiến trình Tesseract. Thêm tiến trình Paddle là tranh CPU với chúng.
+ * Chỉ nâng `PADDLE_OCR_PARALLEL` khi đo trên máy rảnh.
+ */
+const parallel = (): number => Math.max(1, Math.min(8, Number(process.env.PADDLE_OCR_PARALLEL) || 1));
 
-export function ocrWithPaddle(images: Buffer[]): Promise<string[][]> {
-  const task = queue.then(() => runPaddle(images));
-  queue = task.catch(() => undefined);
-  return task;
+let running = 0;
+const waiting: (() => void)[] = [];
+
+async function acquire(): Promise<void> {
+  if (running < parallel()) {
+    running++;
+    return;
+  }
+  // `release` chuyển thẳng slot sang đây, nên không tăng `running` lần nữa.
+  await new Promise<void>((resolve) => waiting.push(resolve));
+}
+
+function release(): void {
+  const next = waiting.shift();
+  if (next) next();
+  else running--;
+}
+
+export async function ocrWithPaddle(images: Buffer[]): Promise<string[][]> {
+  await acquire();
+  try {
+    return await runPaddle(images);
+  } finally {
+    release();
+  }
 }
 
 function runPaddle(images: Buffer[]): Promise<string[][]> {
