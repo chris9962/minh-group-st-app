@@ -99,17 +99,10 @@ export async function POST(request: Request) {
 
   // Tạo THÊM một lần cho người đã có hồ sơ. `uuidParam` lọc chuỗi bậy — id không
   // phải uuid đi thẳng vào SQL là `22P02` → 500.
-  const raw = (body as { linkToRootId?: unknown; keepExisting?: unknown } | null) ?? {};
+  const raw = (body as { linkToRootId?: unknown } | null) ?? {};
   const linkToRootId = uuidParam(typeof raw.linkToRootId === "string" ? raw.linkToRootId : null);
-  // Chép hồ sơ gốc thay vì ghi đè nó — chỉ có nghĩa khi đang nối.
-  const keepExisting = Boolean(linkToRootId) && raw.keepExisting === true;
 
-  const result = await createCustomer(
-    guard.actor,
-    parsed.data,
-    linkToRootId || undefined,
-    keepExisting,
-  );
+  const result = await createCustomer(guard.actor, parsed.data, linkToRootId || undefined);
   if (!result.ok) {
     if (result.reason === "open-draft-exists")
       return Response.json(
@@ -126,7 +119,7 @@ export async function POST(request: Request) {
     // Câu báo bám theo TÊN CHỈ MỤC bị đụng, không suy từ việc tra được hồ sơ
     // hay không. Khoá duy nhất khác `customers_id_number` là ràng buộc nội bộ,
     // nói "CCCD trùng" lúc đó là chỉ sai chỗ.
-    if (result.reason !== "duplicate-id-number")
+    if (result.reason !== "duplicate-id-number" && result.reason !== "info-mismatch")
       return badRequest("Không lưu được hồ sơ khách này");
 
     /**
@@ -135,6 +128,9 @@ export async function POST(request: Request) {
      * (chủ dự án chốt 2026-09-06, đảo lại chốt 2026-08-18): trùng CCCD chưa
      * chắc là cùng người, nhân viên phải đối chiếu với khách trước khi nối.
      * Số điện thoại và số bản ghi vẫn không trả.
+     *
+     * `info-mismatch` (lượt nối bị từ chối vì lệch) đi cùng đường: giao diện
+     * hiện lại hộp đối chiếu với danh sách lệch mới nhất.
      *
      * `openDraftId` nói người đang gõ có sẵn một hồ sơ dở dang của chính họ hay
      * không, tức hộp thoại hỏi lại hay chỉ báo rồi dừng.
@@ -157,6 +153,7 @@ export async function POST(request: Request) {
         openDraftId: info.openDraftId,
         existing: info.existing,
         mismatch: info.mismatch,
+        nextSeq: info.nextSeq,
       },
       { status: 422 },
     );

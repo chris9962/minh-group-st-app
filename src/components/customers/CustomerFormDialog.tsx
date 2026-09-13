@@ -197,12 +197,10 @@ export function CustomerFormDialog({
     null,
   );
 
-  type SaveArgs = { form: CustomerForm; linkToRootId?: string; keepExisting?: boolean };
+  type SaveArgs = { form: CustomerForm; linkToRootId?: string };
   const save = useMutation({
-    mutationFn: ({ form, linkToRootId, keepExisting }: SaveArgs) =>
-      customer
-        ? updateCustomer(customer.id, form)
-        : createCustomer(form, linkToRootId, keepExisting),
+    mutationFn: ({ form, linkToRootId }: SaveArgs) =>
+      customer ? updateCustomer(customer.id, form) : createCustomer(form, linkToRootId),
     onSuccess: (saved) => {
       queryClient.invalidateQueries({ queryKey: ["customers"] });
       if (customer) {
@@ -224,11 +222,10 @@ export function CustomerFormDialog({
     },
   });
 
-  const submit = (form: CustomerForm, linkToRootId?: string, keepExisting?: boolean) =>
+  const submit = (form: CustomerForm, linkToRootId?: string) =>
     save.mutate({
       form: { ...form, channelDetail: channelDetailToSave(form) },
       linkToRootId,
-      keepExisting,
     });
 
   const makePrimary = (index: number) => {
@@ -446,8 +443,7 @@ export function CustomerFormDialog({
           typed={duplicate.form}
           pending={save.isPending}
           onClose={() => setDuplicate(null)}
-          onUseTyped={handleSubmit((form) => submit(form, duplicate.info.rootId, false), reportInvalid)}
-          onUseExisting={handleSubmit((form) => submit(form, duplicate.info.rootId, true), reportInvalid)}
+          onCreate={handleSubmit((form) => submit(form, duplicate.info.rootId), reportInvalid)}
         />
       )}
 
@@ -473,8 +469,7 @@ type DuplicateDialogProps = {
   typed: CustomerForm;
   pending: boolean;
   onClose: () => void;
-  onUseTyped: () => void;
-  onUseExisting: () => void;
+  onCreate: () => void;
 };
 
 const ROW_LABEL: Record<DuplicateField, string> = {
@@ -484,24 +479,22 @@ const ROW_LABEL: Record<DuplicateField, string> = {
 };
 
 /**
- * Hộp thoại hỏi lại khi CCCD trùng (chủ dự án chốt 2026-09-06).
+ * Hộp thoại hỏi lại khi CCCD trùng.
  *
  * Trùng CCCD chưa chắc là cùng một người: gõ nhầm một số là đụng hồ sơ của
  * người khác. Nên bày hai cột "đang có" và "vừa nhập" cho nhân viên hỏi khách
- * ngay tại chỗ. Khớp hết thì một nút; lệch thì hai nút, và nói rõ nút nào đổi
- * cả hồ sơ đang có.
+ * ngay tại chỗ. Khớp hết thì cho tạo; lệch thì KHÔNG có nút tạo (chốt
+ * 2026-09-13, thay chốt 2026-09-06 cho chọn "dùng bên nào"): nhân viên đóng
+ * hộp, sửa thông tin cho khớp rồi lưu lại. Máy chủ kiểm lại cùng luật ở
+ * `createCustomer`.
+ *
+ * Dòng CCCD hiện cả hai cột dù hai số bằng nhau: người dùng thấy ngay số nào
+ * đang đụng, không phải lật lại ô nhập phía dưới.
  *
  * Hộp thoại chặn ô CCCD phía dưới, nên không có ca người dùng sửa số rồi bấm
  * nút vẫn mang `rootId` của số cũ và nối nhầm vào hồ sơ một khách khác.
  */
-function DuplicateDialog({
-  info,
-  typed,
-  pending,
-  onClose,
-  onUseTyped,
-  onUseExisting,
-}: DuplicateDialogProps) {
+function DuplicateDialog({ info, typed, pending, onClose, onCreate }: DuplicateDialogProps) {
   const lech = info.mismatch;
   const dobText = (d: string | null | undefined) => (d ? formatDate(d) : "(trống)");
   const rows: [DuplicateField, string, string][] = [
@@ -518,22 +511,20 @@ function DuplicateDialog({
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>
-            Huỷ
+            {lech.length > 0 ? "Đóng, sửa lại thông tin" : "Huỷ"}
           </Button>
-          {lech.length > 0 && (
-            <Button variant="secondary" disabled={pending} onClick={onUseExisting}>
-              Dùng thông tin đang có
+          {lech.length === 0 && (
+            <Button disabled={pending} onClick={onCreate}>
+              Tạo hồ sơ lần {info.nextSeq}
             </Button>
           )}
-          <Button disabled={pending} onClick={onUseTyped}>
-            {lech.length > 0 ? "Dùng thông tin vừa nhập" : "Tạo hồ sơ mới"}
-          </Button>
         </>
       }
     >
       {lech.length === 0 ? (
         <p>
-          Tên, ngày sinh, địa chỉ khớp với hồ sơ đang có. Tạo thêm một hồ sơ để mở combo mới?
+          CCCD {typed.idNumber} đã có hồ sơ {info.existing.fullName}. Tên, ngày sinh, địa chỉ khớp
+          với hồ sơ đang có. Tạo hồ sơ lần {info.nextSeq} để mở combo mới?
         </p>
       ) : (
         <div className={styles.compare}>
@@ -550,6 +541,11 @@ function DuplicateDialog({
               </tr>
             </thead>
             <tbody>
+              <tr>
+                <th scope="row">CCCD</th>
+                <td>{typed.idNumber}</td>
+                <td>{typed.idNumber}</td>
+              </tr>
               {rows.map(([f, cu, moi]) => (
                 <tr key={f} className={lech.includes(f) ? styles.compareDiff : undefined}>
                   <th scope="row">{ROW_LABEL[f]}</th>
@@ -559,13 +555,14 @@ function DuplicateDialog({
               ))}
             </tbody>
           </table>
-          <p>Nếu khách không phải người này, có thể bạn gõ nhầm CCCD. Bấm Huỷ và kiểm lại số.</p>
           <p>
-            <strong>Dùng thông tin vừa nhập</strong>: hồ sơ mới lấy thông tin vừa nhập, và hồ sơ
-            đang có cũng đổi theo, có ghi lịch sử.
-            <br />
-            <strong>Dùng thông tin đang có</strong>: hồ sơ mới chép theo hồ sơ đang có, không đổi
-            gì ở hồ sơ cũ.
+            Chưa tạo được hồ sơ mới. Nếu đúng là người này, bạn đóng hộp này, sửa{" "}
+            {lech.map((f) => DUPLICATE_FIELD_LABEL[f]).join(", ")}
+            {" cho khớp cột "}&quot;Đang có&quot; rồi lưu lại.
+          </p>
+          <p>
+            Nếu khách không phải người này,{" "}
+            <strong className={styles.compareWarn}>có thể bạn gõ nhầm CCCD.</strong> Kiểm lại số.
           </p>
         </div>
       )}

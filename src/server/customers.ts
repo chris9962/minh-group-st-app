@@ -762,6 +762,7 @@ export async function duplicateIdNumberInfo(
   openDraftId: string | null;
   existing: { fullName: string; dob: string | null; address: string };
   mismatch: DuplicateField[];
+  nextSeq: number;
 } | null> {
   const [root] = await db
     .select({
@@ -769,23 +770,31 @@ export async function duplicateIdNumberInfo(
       fullName: customers.fullName,
       dob: customers.dob,
       address: customers.address,
+      maxSeq: sql<number>`(select coalesce(max(seq), 0) from ${customers} c2 where c2.root_customer_id = ${customers.id})`,
     })
     .from(customers)
     .where(and(eq(customers.idNumber, idNumber), sql`root_customer_id = id`))
     .limit(1);
   if (!root) return null;
 
-  const mismatch: DuplicateField[] = [];
-  if (searchKey(root.fullName) !== searchKey(form.fullName)) mismatch.push("fullName");
-  if ((root.dob ?? "") !== (form.dob ?? "")) mismatch.push("dob");
-  if (searchKey(root.address) !== searchKey(form.address)) mismatch.push("address");
-
   return {
     rootId: root.id,
     openDraftId: await openDraftOf(root.id, actorId),
     existing: { fullName: root.fullName, dob: root.dob, address: root.address },
-    mismatch,
+    mismatch: mismatchAgainst(root, form),
+    nextSeq: Number(root.maxSeq) + 1,
   };
+}
+
+function mismatchAgainst(
+  root: { fullName: string; dob: string | null; address: string },
+  form: Pick<CustomerForm, "fullName" | "dob" | "address">,
+): DuplicateField[] {
+  const mismatch: DuplicateField[] = [];
+  if (searchKey(root.fullName) !== searchKey(form.fullName)) mismatch.push("fullName");
+  if ((root.dob ?? "") !== (form.dob ?? "")) mismatch.push("dob");
+  if (searchKey(root.address) !== searchKey(form.address)) mismatch.push("address");
+  return mismatch;
 }
 
 /** Đúng MỘT số chính. Form nào cũng gửi cờ, nhưng không tin — index sẽ chặn. */
@@ -833,22 +842,31 @@ async function writeGuarded<T>(run: () => Promise<T>): Promise<CustomerOutcome<T
  * Có `linkToRootId` thì CCCD trùng là chuyện đúng — khoá duy nhất chỉ áp cho hồ
  * sơ gốc. Chốt duy nhất ở đây là một người không giữ hai lần dở dang cùng lúc.
  *
- * `keepExisting` (chốt 2026-09-06): hồ sơ mới CHÉP tên, ngày sinh, địa chỉ, số
- * điện thoại của hồ sơ gốc thay vì lấy từ biểu mẫu, và không đồng bộ gì ngược
- * lên. Dành cho ca nhân viên đối chiếu với khách và thấy hồ sơ đang có mới
- * đúng. Kênh vẫn lấy từ biểu mẫu vì kênh là của từng hồ sơ.
+ * Tên, ngày sinh, địa chỉ PHẢI khớp hồ sơ gốc (chốt 2026-09-13, thay chốt
+ * 2026-09-06 cho chọn "dùng bên nào"). Lệch là từ chối: nhân viên sửa biểu mẫu
+ * cho khớp rồi gửi lại, hoặc kiểm lại CCCD. Lý do: 2026-09-13 một nhân viên gõ
+ * CCCD của khách khác, nối vào rồi sửa hồ sơ lần 2, đồng bộ nhóm ghi đè trọn
+ * hồ sơ gốc có 3 tài khoản và quà đã phát. Hồ sơ mới chép ba trường đó từ gốc,
+ * không lấy từ biểu mẫu, để không sinh dòng nhật ký vì lệch hoa thường hay dấu.
  */
 export async function createCustomer(
   actor: User,
   form: CustomerForm,
   linkToRootId?: string,
-  keepExisting = false,
 ): Promise<
-  CustomerOutcome<Customer> | { ok: false; reason: "open-draft-exists" | "id-number-mismatch" }
+  | CustomerOutcome<Customer>
+  | { ok: false; reason: "open-draft-exists" | "id-number-mismatch" | "info-mismatch" }
 > {
+  let goc: { fullName: string; dob: string | null; address: string } | null = null;
   if (linkToRootId) {
     const [root] = await db
-      .select({ id: customers.id, idNumber: customers.idNumber })
+      .select({
+        id: customers.id,
+        idNumber: customers.idNumber,
+        fullName: customers.fullName,
+        dob: customers.dob,
+        address: customers.address,
+      })
       .from(customers)
       .where(and(eq(customers.id, linkToRootId), sql`root_customer_id = id`))
       .limit(1);
@@ -865,7 +883,10 @@ export async function createCustomer(
     if ((root.idNumber ?? "") !== form.idNumber)
       return { ok: false, reason: "id-number-mismatch" };
 
+    if (mismatchAgainst(root, form).length > 0) return { ok: false, reason: "info-mismatch" };
+
     if (await openDraftOf(linkToRootId, actor.id)) return { ok: false, reason: "open-draft-exists" };
+    goc = { fullName: root.fullName, dob: root.dob, address: root.address };
   }
 
   const result = await writeGuarded(async () => {
@@ -913,31 +934,6 @@ export async function createCustomer(
         seq = (last?.max ?? 0) + 1;
       }
 
-      /**
-       * Nguồn của bốn trường đồng bộ: biểu mẫu, hay hồ sơ gốc khi `keepExisting`.
-       * Đọc gốc SAU khoá dòng gốc để không chép một bản đang bị người khác sửa.
-       */
-      const goc =
-        linkToRootId && keepExisting
-          ? (
-              await tx
-                .select({
-                  fullName: customers.fullName,
-                  dob: customers.dob,
-                  address: customers.address,
-                })
-                .from(customers)
-                .where(eq(customers.id, linkToRootId))
-                .limit(1)
-            )[0]
-          : null;
-      const gocPhones = goc
-        ? await tx
-            .select({ number: customerPhones.number, isPrimary: customerPhones.isPrimary })
-            .from(customerPhones)
-            .where(eq(customerPhones.customerId, linkToRootId!))
-        : [];
-
       const [row] = await tx
         .insert(customers)
         .values({
@@ -958,26 +954,17 @@ export async function createCustomer(
           createdByDepartmentId: actor.departmentId,
         })
         .returning({ id: customers.id });
-      await tx
-        .insert(customerPhones)
-        .values(
-          goc
-            ? gocPhones.map((p) => ({ customerId: row.id, number: p.number, isPrimary: p.isPrimary }))
-            : phoneRows(row.id, form),
-        );
+      await tx.insert(customerPhones).values(phoneRows(row.id, form));
 
       /**
-       * Lần mới cũng ĐỒNG BỘ ngược lên các lần cũ, và ghi nhật ký nếu khác.
+       * Lần mới ĐỒNG BỘ số điện thoại lên các lần cũ, và ghi nhật ký nếu khác.
        *
-       * Không có bước này thì ngay sau lượt tạo, lần 1 và lần 2 mang hai địa chỉ
-       * khác nhau — đúng thứ luật đồng bộ sinh ra để chặn. Người tạo lần mới
-       * đang ngồi với khách nên giá trị họ gõ là giá trị mới nhất; ai muốn tra
-       * lại thì đọc nhật ký.
-       *
-       * `keepExisting` thì bỏ qua: hồ sơ mới đã chép từ gốc, không có gì để
-       * đồng bộ và không có dòng nhật ký nào.
+       * Ba trường kia đã kiểm khớp và chép từ gốc nên không đổi gì; chỉ còn số
+       * điện thoại là thứ người tạo lần mới gõ và có thể mới hơn. Không có bước
+       * này thì ngay sau lượt tạo, lần 1 và lần 2 mang hai số khác nhau — đúng
+       * thứ luật đồng bộ sinh ra để chặn.
        */
-      if (linkToRootId && !keepExisting)
+      if (linkToRootId && goc)
         await dongBoNhom(tx, {
           rootCustomerId: linkToRootId,
           customerId: newId,
@@ -985,8 +972,8 @@ export async function createCustomer(
           mocId: linkToRootId,
           seq,
           actorId: actor.id,
-          form,
-          ghiCccd: true,
+          form: { ...form, fullName: goc.fullName, dob: goc.dob ?? "", address: goc.address },
+          ghiCccd: false,
         });
 
       return row.id;

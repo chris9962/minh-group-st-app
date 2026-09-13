@@ -411,6 +411,8 @@ export const DuplicateIdInfo = z.object({
   }),
   /** Trường nào của biểu mẫu KHÁC hồ sơ gốc; rỗng là trùng khớp hoàn toàn. */
   mismatch: z.array(DuplicateField),
+  /** Hồ sơ tạo thêm sẽ là "lần" thứ mấy — nút tạo ghi đúng số này. */
+  nextSeq: z.number().int(),
 });
 export type DuplicateIdInfo = z.infer<typeof DuplicateIdInfo>;
 
@@ -454,16 +456,11 @@ async function send(url: string, method: string, body: unknown) {
  * tiếp truyền vào `linkToRootId`. Ném `DuplicateIdError` chứ không `Error`
  * thường, vì giao diện phải đọc được `rootId` từ đó.
  */
-export async function createCustomer(
-  form: CustomerForm,
-  linkToRootId?: string,
-  /** Chép tên, ngày sinh, địa chỉ, SĐT của hồ sơ gốc thay vì ghi đè nó. */
-  keepExisting = false,
-): Promise<Customer> {
+export async function createCustomer(form: CustomerForm, linkToRootId?: string): Promise<Customer> {
   const res = await fetch('/api/customers', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(linkToRootId ? { ...form, linkToRootId, keepExisting } : form),
+    body: JSON.stringify(linkToRootId ? { ...form, linkToRootId } : form),
   });
   if (!res.ok) {
     const payload = await res.json().catch(() => null);
