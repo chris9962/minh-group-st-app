@@ -38,9 +38,9 @@ export function levenshtein(a: string, b: string): number {
  *
  * Cửa sổ so sánh rộng từ `label.length - tolerance` tới `label.length +
  * tolerance`. Bản trước chỉ so cửa sổ đúng bằng độ dài nhãn, nên nhãn bị RỤNG
- * ký tự không bao giờ khớp: PaddleOCR đọc "Mở Tài Khoản Thành Công" ra
+ * ký tự không bao giờ khớp: ảnh mờ đọc "Mở Tài Khoản Thành Công" ra
  * `MTAIKHONTHANHCONG` dài 17, ngắn hơn nhãn 19 ký tự, vòng lặp không chạy lần
- * nào (đo 2026-09-13, cả 38 ảnh TPBank đọc lại đều mất trắng vì lỗi này).
+ * nào (đo 2026-09-13).
  */
 export function hasLabel(line: string, label: string): boolean {
   const c = compact(line);

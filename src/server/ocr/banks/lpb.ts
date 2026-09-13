@@ -325,7 +325,7 @@ export function checkLpb(texts: string[], ctx: LpbCheckContext): CheckedItem[] {
 
   const matchingInfos = infos.filter((r) => r.customerName && nameMatches(r.customerName, ctx.customerName));
   // Một ảnh có thể đọc được tên nhưng mất ngày; ưu tiên ảnh cùng khách có đủ
-  // dữ liệu (ví dụ lượt đọc lại bằng Paddle) thay vì ảnh khớp tên đầu tiên.
+  // dữ liệu thay vì ảnh khớp tên đầu tiên.
   const info =
     matchingInfos.find((r) => r.openedDate && r.openedDate === ctx.openedDate) ??
     best(matchingInfos) ??

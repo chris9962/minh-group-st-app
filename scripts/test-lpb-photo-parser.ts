@@ -290,7 +290,7 @@ assert.equal(
   "pass",
 );
 
-// Tesseract đọc được tên nhưng không đọc ngày; lượt Paddle cùng ảnh đọc đủ.
+// Một ảnh đọc được tên nhưng mất ngày, ảnh khác cùng khách đọc đủ cả hai.
 const nameWithoutDate = accountInfo.replace("Ngày mở tài khoản: 08/09/2026", "Ngày mở tài khoản:");
 assert.equal(
   checkLpb([nameWithoutDate, accountInfo, referralTab, transferSuccess], context).find((i) => i.key === "home")

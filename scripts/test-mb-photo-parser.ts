@@ -76,4 +76,12 @@ assert.deepEqual(checkMb([registration, profile], context)[2].issues, ["Thiếu 
 // Tỉnh chưa ghim trong dữ liệu không thể coi là đã đối chiếu đạt.
 assert.deepEqual(checkMb([registration, profile, history], { ...context, province: "" })[0].issues, ["Mã đã ghim chưa cấu hình Tỉnh/Thành phố"]);
 
+// Bộ nhãn phải trả kèm ẢNH đã cung cấp dữ liệu; màn chi tiết gắn `photoId` từ
+// đây, không dò lại bằng cách chạy lại bộ nhãn trên từng ảnh.
+assert.deepEqual(
+  checkMb([profile, history, registration], context).map((item) => item.photoIndex),
+  [2, 0, 1],
+);
+assert.equal(checkMb([profile], context).find((item) => item.key === "open")?.photoIndex, undefined);
+
 console.log("MB photo parser: OK");

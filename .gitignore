@@ -59,9 +59,6 @@ next-env.d.ts
 # Ảnh tải lên của bản lưu trữ tạm (chưa có S3) — dữ liệu chạy, không phải mã nguồn.
 /.uploads
 
-# Môi trường Python và model PaddleOCR cài riêng trên máy local.
-/.paddle-ocr/
-
 # Bot PVI. `storageState.json` là cookie đăng nhập thật, THAY CHO MẬT KHẨU —
 # lên repo là ai đọc được repo cũng vào được hệ thống PVI của công ty.
 # `anh/` và `captcha/` là ảnh chụp lúc chạy, script tự tạo lại.

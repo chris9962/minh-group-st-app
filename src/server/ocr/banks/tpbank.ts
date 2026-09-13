@@ -52,17 +52,23 @@ const OPEN_FIELDS: Record<Exclude<keyof TpbOpenSuccess, "success" | "missing" | 
  * `THIEU` nên bị nhận nhầm và mã đọc ra `2026` (đo 2026-09-12).
  */
 function referralCodeIn(lines: string[]): string {
+  const candidates: string[] = [];
   for (const label of ["MAGIOITHIEU", "OITHIEU"]) {
     for (const line of lines) {
       if (!hasLabel(line, label)) continue;
-      const plain = stripAccents(line);
+      // "(nếu có)" là chú thích CỦA NHÃN, không phải giá trị. Không bỏ nó thì
+      // ảnh chưa điền mã đọc ra `NEU` — 45/52 đơn TPB đo 2026-09-13 có hai ảnh
+      // cùng màn thành công, ảnh chưa cuộn cho `NEU`, ảnh cuộn rồi cho mã thật.
+      const plain = stripAccents(line).replace(/\([^)]*\)/g, " ");
       const after = plain.match(/thieu[^A-Za-z0-9]*([A-Za-z0-9]{3,12})/i);
-      if (after) return after[1].toUpperCase();
+      if (after) candidates.push(after[1].toUpperCase());
       const last = plain.match(/([A-Za-z0-9]{3,12})[^A-Za-z0-9]*$/);
-      if (last) return last[1].toUpperCase();
+      if (last) candidates.push(last[1].toUpperCase());
     }
   }
-  return "";
+  // Mã TPBank luôn có chữ số (AT105 tới AT109). Cụm toàn chữ là mảnh nhãn đọc
+  // lẫn, trả rỗng còn hơn trả mã sai rồi báo "không khớp".
+  return candidates.find((value) => /\d/.test(value)) ?? "";
 }
 
 export function parseTpbOpenSuccess(ocrText: string): TpbOpenSuccess {
@@ -71,7 +77,7 @@ export function parseTpbOpenSuccess(ocrText: string): TpbOpenSuccess {
   const out: TpbOpenSuccess = {
     // Nhận cả khi OCR rớt chữ "MỞ": hai cụm còn lại đủ nói đây là màn này.
     // Dùng `hasLabel` chứ không `hasPhrase`: `hasPhrase` so khớp nguyên văn nên
-    // PaddleOCR đọc "M Tài Khon Thành Công" là trượt (đo 2026-09-13).
+    // ảnh mờ đọc ra "M Tài Khon Thành Công" là trượt (đo 2026-09-13).
     success:
       lines.some((l) => hasLabel(l, "MOTAIKHOANTHANHCONG")) ||
       lines.some((l) => hasLabel(l, "TAIKHOAN") && hasLabel(l, "THANHCONG")),
@@ -417,8 +423,8 @@ export function checkTpbank(texts: string[], ctx: TpbCheckContext): CheckedItem[
 
   /**
    * Chọn theo SỐ TRƯỜNG KHỚP dữ liệu hệ thống trước, rồi mới tới số trường
-   * thiếu — giống MB. Bản trước chỉ so số trường thiếu, nên một ảnh đọc đủ
-   * trường mà sai giá trị vẫn thắng bản đọc đúng của lượt Paddle.
+   * thiếu — giống MB. Bản trước chỉ so số trường thiếu, nên ảnh của khách KHÁC
+   * đọc đủ trường vẫn thắng ảnh đúng khách mà thiếu một trường.
    */
   const pick = <T extends { missing: unknown[] }>(rs: T[], score: (value: T) => number): T | undefined =>
     rs.sort((a, b) => score(b) - score(a) || a.missing.length - b.missing.length)[0];
