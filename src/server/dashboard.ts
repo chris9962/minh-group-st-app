@@ -302,11 +302,11 @@ const rateOf = (opened: number, installed: number): number =>
   opened === 0 ? 0 : Math.round((installed / opened) * 100);
 
 /**
- * Ngân hàng hiện tỉ lệ cài app riêng dưới thanh tổng, đúng thứ tự này (chốt
- * 2026-09-12). VPa và VPb, MSBa và MSBb là bốn ngân hàng riêng trong hệ thống
- * (spec §2.6) nên phải ghi đúng mã, không ghi "MSB".
+ * Ngân hàng hiện tỉ lệ cài app riêng dưới thanh tổng, đúng thứ tự này (đổi
+ * MSBb sang MSBa 2026-09-14). VPa và VPb, MSBa và MSBb là bốn ngân hàng riêng
+ * trong hệ thống (spec §2.6) nên phải ghi đúng mã, không ghi "MSB".
  */
-const INSTALL_RATE_BANKS = ["VPa", "MSBb"];
+const INSTALL_RATE_BANKS = ["VPa", "MSBa"];
 
 /** Ngân hàng không có tài khoản nào trong kỳ vẫn có dòng, số 0. */
 async function installRateByBank(
