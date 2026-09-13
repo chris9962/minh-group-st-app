@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
-import sharp from "sharp";
+import sharp, { type Sharp } from "sharp";
 
 const run = promisify(execFile);
 
@@ -31,13 +31,13 @@ const MAX_EDGE = 1600;
 const PSM = "6";
 
 /**
- * Chữ của BA lượt đọc nối nhau: ảnh gốc, ảnh xám đảo màu, rồi kênh đỏ.
+ * Chữ của BỐN lượt đọc nối nhau, mỗi lượt cho một kiểu ảnh khác nhau.
  *
  * Tesseract chỉ đọc tốt chữ tối trên nền sáng. Màn mở tài khoản TPBank là
  * chữ tối nền trắng, ảnh gốc đọc 6/6; màn hình chính là chữ trắng nền tím,
  * ảnh gốc mất trọn tên khách và số tài khoản, đảo màu mới đọc được. Nhưng đảo
  * màu cả ảnh mở tài khoản thì chỉ còn 2/6 (đo 2026-09-11). Không có một bước
- * tiền xử lý đúng cho cả hai, nên đọc nhiều lượt và nối lại. Parser lấy dòng
+ * tiền xử lý đúng cho mọi ảnh, nên đọc nhiều lượt và nối lại. Parser lấy dòng
  * khớp đầu tiên, lượt gốc đứng trước nên thắng khi nó đọc được.
  *
  * Lượt kênh đỏ cho chữ MÀU trên nền sáng: dòng "Chuyển thành công!" xanh lá
@@ -45,38 +45,61 @@ const PSM = "6";
  * 2026-09-12). Ở kênh đỏ, chữ xanh lá có giá trị thấp nên thành chữ tối, còn
  * nền trắng và hoa văn tím nhạt có giá trị cao nên mờ đi.
  *
- * Giá: ba lần thời gian, khoảng 1,7 giây một ảnh trên máy chủ.
+ * Lượt `sharp` cho ảnh CHỤP LẠI màn hình bằng máy khác: chữ nhoè và nhỏ hơn
+ * screenshot, ba lượt trên đọc ra rỗng trường (đo 2026-09-13, ảnh TPBank chụp
+ * ngoài trời có bóng loá). Phóng to rồi làm nét thì đọc ra đủ mã giới thiệu,
+ * số tài khoản và ngày hiệu lực.
+ *
+ * Giá: bốn lần thời gian, khoảng 2,3 giây một ảnh trên máy chủ.
  */
+
+/**
+ * Cạnh dài của lượt `sharp`. `MAX_EDGE` chỉ THU ảnh lớn, không phóng ảnh nhỏ,
+ * mà ảnh chụp lại màn hình thường dưới 1600px.
+ */
+const SHARP_EDGE = 2600;
+
+/** Các lượt tiền xử lý; tên chỉ dùng khi đo, không vào kết quả. */
+const VARIANTS: Record<string, (image: Sharp) => Sharp> = {
+  plain: (image) => image.resize({ width: MAX_EDGE, height: MAX_EDGE, fit: "inside", withoutEnlargement: true }),
+  negated: (image) =>
+    image.resize({ width: MAX_EDGE, height: MAX_EDGE, fit: "inside", withoutEnlargement: true }).grayscale().negate(),
+  red: (image) =>
+    image.resize({ width: MAX_EDGE, height: MAX_EDGE, fit: "inside", withoutEnlargement: true }).extractChannel("red"),
+  sharp: (image) =>
+    image.resize({ width: SHARP_EDGE, fit: "inside" }).grayscale().normalise().sharpen({ sigma: 4, m1: 1, m2: 3 }),
+};
+
+const DEFAULT_PASSES = ["plain", "negated", "red", "sharp"];
+
+/** Đổi bộ lượt đọc khi ĐO; để trống thì dùng `DEFAULT_PASSES`. */
+const passes = (): string[] => (process.env.OCR_PASSES || DEFAULT_PASSES.join(",")).split(",").filter(Boolean);
+
 export async function ocrImage(image: Buffer): Promise<string> {
   const dir = await mkdtemp(path.join(tmpdir(), "mgst-ocr-"));
   try {
-    // Tesseract không đọc WebP, mà kho ảnh lưu WebP. Đổi sang PNG không mất
-    // chất lượng, kèm thu về MAX_EDGE cho ảnh gốc từ ngoài kho.
-    const base = sharp(image).resize({
-      width: MAX_EDGE,
-      height: MAX_EDGE,
-      fit: "inside",
-      withoutEnlargement: true,
-    });
-    const plain = path.join(dir, "plain.png");
-    const negated = path.join(dir, "negated.png");
-    const red = path.join(dir, "red.png");
-    await Promise.all([
-      base.clone().png().toFile(plain),
-      base.clone().grayscale().negate().png().toFile(negated),
-      base.clone().extractChannel("red").png().toFile(red),
-    ]);
-
-    const texts = await Promise.all([tesseract(plain), tesseract(negated), tesseract(red)]);
+    // Tesseract không đọc WebP, mà kho ảnh lưu WebP. Đổi sang PNG không mất chất lượng.
+    const names = passes();
+    const files = names.map((name) => path.join(dir, `${name}.png`));
+    await Promise.all(names.map((name, at) => VARIANTS[name](sharp(image)).png().toFile(files[at])));
+    const texts = await Promise.all(files.map(tesseract));
     return texts.join("\n").trim();
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
 }
 
+/**
+ * Thư mục chứa `vie.traineddata`. Để trống thì dùng bản của hệ điều hành:
+ * Homebrew 531 KB trên máy local, gói `tesseract-ocr-data-vie` trong image
+ * Docker. Đặt `TESSDATA_DIR` để thử bản khác mà không phải sửa code.
+ */
+const tessdataArgs = (): string[] =>
+  process.env.TESSDATA_DIR ? ["--tessdata-dir", process.env.TESSDATA_DIR] : [];
+
 async function tesseract(png: string): Promise<string> {
   // Tên file ra không có đuôi: Tesseract tự thêm `.txt`.
   const out = `${png}.out`;
-  await run("tesseract", [png, out, "-l", "vie", "--psm", PSM]);
+  await run("tesseract", [png, out, "-l", "vie", "--psm", PSM, ...tessdataArgs()]);
   return (await readFile(`${out}.txt`, "utf8")).trim();
 }
