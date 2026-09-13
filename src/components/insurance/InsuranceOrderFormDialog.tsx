@@ -31,7 +31,7 @@ import {
 import { isRealIsoDate } from "@/lib/types";
 import { PRODUCT_LABEL } from "@/lib/types";
 import { fetchInsurancePackages, type InsurancePackage } from "@/lib/api/settings";
-import { businessDay, formatVnd } from "@/lib/format";
+import { businessDay, formatDate, formatVnd } from "@/lib/format";
 import { invalidateKpi } from "@/lib/invalidateKpi";
 import {
   SUM_INSURED_OPTIONS,
@@ -197,6 +197,13 @@ export function InsuranceOrderFormDialog({
   const missingPhoto = legsField.fields.some((_, i) => photosOf(i).length === 0);
 
   /**
+   * Bấm "Tạo đơn" mở màn kiểm lại chứ chưa gửi (chốt 2026-09-13): đơn PVI
+   * không sửa lại được sau khi gửi, một ô gõ nhầm biến thành đơn sai phải huỷ
+   * làm lại. `reviewValues` giữ đúng bản đã qua validate; đóng màn kiểm lại
+   * không đụng gì tới form phía dưới, người dùng sửa tiếp trên form cũ.
+   */
+  const [reviewValues, setReviewValues] = useState<InsuranceOrderForm | null>(null);
+  /**
    * Luồng Tặng quà mở hộp thoại với gói CỐ ĐỊNH, nhưng danh mục gói về sau qua
    * query — lúc dựng form chưa biết gói có mấy leg nên `legs` rỗng. Dựng lại
    * một lần khi danh mục về, và chỉ khi người dùng chưa gõ gì.
@@ -273,6 +280,7 @@ export function InsuranceOrderFormDialog({
       // Bảng nhân sự P-51 có cột "Đơn BH" đếm từ chính bảng này.
       invalidateKpi(queryClient);
       onCreated?.(orders);
+      setReviewValues(null);
       onClose();
       // Một gói khai mấy leg thì tạo bấy nhiêu đơn — nói ra đủ mã, vì người dùng
       // điền một form và dễ tưởng mình vừa tạo đúng một đơn.
@@ -282,10 +290,20 @@ export function InsuranceOrderFormDialog({
           : `Đã tạo ${orders.length} đơn: ${orders.map((o) => o.orderCode).join(", ")}`,
       );
     },
-    onError: (e) => toast.fail(errorMessage(e, "Không tạo được đơn bảo hiểm này.")),
+    onError: (e) => {
+      // Đóng màn kiểm lại về form: lỗi máy chủ (CCCD trùng, đơn tồn tại…) chỉ
+      // sửa được trên form, màn kiểm lại không có ô nào để bấm sửa.
+      setReviewValues(null);
+      toast.fail(errorMessage(e, "Không tạo được đơn bảo hiểm này."));
+    },
   });
 
-  const onSubmit = handleSubmit((values) => save.mutate(values), reportInvalid);
+  // Mở màn kiểm lại — CHƯA gửi. `save.mutate` chỉ chạy khi người dùng bấm xác
+  // nhận ở đó (`confirmCreate`).
+  const openReview = handleSubmit((values) => setReviewValues(values), reportInvalid);
+  const confirmCreate = () => {
+    if (reviewValues) save.mutate(reviewValues);
+  };
 
   const addressSuggestions = useAddressSuggestions();
 
@@ -438,7 +456,57 @@ export function InsuranceOrderFormDialog({
     </fieldset>
   );
 
+  /**
+   * Một khối cho mỗi đơn ở màn kiểm lại — CHỈ những ô người dùng tự gõ hay tự
+   * chọn mỗi lần, nơi có thể gõ nhầm. Bỏ mức phí, loại xe, số tiền bảo hiểm:
+   * ba ô đó lấy sẵn từ gói (`defaultLegsFor`), không phải chỗ hay sai. Cũng bỏ
+   * tên gói và ảnh, đã hiện ngay trên form phía dưới.
+   */
+  const renderReviewLeg = (leg: InsuranceOrderLegForm, i: number) => (
+    <fieldset key={i} className={styles.reviewLeg}>
+      {legsField.fields.length > 1 && (
+        <legend className={styles.legTitle}>{legLabel(selectedPackage, i)}</legend>
+      )}
+      <dl className={styles.reviewGrid}>
+        <div>
+          <dt>Ngày bắt đầu</dt>
+          <dd>{formatDate(leg.startDate)}</dd>
+        </div>
+        <div>
+          <dt>Ngày kết thúc</dt>
+          <dd>{formatDate(leg.endDate)}</dd>
+        </div>
+        {leg.product === "motorbike" ? (
+          <div>
+            <dt>Biển số xe</dt>
+            <dd>{leg.licensePlate}</dd>
+          </div>
+        ) : (
+          <div>
+            <dt>Số thành viên hộ</dt>
+            <dd>{leg.householdSize}</dd>
+          </div>
+        )}
+        <div>
+          <dt>Người thụ hưởng</dt>
+          <dd>{leg.beneficiaryName}</dd>
+        </div>
+        {leg.product !== "motorbike" && (
+          <div>
+            <dt>Ngày sinh</dt>
+            <dd>{formatDate(leg.beneficiaryDob)}</dd>
+          </div>
+        )}
+        <div>
+          <dt>Địa chỉ</dt>
+          <dd>{leg.beneficiaryAddress}</dd>
+        </div>
+      </dl>
+    </fieldset>
+  );
+
   return (
+    <>
     <Dialog
       open={open}
       onClose={onClose}
@@ -464,7 +532,7 @@ export function InsuranceOrderFormDialog({
         </>
       }
     >
-      <form id="insurance-order-form" className={styles.form} onSubmit={onSubmit} noValidate>
+      <form id="insurance-order-form" className={styles.form} onSubmit={openReview} noValidate>
         <DepartmentPicker
           module="insurance"
           value={watch("departmentId")}
@@ -571,5 +639,31 @@ export function InsuranceOrderFormDialog({
         )}
       </form>
     </Dialog>
+
+    {/* Kiểm lại trước khi gửi (chốt 2026-09-13). Đứng NGOÀI form phía trên nên
+        Esc/bấm nền chỉ đóng màn này, form và ảnh đã chọn còn nguyên. */}
+    <Dialog
+      open={Boolean(reviewValues)}
+      onClose={() => setReviewValues(null)}
+      title="Kiểm tra lại trước khi tạo đơn"
+      footer={
+        <>
+          <Button variant="secondary" onClick={() => setReviewValues(null)} disabled={save.isPending}>
+            Quay lại sửa
+          </Button>
+          <Button onClick={confirmCreate} disabled={save.isPending}>
+            {save.isPending ? "Đang tạo…" : "Xác nhận, tạo đơn"}
+          </Button>
+        </>
+      }
+    >
+      <div className={styles.reviewList}>
+        <p className={styles.reviewPackage}>
+          Gói <strong>{packageName}</strong> cho khách <strong>{customer.fullName}</strong>
+        </p>
+        {reviewValues?.legs.map(renderReviewLeg)}
+      </div>
+    </Dialog>
+    </>
   );
 }
