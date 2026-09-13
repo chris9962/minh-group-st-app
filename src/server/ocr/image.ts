@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { existsSync } from "node:fs";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -90,12 +91,24 @@ export async function ocrImage(image: Buffer): Promise<string> {
 }
 
 /**
- * Thư mục chứa `vie.traineddata`. Để trống thì dùng bản của hệ điều hành:
- * Homebrew 531 KB trên máy local, gói `tesseract-ocr-data-vie` trong image
- * Docker. Đặt `TESSDATA_DIR` để thử bản khác mà không phải sửa code.
+ * Thư mục chứa `vie.traineddata`, theo thứ tự: `TESSDATA_DIR`, rồi `.tessdata`
+ * cạnh mã nguồn, rồi bản của hệ điều hành.
+ *
+ * Bản của hệ điều hành là bản rút gọn — Homebrew 531 KB, Alpine tương tự — và
+ * đọc ảnh chụp lại màn hình kém. Bản `tessdata_best` 12,4 MB đọc tốt hơn.
+ * Dockerfile tải nó vào `/app/.tessdata`; máy local chạy `scripts/setup-tessdata.sh`.
  */
-const tessdataArgs = (): string[] =>
-  process.env.TESSDATA_DIR ? ["--tessdata-dir", process.env.TESSDATA_DIR] : [];
+const TESSDATA_LOCAL = path.join(process.cwd(), ".tessdata");
+
+const tessdataDir = (): string => {
+  if (process.env.TESSDATA_DIR) return process.env.TESSDATA_DIR;
+  return existsSync(path.join(TESSDATA_LOCAL, "vie.traineddata")) ? TESSDATA_LOCAL : "";
+};
+
+const tessdataArgs = (): string[] => {
+  const dir = tessdataDir();
+  return dir ? ["--tessdata-dir", dir] : [];
+};
 
 async function tesseract(png: string): Promise<string> {
   // Tên file ra không có đuôi: Tesseract tự thêm `.txt`.

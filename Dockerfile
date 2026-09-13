@@ -190,6 +190,13 @@ WORKDIR /app
 RUN apk add --no-cache poppler-utils libwebp-tools tzdata ttf-liberation font-noto \
   tesseract-ocr tesseract-ocr-data-vie
 
+# Model tiếng Việt bản CHÍNH XÁC của Google, 12,4 MB. Gói `tesseract-ocr-data-vie`
+# của Alpine là bản rút gọn và đọc ảnh chụp lại màn hình kém hơn. `image.ts` tự
+# dùng `.tessdata` khi thư mục này có mặt.
+RUN mkdir -p /app/.tessdata \
+  && wget -q -O /app/.tessdata/vie.traineddata \
+    https://github.com/tesseract-ocr/tessdata_best/raw/main/vie.traineddata
+
 # Tesseract mặc định mở nhiều luồng OpenMP cho MỘT ảnh. Đo 2026-09-11 không
 # nhanh hơn một luồng, mà vài ảnh song song là vài chục luồng tranh 4 lõi với
 # app và Postgres. Song song thì làm ở tầng tiến trình, mỗi tiến trình một luồng.
