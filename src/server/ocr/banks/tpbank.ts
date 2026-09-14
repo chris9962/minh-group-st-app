@@ -1,100 +1,161 @@
-import { compact, hasLabel, hasPhrase, isoDate, pickField, splitLines, stripAccents, type FieldSpec } from "../text";
-import { DEFAULT_PROFILE, ocrImage, TPB_HOME_PROFILE } from "../image";
+import { compact, hasLabel, hasPhrase, splitLines, stripAccents } from "../text";
+import {
+  DEFAULT_PROFILE,
+  ocrImage,
+  TPB_HOME_PROFILE,
+  TPB_LIGHT_PROFILE,
+  TPB_LIGHT_SHARP_PROFILE,
+  TPB_LIGHT_UNSCALED_PROFILE,
+  TPB_TRANSFER_PROFILE,
+} from "../image";
 import { isTpbHomeScreen } from "../screen";
 import { indexed, type CheckedItem } from "../types";
 
 /* ── Màn "Mở Tài Khoản Thành Công" ────────────────────────────────────── */
 
 /**
- * Nhãn TPBank cố định ở mọi ảnh, đo trên 6 ảnh 2026-09-11 gồm screenshot
- * iPhone, Android và ảnh chụp màn hình bằng máy khác:
+ * Màn cuối luồng mở tài khoản, chữ tối nền sáng, nhãn bên trái giá trị bên phải:
  *
+ *   Mở tài khoản thành công!
  *   Tên đăng nhập:            0374949991
  *   Số tài khoản thanh toán:  1000 5465 402
- *   Hạn mức GD:               (bỏ, không dùng để kiểm)
- *   Email:                    (bỏ, xuống hai dòng trên iPhone, không dùng để kiểm)
+ *   Hạn mức GD:               ...
+ *   Email:                    (có máy không in dòng này)
  *   Hiệu lực từ:              11/09/2026
  *   Mã giới thiệu:            AT108
+ *
+ * Luật (chốt 2026-09-14): mã giới thiệu trên ảnh phải đúng mã đã chọn. Số
+ * tài khoản đọc được thì so thêm; không đọc được thì không kết luận, vì màn
+ * hình chính đã so số đó. KIỂM CHỨNG như hai màn kia: giá trị hệ thống có
+ * trong chữ OCR không, không dung sai. `--psm 11` tách nhãn và giá trị ra hai
+ * dòng, nên không tìm giá trị "trên dòng có nhãn" như bản trước.
+ *
+ * Ảnh chưa bấm "Xem thêm" chỉ có tên đăng nhập và số tài khoản, không có mã:
+ * kết luận "không đọc được mã" là đúng, người duyệt phải xem ảnh khác.
  */
-export type TpbOpenSuccess = {
-  /** Có dòng "Mở Tài Khoản Thành Công". */
-  success: boolean;
-  /** Tên đăng nhập, TPBank dùng số điện thoại. */
-  username: string;
-  /** Số tài khoản thanh toán, đã bỏ khoảng trắng. */
-  accountNumber: string;
-  /** Hiệu lực từ, YYYY-MM-DD. */
-  effectiveFrom: string;
-  /** Mã giới thiệu, viết hoa. */
+export type TpbOpen = {
+  /** Có dòng "Mở tài khoản thành công". */
+  isOpen: boolean;
+  /** Mã hệ thống có trong chữ OCR, đúng từng ký tự sau khi gộp O/0, I/1, S/5, B/8, Z/2. */
+  codeFound: boolean;
+  /** Số tài khoản hệ thống có trong chữ OCR, đúng từng chữ số. */
+  accountFound: boolean;
+  /** Mã đọc được trên ảnh, `''` khi không thấy; chỉ để hiện cho người duyệt. */
   referralCode: string;
-  /** Trường không tìm thấy trong ảnh. */
-  missing: (keyof Omit<TpbOpenSuccess, "missing">)[];
-};
-
-const OPEN_FIELDS: Record<Exclude<keyof TpbOpenSuccess, "success" | "missing" | "referralCode">, FieldSpec> = {
-  username: { labels: ["TENDANGNHAP", "DANGNHAP"], value: /0\d{9}/ },
-  accountNumber: {
-    labels: ["SOTAIKHOANTHANHTOAN", "THANHTOAN"],
-    value: /\d[\d ]{6,}\d/,
-    clean: (v) => v.replace(/\s/g, ""),
-  },
-  effectiveFrom: {
-    labels: ["HIEULUCTU", "HIEU"],
-    value: /\d{2}\/\d{2}\/\d{4}/,
-    clean: isoDate,
-  },
+  /** Dãy số dạng 4-4-3 đọc được, đã bỏ khoảng trắng; chỉ để hiện cho người duyệt. */
+  accountNumber: string;
 };
 
 /**
- * Mã giới thiệu: cụm chữ số ngay SAU chữ "thiệu", vì OCR hay dính rác vào đuôi
- * dòng (`Mã giới thiệu AT107 " \``) nên không lấy "cụm cuối dòng" được.
- *
  * Nhãn ngắn là `OITHIEU` chứ không phải `THIEU`: rác đầu dòng ghép với chữ
  * kế thành `NHIEU` ở dòng `Ñ Hiệu lực từ 11/09/2026`, sai 1 ký tự so với
- * `THIEU` nên bị nhận nhầm và mã đọc ra `2026` (đo 2026-09-12).
+ * `THIEU` nên bị nhận nhầm (đo 2026-09-12).
  */
-function referralCodeIn(lines: string[]): string {
-  const candidates: string[] = [];
-  for (const label of ["MAGIOITHIEU", "OITHIEU"]) {
-    for (const line of lines) {
-      if (!hasLabel(line, label)) continue;
-      // "(nếu có)" là chú thích CỦA NHÃN, không phải giá trị. Không bỏ nó thì
-      // ảnh chưa điền mã đọc ra `NEU` — 45/52 đơn TPB đo 2026-09-13 có hai ảnh
-      // cùng màn thành công, ảnh chưa cuộn cho `NEU`, ảnh cuộn rồi cho mã thật.
-      const plain = stripAccents(line).replace(/\([^)]*\)/g, " ");
-      const after = plain.match(/thieu[^A-Za-z0-9]*([A-Za-z0-9]{3,12})/i);
-      if (after) candidates.push(after[1].toUpperCase());
-      const last = plain.match(/([A-Za-z0-9]{3,12})[^A-Za-z0-9]*$/);
-      if (last) candidates.push(last[1].toUpperCase());
-    }
+const OPEN_CODE_LABELS = ["MAGIOITHIEU", "OITHIEU"];
+
+export function verifyTpbOpen(
+  ocrText: string,
+  ctx: Pick<TpbCheckContext, "referralCode" | "accountNumber">,
+): TpbOpen {
+  const lines = splitLines(ocrText);
+  // Nhận cả khi OCR rớt chữ "MỞ": hai cụm còn lại đủ nói đây là màn này.
+  // Dùng `hasLabel` chứ không `hasPhrase`: `hasPhrase` so khớp nguyên văn nên
+  // ảnh mờ đọc ra "M Tài Khon Thành Công" là trượt (đo 2026-09-13). Tiêu đề
+  // xanh lá trên nền sáng tương phản thấp hơn nhãn trường màu tối: ảnh chụp
+  // nghiêng có vân lưới mất hẳn tiêu đề mà vẫn đọc được "Tên đăng nhập" và
+  // "Số tài khoản thanh toán" (ảnh cao-thi-lac, bộ nhãn 2026-09-14). Hai nhãn
+  // đó cùng có chỉ ở màn này, nên đủ để nhận màn.
+  const isOpen =
+    lines.some((l) => hasLabel(l, "MOTAIKHOANTHANHCONG")) ||
+    lines.some((l) => hasLabel(l, "TAIKHOAN") && hasLabel(l, "THANHCONG")) ||
+    (lines.some((l) => hasLabel(l, "TENDANGNHAP")) && lines.some((l) => hasLabel(l, "TAIKHOANTHANHTOAN")));
+  const expectedCode = codeKey(ctx.referralCode);
+  const expectedAccount = digitsOf(ctx.accountNumber);
+  const codeFound =
+    Boolean(expectedCode) && lines.some((line) => codeTokens(line).some((t) => codeKey(t) === expectedCode));
+  const accountFound = Boolean(expectedAccount) && digitsOf(ocrText).includes(expectedAccount);
+
+  // Giá trị nằm ngay sau dòng nhãn, nên duyệt từ đó rồi vòng lại đầu ảnh.
+  let referralCode = codeFound ? ctx.referralCode : "";
+  const labelAt = lines.findIndex((line) => OPEN_CODE_LABELS.some((label) => hasLabel(line, label)));
+  const ordered = labelAt >= 0 ? lines.slice(labelAt + 1).concat(lines.slice(0, labelAt + 1)) : lines;
+  for (const line of ordered) {
+    if (referralCode) break;
+    referralCode = codeTokens(line).find((t) => CODE_LIKE.test(t)) ?? "";
   }
-  // Mã TPBank luôn có chữ số (AT105 tới AT109). Cụm toàn chữ là mảnh nhãn đọc
-  // lẫn, trả rỗng còn hơn trả mã sai rồi báo "không khớp".
-  return candidates.find((value) => /\d/.test(value)) ?? "";
+
+  let accountNumber = accountFound ? expectedAccount : "";
+  for (const line of lines) {
+    if (accountNumber) break;
+    accountNumber = stripAccents(line).match(ACCOUNT)?.[0].replace(/\s/g, "") ?? "";
+  }
+
+  return { isOpen, codeFound, accountFound, referralCode, accountNumber };
 }
 
-export function parseTpbOpenSuccess(ocrText: string): TpbOpenSuccess {
+/* ── Màn "Nhập thông tin để bắt đầu", bước nhập mã giới thiệu ─────────── */
+
+/**
+ * Màn đầu luồng mở tài khoản, chữ tối trên nền sáng; nhân viên chụp nó để
+ * chứng minh đã nhập mã (99/260 ảnh benchmark 2026-09-13 là màn này):
+ *
+ *   Nhập thông tin để bắt đầu nhé!        iPhone in "để bắt đầu Bạn nhé!"
+ *   Số điện thoại
+ *   0704480084
+ *   Email (không bắt buộc)
+ *   Mã ưu đãi/giới thiệu (nếu có)
+ *   AT107
+ *
+ * Nhận màn bằng "ưu đãi/giới thiệu" hoặc "(nếu có)" hoặc tiêu đề. KHÔNG dùng
+ * "giới thiệu" suông: màn mở tài khoản thành công cũng in "Mã giới thiệu
+ * AT107". Tiêu đề chỉ là nhãn phụ: màn đã cuộn hay chữ to thì mất tiêu đề
+ * (ảnh le-van-manh, bộ nhãn 2026-09-14).
+ *
+ * KIỂM CHỨNG như màn hình chính: mã của hệ thống có trong chữ OCR không, so
+ * sau `codeKey`, không dung sai. Màn này không có tên khách và số tài khoản,
+ * chỉ có số điện thoại mà ctx chưa mang theo. `referralCode` trả về chỉ để
+ * hiện cho người duyệt khi không khớp.
+ */
+export type TpbStart = {
+  /** Có nhãn "Mã ưu đãi/giới thiệu (nếu có)" hoặc tiêu đề "Nhập thông tin để bắt đầu". */
+  isStart: boolean;
+  /** Mã hệ thống có trong chữ OCR, đúng từng ký tự sau khi gộp O/0, I/1, S/5, B/8, Z/2. */
+  codeFound: boolean;
+  /** Mã đọc được trên ảnh, `''` khi không thấy. */
+  referralCode: string;
+};
+
+const START_LABELS = ["UUDAIGIOITHIEU", "GIOITHIEUNEUCO", "THONGTINDEBATDAU"];
+
+/** Cụm 1-3 chữ cái rồi 2-5 chữ số, như `AT107`; `T109` đọc thiếu chữ cũng lọt để người duyệt thấy. */
+const CODE_LIKE = /^[A-Z]{1,3}\d{2,5}$/;
+
+/**
+ * Token chữ-số của một dòng, kèm mỗi cặp token liền nhau ghép lại: Tesseract
+ * đọc `AT107` trên ảnh chụp lại thành `ATI 07` (ảnh bui-van-thang), ghép hai
+ * token là ra mã, còn `I` thì `codeKey` đã gộp với `1`.
+ */
+function codeTokens(line: string): string[] {
+  const tokens = stripAccents(line).toUpperCase().split(/[^A-Z0-9]+/).filter(Boolean);
+  return tokens.concat(tokens.slice(1).map((next, i) => tokens[i] + next));
+}
+
+export function verifyTpbStart(ocrText: string, ctx: Pick<TpbCheckContext, "referralCode">): TpbStart {
   const lines = splitLines(ocrText);
+  const labelAt = lines.findIndex((line) => START_LABELS.some((label) => hasLabel(line, label)));
+  const expected = codeKey(ctx.referralCode);
+  const codeFound = Boolean(expected) && lines.some((line) => codeTokens(line).some((t) => codeKey(t) === expected));
 
-  const out: TpbOpenSuccess = {
-    // Nhận cả khi OCR rớt chữ "MỞ": hai cụm còn lại đủ nói đây là màn này.
-    // Dùng `hasLabel` chứ không `hasPhrase`: `hasPhrase` so khớp nguyên văn nên
-    // ảnh mờ đọc ra "M Tài Khon Thành Công" là trượt (đo 2026-09-13).
-    success:
-      lines.some((l) => hasLabel(l, "MOTAIKHOANTHANHCONG")) ||
-      lines.some((l) => hasLabel(l, "TAIKHOAN") && hasLabel(l, "THANHCONG")),
-    username: pickField(lines, OPEN_FIELDS.username),
-    accountNumber: pickField(lines, OPEN_FIELDS.accountNumber),
-    effectiveFrom: pickField(lines, OPEN_FIELDS.effectiveFrom),
-    referralCode: referralCodeIn(lines),
-    missing: [],
-  };
-
-  if (!out.success) out.missing.push("success");
-  for (const key of [...(Object.keys(OPEN_FIELDS) as (keyof typeof OPEN_FIELDS)[]), "referralCode"] as const) {
-    if (!out[key]) out.missing.push(key);
+  // `--psm 11` xếp mã sau dòng nhãn nhưng chen rác ở giữa, có khi 10 dòng
+  // (ảnh bui-van-thang), nên ưu tiên token sau nhãn rồi mới tới cả ảnh.
+  let referralCode = codeFound ? ctx.referralCode : "";
+  const ordered = labelAt >= 0 ? lines.slice(labelAt + 1).concat(lines.slice(0, labelAt + 1)) : lines;
+  for (const line of ordered) {
+    if (referralCode) break;
+    referralCode = codeTokens(line).find((t) => CODE_LIKE.test(t)) ?? "";
   }
-  return out;
+
+  return { isStart: labelAt >= 0, codeFound, referralCode };
 }
 
 /* ── Màn hình chính sau đăng nhập ─────────────────────────────────────── */
@@ -246,8 +307,14 @@ const usableName = (s: string) => compact(s).length >= 4;
  *   52,000 VND
  *   HO HOANG DAC                        người nhận (bỏ)
  *   MB BANK  0907 8386 71               ngân hàng nhận (bỏ)
- *   Lời nhắn: ...                       (bỏ, không dùng để kiểm)
- *   Chuyển nhanh 247: 19:04 11/09/2026
+ *   Nội dung: Bui Van Thang chuyen tien QR    app tự điền TÊN CHỦ TÀI KHOẢN
+ *   Chuyển nhanh 247: 19:04 11/09/2026        chuyển nội bộ in "Chuyển tiền ngay"
+ *
+ * Dòng "Nội dung"/"Lời nhắn" là chỗ duy nhất của biến thể 1 có tên khách:
+ * app điền `<tên chủ tài khoản> chuyen tien` (có khi thêm ` QR`), 55/55 ảnh
+ * bộ nhãn 2026-09-14 đúng dạng này. `verifyTpbTransferSender` so tên hệ thống
+ * với đoạn trước "chuyen tien", đúng từng ký tự. Ảnh đã bấm mở rộng còn in
+ * "Người gửi: <tên> <số tài khoản>", chưa dùng.
  *
  * Biến thể 2, mở lại từ lịch sử giao dịch:
  *
@@ -366,7 +433,10 @@ export function parseTpbTransfer(ocrText: string): TpbTransfer {
   const out: TpbTransfer = {
     bank: hasPhrase(lines, "TPBANK") || detailLayout || historyLayout,
     success:
-      hasPhrase(lines, "CHUYENTHANHCONG") || hasPhrase(lines, "GIAODICHTHANHCONG") || (historyLayout && !!amountText),
+      // Có dung sai: ảnh chụp lại đọc "Cuuyển thành công!" (bộ nhãn 2026-09-14).
+      lines.some((l) => hasLabel(l, "CHUYENTHANHCONG")) ||
+      hasPhrase(lines, "GIAODICHTHANHCONG") ||
+      (historyLayout && !!amountText),
     fromName,
     fromAccount,
     amountText,
@@ -377,6 +447,33 @@ export function parseTpbTransfer(ocrText: string): TpbTransfer {
   if (!out.success) out.missing.push("success");
   if (!out.amountText) out.missing.push("amountText");
   return out;
+}
+
+/**
+ * Tên khách có trong lời nhắn của biến thể 1 không. So chuỗi chữ cái: tên hệ
+ * thống nối liền `CHUYENTIEN` phải nằm trong chuỗi chữ cái của một dòng, nên
+ * `NGUYEN THI SAU` không khớp `NGUYEN THI SAU HOA chuyen tien`, và nhãn
+ * "Nội dung:" đứng trước không cản. `name` là đoạn trước "chuyen tien" để hiện
+ * cho người duyệt khi không khớp, `''` khi ảnh không có dòng này.
+ */
+export function verifyTpbTransferSender(
+  ocrText: string,
+  ctx: Pick<TpbCheckContext, "customerName">,
+): { found: boolean; name: string } {
+  const expected = letterWords(ctx.customerName).join("");
+  let name = "";
+  for (const line of splitLines(ocrText)) {
+    const m = stripAccents(line).match(/^(?:.*?(?:noi dung|loi nhan)\s*:?\s*)?(.+?)\s+chuyen\s*tien\b/i);
+    if (!m) continue;
+    if (expected && letterWords(line).join("").includes(expected + "CHUYENTIEN")) {
+      return { found: true, name: letterWords(ctx.customerName).join(" ") };
+    }
+    // Bỏ mảnh nhãn OCR đọc lẫn vào đầu tên: `dung Nguyen...`, `A Le Thi...`.
+    const words = letterWords(m[1]);
+    while (words.length && (words[0].length < 2 || /^(NOI|DUNG|LOI|NHAN)$/.test(words[0]))) words.shift();
+    if (!name) name = words.join(" ");
+  }
+  return { found: false, name };
 }
 
 /* ── Ba phép kiểm cho một tài khoản ───────────────────────────────────── */
@@ -437,11 +534,60 @@ async function ocrTpbHome(image: Buffer, ctx: TpbCheckContext): Promise<string> 
   return score(again) > score(seen) ? second : first;
 }
 
+/** Biến thể 1 đã đọc đủ: có TPBank, có "Chuyển thành công", có số tiền, có tên khách trong lời nhắn. */
+function transferComplete(text: string, ctx: TpbCheckContext): boolean {
+  const seen = parseTpbTransfer(text);
+  return seen.bank && seen.success && Boolean(seen.amountText) && verifyTpbTransferSender(text, ctx).found;
+}
+
+/**
+ * Ảnh không phải màn hình chính, đọc theo thứ tự màn hay gặp, dừng ngay khi
+ * một màn đọc đủ trường:
+ *
+ * 1. `TPB_LIGHT_PROFILE`, 0,5 đến 0,7 giây, cho hai màn chữ tối nền sáng, là
+ *    hai màn nhiều ảnh nhất mà không có đặc điểm màu để nhận trước khi OCR.
+ *    Màn "Mở tài khoản thành công" thiếu mã hay số tài khoản thì đọc thêm
+ *    lượt cỡ gốc và lấy lượt thấy nhiều trường hơn (đo 2026-09-14 trên 74
+ *    ảnh: 72 đủ ngay lượt đầu, lượt cỡ gốc cứu ảnh chụp sát màn hình có vân
+ *    lưới mà mọi cỡ phóng đều ra rác). Màn "Nhập thông tin" thấy màn mà thiếu
+ *    mã thì đọc lại lượt `sharp` (đo 2026-09-14: cứu 4/94 ảnh chụp mờ).
+ * 2. `TPB_TRANSFER_PROFILE` kênh đỏ, 0,6 giây: màn "Chuyển thành công" đủ
+ *    trường 50/55; thiếu thì thêm lượt `sharp`, lên 55/55 (đo 2026-09-14).
+ * 3. Còn lại đọc nốt `plain` và `negated` rồi nối theo đúng thứ tự của
+ *    `DEFAULT_PROFILE`, cho hai biến thể chuyển khoản còn lại; chữ này vẫn
+ *    qua các hàm kiểm chứng ở `checkTpbank`, nên màn sáng mà lượt 1 đọc ra
+ *    rác vẫn còn một cơ hội.
+ */
+async function ocrTpbOther(image: Buffer, ctx: TpbCheckContext): Promise<string> {
+  const first = await ocrImage(image, TPB_LIGHT_PROFILE);
+  const open = verifyTpbOpen(first, ctx);
+  if (open.isOpen) {
+    if (open.codeFound && (open.accountFound || !ctx.accountNumber)) return first;
+    const second = await ocrImage(image, TPB_LIGHT_UNSCALED_PROFILE);
+    const again = verifyTpbOpen(second, ctx);
+    const score = (r: TpbOpen) => Number(r.codeFound) + Number(r.accountFound);
+    return score(again) > score(open) ? second : first;
+  }
+  const seen = verifyTpbStart(first, ctx);
+  if (seen.isStart) {
+    if (seen.codeFound) return first;
+    const second = await ocrImage(image, TPB_LIGHT_SHARP_PROFILE);
+    return verifyTpbStart(second, ctx).codeFound ? second : first;
+  }
+
+  const red = await ocrImage(image, TPB_TRANSFER_PROFILE);
+  if (transferComplete(red, ctx)) return red;
+  const sharp = await ocrImage(image, { ...DEFAULT_PROFILE, passes: ["sharp"] });
+  if (transferComplete(`${red}\n${sharp}`, ctx)) return `${red}\n${sharp}`;
+  const rest = await ocrImage(image, { ...DEFAULT_PROFILE, passes: ["plain", "negated"] });
+  return `${rest}\n${red}\n${sharp}`;
+}
+
 export async function checkTpbankImages(images: Buffer[], ctx: TpbCheckContext): Promise<CheckedItem[]> {
   const isHome = await Promise.all(images.map(isTpbHomeScreen));
   const texts: string[] = [];
   for (let i = 0; i < images.length; i++) {
-    texts.push(isHome[i] ? await ocrTpbHome(images[i], ctx) : await ocrImage(images[i], DEFAULT_PROFILE));
+    texts.push(isHome[i] ? await ocrTpbHome(images[i], ctx) : await ocrTpbOther(images[i], ctx));
   }
   return checkTpbank(
     texts,
@@ -458,31 +604,32 @@ export async function checkTpbankImages(images: Buffer[], ctx: TpbCheckContext):
  */
 export function checkTpbank(texts: string[], ctx: TpbCheckContext, homeIndexes: number[] = []): CheckedItem[] {
   const others = texts.map((text, i) => (homeIndexes.includes(i) ? "" : text));
-  const opens = indexed(others, parseTpbOpenSuccess).filter((r) => r.success);
+  const opens = indexed(others, (text) => verifyTpbOpen(text, ctx)).filter((r) => r.isOpen);
+  const starts = indexed(others, (text) => verifyTpbStart(text, ctx)).filter((r) => r.isStart);
   const transfers = indexed(others, parseTpbTransfer).filter((r) => r.bank && r.success);
   const homes = homeIndexes.map((photoIndex) => ({ ...verifyTpbHome(texts[photoIndex], ctx), photoIndex }));
   const best = <T extends { missing: unknown[] }>(rs: T[]) =>
     rs.sort((a, b) => a.missing.length - b.missing.length)[0];
 
-  /**
-   * Chọn theo SỐ TRƯỜNG KHỚP dữ liệu hệ thống trước, rồi mới tới số trường
-   * thiếu — giống MB. Bản trước chỉ so số trường thiếu, nên ảnh của khách KHÁC
-   * đọc đủ trường vẫn thắng ảnh đúng khách mà thiếu một trường.
-   */
-  const pick = <T extends { missing: unknown[] }>(rs: T[], score: (value: T) => number): T | undefined =>
-    rs.sort((a, b) => score(b) - score(a) || a.missing.length - b.missing.length)[0];
-
-  const open = pick(opens, (r) =>
-    Number(Boolean(r.referralCode && ctx.referralCode) && codeKey(r.referralCode) === codeKey(ctx.referralCode)) +
-    Number(Boolean(r.accountNumber && ctx.accountNumber) && digitsOf(r.accountNumber) === digitsOf(ctx.accountNumber)));
+  // Chọn ảnh khớp dữ liệu hệ thống nhiều nhất: ảnh của khách KHÁC đọc đủ
+  // trường không được thắng ảnh đúng khách.
+  const open = opens.sort(
+    (a, b) => Number(b.codeFound) + Number(b.accountFound) - Number(a.codeFound) - Number(a.accountFound),
+  )[0];
+  const start = starts.sort(
+    (a, b) => Number(b.codeFound) - Number(a.codeFound) || Number(Boolean(b.referralCode)) - Number(Boolean(a.referralCode)),
+  )[0];
   const home = homes.sort(
     (a, b) => Number(b.nameFound) + Number(b.accountFound) - Number(a.nameFound) - Number(a.accountFound),
   )[0];
   const transfer = best(transfers);
   const items: CheckedItem[] = [];
 
-  // 1. Mở tài khoản: mã giới thiệu, và số tài khoản khớp số nhân viên nhập.
-  if (!open) {
+  // 1. Mã giới thiệu và số tài khoản. Mã có ở HAI màn: màn "Nhập thông tin"
+  // (chỉ mã) và màn mở tài khoản thành công (mã và số tài khoản); khớp ở màn
+  // nào cũng tính. Số tài khoản chỉ so được khi có màn thành công; không có
+  // thì màn hình chính ở mục 2 đã so số đó rồi.
+  if (!open && !start) {
     items.push({
       key: "open",
       verdict: "missing",
@@ -490,23 +637,23 @@ export function checkTpbank(texts: string[], ctx: TpbCheckContext, homeIndexes: 
       issues: ["Thiếu ảnh xác thực mã giới thiệu và số tài khoản"],
       found: "",
       expected: ctx.referralCode,
-      note: "Không ảnh nào là màn mở tài khoản thành công.",
+      note: "Không ảnh nào là màn nhập mã giới thiệu hay màn mở tài khoản thành công.",
     });
   } else {
     const notes: string[] = [];
     const issues: string[] = [];
-    if (!open.referralCode) {
-      notes.push("Không đọc được mã giới thiệu.");
-      issues.push("Không đọc được mã giới thiệu");
-    } else if (ctx.referralCode && codeKey(open.referralCode) !== codeKey(ctx.referralCode)) {
-      notes.push(`Mã trên ảnh ${open.referralCode}, mã đã chọn ${ctx.referralCode}.`);
-      issues.push("Mã giới thiệu không khớp");
+    const codeFrom = open?.codeFound ? open : start?.codeFound ? start : undefined;
+    const seenCode = open?.referralCode || start?.referralCode || "";
+    if (!codeFrom) {
+      if (!seenCode) {
+        notes.push("Không đọc được mã giới thiệu.");
+        issues.push("Không đọc được mã giới thiệu");
+      } else if (ctx.referralCode) {
+        notes.push(`Mã trên ảnh ${seenCode}, mã đã chọn ${ctx.referralCode}.`);
+        issues.push("Mã giới thiệu không khớp");
+      }
     }
-    if (
-      open.accountNumber &&
-      ctx.accountNumber &&
-      digitsOf(open.accountNumber) !== digitsOf(ctx.accountNumber)
-    ) {
+    if (open && !open.accountFound && open.accountNumber && ctx.accountNumber) {
       notes.push(`Số tài khoản trên ảnh ${open.accountNumber}, đã nhập ${ctx.accountNumber}.`);
       issues.push("Số tài khoản không khớp");
     }
@@ -515,10 +662,10 @@ export function checkTpbank(texts: string[], ctx: TpbCheckContext, homeIndexes: 
       verdict: notes.length ? "fail" : "pass",
       label: "Mã giới thiệu và số tài khoản",
       issues,
-      found: [open.referralCode, open.accountNumber].filter(Boolean).join(" - "),
+      found: [codeFrom ? ctx.referralCode : seenCode, open?.accountNumber].filter(Boolean).join(" - "),
       expected: [ctx.referralCode, ctx.accountNumber].filter(Boolean).join(" - "),
       note: notes.join(" "),
-      photoIndex: open.photoIndex,
+      photoIndex: (codeFrom ?? open ?? start)?.photoIndex,
     });
   }
 
@@ -575,8 +722,9 @@ export function checkTpbank(texts: string[], ctx: TpbCheckContext, homeIndexes: 
     });
   }
 
-  // 3. Chuyển khoản: có TPBank, có "thành công", có số tiền. Biến thể 2 in
-  // thêm người gửi, có thì so với khách và số đã nhập.
+  // 3. Chuyển khoản: có TPBank, có "thành công", có số tiền. Biến thể 1 in
+  // tên khách trong lời nhắn, biến thể 2 in người gửi; có thì so với khách và
+  // số đã nhập.
   if (!transfer) {
     items.push({
       key: "transfer",
@@ -594,8 +742,12 @@ export function checkTpbank(texts: string[], ctx: TpbCheckContext, homeIndexes: 
       notes.push("Không đọc được số tiền.");
       issues.push("Không đọc được số tiền giao dịch");
     }
+    const sender = verifyTpbTransferSender(texts[transfer.photoIndex], ctx);
     if (transfer.fromName && !nameMatches(transfer.fromName, ctx.customerName)) {
       notes.push(`Người gửi trên ảnh ${transfer.fromName}, tên khách ${ctx.customerName}.`);
+      issues.push("Tên người gửi không khớp");
+    } else if (sender.name && !sender.found) {
+      notes.push(`Lời nhắn trên ảnh ghi ${sender.name}, tên khách ${ctx.customerName}.`);
       issues.push("Tên người gửi không khớp");
     }
     if (
@@ -611,12 +763,12 @@ export function checkTpbank(texts: string[], ctx: TpbCheckContext, homeIndexes: 
       verdict: notes.length ? "fail" : "pass",
       label: "Giao dịch thành công",
       issues,
-      found: [transfer.amountText, transfer.transferredAt, transfer.fromName, transfer.fromAccount]
+      found: [transfer.amountText, transfer.transferredAt, transfer.fromName || sender.name, transfer.fromAccount]
         .filter(Boolean)
         .join(" - "),
       expected:
-        transfer.fromName || transfer.fromAccount
-          ? [ctx.customerName, ctx.accountNumber].filter(Boolean).join(" - ")
+        transfer.fromName || transfer.fromAccount || sender.name
+          ? [ctx.customerName, transfer.fromAccount ? ctx.accountNumber : ""].filter(Boolean).join(" - ")
           : "",
       note: notes.join(" "),
       photoIndex: transfer.photoIndex,

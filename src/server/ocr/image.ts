@@ -100,7 +100,29 @@ const VARIANTS: Record<string, (image: Sharp, dir: string) => Sharp | Promise<Sh
       : { width: MAX_EDGE, height: MAX_EDGE, fit: "inside" as const, withoutEnlargement: true };
     return image.resize(fit).extractChannel("green").negate();
   },
+  tpbLight: (image, dir) => tpbLightBase(image, dir, true),
+  tpbLightSharp: async (image, dir) =>
+    (await tpbLightBase(image, dir, true)).grayscale().normalise().sharpen({ sigma: 4, m1: 1, m2: 3 }),
+  tpbLightUnscaled: (image, dir) => tpbLightBase(image, dir, false),
 };
+
+/**
+ * Hai màn chữ tối nền sáng của TPBank, "Nhập thông tin để bắt đầu" và "Mở tài
+ * khoản thành công": giữ màu gốc. Ảnh chụp lại phóng 2600px như `tpbHome`,
+ * nhưng hỏi hướng SAU khi phóng: ảnh nằm ngang 1400px thì `--psm 0` báo "Too
+ * few characters" và không xoay, phóng lên 2600px rồi hỏi thì ra đúng 270°
+ * (đo 2026-09-14). Bản không phóng (`enlarge` false) vẫn hỏi hướng trên bản
+ * 2600 vì lý do đó.
+ */
+async function tpbLightBase(image: Sharp, dir: string, enlarge: boolean): Promise<Sharp> {
+  const { width = 0, height = 0 } = await image.metadata();
+  const photo = isPhoto(width, height);
+  const enlarged = { width: PHOTO_EDGE, fit: "inside" as const };
+  const capped = { width: MAX_EDGE, height: MAX_EDGE, fit: "inside" as const, withoutEnlargement: true };
+  const probe = width > height && photo && !enlarge ? image.clone().resize(enlarged) : null;
+  const resized = image.resize(enlarge && photo ? enlarged : capped);
+  return width > height ? resized.rotate(await rotationOf(probe ?? resized, dir)) : resized;
+}
 
 const DEFAULT_PASSES = ["plain", "negated", "red", "sharp"];
 
@@ -130,6 +152,42 @@ export const DEFAULT_PROFILE: OcrProfile = { passes: DEFAULT_PASSES, lang: "vie"
  * với ảnh chụp lại. Bản `eng` tessdata_best không cao hơn bản gọn (đo 2026-09-14).
  */
 export const TPB_HOME_PROFILE: OcrProfile = { passes: ["tpbHome"], lang: "eng", psm: "11", osModel: true };
+
+/**
+ * Hai màn chữ tối nền sáng của TPBank dùng chung một lượt đầu, vì trước khi
+ * OCR không biết ảnh là màn nào. `plain` + `eng` + `--psm 11`, ảnh chụp phóng
+ * 2600px, đo 2026-09-14:
+ *
+ * - "Nhập thông tin để bắt đầu", 94 ảnh có nhãn: không phóng 85/94 ở 0,36 s,
+ *   phóng 2600 lên 89/94 ở 0,49 s; phóng 1400 chỉ 88, 2000 cũng 89. `vie`
+ *   `--psm 6` của profile mặc định chỉ 80/94 ở 0,79 s. Lượt `sharp` đọc được
+ *   4 ảnh chụp mờ mà `plain` bỏ, nhưng mất 2 ảnh `plain` đọc được, nên chỉ
+ *   chạy khi lượt đầu thấy màn mà không thấy mã.
+ * - "Mở tài khoản thành công", 74 ảnh có nhãn: đủ mã và số tài khoản 72/74 ở
+ *   0,72 s; `vie` `--psm 6` mặc định 66/74; `sharp` 69/74; `--psm 6` 71/74.
+ *   Ảnh chụp sát màn hình có vân lưới điểm ảnh thì MỌI cỡ phóng ra rác, kể
+ *   cả blur hay median trước khi phóng; chỉ cỡ gốc đọc đúng. Nên lượt hai
+ *   của màn này là `tpbLightUnscaled`, chạy khi lượt đầu thiếu trường hoặc
+ *   không nhận ra màn nào.
+ */
+export const TPB_LIGHT_PROFILE: OcrProfile = { passes: ["tpbLight"], lang: "eng", psm: "11", osModel: true };
+export const TPB_LIGHT_SHARP_PROFILE: OcrProfile = { passes: ["tpbLightSharp"], lang: "eng", psm: "11", osModel: true };
+export const TPB_LIGHT_UNSCALED_PROFILE: OcrProfile = {
+  passes: ["tpbLightUnscaled"],
+  lang: "eng",
+  psm: "11",
+  osModel: true,
+};
+
+/**
+ * Màn "Chuyển thành công" TPBank, đo 2026-09-14 trên 55 ảnh có nhãn: số tiền
+ * in đậm trên nền hoa văn và tiêu đề xanh lá làm `eng` `--psm 11` chỉ đọc số
+ * tiền 16/55; `vie` `--psm 6` bản `best` đọc 54/55. Kênh đỏ đọc tiêu đề xanh
+ * lá 52/55 so với 47/55 của ảnh gốc, và nhanh gấp đôi (0,63 s). Phóng ảnh
+ * chụp lên 2600px làm số tiền tụt 54 → 50 nên giữ 1600px. Đủ bốn trường
+ * 50/55 một lượt; đọc thêm lượt `sharp` khi thiếu thì 55/55.
+ */
+export const TPB_TRANSFER_PROFILE: OcrProfile = { passes: ["red"], lang: "vie", psm: "6" };
 
 /** Đổi bộ lượt đọc của profile mặc định khi ĐO; để trống thì giữ nguyên. */
 const passesOf = (profile: OcrProfile): string[] =>

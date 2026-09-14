@@ -21,13 +21,19 @@ const SAMPLE_WIDTH = 240;
  * 270-280 nên bị loại ngay ở đây; nhờ vậy độ sáng chỉ cần >= 0,2, đủ nhận cả
  * screenshot máy hiển thị tối (ảnh 009-4 bộ benchmark, sáng 0,3) lẫn ảnh chụp
  * lại trong tối.
+ *
+ * Bão hoà >= 0,5, không phải 0,35: ảnh chụp lại màn "Nhập thông tin" bằng máy
+ * cân bằng trắng lệch thì nền lavender cả màn thành tím nhạt bão hoà 0,35-0,45,
+ * khối 15,8% diện tích cao 95% (ảnh truong-thi-bich, bộ nhãn 2026-09-14).
+ * Header thật bão hoà cao hơn hẳn: 0,5 vẫn nhận 63/63 ảnh nhãn và 49/49 ảnh
+ * home benchmark, khối nhỏ nhất còn 11%.
  */
 function isTpbPurple(r: number, g: number, b: number): boolean {
   const max = Math.max(r, g, b);
   const min = Math.min(r, g, b);
   const v = max / 255;
   const s = max ? (max - min) / max : 0;
-  if (v < 0.2 || s < 0.35) return false;
+  if (v < 0.2 || s < 0.5) return false;
   const d = max - min;
   let h = max === r ? 60 * (((g - b) / d) % 6) : max === g ? 60 * ((b - r) / d + 2) : 60 * ((r - g) / d + 4);
   if (h < 0) h += 360;
