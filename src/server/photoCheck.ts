@@ -24,7 +24,7 @@ import { bankManagersFor, notify, notifyUsers } from "./notifications";
 import { checkLpb, type LpbCheckContext } from "./ocr/banks/lpb";
 import { checkMb, type MbCheckContext } from "./ocr/banks/mb";
 import { checkMsb, type MsbCheckContext } from "./ocr/banks/msb";
-import { checkTpbank, type TpbCheckContext } from "./ocr/banks/tpbank";
+import { checkTpbankImages, type TpbCheckContext } from "./ocr/banks/tpbank";
 import { ocrImage } from "./ocr/image";
 import type { CheckedItem } from "./ocr/types";
 import { readImage } from "./storage";
@@ -47,15 +47,28 @@ type PhotoCheckContext = TpbCheckContext &
   Pick<MbCheckContext, "province"> &
   Pick<LpbCheckContext, "openedDate">;
 
-type Checker = (texts: string[], ctx: PhotoCheckContext) => CheckedItem[];
+type Checker = (images: Buffer[], ctx: PhotoCheckContext) => Promise<CheckedItem[]>;
+
+/**
+ * Bộ nhãn nhận ẢNH, tự quyết đọc mỗi ảnh bằng cấu hình nào. TPBank nhận ra
+ * màn hình chính bằng màu rồi đọc một lượt; các ngân hàng còn lại vẫn đọc
+ * mọi ảnh bằng bốn lượt mặc định rồi chấm trên chữ.
+ */
+const withDefaultOcr =
+  (check: (texts: string[], ctx: PhotoCheckContext) => CheckedItem[]): Checker =>
+  async (images, ctx) => {
+    const texts: string[] = [];
+    for (const image of images) texts.push(await ocrImage(image));
+    return check(texts, ctx);
+  };
 
 /** Ngân hàng đã có bộ nhãn, khoá là `banks.code`. Thêm ngân hàng là thêm một dòng. */
 const CHECKERS: Record<string, Checker> = {
-  MSBa: checkMsb,
-  MSBb: checkMsb,
-  TPB: checkTpbank,
-  LPB: checkLpb,
-  MB: checkMb,
+  MSBa: withDefaultOcr(checkMsb),
+  MSBb: withDefaultOcr(checkMsb),
+  TPB: checkTpbankImages,
+  LPB: withDefaultOcr(checkLpb),
+  MB: withDefaultOcr(checkMb),
 };
 
 export const hasPhotoChecker = (bankCode: string): boolean => bankCode in CHECKERS;
@@ -301,11 +314,11 @@ export async function runPhotoCheck(run: PhotoCheckRun): Promise<PhotoCheckItem[
     .where(eq(bankAccountPhotos.accountId, run.accountId))
     .orderBy(asc(bankAccountPhotos.kind), asc(bankAccountPhotos.sortOrder));
 
-  const texts: string[] = [];
+  const images: Buffer[] = [];
   for (const { key } of photos) {
     const image = await imageBuffer(key);
     if (!image) throw new Error(`Không đọc được ảnh ${key} từ kho.`);
-    texts.push(await ocrImage(image));
+    images.push(image);
   }
   const context: PhotoCheckContext = {
     referralCode: account.referralCode ?? "",
@@ -318,7 +331,7 @@ export async function runPhotoCheck(run: PhotoCheckRun): Promise<PhotoCheckItem[
   };
   // `photoIndex` là chỉ số ảnh đã cung cấp dữ liệu cho mục đó; bộ nhãn trả kèm
   // nên không phải chạy lại để dò. Mục không nhận ra màn nào thì không gắn ảnh.
-  return check(texts, context).map(({ photoIndex, ...item }) =>
+  return (await check(images, context)).map(({ photoIndex, ...item }) =>
     photoIndex === undefined ? item : { ...item, photoId: photos[photoIndex].id },
   );
 }

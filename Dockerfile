@@ -186,9 +186,11 @@ WORKDIR /app
 # Ubuntu mang sẵn 50 font.
 #
 # `tesseract-ocr` và gói tiếng Việt để đọc chữ trên ảnh chứng minh tài khoản
-# ngân hàng (src/server/ocr/image.ts).
+# ngân hàng (src/server/ocr/image.ts). Gói `eng` cho màn hình chính TPBank
+# (`TPB_HOME_PROFILE`): màn đó chỉ có tên viết hoa không dấu và chữ số, model
+# tiếng Anh đọc chữ số đúng hơn. Gói `osd` để dò hướng ảnh chụp nằm ngang.
 RUN apk add --no-cache poppler-utils libwebp-tools tzdata ttf-liberation font-noto \
-  tesseract-ocr tesseract-ocr-data-vie
+  tesseract-ocr tesseract-ocr-data-vie tesseract-ocr-data-eng tesseract-ocr-data-osd
 
 # Model tiếng Việt bản CHÍNH XÁC của Google, 12,4 MB. Gói `tesseract-ocr-data-vie`
 # của Alpine là bản rút gọn và đọc ảnh chụp lại màn hình kém hơn. `image.ts` tự

@@ -1,4 +1,6 @@
 import { compact, hasLabel, hasPhrase, isoDate, pickField, splitLines, stripAccents, type FieldSpec } from "../text";
+import { DEFAULT_PROFILE, ocrImage, TPB_HOME_PROFILE } from "../image";
+import { isTpbHomeScreen } from "../screen";
 import { indexed, type CheckedItem } from "../types";
 
 /* ── Màn "Mở Tài Khoản Thành Công" ────────────────────────────────────── */
@@ -98,113 +100,92 @@ export function parseTpbOpenSuccess(ocrText: string): TpbOpenSuccess {
 /* ── Màn hình chính sau đăng nhập ─────────────────────────────────────── */
 
 /**
- * Đầu màn hình chính, chữ trắng trên nền tím, đo trên 10 ảnh 2026-09-11:
+ * Đầu màn hình chính, chữ trắng trên nền tím:
  *
- *   Xin chào
- *   HUYNH THI NGA                     tên in hoa không dấu, OCR hay tự thêm dấu
+ *   Xin chào 👋
+ *   HUYNH THI NGA                     tên in hoa không dấu
  *   1000 5477 058   034 360 1521      số tài khoản 4-4-3, số điện thoại 3-3-4
- *   2,000 VND                         (bỏ, không dùng để kiểm)
  *
- * Không có nhãn cho tên: tên là dòng NGAY SAU "Xin chào", kèm rác OCR hai đầu
- * (`^Ấ ToNVANPHUC Ao 4`). Số tài khoản và số điện thoại cũng không nhãn, nhận
- * bằng hình dạng số.
+ * Ảnh nhận ra bằng MÀU trước khi OCR (`isTpbHomeScreen`), đọc một lượt bằng
+ * `TPB_HOME_PROFILE`, rồi KIỂM CHỨNG: tìm tên và số tài khoản của hệ thống
+ * trong chữ đọc được, so đúng từng ký tự. Không trích tên ra rồi mới so: bản
+ * trước nhặt tên bằng luật bố cục dòng, đổi `--psm` là mất 7/63 tên (đo
+ * 2026-09-14). Không cho lệch ký tự nào: nhân viên gõ sai một chữ số cũng phải
+ * bị bắt (chốt 2026-09-14).
+ *
+ * `customerName` và `accountNumber` trả về chỉ để HIỆN cho người duyệt khi
+ * không khớp, không dùng để chấm.
  */
 export type TpbHome = {
-  /** Có dòng "Xin chào". */
-  greeted: boolean;
-  /** Tên khách in hoa không dấu, có thể mất khoảng trắng giữa các từ. */
+  /** Tên hệ thống có trong chữ OCR, đúng từng ký tự sau khi bỏ dấu. */
+  nameFound: boolean;
+  /** Số tài khoản hệ thống có trong chữ OCR, đúng từng chữ số. */
+  accountFound: boolean;
+  /** Dòng giống tên nhất trên ảnh. */
   customerName: string;
-  /** Số tài khoản 11 số, đã bỏ khoảng trắng. */
+  /** Dãy số giống số tài khoản nhất trên ảnh, đã bỏ khoảng trắng. */
   accountNumber: string;
-  /** Số điện thoại 10 số, đã bỏ khoảng trắng. */
-  phone: string;
-  missing: (keyof Omit<TpbHome, "missing">)[];
 };
-
-/**
- * Nhặt tên ra khỏi dòng có rác: giữ các từ toàn chữ cái, dài từ 2 ký tự, và
- * in hoa ít nhất 3/4 số chữ; từ 2 chữ thì chỉ cần chữ đầu in hoa vì OCR hay
- * đọc `TO` thành `Tô`. `ToNVANPHUC` giữ, `Ba` giữ, `ao` bỏ, `Q` bỏ. Lấy chuỗi
- * từ liên tiếp dài nhất.
- */
-function nameIn(line: string): string {
-  const tokens = stripAccents(line).replace(/[^A-Za-z]+/g, " ").trim().split(" ");
-  let best: string[] = [];
-  let cur: string[] = [];
-  for (const t of tokens) {
-    const upper = t.replace(/[^A-Z]/g, "").length;
-    const keep = t.length === 2 ? /^[A-Z]/.test(t) : t.length >= 3 && upper * 4 >= t.length * 3;
-    if (keep) cur.push(t.toUpperCase());
-    else {
-      if (cur.length > best.length) best = cur;
-      cur = [];
-    }
-  }
-  if (cur.length > best.length) best = cur;
-  return best.join(" ");
-}
 
 // Ranh giới là "không phải chữ số", không dùng `\b`: OCR hay dính `_` hay
 // chữ vào đuôi số (`862_`), mà `_` là ký tự từ nên `\b` không khớp.
 const ACCOUNT = /(?<!\d)\d{4} ?\d{4} ?\d{3}(?!\d)/;
-const PHONE = /(?<!\d)0\d{2} ?\d{3} ?\d{4}(?!\d)/;
 
-/** Dòng "số tài khoản  số điện thoại" ngay dưới tên trên màn hình chính. */
-const isAccountLine = (l: string) => ACCOUNT.test(stripAccents(l)) && PHONE.test(stripAccents(l));
+/** Chỉ còn các từ chữ cái viết hoa không dấu, cách nhau một khoảng trắng. */
+const letterWords = (s: string): string[] =>
+  stripAccents(s).toUpperCase().replace(/[^A-Z]+/g, " ").trim().split(" ").filter(Boolean);
 
-/** Tên có ít nhất 4 chữ cái; ngắn hơn là rác OCR như `TY`. */
-const usableName = (s: string) => compact(s).length >= 4;
+/**
+ * Dòng có chứa đúng tên không: chuỗi chữ cái của tên nằm trong chuỗi chữ cái
+ * của dòng, đúng từng ký tự, phần dư mỗi đầu tối đa 2 chữ cái. Bỏ khoảng
+ * trắng khi so vì OCR hay dính từ: `TO THICAM HON` là `TO THI CAM HON`.
+ * `VW NGUYEN THI NHIEU` khớp `NGUYEN THI NHIEU` (logo và biểu tượng bàn tay
+ * đọc thành chữ), `NGUYEN THI NHIEU HOA` không khớp vì dư `HOA`.
+ */
+function lineHasName(line: string, expected: string): boolean {
+  const letters = letterWords(line).join("");
+  if (!expected || letters.length < expected.length) return false;
+  for (let at = letters.indexOf(expected); at >= 0; at = letters.indexOf(expected, at + 1)) {
+    if (at <= 2 && letters.length - at - expected.length <= 2) return true;
+  }
+  return false;
+}
 
-export function parseTpbHome(ocrText: string): TpbHome {
+export function verifyTpbHome(
+  ocrText: string,
+  ctx: Pick<TpbCheckContext, "customerName" | "accountNumber">,
+): TpbHome {
   const lines = splitLines(ocrText);
-  const greetedAt = lines.findIndex((l) => hasLabel(l, "XINCHAO"));
-  const accountAt = lines.findIndex(isAccountLine);
+  const expectedName = letterWords(ctx.customerName).join("");
+  const expectedAccount = digitsOf(ctx.accountNumber);
 
-  /**
-   * Tên có thể dính cùng dòng "Xin chào", hoặc nằm 1 tới 2 dòng dưới: OCR hay
-   * chen một dòng rác giữa hai dòng đó (`lê 2 TỶ = @`). Ảnh bị cắt mất "Xin
-   * chào" thì lấy dòng ngay trên dòng số tài khoản.
-   */
-  let customerName = "";
-  for (let i = 0; i < lines.length && !customerName; i++) {
-    if (!hasLabel(lines[i], "XINCHAO")) continue;
-    for (const candidate of [
-      nameIn(lines[i].replace(/xin\s*ch[aà]o/i, "")),
-      nameIn(lines[i + 1] ?? ""),
-      nameIn(lines[i + 2] ?? ""),
-    ]) {
-      if (usableName(candidate)) {
-        customerName = candidate;
-        break;
-      }
+  const nameLine = lines.find((line) => lineHasName(line, expectedName));
+  // Số tài khoản có thể bị `--psm 11` tách khỏi số điện thoại, nên tìm trên
+  // toàn bộ chữ số của ảnh; 11 chữ số liền không trùng ngẫu nhiên.
+  const accountFound = Boolean(expectedAccount) && digitsOf(ocrText).includes(expectedAccount);
+
+  let accountNumber = "";
+  let accountAt = -1;
+  for (let i = 0; i < lines.length && !accountNumber; i++) {
+    const m = stripAccents(lines[i]).match(ACCOUNT);
+    if (m) {
+      accountNumber = m[0].replace(/\s/g, "");
+      accountAt = i;
     }
   }
-  if (!customerName && accountAt > 0) {
-    const above = nameIn(lines[accountAt - 1]);
-    if (usableName(above)) customerName = above;
+  // Khớp rồi thì hiện tên theo cách viết của hệ thống: chữ cái đã đúng từng
+  // ký tự, chỉ khác khoảng trắng và mảnh rác hai đầu. Không khớp thì hiện dòng
+  // chữ hoa >= 2 từ gần nhất phía trên số tài khoản, bỏ dòng "Xin chào" và
+  // các dòng của thông báo đẩy: `TPBank Mobile`, `TK: xxxx5514108`, `bây giờ`.
+  let customerName = nameLine ? letterWords(ctx.customerName).join(" ") : "";
+  for (let i = accountAt - 1; i >= 0 && i >= accountAt - 6 && !customerName; i--) {
+    const words = letterWords(lines[i]).filter((word) => word.length >= 2 && !/(.)\1\1/.test(word));
+    const joined = words.join("");
+    if (/TPBANK|XINCHAO|BAYGI/.test(joined)) continue;
+    if (words.length >= 2 && joined.length >= 6) customerName = words.join(" ");
   }
 
-  const digits = (re: RegExp): string => {
-    for (const l of lines) {
-      const m = stripAccents(l).match(re);
-      if (m) return m[0].replace(/\s/g, "");
-    }
-    return "";
-  };
-
-  const out: TpbHome = {
-    // Hai dấu hiệu: dòng "Xin chào", hoặc dòng số tài khoản đi cùng số điện
-    // thoại. Ảnh chụp cắt mất mép trên vẫn còn dấu hiệu thứ hai.
-    greeted: greetedAt >= 0 || accountAt >= 0,
-    customerName,
-    accountNumber: digits(ACCOUNT),
-    phone: digits(PHONE),
-    missing: [],
-  };
-  for (const key of ["greeted", "customerName", "accountNumber", "phone"] as const) {
-    if (!out[key]) out.missing.push(key);
-  }
-  return out;
+  return { nameFound: Boolean(nameLine), accountFound, customerName, accountNumber };
 }
 
 /**
@@ -226,6 +207,32 @@ export function nameMatches(ocrName: string, expected: string): boolean {
   }
   return false;
 }
+
+/**
+ * Nhặt tên ra khỏi dòng có rác: giữ các từ toàn chữ cái, dài từ 2 ký tự, và
+ * in hoa ít nhất 3/4 số chữ; từ 2 chữ thì chỉ cần chữ đầu in hoa vì OCR hay
+ * đọc `TO` thành `Tô`. `ToNVANPHUC` giữ, `Ba` giữ, `ao` bỏ, `Q` bỏ. Lấy chuỗi
+ * từ liên tiếp dài nhất. Dùng cho tên người gửi ở màn chuyển khoản.
+ */
+function nameIn(line: string): string {
+  const tokens = stripAccents(line).replace(/[^A-Za-z]+/g, " ").trim().split(" ");
+  let best: string[] = [];
+  let cur: string[] = [];
+  for (const t of tokens) {
+    const upper = t.replace(/[^A-Z]/g, "").length;
+    const keep = t.length === 2 ? /^[A-Z]/.test(t) : t.length >= 3 && upper * 4 >= t.length * 3;
+    if (keep) cur.push(t.toUpperCase());
+    else {
+      if (cur.length > best.length) best = cur;
+      cur = [];
+    }
+  }
+  if (cur.length > best.length) best = cur;
+  return best.join(" ");
+}
+
+/** Tên có ít nhất 4 chữ cái; ngắn hơn là rác OCR như `TY`. */
+const usableName = (s: string) => compact(s).length >= 4;
 
 /* ── Màn "Chuyển thành công" ──────────────────────────────────────────── */
 
@@ -407,17 +414,53 @@ function digitsClose(a: string, b: string): boolean {
 }
 
 /**
- * Chạy cả ba parser trên mọi ảnh, mỗi phép kiểm lấy ảnh nhận ra rõ nhất.
- *
- * Không có nhãn "ảnh này là màn gì": nhân viên nộp 3 ảnh `opening` không theo
- * thứ tự. Màn nào có dấu hiệu riêng: mở tài khoản có `success`, màn hình chính
- * có `greeted`, chuyển khoản có `bank` và `success`. Một ảnh khớp nhiều màn
- * thì ưu tiên màn thiếu ít trường nhất.
+ * Ảnh của một tài khoản chia hai nhóm TRƯỚC khi OCR: ảnh màn hình chính nhận
+ * ra bằng màu (`isTpbHomeScreen`), đọc bằng `TPB_HOME_PROFILE`; ảnh còn lại
+ * đọc bằng profile mặc định cho hai parser mở tài khoản và chuyển khoản.
+ * Nhân viên nộp ảnh không theo thứ tự nên mỗi nhóm vẫn có thể nhiều ảnh, mỗi
+ * phép kiểm lấy ảnh khớp dữ liệu hệ thống nhiều nhất.
  */
-export function checkTpbank(texts: string[], ctx: TpbCheckContext): CheckedItem[] {
-  const opens = indexed(texts, parseTpbOpenSuccess).filter((r) => r.success);
-  const homes = indexed(texts, parseTpbHome).filter((r) => r.greeted);
-  const transfers = indexed(texts, parseTpbTransfer).filter((r) => r.bank && r.success);
+/**
+ * Một lượt `--psm 11`; chỉ khi chưa thấy đủ tên và số tài khoản mới đọc thêm
+ * một lượt `--psm 6` và lấy lượt thấy nhiều hơn. `--psm 11` đọc chữ rời rạc
+ * tốt hơn trên 96/112 ảnh so với 82/112 của `--psm 6`, nhưng có screenshot nó
+ * tách `1000 5476 377` thành `10!` và `476377` còn `--psm 6` đọc liền (đo
+ * 2026-09-14). Ảnh bình thường vẫn chỉ tốn một lượt.
+ */
+async function ocrTpbHome(image: Buffer, ctx: TpbCheckContext): Promise<string> {
+  const first = await ocrImage(image, TPB_HOME_PROFILE);
+  const seen = verifyTpbHome(first, ctx);
+  if (seen.nameFound && seen.accountFound) return first;
+  const second = await ocrImage(image, { ...TPB_HOME_PROFILE, psm: "6" });
+  const again = verifyTpbHome(second, ctx);
+  const score = (r: TpbHome) => Number(r.nameFound) + Number(r.accountFound);
+  return score(again) > score(seen) ? second : first;
+}
+
+export async function checkTpbankImages(images: Buffer[], ctx: TpbCheckContext): Promise<CheckedItem[]> {
+  const isHome = await Promise.all(images.map(isTpbHomeScreen));
+  const texts: string[] = [];
+  for (let i = 0; i < images.length; i++) {
+    texts.push(isHome[i] ? await ocrTpbHome(images[i], ctx) : await ocrImage(images[i], DEFAULT_PROFILE));
+  }
+  return checkTpbank(
+    texts,
+    ctx,
+    isHome.flatMap((home, i) => (home ? [i] : [])),
+  );
+}
+
+/**
+ * Chấm trên chữ đã OCR. `homeIndexes` là chỉ số các ảnh đã nhận là màn hình
+ * chính và đã đọc bằng `TPB_HOME_PROFILE`; hai parser kia chạy trên ảnh còn
+ * lại. Màn mở tài khoản có `success`, chuyển khoản có `bank` và `success`; một
+ * ảnh khớp nhiều màn thì ưu tiên màn thiếu ít trường nhất.
+ */
+export function checkTpbank(texts: string[], ctx: TpbCheckContext, homeIndexes: number[] = []): CheckedItem[] {
+  const others = texts.map((text, i) => (homeIndexes.includes(i) ? "" : text));
+  const opens = indexed(others, parseTpbOpenSuccess).filter((r) => r.success);
+  const transfers = indexed(others, parseTpbTransfer).filter((r) => r.bank && r.success);
+  const homes = homeIndexes.map((photoIndex) => ({ ...verifyTpbHome(texts[photoIndex], ctx), photoIndex }));
   const best = <T extends { missing: unknown[] }>(rs: T[]) =>
     rs.sort((a, b) => a.missing.length - b.missing.length)[0];
 
@@ -432,9 +475,9 @@ export function checkTpbank(texts: string[], ctx: TpbCheckContext): CheckedItem[
   const open = pick(opens, (r) =>
     Number(Boolean(r.referralCode && ctx.referralCode) && codeKey(r.referralCode) === codeKey(ctx.referralCode)) +
     Number(Boolean(r.accountNumber && ctx.accountNumber) && digitsOf(r.accountNumber) === digitsOf(ctx.accountNumber)));
-  const home = pick(homes, (r) =>
-    Number(Boolean(r.customerName) && nameMatches(r.customerName, ctx.customerName)) +
-    Number(Boolean(r.accountNumber && ctx.accountNumber) && digitsClose(r.accountNumber, digitsOf(ctx.accountNumber))));
+  const home = homes.sort(
+    (a, b) => Number(b.nameFound) + Number(b.accountFound) - Number(a.nameFound) - Number(a.accountFound),
+  )[0];
   const transfer = best(transfers);
   const items: CheckedItem[] = [];
 
@@ -479,42 +522,54 @@ export function checkTpbank(texts: string[], ctx: TpbCheckContext): CheckedItem[
     });
   }
 
-  // 2. Màn hình chính: tên khách, và số tài khoản khớp số đã nhập.
+  // 2. Màn hình chính: tên khách và số tài khoản phải có đúng trên ảnh. Ghi
+  // chú luôn kèm cả giá trị trên ảnh lẫn trong hệ thống để người duyệt tự
+  // quyết bên nào sai: OCR đọc nhầm một chữ số hay nhân viên nhập nhầm.
   if (!home) {
     items.push({
       key: "home",
       verdict: "missing",
       label: "Tên khách hàng và số tài khoản",
-      issues: ["Thiếu ảnh xác thực tên khách hàng và số tài khoản"],
+      issues: ["Thiếu ảnh màn hình chính"],
       found: "",
-      expected: ctx.customerName,
-      note: "Không ảnh nào là màn hình chính app.",
+      expected: [ctx.customerName, ctx.accountNumber].filter(Boolean).join(" - "),
+      note: "Không ảnh nào là màn hình chính app TPBank.",
     });
   } else {
     const notes: string[] = [];
     const issues: string[] = [];
-    if (!home.customerName) {
-      notes.push("Không đọc được tên khách.");
-      issues.push("Không đọc được tên khách hàng");
-    } else if (!nameMatches(home.customerName, ctx.customerName)) {
-      notes.push(`Tên trên ảnh ${home.customerName}, tên khách ${ctx.customerName}.`);
-      issues.push("Tên khách hàng không khớp");
-    }
-    if (
-      home.accountNumber &&
-      ctx.accountNumber &&
-      !digitsClose(home.accountNumber, digitsOf(ctx.accountNumber))
-    ) {
-      notes.push(`Số tài khoản trên ảnh ${home.accountNumber}, đã nhập ${ctx.accountNumber}.`);
-      issues.push("Số tài khoản không khớp");
+    const seen = [home.customerName, home.accountNumber].filter(Boolean).join(" - ");
+    const expected = [ctx.customerName, ctx.accountNumber].filter(Boolean).join(" - ");
+    if (!home.nameFound && !home.accountFound && home.customerName && home.accountNumber) {
+      issues.push("Ảnh của khách khác");
+      notes.push(`Ảnh ghi ${seen}; hệ thống ghi ${expected}.`);
+    } else {
+      if (!home.nameFound) {
+        if (home.customerName) {
+          issues.push("Tên khách hàng không khớp");
+          notes.push(`Tên trên ảnh ${home.customerName}, tên khách ${ctx.customerName}.`);
+        } else {
+          issues.push("Không đọc được tên khách hàng");
+          notes.push("Ảnh màn hình chính không có tên khách, có thể bị thông báo che.");
+        }
+      }
+      if (!home.accountFound) {
+        if (home.accountNumber) {
+          issues.push("Số tài khoản không khớp");
+          notes.push(`Số tài khoản trên ảnh ${home.accountNumber}, đã nhập ${ctx.accountNumber}.`);
+        } else {
+          issues.push("Không đọc được số tài khoản");
+          notes.push("Ảnh màn hình chính không đọc được số tài khoản.");
+        }
+      }
     }
     items.push({
       key: "home",
-      verdict: notes.length ? "fail" : "pass",
+      verdict: issues.length ? "fail" : "pass",
       label: "Tên khách hàng và số tài khoản",
       issues,
-      found: [home.customerName, home.accountNumber].filter(Boolean).join(" - "),
-      expected: [ctx.customerName, ctx.accountNumber].filter(Boolean).join(" - "),
+      found: seen,
+      expected,
       note: notes.join(" "),
       photoIndex: home.photoIndex,
     });
