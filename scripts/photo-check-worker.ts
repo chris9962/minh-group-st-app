@@ -21,6 +21,7 @@
 
 import { Client } from "pg";
 import {
+  dropDisabledPendingChecks,
   failPhotoCheck,
   finishPhotoCheck,
   pendingPhotoChecks,
@@ -138,6 +139,9 @@ function startListener(onNotify: () => void) {
 async function main() {
   if (!process.env.DATABASE_URL)
     throw new Error("DATABASE_URL chưa đặt — tạo .env.local từ .env.example rồi chạy lại");
+
+  const dropped = await dropDisabledPendingChecks();
+  if (dropped) log(`Xoá ${dropped} lượt chờ của ngân hàng đã tắt kiểm ảnh.`);
 
   if (process.argv.includes("--mot-vong")) {
     await runOnce("--mot-vong");

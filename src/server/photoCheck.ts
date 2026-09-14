@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, sql, type SQL, type SQLWrapper } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, notInArray, sql, type SQL, type SQLWrapper } from "drizzle-orm";
 import {
   PhotoCheckFilter,
   PhotoCheckResult,
@@ -71,7 +71,16 @@ const CHECKERS: Record<string, Checker> = {
   MB: withDefaultOcr(checkMb),
 };
 
-export const hasPhotoChecker = (bankCode: string): boolean => bankCode in CHECKERS;
+/**
+ * Ngân hàng đang BẬT kiểm ảnh. Chỉ TPBank đã qua quy trình đo từng màn
+ * (`.claude/skills/ocr-screen-parser`); MB, MSB, LPB vẫn dùng bộ nhãn bốn
+ * lượt chưa đo nên tắt (chốt 2026-09-15). Làm xong ngân hàng nào thì thêm mã
+ * vào đây; dòng chờ cũ của ngân hàng tắt bị worker xoá lúc khởi động.
+ */
+const ENABLED_BANKS = ["TPB"];
+
+export const hasPhotoChecker = (bankCode: string): boolean =>
+  ENABLED_BANKS.includes(bankCode) && bankCode in CHECKERS;
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -261,7 +270,7 @@ export type PhotoCheckRun = {
   notify: boolean;
 };
 
-/** Dòng `pending` cũ nhất, tối đa `limit`. */
+/** Dòng `pending` cũ nhất của ngân hàng đang bật, tối đa `limit`. */
 export async function pendingPhotoChecks(limit: number): Promise<PhotoCheckRun[]> {
   const rows = await db
     .select({
@@ -270,10 +279,30 @@ export async function pendingPhotoChecks(limit: number): Promise<PhotoCheckRun[]
       notify: bankAccountChecks.notify,
     })
     .from(bankAccountChecks)
-    .where(eq(bankAccountChecks.status, "pending"))
+    .innerJoin(bankAccounts, eq(bankAccounts.id, bankAccountChecks.accountId))
+    .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
+    .where(and(eq(bankAccountChecks.status, "pending"), inArray(banks.code, ENABLED_BANKS)))
     .orderBy(asc(bankAccountChecks.createdAt))
     .limit(limit);
   return rows;
+}
+
+/**
+ * Xoá dòng `pending` của ngân hàng đã tắt, trả số dòng xoá. Để nguyên thì
+ * giao diện hiện "Đang phân tích" mãi; xoá thì tài khoản về "chưa kiểm" hoặc
+ * giữ kết quả của lượt trước. Worker gọi một lần lúc khởi động.
+ */
+export async function dropDisabledPendingChecks(): Promise<number> {
+  const disabled = db
+    .select({ id: bankAccounts.id })
+    .from(bankAccounts)
+    .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
+    .where(notInArray(banks.code, ENABLED_BANKS));
+  const rows = await db
+    .delete(bankAccountChecks)
+    .where(and(eq(bankAccountChecks.status, "pending"), inArray(bankAccountChecks.accountId, disabled)))
+    .returning({ id: bankAccountChecks.id });
+  return rows.length;
 }
 
 /**
