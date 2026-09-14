@@ -42,9 +42,11 @@ if (!check) {
 const files = (await readdir(dir)).filter((f) => /\.(webp|jpe?g|png)$/i.test(f)).sort();
 const json = path.join(dir, "labels.json");
 const labels: Record<string, Record<string, string>> = existsSync(json) ? JSON.parse(await readFile(json, "utf8")) : {};
+// Tên file `<ten-khach>-<so-tai-khoan>` bù cho trường `labels.json` không ghi:
+// bộ chuyển khoản chỉ ghi số tiền và lời nhắn, còn `ctx` vẫn cần tên khách.
 for (const f of files) {
   const m = f.match(/^(.+)-(\d{6,})\.\w+$/);
-  if (!labels[f] && m) labels[f] = { customerName: m[1].toUpperCase().replace(/-/g, " "), accountNumber: m[2] };
+  if (m) labels[f] = { customerName: m[1].toUpperCase().replace(/-/g, " "), accountNumber: m[2], ...labels[f] };
 }
 
 let right = 0;

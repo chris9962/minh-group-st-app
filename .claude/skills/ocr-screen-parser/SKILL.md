@@ -126,6 +126,17 @@ tỉ lệ điểm màu, dải hàng màu liền dài nhất, siết màu theo đ
 lớn nhất sau khi giãn 2 điểm mới tách được, vì thanh trạng thái và banner của
 màn khác là dải mỏng còn header là khối.
 
+Màu KHÔNG được là cửa duy nhất vào màn. Ảnh chụp qua mặt kính, máy cân bằng
+trắng lệch thì màu không qua ngưỡng dù màn đúng; bản chỉ dựa màu báo "thiếu
+ảnh màn hình chính" cho ảnh có màn đó (2026-09-15). Luôn có tầng hai bằng
+chữ: ảnh không qua tầng màu, sau khi đọc các cấu hình kia mà không nhận ra
+màn nào, chữ có từ hai nhãn menu chỉ màn đó mới có thì đọc thêm một lượt
+cấu hình của màn và so như thường. Chọn nhãn không trùng màn khác:
+"Chuyển tiền" khớp lời nhắn `chuyen tien QR`, "Lịch sử GD" khớp "Lịch sử
+giao dịch", chữ "TPBank" có ở thông báo đẩy của mọi màn. `looksLikeTpbHome`
+trong `tpbank.ts` là ví dụ; đo bằng ảnh giả lập `modulate({ saturation:
+0.4, hue: 20 })` từ ảnh đã đạt khi chưa có ảnh thật.
+
 ### Bước 5. Parser là kiểm chứng, không phải trích xuất
 
 Hệ thống đã biết giá trị đúng. Parser nhận `ctx` và trả lời "giá trị này có

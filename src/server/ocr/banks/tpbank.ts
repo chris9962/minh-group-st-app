@@ -235,12 +235,13 @@ export function verifyTpbHome(
   // Khớp rồi thì hiện tên theo cách viết của hệ thống: chữ cái đã đúng từng
   // ký tự, chỉ khác khoảng trắng và mảnh rác hai đầu. Không khớp thì hiện dòng
   // chữ hoa >= 2 từ gần nhất phía trên số tài khoản, bỏ dòng "Xin chào" và
-  // các dòng của thông báo đẩy: `TPBank Mobile`, `TK: xxxx5514108`, `bây giờ`.
+  // các dòng của thông báo đẩy: `TPBank Mobile`, `TK: xxxx5514108`, `bây giờ`,
+  // `vừa xong` (đọc thành `VUIA XONG`, tài khoản b937f9ba 2026-09-15).
   let customerName = nameLine ? letterWords(ctx.customerName).join(" ") : "";
   for (let i = accountAt - 1; i >= 0 && i >= accountAt - 6 && !customerName; i--) {
     const words = letterWords(lines[i]).filter((word) => word.length >= 2 && !/(.)\1\1/.test(word));
     const joined = words.join("");
-    if (/TPBANK|XINCHAO|BAYGI/.test(joined)) continue;
+    if (/TPBANK|XINCHAO|BAYGI|XONG$/.test(joined)) continue;
     if (words.length >= 2 && joined.length >= 6) customerName = words.join(" ");
   }
 
@@ -554,6 +555,30 @@ function transferComplete(text: string, ctx: TpbCheckContext): boolean {
 }
 
 /**
+ * Nhãn menu chỉ có ở màn hình chính, viết compact như `hasLabel`. Dùng để
+ * nhận màn bằng CHỮ khi bước màu không nhận ra: ảnh chụp qua mặt kính, màu
+ * lệch, khối tím không qua ngưỡng (tài khoản STK 10005512250, 2026-09-15).
+ *
+ * Không dùng "Chuyển tiền" và "Lịch sử GD": lời nhắn `chuyen tien QR` và tab
+ * "Lịch sử giao dịch" của màn chuyển khoản khớp hai nhãn đó qua `hasLabel`.
+ * Không dùng số tài khoản và số điện thoại: màn mở tài khoản cũng có cả hai.
+ * Trên 8 ảnh màn hình chính lệch màu, lượt đầu đọc ra "Xin chào" và "Chatpay"
+ * ở 7 ảnh.
+ */
+const HOME_LABELS = ["XINCHAO", "CHATPAY", "QRCUATOI", "THANHTOANHOADON", "NAPTIEN", "CHUYENTIENDACTHU"];
+
+/**
+ * Chữ OCR có từ hai nhãn menu màn hình chính trở lên và không có dòng "thành
+ * công" của màn chuyển khoản. Không loại theo chữ "TPBank": thông báo đẩy
+ * "TPBank Mobile" và banner "App TPBank" trên màn hình chính cũng có chữ đó.
+ */
+function looksLikeTpbHome(text: string): boolean {
+  const lines = splitLines(text);
+  if (parseTpbTransfer(text).success) return false;
+  return HOME_LABELS.filter((label) => lines.some((line) => hasLabel(line, label))).length >= 2;
+}
+
+/**
  * Ảnh không phải màn hình chính, đọc theo thứ tự màn hay gặp, dừng ngay khi
  * một màn đọc đủ trường:
  *
@@ -587,6 +612,10 @@ async function ocrTpbOther(image: Buffer, ctx: TpbCheckContext): Promise<string>
     const second = await ocrImage(image, TPB_LIGHT_SHARP_PROFILE);
     return verifyTpbStart(second, ctx).codeFound ? second : first;
   }
+  // Màn hình chính không qua bước màu: lượt đầu đọc ra nhãn menu ở 7/8 ảnh
+  // thử, trả về ngay để `checkTpbankImages` đọc cấu hình màn hình chính,
+  // khỏi tốn bốn lượt của nhánh chuyển khoản.
+  if (looksLikeTpbHome(first)) return first;
 
   const red = await ocrImage(image, TPB_TRANSFER_PROFILE);
   if (transferComplete(red, ctx)) return red;
@@ -596,17 +625,43 @@ async function ocrTpbOther(image: Buffer, ctx: TpbCheckContext): Promise<string>
   return `${rest}\n${red}\n${sharp}`;
 }
 
+/** Chữ này đã nhận ra là một trong ba màn còn lại chưa. */
+function recognizedOther(text: string, ctx: TpbCheckContext): boolean {
+  const transfer = parseTpbTransfer(text);
+  return verifyTpbOpen(text, ctx).isOpen || verifyTpbStart(text, ctx).isStart || (transfer.bank && transfer.success);
+}
+
+/**
+ * Ảnh qua bước màu thì đọc thẳng cấu hình màn hình chính. Ảnh không qua thì
+ * đọc các cấu hình kia; không nhận ra màn nào mà chữ có nhãn menu màn hình
+ * chính thì đọc thêm một lượt cấu hình màn hình chính và lấy lượt so được
+ * nhiều trường hơn. Nhờ vậy ảnh chụp lệch màu vẫn được so tên và số tài khoản,
+ * thay vì báo "thiếu ảnh màn hình chính" trong khi ảnh có.
+ */
 export async function checkTpbankImages(images: Buffer[], ctx: TpbCheckContext): Promise<CheckedItem[]> {
   const isHome = await Promise.all(images.map(isTpbHomeScreen));
   const texts: string[] = [];
+  const homeIndexes: number[] = [];
+  const score = (text: string) => {
+    const seen = verifyTpbHome(text, ctx);
+    return Number(seen.nameFound) + Number(seen.accountFound);
+  };
   for (let i = 0; i < images.length; i++) {
-    texts.push(isHome[i] ? await ocrTpbHome(images[i], ctx) : await ocrTpbOther(images[i], ctx));
+    if (isHome[i]) {
+      texts.push(await ocrTpbHome(images[i], ctx));
+      homeIndexes.push(i);
+      continue;
+    }
+    const other = await ocrTpbOther(images[i], ctx);
+    if (recognizedOther(other, ctx) || !looksLikeTpbHome(other)) {
+      texts.push(other);
+      continue;
+    }
+    const home = await ocrTpbHome(images[i], ctx);
+    texts.push(score(home) >= score(other) ? home : other);
+    homeIndexes.push(i);
   }
-  return checkTpbank(
-    texts,
-    ctx,
-    isHome.flatMap((home, i) => (home ? [i] : [])),
-  );
+  return checkTpbank(texts, ctx, homeIndexes);
 }
 
 /**

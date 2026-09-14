@@ -17,10 +17,13 @@ import sharp from "sharp";
 const SAMPLE_WIDTH = 240;
 
 /**
- * Tím của nền header: hue 250-265. Tím của nút và banner ở màn khác có hue
- * 270-280 nên bị loại ngay ở đây; nhờ vậy độ sáng chỉ cần >= 0,2, đủ nhận cả
- * screenshot máy hiển thị tối (ảnh 009-4 bộ benchmark, sáng 0,3) lẫn ảnh chụp
- * lại trong tối.
+ * Tím của nền header: hue 250-265 trên screenshot, tới 280 trên ảnh chụp lại
+ * qua mặt kính (tài khoản b937f9ba, 2026-09-15: ngưỡng 268 cho khối 2,6%,
+ * ngưỡng 280 cho 18%). Nút và banner ở màn khác cũng có hue 270-280 nhưng là
+ * dải mỏng, ngưỡng khối ở `isTpbHomeScreen` loại được: 240-280 vẫn 0/223 ảnh
+ * ba màn kia bị nhận nhầm, 63/63 màn hình chính qua (đo 2026-09-15). Độ sáng
+ * chỉ cần >= 0,2, đủ nhận cả screenshot máy hiển thị tối (ảnh 009-4 bộ
+ * benchmark, sáng 0,3) lẫn ảnh chụp lại trong tối.
  *
  * Bão hoà >= 0,5, không phải 0,35: ảnh chụp lại màn "Nhập thông tin" bằng máy
  * cân bằng trắng lệch thì nền lavender cả màn thành tím nhạt bão hoà 0,35-0,45,
@@ -37,7 +40,7 @@ function isTpbPurple(r: number, g: number, b: number): boolean {
   const d = max - min;
   let h = max === r ? 60 * (((g - b) / d) % 6) : max === g ? 60 * ((b - r) / d + 2) : 60 * ((r - g) / d + 4);
   if (h < 0) h += 360;
-  return h >= 240 && h <= 268;
+  return h >= 240 && h <= 280;
 }
 
 type Blob = { area: number; height: number; width: number };
