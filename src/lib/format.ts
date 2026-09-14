@@ -63,7 +63,7 @@ export function ageRangeLabel(rule: { minAge: number | null; maxAge: number | nu
   return rule.maxAge !== null ? `tối đa ${rule.maxAge} tuổi` : '';
 }
 
-/** Tên khi XUẤT Excel: VIẾT HOA, BỎ DẤU. Lúc nhập không ràng buộc gì. */
+/** Tên khi XUẤT Excel: VIẾT HOA, BỎ DẤU; luật nhập tên nằm ở biểu mẫu. */
 export const nameForExcel = (name: string): string =>
   removeDiacritics(name).toUpperCase();
 

@@ -86,7 +86,7 @@ async function createOrder(page: Page): Promise<string> {
    * rồi tự chèn dấu gạch. Người thụ hưởng KHÔNG chịu ràng buộc 15 tuổi — họ có
    * thể là con của khách (spec §U8).
    */
-  await dialog.getByLabel("Họ tên").fill(`${TAG} Nguoi thu huong`);
+  await dialog.getByLabel("Họ tên").fill("12345");
   await dialog.getByLabel("Ngày sinh").fill("01011990");
   await dialog.getByLabel("Địa chỉ").fill(`${TAG} dia chi`);
   // Ảnh hồ sơ bắt buộc từ chốt 2026-09-07 — nút Tạo đơn khoá tới khi có ảnh.
@@ -96,6 +96,26 @@ async function createOrder(page: Page): Promise<string> {
     .setInputFiles({ name: `${TAG}-ho-so.png`, mimeType: "image/png", buffer: PNG_1X1 });
   await expect(dialog.getByText("Chưa tải lên")).toBeVisible();
   await dialog.getByRole("button", { name: "Tạo đơn" }).click();
+  await expect(dialog.getByText("Họ tên phải có chữ, không được chỉ nhập số hoặc ký hiệu")).toBeVisible();
+  await dialog.getByLabel("Họ tên").fill("Nguyễn Văn Munh");
+  await dialog.getByRole("button", { name: "Tạo đơn" }).click();
+
+  const review = page.getByRole("dialog", { name: "Kiểm tra lại trước khi tạo đơn" });
+  const confirm = review.getByRole("button", { name: /Xác nhận, tạo đơn/ });
+  await expect(review.locator("mark")).toHaveText("Munh");
+  await expect(review.getByText("Tên có thể sai chính tả. Kiểm tra lại giấy tờ.")).toBeVisible();
+  await expect(confirm).toHaveText("Xác nhận, tạo đơn (5s)");
+  await expect(confirm).toBeDisabled();
+  // Quay lại sửa rồi mở lại phải đếm từ đầu, không dùng thời gian của lượt trước.
+  await review.getByRole("button", { name: "Quay lại sửa" }).click();
+  await dialog.getByLabel("Họ tên").fill("Nguyễn Văn Minh");
+  await dialog.getByRole("button", { name: "Tạo đơn" }).click();
+  await expect(review.locator("mark")).toHaveCount(0);
+  await expect(review.getByText("Tên có thể sai chính tả. Kiểm tra lại giấy tờ.")).toHaveCount(0);
+  await expect(confirm).toHaveText("Xác nhận, tạo đơn (5s)");
+  await expect(confirm).toBeDisabled();
+  await expect(confirm).toBeEnabled({ timeout: 7000 });
+  await confirm.click();
 
   // Toast là bằng chứng thao tác chạy tới nơi — hộp thoại tự đóng thôi thì
   // không phân biệt được "đã lưu" với "vừa bấm nhầm Huỷ".

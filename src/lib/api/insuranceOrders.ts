@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { StatusTone } from '@/components/ui/StatusTag';
 import { businessDay } from '@/lib/format';
 import { bornAfterMinYear, InsuranceProduct, isoDate, isoDateOrEmpty, MIN_BIRTH_YEAR } from '@/lib/types';
+import { PERSON_NAME_LETTER_ERROR, personNameHasLetter } from './personName';
 
 /**
  * Vòng đời và BIỂU MẪU của đơn bảo hiểm. Phần đọc (danh sách, chi tiết, các
@@ -189,7 +190,11 @@ const orderFields = {
   fee: z.number().min(0, 'Mức phí phải từ 0 trở lên'),
   startDate: isoDate('Chưa chọn ngày bắt đầu'),
   endDate: isoDate('Chưa chọn ngày kết thúc'),
-  beneficiaryName: z.string().trim().min(1, 'Chưa nhập tên khách hàng'),
+  beneficiaryName: z
+    .string()
+    .trim()
+    .min(1, 'Chưa nhập tên khách hàng')
+    .refine(personNameHasLetter, PERSON_NAME_LETTER_ERROR),
   /**
    * Ngày sinh người thụ hưởng — BẮT BUỘC với đơn tai nạn điện, bỏ trống với đơn
    * xe máy. Ràng buộc BẮT BUỘC nằm ở `.refine` theo sản phẩm chứ không ở đây:

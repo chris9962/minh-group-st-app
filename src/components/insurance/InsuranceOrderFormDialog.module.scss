@@ -89,6 +89,21 @@
   overflow-wrap: anywhere;
 }
 
+.reviewNameMark {
+  background: var(--om-orange-soft);
+  color: var(--om-orange-ink);
+  border-bottom: 1px solid var(--om-orange);
+  border-radius: var(--radius-sm);
+}
+
+.reviewNameWarning {
+  display: block;
+  margin-top: var(--space-1);
+  color: var(--om-orange-ink);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
 @media (max-width: bp.$bp-narrow) {
   .pair,
   .reviewGrid {

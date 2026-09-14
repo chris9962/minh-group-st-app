@@ -4,6 +4,7 @@ import { AccountType, BankAccountStatus } from './bankAccounts';
 import { InsuranceOrderStatus } from './insuranceOrders';
 import { GiftSimulateResult } from './settings';
 import { pageOf, pageParams, type Page, type PageQuery } from './pagination';
+import { PERSON_NAME_LETTER_ERROR, personNameHasLetter } from './personName';
 
 /**
  * P-40 · Danh sách khách hàng · P-41 · Tạo/sửa · P-42 · Hồ sơ 360°
@@ -334,7 +335,11 @@ const bornEarlyEnough = (isoDate: string) => {
 };
 
 export const CustomerForm = z.object({
-  fullName: z.string().trim().min(1, 'Chưa nhập họ tên'),
+  fullName: z
+    .string()
+    .trim()
+    .min(1, 'Chưa nhập họ tên')
+    .refine(personNameHasLetter, PERSON_NAME_LETTER_ERROR),
   dob: z
     .string()
     .min(1, 'Chưa nhập ngày sinh')

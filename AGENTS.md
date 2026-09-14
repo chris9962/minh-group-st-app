@@ -386,7 +386,7 @@ Excel vẫn kiểm quyền qua `permissions.ts`.
 Dùng `src/lib/format.ts`, không tự viết lại:
 
 - Bỏ dấu tiếng Việt phải xử lý **`đ`/`Đ` → `d`/`D`** — `normalize('NFD')` không tách chữ Đ
-- Tên khách khi **xuất Excel**: VIẾT HOA, BỎ DẤU. Lúc nhập không ràng buộc gì
+- Tên khách khi **nhập** phải có ít nhất một chữ cái, không nhận tên chỉ gồm số hoặc ký hiệu. Khi **xuất Excel**: VIẾT HOA, BỎ DẤU
 - Cột SĐT và CCCD khi xuất phải ép **định dạng text**, nếu không Excel ăn mất số 0 đầu
 
 ## 10. Đặt tên tiếng Việt cho người dùng

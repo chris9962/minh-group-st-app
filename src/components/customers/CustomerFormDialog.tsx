@@ -80,7 +80,7 @@ const toForm = (c: Customer): CustomerForm => ({
   channelDetail: c.channelDetail,
 });
 
-/** P-41 · Tạo / sửa khách hàng — tên không ràng buộc định dạng, CCCD chặn trùng. */
+/** P-41 · Tạo / sửa khách hàng — tên phải có chữ, CCCD chặn trùng. */
 export function CustomerFormDialog({
   open,
   onClose,

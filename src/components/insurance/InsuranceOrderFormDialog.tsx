@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { UserCheck } from "lucide-react";
 import {
@@ -43,6 +43,7 @@ import { errorMessage, toast } from "@/lib/toast";
 import styles from "./InsuranceOrderFormDialog.module.scss";
 import { digitsOnly, numberValue, numericField } from "@/lib/numberField";
 import { reportInvalid } from "@/lib/formErrors";
+import { spellingPartsForName } from "@/lib/vietnameseNameSpellcheck";
 
 type Props = {
   open: boolean;
@@ -124,6 +125,40 @@ const legLabel = (pkg: InsurancePackage | null, i: number): string => {
   const label = `${PRODUCT_LABEL[leg.product]} · ${leg.years} năm`;
   return pkg.legs.length > 1 ? `Đơn ${i + 1}/${pkg.legs.length} · ${label}` : label;
 };
+
+/** Mỗi lần màn kiểm lại mở, nút xác nhận chờ đủ 5 giây rồi mới cho tạo đơn. */
+function ConfirmCreateButton({
+  pending,
+  onConfirm,
+}: {
+  pending: boolean;
+  onConfirm: () => void;
+}) {
+  const [secondsLeft, setSecondsLeft] = useState(5);
+  const submitted = useRef(false);
+
+  useEffect(() => {
+    if (secondsLeft === 0) return;
+    const timeout = window.setTimeout(() => setSecondsLeft((seconds) => seconds - 1), 1000);
+    return () => window.clearTimeout(timeout);
+  }, [secondsLeft]);
+
+  const confirm = () => {
+    if (secondsLeft > 0 || pending || submitted.current) return;
+    submitted.current = true;
+    onConfirm();
+  };
+
+  return (
+    <Button onClick={confirm} disabled={pending || secondsLeft > 0}>
+      {pending
+        ? "Đang tạo…"
+        : secondsLeft > 0
+          ? `Xác nhận, tạo đơn (${secondsLeft}s)`
+          : "Xác nhận, tạo đơn"}
+    </Button>
+  );
+}
 
 /**
  * Tạo đơn bảo hiểm — người thụ hưởng có thể khác khách hàng (spec §5.4).
@@ -462,48 +497,66 @@ export function InsuranceOrderFormDialog({
    * ba ô đó lấy sẵn từ gói (`defaultLegsFor`), không phải chỗ hay sai. Cũng bỏ
    * tên gói và ảnh, đã hiện ngay trên form phía dưới.
    */
-  const renderReviewLeg = (leg: InsuranceOrderLegForm, i: number) => (
-    <fieldset key={i} className={styles.reviewLeg}>
-      {legsField.fields.length > 1 && (
-        <legend className={styles.legTitle}>{legLabel(selectedPackage, i)}</legend>
-      )}
-      <dl className={styles.reviewGrid}>
-        <div>
-          <dt>Ngày bắt đầu</dt>
-          <dd>{formatDate(leg.startDate)}</dd>
-        </div>
-        <div>
-          <dt>Ngày kết thúc</dt>
-          <dd>{formatDate(leg.endDate)}</dd>
-        </div>
-        {leg.product === "motorbike" ? (
-          <div>
-            <dt>Biển số xe</dt>
-            <dd>{leg.licensePlate}</dd>
-          </div>
-        ) : (
-          <div>
-            <dt>Số thành viên hộ</dt>
-            <dd>{leg.householdSize}</dd>
-          </div>
+  const renderReviewLeg = (leg: InsuranceOrderLegForm, i: number) => {
+    const nameParts = spellingPartsForName(leg.beneficiaryName);
+    const nameNeedsReview = nameParts.some((part) => part.suspicious);
+
+    return (
+      <fieldset key={i} className={styles.reviewLeg}>
+        {legsField.fields.length > 1 && (
+          <legend className={styles.legTitle}>{legLabel(selectedPackage, i)}</legend>
         )}
-        <div>
-          <dt>Người thụ hưởng</dt>
-          <dd>{leg.beneficiaryName}</dd>
-        </div>
-        {leg.product !== "motorbike" && (
+        <dl className={styles.reviewGrid}>
           <div>
-            <dt>Ngày sinh</dt>
-            <dd>{formatDate(leg.beneficiaryDob)}</dd>
+            <dt>Ngày bắt đầu</dt>
+            <dd>{formatDate(leg.startDate)}</dd>
           </div>
-        )}
-        <div>
-          <dt>Địa chỉ</dt>
-          <dd>{leg.beneficiaryAddress}</dd>
-        </div>
-      </dl>
-    </fieldset>
-  );
+          <div>
+            <dt>Ngày kết thúc</dt>
+            <dd>{formatDate(leg.endDate)}</dd>
+          </div>
+          {leg.product === "motorbike" ? (
+            <div>
+              <dt>Biển số xe</dt>
+              <dd>{leg.licensePlate}</dd>
+            </div>
+          ) : (
+            <div>
+              <dt>Số thành viên hộ</dt>
+              <dd>{leg.householdSize}</dd>
+            </div>
+          )}
+          <div>
+            <dt>Người thụ hưởng</dt>
+            <dd>
+              {nameParts.map((part, index) =>
+                part.suspicious ? (
+                  <mark key={index} className={styles.reviewNameMark}>{part.text}</mark>
+                ) : (
+                  part.text
+                ),
+              )}
+              {nameNeedsReview && (
+                <small className={styles.reviewNameWarning} role="status">
+                  Tên có thể sai chính tả. Kiểm tra lại giấy tờ.
+                </small>
+              )}
+            </dd>
+          </div>
+          {leg.product !== "motorbike" && (
+            <div>
+              <dt>Ngày sinh</dt>
+              <dd>{formatDate(leg.beneficiaryDob)}</dd>
+            </div>
+          )}
+          <div>
+            <dt>Địa chỉ</dt>
+            <dd>{leg.beneficiaryAddress}</dd>
+          </div>
+        </dl>
+      </fieldset>
+    );
+  };
 
   return (
     <>
@@ -651,9 +704,7 @@ export function InsuranceOrderFormDialog({
           <Button variant="secondary" onClick={() => setReviewValues(null)} disabled={save.isPending}>
             Quay lại sửa
           </Button>
-          <Button onClick={confirmCreate} disabled={save.isPending}>
-            {save.isPending ? "Đang tạo…" : "Xác nhận, tạo đơn"}
-          </Button>
+          <ConfirmCreateButton pending={save.isPending} onConfirm={confirmCreate} />
         </>
       }
     >

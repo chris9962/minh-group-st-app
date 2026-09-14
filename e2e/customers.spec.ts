@@ -434,6 +434,9 @@ test.describe("thao tác nào cũng báo kết quả", () => {
     await page.getByRole("button", { name: /Thêm khách hàng/ }).click();
 
     const box = dialog(page);
+    await box.getByLabel("Họ tên").fill("12345");
+    await box.getByRole("button", { name: /Tạo khách hàng/ }).click();
+    await expect(box.getByText("Họ tên phải có chữ, không được chỉ nhập số hoặc ký hiệu")).toBeVisible();
     await box.getByLabel("Họ tên").fill(ten);
     await phoneInput(box, 1).fill("0912000111");
     // Ngày sinh · CCCD · Địa chỉ thành BẮT BUỘC từ commit 9706473 — thiếu một ô
