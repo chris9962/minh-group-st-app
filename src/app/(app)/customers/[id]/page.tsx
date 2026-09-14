@@ -642,13 +642,13 @@ export default function CustomerDetailPage({
                         {c.changedByName || "Người dùng đã xoá"} - {formatDateTime(c.changedAt)}
                         {c.seq > 1 && ` - hồ sơ ${c.seq}`}
                       </span>
-                      {/* Ba dạng dòng, không gộp được: lượt xoá hồ sơ không có
-                          trường nào, và CCCD cố ý không mang giá trị (chốt
-                          2026-09-05) nên in mũi tên rỗng là đọc ra như dữ liệu
-                          hỏng. */}
+                      {/* Lượt xoá hồ sơ không có trường nào. Dòng CCCD ghi
+                          trước 2026-09-13 cố ý để rỗng hai giá trị, in mũi tên
+                          rỗng là đọc ra như dữ liệu hỏng; từ mốc đó ghi đủ số
+                          cũ và mới (máy chủ che cho người không có quyền). */}
                       {c.field === "profile_deleted" ? (
                         <span>Đã xoá hồ sơ {c.seq}</span>
-                      ) : c.field === "id_number" ? (
+                      ) : c.field === "id_number" && !c.fromValue && !c.toValue ? (
                         <span>Đã đổi CCCD</span>
                       ) : c.field === "note" ? (
                         <span>Đã sửa ghi chú</span>

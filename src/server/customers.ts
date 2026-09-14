@@ -72,6 +72,9 @@ import {
 /** Số CCCD nhìn thấy được khi KHÔNG có `customer:access-id-number` — 4 số cuối. */
 const last4 = (idNumber: string | null): string | null =>
   idNumber ? idNumber.slice(-4) : null;
+/** Dạng che dùng trong nhật ký, cùng kiểu với gợi ý ở ô CCCD của form sửa. */
+const maskIdNumber = (idNumber: string): string =>
+  idNumber ? `•••• •••• ${idNumber.slice(-4)}` : "";
 
 const seesIdNumber = (actor: User): boolean => can(actor, "customer", "access-id-number");
 
@@ -1031,6 +1034,8 @@ async function ghiNhatKy(
     truoc: SnapshotKhach;
     sau: SnapshotKhach;
     idNumberDoi: boolean;
+    idNumberTruoc: string;
+    idNumberSau: string;
   },
 ): Promise<void> {
   const chung = {
@@ -1044,9 +1049,14 @@ async function ghiNhatKy(
     .filter((k) => arg.truoc[k] !== arg.sau[k])
     .map((k) => ({ ...chung, field: FIELD_OF[k], fromValue: arg.truoc[k], toValue: arg.sau[k] }));
 
-  // CCCD chỉ ghi "đã đổi", hai giá trị để rỗng (chốt 2026-09-05).
+  /**
+   * CCCD ghi ĐỦ số cũ và số mới (chốt 2026-09-13, đảo chốt 2026-09-05 "chỉ ghi
+   * đã đổi"). 2026-09-13 truy hồ sơ bị ghi đè sang người khác phải lật dump
+   * từng giờ vì nhật ký không giữ số cũ. Che số cho người không có quyền xem
+   * CCCD nằm ở lúc đọc (`customerDetailFor`), không ở lúc ghi.
+   */
   if (arg.idNumberDoi)
-    rows.push({ ...chung, field: "id_number", fromValue: "", toValue: "" });
+    rows.push({ ...chung, field: "id_number", fromValue: arg.idNumberTruoc, toValue: arg.idNumberSau });
 
   if (rows.length > 0) await tx.insert(customerChanges).values(rows);
 }
@@ -1179,6 +1189,8 @@ async function dongBoNhom(
       phones: phoneLabel(phoneRows("", form)),
     },
     idNumberDoi: ghiCccd && (truoc.idNumber ?? "") !== form.idNumber,
+    idNumberTruoc: truoc.idNumber ?? "",
+    idNumberSau: form.idNumber,
   });
 }
 
@@ -1512,7 +1524,18 @@ export async function customerDetailFor(
     .leftJoin(chuHoSo, eq(chuHoSo.id, customerChanges.customerId))
     .where(and(eq(customerChanges.rootCustomerId, customer.rootId), changeScope))
     .orderBy(desc(customerChanges.changedAt), desc(customerChanges.id))
-    .limit(50);
+    .limit(50)
+    .then((rows) =>
+      // Dòng CCCD giữ đủ 12 số trong database; người không có quyền xem CCCD
+      // chỉ nhận 4 số cuối, cùng mức che với ô CCCD của hồ sơ.
+      customer.idNumberMasked
+        ? rows.map((r) =>
+            r.field === "id_number"
+              ? { ...r, fromValue: maskIdNumber(r.fromValue), toValue: maskIdNumber(r.toValue) }
+              : r,
+          )
+        : rows,
+    );
 
   const bankingVisible = scopeOf(actor, "banking");
   const insuranceVisible = scopeOf(actor, "insurance");
