@@ -59,7 +59,19 @@ dạng mã sau dòng nhãn "Mã giới thiệu", và dãy 4-4-3 đầu tiên.
 
 74/74 kết luận đúng ở 0,98 giây một ảnh: 73 đạt, 1 "không đọc được mã" đúng
 vì ảnh chưa bấm "Xem thêm". Màn "Nhập thông tin" chạy lại sau khi đổi thứ tự
-nhánh: 94/94 ở 0,67 giây. Chưa so với bản cũ trên benchmark 52 tài khoản.
+nhánh: 94/94 ở 0,67 giây.
+
+Benchmark 52 tài khoản so với bản `fb2088b`, đo 2026-09-15, 7,9 giây một tài
+khoản thay cho 40 đến 50 giây của bản bốn lượt: 46 giữ nguyên, 3 tốt lên, 3
+xấu đi, mỗi ca đã soi ảnh:
+
+- Tốt lên: khách có màn mở tài khoản chưa bấm "Xem thêm" cộng màn "Nhập
+  thông tin" có mã, kèm một ảnh của người khác; bản cũ chọn ảnh người khác vì
+  đọc đủ trường nhất. Một ca màn hình chính đọc được STK nhờ lượt `--psm 6`.
+- Xấu đi: nhân viên nhập STK `1000 5476 1` thiếu hai số, bản cũ cho đạt vì
+  so `includes` trên chuỗi chữ số cả ảnh, bản mới báo không khớp kèm hai giá
+  trị. Hai ca còn lại là mục chuyển khoản so tên trong lời nhắn, cùng lệch
+  với mục màn hình chính đã báo.
 
 ## Lỗi parser cũ đã thấy
 

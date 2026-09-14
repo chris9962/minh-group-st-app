@@ -7,8 +7,9 @@
  * Nhãn lấy từ `labels.json` trong thư mục (`{ "file.webp": { "customerName": "...", ... } }`),
  * không có thì từ tên file `<ten-khach>-<so-tai-khoan>.webp`.
  *
- * Chấm theo đúng luật kiểm chứng của parser: giá trị toàn chữ số phải nằm
- * trong chuỗi chữ số của cả ảnh; giá trị chữ phải nằm trong một dòng, đúng
+ * Chấm theo đúng luật kiểm chứng của parser: giá trị toàn chữ số phải có
+ * trọn dãy trong ảnh, cho khoảng trắng và xuống dòng giữa các chữ số, trước
+ * và sau không còn chữ số; giá trị chữ phải nằm trong một dòng, đúng
  * từng ký tự sau khi bỏ dấu và khoảng trắng, dư tối đa 2 chữ cái mỗi đầu; mã
  * chữ-số so sau khi gộp O/0, I/1, S/5, B/8, Z/2. Không dung sai.
  * Giá trị bắt đầu bằng `*` là CHUỖI CON: chuỗi chữ cái của nó phải nằm trong
@@ -50,13 +51,12 @@ const BEST_DIR = path.resolve(import.meta.dir, "../../../../.tessdata");
 
 const stripAccents = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/g, "d").replace(/Đ/g, "D");
 const letters = (s: string) => stripAccents(s).toUpperCase().replace(/[^A-Z]/g, "");
-const digits = (s: string) => s.replace(/\D/g, "");
 const compact = (s: string) => stripAccents(s).toUpperCase().replace(/[^A-Z0-9]/g, "");
 const codeKey = (s: string) => compact(s).replace(/O/g, "0").replace(/I/g, "1").replace(/S/g, "5").replace(/B/g, "8").replace(/Z/g, "2");
 
 /** Giá trị hệ thống có trong chữ OCR không, theo đúng luật kiểm chứng của parser. */
 function found(text: string, expected: string): boolean {
-  if (/^\d+$/.test(expected)) return digits(text).includes(expected);
+  if (/^\d+$/.test(expected)) return new RegExp(`(?<!\\d)${expected.split("").join("\\s*")}(?!\\d)`).test(text);
   const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   if (expected.startsWith("*")) {
     const want = letters(expected.slice(1));

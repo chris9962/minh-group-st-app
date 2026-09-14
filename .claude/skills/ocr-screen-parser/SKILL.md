@@ -131,8 +131,12 @@ màn khác là dải mỏng còn header là khối.
 Hệ thống đã biết giá trị đúng. Parser nhận `ctx` và trả lời "giá trị này có
 trong chữ OCR không":
 
-- Số: bỏ mọi ký tự không phải chữ số của toàn bộ chữ OCR, kiểm `includes`.
-  `--psm 11` hay tách số thành nhiều dòng nên không tìm theo dòng.
+- Số: phải có TRỌN dãy trong chữ OCR, trước và sau không còn chữ số; cho
+  khoảng trắng và xuống dòng giữa các chữ số vì `--psm 11` hay tách số ra
+  nhiều dòng. Không kiểm `includes` trên chuỗi chữ số của cả ảnh: nhân viên
+  nhập `1000 5476 1` thiếu hai số vẫn là chuỗi con của số trên ảnh và đạt
+  nhầm (benchmark TPB, tài khoản 10f75c6d, đo 2026-09-15). `hasDigits` trong
+  `tpbank.ts`.
 - Chữ: bỏ dấu, viết hoa, bỏ mọi ký tự không phải chữ cái, so trên từng dòng.
   Giá trị hệ thống phải nằm trong dòng, phần dư mỗi đầu tối đa 2 chữ cái.
   Logo và biểu tượng 👋 đọc thành `V`, `W`, `VW` đứng trước tên; OCR hay dính
@@ -200,7 +204,7 @@ của user.
 |---|---|---|
 | TPBank màn hình chính | `~/Desktop/TPB/man hinh chinh/` 35 ảnh, `man hinh chinh 2/` 28 ảnh, đã kiểm | `/private/tmp/mgst-ocr-bench-TPB/` 52 tài khoản, 49 ảnh home |
 | TPBank màn "Nhập thông tin" (mã giới thiệu) | `~/Desktop/TPB/ma gt/` 94 ảnh, `labels.json` chỉ có `referralCode`, đã kiểm 2026-09-14; luồng mới 94/94, chưa so benchmark | cùng bộ trên, 99 ảnh màn này |
-| TPBank màn "Mở tài khoản thành công" | `~/Desktop/TPB/mở tk thanh công/` 74 ảnh, `labels.json` có `referralCode` và `accountNumber`, đã kiểm 2026-09-14; luồng mới 74/74, chưa so benchmark; số đo ở `references/tpb-open-worked-example.md` | cùng bộ trên, 45 ảnh màn này |
+| TPBank màn "Mở tài khoản thành công" | `~/Desktop/TPB/mở tk thanh công/` 74 ảnh, `labels.json` có `referralCode` và `accountNumber`, đã kiểm 2026-09-14; luồng mới 74/74; số đo ở `references/tpb-open-worked-example.md` | cùng bộ trên, 45 ảnh màn này; so 2026-09-15: 46 giữ nguyên, 3 tốt lên, 3 xấu đi đều đúng luật |
 | TPBank màn "Chuyển thành công" biến thể 1 | `~/Desktop/TPB/ck-case-1/` 55 ảnh, `labels.json` có `amount`, `sender` (dạng `*TEN CHUYEN TIEN`), `title`, `bank`, đã kiểm 2026-09-14; luồng mới 52/55 đạt, 3 không đạt đúng lý do, chưa so benchmark | cùng bộ trên, khoảng 50 ảnh màn này; biến thể 2 và 3 chưa có bộ nhãn |
 
 Màn "Nhập thông tin" TPBank, đo 2026-09-14: `plain` + `eng` + `--psm 11`

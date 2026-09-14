@@ -73,7 +73,7 @@ export function verifyTpbOpen(
   const expectedAccount = digitsOf(ctx.accountNumber);
   const codeFound =
     Boolean(expectedCode) && lines.some((line) => codeTokens(line).some((t) => codeKey(t) === expectedCode));
-  const accountFound = Boolean(expectedAccount) && digitsOf(ocrText).includes(expectedAccount);
+  const accountFound = hasDigits(ocrText, expectedAccount);
 
   // Giá trị nằm ngay sau dòng nhãn, nên duyệt từ đó rồi vòng lại đầu ảnh.
   let referralCode = codeFound ? ctx.referralCode : "";
@@ -221,9 +221,7 @@ export function verifyTpbHome(
   const expectedAccount = digitsOf(ctx.accountNumber);
 
   const nameLine = lines.find((line) => lineHasName(line, expectedName));
-  // Số tài khoản có thể bị `--psm 11` tách khỏi số điện thoại, nên tìm trên
-  // toàn bộ chữ số của ảnh; 11 chữ số liền không trùng ngẫu nhiên.
-  const accountFound = Boolean(expectedAccount) && digitsOf(ocrText).includes(expectedAccount);
+  const accountFound = hasDigits(ocrText, expectedAccount);
 
   let accountNumber = "";
   let accountAt = -1;
@@ -496,6 +494,21 @@ const codeKey = (s: string) =>
   compact(s).replace(/O/g, "0").replace(/I/g, "1").replace(/S/g, "5").replace(/B/g, "8").replace(/Z/g, "2");
 
 const digitsOf = (s: string) => s.replace(/\D/g, "");
+
+/**
+ * Dãy số hệ thống có trong chữ OCR không: đúng từng chữ số và TRỌN dãy, trước
+ * và sau không còn chữ số. Cho khoảng trắng hay xuống dòng giữa các chữ số vì
+ * `--psm 11` tách `1000 5476 110` khỏi số điện thoại hoặc xuống dòng.
+ *
+ * Không so trên chuỗi chữ số của cả ảnh như bản trước: nhân viên nhập
+ * `1000 5476 1` thiếu hai số vẫn là chuỗi con của `10005476110` trên ảnh và
+ * đạt nhầm ở cả màn hình chính lẫn màn mở tài khoản (tài khoản 10f75c6d
+ * benchmark, đo 2026-09-15).
+ */
+function hasDigits(text: string, expected: string): boolean {
+  if (!expected) return false;
+  return new RegExp(`(?<!\\d)${expected.split("").join("\\s*")}(?!\\d)`).test(text);
+}
 
 /**
  * Hai dãy số cùng độ dài, khác nhau tối đa MỘT chữ số. Dùng cho số tài khoản
