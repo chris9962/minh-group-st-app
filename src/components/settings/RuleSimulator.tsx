@@ -224,7 +224,16 @@ export function RuleSimulator() {
         <ul className={styles.banks}>
           {activeBanks.map((bank) => {
             const picked = opened.includes(bank.code);
-            const hkdBlocked = accountTypes[HKD_ROW.bankCode] === "CNKD";
+            // Hai chiều của "CNKD và HKD không đi chung": VPa đang tick và chọn
+            // CNKD thì khoá thẻ HKD; thẻ HKD đang tick thì ô chọn VPa bỏ CNKD.
+            // Chỉ xét VPa ĐANG TICK: bỏ tick VPa là dòng đó không còn trong
+            // request, loại đã chọn không còn nghĩa.
+            const hkdBlocked =
+              opened.includes(HKD_ROW.bankCode) && accountTypes[HKD_ROW.bankCode] === "CNKD";
+            const typeOptions =
+              hkd && bank.code === HKD_ROW.bankCode
+                ? ACCOUNT_TYPE_OPTIONS.filter((o) => o.value !== "CNKD")
+                : ACCOUNT_TYPE_OPTIONS;
             /**
              * Cùng luật chặn với hộp thoại mở tài khoản (`openBlockReason` ở
              * `src/rules`): màn thử chỉ dựng được khách hệ thống dựng được.
@@ -289,7 +298,7 @@ export function RuleSimulator() {
                           onChange={(v) =>
                             setAccountTypes((prev) => ({ ...prev, [bank.code]: v as AccountType }))
                           }
-                          options={ACCOUNT_TYPE_OPTIONS}
+                          options={typeOptions}
                         />
                       </div>
                     </div>

@@ -229,7 +229,7 @@ export async function giftResultOf(
         ? [{ label: `Combo ${result.caseCode ?? ""}`.trim(), points: result.comboPoints }]
         : [],
     householdPoints,
-    householdNote: householdNoteOf(householdPoints, grantedItem),
+    householdNote: householdNoteOf(householdPoints, grantedItem, at),
     totalPoints,
     pointsNote: bothVpModes
       ? "Hồ sơ khách sai nên không được tính điểm nào. Khách không thể vừa mở VPa vừa mở VPb — hai mã là hai cách đăng ký của cùng một ngân hàng."
@@ -240,17 +240,24 @@ export async function giftResultOf(
 }
 
 /**
- * Vì sao điểm CNKD ra đúng mức đó — bốn dòng của bảng mục 4c.
+ * Vì sao điểm hộ kinh doanh ra đúng mức đó.
  *
  * Đọc từ CON SỐ chứ không tính lại điều kiện: tính lại là dựng bản sao thứ hai
  * của luật ở tầng máy chủ, và hai bản sao sớm muộn lệch nhau.
+ *
+ * Kỳ 2026-08 có ba mức CNKD 1,5 · 1,0 · 0,7 và HKD không có điểm. Từ kỳ
+ * 2026-09-01 CNKD còn một mức 1,0 và HKD 3,0, nên chữ tách theo mốc kỳ; số
+ * 1,0 ở hai kỳ mang hai nghĩa khác nhau.
  */
-function householdNoteOf(points: number, grantedItem: string | null): string {
+function householdNoteOf(points: number, grantedItem: string | null, at: string): string {
   if (points === 0) return "";
-  if (points === 1.5) return "CNKD, mở đúng 1 ngân hàng, chưa nhận Mì hoặc Nón";
-  if (points === 0.7)
-    return `CNKD, mở đúng 1 ngân hàng, đã nhận ${grantedItem === "QUA-MI" ? "Mì" : "Nón"} nên xuống mức 0,7`;
-  return "CNKD, mở từ 2 ngân hàng";
+  if (at < "2026-09-01") {
+    if (points === 1.5) return "CNKD, mở đúng 1 ngân hàng, chưa nhận Mì hoặc Nón";
+    if (points === 0.7)
+      return `CNKD, mở đúng 1 ngân hàng, đã nhận ${grantedItem === "QUA-MI" ? "Mì" : "Nón"} nên xuống mức 0,7`;
+    return "CNKD, mở từ 2 ngân hàng";
+  }
+  return points === 3 ? "HKD, dòng VPa HKD" : "CNKD";
 }
 
 /** Hai danh sách mã quà giống nhau không — thứ tự luật sinh ra ổn định nên so thẳng. */

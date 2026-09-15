@@ -125,6 +125,10 @@ export function Dialog({ open, title, onClose, children, footer, footerStart, wi
       aria-label={title}
       onCancel={(e) => {
         e.preventDefault();
+        // Hộp thoại lồng nhau: React cho `onCancel` nổi lên hộp cha theo cây
+        // component, kể cả qua portal. Không chặn thì Esc trong hộp con đóng
+        // luôn hộp cha và mất biểu mẫu đang điền.
+        e.stopPropagation();
         onClose();
       }}
       // Bấm ra ngoài thì đóng. Sự kiện rơi vào chính thẻ dialog nghĩa là bấm
