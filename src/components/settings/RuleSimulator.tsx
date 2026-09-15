@@ -50,6 +50,14 @@ const ACCOUNT_TYPE_LABEL: Record<AccountType, string> = {
 };
 
 /**
+ * Dòng HKD là tài khoản VPa THỨ HAI, đứng cạnh dòng chính (chốt 2026-09-06).
+ * Ô chọn ở trên mô tả DÒNG CHÍNH; ô "kèm dòng HKD" thêm dòng thứ hai. Chỉ
+ * `VPa` có dòng HKD, và dòng HKD không đi chung với dòng chính loại CNKD
+ * (`slotConflict` ở server/banking.ts).
+ */
+const HKD_HOST_BANKS = ["VPa"];
+
+/**
  * P-81 · Nút thử — chỉ tính toán, không ghi gì (spec §5.3). Không tạo khách,
  * không tạo đơn, không trừ mã. Bấm bao nhiêu lần cũng được.
  *
@@ -73,6 +81,7 @@ export function RuleSimulator() {
   const [at, setAt] = useState("");
   /** Một mã cho mỗi ngân hàng chủ — khách tick CNKD trên VPa hay VPb là hai ca khác nhau. */
   const [accountTypes, setAccountTypes] = useState<Record<string, AccountType>>({});
+  const [withHkd, setWithHkd] = useState<string[]>([]);
 
   const { data: allBanks = [] } = useQuery({ queryKey: ["banks"], queryFn: fetchBanks });
   const activeBanks = allBanks.filter((b) => b.active);
@@ -86,11 +95,15 @@ export function RuleSimulator() {
    * TanStack Query chạy lại.
    */
   const input: GiftSimulateInput = {
-    accounts: opened.map((bankCode) => ({
-      bankCode,
-      appInstalled: apps.includes(bankCode),
-      accountType: accountTypes[bankCode] ?? ("none" as AccountType),
-    })),
+    accounts: opened.flatMap((bankCode) => {
+      const accountType = accountTypes[bankCode] ?? ("none" as AccountType);
+      const appInstalled = apps.includes(bankCode);
+      const main = { bankCode, appInstalled, accountType };
+      // Dòng HKD chỉ đứng cạnh dòng chính loại thường, xem `HKD_HOST_BANKS`.
+      return withHkd.includes(bankCode) && accountType === "none"
+        ? [main, { bankCode, appInstalled, accountType: "HKD" as AccountType }]
+        : [main];
+    }),
     channelCodes: channel ? [channel] : [],
     departmentCode: department || null,
     /**
@@ -237,6 +250,25 @@ export function RuleSimulator() {
                         />
                       </div>
                     )}
+                    {HKD_HOST_BANKS.includes(bank.code) &&
+                      (accountTypes[bank.code] ?? "none") === "none" && (
+                        <Checkbox
+                          label={
+                            <>
+                              <span className="sr-only">{bank.code} </span>
+                              kèm dòng HKD
+                            </>
+                          }
+                          checked={withHkd.includes(bank.code)}
+                          onCheckedChange={() =>
+                            setWithHkd((prev) =>
+                              prev.includes(bank.code)
+                                ? prev.filter((b) => b !== bank.code)
+                                : [...prev, bank.code],
+                            )
+                          }
+                        />
+                      )}
                   </div>
                 )}
               </li>
