@@ -18,15 +18,25 @@ type Props = {
 const TIERS: Tier[] = ["priority", "other", "restricted"];
 
 /**
- * Mã đại diện để tra bảng điểm: một mã mỗi hạng, chọn mã không có ngoại lệ
- * riêng (MSBa ngoài Combo 1 và 2, VPb có ca CNKD). Dòng nào ra 0 là tổ hợp
- * không có trong bảng của kỳ, giao diện bỏ dòng đó.
+ * Điểm CAO NHẤT tra được cho một dạng tổ hợp, thử mọi cách chọn mã trong danh
+ * mục theo hạng của ngày `at`. Không viết cứng mã đại diện: LPB là Bank khác
+ * ngày 15/9 và Bank hạn chế ngày 16/9, và vài mã có ngoại lệ riêng (MSBa ngoài
+ * Combo 1 và 2, VPa cùng VPb là dữ liệu sai) nên một bộ mã cố định tra ra 0 ở
+ * dòng lẽ ra có điểm. Danh mục vài chục mã, tổ hợp tối đa 3, duyệt hết là rẻ.
  */
-const SAMPLE: Record<Tier, string[]> = {
-  priority: ["MB", "VPa"],
-  other: ["TPB", "MSBb", "TCB"],
-  restricted: ["LPB"],
-};
+function bestPointsOf(tiers: Tier[], pools: Record<Tier, string[]>, at: string): number {
+  let best = 0;
+  const walk = (i: number, chosen: string[]) => {
+    if (i === tiers.length) {
+      best = Math.max(best, comboPointsAt(chosen, at));
+      return;
+    }
+    for (const code of pools[tiers[i]])
+      if (!chosen.includes(code)) walk(i + 1, [...chosen, code]);
+  };
+  walk(0, []);
+  return best;
+}
 const COMBOS: { label: string; tiers: Tier[] }[] = [
   { label: "1 ưu tiên", tiers: ["priority"] },
   { label: "1 khác", tiers: ["other"] },
@@ -54,11 +64,11 @@ export function BankComboRulesDialog({ open, onClose, at, banks }: Props) {
     tier,
     codes: banks.filter((b) => b.active && bankTierFor(b.code, at) === tier).map((b) => b.code),
   }));
-  const rows = COMBOS.map((c) => {
-    const used: Record<Tier, number> = { priority: 0, other: 0, restricted: 0 };
-    const codes = c.tiers.map((t) => SAMPLE[t][used[t]++]);
-    return { label: c.label, points: comboPointsAt(codes, at) };
-  }).filter((r) => r.points > 0);
+  const pools: Record<Tier, string[]> = { priority: [], other: [], restricted: [] };
+  for (const { tier, codes } of byTier) pools[tier] = codes;
+  // Dòng ra 0 là tổ hợp không có trong bảng của kỳ, bỏ khỏi bảng.
+  const rows = COMBOS.map((c) => ({ label: c.label, points: bestPointsOf(c.tiers, pools, at) }))
+    .filter((r) => r.points > 0);
   const notes = openNotesAt(at);
 
   /**
