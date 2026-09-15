@@ -548,10 +548,10 @@ async function ocrTpbHome(image: Buffer, ctx: TpbCheckContext): Promise<string> 
   return score(again) > score(seen) ? second : first;
 }
 
-/** Biến thể 1 đã đọc đủ: có TPBank, có "Chuyển thành công", có số tiền, có tên khách trong lời nhắn. */
-function transferComplete(text: string, ctx: TpbCheckContext): boolean {
+/** Màn chuyển khoản đã đọc đủ: có TPBank, có "thành công", có số tiền. */
+function transferComplete(text: string): boolean {
   const seen = parseTpbTransfer(text);
-  return seen.bank && seen.success && Boolean(seen.amountText) && verifyTpbTransferSender(text, ctx).found;
+  return seen.bank && seen.success && Boolean(seen.amountText);
 }
 
 /**
@@ -618,9 +618,9 @@ async function ocrTpbOther(image: Buffer, ctx: TpbCheckContext): Promise<string>
   if (looksLikeTpbHome(first)) return first;
 
   const red = await ocrImage(image, TPB_TRANSFER_PROFILE);
-  if (transferComplete(red, ctx)) return red;
+  if (transferComplete(red)) return red;
   const sharp = await ocrImage(image, { ...DEFAULT_PROFILE, passes: ["sharp"] });
-  if (transferComplete(`${red}\n${sharp}`, ctx)) return `${red}\n${sharp}`;
+  if (transferComplete(`${red}\n${sharp}`)) return `${red}\n${sharp}`;
   const rest = await ocrImage(image, { ...DEFAULT_PROFILE, passes: ["plain", "negated"] });
   return `${rest}\n${red}\n${sharp}`;
 }
@@ -790,9 +790,13 @@ export function checkTpbank(texts: string[], ctx: TpbCheckContext, homeIndexes: 
     });
   }
 
-  // 3. Chuyển khoản: có TPBank, có "thành công", có số tiền. Biến thể 1 in
-  // tên khách trong lời nhắn, biến thể 2 in người gửi; có thì so với khách và
-  // số đã nhập.
+  // 3. Chuyển khoản: có TPBank, có "thành công", có số tiền (luật chốt
+  // 2026-09-14, giữ lại 2026-09-15). Tên trong lời nhắn và tên người gửi chỉ
+  // HIỆN, không dùng để kết luận: soi 40 ảnh bị đánh lỗi vì tên ngày
+  // 2026-09-15 thì 20 là báo sai (lời nhắn tự gõ không có tên, lời nhắn xuống
+  // hai dòng, OCR đọc sai tên trên ảnh chụp), 13 ca lệch thật thì mục màn
+  // hình chính đã báo cùng lệch đó, 5 ca người khác chuyển thay chủ dự án
+  // chấp nhận. Số tài khoản gửi ở biến thể 2 và 3 vẫn so.
   if (!transfer) {
     items.push({
       key: "transfer",
@@ -811,13 +815,6 @@ export function checkTpbank(texts: string[], ctx: TpbCheckContext, homeIndexes: 
       issues.push("Không đọc được số tiền giao dịch");
     }
     const sender = verifyTpbTransferSender(texts[transfer.photoIndex], ctx);
-    if (transfer.fromName && !nameMatches(transfer.fromName, ctx.customerName)) {
-      notes.push(`Người gửi trên ảnh ${transfer.fromName}, tên khách ${ctx.customerName}.`);
-      issues.push("Tên người gửi không khớp");
-    } else if (sender.name && !sender.found) {
-      notes.push(`Lời nhắn trên ảnh ghi ${sender.name}, tên khách ${ctx.customerName}.`);
-      issues.push("Tên người gửi không khớp");
-    }
     if (
       transfer.fromAccount &&
       ctx.accountNumber &&
@@ -834,10 +831,7 @@ export function checkTpbank(texts: string[], ctx: TpbCheckContext, homeIndexes: 
       found: [transfer.amountText, transfer.transferredAt, transfer.fromName || sender.name, transfer.fromAccount]
         .filter(Boolean)
         .join(" - "),
-      expected:
-        transfer.fromName || transfer.fromAccount || sender.name
-          ? [ctx.customerName, transfer.fromAccount ? ctx.accountNumber : ""].filter(Boolean).join(" - ")
-          : "",
+      expected: transfer.fromAccount ? ctx.accountNumber : "",
       note: notes.join(" "),
       photoIndex: transfer.photoIndex,
     });
