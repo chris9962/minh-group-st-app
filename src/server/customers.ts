@@ -31,14 +31,15 @@ import { CustomerRow, GIFT_DECLINED, GIFT_DECLINED_LABEL } from "@/lib/api/custo
 import { MAX_BANK_ACCOUNTS_PER_CUSTOMER } from "@/lib/api/bankAccounts";
 import type { Page } from "@/lib/api/pagination";
 import type { PageArgs } from "./pagination";
-import { BUSINESS_TIMEZONE, digitsOnly, searchKey } from "@/lib/format";
+import { BUSINESS_TIMEZONE, clockNowVn, digitsOnly, searchKey } from "@/lib/format";
 import { can, recordInScope, recordVisibility, type RecordVisibility } from "@/lib/permissions";
 import type { GiftSimulateResult } from "@/lib/api/settings";
 import { isRealIsoDate, type User } from "@/lib/types";
 import { searchTerms } from "@/lib/search";
+import { customerDay, customerDayText } from "./customerDay";
 import { db, uniqueViolationOf } from "./db/client";
 import { giftForCustomer, giftItemNames, grantedItemLabel, recomputeGiftCase } from "./gift";
-import { bankingPointsByCustomer } from "./kpi";
+import { bankingPointsByCustomer, recomputeKpi, recomputeKpiForCustomer } from "./kpi";
 import {
   bankAccounts,
   banks,
@@ -84,10 +85,10 @@ const seesIdNumber = (actor: User): boolean => can(actor, "customer", "access-id
  */
 const likeEscape = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
 
-/** Ngày tạo theo múi giờ làm việc — cột là `timestamptz`, so ngày phải quy về VN. */
-const createdDay = sql`(${customers.createdAt} at time zone ${BUSINESS_TIMEZONE})::date`;
+/** Ngày hồ sơ theo giờ Việt Nam — cùng biểu thức với điểm, quà và luật, xem `customerDay.ts`. */
+const createdDay = customerDay;
 
-const createdDayText = sql<string>`to_char(${customers.createdAt} at time zone ${BUSINESS_TIMEZONE}, 'YYYY-MM-DD')`;
+const createdDayText = customerDayText;
 
 /**
  * Ngày lọc phải ĐÚNG HÌNH DẠNG và CÓ THẬT.
@@ -663,6 +664,7 @@ async function customerById(id: string, actor: User): Promise<Customer | null> {
       channel: sql<string>`coalesce(${channels.name}, '')`,
       channelDetail: customers.channelDetail,
       createdAt: createdDayText,
+      giftGranted: sql<boolean>`exists (select 1 from ${giftGrants} where ${giftGrants.customerId} = ${customers.id})`,
       createdById: customers.createdBy,
       createdByDepartmentId: customers.createdByDepartmentId,
       // leftJoin cả hai: người tạo có thể đã bị xoá khỏi hệ thống, và hồ sơ cũ
@@ -705,7 +707,13 @@ async function customerById(id: string, actor: User): Promise<Customer | null> {
  * `reason` đọc từ TÊN CHỈ MỤC bị đụng, không suy từ việc tra được hồ sơ hay
  * không. Suy kiểu đó thì trùng số điện thoại cũng ra câu "CCCD trùng".
  */
-export type CustomerConflict = "duplicate-id-number" | "unknown";
+export type CustomerConflict =
+  | "duplicate-id-number"
+  | "unknown"
+  /** Vai Nhân viên không dời được ngày hồ sơ (chốt 2026-09-16). */
+  | "move-day-forbidden"
+  /** Hồ sơ đã chốt quà thì ngày hồ sơ đứng yên. */
+  | "move-day-gifted";
 
 export type CustomerOutcome<T> =
   | { ok: true; customer: T }
@@ -1292,13 +1300,66 @@ export async function updateCustomer(
         ghiCccd: idNumberWritten,
       });
 
-      return true;
+      /**
+       * Dời NGÀY HỒ SƠ (chốt 2026-09-16). Ngày này là mốc của điểm KPI, rổ quà
+       * và kỳ luật, nên:
+       *
+       * - Vai Nhân viên không dời được. Đây là ca DUY NHẤT đọc chức vụ thay vì
+       *   quyền (AGENTS.md §6): chủ dự án chốt "trừ nhân viên ra", không mở
+       *   quyền mới.
+       * - Hồ sơ đã chốt quà thì đứng yên: bản chụp quà đã đóng băng theo luật
+       *   của ngày cũ.
+       * - Chỉ đổi NGÀY, giờ phút lấy đúng lúc bấm dời (chủ dự án chốt).
+       * - Chỉ hồ sơ này, không đồng bộ sang các lần khác của cùng khách: mỗi
+       *   lần là một combo riêng.
+       *
+       * Tháng cũ trả về để tính lại điểm sau giao dịch; tháng mới
+       * `recomputeKpiForCustomer` tự tra.
+       */
+      let movedFromMonth: string | null = null;
+      if (form.createdDay) {
+        const [cur] = await tx
+          .select({
+            day: createdDayText,
+            granted: sql<boolean>`exists (select 1 from ${giftGrants} where ${giftGrants.customerId} = ${customers.id})`,
+          })
+          .from(customers)
+          .where(eq(customers.id, id))
+          .limit(1);
+        if (cur && cur.day !== form.createdDay) {
+          if (actor.role === "staff") return "move-day-forbidden" as const;
+          if (cur.granted) return "move-day-gifted" as const;
+          const at = new Date(`${form.createdDay}T${clockNowVn()}+07:00`);
+          await tx.update(customers).set({ createdAt: at }).where(eq(customers.id, id));
+          await tx.insert(customerChanges).values({
+            rootCustomerId: owner.rootCustomerId,
+            customerId: id,
+            seq: ton.seq,
+            changedBy: actor.id,
+            field: "created_day",
+            fromValue: cur.day,
+            toValue: form.createdDay,
+          });
+          movedFromMonth = cur.day.slice(0, 7);
+        }
+      }
+
+      return movedFromMonth ?? true;
     });
 
+    if (updated === "move-day-forbidden" || updated === "move-day-gifted") return updated;
+    if (typeof updated === "string") {
+      // Dời qua tháng khác: ô điểm tháng cũ mất khách này, phải ghi lại; tháng
+      // mới do `recomputeKpiForCustomer` bên dưới lo.
+      if (owner.createdById) await recomputeKpi(owner.createdById, updated);
+    }
     return updated ? await customerById(id, actor) : null;
   });
 
   if (!result.ok) return result;
+  if (result.customer === "move-day-forbidden" || result.customer === "move-day-gifted")
+    return { ok: false, reason: result.customer };
+  await recomputeKpiForCustomer(id);
 
   /**
    * Đổi kênh của khách thì rổ quà đổi theo — kênh Bệnh viện góp thêm ba món

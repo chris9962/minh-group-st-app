@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { InsuranceProduct, MIN_BIRTH_YEAR } from '@/lib/types';
+import { InsuranceProduct, MIN_BIRTH_YEAR, isRealIsoDate } from '@/lib/types';
 import { AccountType, BankAccountStatus } from './bankAccounts';
 import { InsuranceOrderStatus } from './insuranceOrders';
 import { GiftSimulateResult } from './settings';
@@ -61,6 +61,8 @@ export const Customer = z.object({
   channelDetail: z.string(),
   /** Ngày tạo hồ sơ, YYYY-MM-DD — dùng để lọc ở P-40 (hôm nay/tháng này/khoảng ngày). */
   createdAt: z.string(),
+  /** Hồ sơ đã có đợt phát quà — từ đó không dời được ngày hồ sơ nữa. */
+  giftGranted: z.boolean().default(false),
   /** Xem chú thích cùng tên ở `CustomerRow` — hai trường này để ẩn nút Sửa. */
   createdById: z.string().nullable(),
   createdByDepartmentId: z.string().nullable(),
@@ -372,6 +374,12 @@ export const CustomerEditForm = CustomerForm.extend({
     z.literal(''),
     z.string().trim().refine((v) => /^\d{12}$/.test(v), 'CCCD phải đủ 12 số'),
   ]),
+  /**
+   * Ngày hồ sơ `YYYY-MM-DD` — mốc của điểm KPI, rổ quà và kỳ luật (chốt
+   * 2026-09-16). Bỏ trống là giữ nguyên. Máy chủ từ chối khi người sửa mang
+   * vai Nhân viên hoặc hồ sơ đã chốt quà; giao diện ẩn ô ở hai ca đó.
+   */
+  createdDay: z.string().refine(isRealIsoDate, 'Ngày không hợp lệ').optional(),
 });
 export type CustomerEditForm = z.infer<typeof CustomerEditForm>;
 
@@ -478,7 +486,7 @@ export async function createCustomer(form: CustomerForm, linkToRootId?: string):
   return Customer.parse(await res.json());
 }
 
-export const updateCustomer = (id: string, form: CustomerForm) =>
+export const updateCustomer = (id: string, form: CustomerEditForm) =>
   send(`/api/customers/${id}`, 'PATCH', form).then(Customer.parse);
 
 export const CustomerNoteForm = z.object({
@@ -569,6 +577,7 @@ export const CustomerChangeField = z.enum([
   'channel',
   'profile_deleted',
   'note',
+  'created_day',
 ]);
 export type CustomerChangeField = z.infer<typeof CustomerChangeField>;
 
@@ -581,6 +590,7 @@ export const CUSTOMER_FIELD_LABEL: Record<CustomerChangeField, string> = {
   channel: 'Kênh',
   profile_deleted: 'Xoá hồ sơ',
   note: 'Ghi chú',
+  created_day: 'Ngày hồ sơ',
 };
 
 /**

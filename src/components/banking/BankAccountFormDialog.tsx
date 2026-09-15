@@ -224,10 +224,12 @@ export function BankAccountFormDialog({
    * máy chủ từ chối thì nhân viên đã điền xong cả biểu mẫu.
    *
    * Xét trên HỒ SƠ này: dòng chính đã có (`slots.used` với `here`) cộng dòng
-   * chính đang tích, bỏ dòng HKD vì nó không phải ngân hàng. Ngày tra là ngày
-   * làm việc, vì máy chủ ghi `opened_date` bằng đúng ngày giữ chỗ. Dòng đang
-   * tích không tự khoá mình: hàm chỉ so với mã KHÁC.
+   * chính đang tích, bỏ dòng HKD vì nó không phải ngân hàng. Ngày tra là NGÀY
+   * HỒ SƠ khách do máy chủ trả (`slots.ruleDate`), cùng mốc máy chủ dùng lúc
+   * giữ chỗ (chốt 2026-09-16). Dòng đang tích không tự khoá mình: hàm chỉ so
+   * với mã KHÁC.
    */
+  const ruleAt = slots?.ruleDate ?? businessDay();
   const codeOf = (bankId: string) => banks.find((b) => b.id === bankId)?.code ?? "";
   const comboReason = (bank: Bank, hkd: boolean): string | null => {
     if (hkd || !slots) return null;
@@ -235,7 +237,7 @@ export function BankAccountFormDialog({
     const picked = picks
       .filter((p) => p.accountType !== "HKD" && p.bankId !== bank.id)
       .map((p) => codeOf(p.bankId));
-    return openBlockReasonAt([...here, ...picked], bank.code, businessDay());
+    return openBlockReasonAt([...here, ...picked], bank.code, ruleAt);
   };
 
   /**
@@ -354,6 +356,7 @@ export function BankAccountFormDialog({
                 key={`${bank.id}:${hkd ? "hkd" : "main"}`}
                 bank={bank}
                 hkd={hkd}
+                ruleAt={ruleAt}
                 departmentId={departmentId}
                 pick={picks.find((p) => samePick(p, bank.id, hkd))}
                 full={!hkd && mainPicks >= remaining}
@@ -379,7 +382,7 @@ export function BankAccountFormDialog({
         <BankComboRulesDialog
           open
           onClose={() => setRulesOpen(false)}
-          at={businessDay()}
+          at={ruleAt}
           banks={banks}
         />
       )}
@@ -391,6 +394,8 @@ type RowProps = {
   bank: Bank;
   /** Dòng HKD của ngân hàng này, không phải dòng chính. Loại cố định là HKD. */
   hkd: boolean;
+  /** Ngày tra luật — ngày hồ sơ khách, xem `comboReason`. */
+  ruleAt: string;
   departmentId: string;
   /** Có giá trị nghĩa là ngân hàng này đang được tích. */
   pick: BankAccountPick | undefined;
@@ -414,6 +419,7 @@ type RowProps = {
 function BankPickRow({
   bank,
   hkd,
+  ruleAt,
   departmentId,
   pick,
   full,
@@ -425,9 +431,8 @@ function BankPickRow({
 }: RowProps) {
   const checked = pick !== undefined;
   const rowLabel = hkd ? `${bank.code} HKD` : bank.code;
-  // Dòng HKD không phải ngân hàng nên không mang hạng. Ngày tra là ngày giữ
-  // chỗ, cùng ngày `openBlockReasonAt` dùng.
-  const tierLabel = hkd ? null : bankTierLabelFor(bank.code, businessDay());
+  // Dòng HKD không phải ngân hàng nên không mang hạng.
+  const tierLabel = hkd ? null : bankTierLabelFor(bank.code, ruleAt);
 
   /**
    * Máy chủ đã lọc "còn chỗ" và lọc theo phạm vi phòng — không lọc lại ở đây

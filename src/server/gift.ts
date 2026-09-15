@@ -4,7 +4,7 @@ import { GIFT_DECLINED, GIFT_DECLINED_LABEL, GIFT_ERROR, type GiftChangeForm } f
 import { GIFT_EXPORT_LIMIT, type GiftGrantRow } from "@/lib/api/gifts";
 import type { Page } from "@/lib/api/pagination";
 import { EMPTY_GIFT, GiftSimulateResult, type GiftSimulateInput } from "@/lib/api/settings";
-import { BUSINESS_TIMEZONE, businessDay, businessMonth } from "@/lib/format";
+import { BUSINESS_TIMEZONE, businessDay } from "@/lib/format";
 import { recordVisibility } from "@/lib/permissions";
 import { isRealIsoDate, type User } from "@/lib/types";
 import type { PageArgs } from "./pagination";
@@ -17,6 +17,7 @@ import {
   type GiftResult,
 } from "@/rules";
 import { searchTerms } from "@/lib/search";
+import { customerDayText } from "./customerDay";
 import { db } from "./db/client";
 import { recomputeKpiForCustomer } from "./kpi";
 import {
@@ -61,7 +62,9 @@ export async function giftInputFor(customerId: string): Promise<GiftInput> {
       .select({
         bankCode: banks.code,
         appInstalled: bankAccounts.appInstalled,
-        openedDate: bankAccounts.openedDate,
+        // Ngày HỒ SƠ khách, không phải ngày mở tài khoản (chốt 2026-09-16):
+        // `ruleDateOf` đọc trường này để chọn kỳ luật.
+        openedDate: customerDayText,
         // Ô chọn "Mở tài khoản CNKD / HKD" nằm trên chính dòng VPa. Không lấy
         // cột này thì luật không thấy ô chọn đó, và khách mất Loa + Bảng mica.
         accountType: bankAccounts.accountType,
@@ -69,6 +72,7 @@ export async function giftInputFor(customerId: string): Promise<GiftInput> {
       })
       .from(bankAccounts)
       .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
+      .innerJoin(customers, eq(customers.id, bankAccounts.customerId))
       .leftJoin(channels, eq(channels.id, bankAccounts.channelId))
       .where(and(eq(bankAccounts.customerId, customerId), eq(bankAccounts.status, "done"))),
     db
@@ -397,12 +401,13 @@ export async function recountGiftCases(
         customerId: bankAccounts.customerId,
         bankCode: banks.code,
         appInstalled: bankAccounts.appInstalled,
-        openedDate: bankAccounts.openedDate,
+        openedDate: customerDayText,
         accountType: bankAccounts.accountType,
         channelCode: accountChannel.code,
       })
       .from(bankAccounts)
       .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
+      .innerJoin(customers, eq(customers.id, bankAccounts.customerId))
       .leftJoin(accountChannel, eq(accountChannel.id, bankAccounts.channelId))
       .where(and(inArray(bankAccounts.customerId, ids), eq(bankAccounts.status, "done")));
 
@@ -457,28 +462,6 @@ type GrantOutcome =
   | { ok: true; customerName: string; itemLabel: string }
   | { ok: false; code: (typeof GIFT_ERROR)[keyof typeof GIFT_ERROR]; message: string };
 
-/**
- * Những THÁNG mà khách này có tài khoản `done` — mỗi tháng một ô điểm phải tính lại.
- *
- * Dùng khi phát quà: từ chốt 2026-08-24 món quà đổi điểm, mà điểm chia theo
- * tháng mở tài khoản (câu 7.13). Khách mở tài khoản tháng 8 lẫn tháng 9 thì cả
- * hai ô điểm đều đổi.
- */
-async function accountMonthsOf(customerId: string): Promise<string[]> {
-  const rows = await db
-    .select({ openedDate: bankAccounts.openedDate })
-    .from(bankAccounts)
-    .where(and(eq(bankAccounts.customerId, customerId), eq(bankAccounts.status, "done")));
-
-  return [
-    ...new Set(
-      rows
-        .map((r) => r.openedDate)
-        .filter((d): d is string => Boolean(d))
-        .map((d) => businessMonth(new Date(`${d}T00:00:00+07:00`))),
-    ),
-  ];
-}
 
 /**
  * P-43 · chốt quà cho một khách. `null` = không có khách đó.
@@ -616,15 +599,11 @@ export async function grantGift(
    * Phát quà ĐỔI ĐIỂM từ chốt 2026-08-24 (thể lệ mục 4c): khách CNKD chưa đủ tổ
    * hợp mà nhận Mì hoặc Nón thì điểm tụt từ 1,5 xuống 0,7.
    *
-   * Tính lại theo THÁNG MỞ TÀI KHOẢN, không theo tháng bấm nút: điểm của khách
-   * nằm ở tháng tài khoản mở (câu 7.13). Phát quà tháng 9 cho tài khoản mở
-   * tháng 8 thì phải sửa điểm tháng 8, mà tháng đó có thể đã chốt lương.
-   *
-   * Một khách có tài khoản rải nhiều tháng thì mọi tháng đó đều phải tính lại —
-   * chỉ tính tháng gần nhất là để lại điểm cũ ở các tháng trước.
+   * Tính lại theo THÁNG CỦA NGÀY HỒ SƠ, không theo tháng bấm nút: điểm của
+   * khách nằm ở tháng đó (câu 7.13, đổi mốc 2026-09-16). Phát quà tháng 9 cho
+   * hồ sơ tháng 8 thì phải sửa điểm tháng 8, mà tháng đó có thể đã chốt lương.
    */
-  for (const month of await accountMonthsOf(customerId))
-    await recomputeKpiForCustomer(customerId, month);
+  await recomputeKpiForCustomer(customerId);
 
   return {
     ok: true,
@@ -743,7 +722,7 @@ export async function changeGift(
   });
 
   if (!changed) return { ok: false, message: "Quà vừa được người khác thay đổi. Tải lại rồi thử lại." };
-  for (const month of await accountMonthsOf(customerId)) await recomputeKpiForCustomer(customerId, month);
+  await recomputeKpiForCustomer(customerId);
   // Món CŨ lấy tên trong rổ lúc phát, món MỚI lấy tên trong rổ vừa tính — sau
   // lượt ghi đè, rổ mới không còn chứa món cũ.
   return {

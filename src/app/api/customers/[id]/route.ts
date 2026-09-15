@@ -79,6 +79,10 @@ export async function PATCH(request: Request, { params }: Params) {
     // Câu báo bám theo TÊN CHỈ MỤC bị đụng, không suy từ việc tra được hồ sơ
     // hay không. Khoá duy nhất khác `customers_id_number` là ràng buộc nội bộ,
     // nói "CCCD trùng" lúc đó là chỉ sai chỗ.
+    if (result.reason === "move-day-forbidden")
+      return badRequest("Vai Nhân viên không dời được ngày hồ sơ");
+    if (result.reason === "move-day-gifted")
+      return badRequest("Hồ sơ đã chốt quà, không dời được ngày hồ sơ");
     if (result.reason !== "duplicate-id-number")
       return badRequest("Không lưu được hồ sơ khách này");
     return Response.json(

@@ -180,3 +180,21 @@ export const uniqueCode = (name: string, fallback: string, taken: Set<string>): 
   if (!taken.has(base)) return base;
   for (let i = 2; ; i++) if (!taken.has(`${base}-${i}`)) return `${base}-${i}`;
 };
+
+/**
+ * Giờ phút giây HIỆN TẠI theo giờ Việt Nam, dạng `HH:mm:ss`, để ghép với một
+ * ngày khác thành mốc thời gian đầy đủ. Dùng khi dời ngày hồ sơ khách (chốt
+ * 2026-09-16): đổi ngày, giữ giờ phút của lúc bấm dời.
+ */
+export function clockNowVn(at: Date = new Date()): string {
+  const parts = new Intl.DateTimeFormat('en-GB-u-nu-latn', {
+    timeZone: BUSINESS_TIMEZONE,
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(at);
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((p) => p.type === type)?.value ?? '00';
+  return `${part('hour')}:${part('minute')}:${part('second')}`;
+}

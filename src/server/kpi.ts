@@ -2,6 +2,7 @@ import { and, asc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { monthRange } from "@/lib/format";
 import { bankingPointsFor, kpiAppliesTo, type ScoringAccount } from "@/rules";
 import type { Range } from "./org";
+import { customerDayBetween, customerDayText } from "./customerDay";
 import { db } from "./db/client";
 import {
   bankAccounts,
@@ -85,12 +86,15 @@ async function scoringAccountsOf(
   from: string,
   to: string,
 ): Promise<ScoringAccount[]> {
+  // Tháng và ngày tra luật đều theo NGÀY HỒ SƠ khách, không theo ngày mở từng
+  // tài khoản (chốt 2026-09-16, xem `customerDay.ts`). `openedDate` của
+  // `ScoringAccount` vì thế mang ngày hồ sơ.
   const rows = await conn
     .select({
       customerId: bankAccounts.customerId,
       bankCode: banks.code,
       appInstalled: bankAccounts.appInstalled,
-      openedDate: bankAccounts.openedDate,
+      openedDate: customerDayText,
       // Ô chọn "Mở tài khoản CNKD / HKD" nằm trên chính dòng VPa. Từ chốt
       // 2026-08-24 nó RA ĐIỂM (thể lệ mục 4c), không còn chỉ mở nhóm quà.
       accountType: bankAccounts.accountType,
@@ -102,8 +106,7 @@ async function scoringAccountsOf(
       and(
         eq(customers.createdBy, userId),
         eq(bankAccounts.status, "done"),
-        gte(bankAccounts.openedDate, from),
-        lte(bankAccounts.openedDate, to),
+        customerDayBetween(from, to),
       ),
     );
 
@@ -166,17 +169,17 @@ export async function bankingPointsByCustomer(
       customerId: bankAccounts.customerId,
       bankCode: banks.code,
       appInstalled: bankAccounts.appInstalled,
-      openedDate: bankAccounts.openedDate,
+      openedDate: customerDayText,
       household: bankAccounts.accountType,
     })
     .from(bankAccounts)
     .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
+    .innerJoin(customers, eq(customers.id, bankAccounts.customerId))
     .where(
       and(
         inArray(bankAccounts.customerId, customerIds),
         eq(bankAccounts.status, "done"),
-        gte(bankAccounts.openedDate, from),
-        lte(bankAccounts.openedDate, to),
+        customerDayBetween(from, to),
       ),
     );
 
@@ -322,16 +325,17 @@ async function recomputeKpiOn(tx: Db, userId: string, yearMonth: string): Promis
  *
  * Khách không có người lập (dữ liệu nhập hàng loạt cũ) thì không ai nhận điểm.
  */
-export async function recomputeKpiForCustomer(
-  customerId: string,
-  yearMonth: string,
-): Promise<void> {
+export async function recomputeKpiForCustomer(customerId: string): Promise<void> {
   const [row] = await db
-    .select({ ownerId: customers.createdBy })
+    .select({ ownerId: customers.createdBy, day: customerDayText })
     .from(customers)
     .where(eq(customers.id, customerId));
 
-  if (row?.ownerId) await recomputeKpi(row.ownerId, yearMonth);
+  // Tháng lấy từ NGÀY HỒ SƠ, không từ tài khoản (chốt 2026-09-16): mọi tài
+  // khoản của một hồ sơ nằm chung một tháng, nên hàm tự tra, nơi gọi không
+  // truyền tháng nữa. Dời ngày hồ sơ qua tháng khác thì `updateCustomer` tự gọi
+  // `recomputeKpi` cho tháng cũ.
+  if (row?.ownerId) await recomputeKpi(row.ownerId, row.day.slice(0, 7));
 }
 
 /**
@@ -396,7 +400,7 @@ export async function pointsByStaffInRange(
         customerId: bankAccounts.customerId,
         bankCode: banks.code,
         appInstalled: bankAccounts.appInstalled,
-        openedDate: bankAccounts.openedDate,
+        openedDate: customerDayText,
         accountType: bankAccounts.accountType,
       })
       .from(bankAccounts)
@@ -408,8 +412,7 @@ export async function pointsByStaffInRange(
         and(
           eq(departments.type, "sales"),
           eq(bankAccounts.status, "done"),
-          gte(bankAccounts.openedDate, range.from),
-          lte(bankAccounts.openedDate, range.to),
+          customerDayBetween(range.from, range.to),
         ),
       ),
     db

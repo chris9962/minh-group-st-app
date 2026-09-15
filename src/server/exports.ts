@@ -6,6 +6,7 @@ import { BUSINESS_TIMEZONE } from "@/lib/format";
 import { recordVisibility, type RecordVisibility } from "@/lib/permissions";
 import { isRealIsoDate, type User } from "@/lib/types";
 import { accountExportWhere } from "./banking";
+import { customerDayText } from "./customerDay";
 import { grantedItemLabel } from "./gift";
 import { searchTerms } from "@/lib/search";
 import { db } from "./db/client";
@@ -318,13 +319,16 @@ export async function listScoringExport(
       customerId: bankAccounts.customerId,
       bankCode: banks.code,
       accountNumber: bankAccounts.accountNumber,
-      openedDate: bankAccounts.openedDate,
+      // Ngày HỒ SƠ khách (chốt 2026-09-16): cột NGÀY, tháng điểm và kỳ luật
+      // đều theo mốc này, không theo ngày mở từng tài khoản.
+      openedDate: customerDayText,
       appInstalled: bankAccounts.appInstalled,
       accountType: bankAccounts.accountType,
       createdBy: bankAccounts.createdBy,
     })
     .from(bankAccounts)
     .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
+    .innerJoin(customers, eq(customers.id, bankAccounts.customerId))
     .where(and(rowDone, inArray(bankAccounts.customerId, picked)));
 
   const byCustomer = new Map<string, AccountRow[]>();

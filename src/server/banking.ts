@@ -59,6 +59,7 @@ import {
   users,
 } from "./db/schema";
 import { openBlockReasonAt } from "@/rules";
+import { accountCustomerDayBetween } from "./customerDay";
 import { recomputeGiftCase } from "./gift";
 import { recomputeKpiForCustomer } from "./kpi";
 import type { PageArgs } from "./pagination";
@@ -462,8 +463,14 @@ async function accountFilters(
         : sql`false`,
     // Ngày sai định dạng thì bỏ qua, không trả 400 — link cũ hay ô địa chỉ gõ
     // nhầm không đáng làm hỏng cả màn (cùng lối nghĩ với `uuidParam`).
-    usableDate(query.from) ? gte(bankAccounts.openedDate, query.from) : undefined,
-    usableDate(query.to) ? lte(bankAccounts.openedDate, query.to) : undefined,
+    // Lọc theo NGÀY HỒ SƠ khách, cùng mốc với điểm và quà (chốt 2026-09-16);
+    // cột ngày mở tài khoản vẫn hiện nhưng không còn là mốc lọc.
+    usableDate(query.from) || usableDate(query.to)
+      ? accountCustomerDayBetween(
+          usableDate(query.from) ? query.from : "1970-01-01",
+          usableDate(query.to) ? query.to : "9999-12-31",
+        )
+      : undefined,
     query.channelId ? eq(bankAccounts.channelId, query.channelId) : undefined,
     query.staffId ? eq(bankAccounts.createdBy, query.staffId) : undefined,
     query.departmentId ? eq(bankAccounts.createdByDepartmentId, query.departmentId) : undefined,
@@ -745,8 +752,12 @@ const bankAccountsOfBankWhere = (bankId: string, filters: BankOfBankFilters): SQ
     eq(bankAccounts.bankId, bankId),
     ...([
       searchWhere(filters.search),
-      usableDate(filters.from) ? gte(bankAccounts.openedDate, filters.from) : undefined,
-      usableDate(filters.to) ? lte(bankAccounts.openedDate, filters.to) : undefined,
+      usableDate(filters.from) || usableDate(filters.to)
+        ? accountCustomerDayBetween(
+            usableDate(filters.from) ? filters.from : "1970-01-01",
+            usableDate(filters.to) ? filters.to : "9999-12-31",
+          )
+        : undefined,
       statusFilter(filters.status),
       // Lọc theo ID, không theo mã text: mã QR-only để trống cột `code`.
       filters.referralCodeId
@@ -1259,6 +1270,7 @@ export async function startBankAccount(
       channelDetail: customers.channelDetail,
       departmentId: customers.createdByDepartmentId,
       createdBy: customers.createdBy,
+      createdAt: customers.createdAt,
     })
     .from(customers)
     .where(eq(customers.id, form.customerId))
@@ -1386,17 +1398,18 @@ export async function startBankAccount(
     /**
      * Luật của kỳ chặn tổ hợp lúc mở — kỳ 2026-09-16 cấm hai ngân hàng hạn chế
      * trong một hồ sơ. Giao diện đã khoá ô chọn bằng đúng hàm này; ở đây kiểm
-     * lại cho lời gọi nặn tay. Ngày tra là ngày giữ chỗ, vì `opened_date` ghi
-     * bằng đúng ngày đó. Xét trên dòng chính của HỒ SƠ này cộng các dòng đang
-     * chọn phía trước trong cùng lượt.
+     * lại cho lời gọi nặn tay. Ngày tra là NGÀY HỒ SƠ khách (chốt 2026-09-16),
+     * cùng mốc với điểm và quà; `customerBankSlots` trả đúng ngày này cho giao
+     * diện. Xét trên dòng chính của HỒ SƠ này cộng các dòng đang chọn phía
+     * trước trong cùng lượt.
      */
-    const today = businessDay();
+    const ruleDay = businessDay(customer.createdAt);
     const mainCodesHere = ownedHere.filter((r) => !isHkd(r.accountType)).map((r) => r.bankCode);
     const pickedSoFar: string[] = [];
     for (const pick of form.picks) {
       if (isHkd(pick.accountType)) continue;
       const code = bankById.get(pick.bankId)!.code;
-      const reason = openBlockReasonAt([...mainCodesHere, ...pickedSoFar], code, today);
+      const reason = openBlockReasonAt([...mainCodesHere, ...pickedSoFar], code, ruleDay);
       if (reason) return { ok: false as const, message: `${code}: ${reason}` };
       pickedSoFar.push(code);
     }
@@ -1491,7 +1504,12 @@ export async function startBankAccount(
  */
 export async function customerBankSlots(customerId: string): Promise<CustomerBankSlots | null> {
   const [customer] = await db
-    .select({ id: customers.id, rootCustomerId: customers.rootCustomerId, dob: customers.dob })
+    .select({
+      id: customers.id,
+      rootCustomerId: customers.rootCustomerId,
+      dob: customers.dob,
+      createdAt: customers.createdAt,
+    })
     .from(customers)
     .where(eq(customers.id, customerId))
     .limit(1);
@@ -1532,6 +1550,9 @@ export async function customerBankSlots(customerId: string): Promise<CustomerBan
     eligibleBankIds: bankRows.filter((bank) => meetsBankAgeRule(customer.dob, bank)).map((bank) => bank.id),
     hkdBankIds: hkdBanks.map((r) => r.bankId),
     remaining: Math.max(0, MAX_BANK_ACCOUNTS_PER_CUSTOMER - mainHere),
+    // Ngày hồ sơ khách — giao diện tra luật chặn, hạng ngân hàng và hộp thoại
+    // luật bằng đúng ngày máy chủ sẽ dùng ở `startBankAccount`.
+    ruleDate: businessDay(customer.createdAt),
     /**
      * Không có ngày sinh thì `meetsBankAgeRule` từ chối MỌI ngân hàng có giới
      * hạn tuổi. Thiếu trường này, giao diện viết "khách ngoài độ tuổi" cho một
@@ -1656,12 +1677,9 @@ export async function finishBankAccount(
   if (!outcome.ok) return { ok: false, message: outcome.message };
 
   // Điểm chỉ tính tài khoản `done`, nên đây là nhánh BẮT BUỘC gọi tính lại. Ghi
-  // cho CHỦ HỒ SƠ KHÁCH và THÁNG CỦA NGÀY MỞ (chốt 07/08, câu 7.11) — không
-  // phải người bấm nút, cũng không phải tháng hiện tại.
-  await recomputeKpiForCustomer(
-    current.customerId,
-    businessMonth(new Date(`${openedDate}T00:00:00+07:00`)),
-  );
+  // cho CHỦ HỒ SƠ KHÁCH và THÁNG CỦA NGÀY HỒ SƠ (chốt 07/08 câu 7.11, đổi mốc
+  // 2026-09-16) — không phải người bấm nút, cũng không phải tháng hiện tại.
+  await recomputeKpiForCustomer(current.customerId);
   // Tài khoản mới `done` có thể vừa làm khách đủ combo — P-40 và P-80 đọc cột
   // lưu sẵn nên phải ghi lại ngay tại đây, không có trigger nào lo hộ.
   await recomputeGiftCase(current.customerId);
@@ -1765,14 +1783,9 @@ export async function updateFinishedAccount(
 
   if (!outcome.ok) return { ok: false, message: outcome.message };
 
-  // Ngày mở không đổi được nữa nên chỉ còn MỘT tháng phải tính lại — trước
-  // 2026-09-08 lượt sửa dời được ngày sang tháng khác, và cả hai tháng phải
-  // tính lại.
-  if (previousDate)
-    await recomputeKpiForCustomer(
-      current.customerId,
-      businessMonth(new Date(`${previousDate}T00:00:00+07:00`)),
-    );
+  // Tháng tính lại theo ngày hồ sơ khách (chốt 2026-09-16), tài khoản sửa gì
+  // cũng chỉ một tháng đó.
+  if (previousDate) await recomputeKpiForCustomer(current.customerId);
   await recomputeGiftCase(current.customerId);
 
   // Chỉ báo khi lượt sửa này ĐƯA tài khoản vào hàng chờ duyệt. Sửa tiếp một bản
@@ -1814,13 +1827,9 @@ export async function approveFixedAccount(
   if (updated.length === 0)
     return { ok: false, message: "Tài khoản vừa được đối soát ở nơi khác." };
 
-  // Chỉ tháng MỞ tài khoản, không phải tháng bấm duyệt — cùng lối với
+  // Tháng của NGÀY HỒ SƠ khách, không phải tháng bấm duyệt — cùng lối với
   // `updateBankAccountStatus`.
-  if (current.date)
-    await recomputeKpiForCustomer(
-      current.customerId,
-      businessMonth(new Date(`${current.date}T00:00:00+07:00`)),
-    );
+  if (current.date) await recomputeKpiForCustomer(current.customerId);
 
   await baoChuTaiKhoan(current, "bank-approved", "Tài khoản đã được duyệt", "");
 
@@ -1869,13 +1878,9 @@ export async function markAccountErrorByBankManager(
   if (updated.length === 0)
     return { ok: false, message: "Tài khoản vừa được đối soát ở nơi khác." };
 
-  // Chỉ tháng MỞ tài khoản, không phải tháng bấm đánh dấu — cùng lối với
+  // Tháng của NGÀY HỒ SƠ khách, không phải tháng bấm đánh dấu — cùng lối với
   // `updateBankAccountStatus` và `approveFixedAccount`.
-  if (current.date)
-    await recomputeKpiForCustomer(
-      current.customerId,
-      businessMonth(new Date(`${current.date}T00:00:00+07:00`)),
-    );
+  if (current.date) await recomputeKpiForCustomer(current.customerId);
 
   await baoChuTaiKhoan(current, "bank-error", "Tài khoản bị đánh lỗi", errorNote);
 
@@ -2035,13 +2040,9 @@ export async function updateBankAccountStatus(
   if (updated.length === 0)
     return { ok: false, message: "Tài khoản vừa được đối soát ở nơi khác." };
 
-  // Tài khoản lỗi bị loại ra, tài khoản khôi phục lại được tính vào. Chỉ tính
-  // tháng mở tài khoản, không phải tháng bấm đối soát.
-  if (current.date)
-    await recomputeKpiForCustomer(
-      current.customerId,
-      businessMonth(new Date(`${current.date}T00:00:00+07:00`)),
-    );
+  // Tài khoản lỗi bị loại ra, tài khoản khôi phục lại được tính vào. Tháng của
+  // ngày hồ sơ khách, không phải tháng bấm đối soát.
+  if (current.date) await recomputeKpiForCustomer(current.customerId);
 
   // Khôi phục thẳng về `done` cũng là tin tốt cho chủ tài khoản, dùng chung loại
   // `bank-approved` nhưng khác câu chữ: họ không bấm gửi duyệt lần nào.
@@ -2107,11 +2108,7 @@ export async function deleteAccount(
    * bằng một lượt xoá. Điểm của chúng cũng đã bị loại từ lúc đánh dấu lỗi.
    */
   if (current.status === "done") {
-    if (current.openedDate)
-      await recomputeKpiForCustomer(
-        current.customerId,
-        businessMonth(new Date(`${current.openedDate}T00:00:00+07:00`)),
-      );
+    await recomputeKpiForCustomer(current.customerId);
     await recomputeGiftCase(current.customerId);
   }
 

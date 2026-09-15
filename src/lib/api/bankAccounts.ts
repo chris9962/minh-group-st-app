@@ -233,6 +233,11 @@ export const CustomerBankSlots = z.object({
   remaining: z.number(),
   /** false thì mọi ngân hàng có giới hạn tuổi đều ngoài `eligibleBankIds`. */
   hasDob: z.boolean(),
+  /**
+   * Ngày hồ sơ khách `YYYY-MM-DD`, mốc tra luật của hộp thoại mở tài khoản
+   * (chốt 2026-09-16). Máy chủ dùng đúng ngày này lúc giữ chỗ.
+   */
+  ruleDate: z.string(),
 });
 export type CustomerBankSlots = z.infer<typeof CustomerBankSlots>;
 

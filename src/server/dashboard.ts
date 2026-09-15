@@ -9,6 +9,7 @@ import { BUSINESS_TIMEZONE, businessDay, monthRange } from "@/lib/format";
 import { recordVisibility } from "@/lib/permissions";
 import type { User } from "@/lib/types";
 import { appsInstalledCount, variantOfAccount } from "./appCounted";
+import { accountCustomerDayBetween } from "./customerDay";
 import { db } from "./db/client";
 import {
   bankAccounts,
@@ -237,11 +238,11 @@ async function bankingTotals(
   return row ?? EMPTY_BANKING;
 }
 
+// Theo NGÀY HỒ SƠ khách, cùng mốc với điểm KPI (chốt 2026-09-16).
 const doneInRange = (v: DashboardVisibility, actorId: string, range: Range): SQL =>
   and(
     eq(bankAccounts.status, "done"),
-    gte(bankAccounts.openedDate, range.from),
-    lte(bankAccounts.openedDate, range.to),
+    accountCustomerDayBetween(range.from, range.to),
     scopeCondition(v, actorId, bankingCols),
   ) as SQL;
 

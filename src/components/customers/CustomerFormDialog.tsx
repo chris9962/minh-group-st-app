@@ -1,6 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import type { z } from "zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -20,6 +21,7 @@ import {
   createCustomer,
   CustomerEditForm,
   CustomerForm,
+  type CustomerEditForm as CustomerEditFormValues,
   DUPLICATE_FIELD_LABEL,
   DuplicateIdError,
   pickerStartForDob,
@@ -53,7 +55,13 @@ type Props = {
   loadError?: { onRetry: () => void; retrying: boolean } | null;
 };
 
-const emptyForm: CustomerForm = {
+/**
+ * Giá trị biểu mẫu: dạng SỬA rộng hơn dạng tạo đúng một ô `createdDay` (ngày
+ * hồ sơ), nên dùng chung kiểu rộng cho cả hai luồng; lúc tạo ô đó bỏ trống.
+ */
+type FormValues = CustomerEditFormValues;
+
+const emptyForm: FormValues = {
   fullName: "",
   dob: "",
   idNumber: "",
@@ -70,7 +78,7 @@ const emptyForm: CustomerForm = {
  * nhìn ra một số CCCD 4 chữ số và tưởng hồ sơ đang lưu sai. Máy chủ cũng bỏ qua
  * ô này với người không có quyền nên trống hay không đều không ghi đè gì.
  */
-const toForm = (c: Customer): CustomerForm => ({
+const toForm = (c: Customer): FormValues => ({
   fullName: c.fullName,
   dob: c.dob ?? "",
   idNumber: c.idNumberMasked ? "" : (c.idNumber ?? ""),
@@ -78,6 +86,7 @@ const toForm = (c: Customer): CustomerForm => ({
   phones: c.phones.map((p) => ({ number: p.number, primary: p.primary })),
   channelId: c.channelId,
   channelDetail: c.channelDetail,
+  createdDay: c.createdAt,
 });
 
 /** P-41 · Tạo / sửa khách hàng — tên phải có chữ, CCCD chặn trùng. */
@@ -100,6 +109,13 @@ export function CustomerFormDialog({
    */
   const actorId = useSession((s) => s.user?.id);
   const canWriteMaskedId = Boolean(customer && actorId && customer.createdById === actorId);
+  /**
+   * Ô "Ngày hồ sơ" (chốt 2026-09-16): mốc của điểm KPI, rổ quà và kỳ luật.
+   * Ẩn với vai Nhân viên — chủ dự án chốt "trừ nhân viên ra", không mở quyền
+   * mới, máy chủ từ chối cùng điều kiện. Hồ sơ đã chốt quà thì ô khoá.
+   */
+  const actorRole = useSession((s) => s.user?.role);
+  const showCreatedDay = editing && Boolean(customer) && actorRole !== "staff";
 
   // `values` để form nhận hồ sơ tải xong SAU khi dialog đã mở (luồng nút Sửa ở
   // P-40). Memo theo `customer` — mỗi render một object mới là form reset liên tục.
@@ -122,7 +138,9 @@ export function CustomerFormDialog({
   const { data: channels = [] } = useQuery({ queryKey: ["channels"], queryFn: fetchChannels });
   const schema = useMemo(
     () =>
-      (editing ? CustomerEditForm : CustomerForm)
+      // Hai schema khác nhau một ô tuỳ chọn; ép về kiểu chung để `.refine` gọi
+      // được trên union.
+      ((editing ? CustomerEditForm : CustomerForm) as z.ZodType<FormValues, FormValues>)
         .refine((f) => addressSet.has(f.address), {
           path: ["address"],
           message: "Chọn địa chỉ từ danh sách",
@@ -148,7 +166,7 @@ export function CustomerFormDialog({
     watch,
     setValue,
     formState: { errors, isSubmitting },
-  } = useForm<CustomerForm>({
+  } = useForm<FormValues>({
     // Focus ô sai do `reportInvalid` lo — xem `lib/formErrors.ts`.
     shouldFocusError: false,
     // Luồng SỬA cho CCCD để trống: người không có quyền xem số thì ô đó nạp
@@ -178,7 +196,7 @@ export function CustomerFormDialog({
    * Hệ quả với hồ sơ cũ: `channelDetail` dạng `·` bị thay bằng chuỗi địa chỉ
    * dấu phẩy ở lần Lưu kế tiếp — chấp nhận, cột này chỉ để hiển thị.
    */
-  const channelDetailToSave = (form: CustomerForm) =>
+  const channelDetailToSave = (form: FormValues) =>
     selectedChannel?.inputKind === "ward-hamlet" ? form.address : form.channelDetail;
 
   /**
@@ -193,11 +211,11 @@ export function CustomerFormDialog({
    * nhập", mà giá trị vừa nhập lấy từ đúng lượt gửi bị từ chối, không đọc lại
    * form đang mở phía dưới.
    */
-  const [duplicate, setDuplicate] = useState<{ info: DuplicateIdInfo; form: CustomerForm } | null>(
+  const [duplicate, setDuplicate] = useState<{ info: DuplicateIdInfo; form: FormValues } | null>(
     null,
   );
 
-  type SaveArgs = { form: CustomerForm; linkToRootId?: string };
+  type SaveArgs = { form: FormValues; linkToRootId?: string };
   const save = useMutation({
     mutationFn: ({ form, linkToRootId }: SaveArgs) =>
       customer ? updateCustomer(customer.id, form) : createCustomer(form, linkToRootId),
@@ -222,7 +240,7 @@ export function CustomerFormDialog({
     },
   });
 
-  const submit = (form: CustomerForm, linkToRootId?: string) =>
+  const submit = (form: FormValues, linkToRootId?: string) =>
     save.mutate({
       form: { ...form, channelDetail: channelDetailToSave(form) },
       linkToRootId,
@@ -324,6 +342,17 @@ export function CustomerFormDialog({
               />
             )}
           </div>
+
+          {showCreatedDay && (
+            <DateField
+              label="Ngày hồ sơ"
+              value={watch("createdDay") ?? ""}
+              onChange={(v) => setValue("createdDay", v, { shouldDirty: true, shouldValidate: true })}
+              // Đã chốt quà thì khoá, không kèm chữ giải thích (chốt 2026-09-05).
+              disabled={customer?.giftGranted}
+              error={errors.createdDay?.message}
+            />
+          )}
 
           <Combobox
             block

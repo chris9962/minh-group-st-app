@@ -106,6 +106,8 @@ export const customerChangeField = pgEnum("customer_change_field", [
   /** Không phải một trường — lượt XOÁ hồ sơ, ghi vào cùng dòng thời gian. */
   "profile_deleted",
   "note",
+  /** Dời ngày hồ sơ (migration 0093) — mốc của điểm, quà, kỳ luật từ 2026-09-16. */
+  "created_day",
 ]);
 export const bankAccountStatus = pgEnum("bank_account_status", [
   "creating",

@@ -16,6 +16,7 @@ import {
   type DepartmentStats,
   type OrgErrorCode,
 } from "@/lib/api/org";
+import { accountCustomerDayBetween } from "./customerDay";
 import { db, uniqueViolationOf } from "./db/client";
 import { appsInstalledCount, variantOfAccount } from "./appCounted";
 import {
@@ -362,8 +363,8 @@ export async function statsByDepartment(range: Range) {
         and(
           // Bản `creating` mới là lượt giữ chỗ mã, chưa phải tài khoản thật.
           eq(bankAccounts.status, "done"),
-          gte(bankAccounts.openedDate, range.from),
-          lte(bankAccounts.openedDate, range.to),
+          // Theo NGÀY HỒ SƠ khách, cùng mốc với điểm KPI (chốt 2026-09-16).
+          accountCustomerDayBetween(range.from, range.to),
         ),
       )
       .groupBy(bankAccounts.createdByDepartmentId),
@@ -455,8 +456,7 @@ export async function statsByStaff(range: Range, departmentIds: string[]) {
       .where(
         and(
           eq(bankAccounts.status, "done"),
-          gte(bankAccounts.openedDate, range.from),
-          lte(bankAccounts.openedDate, range.to),
+          accountCustomerDayBetween(range.from, range.to),
           inArray(bankAccounts.createdByDepartmentId, departmentIds),
         ),
       )

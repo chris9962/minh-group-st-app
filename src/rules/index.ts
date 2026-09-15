@@ -228,13 +228,12 @@ function rulesFor(at: string): PeriodRules | null {
  * khoản đưa vào. `null` khi không tài khoản nào mang ngày.
  *
  * Cần một ngày cho cả khách vì luật gom theo tổ hợp, không chấm từng tài khoản:
- * hai tài khoản của một khách không thể mỗi cái một bộ luật. Lấy ngày muộn nhất
- * vì tổ hợp hình thành lúc tài khoản cuối mở. Trên thực tế gần như không phải
- * chọn: đo 2026-09-15 trên 15.405 khách tháng 9 chỉ 2 khách có tài khoản mở
- * khác ngày, vì mỗi lần khách mở thêm là một hồ sơ mới (`root_customer_id`).
+ * hai tài khoản của một khách không thể mỗi cái một bộ luật.
  *
- * Máy chủ đặt ngày mở lúc giữ chỗ và không cho sửa (chốt 2026-09-08), nên tài
- * khoản giữ chỗ 15/9 hoàn tất 16/9 vẫn theo luật 15/9.
+ * Từ chốt 2026-09-16, tầng gọi điền `openedDate` bằng NGÀY HỒ SƠ khách
+ * (`server/customerDay.ts`), không phải ngày mở từng tài khoản, nên mọi dòng
+ * của một khách mang cùng một ngày và phép "muộn nhất" chỉ còn là cách lấy ra
+ * ngày đó. Ngày hồ sơ dời được ở hộp thoại sửa khách; hàm này không cần biết.
  *
  * Mọi nơi tra luật cho khách thật phải đi qua đây — điểm, rổ quà, báo cáo — để
  * ba chỗ không mỗi chỗ chọn một ngày rồi ra ba kết quả khác nhau.

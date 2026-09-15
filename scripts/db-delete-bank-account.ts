@@ -150,10 +150,9 @@ async function main() {
   if (row.status === "done") {
     await recomputeGiftCase(row.customerId);
     console.log("Đã tính lại rổ quà của khách.");
-    if (yearMonth) {
-      await recomputeKpiForCustomer(row.customerId, yearMonth);
-      console.log(`Đã tính lại điểm KPI tháng ${yearMonth} cho chủ hồ sơ khách.`);
-    }
+    // Tháng theo ngày hồ sơ khách, hàm tự tra (chốt 2026-09-16).
+    await recomputeKpiForCustomer(row.customerId);
+    console.log("Đã tính lại điểm KPI tháng của hồ sơ cho chủ hồ sơ khách.");
   } else {
     console.log(
       `Bỏ qua rổ quà và điểm KPI: dòng ở trạng thái '${row.status}', không nằm trong hai phép tính đó.`,

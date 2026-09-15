@@ -13,6 +13,7 @@ import { BUSINESS_TIMEZONE, businessDay, businessMonth, monthRange, roundPoints 
 import { clampScope, inVisibleScope, visibleDepartmentIds } from "@/lib/permissions";
 import { DepartmentType, ROLE_RANK, Scope, type User } from "@/lib/types";
 import { searchTerms } from "@/lib/search";
+import { accountCustomerDayBetween } from "./customerDay";
 import { db } from "./db/client";
 import { bankingPointsByCustomer } from "./kpi";
 import type { PageArgs } from "./pagination";
@@ -295,8 +296,8 @@ export async function countsInRange(
         and(
           inArray(bankAccounts.createdBy, userIds),
           eq(bankAccounts.status, "done"),
-          gte(bankAccounts.openedDate, from),
-          lte(bankAccounts.openedDate, to),
+          // Theo NGÀY HỒ SƠ khách, cùng mốc với điểm KPI (chốt 2026-09-16).
+          accountCustomerDayBetween(from, to),
         ),
       )
       .groupBy(bankAccounts.createdBy),
@@ -396,8 +397,7 @@ async function countsFor(userIds: string[], range: Period): Promise<Map<string, 
         and(
           inArray(bankAccounts.createdBy, userIds),
           eq(bankAccounts.status, "done"),
-          gte(bankAccounts.openedDate, range.from),
-          lte(bankAccounts.openedDate, range.to),
+          accountCustomerDayBetween(range.from, range.to),
         ),
       )
       .groupBy(bankAccounts.createdBy),
@@ -664,8 +664,7 @@ export async function personFor(
       and(
         eq(bankAccounts.createdBy, id),
         eq(bankAccounts.status, "done"),
-        gte(bankAccounts.openedDate, range.from),
-        lte(bankAccounts.openedDate, range.to),
+        accountCustomerDayBetween(range.from, range.to),
       ),
     ),
     /**
