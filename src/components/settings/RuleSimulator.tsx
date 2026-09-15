@@ -77,8 +77,12 @@ export function RuleSimulator() {
   const [apps, setApps] = useState<string[]>([]);
   const [channel, setChannel] = useState("");
   const [department, setDepartment] = useState("");
-  /** Rỗng nghĩa là để máy chủ dùng ngày làm việc — xem `GiftSimulateInput.at`. */
-  const [at, setAt] = useState("");
+  /**
+   * Mặc định 2026-09-16, ngày kỳ luật mới bắt đầu, để Kế toán thử bản mới mà
+   * không phải nhớ đổi ngày. Xoá trống thì máy chủ dùng ngày làm việc — xem
+   * `GiftSimulateInput.at`. Đổi lại khi kỳ này không còn là kỳ mới nhất.
+   */
+  const [at, setAt] = useState("2026-09-16");
   /** Một mã cho mỗi ngân hàng chủ — khách tick CNKD trên VPa hay VPb là hai ca khác nhau. */
   const [accountTypes, setAccountTypes] = useState<Record<string, AccountType>>({});
   const [hkd, setHkd] = useState(false);
