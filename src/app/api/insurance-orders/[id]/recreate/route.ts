@@ -7,8 +7,9 @@ import { recreateInsuranceOrder } from "@/server/insurance";
  * P-14 · Cấp lại một đơn đã huỷ — lập đơn MỚI thay cho nó.
  *
  * Gác bằng `insurance:create` chứ không phải `update`: kết quả của lượt này là
- * một đơn mới đứng tên người bấm, đúng thứ quyền tạo đơn nói tới. `update` là
- * quyền sửa bản ghi đã có, mà đơn đã huỷ thì không sửa được nữa.
+ * một đơn mới, đúng thứ quyền tạo đơn nói tới. `update` là quyền sửa bản ghi đã
+ * có, mà đơn đã huỷ thì không sửa được nữa. Đơn mới đứng tên người tạo đơn cũ,
+ * không đứng tên người bấm — xem `recreateInsuranceOrder`.
  *
  * Thân yêu cầu KHÔNG parse ở đây: luật biển số và số thành viên phụ thuộc sản
  * phẩm, mà sản phẩm phải đọc từ database — xem `recreateInsuranceOrder`.
@@ -21,10 +22,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const { id } = await params;
   if (!isUuid(id)) return notFound();
 
-  const body = (await jsonBody(request)) as { departmentId?: unknown };
-  const departmentId = typeof body?.departmentId === "string" ? body.departmentId : "";
-
-  const result = await recreateInsuranceOrder(actor, id, body, departmentId);
+  const result = await recreateInsuranceOrder(actor, id, await jsonBody(request));
   if (result === null) return notFound();
   if (!result.ok) return Response.json({ message: result.message }, { status: 409 });
 

@@ -24,7 +24,6 @@ import {
   recreateInsuranceOrder,
   updateInsuranceOrder,
 } from "@/lib/api/insurance";
-import { DepartmentPicker } from "@/components/layout/DepartmentPicker";
 import {
   INTAKE_PHOTO_LABEL,
   insuranceOrderEditSchema,
@@ -86,8 +85,6 @@ const sumInsuredOptions = (current: number) => {
 export function InsuranceOrderEditDialog({ open, onClose, orderId, mode = "edit" }: Props) {
   const queryClient = useQueryClient();
   const recreating = mode === "recreate";
-  /** Chỉ người KHÔNG thuộc phòng nào mới phải chọn; máy chủ bỏ qua với người có phòng. */
-  const [pickedDepartmentId, setPickedDepartmentId] = useState("");
   const { data, isPending, isError, refetch, isFetching } = useQuery({
     queryKey: ["insurance-detail", orderId],
     queryFn: () => fetchInsuranceDetail(orderId),
@@ -95,13 +92,6 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId, mode = "edit"
 
   const motorbike = data?.product === "motorbike";
   const addressSuggestions = useAddressSuggestions();
-
-  /**
-   * Phòng của đơn CŨ là mặc định — đơn thay nó nằm cùng phòng. Tính thẳng khi
-   * render chứ không đồng bộ vào state bằng effect: chi tiết đơn về sau lượt
-   * render đầu, mà giá trị này suy ra được từ nó (AGENTS.md §7).
-   */
-  const departmentId = pickedDepartmentId || (data?.createdByDepartmentId ?? "");
 
   /**
    * Ảnh hồ sơ (chốt 2026-09-07). `null` = người dùng chưa đụng vào ô, hiện ảnh
@@ -163,7 +153,7 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId, mode = "edit"
         intakePhotoBackUrl: urls[1] ?? "",
       };
       return recreating
-        ? recreateInsuranceOrder(orderId, { ...payload, departmentId })
+        ? recreateInsuranceOrder(orderId, payload)
         : updateInsuranceOrder(orderId, payload);
     },
     onSuccess: (order) => {
@@ -229,16 +219,6 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId, mode = "edit"
             onChange={setPickedPhotos}
             busy={save.isPending}
           />
-
-          {/* Phòng ghi nhận đơn MỚI. Lượt sửa không có ô này: đơn đã có phòng
-              của nó rồi, đổi phòng là viết lại lịch sử ghi nhận. */}
-          {recreating && (
-            <DepartmentPicker
-              module="insurance"
-              value={departmentId}
-              onChange={setPickedDepartmentId}
-            />
-          )}
 
           {/* Không có ô Ngày tạo đơn (chốt 2026-09-08): sổ chốt theo ngày, không
               nhập bù, nên ngày đó không sửa tay. `orderDate` vẫn gửi nguyên giá

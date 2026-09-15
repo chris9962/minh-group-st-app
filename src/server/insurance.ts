@@ -1601,8 +1601,7 @@ export async function cancelInsuranceOrder(
  * không còn vết nào nối hai đơn với nhau.
  *
  * Đơn mới là đơn MỚI HOÀN TOÀN: mã mới, ngày tạo đơn của lượt cấp lại, trạng
- * thái đầu hàng chờ, người tạo là người bấm. Không kế thừa gì của đơn cũ ngoài
- * ba thứ KHÔNG cho sửa:
+ * thái đầu hàng chờ. Không kế thừa gì của đơn cũ ngoài những thứ KHÔNG cho sửa:
  *
  *  - `product` và `packageName`/`packageId`: đổi gói là biến nó thành đơn khác
  *    hẳn, mà với đơn quà thì gói còn phải khớp món đã chốt ở `gift_grants`.
@@ -1610,8 +1609,13 @@ export async function cancelInsuranceOrder(
  *  - `giftGrantId`: đơn quà phải ở lại đúng đợt tặng của nó. Đơn cũ GIỮ NGUYÊN
  *    liên kết, cùng lối với `changeGift` — mất nó là mất vết đợt quà này từng
  *    phát đơn nào.
+ *  - `createdBy` và `createdByDepartmentId` (chốt 2026-09-15): đơn thay thế
+ *    đứng tên NGƯỜI TẠO ĐƠN CŨ, không đứng tên người bấm. Đêm 2026-09-15 giám
+ *    đốc cấp lại 8 đơn cho nhân viên và cả 8 đứng tên giám đốc: nhân viên có
+ *    phạm vi `own` không thấy đơn của khách mình nữa, phải sửa tay từng dòng
+ *    trong database. Người bấm vẫn ghi ở `changed_by` của dòng lịch sử.
  *
- * Ba thứ đó máy chủ tự đọc từ đơn cũ, không nhận từ client.
+ * Máy chủ tự đọc những thứ đó từ đơn cũ, không nhận từ client.
  *
  * Mỗi đơn cấp lại đúng MỘT lần; đơn mới cũng vậy nên chuỗi kéo dài được. Chốt
  * chặn thật nằm ở unique index `insurance_orders_replaces` — hai lượt bấm cùng
@@ -1621,7 +1625,6 @@ export async function recreateInsuranceOrder(
   actor: User,
   id: string,
   body: unknown,
-  departmentId: string,
 ): Promise<InsuranceOutcome<InsuranceListRow> | null> {
   const visible = scopeOf(actor, "view-detail");
   if (visible.kind === "none") return null;
@@ -1653,19 +1656,10 @@ export async function recreateInsuranceOrder(
     .where(eq(insuranceOrders.id, id))
     .limit(1);
 
-  /**
-   * Đơn cũ đã thuộc về một phòng, nên đơn thay nó ghi vào chính phòng ấy khi
-   * người bấm không thuộc phòng nào và không chọn gì. Lấy phòng của ĐƠN chứ
-   * không của hồ sơ khách: hai bản ghi có thể khác phòng, mà thứ đang được cấp
-   * lại là cái đơn.
-   */
-  const department = departmentForNewRecord(
-    actor,
-    "insurance",
-    departmentId,
-    current.createdByDepartmentId,
-  );
-  if (!department.ok) return { ok: false, message: department.message };
+  // Người tạo đơn cũ có thể đã bị xoá khỏi hệ thống; lúc đó đơn mới đứng tên
+  // người bấm chứ không để NULL, vì NULL không khớp phạm vi `creator` của ai.
+  const ownerId = current.createdById ?? actor.id;
+  const onBehalf = ownerId !== actor.id;
 
   // Sản phẩm ĐỌC TỪ DATABASE, cùng lý do với `updateInsuranceOrder`: gửi kèm
   // `product` khác là gỡ được ràng buộc biển số của một đơn xe máy.
@@ -1746,8 +1740,8 @@ export async function recreateInsuranceOrder(
         engineNumber: form.engineNumber,
         intakePhotoUrl: intakePhotoKey,
         intakePhotoBackUrl: intakePhotoBackKey,
-        createdBy: actor.id,
-        createdByDepartmentId: department.departmentId,
+        createdBy: ownerId,
+        createdByDepartmentId: current.createdByDepartmentId,
         replacesOrderId: id,
       })
       .returning({ id: insuranceOrders.id });
@@ -1757,7 +1751,9 @@ export async function recreateInsuranceOrder(
       fromStatus: null,
       toStatus: newStatus,
       changedBy: actor.id,
-      note: `Cấp lại cho đơn ${current.orderCode}`,
+      note: onBehalf
+        ? `Cấp lại cho đơn ${current.orderCode}, ghi cho ${current.createdByName}`
+        : `Cấp lại cho đơn ${current.orderCode}`,
     });
 
     await notifyPviWorker(tx, route, newStatus);

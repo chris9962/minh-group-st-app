@@ -297,15 +297,15 @@ export async function updateInsuranceOrder(
 /**
  * Cấp lại một đơn ĐÃ HUỶ — lập đơn mới thay cho nó (chốt 2026-09-03).
  *
- * Biểu mẫu là bộ ô của lượt SỬA, không phải của lượt tạo: khách, sản phẩm, gói
- * và đợt quà đều lấy từ đơn cũ và không sửa được. Máy chủ tự đọc bốn thứ đó,
- * gửi kèm cũng không có tác dụng.
+ * Biểu mẫu là bộ ô của lượt SỬA, không phải của lượt tạo: khách, sản phẩm, gói,
+ * đợt quà, người tạo và phòng đều lấy từ đơn cũ và không sửa được. Máy chủ tự
+ * đọc những thứ đó, gửi kèm cũng không có tác dụng.
  *
  * Mỗi đơn cấp lại đúng một lần. Lượt thứ hai nhận 409 kèm mã đơn đã cấp.
  */
 export async function recreateInsuranceOrder(
   id: string,
-  form: InsuranceOrderEditForm & { departmentId: string },
+  form: InsuranceOrderEditForm,
 ): Promise<InsuranceListRow> {
   const res = await fetch(`/api/insurance-orders/${id}/recreate`, {
     method: 'POST',
