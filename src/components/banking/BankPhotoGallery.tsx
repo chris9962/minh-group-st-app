@@ -230,13 +230,15 @@ export function BankPhotoGallery({
                     <ZoomIn size={16} aria-hidden />
                   </button>
                   <span className={styles.caption}>
-                    {/* Tới thẳng tài khoản của ảnh này, cùng chốt "dòng là
-                        LINK" của tab tài khoản (2026-09-05): người quản đối
-                        chiếu nhiều tài khoản một lượt nên cần mở tab mới. */}
+                    {/* Mở tab mới (chốt 2026-09-15): người quản soi ảnh đối
+                        chiếu nhiều tài khoản một lượt, mà Quay lại từ trang tài
+                        khoản thì trình duyệt mất vị trí cuộn của lưới ảnh. */}
                     <Link
                       href={`/settings/banks/${bankId}/${row.id}`}
+                      target="_blank"
+                      rel="noopener"
                       className={styles.captionLink}
-                      aria-label={`Xem tài khoản của ${row.customerName}`}
+                      aria-label={`Xem tài khoản của ${row.customerName} (mở tab mới)`}
                     >
                       {row.customerName}
                     </Link>
@@ -285,7 +287,9 @@ export function BankPhotoGallery({
               <>
                 <Link
                   href={`/settings/banks/${bankId}/${row.id}`}
-                  aria-label={`Xem tài khoản của ${row.customerName}`}
+                  target="_blank"
+                  rel="noopener"
+                  aria-label={`Xem tài khoản của ${row.customerName} (mở tab mới)`}
                 >
                   {row.customerName}
                 </Link>
