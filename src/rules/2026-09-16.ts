@@ -22,7 +22,8 @@ import type {
  * Bốn chỗ khác kỳ 2026-09-01, xem mục 5 của thể lệ:
  *
  *   a. `LPB` từ Bank khác sang Bank hạn chế, không vào Combo 1 và Combo 2
- *   b. `MBV` mới, Bank hạn chế (migration 0093 thêm vào danh mục)
+ *   b. `MBV` mới, Bank hạn chế (production thêm vào danh mục qua P-71 ngày
+ *      2026-09-15, mã khớp chuỗi ở đây)
  *   c. Dòng Combo 1 hạng hạn chế ghi 0,1: `VPb` kèm CNKD ra 1,1 thay vì 1,0
  *      (giả định G9); hạn chế đứng một mình vẫn không có tổ hợp (G10)
  *   d. CNKD kèm BẤT KỲ ngân hàng nào trong thể lệ đều cộng 1,0 (chủ dự án
