@@ -14,7 +14,8 @@ import { DepartmentPicker } from "@/components/layout/DepartmentPicker";
 import { Select } from "@/components/ui/Select";
 import { SkeletonText } from "@/components/ui/Skeleton";
 import { fetchBanks, fetchOpenReferralCodes, type Bank } from "@/lib/api/bankCatalog";
-import { ageRangeLabel } from "@/lib/format";
+import { ageRangeLabel, businessDay } from "@/lib/format";
+import { openBlockReasonAt } from "@/rules";
 import {
   ACCOUNT_TYPE_LABEL,
   BankAccountStartForm,
@@ -215,6 +216,26 @@ export function BankAccountFormDialog({
       : null;
 
   /**
+   * Luật chặn tổ hợp của kỳ — kỳ 2026-09-16 cấm hai ngân hàng hạn chế trong
+   * một hồ sơ (`openBlockReason` ở `src/rules`). Khoá ngay ô chọn, vì tới lúc
+   * máy chủ từ chối thì nhân viên đã điền xong cả biểu mẫu.
+   *
+   * Xét trên HỒ SƠ này: dòng chính đã có (`slots.used` với `here`) cộng dòng
+   * chính đang tích, bỏ dòng HKD vì nó không phải ngân hàng. Ngày tra là ngày
+   * làm việc, vì máy chủ ghi `opened_date` bằng đúng ngày giữ chỗ. Dòng đang
+   * tích không tự khoá mình: hàm chỉ so với mã KHÁC.
+   */
+  const codeOf = (bankId: string) => banks.find((b) => b.id === bankId)?.code ?? "";
+  const comboReason = (bank: Bank, hkd: boolean): string | null => {
+    if (hkd || !slots) return null;
+    const here = slots.used.filter((u) => u.here && !u.hkd).map((u) => codeOf(u.bankId));
+    const picked = picks
+      .filter((p) => p.accountType !== "HKD" && p.bankId !== bank.id)
+      .map((p) => codeOf(p.bankId));
+    return openBlockReasonAt([...here, ...picked], bank.code, businessDay());
+  };
+
+  /**
    * Sắp lại ở trình duyệt là ngoại lệ có chủ ý của AGENTS.md §5.1. Đây là danh
    * mục đóng vài chục dòng, và thứ hạng phụ thuộc dữ liệu của KHÁCH chứ không
    * phải của ngân hàng: sắp ở máy chủ nghĩa là sắp lại riêng cho từng khách.
@@ -321,7 +342,7 @@ export function BankAccountFormDialog({
                 departmentId={departmentId}
                 pick={picks.find((p) => samePick(p, bank.id, hkd))}
                 full={!hkd && mainPicks >= remaining}
-                reason={reason ?? inFormReason(bank.id, hkd)}
+                reason={reason ?? inFormReason(bank.id, hkd) ?? comboReason(bank, hkd)}
                 hideCnkd={picks.some((p) => samePick(p, bank.id, true))}
                 onToggle={(checked) => toggleBank(bank.id, hkd, checked)}
                 onCodeChange={(code) => setCode(bank.id, hkd, code)}

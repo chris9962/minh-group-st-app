@@ -28,6 +28,8 @@ import type {
  *      (giả định G9); hạn chế đứng một mình vẫn không có tổ hợp (G10)
  *   d. CNKD kèm BẤT KỲ ngân hàng nào trong thể lệ đều cộng 1,0 (chủ dự án
  *      chốt 2026-09-15); kỳ trước chỉ `VPa`, `VPb`
+ *   e. `BIDV` từ Bank khác sang Bank hạn chế (Kế toán bổ sung 2026-09-15)
+ *   f. Mỗi hồ sơ chỉ một ngân hàng hạn chế, chặn lúc mở — `openBlockReason`
  *
  * Mười hai chỗ khác kỳ 2026-08 giữ nguyên từ `2026-09.ts`:
  *
@@ -56,8 +58,8 @@ export type Tier = "priority" | "other" | "restricted";
 /**
  * Hạng của từng mã ngân hàng (mục 1).
  *
- * `LPB` sang nhóm hạn chế và `MBV` mới, Kế toán gửi 2026-09-15. Kỳ 2026-09-01
- * để `LPB` ở Bank khác và không có `MBV`, nên đừng chép bảng cũ sang.
+ * `LPB`, `BIDV` sang nhóm hạn chế và `MBV` mới, Kế toán gửi 2026-09-15. Kỳ
+ * 2026-09-01 để hai mã kia ở Bank khác và không có `MBV`, đừng chép bảng cũ.
  *
  * `CNKD`, `HKD` vẫn cố ý vắng mặt: chúng không phải ngân hàng, không vào combo
  * và không đếm vào số ngân hàng khách mở. Điểm riêng của chúng ở mục 4c và 4d.
@@ -72,14 +74,47 @@ const TIER_OF: Record<string, Tier> = {
   MSBa: "priority",
   MSBb: "other",
   TCB: "other",
-  BIDV: "other",
   TPB: "other",
   VIB: "other",
   SHB: "other",
+  BIDV: "restricted",
   LPB: "restricted",
   MBV: "restricted",
   VPb: "restricted",
 };
+
+/**
+ * Mỗi hồ sơ chỉ MỘT ngân hàng hạng hạn chế — Kế toán chốt 2026-09-15, nguyên
+ * văn: *"không triển khai bank hạn chế cùng lúc ví dụ combo 3: 1 ưu tiên + 1
+ * khác + 1 hạn chế thì được, không triển khai cùng lúc 1 khác + 2 hạn chế hoặc
+ * 1 ưu tiên + 2 hạn chế … cấm các bạn luôn giùm e"*.
+ *
+ * Là luật CHẶN LÚC MỞ, không phải luật tính điểm: bảng mục 2 vốn không có dòng
+ * hai hạn chế, nên khách lỡ có hai hạn chế vẫn tính được (hạ xuống Combo 1 của
+ * ngân hàng còn lại, G11). Hàm này để giao diện khoá ô chọn trước khi nhân viên
+ * bấm, và máy chủ từ chối nếu lời gọi nặn tay. Cùng một hàm cho cả màn mở tài
+ * khoản lẫn màn thử, để hai màn không mỗi nơi một câu.
+ *
+ * Xét theo HỒ SƠ, không theo mọi lần của khách: mỗi hồ sơ là một combo (chốt
+ * 2026-09-05), Kế toán nói "combo" tức là hồ sơ đang mở.
+ *
+ * Ba ca cần nhớ:
+ * - Dòng HKD không phải ngân hàng, nơi gọi phải bỏ nó khỏi `existing` trước.
+ * - Ngân hàng đã có trong hồ sơ từ TRƯỚC 16/9 vẫn tính: hồ sơ mở thêm sau
+ *   16/9 thì cả tổ hợp theo luật này (`ruleDateOf`), `LPB` mở 14/9 nay là hạn
+ *   chế, thêm `VPb` là hai hạn chế.
+ * - `candidate` trùng mã đang có thì không phải việc của hàm này: trùng ngân
+ *   hàng do `slotConflict` xử, ở đây chỉ so với mã KHÁC.
+ */
+export function openBlockReason(existingBankCodes: string[], candidate: string): string | null {
+  if (TIER_OF[candidate] !== "restricted") return null;
+  const other = existingBankCodes.find(
+    (code) => code !== candidate && TIER_OF[code] === "restricted",
+  );
+  return other
+    ? `Hồ sơ đã có ${other} thuộc nhóm hạn chế. Mỗi hồ sơ chỉ mở một ngân hàng hạn chế.`
+    : null;
+}
 
 /**
  * Hai ngân hàng DUY NHẤT đòi cài app mới được tính vào tổ hợp QUÀ (câu 7.8).

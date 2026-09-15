@@ -13,7 +13,8 @@ import { fetchBanks } from "@/lib/api/bankCatalog";
 import { MAX_BANK_ACCOUNTS_PER_CUSTOMER, type AccountType } from "@/lib/api/bankAccounts";
 import { fetchChannels } from "@/lib/api/channelCatalog";
 import { simulateGift, type GiftSimulateInput } from "@/lib/api/settings";
-import { formatVnd } from "@/lib/format";
+import { businessDay, formatVnd } from "@/lib/format";
+import { openBlockReasonAt } from "@/rules";
 import styles from "./RuleSimulator.module.scss";
 
 /**
@@ -210,22 +211,39 @@ export function RuleSimulator() {
           {activeBanks.map((bank) => {
             const picked = opened.includes(bank.code);
             const hkdBlocked = accountTypes[HKD_ROW.bankCode] === "CNKD";
+            /**
+             * Cùng luật chặn với hộp thoại mở tài khoản (`openBlockReason` ở
+             * `src/rules`): màn thử chỉ dựng được khách hệ thống dựng được.
+             * Tra theo ngày đang thử, nên đổi ngày về 15/9 là hết khoá.
+             */
+            const blocked = picked
+              ? null
+              : openBlockReasonAt(opened, bank.code, at || businessDay());
             return (
               <Fragment key={bank.id}>
                 <li
                   className={clsx(
                     styles.bank,
                     picked && styles.bankOn,
-                    !picked && full && styles.bankOff,
+                    !picked && (full || blocked) && styles.bankOff,
                   )}
                 >
                   <Checkbox
                     block
-                    label={bank.code}
+                    label={
+                      blocked ? (
+                        <span className={styles.bankLabelBox}>
+                          {bank.code}
+                          <span className={styles.bankReason}>{blocked}</span>
+                        </span>
+                      ) : (
+                        bank.code
+                      )
+                    }
                     checked={picked}
                     // Bỏ tick thì luôn được, kể cả khi đã đủ trần — nếu không thì
                     // chọn nhầm ngân hàng thứ ba là phải tải lại trang.
-                    disabled={!picked && full}
+                    disabled={!picked && (full || blocked !== null)}
                     onCheckedChange={() => toggleOpened(bank.code)}
                   />
                   {picked && (

@@ -57,6 +57,7 @@ import {
   referralCodes,
   users,
 } from "./db/schema";
+import { openBlockReasonAt } from "@/rules";
 import { recomputeGiftCase } from "./gift";
 import { recomputeKpiForCustomer } from "./kpi";
 import type { PageArgs } from "./pagination";
@@ -1357,8 +1358,13 @@ export async function startBankAccount(
       .where(eq(bankAccounts.rootCustomerId, customer.rootCustomerId));
 
     const ownedHere = await tx
-      .select({ bankId: bankAccounts.bankId, accountType: bankAccounts.accountType })
+      .select({
+        bankId: bankAccounts.bankId,
+        accountType: bankAccounts.accountType,
+        bankCode: banks.code,
+      })
       .from(bankAccounts)
+      .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
       .where(eq(bankAccounts.customerId, form.customerId));
 
     // Kiểm trùng ngân hàng TRƯỚC kiểm trần: khách đã có đủ 3 tài khoản mà chọn
@@ -1376,7 +1382,25 @@ export async function startBankAccount(
         };
     }
 
-    const mainHere = ownedHere.filter((r) => !isHkd(r.accountType)).length;
+    /**
+     * Luật của kỳ chặn tổ hợp lúc mở — kỳ 2026-09-16 cấm hai ngân hàng hạn chế
+     * trong một hồ sơ. Giao diện đã khoá ô chọn bằng đúng hàm này; ở đây kiểm
+     * lại cho lời gọi nặn tay. Ngày tra là ngày giữ chỗ, vì `opened_date` ghi
+     * bằng đúng ngày đó. Xét trên dòng chính của HỒ SƠ này cộng các dòng đang
+     * chọn phía trước trong cùng lượt.
+     */
+    const today = businessDay();
+    const mainCodesHere = ownedHere.filter((r) => !isHkd(r.accountType)).map((r) => r.bankCode);
+    const pickedSoFar: string[] = [];
+    for (const pick of form.picks) {
+      if (isHkd(pick.accountType)) continue;
+      const code = bankById.get(pick.bankId)!.code;
+      const reason = openBlockReasonAt([...mainCodesHere, ...pickedSoFar], code, today);
+      if (reason) return { ok: false as const, message: `${code}: ${reason}` };
+      pickedSoFar.push(code);
+    }
+
+    const mainHere = mainCodesHere.length;
     const mainPicks = form.picks.filter((p) => !isHkd(p.accountType)).length;
     if (mainHere + mainPicks > MAX_BANK_ACCOUNTS_PER_CUSTOMER)
       return {

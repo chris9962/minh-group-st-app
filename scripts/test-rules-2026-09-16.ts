@@ -10,6 +10,7 @@ import {
   bankTierFor,
   bankingPointsFor,
   giftFor,
+  openBlockReasonAt,
   ruleDateOf,
   type GiftResult,
   type HouseholdKind,
@@ -63,6 +64,8 @@ check("LPB ngày 16/9 là Bank hạn chế", bankTierFor("LPB", AT), "restricted
 check("MBV ngày 15/9 ngoài thể lệ", bankTierFor("MBV", BEFORE), null);
 check("MBV ngày 16/9 là Bank hạn chế", bankTierFor("MBV", AT), "restricted");
 check("VPb vẫn hạn chế", bankTierFor("VPb", AT), "restricted");
+check("BIDV ngày 15/9 là Bank khác", bankTierFor("BIDV", BEFORE), "other");
+check("BIDV ngày 16/9 là Bank hạn chế", bankTierFor("BIDV", AT), "restricted");
 check("TCB vẫn Bank khác", bankTierFor("TCB", AT), "other");
 check("chuỗi tháng đọc là mùng 1, ra file cũ", bankTierFor("LPB", "2026-09"), "other");
 check("tháng 10 vẫn dùng file 16/9", bankTierFor("LPB", "2026-10-03"), "restricted");
@@ -182,6 +185,35 @@ check("LPB + CNKD: không tổ hợp, chỉ 1,0 CNKD", points([account("k", "LPB
 check("LPB + CNKD không có bậc quà", gift([account("k", "LPB", { household: "CNKD" })]).caseCode, null);
 check("MSBb + CNKD là TH7", gift([account("k", "MSBb", { household: "CNKD" })]).caseCode, "TH7");
 check("kỳ 2026-09-01 vẫn 0 CNKD cho MSBb", points([account("k", "MSBb", { household: "CNKD", date: BEFORE })]), 0.2);
+
+/* ── Chặn lúc mở: mỗi hồ sơ một ngân hàng hạn chế — Kế toán 2026-09-15 ── */
+
+section("openBlockReasonAt — mỗi hồ sơ một ngân hàng hạn chế");
+const blocked = (existing: string[], candidate: string, at = AT) =>
+  openBlockReasonAt(existing, candidate, at) !== null;
+check("hồ sơ trống, mở LPB", blocked([], "LPB"), false);
+check("đã có MB, mở LPB", blocked(["MB"], "LPB"), false);
+check("đã có LPB, mở VPb", blocked(["LPB"], "VPb"), true);
+check("đã có LPB, mở BIDV", blocked(["LPB"], "BIDV"), true);
+check("đã có VPb, mở MBV", blocked(["VPb"], "MBV"), true);
+check("đã có LPB, mở MB", blocked(["LPB"], "MB"), false);
+check("đã có MB + TPB, mở LPB", blocked(["MB", "TPB"], "LPB"), false);
+check("đã có MB + LPB, mở VPb", blocked(["MB", "LPB"], "VPb"), true);
+check("đã có LPB, mở lại LPB không phải việc của hàm này", blocked(["LPB"], "LPB"), false);
+check("mã ngoài thể lệ không bị chặn", blocked(["LPB"], "XYZ"), false);
+check("kỳ 2026-09-01 không chặn", blocked(["LPB"], "VPb", BEFORE), false);
+check("kỳ 2026-08 không chặn", blocked(["VPb"], "LPB", "2026-08-20"), false);
+check(
+  "câu chữ nêu mã đang có",
+  openBlockReasonAt(["MB", "BIDV"], "LPB", AT),
+  "Hồ sơ đã có BIDV thuộc nhóm hạn chế. Mỗi hồ sơ chỉ mở một ngân hàng hạn chế.",
+);
+
+section("BIDV hạn chế trong bảng điểm");
+check("MB + VPa + BIDV", comboPointsFor(["MB", "VPa", "BIDV"]), 0.9);
+check("MB + BIDV về Combo 1 của MB", comboPointsFor(["MB", "BIDV"]), 0.3);
+check("BIDV một mình", comboPointsFor(["BIDV"]), 0);
+check("BIDV một mình ngày 15/9 vẫn 0,2", points([account("k", "BIDV", { date: BEFORE })]), 0.2);
 
 /* ── Tổng kết ────────────────────────────────────────────────────────── */
 

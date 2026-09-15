@@ -170,6 +170,12 @@ type PeriodRules = {
   bankTierOf(bankCode: string): Tier | null;
   /** Điểm của MỘT tổ hợp mã, không xét khách và không xét cài app. */
   comboPointsFor(bankCodes: string[]): number;
+  /**
+   * Vì sao KHÔNG được mở thêm `candidate` vào hồ sơ đang có `existingBankCodes`;
+   * `null` là mở được. Tuỳ chọn: kỳ 2026-08 và 2026-09-01 không có luật chặn,
+   * và hai file đó đóng băng nên không thêm hàm rỗng vào.
+   */
+  openBlockReason?(existingBankCodes: string[], candidate: string): string | null;
 };
 
 /**
@@ -368,4 +374,20 @@ export function bankTierFor(bankCode: string, at: string): Tier | null {
  */
 export function comboPointsAt(bankCodes: string[], at: string): number {
   return rulesFor(at)?.comboPointsFor(bankCodes) ?? 0;
+}
+
+/**
+ * Lý do KHÔNG được mở thêm ngân hàng `candidate` vào hồ sơ, theo luật ngày `at`.
+ * `null` là mở được. Dùng chung cho hộp thoại mở tài khoản, màn thử P-81 và
+ * máy chủ lúc giữ chỗ — một luật, một câu chữ.
+ *
+ * `existingBankCodes` là mã các dòng CHÍNH đang có trong hồ sơ cộng các dòng
+ * đang tích trong biểu mẫu; nơi gọi tự bỏ dòng HKD.
+ */
+export function openBlockReasonAt(
+  existingBankCodes: string[],
+  candidate: string,
+  at: string,
+): string | null {
+  return rulesFor(at)?.openBlockReason?.(existingBankCodes, candidate) ?? null;
 }
