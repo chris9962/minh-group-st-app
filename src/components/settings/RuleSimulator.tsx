@@ -3,7 +3,7 @@
 import { clsx } from "clsx";
 import { useQuery } from "@tanstack/react-query";
 import { FlaskConical } from "lucide-react";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { DateField } from "@/components/ui/DateField";
 import { SectionCard } from "@/components/ui/SectionCard";
@@ -34,28 +34,27 @@ const DEPARTMENTS: { value: string; label: string }[] = [
 ];
 
 /**
- * Hai ngân hàng chủ của CNKD/HKD — nhãn giữ đúng chữ của màn P-20.
+ * Hai ngân hàng chủ của CNKD — nhãn giữ đúng chữ của màn P-20.
  *
  * Kỳ 2026-08 chỉ có `VPa`. Kỳ 2026-09 thêm `VPb` cho CNKD, theo lưu ý 3.
  *
- * Ô chọn vẫn hiện cả `CNKD` lẫn `HKD` trên dòng `VPb`, dù `HKD` kèm `VPb` là
- * dữ liệu sai: màn này để THỬ luật, nên nó phải dựng được cả ca sai để người
- * dùng thấy kết quả ra rỗng.
+ * Ô chọn KHÔNG có `HKD`: dòng HKD là tài khoản VPa THỨ HAI, đứng cạnh dòng
+ * chính (chốt 2026-09-06), nên nó là một thẻ riêng trong danh sách, xem
+ * `HKD_ROW`. Bản trước để HKD trong ô chọn này, và người thử không dựng được
+ * ca "VPa thường kèm dòng HKD".
  */
 const HOUSEHOLD_HOST_BANKS = ["VPa", "VPb"];
-const ACCOUNT_TYPE_LABEL: Record<AccountType, string> = {
-  none: "Không",
-  CNKD: "CNKD",
-  HKD: "HKD",
-};
+const ACCOUNT_TYPE_OPTIONS: { value: AccountType; label: string }[] = [
+  { value: "none", label: "Không" },
+  { value: "CNKD", label: "CNKD" },
+];
 
 /**
- * Dòng HKD là tài khoản VPa THỨ HAI, đứng cạnh dòng chính (chốt 2026-09-06).
- * Ô chọn ở trên mô tả DÒNG CHÍNH; ô "kèm dòng HKD" thêm dòng thứ hai. Chỉ
- * `VPa` có dòng HKD, và dòng HKD không đi chung với dòng chính loại CNKD
- * (`slotConflict` ở server/banking.ts).
+ * Thẻ "VPa HKD" đứng ngay sau thẻ VPa. Tick một mình là ca "chỉ dòng HKD";
+ * tick cùng thẻ VPa là "VPa thường kèm dòng HKD". Không đi chung với VPa loại
+ * CNKD (`slotConflict` ở server/banking.ts), và không chiếm chỗ trần 3.
  */
-const HKD_HOST_BANKS = ["VPa"];
+const HKD_ROW = { bankCode: "VPa", label: "VPa HKD" };
 
 /**
  * P-81 · Nút thử — chỉ tính toán, không ghi gì (spec §5.3). Không tạo khách,
@@ -81,7 +80,7 @@ export function RuleSimulator() {
   const [at, setAt] = useState("");
   /** Một mã cho mỗi ngân hàng chủ — khách tick CNKD trên VPa hay VPb là hai ca khác nhau. */
   const [accountTypes, setAccountTypes] = useState<Record<string, AccountType>>({});
-  const [withHkd, setWithHkd] = useState<string[]>([]);
+  const [hkd, setHkd] = useState(false);
 
   const { data: allBanks = [] } = useQuery({ queryKey: ["banks"], queryFn: fetchBanks });
   const activeBanks = allBanks.filter((b) => b.active);
@@ -95,15 +94,22 @@ export function RuleSimulator() {
    * TanStack Query chạy lại.
    */
   const input: GiftSimulateInput = {
-    accounts: opened.flatMap((bankCode) => {
-      const accountType = accountTypes[bankCode] ?? ("none" as AccountType);
-      const appInstalled = apps.includes(bankCode);
-      const main = { bankCode, appInstalled, accountType };
-      // Dòng HKD chỉ đứng cạnh dòng chính loại thường, xem `HKD_HOST_BANKS`.
-      return withHkd.includes(bankCode) && accountType === "none"
-        ? [main, { bankCode, appInstalled, accountType: "HKD" as AccountType }]
-        : [main];
-    }),
+    accounts: [
+      ...opened.map((bankCode) => ({
+        bankCode,
+        appInstalled: apps.includes(bankCode),
+        accountType: accountTypes[bankCode] ?? ("none" as AccountType),
+      })),
+      ...(hkd
+        ? [
+            {
+              bankCode: HKD_ROW.bankCode,
+              appInstalled: apps.includes(HKD_ROW.bankCode),
+              accountType: "HKD" as AccountType,
+            },
+          ]
+        : []),
+    ],
     channelCodes: channel ? [channel] : [],
     departmentCode: department || null,
     /**
@@ -129,7 +135,7 @@ export function RuleSimulator() {
   const run = useQuery({
     queryKey: ["gift-simulate", input],
     queryFn: () => simulateGift(input),
-    enabled: opened.length > 0,
+    enabled: opened.length > 0 || hkd,
     placeholderData: (prev) => prev,
   });
 
@@ -198,80 +204,72 @@ export function RuleSimulator() {
         <ul className={styles.banks}>
           {activeBanks.map((bank) => {
             const picked = opened.includes(bank.code);
+            const hkdBlocked = accountTypes[HKD_ROW.bankCode] === "CNKD";
             return (
-              <li
-                key={bank.id}
-                className={clsx(
-                  styles.bank,
-                  picked && styles.bankOn,
-                  !picked && full && styles.bankOff,
-                )}
-              >
-                <Checkbox
-                  block
-                  label={bank.code}
-                  checked={picked}
-                  // Bỏ tick thì luôn được, kể cả khi đã đủ trần — nếu không thì
-                  // chọn nhầm ngân hàng thứ ba là phải tải lại trang.
-                  disabled={!picked && full}
-                  onCheckedChange={() => toggleOpened(bank.code)}
-                />
-                {picked && (
-                  <div className={styles.bankChild}>
-                    <Checkbox
-                      /* Trình đọc màn hình nghe mười ba lần "đã cài app" thì
-                         không biết ô nào của ngân hàng nào — mã đi kèm, chỉ ẩn
-                         khỏi mắt. */
-                      label={
-                        <>
-                          <span className="sr-only">{bank.code} </span>
-                          đã cài app
-                        </>
-                      }
-                      checked={apps.includes(bank.code)}
-                      onCheckedChange={() => toggleApp(bank.code)}
-                    />
-                    {/* HKD kèm VPa thì rổ có thêm Loa và Bảng mica, còn CNKD
-                        kèm VPb thì mở bậc TH7 — không có ô này thì màn thử
-                        không dựng được hai ca đó. */}
-                    {HOUSEHOLD_HOST_BANKS.includes(bank.code) && (
-                      <div className={styles.bankType}>
-                        <Select
-                          block
-                          label="Mở tài khoản CNKD / HKD"
-                          value={accountTypes[bank.code] ?? "none"}
-                          onChange={(v) =>
-                            setAccountTypes((prev) => ({ ...prev, [bank.code]: v as AccountType }))
-                          }
-                          options={Object.entries(ACCOUNT_TYPE_LABEL).map(([value, label]) => ({
-                            value,
-                            label,
-                          }))}
-                        />
-                      </div>
-                    )}
-                    {HKD_HOST_BANKS.includes(bank.code) &&
-                      (accountTypes[bank.code] ?? "none") === "none" && (
-                        <Checkbox
-                          label={
-                            <>
-                              <span className="sr-only">{bank.code} </span>
-                              kèm dòng HKD
-                            </>
-                          }
-                          checked={withHkd.includes(bank.code)}
-                          onCheckedChange={() =>
-                            setWithHkd((prev) =>
-                              prev.includes(bank.code)
-                                ? prev.filter((b) => b !== bank.code)
-                                : [...prev, bank.code],
-                            )
-                          }
-                        />
+              <Fragment key={bank.id}>
+                <li
+                  className={clsx(
+                    styles.bank,
+                    picked && styles.bankOn,
+                    !picked && full && styles.bankOff,
+                  )}
+                >
+                  <Checkbox
+                    block
+                    label={bank.code}
+                    checked={picked}
+                    // Bỏ tick thì luôn được, kể cả khi đã đủ trần — nếu không thì
+                    // chọn nhầm ngân hàng thứ ba là phải tải lại trang.
+                    disabled={!picked && full}
+                    onCheckedChange={() => toggleOpened(bank.code)}
+                  />
+                  {picked && (
+                    <div className={styles.bankChild}>
+                      <Checkbox
+                        /* Trình đọc màn hình nghe mười ba lần "đã cài app" thì
+                           không biết ô nào của ngân hàng nào — mã đi kèm, chỉ ẩn
+                           khỏi mắt. */
+                        label={
+                          <>
+                            <span className="sr-only">{bank.code} </span>
+                            đã cài app
+                          </>
+                        }
+                        checked={apps.includes(bank.code)}
+                        onCheckedChange={() => toggleApp(bank.code)}
+                      />
+                      {/* CNKD kèm VPb mở bậc TH7 và cộng 1,0 — không có ô này
+                          thì màn thử không dựng được ca đó. */}
+                      {HOUSEHOLD_HOST_BANKS.includes(bank.code) && (
+                        <div className={styles.bankType}>
+                          <Select
+                            block
+                            label="Mở tài khoản CNKD"
+                            value={accountTypes[bank.code] ?? "none"}
+                            onChange={(v) =>
+                              setAccountTypes((prev) => ({ ...prev, [bank.code]: v as AccountType }))
+                            }
+                            options={ACCOUNT_TYPE_OPTIONS}
+                          />
+                        </div>
                       )}
-                  </div>
+                    </div>
+                  )}
+                </li>
+                {bank.code === HKD_ROW.bankCode && (
+                  <li
+                    className={clsx(styles.bank, hkd && styles.bankOn, hkdBlocked && styles.bankOff)}
+                  >
+                    <Checkbox
+                      block
+                      label={HKD_ROW.label}
+                      checked={hkd}
+                      disabled={hkdBlocked}
+                      onCheckedChange={() => setHkd((prev) => !prev)}
+                    />
+                  </li>
                 )}
-              </li>
+              </Fragment>
             );
           })}
         </ul>
