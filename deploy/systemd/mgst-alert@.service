@@ -1,0 +1,11 @@
+[Unit]
+Description=Báo động khi %i hỏng
+
+[Service]
+Type=oneshot
+# Bản dùng chung của `mgst-backup-alert@`: unit đó in chữ "SAO LƯU HỎNG" nên
+# không gắn được cho việc khác. Cùng cách ghi: mức `err` để `journalctl -p err`
+# lọc ra, kèm 20 dòng cuối của unit hỏng.
+ExecStart=/bin/sh -c '\
+  echo "UNIT HỎNG: %i" | systemd-cat -t mgst -p err; \
+  journalctl -u %i -n 20 --no-pager | systemd-cat -t mgst -p err'

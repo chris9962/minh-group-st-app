@@ -18,6 +18,7 @@ import { BankAccountEditDialog } from "@/components/banking/BankAccountEditDialo
 import { BankAccountHistory } from "@/components/banking/BankAccountHistory";
 import { PhotoCheckPanel } from "@/components/banking/PhotoCheckPanel";
 import { BankAccountFinishFields } from "@/components/banking/BankAccountFinishFields";
+import { DraftPurgeCountdown } from "@/components/banking/DraftPurgeCountdown";
 import { ReferralCodeCard } from "@/components/banking/ReferralCodeCard";
 import {
   BankAccountPhotos,
@@ -215,6 +216,7 @@ function FinishAccountCard({
 
   return (
     <SectionCard title="Hoàn tất tài khoản" icon={<Landmark size={17} />}>
+      <DraftPurgeCountdown />
       <dl className={styles.fields}>
         {/* Nhãn trạng thái cùng kiểu với mặt đã hoàn thành — chữ meta thường
             quá mờ cho một trạng thái cần thấy ngay. */}

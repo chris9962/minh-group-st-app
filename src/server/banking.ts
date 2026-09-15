@@ -6,6 +6,7 @@ import {
   eq,
   gte,
   inArray,
+  lt,
   lte,
   or,
   sql,
@@ -1920,6 +1921,67 @@ export async function deleteCreatingAccountByBankManager(
   );
 
   return { ok: true, value: current };
+}
+
+/**
+ * Xoá mọi bản nháp (`creating`) mở TRƯỚC mốc `before` — lượt dọn cuối ngày
+ * (chốt 2026-09-15), timer `mgst-purge-drafts` gọi lúc 00:00 giờ Việt Nam qua
+ * `scripts/purge-draft-accounts.ts`.
+ *
+ * Nhận mốc chứ không tự lấy "bây giờ": timer `Persistent` chạy bù sau khi máy
+ * chủ tắt qua nửa đêm, và lúc đó phải chừa bản nháp nhân viên vừa mở sáng ấy.
+ * Mốc là 00:00 của ngày làm việc hiện tại, nên đúng nửa đêm thì trọn kho nháp.
+ *
+ * Xoá thẳng, không đi qua `deleteCreatingAccountByBankManager`: không có người
+ * bấm nên không có phạm vi nào để kẹp. Trigger DB trả chỗ mã giới thiệu và hạ
+ * số tài khoản của khách; ảnh chết theo `on delete cascade`, file trên kho nằm
+ * lại như mọi lượt xoá khác. Bản nháp không nằm trong điểm KPI hay rổ quà.
+ *
+ * Mỗi chủ bản nháp nhận một dòng `bank-deleted`, cùng kênh với lượt người quản
+ * ngân hàng xoá tay. `dryRun` chỉ liệt kê, để soát trên máy chủ trước khi bật
+ * timer.
+ */
+export async function purgeDraftAccounts(
+  before: Date,
+  dryRun = false,
+): Promise<{ removed: DecoratedRow[] }> {
+  const drafts = await decorate(
+    pickPage(
+      and(eq(bankAccounts.status, "creating"), lt(bankAccounts.createdAt, before)),
+      [asc(bankAccounts.createdAt)],
+      10_000,
+      0,
+    ),
+  );
+  if (dryRun || drafts.length === 0) return { removed: drafts };
+
+  // Khoá trạng thái trong chính câu xoá, cùng lối với `deleteAccount`: giữa lúc
+  // đọc và lúc xoá, nhân viên có thể vừa bấm Hoàn thành một bản nháp.
+  const removed = await db
+    .delete(bankAccounts)
+    .where(
+      and(
+        inArray(
+          bankAccounts.id,
+          drafts.map((d) => d.id),
+        ),
+        eq(bankAccounts.status, "creating"),
+      ),
+    )
+    .returning({ id: bankAccounts.id });
+  const removedIds = new Set(removed.map((r) => r.id));
+  const gone = drafts.filter((d) => removedIds.has(d.id));
+
+  for (const row of gone) {
+    await baoChuTaiKhoan(
+      row,
+      "bank-deleted",
+      "Tài khoản đang tạo đã bị xoá",
+      "chưa hoàn thành trong ngày, hệ thống xoá lúc 00:00",
+    );
+  }
+
+  return { removed: gone };
 }
 
 /**

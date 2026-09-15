@@ -1,0 +1,11 @@
+[Unit]
+Description=Dọn bản nháp tài khoản ngân hàng MGST — 00:00 giờ Việt Nam
+
+[Timer]
+OnCalendar=*-*-* 00:00:00 Asia/Ho_Chi_Minh
+# Máy chủ tắt qua nửa đêm thì chạy bù khi bật lại. Script chỉ xoá bản nháp mở
+# trước 00:00 của ngày hiện tại nên chạy trễ không đụng bản nháp mới.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

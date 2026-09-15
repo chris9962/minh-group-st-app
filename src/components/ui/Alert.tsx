@@ -6,6 +6,12 @@ type Props = {
   tone?: "info" | "warning" | "error";
   children: React.ReactNode;
   className?: string;
+  /**
+   * `false` = không gắn `role="alert"` dù là cảnh báo. Dùng cho nội dung tự
+   * đổi theo giờ (đếm ngược): vùng `alert` đọc lại toàn bộ mỗi lần chữ đổi,
+   * người dùng trình đọc màn hình nghe cùng một câu mỗi phút.
+   */
+  live?: boolean;
 };
 
 /**
@@ -16,11 +22,11 @@ type Props = {
  */
 const MARK = { info: "", warning: "⚠️", error: "❌" } as const;
 
-export function Alert({ tone = "info", children, className }: Props) {
+export function Alert({ tone = "info", children, className, live = true }: Props) {
   return (
     <p
       className={clsx(styles.box, styles[tone], className)}
-      role={tone === "info" ? undefined : "alert"}
+      role={tone === "info" || !live ? undefined : "alert"}
     >
       {MARK[tone] && <span aria-hidden>{MARK[tone]} </span>}
       {children}

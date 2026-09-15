@@ -1,0 +1,13 @@
+[Unit]
+Description=Xoá tài khoản ngân hàng còn ở trạng thái đang tạo của ngày trước
+After=docker.service
+OnFailure=mgst-alert@%n.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/mgst-app
+# .env.local mang DATABASE_URL trỏ localhost:5433 — đúng khi chạy từ máy chủ,
+# không phải từ trong container.
+EnvironmentFile=/opt/mgst-app/.env.local
+ExecStart=/root/.bun/bin/bun scripts/purge-draft-accounts.ts
+TimeoutStartSec=300
