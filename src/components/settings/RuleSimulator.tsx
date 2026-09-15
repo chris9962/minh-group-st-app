@@ -2,8 +2,10 @@
 
 import { clsx } from "clsx";
 import { useQuery } from "@tanstack/react-query";
-import { FlaskConical } from "lucide-react";
+import { FlaskConical, Info } from "lucide-react";
 import { Fragment, useState } from "react";
+import { BankComboRulesDialog } from "@/components/banking/BankComboRulesDialog";
+import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { DateField } from "@/components/ui/DateField";
 import { SectionCard } from "@/components/ui/SectionCard";
@@ -87,6 +89,7 @@ export function RuleSimulator() {
   /** Một mã cho mỗi ngân hàng chủ — khách tick CNKD trên VPa hay VPb là hai ca khác nhau. */
   const [accountTypes, setAccountTypes] = useState<Record<string, AccountType>>({});
   const [hkd, setHkd] = useState(false);
+  const [rulesOpen, setRulesOpen] = useState(false);
 
   const { data: allBanks = [] } = useQuery({ queryKey: ["banks"], queryFn: fetchBanks });
   const activeBanks = allBanks.filter((b) => b.active);
@@ -195,6 +198,17 @@ export function RuleSimulator() {
           <span className={styles.count}>
             {opened.length}/{MAX_BANK_ACCOUNTS_PER_CUSTOMER}
           </span>
+          {/* Cùng hộp thoại luật với màn mở tài khoản, tra theo ngày đang thử. */}
+          <Button
+            variant="ghost"
+            icon
+            aria-label="Xem luật chọn ngân hàng"
+            tooltip="Luật chọn ngân hàng"
+            className={styles.legendInfo}
+            onClick={() => setRulesOpen(true)}
+          >
+            <Info size={16} aria-hidden />
+          </Button>
         </legend>
         {/*
           MỖI NGÂN HÀNG MỘT THẺ CHỌN ĐƯỢC, "đã cài app" là dòng CON bên trong.
@@ -440,6 +454,14 @@ export function RuleSimulator() {
             </section>
           )}
         </div>
+      )}
+      {rulesOpen && (
+        <BankComboRulesDialog
+          open
+          onClose={() => setRulesOpen(false)}
+          at={at || businessDay()}
+          banks={allBanks}
+        />
       )}
     </SectionCard>
   );
