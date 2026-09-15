@@ -4,6 +4,8 @@ import * as period202609 from "./2026-09";
 import * as period20260916 from "./2026-09-16";
 import type { Tier } from "./2026-08";
 
+export type { Tier };
+
 /**
  * Cửa vào DUY NHẤT của công thức tính điểm theo kỳ.
  *
@@ -176,6 +178,8 @@ type PeriodRules = {
    * và hai file đó đóng băng nên không thêm hàm rỗng vào.
    */
   openBlockReason?(existingBankCodes: string[], candidate: string): string | null;
+  /** Luật chọn tổ hợp viết cho nhân viên đọc, mỗi dòng một câu. Tuỳ chọn, lý do như trên. */
+  OPEN_NOTES?: string[];
 };
 
 /**
@@ -406,4 +410,9 @@ export const TIER_LABEL: Record<Tier, string> = {
 export function bankTierLabelFor(bankCode: string, at: string): string | null {
   const tier = bankTierFor(bankCode, at);
   return tier ? TIER_LABEL[tier] : null;
+}
+
+/** Luật chọn tổ hợp của kỳ, cho hộp thoại mở tài khoản đọc; rỗng khi kỳ không ghi. */
+export function openNotesAt(at: string): string[] {
+  return rulesFor(at)?.OPEN_NOTES ?? [];
 }

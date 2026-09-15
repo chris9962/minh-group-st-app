@@ -3,7 +3,8 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { Info } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Alert } from "@/components/ui/Alert";
 import { BackButton } from "@/components/ui/BackButton";
@@ -25,6 +26,7 @@ import {
   AccountType,
   type BankAccountPick,
 } from "@/lib/api/bankAccounts";
+import { BankComboRulesDialog } from "./BankComboRulesDialog";
 import styles from "./BankAccountFormDialog.module.scss";
 import { invalidateKpi } from "@/lib/invalidateKpi";
 import { errorMessage, toast } from "@/lib/toast";
@@ -73,6 +75,7 @@ export function BankAccountFormDialog({
   const pathname = usePathname();
 
   const { data: banks = [] } = useQuery({ queryKey: ["banks"], queryFn: fetchBanks });
+  const [rulesOpen, setRulesOpen] = useState(false);
 
   /**
    * Trần tài khoản của khách (chốt 2026-08-25): mỗi ngân hàng một tài khoản, và
@@ -322,6 +325,18 @@ export function BankAccountFormDialog({
           <div className={styles.pickHead}>
             <span id="bank-pick-label" className={styles.pickTitle}>
               Chọn ngân hàng
+              {/* Luật tổ hợp của kỳ nằm ngay cạnh danh sách: nhân viên thấy ô
+                  bị khoá thì mở ra đọc vì sao, không phải rời hộp thoại. */}
+              <Button
+                variant="ghost"
+                icon
+                aria-label="Xem luật chọn ngân hàng"
+                tooltip="Luật chọn ngân hàng"
+                className={styles.pickInfo}
+                onClick={() => setRulesOpen(true)}
+              >
+                <Info size={16} aria-hidden />
+              </Button>
             </span>
             <span className={styles.pickCount}>
               Đã chọn {mainPicks}/{remaining}
@@ -359,6 +374,14 @@ export function BankAccountFormDialog({
             </span>
           )}
         </form>
+      )}
+      {rulesOpen && (
+        <BankComboRulesDialog
+          open
+          onClose={() => setRulesOpen(false)}
+          at={businessDay()}
+          banks={banks}
+        />
       )}
     </Dialog>
   );

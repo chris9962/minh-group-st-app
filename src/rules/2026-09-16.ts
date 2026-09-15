@@ -106,6 +106,23 @@ const TIER_OF: Record<string, Tier> = {
  * - `candidate` trùng mã đang có thì không phải việc của hàm này: trùng ngân
  *   hàng do `slotConflict` xử, ở đây chỉ so với mã KHÁC.
  */
+/**
+ * Luật chọn tổ hợp, viết cho nhân viên đọc ở hộp thoại mở tài khoản. Mỗi dòng
+ * một câu, không giải thích. Đổi luật thì đổi câu ở đây, không viết cứng ở giao
+ * diện, để ngày thêm kỳ mới chỉ sửa một chỗ. Hạng từng ngân hàng và bảng điểm
+ * giao diện tự tra từ `bankTierOf` và `comboPointsFor`, không lặp ở đây.
+ */
+export const OPEN_NOTES: string[] = [
+  "Mỗi hồ sơ mở tối đa 3 ngân hàng. Dòng VPa HKD không tính vào 3.",
+  "Bank hạn chế chỉ triển khai trong Combo 3. Mỗi hồ sơ chỉ mở MỘT bank hạn chế.",
+  "Combo 3 có bank hạn chế: 2 ưu tiên + 1 hạn chế, 1 ưu tiên + 1 khác + 1 hạn chế, hoặc 2 khác + 1 hạn chế.",
+  "Ngoại lệ: VPb mở được cho khách CNKD, kể cả khi hồ sơ chỉ có VPb.",
+  "MSBa không vào Combo 1 và Combo 2, chỉ vào Combo 3.",
+  "VPa và MSBa phải cài app mới có quà. Điểm KPI không xét cài app.",
+  "Không mở cả VPa lẫn VPb cho cùng một khách. Hồ sơ đó 0 điểm.",
+  "CNKD kèm ngân hàng nào cũng cộng 1,0. HKD chỉ kèm VPa, cộng 3,0.",
+];
+
 export function openBlockReason(existingBankCodes: string[], candidate: string): string | null {
   if (TIER_OF[candidate] !== "restricted") return null;
   const other = existingBankCodes.find(
