@@ -1441,27 +1441,20 @@ export async function deleteCustomer(
     if (!locked) return null;
 
     /**
-     * Đếm trên MỌI LẦN của người này, không riêng hồ sơ đang xoá (chốt
-     * 2026-09-05).
+     * Đếm trên CHÍNH hồ sơ đang xoá, không đếm cả nhóm (chốt 2026-09-16).
      *
-     * Thông tin cá nhân đã đồng bộ và các lần nối với nhau qua
-     * `root_customer_id`, nên xoá một hồ sơ là đụng tới cả nhóm. Đếm riêng hồ sơ
-     * đang xoá thì câu báo nói "không vướng gì" trong khi lần khác của chính
-     * khách đó còn tài khoản ngân hàng.
+     * Bản trước (2026-09-05) gom mọi lần cùng `root_customer_id`, nên lập nhầm
+     * lần 2 cho khách đã có tài khoản ở lần 1 là không xoá được lần 2, dù bản
+     * ghi nghiệp vụ trỏ `customer_id` về lần 1 và lệnh xoá bên dưới không đụng
+     * tới chúng. Xoá hồ sơ gốc khi còn lần sau thì khối `laterRows` bên dưới
+     * chặn riêng.
      */
-    const nhomIds = (
-      await tx
-        .select({ id: customers.id })
-        .from(customers)
-        .where(eq(customers.rootCustomerId, owner.rootCustomerId))
-    ).map((r) => r.id);
-
     const links: CustomerLink[] = [];
     for (const { table, label } of BLOCKING_TABLES) {
       const [row] = await tx
         .select({ n: count() })
         .from(table)
-        .where(inArray(table.customerId, nhomIds));
+        .where(eq(table.customerId, id));
       if (row.n > 0) links.push({ label, count: row.n });
     }
 
