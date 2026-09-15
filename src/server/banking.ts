@@ -17,6 +17,7 @@ import {
   BankAccountStatus,
   canEditOpeningPhotos,
   MAX_BANK_ACCOUNTS_PER_CUSTOMER,
+  MAX_DRAFTS_PER_STAFF_PER_BANK,
 } from "@/lib/api/bankAccounts";
 import type {
   BankAccount,
@@ -1421,6 +1422,36 @@ export async function startBankAccount(
         ok: false as const,
         message: `Hồ sơ này đã có ${mainHere} tài khoản ngân hàng, chọn thêm ${mainPicks} là vượt trần ${MAX_BANK_ACCOUNTS_PER_CUSTOMER}.`,
       };
+
+    /**
+     * Trần bản nháp theo NGƯỜI MỞ (BGĐ chốt 2026-09-16): mỗi nhân viên giữ tối
+     * đa `MAX_DRAFTS_PER_STAFF_PER_BANK` dòng `creating` ở mỗi ngân hàng, mọi
+     * vai, dòng HKD tính chung. Đêm 2026-09-16 ba người mở 30 bản nháp VPb trong
+     * 25 phút, mỗi dòng chiếm một mã của phòng.
+     *
+     * Khoá dòng NGƯỜI MỞ trước khi đếm: hai request của cùng một người cho hai
+     * khách khác nhau không chung khoá khách, không khoá là cả hai đếm 1 rồi
+     * cùng chèn thành 3. Khoá sau khách, trước mã, chưa đường ghi nào khác khoá
+     * `users` nên không thêm vòng khoá chéo.
+     */
+    await tx.select({ id: users.id }).from(users).where(eq(users.id, actor.id)).for("update");
+    const heldByActor = await tx
+      .select({ bankId: bankAccounts.bankId, held: count() })
+      .from(bankAccounts)
+      .where(and(eq(bankAccounts.createdBy, actor.id), eq(bankAccounts.status, "creating")))
+      .groupBy(bankAccounts.bankId);
+    const heldByBank = new Map(heldByActor.map((r) => [r.bankId, r.held]));
+    for (const pick of form.picks) {
+      const held = (heldByBank.get(pick.bankId) ?? 0) + 1;
+      heldByBank.set(pick.bankId, held);
+      if (held > MAX_DRAFTS_PER_STAFF_PER_BANK) {
+        const code = bankById.get(pick.bankId)!.code;
+        return {
+          ok: false as const,
+          message: `Bạn đang giữ ${MAX_DRAFTS_PER_STAFF_PER_BANK} mã ${code} chưa hoàn tất. Hoàn tất hoặc xoá bớt rồi mở tiếp.`,
+        };
+      }
+    }
 
     const ids: string[] = [];
     /**

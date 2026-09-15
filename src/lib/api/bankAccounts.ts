@@ -119,6 +119,13 @@ export type BankAccount = z.infer<typeof BankAccount>;
 export const MAX_BANK_ACCOUNTS_PER_CUSTOMER = 3;
 
 /**
+ * Trần số bản nháp MỘT nhân viên được giữ cùng lúc ở MỘT ngân hàng (BGĐ chốt
+ * 2026-09-16). Đêm 2026-09-16 ba người mở 30 bản nháp VPb CNKD trong 25 phút,
+ * mỗi bản nháp chiếm một mã giới thiệu của phòng.
+ */
+export const MAX_DRAFTS_PER_STAFF_PER_BANK = 2;
+
+/**
  * MỘT ngân hàng khách chọn mở, kèm mã giữ chỗ cho nó.
  *
  * `guid` chứ KHÔNG phải `uuid`: `z.uuid()` bắt đúng chuẩn RFC 9562, tức soi hai
