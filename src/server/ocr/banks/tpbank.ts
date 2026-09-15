@@ -616,6 +616,7 @@ async function ocrTpbOther(image: Buffer, ctx: TpbCheckContext): Promise<string>
   // thử, trả về ngay để `checkTpbankImages` đọc cấu hình màn hình chính,
   // khỏi tốn bốn lượt của nhánh chuyển khoản.
   if (looksLikeTpbHome(first)) return first;
+  if (looksLikePaperForm(first)) return first;
 
   const red = await ocrImage(image, TPB_TRANSFER_PROFILE);
   if (transferComplete(red)) return red;
@@ -623,6 +624,22 @@ async function ocrTpbOther(image: Buffer, ctx: TpbCheckContext): Promise<string>
   if (transferComplete(`${red}\n${sharp}`)) return `${red}\n${sharp}`;
   const rest = await ocrImage(image, { ...DEFAULT_PROFILE, passes: ["plain", "negated"] });
   return `${rest}\n${red}\n${sharp}`;
+}
+
+/**
+ * Tờ giấy ghi tay nhân viên hay chụp kèm: mẫu in sẵn "Chủ tài khoản", "Tên
+ * đăng nhập", "Số tài khoản", "Mật khẩu", "Mã PIN" cho nhiều ngân hàng, có tờ
+ * in cả bảng địa chỉ chi nhánh. Không màn TPBank nào có "Chủ tài khoản" hay
+ * "Mật khẩu" (0/317 ảnh màn app khớp nhầm, đo 2026-09-15), còn "Tên đăng
+ * nhập", "Số tài khoản", "TPBank" thì có nên không dùng. "Mã PIN" ngắn, khớp
+ * nhầm 1/94 màn nhập mã nên bỏ. Nhận ra rồi thì dừng sau lượt đầu: tờ giấy
+ * chữ nhỏ dày đặc đi hết chuỗi năm lượt mất 30 giây (tài khoản 32acce88).
+ */
+const PAPER_LABELS = ["CHUTAIKHOAN", "MATKHAU"];
+
+function looksLikePaperForm(text: string): boolean {
+  const lines = splitLines(text);
+  return PAPER_LABELS.some((label) => lines.some((line) => hasLabel(line, label)));
 }
 
 /** Chữ này đã nhận ra là một trong ba màn còn lại chưa. */
