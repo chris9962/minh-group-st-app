@@ -87,10 +87,15 @@ type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 /**
  * Ghi một dòng chờ kiểm cho tài khoản, trong transaction của nơi gọi.
  *
- * Bỏ qua khi ngân hàng chưa có bộ nhãn, hoặc đã có dòng `pending` chưa chạy:
- * worker đọc ảnh lúc nó chạy nên một dòng chờ là đủ cho mọi lượt đổi ảnh dồn
- * trước đó. `pg_notify` trong transaction thì Postgres chỉ phát khi commit, nên
- * worker không bao giờ dậy trước lúc dòng có thật.
+ * Mỗi tài khoản chỉ một dòng chờ: yêu cầu mới HUỶ dòng chờ cũ và xếp lại ở
+ * cuối hàng (chốt 2026-09-15). Bản trước giữ dòng cũ và bỏ qua yêu cầu mới;
+ * worker đang đọc dòng cũ đúng lúc nhân viên đổi ảnh thì bộ ảnh mới không
+ * bao giờ được kiểm. Huỷ là xoá dòng: worker đang đọc dòng đó ghi kết quả
+ * vào 0 dòng và bỏ qua, xem `finishPhotoCheck`.
+ *
+ * Bỏ qua khi ngân hàng chưa bật kiểm ảnh. `pg_notify` trong transaction thì
+ * Postgres chỉ phát khi commit, nên worker không bao giờ dậy trước lúc dòng
+ * có thật.
  */
 export async function enqueuePhotoCheck(tx: Tx, accountId: string): Promise<void> {
   const [row] = await tx
@@ -101,13 +106,9 @@ export async function enqueuePhotoCheck(tx: Tx, accountId: string): Promise<void
     .limit(1);
   if (!row || !hasPhotoChecker(row.bankCode) || row.status === "creating") return;
 
-  const [waiting] = await tx
-    .select({ id: bankAccountChecks.id })
-    .from(bankAccountChecks)
-    .where(and(eq(bankAccountChecks.accountId, accountId), eq(bankAccountChecks.status, "pending")))
-    .limit(1);
-  if (waiting) return;
-
+  await tx
+    .delete(bankAccountChecks)
+    .where(and(eq(bankAccountChecks.accountId, accountId), eq(bankAccountChecks.status, "pending")));
   await tx.insert(bankAccountChecks).values({ accountId });
   await tx.execute(sql`select pg_notify(${PHOTO_CHECK_CHANNEL}, '')`);
 }
@@ -367,7 +368,7 @@ export async function runPhotoCheck(run: PhotoCheckRun): Promise<PhotoCheckItem[
 
 export async function finishPhotoCheck(run: PhotoCheckRun, items: PhotoCheckItem[]): Promise<void> {
   const failing = items.filter((i) => i.verdict !== "pass");
-  await db
+  const written = await db
     .update(bankAccountChecks)
     .set({
       status: "done",
@@ -377,7 +378,11 @@ export async function finishPhotoCheck(run: PhotoCheckRun, items: PhotoCheckItem
       error: "",
       checkedAt: new Date(),
     })
-    .where(eq(bankAccountChecks.id, run.checkId));
+    .where(eq(bankAccountChecks.id, run.checkId))
+    .returning({ id: bankAccountChecks.id });
+  // Dòng chờ bị `enqueuePhotoCheck` huỷ trong lúc đọc: kết quả này là của bộ
+  // ảnh cũ, dòng chờ mới sẽ kiểm lại, không ghi dòng thời gian hay báo ai.
+  if (written.length === 0) return;
 
   // Dòng thời gian ghi cả lượt đạt hết, để đọc lịch sử biết máy đã kiểm lúc nào.
   await timelineEvent(
