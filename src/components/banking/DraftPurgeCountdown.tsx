@@ -13,10 +13,11 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const nextMidnight = (now: number): number =>
   new Date(`${businessDay(new Date(now))}T00:00:00+07:00`).getTime() + DAY_MS;
 
-/** `3:13` — làm tròn LÊN phút, để chưa tới mốc thì không hiện `0:00`. */
+/** `3h13p`, dưới một giờ `25p` — làm tròn LÊN phút, để chưa tới mốc thì không hiện `0p`. */
 const formatLeft = (ms: number): string => {
   const minutes = Math.max(0, Math.ceil(ms / 60_000));
-  return `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, "0")}`;
+  const hours = Math.floor(minutes / 60);
+  return hours > 0 ? `${hours}h${String(minutes % 60).padStart(2, "0")}p` : `${minutes}p`;
 };
 
 /**
