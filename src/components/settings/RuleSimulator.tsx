@@ -14,7 +14,7 @@ import { MAX_BANK_ACCOUNTS_PER_CUSTOMER, type AccountType } from "@/lib/api/bank
 import { fetchChannels } from "@/lib/api/channelCatalog";
 import { simulateGift, type GiftSimulateInput } from "@/lib/api/settings";
 import { businessDay, formatVnd } from "@/lib/format";
-import { openBlockReasonAt } from "@/rules";
+import { bankTierLabelFor, openBlockReasonAt } from "@/rules";
 import styles from "./RuleSimulator.module.scss";
 
 /**
@@ -216,9 +216,15 @@ export function RuleSimulator() {
              * `src/rules`): màn thử chỉ dựng được khách hệ thống dựng được.
              * Tra theo ngày đang thử, nên đổi ngày về 15/9 là hết khoá.
              */
-            const blocked = picked
-              ? null
-              : openBlockReasonAt(opened, bank.code, at || businessDay());
+            const ruleAt = at || businessDay();
+            const blocked = picked ? null : openBlockReasonAt(opened, bank.code, ruleAt);
+            const tierLabel = bankTierLabelFor(bank.code, ruleAt);
+            const labelText = (
+              <>
+                {bank.code}
+                {tierLabel && <span className={styles.bankTier}>{tierLabel}</span>}
+              </>
+            );
             return (
               <Fragment key={bank.id}>
                 <li
@@ -233,11 +239,11 @@ export function RuleSimulator() {
                     label={
                       blocked ? (
                         <span className={styles.bankLabelBox}>
-                          {bank.code}
+                          <span>{labelText}</span>
                           <span className={styles.bankReason}>{blocked}</span>
                         </span>
                       ) : (
-                        bank.code
+                        labelText
                       )
                     }
                     checked={picked}

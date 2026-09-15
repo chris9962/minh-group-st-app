@@ -15,7 +15,7 @@ import { Select } from "@/components/ui/Select";
 import { SkeletonText } from "@/components/ui/Skeleton";
 import { fetchBanks, fetchOpenReferralCodes, type Bank } from "@/lib/api/bankCatalog";
 import { ageRangeLabel, businessDay } from "@/lib/format";
-import { openBlockReasonAt } from "@/rules";
+import { bankTierLabelFor, openBlockReasonAt } from "@/rules";
 import {
   ACCOUNT_TYPE_LABEL,
   BankAccountStartForm,
@@ -402,6 +402,9 @@ function BankPickRow({
 }: RowProps) {
   const checked = pick !== undefined;
   const rowLabel = hkd ? `${bank.code} HKD` : bank.code;
+  // Dòng HKD không phải ngân hàng nên không mang hạng. Ngày tra là ngày giữ
+  // chỗ, cùng ngày `openBlockReasonAt` dùng.
+  const tierLabel = hkd ? null : bankTierLabelFor(bank.code, businessDay());
 
   /**
    * Máy chủ đã lọc "còn chỗ" và lọc theo phạm vi phòng — không lọc lại ở đây
@@ -483,7 +486,10 @@ function BankPickRow({
          */
         label={
           <span className={styles.pickLabelBox}>
-            <strong className={styles.pickLabel}>{rowLabel}</strong>
+            <strong className={styles.pickLabel}>
+              {rowLabel}
+              {tierLabel && <span className={styles.pickTier}>{tierLabel}</span>}
+            </strong>
             {reason && <span className={styles.pickReason}>{reason}</span>}
           </span>
         }

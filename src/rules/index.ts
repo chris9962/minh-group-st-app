@@ -391,3 +391,19 @@ export function openBlockReasonAt(
 ): string | null {
   return rulesFor(at)?.openBlockReason?.(existingBankCodes, candidate) ?? null;
 }
+
+/**
+ * Nhãn hạng để hiện cạnh mã ngân hàng ở hộp thoại mở tài khoản và màn thử —
+ * nhân viên chọn ngân hàng phải thấy hạng ngay, vì luật chặn và điểm đều đi
+ * theo hạng. Mã ngoài thể lệ kỳ đó không có nhãn.
+ */
+export const TIER_LABEL: Record<Tier, string> = {
+  priority: "bank ưu tiên",
+  other: "bank khác",
+  restricted: "bank hạn chế",
+};
+
+export function bankTierLabelFor(bankCode: string, at: string): string | null {
+  const tier = bankTierFor(bankCode, at);
+  return tier ? TIER_LABEL[tier] : null;
+}

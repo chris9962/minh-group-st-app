@@ -118,3 +118,12 @@
     padding-left: 0;
   }
 }
+
+/* Hạng ngân hàng đứng ngay sau mã, chữ nhỏ và nhạt: nhân viên đọc mã trước,
+   hạng chỉ để đối chiếu với thể lệ. */
+.pickTier {
+  margin-left: 6px;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--om-text-3);
+}
