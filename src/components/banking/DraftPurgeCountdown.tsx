@@ -15,7 +15,7 @@ const nextMidnight = (now: number): number =>
 
 const formatLeft = (ms: number): string => {
   const minutes = Math.floor(ms / 60_000);
-  if (minutes < 1) return "dưới 1 phút";
+  if (minutes < 1) return "chưa tới 1 phút";
   const hours = Math.floor(minutes / 60);
   if (hours === 0) return `${minutes} phút`;
   return `${hours} giờ ${String(minutes % 60).padStart(2, "0")} phút`;
@@ -42,7 +42,7 @@ export function DraftPurgeCountdown() {
 
   return (
     <Alert tone="warning" live={false}>
-      Tài khoản đang tạo tự xoá lúc 00:00, còn {formatLeft(left)}.
+      Hệ thống sẽ xoá tài khoản này sau {formatLeft(left)} nếu chưa hoàn tất.
     </Alert>
   );
 }
