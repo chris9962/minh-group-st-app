@@ -80,7 +80,7 @@ async function main() {
 
   if (announce) {
     const n = await notifyEveryone({
-      title: "Luật mới: tối đa 2 mã đang tạo mỗi ngân hàng",
+      title: "Thông báo: tối đa 2 mã đang tạo mỗi ngân hàng",
       body:
         `Từ 2026-09-16, mỗi nhân viên chỉ giữ tối đa ${MAX_DRAFTS_PER_STAFF_PER_BANK} tài khoản Đang tạo ở mỗi ngân hàng. ` +
         "Muốn mở thêm thì hoàn thành hoặc xoá bớt bản đang tạo. Bản đang tạo chưa hoàn thành trong ngày bị xoá lúc 00:00.",
