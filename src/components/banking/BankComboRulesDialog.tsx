@@ -4,7 +4,15 @@ import { createPortal } from "react-dom";
 import { Dialog } from "@/components/ui/Dialog";
 import type { Bank } from "@/lib/api/bankCatalog";
 import { formatDate } from "@/lib/format";
-import { bankTierFor, comboPointsAt, openNotesAt, TIER_LABEL, type Tier } from "@/rules";
+import {
+  bankTierFor,
+  comboPointsAt,
+  householdPointsAt,
+  openNotesAt,
+  TIER_LABEL,
+  type ScoringAccount,
+  type Tier,
+} from "@/rules";
 import styles from "./BankComboRulesDialog.module.scss";
 
 type Props = {
@@ -72,6 +80,23 @@ export function BankComboRulesDialog({ open, onClose, at, banks }: Props) {
   const notes = openNotesAt(at);
 
   /**
+   * Điểm CNKD và HKD tra bằng một khách giả có đúng ngân hàng chủ: HKD chỉ kèm
+   * VPa, CNKD kèm bất kỳ ngân hàng nào nên tra bằng VPa là đủ. Dòng ra 0 bỏ.
+   */
+  const household = (label: string, kind: "CNKD" | "HKD") => {
+    const acc: ScoringAccount = {
+      customerId: "rules",
+      bankCode: "VPa",
+      appInstalled: true,
+      openedDate: at,
+      household: kind,
+    };
+    return { label, points: householdPointsAt([acc], at) };
+  };
+  const extras = [household("CNKD, cộng thêm mỗi khách", "CNKD"), household("VPa HKD, cộng thêm mỗi khách", "HKD")]
+    .filter((r) => r.points > 0);
+
+  /**
    * Dựng ra `document.body`, không lồng trong hộp thoại đang gọi.
    *
    * Hộp thoại mở tài khoản mở hộp này từ bên trong vùng cuộn của nó. Vùng đó
@@ -107,6 +132,12 @@ export function BankComboRulesDialog({ open, onClose, at, banks }: Props) {
             <tr key={r.label}>
               <td>{r.label}</td>
               <td className="tabular-nums">{r.points.toFixed(1).replace(".", ",")}</td>
+            </tr>
+          ))}
+          {extras.map((r) => (
+            <tr key={r.label}>
+              <td>{r.label}</td>
+              <td className="tabular-nums">+{r.points.toFixed(1).replace(".", ",")}</td>
             </tr>
           ))}
         </tbody>
