@@ -311,7 +311,7 @@ export function RuleSimulator() {
       {/* Bỏ tick hết ngân hàng thì xoá luôn kết quả. `placeholderData` giữ số
           của lần chọn trước, nên không có dòng này là màn hiện kết quả của một
           tình huống người dùng vừa xoá. */}
-      {opened.length > 0 && run.data && (
+      {(opened.length > 0 || hkd) && run.data && (
         <div className={styles.result}>
           {/* Ba con số kết luận đứng thành hàng riêng: người dùng mở màn này để
               biết khách rơi vào bậc nào, được bao nhiêu tiền và bao nhiêu điểm.
