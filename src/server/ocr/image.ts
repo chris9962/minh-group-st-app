@@ -66,20 +66,68 @@ const isPhoto = (width: number, height: number): boolean => Math.min(width, heig
 /**
  * Điện thoại nằm ngang trong ảnh chụp thì Tesseract không đọc được; hỏi
  * hướng bằng `--psm 0` (0,3 giây, không phải một lượt OCR) rồi xoay theo.
+ * Hỏi trên bản phóng 2600, không hỏi trên ảnh gốc: ảnh 1200x900 hỏi trên
+ * gốc trả 90° sai, trên bản 2600 trả 270° đúng (tài khoản 32acce88,
+ * 2026-09-15); ảnh 1400px thì bản gốc báo "Too few characters".
+ *
+ * `--psm 0` không trả lời được thì không xoay là chắc chắn sai: app chỉ có
+ * bố cục dọc, điện thoại nằm ngang trong ảnh là 90° hoặc 270°. Khi đó đọc
+ * thử hai hướng ở cỡ 1200 bằng `eng` `--psm 11` (0,3 giây một lượt) và lấy
+ * hướng ra nhiều chữ số và chữ cái hơn.
  */
 async function rotationOf(image: Sharp, dir: string): Promise<number> {
   const png = path.join(dir, "osd.png");
   await image.clone().png().toFile(png);
   try {
     const { stdout } = await run("tesseract", [png, "-", "--psm", "0"]);
-    return Number(stdout.match(/Rotate: (\d+)/)?.[1] ?? 0);
+    const angle = Number(stdout.match(/Rotate: (\d+)/)?.[1] ?? 0);
+    if (angle) return angle;
   } catch {
-    return 0;
+    // Rơi xuống đọc thử hai hướng.
   }
+  const score = async (angle: number): Promise<number> => {
+    const probe = path.join(dir, `rot${angle}.png`);
+    await image.clone().rotate(angle).resize({ width: 1200, fit: "inside" }).png().toFile(probe);
+    const { stdout } = await run("tesseract", [probe, "-", "-l", "eng", "--psm", "11"]).catch(() => ({ stdout: "" }));
+    return stdout.replace(/[^A-Za-z0-9]/g, "").length;
+  };
+  return (await score(270)) >= (await score(90)) ? 270 : 90;
 }
 
+/** Góc phải xoay: 0 cho ảnh dọc, còn ảnh ngang dò trên bản phóng 2600. */
+async function landscapeRotation(image: Sharp, dir: string): Promise<number> {
+  const { width = 0, height = 0 } = await image.metadata();
+  if (width <= height) return 0;
+  return rotationOf(image.clone().resize({ width: PHOTO_EDGE, fit: "inside" }), dir);
+}
+
+/**
+ * Góc xoay nhớ theo từng ảnh: một tài khoản đọc cùng ảnh bằng nhiều profile
+ * nối tiếp, dò lại ở mỗi lượt thì ảnh ngang dò thất bại tốn 3 lượt Tesseract
+ * mỗi lần (tài khoản 32acce88: 39 giây, đo 2026-09-15). `WeakMap` theo Buffer
+ * nên không giữ ảnh sau khi lượt kiểm xong.
+ */
+const ROTATION = new WeakMap<Buffer, Promise<number>>();
+
+const rotationFor = (image: Buffer, dir: string) => (): Promise<number> => {
+  let angle = ROTATION.get(image);
+  if (!angle) {
+    angle = landscapeRotation(sharp(image), dir);
+    ROTATION.set(image, angle);
+  }
+  return angle;
+};
+
+/** Ảnh ngang thì xoay theo hướng đã dò; ảnh dọc giữ nguyên. */
+async function upright(image: Sharp, rotation: () => Promise<number>): Promise<Sharp> {
+  const angle = await rotation();
+  return angle ? image.rotate(angle) : image;
+}
+
+type Variant = (image: Sharp, dir: string, rotation: () => Promise<number>) => Sharp | Promise<Sharp>;
+
 /** Các lượt tiền xử lý; tên chỉ dùng khi đo, không vào kết quả. */
-const VARIANTS: Record<string, (image: Sharp, dir: string) => Sharp | Promise<Sharp>> = {
+const VARIANTS: Record<string, Variant> = {
   plain: (image) => image.resize({ width: MAX_EDGE, height: MAX_EDGE, fit: "inside", withoutEnlargement: true }),
   negated: (image) =>
     image.resize({ width: MAX_EDGE, height: MAX_EDGE, fit: "inside", withoutEnlargement: true }).grayscale().negate(),
@@ -92,36 +140,37 @@ const VARIANTS: Record<string, (image: Sharp, dir: string) => Sharp | Promise<Sh
    * nền tím có xanh lá thấp thành sáng, chữ trắng thành đen, tương phản cao
    * hơn chuyển xám rồi đảo (đo 2026-09-14 trên 63 ảnh: STK 61/63, tên 62/63).
    */
-  tpbHome: async (image, dir) => {
+  tpbHome: async (image, _dir, rotation) => {
     const { width = 0, height = 0 } = await image.metadata();
-    if (width > height) image = image.rotate(await rotationOf(image, dir));
     const fit = isPhoto(width, height)
       ? { width: PHOTO_EDGE, fit: "inside" as const }
       : { width: MAX_EDGE, height: MAX_EDGE, fit: "inside" as const, withoutEnlargement: true };
-    return image.resize(fit).extractChannel("green").negate();
+    return (await upright(image, rotation)).resize(fit).extractChannel("green").negate();
   },
-  tpbLight: (image, dir) => tpbLightBase(image, dir, true),
-  tpbLightSharp: async (image, dir) =>
-    (await tpbLightBase(image, dir, true)).grayscale().normalise().sharpen({ sigma: 4, m1: 1, m2: 3 }),
-  tpbLightUnscaled: (image, dir) => tpbLightBase(image, dir, false),
+  /** Màn chuyển khoản: kênh đỏ như `red`, thêm xoay ảnh ngang. */
+  tpbTransfer: async (image, _dir, rotation) =>
+    (await upright(image, rotation))
+      .resize({ width: MAX_EDGE, height: MAX_EDGE, fit: "inside", withoutEnlargement: true })
+      .extractChannel("red"),
+  tpbLight: (image, _dir, rotation) => tpbLightBase(image, rotation, true),
+  tpbLightSharp: async (image, _dir, rotation) =>
+    (await tpbLightBase(image, rotation, true)).grayscale().normalise().sharpen({ sigma: 4, m1: 1, m2: 3 }),
+  tpbLightUnscaled: (image, _dir, rotation) => tpbLightBase(image, rotation, false),
 };
 
 /**
  * Hai màn chữ tối nền sáng của TPBank, "Nhập thông tin để bắt đầu" và "Mở tài
- * khoản thành công": giữ màu gốc. Ảnh chụp lại phóng 2600px như `tpbHome`,
- * nhưng hỏi hướng SAU khi phóng: ảnh nằm ngang 1400px thì `--psm 0` báo "Too
- * few characters" và không xoay, phóng lên 2600px rồi hỏi thì ra đúng 270°
- * (đo 2026-09-14). Bản không phóng (`enlarge` false) vẫn hỏi hướng trên bản
- * 2600 vì lý do đó.
+ * khoản thành công": giữ màu gốc, ảnh chụp lại phóng 2600px như `tpbHome`,
+ * ảnh ngang xoay theo `upright`.
  */
-async function tpbLightBase(image: Sharp, dir: string, enlarge: boolean): Promise<Sharp> {
+async function tpbLightBase(image: Sharp, rotation: () => Promise<number>, enlarge: boolean): Promise<Sharp> {
   const { width = 0, height = 0 } = await image.metadata();
   const photo = isPhoto(width, height);
-  const enlarged = { width: PHOTO_EDGE, fit: "inside" as const };
-  const capped = { width: MAX_EDGE, height: MAX_EDGE, fit: "inside" as const, withoutEnlargement: true };
-  const probe = width > height && photo && !enlarge ? image.clone().resize(enlarged) : null;
-  const resized = image.resize(enlarge && photo ? enlarged : capped);
-  return width > height ? resized.rotate(await rotationOf(probe ?? resized, dir)) : resized;
+  const fit =
+    enlarge && photo
+      ? { width: PHOTO_EDGE, fit: "inside" as const }
+      : { width: MAX_EDGE, height: MAX_EDGE, fit: "inside" as const, withoutEnlargement: true };
+  return (await upright(image, rotation)).resize(fit);
 }
 
 const DEFAULT_PASSES = ["plain", "negated", "red", "sharp"];
@@ -187,7 +236,7 @@ export const TPB_LIGHT_UNSCALED_PROFILE: OcrProfile = {
  * chụp lên 2600px làm số tiền tụt 54 → 50 nên giữ 1600px. Đủ bốn trường
  * 50/55 một lượt; đọc thêm lượt `sharp` khi thiếu thì 55/55.
  */
-export const TPB_TRANSFER_PROFILE: OcrProfile = { passes: ["red"], lang: "vie", psm: "6" };
+export const TPB_TRANSFER_PROFILE: OcrProfile = { passes: ["tpbTransfer"], lang: "vie", psm: "6" };
 
 /** Đổi bộ lượt đọc của profile mặc định khi ĐO; để trống thì giữ nguyên. */
 const passesOf = (profile: OcrProfile): string[] =>
@@ -201,7 +250,10 @@ export async function ocrImage(image: Buffer, profile: OcrProfile = DEFAULT_PROF
     // Tesseract không đọc WebP, mà kho ảnh lưu WebP. Đổi sang PNG không mất chất lượng.
     const names = passesOf(profile);
     const files = names.map((name) => path.join(dir, `${name}.png`));
-    await Promise.all(names.map(async (name, at) => (await VARIANTS[name](sharp(image), dir)).png().toFile(files[at])));
+    const rotation = rotationFor(image, dir);
+    await Promise.all(
+      names.map(async (name, at) => (await VARIANTS[name](sharp(image), dir, rotation)).png().toFile(files[at])),
+    );
     const texts = await Promise.all(files.map((file) => tesseract(file, profile)));
     return texts.join("\n").trim();
   } finally {
