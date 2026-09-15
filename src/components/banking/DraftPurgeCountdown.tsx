@@ -42,7 +42,7 @@ export function DraftPurgeCountdown() {
 
   return (
     <Alert tone="warning" live={false}>
-      Hệ thống sẽ xoá tài khoản này sau {formatLeft(left)} nếu chưa hoàn tất.
+      Tự xoá sau {formatLeft(left)} nếu chưa hoàn tất.
     </Alert>
   );
 }
