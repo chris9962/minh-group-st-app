@@ -34,16 +34,17 @@ const DEPARTMENTS: { value: string; label: string }[] = [
 ];
 
 /**
- * Hai ngân hàng chủ của CNKD — nhãn giữ đúng chữ của màn P-20.
+ * Ô chọn CNKD hiện trên MỌI ngân hàng — nhãn giữ đúng chữ của màn P-20.
  *
- * Kỳ 2026-08 chỉ có `VPa`. Kỳ 2026-09 thêm `VPb` cho CNKD, theo lưu ý 3.
+ * Kho mã giới thiệu gắn CNKD vào bất kỳ ngân hàng nào, và kỳ 2026-09-16 tính
+ * CNKD kèm mọi ngân hàng trong thể lệ (chủ dự án chốt 2026-09-15). Bản trước
+ * chỉ hiện trên `VPa`, `VPb` nên không thử được MSBb kèm CNKD.
  *
  * Ô chọn KHÔNG có `HKD`: dòng HKD là tài khoản VPa THỨ HAI, đứng cạnh dòng
  * chính (chốt 2026-09-06), nên nó là một thẻ riêng trong danh sách, xem
  * `HKD_ROW`. Bản trước để HKD trong ô chọn này, và người thử không dựng được
  * ca "VPa thường kèm dòng HKD".
  */
-const HOUSEHOLD_HOST_BANKS = ["VPa", "VPb"];
 const ACCOUNT_TYPE_OPTIONS: { value: AccountType; label: string }[] = [
   { value: "none", label: "Không" },
   { value: "CNKD", label: "CNKD" },
@@ -238,21 +239,17 @@ export function RuleSimulator() {
                         checked={apps.includes(bank.code)}
                         onCheckedChange={() => toggleApp(bank.code)}
                       />
-                      {/* CNKD kèm VPb mở bậc TH7 và cộng 1,0 — không có ô này
-                          thì màn thử không dựng được ca đó. */}
-                      {HOUSEHOLD_HOST_BANKS.includes(bank.code) && (
-                        <div className={styles.bankType}>
-                          <Select
-                            block
-                            label="Mở tài khoản CNKD"
-                            value={accountTypes[bank.code] ?? "none"}
-                            onChange={(v) =>
-                              setAccountTypes((prev) => ({ ...prev, [bank.code]: v as AccountType }))
-                            }
-                            options={ACCOUNT_TYPE_OPTIONS}
-                          />
-                        </div>
-                      )}
+                      <div className={styles.bankType}>
+                        <Select
+                          block
+                          label="Mở tài khoản CNKD"
+                          value={accountTypes[bank.code] ?? "none"}
+                          onChange={(v) =>
+                            setAccountTypes((prev) => ({ ...prev, [bank.code]: v as AccountType }))
+                          }
+                          options={ACCOUNT_TYPE_OPTIONS}
+                        />
+                      </div>
                     </div>
                   )}
                 </li>

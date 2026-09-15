@@ -19,12 +19,14 @@ import type {
  * riêng và đóng băng vĩnh viễn (spec §5.3). Dùng chung hàm nghĩa là ngày sửa kỳ
  * này sẽ đổi luôn điểm của kỳ đã trả lương xong.
  *
- * Ba chỗ khác kỳ 2026-09-01, xem mục 5 của thể lệ:
+ * Bốn chỗ khác kỳ 2026-09-01, xem mục 5 của thể lệ:
  *
  *   a. `LPB` từ Bank khác sang Bank hạn chế, không vào Combo 1 và Combo 2
  *   b. `MBV` mới, Bank hạn chế (migration 0093 thêm vào danh mục)
  *   c. Dòng Combo 1 hạng hạn chế ghi 0,1: `VPb` kèm CNKD ra 1,1 thay vì 1,0
  *      (giả định G9); hạn chế đứng một mình vẫn không có tổ hợp (G10)
+ *   d. CNKD kèm BẤT KỲ ngân hàng nào trong thể lệ đều cộng 1,0 (chủ dự án
+ *      chốt 2026-09-15); kỳ trước chỉ `VPa`, `VPb`
  *
  * Mười hai chỗ khác kỳ 2026-08 giữ nguyên từ `2026-09.ts`:
  *
@@ -109,6 +111,9 @@ const OUT_OF_COMBO_2 = new Set(["MSBa", "VPb"]);
  * 3 bình thường — bảng mục 2 có ba dòng chứa hạng ưu tiên đi cùng `MSBa`.
  */
 const OUT_OF_COMBO_1 = new Set(["MSBa"]);
+
+/** Ngân hàng hạn chế DUY NHẤT được vào Combo 1 khi khách có CNKD (lưu ý 1, ngoại lệ). */
+const CNKD_COMBO_1_BANK = "VPb";
 
 /** Ký hiệu tra bảng điểm; `rank` để chữ ký không đổi theo thứ tự tài khoản nhập vào. */
 const SIGNATURE_OF: Record<Tier, { letter: string; rank: number }> = {
@@ -199,22 +204,17 @@ function bestComboOf(bankCodes: string[], hasCnkd: boolean): Combo {
 
   /**
    * Dòng "Bank hạn chế = 0,1" của Combo 1: ca duy nhất hạng hạn chế thành tổ
-   * hợp là `VPb` kèm CNKD (lưu ý 1), ra 0,1 điểm tổ hợp và bậc quà TH7.
+   * hợp là `VPb` kèm CNKD (lưu ý 1, ngoại lệ), ra 0,1 điểm tổ hợp và bậc TH7.
    *
-   * ⚠️ CHỈ `CNKD` và CHỈ `VPb`. Kế toán chốt 2026-09-02: *"VPb không có HKD,
-   * VPb chỉ có CNKD"*. `LPB` và `MBV` cũng là hạng hạn chế nhưng không phải
-   * ngân hàng chủ của CNKD, nên khách `VPb` + `LPB` + CNKD lấy `VPb`, không
-   * lấy mã đứng trước trong danh sách nhập.
+   * ⚠️ CHỈ `VPb`. `LPB` và `MBV` kèm CNKD không có ngoại lệ nào: không thành tổ
+   * hợp, khách chỉ có 1,0 điểm CNKD. `hasCnkd` đã xét khách có CNKD ở ngân
+   * hàng nào cũng được, nên ở đây chỉ cần `VPb` có mặt.
    *
    * Phải xét sau vòng lặp và phải kèm `best.size === 0`: khách đã có tổ hợp
    * khác — `VPb` + `TPB` + CNKD là Combo 1 của `TPB` — thì không đi vào đây.
    */
-  if (best.size === 0 && hasCnkd) {
-    const host = codes.find(
-      (code) => TIER_OF[code] === "restricted" && HOUSEHOLD_HOST_BANKS.CNKD.has(code),
-    );
-    if (host) best = { tenths: COMBO_1_TENTHS.R, size: 1, codes: [host] };
-  }
+  if (best.size === 0 && hasCnkd && codes.includes(CNKD_COMBO_1_BANK))
+    best = { tenths: COMBO_1_TENTHS.R, size: 1, codes: [CNKD_COMBO_1_BANK] };
 
   return best;
 }
@@ -262,20 +262,20 @@ const CNKD_TENTHS = 10;
 const HKD_TENTHS = 30;
 
 /**
- * Ngân hàng CHỦ của từng mã hộ kinh doanh — chốt 2026-09-02.
+ * Ngân hàng CHỦ của từng mã hộ kinh doanh.
  *
- * Nguyên văn: *"HKD luôn đi kèm VPa. VPb không có HKD, VPb chỉ có CNKD. Đây là
- * 2 luật hiện tại, nên những HKD CNKD còn lại đều vô nghĩa"*.
+ *   `CNKD` → BẤT KỲ ngân hàng nào trong thể lệ (chủ dự án chốt 2026-09-15)
+ *   `HKD`  → CHỈ `VPa` (Kế toán chốt 2026-09-02)
  *
- *   `CNKD` → `VPa` hoặc `VPb`   (lưu ý 3 của thể lệ)
- *   `HKD`  → CHỈ `VPa`
+ * Kỳ 2026-09-01 chỉ nhận CNKD kèm `VPa` hoặc `VPb`. Nhưng kho mã giới thiệu
+ * (P-61) và đường mở tài khoản cho gắn CNKD vào mọi ngân hàng, và danh mục có
+ * sẵn bản hướng dẫn CNKD cho MSBa, MSBb, TPB, SHB. Khách mở MSBb kèm CNKD mà
+ * ra 0 điểm CNKD là luật sai so với nghiệp vụ, không phải dữ liệu sai.
  *
- * Ghi mã hộ kinh doanh cho khách không mở ngân hàng chủ tương ứng là DỮ LIỆU
- * SAI, và khách đó được 0 điểm cho phần này. Kỳ 2026-08 chỉ đặt điều kiện cho
- * `CNKD`, còn `HKD` thì không có điểm nên không cần điều kiện.
+ * Ghi HKD cho khách không mở `VPa` vẫn là DỮ LIỆU SAI, 0 điểm phần này.
  */
 const HOUSEHOLD_HOST_BANKS: Record<Exclude<HouseholdKind, "none">, ReadonlySet<string>> = {
-  CNKD: new Set(["VPa", "VPb"]),
+  CNKD: new Set(Object.keys(TIER_OF)),
   HKD: new Set(["VPa"]),
 };
 

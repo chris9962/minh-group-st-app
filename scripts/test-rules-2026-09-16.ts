@@ -172,6 +172,17 @@ section("giftFor với chuỗi tháng đọc là mùng 1");
 check("LPB một mình, hỏi bằng tháng, ra TH7 của file cũ", gift([account("k", "LPB")], "2026-09").caseCode, "TH7");
 check("LPB một mình, hỏi bằng 2026-10-01, không bậc", gift([account("k", "LPB")], "2026-10-01").caseCode, null);
 
+/* ── CNKD kèm ngân hàng khác VPa/VPb — chủ dự án chốt 2026-09-15 ──────── */
+
+section("CNKD kèm bất kỳ ngân hàng nào trong thể lệ");
+check("MSBb + CNKD", points([account("k", "MSBb", { household: "CNKD" })]), 1.2);
+check("MSBa + CNKD: MSBa ngoài Combo 1, còn 1,0 CNKD", points([account("k", "MSBa", { household: "CNKD" })]), 1.0);
+check("TPB CNKD + MB", points([account("k", "TPB", { household: "CNKD" }), account("k", "MB")]), 1.5);
+check("LPB + CNKD: không tổ hợp, chỉ 1,0 CNKD", points([account("k", "LPB", { household: "CNKD" })]), 1.0);
+check("LPB + CNKD không có bậc quà", gift([account("k", "LPB", { household: "CNKD" })]).caseCode, null);
+check("MSBb + CNKD là TH7", gift([account("k", "MSBb", { household: "CNKD" })]).caseCode, "TH7");
+check("kỳ 2026-09-01 vẫn 0 CNKD cho MSBb", points([account("k", "MSBb", { household: "CNKD", date: BEFORE })]), 0.2);
+
 /* ── Tổng kết ────────────────────────────────────────────────────────── */
 
 console.log(`\n  ${passed} ca đạt`);

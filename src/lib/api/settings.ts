@@ -97,8 +97,9 @@ export const GiftSimulateAccount = z.object({
   bankCode: z.string().min(1, 'Chưa chọn ngân hàng'),
   appInstalled: z.boolean(),
   /**
-   * Chỉ `VPa` mở được CNKD/HKD (spec §4.9) — dòng ngân hàng khác gửi lên thì
-   * `giftSimulate` bỏ qua. `default` để đợt gọi cũ không kèm trường này vẫn chạy.
+   * Loại tài khoản đi nguyên vẹn tới file luật, ngân hàng nào cũng được; luật
+   * từng kỳ tự quyết mã nào có nghĩa. `default` để đợt gọi cũ không kèm trường
+   * này vẫn chạy.
    */
   accountType: AccountType.default('none'),
 });
