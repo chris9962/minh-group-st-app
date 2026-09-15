@@ -11,6 +11,7 @@ import type { PageArgs } from "./pagination";
 import {
   bankingPointsFor,
   giftFor,
+  ruleDateOf,
   householdPointsAt,
   type GiftInput,
   type GiftResult,
@@ -282,7 +283,13 @@ export async function giftForCustomer(
       .where(eq(giftGrants.customerId, customerId))
       .limit(1),
   ]);
-  return giftResultOf(input, businessDay(), choosing ?? grant?.chosenItem ?? null);
+  // Luật theo ngày mở tài khoản của khách, không theo ngày xem: kỳ 2026-09-16
+  // đổi luật giữa tháng, khách mở 14/9 chưa phát quà vẫn phải ra rổ của 14/9.
+  return giftResultOf(
+    input,
+    ruleDateOf(input.accounts) ?? businessDay(),
+    choosing ?? grant?.chosenItem ?? null,
+  );
 }
 
 /**
@@ -300,7 +307,7 @@ export async function giftForCustomer(
  */
 export async function recomputeGiftCase(customerId: string): Promise<void> {
   const input = await giftInputFor(customerId);
-  const result = giftFor(input, businessDay());
+  const result = giftFor(input, ruleDateOf(input.accounts) ?? businessDay());
 
   await db
     .update(customers)
@@ -419,15 +426,16 @@ export async function recountGiftCases(
       const codes = channelsOf.get(customer.id) ?? new Set<string>();
       if (customer.channelCode) codes.add(customer.channelCode);
 
+      const accounts = byCustomer.get(customer.id) ?? [];
       const result = giftFor(
         {
-          accounts: byCustomer.get(customer.id) ?? [],
+          accounts,
           channelCodes: [...codes],
           departmentCode: customer.departmentCode,
           // Chỉ đọc `basket`, mà rổ không phụ thuộc món đã phát.
           grantedItem: null,
         },
-        today,
+        ruleDateOf(accounts) ?? today,
       );
       const next = result?.basket.map((b) => b.code) ?? [];
       if (sameCodes(next, customer.giftBasket)) continue;

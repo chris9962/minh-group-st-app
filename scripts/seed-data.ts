@@ -198,6 +198,10 @@ export const BANKS = [
   { code: "TPB", requiredPhotos: 3, accountNumberMethod: "phone-match", coefficient: "1", countsAsApp: true },
   { code: "VIB", requiredPhotos: 3, accountNumberMethod: "phone-match", coefficient: "1", countsAsApp: true },
   { code: "SHB", requiredPhotos: 3, accountNumberMethod: "phone-match", coefficient: "1", countsAsApp: true },
+  // MBV (B9) vào thể lệ từ kỳ 2026-09-16, nhóm hạn chế. Database đang chạy
+  // thêm bằng migration 0093; `manual` vì chưa rõ MBV có lấy số điện thoại
+  // làm số tài khoản không, sửa ở P-71 khi biết.
+  { code: "MBV", requiredPhotos: 3, accountNumberMethod: "manual", coefficient: "1", countsAsApp: true },
   // CNKD và HKD KHÔNG phải ngân hàng (chốt 2026-08-18) — chúng là LOẠI TÀI
   // KHOẢN của VPa, ghi ở cột `bank_accounts.account_type`. Dựng thành hai dòng
   // ở đây thì chúng hiện trong mọi ô chọn ngân hàng, và nhân viên mở được một

@@ -1,6 +1,7 @@
 import type { DepartmentType } from "@/lib/types";
 import * as period202608 from "./2026-08";
 import * as period202609 from "./2026-09";
+import * as period20260916 from "./2026-09-16";
 import type { Tier } from "./2026-08";
 
 /**
@@ -8,7 +9,7 @@ import type { Tier } from "./2026-08";
  *
  * Quyết định 03/08: quy tắc quà và công thức điểm là CHÍNH SÁCH, không phải dữ
  * liệu — đổi cả hình dạng theo tháng, nên nằm ở code chứ không ở bảng cấu hình
- * (`mgst-db-design.md` §9, spec §5.3). Mỗi kỳ một file `src/rules/YYYY-MM.ts`,
+ * (`mgst-db-design.md` §9, spec §5.3). Mỗi kỳ một file `src/rules/YYYY-MM-DD.ts`,
  * file của kỳ đã qua **đóng băng vĩnh viễn**.
  *
  * File này là chỗ tra file của kỳ. Mọi nơi cần điểm đều đi qua đây, không import
@@ -172,21 +173,29 @@ type PeriodRules = {
 };
 
 /**
- * Các kỳ đã có file luật, khoá là tháng BẮT ĐẦU áp dụng.
+ * Các kỳ đã có file luật, khoá là NGÀY bắt đầu áp dụng.
  *
- * Thêm kỳ mới thì thêm đúng một dòng ở đây và một file `YYYY-MM.ts` — không nơi
- * nào khác trong ứng dụng biết tên các file kỳ.
+ * Khoá theo ngày chứ không theo tháng từ kỳ 2026-09-16: thể lệ đổi giữa tháng
+ * mà file `2026-09` phải đứng yên cho 1–15/9 (spec §5.3, file kỳ đã qua không
+ * sửa). Hai khoá đầu là mùng 1 nên file cũ không đổi tên.
+ *
+ * Thêm kỳ mới thì thêm đúng một dòng ở đây và một file `YYYY-MM-DD.ts` — không
+ * nơi nào khác trong ứng dụng biết tên các file kỳ.
  */
 const PERIODS: Record<string, PeriodRules> = {
-  "2026-08": period202608,
-  "2026-09": period202609,
+  "2026-08-01": period202608,
+  "2026-09-01": period202609,
+  "2026-09-16": period20260916,
 };
 
 /**
  * File luật áp cho một mốc thời gian: file mới nhất có ngày áp dụng KHÔNG SAU
  * mốc đó (spec §5.3 — *"lấy file có ngày lớn nhất mà vẫn ≤ ngày đó"*).
  *
- * Nhận cả `YYYY-MM` lẫn `YYYY-MM-DD`; điểm hỏi theo tháng, quà hỏi theo ngày.
+ * Nhận cả `YYYY-MM` lẫn `YYYY-MM-DD`. Chuỗi tháng đọc là mùng 1 của tháng đó:
+ * so thẳng `"2026-09" <= "2026-09-16"` thì đúng theo mã ký tự nhưng sai nghĩa,
+ * mọi câu hỏi theo tháng sẽ lấy file 2026-09-01 kể cả khi tháng đó có kỳ giữa
+ * tháng. Nơi cần luật của một khách phải hỏi bằng ngày, xem `ruleDateOf`.
  *
  * Nhờ vậy một file dùng được cho nhiều tháng liền: thể lệ ghi "áp dụng từ
  * 01/8/2026" chứ không phải "cho riêng tháng 8". Để rơi về "không có luật" thì
@@ -196,12 +205,35 @@ const PERIODS: Record<string, PeriodRules> = {
  * không được khôi phục.
  */
 function rulesFor(at: string): PeriodRules | null {
-  const yearMonth = at.slice(0, 7);
+  const day = at.length === 7 ? `${at}-01` : at;
   const applicable = Object.keys(PERIODS)
-    .filter((start) => start <= yearMonth)
+    .filter((start) => start <= day)
     .sort();
   const latest = applicable.at(-1);
   return latest ? PERIODS[latest] : null;
+}
+
+/**
+ * Ngày quyết định luật của MỘT khách: ngày mở tài khoản MUỘN NHẤT trong số tài
+ * khoản đưa vào. `null` khi không tài khoản nào mang ngày.
+ *
+ * Cần một ngày cho cả khách vì luật gom theo tổ hợp, không chấm từng tài khoản:
+ * hai tài khoản của một khách không thể mỗi cái một bộ luật. Lấy ngày muộn nhất
+ * vì tổ hợp hình thành lúc tài khoản cuối mở. Trên thực tế gần như không phải
+ * chọn: đo 2026-09-15 trên 15.405 khách tháng 9 chỉ 2 khách có tài khoản mở
+ * khác ngày, vì mỗi lần khách mở thêm là một hồ sơ mới (`root_customer_id`).
+ *
+ * Máy chủ đặt ngày mở lúc giữ chỗ và không cho sửa (chốt 2026-09-08), nên tài
+ * khoản giữ chỗ 15/9 hoàn tất 16/9 vẫn theo luật 15/9.
+ *
+ * Mọi nơi tra luật cho khách thật phải đi qua đây — điểm, rổ quà, báo cáo — để
+ * ba chỗ không mỗi chỗ chọn một ngày rồi ra ba kết quả khác nhau.
+ */
+export function ruleDateOf(accounts: ScoringAccount[]): string | null {
+  let latest: string | null = null;
+  for (const a of accounts)
+    if (a.openedDate && (!latest || a.openedDate > latest)) latest = a.openedDate;
+  return latest;
 }
 
 /**
@@ -223,15 +255,38 @@ export function bankingPointsFor(
   yearMonth: string,
   granted: GrantedGifts = new Map(),
 ): number {
-  const rules = rulesFor(yearMonth);
-  if (!rules) return 0;
-
   // Combo chỉ tính tài khoản mở TRONG tháng đang tính, không nối combo qua
   // tháng (chốt 07/08, câu 7.13). Lọc ở đây để file kỳ nào cũng khỏi tự nhớ.
-  return rules.bankingPoints(
-    accounts.filter((a) => a.openedDate.startsWith(`${yearMonth}-`)),
-    granted,
-  );
+  const inMonth = accounts.filter((a) => a.openedDate.startsWith(`${yearMonth}-`));
+
+  /**
+   * Một tháng có thể có HAI file luật (kỳ 2026-09-16 bắt đầu giữa tháng), nên
+   * luật chọn theo từng khách bằng `ruleDateOf`, không chọn một lần cho cả
+   * tháng. Gom khách cùng file rồi gọi file đó ĐÚNG MỘT LẦN: file kỳ tự gom
+   * theo khách và cộng bằng số nguyên phần mười, gọi từng khách rồi cộng số
+   * thực ở đây là đưa sai số nhị phân trở lại.
+   */
+  const byCustomer = new Map<string, ScoringAccount[]>();
+  for (const account of inMonth) {
+    const rows = byCustomer.get(account.customerId);
+    if (rows) rows.push(account);
+    else byCustomer.set(account.customerId, [account]);
+  }
+
+  const byRules = new Map<PeriodRules, ScoringAccount[]>();
+  for (const rows of byCustomer.values()) {
+    const rules = rulesFor(ruleDateOf(rows) ?? yearMonth);
+    if (!rules) continue;
+    const kept = byRules.get(rules);
+    if (kept) kept.push(...rows);
+    else byRules.set(rules, [...rows]);
+  }
+
+  let total = 0;
+  for (const [rules, rows] of byRules) total += rules.bankingPoints(rows, granted);
+  // Chỉ vài phép cộng số thực, và mọi điểm đều là bội của 0,1 — làm tròn một
+  // chữ số trả về đúng số nguyên phần mười.
+  return Math.round(total * 10) / 10;
 }
 
 /**

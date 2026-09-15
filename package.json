@@ -31,7 +31,7 @@
     "db:backup:check": "bun --env-file=.env.local --env-file=.env.backup scripts/db-backup-check.ts",
     "db:restore": "bun --env-file=.env.local --env-file=.env.backup scripts/db-restore.ts",
     "kpi:recompute": "bun --env-file=.env.local scripts/kpi-recompute.ts",
-    "test:rules": "bun scripts/test-rules.ts && bun scripts/test-rules-2026-09.ts",
+    "test:rules": "bun scripts/test-rules.ts && bun scripts/test-rules-2026-09.ts && bun scripts/test-rules-2026-09-16.ts",
     "test:exports": "bun scripts/test-scoring-gift-report.ts",
     "test:ocr": "bun scripts/test-msb-photo-parser.ts && bun scripts/test-lpb-photo-parser.ts && bun scripts/test-mb-photo-parser.ts",
     "e2e": "bun --env-file=.env.local scripts/e2e-clean.ts && bun --env-file=.env.local scripts/e2e-seed.ts && playwright test; bun --env-file=.env.local scripts/e2e-clean.ts",

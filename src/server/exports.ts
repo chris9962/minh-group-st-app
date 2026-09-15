@@ -1,6 +1,6 @@
 import { and, count, eq, exists, gte, inArray, lt, or, sql, type SQL, type SQLWrapper } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
-import { bankingPointsFor, bankTierFor, comboPointsAt, giftFor } from "@/rules";
+import { bankingPointsFor, bankTierFor, comboPointsAt, giftFor, ruleDateOf } from "@/rules";
 import type { GiftResult, ScoringAccount } from "@/rules";
 import { BUSINESS_TIMEZONE } from "@/lib/format";
 import { recordVisibility, type RecordVisibility } from "@/lib/permissions";
@@ -434,9 +434,6 @@ export async function listScoringExport(
     const grant = grantById.get(customerId);
     const insurance = insuranceById.get(customerId);
 
-    const dates = accounts.map((a) => a.openedDate).filter((d): d is string => Boolean(d));
-    const firstDate = dates.sort()[0] ?? "";
-
     const scoring: ScoringAccount[] = accounts.map((a) => ({
       customerId,
       bankCode: a.bankCode,
@@ -444,10 +441,13 @@ export async function listScoringExport(
       openedDate: a.openedDate ?? "",
       household: a.accountType,
     }));
+    // Cùng ngày tra luật với điểm KPI và rổ quà, xem `ruleDateOf`. Bản trước lấy
+    // ngày mở SỚM nhất; hai ngày chỉ khác nhau ở khách mở tài khoản khác ngày.
+    const ruleDate = ruleDateOf(scoring) ?? "";
 
     const granted = new Map([[customerId, grant?.chosenItem ?? null]]);
-    const month = firstDate.slice(0, 7);
-    const gift = firstDate
+    const month = ruleDate.slice(0, 7);
+    const gift = ruleDate
       ? giftFor(
           {
             accounts: scoring,
@@ -455,7 +455,7 @@ export async function listScoringExport(
             departmentCode: customer?.departmentCode ?? null,
             grantedItem: grant?.chosenItem ?? null,
           },
-          firstDate,
+          ruleDate,
         )
       : null;
 
@@ -471,9 +471,9 @@ export async function listScoringExport(
       ...new Set(accounts.filter((a) => a.accountType !== "HKD").map((a) => a.bankCode)),
     ].filter((code) => !HOUSEHOLD_CODES.has(code));
     const tierCount = (tier: string) =>
-      bankCodes.filter((code) => bankTierFor(code, firstDate) === tier).length;
+      bankCodes.filter((code) => bankTierFor(code, ruleDate) === tier).length;
 
-    const comboPoints = comboPointsAt(bankCodes, firstDate);
+    const comboPoints = comboPointsAt(bankCodes, ruleDate);
     const total = month ? bankingPointsFor(scoring, month, granted) : 0;
 
     const household =
@@ -489,7 +489,7 @@ export async function listScoringExport(
       customerName: customer?.fullName ?? "",
       idNumber: omitPii ? "" : (customer?.idNumber ?? ""),
       phone: omitPii ? "" : (phoneById.get(customerId) ?? ""),
-      date: firstDate,
+      date: ruleDate,
       hamlet: hamletOf(customer?.channelDetail ?? ""),
       channelName: customer?.channelName ?? "",
       openedBanks: bankCodes,
