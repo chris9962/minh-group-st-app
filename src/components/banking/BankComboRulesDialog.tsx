@@ -1,5 +1,6 @@
 "use client";
 
+import { createPortal } from "react-dom";
 import { Dialog } from "@/components/ui/Dialog";
 import type { Bank } from "@/lib/api/bankCatalog";
 import { formatDate } from "@/lib/format";
@@ -60,7 +61,16 @@ export function BankComboRulesDialog({ open, onClose, at, banks }: Props) {
   }).filter((r) => r.points > 0);
   const notes = openNotesAt(at);
 
-  return (
+  /**
+   * Dựng ra `document.body`, không lồng trong hộp thoại đang gọi.
+   *
+   * Hộp thoại mở tài khoản mở hộp này từ bên trong vùng cuộn của nó. Vùng đó
+   * đặt `overscroll-behavior: contain`, và hộp con nằm trong DOM của nó nên
+   * lượt cuộn trên hộp con bị vùng cha nuốt: hộp luật dài hơn màn điện thoại
+   * mà không cuộn được. Toast cũng đi portal vì lý do tương tự.
+   */
+  if (typeof document === "undefined") return null;
+  return createPortal(
     <Dialog open={open} onClose={onClose} title="Luật chọn ngân hàng">
       <p className={styles.meta}>Áp cho tài khoản mở ngày {formatDate(at)}.</p>
 
@@ -102,6 +112,7 @@ export function BankComboRulesDialog({ open, onClose, at, banks }: Props) {
           </ul>
         </>
       )}
-    </Dialog>
+    </Dialog>,
+    document.body,
   );
 }
