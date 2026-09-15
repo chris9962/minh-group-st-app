@@ -13,12 +13,10 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const nextMidnight = (now: number): number =>
   new Date(`${businessDay(new Date(now))}T00:00:00+07:00`).getTime() + DAY_MS;
 
+/** `3:13` — làm tròn LÊN phút, để chưa tới mốc thì không hiện `0:00`. */
 const formatLeft = (ms: number): string => {
-  const minutes = Math.floor(ms / 60_000);
-  if (minutes < 1) return "chưa tới 1 phút";
-  const hours = Math.floor(minutes / 60);
-  if (hours === 0) return `${minutes} phút`;
-  return `${hours} giờ ${String(minutes % 60).padStart(2, "0")} phút`;
+  const minutes = Math.max(0, Math.ceil(ms / 60_000));
+  return `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, "0")}`;
 };
 
 /**
@@ -42,7 +40,7 @@ export function DraftPurgeCountdown() {
 
   return (
     <Alert tone="warning" live={false}>
-      Tự xoá sau {formatLeft(left)} nếu chưa hoàn tất.
+      Tự xoá sau <span className="tabular-nums">{formatLeft(left)}</span> nếu chưa hoàn tất.
     </Alert>
   );
 }
