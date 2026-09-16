@@ -9,6 +9,28 @@ export type { Release, ReleaseSection } from './types';
  */
 export const RELEASES: Release[] = [
   {
+    id: '2026-09-17',
+    title: 'Cập nhật ngày 17/09/2026',
+    summary: 'Cập nhật ngày 17/09/2026.',
+    sections: [
+      {
+        title: 'Đơn bảo hiểm',
+        items: [
+          'Ngày kết thúc, mức phí và số tiền bảo hiểm lấy theo gói, không sửa tay. Bạn chỉ chọn ngày bắt đầu, app tự tính ngày kết thúc.',
+          'Ô Mức phí không còn hiện ở hộp Tạo đơn, Sửa đơn và Cấp lại.',
+          'Nút "Điền theo hồ sơ khách" hỏi trước: mua cho bản thân khách hay người thân. Chọn "Bản thân khách" thì app điền tên, địa chỉ, ngày sinh. Chọn "Người thân" thì bạn tự nhập.',
+          'Ngày sinh không nhận ngày sau ngày hiện tại.',
+        ],
+      },
+      {
+        title: 'Tên khách và người thụ hưởng',
+        items: [
+          'Tên tự viết hoa chữ cái đầu mỗi chữ khi lưu. Gõ "nguyen van a" hay "NGUYEN VAN A" đều lưu thành "Nguyen Van A". Khoảng trắng thừa được gộp lại.',
+        ],
+      },
+    ],
+  },
+  {
     id: '2026-09-16',
     title: 'Cập nhật ngày 16/09/2026',
     summary:
