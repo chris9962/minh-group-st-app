@@ -184,7 +184,7 @@ export function InsuranceOrderFormDialog({
   const queryClient = useQueryClient();
   const [packageName, setPackageName] = useState(prefill?.packageName ?? "");
   // Luôn nạp danh mục gói (kể cả luồng Tặng quà gói cố định) — cần phí gói
-  // để prefill ô Mức phí của từng đơn.
+  // để điền `fee` của từng đơn, ô này không hiện trên form.
   const { data: packages = [] } = useQuery({
     queryKey: ["insurance-packages"],
     queryFn: fetchInsurancePackages,
@@ -262,8 +262,9 @@ export function InsuranceOrderFormDialog({
    * 2026-09-02) — KD đổi ngày hiệu lực rồi hay quên kéo ngày kết thúc theo.
    * Các đơn nối tiếp phía sau (`chainsToPrevious`) dời theo luôn, nếu không thì
    * KD sửa đơn 1 xong đơn 2 vẫn nằm ở khoảng thời gian cũ và chồng lên đơn 1.
-   * Ngày kết thúc, mức phí và số tiền bảo hiểm KHOÁ (chốt 2026-09-16): cả ba
-   * lấy từ gói, ngày bắt đầu là ô duy nhất KD nhập về thời hạn.
+   * Ngày kết thúc và số tiền bảo hiểm KHOÁ, mức phí không hiện (chốt
+   * 2026-09-16): cả ba lấy từ gói, ngày bắt đầu là ô duy nhất KD nhập về thời
+   * hạn. `fee` vẫn nằm trong form state từ `defaultLegsFor` và gửi lên bình thường.
    */
   const changeStartDate = (i: number, v: string) => {
     setValue(`legs.${i}.startDate`, v, { shouldDirty: true, shouldValidate: true });
@@ -643,16 +644,6 @@ export function InsuranceOrderFormDialog({
                 />
               </div>
 
-              <TextField
-                label="Mức phí (đ)"
-                type="text"
-                inputMode="numeric"
-                required
-                disabled
-                error={errors.legs?.[i]?.fee?.message}
-                {...numericField(register(`legs.${i}.fee`, { setValueAs: numberValue }), digitsOnly)}
-              />
-
               {(selectedPackage?.legs ?? [])[i].product === "motorbike"
                 ? renderVehicleInfo(i)
                 : renderHouseholdInfo(i)}
@@ -683,15 +674,6 @@ export function InsuranceOrderFormDialog({
                 }
               />
             </div>
-            <TextField
-              label="Mức phí (đ)"
-              type="text"
-              inputMode="numeric"
-              required
-              disabled
-              error={errors.legs?.[0]?.fee?.message}
-              {...numericField(register("legs.0.fee", { setValueAs: numberValue }), digitsOnly)}
-            />
             {(selectedPackage?.legs ?? [])[0].product === "motorbike"
               ? renderVehicleInfo(0)
               : renderHouseholdInfo(0)}

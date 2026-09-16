@@ -141,6 +141,7 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId, mode = "edit"
       // Cấp lại sinh một đơn MỚI HOÀN TOÀN nên ngày tạo đơn là ngày bấm, không
       // phải ngày của đơn cũ (chốt 2026-09-03).
       orderDate: recreating ? businessDay() : (data?.orderDate ?? ""),
+      // Không có ô Mức phí (chốt 2026-09-16): phí theo gói, gửi nguyên giá trị cũ.
       fee: data?.fee ?? 0,
       startDate: data?.startDate ?? "",
       endDate: data?.endDate ?? "",
@@ -274,16 +275,6 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId, mode = "edit"
               }
             />
           </div>
-
-          <TextField
-            label="Mức phí (đ)"
-            type="text"
-            inputMode="numeric"
-            required
-            disabled
-            error={errors.fee?.message}
-            {...numericField(form.register("fee", { setValueAs: numberValue }), digitsOnly)}
-          />
 
           {motorbike && (
             <fieldset className={styles.fieldset}>
