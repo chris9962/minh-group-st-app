@@ -347,6 +347,7 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId, mode = "edit"
               <DateField
                 label="Ngày sinh"
                 required
+                max={businessDay()}
                 value={form.watch("beneficiaryDob")}
                 onChange={(v) =>
                   form.setValue("beneficiaryDob", v, { shouldDirty: true, shouldValidate: true })

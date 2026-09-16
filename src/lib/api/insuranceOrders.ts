@@ -203,10 +203,11 @@ const orderFields = {
    * `bornAfterMinYear` vẫn áp cho cả hai sản phẩm — chặn lỗi gõ tay kiểu thiếu
    * một phím, và bỏ qua khi rỗng nên không đụng tới đơn xe máy.
    */
-  beneficiaryDob: isoDateOrEmpty.refine(
-    bornAfterMinYear,
-    `Năm sinh không được trước ${MIN_BIRTH_YEAR}`,
-  ),
+  beneficiaryDob: isoDateOrEmpty
+    .refine(bornAfterMinYear, `Năm sinh không được trước ${MIN_BIRTH_YEAR}`)
+    // So theo ngày Việt Nam như `startDate`: máy chủ chạy UTC, tối muộn giờ VN
+    // vẫn là ngày hôm trước ở UTC.
+    .refine((v) => v === '' || v <= businessDay(), 'Ngày sinh không được sau ngày hiện tại'),
   beneficiaryAddress: z.string().trim().min(1, 'Chưa nhập địa chỉ'),
   /**
    * Hai ô của riêng đơn tai nạn điện — form PVI hỏi, đơn xe máy thì không.

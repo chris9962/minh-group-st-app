@@ -470,6 +470,7 @@ export function InsuranceOrderFormDialog({
         <DateField
           label="Ngày sinh"
           required
+          max={businessDay()}
           value={watch(`legs.${i}.beneficiaryDob`)}
           onChange={(v) =>
             setValue(`legs.${i}.beneficiaryDob`, v, { shouldDirty: true, shouldValidate: true })
