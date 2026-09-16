@@ -296,11 +296,6 @@ export default function BankingPage() {
                 <span className="tabular-nums">{formatPhone(r.accountNumber)}</span>
               ),
             },
-            {
-              key: "department",
-              label: "Phòng",
-              render: (r: BankAccountRow) => r.createdByDepartmentName ?? "—",
-            },
           ]),
       {
         key: "status",
