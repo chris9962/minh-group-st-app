@@ -89,11 +89,12 @@
   overflow-wrap: anywhere;
 }
 
-.reviewNameMark {
-  background: var(--om-orange-soft);
+// `mark` mặc định nền vàng của trình duyệt, bỏ đi để chỉ còn màu chữ.
+.reviewNameMark,
+.fillAskEmphasis {
+  background: none;
   color: var(--om-orange-ink);
-  border-bottom: 1px solid var(--om-orange);
-  border-radius: var(--radius-sm);
+  font-weight: 600;
 }
 
 .reviewNameWarning {

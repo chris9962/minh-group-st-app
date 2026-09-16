@@ -13,6 +13,7 @@ import {
 import { DepartmentPicker } from "@/components/layout/DepartmentPicker";
 import { BackButton } from "@/components/ui/BackButton";
 import { Button } from "@/components/ui/Button";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Dialog } from "@/components/ui/Dialog";
 import { Select } from "@/components/ui/Select";
 import { DateField } from "@/components/ui/DateField";
@@ -281,6 +282,13 @@ export function InsuranceOrderFormDialog({
     }
   };
 
+  /**
+   * Chỉ số đơn đang chờ trả lời "mua cho chính khách hay cho người thân"
+   * (chốt 2026-09-16). Người thụ hưởng hay là người thân của khách, mà nút
+   * điền sẵn bấm theo quán tính thì tên khách nằm trên đơn của người khác.
+   */
+  const [fillAskFor, setFillAskFor] = useState<number | null>(null);
+
   const applyCustomerInfo = (i: number) => {
     setValue(`legs.${i}.beneficiaryName`, customer.fullName, { shouldDirty: true });
     setValue(`legs.${i}.beneficiaryAddress`, customer.address, { shouldDirty: true });
@@ -457,7 +465,7 @@ export function InsuranceOrderFormDialog({
     <fieldset className={styles.fieldset}>
       <legend className={styles.legend}>Khách hàng</legend>
 
-      <Button variant="secondary" onClick={() => applyCustomerInfo(i)}>
+      <Button variant="secondary" onClick={() => setFillAskFor(i)}>
         <UserCheck size={14} aria-hidden />
         Điền theo hồ sơ khách
       </Button>
@@ -705,6 +713,21 @@ export function InsuranceOrderFormDialog({
         {reviewValues?.legs.map(renderReviewLeg)}
       </div>
     </Dialog>
+
+    <ConfirmDialog
+      open={fillAskFor !== null}
+      title="Điền theo hồ sơ khách"
+      confirmLabel="Bản thân khách"
+      cancelLabel="Người thân"
+      onConfirm={() => {
+        if (fillAskFor !== null) applyCustomerInfo(fillAskFor);
+        setFillAskFor(null);
+      }}
+      onClose={() => setFillAskFor(null)}
+    >
+      Bảo hiểm này mua cho <strong className={styles.fillAskEmphasis}>chính khách</strong> hay
+      cho <strong className={styles.fillAskEmphasis}>người thân</strong> của khách?
+    </ConfirmDialog>
     </>
   );
 }
