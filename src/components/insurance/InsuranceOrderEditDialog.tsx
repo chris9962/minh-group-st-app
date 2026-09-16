@@ -27,12 +27,14 @@ import {
 import {
   INTAKE_PHOTO_LABEL,
   insuranceOrderEditSchema,
+  yearsLater,
   type InsuranceOrderEditForm,
 } from "@/lib/api/insuranceOrders";
+import { fetchInsurancePackages } from "@/lib/api/settings";
 import { businessDay, formatVnd } from "@/lib/format";
 import { SUM_INSURED_OPTIONS, VEHICLE_TYPES } from "@/lib/pvi";
 import { errorMessage, toast } from "@/lib/toast";
-import { PRODUCT_LABEL } from "@/lib/types";
+import { isRealIsoDate, PRODUCT_LABEL } from "@/lib/types";
 import styles from "./InsuranceOrderFormDialog.module.scss";
 import { digitsOnly, numberValue, numericField } from "@/lib/numberField";
 import { reportInvalid } from "@/lib/formErrors";
@@ -94,6 +96,25 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId, mode = "edit"
   const addressSuggestions = useAddressSuggestions();
 
   /**
+   * Số năm của đơn, đọc từ leg cùng sản phẩm trong gói. Gói đã bị xoá khỏi danh
+   * mục thì lấy khoảng cách hai ngày đang lưu, không để ngày kết thúc đứng yên
+   * khi ngày bắt đầu dời qua nó.
+   */
+  const { data: packages = [] } = useQuery({
+    queryKey: ["insurance-packages"],
+    queryFn: fetchInsurancePackages,
+  });
+  const orderYears = (): number => {
+    const leg = packages
+      .find((p) => p.name === data?.packageName)
+      ?.legs.find((l) => l.product === data?.product);
+    if (leg) return leg.years;
+    const stored =
+      new Date(data?.endDate ?? "").getFullYear() - new Date(data?.startDate ?? "").getFullYear();
+    return Number.isFinite(stored) && stored > 0 ? stored : 1;
+  };
+
+  /**
    * Ảnh hồ sơ (chốt 2026-09-07). `null` = người dùng chưa đụng vào ô, hiện ảnh
    * đang lưu của đơn — suy ra khi render, không đồng bộ bằng effect (AGENTS.md
    * §7). Cấp lại điền sẵn ảnh đơn cũ: giữ nguyên thì đơn mới dùng lại tấm đó,
@@ -137,6 +158,17 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId, mode = "edit"
       intakePhotoBackUrl: data?.intakePhotoBackUrl ?? "",
     },
   });
+
+  // Ngày kết thúc khoá theo gói (chốt 2026-09-16), nên đổi ngày bắt đầu là
+  // phải kéo nó theo — giống `changeStartDate` ở hộp Tạo đơn.
+  const changeStartDate = (v: string) => {
+    form.setValue("startDate", v, { shouldDirty: true, shouldValidate: true });
+    if (!isRealIsoDate(v)) return;
+    form.setValue("endDate", yearsLater(v, orderYears()), {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+  };
 
   const save = useMutation({
     /**
@@ -229,13 +261,12 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId, mode = "edit"
               required
               error={errors.startDate?.message}
               value={form.watch("startDate")}
-              onChange={(v) =>
-                form.setValue("startDate", v, { shouldDirty: true, shouldValidate: true })
-              }
+              onChange={changeStartDate}
             />
             <DateField
               label="Ngày kết thúc"
               required
+              disabled
               error={errors.endDate?.message}
               value={form.watch("endDate")}
               onChange={(v) =>
@@ -249,6 +280,7 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId, mode = "edit"
             type="text"
             inputMode="numeric"
             required
+            disabled
             error={errors.fee?.message}
             {...numericField(form.register("fee", { setValueAs: numberValue }), digitsOnly)}
           />
@@ -318,6 +350,8 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId, mode = "edit"
                   label="Số tiền bảo hiểm"
                   block
                   required
+                  // Đi cặp với mức phí (`sumInsuredForFee`), mà phí đã khoá theo gói.
+                  disabled
                   value={String(form.watch("sumInsured"))}
                   error={errors.sumInsured?.message}
                   onChange={(v) =>

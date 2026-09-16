@@ -262,7 +262,8 @@ export function InsuranceOrderFormDialog({
    * 2026-09-02) — KD đổi ngày hiệu lực rồi hay quên kéo ngày kết thúc theo.
    * Các đơn nối tiếp phía sau (`chainsToPrevious`) dời theo luôn, nếu không thì
    * KD sửa đơn 1 xong đơn 2 vẫn nằm ở khoảng thời gian cũ và chồng lên đơn 1.
-   * Ngày kết thúc vẫn sửa tay được sau đó.
+   * Ngày kết thúc, mức phí và số tiền bảo hiểm KHOÁ (chốt 2026-09-16): cả ba
+   * lấy từ gói, ngày bắt đầu là ô duy nhất KD nhập về thời hạn.
    */
   const changeStartDate = (i: number, v: string) => {
     setValue(`legs.${i}.startDate`, v, { shouldDirty: true, shouldValidate: true });
@@ -430,6 +431,8 @@ export function InsuranceOrderFormDialog({
           label="Số tiền bảo hiểm"
           block
           required
+          // Đi cặp với mức phí (`sumInsuredForFee`), mà phí đã khoá theo gói.
+          disabled
           value={String(watch(`legs.${i}.sumInsured`))}
           error={errors.legs?.[i]?.sumInsured?.message}
           // `shouldValidate`: ô này không `register` nên không có onChange của
@@ -631,6 +634,7 @@ export function InsuranceOrderFormDialog({
                 <DateField
                   label="Ngày kết thúc"
                   required
+                  disabled
                   error={errors.legs?.[i]?.endDate?.message}
                   value={watch(`legs.${i}.endDate`)}
                   onChange={(v) =>
@@ -644,6 +648,7 @@ export function InsuranceOrderFormDialog({
                 type="text"
                 inputMode="numeric"
                 required
+                disabled
                 error={errors.legs?.[i]?.fee?.message}
                 {...numericField(register(`legs.${i}.fee`, { setValueAs: numberValue }), digitsOnly)}
               />
@@ -670,6 +675,7 @@ export function InsuranceOrderFormDialog({
               <DateField
                 label="Ngày kết thúc"
                 required
+                disabled
                 error={errors.legs?.[0]?.endDate?.message}
                 value={watch("legs.0.endDate")}
                 onChange={(v) =>
@@ -682,6 +688,7 @@ export function InsuranceOrderFormDialog({
               type="text"
               inputMode="numeric"
               required
+              disabled
               error={errors.legs?.[0]?.fee?.message}
               {...numericField(register("legs.0.fee", { setValueAs: numberValue }), digitsOnly)}
             />
