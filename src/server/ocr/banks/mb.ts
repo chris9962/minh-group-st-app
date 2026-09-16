@@ -1,4 +1,4 @@
-import { nameMatches } from "./tpbank";
+import { nameMatches } from "../text";
 import { compact, hasLabel, levenshtein, splitLines, stripAccents } from "../text";
 import { indexed, type CheckedItem } from "../types";
 

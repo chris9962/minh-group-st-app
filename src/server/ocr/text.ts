@@ -91,3 +91,24 @@ export const splitLines = (text: string): string[] =>
 
 /** `dd/mm/yyyy` sang `yyyy-mm-dd`. */
 export const isoDate = (v: string): string => v.replace(/(\d{2})\/(\d{2})\/(\d{4})/, "$3-$2-$1");
+
+/**
+ * Tên OCR có khớp tên trong hệ thống không.
+ *
+ * So sau khi bỏ dấu, bỏ khoảng trắng, viết hoa: OCR hay mất khoảng trắng
+ * giữa các từ và tự thêm dấu. Chấp nhận sai 1 ký tự mỗi 8 ký tự. Dùng cho
+ * LPB, MB, MSB; TPBank so đúng từng ký tự ở `banks/tpbank.ts`.
+ */
+export function nameMatches(ocrName: string, expected: string): boolean {
+  const a = compact(ocrName);
+  const b = compact(expected);
+  if (!a || !b) return false;
+  if (a.includes(b)) return true;
+  const tolerance = Math.max(1, Math.floor(b.length / 8));
+  for (let i = 0; i + b.length <= a.length; i++) {
+    let diff = 0;
+    for (let j = 0; j < b.length && diff <= tolerance; j++) if (a[i + j] !== b[j]) diff++;
+    if (diff <= tolerance) return true;
+  }
+  return false;
+}
