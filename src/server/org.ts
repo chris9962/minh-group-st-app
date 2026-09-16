@@ -372,6 +372,9 @@ export async function statsByDepartment(range: Range) {
       .select({
         departmentId: customers.createdByDepartmentId,
         customers: sql<number>`count(*)::int`,
+        // "Khách có TK" trừ khách chỉ mở đúng 1 tài khoản — dùng cho checkbox lọc
+        // của bảng Xếp hạng phòng, người xem chỉ quan tâm khách 2-3 tài khoản.
+        customersMultiAccount: sql<number>`count(*) filter (where ${customers.accountCount} >= 2)::int`,
       })
       .from(customers)
       .where(customersWithAccountsIn(range))
@@ -381,7 +384,12 @@ export async function statsByDepartment(range: Range) {
   return mergeStats(accountRows, customerRows, (r) => r.departmentId);
 }
 
-type OrgStats = { accountsOpened: number; appsInstalled: number; customers: number };
+type OrgStats = {
+  accountsOpened: number;
+  appsInstalled: number;
+  customers: number;
+  customersMultiAccount: number;
+};
 
 /**
  * Cột "Khách có TK": hồ sơ LẬP trong kỳ và có ít nhất một tài khoản hoàn
@@ -404,14 +412,14 @@ const customersWithAccountsIn = (range: Range) =>
  */
 function mergeStats<K extends { accountsOpened: number; appsInstalled: number }, C>(
   accountRows: K[],
-  customerRows: (C & { customers: number })[],
+  customerRows: (C & { customers: number; customersMultiAccount: number })[],
   keyOf: (row: K | C) => string | null,
 ): Map<string, OrgStats> {
   const map = new Map<string, OrgStats>();
   const entry = (key: string): OrgStats => {
     let s = map.get(key);
     if (!s) {
-      s = { accountsOpened: 0, appsInstalled: 0, customers: 0 };
+      s = { accountsOpened: 0, appsInstalled: 0, customers: 0, customersMultiAccount: 0 };
       map.set(key, s);
     }
     return s;
@@ -425,7 +433,11 @@ function mergeStats<K extends { accountsOpened: number; appsInstalled: number },
   }
   for (const r of customerRows) {
     const key = keyOf(r);
-    if (key !== null) entry(key).customers = r.customers;
+    if (key !== null) {
+      const s = entry(key);
+      s.customers = r.customers;
+      s.customersMultiAccount = r.customersMultiAccount;
+    }
   }
   return map;
 }
@@ -462,7 +474,11 @@ export async function statsByStaff(range: Range, departmentIds: string[]) {
       )
       .groupBy(bankAccounts.createdBy),
     db
-      .select({ staffId: customers.createdBy, customers: sql<number>`count(*)::int` })
+      .select({
+        staffId: customers.createdBy,
+        customers: sql<number>`count(*)::int`,
+        customersMultiAccount: sql<number>`count(*) filter (where ${customers.accountCount} >= 2)::int`,
+      })
       .from(customers)
       .where(
         and(
@@ -536,6 +552,7 @@ export async function departmentStatsFor(
         accountsOpened: s?.accountsOpened ?? 0,
         appsInstalled: s?.appsInstalled ?? 0,
         customers: s?.customers ?? 0,
+        customersMultiAccount: s?.customersMultiAccount ?? 0,
         // `null` khi không có kỳ trước để so, HOẶC kỳ trước phòng này không mở
         // tài khoản nào: 0% so với "chưa có gì" là một phép trừ vô nghĩa, và
         // mũi tên giảm 74 điểm đọc ra như tai nạn.

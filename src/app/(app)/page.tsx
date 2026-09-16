@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Briefcase, Gift, ShieldCheck, Trophy } from "lucide-react";
 import { SkeletonStats, SkeletonTable } from "@/components/ui/Skeleton";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
 import { BarChart } from "@/components/ui/BarChart";
@@ -24,6 +25,7 @@ import { StaffDashboard } from "@/components/dashboard/StaffDashboard";
 import { fetchDashboard, type DepartmentRanking } from "@/lib/api/dashboard";
 import { useChartColors } from "@/lib/chart-colors";
 import { formatCount, formatPoints } from "@/lib/format";
+import { usePrefs } from "@/store/prefs";
 import styles from "./page.module.scss";
 
 /** Trục ngang của biểu đồ đổi theo kỳ — một ngày thì chia giờ, dài hơn thì chia ngày. */
@@ -40,8 +42,15 @@ const installRate = (d: DepartmentRanking) =>
 /**
  * Bốn cột số dùng chung cho bảng phòng và bảng nhân viên — chỉ cột đầu đổi nhãn.
  * Viết hai bộ cột là hai chỗ sớm muộn lệch nhau.
+ *
+ * `hideSingleAccountCustomers` đổi cột "Khách có TK" sang chỉ đếm khách có TỪ 2
+ * tài khoản trở lên — người xem chỉ quan tâm khách mở 2-3 tài khoản, khách 1
+ * tài khoản không đáng chú ý.
  */
-const rankingColumns = (kind: "department" | "staff"): RankColumn<DepartmentRanking>[] => [
+const rankingColumns = (
+  kind: "department" | "staff",
+  hideSingleAccountCustomers: boolean,
+): RankColumn<DepartmentRanking>[] => [
   { key: "name", label: kind === "staff" ? "Nhân viên" : "Phòng", render: (d) => d.name },
   {
     key: "accountsOpened",
@@ -73,8 +82,9 @@ const rankingColumns = (kind: "department" | "staff"): RankColumn<DepartmentRank
   {
     key: "customers",
     label: "Khách có TK",
-    sortBy: (d) => d.customers,
-    render: (d) => formatCount(d.customers),
+    sortBy: (d) => (hideSingleAccountCustomers ? d.customersMultiAccount : d.customers),
+    render: (d) =>
+      formatCount(hideSingleAccountCustomers ? d.customersMultiAccount : d.customers),
   },
   {
     key: "points",
@@ -101,6 +111,8 @@ const rankingColumns = (kind: "department" | "staff"): RankColumn<DepartmentRank
 export default function DashboardPage() {
   const chartColors = useChartColors();
   const [period, setPeriod] = useState<Period>(DEFAULT_PERIOD);
+  const hideSingleAccountCustomers = usePrefs((s) => s.hideSingleAccountCustomers);
+  const setHideSingleAccountCustomers = usePrefs((s) => s.setHideSingleAccountCustomers);
 
   const { data: view, isPending, isError, refetch, isFetching } = useQuery({
     queryKey: ["dashboard", periodKey(period)],
@@ -131,6 +143,22 @@ export default function DashboardPage() {
 
   const previous = data?.banking.previousInstallPercent ?? null;
   const installGap = previous === null ? null : data!.banking.installPercent - previous;
+
+  /** Hàng tổng của bảng Xếp hạng phòng/nhân viên — cùng cách cộng với trang Phòng ban. */
+  const rankingTotals = (data?.departments ?? []).reduce(
+    (sum, d) => ({
+      accountsOpened: sum.accountsOpened + d.accountsOpened,
+      appsInstalled: sum.appsInstalled + d.appsInstalled,
+      customers: sum.customers + d.customers,
+      customersMultiAccount: sum.customersMultiAccount + d.customersMultiAccount,
+      points: sum.points + (d.points ?? 0),
+    }),
+    { accountsOpened: 0, appsInstalled: 0, customers: 0, customersMultiAccount: 0, points: 0 },
+  );
+  const rankingInstallRate =
+    rankingTotals.accountsOpened === 0
+      ? 0
+      : Math.round((rankingTotals.appsInstalled / rankingTotals.accountsOpened) * 100);
 
   return (
     <>
@@ -266,16 +294,39 @@ export default function DashboardPage() {
                 icon={<Trophy size={17} />}
                 meta={periodLabel}
                 className={styles.wide}
+                action={
+                  <Checkbox
+                    checked={hideSingleAccountCustomers}
+                    onCheckedChange={setHideSingleAccountCustomers}
+                    label="Ẩn khách 1 tài khoản"
+                  />
+                }
               >
                 <RankTable
                   rows={data.departments}
-                  columns={rankingColumns(data.rankingKind)}
+                  columns={rankingColumns(data.rankingKind, hideSingleAccountCustomers)}
                   rowKey={(d) => d.id}
                   defaultSort="accountsOpened"
                   caption={
                     data.rankingKind === "staff"
                       ? "Xếp hạng nhân viên trong phòng theo số tài khoản mở, app đã cài, tỉ lệ cài app và số khách có tài khoản"
                       : "Xếp hạng phòng kinh doanh theo số tài khoản mở, app đã cài, tỉ lệ cài app và số khách có tài khoản"
+                  }
+                  summaryRow={
+                    data.departments.length > 0
+                      ? [
+                          "Tổng",
+                          formatCount(rankingTotals.accountsOpened),
+                          formatCount(rankingTotals.appsInstalled),
+                          `${rankingInstallRate}%`,
+                          formatCount(
+                            hideSingleAccountCustomers
+                              ? rankingTotals.customersMultiAccount
+                              : rankingTotals.customers,
+                          ),
+                          formatPoints(rankingTotals.points),
+                        ]
+                      : undefined
                   }
                 />
               </SectionCard>

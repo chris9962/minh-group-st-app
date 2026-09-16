@@ -36,6 +36,12 @@ type Prefs = {
    */
   compactBankingTable: boolean;
   setCompactBankingTable: (value: boolean) => void;
+  /**
+   * P-80 — bảng Xếp hạng phòng/nhân viên bỏ khách chỉ mở 1 tài khoản khỏi cột
+   * "Khách có TK". Người xem chỉ quan tâm khách mở 2-3 tài khoản.
+   */
+  hideSingleAccountCustomers: boolean;
+  setHideSingleAccountCustomers: (value: boolean) => void;
 };
 
 export const usePrefs = create<Prefs>()(
@@ -49,6 +55,9 @@ export const usePrefs = create<Prefs>()(
       setCompactCustomerTable: (compactCustomerTable) => set({ compactCustomerTable }),
       compactBankingTable: false,
       setCompactBankingTable: (compactBankingTable) => set({ compactBankingTable }),
+      hideSingleAccountCustomers: false,
+      setHideSingleAccountCustomers: (hideSingleAccountCustomers) =>
+        set({ hideSingleAccountCustomers }),
     }),
     { name: 'mgst-prefs' },
   ),

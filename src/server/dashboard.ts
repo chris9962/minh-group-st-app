@@ -110,8 +110,8 @@ export async function visibilityLabel(v: DashboardVisibility): Promise<string> {
     .select({ name: departments.name })
     .from(departments)
     .where(inArray(departments.id, v.departmentIds));
-  // Liệt kê tên khi còn đọc được; nhiều hơn ba phòng thì tên dài hơn cả tiêu đề.
-  return rows.length <= 3 ? rows.map((r) => r.name).join(" · ") : `${rows.length} phòng bạn quản`;
+  // Liệt kê tên khi chỉ có một phòng; nhiều hơn một phòng thì tên dài hơn cả tiêu đề.
+  return rows.length <= 1 ? rows.map((r) => r.name).join(" · ") : `${rows.length} phòng`;
 }
 
 /* ── Kỳ xem ────────────────────────────────────────────────────────────── */
@@ -609,7 +609,12 @@ async function giftsBlock(
 }
 
 /** Bốn con số của một dòng, dán từ hai kỳ — dùng chung cho bảng phòng và bảng nhân viên. */
-type Counted = { accountsOpened: number; appsInstalled: number; customers: number };
+type Counted = {
+  accountsOpened: number;
+  appsInstalled: number;
+  customers: number;
+  customersMultiAccount: number;
+};
 const rankRow = (
   id: string,
   name: string,
@@ -623,6 +628,7 @@ const rankRow = (
   accountsOpened: now?.accountsOpened ?? 0,
   appsInstalled: now?.appsInstalled ?? 0,
   customers: now?.customers ?? 0,
+  customersMultiAccount: now?.customersMultiAccount ?? 0,
   previousInstallRate:
     before && before.accountsOpened > 0
       ? rateOf(before.accountsOpened, before.appsInstalled)

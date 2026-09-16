@@ -22,6 +22,12 @@ export const DepartmentRanking = z.object({
    */
   customers: z.number(),
   /**
+   * Trong `customers`, khách có TỪ 2 tài khoản trở lên — dùng cho checkbox lọc
+   * "ẩn khách 1 tài khoản" ở bảng Xếp hạng phòng, người xem chỉ quan tâm khách
+   * mở 2-3 tài khoản.
+   */
+  customersMultiAccount: z.number(),
+  /**
    * Tỉ lệ cài của kỳ liền trước, để so tăng/giảm. `null` khi không có kỳ nào
    * để so — người dùng tự chọn khoảng ngày.
    */
