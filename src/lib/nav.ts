@@ -296,5 +296,9 @@ export function navFor(user: User | null): NavEntry[] {
   // (`lib/docs`), nên không gác gì ở đây.
   items.push({ href: '/docs', label: 'Hướng dẫn', icon: 'help', screen: 'P-95' });
 
+  // Bản cập nhật mở cho MỌI người, nhưng không bày trên sidebar: đường vào là
+  // thông báo và hộp thoại `ReleaseGate`. Trang tự lọc MỤC theo quyền.
+  items.push({ href: '/releases', label: 'Bản cập nhật', icon: 'help', screen: 'P-98', hidden: true });
+
   return items;
 }

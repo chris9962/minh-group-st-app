@@ -156,6 +156,8 @@ export const notificationKind = pgEnum("notification_kind", [
   "bank-photo-review",
   // Tài khoản đang tạo bị người quản ngân hàng xoá, cho chủ tài khoản, migration 0092.
   "bank-deleted",
+  // Bản cập nhật app, cho mọi người; che màn hình tới khi bấm Xem. Migration 0094.
+  "release",
 ]);
 
 /** P-96 · Góp ý đã xử lý hay chưa. Hai trạng thái, thêm ở migration 0052. */

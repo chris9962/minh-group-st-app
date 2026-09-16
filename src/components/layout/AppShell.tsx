@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { ReleaseGate } from "@/components/notifications/ReleaseGate";
 import { fetchMe } from "@/lib/api/profile";
 import { canOpenPath } from "@/lib/nav";
 import { useSession } from "@/store/session";
@@ -93,6 +94,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <div className={styles.main}>{children}</div>
 
       <BottomNav user={user} onOpenMenu={() => setMobileNavOpen(true)} />
+
+      <ReleaseGate />
     </div>
   );
 }

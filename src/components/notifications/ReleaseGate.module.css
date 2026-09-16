@@ -1,0 +1,6 @@
+.body {
+  margin: 0;
+  color: var(--om-text);
+  line-height: 1.6;
+  white-space: pre-line;
+}

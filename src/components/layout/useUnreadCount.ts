@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { fetchUnreadCount } from "@/lib/api/notifications";
+import { fetchUnreadState, type NotificationRow } from "@/lib/api/notifications";
 
 /**
  * Số thông báo chưa đọc — dùng chung cho chuông ở thanh trên và ô ở thanh đáy.
@@ -12,13 +12,21 @@ import { fetchUnreadCount } from "@/lib/api/notifications";
  */
 const REFRESH_MS = 60_000;
 
-export function useUnreadCount(): number {
-  const { data } = useQuery({
+function useUnreadState() {
+  return useQuery({
     queryKey: ["notifications-unread"],
-    queryFn: fetchUnreadCount,
+    queryFn: fetchUnreadState,
     refetchInterval: REFRESH_MS,
     // Quay lại tab thì hỏi ngay, khỏi đợi hết chu kỳ.
     refetchOnWindowFocus: true,
   });
-  return data ?? 0;
+}
+
+export function useUnreadCount(): number {
+  return useUnreadState().data?.unread ?? 0;
+}
+
+/** Bản cập nhật chưa đọc mới nhất, cùng lượt hỏi với chuông. `null` là không có. */
+export function usePendingRelease(): NotificationRow | null {
+  return useUnreadState().data?.release ?? null;
 }

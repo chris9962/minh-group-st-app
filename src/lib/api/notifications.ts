@@ -41,11 +41,20 @@ export async function fetchNotifications(
   return NotificationPage.parse(await res.json());
 }
 
-/** Chỉ số chưa đọc, cho chuông trên thanh trên. Nhẹ hơn hẳn câu lấy danh sách. */
-export async function fetchUnreadCount(): Promise<number> {
+/**
+ * Số chưa đọc cho chuông, kèm bản cập nhật chưa đọc mới nhất cho hộp thoại che
+ * màn hình (`ReleaseGate`). Nhẹ hơn hẳn câu lấy danh sách.
+ */
+export const UnreadState = z.object({
+  unread: z.number(),
+  release: NotificationRow.nullable(),
+});
+export type UnreadState = z.infer<typeof UnreadState>;
+
+export async function fetchUnreadState(): Promise<UnreadState> {
   const res = await fetch('/api/notifications/unread');
   if (!res.ok) throw new Error('Không đọc được số thông báo chưa đọc');
-  return z.object({ unread: z.number() }).parse(await res.json()).unread;
+  return UnreadState.parse(await res.json());
 }
 
 /** Bỏ trống `id` là đánh dấu đã đọc TẤT CẢ. */

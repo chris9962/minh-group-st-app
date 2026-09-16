@@ -30,6 +30,12 @@ type Props = {
   footerStart?: React.ReactNode;
   /** Hộp rộng cho nội dung dạng lưới; mặc định giữ 560px cho biểu mẫu. */
   wide?: boolean;
+  /**
+   * `false` = KHÔNG có nút X, Esc và bấm ra ngoài đều không đóng. Chỉ nút trong
+   * `footer` mới đóng được. Dành cho hộp thoại người dùng PHẢI xác nhận, ví dụ
+   * bản cập nhật (`ReleaseGate`). Mặc định `true`.
+   */
+  dismissible?: boolean;
 };
 
 /**
@@ -39,7 +45,16 @@ type Props = {
  * phím Esc, lớp phủ và việc chặn phần nền với trình đọc màn hình. Tự dựng bằng
  * div thì phải viết lại từng thứ đó, và thiếu một cái là bàn phím kẹt.
  */
-export function Dialog({ open, title, onClose, children, footer, footerStart, wide = false }: Props) {
+export function Dialog({
+  open,
+  title,
+  onClose,
+  children,
+  footer,
+  footerStart,
+  wide = false,
+  dismissible = true,
+}: Props) {
   const ref = useRef<HTMLDialogElement>(null);
   const [dialogEl, setDialogEl] = useState<HTMLDialogElement | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -129,12 +144,12 @@ export function Dialog({ open, title, onClose, children, footer, footerStart, wi
         // component, kể cả qua portal. Không chặn thì Esc trong hộp con đóng
         // luôn hộp cha và mất biểu mẫu đang điền.
         e.stopPropagation();
-        onClose();
+        if (dismissible) onClose();
       }}
       // Bấm ra ngoài thì đóng. Sự kiện rơi vào chính thẻ dialog nghĩa là bấm
       // trúng lớp phủ, vì nội dung nằm trong thẻ con.
       onClick={(e) => {
-        if (e.target === ref.current) onClose();
+        if (dismissible && e.target === ref.current) onClose();
       }}
     >
       {open && (
@@ -143,14 +158,16 @@ export function Dialog({ open, title, onClose, children, footer, footerStart, wi
           <div ref={panelRef} className={clsx(styles.panel, wide && styles.wide)} tabIndex={-1}>
             <header className={styles.head}>
               <h2 className={styles.title}>{title}</h2>
-              <button
-                type="button"
-                className={styles.close}
-                onClick={onClose}
-                aria-label="Đóng"
-              >
-                <X size={18} aria-hidden />
-              </button>
+              {dismissible && (
+                <button
+                  type="button"
+                  className={styles.close}
+                  onClick={onClose}
+                  aria-label="Đóng"
+                >
+                  <X size={18} aria-hidden />
+                </button>
+              )}
             </header>
 
             <div className={styles.bodyWrap}>

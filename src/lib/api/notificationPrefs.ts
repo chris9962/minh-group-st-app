@@ -20,6 +20,7 @@ export const NotificationKind = z.enum([
   'bank-photo-fail',
   'bank-photo-review',
   'bank-deleted',
+  'release',
 ]);
 export type NotificationKind = z.infer<typeof NotificationKind>;
 
@@ -56,8 +57,12 @@ export const NOTIFICATION_KINDS: SwitchableKind[] = [
  * `announcement` đứng ngoài và sẽ đứng ngoài mãi: thông báo chung của công ty
  * không cho tắt, nên nó không có nhãn công tắc, không có ô quyền để lọc, và
  * không bao giờ vào `NOTIFICATION_KINDS`.
+ *
+ * `release` cùng luật: bản cập nhật app đổi cách làm việc của mọi người, tắt
+ * đi là dùng app theo luật cũ mà không biết. Nơi gửi là script
+ * `db:announce-release`, không hỏi `notification_prefs`.
  */
-export type SwitchableKind = Exclude<NotificationKind, 'announcement'>;
+export type SwitchableKind = Exclude<NotificationKind, 'announcement' | 'release'>;
 
 /** Nhãn của CÔNG TẮC. Chỉ dùng ở danh sách công tắc trong trang cá nhân. */
 export const NOTIFICATION_KIND_LABEL: Record<SwitchableKind, string> = {
@@ -107,6 +112,8 @@ export const NOTIFICATION_KIND_ICON: Record<NotificationKind, NavIconKey> = {
   'code-low': 'banking',
   /** Toà nhà, cùng icon với màn Cơ cấu tổ chức: tin này của cả công ty. */
   announcement: 'org',
+  /** Cùng icon với Hướng dẫn: bản cập nhật cũng là bài đọc về app. */
+  release: 'help',
 };
 
 /**
@@ -146,6 +153,7 @@ export const ALL_ON: Record<NotificationKind, boolean> = {
   'bank-deleted': true,
   'code-low': true,
   announcement: true,
+  release: true,
 };
 
 export const NotificationPrefs = z.record(NotificationKind, z.boolean());

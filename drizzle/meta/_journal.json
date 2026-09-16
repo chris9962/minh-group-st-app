@@ -659,6 +659,13 @@
       "when": 1789891400019,
       "tag": "0093_customer_created_day",
       "breakpoints": true
+    },
+    {
+      "idx": 94,
+      "version": "7",
+      "when": 1789891400020,
+      "tag": "0094_notification_release",
+      "breakpoints": true
     }
   ]
 }

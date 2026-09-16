@@ -1,6 +1,6 @@
 import { and, count, desc, eq, isNull, or, sql } from "drizzle-orm";
 import type { NotificationKind } from "@/lib/api/notificationPrefs";
-import type { NotificationPage, NotificationSort } from "@/lib/api/notifications";
+import type { NotificationPage, NotificationRow, NotificationSort } from "@/lib/api/notifications";
 import type { Action, ModuleKey } from "@/lib/types";
 import { db } from "./db/client";
 import { notifications, userPermissions, users } from "./db/schema";
@@ -28,6 +28,8 @@ export type NotifyMessage = {
   body: string;
   /** Đường dẫn mở ra khi bấm. Bỏ trống thì dòng chỉ để đọc. */
   url?: string;
+  /** Mã bản cập nhật, chỉ loại `release`: `db:announce-release` tra để không gửi trùng. */
+  release?: string;
 };
 
 export async function notify(
@@ -156,7 +158,12 @@ export async function notifyUsers(
 ): Promise<number> {
   if (userIds.length === 0) return 0;
 
-  const payload = { title: message.title, body: message.body, url: message.url ?? "" };
+  const payload = {
+    title: message.title,
+    body: message.body,
+    url: message.url ?? "",
+    ...(message.release ? { release: message.release } : {}),
+  };
   await db.insert(notifications).values(userIds.map((userId) => ({ userId, kind, payload })));
 
   // Đẩy hỏng không làm hỏng cả lượt gọi: dòng đã ghi xong, mở app vẫn thấy.
@@ -190,6 +197,40 @@ export async function notifyEveryone(message: NotifyMessage): Promise<number> {
     "announcement",
     message,
   );
+}
+
+/**
+ * Thông báo bản cập nhật CHƯA ĐỌC mới nhất của một người, để `ReleaseGate` che
+ * màn hình. Đọc xong (bấm Xem) là hàm trả `null` và hộp thoại không hiện nữa.
+ *
+ * Chỉ lấy một dòng: hai bản deploy liền nhau mà người đó chưa mở app thì họ
+ * thấy bản mới nhất, bản cũ vẫn nằm trong danh sách thông báo để đọc sau.
+ */
+export async function pendingRelease(userId: string): Promise<NotificationRow | null> {
+  const [row] = await db
+    .select({ id: notifications.id, payload: notifications.payload, at: notifications.createdAt })
+    .from(notifications)
+    .where(
+      and(
+        eq(notifications.userId, userId),
+        eq(notifications.kind, "release"),
+        isNull(notifications.readAt),
+      ),
+    )
+    .orderBy(desc(notifications.createdAt))
+    .limit(1);
+  if (!row) return null;
+
+  const payload = (row.payload ?? {}) as { title?: string; body?: string; url?: string };
+  return {
+    id: row.id,
+    kind: "release",
+    title: payload.title ?? "",
+    body: payload.body ?? "",
+    url: payload.url ?? "",
+    at: row.at.toISOString(),
+    read: false,
+  };
 }
 
 export async function unreadCount(userId: string): Promise<number> {
