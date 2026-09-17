@@ -987,12 +987,12 @@ const rawById = async (id: string): Promise<DecoratedRow | null> =>
 /**
  * Nhãn nhận ra một tài khoản trong thông báo.
  *
- * Mã ngân hàng cộng mã giới thiệu, KHÔNG có tên khách và KHÔNG có số tài khoản.
- * Thông báo hiện trên màn hình khoá, ai cầm máy cũng đọc được mà không mở khoá.
- * Hai thứ kia là dữ liệu cá nhân và dữ liệu tài chính; mã giới thiệu là mã nội
- * bộ, đủ để người nhận biết đơn nào rồi mở app xem tiếp.
+ * Tên khách cộng mã ngân hàng cộng mã giới thiệu, KHÔNG có số tài khoản. Thông
+ * báo hiện trên màn hình khoá, ai cầm máy cũng đọc được mà không mở khoá; số
+ * tài khoản là dữ liệu tài chính nên vẫn giữ ngoài nhãn này.
  */
-const nhanTaiKhoan = (row: DecoratedRow) => `${row.bankCode} · ${row.referralCode}`;
+const nhanTaiKhoan = (row: DecoratedRow) =>
+  `${row.customerName} ${row.bankCode} · ${row.referralCode}`;
 
 /**
  * Báo cho CHỦ tài khoản, tức người đã mở tài khoản đó.
