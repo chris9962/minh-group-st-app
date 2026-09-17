@@ -140,7 +140,9 @@ export function RankTable<T>({
         return asc ? d : -d;
       });
     if (!sortBy) return rows;
-    return [...rows].sort((a, b) => (asc ? sortBy(a) - sortBy(b) : sortBy(b) - sortBy(a)));
+    return [...rows].sort((a, b) =>
+      asc ? sortBy(a) - sortBy(b) : sortBy(b) - sortBy(a),
+    );
   }, [server, rows, columns, sortKey, asc]);
 
   const size = server ? server.pageSize : pageSize;
@@ -148,7 +150,10 @@ export function RankTable<T>({
   const pageCount = size ? Math.ceil(totalRows / size) : 1;
   const maxPage = Math.max(0, pageCount - 1);
   const current = Math.min(server ? server.page : page, maxPage);
-  const visible = server || !pageSize ? sorted : sorted.slice(current * pageSize, (current + 1) * pageSize);
+  const visible =
+    server || !pageSize
+      ? sorted
+      : sorted.slice(current * pageSize, (current + 1) * pageSize);
 
   /**
    * Kéo trang cha về trang có thật khi `total` co lại dưới trang đang xem.
@@ -168,7 +173,8 @@ export function RankTable<T>({
     if (server && server.page > maxPage) server.onPageChange(maxPage);
   }, [server, maxPage]);
 
-  const goTo = (next: number) => (server ? server.onPageChange(next) : setPage(next));
+  const goTo = (next: number) =>
+    server ? server.onPageChange(next) : setPage(next);
 
   const toggle = (key: string) => {
     // Đổi cột sắp thì về trang đầu, nếu không người dùng đang ở trang 3 sẽ
@@ -184,127 +190,140 @@ export function RankTable<T>({
   };
 
   return (
-    <div className="table-scroll">
-      <table className={`table ${styles.table}`}>
-        <caption className="sr-only">{caption}</caption>
-        <thead>
-          <tr>
-            {columns.map((col) => {
-              const active = col.key === activeSort;
-              const canSort = server
-                ? (col.sortable ?? false)
-                : Boolean(col.sortBy || col.sortText);
+    <div>
+      <div className="table-scroll">
+        <table className={`table ${styles.table}`}>
+          <caption className="sr-only">{caption}</caption>
+          <thead>
+            <tr>
+              {columns.map((col) => {
+                const active = col.key === activeSort;
+                const canSort = server
+                  ? (col.sortable ?? false)
+                  : Boolean(col.sortBy || col.sortText);
+                return (
+                  <th
+                    key={col.key}
+                    scope="col"
+                    className={col.align === "right" ? styles.right : undefined}
+                    aria-sort={
+                      active
+                        ? activeAsc
+                          ? "ascending"
+                          : "descending"
+                        : undefined
+                    }
+                  >
+                    {canSort ? (
+                      <button
+                        type="button"
+                        className={styles.sortBtn}
+                        onClick={() => toggle(col.key)}
+                      >
+                        {col.label}
+                        <span aria-hidden className={styles.caret}>
+                          {active ? (activeAsc ? "↑" : "↓") : ""}
+                        </span>
+                      </button>
+                    ) : (
+                      col.label
+                    )}
+                  </th>
+                );
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            {visible.length === 0 && emptyText && (
+              <tr>
+                <td colSpan={columns.length} className={styles.empty}>
+                  {emptyText}
+                </td>
+              </tr>
+            )}
+            {visible.map((row) => {
+              const href = rowHref?.(row);
               return (
-                <th
-                  key={col.key}
-                  scope="col"
-                  className={col.align === "right" ? styles.right : undefined}
-                  aria-sort={
-                    active ? (activeAsc ? "ascending" : "descending") : undefined
-                  }
+                <tr
+                  key={rowKey(row)}
+                  className={onRowClick || href ? styles.clickable : undefined}
+                  onClick={onRowClick ? () => onRowClick(row) : undefined}
                 >
-                  {canSort ? (
-                    <button
-                      type="button"
-                      className={styles.sortBtn}
-                      onClick={() => toggle(col.key)}
-                    >
-                      {col.label}
-                      <span aria-hidden className={styles.caret}>
-                        {active ? (activeAsc ? "↑" : "↓") : ""}
+                  {columns.map((col, index) => {
+                    const content = col.ratio ? (
+                      <span className={styles.ratioCell}>
+                        <span className={styles.track} aria-hidden>
+                          <span
+                            className={styles.fill}
+                            style={{
+                              width: `${Math.min(100, col.ratio(row))}%`,
+                            }}
+                          />
+                        </span>
+                        {col.render(row)}
                       </span>
-                    </button>
-                  ) : (
-                    col.label
-                  )}
-                </th>
+                    ) : (
+                      col.render(row)
+                    );
+
+                    return (
+                      <td
+                        key={col.key}
+                        className={clsx(
+                          col.align === "right" ? styles.right : undefined,
+                          col.sortBy ? "tabular-nums" : undefined,
+                          href ? styles.linkCell : undefined,
+                        )}
+                      >
+                        {href ? (
+                          <Link
+                            href={href}
+                            className={styles.rowLink}
+                            aria-label={
+                              index === 0 ? rowLabel?.(row) : undefined
+                            }
+                            aria-hidden={index > 0}
+                            tabIndex={index > 0 ? -1 : undefined}
+                          >
+                            {content}
+                          </Link>
+                        ) : (
+                          content
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
               );
             })}
-          </tr>
-        </thead>
-        <tbody>
-          {visible.length === 0 && emptyText && (
-            <tr>
-              <td colSpan={columns.length} className={styles.empty}>
-                {emptyText}
-              </td>
-            </tr>
-          )}
-          {visible.map((row) => {
-            const href = rowHref?.(row);
-            return (
-              <tr
-                key={rowKey(row)}
-                className={onRowClick || href ? styles.clickable : undefined}
-                onClick={onRowClick ? () => onRowClick(row) : undefined}
-              >
-                {columns.map((col, index) => {
-                  const content = col.ratio ? (
-                    <span className={styles.ratioCell}>
-                      <span className={styles.track} aria-hidden>
-                        <span
-                          className={styles.fill}
-                          style={{ width: `${Math.min(100, col.ratio(row))}%` }}
-                        />
-                      </span>
-                      {col.render(row)}
-                    </span>
-                  ) : (
-                    col.render(row)
-                  );
-
-                  return (
-                    <td
-                      key={col.key}
-                      className={clsx(
-                        col.align === "right" ? styles.right : undefined,
-                        col.sortBy ? "tabular-nums" : undefined,
-                        href ? styles.linkCell : undefined,
-                      )}
-                    >
-                      {href ? (
-                        <Link
-                          href={href}
-                          className={styles.rowLink}
-                          aria-label={index === 0 ? rowLabel?.(row) : undefined}
-                          aria-hidden={index > 0}
-                          tabIndex={index > 0 ? -1 : undefined}
-                        >
-                          {content}
-                        </Link>
-                      ) : (
-                        content
-                      )}
-                    </td>
-                  );
-                })}
+          </tbody>
+          {summaryRow && rows.length > 0 && (
+            <tfoot>
+              <tr className={styles.summaryRow}>
+                {columns.map((col, index) => (
+                  <td
+                    key={col.key}
+                    className={clsx(
+                      col.align === "right" ? styles.right : undefined,
+                      col.sortBy ? "tabular-nums" : undefined,
+                    )}
+                  >
+                    {summaryRow[index] ?? null}
+                  </td>
+                ))}
               </tr>
-            );
-          })}
-        </tbody>
-        {summaryRow && rows.length > 0 && (
-          <tfoot>
-            <tr className={styles.summaryRow}>
-              {columns.map((col, index) => (
-                <td
-                  key={col.key}
-                  className={clsx(
-                    col.align === "right" ? styles.right : undefined,
-                    col.sortBy ? "tabular-nums" : undefined,
-                  )}
-                >
-                  {summaryRow[index] ?? null}
-                </td>
-              ))}
-            </tr>
-          </tfoot>
-        )}
-      </table>
+            </tfoot>
+          )}
+        </table>
+      </div>
 
+      {/* Nằm NGOÀI `.table-scroll`: bảng rộng cuộn ngang thì thanh này đứng yên.
+          Đặt bên trong là nó trôi theo cột và bị cắt mất nút "Sau". */}
       {size && pageCount > 1 && (
         <div className={styles.pager}>
           <span className={styles.range}>
-            {current * size + 1}–{Math.min((current + 1) * size, totalRows)} trên {totalRows}
+            {current * size + 1}–{Math.min((current + 1) * size, totalRows)}{" "}
+            trên {totalRows}
           </span>
           <button
             type="button"

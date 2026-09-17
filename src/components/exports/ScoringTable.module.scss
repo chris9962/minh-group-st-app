@@ -29,11 +29,9 @@
   }
 }
 
-/* Bảng 14 cột không vừa bề ngang màn — cho nó cuộn trong khung của chính nó,
-   không để cả trang cuộn ngang (AGENTS.md §8). */
-.scroll {
-  overflow-x: auto;
-}
+/* Bảng 14 cột không vừa bề ngang màn. Việc cuộn ngang do `.table-scroll` bên
+   trong RankTable lo; KHÔNG đặt overflow-x ở đây — khối này bọc cả thanh phân
+   trang, cuộn ở đây là thanh đó trôi theo cột. */
 
 /* MỖI Ô ĐÚNG MỘT HÀNG. Bảng này để đối chiếu số theo dòng: một ô xuống hai hàng
    là dòng đó cao gấp đôi, và mắt người đọc mất mốc khi rà ngang qua mười bốn
