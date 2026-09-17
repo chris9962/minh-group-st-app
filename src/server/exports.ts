@@ -116,6 +116,7 @@ function customerOnlyWhere(
       : undefined,
     filters.channelId ? eq(customers.channelId, filters.channelId) : undefined,
     filters.staffId ? eq(customers.createdBy, filters.staffId) : undefined,
+    addressWhere(filters.address),
   ].filter(Boolean) as SQL[];
 
   return parts.length > 0 ? and(...parts) : undefined;

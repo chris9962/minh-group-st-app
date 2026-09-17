@@ -78,7 +78,8 @@ export const SCORING_INCLUDE_LABEL: Record<ScoringInclude, string> = {
  * đã chạm trần chưa, mà một file thiếu dòng trông y hệt file đủ.
  */
 export async function fetchScoringExport(
-  query: Omit<BankAccountQuery, keyof PageQuery>,
+  /** `address`: địa chỉ xã/ấp chọn từ danh mục, cùng chuỗi với ô lọc P-40. */
+  query: Omit<BankAccountQuery, keyof PageQuery> & { address?: string },
   include: ScoringInclude = 'with-accounts',
   /**
    * Bỏ CCCD và số điện thoại khỏi mỗi dòng — bảng hiện trên màn bật cờ này,
@@ -99,6 +100,7 @@ export async function fetchScoringExport(
     staffId: query.staffId,
     status: query.status,
     include,
+    ...(query.address ? { address: query.address } : {}),
     ...(omitPii ? { omitPii: '1' } : {}),
   });
   const res = await fetch(`/api/exports/scoring?${params}`);

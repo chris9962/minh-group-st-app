@@ -294,6 +294,11 @@ export type BankAccountFilters = {
   accountType: string;
   /** `fail` · `pass` theo lượt xác thực ảnh mới nhất. Rỗng hoặc giá trị lạ = không lọc. */
   photoCheck: string;
+  /**
+   * Địa chỉ khách chọn từ danh mục xã/ấp, cùng chuỗi với ô lọc ở P-40. Chỉ báo
+   * cáo Tính điểm tổng dùng (chốt 2026-09-17). Bỏ trống = không lọc.
+   */
+  address?: string;
 };
 
 /**
@@ -374,6 +379,24 @@ function searchWhere(raw: string): SQL | undefined {
         )`,
     ),
   );
+}
+
+/**
+ * Lọc theo địa chỉ khách — cùng luật với `addressWhere` ở `server/customers.ts`:
+ * chuỗi ba phần là một ấp, so bằng `=`; chuỗi hai phần là một xã, khớp cả khách
+ * chọn thẳng xã lẫn khách chọn một ấp trong xã đó.
+ */
+function addressFilter(raw: string | undefined): SQL | undefined {
+  const value = raw?.trim();
+  if (!value) return undefined;
+  const match =
+    value.split(",").length > 2
+      ? sql`c.address = ${value}`
+      : sql`(c.address = ${value} or c.address like '%, ' || ${likeEscape(value)} escape '\\')`;
+  return sql`exists (
+    select 1 from ${customers} c
+    where c.id = ${bankAccounts.customerId} and ${match}
+  )`;
 }
 
 /**
@@ -478,6 +501,7 @@ async function accountFilters(
     statusFilter(query.status),
     accountTypeFilter(query.accountType),
     photoCheckFilter(query.photoCheck),
+    addressFilter(query.address),
   ].filter(Boolean) as SQL[];
 
   return parts.length > 0 ? and(...parts) : undefined;

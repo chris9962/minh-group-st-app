@@ -48,6 +48,7 @@ export async function GET(request: Request) {
     status: params.get("status") ?? "",
     accountType: params.get("accountType") ?? "",
     photoCheck: "",
+    address: params.get("address") ?? "",
   },
   // Giá trị lạ rơi về `with-accounts` — hình dạng cũ, cùng lối với khoá sắp xếp.
   params.get("include") === "all" ? "all" : "with-accounts",

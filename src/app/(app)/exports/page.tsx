@@ -30,6 +30,7 @@ import { fetchServicesForExport } from "@/lib/api/services";
 import { fetchServiceTypes } from "@/lib/api/settings";
 import { fetchStaffOptions, type StaffOption } from "@/lib/api/staff";
 import { fetchProvinces } from "@/lib/api/wardCatalog";
+import { useAddressSuggestions } from "@/lib/useAddressSuggestions";
 import { exportExcel, type ExcelColumn } from "@/lib/excel";
 import { BUSINESS_TIMEZONE, formatDate } from "@/lib/format";
 import { can, scopeFor } from "@/lib/permissions";
@@ -380,6 +381,8 @@ export default function ExportsPage() {
   const [scoringInclude, setScoringInclude] = useState<ScoringInclude>("with-accounts");
   /** Báo cáo #1: lọc theo NGƯỜI LẬP HỒ SƠ khách, đúng người nhận điểm. */
   const [scoringStaffId, setScoringStaffId] = useState("");
+  /** Báo cáo #1: địa chỉ xã/ấp của khách, cùng chuỗi với ô lọc P-40. */
+  const [scoringAddress, setScoringAddress] = useState("");
   const [month, setMonth] = useState(thisMonth());
   const [statsGroupBy, setStatsGroupBy] = useState<OrderStatsGroupBy>("department");
   /** `day` = mỗi ngày một sheet, `month` = một sheet gộp cả tháng. */
@@ -401,6 +404,7 @@ export default function ExportsPage() {
   const { data: serviceTypes = [] } = useQuery({ queryKey: ["service-types"], queryFn: fetchServiceTypes });
   const { data: provinces = [] } = useQuery({ queryKey: ["provinces"], queryFn: fetchProvinces });
   const wards = provinces.flatMap((p) => p.wards);
+  const addressSuggestions = useAddressSuggestions();
   // `status: "all"` chứ không phải `"active"`: báo cáo đọc dữ liệu CŨ, và người
   // tạo ra nó có thể đã nghỉ. Lấy mỗi người đang hoạt động thì mã nhân viên,
   // đơn vị và chức vụ của họ ra "—" trên mọi dòng họ từng nhập.
@@ -485,6 +489,7 @@ export default function ExportsPage() {
           status: "",
           accountType: "",
           photoCheck: "",
+          address: scoringAddress,
         },
         scoringInclude,
       );
@@ -777,6 +782,22 @@ export default function ExportsPage() {
                   options={[
                     { value: "", label: "Tất cả nhân viên" },
                     ...staffOptions.map((s) => ({ value: s.id, label: s.fullName })),
+                  ]}
+                />
+              )}
+
+              {active === "accounts-by-customer" && (
+                <Combobox
+                  block
+                  // Cùng danh sách với ô Địa chỉ của hộp thoại khách, nên giá trị
+                  // lọc ghép ra đúng chuỗi đang lưu trong `customers.address`.
+                  label="Ấp"
+                  placeholder="Gõ để tìm Ấp, Xã, Tỉnh…"
+                  value={scoringAddress}
+                  onChange={setScoringAddress}
+                  options={[
+                    { value: "", label: "Tất cả ấp" },
+                    ...addressSuggestions.map((s) => ({ value: s, label: s })),
                   ]}
                 />
               )}

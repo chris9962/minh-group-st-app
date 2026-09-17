@@ -214,7 +214,7 @@ function searchWhere(raw: string): SQL | undefined {
  * Vế đuôi không dùng được chỉ mục, chấp nhận: danh sách xã ngắn hơn danh sách
  * ấp nhiều lần nên ô này ít khi dừng ở mức xã.
  */
-function addressWhere(address: string | undefined): SQL | undefined {
+export function addressWhere(address: string | undefined): SQL | undefined {
   const value = address?.trim();
   if (!value) return undefined;
   if (value.split(",").length > 2) return eq(customers.address, value);
