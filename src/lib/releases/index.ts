@@ -1,3 +1,4 @@
+import { canOpenPath } from '@/lib/nav';
 import type { User } from '@/lib/types';
 import type { Release, ReleaseSection } from './types';
 
@@ -8,6 +9,47 @@ export type { Release, ReleaseSection } from './types';
  * và trang `/releases` bày theo đúng thứ tự này.
  */
 export const RELEASES: Release[] = [
+  {
+    id: '2026-09-18',
+    title: 'Cập nhật ngày 18/09/2026',
+    summary:
+      'Khách có HKD nhận thêm Loa hoặc Bảng mica, cộng với quà chính. Hồ sơ đã chốt quà vẫn dời được ngày hồ sơ tới ngày chốt.',
+    sections: [
+      {
+        title: 'Quà tặng cho khách có HKD',
+        items: [
+          'Khách có tài khoản HKD nhận Loa hoặc Bảng mica CỘNG với quà chính, không phải chọn một trong hai như trước.',
+          'Hộp Tặng quà có hai phần: Quà chính và Quà thêm HKD. Bạn chọn mỗi phần một món, hoặc từ chối, rồi bấm Xác nhận một lần.',
+          'Hộp Đổi quà cũng có hai phần. Bạn đổi quà chính, quà thêm, hoặc cả hai trong một lần.',
+          'Hồ sơ khách, danh sách khách và file Excel ghi cả hai món, ví dụ "1 năm BH xe máy + Loa".',
+        ],
+      },
+      {
+        title: 'Dời ngày hồ sơ khách',
+        items: [
+          'Hồ sơ đã chốt quà vẫn dời được ngày hồ sơ, nhưng ngày mới không được sau ngày chốt quà.',
+          'Ví dụ: hồ sơ lập ngày 16, phát quà ngày 17. Bạn dời được sang ngày 17, không dời được sang ngày 18.',
+        ],
+      },
+      {
+        title: 'Xuất dữ liệu',
+        items: ['Báo cáo "Tính điểm tổng, gộp theo khách" có thêm ô lọc Ấp, cùng danh sách với ô Ấp ở trang Khách hàng.'],
+        visibleTo: (user) => canOpenPath(user, '/exports'),
+      },
+      {
+        title: 'Kho mã giới thiệu',
+        items: ['Bộ lọc, ô tìm và trang đang xem nằm trên đường dẫn. Bạn mở một mã rồi bấm Quay lại thì bảng còn nguyên bộ lọc.'],
+        visibleTo: (user) => canOpenPath(user, '/settings/banks'),
+      },
+      {
+        title: 'Bảng và thông báo',
+        items: [
+          'Kéo bảng sang ngang thì thanh chuyển trang đứng yên, không trôi theo cột.',
+          'Thông báo về tài khoản ngân hàng ghi kèm tên khách.',
+        ],
+      },
+    ],
+  },
   {
     id: '2026-09-17',
     title: 'Cập nhật ngày 17/09/2026',
