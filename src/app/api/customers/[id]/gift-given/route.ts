@@ -6,7 +6,12 @@ import { grantGift } from "@/server/gift";
 
 type Params = { params: Promise<{ id: string }> };
 
-const Body = z.object({ item: z.string().trim().min(1), orderIds: z.array(z.string()).default([]) });
+const Body = z.object({
+  item: z.string().trim().min(1),
+  orderIds: z.array(z.string()).default([]),
+  /** Quà phụ HKD — mã món hoặc `DECLINED`; `null` khi khách không có rổ phụ. */
+  extraItem: z.string().trim().min(1).nullable().default(null),
+});
 
 /**
  * P-43 · Chốt quà — đúng MỘT lần cho mỗi khách, không có đợt thứ hai
@@ -26,21 +31,32 @@ export async function POST(request: Request, { params }: Params) {
   const parsed = Body.safeParse(await jsonBody(request));
   if (!parsed.success) return badRequest("Chưa chọn món quà nào");
 
-  const result = await grantGift(guard.actor, id, parsed.data.item, parsed.data.orderIds);
+  const result = await grantGift(
+    guard.actor,
+    id,
+    parsed.data.item,
+    parsed.data.orderIds,
+    parsed.data.extraItem,
+  );
   if (!result) return notFound();
 
   if (!result.ok)
     return Response.json({ code: result.code, message: result.message }, { status: 422 });
+
+  // Từ chối cả quà chính lẫn quà phụ mới là "từ chối nhận quà"; từ chối quà
+  // chính mà lấy Loa thì vẫn là một lượt tặng.
+  const declinedAll =
+    parsed.data.item === GIFT_DECLINED &&
+    (parsed.data.extraItem === null || parsed.data.extraItem === GIFT_DECLINED);
 
   await logAudit(guard.actor, {
     module: "banking",
     action: "grant-gift",
     // `itemLabel` là TÊN món, không phải mã: nhật ký hoạt động để người đọc, mà
     // `BH-1N-XEMAY` thì phải đi tra danh mục mới hiểu.
-    targetLabel:
-      parsed.data.item === GIFT_DECLINED
-        ? `${result.customerName} từ chối nhận quà`
-        : `Tặng ${result.itemLabel} cho ${result.customerName}`,
+    targetLabel: declinedAll
+      ? `${result.customerName} từ chối nhận quà`
+      : `Tặng ${result.itemLabel} cho ${result.customerName}`,
     targetTable: "gift_grants",
     targetId: id,
   });

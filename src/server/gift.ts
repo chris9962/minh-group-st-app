@@ -1,6 +1,14 @@
 import { and, asc, count, desc, eq, inArray, isNull, notInArray, sql, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
-import { GIFT_DECLINED, GIFT_DECLINED_LABEL, GIFT_ERROR, type GiftChangeForm } from "@/lib/api/customers";
+import {
+  GIFT_DECLINED,
+  GIFT_ERROR,
+  GIFT_NONE,
+  GIFT_NONE_LABEL,
+  GIFT_SENTINEL_LABELS,
+  GIFT_UNCHOSEN,
+  type GiftChangeForm,
+} from "@/lib/api/customers";
 import { GIFT_EXPORT_LIMIT, type GiftGrantRow } from "@/lib/api/gifts";
 import type { Page } from "@/lib/api/pagination";
 import { EMPTY_GIFT, GiftSimulateResult, type GiftSimulateInput } from "@/lib/api/settings";
@@ -227,6 +235,7 @@ export async function giftResultOf(
       amount: c.amount,
     })),
     basket: await resolveBasket(result.basket),
+    extraBasket: await resolveBasket(result.extraBasket),
     kpiPoints: result.comboPoints,
     kpiBreakdown:
       result.comboPoints > 0
@@ -322,9 +331,17 @@ export async function recomputeGiftCase(customerId: string): Promise<void> {
 
   await db
     .update(customers)
-    .set({ giftBasket: result?.basket.map((b) => b.code) ?? [] })
+    .set({ giftBasket: giftBasketCodes(result) })
     .where(eq(customers.id, customerId));
 }
+
+/**
+ * Cột `customers.gift_basket` gộp CẢ HAI rổ: nó chỉ trả lời "khách có gì để
+ * phát không" (P-40 trạng thái, P-80 số khách chờ). Khách chỉ có dòng HKD có rổ
+ * chính rỗng mà vẫn phải hiện "Đủ ĐK · chưa phát", vì rổ quà thêm có Loa.
+ */
+const giftBasketCodes = (result: GiftResult | null): string[] =>
+  result ? [...result.basket, ...result.extraBasket].map((b) => b.code) : [];
 
 /**
  * P-81 — chạy thử trên dữ liệu người dùng tự bịa, KHÔNG đụng database.
@@ -446,7 +463,7 @@ export async function recountGiftCases(
         },
         ruleDateOf(accounts) ?? today,
       );
-      const next = result?.basket.map((b) => b.code) ?? [];
+      const next = giftBasketCodes(result);
       if (sameCodes(next, customer.giftBasket)) continue;
 
       drift.push({ id: customer.id, from: customer.giftBasket, to: next });
@@ -481,6 +498,8 @@ export async function grantGift(
   customerId: string,
   item: string,
   orderIds: string[] = [],
+  /** Món quà thêm hoặc `GIFT_DECLINED`; `null` khi khách không có rổ quà thêm. */
+  extraItem: string | null = null,
 ): Promise<GrantOutcome | null> {
   const [customer] = await db
     .select({ fullName: customers.fullName })
@@ -490,19 +509,37 @@ export async function grantGift(
 
   const gift = await giftForCustomer(customerId);
   const declined = item === GIFT_DECLINED;
+  const hasExtra = gift.extraBasket.length > 0;
 
-  if (gift.basket.length === 0 && !declined)
+  if (gift.basket.length === 0 && !hasExtra && !declined)
     return {
       ok: false,
       code: GIFT_ERROR.NOT_IN_BASKET,
       message: "Khách này chưa đủ điều kiện nhận quà",
     };
 
+  /**
+   * `NONE` chỉ hợp lệ khi rổ chính RỖNG mà rổ quà thêm có món — khách chỉ có dòng
+   * HKD. Có món trong rổ chính mà gửi `NONE` là giao diện cũ hoặc gõ tay.
+   *
+   * Rổ chính rỗng mà gửi "từ chối" thì quy về `NONE`: không có gì để từ chối,
+   * và nhãn "Từ chối nhận quà + Loa" đọc sai bản chất.
+   */
+  const mainEmpty = gift.basket.length === 0 && hasExtra;
+  if (item === GIFT_NONE && !mainEmpty)
+    return {
+      ok: false,
+      code: GIFT_ERROR.NOT_IN_BASKET,
+      message: "Khách có quà chính để chọn, không được bỏ trống",
+    };
+  const mainItem = mainEmpty && declined ? GIFT_NONE : item;
+  const none = mainItem === GIFT_NONE;
+
   // Tìm bằng MÃ, không bằng tên (quyết định #74): admin đổi tên món ở P-82 giữa
   // lúc người dùng đang mở màn phát quà thì tìm theo tên không ra, dù đúng món.
-  const picked = declined ? null : gift.basket.find((b) => b.code === item);
+  const picked = declined || none ? null : gift.basket.find((b) => b.code === item);
 
-  if (!declined && !picked)
+  if (!declined && !none && !picked)
     return {
       ok: false,
       code: GIFT_ERROR.NOT_IN_BASKET,
@@ -511,15 +548,35 @@ export async function grantGift(
 
   // Rổ giữ lại cả món đã ngừng để màn nói được lý do, nên chốt chặn phải tự
   // kiểm — ẩn nút ở giao diện không phải là chặn (AGENTS.md §6).
-  if (picked && picked.status !== "ok")
+  const discontinuedError = (choice: { name: string; status: string }): GrantOutcome => ({
+    ok: false,
+    code: GIFT_ERROR.ITEM_DISCONTINUED,
+    message:
+      choice.status === "discontinued"
+        ? `"${choice.name}" đã ngừng cấp — chọn món khác trong rổ`
+        : `"${choice.name}" không còn trong danh mục quà — báo quản trị thêm lại rồi phát`,
+  });
+  if (picked && picked.status !== "ok") return discontinuedError(picked);
+
+  /**
+   * Rổ quà thêm bắt buộc có câu trả lời khi nó có món: bỏ trống là mất dấu khách đã
+   * được hỏi hay chưa, và hộp thoại "Chọn quà thêm" sẽ hiện lại cho một khách đã
+   * từ chối. Ngược lại, không có rổ quà thêm mà gửi món là gõ tay.
+   */
+  if (hasExtra && !extraItem)
+    return { ok: false, code: GIFT_ERROR.NOT_IN_BASKET, message: "Chưa chọn quà thêm cho khách HKD" };
+  if (!hasExtra && extraItem)
+    return { ok: false, code: GIFT_ERROR.NOT_IN_BASKET, message: "Khách này không có quà thêm" };
+
+  const pickedExtra =
+    extraItem && extraItem !== GIFT_DECLINED ? gift.extraBasket.find((b) => b.code === extraItem) : null;
+  if (extraItem && extraItem !== GIFT_DECLINED && !pickedExtra)
     return {
       ok: false,
-      code: GIFT_ERROR.ITEM_DISCONTINUED,
-      message:
-        picked.status === "discontinued"
-          ? `"${picked.name}" đã ngừng cấp — chọn món khác trong rổ`
-          : `"${picked.name}" không còn trong danh mục quà — báo quản trị thêm lại rồi phát`,
+      code: GIFT_ERROR.NOT_IN_BASKET,
+      message: `"${extraItem}" không nằm trong rổ quà thêm của khách này`,
     };
+  if (pickedExtra && pickedExtra.status !== "ok") return discontinuedError(pickedExtra);
 
   const newIds = [...new Set(orderIds)];
   // Đơn bảo hiểm được tạo TRƯỚC lượt chốt quà, nên chưa có `gift_grant_id`.
@@ -549,7 +606,7 @@ export async function grantGift(
    * Rổ không đổi giữa hai lượt tính — nó không đọc món đã chọn — nên phép kiểm
    * món hợp lệ ở trên vẫn đứng.
    */
-  const granted = await giftForCustomer(customerId, item);
+  const granted = await giftForCustomer(customerId, mainItem);
 
   const inserted = await db.transaction(async (tx) => {
     const rows = await tx
@@ -560,7 +617,8 @@ export async function grantGift(
         cashTotal: granted.cashTotal,
         // MÃ món, không phải tên. Tên lúc phát vẫn còn trong `snapshot.basket` —
         // hai chỗ đọc dùng nó để hiện đúng chữ của thời điểm phát.
-        chosenItem: item,
+        chosenItem: mainItem,
+        extraItem,
         // Đóng băng NGUYÊN kết quả: thể lệ đổi hay admin sửa tên món cũng không
         // được viết lại thứ đã phát cho khách (spec §5.3).
         snapshot: granted,
@@ -608,7 +666,64 @@ export async function grantGift(
   return {
     ok: true,
     customerName: customer.fullName,
-    itemLabel: picked?.name ?? GIFT_DECLINED_LABEL,
+    itemLabel: grantedLabel(mainItem, extraItem, granted),
+  };
+}
+
+type ExtraOutcome =
+  | { ok: true; grantId: string; customerName: string; label: string }
+  | { ok: false; message: string };
+
+/**
+ * Chọn quà thêm cho đợt ĐÃ chốt mà `extra_item` còn trống — đợt phát trước
+ * 2026-09-17, lúc chưa có rổ quà thêm. Ghi đúng một lần; đổi quà thêm đã chọn chưa
+ * có đường, vì chưa có ca nào cần.
+ *
+ * Rổ quà thêm tính theo tài khoản HIỆN TẠI, không đọc snapshot: snapshot cũ không
+ * có `extraBasket`. Món hợp lệ cũng kiểm trên rổ đó.
+ */
+export async function chooseExtraGift(
+  actor: User,
+  customerId: string,
+  extraItem: string,
+): Promise<ExtraOutcome | null> {
+  const [grant] = await db
+    .select({ id: giftGrants.id, extraItem: giftGrants.extraItem, snapshot: giftGrants.snapshot, customerName: customers.fullName })
+    .from(giftGrants)
+    .innerJoin(customers, eq(customers.id, giftGrants.customerId))
+    .where(eq(giftGrants.customerId, customerId))
+    .limit(1);
+  if (!grant) return null;
+  if (grant.extraItem !== null) return { ok: false, message: "Khách này đã chọn quà thêm rồi." };
+
+  const live = await giftForCustomer(customerId);
+  if (live.extraBasket.length === 0) return { ok: false, message: "Khách này không có quà thêm." };
+
+  const picked = extraItem === GIFT_DECLINED ? null : live.extraBasket.find((b) => b.code === extraItem);
+  if (extraItem !== GIFT_DECLINED && (!picked || !picked.id || picked.status !== "ok"))
+    return { ok: false, message: "Món quà thêm phải nằm trong rổ quà thêm của khách và còn cấp được." };
+
+  /**
+   * Snapshot chỉ được BỔ SUNG phần rổ quà thêm còn thiếu, không ghi đè phần đã đóng
+   * băng: tên món lúc chọn phải nằm trong snapshot thì `grantedItemLabel` mới
+   * đọc ra được, còn bậc, tiền và rổ chính vẫn là của lúc phát.
+   */
+  const snapshot = grant.snapshot as GiftSimulateResult;
+  const merged = { ...snapshot, extraBasket: snapshot.extraBasket?.length ? snapshot.extraBasket : live.extraBasket };
+
+  const [updated] = await db
+    .update(giftGrants)
+    .set({ extraItem, snapshot: merged })
+    // Điều kiện `is null` để hai lượt bấm song song chỉ một lượt ghi được.
+    .where(and(eq(giftGrants.id, grant.id), isNull(giftGrants.extraItem)))
+    .returning({ id: giftGrants.id });
+  if (!updated) return { ok: false, message: "Quà thêm vừa được người khác ghi. Tải lại rồi thử lại." };
+
+  return {
+    ok: true,
+    grantId: grant.id,
+    customerName: grant.customerName,
+    label: extraItem === GIFT_DECLINED ? "Từ chối quà thêm" : (picked?.name ?? extraItem),
   };
 }
 
@@ -628,7 +743,7 @@ export async function changeGift(
   form: GiftChangeForm,
 ): Promise<ChangeOutcome | null> {
   const [grant] = await db
-    .select({ id: giftGrants.id, chosenItem: giftGrants.chosenItem, snapshot: giftGrants.snapshot, grantedAt: giftGrants.grantedAt, customerName: customers.fullName })
+    .select({ id: giftGrants.id, chosenItem: giftGrants.chosenItem, extraItem: giftGrants.extraItem, snapshot: giftGrants.snapshot, grantedAt: giftGrants.grantedAt, customerName: customers.fullName })
     .from(giftGrants)
     .innerJoin(customers, eq(customers.id, giftGrants.customerId))
     .where(eq(giftGrants.customerId, customerId))
@@ -638,11 +753,23 @@ export async function changeGift(
   /**
    * Đổi quà chỉ được làm TRONG NGÀY phát quà (chốt 2026-09-02). Qua ngày là
    * quà đã chốt: điểm KPI và tiền mặt của khách đã tính theo món đang giữ.
+   *
+   * Ngoại lệ `UNCHOSEN`: quà chính còn trống do migration 0095 dời Loa sang
+   * quà thêm. Khách chưa nhận gì ở ô này nên chưa có gì để "đã chốt".
    */
-  if (businessDay(grant.grantedAt) !== businessDay())
+  if (grant.chosenItem !== GIFT_UNCHOSEN && businessDay(grant.grantedAt) !== businessDay())
     return { ok: false, message: "Chỉ đổi quà được trong ngày phát quà." };
 
-  if (form.item === grant.chosenItem) return { ok: false, message: "Khách đang áp dụng món quà này rồi." };
+  /**
+   * Một lượt đổi được quà chính, quà thêm, hoặc cả hai (chốt 2026-09-17).
+   * Phần nào gửi lại đúng mã đang giữ là phần đó không đổi; bỏ trống
+   * `extraItem` cũng là không đổi.
+   */
+  const mainChanged = form.item !== grant.chosenItem;
+  const extraChanged = form.extraItem !== undefined && form.extraItem !== grant.extraItem;
+  if (!mainChanged && !extraChanged) return { ok: false, message: "Khách đang áp dụng đúng món quà này rồi." };
+  if (mainChanged && (form.item === GIFT_NONE || form.item === GIFT_UNCHOSEN))
+    return { ok: false, message: "Món quà mới phải là một món trong rổ hoặc từ chối." };
 
   /**
    * Rổ TÍNH LẠI theo tài khoản hiện tại, không phải rổ đóng băng lúc phát
@@ -657,18 +784,30 @@ export async function changeGift(
    * tính vừa kiểm được món hợp lệ vừa cho ra số tiền.
    */
   const nextGift = await giftForCustomer(customerId, form.item);
-  const next = form.item === GIFT_DECLINED ? null : nextGift.basket.find((b) => b.code === form.item);
-  if (form.item !== GIFT_DECLINED && (!next || !next.id || next.status !== "ok"))
-    return { ok: false, message: "Món quà mới phải nằm trong danh sách quà hiện tại của khách và còn cấp được." };
+  if (mainChanged) {
+    const next = form.item === GIFT_DECLINED ? null : nextGift.basket.find((b) => b.code === form.item);
+    if (form.item !== GIFT_DECLINED && (!next || !next.id || next.status !== "ok"))
+      return { ok: false, message: "Món quà mới phải nằm trong danh sách quà hiện tại của khách và còn cấp được." };
+  }
 
+  const nextExtra = extraChanged ? (form.extraItem as string) : grant.extraItem;
+  if (extraChanged) {
+    if (nextGift.extraBasket.length === 0) return { ok: false, message: "Khách này không có quà thêm." };
+    const pickedExtra = nextExtra === GIFT_DECLINED ? null : nextGift.extraBasket.find((b) => b.code === nextExtra);
+    if (nextExtra !== GIFT_DECLINED && (!pickedExtra || !pickedExtra.id || pickedExtra.status !== "ok"))
+      return { ok: false, message: "Món quà thêm phải nằm trong rổ quà thêm của khách và còn cấp được." };
+  }
+
+  // Đơn bảo hiểm chỉ liên quan tới quà CHÍNH; chỉ đổi quà thêm thì không đụng
+  // đơn nào, cả đơn mới lẫn đơn cũ.
   const [insuranceItem] =
-    form.item === GIFT_DECLINED
+    !mainChanged || form.item === GIFT_DECLINED
       ? []
       : await db.select({ id: insurancePackages.id }).from(insurancePackages).where(eq(insurancePackages.code, form.item)).limit(1);
   if (insuranceItem && form.newOrderIds.length === 0)
     return { ok: false, message: "Chọn quà bảo hiểm thì phải tạo đơn bảo hiểm mới trước." };
 
-  const newIds = [...new Set(form.newOrderIds)];
+  const newIds = mainChanged ? [...new Set(form.newOrderIds)] : [];
   if (newIds.length > 0) {
     const newOrders = await db
       .select({ id: insuranceOrders.id, packageId: insuranceOrders.packageId })
@@ -689,35 +828,54 @@ export async function changeGift(
        * `BH-2N-XEMAY-2XE`. Đóng băng vẫn còn nghĩa, chỉ đổi mốc: đóng băng tại
        * lần xác nhận GẦN NHẤT, và lần đó luôn nằm trong ngày phát quà.
        */
-      .set({ chosenItem: form.item, cashTotal: nextGift.cashTotal, snapshot: nextGift })
-      .where(and(eq(giftGrants.id, grant.id), eq(giftGrants.chosenItem, grant.chosenItem)))
+      .set({ chosenItem: form.item, extraItem: nextExtra, cashTotal: nextGift.cashTotal, snapshot: nextGift })
+      // So cả hai phần đang giữ để hai lượt đổi song song chỉ một lượt ghi được.
+      .where(
+        and(
+          eq(giftGrants.id, grant.id),
+          eq(giftGrants.chosenItem, grant.chosenItem),
+          grant.extraItem === null ? isNull(giftGrants.extraItem) : eq(giftGrants.extraItem, grant.extraItem),
+        ),
+      )
       .returning({ id: giftGrants.id });
     if (!updated) return false;
 
-    const oldOrders = await tx
-      .select({ id: insuranceOrders.id, status: insuranceOrders.status })
-      .from(insuranceOrders)
-      .where(and(eq(insuranceOrders.giftGrantId, grant.id), newIds.length ? notInArray(insuranceOrders.id, newIds) : undefined));
-    // Giữ mọi đơn quà cũ để truy được lịch sử. Đơn đã huỷ từ lần đổi trước
-    // giữ nguyên, các trạng thái còn lại đều được chuyển thành huỷ có lý do.
-    const ordersToCancel = oldOrders.filter((o) => o.status !== "cancelled");
-    if (ordersToCancel.length) {
-      const ids = ordersToCancel.map((order) => order.id);
-      await tx
-        .update(insuranceOrders)
-        .set({ status: "cancelled", updatedAt: new Date() })
-        .where(inArray(insuranceOrders.id, ids));
-      await tx.insert(insuranceOrderStatusHistory).values(
-        ordersToCancel.map((order) => ({
-          orderId: order.id,
-          fromStatus: order.status,
-          toStatus: "cancelled" as const,
-          changedBy: actor.id,
-          note: "Khách đổi quà",
-        })),
-      );
+    if (mainChanged) {
+      const oldOrders = await tx
+        .select({ id: insuranceOrders.id, status: insuranceOrders.status })
+        .from(insuranceOrders)
+        .where(and(eq(insuranceOrders.giftGrantId, grant.id), newIds.length ? notInArray(insuranceOrders.id, newIds) : undefined));
+      // Giữ mọi đơn quà cũ để truy được lịch sử. Đơn đã huỷ từ lần đổi trước
+      // giữ nguyên, các trạng thái còn lại đều được chuyển thành huỷ có lý do.
+      const ordersToCancel = oldOrders.filter((o) => o.status !== "cancelled");
+      if (ordersToCancel.length) {
+        const ids = ordersToCancel.map((order) => order.id);
+        await tx
+          .update(insuranceOrders)
+          .set({ status: "cancelled", updatedAt: new Date() })
+          .where(inArray(insuranceOrders.id, ids));
+        await tx.insert(insuranceOrderStatusHistory).values(
+          ordersToCancel.map((order) => ({
+            orderId: order.id,
+            fromStatus: order.status,
+            toStatus: "cancelled" as const,
+            changedBy: actor.id,
+            note: "Khách đổi quà",
+          })),
+        );
+      }
+      await tx.insert(giftGrantChanges).values({ giftGrantId: grant.id, part: "main", fromChosenItem: grant.chosenItem, toChosenItem: form.item, reason: form.reason, changedBy: actor.id });
     }
-    await tx.insert(giftGrantChanges).values({ giftGrantId: grant.id, fromChosenItem: grant.chosenItem, toChosenItem: form.item, reason: form.reason, changedBy: actor.id });
+    if (extraChanged)
+      await tx.insert(giftGrantChanges).values({
+        giftGrantId: grant.id,
+        part: "extra",
+        // Đợt cũ chưa có quà thêm thì ghi `DECLINED` làm mốc "chưa có gì".
+        fromChosenItem: grant.extraItem ?? GIFT_DECLINED,
+        toChosenItem: nextExtra as string,
+        reason: form.reason,
+        changedBy: actor.id,
+      });
     return true;
   });
 
@@ -729,8 +887,8 @@ export async function changeGift(
     ok: true,
     grantId: grant.id,
     customerName: grant.customerName,
-    fromLabel: grantedItemLabel(grant.chosenItem, grant.snapshot),
-    toLabel: grantedItemLabel(form.item, nextGift),
+    fromLabel: grantedLabel(grant.chosenItem, grant.extraItem, grant.snapshot),
+    toLabel: grantedLabel(form.item, nextExtra, nextGift),
   };
 }
 
@@ -742,9 +900,9 @@ export async function changeGift(
  * nhưng nhãn của một biểu đồ gộp nhiều đợt thì phải là tên đội đang dùng.
  */
 export async function giftItemNames(codes: string[]): Promise<Map<string, string>> {
-  const wanted = [...new Set(codes.filter((c) => c && c !== GIFT_DECLINED))];
+  const wanted = [...new Set(codes.filter((c) => c && !(c in GIFT_SENTINEL_LABELS)))];
   const map = new Map<string, string>();
-  if (codes.includes(GIFT_DECLINED)) map.set(GIFT_DECLINED, GIFT_DECLINED_LABEL);
+  for (const code of codes) if (code in GIFT_SENTINEL_LABELS) map.set(code, GIFT_SENTINEL_LABELS[code]);
   if (wanted.length === 0) return map;
 
   const [packageRows, itemRows] = await Promise.all([
@@ -770,9 +928,25 @@ export async function giftItemNames(codes: string[]): Promise<Map<string, string
  * không có trong rổ đóng băng thì trả về chính mã đó, để màn không hiện ô trống.
  */
 export function grantedItemLabel(chosenItem: string, snapshot: unknown): string {
-  if (chosenItem === GIFT_DECLINED) return GIFT_DECLINED_LABEL;
-  const basket = (snapshot as GiftSimulateResult | null)?.basket ?? [];
+  if (chosenItem in GIFT_SENTINEL_LABELS) return GIFT_SENTINEL_LABELS[chosenItem];
+  const frozen = snapshot as GiftSimulateResult | null;
+  // Tra cả hai rổ: đợt migration 0095 dời sang quà thêm vẫn giữ tên Loa trong
+  // `basket` cũ, còn đợt mới ghi nó ở `extraBasket`.
+  const basket = [...(frozen?.extraBasket ?? []), ...(frozen?.basket ?? [])];
   return basket.find((b) => b.code === chosenItem)?.name ?? chosenItem;
+}
+
+/**
+ * Chữ gộp CẢ quà chính lẫn quà thêm của một đợt — "Gói BH 2 năm + Loa".
+ *
+ * Khách không có quà chính (`NONE`) mà có quà thêm thì chỉ in quà thêm, không in
+ * "Không có quà chính + Loa". Quà thêm từ chối hoặc chưa chọn thì không in.
+ */
+export function grantedLabel(chosenItem: string, extraItem: string | null, snapshot: unknown): string {
+  const main = chosenItem === GIFT_NONE ? null : grantedItemLabel(chosenItem, snapshot);
+  const extra = extraItem && extraItem !== GIFT_DECLINED ? grantedItemLabel(extraItem, snapshot) : null;
+  const parts = [main, extra].filter((part): part is string => Boolean(part));
+  return parts.length > 0 ? parts.join(" + ") : GIFT_NONE_LABEL;
 }
 
 /* ── P-44 · Danh sách quà đã phát ─────────────────────────────────────────── */
@@ -875,6 +1049,7 @@ const giftGrantRows = (where: SQL | undefined) =>
       grantedAt: giftGrants.grantedAt,
       cashTotal: giftGrants.cashTotal,
       chosenItem: giftGrants.chosenItem,
+      extraItem: giftGrants.extraItem,
       snapshot: giftGrants.snapshot,
       grantedByName: users.fullName,
       grantedByStaffCode: sql<string>`coalesce(${users.staffCode}, '')`,
@@ -897,8 +1072,9 @@ const toGiftGrantRow = (r: GiftGrantQueryRow): GiftGrantRow => ({
   date: businessDay(r.grantedAt),
   cashTotal: r.cashTotal,
   // Tên LÚC PHÁT trong rổ đóng băng, không tra danh mục hiện tại (spec §5.3).
-  item: grantedItemLabel(r.chosenItem, r.snapshot),
-  declined: r.chosenItem === GIFT_DECLINED,
+  item: grantedLabel(r.chosenItem, r.extraItem, r.snapshot),
+  // Từ chối cả hai mới là từ chối; quà thêm còn trống thì tính theo quà chính.
+  declined: r.chosenItem === GIFT_DECLINED && (r.extraItem === null || r.extraItem === GIFT_DECLINED),
   grantedByName: r.grantedByName,
   grantedByStaffCode: r.grantedByStaffCode,
   grantedByDepartmentName: r.grantedByDepartmentName,

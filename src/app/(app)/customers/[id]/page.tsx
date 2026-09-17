@@ -14,6 +14,7 @@ import { CustomerFormDialog } from "@/components/customers/CustomerFormDialog";
 import { CustomerNoteDialog } from "@/components/customers/CustomerNoteDialog";
 import { GiftGivingDialog } from "@/components/customers/GiftGivingDialog";
 import { GiftChangeDialog } from "@/components/customers/GiftChangeDialog";
+import { GiftExtraDialog } from "@/components/customers/GiftExtraDialog";
 import { ServiceFormDialog } from "@/components/services/ServiceFormDialog";
 import { Button } from "@/components/ui/Button";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
@@ -27,6 +28,7 @@ import {
 } from "@/lib/api/bankAccounts";
 import {
   CUSTOMER_FIELD_LABEL,
+  GIFT_UNCHOSEN,
   deleteCustomer,
   fetchCustomerDetail,
   type CustomerAccountRow,
@@ -71,6 +73,7 @@ export default function CustomerDetailPage({
   const [deleting, setDeleting] = useState(false);
   const [givingGift, setGivingGift] = useState(false);
   const [changingGift, setChangingGift] = useState(false);
+  const [choosingExtra, setChoosingExtra] = useState(false);
   const [showGiftHistory, setShowGiftHistory] = useState(false);
   const [openingBank, setOpeningBank] = useState(false);
   const [loggingService, setLoggingService] = useState(false);
@@ -331,6 +334,17 @@ export default function CustomerDetailPage({
                     Đổi quà
                   </Button>
                 )}
+                {/* Đợt phát trước 2026-09-17 chưa có bước quà thêm; hiện khi rổ
+                    phụ tính lại có món mà đợt chưa ghi câu trả lời nào. */}
+                {data.gift.given &&
+                  data.gift.givenExtraCode === null &&
+                  data.gift.liveExtraBasket.length > 0 &&
+                  can(actor, "banking", "grant-gift") && (
+                    <Button variant="secondary" onClick={() => setChoosingExtra(true)}>
+                      <Gift size={16} />
+                      Chọn quà thêm
+                    </Button>
+                  )}
                 <Button
                   variant="secondary"
                   disabled={data.bankSlotsLeft <= 0}
@@ -511,9 +525,14 @@ export default function CustomerDetailPage({
                 {data.gift.given && data.gift.givenItem && (
                   <div>
                     <dt>Quà hiện tại</dt>
+                    {/* Không gắn nhãn "Đang áp dụng": ô Trạng thái đã nói "Đã
+                        tặng", thêm nhãn ở từng dòng quà là ba dấu tích trên một
+                        thẻ. Chỉ ca còn thiếu mới mang nhãn. */}
                     <dd className={styles.currentGift}>
                       <span>{data.gift.givenItem}</span>
-                      <StatusTag ok>Đang áp dụng</StatusTag>
+                      {data.gift.givenCode === GIFT_UNCHOSEN && (
+                        <StatusTag tone="waiting">Chờ chọn</StatusTag>
+                      )}
                       {data.gift.changes.length > 0 && (
                         <Button
                           variant="ghost"
@@ -529,9 +548,24 @@ export default function CustomerDetailPage({
                     </dd>
                   </div>
                 )}
+                {/* Quà thêm HKD của đợt đã chốt. Đợt cũ chưa có câu trả lời thì
+                    nói "Chưa chọn" — nút "Chọn quà thêm" ở đầu trang bù cho nó. */}
+                {data.gift.given &&
+                  (data.gift.givenExtraCode !== null || data.gift.liveExtraBasket.length > 0) && (
+                    <div>
+                      <dt>Quà thêm HKD</dt>
+                      <dd className={styles.currentGift}>
+                        {data.gift.givenExtraCode === null ? (
+                          <StatusTag tone="waiting">Chưa chọn</StatusTag>
+                        ) : (
+                          <span>{data.gift.givenExtraItem}</span>
+                        )}
+                      </dd>
+                    </div>
+                  )}
                 {!data.gift.given && (
                   <div>
-                    <dt>Danh sách quà</dt>
+                    <dt>{data.gift.extraBasket.length > 0 ? "Quà chính" : "Danh sách quà"}</dt>
                     <dd>
                       {/* Rổ rỗng có HAI lý do khác hẳn nhau: khách chưa đủ
                           combo, hoặc đủ rồi mà admin vừa tắt hết món trong danh
@@ -568,16 +602,48 @@ export default function CustomerDetailPage({
                     </dd>
                   </div>
                 )}
+                {/* Rổ quà thêm của khách HKD: một món ở đây CỘNG với quà chính. */}
+                {!data.gift.given && data.gift.extraBasket.length > 0 && (
+                  <div>
+                    <dt>Quà thêm HKD</dt>
+                    <dd>
+                      <ol className={styles.basket}>
+                        {data.gift.extraBasket.map((item, i) => (
+                          <li key={`${item.code}-${i}`}>
+                            {item.name}
+                            {item.status !== "ok" && (
+                              <span className={styles.basketOff}>
+                                {item.status === "discontinued"
+                                  ? " (đã ngưng cấp)"
+                                  : " (không còn trong danh mục)"}
+                              </span>
+                            )}
+                          </li>
+                        ))}
+                      </ol>
+                    </dd>
+                  </div>
+                )}
                 <div>
                   <dt>Trạng thái</dt>
                   <dd>
                     {/* Ba trạng thái, ba tông. Đọc theo `caseCode` chứ không
                         theo số món trong rổ: rổ có thể rỗng vì admin vừa tắt
-                        mấy món trong danh mục, mà khách thì vẫn đủ điều kiện. */}
-                    <StatusTag ok={data.gift.given ? true : data.gift.caseCode ? false : null}>
+                        mấy món trong danh mục, mà khách thì vẫn đủ điều kiện.
+                        Khách chỉ có dòng HKD không có bậc nhưng có quà thêm, nên
+                        vẫn là "đủ điều kiện". */}
+                    <StatusTag
+                      ok={
+                        data.gift.given
+                          ? true
+                          : data.gift.caseCode || data.gift.extraBasket.length > 0
+                            ? false
+                            : null
+                      }
+                    >
                       {data.gift.given
                         ? "Đã tặng"
-                        : data.gift.caseCode
+                        : data.gift.caseCode || data.gift.extraBasket.length > 0
                           ? "Đủ ĐK · chưa phát"
                           : "Chưa đủ điều kiện"}
                     </StatusTag>
@@ -591,16 +657,20 @@ export default function CustomerDetailPage({
                     <dt>Lịch sử quà</dt>
                     <dd>
                       <ul className={styles.giftTimeline}>
-                        {data.gift.changes.map((change, index) => (
+                        {data.gift.changes.map((change) => (
                           <li key={change.id}>
-                            Đổi sang {change.toItem}
-                            {index === 0 && <StatusTag ok>Đang áp dụng</StatusTag>}
+                            {change.part === "extra" ? "Đổi quà thêm sang" : "Đổi sang"} {change.toItem}
                             <span className={styles.detail}>{formatDateTime(change.changedAt)}</span>
                           </li>
                         ))}
+                        {/* Mốc đầu là món quà CHÍNH lúc phát: dòng đổi cũ nhất
+                            của phần chính. Chỉ đổi quà thêm thì mốc là món
+                            đang giữ. */}
                         {data.gift.givenAt && (
                           <li>
-                            Đã nhận {data.gift.changes.at(-1)?.fromItem}
+                            Đã nhận{" "}
+                            {[...data.gift.changes].reverse().find((c) => c.part === "main")?.fromItem ??
+                              data.gift.givenItem}
                             <span className={styles.detail}>{formatDateTime(data.gift.givenAt)}</span>
                           </li>
                         )}
@@ -694,6 +764,15 @@ export default function CustomerDetailPage({
             customerId={data.customer.id}
             customerName={data.customer.fullName}
             onClose={() => setChangingGift(false)}
+          />
+        )}
+
+        {choosingExtra && data && (
+          <GiftExtraDialog
+            open
+            customerId={data.customer.id}
+            customerName={data.customer.fullName}
+            onClose={() => setChoosingExtra(false)}
           />
         )}
 

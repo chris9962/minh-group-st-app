@@ -61,7 +61,8 @@
 .currentGift {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 // Chiếm trọn hàng để dòng thời gian nằm DƯỚI "Quà hiện tại", không nằm ngang

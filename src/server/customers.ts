@@ -27,7 +27,16 @@ import type {
   CustomerServiceRow,
   CustomerSort,
 } from "@/lib/api/customers";
-import { CustomerRow, GIFT_DECLINED, GIFT_DECLINED_LABEL } from "@/lib/api/customers";
+import {
+  CustomerRow,
+  GIFT_DECLINED,
+  GIFT_DECLINED_LABEL,
+  GIFT_EXTRA_DECLINED_LABEL,
+  GIFT_NONE,
+  GIFT_NONE_LABEL,
+  GIFT_UNCHOSEN,
+  GIFT_UNCHOSEN_LABEL,
+} from "@/lib/api/customers";
 import { MAX_BANK_ACCOUNTS_PER_CUSTOMER } from "@/lib/api/bankAccounts";
 import type { Page } from "@/lib/api/pagination";
 import type { PageArgs } from "./pagination";
@@ -324,14 +333,31 @@ function decorate(page: ReturnType<typeof pickPage>) {
        * `chosen_item` giữ MÃ món (#74). Chữ hiện lên lấy TÊN LÚC PHÁT trong
        * `snapshot.basket`, không tra danh mục hiện tại: đợt đã phát phải đóng
        * băng (spec §5.3). Mã lạ thì trả về chính mã, để ô không trống trơn.
+       *
+       * Ghép cả quà thêm HKD bằng " + " — cùng chữ với `grantedLabel` ở
+       * `server/gift.ts`. Khách không có quà chính mà có quà thêm thì chỉ in quà
+       * phụ. Viết bằng SQL vì cột này sắp và lọc ở máy chủ (AGENTS.md §5.1).
        */
       givenItem: sql<string | null>`case
         when ${giftGrants.id} is null then null
-        when ${giftGrants.chosenItem} = ${GIFT_DECLINED} then ${GIFT_DECLINED_LABEL}
-        else coalesce(
-          (select b->>'name' from jsonb_array_elements(${giftGrants.snapshot}->'basket') b
-            where b->>'code' = ${giftGrants.chosenItem} limit 1),
-          ${giftGrants.chosenItem}) end`,
+        else coalesce(nullif(concat_ws(' + ',
+          case
+            when ${giftGrants.chosenItem} = ${GIFT_NONE} then null
+            when ${giftGrants.chosenItem} = ${GIFT_DECLINED} then ${GIFT_DECLINED_LABEL}
+            when ${giftGrants.chosenItem} = ${GIFT_UNCHOSEN} then ${GIFT_UNCHOSEN_LABEL}
+            else coalesce(
+              (select b->>'name' from jsonb_array_elements(${giftGrants.snapshot}->'basket') b
+                where b->>'code' = ${giftGrants.chosenItem} limit 1),
+              ${giftGrants.chosenItem}) end,
+          case
+            when ${giftGrants.extraItem} is null or ${giftGrants.extraItem} = ${GIFT_DECLINED} then null
+            else coalesce(
+              (select b->>'name' from jsonb_array_elements(${giftGrants.snapshot}->'extraBasket') b
+                where b->>'code' = ${giftGrants.extraItem} limit 1),
+              (select b->>'name' from jsonb_array_elements(${giftGrants.snapshot}->'basket') b
+                where b->>'code' = ${giftGrants.extraItem} limit 1),
+              ${giftGrants.extraItem}) end
+        ), ''), ${GIFT_NONE_LABEL}) end`,
       channel: sql<string>`coalesce(${channels.name}, '')`,
       createdAt: page.createdAt,
       createdByName: sql<string>`coalesce(${users.fullName}, '')`,
@@ -1721,6 +1747,7 @@ export async function customerDetailFor(
     ? await db
         .select({
           id: giftGrantChanges.id,
+          part: giftGrantChanges.part,
           fromItem: giftGrantChanges.fromChosenItem,
           toItem: giftGrantChanges.toChosenItem,
           reason: giftGrantChanges.reason,
@@ -1797,19 +1824,33 @@ export async function customerDetailFor(
     gift: grant
       ? {
           ...(grant.snapshot as GiftSimulateResult),
+          // Snapshot chốt trước 2026-09-17 không có rổ quà thêm; điền rỗng để hình
+          // dạng trả về không đổi theo tuổi của đợt.
+          extraBasket: (grant.snapshot as GiftSimulateResult).extraBasket ?? [],
           liveBasket: liveGift.basket,
+          liveExtraBasket: liveGift.extraBasket,
           given: true,
           givenItem: grantedItemLabel(grant.chosenItem, grant.snapshot),
           givenCode: grant.chosenItem,
+          givenExtraItem:
+            grant.extraItem === null
+              ? null
+              : grant.extraItem === GIFT_DECLINED
+                ? GIFT_EXTRA_DECLINED_LABEL
+                : grantedItemLabel(grant.extraItem, grant.snapshot),
+          givenExtraCode: grant.extraItem,
           givenAt: grant.grantedAt,
           changes: giftChanges,
         }
       : {
           ...liveGift,
           liveBasket: liveGift.basket,
+          liveExtraBasket: liveGift.extraBasket,
           given: false,
           givenItem: null,
           givenCode: null,
+          givenExtraItem: null,
+          givenExtraCode: null,
           givenAt: null,
           changes: [],
         },

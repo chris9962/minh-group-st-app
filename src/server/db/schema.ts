@@ -1163,6 +1163,12 @@ export const giftGrants = pgTable(
     cashTotal: integer("cash_total").notNull().default(0),
     /** Tên món đã chọn, hoặc câu mô tả việc từ chối. */
     chosenItem: text("chosen_item").notNull(),
+    /**
+     * Quà PHỤ của khách HKD — mã món trong `snapshot.extraBasket`, hoặc
+     * `DECLINED` (chốt 2026-09-17). `null` = chưa chọn: đợt phát trước ngày đó
+     * không có bước này, và khách không có rổ quà thêm cũng để `null`.
+     */
+    extraItem: text("extra_item"),
     /** Rổ quà + breakdown ĐÓNG BĂNG lúc chốt — chỗ jsonb có chủ đích duy nhất. */
     snapshot: jsonb("snapshot").notNull(),
   },
@@ -1254,13 +1260,22 @@ export const giftGrantChanges = pgTable(
       .references(() => giftGrants.id),
     fromChosenItem: text("from_chosen_item").notNull(),
     toChosenItem: text("to_chosen_item").notNull(),
+    /**
+     * Dòng này đổi quà chính hay quà thêm HKD (chốt 2026-09-17). Hai cột
+     * `from`/`to` dùng chung cho cả hai; thiếu cột này thì dòng "Đổi sang Loa"
+     * không nói được khách vẫn giữ gói bảo hiểm.
+     */
+    part: text("part", { enum: ["main", "extra"] }).notNull().default("main"),
     reason: text("reason").notNull(),
     changedBy: uuid("changed_by")
       .notNull()
       .references(() => users.id),
     changedAt: timestamp("changed_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("gift_grant_changes_grant_time").on(t.giftGrantId, t.changedAt)],
+  (t) => [
+    index("gift_grant_changes_grant_time").on(t.giftGrantId, t.changedAt),
+    check("gift_grant_changes_part", sql`part in ('main', 'extra')`),
+  ],
 );
 
 export const insuranceOrders = pgTable(

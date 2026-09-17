@@ -666,6 +666,13 @@
       "when": 1789891400020,
       "tag": "0094_notification_release",
       "breakpoints": true
+    },
+    {
+      "idx": 95,
+      "version": "7",
+      "when": 1789891400021,
+      "tag": "0095_gift_extra_item",
+      "breakpoints": true
     }
   ]
 }

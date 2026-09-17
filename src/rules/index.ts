@@ -145,6 +145,16 @@ export type GiftResult = {
   /** Khách lấy ĐÚNG MỘT món, hoặc từ chối không lấy gì (spec §5.2 bước 3). */
   basket: GiftChoice[];
   /**
+   * Rổ quà PHỤ — khách lấy đúng một món ở đây, CỘNG THÊM món ở `basket`
+   * (chủ dự án chốt 2026-09-17).
+   *
+   * Tách khỏi `basket` vì hai rổ trả lời hai câu khác nhau: `basket` là quà
+   * của bậc combo, rổ này là quà của HKD. Bản trước trộn Loa và Bảng mica vào
+   * `basket`, nên khách HKD đạt TH5 phải chọn giữa gói bảo hiểm và cái loa,
+   * trong khi thể lệ cho cả hai. Kỳ 2026-08 không có rổ quà thêm, luôn rỗng.
+   */
+  extraBasket: GiftChoice[];
+  /**
    * Vì sao ra kết quả này, mỗi dòng một lý do.
    *
    * BẮT BUỘC có, không phải trang trí (spec §5.3): khách hỏi "sao tôi chỉ được

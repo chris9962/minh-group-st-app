@@ -538,10 +538,14 @@ const INSURANCE_BASKET: Record<0 | 1 | 2, string[]> = {
 const TH5_INSURANCE_BASKET = [...INSURANCE_BASKET[2], "BH-1N-XEMAY", "BH-1N-DIEN"];
 
 /**
- * Món thêm của khách có HKD — Kế toán chốt 2026-09-02.
+ * Rổ quà thêm của khách có HKD — Kế toán chốt 2026-09-02, tách rổ 2026-09-17.
  *
  * ⚠️ CHỈ `HKD`. Kỳ 2026-08 cho cả `CNKD` lẫn `HKD`, và cũng đòi khách phải mở
  * `VPa`. Kỳ này bỏ cả hai vế đó: có `HKD` là đủ, không cần ngân hàng chủ.
+ *
+ * Nằm ở `extraBasket`, KHÔNG nằm chung `basket`: khách lấy một món ở đây CỘNG
+ * gói bảo hiểm của combo. Bản trước trộn chung nên khách HKD đạt TH5 phải bỏ
+ * gói bảo hiểm mới lấy được loa.
  */
 const ITEMS_HKD = ["QUA-LOA", "QUA-MICA"];
 
@@ -683,20 +687,21 @@ export function gift(input: GiftInput): GiftResult {
   const explain: string[] = [];
 
   /**
-   * Hai nhóm món thêm, hai luật khác hẳn nhau về điều kiện bậc:
+   * Hai nhóm món thêm, hai luật khác hẳn nhau về điều kiện bậc VÀ về rổ:
    *
-   *   Loa · Bảng mica  — chỉ cần khách có `HKD`, KHÔNG đòi bậc
-   *   Mì · BH sức khoẻ · Nón — đòi bậc TH5 hoặc TH6
+   *   Loa · Bảng mica  — chỉ cần khách có `HKD`, KHÔNG đòi bậc, vào RỔ QUÀ THÊM
+   *   Mì · BH sức khoẻ · Nón — đòi bậc TH5 hoặc TH6, vào rổ chính thay gói BH
    *
    * Vì thế nhóm hai phải xét SAU khi biết `matched`. Kỳ 2026-08 xét cả hai
    * nhóm trước combo, đừng chép thứ tự cũ sang.
    */
   const extras: GiftChoice[] = [];
-  const addItems = (codes: string[], reason: string) => {
+  const extraBasket: GiftChoice[] = [];
+  const addItems = (into: GiftChoice[], codes: string[], reason: string) => {
     for (const code of codes) {
-      if (extras.some((b) => b.code === code)) continue;
+      if (into.some((b) => b.code === code)) continue;
       // `cashIfChosen` điền ở cuối, lúc đã biết tổng tiền — xem `withCashIfChosen`.
-      extras.push({ kind: "gift-item", code, reason, cashIfChosen: 0 });
+      into.push({ kind: "gift-item", code, reason, cashIfChosen: 0 });
     }
   };
 
@@ -708,8 +713,8 @@ export function gift(input: GiftInput): GiftResult {
    * kể mở ngân hàng nào.
    */
   if (hasHousehold(input.accounts, "HKD")) {
-    addItems(ITEMS_HKD, "Khách có HKD");
-    explain.push("Khách có HKD nên rổ có thêm Loa và Bảng mica.");
+    addItems(extraBasket, ITEMS_HKD, "Khách có HKD");
+    explain.push("Khách có HKD nên được quà thêm: chọn Loa hoặc Bảng mica, cộng với quà chính.");
   }
 
   /**
@@ -728,13 +733,13 @@ export function gift(input: GiftInput): GiftResult {
     input.channelCodes.includes(HOSPITAL_CHANNEL);
   const canSwapGift = inGiftItemGroup && matched !== null && GIFT_ITEM_CASES.has(matched.code);
   if (canSwapGift) {
-    addItems(ITEMS_HOSPITAL, "Phòng Y, phòng Dự án hoặc kênh Bệnh viện — bậc TH5/TH6");
+    addItems(extras, ITEMS_HOSPITAL, "Phòng Y, phòng Dự án hoặc kênh Bệnh viện — bậc TH5/TH6");
     explain.push(
       "Khách thuộc Phòng Y, phòng Dự án hoặc kênh Bệnh viện và đạt bậc TH5 hoặc TH6 nên rổ có thêm Mì, BH sức khoẻ và Nón bảo hiểm.",
     );
 
     if (input.departmentCode === PHONG_Y) {
-      addItems(ITEMS_PHONG_Y, "Phòng Y quy đổi sang quà tặng khác");
+      addItems(extras, ITEMS_PHONG_Y, "Phòng Y quy đổi sang quà tặng khác");
       explain.push("Khách thuộc Phòng Y nên rổ có thêm Bảng mica.");
     }
   }
@@ -756,6 +761,7 @@ export function gift(input: GiftInput): GiftResult {
       cashTotal: 0,
       // Chưa đạt bậc nào thì không có gói bảo hiểm, nhưng món thêm vẫn phát.
       basket: withCashIfChosen(extras, 0),
+      extraBasket: withCashIfChosen(extraBasket, 0),
       explain,
       giftNote: giftNoteOf(combo),
     };
@@ -810,6 +816,7 @@ export function gift(input: GiftInput): GiftResult {
     cash,
     cashTotal,
     basket: withCashIfChosen(basket, cashTotal),
+    extraBasket: withCashIfChosen(extraBasket, cashTotal),
     explain,
     giftNote: giftNoteOf(combo),
   };

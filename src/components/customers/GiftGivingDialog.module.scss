@@ -20,6 +20,24 @@
   color: var(--om-text-2);
 }
 
+// Hai rổ là hai nhóm radio riêng — fieldset để trình đọc màn hình đọc được
+// "Quà chính" và "Quà phụ HKD" khi vào nhóm, không chỉ nghe tên món.
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.groupTitle {
+  padding: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
 .cards {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

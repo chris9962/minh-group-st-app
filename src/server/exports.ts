@@ -7,7 +7,8 @@ import { recordVisibility, type RecordVisibility } from "@/lib/permissions";
 import { isRealIsoDate, type User } from "@/lib/types";
 import { accountExportWhere } from "./banking";
 import { customerDayText } from "./customerDay";
-import { grantedItemLabel } from "./gift";
+import { addressWhere } from "./customers";
+import { grantedLabel } from "./gift";
 import { searchTerms } from "@/lib/search";
 import { db } from "./db/client";
 import {
@@ -169,15 +170,26 @@ const shortCash = (amount: number): string =>
  * với khách, đổi tên món hôm nay không được viết lại lịch sử (spec §5.3). Rỗng
  * khi khách chưa phát.
  */
-const frozenBasketLabel = (snapshot: unknown): string =>
-  ((snapshot as { basket?: { name?: string }[] } | null)?.basket ?? [])
-    .map((b) => b.name ?? "")
-    .filter(Boolean)
-    .join(", ");
+const frozenBasketLabel = (snapshot: unknown): string => {
+  const frozen = snapshot as { basket?: { name?: string }[]; extraBasket?: { name?: string }[] } | null;
+  const names = (items: { name?: string }[] | undefined) =>
+    (items ?? []).map((b) => b.name ?? "").filter(Boolean).join(", ");
+  return withExtraBasket(names(frozen?.basket), names(frozen?.extraBasket));
+};
 
 /** Rổ hàm luật tính theo tài khoản HIỆN TẠI — chỉ mang mã, nên tra `catalogName`. */
-const liveBasketLabel = (gift: GiftResult | null, catalogName: Map<string, string>): string =>
-  gift?.basket.map((b) => catalogName.get(b.code) ?? b.code).join(", ") ?? "";
+const liveBasketLabel = (gift: GiftResult | null, catalogName: Map<string, string>): string => {
+  if (!gift) return "";
+  const names = (items: { code: string }[]) => items.map((b) => catalogName.get(b.code) ?? b.code).join(", ");
+  return withExtraBasket(names(gift.basket), names(gift.extraBasket));
+};
+
+/**
+ * Hai rổ trong MỘT ô, rổ quà thêm ghi rõ chữ "quà thêm" để người đọc file không cộng
+ * Loa vào danh sách phải chọn một. Khách không có rổ quà thêm thì ô y như cũ.
+ */
+const withExtraBasket = (main: string, extra: string): string =>
+  extra ? [main, `quà thêm: ${extra}`].filter(Boolean).join("; ") : main;
 
 /**
  * Hai cột rổ quà, mỗi cột TRỌN danh sách món (chốt 2026-09-04, tách hai cột
@@ -208,11 +220,12 @@ const liveBasketLabel = (gift: GiftResult | null, catalogName: Map<string, strin
  * `gift.cashTotal`: làm vậy sẽ biến cả 50k MSBa thành dữ liệu động.
  */
 export function giftReportLabel(
-  grant: { chosenItem: string; cashTotal: number; snapshot: unknown } | undefined,
+  grant: { chosenItem: string; extraItem: string | null; cashTotal: number; snapshot: unknown } | undefined,
   currentGift: Pick<GiftResult, "cash"> | null,
 ): string {
   if (!grant) return "";
-  const name = grantedItemLabel(grant.chosenItem, grant.snapshot);
+  // Quà chính + quà thêm trong một chữ, "Gói BH 2 năm + Loa".
+  const name = grantedLabel(grant.chosenItem, grant.extraItem, grant.snapshot);
 
   // Không có dữ liệu sống để đối chiếu thì giữ nguyên số đã chốt, không tự
   // xoá tiền khỏi báo cáo chỉ vì một hồ sơ cũ thiếu ngày mở tài khoản.
@@ -398,6 +411,7 @@ export async function listScoringExport(
       .select({
         customerId: giftGrants.customerId,
         chosenItem: giftGrants.chosenItem,
+        extraItem: giftGrants.extraItem,
         cashTotal: giftGrants.cashTotal,
         // Rổ quà ĐÓNG BĂNG lúc phát — nguồn duy nhất nói đúng khách được chọn
         // những món nào, tên món lúc phát, và bậc lúc phát.
@@ -511,7 +525,8 @@ export async function listScoringExport(
       giftReport: giftReportLabel(grant, gift),
       giftCombo: liveBasketLabel(gift, catalogName),
       giftBasketAtGrant: frozenBasketLabel(grant?.snapshot ?? null),
-      speaker: grant?.chosenItem === "QUA-LOA" ? "LOA" : "",
+      // Loa nằm ở quà thêm từ 2026-09-17; đợt kỳ 2026-08 còn ghi ở quà chính.
+      speaker: grant?.extraItem === "QUA-LOA" || grant?.chosenItem === "QUA-LOA" ? "LOA" : "",
       insuranceLabel: insurance
         ? insuranceLabelOf(insurance.product, insurance.packageName)
         : "",

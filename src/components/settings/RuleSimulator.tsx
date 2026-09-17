@@ -448,6 +448,35 @@ export function RuleSimulator() {
                 </ol>
               </>
             )}
+            {/* Rổ quà thêm của khách HKD — một món ở đây CỘNG với quà chính, không
+                thay thế. Chỉ hiện khi có, vì phần lớn khách không có HKD. */}
+            {run.data.extraBasket.length > 0 && (
+              <>
+                <h3 className={styles.blockTitle}>Quà thêm HKD</h3>
+                <p className={styles.blockText}>
+                  Khách chọn thêm <strong>đúng 1</strong> trong{" "}
+                  <span className="tabular-nums">{run.data.extraBasket.length}</span> món dưới đây, cộng với
+                  quà chính, hoặc từ chối quà thêm.
+                </p>
+                <ol className={styles.basket}>
+                  {run.data.extraBasket.map((item, i) => (
+                    <li key={`extra-${item.code}-${i}`}>
+                      <span>
+                        {item.name}
+                        {item.status !== "ok" && (
+                          <strong>
+                            {item.status === "discontinued"
+                              ? " (đã ngưng cấp)"
+                              : " (không còn trong danh mục)"}
+                          </strong>
+                        )}
+                      </span>
+                      <span className={styles.detail}>{item.source}</span>
+                    </li>
+                  ))}
+                </ol>
+              </>
+            )}
             {/* Khoản ngoài hệ thống, không phải món chọn được. */}
             {run.data.giftNote && <p className={styles.blockText}>{run.data.giftNote}</p>}
           </section>

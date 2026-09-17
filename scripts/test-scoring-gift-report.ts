@@ -24,6 +24,7 @@ const gift = (cash: { bankCode: string; amount: number }[]): Pick<GiftResult, "c
 
 const grant = (cashTotal: number, frozenCash: { bankCode: string; amount: number }[]) => ({
   chosenItem: "BH-1N",
+  extraItem: null,
   cashTotal,
   snapshot: snapshot("1 năm bảo hiểm", "TH1", frozenCash),
 });
@@ -81,6 +82,28 @@ assert.equal(
   giftReportLabel(grant(20_000, [{ bankCode: "VPa", amount: 20_000 }]), null),
   "1 năm bảo hiểm + 20k",
   "thiếu dữ liệu sống thì giữ số chốt cũ",
+);
+
+/* Quà thêm HKD (chốt 2026-09-17): ghép sau quà chính, tên lấy trong snapshot. */
+const withExtra = (extraItem: string | null, chosenItem = "BH-1N") => ({
+  chosenItem,
+  extraItem,
+  cashTotal: 0,
+  snapshot: {
+    ...snapshot("1 năm bảo hiểm", "TH1", []),
+    extraBasket: [{ code: "QUA-LOA", name: "Loa" }, { code: "QUA-MICA", name: "Bảng mica" }],
+  },
+});
+assert.equal(giftReportLabel(withExtra("QUA-LOA"), gift([])), "1 năm bảo hiểm + Loa", "quà thêm ghép sau quà chính");
+assert.equal(giftReportLabel(withExtra("DECLINED"), gift([])), "1 năm bảo hiểm", "từ chối quà thêm thì không in");
+assert.equal(giftReportLabel(withExtra(null), gift([])), "1 năm bảo hiểm", "chưa chọn quà thêm thì không in");
+assert.equal(giftReportLabel(withExtra("QUA-LOA", "NONE"), gift([])), "Loa", "không có quà chính thì chỉ in quà thêm");
+assert.equal(giftReportLabel(withExtra("DECLINED", "NONE"), gift([])), "Không có quà chính");
+assert.equal(giftReportLabel(withExtra("QUA-MICA", "UNCHOSEN"), gift([])), "Chưa chọn quà chính + Bảng mica");
+assert.equal(
+  giftReportLabel(withExtra("QUA-LOA"), gift([{ bankCode: "VPa", amount: 20_000 }])),
+  "1 năm bảo hiểm + Loa + 20k",
+  "tiền đứng sau cùng",
 );
 
 console.log("PASS: tiền VPa trong báo cáo động; món quà và tiền khác vẫn đóng băng.");

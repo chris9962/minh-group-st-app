@@ -140,6 +140,32 @@ export const GiftSimulateInput = z.object({
 });
 export type GiftSimulateInput = z.infer<typeof GiftSimulateInput>;
 
+const GiftBasketItem = z.object({
+  id: z.string().nullable(),
+  /**
+   * `default` ở đây KHÔNG phải để cho tiện: `gift_grants.snapshot` đóng băng
+   * nguyên kết quả lúc phát, nên đợt chốt trước 11/08 không có hai trường
+   * này. Snapshot là bản ghi lịch sử, không vá ngược được — nên chỗ đọc
+   * phải chịu được cả hai hình dạng.
+   */
+  code: z.string().default(''),
+  name: z.string(),
+  source: z.string(),
+  /** Món phát được ở thời điểm chốt, nên đợt cũ quy về `ok`. */
+  status: z.enum(['ok', 'discontinued', 'missing']).default('ok'),
+  /**
+   * Tổng tiền mặt khách nhận nếu lấy đúng món này.
+   *
+   * Hộp thoại phát quà đọc nó để đổi số ngay lúc người dùng bấm chọn: khách
+   * chưa đủ tổ hợp lấy `Mì` thì mất 20k, lấy `Loa` thì giữ. Không có nó thì
+   * giao diện phải tự biết món nào chặn tiền, tức chép luật xuống FE.
+   *
+   * `default` cho snapshot của đợt chốt trước 2026-09-01 — snapshot là bản
+   * ghi lịch sử, không vá ngược.
+   */
+  cashIfChosen: z.number().default(0),
+});
+
 export const GiftSimulateResult = z.object({
   /** `TH1`…`TH6` của bảng quà; `null` khi khách chưa đủ combo nào. */
   caseCode: z.string().nullable(),
@@ -154,33 +180,15 @@ export const GiftSimulateResult = z.object({
    * `id` là `null` khi `status = "missing"` — mã trong file luật không tra ra
    * dòng nào trong danh mục, lúc đó `name` rơi về chính mã đó.
    */
-  basket: z.array(
-    z.object({
-      id: z.string().nullable(),
-      /**
-       * `default` ở đây KHÔNG phải để cho tiện: `gift_grants.snapshot` đóng băng
-       * nguyên kết quả lúc phát, nên đợt chốt trước 11/08 không có hai trường
-       * này. Snapshot là bản ghi lịch sử, không vá ngược được — nên chỗ đọc
-       * phải chịu được cả hai hình dạng.
-       */
-      code: z.string().default(''),
-      name: z.string(),
-      source: z.string(),
-      /** Món phát được ở thời điểm chốt, nên đợt cũ quy về `ok`. */
-      status: z.enum(['ok', 'discontinued', 'missing']).default('ok'),
-      /**
-       * Tổng tiền mặt khách nhận nếu lấy đúng món này.
-       *
-       * Hộp thoại phát quà đọc nó để đổi số ngay lúc người dùng bấm chọn: khách
-       * chưa đủ tổ hợp lấy `Mì` thì mất 20k, lấy `Loa` thì giữ. Không có nó thì
-       * giao diện phải tự biết món nào chặn tiền, tức chép luật xuống FE.
-       *
-       * `default` cho snapshot của đợt chốt trước 2026-09-01 — snapshot là bản
-       * ghi lịch sử, không vá ngược.
-       */
-      cashIfChosen: z.number().default(0),
-    }),
-  ),
+  basket: z.array(GiftBasketItem),
+  /**
+   * Rổ quà PHỤ của khách HKD (chốt 2026-09-17): khách chọn một món ở đây CỘNG
+   * món ở `basket`. Rỗng khi khách không có HKD.
+   *
+   * `default` cho snapshot `gift_grants` chốt trước 2026-09-17 — snapshot là
+   * bản ghi lịch sử, không vá ngược.
+   */
+  extraBasket: z.array(GiftBasketItem).default([]),
   /**
    * Điểm COMBO của khách — thứ quyết định bậc quà (TH1…TH6). Tên trường là di
    * sản và không đổi được: nó đã đóng băng trong `gift_grants.snapshot` của
@@ -239,6 +247,7 @@ export const EMPTY_GIFT: GiftSimulateResult = {
   cashTotal: 0,
   cashBreakdown: [],
   basket: [],
+  extraBasket: [],
   kpiPoints: 0,
   kpiBreakdown: [],
   householdPoints: 0,

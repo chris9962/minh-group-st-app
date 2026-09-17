@@ -576,6 +576,8 @@ export function gift(input: GiftInput): GiftResult {
       // Lấy Mì hoặc Nón thì mất trọn 20k, nên `blocked` là 0. Đây đúng là chỗ
       // "tiền HOẶC quà" mà thể lệ nói.
       basket: withCashIfChosen(extras, soloCashTotal, 0),
+      // Kỳ này chưa có rổ phụ: Loa và Bảng mica nằm chung rổ với gói bảo hiểm.
+      extraBasket: [],
       explain,
     };
   }
@@ -619,6 +621,7 @@ export function gift(input: GiftInput): GiftResult {
     cashTotal,
     // Đủ bậc thì tiền VÀ quà cộng dồn: chọn món nào cũng giữ nguyên số tiền.
     basket: withCashIfChosen(basket, cashTotal, cashTotal),
+    extraBasket: [],
     explain,
   };
 }

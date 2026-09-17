@@ -653,17 +653,28 @@ export const CustomerDetail = z.object({
      * chứa món của bậc mới. Khách chưa chốt quà thì hai rổ bằng nhau.
      */
     liveBasket: GiftSimulateResult.shape.basket,
+    /** Rổ quà thêm tính theo tài khoản HIỆN TẠI, cùng lý do với `liveBasket`. */
+    liveExtraBasket: GiftSimulateResult.shape.extraBasket,
     given: z.boolean(),
     /** Tên món đã tặng — chỉ có giá trị khi given = true. */
     givenItem: z.string().nullable(),
     /** Mã món đang áp dụng, dùng để không chọn lại chính món đó khi đổi quà. */
     givenCode: z.string().nullable(),
+    /**
+     * Quà thêm HKD của đợt đã chốt. `givenExtraCode` là `null` khi khách CHƯA
+     * chọn — đợt phát trước 2026-09-17 không có bước này, và hộp thoại "Chọn
+     * quà thêm" bù cho những đợt đó.
+     */
+    givenExtraItem: z.string().nullable(),
+    givenExtraCode: z.string().nullable(),
     /** Thời điểm khách nhận quà lần đầu — mốc đầu của lịch sử đổi quà. */
     givenAt: z.coerce.date().nullable(),
     /** Các lần đổi sau khi đã chốt quà, mới nhất trước. */
     changes: z.array(
       z.object({
         id: z.string(),
+        /** Dòng này đổi quà chính hay quà thêm HKD. */
+        part: z.enum(['main', 'extra']),
         fromItem: z.string(),
         toItem: z.string(),
         reason: z.string(),
@@ -697,6 +708,33 @@ export const GIFT_DECLINED = 'DECLINED';
 /** Câu hiện cho người dùng khi `chosen_item` là `GIFT_DECLINED`. */
 export const GIFT_DECLINED_LABEL = 'Từ chối nhận quà';
 
+/**
+ * Khách KHÔNG CÓ quà chính mà vẫn có đợt phát — khách chỉ có dòng HKD, rổ
+ * chính rỗng nhưng rổ quà thêm có Loa và Bảng mica (chốt 2026-09-17). Khác
+ * `GIFT_DECLINED`: khách không từ chối gì, chỉ là không có gì để chọn.
+ */
+export const GIFT_NONE = 'NONE';
+export const GIFT_NONE_LABEL = 'Không có quà chính';
+
+/**
+ * Quà chính CHỜ CHỌN LẠI. Migration 0095 đặt giá trị này cho đợt phát trước
+ * 2026-09-17 mà khách HKD đã lấy Loa thay cho gói bảo hiểm: Loa dời sang quà
+ * phụ, còn gói bảo hiểm khách được hưởng thì chưa ai chọn. Hộp thoại đổi quà
+ * cho chọn mà không đòi trong ngày phát.
+ */
+export const GIFT_UNCHOSEN = 'UNCHOSEN';
+export const GIFT_UNCHOSEN_LABEL = 'Chưa chọn quà chính';
+
+/** Ba giá trị đặc biệt của `chosen_item` không phải mã món nào trong danh mục. */
+export const GIFT_SENTINEL_LABELS: Record<string, string> = {
+  [GIFT_DECLINED]: GIFT_DECLINED_LABEL,
+  [GIFT_NONE]: GIFT_NONE_LABEL,
+  [GIFT_UNCHOSEN]: GIFT_UNCHOSEN_LABEL,
+};
+
+/** Câu hiện khi `extra_item` là `GIFT_DECLINED`. */
+export const GIFT_EXTRA_DECLINED_LABEL = 'Từ chối quà thêm';
+
 export const GIFT_ERROR = {
   ALREADY_GIVEN: 'ALREADY_GIVEN',
   NOT_IN_BASKET: 'NOT_IN_BASKET',
@@ -710,7 +748,13 @@ export const GIFT_ERROR = {
 
 /** Một lần đổi món quà đã chốt; rổ quà gốc không bị tính lại. */
 export const GiftChangeForm = z.object({
+  /** Quà chính sau khi đổi. Gửi lại đúng mã đang giữ nghĩa là không đổi phần này. */
   item: z.string().trim().min(1, 'Chưa chọn món quà mới'),
+  /**
+   * Quà thêm HKD sau khi đổi — mã món hoặc `GIFT_DECLINED`. Bỏ trống là giữ
+   * nguyên. Phải đổi ít nhất một trong hai phần, máy chủ kiểm.
+   */
+  extraItem: z.string().trim().min(1).optional(),
   reason: z.string().trim().min(2, 'Chưa nhập lý do đổi quà').max(500, 'Lý do nhiều nhất 500 ký tự'),
   /** Đơn bảo hiểm mới vừa tạo khi đổi sang quà bảo hiểm. */
   newOrderIds: z.array(z.string()).default([]),
@@ -724,17 +768,39 @@ export type GiftChangeForm = z.infer<typeof GiftChangeForm>;
  * Mã chứ không phải tên: admin sửa tên món ở P-82 bất cứ lúc nào, và tên đã đổi
  * thì không tra ngược ra món nào nữa (quyết định #74).
  */
-export async function markGiftGiven(customerId: string, item: string, orderIds: string[] = []): Promise<void> {
+export async function markGiftGiven(
+  customerId: string,
+  item: string,
+  orderIds: string[] = [],
+  /** Mã món quà thêm hoặc `GIFT_DECLINED`; `null` khi khách không có rổ quà thêm. */
+  extraItem: string | null = null,
+): Promise<void> {
   const res = await fetch(`/api/customers/${customerId}/gift-given`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ item, orderIds }),
+    body: JSON.stringify({ item, orderIds, extraItem }),
   });
   if (!res.ok) {
     // Máy chủ nói rõ vì sao ("Khách này đã được tặng quà rồi") — nuốt đi rồi
     // ném câu chung chung là bắt người dùng tự đoán mình sai chỗ nào.
     const body = (await res.json().catch(() => null)) as { message?: string } | null;
     throw new Error(body?.message?.trim() || 'Không đánh dấu được quà đã tặng');
+  }
+}
+
+/**
+ * Chọn quà thêm cho đợt ĐÃ chốt mà chưa có quà thêm — đợt phát trước
+ * 2026-09-17. Chỉ ghi được một lần; đổi quà thêm đã chọn chưa có đường.
+ */
+export async function chooseExtraGift(customerId: string, extraItem: string): Promise<void> {
+  const res = await fetch(`/api/customers/${customerId}/gift-extra`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ extraItem }),
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(body?.message?.trim() || 'Không ghi được quà thêm');
   }
 }
 

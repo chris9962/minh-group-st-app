@@ -872,31 +872,44 @@ check(
  *
  * Kỳ 2026-08 đòi hai vế, khách mở `VPa` và khách có `CNKD` hoặc `HKD`. Kỳ này
  * bỏ cả hai vế đó.
+ *
+ * Từ 2026-09-17 hai món nằm ở RỔ QUÀ THÊM `extraBasket`, không nằm chung rổ chính:
+ * khách lấy một món ở đó CỘNG gói bảo hiểm của combo.
  */
-section("Loa và Bảng mica — chỉ HKD");
+section("Loa và Bảng mica — chỉ HKD, nằm ở rổ quà thêm");
 checkCodes(
-  "VPa kèm HKD",
-  giftOf(["VPa"], { household: "HKD" }).basket.map((i) => i.code),
+  "VPa kèm HKD — rổ quà thêm có Loa và Bảng mica",
+  giftOf(["VPa"], { household: "HKD" }).extraBasket.map((i) => i.code),
   ITEMS_HKD,
 );
 checkCodes(
-  "VPb kèm HKD — rổ RỖNG, vì VPb không nhận HKD",
-  giftOf(["VPb"], { household: "HKD" }).basket.map((i) => i.code),
+  "VPa kèm HKD — rổ chính KHÔNG còn Loa và Bảng mica",
+  giftOf(["VPa"], { household: "HKD" }).basket.map((i) => i.code),
+  [],
+);
+checkCodes(
+  "VPb kèm HKD — rổ quà thêm RỖNG, vì VPb không nhận HKD",
+  giftOf(["VPb"], { household: "HKD" }).extraBasket.map((i) => i.code),
   [],
 );
 checkCodes(
   "MB kèm HKD — không mở VPa nên KHÔNG có Loa lẫn Bảng mica",
-  giftOf(["MB"], { household: "HKD" }).basket.map((i) => i.code),
+  giftOf(["MB"], { household: "HKD" }).extraBasket.map((i) => i.code),
+  [],
+);
+checkCodes(
+  "MB + VPa kèm HKD — rổ chính giữ nguyên hai gói bảo hiểm",
+  giftOf(["MB", "VPa"], { household: "HKD" }).basket.map((i) => i.code),
   BH_1N,
 );
 checkCodes(
-  "MB + VPa kèm HKD — có VPa nên có Loa và Bảng mica",
-  giftOf(["MB", "VPa"], { household: "HKD" }).basket.map((i) => i.code),
-  [...BH_1N, ...ITEMS_HKD],
+  "MB + VPa kèm HKD — rổ quà thêm có Loa và Bảng mica",
+  giftOf(["MB", "VPa"], { household: "HKD" }).extraBasket.map((i) => i.code),
+  ITEMS_HKD,
 );
 checkCodes(
-  "VPa kèm CNKD — CNKD KHÔNG còn Loa và Bảng mica",
-  giftOf(["VPa"], { household: "CNKD" }).basket.map((i) => i.code),
+  "VPa kèm CNKD — CNKD KHÔNG có rổ quà thêm",
+  giftOf(["VPa"], { household: "CNKD" }).extraBasket.map((i) => i.code),
   [],
 );
 checkCodes(
@@ -904,6 +917,7 @@ checkCodes(
   giftOf(["VPb"], { household: "CNKD" }).basket.map((i) => i.code),
   BH_1N,
 );
+check("khách không HKD — rổ quà thêm rỗng", giftOf(["MB", "VPa", "LPB"]).extraBasket.length, 0);
 
 /**
  * Dòng HKD là tài khoản `VPa` riêng, không vào combo (chủ dự án chốt
@@ -916,7 +930,8 @@ const vpaHkd = account("kh1", "VPa", { household: "HKD" });
 
 section("Dòng HKD — không vào combo, chỉ mang Loa và Bảng mica");
 check("chỉ dòng HKD — không có bậc quà", giftRows([vpaHkd]).caseCode, null);
-checkCodes("chỉ dòng HKD — rổ chỉ có Loa và Bảng mica", giftRows([vpaHkd]).basket.map((i) => i.code), ITEMS_HKD);
+checkCodes("chỉ dòng HKD — rổ chính rỗng", giftRows([vpaHkd]).basket.map((i) => i.code), []);
+checkCodes("chỉ dòng HKD — rổ quà thêm có Loa và Bảng mica", giftRows([vpaHkd]).extraBasket.map((i) => i.code), ITEMS_HKD);
 check("chỉ dòng HKD — không có tiền mặt", giftRows([vpaHkd]).cashTotal, 0);
 check(
   "VPa thường + dòng HKD — TH8 của VPa, vẫn Combo 1",
@@ -924,8 +939,13 @@ check(
   "TH8",
 );
 checkCodes(
-  "VPa thường + dòng HKD — rổ TH8 cộng Loa và Bảng mica",
+  "VPa thường + dòng HKD — rổ chính TH8 rỗng, không lẫn Loa",
   giftRows([account("kh1", "VPa"), vpaHkd]).basket.map((i) => i.code),
+  [],
+);
+checkCodes(
+  "VPa thường + dòng HKD — rổ quà thêm có Loa và Bảng mica",
+  giftRows([account("kh1", "VPa"), vpaHkd]).extraBasket.map((i) => i.code),
   ITEMS_HKD,
 );
 check(
@@ -1021,8 +1041,18 @@ checkCodes(
   [],
 );
 checkCodes(
-  "chỉ dòng HKD, Phòng Y — không có bậc nên chỉ có Loa và Bảng mica",
+  "chỉ dòng HKD, Phòng Y — không có bậc nên rổ chính rỗng",
   giftOf(["VPa"], { household: "HKD", department: "PHONG-Y" }).basket.map((i) => i.code),
+  [],
+);
+checkCodes(
+  "chỉ dòng HKD, Phòng Y — rổ quà thêm vẫn có Loa và Bảng mica",
+  giftOf(["VPa"], { household: "HKD", department: "PHONG-Y" }).extraBasket.map((i) => i.code),
+  ITEMS_HKD,
+);
+checkCodes(
+  "TH5 Phòng Y kèm HKD — Bảng mica nằm ở CẢ hai rổ, hai nghĩa khác nhau",
+  giftOf(["MB", "VPa", "LPB"], { household: "HKD", department: "PHONG-Y" }).extraBasket.map((i) => i.code),
   ITEMS_HKD,
 );
 
@@ -1070,7 +1100,7 @@ check("không còn câu nhắc mất tiền", soloVPa().explain.some((l) => l.in
 
 /** Số tiền gắn sẵn trên từng món — hộp thoại phát quà đọc nó để hiện số. */
 const cashIfChosen = (result: GiftResult, code: string): number =>
-  result.basket.find((item) => item.code === code)?.cashIfChosen ?? -1;
+  [...result.basket, ...result.extraBasket].find((item) => item.code === code)?.cashIfChosen ?? -1;
 
 section("Mọi món trong rổ cùng một số tiền");
 check(
