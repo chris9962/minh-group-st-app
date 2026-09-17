@@ -348,8 +348,8 @@ export function CustomerFormDialog({
               label="Ngày hồ sơ"
               value={watch("createdDay") ?? ""}
               onChange={(v) => setValue("createdDay", v, { shouldDirty: true, shouldValidate: true })}
-              // Đã chốt quà thì khoá, không kèm chữ giải thích (chốt 2026-09-05).
-              disabled={customer?.giftGranted}
+              // Đã chốt quà thì ngày hồ sơ không được sau ngày chốt (chốt 2026-09-17).
+              max={customer?.giftDay ?? undefined}
               error={errors.createdDay?.message}
             />
           )}

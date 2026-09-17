@@ -99,6 +99,12 @@ const createdDay = customerDay;
 
 const createdDayText = customerDayText;
 
+/** Ngày chốt quà theo giờ Việt Nam; `null` khi chưa phát. Là trần của ngày hồ sơ khi dời. */
+const giftDayText = sql<string | null>`(
+  select to_char(min(${giftGrants.grantedAt}) at time zone ${BUSINESS_TIMEZONE}, 'YYYY-MM-DD')
+  from ${giftGrants} where ${giftGrants.customerId} = ${customers.id}
+)`;
+
 /**
  * Ngày lọc phải ĐÚNG HÌNH DẠNG và CÓ THẬT.
  *
@@ -690,7 +696,7 @@ async function customerById(id: string, actor: User): Promise<Customer | null> {
       channel: sql<string>`coalesce(${channels.name}, '')`,
       channelDetail: customers.channelDetail,
       createdAt: createdDayText,
-      giftGranted: sql<boolean>`exists (select 1 from ${giftGrants} where ${giftGrants.customerId} = ${customers.id})`,
+      giftDay: giftDayText,
       createdById: customers.createdBy,
       createdByDepartmentId: customers.createdByDepartmentId,
       // leftJoin cả hai: người tạo có thể đã bị xoá khỏi hệ thống, và hồ sơ cũ
@@ -738,7 +744,7 @@ export type CustomerConflict =
   | "unknown"
   /** Vai Nhân viên không dời được ngày hồ sơ (chốt 2026-09-16). */
   | "move-day-forbidden"
-  /** Hồ sơ đã chốt quà thì ngày hồ sơ đứng yên. */
+  /** Ngày hồ sơ mới sau ngày chốt quà. */
   | "move-day-gifted";
 
 export type CustomerOutcome<T> =
@@ -1333,8 +1339,10 @@ export async function updateCustomer(
        * - Vai Nhân viên không dời được. Đây là ca DUY NHẤT đọc chức vụ thay vì
        *   quyền (AGENTS.md §6): chủ dự án chốt "trừ nhân viên ra", không mở
        *   quyền mới.
-       * - Hồ sơ đã chốt quà thì đứng yên: bản chụp quà đã đóng băng theo luật
-       *   của ngày cũ.
+       * - Hồ sơ đã chốt quà thì ngày mới không được SAU ngày chốt quà (chốt
+       *   2026-09-17): hồ sơ lập 16, phát quà 17, dời sang 17 để Trưởng phòng
+       *   thống kê theo ngày phát là hợp lệ; sang 18 là quà phát trước khi có
+       *   hồ sơ.
        * - Chỉ đổi NGÀY, giờ phút lấy đúng lúc bấm dời (chủ dự án chốt).
        * - Chỉ hồ sơ này, không đồng bộ sang các lần khác của cùng khách: mỗi
        *   lần là một combo riêng.
@@ -1347,14 +1355,14 @@ export async function updateCustomer(
         const [cur] = await tx
           .select({
             day: createdDayText,
-            granted: sql<boolean>`exists (select 1 from ${giftGrants} where ${giftGrants.customerId} = ${customers.id})`,
+            giftDay: giftDayText,
           })
           .from(customers)
           .where(eq(customers.id, id))
           .limit(1);
         if (cur && cur.day !== form.createdDay) {
           if (actor.role === "staff") return "move-day-forbidden" as const;
-          if (cur.granted) return "move-day-gifted" as const;
+          if (cur.giftDay && form.createdDay > cur.giftDay) return "move-day-gifted" as const;
           const at = new Date(`${form.createdDay}T${clockNowVn()}+07:00`);
           await tx.update(customers).set({ createdAt: at }).where(eq(customers.id, id));
           await tx.insert(customerChanges).values({

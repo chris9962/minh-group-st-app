@@ -82,7 +82,7 @@ export async function PATCH(request: Request, { params }: Params) {
     if (result.reason === "move-day-forbidden")
       return badRequest("Vai Nhân viên không dời được ngày hồ sơ");
     if (result.reason === "move-day-gifted")
-      return badRequest("Hồ sơ đã chốt quà, không dời được ngày hồ sơ");
+      return badRequest("Ngày hồ sơ không được sau ngày chốt quà");
     if (result.reason !== "duplicate-id-number")
       return badRequest("Không lưu được hồ sơ khách này");
     return Response.json(
