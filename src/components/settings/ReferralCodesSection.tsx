@@ -2,8 +2,9 @@
 
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Ban, Pencil, Ticket } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { SkeletonTable } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { Button } from "@/components/ui/Button";
@@ -16,12 +17,14 @@ import { StatusTag } from "@/components/ui/StatusTag";
 import {
   CODE_SCOPE_LABEL,
   CODE_STATUS_LABEL,
+  CodeStatus,
+  REFERRAL_CODE_SORT,
   fetchBanks,
   fetchReferralCodes,
   setReferralCodeActive,
-  type CodeStatus,
   type ReferralCode,
   type ReferralCodeQuery,
+  type ReferralCodeSort,
 } from "@/lib/api/bankCatalog";
 import { fetchDepartments } from "@/lib/api/departments";
 import { banksInScope } from "@/lib/permissions";
@@ -45,6 +48,35 @@ const FIRST_PAGE: ReferralCodeQuery = {
 
 const ACCOUNT_TYPE_LABEL = { none: "Thường", CNKD: "CNKD", HKD: "HKD" } as const;
 
+const pageFromUrl = (value: string | null): number => {
+  const page = Number(value);
+  // URL đếm từ 1 để người dùng đọc được; `RankTable` đếm từ 0 nội bộ.
+  return Number.isSafeInteger(page) && page >= 1 ? page - 1 : 0;
+};
+
+/**
+ * Câu hỏi ban đầu dựng từ địa chỉ trang — cùng lối với P-40 (chốt 2026-09-17).
+ * Bấm vào một mã rồi Quay lại thì bộ lọc còn nguyên; bản trước mất hết vì
+ * `query` chỉ nằm trong state.
+ *
+ * `search` cố ý giữ rỗng: chữ đang gõ nằm ở state `search`, và `asked` ghi
+ * trường này từ đó mỗi lần render.
+ */
+const queryFromUrl = (params: URLSearchParams): ReferralCodeQuery => {
+  const sort = params.get("sort");
+  const status = params.get("status");
+  return {
+    ...FIRST_PAGE,
+    bankId: params.get("bankId") ?? "",
+    departmentId: params.get("departmentId") ?? "",
+    status: CodeStatus.safeParse(status).success ? (status as CodeStatus) : "",
+    page: pageFromUrl(params.get("page")),
+    // Khoá lạ rơi về mặc định, không làm hỏng màn — cùng lối với `pageArgsFrom`.
+    sort: REFERRAL_CODE_SORT.includes(sort as ReferralCodeSort) ? (sort as ReferralCodeSort) : "progress",
+    dir: params.get("dir") === "asc" ? "asc" : "desc",
+  };
+};
+
 /**
  * P-61 · Kho mã giới thiệu — thêm mã lẻ ở đây; nhập hàng loạt từ Excel vẫn là P-62 (chưa làm).
  *
@@ -64,7 +96,8 @@ type Props = {
 export function ReferralCodesSection({ creating, onCreatingChange }: Props) {
   const actor = useSession((s) => s.user);
   const queryClient = useQueryClient();
-  const [query, setQuery] = useState<ReferralCodeQuery>(FIRST_PAGE);
+  const searchParams = useSearchParams();
+  const [query, setQuery] = useState<ReferralCodeQuery>(() => queryFromUrl(searchParams));
   const [editing, setEditing] = useState<ReferralCode | null>(null);
   const [confirming, setConfirming] = useState<ReferralCode | null>(null);
   const [bulkStopping, setBulkStopping] = useState(false);
@@ -72,7 +105,7 @@ export function ReferralCodesSection({ creating, onCreatingChange }: Props) {
   // Ô tìm giữ chữ đang gõ riêng, chỉ hoãn xong mới thành câu hỏi gửi đi. Nối
   // thẳng vào `query` thì mỗi phím là một lượt gọi máy chủ, mà mỗi lượt là một
   // phép gộp trên cả bảng tài khoản.
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(() => searchParams.get("search") ?? "");
   const debouncedSearch = useDebouncedValue(search);
 
   const { data: allBanks = [] } = useQuery({ queryKey: ["banks"], queryFn: fetchBanks });
@@ -86,6 +119,29 @@ export function ReferralCodesSection({ creating, onCreatingChange }: Props) {
   const departmentName = new Map(departments.map((d) => [d.id, d.name]));
 
   const asked: ReferralCodeQuery = { ...query, search: debouncedSearch };
+
+  /**
+   * Bộ lọc nằm trên URL để Quay lại và chia sẻ link đều ra đúng bảng. Giữ
+   * `tab=codes` vì trang cha đọc tham số đó để mở đúng tab. `replaceState`
+   * không thêm một mục lịch sử theo từng ký tự gõ.
+   */
+  const listUrl = (() => {
+    const params = new URLSearchParams({ tab: "codes" });
+    if (asked.search) params.set("search", asked.search);
+    if (asked.bankId) params.set("bankId", asked.bankId);
+    if (asked.departmentId) params.set("departmentId", asked.departmentId);
+    if (asked.status) params.set("status", asked.status);
+    if (asked.page > 0) params.set("page", String(asked.page + 1));
+    if (asked.sort !== "progress") params.set("sort", asked.sort);
+    if (asked.dir === "asc") params.set("dir", asked.dir);
+    return `/settings/banks?${params.toString()}`;
+  })();
+
+  // Chuỗi so bằng giá trị nên effect chỉ chạy khi địa chỉ thật sự đổi.
+  useEffect(() => {
+    window.history.replaceState(null, "", listUrl);
+  }, [listUrl]);
+
   const { data: page = EMPTY_PAGE, isPending, isError, refetch, isFetching } = useQuery({
     queryKey: ["referral-codes", asked],
     queryFn: () => fetchReferralCodes(asked),
