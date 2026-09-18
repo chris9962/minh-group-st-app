@@ -410,9 +410,12 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
   const [zoomed, setZoomed] = useState<{ src: string; alt: string } | null>(null);
   /** Có ảnh để hoàn thành: đã lưu trên máy chủ, hoặc đang chờ lưu ở đây. */
   const hasPhoto = Boolean(data?.certificatePhotoUrl) || pending !== null;
-  const cancellationReason = data?.history.find(
-    (step) => step.toStatus === "cancelled" && step.note,
-  )?.note;
+  // Chỉ khi đơn ĐANG huỷ: đơn huỷ nhầm rồi đặt tay về trạng thái khác vẫn
+  // giữ dòng huỷ trong lịch sử, và lý do đó không còn nói về đơn hiện tại.
+  const cancellationReason =
+    data?.status === "cancelled"
+      ? data.history.find((step) => step.toStatus === "cancelled" && step.note)?.note
+      : undefined;
 
   return (
     <>
