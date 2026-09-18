@@ -4,7 +4,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
 import { MessageSquarePlus } from "lucide-react";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { OPEN_FEEDBACK_EVENT } from "@/lib/nav";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
@@ -23,6 +24,12 @@ import styles from "./FeedbackButton.module.scss";
 export function FeedbackButton({ onSent }: { onSent?: () => void }) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
+
+  useEffect(() => {
+    const onOpen = () => setOpen(true);
+    window.addEventListener(OPEN_FEEDBACK_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_FEEDBACK_EVENT, onOpen);
+  }, []);
 
   const {
     register,

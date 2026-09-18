@@ -11,6 +11,7 @@ import { Count } from "@/components/ui/Count";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
 import { FilterButton } from "@/components/ui/FilterButton";
+import { FilterField } from "@/components/ui/FilterField";
 import {
   DEFAULT_PERIOD,
   type Period,
@@ -195,7 +196,9 @@ export default function DepartmentDetailPage({
             activeCount={period.kind === "today" ? 0 : 1}
             onClear={() => setPeriod(DEFAULT_PERIOD)}
           >
-            <PeriodPicker value={period} onChange={setPeriod} sameMonthOnly />
+            <FilterField id="period" label="Kỳ" count={period.kind === "today" ? 0 : 1}>
+              <PeriodPicker value={period} onChange={setPeriod} sameMonthOnly />
+            </FilterField>
           </FilterButton>
         </div>
       </TopBar>

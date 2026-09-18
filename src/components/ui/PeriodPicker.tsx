@@ -1,14 +1,30 @@
 "use client";
 
+import * as Popover from "@radix-ui/react-popover";
+import { CalendarDays, ChevronDown } from "lucide-react";
 import { useId } from "react";
 import type { DateRange } from "react-day-picker";
+import { businessDay } from "@/lib/format";
+import {
+  FILTER_PERIOD_KINDS,
+  formatPeriodChip,
+  periodKindLabel,
+  periodRanges,
+  type PeriodKind,
+} from "@/lib/period";
 import { DateRangePicker } from "./DateRangePicker";
 import styles from "./PeriodPicker.module.css";
 
 export type Period =
   | { kind: "today" }
   | { kind: "this-month" }
+  | { kind: "last-3-months" }
+  | { kind: "last-6-months" }
+  | { kind: "last-1-year" }
   | { kind: "range"; range: DateRange | undefined };
+
+export { periodKindLabel };
+export type { PeriodKind };
 
 export const DEFAULT_PERIOD: Period = { kind: "today" };
 
@@ -35,24 +51,10 @@ const firstOfMonth = () => {
  *
  * Dùng khi máy chủ chỉ cần lọc theo khoảng. Route nào phải so với KỲ TRƯỚC để
  * vẽ mũi tên tăng giảm thì vẫn gửi `periodKey`, vì "kỳ trước của 05/08 đến
- * 12/08" là câu hỏi không có lời đáp — xem `periodRanges` ở `server/org.ts`.
+ * 12/08" là câu hỏi không có lời đáp — xem `periodRanges` ở `lib/period.ts`.
  */
-export const periodDates = (p: Period): { from: string; to: string } => {
-  if (p.kind === "today") {
-    const today = iso(new Date());
-    return { from: today, to: today };
-  }
-  if (p.kind === "this-month") {
-    const d = new Date();
-    return { from: iso(firstOfMonth()), to: iso(new Date(d.getFullYear(), d.getMonth() + 1, 0)) };
-  }
-  const { from, to } = p.range ?? {};
-  if (!from || !to) {
-    const today = iso(new Date());
-    return { from: today, to: today };
-  }
-  return { from: iso(from), to: iso(to) };
-};
+export const periodDates = (p: Period): { from: string; to: string } =>
+  periodRanges(periodKey(p), businessDay()).current;
 
 type Props = {
   value: Period;
@@ -68,57 +70,126 @@ type Props = {
    * Màn chỉ đếm dòng thì không cần bật — đếm thì khoảng nào cũng cộng được.
    */
   sameMonthOnly?: boolean;
+  /**
+   * `toolbar`: ô chọn kỳ + viên thuốc khoảng ngày trên thanh trên.
+   * Mặc định giữ cụm phân đoạn cho bộ lọc điện thoại.
+   */
+  variant?: "seg" | "toolbar";
+  /** Danh sách preset. Mặc định hôm nay · tháng này · khoảng ngày. */
+  kinds?: readonly PeriodKind[];
 };
 
-/** Chọn kỳ xem số liệu: hôm nay · tháng này · khoảng ngày tự chọn. */
-export function PeriodPicker({ value, onChange, sameMonthOnly = false }: Props) {
+const parseDay = (isoDate: string): Date => {
+  const [year, month, day] = isoDate.split("-").map(Number);
+  return new Date(year, month - 1, day);
+};
+
+const pickKind = (
+  kind: PeriodKind,
+  value: Period,
+  range: { from: Date; to: Date },
+  onChange: (period: Period) => void,
+) => {
+  if (kind === "range") {
+    onChange({
+      kind: "range",
+      range: value.kind === "range" ? value.range : { from: range.from, to: range.to },
+    });
+    return;
+  }
+  onChange({ kind });
+};
+
+/** Chọn kỳ xem số liệu: hôm nay · tháng này · 3 tháng · 6 tháng · 1 năm · khoảng ngày. */
+export function PeriodPicker({
+  value,
+  onChange,
+  sameMonthOnly = false,
+  variant = "seg",
+  kinds = FILTER_PERIOD_KINDS,
+}: Props) {
   const id = useId();
+  const dates = periodDates(value);
+  const range = { from: parseDay(dates.from), to: parseDay(dates.to) };
+  const allowRange = kinds.includes("range");
+
+  if (variant === "toolbar") {
+    return (
+      <div className={styles.cluster} role="group" aria-label="Kỳ số liệu">
+        <Popover.Root>
+          <Popover.Trigger className={styles.kindBtn}>
+            {periodKindLabel(value.kind)}
+            <ChevronDown size={16} aria-hidden />
+          </Popover.Trigger>
+          <Popover.Portal>
+            <Popover.Content
+              className={styles.kindPanel}
+              align="start"
+              sideOffset={6}
+            >
+              {kinds.map((kind) => (
+                <Popover.Close asChild key={kind}>
+                  <button
+                    type="button"
+                    className={styles.kindItem}
+                    aria-current={value.kind === kind ? "true" : undefined}
+                    onClick={() => pickKind(kind, value, range, onChange)}
+                  >
+                    {periodKindLabel(kind)}
+                  </button>
+                </Popover.Close>
+              ))}
+            </Popover.Content>
+          </Popover.Portal>
+        </Popover.Root>
+        <span className={styles.split} aria-hidden />
+        {allowRange ? (
+          <DateRangePicker
+            value={range}
+            sameMonthOnly={sameMonthOnly}
+            appearance="chip"
+            onChange={(next) => onChange({ kind: "range", range: next })}
+          />
+        ) : (
+          <span className={styles.dates}>
+            <CalendarDays size={16} aria-hidden />
+            {formatPeriodChip(dates.from, dates.to)}
+          </span>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className={styles.wrap}>
       <div className="seg" role="group" aria-label="Kỳ số liệu">
-        <label className="seg-opt">
-          <input
-            type="radio"
-            name={`${id}-period`}
-            checked={value.kind === "today"}
-            onChange={() => onChange({ kind: "today" })}
-          />
-          Hôm nay
-        </label>
-        <label className="seg-opt">
-          <input
-            type="radio"
-            name={`${id}-period`}
-            checked={value.kind === "this-month"}
-            onChange={() => onChange({ kind: "this-month" })}
-          />
-          Tháng này
-        </label>
-        <label className="seg-opt">
-          <input
-            type="radio"
-            name={`${id}-period`}
-            checked={value.kind === "range"}
-            onChange={() =>
-              onChange({
-                kind: "range",
-                range: { from: firstOfMonth(), to: new Date() },
-              })
-            }
-          />
-          Khoảng ngày
-        </label>
+        {kinds.map((kind) => (
+          <label className="seg-opt" key={kind}>
+            <input
+              type="radio"
+              name={`${id}-period`}
+              checked={value.kind === kind}
+              onChange={() =>
+                pickKind(
+                  kind,
+                  value,
+                  { from: firstOfMonth(), to: new Date() },
+                  onChange,
+                )
+              }
+            />
+            {periodKindLabel(kind)}
+          </label>
+        ))}
       </div>
 
-      {value.kind === "range" && (
+      {allowRange && value.kind === "range" && (
         <DateRangePicker
           value={value.range}
           sameMonthOnly={sameMonthOnly}
-          onChange={(range) => onChange({ kind: "range", range })}
+          onChange={(next) => onChange({ kind: "range", range: next })}
         />
       )}
-
     </div>
   );
 }

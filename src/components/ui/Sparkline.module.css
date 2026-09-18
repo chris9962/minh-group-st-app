@@ -1,0 +1,12 @@
+.chart {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 28px;
+}
+
+.bar {
+  width: 4px;
+  border-radius: 1px;
+  background: var(--om-orange);
+}

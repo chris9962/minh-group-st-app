@@ -3,7 +3,18 @@
 import { clsx } from "clsx";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import styles from "./RankTable.module.css";
+import {
+  rankingDelta,
+  rankingDeltaLabel,
+  rankingDeltaText,
+  rankingHighlight,
+  rankingLabel,
+  rankingPlace,
+  rankingPlacesByValue,
+  rankingTip,
+} from "./ranking";
 
 export type RankColumn<T> = {
   key: string;
@@ -31,6 +42,18 @@ export type RankColumn<T> = {
   align?: "left" | "right";
   /** Cột tỉ lệ vẽ kèm thanh nền — xem `ratio`. */
   ratio?: (row: T) => number;
+  /**
+   * Giá trị kỳ trước của cùng cột `sortBy`, để bảng xếp hạng tính mũi tên
+   * lên/xuống hạng. `null` = không so được dòng này.
+   *
+   * Chỉ có nghĩa khi có `highlightTop`. Bảng danh sách không điền.
+   */
+  sortPrevious?: (row: T) => number | null;
+  /**
+   * Câu hiện khi rê chuột lên ô. Bảng xếp hạng dùng để đọc số đầy đủ (phần
+   * của tổng, dãy 7 ngày) khi ô chỉ còn thanh hoặc sparkline.
+   */
+  title?: (row: T) => string | null;
 };
 
 /**
@@ -100,6 +123,13 @@ type Props<T> = {
   rowHref?: (row: T) => string;
   /** Câu đọc lên cho link của dòng. Chỉ có nghĩa khi có `rowHref`. */
   rowLabel?: (row: T) => string;
+  /**
+   * Bảng xếp hạng: đĩa số hạng ở cột đầu, tô nền các dòng đầu.
+   *
+   * Chỉ bật trên dashboard. Bảng danh sách (khách, bảo hiểm…) để trống — chúng
+   * dùng chung component này nhưng không phải bảng đua hạng.
+   */
+  highlightTop?: number;
 };
 
 /**
@@ -121,6 +151,7 @@ export function RankTable<T>({
   onRowClick,
   rowHref,
   rowLabel,
+  highlightTop,
 }: Props<T>) {
   const [sortKey, setSortKey] = useState(defaultSort);
   const [asc, setAsc] = useState(false);
@@ -155,6 +186,16 @@ export function RankTable<T>({
       ? sorted
       : sorted.slice(current * pageSize, (current + 1) * pageSize);
 
+  const previousPlaces = useMemo(() => {
+    if (highlightTop == null) return null;
+    const col = columns.find((c) => c.key === activeSort);
+    if (!col?.sortPrevious) return null;
+    return rankingPlacesByValue(
+      sorted.map((row) => col.sortPrevious!(row)),
+      !activeAsc,
+    );
+  }, [highlightTop, columns, activeSort, activeAsc, sorted]);
+
   /**
    * Kéo trang cha về trang có thật khi `total` co lại dưới trang đang xem.
    *
@@ -172,6 +213,10 @@ export function RankTable<T>({
   useEffect(() => {
     if (server && server.page > maxPage) server.onPageChange(maxPage);
   }, [server, maxPage]);
+
+  const [tip, setTip] = useState<{ text: string; x: number; y: number } | null>(
+    null,
+  );
 
   const goTo = (next: number) =>
     server ? server.onPageChange(next) : setPage(next);
@@ -191,8 +236,14 @@ export function RankTable<T>({
 
   return (
     <div>
-      <div className="table-scroll">
-        <table className={`table ${styles.table}`}>
+      <div className="table-scroll" onScroll={() => setTip(null)}>
+        <table
+          className={clsx(
+            "table",
+            styles.table,
+            highlightTop != null && styles.ranked,
+          )}
+        >
           <caption className="sr-only">{caption}</caption>
           <thead>
             <tr>
@@ -241,16 +292,30 @@ export function RankTable<T>({
                 </td>
               </tr>
             )}
-            {visible.map((row) => {
+            {visible.map((row, rowIndex) => {
               const href = rowHref?.(row);
+              const place =
+                highlightTop != null
+                  ? rankingPlace(rowIndex, current, size)
+                  : undefined;
+              const top = place != null && rankingHighlight(place, highlightTop);
+              const offset = size ? current * size : 0;
+              const delta =
+                place != null
+                  ? rankingDelta(place, previousPlaces?.[offset + rowIndex] ?? null)
+                  : null;
               return (
                 <tr
                   key={rowKey(row)}
-                  className={onRowClick || href ? styles.clickable : undefined}
+                  data-rank={place}
+                  className={clsx(
+                    onRowClick || href ? styles.clickable : undefined,
+                    top && styles.top,
+                  )}
                   onClick={onRowClick ? () => onRowClick(row) : undefined}
                 >
                   {columns.map((col, index) => {
-                    const content = col.ratio ? (
+                    let content: React.ReactNode = col.ratio ? (
                       <span className={styles.ratioCell}>
                         <span className={styles.track} aria-hidden>
                           <span
@@ -266,6 +331,47 @@ export function RankTable<T>({
                       col.render(row)
                     );
 
+                    if (place != null && index === 0) {
+                      const deltaLabel = rankingDeltaLabel(delta);
+                      const deltaText = rankingDeltaText(delta);
+                      content = (
+                        <span className={styles.identity}>
+                          <span className={styles.rankMark}>
+                            <span
+                              className={styles.rankBadge}
+                              data-place={place <= 3 ? place : undefined}
+                              role="img"
+                              aria-label={rankingLabel(place)}
+                            >
+                              {place}
+                            </span>
+                            {deltaText && (
+                              <span
+                                className={clsx(
+                                  styles.rankDelta,
+                                  delta != null && delta > 0
+                                    ? styles.rankUp
+                                    : styles.rankDown,
+                                )}
+                                aria-label={deltaLabel ?? undefined}
+                              >
+                                {deltaText}
+                              </span>
+                            )}
+                          </span>
+                          <span className={styles.identityName}>{content}</span>
+                        </span>
+                      );
+                    }
+
+                    const cellTitle = rankingTip(
+                      place != null && index === 0 ? rankingLabel(place) : null,
+                      place != null && index === 0 && delta != null && delta !== 0
+                        ? rankingDeltaLabel(delta)
+                        : null,
+                      col.title?.(row),
+                    );
+
                     return (
                       <td
                         key={col.key}
@@ -273,7 +379,21 @@ export function RankTable<T>({
                           col.align === "right" ? styles.right : undefined,
                           col.sortBy ? "tabular-nums" : undefined,
                           href ? styles.linkCell : undefined,
+                          cellTitle ? styles.tipped : undefined,
                         )}
+                        onPointerEnter={
+                          cellTitle
+                            ? (event) => {
+                                const box = event.currentTarget.getBoundingClientRect();
+                                setTip({
+                                  text: cellTitle,
+                                  x: box.left + box.width / 2,
+                                  y: box.top,
+                                });
+                              }
+                            : undefined
+                        }
+                        onPointerLeave={cellTitle ? () => setTip(null) : undefined}
                       >
                         {href ? (
                           <Link
@@ -346,6 +466,18 @@ export function RankTable<T>({
           </button>
         </div>
       )}
+
+      {tip &&
+        createPortal(
+          <div
+            className={styles.tip}
+            role="tooltip"
+            style={{ left: tip.x, top: tip.y }}
+          >
+            {tip.text}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

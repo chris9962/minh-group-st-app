@@ -9,8 +9,11 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
 import { BarChart } from "@/components/ui/BarChart";
 import { FilterButton } from "@/components/ui/FilterButton";
+import { FilterField } from "@/components/ui/FilterField";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { RateDelta } from "@/components/ui/RateDelta";
+import { Sparkline } from "@/components/ui/Sparkline";
+import { growthPercent, rankingShare, rankingShareTitle, rankingTip } from "@/components/ui/ranking";
 import {
   DEFAULT_PERIOD,
   PeriodPicker,
@@ -18,6 +21,11 @@ import {
   periodKey,
   type Period,
 } from "@/components/ui/PeriodPicker";
+import {
+  OVERVIEW_PERIOD_KINDS,
+  periodNarrativeLabel,
+  previousPeriodLabel,
+} from "@/lib/period";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatCard } from "@/components/ui/StatCard";
 import { BankingHeadline } from "@/components/dashboard/BankingHeadline";
@@ -50,18 +58,32 @@ const installRate = (d: DepartmentRanking) =>
 const rankingColumns = (
   kind: "department" | "staff",
   hideSingleAccountCustomers: boolean,
-): RankColumn<DepartmentRanking>[] => [
-  { key: "name", label: kind === "staff" ? "Nhân viên" : "Phòng", render: (d) => d.name },
+  rows: DepartmentRanking[],
+): RankColumn<DepartmentRanking>[] => {
+  // Thanh tỉ lệ so với TỔNG bảng, không so với phòng dẫn đầu — so max thì
+  // phòng nhất luôn đầy 100% và các phòng còn lại nhìn như lỗi thanh.
+  const totalOpened = rows.reduce((sum, d) => sum + d.accountsOpened, 0);
+  const totalApps = rows.reduce((sum, d) => sum + d.appsInstalled, 0);
+  const totalPoints = rows.reduce((sum, d) => sum + (d.points ?? 0), 0);
+
+  return [
+  { key: "name", label: kind === "staff" ? "Nhân viên" : "Phòng", render: (d) => d.name, title: (d) => d.name },
   {
     key: "accountsOpened",
     label: "TK mở",
     sortBy: (d) => d.accountsOpened,
+    sortPrevious: (d) => d.previousAccountsOpened,
+    ratio: (d) => rankingShare(d.accountsOpened, totalOpened),
+    title: (d) => rankingShareTitle(d.accountsOpened, totalOpened, "tài khoản mở"),
     render: (d) => formatCount(d.accountsOpened),
   },
   {
     key: "appsInstalled",
     label: "App cài",
     sortBy: (d) => d.appsInstalled,
+    sortPrevious: (d) => d.previousAppsInstalled,
+    ratio: (d) => rankingShare(d.appsInstalled, totalApps),
+    title: (d) => rankingShareTitle(d.appsInstalled, totalApps, "app đã cài"),
     render: (d) => formatCount(d.appsInstalled),
   },
   {
@@ -70,6 +92,13 @@ const rankingColumns = (
     // Sắp theo MỨC THAY ĐỔI, không theo tỉ lệ tuyệt đối: phòng tụt mạnh nhất là
     // phòng cần gọi trước, dù tỉ lệ của nó vẫn còn cao.
     sortBy: installRate,
+    sortPrevious: (d) =>
+      d.previousAccountsOpened == null ? null : (d.previousInstallRate ?? 0),
+    ratio: installRate,
+    title: (d) =>
+      d.accountsOpened === 0
+        ? "Chưa mở tài khoản"
+        : `${installRate(d)}% · ${formatCount(d.appsInstalled)} app trên ${formatCount(d.accountsOpened)} tài khoản`,
     render: (d) => (
       <span className={styles.rateCell}>
         <span className="tabular-nums">{installRate(d)}%</span>
@@ -83,8 +112,14 @@ const rankingColumns = (
     key: "customers",
     label: "Khách có TK",
     sortBy: (d) => (hideSingleAccountCustomers ? d.customersMultiAccount : d.customers),
+    sortPrevious: (d) =>
+      hideSingleAccountCustomers ? d.previousCustomersMultiAccount : d.previousCustomers,
     render: (d) =>
       formatCount(hideSingleAccountCustomers ? d.customersMultiAccount : d.customers),
+    title: (d) =>
+      `${formatCount(hideSingleAccountCustomers ? d.customersMultiAccount : d.customers)} ${
+        hideSingleAccountCustomers ? "khách có từ 2 tài khoản" : "khách có tài khoản"
+      }`,
   },
   {
     key: "points",
@@ -93,9 +128,48 @@ const rankingColumns = (
     // tài khoản (thể lệ câu 7.11). Hai cách lệch nhau ở ca mở hộ tài khoản cho
     // khách của đồng nghiệp, và cột điểm phải khớp bảng lương.
     sortBy: (d) => d.points ?? 0,
+    sortPrevious: (d) => d.previousPoints,
+    ratio: (d) => rankingShare(d.points ?? 0, totalPoints),
+    title: (d) => rankingShareTitle(d.points ?? 0, totalPoints, "điểm"),
     render: (d) => <span className="tabular-nums">{formatPoints(d.points ?? 0)}</span>,
   },
+  {
+    key: "growth",
+    label: "Tăng trưởng",
+    sortBy: (d) =>
+      growthPercent(d.accountsOpened, d.previousAccountsOpened) ?? Number.NEGATIVE_INFINITY,
+    title: (d) => {
+      const percent = growthPercent(d.accountsOpened, d.previousAccountsOpened);
+      const change =
+        percent == null
+          ? null
+          : percent === 0
+            ? "Không đổi so với kỳ trước"
+            : `${percent > 0 ? "+" : ""}${percent}% so với kỳ trước`;
+      const series = d.growth.length
+        ? `Tài khoản mở 7 ngày: ${d.growth.join(", ")}`
+        : null;
+      return rankingTip(change, series);
+    },
+    render: (d) => {
+      const percent = growthPercent(d.accountsOpened, d.previousAccountsOpened);
+      return (
+        <span className={styles.growthCell}>
+          {percent != null && percent !== 0 && (
+            <span className={percent > 0 ? styles.growthUp : styles.growthDown}>
+              <RateDelta points={percent} />%
+            </span>
+          )}
+          <Sparkline
+            values={d.growth}
+            label={`Tài khoản mở 7 ngày đến hết kỳ, ${d.name}: ${d.growth.join(", ")}`}
+          />
+        </span>
+      );
+    },
+  },
 ];
+};
 
 /**
  * P-80 · Tổng quan — bốn cách nhìn, MÁY CHỦ chọn (chốt 06/08).
@@ -123,23 +197,8 @@ export default function DashboardPage() {
   const overview = view && view.kind === "overview" ? view : null;
   const data = overview?.data ?? null;
 
-  const periodLabel =
-    period.kind === "today"
-      ? "hôm nay"
-      : period.kind === "this-month"
-        ? "tháng này"
-        : "khoảng đã chọn";
-
-  /**
-   * Kỳ đem so. Khoảng ngày tự chọn thì `null` — một khoảng tuỳ ý không có kỳ
-   * liền trước nào định nghĩa được, và máy chủ cũng trả previousPercent = null.
-   */
-  const previousLabel =
-    period.kind === "today"
-      ? "hôm qua"
-      : period.kind === "this-month"
-        ? "tháng trước"
-        : null;
+  const periodLabel = periodNarrativeLabel(period.kind);
+  const previousLabel = previousPeriodLabel(period.kind);
 
   const previous = data?.banking.previousInstallPercent ?? null;
   const installGap = previous === null ? null : data!.banking.installPercent - previous;
@@ -162,9 +221,14 @@ export default function DashboardPage() {
 
   return (
     <>
-      <TopBar title="Tổng quan" keepTitleOnMobile>
+      <TopBar title="Tổng quan" keepTitleOnMobile welcome>
         <div className="desktop-only">
-          <PeriodPicker value={period} onChange={setPeriod} sameMonthOnly />
+          <PeriodPicker
+            value={period}
+            onChange={setPeriod}
+            kinds={OVERVIEW_PERIOD_KINDS}
+            variant="toolbar"
+          />
         </div>
         {/* Trên desktop bộ chọn kỳ đã hiện thẳng ở trên — nút "Bộ lọc" ở đây
             chỉ có việc trên điện thoại, ẩn hẳn (không chỉ ẩn nội dung) ở
@@ -174,7 +238,13 @@ export default function DashboardPage() {
             activeCount={period.kind === "today" ? 0 : 1}
             onClear={() => setPeriod(DEFAULT_PERIOD)}
           >
-            <PeriodPicker value={period} onChange={setPeriod} sameMonthOnly />
+            <FilterField id="period" label="Kỳ" count={period.kind === "today" ? 0 : 1}>
+              <PeriodPicker
+                value={period}
+                onChange={setPeriod}
+                kinds={OVERVIEW_PERIOD_KINDS}
+              />
+            </FilterField>
           </FilterButton>
         </div>
       </TopBar>
@@ -214,7 +284,7 @@ export default function DashboardPage() {
               summary={data.banking}
               periodLabel={periodLabel}
               delta={
-                installGap === null
+                installGap === null || previousLabel === null
                   ? undefined
                   : {
                       up: installGap >= 0,
@@ -304,9 +374,14 @@ export default function DashboardPage() {
               >
                 <RankTable
                   rows={data.departments}
-                  columns={rankingColumns(data.rankingKind, hideSingleAccountCustomers)}
+                  columns={rankingColumns(
+                    data.rankingKind,
+                    hideSingleAccountCustomers,
+                    data.departments,
+                  )}
                   rowKey={(d) => d.id}
                   defaultSort="accountsOpened"
+                  highlightTop={3}
                   caption={
                     data.rankingKind === "staff"
                       ? "Xếp hạng nhân viên trong phòng theo số tài khoản mở, app đã cài, tỉ lệ cài app và số khách có tài khoản"
@@ -325,6 +400,7 @@ export default function DashboardPage() {
                               : rankingTotals.customers,
                           ),
                           formatPoints(rankingTotals.points),
+                          "",
                         ]
                       : undefined
                   }

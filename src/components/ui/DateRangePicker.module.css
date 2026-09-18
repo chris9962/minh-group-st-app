@@ -24,6 +24,37 @@
   white-space: nowrap;
 }
 
+.chip {
+  all: unset;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 14px 0 12px;
+  color: var(--om-text);
+  font: inherit;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.chip:hover {
+  background: var(--om-soft);
+}
+
+.chip:focus-visible {
+  outline: 2px solid var(--om-orange);
+  outline-offset: -2px;
+}
+
+@media (pointer: coarse) {
+  .chip {
+    min-height: 44px;
+  }
+}
+
 /* Không giới hạn bề rộng thì lịch 2 tháng cạnh nhau (~560px) tràn ra ngoài
    màn hình hẹp. `.rdp-months` gốc đã có flex-wrap: wrap — chỉ cần panel bị
    ép hẹp lại là hai tháng tự xuống dòng xếp chồng, không cần tắt tháng nào. */

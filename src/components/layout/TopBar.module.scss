@@ -54,6 +54,58 @@
   white-space: nowrap;
 }
 
+.welcome {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.avatar {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: 999px;
+  background: var(--om-orange-soft);
+  color: var(--om-orange-ink);
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.welcomeText {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.welcomeName {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.welcomeHint {
+  margin: 0;
+  font-size: 13px;
+  color: var(--om-text-2);
+}
+
+.welcomeBar {
+  flex-wrap: nowrap;
+}
+
+.welcomeBar .tools {
+  flex: none;
+}
+
 @media (max-width: bp.$bp-mobile) {
   .bar {
     padding: 10px 16px;
@@ -82,5 +134,13 @@
     overflow: hidden;
     clip-path: inset(50%);
     border: 0;
+  }
+
+  .welcomeBar {
+    flex-wrap: wrap;
+  }
+
+  .welcomeHint {
+    display: none;
   }
 }

@@ -13,15 +13,15 @@ import { PHOTO_CHECK_FILTER_LABEL, PhotoCheckFilter } from "@/lib/api/photoCheck
 import { BackLink } from "@/components/ui/BackLink";
 import { Button } from "@/components/ui/Button";
 import { SectionTabs } from "@/components/ui/SectionTabs";
-import { Combobox } from "@/components/ui/Combobox";
 import { DateRangePicker } from "@/components/ui/DateRangePicker";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { FilterButton } from "@/components/ui/FilterButton";
+import { FilterChoices } from "@/components/ui/FilterChoices";
+import { FilterField } from "@/components/ui/FilterField";
 import { FilterChips } from "@/components/ui/FilterChips";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { SearchField } from "@/components/ui/SearchField";
 import { SectionCard } from "@/components/ui/SectionCard";
-import { Select } from "@/components/ui/Select";
 import { SkeletonTable } from "@/components/ui/Skeleton";
 import { StatusTag } from "@/components/ui/StatusTag";
 import {
@@ -411,86 +411,95 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
             })
           }
         >
-          <DateRangePicker
-            label="Khoảng ngày"
-            value={range}
-            onChange={(v) => refine(() => setRange(v))}
-          />
-          <Select
-            block
-            label="Trạng thái"
-            value={status}
-            onChange={(v) => refine(() => setStatus(v as BankAccountStatus | ""))}
-            options={[
-              { value: "", label: "Tất cả trạng thái" },
-              ...BankAccountStatus.options.map((s) => ({
-                value: s,
-                label: BANK_ACCOUNT_STATUS_LABEL[s],
-              })),
-            ]}
-          />
-          <Select
-            block
-            label="Loại TK"
-            value={accountType}
-            onChange={(v) => refine(() => setAccountType(v as AccountType | ""))}
-            options={[
-              { value: "", label: "Tất cả loại" },
-              ...AccountType.options.map((t) => ({ value: t, label: ACCOUNT_TYPE_LABEL[t] })),
-            ]}
-          />
-          <Select
-            block
-            label="Xác thực ảnh"
-            value={photoCheck}
-            onChange={(v) => refine(() => setPhotoCheck(v as PhotoCheckFilter | ""))}
-            options={[
-              { value: "", label: "Tất cả" },
-              ...PhotoCheckFilter.options.map((f) => ({ value: f, label: PHOTO_CHECK_FILTER_LABEL[f] })),
-            ]}
-          />
-          <Combobox
-            block
-            // Combobox chứ không phải Select: một ngân hàng có tới vài trăm mã,
-            // mà `<select>` gốc không gõ tìm được — cùng lý do với ô lọc mã ở P-21.
-            label="Mã giới thiệu"
-            placeholder="Gõ để tìm mã…"
-            value={referralCodeId}
-            onChange={(v) => refine(() => setReferralCodeId(v))}
-            options={[
-              { value: "", label: "Tất cả mã giới thiệu" },
-              ...codes.map((c) => ({ value: c.id, label: c.name })),
-            ]}
-          />
-          <Select
-            block
-            label="Phòng"
-            value={departmentId}
-            onChange={(v) => refine(() => setDepartmentId(v))}
-            options={[
-              { value: "", label: "Tất cả phòng" },
-              ...departments.map((d) => ({ value: d.id, label: d.name })),
-            ]}
-          />
-          <Select
-            block
-            label="Kênh"
-            value={channelId}
-            onChange={(v) => refine(() => setChannelId(v))}
-            options={[
-              { value: "", label: "Tất cả kênh" },
-              ...channels.map((channel) => ({ value: channel.id, label: channel.name })),
-            ]}
-          />
-          <Button
-            variant="secondary"
-            block
-            onClick={exportAll}
-            disabled={exporting || data.total === 0}
-          >
-            <Download size={16} aria-hidden />
-            Xuất Excel
-          </Button>
+          <FilterField id="date" label="Khoảng ngày" count={range?.from ? 1 : 0}>
+            <DateRangePicker
+              hideLabel
+              label="Khoảng ngày"
+              value={range}
+              onChange={(v) => refine(() => setRange(v))}
+            />
+          </FilterField>
+          <FilterField id="status" label="Trạng thái" count={status ? 1 : 0}>
+            <FilterChoices
+              label="Trạng thái"
+              value={status}
+              onChange={(v) => refine(() => setStatus(v as BankAccountStatus | ""))}
+              options={[
+                { value: "", label: "Tất cả trạng thái" },
+                ...BankAccountStatus.options.map((s) => ({
+                  value: s,
+                  label: BANK_ACCOUNT_STATUS_LABEL[s],
+                })),
+              ]}
+            />
+          </FilterField>
+          <FilterField id="accountType" label="Loại TK" count={accountType ? 1 : 0}>
+            <FilterChoices
+              label="Loại TK"
+              value={accountType}
+              onChange={(v) => refine(() => setAccountType(v as AccountType | ""))}
+              options={[
+                { value: "", label: "Tất cả loại" },
+                ...AccountType.options.map((t) => ({ value: t, label: ACCOUNT_TYPE_LABEL[t] })),
+              ]}
+            />
+          </FilterField>
+          <FilterField id="photoCheck" label="Xác thực ảnh" count={photoCheck ? 1 : 0}>
+            <FilterChoices
+              label="Xác thực ảnh"
+              value={photoCheck}
+              onChange={(v) => refine(() => setPhotoCheck(v as PhotoCheckFilter | ""))}
+              options={[
+                { value: "", label: "Tất cả" },
+                ...PhotoCheckFilter.options.map((f) => ({ value: f, label: PHOTO_CHECK_FILTER_LABEL[f] })),
+              ]}
+            />
+          </FilterField>
+          <FilterField id="code" label="Mã giới thiệu" count={referralCodeId ? 1 : 0}>
+            <FilterChoices
+              label="Mã giới thiệu"
+              searchPlaceholder="Gõ để tìm mã…"
+              value={referralCodeId}
+              onChange={(v) => refine(() => setReferralCodeId(v))}
+              options={[
+                { value: "", label: "Tất cả mã giới thiệu" },
+                ...codes.map((c) => ({ value: c.id, label: c.name })),
+              ]}
+            />
+          </FilterField>
+          <FilterField id="department" label="Phòng" count={departmentId ? 1 : 0}>
+            <FilterChoices
+              label="Phòng"
+              value={departmentId}
+              onChange={(v) => refine(() => setDepartmentId(v))}
+              options={[
+                { value: "", label: "Tất cả phòng" },
+                ...departments.map((d) => ({ value: d.id, label: d.name })),
+              ]}
+            />
+          </FilterField>
+          <FilterField id="channel" label="Kênh" count={channelId ? 1 : 0}>
+            <FilterChoices
+              label="Kênh"
+              value={channelId}
+              onChange={(v) => refine(() => setChannelId(v))}
+              options={[
+                { value: "", label: "Tất cả kênh" },
+                ...channels.map((channel) => ({ value: channel.id, label: channel.name })),
+              ]}
+            />
+          </FilterField>
+          <FilterField id="export" label="Xuất Excel">
+            <Button
+              variant="secondary"
+              block
+              onClick={exportAll}
+              disabled={exporting || data.total === 0}
+            >
+              <Download size={16} aria-hidden />
+              Xuất Excel
+            </Button>
+          </FilterField>
         </FilterButton>
       </TopBar>
 

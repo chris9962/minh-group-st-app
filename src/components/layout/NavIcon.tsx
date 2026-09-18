@@ -8,6 +8,7 @@ import {
   Gift,
   History,
   Landmark,
+  MessageSquarePlus,
   Settings,
   ShieldCheck,
   Target,
@@ -40,6 +41,7 @@ const ICONS = {
   audit: History,
   help: BookOpen,
   notifications: Bell,
+  feedback: MessageSquarePlus,
 } as const satisfies Record<NavIconKey, unknown>;
 
 export function NavIcon({ name }: { name: NavIconKey }) {

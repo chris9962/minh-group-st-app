@@ -9,10 +9,11 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
 import { DateRangePicker } from "@/components/ui/DateRangePicker";
 import { FilterButton } from "@/components/ui/FilterButton";
+import { FilterChoices } from "@/components/ui/FilterChoices";
+import { FilterField } from "@/components/ui/FilterField";
 import { FilterChips } from "@/components/ui/FilterChips";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { SectionCard } from "@/components/ui/SectionCard";
-import { Select } from "@/components/ui/Select";
 import { fetchAuditLog, type AuditLogEntry } from "@/lib/api/auditLog";
 import { fetchStaffOptions } from "@/lib/api/staff";
 import { EMPTY_PAGE, PAGE_SIZE, type SortDir } from "@/lib/api/pagination";
@@ -137,22 +138,33 @@ export default function AuditLogPage() {
             })
           }
         >
-          <Select
-            label="Người"
-            value={staffId}
-            onChange={(v) => refine(() => setStaffId(v))}
-            options={[{ value: "", label: "Tất cả mọi người" }, ...staffOptions]}
-          />
-          <Select
-            label="Hành động"
-            value={action}
-            onChange={(v) => refine(() => setAction(v as Action | ""))}
-            options={[
-              { value: "", label: "Tất cả hành động" },
-              ...Action.options.map((a) => ({ value: a, label: ACTION_LABEL[a] })),
-            ]}
-          />
-          <DateRangePicker value={range} onChange={(v) => refine(() => setRange(v))} />
+          <FilterField id="staff" label="Người" count={staffId ? 1 : 0}>
+            <FilterChoices
+              label="Người"
+              value={staffId}
+              onChange={(v) => refine(() => setStaffId(v))}
+              options={[{ value: "", label: "Tất cả mọi người" }, ...staffOptions]}
+            />
+          </FilterField>
+          <FilterField id="action" label="Hành động" count={action ? 1 : 0}>
+            <FilterChoices
+              label="Hành động"
+              value={action}
+              onChange={(v) => refine(() => setAction(v as Action | ""))}
+              options={[
+                { value: "", label: "Tất cả hành động" },
+                ...Action.options.map((a) => ({ value: a, label: ACTION_LABEL[a] })),
+              ]}
+            />
+          </FilterField>
+          <FilterField id="date" label="Khoảng ngày" count={range?.from ? 1 : 0}>
+            <DateRangePicker
+              hideLabel
+              label="Khoảng ngày"
+              value={range}
+              onChange={(v) => refine(() => setRange(v))}
+            />
+          </FilterField>
         </FilterButton>
       </TopBar>
 

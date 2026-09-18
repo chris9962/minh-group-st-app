@@ -5,3 +5,98 @@
   flex-wrap: wrap;
 }
 
+.wrap :global(.seg) {
+  flex-wrap: wrap;
+}
+
+/* Một viên thuốc: preset | khoảng ngày — cùng dáng cụm ngày trên ảnh mẫu. */
+.cluster {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--om-line);
+  border-radius: 999px;
+  background: var(--om-card);
+  overflow: hidden;
+}
+
+.kindBtn {
+  all: unset;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 12px 0 14px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--om-text);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.kindBtn:hover,
+.kindItem:hover {
+  background: var(--om-soft);
+}
+
+.kindBtn:focus-visible,
+.kindItem:focus-visible {
+  outline: 2px solid var(--om-orange);
+  outline-offset: -2px;
+}
+
+.split {
+  width: 1px;
+  margin: 8px 0;
+  background: var(--om-line);
+  flex: none;
+}
+
+.kindPanel {
+  min-width: 11rem;
+  background: var(--om-card);
+  border: 1px solid var(--om-line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: 5px;
+  z-index: 55;
+  display: flex;
+  flex-direction: column;
+}
+
+.kindItem {
+  all: unset;
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: calc(var(--radius-md) - 4px);
+  font: inherit;
+  font-size: 13.5px;
+  color: var(--om-text);
+  cursor: pointer;
+}
+
+.kindItem[aria-current="true"] {
+  font-weight: 600;
+}
+
+.dates {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 14px 0 12px;
+  color: var(--om-text);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+@media (pointer: coarse) {
+  .kindBtn,
+  .dates {
+    min-height: 44px;
+  }
+}
+

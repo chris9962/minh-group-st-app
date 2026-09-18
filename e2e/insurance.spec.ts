@@ -250,7 +250,9 @@ for (const role of ROLES) {
       await createOrder(page);
 
       await page.getByRole("button", { name: /Bộ lọc/ }).click();
-      await page.getByLabel("Trạng thái").selectOption({ label: "Chờ làm tay" });
+      const filter = page.getByRole("dialog");
+      await filter.getByRole("button", { name: "Trạng thái", exact: true }).click();
+      await filter.getByRole("option", { name: "Chờ làm tay" }).click();
       await page.keyboard.press("Escape");
 
       await expect(page.getByText("Trạng thái: Chờ làm tay")).toBeVisible();

@@ -8,10 +8,11 @@ import { TopBar } from "@/components/layout/TopBar";
 import { RequirePermission } from "@/components/layout/RequirePermission";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { FilterButton } from "@/components/ui/FilterButton";
+import { FilterChoices } from "@/components/ui/FilterChoices";
+import { FilterField } from "@/components/ui/FilterField";
 import { FilterChips } from "@/components/ui/FilterChips";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { SectionCard } from "@/components/ui/SectionCard";
-import { Select } from "@/components/ui/Select";
 import { SkeletonTable } from "@/components/ui/Skeleton";
 import { StatusTag } from "@/components/ui/StatusTag";
 import {
@@ -110,16 +111,18 @@ export default function FeedbackPage() {
     <RequirePermission module="system" action="handle-feedback">
       <TopBar title="Hộp góp ý" keepTitleOnMobile>
         <FilterButton activeCount={status ? 1 : 0} onClear={() => refine("")}>
-          <Select
-            label="Trạng thái"
-            value={status}
-            onChange={(v) => refine(v as FeedbackStatus | "")}
-            options={[
-              { value: "", label: "Tất cả" },
-              { value: "pending", label: FEEDBACK_STATUS_LABEL.pending },
-              { value: "done", label: FEEDBACK_STATUS_LABEL.done },
-            ]}
-          />
+          <FilterField id="status" label="Trạng thái" count={status ? 1 : 0}>
+            <FilterChoices
+              label="Trạng thái"
+              value={status}
+              onChange={(v) => refine(v as FeedbackStatus | "")}
+              options={[
+                { value: "", label: "Tất cả" },
+                { value: "pending", label: FEEDBACK_STATUS_LABEL.pending },
+                { value: "done", label: FEEDBACK_STATUS_LABEL.done },
+              ]}
+            />
+          </FilterField>
         </FilterButton>
       </TopBar>
 

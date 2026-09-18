@@ -73,3 +73,17 @@ test("nhân viên gọi thẳng API cũng chỉ ra hồ sơ của chính mình",
   expect(body.kind).toBe("personal");
   expect(body.person?.username).toBe("zz_e2e_staff");
 });
+
+test("bảng xếp hạng phòng đánh số hạng trên từng dòng", async ({ page }) => {
+  await login(page, "director");
+  await page.goto("/");
+  expect(await screenLoaded(page)).toBe(true);
+
+  const table = page.getByRole("table", {
+    name: "Xếp hạng phòng kinh doanh theo số tài khoản mở, app đã cài, tỉ lệ cài app và số khách có tài khoản",
+  });
+  const firstRow = table.locator("tbody tr").first();
+  await expect(firstRow).toBeVisible();
+  await expect(firstRow).toHaveAttribute("data-rank", "1");
+  await expect(firstRow.getByRole("img", { name: "Hạng 1" })).toBeVisible();
+});

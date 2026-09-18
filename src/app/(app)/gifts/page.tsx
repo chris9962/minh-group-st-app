@@ -10,14 +10,14 @@ import { SkeletonTable } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
 import { Button } from "@/components/ui/Button";
-import { Combobox } from "@/components/ui/Combobox";
 import { DateRangePicker } from "@/components/ui/DateRangePicker";
 import { FilterButton } from "@/components/ui/FilterButton";
+import { FilterChoices } from "@/components/ui/FilterChoices";
+import { FilterField } from "@/components/ui/FilterField";
 import { FilterChips } from "@/components/ui/FilterChips";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { SearchField } from "@/components/ui/SearchField";
 import { SectionCard } from "@/components/ui/SectionCard";
-import { Select } from "@/components/ui/Select";
 import { StatusTag } from "@/components/ui/StatusTag";
 import {
   fetchGiftGrants,
@@ -263,34 +263,43 @@ export default function GiftsPage() {
             })
           }
         >
-          <DateRangePicker label="Khoảng ngày" value={range} onChange={(v) => refine(() => setRange(v))} />
-          {canFilterByDepartment && (
-            <Select
-              block
-              label="Phòng"
-              value={departmentId}
-              onChange={(v) => refine(() => setDepartmentId(v))}
-              options={[{ value: "", label: "Tất cả phòng" }, ...departmentOptions]}
+          <FilterField id="date" label="Khoảng ngày" count={range?.from ? 1 : 0}>
+            <DateRangePicker
+              hideLabel
+              label="Khoảng ngày"
+              value={range}
+              onChange={(v) => refine(() => setRange(v))}
             />
-          )}
-          {canFilterByStaff && (
-            <Combobox
-              block
-              // Combobox chứ không phải Select: công ty có hàng trăm nhân viên,
-              // mà `<select>` gốc không gõ tìm được.
-              label="Nhân viên"
-              placeholder="Gõ để tìm nhân viên…"
-              value={staffId}
-              onChange={(v) => refine(() => setStaffId(v))}
-              options={[{ value: "", label: "Tất cả nhân viên" }, ...staffOptions]}
-            />
-          )}
-          {can(user, "banking", "export") && (
-            <Button variant="secondary" block onClick={exportAll} disabled={exporting || data.total === 0}>
-              <Download size={16} aria-hidden />
-              Xuất Excel
-            </Button>
-          )}
+          </FilterField>
+          {canFilterByDepartment ? (
+            <FilterField id="department" label="Phòng" count={departmentId ? 1 : 0}>
+              <FilterChoices
+                label="Phòng"
+                value={departmentId}
+                onChange={(v) => refine(() => setDepartmentId(v))}
+                options={[{ value: "", label: "Tất cả phòng" }, ...departmentOptions]}
+              />
+            </FilterField>
+          ) : null}
+          {canFilterByStaff ? (
+            <FilterField id="staff" label="Nhân viên" count={staffId ? 1 : 0}>
+              <FilterChoices
+                label="Nhân viên"
+                searchPlaceholder="Gõ để tìm nhân viên…"
+                value={staffId}
+                onChange={(v) => refine(() => setStaffId(v))}
+                options={[{ value: "", label: "Tất cả nhân viên" }, ...staffOptions]}
+              />
+            </FilterField>
+          ) : null}
+          {can(user, "banking", "export") ? (
+            <FilterField id="export" label="Xuất Excel">
+              <Button variant="secondary" block onClick={exportAll} disabled={exporting || data.total === 0}>
+                <Download size={16} aria-hidden />
+                Xuất Excel
+              </Button>
+            </FilterField>
+          ) : null}
         </FilterButton>
       </TopBar>
 

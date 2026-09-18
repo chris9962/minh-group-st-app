@@ -65,6 +65,28 @@
   gap: 8px;
 }
 
+.growthCell {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.growthUp,
+.growthDown {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0;
+  font-size: 12px;
+}
+
+.growthUp {
+  color: var(--om-green);
+}
+
+.growthDown {
+  color: var(--om-orange);
+}
+
 .footnote {
   margin: 0;
   font-size: 12px;

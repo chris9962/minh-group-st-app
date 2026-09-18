@@ -338,8 +338,10 @@ test.describe("lọc chạy ở máy chủ", () => {
     expect(kenhCuaA).not.toBe("—");
 
     await page.getByRole("button", { name: /Bộ lọc|Lọc/ }).click();
+    const filter = page.getByRole("dialog");
+    await filter.getByRole("button", { name: "Kênh", exact: true }).click();
     await afterQuery(page, (p) => Boolean(p.get("channelId")), () =>
-      page.getByLabel("Kênh").selectOption({ label: kenhCuaA }),
+      filter.getByRole("option", { name: kenhCuaA }).click(),
     );
     await page.keyboard.press("Escape");
 

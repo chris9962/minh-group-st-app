@@ -11,6 +11,8 @@ export type ComboboxOption = { value: string; label: string };
 
 type Props = {
   label: string;
+  /** Ẩn nhãn khỏi màn hình nhưng trình đọc màn hình vẫn đọc được. */
+  hideLabel?: boolean;
   value: string;
   options: ComboboxOption[];
   onChange: (value: string) => void;
@@ -41,6 +43,7 @@ const MAX_SHOWN = 50;
  */
 export function Combobox({
   label,
+  hideLabel = false,
   value,
   options,
   onChange,
@@ -95,7 +98,7 @@ export function Combobox({
         */}
         <label
           htmlFor={id}
-          className={block ? styles.blockLabel : styles.label}
+          className={hideLabel ? "sr-only" : block ? styles.blockLabel : styles.label}
           onMouseDown={(e) => {
             e.preventDefault();
             // Nhả con trỏ ra hẳn. Chỉ chặn `preventDefault` thì Radix đóng danh

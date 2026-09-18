@@ -72,6 +72,11 @@
   background: var(--om-orange);
 }
 
+:global(.table).ranked .track {
+  height: 8px;
+  max-width: 72px;
+}
+
 .pager {
   display: flex;
   align-items: center;
@@ -140,4 +145,116 @@
 .rowLink:focus-visible {
   outline: 2px solid var(--om-orange);
   outline-offset: -2px;
+}
+
+/* Bảng xếp hạng dashboard: đĩa số + tô ba dòng đầu. Không đụng bảng danh sách. */
+:global(.table).ranked :global(th),
+:global(.table).ranked :global(td) {
+  padding-block: var(--space-3);
+}
+
+.identity {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.rankMark {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
+
+.identityName {
+  min-width: 0;
+}
+
+.rankBadge {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--om-text-2);
+  background: var(--om-surface);
+}
+
+/* Hạng 1–3: dải vàng đậm → nhạt. Không dùng --om-orange-soft (nền cảnh báo). */
+.rankBadge[data-place="1"] {
+  background: var(--om-rank-1);
+  color: var(--om-rank-ink);
+}
+
+.rankBadge[data-place="2"] {
+  background: var(--om-rank-2);
+  color: var(--om-rank-ink);
+}
+
+.rankBadge[data-place="3"] {
+  background: var(--om-rank-3);
+  color: var(--om-rank-ink);
+}
+
+.rankDelta {
+  min-width: 1.75rem;
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.rankUp {
+  color: var(--om-green);
+}
+
+.rankDown {
+  color: var(--om-orange);
+}
+
+/* Thắng `.table tbody tr:hover` của design system — nếu không, rê chuột là mất hạng. */
+:global(.table) tbody tr.top[data-rank="1"] {
+  background: color-mix(in srgb, var(--om-rank-1) 28%, var(--om-card));
+}
+:global(.table) tbody tr.top[data-rank="2"] {
+  background: color-mix(in srgb, var(--om-rank-2) 22%, var(--om-card));
+}
+:global(.table) tbody tr.top[data-rank="3"] {
+  background: color-mix(in srgb, var(--om-rank-3) 32%, var(--om-card));
+}
+
+:global(.table) tbody tr.top[data-rank="1"]:hover {
+  background: color-mix(in srgb, var(--om-rank-1) 40%, var(--om-card));
+}
+:global(.table) tbody tr.top[data-rank="2"]:hover {
+  background: color-mix(in srgb, var(--om-rank-2) 34%, var(--om-card));
+}
+:global(.table) tbody tr.top[data-rank="3"]:hover {
+  background: color-mix(in srgb, var(--om-rank-3) 46%, var(--om-card));
+}
+
+.tipped {
+  cursor: help;
+}
+
+/* Portal ra body — `.table-scroll` cắt overflow nên tooltip trong ô bị mất. */
+.tip {
+  position: fixed;
+  z-index: 40;
+  transform: translate(-50%, calc(-100% - 8px));
+  max-width: 16rem;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--om-text);
+  color: var(--om-card);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.4;
+  box-shadow: var(--shadow-md);
+  pointer-events: none;
+  white-space: pre-wrap;
 }

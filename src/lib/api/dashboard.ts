@@ -33,6 +33,20 @@ export const DepartmentRanking = z.object({
    */
   previousInstallRate: z.number().nullable(),
   /**
+   * Số kỳ liền trước, để tính tăng/giảm hạng theo cột đang sắp. `null` khi
+   * không có kỳ trước (khoảng ngày tự chọn) — không bịa mũi tên.
+   */
+  previousAccountsOpened: z.number().nullable().default(null),
+  previousAppsInstalled: z.number().nullable().default(null),
+  previousCustomers: z.number().nullable().default(null),
+  previousCustomersMultiAccount: z.number().nullable().default(null),
+  previousPoints: z.number().nullable().default(null),
+  /**
+   * Số tài khoản mở từng ngày, 7 ngày kết thúc kỳ đang xem, cũ → mới.
+   * Dùng cho sparkline tăng trưởng. Mảng rỗng khi nơi gọi không tính (P-91).
+   */
+  growth: z.array(z.number()).default([]),
+  /**
    * Tổng điểm KPI của dòng này TRONG KỲ XEM.
    *
    * `null` khi nơi gọi không tính điểm — bảng Phòng ban (P-91) dùng chung kiểu
