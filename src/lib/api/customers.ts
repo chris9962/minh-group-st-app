@@ -61,6 +61,8 @@ export const Customer = z.object({
   channelDetail: z.string(),
   /** Ngày tạo hồ sơ, YYYY-MM-DD — dùng để lọc ở P-40 (hôm nay/tháng này/khoảng ngày). */
   createdAt: z.string(),
+  /** Cùng mốc với `createdAt` nhưng đủ giờ phút, để hiện trên hồ sơ. */
+  createdInstant: z.coerce.date(),
   /** Ngày chốt quà, YYYY-MM-DD; `null` khi chưa phát. Ngày hồ sơ dời được tới tối đa ngày này. */
   giftDay: z.string().nullable().default(null),
   /** Xem chú thích cùng tên ở `CustomerRow` — hai trường này để ẩn nút Sửa. */

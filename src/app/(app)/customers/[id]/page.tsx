@@ -49,14 +49,12 @@ const INSURANCE_SOURCE_LABEL: Record<CustomerInsuranceRow["source"], string> = {
   gift: "Quà tặng",
 };
 
+// `vi-VN` ghép sẵn ra "22:08 17/09/2026"; ghép tay để ngày đứng trước giờ.
 const formatDateTime = (value: Date): string =>
-  new Intl.DateTimeFormat("vi-VN", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
+  `${formatDate(value)} ${new Intl.DateTimeFormat("vi-VN", {
     hour: "2-digit",
     minute: "2-digit",
-  }).format(value);
+  }).format(value)}`;
 
 /** P-42 · Hồ sơ khách hàng 360°. */
 export default function CustomerDetailPage({
@@ -286,6 +284,10 @@ export default function CustomerDetailPage({
                       ? ` - ${data.customer.createdByDepartmentName}`
                       : ""}
                   </dd>
+                </div>
+                <div>
+                  <dt>Ngày tạo</dt>
+                  <dd className="tabular-nums">{formatDateTime(data.customer.createdInstant)}</dd>
                 </div>
                 <div className={styles.noteRow}>
                   <dt>
