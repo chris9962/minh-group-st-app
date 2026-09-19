@@ -361,15 +361,24 @@ export default function InsurancePage() {
           // Bot đã thôi hỏi PVI về giấy chứng nhận. Nhãn trạng thái không đủ:
           // đơn này với đơn vừa duyệt xong đều mang chữ "Đợi giấy chứng nhận".
           const needsHelp = certificateNeedsHelp(r.status, r.certificateAttempts);
+          // Đồng hồ đợi nằm TRONG nhãn, ngay sau chữ "Đợi GCN": nó là một phần
+          // của trạng thái, tách ra dòng riêng thì cột cao lên mà chữ rời nhau.
+          // Bọc chung một span vì `.tag` là inline-flex, khoảng trắng đứng
+          // giữa hai flex item bị bỏ.
+          const waiting = r.status === "awaiting-certificate" ? r.awaitingSince : null;
           return (
-            <span className={styles.stack}>
-              <StatusTag tone={needsHelp ? "warn" : INSURANCE_STATUS_TONE[r.status]}>
-                {needsHelp ? "Đợi GCN — cần kiểm tra" : INSURANCE_STATUS_LABEL[r.status]}
-              </StatusTag>
-              {r.status === "awaiting-certificate" && r.awaitingSince && (
-                <CertificateWait since={r.awaitingSince} className={styles.stackSub} />
+            <StatusTag tone={needsHelp ? "warn" : INSURANCE_STATUS_TONE[r.status]}>
+              {waiting ? (
+                <span>
+                  {INSURANCE_STATUS_LABEL[r.status]} <CertificateWait since={waiting} />
+                  {needsHelp && " — cần kiểm tra"}
+                </span>
+              ) : needsHelp ? (
+                "Đợi GCN — cần kiểm tra"
+              ) : (
+                INSURANCE_STATUS_LABEL[r.status]
               )}
-            </span>
+            </StatusTag>
           );
         },
       },

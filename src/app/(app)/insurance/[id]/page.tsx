@@ -473,7 +473,8 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                     data.status === "awaiting-certificate") && (
                   <p className={styles.serialInline}>
                     <span className={styles.serialLabel}>Mã GD</span>
-                    {data.id}
+                    {/* Rút gọn để đọc: uuid 36 ký tự không ai đọc tay, nút chép vẫn lấy đủ. */}
+                    {`${data.id.slice(0, 4)}…${data.id.slice(-4)}`}
                     <CopyButton value={data.id} label={`mã giao dịch PVI: ${data.id}`} quiet />
                   </p>
                 )}
