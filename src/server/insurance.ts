@@ -431,6 +431,17 @@ const decorate = (page: ReturnType<typeof pickPage>) =>
       intakePhotoUrl: page.intakePhotoUrl,
       intakePhotoBackUrl: page.intakePhotoBackUrl,
       certificateAttempts: page.certificateAttempts,
+      /**
+       * Lượt chuyển sang `awaiting-certificate` GẦN NHẤT. Câu con chạy trên
+       * từng dòng của trang, đi chỉ mục `insurance_history_order`. Trả chuỗi
+       * ISO giây tròn, không trả cột timestamptz: `sql<>` thô không qua phép
+       * đổi kiểu của cột nên mỗi driver ra một dạng chữ khác nhau.
+       */
+      awaitingSince: sql<string | null>`(
+        select to_char(max(h.changed_at) at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
+        from ${insuranceOrderStatusHistory} h
+        where h.order_id = ${page.id} and h.to_status = 'awaiting-certificate'
+      )`,
       pviCertificateUrl: page.pviCertificateUrl,
       pviSerialNumber: page.pviSerialNumber,
       pviPolicyNumber: page.pviPolicyNumber,
@@ -486,6 +497,7 @@ const toRow = (r: DecoratedRow): InsuranceListRow => ({
   // trải `toRow` ra, nên cả danh sách lẫn chi tiết đi qua đây.
   certificatePhotoUrl: r.certificatePhotoUrl ? imageUrl(r.certificatePhotoUrl) : r.certificatePhotoUrl,
   certificateAttempts: r.certificateAttempts,
+  awaitingSince: r.awaitingSince,
   pviRoute: r.pviRoute,
 });
 

@@ -24,6 +24,7 @@ import { SectionCard } from "@/components/ui/SectionCard";
 import { Select } from "@/components/ui/Select";
 import { fetchDepartments } from "@/lib/api/departments";
 import { StatusTag } from "@/components/ui/StatusTag";
+import { CertificateWait } from "@/components/insurance/CertificateWait";
 import { CreateInsuranceOrderDialog } from "@/components/insurance/CreateInsuranceOrderDialog";
 import { InsuranceOrderEditDialog } from "@/components/insurance/InsuranceOrderEditDialog";
 import {
@@ -361,9 +362,14 @@ export default function InsurancePage() {
           // đơn này với đơn vừa duyệt xong đều mang chữ "Đợi giấy chứng nhận".
           const needsHelp = certificateNeedsHelp(r.status, r.certificateAttempts);
           return (
-            <StatusTag tone={needsHelp ? "warn" : INSURANCE_STATUS_TONE[r.status]}>
-              {needsHelp ? "Đợi giấy — cần kiểm tra" : INSURANCE_STATUS_LABEL[r.status]}
-            </StatusTag>
+            <span className={styles.stack}>
+              <StatusTag tone={needsHelp ? "warn" : INSURANCE_STATUS_TONE[r.status]}>
+                {needsHelp ? "Đợi giấy — cần kiểm tra" : INSURANCE_STATUS_LABEL[r.status]}
+              </StatusTag>
+              {r.status === "awaiting-certificate" && r.awaitingSince && (
+                <CertificateWait since={r.awaitingSince} className={styles.stackSub} />
+              )}
+            </span>
           );
         },
       },

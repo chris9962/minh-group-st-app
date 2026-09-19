@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { use, useCallback, useEffect, useRef, useState } from "react";
 import { Ban, CheckCircle2, Download, ExternalLink, FileText, History, ImagePlus, Pencil, RotateCcw, ShieldCheck, X } from "lucide-react";
+import { CertificateWait } from "@/components/insurance/CertificateWait";
 import { InsuranceCancelDialog } from "@/components/insurance/InsuranceCancelDialog";
 import { InsuranceOrderEditDialog } from "@/components/insurance/InsuranceOrderEditDialog";
 import { BackLink } from "@/components/ui/BackLink";
@@ -509,6 +510,12 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                 <StatusTag tone={INSURANCE_STATUS_TONE[data.status]}>
                   {INSURANCE_STATUS_LABEL[data.status]}
                 </StatusTag>
+                {data.status === "awaiting-certificate" && data.awaitingSince && (
+                  <p className={styles.serialInline}>
+                    <span className={styles.serialLabel}>Đã đợi</span>
+                    <CertificateWait since={data.awaitingSince} />
+                  </p>
+                )}
                 {/* Bot đã thôi hỏi PVI. Không nói ra thì dòng này trông y hệt
                     đơn vừa duyệt xong và đang đợi bình thường. */}
                 {certificateNeedsHelp(data.status, data.certificateAttempts) && (

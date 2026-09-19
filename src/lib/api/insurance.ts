@@ -74,6 +74,13 @@ export const InsuranceListRow = z.object({
    */
   certificateAttempts: z.number().default(0),
   /**
+   * Mốc đơn chuyển sang `awaiting-certificate` lần gần nhất, ISO UTC; `null`
+   * khi chưa từng qua trạng thái đó. Màn hình trừ với giờ máy để hiện đơn đã
+   * đợi bao lâu (chốt 2026-09-19). Chỉ có nghĩa khi `status` đang là trạng
+   * thái này.
+   */
+  awaitingSince: z.string().nullable().default(null),
+  /**
    * Đường đi của đơn: `api`, `bot`, hoặc rỗng khi làm tay. Bảng P-13 đọc để
    * giấu nút Sửa và Xoá với đơn đường API đã gửi PVI (chốt 2026-09-07).
    */
