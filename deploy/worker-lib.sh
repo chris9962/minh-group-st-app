@@ -2,8 +2,8 @@
 # Phần dùng chung của `worker-api.sh` và `worker-photo.sh`. KHÔNG chạy trực
 # tiếp, hai script kia `source` vào.
 #
-# Hai worker dùng chung MỘT image `mgst-api-worker` (tầng `api-worker` của
-# Dockerfile), khác entrypoint. Cờ `docker run` để một chỗ: lượt 2026-09-08 và
+# Hai worker hai image (`mgst-api-worker` tầng `api-worker`, `mgst-photo-check`
+# tầng `photo-check`) nhưng chung cờ `docker run`, để một chỗ: lượt 2026-09-08 và
 # 2026-09-10 gõ tay theo ghi chú, mỗi lượt thiếu một cờ (`--add-host`,
 # `DATABASE_URL`, `--log-opt`), container Up mà không nối database hay log đầy
 # đĩa, chỉ hiện ra sau vài giờ.

@@ -25,7 +25,7 @@ import { checkLpb, type LpbCheckContext } from "./ocr/banks/lpb";
 import { checkMb, type MbCheckContext } from "./ocr/banks/mb";
 import { checkMsb, type MsbCheckContext } from "./ocr/banks/msb";
 import { checkTpbankImages, type TpbCheckContext } from "./ocr/banks/tpbank";
-import { ocrImage } from "./ocr/image";
+import { ocrLines } from "./ocr/reader";
 import type { CheckedItem } from "./ocr/types";
 import { readImage } from "./storage";
 
@@ -34,8 +34,8 @@ import { readImage } from "./storage";
  *
  * Hai nửa: nửa ghi hàng chờ chạy trong app lúc nhân viên hoàn thành hay đổi
  * ảnh (`enqueuePhotoCheck`), nửa xử lý chạy trong worker riêng
- * (`scripts/photo-check-worker.ts` gọi `runPhotoCheck`). Tách vì Tesseract mất
- * khoảng 1 giây một ảnh, không để nhân viên đợi ở nút Hoàn thành.
+ * (`scripts/photo-check-worker.ts` gọi `runPhotoCheck`). Tách vì OCR mất vài
+ * giây một ảnh, không để nhân viên đợi ở nút Hoàn thành.
  *
  * Kết quả chỉ để GỢI Ý cho người duyệt. Không tự đổi `bank_accounts.status`.
  */
@@ -50,15 +50,15 @@ type PhotoCheckContext = TpbCheckContext &
 type Checker = (images: Buffer[], ctx: PhotoCheckContext) => Promise<CheckedItem[]>;
 
 /**
- * Bộ nhãn nhận ẢNH, tự quyết đọc mỗi ảnh bằng cấu hình nào. TPBank nhận ra
- * màn hình chính bằng màu rồi đọc một lượt; các ngân hàng còn lại vẫn đọc
- * mọi ảnh bằng bốn lượt mặc định rồi chấm trên chữ.
+ * Bộ nhãn nhận ẢNH. TPBank đọc tới khi đủ bốn giá trị thì dừng; các ngân
+ * hàng còn lại đọc mọi ảnh rồi chấm trên chữ. Parser MB, MSB, LPB viết cho
+ * chữ Tesseract, chưa đo lại trên chữ VietOCR, nên vẫn tắt (`ENABLED_BANKS`).
  */
 const withDefaultOcr =
   (check: (texts: string[], ctx: PhotoCheckContext) => CheckedItem[]): Checker =>
   async (images, ctx) => {
     const texts: string[] = [];
-    for (const image of images) texts.push(await ocrImage(image));
+    for (const image of images) texts.push((await ocrLines(image)).join("\n"));
     return check(texts, ctx);
   };
 
@@ -72,10 +72,11 @@ const CHECKERS: Record<string, Checker> = {
 };
 
 /**
- * Ngân hàng đang BẬT kiểm ảnh. Chỉ TPBank đã qua quy trình đo từng màn
- * (`.claude/skills/ocr-screen-parser`); MB, MSB, LPB vẫn dùng bộ nhãn bốn
- * lượt chưa đo nên tắt (chốt 2026-09-15). Làm xong ngân hàng nào thì thêm mã
- * vào đây; dòng chờ cũ của ngân hàng tắt bị worker xoá lúc khởi động.
+ * Ngân hàng đang BẬT kiểm ảnh. Chỉ TPBank đã đo trên benchmark 62 tài khoản
+ * (`.claude/skills/ocr-verify`, 2026-09-19); MB, MSB, LPB còn parser theo màn
+ * viết cho chữ Tesseract, chưa đo lại nên tắt (chốt 2026-09-15). Làm xong ngân
+ * hàng nào thì thêm mã vào đây; dòng chờ cũ của ngân hàng tắt bị worker xoá
+ * lúc khởi động.
  */
 const ENABLED_BANKS = ["TPB"];
 
@@ -310,7 +311,7 @@ export async function dropDisabledPendingChecks(): Promise<number> {
  * Chạy MỘT lượt kiểm: đọc ảnh từ kho, OCR, so với hệ thống, ghi kết quả.
  *
  * Lỗi ném ra ngoài để worker ghi `failed` kèm lý do; không thử lại tự động,
- * vì lỗi ở đây là lỗi máy mình (thiếu tesseract, kho ảnh không đọc được), thử
+ * vì lỗi ở đây là lỗi máy mình (thiếu Python OCR, kho ảnh không đọc được), thử
  * lại cũng ra y vậy. Nhân viên đổi ảnh thì có lượt mới.
  */
 export async function runPhotoCheck(run: PhotoCheckRun): Promise<PhotoCheckItem[]> {
