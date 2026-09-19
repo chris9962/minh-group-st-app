@@ -210,3 +210,69 @@ export async function fetchCancelledInsuranceExport(
   if (!res.ok) throw new Error('Không tải được danh sách đơn bảo hiểm huỷ');
   return CancelledInsurancePage.parse(await res.json());
 }
+
+/* ── Báo cáo #6 · Quà cấp dư do app lỗi ─────────────────────────────── */
+
+/**
+ * MỘT KHÁCH một dòng: đã phát quà, có ít nhất một tài khoản `error`, và đợt đã
+ * phát có phần KHÔNG còn trong rổ tính lại theo tài khoản `done` hiện tại.
+ *
+ * Quà dư là TRỌN món, không trừ chênh lệch bậc (chốt 2026-09-19): gói bảo hiểm
+ * 2 năm đã cấp thì không cắt còn 1 năm được.
+ */
+export const GiftExcessRow = z.object({
+  customerId: z.string(),
+  customerName: z.string(),
+  idNumber: z.string(),
+  /** Tài khoản đang `error`, sắp theo mã ngân hàng. Không bao giờ rỗng. */
+  errorAccounts: z.array(z.object({ id: z.string(), bankCode: z.string() })),
+  /** Mốc phát dạng ISO — giao diện tự đổi sang giờ Việt Nam. */
+  grantedAt: z.string(),
+  grantedItem: z.string(),
+  /** `''` khi đợt không có quà thêm hoặc khách từ chối. */
+  grantedExtra: z.string(),
+  grantedCash: z.number(),
+  /** Mã bậc `THn` lúc phát và theo tài khoản hiện tại; `''` khi không đủ bậc nào. */
+  caseAtGrant: z.string(),
+  caseNow: z.string(),
+  /** Ba phần dư; chuỗi rỗng và số 0 là phần đó không dư. Ít nhất một phần có giá trị. */
+  excessItem: z.string(),
+  excessExtra: z.string(),
+  excessCash: z.number(),
+  /** NGƯỜI LẬP HỒ SƠ khách, cũng là người phát quà. `''` khi tài khoản đã bị xoá. */
+  createdByName: z.string(),
+  createdByStaffCode: z.string(),
+  departmentName: z.string(),
+});
+export type GiftExcessRow = z.infer<typeof GiftExcessRow>;
+
+/**
+ * `total` đếm khách ứng viên (đã phát quà + có tài khoản `error`) khớp bộ lọc;
+ * `scanned` là số ứng viên máy chủ đã tính, nhỏ hơn `total` khi chạm trần. Phần
+ * dư chỉ biết sau khi chạy luật, nên `rows.length` không so được với `total`.
+ */
+const GiftExcessPage = z.object({
+  rows: z.array(GiftExcessRow),
+  scanned: z.number(),
+  total: z.number(),
+});
+
+export type GiftExcessQuery = {
+  /** Khoảng NGÀY PHÁT QUÀ. */
+  from: string;
+  to: string;
+  /** Người lập hồ sơ khách. */
+  staffId: string;
+  departmentId: string;
+  /** Mã ngân hàng của tài khoản `error`, nối bằng dấu phẩy. Rỗng = mọi ngân hàng. */
+  bankCode: string;
+};
+
+export async function fetchGiftExcessExport(
+  query: GiftExcessQuery,
+): Promise<{ rows: GiftExcessRow[]; scanned: number; total: number }> {
+  const params = new URLSearchParams(query);
+  const res = await fetch(`/api/exports/gift-excess?${params}`);
+  if (!res.ok) throw new Error('Không tải được danh sách quà cấp dư');
+  return GiftExcessPage.parse(await res.json());
+}

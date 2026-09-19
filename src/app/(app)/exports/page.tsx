@@ -9,7 +9,13 @@ import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { DateRangePicker } from "@/components/ui/DateRangePicker";
 import { MonthPicker, thisMonth } from "@/components/ui/MonthPicker";
-import { fetchCancelledInsuranceExport, fetchOrderStats, type OrderStatsGroupBy } from "@/lib/api/exports";
+import {
+  fetchCancelledInsuranceExport,
+  fetchGiftExcessExport,
+  fetchOrderStats,
+  type GiftExcessRow,
+  type OrderStatsGroupBy,
+} from "@/lib/api/exports";
 import { exportOrderStats, type OrderStatsMeasures, type OrderStatsSheet } from "@/lib/excelOrderStats";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { SectionTabs } from "@/components/ui/SectionTabs";
@@ -71,7 +77,8 @@ type ReportId =
   | "staff-points"
   | "services-by-ward"
   | "order-stats"
-  | "cancelled-insurance";
+  | "cancelled-insurance"
+  | "gift-excess";
 
 /**
  * Ba báo cáo, chốt 2026-08-22.
@@ -93,6 +100,8 @@ const REPORTS: { id: ReportId; label: string; module: ModuleKey }[] = [
   // Thêm 2026-09-08: đối soát đơn huỷ. Báo cáo #4 chỉ đếm gộp đơn huỷ theo ngày
   // và theo phòng, không nói đơn nào và vì sao huỷ.
   { id: "cancelled-insurance", label: "Đơn bảo hiểm huỷ", module: "insurance" },
+  // Thêm 2026-09-19: truy thu quà đã phát cho khách mà app ngân hàng lỗi sau đó.
+  { id: "gift-excess", label: "Quà cấp dư do app lỗi", module: "banking" },
 ];
 
 /**
@@ -298,6 +307,36 @@ function catalogFor(report: ReportId, banks: Bank[], staffById: Map<string, Staf
         { key: "pviElectronicOrderNo", header: "Số đơn PVI", type: "text", width: 22, defaultOn: false, sample: ["26/21/14/MOTO/0107042", "—"], value: (r) => r.pviElectronicOrderNo || "—" },
       ];
 
+    case "gift-excess": {
+      const origin = () => window.location.origin;
+      /**
+       * Một ô Excel chỉ mang ĐÚNG MỘT link. Khách lỗi một app thì ô mở thẳng tài
+       * khoản đó; lỗi từ hai app trở lên thì mở hồ sơ khách, nơi liệt kê đủ.
+       */
+      const errorLink = (r: GiftExcessRow) =>
+        r.errorAccounts.length === 1
+          ? `${origin()}/banking/${r.errorAccounts[0].id}`
+          : `${origin()}/customers/${r.customerId}`;
+      const sumCash = (rows: GiftExcessRow[]) => rows.reduce((t, r) => t + r.excessCash, 0);
+      return [
+        { key: "customerName", header: "Khách hàng", transform: "name", width: 26, defaultOn: true, sample: ["NGUYEN VAN MEN", "VO VAN CHIEN"], value: (r) => r.customerName, link: (r: GiftExcessRow) => `${origin()}/customers/${r.customerId}` },
+        { key: "idNumber", header: "Số CCCD", type: "text", width: 15, defaultOn: true, sample: ["082077017051", "082047005635"], value: (r) => r.idNumber || "—" },
+        { key: "errorBanks", header: "App lỗi", width: 12, defaultOn: true, sample: ["MB", "MB, TPB"], value: (r: GiftExcessRow) => r.errorAccounts.map((a) => a.bankCode).join(", "), link: errorLink },
+        { key: "grantedAt", header: "Ngày phát", width: 12, defaultOn: true, sample: ["05/09/2026", "12/09/2026"], value: (r) => formatDate(r.grantedAt) },
+        { key: "grantedItem", header: "Quà đã phát", width: 30, defaultOn: true, sample: ["2 năm BH xe máy", "1 năm BH tai nạn điện"], value: (r) => r.grantedItem || "—" },
+        { key: "excessItem", header: "Quà dư", width: 30, defaultOn: true, sample: ["2 năm BH xe máy", ""], value: (r) => r.excessItem },
+        { key: "excessExtra", header: "Quà thêm dư", width: 16, defaultOn: true, sample: ["", "Loa"], value: (r) => r.excessExtra },
+        { key: "excessCash", header: "Tiền mặt dư (đ)", type: "number", width: 14, defaultOn: true, sample: ["20000", "0"], value: (r) => r.excessCash, total: sumCash },
+        { key: "createdByName", header: "Nhân viên", width: 26, defaultOn: true, sample: ["Phan Thị Thanh Trang", "Lý Hoàng Nam"], value: (r) => r.createdByName || "—" },
+        { key: "createdByStaffCode", header: "Mã nhân viên", type: "text", width: 14, defaultOn: true, sample: ["163TRANGPTT", "MG-0007"], value: (r) => r.createdByStaffCode || "—" },
+        { key: "departmentName", header: "Phòng", width: 22, defaultOn: true, sample: ["Phòng Kinh doanh 3", "Phòng Kinh doanh 7"], value: (r) => r.departmentName || "—" },
+        { key: "grantedExtra", header: "Quà thêm đã phát", width: 16, defaultOn: false, sample: ["", "Loa"], value: (r) => r.grantedExtra },
+        { key: "grantedCash", header: "Tiền mặt đã phát (đ)", type: "number", width: 14, defaultOn: false, sample: ["20000", "70000"], value: (r) => r.grantedCash },
+        { key: "caseAtGrant", header: "Bậc lúc phát", width: 12, defaultOn: false, sample: ["TH5", "TH3"], value: (r) => r.caseAtGrant || "—" },
+        { key: "caseNow", header: "Bậc hiện tại", width: 12, defaultOn: false, sample: ["TH1", "—"], value: (r) => r.caseNow || "—" },
+      ];
+    }
+
     // Báo cáo hình dạng cố định — không có bảng chọn cột, xem `FIXED_SHAPE`.
     case "order-stats":
       return [];
@@ -394,6 +433,10 @@ export default function ExportsPage() {
   /** Báo cáo #5: lọc theo NGƯỜI LẬP đơn, không phải người bấm huỷ. */
   const [cancelStaffId, setCancelStaffId] = useState("");
   const [cancelProduct, setCancelProduct] = useState<InsuranceProduct | "">("");
+  /** Báo cáo #6: người LẬP HỒ SƠ khách, cũng là người phát quà. */
+  const [excessStaffId, setExcessStaffId] = useState("");
+  /** Báo cáo #6: ngân hàng của tài khoản `error`. Tách khỏi `bankCodes` vì hai ô hỏi hai chuyện khác nhau. */
+  const [excessBankCodes, setExcessBankCodes] = useState<string[]>([]);
 
   const { data: banks = [] } = useQuery({ queryKey: ["banks"], queryFn: fetchBanks });
   const { data: codes = [] } = useQuery({
@@ -647,6 +690,29 @@ export default function ExportsPage() {
         sheetName: "Đơn huỷ",
         rows,
         columns: buildColumns(catalogFor("cancelled-insurance", banks, staffById), exportOrder),
+      });
+      return rows.length;
+    },
+
+    async "gift-excess"() {
+      const { rows, scanned, total } = await fetchGiftExcessExport({
+        from,
+        to,
+        staffId: excessStaffId,
+        departmentId,
+        bankCode: excessBankCodes.join(","),
+      });
+      // Trần đặt lên số khách máy chủ XÉT, không lên số dòng ra file: khách xét
+      // xong mà không dư thì không thành dòng.
+      capCheck(scanned, total, "khách đã phát quà có app lỗi");
+
+      if (rows.length === 0) throw new Error("Không có khách nào cấp dư quà theo bộ lọc này.");
+
+      await exportExcel({
+        fileName: `qua-cap-du-${iso(new Date())}.xlsx`,
+        sheetName: "Quà cấp dư",
+        rows,
+        columns: buildColumns(catalogFor("gift-excess", banks, staffById), exportOrder),
       });
       return rows.length;
     },
@@ -967,11 +1033,64 @@ export default function ExportsPage() {
                 </>
               )}
 
+              {active === "gift-excess" && (
+                <>
+                  <Select
+                    block
+                    label="Phòng"
+                    value={departmentId}
+                    onChange={setDepartmentId}
+                    options={[{ value: "", label: "Tất cả phòng" }, ...departments.map((d) => ({ value: d.id, label: d.name }))]}
+                  />
+                  <Combobox
+                    block
+                    label="Nhân viên lập hồ sơ"
+                    placeholder="Gõ để tìm nhân viên…"
+                    value={excessStaffId}
+                    onChange={setExcessStaffId}
+                    options={[
+                      { value: "", label: "Tất cả nhân viên" },
+                      ...staffOptions.map((s) => ({ value: s.id, label: s.fullName })),
+                    ]}
+                  />
+                  <div
+                    className={`${styles.field} ${styles.bankField}`}
+                    role="group"
+                    aria-label="App lỗi"
+                  >
+                    <span className={styles.fieldLabel} aria-hidden>
+                      App lỗi
+                    </span>
+                    <div className={styles.bankPicks}>
+                      {banksInRuleOrder(banks).map((b) => (
+                        <Checkbox
+                          key={b.id}
+                          checked={excessBankCodes.includes(b.code)}
+                          onCheckedChange={(on) =>
+                            setExcessBankCodes((current) =>
+                              on ? [...current, b.code] : current.filter((c) => c !== b.code),
+                            )
+                          }
+                          label={b.code}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+
               {active !== "staff-points" && active !== "order-stats" && (
                 <DateRangePicker
-                  // Báo cáo #5 lọc theo NGÀY HUỶ, các báo cáo khác theo ngày
-                  // nghiệp vụ của chúng — nói rõ để người dùng không tra nhầm.
-                  label={active === "cancelled-insurance" ? "Khoảng ngày huỷ" : "Khoảng ngày"}
+                  // Báo cáo #5 lọc theo NGÀY HUỶ, #6 theo NGÀY PHÁT QUÀ, các báo
+                  // cáo khác theo ngày nghiệp vụ của chúng — nói rõ để người
+                  // dùng không tra nhầm.
+                  label={
+                    active === "cancelled-insurance"
+                      ? "Khoảng ngày huỷ"
+                      : active === "gift-excess"
+                        ? "Khoảng ngày phát quà"
+                        : "Khoảng ngày"
+                  }
                   value={range}
                   onChange={setRange}
                 />
