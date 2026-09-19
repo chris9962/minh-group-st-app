@@ -408,6 +408,21 @@ export async function cancelInsuranceOrder(
   return InsuranceDetail.parse(await res.json());
 }
 
+const StartDateConfirm = z.object({ required: z.boolean() });
+
+/**
+ * Người đang đăng nhập có phải xác nhận ngày bắt đầu với khách trước khi nhập
+ * không (chốt 2026-09-19) — máy chủ đếm số đơn họ huỷ trong tháng.
+ *
+ * Hỏng thì coi như KHÔNG bắt: form vẫn dùng được, luật này chỉ thêm một bước
+ * hỏi, không phải phân quyền.
+ */
+export async function fetchStartDateConfirm(): Promise<boolean> {
+  const res = await fetch('/api/insurance-orders/start-date-confirm');
+  if (!res.ok) return false;
+  return StartDateConfirm.parse(await res.json()).required;
+}
+
 /** Đính/thay ảnh chứng nhận — dùng được ở MỌI trạng thái đơn (spec §3.4). */
 export async function setInsuranceOrderPhoto(
   id: string,

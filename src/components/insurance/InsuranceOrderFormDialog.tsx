@@ -21,7 +21,7 @@ import { TextField } from "@/components/ui/TextField";
 import { AddressField } from "@/components/ui/AddressField";
 import { useAddressSuggestions } from "@/lib/useAddressSuggestions";
 import type { Customer } from "@/lib/api/customers";
-import { createInsuranceOrders } from "@/lib/api/insurance";
+import { createInsuranceOrders, fetchStartDateConfirm } from "@/lib/api/insurance";
 import {
   INTAKE_PHOTO_LABEL,
   yearsLater,
@@ -75,15 +75,20 @@ type Props = {
  * tiếp: gói nhiều năm một xe là MỘT đơn dài, còn gói hai xe là hai đơn cho hai
  * xe khác nhau, cùng bắt đầu hôm nay. Gói ghép hai sản phẩm khác nhau cũng
  * cùng bắt đầu hôm nay.
+ *
+ * `blankStart` bỏ mặc định ngày bắt đầu (chốt 2026-09-19) cho người huỷ nhiều
+ * đơn trong tháng: 260 trên 623 lượt huỷ tháng 9/2026 là để nguyên ngày mặc
+ * định trong khi khách còn bảo hiểm cũ. Ô trống thì phải nhập, không bấm qua
+ * được. Đơn nối tiếp vẫn tính từ đơn trước, trống theo nếu đơn trước trống.
  */
-function defaultLegsFor(pkg: InsurancePackage | null): InsuranceOrderLegForm[] {
+function defaultLegsFor(pkg: InsurancePackage | null, blankStart: boolean): InsuranceOrderLegForm[] {
   if (!pkg) return [];
   // `toISOString()` cắt theo UTC, mà máy chủ chạy UTC: đơn lập lúc 0-7h sáng
   // giờ Việt Nam mặc định lùi về HÔM QUA (xem lib/format.ts).
   const today = businessDay();
   const legs: InsuranceOrderLegForm[] = [];
   pkg.legs.forEach((leg, i) => {
-    const startDate = chainsToPrevious(pkg, i) ? legs[i - 1].endDate : today;
+    const startDate = chainsToPrevious(pkg, i) ? legs[i - 1].endDate : blankStart ? "" : today;
     const values: InsuranceOrderLegForm = {
       product: leg.product,
       packageName: pkg.name,
@@ -92,7 +97,8 @@ function defaultLegsFor(pkg: InsurancePackage | null): InsuranceOrderLegForm[] {
       /** Phí khai riêng cho leg này — trọn thời hạn, không phải chia đều giá gói. */
       fee: leg.fee,
       startDate,
-      endDate: yearsLater(startDate, leg.years),
+      // `yearsLater("")` ném lỗi: `new Date("")` là Invalid Date.
+      endDate: startDate ? yearsLater(startDate, leg.years) : "",
       beneficiaryName: "",
       beneficiaryDob: "",
       beneficiaryAddress: "",
@@ -192,6 +198,24 @@ export function InsuranceOrderFormDialog({
   });
 
   const selectedPackage = packages.find((p) => p.name === packageName) ?? null;
+
+  /**
+   * Người huỷ từ 4 đơn trong tháng phải xác nhận với khách trước khi nhập ngày
+   * bắt đầu (chốt 2026-09-19). Máy chủ đếm, form chỉ hỏi "có phải tôi không".
+   *
+   * Hỏi lại mỗi lần mở form và KHÔNG dựng `legs` trước khi có câu trả lời:
+   * ngày mặc định quyết định lúc dựng, dựng sớm với câu trả lời cũ là người
+   * vừa chạm ngưỡng vẫn thấy ngày điền sẵn. `retry: false` để mất mạng không
+   * giữ form trống mấy giây; hỏng thì coi như không bắt.
+   */
+  const startDateConfirm = useQuery({
+    queryKey: ["insurance-start-date-confirm"],
+    queryFn: fetchStartDateConfirm,
+    retry: false,
+  });
+  const confirmRequired = startDateConfirm.data ?? false;
+  const confirmKnown = startDateConfirm.isFetchedAfterMount;
+
   const {
     register,
     control,
@@ -207,7 +231,9 @@ export function InsuranceOrderFormDialog({
     defaultValues: {
       customerId: customer.id,
       source,
-      legs: defaultLegsFor(selectedPackage),
+      // Dựng ở `selectPackage` hoặc effect prefill bên dưới, sau khi biết
+      // `confirmRequired`.
+      legs: [],
       // Hồ sơ khách đã thuộc về một phòng, nên đơn mở cho khách đó mặc định
       // ghi vào chính phòng ấy (chốt 2026-09-03). Người không thuộc phòng nào
       // vẫn đổi được; máy chủ chốt lại cùng một luật.
@@ -247,15 +273,40 @@ export function InsuranceOrderFormDialog({
    * Đây là đồng bộ dữ liệu ngoài vào form, không phải giá trị suy ra được.
    */
   useEffect(() => {
-    if (!prefill || !selectedPackage) return;
+    if (!prefill || !selectedPackage || !confirmKnown) return;
     if (getValues("legs").length > 0) return;
-    legsField.replace(defaultLegsFor(selectedPackage));
-  }, [prefill, selectedPackage, getValues, legsField]);
+    legsField.replace(defaultLegsFor(selectedPackage, confirmRequired));
+  }, [prefill, selectedPackage, confirmKnown, confirmRequired, getValues, legsField]);
 
   const selectPackage = (value: string) => {
     setPackageName(value);
-    legsField.replace(defaultLegsFor(packages.find((p) => p.name === value) ?? null));
+    legsField.replace(
+      defaultLegsFor(packages.find((p) => p.name === value) ?? null, confirmRequired),
+    );
     setPhotos([]);
+    setStartDateConfirmed([]);
+  };
+
+  /**
+   * Hộp "Xác nhận với khách" trước ô Ngày bắt đầu (chốt 2026-09-19), chỉ với
+   * người `confirmRequired`. `confirmAskFor` là chỉ số đơn đang hỏi;
+   * `startDateConfirmed[i]` nhớ đơn đã bấm "Đã xác nhận" để hỏi MỘT lần mỗi
+   * đơn trong một lượt mở form. Đơn nối tiếp không hỏi: ngày của nó tự tính.
+   */
+  const [confirmAskFor, setConfirmAskFor] = useState<number | null>(null);
+  const [startDateConfirmed, setStartDateConfirmed] = useState<boolean[]>([]);
+  const needsStartDateConfirm = (i: number) =>
+    confirmRequired && !startDateConfirmed[i] && !chainsToPrevious(selectedPackage, i);
+  const confirmAskProduct =
+    (selectedPackage?.legs ?? [])[confirmAskFor ?? -1]?.product ?? "motorbike";
+  const confirmStartDate = () => {
+    if (confirmAskFor === null) return;
+    setStartDateConfirmed((prev) => {
+      const copy = [...prev];
+      copy[confirmAskFor] = true;
+      return copy;
+    });
+    setConfirmAskFor(null);
   };
 
   /**
@@ -461,6 +512,51 @@ export function InsuranceOrderFormDialog({
     </fieldset>
   );
 
+  /**
+   * Ô Ngày bắt đầu bọc trong một lớp chặn: chưa xác nhận thì chạm vào ô mở hộp
+   * hỏi thay vì bàn phím hay lịch.
+   *
+   * Tiêu điểm đặt vào ô chữ NGAY trong lượt chạm, trước khi mở hộp: iOS chỉ
+   * bật bàn phím khi `focus()` gọi trong sự kiện người dùng, và `<dialog>`
+   * đóng thì trả tiêu điểm về đúng phần tử đang giữ nó lúc `showModal()`. Nhờ
+   * vậy bấm "Đã xác nhận" xong là con trỏ nằm sẵn trong ô, không cần gọi
+   * `focus()` lần hai sau khi hộp đóng — lượt gọi đó nằm ngoài sự kiện người
+   * dùng nên iOS bỏ qua.
+   *
+   * `preventDefault` ở pointerdown chặn tiêu điểm và lịch của ô ngày ẩn; click
+   * vẫn tới (không phải sự kiện tương thích chuột) nên chặn thêm ở click để
+   * `showPicker()` không chạy. Tab vào ô hay `reportInvalid` gọi `focus()` đi
+   * đường `onFocusCapture`.
+   */
+  const renderStartDate = (i: number) => (
+    <div
+      className={styles.startDateGuard}
+      onPointerDownCapture={(e) => {
+        if (!needsStartDateConfirm(i)) return;
+        e.preventDefault();
+        e.currentTarget.querySelector<HTMLInputElement>('input[type="text"]')?.focus();
+        setConfirmAskFor(i);
+      }}
+      onClickCapture={(e) => {
+        if (!needsStartDateConfirm(i)) return;
+        e.preventDefault();
+        e.stopPropagation();
+      }}
+      onFocusCapture={(e) => {
+        if (!needsStartDateConfirm(i)) return;
+        if (e.target instanceof HTMLInputElement && e.target.type === "text") setConfirmAskFor(i);
+      }}
+    >
+      <DateField
+        label="Ngày bắt đầu"
+        required
+        error={errors.legs?.[i]?.startDate?.message}
+        value={watch(`legs.${i}.startDate`)}
+        onChange={(v) => changeStartDate(i, v)}
+      />
+    </div>
+  );
+
   const renderBeneficiary = (i: number) => (
     <fieldset className={styles.fieldset}>
       <legend className={styles.legend}>Khách hàng</legend>
@@ -610,6 +706,9 @@ export function InsuranceOrderFormDialog({
             block
             label="Gói bảo hiểm"
             required
+            // Chọn gói là dựng `legs`, mà ngày mặc định phụ thuộc câu trả lời
+            // của máy chủ — chưa có thì chưa cho chọn.
+            disabled={!confirmKnown}
             value={packageName}
             onChange={selectPackage}
             options={[
@@ -633,13 +732,7 @@ export function InsuranceOrderFormDialog({
               {/* Không có ô Ngày tạo đơn (chốt 2026-09-08): sổ chốt theo ngày,
                   không nhập bù. `orderDate` vẫn gửi lên, luôn là ngày lập. */}
               <div className={styles.pair}>
-                <DateField
-                  label="Ngày bắt đầu"
-                  required
-                  error={errors.legs?.[i]?.startDate?.message}
-                  value={watch(`legs.${i}.startDate`)}
-                  onChange={(v) => changeStartDate(i, v)}
-                />
+                {renderStartDate(i)}
                 <DateField
                   label="Ngày kết thúc"
                   required
@@ -664,13 +757,7 @@ export function InsuranceOrderFormDialog({
             {renderIntakePhoto(0)}
 
             <div className={styles.pair}>
-              <DateField
-                label="Ngày bắt đầu"
-                required
-                error={errors.legs?.[0]?.startDate?.message}
-                value={watch("legs.0.startDate")}
-                onChange={(v) => changeStartDate(0, v)}
-              />
+              {renderStartDate(0)}
               <DateField
                 label="Ngày kết thúc"
                 required
@@ -728,6 +815,24 @@ export function InsuranceOrderFormDialog({
       Bảo hiểm này mua cho <strong className={styles.fillAskEmphasis}>chính khách</strong> hay
       cho <strong className={styles.fillAskEmphasis}>người thân</strong> của khách?
     </ConfirmDialog>
+
+    {/* Không có nút đóng, Esc, bấm nền: đường duy nhất là "Đã xác nhận". Ô
+        ngày vẫn trống, không xác nhận thì không nhập được. */}
+    <Dialog
+      open={confirmAskFor !== null}
+      onClose={confirmStartDate}
+      title="Xác nhận với khách"
+      dismissible={false}
+      footer={<Button onClick={confirmStartDate}>Đã xác nhận</Button>}
+    >
+      <p className={styles.confirmAsk}>
+        Hỏi khách:{" "}
+        <strong className={styles.fillAskEmphasis}>
+          khách có {PRODUCT_LABEL[confirmAskProduct]} còn hạn không?
+        </strong>{" "}
+        Còn thì ngày bắt đầu là ngày hết hạn của bảo hiểm cũ.
+      </p>
+    </Dialog>
     </>
   );
 }

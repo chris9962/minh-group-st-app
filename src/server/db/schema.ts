@@ -1531,6 +1531,29 @@ export const insuranceOrderStatusHistory = pgTable(
   (t) => [index("insurance_history_order").on(t.orderId)],
 );
 
+/**
+ * Sổ lượt huỷ đơn theo NGƯỜI LẬP (migration 0096). Trigger DB ghi một dòng mỗi
+ * lần đơn sang `cancelled`, không phân loại lý do. Form tạo đơn đếm số dòng
+ * trong tháng lịch để bắt người huỷ nhiều xác nhận lại ngày bắt đầu.
+ */
+export const insuranceCancelEvents = pgTable(
+  "insurance_cancel_events",
+  {
+    id: id(),
+    orderId: uuid("order_id")
+      .notNull()
+      .references(() => insuranceOrders.id, { onDelete: "cascade" }),
+    /** Người LẬP đơn, không phải người bấm huỷ. */
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** Ngày huỷ theo giờ Việt Nam, cùng lối `insurance_orders.order_date`. */
+    cancelledOn: date("cancelled_on").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("insurance_cancel_events_user_month").on(t.userId, t.cancelledOn)],
+);
+
 /** Sinh mã đơn không đụng nhau — update … returning trong cùng transaction với insert. */
 export const orderCodeCounters = pgTable("order_code_counters", {
   yearMonth: text("year_month").primaryKey(),
