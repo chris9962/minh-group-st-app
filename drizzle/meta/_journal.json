@@ -680,6 +680,13 @@
       "when": 1789891400022,
       "tag": "0096_insurance_cancel_events",
       "breakpoints": true
+    },
+    {
+      "idx": 97,
+      "version": "7",
+      "when": 1789891400023,
+      "tag": "0097_notification_code_cnkd",
+      "breakpoints": true
     }
   ]
 }

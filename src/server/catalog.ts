@@ -37,6 +37,7 @@ import type {
 import { businessMonth, digitsOnly, uniqueCode } from "@/lib/format";
 import { db, uniqueViolationOf } from "./db/client";
 import { recomputeKpiForMonth } from "./kpi";
+import { everyoneWanting, notifyUsers } from "./notifications";
 import { imageKeyOf, imageUrl } from "./storage";
 import {
   bankGuidePhotos,
@@ -1052,8 +1053,9 @@ export async function createReferralCode(
   if (!form.code && !qrImageKey(form))
     return { ok: false, reason: "identifier-required" };
 
+  let result: CatalogOutcome<ReferralCode>;
   try {
-    return await db.transaction(async (tx) => {
+    result = await db.transaction(async (tx) => {
       const [row] = await tx
       .insert(referralCodes)
       .values({
@@ -1081,6 +1083,43 @@ export async function createReferralCode(
   } catch (e) {
     if (uniqueViolationOf(e) !== null) return { ok: false, reason: "code-taken" };
     throw e;
+  }
+
+  if (result.ok && result.item.accountType === "CNKD") await baoMaCnkd(result.item);
+  return result;
+}
+
+/**
+ * Báo cho MỌI nhân viên khi kho mã CNKD đổi (chốt 2026-09-19): thêm mã mới,
+ * hoặc sửa `total` của mã CNKD đang có. Mã CNKD ít và cấp theo đợt, nhân
+ * viên không biết có thì không mở được loại tài khoản đó.
+ *
+ * `previousTotal` có nghĩa là lượt sửa: tin nói rõ số suất đổi từ bao nhiêu
+ * thành bao nhiêu. Sửa tên, tỉnh, chi nhánh, link, ảnh không báo — không có
+ * suất nào thêm bớt cho nhân viên.
+ *
+ * Gọi SAU khi giao dịch ghi mã đã xong, và bỏ qua lỗi: mã đã nằm trong kho,
+ * báo tin hỏng không được làm lượt ghi trả về thất bại.
+ */
+async function baoMaCnkd(item: ReferralCode, previousTotal?: number): Promise<void> {
+  const changed = previousTotal !== undefined;
+  const parts = [
+    item.displayName,
+    changed
+      ? `từ ${previousTotal} ${item.total > previousTotal ? "lên" : "xuống"} ${item.total} suất`
+      : `${item.total} suất`,
+    item.province,
+    item.supportBranch,
+  ];
+  try {
+    const nguoiNhan = await everyoneWanting("code-cnkd");
+    await notifyUsers(nguoiNhan, "code-cnkd", {
+      title: `${changed ? "Mã CNKD đổi số suất" : "Mã CNKD mới"} - ${item.bankCode}`,
+      body: parts.filter(Boolean).join(" - "),
+      url: "/banking",
+    });
+  } catch {
+    // Không có nơi ghi log ở tầng này; bỏ qua để lượt ghi mã vẫn thành công.
   }
 }
 
@@ -1120,7 +1159,10 @@ export async function updateReferralCode(
   if (!form.code && !qrImageKey(form))
     return { ok: false, message: "Nhập mã text hoặc chọn ảnh QR" };
 
-  return db.transaction(async (tx) => {
+  // Đọc trong giao dịch, dùng sau khi giao dịch xong để biết `total` có đổi.
+  let previousTotal = 0;
+
+  const result: ReferralCodeUpdate = await db.transaction(async (tx) => {
     const [current] = await tx
       .select({
         bankId: referralCodes.bankId,
@@ -1128,6 +1170,7 @@ export async function updateReferralCode(
         usedCount: referralCodes.usedCount,
         holdingCount: referralCodes.holdingCount,
         accountType: referralCodes.accountType,
+        total: referralCodes.total,
       })
       .from(referralCodes)
       .where(eq(referralCodes.id, id))
@@ -1135,6 +1178,7 @@ export async function updateReferralCode(
       .for("update");
 
     if (!current) return null;
+    previousTotal = current.total;
 
     if (form.bankId !== current.bankId)
       return { ok: false as const, message: "Không đổi được ngân hàng của mã đã lập" };
@@ -1184,6 +1228,10 @@ export async function updateReferralCode(
 
     return { ok: true as const, item: await readCode(tx, id) };
   });
+
+  if (result?.ok && result.item.accountType === "CNKD" && result.item.total !== previousTotal)
+    await baoMaCnkd(result.item, previousTotal);
+  return result;
 }
 
 /**

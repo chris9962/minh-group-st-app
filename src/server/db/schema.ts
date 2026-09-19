@@ -158,6 +158,8 @@ export const notificationKind = pgEnum("notification_kind", [
   "bank-deleted",
   // Bản cập nhật app, cho mọi người; che màn hình tới khi bấm Xem. Migration 0094.
   "release",
+  // Có mã giới thiệu CNKD mới, cho mọi người, có công tắc. Migration 0097.
+  "code-cnkd",
 ]);
 
 /** P-96 · Góp ý đã xử lý hay chưa. Hai trạng thái, thêm ở migration 0052. */
