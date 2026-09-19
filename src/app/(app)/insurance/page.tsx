@@ -364,7 +364,7 @@ export default function InsurancePage() {
           return (
             <span className={styles.stack}>
               <StatusTag tone={needsHelp ? "warn" : INSURANCE_STATUS_TONE[r.status]}>
-                {needsHelp ? "Đợi giấy — cần kiểm tra" : INSURANCE_STATUS_LABEL[r.status]}
+                {needsHelp ? "Đợi GCN — cần kiểm tra" : INSURANCE_STATUS_LABEL[r.status]}
               </StatusTag>
               {r.status === "awaiting-certificate" && r.awaitingSince && (
                 <CertificateWait since={r.awaitingSince} className={styles.stackSub} />

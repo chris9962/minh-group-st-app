@@ -67,7 +67,7 @@ export type SwitchableKind = Exclude<NotificationKind, 'announcement' | 'release
 /** Nhãn của CÔNG TẮC. Chỉ dùng ở danh sách công tắc trong trang cá nhân. */
 export const NOTIFICATION_KIND_LABEL: Record<SwitchableKind, string> = {
   'order-manual': 'Đơn chuyển sang làm tay',
-  'order-done': 'Đơn đã có giấy chứng nhận',
+  'order-done': 'Đơn đã có GCN',
   'bank-error': 'Tài khoản của tôi bị đánh lỗi',
   'bank-pending': 'Tài khoản chờ duyệt lại',
   'bank-approved': 'Tài khoản của tôi được duyệt',

@@ -67,7 +67,7 @@ export const INSURANCE_STATUS_LABEL: Record<InsuranceOrderStatus, string> = {
   'pending-approval': 'Chờ duyệt',
   'manual-queued': 'Chờ làm tay',
   'manual-progress': 'Đang làm tay',
-  'awaiting-certificate': 'Đợi giấy chứng nhận',
+  'awaiting-certificate': 'Đợi GCN',
   done: 'Hoàn thành',
   cancelled: 'Huỷ đơn',
 };
@@ -131,7 +131,7 @@ export const certificateNeedsHelp = (
 ): boolean => status === 'awaiting-certificate' && attempts >= CERTIFICATE_MAX_ATTEMPTS;
 
 export const CERTIFICATE_HELP_MESSAGE =
-  'Đã quá 30 phút chưa có giấy chứng nhận, vui lòng liên hệ đơn vị cấp đơn.';
+  'Đã quá 30 phút chưa có GCN, vui lòng liên hệ đơn vị cấp đơn.';
 
 /**
  * Hai bước người xử lý tay bấm được ở P-14 (spec §3.5, §9.2).

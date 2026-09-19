@@ -502,7 +502,7 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                     {data.pviPolicyGcn}
                     <CopyButton
                       value={data.pviPolicyGcn}
-                      label={`số giấy chứng nhận: ${data.pviPolicyGcn}`}
+                      label={`số GCN: ${data.pviPolicyGcn}`}
                       quiet
                     />
                   </p>
@@ -632,7 +632,7 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                     rel="noreferrer"
                   >
                     <FileText size={16} aria-hidden />
-                    Giấy chứng nhận điện tử (PDF)
+                    GCN điện tử (PDF)
                     <ExternalLink size={14} aria-hidden />
                   </a>
                 )}
@@ -867,7 +867,7 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                       {!hasPhoto && (
                         <p className={`text-muted ${styles.actionsNote}`}>
                           {manualCertificateAllowed
-                            ? "Tải giấy chứng nhận từ PVI về rồi đính vào đây trước khi đánh dấu hoàn thành."
+                            ? "Tải GCN từ PVI về rồi đính vào đây trước khi đánh dấu hoàn thành."
                             : "Phải đính ảnh chứng nhận bảo hiểm trước khi đánh dấu hoàn thành."}
                         </p>
                       )}

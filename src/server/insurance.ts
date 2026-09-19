@@ -1317,7 +1317,7 @@ export async function setInsuranceOrderStatus(
   if (current.status === "awaiting-certificate" && !certificateStuck(current))
     return {
       ok: false,
-      message: "Đơn chưa quá 30 phút chờ giấy chứng nhận, chưa xử lý tay được.",
+      message: "Đơn chưa quá 30 phút chờ GCN, chưa xử lý tay được.",
     };
 
   /**
