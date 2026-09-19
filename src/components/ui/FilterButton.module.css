@@ -152,13 +152,17 @@
 
 /* `$bp-narrow` = 600px ở `_breakpoints.scss`. */
 @media (max-width: 600px) {
+  /* Phải khai hàng: grid cao cố định mà hai hàng `auto` thì chia đôi, nav
+     chiếm nửa panel. */
   .split {
     grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
     height: min(70dvh, 520px);
   }
 
   .nav {
     flex-direction: row;
+    align-items: center;
     overflow-x: auto;
     overflow-y: hidden;
     border-right: none;
@@ -167,5 +171,10 @@
 
   .navBtn {
     flex: none;
+    height: 44px;
+  }
+
+  .navBtnOn {
+    box-shadow: inset 0 -3px 0 var(--om-orange);
   }
 }
