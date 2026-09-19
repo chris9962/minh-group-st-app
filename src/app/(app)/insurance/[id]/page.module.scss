@@ -92,7 +92,9 @@
 
 .fields {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  /* `auto-fill`, không phải `auto-fit`: nhóm 3 trường phải giữ đủ số cột như
+     nhóm 4 trường, để cột của các nhóm thẳng hàng với nhau khi đọc dọc. */
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: 14px 24px;
   margin: 0;
 }
