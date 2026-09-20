@@ -70,7 +70,7 @@ async function xuat() {
      select a.id as "accountId",
        json_build_object('referralCode', coalesce(r.code, ''), 'customerName', c.full_name,
                          'accountNumber', coalesce(a.account_number, '')) as context,
-       (select json_agg(p.url order by p.kind, p.sort_order) from bank_account_photos p where p.account_id = a.id) as photos,
+       (select json_agg(p.url order by p.sort_order) from bank_account_photos p where p.account_id = a.id and p.kind = 'opening') as photos,
        (select k.result->'items' from bank_account_checks k
          where k.account_id = a.id and k.status = 'done' order by k.created_at desc limit 1) as "oldItems"
      from pick join bank_accounts a on a.id = pick.id

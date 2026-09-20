@@ -337,13 +337,13 @@ export async function runPhotoCheck(run: PhotoCheckRun): Promise<PhotoCheckItem[
   const check = CHECKERS[account.bankCode];
   if (!check) throw new Error(`Ngân hàng ${account.bankCode} chưa có bộ nhãn OCR.`);
 
-  // Cả ảnh mở tài khoản lẫn ảnh giao dịch: nhân viên hay nộp màn chuyển khoản
-  // vào nhóm nào cũng có, bộ kiểm tự nhận ra từng màn.
+  // Chỉ nhóm "Ảnh chứng minh" (chốt 2026-09-20). Nhóm "Ảnh giao dịch" không
+  // vào lượt kiểm: chỉ 31/18.876 tài khoản TPB tháng 9/2026 có ảnh ở đó.
   const photos = await db
     .select({ id: bankAccountPhotos.id, key: bankAccountPhotos.url })
     .from(bankAccountPhotos)
-    .where(eq(bankAccountPhotos.accountId, run.accountId))
-    .orderBy(asc(bankAccountPhotos.kind), asc(bankAccountPhotos.sortOrder));
+    .where(and(eq(bankAccountPhotos.accountId, run.accountId), eq(bankAccountPhotos.kind, "opening")))
+    .orderBy(asc(bankAccountPhotos.sortOrder));
 
   const images: Buffer[] = [];
   for (const { key } of photos) {
