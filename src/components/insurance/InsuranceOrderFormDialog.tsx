@@ -24,6 +24,7 @@ import type { Customer } from "@/lib/api/customers";
 import { createInsuranceOrders, fetchStartDateConfirm } from "@/lib/api/insurance";
 import {
   INTAKE_PHOTO_LABEL,
+  latestStartDate,
   yearsLater,
   InsuranceOrderForm,
   type InsuranceOrderLegForm,
@@ -553,6 +554,8 @@ export function InsuranceOrderFormDialog({
         error={errors.legs?.[i]?.startDate?.message}
         value={watch(`legs.${i}.startDate`)}
         onChange={(v) => changeStartDate(i, v)}
+        min={businessDay()}
+        max={latestStartDate(businessDay())}
       />
     </div>
   );

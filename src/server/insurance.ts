@@ -33,6 +33,7 @@ import {
   INTAKE_PHOTO_LABEL,
   InsuranceOrderStatus,
   insuranceOrderEditSchema,
+  latestStartDate,
   type InsuranceManualStep,
   type InsuranceOrderForm,
 } from "@/lib/api/insuranceOrders";
@@ -971,6 +972,8 @@ export async function createInsuranceOrders(
       return { ok: false, message: "Ngày kết thúc phải sau ngày bắt đầu" };
     // PVI từ chối ngày bắt đầu đã qua: `-505` xe máy, `-401` tai nạn điện.
     if (leg.startDate < today) return { ok: false, message: "Ngày bắt đầu không được ở quá khứ" };
+    if (leg.startDate > latestStartDate(today))
+      return { ok: false, message: "Ngày bắt đầu không được quá 1 năm kể từ ngày lập" };
     // Ảnh đầu bắt buộc; ảnh thứ hai tùy chọn cho mặt sau CCCD. Giao diện đã
     // khoá nút khi thiếu ảnh đầu, đây là chốt thật ở máy chủ.
     const first = imageKeyOf(leg.intakePhotoUrl);
@@ -1160,6 +1163,8 @@ export async function updateInsuranceOrder(
   // ngày bắt đầu cũ vẫn giữ được.
   if (form.startDate !== current.startDate && form.startDate < today)
     return { ok: false, message: "Ngày bắt đầu không được ở quá khứ" };
+  if (form.startDate > latestStartDate(today))
+    return { ok: false, message: "Ngày bắt đầu không được quá 1 năm kể từ ngày lập" };
 
   /**
    * Lượt sửa cho phép KHÔNG có ảnh hồ sơ: đơn lập trước migration 0073 không có
@@ -1717,6 +1722,8 @@ export async function recreateInsuranceOrder(
   // về Chờ làm tay với mã `-401` mà không ai hiểu vì sao (ca thật 2026-09-06).
   if (form.startDate < today)
     return { ok: false, message: "Ngày bắt đầu không được ở quá khứ" };
+  if (form.startDate > latestStartDate(today))
+    return { ok: false, message: "Ngày bắt đầu không được quá 1 năm kể từ ngày lập" };
 
   // Đơn mới thì bắt buộc có ảnh hồ sơ như lượt tạo. Giao diện điền sẵn ảnh của
   // đơn cũ, người bấm giữ hay đổi tuỳ ý — nhưng không được để trống.

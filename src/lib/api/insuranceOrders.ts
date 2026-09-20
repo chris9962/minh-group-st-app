@@ -371,3 +371,13 @@ export const yearsLater = (date: string, years: number): string => {
 };
 
 export const oneYearLater = (date: string): string => yearsLater(date, 1);
+
+/**
+ * Ngày bắt đầu xa nhất nhận được: một năm kể từ ngày lập (chốt 2026-09-20).
+ * Ca thật: nhân viên gõ năm 2079, ngày kết thúc thành 2080, PVI lưu vào cột
+ * `smalldatetime` chỉ nhận tới 06/06/2079 và từ chối cả đơn với lỗi "out-of-range
+ * value". Một năm đủ cho ca nối tiếp bảo hiểm cũ: đơn mới lập lúc sắp hết hạn.
+ */
+export const START_DATE_MAX_YEARS = 1;
+
+export const latestStartDate = (today: string): string => yearsLater(today, START_DATE_MAX_YEARS);
