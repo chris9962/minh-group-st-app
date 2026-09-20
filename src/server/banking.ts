@@ -32,7 +32,7 @@ import type { BankAccountDetail, BankAccountRow, BankAccountSort } from "@/lib/a
 import type { ReferralCode } from "@/lib/api/bankCatalog";
 import type { Page } from "@/lib/api/pagination";
 import type { BankPhoto, BankPhotoRow } from "@/lib/api/bankPhotos";
-import { ageRangeLabel, businessDay, businessMonth } from "@/lib/format";
+import { BUSINESS_TIMEZONE, ageRangeLabel, businessDay, businessMonth } from "@/lib/format";
 import {
   canDeleteFinished,
   canManageBank,
@@ -759,6 +759,7 @@ export async function listBankAccounts(
 export type BankOfBankFilters = {
   /** Tìm theo TÊN KHÁCH — không dấu, không phụ thuộc thứ tự từ. */
   search: string;
+  /** Khoảng NGÀY MỞ tài khoản, khác P-20 lọc theo ngày hồ sơ khách. */
   from: string;
   to: string;
   status: string;
@@ -773,6 +774,23 @@ export type BankOfBankFilters = {
   photoCheck: string;
 };
 
+/**
+ * Ngày MỞ tài khoản trong `[from, to]`, hai đầu đóng (chốt 2026-09-20). Trang
+ * chi tiết ngân hàng đối chiếu với sổ của ngân hàng, nên lọc theo ngày của
+ * chính tài khoản; lọc theo ngày hồ sơ khách như P-20 thì khách lập hôm trước,
+ * hôm sau mở thêm tài khoản vẫn lọt vào ngày trước. Bản nháp `creating` chưa
+ * có ngày mở thì lấy ngày tạo theo giờ Việt Nam.
+ */
+const accountOpenedDayBetween = (from: string, to: string): SQL =>
+  or(
+    and(gte(bankAccounts.openedDate, from), lte(bankAccounts.openedDate, to)),
+    and(
+      sql`${bankAccounts.openedDate} is null`,
+      sql`${bankAccounts.createdAt} >= ((${from}::date)::timestamp at time zone ${BUSINESS_TIMEZONE})`,
+      sql`${bankAccounts.createdAt} < ((${to}::date + 1)::timestamp at time zone ${BUSINESS_TIMEZONE})`,
+    ),
+  ) as SQL;
+
 /** Bảng trên màn và file Excel dùng CHUNG điều kiện này — hai bản là hai kết quả. */
 const bankAccountsOfBankWhere = (bankId: string, filters: BankOfBankFilters): SQL =>
   and(
@@ -780,7 +798,7 @@ const bankAccountsOfBankWhere = (bankId: string, filters: BankOfBankFilters): SQ
     ...([
       searchWhere(filters.search),
       usableDate(filters.from) || usableDate(filters.to)
-        ? accountCustomerDayBetween(
+        ? accountOpenedDayBetween(
             usableDate(filters.from) ? filters.from : "1970-01-01",
             usableDate(filters.to) ? filters.to : "9999-12-31",
           )
