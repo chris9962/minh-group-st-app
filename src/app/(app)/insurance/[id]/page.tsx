@@ -316,6 +316,20 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
   /** Đơn BOT quá ngưỡng thì người đính ảnh rồi bấm hoàn thành; đơn API thì không. */
   const manualCertificateAllowed = needsCertificateHelp && data?.pviRoute !== "api";
 
+  /**
+   * Nút Sửa đơn, cùng điều kiện với nút bút chì ngoài bảng: quyền `update` KẸP
+   * phạm vi bản ghi. Giấu thêm ở trạng thái máy chủ từ chối (`done`,
+   * `cancelled`, đơn PVI đã nhận) để người dùng không bấm hỏng.
+   */
+  const canEditOrder = Boolean(
+    data &&
+      !lockedByPvi &&
+      data.status !== "done" &&
+      data.status !== "cancelled" &&
+      can(actor, "insurance", "update") &&
+      recordInScope(recordVisibility(actor, "insurance", "update"), data),
+  );
+
   const canAttachPhoto = Boolean(
     data &&
       !lockedByPvi &&
@@ -388,6 +402,7 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
   const [overrideTo, setOverrideTo] = useState<string>("");
   const [cancelOpen, setCancelOpen] = useState(false);
   const [recreateOpen, setRecreateOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   /**
    * Ô chọn khởi điểm ở ĐÚNG trạng thái đơn đang mang, không phải một dòng trống.
    *
@@ -432,7 +447,18 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
         {isError && <ErrorState what="đơn bảo hiểm này" onRetry={refetch} retrying={isFetching} />}
 
         {data && (
-          <SectionCard title="Chi tiết đơn bảo hiểm" icon={<ShieldCheck size={17} />}>
+          <SectionCard
+            title="Chi tiết đơn bảo hiểm"
+            icon={<ShieldCheck size={17} />}
+            action={
+              canEditOrder ? (
+                <Button variant="secondary" onClick={() => setEditOpen(true)}>
+                  <Pencil size={16} aria-hidden />
+                  Sửa đơn
+                </Button>
+              ) : undefined
+            }
+          >
             {cancellationReason && (
               <Alert tone="warning">
                 <strong>Lý do huỷ đơn: </strong>
@@ -976,6 +1002,10 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
 
       {zoomed && (
         <ImageLightbox src={zoomed.src} alt={zoomed.alt} onClose={() => setZoomed(null)} />
+      )}
+
+      {data && editOpen && (
+        <InsuranceOrderEditDialog open orderId={data.id} onClose={() => setEditOpen(false)} />
       )}
 
       {data && recreateOpen && (
