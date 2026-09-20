@@ -264,7 +264,7 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId, mode = "edit"
               error={errors.startDate?.message}
               value={form.watch("startDate")}
               onChange={changeStartDate}
-              max={latestStartDate(businessDay())}
+              max={latestStartDate(orderYears())}
             />
             <DateField
               label="Ngày kết thúc"

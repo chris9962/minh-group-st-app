@@ -373,11 +373,16 @@ export const yearsLater = (date: string, years: number): string => {
 export const oneYearLater = (date: string): string => yearsLater(date, 1);
 
 /**
- * Ngày bắt đầu xa nhất nhận được: một năm kể từ ngày lập (chốt 2026-09-20).
- * Ca thật: nhân viên gõ năm 2079, ngày kết thúc thành 2080, PVI lưu vào cột
- * `smalldatetime` chỉ nhận tới 06/06/2079 và từ chối cả đơn với lỗi "out-of-range
- * value". Một năm đủ cho ca nối tiếp bảo hiểm cũ: đơn mới lập lúc sắp hết hạn.
+ * PVI lưu ngày hiệu lực vào cột `smalldatetime`, chỉ nhận tới 06/06/2079 và từ
+ * chối CẢ ĐƠN với lỗi "out-of-range value" (ca thật 2026-09-20: nhân viên gõ
+ * ngày bắt đầu năm 2079, ngày kết thúc thành 2080).
+ *
+ * Chốt ở ngày KẾT THÚC vì đó là ngày xa hơn. Chốt mỗi ngày bắt đầu thì đơn 3
+ * năm bắt đầu 2079 vẫn kết thúc 2082 và PVI vẫn từ chối.
  */
-export const START_DATE_MAX_YEARS = 1;
+export const PVI_MAX_DATE = "2079-06-06";
 
-export const latestStartDate = (today: string): string => yearsLater(today, START_DATE_MAX_YEARS);
+export const PVI_MAX_DATE_MESSAGE = "Ngày kết thúc không được sau 06/06/2079";
+
+/** Ngày bắt đầu xa nhất để đơn `years` năm còn kết thúc trong mốc PVI. */
+export const latestStartDate = (years: number): string => yearsLater(PVI_MAX_DATE, -years);

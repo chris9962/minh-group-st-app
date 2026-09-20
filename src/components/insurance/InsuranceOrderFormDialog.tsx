@@ -126,6 +126,19 @@ const chainsToPrevious = (pkg: InsurancePackage | null, i: number): boolean =>
   pkg.legs[i - 1]?.product === "electric-accident" &&
   pkg.legs[i]?.product === "electric-accident";
 
+/**
+ * Tổng số năm từ đơn `i` tới hết chuỗi nối tiếp. Ngày bắt đầu của đơn `i` đẩy
+ * ngày kết thúc của mọi đơn nối sau nó, nên mốc PVI phải trừ cả chuỗi.
+ */
+const yearsThroughChain = (pkg: InsurancePackage | null, i: number): number => {
+  let years = 0;
+  for (let j = i; j < (pkg?.legs.length ?? 0); j++) {
+    years += pkg?.legs[j]?.years ?? 0;
+    if (!chainsToPrevious(pkg, j + 1)) break;
+  }
+  return years || 1;
+};
+
 /** Nhãn từng form. Nhiều đơn thì đánh số để KD biết đang điền đơn nào. */
 const legLabel = (pkg: InsurancePackage | null, i: number): string => {
   const leg = pkg?.legs[i];
@@ -555,7 +568,7 @@ export function InsuranceOrderFormDialog({
         value={watch(`legs.${i}.startDate`)}
         onChange={(v) => changeStartDate(i, v)}
         min={businessDay()}
-        max={latestStartDate(businessDay())}
+        max={latestStartDate(yearsThroughChain(selectedPackage, i))}
       />
     </div>
   );
