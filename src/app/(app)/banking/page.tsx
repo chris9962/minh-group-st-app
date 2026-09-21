@@ -498,7 +498,11 @@ export default function BankingPage() {
           ) : null}
         </FilterButton>
         {can(user, "banking", "create") && (
-          <Button aria-label="Tạo tài khoản ngân hàng" onClick={() => setCreating(true)}>
+          <Button
+            aria-label="Tạo tài khoản ngân hàng"
+            className={buttonStyles.hideOnMobile}
+            onClick={() => setCreating(true)}
+          >
             <Plus size={16} aria-hidden />
             <span className={buttonStyles.label}>Tạo tài khoản ngân hàng</span>
           </Button>

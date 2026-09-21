@@ -1,5 +1,5 @@
 import { matchesSearch } from './format';
-import { can, canConfigureWards, canOrg } from './permissions';
+import { can, canConfigureWards, canCreateBank, canOpenBankAdmin, canOrg } from './permissions';
 import type { User } from './types';
 
 /**
@@ -386,10 +386,41 @@ export function jumpActionsFor(user: User | null): JumpTarget[] {
   if (canOrg(user, 'create')) {
     actions.push({ href: '/departments?create=1', label: 'Thêm phòng ban', icon: 'org' });
   }
+  if (can(user, 'system', 'send-announcement')) {
+    actions.push({ href: '/notifications?create=1', label: 'Thông báo chung', icon: 'notifications' });
+  }
+  if (canCreateBank(user)) {
+    actions.push({ href: '/settings/banks?create=bank', label: 'Thêm ngân hàng', icon: 'settings' });
+  }
+  if (canOpenBankAdmin(user)) {
+    actions.push({
+      href: '/settings/banks?tab=codes&create=code',
+      label: 'Thêm mã giới thiệu',
+      icon: 'settings',
+    });
+  }
+  if (can(user, 'system', 'configure-catalog')) {
+    actions.push({
+      href: '/settings/service-types?create=1',
+      label: 'Thêm loại dịch vụ',
+      icon: 'settings',
+    });
+  }
 
   actions.push({ href: '/profile', label: 'Thông tin cá nhân', icon: 'profile' });
   actions.push({ href: '/notifications', label: 'Thông báo', icon: 'notifications' });
   actions.push({ href: FEEDBACK_HREF, label: 'Góp ý', icon: 'feedback' });
 
   return actions;
+}
+
+/** `?create=` trên URL — không nhận nhầm `/notifications` (không có query). */
+function isCreateHref(href: string): boolean {
+  const query = href.split('?')[1];
+  return query ? new URLSearchParams(query).has('create') : false;
+}
+
+/** Việc tạo mới trên nút + thanh đáy — cùng nguồn với ô tìm, không bịa thêm. */
+export function jumpCreateActions(user: User | null): JumpTarget[] {
+  return jumpActionsFor(user).filter((item) => isCreateHref(item.href));
 }

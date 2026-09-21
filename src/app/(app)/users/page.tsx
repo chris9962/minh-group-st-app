@@ -425,7 +425,11 @@ export default function PeoplePage() {
           </FilterField>
         </FilterButton>
         {canManage && (
-          <Button aria-label="Thêm nhân viên" onClick={() => setCreating(true)}>
+          <Button
+            aria-label="Thêm nhân viên"
+            className={buttonStyles.hideOnMobile}
+            onClick={() => setCreating(true)}
+          >
             <Plus size={16} aria-hidden />
             <span className={buttonStyles.label}>Thêm nhân viên</span>
           </Button>

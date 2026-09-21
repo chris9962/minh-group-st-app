@@ -161,6 +161,45 @@ const org = jumpActionsFor(
 );
 check("thêm phòng khi canOrg create", org.some((a) => a.href === "/departments?create=1"), true);
 
+const catalog = jumpActionsFor(
+  person({
+    permissions: [
+      { module: "system", action: "send-announcement", scope: "company" },
+      { module: "system", action: "manage-bank", scope: "company" },
+      { module: "system", action: "configure-catalog", scope: "company" },
+    ],
+  }),
+);
+const catalogHrefs = catalog.map((a) => a.href).join(",");
+check("thông báo chung khi có quyền gửi", catalogHrefs.includes("/notifications?create=1"), true);
+check("thêm ngân hàng khi manage-bank", catalogHrefs.includes("/settings/banks?create=bank"), true);
+check(
+  "thêm mã khi mở được P-60",
+  catalogHrefs.includes("/settings/banks?tab=codes&create=code"),
+  true,
+);
+check(
+  "thêm loại dịch vụ khi configure-catalog",
+  catalogHrefs.includes("/settings/service-types?create=1"),
+  true,
+);
+
+const assignedOnly = jumpActionsFor(
+  person({
+    permissions: [{ module: "system", action: "manage-assigned-banks", scope: "company" }],
+  }),
+);
+check(
+  "ngân hàng được giao không thêm ngân hàng mới",
+  assignedOnly.some((a) => a.href === "/settings/banks?create=bank"),
+  false,
+);
+check(
+  "ngân hàng được giao vẫn thêm mã",
+  assignedOnly.some((a) => a.href === "/settings/banks?tab=codes&create=code"),
+  true,
+);
+
 const themKhach = filterJumpTargets(staffCreate, "them khach");
 check("lọc hành động không dấu", themKhach.length, 1);
 check("lọc hành động đúng href", themKhach[0]?.href ?? "", "/customers?create=1");

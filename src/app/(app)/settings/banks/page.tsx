@@ -2,7 +2,7 @@
 
 import { Plus } from "lucide-react";
 import { useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { RequirePermission } from "@/components/layout/RequirePermission";
 import { TopBar } from "@/components/layout/TopBar";
 import { BankCatalogSection } from "@/components/settings/BankCatalogSection";
@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/Button";
 import buttonStyles from "@/components/ui/Button.module.css";
 import { SectionTabs } from "@/components/ui/SectionTabs";
 import { canCreateBank, canOpenBankAdmin } from "@/lib/permissions";
+import { useCreateIntent } from "@/lib/useCreateIntent";
 import { useSession } from "@/store/session";
 import styles from "./page.module.scss";
 
@@ -41,10 +42,24 @@ export default function BanksPage() {
   const user = useSession((s) => s.user);
   const searchParams = useSearchParams();
   const [tab, setTab] = useState<Tab>(() =>
-    searchParams.get("tab") === "codes" ? "codes" : "banks",
+    searchParams.get("create") === "code" || searchParams.get("tab") === "codes"
+      ? "codes"
+      : "banks",
   );
-  const [creatingBank, setCreatingBank] = useState(false);
-  const [creatingCode, setCreatingCode] = useState(false);
+  const [creatingBank, setCreatingBank] = useCreateIntent("bank");
+  const [creatingCode, setCreatingCode] = useCreateIntent("code");
+
+  /**
+   * Ô tìm / nút + đáy mở đúng tab rồi mới mở hộp. Không thì hộp nằm trong
+   * section tab kia, chưa gắn DOM.
+   */
+  useEffect(() => {
+    if (creatingBank) setTab("banks");
+  }, [creatingBank]);
+
+  useEffect(() => {
+    if (creatingCode) setTab("codes");
+  }, [creatingCode]);
 
   /**
    * Lập ngân hàng MỚI chỉ dành cho người quản mọi ngân hàng — máy chủ từ chối
@@ -78,13 +93,21 @@ export default function BanksPage() {
             màn hình — cùng cách làm với hai màn kia. */}
         {tab === "banks"
           ? canAddBank && (
-              <Button aria-label="Thêm ngân hàng" onClick={() => setCreatingBank(true)}>
+              <Button
+                aria-label="Thêm ngân hàng"
+                className={buttonStyles.hideOnMobile}
+                onClick={() => setCreatingBank(true)}
+              >
                 <Plus size={16} aria-hidden />
                 <span className={buttonStyles.label}>Thêm ngân hàng</span>
               </Button>
             )
           : (
-              <Button aria-label="Thêm mã giới thiệu" onClick={() => setCreatingCode(true)}>
+              <Button
+                aria-label="Thêm mã giới thiệu"
+                className={buttonStyles.hideOnMobile}
+                onClick={() => setCreatingCode(true)}
+              >
                 <Plus size={16} aria-hidden />
                 <span className={buttonStyles.label}>Thêm mã</span>
               </Button>

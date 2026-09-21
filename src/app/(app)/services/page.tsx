@@ -382,7 +382,11 @@ export default function ServicesPage() {
           ) : null}
         </FilterButton>
         {can(user, "services", "create") && (
-          <Button aria-label="Ghi dịch vụ" onClick={() => setCreating(true)}>
+          <Button
+            aria-label="Ghi dịch vụ"
+            className={buttonStyles.hideOnMobile}
+            onClick={() => setCreating(true)}
+          >
             <Plus size={16} aria-hidden />
             <span className={buttonStyles.label}>Ghi dịch vụ</span>
           </Button>

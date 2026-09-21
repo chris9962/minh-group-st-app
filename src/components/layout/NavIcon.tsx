@@ -44,8 +44,8 @@ const ICONS = {
   feedback: MessageSquarePlus,
 } as const satisfies Record<NavIconKey, unknown>;
 
-export function NavIcon({ name }: { name: NavIconKey }) {
+export function NavIcon({ name, size = 18 }: { name: NavIconKey; size?: number }) {
   const Icon = ICONS[name];
   // Icon nhận màu từ chữ nên mục đang mở đảo nền là nó tự trắng theo.
-  return <Icon size={18} strokeWidth={1.8} aria-hidden />;
+  return <Icon size={size} strokeWidth={1.8} aria-hidden />;
 }

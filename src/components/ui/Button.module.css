@@ -58,6 +58,11 @@
     min-width: 36px;
     padding: 0;
   }
+
+  /* Trùng nút Tạo mới trên thanh đáy (900px). `.base` để thắng `.btn`. */
+  .base.hideOnMobile {
+    display: none;
+  }
 }
 
 @media (pointer: coarse) and (max-width: 900px) {

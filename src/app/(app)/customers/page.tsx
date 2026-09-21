@@ -669,7 +669,11 @@ export default function CustomersPage() {
           </Button>
         )}
         {can(user, "customer", "create") && (
-          <Button aria-label="Thêm khách hàng" onClick={() => setCreating(true)}>
+          <Button
+            aria-label="Thêm khách hàng"
+            className={buttonStyles.hideOnMobile}
+            onClick={() => setCreating(true)}
+          >
             <Plus size={16} aria-hidden />
             <span className={buttonStyles.label}>Thêm khách hàng</span>
           </Button>

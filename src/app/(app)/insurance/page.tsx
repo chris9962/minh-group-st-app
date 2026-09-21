@@ -648,7 +648,11 @@ export default function InsurancePage() {
           như cũ. Mở cho đội KD thì bỏ vế `role` đi, không phải cấp quyền mới.
         */}
         {isDirector && can(user, "insurance", "create") && (
-          <Button aria-label="Lập đơn bảo hiểm" onClick={() => setCreating(true)}>
+          <Button
+            aria-label="Lập đơn bảo hiểm"
+            className={buttonStyles.hideOnMobile}
+            onClick={() => setCreating(true)}
+          >
             <Plus size={16} aria-hidden />
             <span className={buttonStyles.label}>Lập đơn</span>
           </Button>

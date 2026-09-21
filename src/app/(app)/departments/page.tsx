@@ -299,7 +299,11 @@ export default function DepartmentsPage() {
           </>
         )}
         {canCreate && (
-          <Button aria-label="Thêm phòng ban" onClick={() => setCreating(true)}>
+          <Button
+            aria-label="Thêm phòng ban"
+            className={buttonStyles.hideOnMobile}
+            onClick={() => setCreating(true)}
+          >
             <Plus size={16} aria-hidden />
             <span className={buttonStyles.label}>Thêm phòng ban</span>
           </Button>

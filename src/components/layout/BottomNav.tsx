@@ -3,15 +3,13 @@
 import { clsx } from "clsx";
 import { Menu, Plus } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { Dialog } from "@/components/ui/Dialog";
-import { CreateBankAccountDialog } from "@/components/banking/CreateBankAccountDialog";
-import { CustomerFormDialog } from "@/components/customers/CustomerFormDialog";
-import { CreateServiceDialog } from "@/components/services/CreateServiceDialog";
 import { NavIcon } from "./NavIcon";
 import { useUnreadCount } from "./useUnreadCount";
-import type { NavIconKey } from "@/lib/nav";
+import type { JumpTarget, NavIconKey } from "@/lib/nav";
+import { jumpCreateActions } from "@/lib/nav";
 import { can, canOrg } from "@/lib/permissions";
 import type { User } from "@/lib/types";
 import styles from "./BottomNav.module.scss";
@@ -22,23 +20,6 @@ type Entry =
   | { kind: "more"; label: string };
 
 /**
- * KHÔNG có `insurance`: đơn bảo hiểm chỉ tạo được qua luồng Tặng quà (chốt
- * 2026-08-25). Đường tạo đơn lẻ đã gỡ khỏi cả thanh này lẫn màn P-30.
- */
-type CreateKind = "customer" | "banking" | "services";
-
-const CREATE_OPTIONS: { kind: CreateKind; label: string; icon: NavIconKey; allowed: (u: User) => boolean }[] = [
-  { kind: "customer", label: "Tạo khách hàng", icon: "customers", allowed: () => true },
-  {
-    kind: "banking",
-    label: "Mở tài khoản ngân hàng",
-    icon: "banking",
-    allowed: (u) => can(u, "banking", "create"),
-  },
-  { kind: "services", label: "Ghi dịch vụ", icon: "services", allowed: (u) => can(u, "services", "create") },
-];
-
-/**
  * Thanh điều hướng đáy — chỉ hiện trên điện thoại (CSS ẩn ở desktop). Khác
  * sidebar đầy đủ mọi mục: đây là 5 lối tắt hay dùng nhất theo QUYỀN của người
  * đang đăng nhập (không hard-code theo chức danh — cùng nguyên tắc với
@@ -47,31 +28,32 @@ const CREATE_OPTIONS: { kind: CreateKind; label: string; icon: NavIconKey; allow
  *
  * Tổng quan LUÔN đứng đầu (còn quyền xem), Thêm LUÔN đứng cuối — Khách hàng
  * đứng ngay sau Tổng quan vì hồ sơ khách không áp trục phạm vi, ai đăng nhập
- * cũng xem được (giống sidebar). Ô thứ ba đổi theo việc có tạo được bản ghi
- * nghiệp vụ hay không: tạo được thì ưu tiên "Tạo mới"; không (GĐ/PGĐ) thì đổi
- * sang Phòng ban.
+ * cũng xem được (giống sidebar). Ô thứ ba là "Tạo mới" khi còn việc tạo được;
+ * không thì đổi sang Phòng ban (GĐ/PGĐ chỉ xem).
+ *
+ * Danh sách việc tạo lấy từ `jumpCreateActions` — cùng nguồn với ô tìm, không
+ * bịa lối tắt. Đơn bảo hiểm của đội KD đi qua Tặng quà; mục "Lập đơn" chỉ hiện
+ * cho Giám đốc (chốt 2026-09-10).
  */
 export function BottomNav({ user, onOpenMenu }: { user: User; onOpenMenu: () => void }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [creating, setCreating] = useState<CreateKind | null>(null);
   const unread = useUnreadCount();
+  const createOptions = jumpCreateActions(user);
 
-  const canCreateBusinessRecord =
-    can(user, "banking", "create") || can(user, "insurance", "create") || can(user, "services", "create");
   const canSeeOverview =
     can(user, "insurance", "view-summary") ||
     can(user, "banking", "view-summary") ||
     can(user, "services", "view-summary");
-  // Cùng luật với sidebar (`navFor`) — lệch nhau thì điện thoại thiếu lối tắt
-  // tới đúng màn người dùng thấy trên máy tính.
   const canReadOrg = canOrg(user, "view-detail");
 
-  const thirdEntry: Entry | null = canCreateBusinessRecord
-    ? { kind: "create", label: "Tạo mới" }
-    : canReadOrg
-      ? { kind: "link", href: "/departments", label: "Phòng ban", icon: "org" }
-      : null;
+  const thirdEntry: Entry | null =
+    createOptions.length > 0
+      ? { kind: "create", label: "Tạo mới" }
+      : canReadOrg
+        ? { kind: "link", href: "/departments", label: "Phòng ban", icon: "org" }
+        : null;
 
   const entries: Entry[] = [
     ...(canSeeOverview ? [{ kind: "link", href: "/", label: "Tổng quan", icon: "overview" } as Entry] : []),
@@ -90,7 +72,6 @@ export function BottomNav({ user, onOpenMenu }: { user: User; onOpenMenu: () => 
   ];
 
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
-  const createOptions = CREATE_OPTIONS.filter((o) => o.allowed(user));
 
   return (
     <>
@@ -147,37 +128,72 @@ export function BottomNav({ user, onOpenMenu }: { user: User; onOpenMenu: () => 
         })}
       </nav>
 
-      {pickerOpen && (
-        <Dialog open onClose={() => setPickerOpen(false)} title="Tạo mới">
-          <ul className={styles.pickerList}>
-            {createOptions.map((o) => (
-              <li key={o.kind}>
-                <button
-                  type="button"
-                  className={styles.pickerRow}
-                  onClick={() => {
-                    setPickerOpen(false);
-                    setCreating(o.kind);
-                  }}
-                >
-                  <NavIcon name={o.icon} />
-                  <span>{o.label}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </Dialog>
-      )}
-
-      {creating === "customer" && (
-        <CustomerFormDialog open onClose={() => setCreating(null)} />
-      )}
-      {creating === "banking" && (
-        <CreateBankAccountDialog open onClose={() => setCreating(null)} />
-      )}
-      {creating === "services" && (
-        <CreateServiceDialog open onClose={() => setCreating(null)} />
-      )}
+      <Dialog open={pickerOpen} onClose={() => setPickerOpen(false)} title="Tạo mới" placement="sheet">
+        <CreatePicker
+          options={createOptions}
+          onPick={(href) => {
+            setPickerOpen(false);
+            router.push(href);
+          }}
+        />
+      </Dialog>
     </>
+  );
+}
+
+/** Danh mục / thông báo chung — ít bấm hơn việc hàng ngày, tách lưới riêng. */
+function isCatalogCreate(href: string): boolean {
+  return href.startsWith("/settings/") || href.startsWith("/notifications");
+}
+
+function CreatePicker({
+  options,
+  onPick,
+}: {
+  options: JumpTarget[];
+  onPick: (href: string) => void;
+}) {
+  const daily = options.filter((o) => !isCatalogCreate(o.href));
+  const catalog = options.filter((o) => isCatalogCreate(o.href));
+  const split = daily.length > 0 && catalog.length > 0;
+
+  return (
+    <div className={styles.picker}>
+      {daily.length > 0 && (
+        <section className={styles.pickerGroup} aria-label={split ? "Nghiệp vụ" : undefined}>
+          {split && <h3 className={styles.pickerGroupTitle}>Nghiệp vụ</h3>}
+          <CreatePickerGrid options={daily} onPick={onPick} />
+        </section>
+      )}
+      {catalog.length > 0 && (
+        <section className={styles.pickerGroup} aria-label={split ? "Danh mục" : undefined}>
+          {split && <h3 className={styles.pickerGroupTitle}>Danh mục</h3>}
+          <CreatePickerGrid options={catalog} onPick={onPick} />
+        </section>
+      )}
+    </div>
+  );
+}
+
+function CreatePickerGrid({
+  options,
+  onPick,
+}: {
+  options: JumpTarget[];
+  onPick: (href: string) => void;
+}) {
+  return (
+    <ul className={styles.pickerGrid}>
+      {options.map((o) => (
+        <li key={o.href}>
+          <button type="button" className={styles.pickerCard} onClick={() => onPick(o.href)}>
+            <span className={styles.pickerIcon}>
+              <NavIcon name={o.icon} size={20} />
+            </span>
+            <span className={styles.pickerLabel}>{o.label}</span>
+          </button>
+        </li>
+      ))}
+    </ul>
   );
 }
