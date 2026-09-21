@@ -821,7 +821,8 @@ const bankAccountsOfBankWhere = (bankId: string, filters: BankOfBankFilters): SQ
   and(
     eq(bankAccounts.bankId, bankId),
     ...([
-      searchWhere(filters.search),
+      // Màn này đã có ô lọc mã riêng (`referralCodeId`), ô tìm không tra mã.
+      searchWhere(filters.search, []),
       usableDate(filters.from) || usableDate(filters.to)
         ? accountOpenedDayBetween(
             usableDate(filters.from) ? filters.from : "1970-01-01",

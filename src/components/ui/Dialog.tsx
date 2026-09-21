@@ -116,9 +116,9 @@ export function Dialog({
       } else {
         setEntered(false);
         /**
-         * `showModal()` mới bỏ `display: none`. Phải để khung vẽ xong ở
-         * `translateY(100%)` rồi mới gắn `sheetIn` — đổi transform cùng lúc
-         * hiện dialog thì không có transition, hộp đã nằm sẵn ở đáy.
+         * `showModal()` mới bỏ `display: none`. Phải để khung vẽ xong rồi mới
+         * gắn `dialogEntered`, không thì lớp phủ không có transition mờ dần.
+         * Bản thân sheet không trượt: hiện ngay tại chỗ (chốt 2026-09-21).
          */
         requestAnimationFrame(() => {
           panelRef.current?.getBoundingClientRect();
@@ -134,20 +134,8 @@ export function Dialog({
     }
 
     setEntered(false);
-    if (!el.open) {
-      setShown(false);
-      return;
-    }
-    if (!isSheet || reduceMotion) {
-      el.close();
-      setShown(false);
-      return;
-    }
-    const t = window.setTimeout(() => {
-      el.close();
-      setShown(false);
-    }, 400);
-    return () => clearTimeout(t);
+    if (el.open) el.close();
+    setShown(false);
   }, [open, isSheet]);
 
   /**
@@ -217,7 +205,6 @@ export function Dialog({
               styles.panel,
               wide && styles.wide,
               placement === "sheet" && styles.sheet,
-              placement === "sheet" && entered && styles.sheetIn,
             )}
             tabIndex={-1}
           >

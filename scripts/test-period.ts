@@ -58,7 +58,7 @@ check("hôm nay: một ngày", day.current.to, TODAY);
 check("hôm qua", day.previous?.from ?? null, "2026-09-17");
 
 const picked = periodRanges("range:2026-07-05:2026-07-12", TODAY);
-check("khoảng tự chọn không có kỳ trước", picked.previous, null);
+check("khoảng tự chọn không có kỳ trước", picked.previous === null, true);
 check("khoảng tự chọn giữ ngày gửi", picked.current.from, "2026-07-05");
 
 const jan = periodRanges("last-3-months", "2026-01-15");

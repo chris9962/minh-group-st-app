@@ -379,7 +379,6 @@ export function RankTable<T>({
                           col.align === "right" ? styles.right : undefined,
                           col.sortBy ? "tabular-nums" : undefined,
                           href ? styles.linkCell : undefined,
-                          cellTitle ? styles.tipped : undefined,
                         )}
                         onPointerEnter={
                           cellTitle

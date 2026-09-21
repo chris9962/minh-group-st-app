@@ -237,10 +237,6 @@
   background: color-mix(in srgb, var(--om-rank-3) 46%, var(--om-card));
 }
 
-.tipped {
-  cursor: help;
-}
-
 /* Portal ra body — `.table-scroll` cắt overflow nên tooltip trong ô bị mất. */
 .tip {
   position: fixed;

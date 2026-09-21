@@ -572,11 +572,18 @@ export async function departmentStatsFor(
         appsInstalled: s?.appsInstalled ?? 0,
         customers: s?.customers ?? 0,
         customersMultiAccount: s?.customersMultiAccount ?? 0,
+        previousAccountsOpened: before ? (p?.accountsOpened ?? 0) : null,
+        previousAppsInstalled: before ? (p?.appsInstalled ?? 0) : null,
+        previousCustomers: before ? (p?.customers ?? 0) : null,
+        previousCustomersMultiAccount: before ? (p?.customersMultiAccount ?? 0) : null,
         // `null` khi không có kỳ trước để so, HOẶC kỳ trước phòng này không mở
         // tài khoản nào: 0% so với "chưa có gì" là một phép trừ vô nghĩa, và
         // mũi tên giảm 74 điểm đọc ra như tai nạn.
         previousInstallRate:
           p && p.accountsOpened > 0 ? rateOf(p.accountsOpened, p.appsInstalled) : null,
+        // P-91 không tính điểm kỳ trước và sparkline; hai trường này chỉ P-80 có.
+        previousPoints: null,
+        growth: [],
       };
     }),
   };
