@@ -27,6 +27,11 @@ export type ReleaseSection = {
 export type Release = {
   /** Ngày deploy dạng `YYYY-MM-DD`, cũng là đường dẫn `/releases/<id>`. */
   id: string;
+  /**
+   * Số bản `x.y.z`, trùng `version` trong `package.json` của bản dựng đó.
+   * Tăng `y` khi có tính năng mới, tăng `z` khi chỉ sửa lỗi.
+   */
+  version: string;
   title: string;
   /** Tóm tắt 1-2 câu, đi vào thân thông báo và hộp thoại che màn hình. */
   summary: string;

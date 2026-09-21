@@ -28,7 +28,9 @@ export default function ReleasePage({ params }: { params: Promise<{ id: string }
       <main className={styles.body}>
         <BackLink href="/releases">Bản cập nhật</BackLink>
 
-        <p className={styles.summary}>{release.summary}</p>
+        <p className={styles.summary}>
+          <span className="tag">v{release.version}</span> {release.summary}
+        </p>
 
         {sections.map((section) => (
           <section key={section.title} className={styles.section}>

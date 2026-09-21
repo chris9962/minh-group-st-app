@@ -22,7 +22,10 @@ export default function ReleasesPage() {
             <li key={release.id}>
               <Link href={`/releases/${release.id}`} className={styles.card}>
                 <span className={styles.cardText}>
-                  <span className={styles.cardTitle}>{release.title}</span>
+                  <span className={styles.cardTitle}>
+                    {release.title}
+                    <span className="tag">v{release.version}</span>
+                  </span>
                   <span className={styles.cardSummary}>{release.summary}</span>
                 </span>
                 <ChevronRight size={16} aria-hidden className={styles.cardArrow} />

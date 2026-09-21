@@ -10,6 +10,7 @@ import { AccountMenu } from "./AccountMenu";
 import { FeedbackButton } from "./FeedbackButton";
 import { NavIcon } from "./NavIcon";
 import { isNavGroup, navFor, type NavGroup } from "@/lib/nav";
+import { RELEASES } from "@/lib/releases";
 import type { User } from "@/lib/types";
 import styles from "./Sidebar.module.scss";
 
@@ -164,6 +165,9 @@ export function Sidebar({ user, mobileOpen = false, onMobileClose }: Props) {
         <div className={styles.foot}>
           <FeedbackButton onSent={() => onMobileClose?.()} />
           <AccountMenu user={user} />
+          <Link href="/releases" className={styles.version} onClick={() => onMobileClose?.()}>
+            v{RELEASES[0].version}
+          </Link>
         </div>
       </nav>
     </>

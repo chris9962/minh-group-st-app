@@ -22,7 +22,13 @@ export function StatStack({ items }: { items: StatStackItem[] }) {
       {items.map((item) => (
         <div key={item.label} className={styles.item}>
           <div className={styles.row}>
-            <strong className={`${styles.value} so`}>{item.value}</strong>
+            <strong
+              className={`${styles.value} ${
+                typeof item.value === "string" && item.value.length > 8 ? styles.valueLong : ""
+              } so`}
+            >
+              {item.value}
+            </strong>
             {item.badge && <span className={styles.badge}>{item.badge}</span>}
           </div>
           <span className={styles.label}>{item.label}</span>

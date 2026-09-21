@@ -7,6 +7,7 @@
   display: flex;
   flex-direction: column;
   justify-content: center;
+  container-type: inline-size;
 }
 
 .item {
@@ -39,6 +40,12 @@
   color: var(--om-text);
 }
 
+/* Số dài (tiền tỉ) co theo bề rộng thẻ để không tràn; số ngắn giữ 34px. */
+.valueLong {
+  font-size: clamp(18px, 12cqi, 34px);
+  white-space: nowrap;
+}
+
 .label {
   font-size: 13px;
   color: var(--om-text-2);
@@ -49,6 +56,20 @@
 .breakdown {
   display: flex;
   margin: 6px 0 0;
+}
+
+/* Thẻ hẹp: bốn ô tách nhỏ xếp lưới 2×2 thay vì tràn ra ngoài thẻ. */
+@container (max-width: 300px) {
+  .breakdown {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    row-gap: 10px;
+  }
+
+  .breakdown > div:nth-child(odd) {
+    padding-left: 0;
+    border-left: 0;
+  }
 }
 
 .breakdown > div {

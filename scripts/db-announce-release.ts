@@ -44,7 +44,7 @@ async function main() {
 
   const people = await db.select({ id: users.id }).from(users).where(eq(users.active, true));
   console.log(
-    `Bản ${release.id} "${release.title}" sắp gửi cho ${people.length} người${dryRun ? " (CHẠY KHÔ — không ghi gì)" : ""}.`,
+    `Bản ${release.id} v${release.version} "${release.title}" sắp gửi cho ${people.length} người${dryRun ? " (CHẠY KHÔ — không ghi gì)" : ""}.`,
   );
   if (dryRun) return;
 
@@ -52,7 +52,7 @@ async function main() {
     people.map((p) => p.id),
     "release",
     {
-      title: release.title,
+      title: `${release.title}, bản v${release.version}`,
       body: release.summary,
       url: `/releases/${release.id}`,
       release: release.id,

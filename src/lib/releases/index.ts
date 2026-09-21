@@ -10,7 +10,66 @@ export type { Release, ReleaseSection } from './types';
  */
 export const RELEASES: Release[] = [
   {
+    id: '2026-09-21',
+    version: '1.3.0',
+    title: 'Cập nhật ngày 21/09/2026',
+    summary:
+      'App hiện lương tạm tính theo KPI. Giao diện mới: ô tìm nhanh, bộ lọc gọn hơn, thanh đáy điện thoại có đủ việc tạo mới.',
+    sections: [
+      {
+        title: 'Lương tạm tính theo KPI',
+        items: [
+          'Trang Tổng quan và hồ sơ nhân viên có ô Lương của tháng hiện tại. Số che sẵn, bạn bấm nút con mắt để hiện.',
+          'Nút Diễn giải mở hộp liệt kê từng khoản của tháng.',
+          'Lương tạm tính áp cho nhân viên, Trưởng phòng, Phó phòng của các phòng kinh doanh CĐS, và Phó giám đốc. Người ở phòng khác thấy ô Lương là 0đ.',
+          'Số này là tạm tính, chưa gồm chỉ tiêu HKD, CASA và tài khoản định hướng.',
+        ],
+      },
+      {
+        title: 'Cột Lương ở trang Nhân sự và Phòng ban',
+        items: [
+          'Trang Nhân sự có cột Lương của từng người. Trang chi tiết phòng ban hiện lương của Trưởng phòng và Phó phòng kèm nút Diễn giải.',
+        ],
+        visibleTo: (user) => canOpenPath(user, '/users') || canOpenPath(user, '/departments'),
+      },
+      {
+        title: 'Ô tìm nhanh',
+        items: [
+          'Thanh trên có ô tìm nhanh. Bạn gõ tên khách, số tài khoản, mã giới thiệu hoặc tên nhân viên để mở thẳng bản ghi hoặc màn cần tới.',
+        ],
+      },
+      {
+        title: 'Bộ lọc',
+        items: [
+          'Giao diện mới cho bộ lọc ở mọi màn danh sách, gom vào một nút Lọc, dễ chọn hơn trên điện thoại.',
+        ],
+      },
+      {
+        title: 'Tổng quan',
+        items: [
+          'Bảng xếp hạng đánh dấu ba hạng đầu và có cột Tăng trưởng so với kỳ trước.',
+          'Bộ chọn kỳ có thêm 3 tháng, 6 tháng, 12 tháng và khoảng ngày tự chọn.',
+        ],
+      },
+      {
+        title: 'Giao diện',
+        items: [
+          'Trên điện thoại: nút Tạo mới ở thanh đáy có đủ việc bạn được phép tạo, hộp thoại mở từ đáy màn, tiêu đề màn luôn hiện.',
+          'Chữ trên app dùng phông Google Sans, rõ hơn trên màn hình điện thoại.',
+        ],
+      },
+      {
+        title: 'Cài đặt ngân hàng',
+        items: [
+          'Cùng một chuỗi mã text nhập được nhiều dòng trong cùng ngân hàng và loại tài khoản, phân biệt bằng Tên hiển thị. Tên hiển thị không được trùng.',
+        ],
+        visibleTo: (user) => canOpenPath(user, '/settings/banks'),
+      },
+    ],
+  },
+  {
     id: '2026-09-18',
+    version: '1.2.0',
     title: 'Cập nhật ngày 18/09/2026',
     summary:
       'Khách có HKD nhận thêm Loa hoặc Bảng mica, cộng với quà chính. Hồ sơ đã chốt quà vẫn dời được ngày hồ sơ tới ngày chốt.',
@@ -52,6 +111,7 @@ export const RELEASES: Release[] = [
   },
   {
     id: '2026-09-17',
+    version: '1.1.0',
     title: 'Cập nhật ngày 17/09/2026',
     summary: 'Cập nhật ngày 17/09/2026.',
     sections: [
@@ -74,6 +134,7 @@ export const RELEASES: Release[] = [
   },
   {
     id: '2026-09-16',
+    version: '1.0.0',
     title: 'Cập nhật ngày 16/09/2026',
     summary:
       'Tài khoản đang tạo tự xoá lúc 00:00. Trưởng phòng dời được ngày hồ sơ khách để điểm KPI ghi đúng ngày. LPB, MBV, BIDV là ngân hàng hạn chế.',

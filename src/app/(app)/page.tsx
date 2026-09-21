@@ -26,6 +26,7 @@ import {
 } from "@/lib/period";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatCard } from "@/components/ui/StatCard";
+import { StatStack } from "@/components/ui/StatStack";
 import { BankingHeadline } from "@/components/dashboard/BankingHeadline";
 import { StaffDashboard } from "@/components/dashboard/StaffDashboard";
 import { fetchDashboard, type DepartmentRanking } from "@/lib/api/dashboard";
@@ -288,22 +289,18 @@ export default function DashboardPage() {
                   `!== null` chứ không kiểm trung thực: phạm vi được 0 điểm vẫn
                   phải hiện ô, chứ không phải ẩn đi như người không có quyền. */}
               {data.scopePoints !== null && (
-                <StatCard
-                  value={formatPoints(data.scopePoints.points)}
-                  label={
-                    data.scopePoints.kind === "company" ? "điểm tổng cty" : "điểm tổng phòng"
-                  }
-                  detail={
-                    <>
-                      {overview!.scopeLabel} {periodLabel}
-                      {data.scopePoints.kind === "company" && data.companySalary !== null && (
-                        <>
-                          <br />
-                          Tổng lương tháng hiện tại: <strong>{formatVnd(data.companySalary)}</strong>
-                        </>
-                      )}
-                    </>
-                  }
+                <StatStack
+                  items={[
+                    {
+                      value: formatPoints(data.scopePoints.points),
+                      label: `${data.scopePoints.kind === "company" ? "điểm tổng cty" : "điểm tổng phòng"} ${periodLabel}`,
+                    },
+                    // Lương đứng thành số lớn riêng, không nằm ở dòng phụ: đây
+                    // là con số người xem toàn công ty mở màn này để đọc.
+                    ...(data.scopePoints.kind === "company" && data.companySalary !== null
+                      ? [{ value: formatVnd(data.companySalary), label: "lương tạm tính tháng hiện tại" }]
+                      : []),
+                  ]}
                 />
               )}
             </BankingHeadline>

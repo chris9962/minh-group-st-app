@@ -2,14 +2,17 @@
    "kỳ này chạy tốt không", hai thẻ kia chỉ là số thô đỡ nó. */
 .headline {
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr;
+  /* `minmax(0, …)`: cột `fr` trần có min = nội dung, nên hàng bốn ô của thẻ
+     "khách có tài khoản" nới cột nó ra và ép thẻ chỉ số chính hẹp lại, chữ
+     mô tả gãy thành 5 dòng. Chặn min ở 0 thì tỉ lệ 2:1:1 mới giữ được. */
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr);
   gap: 16px;
   align-items: stretch;
 }
 
 /* Có thẻ thêm ở cuối hàng (ô điểm tổng của Tổng quan): bốn ô trên một hàng. */
 .headlineWide {
-  grid-template-columns: 2fr 1fr 1fr 1fr;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.3fr);
 }
 
 @media (max-width: bp.$bp-tablet) {

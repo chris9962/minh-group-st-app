@@ -80,6 +80,18 @@
   border-top: 1px solid var(--om-line);
 }
 
+.version {
+  display: block;
+  padding: 6px 12px 0;
+  font-size: 11px;
+  color: var(--om-text-3);
+  text-decoration: none;
+}
+
+.version:hover {
+  color: var(--om-link-hover);
+}
+
 .item {
   display: flex;
   align-items: center;
