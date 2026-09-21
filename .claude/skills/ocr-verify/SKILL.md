@@ -14,7 +14,7 @@ Ba tầng, mỗi tầng một file:
 | Tầng | File | Việc |
 |---|---|---|
 | Đọc chữ | `scripts/ocr-server.py`, `src/server/ocr/reader.ts` | PaddleOCR dò vùng chữ, VietOCR đọc từng vùng. Một lượt, không tiền xử lý, không nhận màn. Ảnh ngang đọc ba hướng, giữ hướng nhiều từ nhất. Tiến trình Python mở một lần, giữ suốt. |
-| Chấm | `src/server/ocr/banks/tpbank.ts` | Tìm giá trị HỆ THỐNG trong chữ của cả bộ ảnh: tên khách, số tài khoản, mã giới thiệu, dòng "chuyển thành công". Không biết ảnh là màn nào, không đoán giá trị trên ảnh. |
+| Chấm | `src/server/ocr/facts.ts`, `src/server/ocr/banks/<bank>.ts` | Tìm giá trị HỆ THỐNG trong chữ của cả bộ ảnh: tên khách, số tài khoản, mã giới thiệu, dòng "chuyển thành công". Không biết ảnh là màn nào, không đoán giá trị trên ảnh. Mỗi ngân hàng một hàm `facts(text, ctx)`; đọc-tới-khi-đủ và ba mục kết quả dùng chung ở `facts.ts`. |
 | Hàng chờ | `src/server/photoCheck.ts`, `scripts/photo-check-worker.ts` | Ghi lượt chờ khi nhân viên hoàn thành, worker riêng đọc và ghi kết quả. |
 
 Luật chấm, không dung sai:
@@ -47,8 +47,8 @@ export OCR_PYTHON=~/.mgst-ocr/bin/python PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK=T
 Lần chạy đầu tự tải model về `~/.paddlex` và `/tmp`. Thử nhanh một bộ ảnh:
 
 ```bash
-TPB_CTX='{"referralCode":"AT107","customerName":"Dương Thị Mỹ Linh","accountNumber":"10005574904"}' \
-  bun scripts/ocr-try.ts tpbank --raw anh0.webp anh1.webp
+OCR_CTX='{"referralCode":"AT107","customerName":"Dương Thị Mỹ Linh","accountNumber":"10005574904"}' \
+  bun scripts/ocr-try.ts tpbank --raw anh0.webp anh1.webp     # msb: thêm "referralName"
 ```
 
 ## Quy trình sửa một ca

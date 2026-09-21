@@ -1,31 +1,35 @@
 import { readFile } from "node:fs/promises";
 import { closeOcr, ocrLines } from "../src/server/ocr/reader";
-import { parseMsbOpenSuccess, parseMsbSupplement, parseMsbTransfer } from "../src/server/ocr/banks/msb";
+import { checkMsb, msbFacts } from "../src/server/ocr/banks/msb";
 import { parseMbProfile, parseMbRegistration, parseMbTransfer } from "../src/server/ocr/banks/mb";
-import { checkTpbank } from "../src/server/ocr/banks/tpbank";
+import { checkTpbank, tpbFacts } from "../src/server/ocr/banks/tpbank";
 
 /**
  * Đọc chữ trên ảnh trong máy rồi in ra, kèm kết quả parser của một ngân hàng.
  *
- *   bun scripts/ocr-try.ts tpbank anh1.webp anh2.png
  *   bun scripts/ocr-try.ts tpbank --raw anh1.webp             in cả dòng chữ đọc được
- *   TPB_CTX='{"referralCode":"AT107","customerName":"...","accountNumber":"..."}' \
- *     bun scripts/ocr-try.ts tpbank anh*.webp                  chấm cả bộ ảnh như worker
- *   bun scripts/ocr-try.ts msb-supplement --raw anh1.webp
+ *   OCR_CTX='{"referralCode":"AT107","customerName":"...","accountNumber":"..."}' \
+ *     bun scripts/ocr-try.ts tpbank anh*.webp                  bốn giá trị từng ảnh + chấm cả bộ như worker
+ *   OCR_CTX='{"referralCode":"...","referralName":"ACT24","customerName":"...","accountNumber":"..."}' \
+ *     bun scripts/ocr-try.ts msb anh*.webp
  *
  * Cần Python với paddleocr và vietocr: xem đầu `scripts/ocr-server.py`. Máy
  * local đặt `OCR_PYTHON` trỏ vào python của venv đã cài.
  */
 
+// Ngân hàng chấm bằng tìm giá trị: `OCR_CTX` là context của bộ nhãn, thiếu thì chỉ in chữ.
+const ctx = process.env.OCR_CTX ? JSON.parse(process.env.OCR_CTX) : null;
+const lineCount = (text: string) => text.split("\n").length + " dòng";
+
 const PARSERS: Record<string, (text: string) => unknown> = {
   "mb-registration": parseMbRegistration,
   "mb-profile": parseMbProfile,
   "mb-transfer": parseMbTransfer,
-  "msb-open": parseMsbOpenSuccess,
-  "msb-supplement": parseMsbSupplement,
-  "msb-transfer": parseMsbTransfer,
-  tpbank: (text) => text.split("\n").length + " dòng",
+  msb: ctx ? (text) => msbFacts(text, ctx) : lineCount,
+  tpbank: ctx ? (text) => tpbFacts(text, ctx) : lineCount,
 };
+
+const CHECKS: Record<string, (texts: string[], ctx: never) => unknown> = { msb: checkMsb, tpbank: checkTpbank };
 
 async function main() {
   const [bank, ...rest] = process.argv.slice(2);
@@ -49,9 +53,9 @@ async function main() {
     console.log(parse(text));
   }
 
-  if (bank === "tpbank" && process.env.TPB_CTX) {
+  if (ctx && CHECKS[bank]) {
     console.log("\n=== chấm cả bộ ===");
-    console.log(checkTpbank(texts, JSON.parse(process.env.TPB_CTX)));
+    console.log(CHECKS[bank](texts, ctx as never));
   }
   await closeOcr();
 }

@@ -1,184 +1,158 @@
 import assert from "node:assert/strict";
-import { photoCheckIssueLabels } from "../src/lib/api/photoCheck";
-import {
-  checkMsb,
-  parseMsbOpenSuccess,
-  parseMsbSupplement,
-  parseMsbTransfer,
-} from "../src/server/ocr/banks/msb";
+import { checkMsb, msbFacts, msbReferral } from "../src/server/ocr/banks/msb";
 
-const open = `
-MSB
+/**
+ * Chữ mẫu là chữ VietOCR đọc từ ảnh thật trong bộ đo 2026-09-21 (60 tài khoản
+ * MSBa + MSBb), mỗi dòng một vùng chữ. Chạy: `bun scripts/test-msb-photo-parser.ts`.
+ */
+
+const register = `
+Mmsb
 Đăng ký dịch vụ MSB Digibank thành
-công!
+công
 Tên đăng nhập
-0354257408
+0522514735
 Chủ tài khoản
-VÕ THANH HẰNG
+PHAN NGỌC LƯƠNG
 Số tài khoản
-80003855100
-`;
-
-const photographedOpen = `
-MSB
-@ Đăng ký dịch vụ MSB Digibank
-thành công!
-0939992947
-PHAN VĂN PHÚC
-80003854937
-08/09/2026
+80003860331
+Ngày hiệu lực tài khoản
+09/09/2026
 `;
 
 const supplement = `
 2.3 Bổ sung thông tin
 Chi nhánh/PGD
-PGD Thuận An x
+PGD Vụ Bản
 Thông tin bổ sung
 Mã giới thiệu (Không bắt buộc)
-CIUSTSF-5
+BSJFUXA-5
 Mã chương trình (Không bắt buộc)
 TIKTOK
+Tiếp tục
 `;
 
-const transfer = `
-MSB
+const transferTitle = `
 Chuyển tiền thành công
 50,000 VND
+15:00 - 09/09/2026
+Người nhận
+VÔ THI KIỀU TRANG
 Người chuyển
-VÕ THANH HẰNG
+PHAN NGOC LUONG
+Nội dung chuyển tiền
+PHAN NGoc Luong chuyen tien
 `;
 
-const transferDetail = `
-MSB
+/** Thông báo đẩy che tiêu đề; tiêu đề đọc thành rác "Chuyen uen uann cong". */
+const transferCovered = `
+- 50,000 VND
+Tài khoản: 800xx1264
+ND: 80003881264-Ref 6255MCOBQ2MD3PCX-
+Chuyen uen uann cong
 50,000 VND
-Đến tài khoản
-LE MINH TRUNG
-Techcombank 6687736868
-Từ tài khoản
-LY THANH HIEN
-MSB 80003878143
-Nội dung
-80003878143-Ref 6254MCOBQ2MD19CS-CK 24/7
-Kênh giao dịch
-MSB Digibank
-Mã giao dịch
-FT262549CQRB
+Người nhận
+LE HUU DANG
+Người chuyển
+NGUYEN THI NGOC TRAM
+Nội dung chuyển tiền
+NGuyen Thi Ngoc TRAM chuyen tien
+Hình thức
+Chuyển nhanh 24/7
+Chi tiết giao dịch
+Giao dịch khác
 `;
 
-const noisyReferral = supplement.replace("CIUSTSF-5", "YPHPDVC-5 | ` THE");
-const blankReferral = supplement.replace("CIUSTSF-5\n", "");
+const balanceTab = `
+Trung tâm thông báo
+Thông báo khác
+Biến động số dư
+Hôm nay, 12/09/2026
+Số tiền
+50,000 VND
+Tài khoản
+80003882939
+Nội dung
+80003882939-Ref 6255MCOBQ2MD7CY6-
+CK 24/7 CHO 1040330053-NGUYEN THI
+CHANG chuyen tien
+`;
 
-assert.deepEqual(parseMsbOpenSuccess(open), {
-  success: true,
-  customerName: "VO THANH HANG",
-  accountNumber: "80003855100",
-  missing: [],
-});
-assert.equal(parseMsbOpenSuccess(photographedOpen).customerName, "PHAN VAN PHUC");
-assert.deepEqual(parseMsbSupplement(supplement), {
-  supplement: true,
-  branch: "PGD Thuận An",
-  referralCode: "CIUSTSF-5",
-  missing: [],
-});
-assert.equal(parseMsbSupplement(noisyReferral).referralCode, "YPHPDVC-5");
-assert.equal(parseMsbSupplement(blankReferral).referralCode, "");
-assert.deepEqual(parseMsbTransfer(transfer), {
-  bank: true,
-  kind: "success",
-  success: true,
-  transactionCode: "",
-  missing: [],
-});
-assert.deepEqual(parseMsbTransfer(transferDetail), {
-  bank: true,
-  kind: "detail",
-  success: true,
-  transactionCode: "FT262549CQRB",
-  missing: [],
-});
-assert.equal(parseMsbTransfer("MSB\nKích hoạt thẻ thành công").success, false);
-assert.equal(
-  parseMsbTransfer("MSB\nĐến tài khoản\nTừ tài khoản\nKênh giao dịch").success,
-  false,
-);
+const historyList = `
+Tài khoản thanh toán
+Số dư tài khoản
+O VND
+Lịch sử giao dịch
+06/09/2026
+50,000
+TRAN VAN
+80003837048-Ref
+6249MCOBQ2MXCGGK-C...
+`;
 
-const context = {
-  referralCode: "CIUSTSF-5 - MCT: TIKTOK",
-  referralName: "CIUSTSF-5",
-  supportBranch: "PGD THUẬN AN",
-  customerName: "VO THANH HANG",
-  accountNumber: "0354257408",
+/** Màn Chi tiết thẻ: có "Lịch sử giao dịch" và "0 VND" nhưng chưa có giao dịch. */
+const cardDetail = `
+Chi tiết thẻ
+MSB Napas Debit MPRO
+Số dư
+O VND
+80003860331
+Tài khoản liên kết
+Lịch sử giao dịch
+Chưa có giao dịch được thực hiện
+Thông tin về giao dịch sẽ hiển thị ở đây
+`;
+
+const ctx = {
+  referralCode: "BSJFUXA-5 - MCT: TIKTOK",
+  referralName: "BSJFUXA-5",
+  customerName: "Phan Ngọc Lương",
+  accountNumber: "0522514735",
 };
-assert.deepEqual(
-  checkMsb([open, supplement, transfer], context).map((item) => item.verdict),
-  ["pass", "pass", "pass"],
-);
-assert.equal(
-  checkMsb([open.replace("VÕ THANH HẰNG", "NGUYỄN VĂN AN"), supplement, transfer], context)[0]
-    .verdict,
-  "fail",
-);
-assert.equal(
-  checkMsb(
-    [open, supplement.replace("PGD Thuận An", "PGD Đồng Tháp"), transfer],
-    context,
-  )[1].verdict,
-  "fail",
-);
-assert.deepEqual(
-  checkMsb(
-    [open, supplement.replace("CIUSTSF-5", "ACT22"), transfer],
-    context,
-  )[1].issues,
-  ["Mã giới thiệu không khớp"],
-);
-assert.equal(
-  checkMsb(
-    [open, supplement.replace("CIUSTSF-5", "ACT22"), transfer],
-    context,
-  )[1].verdict,
-  "fail",
-);
 
-// Kết quả JSON cũ chưa có `issues` vẫn phải hiện lỗi nghiệp vụ, không hiện
-// tên nhóm ảnh như “Màn hình chính” hay “Thông tin trong app”.
-assert.deepEqual(
-  photoCheckIssueLabels({
-    key: "home",
-    verdict: "fail",
-    found: "DUONG THI MONG GIAO - 10005476705",
-    expected: "PHUONG THI MONG GIAO - 10005475705",
-    note: "Tên trên ảnh DUONG THI MONG GIAO, tên khách PHUONG THI MONG GIAO. Số tài khoản trên ảnh 10005476705, đã nhập 10005475705.",
-  }),
-  ["Tên khách hàng không khớp", "Số tài khoản không khớp"],
-);
-assert.equal(
-  checkMsb([open, supplement, transfer], {
-    ...context,
-    supportBranch: "PGD: Tự chọn",
-  })[1].verdict,
-  "pass",
-);
-assert.equal(
-  checkMsb(
-    [open, supplement.replace("CIUSTSF-5", "MGST2026"), transfer],
-    {
-      ...context,
-      referralCode: "MGST2026 - MCT: trống",
-      referralName: "MGST2026 (phòng 10)",
-      supportBranch: "PGD: Tự chọn",
-    },
-  )[1].verdict,
-  "pass",
-);
-// Hai mã thật lệch ký tự đầu không được coi là cùng mã.
-assert.equal(
-  checkMsb(
-    [open, supplement.replace("CIUSTSF-5", "APHPDVC-5"), transfer],
-    { ...context, referralName: "YPHPDVC-5", referralCode: "YPHPDVC-5 - MCT: CTV1" },
-  )[1].verdict,
-  "fail",
-);
+assert.equal(msbReferral(ctx), "BSJFUXA-5");
+assert.equal(msbReferral({ referralCode: "MGST2026 - P1", referralName: "MGST2026 (phòng 8)" }), "MGST2026");
+assert.equal(msbReferral({ referralCode: "ACT24  - MCT: Trống", referralName: "" }), "ACT24");
 
-console.log("MSB photo parser: OK");
+assert.deepEqual(msbFacts(register, ctx), { nameFound: true, accountFound: true, codeFound: false, successFound: false });
+assert.deepEqual(msbFacts(supplement, ctx), { nameFound: false, accountFound: false, codeFound: true, successFound: false });
+assert.equal(msbFacts(transferTitle, ctx).successFound, true);
+assert.equal(msbFacts(transferTitle, ctx).nameFound, true, "tên ở Người chuyển và lời nhắn chuyen tien");
+assert.equal(msbFacts(transferCovered, ctx).successFound, true, "tiêu đề bị che, còn Người chuyển + Nội dung + Giao dịch khác");
+assert.equal(msbFacts(balanceTab, ctx).successFound, true, "tab Biến động số dư kèm nội dung -Ref");
+assert.equal(msbFacts(historyList, ctx).successFound, true, "Lịch sử giao dịch của màn Tài khoản thanh toán");
+assert.equal(msbFacts(cardDetail, ctx).successFound, false, "Chi tiết thẻ chưa có giao dịch không được tính");
+
+// MSBa lưu số 8000… làm số tài khoản, MSBb lưu số điện thoại: cả hai đều tìm được trên màn đăng ký.
+assert.equal(msbFacts(register, { ...ctx, accountNumber: "80003860331" }).accountFound, true);
+assert.equal(msbFacts(register, { ...ctx, accountNumber: "0822514735" }).accountFound, false, "gõ sai một số phải không đạt");
+assert.equal(msbFacts(supplement, { ...ctx, referralName: "BSJFUXA-6" }).codeFound, false, "sai một ký tự mã là sai người");
+assert.equal(msbFacts(register, { ...ctx, customerName: "Nguyễn Văn Xiêm" }).nameFound, false);
+
+const items = checkMsb([register, supplement, transferCovered], ctx);
+assert.deepEqual(
+  items.map((i) => [i.key, i.verdict, i.photoIndex]),
+  [
+    ["open", "pass", 1],
+    ["home", "pass", 0],
+    ["transfer", "pass", 2],
+  ],
+);
+assert.ok(items.every((i) => i.found === ""), "không đoán giá trị trên ảnh");
+
+const missing = checkMsb([cardDetail], ctx);
+assert.deepEqual(
+  missing.map((i) => [i.verdict, i.issues]),
+  [
+    ["fail", ["Không tìm thấy mã giới thiệu"]],
+    ["fail", ["Không tìm thấy tên khách hàng", "Không tìm thấy số tài khoản"]],
+    ["fail", ["Thiếu ảnh giao dịch thành công"]],
+  ],
+);
+assert.equal(missing[1].note, "Không tìm thấy tên Phan Ngọc Lương trong ảnh. Không tìm thấy số tài khoản 0522514735 trong ảnh.");
+
+const qrOnly = checkMsb([register], { ...ctx, referralCode: "", referralName: "" });
+assert.equal(qrOnly[0].verdict, "pass");
+assert.equal(qrOnly[0].note, "Mã đã chọn không có mã chữ, không so được.");
+
+console.log("MSB: mọi ca đạt.");

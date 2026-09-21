@@ -1,12 +1,13 @@
 /**
  * Đo bộ kiểm ảnh trên N tài khoản thật: dữ liệu hệ thống từ DB local, ảnh từ
- * kho S3, đọc bằng `reader.ts`, chấm bằng `checkTpbank`. Bốn lệnh, chạy từ
- * thư mục `mgst-app`, cần `.env.local` đã `source`:
+ * kho S3, đọc bằng `reader.ts`, chấm bằng bộ nhãn của ngân hàng ghi trong
+ * manifest (`CHECKERS`). Bốn lệnh, chạy từ thư mục `mgst-app`, cần `.env.local`
+ * đã `source`:
  *
- *   bun .claude/skills/ocr-verify/scripts/bench.ts xuat <thư mục> [--n 60] [--bank TPB] [--tu 2026-09-01] [--them id,id]
+ *   bun .claude/skills/ocr-verify/scripts/bench.ts xuat <thư mục> [--n 60] [--bank TPB|MSBa,MSBb] [--tu 2026-09-01] [--them id,id]
  *   bun .claude/skills/ocr-verify/scripts/bench.ts tai  <thư mục>
  *   bun .claude/skills/ocr-verify/scripts/bench.ts doc  <thư mục> <tên lượt>
- *   bun .claude/skills/ocr-verify/scripts/bench.ts so   <thư mục> <lượt A> <lượt B>
+ *   bun .claude/skills/ocr-verify/scripts/bench.ts so   <thư mục> <lượt A|db|-> <lượt B>
  *
  * `xuat` ghi `manifest.json`: mỗi tài khoản có `context` (mã GT, tên, STK),
  * khoá ảnh, và `oldItems` là kết quả lượt kiểm mới nhất trong DB. `--them`
@@ -20,23 +21,43 @@
  * ảnh đã có thì bỏ qua, nên chạy lại chỉ đọc phần thiếu. Đổi model hay sửa
  * `ocr-server.py` thì đặt tên lượt mới. `OCR_PYTHON` trỏ python của venv.
  *
- * `so` chấm cả hai lượt bằng `checkTpbank` HIỆN TẠI rồi in tài khoản đổi kết
- * quả. Lượt A ghi `db` thì lấy `oldItems` trong manifest làm mốc. So luật cũ
- * với luật mới trên cùng chữ: `git show HEAD:...tpbank.ts` ra file tạm, sửa
+ * `so` chấm cả hai lượt bằng bộ nhãn HIỆN TẠI rồi in tài khoản đổi kết
+ * quả. Lượt A ghi `db` thì lấy `oldItems` trong manifest làm mốc; ghi `-` thì
+ * không so, chỉ chấm lượt B và in tài khoản không đạt kèm ghi chú. So luật cũ
+ * với luật mới trên cùng chữ: `git show HEAD:...<bank>.ts` ra file tạm, sửa
  * import ở đây tạm thời, so xong xoá.
  */
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { Client } from "pg";
 import type { PhotoCheckItem } from "../../../../src/lib/api/photoCheck";
-import { checkTpbank, type TpbCheckContext } from "../../../../src/server/ocr/banks/tpbank";
+import { checkMsb } from "../../../../src/server/ocr/banks/msb";
+import { checkTpbank } from "../../../../src/server/ocr/banks/tpbank";
 import { closeOcr, ocrLines } from "../../../../src/server/ocr/reader";
 import { readImage } from "../../../../src/server/storage";
 
+/** Hợp của context mọi ngân hàng; mỗi bộ nhãn chỉ đọc trường nó cần. */
+type BenchContext = {
+  referralCode: string;
+  referralName: string;
+  province: string;
+  supportBranch: string;
+  customerName: string;
+  accountNumber: string;
+  openedDate: string;
+};
+
 type Row = {
   accountId: string;
-  context: TpbCheckContext;
+  bank: string;
+  context: BenchContext;
   photos: string[];
   oldItems: PhotoCheckItem[] | null;
+};
+
+const CHECKERS: Record<string, (texts: string[], ctx: BenchContext) => PhotoCheckItem[]> = {
+  TPB: checkTpbank,
+  MSBa: checkMsb,
+  MSBb: checkMsb,
 };
 
 const [cmd, root, ...rest] = process.argv.slice(2);
@@ -52,7 +73,7 @@ const manifest = async (): Promise<Row[]> => JSON.parse(await readFile(`${root}/
 
 async function xuat() {
   const n = Number(flag("--n", "60"));
-  const bank = flag("--bank", "TPB");
+  const banks = flag("--bank", "TPB").split(",");
   const from = flag("--tu", "2026-09-01");
   const extra = flag("--them", "").split(",").filter(Boolean);
   const client = new Client({ connectionString: process.env.DATABASE_URL });
@@ -62,21 +83,24 @@ async function xuat() {
        (select a.id from bank_accounts a
           join banks b on b.id = a.bank_id
           join referral_codes r on r.id = a.referral_code_id
-        where b.code = $1 and a.status = 'done' and a.account_number is not null and r.code <> ''
+        where b.code = any($1) and a.status = 'done' and a.account_number is not null and r.code <> ''
           and a.created_at >= $2
           and (select count(*) from bank_account_photos p where p.account_id = a.id) between 3 and 6
         order by random() limit $3)
        union select unnest($4::uuid[]))
-     select a.id as "accountId",
-       json_build_object('referralCode', coalesce(r.code, ''), 'customerName', c.full_name,
-                         'accountNumber', coalesce(a.account_number, '')) as context,
+     select a.id as "accountId", b.code as bank,
+       json_build_object('referralCode', coalesce(r.code, ''), 'referralName', coalesce(r.display_name, ''),
+                         'province', coalesce(r.province, ''), 'supportBranch', coalesce(r.support_branch, ''),
+                         'customerName', c.full_name, 'accountNumber', coalesce(a.account_number, ''),
+                         'openedDate', coalesce(a.opened_date::text, '')) as context,
        (select json_agg(p.url order by p.sort_order) from bank_account_photos p where p.account_id = a.id and p.kind = 'opening') as photos,
        (select k.result->'items' from bank_account_checks k
          where k.account_id = a.id and k.status = 'done' order by k.created_at desc limit 1) as "oldItems"
      from pick join bank_accounts a on a.id = pick.id
+       join banks b on b.id = a.bank_id
        join customers c on c.id = a.customer_id
        left join referral_codes r on r.id = a.referral_code_id`,
-    [bank, from, n, extra],
+    [banks, from, n, extra],
   );
   await client.end();
   await mkdir(root, { recursive: true });
@@ -170,7 +194,9 @@ async function itemsOf(run: string, row: Row): Promise<PhotoCheckItem[] | null> 
     if (!lines) return null;
     texts.push(lines.join("\n"));
   }
-  return checkTpbank(texts, row.context);
+  const check = CHECKERS[row.bank];
+  if (!check) throw new Error(`Chưa có bộ nhãn cho ${row.bank} trong CHECKERS.`);
+  return check(texts, row.context);
 }
 
 async function so() {
@@ -180,10 +206,18 @@ async function so() {
   const diffs: string[] = [];
   let n = 0;
   for (const row of await manifest()) {
-    const ia = a === "db" ? row.oldItems : await itemsOf(a, row);
+    const ia = a === "db" ? row.oldItems : a === "-" ? null : await itemsOf(a, row);
     const ib = await itemsOf(b, row);
-    if (!ia || !ib) continue;
+    if (!ib || (!ia && a !== "-")) continue;
     n++;
+    // Lượt A ghi `-`: không có mốc so, chỉ chấm lượt B và liệt kê tài khoản không đạt.
+    if (!ia) {
+      const bad = ib.filter((i) => i.verdict !== "pass");
+      for (const key of KEYS) if (verdictOf(ib, key) === "pass") tally.b[key]++;
+      if (bad.length === 0) tally.b.all++;
+      else diffs.push(`${row.accountId.slice(0, 8)}  ${bad.map((i) => `${i.key}: ${i.verdict}`).join(", ")}\n    ${bad.map((i) => i.note).join(" ")}`);
+      continue;
+    }
     let allA = true;
     let allB = true;
     const changed: string[] = [];

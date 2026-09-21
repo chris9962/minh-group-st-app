@@ -97,7 +97,7 @@ export const isoDate = (v: string): string => v.replace(/(\d{2})\/(\d{2})\/(\d{4
  *
  * So sau khi bỏ dấu, bỏ khoảng trắng, viết hoa: OCR hay mất khoảng trắng
  * giữa các từ và tự thêm dấu. Chấp nhận sai 1 ký tự mỗi 8 ký tự. Dùng cho
- * LPB, MB, MSB; TPBank so đúng từng ký tự ở `banks/tpbank.ts`.
+ * LPB, MB; TPBank và MSB so đúng từng ký tự bằng `lineHasName`.
  */
 export function nameMatches(ocrName: string, expected: string): boolean {
   const a = compact(ocrName);
@@ -112,3 +112,69 @@ export function nameMatches(ocrName: string, expected: string): boolean {
   }
   return false;
 }
+
+/* ── Tìm giá trị hệ thống trong chữ, không dung sai ───────────────────── */
+
+/** Chỉ còn các từ chữ cái viết hoa không dấu, cách nhau một khoảng trắng. */
+export const letterWords = (s: string): string[] =>
+  stripAccents(s).toUpperCase().replace(/[^A-Z]+/g, " ").trim().split(" ").filter(Boolean);
+
+/**
+ * Dòng có chứa đúng tên không: chuỗi chữ cái của tên nằm trong chuỗi chữ cái
+ * của dòng, đúng từng ký tự, phần dư mỗi đầu tối đa 2 chữ cái. Bỏ khoảng
+ * trắng khi so vì OCR hay dính từ: `TO THICAM HON` là `TO THI CAM HON`.
+ * `VW NGUYEN THI NHIEU` khớp `NGUYEN THI NHIEU` (logo và biểu tượng bàn tay
+ * đọc thành chữ), `NGUYEN THI NHIEU HOA` không khớp vì dư `HOA`.
+ *
+ * Lời nhắn chuyển khoản do app tự điền `<tên chủ tài khoản> chuyen tien`
+ * (TPBank 55/55 ảnh bộ nhãn 2026-09-14, MSB cũng vậy), nên tên nối liền
+ * `CHUYENTIEN` cũng tính; nhãn "Nội dung:" đứng trước dài hơn 2 chữ cái nên
+ * phải so riêng. `expected` là `letterWords(tên).join("")`.
+ */
+export function lineHasName(line: string, expected: string): boolean {
+  if (!expected) return false;
+  const letters = letterWords(line).join("");
+  if (letters.includes(expected + "CHUYENTIEN")) return true;
+  if (letters.length < expected.length) return false;
+  for (let at = letters.indexOf(expected); at >= 0; at = letters.indexOf(expected, at + 1)) {
+    if (at <= 2 && letters.length - at - expected.length <= 2) return true;
+  }
+  return false;
+}
+
+/**
+ * Dãy số hệ thống có trong chữ OCR không: đúng từng chữ số và TRỌN dãy, trước
+ * và sau không còn chữ số. Cho khoảng trắng hay xuống dòng giữa các chữ số vì
+ * màn hình chính TPBank in `1000 5476 110`.
+ *
+ * Không so trên chuỗi chữ số của cả ảnh: nhân viên nhập `1000 5476 1` thiếu
+ * hai số vẫn là chuỗi con của `10005476110` trên ảnh và đạt nhầm (tài khoản
+ * 10f75c6d, đo 2026-09-15).
+ */
+export function hasDigits(text: string, expected: string): boolean {
+  if (!expected) return false;
+  return new RegExp(`(?<!\\d)${expected.split("").join("\\s*")}(?!\\d)`).test(text);
+}
+
+/**
+ * Mã giới thiệu so sau khi bỏ dấu, viết hoa, và gộp ký tự dễ nhầm: `O`/`0`,
+ * `I`/`1`, `S`/`5`, `B`/`8`, `Z`/`2`. Không cho sai ký tự: `AT105` và `AT106`
+ * là hai mã của hai người, sai một ký tự là sai người.
+ */
+export const codeKey = (s: string): string =>
+  compact(s).replace(/O/g, "0").replace(/I/g, "1").replace(/S/g, "5").replace(/B/g, "8").replace(/Z/g, "2");
+
+/**
+ * Token chữ-số của một dòng, kèm mỗi cặp token liền nhau ghép lại: OCR đọc
+ * `AT107` trên ảnh chụp lại thành `ATI 07`, ghép hai token là ra mã, còn `I`
+ * thì `codeKey` đã gộp với `1`. Mã MSB có gạch nối `YPHPDVC-5` cũng ra từ
+ * cặp ghép.
+ */
+export function codeTokens(line: string): string[] {
+  const tokens = stripAccents(line).toUpperCase().split(/[^A-Z0-9]+/).filter(Boolean);
+  return tokens.concat(tokens.slice(1).map((next, i) => tokens[i] + next));
+}
+
+/** Dòng nào có mã hệ thống không, `expected` là `codeKey(mã)`. */
+export const linesHaveCode = (lines: string[], expected: string): boolean =>
+  Boolean(expected) && lines.some((line) => codeTokens(line).some((t) => codeKey(t) === expected));

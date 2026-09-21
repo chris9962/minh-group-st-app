@@ -23,7 +23,7 @@ import type { User } from "@/lib/types";
 import { bankManagersFor, notify, notifyUsers } from "./notifications";
 import { checkLpb, type LpbCheckContext } from "./ocr/banks/lpb";
 import { checkMb, type MbCheckContext } from "./ocr/banks/mb";
-import { checkMsb, type MsbCheckContext } from "./ocr/banks/msb";
+import { checkMsbImages, type MsbCheckContext } from "./ocr/banks/msb";
 import { checkTpbankImages, type TpbCheckContext } from "./ocr/banks/tpbank";
 import { ocrLines } from "./ocr/reader";
 import type { CheckedItem } from "./ocr/types";
@@ -43,16 +43,17 @@ import { readImage } from "./storage";
 export const PHOTO_CHECK_CHANNEL = "bank_photo_check";
 
 type PhotoCheckContext = TpbCheckContext &
-  Pick<MsbCheckContext, "referralName" | "supportBranch"> &
-  Pick<MbCheckContext, "province"> &
+  Pick<MsbCheckContext, "referralName"> &
+  Pick<MbCheckContext, "province" | "supportBranch"> &
   Pick<LpbCheckContext, "openedDate">;
 
 type Checker = (images: Buffer[], ctx: PhotoCheckContext) => Promise<CheckedItem[]>;
 
 /**
- * Bộ nhãn nhận ẢNH. TPBank đọc tới khi đủ bốn giá trị thì dừng; các ngân
- * hàng còn lại đọc mọi ảnh rồi chấm trên chữ. Parser MB, MSB, LPB viết cho
- * chữ Tesseract, chưa đo lại trên chữ VietOCR, nên vẫn tắt (`ENABLED_BANKS`).
+ * Bộ nhãn nhận ẢNH. TPBank và MSB đọc tới khi đủ bốn giá trị thì dừng
+ * (`ocr/facts.ts`); các ngân hàng còn lại đọc mọi ảnh rồi chấm trên chữ.
+ * Parser MB, LPB viết cho chữ Tesseract, chưa đo lại trên chữ VietOCR, nên
+ * vẫn tắt (`ENABLED_BANKS`).
  */
 const withDefaultOcr =
   (check: (texts: string[], ctx: PhotoCheckContext) => CheckedItem[]): Checker =>
@@ -64,21 +65,21 @@ const withDefaultOcr =
 
 /** Ngân hàng đã có bộ nhãn, khoá là `banks.code`. Thêm ngân hàng là thêm một dòng. */
 const CHECKERS: Record<string, Checker> = {
-  MSBa: withDefaultOcr(checkMsb),
-  MSBb: withDefaultOcr(checkMsb),
+  MSBa: checkMsbImages,
+  MSBb: checkMsbImages,
   TPB: checkTpbankImages,
   LPB: withDefaultOcr(checkLpb),
   MB: withDefaultOcr(checkMb),
 };
 
 /**
- * Ngân hàng đang BẬT kiểm ảnh. Chỉ TPBank đã đo trên benchmark 62 tài khoản
- * (`.claude/skills/ocr-verify`, 2026-09-19); MB, MSB, LPB còn parser theo màn
- * viết cho chữ Tesseract, chưa đo lại nên tắt (chốt 2026-09-15). Làm xong ngân
- * hàng nào thì thêm mã vào đây; dòng chờ cũ của ngân hàng tắt bị worker xoá
- * lúc khởi động.
+ * Ngân hàng đang BẬT kiểm ảnh: đã đo trên benchmark của `.claude/skills/ocr-verify`
+ * (TPBank 62 tài khoản 2026-09-19, MSB 60 tài khoản 2026-09-21). MB, LPB còn
+ * parser theo màn viết cho chữ Tesseract, chưa đo lại nên tắt (chốt
+ * 2026-09-15). Làm xong ngân hàng nào thì thêm mã vào đây; dòng chờ cũ của
+ * ngân hàng tắt bị worker xoá lúc khởi động.
  */
-const ENABLED_BANKS = ["TPB"];
+const ENABLED_BANKS = ["TPB", "MSBa", "MSBb"];
 
 export const hasPhotoChecker = (bankCode: string): boolean =>
   ENABLED_BANKS.includes(bankCode) && bankCode in CHECKERS;
