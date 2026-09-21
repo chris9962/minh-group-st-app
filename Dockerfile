@@ -185,35 +185,19 @@ WORKDIR /app
 # không lệch dòng. `font-noto` phủ dấu tiếng Việt. Image bot không dính vì nền
 # Ubuntu mang sẵn 50 font.
 #
-# `tesseract-ocr` và gói tiếng Việt để đọc chữ trên ảnh chứng minh tài khoản
-# ngân hàng (src/server/ocr/image.ts). Gói `eng` cho màn hình chính TPBank
-# (`TPB_HOME_PROFILE`): màn đó chỉ có tên viết hoa không dấu và chữ số, model
-# tiếng Anh đọc chữ số đúng hơn. Gói `osd` để dò hướng ảnh chụp nằm ngang.
-RUN apk add --no-cache poppler-utils libwebp-tools tzdata ttf-liberation font-noto \
-  tesseract-ocr tesseract-ocr-data-vie tesseract-ocr-data-eng tesseract-ocr-data-osd
-
-# Model tiếng Việt bản CHÍNH XÁC của Google, 12,4 MB. Gói `tesseract-ocr-data-vie`
-# của Alpine là bản rút gọn và đọc ảnh chụp lại màn hình kém hơn. `image.ts` tự
-# dùng `.tessdata` khi thư mục này có mặt.
-RUN mkdir -p /app/.tessdata \
-  && wget -q -O /app/.tessdata/vie.traineddata \
-    https://github.com/tesseract-ocr/tessdata_best/raw/main/vie.traineddata
-
-# Tesseract mặc định mở nhiều luồng OpenMP cho MỘT ảnh. Đo 2026-09-11 không
-# nhanh hơn một luồng, mà vài ảnh song song là vài chục luồng tranh 4 lõi với
-# app và Postgres. Song song thì làm ở tầng tiến trình, mỗi tiến trình một luồng.
-ENV OMP_THREAD_LIMIT=1
+# Kiểm ảnh chứng minh tài khoản ngân hàng KHÔNG ở đây: worker đó là tầng
+# `photo-check` bên dưới, mang Python OCR.
+RUN apk add --no-cache poppler-utils libwebp-tools tzdata ttf-liberation font-noto
 
 COPY package.json bun.lock ./
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 RUN bun install --frozen-lockfile
 
 # Ba thứ worker cần: schema Drizzle, module PVI, và kho ảnh — tất cả nằm trong
-# `src`. Cộng ba file ở `scripts`: worker PVI, worker kiểm ảnh (chạy bằng
-# `--entrypoint bun`, container riêng), và script thử OCR bằng tay.
+# `src`. Cộng worker PVI ở `scripts`.
 COPY tsconfig.json ./
 COPY src ./src
-COPY scripts/pvi-api-worker.ts scripts/photo-check-worker.ts scripts/ocr-try.ts ./scripts/
+COPY scripts/pvi-api-worker.ts ./scripts/
 
 # `period.ts` dựng mốc hiệu lực bằng giờ CỤC BỘ của tiến trình. Container mặc
 # định chạy UTC nên nó gửi mốc lệch 7 tiếng về quá khứ, và PVI từ chối đơn với
@@ -225,3 +209,63 @@ USER bun
 # ENTRYPOINT chứ không CMD: cờ truyền vào `docker run` đi thẳng tới worker, nên
 # chạy thử một vòng được bằng `docker run mgst-api-worker:latest --mot-vong`.
 ENTRYPOINT ["bun", "scripts/pvi-api-worker.ts"]
+
+# ── Worker kiểm ảnh chứng minh tài khoản ngân hàng ──────────────────────────
+#
+# Tầng RIÊNG: `docker build --target photo-check`, container `mgst-photo-check`,
+# dựng bằng `deploy/worker-photo.sh`. Tách khỏi worker PVI để OCR hỏng không
+# kéo theo tạo đơn bảo hiểm, và vì tầng này nặng: Python + torch + paddle
+# khoảng 1,5 GB, worker PVI không cần.
+#
+# Nền `oven/bun:1-debian` chứ không phải alpine: torch và paddlepaddle chỉ có
+# bánh xe glibc. `bun install` chạy lại trong tầng này vì `sharp` có phần
+# native, bản dựng cho musl ở tầng `api-worker` không chạy trên glibc.
+#
+# OCR là PaddleOCR dò vùng + VietOCR đọc chữ (`scripts/ocr-server.py`), chốt
+# 2026-09-19 thay Tesseract. Model tải LÚC DỰNG vào `/app/.models` để container
+# chạy không cần mạng; VietOCR mặc định tải cả YAML cấu hình lẫn trọng số từ
+# vocr.vn mỗi lần khởi động.
+#
+# ⚠️ Image này KHÔNG chứa `.env.local`. Máy chủ truyền lúc chạy bằng `--env-file`.
+FROM oven/bun:1-debian AS photo-check
+WORKDIR /app
+
+# `libgl1`, `libglib2.0-0`: opencv trong paddleocr cần. `libgomp1`: paddle cần.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends python3 python3-venv libgl1 libglib2.0-0 libgomp1 tzdata \
+  && rm -rf /var/lib/apt/lists/*
+
+# torch lấy từ kho CPU của PyTorch: bản trên PyPI kèm CUDA nặng thêm 700 MB
+# mà máy chủ không có GPU. `setuptools<70` vì `gdown` (vietocr kéo theo) còn
+# import `pkg_resources`.
+RUN python3 -m venv /app/.venv \
+  && /app/.venv/bin/pip install --no-cache-dir "setuptools<70" \
+  && /app/.venv/bin/pip install --no-cache-dir torch==2.14.0 torchvision==0.29.0 \
+       --index-url https://download.pytorch.org/whl/cpu \
+  && /app/.venv/bin/pip install --no-cache-dir paddlepaddle==3.3.1 paddleocr==3.7.0 vietocr==0.3.12
+ENV OCR_PYTHON=/app/.venv/bin/python
+
+ENV PADDLE_PDX_CACHE_HOME=/app/.models/paddlex \
+    PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK=True
+COPY scripts/ocr-server.py ./scripts/
+RUN /app/.venv/bin/python scripts/ocr-server.py --tai-model /app/.models
+ENV OCR_CONFIG=/app/.models/vgg_transformer.yml \
+    OCR_WEIGHTS=/app/.models/vgg_transformer.pth
+
+# Hai luồng cho torch và paddle: container giới hạn 4 lõi, một ảnh một lúc.
+ENV OCR_THREADS=2 OMP_NUM_THREADS=2
+
+COPY package.json bun.lock ./
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+RUN bun install --frozen-lockfile
+
+COPY tsconfig.json ./
+COPY src ./src
+COPY scripts/photo-check-worker.ts scripts/ocr-try.ts ./scripts/
+
+ENV TZ=Asia/Ho_Chi_Minh
+
+RUN chown -R bun:bun /app/.models
+USER bun
+
+ENTRYPOINT ["bun", "scripts/photo-check-worker.ts"]

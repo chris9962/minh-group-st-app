@@ -2,7 +2,7 @@
  * Ghép ảnh thành tấm để KIỂM NHÃN bằng mắt: 4 ảnh một tấm, mỗi ảnh kèm tên
  * file, cắt phần trên màn hình nơi tên và số thường nằm.
  *
- *   bun .claude/skills/ocr-screen-parser/scripts/verify-sheet.ts "<thư mục ảnh>" /tmp/vs \
+ *   bun .claude/skills/ocr-verify/scripts/verify-sheet.ts "<thư mục ảnh>" /tmp/vs \
  *     [--top 0.2] [--photo-top 0.55] [--only photo|shot] [--width 460] [--per 4]
  *
  * Ra các file `/tmp/vs-01.jpg`, `/tmp/vs-02.jpg`, ... Đọc từng tấm bằng `Read`.

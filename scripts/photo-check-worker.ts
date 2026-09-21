@@ -5,21 +5,22 @@
  * với hệ thống rồi ghi kết quả. Kết quả chỉ để gợi ý cho người duyệt, worker
  * không đổi `bank_accounts.status`.
  *
- * Chạy trong container riêng `mgst-photo-check`, cùng image với
- * `mgst-api-worker`, đổi entrypoint. Dựng và thay bằng `deploy/worker-photo.sh`,
- * không gõ tay `docker run`.
+ * Chạy trong container riêng `mgst-photo-check`, image riêng tầng
+ * `photo-check` của Dockerfile (Python OCR, từ 2026-09-19). Dựng và thay bằng
+ * `deploy/worker-photo.sh`, không gõ tay `docker run`.
  *
  * Tách container khỏi worker PVI để OCR hỏng không kéo theo tạo đơn bảo hiểm.
  *
  * Cờ:
  *   --mot-vong   chạy một vòng rồi thoát, để thử tay
  *
- * Tesseract mất khoảng 0,55 giây một lượt trên máy chủ, mỗi ảnh ba lượt chạy
- * song song. `PARALLEL` tài khoản chạy cùng lúc, mỗi tài khoản đọc ảnh tuần
- * tự: 4 × 3 = 12 tiến trình Tesseract là trần, container giới hạn `--cpus 4`.
+ * OCR là MỘT tiến trình Python (`src/server/ocr/reader.ts`), đọc một ảnh một
+ * lúc, khoảng 2 đến 3 giây một ảnh. `PARALLEL` tài khoản chạy cùng lúc chỉ
+ * chồng phần đọc database và tải ảnh từ kho; phần OCR xếp hàng.
  */
 
 import { Client } from "pg";
+import { closeOcr } from "../src/server/ocr/reader";
 import {
   dropDisabledPendingChecks,
   failPhotoCheck,
@@ -32,8 +33,8 @@ import {
 
 const SLEEP_SECONDS = Number(process.env.PHOTO_CHECK_SLEEP ?? 30);
 const BATCH = Number(process.env.PHOTO_CHECK_BATCH ?? 20);
-/** Mỗi tài khoản mở 3 tiến trình Tesseract; 4 tài khoản là 12, trong `--cpus 4`. */
-const PARALLEL = Number(process.env.PHOTO_CHECK_PARALLEL ?? 4);
+/** OCR xếp hàng một ảnh một lúc, nên hơn 2 chỉ tốn kết nối database. */
+const PARALLEL = Number(process.env.PHOTO_CHECK_PARALLEL ?? 2);
 
 const log = (msg: string) => console.log(`[${new Date().toISOString()}] ${msg}`);
 
@@ -190,6 +191,7 @@ async function main() {
     });
   }
   stopListener();
+  await closeOcr();
 }
 
 main()

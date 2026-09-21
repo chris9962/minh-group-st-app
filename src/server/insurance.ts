@@ -33,6 +33,8 @@ import {
   INTAKE_PHOTO_LABEL,
   InsuranceOrderStatus,
   insuranceOrderEditSchema,
+  PVI_MAX_DATE,
+  PVI_MAX_DATE_MESSAGE,
   type InsuranceManualStep,
   type InsuranceOrderForm,
 } from "@/lib/api/insuranceOrders";
@@ -52,6 +54,7 @@ import {
   customers,
   departments,
   giftGrants,
+  insuranceCancelEvents,
   insuranceOrderStatusHistory,
   insuranceOrders,
   insurancePackages,
@@ -431,6 +434,17 @@ const decorate = (page: ReturnType<typeof pickPage>) =>
       intakePhotoUrl: page.intakePhotoUrl,
       intakePhotoBackUrl: page.intakePhotoBackUrl,
       certificateAttempts: page.certificateAttempts,
+      /**
+       * Lượt chuyển sang `awaiting-certificate` GẦN NHẤT. Câu con chạy trên
+       * từng dòng của trang, đi chỉ mục `insurance_history_order`. Trả chuỗi
+       * ISO giây tròn, không trả cột timestamptz: `sql<>` thô không qua phép
+       * đổi kiểu của cột nên mỗi driver ra một dạng chữ khác nhau.
+       */
+      awaitingSince: sql<string | null>`(
+        select to_char(max(h.changed_at) at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
+        from ${insuranceOrderStatusHistory} h
+        where h.order_id = ${page.id} and h.to_status = 'awaiting-certificate'
+      )`,
       pviCertificateUrl: page.pviCertificateUrl,
       pviSerialNumber: page.pviSerialNumber,
       pviPolicyNumber: page.pviPolicyNumber,
@@ -486,6 +500,7 @@ const toRow = (r: DecoratedRow): InsuranceListRow => ({
   // trải `toRow` ra, nên cả danh sách lẫn chi tiết đi qua đây.
   certificatePhotoUrl: r.certificatePhotoUrl ? imageUrl(r.certificatePhotoUrl) : r.certificatePhotoUrl,
   certificateAttempts: r.certificateAttempts,
+  awaitingSince: r.awaitingSince,
   pviRoute: r.pviRoute,
 });
 
@@ -958,6 +973,7 @@ export async function createInsuranceOrders(
       return { ok: false, message: "Ngày kết thúc phải sau ngày bắt đầu" };
     // PVI từ chối ngày bắt đầu đã qua: `-505` xe máy, `-401` tai nạn điện.
     if (leg.startDate < today) return { ok: false, message: "Ngày bắt đầu không được ở quá khứ" };
+    if (leg.endDate > PVI_MAX_DATE) return { ok: false, message: PVI_MAX_DATE_MESSAGE };
     // Ảnh đầu bắt buộc; ảnh thứ hai tùy chọn cho mặt sau CCCD. Giao diện đã
     // khoá nút khi thiếu ảnh đầu, đây là chốt thật ở máy chủ.
     const first = imageKeyOf(leg.intakePhotoUrl);
@@ -1147,6 +1163,7 @@ export async function updateInsuranceOrder(
   // ngày bắt đầu cũ vẫn giữ được.
   if (form.startDate !== current.startDate && form.startDate < today)
     return { ok: false, message: "Ngày bắt đầu không được ở quá khứ" };
+  if (form.endDate > PVI_MAX_DATE) return { ok: false, message: PVI_MAX_DATE_MESSAGE };
 
   /**
    * Lượt sửa cho phép KHÔNG có ảnh hồ sơ: đơn lập trước migration 0073 không có
@@ -1305,7 +1322,7 @@ export async function setInsuranceOrderStatus(
   if (current.status === "awaiting-certificate" && !certificateStuck(current))
     return {
       ok: false,
-      message: "Đơn chưa quá 30 phút chờ giấy chứng nhận, chưa xử lý tay được.",
+      message: "Đơn chưa quá 30 phút chờ GCN, chưa xử lý tay được.",
     };
 
   /**
@@ -1593,6 +1610,35 @@ export async function cancelInsuranceOrder(
 }
 
 /**
+ * Huỷ từ ngần này đơn trong tháng lịch thì form tạo đơn bắt xác nhận lại với
+ * khách trước khi nhập ngày bắt đầu (chốt 2026-09-19). Đếm mọi lượt huỷ, không
+ * phân loại lý do — xem `insurance_cancel_events`.
+ *
+ * Số 4 chọn trên số liệu tháng 9/2026: áp 72 trên 249 người lập đơn, phủ 70%
+ * lượt huỷ. Không tính tỷ lệ: tỷ lệ huỷ của mọi người đều 2 đến 7%, không tách
+ * được ai.
+ */
+export const START_DATE_CONFIRM_THRESHOLD = 4;
+
+/**
+ * Người này có phải xác nhận ngày bắt đầu với khách không. Đọc sổ huỷ của
+ * CHÍNH người gọi từ ngày 1 tháng hiện tại theo giờ Việt Nam. Tháng lịch nên
+ * ngày 1 mọi người về 0 — chốt vậy.
+ */
+export async function mustConfirmStartDate(actor: User): Promise<boolean> {
+  const [row] = await db
+    .select({ n: count() })
+    .from(insuranceCancelEvents)
+    .where(
+      and(
+        eq(insuranceCancelEvents.userId, actor.id),
+        gte(insuranceCancelEvents.cancelledOn, `${businessMonth()}-01`),
+      ),
+    );
+  return (row?.n ?? 0) >= START_DATE_CONFIRM_THRESHOLD;
+}
+
+/**
  * Cấp lại một đơn đã huỷ (chốt 2026-09-03) — lập đơn MỚI thay cho nó.
  *
  * Ca thật: đơn đã hoàn thành mới lộ ra sai biển số hay sai tên người thụ
@@ -1675,6 +1721,7 @@ export async function recreateInsuranceOrder(
   // về Chờ làm tay với mã `-401` mà không ai hiểu vì sao (ca thật 2026-09-06).
   if (form.startDate < today)
     return { ok: false, message: "Ngày bắt đầu không được ở quá khứ" };
+  if (form.endDate > PVI_MAX_DATE) return { ok: false, message: PVI_MAX_DATE_MESSAGE };
 
   // Đơn mới thì bắt buộc có ảnh hồ sơ như lượt tạo. Giao diện điền sẵn ảnh của
   // đơn cũ, người bấm giữ hay đổi tuỳ ý — nhưng không được để trống.

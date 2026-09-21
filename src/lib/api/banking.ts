@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { AccountNumberMethod } from './bankCatalog';
+import { AccountNumberMethod, ReferralCode } from './bankCatalog';
 import { AccountType, BankAccount, BankAccountStatus } from './bankAccounts';
 import { pageOf, pageParams, type Page, type PageQuery } from './pagination';
 import { PhotoCheck, type PhotoCheckFilter } from './photoCheck';
@@ -69,6 +69,8 @@ export type BankAccountStatusStep = z.infer<typeof BankAccountStatusStep>;
 export const BankAccountDetail = BankAccountRow.extend({
   /** Id ngân hàng — màn chi tiết hỏi `canManageBank` để quyết có bày nút Duyệt. */
   bankId: z.string(),
+  /** Id mã đang gắn, để hộp "Đổi mã giới thiệu" loại nó khỏi ô chọn. */
+  referralCodeId: z.string(),
   channelDetail: z.string(),
   accountType: AccountType,
   note: z.string(),
@@ -317,6 +319,34 @@ export async function markBankAccountError(
   if (!res.ok) {
     const detail = (await res.json().catch(() => null)) as { message?: string } | null;
     throw new Error(detail?.message?.trim() || 'Không đánh dấu lỗi được tài khoản này');
+  }
+  return BankAccount.parse(await res.json());
+}
+
+/** Mã đổi được cho một tài khoản: cùng ngân hàng, cùng loại, đúng phòng của tài khoản, còn chỗ. */
+export async function fetchUsableCodesForAccount(bankId: string, accountId: string): Promise<ReferralCode[]> {
+  const res = await fetch(`/api/settings/banks/${bankId}/accounts/${accountId}/referral-code`);
+  if (!res.ok) throw new Error('Không tải được mã giới thiệu còn chỗ');
+  return z.array(ReferralCode).parse(await res.json());
+}
+
+/**
+ * Đổi mã giới thiệu của một tài khoản từ trang chi tiết ngân hàng. Gác bằng
+ * quyền quản ngân hàng như `markBankAccountError`.
+ */
+export async function changeBankAccountReferralCode(
+  bankId: string,
+  accountId: string,
+  referralCodeId: string,
+): Promise<BankAccount> {
+  const res = await fetch(`/api/settings/banks/${bankId}/accounts/${accountId}/referral-code`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ referralCodeId }),
+  });
+  if (!res.ok) {
+    const detail = (await res.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(detail?.message?.trim() || 'Không đổi được mã giới thiệu');
   }
   return BankAccount.parse(await res.json());
 }

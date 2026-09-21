@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { use, useCallback, useEffect, useRef, useState } from "react";
 import { Ban, CheckCircle2, Download, ExternalLink, FileText, History, ImagePlus, Pencil, RotateCcw, ShieldCheck, X } from "lucide-react";
+import { CertificateWait } from "@/components/insurance/CertificateWait";
 import { InsuranceCancelDialog } from "@/components/insurance/InsuranceCancelDialog";
 import { InsuranceOrderEditDialog } from "@/components/insurance/InsuranceOrderEditDialog";
 import { BackLink } from "@/components/ui/BackLink";
@@ -315,6 +316,20 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
   /** Đơn BOT quá ngưỡng thì người đính ảnh rồi bấm hoàn thành; đơn API thì không. */
   const manualCertificateAllowed = needsCertificateHelp && data?.pviRoute !== "api";
 
+  /**
+   * Nút Sửa đơn, cùng điều kiện với nút bút chì ngoài bảng: quyền `update` KẸP
+   * phạm vi bản ghi. Giấu thêm ở trạng thái máy chủ từ chối (`done`,
+   * `cancelled`, đơn PVI đã nhận) để người dùng không bấm hỏng.
+   */
+  const canEditOrder = Boolean(
+    data &&
+      !lockedByPvi &&
+      data.status !== "done" &&
+      data.status !== "cancelled" &&
+      can(actor, "insurance", "update") &&
+      recordInScope(recordVisibility(actor, "insurance", "update"), data),
+  );
+
   const canAttachPhoto = Boolean(
     data &&
       !lockedByPvi &&
@@ -387,6 +402,7 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
   const [overrideTo, setOverrideTo] = useState<string>("");
   const [cancelOpen, setCancelOpen] = useState(false);
   const [recreateOpen, setRecreateOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   /**
    * Ô chọn khởi điểm ở ĐÚNG trạng thái đơn đang mang, không phải một dòng trống.
    *
@@ -431,7 +447,18 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
         {isError && <ErrorState what="đơn bảo hiểm này" onRetry={refetch} retrying={isFetching} />}
 
         {data && (
-          <SectionCard title="Chi tiết đơn bảo hiểm" icon={<ShieldCheck size={17} />}>
+          <SectionCard
+            title="Chi tiết đơn bảo hiểm"
+            icon={<ShieldCheck size={17} />}
+            action={
+              canEditOrder ? (
+                <Button variant="secondary" onClick={() => setEditOpen(true)}>
+                  <Pencil size={16} aria-hidden />
+                  Sửa đơn
+                </Button>
+              ) : undefined
+            }
+          >
             {cancellationReason && (
               <Alert tone="warning">
                 <strong>Lý do huỷ đơn: </strong>
@@ -472,7 +499,8 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                     data.status === "awaiting-certificate") && (
                   <p className={styles.serialInline}>
                     <span className={styles.serialLabel}>Mã GD</span>
-                    {data.id}
+                    {/* Rút gọn để đọc: uuid 36 ký tự không ai đọc tay, nút chép vẫn lấy đủ. */}
+                    {`${data.id.slice(0, 4)}…${data.id.slice(-4)}`}
                     <CopyButton value={data.id} label={`mã giao dịch PVI: ${data.id}`} quiet />
                   </p>
                 )}
@@ -501,7 +529,7 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                     {data.pviPolicyGcn}
                     <CopyButton
                       value={data.pviPolicyGcn}
-                      label={`số giấy chứng nhận: ${data.pviPolicyGcn}`}
+                      label={`số GCN: ${data.pviPolicyGcn}`}
                       quiet
                     />
                   </p>
@@ -509,6 +537,12 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                 <StatusTag tone={INSURANCE_STATUS_TONE[data.status]}>
                   {INSURANCE_STATUS_LABEL[data.status]}
                 </StatusTag>
+                {data.status === "awaiting-certificate" && data.awaitingSince && (
+                  <p className={styles.serialInline}>
+                    <span className={styles.serialLabel}>Đã đợi</span>
+                    <CertificateWait since={data.awaitingSince} />
+                  </p>
+                )}
                 {/* Bot đã thôi hỏi PVI. Không nói ra thì dòng này trông y hệt
                     đơn vừa duyệt xong và đang đợi bình thường. */}
                 {certificateNeedsHelp(data.status, data.certificateAttempts) && (
@@ -625,7 +659,7 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                     rel="noreferrer"
                   >
                     <FileText size={16} aria-hidden />
-                    Giấy chứng nhận điện tử (PDF)
+                    GCN điện tử (PDF)
                     <ExternalLink size={14} aria-hidden />
                   </a>
                 )}
@@ -860,7 +894,7 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                       {!hasPhoto && (
                         <p className={`text-muted ${styles.actionsNote}`}>
                           {manualCertificateAllowed
-                            ? "Tải giấy chứng nhận từ PVI về rồi đính vào đây trước khi đánh dấu hoàn thành."
+                            ? "Tải GCN từ PVI về rồi đính vào đây trước khi đánh dấu hoàn thành."
                             : "Phải đính ảnh chứng nhận bảo hiểm trước khi đánh dấu hoàn thành."}
                         </p>
                       )}
@@ -968,6 +1002,10 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
 
       {zoomed && (
         <ImageLightbox src={zoomed.src} alt={zoomed.alt} onClose={() => setZoomed(null)} />
+      )}
+
+      {data && editOpen && (
+        <InsuranceOrderEditDialog open orderId={data.id} onClose={() => setEditOpen(false)} />
       )}
 
       {data && recreateOpen && (

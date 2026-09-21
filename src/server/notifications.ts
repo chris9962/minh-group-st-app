@@ -182,6 +182,29 @@ export async function notifyUsers(
 }
 
 /**
+ * Mọi nhân viên đang hoạt động CÒN BẬT loại này — cho loại gửi toàn công ty
+ * mà vẫn có công tắc, như `code-cnkd`. Khác `notifyEveryone`: hàm đó bỏ qua
+ * công tắc vì `announcement` không cho tắt.
+ *
+ * Câu con `coalesce` cùng luật với `recipientsFor`: không có dòng là BẬT.
+ */
+export async function everyoneWanting(kind: NotificationKind): Promise<string[]> {
+  const rows = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(
+      and(
+        eq(users.active, true),
+        sql`coalesce((
+          select p.enabled from notification_prefs p
+          where p.user_id = ${users.id} and p.kind = ${kind}
+        ), true)`,
+      ),
+    );
+  return rows.map((r) => r.id);
+}
+
+/**
  * Gửi cho MỌI nhân viên đang hoạt động. Dùng cho thông báo chung của công ty.
  *
  * ⚠️ KHÔNG hỏi `notification_prefs`, và đó là chủ ý. Loại `announcement` không

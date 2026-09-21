@@ -67,7 +67,7 @@ export const INSURANCE_STATUS_LABEL: Record<InsuranceOrderStatus, string> = {
   'pending-approval': 'Chờ duyệt',
   'manual-queued': 'Chờ làm tay',
   'manual-progress': 'Đang làm tay',
-  'awaiting-certificate': 'Đợi giấy chứng nhận',
+  'awaiting-certificate': 'Đợi GCN',
   done: 'Hoàn thành',
   cancelled: 'Huỷ đơn',
 };
@@ -131,7 +131,7 @@ export const certificateNeedsHelp = (
 ): boolean => status === 'awaiting-certificate' && attempts >= CERTIFICATE_MAX_ATTEMPTS;
 
 export const CERTIFICATE_HELP_MESSAGE =
-  'Đã quá 30 phút chưa có giấy chứng nhận, vui lòng liên hệ đơn vị cấp đơn.';
+  'Đã quá 30 phút chưa có GCN, vui lòng liên hệ đơn vị cấp đơn.';
 
 /**
  * Hai bước người xử lý tay bấm được ở P-14 (spec §3.5, §9.2).
@@ -371,3 +371,18 @@ export const yearsLater = (date: string, years: number): string => {
 };
 
 export const oneYearLater = (date: string): string => yearsLater(date, 1);
+
+/**
+ * PVI lưu ngày hiệu lực vào cột `smalldatetime`, chỉ nhận tới 06/06/2079 và từ
+ * chối CẢ ĐƠN với lỗi "out-of-range value" (ca thật 2026-09-20: nhân viên gõ
+ * ngày bắt đầu năm 2079, ngày kết thúc thành 2080).
+ *
+ * Chốt ở ngày KẾT THÚC vì đó là ngày xa hơn. Chốt mỗi ngày bắt đầu thì đơn 3
+ * năm bắt đầu 2079 vẫn kết thúc 2082 và PVI vẫn từ chối.
+ */
+export const PVI_MAX_DATE = "2079-06-06";
+
+export const PVI_MAX_DATE_MESSAGE = "Ngày kết thúc không được sau 06/06/2079";
+
+/** Ngày bắt đầu xa nhất để đơn `years` năm còn kết thúc trong mốc PVI. */
+export const latestStartDate = (years: number): string => yearsLater(PVI_MAX_DATE, -years);

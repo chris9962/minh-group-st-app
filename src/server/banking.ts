@@ -29,9 +29,10 @@ import type {
   PhotoKind,
 } from "@/lib/api/bankAccounts";
 import type { BankAccountDetail, BankAccountRow, BankAccountSort } from "@/lib/api/banking";
+import type { ReferralCode } from "@/lib/api/bankCatalog";
 import type { Page } from "@/lib/api/pagination";
 import type { BankPhoto, BankPhotoRow } from "@/lib/api/bankPhotos";
-import { ageRangeLabel, businessDay, businessMonth, digitsOnly } from "@/lib/format";
+import { BUSINESS_TIMEZONE, ageRangeLabel, businessDay, businessMonth, digitsOnly } from "@/lib/format";
 import {
   canDeleteFinished,
   canManageBank,
@@ -64,6 +65,7 @@ import { accountCustomerDayBetween } from "./customerDay";
 import { recomputeGiftCase } from "./gift";
 import { recomputeKpiForCustomer } from "./kpi";
 import type { PageArgs } from "./pagination";
+import { listOpenReferralCodes } from "./catalog";
 import { enqueuePhotoCheck, latestPhotoCheck, photoCheckFilter, toPhotoCheck } from "./photoCheck";
 import { imageUrl } from "./storage";
 
@@ -782,6 +784,7 @@ export async function listBankAccounts(
 export type BankOfBankFilters = {
   /** Tìm theo TÊN KHÁCH — không dấu, không phụ thuộc thứ tự từ. */
   search: string;
+  /** Khoảng NGÀY MỞ tài khoản, khác P-20 lọc theo ngày hồ sơ khách. */
   from: string;
   to: string;
   status: string;
@@ -796,6 +799,23 @@ export type BankOfBankFilters = {
   photoCheck: string;
 };
 
+/**
+ * Ngày MỞ tài khoản trong `[from, to]`, hai đầu đóng (chốt 2026-09-20). Trang
+ * chi tiết ngân hàng đối chiếu với sổ của ngân hàng, nên lọc theo ngày của
+ * chính tài khoản; lọc theo ngày hồ sơ khách như P-20 thì khách lập hôm trước,
+ * hôm sau mở thêm tài khoản vẫn lọt vào ngày trước. Bản nháp `creating` chưa
+ * có ngày mở thì lấy ngày tạo theo giờ Việt Nam.
+ */
+const accountOpenedDayBetween = (from: string, to: string): SQL =>
+  or(
+    and(gte(bankAccounts.openedDate, from), lte(bankAccounts.openedDate, to)),
+    and(
+      sql`${bankAccounts.openedDate} is null`,
+      sql`${bankAccounts.createdAt} >= ((${from}::date)::timestamp at time zone ${BUSINESS_TIMEZONE})`,
+      sql`${bankAccounts.createdAt} < ((${to}::date + 1)::timestamp at time zone ${BUSINESS_TIMEZONE})`,
+    ),
+  ) as SQL;
+
 /** Bảng trên màn và file Excel dùng CHUNG điều kiện này — hai bản là hai kết quả. */
 const bankAccountsOfBankWhere = (bankId: string, filters: BankOfBankFilters): SQL =>
   and(
@@ -803,7 +823,7 @@ const bankAccountsOfBankWhere = (bankId: string, filters: BankOfBankFilters): SQ
     ...([
       searchWhere(filters.search),
       usableDate(filters.from) || usableDate(filters.to)
-        ? accountCustomerDayBetween(
+        ? accountOpenedDayBetween(
             usableDate(filters.from) ? filters.from : "1970-01-01",
             usableDate(filters.to) ? filters.to : "9999-12-31",
           )
@@ -1197,6 +1217,7 @@ async function detailBody(r: DecoratedRow): Promise<BankAccountDetail> {
   return {
     ...toRow(r),
     bankId: r.bankId,
+    referralCodeId: r.referralCodeId,
     channelDetail: r.channelDetail,
     accountType,
     note: r.note,
@@ -1963,6 +1984,85 @@ export async function markAccountErrorByBankManager(
   if (current.date) await recomputeKpiForCustomer(current.customerId);
 
   await baoChuTaiKhoan(current, "bank-error", "Tài khoản bị đánh lỗi", errorNote);
+
+  return { ok: true, value: (await accountById(id))! };
+}
+
+/**
+ * Đổi mã giới thiệu của một tài khoản từ trang chi tiết ngân hàng (chốt
+ * 2026-09-20). Nhân viên chọn nhầm mã lúc mở trong khi ảnh in mã khác; bản
+ * trước phải sửa thẳng database (10 tài khoản AT108 sang AT107, 2026-09-20).
+ *
+ * Mã mới đi qua đúng `lockUsableCode` của lượt giữ chỗ: cùng ngân hàng, cùng
+ * loại tài khoản, đang dùng, đúng phòng của tài khoản, còn chỗ. Trigger
+ * `mgst_sync_referral_counts` tự trừ mã cũ cộng mã mới trong cùng lệnh, không
+ * cộng trừ tay. Mọi trạng thái đều đổi được. Ảnh kiểm lại vì mục mã giới thiệu
+ * so với mã mới.
+ *
+ * Chốt quyền `canManageBank` như `markAccountErrorByBankManager`.
+ */
+/**
+ * Mã đổi được cho một tài khoản: nguồn của ô chọn trong hộp "Đổi mã giới
+ * thiệu". Lọc theo phòng và loại của CHÍNH tài khoản, không theo người đang
+ * bấm: người quản ngân hàng đổi mã cho tài khoản của nhân viên phòng khác.
+ * Cùng hàm với ô chọn lúc mở tài khoản, nên hai chỗ không lệch luật.
+ */
+export async function usableCodesForAccount(actor: User, id: string): Promise<ReferralCode[] | null> {
+  const current = await rawById(id);
+  if (!current) return null;
+  if (!canManageBank(actor, current.bankId)) return null;
+  return listOpenReferralCodes(current.bankId, current.createdByDepartmentId ?? "", accountTypeOf(current));
+}
+
+export async function changeReferralCodeByBankManager(
+  actor: User,
+  id: string,
+  referralCodeId: string,
+): Promise<BankingOutcome<BankAccount> | null> {
+  const current = await rawById(id);
+  if (!current) return null;
+  if (!canManageBank(actor, current.bankId)) return null;
+  if (current.referralCodeId === referralCodeId)
+    return { ok: false, message: "Tài khoản đang dùng đúng mã này." };
+
+  const outcome = await db.transaction(async (tx): Promise<BankingOutcome<null>> => {
+    const lock = await lockUsableCode(
+      tx,
+      referralCodeId,
+      current.bankId,
+      accountTypeOf(current),
+      current.createdByDepartmentId,
+    );
+    if (!lock.ok) return lock;
+
+    const [target] = await tx
+      .select({ displayName: referralCodes.displayName })
+      .from(referralCodes)
+      .where(eq(referralCodes.id, referralCodeId))
+      .limit(1);
+
+    // Điều kiện `referral_code_id` cũ: hai người quản cùng đổi thì người sau
+    // thấy 0 dòng, không ghi đè lượt trước.
+    const rows = await tx
+      .update(bankAccounts)
+      .set({ referralCodeId, updatedAt: sql`statement_timestamp()` })
+      .where(and(eq(bankAccounts.id, id), eq(bankAccounts.referralCodeId, current.referralCodeId)))
+      .returning({ changedAt: bankAccounts.updatedAt });
+    if (rows.length === 0) return { ok: false, message: "Mã của tài khoản vừa được đổi ở nơi khác." };
+
+    await tx.insert(bankAccountStatusHistory).values({
+      accountId: id,
+      fromStatus: current.status,
+      toStatus: current.status,
+      changedBy: actor.id,
+      changedByName: actor.fullName,
+      note: `Đổi mã giới thiệu ${current.referralCode} sang ${target?.displayName ?? lock.code.code ?? ""}`,
+      changedAt: rows[0].changedAt!,
+    });
+    await enqueuePhotoCheck(tx, id);
+    return { ok: true, value: null };
+  });
+  if (!outcome.ok) return outcome;
 
   return { ok: true, value: (await accountById(id))! };
 }

@@ -21,6 +21,7 @@ export const NotificationKind = z.enum([
   'bank-photo-review',
   'bank-deleted',
   'release',
+  'code-cnkd',
 ]);
 export type NotificationKind = z.infer<typeof NotificationKind>;
 
@@ -49,6 +50,7 @@ export const NOTIFICATION_KINDS: SwitchableKind[] = [
   'bank-photo-fail',
   'bank-photo-review',
   'bank-deleted',
+  'code-cnkd',
 ];
 
 /**
@@ -67,7 +69,7 @@ export type SwitchableKind = Exclude<NotificationKind, 'announcement' | 'release
 /** Nhãn của CÔNG TẮC. Chỉ dùng ở danh sách công tắc trong trang cá nhân. */
 export const NOTIFICATION_KIND_LABEL: Record<SwitchableKind, string> = {
   'order-manual': 'Đơn chuyển sang làm tay',
-  'order-done': 'Đơn đã có giấy chứng nhận',
+  'order-done': 'Đơn đã có GCN',
   'bank-error': 'Tài khoản của tôi bị đánh lỗi',
   'bank-pending': 'Tài khoản chờ duyệt lại',
   'bank-approved': 'Tài khoản của tôi được duyệt',
@@ -75,6 +77,7 @@ export const NOTIFICATION_KIND_LABEL: Record<SwitchableKind, string> = {
   'bank-photo-review': 'Tài khoản không đạt xác thực ảnh',
   'bank-deleted': 'Tài khoản đang tạo của tôi bị xoá',
   'code-low': 'Kho mã giới thiệu sắp hết',
+  'code-cnkd': 'Có mã giới thiệu CNKD mới',
 };
 
 /**
@@ -110,6 +113,8 @@ export const NOTIFICATION_KIND_ICON: Record<NotificationKind, NavIconKey> = {
   'bank-photo-review': 'banking',
   'bank-deleted': 'banking',
   'code-low': 'banking',
+  /** Mã CNKD là mã giới thiệu ngân hàng, người nhận là mọi nhân viên mở tài khoản. */
+  'code-cnkd': 'banking',
   /** Toà nhà, cùng icon với màn Cơ cấu tổ chức: tin này của cả công ty. */
   announcement: 'org',
   /** Cùng icon với Hướng dẫn: bản cập nhật cũng là bài đọc về app. */
@@ -152,6 +157,7 @@ export const ALL_ON: Record<NotificationKind, boolean> = {
   'bank-photo-review': true,
   'bank-deleted': true,
   'code-low': true,
+  'code-cnkd': true,
   announcement: true,
   release: true,
 };

@@ -27,6 +27,7 @@ import {
 import {
   INTAKE_PHOTO_LABEL,
   insuranceOrderEditSchema,
+  latestStartDate,
   yearsLater,
   type InsuranceOrderEditForm,
 } from "@/lib/api/insuranceOrders";
@@ -263,6 +264,7 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId, mode = "edit"
               error={errors.startDate?.message}
               value={form.watch("startDate")}
               onChange={changeStartDate}
+              max={latestStartDate(orderYears())}
             />
             <DateField
               label="Ngày kết thúc"

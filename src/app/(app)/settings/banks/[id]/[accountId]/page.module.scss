@@ -23,6 +23,19 @@
   margin: 2px 0 0;
 }
 
+.codeRow dt {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 36px;
+}
+
+.codeEdit,
+.codeEdit:hover,
+.codeEdit:active {
+  color: var(--om-text-2);
+}
+
 @media (max-width: bp.$bp-mobile) {
   .body {
     padding: 16px 16px 32px;

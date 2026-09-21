@@ -5,7 +5,7 @@ import { PhotoCheckPanel } from "@/components/banking/PhotoCheckPanel";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { use, useState } from "react";
-import { Check, Landmark, Trash2, TriangleAlert } from "lucide-react";
+import { Check, Landmark, Pencil, Trash2, TriangleAlert } from "lucide-react";
 import { RequirePermission } from "@/components/layout/RequirePermission";
 import { TopBar } from "@/components/layout/TopBar";
 import { BankAccountPhotos, savedPhotos } from "@/components/banking/BankAccountPhotos";
@@ -16,6 +16,7 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Dialog } from "@/components/ui/Dialog";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { SectionCard } from "@/components/ui/SectionCard";
+import { Select } from "@/components/ui/Select";
 import { SkeletonCard } from "@/components/ui/Skeleton";
 import { StatusTag } from "@/components/ui/StatusTag";
 import { TextArea } from "@/components/ui/TextArea";
@@ -27,8 +28,10 @@ import {
   type AccountType,
 } from "@/lib/api/bankAccounts";
 import {
+  changeBankAccountReferralCode,
   deleteBankAccountOfBank,
   fetchBankAccountOfBank,
+  fetchUsableCodesForAccount,
   markBankAccountError,
 } from "@/lib/api/banking";
 import { formatDate, formatPhone } from "@/lib/format";
@@ -76,6 +79,8 @@ export default function BankAccountOfBankPage({
   const [markingError, setMarkingError] = useState(false);
   const [errorNote, setErrorNote] = useState("");
   const [removing, setRemoving] = useState(false);
+  const [changingCode, setChangingCode] = useState(false);
+  const [pickedCode, setPickedCode] = useState("");
 
   const refreshAfterChange = () => {
     queryClient.invalidateQueries({ queryKey: ["bank-account-of-bank", id, accountId] });
@@ -112,6 +117,26 @@ export default function BankAccountOfBankPage({
       toast.ok(confirmed ? "Đã xác nhận ảnh đạt" : "Đã bỏ xác nhận");
     },
     onError: (e) => toast.fail(errorMessage(e, "Không ghi được xác nhận ảnh.")),
+  });
+
+  // Chỉ tải khi mở hộp: danh sách mã còn chỗ đổi theo từng phút, đọc sẵn lúc
+  // vào trang là hiện số cũ.
+  const usableCodes = useQuery({
+    queryKey: ["usable-codes-for-account", id, accountId],
+    queryFn: () => fetchUsableCodesForAccount(id, accountId),
+    enabled: changingCode,
+  });
+
+  const changeCode = useMutation({
+    mutationFn: () => changeBankAccountReferralCode(id, accountId, pickedCode),
+    onSuccess: () => {
+      setChangingCode(false);
+      setPickedCode("");
+      refreshAfterChange();
+      queryClient.invalidateQueries({ queryKey: ["referral-codes"] });
+      toast.ok("Đã đổi mã giới thiệu, ảnh sẽ được kiểm lại");
+    },
+    onError: (e) => toast.fail(errorMessage(e, "Không đổi được mã giới thiệu.")),
   });
 
   // Trang chi tiết biến mất theo tài khoản, nên xoá xong quay về bảng của
@@ -198,8 +223,20 @@ export default function BankAccountOfBankPage({
                 <dt>STK</dt>
                 <dd className="tabular-nums">{formatPhone(data.accountNumber) || "—"}</dd>
               </div>
-              <div>
-                <dt>Mã giới thiệu</dt>
+              <div className={styles.codeRow}>
+                <dt>
+                  <span>Mã giới thiệu</span>
+                  <Button
+                    variant="ghost"
+                    icon
+                    className={styles.codeEdit}
+                    tooltip="Đổi mã giới thiệu"
+                    aria-label="Đổi mã giới thiệu"
+                    onClick={() => setChangingCode(true)}
+                  >
+                    <Pencil size={15} aria-hidden />
+                  </Button>
+                </dt>
                 <dd>{data.referralCode}</dd>
               </div>
               <div>
@@ -315,6 +352,55 @@ export default function BankAccountOfBankPage({
             Tài khoản <strong>{data.bankCode}</strong> của {data.customerName}. Lý do đánh dấu
             lỗi trước đó: {data.errorNote || "không ghi"}.
           </ConfirmDialog>
+        )}
+
+        {changingCode && data && (
+          <Dialog
+            open
+            title="Đổi mã giới thiệu"
+            onClose={() => !changeCode.isPending && setChangingCode(false)}
+            footer={
+              <>
+                <Button
+                  variant="secondary"
+                  onClick={() => setChangingCode(false)}
+                  disabled={changeCode.isPending}
+                >
+                  Huỷ
+                </Button>
+                <Button
+                  disabled={changeCode.isPending || !pickedCode}
+                  onClick={() => changeCode.mutate()}
+                >
+                  Đổi mã
+                </Button>
+              </>
+            }
+          >
+            <p>
+              Mã hiện tại: <strong>{data.referralCode}</strong>. Mã cũ được trả lại một chỗ, mã mới
+              tiêu một chỗ. Ảnh chứng minh được kiểm lại theo mã mới.
+            </p>
+            <Select
+              block
+              label="Mã mới"
+              required
+              value={pickedCode}
+              onChange={setPickedCode}
+              options={
+                !usableCodes.data || usableCodes.data.length === 0
+                  ? [{ value: "", label: usableCodes.isPending ? "— Đang tải mã —" : "— Hết mã —" }]
+                  : [{ value: "", label: "— Chọn mã —" }].concat(
+                      usableCodes.data
+                        .filter((c) => c.id !== data.referralCodeId)
+                        .map((c) => ({
+                          value: c.id,
+                          label: `${c.displayName || c.code}${c.code && (c.displayName || c.code) !== c.code ? ` — ${c.code}` : ""}${c.province ? ` · ${c.province}` : ""} · còn ${c.total - c.used - c.holding} chỗ`,
+                        })),
+                    )
+              }
+            />
+          </Dialog>
         )}
 
         {markingError && data && (

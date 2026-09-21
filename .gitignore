@@ -85,5 +85,3 @@ __pycache__/
 # máy chủ production cùng tên file khoá SSH, và câu lệnh trong đó XOÁ dữ liệu.
 /loadtest
 
-# Model Tesseract tải tay để đo, 13 MB. Chưa dùng trong code.
-/.tessdata/

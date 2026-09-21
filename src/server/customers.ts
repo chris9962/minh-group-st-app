@@ -696,6 +696,7 @@ async function customerById(id: string, actor: User): Promise<Customer | null> {
       channel: sql<string>`coalesce(${channels.name}, '')`,
       channelDetail: customers.channelDetail,
       createdAt: createdDayText,
+      createdInstant: customers.createdAt,
       giftDay: giftDayText,
       createdById: customers.createdBy,
       createdByDepartmentId: customers.createdByDepartmentId,

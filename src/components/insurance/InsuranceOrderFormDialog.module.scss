@@ -97,6 +97,17 @@
   font-weight: 600;
 }
 
+.confirmAsk {
+  margin: 0;
+  color: var(--om-text);
+  line-height: 1.55;
+}
+
+// Ô trong lưới `.pair`; thiếu `min-width: 0` là ô ngày kéo cột rộng ra.
+.startDateGuard {
+  min-width: 0;
+}
+
 .reviewNameWarning {
   display: block;
   margin-top: var(--space-1);

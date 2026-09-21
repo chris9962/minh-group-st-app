@@ -74,6 +74,13 @@ export const InsuranceListRow = z.object({
    */
   certificateAttempts: z.number().default(0),
   /**
+   * Mốc đơn chuyển sang `awaiting-certificate` lần gần nhất, ISO UTC; `null`
+   * khi chưa từng qua trạng thái đó. Màn hình trừ với giờ máy để hiện đơn đã
+   * đợi bao lâu (chốt 2026-09-19). Chỉ có nghĩa khi `status` đang là trạng
+   * thái này.
+   */
+  awaitingSince: z.string().nullable().default(null),
+  /**
    * Đường đi của đơn: `api`, `bot`, hoặc rỗng khi làm tay. Bảng P-13 đọc để
    * giấu nút Sửa và Xoá với đơn đường API đã gửi PVI (chốt 2026-09-07).
    */
@@ -399,6 +406,21 @@ export async function cancelInsuranceOrder(
   });
   if (!res.ok) throw await failure(res, 'Không huỷ được đơn này');
   return InsuranceDetail.parse(await res.json());
+}
+
+const StartDateConfirm = z.object({ required: z.boolean() });
+
+/**
+ * Người đang đăng nhập có phải xác nhận ngày bắt đầu với khách trước khi nhập
+ * không (chốt 2026-09-19) — máy chủ đếm số đơn họ huỷ trong tháng.
+ *
+ * Hỏng thì coi như KHÔNG bắt: form vẫn dùng được, luật này chỉ thêm một bước
+ * hỏi, không phải phân quyền.
+ */
+export async function fetchStartDateConfirm(): Promise<boolean> {
+  const res = await fetch('/api/insurance-orders/start-date-confirm');
+  if (!res.ok) return false;
+  return StartDateConfirm.parse(await res.json()).required;
 }
 
 /** Đính/thay ảnh chứng nhận — dùng được ở MỌI trạng thái đơn (spec §3.4). */
