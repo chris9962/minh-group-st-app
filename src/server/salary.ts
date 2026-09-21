@@ -364,6 +364,10 @@ export async function salaryForUsers(
       const managementPoints = 3 * reached;
       const managementPay = managementPoints * 150_000;
       const branchBonus = deputyDirectorBranchBonus(totalPoints);
+      // Ba bậc của thưởng nhánh, cùng mốc với `deputyDirectorBranchBonus`.
+      const branchTier1 = roundPoints(Math.min(Math.max(totalPoints, 0), 10_000));
+      const branchTier2 = roundPoints(Math.min(Math.max(totalPoints - 10_000, 0), 5_000));
+      const branchTier3 = roundPoints(Math.max(totalPoints - 15_000, 0));
       const dailySupport = DEPUTY_DIRECTOR_DAYS * DAILY_SUPPORT;
       result.set(subject.id, {
         amount: Math.max(0, Math.round(managementPay + branchBonus + dailySupport)),
@@ -381,9 +385,19 @@ export async function salaryForUsers(
             amount: managementPay,
           },
           {
-            label: "Thưởng tổng điểm nhánh",
-            formula: `${formatPoints(roundPoints(totalPoints))} điểm - lũy tiến 2.000đ, 3.000đ, 4.000đ`,
-            amount: branchBonus,
+            label: "Thưởng nhánh mốc 1",
+            formula: `${formatPoints(branchTier1)} điểm × 2.000đ`,
+            amount: branchTier1 * 2_000,
+          },
+          {
+            label: "Thưởng nhánh mốc 2",
+            formula: `${formatPoints(branchTier2)} điểm × 3.000đ`,
+            amount: branchTier2 * 3_000,
+          },
+          {
+            label: "Thưởng nhánh mốc 3",
+            formula: `${formatPoints(branchTier3)} điểm × 4.000đ`,
+            amount: branchTier3 * 4_000,
           },
           {
             label: "Hỗ trợ ăn ca",
