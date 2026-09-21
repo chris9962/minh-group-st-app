@@ -17,12 +17,24 @@ Ba tầng, mỗi tầng một file:
 | Chấm | `src/server/ocr/facts.ts`, `src/server/ocr/banks/<bank>.ts` | Tìm giá trị HỆ THỐNG trong chữ của cả bộ ảnh: tên khách, số tài khoản, mã giới thiệu, dòng "chuyển thành công". Không biết ảnh là màn nào, không đoán giá trị trên ảnh. Mỗi ngân hàng một hàm `facts(text, ctx)`; đọc-tới-khi-đủ và ba mục kết quả dùng chung ở `facts.ts`. |
 | Hàng chờ | `src/server/photoCheck.ts`, `scripts/photo-check-worker.ts` | Ghi lượt chờ khi nhân viên hoàn thành, worker riêng đọc và ghi kết quả. |
 
-Luật chấm, không dung sai:
+Luật chấm, không dung sai (`ocr/text.ts`: `lineHasName`, `hasDigits`, `codeKey`, `linesHaveCode`):
 
 - Tên: bỏ dấu, viết hoa, chuỗi chữ cái của tên nằm trong chuỗi chữ cái của một dòng, dư mỗi đầu tối đa 2 chữ; hoặc tên nối liền `CHUYENTIEN` (lời nhắn app tự điền).
-- Số tài khoản: đúng từng chữ số, trọn dãy, cho khoảng trắng giữa các số. Không so chuỗi con: nhập thiếu hai số vẫn là chuỗi con.
-- Mã giới thiệu: gộp O/0, I/1, S/5, B/8, Z/2 rồi so đúng. Token liền nhau ghép lại vì OCR tách `ATI 07`.
-- Thành công: dòng có "chuyển thành công" hoặc "giao dịch thành công"; hoặc màn "lịch sử giao dịch" kèm dòng tiền VND.
+- Số tài khoản: đúng từng chữ số, trọn dãy, cho khoảng trắng giữa các số. Không so chuỗi con: nhập thiếu hai số vẫn là chuỗi con. Ngân hàng `phone-match` (MSBb, MB, LPB, VPBank) lưu số điện thoại làm số tài khoản, tìm đúng số đó.
+- Mã giới thiệu: gộp O/0, I/1, S/5, B/8, Z/2 rồi so đúng. Token liền nhau ghép lại vì OCR tách `ATI 07`. Mã toàn số (LPB, VPBank) tìm bằng `hasDigits`.
+- Thành công: mỗi ngân hàng một `hasSuccess` riêng theo màn thật, xem đầu file `banks/<bank>.ts`.
+
+Giá trị riêng từng ngân hàng (`Facts` có thêm khoá tuỳ chọn, `itemsFromFacts` gộp vào ba mục):
+
+| Ngân hàng | Mục `open` | Mục `home` | Mục `transfer` |
+|---|---|---|---|
+| TPB | mã GT | tên + STK | "Chuyển thành công" / "Giao dịch thành công" / Lịch sử giao dịch + VND |
+| MSBa, MSBb | mã GT (token đầu `display_name`) | tên + STK | "Chuyển tiền thành công"; tiêu đề bị popup che; tab Biến động số dư / Lịch sử giao dịch kèm "-Ref" |
+| MB | mã RM + Tỉnh/Thành phố + Chi nhánh hỗ trợ | tên + User ID | "TIỀN RA" + VND, chứng từ, Thông báo biến động số dư |
+| LPB | SĐT người giới thiệu | tên + SĐT + ngày mở `dd/mm/yyyy` | "Chuyển tiền thành công", Biến động số dư / Lịch sử giao dịch + VND |
+| VPa, VPb `none` | mã DAO + mã giới thiệu cố định (`programOf`: VPa `MINHAP`, VPb SĐT của QR) | tên + SĐT | "Thành công" + tiền, thân chứng từ, Lịch sử giao dịch, Biến động số dư; kèm nạp chứng khoán (VNDIRECT / VPS / VPBankS / TKCK) |
+| VPa, VPb `CNKD` | mã DAO + mã giới thiệu (VPa `MINHCA`, VPb SĐT QR riêng) + mục đích "Cá nhân kinh doanh" | tên + SĐT + màn liên kết eTax có SĐT | như trên, không đòi chứng khoán |
+| VPa `HKD` | mã DAO + `MINHHKD` | tên + màn liên kết eTax (không so STK: eTax liên kết số doanh nghiệp) | màn "QR nhận tiền" / bảng QR ĐA NĂNG / "Yêu cầu mở tài khoản đã khởi tạo" |
 
 Thông báo không đạt chỉ nói "Không tìm thấy X trong ảnh". `found` luôn rỗng. Bản cũ đoán giá trị trên ảnh bằng luật bố cục và hiện nhầm nhãn "Số tài khoản thanh toán" làm tên khách (2026-09-18); người duyệt phải mở ảnh, máy không thay được.
 
@@ -83,15 +95,16 @@ Kiểm nhãn bằng mắt nhiều ảnh một lúc: `scripts/verify-sheet.ts` gh
 
 ## Số đo đang có
 
-Bộ 62 tài khoản TPBank, 310 ảnh, đo 2026-09-19 trên máy user, so VietOCR (model dò `PP-OCRv5_mobile_det`) với flow Tesseract cũ (commit c4364b4). Số cuối ghi ở `docs/plan-ocr-vietocr-2026-09-19.md` mục "Kết quả đo".
+Bộ 62 tài khoản TPBank, 310 ảnh, đo 2026-09-19 trên máy user, so VietOCR (model dò `PP-OCRv5_mobile_det`) với flow Tesseract cũ (commit c4364b4). Số cuối ghi ở `docs/plan-ocr-vietocr-2026-09-19.md` mục "Kết quả đo". Số đo các ngân hàng còn lại (MSB, MB, LPB, VPBank ba loại, TPB hồi quy) đo 2026-09-22 ở `docs/plan-ocr-cac-ngan-hang-2026-09-22.md`.
 
 Đã biết:
 
 - Ảnh chụp lại màn hình, chữ nhỏ: VietOCR đọc được `AT107` mà Tesseract 36 cấu hình không cấu hình nào đọc được.
-- Ảnh ngang: VietOCR đọc vùng xoay ra ký tự rời. `ocr-server.py` đọc ba hướng cho ảnh ngang, giữ hướng nhiều từ nhất. Bộ phân loại hướng `PP-LCNet_x1_0_doc_ori` của Paddle đoán sai 1/2 ảnh thử nên không dùng.
+- Ảnh ngang: VietOCR đọc vùng xoay ra ký tự rời. `ocr-server.py` đọc bốn hướng cho ảnh ngang, giữ hướng nhiều từ có nghĩa nhất (`VOCAB`), hoà thì nhiều chữ nhất. Bộ phân loại hướng `PP-LCNet_x1_0_doc_ori` của Paddle đoán sai 1/2 ảnh thử nên không dùng.
+- Ảnh dọc chụp lại điện thoại khách cầm ngược (VPBank 5/85 bộ 2026-09-22): đọc ra dưới 3 từ có nghĩa thì đọc lại lộn 180°.
 - Tiêu đề "Chuyển thành công!" có khi bị dò thành hai vùng "Chuyển" và "thành công": luật thành công phải ghép được hai dòng liền nhau.
 - Ảnh chụp cả CCCD trên bàn: số CCCD đọc ra dạng 4-4-3. Luật STK so đúng dãy hệ thống nên không đạt nhầm; đừng thêm luật "lấy số 4-4-3 đầu tiên".
 
 ## Thêm ngân hàng mới
 
-MB, MSB, LPB đang tắt (`ENABLED_BANKS` ở `photoCheck.ts`), parser của họ viết cho chữ Tesseract theo màn. Làm lại ngân hàng nào thì theo đúng cách của `tpbank.ts`: một hàm `facts(text, ctx)` trả các giá trị hệ thống có trong chữ không, một hàm `check(texts, ctx)` ra ba mục, `checkImages(images, ctx)` đọc tới khi đủ. Đo trên benchmark của ngân hàng đó (`bench.ts xuat --bank MB`) rồi mới thêm vào `ENABLED_BANKS`.
+Theo đúng cách của `tpbank.ts`: một hàm `facts(text, ctx)` trả các giá trị hệ thống có trong chữ không (`Facts`, thêm khoá tuỳ chọn nếu ngân hàng đòi thêm giá trị), `check(texts, ctx)` gọi `itemsFromFacts`, `checkImages(images, ctx)` gọi `readUntilFound`. Đăng ký ở `CHECKERS` của `photoCheck.ts`, `bench.ts` và `ocr-try.ts`; viết `scripts/test-<bank>-photo-parser.ts` với chữ VietOCR thật và nối vào `test:ocr`. Đo trên benchmark của ngân hàng đó (`bench.ts xuat --bank X [--loai CNKD]`) rồi mới thêm vào `ENABLED_BANKS`. BIDV, MBV, SHB, TCB, VIB chưa có bộ nhãn (2026-09-22).

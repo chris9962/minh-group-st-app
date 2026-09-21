@@ -28,6 +28,7 @@ import os
 import re
 import sys
 import time
+import unicodedata
 
 # Thư viện in tiến trình tải model ra stdout; dồn hết sang stderr để stdout sạch.
 OUT = sys.stdout
@@ -90,14 +91,15 @@ def read(det, rec, path):
         raise ValueError(f"Không mở được ảnh {path}")
     h, w = img.shape[:2]
     if w <= h:
-        return read_upright(det, rec, img)
-    # Ảnh ngang là điện thoại nằm nghiêng trong ảnh chụp; app chỉ có bố cục dọc.
-    # Bộ phân loại hướng của Paddle đoán sai 1/2 ảnh thử (2026-09-19), nên đọc cả
-    # ba hướng và giữ hướng ra nhiều từ nhất. Chỉ tốn thêm ở ảnh ngang.
+        return read_portrait(det, rec, img)
+    # Ảnh ngang là điện thoại nằm nghiêng hay lộn ngược trong ảnh chụp; app chỉ
+    # có bố cục dọc. Bộ phân loại hướng của Paddle đoán sai 1/2 ảnh thử
+    # (2026-09-19), nên đọc cả bốn hướng và giữ hướng nhiều từ có nghĩa nhất,
+    # hoà thì nhiều chữ nhất. Chỉ tốn thêm ở ảnh ngang.
     best = []
-    for rot in (None, cv2.ROTATE_90_CLOCKWISE, cv2.ROTATE_90_COUNTERCLOCKWISE):
+    for rot in (None, cv2.ROTATE_90_CLOCKWISE, cv2.ROTATE_90_COUNTERCLOCKWISE, cv2.ROTATE_180):
         lines = read_upright(det, rec, img if rot is None else cv2.rotate(img, rot))
-        if word_letters(lines) > word_letters(best):
+        if (vocab_hits(lines), word_letters(lines)) > (vocab_hits(best), word_letters(best)):
             best = lines
     return best
 
@@ -107,6 +109,36 @@ WORD = re.compile(r"[A-Za-zÀ-ỹ]{3,}")
 
 def word_letters(lines):
     return sum(len(m) for line in lines for m in WORD.findall(line))
+
+
+# Từ hay gặp trên màn app ngân hàng, không dấu. Ảnh chụp điện thoại khách bị
+# lộn ngược 180° vẫn ra "từ" (`uop eoy ugoi`), nên `word_letters` không phân
+# biệt được; đếm từ có nghĩa thì phân biệt được.
+VOCAB = frozenset(
+    "tai khoan thanh cong chuyen tien giao dich ngan hang noi dung thoi gian so ten khach dang ky "
+    "ma phi ngay nguoi nhan hinh thuc chi tiet thong tin mo nhap mat khau lich su tong du bien dong "
+    "truy van hoan tat xac chu gioi thieu tinh pho nhanh tra soat chia se luu mau xong hom nay "
+    "trang thai luong cua ban den tu don vi loai hop dong dieu kien".split()
+)
+
+
+def strip_accents(text):
+    return "".join(c for c in unicodedata.normalize("NFD", text) if unicodedata.category(c) != "Mn").replace("đ", "d").replace("Đ", "D")
+
+
+def vocab_hits(lines):
+    return sum(1 for line in lines for w in re.findall(r"[A-Za-zÀ-ỹ]+", line) if strip_accents(w).lower() in VOCAB)
+
+
+def read_portrait(det, rec, img):
+    """Ảnh dọc đọc một lượt; đọc ra gần như không có từ nào có nghĩa thì thử
+    lộn 180° (ảnh chụp lại điện thoại khách cầm ngược, 5/85 bộ VPBank đo
+    2026-09-22) và giữ lượt nhiều từ có nghĩa hơn."""
+    lines = read_upright(det, rec, img)
+    if vocab_hits(lines) >= 3:
+        return lines
+    flipped = read_upright(det, rec, cv2.rotate(img, cv2.ROTATE_180))
+    return flipped if vocab_hits(flipped) > vocab_hits(lines) else lines
 
 
 def read_upright(det, rec, img):

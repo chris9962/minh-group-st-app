@@ -1,87 +1,120 @@
 import assert from "node:assert/strict";
-import { checkMb, parseMbProfile, parseMbRegistration, parseMbTransfer } from "../src/server/ocr/banks/mb";
+import { checkMb, mbFacts, mbReferral } from "../src/server/ocr/banks/mb";
+
+/**
+ * Chữ mẫu lấy từ chữ VietOCR đọc ảnh thật trong bộ đo 2026-09-22 (40 tài
+ * khoản MB), mỗi dòng một vùng chữ. Chạy: `bun scripts/test-mb-photo-parser.ts`.
+ */
 
 const registration = `
-< Đăng ký tài khoản
+Đăng ký tài khoản
+Nhập số điện thoại
+0812012238
+Nghề nghiệp
+Khác
 Thông tin cá nhân
 Mã người giới thiệu (Mã RM)
-X945
-Họ và tên NGUYEN KIM THUY
+5168
+Họ và tên
+THAI TIEN PHO
 Chi nhánh chăm sóc khách hàng
 Chọn Tỉnh/Thành phố
-Đồng Tháp
+An Giang
 Chọn chi nhánh hỗ trợ
-CN Đồng Tháp
-Số 204 Đường Nguyễn Huệ
-Tiếp tục
+CN An Giang
+Số 128-130 đường Nguyễn Trãi, phường Long Xuyên,
 `;
 
 const profile = `
-< Hồ sơ người dùng
-NGUYEN DUY KHANG
-User ID: 0979391214
-Gói hội viên MB Basic
-ĐIỂM LOYALTY
+Hồ sơ người dùng
+LE THI CHAU
+User ID: 0812012238
+Tăng cường
+bảo vệ
+Gói hội viên MB
+Basic
 `;
 
 const history = `
-< Chi tiết tài khoản
-Truy vốn giao dịch
-Từ ngày Đến ngày
-11/09/2026
-TIỀN RA -100,000 VND
-NGUYEN DUY KHANG 14:54
-APPMB11 NGUYEN DUY KHANG thanh toan
+Chi tiết tài khoản
+Truy vấn giao dịch
+Từ ngày
+04/09/2026
+Truy vấn
+10/09/2026
+TIỀN RA
+-100,000 VND
+CUSTOMERLE THI CHAU chuyen tien
+08:34
+TIỀN VÀO
++200,000 VND
 `;
 
-const context = {
+/** Màn huỷ thiết bị có dấu tick nhưng không phải giao dịch. */
+const unlinkDevice = `
+Đã huỷ liên kết thiết bị
+Những thiết bị dưới đây đã hủy liên kết
+DANH SÁCH THIẾT BỊ
+Thiết bị 1
+REDMI Note 15-100926
+Về trang Đăng nhập
+`;
+
+const ctx = {
   referralCode: "",
-  referralName: "X945-Kim Thuỳ-CN Đồng Tháp",
-  province: "Đồng Tháp",
-  supportBranch: "CN Đồng Tháp",
-  customerName: "NGUYEN DUY KHANG",
-  accountNumber: "0979391214",
+  referralName: "5168-Tiến Phò-CN An Giang",
+  province: "An Giang",
+  supportBranch: "CN An Giang",
+  customerName: "Lê Thị Châu",
+  accountNumber: "0812012238",
 };
 
-assert.deepEqual(parseMbRegistration(registration), {
-  registration: true,
-  referralCode: "X945",
-  province: "Dong Thap",
-  branch: "CN Dong Thap",
-  missing: [],
+assert.equal(mbReferral(ctx), "5168");
+assert.equal(mbReferral({ referralCode: "", referralName: "o826 chữ O -Thị Ước-CN Tiền Giang-Đồng Tháp" }), "O826");
+assert.equal(mbReferral({ referralCode: "", referralName: "BL59-Phan Mỹ Đình- CN Sóc Trăng-Cần Thơ" }), "BL59");
+
+assert.deepEqual(mbFacts(registration, ctx), {
+  nameFound: false,
+  accountFound: true,
+  codeFound: true,
+  successFound: false,
+  provinceFound: true,
+  branchFound: true,
 });
-assert.equal(parseMbProfile(profile).customerName, "NGUYEN DUY KHANG");
-assert.equal(parseMbProfile(profile).userId, "0979391214");
-assert.equal(parseMbTransfer(history).kind, "history");
-assert.deepEqual(checkMb([registration, profile, history], context).map((item) => item.verdict), ["pass", "pass", "pass"]);
+assert.deepEqual(mbFacts(profile, ctx), {
+  nameFound: true,
+  accountFound: true,
+  codeFound: false,
+  successFound: false,
+  provinceFound: false,
+  branchFound: false,
+});
+assert.equal(mbFacts(history, ctx).successFound, true);
+assert.equal(mbFacts(history, ctx).nameFound, true, "tên dính nhãn CUSTOMER rồi nối chuyen tien");
+assert.equal(mbFacts(unlinkDevice, ctx).successFound, false);
 
-const wrongCode = registration.replace("X945", "Q694");
-assert.deepEqual(checkMb([wrongCode, profile, history], context)[0].issues, ["Mã giới thiệu không khớp"]);
-assert.deepEqual(checkMb([registration.replace("Đồng Tháp\nChọn", "An Giang\nChọn"), profile, history], context)[0].issues, ["Tỉnh/Thành phố không khớp"]);
-assert.deepEqual(checkMb([registration.replace("CN Đồng Tháp", "PGD Sa Đéc"), profile, history], context)[0].issues, ["Chi nhánh hỗ trợ không khớp"]);
+assert.equal(mbFacts(registration, { ...ctx, referralName: "5186-…" }).codeFound, false);
+assert.equal(mbFacts(registration, { ...ctx, province: "Đồng Tháp" }).provinceFound, false);
+assert.equal(mbFacts(registration, { ...ctx, supportBranch: "Chi nhánh An Giang" }).branchFound, true, "Chi nhánh = CN");
+assert.equal(mbFacts(registration, { ...ctx, supportBranch: "PGD Châu Phú" }).branchFound, false);
+assert.equal("provinceFound" in mbFacts(registration, { ...ctx, province: "" }), false, "mã chưa cấu hình tỉnh thì không so");
+assert.equal("branchFound" in mbFacts(registration, { ...ctx, supportBranch: "Tự chọn" }), false);
 
-const wrongProfile = profile.replace("NGUYEN DUY KHANG", "TRAN QUANG TRUNG").replace("0979391214", "0979391215");
-assert.deepEqual(checkMb([registration, wrongProfile, history], context)[1].issues, ["Tên khách hàng không khớp", "User ID không khớp số tài khoản"]);
-assert.equal(checkMb([registration, profile.replace("User ID: 0979391214", "User ID:"), history], context)[1].verdict, "fail");
-
-// Nhiều ảnh cùng loại: ảnh đúng thắng ảnh chụp nhầm của khách khác.
-assert.deepEqual(checkMb([wrongCode, registration, wrongProfile, profile, history], context).map((item) => item.verdict), ["pass", "pass", "pass"]);
-
-assert.equal(parseMbTransfer("MB\nChuyển tiền thành công\n50,000 VND").success, true);
-assert.equal(parseMbTransfer("Thông báo biến động số dư\nTK 03xxx043|GD: -130,000VND\n16:45|SD: 0VND|DEN: A").kind, "balance-notice");
-assert.equal(parseMbTransfer("MB\nĐã hủy Digital OTP thành công\n16:45").success, false);
-assert.equal(parseMbTransfer("MB\nNhập số tiền 50,000 VND\nTiếp tục").success, false);
-assert.deepEqual(checkMb([registration, profile], context)[2].issues, ["Thiếu ảnh giao dịch thành công"]);
-
-// Tỉnh chưa ghim trong dữ liệu không thể coi là đã đối chiếu đạt.
-assert.deepEqual(checkMb([registration, profile, history], { ...context, province: "" })[0].issues, ["Mã đã ghim chưa cấu hình Tỉnh/Thành phố"]);
-
-// Bộ nhãn phải trả kèm ẢNH đã cung cấp dữ liệu; màn chi tiết gắn `photoId` từ
-// đây, không dò lại bằng cách chạy lại bộ nhãn trên từng ảnh.
+const items = checkMb([registration, profile, history, unlinkDevice], ctx);
 assert.deepEqual(
-  checkMb([profile, history, registration], context).map((item) => item.photoIndex),
-  [2, 0, 1],
+  items.map((i) => [i.key, i.verdict, i.photoIndex]),
+  [
+    ["open", "pass", 0],
+    ["home", "pass", 1],
+    ["transfer", "pass", 2],
+  ],
 );
-assert.equal(checkMb([profile], context).find((item) => item.key === "open")?.photoIndex, undefined);
+assert.equal(items[0].label, "Mã giới thiệu, Tỉnh/Thành phố và Chi nhánh hỗ trợ");
+assert.equal(items[0].expected, "5168 - An Giang - CN An Giang");
 
-console.log("MB photo parser: OK");
+const wrong = checkMb([registration, profile, history], { ...ctx, province: "Cần Thơ", supportBranch: "CN Tây Đô" });
+assert.deepEqual(wrong[0].issues, ["Không tìm thấy Tỉnh/Thành phố", "Không tìm thấy Chi nhánh hỗ trợ"]);
+assert.equal(wrong[0].note, "Không tìm thấy Tỉnh/Thành phố Cần Thơ trong ảnh. Không tìm thấy Chi nhánh hỗ trợ CN Tây Đô trong ảnh.");
+assert.equal(wrong[0].photoIndex, 0, "vẫn trỏ ảnh có mã");
+
+console.log("MB: mọi ca đạt.");

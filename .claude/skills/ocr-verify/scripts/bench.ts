@@ -4,7 +4,7 @@
  * manifest (`CHECKERS`). Bốn lệnh, chạy từ thư mục `mgst-app`, cần `.env.local`
  * đã `source`:
  *
- *   bun .claude/skills/ocr-verify/scripts/bench.ts xuat <thư mục> [--n 60] [--bank TPB|MSBa,MSBb] [--tu 2026-09-01] [--them id,id]
+ *   bun .claude/skills/ocr-verify/scripts/bench.ts xuat <thư mục> [--n 60] [--bank TPB|MSBa,MSBb] [--loai CNKD] [--tu 2026-09-01] [--them id,id]
  *   bun .claude/skills/ocr-verify/scripts/bench.ts tai  <thư mục>
  *   bun .claude/skills/ocr-verify/scripts/bench.ts doc  <thư mục> <tên lượt>
  *   bun .claude/skills/ocr-verify/scripts/bench.ts so   <thư mục> <lượt A|db|-> <lượt B>
@@ -30,8 +30,11 @@
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { Client } from "pg";
 import type { PhotoCheckItem } from "../../../../src/lib/api/photoCheck";
+import { checkLpb } from "../../../../src/server/ocr/banks/lpb";
+import { checkMb } from "../../../../src/server/ocr/banks/mb";
 import { checkMsb } from "../../../../src/server/ocr/banks/msb";
 import { checkTpbank } from "../../../../src/server/ocr/banks/tpbank";
+import { checkVpb } from "../../../../src/server/ocr/banks/vpbank";
 import { closeOcr, ocrLines } from "../../../../src/server/ocr/reader";
 import { readImage } from "../../../../src/server/storage";
 
@@ -44,6 +47,9 @@ type BenchContext = {
   customerName: string;
   accountNumber: string;
   openedDate: string;
+  /** `referral_codes.account_type`: `none` | `CNKD` | `HKD`, VPBank chấm khác nhau theo loại. */
+  accountType: string;
+  bankCode: string;
 };
 
 type Row = {
@@ -58,6 +64,10 @@ const CHECKERS: Record<string, (texts: string[], ctx: BenchContext) => PhotoChec
   TPB: checkTpbank,
   MSBa: checkMsb,
   MSBb: checkMsb,
+  MB: checkMb,
+  LPB: checkLpb,
+  VPa: checkVpb,
+  VPb: checkVpb,
 };
 
 const [cmd, root, ...rest] = process.argv.slice(2);
@@ -74,6 +84,8 @@ const manifest = async (): Promise<Row[]> => JSON.parse(await readFile(`${root}/
 async function xuat() {
   const n = Number(flag("--n", "60"));
   const banks = flag("--bank", "TPB").split(",");
+  // Loại tài khoản của mã (`none` | `CNKD` | `HKD`); rỗng = mọi loại.
+  const kind = flag("--loai", "");
   const from = flag("--tu", "2026-09-01");
   const extra = flag("--them", "").split(",").filter(Boolean);
   const client = new Client({ connectionString: process.env.DATABASE_URL });
@@ -83,16 +95,19 @@ async function xuat() {
        (select a.id from bank_accounts a
           join banks b on b.id = a.bank_id
           join referral_codes r on r.id = a.referral_code_id
-        where b.code = any($1) and a.status = 'done' and a.account_number is not null and r.code <> ''
+        where b.code = any($1) and a.status = 'done' and a.account_number is not null
+          and coalesce(r.code, r.display_name, '') <> ''
+          and ($5 = '' or r.account_type::text = $5)
           and a.created_at >= $2
-          and (select count(*) from bank_account_photos p where p.account_id = a.id) between 3 and 6
+          and (select count(*) from bank_account_photos p where p.account_id = a.id) between 3 and 10
         order by random() limit $3)
        union select unnest($4::uuid[]))
      select a.id as "accountId", b.code as bank,
        json_build_object('referralCode', coalesce(r.code, ''), 'referralName', coalesce(r.display_name, ''),
                          'province', coalesce(r.province, ''), 'supportBranch', coalesce(r.support_branch, ''),
                          'customerName', c.full_name, 'accountNumber', coalesce(a.account_number, ''),
-                         'openedDate', coalesce(a.opened_date::text, '')) as context,
+                         'openedDate', coalesce(a.opened_date::text, ''),
+                         'accountType', coalesce(r.account_type::text, 'none')) as context,
        (select json_agg(p.url order by p.sort_order) from bank_account_photos p where p.account_id = a.id and p.kind = 'opening') as photos,
        (select k.result->'items' from bank_account_checks k
          where k.account_id = a.id and k.status = 'done' order by k.created_at desc limit 1) as "oldItems"
@@ -100,7 +115,7 @@ async function xuat() {
        join banks b on b.id = a.bank_id
        join customers c on c.id = a.customer_id
        left join referral_codes r on r.id = a.referral_code_id`,
-    [banks, from, n, extra],
+    [banks, from, n, extra, kind],
   );
   await client.end();
   await mkdir(root, { recursive: true });
@@ -196,7 +211,7 @@ async function itemsOf(run: string, row: Row): Promise<PhotoCheckItem[] | null> 
   }
   const check = CHECKERS[row.bank];
   if (!check) throw new Error(`Chưa có bộ nhãn cho ${row.bank} trong CHECKERS.`);
-  return check(texts, row.context);
+  return check(texts, { ...row.context, bankCode: row.bank });
 }
 
 async function so() {

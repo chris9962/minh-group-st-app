@@ -1,8 +1,10 @@
 import { readFile } from "node:fs/promises";
 import { closeOcr, ocrLines } from "../src/server/ocr/reader";
 import { checkMsb, msbFacts } from "../src/server/ocr/banks/msb";
-import { parseMbProfile, parseMbRegistration, parseMbTransfer } from "../src/server/ocr/banks/mb";
+import { checkLpb, lpbFacts } from "../src/server/ocr/banks/lpb";
+import { checkMb, mbFacts } from "../src/server/ocr/banks/mb";
 import { checkTpbank, tpbFacts } from "../src/server/ocr/banks/tpbank";
+import { checkVpb, vpbFacts } from "../src/server/ocr/banks/vpbank";
 
 /**
  * Đọc chữ trên ảnh trong máy rồi in ra, kèm kết quả parser của một ngân hàng.
@@ -22,14 +24,14 @@ const ctx = process.env.OCR_CTX ? JSON.parse(process.env.OCR_CTX) : null;
 const lineCount = (text: string) => text.split("\n").length + " dòng";
 
 const PARSERS: Record<string, (text: string) => unknown> = {
-  "mb-registration": parseMbRegistration,
-  "mb-profile": parseMbProfile,
-  "mb-transfer": parseMbTransfer,
+  lpb: ctx ? (text) => lpbFacts(text, ctx) : lineCount,
+  mb: ctx ? (text) => mbFacts(text, ctx) : lineCount,
   msb: ctx ? (text) => msbFacts(text, ctx) : lineCount,
   tpbank: ctx ? (text) => tpbFacts(text, ctx) : lineCount,
+  vpbank: ctx ? (text) => vpbFacts(text, ctx) : lineCount,
 };
 
-const CHECKS: Record<string, (texts: string[], ctx: never) => unknown> = { msb: checkMsb, tpbank: checkTpbank };
+const CHECKS: Record<string, (texts: string[], ctx: never) => unknown> = { lpb: checkLpb, mb: checkMb, msb: checkMsb, tpbank: checkTpbank, vpbank: checkVpb };
 
 async function main() {
   const [bank, ...rest] = process.argv.slice(2);
