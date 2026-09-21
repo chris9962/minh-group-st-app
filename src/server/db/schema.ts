@@ -473,9 +473,10 @@ export const referralCodes = pgTable(
     createdAt: createdAt(),
   },
   (t) => [
-    // Cùng tên/mã được dùng cho loại tài khoản khác: VPA · CNKD và VPA · HKD
-    // là hai suất độc lập. Chỉ cấm trùng trong đúng ngân hàng + loại tài khoản.
-    uniqueIndex("referral_codes_bank_code").on(t.bankId, t.accountType, t.code),
+    // Tên hiển thị là khoá nhận biết mã; chỉ cấm trùng trong đúng ngân hàng +
+    // loại tài khoản, vì VPA · CNKD và VPA · HKD là hai suất độc lập. Mã text
+    // KHÔNG là khoá (migration 0099): một chuỗi ngân hàng cấp được nhập thành
+    // nhiều dòng, mỗi dòng một tên hiển thị.
     uniqueIndex("referral_codes_bank_display_name").on(
       t.bankId,
       t.accountType,

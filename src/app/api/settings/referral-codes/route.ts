@@ -68,7 +68,7 @@ export async function POST(request: Request) {
     return badRequest(
       result.reason === "identifier-required"
         ? "Nhập mã text hoặc chọn ảnh QR"
-        : "Tên hiển thị hoặc mã text đã tồn tại cho loại tài khoản này",
+        : "Tên hiển thị đã tồn tại cho loại tài khoản này",
     );
 
   await logAudit(guard.actor, {

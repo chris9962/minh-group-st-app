@@ -425,8 +425,8 @@ async function bankIdsOf(code: string): Promise<string[] | null> {
 
 async function referralCodeIdsOf(code: string): Promise<string[] | null> {
   if (!code) return null;
-  // Hai ngân hàng được phép trùng tên mã (khoá duy nhất là bank + code), nên
-  // một chuỗi có thể ứng với nhiều id.
+  // Mã text không phải khoá (migration 0099): một chuỗi có thể ứng với nhiều
+  // id, kể cả trong cùng một ngân hàng.
   const rows = await db
     .select({ id: referralCodes.id })
     .from(referralCodes)
