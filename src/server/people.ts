@@ -36,6 +36,7 @@ import {
   users,
 } from "./db/schema";
 import { appsInstalledCount, variantOfAccount } from "./appCounted";
+import { salaryForUsers } from "./salary";
 
 /**
  * P-51 · P-52 — điểm KPI tính SỐNG từ bản ghi nghiệp vụ × hệ số danh mục
@@ -793,6 +794,7 @@ export async function personFor(
     });
 
   pointSources.sort((a, b) => b.points - a.points);
+  const salaryResult = (await salaryForUsers([id], summaryMonth)).get(id);
 
   return {
     id: row.user.id,
@@ -813,6 +815,12 @@ export async function personFor(
       // không đẻ chênh lệch thật — hai màn ra cùng một số.
       total: roundPoints(monthAgg.bankingPoints + monthAgg.servicePoints + adjustmentTotal),
       target,
+    },
+    salary: salaryResult?.amount ?? 0,
+    salaryBreakdown: {
+      month: summaryMonth,
+      facts: salaryResult?.facts ?? [],
+      items: salaryResult?.items ?? [],
     },
     pointSources,
     adjustments,

@@ -1221,7 +1221,7 @@ export async function updateReferralCode(
       if (uniqueViolationOf(e) !== null)
         return {
           ok: false as const,
-          message: "Tên hiển thị hoặc mã text đã tồn tại cho loại tài khoản này",
+          message: "Tên hiển thị đã tồn tại cho loại tài khoản này",
         };
       throw e;
     }

@@ -11,9 +11,10 @@ import { SectionCard } from "@/components/ui/SectionCard";
 import { StatCard } from "@/components/ui/StatCard";
 import type { DashboardDraftAccount } from "@/lib/api/dashboard";
 import type { PersonDetail } from "@/lib/api/person";
-import { sourceColor, useChartColors } from "@/lib/chart-colors";
+import { useChartColors } from "@/lib/chart-colors";
 import { formatDate, formatPoints } from "@/lib/format";
 import styles from "./StaffDashboard.module.scss";
+import { SalaryFact } from "@/components/payroll/SalaryFact";
 
 type Props = {
   person: PersonDetail;
@@ -57,7 +58,6 @@ export function StaffDashboard({ person, draftAccounts, periodLabel, from, to }:
         <SectionCard
           title={`Điểm ${monthLabel(person.summaryMonth)}`}
           icon={<Target size={17} />}
-          meta={person.daysLeft > 0 ? `còn ${person.daysLeft} ngày` : undefined}
         >
           <KpiScoreBlock
             sources={person.pointSources}
@@ -70,9 +70,9 @@ export function StaffDashboard({ person, draftAccounts, periodLabel, from, to }:
                   <dd className="tabular-nums">{formatPoints(person.points.target)} điểm</dd>
                 </div>
                 <div>
-                  <dt>{person.points.total >= person.points.target ? "Vượt" : "Còn thiếu"}</dt>
-                  <dd className="tabular-nums">
-                    {formatPoints(Math.abs(person.points.target - person.points.total))} điểm
+                  <dt>Lương</dt>
+                  <dd>
+                    <SalaryFact amount={person.salary} breakdown={person.salaryBreakdown} />
                   </dd>
                 </div>
               </>

@@ -18,7 +18,7 @@ import {
 
 export type RankColumn<T> = {
   key: string;
-  label: string;
+  label: React.ReactNode;
   /** Giá trị dùng để sắp xếp ở chế độ trình duyệt. Không có thì cột không bấm sắp được. */
   sortBy?: (row: T) => number;
   /**

@@ -71,6 +71,8 @@ export const StaffRow = StaffAccount.extend({
    * tạo bản ghi (thể lệ câu 7.11).
    */
   rangePoints: z.number().nullable().default(null),
+  /** Lương CĐS đang tính của tháng; 0 khi chức vụ/phòng chưa có công thức. */
+  salary: z.number(),
 });
 export type StaffRow = z.infer<typeof StaffRow>;
 

@@ -1,13 +1,14 @@
 "use client";
 
 import { ChartColumn } from "lucide-react";
+import { SalaryFact } from "@/components/payroll/SalaryFact";
 import { BarChart } from "@/components/ui/BarChart";
 import { monthLabel } from "@/components/ui/MonthPicker";
 import { KpiScoreBlock } from "@/components/people/KpiScoreBlock";
 import { SectionCard } from "@/components/ui/SectionCard";
 import type { PersonDetail } from "@/lib/api/person";
-import { sourceColor, useChartColors } from "@/lib/chart-colors";
-import { formatPhone, formatPoints } from "@/lib/format";
+import { useChartColors } from "@/lib/chart-colors";
+import { formatPhone } from "@/lib/format";
 import styles from "./PersonKpiPanel.module.scss";
 
 /**
@@ -65,22 +66,12 @@ export function PersonKpiPanel({ person }: Props) {
           target={person.points.target}
           ariaLabel={`Điểm ${monthLabel(person.summaryMonth)} trên chỉ tiêu`}
           facts={
-            <>
-              {/* Hai con số thay cho một câu văn: người xem chỉ cần biết còn
-                  cách chỉ tiêu bao xa và còn bao nhiêu ngày. */}
-              <div>
-                <dt>{person.points.total >= person.points.target ? "Vượt" : "Còn thiếu"}</dt>
-                <dd className="tabular-nums">
-                  {formatPoints(Math.abs(person.points.target - person.points.total))} điểm
-                </dd>
-              </div>
-              {person.daysLeft > 0 && (
-                <div>
-                  <dt>Còn lại</dt>
-                  <dd className="tabular-nums">{person.daysLeft} ngày</dd>
-                </div>
-              )}
-            </>
+            <div>
+              <dt>Lương</dt>
+              <dd>
+                <SalaryFact amount={person.salary} breakdown={person.salaryBreakdown} />
+              </dd>
+            </div>
           }
         />
       </div>

@@ -5,7 +5,7 @@ import type {
   DashboardDraftAccount,
   DepartmentRanking,
 } from "@/lib/api/dashboard";
-import { BUSINESS_TIMEZONE, businessDay } from "@/lib/format";
+import { BUSINESS_TIMEZONE, businessDay, businessMonth } from "@/lib/format";
 import { periodRanges } from "@/lib/period";
 import { recordVisibility } from "@/lib/permissions";
 import type { User } from "@/lib/types";
@@ -29,6 +29,7 @@ import { giftItemNames } from "./gift";
 import { pointsByStaffInRange } from "./kpi";
 import { SPARKLINE_DAYS, daysEndingOn } from "@/components/ui/ranking";
 import { statsByDepartment, statsByStaff, accountsOpenedByDay, type Range } from "./org";
+import { salaryForUsers } from "./salary";
 
 /** Route phòng ban import từ đây — cùng hàm với `lib/period`. */
 export { periodRanges };
@@ -768,7 +769,18 @@ export async function dashboardFor(
   const v = dashboardVisibility(actor);
   const { current, previous } = periodRanges(periodKey, businessDay());
 
-  const [banking, previousBanking, insurance, servicesData, gifts, ranked, scopeLabel, points, previousPoints] =
+  const [
+    banking,
+    previousBanking,
+    insurance,
+    servicesData,
+    gifts,
+    ranked,
+    scopeLabel,
+    points,
+    previousPoints,
+    companySalary,
+  ] =
     await Promise.all([
       bankingSummaryFor(v, actor.id, current),
       previous ? bankingTotals(v, actor.id, previous) : Promise.resolve(null),
@@ -779,6 +791,16 @@ export async function dashboardFor(
       visibilityLabel(v),
       pointsByStaffInRange(current),
       previous ? pointsByStaffInRange(previous) : Promise.resolve(null),
+      v.kind === "company"
+        ? db
+            .select({ id: users.id })
+            .from(users)
+            .where(eq(users.active, true))
+            .then(async (rows) => {
+              const salaries = await salaryForUsers(rows.map((row) => row.id), businessMonth());
+              return [...salaries.values()].reduce((sum, salary) => sum + salary.amount, 0);
+            })
+        : Promise.resolve(null),
     ]);
 
   /**
@@ -842,6 +864,9 @@ export async function dashboardFor(
                 ) / 10,
             }
           : null,
+      // Luôn là tháng làm việc hiện tại, không chạy theo bộ chọn kỳ của các số
+      // nghiệp vụ phía trên. Lương là số tháng, không có nghĩa ở kỳ ngày tùy ý.
+      companySalary,
       rankingKind: ranked.kind,
       departments: rowsWithPoints,
       services: servicesData,

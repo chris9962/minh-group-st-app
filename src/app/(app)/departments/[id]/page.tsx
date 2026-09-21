@@ -29,6 +29,8 @@ import { fetchDepartmentStaff, type StaffRow } from "@/lib/api/staff";
 import { scopeFor, visibleDepartmentIds } from "@/lib/permissions";
 import { ROLE_LABEL, ROLE_RANK } from "@/lib/types";
 import { useSession } from "@/store/session";
+import { SalaryAmount } from "@/components/payroll/SalaryAmount";
+import { SalaryBreakdownButton } from "@/components/payroll/SalaryBreakdownButton";
 import styles from "./page.module.scss";
 
 /**
@@ -100,6 +102,12 @@ const EMPLOYEE_COLUMNS: RankColumn<StaffRow>[] = [
     // cho khách của đồng nghiệp, và cột điểm phải khớp bảng lương.
     sortBy: (s) => s.rangePoints ?? 0,
     render: (s) => <span className="tabular-nums">{s.rangePoints ?? 0}</span>,
+  },
+  {
+    key: "salary",
+    label: "Lương",
+    align: "right",
+    render: (staff) => <SalaryAmount amount={staff.salary} visible />,
   },
 ];
 
@@ -180,8 +188,16 @@ export default function DepartmentDetailPage({
       accounts: sum.accounts + staff.accounts,
       services: sum.services + staff.services,
       points: sum.points + (staff.rangePoints ?? 0),
+      salary: sum.salary + staff.salary,
     }),
-    { customers: 0, customersWithAccounts: 0, accounts: 0, services: 0, points: 0 },
+    {
+      customers: 0,
+      customersWithAccounts: 0,
+      accounts: 0,
+      services: 0,
+      points: 0,
+      salary: 0,
+    },
   );
   const totalPoints = Math.round(totals.points * 10) / 10;
 
@@ -227,6 +243,16 @@ export default function DepartmentDetailPage({
                       {m.fullName}
                     </Link>
                     <span className={styles.managerTitle}>{m.title}</span>
+                    {!data.managedByDefault && (
+                      <span className={styles.managerSalary}>
+                        <span>Lương:</span>
+                        <SalaryAmount amount={m.salary} visible />
+                        <SalaryBreakdownButton
+                          amount={m.salary}
+                          breakdown={m.salaryBreakdown}
+                        />
+                      </span>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -288,6 +314,11 @@ export default function DepartmentDetailPage({
                           <span key="points" className="tabular-nums">
                             {totalPoints}
                           </span>,
+                          <SalaryAmount
+                            key="salary"
+                            amount={totals.salary}
+                            visible
+                          />,
                         ]
                       : undefined
                   }

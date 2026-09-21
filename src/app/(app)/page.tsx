@@ -30,7 +30,7 @@ import { BankingHeadline } from "@/components/dashboard/BankingHeadline";
 import { StaffDashboard } from "@/components/dashboard/StaffDashboard";
 import { fetchDashboard, type DepartmentRanking } from "@/lib/api/dashboard";
 import { useChartColors } from "@/lib/chart-colors";
-import { formatCount, formatPoints } from "@/lib/format";
+import { formatCount, formatPoints, formatVnd } from "@/lib/format";
 import { usePrefs } from "@/store/prefs";
 import styles from "./page.module.scss";
 
@@ -293,7 +293,17 @@ export default function DashboardPage() {
                   label={
                     data.scopePoints.kind === "company" ? "điểm tổng cty" : "điểm tổng phòng"
                   }
-                  detail={`${overview!.scopeLabel} ${periodLabel}`}
+                  detail={
+                    <>
+                      {overview!.scopeLabel} {periodLabel}
+                      {data.scopePoints.kind === "company" && data.companySalary !== null && (
+                        <>
+                          <br />
+                          Tổng lương tháng hiện tại: <strong>{formatVnd(data.companySalary)}</strong>
+                        </>
+                      )}
+                    </>
+                  }
                 />
               )}
             </BankingHeadline>

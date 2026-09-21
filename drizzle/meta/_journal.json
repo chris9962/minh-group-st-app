@@ -687,6 +687,20 @@
       "when": 1789891400023,
       "tag": "0097_notification_code_cnkd",
       "breakpoints": true
+    },
+    {
+      "idx": 98,
+      "version": "7",
+      "when": 1789891400024,
+      "tag": "0098_employee_work_days",
+      "breakpoints": true
+    },
+    {
+      "idx": 99,
+      "version": "7",
+      "when": 1789891400025,
+      "tag": "0099_referral_code_drop_code_unique",
+      "breakpoints": true
     }
   ]
 }
