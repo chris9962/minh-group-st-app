@@ -1,16 +1,36 @@
-.list {
+.facts {
+  margin: 0 0 12px;
+  padding: 0 0 12px;
+  border-bottom: 2px solid var(--om-line);
   display: grid;
+  gap: 4px;
 }
 
-.item,
-.total {
+.facts > div {
   display: flex;
-  align-items: center;
   justify-content: space-between;
   gap: 16px;
 }
 
+.facts dt {
+  color: var(--om-text-2);
+}
+
+.facts dd {
+  margin: 0;
+}
+
+.list {
+  display: grid;
+}
+
+/* Một khoản một hàng: tên, công thức, số tiền. Tên và số tiền không xuống
+   dòng; hộp rộng 560px nên chỉ công thức dài mới gãy trong ô của nó. */
 .item {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr) max-content;
+  align-items: center;
+  gap: 16px;
   padding: 12px 0;
   border-bottom: 2px solid var(--om-line);
 }
@@ -19,22 +39,21 @@
   padding-top: 0;
 }
 
-.item > div {
-  display: grid;
-  gap: 2px;
-}
-
-.item span,
+.formula,
 .empty {
   color: var(--om-text-2);
 }
 
-.item > span {
-  color: var(--om-text);
+.amount {
+  justify-self: end;
   white-space: nowrap;
 }
 
 .total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
   padding-top: 12px;
   font-size: 16px;
 }
@@ -45,8 +64,17 @@
   color: var(--om-text-2);
 }
 
+/* Màn hẹp không đủ chỗ cho ba cột; công thức xuống dòng dưới tên. */
 @media (max-width: 520px) {
-  .item,
+  .item {
+    grid-template-columns: minmax(0, 1fr) max-content;
+    row-gap: 2px;
+  }
+
+  .formula {
+    grid-column: 1 / -1;
+  }
+
   .total {
     align-items: flex-start;
     flex-direction: column;

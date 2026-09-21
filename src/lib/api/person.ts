@@ -131,9 +131,11 @@ export const KpiAdjustmentForm = z.object({
 export type KpiAdjustmentForm = z.infer<typeof KpiAdjustmentForm>;
 
 export const SalaryBreakdown = z.object({
-  directPoints: z.number(),
-  managementPoints: z.number(),
-  workDays: z.number(),
+  /** Tháng `YYYY-MM` mà phép tính đang đọc. */
+  month: z.string(),
+  /** Các con số đầu vào (điểm, ngày công) — máy chủ chọn theo chức vụ. */
+  facts: z.array(z.object({ label: z.string(), value: z.string() })),
+  /** Các khoản tiền; máy chủ đã bỏ khoản bằng 0. */
   items: z.array(z.object({
     label: z.string(),
     formula: z.string(),

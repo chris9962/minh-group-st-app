@@ -794,7 +794,6 @@ export async function personFor(
 
   pointSources.sort((a, b) => b.points - a.points);
   const salaryResult = (await salaryForUsers([id], summaryMonth)).get(id);
-  const salary = salaryResult?.amount ?? 0;
 
   return {
     id: row.user.id,
@@ -816,11 +815,10 @@ export async function personFor(
       total: roundPoints(monthAgg.bankingPoints + monthAgg.servicePoints + adjustmentTotal),
       target,
     },
-    salary,
+    salary: salaryResult?.amount ?? 0,
     salaryBreakdown: {
-      directPoints: salaryResult?.directPoints ?? 0,
-      managementPoints: salaryResult?.managementPoints ?? 0,
-      workDays: salaryResult?.workDays ?? 0,
+      month: summaryMonth,
+      facts: salaryResult?.facts ?? [],
       items: salaryResult?.items ?? [],
     },
     pointSources,

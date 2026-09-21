@@ -1,5 +1,5 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
-import { monthRange, roundPoints } from "@/lib/format";
+import { formatPoints, monthRange, roundPoints } from "@/lib/format";
 import type { RoleKey } from "@/lib/types";
 import { db } from "./db/client";
 import {
@@ -16,20 +16,32 @@ const STAFF_FIRST_TIER_RATE = 60_000;
 const SALES_MAX_DAYS = 26;
 const DEPUTY_DIRECTOR_DAYS = 22;
 
+type SalaryItem = { label: string; formula: string; amount: number };
+
 export type SalaryBreakdown = {
   amount: number;
-  directPoints: number;
-  managementPoints: number;
-  workDays: number;
-  items: Array<{ label: string; formula: string; amount: number }>;
+  month: string;
+  facts: Array<{ label: string; value: string }>;
+  items: SalaryItem[];
 };
 
-const ZERO_SALARY: SalaryBreakdown = {
+const zeroSalary = (month: string): SalaryBreakdown => ({
   amount: 0,
-  directPoints: 0,
-  managementPoints: 0,
-  workDays: 0,
+  month,
+  facts: [],
   items: [],
+});
+
+const vnd = (amount: number) => `${amount.toLocaleString("vi-VN")}đ`;
+
+/**
+ * Bỏ khoản bằng 0 cho gọn, nhưng giữ khoản đầu khi mọi khoản đều 0: danh sách
+ * rỗng là dấu hiệu "chưa có công thức", không phải "lương 0".
+ */
+const nonZeroItems = (items: SalaryItem[]): SalaryItem[] => {
+  const rounded = items.map((item) => ({ ...item, amount: Math.round(item.amount) }));
+  const kept = rounded.filter((item) => item.amount !== 0);
+  return kept.length > 0 ? kept : rounded.slice(0, 1);
 };
 
 /** Thưởng vượt của nhân viên, lũy tiến theo ba bậc 101–130, 131–160, >160. */
@@ -100,7 +112,7 @@ export async function salaryForUsers(
   yearMonth: string,
 ): Promise<Map<string, SalaryBreakdown>> {
   const result = new Map<string, SalaryBreakdown>();
-  for (const id of userIds) result.set(id, ZERO_SALARY);
+  for (const id of userIds) result.set(id, zeroSalary(yearMonth));
   if (userIds.length === 0) return result;
 
   const points = scoreExpr(yearMonth);
@@ -229,36 +241,39 @@ export async function salaryForUsers(
           0,
           Math.round(firstTierPay + overTargetBonus + dailySupport),
         ),
-        directPoints,
-        managementPoints: 0,
-        workDays,
-        items: [
+        month: yearMonth,
+        facts: [
+          { label: "Điểm KPI", value: `${formatPoints(directPoints)} điểm` },
+          { label: "Ngày công", value: `${workDays} ngày` },
+        ],
+        // Tên khoản theo đúng chữ trong quy chế 107/108 để người đọc đối chiếu được.
+        items: nonZeroItems([
           {
-            label: "KPI bậc 1 · 0–100 điểm",
-            formula: `${firstTierPoints} điểm × 60.000đ`,
+            label: "Lương tiêu chuẩn",
+            formula: `${formatPoints(firstTierPoints)} điểm × 60.000đ`,
             amount: firstTierPay,
           },
           {
-            label: "KPI bậc 2 · 101–130 điểm",
-            formula: `${secondTierPoints} điểm × 70.000đ`,
+            label: "Thưởng vượt mốc 1",
+            formula: `${formatPoints(secondTierPoints)} điểm × 70.000đ`,
             amount: secondTierPay,
           },
           {
-            label: "KPI bậc 3 · 131–160 điểm",
-            formula: `${thirdTierPoints} điểm × 80.000đ`,
+            label: "Thưởng vượt mốc 2",
+            formula: `${formatPoints(thirdTierPoints)} điểm × 80.000đ`,
             amount: thirdTierPay,
           },
           {
-            label: "KPI bậc 4 · trên 160 điểm",
-            formula: `${fourthTierPoints} điểm × 90.000đ`,
+            label: "Thưởng vượt mốc 3",
+            formula: `${formatPoints(fourthTierPoints)} điểm × 90.000đ`,
             amount: fourthTierPay,
           },
           {
-            label: "Trợ cấp ngày công",
+            label: "Hỗ trợ ăn ca",
             formula: `${workDays} ngày × 120.000đ`,
             amount: dailySupport,
           },
-        ],
+        ]),
       });
       continue;
     }
@@ -290,34 +305,52 @@ export async function salaryForUsers(
       const floorAdjustment = Math.max(0, -subtotal);
       result.set(subject.id, {
         amount: Math.max(0, Math.round(subtotal)),
-        directPoints,
-        managementPoints,
-        workDays,
-        items: [
+        month: yearMonth,
+        facts: [
+          { label: "Điểm KPI", value: `${formatPoints(directPoints)} điểm` },
+          { label: "Điểm quản lý", value: `${formatPoints(managementPoints)} điểm` },
+          { label: "Nhân viên trong phòng", value: `${team.length} người` },
+          { label: "Ngày công", value: `${workDays} ngày` },
+        ],
+        // Điểm quản lý tách từng dòng theo số người, vì một con số gộp như
+        // "27 điểm" không cho Trưởng phòng tự kiểm được ai đạt, ai chưa.
+        items: nonZeroItems([
           {
-            label: "Điểm quản lý",
-            formula: `${managementPoints} điểm × ${managementRate.toLocaleString("vi-VN")}đ`,
-            amount: managementPay,
+            label: "Nhân viên đạt 100 điểm",
+            formula: `${reached} người × ${unit} điểm × ${vnd(managementRate)}`,
+            amount: reached * unit * managementRate,
           },
           {
-            label: "Điểm trực tiếp",
-            formula: `${Math.max(directPoints, 0)} điểm × 70.000đ`,
+            label: "Nhân viên dưới 100 điểm",
+            formula: `${below} người × -${unit} điểm × ${vnd(managementRate)}`,
+            amount: -below * unit * managementRate,
+          },
+          {
+            label: "Cả phòng vượt 100 điểm",
+            formula: `${unit} điểm × ${vnd(managementRate)}`,
+            amount: allOver ? unit * managementRate : 0,
+          },
+          {
+            label: "Làm trực tiếp",
+            formula: `${formatPoints(Math.max(directPoints, 0))} điểm × 70.000đ`,
             amount: directPay,
           },
           {
-            label: "Quỹ thưởng phòng",
-            formula: `${subject.role === "head" ? "70%" : "30%"} quỹ của phòng`,
+            label: "Thưởng vượt của phòng",
+            formula: `Trung bình ${formatPoints(roundPoints(average))} điểm - ${overTargetStaff} người vượt - ${subject.role === "head" ? "70%" : "30%"} quỹ`,
             amount: poolPay,
           },
           {
-            label: "Trợ cấp ngày công",
+            label: "Hỗ trợ ăn ca",
             formula: `${workDays} ngày × 120.000đ`,
             amount: dailySupport,
           },
-          ...(floorAdjustment > 0
-            ? [{ label: "Điều chỉnh tối thiểu", formula: "Lương không âm", amount: floorAdjustment }]
-            : []),
-        ],
+          {
+            label: "Điều chỉnh tối thiểu",
+            formula: "Lương không âm",
+            amount: floorAdjustment,
+          },
+        ]),
       });
       continue;
     }
@@ -334,26 +367,30 @@ export async function salaryForUsers(
       const dailySupport = DEPUTY_DIRECTOR_DAYS * DAILY_SUPPORT;
       result.set(subject.id, {
         amount: Math.max(0, Math.round(managementPay + branchBonus + dailySupport)),
-        directPoints,
-        managementPoints,
-        workDays: DEPUTY_DIRECTOR_DAYS,
-        items: [
+        month: yearMonth,
+        facts: [
+          { label: "Điểm quản lý", value: `${formatPoints(managementPoints)} điểm` },
+          { label: "Nhân viên các phòng phụ trách", value: `${team.length} người` },
+          { label: "Tổng điểm nhánh", value: `${formatPoints(roundPoints(totalPoints))} điểm` },
+          { label: "Ngày công", value: `${DEPUTY_DIRECTOR_DAYS} ngày` },
+        ],
+        items: nonZeroItems([
           {
-            label: "Điểm quản lý",
-            formula: `${managementPoints} điểm × 150.000đ`,
+            label: "Nhân viên đạt 100 điểm",
+            formula: `${reached} người × 3 điểm × 150.000đ`,
             amount: managementPay,
           },
           {
-            label: "Thưởng tổng điểm chi nhánh",
-            formula: `${roundPoints(totalPoints)} điểm · tính lũy tiến`,
+            label: "Thưởng tổng điểm nhánh",
+            formula: `${formatPoints(roundPoints(totalPoints))} điểm - lũy tiến 2.000đ, 3.000đ, 4.000đ`,
             amount: branchBonus,
           },
           {
-            label: "Trợ cấp ngày công",
+            label: "Hỗ trợ ăn ca",
             formula: `${DEPUTY_DIRECTOR_DAYS} ngày × 120.000đ`,
             amount: dailySupport,
           },
-        ],
+        ]),
       });
     }
   }

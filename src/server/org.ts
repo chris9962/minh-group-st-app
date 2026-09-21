@@ -280,7 +280,8 @@ export async function departmentDetailFor(
         .from(users)
         .where(and(eq(users.role, "director"), eq(users.active, true)))
     : listed;
-  const managerSalary = await salaryForUsers(managers.map((manager) => manager.id), businessMonth());
+  const salaryMonth = businessMonth();
+  const managerSalary = await salaryForUsers(managers.map((manager) => manager.id), salaryMonth);
 
   return {
     department: {
@@ -296,9 +297,8 @@ export async function departmentDetailFor(
         ...manager,
         salary: salary?.amount ?? 0,
         salaryBreakdown: {
-          directPoints: salary?.directPoints ?? 0,
-          managementPoints: salary?.managementPoints ?? 0,
-          workDays: salary?.workDays ?? 0,
+          month: salaryMonth,
+          facts: salary?.facts ?? [],
           items: salary?.items ?? [],
         },
       };
