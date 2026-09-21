@@ -110,7 +110,18 @@ export function PeriodPicker({
   const id = useId();
   const dates = periodDates(value);
   const range = { from: parseDay(dates.from), to: parseDay(dates.to) };
-  const allowRange = kinds.includes("range");
+
+  /**
+   * Lịch luôn hiện — preset chỉ là lối tắt. Ẩn lịch khi kind !== "range" thì
+   * điện thoại (bỏ toolbar, nhét vào "Bộ lọc") mất hẳn chỗ chọn ngày.
+   *
+   * `range` không nằm trong `kinds` (Tổng quan) vẫn chọn được ngày; mục
+   * "Khoảng ngày" chỉ thêm vào danh sách khi đang đứng ở kind đó, để nút hiện
+   * đúng nhãn.
+   */
+  const menuKinds: readonly PeriodKind[] =
+    kinds.includes("range") || value.kind !== "range" ? kinds : [...kinds, "range"];
+  const pickedRange = value.kind === "range" ? (value.range ?? range) : range;
 
   if (variant === "toolbar") {
     const kindLabel = value.kind === "range" ? "Custom" : periodKindLabel(value.kind);
@@ -127,7 +138,7 @@ export function PeriodPicker({
               align="start"
               sideOffset={6}
             >
-              {kinds.map((kind) => (
+              {menuKinds.map((kind) => (
                 <Popover.Close asChild key={kind}>
                   <button
                     type="button"
@@ -144,7 +155,7 @@ export function PeriodPicker({
         </Popover.Root>
         <span className={styles.split} aria-hidden />
         <DateRangePicker
-          value={range}
+          value={pickedRange}
           sameMonthOnly={sameMonthOnly}
           appearance="chip"
           onChange={(next) => onChange({ kind: "range", range: next })}
@@ -156,7 +167,7 @@ export function PeriodPicker({
   return (
     <div className={styles.wrap}>
       <div className="seg" role="group" aria-label="Kỳ số liệu">
-        {kinds.map((kind) => (
+        {menuKinds.map((kind) => (
           <label className="seg-opt" key={kind}>
             <input
               type="radio"
@@ -176,13 +187,11 @@ export function PeriodPicker({
         ))}
       </div>
 
-      {allowRange && value.kind === "range" && (
-        <DateRangePicker
-          value={value.range}
-          sameMonthOnly={sameMonthOnly}
-          onChange={(next) => onChange({ kind: "range", range: next })}
-        />
-      )}
+      <DateRangePicker
+        value={pickedRange}
+        sameMonthOnly={sameMonthOnly}
+        onChange={(next) => onChange({ kind: "range", range: next })}
+      />
     </div>
   );
 }

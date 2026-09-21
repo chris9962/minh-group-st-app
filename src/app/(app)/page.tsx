@@ -220,6 +220,9 @@ export default function DashboardPage() {
   return (
     <>
       <TopBar title="Tổng quan" keepTitleOnMobile welcome>
+        {/* Một control cho mọi bề ngang: preset + lịch. Bản cũ giấu toolbar
+            trên điện thoại rồi nhét năm pill vào "Bộ lọc" — mất chỗ chọn ngày
+            và hàng pill bọc không còn đọc được. */}
         <div className={styles.periodToolbar}>
           <PeriodPicker
             value={period}

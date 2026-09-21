@@ -9,8 +9,9 @@ import styles from "./TopBar.module.scss";
 type Props = {
   title: string;
   /**
-   * Giữ tiêu đề hiện trên điện thoại. Chỉ Tổng quan cần — các màn khác đã có
-   * tiêu đề ở thanh điều hướng đáy, in lại lần nữa chỉ chiếm chỗ của bộ lọc.
+   * Hiện tiêu đề trên điện thoại. Mặc định có — thanh đáy chỉ có vài lối tắt
+   * (Tổng quan, Khách hàng…), không mang tên màn đang mở như Bảo hiểm.
+   * `false` khi cố ý nhường hết chỗ cho bộ lọc.
    */
   keepTitleOnMobile?: boolean;
   /**
@@ -24,7 +25,7 @@ type Props = {
 
 export function TopBar({
   title,
-  keepTitleOnMobile = false,
+  keepTitleOnMobile = true,
   welcome = false,
   children,
 }: Props) {

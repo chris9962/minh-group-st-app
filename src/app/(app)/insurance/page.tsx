@@ -12,7 +12,7 @@ import { TopBar } from "@/components/layout/TopBar";
 import { Button } from "@/components/ui/Button";
 import buttonStyles from "@/components/ui/Button.module.css";
 import { Checkbox } from "@/components/ui/Checkbox";
-import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { ConfirmDialog, ConfirmFacts } from "@/components/ui/ConfirmDialog";
 import { DateRangePicker } from "@/components/ui/DateRangePicker";
 import { FilterButton } from "@/components/ui/FilterButton";
 import { FilterChoices } from "@/components/ui/FilterChoices";
@@ -64,6 +64,16 @@ const pageFromUrl = (value: string | null): number => {
   // URL đếm từ 1 để người dùng đọc được; `RankTable` đếm từ 0 nội bộ.
   return Number.isSafeInteger(page) && page >= 1 ? page - 1 : 0;
 };
+
+/** Từng trường một — đừng ghép mã · gói · tên thành một câu trên hộp thoại. */
+const orderConfirmFacts = (row: InsuranceListRow) => [
+  { label: "Mã đơn", value: <strong className="tabular-nums">{row.orderCode}</strong> },
+  { label: "Khách hàng", value: row.customerName },
+  { label: "Sản phẩm", value: PRODUCT_LABEL[row.product] },
+  { label: "Gói", value: row.packageName },
+  { label: "Ngày bán", value: formatDate(row.orderDate) },
+  ...(row.createdByName ? [{ label: "Người tạo", value: row.createdByName }] : []),
+];
 
 /**
  * P-13 · Danh sách đơn bảo hiểm.
@@ -750,9 +760,7 @@ export default function InsurancePage() {
             onConfirm={() => remove.mutate(removing)}
             onClose={() => setRemoving(null)}
           >
-            <strong>{removing.orderCode}</strong> · {PRODUCT_LABEL[removing.product]} ·{" "}
-            {removing.packageName}, của {removing.customerName}, bán ngày{" "}
-            {formatDate(removing.orderDate)}.
+            <ConfirmFacts items={orderConfirmFacts(removing)} />
           </ConfirmDialog>
         )}
 
@@ -769,9 +777,7 @@ export default function InsurancePage() {
             onConfirm={() => handOver.mutate(handingOver)}
             onClose={() => setHandingOver(null)}
           >
-            <strong>{handingOver.orderCode}</strong> · {PRODUCT_LABEL[handingOver.product]} ·{" "}
-            {handingOver.packageName}, của {handingOver.customerName}, bán ngày{" "}
-            {formatDate(handingOver.orderDate)}.
+            <ConfirmFacts items={orderConfirmFacts(handingOver)} />
           </ConfirmDialog>
         )}
       </main>

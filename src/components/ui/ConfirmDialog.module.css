@@ -7,3 +7,22 @@
 .question:last-child {
   margin-bottom: 0;
 }
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px 20px;
+  margin: 0 0 4px;
+}
+
+.facts dt {
+  margin: 0;
+  font-size: 12px;
+  color: var(--om-text-2);
+}
+
+.facts dd {
+  margin: 3px 0 0;
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}

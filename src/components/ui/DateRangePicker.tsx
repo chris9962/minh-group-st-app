@@ -2,7 +2,7 @@
 
 import { CalendarDays } from "lucide-react";
 import * as Popover from "@radix-ui/react-popover";
-import { useId, useRef } from "react";
+import { useId, useRef, useSyncExternalStore } from "react";
 import { format } from "date-fns";
 import { vi } from "date-fns/locale";
 import { DayPicker, type DateRange } from "react-day-picker";
@@ -74,6 +74,21 @@ const clampToMonth = (r: DateRange | undefined, on: boolean): DateRange | undefi
   return r.to.getTime() > last.getTime() ? { from: r.from, to: last } : r;
 };
 
+const NARROW = "(max-width: 600px)";
+
+/** Một tháng trên điện thoại; hai tháng cạnh nhau khi đủ chỗ. */
+function useNarrowViewport() {
+  return useSyncExternalStore(
+    (onChange) => {
+      const mq = window.matchMedia(NARROW);
+      mq.addEventListener("change", onChange);
+      return () => mq.removeEventListener("change", onChange);
+    },
+    () => window.matchMedia(NARROW).matches,
+    () => false,
+  );
+}
+
 /**
  * Chọn khoảng ngày bằng MỘT lịch: bấm ngày đầu rồi kéo tới ngày cuối.
  * Dùng react-day-picker vì tự viết lịch có khoảng là rất dễ sai ở tuần giao
@@ -91,6 +106,7 @@ export function DateRangePicker({
 }: Props) {
   const id = useId();
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const narrow = useNarrowViewport();
 
   /**
    * Đang chọn dở — đã bấm ngày đầu, chưa bấm ngày cuối. Lúc đó lịch khoá vào
@@ -155,11 +171,15 @@ export function DateRangePicker({
       )}
 
       <Popover.Portal>
-        <Popover.Content className={styles.panel} sideOffset={6} align="end">
+        <Popover.Content
+          className={styles.panel}
+          sideOffset={6}
+          align={narrow ? "center" : "end"}
+        >
           <DayPicker
             mode="range"
             locale={vi}
-            numberOfMonths={2}
+            numberOfMonths={narrow ? 1 : 2}
             defaultMonth={value?.from}
             selected={value}
             // Lưới lịch đã khoá, dòng này chặn nốt đường còn lại: giá trị cũ

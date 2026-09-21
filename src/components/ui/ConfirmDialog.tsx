@@ -1,9 +1,29 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { Alert } from "./Alert";
 import { Button } from "./Button";
 import { Dialog } from "./Dialog";
 import styles from "./ConfirmDialog.module.css";
+
+export type ConfirmFact = { label: string; value: ReactNode };
+
+/**
+ * Bảng thông tin trong hộp xác nhận — mỗi trường một nhãn, không nhét vào
+ * một câu bằng dấu chấm giữa. Điện thoại xếp một cột; đủ chỗ thì hai cột.
+ */
+export function ConfirmFacts({ items }: { items: ConfirmFact[] }) {
+  return (
+    <dl className={styles.facts}>
+      {items.map((item) => (
+        <div key={item.label}>
+          <dt>{item.label}</dt>
+          <dd>{item.value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
 
 type Props = {
   open: boolean;
@@ -69,7 +89,7 @@ export function ConfirmDialog({
         </>
       }
     >
-      <p className={styles.question}>{children}</p>
+      <div className={styles.question}>{children}</div>
       {consequence && <Alert tone="warning">{consequence}</Alert>}
     </Dialog>
   );

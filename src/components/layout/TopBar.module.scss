@@ -140,13 +140,30 @@
     flex-wrap: wrap;
   }
 
-  /* `contents` đưa ô tìm, chuông, kỳ lên cùng hàng flex với tên — kỳ mới
-     xuống hàng riêng (full width), không kéo cả cụm công cụ xuống. */
+  /* iPad: search + chuông + kỳ vẫn một hàng. Điện thoại (narrow) mới tách
+     kỳ xuống hàng riêng — xem block dưới. */
   .welcomeBar .tools {
-    display: contents;
+    flex: 1 1 auto;
+    min-width: 0;
+    flex-wrap: nowrap;
   }
 
   .welcomeHint {
     display: none;
+  }
+}
+
+@media (max-width: bp.$bp-narrow) {
+  /* `contents` + last-child 100%: kỳ xuống hàng riêng, rộng hết thanh.
+     Specificity phải thắng `.tools > * { flex: none }` — không thì viên
+     thuốc chỉ rộng bằng chữ (~300px) dù đã xuống hàng. */
+  .welcomeBar .tools {
+    display: contents;
+  }
+
+  .welcomeBar .tools > *:last-child {
+    flex: 1 1 100%;
+    width: 100%;
+    margin-left: 0;
   }
 }

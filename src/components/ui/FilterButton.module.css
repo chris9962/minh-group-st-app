@@ -110,6 +110,8 @@
   padding: 16px 18px;
   display: flex;
   flex-direction: column;
+  container-type: inline-size;
+  container-name: filter-pane;
 }
 
 .single .pane {
