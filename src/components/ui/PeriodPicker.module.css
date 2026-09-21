@@ -6,7 +6,13 @@
 }
 
 .wrap :global(.seg) {
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+}
+
+@media (max-width: 600px) {
+  .wrap :global(.seg) {
+    flex-wrap: wrap;
+  }
 }
 
 /* Một viên thuốc: preset | khoảng ngày — cùng dáng cụm ngày trên ảnh mẫu. */
@@ -97,6 +103,20 @@
   .kindBtn,
   .dates {
     min-height: 44px;
+  }
+}
+
+@media (max-width: 600px) {
+  .cluster {
+    display: flex;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .dates {
+    flex: 1;
+    min-width: 0;
+    justify-content: flex-end;
   }
 }
 

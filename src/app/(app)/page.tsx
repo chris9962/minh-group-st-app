@@ -8,8 +8,6 @@ import { Checkbox } from "@/components/ui/Checkbox";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
 import { BarChart } from "@/components/ui/BarChart";
-import { FilterButton } from "@/components/ui/FilterButton";
-import { FilterField } from "@/components/ui/FilterField";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { RateDelta } from "@/components/ui/RateDelta";
 import { Sparkline } from "@/components/ui/Sparkline";
@@ -222,30 +220,13 @@ export default function DashboardPage() {
   return (
     <>
       <TopBar title="Tổng quan" keepTitleOnMobile welcome>
-        <div className="desktop-only">
+        <div className={styles.periodToolbar}>
           <PeriodPicker
             value={period}
             onChange={setPeriod}
             kinds={OVERVIEW_PERIOD_KINDS}
             variant="toolbar"
           />
-        </div>
-        {/* Trên desktop bộ chọn kỳ đã hiện thẳng ở trên — nút "Bộ lọc" ở đây
-            chỉ có việc trên điện thoại, ẩn hẳn (không chỉ ẩn nội dung) ở
-            desktop để khỏi thừa một nút mở ra không có gì bên trong. */}
-        <div className="mobile-only">
-          <FilterButton
-            activeCount={period.kind === "today" ? 0 : 1}
-            onClear={() => setPeriod(DEFAULT_PERIOD)}
-          >
-            <FilterField id="period" label="Kỳ" count={period.kind === "today" ? 0 : 1}>
-              <PeriodPicker
-                value={period}
-                onChange={setPeriod}
-                kinds={OVERVIEW_PERIOD_KINDS}
-              />
-            </FilterField>
-          </FilterButton>
         </div>
       </TopBar>
 

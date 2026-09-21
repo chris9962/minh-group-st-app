@@ -9,6 +9,24 @@
   min-width: 0;
 }
 
+/* Điện thoại: kỳ xuống hàng riêng, full bề ngang header — hàng trên giữ
+   tên + ô tìm. */
+.periodToolbar {
+  display: flex;
+}
+
+@media (max-width: bp.$bp-narrow) {
+  .periodToolbar {
+    flex: 1 1 100%;
+    margin-left: 0;
+  }
+
+  .periodToolbar > * {
+    flex: 1;
+    min-width: 0;
+  }
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

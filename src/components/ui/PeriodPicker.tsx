@@ -1,13 +1,12 @@
 "use client";
 
 import * as Popover from "@radix-ui/react-popover";
-import { CalendarDays, ChevronDown } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { useId } from "react";
 import type { DateRange } from "react-day-picker";
 import { businessDay } from "@/lib/format";
 import {
   FILTER_PERIOD_KINDS,
-  formatPeriodChip,
   periodKindLabel,
   periodRanges,
   type PeriodKind,
@@ -114,11 +113,12 @@ export function PeriodPicker({
   const allowRange = kinds.includes("range");
 
   if (variant === "toolbar") {
+    const kindLabel = value.kind === "range" ? "Custom" : periodKindLabel(value.kind);
     return (
       <div className={styles.cluster} role="group" aria-label="Kỳ số liệu">
         <Popover.Root>
           <Popover.Trigger className={styles.kindBtn}>
-            {periodKindLabel(value.kind)}
+            {kindLabel}
             <ChevronDown size={16} aria-hidden />
           </Popover.Trigger>
           <Popover.Portal>
@@ -143,19 +143,12 @@ export function PeriodPicker({
           </Popover.Portal>
         </Popover.Root>
         <span className={styles.split} aria-hidden />
-        {allowRange ? (
-          <DateRangePicker
-            value={range}
-            sameMonthOnly={sameMonthOnly}
-            appearance="chip"
-            onChange={(next) => onChange({ kind: "range", range: next })}
-          />
-        ) : (
-          <span className={styles.dates}>
-            <CalendarDays size={16} aria-hidden />
-            {formatPeriodChip(dates.from, dates.to)}
-          </span>
-        )}
+        <DateRangePicker
+          value={range}
+          sameMonthOnly={sameMonthOnly}
+          appearance="chip"
+          onChange={(next) => onChange({ kind: "range", range: next })}
+        />
       </div>
     );
   }

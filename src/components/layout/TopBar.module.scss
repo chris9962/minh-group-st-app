@@ -140,6 +140,12 @@
     flex-wrap: wrap;
   }
 
+  /* `contents` đưa ô tìm, chuông, kỳ lên cùng hàng flex với tên — kỳ mới
+     xuống hàng riêng (full width), không kéo cả cụm công cụ xuống. */
+  .welcomeBar .tools {
+    display: contents;
+  }
+
   .welcomeHint {
     display: none;
   }

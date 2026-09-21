@@ -38,6 +38,9 @@
   font-variant-numeric: tabular-nums;
   cursor: pointer;
   white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+  justify-content: flex-end;
 }
 
 .chip:hover {

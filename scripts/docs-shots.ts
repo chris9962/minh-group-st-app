@@ -363,7 +363,7 @@ await page.getByRole("heading", { name: "Tổng quan" }).waitFor();
 await blurPersonalData(page);
 await shoot(page, "dashboard-page", [
   { n: 1, target: nav(page).getByRole("link", { name: "Tổng quan" }), label: "Mục Tổng quan trên thanh điều hướng." },
-  { n: 2, target: page.getByRole("button", { name: "Bộ lọc" }).or(page.locator(".desktop-only").first()), label: "Bộ chọn kỳ — đổi khoảng thời gian của số liệu." },
+  { n: 2, target: page.getByRole("button", { name: "Hôm nay" }), label: "Bộ chọn kỳ — đổi khoảng thời gian của số liệu." },
 ]);
 
 await page.goto(`${BASE_URL}/departments`);

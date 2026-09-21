@@ -249,8 +249,8 @@ a {
 
 /* Cùng MỘT control (state dùng chung từ component cha) đổi CHỖ hiện giữa
    desktop (ngay trên TopBar) và điện thoại (gộp vào trong "Bộ lọc") — tránh
-   phải viết hai bản khác nhau cho cùng một chức năng. 900px khớp $bp-mobile ở
-   _breakpoints.scss; file này là .css thường nên chép tay giá trị. */
+   phải viết hai bản khác nhau cho cùng một chức năng. 600px khớp $bp-narrow:
+   iPad vẫn lấy cụm kỳ của desktop; điện thoại mới thu vào nút Lọc. */
 .desktop-only {
   display: block;
 }
@@ -259,7 +259,7 @@ a {
   display: none;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 600px) {
   .desktop-only {
     display: none;
   }

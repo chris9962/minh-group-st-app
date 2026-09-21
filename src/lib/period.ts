@@ -19,7 +19,7 @@ export type PeriodKind =
   | "last-1-year"
   | "range";
 
-/** Năm preset trên Tổng quan — không còn khoảng ngày tự chọn. */
+/** Năm preset trên Tổng quan. Khoảng tự chọn đi bằng lịch, nhãn thành Custom. */
 export const OVERVIEW_PERIOD_KINDS: readonly PeriodKind[] = [
   "today",
   "this-month",
