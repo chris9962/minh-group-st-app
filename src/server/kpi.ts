@@ -4,6 +4,7 @@ import { bankingPointsFor, kpiAppliesTo, type ScoringAccount } from "@/rules";
 import type { Range } from "./org";
 import { customerDayBetween, customerDayText } from "./customerDay";
 import { db } from "./db/client";
+import { recomputeWorkDayForCustomer } from "./workDays";
 import {
   bankAccounts,
   banks,
@@ -335,7 +336,13 @@ export async function recomputeKpiForCustomer(customerId: string): Promise<void>
   // khoản của một hồ sơ nằm chung một tháng, nên hàm tự tra, nơi gọi không
   // truyền tháng nữa. Dời ngày hồ sơ qua tháng khác thì `updateCustomer` tự gọi
   // `recomputeKpi` cho tháng cũ.
-  if (row?.ownerId) await recomputeKpi(row.ownerId, row.day.slice(0, 7));
+  if (row?.ownerId) {
+    await recomputeKpi(row.ownerId, row.day.slice(0, 7));
+    // Cùng nguồn `done` và cùng ngày hồ sơ với KPI. Gắn ở cửa chung này để mọi
+    // đường hoàn thành, đánh lỗi, duyệt lại và xoá tài khoản không thể quên cập
+    // nhật ngày công trong khi vẫn cập nhật điểm.
+    await recomputeWorkDayForCustomer(customerId);
+  }
 }
 
 /**

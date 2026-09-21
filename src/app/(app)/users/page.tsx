@@ -37,6 +37,7 @@ import { FilterChips } from "@/components/ui/FilterChips";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { SearchField } from "@/components/ui/SearchField";
 import { StaffFormDialog } from "@/components/staff/StaffFormDialog";
+import { SalaryAmount } from "@/components/payroll/SalaryAmount";
 import { useDebouncedValue } from "@/lib/hooks";
 import { availableScopes, can, canOrg, scopeFor, visibleDepartmentIds } from "@/lib/permissions";
 import { ROLE_LABEL, RoleKey, type Scope } from "@/lib/types";
@@ -197,7 +198,6 @@ export default function PeoplePage() {
   const [editing, setEditing] = useState<StaffAccount | null>(null);
   const [creating, setCreating] = useState(false);
   const [locking, setLocking] = useState<StaffRow | null>(null);
-
   const canManage = can(user, "staff", "create") || can(user, "staff", "update");
   const queryClient = useQueryClient();
 
@@ -317,6 +317,12 @@ export default function PeoplePage() {
         ? [
             ...BASE_COLUMNS,
             {
+              key: "salary",
+              label: "Lương",
+              align: "right" as const,
+              render: (r) => <SalaryAmount amount={r.salary} visible />,
+            },
+            {
               key: "actions",
               label: "Thao tác",
               render: (r) => (
@@ -347,7 +353,15 @@ export default function PeoplePage() {
               ),
             },
           ]
-        : BASE_COLUMNS,
+        : [
+            ...BASE_COLUMNS,
+            {
+              key: "salary",
+              label: "Lương",
+              align: "right" as const,
+              render: (r) => <SalaryAmount amount={r.salary} visible />,
+            },
+          ],
     [canManage, user?.id],
   );
 

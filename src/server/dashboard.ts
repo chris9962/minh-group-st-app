@@ -5,7 +5,7 @@ import type {
   DashboardDraftAccount,
   DepartmentRanking,
 } from "@/lib/api/dashboard";
-import { BUSINESS_TIMEZONE, businessDay, monthRange } from "@/lib/format";
+import { BUSINESS_TIMEZONE, businessDay, businessMonth, monthRange } from "@/lib/format";
 import { recordVisibility } from "@/lib/permissions";
 import type { User } from "@/lib/types";
 import { appsInstalledCount, variantOfAccount } from "./appCounted";
@@ -27,6 +27,7 @@ import {
 import { giftItemNames } from "./gift";
 import { pointsByStaffInRange } from "./kpi";
 import { statsByDepartment, statsByStaff, type Range } from "./org";
+import { salaryForUsers } from "./salary";
 
 /**
  * P-80 · Tổng quan — bốn cách nhìn, một bộ số liệu (chốt 06/08).
@@ -726,7 +727,7 @@ export async function dashboardFor(
   const v = dashboardVisibility(actor);
   const { current, previous } = periodRanges(periodKey, businessDay());
 
-  const [banking, previousBanking, insurance, servicesData, gifts, ranked, scopeLabel, points] =
+  const [banking, previousBanking, insurance, servicesData, gifts, ranked, scopeLabel, points, companySalary] =
     await Promise.all([
       bankingSummaryFor(v, actor.id, current),
       previous ? bankingTotals(v, actor.id, previous) : Promise.resolve(null),
@@ -736,6 +737,16 @@ export async function dashboardFor(
       ranking(actor, v, current, previous),
       visibilityLabel(v),
       pointsByStaffInRange(current),
+      v.kind === "company"
+        ? db
+            .select({ id: users.id })
+            .from(users)
+            .where(eq(users.active, true))
+            .then(async (rows) => {
+              const salaries = await salaryForUsers(rows.map((row) => row.id), businessMonth());
+              return [...salaries.values()].reduce((sum, salary) => sum + salary.amount, 0);
+            })
+        : Promise.resolve(null),
     ]);
 
   /**
@@ -798,6 +809,9 @@ export async function dashboardFor(
                 ) / 10,
             }
           : null,
+      // Luôn là tháng làm việc hiện tại, không chạy theo bộ chọn kỳ của các số
+      // nghiệp vụ phía trên. Lương là số tháng, không có nghĩa ở kỳ ngày tùy ý.
+      companySalary,
       rankingKind: ranked.kind,
       departments: rowsWithPoints,
       services: servicesData,

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { BankingSummary, DepartmentRanking } from './dashboard';
 import { Department, DepartmentType } from '@/lib/types';
+import { SalaryBreakdown } from './person';
 
 /**
  * Tổ chức — P-91.
@@ -33,6 +34,8 @@ export const DepartmentManager = z.object({
   id: z.string(),
   fullName: z.string(),
   title: z.string(),
+  salary: z.number(),
+  salaryBreakdown: SalaryBreakdown,
 });
 export type DepartmentManager = z.infer<typeof DepartmentManager>;
 

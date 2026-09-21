@@ -34,6 +34,7 @@ import {
   bankAccounts,
   customers,
   departments,
+  employeeWorkDays,
   insuranceOrders,
   kpiScores,
   services,
@@ -55,6 +56,7 @@ import {
 } from "./people";
 import { recomputeGiftCase } from "./gift";
 import { relationsFor } from "./users";
+import { salaryForUsers } from "./salary";
 
 /**
  * P-51 · P-52 · P-53 — bản DB của src/mocks/staff.ts, cùng luật nghiệp vụ:
@@ -246,6 +248,7 @@ export async function staffFor(
     usableDate(query.from) && usableDate(query.to)
       ? await pointsByStaffInRange(countsRange)
       : null;
+  const salaryById = await salaryForUsers(rows.map((r) => r.user.id), summaryMonth);
 
   /**
    * Tổng điểm CẢ PHÒNG, cộng trên toàn phòng chứ không trên trang đang xem.
@@ -280,6 +283,7 @@ export async function staffFor(
         accounts: countsById.get(a.id)?.accounts ?? 0,
         services: countsById.get(a.id)?.services ?? 0,
         rangePoints: rangePoints ? (rangePoints.get(a.id)?.points ?? 0) : null,
+        salary: salaryById.get(a.id)?.amount ?? 0,
       })),
       total: totals?.value ?? 0,
     },
@@ -560,6 +564,13 @@ async function writeStaff(
             .update(table)
             .set({ createdByDepartmentId: movedTo })
             .where(eq(table.createdBy, id));
+        // Ngày công cũng đi theo người như bốn bảng nghiệp vụ trên. Nhờ vậy
+        // số ngày của TP/PT phòng cũ và mới không đọc hai quy ước khác nhau.
+        if (movedTo)
+          await tx
+            .update(employeeWorkDays)
+            .set({ departmentId: movedTo, updatedAt: new Date() })
+            .where(eq(employeeWorkDays.userId, id));
       }
 
       await tx

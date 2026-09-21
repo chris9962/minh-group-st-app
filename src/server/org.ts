@@ -2,6 +2,7 @@ import { and, asc, count, eq, gt, gte, inArray, lte, sql } from "drizzle-orm";
 import {
   BUSINESS_TIMEZONE,
   businessDay,
+  businessMonth,
   matchesSearch,
   monthRange,
   removeDiacritics,
@@ -30,6 +31,7 @@ import {
   users,
 } from "./db/schema";
 import { pointsByStaffInRange } from "./kpi";
+import { salaryForUsers } from "./salary";
 
 /**
  * P-91 · Phòng ban — bản DB của src/mocks/org.ts, cùng luật:
@@ -278,6 +280,7 @@ export async function departmentDetailFor(
         .from(users)
         .where(and(eq(users.role, "director"), eq(users.active, true)))
     : listed;
+  const managerSalary = await salaryForUsers(managers.map((manager) => manager.id), businessMonth());
 
   return {
     department: {
@@ -287,7 +290,19 @@ export async function departmentDetailFor(
       active: department.active,
       headcount: await headcountOf(id),
     },
-    managers,
+    managers: managers.map((manager) => {
+      const salary = managerSalary.get(manager.id);
+      return {
+        ...manager,
+        salary: salary?.amount ?? 0,
+        salaryBreakdown: {
+          directPoints: salary?.directPoints ?? 0,
+          managementPoints: salary?.managementPoints ?? 0,
+          workDays: salary?.workDays ?? 0,
+          items: salary?.items ?? [],
+        },
+      };
+    }),
     managedByDefault,
   };
 }

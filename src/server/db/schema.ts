@@ -218,6 +218,35 @@ export const users = pgTable(
   ],
 );
 
+/**
+ * Ngày làm việc suy ra từ khách có ít nhất một tài khoản hoàn thành.
+ *
+ * Một người một ngày đúng một dòng. `qualifying_customer_count` không dùng để
+ * nhân tiền — nó là dấu vết để Kế toán biết vì sao ngày đó được ghi nhận và để
+ * `db:recount` phát hiện dữ liệu tổng hợp bị lệch. Trưởng/Phó phòng lấy số ngày
+ * của phòng bằng `count(distinct work_date)`, không lưu thêm một bản sao riêng.
+ */
+export const employeeWorkDays = pgTable(
+  "employee_work_days",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    workDate: date("work_date", { mode: "string" }).notNull(),
+    /** Phòng hiện tại của người này; dữ liệu đi theo người khi chuyển phòng. */
+    departmentId: uuid("department_id")
+      .notNull()
+      .references(() => departments.id),
+    qualifyingCustomerCount: integer("qualifying_customer_count").notNull(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.workDate] }),
+    index("employee_work_days_department_date").on(t.departmentId, t.workDate),
+    check("employee_work_days_customer_count_positive", sql`${t.qualifyingCustomerCount} > 0`),
+  ],
+);
+
 /** QUẢN LÝ đi đường riêng (#43) — chỉ có dòng khi manage_scope = 'listed'. */
 export const userManagedDepartments = pgTable(
   "user_managed_departments",

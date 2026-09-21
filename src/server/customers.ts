@@ -49,6 +49,7 @@ import { customerDay, customerDayText } from "./customerDay";
 import { db, uniqueViolationOf } from "./db/client";
 import { giftForCustomer, giftItemNames, grantedItemLabel, recomputeGiftCase } from "./gift";
 import { bankingPointsByCustomer, recomputeKpi, recomputeKpiForCustomer } from "./kpi";
+import { recomputeEmployeeWorkDay } from "./workDays";
 import {
   bankAccounts,
   banks,
@@ -1351,7 +1352,7 @@ export async function updateCustomer(
        * Tháng cũ trả về để tính lại điểm sau giao dịch; tháng mới
        * `recomputeKpiForCustomer` tự tra.
        */
-      let movedFromMonth: string | null = null;
+      let movedFromDay: string | null = null;
       if (form.createdDay) {
         const [cur] = await tx
           .select({
@@ -1375,18 +1376,21 @@ export async function updateCustomer(
             fromValue: cur.day,
             toValue: form.createdDay,
           });
-          movedFromMonth = cur.day.slice(0, 7);
+          movedFromDay = cur.day;
         }
       }
 
-      return movedFromMonth ?? true;
+      return movedFromDay ?? true;
     });
 
     if (updated === "move-day-forbidden" || updated === "move-day-gifted") return updated;
     if (typeof updated === "string") {
       // Dời qua tháng khác: ô điểm tháng cũ mất khách này, phải ghi lại; tháng
       // mới do `recomputeKpiForCustomer` bên dưới lo.
-      if (owner.createdById) await recomputeKpi(owner.createdById, updated);
+      if (owner.createdById) {
+        await recomputeKpi(owner.createdById, updated.slice(0, 7));
+        await recomputeEmployeeWorkDay(owner.createdById, updated);
+      }
     }
     return updated ? await customerById(id, actor) : null;
   });

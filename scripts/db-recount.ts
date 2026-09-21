@@ -3,6 +3,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import { recountReferralCodes } from "../src/server/catalog";
 import { recountGiftCases } from "../src/server/gift";
+import { recountEmployeeWorkDays } from "../src/server/workDays";
 
 /**
  * Đếm lại mọi cột lưu sẵn từ dữ liệu gốc:
@@ -83,6 +84,14 @@ async function main() {
   } else {
     console.log(`${giftDrift.length} khách lệch rổ quà:`);
     for (const r of giftDrift) console.log(" ", JSON.stringify(r));
+  }
+
+  const workDayDrift = await recountEmployeeWorkDays();
+  if (workDayDrift.length === 0) {
+    console.log("Không có ngày công nào lệch.");
+  } else {
+    console.log(`${workDayDrift.length} ngày công lệch:`);
+    for (const r of workDayDrift) console.log(" ", JSON.stringify(r));
   }
 
   await pool.end();

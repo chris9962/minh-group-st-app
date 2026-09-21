@@ -109,6 +109,8 @@ export const DashboardData = z.object({
     .object({ kind: z.enum(['company', 'departments']), points: z.number() })
     .nullable()
     .default(null),
+  /** Tổng lương động của toàn công ty trong tháng hiện tại; chỉ mặt công ty có. */
+  companySalary: z.number().nullable().default(null),
   insurance: z.object({
     createdToday: z.number(),
     /** Bảo hiểm tai nạn hộ sử dụng điện. */
