@@ -32,7 +32,7 @@ import type { BankAccountDetail, BankAccountRow, BankAccountSort } from "@/lib/a
 import type { ReferralCode } from "@/lib/api/bankCatalog";
 import type { Page } from "@/lib/api/pagination";
 import type { BankPhoto, BankPhotoRow } from "@/lib/api/bankPhotos";
-import { BUSINESS_TIMEZONE, ageRangeLabel, businessDay, businessMonth } from "@/lib/format";
+import { BUSINESS_TIMEZONE, ageRangeLabel, businessDay, businessMonth, digitsOnly } from "@/lib/format";
 import {
   canDeleteFinished,
   canManageBank,
@@ -360,26 +360,35 @@ const inScope = (
 };
 
 /**
- * Tìm theo TÊN KHÁCH bằng `exists`, không phải phép nối.
+ * Tìm theo TÊN KHÁCH, SỐ TÀI KHOẢN, hoặc MÃ GIỚI THIỆU.
  *
- * `exists` là phép nửa-nối: Postgres dừng ngay khi thấy một dòng khớp, và cột
- * sinh `customers.search_name` có chỉ mục trigram đỡ. Nối `customers` vào câu
- * chọn trang thì bảng khách đi cùng suốt phép sắp xếp trên bảng LỚN NHẤT hệ
- * thống (AGENTS.md §5.2).
+ * Tên khách đi `exists` — Postgres dừng khi thấy một dòng khớp, cột sinh
+ * `customers.search_name` có chỉ mục trigram đỡ. Nối `customers` vào câu chọn
+ * trang thì bảng khách đi cùng suốt phép sắp trên bảng LỚN NHẤT hệ thống
+ * (AGENTS.md §5.2).
+ *
+ * Mã giới thiệu đổi sang id ở `referralCodeIdsMatching` trước, rồi `inArray`
+ * trên cột sẵn có. Không `exists` lên `referral_codes` từng dòng tài khoản.
  */
-function searchWhere(raw: string): SQL | undefined {
+function searchWhere(raw: string, codeIds: string[]): SQL | undefined {
   const text = raw.trim();
   if (!text) return undefined;
 
   return and(
-    ...searchTerms(text).map(
-      (term) =>
-        sql`exists (
+    ...searchTerms(text).map((term) => {
+      const byName = sql`exists (
           select 1 from ${customers} c
           where c.id = ${bankAccounts.customerId}
             and c.search_name like '%' || mgst_normalize(${likeEscape(term)}) || '%' escape '\\'
-        )`,
-    ),
+        )`;
+      const digits = digitsOnly(term);
+      const parts = [
+        byName,
+        digits.length >= 4 ? sql`${bankAccounts.accountNumber} like ${`%${digits}%`}` : undefined,
+        codeIds.length > 0 ? inArray(bankAccounts.referralCodeId, codeIds) : undefined,
+      ].filter(Boolean) as SQL[];
+      return parts.length === 1 ? parts[0] : or(...parts);
+    }),
   );
 }
 
@@ -435,6 +444,21 @@ async function referralCodeIdsOf(code: string): Promise<string[] | null> {
 }
 
 /**
+ * Ô tìm (không phải ô lọc mã) — quét bảng mã nhỏ rồi lọc tài khoản theo id.
+ * `exists` trên từng dòng `bank_accounts` thì đắt; bảng mã chỉ vài trăm dòng.
+ */
+async function referralCodeIdsMatching(raw: string): Promise<string[]> {
+  const text = raw.trim();
+  if (text.length < 2 || /\s/.test(text)) return [];
+  const rows = await db
+    .select({ id: referralCodes.id })
+    .from(referralCodes)
+    .where(sql`${referralCodes.code} ilike '%' || ${likeEscape(text)} || '%' escape '\\'`)
+    .limit(20);
+  return rows.map((r) => r.id);
+}
+
+/**
  * Lọc theo loại tài khoản — phải khớp với `accountTypeOf`, không chỉ đọc cột đơn.
  *
  * Đơn trước migration 0056 để cột `account_type` là `none` và loại thật nằm ở mã
@@ -471,14 +495,15 @@ async function accountFilters(
   visible: RecordVisibility,
   query: BankAccountFilters,
 ): Promise<SQL | undefined> {
-  const [bankIds, codeIds] = await Promise.all([
+  const [bankIds, codeIds, searchCodeIds] = await Promise.all([
     bankIdsOf(query.bankCode),
     referralCodeIdsOf(query.referralCode),
+    referralCodeIdsMatching(query.search),
   ]);
 
   const parts = [
     scopeWhere(visible),
-    searchWhere(query.search),
+    searchWhere(query.search, searchCodeIds),
     // `[]` = mã gõ vào không có thật → không dòng nào khớp. `sql\`false\`` nói
     // đúng điều đó; bỏ qua bộ lọc thì người dùng gõ sai mã lại thấy cả kho.
     bankIds === null ? undefined : bankIds.length > 0 ? inArray(bankAccounts.bankId, bankIds) : sql`false`,
@@ -796,7 +821,8 @@ const bankAccountsOfBankWhere = (bankId: string, filters: BankOfBankFilters): SQ
   and(
     eq(bankAccounts.bankId, bankId),
     ...([
-      searchWhere(filters.search),
+      // Màn này đã có ô lọc mã riêng (`referralCodeId`), ô tìm không tra mã.
+      searchWhere(filters.search, []),
       usableDate(filters.from) || usableDate(filters.to)
         ? accountOpenedDayBetween(
             usableDate(filters.from) ? filters.from : "1970-01-01",

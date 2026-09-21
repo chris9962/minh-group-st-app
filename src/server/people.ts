@@ -329,8 +329,9 @@ export async function countsInRange(
 const likeEscape = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
 
 /**
- * Tìm theo tên nhân viên, tên đăng nhập hoặc tên đơn vị — không dấu cũng khớp,
- * không phụ thuộc thứ tự từ. Cùng luật với `matchesSearch` ở giao diện.
+ * Tìm theo tên nhân viên, tên đăng nhập, mã nhân viên hoặc tên đơn vị — không
+ * dấu cũng khớp, không phụ thuộc thứ tự từ. Cùng luật với `matchesSearch` ở
+ * giao diện.
  *
  * Câu gọi PHẢI có `leftJoin(departments)`, vì mỗi từ soi cả tên phòng.
  */
@@ -343,7 +344,7 @@ export function staffSearchWhere(search: string): SQL | undefined {
 
   return and(
     ...searchTerms(text).map((term) =>
-      sql`(${like(users.fullName, term)} or ${like(users.username, term)} or ${like(sql`coalesce(${departments.name}, '')`, term)})`,
+      sql`(${like(users.fullName, term)} or ${like(users.username, term)} or ${like(sql`coalesce(${departments.name}, '')`, term)} or ${like(sql`coalesce(${users.staffCode}, '')`, term)})`,
     ),
   );
 }

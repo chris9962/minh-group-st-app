@@ -15,15 +15,15 @@ import { GiftGivingDialog } from "@/components/customers/GiftGivingDialog";
 import { ServiceFormDialog } from "@/components/services/ServiceFormDialog";
 import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
-import { Combobox } from "@/components/ui/Combobox";
 import buttonStyles from "@/components/ui/Button.module.css";
 import { DateRangePicker } from "@/components/ui/DateRangePicker";
 import { FilterButton } from "@/components/ui/FilterButton";
+import { FilterChoices } from "@/components/ui/FilterChoices";
+import { FilterField } from "@/components/ui/FilterField";
 import { FilterChips } from "@/components/ui/FilterChips";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { SearchField } from "@/components/ui/SearchField";
 import { SectionCard } from "@/components/ui/SectionCard";
-import { Select } from "@/components/ui/Select";
 import { fetchChannels } from "@/lib/api/channelCatalog";
 import { fetchDepartments } from "@/lib/api/departments";
 import { fetchHospitals } from "@/lib/api/hospitalCatalog";
@@ -46,6 +46,7 @@ import { exportExcel, type ExcelColumn } from "@/lib/excel";
 import { formatDate, formatPhone, formatPoints } from "@/lib/format";
 import { useAddressSuggestions } from "@/lib/useAddressSuggestions";
 import { useDebouncedValue } from "@/lib/hooks";
+import { useCreateIntent } from "@/lib/useCreateIntent";
 import { can, recordInScope, recordVisibility } from "@/lib/permissions";
 import { isRealIsoDate } from "@/lib/types";
 import { fetchStaffOptions } from "@/lib/api/staff";
@@ -144,7 +145,7 @@ export default function CustomersPage() {
   const setCompact = usePrefs((s) => s.setCompactCustomerTable);
   const searchParams = useSearchParams();
   const [query, setQuery] = useState<CustomerQuery>(() => queryFromUrl(searchParams));
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreating] = useCreateIntent();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [givingGiftTo, setGivingGiftTo] = useState<CustomerRow | null>(null);
   const [openingBankFor, setOpeningBankFor] = useState<CustomerRow | null>(null);
@@ -574,81 +575,87 @@ export default function CustomersPage() {
             });
           }}
         >
-          <DateRangePicker
-            label="Khoảng ngày"
-            value={range}
-            // Cột Điểm đọc tháng từ ngày đầu khoảng, mà luật điểm là luật của
-            // MỘT tháng — khoảng vắt hai tháng thì không có file luật nào đúng.
-            sameMonthOnly
-            onChange={(next) => {
-              setRange(next);
-              setQuery((q) => ({ ...q, page: 0 }));
-            }}
-          />
-          {canFilterByDepartment && (
-            <Select
-              block
-              label="Phòng"
-              value={query.departmentId}
-              onChange={(v) => refine({ departmentId: v })}
-              options={[{ value: "", label: "Tất cả phòng" }, ...departmentOptions]}
+          <FilterField id="date" label="Khoảng ngày" count={range?.from ? 1 : 0}>
+            <DateRangePicker
+              hideLabel
+              label="Khoảng ngày"
+              value={range}
+              // Cột Điểm đọc tháng từ ngày đầu khoảng, mà luật điểm là luật của
+              // MỘT tháng — khoảng vắt hai tháng thì không có file luật nào đúng.
+              sameMonthOnly
+              onChange={(next) => {
+                setRange(next);
+                setQuery((q) => ({ ...q, page: 0 }));
+              }}
             />
-          )}
-          <Combobox
-            block
-            // Cùng danh sách với ô Địa chỉ của hộp thoại khách, nên giá trị lọc
-            // ghép ra đúng chuỗi đang lưu trong `customers.address`.
-            label="Ấp"
-            placeholder="Gõ để tìm Ấp, Xã, Tỉnh…"
-            value={query.address}
-            onChange={(v) => refine({ address: v })}
-            options={[{ value: "", label: "Tất cả ấp" }, ...addressOptions]}
-          />
-          <Select
-            block
-            label="Kênh"
-            value={query.channelId}
-            // Đổi kênh thì bỏ luôn bệnh viện đã chọn — giữ lại là lọc một bệnh
-            // viện trong một kênh không có bệnh viện nào, bảng ra rỗng.
-            onChange={(v) => refine({ channelId: v, channelDetail: "" })}
-            options={[
-              { value: "", label: "Tất cả kênh" },
-              ...channels.map((c) => ({ value: c.id, label: c.name })),
-            ]}
-          />
-          {channelTakesHospital && (
-            <Combobox
-              block
-              // Combobox chứ không phải Select: danh mục bệnh viện dài dần theo
-              // từng đợt mở kênh, mà `<select>` gốc không gõ tìm được.
-              label="Bệnh viện"
-              placeholder="Gõ để tìm bệnh viện…"
-              value={query.channelDetail}
-              onChange={(v) => refine({ channelDetail: v })}
+          </FilterField>
+          {canFilterByDepartment ? (
+            <FilterField id="department" label="Phòng" count={query.departmentId ? 1 : 0}>
+              <FilterChoices
+                label="Phòng"
+                value={query.departmentId}
+                onChange={(v) => refine({ departmentId: v })}
+                options={[{ value: "", label: "Tất cả phòng" }, ...departmentOptions]}
+              />
+            </FilterField>
+          ) : null}
+          <FilterField id="address" label="Ấp" count={query.address ? 1 : 0}>
+            <FilterChoices
+              // Cùng danh sách với ô Địa chỉ của hộp thoại khách, nên giá trị lọc
+              // ghép ra đúng chuỗi đang lưu trong `customers.address`.
+              label="Ấp"
+              searchPlaceholder="Gõ để tìm Ấp, Xã, Tỉnh…"
+              value={query.address}
+              onChange={(v) => refine({ address: v })}
+              options={[{ value: "", label: "Tất cả ấp" }, ...addressOptions]}
+            />
+          </FilterField>
+          <FilterField id="channel" label="Kênh" count={query.channelId ? 1 : 0}>
+            <FilterChoices
+              label="Kênh"
+              value={query.channelId}
+              // Đổi kênh thì bỏ luôn bệnh viện đã chọn — giữ lại là lọc một bệnh
+              // viện trong một kênh không có bệnh viện nào, bảng ra rỗng.
+              onChange={(v) => refine({ channelId: v, channelDetail: "" })}
               options={[
-                { value: "", label: "Tất cả bệnh viện" },
-                // Giá trị là TÊN, không phải id: cột `channelDetail` lưu tên.
-                ...hospitals.map((h) => ({ value: h.name, label: h.name })),
+                { value: "", label: "Tất cả kênh" },
+                ...channels.map((c) => ({ value: c.id, label: c.name })),
               ]}
             />
-          )}
-          {canFilterByStaff && (
-            <Combobox
-              block
-              // Combobox chứ không phải Select: công ty có hàng trăm nhân viên,
-              // mà `<select>` gốc không gõ tìm được.
-              label="Nhân viên"
-              placeholder="Gõ để tìm nhân viên…"
-              value={query.staffId}
-              onChange={(v) => refine({ staffId: v })}
-              options={[{ value: "", label: "Tất cả nhân viên" }, ...staffOptions]}
+          </FilterField>
+          {channelTakesHospital ? (
+            <FilterField id="hospital" label="Bệnh viện" count={query.channelDetail ? 1 : 0}>
+              <FilterChoices
+                label="Bệnh viện"
+                searchPlaceholder="Gõ để tìm bệnh viện…"
+                value={query.channelDetail}
+                onChange={(v) => refine({ channelDetail: v })}
+                options={[
+                  { value: "", label: "Tất cả bệnh viện" },
+                  // Giá trị là TÊN, không phải id: cột `channelDetail` lưu tên.
+                  ...hospitals.map((h) => ({ value: h.name, label: h.name })),
+                ]}
+              />
+            </FilterField>
+          ) : null}
+          {canFilterByStaff ? (
+            <FilterField id="staff" label="Nhân viên" count={query.staffId ? 1 : 0}>
+              <FilterChoices
+                label="Nhân viên"
+                searchPlaceholder="Gõ để tìm nhân viên…"
+                value={query.staffId}
+                onChange={(v) => refine({ staffId: v })}
+                options={[{ value: "", label: "Tất cả nhân viên" }, ...staffOptions]}
+              />
+            </FilterField>
+          ) : null}
+          <FilterField id="hasAccounts" label="Tài khoản" count={query.hasAccounts ? 1 : 0}>
+            <Checkbox
+              checked={query.hasAccounts}
+              onCheckedChange={(v) => refine({ hasAccounts: v })}
+              label="Chỉ khách có tài khoản"
             />
-          )}
-          <Checkbox
-            checked={query.hasAccounts}
-            onCheckedChange={(v) => refine({ hasAccounts: v })}
-            label="Chỉ khách có tài khoản"
-          />
+          </FilterField>
         </FilterButton>
         {can(user, "customer", "export") && (
           <Button
@@ -662,7 +669,11 @@ export default function CustomersPage() {
           </Button>
         )}
         {can(user, "customer", "create") && (
-          <Button aria-label="Thêm khách hàng" onClick={() => setCreating(true)}>
+          <Button
+            aria-label="Thêm khách hàng"
+            className={buttonStyles.hideOnMobile}
+            onClick={() => setCreating(true)}
+          >
             <Plus size={16} aria-hidden />
             <span className={buttonStyles.label}>Thêm khách hàng</span>
           </Button>

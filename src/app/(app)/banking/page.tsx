@@ -14,16 +14,16 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { CreateBankAccountDialog } from "@/components/banking/CreateBankAccountDialog";
 import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
-import { Combobox } from "@/components/ui/Combobox";
 import buttonStyles from "@/components/ui/Button.module.css";
 import { DateRangePicker } from "@/components/ui/DateRangePicker";
 import { FilterButton } from "@/components/ui/FilterButton";
+import { FilterChoices } from "@/components/ui/FilterChoices";
+import { FilterField } from "@/components/ui/FilterField";
 import { FilterChips } from "@/components/ui/FilterChips";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { RowActions } from "@/components/ui/RowActions";
 import { SearchField } from "@/components/ui/SearchField";
 import { SectionCard } from "@/components/ui/SectionCard";
-import { Select } from "@/components/ui/Select";
 import { StatusTag } from "@/components/ui/StatusTag";
 import { PhotoCheckScore } from "@/components/banking/PhotoCheckScore";
 import { PHOTO_CHECK_FILTER_LABEL, PhotoCheckFilter } from "@/lib/api/photoCheck";
@@ -43,6 +43,7 @@ import { fetchStaffOptions } from "@/lib/api/staff";
 import { EMPTY_PAGE, PAGE_SIZE, type SortDir } from "@/lib/api/pagination";
 import { formatDate, formatPhone } from "@/lib/format";
 import { useDebouncedValue } from "@/lib/hooks";
+import { useCreateIntent } from "@/lib/useCreateIntent";
 import { can, recordVisibility, scopeFor } from "@/lib/permissions";
 import { errorMessage, toast } from "@/lib/toast";
 import { isRealIsoDate } from "@/lib/types";
@@ -106,7 +107,7 @@ export default function BankingPage() {
   const [dir, setDir] = useState<SortDir>(() =>
     searchParams.get("dir") === "asc" ? "asc" : "desc",
   );
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreating] = useCreateIntent();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [removing, setRemoving] = useState<BankAccountRow | null>(null);
 
@@ -409,83 +410,99 @@ export default function BankingPage() {
             })
           }
         >
-          <DateRangePicker label="Khoảng ngày" value={range} onChange={(v) => refine(() => setRange(v))} />
-          {canFilterByDepartment && (
-            <Select
-              block
-              label="Phòng"
-              value={departmentId}
-              onChange={(v) => refine(() => setDepartmentId(v))}
-              options={[{ value: "", label: "Tất cả phòng" }, ...departmentOptions]}
+          <FilterField id="date" label="Khoảng ngày" count={range?.from ? 1 : 0}>
+            <DateRangePicker
+              hideLabel
+              label="Khoảng ngày"
+              value={range}
+              onChange={(v) => refine(() => setRange(v))}
             />
-          )}
-          <Select
-            block
-            label="Ngân hàng"
-            value={bankCode}
-            onChange={(v) => refine(() => setBankCode(v))}
-            options={[
-              { value: "", label: "Tất cả ngân hàng" },
-              ...banks.map((b) => ({ value: b.code, label: b.code })),
-            ]}
-          />
-          <Select
-            block
-            label="Loại TK"
-            value={accountType}
-            onChange={(v) => refine(() => setAccountType(v as AccountType | ""))}
-            options={[
-              { value: "", label: "Tất cả loại" },
-              ...AccountType.options.map((t) => ({ value: t, label: ACCOUNT_TYPE_LABEL[t] })),
-            ]}
-          />
-          <Select
-            block
-            label="Xác thực ảnh"
-            value={photoCheck}
-            onChange={(v) => refine(() => setPhotoCheck(v as PhotoCheckFilter | ""))}
-            options={[
-              { value: "", label: "Tất cả" },
-              ...PhotoCheckFilter.options.map((f) => ({ value: f, label: PHOTO_CHECK_FILTER_LABEL[f] })),
-            ]}
-          />
-          <Select
-            block
-            label="Kênh"
-            value={channelId}
-            onChange={(v) => refine(() => setChannelId(v))}
-            options={[
-              { value: "", label: "Tất cả kênh" },
-              // Lọc theo ID kênh, không theo tên: kênh đổi tên thì lọc theo
-              // tên bỏ sót đúng những dòng cũ cần tìm.
-              ...channels.map((c) => ({ value: c.id, label: c.name })),
-            ]}
-          />
-          <Select
-            block
-            label="Trạng thái"
-            value={status}
-            onChange={(v) => refine(() => setStatus(v as BankAccountStatus | ""))}
-            options={[
-              { value: "", label: "Tất cả trạng thái" },
-              ...BankAccountStatus.options.map((s) => ({ value: s, label: STATUS_LABEL[s] })),
-            ]}
-          />
-          {canFilterByStaff && (
-            <Combobox
-              block
-              // Combobox chứ không phải Select: công ty có hàng trăm nhân viên,
-              // mà `<select>` gốc không gõ tìm được.
-              label="Nhân viên"
-              placeholder="Gõ để tìm nhân viên…"
-              value={staffId}
-              onChange={(v) => refine(() => setStaffId(v))}
-              options={[{ value: "", label: "Tất cả nhân viên" }, ...staffOptions]}
+          </FilterField>
+          {canFilterByDepartment ? (
+            <FilterField id="department" label="Phòng" count={departmentId ? 1 : 0}>
+              <FilterChoices
+                label="Phòng"
+                value={departmentId}
+                onChange={(v) => refine(() => setDepartmentId(v))}
+                options={[{ value: "", label: "Tất cả phòng" }, ...departmentOptions]}
+              />
+            </FilterField>
+          ) : null}
+          <FilterField id="bank" label="Ngân hàng" count={bankCode ? 1 : 0}>
+            <FilterChoices
+              label="Ngân hàng"
+              value={bankCode}
+              onChange={(v) => refine(() => setBankCode(v))}
+              options={[
+                { value: "", label: "Tất cả ngân hàng" },
+                ...banks.map((b) => ({ value: b.code, label: b.code })),
+              ]}
             />
-          )}
+          </FilterField>
+          <FilterField id="accountType" label="Loại TK" count={accountType ? 1 : 0}>
+            <FilterChoices
+              label="Loại TK"
+              value={accountType}
+              onChange={(v) => refine(() => setAccountType(v as AccountType | ""))}
+              options={[
+                { value: "", label: "Tất cả loại" },
+                ...AccountType.options.map((t) => ({ value: t, label: ACCOUNT_TYPE_LABEL[t] })),
+              ]}
+            />
+          </FilterField>
+          <FilterField id="photoCheck" label="Xác thực ảnh" count={photoCheck ? 1 : 0}>
+            <FilterChoices
+              label="Xác thực ảnh"
+              value={photoCheck}
+              onChange={(v) => refine(() => setPhotoCheck(v as PhotoCheckFilter | ""))}
+              options={[
+                { value: "", label: "Tất cả" },
+                ...PhotoCheckFilter.options.map((f) => ({ value: f, label: PHOTO_CHECK_FILTER_LABEL[f] })),
+              ]}
+            />
+          </FilterField>
+          <FilterField id="channel" label="Kênh" count={channelId ? 1 : 0}>
+            <FilterChoices
+              label="Kênh"
+              value={channelId}
+              onChange={(v) => refine(() => setChannelId(v))}
+              options={[
+                { value: "", label: "Tất cả kênh" },
+                // Lọc theo ID kênh, không theo tên: kênh đổi tên thì lọc theo
+                // tên bỏ sót đúng những dòng cũ cần tìm.
+                ...channels.map((c) => ({ value: c.id, label: c.name })),
+              ]}
+            />
+          </FilterField>
+          <FilterField id="status" label="Trạng thái" count={status ? 1 : 0}>
+            <FilterChoices
+              label="Trạng thái"
+              value={status}
+              onChange={(v) => refine(() => setStatus(v as BankAccountStatus | ""))}
+              options={[
+                { value: "", label: "Tất cả trạng thái" },
+                ...BankAccountStatus.options.map((s) => ({ value: s, label: STATUS_LABEL[s] })),
+              ]}
+            />
+          </FilterField>
+          {canFilterByStaff ? (
+            <FilterField id="staff" label="Nhân viên" count={staffId ? 1 : 0}>
+              <FilterChoices
+                label="Nhân viên"
+                searchPlaceholder="Gõ để tìm nhân viên…"
+                value={staffId}
+                onChange={(v) => refine(() => setStaffId(v))}
+                options={[{ value: "", label: "Tất cả nhân viên" }, ...staffOptions]}
+              />
+            </FilterField>
+          ) : null}
         </FilterButton>
         {can(user, "banking", "create") && (
-          <Button aria-label="Tạo tài khoản ngân hàng" onClick={() => setCreating(true)}>
+          <Button
+            aria-label="Tạo tài khoản ngân hàng"
+            className={buttonStyles.hideOnMobile}
+            onClick={() => setCreating(true)}
+          >
             <Plus size={16} aria-hidden />
             <span className={buttonStyles.label}>Tạo tài khoản ngân hàng</span>
           </Button>

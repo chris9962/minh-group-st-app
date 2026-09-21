@@ -131,3 +131,57 @@
 .footStart {
   margin-right: auto;
 }
+
+/* Sheet: dialog phủ cả khung, panel dính đáy. `[open]` mới bật flex — đặt
+   `display` thẳng lên class là đè `display: none` lúc đóng (xem ImageLightbox). */
+.dialogSheet {
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  margin: 0;
+  overflow: hidden;
+}
+
+.dialogSheet[open] {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.sheet {
+  width: 100%;
+  max-width: 100%;
+  max-height: min(85dvh, calc(100dvh - 12px));
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+.sheet .head {
+  padding-top: 8px;
+}
+
+.handle {
+  width: 36px;
+  height: 4px;
+  margin: 10px auto 0;
+  border-radius: 999px;
+  background: var(--om-line);
+  flex: none;
+}
+
+.dialogSheet[open]::backdrop {
+  opacity: 0;
+  transition: opacity 0.4s ease-out;
+}
+
+.dialogEntered[open]::backdrop {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dialogSheet[open]::backdrop {
+    opacity: 1;
+    transition: none;
+  }
+}

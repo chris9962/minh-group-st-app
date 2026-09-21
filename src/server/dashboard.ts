@@ -5,7 +5,8 @@ import type {
   DashboardDraftAccount,
   DepartmentRanking,
 } from "@/lib/api/dashboard";
-import { BUSINESS_TIMEZONE, businessDay, businessMonth, monthRange } from "@/lib/format";
+import { BUSINESS_TIMEZONE, businessDay, businessMonth } from "@/lib/format";
+import { periodRanges } from "@/lib/period";
 import { recordVisibility } from "@/lib/permissions";
 import type { User } from "@/lib/types";
 import { appsInstalledCount, variantOfAccount } from "./appCounted";
@@ -26,8 +27,12 @@ import {
 } from "./db/schema";
 import { giftItemNames } from "./gift";
 import { pointsByStaffInRange } from "./kpi";
-import { statsByDepartment, statsByStaff, type Range } from "./org";
+import { SPARKLINE_DAYS, daysEndingOn } from "@/components/ui/ranking";
+import { statsByDepartment, statsByStaff, accountsOpenedByDay, type Range } from "./org";
 import { salaryForUsers } from "./salary";
+
+/** Route phòng ban import từ đây — cùng hàm với `lib/period`. */
+export { periodRanges };
 
 /**
  * P-80 · Tổng quan — bốn cách nhìn, một bộ số liệu (chốt 06/08).
@@ -117,35 +122,11 @@ export async function visibilityLabel(v: DashboardVisibility): Promise<string> {
 
 /* ── Kỳ xem ────────────────────────────────────────────────────────────── */
 
-const dayBefore = (day: string): string =>
-  new Date(new Date(`${day}T00:00:00Z`).getTime() - 86_400_000).toISOString().slice(0, 10);
-
-const monthBefore = (yearMonth: string): string => {
-  const [y, m] = yearMonth.split("-").map(Number);
-  return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, "0")}`;
-};
-
 const daysBetween = (r: Range): number =>
   Math.round(
     (new Date(`${r.to}T00:00:00Z`).getTime() - new Date(`${r.from}T00:00:00Z`).getTime()) /
       86_400_000,
   ) + 1;
-
-/** Đọc chuỗi kỳ của `PeriodPicker`: `today` · `this-month` · `range:từ:đến`. */
-export function periodRanges(
-  key: string,
-  today: string,
-): { current: Range; previous: Range | null } {
-  if (key === "this-month") {
-    const month = today.slice(0, 7);
-    return { current: monthRange(month), previous: monthRange(monthBefore(month)) };
-  }
-  const picked = key.match(/^range:(\d{4}-\d{2}-\d{2}):(\d{4}-\d{2}-\d{2})$/);
-  if (picked) return { current: { from: picked[1], to: picked[2] }, previous: null };
-
-  const yesterday = dayBefore(today);
-  return { current: { from: today, to: today }, previous: { from: yesterday, to: yesterday } };
-}
 
 /**
  * Độ chia của biểu đồ do ĐỘ DÀI KỲ quyết định, không cố định theo giờ: một
@@ -621,19 +602,28 @@ const rankRow = (
   name: string,
   now: Counted | undefined,
   before: Counted | undefined,
+  hadPrevious: boolean,
 ): DepartmentRanking => ({
   id,
   name,
   // `dashboardFor` điền vào sau, khi đã có bản đồ điểm theo kỳ.
   points: null,
+  previousPoints: null,
   accountsOpened: now?.accountsOpened ?? 0,
   appsInstalled: now?.appsInstalled ?? 0,
   customers: now?.customers ?? 0,
   customersMultiAccount: now?.customersMultiAccount ?? 0,
+  previousAccountsOpened: hadPrevious ? (before?.accountsOpened ?? 0) : null,
+  previousAppsInstalled: hadPrevious ? (before?.appsInstalled ?? 0) : null,
+  previousCustomers: hadPrevious ? (before?.customers ?? 0) : null,
+  previousCustomersMultiAccount: hadPrevious
+    ? (before?.customersMultiAccount ?? 0)
+    : null,
   previousInstallRate:
     before && before.accountsOpened > 0
       ? rateOf(before.accountsOpened, before.appsInstalled)
       : null,
+  growth: [],
 });
 
 /**
@@ -654,14 +644,18 @@ async function ranking(
   // Nhân viên không có bảng xếp hạng: màn của họ là hồ sơ cá nhân.
   if (v.kind === "personal" || v.kind === "none") return { kind: "department", rows: [] };
 
+  const sparkDays = daysEndingOn(current.to, SPARKLINE_DAYS);
+  const sparkRange = { from: sparkDays[0], to: sparkDays[sparkDays.length - 1] };
+
   if (v.kind === "departments" && (actor.role === "head" || actor.role === "deputy-head")) {
-    const [people, now, before] = await Promise.all([
+    const [people, now, before, spark] = await Promise.all([
       db
         .select({ id: users.id, fullName: users.fullName })
         .from(users)
         .where(inArray(users.departmentId, v.departmentIds)),
       statsByStaff(current, v.departmentIds),
       previous ? statsByStaff(previous, v.departmentIds) : Promise.resolve(null),
+      accountsOpenedByDay(sparkRange, "staff", v.departmentIds),
     ]);
 
     /**
@@ -677,11 +671,17 @@ async function ranking(
 
     return {
       kind: "staff",
-      rows: [...names].map(([id, name]) => rankRow(id, name, now.get(id), before?.get(id))),
+      rows: withGrowth(
+        [...names].map(([id, name]) =>
+          rankRow(id, name, now.get(id), before?.get(id), previous != null),
+        ),
+        sparkDays,
+        spark,
+      ),
     };
   }
 
-  const [rows, now, before] = await Promise.all([
+  const [rows, now, before, spark] = await Promise.all([
     db
       .select({ id: departments.id, name: departments.name })
       .from(departments)
@@ -696,27 +696,69 @@ async function ranking(
       ),
     statsByDepartment(current),
     previous ? statsByDepartment(previous) : Promise.resolve(null),
+    accountsOpenedByDay(
+      sparkRange,
+      "department",
+      v.kind === "company" ? undefined : v.departmentIds,
+    ),
   ]);
 
   return {
     kind: "department",
-    rows: rows.map((d) => rankRow(d.id, d.name, now.get(d.id), before?.get(d.id))),
+    rows: withGrowth(
+      rows.map((d) =>
+        rankRow(d.id, d.name, now.get(d.id), before?.get(d.id), previous != null),
+      ),
+      sparkDays,
+      spark,
+    ),
   };
 }
 
-/* ── Điểm theo kỳ ──────────────────────────────────────────────────────── */
+function withGrowth(
+  rows: DepartmentRanking[],
+  sparkDays: string[],
+  sparkRows: { id: string; day: string; n: number }[],
+): DepartmentRanking[] {
+  const byId = new Map<string, Map<string, number>>();
+  for (const row of sparkRows) {
+    let days = byId.get(row.id);
+    if (!days) {
+      days = new Map();
+      byId.set(row.id, days);
+    }
+    days.set(row.day, row.n);
+  }
+  return rows.map((row) => ({
+    ...row,
+    growth: sparkDays.map((day) => byId.get(row.id)?.get(day) ?? 0),
+  }));
+}
 
 /**
  * Điểm KPI gom theo phòng, TRONG ĐÚNG KỲ NGƯỜI DÙNG CHỌN.
  *
  * Không đọc `kpi_scores`: bảng đó chỉ lưu theo THÁNG, mà kỳ xem của màn có thể
- * là một ngày hoặc một khoảng tự đặt. `pointsByDepartmentInRange` tính lại từ
- * dữ liệu gốc theo đúng công thức của `recomputeKpiOn`.
+ * là một ngày hoặc một khoảng tự đặt. Tính lại từ dữ liệu gốc theo đúng công
+ * thức của `recomputeKpiOn`.
  *
  * ⚠️ Gom theo NGƯỜI LẬP HỒ SƠ KHÁCH, khác `statsByDepartment` — hàm đó gom theo
  * người mở tài khoản. Hai cách gom lệch nhau ở ca mở hộ tài khoản cho khách của
  * đồng nghiệp, và cột điểm phải khớp bảng lương chứ không khớp ba cột cạnh nó.
  */
+function pointsByDepartmentFrom(
+  points: Map<string, { departmentId: string | null; points: number }>,
+): Map<string, number> {
+  const byDepartment = new Map<string, number>();
+  for (const { departmentId, points: p } of points.values()) {
+    if (!departmentId) continue;
+    byDepartment.set(
+      departmentId,
+      Math.round(((byDepartment.get(departmentId) ?? 0) + p) * 10) / 10,
+    );
+  }
+  return byDepartment;
+}
 
 /* ── Ghép lại ──────────────────────────────────────────────────────────── */
 
@@ -727,7 +769,18 @@ export async function dashboardFor(
   const v = dashboardVisibility(actor);
   const { current, previous } = periodRanges(periodKey, businessDay());
 
-  const [banking, previousBanking, insurance, servicesData, gifts, ranked, scopeLabel, points, companySalary] =
+  const [
+    banking,
+    previousBanking,
+    insurance,
+    servicesData,
+    gifts,
+    ranked,
+    scopeLabel,
+    points,
+    previousPoints,
+    companySalary,
+  ] =
     await Promise.all([
       bankingSummaryFor(v, actor.id, current),
       previous ? bankingTotals(v, actor.id, previous) : Promise.resolve(null),
@@ -737,6 +790,7 @@ export async function dashboardFor(
       ranking(actor, v, current, previous),
       visibilityLabel(v),
       pointsByStaffInRange(current),
+      previous ? pointsByStaffInRange(previous) : Promise.resolve(null),
       v.kind === "company"
         ? db
             .select({ id: users.id })
@@ -754,19 +808,20 @@ export async function dashboardFor(
    * liệu cho cả ba chỗ dùng: cột điểm của bảng xếp hạng phòng, bảng xếp hạng
    * nhân viên, và ô điểm tổng công ty.
    */
-  const pointsByDepartment = new Map<string, number>();
-  for (const { departmentId, points: p } of points.values()) {
-    if (!departmentId) continue;
-    pointsByDepartment.set(
-      departmentId,
-      Math.round(((pointsByDepartment.get(departmentId) ?? 0) + p) * 10) / 10,
-    );
-  }
+  const pointsByDepartment = pointsByDepartmentFrom(points);
+  const previousByDepartment = previousPoints
+    ? pointsByDepartmentFrom(previousPoints)
+    : null;
 
   const rowsWithPoints = ranked.rows.map((r) => ({
     ...r,
     points:
       ranked.kind === "staff" ? (points.get(r.id)?.points ?? 0) : (pointsByDepartment.get(r.id) ?? 0),
+    previousPoints: previousPoints
+      ? ranked.kind === "staff"
+        ? (previousPoints.get(r.id)?.points ?? 0)
+        : (previousByDepartment?.get(r.id) ?? 0)
+      : null,
   }));
 
   return {

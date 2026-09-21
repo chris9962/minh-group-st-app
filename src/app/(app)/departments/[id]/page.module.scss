@@ -69,8 +69,10 @@
   .body {
     padding: 16px 16px 32px;
   }
+}
 
-  // Màn hẹp thì bộ chọn kỳ thu vào một nút, cùng cách với P-91.
+/* iPad giữ cụm kỳ trên header như desktop; điện thoại mới nhét vào nút Lọc. */
+@media (max-width: bp.$bp-narrow) {
   .periodInline {
     display: none;
   }

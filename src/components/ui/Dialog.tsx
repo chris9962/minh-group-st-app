@@ -31,6 +31,11 @@ type Props = {
   /** Hộp rộng cho nội dung dạng lưới; mặc định giữ 560px cho biểu mẫu. */
   wide?: boolean;
   /**
+   * `sheet` = trượt lên từ đáy màn hình (chọn việc trên điện thoại).
+   * Mặc định hộp thoại giữa màn.
+   */
+  placement?: "center" | "sheet";
+  /**
    * `false` = KHÔNG có nút X, Esc và bấm ra ngoài đều không đóng. Chỉ nút trong
    * `footer` mới đóng được. Dành cho hộp thoại người dùng PHẢI xác nhận, ví dụ
    * bản cập nhật (`ReleaseGate`). Mặc định `true`.
@@ -53,6 +58,7 @@ export function Dialog({
   footer,
   footerStart,
   wide = false,
+  placement = "center",
   dismissible = true,
 }: Props) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -60,10 +66,17 @@ export function Dialog({
   const panelRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+  const isSheet = placement === "sheet";
+  const [entered, setEntered] = useState(false);
+  const [shown, setShown] = useState(open);
   const [canScrollDown, setCanScrollDown] = useState(false);
 
   // Đồng bộ với DOM ngoài React: `open` là thuộc tính, còn showModal() mới bật
   // lớp phủ và bẫy tiêu điểm — đặt thuộc tính thôi thì không có hai thứ đó.
+  //
+  // Sheet phải đợi `showModal()` xong rồi mới gỡ `translateY(100%)`: gắn
+  // animation lúc còn `display: none` thì trình duyệt coi như đã chạy xong,
+  // hộp thoại hiện sẵn ở đáy chứ không đẩy lên.
   //
   // Khai báo mình vào `dialogLayer`: toast phải nằm bên trong hộp thoại đang mở
   // mới nổi lên trên được (xem store đó). Gỡ khai báo trong cleanup để hộp
@@ -71,8 +84,14 @@ export function Dialog({
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    if (open && !el.open) {
-      el.showModal();
+
+    const reduceMotion =
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    if (open) {
+      setShown(true);
+      if (!el.open) el.showModal();
       /**
        * Kéo tiêu điểm khỏi nút Đóng.
        *
@@ -89,14 +108,35 @@ export function Dialog({
        * phím ảo bật ngay lúc mở sẽ che mất nửa hộp thoại.
        */
       panelRef.current?.focus();
+      const { push, pop } = useDialogLayer.getState();
+      push(el);
+      let cancelled = false;
+      if (!isSheet || reduceMotion) {
+        setEntered(true);
+      } else {
+        setEntered(false);
+        /**
+         * `showModal()` mới bỏ `display: none`. Phải để khung vẽ xong rồi mới
+         * gắn `dialogEntered`, không thì lớp phủ không có transition mờ dần.
+         * Bản thân sheet không trượt: hiện ngay tại chỗ (chốt 2026-09-21).
+         */
+        requestAnimationFrame(() => {
+          panelRef.current?.getBoundingClientRect();
+          requestAnimationFrame(() => {
+            if (!cancelled) setEntered(true);
+          });
+        });
+      }
+      return () => {
+        cancelled = true;
+        pop(el);
+      };
     }
-    if (!open && el.open) el.close();
 
-    if (!open) return;
-    const { push, pop } = useDialogLayer.getState();
-    push(el);
-    return () => pop(el);
-  }, [open]);
+    setEntered(false);
+    if (el.open) el.close();
+    setShown(false);
+  }, [open, isSheet]);
 
   /**
    * Đo theo ĐÁY KHỐI NỘI DUNG, không theo `scrollHeight`.
@@ -136,7 +176,11 @@ export function Dialog({
         ref.current = el;
         setDialogEl(el);
       }}
-      className={styles.dialog}
+      className={clsx(
+        styles.dialog,
+        placement === "sheet" && styles.dialogSheet,
+        placement === "sheet" && entered && styles.dialogEntered,
+      )}
       aria-label={title}
       onCancel={(e) => {
         e.preventDefault();
@@ -152,10 +196,19 @@ export function Dialog({
         if (dismissible && e.target === ref.current) onClose();
       }}
     >
-      {open && (
+      {(isSheet ? open || shown : open) && (
         <DialogPortalContext.Provider value={dialogEl}>
           {/* `tabIndex={-1}` để `focus()` gọi được, nhưng Tab không dừng ở đây. */}
-          <div ref={panelRef} className={clsx(styles.panel, wide && styles.wide)} tabIndex={-1}>
+          <div
+            ref={panelRef}
+            className={clsx(
+              styles.panel,
+              wide && styles.wide,
+              placement === "sheet" && styles.sheet,
+            )}
+            tabIndex={-1}
+          >
+            {placement === "sheet" && <div className={styles.handle} aria-hidden />}
             <header className={styles.head}>
               <h2 className={styles.title}>{title}</h2>
               {dismissible && (

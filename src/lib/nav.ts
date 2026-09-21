@@ -1,4 +1,5 @@
-import { can, canConfigureWards, canOrg } from './permissions';
+import { matchesSearch } from './format';
+import { can, canConfigureWards, canCreateBank, canOpenBankAdmin, canOrg } from './permissions';
 import type { User } from './types';
 
 /**
@@ -26,7 +27,8 @@ export type NavIconKey =
   | 'org'
   | 'audit'
   | 'help'
-  | 'notifications';
+  | 'notifications'
+  | 'feedback';
 
 export type NavItem = {
   href: string;
@@ -301,4 +303,124 @@ export function navFor(user: User | null): NavEntry[] {
   items.push({ href: '/releases', label: 'Bản cập nhật', icon: 'help', screen: 'P-98', hidden: true });
 
   return items;
+}
+
+/** Một lối vào trên ô tìm — đúng một mục sidebar, không bịa thêm. */
+export type JumpTarget = {
+  href: string;
+  label: string;
+  icon: NavIconKey;
+  /** Tên nhóm sidebar, khi mục là con của nhóm. */
+  group?: string;
+};
+
+/**
+ * Dàn phẳng menu thành danh sách nhảy tới. Cùng nguồn với sidebar: mục
+ * `hidden` không vẽ trên menu thì cũng không hiện ở ô tìm.
+ */
+export function jumpTargetsFrom(entries: NavEntry[]): JumpTarget[] {
+  const targets: JumpTarget[] = [];
+  for (const entry of entries) {
+    if (isNavGroup(entry)) {
+      for (const child of entry.children) {
+        targets.push({
+          href: child.href,
+          label: child.label,
+          icon: entry.icon,
+          group: entry.label,
+        });
+      }
+      continue;
+    }
+    if (entry.hidden) continue;
+    targets.push({ href: entry.href, label: entry.label, icon: entry.icon });
+  }
+  return targets;
+}
+
+/** Lọc theo tên màn hoặc tên nhóm — cùng `matchesSearch` với ô tìm danh sách. */
+export function filterJumpTargets(targets: JumpTarget[], query: string): JumpTarget[] {
+  const q = query.trim();
+  if (!q) return targets;
+  return targets.filter(
+    (t) => matchesSearch(t.label, q) || (t.group ? matchesSearch(t.group, q) : false),
+  );
+}
+
+/**
+ * Mở hộp góp ý sẵn có (`FeedbackButton`), không phải một trang mới.
+ * `JumpSearch` bắt href này rồi phát sự kiện, không `router.push`.
+ */
+export const FEEDBACK_HREF = '#gop-y';
+/** `FeedbackButton` nghe sự kiện này để mở đúng hộp góp ý đang có. */
+export const OPEN_FEEDBACK_EVENT = 'mgst:open-feedback';
+
+/**
+ * Việc người này đã làm được trên app — nút tạo đang có, hồ sơ, thông báo,
+ * góp ý. Không bịa lối tắt, không mở màn `hidden`.
+ */
+export function jumpActionsFor(user: User | null): JumpTarget[] {
+  if (!user) return [];
+
+  const actions: JumpTarget[] = [];
+
+  if (can(user, 'customer', 'create')) {
+    actions.push({ href: '/customers?create=1', label: 'Thêm khách hàng', icon: 'customers' });
+  }
+  if (can(user, 'banking', 'create')) {
+    actions.push({
+      href: '/banking?create=1',
+      label: 'Tạo tài khoản ngân hàng',
+      icon: 'banking',
+    });
+  }
+  if (user.role === 'director' && can(user, 'insurance', 'create')) {
+    actions.push({ href: '/insurance?create=1', label: 'Lập đơn', icon: 'insurance' });
+  }
+  if (can(user, 'services', 'create')) {
+    actions.push({ href: '/services?create=1', label: 'Ghi dịch vụ', icon: 'services' });
+  }
+  if (can(user, 'staff', 'create')) {
+    actions.push({ href: '/users?create=1', label: 'Thêm nhân viên', icon: 'people' });
+  }
+  if (canOrg(user, 'create')) {
+    actions.push({ href: '/departments?create=1', label: 'Thêm phòng ban', icon: 'org' });
+  }
+  if (can(user, 'system', 'send-announcement')) {
+    actions.push({ href: '/notifications?create=1', label: 'Thông báo chung', icon: 'notifications' });
+  }
+  if (canCreateBank(user)) {
+    actions.push({ href: '/settings/banks?create=bank', label: 'Thêm ngân hàng', icon: 'settings' });
+  }
+  if (canOpenBankAdmin(user)) {
+    actions.push({
+      href: '/settings/banks?tab=codes&create=code',
+      label: 'Thêm mã giới thiệu',
+      icon: 'settings',
+    });
+  }
+  if (can(user, 'system', 'configure-catalog')) {
+    actions.push({
+      href: '/settings/service-types?create=1',
+      label: 'Thêm loại dịch vụ',
+      icon: 'settings',
+    });
+  }
+
+  actions.push({ href: '/profile', label: 'Thông tin cá nhân', icon: 'profile' });
+  actions.push({ href: '/notifications', label: 'Thông báo', icon: 'notifications' });
+  actions.push({ href: FEEDBACK_HREF, label: 'Góp ý', icon: 'feedback' });
+
+  return actions;
+}
+
+/** `?create=` trên URL — không nhận nhầm `/notifications` (không có query). */
+function isCreateHref(href: string): boolean {
+  const query = href.split('?')[1];
+  return query ? new URLSearchParams(query).has('create') : false;
+}
+
+/** Việc tạo mới trên nút + thanh đáy — cùng nguồn với ô tìm, không bịa thêm. */
+export function jumpCreateActions(user: User | null): JumpTarget[] {
+  return jumpActionsFor(user).filter((item) => isCreateHref(item.href));
 }

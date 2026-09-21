@@ -36,6 +36,44 @@
   }
 }
 
+/* Nhãn chữ cạnh icon trên nút hành động chính ở TopBar — ẩn trên điện thoại
+   cho gọn, GIỮ NGUYÊN chữ trên desktop. Ẩn bằng display:none nên PHẢI kèm
+   aria-label trên chính nút đó, không thì điện thoại mất luôn tên cho trình
+   đọc màn hình. 900px khớp $bp-mobile ở _breakpoints.scss — file này là .css
+   thường, không tự inject được biến Sass nên phải chép tay giá trị. */
+.label {
+  display: inline;
+}
+
+@media (max-width: 900px) {
+  .label {
+    display: none;
+  }
+
+  /* Chữ ẩn thì còn icon — vuông như `.btn-icon`, không để padding nút chữ
+     làm thành hình chữ nhật (50×36). */
+  .base:has(.label) {
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    padding: 0;
+  }
+
+  /* Trùng nút Tạo mới trên thanh đáy (900px). `.base` để thắng `.btn`. */
+  .base.hideOnMobile {
+    display: none;
+  }
+}
+
+@media (pointer: coarse) and (max-width: 900px) {
+  .base:has(.label) {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
 /* Tooltip cho nút chỉ có icon.
    Chữ riêng chứ không lấy `aria-label`: nhãn đó kèm tên người ("Khoá tài khoản
    Nguyễn Văn An") nên tooltip dài gấp ba và tràn khỏi mép bảng. Hiện cả khi
@@ -74,20 +112,5 @@
 @media (prefers-reduced-motion: reduce) {
   .base[data-tooltip]::after {
     transition: none;
-  }
-}
-
-/* Nhãn chữ cạnh icon trên nút hành động chính ở TopBar — ẩn trên điện thoại
-   cho gọn, GIỮ NGUYÊN chữ trên desktop. Ẩn bằng display:none nên PHẢI kèm
-   aria-label trên chính nút đó, không thì điện thoại mất luôn tên cho trình
-   đọc màn hình. 900px khớp $bp-mobile ở _breakpoints.scss — file này là .css
-   thường, không tự inject được biến Sass nên phải chép tay giá trị. */
-.label {
-  display: inline;
-}
-
-@media (max-width: 900px) {
-  .label {
-    display: none;
   }
 }

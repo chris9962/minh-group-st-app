@@ -13,6 +13,7 @@ import buttonStyles from "@/components/ui/Button.module.css";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { FilterButton } from "@/components/ui/FilterButton";
+import { FilterField } from "@/components/ui/FilterField";
 import {
   DEFAULT_PERIOD,
   PeriodPicker,
@@ -32,6 +33,7 @@ import {
   type DepartmentRow,
 } from "@/lib/api/org";
 import { useDebouncedValue } from "@/lib/hooks";
+import { useCreateIntent } from "@/lib/useCreateIntent";
 import { can, canOrg } from "@/lib/permissions";
 import { usePrefs } from "@/store/prefs";
 import { useSession } from "@/store/session";
@@ -51,7 +53,7 @@ export default function DepartmentsPage() {
   const showStopped = usePrefs((s) => s.showStoppedDepartments);
   const setShowStopped = usePrefs((s) => s.setShowStoppedDepartments);
   const [editing, setEditing] = useState<DepartmentRow | null>(null);
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreating] = useCreateIntent();
   /** Phòng đang chờ xác nhận ngừng / mở lại. */
   const [confirming, setConfirming] = useState<DepartmentRow | null>(null);
   const [period, setPeriod] = useState<Period>(DEFAULT_PERIOD);
@@ -289,13 +291,19 @@ export default function DepartmentsPage() {
                 activeCount={period.kind === "today" ? 0 : 1}
                 onClear={() => setPeriod(DEFAULT_PERIOD)}
               >
-                <PeriodPicker value={period} onChange={setPeriod} sameMonthOnly />
+                <FilterField id="period" label="Kỳ" count={period.kind === "today" ? 0 : 1}>
+                  <PeriodPicker value={period} onChange={setPeriod} sameMonthOnly />
+                </FilterField>
               </FilterButton>
             </div>
           </>
         )}
         {canCreate && (
-          <Button aria-label="Thêm phòng ban" onClick={() => setCreating(true)}>
+          <Button
+            aria-label="Thêm phòng ban"
+            className={buttonStyles.hideOnMobile}
+            onClick={() => setCreating(true)}
+          >
             <Plus size={16} aria-hidden />
             <span className={buttonStyles.label}>Thêm phòng ban</span>
           </Button>

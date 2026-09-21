@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { CheckCheck, Megaphone } from "lucide-react";
@@ -19,6 +18,7 @@ import {
 import { NOTIFICATION_KIND_ICON } from "@/lib/api/notificationPrefs";
 import { formatDateTime } from "@/lib/format";
 import { can } from "@/lib/permissions";
+import { useCreateIntent } from "@/lib/useCreateIntent";
 import { useSession } from "@/store/session";
 import { errorMessage, toast } from "@/lib/toast";
 import styles from "./page.module.css";
@@ -39,7 +39,7 @@ export default function NotificationsPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const user = useSession((s) => s.user);
-  const [announcing, setAnnouncing] = useState(false);
+  const [announcing, setAnnouncing] = useCreateIntent();
 
   const {
     data,
@@ -107,7 +107,11 @@ export default function NotificationsPage() {
   /* Gửi thông báo chung. Chỉ người có quyền thấy nút, và máy chủ kiểm lại ở
      `/api/notifications/announce` — ẩn nút không phải là phân quyền (§6). */
   const announce = can(user, "system", "send-announcement") && (
-    <Button aria-label="Gửi thông báo chung" onClick={() => setAnnouncing(true)}>
+    <Button
+      aria-label="Gửi thông báo chung"
+      className={buttonStyles.hideOnMobile}
+      onClick={() => setAnnouncing(true)}
+    >
       <Megaphone size={16} aria-hidden />
       <span className={buttonStyles.label}>Thông báo chung</span>
     </Button>

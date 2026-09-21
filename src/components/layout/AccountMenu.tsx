@@ -7,17 +7,9 @@ import { useRouter } from "next/navigation";
 import { logout as logoutRequest } from "@/lib/api/auth";
 import { useSession } from "@/store/session";
 import { useTheme } from "@/store/theme";
+import { nameInitials } from "@/lib/format";
 import type { User } from "@/lib/types";
 import styles from "./AccountMenu.module.css";
-
-/** Chữ tắt: chữ đầu của từ đầu và từ cuối — "Nguyễn Thị Bích Trâm" → "NT". */
-function initials(fullName: string): string {
-  const parts = fullName.trim().split(/\s+/);
-  if (parts.length === 0) return "?";
-  const first = parts[0][0] ?? "";
-  const last = parts.length > 1 ? (parts[parts.length - 1][0] ?? "") : "";
-  return (first + last).toUpperCase();
-}
 
 export function AccountMenu({ user }: { user: User }) {
   const router = useRouter();
@@ -30,7 +22,7 @@ export function AccountMenu({ user }: { user: User }) {
     <Popover.Root>
       <Popover.Trigger className={styles.trigger} aria-label="Tài khoản của tôi">
         <span className={styles.avatar} aria-hidden>
-          {initials(user.fullName)}
+          {nameInitials(user.fullName)}
         </span>
         <span className={styles.identity}>
           <strong>{user.fullName}</strong>

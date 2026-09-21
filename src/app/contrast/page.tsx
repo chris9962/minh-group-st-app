@@ -133,6 +133,9 @@ const TOKEN_PAIRS = [
   { id: "active", label: "Nút chính khi nhấn giữ", fg: "--om-text-on-accent", bg: "--om-orange-ink" },
   { id: "warn-soft", label: "Chữ trên nền cảnh báo", fg: "--om-orange-ink", bg: "--om-orange-soft" },
   { id: "ok-soft", label: "Chữ trên nền nhãn đạt", fg: "--om-green-ink", bg: "--om-green-soft" },
+  { id: "rank-1", label: "Đĩa hạng 1", fg: "--om-rank-ink", bg: "--om-rank-1" },
+  { id: "rank-2", label: "Đĩa hạng 2", fg: "--om-rank-ink", bg: "--om-rank-2" },
+  { id: "rank-3", label: "Đĩa hạng 3", fg: "--om-rank-ink", bg: "--om-rank-3" },
 ] as const;
 
 function TabsSample() {

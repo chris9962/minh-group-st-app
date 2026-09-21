@@ -1,7 +1,8 @@
 "use client";
 
+import { CalendarDays } from "lucide-react";
 import * as Popover from "@radix-ui/react-popover";
-import { useId, useRef } from "react";
+import { useId, useRef, useSyncExternalStore } from "react";
 import { format } from "date-fns";
 import { vi } from "date-fns/locale";
 import { DayPicker, type DateRange } from "react-day-picker";
@@ -20,6 +21,8 @@ type Props = {
    * `block` của `Select` và `Combobox`, để bảng lọc xếp thẳng một cột.
    */
   label?: string;
+  /** Ẩn nhãn khỏi màn hình — dùng khi tên mục đã nằm ở cột trái `FilterButton`. */
+  hideLabel?: boolean;
   /**
    * Khoảng ngày phải nằm TRỌN trong một tháng.
    *
@@ -29,12 +32,30 @@ type Props = {
    * Combo 2, dù cả hai đều nằm trong khoảng đang chọn.
    */
   sameMonthOnly?: boolean;
+  /**
+   * Dáng viên thuốc trên thanh công cụ (Tổng quan): lịch + khoảng ngày, không
+   * phải ô nhập `.input` của bộ lọc.
+   */
+  appearance?: "input" | "chip";
 };
 
-const show = (r: DateRange | undefined) => {
+const show = (r: DateRange | undefined, chip: boolean) => {
   if (!r?.from) return "Chọn khoảng ngày";
-  const from = format(r.from, "dd/MM/yyyy");
-  return r.to ? `${from} → ${format(r.to, "dd/MM/yyyy")}` : `${from} → …`;
+  if (!chip) {
+    const from = format(r.from, "dd/MM/yyyy");
+    if (!r.to) return `${from} → …`;
+    const to = format(r.to, "dd/MM/yyyy");
+    return from === to ? from : `${from} → ${to}`;
+  }
+  const opts = { locale: vi };
+  if (!r.to) return `${format(r.from, "dd MMM", opts)} - …`;
+  if (format(r.from, "yyyy-MM-dd") === format(r.to, "yyyy-MM-dd")) {
+    return format(r.from, "dd MMM, yyyy", opts);
+  }
+  if (r.from.getFullYear() === r.to.getFullYear()) {
+    return `${format(r.from, "dd MMM", opts)} - ${format(r.to, "dd MMM, yyyy", opts)}`;
+  }
+  return `${format(r.from, "dd MMM, yyyy", opts)} - ${format(r.to, "dd MMM, yyyy", opts)}`;
 };
 
 /** Ngày sớm hơn trong hai ngày. */
@@ -53,6 +74,21 @@ const clampToMonth = (r: DateRange | undefined, on: boolean): DateRange | undefi
   return r.to.getTime() > last.getTime() ? { from: r.from, to: last } : r;
 };
 
+const NARROW = "(max-width: 600px)";
+
+/** Một tháng trên điện thoại; hai tháng cạnh nhau khi đủ chỗ. */
+function useNarrowViewport() {
+  return useSyncExternalStore(
+    (onChange) => {
+      const mq = window.matchMedia(NARROW);
+      mq.addEventListener("change", onChange);
+      return () => mq.removeEventListener("change", onChange);
+    },
+    () => window.matchMedia(NARROW).matches,
+    () => false,
+  );
+}
+
 /**
  * Chọn khoảng ngày bằng MỘT lịch: bấm ngày đầu rồi kéo tới ngày cuối.
  * Dùng react-day-picker vì tự viết lịch có khoảng là rất dễ sai ở tuần giao
@@ -64,10 +100,13 @@ export function DateRangePicker({
   maxDate = new Date(),
   minDate,
   label,
+  hideLabel = false,
   sameMonthOnly = false,
+  appearance = "input",
 }: Props) {
   const id = useId();
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const narrow = useNarrowViewport();
 
   /**
    * Đang chọn dở — đã bấm ngày đầu, chưa bấm ngày cuối. Lúc đó lịch khoá vào
@@ -79,6 +118,21 @@ export function DateRangePicker({
   const picking = sameMonthOnly && value?.from && !value.to ? value.from : null;
   const from = picking ? firstOfMonth(picking) : minDate;
   const to = picking ? earlier(lastOfMonth(picking), maxDate) : maxDate;
+
+  const chip = appearance === "chip";
+  const triggerClass = chip
+    ? styles.chip
+    : `input ${styles.trigger}${label ? ` ${styles.blockTrigger}` : ""}`;
+  const trigger = (
+    <Popover.Trigger
+      ref={label ? triggerRef : undefined}
+      id={label ? id : undefined}
+      className={triggerClass}
+    >
+      {chip && <CalendarDays size={16} aria-hidden />}
+      {show(value, chip)}
+    </Popover.Trigger>
+  );
 
   return (
     <Popover.Root>
@@ -100,7 +154,7 @@ export function DateRangePicker({
           */}
           <label
             htmlFor={id}
-            className={styles.label}
+            className={hideLabel ? "sr-only" : styles.label}
             onMouseDown={(e) => {
               e.preventDefault();
               // Nhả con trỏ ra hẳn — xem chú thích cùng chỗ ở `Combobox`.
@@ -110,24 +164,22 @@ export function DateRangePicker({
           >
             {label}
           </label>
-          <Popover.Trigger
-            ref={triggerRef}
-            id={id}
-            className={`input ${styles.trigger} ${styles.blockTrigger}`}
-          >
-            {show(value)}
-          </Popover.Trigger>
+          {trigger}
         </span>
       ) : (
-        <Popover.Trigger className={`input ${styles.trigger}`}>{show(value)}</Popover.Trigger>
+        trigger
       )}
 
       <Popover.Portal>
-        <Popover.Content className={styles.panel} sideOffset={6} align="end">
+        <Popover.Content
+          className={styles.panel}
+          sideOffset={6}
+          align={narrow ? "center" : "end"}
+        >
           <DayPicker
             mode="range"
             locale={vi}
-            numberOfMonths={2}
+            numberOfMonths={narrow ? 1 : 2}
             defaultMonth={value?.from}
             selected={value}
             // Lưới lịch đã khoá, dòng này chặn nốt đường còn lại: giá trị cũ

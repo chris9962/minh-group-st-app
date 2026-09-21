@@ -12,16 +12,16 @@ import { CreateServiceDialog } from "@/components/services/CreateServiceDialog";
 import { ServiceEditDialog } from "@/components/services/ServiceEditDialog";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Button } from "@/components/ui/Button";
-import { Combobox } from "@/components/ui/Combobox";
 import buttonStyles from "@/components/ui/Button.module.css";
 import { DateRangePicker } from "@/components/ui/DateRangePicker";
 import { FilterButton } from "@/components/ui/FilterButton";
+import { FilterChoices } from "@/components/ui/FilterChoices";
+import { FilterField } from "@/components/ui/FilterField";
 import { FilterChips } from "@/components/ui/FilterChips";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { RowActions } from "@/components/ui/RowActions";
 import { SearchField } from "@/components/ui/SearchField";
 import { SectionCard } from "@/components/ui/SectionCard";
-import { Select } from "@/components/ui/Select";
 import { fetchDepartments } from "@/lib/api/departments";
 import { EMPTY_PAGE, PAGE_SIZE, type SortDir } from "@/lib/api/pagination";
 import { deleteService, fetchServices, type ServiceRow } from "@/lib/api/services";
@@ -30,6 +30,7 @@ import { fetchStaffOptions } from "@/lib/api/staff";
 import { fetchProvinces } from "@/lib/api/wardCatalog";
 import { formatDate } from "@/lib/format";
 import { useDebouncedValue } from "@/lib/hooks";
+import { useCreateIntent } from "@/lib/useCreateIntent";
 import { can, recordVisibility, scopeFor } from "@/lib/permissions";
 import { invalidateKpi } from "@/lib/invalidateKpi";
 import { errorMessage, toast } from "@/lib/toast";
@@ -75,7 +76,7 @@ export default function ServicesPage() {
   const [dir, setDir] = useState<SortDir>(() =>
     searchParams.get("dir") === "asc" ? "asc" : "desc",
   );
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreating] = useCreateIntent();
   const [editing, setEditing] = useState<ServiceRow | null>(null);
   const [removing, setRemoving] = useState<ServiceRow | null>(null);
 
@@ -326,53 +327,66 @@ export default function ServicesPage() {
             })
           }
         >
-          <DateRangePicker label="Khoảng ngày" value={range} onChange={(v) => refine(() => setRange(v))} />
-          {canFilterByDepartment && (
-            <Select
-              block
-              label="Phòng"
-              value={departmentId}
-              onChange={(v) => refine(() => setDepartmentId(v))}
-              options={[{ value: "", label: "Tất cả phòng" }, ...departmentOptions]}
+          <FilterField id="date" label="Khoảng ngày" count={range?.from ? 1 : 0}>
+            <DateRangePicker
+              hideLabel
+              label="Khoảng ngày"
+              value={range}
+              onChange={(v) => refine(() => setRange(v))}
             />
-          )}
-          <Select
-            block
-            label="Loại dịch vụ"
-            value={serviceTypeId}
-            onChange={(v) => refine(() => setServiceTypeId(v))}
-            options={[
-              { value: "", label: "Tất cả loại dịch vụ" },
-              ...serviceTypes.map((t) => ({ value: t.id, label: t.name })),
-            ]}
-          />
-          <Select
-            block
-            label="Xã"
-            value={wardId}
-            // Lọc theo id chứ không theo tên: bản ghi chụp cả hai, mà xã đổi tên
-            // thì lọc theo tên bỏ sót đúng những dòng cũ cần tìm.
-            onChange={(v) => refine(() => setWardId(v))}
-            options={[
-              { value: "", label: "Tất cả xã" },
-              ...wards.map((w) => ({ value: w.id, label: w.name })),
-            ]}
-          />
-          {canFilterByStaff && (
-            <Combobox
-              block
-              // Combobox chứ không phải Select: công ty có hàng trăm nhân viên,
-              // mà `<select>` gốc không gõ tìm được.
-              label="Nhân viên"
-              placeholder="Gõ để tìm nhân viên…"
-              value={staffId}
-              onChange={(v) => refine(() => setStaffId(v))}
-              options={[{ value: "", label: "Tất cả nhân viên" }, ...staffOptions]}
+          </FilterField>
+          {canFilterByDepartment ? (
+            <FilterField id="department" label="Phòng" count={departmentId ? 1 : 0}>
+              <FilterChoices
+                label="Phòng"
+                value={departmentId}
+                onChange={(v) => refine(() => setDepartmentId(v))}
+                options={[{ value: "", label: "Tất cả phòng" }, ...departmentOptions]}
+              />
+            </FilterField>
+          ) : null}
+          <FilterField id="serviceType" label="Loại dịch vụ" count={serviceTypeId ? 1 : 0}>
+            <FilterChoices
+              label="Loại dịch vụ"
+              value={serviceTypeId}
+              onChange={(v) => refine(() => setServiceTypeId(v))}
+              options={[
+                { value: "", label: "Tất cả loại dịch vụ" },
+                ...serviceTypes.map((t) => ({ value: t.id, label: t.name })),
+              ]}
             />
-          )}
+          </FilterField>
+          <FilterField id="ward" label="Xã" count={wardId ? 1 : 0}>
+            <FilterChoices
+              label="Xã"
+              value={wardId}
+              // Lọc theo id chứ không theo tên: bản ghi chụp cả hai, mà xã đổi tên
+              // thì lọc theo tên bỏ sót đúng những dòng cũ cần tìm.
+              onChange={(v) => refine(() => setWardId(v))}
+              options={[
+                { value: "", label: "Tất cả xã" },
+                ...wards.map((w) => ({ value: w.id, label: w.name })),
+              ]}
+            />
+          </FilterField>
+          {canFilterByStaff ? (
+            <FilterField id="staff" label="Nhân viên" count={staffId ? 1 : 0}>
+              <FilterChoices
+                label="Nhân viên"
+                searchPlaceholder="Gõ để tìm nhân viên…"
+                value={staffId}
+                onChange={(v) => refine(() => setStaffId(v))}
+                options={[{ value: "", label: "Tất cả nhân viên" }, ...staffOptions]}
+              />
+            </FilterField>
+          ) : null}
         </FilterButton>
         {can(user, "services", "create") && (
-          <Button aria-label="Ghi dịch vụ" onClick={() => setCreating(true)}>
+          <Button
+            aria-label="Ghi dịch vụ"
+            className={buttonStyles.hideOnMobile}
+            onClick={() => setCreating(true)}
+          >
             <Plus size={16} aria-hidden />
             <span className={buttonStyles.label}>Ghi dịch vụ</span>
           </Button>

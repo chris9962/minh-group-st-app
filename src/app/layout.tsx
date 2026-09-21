@@ -1,19 +1,7 @@
 import type { Metadata, Viewport } from "next";
-import { Figtree } from "next/font/google";
 import Script from "next/script";
 import { Providers } from "./providers";
 import "./globals.css";
-
-/**
- * Tiêu đề dùng font hệ thống, không tải font display riêng — font slab dày cũ
- * làm mọi tiêu đề nặng bằng nhau nên mất thứ bậc. Thứ bậc giờ đi bằng cỡ chữ
- * và weight, xem `--font-heading` trong organic.css.
- */
-const fontSans = Figtree({
-  variable: "--font-sans",
-  subsets: ["latin", "latin-ext"],
-  display: "swap",
-});
 
 export const metadata: Metadata = {
   title: "Minh Group ST — Tiên phong số hóa, Hiệu quả bứt phá",
@@ -77,11 +65,7 @@ export default function RootLayout({
     // suppressHydrationWarning: script dưới đây CỐ Ý sửa thẻ html trước khi
     // React so khớp, nên máy chủ không có data-theme còn trình duyệt thì có.
     // Đây là lệch có chủ đích và chỉ nằm trên đúng thẻ này.
-    <html
-      lang="vi"
-      className={fontSans.variable}
-      suppressHydrationWarning
-    >
+    <html lang="vi" suppressHydrationWarning>
       <body>
         {/*
           Gắn data-theme TRƯỚC khi vẽ. Để React gắn trong effect thì khung hình

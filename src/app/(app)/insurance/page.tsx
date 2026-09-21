@@ -12,16 +12,16 @@ import { TopBar } from "@/components/layout/TopBar";
 import { Button } from "@/components/ui/Button";
 import buttonStyles from "@/components/ui/Button.module.css";
 import { Checkbox } from "@/components/ui/Checkbox";
-import { Combobox } from "@/components/ui/Combobox";
-import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { ConfirmDialog, ConfirmFacts } from "@/components/ui/ConfirmDialog";
 import { DateRangePicker } from "@/components/ui/DateRangePicker";
 import { FilterButton } from "@/components/ui/FilterButton";
+import { FilterChoices } from "@/components/ui/FilterChoices";
+import { FilterField } from "@/components/ui/FilterField";
 import { FilterChips } from "@/components/ui/FilterChips";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { RowActions } from "@/components/ui/RowActions";
 import { SearchField } from "@/components/ui/SearchField";
 import { SectionCard } from "@/components/ui/SectionCard";
-import { Select } from "@/components/ui/Select";
 import { fetchDepartments } from "@/lib/api/departments";
 import { StatusTag } from "@/components/ui/StatusTag";
 import { CertificateWait } from "@/components/insurance/CertificateWait";
@@ -44,6 +44,7 @@ import { EMPTY_PAGE, PAGE_SIZE, type SortDir } from "@/lib/api/pagination";
 import { fetchStaffOptions } from "@/lib/api/staff";
 import { formatDate } from "@/lib/format";
 import { useDebouncedValue } from "@/lib/hooks";
+import { useCreateIntent } from "@/lib/useCreateIntent";
 import { can, recordInScope, recordVisibility, scopeFor } from "@/lib/permissions";
 import { invalidateKpi } from "@/lib/invalidateKpi";
 import { errorMessage, toast } from "@/lib/toast";
@@ -64,6 +65,16 @@ const pageFromUrl = (value: string | null): number => {
   // URL đếm từ 1 để người dùng đọc được; `RankTable` đếm từ 0 nội bộ.
   return Number.isSafeInteger(page) && page >= 1 ? page - 1 : 0;
 };
+
+/** Từng trường một — đừng ghép mã · gói · tên thành một câu trên hộp thoại. */
+const orderConfirmFacts = (row: InsuranceListRow) => [
+  { label: "Mã đơn", value: <strong className="tabular-nums">{row.orderCode}</strong> },
+  { label: "Khách hàng", value: row.customerName },
+  { label: "Sản phẩm", value: PRODUCT_LABEL[row.product] },
+  { label: "Gói", value: row.packageName },
+  { label: "Ngày bán", value: formatDate(row.orderDate) },
+  ...(row.createdByName ? [{ label: "Người tạo", value: row.createdByName }] : []),
+];
 
 /**
  * P-13 · Danh sách đơn bảo hiểm.
@@ -111,7 +122,7 @@ export default function InsurancePage() {
   // Nhớ theo máy — mở lại trang không phải tích lại.
   const compact = usePrefs((s) => s.compactInsuranceTable);
   const setCompact = usePrefs((s) => s.setCompactInsuranceTable);
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreating] = useCreateIntent();
   const [editing, setEditing] = useState<InsuranceListRow | null>(null);
   const [removing, setRemoving] = useState<InsuranceListRow | null>(null);
   const [handingOver, setHandingOver] = useState<InsuranceListRow | null>(null);
@@ -542,79 +553,90 @@ export default function InsurancePage() {
             })
           }
         >
-          <DateRangePicker label="Khoảng ngày" value={range} onChange={(v) => refine(() => setRange(v))} />
-          <Select
-            block
-            label="Phòng"
-            value={departmentId}
-            onChange={(v) => refine(() => setDepartmentId(v))}
-            options={[
-              { value: "", label: "Tất cả phòng" },
-              ...departments.map((d) => ({ value: d.id, label: d.name })),
-            ]}
-          />
-          <Select
-            block
-            label="Trạng thái"
-            value={status}
-            onChange={(v) => refine(() => setStatus(v as InsuranceOrderStatus | ""))}
-            options={[
-              { value: "", label: "Tất cả trạng thái" },
-              ...InsuranceOrderStatus.options.map((s) => ({
-                value: s,
-                label: INSURANCE_STATUS_LABEL[s],
-              })),
-            ]}
-          />
-          <Select
-            block
-            label="Loại nghiệp vụ"
-            value={product}
-            onChange={(v) => refine(() => setProduct(v as InsuranceProduct | ""))}
-            options={[
-              { value: "", label: "Tất cả loại" },
-              ...InsuranceProduct.options.map((p) => ({ value: p, label: PRODUCT_LABEL[p] })),
-            ]}
-          />
+          <FilterField id="date" label="Khoảng ngày" count={range?.from ? 1 : 0}>
+            <DateRangePicker
+              hideLabel
+              label="Khoảng ngày"
+              value={range}
+              onChange={(v) => refine(() => setRange(v))}
+            />
+          </FilterField>
+          <FilterField id="department" label="Phòng" count={departmentId ? 1 : 0}>
+            <FilterChoices
+              label="Phòng"
+              value={departmentId}
+              onChange={(v) => refine(() => setDepartmentId(v))}
+              options={[
+                { value: "", label: "Tất cả phòng" },
+                ...departments.map((d) => ({ value: d.id, label: d.name })),
+              ]}
+            />
+          </FilterField>
+          <FilterField id="status" label="Trạng thái" count={status ? 1 : 0}>
+            <FilterChoices
+              label="Trạng thái"
+              value={status}
+              onChange={(v) => refine(() => setStatus(v as InsuranceOrderStatus | ""))}
+              options={[
+                { value: "", label: "Tất cả trạng thái" },
+                ...InsuranceOrderStatus.options.map((s) => ({
+                  value: s,
+                  label: INSURANCE_STATUS_LABEL[s],
+                })),
+              ]}
+            />
+          </FilterField>
+          <FilterField id="product" label="Loại nghiệp vụ" count={product ? 1 : 0}>
+            <FilterChoices
+              label="Loại nghiệp vụ"
+              value={product}
+              onChange={(v) => refine(() => setProduct(v as InsuranceProduct | ""))}
+              options={[
+                { value: "", label: "Tất cả loại" },
+                ...InsuranceProduct.options.map((p) => ({ value: p, label: PRODUCT_LABEL[p] })),
+              ]}
+            />
+          </FilterField>
           {/* Bot chạy trơn thì cột "Người xử lý" để trống, nên hai giá trị này
               đọc thẳng `handled_by` ở máy chủ. Đơn chưa ai xử lý không khớp giá
               trị nào — xem `handlerFilter` ở server/insurance.ts. */}
-          <Select
-            block
-            label="Xử lý bởi"
-            value={handler}
-            onChange={(v) => refine(() => setHandler(v as typeof handler))}
-            options={[
-              { value: "", label: "Bot và nhân viên" },
-              { value: "bot", label: "Bot" },
-              { value: "staff", label: "Nhân viên" },
-            ]}
-          />
-          <Combobox
-            block
-            // Combobox chứ không phải Select: công ty có hàng trăm nhân viên,
-            // mà `<select>` gốc không gõ tìm được.
-            label="Nhân viên"
-            placeholder="Gõ để tìm nhân viên…"
-            value={staffId}
-            onChange={(v) => refine(() => setStaffId(v))}
-            options={[{ value: "", label: "Tất cả nhân viên" }, ...staffOptions]}
-          />
-          {/* Chỉ hỏi vai khi đã chọn người — "vai nào" không có nghĩa gì khi
-              chưa lọc theo ai. */}
-          {staffId && (
-            <Select
-              block
-              label="Người đó là"
-              value={staffRole}
-              onChange={(v) => refine(() => setStaffRole(v as typeof staffRole))}
+          <FilterField id="handler" label="Xử lý bởi" count={handler ? 1 : 0}>
+            <FilterChoices
+              label="Xử lý bởi"
+              value={handler}
+              onChange={(v) => refine(() => setHandler(v as typeof handler))}
               options={[
-                { value: "any", label: "Người tạo hoặc người xử lý" },
-                { value: "creator", label: "Người tạo đơn" },
-                { value: "handler", label: "Người xử lý đơn" },
+                { value: "", label: "Bot và nhân viên" },
+                { value: "bot", label: "Bot" },
+                { value: "staff", label: "Nhân viên" },
               ]}
             />
-          )}
+          </FilterField>
+          <FilterField id="staff" label="Nhân viên" count={staffId ? 1 : 0}>
+            <FilterChoices
+              label="Nhân viên"
+              searchPlaceholder="Gõ để tìm nhân viên…"
+              value={staffId}
+              onChange={(v) => refine(() => setStaffId(v))}
+              options={[{ value: "", label: "Tất cả nhân viên" }, ...staffOptions]}
+            />
+          </FilterField>
+          {/* Chỉ hỏi vai khi đã chọn người — "vai nào" không có nghĩa gì khi
+              chưa lọc theo ai. */}
+          {staffId ? (
+            <FilterField id="staffRole" label="Người đó là" count={staffRole !== "any" ? 1 : 0}>
+              <FilterChoices
+                label="Người đó là"
+                value={staffRole}
+                onChange={(v) => refine(() => setStaffRole(v as typeof staffRole))}
+                options={[
+                  { value: "any", label: "Người tạo hoặc người xử lý" },
+                  { value: "creator", label: "Người tạo đơn" },
+                  { value: "handler", label: "Người xử lý đơn" },
+                ]}
+              />
+            </FilterField>
+          ) : null}
         </FilterButton>
         {/*
           Chỉ Giám đốc thấy nút này (chốt 2026-09-10). Đây là lối vào của đơn mua
@@ -626,7 +648,11 @@ export default function InsurancePage() {
           như cũ. Mở cho đội KD thì bỏ vế `role` đi, không phải cấp quyền mới.
         */}
         {isDirector && can(user, "insurance", "create") && (
-          <Button aria-label="Lập đơn bảo hiểm" onClick={() => setCreating(true)}>
+          <Button
+            aria-label="Lập đơn bảo hiểm"
+            className={buttonStyles.hideOnMobile}
+            onClick={() => setCreating(true)}
+          >
             <Plus size={16} aria-hidden />
             <span className={buttonStyles.label}>Lập đơn</span>
           </Button>
@@ -753,13 +779,13 @@ export default function InsurancePage() {
             onConfirm={() => remove.mutate(removing)}
             onClose={() => setRemoving(null)}
           >
-            <strong>{removing.orderCode}</strong> · {PRODUCT_LABEL[removing.product]} ·{" "}
-            {removing.packageName}, của {removing.customerName}, bán ngày{" "}
-            {formatDate(removing.orderDate)}.
+            <ConfirmFacts items={orderConfirmFacts(removing)} />
           </ConfirmDialog>
         )}
 
-        {creating && <CreateInsuranceOrderDialog open onClose={() => setCreating(false)} />}
+        {creating && isDirector && can(user, "insurance", "create") && (
+          <CreateInsuranceOrderDialog open onClose={() => setCreating(false)} />
+        )}
         {handingOver && (
           <ConfirmDialog
             open
@@ -770,9 +796,7 @@ export default function InsurancePage() {
             onConfirm={() => handOver.mutate(handingOver)}
             onClose={() => setHandingOver(null)}
           >
-            <strong>{handingOver.orderCode}</strong> · {PRODUCT_LABEL[handingOver.product]} ·{" "}
-            {handingOver.packageName}, của {handingOver.customerName}, bán ngày{" "}
-            {formatDate(handingOver.orderDate)}.
+            <ConfirmFacts items={orderConfirmFacts(handingOver)} />
           </ConfirmDialog>
         )}
       </main>

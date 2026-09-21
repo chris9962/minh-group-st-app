@@ -1,6 +1,7 @@
 import { badRequest, forbidden, getActor, unauthorized } from "@/server/auth";
 import { dashboardFor, dashboardVisibility, draftAccountsFor } from "@/server/dashboard";
-import { businessMonth } from "@/lib/format";
+import { businessDay, businessMonth } from "@/lib/format";
+import { toPersonPeriod } from "@/lib/period";
 import { isPeriod, personFor } from "@/server/people";
 
 /**
@@ -37,11 +38,11 @@ export async function GET(request: Request) {
      * Dịch từ vựng kỳ của `PeriodPicker` sang từ vựng của hồ sơ nhân viên.
      *
      * Hai màn nói hai thứ tiếng: `PeriodPicker` dùng `today` · `this-month` ·
-     * `range:từ:đến`, còn `personFor` dùng `today` · `YYYY-MM` · `range:từ:đến`.
-     * Chỉ lệch đúng một từ, và truyền thẳng `this-month` sang là Postgres nhận
-     * `this-month-01` rồi đổ lỗi cast ngày — 500 cho mọi nhân viên.
+     * `last-3-months` · `range:từ:đến`, còn `personFor` dùng `today` ·
+     * `YYYY-MM` · `range:từ:đến`. Truyền thẳng `this-month` sang là Postgres
+     * nhận `this-month-01` rồi đổ lỗi cast ngày — 500 cho mọi nhân viên.
      */
-    const personPeriod = period === "this-month" ? businessMonth() : period;
+    const personPeriod = toPersonPeriod(period, businessDay());
     if (!isPeriod(personPeriod)) return badRequest("Kỳ xem không hợp lệ");
 
     const [person, draftAccounts] = await Promise.all([

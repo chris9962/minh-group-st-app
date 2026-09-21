@@ -67,6 +67,15 @@ export function ageRangeLabel(rule: { minAge: number | null; maxAge: number | nu
 export const nameForExcel = (name: string): string =>
   removeDiacritics(name).toUpperCase();
 
+/** Chữ tắt: chữ đầu của từ đầu và từ cuối — "Nguyễn Thị Bích Trâm" → "NT". */
+export function nameInitials(fullName: string): string {
+  const parts = fullName.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  const first = parts[0][0] ?? "";
+  const last = parts.length > 1 ? (parts[parts.length - 1][0] ?? "") : "";
+  return (first + last).toUpperCase();
+}
+
 export function formatVnd(amount: number): string {
   return new Intl.NumberFormat('vi-VN').format(amount) + 'đ';
 }

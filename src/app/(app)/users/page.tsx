@@ -14,7 +14,7 @@ import { Count } from "@/components/ui/Count";
 import buttonStyles from "@/components/ui/Button.module.css";
 import { MonthPicker, monthLabel, thisMonth } from "@/components/ui/MonthPicker";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
-import { Select } from "@/components/ui/Select";
+import { FilterChoices } from "@/components/ui/FilterChoices";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatCard } from "@/components/ui/StatCard";
 import { KpiRing } from "@/components/ui/KpiRing";
@@ -33,12 +33,14 @@ import {
 } from "@/lib/api/staff";
 import { EMPTY_PAGE, PAGE_SIZE, type SortDir } from "@/lib/api/pagination";
 import { FilterButton } from "@/components/ui/FilterButton";
+import { FilterField } from "@/components/ui/FilterField";
 import { FilterChips } from "@/components/ui/FilterChips";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { SearchField } from "@/components/ui/SearchField";
 import { StaffFormDialog } from "@/components/staff/StaffFormDialog";
 import { SalaryAmount } from "@/components/payroll/SalaryAmount";
 import { useDebouncedValue } from "@/lib/hooks";
+import { useCreateIntent } from "@/lib/useCreateIntent";
 import { availableScopes, can, canOrg, scopeFor, visibleDepartmentIds } from "@/lib/permissions";
 import { ROLE_LABEL, RoleKey, type Scope } from "@/lib/types";
 import { errorMessage, toast } from "@/lib/toast";
@@ -196,7 +198,7 @@ export default function PeoplePage() {
     searchParams.get("dir") === "asc" ? "asc" : "desc",
   );
   const [editing, setEditing] = useState<StaffAccount | null>(null);
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreating] = useCreateIntent();
   const [locking, setLocking] = useState<StaffRow | null>(null);
   const canManage = can(user, "staff", "create") || can(user, "staff", "update");
   const queryClient = useQueryClient();
@@ -389,49 +391,59 @@ export default function PeoplePage() {
             })
           }
         >
-          <MonthPicker value={month} onChange={(m) => refine(() => setMonth(m))} />
-          <Select
-            label="Đơn vị"
-            value={departmentId}
-            onChange={(v) => refine(() => setDepartmentId(v))}
-            options={[
-              { value: "", label: "Tất cả đơn vị" },
-              ...departmentOptions.map((d) => ({ value: d.id, label: d.name })),
-            ]}
-          />
-
-          <Select
-            label="Trạng thái tài khoản"
-            value={status}
-            onChange={(v) => refine(() => setStatus(v as StaffQuery["status"]))}
-            options={ACCOUNT_STATUS_FILTERS}
-          />
-
-          <fieldset className={styles.roleSet}>
-            <legend className={styles.roleLegend}>Chức vụ</legend>
-            {ROLE_FILTERS.map((r) => (
-              <Checkbox
-                key={r.value}
-                label={r.label}
-                // Rỗng = lấy hết, nên lúc chưa lọc thì tích sẵn mọi ô: người
-                // dùng thấy "tất cả" chứ không thấy "chưa chọn gì".
-                checked={roles.length === 0 || roles.includes(r.value)}
-                onCheckedChange={(on) => {
-                  const current =
-                    roles.length === 0 ? ROLE_FILTERS.map((x) => x.value) : roles;
-                  const next = on
-                    ? [...current, r.value]
-                    : current.filter((x) => x !== r.value);
-                  // Bỏ tích hết cũng coi như lấy hết — bảng trống trơn thì
-                  // người dùng tưởng mất dữ liệu.
-                  refine(() => setRoles(next.length === ROLE_FILTERS.length ? [] : next));
-                }}
-              />
-            ))}
-          </fieldset>
+          <FilterField id="month" label="Tháng">
+            <MonthPicker value={month} onChange={(m) => refine(() => setMonth(m))} />
+          </FilterField>
+          <FilterField id="department" label="Đơn vị" count={departmentId ? 1 : 0}>
+            <FilterChoices
+              label="Đơn vị"
+              value={departmentId}
+              onChange={(v) => refine(() => setDepartmentId(v))}
+              options={[
+                { value: "", label: "Tất cả đơn vị" },
+                ...departmentOptions.map((d) => ({ value: d.id, label: d.name })),
+              ]}
+            />
+          </FilterField>
+          <FilterField id="status" label="Trạng thái" count={status !== "active" ? 1 : 0}>
+            <FilterChoices
+              label="Trạng thái tài khoản"
+              value={status}
+              onChange={(v) => refine(() => setStatus(v as StaffQuery["status"]))}
+              options={ACCOUNT_STATUS_FILTERS}
+            />
+          </FilterField>
+          <FilterField id="roles" label="Chức vụ" count={roles.length}>
+            <fieldset className={styles.roleSet}>
+              <legend className={styles.roleLegend}>Chức vụ</legend>
+              {ROLE_FILTERS.map((r) => (
+                <Checkbox
+                  key={r.value}
+                  label={r.label}
+                  // Rỗng = lấy hết, nên lúc chưa lọc thì tích sẵn mọi ô: người
+                  // dùng thấy "tất cả" chứ không thấy "chưa chọn gì".
+                  checked={roles.length === 0 || roles.includes(r.value)}
+                  onCheckedChange={(on) => {
+                    const current =
+                      roles.length === 0 ? ROLE_FILTERS.map((x) => x.value) : roles;
+                    const next = on
+                      ? [...current, r.value]
+                      : current.filter((x) => x !== r.value);
+                    // Bỏ tích hết cũng coi như lấy hết — bảng trống trơn thì
+                    // người dùng tưởng mất dữ liệu.
+                    refine(() => setRoles(next.length === ROLE_FILTERS.length ? [] : next));
+                  }}
+                />
+              ))}
+            </fieldset>
+          </FilterField>
         </FilterButton>
         {canManage && (
-          <Button aria-label="Thêm nhân viên" onClick={() => setCreating(true)}>
+          <Button
+            aria-label="Thêm nhân viên"
+            className={buttonStyles.hideOnMobile}
+            onClick={() => setCreating(true)}
+          >
             <Plus size={16} aria-hidden />
             <span className={buttonStyles.label}>Thêm nhân viên</span>
           </Button>

@@ -4,10 +4,10 @@ import {
   businessDay,
   businessMonth,
   matchesSearch,
-  monthRange,
   removeDiacritics,
   uniqueCode,
 } from "@/lib/format";
+import { periodRanges } from "@/lib/period";
 import type { DepartmentType } from "@/lib/types";
 import {
   ORG_ERROR,
@@ -17,7 +17,7 @@ import {
   type DepartmentStats,
   type OrgErrorCode,
 } from "@/lib/api/org";
-import { accountCustomerDayBetween } from "./customerDay";
+import { accountCustomerDayBetween, customerDayBetween } from "./customerDay";
 import { db, uniqueViolationOf } from "./db/client";
 import { appsInstalledCount, variantOfAccount } from "./appCounted";
 import {
@@ -311,40 +311,6 @@ export async function departmentDetailFor(
 
 export type Range = { from: string; to: string };
 
-/** Lùi một ngày, giữ dạng `YYYY-MM-DD`. */
-const dayBefore = (day: string): string =>
-  new Date(`${day}T00:00:00Z`).getTime() - 86_400_000 > 0
-    ? new Date(new Date(`${day}T00:00:00Z`).getTime() - 86_400_000).toISOString().slice(0, 10)
-    : day;
-
-/** Lùi một tháng, giữ dạng `YYYY-MM`. */
-const monthBefore = (yearMonth: string): string => {
-  const [y, m] = yearMonth.split("-").map(Number);
-  return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, "0")}`;
-};
-
-/**
- * Đọc chuỗi kỳ mà `PeriodPicker` gửi lên: `today`, `this-month`, hoặc
- * `range:YYYY-MM-DD:YYYY-MM-DD`.
- *
- * `previous` là kỳ liền trước để so tăng/giảm, và nó `null` với khoảng ngày tự
- * chọn — một khoảng tuỳ ý không có "kỳ liền trước" nào định nghĩa được. Chuỗi
- * lạ rơi về `today` chứ không trả 400: một ô địa chỉ gõ nhầm không đáng làm
- * hỏng cả màn.
- */
-function periodRanges(key: string, today: string): { current: Range; previous: Range | null } {
-  if (key === "this-month") {
-    const month = today.slice(0, 7);
-    return { current: monthRange(month), previous: monthRange(monthBefore(month)) };
-  }
-
-  const range = key.match(/^range:(\d{4}-\d{2}-\d{2}):(\d{4}-\d{2}-\d{2})$/);
-  if (range) return { current: { from: range[1], to: range[2] }, previous: null };
-
-  const yesterday = dayBefore(today);
-  return { current: { from: today, to: today }, previous: { from: yesterday, to: yesterday } };
-}
-
 /**
  * Đếm tài khoản mở, app đã cài và khách có tài khoản theo phòng, trong một
  * khoảng ngày. Hai số đầu đếm trên `bank_accounts` theo ngày mở, số khách đếm
@@ -507,6 +473,44 @@ export async function statsByStaff(range: Range, departmentIds: string[]) {
   return mergeStats(accountRows, customerRows, (r) => r.staffId);
 }
 
+/**
+ * Số tài khoản mở theo ngày, cùng phép đếm với `statsByDepartment` (hồ sơ
+ * `done`, ngày hồ sơ khách). Cửa sổ ngắn (7 ngày) nên GROUP BY ngày không quét
+ * cả kho.
+ */
+export async function accountsOpenedByDay(
+  range: Range,
+  group: "department" | "staff",
+  departmentIds?: string[],
+): Promise<{ id: string; day: string; n: number }[]> {
+  const idCol =
+    group === "staff" ? bankAccounts.createdBy : bankAccounts.createdByDepartmentId;
+  /** Cùng một biểu thức ở SELECT và GROUP BY — `to_char(..., $1)` vs `$7` bị Postgres từ chối. */
+  const openedDay = sql<string>`(${customers.createdAt} at time zone ${BUSINESS_TIMEZONE})::date`;
+  const rows = await db
+    .select({
+      id: idCol,
+      day: openedDay,
+      n: sql<number>`count(*)::int`,
+    })
+    .from(bankAccounts)
+    .innerJoin(customers, eq(customers.id, bankAccounts.customerId))
+    .where(
+      and(
+        eq(bankAccounts.status, "done"),
+        customerDayBetween(range.from, range.to),
+        departmentIds ? inArray(bankAccounts.createdByDepartmentId, departmentIds) : undefined,
+      ),
+    )
+    .groupBy(sql`1`, sql`2`);
+
+  return rows.flatMap((row) =>
+    row.id == null
+      ? []
+      : [{ id: row.id, day: String(row.day).slice(0, 10), n: row.n }],
+  );
+}
+
 const rateOf = (opened: number, installed: number): number =>
   opened === 0 ? 0 : Math.round((installed / opened) * 100);
 
@@ -568,11 +572,18 @@ export async function departmentStatsFor(
         appsInstalled: s?.appsInstalled ?? 0,
         customers: s?.customers ?? 0,
         customersMultiAccount: s?.customersMultiAccount ?? 0,
+        previousAccountsOpened: before ? (p?.accountsOpened ?? 0) : null,
+        previousAppsInstalled: before ? (p?.appsInstalled ?? 0) : null,
+        previousCustomers: before ? (p?.customers ?? 0) : null,
+        previousCustomersMultiAccount: before ? (p?.customersMultiAccount ?? 0) : null,
         // `null` khi không có kỳ trước để so, HOẶC kỳ trước phòng này không mở
         // tài khoản nào: 0% so với "chưa có gì" là một phép trừ vô nghĩa, và
         // mũi tên giảm 74 điểm đọc ra như tai nạn.
         previousInstallRate:
           p && p.accountsOpened > 0 ? rateOf(p.accountsOpened, p.appsInstalled) : null,
+        // P-91 không tính điểm kỳ trước và sparkline; hai trường này chỉ P-80 có.
+        previousPoints: null,
+        growth: [],
       };
     }),
   };
