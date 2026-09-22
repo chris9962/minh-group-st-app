@@ -66,7 +66,13 @@ const rankingColumns = (
   const totalPoints = rows.reduce((sum, d) => sum + (d.points ?? 0), 0);
 
   return [
-  { key: "name", label: kind === "staff" ? "Nhân viên" : "Phòng", render: (d) => d.name, title: (d) => d.name },
+  {
+    key: "name",
+    label: kind === "staff" ? "Nhân viên" : "Phòng",
+    // Cả dòng là link (`rowHref`), tên tô màu link để người dùng biết bấm được.
+    render: (d) => <span className={styles.rankName}>{d.name}</span>,
+    title: (d) => d.name,
+  },
   {
     key: "accountsOpened",
     label: "TK mở",
@@ -372,7 +378,13 @@ export default function DashboardPage() {
                   )}
                   rowKey={(d) => d.id}
                   defaultSort="accountsOpened"
-                  highlightTop={3}
+                  // Bỏ đĩa số hạng và mũi tên lên xuống (chốt 2026-09-22): hai
+                  // thứ đó đứng trước tên làm cột tên lệch hàng. Thứ hạng vẫn
+                  // đọc được từ thứ tự dòng.
+                  rowHref={(d) =>
+                    data.rankingKind === "staff" ? `/users/${d.id}` : `/departments/${d.id}`
+                  }
+                  rowLabel={(d) => `Xem ${d.name}`}
                   caption={
                     data.rankingKind === "staff"
                       ? "Xếp hạng nhân viên trong phòng theo số tài khoản mở, app đã cài, tỉ lệ cài app và số khách có tài khoản"
