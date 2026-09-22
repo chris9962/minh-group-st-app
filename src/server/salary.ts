@@ -98,7 +98,13 @@ type Subject = {
   points: number;
 };
 
-type StaffScore = { id: string; departmentId: string; points: number };
+type StaffScore = {
+  id: string;
+  departmentId: string;
+  role: RoleKey;
+  active: boolean;
+  points: number;
+};
 
 /**
  * Lương CĐS đang chạy, chưa phải ảnh chụp đã chốt.
@@ -164,9 +170,21 @@ export async function salaryForUsers(
     ]),
   ];
 
-  const staffScores: StaffScore[] = relevantDepartmentIds.length
+  /**
+   * Kéo cả Phó phòng và người đã nghỉ: "Tổng điểm nhánh" của PGĐ phải khớp tổng
+   * điểm phòng ở màn Tổng quan (chốt 2026-09-22), mà màn đó cộng mọi người có
+   * điểm trong tháng. Các phép đếm theo ĐẦU NGƯỜI bên dưới vẫn chỉ lấy nhân
+   * viên đang làm, lọc ở `activeStaffByDepartment`.
+   */
+  const scoreRows: StaffScore[] = relevantDepartmentIds.length
     ? await db
-        .select({ id: users.id, departmentId: users.departmentId, points })
+        .select({
+          id: users.id,
+          departmentId: users.departmentId,
+          role: users.role,
+          active: users.active,
+          points,
+        })
         .from(users)
         .leftJoin(
           kpiScores,
@@ -174,8 +192,7 @@ export async function salaryForUsers(
         )
         .where(
           and(
-            eq(users.role, "staff"),
-            eq(users.active, true),
+            inArray(users.role, ["staff", "deputy-head"]),
             inArray(users.departmentId, relevantDepartmentIds),
           ),
         ) as StaffScore[]
@@ -214,10 +231,16 @@ export async function salaryForUsers(
     departmentDayRows.map((row) => [row.departmentId, row.count]),
   );
   const staffByDepartment = new Map<string, StaffScore[]>();
-  for (const staff of staffScores) {
-    const kept = staffByDepartment.get(staff.departmentId);
-    if (kept) kept.push(staff);
-    else staffByDepartment.set(staff.departmentId, [staff]);
+  const branchPointsByDepartment = new Map<string, number>();
+  for (const row of scoreRows) {
+    branchPointsByDepartment.set(
+      row.departmentId,
+      (branchPointsByDepartment.get(row.departmentId) ?? 0) + row.points,
+    );
+    if (row.role !== "staff" || !row.active) continue;
+    const kept = staffByDepartment.get(row.departmentId);
+    if (kept) kept.push(row);
+    else staffByDepartment.set(row.departmentId, [row]);
   }
 
   for (const subject of subjects) {
@@ -360,7 +383,10 @@ export async function salaryForUsers(
       if (managed.length === 0) continue;
       const team = managed.flatMap((departmentId) => staffByDepartment.get(departmentId) ?? []);
       const reached = team.filter((staff) => staff.points >= 100).length;
-      const totalPoints = team.reduce((sum, staff) => sum + staff.points, 0);
+      const totalPoints = managed.reduce(
+        (sum, departmentId) => sum + (branchPointsByDepartment.get(departmentId) ?? 0),
+        0,
+      );
       const managementPoints = 3 * reached;
       const managementPay = managementPoints * 150_000;
       const branchBonus = deputyDirectorBranchBonus(totalPoints);
