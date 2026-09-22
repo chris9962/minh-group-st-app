@@ -73,7 +73,14 @@ function hasSuccess(lines: string[]): boolean {
   const joined = lines.concat(lines.slice(1).map((next, i) => `${lines[i]} ${next}`));
   if (joined.some((l) => hasLabel(l, "CHUYENTIENTHANHCONG") || hasLabel(l, "GIAODICHTHANHCONG"))) return true;
   const amount = lines.some((l) => AMOUNT.test(stripAccents(l)));
-  if (hasPhrase(lines, "TIENRA") && amount) return true;
+  // Nhãn "TIỀN RA" là một vùng riêng, dư mỗi đầu tối đa 2 ký tự (biểu tượng đọc
+  // thành chữ): "hạn mức chuyển tiền ra ngoài" cũng chứa TIENRA nhưng dài hơn.
+  const outgoingLabel = lines.some((l) => {
+    const c = compact(l);
+    const at = c.indexOf("TIENRA");
+    return at >= 0 && at <= 2 && c.length - at - "TIENRA".length <= 2;
+  });
+  if (outgoingLabel && amount) return true;
   return lines.some((l) => hasLabel(l, "THONGBAOBIENDONGSODU")) && amount;
 }
 

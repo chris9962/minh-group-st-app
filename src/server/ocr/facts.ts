@@ -180,7 +180,11 @@ export function itemsFromFacts(facts: Facts[], values: FactValues): CheckedItem[
   }
   if (values.etax && etaxAt === undefined) {
     homeIssues.push("Không tìm thấy màn liên kết eTax");
-    homeNotes.push("Không ảnh nào là màn liên kết tài khoản trên eTax có số tài khoản.");
+    homeNotes.push(
+      values.accountNumber
+        ? "Không ảnh nào là màn liên kết tài khoản trên eTax có số tài khoản."
+        : "Không ảnh nào là màn liên kết tài khoản trên eTax.",
+    );
   }
   const homeLabel = [
     "Tên khách hàng",
@@ -215,7 +219,14 @@ export function itemsFromFacts(facts: Facts[], values: FactValues): CheckedItem[
           openIssues,
           openNotes.join(" "),
         ),
-    item("home", homeLabel, homeExpected, nameAt ?? accountAt ?? dateAt ?? etaxAt, homeIssues, homeNotes.join(" ")),
+    item(
+      "home",
+      homeLabel,
+      homeExpected,
+      nameAt ?? (values.accountNumber ? accountAt : undefined) ?? dateAt ?? etaxAt,
+      homeIssues,
+      homeNotes.join(" "),
+    ),
     item(
       "transfer",
       values.transfer?.label ?? (values.securities ? "Giao dịch thành công và nạp chứng khoán" : "Giao dịch thành công"),

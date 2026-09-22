@@ -124,6 +124,11 @@ assert.equal(vpbFacts(history, ctx).securitiesFound, true, "VPS Securities trong
 assert.equal(vpbFacts(home, ctx).nameFound, true);
 
 assert.equal(vpbFacts(branchStep, { ...ctx, referralCode: "49979" }).codeFound, false);
+assert.equal(vpbFacts("Thành công\n60 000 đ\nChuyển tiền", { ...ctx, referralCode: "60000" }).codeFound, false, "số tiền không phải mã DAO");
+assert.equal(vpbFacts("Họ và tên\nNGUYEN MINH CANH", { ...ctx, accountType: "CNKD" }).programFound, false, "tên khách chứa MINHCA không phải mã");
+assert.equal(vpbFacts("VPBank sẽ gửi các thông tin eKYC\nThành công\n10 000 đ\nChi tiết giao dịch", ctx).securitiesFound, false, "VPBank sẽ… không phải VPBankS");
+assert.equal(vpbFacts("Đăng ký\nthành công\n200.000.000 VND/Ngày", ctx).successFound, false, "tiêu đề đăng ký tách hai dòng");
+assert.equal(vpbFacts("Liên kết ví điện tử\nVPBank\n0328539924", { ...ctx, accountType: "CNKD" }).etaxFound, false, "màn liên kết ví của NEO không phải eTax");
 assert.equal(vpbFacts(branchStep.replace("MINHAP", "MINHCA"), ctx).programFound, false, "gõ sai mã giới thiệu công ty");
 assert.equal(vpbFacts(branchStep, { ...ctx, bankCode: "VPb" }).programFound, false, "VPb đòi số của QR, không phải MINHAP");
 assert.equal(vpbFacts(branchStep.replace("MINHAP", "0948822956"), { ...ctx, bankCode: "VPb" }).programFound, true);

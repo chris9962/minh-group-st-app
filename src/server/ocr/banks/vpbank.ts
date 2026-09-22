@@ -1,4 +1,4 @@
-import { compact, hasDigits, hasLabel, hasPhrase, letterWords, lineHasName, splitLines, stripAccents } from "../text";
+import { codeTokens, compact, hasDigits, hasLabel, hasPhrase, letterWords, lineHasName, splitLines, stripAccents } from "../text";
 import { itemsFromFacts, readUntilFound, type Facts } from "../facts";
 import type { CheckedItem } from "../types";
 
@@ -88,10 +88,13 @@ const amountLine = (lines: string[]): boolean =>
  */
 function hasSuccess(lines: string[]): boolean {
   const amount = amountLine(lines);
-  const shortSuccess = lines.some((l) => {
+  // "Đăng ký" / "Kích hoạt" có thể nằm ở dòng kề khi bộ dò tách tiêu đề, nên xét cả hai dòng bên.
+  const shortSuccess = lines.some((l, i) => {
     const c = compact(l);
     const at = c.indexOf("THANHCONG");
-    return at >= 0 && at <= 2 && c.length - at - "THANHCONG".length <= 2 && !c.includes("DANGKY");
+    if (at < 0 || at > 2 || c.length - at - "THANHCONG".length > 2) return false;
+    const around = compact(`${lines[i - 1] ?? ""} ${l} ${lines[i + 1] ?? ""}`);
+    return !around.includes("DANGKY") && !around.includes("KICHHOAT");
   });
   if (shortSuccess && amount) return true;
   const joined = lines.concat(lines.slice(1).map((next, i) => `${lines[i]} ${next}`));
@@ -110,11 +113,27 @@ function hasSuccess(lines: string[]): boolean {
  * VNDIRECT, VPS Securities, VPBankS, hay lời nhắn "Chuyen tien sang TKCK".
  */
 const hasSecurities = (lines: string[]): boolean =>
-  ["CHUNGKHOAN", "TKCK", "VNDIRECT", "VPSSECURITIES", "VPBANKS"].some((p) => hasPhrase(lines, p));
+  ["CHUNGKHOAN", "TKCK", "VNDIRECT", "VPSSECURITIES"].some((p) => hasPhrase(lines, p)) ||
+  // "VPBankS" phải là token trọn: "VPBank sẽ gửi…", "VPBank Sài Gòn" cũng bắt đầu bằng VPBANKS.
+  lines.some((l) => codeTokens(l).includes("VPBANKS"));
 
-/** Màn "Hủy liên kết tài khoản" của eTax Mobile, phần "Thông tin tài khoản" ghi ngân hàng VPBank. */
+/**
+ * Token đúng bằng mã, không so chuỗi con và không ghép token kề như
+ * `codeTokens`: tên khách `NGUYEN MINH CANH` chứa `MINHCA`, số tiền `60 000`
+ * ghép lại thành mã DAO `60000`.
+ */
+const hasToken = (lines: string[], code: string): boolean =>
+  Boolean(code) &&
+  lines.some((l) => stripAccents(l).toUpperCase().split(/[^A-Z0-9]+/).includes(code));
+
+/**
+ * Màn "Hủy liên kết tài khoản" của eTax Mobile, phần "Thông tin tài khoản" ghi
+ * ngân hàng VPBank. Đòi đúng tiêu đề màn đó: NEO cũng có màn "Liên kết ví
+ * điện tử" ghi VPBank.
+ */
 const hasEtaxLink = (lines: string[]): boolean =>
-  hasPhrase(lines, "LIENKET") && (hasPhrase(lines, "VPBANK") || hasPhrase(lines, "THINHVUONG"));
+  lines.some((l) => hasLabel(l, "HUYLIENKETTAIKHOAN")) &&
+  (hasPhrase(lines, "VPBANK") || hasPhrase(lines, "THINHVUONG"));
 
 /**
  * Màn "QR nhận tiền" của NEO hay ảnh chụp bảng QR "QR ĐA NĂNG - THANH TOÁN
@@ -139,11 +158,13 @@ export function vpbFacts(ocrText: string, ctx: VpbCheckContext): Facts {
   const accountFound = hasDigits(ocrText, ctx.accountNumber.replace(/\D/g, ""));
   const facts: Facts = {
     nameFound: lines.some((line) => lineHasName(line, expectedName)),
-    accountFound: kind === "HKD" ? false : accountFound,
-    codeFound: hasDigits(ocrText, ctx.referralCode.replace(/\D/g, "")),
+    // HKD không so số tài khoản (eTax liên kết số doanh nghiệp): coi như đã có để dừng đọc sớm.
+    accountFound: kind === "HKD" ? true : accountFound,
+    // Mã DAO so token trọn, không cho khoảng trắng như `hasDigits`: số tiền "60 000 đ" cũng là dãy 60000.
+    codeFound: hasToken(lines, ctx.referralCode.replace(/\D/g, "")),
     successFound: success,
   };
-  if (programOf(ctx)) facts.programFound = hasPhrase(lines, programOf(ctx));
+  if (programOf(ctx)) facts.programFound = hasToken(lines, programOf(ctx));
   if (kind === "none") facts.securitiesFound = success && hasSecurities(lines);
   if (kind === "CNKD") {
     facts.purposeFound = hasPhrase(lines, compact(CNKD_PURPOSE));

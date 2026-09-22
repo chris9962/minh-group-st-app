@@ -92,6 +92,7 @@ assert.deepEqual(mbFacts(profile, ctx), {
 assert.equal(mbFacts(history, ctx).successFound, true);
 assert.equal(mbFacts(history, ctx).nameFound, true, "tên dính nhãn CUSTOMER rồi nối chuyen tien");
 assert.equal(mbFacts(unlinkDevice, ctx).successFound, false);
+assert.equal(mbFacts("Hạn mức chuyển tiền ra ngoài hệ thống\n50,000,000 VND", ctx).successFound, false, "TIỀN RA phải là hai từ riêng");
 
 assert.equal(mbFacts(registration, { ...ctx, referralName: "5186-…" }).codeFound, false);
 assert.equal(mbFacts(registration, { ...ctx, province: "Đồng Tháp" }).provinceFound, false);
