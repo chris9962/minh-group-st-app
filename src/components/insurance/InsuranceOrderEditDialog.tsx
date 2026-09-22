@@ -134,13 +134,11 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId, mode = "edit"
 
   /**
    * Trạng thái đầu của đơn cấp lại (chốt 2026-09-22), cùng lối `null` = chưa
-   * đụng như ảnh ở trên. Mặc định theo luật của lượt tạo: đơn tai nạn điện làm
-   * tay vì PVI cấp lỗi loại này qua API từ 2026-09-22, đơn xe máy vào hàng chờ
-   * máy.
+   * đụng như ảnh ở trên. Mặc định Chờ tạo cho mọi sản phẩm; người bấm tự đổi
+   * sang Chờ làm tay khi biết PVI sẽ từ chối đơn đó qua API.
    */
   const [pickedStatus, setPickedStatus] = useState<InsuranceRecreateStatus | null>(null);
-  const recreateStatus: InsuranceRecreateStatus =
-    pickedStatus ?? (data?.product === "electric-accident" ? "manual-queued" : "queued");
+  const recreateStatus: InsuranceRecreateStatus = pickedStatus ?? "queued";
 
   const form = useForm<InsuranceOrderEditForm>({
     // Focus ô sai do `reportInvalid` lo — xem `lib/formErrors.ts`.
