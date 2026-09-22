@@ -1,6 +1,6 @@
 import { and, count, eq, exists, gte, inArray, lt, or, sql, type SQL, type SQLWrapper } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
-import { bankingPointsFor, bankTierFor, comboPointsAt, giftFor, ruleDateOf } from "@/rules";
+import { bankingPointsFor, bankTierFor, giftFor, householdPointsAt, ruleDateOf } from "@/rules";
 import type { GiftResult, ScoringAccount } from "@/rules";
 import { BUSINESS_TIMEZONE } from "@/lib/format";
 import { recordVisibility, type RecordVisibility } from "@/lib/permissions";
@@ -492,8 +492,18 @@ export async function listScoringExport(
     const tierCount = (tier: string) =>
       bankCodes.filter((code) => bankTierFor(code, ruleDate) === tier).length;
 
-    const comboPoints = comboPointsAt(bankCodes, ruleDate);
     const total = month ? bankingPointsFor(scoring, month, granted) : 0;
+    const householdPoints = month
+      ? householdPointsAt(scoring, ruleDate, grant?.chosenItem ?? null)
+      : 0;
+    /**
+     * Combo là phần còn lại của tổng, KHÔNG gọi `comboPointsAt` rồi lấy tổng
+     * trừ combo ra HKD như bản trước. Khách mở cả VPa lẫn VPb bị 0 trọn khách,
+     * mà `comboPointsAt` chỉ nhìn mã ngân hàng nên vẫn ra 0,5, và cột HKD thành
+     * -0,5 (ca Đặng Văn Biếu 2026-09-21). Tổng và điểm HKD cùng đi qua một luật
+     * nên hiệu của chúng đúng ở mọi kỳ.
+     */
+    const comboPoints = Number((total - householdPoints).toFixed(2));
 
     const household =
       accounts.find((a) => a.accountType !== "none")?.accountType ??
@@ -541,7 +551,7 @@ export async function listScoringExport(
       // Tách hai cột như file: tổ hợp 2 và tổ hợp 3 không bao giờ cùng có giá trị.
       combo2Points: bankCodes.length === 2 ? comboPoints : 0,
       combo3Points: bankCodes.length >= 3 ? comboPoints : 0,
-      householdPoints: Number((total - comboPoints).toFixed(2)),
+      householdPoints,
       totalPoints: total,
     });
   }
