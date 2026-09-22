@@ -1,4 +1,4 @@
-import { codeKey, compact, hasDigits, hasLabel, hasPhrase, letterWords, lineHasName, linesHaveCode, splitLines, stripAccents } from "../text";
+import { codeKey, compact, hasDigits, hasLabel, letterWords, lineHasName, linesHaveCode, splitLines, stripAccents } from "../text";
 import { itemsFromFacts, readUntilFound, type Facts } from "../facts";
 import type { CheckedItem } from "../types";
 
