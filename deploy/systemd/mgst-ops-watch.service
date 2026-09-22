@@ -1,0 +1,19 @@
+[Unit]
+Description=Do CPU RAM o dia S3 va day canh bao van hanh cho man P-99
+After=network-online.target docker.service
+OnFailure=mgst-alert@%n.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/mgst-app
+# .env.local mang DATABASE_URL trỏ localhost:5433 — đúng khi chạy từ máy chủ,
+# không phải từ trong container.
+EnvironmentFile=/opt/mgst-app/.env.local
+# Chạy THẲNG trên máy chủ, không bỏ vào container: trong container thì `df` ra
+# ổ đĩa của container chứ không ra ổ đĩa máy chủ.
+ExecStart=/root/.bun/bin/bun scripts/ops-watch.ts
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

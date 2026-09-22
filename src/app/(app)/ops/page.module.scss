@@ -1,0 +1,136 @@
+.body {
+  flex: 1;
+  padding: 22px 28px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.rangeRow {
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: var(--space-3);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.failList {
+  margin: var(--space-2) 0 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.resources {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: var(--space-3);
+}
+
+.resource {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--space-3);
+  border: 1px solid var(--om-line);
+  border-radius: var(--radius-md);
+  background: var(--om-surface);
+  min-width: 0;
+}
+
+.resourceHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.resourceLabel {
+  font-size: 13px;
+  color: var(--om-text-2);
+}
+
+.resourceValue {
+  font-size: 26px;
+  font-weight: 600;
+  color: var(--om-text);
+  line-height: 1.1;
+}
+
+.resourceDetail {
+  font-size: 12px;
+  color: var(--om-text-3);
+}
+
+/* Thanh đo dùng thẻ `progress` thật: trình đọc màn hình tự đọc ra giá trị và
+   mức trần, không phải gắn `role` với ba thuộc tính aria bằng tay.
+
+   Đổi lại thì phải tự vẽ cả hai lớp và vẽ RIÊNG cho từng engine — WebKit và
+   Gecko không dùng chung pseudo-element nào. Thiếu `appearance: none` thì
+   Chrome giữ nguyên thanh xám mặc định của hệ điều hành, và ở bộ màu tối nó
+   chìm hẳn vào nền. */
+.meter {
+  appearance: none;
+  width: 100%;
+  height: 8px;
+  border: none;
+  border-radius: 999px;
+  background: var(--om-soft);
+  color: var(--om-orange);
+}
+
+.meter::-webkit-progress-bar {
+  background: var(--om-soft);
+  border-radius: 999px;
+}
+
+.meter::-webkit-progress-value {
+  background: var(--om-orange);
+  border-radius: 999px;
+}
+
+.meter::-moz-progress-bar {
+  background: var(--om-orange);
+  border-radius: 999px;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* Danh sách đơn sắp huỷ. Cao quá nửa màn thì hộp thoại đẩy nút xác nhận xuống
+   dưới mép, nên cuộn trong khung. */
+.pickedList {
+  margin: 0;
+  padding-left: 18px;
+  max-height: 220px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--om-text-2);
+}
+
+@media (max-width: 720px) {
+  .body {
+    padding: 16px 16px 32px;
+  }
+}

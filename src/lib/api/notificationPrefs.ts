@@ -22,6 +22,7 @@ export const NotificationKind = z.enum([
   'bank-deleted',
   'release',
   'code-cnkd',
+  'ops-alert',
 ]);
 export type NotificationKind = z.infer<typeof NotificationKind>;
 
@@ -51,6 +52,7 @@ export const NOTIFICATION_KINDS: SwitchableKind[] = [
   'bank-photo-review',
   'bank-deleted',
   'code-cnkd',
+  'ops-alert',
 ];
 
 /**
@@ -78,6 +80,7 @@ export const NOTIFICATION_KIND_LABEL: Record<SwitchableKind, string> = {
   'bank-deleted': 'Tài khoản đang tạo của tôi bị xoá',
   'code-low': 'Kho mã giới thiệu sắp hết',
   'code-cnkd': 'Có mã giới thiệu CNKD mới',
+  'ops-alert': 'Cảnh báo vận hành hệ thống',
 };
 
 /**
@@ -90,6 +93,7 @@ export const NOTIFICATION_KIND_LABEL: Record<SwitchableKind, string> = {
 export const NOTIFICATION_GROUP_LABEL: Partial<Record<NavIconKey, string>> = {
   insurance: 'Bảo hiểm',
   banking: 'Ngân hàng',
+  settings: 'Hệ thống',
 };
 
 /**
@@ -119,6 +123,8 @@ export const NOTIFICATION_KIND_ICON: Record<NotificationKind, NavIconKey> = {
   announcement: 'org',
   /** Cùng icon với Hướng dẫn: bản cập nhật cũng là bài đọc về app. */
   release: 'help',
+  /** Cùng icon với Cấu hình: cảnh báo vận hành nói về chính hệ thống. */
+  'ops-alert': 'settings',
 };
 
 /**
@@ -144,6 +150,7 @@ export const NOTIFICATION_KIND_NEEDS: Partial<
   'bank-pending': { module: 'system', actions: ['manage-bank', 'manage-assigned-banks'] },
   'bank-photo-review': { module: 'system', actions: ['manage-bank', 'manage-assigned-banks'] },
   'code-low': { module: 'system', actions: ['manage-bank', 'manage-assigned-banks'] },
+  'ops-alert': { module: 'system', actions: ['view-ops'] },
 };
 
 /** Bật hết. Không có dòng trong database nghĩa là bật, xem `notification_prefs`. */
@@ -158,6 +165,7 @@ export const ALL_ON: Record<NotificationKind, boolean> = {
   'bank-deleted': true,
   'code-low': true,
   'code-cnkd': true,
+  'ops-alert': true,
   announcement: true,
   release: true,
 };

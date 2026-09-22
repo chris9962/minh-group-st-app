@@ -73,6 +73,8 @@ export const actionKey = pgEnum("action_key", [
   "configure-wards",
   // đặc biệt · system: gửi thông báo chung cho toàn công ty (migration 0085)
   "send-announcement",
+  // đặc biệt · system: mở màn Vận hành hệ thống P-99 (migration 0100)
+  "view-ops",
 ]);
 
 export const scopeKey = pgEnum("scope_key", ["own", "managed", "company"]);
@@ -160,6 +162,8 @@ export const notificationKind = pgEnum("notification_kind", [
   "release",
   // Có mã giới thiệu CNKD mới, cho mọi người, có công tắc. Migration 0097.
   "code-cnkd",
+  // Cảnh báo vận hành, chỉ người cầm `system:view-ops`. Migration 0100.
+  "ops-alert",
 ]);
 
 /** P-96 · Góp ý đã xử lý hay chưa. Hai trạng thái, thêm ở migration 0052. */
@@ -1861,3 +1865,45 @@ export const notifications = pgTable(
     index("notifications_unread").on(t.userId).where(sql`${t.readAt} is null`),
   ],
 );
+
+/* ── P-99 · Vận hành hệ thống (migration 0100) ──────────────────────────── */
+
+/**
+ * Số đo máy chủ, MỘT DÒNG MỖI LƯỢT ĐO. Script `ops:watch` ghi, app chỉ đọc.
+ *
+ * App không tự đo được: nó chạy trong container, nên `df` ra ổ đĩa của container
+ * và RAM đọc được là RAM máy chủ chia sẻ. Script chạy thẳng trên máy chủ bằng
+ * systemd mới thấy đúng số mà bảng điều khiển FPT hiện.
+ *
+ * Ba cột S3 để RỖNG được: một lượt đo S3 phải duyệt hết object trong bucket,
+ * 367.000 ảnh tính tới 2026-09-22, nên nó chạy thưa hơn hẳn nhịp một phút của
+ * CPU và RAM. Màn đọc dòng mới nhất CÓ số S3, không phải dòng mới nhất.
+ */
+export const hostMetrics = pgTable(
+  "host_metrics",
+  {
+    id: id(),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+    cpuPercent: numeric("cpu_percent", { precision: 5, scale: 2 }).notNull(),
+    ramUsed: bigint("ram_used", { mode: "number" }).notNull(),
+    ramTotal: bigint("ram_total", { mode: "number" }).notNull(),
+    diskUsed: bigint("disk_used", { mode: "number" }).notNull(),
+    diskTotal: bigint("disk_total", { mode: "number" }).notNull(),
+    s3Bytes: bigint("s3_bytes", { mode: "number" }),
+    s3Objects: bigint("s3_objects", { mode: "number" }),
+    s3At: timestamp("s3_at", { withTimezone: true }),
+  },
+  (t) => [index("host_metrics_at").on(t.at.desc())],
+);
+
+/**
+ * Sổ "đã báo rồi" của `ops:watch`, một dòng một mốc cảnh báo.
+ *
+ * Khoá là chuỗi tự đặt: `cert:<id đơn>:10` cho mốc 10 phút, `res:ram` cho ngưỡng
+ * tài nguyên. Không có sổ thì mỗi vòng chạy gửi lại đúng đơn đó, mỗi phút một
+ * lần, tới khi PVI trả giấy.
+ */
+export const opsAlerts = pgTable("ops_alerts", {
+  key: text("key").primaryKey(),
+  at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+});

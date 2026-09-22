@@ -210,6 +210,12 @@ export function navFor(user: User | null): NavEntry[] {
     watchChildren.push({ href: '/feedback', label: 'Hộp góp ý', screen: 'P-96' });
   }
 
+  // Màn vận hành đứng cùng nhóm "Theo dõi" vì nó cũng chỉ đọc. Một hành động
+  // ghi duy nhất là cấp lại lô đơn kẹt, và hành động đó còn đòi `insurance:create`.
+  if (can(user, 'system', 'view-ops')) {
+    watchChildren.push({ href: '/ops', label: 'Vận hành hệ thống', screen: 'P-99' });
+  }
+
   if (watchChildren.length > 0) {
     items.push({ label: 'Theo dõi', icon: 'audit', children: watchChildren });
   }

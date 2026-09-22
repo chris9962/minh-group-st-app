@@ -99,6 +99,24 @@ export function formatPoints(points: number): string {
 /** Làm tròn 2 số lẻ — đúng bằng `numeric(10,2)` của `kpi_scores`. */
 export const roundPoints = (points: number): number => Math.round(points * 100) / 100;
 
+/**
+ * Dung lượng cho người đọc: `1610612736` ra `1,5 GB`.
+ *
+ * Bậc 1024 chứ không phải 1000, khớp với con số bảng điều khiển FPT và lệnh
+ * `df` in ra. Dùng 1000 thì cùng một ổ đĩa hiện hai số khác nhau ở hai chỗ.
+ */
+export function formatBytes(bytes: number): string {
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let value = Math.max(0, bytes);
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+  const digits = unit === 0 || value >= 100 ? 0 : 1;
+  return `${new Intl.NumberFormat('vi-VN', { maximumFractionDigits: digits }).format(value)} ${units[unit]}`;
+}
+
 export function formatDate(value: Date | string): string {
   const d = typeof value === 'string' ? new Date(value) : value;
   return new Intl.DateTimeFormat('vi-VN', {

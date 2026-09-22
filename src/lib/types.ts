@@ -160,6 +160,14 @@ export const Action = z.enum([
    * dòng thông báo cộng hàng trăm gói tin đẩy, và không thu hồi được.
    */
   'send-announcement',
+  /**
+   * Mở màn Vận hành hệ thống P-99 và nhận cảnh báo của nó (migration 0100).
+   *
+   * Màn đó đọc hàng đợi kiểm ảnh, hàng đợi giấy chứng nhận và số đo máy chủ của
+   * TOÀN công ty. Không gác bằng `view-summary` của module nghiệp vụ nào: số ở
+   * đây nói máy có chạy không, không nói đội làm được bao nhiêu.
+   */
+  'view-ops',
 ]);
 export type Action = z.infer<typeof Action>;
 
@@ -195,6 +203,7 @@ export const ACTION_LABEL: Record<Action, string> = {
   'adjust-kpi': 'Cộng điểm KPI',
   'handle-feedback': 'Xử lý góp ý',
   'send-announcement': 'Gửi thông báo chung',
+  'view-ops': 'Xem vận hành hệ thống',
 };
 
 /** 6 hành động dùng chung cho mọi module cơ bản — xem mục 1.1.2 spec. */
@@ -228,6 +237,8 @@ export const SCOPELESS_ACTIONS: Action[] = [
   'handle-feedback',
   // Địa bàn là danh mục dùng chung — không cắt theo phòng được.
   'configure-wards',
+  // Màn P-99 đo cả máy chủ, không có phần nào cắt theo phòng.
+  'view-ops',
 ];
 
 export const SPECIAL_ACTIONS_OF: Partial<Record<ModuleKey, Action[]>> = {
@@ -257,6 +268,7 @@ export const SPECIAL_ACTIONS_OF: Partial<Record<ModuleKey, Action[]>> = {
     'grant-permission',
     'adjust-kpi',
     'handle-feedback',
+    'view-ops',
   ],
 };
 
