@@ -37,6 +37,7 @@ import {
 } from "./db/schema";
 import { appsInstalledCount, variantOfAccount } from "./appCounted";
 import { salaryForUsers } from "./salary";
+import { branchSummaryFor } from "./branch";
 
 /**
  * P-51 · P-52 — điểm KPI tính SỐNG từ bản ghi nghiệp vụ × hệ số danh mục
@@ -796,6 +797,10 @@ export async function personFor(
   pointSources.sort((a, b) => b.points - a.points);
   const salaryResult = (await salaryForUsers([id], summaryMonth)).get(id);
 
+  // Phó giám đốc không lập hồ sơ nên vòng điểm và bốn tab hoạt động của họ luôn
+  // trống. Hồ sơ của họ hiện các phòng họ quản thay vào đó (chốt 2026-09-22).
+  const branch = row.user.role === "deputy-director" ? await branchSummaryFor(id, range) : null;
+
   return {
     id: row.user.id,
     fullName: row.user.fullName,
@@ -826,6 +831,7 @@ export async function personFor(
     adjustments,
     monthlyPoints,
     counts,
+    branch,
   };
 }
 

@@ -1,0 +1,35 @@
+.identity {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.avatar {
+  flex: none;
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--om-orange-soft);
+  color: var(--om-orange-ink);
+  font-family: var(--font-heading);
+  font-size: 16px;
+}
+
+.identity > div {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.name {
+  font-family: var(--font-heading);
+  font-size: 18px;
+  font-weight: var(--font-heading-weight);
+}
+
+.sub {
+  font-size: 12.5px;
+  color: var(--om-text-2);
+}

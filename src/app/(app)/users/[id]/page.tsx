@@ -6,6 +6,7 @@ import { BackLink } from "@/components/ui/BackLink";
 import { SkeletonCard } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
+import { BranchPanel } from "@/components/people/BranchPanel";
 import { KpiAdjustmentSection } from "@/components/people/KpiAdjustmentSection";
 import { PersonActivityTabs } from "@/components/people/PersonActivityTabs";
 import { PersonKpiPanel } from "@/components/people/PersonKpiPanel";
@@ -101,7 +102,13 @@ export default function PersonPage({
           </div>
         )}
 
-        {data && !showAccount && (
+        {/* Phó giám đốc: các phòng họ quản thay cho vòng điểm và bốn tab hoạt
+            động, vì họ không lập hồ sơ nên hai khối đó luôn trống. */}
+        {data && !showAccount && data.branch && (
+          <BranchPanel person={data} branch={data.branch} periodText={periodText} />
+        )}
+
+        {data && !showAccount && !data.branch && (
           <div className={styles.columns}>
             <aside className={styles.side}>
               <PersonKpiPanel person={data} />

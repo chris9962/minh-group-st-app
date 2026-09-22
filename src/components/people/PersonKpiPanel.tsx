@@ -5,10 +5,10 @@ import { SalaryFact } from "@/components/payroll/SalaryFact";
 import { BarChart } from "@/components/ui/BarChart";
 import { monthLabel } from "@/components/ui/MonthPicker";
 import { KpiScoreBlock } from "@/components/people/KpiScoreBlock";
+import { PersonIdentity } from "@/components/people/PersonIdentity";
 import { SectionCard } from "@/components/ui/SectionCard";
 import type { PersonDetail } from "@/lib/api/person";
 import { useChartColors } from "@/lib/chart-colors";
-import { formatPhone } from "@/lib/format";
 import styles from "./PersonKpiPanel.module.scss";
 
 /**
@@ -23,13 +23,6 @@ type Props = {
   person: PersonDetail;
 };
 
-/** Hai chữ cái đầu của tên — ảnh đại diện chưa có, và tên viết tắt đọc nhanh hơn một ô xám. */
-const initialsOf = (fullName: string): string => {
-  const parts = fullName.trim().split(/\s+/);
-  const last = parts.at(-1) ?? "";
-  return (parts.length > 1 ? `${parts[0][0]}${last[0]}` : last.slice(0, 2)).toUpperCase();
-};
-
 const shortMonth = (month: string) => `T${Number(month.slice(5, 7))}`;
 
 /* Khối KPI hiện Ở MỌI KỲ và luôn theo THÁNG HIỆN TẠI (chốt 2026-08-27) — kỳ
@@ -40,26 +33,7 @@ export function PersonKpiPanel({ person }: Props) {
   return (
     <>
       <div className={styles.person}>
-        <div className={styles.identity}>
-          <span className={styles.avatar} aria-hidden>
-            {initialsOf(person.fullName)}
-          </span>
-          <div>
-            <strong className={styles.name}>{person.fullName}</strong>
-            {/* Mã nhân viên là thứ dùng để đối chiếu với app khác, nên đứng cạnh
-                số điện thoại ở dòng nhận diện. Tên đăng nhập thì không. */}
-            <span className={`${styles.sub} tabular-nums`}>
-              {[person.staffCode, formatPhone(person.phone)].filter(Boolean).join(" · ")}
-            </span>
-            {/* Ban giám đốc không thuộc phòng nào nên chuỗi phòng rỗng — nối
-                cứng dấu · sẽ để lại một dấu chấm mồ côi đầu dòng. */}
-            <span className={styles.sub}>
-              {[person.departmentName, `vào từ ${monthLabel(person.joinedMonth)}`]
-                .filter(Boolean)
-                .join(" · ")}
-            </span>
-          </div>
-        </div>
+        <PersonIdentity person={person} />
 
         <KpiScoreBlock
           sources={person.pointSources}

@@ -144,6 +144,32 @@ export const SalaryBreakdown = z.object({
 });
 export type SalaryBreakdown = z.infer<typeof SalaryBreakdown>;
 
+export const BranchDepartment = z.object({
+  id: z.string(),
+  name: z.string(),
+  /** Nhân viên đang làm, cùng phép đếm với "Nhân viên các phòng phụ trách" ở lương. */
+  staffCount: z.number(),
+  accountsOpened: z.number(),
+  appsInstalled: z.number(),
+  /** Tỉ lệ cài app trên số tài khoản mở, 0–100. */
+  installPercent: z.number(),
+  points: z.number(),
+  /** Lương tạm tính của mọi người đang làm trong phòng, tháng `salaryMonth`. */
+  salary: z.number(),
+});
+export type BranchDepartment = z.infer<typeof BranchDepartment>;
+
+/**
+ * Khối nhánh của Phó giám đốc: các phòng họ quản và dòng tổng. Tài khoản, app,
+ * điểm theo kỳ lọc của trang; nhân viên và lương thì không.
+ */
+export const BranchSummary = z.object({
+  salaryMonth: z.string(),
+  departments: z.array(BranchDepartment),
+  totals: BranchDepartment.omit({ id: true, name: true }),
+});
+export type BranchSummary = z.infer<typeof BranchSummary>;
+
 export const PersonDetail = z.object({
   id: z.string(),
   fullName: z.string(),
@@ -184,6 +210,8 @@ export const PersonDetail = z.object({
     insuranceCancelled: z.number(),
     services: z.number(),
   }),
+  /** Chỉ Phó giám đốc có; người khác `null`. Hồ sơ P-52 đổi bố cục theo trường này. */
+  branch: BranchSummary.nullable().default(null),
 });
 export type PersonDetail = z.infer<typeof PersonDetail>;
 
