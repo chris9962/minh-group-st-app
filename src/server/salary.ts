@@ -15,6 +15,7 @@ const DAILY_SUPPORT = 120_000;
 const STAFF_FIRST_TIER_RATE = 60_000;
 const SALES_MAX_DAYS = 26;
 const DEPUTY_DIRECTOR_DAYS = 22;
+const MANAGEMENT_PENALTY_LAST_MONTH = "2026-07";
 
 type SalaryItem = { label: string; formula: string; amount: number };
 
@@ -305,8 +306,12 @@ export async function salaryForUsers(
       if (subject.departmentType !== "sales" || !subject.departmentId) continue;
       const team = staffByDepartment.get(subject.departmentId) ?? [];
       const reached = team.filter((staff) => staff.points >= 100).length;
-      const below = team.length - reached;
-      const allOver = team.length > 0 && team.every((staff) => staff.points > 100);
+      // Chú thích cuối trang của Phụ lục 05 (quy chế 107): trừ "nhân sự dưới
+      // 100 điểm" và cộng "cả phòng vượt 100" chỉ áp dụng đến hết tháng 7/2026.
+      // Bản .md của quy chế bỏ mất chú thích, phải đọc file .docx mới thấy.
+      const penaltyActive = yearMonth <= MANAGEMENT_PENALTY_LAST_MONTH;
+      const below = penaltyActive ? team.length - reached : 0;
+      const allOver = penaltyActive && team.length > 0 && team.every((staff) => staff.points > 100);
       const unit = subject.role === "head" ? 9 : 6;
       const managementPoints = unit * reached - unit * below + (allOver ? unit : 0);
       const average = team.length === 0
