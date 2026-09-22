@@ -77,16 +77,22 @@ export function rankingShareTitle(
   unit: string,
 ): string {
   if (total <= 0) return `${value} ${unit}`;
-  return `${value} trên ${total} ${unit} · ${rankingShare(value, total)}%`;
+  return `${value} trên ${total} ${unit}, ${rankingShare(value, total)}%`;
 }
 
-/** Ghép các mảnh tooltip, bỏ chỗ trống. */
+/**
+ * Ghép các mảnh tooltip, bỏ chỗ trống. MỖI MẢNH MỘT DÒNG — `.tip` đã để
+ * `white-space: pre-wrap`.
+ *
+ * Bản trước nối bằng dấu chấm giữa thành một dòng dài, nên tooltip cột Tăng
+ * trưởng gộp phần trăm với bảy con số của bảy ngày vào cùng một câu.
+ */
 export function rankingTip(
   ...parts: (string | null | undefined)[]
 ): string | null {
   const text = parts
     .filter((part): part is string => Boolean(part && part.trim()))
-    .join(" · ");
+    .join("\n");
   return text || null;
 }
 

@@ -242,8 +242,8 @@
   position: fixed;
   z-index: 40;
   transform: translate(-50%, calc(-100% - 8px));
-  max-width: 16rem;
-  padding: 6px 10px;
+  max-width: 18rem;
+  padding: 8px 12px;
   border-radius: var(--radius-sm);
   background: var(--om-text);
   color: var(--om-card);
@@ -253,4 +253,7 @@
   box-shadow: var(--shadow-md);
   pointer-events: none;
   white-space: pre-wrap;
+  /* Tooltip cột Tăng trưởng xếp bảy dòng "ngày — số"; chữ số lệch bề ngang thì
+     cột số không thẳng hàng. */
+  font-variant-numeric: tabular-nums;
 }

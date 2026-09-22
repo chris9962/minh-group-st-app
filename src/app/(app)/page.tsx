@@ -11,7 +11,14 @@ import { BarChart } from "@/components/ui/BarChart";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { RateDelta } from "@/components/ui/RateDelta";
 import { Sparkline } from "@/components/ui/Sparkline";
-import { growthPercent, rankingShare, rankingShareTitle, rankingTip } from "@/components/ui/ranking";
+import {
+  SPARKLINE_DAYS,
+  daysEndingOn,
+  growthPercent,
+  rankingShare,
+  rankingShareTitle,
+  rankingTip,
+} from "@/components/ui/ranking";
 import {
   DEFAULT_PERIOD,
   PeriodPicker,
@@ -54,10 +61,16 @@ const installRate = (d: DepartmentRanking) =>
  * tài khoản trở lên — người xem chỉ quan tâm khách mở 2-3 tài khoản, khách 1
  * tài khoản không đáng chú ý.
  */
+/** `2026-09-21` thành `21/09` — nhãn ngày trong tooltip cột Tăng trưởng. */
+const dayLabel = (day: string | undefined): string =>
+  day ? `${day.slice(8, 10)}/${day.slice(5, 7)}` : "";
+
 const rankingColumns = (
   kind: "department" | "staff",
   hideSingleAccountCustomers: boolean,
   rows: DepartmentRanking[],
+  /** Ngày cuối kỳ đang xem, để đặt tên cho bảy cột của dãy tăng trưởng. */
+  periodTo: string,
 ): RankColumn<DepartmentRanking>[] => {
   // Thanh tỉ lệ so với TỔNG bảng, không so với phòng dẫn đầu — so max thì
   // phòng nhất luôn đầy 100% và các phòng còn lại nhìn như lỗi thanh.
@@ -143,6 +156,13 @@ const rankingColumns = (
     label: "Tăng trưởng",
     sortBy: (d) =>
       growthPercent(d.accountsOpened, d.previousAccountsOpened) ?? Number.NEGATIVE_INFINITY,
+    /**
+     * Mỗi ngày một dòng, ngày đứng trước số.
+     *
+     * Bản trước dồn bảy con số vào một câu "Tài khoản mở 7 ngày: 3, 5, 0, 12…",
+     * không nói con số nào của ngày nào. Ngày lấy từ chính kỳ đang xem, cùng
+     * phép đếm ngược với `daysEndingOn` mà máy chủ dùng để dựng dãy.
+     */
     title: (d) => {
       const percent = growthPercent(d.accountsOpened, d.previousAccountsOpened);
       const change =
@@ -150,9 +170,13 @@ const rankingColumns = (
           ? null
           : percent === 0
             ? "Không đổi so với kỳ trước"
-            : `${percent > 0 ? "+" : ""}${percent}% so với kỳ trước`;
+            : `${percent > 0 ? "Tăng" : "Giảm"} ${Math.abs(percent)}% so với kỳ trước`;
+      const days = daysEndingOn(periodTo, SPARKLINE_DAYS);
       const series = d.growth.length
-        ? `Tài khoản mở 7 ngày: ${d.growth.join(", ")}`
+        ? [
+            "Tài khoản mở 7 ngày gần nhất",
+            ...d.growth.map((value, i) => `${dayLabel(days[i])}   ${formatCount(value)}`),
+          ].join("\n")
         : null;
       return rankingTip(change, series);
     },
@@ -375,6 +399,7 @@ export default function DashboardPage() {
                     data.rankingKind,
                     hideSingleAccountCustomers,
                     data.departments,
+                    periodDates(period).to,
                   )}
                   rowKey={(d) => d.id}
                   defaultSort="accountsOpened"
