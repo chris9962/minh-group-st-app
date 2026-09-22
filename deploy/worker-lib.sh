@@ -23,6 +23,21 @@ CHUNG=(
   -e DATABASE_URL="$DB_URL"
 )
 
+# Một biến trong `.env.local`, hoặc giá trị mặc định khi file không có dòng đó.
+# Dùng cho cờ của `docker run` như `--cpus`: cờ nằm ngoài container nên
+# `--env-file` không tới được, phải đọc ở tầng shell.
+#
+# `grep` chứ không `source`: file đó có dòng chứa dấu `$` và dấu cách trong
+# khoá S3, nạp thẳng vào shell là nó diễn giải sai.
+doc_env() {
+  local dong
+  dong="$(grep -E "^${1}=" "$GOC/.env.local" 2>/dev/null | tail -1)" || true
+  dong="${dong#*=}"
+  dong="${dong%\"}"; dong="${dong#\"}"
+  dong="${dong%\'}"; dong="${dong#\'}"
+  echo "${dong:-$2}"
+}
+
 dung_image() {
   echo "== Dựng image mgst-api-worker:new =="
   echo "HEAD: $(git log --oneline -1)"

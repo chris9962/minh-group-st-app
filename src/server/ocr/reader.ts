@@ -13,17 +13,25 @@ import { createInterface } from "node:readline";
  * trả về danh sách dòng chữ theo thứ tự trên xuống, trái sang. So với hệ
  * thống là việc của `banks/<mã>.ts`.
  *
- * Tiến trình Python mở MỘT LẦN ở lượt gọi đầu rồi giữ suốt: nạp model mất
- * khoảng 4 giây, mở lại mỗi ảnh thì mỗi ảnh tốn thêm chừng đó. Các lượt gọi
- * xếp hàng, một ảnh một lúc; song song thì mở thêm tiến trình, chưa cần.
+ * Tiến trình Python mở ở lượt gọi đầu rồi giữ suốt: nạp model mất khoảng 4
+ * giây, mở lại mỗi ảnh thì mỗi ảnh tốn thêm chừng đó. Một tiến trình đọc MỘT
+ * ảnh một lúc, nên `OCR_PROCESSES` mở nhiều tiến trình song song (chốt
+ * 2026-09-22). Mỗi tiến trình một hàng chờ riêng; lượt mới vào hàng ngắn nhất.
  *
- * Tiến trình chết giữa chừng: lượt đang đọc ném lỗi, lượt sau tự mở lại. Mở
+ * Số tiến trình là trần tốc độ thật. Tăng `OCR_THREADS` chỉ chia nhỏ việc
+ * TRONG một ảnh nên được ít, còn thêm tiến trình thì mỗi tiến trình đọc một
+ * ảnh khác nhau. Đổi lại mỗi tiến trình giữ một bộ model trong RAM, đo trên
+ * máy chủ 2026-09-22 khoảng 0,9 GB, nên `OCR_PROCESSES` phải đi cùng
+ * `--cpus` và `--memory` của container — xem `deploy/worker-photo.sh`.
+ *
+ * Tiến trình chết giữa chừng: lượt đang đọc ném lỗi, lượt sau tự mở lại, và
+ * chỉ tiến trình đó mở lại chứ không kéo theo các tiến trình còn lại. Mở
  * không được (thiếu python, thiếu thư viện) thì ném lỗi để lượt kiểm ghi
  * `failed` kèm lý do, không trả chuỗi rỗng.
  *
- * Biến môi trường: `OCR_PYTHON` (mặc định `python3`), `OCR_SERVER`
- * (mặc định `scripts/ocr-server.py` cạnh mã nguồn). Các biến `OCR_*` khác
- * đi thẳng xuống tiến trình Python, xem đầu file đó.
+ * Biến môi trường: `OCR_PROCESSES` (mặc định 1), `OCR_PYTHON` (mặc định
+ * `python3`), `OCR_SERVER` (mặc định `scripts/ocr-server.py` cạnh mã nguồn).
+ * Các biến `OCR_*` khác đi thẳng xuống tiến trình Python, xem đầu file đó.
  */
 
 type Reply = { lines?: string[]; ms?: number; error?: string; ready?: boolean };
@@ -36,10 +44,24 @@ type Server = {
   died: Error | null;
 };
 
-let server: Promise<Server> | null = null;
-let queue: Promise<unknown> = Promise.resolve();
+/** Một tiến trình Python cùng hàng chờ của riêng nó. */
+type Lane = {
+  server: Promise<Server> | null;
+  queue: Promise<unknown>;
+  /** Số lượt đang xếp ở đây, để lượt mới chọn hàng ngắn nhất. */
+  pending: number;
+};
 
-async function start(): Promise<Server> {
+// Số hỏng hay bằng 0 thì về 1: một tiến trình vẫn chạy được, không tiến trình
+// nào thì mọi lượt kiểm ảnh treo mà container vẫn Up.
+const POOL_SIZE = Math.max(1, Math.trunc(Number(process.env.OCR_PROCESSES)) || 1);
+const pool: Lane[] = Array.from({ length: POOL_SIZE }, () => ({
+  server: null,
+  queue: Promise.resolve(),
+  pending: 0,
+}));
+
+async function start(lane: Lane): Promise<Server> {
   const python = process.env.OCR_PYTHON ?? "python3";
   const script = process.env.OCR_SERVER ?? path.join(process.cwd(), "scripts", "ocr-server.py");
   const child = spawn(python, [script], { stdio: ["pipe", "pipe", "inherit"] });
@@ -69,18 +91,18 @@ async function start(): Promise<Server> {
       state.waiting?.({ error: state.died.message });
       state.waiting = null;
       // Lượt sau mở lại từ đầu.
-      server = null;
+      lane.server = null;
     });
   });
   return ready;
 }
 
-async function ask(image: Buffer): Promise<string[]> {
-  if (!server) server = start().catch((e) => {
-    server = null;
+async function ask(lane: Lane, image: Buffer): Promise<string[]> {
+  if (!lane.server) lane.server = start(lane).catch((e) => {
+    lane.server = null;
     throw e;
   });
-  const s = await server;
+  const s = await lane.server;
   if (s.died) throw s.died;
 
   const dir = await mkdtemp(path.join(tmpdir(), "mgst-ocr-"));
@@ -98,16 +120,29 @@ async function ask(image: Buffer): Promise<string[]> {
   }
 }
 
-/** Các dòng chữ trong ảnh, đã bỏ dòng rỗng. Lỗi ném ra, không trả rỗng. */
+/**
+ * Các dòng chữ trong ảnh, đã bỏ dòng rỗng. Lỗi ném ra, không trả rỗng.
+ *
+ * Chọn hàng NGẮN NHẤT chứ không chia vòng tròn: ảnh dài ngắn khác nhau tới
+ * vài giây, chia vòng tròn thì một hàng đọng lại trong khi hàng khác rỗi.
+ */
 export function ocrLines(image: Buffer): Promise<string[]> {
-  const turn = queue.then(() => ask(image));
-  queue = turn.catch(() => undefined);
+  const lane = pool.reduce((min, l) => (l.pending < min.pending ? l : min));
+  lane.pending += 1;
+  const turn = lane.queue.then(() => ask(lane, image));
+  lane.queue = turn.catch(() => undefined).finally(() => {
+    lane.pending -= 1;
+  });
   return turn;
 }
 
-/** Đóng tiến trình Python, gọi khi worker dừng. */
+/** Đóng mọi tiến trình Python, gọi khi worker dừng. */
 export async function closeOcr(): Promise<void> {
-  const s = await server?.catch(() => null);
-  server = null;
-  s?.child.stdin.end();
+  await Promise.all(
+    pool.map(async (lane) => {
+      const s = await lane.server?.catch(() => null);
+      lane.server = null;
+      s?.child.stdin.end();
+    }),
+  );
 }

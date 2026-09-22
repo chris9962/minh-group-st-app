@@ -14,9 +14,13 @@
  * Cờ:
  *   --mot-vong   chạy một vòng rồi thoát, để thử tay
  *
- * OCR là MỘT tiến trình Python (`src/server/ocr/reader.ts`), đọc một ảnh một
- * lúc, khoảng 2 đến 3 giây một ảnh. `PARALLEL` tài khoản chạy cùng lúc chỉ
- * chồng phần đọc database và tải ảnh từ kho; phần OCR xếp hàng.
+ * OCR chạy `OCR_PROCESSES` tiến trình Python (`src/server/ocr/reader.ts`), mỗi
+ * tiến trình đọc một ảnh một lúc, khoảng 2 đến 3 giây một ảnh.
+ *
+ * `PARALLEL` phải BẰNG hoặc hơn `OCR_PROCESSES`, không thì thừa tiến trình
+ * ngồi không: mỗi tài khoản chỉ gửi một ảnh một lúc nên hai tài khoản chạy
+ * cùng lúc chỉ nuôi được hai tiến trình. Mặc định của nó đọc theo
+ * `OCR_PROCESSES` vì lý do đó.
  */
 
 import { Client } from "pg";
@@ -33,8 +37,12 @@ import {
 
 const SLEEP_SECONDS = Number(process.env.PHOTO_CHECK_SLEEP ?? 30);
 const BATCH = Number(process.env.PHOTO_CHECK_BATCH ?? 20);
-/** OCR xếp hàng một ảnh một lúc, nên hơn 2 chỉ tốn kết nối database. */
-const PARALLEL = Number(process.env.PHOTO_CHECK_PARALLEL ?? 2);
+/** Hai tài khoản mỗi tiến trình OCR: một đang đọc ảnh, một đang tải ảnh về. */
+const OCR_PROCESSES = Math.max(1, Math.trunc(Number(process.env.OCR_PROCESSES)) || 1);
+const PARALLEL = Math.max(
+  1,
+  Math.trunc(Number(process.env.PHOTO_CHECK_PARALLEL)) || OCR_PROCESSES * 2,
+);
 
 const log = (msg: string) => console.log(`[${new Date().toISOString()}] ${msg}`);
 
