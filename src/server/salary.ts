@@ -16,6 +16,11 @@ const STAFF_FIRST_TIER_RATE = 60_000;
 const SALES_MAX_DAYS = 26;
 const DEPUTY_DIRECTOR_DAYS = 22;
 const MANAGEMENT_PENALTY_LAST_MONTH = "2026-07";
+/**
+ * Chú thích 12, 16, 19 của quy chế 107: "Làm trực tiếp" của Trưởng/Phó phòng
+ * và toàn bộ bảng KPI + thưởng nhánh của Phó GĐ áp dụng từ tháng 8/2026.
+ */
+const DIRECT_AND_DEPUTY_FIRST_MONTH = "2026-08";
 
 type SalaryItem = { label: string; formula: string; amount: number };
 
@@ -326,7 +331,8 @@ export async function salaryForUsers(
       );
       const managementRate = subject.role === "head" ? 120_000 : 80_000;
       const managementPay = managementPoints * managementRate;
-      const directPay = Math.max(directPoints, 0) * 70_000;
+      const directPay =
+        yearMonth >= DIRECT_AND_DEPUTY_FIRST_MONTH ? Math.max(directPoints, 0) * 70_000 : 0;
       const poolPay = pool * poolShare;
       const dailySupport = workDays * DAILY_SUPPORT;
       const subtotal = managementPay + directPay + poolPay + dailySupport;
@@ -384,6 +390,7 @@ export async function salaryForUsers(
     }
 
     if (subject.role === "deputy-director") {
+      if (yearMonth < DIRECT_AND_DEPUTY_FIRST_MONTH) continue;
       const managed = managedByUser.get(subject.id) ?? [];
       if (managed.length === 0) continue;
       const team = managed.flatMap((departmentId) => staffByDepartment.get(departmentId) ?? []);
