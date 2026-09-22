@@ -105,14 +105,16 @@ Thông tin về giao dịch sẽ hiển thị ở đây
 
 const ctx = {
   referralCode: "BSJFUXA-5 - MCT: TIKTOK",
-  referralName: "BSJFUXA-5",
   customerName: "Phan Ngọc Lương",
   accountNumber: "0522514735",
 };
 
 assert.equal(msbReferral(ctx), "BSJFUXA-5");
-assert.equal(msbReferral({ referralCode: "MGST2026 - P1", referralName: "MGST2026 (phòng 8)" }), "MGST2026");
-assert.equal(msbReferral({ referralCode: "ACT24  - MCT: Trống", referralName: "" }), "ACT24");
+assert.equal(msbReferral({ referralCode: "MGST2026 - P1" }), "MGST2026");
+assert.equal(msbReferral({ referralCode: "MGST2026 (phòng 8)" }), "MGST2026");
+assert.equal(msbReferral({ referralCode: "ACT24  - MCT: Trống" }), "ACT24");
+// Nhóm DNS960: nhãn nằm ở `display_name`, `code` sạch (chốt 2026-09-22).
+assert.equal(msbReferral({ referralCode: "DNS960 (cho phòngY)" }), "DNS960");
 
 assert.deepEqual(msbFacts(register, ctx), { nameFound: true, accountFound: true, codeFound: false, successFound: false });
 assert.deepEqual(msbFacts(supplement, ctx), { nameFound: false, accountFound: false, codeFound: true, successFound: false });
@@ -126,7 +128,7 @@ assert.equal(msbFacts(cardDetail, ctx).successFound, false, "Chi tiết thẻ ch
 // MSBa lưu số 8000… làm số tài khoản, MSBb lưu số điện thoại: cả hai đều tìm được trên màn đăng ký.
 assert.equal(msbFacts(register, { ...ctx, accountNumber: "80003860331" }).accountFound, true);
 assert.equal(msbFacts(register, { ...ctx, accountNumber: "0822514735" }).accountFound, false, "gõ sai một số phải không đạt");
-assert.equal(msbFacts(supplement, { ...ctx, referralName: "BSJFUXA-6" }).codeFound, false, "sai một ký tự mã là sai người");
+assert.equal(msbFacts(supplement, { ...ctx, referralCode: "BSJFUXA-6" }).codeFound, false, "sai một ký tự mã là sai người");
 assert.equal(msbFacts(register, { ...ctx, customerName: "Nguyễn Văn Xiêm" }).nameFound, false);
 
 const items = checkMsb([register, supplement, transferCovered], ctx);
@@ -151,7 +153,7 @@ assert.deepEqual(
 );
 assert.equal(missing[1].note, "Không tìm thấy tên Phan Ngọc Lương trong ảnh. Không tìm thấy số tài khoản 0522514735 trong ảnh.");
 
-const qrOnly = checkMsb([register], { ...ctx, referralCode: "", referralName: "" });
+const qrOnly = checkMsb([register], { ...ctx, referralCode: "" });
 assert.equal(qrOnly[0].verdict, "pass");
 assert.equal(qrOnly[0].note, "Mã đã chọn không có mã chữ, không so được.");
 

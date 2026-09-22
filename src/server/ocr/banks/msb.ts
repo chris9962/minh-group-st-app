@@ -21,25 +21,24 @@ import type { CheckedItem } from "../types";
  */
 
 export type MsbCheckContext = {
-  /** `referral_codes.code`, bản nhập cũ có đuôi " - MCT: …". */
+  /** `referral_codes.code`, kèm chú thích phòng hay " - MCT: …" ở sau mã. */
   referralCode: string;
-  /** `referral_codes.display_name`: mã hiện trên ảnh, vài mã MSBa kèm "(phòng 8)". */
-  referralName: string;
   customerName: string;
   accountNumber: string;
 };
 
 /**
- * Mã hiện trên ảnh: token đầu của `display_name` (`MGST2026`, `ACT24`,
- * `YPHPDVC-5`), thiếu thì của `code`. Phần sau token là chú thích phòng hay
- * "MCT: CTV1", không có trên ô "Mã giới thiệu".
+ * Mã hiện trên ảnh: token đầu của `code` (`MGST2026`, `DNS960`, `XPDFTGF-5`).
+ * Phần sau token là chú thích phòng hay "MCT: CTV1", không có trên ô "Mã giới
+ * thiệu".
+ *
+ * KHÔNG đọc `display_name` nữa (chốt 2026-09-22). Bản trước ưu tiên trường đó
+ * vì tưởng nó luôn là mã ngắn, nhưng 14 mã nhóm DNS960 ghi nhãn ở đầu —
+ * `"MGT: DNS960  - MCT: Trống (py)"`, một mã ghi `"P2MGT: …"` — nên token đầu
+ * ra `MGT` và 335 tài khoản MSBb báo thiếu mã giới thiệu oan.
  */
-export function msbReferral(ctx: Pick<MsbCheckContext, "referralCode" | "referralName">): string {
-  for (const source of [ctx.referralName, ctx.referralCode]) {
-    const token = source.trim().match(/^[A-Z0-9]+(?:-\d+)?/i)?.[0];
-    if (token) return token.toUpperCase();
-  }
-  return "";
+export function msbReferral(ctx: Pick<MsbCheckContext, "referralCode">): string {
+  return ctx.referralCode.trim().match(/^[A-Z0-9]+(?:-\d+)?/i)?.[0]?.toUpperCase() ?? "";
 }
 
 /** Nội dung giao dịch đi của MSB luôn là `<STK>-Ref <mã>-CK 24/7 cho …`. */
