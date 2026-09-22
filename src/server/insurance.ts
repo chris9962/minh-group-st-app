@@ -32,6 +32,7 @@ import {
   INSURANCE_STATUS_LABEL,
   INTAKE_PHOTO_LABEL,
   InsuranceOrderStatus,
+  InsuranceRecreateBody,
   insuranceOrderEditSchema,
   PVI_MAX_DATE,
   PVI_MAX_DATE_MESSAGE,
@@ -1647,7 +1648,8 @@ export async function mustConfirmStartDate(actor: User): Promise<boolean> {
  * không còn vết nào nối hai đơn với nhau.
  *
  * Đơn mới là đơn MỚI HOÀN TOÀN: mã mới, ngày tạo đơn của lượt cấp lại, trạng
- * thái đầu hàng chờ. Không kế thừa gì của đơn cũ ngoài những thứ KHÔNG cho sửa:
+ * thái đầu do người bấm chọn giữa Chờ tạo và Chờ làm tay (chốt 2026-09-22).
+ * Không kế thừa gì của đơn cũ ngoài những thứ KHÔNG cho sửa:
  *
  *  - `product` và `packageName`/`packageId`: đổi gói là biến nó thành đơn khác
  *    hẳn, mà với đơn quà thì gói còn phải khớp món đã chốt ở `gift_grants`.
@@ -1714,6 +1716,22 @@ export async function recreateInsuranceOrder(
     return { ok: false, message: parsed.error.issues[0]?.message ?? "Dữ liệu không hợp lệ" };
   const form = parsed.data;
 
+  // Trạng thái đầu do người bấm chọn (chốt 2026-09-22), không tự chia như lượt
+  // tạo. Chờ tạo vẫn đi qua `newOrderRoute` để lấy đúng đường máy đang chạy,
+  // và từ chối như `overrideInsuranceOrderStatus` khi không worker nào lấy.
+  const wanted = InsuranceRecreateBody.safeParse(body);
+  if (!wanted.success) return { ok: false, message: "Chưa chọn trạng thái cho đơn mới" };
+  const machineRoute = newOrderRoute();
+  if (wanted.data.status === "queued" && machineRoute.status !== "queued")
+    return {
+      ok: false,
+      message: "PVI_ROUTE chưa bật, cấp lại vào Chờ tạo thì không worker nào lấy đơn.",
+    };
+  const { status: newStatus, route } =
+    wanted.data.status === "queued"
+      ? machineRoute
+      : { status: "manual-queued" as const, route: "" as PviRoute };
+
   const today = businessDay();
   if (form.endDate <= form.startDate)
     return { ok: false, message: "Ngày kết thúc phải sau ngày bắt đầu" };
@@ -1739,7 +1757,6 @@ export async function recreateInsuranceOrder(
     return { ok: false, message: "Ảnh CCCD thứ hai không hợp lệ" };
 
   const yearMonth = businessMonth();
-  const { status: newStatus, route } = newOrderRoute();
 
   const created = await db.transaction(async (tx) => {
     // Cùng câu nguyên tử với `createInsuranceOrders` — xem chú thích ở đó.

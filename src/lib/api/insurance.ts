@@ -6,6 +6,7 @@ import {
   type InsuranceManualStep,
   type InsuranceOrderEditForm,
   type InsuranceOrderForm,
+  type InsuranceRecreateStatus,
 } from './insuranceOrders';
 import { pageOf, pageParams, type Page, type PageQuery } from './pagination';
 
@@ -309,15 +310,19 @@ export async function updateInsuranceOrder(
  * đọc những thứ đó, gửi kèm cũng không có tác dụng.
  *
  * Mỗi đơn cấp lại đúng một lần. Lượt thứ hai nhận 409 kèm mã đơn đã cấp.
+ *
+ * `status` là trạng thái đầu của đơn mới, người bấm chọn — xem
+ * `InsuranceRecreateStatus`.
  */
 export async function recreateInsuranceOrder(
   id: string,
   form: InsuranceOrderEditForm,
+  status: InsuranceRecreateStatus,
 ): Promise<InsuranceListRow> {
   const res = await fetch(`/api/insurance-orders/${id}/recreate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(form),
+    body: JSON.stringify({ ...form, status }),
   });
   if (!res.ok) throw await failure(res, 'Không cấp lại được đơn này');
   return InsuranceListRow.parse(await res.json());

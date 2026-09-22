@@ -350,6 +350,19 @@ export const insuranceOrderEditSchema = (product: InsuranceProduct) =>
     });
 
 /**
+ * Trạng thái đầu của đơn cấp lại, NGƯỜI BẤM chọn (chốt 2026-09-22). Lượt tạo
+ * để máy chủ tự chia theo `PVI_ROUTE`; lượt cấp lại thì không: đơn huỷ rồi cấp
+ * lại thường là đơn PVI đã từ chối qua API, đẩy lại vào hàng chờ máy là lặp
+ * đúng lỗi đó.
+ *
+ * Gửi RỜI với bộ ô sửa, không gộp vào `InsuranceOrderEditFields`: schema đó
+ * dùng chung với lượt sửa, mà đơn đang sửa không đổi trạng thái ở đây.
+ */
+export const InsuranceRecreateStatus = InsuranceOrderStatus.extract(['queued', 'manual-queued']);
+export type InsuranceRecreateStatus = z.infer<typeof InsuranceRecreateStatus>;
+export const InsuranceRecreateBody = z.object({ status: InsuranceRecreateStatus });
+
+/**
  * ⚠️ ĐÃ BỎ (chốt 04/08): `InsuranceOrderLegGroup`, `insuranceOrderLegsFor`,
  * `productOf`, `yearsOf`.
  *

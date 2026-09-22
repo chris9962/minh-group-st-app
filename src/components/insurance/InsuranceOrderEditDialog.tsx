@@ -25,7 +25,9 @@ import {
   updateInsuranceOrder,
 } from "@/lib/api/insurance";
 import {
+  INSURANCE_STATUS_LABEL,
   INTAKE_PHOTO_LABEL,
+  InsuranceRecreateStatus,
   insuranceOrderEditSchema,
   latestStartDate,
   yearsLater,
@@ -130,6 +132,16 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId, mode = "edit"
       ),
     );
 
+  /**
+   * Trạng thái đầu của đơn cấp lại (chốt 2026-09-22), cùng lối `null` = chưa
+   * đụng như ảnh ở trên. Mặc định theo luật của lượt tạo: đơn tai nạn điện làm
+   * tay vì PVI cấp lỗi loại này qua API từ 2026-09-22, đơn xe máy vào hàng chờ
+   * máy.
+   */
+  const [pickedStatus, setPickedStatus] = useState<InsuranceRecreateStatus | null>(null);
+  const recreateStatus: InsuranceRecreateStatus =
+    pickedStatus ?? (data?.product === "electric-accident" ? "manual-queued" : "queued");
+
   const form = useForm<InsuranceOrderEditForm>({
     // Focus ô sai do `reportInvalid` lo — xem `lib/formErrors.ts`.
     shouldFocusError: false,
@@ -187,7 +199,7 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId, mode = "edit"
         intakePhotoBackUrl: urls[1] ?? "",
       };
       return recreating
-        ? recreateInsuranceOrder(orderId, payload)
+        ? recreateInsuranceOrder(orderId, payload, recreateStatus)
         : updateInsuranceOrder(orderId, payload);
     },
     onSuccess: (order) => {
@@ -239,6 +251,20 @@ export function InsuranceOrderEditDialog({ open, onClose, orderId, mode = "edit"
             {data.orderCode} · {PRODUCT_LABEL[data.product]} · {data.packageName} ·{" "}
             {data.customerName}
           </p>
+
+          {recreating && (
+            <Select
+              label="Trạng thái đơn mới"
+              block
+              required
+              value={recreateStatus}
+              onChange={(v) => setPickedStatus(InsuranceRecreateStatus.parse(v))}
+              options={InsuranceRecreateStatus.options.map((status) => ({
+                value: status,
+                label: INSURANCE_STATUS_LABEL[status],
+              }))}
+            />
+          )}
 
           {/* Cùng ô với lúc tạo đơn, đứng đầu biểu mẫu, tên theo sản phẩm. Bắt
               buộc khi cấp lại; lượt sửa thì không, vì đơn lập trước khi có ảnh
