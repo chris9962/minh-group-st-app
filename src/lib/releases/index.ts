@@ -1,4 +1,5 @@
 import { canOpenPath } from '@/lib/nav';
+import { can } from '@/lib/permissions';
 import type { User } from '@/lib/types';
 import type { Release, ReleaseSection } from './types';
 
@@ -9,6 +10,80 @@ export type { Release, ReleaseSection } from './types';
  * và trang `/releases` bày theo đúng thứ tự này.
  */
 export const RELEASES: Release[] = [
+  {
+    id: '2026-09-23',
+    version: '1.4.0',
+    title: 'Cập nhật ngày 23/09/2026',
+    summary:
+      'Lương có thao tác chốt theo tháng. Ô lọc Tài khoản ở trang Khách hàng lọc theo số tài khoản. Màn đăng nhập nhắc khi bạn gõ sai mật khẩu nhiều lần.',
+    sections: [
+      {
+        title: 'Lọc khách theo số tài khoản',
+        items: [
+          'Trang Khách hàng: ô lọc Tài khoản có thêm 1 tài khoản, 2 tài khoản và ≥3 tài khoản.',
+          'Dòng HKD VPa tính là một tài khoản.',
+          'Xuất Excel dùng đúng bộ lọc này.',
+        ],
+      },
+      {
+        title: 'Đăng nhập',
+        items: [
+          'Bạn gõ sai mật khẩu 3 lần liên tiếp thì màn đăng nhập hiện hộp nhắc.',
+          'Sai 5 lần liên tiếp thì tài khoản khoá 15 phút.',
+        ],
+      },
+      {
+        title: 'Mở khoá đăng nhập cho nhân viên',
+        items: [
+          'Hồ sơ nhân viên, tab Tài khoản & quyền: khi người đó đang bị khoá vì sai mật khẩu, nút "Mở khoá đăng nhập" hiện kèm thời gian còn lại.',
+          'Bấm nút thì người đó đăng nhập lại được ngay.',
+        ],
+        visibleTo: (user) => can(user, 'staff', 'update'),
+      },
+      {
+        title: 'Chốt lương theo tháng',
+        items: [
+          'Trang Nhân sự có nút Chốt lương cho tháng đang chọn. Bạn chỉ chốt được tháng đã kết thúc.',
+          'Nút mờ thì bạn di chuột lên nút để xem ngày chốt được.',
+          'Sau khi chốt, lương tháng đó không đổi nữa và không mở chốt được.',
+        ],
+        visibleTo: (user) => can(user, 'system', 'close-salary'),
+      },
+      {
+        title: 'Lương tháng đã chốt',
+        items: [
+          'Tháng đã chốt lương hiện đúng số đã chốt ở trang Nhân sự và hồ sơ nhân viên, kể cả khi điểm KPI của tháng đó đổi sau.',
+        ],
+        visibleTo: (user) => canOpenPath(user, '/users'),
+      },
+      {
+        title: 'Xuất Excel đơn bảo hiểm',
+        items: [
+          'Trang Bảo hiểm có nút Xuất Excel. File lấy đúng bộ lọc đang xem, có số ấn chỉ và số GCN.',
+          'Mỗi lượt xuất tối đa 31 ngày.',
+        ],
+        visibleTo: (user) => can(user, 'insurance', 'export'),
+      },
+      {
+        title: 'Phòng theo dõi đơn bảo hiểm',
+        items: [
+          'Hồ sơ nhân viên, tab Tài khoản & quyền: người thuộc Phòng Kinh doanh tổng hợp có quyền Bảo hiểm ở mức "Phòng tôi quản" có thêm dòng Phòng theo dõi.',
+          'Bạn chọn các phòng mà người đó xem được đơn bảo hiểm. Để trống thì người đó xem theo các phòng đang quản.',
+        ],
+        visibleTo: (user) => can(user, 'system', 'grant-permission'),
+      },
+      {
+        title: 'Xuất dữ liệu',
+        items: ['Màn Xuất dữ liệu chỉ hiện báo cáo bạn có quyền xuất.'],
+        visibleTo: (user) => canOpenPath(user, '/exports'),
+      },
+      {
+        title: 'Hồ sơ Phó giám đốc',
+        items: ['Thanh Tỉ lệ cài hiện đúng độ dài theo phần trăm. Trước đây thanh 43% gần như trống.'],
+        visibleTo: (user) => user.role === 'deputy-director' || canOpenPath(user, '/users'),
+      },
+    ],
+  },
   {
     id: '2026-09-21',
     version: '1.3.0',
