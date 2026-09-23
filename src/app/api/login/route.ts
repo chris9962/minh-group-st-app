@@ -1,6 +1,7 @@
 import { compare, hashSync } from "bcryptjs";
 import { and, eq, isNull, lte, or, sql } from "drizzle-orm";
 import { z } from "zod";
+import { LOGIN_LOCK_MINUTES, LOGIN_MAX_ATTEMPTS } from "@/lib/api/auth";
 import { LOGIN_ERROR } from "@/lib/types";
 import { badRequest, createSession, jsonBody } from "@/server/auth";
 import { db } from "@/server/db/client";
@@ -12,8 +13,8 @@ import { loadUser } from "@/server/users";
  * (mở lại = set locked_until về null ở luồng quản trị, chưa có màn riêng).
  */
 
-const MAX_ATTEMPTS = 5;
-const LOCK_MS = 15 * 60 * 1000;
+const MAX_ATTEMPTS = LOGIN_MAX_ATTEMPTS;
+const LOCK_MS = LOGIN_LOCK_MINUTES * 60 * 1000;
 
 const Body = z.object({
   username: z.string(),
@@ -50,8 +51,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const LOCKED_MESSAGE =
-    "Sai 5 lần liên tiếp — tài khoản bị khoá 15 phút. Liên hệ quản trị hệ thống để mở lại.";
+  const LOCKED_MESSAGE = `Sai ${LOGIN_MAX_ATTEMPTS} lần liên tiếp — tài khoản bị khoá ${LOGIN_LOCK_MINUTES} phút. Liên hệ quản trị hệ thống để mở lại.`;
 
   /** Đọc mốc hết khoá từ DB rồi báo 423 — không tự sửa gì. */
   const reportLock = async (message: string) => {

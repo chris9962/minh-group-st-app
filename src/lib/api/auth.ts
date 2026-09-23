@@ -1,5 +1,11 @@
 import { LOGIN_ERROR, LoginError, LoginResult, type LoginForm } from "@/lib/types";
 
+/** Sai ngần này lần liên tiếp thì máy chủ khoá tài khoản. */
+export const LOGIN_MAX_ATTEMPTS = 5;
+export const LOGIN_LOCK_MINUTES = 15;
+/** Màn đăng nhập hiện hộp nhắc từ lần sai thứ này, trước khi chạm ngưỡng khoá. */
+export const LOGIN_WARN_AFTER = 3;
+
 /** Lỗi có mã — để giao diện phân biệt "sai thông tin" với "bị khoá". */
 export class ApiError extends Error {
   constructor(public detail: LoginError) {

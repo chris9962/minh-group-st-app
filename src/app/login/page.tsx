@@ -3,15 +3,23 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { BrandPanel } from "@/components/brand/BrandPanel";
 import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
+import { Dialog } from "@/components/ui/Dialog";
 import { Logo } from "@/components/ui/Logo";
 import { PasswordField } from "@/components/ui/PasswordField";
 import { TextField } from "@/components/ui/TextField";
-import { login } from "@/lib/api/auth";
-import { LoginForm } from "@/lib/types";
+import {
+  ApiError,
+  login,
+  LOGIN_LOCK_MINUTES,
+  LOGIN_MAX_ATTEMPTS,
+  LOGIN_WARN_AFTER,
+} from "@/lib/api/auth";
+import { LOGIN_ERROR, LoginForm } from "@/lib/types";
 import { useSession } from "@/store/session";
 import styles from "./page.module.scss";
 import { errorMessage, toast } from "@/lib/toast";
@@ -33,12 +41,34 @@ export default function LoginPage() {
     defaultValues: { username: "", password: "", remember: false },
   });
 
+  /**
+   * Số lần sai liên tiếp của đúng tên đăng nhập đang gõ, đếm ở trình duyệt.
+   *
+   * Máy chủ cố ý không trả số lần còn lại (xem `api/login/route.ts`), nên con số
+   * này chỉ để nhắc: tab khác hay máy khác thử sai thì nó không biết. Ngưỡng khoá
+   * thật vẫn do máy chủ giữ.
+   */
+  const [misses, setMisses] = useState({ username: "", count: 0 });
+  const [warnOpen, setWarnOpen] = useState(false);
+
   const submit = useMutation({
     mutationFn: login,
     // `fetch` hỏng vì mất mạng ném TypeError chứ không phải ApiError — bắt cả
     // hai ở đây, không thì lỗi đó rơi vào khoảng không và màn hình đứng im.
-    onError: (e) =>
-      toast.fail(errorMessage(e, "Không đăng nhập được. Kiểm tra kết nối mạng rồi thử lại.")),
+    onError: (e, vars) => {
+      if (e instanceof ApiError && e.detail.code === LOGIN_ERROR.BAD_CREDENTIALS) {
+        const username = vars.username.trim().toLowerCase();
+        const count = misses.username === username ? misses.count + 1 : 1;
+        setMisses({ username, count });
+        if (count >= LOGIN_WARN_AFTER) {
+          setWarnOpen(true);
+          return;
+        }
+      }
+      if (e instanceof ApiError && e.detail.code === LOGIN_ERROR.LOCKED)
+        setMisses({ username: "", count: 0 });
+      toast.fail(errorMessage(e, "Không đăng nhập được. Kiểm tra kết nối mạng rồi thử lại."));
+    },
     onSuccess: (result, vars) => {
       saveSession(result.user, vars.remember);
       router.push("/");
@@ -98,6 +128,18 @@ export default function LoginPage() {
       </div>
 
       <BrandPanel className={styles.brandColumn} />
+
+      <Dialog
+        open={warnOpen}
+        title="Chậm thôi bạn ơi"
+        onClose={() => setWarnOpen(false)}
+        footer={<Button onClick={() => setWarnOpen(false)}>Đã hiểu</Button>}
+      >
+        <p>
+          Sai mật khẩu {misses.count} lần rồi, {LOGIN_MAX_ATTEMPTS} lần sẽ bị khoá tài khoản{" "}
+          {LOGIN_LOCK_MINUTES} phút.
+        </p>
+      </Dialog>
     </div>
   );
 }
