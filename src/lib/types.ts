@@ -168,7 +168,7 @@ export const Action = z.enum([
    * đây nói máy có chạy không, không nói đội làm được bao nhiêu.
    */
   'view-ops',
-  /** Chốt và mở chốt lương theo tháng trên màn Nhân sự & KPI (migration 0102). */
+  /** Chốt lương theo tháng trên màn Nhân sự & KPI (migration 0102). Không có mở chốt. */
   'close-salary',
 ]);
 export type Action = z.infer<typeof Action>;

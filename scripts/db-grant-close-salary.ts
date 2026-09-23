@@ -5,7 +5,7 @@ import { Pool } from "pg";
 /**
  * Cấp `*:close-salary` cho các tài khoản TOÀN QUYỀN đã có trong database.
  *
- * `system:close-salary` mở nút Chốt lương / Mở chốt lương trên màn Nhân sự & KPI.
+ * `system:close-salary` mở nút Chốt lương trên màn Nhân sự & KPI.
  *
  * Vì sao là script chứ không phải migration: drizzle bọc cả loạt migration vào
  * MỘT transaction, mà Postgres cấm dùng giá trị enum vừa thêm trong cùng

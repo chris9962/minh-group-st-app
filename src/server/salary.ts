@@ -77,8 +77,6 @@ export async function salaryForUsers(
 ): Promise<Map<string, SalaryBreakdown>> {
   if (userIds.length === 0) return new Map();
 
-  // Một câu cho cả hai việc: hỏi đã chốt chưa rồi mới đọc số là hai câu, và lượt
-  // mở chốt chen giữa làm lượt tải đó ra lương 0 cho cả công ty.
   const rows = await db
     .select({
       userId: salarySnapshots.userId,
@@ -316,7 +314,8 @@ export async function salaryClosingOf(yearMonth: string): Promise<SalaryClosingS
 
 /**
  * Chốt lương một tháng: tính lương mọi người theo dữ liệu lúc bấm rồi lưu lại.
- * Trả `null` khi tháng đó đã chốt.
+ * Trả `null` khi tháng đó đã chốt. Không có đường mở chốt (chủ dự án chốt
+ * 2026-09-23): số đã chốt là số đã trả.
  *
  * Lấy cả người đã nghỉ: họ vẫn có lương của tháng họ còn làm. Chỉ lưu dòng có
  * công thức; người không có dòng đọc ra lương 0, giống lúc chưa chốt.
@@ -345,17 +344,5 @@ export async function closeSalaryMonth(actor: User, yearMonth: string): Promise<
     if (inserted.length === 0) return null;
     if (snapshots.length > 0) await tx.insert(salarySnapshots).values(snapshots);
     return snapshots.length;
-  });
-}
-
-/** Mở chốt: xoá số đã lưu, tháng đó quay về tính từ dữ liệu mới nhất. `false` khi chưa chốt. */
-export async function reopenSalaryMonth(yearMonth: string): Promise<boolean> {
-  return db.transaction(async (tx) => {
-    await tx.delete(salarySnapshots).where(eq(salarySnapshots.yearMonth, yearMonth));
-    const deleted = await tx
-      .delete(salaryClosings)
-      .where(eq(salaryClosings.yearMonth, yearMonth))
-      .returning({ yearMonth: salaryClosings.yearMonth });
-    return deleted.length > 0;
   });
 }

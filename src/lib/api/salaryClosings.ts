@@ -32,6 +32,3 @@ export async function fetchSalaryClosing(month: string): Promise<SalaryClosing> 
 
 export const closeSalary = (month: string) =>
   send('/api/salary-closings', 'POST', { month }).then(SalaryClosing.parse);
-
-export const reopenSalary = (month: string) =>
-  send(`/api/salary-closings/${encodeURIComponent(month)}`, 'DELETE').then(SalaryClosing.parse);

@@ -75,7 +75,7 @@ export const actionKey = pgEnum("action_key", [
   "send-announcement",
   // đặc biệt · system: mở màn Vận hành hệ thống P-99 (migration 0100)
   "view-ops",
-  // đặc biệt · system: chốt và mở chốt lương theo tháng (migration 0102)
+  // đặc biệt · system: chốt lương theo tháng (migration 0102)
   "close-salary",
 ]);
 
@@ -1750,6 +1750,7 @@ export const kpiAdjustments = pgTable(
  * Tháng đã chốt lương (migration 0102). Có dòng thì mọi màn đọc lương tháng đó
  * từ `salary_snapshots`, không tính lại: điểm tháng cũ vẫn đổi được khi phát quà
  * muộn, chuyển phòng hay sửa hệ số, còn lương đã trả thì không được đổi theo.
+ * Chốt là vĩnh viễn, app không có đường xoá dòng ở hai bảng này.
  */
 export const salaryClosings = pgTable(
   "salary_closings",

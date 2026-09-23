@@ -2,15 +2,15 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Lock, Unlock } from "lucide-react";
+import { Lock } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { monthLabel } from "@/components/ui/MonthPicker";
 import { StatusTag } from "@/components/ui/StatusTag";
-import { closeSalary, fetchSalaryClosing, reopenSalary } from "@/lib/api/salaryClosings";
+import { closeSalary, fetchSalaryClosing } from "@/lib/api/salaryClosings";
 import { errorMessage, toast } from "@/lib/toast";
 
-/** Nút Chốt lương / Mở chốt lương của một tháng. Nơi dùng tự kiểm quyền `system:close-salary`. */
+/** Nút Chốt lương của một tháng. Nơi dùng tự kiểm quyền `system:close-salary`. */
 export function SalaryClosingControl({ month }: { month: string }) {
   const queryClient = useQueryClient();
   const [confirming, setConfirming] = useState(false);
@@ -19,49 +19,41 @@ export function SalaryClosingControl({ month }: { month: string }) {
     queryFn: () => fetchSalaryClosing(month),
   });
 
-  const toggle = useMutation({
-    mutationFn: () => (data?.closed ? reopenSalary(month) : closeSalary(month)),
-    onSuccess: (next) => {
+  const close = useMutation({
+    mutationFn: () => closeSalary(month),
+    onSuccess: () => {
       setConfirming(false);
-      toast.ok(next.closed ? `Đã chốt lương ${monthLabel(month)}` : `Đã mở chốt lương ${monthLabel(month)}`);
+      toast.ok(`Đã chốt lương ${monthLabel(month)}`);
       // Lương hiện ở nhiều màn (Tổng quan, Nhân sự, hồ sơ, phòng ban): tải lại hết.
       void queryClient.invalidateQueries();
     },
     onError: (e) => {
       setConfirming(false);
-      toast.fail(errorMessage(e, "Không lưu được trạng thái chốt lương."));
-      // Lỗi hay gặp nhất là người khác vừa chốt hoặc mở chốt: tải lại để nút đổi theo.
+      toast.fail(errorMessage(e, "Không chốt được lương."));
+      // Lỗi hay gặp nhất là người khác vừa chốt: tải lại để nút đổi theo.
       void queryClient.invalidateQueries({ queryKey: ["salary-closing", month] });
     },
   });
 
   if (!data) return null;
+  if (data.closed) return <StatusTag ok>Đã chốt lương</StatusTag>;
 
   return (
     <>
-      {data.closed && <StatusTag ok>Đã chốt lương</StatusTag>}
-      <Button
-        variant="secondary"
-        disabled={!data.closed && !data.closable}
-        onClick={() => setConfirming(true)}
-      >
-        {data.closed ? <Unlock size={16} aria-hidden /> : <Lock size={16} aria-hidden />}
-        {data.closed ? "Mở chốt lương" : "Chốt lương"}
+      <Button variant="secondary" disabled={!data.closable} onClick={() => setConfirming(true)}>
+        <Lock size={16} aria-hidden />
+        Chốt lương
       </Button>
       <ConfirmDialog
         open={confirming}
-        title={data.closed ? "Mở chốt lương" : "Chốt lương"}
-        confirmLabel={data.closed ? "Mở chốt" : "Chốt lương"}
-        pending={toggle.isPending}
-        onConfirm={() => toggle.mutate()}
+        title="Chốt lương"
+        confirmLabel="Chốt lương"
+        pending={close.isPending}
+        onConfirm={() => close.mutate()}
         onClose={() => setConfirming(false)}
-        consequence={
-          data.closed
-            ? "Lương tháng này sẽ tính lại theo dữ liệu mới nhất."
-            : "Sau khi chốt, lương tháng này không đổi theo dữ liệu nữa."
-        }
+        consequence="Sau khi chốt, lương tháng này không đổi nữa và không mở chốt được."
       >
-        {data.closed ? "Mở chốt" : "Chốt"} lương <strong>{monthLabel(month)}</strong>?
+        Chốt lương <strong>{monthLabel(month)}</strong>?
       </ConfirmDialog>
     </>
   );
