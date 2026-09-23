@@ -8,6 +8,7 @@ import { TopBar } from "@/components/layout/TopBar";
 import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
+import { CopyButton } from "@/components/ui/CopyValue";
 import { Dialog } from "@/components/ui/Dialog";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
@@ -19,20 +20,33 @@ import { StatCard } from "@/components/ui/StatCard";
 import { StatusTag } from "@/components/ui/StatusTag";
 import { TextArea } from "@/components/ui/TextArea";
 import {
+  INSURANCE_STATUS_LABEL,
+  INSURANCE_STATUS_TONE,
+  InsuranceOrderStatus,
+} from "@/lib/api/insuranceOrders";
+import {
+  fetchOpsOrders,
   fetchOpsSummary,
   OPS_DAY_RANGES,
   OPS_DEFAULT_DAYS,
+  OPS_ORDER_DEFAULT_PRODUCT,
+  OPS_ORDER_DEFAULT_STATUS,
   OPS_RECREATE_MAX,
   OPS_RECREATE_STATUS_LABEL,
+  OPS_REFRESH_MAX,
   OPS_RESOURCE_PERCENT,
   recreateStuckOrders,
+  refreshPolicies,
   type OpsBankCheck,
-  type OpsCertificateRow,
+  type OpsOrderFilter,
+  type OpsOrderRow,
   type OpsRecreateResult,
   type OpsRecreateStatus,
 } from "@/lib/api/ops";
+import { EMPTY_PAGE, PAGE_SIZE } from "@/lib/api/pagination";
 import { formatBytes, formatCount, formatDateTime } from "@/lib/format";
 import { can } from "@/lib/permissions";
+import { InsuranceProduct, PRODUCT_LABEL } from "@/lib/types";
 import { errorMessage, toast } from "@/lib/toast";
 import { useSession } from "@/store/session";
 import styles from "./page.module.scss";
@@ -100,14 +114,24 @@ export default function OpsPage() {
   // đây thì người không có quyền vẫn bắn một lượt gọi để nhận đúng 403.
   const canView = can(user, "system", "view-ops");
   const canCreateOrder = can(user, "insurance", "create");
+  const canRefresh = can(user, "insurance", "update");
   const queryClient = useQueryClient();
 
   const [days, setDays] = useState(OPS_DEFAULT_DAYS);
+  const [filter, setFilter] = useState<OpsOrderFilter>({
+    product: OPS_ORDER_DEFAULT_PRODUCT,
+    status: OPS_ORDER_DEFAULT_STATUS,
+  });
+  const [page, setPage] = useState(0);
+  const [dir, setDir] = useState<"asc" | "desc">("desc");
   const [picked, setPicked] = useState<string[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [status, setStatus] = useState<OpsRecreateStatus>("manual-queued");
   const [reason, setReason] = useState("Đơn kẹt chờ giấy chứng nhận");
-  const [failures, setFailures] = useState<OpsRecreateResult[]>([]);
+  const [failures, setFailures] = useState<{ action: string; rows: OpsRecreateResult[] }>({
+    action: "",
+    rows: [],
+  });
 
   const { data, isPending, isError, refetch, isFetching } = useQuery({
     queryKey: ["ops", days],
@@ -117,28 +141,57 @@ export default function OpsPage() {
     placeholderData: keepPreviousData,
   });
 
-  const rows = data?.insurance.rows ?? [];
+  const orders = useQuery({
+    queryKey: ["ops", "orders", page, dir, filter.product, filter.status],
+    queryFn: () => fetchOpsOrders({ page, sort: "orderCode", dir }, filter),
+    enabled: canView,
+    refetchInterval: 60_000,
+    placeholderData: keepPreviousData,
+  });
+
+  const rows = (orders.data ?? EMPTY_PAGE).rows;
   /**
-   * Lọc lúc RENDER chứ không dọn bằng effect: danh sách tự tải lại mỗi phút,
-   * nên đơn vừa ra khỏi hàng chờ vẫn còn id trong `picked`. Gửi id đó lên thì
-   * máy chủ trả "đơn vừa đổi trạng thái", nhưng con số trên nút thì đã sai từ
-   * trước đó rồi.
+   * Lọc lúc RENDER chứ không dọn bằng effect: danh sách tự tải lại mỗi phút và
+   * đổi theo trang, nên `picked` còn giữ id không nằm trên trang đang xem. Con số
+   * trên nút phải đếm đúng những dòng người dùng đang thấy.
    */
-  const chosen = rows.filter((r) => picked.includes(r.id) && r.canRecreate);
-  const selectable = rows.filter((r) => r.canRecreate);
+  const chosen = rows.filter((r) => picked.includes(r.id));
+  const recreatable = chosen.filter((r) => r.canRecreate);
+  const canPick = canCreateOrder || canRefresh;
+
+  const refine = (next: Partial<OpsOrderFilter>) => {
+    setFilter((prev) => ({ ...prev, ...next }));
+    setPage(0);
+    setPicked([]);
+  };
+
+  const finish = (
+    action: string,
+    okText: string,
+    outcome: { done: number; failed: number; results: OpsRecreateResult[] },
+  ) => {
+    setPicked([]);
+    setFailures({ action, rows: outcome.results.filter((r) => !r.ok) });
+    if (outcome.done > 0) toast.ok(okText);
+    if (outcome.failed > 0) toast.warn(`${outcome.failed} đơn không ${action.toLowerCase()} được`);
+    queryClient.invalidateQueries({ queryKey: ["ops"] });
+  };
 
   const recreate = useMutation({
     mutationFn: () =>
-      recreateStuckOrders({ ids: chosen.map((r) => r.id), status, reason: reason.trim() }),
+      recreateStuckOrders({ ids: recreatable.map((r) => r.id), status, reason: reason.trim() }),
     onSuccess: (outcome) => {
       setDialogOpen(false);
-      setPicked([]);
-      setFailures(outcome.results.filter((r) => !r.ok));
-      if (outcome.done > 0) toast.ok(`Đã cấp lại ${outcome.done} đơn`);
-      if (outcome.failed > 0) toast.warn(`${outcome.failed} đơn không cấp lại được`);
-      queryClient.invalidateQueries({ queryKey: ["ops"] });
+      finish("Cấp lại", `Đã cấp lại ${outcome.done} đơn`, outcome);
     },
     onError: (e) => toast.fail(errorMessage(e, "Không cấp lại được lô đơn này.")),
+  });
+
+  const refresh = useMutation({
+    mutationFn: () => refreshPolicies({ ids: chosen.map((r) => r.id) }),
+    onSuccess: (outcome) =>
+      finish("Chạy lại policy", `Đã đưa ${outcome.done} đơn vào hàng đợi GCN`, outcome),
+    onError: (e) => toast.fail(errorMessage(e, "Không chạy lại được policy.")),
   });
 
   const bankColumns = useMemo<RankColumn<OpsBankCheck>[]>(
@@ -167,7 +220,7 @@ export default function OpsPage() {
     [],
   );
 
-  const orderColumns = useMemo<RankColumn<OpsCertificateRow>[]>(
+  const orderColumns = useMemo<RankColumn<OpsOrderRow>[]>(
     () => [
       {
         key: "pick",
@@ -175,7 +228,7 @@ export default function OpsPage() {
         render: (r) => (
           <Checkbox
             checked={picked.includes(r.id)}
-            disabled={!r.canRecreate || !canCreateOrder}
+            disabled={!canPick}
             onCheckedChange={(on) =>
               setPicked((prev) => (on ? [...prev, r.id] : prev.filter((id) => id !== r.id)))
             }
@@ -183,33 +236,32 @@ export default function OpsPage() {
           />
         ),
       },
-      { key: "orderCode", label: "Mã đơn", sortText: (r) => r.orderCode, render: (r) => r.orderCode },
+      { key: "orderCode", label: "Mã đơn", sortable: true, render: (r) => r.orderCode },
       {
-        key: "waiting",
-        label: "Chờ",
-        sortBy: (r) => r.waitingMinutes,
-        render: (r) => minutesLabel(r.waitingMinutes),
+        key: "id",
+        label: "ID",
+        render: (r) => (
+          <span className={styles.idCell}>
+            {/* Rút gọn để đọc: uuid 36 ký tự không ai đọc tay, nút chép vẫn lấy đủ. */}
+            {`${r.id.slice(0, 4)}…${r.id.slice(-4)}`}
+            <CopyButton value={r.id} label={`ID đơn ${r.orderCode}: ${r.id}`} quiet />
+          </span>
+        ),
       },
-      {
-        key: "customer",
-        label: "Khách hàng",
-        sortText: (r) => r.customerName,
-        render: (r) => r.customerName,
-      },
+      { key: "customer", label: "Khách hàng", render: (r) => r.customerName },
       { key: "package", label: "Gói", render: (r) => r.packageName },
       { key: "createdBy", label: "Người lập", render: (r) => r.createdByName || "Không rõ" },
       {
-        key: "state",
-        label: "Cấp lại",
-        render: (r) =>
-          r.canRecreate ? (
-            <StatusTag ok>Làm được</StatusTag>
-          ) : (
-            <StatusTag tone="waiting">{r.blockedReason}</StatusTag>
-          ),
+        key: "status",
+        label: "Trạng thái",
+        render: (r) => (
+          <StatusTag tone={INSURANCE_STATUS_TONE[r.status]}>
+            {INSURANCE_STATUS_LABEL[r.status]}
+          </StatusTag>
+        ),
       },
     ],
-    [picked, canCreateOrder],
+    [picked, canPick],
   );
 
   const host = data?.host ?? null;
@@ -276,57 +328,130 @@ export default function OpsPage() {
                   tone={data.insurance.awaiting > 0 ? "attention" : "normal"}
                 />
                 <StatCard
-                  value={rows[0] ? minutesLabel(rows[0].waitingMinutes) : "Không có"}
+                  value={
+                    data.insurance.oldest
+                      ? minutesLabel(data.insurance.oldest.waitingMinutes)
+                      : "Không có"
+                  }
                   label="Đơn chờ lâu nhất"
-                  detail={rows[0] ? `${rows[0].orderCode} · ${rows[0].customerName}` : undefined}
+                  detail={
+                    data.insurance.oldest
+                      ? `${data.insurance.oldest.orderCode} - ${data.insurance.oldest.customerName}`
+                      : undefined
+                  }
                 />
               </div>
 
-              {failures.length > 0 && (
+              <div className={styles.filterRow}>
+                <Select
+                  label="Sản phẩm"
+                  value={filter.product}
+                  onChange={(v) => {
+                    const parsed = InsuranceProduct.safeParse(v);
+                    refine({ product: parsed.success ? parsed.data : "" });
+                  }}
+                  options={[
+                    { value: "", label: "Tất cả" },
+                    ...InsuranceProduct.options.map((p) => ({ value: p, label: PRODUCT_LABEL[p] })),
+                  ]}
+                />
+                <Select
+                  label="Trạng thái"
+                  value={filter.status}
+                  onChange={(v) => {
+                    const parsed = InsuranceOrderStatus.safeParse(v);
+                    refine({ status: parsed.success ? parsed.data : "" });
+                  }}
+                  options={[
+                    { value: "", label: "Tất cả" },
+                    ...InsuranceOrderStatus.options.map((s) => ({
+                      value: s,
+                      label: INSURANCE_STATUS_LABEL[s],
+                    })),
+                  ]}
+                />
+              </div>
+
+              {failures.rows.length > 0 && (
                 <Alert tone="warning">
-                  <strong>{failures.length} đơn không cấp lại được</strong>
+                  <strong>
+                    {failures.rows.length} đơn không {failures.action.toLowerCase()} được
+                  </strong>
                   <ul className={styles.failList}>
-                    {failures.map((f) => (
+                    {failures.rows.map((f) => (
                       <li key={f.id}>
-                        {f.orderCode || "Đơn không còn trong hàng chờ"}: {f.message}
+                        {f.orderCode || f.id}: {f.message}
                       </li>
                     ))}
                   </ul>
                 </Alert>
               )}
 
-              {canCreateOrder && (
+              {canPick && (
                 <div className={styles.actions}>
-                  <Button
-                    onClick={() => setDialogOpen(true)}
-                    disabled={chosen.length === 0 || chosen.length > OPS_RECREATE_MAX}
-                  >
-                    Huỷ và cấp lại {chosen.length > 0 ? `(${chosen.length})` : ""}
-                  </Button>
+                  {canRefresh && (
+                    <Button
+                      onClick={() => refresh.mutate()}
+                      disabled={
+                        refresh.isPending || chosen.length === 0 || chosen.length > OPS_REFRESH_MAX
+                      }
+                    >
+                      {refresh.isPending
+                        ? "Đang chạy lại policy…"
+                        : `Chạy lại policy${chosen.length > 0 ? ` (${chosen.length})` : ""}`}
+                    </Button>
+                  )}
+                  {canCreateOrder && (
+                    <Button
+                      variant="ghost"
+                      onClick={() => setDialogOpen(true)}
+                      disabled={recreatable.length === 0 || recreatable.length > OPS_RECREATE_MAX}
+                    >
+                      Huỷ và cấp lại {recreatable.length > 0 ? `(${recreatable.length})` : ""}
+                    </Button>
+                  )}
                   <Button
                     variant="ghost"
-                    disabled={selectable.length === 0}
+                    disabled={rows.length === 0}
                     onClick={() =>
-                      setPicked(
-                        chosen.length === selectable.length
-                          ? []
-                          : selectable.slice(0, OPS_RECREATE_MAX).map((r) => r.id),
-                      )
+                      setPicked(chosen.length === rows.length ? [] : rows.map((r) => r.id))
                     }
                   >
-                    {chosen.length === selectable.length ? "Bỏ chọn hết" : "Chọn hết"}
+                    {rows.length > 0 && chosen.length === rows.length ? "Bỏ chọn hết" : "Chọn hết"}
                   </Button>
                 </div>
               )}
 
-              <RankTable
-                rows={rows}
-                columns={orderColumns}
-                rowKey={(r) => r.id}
-                defaultSort="waiting"
-                caption="Đơn bảo hiểm đang chờ giấy chứng nhận"
-                emptyText="Không đơn nào đang chờ giấy chứng nhận."
-              />
+              {orders.isError ? (
+                <ErrorState
+                  what="danh sách đơn"
+                  onRetry={orders.refetch}
+                  retrying={orders.isFetching}
+                />
+              ) : orders.isPending ? (
+                <SkeletonTable rows={8} columns={7} />
+              ) : (
+                <RankTable
+                  rows={rows}
+                  columns={orderColumns}
+                  rowKey={(r) => r.id}
+                  defaultSort="orderCode"
+                  caption="Đơn bảo hiểm theo bộ lọc"
+                  emptyText="Không đơn nào khớp bộ lọc."
+                  server={{
+                    sort: "orderCode",
+                    dir,
+                    page,
+                    total: orders.data?.total ?? 0,
+                    pageSize: PAGE_SIZE,
+                    onSortChange: (_sort, nextDir) => {
+                      setDir(nextDir);
+                      setPage(0);
+                    },
+                    onPageChange: setPage,
+                  }}
+                />
+              )}
             </SectionCard>
 
             <SectionCard
@@ -379,7 +504,7 @@ export default function OpsPage() {
 
       <Dialog
         open={dialogOpen}
-        title={`Huỷ và cấp lại ${chosen.length} đơn`}
+        title={`Huỷ và cấp lại ${recreatable.length} đơn`}
         onClose={() => setDialogOpen(false)}
         footer={
           <>
@@ -388,7 +513,7 @@ export default function OpsPage() {
             </Button>
             <Button
               onClick={() => recreate.mutate()}
-              disabled={recreate.isPending || reason.trim().length < 2 || chosen.length === 0}
+              disabled={recreate.isPending || reason.trim().length < 2 || recreatable.length === 0}
             >
               {recreate.isPending ? "Đang chạy…" : "Huỷ và cấp lại"}
             </Button>
@@ -420,12 +545,27 @@ export default function OpsPage() {
           />
 
           <ul className={styles.pickedList}>
-            {chosen.map((r) => (
+            {recreatable.map((r) => (
               <li key={r.id}>
-                {r.orderCode} · {r.customerName} · chờ {minutesLabel(r.waitingMinutes)}
+                {r.orderCode} - {r.customerName}
               </li>
             ))}
           </ul>
+
+          {chosen.length > recreatable.length && (
+            <>
+              <p>{chosen.length - recreatable.length} đơn đã chọn không cấp lại được:</p>
+              <ul className={styles.pickedList}>
+                {chosen
+                  .filter((r) => !r.canRecreate)
+                  .map((r) => (
+                    <li key={r.id}>
+                      {r.orderCode}: {r.blockedReason}
+                    </li>
+                  ))}
+              </ul>
+            </>
+          )}
         </div>
       </Dialog>
     </RequirePermission>

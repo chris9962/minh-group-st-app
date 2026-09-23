@@ -1,4 +1,7 @@
 import { z } from 'zod';
+import { InsuranceOrderStatus } from '@/lib/api/insuranceOrders';
+import { pageOf, pageParams, type Page, type PageQuery } from '@/lib/api/pagination';
+import { InsuranceProduct } from '@/lib/types';
 
 /**
  * P-99 · Vận hành hệ thống — màn của người quản trị, gác bằng `system:view-ops`.
@@ -46,31 +49,49 @@ export const OpsPhotoCheck = z.object({
 });
 export type OpsPhotoCheck = z.infer<typeof OpsPhotoCheck>;
 
-export const OpsCertificateRow = z.object({
+/**
+ * Một dòng của bảng đơn ở P-99. Bảng liệt kê MỌI đơn, mọi trạng thái; bộ lọc
+ * mặc định là đơn điện đang đợi GCN (chốt 2026-09-23).
+ */
+export const OpsOrderRow = z.object({
   id: z.string(),
   orderCode: z.string(),
   customerName: z.string(),
   packageName: z.string(),
   createdByName: z.string(),
-  /** Lúc đơn vào trạng thái chờ giấy chứng nhận. */
-  waitingSince: z.string(),
-  waitingMinutes: z.number(),
-  startDate: z.string(),
+  status: InsuranceOrderStatus,
   /**
    * Cấp lại được hay không, tính sẵn ở máy chủ.
    *
    * Hai luật giữ nguyên (chốt 2026-09-22): huỷ đơn ngoài ngày lập cần
    * `insurance:set-status`, và ngày bắt đầu của đơn mới không được ở quá khứ.
-   * Đơn không qua được thì giao diện khoá ô tích và in `blockedReason`.
+   * Cộng thêm: chỉ đơn đang đợi GCN mới cấp lại được.
    */
   canRecreate: z.boolean(),
   blockedReason: z.string(),
 });
-export type OpsCertificateRow = z.infer<typeof OpsCertificateRow>;
+export type OpsOrderRow = z.infer<typeof OpsOrderRow>;
+
+export const OpsOrderPage = pageOf(OpsOrderRow);
+
+export const OPS_ORDER_SORTS = ['orderCode'] as const;
+export type OpsOrderSort = (typeof OPS_ORDER_SORTS)[number];
+
+/** Bộ lọc mặc định khi mở màn. Chuỗi rỗng = không lọc trục đó. */
+export const OPS_ORDER_DEFAULT_PRODUCT: InsuranceProduct = 'electric-accident';
+export const OPS_ORDER_DEFAULT_STATUS: InsuranceOrderStatus = 'awaiting-certificate';
+
+export type OpsOrderFilter = {
+  product: InsuranceProduct | '';
+  status: InsuranceOrderStatus | '';
+};
 
 export const OpsInsurance = z.object({
   awaiting: z.number(),
-  rows: z.array(OpsCertificateRow),
+  /** Đơn đợi GCN lâu nhất. `null` = không đơn nào đang đợi. */
+  oldest: z
+    .object({ orderCode: z.string(), customerName: z.string(), waitingMinutes: z.number() })
+    .nullable(),
 });
 export type OpsInsurance = z.infer<typeof OpsInsurance>;
 
@@ -139,6 +160,34 @@ export const OpsRecreateOutcome = z.object({
   results: z.array(OpsRecreateResult),
 });
 export type OpsRecreateOutcome = z.infer<typeof OpsRecreateOutcome>;
+
+/** Trần số đơn một lượt chạy lại policy. Worker API xử lý từng đơn một, lô lớn thì đợi lâu. */
+export const OPS_REFRESH_MAX = 50;
+
+export const OpsRefreshBody = z.object({
+  ids: z.array(z.string()).min(1, 'Chưa chọn đơn nào').max(OPS_REFRESH_MAX),
+});
+export type OpsRefreshBody = z.infer<typeof OpsRefreshBody>;
+
+export async function fetchOpsOrders(
+  query: PageQuery<OpsOrderSort>,
+  filter: OpsOrderFilter,
+): Promise<Page<OpsOrderRow>> {
+  const res = await fetch(`/api/ops/insurance?${pageParams(query, filter)}`);
+  if (!res.ok) throw new Error('Không đọc được danh sách đơn');
+  return OpsOrderPage.parse(await res.json());
+}
+
+export async function refreshPolicies(body: OpsRefreshBody): Promise<OpsRecreateOutcome> {
+  const res = await fetch('/api/ops/insurance/refresh', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(data?.message ?? 'Không chạy lại được policy');
+  return OpsRecreateOutcome.parse(data);
+}
 
 export async function fetchOpsSummary(days: number): Promise<OpsSummary> {
   const res = await fetch(`/api/ops?days=${days}`);

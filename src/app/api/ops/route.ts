@@ -12,5 +12,5 @@ export async function GET(request: Request) {
   if (!guard.ok) return guard.response;
 
   const url = new URL(request.url);
-  return Response.json(await opsSummary(guard.actor, opsDaysFrom(url.searchParams.get("days"))));
+  return Response.json(await opsSummary(opsDaysFrom(url.searchParams.get("days"))));
 }

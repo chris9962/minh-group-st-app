@@ -23,13 +23,14 @@ type Props = {
 const MARK = { info: "", warning: "⚠️", error: "❌" } as const;
 
 export function Alert({ tone = "info", children, className, live = true }: Props) {
+  // `div` chứ không `p`: nơi gọi đặt cả danh sách vào trong, mà `p` không chứa được `ul`.
   return (
-    <p
+    <div
       className={clsx(styles.box, styles[tone], className)}
       role={tone === "info" || !live ? undefined : "alert"}
     >
       {MARK[tone] && <span aria-hidden>{MARK[tone]} </span>}
       {children}
-    </p>
+    </div>
   );
 }

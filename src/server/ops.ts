@@ -1,22 +1,36 @@
-import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
+import { InsuranceOrderStatus } from "@/lib/api/insuranceOrders";
 import {
   OPS_DAY_RANGES,
   OPS_DEFAULT_DAYS,
   type OpsBankCheck,
-  type OpsCertificateRow,
   type OpsHost,
+  type OpsInsurance,
+  type OpsOrderFilter,
+  type OpsOrderRow,
+  type OpsOrderSort,
   type OpsRecreateBody,
   type OpsRecreateOutcome,
   type OpsRecreateResult,
+  type OpsRefreshBody,
   type OpsSummary,
 } from "@/lib/api/ops";
+import type { Page } from "@/lib/api/pagination";
 import { businessDay } from "@/lib/format";
 import { can } from "@/lib/permissions";
-import type { User } from "@/lib/types";
+import { InsuranceProduct, type User } from "@/lib/types";
 import { logAudit } from "./audit";
 import { db } from "./db/client";
-import { hostMetrics, insuranceOrders } from "./db/schema";
+import {
+  customers,
+  hostMetrics,
+  insuranceOrders,
+  insuranceOrderStatusHistory,
+  users,
+} from "./db/schema";
 import { cancelInsuranceOrder, recreateInsuranceOrder } from "./insurance";
+import type { PageArgs } from "./pagination";
+import { PVI_NEW_ORDER_CHANNEL } from "./pvi-api/route";
 import { imageUrl } from "./storage";
 
 /**
@@ -96,48 +110,32 @@ async function photoCheckStats(days: number) {
 }
 
 /**
- * Đơn đang chờ giấy chứng nhận, lâu nhất đứng đầu.
+ * Số đơn đang đợi GCN và đơn đợi lâu nhất — hai thẻ đầu khối bảo hiểm.
  *
  * Mốc chờ là lượt đổi trạng thái SANG `awaiting-certificate`, đọc bằng câu con
  * theo `order_id` — không phải `updated_at`, vì cột đó còn đổi theo mọi lượt sửa
  * khác của đơn.
  *
- * Trần 200 dòng: đây là màn theo dõi, không phải bảng tra cứu. Quá 200 đơn kẹt
- * thì con số tổng đã nói đủ, không ai cần đọc từng dòng.
+ * Tách khỏi bảng đơn: bảng lọc được sang trạng thái khác, còn hai thẻ này luôn
+ * nói về hàng đợi GCN.
  */
-async function awaitingCertificate(actor: User): Promise<{
-  awaiting: number;
-  rows: OpsCertificateRow[];
-}> {
-  const rows = await db.execute<{
-    id: string;
-    order_code: string;
-    customer_name: string;
-    package_name: string;
-    created_by_name: string | null;
-    waiting_since: Date;
-    start_date: string;
-    created_day: string;
-    intake_photo_url: string | null;
-  }>(sql`
-    select
-      o.id, o.order_code, cu.full_name as customer_name, o.package_name,
-      u.full_name as created_by_name, o.intake_photo_url,
-      coalesce(h.changed_at, o.created_at) as waiting_since,
-      o.start_date,
-      to_char(o.created_at at time zone 'Asia/Ho_Chi_Minh', 'YYYY-MM-DD') as created_day
-    from insurance_orders o
-    join customers cu on cu.id = o.customer_id
-    left join users u on u.id = o.created_by
-    left join lateral (
-      select max(s.changed_at) as changed_at
-      from insurance_order_status_history s
-      where s.order_id = o.id and s.to_status = 'awaiting-certificate'
-    ) h on true
-    where o.status = 'awaiting-certificate'
-    order by waiting_since asc
-    limit 200
-  `);
+async function awaitingCertificate(): Promise<OpsInsurance> {
+  const [oldest] = (
+    await db.execute<{ order_code: string; customer_name: string; waiting_since: Date }>(sql`
+      select o.order_code, cu.full_name as customer_name,
+        coalesce(h.changed_at, o.created_at) as waiting_since
+      from insurance_orders o
+      join customers cu on cu.id = o.customer_id
+      left join lateral (
+        select max(s.changed_at) as changed_at
+        from insurance_order_status_history s
+        where s.order_id = o.id and s.to_status = 'awaiting-certificate'
+      ) h on true
+      where o.status = 'awaiting-certificate'
+      order by waiting_since asc
+      limit 1
+    `)
+  ).rows;
 
   const [total] = (
     await db.execute<{ n: string }>(
@@ -145,33 +143,111 @@ async function awaitingCertificate(actor: User): Promise<{
     )
   ).rows;
 
-  const today = businessDay();
-  const canOverride = can(actor, "insurance", "set-status");
-  const now = Date.now();
-
   return {
     awaiting: Number(total?.n ?? 0),
-    rows: rows.rows.map((r) => {
-      const waitingSince = new Date(r.waiting_since);
+    oldest: oldest
+      ? {
+          orderCode: oldest.order_code,
+          customerName: oldest.customer_name,
+          waitingMinutes: Math.floor(
+            (Date.now() - new Date(oldest.waiting_since).getTime()) / 60_000,
+          ),
+        }
+      : null,
+  };
+}
+
+/** Giá trị lạ trên URL thì bỏ lọc trục đó, không trả 400 (AGENTS.md §5.1 điều 2). */
+export function opsOrderFilterFrom(url: URL): OpsOrderFilter {
+  const product = InsuranceProduct.safeParse(url.searchParams.get("product"));
+  const status = InsuranceOrderStatus.safeParse(url.searchParams.get("status"));
+  return {
+    product: product.success ? product.data : "",
+    status: status.success ? status.data : "",
+  };
+}
+
+/**
+ * Một trang đơn cho bảng P-99, mọi trạng thái.
+ *
+ * Cắt trang trên `insurance_orders` trước rồi mới nối tên khách và người lập
+ * cho đúng 15 dòng (AGENTS.md §5.2, cách A).
+ */
+export async function listOpsOrders(
+  actor: User,
+  filter: OpsOrderFilter,
+  args: PageArgs<OpsOrderSort>,
+): Promise<Page<OpsOrderRow>> {
+  const where = and(
+    filter.product ? eq(insuranceOrders.product, filter.product) : undefined,
+    filter.status ? eq(insuranceOrders.status, filter.status) : undefined,
+  );
+
+  const picked = db
+    .select({
+      id: insuranceOrders.id,
+      orderCode: insuranceOrders.orderCode,
+      customerId: insuranceOrders.customerId,
+      createdBy: insuranceOrders.createdBy,
+      packageName: insuranceOrders.packageName,
+      status: insuranceOrders.status,
+      startDate: insuranceOrders.startDate,
+      intakePhotoUrl: insuranceOrders.intakePhotoUrl,
+      createdAt: insuranceOrders.createdAt,
+    })
+    .from(insuranceOrders)
+    .where(where)
+    .orderBy(args.dir === "asc" ? asc(insuranceOrders.orderCode) : desc(insuranceOrders.orderCode))
+    .limit(args.limit)
+    .offset(args.offset)
+    .as("picked");
+
+  const [rows, [count]] = await Promise.all([
+    db
+      .select({
+        id: picked.id,
+        orderCode: picked.orderCode,
+        packageName: picked.packageName,
+        status: picked.status,
+        startDate: picked.startDate,
+        intakePhotoUrl: picked.intakePhotoUrl,
+        createdDay: sql<string>`to_char(${picked.createdAt} at time zone 'Asia/Ho_Chi_Minh', 'YYYY-MM-DD')`,
+        customerName: customers.fullName,
+        createdByName: users.fullName,
+      })
+      .from(picked)
+      .innerJoin(customers, eq(customers.id, picked.customerId))
+      .leftJoin(users, eq(users.id, picked.createdBy))
+      .orderBy(args.dir === "asc" ? asc(picked.orderCode) : desc(picked.orderCode)),
+    db.select({ n: sql<number>`count(*)::int` }).from(insuranceOrders).where(where),
+  ]);
+
+  const today = businessDay();
+  const canOverride = can(actor, "insurance", "set-status");
+
+  return {
+    total: count?.n ?? 0,
+    rows: rows.map((r) => {
       // Hai luật giữ nguyên (chốt 2026-09-22). Tính TRƯỚC ở đây để người bấm
       // thấy đơn nào làm được, thay vì huỷ xong mới biết không tạo lại được.
-      const blockedReason = !canOverride && r.created_day !== today
-        ? "Đơn lập ngày khác, cần quyền sửa trạng thái đơn bảo hiểm"
-        : r.start_date < today
-          ? "Ngày bắt đầu đã qua, PVI từ chối đơn mới"
-          : !r.intake_photo_url
-            ? "Đơn cũ không có ảnh hồ sơ, đơn mới bắt buộc phải có"
-            : "";
+      const blockedReason =
+        r.status !== "awaiting-certificate"
+          ? "Chỉ cấp lại đơn đang đợi GCN"
+          : !canOverride && r.createdDay !== today
+            ? "Đơn lập ngày khác, cần quyền sửa trạng thái đơn bảo hiểm"
+            : r.startDate < today
+              ? "Ngày bắt đầu đã qua, PVI từ chối đơn mới"
+              : !r.intakePhotoUrl
+                ? "Đơn cũ không có ảnh hồ sơ, đơn mới bắt buộc phải có"
+                : "";
 
       return {
         id: r.id,
-        orderCode: r.order_code,
-        customerName: r.customer_name,
-        packageName: r.package_name,
-        createdByName: r.created_by_name ?? "",
-        waitingSince: waitingSince.toISOString(),
-        waitingMinutes: Math.floor((now - waitingSince.getTime()) / 60_000),
-        startDate: r.start_date,
+        orderCode: r.orderCode,
+        customerName: r.customerName,
+        packageName: r.packageName,
+        createdByName: r.createdByName ?? "",
+        status: r.status,
         canRecreate: blockedReason === "",
         blockedReason,
       };
@@ -214,10 +290,10 @@ async function hostSnapshot(): Promise<OpsHost | null> {
   };
 }
 
-export async function opsSummary(actor: User, days: number): Promise<OpsSummary> {
+export async function opsSummary(days: number): Promise<OpsSummary> {
   const [photoCheck, insurance, host] = await Promise.all([
     photoCheckStats(days),
-    awaitingCertificate(actor),
+    awaitingCertificate(),
     hostSnapshot(),
   ]);
 
@@ -253,7 +329,7 @@ export async function recreateStuckOrders(
       .limit(1);
 
     if (!order) {
-      results.push({ id, orderCode: "", ok: false, message: "Đơn vừa đổi trạng thái, bỏ qua" });
+      results.push({ id, orderCode: "", ok: false, message: "Đơn không ở trạng thái đợi GCN, bỏ qua" });
       continue;
     }
 
@@ -337,6 +413,109 @@ export async function recreateStuckOrders(
         ? { id, orderCode: code, ok: true, message: recreated.value.orderCode }
         : { id, orderCode: code, ok: false, message: recreated.message },
     );
+  }
+
+  return {
+    done: results.filter((r) => r.ok).length,
+    failed: results.filter((r) => !r.ok).length,
+    results,
+  };
+}
+
+/* ── Chạy lại policy theo lô ────────────────────────────────────────────── */
+
+/**
+ * Đưa một lô đơn về hàng đợi GCN để worker API hỏi lại PVI `GetPolicyNumber`
+ * rồi ghi đè số hợp đồng, số GCN, số ấn chỉ và ảnh (chốt 2026-09-23).
+ *
+ * Có để chữa đơn mà worker đã đóng sổ với dữ liệu thiếu: worker chỉ tra đơn
+ * đợi GCN hoặc huỷ chưa có ảnh, nên đơn Hoàn thành lưu GCN rỗng không bao giờ
+ * được hỏi lại.
+ *
+ * Không tự gọi PVI ở đây: đổi PDF sang ảnh cần `pdftoppm`, và chỉ image của
+ * worker có. Việc của hàm này là đặt đơn về đúng điều kiện worker nhận:
+ *
+ *   - `certificate_photo_url` về null — worker bỏ qua đơn đã có ảnh
+ *   - `certificate_attempts` về 0, `certificate_checked_at` về null — hỏi ngay
+ *   - Hoàn thành về Đợi GCN; Huỷ giữ nguyên Huỷ, vì worker giữ trạng thái huỷ
+ *     khi ghi giấy, còn đưa sang Đợi GCN thì worker đẩy nó thành Hoàn thành
+ *
+ * Chỉ đơn đường API: `RequestId` bên PVI là `id` của đơn, đơn bot không có.
+ */
+export async function refreshPolicies(
+  actor: User,
+  body: OpsRefreshBody,
+): Promise<OpsRecreateOutcome> {
+  const orders = await db
+    .select({
+      id: insuranceOrders.id,
+      orderCode: insuranceOrders.orderCode,
+      status: insuranceOrders.status,
+      pviRoute: insuranceOrders.pviRoute,
+      pviPrKeyNumber: insuranceOrders.pviPrKeyNumber,
+    })
+    .from(insuranceOrders)
+    .where(inArray(insuranceOrders.id, body.ids));
+
+  const results: OpsRecreateResult[] = body.ids
+    .filter((id) => !orders.some((o) => o.id === id))
+    .map((id) => ({ id, orderCode: "", ok: false, message: "Không tìm thấy đơn" }));
+
+  for (const order of orders) {
+    const code = order.orderCode;
+    const blocked =
+      order.pviRoute !== "api"
+        ? "Đơn không đi đường API, PVI không tra được"
+        : order.status === "cancelled" && order.pviPrKeyNumber === null
+          ? "PVI chưa nhận đơn trước lúc huỷ, không có giấy để tra"
+          : !["done", "awaiting-certificate", "cancelled"].includes(order.status)
+            ? "Đơn chưa qua PVI xong"
+            : "";
+    if (blocked) {
+      results.push({ id: order.id, orderCode: code, ok: false, message: blocked });
+      continue;
+    }
+
+    const reopen = order.status === "done";
+    await db.transaction(async (tx) => {
+      await tx
+        .update(insuranceOrders)
+        .set({
+          certificatePhotoUrl: null,
+          certificateAttempts: 0,
+          certificateCheckedAt: null,
+          updatedAt: new Date(),
+          ...(reopen ? { status: "awaiting-certificate" as const } : {}),
+        })
+        .where(eq(insuranceOrders.id, order.id));
+      if (reopen)
+        await tx.insert(insuranceOrderStatusHistory).values({
+          orderId: order.id,
+          fromStatus: "done",
+          toStatus: "awaiting-certificate",
+          changedBy: actor.id,
+          note: "Chạy lại policy: hỏi lại PVI số GCN và giấy chứng nhận.",
+        });
+    });
+
+    await logAudit(actor, {
+      module: "insurance",
+      action: "update",
+      targetLabel: `Đơn ${code} → chạy lại policy`,
+      targetTable: "insurance_orders",
+      targetId: order.id,
+    });
+
+    results.push({ id: order.id, orderCode: code, ok: true, message: "Đã đưa vào hàng đợi GCN" });
+  }
+
+  // Worker quét lại mỗi 10 giây nên thông báo mất cũng không sao, chỉ chậm hơn.
+  if (results.some((r) => r.ok)) {
+    try {
+      await db.execute(sql`select pg_notify(${PVI_NEW_ORDER_CHANNEL}, '')`);
+    } catch (cause) {
+      console.warn("[ops] không gửi được pg_notify:", cause);
+    }
   }
 
   return {
