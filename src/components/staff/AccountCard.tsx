@@ -24,6 +24,7 @@ import {
   type Scope,
 } from "@/lib/types";
 import { useSession } from "@/store/session";
+import { LoginLockButton } from "./LoginLockButton";
 import { StaffFormDialog } from "./StaffFormDialog";
 import styles from "./AccountCard.module.scss";
 import { errorMessage, toast } from "@/lib/toast";
@@ -199,6 +200,7 @@ export function AccountCard({ staffId }: { staffId: string }) {
         >
           {staff.active ? "Khoá tài khoản" : "Mở khoá"}
         </Button>
+        <LoginLockButton staffId={staffId} />
       </div>
 
       {editing && (
