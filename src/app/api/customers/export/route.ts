@@ -1,3 +1,4 @@
+import { accountFilterFrom } from "@/lib/api/customers";
 import { recordVisibility } from "@/lib/permissions";
 import { logAudit } from "@/server/audit";
 import { actorWith, uuidParam } from "@/server/auth";
@@ -47,7 +48,7 @@ export async function GET(request: Request) {
     // Phạm vi `creator` đè lên ô Nhân viên: người chỉ xuất được khách mình lập
     // không chọn được người khác qua tham số.
     createdBy: view.kind === "creator" ? view.userId : uuidParam(params.get("staffId")),
-    hasAccounts: params.get("hasAccounts") === "1",
+    accounts: accountFilterFrom(params.get("accounts")),
   });
 
   /**

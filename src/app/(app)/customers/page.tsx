@@ -28,7 +28,10 @@ import { fetchChannels } from "@/lib/api/channelCatalog";
 import { fetchDepartments } from "@/lib/api/departments";
 import { fetchHospitals } from "@/lib/api/hospitalCatalog";
 import {
+  ACCOUNT_FILTERS,
+  ACCOUNT_FILTER_LABEL,
   CUSTOMER_SORT,
+  accountFilterFrom,
   deleteCustomer,
   fetchCustomerDetail,
   fetchCustomers,
@@ -64,7 +67,7 @@ const FIRST_PAGE: CustomerQuery = {
   address: "",
   staffId: "",
   departmentId: "",
-  hasAccounts: false,
+  accounts: "",
   from: "",
   to: "",
   page: 0,
@@ -98,7 +101,7 @@ const queryFromUrl = (params: URLSearchParams): CustomerQuery => {
     address: params.get("address") ?? "",
     staffId: params.get("staffId") ?? "",
     departmentId: params.get("departmentId") ?? "",
-    hasAccounts: params.get("hasAccounts") === "1",
+    accounts: accountFilterFrom(params.get("accounts")),
     page: pageFromUrl(params.get("page")),
     // Khoá lạ rơi về mặc định, không làm hỏng màn — cùng lối với `pageArgsFrom`.
     sort: CUSTOMER_SORT.includes(sort as CustomerSort) ? (sort as CustomerSort) : "created",
@@ -267,7 +270,7 @@ export default function CustomersPage() {
     if (asked.channelDetail) params.set("channelDetail", asked.channelDetail);
     if (asked.address) params.set("address", asked.address);
     if (asked.staffId) params.set("staffId", asked.staffId);
-    if (asked.hasAccounts) params.set("hasAccounts", "1");
+    if (asked.accounts) params.set("accounts", asked.accounts);
     if (asked.page > 0) params.set("page", String(asked.page + 1));
     if (asked.sort !== "created") params.set("sort", asked.sort);
     if (asked.dir === "asc") params.set("dir", asked.dir);
@@ -304,7 +307,7 @@ export default function CustomersPage() {
     (query.address ? 1 : 0) +
     (query.departmentId ? 1 : 0) +
     (query.staffId ? 1 : 0) +
-    (query.hasAccounts ? 1 : 0) +
+    (query.accounts ? 1 : 0) +
     (from && to ? 1 : 0);
   // "Chưa có khách nào" và "lọc không ra gì" là hai chuyện khác nhau. Nói nhầm
   // thì người dùng đi xoá bộ lọc vốn đang trống, thay vì bấm "Thêm khách hàng".
@@ -331,7 +334,7 @@ export default function CustomersPage() {
         address: asked.address,
         staffId: asked.staffId,
         departmentId: asked.departmentId,
-        hasAccounts: asked.hasAccounts,
+        accounts: asked.accounts,
         from: asked.from,
         to: asked.to,
       });
@@ -571,7 +574,7 @@ export default function CustomersPage() {
               address: "",
               departmentId: "",
               staffId: "",
-              hasAccounts: false,
+              accounts: "",
             });
           }}
         >
@@ -649,11 +652,15 @@ export default function CustomersPage() {
               />
             </FilterField>
           ) : null}
-          <FilterField id="hasAccounts" label="Tài khoản" count={query.hasAccounts ? 1 : 0}>
-            <Checkbox
-              checked={query.hasAccounts}
-              onCheckedChange={(v) => refine({ hasAccounts: v })}
-              label="Chỉ khách có tài khoản"
+          <FilterField id="accounts" label="Tài khoản" count={query.accounts ? 1 : 0}>
+            <FilterChoices
+              label="Tài khoản"
+              value={query.accounts}
+              onChange={(v) => refine({ accounts: accountFilterFrom(v) })}
+              options={[
+                { value: "", label: "Tất cả khách" },
+                ...ACCOUNT_FILTERS.map((f) => ({ value: f, label: ACCOUNT_FILTER_LABEL[f] })),
+              ]}
             />
           </FilterField>
         </FilterButton>
@@ -734,8 +741,8 @@ export default function CustomersPage() {
                   },
                 ]
               : []),
-            ...(query.hasAccounts
-              ? [{ label: "Chỉ khách có tài khoản", onRemove: () => refine({ hasAccounts: false }) }]
+            ...(query.accounts
+              ? [{ label: ACCOUNT_FILTER_LABEL[query.accounts], onRemove: () => refine({ accounts: "" }) }]
               : []),
           ]}
         />

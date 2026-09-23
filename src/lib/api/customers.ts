@@ -137,6 +137,24 @@ export type CustomerRow = z.infer<typeof CustomerRow>;
 export const CUSTOMER_SORT = ['name', 'accounts', 'insurance', 'created'] as const;
 export type CustomerSort = (typeof CUSTOMER_SORT)[number];
 
+/**
+ * Ô lọc Tài khoản, đọc cột `account_count` (chỉ dòng `done`, có tính dòng HKD).
+ * `any` = ít nhất một tài khoản; số = đúng bấy nhiêu tài khoản; `gte3` = từ 3 trở lên.
+ */
+export const ACCOUNT_FILTERS = ['any', '1', '2', 'gte3'] as const;
+export type AccountFilter = (typeof ACCOUNT_FILTERS)[number];
+
+export const ACCOUNT_FILTER_LABEL: Record<AccountFilter, string> = {
+  any: 'Chỉ khách có tài khoản',
+  '1': '1 tài khoản',
+  '2': '2 tài khoản',
+  gte3: '≥3 tài khoản',
+};
+
+/** Giá trị lạ thì bỏ lọc, cùng lối với khoá sắp xếp. */
+export const accountFilterFrom = (value: string | null): AccountFilter | '' =>
+  ACCOUNT_FILTERS.includes(value as AccountFilter) ? (value as AccountFilter) : '';
+
 export type CustomerQuery = PageQuery<CustomerSort> & {
   search: string;
   channelId: string;
@@ -168,8 +186,8 @@ export type CustomerQuery = PageQuery<CustomerSort> & {
    * ngoài phạm vi thì ra bảng rỗng.
    */
   departmentId: string;
-  /** Chỉ hồ sơ có ít nhất một tài khoản hoàn thành. `false` = không lọc. */
-  hasAccounts: boolean;
+  /** Số tài khoản hoàn thành, xem `ACCOUNT_FILTERS`. Rỗng = không lọc. */
+  accounts: AccountFilter | '';
 };
 
 const CustomerPage = pageOf(CustomerRow);
@@ -189,7 +207,7 @@ export async function fetchCustomers(query: CustomerQuery): Promise<Page<Custome
       to: query.to,
       staffId: query.staffId,
       departmentId: query.departmentId,
-      hasAccounts: query.hasAccounts ? '1' : '',
+      accounts: query.accounts,
     })}`,
   );
   if (!res.ok) throw new Error('Không tải được danh sách khách hàng');
@@ -262,7 +280,7 @@ export type CustomerExportQuery = Pick<
   | 'departmentId'
   | 'from'
   | 'to'
-  | 'hasAccounts'
+  | 'accounts'
 >;
 
 /**
@@ -285,7 +303,7 @@ export async function fetchCustomersForExport(
 ): Promise<Page<CustomerExportRow>> {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(query)) {
-    if (value) params.set(key, value === true ? '1' : value);
+    if (value) params.set(key, value);
   }
   const res = await fetch(`/api/customers/export?${params}`);
   if (!res.ok) throw new Error('Không tải được danh sách khách hàng để xuất');

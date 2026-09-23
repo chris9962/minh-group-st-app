@@ -5,6 +5,7 @@ import {
   desc,
   eq,
   gt,
+  gte,
   inArray,
   isNull,
   ne,
@@ -15,6 +16,7 @@ import {
 } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type {
+  AccountFilter,
   Customer,
   CustomerAccountRow,
   CustomerDetail,
@@ -160,8 +162,8 @@ export type CustomerFilters = {
    * không nới phạm vi.
    */
   departmentId?: string;
-  /** Chỉ hồ sơ có ít nhất một tài khoản hoàn thành (`account_count > 0`). */
-  hasAccounts?: boolean;
+  /** `any` = `account_count > 0`, `gte3` = `>= 3`, số = `account_count` đúng bằng số đó. */
+  accounts?: AccountFilter | "";
 };
 
 /**
@@ -241,7 +243,13 @@ function customerFilters(query: CustomerFilters): SQL | undefined {
     query.departmentId ? eq(customers.createdByDepartmentId, query.departmentId) : undefined,
     query.channelId ? eq(customers.channelId, query.channelId) : undefined,
     query.channelDetail ? eq(customers.channelDetail, query.channelDetail) : undefined,
-    query.hasAccounts ? gt(customers.accountCount, 0) : undefined,
+    query.accounts === "any"
+      ? gt(customers.accountCount, 0)
+      : query.accounts === "gte3"
+        ? gte(customers.accountCount, 3)
+        : query.accounts
+          ? eq(customers.accountCount, Number(query.accounts))
+          : undefined,
     addressWhere(query.address),
     // Ngày sai định dạng thì BỎ QUA, không trả 400: link cũ hay ô địa chỉ gõ
     // nhầm không đáng làm hỏng cả màn (cùng lối nghĩ với `uuidParam`).

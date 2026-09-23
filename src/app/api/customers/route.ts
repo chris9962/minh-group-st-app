@@ -1,4 +1,9 @@
-import { CUSTOMER_ERROR, CustomerForm, type CustomerSort } from "@/lib/api/customers";
+import {
+  CUSTOMER_ERROR,
+  CustomerForm,
+  accountFilterFrom,
+  type CustomerSort,
+} from "@/lib/api/customers";
 import { logAudit } from "@/server/audit";
 import { recordVisibility } from "@/lib/permissions";
 import type { User } from "@/lib/types";
@@ -79,7 +84,7 @@ export async function GET(request: Request) {
         createdBy: scope.createdBy ?? uuidParam(params.get("staffId")),
         departmentIds: scope.departmentIds,
         departmentId: uuidParam(params.get("departmentId")),
-        hasAccounts: params.get("hasAccounts") === "1",
+        accounts: accountFilterFrom(params.get("accounts")),
       },
       pageArgsFrom(url, SORTABLE, "created"),
     ),
