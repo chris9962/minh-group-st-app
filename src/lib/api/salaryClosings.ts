@@ -6,6 +6,7 @@ export const SalaryClosing = z.object({
   closed: z.boolean(),
   /** Máy chủ tính theo giờ Việt Nam: tháng đã kết thúc, có công thức lương, chưa chốt. */
   closable: z.boolean(),
+  blockedReason: z.string().nullable(),
   closedAt: z.string().nullable(),
   closedByName: z.string().nullable(),
 });

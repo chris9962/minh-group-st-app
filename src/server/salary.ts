@@ -289,9 +289,31 @@ export type SalaryClosingStatus = {
   month: string;
   closed: boolean;
   closable: boolean;
+  /** Vì sao chưa chốt được, hiện ở tooltip của nút mờ. `null` khi chốt được hoặc đã chốt. */
+  blockedReason: string | null;
   closedAt: string | null;
   closedByName: string | null;
 };
+
+const monthText = (yearMonth: string) => {
+  const [year, month] = yearMonth.split("-").map(Number);
+  return `tháng ${month}/${year}`;
+};
+
+/** Ngày đầu tháng kế tiếp, dạng 01/MM/YYYY. */
+const firstDayAfter = (yearMonth: string) => {
+  const [year, month] = yearMonth.split("-").map(Number);
+  const [nextYear, nextMonth] = month === 12 ? [year + 1, 1] : [year, month + 1];
+  return `01/${String(nextMonth).padStart(2, "0")}/${nextYear}`;
+};
+
+function blockedReasonOf(yearMonth: string): string | null {
+  if (yearMonth >= businessMonth())
+    return `Lương ${monthText(yearMonth)} chốt được từ ngày ${firstDayAfter(yearMonth)}, khi tháng đã kết thúc.`;
+  if (!salaryRulesFor(yearMonth))
+    return `Lương ${monthText(yearMonth)} chưa có công thức tính, không chốt được.`;
+  return null;
+}
 
 export async function salaryClosingOf(yearMonth: string): Promise<SalaryClosingStatus> {
   const [row] = await db
@@ -300,13 +322,15 @@ export async function salaryClosingOf(yearMonth: string): Promise<SalaryClosingS
     .innerJoin(users, eq(users.id, salaryClosings.closedBy))
     .where(eq(salaryClosings.yearMonth, yearMonth))
     .limit(1);
+  // Tháng chưa kết thúc thì điểm và ngày công còn tăng. Tháng chưa có công
+  // thức thì không có số nào để chốt. Tính ở máy chủ vì tháng hiện tại theo
+  // giờ Việt Nam, máy người dùng để múi giờ khác thì ra tháng khác.
+  const blockedReason = row ? null : blockedReasonOf(yearMonth);
   return {
     month: yearMonth,
     closed: Boolean(row),
-    // Tháng chưa kết thúc thì điểm và ngày công còn tăng. Tháng chưa có công
-    // thức thì không có số nào để chốt. Tính ở máy chủ vì tháng hiện tại theo
-    // giờ Việt Nam, máy người dùng để múi giờ khác thì ra tháng khác.
-    closable: !row && yearMonth < businessMonth() && salaryRulesFor(yearMonth) !== null,
+    closable: !row && blockedReason === null,
+    blockedReason,
     closedAt: row?.closedAt.toISOString() ?? null,
     closedByName: row?.closedByName ?? null,
   };

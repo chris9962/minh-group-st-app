@@ -40,10 +40,14 @@ export function SalaryClosingControl({ month }: { month: string }) {
 
   return (
     <>
-      <Button variant="secondary" disabled={!data.closable} onClick={() => setConfirming(true)}>
-        <Lock size={16} aria-hidden />
-        Chốt lương
-      </Button>
+      {/* `title` nằm ở thẻ bọc: nút `disabled` không nhận chuột ở mọi trình duyệt. */}
+      <span title={data.blockedReason ?? undefined}>
+        <Button variant="secondary" disabled={!data.closable} onClick={() => setConfirming(true)}>
+          <Lock size={16} aria-hidden />
+          Chốt lương
+        </Button>
+        {data.blockedReason && <span className="sr-only">{data.blockedReason}</span>}
+      </span>
       <ConfirmDialog
         open={confirming}
         title="Chốt lương"
