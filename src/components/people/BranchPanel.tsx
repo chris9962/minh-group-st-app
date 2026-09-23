@@ -45,7 +45,7 @@ const columns: RankColumn<BranchDepartment>[] = [
     key: "installPercent",
     label: "Tỉ lệ cài",
     sortBy: (d) => d.installPercent,
-    ratio: (d) => d.installPercent / 100,
+    ratio: (d) => d.installPercent,
     title: (d) =>
       d.accountsOpened === 0
         ? "Chưa mở tài khoản"
