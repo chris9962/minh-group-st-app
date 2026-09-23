@@ -715,6 +715,13 @@
       "when": 1789891400027,
       "tag": "0101_user_insurance_departments",
       "breakpoints": true
+    },
+    {
+      "idx": 102,
+      "version": "7",
+      "when": 1789891400028,
+      "tag": "0102_salary_closings",
+      "breakpoints": true
     }
   ]
 }

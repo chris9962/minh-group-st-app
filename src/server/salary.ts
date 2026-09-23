@@ -1,33 +1,23 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
-import { formatPoints, monthRange, roundPoints } from "@/lib/format";
-import type { RoleKey } from "@/lib/types";
+import { monthRange } from "@/lib/format";
+import type { RoleKey, User } from "@/lib/types";
+import { salaryRulesFor, type SalaryFact, type SalaryItem } from "@/rules/salary";
 import { db } from "./db/client";
 import {
   departments,
   employeeWorkDays,
   kpiAdjustments,
   kpiScores,
+  salaryClosings,
+  salarySnapshots,
   userManagedDepartments,
   users,
 } from "./db/schema";
 
-const DAILY_SUPPORT = 120_000;
-const STAFF_FIRST_TIER_RATE = 60_000;
-const SALES_MAX_DAYS = 26;
-const DEPUTY_DIRECTOR_DAYS = 22;
-const MANAGEMENT_PENALTY_LAST_MONTH = "2026-07";
-/**
- * Chú thích 12, 16, 19 của quy chế 107: "Làm trực tiếp" của Trưởng/Phó phòng
- * và toàn bộ bảng KPI + thưởng nhánh của Phó GĐ áp dụng từ tháng 8/2026.
- */
-const DIRECT_AND_DEPUTY_FIRST_MONTH = "2026-08";
-
-type SalaryItem = { label: string; formula: string; amount: number };
-
 export type SalaryBreakdown = {
   amount: number;
   month: string;
-  facts: Array<{ label: string; value: string }>;
+  facts: SalaryFact[];
   items: SalaryItem[];
 };
 
@@ -38,8 +28,6 @@ const zeroSalary = (month: string): SalaryBreakdown => ({
   items: [],
 });
 
-const vnd = (amount: number) => `${amount.toLocaleString("vi-VN")}đ`;
-
 /**
  * Bỏ khoản bằng 0 cho gọn, nhưng giữ khoản đầu khi mọi khoản đều 0: danh sách
  * rỗng là dấu hiệu "chưa có công thức", không phải "lương 0".
@@ -49,39 +37,6 @@ const nonZeroItems = (items: SalaryItem[]): SalaryItem[] => {
   const kept = rounded.filter((item) => item.amount !== 0);
   return kept.length > 0 ? kept : rounded.slice(0, 1);
 };
-
-/** Thưởng vượt của nhân viên, lũy tiến theo ba bậc 101–130, 131–160, >160. */
-export function staffOverTargetBonus(points: number): number {
-  return (
-    70_000 * Math.min(Math.max(points - 100, 0), 30) +
-    80_000 * Math.min(Math.max(points - 130, 0), 30) +
-    90_000 * Math.max(points - 160, 0)
-  );
-}
-
-/** 100 điểm đầu trả 60.000đ/điểm, tối đa 6 triệu; không phải lương cố định. */
-export function staffFirstTierPay(points: number): number {
-  return STAFF_FIRST_TIER_RATE * Math.min(Math.max(points, 0), 100);
-}
-
-/** Quỹ thưởng quản lý theo điểm trung bình phòng, cùng ba bậc nhưng đơn giá 7/8/9 nghìn. */
-export function departmentManagementPool(averagePoints: number, overTargetStaff: number): number {
-  if (overTargetStaff === 0) return 0;
-  const perStaff =
-    7_000 * Math.min(Math.max(averagePoints - 100, 0), 30) +
-    8_000 * Math.min(Math.max(averagePoints - 130, 0), 30) +
-    9_000 * Math.max(averagePoints - 160, 0);
-  return perStaff * overTargetStaff;
-}
-
-/** Thưởng PGĐ theo tổng điểm các phòng phụ trách, tính lũy tiến. */
-export function deputyDirectorBranchBonus(points: number): number {
-  return (
-    2_000 * Math.min(Math.max(points, 0), 10_000) +
-    3_000 * Math.min(Math.max(points - 10_000, 0), 5_000) +
-    4_000 * Math.max(points - 15_000, 0)
-  );
-}
 
 const adjustmentExpr = (yearMonth: string) => sql<number>`coalesce((
   select sum(${kpiAdjustments.points})::float
@@ -113,19 +68,62 @@ type StaffScore = {
 };
 
 /**
- * Lương CĐS đang chạy, chưa phải ảnh chụp đã chốt.
- *
- * CASA và tài khoản định hướng đang bằng 0 theo chốt nghiệp vụ. Thành phần HKD
- * của cấp quản lý cũng chưa cộng vì database mới có sản lượng, chưa có chỉ tiêu
- * HKD theo phòng/tháng để quyết định đạt hay thiếu bao nhiêu phần trăm.
+ * Lương của tháng: tháng đã chốt đọc số đã lưu, tháng chưa chốt tính từ dữ
+ * liệu mới nhất. Mọi màn hiện lương đi qua đây.
  */
 export async function salaryForUsers(
+  userIds: string[],
+  yearMonth: string,
+): Promise<Map<string, SalaryBreakdown>> {
+  const [closing] = await db
+    .select({ yearMonth: salaryClosings.yearMonth })
+    .from(salaryClosings)
+    .where(eq(salaryClosings.yearMonth, yearMonth))
+    .limit(1);
+  return closing ? closedSalaries(userIds, yearMonth) : liveSalaries(userIds, yearMonth);
+}
+
+async function closedSalaries(
   userIds: string[],
   yearMonth: string,
 ): Promise<Map<string, SalaryBreakdown>> {
   const result = new Map<string, SalaryBreakdown>();
   for (const id of userIds) result.set(id, zeroSalary(yearMonth));
   if (userIds.length === 0) return result;
+
+  const rows = await db
+    .select({
+      userId: salarySnapshots.userId,
+      amount: salarySnapshots.amount,
+      breakdown: salarySnapshots.breakdown,
+    })
+    .from(salarySnapshots)
+    .where(
+      and(eq(salarySnapshots.yearMonth, yearMonth), inArray(salarySnapshots.userId, userIds)),
+    );
+  for (const row of rows)
+    result.set(row.userId, { amount: row.amount, month: yearMonth, ...row.breakdown });
+  return result;
+}
+
+/**
+ * Lương CĐS đang chạy, tính theo file kỳ ở `src/rules/salary`.
+ *
+ * CASA và tài khoản định hướng đang bằng 0 theo chốt nghiệp vụ. Thành phần HKD
+ * của cấp quản lý cũng chưa cộng vì database mới có sản lượng, chưa có chỉ tiêu
+ * HKD theo phòng/tháng để quyết định đạt hay thiếu bao nhiêu phần trăm.
+ *
+ * ⚠️ Đọc phòng, chức vụ và trạng thái HIỆN TẠI của từng người. Chuyển phòng
+ * sau tháng đó làm đổi lương tháng đó, nên tháng đã trả phải chốt lại.
+ */
+async function liveSalaries(
+  userIds: string[],
+  yearMonth: string,
+): Promise<Map<string, SalaryBreakdown>> {
+  const result = new Map<string, SalaryBreakdown>();
+  for (const id of userIds) result.set(id, zeroSalary(yearMonth));
+  const rules = salaryRulesFor(yearMonth);
+  if (userIds.length === 0 || !rules) return result;
 
   const points = scoreExpr(yearMonth);
   const subjects: Subject[] = await db
@@ -180,7 +178,7 @@ export async function salaryForUsers(
    * Kéo cả Phó phòng và người đã nghỉ: "Tổng điểm nhánh" của PGĐ phải khớp tổng
    * điểm phòng ở màn Tổng quan (chốt 2026-09-22), mà màn đó cộng mọi người có
    * điểm trong tháng. Các phép đếm theo ĐẦU NGƯỜI bên dưới vẫn chỉ lấy nhân
-   * viên đang làm, lọc ở `activeStaffByDepartment`.
+   * viên đang làm, lọc ở `staffByDepartment`.
    */
   const scoreRows: StaffScore[] = relevantDepartmentIds.length
     ? await db
@@ -236,7 +234,7 @@ export async function salaryForUsers(
   const departmentDays = new Map(
     departmentDayRows.map((row) => [row.departmentId, row.count]),
   );
-  const staffByDepartment = new Map<string, StaffScore[]>();
+  const staffByDepartment = new Map<string, number[]>();
   const branchPointsByDepartment = new Map<string, number>();
   for (const row of scoreRows) {
     branchPointsByDepartment.set(
@@ -245,207 +243,110 @@ export async function salaryForUsers(
     );
     if (row.role !== "staff" || !row.active) continue;
     const kept = staffByDepartment.get(row.departmentId);
-    if (kept) kept.push(row);
-    else staffByDepartment.set(row.departmentId, [row]);
+    if (kept) kept.push(row.points);
+    else staffByDepartment.set(row.departmentId, [row.points]);
   }
 
   for (const subject of subjects) {
-    const directPoints = roundPoints(subject.points);
+    let salary = null;
 
-    if (subject.role === "staff") {
-      if (subject.departmentType !== "sales") continue;
-      const workDays = Math.min(userDays.get(subject.id) ?? 0, SALES_MAX_DAYS);
-      const firstTierPoints = Math.min(Math.max(directPoints, 0), 100);
-      const secondTierPoints = Math.min(Math.max(directPoints - 100, 0), 30);
-      const thirdTierPoints = Math.min(Math.max(directPoints - 130, 0), 30);
-      const fourthTierPoints = Math.max(directPoints - 160, 0);
-      const firstTierPay = staffFirstTierPay(directPoints);
-      const secondTierPay = secondTierPoints * 70_000;
-      const thirdTierPay = thirdTierPoints * 80_000;
-      const fourthTierPay = fourthTierPoints * 90_000;
-      const overTargetBonus = staffOverTargetBonus(directPoints);
-      const dailySupport = workDays * DAILY_SUPPORT;
-      result.set(subject.id, {
-        amount: Math.max(
-          0,
-          Math.round(firstTierPay + overTargetBonus + dailySupport),
-        ),
-        month: yearMonth,
-        facts: [
-          { label: "Điểm KPI", value: `${formatPoints(directPoints)} điểm` },
-          { label: "Ngày công", value: `${workDays} ngày` },
-        ],
-        // Tên khoản theo đúng chữ trong quy chế 107/108 để người đọc đối chiếu được.
-        items: nonZeroItems([
-          {
-            label: "Lương tiêu chuẩn",
-            formula: `${formatPoints(firstTierPoints)} điểm × 60.000đ`,
-            amount: firstTierPay,
-          },
-          {
-            label: "Thưởng vượt mốc 1",
-            formula: `${formatPoints(secondTierPoints)} điểm × 70.000đ`,
-            amount: secondTierPay,
-          },
-          {
-            label: "Thưởng vượt mốc 2",
-            formula: `${formatPoints(thirdTierPoints)} điểm × 80.000đ`,
-            amount: thirdTierPay,
-          },
-          {
-            label: "Thưởng vượt mốc 3",
-            formula: `${formatPoints(fourthTierPoints)} điểm × 90.000đ`,
-            amount: fourthTierPay,
-          },
-          {
-            label: "Hỗ trợ ăn ca",
-            formula: `${workDays} ngày × 120.000đ`,
-            amount: dailySupport,
-          },
-        ]),
+    if (subject.role === "staff" && subject.departmentType === "sales") {
+      salary = rules.staff({ points: subject.points, workDays: userDays.get(subject.id) ?? 0 });
+    } else if (
+      (subject.role === "head" || subject.role === "deputy-head") &&
+      subject.departmentType === "sales" &&
+      subject.departmentId
+    ) {
+      salary = rules.manager({
+        role: subject.role,
+        points: subject.points,
+        teamPoints: staffByDepartment.get(subject.departmentId) ?? [],
+        workDays: departmentDays.get(subject.departmentId) ?? 0,
       });
-      continue;
-    }
-
-    if (subject.role === "head" || subject.role === "deputy-head") {
-      if (subject.departmentType !== "sales" || !subject.departmentId) continue;
-      const team = staffByDepartment.get(subject.departmentId) ?? [];
-      const reached = team.filter((staff) => staff.points >= 100).length;
-      // Chú thích cuối trang của Phụ lục 05 (quy chế 107): trừ "nhân sự dưới
-      // 100 điểm" và cộng "cả phòng vượt 100" chỉ áp dụng đến hết tháng 7/2026.
-      // Bản .md của quy chế bỏ mất chú thích, phải đọc file .docx mới thấy.
-      const penaltyActive = yearMonth <= MANAGEMENT_PENALTY_LAST_MONTH;
-      const below = penaltyActive ? team.length - reached : 0;
-      const allOver = penaltyActive && team.length > 0 && team.every((staff) => staff.points > 100);
-      const unit = subject.role === "head" ? 9 : 6;
-      const managementPoints = unit * reached - unit * below + (allOver ? unit : 0);
-      const average = team.length === 0
-        ? 0
-        : team.reduce((sum, staff) => sum + staff.points, 0) / team.length;
-      const overTargetStaff = team.filter((staff) => staff.points > 100).length;
-      const pool = departmentManagementPool(average, overTargetStaff);
-      const poolShare = subject.role === "head" ? 0.7 : 0.3;
-      const workDays = Math.min(
-        departmentDays.get(subject.departmentId) ?? 0,
-        SALES_MAX_DAYS,
-      );
-      const managementRate = subject.role === "head" ? 120_000 : 80_000;
-      const managementPay = managementPoints * managementRate;
-      const directPay =
-        yearMonth >= DIRECT_AND_DEPUTY_FIRST_MONTH ? Math.max(directPoints, 0) * 70_000 : 0;
-      const poolPay = pool * poolShare;
-      const dailySupport = workDays * DAILY_SUPPORT;
-      const subtotal = managementPay + directPay + poolPay + dailySupport;
-      const floorAdjustment = Math.max(0, -subtotal);
-      result.set(subject.id, {
-        amount: Math.max(0, Math.round(subtotal)),
-        month: yearMonth,
-        facts: [
-          { label: "Điểm KPI", value: `${formatPoints(directPoints)} điểm` },
-          { label: "Điểm quản lý", value: `${formatPoints(managementPoints)} điểm` },
-          { label: "Nhân viên trong phòng", value: `${team.length} người` },
-          { label: "Ngày công", value: `${workDays} ngày` },
-        ],
-        // Điểm quản lý tách từng dòng theo số người, vì một con số gộp như
-        // "27 điểm" không cho Trưởng phòng tự kiểm được ai đạt, ai chưa.
-        items: nonZeroItems([
-          {
-            label: "Nhân viên đạt 100 điểm",
-            formula: `${reached} người × ${unit} điểm × ${vnd(managementRate)}`,
-            amount: reached * unit * managementRate,
-          },
-          {
-            label: "Nhân viên dưới 100 điểm",
-            formula: `${below} người × -${unit} điểm × ${vnd(managementRate)}`,
-            amount: -below * unit * managementRate,
-          },
-          {
-            label: "Cả phòng vượt 100 điểm",
-            formula: `${unit} điểm × ${vnd(managementRate)}`,
-            amount: allOver ? unit * managementRate : 0,
-          },
-          {
-            label: "Làm trực tiếp",
-            formula: `${formatPoints(Math.max(directPoints, 0))} điểm × 70.000đ`,
-            amount: directPay,
-          },
-          {
-            label: "Thưởng vượt của phòng",
-            formula: `Trung bình ${formatPoints(roundPoints(average))} điểm - ${overTargetStaff} người vượt - ${subject.role === "head" ? "70%" : "30%"} quỹ`,
-            amount: poolPay,
-          },
-          {
-            label: "Hỗ trợ ăn ca",
-            formula: `${workDays} ngày × 120.000đ`,
-            amount: dailySupport,
-          },
-          {
-            label: "Điều chỉnh tối thiểu",
-            formula: "Lương không âm",
-            amount: floorAdjustment,
-          },
-        ]),
-      });
-      continue;
-    }
-
-    if (subject.role === "deputy-director") {
-      if (yearMonth < DIRECT_AND_DEPUTY_FIRST_MONTH) continue;
+    } else if (subject.role === "deputy-director" && rules.deputyDirector) {
       const managed = managedByUser.get(subject.id) ?? [];
-      if (managed.length === 0) continue;
-      const team = managed.flatMap((departmentId) => staffByDepartment.get(departmentId) ?? []);
-      const reached = team.filter((staff) => staff.points >= 100).length;
-      const totalPoints = managed.reduce(
-        (sum, departmentId) => sum + (branchPointsByDepartment.get(departmentId) ?? 0),
-        0,
-      );
-      const managementPoints = 3 * reached;
-      const managementPay = managementPoints * 150_000;
-      const branchBonus = deputyDirectorBranchBonus(totalPoints);
-      // Ba bậc của thưởng nhánh, cùng mốc với `deputyDirectorBranchBonus`.
-      const branchTier1 = roundPoints(Math.min(Math.max(totalPoints, 0), 10_000));
-      const branchTier2 = roundPoints(Math.min(Math.max(totalPoints - 10_000, 0), 5_000));
-      const branchTier3 = roundPoints(Math.max(totalPoints - 15_000, 0));
-      const dailySupport = DEPUTY_DIRECTOR_DAYS * DAILY_SUPPORT;
-      result.set(subject.id, {
-        amount: Math.max(0, Math.round(managementPay + branchBonus + dailySupport)),
-        month: yearMonth,
-        facts: [
-          { label: "Điểm quản lý", value: `${formatPoints(managementPoints)} điểm` },
-          { label: "Nhân viên các phòng phụ trách", value: `${team.length} người` },
-          { label: "Tổng điểm nhánh", value: `${formatPoints(roundPoints(totalPoints))} điểm` },
-          { label: "Ngày công", value: `${DEPUTY_DIRECTOR_DAYS} ngày` },
-        ],
-        items: nonZeroItems([
-          {
-            label: "Nhân viên đạt 100 điểm",
-            formula: `${reached} người × 3 điểm × 150.000đ`,
-            amount: managementPay,
-          },
-          {
-            label: "Thưởng nhánh mốc 1",
-            formula: `${formatPoints(branchTier1)} điểm × 2.000đ`,
-            amount: branchTier1 * 2_000,
-          },
-          {
-            label: "Thưởng nhánh mốc 2",
-            formula: `${formatPoints(branchTier2)} điểm × 3.000đ`,
-            amount: branchTier2 * 3_000,
-          },
-          {
-            label: "Thưởng nhánh mốc 3",
-            formula: `${formatPoints(branchTier3)} điểm × 4.000đ`,
-            amount: branchTier3 * 4_000,
-          },
-          {
-            label: "Hỗ trợ ăn ca",
-            formula: `${DEPUTY_DIRECTOR_DAYS} ngày × 120.000đ`,
-            amount: dailySupport,
-          },
-        ]),
-      });
+      if (managed.length > 0)
+        salary = rules.deputyDirector({
+          teamPoints: managed.flatMap((departmentId) => staffByDepartment.get(departmentId) ?? []),
+          branchPoints: managed.reduce(
+            (sum, departmentId) => sum + (branchPointsByDepartment.get(departmentId) ?? 0),
+            0,
+          ),
+        });
     }
+
+    if (salary)
+      result.set(subject.id, {
+        amount: salary.amount,
+        month: yearMonth,
+        facts: salary.facts,
+        items: nonZeroItems(salary.items),
+      });
   }
 
   return result;
+}
+
+/* ── Chốt lương theo tháng ─────────────────────────────────────────────── */
+
+export type SalaryClosingStatus = {
+  month: string;
+  closedAt: Date;
+  closedByName: string;
+};
+
+export async function salaryClosingOf(yearMonth: string): Promise<SalaryClosingStatus | null> {
+  const [row] = await db
+    .select({ closedAt: salaryClosings.closedAt, closedByName: users.fullName })
+    .from(salaryClosings)
+    .innerJoin(users, eq(users.id, salaryClosings.closedBy))
+    .where(eq(salaryClosings.yearMonth, yearMonth))
+    .limit(1);
+  return row ? { month: yearMonth, ...row } : null;
+}
+
+/**
+ * Chốt lương một tháng: tính lương mọi người theo dữ liệu lúc bấm rồi lưu lại.
+ * Trả `null` khi tháng đó đã chốt.
+ *
+ * Lấy cả người đã nghỉ: họ vẫn có lương của tháng họ còn làm. Chỉ lưu dòng có
+ * công thức; người không có dòng đọc ra lương 0, giống lúc chưa chốt.
+ */
+export async function closeSalaryMonth(actor: User, yearMonth: string): Promise<number | null> {
+  const everyone = await db.select({ id: users.id }).from(users);
+  const salaries = await liveSalaries(
+    everyone.map((row) => row.id),
+    yearMonth,
+  );
+  const snapshots = [...salaries]
+    .filter(([, salary]) => salary.items.length > 0)
+    .map(([userId, salary]) => ({
+      yearMonth,
+      userId,
+      amount: salary.amount,
+      breakdown: { facts: salary.facts, items: salary.items },
+    }));
+
+  return db.transaction(async (tx) => {
+    const inserted = await tx
+      .insert(salaryClosings)
+      .values({ yearMonth, closedBy: actor.id })
+      .onConflictDoNothing()
+      .returning({ yearMonth: salaryClosings.yearMonth });
+    if (inserted.length === 0) return null;
+    if (snapshots.length > 0) await tx.insert(salarySnapshots).values(snapshots);
+    return snapshots.length;
+  });
+}
+
+/** Mở chốt: xoá số đã lưu, tháng đó quay về tính từ dữ liệu mới nhất. `false` khi chưa chốt. */
+export async function reopenSalaryMonth(yearMonth: string): Promise<boolean> {
+  return db.transaction(async (tx) => {
+    await tx.delete(salarySnapshots).where(eq(salarySnapshots.yearMonth, yearMonth));
+    const deleted = await tx
+      .delete(salaryClosings)
+      .where(eq(salaryClosings.yearMonth, yearMonth))
+      .returning({ yearMonth: salaryClosings.yearMonth });
+    return deleted.length > 0;
+  });
 }

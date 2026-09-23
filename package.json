@@ -24,6 +24,7 @@
     "db:grant-handle-feedback": "bun --env-file=.env.local scripts/db-grant-handle-feedback.ts",
     "db:grant-send-announcement": "bun --env-file=.env.local scripts/db-grant-send-announcement.ts",
     "db:grant-view-ops": "bun --env-file=.env.local scripts/db-grant-view-ops.ts",
+    "db:grant-close-salary": "bun --env-file=.env.local scripts/db-grant-close-salary.ts",
     "db:announce-release": "bun --env-file=.env.local scripts/db-announce-release.ts",
     "db:backfill-policy-gcn": "bun --env-file=.env.local scripts/db-backfill-policy-gcn.ts",
     "db:enqueue-photo-checks": "bun --env-file=.env.local scripts/db-enqueue-photo-checks.ts",

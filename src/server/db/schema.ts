@@ -75,6 +75,8 @@ export const actionKey = pgEnum("action_key", [
   "send-announcement",
   // đặc biệt · system: mở màn Vận hành hệ thống P-99 (migration 0100)
   "view-ops",
+  // đặc biệt · system: chốt và mở chốt lương theo tháng (migration 0102)
+  "close-salary",
 ]);
 
 export const scopeKey = pgEnum("scope_key", ["own", "managed", "company"]);
@@ -1742,6 +1744,45 @@ export const kpiAdjustments = pgTable(
     index("kpi_adjustments_user_month").on(t.userId, t.yearMonth),
     check("kpi_adjustments_points_nonzero", sql`points <> 0`),
   ],
+);
+
+/**
+ * Tháng đã chốt lương (migration 0102). Có dòng thì mọi màn đọc lương tháng đó
+ * từ `salary_snapshots`, không tính lại: điểm tháng cũ vẫn đổi được khi phát quà
+ * muộn, chuyển phòng hay sửa hệ số, còn lương đã trả thì không được đổi theo.
+ */
+export const salaryClosings = pgTable(
+  "salary_closings",
+  {
+    /** '2026-09'. */
+    yearMonth: text("year_month").primaryKey(),
+    closedBy: uuid("closed_by")
+      .notNull()
+      .references(() => users.id),
+    closedAt: timestamp("closed_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [check("salary_closings_year_month", sql`${t.yearMonth} ~ '^\\d{4}-(0[1-9]|1[0-2])$'`)],
+);
+
+/** Lương từng người lúc chốt, kèm diễn giải ĐÓNG BĂNG để hộp diễn giải đọc lại đúng số đã trả. */
+export const salarySnapshots = pgTable(
+  "salary_snapshots",
+  {
+    yearMonth: text("year_month")
+      .notNull()
+      .references(() => salaryClosings.yearMonth),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    amount: integer("amount").notNull(),
+    breakdown: jsonb("breakdown")
+      .$type<{
+        facts: { label: string; value: string }[];
+        items: { label: string; formula: string; amount: number }[];
+      }>()
+      .notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.yearMonth, t.userId] })],
 );
 
 /* ── §6 · Hệ thống ──────────────────────────────────────────────────── */

@@ -39,6 +39,7 @@ import { Checkbox } from "@/components/ui/Checkbox";
 import { SearchField } from "@/components/ui/SearchField";
 import { StaffFormDialog } from "@/components/staff/StaffFormDialog";
 import { SalaryAmount } from "@/components/payroll/SalaryAmount";
+import { SalaryClosingControl } from "@/components/payroll/SalaryClosingControl";
 import { useDebouncedValue } from "@/lib/hooks";
 import { useCreateIntent } from "@/lib/useCreateIntent";
 import { availableScopes, can, canOrg, scopeFor, visibleDepartmentIds } from "@/lib/permissions";
@@ -512,6 +513,11 @@ export default function PeoplePage() {
                 searchQuery
                   ? `${monthLabel(month)} · khớp ${data.page.total}`
                   : monthLabel(month)
+              }
+              action={
+                can(user, "system", "close-salary") ? (
+                  <SalaryClosingControl month={month} />
+                ) : undefined
               }
             >
               <RankTable

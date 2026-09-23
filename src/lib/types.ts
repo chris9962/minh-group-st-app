@@ -168,6 +168,8 @@ export const Action = z.enum([
    * đây nói máy có chạy không, không nói đội làm được bao nhiêu.
    */
   'view-ops',
+  /** Chốt và mở chốt lương theo tháng trên màn Nhân sự & KPI (migration 0102). */
+  'close-salary',
 ]);
 export type Action = z.infer<typeof Action>;
 
@@ -204,6 +206,7 @@ export const ACTION_LABEL: Record<Action, string> = {
   'handle-feedback': 'Xử lý góp ý',
   'send-announcement': 'Gửi thông báo chung',
   'view-ops': 'Xem vận hành hệ thống',
+  'close-salary': 'Chốt lương',
 };
 
 /** 6 hành động dùng chung cho mọi module cơ bản — xem mục 1.1.2 spec. */
@@ -239,6 +242,8 @@ export const SCOPELESS_ACTIONS: Action[] = [
   'configure-wards',
   // Màn P-99 đo cả máy chủ, không có phần nào cắt theo phòng.
   'view-ops',
+  // Chốt là chốt lương cả công ty trong một tháng, không chốt riêng một phòng.
+  'close-salary',
 ];
 
 export const SPECIAL_ACTIONS_OF: Partial<Record<ModuleKey, Action[]>> = {
@@ -269,6 +274,7 @@ export const SPECIAL_ACTIONS_OF: Partial<Record<ModuleKey, Action[]>> = {
     'adjust-kpi',
     'handle-feedback',
     'view-ops',
+    'close-salary',
   ],
 };
 
