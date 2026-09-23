@@ -1,0 +1,37 @@
+.wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+/* Nút `disabled` không nhận chuột, nên `:hover` của thẻ bọc không chạy. Cho
+   chuột đi xuyên qua nút xuống thẻ bọc. */
+.wrap :disabled {
+  pointer-events: none;
+}
+
+/* Canh mép phải vì chỗ dùng đầu tiên là nút ở góc phải tiêu đề thẻ; canh trái
+   thì bóng chữ tràn ra ngoài màn hình. */
+.tip {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  right: 0;
+  z-index: 30;
+  width: max-content;
+  max-width: 280px;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--om-text);
+  color: var(--om-card);
+  box-shadow: var(--shadow-md);
+  font-size: 13px;
+  line-height: 1.45;
+  white-space: normal;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+
+.wrap:hover .tip,
+.wrap:focus-within .tip {
+  opacity: 1;
+}

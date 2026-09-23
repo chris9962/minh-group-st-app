@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { monthLabel } from "@/components/ui/MonthPicker";
 import { StatusTag } from "@/components/ui/StatusTag";
+import { Tooltip } from "@/components/ui/Tooltip";
 import { closeSalary, fetchSalaryClosing } from "@/lib/api/salaryClosings";
 import { errorMessage, toast } from "@/lib/toast";
 
@@ -40,14 +41,12 @@ export function SalaryClosingControl({ month }: { month: string }) {
 
   return (
     <>
-      {/* `title` nằm ở thẻ bọc: nút `disabled` không nhận chuột ở mọi trình duyệt. */}
-      <span title={data.blockedReason ?? undefined}>
+      <Tooltip content={data.blockedReason}>
         <Button variant="secondary" disabled={!data.closable} onClick={() => setConfirming(true)}>
           <Lock size={16} aria-hidden />
           Chốt lương
         </Button>
-        {data.blockedReason && <span className="sr-only">{data.blockedReason}</span>}
-      </span>
+      </Tooltip>
       <ConfirmDialog
         open={confirming}
         title="Chốt lương"
