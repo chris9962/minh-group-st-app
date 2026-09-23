@@ -322,46 +322,6 @@ export default function OpsPage() {
             </SectionCard>
 
             <SectionCard
-              title="Kiểm ảnh tài khoản"
-              icon={<Images size={17} />}
-              meta={`${formatCount(data.photoCheck.pending)} lượt đang đợi`}
-            >
-              <div className={styles.stats}>
-                <StatCard
-                  value={formatCount(data.photoCheck.pending)}
-                  label="Đang đợi kiểm"
-                  tone={data.photoCheck.pending > 0 ? "attention" : "normal"}
-                />
-                <StatCard
-                  value={
-                    data.photoCheck.oldestPendingAt
-                      ? formatDateTime(data.photoCheck.oldestPendingAt)
-                      : "Không có"
-                  }
-                  label="Lượt đợi lâu nhất"
-                />
-              </div>
-
-              <div className={styles.rangeRow}>
-                <SegmentedTabs
-                  label="Khoảng thống kê"
-                  value={String(days)}
-                  onChange={(v) => setDays(Number(v))}
-                  options={OPS_DAY_RANGES.map((d) => ({ value: String(d), label: `${d} ngày` }))}
-                />
-              </div>
-
-              <RankTable
-                rows={data.photoCheck.banks}
-                columns={bankColumns}
-                rowKey={(r) => r.bankId}
-                defaultSort="pending"
-                caption="Kết quả kiểm ảnh theo ngân hàng"
-                emptyText="Chưa có lượt kiểm nào trong khoảng này."
-              />
-            </SectionCard>
-
-            <SectionCard
               title="Đơn chờ giấy chứng nhận"
               icon={<ShieldCheck size={17} />}
               meta={`${formatCount(data.insurance.awaiting)} đơn`}
@@ -497,6 +457,46 @@ export default function OpsPage() {
                   }}
                 />
               )}
+            </SectionCard>
+
+            <SectionCard
+              title="Kiểm ảnh tài khoản"
+              icon={<Images size={17} />}
+              meta={`${formatCount(data.photoCheck.pending)} lượt đang đợi`}
+            >
+              <div className={styles.stats}>
+                <StatCard
+                  value={formatCount(data.photoCheck.pending)}
+                  label="Đang đợi kiểm"
+                  tone={data.photoCheck.pending > 0 ? "attention" : "normal"}
+                />
+                <StatCard
+                  value={
+                    data.photoCheck.oldestPendingAt
+                      ? formatDateTime(data.photoCheck.oldestPendingAt)
+                      : "Không có"
+                  }
+                  label="Lượt đợi lâu nhất"
+                />
+              </div>
+
+              <div className={styles.rangeRow}>
+                <SegmentedTabs
+                  label="Khoảng thống kê"
+                  value={String(days)}
+                  onChange={(v) => setDays(Number(v))}
+                  options={OPS_DAY_RANGES.map((d) => ({ value: String(d), label: `${d} ngày` }))}
+                />
+              </div>
+
+              <RankTable
+                rows={data.photoCheck.banks}
+                columns={bankColumns}
+                rowKey={(r) => r.bankId}
+                defaultSort="pending"
+                caption="Kết quả kiểm ảnh theo ngân hàng"
+                emptyText="Chưa có lượt kiểm nào trong khoảng này."
+              />
             </SectionCard>
           </>
         )}

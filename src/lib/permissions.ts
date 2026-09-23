@@ -178,6 +178,22 @@ export function clampScope(
 }
 
 /**
+ * Phòng cắt phạm vi `managed` cho MỘT module.
+ *
+ * Bảo hiểm có danh sách riêng (`user_insurance_departments`) để giao vài phòng
+ * cho một nhân viên mà không đụng `manage_scope` — trục đó nở phạm vi của mọi
+ * module khác và bật thêm mục Nhân sự.
+ *
+ * Danh sách riêng rỗng thì đọc lại trục chung, nên Phó giám đốc và Trưởng phòng
+ * không đổi gì.
+ */
+function scopeDepartmentIds(user: User, module: ModuleKey): string[] {
+  if (module === 'insurance' && user.insuranceDepartmentIds.length > 0)
+    return user.insuranceDepartmentIds;
+  return user.managedDepartmentIds;
+}
+
+/**
  * Các mức phạm vi hiện trên thanh lọc.
  *
  * Trả về 0 hoặc 1 mức thì KHÔNG hiện thanh — nhân viên kinh doanh nhìn thấy
@@ -196,7 +212,8 @@ export function availableScopes(
 
   return SCOPES.slice(0, scopeRank(widest) + 1).filter((s) => {
     // `phòng tôi quản` chỉ có nghĩa với người thật sự phụ trách phòng nào đó.
-    if (s === 'managed') return user.manageScope === 'listed';
+    if (s === 'managed')
+      return user.manageScope === 'listed' || scopeDepartmentIds(user, module).length > 0;
     /**
      * `của tôi` thực chất là "phòng của tôi" (`visibleDepartmentIds`), nên nó
      * chỉ có nghĩa với người VỪA tạo bản ghi VỪA thuộc một phòng.
@@ -337,12 +354,14 @@ export function recordVisibility(
   if (!scope) return { kind: 'none' };
 
   if (scope === 'company') return { kind: 'all' };
-  if (scope === 'managed')
-    return user.managedDepartmentIds.length > 0
-      ? { kind: 'departments', departmentIds: user.managedDepartmentIds }
+  if (scope === 'managed') {
+    const departmentIds = scopeDepartmentIds(user, module);
+    return departmentIds.length > 0
+      ? { kind: 'departments', departmentIds }
       : // Quản 0 phòng thì `managed` là tập rỗng — không thấy gì, chứ không
         // phải rơi về phòng của mình.
         { kind: 'none' };
+  }
   return { kind: 'creator', userId: user.id };
 }
 

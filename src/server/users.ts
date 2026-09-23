@@ -1,6 +1,12 @@
 import { eq, inArray } from "drizzle-orm";
 import { db } from "./db/client";
-import { userManagedBanks, userManagedDepartments, userPermissions, users } from "./db/schema";
+import {
+  userInsuranceDepartments,
+  userManagedBanks,
+  userManagedDepartments,
+  userPermissions,
+  users,
+} from "./db/schema";
 import type { Permission, User } from "@/lib/types";
 
 /**
@@ -15,6 +21,13 @@ export function toUser(
   permissions: Permission[],
   managedDepartmentIds: string[],
   managedBankIds: string[] = [],
+  /**
+   * KHÔNG có mặc định, khác `managedBankIds` ngay trên: `getActor` từng gọi
+   * `toUser` thiếu đối số này và không ai thấy, vì mặc định `[]` làm phạm vi
+   * `managed` của bảo hiểm thành tập rỗng — người được giao phòng mở màn P-13
+   * ra thấy bảng trắng, không có câu lỗi nào.
+   */
+  insuranceDepartmentIds: string[],
 ): User {
   return {
     id: row.id,
@@ -24,6 +37,7 @@ export function toUser(
     departmentId: row.departmentId,
     managedDepartmentIds,
     manageScope: row.manageScope,
+    insuranceDepartmentIds,
     managedBankIds,
     title: row.title,
     permissions,
@@ -36,19 +50,26 @@ export async function relationsFor(userIds: string[]): Promise<{
   permissionsOf: Map<string, Permission[]>;
   managedOf: Map<string, string[]>;
   managedBanksOf: Map<string, string[]>;
+  insuranceDepartmentsOf: Map<string, string[]>;
 }> {
   const permissionsOf = new Map<string, Permission[]>();
   const managedOf = new Map<string, string[]>();
   const managedBanksOf = new Map<string, string[]>();
-  if (userIds.length === 0) return { permissionsOf, managedOf, managedBanksOf };
+  const insuranceDepartmentsOf = new Map<string, string[]>();
+  if (userIds.length === 0)
+    return { permissionsOf, managedOf, managedBanksOf, insuranceDepartmentsOf };
 
-  const [perms, managed, managedBanks] = await Promise.all([
+  const [perms, managed, managedBanks, insuranceDepartments] = await Promise.all([
     db.select().from(userPermissions).where(inArray(userPermissions.userId, userIds)),
     db
       .select()
       .from(userManagedDepartments)
       .where(inArray(userManagedDepartments.userId, userIds)),
     db.select().from(userManagedBanks).where(inArray(userManagedBanks.userId, userIds)),
+    db
+      .select()
+      .from(userInsuranceDepartments)
+      .where(inArray(userInsuranceDepartments.userId, userIds)),
   ]);
 
   for (const p of perms) {
@@ -66,7 +87,12 @@ export async function relationsFor(userIds: string[]): Promise<{
     list.push(b.bankId);
     managedBanksOf.set(b.userId, list);
   }
-  return { permissionsOf, managedOf, managedBanksOf };
+  for (const d of insuranceDepartments) {
+    const list = insuranceDepartmentsOf.get(d.userId) ?? [];
+    list.push(d.departmentId);
+    insuranceDepartmentsOf.set(d.userId, list);
+  }
+  return { permissionsOf, managedOf, managedBanksOf, insuranceDepartmentsOf };
 }
 
 export async function loadUser(id: string): Promise<User | null> {
@@ -74,11 +100,13 @@ export async function loadUser(id: string): Promise<User | null> {
   const row = rows[0];
   if (!row) return null;
 
-  const { permissionsOf, managedOf, managedBanksOf } = await relationsFor([row.id]);
+  const { permissionsOf, managedOf, managedBanksOf, insuranceDepartmentsOf } =
+    await relationsFor([row.id]);
   return toUser(
     row,
     permissionsOf.get(row.id) ?? [],
     managedOf.get(row.id) ?? [],
     managedBanksOf.get(row.id) ?? [],
+    insuranceDepartmentsOf.get(row.id) ?? [],
   );
 }

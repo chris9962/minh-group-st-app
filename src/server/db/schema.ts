@@ -262,6 +262,26 @@ export const userManagedDepartments = pgTable(
 );
 
 /**
+ * Phòng được giao theo dõi ĐƠN BẢO HIỂM — trục riêng của module bảo hiểm.
+ *
+ * KHÔNG dùng chung `user_managed_departments` được: danh sách kia là trục quản
+ * lý toàn công ty. Nó nở phạm vi `managed` của MỌI module, và `manage_scope`
+ * đi kèm còn bật thêm mục Nhân sự trên thanh điều hướng. Người chỉ cần xem và
+ * xuất đơn bảo hiểm của vài phòng thì không được mở rộng tới đó.
+ *
+ * Rỗng = không có trục riêng, và bảo hiểm đọc lại `user_managed_departments`
+ * như cũ — Phó giám đốc, Trưởng phòng giữ nguyên tầm nhìn.
+ */
+export const userInsuranceDepartments = pgTable(
+  "user_insurance_departments",
+  {
+    userId: uuid("user_id").notNull().references(() => users.id),
+    departmentId: uuid("department_id").notNull().references(() => departments.id),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.departmentId] })],
+);
+
+/**
  * Ngân hàng nào do ai quản — chỉ có nghĩa với người mang
  * `system:manage-assigned-banks`.
  *

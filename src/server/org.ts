@@ -54,6 +54,7 @@ async function rowsWithHeadcount(visible: string[] | null): Promise<DepartmentRo
   const rows = await db
     .select({
       id: departments.id,
+      code: departments.code,
       name: departments.name,
       type: departments.type,
       active: departments.active,
@@ -116,7 +117,12 @@ export async function departmentsFor(
 
 export async function activeDepartments() {
   return db
-    .select({ id: departments.id, name: departments.name, active: departments.active })
+    .select({
+      id: departments.id,
+      code: departments.code,
+      name: departments.name,
+      active: departments.active,
+    })
     .from(departments)
     .where(eq(departments.active, true))
     .orderBy(asc(departments.name));
@@ -159,7 +165,14 @@ export async function createDepartment(name: string, type: DepartmentType): Prom
       .returning();
     return {
       ok: true,
-      department: { id: row.id, name: row.name, type: row.type, active: row.active, headcount: 0 },
+      department: {
+        id: row.id,
+        code: row.code,
+        name: row.name,
+        type: row.type,
+        active: row.active,
+        headcount: 0,
+      },
     };
   };
 
@@ -211,6 +224,7 @@ export async function updateDepartment(
     ok: true,
     department: {
       id: row.id,
+      code: row.code,
       name: row.name,
       type: row.type,
       active: row.active,
@@ -238,7 +252,14 @@ export async function setDepartmentActive(
     .returning();
   return {
     ok: true,
-    department: { id: row.id, name: row.name, type: row.type, active: row.active, headcount },
+    department: {
+      id: row.id,
+      code: row.code,
+      name: row.name,
+      type: row.type,
+      active: row.active,
+      headcount,
+    },
   };
 }
 
@@ -286,6 +307,7 @@ export async function departmentDetailFor(
   return {
     department: {
       id: department.id,
+      code: department.code,
       name: department.name,
       type: department.type,
       active: department.active,

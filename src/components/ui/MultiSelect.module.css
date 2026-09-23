@@ -1,0 +1,186 @@
+/* `flex: 1` để ô chiếm hết chỗ còn lại của hàng — các phòng đã chọn hiện thành
+   thẻ và xuống dòng, nên càng rộng càng ít dòng. */
+.wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.label {
+  font-size: 12.5px;
+  color: var(--om-text-2);
+  white-space: nowrap;
+}
+
+.blockWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.blockLabel {
+  font-size: 13px;
+  color: var(--om-text-2);
+}
+
+/* Cùng dáng với `.input` toàn cục: nút này đứng cạnh `Select` trong cùng một
+   hàng nên phải cao bằng và bo góc bằng, không thì hàng đó lệch. Màu chữ khai
+   thẳng — `<button>` trần lấy màu của hệ điều hành, và bộ màu tối thì nó ra
+   chữ đen trên nền tối. */
+.trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 40px;
+  padding: 6px 10px;
+  background: var(--om-card);
+  border: 1px solid var(--om-line);
+  border-radius: var(--radius-md);
+  color: var(--om-text);
+  font: inherit;
+  font-size: 13.5px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.trigger:hover:not(:disabled) {
+  border-color: var(--om-orange-mid);
+}
+
+.trigger:focus-visible {
+  outline: 2px solid var(--om-orange);
+  outline-offset: 1px;
+}
+
+.trigger:disabled {
+  cursor: not-allowed;
+  color: var(--om-text-3);
+  background: var(--om-soft);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  flex: 1;
+  min-width: 0;
+}
+
+.chip {
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--om-orange-soft);
+  color: var(--om-orange-ink);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.placeholder {
+  flex: 1;
+  min-width: 0;
+  color: var(--om-text-3);
+}
+
+.chevron {
+  flex: none;
+  color: var(--om-text-3);
+}
+
+.panel {
+  z-index: 20;
+  width: max(var(--radix-popover-trigger-width), 260px);
+  max-height: 300px;
+  display: flex;
+  flex-direction: column;
+  background: var(--om-card);
+  border: 1px solid var(--om-line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+
+.search {
+  flex: none;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--om-line);
+}
+
+.list {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 6px;
+}
+
+.row {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--om-text);
+}
+
+.row:hover {
+  background: var(--om-soft);
+}
+
+/* Ô tích thật nằm dưới ô vuông vẽ tay — bàn phím và trình đọc màn hình đi bằng
+   nó, nên không dùng `display: none`. */
+.input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.box {
+  flex: none;
+  box-sizing: border-box;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--om-line);
+  background: var(--om-card);
+  display: grid;
+  place-items: center;
+  color: var(--om-text-on-accent);
+}
+
+.boxOn {
+  background: var(--om-orange);
+  border-color: var(--om-orange);
+}
+
+.input:focus-visible + .box {
+  outline: 2px solid var(--om-orange);
+  outline-offset: 1px;
+}
+
+.rowLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.empty {
+  margin: 0;
+  padding: 20px 12px;
+  font-size: 13px;
+  color: var(--om-text-3);
+  text-align: center;
+}
+
+.error {
+  font-size: 12.5px;
+  color: var(--om-red);
+}

@@ -91,6 +91,7 @@ function person(over: Record<string, unknown> = {}) {
     role: "staff",
     departmentId: null,
     managedDepartmentIds: [],
+    insuranceDepartmentIds: [],
     managedBankIds: [],
     manageScope: "none",
     title: "",

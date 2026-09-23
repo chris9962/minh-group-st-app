@@ -20,6 +20,11 @@ export const StaffAccount = z.object({
   manageScope: ManageScope,
   managedDepartmentIds: z.array(z.string()),
   /**
+   * Phòng người này theo dõi ĐƠN BẢO HIỂM — trục riêng, chỉ module bảo hiểm
+   * đọc tới. Rỗng thì bảo hiểm dùng `managedDepartmentIds`.
+   */
+  insuranceDepartmentIds: z.array(z.string()),
+  /**
    * Ngân hàng được giao — CHỈ ĐỌC ở màn nhân sự. Muốn đổi thì sang hộp thoại
    * sửa ngân hàng: câu hỏi ở đó là "ngân hàng này ai quản", và một ngân hàng
    * có nhiều người quản nên sửa từ phía ngân hàng mới nhìn đủ.
@@ -114,6 +119,17 @@ export const STAFF_SORT = ['name', 'role', 'kpi'] as const;
 export type StaffSort = (typeof STAFF_SORT)[number];
 
 /**
+ * Phòng duy nhất được giao "Phòng theo dõi bảo hiểm" (chốt 2026-09-23).
+ *
+ * Đội xử lý đơn bảo hiểm ngồi ở Phòng Kinh doanh tổng hợp. Người phòng khác
+ * không nhận việc theo dõi đơn của phòng khác, nên ô đó không hiện ra ở hồ sơ
+ * của họ.
+ *
+ * So bằng MÃ, không so bằng tên: P-91 cho đổi tên phòng.
+ */
+export const INSURANCE_WATCH_DEPARTMENT_CODE = 'PHONG-KDTH';
+
+/**
  * Chức vụ quyết định luôn hai trục tổ chức, không để người tạo tự tích.
  *
  * `phòng phụ trách` là chữ của spec §1.1.2 cho phạm vi NHÌN, không phải chức
@@ -192,6 +208,11 @@ export const StaffForm = z.object({
   title: z.string().trim().min(2, 'Chưa nhập chức danh'),
   manageScope: ManageScope,
   managedDepartmentIds: z.array(z.guid()),
+  /**
+   * Phòng theo dõi đơn bảo hiểm — KHÔNG phụ thuộc chức vụ, nên
+   * `normalizeStaffForm` không đụng tới. Nhân viên cũng giữ được danh sách này.
+   */
+  insuranceDepartmentIds: z.array(z.guid()),
   /*
     KHÔNG có `bankScope` lẫn `managedBankIds` ở đây (chốt 2026-08-24).
 

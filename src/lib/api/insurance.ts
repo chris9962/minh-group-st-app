@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { InsuranceProduct } from '@/lib/types';
+import { InsuranceProduct, isRealIsoDate } from '@/lib/types';
 import {
   InsuranceOrderSource,
   InsuranceOrderStatus,
@@ -228,6 +228,49 @@ export type InsuranceQuery = PageQuery<InsuranceSort> & {
 
 const InsurancePage = pageOf(InsuranceListRow);
 
+/**
+ * Dòng xuất Excel của P-13 — dòng danh sách cộng hai số giấy của PVI.
+ *
+ * Hai số này KHÔNG nằm ở `InsuranceListRow`: bảng không hiện chúng, và mười lăm
+ * dòng mỗi lượt lật trang không cần chở thêm. File Excel thì cần, vì đội KD tra
+ * ngược đơn theo số khách đọc trên giấy.
+ */
+export const InsuranceExportRow = InsuranceListRow.extend({
+  /** Số ấn chỉ điện tử. Rỗng khi PVI chưa cấp, hoặc đơn đi đường bot. */
+  pviSerialNumber: z.string().default(''),
+  /** Số in trên giấy chứng nhận của đơn tai nạn điện. Rỗng với đơn xe máy. */
+  pviPolicyGcn: z.string().default(''),
+});
+export type InsuranceExportRow = z.infer<typeof InsuranceExportRow>;
+
+const InsuranceExportPage = pageOf(InsuranceExportRow);
+
+/**
+ * Trần một lượt xuất là KHOẢNG NGÀY, không phải số dòng (chốt 2026-09-23).
+ *
+ * Cắt theo số dòng thì file thiếu dòng mà trông y hệt file đủ, và người xuất
+ * không biết mình đang cầm bản thiếu. Cắt theo ngày thì người dùng biết trước
+ * mình xuất khoảng nào, và xuất nhiều tháng bằng nhiều lượt.
+ *
+ * 31 ngày phủ trọn tháng dài nhất.
+ */
+export const INSURANCE_EXPORT_MAX_DAYS = 31;
+
+export const INSURANCE_EXPORT_RANGE_MESSAGE =
+  'Một lượt xuất lấy nhiều nhất một tháng. Chọn khoảng ngày trong 31 ngày rồi xuất lại.';
+
+/**
+ * Khoảng ngày này xuất được không. Hàm dùng chung cho cả giao diện và máy chủ
+ * (AGENTS.md §6) — chặn một đầu thì đầu kia vẫn kéo trọn kho.
+ *
+ * Thiếu một đầu cũng là KHÔNG: để trống nghĩa là mọi ngày.
+ */
+export function insuranceExportRangeOk(from: string, to: string): boolean {
+  if (!isRealIsoDate(from) || !isRealIsoDate(to)) return false;
+  const days = (Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000;
+  return days >= 0 && days <= INSURANCE_EXPORT_MAX_DAYS - 1;
+}
+
 const listParams = (query: Omit<InsuranceQuery, keyof PageQuery>) => ({
   search: query.search,
   status: query.status,
@@ -256,10 +299,11 @@ export async function fetchInsuranceOrders(query: InsuranceQuery): Promise<Page<
  */
 export async function fetchInsuranceOrdersForExport(
   query: Omit<InsuranceQuery, keyof PageQuery>,
-): Promise<Page<InsuranceListRow>> {
+): Promise<Page<InsuranceExportRow>> {
   const res = await fetch(`/api/insurance-list/export?${new URLSearchParams(listParams(query))}`);
-  if (!res.ok) throw new Error('Không tải được danh sách đơn bảo hiểm');
-  return InsurancePage.parse(await res.json());
+  // Máy chủ nói rõ vì sao từ chối (khoảng ngày quá dài) — giữ nguyên câu đó.
+  if (!res.ok) throw await failure(res, 'Không tải được danh sách đơn bảo hiểm');
+  return InsuranceExportPage.parse(await res.json());
 }
 
 export async function fetchInsuranceDetail(id: string): Promise<InsuranceDetail> {

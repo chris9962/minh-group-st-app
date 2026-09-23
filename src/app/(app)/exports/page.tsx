@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Download, Lock } from "lucide-react";
+import { Download } from "lucide-react";
 import type { DateRange } from "react-day-picker";
 import { TopBar } from "@/components/layout/TopBar";
 import { Button } from "@/components/ui/Button";
@@ -729,7 +729,9 @@ export default function ExportsPage() {
     );
   }
 
-  const activeReport = REPORTS.find((r) => r.id === active);
+  // Tra trong `allowed`, không tra cả `REPORTS`: state cũ còn giữ một báo cáo
+  // người này không được xuất thì màn dưới không dựng lên nữa.
+  const activeReport = allowed.find((r) => r.id === active);
 
   return (
     <>
@@ -742,15 +744,11 @@ export default function ExportsPage() {
             setActive(v as ReportId);
             setLastResult(null);
           }}
-          options={REPORTS.map((r) => ({
+          /* Báo cáo không có quyền thì BỎ hẳn khỏi thẻ, không hiện dạng khoá:
+             người dùng không đổi được điều đó nên bày ra chỉ thêm việc đọc. */
+          options={allowed.map((r) => ({
             value: r.id,
-            disabled: !hasAccess(user, r),
-            label: (
-              <span className={styles.tabLabel}>
-                {!hasAccess(user, r) && <Lock size={13} aria-hidden />}
-                {r.label}
-              </span>
-            ),
+            label: <span className={styles.tabLabel}>{r.label}</span>,
           }))}
         />
 

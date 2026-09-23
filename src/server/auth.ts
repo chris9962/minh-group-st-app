@@ -103,12 +103,15 @@ export async function getActor(request: Request): Promise<User | null> {
   const row = rows[0];
   if (!row || !row.user.active) return null;
 
-  const { permissionsOf, managedOf, managedBanksOf } = await relationsFor([row.user.id]);
+  const { permissionsOf, managedOf, managedBanksOf, insuranceDepartmentsOf } = await relationsFor([
+    row.user.id,
+  ]);
   return toUser(
     row.user,
     permissionsOf.get(row.user.id) ?? [],
     managedOf.get(row.user.id) ?? [],
     managedBanksOf.get(row.user.id) ?? [],
+    insuranceDepartmentsOf.get(row.user.id) ?? [],
   );
 }
 

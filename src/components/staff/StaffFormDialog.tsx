@@ -15,6 +15,7 @@ import { Select } from "@/components/ui/Select";
 import { TextField } from "@/components/ui/TextField";
 import {
   createStaff,
+  INSURANCE_WATCH_DEPARTMENT_CODE,
   normalizeStaffForm,
   ROLE_SHAPE,
   StaffForm,
@@ -49,6 +50,7 @@ const emptyForm: StaffForm = {
   title: ROLE_TITLE.staff,
   manageScope: "none",
   managedDepartmentIds: [],
+  insuranceDepartmentIds: [],
   permissions: ROLE_PERMISSIONS.staff,
 };
 
@@ -76,6 +78,7 @@ const toForm = (s: StaffAccount): StaffForm => ({
   title: s.title,
   manageScope: s.manageScope,
   managedDepartmentIds: s.managedDepartmentIds,
+  insuranceDepartmentIds: s.insuranceDepartmentIds,
   permissions: s.permissions,
 });
 
@@ -139,6 +142,12 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
   const picksManaged = shape.manages === "listed" || (shape.manages === "free" && managed.length > 0);
 
   const permissions = watch("permissions");
+  /** Ô chọn phòng nằm trong lưới quyền, ngay dưới các dòng của module bảo hiểm. */
+  const insuranceDepartments = watch("insuranceDepartmentIds");
+  /** Chỉ người thuộc Phòng Kinh doanh tổng hợp mới được giao phòng theo dõi. */
+  const inInsuranceOffice =
+    departments.find((d) => d.id === watch("departmentId"))?.code ===
+    INSURANCE_WATCH_DEPARTMENT_CODE;
   /**
    * Bộ quyền Giám đốc là 15 dòng module `*`, mỗi dòng phủ MỌI module. Đếm dòng
    * thì ra số nhỏ hơn Trưởng phòng (32 dòng lẻ) trong khi quyền rộng hơn hẳn.
@@ -426,6 +435,12 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
                   setValue("permissions", permissions, { shouldDirty: true })
                 }
                 actor={actor}
+                departments={departments.map((d) => ({ value: d.id, label: d.name }))}
+                insuranceDepartmentIds={insuranceDepartments}
+                onInsuranceDepartmentsChange={(ids) =>
+                  setValue("insuranceDepartmentIds", ids, { shouldDirty: true })
+                }
+                inInsuranceOffice={inInsuranceOffice}
               />
               <Button
                 variant="secondary"
@@ -440,6 +455,7 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
             </div>
           </details>
         )}
+
       </form>
       )}
 

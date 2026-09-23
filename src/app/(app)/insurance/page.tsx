@@ -4,7 +4,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { BotOff, Pencil, Plus, ShieldCheck, Trash2, UserCheck } from "lucide-react";
+import { BotOff, Download, Pencil, Plus, ShieldCheck, Trash2, UserCheck } from "lucide-react";
 import type { DateRange } from "react-day-picker";
 import { SkeletonTable } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
@@ -30,8 +30,12 @@ import { InsuranceOrderEditDialog } from "@/components/insurance/InsuranceOrderE
 import {
   deleteInsuranceOrder,
   fetchInsuranceOrders,
+  fetchInsuranceOrdersForExport,
+  INSURANCE_EXPORT_RANGE_MESSAGE,
+  insuranceExportRangeOk,
   sendInsuranceOrderToManual,
   setInsuranceOrderStatus,
+  type InsuranceExportRow,
   type InsuranceListRow,
 } from "@/lib/api/insurance";
 import {
@@ -42,6 +46,7 @@ import {
 } from "@/lib/api/insuranceOrders";
 import { EMPTY_PAGE, PAGE_SIZE, type SortDir } from "@/lib/api/pagination";
 import { fetchStaffOptions } from "@/lib/api/staff";
+import { exportExcel, type ExcelColumn } from "@/lib/excel";
 import { formatDate } from "@/lib/format";
 import { useDebouncedValue } from "@/lib/hooks";
 import { useCreateIntent } from "@/lib/useCreateIntent";
@@ -122,6 +127,7 @@ export default function InsurancePage() {
   // Nhớ theo máy — mở lại trang không phải tích lại.
   const compact = usePrefs((s) => s.compactInsuranceTable);
   const setCompact = usePrefs((s) => s.setCompactInsuranceTable);
+  const [exporting, setExporting] = useState(false);
   const [creating, setCreating] = useCreateIntent();
   const [editing, setEditing] = useState<InsuranceListRow | null>(null);
   const [removing, setRemoving] = useState<InsuranceListRow | null>(null);
@@ -196,6 +202,65 @@ export default function InsurancePage() {
   const refine = (apply: () => void) => {
     apply();
     setPage(0);
+  };
+
+  /**
+   * Xuất ĐÚNG bộ lọc đang xem, trọn danh sách chứ không riêng trang đang hiện.
+   *
+   * Máy chủ áp phạm vi `insurance:export` của người bấm, không áp phạm vi của
+   * bảng — hai quyền cấp rời nhau nên một người xem được cả công ty mà chỉ xuất
+   * được phòng mình là chuyện bình thường.
+   */
+  const xuatExcel = async () => {
+    // Nói trước khi gọi máy chủ: kéo 30.000 dòng về rồi mới từ chối là phí.
+    if (!insuranceExportRangeOk(from, to)) {
+      toast.warn(INSURANCE_EXPORT_RANGE_MESSAGE);
+      return;
+    }
+    setExporting(true);
+    try {
+      const { rows, total } = await fetchInsuranceOrdersForExport({
+        search: searchQuery,
+        status,
+        product,
+        from,
+        to,
+        staffId,
+        staffRole,
+        departmentId,
+        handler,
+      });
+      const columns: ExcelColumn<InsuranceExportRow>[] = [
+        { header: "STT", width: 6, type: "number", value: (_r, i) => i + 1 },
+        { header: "NGÀY TẠO ĐƠN", width: 13, value: (r) => formatDate(r.orderDate) },
+        { header: "MÃ ĐƠN", width: 14, type: "text", value: (r) => r.orderCode },
+        { header: "KHÁCH HÀNG", width: 28, transform: "name", value: (r) => r.customerName },
+        { header: "SẢN PHẨM", width: 18, value: (r) => PRODUCT_LABEL[r.product] },
+        { header: "GÓI", width: 30, value: (r) => r.packageName },
+        { header: "MỨC PHÍ", width: 12, type: "number", value: (r) => r.fee },
+        { header: "HIỆU LỰC TỪ", width: 13, value: (r) => formatDate(r.startDate) },
+        { header: "NGÀY KẾT THÚC", width: 13, value: (r) => formatDate(r.endDate) },
+        { header: "TRẠNG THÁI", width: 18, value: (r) => INSURANCE_STATUS_LABEL[r.status] },
+        { header: "SỐ ẤN CHỈ", width: 24, type: "text", value: (r) => r.pviSerialNumber },
+        { header: "SỐ GCN", width: 24, type: "text", value: (r) => r.pviPolicyGcn },
+        { header: "NGƯỜI TẠO", width: 24, value: (r) => r.createdByName ?? "" },
+        { header: "PHÒNG", width: 22, value: (r) => r.createdByDepartmentName ?? "" },
+        { header: "NGƯỜI XỬ LÝ", width: 24, value: (r) => r.handledByName ?? "" },
+      ];
+      await exportExcel({
+        fileName: `don-bao-hiem-${iso(new Date())}.xlsx`,
+        sheetName: "Đơn bảo hiểm",
+        columns,
+        rows,
+      });
+      // File thiếu dòng trông y hệt file đủ, nên chạm trần phải nói ra.
+      if (total > rows.length)
+        toast.warn(`File có ${rows.length} trên ${total} đơn khớp bộ lọc. Thu hẹp bộ lọc để lấy đủ.`);
+    } catch (e) {
+      toast.fail(errorMessage(e, "Không xuất được file"));
+    } finally {
+      setExporting(false);
+    }
   };
 
   const { data = EMPTY_PAGE, isPending, isError, refetch, isFetching } = useQuery({
@@ -638,6 +703,17 @@ export default function InsurancePage() {
             </FilterField>
           ) : null}
         </FilterButton>
+        {can(user, "insurance", "export") && (
+          <Button
+            variant="secondary"
+            aria-label="Xuất Excel"
+            disabled={exporting}
+            onClick={() => void xuatExcel()}
+          >
+            <Download size={16} aria-hidden />
+            <span className={buttonStyles.label}>{exporting ? "Đang xuất…" : "Xuất Excel"}</span>
+          </Button>
+        )}
         {/*
           Chỉ Giám đốc thấy nút này (chốt 2026-09-10). Đây là lối vào của đơn mua
           TỰ NGUYỆN `source='self'`, đang dùng để chạy thử đường PVI, chưa mở cho

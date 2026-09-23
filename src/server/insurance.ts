@@ -23,6 +23,7 @@ import type {
 } from "@/lib/api/exports";
 import type {
   InsuranceDetail,
+  InsuranceExportRow,
   InsuranceListRow,
   InsuranceOrder,
   InsuranceSort,
@@ -556,6 +557,19 @@ const toOrder = (r: DecoratedRow): InsuranceOrder => ({
 });
 
 /**
+ * Dòng cho file Excel của P-13 — thêm hai số giấy PVI so với dòng bảng.
+ *
+ * `pvi_policy_gcn` nullable ở kho: `null` nghĩa là chưa từng hỏi PVI, còn rỗng
+ * là đã hỏi và PVI trả rỗng. File Excel không diễn tả nổi hai nghĩa đó nên cả
+ * hai thành ô trống.
+ */
+const toExportRow = (r: DecoratedRow): InsuranceExportRow => ({
+  ...toRow(r),
+  pviSerialNumber: r.pviSerialNumber,
+  pviPolicyGcn: r.pviPolicyGcn ?? "",
+});
+
+/**
  * Ba khoá, và cả ba đều cần thiết.
  *
  * `order_date` là thứ người dùng chọn sắp. Nhưng nó là kiểu `date` — không có
@@ -629,13 +643,18 @@ export async function listInsuranceOrders(
 /**
  * Trần một lượt xuất Excel. Chạm trần thì `total` nói ra sự thật và nơi gọi
  * BẮT BUỘC so hai số — file thiếu 5.000 dòng trông y hệt file đủ.
+ *
+ * Nâng 20.000 lên 60.000 ngày 2026-09-23: kho đơn đã hơn 32.000 dòng nên xuất
+ * không lọc chạm trần, mà người dùng cần trọn danh sách. Cùng số với
+ * `SCORING_EXPORT_LIMIT` của báo cáo Tính điểm tổng, vốn đã chạy thật ở mức đó
+ * với 50 cột.
  */
-const EXPORT_LIMIT = 20_000;
+const EXPORT_LIMIT = 60_000;
 
 export async function listInsuranceOrdersForExport(
   actor: User,
   filters: InsuranceFilters,
-): Promise<Page<InsuranceListRow>> {
+): Promise<Page<InsuranceExportRow>> {
   // `export`, không phải `view-detail`: ai được cấp `view-detail` toàn công ty
   // nhưng `export` một phòng vẫn xuất được cả kho nếu kẹp nhầm vế.
   const visible = scopeOf(actor, "export");
@@ -648,7 +667,7 @@ export async function listInsuranceOrdersForExport(
     db.select({ value: count() }).from(insuranceOrders).where(where),
   ]);
 
-  return { rows: rows.map(toRow), total: totals?.value ?? 0 };
+  return { rows: rows.map(toExportRow), total: totals?.value ?? 0 };
 }
 
 /* ── P-73 báo cáo #5 · Đơn bảo hiểm huỷ ─────────────────────────────── */

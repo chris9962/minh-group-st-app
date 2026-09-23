@@ -39,6 +39,7 @@ import {
   kpiScores,
   services,
   sessions,
+  userInsuranceDepartments,
   userManagedBanks,
   userManagedDepartments,
   userPermissions,
@@ -80,7 +81,9 @@ type UserWithDepartment = typeof users.$inferSelect & { departmentName: string |
 async function toAccounts(rows: UserWithDepartment[]): Promise<StaffAccount[]> {
   // Quyền + phòng quản + ngân hàng quản nạp MỘT lượt cho cả trang, không truy
   // vấn từng người (N+1).
-  const { permissionsOf, managedOf, managedBanksOf } = await relationsFor(rows.map((r) => r.id));
+  const { permissionsOf, managedOf, managedBanksOf, insuranceDepartmentsOf } = await relationsFor(
+    rows.map((r) => r.id),
+  );
 
   return rows.map((r) => ({
     id: r.id,
@@ -94,6 +97,7 @@ async function toAccounts(rows: UserWithDepartment[]): Promise<StaffAccount[]> {
     title: r.title,
     manageScope: r.manageScope,
     managedDepartmentIds: managedOf.get(r.id) ?? [],
+    insuranceDepartmentIds: insuranceDepartmentsOf.get(r.id) ?? [],
     managedBankIds: managedBanksOf.get(r.id) ?? [],
     active: r.active,
     permissions: permissionsOf.get(r.id) ?? [],
@@ -436,10 +440,12 @@ const checkPermissions = (actor: User, form: StaffForm): boolean =>
  * ty — `canGrant` không thấy gì bất thường vì phạm vi vẫn đúng chữ `managed`.
  */
 const checkManagedDepartments = (actor: User, form: StaffForm, action: Action): boolean => {
-  if (form.manageScope !== "listed") return true;
   const allowed = visibleDepartmentIds(actor, clampScope(actor, "staff", action, null));
   // null = phạm vi toàn công ty, giao phòng nào cũng được.
   if (allowed === null) return true;
+  // Phòng theo dõi bảo hiểm cũng nở phạm vi `managed`, nên đi qua đúng trần đó.
+  if (!form.insuranceDepartmentIds.every((id) => allowed.includes(id))) return false;
+  if (form.manageScope !== "listed") return true;
   return form.managedDepartmentIds.every((id) => allowed.includes(id));
 };
 
@@ -591,6 +597,7 @@ async function writeStaff(
         .where(eq(users.id, id));
       await tx.delete(userPermissions).where(eq(userPermissions.userId, id));
       await tx.delete(userManagedDepartments).where(eq(userManagedDepartments.userId, id));
+      await tx.delete(userInsuranceDepartments).where(eq(userInsuranceDepartments.userId, id));
 
       /**
        * Bộ quyền mới KHÔNG còn `manage-assigned-banks` thì dọn danh sách ngân
@@ -636,6 +643,18 @@ async function writeStaff(
       await tx
         .insert(userManagedDepartments)
         .values(managed.map((departmentId) => ({ userId: id, departmentId })));
+
+    /**
+     * Không còn quyền bảo hiểm nào ở phạm vi `managed` thì danh sách phòng theo
+     * dõi bảo hiểm là dữ liệu chết — `recordVisibility` không đọc tới nữa.
+     */
+    const watchesInsurance = form.permissions.some(
+      (p) => (p.module === "insurance" || p.module === "*") && p.scope === "managed",
+    );
+    if (watchesInsurance && form.insuranceDepartmentIds.length > 0)
+      await tx
+        .insert(userInsuranceDepartments)
+        .values(form.insuranceDepartmentIds.map((departmentId) => ({ userId: id, departmentId })));
   });
   return password;
 }
@@ -731,7 +750,8 @@ export async function updateStaff(actor: User, id: string, form: StaffForm): Pro
   const accessChanged =
     !samePermissions(current, form) ||
     current.role !== form.role ||
-    !sameIdSet(current.managedDepartmentIds, form.managedDepartmentIds);
+    !sameIdSet(current.managedDepartmentIds, form.managedDepartmentIds) ||
+    !sameIdSet(current.insuranceDepartmentIds, form.insuranceDepartmentIds);
   if (accessChanged) await db.delete(sessions).where(eq(sessions.userId, id));
 
   /**

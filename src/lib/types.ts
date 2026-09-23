@@ -333,6 +333,11 @@ export const DEPARTMENT_TYPE_HINT: Record<DepartmentType, string> = {
 
 export const Department = z.object({
   id: z.string(),
+  /**
+   * Mã cố định, ví dụ `PHONG-KDTH`. Giao diện nào gắn luật vào một phòng cụ thể
+   * thì so bằng mã này, KHÔNG so bằng tên: P-91 cho đổi tên phòng.
+   */
+  code: z.string(),
   name: z.string(),
   active: z.boolean(),
 });
@@ -432,6 +437,19 @@ export const User = z.object({
   /** QUẢN LÝ — 0..n phòng. Chỉ có giá trị khi manageScope = 'listed'. */
   managedDepartmentIds: z.array(z.string()),
   manageScope: ManageScope,
+  /**
+   * Phòng người này theo dõi ĐƠN BẢO HIỂM — chỉ module bảo hiểm đọc tới, và chỉ
+   * có nghĩa với ai mang quyền `insurance` ở phạm vi `managed`.
+   *
+   * Rỗng thì bảo hiểm dùng `managedDepartmentIds`. Hai danh sách rời nhau để
+   * giao vài phòng bảo hiểm cho một nhân viên mà không đụng trục quản lý chung.
+   *
+   * `.default([])` ở đây là CỐ Ý, khác mọi trường khác của `User`: phiên đang
+   * lưu trong trình duyệt không có trường này, mà `store/session.ts` bỏ phiên
+   * nào không khớp schema. Không có mặc định thì bản mới đá mọi người đang
+   * đăng nhập ra ngoài, chỉ để thêm một danh sách rỗng.
+   */
+  insuranceDepartmentIds: z.array(z.string()).default([]),
   /**
    * Ngân hàng người này được giao quản — chỉ có nghĩa với người mang
    * `system:manage-assigned-banks`.

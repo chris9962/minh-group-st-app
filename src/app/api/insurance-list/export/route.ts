@@ -1,3 +1,7 @@
+import {
+  INSURANCE_EXPORT_RANGE_MESSAGE,
+  insuranceExportRangeOk,
+} from "@/lib/api/insurance";
 import { can } from "@/lib/permissions";
 import { logAudit } from "@/server/audit";
 import { forbidden, getActor, unauthorized, uuidParam } from "@/server/auth";
@@ -15,13 +19,23 @@ export async function GET(request: Request) {
   if (!can(actor, "insurance", "export")) return forbidden();
 
   const params = new URL(request.url).searchParams;
+  const from = params.get("from") ?? "";
+  const to = params.get("to") ?? "";
+
+  /**
+   * Khoảng ngày là TRẦN của một lượt xuất — chặn ở đây chứ không chỉ ở giao
+   * diện, vì gõ tay địa chỉ này là kéo trọn kho về một file.
+   */
+  if (!insuranceExportRangeOk(from, to))
+    return Response.json({ message: INSURANCE_EXPORT_RANGE_MESSAGE }, { status: 400 });
+
   const result = await listInsuranceOrdersForExport(actor, {
     search: params.get("search") ?? "",
     status: params.get("status") ?? "",
     staffRole: params.get("staffRole") ?? "any",
     product: params.get("product") ?? "",
-    from: params.get("from") ?? "",
-    to: params.get("to") ?? "",
+    from,
+    to,
     staffId: uuidParam(params.get("staffId")),
     departmentId: uuidParam(params.get("departmentId")),
     handler: params.get("handler") ?? "",

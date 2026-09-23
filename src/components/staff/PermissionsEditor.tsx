@@ -1,5 +1,7 @@
 "use client";
 
+import { MultiSelect } from "@/components/ui/MultiSelect";
+import type { SelectOption } from "@/components/ui/Select";
 import { Select } from "@/components/ui/Select";
 import { Switch } from "@/components/ui/Switch";
 import { canGrantFullAccess, grantScopeFor, isFullAccess } from "@/lib/permissions";
@@ -27,6 +29,16 @@ type Props = {
   onChange: (permissions: Permission[]) => void;
   /** Người đang cấp quyền — dùng để giới hạn lựa chọn không vượt quá quyền của chính họ (mục 1.1.0). */
   actor: User | null;
+  /** Danh mục phòng cho ô "Phòng theo dõi" của module bảo hiểm. */
+  departments: SelectOption[];
+  insuranceDepartmentIds: string[];
+  onInsuranceDepartmentsChange: (departmentIds: string[]) => void;
+  /**
+   * Người đang sửa có thuộc phòng được giao theo dõi bảo hiểm không — xem
+   * `INSURANCE_WATCH_DEPARTMENT_CODE`. Hồ sơ đã có phòng theo dõi thì ô vẫn
+   * hiện dù cờ này tắt, không thì không ai gỡ được danh sách cũ.
+   */
+  inInsuranceOffice: boolean;
 };
 
 /** `system` không có bản ghi để CRUD — chỉ có hành động đặc biệt. */
@@ -58,9 +70,27 @@ const SCOPE_MARK_CLASS: Record<Scope | "", string> = {
  * "Quyền" trên hồ sơ nhân viên. Không hiện module `*`: cấp nguyên module đó
  * cho một người cụ thể là quá rộng để làm bằng tay, chỉ có ở bộ quyền Giám đốc.
  */
-export function PermissionsEditor({ value, onChange, actor }: Props) {
+export function PermissionsEditor({
+  value,
+  onChange,
+  actor,
+  departments,
+  insuranceDepartmentIds,
+  onInsuranceDepartmentsChange,
+  inInsuranceOffice,
+}: Props) {
   const full = isFullAccess(value);
   const canGrantFull = canGrantFullAccess(actor);
+
+  /**
+   * Đơn bảo hiểm cắt theo phòng thì phải biết là phòng NÀO — danh sách riêng
+   * của module này, không phải "Phòng phụ trách" ở trên (trục đó nở phạm vi của
+   * mọi module). Toàn quyền là toàn công ty nên không có phòng nào để chọn.
+   */
+  const picksInsuranceDepartments =
+    !full &&
+    (inInsuranceOffice || insuranceDepartmentIds.length > 0) &&
+    value.some((p) => p.module === "insurance" && p.scope === "managed");
 
   /**
    * Bộ quyền lẻ trước lúc bật công tắc, để tắt là trả lại đúng như cũ.
@@ -183,6 +213,20 @@ export function PermissionsEditor({ value, onChange, actor }: Props) {
             );
           })}
 
+          {module === "insurance" && picksInsuranceDepartments && (
+            <div className={styles.row}>
+              <span className={styles.actionLabel}>Phòng theo dõi</span>
+              <span className={`${styles.mark} ${styles.markManaged}`} aria-hidden="true" />
+              <MultiSelect
+                label="Phòng theo dõi đơn bảo hiểm"
+                hideLabel
+                value={insuranceDepartmentIds}
+                options={departments}
+                onChange={onInsuranceDepartmentsChange}
+                placeholder="Chọn phòng"
+              />
+            </div>
+          )}
         </div>
       ))}
     </div>

@@ -99,6 +99,7 @@ try {
     await client.query("DELETE FROM user_permissions WHERE user_id IN (SELECT id FROM target_users)");
     await client.query("DELETE FROM user_managed_departments WHERE user_id IN (SELECT id FROM target_users)");
     await client.query("DELETE FROM user_managed_banks WHERE user_id IN (SELECT id FROM target_users)");
+    await client.query("DELETE FROM user_insurance_departments WHERE user_id IN (SELECT id FROM target_users)");
     await client.query("DELETE FROM users WHERE id IN (SELECT id FROM target_users)");
     await client.query("COMMIT");
     console.log(`Đã xoá dữ liệu database của ${USERNAMES.length} tài khoản. Ảnh S3 chưa bị xoá.`);

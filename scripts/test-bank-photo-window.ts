@@ -4,7 +4,7 @@ import { User } from "../src/lib/types";
 
 const staff = User.parse({
   id: "test", username: "test", fullName: "Kiểm thử", role: "staff",
-  departmentId: null, managedDepartmentIds: [], managedBankIds: [],
+  departmentId: null, managedDepartmentIds: [], insuranceDepartmentIds: [], managedBankIds: [],
   manageScope: "none", title: "", permissions: [], active: true,
 });
 const marked = {
