@@ -32,6 +32,7 @@ import {
   insuranceOrders,
   kpiScores,
   referralCodes,
+  salarySnapshots,
   serviceTypes,
   services,
   sessions,
@@ -185,6 +186,8 @@ async function clean() {
     await db.delete(auditLog).where(eq(auditLog.actorId, u.id));
     await db.delete(sessions).where(eq(sessions.userId, u.id));
     await db.delete(kpiScores).where(eq(kpiScores.userId, u.id));
+    // Chốt lương chụp mọi người, kể cả tài khoản `demo_*` trong phòng kinh doanh.
+    await db.delete(salarySnapshots).where(eq(salarySnapshots.userId, u.id));
     await db.delete(userPermissions).where(eq(userPermissions.userId, u.id));
     await db.delete(userManagedDepartments).where(eq(userManagedDepartments.userId, u.id));
     await db.delete(users).where(eq(users.id, u.id));

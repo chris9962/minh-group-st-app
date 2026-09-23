@@ -35,6 +35,7 @@ import {
   insurancePackages,
   kpiScores,
   referralCodes,
+  salarySnapshots,
   serviceTypes,
   services,
   sessions,
@@ -134,6 +135,8 @@ for (const u of accounts) {
   // Điểm KPI: ca test ghi một lượt dịch vụ là máy chủ tính lại điểm ngay và để
   // lại một dòng ở đây, dù chính bản ghi dịch vụ đã bị dọn ở trên.
   await db.delete(kpiScores).where(eq(kpiScores.userId, u.id));
+  // Chốt lương chụp mọi người, kể cả tài khoản test đang nằm trong phòng kinh doanh.
+  await db.delete(salarySnapshots).where(eq(salarySnapshots.userId, u.id));
   await db.delete(users).where(eq(users.id, u.id));
 }
 if (accounts.length) wiped.push(`tài khoản: ${accounts.length}`);

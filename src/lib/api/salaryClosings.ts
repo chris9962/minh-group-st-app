@@ -4,6 +4,8 @@ import { z } from 'zod';
 export const SalaryClosing = z.object({
   month: z.string(),
   closed: z.boolean(),
+  /** Máy chủ tính theo giờ Việt Nam: tháng đã kết thúc, có công thức lương, chưa chốt. */
+  closable: z.boolean(),
   closedAt: z.string().nullable(),
   closedByName: z.string().nullable(),
 });

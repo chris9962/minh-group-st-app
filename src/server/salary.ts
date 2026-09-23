@@ -1,5 +1,5 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
-import { monthRange } from "@/lib/format";
+import { businessMonth, monthRange } from "@/lib/format";
 import type { RoleKey, User } from "@/lib/types";
 import { salaryRulesFor, type SalaryFact, type SalaryItem } from "@/rules/salary";
 import { db } from "./db/client";
@@ -75,34 +75,32 @@ export async function salaryForUsers(
   userIds: string[],
   yearMonth: string,
 ): Promise<Map<string, SalaryBreakdown>> {
-  const [closing] = await db
-    .select({ yearMonth: salaryClosings.yearMonth })
-    .from(salaryClosings)
-    .where(eq(salaryClosings.yearMonth, yearMonth))
-    .limit(1);
-  return closing ? closedSalaries(userIds, yearMonth) : liveSalaries(userIds, yearMonth);
-}
+  if (userIds.length === 0) return new Map();
 
-async function closedSalaries(
-  userIds: string[],
-  yearMonth: string,
-): Promise<Map<string, SalaryBreakdown>> {
-  const result = new Map<string, SalaryBreakdown>();
-  for (const id of userIds) result.set(id, zeroSalary(yearMonth));
-  if (userIds.length === 0) return result;
-
+  // Một câu cho cả hai việc: hỏi đã chốt chưa rồi mới đọc số là hai câu, và lượt
+  // mở chốt chen giữa làm lượt tải đó ra lương 0 cho cả công ty.
   const rows = await db
     .select({
       userId: salarySnapshots.userId,
       amount: salarySnapshots.amount,
       breakdown: salarySnapshots.breakdown,
     })
-    .from(salarySnapshots)
-    .where(
-      and(eq(salarySnapshots.yearMonth, yearMonth), inArray(salarySnapshots.userId, userIds)),
-    );
+    .from(salaryClosings)
+    .leftJoin(
+      salarySnapshots,
+      and(
+        eq(salarySnapshots.yearMonth, salaryClosings.yearMonth),
+        inArray(salarySnapshots.userId, userIds),
+      ),
+    )
+    .where(eq(salaryClosings.yearMonth, yearMonth));
+  if (rows.length === 0) return liveSalaries(userIds, yearMonth);
+
+  const result = new Map<string, SalaryBreakdown>();
+  for (const id of userIds) result.set(id, zeroSalary(yearMonth));
   for (const row of rows)
-    result.set(row.userId, { amount: row.amount, month: yearMonth, ...row.breakdown });
+    if (row.userId && row.amount !== null && row.breakdown)
+      result.set(row.userId, { amount: row.amount, month: yearMonth, ...row.breakdown });
   return result;
 }
 
@@ -291,18 +289,29 @@ async function liveSalaries(
 
 export type SalaryClosingStatus = {
   month: string;
-  closedAt: Date;
-  closedByName: string;
+  closed: boolean;
+  closable: boolean;
+  closedAt: string | null;
+  closedByName: string | null;
 };
 
-export async function salaryClosingOf(yearMonth: string): Promise<SalaryClosingStatus | null> {
+export async function salaryClosingOf(yearMonth: string): Promise<SalaryClosingStatus> {
   const [row] = await db
     .select({ closedAt: salaryClosings.closedAt, closedByName: users.fullName })
     .from(salaryClosings)
     .innerJoin(users, eq(users.id, salaryClosings.closedBy))
     .where(eq(salaryClosings.yearMonth, yearMonth))
     .limit(1);
-  return row ? { month: yearMonth, ...row } : null;
+  return {
+    month: yearMonth,
+    closed: Boolean(row),
+    // Tháng chưa kết thúc thì điểm và ngày công còn tăng. Tháng chưa có công
+    // thức thì không có số nào để chốt. Tính ở máy chủ vì tháng hiện tại theo
+    // giờ Việt Nam, máy người dùng để múi giờ khác thì ra tháng khác.
+    closable: !row && yearMonth < businessMonth() && salaryRulesFor(yearMonth) !== null,
+    closedAt: row?.closedAt.toISOString() ?? null,
+    closedByName: row?.closedByName ?? null,
+  };
 }
 
 /**

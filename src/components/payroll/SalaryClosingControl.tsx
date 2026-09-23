@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Lock, Unlock } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { monthLabel, thisMonth } from "@/components/ui/MonthPicker";
+import { monthLabel } from "@/components/ui/MonthPicker";
 import { StatusTag } from "@/components/ui/StatusTag";
 import { closeSalary, fetchSalaryClosing, reopenSalary } from "@/lib/api/salaryClosings";
 import { errorMessage, toast } from "@/lib/toast";
@@ -27,19 +27,22 @@ export function SalaryClosingControl({ month }: { month: string }) {
       // Lương hiện ở nhiều màn (Tổng quan, Nhân sự, hồ sơ, phòng ban): tải lại hết.
       void queryClient.invalidateQueries();
     },
-    onError: (e) => toast.fail(errorMessage(e, "Không lưu được trạng thái chốt lương.")),
+    onError: (e) => {
+      setConfirming(false);
+      toast.fail(errorMessage(e, "Không lưu được trạng thái chốt lương."));
+      // Lỗi hay gặp nhất là người khác vừa chốt hoặc mở chốt: tải lại để nút đổi theo.
+      void queryClient.invalidateQueries({ queryKey: ["salary-closing", month] });
+    },
   });
 
   if (!data) return null;
-  // Tháng chưa kết thúc thì điểm và ngày công còn tăng; máy chủ cũng từ chối.
-  const monthRunning = month >= thisMonth();
 
   return (
     <>
       {data.closed && <StatusTag ok>Đã chốt lương</StatusTag>}
       <Button
         variant="secondary"
-        disabled={!data.closed && monthRunning}
+        disabled={!data.closed && !data.closable}
         onClick={() => setConfirming(true)}
       >
         {data.closed ? <Unlock size={16} aria-hidden /> : <Lock size={16} aria-hidden />}

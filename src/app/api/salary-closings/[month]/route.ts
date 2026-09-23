@@ -1,6 +1,6 @@
 import { logAudit } from "@/server/audit";
-import { actorWith, notFound } from "@/server/auth";
-import { reopenSalaryMonth } from "@/server/salary";
+import { actorWith } from "@/server/auth";
+import { reopenSalaryMonth, salaryClosingOf } from "@/server/salary";
 
 type Params = { params: Promise<{ month: string }> };
 
@@ -10,7 +10,8 @@ export async function DELETE(request: Request, { params }: Params) {
   if (!guard.ok) return guard.response;
 
   const { month } = await params;
-  if (!(await reopenSalaryMonth(month))) return notFound();
+  if (!(await reopenSalaryMonth(month)))
+    return Response.json({ message: `Lương tháng ${month} chưa chốt` }, { status: 409 });
 
   await logAudit(guard.actor, {
     module: "system",
@@ -19,5 +20,5 @@ export async function DELETE(request: Request, { params }: Params) {
     targetTable: "salary_closings",
     targetId: month,
   });
-  return Response.json({ month, closed: false, closedAt: null, closedByName: null });
+  return Response.json(await salaryClosingOf(month));
 }
