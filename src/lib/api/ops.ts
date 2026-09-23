@@ -23,9 +23,9 @@ export const OPS_CERT_REMIND_MINUTES = 15;
 /** Tài nguyên dùng quá ngần này phần trăm thì đẩy thông báo. */
 export const OPS_RESOURCE_PERCENT = 80;
 
-/** Số ngày của khối thống kê kiểm ảnh. Người xem bấm đổi, máy chủ nhận số khác thì rơi về 7. */
+/** Số ngày của khối thống kê kiểm ảnh. Người xem bấm đổi, máy chủ nhận số khác thì dùng mặc định. */
 export const OPS_DAY_RANGES = [1, 7, 30] as const;
-export const OPS_DEFAULT_DAYS = 7;
+export const OPS_DEFAULT_DAYS = 1;
 
 export const OpsBankCheck = z.object({
   bankId: z.string(),

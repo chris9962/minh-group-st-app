@@ -277,6 +277,51 @@ export default function OpsPage() {
         {!isPending && !isError && data && (
           <>
             <SectionCard
+              title="Máy chủ"
+              icon={<Cpu size={17} />}
+              meta={host ? `Đo lúc ${formatDateTime(host.at)}` : "Chưa có số đo"}
+            >
+              {!host ? (
+                // Rỗng chỉ có MỘT nguyên nhân: dịch vụ `mgst-ops-watch` chưa
+                // chạy trên máy chủ. Tên dịch vụ không viết ra màn — người đọc
+                // màn này đã có tài liệu deploy, mục 8e.
+                <p className="text-muted">Chưa có số đo nào.</p>
+              ) : (
+                <div className={styles.resources}>
+                  <ResourceCard
+                    label="CPU"
+                    percent={Math.round(host.cpuPercent)}
+                    used={`${Math.round(host.cpuPercent)}% trong một phút`}
+                    total=""
+                  />
+                  <ResourceCard
+                    label="RAM"
+                    percent={percentOf(host.ramUsed, host.ramTotal)}
+                    used={formatBytes(host.ramUsed)}
+                    total={formatBytes(host.ramTotal)}
+                  />
+                  <ResourceCard
+                    label="Ổ đĩa"
+                    percent={percentOf(host.diskUsed, host.diskTotal)}
+                    used={formatBytes(host.diskUsed)}
+                    total={formatBytes(host.diskTotal)}
+                  />
+                  <ResourceCard
+                    label="S3"
+                    percent={percentOf(host.s3Bytes, host.s3Quota)}
+                    used={formatBytes(host.s3Bytes)}
+                    total={host.s3Quota > 0 ? formatBytes(host.s3Quota) : ""}
+                    detail={
+                      host.s3At
+                        ? `${formatCount(host.s3Objects)} tệp · đo lúc ${formatDateTime(host.s3At)}`
+                        : "Chưa đo lần nào"
+                    }
+                  />
+                </div>
+              )}
+            </SectionCard>
+
+            <SectionCard
               title="Kiểm ảnh tài khoản"
               icon={<Images size={17} />}
               meta={`${formatCount(data.photoCheck.pending)} lượt đang đợi`}
@@ -451,51 +496,6 @@ export default function OpsPage() {
                     onPageChange: setPage,
                   }}
                 />
-              )}
-            </SectionCard>
-
-            <SectionCard
-              title="Máy chủ"
-              icon={<Cpu size={17} />}
-              meta={host ? `Đo lúc ${formatDateTime(host.at)}` : "Chưa có số đo"}
-            >
-              {!host ? (
-                // Rỗng chỉ có MỘT nguyên nhân: dịch vụ `mgst-ops-watch` chưa
-                // chạy trên máy chủ. Tên dịch vụ không viết ra màn — người đọc
-                // màn này đã có tài liệu deploy, mục 8e.
-                <p className="text-muted">Chưa có số đo nào.</p>
-              ) : (
-                <div className={styles.resources}>
-                  <ResourceCard
-                    label="CPU"
-                    percent={Math.round(host.cpuPercent)}
-                    used={`${Math.round(host.cpuPercent)}% trong một phút`}
-                    total=""
-                  />
-                  <ResourceCard
-                    label="RAM"
-                    percent={percentOf(host.ramUsed, host.ramTotal)}
-                    used={formatBytes(host.ramUsed)}
-                    total={formatBytes(host.ramTotal)}
-                  />
-                  <ResourceCard
-                    label="Ổ đĩa"
-                    percent={percentOf(host.diskUsed, host.diskTotal)}
-                    used={formatBytes(host.diskUsed)}
-                    total={formatBytes(host.diskTotal)}
-                  />
-                  <ResourceCard
-                    label="S3"
-                    percent={percentOf(host.s3Bytes, host.s3Quota)}
-                    used={formatBytes(host.s3Bytes)}
-                    total={host.s3Quota > 0 ? formatBytes(host.s3Quota) : ""}
-                    detail={
-                      host.s3At
-                        ? `${formatCount(host.s3Objects)} tệp · đo lúc ${formatDateTime(host.s3At)}`
-                        : "Chưa đo lần nào"
-                    }
-                  />
-                </div>
               )}
             </SectionCard>
           </>

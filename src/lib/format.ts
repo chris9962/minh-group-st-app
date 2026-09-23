@@ -132,13 +132,22 @@ export function formatDate(value: Date | string): string {
  */
 export const BUSINESS_TIMEZONE = 'Asia/Ho_Chi_Minh';
 
-/** Mốc giờ nghiệp vụ cho hạn sửa và dòng thời gian, luôn theo giờ Việt Nam. */
+/**
+ * Mốc giờ nghiệp vụ cho hạn sửa và dòng thời gian, luôn theo giờ Việt Nam:
+ * `22/09/2026 20:15`, ngày trước giờ sau (chốt 2026-09-23).
+ *
+ * Ghép từng mảnh chứ không đọc `format()`: `vi-VN` in giờ TRƯỚC ngày, và thứ tự
+ * đó do dữ liệu locale quyết định — cùng lý do với `businessDay` bên dưới.
+ */
 export function formatDateTime(value: Date | string): string {
-  return new Intl.DateTimeFormat('vi-VN', {
+  const parts = new Intl.DateTimeFormat('en-GB-u-ca-gregory-nu-latn', {
     timeZone: BUSINESS_TIMEZONE,
     day: '2-digit', month: '2-digit', year: 'numeric',
-    hour: '2-digit', minute: '2-digit',
-  }).format(typeof value === 'string' ? new Date(value) : value);
+    hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).formatToParts(typeof value === 'string' ? new Date(value) : value);
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((p) => p.type === type)?.value ?? '';
+  return `${part('day')}/${part('month')}/${part('year')} ${part('hour')}:${part('minute')}`;
 }
 
 /**
