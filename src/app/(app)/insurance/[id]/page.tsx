@@ -254,10 +254,13 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
   const canSetStatus = can(actor, "insurance", "set-status");
   const canCreate = can(actor, "insurance", "create");
   /**
-   * Ba dòng đối soát với PVI (Mã GD, Số, GCN) ẩn với Nhân viên (chốt
-   * 2026-09-08): họ không đối soát với PVI, ba chuỗi số chỉ làm rối phần đầu
-   * đơn. Đây là chuyện HIỂN THỊ theo chức vụ, không phải phân quyền — API vẫn
-   * trả đủ cho ai mở được đơn.
+   * Hai dòng đối soát với PVI (Mã GD, GCN) ẩn với Nhân viên (chốt 2026-09-08):
+   * họ không đối soát với PVI, hai chuỗi số chỉ làm rối phần đầu đơn. Đây là
+   * chuyện HIỂN THỊ theo chức vụ, không phải phân quyền — API vẫn trả đủ cho ai
+   * mở được đơn.
+   *
+   * Dòng Số ấn chỉ nằm NGOÀI điều kiện này (chốt 2026-09-23): khách đọc số đó
+   * trên giấy nên nhân viên phải tra được.
    */
   const showPviRefs = actor?.role !== "staff";
   /** Người tạo chỉ được huỷ đơn đã hoàn thành của chính mình; đơn chưa xong có đường xoá riêng. */
@@ -508,7 +511,7 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                     chiếu hai số này với nhau khi tra đơn bên PVI. Nhãn đi kèm
                     vì hai chuỗi số cạnh nhau mà không nói cái nào là cái gì thì
                     đọc ra một mã dài. */}
-                {showPviRefs && data.pviSerialNumber && (
+                {data.pviSerialNumber && (
                   <p className={styles.serialInline}>
                     <span className={styles.serialLabel}>Số</span>
                     {data.pviSerialNumber}
