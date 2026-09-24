@@ -1,9 +1,9 @@
 import { isRealIsoDate } from "@/lib/types";
 import { badRequest, signedIn } from "@/server/auth";
-import { customerAddressesWithAccounts, customerListScope } from "@/server/customers";
+import { customerAddressesInRange, customerListScope } from "@/server/customers";
 
 /**
- * Ô lọc Ấp của P-40: địa chỉ của khách có tài khoản, lập trong khoảng ngày.
+ * Ô lọc Ấp của P-40: địa chỉ của khách lập trong khoảng ngày.
  *
  * Route riêng chứ không phải tham số của `/api/customers`: đường đó trả một
  * TRANG, còn ô chọn cần trọn danh sách (AGENTS.md §5.1, điều 4). Áp cùng phạm vi
@@ -18,7 +18,7 @@ export async function GET(request: Request) {
   const to = params.get("to") ?? "";
   if (!isRealIsoDate(from) || !isRealIsoDate(to)) return badRequest("Khoảng ngày không hợp lệ");
 
-  const addresses = await customerAddressesWithAccounts({
+  const addresses = await customerAddressesInRange({
     from,
     to,
     ...customerListScope(guard.actor),

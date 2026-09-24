@@ -260,9 +260,10 @@ export default function CustomersPage() {
   });
 
   /**
-   * Có khoảng ngày thì ô Ấp chỉ còn dòng danh mục có khách mở tài khoản trong
-   * kỳ; chưa chọn ngày thì giữ trọn danh mục (chốt 2026-09-24). Dòng xã còn khi
-   * xã có ít nhất một khách như vậy. Ấp đang chọn luôn giữ lại để bỏ chọn được.
+   * Có khoảng ngày thì ô Ấp chỉ còn dòng danh mục có khách lập trong kỳ, không
+   * xét tài khoản; chưa chọn ngày thì giữ trọn danh mục (chốt 2026-09-24). Dòng
+   * xã còn khi xã có ít nhất một khách như vậy. Ấp đang chọn luôn giữ lại để bỏ
+   * chọn được.
    */
   const addressOptions = useMemo(() => {
     const inRange = from && to && rangeAddresses ? new Set(rangeAddresses) : null;

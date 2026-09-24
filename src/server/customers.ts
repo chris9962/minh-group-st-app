@@ -4,7 +4,6 @@ import {
   count,
   desc,
   eq,
-  gt,
   gte,
   inArray,
   isNull,
@@ -694,24 +693,20 @@ export async function listCustomersForExport(
 }
 
 /**
- * Các địa chỉ khác nhau của khách có tài khoản hoàn thành, lập trong khoảng
- * ngày, cho ô lọc Ấp của P-40. Chỉ đọc khách trong khoảng ngày, không đọc cả kho.
+ * Các địa chỉ khác nhau của khách lập trong khoảng ngày, không xét tài khoản
+ * (chốt 2026-09-24), cho ô lọc Ấp của P-40. Chỉ đọc khách trong khoảng ngày,
+ * không đọc cả kho.
  *
  * Trả chuỗi địa chỉ thô, kể cả chuỗi gõ tay không có trong danh mục; giao diện
  * tự giao với danh mục vì ô lọc chỉ nhận dòng của danh mục.
  */
-export async function customerAddressesWithAccounts(
+export async function customerAddressesInRange(
   filters: Pick<CustomerFilters, "from" | "to" | "createdBy" | "departmentIds">,
 ): Promise<string[]> {
   const rows = await db
     .selectDistinct({ address: customers.address })
     .from(customers)
-    .where(
-      and(
-        customerFilters({ search: "", channelId: "", ...filters }),
-        gt(customers.accountCount, 0),
-      ),
-    );
+    .where(customerFilters({ search: "", channelId: "", ...filters }));
   return rows.flatMap((row) => (row.address ? [row.address] : []));
 }
 

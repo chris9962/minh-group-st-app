@@ -225,7 +225,7 @@ export async function fetchCustomers(query: CustomerQuery): Promise<Page<Custome
 
 const CustomerAddresses = z.object({ addresses: z.array(z.string()) });
 
-/** Địa chỉ của khách có tài khoản, lập trong khoảng ngày `[from, to]`, cho ô lọc Ấp. */
+/** Địa chỉ của khách lập trong khoảng ngày `[from, to]`, cho ô lọc Ấp. */
 export async function fetchCustomerAddresses(from: string, to: string): Promise<string[]> {
   const params = new URLSearchParams({ from, to });
   const res = await fetch(`/api/customers/addresses?${params}`);
