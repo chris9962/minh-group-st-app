@@ -494,6 +494,7 @@ const statusFilter = (raw: string): SQL | undefined =>
 async function accountFilters(
   visible: RecordVisibility,
   query: BankAccountFilters,
+  dayOf: "customer" | "opened" = "customer",
 ): Promise<SQL | undefined> {
   const [bankIds, codeIds, searchCodeIds] = await Promise.all([
     bankIdsOf(query.bankCode),
@@ -514,10 +515,11 @@ async function accountFilters(
         : sql`false`,
     // Ngày sai định dạng thì bỏ qua, không trả 400 — link cũ hay ô địa chỉ gõ
     // nhầm không đáng làm hỏng cả màn (cùng lối nghĩ với `uuidParam`).
-    // Lọc theo NGÀY HỒ SƠ khách, cùng mốc với điểm và quà (chốt 2026-09-16);
-    // cột ngày mở tài khoản vẫn hiện nhưng không còn là mốc lọc.
+    // Bảng điểm lọc theo NGÀY HỒ SƠ khách, cùng mốc với điểm và quà (chốt
+    // 2026-09-16). Bảng P-21 và file Excel của nó lọc theo ngày mở tài khoản,
+    // cho khớp số với trang chi tiết ngân hàng (chốt 2026-09-24).
     usableDate(query.from) || usableDate(query.to)
-      ? accountCustomerDayBetween(
+      ? (dayOf === "opened" ? accountOpenedDayBetween : accountCustomerDayBetween)(
           usableDate(query.from) ? query.from : "1970-01-01",
           usableDate(query.to) ? query.to : "9999-12-31",
         )
@@ -762,7 +764,7 @@ export async function listBankAccounts(
   const visible = scopeOf(actor, "view-detail");
   if (visible.kind === "none") return { rows: [], total: 0 };
 
-  const where = await accountFilters(visible, filters);
+  const where = await accountFilters(visible, filters, "opened");
   const [rows, [totals]] = await Promise.all([
     orderedPage(where, page.dir, page.limit, page.offset),
     db.select({ value: count() }).from(bankAccounts).where(where),
@@ -933,7 +935,7 @@ export async function listBankAccountsForExport(
   const visible = scopeOf(actor, "export");
   if (visible.kind === "none") return { rows: [], total: 0 };
 
-  const where = await accountFilters(visible, filters);
+  const where = await accountFilters(visible, filters, "opened");
   const [rows, [totals]] = await Promise.all([
     orderedPage(where, "desc", EXPORT_LIMIT, 0),
     db.select({ value: count() }).from(bankAccounts).where(where),
