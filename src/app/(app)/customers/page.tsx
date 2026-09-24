@@ -31,7 +31,7 @@ import {
   ACCOUNT_FILTERS,
   ACCOUNT_FILTER_LABEL,
   CUSTOMER_SORT,
-  accountFilterFrom,
+  accountFiltersFrom,
   deleteCustomer,
   fetchCustomerDetail,
   fetchCustomers,
@@ -67,7 +67,7 @@ const FIRST_PAGE: CustomerQuery = {
   address: "",
   staffId: "",
   departmentId: "",
-  accounts: "",
+  accounts: [],
   from: "",
   to: "",
   page: 0,
@@ -101,7 +101,7 @@ const queryFromUrl = (params: URLSearchParams): CustomerQuery => {
     address: params.get("address") ?? "",
     staffId: params.get("staffId") ?? "",
     departmentId: params.get("departmentId") ?? "",
-    accounts: accountFilterFrom(params.get("accounts")),
+    accounts: accountFiltersFrom(params.get("accounts")),
     page: pageFromUrl(params.get("page")),
     // Khoá lạ rơi về mặc định, không làm hỏng màn — cùng lối với `pageArgsFrom`.
     sort: CUSTOMER_SORT.includes(sort as CustomerSort) ? (sort as CustomerSort) : "created",
@@ -270,7 +270,7 @@ export default function CustomersPage() {
     if (asked.channelDetail) params.set("channelDetail", asked.channelDetail);
     if (asked.address) params.set("address", asked.address);
     if (asked.staffId) params.set("staffId", asked.staffId);
-    if (asked.accounts) params.set("accounts", asked.accounts);
+    if (asked.accounts.length > 0) params.set("accounts", asked.accounts.join(","));
     if (asked.page > 0) params.set("page", String(asked.page + 1));
     if (asked.sort !== "created") params.set("sort", asked.sort);
     if (asked.dir === "asc") params.set("dir", asked.dir);
@@ -307,7 +307,7 @@ export default function CustomersPage() {
     (query.address ? 1 : 0) +
     (query.departmentId ? 1 : 0) +
     (query.staffId ? 1 : 0) +
-    (query.accounts ? 1 : 0) +
+    (query.accounts.length > 0 ? 1 : 0) +
     (from && to ? 1 : 0);
   // "Chưa có khách nào" và "lọc không ra gì" là hai chuyện khác nhau. Nói nhầm
   // thì người dùng đi xoá bộ lọc vốn đang trống, thay vì bấm "Thêm khách hàng".
@@ -574,7 +574,7 @@ export default function CustomersPage() {
               address: "",
               departmentId: "",
               staffId: "",
-              accounts: "",
+              accounts: [],
             });
           }}
         >
@@ -652,15 +652,13 @@ export default function CustomersPage() {
               />
             </FilterField>
           ) : null}
-          <FilterField id="accounts" label="Tài khoản" count={query.accounts ? 1 : 0}>
+          <FilterField id="accounts" label="Tài khoản" count={query.accounts.length}>
             <FilterChoices
+              multiple
               label="Tài khoản"
               value={query.accounts}
-              onChange={(v) => refine({ accounts: accountFilterFrom(v) })}
-              options={[
-                { value: "", label: "Tất cả khách" },
-                ...ACCOUNT_FILTERS.map((f) => ({ value: f, label: ACCOUNT_FILTER_LABEL[f] })),
-              ]}
+              onChange={(v) => refine({ accounts: accountFiltersFrom(v.join(",")) })}
+              options={ACCOUNT_FILTERS.map((f) => ({ value: f, label: ACCOUNT_FILTER_LABEL[f] }))}
             />
           </FilterField>
         </FilterButton>
@@ -741,8 +739,13 @@ export default function CustomersPage() {
                   },
                 ]
               : []),
-            ...(query.accounts
-              ? [{ label: ACCOUNT_FILTER_LABEL[query.accounts], onRemove: () => refine({ accounts: "" }) }]
+            ...(query.accounts.length > 0
+              ? [
+                  {
+                    label: `Tài khoản: ${query.accounts.map((f) => ACCOUNT_FILTER_LABEL[f]).join(", ")}`,
+                    onRemove: () => refine({ accounts: [] }),
+                  },
+                ]
               : []),
           ]}
         />

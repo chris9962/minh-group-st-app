@@ -139,21 +139,30 @@ export type CustomerSort = (typeof CUSTOMER_SORT)[number];
 
 /**
  * Ô lọc Tài khoản, đọc cột `account_count` (chỉ dòng `done`, có tính dòng HKD).
- * `any` = ít nhất một tài khoản; số = đúng bấy nhiêu tài khoản; `gte3` = từ 3 trở lên.
+ * Số = đúng bấy nhiêu tài khoản; `gte3` = từ 3 trở lên. Chọn nhiều giá trị thì
+ * lấy khách khớp BẤT KỲ giá trị nào: mỗi khách chỉ có một số tài khoản, nên
+ * đòi khớp tất cả là luôn ra bảng rỗng.
  */
-export const ACCOUNT_FILTERS = ['any', '1', '2', 'gte3'] as const;
+export const ACCOUNT_FILTERS = ['1', '2', 'gte3'] as const;
 export type AccountFilter = (typeof ACCOUNT_FILTERS)[number];
 
 export const ACCOUNT_FILTER_LABEL: Record<AccountFilter, string> = {
-  any: 'Chỉ khách có tài khoản',
   '1': '1 tài khoản',
   '2': '2 tài khoản',
   gte3: '≥3 tài khoản',
 };
 
-/** Giá trị lạ thì bỏ lọc, cùng lối với khoá sắp xếp. */
-export const accountFilterFrom = (value: string | null): AccountFilter | '' =>
-  ACCOUNT_FILTERS.includes(value as AccountFilter) ? (value as AccountFilter) : '';
+/**
+ * Đọc `accounts=1,gte3` trên URL, trả về theo thứ tự của `ACCOUNT_FILTERS`.
+ * Giá trị lạ thì bỏ, cùng lối với khoá sắp xếp. `any` là dạng của bản chọn một
+ * giá trị, đọc thành cả ba để link cũ vẫn lọc đúng.
+ */
+export const accountFiltersFrom = (value: string | null): AccountFilter[] => {
+  const picked = (value ?? '').split(',');
+  return picked.includes('any')
+    ? [...ACCOUNT_FILTERS]
+    : ACCOUNT_FILTERS.filter((filter) => picked.includes(filter));
+};
 
 export type CustomerQuery = PageQuery<CustomerSort> & {
   search: string;
@@ -186,8 +195,8 @@ export type CustomerQuery = PageQuery<CustomerSort> & {
    * ngoài phạm vi thì ra bảng rỗng.
    */
   departmentId: string;
-  /** Số tài khoản hoàn thành, xem `ACCOUNT_FILTERS`. Rỗng = không lọc. */
-  accounts: AccountFilter | '';
+  /** Số tài khoản hoàn thành, xem `ACCOUNT_FILTERS`. Mảng rỗng = không lọc. */
+  accounts: AccountFilter[];
 };
 
 const CustomerPage = pageOf(CustomerRow);
@@ -207,7 +216,7 @@ export async function fetchCustomers(query: CustomerQuery): Promise<Page<Custome
       to: query.to,
       staffId: query.staffId,
       departmentId: query.departmentId,
-      accounts: query.accounts,
+      accounts: query.accounts.join(','),
     })}`,
   );
   if (!res.ok) throw new Error('Không tải được danh sách khách hàng');
@@ -303,7 +312,8 @@ export async function fetchCustomersForExport(
 ): Promise<Page<CustomerExportRow>> {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(query)) {
-    if (value) params.set(key, value);
+    const text = Array.isArray(value) ? value.join(',') : value;
+    if (text) params.set(key, text);
   }
   const res = await fetch(`/api/customers/export?${params}`);
   if (!res.ok) throw new Error('Không tải được danh sách khách hàng để xuất');

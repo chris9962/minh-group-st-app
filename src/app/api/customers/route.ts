@@ -1,7 +1,7 @@
 import {
   CUSTOMER_ERROR,
   CustomerForm,
-  accountFilterFrom,
+  accountFiltersFrom,
   type CustomerSort,
 } from "@/lib/api/customers";
 import { logAudit } from "@/server/audit";
@@ -84,7 +84,7 @@ export async function GET(request: Request) {
         createdBy: scope.createdBy ?? uuidParam(params.get("staffId")),
         departmentIds: scope.departmentIds,
         departmentId: uuidParam(params.get("departmentId")),
-        accounts: accountFilterFrom(params.get("accounts")),
+        accounts: accountFiltersFrom(params.get("accounts")),
       },
       pageArgsFrom(url, SORTABLE, "created"),
     ),

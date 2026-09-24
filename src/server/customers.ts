@@ -4,7 +4,6 @@ import {
   count,
   desc,
   eq,
-  gt,
   gte,
   inArray,
   isNull,
@@ -162,9 +161,18 @@ export type CustomerFilters = {
    * không nới phạm vi.
    */
   departmentId?: string;
-  /** `any` = `account_count > 0`, `gte3` = `>= 3`, số = `account_count` đúng bằng số đó. */
-  accounts?: AccountFilter | "";
+  /** Khớp BẤT KỲ giá trị nào: số = `account_count` đúng bằng số đó, `gte3` = `>= 3`. Rỗng = không lọc. */
+  accounts?: AccountFilter[];
 };
+
+function accountsWhere(filters: AccountFilter[] | undefined): SQL | undefined {
+  if (!filters?.length) return undefined;
+  const exact = filters.filter((filter) => filter !== "gte3").map(Number);
+  return or(
+    exact.length > 0 ? inArray(customers.accountCount, exact) : undefined,
+    filters.includes("gte3") ? gte(customers.accountCount, 3) : undefined,
+  );
+}
 
 /**
  * Chia theo HÌNH DẠNG chữ người dùng gõ: có chữ cái thì tìm tên, toàn số thì
@@ -243,13 +251,7 @@ function customerFilters(query: CustomerFilters): SQL | undefined {
     query.departmentId ? eq(customers.createdByDepartmentId, query.departmentId) : undefined,
     query.channelId ? eq(customers.channelId, query.channelId) : undefined,
     query.channelDetail ? eq(customers.channelDetail, query.channelDetail) : undefined,
-    query.accounts === "any"
-      ? gt(customers.accountCount, 0)
-      : query.accounts === "gte3"
-        ? gte(customers.accountCount, 3)
-        : query.accounts
-          ? eq(customers.accountCount, Number(query.accounts))
-          : undefined,
+    accountsWhere(query.accounts),
     addressWhere(query.address),
     // Ngày sai định dạng thì BỎ QUA, không trả 400: link cũ hay ô địa chỉ gõ
     // nhầm không đáng làm hỏng cả màn (cùng lối nghĩ với `uuidParam`).
