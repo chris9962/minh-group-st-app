@@ -5,7 +5,7 @@ import { PhotoCheckPanel } from "@/components/banking/PhotoCheckPanel";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { use, useState } from "react";
-import { Check, Landmark, Pencil, Trash2, TriangleAlert } from "lucide-react";
+import { Check, Landmark, Pencil, RotateCcw, Trash2, TriangleAlert } from "lucide-react";
 import { RequirePermission } from "@/components/layout/RequirePermission";
 import { TopBar } from "@/components/layout/TopBar";
 import { BankAccountPhotos, savedPhotos } from "@/components/banking/BankAccountPhotos";
@@ -25,6 +25,7 @@ import {
   BANK_ACCOUNT_STATUS_TONE,
   approveBankAccount,
   setPhotoCheckConfirmed,
+  updateBankAccountStatus,
   type AccountType,
 } from "@/lib/api/bankAccounts";
 import {
@@ -36,7 +37,7 @@ import {
 } from "@/lib/api/banking";
 import { formatDate, formatPhone } from "@/lib/format";
 import { invalidateKpi } from "@/lib/invalidateKpi";
-import { canManageBank, canOpenBankAdmin } from "@/lib/permissions";
+import { canManageBank, canOpenBankAdmin, isFullAccess } from "@/lib/permissions";
 import { errorMessage, toast } from "@/lib/toast";
 import { useSession } from "@/store/session";
 import styles from "./page.module.scss";
@@ -97,6 +98,15 @@ export default function BankAccountOfBankPage({
       toast.ok("Đã duyệt tài khoản và tính lại KPI");
     },
     onError: (e) => toast.fail(errorMessage(e, "Không duyệt được tài khoản này.")),
+  });
+
+  const restore = useMutation({
+    mutationFn: () => updateBankAccountStatus(accountId, { status: "done", errorNote: "" }),
+    onSuccess: () => {
+      refreshAfterChange();
+      toast.ok("Đã khôi phục tài khoản và tính lại KPI");
+    },
+    onError: (e) => toast.fail(errorMessage(e, "Không khôi phục được tài khoản này.")),
   });
 
   const markError = useMutation({
@@ -179,6 +189,9 @@ export default function BankAccountOfBankPage({
 
               `creating` chỉ có nút Xoá: bản nháp bỏ dở, không có gì để duyệt
               hay đánh dấu lỗi.
+
+              `error` có nút Khôi phục cho người toàn quyền (chốt 2026-09-24):
+              đi tắt vòng duyệt, không chờ nhân viên sửa rồi gửi lại.
             */
             action={
               data.status === "done" || data.status === "fixed" ? (
@@ -198,6 +211,11 @@ export default function BankAccountOfBankPage({
                     Đánh dấu lỗi
                   </Button>
                 </>
+              ) : data.status === "error" && user && isFullAccess(user.permissions) ? (
+                <Button variant="secondary" disabled={restore.isPending} onClick={() => restore.mutate()}>
+                  <RotateCcw size={16} aria-hidden />
+                  Khôi phục hoàn thành
+                </Button>
               ) : data.status === "creating" ? (
                 <Button variant="danger" disabled={remove.isPending} onClick={() => setRemoving(true)}>
                   <Trash2 size={16} aria-hidden />
