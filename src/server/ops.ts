@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, or, sql, type SQL } from "drizzle-orm";
 import { InsuranceOrderStatus } from "@/lib/api/insuranceOrders";
 import {
   OPS_DAY_RANGES,
@@ -18,6 +18,7 @@ import {
 import type { Page } from "@/lib/api/pagination";
 import { businessDay } from "@/lib/format";
 import { can } from "@/lib/permissions";
+import { searchTerms } from "@/lib/search";
 import { InsuranceProduct, type User } from "@/lib/types";
 import { logAudit } from "./audit";
 import { db } from "./db/client";
@@ -163,13 +164,39 @@ export function opsOrderFilterFrom(url: URL): OpsOrderFilter {
   return {
     product: product.success ? product.data : "",
     status: status.success ? status.data : "",
+    search: url.searchParams.get("search") ?? "",
   };
+}
+
+const likeEscape = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
+
+/**
+ * Mỗi từ khớp mã đơn, ID đơn hoặc tên khách. Tên khách đi `exists` trên
+ * `search_name` như danh sách đơn P-13, để câu cắt trang không phải nối bảng
+ * khách. ID so theo chuỗi con vì bảng chỉ hiện 4 ký tự đầu và 4 ký tự cuối.
+ */
+function opsSearchWhere(raw: string): SQL | undefined {
+  const terms = searchTerms(raw.trim());
+  if (terms.length === 0) return undefined;
+  return and(
+    ...terms.map((term) =>
+      or(
+        sql`exists (
+          select 1 from ${customers} c
+          where c.id = ${insuranceOrders.customerId}
+            and c.search_name like '%' || mgst_normalize(${likeEscape(term)}) || '%' escape '\\'
+        )`,
+        sql`${insuranceOrders.orderCode} ilike '%' || ${likeEscape(term)} || '%' escape '\\'`,
+        sql`${insuranceOrders.id}::text ilike '%' || ${likeEscape(term)} || '%' escape '\\'`,
+      ),
+    ),
+  );
 }
 
 /**
  * Một trang đơn cho bảng P-99, mọi trạng thái.
  *
- * Cắt trang trên `insurance_orders` trước rồi mới nối tên khách và người lập
+ * Cắt trang trên `insurance_orders` trước rồi mới nối tên khách
  * cho đúng 15 dòng (AGENTS.md §5.2, cách A).
  */
 export async function listOpsOrders(
@@ -180,6 +207,7 @@ export async function listOpsOrders(
   const where = and(
     filter.product ? eq(insuranceOrders.product, filter.product) : undefined,
     filter.status ? eq(insuranceOrders.status, filter.status) : undefined,
+    opsSearchWhere(filter.search),
   );
 
   const picked = db

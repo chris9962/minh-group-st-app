@@ -85,6 +85,8 @@ export const OPS_ORDER_DEFAULT_STATUS: InsuranceOrderStatus = 'awaiting-certific
 export type OpsOrderFilter = {
   product: InsuranceProduct | '';
   status: InsuranceOrderStatus | '';
+  /** Mã đơn, ID đơn hoặc tên khách. */
+  search: string;
 };
 
 export const OpsInsurance = z.object({

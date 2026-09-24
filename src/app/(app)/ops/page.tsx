@@ -13,6 +13,7 @@ import { CopyButton } from "@/components/ui/CopyValue";
 import { Dialog } from "@/components/ui/Dialog";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
+import { SearchField } from "@/components/ui/SearchField";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { SegmentedTabs } from "@/components/ui/SegmentedTabs";
 import { Select } from "@/components/ui/Select";
@@ -46,6 +47,7 @@ import {
 } from "@/lib/api/ops";
 import { EMPTY_PAGE, PAGE_SIZE } from "@/lib/api/pagination";
 import { formatBytes, formatCount, formatDateTime } from "@/lib/format";
+import { useDebouncedValue } from "@/lib/hooks";
 import { can } from "@/lib/permissions";
 import { InsuranceProduct, PRODUCT_LABEL } from "@/lib/types";
 import { errorMessage, toast } from "@/lib/toast";
@@ -119,10 +121,12 @@ export default function OpsPage() {
   const queryClient = useQueryClient();
 
   const [days, setDays] = useState(OPS_DEFAULT_DAYS);
-  const [filter, setFilter] = useState<OpsOrderFilter>({
+  const [filter, setFilter] = useState<Omit<OpsOrderFilter, "search">>({
     product: OPS_ORDER_DEFAULT_PRODUCT,
     status: OPS_ORDER_DEFAULT_STATUS,
   });
+  const [search, setSearch] = useState("");
+  const searchQuery = useDebouncedValue(search);
   const [page, setPage] = useState(0);
   const [dir, setDir] = useState<"asc" | "desc">("desc");
   const [picked, setPicked] = useState<string[]>([]);
@@ -143,8 +147,8 @@ export default function OpsPage() {
   });
 
   const orders = useQuery({
-    queryKey: ["ops", "orders", page, dir, filter.product, filter.status],
-    queryFn: () => fetchOpsOrders({ page, sort: "orderCode", dir }, filter),
+    queryKey: ["ops", "orders", page, dir, filter.product, filter.status, searchQuery],
+    queryFn: () => fetchOpsOrders({ page, sort: "orderCode", dir }, { ...filter, search: searchQuery }),
     enabled: canView,
     refetchInterval: 60_000,
     placeholderData: keepPreviousData,
@@ -160,7 +164,7 @@ export default function OpsPage() {
   const recreatable = chosen.filter((r) => r.canRecreate);
   const canPick = canCreateOrder || canRefresh;
 
-  const refine = (next: Partial<OpsOrderFilter>) => {
+  const refine = (next: Partial<Omit<OpsOrderFilter, "search">>) => {
     setFilter((prev) => ({ ...prev, ...next }));
     setPage(0);
     setPicked([]);
@@ -353,6 +357,16 @@ export default function OpsPage() {
               </div>
 
               <div className={styles.filterRow}>
+                <SearchField
+                  label="Tìm đơn"
+                  placeholder="Mã đơn, ID hoặc tên khách…"
+                  value={search}
+                  onChange={(v) => {
+                    setSearch(v);
+                    setPage(0);
+                    setPicked([]);
+                  }}
+                />
                 <Select
                   label="Sản phẩm"
                   value={filter.product}
