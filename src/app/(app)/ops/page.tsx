@@ -223,8 +223,9 @@ export default function OpsPage() {
   const orderColumns = useMemo<RankColumn<OpsOrderRow>[]>(
     () => [
       {
-        key: "pick",
-        label: "Chọn",
+        key: "orderCode",
+        label: "Mã đơn",
+        sortable: true,
         render: (r) => (
           <Checkbox
             checked={picked.includes(r.id)}
@@ -232,11 +233,10 @@ export default function OpsPage() {
             onCheckedChange={(on) =>
               setPicked((prev) => (on ? [...prev, r.id] : prev.filter((id) => id !== r.id)))
             }
-            label={`Chọn đơn ${r.orderCode}`}
+            label={r.orderCode}
           />
         ),
       },
-      { key: "orderCode", label: "Mã đơn", sortable: true, render: (r) => r.orderCode },
       {
         key: "id",
         label: "ID",
