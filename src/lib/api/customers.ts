@@ -223,6 +223,16 @@ export async function fetchCustomers(query: CustomerQuery): Promise<Page<Custome
   return CustomerPage.parse(await res.json());
 }
 
+const CustomerAddresses = z.object({ addresses: z.array(z.string()) });
+
+/** Địa chỉ của khách có tài khoản, lập trong khoảng ngày `[from, to]`, cho ô lọc Ấp. */
+export async function fetchCustomerAddresses(from: string, to: string): Promise<string[]> {
+  const params = new URLSearchParams({ from, to });
+  const res = await fetch(`/api/customers/addresses?${params}`);
+  if (!res.ok) throw new Error('Không tải được danh sách ấp');
+  return CustomerAddresses.parse(await res.json()).addresses;
+}
+
 /** Một kết quả tra cứu — vừa đủ để nhận ra người cần chọn, không hơn. */
 export const CustomerLookupRow = z.object({
   id: z.string(),

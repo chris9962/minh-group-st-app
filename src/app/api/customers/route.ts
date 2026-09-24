@@ -5,45 +5,17 @@ import {
   type CustomerSort,
 } from "@/lib/api/customers";
 import { logAudit } from "@/server/audit";
-import { recordVisibility } from "@/lib/permissions";
-import type { User } from "@/lib/types";
 import { actorWith, badRequest, jsonBody, signedIn, uuidParam } from "@/server/auth";
 import {
   channelDetailMissing,
   createCustomer,
+  customerListScope,
   duplicateIdNumberInfo,
   listCustomers,
 } from "@/server/customers";
 import { pageArgsFrom } from "@/server/pagination";
 
 const SORTABLE: readonly CustomerSort[] = ["name", "accounts", "insurance", "created"];
-
-/**
- * Bộ lọc phạm vi của BẢNG P-40, tính theo QUYỀN chứ không theo chức vụ.
- *
- * Đọc quyền chứ không đọc `role`: chức vụ chỉ là bộ quyền mặc định lúc tạo hồ
- * sơ (AGENTS.md §6). Một trưởng phòng được cấp `view-detail` toàn công ty thì
- * vẫn thấy hết, và cấp đó là quyết định của người quản trị.
- *
- * Bốn mức đều phải có nhánh riêng. `none` và `creator` mà rơi về `undefined` là
- * "không lọc gì" — người đáng hẹp nhất lại thấy trọn kho.
- */
-function p40Scope(actor: User): { departmentIds?: string[]; createdBy?: string } {
-  const view = recordVisibility(actor, "customer", "view-detail");
-  switch (view.kind) {
-    case "all":
-      return {};
-    case "departments":
-      return { departmentIds: view.departmentIds };
-    case "creator":
-      return { createdBy: view.userId };
-    // Phạm vi `phòng tôi quản` mà chưa được giao phòng nào — ca có thật, hai
-    // Phó GĐ đang ở tình trạng đó. Mảng rỗng cho ra `where false`, đúng nghĩa
-    // "không phòng nào".
-    case "none":
-      return { departmentIds: [] };
-  }
-}
 
 /**
  * P-40 · Danh sách khách hàng.
@@ -63,7 +35,7 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const params = url.searchParams;
-  const scope = p40Scope(guard.actor);
+  const scope = customerListScope(guard.actor);
 
   return Response.json(
     await listCustomers(

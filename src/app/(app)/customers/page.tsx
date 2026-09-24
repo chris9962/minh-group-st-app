@@ -33,6 +33,7 @@ import {
   CUSTOMER_SORT,
   accountFiltersFrom,
   deleteCustomer,
+  fetchCustomerAddresses,
   fetchCustomerDetail,
   fetchCustomers,
   fetchCustomersForExport,
@@ -169,10 +170,6 @@ export default function CustomersPage() {
   const { data: channels = [] } = useQuery({ queryKey: ["channels"], queryFn: fetchChannels });
 
   const addressSuggestions = useAddressSuggestions();
-  const addressOptions = useMemo(
-    () => addressSuggestions.map((s) => ({ value: s, label: s })),
-    [addressSuggestions],
-  );
 
   /**
    * Ô lọc bệnh viện chỉ có nghĩa khi kênh đang chọn nhận đầu vào là bệnh viện.
@@ -254,6 +251,33 @@ export default function CustomersPage() {
   const from = range?.from ? iso(range.from) : "";
   const to = range?.to ? iso(range.to) : "";
   const asked: CustomerQuery = { ...query, search: debouncedSearch, from, to };
+
+  const { data: rangeAddresses } = useQuery({
+    queryKey: ["customer-addresses", from, to],
+    queryFn: () => fetchCustomerAddresses(from, to),
+    enabled: Boolean(from && to),
+    placeholderData: keepPreviousData,
+  });
+
+  /**
+   * Có khoảng ngày thì ô Ấp chỉ còn dòng danh mục có khách mở tài khoản trong
+   * kỳ; chưa chọn ngày thì giữ trọn danh mục (chốt 2026-09-24). Dòng xã còn khi
+   * xã có ít nhất một khách như vậy. Ấp đang chọn luôn giữ lại để bỏ chọn được.
+   */
+  const addressOptions = useMemo(() => {
+    const inRange = from && to && rangeAddresses ? new Set(rangeAddresses) : null;
+    const wardsInRange = new Set(
+      (rangeAddresses ?? []).map((address) => address.split(", ").slice(-2).join(", ")),
+    );
+    const kept = inRange
+      ? addressSuggestions.filter(
+          (s) =>
+            s === query.address ||
+            (s.split(", ").length > 2 ? inRange.has(s) : wardsInRange.has(s)),
+        )
+      : addressSuggestions;
+    return kept.map((s) => ({ value: s, label: s }));
+  }, [addressSuggestions, rangeAddresses, from, to, query.address]);
 
   /**
    * Danh sách là một trạng thái quay lại và chia sẻ được, nên mọi thứ làm đổi

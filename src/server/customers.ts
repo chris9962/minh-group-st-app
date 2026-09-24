@@ -4,6 +4,7 @@ import {
   count,
   desc,
   eq,
+  gt,
   gte,
   inArray,
   isNull,
@@ -164,6 +165,36 @@ export type CustomerFilters = {
   /** Khớp BẤT KỲ giá trị nào: số = `account_count` đúng bằng số đó, `gte3` = `>= 3`. Rỗng = không lọc. */
   accounts?: AccountFilter[];
 };
+
+/**
+ * Bộ lọc phạm vi của BẢNG P-40, tính theo QUYỀN chứ không theo chức vụ.
+ *
+ * Đọc quyền chứ không đọc `role`: chức vụ chỉ là bộ quyền mặc định lúc tạo hồ
+ * sơ (AGENTS.md §6). Một trưởng phòng được cấp `view-detail` toàn công ty thì
+ * vẫn thấy hết, và cấp đó là quyết định của người quản trị.
+ *
+ * Bốn mức đều phải có nhánh riêng. `none` và `creator` mà rơi về `undefined` là
+ * "không lọc gì" — người đáng hẹp nhất lại thấy trọn kho.
+ *
+ * Dùng chung cho bảng P-40 và danh sách ấp của ô lọc, để ô lọc không hiện ấp
+ * của khách mà bảng không cho người đó xem.
+ */
+export function customerListScope(actor: User): { departmentIds?: string[]; createdBy?: string } {
+  const view = recordVisibility(actor, "customer", "view-detail");
+  switch (view.kind) {
+    case "all":
+      return {};
+    case "departments":
+      return { departmentIds: view.departmentIds };
+    case "creator":
+      return { createdBy: view.userId };
+    // Phạm vi `phòng tôi quản` mà chưa được giao phòng nào — ca có thật, hai
+    // Phó GĐ đang ở tình trạng đó. Mảng rỗng cho ra `where false`, đúng nghĩa
+    // "không phòng nào".
+    case "none":
+      return { departmentIds: [] };
+  }
+}
 
 function accountsWhere(filters: AccountFilter[] | undefined): SQL | undefined {
   if (!filters?.length) return undefined;
@@ -660,6 +691,28 @@ export async function listCustomersForExport(
     rows: rows.map((r) => ({ ...r, points: points ? (points.get(r.id) ?? 0) : null })),
     total: totals?.value ?? 0,
   };
+}
+
+/**
+ * Các địa chỉ khác nhau của khách có tài khoản hoàn thành, lập trong khoảng
+ * ngày, cho ô lọc Ấp của P-40. Chỉ đọc khách trong khoảng ngày, không đọc cả kho.
+ *
+ * Trả chuỗi địa chỉ thô, kể cả chuỗi gõ tay không có trong danh mục; giao diện
+ * tự giao với danh mục vì ô lọc chỉ nhận dòng của danh mục.
+ */
+export async function customerAddressesWithAccounts(
+  filters: Pick<CustomerFilters, "from" | "to" | "createdBy" | "departmentIds">,
+): Promise<string[]> {
+  const rows = await db
+    .selectDistinct({ address: customers.address })
+    .from(customers)
+    .where(
+      and(
+        customerFilters({ search: "", channelId: "", ...filters }),
+        gt(customers.accountCount, 0),
+      ),
+    );
+  return rows.flatMap((row) => (row.address ? [row.address] : []));
 }
 
 /** Chỉ sửa ghi chú của hồ sơ đang xem, ghi lịch sử trong cùng giao dịch. */
