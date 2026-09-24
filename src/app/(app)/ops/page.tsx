@@ -3,6 +3,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Cpu, Images, ShieldCheck } from "lucide-react";
 import { useMemo, useState } from "react";
+import { CertificateWait } from "@/components/insurance/CertificateWait";
 import { RequirePermission } from "@/components/layout/RequirePermission";
 import { TopBar } from "@/components/layout/TopBar";
 import { Alert } from "@/components/ui/Alert";
@@ -248,15 +249,19 @@ export default function OpsPage() {
           </span>
         ),
       },
-      { key: "customer", label: "Khách hàng", render: (r) => r.customerName },
-      { key: "package", label: "Gói", render: (r) => r.packageName },
-      { key: "createdBy", label: "Người lập", render: (r) => r.createdByName || "Không rõ" },
+      { key: "product", label: "Sản phẩm", render: (r) => PRODUCT_LABEL[r.product] },
       {
         key: "status",
         label: "Trạng thái",
         render: (r) => (
           <StatusTag tone={INSURANCE_STATUS_TONE[r.status]}>
-            {INSURANCE_STATUS_LABEL[r.status]}
+            {r.status === "awaiting-certificate" && r.awaitingSince ? (
+              <span>
+                {INSURANCE_STATUS_LABEL[r.status]} <CertificateWait since={r.awaitingSince} />
+              </span>
+            ) : (
+              INSURANCE_STATUS_LABEL[r.status]
+            )}
           </StatusTag>
         ),
       },

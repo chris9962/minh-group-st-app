@@ -26,7 +26,6 @@ import {
   hostMetrics,
   insuranceOrders,
   insuranceOrderStatusHistory,
-  users,
 } from "./db/schema";
 import { cancelInsuranceOrder, recreateInsuranceOrder } from "./insurance";
 import type { PageArgs } from "./pagination";
@@ -188,8 +187,7 @@ export async function listOpsOrders(
       id: insuranceOrders.id,
       orderCode: insuranceOrders.orderCode,
       customerId: insuranceOrders.customerId,
-      createdBy: insuranceOrders.createdBy,
-      packageName: insuranceOrders.packageName,
+      product: insuranceOrders.product,
       status: insuranceOrders.status,
       startDate: insuranceOrders.startDate,
       intakePhotoUrl: insuranceOrders.intakePhotoUrl,
@@ -207,17 +205,21 @@ export async function listOpsOrders(
       .select({
         id: picked.id,
         orderCode: picked.orderCode,
-        packageName: picked.packageName,
+        product: picked.product,
         status: picked.status,
         startDate: picked.startDate,
         intakePhotoUrl: picked.intakePhotoUrl,
         createdDay: sql<string>`to_char(${picked.createdAt} at time zone 'Asia/Ho_Chi_Minh', 'YYYY-MM-DD')`,
         customerName: customers.fullName,
-        createdByName: users.fullName,
+        // Cùng câu con với danh sách đơn P-13, để hai đồng hồ đợi GCN chỉ cùng một mốc.
+        awaitingSince: sql<string | null>`(
+          select to_char(max(h.changed_at) at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
+          from ${insuranceOrderStatusHistory} h
+          where h.order_id = ${picked.id} and h.to_status = 'awaiting-certificate'
+        )`,
       })
       .from(picked)
       .innerJoin(customers, eq(customers.id, picked.customerId))
-      .leftJoin(users, eq(users.id, picked.createdBy))
       .orderBy(args.dir === "asc" ? asc(picked.orderCode) : desc(picked.orderCode)),
     db.select({ n: sql<number>`count(*)::int` }).from(insuranceOrders).where(where),
   ]);
@@ -245,9 +247,9 @@ export async function listOpsOrders(
         id: r.id,
         orderCode: r.orderCode,
         customerName: r.customerName,
-        packageName: r.packageName,
-        createdByName: r.createdByName ?? "",
+        product: r.product,
         status: r.status,
+        awaitingSince: r.awaitingSince,
         canRecreate: blockedReason === "",
         blockedReason,
       };

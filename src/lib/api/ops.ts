@@ -57,9 +57,10 @@ export const OpsOrderRow = z.object({
   id: z.string(),
   orderCode: z.string(),
   customerName: z.string(),
-  packageName: z.string(),
-  createdByName: z.string(),
+  product: InsuranceProduct,
   status: InsuranceOrderStatus,
+  /** Lượt chuyển sang Đợi GCN gần nhất, ISO. `null` = chưa từng đợi. */
+  awaitingSince: z.string().nullable(),
   /**
    * Cấp lại được hay không, tính sẵn ở máy chủ.
    *
