@@ -259,6 +259,7 @@ export default function DashboardPage() {
             value={period}
             onChange={setPeriod}
             kinds={OVERVIEW_PERIOD_KINDS}
+            sameMonthOnly
             variant="toolbar"
           />
         </div>

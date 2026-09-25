@@ -19,14 +19,11 @@ export type PeriodKind =
   | "last-1-year"
   | "range";
 
-/** Năm preset trên Tổng quan. Khoảng tự chọn đi bằng lịch, nhãn thành Custom. */
-export const OVERVIEW_PERIOD_KINDS: readonly PeriodKind[] = [
-  "today",
-  "this-month",
-  "last-3-months",
-  "last-6-months",
-  "last-1-year",
-];
+/**
+ * Hai preset trên Tổng quan; bỏ 3 tháng, 6 tháng, 1 năm (chốt 2026-09-25).
+ * Khoảng tự chọn đi bằng lịch, nhãn thành Custom, và nằm trọn trong một tháng.
+ */
+export const OVERVIEW_PERIOD_KINDS: readonly PeriodKind[] = ["today", "this-month"];
 
 /** Màn phòng ban vẫn cho chọn khoảng ngày trong một tháng. */
 export const FILTER_PERIOD_KINDS: readonly PeriodKind[] = ["today", "this-month", "range"];
