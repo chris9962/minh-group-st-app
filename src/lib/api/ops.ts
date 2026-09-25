@@ -212,6 +212,7 @@ export async function recreateStuckOrders(body: OpsRecreateBody): Promise<OpsRec
 /**
  * Đường đi của đơn bảo hiểm mới, chỉnh trên P-99 (chốt 2026-09-25). App đọc lại
  * ở mỗi lượt tạo đơn nên đổi xong có hiệu lực ngay, không khởi động lại máy chủ.
+ * Chế độ nằm trong bộ nhớ app: khởi động lại thì quay về biến `PVI_ROUTE`.
  *
  * Đổi chế độ KHÔNG bật hay dừng worker. Chọn API hoặc Bot khi worker đó không
  * chạy thì đơn mới nằm ở Chờ tạo, không ai lấy.
@@ -227,7 +228,7 @@ export const PVI_ROUTE_MODE_LABEL: Record<PviRouteMode, string> = {
 
 export const PviRouteSetting = z.object({
   mode: PviRouteMode,
-  /** ISO datetime của lần lưu gần nhất. Rỗng khi chưa ai lưu và app đang đọc biến môi trường. */
+  /** ISO datetime của lần đổi gần nhất. Rỗng khi chưa ai đổi từ lúc app khởi động. */
   updatedAt: z.string(),
   updatedBy: z.string(),
 });

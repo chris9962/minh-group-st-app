@@ -738,13 +738,6 @@
       "breakpoints": true
     },
     {
-      "idx": 105,
-      "version": "7",
-      "when": 1789891400031,
-      "tag": "0105_app_settings",
-      "breakpoints": true
-    },
-    {
       "idx": 106,
       "version": "7",
       "when": 1789891400032,

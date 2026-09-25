@@ -895,8 +895,8 @@ const botSharePercent = (): number => {
  * Trạng thái và đường đi của đơn vừa tạo.
  *
  * Chế độ điều hướng chọn đường máy đang chạy, MỘT đường mỗi lúc (chốt
- * 2026-09-06). Chế độ lưu ở database, chỉnh trên màn Vận hành P-99 (chốt
- * 2026-09-25); chưa lưu lần nào thì đọc biến `PVI_ROUTE`. Xem `pviRouteMode`.
+ * 2026-09-06). Chế độ nằm trong bộ nhớ app, khởi tạo từ `PVI_ROUTE` và chỉnh
+ * trên màn Vận hành P-99 (chốt 2026-09-25). Xem `pviRouteMode`.
  *
  * | Chế độ | Đơn mới đi đâu |
  * |---|---|
@@ -920,8 +920,8 @@ const botSharePercent = (): number => {
  * Đọc mỗi lần gọi, không chụp một lần lúc nạp module: đổi đường không được đòi
  * khởi động lại cả app.
  */
-const newOrderRoute = async (): Promise<{ status: "queued" | "manual-queued"; route: PviRoute }> => {
-  const mode = await pviRouteMode();
+const newOrderRoute = (): { status: "queued" | "manual-queued"; route: PviRoute } => {
+  const mode = pviRouteMode();
   if (mode === "api") return { status: "queued", route: "api" };
   if (mode === "bot" && randomInt(100) < botSharePercent())
     return { status: "queued", route: "bot" };
@@ -1058,7 +1058,7 @@ export async function createInsuranceOrders(
 
     // Đọc MỘT lần cho cả lô: mọi đơn của một lần tạo phải cùng một trạng thái,
     // kể cả khi ai đó đổi đường đúng lúc câu insert đang chạy.
-    const { status: newStatus, route } = await newOrderRoute();
+    const { status: newStatus, route } = newOrderRoute();
 
     const rows = await tx
       .insert(insuranceOrders)
@@ -1456,7 +1456,7 @@ export async function overrideInsuranceOrderStatus(
 
   if (lockedByPvi(current)) return { ok: false, message: PVI_LOCKED_MESSAGE };
 
-  const route = next === "queued" ? await newOrderRoute() : null;
+  const route = next === "queued" ? newOrderRoute() : null;
   if (route && route.status !== "queued")
     return {
       ok: false,
@@ -1743,7 +1743,7 @@ export async function recreateInsuranceOrder(
   // và từ chối như `overrideInsuranceOrderStatus` khi không worker nào lấy.
   const wanted = InsuranceRecreateBody.safeParse(body);
   if (!wanted.success) return { ok: false, message: "Chưa chọn trạng thái cho đơn mới" };
-  const machineRoute = await newOrderRoute();
+  const machineRoute = newOrderRoute();
   if (wanted.data.status === "queued" && machineRoute.status !== "queued")
     return {
       ok: false,

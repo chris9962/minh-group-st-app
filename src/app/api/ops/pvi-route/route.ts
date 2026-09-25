@@ -7,7 +7,7 @@ export async function GET(request: Request) {
   const guard = await actorWith(request, "system", "view-ops");
   if (!guard.ok) return guard.response;
 
-  return Response.json(await pviRouteSetting());
+  return Response.json(pviRouteSetting());
 }
 
 /** P-99 · Đổi chế độ điều hướng. Lượt tạo đơn kế tiếp dùng chế độ mới, không cần khởi động lại. */
