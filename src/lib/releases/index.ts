@@ -87,15 +87,6 @@ export const RELEASES: Release[] = [
         ],
         visibleTo: (user) => isFullAccess(user.permissions),
       },
-      {
-        title: 'Màn Vận hành',
-        items: [
-          'Bảng đơn có ô tìm theo mã đơn, ID đơn hoặc tên khách.',
-          'Bảng đơn có cột Sản phẩm. Nhãn Đợi GCN hiện thời gian đã đợi.',
-          'Khối Điều hướng đơn bảo hiểm chọn đơn mới đi làm tay, qua API hay qua bot.',
-        ],
-        visibleTo: (user) => can(user, 'system', 'view-ops'),
-      },
     ],
   },
   {
