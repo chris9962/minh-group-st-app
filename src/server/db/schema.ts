@@ -1694,7 +1694,7 @@ export const kpiTargets = pgTable(
  * HĐLĐ. Chỉ `staff_directed` vào công thức lương; `staff_hkd`, `staff_casa` chỉ
  * lưu vì Phụ lục 04 không có mức cộng trừ cho hai chỉ tiêu này (chốt 2026-09-25).
  *
- * null hoặc thiếu dòng = tháng đó không chấm chỉ tiêu, không cộng không trừ.
+ * Ô null = không chấm mục đó. Tháng không có dòng dùng dòng gần nhất trước đó.
  */
 export const quotaMonths = pgTable(
   "quota_months",

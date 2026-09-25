@@ -110,8 +110,8 @@ function QuotaForm({ data, banks }: { data: QuotaMonth; banks: Bank[] }) {
     <>
       {data.copiedFrom && (
         <Alert tone="warning">
-          {monthLabel(data.month)} chưa lưu chỉ tiêu. Số liệu dưới đây chép từ{" "}
-          {monthLabel(data.copiedFrom).toLowerCase()}, chưa tính vào lương cho tới khi bấm Lưu.
+          {monthLabel(data.month)} chưa lưu chỉ tiêu riêng, lương đang dùng chỉ tiêu của{" "}
+          {monthLabel(data.copiedFrom).toLowerCase()}.
         </Alert>
       )}
 

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, lt, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, lte, or, sql, type SQL } from "drizzle-orm";
 import { monthRange } from "@/lib/format";
 import type { QuotaKindItem, QuotaMonth, QuotaMonthForm } from "@/lib/api/quota";
 import { customerDayBetween } from "./customerDay";
@@ -23,6 +23,17 @@ async function isClosed(yearMonth: string): Promise<boolean> {
   return Boolean(row);
 }
 
+/** Tháng gần nhất đã lưu chỉ tiêu, không sau `yearMonth`. */
+async function latestSavedMonth(yearMonth: string): Promise<string | null> {
+  const [row] = await db
+    .select({ yearMonth: quotaMonths.yearMonth })
+    .from(quotaMonths)
+    .where(lte(quotaMonths.yearMonth, yearMonth))
+    .orderBy(desc(quotaMonths.yearMonth))
+    .limit(1);
+  return row?.yearMonth ?? null;
+}
+
 async function readMonth(yearMonth: string) {
   const [month] = await db.select().from(quotaMonths).where(eq(quotaMonths.yearMonth, yearMonth));
   if (!month) return null;
@@ -35,24 +46,11 @@ async function readMonth(yearMonth: string) {
 
 /**
  * Cấu hình màn Chỉ tiêu tháng. Tháng chưa lưu lần nào thì trả bản của tháng gần
- * nhất trước đó kèm `copiedFrom`: admin chỉ sửa chỗ đổi rồi lưu. Bản chép chưa
- * vào lương cho tới khi lưu, xem `quotaConfigOf`.
+ * nhất trước đó kèm `copiedFrom`, đúng bản lương đang dùng (`quotaConfigOf`).
  */
 export async function getQuotaMonth(yearMonth: string): Promise<QuotaMonth> {
-  let source = yearMonth;
-  let data = await readMonth(yearMonth);
-  if (!data) {
-    const [previous] = await db
-      .select({ yearMonth: quotaMonths.yearMonth })
-      .from(quotaMonths)
-      .where(lt(quotaMonths.yearMonth, yearMonth))
-      .orderBy(desc(quotaMonths.yearMonth))
-      .limit(1);
-    if (previous) {
-      source = previous.yearMonth;
-      data = await readMonth(previous.yearMonth);
-    }
-  }
+  const source = await latestSavedMonth(yearMonth);
+  const data = source ? await readMonth(source) : null;
 
   const salesDepartments = await db
     .select({ id: departments.id, name: departments.name })
@@ -133,9 +131,13 @@ export type QuotaConfig = {
   directedKinds: QuotaKindItem[];
 };
 
-/** Đúng tháng đã lưu, không chép tháng trước: chưa lưu thì lương không chấm chỉ tiêu. */
+/**
+ * Tháng chưa lưu chỉ tiêu thì dùng tháng gần nhất đã lưu trước đó (chốt
+ * 2026-09-25): tháng 10 chưa lưu thì lấy tháng 9. Chưa có tháng nào thì không chấm.
+ */
 export async function quotaConfigOf(yearMonth: string): Promise<QuotaConfig | null> {
-  const data = await readMonth(yearMonth);
+  const source = await latestSavedMonth(yearMonth);
+  const data = source ? await readMonth(source) : null;
   if (!data) return null;
   return {
     staffDirected: data.month.staffDirected,

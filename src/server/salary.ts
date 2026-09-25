@@ -304,8 +304,9 @@ async function liveSalaries(
 }
 
 /**
- * Chỉ tiêu và số đã đạt của tháng. Tháng chưa lưu chỉ tiêu, hoặc mục chưa chọn
- * loại tài khoản nào, thì trả `null`: không chấm, không cộng không trừ.
+ * Chỉ tiêu và số đã đạt của tháng; tháng chưa lưu dùng tháng gần nhất trước đó.
+ * Chưa có tháng nào, hoặc mục chưa chọn loại tài khoản nào, thì trả `null`:
+ * không chấm, không cộng không trừ.
  *
  * Nhân viên chỉ chấm khi là HĐLĐ (chốt 2026-09-25); đếm theo người lập hồ sơ
  * khách như KPI. Phòng đếm MỌI tài khoản ghi nhận cho phòng, không riêng HĐLĐ.

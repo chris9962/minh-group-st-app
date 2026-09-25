@@ -23,7 +23,7 @@ export type DepartmentQuota = z.infer<typeof DepartmentQuota>;
 
 export const QuotaMonth = z.object({
   month: z.string(),
-  /** Tháng này chưa lưu lần nào; số liệu là bản chép từ tháng này. `null` = đã lưu, hoặc chưa có tháng nào. */
+  /** Tháng này chưa lưu; số liệu và lương đang dùng tháng này. `null` = đã lưu, hoặc chưa có tháng nào. */
   copiedFrom: z.string().nullable(),
   /** Lương tháng đã chốt thì không sửa chỉ tiêu tháng đó. */
   locked: z.boolean(),
