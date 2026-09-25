@@ -27,6 +27,13 @@ type Props = {
   periodText: string;
 };
 
+/** "7/38"; phòng không có chỉ tiêu thì chỉ hiện số đã đạt. */
+const progressText = (achieved: number, target: number | null): string =>
+  target === null ? formatCount(achieved) : `${formatCount(achieved)}/${formatCount(target)}`;
+
+const progressRatio = (achieved: number, target: number | null): number =>
+  target === null ? -1 : achieved / target;
+
 const columns: RankColumn<BranchDepartment>[] = [
   {
     key: "name",
@@ -53,6 +60,18 @@ const columns: RankColumn<BranchDepartment>[] = [
     render: (d) => `${d.installPercent}%`,
   },
   { key: "points", label: "Điểm", sortBy: (d) => d.points, render: (d) => formatPoints(d.points) },
+  {
+    key: "hkd",
+    label: "HKD / chỉ tiêu",
+    sortBy: (d) => progressRatio(d.hkdAchieved, d.hkdTarget),
+    render: (d) => progressText(d.hkdAchieved, d.hkdTarget),
+  },
+  {
+    key: "directed",
+    label: "Định hướng / chỉ tiêu",
+    sortBy: (d) => progressRatio(d.directedAchieved, d.directedTarget),
+    render: (d) => progressText(d.directedAchieved, d.directedTarget),
+  },
   { key: "salary", label: "Lương tạm tính", sortBy: (d) => d.salary, render: (d) => formatVnd(d.salary) },
 ];
 
@@ -96,7 +115,7 @@ export function BranchPanel({ person, branch, periodText }: Props) {
           columns={columns}
           rowKey={(d) => d.id}
           defaultSort="accountsOpened"
-          caption="Từng phòng Phó giám đốc phụ trách: nhân viên, tài khoản mở, app đã cài, tỉ lệ cài app, điểm và lương tạm tính"
+          caption="Từng phòng Phó giám đốc phụ trách: nhân viên, tài khoản mở, app đã cài, tỉ lệ cài app, điểm, HKD và tài khoản định hướng so với chỉ tiêu tháng, lương tạm tính"
           emptyText="Chưa được giao phòng nào"
           summaryRow={
             branch.departments.length > 0
@@ -107,6 +126,8 @@ export function BranchPanel({ person, branch, periodText }: Props) {
                   formatCount(totals.appsInstalled),
                   `${totals.installPercent}%`,
                   formatPoints(totals.points),
+                  progressText(totals.hkdAchieved, totals.hkdTarget),
+                  progressText(totals.directedAchieved, totals.directedTarget),
                   formatVnd(totals.salary),
                 ]
               : undefined

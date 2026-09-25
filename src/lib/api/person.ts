@@ -156,6 +156,14 @@ export const BranchDepartment = z.object({
   points: z.number(),
   /** Lương tạm tính của mọi người đang làm trong phòng, tháng `salaryMonth`. */
   salary: z.number(),
+  /**
+   * Số tài khoản HKD và định hướng của phòng trong tháng `salaryMonth`, cùng
+   * phép đếm với lương Phó GĐ. Chỉ tiêu `null` = phòng không có chỉ tiêu mục đó.
+   */
+  hkdAchieved: z.number(),
+  hkdTarget: z.number().nullable(),
+  directedAchieved: z.number(),
+  directedTarget: z.number().nullable(),
 });
 export type BranchDepartment = z.infer<typeof BranchDepartment>;
 

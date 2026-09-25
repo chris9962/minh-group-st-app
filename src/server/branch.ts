@@ -5,6 +5,7 @@ import { db } from "./db/client";
 import { departments, userManagedDepartments, users } from "./db/schema";
 import { pointsByStaffInRange } from "./kpi";
 import { statsByDepartment, type Range } from "./org";
+import { countQuotaAccounts, quotaConfigOf } from "./quota";
 import { salaryForUsers } from "./salary";
 
 type BranchNumbers = Omit<BranchDepartment, "id" | "name">;
@@ -16,7 +17,14 @@ const EMPTY: BranchNumbers = {
   installPercent: 0,
   points: 0,
   salary: 0,
+  hkdAchieved: 0,
+  hkdTarget: null,
+  directedAchieved: 0,
+  directedTarget: null,
 };
+
+const sumTargets = (a: number | null, b: number | null): number | null =>
+  a === null ? b : b === null ? a : a + b;
 
 const percentOf = (part: number, whole: number): number =>
   whole === 0 ? 0 : Math.round((part / whole) * 100);
@@ -55,10 +63,18 @@ export async function branchSummaryFor(subjectId: string, range: Range): Promise
     statsByDepartment(range),
     pointsByStaffInRange(range),
   ]);
-  const salaries = await salaryForUsers(
-    people.map((p) => p.id),
-    salaryMonth,
-  );
+  const [salaries, quota] = await Promise.all([
+    salaryForUsers(
+      people.map((p) => p.id),
+      salaryMonth,
+    ),
+    quotaConfigOf(salaryMonth),
+  ]);
+  // Theo tháng lương như cột lương, không theo kỳ lọc: chỉ tiêu tính theo tháng.
+  const [hkdCounts, directedCounts] = await Promise.all([
+    countQuotaAccounts(salaryMonth, quota?.hkdKinds ?? [], "department", ids),
+    countQuotaAccounts(salaryMonth, quota?.directedKinds ?? [], "department", ids),
+  ]);
 
   const pointsByDepartment = new Map<string, number>();
   for (const { departmentId, points: p } of points.values()) {
@@ -80,6 +96,10 @@ export async function branchSummaryFor(subjectId: string, range: Range): Promise
       installPercent: percentOf(appsInstalled, accountsOpened),
       points: Math.round((pointsByDepartment.get(d.id) ?? 0) * 10) / 10,
       salary: members.reduce((sum, p) => sum + (salaries.get(p.id)?.amount ?? 0), 0),
+      hkdAchieved: hkdCounts.get(d.id) ?? 0,
+      hkdTarget: quota?.departments.get(d.id)?.hkd ?? null,
+      directedAchieved: directedCounts.get(d.id) ?? 0,
+      directedTarget: quota?.departments.get(d.id)?.directed ?? null,
     };
   });
 
@@ -91,6 +111,10 @@ export async function branchSummaryFor(subjectId: string, range: Range): Promise
       installPercent: 0,
       points: Math.round((t.points + r.points) * 10) / 10,
       salary: t.salary + r.salary,
+      hkdAchieved: t.hkdAchieved + r.hkdAchieved,
+      hkdTarget: sumTargets(t.hkdTarget, r.hkdTarget),
+      directedAchieved: t.directedAchieved + r.directedAchieved,
+      directedTarget: sumTargets(t.directedTarget, r.directedTarget),
     }),
     EMPTY,
   );
