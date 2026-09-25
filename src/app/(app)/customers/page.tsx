@@ -265,6 +265,11 @@ export default function CustomersPage() {
    * xã còn khi xã có ít nhất một khách như vậy. Ấp đang chọn luôn giữ lại để bỏ
    * chọn được.
    */
+  const pickedAddresses = useMemo(
+    () => (query.address ? query.address.split("|") : []),
+    [query.address],
+  );
+
   const addressOptions = useMemo(() => {
     const inRange = from && to && rangeAddresses ? new Set(rangeAddresses) : null;
     const wardsInRange = new Set(
@@ -273,12 +278,12 @@ export default function CustomersPage() {
     const kept = inRange
       ? addressSuggestions.filter(
           (s) =>
-            s === query.address ||
+            pickedAddresses.includes(s) ||
             (s.split(", ").length > 2 ? inRange.has(s) : wardsInRange.has(s)),
         )
       : addressSuggestions;
     return kept.map((s) => ({ value: s, label: s }));
-  }, [addressSuggestions, rangeAddresses, from, to, query.address]);
+  }, [addressSuggestions, rangeAddresses, from, to, pickedAddresses]);
 
   /**
    * Danh sách là một trạng thái quay lại và chia sẻ được, nên mọi thứ làm đổi
@@ -627,15 +632,16 @@ export default function CustomersPage() {
               />
             </FilterField>
           ) : null}
-          <FilterField id="address" label="Ấp" count={query.address ? 1 : 0}>
+          <FilterField id="address" label="Ấp" count={pickedAddresses.length}>
             <FilterChoices
               // Cùng danh sách với ô Địa chỉ của hộp thoại khách, nên giá trị lọc
               // ghép ra đúng chuỗi đang lưu trong `customers.address`.
+              multiple
               label="Ấp"
               searchPlaceholder="Gõ để tìm Ấp, Xã, Tỉnh…"
-              value={query.address}
-              onChange={(v) => refine({ address: v })}
-              options={[{ value: "", label: "Tất cả ấp" }, ...addressOptions]}
+              value={pickedAddresses}
+              onChange={(v) => refine({ address: v.join("|") })}
+              options={addressOptions}
             />
           </FilterField>
           <FilterField id="channel" label="Kênh" count={query.channelId ? 1 : 0}>
@@ -735,7 +741,7 @@ export default function CustomersPage() {
             ...(query.address
               ? [
                   {
-                    label: `Ấp: ${query.address}`,
+                    label: `Ấp: ${pickedAddresses.join("; ")}`,
                     onRemove: () => refine({ address: "" }),
                   },
                 ]

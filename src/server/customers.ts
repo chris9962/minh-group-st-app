@@ -261,13 +261,22 @@ function searchWhere(raw: string): SQL | undefined {
  * Vế đuôi không dùng được chỉ mục, chấp nhận: danh sách xã ngắn hơn danh sách
  * ấp nhiều lần nên ô này ít khi dừng ở mức xã.
  */
+/**
+ * Nhiều ấp ngăn bằng `|`, khách thuộc ấp NÀO trong số đó cũng khớp (chốt
+ * 2026-09-25). Không ngăn bằng dấu phẩy: chuỗi địa chỉ đã chứa dấu phẩy.
+ */
 export function addressWhere(address: string | undefined): SQL | undefined {
-  const value = address?.trim();
-  if (!value) return undefined;
-  if (value.split(",").length > 2) return eq(customers.address, value);
+  const values = (address ?? "").split("|").map((v) => v.trim()).filter(Boolean);
+  if (values.length === 0) return undefined;
   return or(
-    eq(customers.address, value),
-    sql`${customers.address} like '%, ' || ${likeEscape(value)} escape '\\'`,
+    ...values.map((value) =>
+      value.split(",").length > 2
+        ? eq(customers.address, value)
+        : or(
+            eq(customers.address, value),
+            sql`${customers.address} like '%, ' || ${likeEscape(value)} escape '\\'`,
+          ),
+    ),
   );
 }
 
