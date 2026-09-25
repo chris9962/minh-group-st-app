@@ -1,6 +1,6 @@
 import { STAFF_SORT, StaffForm, type StaffQuery } from "@/lib/api/staff";
 import { can, inVisibleScope } from "@/lib/permissions";
-import { RoleKey } from "@/lib/types";
+import { ContractType, RoleKey } from "@/lib/types";
 import { logAudit } from "@/server/audit";
 import { badRequest, forbidden, getActor, jsonBody, unauthorized, uuidParam } from "@/server/auth";
 import { pageArgsFrom } from "@/server/pagination";
@@ -49,11 +49,19 @@ export async function GET(request: Request) {
     roles: (params.get("roles") ?? "")
       .split(",")
       .filter((r): r is RoleKey => RoleKey.options.includes(r as RoleKey)),
+    contractType: contractTypeParam(params.get("contractType")),
   };
 
   return Response.json(
     await staffFor(actor, query, pageArgsFrom(url, STAFF_SORT, "name")),
   );
+}
+
+/** Giá trị lạ trên URL thì bỏ lọc, không trả 400 (AGENTS.md §5.1 điều 2). */
+function contractTypeParam(raw: string | null): StaffQuery["contractType"] {
+  if (raw === "none") return "none";
+  const parsed = ContractType.safeParse(raw);
+  return parsed.success ? parsed.data : "";
 }
 
 export async function POST(request: Request) {

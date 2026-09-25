@@ -43,7 +43,7 @@ import { SalaryClosingControl } from "@/components/payroll/SalaryClosingControl"
 import { useDebouncedValue } from "@/lib/hooks";
 import { useCreateIntent } from "@/lib/useCreateIntent";
 import { availableScopes, can, canOrg, scopeFor, visibleDepartmentIds } from "@/lib/permissions";
-import { ROLE_LABEL, RoleKey, type Scope } from "@/lib/types";
+import { CONTRACT_TYPE_LABEL, ContractType, ROLE_LABEL, RoleKey, type Scope } from "@/lib/types";
 import { errorMessage, toast } from "@/lib/toast";
 import { useSession } from "@/store/session";
 import styles from "./page.module.scss";
@@ -141,6 +141,17 @@ const ROLE_FILTERS = RoleKey.options.map((value) => ({
   label: ROLE_LABEL[value],
 }));
 
+type ContractFilter = NonNullable<StaffQuery["contractType"]>;
+
+const CONTRACT_FILTERS: { value: ContractFilter; label: string }[] = [
+  { value: "", label: "Tất cả loại hợp đồng" },
+  ...ContractType.options.map((c) => ({ value: c, label: CONTRACT_TYPE_LABEL[c] })),
+  { value: "none", label: "Chưa nhập" },
+];
+
+const contractFromUrl = (value: string | null): ContractFilter =>
+  CONTRACT_FILTERS.find((f) => f.value === value)?.value ?? "";
+
 const ACCOUNT_STATUS_FILTERS: { value: StaffQuery["status"]; label: string }[] = [
   { value: "active", label: "Đang hoạt động" },
   { value: "locked", label: "Đã khoá" },
@@ -186,6 +197,9 @@ export default function PeoplePage() {
   // Mặc định KHÔNG chọn gì = lấy hết. Giữ mảng rỗng thay vì nhồi sẵn cả 6 mục
   // để "chưa lọc" và "lọc đúng 6 mục" không lẫn vào nhau ở tầng gọi API.
   const [roles, setRoles] = useState<RoleKey[]>(() => rolesFromUrl(searchParams.get("roles")));
+  const [contractType, setContractType] = useState<ContractFilter>(() =>
+    contractFromUrl(searchParams.get("contractType")),
+  );
   const [status, setStatus] = useState<StaffQuery["status"]>(() => {
     const value = searchParams.get("status");
     return value === "locked" || value === "all" ? value : "active";
@@ -242,13 +256,14 @@ export default function PeoplePage() {
     if (departmentId) params.set("departmentId", departmentId);
     if (search) params.set("search", search);
     if (roles.length > 0) params.set("roles", [...roles].sort().join(","));
+    if (contractType) params.set("contractType", contractType);
     if (status !== "active") params.set("status", status);
     if (page > 0) params.set("page", String(page + 1));
     if (sort !== "kpi") params.set("sort", sort);
     if (dir !== "desc") params.set("dir", dir);
     const query = params.toString();
     return query ? `/users?${query}` : "/users";
-  }, [departmentId, dir, month, page, roles, search, sort, status]);
+  }, [contractType, departmentId, dir, month, page, roles, search, sort, status]);
 
   useEffect(() => {
     window.history.replaceState(null, "", listUrl);
@@ -273,6 +288,7 @@ export default function PeoplePage() {
     // không phải đoán tên rồi mở từng hồ sơ.
     status,
     roles,
+    contractType,
     page,
     sort,
     dir,
@@ -310,7 +326,9 @@ export default function PeoplePage() {
 
   // Kho rỗng và "lọc không ra gì" là hai chuyện khác nhau. Nói nhầm thì trưởng
   // phòng của một phòng mới đi tìm bộ lọc để xoá, trong khi không có cái nào bật.
-  const filtering = Boolean(searchQuery || departmentId || roles.length > 0 || status !== "active");
+  const filtering = Boolean(
+    searchQuery || departmentId || roles.length > 0 || contractType || status !== "active",
+  );
 
   // Nút chỉ có icon nên `aria-label` phải kèm tên người: giữa mười dòng giống
   // nhau, "Sửa" một mình không nói đang sửa ai.
@@ -383,11 +401,17 @@ export default function PeoplePage() {
           }}
         />
         <FilterButton
-          activeCount={(departmentId ? 1 : 0) + (roles.length > 0 ? 1 : 0) + (status !== "active" ? 1 : 0)}
+          activeCount={
+            (departmentId ? 1 : 0) +
+            (roles.length > 0 ? 1 : 0) +
+            (contractType ? 1 : 0) +
+            (status !== "active" ? 1 : 0)
+          }
           onClear={() =>
             refine(() => {
               setDepartmentId("");
               setRoles([]);
+              setContractType("");
               setStatus("active");
             })
           }
@@ -404,6 +428,14 @@ export default function PeoplePage() {
                 { value: "", label: "Tất cả đơn vị" },
                 ...departmentOptions.map((d) => ({ value: d.id, label: d.name })),
               ]}
+            />
+          </FilterField>
+          <FilterField id="contractType" label="Loại hợp đồng" count={contractType ? 1 : 0}>
+            <FilterChoices
+              label="Loại hợp đồng"
+              value={contractType}
+              onChange={(v) => refine(() => setContractType(contractFromUrl(v)))}
+              options={CONTRACT_FILTERS}
             />
           </FilterField>
           <FilterField id="status" label="Trạng thái" count={status !== "active" ? 1 : 0}>
@@ -469,6 +501,14 @@ export default function PeoplePage() {
                       .map((r) => ROLE_FILTERS.find((x) => x.value === r)?.label ?? r)
                       .join(", ")}`,
                     onRemove: () => refine(() => setRoles([])),
+                  },
+                ]
+              : []),
+            ...(contractType
+              ? [
+                  {
+                    label: `Loại hợp đồng: ${CONTRACT_FILTERS.find((x) => x.value === contractType)?.label}`,
+                    onRemove: () => refine(() => setContractType("")),
                   },
                 ]
               : []),

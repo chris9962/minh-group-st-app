@@ -296,6 +296,8 @@ export type StaffQuery = PageQuery<StaffSort> & {
   status: 'active' | 'locked' | 'all';
   /** Chức vụ cần lấy. RỖNG nghĩa là lấy hết — không phải "không lấy gì". */
   roles: RoleKey[];
+  /** Loại hợp đồng. `none` = chưa nhập; rỗng hoặc thiếu = lấy hết. */
+  contractType?: ContractType | 'none' | '';
 };
 
 /**
@@ -342,6 +344,7 @@ export async function fetchStaff(query: StaffQuery): Promise<StaffList> {
     to: query.to,
     status: query.status,
     roles: query.roles.join(','),
+    contractType: query.contractType ?? '',
   });
   const res = await fetch(`/api/staff?${params}`);
   if (!res.ok) throw new Error('Không tải được danh sách nhân viên');

@@ -1,6 +1,6 @@
 import { randomInt } from "node:crypto";
 import { compare, hashSync } from "bcryptjs";
-import { and, asc, count, desc, eq, inArray, ne, sql, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNull, ne, sql, type SQL } from "drizzle-orm";
 import type {
   StaffAccount,
   StaffForm,
@@ -164,6 +164,11 @@ export async function staffFor(
     inScope,
     // Rỗng nghĩa là lấy hết — hiểu thành "không lấy gì" thì lần đầu mở trang bảng trống trơn.
     query.roles.length > 0 ? inArray(users.role, query.roles) : undefined,
+    query.contractType === "none"
+      ? isNull(users.contractType)
+      : query.contractType
+        ? eq(users.contractType, query.contractType)
+        : undefined,
     staffSearchWhere(query.search),
   );
 
