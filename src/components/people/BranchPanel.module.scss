@@ -64,3 +64,9 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* Đạt chỉ tiêu: màu trạng thái đạt (AGENTS.md §3). Số "380/300" đã nói đạt, màu chỉ nhắc thêm. */
+.reached {
+  color: var(--om-green-ink);
+  font-weight: 600;
+}

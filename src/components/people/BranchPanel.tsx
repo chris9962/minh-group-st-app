@@ -31,6 +31,12 @@ type Props = {
 const progressText = (achieved: number, target: number | null): string =>
   target === null ? formatCount(achieved) : `${formatCount(achieved)}/${formatCount(target)}`;
 
+const progressCell = (achieved: number, target: number | null) => (
+  <span className={target !== null && achieved >= target ? styles.reached : undefined}>
+    {progressText(achieved, target)}
+  </span>
+);
+
 const progressRatio = (achieved: number, target: number | null): number =>
   target === null ? -1 : achieved / target;
 
@@ -64,13 +70,13 @@ const columns: RankColumn<BranchDepartment>[] = [
     key: "hkd",
     label: "HKD / chỉ tiêu",
     sortBy: (d) => progressRatio(d.hkdAchieved, d.hkdTarget),
-    render: (d) => progressText(d.hkdAchieved, d.hkdTarget),
+    render: (d) => progressCell(d.hkdAchieved, d.hkdTarget),
   },
   {
     key: "directed",
     label: "Định hướng / chỉ tiêu",
     sortBy: (d) => progressRatio(d.directedAchieved, d.directedTarget),
-    render: (d) => progressText(d.directedAchieved, d.directedTarget),
+    render: (d) => progressCell(d.directedAchieved, d.directedTarget),
   },
   { key: "salary", label: "Lương tạm tính", sortBy: (d) => d.salary, render: (d) => formatVnd(d.salary) },
 ];
