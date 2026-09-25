@@ -24,19 +24,33 @@
   display: grid;
 }
 
-/* Một khoản một hàng: tên, công thức, số tiền. Tên và số tiền không xuống
-   dòng; hộp rộng 560px nên chỉ công thức dài mới gãy trong ô của nó. */
+/* Một khoản hai dòng: tên và số tiền ở trên, công thức ở dưới. Bản ba cột
+   cùng hàng làm cột công thức bắt đầu lệch theo độ dài tên và gãy dòng giữa
+   hai cột (chốt 2026-09-25). */
 .item {
   display: grid;
-  grid-template-columns: max-content minmax(0, 1fr) max-content;
-  align-items: center;
-  gap: 16px;
-  padding: 12px 0;
-  border-bottom: 2px solid var(--om-line);
+  grid-template-columns: minmax(0, 1fr) max-content;
+  grid-template-areas:
+    "label amount"
+    "formula formula";
+  align-items: baseline;
+  column-gap: 16px;
+  row-gap: 2px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--om-line);
 }
 
 .item:first-child {
   padding-top: 0;
+}
+
+.label {
+  grid-area: label;
+}
+
+.formula {
+  grid-area: formula;
+  font-size: 13px;
 }
 
 .formula,
@@ -45,6 +59,7 @@
 }
 
 .amount {
+  grid-area: amount;
   justify-self: end;
   white-space: nowrap;
 }
@@ -64,17 +79,7 @@
   color: var(--om-text-2);
 }
 
-/* Màn hẹp không đủ chỗ cho ba cột; công thức xuống dòng dưới tên. */
 @media (max-width: 520px) {
-  .item {
-    grid-template-columns: minmax(0, 1fr) max-content;
-    row-gap: 2px;
-  }
-
-  .formula {
-    grid-column: 1 / -1;
-  }
-
   .total {
     align-items: flex-start;
     flex-direction: column;

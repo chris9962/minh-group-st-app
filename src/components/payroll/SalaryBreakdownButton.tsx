@@ -52,7 +52,7 @@ export function SalaryBreakdownButton({ amount, breakdown }: Props) {
             <div className={styles.list}>
               {breakdown.items.map((item, index) => (
                 <div className={styles.item} key={`${item.label}-${index}`}>
-                  <strong>{item.label}</strong>
+                  <strong className={styles.label}>{item.label}</strong>
                   <span className={styles.formula}>{item.formula}</span>
                   <span className={`${styles.amount} tabular-nums`}>{formatVnd(item.amount)}</span>
                 </div>
