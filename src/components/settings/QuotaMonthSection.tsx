@@ -13,6 +13,7 @@ import { SectionCard } from "@/components/ui/SectionCard";
 import { SkeletonText } from "@/components/ui/Skeleton";
 import { StatusTag } from "@/components/ui/StatusTag";
 import { TextField } from "@/components/ui/TextField";
+import { ACCOUNT_TYPE_LABEL, AccountType } from "@/lib/api/bankAccounts";
 import { fetchBanks, type Bank } from "@/lib/api/bankCatalog";
 import {
   fetchQuotaMonth,
@@ -56,20 +57,27 @@ type NumberText = string;
 const toText = (value: number | null): NumberText => (value === null ? "" : String(value));
 const toNumber = (text: NumberText): number | null => (text.trim() === "" ? null : Number(text));
 const onlyDigits = (text: string): NumberText => text.replace(/\D/g, "").slice(0, 9);
-const bankIdsOf = (kinds: QuotaKindItem[]) => [...new Set(kinds.map((k) => k.bankId))].sort();
-
 /**
- * Chọn ngân hàng thay cho chọn cặp ngân hàng + loại (chốt 2026-09-25): định
- * hướng là tài khoản Thường và CNKD của ngân hàng được chọn, HKD là tài khoản
- * loại HKD. Máy chủ vẫn lưu theo cặp nên luật đổi sau không phải đổi bảng.
+ * Mỗi lựa chọn là một cặp ngân hàng + loại tài khoản, vì `VPa` Thường và `VPa`
+ * CNKD là hai lựa chọn khác nhau (chốt 2026-09-25). Định hướng chọn trong loại
+ * Thường và CNKD; HKD chỉ có loại HKD.
  */
-const directedKindsOf = (bankIds: string[]): QuotaKindItem[] =>
-  [...bankIds].sort().flatMap((bankId) => [
-    { bankId, accountType: "none" as const },
-    { bankId, accountType: "CNKD" as const },
-  ]);
-const hkdKindsOf = (bankIds: string[]): QuotaKindItem[] =>
-  [...bankIds].sort().map((bankId) => ({ bankId, accountType: "HKD" as const }));
+const kindKey = (k: QuotaKindItem) => `${k.bankId}:${k.accountType}`;
+const fromKey = (key: string): QuotaKindItem => {
+  const [bankId, accountType] = key.split(":");
+  return { bankId, accountType: AccountType.parse(accountType) };
+};
+const keysOf = (kinds: QuotaKindItem[]) => kinds.map(kindKey).sort();
+
+const kindOptions = (banks: Bank[], types: AccountType[]) =>
+  banks
+    .filter((b) => b.code)
+    .flatMap((b) =>
+      types.map((accountType) => ({
+        value: kindKey({ bankId: b.id, accountType }),
+        label: `${b.code} ${ACCOUNT_TYPE_LABEL[accountType]}`,
+      })),
+    );
 
 function QuotaForm({ data, banks }: { data: QuotaMonth; banks: Bank[] }) {
   const queryClient = useQueryClient();
@@ -87,8 +95,8 @@ function QuotaForm({ data, banks }: { data: QuotaMonth; banks: Bank[] }) {
       casa: toText(d.casa),
     })),
   );
-  const [hkdBanks, setHkdBanks] = useState(bankIdsOf(data.hkdKinds));
-  const [directedBanks, setDirectedBanks] = useState(bankIdsOf(data.directedKinds));
+  const [hkdKeys, setHkdKeys] = useState(keysOf(data.hkdKinds));
+  const [directedKeys, setDirectedKeys] = useState(keysOf(data.directedKinds));
 
   const [confirming, setConfirming] = useState(false);
   const form = {
@@ -101,8 +109,8 @@ function QuotaForm({ data, banks }: { data: QuotaMonth; banks: Bank[] }) {
       directed: toNumber(r.directed),
       casa: toNumber(r.casa),
     })),
-    hkdKinds: hkdKindsOf(hkdBanks),
-    directedKinds: directedKindsOf(directedBanks),
+    hkdKinds: [...hkdKeys].sort().map(fromKey),
+    directedKinds: [...directedKeys].sort().map(fromKey),
   };
   // Bản chép từ tháng trước chưa phải bản của tháng này, nên lưu y nguyên vẫn là một thay đổi.
   const changed = data.copiedFrom !== null || JSON.stringify(form) !== JSON.stringify(formOf(data));
@@ -118,7 +126,8 @@ function QuotaForm({ data, banks }: { data: QuotaMonth; banks: Bank[] }) {
   });
 
   const locked = data.locked;
-  const bankOptions = banks.filter((b) => b.code).map((b) => ({ value: b.id, label: b.code }));
+  const directedOptions = kindOptions(banks, ["none", "CNKD"]);
+  const hkdOptions = kindOptions(banks, ["HKD"]);
   const setRow = (departmentId: string, field: "hkd" | "directed" | "casa", text: string) =>
     setRows((prev) =>
       prev.map((r) => (r.departmentId === departmentId ? { ...r, [field]: onlyDigits(text) } : r)),
@@ -197,24 +206,24 @@ function QuotaForm({ data, banks }: { data: QuotaMonth; banks: Bank[] }) {
         </div>
       </SectionCard>
 
-      <SectionCard title="Ngân hàng tính chỉ tiêu" icon={<Landmark size={17} />}>
+      <SectionCard title="Tài khoản tính chỉ tiêu" icon={<Landmark size={17} />}>
         <div className={styles.bankRow}>
           <MultiSelect
             block
             label="Tài khoản định hướng"
-            value={directedBanks}
-            options={bankOptions}
-            onChange={setDirectedBanks}
-            placeholder="Chọn ngân hàng"
+            value={directedKeys}
+            options={directedOptions}
+            onChange={setDirectedKeys}
+            placeholder="Chọn tài khoản"
             disabled={locked}
           />
           <MultiSelect
             block
-            label="Ngân hàng triển khai HKD"
-            value={hkdBanks}
-            options={bankOptions}
-            onChange={setHkdBanks}
-            placeholder="Chọn ngân hàng"
+            label="Tài khoản HKD"
+            value={hkdKeys}
+            options={hkdOptions}
+            onChange={setHkdKeys}
+            placeholder="Chọn tài khoản"
             disabled={locked}
           />
         </div>
@@ -257,6 +266,6 @@ const formOf = (data: QuotaMonth) => ({
     directed: d.directed,
     casa: d.casa,
   })),
-  hkdKinds: hkdKindsOf(bankIdsOf(data.hkdKinds)),
-  directedKinds: directedKindsOf(bankIdsOf(data.directedKinds)),
+  hkdKinds: keysOf(data.hkdKinds).map(fromKey),
+  directedKinds: keysOf(data.directedKinds).map(fromKey),
 });
