@@ -28,6 +28,30 @@ const file =
   args.find((a) => a.startsWith("--file="))?.slice("--file=".length) ??
   "../HỒ_SƠ_NHÂN_VIÊN_ĐÃ_CẬP_NHẬT_HỢP_ĐỒNG.xlsx";
 
+/**
+ * Loại hợp đồng xác nhận tay cho người không có trong file, hoặc file ghi sai.
+ * Đè lên file. Nguồn: phòng Kế toán xác nhận qua chủ dự án ngày 2026-09-25.
+ */
+const CONFIRMED: Record<string, ContractType> = {
+  "485DANGPV": "hdtv",
+  "411DUYNN": "hdld",
+  "491LOCLT": "hddv",
+  "500THIENNM": "hddv",
+  "501DUCNM": "hddv",
+  "502QUOCNM": "hddv",
+  "503TIENNPM": "hddv",
+  "495KHOELV": "hddv",
+  "490NAMNT": "hddv",
+  "493THYLDP": "hddv",
+  "488MYDTK": "hddv",
+  "487ANHHH": "hddv",
+  "492MYLTN": "hddv",
+  "496XUANTH": "hddv",
+  "498TRUNGTV": "hddv",
+  "497VINTT": "hddv",
+  "499CAMNN": "hddv",
+};
+
 const plain = (text: string) => removeDiacritics(text).toUpperCase().replace(/\s+/g, " ").trim();
 
 function contractOf(number: string, kind: string): ContractType | null {
@@ -104,7 +128,11 @@ async function main() {
     status: column("Trạng thái lao động"),
   };
 
-  type Row = { contract: ContractType | null; profile: Omit<typeof staffProfiles.$inferInsert, "userId"> };
+  type Row = {
+    contract: ContractType | null;
+    /** null = người chỉ có trong `CONFIRMED`, file không có hồ sơ HR. */
+    profile: Omit<typeof staffProfiles.$inferInsert, "userId"> | null;
+  };
   const fileRows = new Map<string, Row>();
   sheet.eachRow((row, index) => {
     if (index === 1) return;
@@ -141,6 +169,11 @@ async function main() {
     });
   });
 
+  for (const [code, contract] of Object.entries(CONFIRMED)) {
+    const row = fileRows.get(code);
+    fileRows.set(code, { contract, profile: row?.profile ?? null });
+  }
+
   const staff = await db
     .select({
       id: users.id,
@@ -161,7 +194,7 @@ async function main() {
     (m) => m.row.contract && m.row.contract !== m.user.contractType,
   );
   const inApp = new Set(staff.flatMap((u) => (u.staffCode ? [u.staffCode.toUpperCase()] : [])));
-  const notInApp = [...fileRows.keys()].filter((code) => !inApp.has(code));
+  const notInApp = [...fileRows.keys()].filter((code) => !inApp.has(code) && !(code in CONFIRMED));
 
   const counts = contractChanges.reduce<Record<string, number>>(
     (sum, m) => ({ ...sum, [m.row.contract!]: (sum[m.row.contract!] ?? 0) + 1 }),
@@ -169,7 +202,8 @@ async function main() {
   );
   console.log(`File: ${fileRows.size} người. Khớp mã nhân viên trong app: ${matched.length} người.`);
   console.log(`Ghi loại hợp đồng mới cho ${contractChanges.length} người:`, counts);
-  console.log(`Ghi hồ sơ HR cho ${matched.length} người.`);
+  const withProfile = matched.filter((m) => m.row.profile);
+  console.log(`Ghi hồ sơ HR cho ${withProfile.length} người.`);
   console.log(`Có trong file, không có trong app: ${notInApp.length} người.`);
 
   // Người ĐANG LÀM sau lượt nhập vẫn chưa có loại hợp đồng, kèm lý do.
@@ -200,13 +234,13 @@ async function main() {
         .update(users)
         .set({ contractType: m.row.contract, updatedAt: new Date() })
         .where(eq(users.id, m.user.id));
-    for (const m of matched)
+    for (const m of withProfile)
       await tx
         .insert(staffProfiles)
-        .values({ userId: m.user.id, ...m.row.profile })
-        .onConflictDoUpdate({ target: staffProfiles.userId, set: m.row.profile });
+        .values({ userId: m.user.id, ...m.row.profile! })
+        .onConflictDoUpdate({ target: staffProfiles.userId, set: m.row.profile! });
   });
-  console.log(`\nĐã ghi ${contractChanges.length} loại hợp đồng và ${matched.length} hồ sơ HR.`);
+  console.log(`\nĐã ghi ${contractChanges.length} loại hợp đồng và ${withProfile.length} hồ sơ HR.`);
 }
 
 main()
