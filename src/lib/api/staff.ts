@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ManageScope, Permission, ROLE_LABEL, RoleKey } from '@/lib/types';
+import { ContractType, ManageScope, Permission, ROLE_LABEL, RoleKey } from '@/lib/types';
 import { pageOf, pageParams, type PageQuery } from './pagination';
 
 /** Hồ sơ nhân viên = tài khoản đăng nhập. Một thứ, không tách (spec §2.2). */
@@ -17,6 +17,8 @@ export const StaffAccount = z.object({
   /** Bắt buộc. Biểu mẫu tạo người luôn có sẵn một chức vụ nên không có ai thiếu. */
   role: RoleKey,
   title: z.string(),
+  /** null = chưa nhập. */
+  contractType: ContractType.nullable(),
   manageScope: ManageScope,
   managedDepartmentIds: z.array(z.string()),
   /**
@@ -206,6 +208,8 @@ export const StaffForm = z.object({
   departmentId: z.union([z.literal(''), z.guid()]),
   role: RoleKey,
   title: z.string().trim().min(2, 'Chưa nhập chức danh'),
+  /** Chuỗi rỗng = chưa nhập, lưu null. */
+  contractType: z.union([z.literal(''), ContractType]),
   manageScope: ManageScope,
   managedDepartmentIds: z.array(z.guid()),
   /**

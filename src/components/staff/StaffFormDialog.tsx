@@ -24,7 +24,7 @@ import {
 } from "@/lib/api/staff";
 import { removeDiacritics } from "@/lib/format";
 import { assignableRoles, isFullAccess } from "@/lib/permissions";
-import { ROLE_LABEL, ROLE_TITLE, type Department } from "@/lib/types";
+import { CONTRACT_TYPE_LABEL, ContractType, ROLE_LABEL, ROLE_TITLE, type Department } from "@/lib/types";
 import { ROLE_PERMISSIONS } from "@/lib/roles";
 import { useSession } from "@/store/session";
 import { PermissionsEditor } from "./PermissionsEditor";
@@ -48,6 +48,7 @@ const emptyForm: StaffForm = {
   departmentId: "",
   role: "staff",
   title: ROLE_TITLE.staff,
+  contractType: "",
   manageScope: "none",
   managedDepartmentIds: [],
   insuranceDepartmentIds: [],
@@ -76,6 +77,7 @@ const toForm = (s: StaffAccount): StaffForm => ({
   departmentId: s.departmentId ?? "",
   role: s.role,
   title: s.title,
+  contractType: s.contractType ?? "",
   manageScope: s.manageScope,
   managedDepartmentIds: s.managedDepartmentIds,
   insuranceDepartmentIds: s.insuranceDepartmentIds,
@@ -375,13 +377,26 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
           />
         </div>
 
-        <TextField
-          label="Chức danh hiển thị"
-          required
-          placeholder={ROLE_TITLE[watch("role")]}
-          error={errors.title?.message}
-          {...register("title")}
-        />
+        <div className={styles.pair}>
+          <TextField
+            label="Chức danh hiển thị"
+            required
+            placeholder={ROLE_TITLE[watch("role")]}
+            error={errors.title?.message}
+            {...register("title")}
+          />
+          <Select
+            label="Loại hợp đồng"
+            value={watch("contractType")}
+            onChange={(v) =>
+              setValue("contractType", v === "" ? "" : ContractType.parse(v), { shouldDirty: true })
+            }
+            options={[
+              { value: "", label: "Chưa nhập" },
+              ...ContractType.options.map((c) => ({ value: c, label: CONTRACT_TYPE_LABEL[c] })),
+            ]}
+          />
+        </div>
 
         {picksManaged && (
           <fieldset className={styles.fieldset}>

@@ -1,5 +1,6 @@
 import * as period202607 from "./2026-07";
 import * as period202608 from "./2026-08";
+import * as period202609 from "./2026-09";
 
 /**
  * Cửa vào DUY NHẤT của công thức lương theo kỳ, cùng lối với `src/rules/index.ts`.
@@ -16,10 +17,21 @@ export type SalaryItem = { label: string; formula: string; amount: number };
 export type SalaryFact = { label: string; value: string };
 export type SalaryResult = { amount: number; facts: SalaryFact[]; items: SalaryItem[] };
 
+/** Một chỉ tiêu trong tháng theo QĐ 145: số được giao và số đã đạt. */
+export type QuotaProgress = { target: number; achieved: number };
+
+/** Chỉ tiêu phòng; `null` = admin không nhập mục đó, không chấm. */
+export type DepartmentQuotaProgress = {
+  hkd: QuotaProgress | null;
+  directed: QuotaProgress | null;
+};
+
 export type StaffSalaryInput = {
   points: number;
   /** Số ngày công trong tháng, chưa cắt trần. */
   workDays: number;
+  /** Chỉ tiêu tài khoản định hướng; chỉ nhân viên HĐLĐ có. Kỳ trước 2026-09 bỏ qua. */
+  directedQuota?: QuotaProgress | null;
 };
 
 export type ManagerSalaryInput = {
@@ -29,6 +41,8 @@ export type ManagerSalaryInput = {
   teamPoints: number[];
   /** Số ngày phòng có ngày công, chưa cắt trần. */
   workDays: number;
+  /** Chỉ tiêu của phòng mình. Kỳ trước 2026-09 bỏ qua. */
+  departmentQuota?: DepartmentQuotaProgress | null;
 };
 
 export type DeputyDirectorSalaryInput = {
@@ -36,6 +50,8 @@ export type DeputyDirectorSalaryInput = {
   teamPoints: number[];
   /** Tổng điểm các phòng phụ trách, gồm cả Phó phòng và người đã nghỉ có điểm. */
   branchPoints: number;
+  /** Chỉ tiêu từng phòng phụ trách. Kỳ trước 2026-09 bỏ qua. */
+  departmentQuotas?: DepartmentQuotaProgress[];
 };
 
 type SalaryRules = {
@@ -49,6 +65,7 @@ type SalaryRules = {
 const PERIODS: Record<string, SalaryRules> = {
   "2026-07": period202607,
   "2026-08": period202608,
+  "2026-09": period202609,
 };
 
 /** File kỳ áp cho `yearMonth`: kỳ mới nhất có tháng bắt đầu không sau tháng đó. */

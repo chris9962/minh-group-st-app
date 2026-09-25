@@ -430,6 +430,16 @@ export const ROLE_TITLE: Record<RoleKey, string> = {
 export const ManageScope = z.enum(['none', 'listed', 'company']);
 export type ManageScope = z.infer<typeof ManageScope>;
 
+/** Loại hợp đồng. Chỉ HĐLĐ có chỉ tiêu cá nhân theo QĐ 145; HĐTV tính như HĐDV. */
+export const ContractType = z.enum(['hdld', 'hddv', 'hdtv']);
+export type ContractType = z.infer<typeof ContractType>;
+
+export const CONTRACT_TYPE_LABEL: Record<ContractType, string> = {
+  hdld: 'HĐLĐ',
+  hddv: 'HĐDV',
+  hdtv: 'HĐTV',
+};
+
 
 /* ── Người dùng ─────────────────────────────────────────────────────── */
 

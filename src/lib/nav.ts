@@ -246,6 +246,7 @@ export function navFor(user: User | null): NavEntry[] {
   }
   if (can(user, 'system', 'configure-catalog')) {
     settingsChildren.push({ href: '/settings/kpi-target', label: 'Chỉ tiêu KPI', screen: 'P-83' });
+    settingsChildren.push({ href: '/settings/quota', label: 'Chỉ tiêu tháng', screen: 'P-85' });
   }
   if (can(user, 'system', 'configure-catalog')) {
     settingsChildren.push({

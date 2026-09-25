@@ -62,7 +62,8 @@ export function SalaryBreakdownButton({ amount, breakdown }: Props) {
                 <strong className="tabular-nums">{formatVnd(amount)}</strong>
               </div>
             </div>
-            <p className={styles.note}>Chưa gồm chỉ tiêu HKD, CASA và tài khoản định hướng.</p>
+            {/* TODO(lương CĐS, file mẫu CASA của Yên): gỡ dòng này khi lương tính CASA. */}
+            <p className={styles.note}>Chưa gồm CASA.</p>
           </>
         ) : (
           <p className={styles.empty}>Chức vụ hoặc phòng này chưa có công thức lương CĐS.</p>

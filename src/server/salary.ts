@@ -1,7 +1,13 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { businessMonth, monthRange } from "@/lib/format";
-import type { RoleKey, User } from "@/lib/types";
-import { salaryRulesFor, type SalaryFact, type SalaryItem } from "@/rules/salary";
+import type { ContractType, RoleKey, User } from "@/lib/types";
+import {
+  salaryRulesFor,
+  type DepartmentQuotaProgress,
+  type QuotaProgress,
+  type SalaryFact,
+  type SalaryItem,
+} from "@/rules/salary";
 import { db } from "./db/client";
 import {
   departments,
@@ -13,6 +19,7 @@ import {
   userManagedDepartments,
   users,
 } from "./db/schema";
+import { countQuotaAccounts, quotaConfigOf } from "./quota";
 
 export type SalaryBreakdown = {
   amount: number;
@@ -54,6 +61,7 @@ const scoreExpr = (yearMonth: string) => sql<number>`(
 type Subject = {
   id: string;
   role: RoleKey;
+  contractType: ContractType | null;
   departmentId: string | null;
   departmentType: "sales" | "office" | null;
   points: number;
@@ -105,9 +113,9 @@ export async function salaryForUsers(
 /**
  * Lương CĐS đang chạy, tính theo file kỳ ở `src/rules/salary`.
  *
- * CASA và tài khoản định hướng đang bằng 0 theo chốt nghiệp vụ. Thành phần HKD
- * của cấp quản lý cũng chưa cộng vì database mới có sản lượng, chưa có chỉ tiêu
- * HKD theo phòng/tháng để quyết định đạt hay thiếu bao nhiêu phần trăm.
+ * Chỉ tiêu QĐ 145 đọc từ màn Chỉ tiêu tháng, xem `quotaProgressFor`.
+ * TODO(lương CĐS, file mẫu CASA của Yên): chưa đếm CASA, nên chưa truyền chỉ
+ * tiêu CASA vào file kỳ. Gỡ khi có màn nhập danh sách CASA.
  *
  * ⚠️ Đọc phòng, chức vụ và trạng thái HIỆN TẠI của từng người. Chuyển phòng
  * sau tháng đó làm đổi lương tháng đó, nên tháng đã trả phải chốt lại.
@@ -126,6 +134,7 @@ async function liveSalaries(
     .select({
       id: users.id,
       role: users.role,
+      contractType: users.contractType,
       departmentId: users.departmentId,
       departmentType: departments.type,
       points,
@@ -243,11 +252,17 @@ async function liveSalaries(
     else staffByDepartment.set(row.departmentId, [row.points]);
   }
 
+  const quota = await quotaProgressFor(yearMonth, subjects, managedRows);
+
   for (const subject of subjects) {
     let salary = null;
 
     if (subject.role === "staff" && subject.departmentType === "sales") {
-      salary = rules.staff({ points: subject.points, workDays: userDays.get(subject.id) ?? 0 });
+      salary = rules.staff({
+        points: subject.points,
+        workDays: userDays.get(subject.id) ?? 0,
+        directedQuota: quota.staff(subject.id),
+      });
     } else if (
       (subject.role === "head" || subject.role === "deputy-head") &&
       subject.departmentType === "sales" &&
@@ -258,6 +273,7 @@ async function liveSalaries(
         points: subject.points,
         teamPoints: staffByDepartment.get(subject.departmentId) ?? [],
         workDays: departmentDays.get(subject.departmentId) ?? 0,
+        departmentQuota: quota.department(subject.departmentId),
       });
     } else if (subject.role === "deputy-director" && rules.deputyDirector) {
       const managed = managedByUser.get(subject.id) ?? [];
@@ -268,6 +284,10 @@ async function liveSalaries(
             (sum, departmentId) => sum + (branchPointsByDepartment.get(departmentId) ?? 0),
             0,
           ),
+          departmentQuotas: managed.flatMap((departmentId) => {
+            const progress = quota.department(departmentId);
+            return progress ? [progress] : [];
+          }),
         });
     }
 
@@ -281,6 +301,72 @@ async function liveSalaries(
   }
 
   return result;
+}
+
+/**
+ * Chỉ tiêu và số đã đạt của tháng. Tháng chưa lưu chỉ tiêu, hoặc mục chưa chọn
+ * loại tài khoản nào, thì trả `null`: không chấm, không cộng không trừ.
+ *
+ * Nhân viên chỉ chấm khi là HĐLĐ (chốt 2026-09-25); đếm theo người lập hồ sơ
+ * khách như KPI. Phòng đếm MỌI tài khoản ghi nhận cho phòng, không riêng HĐLĐ.
+ */
+async function quotaProgressFor(
+  yearMonth: string,
+  subjects: Subject[],
+  managedRows: { departmentId: string }[],
+): Promise<{
+  staff: (userId: string) => QuotaProgress | null;
+  department: (departmentId: string) => DepartmentQuotaProgress | null;
+}> {
+  const none = { staff: () => null, department: () => null };
+  const config = await quotaConfigOf(yearMonth);
+  if (!config) return none;
+
+  const staffIds =
+    config.staffDirected && config.directedKinds.length > 0
+      ? subjects
+          .filter((s) => s.role === "staff" && s.departmentType === "sales" && s.contractType === "hdld")
+          .map((s) => s.id)
+      : [];
+  const departmentIds = [
+    ...new Set([
+      ...subjects
+        .filter((s) => (s.role === "head" || s.role === "deputy-head") && s.departmentId)
+        .map((s) => s.departmentId!),
+      ...managedRows.map((row) => row.departmentId),
+    ]),
+  ].filter((id) => config.departments.has(id));
+
+  const [directedByStaff, hkdByDepartment, directedByDepartment] = await Promise.all([
+    countQuotaAccounts(yearMonth, config.directedKinds, "creator", staffIds),
+    countQuotaAccounts(yearMonth, config.hkdKinds, "department", departmentIds),
+    countQuotaAccounts(yearMonth, config.directedKinds, "department", departmentIds),
+  ]);
+
+  const progress = (
+    target: number | null,
+    kindsCount: number,
+    achieved: number | undefined,
+  ): QuotaProgress | null =>
+    target && kindsCount > 0 ? { target, achieved: achieved ?? 0 } : null;
+
+  return {
+    staff: (userId) =>
+      staffIds.includes(userId)
+        ? progress(config.staffDirected, config.directedKinds.length, directedByStaff.get(userId))
+        : null,
+    department: (departmentId) => {
+      const targets = config.departments.get(departmentId);
+      if (!targets) return null;
+      const hkd = progress(targets.hkd, config.hkdKinds.length, hkdByDepartment.get(departmentId));
+      const directed = progress(
+        targets.directed,
+        config.directedKinds.length,
+        directedByDepartment.get(departmentId),
+      );
+      return hkd || directed ? { hkd, directed } : null;
+    },
+  };
 }
 
 /* ── Chốt lương theo tháng ─────────────────────────────────────────────── */

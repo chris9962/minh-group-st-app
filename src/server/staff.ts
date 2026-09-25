@@ -95,6 +95,7 @@ async function toAccounts(rows: UserWithDepartment[]): Promise<StaffAccount[]> {
     departmentName: r.departmentName ?? "",
     role: r.role,
     title: r.title,
+    contractType: r.contractType,
     manageScope: r.manageScope,
     managedDepartmentIds: managedOf.get(r.id) ?? [],
     insuranceDepartmentIds: insuranceDepartmentsOf.get(r.id) ?? [],
@@ -542,6 +543,7 @@ async function writeStaff(
         phone: form.phone,
         role: form.role,
         title: form.title,
+        contractType: form.contractType || null,
         departmentId: form.departmentId || null,
         manageScope: form.manageScope,
       });
@@ -588,6 +590,7 @@ async function writeStaff(
           phone: form.phone,
           role: form.role,
           title: form.title,
+          contractType: form.contractType || null,
           departmentId: form.departmentId || null,
           manageScope: form.manageScope,
           updatedAt: new Date(),

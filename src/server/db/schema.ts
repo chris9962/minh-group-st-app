@@ -99,6 +99,15 @@ export const departmentType = pgEnum("department_type", ["sales", "office"]);
 export const accountNumberMethod = pgEnum("account_number_method", ["phone-match", "manual"]);
 export const bankAccountType = pgEnum("bank_account_type", ["none", "CNKD", "HKD"]);
 
+/**
+ * Loại hợp đồng của nhân viên. Chỉ `hdld` có chỉ tiêu cá nhân theo QĐ 145;
+ * `hdtv` (thử việc) tính như `hddv` (chốt 2026-09-25).
+ */
+export const contractType = pgEnum("contract_type", ["hdld", "hddv", "hdtv"]);
+
+/** Nhóm tài khoản tính chỉ tiêu, danh sách cặp ngân hàng + loại do admin chọn theo tháng. */
+export const quotaAccountKind = pgEnum("quota_account_kind", ["hkd", "directed"]);
+
 /** Trường của hồ sơ khách có ghi nhật ký khi sửa — xem `customerChanges`. */
 export const customerChangeField = pgEnum("customer_change_field", [
   "full_name",
@@ -211,6 +220,8 @@ export const users = pgTable(
     /** THUỘC VỀ đúng một phòng; null với Ban giám đốc. */
     departmentId: uuid("department_id").references(() => departments.id),
     manageScope: manageScope("manage_scope").notNull().default("none"),
+    /** null = chưa nhập loại hợp đồng; người đó không có chỉ tiêu cá nhân. */
+    contractType: contractType("contract_type"),
     active: boolean("active").notNull().default(true),
     /** C-01: sai 5 lần liên tiếp → khoá 15 phút, quản trị mở lại. */
     failedAttempts: smallint("failed_attempts").notNull().default(0),
@@ -1676,6 +1687,77 @@ export const kpiTargets = pgTable(
     uniqueIndex("kpi_targets_month_company").on(t.yearMonth).where(sql`department_id is null`),
     check("kpi_targets_points_positive", sql`monthly_points > 0`),
   ],
+);
+
+/**
+ * Chỉ tiêu theo QĐ 145, một dòng mỗi tháng. Ba số là chỉ tiêu của MỖI nhân viên
+ * HĐLĐ. Chỉ `staff_directed` vào công thức lương; `staff_hkd`, `staff_casa` chỉ
+ * lưu vì Phụ lục 04 không có mức cộng trừ cho hai chỉ tiêu này (chốt 2026-09-25).
+ *
+ * null hoặc thiếu dòng = tháng đó không chấm chỉ tiêu, không cộng không trừ.
+ */
+export const quotaMonths = pgTable(
+  "quota_months",
+  {
+    /** '2026-09'. */
+    yearMonth: text("year_month").primaryKey(),
+    staffHkd: integer("staff_hkd"),
+    staffDirected: integer("staff_directed"),
+    staffCasa: integer("staff_casa"),
+    updatedBy: uuid("updated_by").references(() => users.id),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    check(
+      "quota_months_positive",
+      sql`coalesce(${t.staffHkd}, 1) > 0 and coalesce(${t.staffDirected}, 1) > 0 and coalesce(${t.staffCasa}, 1) > 0`,
+    ),
+  ],
+);
+
+/**
+ * Chỉ tiêu phòng do admin nhập, KHÔNG suy từ số HĐLĐ của phòng (chốt 2026-09-25).
+ * Trưởng/Phó phòng và Phó GĐ chấm theo bảng này. Ô null = không chấm mục đó.
+ */
+export const departmentQuotas = pgTable(
+  "department_quotas",
+  {
+    yearMonth: text("year_month")
+      .notNull()
+      .references(() => quotaMonths.yearMonth, { onDelete: "cascade" }),
+    departmentId: uuid("department_id")
+      .notNull()
+      .references(() => departments.id, { onDelete: "cascade" }),
+    hkd: integer("hkd"),
+    directed: integer("directed"),
+    casa: integer("casa"),
+  },
+  (t) => [
+    primaryKey({ columns: [t.yearMonth, t.departmentId] }),
+    check(
+      "department_quotas_positive",
+      sql`coalesce(${t.hkd}, 1) > 0 and coalesce(${t.directed}, 1) > 0 and coalesce(${t.casa}, 1) > 0`,
+    ),
+  ],
+);
+
+/**
+ * Cặp ngân hàng + loại tài khoản đếm vào HKD hoặc tài khoản định hướng của một
+ * tháng. Tháng 2026-09: HKD là `VPa` HKD; định hướng là `VPa` thường và `VPa` CNKD.
+ */
+export const quotaAccountKinds = pgTable(
+  "quota_account_kinds",
+  {
+    yearMonth: text("year_month")
+      .notNull()
+      .references(() => quotaMonths.yearMonth, { onDelete: "cascade" }),
+    kind: quotaAccountKind("kind").notNull(),
+    bankId: uuid("bank_id")
+      .notNull()
+      .references(() => banks.id, { onDelete: "cascade" }),
+    accountType: bankAccountType("account_type").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.yearMonth, t.kind, t.bankId, t.accountType] })],
 );
 
 /**
