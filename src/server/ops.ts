@@ -56,6 +56,9 @@ export const opsDaysFrom = (raw: string | null): number => {
  * hàng nói hai con số khác nhau về cùng một tài khoản.
  */
 async function photoCheckStats(days: number) {
+  // N ngày = N ngày lịch giờ Việt Nam tính cả ngày đang chạy, không phải N×24 giờ trượt.
+  const since = sql`(date_trunc('day', now() at time zone 'Asia/Ho_Chi_Minh')
+    - ${`${days - 1} days`}::interval) at time zone 'Asia/Ho_Chi_Minh'`;
   const rows = await db.execute<{
     bank_id: string;
     code: string;
@@ -68,20 +71,20 @@ async function photoCheckStats(days: number) {
       b.id as bank_id, b.code,
       count(*) filter (where c.status = 'pending') as pending,
       count(*) filter (
-        where c.status = 'done' and c.created_at >= now() - ${`${days} days`}::interval
+        where c.status = 'done' and c.created_at >= ${since}
           and ((c.total > 0 and c.passed = c.total) or c.confirmed_at is not null)
       ) as passed,
       count(*) filter (
-        where c.status = 'done' and c.created_at >= now() - ${`${days} days`}::interval
+        where c.status = 'done' and c.created_at >= ${since}
           and c.passed < c.total and c.confirmed_at is null
       ) as failed,
       count(*) filter (
-        where c.status = 'failed' and c.created_at >= now() - ${`${days} days`}::interval
+        where c.status = 'failed' and c.created_at >= ${since}
       ) as error
     from bank_account_checks c
     join bank_accounts a on a.id = c.account_id
     join banks b on b.id = a.bank_id
-    where c.status = 'pending' or c.created_at >= now() - ${`${days} days`}::interval
+    where c.status = 'pending' or c.created_at >= ${since}
     group by b.id, b.code
     order by b.code
   `);
