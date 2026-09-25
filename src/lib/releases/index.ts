@@ -1,5 +1,5 @@
 import { canOpenPath } from '@/lib/nav';
-import { can } from '@/lib/permissions';
+import { can, isFullAccess } from '@/lib/permissions';
 import type { User } from '@/lib/types';
 import type { Release, ReleaseSection } from './types';
 
@@ -10,6 +10,94 @@ export type { Release, ReleaseSection } from './types';
  * và trang `/releases` bày theo đúng thứ tự này.
  */
 export const RELEASES: Release[] = [
+  {
+    id: '2026-09-25',
+    version: '1.5.0',
+    title: 'Cập nhật ngày 25/09/2026',
+    summary:
+      'Lương tạm tính từ tháng 9/2026 có thêm phần chỉ tiêu theo QĐ 145, hộp Diễn giải lương gọn hơn. Trang Khách hàng lọc được nhiều ấp cùng lúc.',
+    sections: [
+      {
+        title: 'Chỉ tiêu trong lương tạm tính',
+        items: [
+          'Từ tháng 9/2026, lương tạm tính có thêm phần chỉ tiêu theo QĐ 145 cho nhân viên HĐLĐ, Trưởng phòng, Phó phòng và Phó giám đốc của các phòng kinh doanh CĐS.',
+          'Hộp Diễn giải lương hiện số tài khoản đã đạt trên chỉ tiêu, và số điểm được cộng hoặc bị trừ.',
+          'Nhân viên HĐDV và HĐTV không có chỉ tiêu. Lương của các bạn tính như cũ.',
+        ],
+      },
+      {
+        title: 'Diễn giải lương gọn hơn',
+        items: [
+          'Mỗi khoản lương hiện trên hai dòng: tên khoản và số tiền ở trên, cách tính ở dưới.',
+          'Các số ở đầu hộp xếp thành hai cột.',
+        ],
+      },
+      {
+        title: 'Tổng quan',
+        items: [
+          'Bộ chọn kỳ còn Hôm nay, Tháng này và khoảng ngày tự chọn.',
+          'Khoảng ngày tự chọn phải nằm trong một tháng.',
+        ],
+      },
+      {
+        title: 'Lọc khách hàng',
+        items: [
+          'Ô lọc Ấp chọn được nhiều ấp cùng lúc.',
+          'Ô lọc Tài khoản chọn được nhiều lựa chọn cùng lúc.',
+          'Khi bạn chọn khoảng ngày, ô lọc Ấp chỉ hiện ấp có khách lập hồ sơ trong khoảng ngày đó.',
+        ],
+        visibleTo: (user) => canOpenPath(user, '/customers'),
+      },
+      {
+        title: 'Danh sách tài khoản ngân hàng',
+        items: [
+          'Ô khoảng ngày lọc theo ngày mở tài khoản, cùng cách với trang chi tiết ngân hàng.',
+        ],
+        visibleTo: (user) => canOpenPath(user, '/banking'),
+      },
+      {
+        title: 'Hồ sơ Phó giám đốc',
+        items: [
+          'Bảng Theo phòng có hai cột HKD / chỉ tiêu và Định hướng / chỉ tiêu của tháng.',
+          'Ô đạt chỉ tiêu hiện chữ màu xanh.',
+        ],
+        visibleTo: (user) => user.role === 'deputy-director' || canOpenPath(user, '/users'),
+      },
+      {
+        title: 'Loại hợp đồng của nhân viên',
+        items: [
+          'Hộp sửa nhân viên có ô Loại hợp đồng: HĐLĐ, HĐDV, HĐTV.',
+          'Trang Nhân sự & KPI có ô lọc Loại hợp đồng.',
+        ],
+        visibleTo: (user) => canOpenPath(user, '/users'),
+      },
+      {
+        title: 'Cài đặt Chỉ tiêu tháng',
+        items: [
+          'Mục Cài đặt có màn Chỉ tiêu tháng. Bạn chọn tháng, nhập chỉ tiêu mỗi nhân viên HĐLĐ và chỉ tiêu từng phòng.',
+          'Bạn chọn tài khoản nào tính vào tài khoản định hướng và HKD, theo từng ngân hàng và loại tài khoản.',
+          'Tháng chưa lưu chỉ tiêu thì lương dùng chỉ tiêu của tháng gần nhất trước đó. Tháng đã chốt lương thì không sửa được.',
+        ],
+        visibleTo: (user) => canOpenPath(user, '/settings/quota'),
+      },
+      {
+        title: 'Khôi phục tài khoản ngân hàng',
+        items: [
+          'Trang tài khoản trong Cài đặt ngân hàng: tài khoản đang Lỗi có nút Khôi phục hoàn thành.',
+        ],
+        visibleTo: (user) => isFullAccess(user.permissions),
+      },
+      {
+        title: 'Màn Vận hành',
+        items: [
+          'Bảng đơn có ô tìm theo mã đơn, ID đơn hoặc tên khách.',
+          'Bảng đơn có cột Sản phẩm. Nhãn Đợi GCN hiện thời gian đã đợi.',
+          'Khối Điều hướng đơn bảo hiểm chọn đơn mới đi làm tay, qua API hay qua bot.',
+        ],
+        visibleTo: (user) => can(user, 'system', 'view-ops'),
+      },
+    ],
+  },
   {
     id: '2026-09-23',
     version: '1.4.0',
