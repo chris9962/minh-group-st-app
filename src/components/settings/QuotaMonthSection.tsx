@@ -7,12 +7,12 @@ import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ErrorState } from "@/components/ui/ErrorState";
+import { MultiSelect } from "@/components/ui/MultiSelect";
 import { monthLabel } from "@/components/ui/MonthPicker";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { SkeletonText } from "@/components/ui/Skeleton";
 import { StatusTag } from "@/components/ui/StatusTag";
 import { TextField } from "@/components/ui/TextField";
-import { ACCOUNT_TYPE_LABEL, AccountType } from "@/lib/api/bankAccounts";
 import { fetchBanks, type Bank } from "@/lib/api/bankCatalog";
 import {
   fetchQuotaMonth,
@@ -56,7 +56,20 @@ type NumberText = string;
 const toText = (value: number | null): NumberText => (value === null ? "" : String(value));
 const toNumber = (text: NumberText): number | null => (text.trim() === "" ? null : Number(text));
 const onlyDigits = (text: string): NumberText => text.replace(/\D/g, "").slice(0, 9);
-const kindKey = (k: QuotaKindItem) => `${k.bankId}:${k.accountType}`;
+const bankIdsOf = (kinds: QuotaKindItem[]) => [...new Set(kinds.map((k) => k.bankId))].sort();
+
+/**
+ * Chọn ngân hàng thay cho chọn cặp ngân hàng + loại (chốt 2026-09-25): định
+ * hướng là tài khoản Thường và CNKD của ngân hàng được chọn, HKD là tài khoản
+ * loại HKD. Máy chủ vẫn lưu theo cặp nên luật đổi sau không phải đổi bảng.
+ */
+const directedKindsOf = (bankIds: string[]): QuotaKindItem[] =>
+  [...bankIds].sort().flatMap((bankId) => [
+    { bankId, accountType: "none" as const },
+    { bankId, accountType: "CNKD" as const },
+  ]);
+const hkdKindsOf = (bankIds: string[]): QuotaKindItem[] =>
+  [...bankIds].sort().map((bankId) => ({ bankId, accountType: "HKD" as const }));
 
 function QuotaForm({ data, banks }: { data: QuotaMonth; banks: Bank[] }) {
   const queryClient = useQueryClient();
@@ -74,8 +87,8 @@ function QuotaForm({ data, banks }: { data: QuotaMonth; banks: Bank[] }) {
       casa: toText(d.casa),
     })),
   );
-  const [hkdKinds, setHkdKinds] = useState(new Set(data.hkdKinds.map(kindKey)));
-  const [directedKinds, setDirectedKinds] = useState(new Set(data.directedKinds.map(kindKey)));
+  const [hkdBanks, setHkdBanks] = useState(bankIdsOf(data.hkdKinds));
+  const [directedBanks, setDirectedBanks] = useState(bankIdsOf(data.directedKinds));
 
   const [confirming, setConfirming] = useState(false);
   const form = {
@@ -88,8 +101,8 @@ function QuotaForm({ data, banks }: { data: QuotaMonth; banks: Bank[] }) {
       directed: toNumber(r.directed),
       casa: toNumber(r.casa),
     })),
-    hkdKinds: [...hkdKinds].sort().map(fromKey),
-    directedKinds: [...directedKinds].sort().map(fromKey),
+    hkdKinds: hkdKindsOf(hkdBanks),
+    directedKinds: directedKindsOf(directedBanks),
   };
   // Bản chép từ tháng trước chưa phải bản của tháng này, nên lưu y nguyên vẫn là một thay đổi.
   const changed = data.copiedFrom !== null || JSON.stringify(form) !== JSON.stringify(formOf(data));
@@ -105,6 +118,7 @@ function QuotaForm({ data, banks }: { data: QuotaMonth; banks: Bank[] }) {
   });
 
   const locked = data.locked;
+  const bankOptions = banks.filter((b) => b.code).map((b) => ({ value: b.id, label: b.code }));
   const setRow = (departmentId: string, field: "hkd" | "directed" | "casa", text: string) =>
     setRows((prev) =>
       prev.map((r) => (r.departmentId === departmentId ? { ...r, [field]: onlyDigits(text) } : r)),
@@ -183,14 +197,28 @@ function QuotaForm({ data, banks }: { data: QuotaMonth; banks: Bank[] }) {
         </div>
       </SectionCard>
 
-      <KindGrid
-        title="Tài khoản định hướng"
-        banks={banks}
-        selected={directedKinds}
-        onChange={setDirectedKinds}
-        disabled={locked}
-      />
-      <KindGrid title="HKD" banks={banks} selected={hkdKinds} onChange={setHkdKinds} disabled={locked} />
+      <SectionCard title="Ngân hàng tính chỉ tiêu" icon={<Landmark size={17} />}>
+        <div className={styles.bankRow}>
+          <MultiSelect
+            block
+            label="Tài khoản định hướng"
+            value={directedBanks}
+            options={bankOptions}
+            onChange={setDirectedBanks}
+            placeholder="Chọn ngân hàng"
+            disabled={locked}
+          />
+          <MultiSelect
+            block
+            label="Ngân hàng triển khai HKD"
+            value={hkdBanks}
+            options={bankOptions}
+            onChange={setHkdBanks}
+            placeholder="Chọn ngân hàng"
+            disabled={locked}
+          />
+        </div>
+      </SectionCard>
 
       {/* Dính đáy khung cuộn: màn dài bốn khối, lưu ở cuối trang thì phải kéo qua hai bảng. */}
       <div className={styles.saveBar}>
@@ -229,75 +257,6 @@ const formOf = (data: QuotaMonth) => ({
     directed: d.directed,
     casa: d.casa,
   })),
-  hkdKinds: data.hkdKinds.map(kindKey).sort().map(fromKey),
-  directedKinds: data.directedKinds.map(kindKey).sort().map(fromKey),
+  hkdKinds: hkdKindsOf(bankIdsOf(data.hkdKinds)),
+  directedKinds: directedKindsOf(bankIdsOf(data.directedKinds)),
 });
-
-const fromKey = (key: string): QuotaKindItem => {
-  const [bankId, accountType] = key.split(":");
-  return { bankId, accountType: AccountType.parse(accountType) };
-};
-
-function KindGrid({
-  title,
-  banks,
-  selected,
-  onChange,
-  disabled,
-}: {
-  title: string;
-  banks: Bank[];
-  selected: Set<string>;
-  onChange: (next: Set<string>) => void;
-  disabled: boolean;
-}) {
-  const toggle = (key: string) => {
-    const next = new Set(selected);
-    if (next.has(key)) next.delete(key);
-    else next.add(key);
-    onChange(next);
-  };
-
-  return (
-    <SectionCard title={title} icon={<Landmark size={17} />}>
-      <div className={styles.scroll}>
-        <table className="table">
-          <thead>
-            <tr>
-              <th scope="col">Ngân hàng</th>
-              {AccountType.options.map((type) => (
-                <th key={type} scope="col">
-                  {ACCOUNT_TYPE_LABEL[type]}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {banks
-              .filter((b) => b.code)
-              .map((b) => (
-                <tr key={b.id}>
-                  <th scope="row">{b.code}</th>
-                  {AccountType.options.map((type) => {
-                    const key = kindKey({ bankId: b.id, accountType: type });
-                    return (
-                      <td key={type}>
-                        <input
-                          type="checkbox"
-                          className={styles.check}
-                          aria-label={`${title}: ${b.code} ${ACCOUNT_TYPE_LABEL[type]}`}
-                          checked={selected.has(key)}
-                          disabled={disabled}
-                          onChange={() => toggle(key)}
-                        />
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-          </tbody>
-        </table>
-      </div>
-    </SectionCard>
-  );
-}
