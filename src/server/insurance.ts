@@ -65,6 +65,7 @@ import {
 } from "./db/schema";
 import type { PageArgs } from "./pagination";
 import { PVI_NEW_ORDER_CHANNEL, type PviRoute } from "./pvi-api/route";
+import { pviRouteMode } from "./pviRouteMode";
 import { imageKeyOf, imageUrl } from "./storage";
 
 /**
@@ -893,13 +894,15 @@ const botSharePercent = (): number => {
 /**
  * Trạng thái và đường đi của đơn vừa tạo.
  *
- * `PVI_ROUTE` chọn đường máy đang chạy, MỘT đường mỗi lúc (chốt 2026-09-06):
+ * Chế độ điều hướng chọn đường máy đang chạy, MỘT đường mỗi lúc (chốt
+ * 2026-09-06). Chế độ lưu ở database, chỉnh trên màn Vận hành P-99 (chốt
+ * 2026-09-25); chưa lưu lần nào thì đọc biến `PVI_ROUTE`. Xem `pviRouteMode`.
  *
- * | `PVI_ROUTE` | Đơn mới đi đâu |
+ * | Chế độ | Đơn mới đi đâu |
  * |---|---|
  * | `api` | `queued` + `pvi_route='api'`, TOÀN BỘ. Worker API lấy |
  * | `bot` | chia theo `botSharePercent`: `queued` + `pvi_route='bot'`, hoặc làm tay |
- * | khác, hoặc thiếu | `manual-queued`, đội KD làm tay như trước |
+ * | `manual` | `manual-queued`, đội KD làm tay như trước |
  *
  * Đường API nhận 100%, không chia. Chia đôi sinh ra vì bot hỏng ở hai bước mà
  * API không có: khớp dòng trên bảng `/Service/Manager` và giải captcha. Lỗi còn
@@ -914,13 +917,13 @@ const botSharePercent = (): number => {
  * người xem tưởng hệ thống đang chạy, còn hàng chờ làm tay thì rỗng trong khi
  * đó là nơi việc thật sự nằm.
  *
- * Đọc mỗi lần gọi, không chụp một lần lúc nạp module: hai container dùng chung
- * biến này, và đổi đường không nên đòi khởi động lại cả app.
+ * Đọc mỗi lần gọi, không chụp một lần lúc nạp module: đổi đường không được đòi
+ * khởi động lại cả app.
  */
-const newOrderRoute = (): { status: "queued" | "manual-queued"; route: PviRoute } => {
-  const configured = (process.env.PVI_ROUTE ?? "").trim();
-  if (configured === "api") return { status: "queued", route: "api" };
-  if (configured === "bot" && randomInt(100) < botSharePercent())
+const newOrderRoute = async (): Promise<{ status: "queued" | "manual-queued"; route: PviRoute }> => {
+  const mode = await pviRouteMode();
+  if (mode === "api") return { status: "queued", route: "api" };
+  if (mode === "bot" && randomInt(100) < botSharePercent())
     return { status: "queued", route: "bot" };
   return { status: "manual-queued", route: "" };
 };
@@ -1055,7 +1058,7 @@ export async function createInsuranceOrders(
 
     // Đọc MỘT lần cho cả lô: mọi đơn của một lần tạo phải cùng một trạng thái,
     // kể cả khi ai đó đổi đường đúng lúc câu insert đang chạy.
-    const { status: newStatus, route } = newOrderRoute();
+    const { status: newStatus, route } = await newOrderRoute();
 
     const rows = await tx
       .insert(insuranceOrders)
@@ -1424,8 +1427,8 @@ export async function setInsuranceOrderStatus(
  *
  * ⚠️ Đặt về `queued` là worker tạo lại đơn đó trên PVI lần hai. Không chặn ở
  * đây: chính đó là cách gỡ một đơn bot bỏ dở giữa chừng. Đường đi gán lại theo
- * `PVI_ROUTE` lúc bấm (chốt 2026-09-07): đơn cũ mang `pvi_route='bot'` mà bot
- * đã tắt thì nằm ở Chờ tạo mãi, không worker nào lấy.
+ * chế độ điều hướng lúc bấm (chốt 2026-09-07): đơn cũ mang `pvi_route='bot'` mà
+ * bot đã tắt thì nằm ở Chờ tạo mãi, không worker nào lấy.
  */
 export async function overrideInsuranceOrderStatus(
   actor: User,
@@ -1453,11 +1456,11 @@ export async function overrideInsuranceOrderStatus(
 
   if (lockedByPvi(current)) return { ok: false, message: PVI_LOCKED_MESSAGE };
 
-  const route = next === "queued" ? newOrderRoute() : null;
+  const route = next === "queued" ? await newOrderRoute() : null;
   if (route && route.status !== "queued")
     return {
       ok: false,
-      message: "PVI_ROUTE chưa bật, đặt về Chờ tạo thì không worker nào lấy đơn.",
+      message: "Điều hướng đơn đang là Làm tay, đặt về Chờ tạo thì không worker nào lấy đơn.",
     };
 
   const updated = await db
@@ -1740,11 +1743,11 @@ export async function recreateInsuranceOrder(
   // và từ chối như `overrideInsuranceOrderStatus` khi không worker nào lấy.
   const wanted = InsuranceRecreateBody.safeParse(body);
   if (!wanted.success) return { ok: false, message: "Chưa chọn trạng thái cho đơn mới" };
-  const machineRoute = newOrderRoute();
+  const machineRoute = await newOrderRoute();
   if (wanted.data.status === "queued" && machineRoute.status !== "queued")
     return {
       ok: false,
-      message: "PVI_ROUTE chưa bật, cấp lại vào Chờ tạo thì không worker nào lấy đơn.",
+      message: "Điều hướng đơn đang là Làm tay, cấp lại vào Chờ tạo thì không worker nào lấy đơn.",
     };
   const { status: newStatus, route } =
     wanted.data.status === "queued"

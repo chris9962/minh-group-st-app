@@ -11,8 +11,8 @@
  * ⚠️ PVI chặn theo IP. Worker phải chạy trên máy chủ đã whitelist, chạy ở máy
  * khác thì mọi lệnh gọi hết giờ chờ mà không có thông báo nào rõ hơn.
  *
- * Đơn chỉ vào hàng chờ của worker này khi `PVI_ROUTE=api`; xem `newOrderRoute`
- * ở `src/server/insurance.ts`. Hai container phải cùng đọc biến đó.
+ * Đơn chỉ vào hàng chờ của worker này khi chế độ điều hướng là API. Chế độ
+ * chỉnh ở màn Vận hành P-99; xem `newOrderRoute` ở `src/server/insurance.ts`.
  *
  * Khác bot Playwright ở `pvi-qlcd-playwright/worker.ts`: không mở trình duyệt,
  * không có bước duyệt tay, không có trạng thái `pending-approval`. Bốn đơn thử

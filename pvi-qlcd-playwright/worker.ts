@@ -13,8 +13,8 @@
  * `--thu` tắt cả hai: worker vẫn lấy đơn và điền 26 ô, nhưng dừng trước lúc bấm.
  * Dùng để xem nó chọn đúng đơn và điền đúng dữ liệu chưa.
  *
- * Đơn chỉ vào hàng chờ của worker khi `PVI_ROUTE=bot`; xem `newOrderRoute`
- * ở `src/server/insurance.ts`. Hai container phải cùng đọc biến đó.
+ * Đơn chỉ vào hàng chờ của worker khi chế độ điều hướng là Bot. Chế độ chỉnh
+ * ở màn Vận hành P-99; xem `newOrderRoute` ở `src/server/insurance.ts`.
  *
  * Tên trường trong kết quả trả về từ `pvi-qlcd-playwright/lib/*` giữ nguyên
  * tiếng Việt — đó là hợp đồng của thư mục ấy, không phải tên biến ở đây.

@@ -208,3 +208,48 @@ export async function recreateStuckOrders(body: OpsRecreateBody): Promise<OpsRec
   if (!res.ok) throw new Error(data?.message ?? 'Không cấp lại được lô đơn này');
   return OpsRecreateOutcome.parse(data);
 }
+
+/**
+ * Đường đi của đơn bảo hiểm mới, chỉnh trên P-99 (chốt 2026-09-25). App đọc lại
+ * ở mỗi lượt tạo đơn nên đổi xong có hiệu lực ngay, không khởi động lại máy chủ.
+ *
+ * Đổi chế độ KHÔNG bật hay dừng worker. Chọn API hoặc Bot khi worker đó không
+ * chạy thì đơn mới nằm ở Chờ tạo, không ai lấy.
+ */
+export const PviRouteMode = z.enum(['manual', 'api', 'bot']);
+export type PviRouteMode = z.infer<typeof PviRouteMode>;
+
+export const PVI_ROUTE_MODE_LABEL: Record<PviRouteMode, string> = {
+  manual: 'Làm tay',
+  api: 'API',
+  bot: 'Bot',
+};
+
+export const PviRouteSetting = z.object({
+  mode: PviRouteMode,
+  /** ISO datetime của lần lưu gần nhất. Rỗng khi chưa ai lưu và app đang đọc biến môi trường. */
+  updatedAt: z.string(),
+  updatedBy: z.string(),
+});
+export type PviRouteSetting = z.infer<typeof PviRouteSetting>;
+
+export const PviRouteBody = z.object({ mode: PviRouteMode });
+export type PviRouteBody = z.infer<typeof PviRouteBody>;
+
+export async function fetchPviRoute(): Promise<PviRouteSetting> {
+  const res = await fetch('/api/ops/pvi-route');
+  if (!res.ok) throw new Error('Không đọc được chế độ điều hướng đơn');
+  return PviRouteSetting.parse(await res.json());
+}
+
+export async function savePviRoute(body: PviRouteBody): Promise<void> {
+  const res = await fetch('/api/ops/pvi-route', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    throw new Error(data?.message ?? 'Không lưu được chế độ điều hướng đơn');
+  }
+}

@@ -2148,3 +2148,15 @@ export const zaloNotificationLog = pgTable("zalo_notification_log", {
   key: text("key").primaryKey(),
   at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/**
+ * Cấu hình vận hành đổi được lúc app đang chạy, một dòng một khoá. Migration 0105.
+ *
+ * Khoá `pvi_route`: đường đi của đơn bảo hiểm mới, xem `pviRouteMode`.
+ */
+export const appSettings = pgTable("app_settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  updatedBy: uuid("updated_by").references(() => users.id),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
