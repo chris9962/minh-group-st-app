@@ -51,6 +51,7 @@
     "pvi:api-check": "bun --env-file=.env.local scripts/pvi-api-worker.ts --check",
     "photo:worker": "bun --env-file=.env.local scripts/photo-check-worker.ts",
     "ops:watch": "bun --env-file=.env.local scripts/ops-watch.ts",
+    "zalo:worker": "bun --env-file=.env.local scripts/zalo-bot-worker.ts",
     "ocr:try": "bun scripts/ocr-try.ts",
     "pvi:order:dry": "node pvi-qlcd-playwright/create-order.js --dry-run",
     "webp:bench": "bun scripts/webp-bench.ts"
@@ -86,6 +87,7 @@
     "recharts": "^3.10.1",
     "sharp": "^0.35.4",
     "web-push": "^3.6.7",
+    "zca-js": "^2.2.0",
     "zod": "^4.4.3",
     "zustand": "^5.0.14"
   },

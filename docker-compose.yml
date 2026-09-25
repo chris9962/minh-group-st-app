@@ -131,6 +131,38 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  # Worker bot Zalo — giữ phiên tài khoản Zalo cá nhân qua zca-js.
+  #
+  # KHÔNG tự dựng khi `docker compose up` trống tay. Gọi đích danh:
+  # `docker compose up zalo-worker`.
+  #
+  # ⚠️ Mỗi tài khoản Zalo chỉ giữ một kết nối nhận tin. Không chạy song song với
+  # `bun run zalo:worker` bằng cùng tài khoản.
+  zalo-worker:
+    build:
+      context: .
+      target: zalo-worker
+    container_name: mgst-zalo-worker
+    profiles: ["zalo"]
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - path: .env.local
+        required: false
+    environment:
+      # Cùng lý do như service `app`: trong mạng compose, Postgres là `db:5432`.
+      DATABASE_URL: postgres://mgst:mgst@db:5432/mgst
+    volumes:
+      # Phiên đăng nhập Zalo sống ngoài container. Mất nó là phải quét QR lại.
+      - mgst-zalo-session:/app/session
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   # Bản DEV — `next dev` với hot reload, chạy song song với bản prod được vì
   # nghe cổng khác. Không tự dựng khi `docker compose up` trống tay (profiles);
   # gọi đích danh: `docker compose up app-dev`, hoặc `bun run dev:docker`.
@@ -169,5 +201,6 @@ services:
 volumes:
   mgst-pgdata:
   mgst-pvi-session:
+  mgst-zalo-session:
   mgst-dev-node-modules:
   mgst-dev-next:

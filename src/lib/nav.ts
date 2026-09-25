@@ -214,6 +214,7 @@ export function navFor(user: User | null): NavEntry[] {
   // ghi duy nhất là cấp lại lô đơn kẹt, và hành động đó còn đòi `insurance:create`.
   if (can(user, 'system', 'view-ops')) {
     watchChildren.push({ href: '/ops', label: 'Vận hành hệ thống', screen: 'P-99' });
+    watchChildren.push({ href: '/zalo-bot', label: 'Bot Zalo', screen: 'P-99' });
   }
 
   if (watchChildren.length > 0) {

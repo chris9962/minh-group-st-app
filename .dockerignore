@@ -11,6 +11,10 @@ node_modules
 # Ảnh của bản tạm ghi đĩa — dữ liệu chạy, không phải mã nguồn.
 .uploads
 
+# Phiên Zalo của worker bot chạy ở máy dựng, thay cho mật khẩu Zalo. Tầng app
+# `COPY . .` nên thiếu dòng này thì cookie nằm trong layer của image.
+.zalo
+
 # ⚠️ Ảnh của bản CŨ, trước khi chuyển sang FPT Object Storage.
 #
 # Next phục vụ trọn `public/` ra web như file tĩnh, KHÔNG qua chốt kiểm phiên
@@ -30,11 +34,12 @@ test-results
 docs
 drizzle
 scripts
-# Trừ các file tầng `api-worker` và `photo-check` của Dockerfile chép vào.
+# Trừ các file tầng `api-worker`, `zalo-worker` và `photo-check` của Dockerfile chép vào.
 # Loại cả thư mục `scripts` thì `COPY scripts/pvi-api-worker.ts` hỏng với
 # "not found", vì Docker lọc context TRƯỚC khi đọc Dockerfile. Dòng sau thắng
 # dòng trước.
 !scripts/pvi-api-worker.ts
+!scripts/zalo-bot-worker.ts
 !scripts/photo-check-worker.ts
 !scripts/ocr-try.ts
 !scripts/ocr-server.py

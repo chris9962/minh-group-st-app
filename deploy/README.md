@@ -17,7 +17,8 @@ Thông số máy chủ, chứng chỉ, tài khoản nằm ở `docs/deploy-fpt-c
 | `deploy.sh` | deploy một bản mới: dựng và thử image không bảo trì, rồi bật bảo trì 20 giây để đổi container; kiểm không đạt thì tự lùi. KHÔNG đụng worker |
 | `worker-api.sh` | dựng image worker, thử `--check`, thay container `mgst-api-worker` (tạo đơn PVI); chạy sau `deploy.sh` khi có sửa ở worker đó hoặc `src/server` |
 | `worker-photo.sh` | dựng image `mgst-photo-check` (tầng `photo-check`, Python OCR), thử tiến trình OCR trả `ready`, thay container `mgst-photo-check` (xác thực ảnh) với `--cpus 4 --memory 4g` |
-| `worker-lib.sh` | cờ `docker run` chung của hai script trên, không chạy trực tiếp |
+| `worker-zalo.sh` | dựng image `mgst-zalo-worker` (tầng `zalo-worker`), thử `--check`, thay container `mgst-zalo-worker` (bot Zalo) với volume `mgst-zalo-session` giữ phiên đăng nhập; lần đầu phải quét QR ở màn Bot Zalo |
+| `worker-lib.sh` | cờ `docker run` chung của ba script trên, không chạy trực tiếp |
 | `maintenance-on.sh` | bật bảo trì, tham số là số phút dự kiến |
 | `maintenance-off.sh` | tắt bảo trì |
 | `upload-existing-images.ts` | đẩy ảnh còn trên đĩa lên FPT, chạy một lần lúc chuyển kho |

@@ -210,6 +210,45 @@ USER bun
 # chạy thử một vòng được bằng `docker run mgst-api-worker:latest --mot-vong`.
 ENTRYPOINT ["bun", "scripts/pvi-api-worker.ts"]
 
+# ── Worker bot Zalo ─────────────────────────────────────────────────────────
+#
+# Tầng RIÊNG: `docker build --target zalo-worker`, container `mgst-zalo-worker`,
+# dựng bằng `deploy/worker-zalo.sh`. Worker giữ phiên Zalo của tài khoản cá
+# nhân qua zca-js, không mở trình duyệt, nên nền alpine như `api-worker`.
+#
+# Đặt TRƯỚC tầng `photo-check` để tầng cuối của file không đổi: `docker build`
+# thiếu `--target` dựng tầng cuối cùng.
+#
+# Phiên đăng nhập (cookie, IMEI, user agent) nằm ở `/app/session`, script deploy
+# gắn volume `mgst-zalo-session` vào đó. Thiếu volume thì mỗi lần dựng lại
+# container phải quét QR lại.
+#
+# ⚠️ Image này KHÔNG chứa `.env.local`. Máy chủ truyền lúc chạy bằng `--env-file`.
+FROM oven/bun:1-alpine AS zalo-worker
+WORKDIR /app
+
+# `tzdata` để `ENV TZ` có tác dụng, cùng lý do với tầng `api-worker`. Giờ in
+# trong log của worker phải khớp giờ đội vận hành đọc.
+RUN apk add --no-cache tzdata
+
+COPY package.json bun.lock ./
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+RUN bun install --frozen-lockfile
+
+COPY tsconfig.json ./
+COPY src ./src
+COPY scripts/zalo-bot-worker.ts ./scripts/
+
+ENV TZ=Asia/Ho_Chi_Minh
+ENV ZALO_SESSION_FILE=/app/session/credentials.json
+
+# Volume mới nhận chủ sở hữu của thư mục trong image. Thư mục thuộc `root` thì
+# worker chạy bằng `bun` không ghi được file phiên.
+RUN mkdir -p /app/session && chown bun:bun /app/session
+USER bun
+
+ENTRYPOINT ["bun", "scripts/zalo-bot-worker.ts"]
+
 # ── Worker kiểm ảnh chứng minh tài khoản ngân hàng ──────────────────────────
 #
 # Tầng RIÊNG: `docker build --target photo-check`, container `mgst-photo-check`,

@@ -1969,3 +1969,100 @@ export const opsAlerts = pgTable("ops_alerts", {
   key: text("key").primaryKey(),
   at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/**
+ * Trạng thái bot Zalo, đúng một dòng `id = 1`. Migration 0103.
+ *
+ * Worker `zalo:worker` ghi, màn Bot Zalo đọc. `qr_image` là PNG base64 của mã
+ * QR đang chờ quét, worker xoá khi đăng nhập xong.
+ */
+export const zaloBotState = pgTable(
+  "zalo_bot_state",
+  {
+    id: smallint("id").primaryKey().default(1),
+    status: text("status").notNull().default("offline"),
+    qrImage: text("qr_image"),
+    accountId: text("account_id"),
+    accountName: text("account_name"),
+    lastError: text("last_error"),
+    heartbeatAt: timestamp("heartbeat_at", { withTimezone: true }),
+    logoutRequestedAt: timestamp("logout_requested_at", { withTimezone: true }),
+    groupsSyncRequestedAt: timestamp("groups_sync_requested_at", { withTimezone: true }),
+    groupsSyncedAt: timestamp("groups_synced_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check("zalo_bot_state_single_row", sql`${t.id} = 1`),
+    check(
+      "zalo_bot_state_status",
+      sql`${t.status} in ('offline', 'waiting-qr', 'qr-scanned', 'connected', 'error')`,
+    ),
+  ],
+);
+
+/** Hàng chờ tin nhắn app nhờ worker gửi qua Zalo. Migration 0103. */
+export const zaloOutbox = pgTable(
+  "zalo_outbox",
+  {
+    id: id(),
+    threadId: text("thread_id").notNull(),
+    threadType: text("thread_type").notNull(),
+    body: text("body").notNull(),
+    status: text("status").notNull().default("pending"),
+    error: text("error"),
+    createdBy: uuid("created_by").references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+  },
+  (t) => [
+    index("zalo_outbox_pending").on(t.createdAt).where(sql`${t.status} = 'pending'`),
+    index("zalo_outbox_created_at").on(t.createdAt.desc()),
+    check("zalo_outbox_thread_type", sql`${t.threadType} in ('user', 'group')`),
+    check("zalo_outbox_status", sql`${t.status} in ('pending', 'sent', 'failed')`),
+  ],
+);
+
+/**
+ * Nhóm Zalo theo tài khoản bot. Worker thay trọn nhóm của một tài khoản mỗi
+ * lượt tải. Migration 0104.
+ */
+export const zaloGroups = pgTable(
+  "zalo_groups",
+  {
+    accountId: text("account_id").notNull(),
+    id: text("id").notNull(),
+    name: text("name").notNull(),
+    searchName: text("search_name").generatedAlwaysAs(sql`mgst_normalize(name)`),
+    memberCount: integer("member_count").notNull().default(0),
+  },
+  (t) => [
+    primaryKey({ name: "zalo_groups_pk", columns: [t.accountId, t.id] }),
+    index("zalo_groups_account_name").on(t.accountId, t.name),
+  ],
+);
+
+/**
+ * Loại thông báo nào gửi tới nhóm nào, theo tài khoản bot. Migration 0104.
+ *
+ * Không có khoá ngoại sang `zalo_groups`: mỗi lượt tải nhóm xoá rồi chèn lại,
+ * khoá ngoại sẽ xoá luôn cấu hình. Worker chỉ gửi tới nhóm còn trong `zalo_groups`.
+ */
+export const zaloNotificationRoutes = pgTable(
+  "zalo_notification_routes",
+  {
+    accountId: text("account_id").notNull(),
+    kind: text("kind").notNull(),
+    groupId: text("group_id").notNull(),
+    createdBy: uuid("created_by").references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ name: "zalo_notification_routes_pk", columns: [t.accountId, t.kind, t.groupId] }),
+  ],
+);
+
+/** Sổ chống gửi trùng của thông báo Zalo, một dòng một sự việc đã báo. Migration 0104. */
+export const zaloNotificationLog = pgTable("zalo_notification_log", {
+  key: text("key").primaryKey(),
+  at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+});

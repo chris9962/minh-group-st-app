@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Phần dùng chung của `worker-api.sh` và `worker-photo.sh`. KHÔNG chạy trực
-# tiếp, hai script kia `source` vào.
+# Phần dùng chung của `worker-api.sh`, `worker-photo.sh` và `worker-zalo.sh`.
+# KHÔNG chạy trực tiếp, ba script kia `source` vào.
 #
 # Hai worker hai image (`mgst-api-worker` tầng `api-worker`, `mgst-photo-check`
 # tầng `photo-check`) nhưng chung cờ `docker run`, để một chỗ: lượt 2026-09-08 và

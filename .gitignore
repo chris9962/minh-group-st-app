@@ -76,6 +76,9 @@ next-env.d.ts
 /pvi-qlcd-playwright/dom/
 __pycache__/
 
+# Bot Zalo. `credentials.json` là cookie đăng nhập tài khoản Zalo, thay cho mật khẩu.
+/.zalo/
+
 # Nhập nhân sự. `staff-import.json` là họ tên và số điện thoại của người thật,
 # sinh lại được từ file HR gốc nên không có lý do nào để lên repo.
 /scripts/data/staff-import.json
