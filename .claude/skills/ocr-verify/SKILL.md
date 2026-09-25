@@ -43,7 +43,7 @@ Thông báo không đạt chỉ nói "Không tìm thấy X trong ảnh". `found`
 1. **Không đụng máy chủ.** Mọi việc đo làm ở máy local. `AGENTS.md` §0.2.
 2. **Đo trước khi commit.** Sửa `ocr-server.py`, `reader.ts`, hay luật chấm thì chạy bộ benchmark và so với lượt trước. Không tài khoản nào tụt mà chưa soi bằng mắt.
 3. **Claude là người gán nhãn.** Ca đổi kết quả phải mở ảnh xem bằng `Read`, xếp vào đúng một loại: OCR đọc sai / dữ liệu hệ thống sai / ảnh thiếu hoặc bị che. Chỉ loại đầu cần sửa code. Đếm riêng ba loại khi báo cáo.
-4. **Một cấu hình đọc cho mọi ảnh.** Không thêm nhánh "màn này đọc kiểu này". Ảnh nào đọc sai thì sửa ở tầng đọc cho mọi ảnh, hoặc chấp nhận không đạt.
+4. **Một cấu hình đọc cho mọi ảnh.** Không thêm nhánh "màn này đọc kiểu này". Ảnh nào đọc sai thì sửa ở tầng đọc cho mọi ảnh, hoặc chấp nhận không đạt. Ngoại lệ duy nhất theo NGÂN HÀNG, không theo màn: MSBb đọc bằng `vgg_seq2seq` (chủ dự án chốt 2026-09-25), xem `ocrModelOf` ở `src/server/ocr/facts.ts`.
 5. Máy user: `nice -n 19`, `OCR_THREADS=2`, việc dài chạy nền và ghi log ra file, không chặn chat.
 
 ## Môi trường local

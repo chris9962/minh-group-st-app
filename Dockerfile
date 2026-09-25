@@ -289,7 +289,9 @@ ENV PADDLE_PDX_CACHE_HOME=/app/.models/paddlex \
 COPY scripts/ocr-server.py ./scripts/
 RUN /app/.venv/bin/python scripts/ocr-server.py --tai-model /app/.models
 ENV OCR_CONFIG=/app/.models/vgg_transformer.yml \
-    OCR_WEIGHTS=/app/.models/vgg_transformer.pth
+    OCR_WEIGHTS=/app/.models/vgg_transformer.pth \
+    OCR_SEQ2SEQ_CONFIG=/app/.models/vgg_seq2seq.yml \
+    OCR_SEQ2SEQ_WEIGHTS=/app/.models/vgg_seq2seq.pth
 
 # Hai luồng cho torch và paddle: container giới hạn 4 lõi, một ảnh một lúc.
 ENV OCR_THREADS=2 OMP_NUM_THREADS=2

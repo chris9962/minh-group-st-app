@@ -1,4 +1,4 @@
-import { ocrLines } from "./reader";
+import { ocrLines, type OcrModel } from "./reader";
 import type { CheckedItem } from "./types";
 
 /**
@@ -69,10 +69,23 @@ export const mergeFacts = (a: Facts, b: Facts): Facts => {
 export const allFound = (f: Facts | null): boolean => f !== null && Object.values(f).every(Boolean);
 
 /**
+ * Model VietOCR theo ngân hàng (`banks.code`). MSBb đọc bằng `seq2seq` (chốt
+ * 2026-09-25): `vgg_transformer` đọc sai cố định vài chữ của font app MSB
+ * (`DNS960` ra `DNSI60`, F ra E, Q ra O, V ra U). Trên 50 tài khoản MSBb không
+ * đạt, đổi model thì 36 tài khoản đạt. Đổi lại `seq2seq` có ca đọc sai số điện
+ * thoại (`0373211272` ra `0873211272`), nên ngân hàng khác giữ `transformer`.
+ */
+export const ocrModelOf = (bankCode: string): OcrModel => (bankCode === "MSBb" ? "seq2seq" : "transformer");
+
+/**
  * Đọc từng ảnh cho tới khi cả bộ đủ mọi giá trị; ảnh còn lại không đọc,
  * chuỗi rỗng giữ chỗ để `photoIndex` vẫn đúng.
  */
-export async function readUntilFound(images: Buffer[], facts: (text: string) => Facts): Promise<string[]> {
+export async function readUntilFound(
+  images: Buffer[],
+  facts: (text: string) => Facts,
+  model?: OcrModel,
+): Promise<string[]> {
   const texts: string[] = [];
   let have: Facts | null = null;
   for (const image of images) {
@@ -80,7 +93,7 @@ export async function readUntilFound(images: Buffer[], facts: (text: string) => 
       texts.push("");
       continue;
     }
-    const text = (await ocrLines(image)).join("\n");
+    const text = (await ocrLines(image, model)).join("\n");
     texts.push(text);
     const found = facts(text);
     have = have ? mergeFacts(have, found) : found;

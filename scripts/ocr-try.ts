@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { ocrModelOf } from "../src/server/ocr/facts";
 import { closeOcr, ocrLines } from "../src/server/ocr/reader";
 import { checkMsb, msbFacts } from "../src/server/ocr/banks/msb";
 import { checkLpb, lpbFacts } from "../src/server/ocr/banks/lpb";
@@ -12,8 +13,8 @@ import { checkVpb, vpbFacts } from "../src/server/ocr/banks/vpbank";
  *   bun scripts/ocr-try.ts tpbank --raw anh1.webp             in cả dòng chữ đọc được
  *   OCR_CTX='{"referralCode":"AT107","customerName":"...","accountNumber":"..."}' \
  *     bun scripts/ocr-try.ts tpbank anh*.webp                  bốn giá trị từng ảnh + chấm cả bộ như worker
- *   OCR_CTX='{"referralCode":"...","referralName":"ACT24","customerName":"...","accountNumber":"..."}' \
- *     bun scripts/ocr-try.ts msb anh*.webp
+ *   OCR_CTX='{"referralCode":"...","referralName":"ACT24","customerName":"...","accountNumber":"...","bankCode":"MSBb"}' \
+ *     bun scripts/ocr-try.ts msb anh*.webp                     `bankCode` chọn model đọc, xem `ocrModelOf`
  *
  * Cần Python với paddleocr và vietocr: xem đầu `scripts/ocr-server.py`. Máy
  * local đặt `OCR_PYTHON` trỏ vào python của venv đã cài.
@@ -48,7 +49,7 @@ async function main() {
   for (const image of images) {
     console.log(`\n=== ${image} ===`);
     const t = Date.now();
-    const text = (await ocrLines(await readFile(image))).join("\n");
+    const text = (await ocrLines(await readFile(image), ocrModelOf(ctx?.bankCode ?? ""))).join("\n");
     texts.push(text);
     console.log(`${Date.now() - t} ms`);
     if (raw) console.log(text + "\n---");

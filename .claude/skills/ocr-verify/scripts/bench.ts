@@ -35,6 +35,7 @@ import { checkMb } from "../../../../src/server/ocr/banks/mb";
 import { checkMsb } from "../../../../src/server/ocr/banks/msb";
 import { checkTpbank } from "../../../../src/server/ocr/banks/tpbank";
 import { checkVpb } from "../../../../src/server/ocr/banks/vpbank";
+import { ocrModelOf } from "../../../../src/server/ocr/facts";
 import { closeOcr, ocrLines } from "../../../../src/server/ocr/reader";
 import { readImage } from "../../../../src/server/storage";
 
@@ -184,7 +185,7 @@ async function doc() {
       }
       const t = Date.now();
       try {
-        const lines = await ocrLines(image);
+        const lines = await ocrLines(image, ocrModelOf(row.bank));
         ms += Date.now() - t;
         done++;
         await writeFile(out, JSON.stringify(lines, null, 1));

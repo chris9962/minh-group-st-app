@@ -22,7 +22,9 @@ import { createInterface } from "node:readline";
  * TRONG một ảnh nên được ít, còn thêm tiến trình thì mỗi tiến trình đọc một
  * ảnh khác nhau. Đổi lại mỗi tiến trình giữ một bộ model trong RAM, đo trên
  * máy chủ 2026-09-22 khoảng 0,9 GB, nên `OCR_PROCESSES` phải đi cùng
- * `--cpus` và `--memory` của container — xem `deploy/worker-photo.sh`.
+ * `--cpus` và `--memory` của container — xem `deploy/worker-photo.sh`. Lượt
+ * MSBb đầu tiên nạp thêm `vgg_seq2seq`: đo ở máy local 2026-09-25, RAM mỗi
+ * tiến trình tăng từ 1,9 GB lên 2,3 GB.
  *
  * Tiến trình chết giữa chừng: lượt đang đọc ném lỗi, lượt sau tự mở lại, và
  * chỉ tiến trình đó mở lại chứ không kéo theo các tiến trình còn lại. Mở
@@ -35,6 +37,9 @@ import { createInterface } from "node:readline";
  */
 
 type Reply = { lines?: string[]; ms?: number; error?: string; ready?: boolean };
+
+/** Model VietOCR đọc vùng chữ, khoá `REC_MODELS` trong `ocr-server.py`. */
+export type OcrModel = "transformer" | "seq2seq";
 
 type Server = {
   child: ChildProcessByStdio<Writable, Readable, null>;
@@ -97,7 +102,7 @@ async function start(lane: Lane): Promise<Server> {
   return ready;
 }
 
-async function ask(lane: Lane, image: Buffer): Promise<string[]> {
+async function ask(lane: Lane, image: Buffer, model: OcrModel): Promise<string[]> {
   if (!lane.server) lane.server = start(lane).catch((e) => {
     lane.server = null;
     throw e;
@@ -111,7 +116,7 @@ async function ask(lane: Lane, image: Buffer): Promise<string[]> {
     await writeFile(file, image);
     const reply = await new Promise<Reply>((resolve) => {
       s.waiting = resolve;
-      s.child.stdin.write(JSON.stringify({ path: file }) + "\n");
+      s.child.stdin.write(JSON.stringify({ path: file, model }) + "\n");
     });
     if (reply.error) throw new Error(`OCR lỗi: ${reply.error}`);
     return reply.lines ?? [];
@@ -126,10 +131,10 @@ async function ask(lane: Lane, image: Buffer): Promise<string[]> {
  * Chọn hàng NGẮN NHẤT chứ không chia vòng tròn: ảnh dài ngắn khác nhau tới
  * vài giây, chia vòng tròn thì một hàng đọng lại trong khi hàng khác rỗi.
  */
-export function ocrLines(image: Buffer): Promise<string[]> {
+export function ocrLines(image: Buffer, model: OcrModel = "transformer"): Promise<string[]> {
   const lane = pool.reduce((min, l) => (l.pending < min.pending ? l : min));
   lane.pending += 1;
-  const turn = lane.queue.then(() => ask(lane, image));
+  const turn = lane.queue.then(() => ask(lane, image, model));
   lane.queue = turn.catch(() => undefined).finally(() => {
     lane.pending -= 1;
   });

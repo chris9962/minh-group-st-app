@@ -1,5 +1,5 @@
 import { codeKey, hasDigits, hasLabel, hasPhrase, letterWords, lineHasName, linesHaveCode, splitLines, stripAccents } from "../text";
-import { itemsFromFacts, readUntilFound, type Facts } from "../facts";
+import { itemsFromFacts, ocrModelOf, readUntilFound, type Facts } from "../facts";
 import type { CheckedItem } from "../types";
 
 /**
@@ -25,6 +25,8 @@ export type MsbCheckContext = {
   referralCode: string;
   customerName: string;
   accountNumber: string;
+  /** `MSBa` | `MSBb`, chọn model đọc chữ, xem `ocrModelOf`. */
+  bankCode?: string;
 };
 
 /**
@@ -90,5 +92,5 @@ export function checkMsb(texts: string[], ctx: MsbCheckContext): CheckedItem[] {
 }
 
 export async function checkMsbImages(images: Buffer[], ctx: MsbCheckContext): Promise<CheckedItem[]> {
-  return checkMsb(await readUntilFound(images, (text) => msbFacts(text, ctx)), ctx);
+  return checkMsb(await readUntilFound(images, (text) => msbFacts(text, ctx), ocrModelOf(ctx.bankCode ?? "")), ctx);
 }

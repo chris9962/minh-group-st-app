@@ -4,7 +4,7 @@ Tiến trình đọc chữ trên ảnh, chạy lâu dài, nói chuyện bằng J
 `src/server/ocr/reader.ts` mở tiến trình này một lần rồi giữ suốt: nạp model
 mất khoảng 4 giây, gọi lại mỗi ảnh thì mỗi ảnh tốn thêm chừng đó.
 
-    stdin   {"path": "/tmp/anh.png"}
+    stdin   {"path": "/tmp/anh.png", "model": "seq2seq"}     `model` thiếu = "transformer"
     stdout  {"lines": ["Mở Tài Khoản Thành Công!", "1000 5616 831", ...], "ms": 2300}
             {"error": "..."}
     dòng đầu khi sẵn sàng: {"ready": true}
@@ -13,13 +13,18 @@ PaddleOCR chỉ DÒ VÙNG chữ (model `PP-OCRv5_mobile_det`), VietOCR đọc t�
 (`vgg_transformer`). Chốt 2026-09-19 sau khi so với Tesseract: một lượt, không
 tiền xử lý, đọc đủ bốn giá trị ở các ca Tesseract 36 cấu hình không đọc được.
 
+MSBb đọc bằng `vgg_seq2seq` (chốt 2026-09-25), xem `ocrModelOf` ở
+`src/server/ocr/facts.ts`. Model này chỉ nạp ở lượt đầu có yêu cầu nó.
+
 Mọi log của thư viện đi ra stderr; stdout chỉ có JSON.
 
 Biến môi trường:
-    OCR_DET_MODEL   tên model dò vùng, mặc định PP-OCRv5_mobile_det
-    OCR_CONFIG      đường dẫn YAML cấu hình VietOCR lưu sẵn; thiếu thì tải từ vocr.vn
-    OCR_WEIGHTS     đường dẫn `vgg_transformer.pth` tải sẵn; thiếu thì tải về
-    OCR_THREADS     số luồng torch và paddle, mặc định 2
+    OCR_DET_MODEL          tên model dò vùng, mặc định PP-OCRv5_mobile_det
+    OCR_CONFIG             đường dẫn YAML cấu hình `vgg_transformer` lưu sẵn; thiếu thì tải từ vocr.vn
+    OCR_WEIGHTS            đường dẫn `vgg_transformer.pth` tải sẵn; thiếu thì tải về
+    OCR_SEQ2SEQ_CONFIG     như OCR_CONFIG, cho `vgg_seq2seq`
+    OCR_SEQ2SEQ_WEIGHTS    như OCR_WEIGHTS, cho `vgg_seq2seq`
+    OCR_THREADS            số luồng torch và paddle, mặc định 2
 
 Tải sẵn model lúc dựng image:  python scripts/ocr-server.py --tai-model /app/.models
 """
@@ -49,37 +54,45 @@ from paddleocr import TextDetection  # noqa: E402
 from vietocr.tool.config import Cfg  # noqa: E402
 from vietocr.tool.predictor import Predictor  # noqa: E402
 
-PAD = 4
+# Khoá trong yêu cầu → (tên model VietOCR, biến YAML, biến trọng số, lề cắt vùng px).
+# `vgg_seq2seq` cắt sát 0 px: trên 32 ô mã giới thiệu MSBb đọc đúng 25, lề 4 px chỉ 22.
+REC_MODELS = {
+    "transformer": ("vgg_transformer", "OCR_CONFIG", "OCR_WEIGHTS", 4),
+    "seq2seq": ("vgg_seq2seq", "OCR_SEQ2SEQ_CONFIG", "OCR_SEQ2SEQ_WEIGHTS", 0),
+}
 
 
 DET_MODEL = os.environ.get("OCR_DET_MODEL", "PP-OCRv5_mobile_det")
 
 
-def load():
+def load_det():
     # `enable_mkldnn=False`: paddlepaddle 3.3.1 trên x86 lỗi
     # "ConvertPirAttribute2RuntimeAttribute not support" ở tầng oneDNN khi dò vùng
     # (thử trong image linux/amd64 2026-09-19). Dò vùng chỉ 0,4 s, tắt không đáng kể.
-    det = TextDetection(model_name=DET_MODEL, device="cpu", cpu_threads=THREADS, enable_mkldnn=False)
+    return TextDetection(model_name=DET_MODEL, device="cpu", cpu_threads=THREADS, enable_mkldnn=False)
+
+
+def load_rec(key):
+    name, config_env, weights_env, pad = REC_MODELS[key]
     # `load_config_from_name` tải YAML từ vocr.vn MỖI lần gọi; trong Docker dùng bản
     # đã lưu lúc build để container chạy không cần mạng.
-    config = os.environ.get("OCR_CONFIG")
-    cfg = Cfg.load_config_from_file(config) if config else Cfg.load_config_from_name("vgg_transformer")
+    config = os.environ.get(config_env)
+    cfg = Cfg.load_config_from_file(config) if config else Cfg.load_config_from_name(name)
     # Trọng số CNN đã nằm trong checkpoint; `pretrained` chỉ kéo thêm 548 MB vgg19_bn lúc chạy.
     cfg["cnn"]["pretrained"] = False
     cfg["predictor"]["beamsearch"] = False
     cfg["device"] = "cpu"
-    weights = os.environ.get("OCR_WEIGHTS")
+    weights = os.environ.get(weights_env)
     if weights:
         cfg["weights"] = weights
-    rec = Predictor(cfg)
-    return det, rec
+    return Predictor(cfg), pad
 
 
-def crop(img, poly):
+def crop(img, poly, pad):
     xs = [int(p[0]) for p in poly]
     ys = [int(p[1]) for p in poly]
-    x0, x1 = max(min(xs) - PAD, 0), min(max(xs) + PAD, img.shape[1])
-    y0, y1 = max(min(ys) - PAD, 0), min(max(ys) + PAD, img.shape[0])
+    x0, x1 = max(min(xs) - pad, 0), min(max(xs) + pad, img.shape[1])
+    y0, y1 = max(min(ys) - pad, 0), min(max(ys) + pad, img.shape[0])
     if x1 - x0 < 2 or y1 - y0 < 2:
         return None
     return Image.fromarray(cv2.cvtColor(img[y0:y1, x0:x1], cv2.COLOR_BGR2RGB))
@@ -152,25 +165,27 @@ def read_upright(det, rec, img):
         xs = [p[0] for p in poly]
         boxes.append((min(ys), max(ys), min(xs), poly))
     boxes.sort(key=lambda b: (b[0], b[2]))
-    crops = [crop(img, b[3]) for b in boxes]
+    predictor, pad = rec
+    crops = [crop(img, b[3], pad) for b in boxes]
     crops = [c for c in crops if c is not None]
     if not crops:
         return []
-    return [t.strip() for t in rec.predict_batch(crops) if t and t.strip()]
+    return [t.strip() for t in predictor.predict_batch(crops) if t and t.strip()]
 
 
 def fetch_models(target):
     """Tải model dò vùng, YAML và trọng số VietOCR vào `target`, chạy một lần lúc build."""
     os.makedirs(target, exist_ok=True)
     TextDetection(model_name=DET_MODEL, device="cpu", enable_mkldnn=False)
-    cfg = Cfg.load_config_from_name("vgg_transformer")
-    cfg["cnn"]["pretrained"] = False
-    cfg["device"] = "cpu"
-    cfg.save(os.path.join(target, "vgg_transformer.yml"))
     from vietocr.tool.utils import download_weights
 
-    path = download_weights(cfg["weights"])
-    os.replace(path, os.path.join(target, "vgg_transformer.pth"))
+    for name, _, _, _ in REC_MODELS.values():
+        cfg = Cfg.load_config_from_name(name)
+        cfg["cnn"]["pretrained"] = False
+        cfg["device"] = "cpu"
+        cfg.save(os.path.join(target, f"{name}.yml"))
+        path = download_weights(cfg["weights"])
+        os.replace(path, os.path.join(target, f"{name}.pth"))
     print("đã tải model vào", target, file=sys.stderr)
 
 
@@ -178,7 +193,8 @@ def main():
     if len(sys.argv) == 3 and sys.argv[1] == "--tai-model":
         fetch_models(sys.argv[2])
         return
-    det, rec = load()
+    det = load_det()
+    recs = {"transformer": load_rec("transformer")}
     OUT.write(json.dumps({"ready": True}) + "\n")
     OUT.flush()
     for raw in sys.stdin:
@@ -188,7 +204,10 @@ def main():
         t = time.time()
         try:
             req = json.loads(raw)
-            lines = read(det, rec, req["path"])
+            key = req.get("model") or "transformer"
+            if key not in recs:
+                recs[key] = load_rec(key)
+            lines = read(det, recs[key], req["path"])
             reply = {"lines": lines, "ms": int((time.time() - t) * 1000)}
         except Exception as e:  # noqa: BLE001
             reply = {"error": f"{type(e).__name__}: {e}"}
