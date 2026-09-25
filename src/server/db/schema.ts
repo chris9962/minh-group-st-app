@@ -264,6 +264,48 @@ export const employeeWorkDays = pgTable(
   ],
 );
 
+/**
+ * Hồ sơ HR của nhân viên, nhập từ file hồ sơ nhân viên của phòng Kế toán bằng
+ * `bun run db:import-contract-types`. Giữ nguyên chữ của file, chỉ đổi ngày về
+ * dạng `YYYY-MM-DD`. Chưa màn nào đọc bảng này (chốt 2026-09-25: nhập sẵn để
+ * dùng sau).
+ *
+ * ⚠️ Có CCCD, mã số thuế, số tài khoản ngân hàng. Route nào đọc bảng này phải có
+ * quyền riêng, không trả kèm hồ sơ nhân viên thông thường.
+ */
+export const staffProfiles = pgTable("staff_profiles", {
+  userId: uuid("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  gender: text("gender"),
+  birthDate: date("birth_date", { mode: "string" }),
+  contractNumber: text("contract_number"),
+  contractTerm: text("contract_term"),
+  /** Cột "Loại hợp đồng" nguyên văn, ví dụ "Hợp đồng xác định thời hạn". */
+  contractKind: text("contract_kind"),
+  contractStart: date("contract_start", { mode: "string" }),
+  contractEnd: date("contract_end", { mode: "string" }),
+  /** Cột "Ngày gửi đơn" của file; file không nói đơn gì. */
+  requestDate: date("request_date", { mode: "string" }),
+  jobPosition: text("job_position"),
+  /** Cột "Đơn vị công tác" nguyên văn, không nối sang `departments`. */
+  workUnit: text("work_unit"),
+  taxCode: text("tax_code"),
+  idNumber: text("id_number"),
+  idIssuedOn: date("id_issued_on", { mode: "string" }),
+  idIssuedBy: text("id_issued_by"),
+  address: text("address"),
+  bankAccountNumber: text("bank_account_number"),
+  bankName: text("bank_name"),
+  bankBranch: text("bank_branch"),
+  nationality: text("nationality"),
+  email: text("email"),
+  employmentStatus: text("employment_status"),
+  /** Cột cuối không tên của file, ví dụ "Nghỉ hộ sản". */
+  note: text("note"),
+  importedAt: timestamp("imported_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 /** QUẢN LÝ đi đường riêng (#43) — chỉ có dòng khi manage_scope = 'listed'. */
 export const userManagedDepartments = pgTable(
   "user_managed_departments",

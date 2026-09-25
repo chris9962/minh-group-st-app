@@ -19,13 +19,24 @@
   color-scheme: light dark;
 }
 
-.footRow {
+.saveBar {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
   display: flex;
   justify-content: flex-start;
+  padding: 12px 0;
+  background: var(--om-bg);
+  border-top: 1px solid var(--om-line);
 }
 
 @media (max-width: bp.$bp-mobile) {
   .staffRow {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* Điện thoại cuộn cả trang, BottomNav cố định ở đáy: đứng trên nó. */
+  .saveBar {
+    bottom: calc(52px + env(safe-area-inset-bottom, 0px));
   }
 }

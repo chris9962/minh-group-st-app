@@ -5,6 +5,7 @@ import { Building2, Landmark, Target } from "lucide-react";
 import { useState } from "react";
 import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { MonthPicker, monthLabel, thisMonth } from "@/components/ui/MonthPicker";
 import { SectionCard } from "@/components/ui/SectionCard";
@@ -78,22 +79,27 @@ function QuotaForm({ data, banks }: { data: QuotaMonth; banks: Bank[] }) {
   const [hkdKinds, setHkdKinds] = useState(new Set(data.hkdKinds.map(kindKey)));
   const [directedKinds, setDirectedKinds] = useState(new Set(data.directedKinds.map(kindKey)));
 
+  const [confirming, setConfirming] = useState(false);
+  const form = {
+    staffHkd: toNumber(staff.hkd),
+    staffDirected: toNumber(staff.directed),
+    staffCasa: toNumber(staff.casa),
+    departments: rows.map((r) => ({
+      departmentId: r.departmentId,
+      hkd: toNumber(r.hkd),
+      directed: toNumber(r.directed),
+      casa: toNumber(r.casa),
+    })),
+    hkdKinds: [...hkdKinds].sort().map(fromKey),
+    directedKinds: [...directedKinds].sort().map(fromKey),
+  };
+  // Bản chép từ tháng trước chưa phải bản của tháng này, nên lưu y nguyên vẫn là một thay đổi.
+  const changed = data.copiedFrom !== null || JSON.stringify(form) !== JSON.stringify(formOf(data));
+
   const save = useMutation({
-    mutationFn: () =>
-      saveQuotaMonth(data.month, {
-        staffHkd: toNumber(staff.hkd),
-        staffDirected: toNumber(staff.directed),
-        staffCasa: toNumber(staff.casa),
-        departments: rows.map((r) => ({
-          departmentId: r.departmentId,
-          hkd: toNumber(r.hkd),
-          directed: toNumber(r.directed),
-          casa: toNumber(r.casa),
-        })),
-        hkdKinds: [...hkdKinds].map(fromKey),
-        directedKinds: [...directedKinds].map(fromKey),
-      }),
+    mutationFn: () => saveQuotaMonth(data.month, form),
     onSuccess: (next) => {
+      setConfirming(false);
       queryClient.setQueryData(["quota-month", data.month], next);
       toast.ok(`Đã lưu chỉ tiêu ${monthLabel(data.month).toLowerCase()}`);
     },
@@ -188,16 +194,46 @@ function QuotaForm({ data, banks }: { data: QuotaMonth; banks: Bank[] }) {
       />
       <KindGrid title="HKD" banks={banks} selected={hkdKinds} onChange={setHkdKinds} disabled={locked} />
 
-      <div className={styles.footRow}>
-        <Button disabled={locked || save.isPending} onClick={() => save.mutate()}>
+      {/* Dính đáy khung cuộn: màn dài bốn khối, lưu ở cuối trang thì phải kéo qua hai bảng. */}
+      <div className={styles.saveBar}>
+        <Button disabled={locked || !changed || save.isPending} onClick={() => setConfirming(true)}>
           Lưu chỉ tiêu
         </Button>
       </div>
+
+      {confirming && (
+        <ConfirmDialog
+          open
+          title={`Lưu chỉ tiêu ${monthLabel(data.month).toLowerCase()}?`}
+          consequence="Điểm tính lương và lương tạm tính của nhân viên HĐLĐ, Trưởng phòng, Phó phòng, Phó giám đốc thay đổi theo chỉ tiêu mới. Các tháng sau chưa lưu chỉ tiêu riêng cũng dùng số này."
+          confirmLabel="Lưu"
+          pending={save.isPending}
+          onConfirm={() => save.mutate()}
+          onClose={() => setConfirming(false)}
+        >
+          Chỉ tiêu và danh sách tài khoản của {monthLabel(data.month).toLowerCase()}.
+        </ConfirmDialog>
+      )}
     </>
   );
 }
 
 const FIELD_LABEL = { hkd: "HKD", directed: "Tài khoản định hướng", casa: "CASA" } as const;
+
+/** Dạng gửi lên máy chủ của số đã tải, để so với số đang gõ. */
+const formOf = (data: QuotaMonth) => ({
+  staffHkd: data.staffHkd,
+  staffDirected: data.staffDirected,
+  staffCasa: data.staffCasa,
+  departments: data.departments.map((d) => ({
+    departmentId: d.departmentId,
+    hkd: d.hkd,
+    directed: d.directed,
+    casa: d.casa,
+  })),
+  hkdKinds: data.hkdKinds.map(kindKey).sort().map(fromKey),
+  directedKinds: data.directedKinds.map(kindKey).sort().map(fromKey),
+});
 
 const fromKey = (key: string): QuotaKindItem => {
   const [bankId, accountType] = key.split(":");

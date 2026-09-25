@@ -18,6 +18,7 @@
     "db:demo": "bun --env-file=.env.local scripts/db-demo.ts",
     "db:import-staff": "bun --env-file=.env.local scripts/db-import-staff.ts",
     "db:import-contract-types": "bun --env-file=.env.local scripts/db-import-contract-types.ts",
+    "db:seed-quota-2026-09": "bun --env-file=.env.local scripts/db-seed-quota-2026-09.ts",
     "db:grant-missing": "bun --env-file=.env.local scripts/db-grant-missing-permissions.ts",
     "db:grant-department-read": "bun --env-file=.env.local scripts/db-grant-department-read.ts",
     "db:grant-adjust-kpi": "bun --env-file=.env.local scripts/db-grant-adjust-kpi.ts",
