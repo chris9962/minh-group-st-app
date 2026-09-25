@@ -7,7 +7,7 @@ import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ErrorState } from "@/components/ui/ErrorState";
-import { MonthPicker, monthLabel, thisMonth } from "@/components/ui/MonthPicker";
+import { monthLabel } from "@/components/ui/MonthPicker";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { SkeletonText } from "@/components/ui/Skeleton";
 import { StatusTag } from "@/components/ui/StatusTag";
@@ -29,14 +29,12 @@ import styles from "./QuotaMonthSection.module.scss";
  * TODO(lương CĐS, file mẫu CASA của Yên): ô CASA lưu được nhưng lương chưa dùng,
  * vì chưa có màn nhập danh sách CASA. Gỡ khi `server/salary.ts` đếm CASA.
  */
-export function QuotaMonthSection() {
-  const [month, setMonth] = useState(thisMonth);
+export function QuotaMonthSection({ month }: { month: string }) {
   const quota = useQuery({ queryKey: ["quota-month", month], queryFn: () => fetchQuotaMonth(month) });
   const banks = useQuery({ queryKey: ["banks"], queryFn: fetchBanks });
 
   return (
     <>
-      <MonthPicker value={month} onChange={setMonth} />
       {(quota.isPending || banks.isPending) && <SkeletonText lines={4} label="Đang tải chỉ tiêu" />}
       {quota.isError && (
         <ErrorState what="chỉ tiêu tháng" onRetry={quota.refetch} retrying={quota.isFetching} />
