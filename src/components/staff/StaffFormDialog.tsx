@@ -386,6 +386,7 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
             {...register("title")}
           />
           <Select
+            block
             label="Loại hợp đồng"
             value={watch("contractType")}
             onChange={(v) =>
