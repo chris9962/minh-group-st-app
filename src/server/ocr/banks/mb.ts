@@ -1,4 +1,4 @@
-import { codeKey, compact, hasDigits, hasLabel, letterWords, lineHasName, linesHaveCode, splitLines, stripAccents } from "../text";
+import { codeKey, codeTokens, compact, hasDigits, hasLabel, letterWords, lineHasName, splitLines, stripAccents } from "../text";
 import { itemsFromFacts, readUntilFound, type Facts } from "../facts";
 import type { CheckedItem } from "../types";
 
@@ -34,6 +34,28 @@ export type MbCheckContext = {
 export const mbReferral = (ctx: Pick<MbCheckContext, "referralCode" | "referralName">): string =>
   (ctx.referralName || ctx.referralCode).trim().match(/^[A-Z0-9]{3,6}/i)?.[0]?.toUpperCase() ?? "";
 
+/**
+ * VietOCR đọc chữ T, Q của mã RM trên app MB thành 1, 0: `T771` ra `1771`,
+ * `Q135` ra `0135` (đo 2026-09-26). 272 mã MB không có hai mã trùng nhau sau
+ * khi gộp, nên gộp không làm nhận nhầm người.
+ */
+const mbCodeKey = (value: string): string => codeKey(value).replace(/T/g, "1").replace(/Q/g, "0");
+
+/**
+ * VietOCR đọc thừa một chữ số trong dãy lặp: `0949999701` ra `09499999701`
+ * (đo 2026-09-26). Mỗi dãy lặp trong số hệ thống được dài thêm đúng một chữ
+ * số, không được ngắn đi. Số MB luôn là SĐT 10 số nên 11 số chỉ có thể là OCR.
+ */
+function hasPhone(text: string, expected: string): boolean {
+  if (hasDigits(text, expected)) return true;
+  const runs = expected.match(/(\d)\1*/g);
+  if (!runs) return false;
+  const body = runs
+    .map((run) => run.split("").join("\\s*") + (run.length > 1 ? `(?:\\s*${run[0]})?` : ""))
+    .join("\\s*");
+  return new RegExp(`(?<!\\d)${body}(?!\\d)`).test(text);
+}
+
 const flexible = (value: string): boolean => compact(value).includes("TUCHON");
 
 /**
@@ -48,13 +70,20 @@ const placeKey = (value: string): string =>
     .replace(/^PHONGGIAODICH/, "PGD");
 
 /**
+ * App MB in tên chi nhánh không đều: "CN Đắk Lắk" có tiền tố, "Mê Linh", "Tân
+ * Sơn Nhất", "Tân Thuận" thì không, "SMB Đô Lương" in "SMB PGD Đô Lương" (đo
+ * 2026-09-26, 141 tài khoản không đạt oan). Nên so phần tên sau tiền tố.
+ */
+const branchName = (key: string): string => key.replace(/^(?:CN|PGD|SMB)+(?=[A-Z])/, "");
+
+/**
  * Dòng có đúng giá trị không: bỏ nhãn "Chọn Tỉnh/Thành phố" / "Chọn chi nhánh
  * hỗ trợ" nếu bộ dò gộp nhãn với ô, còn lại phải khớp trọn, dư mỗi đầu tối
  * đa 2 ký tự (biểu tượng vị trí đọc thành chữ).
  */
-function lineHasPlace(line: string, expected: string): boolean {
+function lineHasPlace(line: string, expected: string, key: (value: string) => string = placeKey): boolean {
   if (!expected) return false;
-  const c = placeKey(line.replace(/^\s*Ch[oọ]n\s+(?:T[iỉ]nh\/Th[àa]nh ph[oố]|chi nh[áa]nh h[oỗ] tr[oợ])\s*/iu, ""));
+  const c = key(line.replace(/^\s*Ch[oọ]n\s+(?:T[iỉ]nh\/Th[àa]nh ph[oố]|chi nh[áa]nh h[oỗ] tr[oợ])\s*/iu, ""));
   for (let at = c.indexOf(expected); at >= 0; at = c.indexOf(expected, at + 1)) {
     if (at <= 2 && c.length - at - expected.length <= 2) return true;
   }
@@ -87,16 +116,27 @@ function hasSuccess(lines: string[]): boolean {
 export function mbFacts(ocrText: string, ctx: MbCheckContext): Facts {
   const lines = splitLines(ocrText);
   const expectedName = letterWords(ctx.customerName).join("");
+  const expectedCode = mbCodeKey(mbReferral(ctx));
+  // Lịch sử giao dịch xuống dòng giữa tên và "chuyen tien": "CUSTOMERMBCT NGUYEN VAN CUA" / "chuyen tien D26…".
+  const pairs = lines.slice(1).map((next, i) => `${lines[i]} ${next}`);
   const facts: Facts = {
-    nameFound: lines.some((line) => lineHasName(line, expectedName)),
-    accountFound: hasDigits(ocrText, ctx.accountNumber.replace(/\D/g, "")),
-    codeFound: linesHaveCode(lines, codeKey(mbReferral(ctx))),
+    nameFound: lines.concat(pairs).some((line) => lineHasName(line, expectedName)),
+    accountFound: hasPhone(ocrText, ctx.accountNumber.replace(/\D/g, "")),
+    codeFound: Boolean(expectedCode) && lines.some((line) => codeTokens(line).some((t) => mbCodeKey(t) === expectedCode)),
     successFound: hasSuccess(lines),
   };
   if (ctx.province && !flexible(ctx.province))
     facts.provinceFound = lines.some((line) => lineHasPlace(line, placeKey(ctx.province)));
-  if (ctx.supportBranch && !flexible(ctx.supportBranch))
-    facts.branchFound = lines.some((line) => lineHasPlace(line, placeKey(ctx.supportBranch)));
+  if (ctx.supportBranch && !flexible(ctx.supportBranch)) {
+    const branch = placeKey(ctx.supportBranch);
+    const name = branchName(branch);
+    facts.branchFound = lines.some(
+      (line) =>
+        lineHasPlace(line, branch) ||
+        // "CN Đắk Lắk" ở tỉnh Đắk Lắk: bỏ tiền tố thì dòng tỉnh cũng khớp, nên phải còn tiền tố.
+        (name !== placeKey(ctx.province) && lineHasPlace(line, name, (value) => branchName(placeKey(value)))),
+    );
+  }
   return facts;
 }
 

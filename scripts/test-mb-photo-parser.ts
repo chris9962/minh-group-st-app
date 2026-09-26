@@ -101,6 +101,37 @@ assert.equal(mbFacts(registration, { ...ctx, supportBranch: "PGD Châu Phú" }).
 assert.equal("provinceFound" in mbFacts(registration, { ...ctx, province: "" }), false, "mã chưa cấu hình tỉnh thì không so");
 assert.equal("branchFound" in mbFacts(registration, { ...ctx, supportBranch: "Tự chọn" }), false);
 
+/** Chữ VietOCR ảnh thật 2026-09-25, mã AZ96: app in tên chi nhánh không có "CN". */
+const bareBranch = (branch: string) => `Chọn Tỉnh/Thành phố\nHà Nội\nChọn chi nhánh hỗ trợ\n10\n${branch}`;
+const hanoi = { ...ctx, province: "Hà Nội", supportBranch: "CN Mê Linh" };
+assert.equal(mbFacts(bareBranch("Mê Linh"), hanoi).branchFound, true, "app in trần Mê Linh");
+assert.equal(mbFacts(bareBranch("CN Mê Linh"), hanoi).branchFound, true);
+assert.equal(mbFacts(bareBranch("Hoài Đức"), hanoi).branchFound, false);
+assert.equal(mbFacts(bareBranch("SMB PGD Đô Lương"), { ...hanoi, supportBranch: "SMB Đô Lương" }).branchFound, true);
+assert.equal(mbFacts(bareBranch("Tàn Sơn Nhất"), { ...hanoi, supportBranch: "CN Tân Sơn Nhất" }).branchFound, true, "OCR sai dấu");
+assert.equal(
+  mbFacts(`Chọn Tỉnh/Thành phố\nAn Giang\nChọn chi nhánh hỗ trợ\nPGD Châu Phú`, ctx).branchFound,
+  false,
+  "CN An Giang trùng tên tỉnh: dòng tỉnh An Giang không được tính là chi nhánh",
+);
+
+/** Chữ VietOCR ảnh thật 2026-09-26: T đọc thành 1, Q thành 0, dãy 9999 thừa một số 9. */
+const rm = (code: string) => ({ ...ctx, referralName: `${code}-Anh Tú-CN An Giang` });
+assert.equal(mbFacts("Mã người giới thiệu (Mã RM)\n0\n1771", rm("T771")).codeFound, true, "T771 đọc thành 1771");
+assert.equal(mbFacts("Mã người giới thiệu (Mã RM)\n0135", rm("Q135")).codeFound, true, "Q135 đọc thành 0135");
+assert.equal(mbFacts("Mã người giới thiệu (Mã RM)\n1772", rm("T771")).codeFound, false);
+const loan = { ...ctx, accountNumber: "0949999701" };
+assert.equal(mbFacts("User ID: 09499999701", loan).accountFound, true, "thừa một số 9");
+assert.equal(mbFacts("User ID: 0949999701", loan).accountFound, true);
+assert.equal(mbFacts("User ID: 094999701", loan).accountFound, false, "thiếu số 9 là số khác");
+assert.equal(mbFacts("User ID: 094999999701", loan).accountFound, false, "thừa hai số 9");
+assert.equal(mbFacts("User ID: 0949997701", loan).accountFound, false);
+assert.equal(
+  mbFacts("CUSTOMERMBCT NGUYEN VAN CUA\nchuyen tien D26 NVCAZ/166094", { ...ctx, customerName: "Nguyễn Văn Của" }).nameFound,
+  true,
+  "tên và chuyen tien nằm hai dòng",
+);
+
 const items = checkMb([registration, profile, history, unlinkDevice], ctx);
 assert.deepEqual(
   items.map((i) => [i.key, i.verdict, i.photoIndex]),
