@@ -70,20 +70,13 @@ const placeKey = (value: string): string =>
     .replace(/^PHONGGIAODICH/, "PGD");
 
 /**
- * App MB in tên chi nhánh không đều: "CN Đắk Lắk" có tiền tố, "Mê Linh", "Tân
- * Sơn Nhất", "Tân Thuận" thì không, "SMB Đô Lương" in "SMB PGD Đô Lương" (đo
- * 2026-09-26, 141 tài khoản không đạt oan). Nên so phần tên sau tiền tố.
- */
-const branchName = (key: string): string => key.replace(/^(?:CN|PGD|SMB)+(?=[A-Z])/, "");
-
-/**
  * Dòng có đúng giá trị không: bỏ nhãn "Chọn Tỉnh/Thành phố" / "Chọn chi nhánh
  * hỗ trợ" nếu bộ dò gộp nhãn với ô, còn lại phải khớp trọn, dư mỗi đầu tối
  * đa 2 ký tự (biểu tượng vị trí đọc thành chữ).
  */
-function lineHasPlace(line: string, expected: string, key: (value: string) => string = placeKey): boolean {
+function lineHasPlace(line: string, expected: string): boolean {
   if (!expected) return false;
-  const c = key(line.replace(/^\s*Ch[oọ]n\s+(?:T[iỉ]nh\/Th[àa]nh ph[oố]|chi nh[áa]nh h[oỗ] tr[oợ])\s*/iu, ""));
+  const c = placeKey(line.replace(/^\s*Ch[oọ]n\s+(?:T[iỉ]nh\/Th[àa]nh ph[oố]|chi nh[áa]nh h[oỗ] tr[oợ])\s*/iu, ""));
   for (let at = c.indexOf(expected); at >= 0; at = c.indexOf(expected, at + 1)) {
     if (at <= 2 && c.length - at - expected.length <= 2) return true;
   }
@@ -127,16 +120,8 @@ export function mbFacts(ocrText: string, ctx: MbCheckContext): Facts {
   };
   if (ctx.province && !flexible(ctx.province))
     facts.provinceFound = lines.some((line) => lineHasPlace(line, placeKey(ctx.province)));
-  if (ctx.supportBranch && !flexible(ctx.supportBranch)) {
-    const branch = placeKey(ctx.supportBranch);
-    const name = branchName(branch);
-    facts.branchFound = lines.some(
-      (line) =>
-        lineHasPlace(line, branch) ||
-        // "CN Đắk Lắk" ở tỉnh Đắk Lắk: bỏ tiền tố thì dòng tỉnh cũng khớp, nên phải còn tiền tố.
-        (name !== placeKey(ctx.province) && lineHasPlace(line, name, (value) => branchName(placeKey(value)))),
-    );
-  }
+  if (ctx.supportBranch && !flexible(ctx.supportBranch))
+    facts.branchFound = lines.some((line) => lineHasPlace(line, placeKey(ctx.supportBranch)));
   return facts;
 }
 
