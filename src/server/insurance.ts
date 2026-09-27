@@ -779,6 +779,9 @@ export async function listCancelledInsuranceExport(
         cancelledByName: sql<string>`coalesce(${canceller.fullName}, '')`,
         previousStatus: sql<string>`coalesce(${cancel.fromStatus}::text, '')`,
         pviElectronicOrderNo: insuranceOrders.pviElectronicOrderNo,
+        pviPolicyNumber: insuranceOrders.pviPolicyNumber,
+        pviSerialNumber: insuranceOrders.pviSerialNumber,
+        pviPolicyGcn: sql<string>`coalesce(${insuranceOrders.pviPolicyGcn}, '')`,
       })
       .from(insuranceOrders)
       .innerJoinLateral(cancel, sql`true`)

@@ -179,6 +179,11 @@ export const CancelledInsuranceRow = z.object({
   /** Trạng thái ngay trước lượt huỷ, mã thô — giao diện tra nhãn. */
   previousStatus: z.string(),
   pviElectronicOrderNo: z.string(),
+  /** `PolicyNumber` của API đối tác; rỗng với đơn đi đường bot hoặc làm tay. */
+  pviPolicyNumber: z.string(),
+  pviSerialNumber: z.string(),
+  /** `Policy_GCN` — số in trên giấy của đơn tai nạn điện; rỗng với đơn xe máy. */
+  pviPolicyGcn: z.string(),
 });
 export type CancelledInsuranceRow = z.infer<typeof CancelledInsuranceRow>;
 

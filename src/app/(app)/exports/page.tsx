@@ -279,7 +279,8 @@ function catalogFor(report: ReportId, banks: Bank[], staffById: Map<string, Staf
       ];
 
     /**
-     * Tám cột đầu tick sẵn — đúng bộ chủ dự án chốt 2026-09-08. Bảy cột sau để
+     * Mười một cột đầu tick sẵn — bộ chủ dự án chốt 2026-09-08, thêm Policy
+     * number, Số seri, Số GCN 2026-09-27. Bảy cột sau để
      * tắt: chúng trả lời câu hỏi phụ (đối soát tiền, tra đơn bên PVI) nên bật
      * sẵn là file rối ngay từ đầu.
      */
@@ -298,6 +299,9 @@ function catalogFor(report: ReportId, banks: Bank[], staffById: Map<string, Staf
          * lượt dựng trang trên máy chủ.
          */
         { key: "orderUrl", header: "Link đơn", width: 14, defaultOn: true, sample: ["Mở đơn", "Mở đơn"], value: () => "Mở đơn", link: (r) => `${window.location.origin}/insurance/${r.id}` },
+        { key: "pviPolicyNumber", header: "Policy number", type: "text", width: 24, defaultOn: true, sample: ["26/21/14/MOTO/0000004", "—"], value: (r) => r.pviPolicyNumber || "—" },
+        { key: "pviSerialNumber", header: "Số seri", type: "text", width: 18, defaultOn: true, sample: ["260536594", "—"], value: (r) => r.pviSerialNumber || "—" },
+        { key: "pviPolicyGcn", header: "Số GCN", type: "text", width: 24, defaultOn: true, sample: ["26/21/14/TNCN/P013011", "—"], value: (r) => r.pviPolicyGcn || "—" },
         { key: "packageName", header: "Gói", width: 22, defaultOn: false, sample: ["1 năm BH xe máy", "BH tai nạn điện 100k"], value: (r) => r.packageName },
         { key: "fee", header: "Phí (đ)", type: "number", width: 11, defaultOn: false, sample: ["76000", "100000"], value: (r) => r.fee, total: (rows) => rows.reduce((t, r) => t + r.fee, 0) },
         { key: "orderDate", header: "Ngày cấp đơn", width: 14, defaultOn: false, sample: ["08/09/2026", "07/09/2026"], value: (r) => formatDate(r.orderDate) },
