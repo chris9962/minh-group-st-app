@@ -1,4 +1,4 @@
-import { codeKey, codeTokens, compact, hasDigits, hasLabel, letterWords, lineHasName, splitLines, stripAccents } from "../text";
+import { codeKey, compact, hasDigits, hasLabel, letterWords, lineHasName, linesHaveCode, splitLines, stripAccents } from "../text";
 import { itemsFromFacts, readUntilFound, type Facts } from "../facts";
 import type { CheckedItem } from "../types";
 
@@ -33,28 +33,6 @@ export type MbCheckContext = {
 /** Mã RM hiện trên ảnh: token đầu của `display_name` ("o826 chữ O -…" là `O826`). */
 export const mbReferral = (ctx: Pick<MbCheckContext, "referralCode" | "referralName">): string =>
   (ctx.referralName || ctx.referralCode).trim().match(/^[A-Z0-9]{3,6}/i)?.[0]?.toUpperCase() ?? "";
-
-/**
- * VietOCR đọc chữ T, Q của mã RM trên app MB thành 1, 0: `T771` ra `1771`,
- * `Q135` ra `0135` (đo 2026-09-26). 272 mã MB không có hai mã trùng nhau sau
- * khi gộp, nên gộp không làm nhận nhầm người.
- */
-const mbCodeKey = (value: string): string => codeKey(value).replace(/T/g, "1").replace(/Q/g, "0");
-
-/**
- * VietOCR đọc thừa một chữ số trong dãy lặp: `0949999701` ra `09499999701`
- * (đo 2026-09-26). Mỗi dãy lặp trong số hệ thống được dài thêm đúng một chữ
- * số, không được ngắn đi. Số MB luôn là SĐT 10 số nên 11 số chỉ có thể là OCR.
- */
-function hasPhone(text: string, expected: string): boolean {
-  if (hasDigits(text, expected)) return true;
-  const runs = expected.match(/(\d)\1*/g);
-  if (!runs) return false;
-  const body = runs
-    .map((run) => run.split("").join("\\s*") + (run.length > 1 ? `(?:\\s*${run[0]})?` : ""))
-    .join("\\s*");
-  return new RegExp(`(?<!\\d)${body}(?!\\d)`).test(text);
-}
 
 const flexible = (value: string): boolean => compact(value).includes("TUCHON");
 
@@ -109,13 +87,10 @@ function hasSuccess(lines: string[]): boolean {
 export function mbFacts(ocrText: string, ctx: MbCheckContext): Facts {
   const lines = splitLines(ocrText);
   const expectedName = letterWords(ctx.customerName).join("");
-  const expectedCode = mbCodeKey(mbReferral(ctx));
-  // Lịch sử giao dịch xuống dòng giữa tên và "chuyen tien": "CUSTOMERMBCT NGUYEN VAN CUA" / "chuyen tien D26…".
-  const pairs = lines.slice(1).map((next, i) => `${lines[i]} ${next}`);
   const facts: Facts = {
-    nameFound: lines.concat(pairs).some((line) => lineHasName(line, expectedName)),
-    accountFound: hasPhone(ocrText, ctx.accountNumber.replace(/\D/g, "")),
-    codeFound: Boolean(expectedCode) && lines.some((line) => codeTokens(line).some((t) => mbCodeKey(t) === expectedCode)),
+    nameFound: lines.some((line) => lineHasName(line, expectedName)),
+    accountFound: hasDigits(ocrText, ctx.accountNumber.replace(/\D/g, "")),
+    codeFound: linesHaveCode(lines, codeKey(mbReferral(ctx))),
     successFound: hasSuccess(lines),
   };
   if (ctx.province && !flexible(ctx.province))
