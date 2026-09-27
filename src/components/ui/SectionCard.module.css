@@ -90,4 +90,17 @@
     padding-left: 0;
     border-left: 0;
   }
+
+  .stackMeta .head {
+    row-gap: 2px;
+  }
+
+  .stackMeta .meta {
+    flex-basis: 100%;
+  }
+
+  /* 30px icon + 10px gap: dòng chú thích thẳng mép chữ tiêu đề. */
+  .stackMeta .icon ~ .meta {
+    padding-left: 40px;
+  }
 }

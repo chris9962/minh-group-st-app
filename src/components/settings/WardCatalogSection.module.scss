@@ -1,7 +1,17 @@
 /* Xã bên trái, ấp của xã đang chọn bên phải. Cột trái giữ bề ngang cố định để
    đổi xã không làm bảng ấp nhảy chỗ. */
-.provincePicker {
+.provincePicker,
+.wardPicker {
   display: none;
+}
+
+.picker {
+  flex: 1;
+  min-width: 0;
+}
+
+.search {
+  display: contents;
 }
 
 .split {
@@ -133,20 +143,56 @@
   margin-top: var(--space-2);
 }
 
+.detailActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.factsToggle {
+  display: none;
+}
+
+.factsToggle > summary {
+  padding: 12px 0;
+  font-size: 13.5px;
+  color: var(--om-text-2);
+  cursor: pointer;
+}
+
+.factsToggle > summary:focus-visible {
+  outline: 2px solid var(--om-orange);
+  outline-offset: 2px;
+}
+
+.factsBody {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
 @media (max-width: bp.$bp-mobile) {
-  .provinceTabs {
+  .provinceTabs,
+  .search,
+  .wardList,
+  .wardPane .footRow,
+  .detailPane > .facts {
     display: none;
   }
 
-  .provincePicker {
+  .factsToggle {
     display: block;
+  }
+
+  .provincePicker,
+  .wardPicker {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
   }
 
   .split {
     grid-template-columns: 1fr;
-  }
-
-  .wardList {
-    max-height: 260px;
   }
 }

@@ -39,10 +39,11 @@
   padding: 6px;
   max-height: 240px;
   overflow-y: auto;
-  background: var(--om-card);
-  border: 1px solid var(--om-line);
+  /* Khác nền thẻ: danh sách nằm đè lên thẻ, cùng màu thì không thấy mép. */
+  background: var(--om-surface);
+  border: 1px solid var(--om-line-strong);
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-lg);
 }
 
 .listInner {
@@ -60,7 +61,7 @@
 
 .option:hover,
 .optionActive {
-  background: var(--om-soft);
+  background: var(--om-orange-soft);
 }
 
 .empty {

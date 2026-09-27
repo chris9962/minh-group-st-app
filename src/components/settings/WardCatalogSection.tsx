@@ -7,6 +7,7 @@ import { useState } from "react";
 import { SkeletonTable } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { Button } from "@/components/ui/Button";
+import buttonStyles from "@/components/ui/Button.module.css";
 import { Combobox } from "@/components/ui/Combobox";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
@@ -88,6 +89,19 @@ export function WardCatalogSection() {
     0,
   );
 
+  const wardFacts = ward && (
+    <dl className={styles.facts}>
+      <div>
+        <dt>Trưởng xã</dt>
+        <dd>{ward.leaderName || <Missing />}</dd>
+      </div>
+      <div>
+        <dt>Số điện thoại</dt>
+        <dd>{ward.leaderPhone ? formatPhone(ward.leaderPhone) : <Missing />}</dd>
+      </div>
+    </dl>
+  );
+
   const selectProvince = (id: string) => {
     setProvinceId(id);
     // Xã đang chọn thuộc tỉnh cũ — bỏ để rơi về xã đầu của tỉnh mới.
@@ -141,8 +155,13 @@ export function WardCatalogSection() {
         title="Danh mục tỉnh / xã / ấp"
         icon={<MapPin size={17} />}
         meta={isPending ? undefined : `${provinces.length} tỉnh - ${wardCount} xã - ${hamletCount} ấp`}
+        stackMeta
         action={
-          <Button variant="secondary" onClick={() => setAddingProvince(true)}>
+          <Button
+            variant="secondary"
+            className={buttonStyles.hideOnMobile}
+            onClick={() => setAddingProvince(true)}
+          >
             <Plus size={14} />
             Thêm tỉnh/thành phố
           </Button>
@@ -156,6 +175,35 @@ export function WardCatalogSection() {
           <p className="text-muted">
             Chưa triển khai tỉnh/thành phố nào. Bấm &quot;Thêm tỉnh/thành phố&quot; ở góc trên.
           </p>
+        )}
+
+        {/* Nhiều tỉnh biến dải tab thành vài màn hình trên điện thoại. Ô
+            tìm kiếm giữ việc chọn tỉnh trong đúng một hàng. Nằm ngoài
+            `province &&` vì nút thêm tỉnh của điện thoại ở đây. */}
+        {!isPending && !isError && (
+          <div className={styles.provincePicker}>
+            <div className={styles.picker}>
+              <Combobox
+                block
+                label="Tỉnh/thành phố"
+                value={province?.id ?? ""}
+                options={provinces.map((p) => ({
+                  value: p.id,
+                  label: `${p.name} · ${p.wards.length} xã/phường`,
+                }))}
+                onChange={selectProvince}
+                placeholder="Gõ tên tỉnh/thành phố"
+              />
+            </div>
+            <Button
+              variant="secondary"
+              icon
+              aria-label="Thêm tỉnh/thành phố"
+              onClick={() => setAddingProvince(true)}
+            >
+              <Plus size={16} aria-hidden />
+            </Button>
+          </div>
         )}
 
         {province && (
@@ -173,30 +221,16 @@ export function WardCatalogSection() {
               />
             </div>
 
-            {/* Nhiều tỉnh biến dải tab thành vài màn hình trên điện thoại. Ô
-                tìm kiếm giữ việc chọn tỉnh trong đúng một hàng. */}
-            <div className={styles.provincePicker}>
-              <Combobox
-                block
-                label="Tỉnh/thành phố"
-                value={province.id}
-                options={provinces.map((p) => ({
-                  value: p.id,
-                  label: `${p.name} · ${p.wards.length} xã/phường`,
-                }))}
-                onChange={selectProvince}
-                placeholder="Gõ tên tỉnh/thành phố"
-              />
-            </div>
-
             <div className={styles.split}>
               <div className={styles.wardPane}>
-                <SearchField
-                  label="Tìm xã, ấp hoặc tên trưởng ấp"
-                  placeholder="Tân Hưng, Ấp 2, Nguyễn Văn A…"
-                  value={search}
-                  onChange={setSearch}
-                />
+                <div className={styles.search}>
+                  <SearchField
+                    label="Tìm xã, ấp hoặc tên trưởng ấp"
+                    placeholder="Tân Hưng, Ấp 2, Nguyễn Văn A…"
+                    value={search}
+                    onChange={setSearch}
+                  />
+                </div>
 
                 {province.wards.length === 0 && <p className="text-muted">Chưa có xã/phường nào.</p>}
                 {province.wards.length > 0 && wardsShown.length === 0 && (
@@ -227,6 +261,30 @@ export function WardCatalogSection() {
                   </ul>
                 )}
 
+                <div className={styles.wardPicker}>
+                  <div className={styles.picker}>
+                    <Combobox
+                      block
+                      label="Xã/phường"
+                      value={ward?.id ?? ""}
+                      options={province.wards.map((w) => ({
+                        value: w.id,
+                        label: `${w.name} - ${w.hamlets.length} ấp`,
+                      }))}
+                      onChange={setWardId}
+                      placeholder="Gõ tên xã/phường"
+                    />
+                  </div>
+                  <Button
+                    variant="secondary"
+                    icon
+                    aria-label="Thêm xã/phường"
+                    onClick={() => setAddingWard(true)}
+                  >
+                    <Plus size={16} aria-hidden />
+                  </Button>
+                </div>
+
                 <div className={styles.footRow}>
                   <Button variant="secondary" onClick={() => setAddingWard(true)}>
                     <Plus size={14} />
@@ -242,22 +300,34 @@ export function WardCatalogSection() {
                       <h3 className={styles.detailTitle}>{ward.name}</h3>
                       <p className={styles.detailSub}>{province.name}</p>
                     </div>
-                    <Button variant="secondary" onClick={() => setEditingWard(true)}>
-                      <Pencil size={14} aria-hidden />
-                      Sửa trưởng xã
-                    </Button>
+                    <div className={styles.detailActions}>
+                      <Button
+                        variant="secondary"
+                        className={buttonStyles.hideOnMobile}
+                        onClick={() => setEditingWard(true)}
+                      >
+                        <Pencil size={14} aria-hidden />
+                        Sửa trưởng xã
+                      </Button>
+                      <Button onClick={() => setAddingHamlet(true)}>
+                        <Plus size={16} />
+                        Thêm ấp
+                      </Button>
+                    </div>
                   </div>
 
-                  <dl className={styles.facts}>
-                    <div>
-                      <dt>Trưởng xã</dt>
-                      <dd>{ward.leaderName || <Missing />}</dd>
+                  {wardFacts}
+                  {/* Mobile thu gọn thông tin trưởng xã, bấm mới mở (chốt 2026-09-27). */}
+                  <details className={styles.factsToggle}>
+                    <summary>Thông tin trưởng xã</summary>
+                    <div className={styles.factsBody}>
+                      {wardFacts}
+                      <Button variant="ghost" onClick={() => setEditingWard(true)}>
+                        <Pencil size={14} aria-hidden />
+                        Sửa trưởng xã
+                      </Button>
                     </div>
-                    <div>
-                      <dt>Số điện thoại</dt>
-                      <dd>{ward.leaderPhone ? formatPhone(ward.leaderPhone) : <Missing />}</dd>
-                    </div>
-                  </dl>
+                  </details>
 
                   <RankTable
                     rows={ward.hamlets}
@@ -265,15 +335,8 @@ export function WardCatalogSection() {
                     rowKey={(h) => h.id}
                     defaultSort="name"
                     caption={`Ấp của ${ward.name}`}
-                    emptyText="Chưa có ấp nào. Bấm “Thêm ấp” bên dưới."
+                    emptyText="Chưa có ấp nào. Bấm “Thêm ấp” ở trên."
                   />
-
-                  <div className={styles.footRow}>
-                    <Button onClick={() => setAddingHamlet(true)}>
-                      <Plus size={16} />
-                      Thêm ấp
-                    </Button>
-                  </div>
                 </div>
               )}
             </div>

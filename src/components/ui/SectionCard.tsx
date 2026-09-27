@@ -7,6 +7,8 @@ type Props = {
   icon?: React.ReactNode;
   /** Chú thích bên phải tiêu đề, ví dụ "7 ngày". */
   meta?: string;
+  /** Màn hẹp: `meta` xuống dòng riêng dưới tiêu đề — dùng khi chú thích dài. */
+  stackMeta?: boolean;
   /**
    * Điều khiển nằm ngang hàng tiêu đề, dạt phải — ô tích lọc, nút phụ.
    *
@@ -30,6 +32,7 @@ export function SectionCard({
   title,
   icon,
   meta,
+  stackMeta = false,
   action,
   variant = "card",
   children,
@@ -37,7 +40,12 @@ export function SectionCard({
 }: Props) {
   return (
     <section
-      className={clsx(styles.card, variant === "plain" && styles.plain, className)}
+      className={clsx(
+        styles.card,
+        variant === "plain" && styles.plain,
+        stackMeta && styles.stackMeta,
+        className,
+      )}
     >
       <header className={styles.head}>
         {icon && (
