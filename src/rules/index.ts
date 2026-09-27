@@ -2,6 +2,7 @@ import type { DepartmentType } from "@/lib/types";
 import * as period202608 from "./2026-08";
 import * as period202609 from "./2026-09";
 import * as period20260916 from "./2026-09-16";
+import * as period20260928 from "./2026-09-28";
 import type { Tier } from "./2026-08";
 
 export type { Tier };
@@ -190,6 +191,8 @@ type PeriodRules = {
   openBlockReason?(existingBankCodes: string[], candidate: string): string | null;
   /** Luật chọn tổ hợp viết cho nhân viên đọc, mỗi dòng một câu. Tuỳ chọn, lý do như trên. */
   OPEN_NOTES?: string[];
+  /** Bảng tổ hợp riêng của kỳ cho hộp thoại luật; vắng thì hộp thoại dùng bảng chung. */
+  COMBO_ROWS?: { label: string; tiers: Tier[] }[];
 };
 
 /**
@@ -206,6 +209,7 @@ const PERIODS: Record<string, PeriodRules> = {
   "2026-08-01": period202608,
   "2026-09-01": period202609,
   "2026-09-16": period20260916,
+  "2026-09-28": period20260928,
 };
 
 /**
@@ -424,4 +428,8 @@ export function bankTierLabelFor(bankCode: string, at: string): string | null {
 /** Luật chọn tổ hợp của kỳ, cho hộp thoại mở tài khoản đọc; rỗng khi kỳ không ghi. */
 export function openNotesAt(at: string): string[] {
   return rulesFor(at)?.OPEN_NOTES ?? [];
+}
+
+export function comboRowsAt(at: string): { label: string; tiers: Tier[] }[] | null {
+  return rulesFor(at)?.COMBO_ROWS ?? null;
 }

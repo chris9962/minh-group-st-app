@@ -7,6 +7,7 @@ import { formatDate } from "@/lib/format";
 import {
   bankTierFor,
   comboPointsAt,
+  comboRowsAt,
   householdPointsAt,
   openNotesAt,
   TIER_LABEL,
@@ -75,7 +76,8 @@ export function BankComboRulesDialog({ open, onClose, at, banks }: Props) {
   const pools: Record<Tier, string[]> = { priority: [], other: [], restricted: [] };
   for (const { tier, codes } of byTier) pools[tier] = codes;
   // Dòng ra 0 là tổ hợp không có trong bảng của kỳ, bỏ khỏi bảng.
-  const rows = COMBOS.map((c) => ({ label: c.label, points: bestPointsOf(c.tiers, pools, at) }))
+  const rows = (comboRowsAt(at) ?? COMBOS)
+    .map((c) => ({ label: c.label, points: bestPointsOf(c.tiers, pools, at) }))
     .filter((r) => r.points > 0);
   const notes = openNotesAt(at);
 
