@@ -10,7 +10,7 @@ import { periodRanges } from "@/lib/period";
 import { recordVisibility } from "@/lib/permissions";
 import type { User } from "@/lib/types";
 import { appsInstalledCount, variantOfAccount } from "./appCounted";
-import { accountCustomerDayBetween } from "./customerDay";
+import { accountCustomerDayBetween, customerDayBetween } from "./customerDay";
 import { db } from "./db/client";
 import {
   bankAccounts,
@@ -555,11 +555,9 @@ async function giftsBlock(
   const byType = byCode.map((r) => ({ label: names.get(r.code) ?? r.code, count: r.count }));
 
   /**
-   * "Đủ điều kiện nhưng chưa phát" — KHÔNG lọc theo kỳ đang xem.
-   *
-   * Đây là hàng tồn chứ không phải số liệu của một khoảng ngày: khách đủ điều
-   * kiện từ tháng trước mà chưa ai phát thì vẫn đang chờ, giấu đi vì "ngoài kỳ"
-   * là để họ chờ mãi.
+   * "Đủ điều kiện nhưng chưa phát" — lọc theo NGÀY HỒ SƠ khách trong kỳ đang xem
+   * (chốt 2026-09-27). Bản trước đếm cả kho, số không đổi khi đổi kỳ nên người
+   * xem không đọc được gì từ nó.
    *
    * Đọc cột `customers.gift_basket` lưu sẵn, không chạy hàm luật cho từng khách —
    * chạy luật ở đây nghĩa là kéo cả kho tài khoản về mỗi lần mở màn Tổng quan
@@ -583,6 +581,7 @@ async function giftsBlock(
       and(
         sql`cardinality(${customers.giftBasket}) > 0`,
         sql`not exists (select 1 from ${giftGrants} g where g.customer_id = ${customers.id})`,
+        customerDayBetween(range.from, range.to),
         giftScope,
       ),
     );
