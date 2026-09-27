@@ -16,7 +16,7 @@ import { Select } from "@/components/ui/Select";
 import { SkeletonText } from "@/components/ui/Skeleton";
 import { fetchBanks, fetchOpenReferralCodes, type Bank } from "@/lib/api/bankCatalog";
 import { ageRangeLabel, businessDay } from "@/lib/format";
-import { bankTierLabelFor, openBlockReasonAt } from "@/rules";
+import { bankTierFor, openBlockReasonAt, TIER_LABEL, type Tier } from "@/rules";
 import {
   ACCOUNT_TYPE_LABEL,
   BankAccountStartForm,
@@ -33,6 +33,13 @@ import { errorMessage, toast } from "@/lib/toast";
 import { reportInvalid } from "@/lib/formErrors";
 
 const BANKING_PATH = "/banking";
+
+// Bank khác giữ chữ nhạt như cũ, chủ dự án chốt 2026-09-27.
+const TIER_CLASS: Record<Tier, string> = {
+  priority: `${styles.pickTier} ${styles.pickTierPriority}`,
+  other: styles.pickTier,
+  restricted: `${styles.pickTier} ${styles.pickTierRestricted}`,
+};
 
 type Props = {
   open: boolean;
@@ -432,7 +439,7 @@ function BankPickRow({
   const checked = pick !== undefined;
   const rowLabel = hkd ? `${bank.code} HKD` : bank.code;
   // Dòng HKD không phải ngân hàng nên không mang hạng.
-  const tierLabel = hkd ? null : bankTierLabelFor(bank.code, ruleAt);
+  const tier = hkd ? null : bankTierFor(bank.code, ruleAt);
 
   /**
    * Máy chủ đã lọc "còn chỗ" và lọc theo phạm vi phòng — không lọc lại ở đây
@@ -516,7 +523,7 @@ function BankPickRow({
           <span className={styles.pickLabelBox}>
             <strong className={styles.pickLabel}>
               {rowLabel}
-              {tierLabel && <span className={styles.pickTier}>{tierLabel}</span>}
+              {tier && <span className={TIER_CLASS[tier]}>{TIER_LABEL[tier]}</span>}
             </strong>
             {reason && <span className={styles.pickReason}>{reason}</span>}
           </span>

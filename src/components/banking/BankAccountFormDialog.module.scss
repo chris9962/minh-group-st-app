@@ -80,7 +80,7 @@
 .pickReason {
   font-size: 12.5px;
   font-weight: 400;
-  color: var(--om-text-3);
+  color: var(--om-orange-ink);
 }
 
 /*
@@ -119,12 +119,37 @@
   }
 }
 
-/* Hạng ngân hàng đứng ngay sau mã, chữ nhỏ và nhạt: nhân viên đọc mã trước,
-   hạng chỉ để đối chiếu với thể lệ. */
+/* Hạng ngân hàng đứng ngay sau mã, chữ nhỏ: nhân viên đọc mã trước. Ưu tiên
+   và hạn chế mang màu để nhận ra khi lướt, bank khác giữ chữ nhạt. */
 .pickTier {
   margin-left: 6px;
   font-size: 12px;
   font-weight: 400;
+  color: var(--om-text-3);
+}
+
+.pickTierPriority,
+.pickTierRestricted {
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-weight: 500;
+}
+
+.pickTierPriority {
+  background: var(--om-green-soft);
+  color: var(--om-green-ink);
+}
+
+.pickTierRestricted {
+  background: var(--om-orange-soft);
+  color: var(--om-orange-ink);
+}
+
+/* Dòng khoá thì nhãn hạng về chữ nhạt như mã ngân hàng: nhãn còn màu thì dòng
+   trông như vẫn chọn được. */
+.pickRowOff .pickTier {
+  padding: 0;
+  background: none;
   color: var(--om-text-3);
 }
 
