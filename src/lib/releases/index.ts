@@ -11,6 +11,34 @@ export type { Release, ReleaseSection } from './types';
  */
 export const RELEASES: Release[] = [
   {
+    id: '2026-09-28',
+    version: '1.6.0',
+    title: 'Cập nhật ngày 28/09/2026',
+    summary: 'Thể lệ mới từ 28/09/2026: mỗi hồ sơ mở tối đa 2 bank hạn chế, thêm 3 tổ hợp.',
+    sections: [
+      {
+        title: 'Thể lệ từ ngày 28/09/2026',
+        items: [
+          'Áp cho hồ sơ khách từ 28/09/2026.',
+          'Mỗi hồ sơ mở tối đa 2 bank hạn chế.',
+          '1 ưu tiên + 1 hạn chế: 0,3 điểm, tặng 1 năm BH.',
+          '1 ưu tiên + 2 hạn chế: 0,5 điểm, tặng 2 năm BH.',
+          '1 khác + 2 hạn chế: 0,4 điểm, tặng 2 năm BH.',
+        ],
+      },
+      {
+        title: 'Xuất dữ liệu',
+        items: ['Báo cáo Đơn bảo hiểm huỷ thêm cột Policy number, Số seri, Số GCN.'],
+        visibleTo: (user) => canOpenPath(user, '/exports'),
+      },
+      {
+        title: 'Danh mục xã / ấp',
+        items: ['Cập nhật lại giao diện.'],
+        visibleTo: (user) => canOpenPath(user, '/settings/wards'),
+      },
+    ],
+  },
+  {
     id: '2026-09-25',
     version: '1.5.0',
     title: 'Cập nhật ngày 25/09/2026',
