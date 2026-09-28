@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { User } from '@/lib/types';
+import { StaffForm } from './staff';
 
 /** `null` = phiên không còn: hết hạn, bị xoá vì đổi quyền, hoặc tài khoản bị khoá. */
 export async function fetchMe(): Promise<User | null> {
@@ -58,5 +59,38 @@ export async function changePassword(form: PasswordForm): Promise<void> {
   const message = (body as { message?: unknown } | null)?.message;
   throw new Error(
     typeof message === 'string' && message.trim() ? message : 'Không đổi được mật khẩu',
+  );
+}
+
+/**
+ * Nhân viên tự sửa họ tên và số điện thoại ở màn Cá nhân. Chỉ hai trường này,
+ * cùng luật ô nhập với hộp thoại sửa nhân viên ở màn Nhân sự.
+ */
+export const ProfileInfoForm = z.object({
+  // Lấy từng trường qua `.shape`: `StaffForm` có `superRefine`, và zod v4 ném
+  // lỗi khi `.pick()` trên schema có refine, làm hỏng mọi trang nạp file này.
+  fullName: StaffForm.shape.fullName,
+  phone: StaffForm.shape.phone,
+});
+export type ProfileInfoForm = z.infer<typeof ProfileInfoForm>;
+
+export async function fetchProfileInfo(): Promise<ProfileInfoForm> {
+  const res = await fetch('/api/profile/info');
+  if (!res.ok) throw new Error('Không tải được thông tin cá nhân');
+  return ProfileInfoForm.parse(await res.json());
+}
+
+export async function updateProfileInfo(form: ProfileInfoForm): Promise<ProfileInfoForm> {
+  const res = await fetch('/api/profile/info', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(form),
+  });
+  if (res.ok) return ProfileInfoForm.parse(await res.json());
+
+  const body = await res.json().catch(() => null);
+  const message = (body as { message?: unknown } | null)?.message;
+  throw new Error(
+    typeof message === 'string' && message.trim() ? message : 'Không lưu được thông tin cá nhân',
   );
 }

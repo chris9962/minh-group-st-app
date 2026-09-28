@@ -9,6 +9,7 @@ import type {
   StaffQuery,
   StaffSort,
 } from "@/lib/api/staff";
+import type { ProfileInfoForm } from "@/lib/api/profile";
 import { businessMonth, monthRange } from "@/lib/format";
 import {
   assignableRoles,
@@ -861,6 +862,32 @@ export async function changeOwnPassword(
       );
   });
   return true;
+}
+
+/** Họ tên và số điện thoại của chính người gọi, cho màn Cá nhân. */
+export async function ownProfileInfo(id: string): Promise<ProfileInfoForm | null> {
+  const [row] = await db
+    .select({ fullName: users.fullName, phone: users.phone })
+    .from(users)
+    .where(eq(users.id, id))
+    .limit(1);
+  return row ?? null;
+}
+
+/**
+ * Nhân viên tự sửa họ tên và số điện thoại. Chỉ ghi hai cột này: phòng, chức
+ * vụ và quyền vẫn do người quản lý sửa ở màn Nhân sự.
+ */
+export async function updateOwnProfileInfo(
+  id: string,
+  form: ProfileInfoForm,
+): Promise<ProfileInfoForm | null> {
+  const [row] = await db
+    .update(users)
+    .set({ fullName: form.fullName, phone: form.phone, updatedAt: new Date() })
+    .where(eq(users.id, id))
+    .returning({ fullName: users.fullName, phone: users.phone });
+  return row ?? null;
 }
 
 /** Mở khoá đăng nhập (C-01) khi admin mở khoá một người bị khoá 15 phút. */

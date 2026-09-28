@@ -1,10 +1,14 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { Pencil } from "lucide-react";
 import { TopBar } from "@/components/layout/TopBar";
 import { ChangePasswordDialog } from "@/components/profile/ChangePasswordDialog";
+import { EditProfileDialog } from "@/components/profile/EditProfileDialog";
 import { NotificationSettings } from "@/components/profile/NotificationSettings";
 import { SettingsAction, SettingsGroup, SettingsRow } from "@/components/ui/SettingsList";
+import { fetchProfileInfo } from "@/lib/api/profile";
 import { ROLE_LABEL } from "@/lib/types";
 import { useSession } from "@/store/session";
 import styles from "./page.module.css";
@@ -21,6 +25,9 @@ import styles from "./page.module.css";
 export default function ProfilePage() {
   const user = useSession((s) => s.user);
   const [changingPassword, setChangingPassword] = useState(false);
+  const [editingInfo, setEditingInfo] = useState(false);
+  // Số điện thoại không nằm trong phiên đăng nhập nên đọc riêng.
+  const { data: info } = useQuery({ queryKey: ["profile-info"], queryFn: fetchProfileInfo });
   if (!user) return null;
 
   return (
@@ -35,8 +42,19 @@ export default function ProfilePage() {
               label="Tên đăng nhập"
               value={<span className="tabular-nums">{user.username}</span>}
             />
+            <SettingsRow
+              label="Số điện thoại"
+              value={<span className="tabular-nums">{info?.phone || "—"}</span>}
+            />
             <SettingsRow label="Chức danh" value={user.title} />
             <SettingsRow label="Chức vụ" value={ROLE_LABEL[user.role]} />
+            <SettingsAction
+              label="Sửa thông tin"
+              icon={<Pencil size={17} aria-hidden />}
+              accent
+              disabled={!info}
+              onClick={() => setEditingInfo(true)}
+            />
           </SettingsGroup>
 
           <NotificationSettings />
@@ -50,6 +68,9 @@ export default function ProfilePage() {
             sau bắt đầu từ ba ô rỗng mà không cần gọi `reset`. */}
         {changingPassword && (
           <ChangePasswordDialog open onClose={() => setChangingPassword(false)} />
+        )}
+        {editingInfo && info && (
+          <EditProfileDialog info={info} onClose={() => setEditingInfo(false)} />
         )}
       </main>
     </>

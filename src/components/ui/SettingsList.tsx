@@ -61,23 +61,30 @@ export function SettingsRow({ label, detail, value, control }: RowProps) {
 export function SettingsAction({
   label,
   detail,
+  icon,
   onClick,
   disabled,
   danger,
+  accent,
 }: {
   label: React.ReactNode;
   detail?: React.ReactNode;
+  /** Icon đứng trước nhãn, ví dụ `Pencil`. Đặt `aria-hidden` ở nơi gọi. */
+  icon?: React.ReactNode;
   onClick: () => void;
   disabled?: boolean;
   danger?: boolean;
+  /** Nhãn màu `--om-link`: dòng hành động nằm lẫn giữa các dòng chỉ đọc. */
+  accent?: boolean;
 }) {
   return (
     <button
       type="button"
-      className={`${styles.row} ${styles.action} ${danger ? styles.danger : ""}`}
+      className={`${styles.row} ${styles.action} ${danger ? styles.danger : ""} ${accent ? styles.accent : ""}`}
       onClick={onClick}
       disabled={disabled}
     >
+      {icon && <span className={styles.icon}>{icon}</span>}
       <span className={styles.main}>
         <span className={styles.label}>{label}</span>
         {detail && <span className={styles.detail}>{detail}</span>}

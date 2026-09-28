@@ -95,6 +95,22 @@
   color: var(--om-red);
 }
 
+.icon {
+  flex: none;
+  display: inline-flex;
+  color: var(--om-text-2);
+}
+
+.accent .label,
+.accent .icon {
+  color: var(--om-link);
+}
+
+.accent:hover:not(:disabled) .label,
+.accent:hover:not(:disabled) .icon {
+  color: var(--om-link-hover);
+}
+
 .chevron {
   flex: none;
   margin-right: var(--space-4);
