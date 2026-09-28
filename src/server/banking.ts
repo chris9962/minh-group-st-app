@@ -1513,6 +1513,27 @@ export async function startBankAccount(
      * `users` nên không thêm vòng khoá chéo.
      */
     await tx.select({ id: users.id }).from(users).where(eq(users.id, actor.id)).for("update");
+
+    /**
+     * Mỗi ngân hàng có hai chỗ giữ riêng: dòng chính (Thường hoặc CNKD) và dòng
+     * HKD. Mỗi chỗ nhân viên giữ tối đa MỘT bản nháp, khách nào cũng vậy (chốt
+     * 2026-09-28). Trần đếm bên dưới vẫn giữ, nhưng luật này chặt hơn.
+     */
+    const draftsOfActor = await tx
+      .select({ bankId: bankAccounts.bankId, accountType: bankAccounts.accountType })
+      .from(bankAccounts)
+      .where(and(eq(bankAccounts.createdBy, actor.id), eq(bankAccounts.status, "creating")));
+    for (const pick of form.picks) {
+      const hkd = isHkd(pick.accountType);
+      if (draftsOfActor.some((d) => d.bankId === pick.bankId && isHkd(d.accountType) === hkd)) {
+        const code = bankById.get(pick.bankId)!.code;
+        return {
+          ok: false as const,
+          message: `Bạn đang giữ mã ${hkd ? `${code} HKD` : code} chưa hoàn tất. Hoàn tất hoặc xoá tài khoản đó rồi mở tiếp.`,
+        };
+      }
+    }
+
     const heldByActor = await tx
       .select({ bankId: bankAccounts.bankId, held: count() })
       .from(bankAccounts)
