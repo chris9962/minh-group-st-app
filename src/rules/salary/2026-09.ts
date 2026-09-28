@@ -104,7 +104,8 @@ function quotaItems(
 ): SalaryItem[] {
   if (!quota) return [];
   const result = quotaResult(quota, 10, penalty);
-  return [{ label, formula: `${result.text} × ${vnd(rate)}`, amount: result.points * rate }];
+  const formula = result.points === 0 ? result.text : `${result.text} × ${vnd(rate)}`;
+  return [{ label, formula, amount: result.points * rate, keepAtZero: true }];
 }
 
 /** Chỉ tiêu các phòng của Phó GĐ: mỗi phòng đạt cộng 10, thiếu trừ `failPoints`. */
@@ -122,7 +123,7 @@ function branchQuotaItem(
     failPoints > 0
       ? `${passed} phòng đạt × 10 - ${failed} phòng thiếu × ${failPoints} = ${points} điểm × 150.000đ`
       : `${passed} phòng đạt × 10 = ${points} điểm × 150.000đ`;
-  return [{ label, formula, amount: points * 150_000 }];
+  return [{ label, formula, amount: points * 150_000, keepAtZero: true }];
 }
 
 /** Quỹ thưởng vượt của phòng theo điểm trung bình, lũy tiến 7/8/9 nghìn mỗi điểm. */

@@ -41,9 +41,14 @@ const zeroSalary = (month: string): SalaryBreakdown => ({
  * rỗng là dấu hiệu "chưa có công thức", không phải "lương 0".
  */
 const nonZeroItems = (items: SalaryItem[]): SalaryItem[] => {
-  const rounded = items.map((item) => ({ ...item, amount: Math.round(item.amount) }));
-  const kept = rounded.filter((item) => item.amount !== 0);
-  return kept.length > 0 ? kept : rounded.slice(0, 1);
+  // `|| 0` đổi -0 thành 0, không thì dòng giữ lại hiện "-0đ".
+  const rounded = items.map((item) => ({ ...item, amount: Math.round(item.amount) || 0 }));
+  const kept = rounded.filter((item) => item.amount !== 0 || item.keepAtZero);
+  return (kept.length > 0 ? kept : rounded.slice(0, 1)).map(({ label, formula, amount }) => ({
+    label,
+    formula,
+    amount,
+  }));
 };
 
 const adjustmentExpr = (yearMonth: string) => sql<number>`coalesce((

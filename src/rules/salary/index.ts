@@ -13,7 +13,13 @@ import * as period202609 from "./2026-09";
  * người trong phòng rồi đưa vào đây.
  */
 
-export type SalaryItem = { label: string; formula: string; amount: number };
+export type SalaryItem = {
+  label: string;
+  formula: string;
+  amount: number;
+  /** Hiện cả khi 0đ. Dòng chỉ tiêu cần hiện để người đọc thấy đã chấm và thiếu bao nhiêu. */
+  keepAtZero?: boolean;
+};
 export type SalaryFact = { label: string; value: string };
 export type SalaryResult = { amount: number; facts: SalaryFact[]; items: SalaryItem[] };
 
