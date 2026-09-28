@@ -1,5 +1,5 @@
 import { canOpenPath } from '@/lib/nav';
-import { can, isFullAccess } from '@/lib/permissions';
+import { can, isFullAccess, scopeFor } from '@/lib/permissions';
 import type { User } from '@/lib/types';
 import type { Release, ReleaseSection } from './types';
 
@@ -10,6 +10,46 @@ export type { Release, ReleaseSection } from './types';
  * và trang `/releases` bày theo đúng thứ tự này.
  */
 export const RELEASES: Release[] = [
+  {
+    id: '2026-09-29',
+    version: '1.7.0',
+    title: 'Cập nhật ngày 29/09/2026',
+    summary:
+      'Giữ mã giới thiệu theo từng loại tài khoản, lương tháng 9/2026 đổi phần chỉ tiêu, nhân viên tự sửa họ tên và số điện thoại.',
+    sections: [
+      {
+        title: 'Giữ mã giới thiệu',
+        items: [
+          'Mỗi ngân hàng, mỗi người giữ tối đa 2 mã Thường, 1 mã CNKD và 2 mã HKD chưa hoàn tất.',
+          'Muốn mở thêm thì hoàn tất hoặc xoá bớt tài khoản đang tạo.',
+        ],
+        visibleTo: (user) => can(user, 'banking', 'create'),
+      },
+      {
+        title: 'Lương tạm tính tháng 9/2026',
+        items: [
+          'Phòng Y và Phòng Dự án tính theo 50% chỉ tiêu.',
+          'Trưởng phòng, Phó phòng, Phó giám đốc: thiếu chỉ tiêu HKD không bị trừ điểm.',
+          'Hộp Diễn giải lương luôn hiện dòng chỉ tiêu, kể cả khi 0đ.',
+        ],
+      },
+      {
+        title: 'Trang Cá nhân',
+        items: ['Tự sửa họ tên và số điện thoại bằng nút Sửa thông tin.'],
+      },
+      {
+        title: 'Lọc tài khoản ngân hàng',
+        items: ['Ô lọc Loại TK chọn được nhiều loại cùng lúc.'],
+        visibleTo: (user) => canOpenPath(user, '/banking') || canOpenPath(user, '/settings/banks'),
+      },
+      {
+        title: 'Xuất dữ liệu',
+        items: ['Thêm báo cáo Ngày công theo tháng.'],
+        // Báo cáo chỉ hiện cho người xuất nhân viên toàn công ty, cùng điều kiện với route.
+        visibleTo: (user) => scopeFor(user, 'staff', 'export') === 'company',
+      },
+    ],
+  },
   {
     id: '2026-09-28',
     version: '1.6.0',
