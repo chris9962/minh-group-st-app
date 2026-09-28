@@ -46,6 +46,7 @@ import {
 import { fetchBankAccountDetail, markBankAccountError, type BankAccountDetail } from "@/lib/api/banking";
 import { fetchDepartments } from "@/lib/api/departments";
 import { invalidateKpi } from "@/lib/invalidateKpi";
+import { canOpenPath } from "@/lib/nav";
 import { can, canDeleteFinished, canManageBank } from "@/lib/permissions";
 import { errorMessage, toast } from "@/lib/toast";
 import { formatDate, formatPhone, businessDay } from "@/lib/format";
@@ -112,6 +113,18 @@ export default function BankAccountDetailPage({
       </main>
     </>
   );
+}
+
+/** Chỉ gắn link khi người xem mở được màn đó, không thì bấm vào chỉ ra màn báo không có quyền. */
+function PathLink({ href, children }: { href: string | null; children: string }) {
+  const user = useSession((s) => s.user);
+  if (!href || !canOpenPath(user, href)) return <>{children}</>;
+  return <Link href={href}>{children}</Link>;
+}
+
+function DepartmentLink({ id, name }: { id: string | null; name?: string }) {
+  if (!name) return <>—</>;
+  return <PathLink href={id ? `/departments/${id}` : null}>{name}</PathLink>;
 }
 
 function FinishAccountCard({
@@ -256,7 +269,9 @@ function FinishAccountCard({
         </div>
         <div>
           <dt>Đơn vị lúc tạo</dt>
-          <dd>{departmentName ?? "—"}</dd>
+          <dd>
+            <DepartmentLink id={data.createdByDepartmentId} name={departmentName} />
+          </dd>
         </div>
       </dl>
 
@@ -577,11 +592,21 @@ function DoneAccountCard({
         </div>
         <div>
           <dt>Người tạo</dt>
-          <dd>{data.createdByName ?? "—"}</dd>
+          <dd>
+            {data.createdByName ? (
+              <PathLink href={data.createdById ? `/users/${data.createdById}` : null}>
+                {data.createdByName}
+              </PathLink>
+            ) : (
+              "—"
+            )}
+          </dd>
         </div>
         <div>
           <dt>Đơn vị lúc tạo</dt>
-          <dd>{departmentName ?? "—"}</dd>
+          <dd>
+            <DepartmentLink id={data.createdByDepartmentId} name={departmentName} />
+          </dd>
         </div>
       </dl>
 

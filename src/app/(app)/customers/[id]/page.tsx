@@ -38,6 +38,7 @@ import {
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { INSURANCE_STATUS_LABEL, INSURANCE_STATUS_TONE } from "@/lib/api/insuranceOrders";
 import { formatDate, formatIdNumber, formatPhone, formatVnd } from "@/lib/format";
+import { canOpenPath } from "@/lib/nav";
 import { can, recordInScope, recordVisibility } from "@/lib/permissions";
 import { PRODUCT_LABEL } from "@/lib/types";
 import { useSession } from "@/store/session";
@@ -279,10 +280,33 @@ export default function CustomerDetailPage({
                 <div>
                   <dt>Người tạo</dt>
                   <dd>
-                    {data.customer.createdByName || "Không rõ"}
-                    {data.customer.createdByDepartmentName
-                      ? ` - ${data.customer.createdByDepartmentName}`
-                      : ""}
+                    {/* Chỉ gắn link khi người xem mở được màn đó, không thì bấm
+                        vào chỉ ra màn báo không có quyền. */}
+                    {data.customer.createdById &&
+                    data.customer.createdByName &&
+                    canOpenPath(actor, `/users/${data.customer.createdById}`) ? (
+                      <Link href={`/users/${data.customer.createdById}`} className={styles.infoLink}>
+                        {data.customer.createdByName}
+                      </Link>
+                    ) : (
+                      data.customer.createdByName || "Không rõ"
+                    )}
+                    {data.customer.createdByDepartmentName && (
+                      <>
+                        {" - "}
+                        {data.customer.createdByDepartmentId &&
+                        canOpenPath(actor, `/departments/${data.customer.createdByDepartmentId}`) ? (
+                          <Link
+                            href={`/departments/${data.customer.createdByDepartmentId}`}
+                            className={styles.infoLink}
+                          >
+                            {data.customer.createdByDepartmentName}
+                          </Link>
+                        ) : (
+                          data.customer.createdByDepartmentName
+                        )}
+                      </>
+                    )}
                   </dd>
                 </div>
                 <div>
