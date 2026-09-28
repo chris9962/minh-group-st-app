@@ -50,6 +50,7 @@ import { customerDay, customerDayText } from "./customerDay";
 import { db, uniqueViolationOf } from "./db/client";
 import { giftForCustomer, giftItemNames, grantedItemLabel, recomputeGiftCase } from "./gift";
 import { bankingPointsByCustomer, recomputeKpi, recomputeKpiForCustomer } from "./kpi";
+import { enqueuePhotoCheck } from "./photoCheck";
 import { recomputeEmployeeWorkDay } from "./workDays";
 import {
   bankAccounts,
@@ -1245,6 +1246,16 @@ async function dongBoNhom(
       updatedAt: new Date(),
     })
     .where(eq(customers.rootCustomerId, rootCustomerId));
+
+  // Kiểm ảnh so tên trên ảnh với tên khách, mà tên đồng bộ cả nhóm: đổi tên thì
+  // mọi tài khoản của nhóm kiểm lại. `enqueuePhotoCheck` thay dòng chờ cũ.
+  if (truoc.fullName !== form.fullName) {
+    const accounts = await tx
+      .select({ id: bankAccounts.id })
+      .from(bankAccounts)
+      .where(eq(bankAccounts.rootCustomerId, rootCustomerId));
+    for (const account of accounts) await enqueuePhotoCheck(tx, account.id);
+  }
 
   /**
    * Kênh Ấp và Định danh lấy ĐỊA CHỈ làm chi tiết kênh (spec §U9), mà địa chỉ
