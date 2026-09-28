@@ -19,6 +19,11 @@ type Props = {
    * `<h1>` ẩn — trình đọc màn hình cần mốc trang, không phải tên người dùng.
    */
   welcome?: boolean;
+  /**
+   * Ô điều khiển hiện thay cho chữ tiêu đề, ví dụ ô chọn ngân hàng. `title`
+   * vẫn là `<h1>` ẩn cho trình đọc màn hình.
+   */
+  titleControl?: React.ReactNode;
   /** Thanh chọn phạm vi, bộ lọc… tuỳ từng trang. */
   children?: React.ReactNode;
 };
@@ -27,6 +32,7 @@ export function TopBar({
   title,
   keepTitleOnMobile = true,
   welcome = false,
+  titleControl,
   children,
 }: Props) {
   const user = useSession((s) => s.user);
@@ -45,6 +51,11 @@ export function TopBar({
             </div>
           </div>
           <h1 className="sr-only">{title}</h1>
+        </>
+      ) : titleControl ? (
+        <>
+          <h1 className="sr-only">{title}</h1>
+          <div className={keepTitleOnMobile ? styles.titleKept : styles.title}>{titleControl}</div>
         </>
       ) : (
         <h1 className={keepTitleOnMobile ? styles.titleKept : styles.title}>{title}</h1>

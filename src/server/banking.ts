@@ -813,7 +813,7 @@ export type BankOfBankFilters = {
  * hôm sau mở thêm tài khoản vẫn lọt vào ngày trước. Bản nháp `creating` chưa
  * có ngày mở thì lấy ngày tạo theo giờ Việt Nam.
  */
-const accountOpenedDayBetween = (from: string, to: string): SQL =>
+export const accountOpenedDayBetween = (from: string, to: string): SQL =>
   or(
     and(gte(bankAccounts.openedDate, from), lte(bankAccounts.openedDate, to)),
     and(

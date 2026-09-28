@@ -1,14 +1,16 @@
 "use client";
 
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { use, useEffect, useMemo, useState } from "react";
 import { Download, Landmark } from "lucide-react";
 import type { DateRange } from "react-day-picker";
 import { RequirePermission } from "@/components/layout/RequirePermission";
 import { TopBar } from "@/components/layout/TopBar";
 import { BankPhotoGallery } from "@/components/banking/BankPhotoGallery";
+import { BankSwitcher } from "@/components/banking/BankSwitcher";
 import { PhotoCheckScore } from "@/components/banking/PhotoCheckScore";
+import { PhotoCheckStatsPanel } from "@/components/banking/PhotoCheckStatsPanel";
 import { PHOTO_CHECK_FILTER_LABEL, PhotoCheckFilter } from "@/lib/api/photoCheck";
 import { BackLink } from "@/components/ui/BackLink";
 import { Button } from "@/components/ui/Button";
@@ -118,12 +120,16 @@ const COLUMNS: RankColumn<BankAccountRow>[] = [
   { key: "department", label: "Phòng", render: (r) => r.createdByDepartmentName ?? "—" },
 ];
 
-type Tab = "accounts" | "photos";
+type Tab = "accounts" | "photos" | "photo-stats";
 
 const TAB_OPTIONS = [
   { value: "accounts", label: "Tài khoản" },
   { value: "photos", label: "Ảnh chứng minh" },
+  { value: "photo-stats", label: "Hiệu suất kiểm ảnh" },
 ];
+
+const tabFromUrl = (value: string | null): Tab =>
+  value === "photos" || value === "photo-stats" ? value : "accounts";
 
 /**
  * Chi tiết một ngân hàng — mở rộng P-60: bấm mã ngân hàng ở bảng đi tới đây.
@@ -137,10 +143,11 @@ const TAB_OPTIONS = [
 export default function BankDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const user = useSession((s) => s.user);
+  const router = useRouter();
   const searchParams = useSearchParams();
-  const [tab, setTab] = useState<Tab>(() =>
-    searchParams.get("tab") === "photos" ? "photos" : "accounts",
-  );
+  const [tab, setTab] = useState<Tab>(() => tabFromUrl(searchParams.get("tab")));
+  /** Tab thống kê chỉ nhận bộ lọc ngày: bộ lọc khác vẫn giữ cho hai tab kia nhưng ẩn đi. */
+  const statsTab = tab === "photo-stats";
   const [search, setSearch] = useState(() => searchParams.get("search") ?? "");
   const searchQuery = useDebouncedValue(search);
   const [range, setRange] = useState<DateRange | undefined>(() => {
@@ -173,7 +180,7 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
    * trang của tab kia là mở link ra một trang không khớp số trên URL.
    */
   const [page, setPage] = useState(() =>
-    searchParams.get("tab") === "photos" ? 0 : pageFromUrl(searchParams.get("page")),
+    tabFromUrl(searchParams.get("tab")) === "accounts" ? pageFromUrl(searchParams.get("page")) : 0,
   );
   const [photoPage, setPhotoPage] = useState(() =>
     searchParams.get("tab") === "photos" ? pageFromUrl(searchParams.get("page")) : 0,
@@ -190,6 +197,7 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
 
   /** Ngân hàng ngoài phạm vi thì không gọi mạng — máy chủ trả 403. */
   const inScope = canManageBank(user, id);
+  const switchableBanks = banks.filter((b) => canManageBank(user, b.id));
 
   /**
    * Ô lọc mã đọc TRỌN kho mã của ngân hàng, không gom từ các dòng đang hiện.
@@ -229,7 +237,7 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
    */
   const listUrl = useMemo(() => {
     const params = new URLSearchParams();
-    if (tab === "photos") params.set("tab", tab);
+    if (tab !== "accounts") params.set("tab", tab);
     if (searchQuery) params.set("search", searchQuery);
     if (from) params.set("from", from);
     if (to) params.set("to", to);
@@ -240,7 +248,7 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
     if (accountType) params.set("accountType", accountType);
     if (photoCheck) params.set("photoCheck", photoCheck);
     // `page` là trang của TAB ĐANG MỞ; `dir` chỉ có nghĩa với bảng tài khoản.
-    const shownPage = tab === "photos" ? photoPage : page;
+    const shownPage = tab === "photos" ? photoPage : tab === "accounts" ? page : 0;
     if (shownPage > 0) params.set("page", String(shownPage + 1));
     if (tab === "accounts" && dir === "asc") params.set("dir", dir);
     const query = params.toString();
@@ -384,9 +392,59 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
     (photoCheck ? 1 : 0);
   const codeName = codes.find((c) => c.id === referralCodeId)?.name ?? "";
 
+  /**
+   * Sang ngân hàng khác giữ tab và bộ lọc, trừ mã giới thiệu: mã thuộc riêng
+   * một ngân hàng, mang sang là bảng ngân hàng mới lọc ra rỗng. Không phải
+   * reset state: Next đặt khoá theo giá trị `[id]`, trang dựng lại từ URL mới.
+   */
+  const switchBank = (nextId: string) => {
+    const params = new URLSearchParams(listUrl.split("?")[1] ?? "");
+    params.delete("referralCodeId");
+    params.delete("page");
+    const query = params.toString();
+    router.push(query ? `/settings/banks/${nextId}?${query}` : `/settings/banks/${nextId}`);
+  };
+
+  const dateField = (
+    <FilterField id="date" label="Khoảng ngày" count={range?.from ? 1 : 0}>
+      <DateRangePicker
+        hideLabel
+        label="Khoảng ngày"
+        value={range}
+        onChange={(v) => refine(() => setRange(v))}
+      />
+    </FilterField>
+  );
+  const dateChips =
+    from && to
+      ? [
+          {
+            label: `Ngày: ${formatDate(from)} → ${formatDate(to)}`,
+            onRemove: () => refine(() => setRange(undefined)),
+          },
+        ]
+      : [];
+
   return (
     <RequirePermission allow={canOpenBankAdmin}>
-      <TopBar title={bank?.code ?? "Ngân hàng"} keepTitleOnMobile>
+      <TopBar
+        title={bank?.code ?? "Ngân hàng"}
+        keepTitleOnMobile
+        titleControl={
+          inScope && switchableBanks.length > 1 ? (
+            <BankSwitcher value={id} banks={switchableBanks} onChange={switchBank} />
+          ) : undefined
+        }
+      >
+        {statsTab ? (
+          <FilterButton
+            activeCount={from && to ? 1 : 0}
+            onClear={() => refine(() => setRange(undefined))}
+          >
+            {dateField}
+          </FilterButton>
+        ) : (
+        <>
         {/* Cùng bộ lọc cho cả hai tab, nên ô tìm cũng lọc lưới ảnh theo tên khách. */}
         <SearchField
           label="Tìm khách hàng"
@@ -412,14 +470,7 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
             })
           }
         >
-          <FilterField id="date" label="Khoảng ngày" count={range?.from ? 1 : 0}>
-            <DateRangePicker
-              hideLabel
-              label="Khoảng ngày"
-              value={range}
-              onChange={(v) => refine(() => setRange(v))}
-            />
-          </FilterField>
+          {dateField}
           <FilterField id="status" label="Trạng thái" count={status ? 1 : 0}>
             <FilterChoices
               label="Trạng thái"
@@ -500,21 +551,16 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
             </Button>
           </FilterField>
         </FilterButton>
+        </>
+        )}
       </TopBar>
 
       <main className={styles.body}>
         <BackLink href="/settings/banks">Ngân hàng &amp; mã giới thiệu</BackLink>
 
         <FilterChips
-          chips={[
-            ...(from && to
-              ? [
-                  {
-                    label: `Ngày: ${formatDate(from)} → ${formatDate(to)}`,
-                    onRemove: () => refine(() => setRange(undefined)),
-                  },
-                ]
-              : []),
+          chips={statsTab ? dateChips : [
+            ...dateChips,
             ...(status
               ? [
                   {
@@ -570,7 +616,9 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
 
         <SectionTabs label="Khu vực" options={TAB_OPTIONS} value={tab} onChange={(v) => setTab(v as Tab)} />
 
-        {tab === "photos" ? (
+        {statsTab ? (
+          <PhotoCheckStatsPanel bankId={id} from={from} to={to} inScope={inScope} />
+        ) : tab === "photos" ? (
           <BankPhotoGallery
             /*
               `key` theo bộ lọc: đổi bộ lọc là dựng lại component, mất lượt chọn

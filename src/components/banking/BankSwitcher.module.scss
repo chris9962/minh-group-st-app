@@ -1,0 +1,37 @@
+.wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.select {
+  appearance: none;
+  min-height: 44px;
+  padding: 0 32px 0 10px;
+  margin-left: -10px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--om-text);
+  font-family: var(--font-heading);
+  font-size: 20px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.select:hover {
+  border-color: var(--om-line);
+  background: var(--om-card);
+}
+
+.select:focus-visible {
+  outline: 2px solid var(--om-orange);
+  outline-offset: 2px;
+}
+
+.icon {
+  position: absolute;
+  right: 10px;
+  color: var(--om-text-2);
+  pointer-events: none;
+}
