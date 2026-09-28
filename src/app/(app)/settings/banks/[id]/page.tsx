@@ -27,6 +27,7 @@ import { StatusTag } from "@/components/ui/StatusTag";
 import {
   ACCOUNT_TYPE_LABEL,
   AccountType,
+  accountTypesFrom,
   BANK_ACCOUNT_STATUS_LABEL,
   BANK_ACCOUNT_STATUS_TONE,
   BankAccountStatus,
@@ -159,10 +160,10 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
     () => searchParams.get("departmentId") ?? "",
   );
   const [channelId, setChannelId] = useState(() => searchParams.get("channelId") ?? "");
-  const [accountType, setAccountType] = useState<AccountType | "">(() => {
-    const parsed = AccountType.safeParse(searchParams.get("accountType"));
-    return parsed.success ? parsed.data : "";
-  });
+  const [accountTypes, setAccountTypes] = useState<AccountType[]>(() =>
+    accountTypesFrom(searchParams.get("accountType")),
+  );
+  const accountType = accountTypes.join(",");
   const [photoCheck, setPhotoCheck] = useState<PhotoCheckFilter | "">(() => {
     const parsed = PhotoCheckFilter.safeParse(searchParams.get("photoCheck"));
     return parsed.success ? parsed.data : "";
@@ -406,7 +407,7 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
               setReferralCodeId("");
               setDepartmentId("");
               setChannelId("");
-              setAccountType("");
+              setAccountTypes([]);
               setPhotoCheck("");
             })
           }
@@ -433,15 +434,13 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
               ]}
             />
           </FilterField>
-          <FilterField id="accountType" label="Loại TK" count={accountType ? 1 : 0}>
+          <FilterField id="accountType" label="Loại TK" count={accountTypes.length}>
             <FilterChoices
+              multiple
               label="Loại TK"
-              value={accountType}
-              onChange={(v) => refine(() => setAccountType(v as AccountType | ""))}
-              options={[
-                { value: "", label: "Tất cả loại" },
-                ...AccountType.options.map((t) => ({ value: t, label: ACCOUNT_TYPE_LABEL[t] })),
-              ]}
+              value={accountTypes}
+              onChange={(v) => refine(() => setAccountTypes(v as AccountType[]))}
+              options={AccountType.options.map((t) => ({ value: t, label: ACCOUNT_TYPE_LABEL[t] }))}
             />
           </FilterField>
           <FilterField id="photoCheck" label="Xác thực ảnh" count={photoCheck ? 1 : 0}>
@@ -524,11 +523,11 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
                   },
                 ]
               : []),
-            ...(accountType
+            ...(accountTypes.length > 0
               ? [
                   {
-                    label: `Loại TK: ${ACCOUNT_TYPE_LABEL[accountType]}`,
-                    onRemove: () => refine(() => setAccountType("")),
+                    label: `Loại TK: ${accountTypes.map((t) => ACCOUNT_TYPE_LABEL[t]).join(", ")}`,
+                    onRemove: () => refine(() => setAccountTypes([])),
                   },
                 ]
               : []),

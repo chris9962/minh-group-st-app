@@ -170,8 +170,8 @@ export type BankAccountQuery = PageQuery<BankAccountSort> & {
   /** Phòng ghi nhận lúc tạo bản ghi. Rỗng = mọi phòng. */
   departmentId: string;
   status: BankAccountStatus | '';
-  /** Loại tài khoản. Rỗng = mọi loại. */
-  accountType: AccountType | '';
+  /** Loại tài khoản, nhiều loại ngăn bằng dấu phẩy (`CNKD,HKD`). Rỗng = mọi loại. */
+  accountType: string;
   /** Theo lượt xác thực ảnh mới nhất. Rỗng = không lọc. */
   photoCheck: PhotoCheckFilter | '';
 };
@@ -234,8 +234,8 @@ export type BankAccountsOfBankQuery = PageQuery<BankAccountSort> & {
   departmentId: string;
   /** Kênh chụp lúc tạo tài khoản. Rỗng = mọi kênh. */
   channelId: string;
-  /** Loại tài khoản. Rỗng = mọi loại. */
-  accountType: AccountType | '';
+  /** Loại tài khoản, nhiều loại ngăn bằng dấu phẩy (`CNKD,HKD`). Rỗng = mọi loại. */
+  accountType: string;
   /** Theo lượt xác thực ảnh mới nhất. Rỗng = không lọc. */
   photoCheck: PhotoCheckFilter | '';
 };

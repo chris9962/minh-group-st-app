@@ -292,7 +292,7 @@ export type BankAccountFilters = {
    */
   departmentId: string;
   status: string;
-  /** `none` · `CNKD` · `HKD`. Rỗng hoặc giá trị lạ = mọi loại. */
+  /** `none` · `CNKD` · `HKD`, nhiều loại ngăn bằng dấu phẩy. Rỗng hoặc giá trị lạ = mọi loại. */
   accountType: string;
   /** `fail` · `pass` theo lượt xác thực ảnh mới nhất. Rỗng hoặc giá trị lạ = không lọc. */
   photoCheck: string;
@@ -469,20 +469,25 @@ async function referralCodeIdsMatching(raw: string): Promise<string[]> {
  * đắt là để `LIMIT` rơi xuống sau một phép gộp, không phải ở đây.
  */
 const accountTypeFilter = (raw: string): SQL | undefined => {
-  if (raw !== "none" && raw !== "CNKD" && raw !== "HKD") return undefined;
+  const picked = raw.split(",");
+  const types = (["none", "CNKD", "HKD"] as const).filter((t) => picked.includes(t));
+  if (types.length === 0) return undefined;
 
   const codesOfType = inArray(
     bankAccounts.referralCodeId,
     db
       .select({ id: referralCodes.id })
       .from(referralCodes)
-      .where(eq(referralCodes.accountType, raw)),
+      .where(inArray(referralCodes.accountType, types)),
   );
   const fromCode = and(eq(bankAccounts.accountType, "none"), codesOfType)!;
 
   // `none` không có vế "đọc thẳng cột đơn": đơn cũ mang `none` mà mã là CNKD thì
   // hiện ra là CNKD, nên nó KHÔNG được lọt vào kết quả "Thường".
-  return raw === "none" ? fromCode : or(eq(bankAccounts.accountType, raw), fromCode);
+  const direct = types.filter((t) => t !== "none");
+  return direct.length === 0
+    ? fromCode
+    : or(inArray(bankAccounts.accountType, direct), fromCode);
 };
 
 /** Chuỗi rỗng hoặc giá trị lạ đều thành "mọi trạng thái". */
@@ -795,7 +800,7 @@ export type BankOfBankFilters = {
   departmentId: string;
   /** Kênh chụp lúc tạo tài khoản. */
   channelId: string;
-  /** `none` · `CNKD` · `HKD`. Rỗng hoặc giá trị lạ = mọi loại. */
+  /** `none` · `CNKD` · `HKD`, nhiều loại ngăn bằng dấu phẩy. Rỗng hoặc giá trị lạ = mọi loại. */
   accountType: string;
   /** `fail` · `pass` theo lượt xác thực ảnh mới nhất. Rỗng hoặc giá trị lạ = không lọc. */
   photoCheck: string;

@@ -22,6 +22,12 @@ export const ACCOUNT_TYPE_LABEL: Record<AccountType, string> = {
   HKD: 'HKD',
 };
 
+/** Ô lọc Loại TK trên URL: nhiều loại ngăn bằng dấu phẩy, giá trị lạ bị bỏ. */
+export const accountTypesFrom = (value: string | null): AccountType[] => {
+  const picked = (value ?? '').split(',');
+  return AccountType.options.filter((t) => picked.includes(t));
+};
+
 /**
  * Hai bước, không phải một (spec §4.5): KD chọn ngân hàng + mã rồi đi mở tài
  * khoản THẬT bên ngoài (có thể mất nhiều giờ, qua ngày khác) — không nhập hết

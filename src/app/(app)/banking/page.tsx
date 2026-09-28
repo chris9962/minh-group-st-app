@@ -30,6 +30,7 @@ import { PHOTO_CHECK_FILTER_LABEL, PhotoCheckFilter } from "@/lib/api/photoCheck
 import {
   ACCOUNT_TYPE_LABEL,
   AccountType,
+  accountTypesFrom,
   BANK_ACCOUNT_STATUS_LABEL as STATUS_LABEL,
   BANK_ACCOUNT_STATUS_TONE as STATUS_TONE,
   BankAccountStatus,
@@ -93,10 +94,9 @@ export default function BankingPage() {
     const parsed = BankAccountStatus.safeParse(searchParams.get("status"));
     return parsed.success ? parsed.data : "";
   });
-  const [accountType, setAccountType] = useState<AccountType | "">(() => {
-    const parsed = AccountType.safeParse(searchParams.get("accountType"));
-    return parsed.success ? parsed.data : "";
-  });
+  const [accountTypes, setAccountTypes] = useState<AccountType[]>(() =>
+    accountTypesFrom(searchParams.get("accountType")),
+  );
   const [photoCheck, setPhotoCheck] = useState<PhotoCheckFilter | "">(() => {
     const parsed = PhotoCheckFilter.safeParse(searchParams.get("photoCheck"));
     return parsed.success ? parsed.data : "";
@@ -213,13 +213,13 @@ export default function BankingPage() {
     if (channelId) params.set("channelId", channelId);
     if (staffId) params.set("staffId", staffId);
     if (status) params.set("status", status);
-    if (accountType) params.set("accountType", accountType);
+    if (accountTypes.length > 0) params.set("accountType", accountTypes.join(","));
     if (photoCheck) params.set("photoCheck", photoCheck);
     if (page > 0) params.set("page", String(page + 1));
     if (dir === "asc") params.set("dir", dir);
     const query = params.toString();
     return query ? `/banking?${query}` : "/banking";
-  }, [accountType, bankCode, channelId, departmentId, dir, from, page, photoCheck, searchQuery, staffId, status, to]);
+  }, [accountTypes, bankCode, channelId, departmentId, dir, from, page, photoCheck, searchQuery, staffId, status, to]);
 
   useEffect(() => {
     window.history.replaceState(null, "", listUrl);
@@ -237,7 +237,7 @@ export default function BankingPage() {
     staffId,
     departmentId,
     status,
-    accountType,
+    accountType: accountTypes.join(","),
     photoCheck,
   };
 
@@ -254,7 +254,7 @@ export default function BankingPage() {
     (channelId ? 1 : 0) +
     (staffId ? 1 : 0) +
     (status ? 1 : 0) +
-    (accountType ? 1 : 0) +
+    (accountTypes.length > 0 ? 1 : 0) +
     (photoCheck ? 1 : 0);
 
   const columns = useMemo<RankColumn<BankAccountRow>[]>(
@@ -405,7 +405,7 @@ export default function BankingPage() {
               setChannelId("");
               setStaffId("");
               setStatus("");
-              setAccountType("");
+              setAccountTypes([]);
               setPhotoCheck("");
             })
           }
@@ -439,15 +439,13 @@ export default function BankingPage() {
               ]}
             />
           </FilterField>
-          <FilterField id="accountType" label="Loại TK" count={accountType ? 1 : 0}>
+          <FilterField id="accountType" label="Loại TK" count={accountTypes.length}>
             <FilterChoices
+              multiple
               label="Loại TK"
-              value={accountType}
-              onChange={(v) => refine(() => setAccountType(v as AccountType | ""))}
-              options={[
-                { value: "", label: "Tất cả loại" },
-                ...AccountType.options.map((t) => ({ value: t, label: ACCOUNT_TYPE_LABEL[t] })),
-              ]}
+              value={accountTypes}
+              onChange={(v) => refine(() => setAccountTypes(v as AccountType[]))}
+              options={AccountType.options.map((t) => ({ value: t, label: ACCOUNT_TYPE_LABEL[t] }))}
             />
           </FilterField>
           <FilterField id="photoCheck" label="Xác thực ảnh" count={photoCheck ? 1 : 0}>
@@ -524,11 +522,11 @@ export default function BankingPage() {
                 ]
               : []),
             ...(bankCode ? [{ label: `Ngân hàng: ${bankCode}`, onRemove: () => refine(() => setBankCode("")) }] : []),
-            ...(accountType
+            ...(accountTypes.length > 0
               ? [
                   {
-                    label: `Loại TK: ${ACCOUNT_TYPE_LABEL[accountType]}`,
-                    onRemove: () => refine(() => setAccountType("")),
+                    label: `Loại TK: ${accountTypes.map((t) => ACCOUNT_TYPE_LABEL[t]).join(", ")}`,
+                    onRemove: () => refine(() => setAccountTypes([])),
                   },
                 ]
               : []),
