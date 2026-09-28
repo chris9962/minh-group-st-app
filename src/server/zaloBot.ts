@@ -2,22 +2,33 @@ import { and, asc, count, desc, eq, inArray, isNotNull, or, sql, type SQL } from
 import type { Page } from "@/lib/api/pagination";
 import {
   ZALO_RECENT_OUTBOX,
+  ZALO_THREAD_MESSAGES,
   ZALO_WORKER_STALE_SECONDS,
   ZaloBotStatus,
   ZaloNotificationKind,
   ZaloOutboxStatus,
   ZaloThreadType,
   type ZaloBotSummary,
+  type ZaloContactRow,
+  type ZaloContactSort,
   type ZaloGroupOption,
   type ZaloGroupRow,
   type ZaloGroupSort,
   type ZaloNotificationRoute,
+  type ZaloOutboxRow,
   type ZaloSendBody,
 } from "@/lib/api/zaloBot";
+import { digitsOnly } from "@/lib/format";
 import { searchTerms } from "@/lib/search";
 import type { User } from "@/lib/types";
 import { db } from "./db/client";
-import { zaloBotState, zaloGroups, zaloNotificationRoutes, zaloOutbox } from "./db/schema";
+import {
+  zaloBotState,
+  zaloContacts,
+  zaloGroups,
+  zaloNotificationRoutes,
+  zaloOutbox,
+} from "./db/schema";
 import type { PageArgs } from "./pagination";
 
 /**
@@ -53,16 +64,95 @@ export async function zaloBotSummary(): Promise<ZaloBotSummary> {
     logoutPending: !!state?.logoutRequestedAt,
     groupsSyncedAt: state?.groupsSyncedAt?.toISOString() ?? "",
     groupsSyncPending: !!state?.groupsSyncRequestedAt,
-    recentOutbox: recent.map((r) => ({
-      id: r.id,
-      threadId: r.threadId,
-      threadType: ZaloThreadType.catch("group").parse(r.threadType),
-      body: r.body,
-      status: ZaloOutboxStatus.catch("failed").parse(r.status),
-      error: r.error ?? "",
-      createdAt: r.createdAt.toISOString(),
-    })),
+    recentOutbox: recent.map(toOutboxRow),
   };
+}
+
+function toOutboxRow(r: typeof zaloOutbox.$inferSelect): ZaloOutboxRow {
+  return {
+    id: r.id,
+    threadId: r.threadId ?? "",
+    phone: r.phone ?? "",
+    threadType: ZaloThreadType.catch("group").parse(r.threadType),
+    body: r.body,
+    status: ZaloOutboxStatus.catch("failed").parse(r.status),
+    error: r.error ?? "",
+    createdAt: r.createdAt.toISOString(),
+  };
+}
+
+/**
+ * Tin đã gửi tới một nơi nhận, cũ trước mới sau. Tin gửi theo số và tin gửi
+ * theo uid của số đó là cùng một người, nên đọc cả hai.
+ */
+export async function zaloThreadMessages(
+  accountId: string,
+  to: { threadId: string } | { phone: string },
+): Promise<ZaloOutboxRow[]> {
+  const known = await db
+    .select({ phone: zaloContacts.phone, uid: zaloContacts.uid })
+    .from(zaloContacts)
+    .where(
+      and(
+        eq(zaloContacts.accountId, accountId),
+        "phone" in to ? eq(zaloContacts.phone, to.phone) : eq(zaloContacts.uid, to.threadId),
+      ),
+    );
+  const threadIds = "phone" in to ? known.map((k) => k.uid) : [to.threadId];
+  const phones = "phone" in to ? [to.phone] : known.map((k) => k.phone);
+
+  const rows = await db
+    .select()
+    .from(zaloOutbox)
+    .where(
+      or(
+        threadIds.length > 0 ? inArray(zaloOutbox.threadId, threadIds) : undefined,
+        phones.length > 0 ? inArray(zaloOutbox.phone, phones) : undefined,
+      ),
+    )
+    .orderBy(desc(zaloOutbox.createdAt))
+    .limit(ZALO_THREAD_MESSAGES);
+  return rows.reverse().map(toOutboxRow);
+}
+
+/** Mỗi từ khớp tên không dấu, một đoạn số điện thoại, hoặc một đoạn uid. */
+function contactSearchWhere(raw: string): SQL | undefined {
+  const terms = searchTerms(raw.trim());
+  if (terms.length === 0) return undefined;
+  return and(
+    ...terms.map((term) =>
+      or(
+        sql`mgst_normalize(${zaloContacts.name}) like '%' || mgst_normalize(${likeEscape(term)}) || '%' escape '\\'`,
+        sql`${zaloContacts.phone} like '%' || ${likeEscape(term)} || '%' escape '\\'`,
+        sql`${zaloContacts.uid} like '%' || ${likeEscape(term)} || '%' escape '\\'`,
+      ),
+    ),
+  );
+}
+
+const CONTACT_SORT_COLUMN = {
+  name: zaloContacts.name,
+  phone: zaloContacts.phone,
+} as const;
+
+export async function listZaloContacts(
+  accountId: string,
+  search: string,
+  args: PageArgs<ZaloContactSort>,
+): Promise<Page<ZaloContactRow>> {
+  const where = and(eq(zaloContacts.accountId, accountId), contactSearchWhere(search));
+  const order = args.dir === "asc" ? asc : desc;
+
+  const rows = await db
+    .select({ phone: zaloContacts.phone, uid: zaloContacts.uid, name: zaloContacts.name })
+    .from(zaloContacts)
+    .where(where)
+    .orderBy(order(CONTACT_SORT_COLUMN[args.sort]), asc(zaloContacts.phone))
+    .limit(args.limit)
+    .offset(args.offset);
+  const [{ total }] = await db.select({ total: count() }).from(zaloContacts).where(where);
+
+  return { rows, total };
 }
 
 export async function requestZaloLogout(): Promise<void> {
@@ -191,12 +281,26 @@ export async function saveZaloNotificationRoutes(
 }
 
 export async function enqueueZaloMessage(actor: User, input: ZaloSendBody): Promise<void> {
-  await db.insert(zaloOutbox).values({
-    threadId: input.threadId,
-    threadType: input.threadType,
-    body: input.body,
-    createdBy: actor.id,
-  });
+  await db.insert(zaloOutbox).values(
+    input.target === "phone"
+      ? { phone: input.phone, threadType: "user", body: input.body, createdBy: actor.id }
+      : { threadId: input.threadId, threadType: input.target, body: input.body, createdBy: actor.id },
+  );
+}
+
+/** Tin cá nhân theo số điện thoại. Worker tra uid lúc gửi, số không có Zalo thì dòng đó báo lỗi. */
+export async function enqueueZaloPhoneText(phones: string[], body: string): Promise<void> {
+  const unique = [...new Set(phones.map(toLocalPhone))];
+  if (unique.length === 0) return;
+  await db
+    .insert(zaloOutbox)
+    .values(unique.map((phone) => ({ phone, threadType: "user", body })));
+}
+
+/** Zalo trả số dạng `84xxxxxxxxx`, app lưu `0xxxxxxxxx`. */
+export function toLocalPhone(raw: string): string {
+  const d = digitsOnly(raw);
+  return d.length === 11 && d.startsWith("84") ? `0${d.slice(2)}` : d;
 }
 
 // ─── Phía worker ────────────────────────────────────────────────────────────
@@ -294,7 +398,8 @@ export async function enqueueZaloGroupText(groupIds: string[], body: string): Pr
 
 export type ZaloOutboxJob = {
   id: string;
-  threadId: string;
+  threadId: string | null;
+  phone: string | null;
   threadType: ZaloThreadType;
   body: string;
 };
@@ -304,6 +409,7 @@ export async function pendingZaloOutbox(limit: number): Promise<ZaloOutboxJob[]>
     .select({
       id: zaloOutbox.id,
       threadId: zaloOutbox.threadId,
+      phone: zaloOutbox.phone,
       threadType: zaloOutbox.threadType,
       body: zaloOutbox.body,
     })
@@ -314,14 +420,46 @@ export async function pendingZaloOutbox(limit: number): Promise<ZaloOutboxJob[]>
   return rows.map((r) => ({ ...r, threadType: ZaloThreadType.catch("group").parse(r.threadType) }));
 }
 
-/** `error` rỗng nghĩa là gửi được. */
-export async function finishZaloOutbox(id: string, error: string | null): Promise<void> {
+/** `error` rỗng nghĩa là gửi được. `threadId` là uid worker vừa tra ra cho dòng gửi theo số. */
+export async function finishZaloOutbox(
+  id: string,
+  error: string | null,
+  threadId: string | null,
+): Promise<void> {
   await db
     .update(zaloOutbox)
     .set(
       error
-        ? { status: "failed", error }
-        : { status: "sent", error: null, sentAt: new Date() },
+        ? { status: "failed", error, threadId }
+        : { status: "sent", error: null, threadId, sentAt: new Date() },
     )
     .where(eq(zaloOutbox.id, id));
+}
+
+export async function zaloContactUid(accountId: string, phone: string): Promise<string | null> {
+  const [row] = await db
+    .select({ uid: zaloContacts.uid })
+    .from(zaloContacts)
+    .where(and(eq(zaloContacts.accountId, accountId), eq(zaloContacts.phone, phone)));
+  return row?.uid ?? null;
+}
+
+export async function saveZaloContacts(
+  accountId: string,
+  contacts: { phone: string; uid: string; name: string }[],
+): Promise<void> {
+  if (contacts.length === 0) return;
+  await db
+    .insert(zaloContacts)
+    .values(contacts.map((c) => ({ ...c, accountId })))
+    .onConflictDoUpdate({
+      target: [zaloContacts.accountId, zaloContacts.phone],
+      set: { uid: sql`excluded.uid`, name: sql`excluded.name`, updatedAt: new Date() },
+    });
+}
+
+export async function forgetZaloContact(accountId: string, phone: string): Promise<void> {
+  await db
+    .delete(zaloContacts)
+    .where(and(eq(zaloContacts.accountId, accountId), eq(zaloContacts.phone, phone)));
 }

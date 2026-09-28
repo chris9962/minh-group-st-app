@@ -1,47 +1,41 @@
 "use client";
 
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bell, MessageCircle, Send, Smartphone, Users } from "lucide-react";
-import { useRef, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Bell, RefreshCw } from "lucide-react";
+import { useState } from "react";
 import { RequirePermission } from "@/components/layout/RequirePermission";
 import { TopBar } from "@/components/layout/TopBar";
 import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
-import { CopyButton } from "@/components/ui/CopyValue";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
-import { SearchField } from "@/components/ui/SearchField";
 import { SectionCard } from "@/components/ui/SectionCard";
-import { Select } from "@/components/ui/Select";
+import { SectionTabs } from "@/components/ui/SectionTabs";
 import { SkeletonTable } from "@/components/ui/Skeleton";
 import { StatusTag } from "@/components/ui/StatusTag";
-import { TextArea } from "@/components/ui/TextArea";
-import { TextField } from "@/components/ui/TextField";
 import { NotificationGroupsDialog } from "@/components/zalo/NotificationGroupsDialog";
-import { EMPTY_PAGE, PAGE_SIZE } from "@/lib/api/pagination";
+import { ZaloChatPane } from "@/components/zalo/ZaloChatPane";
+import {
+  chatTargetKey,
+  ZaloThreadList,
+  type ZaloChatTarget,
+} from "@/components/zalo/ZaloThreadList";
 import {
   fetchZaloBot,
-  fetchZaloGroups,
   fetchZaloNotificationRoutes,
   logoutZaloBot,
-  sendZaloMessage,
   syncZaloGroups,
-  ZALO_BODY_MAX,
   ZALO_BOT_STATUS_LABEL,
   ZALO_NOTIFICATION_LABEL,
   ZALO_OUTBOX_STATUS_LABEL,
+  ZALO_SEND_TARGET_LABEL,
   ZALO_THREAD_TYPE_LABEL,
-  ZaloSendBody,
-  ZaloThreadType,
   type ZaloBotStatus,
-  type ZaloGroupRow,
-  type ZaloGroupSort,
   type ZaloNotificationKind,
   type ZaloOutboxRow,
   type ZaloOutboxStatus,
 } from "@/lib/api/zaloBot";
-import { formatCount, formatDateTime } from "@/lib/format";
-import { useDebouncedValue } from "@/lib/hooks";
+import { formatDateTime, formatPhone } from "@/lib/format";
 import { can } from "@/lib/permissions";
 import { errorMessage, toast } from "@/lib/toast";
 import { useSession } from "@/store/session";
@@ -61,10 +55,12 @@ const OUTBOX_TONE: Record<ZaloOutboxStatus, "ok" | "warn" | "waiting"> = {
   failed: "warn",
 };
 
-const THREAD_TYPE_OPTIONS = ZaloThreadType.options.map((value) => ({
-  value,
-  label: ZALO_THREAD_TYPE_LABEL[value],
-}));
+const TABS = [
+  { value: "chat", label: "Nhắn tin" },
+  { value: "notices", label: "Thông báo tự động" },
+  { value: "recent", label: "Tin nhắn gửi gần đây" },
+] as const;
+type Tab = (typeof TABS)[number]["value"];
 
 const outboxColumns: RankColumn<ZaloOutboxRow>[] = [
   {
@@ -76,7 +72,10 @@ const outboxColumns: RankColumn<ZaloOutboxRow>[] = [
   {
     key: "thread",
     label: "Gửi tới",
-    render: (r) => `${ZALO_THREAD_TYPE_LABEL[r.threadType]} ${r.threadId}`,
+    render: (r) =>
+      r.phone
+        ? `${ZALO_SEND_TARGET_LABEL.phone} ${formatPhone(r.phone)}`
+        : `${ZALO_THREAD_TYPE_LABEL[r.threadType]} ${r.threadId}`,
   },
   { key: "body", label: "Nội dung", render: (r) => r.body },
   {
@@ -90,8 +89,6 @@ const outboxColumns: RankColumn<ZaloOutboxRow>[] = [
     ),
   },
 ];
-
-type SendErrors = Partial<Record<"threadId" | "body", string>>;
 
 export default function ZaloBotPage() {
   const user = useSession((s) => s.user);
@@ -111,54 +108,19 @@ export default function ZaloBotPage() {
     },
   });
 
-  const [groupSearch, setGroupSearch] = useState("");
-  const groupQuery = useDebouncedValue(groupSearch);
-  const [groupPage, setGroupPage] = useState(0);
-  const [groupSort, setGroupSort] = useState<ZaloGroupSort>("name");
-  const [groupDir, setGroupDir] = useState<"asc" | "desc">("asc");
-
-  const groups = useQuery({
-    // `groupsSyncedAt` trong khoá: worker tải xong lượt mới thì bảng tự đọc lại.
-    queryKey: [
-      "zalo-bot",
-      "groups",
-      data?.accountId,
-      data?.groupsSyncedAt,
-      groupPage,
-      groupSort,
-      groupDir,
-      groupQuery,
-    ],
-    queryFn: () =>
-      fetchZaloGroups({ page: groupPage, sort: groupSort, dir: groupDir }, groupQuery),
-    enabled: canView,
-    placeholderData: keepPreviousData,
-  });
+  const [tab, setTab] = useState<Tab>("chat");
 
   const accountId = data?.accountId ?? "";
   // Cấu hình đi theo tài khoản Zalo: đổi tài khoản là đổi khoá, màn đọc lại cấu hình của tài khoản mới.
   const routes = useQuery({
     queryKey: ["zalo-bot", "notifications", accountId],
     queryFn: fetchZaloNotificationRoutes,
-    enabled: canView && !!accountId,
+    enabled: canView && !!accountId && tab === "notices",
   });
   const [editingKind, setEditingKind] = useState<ZaloNotificationKind | null>(null);
   const editingGroups = routes.data?.find((r) => r.kind === editingKind)?.groups ?? [];
 
-  const [threadType, setThreadType] = useState<ZaloThreadType>("group");
-  const [threadId, setThreadId] = useState("");
-  const [body, setBody] = useState("");
-  const [errors, setErrors] = useState<SendErrors>({});
-
-  const send = useMutation({
-    mutationFn: sendZaloMessage,
-    onSuccess: () => {
-      setBody("");
-      toast.ok("Đã đưa tin nhắn vào hàng chờ gửi.");
-      void queryClient.invalidateQueries({ queryKey: ["zalo-bot"] });
-    },
-    onError: (e) => toast.fail(errorMessage(e, "Không đưa được tin nhắn vào hàng chờ.")),
-  });
+  const [chatTarget, setChatTarget] = useState<ZaloChatTarget | null>(null);
 
   const syncGroups = useMutation({
     mutationFn: syncZaloGroups,
@@ -166,127 +128,106 @@ export default function ZaloBotPage() {
     onError: (e) => toast.fail(errorMessage(e, "Không gửi được yêu cầu tải lại danh sách nhóm.")),
   });
 
-  const bodyRef = useRef<HTMLTextAreaElement>(null);
-
-  const pickGroup = (group: ZaloGroupRow) => {
-    setThreadType("group");
-    setThreadId(group.id);
-    setErrors({});
-    bodyRef.current?.focus();
-  };
-
-  const groupColumns: RankColumn<ZaloGroupRow>[] = [
-    { key: "name", label: "Tên nhóm", sortable: true, render: (r) => r.name },
-    {
-      key: "id",
-      label: "Thread ID",
-      render: (r) => (
-        <span className={styles.idCell}>
-          <span className="tabular-nums">{r.id}</span>
-          <CopyButton value={r.id} label={`Thread ID của nhóm ${r.name}: ${r.id}`} quiet />
-        </span>
-      ),
-    },
-    {
-      key: "memberCount",
-      label: "Thành viên",
-      sortable: true,
-      align: "left",
-      render: (r) => formatCount(r.memberCount),
-    },
-    {
-      key: "pick",
-      label: "Gửi thử",
-      render: (r) => (
-        <Button variant="ghost" onClick={() => pickGroup(r)} aria-label={`Chọn nhóm ${r.name} để gửi thử`}>
-          Chọn
-        </Button>
-      ),
-    },
-  ];
-
   const logout = useMutation({
     mutationFn: logoutZaloBot,
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["zalo-bot"] }),
     onError: (e) => toast.fail(errorMessage(e, "Không gửi được yêu cầu đăng xuất.")),
   });
 
-  const onSend = (e: React.FormEvent) => {
-    e.preventDefault();
-    const parsed = ZaloSendBody.safeParse({ threadType, threadId, body });
-    if (!parsed.success) {
-      const next: SendErrors = {};
-      for (const issue of parsed.error.issues) {
-        const field = issue.path[0];
-        if ((field === "threadId" || field === "body") && !next[field]) next[field] = issue.message;
-      }
-      setErrors(next);
-      return;
-    }
-    setErrors({});
-    send.mutate(parsed.data);
-  };
-
   const connected = !!data?.workerAlive && data.status === "connected";
+
+  const logoutButton = data && (
+    <Button
+      variant="secondary"
+      onClick={() => logout.mutate()}
+      disabled={data.logoutPending || logout.isPending}
+    >
+      {data.logoutPending ? "Đang đăng xuất" : "Đăng xuất"}
+    </Button>
+  );
 
   return (
     <RequirePermission module="system" action="view-ops">
-      <TopBar title="Bot Zalo" keepTitleOnMobile />
+      <TopBar title="Bot Zalo" keepTitleOnMobile>
+        {data && connected && (
+          <>
+            <span className={styles.accountName}>{data.accountName || data.accountId}</span>
+            {logoutButton}
+          </>
+        )}
+      </TopBar>
 
-      <main className={styles.body}>
+      <main className={connected && tab === "chat" ? `${styles.body} ${styles.fitView}` : styles.body}>
         {isPending && <SkeletonTable rows={4} columns={3} />}
         {isError && <ErrorState what="trạng thái bot Zalo" onRetry={refetch} retrying={isFetching} />}
 
-        {!isPending && !isError && data && (
+        {data && !data.workerAlive && <Alert tone="warning">Worker bot Zalo không chạy.</Alert>}
+
+        {data && data.workerAlive && !connected && (
+          <section className={styles.login} aria-labelledby="zalo-login-title">
+            <h2 id="zalo-login-title" className={styles.loginTitle}>
+              Đăng nhập Zalo
+            </h2>
+            <StatusTag tone={STATUS_TONE[data.status]}>{ZALO_BOT_STATUS_LABEL[data.status]}</StatusTag>
+            {data.qrImage && (
+              // eslint-disable-next-line @next/next/no-img-element -- ảnh base64 đổi mỗi 100 giây, next/image không tối ưu được
+              <img
+                className={styles.qr}
+                src={data.qrImage}
+                alt="Mã QR đăng nhập Zalo"
+                width={280}
+                height={280}
+              />
+            )}
+            {data.status === "error" && data.lastError && (
+              <Alert tone="error">{data.lastError}</Alert>
+            )}
+            {data.status === "error" && logoutButton}
+          </section>
+        )}
+
+        {data && connected && (
           <>
-            <SectionCard title="Tài khoản Zalo" icon={<Smartphone size={17} />}>
-              {!data.workerAlive ? (
-                <Alert tone="warning">Worker bot Zalo không chạy.</Alert>
-              ) : (
-                <div className={styles.account}>
-                  <div className={styles.statusRow}>
-                    <StatusTag tone={STATUS_TONE[data.status]}>
-                      {ZALO_BOT_STATUS_LABEL[data.status]}
-                    </StatusTag>
-                    {data.status === "connected" && (
-                      <span>
-                        {data.accountName || "Không rõ tên"} - ID {data.accountId}
-                      </span>
-                    )}
-                  </div>
+            <SectionTabs
+              label="Bot Zalo"
+              options={[...TABS]}
+              value={tab}
+              onChange={(v) => setTab(TABS.find((t) => t.value === v)?.value ?? "chat")}
+            />
 
-                  {data.status === "error" && data.lastError && (
-                    <Alert tone="error">{data.lastError}</Alert>
-                  )}
+            {tab === "chat" && (
+              <div className={styles.chat}>
+                <ZaloThreadList
+                  accountId={accountId}
+                  syncedAt={data.groupsSyncedAt}
+                  selected={chatTarget}
+                  onSelect={setChatTarget}
+                  action={
+                    <Button
+                      variant="ghost"
+                      onClick={() => syncGroups.mutate()}
+                      disabled={data.groupsSyncPending || syncGroups.isPending}
+                      aria-label="Tải lại danh sách nhóm và cá nhân"
+                    >
+                      <RefreshCw size={16} aria-hidden />
+                    </Button>
+                  }
+                />
+                {chatTarget ? (
+                  <ZaloChatPane
+                    key={chatTargetKey(chatTarget)}
+                    target={chatTarget}
+                    connected={connected}
+                    onBack={() => setChatTarget(null)}
+                  />
+                ) : (
+                  <p className={styles.noChat}>Chưa chọn nhóm hoặc cá nhân.</p>
+                )}
+              </div>
+            )}
 
-                  {data.qrImage && (
-                    // eslint-disable-next-line @next/next/no-img-element -- ảnh base64 đổi mỗi 100 giây, next/image không tối ưu được
-                    <img
-                      className={styles.qr}
-                      src={data.qrImage}
-                      alt="Mã QR đăng nhập Zalo"
-                      width={240}
-                      height={240}
-                    />
-                  )}
-
-                  {(data.status === "connected" || data.status === "error") && (
-                    <div>
-                      <Button
-                        variant="secondary"
-                        onClick={() => logout.mutate()}
-                        disabled={data.logoutPending || logout.isPending}
-                      >
-                        {data.logoutPending ? "Đang đăng xuất" : "Đăng xuất"}
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              )}
-            </SectionCard>
-
-            {accountId && (
-              <SectionCard title="Thông báo tự động" icon={<Bell size={17} />}>
+            {tab === "notices" && (
+              <SectionCard title="Nhóm nhận thông báo" icon={<Bell size={17} />}>
                 {routes.isError ? (
                   <ErrorState
                     what="cấu hình thông báo"
@@ -319,101 +260,7 @@ export default function ZaloBotPage() {
               </SectionCard>
             )}
 
-            <SectionCard
-              title="Nhóm Zalo"
-              icon={<Users size={17} />}
-              meta={
-                data.groupsSyncedAt ? `Tải lúc ${formatDateTime(data.groupsSyncedAt)}` : "Chưa tải"
-              }
-              action={
-                <Button
-                  variant="ghost"
-                  onClick={() => syncGroups.mutate()}
-                  disabled={!connected || data.groupsSyncPending || syncGroups.isPending}
-                >
-                  {data.groupsSyncPending ? "Đang tải lại" : "Tải lại"}
-                </Button>
-              }
-            >
-              <div className={styles.searchRow}>
-                <SearchField
-                  label="Tìm nhóm"
-                  placeholder="Tên nhóm hoặc Thread ID"
-                  value={groupSearch}
-                  onChange={(v) => {
-                    setGroupSearch(v);
-                    setGroupPage(0);
-                  }}
-                />
-              </div>
-              {groups.isError ? (
-                <ErrorState
-                  what="danh sách nhóm"
-                  onRetry={groups.refetch}
-                  retrying={groups.isFetching}
-                />
-              ) : groups.isPending ? (
-                <SkeletonTable rows={6} columns={4} />
-              ) : (
-                <RankTable
-                  rows={(groups.data ?? EMPTY_PAGE).rows}
-                  columns={groupColumns}
-                  rowKey={(r) => r.id}
-                  defaultSort="name"
-                  caption="Nhóm Zalo của tài khoản bot"
-                  emptyText={groupQuery ? "Không nhóm nào khớp." : "Chưa có nhóm nào."}
-                  server={{
-                    sort: groupSort,
-                    dir: groupDir,
-                    page: groupPage,
-                    total: groups.data?.total ?? 0,
-                    pageSize: PAGE_SIZE,
-                    onSortChange: (sort, dir) => {
-                      setGroupSort(sort === "memberCount" ? "memberCount" : "name");
-                      setGroupDir(dir);
-                      setGroupPage(0);
-                    },
-                    onPageChange: setGroupPage,
-                  }}
-                />
-              )}
-            </SectionCard>
-
-            <SectionCard title="Gửi thử tin nhắn" icon={<Send size={17} />}>
-              <form className={styles.form} onSubmit={onSend} noValidate>
-                <Select
-                  label="Gửi tới"
-                  value={threadType}
-                  options={THREAD_TYPE_OPTIONS}
-                  onChange={(v) => setThreadType(ZaloThreadType.catch("group").parse(v))}
-                />
-                <TextField
-                  label="Thread ID"
-                  required
-                  inputMode="numeric"
-                  value={threadId}
-                  onChange={(e) => setThreadId(e.target.value)}
-                  error={errors.threadId}
-                />
-                <TextArea
-                  ref={bodyRef}
-                  label="Nội dung"
-                  required
-                  rows={3}
-                  maxLength={ZALO_BODY_MAX}
-                  value={body}
-                  onChange={(e) => setBody(e.target.value)}
-                  error={errors.body}
-                />
-                <div>
-                  <Button type="submit" disabled={!connected || send.isPending}>
-                    Gửi
-                  </Button>
-                </div>
-              </form>
-            </SectionCard>
-
-            <SectionCard title="Tin nhắn gửi gần đây" icon={<MessageCircle size={17} />}>
+            {tab === "recent" && (
               <RankTable
                 rows={data.recentOutbox}
                 columns={outboxColumns}
@@ -422,7 +269,7 @@ export default function ZaloBotPage() {
                 caption="Tin nhắn gửi gần đây"
                 emptyText="Chưa gửi tin nhắn nào."
               />
-            </SectionCard>
+            )}
           </>
         )}
       </main>

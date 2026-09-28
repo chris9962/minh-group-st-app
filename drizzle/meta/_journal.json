@@ -750,6 +750,13 @@
       "when": 1789891400033,
       "tag": "0107_staff_profiles",
       "breakpoints": true
+    },
+    {
+      "idx": 108,
+      "version": "7",
+      "when": 1789891400034,
+      "tag": "0108_zalo_contacts",
+      "breakpoints": true
     }
   ]
 }

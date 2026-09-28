@@ -2124,12 +2124,18 @@ export const zaloBotState = pgTable(
   ],
 );
 
-/** Hàng chờ tin nhắn app nhờ worker gửi qua Zalo. Migration 0103. */
+/**
+ * Hàng chờ tin nhắn app nhờ worker gửi qua Zalo. Migration 0103.
+ *
+ * Dòng gửi theo số điện thoại có `phone`, `thread_id` rỗng tới khi worker tra
+ * ra uid. Migration 0108.
+ */
 export const zaloOutbox = pgTable(
   "zalo_outbox",
   {
     id: id(),
-    threadId: text("thread_id").notNull(),
+    threadId: text("thread_id"),
+    phone: text("phone"),
     threadType: text("thread_type").notNull(),
     body: text("body").notNull(),
     status: text("status").notNull().default("pending"),
@@ -2143,7 +2149,29 @@ export const zaloOutbox = pgTable(
     index("zalo_outbox_created_at").on(t.createdAt.desc()),
     check("zalo_outbox_thread_type", sql`${t.threadType} in ('user', 'group')`),
     check("zalo_outbox_status", sql`${t.status} in ('pending', 'sent', 'failed')`),
+    check("zalo_outbox_target", sql`${t.threadId} is not null or ${t.phone} is not null`),
+    index("zalo_outbox_thread")
+      .on(t.threadId, t.createdAt.desc())
+      .where(sql`${t.threadId} is not null`),
+    index("zalo_outbox_phone").on(t.phone, t.createdAt.desc()).where(sql`${t.phone} is not null`),
   ],
+);
+
+/**
+ * uid Zalo của một số điện thoại, theo tài khoản bot. Zalo không gửi tin theo
+ * số, nên worker tra một lần rồi lưu ở đây. Migration 0108.
+ */
+export const zaloContacts = pgTable(
+  "zalo_contacts",
+  {
+    accountId: text("account_id").notNull(),
+    phone: text("phone").notNull(),
+    uid: text("uid").notNull(),
+    /** Tên hiển thị trên Zalo lúc worker tra số. */
+    name: text("name").notNull().default(""),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ name: "zalo_contacts_pk", columns: [t.accountId, t.phone] })],
 );
 
 /**

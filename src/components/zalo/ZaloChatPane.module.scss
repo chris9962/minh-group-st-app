@@ -1,0 +1,168 @@
+.pane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--om-line);
+}
+
+.back {
+  display: none;
+}
+
+.avatar {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--om-chip-bg);
+  color: var(--om-chip-ink);
+}
+
+.headText {
+  flex: 1;
+  min-width: 0;
+}
+
+.name {
+  margin: 0;
+  font-size: 15px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sub {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--om-text-2);
+}
+
+.threadId {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: 12.5px;
+  color: var(--om-text-2);
+}
+
+.scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column-reverse;
+  padding: var(--space-4);
+  background: var(--om-surface);
+}
+
+.log {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* Mọi tin trong khung là tin bot gửi đi, nên cùng dạt phải. */
+.message {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-1);
+}
+
+.bubble {
+  margin: 0;
+  max-width: min(560px, 85%);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-lg) var(--radius-lg) var(--radius-sm) var(--radius-lg);
+  background: var(--om-orange-soft);
+  color: var(--om-text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.meta {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 12px;
+  color: var(--om-text-2);
+}
+
+.messageError {
+  margin: 0;
+  max-width: min(560px, 85%);
+  font-size: 12px;
+  color: var(--om-text-2);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.empty {
+  margin: auto;
+  color: var(--om-text-2);
+}
+
+.composer {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-top: 1px solid var(--om-line);
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  resize: none;
+}
+
+.error {
+  margin: 0;
+  padding: 0 var(--space-3) var(--space-3);
+  font-size: 12.5px;
+  color: var(--om-red);
+}
+
+/*
+ * Điện thoại: khung chat phủ toàn màn hình, trên cả thanh đáy (z-index 30), dưới
+ * ngăn kéo sidebar. Danh sách vẫn nằm bên dưới nên quay lại là còn nguyên chỗ cuộn và ô tìm.
+ */
+@media (max-width: bp.$bp-mobile) {
+  .pane {
+    position: fixed;
+    inset: 0;
+    z-index: 45;
+    height: 100dvh;
+    background: var(--om-card);
+  }
+
+  .head {
+    padding: var(--space-2) var(--space-3);
+  }
+
+  .back {
+    display: block;
+  }
+
+  .threadId {
+    display: none;
+  }
+
+  .scroll {
+    overscroll-behavior: contain;
+  }
+}

@@ -1,33 +1,72 @@
 .body {
   flex: 1;
-  padding: 22px 28px 40px;
+  padding: 22px 28px 28px;
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
   min-width: 0;
 }
 
-.account {
+.login {
+  margin: auto;
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: var(--space-3);
+  max-width: 360px;
+  text-align: center;
 }
 
-.statusRow {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-  color: var(--om-text-2);
+.loginTitle {
+  margin: 0;
+  font-size: 18px;
 }
 
 .qr {
   display: block;
-  width: 240px;
+  width: 280px;
   max-width: 100%;
   height: auto;
   border: 1px solid var(--om-line);
   border-radius: var(--radius-md);
+}
+
+.accountName {
+  color: var(--om-text-2);
+  white-space: nowrap;
+}
+
+/*
+ * Tab Nhắn tin: trang cao đúng bằng khung nhìn, không cuộn. Thiếu `min-height: 0`
+ * thì trang cao theo danh sách nhóm dài nhất, và ô soạn tin bị đẩy xuống dưới đáy màn hình.
+ */
+.fitView {
+  min-height: 0;
+}
+
+/* Lấp phần còn lại của trang để danh sách và khung chat cuộn riêng, ô soạn tin luôn ở đáy. */
+.chat {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  background: var(--om-card);
+  border: 1px solid var(--om-line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.chat > :first-child {
+  border-right: 1px solid var(--om-line);
+}
+
+.noChat {
+  margin: 0;
+  align-self: center;
+  justify-self: center;
+  color: var(--om-text-2);
 }
 
 .notices {
@@ -63,23 +102,6 @@
   overflow-wrap: anywhere;
 }
 
-.searchRow {
-  margin-bottom: var(--space-3);
-}
-
-.idCell {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-}
-
-.form {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  max-width: 560px;
-}
-
 .error {
   display: block;
   margin-top: var(--space-1);
@@ -90,5 +112,29 @@
 @media (max-width: 720px) {
   .body {
     padding: 16px 16px 32px;
+  }
+}
+
+/*
+ * Điện thoại: hai tầng. Tầng đầu chỉ có danh sách, cuộn theo trang. Chọn một
+ * dòng thì khung chat phủ toàn màn hình, xem `ZaloChatPane.module.scss`.
+ */
+@media (max-width: bp.$bp-mobile) {
+  .fitView {
+    min-height: auto;
+  }
+
+  .chat {
+    flex: none;
+    display: block;
+    overflow: visible;
+  }
+
+  .chat > :first-child {
+    border-right: 0;
+  }
+
+  .noChat {
+    display: none;
   }
 }

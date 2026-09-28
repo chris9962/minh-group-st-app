@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { pageOf, pageParams, type Page, type PageQuery } from '@/lib/api/pagination';
+import { digitsOnly, isValidPhone } from '@/lib/format';
 
 /**
  * Màn Bot Zalo — bot chạy bằng tài khoản Zalo cá nhân qua zca-js, gác bằng
@@ -44,7 +45,9 @@ export const ZALO_OUTBOX_STATUS_LABEL: Record<ZaloOutboxStatus, string> = {
 
 export const ZaloOutboxRow = z.object({
   id: z.string(),
+  /** Rỗng khi tin gửi theo số điện thoại và worker chưa tra ra uid. */
   threadId: z.string(),
+  phone: z.string(),
   threadType: ZaloThreadType,
   body: z.string(),
   status: ZaloOutboxStatus,
@@ -80,6 +83,21 @@ export const ZaloGroupPage = pageOf(ZaloGroupRow);
 export const ZALO_GROUP_SORTS = ['name', 'memberCount'] as const;
 export type ZaloGroupSort = (typeof ZALO_GROUP_SORTS)[number];
 
+/** Số điện thoại worker đã tra ra uid. `uid` là Thread ID của tin cá nhân. */
+export const ZaloContactRow = z.object({
+  phone: z.string(),
+  uid: z.string(),
+  name: z.string(),
+});
+export type ZaloContactRow = z.infer<typeof ZaloContactRow>;
+export const ZaloContactPage = pageOf(ZaloContactRow);
+
+export const ZALO_CONTACT_SORTS = ['name', 'phone'] as const;
+export type ZaloContactSort = (typeof ZALO_CONTACT_SORTS)[number];
+
+/** Khung chat hiện ngần này tin gần nhất của một nơi nhận. */
+export const ZALO_THREAD_MESSAGES = 50;
+
 export const ZaloGroupOption = z.object({ id: z.string(), name: z.string() });
 export type ZaloGroupOption = z.infer<typeof ZaloGroupOption>;
 
@@ -108,20 +126,42 @@ export const ZaloNotificationRoutesBody = z.object({
 });
 export type ZaloNotificationRoutesBody = z.infer<typeof ZaloNotificationRoutesBody>;
 
-export const ZaloSendBody = z.object({
-  threadType: ZaloThreadType,
-  threadId: z
-    .string()
-    .trim()
-    .min(1, 'Nhập Thread ID')
-    .max(32, 'Thread ID quá dài')
-    .regex(/^\d+$/, 'Thread ID chỉ gồm chữ số'),
-  body: z
-    .string()
-    .trim()
-    .min(1, 'Nhập nội dung')
-    .max(ZALO_BODY_MAX, `Nội dung tối đa ${ZALO_BODY_MAX} ký tự`),
-});
+export const ZaloSendTarget = z.enum(['group', 'user', 'phone']);
+export type ZaloSendTarget = z.infer<typeof ZaloSendTarget>;
+
+export const ZALO_SEND_TARGET_LABEL: Record<ZaloSendTarget, string> = {
+  ...ZALO_THREAD_TYPE_LABEL,
+  phone: 'Số điện thoại',
+};
+
+const ZaloBodyText = z
+  .string()
+  .trim()
+  .min(1, 'Nhập nội dung')
+  .max(ZALO_BODY_MAX, `Nội dung tối đa ${ZALO_BODY_MAX} ký tự`);
+
+export const ZaloSendBody = z.discriminatedUnion('target', [
+  z.object({
+    target: ZaloThreadType,
+    threadId: z
+      .string()
+      .trim()
+      .min(1, 'Nhập Thread ID')
+      .max(32, 'Thread ID quá dài')
+      .regex(/^\d+$/, 'Thread ID chỉ gồm chữ số'),
+    body: ZaloBodyText,
+  }),
+  z.object({
+    target: z.literal('phone'),
+    phone: z
+      .string()
+      .trim()
+      .min(1, 'Nhập số điện thoại')
+      .transform(digitsOnly)
+      .refine(isValidPhone, 'Số điện thoại phải có 10 chữ số'),
+    body: ZaloBodyText,
+  }),
+]);
 export type ZaloSendBody = z.infer<typeof ZaloSendBody>;
 
 export async function fetchZaloBot(): Promise<ZaloBotSummary> {
@@ -154,6 +194,24 @@ export async function fetchZaloGroups(
   const res = await fetch(`/api/zalo-bot/groups?${pageParams(query, { search })}`);
   if (!res.ok) throw new Error('Không đọc được danh sách nhóm Zalo');
   return ZaloGroupPage.parse(await res.json());
+}
+
+export async function fetchZaloContacts(
+  query: PageQuery<ZaloContactSort>,
+  search: string,
+): Promise<Page<ZaloContactRow>> {
+  const res = await fetch(`/api/zalo-bot/contacts?${pageParams(query, { search })}`);
+  if (!res.ok) throw new Error('Không đọc được danh sách cá nhân');
+  return ZaloContactPage.parse(await res.json());
+}
+
+/** Tin đã gửi tới một nơi nhận, cũ trước mới sau. */
+export async function fetchZaloMessages(
+  to: { threadId: string } | { phone: string },
+): Promise<ZaloOutboxRow[]> {
+  const res = await fetch(`/api/zalo-bot/messages?${new URLSearchParams(to)}`);
+  if (!res.ok) throw new Error('Không đọc được tin nhắn');
+  return z.array(ZaloOutboxRow).parse(await res.json());
 }
 
 export async function fetchZaloGroupOptions(): Promise<ZaloGroupOption[]> {

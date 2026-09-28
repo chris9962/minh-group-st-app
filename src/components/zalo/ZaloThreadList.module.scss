@@ -1,0 +1,115 @@
+.list {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--om-line);
+}
+
+.filterRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-2);
+}
+
+.items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* Nút tự dựng phải tự đặt màu chữ: bộ tối không kế thừa màu cho <button>. */
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 52px;
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--om-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.item:hover {
+  background: var(--om-soft);
+}
+
+.item:focus-visible {
+  outline: 2px solid var(--om-orange);
+  outline-offset: -2px;
+}
+
+.active,
+.active:hover {
+  background: var(--om-orange-soft);
+}
+
+.avatar {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--om-chip-bg);
+  color: var(--om-chip-ink);
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.name,
+.sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sub {
+  font-size: 12.5px;
+  color: var(--om-text-2);
+}
+
+.empty {
+  margin: var(--space-3);
+  color: var(--om-text-2);
+}
+
+.more {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-2);
+}
+
+/* Điện thoại: danh sách cuộn theo trang, không cuộn trong khung riêng. */
+@media (max-width: bp.$bp-mobile) {
+  .scroll {
+    overflow: visible;
+  }
+}

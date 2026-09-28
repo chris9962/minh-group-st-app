@@ -6,7 +6,8 @@
  *      `zalo_bot_state` để màn Bot Zalo hiện ra cho người quản trị quét.
  *   2. Nghe tin nhắn riêng và tin nhắn nhóm, trả lời lệnh ở
  *      `src/server/zalo/commands.ts`.
- *   3. Gửi tin nhắn app đưa vào hàng chờ `zalo_outbox`.
+ *   3. Gửi tin nhắn app đưa vào hàng chờ `zalo_outbox`. Tin theo số điện thoại
+ *      thì tra uid trước, lưu ở `zalo_contacts` cho lần sau.
  *   4. Quên phiên khi màn Bot Zalo bấm đăng xuất. zca-js không có API đăng
  *      xuất, nên thiết bị vẫn hiện trong mục quản lý thiết bị của app Zalo.
  *   5. Tải danh sách nhóm, và mỗi phút gửi thông báo tự động tới nhóm đã cấu
@@ -22,7 +23,7 @@
  * Trên máy chủ: container `mgst-zalo-worker`, dựng bằng `deploy/worker-zalo.sh`.
  *
  * Cờ:
- *   --check   kiểm kết nối database và các bảng của migration 0103, 0104 rồi
+ *   --check   kiểm kết nối database và các bảng của migration 0103, 0104, 0108 rồi
  *             thoát, không đăng nhập Zalo. Script deploy dùng để thử image.
  */
 
@@ -45,13 +46,17 @@ import {
   currentZaloAccountId,
   enqueueZaloGroupText,
   finishZaloOutbox,
+  forgetZaloContact,
   markZaloWorkerStopped,
   pendingZaloOutbox,
   replaceZaloGroups,
   routedZaloGroupIds,
+  saveZaloContacts,
   takeZaloGroupsSyncRequest,
   takeZaloLogoutRequest,
+  toLocalPhone,
   writeZaloState,
+  zaloContactUid,
   zaloGroupOptions,
 } from "../src/server/zaloBot";
 
@@ -159,21 +164,73 @@ async function answer(api: API, message: Message): Promise<void> {
   }
 }
 
-async function sendOutbox(api: API): Promise<void> {
+/** Số điện thoại → uid của mọi bạn bè có số, lưu luôn vào `zalo_contacts`. */
+async function loadFriends(api: API, accountId: string): Promise<Map<string, string>> {
+  const byPhone = new Map<string, { uid: string; name: string }>();
+  try {
+    for (const f of await api.getAllFriends()) {
+      if (f.phoneNumber && f.userId)
+        byPhone.set(toLocalPhone(f.phoneNumber), {
+          uid: f.userId,
+          name: f.displayName || f.zaloName || "",
+        });
+    }
+    await saveZaloContacts(accountId, [...byPhone].map(([phone, c]) => ({ phone, ...c })));
+  } catch (e) {
+    log(`Không đọc được danh sách bạn bè: ${describeError(e)}`);
+  }
+  return new Map([...byPhone].map(([phone, c]) => [phone, c.uid]));
+}
+
+async function uidForPhone(
+  api: API,
+  accountId: string,
+  phone: string,
+  friendUid: (phone: string) => Promise<string | undefined>,
+): Promise<string | null> {
+  const saved = await zaloContactUid(accountId, phone);
+  if (saved) return saved;
+  // findUser bị Zalo giới hạn số lần mỗi ngày, nên tra danh sách bạn bè trước.
+  const friend = await friendUid(phone);
+  if (friend) return friend;
+  const found = await api.findUser(phone);
+  if (!found?.uid) return null;
+  await saveZaloContacts(accountId, [
+    { phone, uid: found.uid, name: found.display_name || found.zalo_name || "" },
+  ]);
+  return found.uid;
+}
+
+async function sendOutbox(api: API, accountId: string): Promise<void> {
+  let friends: Promise<Map<string, string>> | null = null;
+  const friendUid = async (phone: string) => {
+    friends ??= loadFriends(api, accountId);
+    return (await friends).get(phone);
+  };
+
   for (const job of await pendingZaloOutbox(OUTBOX_BATCH)) {
+    let threadId = job.threadId;
     let error: string | null = null;
     try {
+      threadId ??= job.phone ? await uidForPhone(api, accountId, job.phone, friendUid) : null;
+      if (!threadId) throw new Error(`Không tìm thấy tài khoản Zalo của số ${job.phone}`);
       const type = job.threadType === "group" ? ThreadType.Group : ThreadType.User;
-      await api.sendMessage(job.body, job.threadId, type);
+      await api.sendMessage(job.body, threadId, type);
     } catch (e) {
       error = describeError(e) || "Không rõ lỗi";
+      // uid đã lưu có thể cũ, ví dụ người đó đổi tài khoản Zalo. Lần sau tra lại.
+      if (job.phone) await forgetZaloContact(accountId, job.phone);
     }
-    await finishZaloOutbox(job.id, error);
-    log(`Hàng chờ ${job.id} → ${job.threadId}: ${error ? `lỗi ${error}` : "đã gửi"}.`);
+    await finishZaloOutbox(job.id, error, threadId);
+    log(`Hàng chờ ${job.id} → ${threadId ?? job.phone}: ${error ? `lỗi ${error}` : "đã gửi"}.`);
   }
 }
 
+/** Tải nhóm và bạn bè có số điện thoại. Bạn bè lưu trước, vì màn Bot Zalo đọc lại khi thấy giờ tải nhóm đổi. */
 async function syncGroups(api: API, accountId: string): Promise<void> {
+  const friends = await loadFriends(api, accountId);
+  log(`Đã tải ${friends.size} bạn bè có số điện thoại.`);
+
   const { gridVerMap } = await api.getAllGroups();
   const ids = Object.keys(gridVerMap);
   const groups: { id: string; name: string; memberCount: number }[] = [];
@@ -230,7 +287,7 @@ async function runSession(api: API): Promise<{ code: number; reason: string } | 
           lastNoticeAt = Date.now();
           await queueNotices(accountId);
         }
-        await sendOutbox(api);
+        await sendOutbox(api, accountId);
       } catch (e) {
         log(`Lỗi trong vòng quét: ${describeError(e)}`);
       } finally {
@@ -280,6 +337,7 @@ async function main() {
     await currentZaloAccountId();
     await zaloGroupOptions("");
     await routedZaloGroupIds("", "insurance-certificate-overdue");
+    await zaloContactUid("", "");
     log(`Database và bảng Zalo đạt. Phiên lưu ở ${CREDENTIALS_PATH}.`);
     return;
   }
