@@ -17,7 +17,7 @@ import {
   BankAccountStatus,
   canEditOpeningPhotos,
   MAX_BANK_ACCOUNTS_PER_CUSTOMER,
-  MAX_DRAFTS_PER_STAFF_PER_BANK,
+  MAX_DRAFTS_PER_STAFF_BY_TYPE,
 } from "@/lib/api/bankAccounts";
 import type {
   BankAccount,
@@ -1502,10 +1502,11 @@ export async function startBankAccount(
       };
 
     /**
-     * Trần bản nháp theo NGƯỜI MỞ (BGĐ chốt 2026-09-16): mỗi nhân viên giữ tối
-     * đa `MAX_DRAFTS_PER_STAFF_PER_BANK` dòng `creating` ở mỗi ngân hàng, mọi
-     * vai, dòng HKD tính chung. Đêm 2026-09-16 ba người mở 30 bản nháp VPb trong
-     * 25 phút, mỗi dòng chiếm một mã của phòng.
+     * Trần bản nháp theo NGƯỜI MỞ, tính riêng từng loại tài khoản ở mỗi ngân
+     * hàng (chốt 2026-09-28): `MAX_DRAFTS_PER_STAFF_BY_TYPE`, mọi vai, khách nào
+     * cũng vậy. Bản BGĐ chốt 2026-09-16 gộp mọi loại vào trần 2. Đêm 2026-09-16
+     * ba người mở 30 bản nháp VPb CNKD trong 25 phút, mỗi dòng chiếm một mã của
+     * phòng.
      *
      * Khoá dòng NGƯỜI MỞ trước khi đếm: hai request của cùng một người cho hai
      * khách khác nhau không chung khoá khách, không khoá là cả hai đếm 1 rồi
@@ -1513,41 +1514,23 @@ export async function startBankAccount(
      * `users` nên không thêm vòng khoá chéo.
      */
     await tx.select({ id: users.id }).from(users).where(eq(users.id, actor.id)).for("update");
-
-    /**
-     * Mỗi ngân hàng có hai chỗ giữ riêng: dòng chính (Thường hoặc CNKD) và dòng
-     * HKD. Mỗi chỗ nhân viên giữ tối đa MỘT bản nháp, khách nào cũng vậy (chốt
-     * 2026-09-28). Trần đếm bên dưới vẫn giữ, nhưng luật này chặt hơn.
-     */
-    const draftsOfActor = await tx
-      .select({ bankId: bankAccounts.bankId, accountType: bankAccounts.accountType })
-      .from(bankAccounts)
-      .where(and(eq(bankAccounts.createdBy, actor.id), eq(bankAccounts.status, "creating")));
-    for (const pick of form.picks) {
-      const hkd = isHkd(pick.accountType);
-      if (draftsOfActor.some((d) => d.bankId === pick.bankId && isHkd(d.accountType) === hkd)) {
-        const code = bankById.get(pick.bankId)!.code;
-        return {
-          ok: false as const,
-          message: `Bạn đang giữ mã ${hkd ? `${code} HKD` : code} chưa hoàn tất. Hoàn tất hoặc xoá tài khoản đó rồi mở tiếp.`,
-        };
-      }
-    }
-
     const heldByActor = await tx
-      .select({ bankId: bankAccounts.bankId, held: count() })
+      .select({ bankId: bankAccounts.bankId, accountType: bankAccounts.accountType, held: count() })
       .from(bankAccounts)
       .where(and(eq(bankAccounts.createdBy, actor.id), eq(bankAccounts.status, "creating")))
-      .groupBy(bankAccounts.bankId);
-    const heldByBank = new Map(heldByActor.map((r) => [r.bankId, r.held]));
+      .groupBy(bankAccounts.bankId, bankAccounts.accountType);
+    const heldByType = new Map(heldByActor.map((r) => [`${r.bankId}|${r.accountType}`, r.held]));
     for (const pick of form.picks) {
-      const held = (heldByBank.get(pick.bankId) ?? 0) + 1;
-      heldByBank.set(pick.bankId, held);
-      if (held > MAX_DRAFTS_PER_STAFF_PER_BANK) {
+      const key = `${pick.bankId}|${pick.accountType}`;
+      const held = (heldByType.get(key) ?? 0) + 1;
+      heldByType.set(key, held);
+      const max = MAX_DRAFTS_PER_STAFF_BY_TYPE[pick.accountType];
+      if (held > max) {
         const code = bankById.get(pick.bankId)!.code;
+        const label = pick.accountType === "none" ? code : `${code} ${pick.accountType}`;
         return {
           ok: false as const,
-          message: `Bạn đang giữ ${MAX_DRAFTS_PER_STAFF_PER_BANK} mã ${code} chưa hoàn tất. Hoàn tất hoặc xoá bớt rồi mở tiếp.`,
+          message: `Bạn đang giữ ${max} mã ${label} chưa hoàn tất. Hoàn tất hoặc xoá bớt rồi mở tiếp.`,
         };
       }
     }

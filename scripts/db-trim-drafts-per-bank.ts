@@ -2,7 +2,10 @@ import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "../src/server/db/client";
 import { bankAccountPhotos, bankAccounts, banks, referralCodes, users } from "../src/server/db/schema";
 import { notify, notifyEveryone } from "../src/server/notifications";
-import { MAX_DRAFTS_PER_STAFF_PER_BANK } from "../src/lib/api/bankAccounts";
+
+// Trần gộp của luật 2026-09-16. App đổi sang trần theo loại từ 2026-09-28
+// (`MAX_DRAFTS_PER_STAFF_BY_TYPE`), script một lần này giữ số của luật cũ.
+const MAX_DRAFTS_PER_STAFF_PER_BANK = 2;
 
 /**
  * Cưỡng chế trần bản nháp theo người mở (BGĐ chốt 2026-09-16), chạy MỘT LẦN
