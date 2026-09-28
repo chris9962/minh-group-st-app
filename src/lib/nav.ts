@@ -169,7 +169,8 @@ export function navFor(user: User | null): NavEntry[] {
   if (
     can(user, 'insurance', 'export') ||
     can(user, 'banking', 'export') ||
-    can(user, 'services', 'export')
+    can(user, 'services', 'export') ||
+    can(user, 'staff', 'export')
   ) {
     items.push({ href: '/exports', label: 'Xuất dữ liệu', icon: 'exports', screen: 'P-73' });
   }

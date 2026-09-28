@@ -281,3 +281,23 @@ export async function fetchGiftExcessExport(
   if (!res.ok) throw new Error('Không tải được danh sách quà cấp dư');
   return GiftExcessPage.parse(await res.json());
 }
+
+/* ── Báo cáo #7 · Ngày công ─────────────────────────────────────────── */
+
+/**
+ * Một người một dòng, trừ Giám đốc và Phó giám đốc. Trưởng phòng và Phó phòng
+ * có công vào ngày phòng có ít nhất một nhân viên có công, cùng cách màn lương.
+ */
+export const WorkDayExportRow = z.object({
+  fullName: z.string(),
+  departmentName: z.string(),
+  /** Ngày trong tháng có công, đếm từ 1, tăng dần. */
+  days: z.array(z.number()),
+});
+export type WorkDayExportRow = z.infer<typeof WorkDayExportRow>;
+
+export async function fetchWorkDayExport(month: string): Promise<WorkDayExportRow[]> {
+  const res = await fetch(`/api/exports/work-days?month=${month}`);
+  if (!res.ok) throw new Error('Không tải được ngày công');
+  return z.array(WorkDayExportRow).parse(await res.json());
+}

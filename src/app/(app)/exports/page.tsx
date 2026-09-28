@@ -13,8 +13,10 @@ import {
   fetchCancelledInsuranceExport,
   fetchGiftExcessExport,
   fetchOrderStats,
+  fetchWorkDayExport,
   type GiftExcessRow,
   type OrderStatsGroupBy,
+  type WorkDayExportRow,
 } from "@/lib/api/exports";
 import { exportOrderStats, type OrderStatsMeasures, type OrderStatsSheet } from "@/lib/excelOrderStats";
 import { SectionCard } from "@/components/ui/SectionCard";
@@ -78,7 +80,8 @@ type ReportId =
   | "services-by-ward"
   | "order-stats"
   | "cancelled-insurance"
-  | "gift-excess";
+  | "gift-excess"
+  | "work-days";
 
 /**
  * Ba báo cáo, chốt 2026-08-22.
@@ -102,6 +105,7 @@ const REPORTS: { id: ReportId; label: string; module: ModuleKey }[] = [
   { id: "cancelled-insurance", label: "Đơn bảo hiểm huỷ", module: "insurance" },
   // Thêm 2026-09-19: truy thu quà đã phát cho khách mà app ngân hàng lỗi sau đó.
   { id: "gift-excess", label: "Quà cấp dư do app lỗi", module: "banking" },
+  { id: "work-days", label: "Ngày công", module: "staff" },
 ];
 
 /**
@@ -111,14 +115,16 @@ const REPORTS: { id: ReportId; label: string; module: ModuleKey }[] = [
  * này dựng lại đúng hình dạng file Kế toán — đầu bảng hai tầng gộp ô, dòng TỔNG
  * ở chân — nên bỏ một cột là hỏng cả bố cục.
  */
-const FIXED_SHAPE: ReportId[] = ["order-stats"];
+const FIXED_SHAPE: ReportId[] = ["order-stats", "work-days"];
 
 /**
  * Điều kiện này phải khớp chốt của route xuất tương ứng; lệch nhau thì người
  * dùng bấm một báo cáo đang hiện và nhận về 403 không hiểu vì sao.
  */
 const hasAccess = (user: Parameters<typeof can>[0], report: (typeof REPORTS)[number]): boolean =>
-  can(user, report.module, "export");
+  report.id === "work-days"
+    ? scopeFor(user, "staff", "export") === "company"
+    : can(user, report.module, "export");
 
 /** Một cột có thể chọn/bỏ và đổi thứ tự — `value` nhận `any` vì mỗi báo cáo có một kiểu dòng riêng. */
 type CatalogColumn = {
@@ -343,6 +349,7 @@ function catalogFor(report: ReportId, banks: Bank[], staffById: Map<string, Staf
 
     // Báo cáo hình dạng cố định — không có bảng chọn cột, xem `FIXED_SHAPE`.
     case "order-stats":
+    case "work-days":
       return [];
   }
 }
@@ -491,7 +498,11 @@ export default function ExportsPage() {
     setLastResult(null);
     try {
       const count = await RUN[active]();
-      setLastResult(`Đã xuất ${count} dòng, ${exportOrder.length} cột.`);
+      setLastResult(
+        FIXED_SHAPE.includes(active)
+          ? `Đã xuất ${count} dòng.`
+          : `Đã xuất ${count} dòng, ${exportOrder.length} cột.`,
+      );
     } catch (e) {
       // Nuốt câu của máy chủ rồi in "thử lại" là bắt người dùng thử lại một
       // việc chắc chắn hỏng — ví dụ vượt trần dòng thì thử bao nhiêu lần cũng
@@ -717,6 +728,32 @@ export default function ExportsPage() {
         sheetName: "Quà cấp dư",
         rows,
         columns: buildColumns(catalogFor("gift-excess", banks, staffById), exportOrder),
+      });
+      return rows.length;
+    },
+
+    async "work-days"() {
+      const rows = await fetchWorkDayExport(month);
+      const [year, mm] = month.split("-").map(Number);
+      const dayCount = new Date(year, mm, 0).getDate();
+      const dayColumns: ExcelColumn<WorkDayExportRow>[] = Array.from({ length: dayCount }, (_, i) => ({
+        header: String(i + 1),
+        type: "number",
+        align: "center",
+        width: 5,
+        value: (r) => (r.days.includes(i + 1) ? 1 : 0),
+      }));
+
+      await exportExcel({
+        fileName: `ngay-cong-${month}.xlsx`,
+        sheetName: `Ngày công ${month}`,
+        rows,
+        columns: [
+          { header: "Tên", width: 28, value: (r) => r.fullName },
+          { header: "Phòng", width: 22, value: (r) => r.departmentName },
+          ...dayColumns,
+          { header: "Tổng", type: "number", align: "center", width: 7, value: (r) => r.days.length },
+        ],
       });
       return rows.length;
     },
@@ -999,6 +1036,15 @@ export default function ExportsPage() {
                 </>
               )}
 
+              {active === "work-days" && (
+                <div className={styles.field} role="group" aria-label="Tháng">
+                  <span className={styles.fieldLabel} aria-hidden>
+                    Tháng
+                  </span>
+                  <MonthPicker value={month} onChange={setMonth} />
+                </div>
+              )}
+
               {active === "cancelled-insurance" && (
                 <>
                   <Select
@@ -1081,7 +1127,7 @@ export default function ExportsPage() {
                 </>
               )}
 
-              {active !== "staff-points" && active !== "order-stats" && (
+              {active !== "staff-points" && active !== "order-stats" && active !== "work-days" && (
                 <DateRangePicker
                   // Báo cáo #5 lọc theo NGÀY HUỶ, #6 theo NGÀY PHÁT QUÀ, các báo
                   // cáo khác theo ngày nghiệp vụ của chúng — nói rõ để người

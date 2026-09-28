@@ -1,8 +1,9 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
+import type { WorkDayExportRow } from "@/lib/api/exports";
 import { monthRange } from "@/lib/format";
 import { customerDayBetween, customerDayText } from "./customerDay";
 import { db } from "./db/client";
-import { bankAccounts, customers, employeeWorkDays, users } from "./db/schema";
+import { bankAccounts, customers, departments, employeeWorkDays, users } from "./db/schema";
 
 type Db = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -130,6 +131,72 @@ export async function departmentWorkDayCount(
       ),
     );
   return row?.count ?? 0;
+}
+
+const ROLE_ORDER: Record<string, number> = { head: 0, "deputy-head": 1, staff: 2 };
+
+/**
+ * Báo cáo Ngày công của P-73. Người đã nghỉ chỉ có dòng khi có công trong tháng.
+ *
+ * Trưởng phòng và Phó phòng đọc ngày của PHÒNG, cùng cách `departmentWorkDayCount`
+ * mà màn lương dùng. Đọc ngày của chính họ thì dòng luôn trống: chỉ Nhân viên
+ * mới tạo ngày công.
+ */
+export async function listWorkDayExport(yearMonth: string): Promise<WorkDayExportRow[]> {
+  const { from, to } = monthRange(yearMonth);
+  const [people, dayRows] = await Promise.all([
+    db
+      .select({
+        id: users.id,
+        fullName: users.fullName,
+        role: users.role,
+        active: users.active,
+        departmentId: users.departmentId,
+        departmentName: departments.name,
+      })
+      .from(users)
+      .leftJoin(departments, eq(departments.id, users.departmentId))
+      .where(inArray(users.role, ["staff", "head", "deputy-head"])),
+    db
+      .select({
+        userId: employeeWorkDays.userId,
+        departmentId: employeeWorkDays.departmentId,
+        workDate: employeeWorkDays.workDate,
+      })
+      .from(employeeWorkDays)
+      .where(sql`${employeeWorkDays.workDate} between ${from}::date and ${to}::date`),
+  ]);
+
+  const byUser = new Map<string, Set<number>>();
+  const byDepartment = new Map<string, Set<number>>();
+  const mark = (map: Map<string, Set<number>>, key: string, day: number) => {
+    const kept = map.get(key);
+    if (kept) kept.add(day);
+    else map.set(key, new Set([day]));
+  };
+  for (const row of dayRows) {
+    const day = Number(row.workDate.slice(8, 10));
+    mark(byUser, row.userId, day);
+    mark(byDepartment, row.departmentId, day);
+  }
+
+  return people
+    .map((p) => ({
+      ...p,
+      days: [
+        ...((p.role === "staff" ? byUser.get(p.id) : byDepartment.get(p.departmentId ?? "")) ??
+          []),
+      ].sort((a, b) => a - b),
+    }))
+    .filter((p) => p.active || p.days.length > 0)
+    .sort(
+      (a, b) =>
+        Number(!a.departmentName) - Number(!b.departmentName) ||
+        (a.departmentName ?? "").localeCompare(b.departmentName ?? "", "vi") ||
+        ROLE_ORDER[a.role] - ROLE_ORDER[b.role] ||
+        a.fullName.localeCompare(b.fullName, "vi"),
+    )
+    .map((p) => ({ fullName: p.fullName, departmentName: p.departmentName ?? "", days: p.days }));
 }
 
 /**
