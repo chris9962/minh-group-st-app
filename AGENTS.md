@@ -393,3 +393,72 @@ Dùng `src/lib/format.ts`, không tự viết lại:
 
 Chuỗi hiển thị viết như người dùng nói, không như hệ thống nghĩ:
 "Mở tài khoản" chứ không phải "Tạo bản ghi tài khoản ngân hàng".
+
+## 11. Viết release note
+
+Release note nằm ở `src/lib/releases/index.ts`, bản mới nhất đứng đầu. Chủ dự
+án chốt cách viết ở bản v1.6.0 (2026-09-28). Bản mới viết theo đúng mẫu đó.
+
+### Lấy danh sách thay đổi
+
+1. Đọc commit mà container `mgst-app` trên máy chủ đang chạy. Không lấy từ ghi
+   chú, tài liệu deploy hay trí nhớ. SSH theo luật §0.2.
+2. Lấy các commit từ commit đó tới `main`.
+3. Bỏ các commit sau:
+
+| Bỏ | Ví dụ |
+|---|---|
+| Đổi màu, dời nút, chỉnh bố cục nhỏ | màu nhãn hạng bank, nút Thêm ấp lên đầu khung |
+| Sửa cách đếm của một ô số | ô "chưa phát thưởng" đếm theo kỳ |
+| Màn Vận hành, worker kiểm ảnh, bot | OCR MSBb, OCR MB |
+| Code đã revert | |
+| File chưa commit | |
+
+Màn nào chỉ chỉnh giao diện thì ghi đúng một dòng: `Cập nhật lại giao diện.`
+
+### Cách viết
+
+- Mỗi dòng vài chữ, nêu sự thật rồi dừng.
+- Không viết "Trước đây…", không giải thích cách hoạt động, không chép công thức.
+- Luật thể lệ dùng đúng chữ của chủ dự án, ví dụ "tặng 1 năm BH".
+- `summary` là một câu.
+- Không nhắc ngày cuối của kỳ cũ. Viết "trước <ngày áp dụng>" nếu cần.
+- Mục về màn quản trị gắn `visibleTo` bằng `canOpenPath` của đúng màn đó.
+- Nâng `version` trong `package.json` cùng lúc: tăng `y` khi có tính năng mới,
+  tăng `z` khi chỉ sửa lỗi.
+
+### Mẫu chủ dự án đã duyệt
+
+```ts
+{
+  id: '2026-09-28',
+  version: '1.6.0',
+  title: 'Cập nhật ngày 28/09/2026',
+  summary: 'Thể lệ mới từ 28/09/2026: mỗi hồ sơ mở tối đa 2 bank hạn chế, thêm 3 tổ hợp.',
+  sections: [
+    {
+      title: 'Thể lệ từ ngày 28/09/2026',
+      items: [
+        'Áp cho hồ sơ khách từ 28/09/2026.',
+        'Mỗi hồ sơ mở tối đa 2 bank hạn chế.',
+        '1 ưu tiên + 1 hạn chế: 0,3 điểm, tặng 1 năm BH.',
+        '1 ưu tiên + 2 hạn chế: 0,5 điểm, tặng 2 năm BH.',
+        '1 khác + 2 hạn chế: 0,4 điểm, tặng 2 năm BH.',
+      ],
+    },
+    {
+      title: 'Xuất dữ liệu',
+      items: ['Báo cáo Đơn bảo hiểm huỷ thêm cột Policy number, Số seri, Số GCN.'],
+      visibleTo: (user) => canOpenPath(user, '/exports'),
+    },
+    {
+      title: 'Danh mục xã / ấp',
+      items: ['Cập nhật lại giao diện.'],
+      visibleTo: (user) => canOpenPath(user, '/settings/wards'),
+    },
+  ],
+},
+```
+
+Gửi thông báo cho nhân viên sau khi deploy: xem `docs/deploy-fpt-cloud.md`,
+chạy `--dry-run` trước.
