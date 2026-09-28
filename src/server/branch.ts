@@ -1,6 +1,7 @@
 import { and, asc, eq, inArray } from "drizzle-orm";
 import type { BranchDepartment, BranchSummary } from "@/lib/api/person";
 import { businessMonth } from "@/lib/format";
+import { quotaTargetFor } from "@/rules/salary";
 import { db } from "./db/client";
 import { departments, userManagedDepartments, users } from "./db/schema";
 import { pointsByStaffInRange } from "./kpi";
@@ -44,7 +45,7 @@ const percentOf = (part: number, whole: number): number =>
 export async function branchSummaryFor(subjectId: string, range: Range): Promise<BranchSummary> {
   const salaryMonth = businessMonth();
   const managed = await db
-    .select({ id: departments.id, name: departments.name })
+    .select({ id: departments.id, name: departments.name, code: departments.code })
     .from(userManagedDepartments)
     .innerJoin(
       departments,
@@ -76,6 +77,9 @@ export async function branchSummaryFor(subjectId: string, range: Range): Promise
     countQuotaAccounts(salaryMonth, quota?.directedKinds ?? [], "department", ids),
   ]);
 
+  const targetOf = (target: number | null | undefined, code: string): number | null =>
+    target == null ? null : quotaTargetFor(salaryMonth, target, code);
+
   const pointsByDepartment = new Map<string, number>();
   for (const { departmentId, points: p } of points.values()) {
     if (!departmentId) continue;
@@ -97,9 +101,9 @@ export async function branchSummaryFor(subjectId: string, range: Range): Promise
       points: Math.round((pointsByDepartment.get(d.id) ?? 0) * 10) / 10,
       salary: members.reduce((sum, p) => sum + (salaries.get(p.id)?.amount ?? 0), 0),
       hkdAchieved: hkdCounts.get(d.id) ?? 0,
-      hkdTarget: quota?.departments.get(d.id)?.hkd ?? null,
+      hkdTarget: targetOf(quota?.departments.get(d.id)?.hkd, d.code),
       directedAchieved: directedCounts.get(d.id) ?? 0,
-      directedTarget: quota?.departments.get(d.id)?.directed ?? null,
+      directedTarget: targetOf(quota?.departments.get(d.id)?.directed, d.code),
     };
   });
 

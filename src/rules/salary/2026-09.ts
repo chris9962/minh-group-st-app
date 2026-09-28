@@ -15,9 +15,14 @@ import type {
  * - Nhân viên HĐLĐ, tài khoản định hướng: đạt cộng 3 điểm, thiếu trừ 1 điểm
  *   cho mỗi 1% (QĐ 107 Phụ lục 04). Điểm này vào điểm KPI trước khi chia mốc.
  *   Chỉ tiêu HKD và CASA của nhân viên chỉ lưu: Phụ lục 04 không có mức.
- * - Trưởng/Phó phòng, HKD và định hướng theo chỉ tiêu phòng: đạt cộng 10, thiếu
- *   trừ 1 điểm cho mỗi 1% (Phụ lục 05).
- * - Phó GĐ, từng phòng phụ trách: đạt cộng 10, thiếu trừ 20 (Phụ lục 07).
+ * - Trưởng/Phó phòng, định hướng theo chỉ tiêu phòng: đạt cộng 10, thiếu trừ 1
+ *   điểm cho mỗi 1% (Phụ lục 05). HKD: đạt cộng 10, thiếu không trừ.
+ * - Phó GĐ, từng phòng phụ trách, định hướng: đạt cộng 10, thiếu trừ 20 (Phụ
+ *   lục 07). HKD: đạt cộng 10, thiếu không trừ.
+ * - Phòng Y và phòng Dự án chấm theo 50% chỉ tiêu admin nhập, cả chỉ tiêu phòng
+ *   lẫn chỉ tiêu cá nhân.
+ *
+ * Bỏ phần trừ HKD của quản lý và giảm chỉ tiêu hai phòng: chốt 2026-09-28.
  *
  * TODO(lương CĐS, file mẫu CASA của Yên): CASA chưa tính. Nhân viên HĐLĐ cộng
  * 0,2 điểm/tài khoản; Trưởng/Phó phòng đạt cộng 4, thiếu trừ 10; tự mở cộng
@@ -27,6 +32,11 @@ import type {
 const DAILY_SUPPORT = 120_000;
 const MAX_DAYS = 26;
 const DEPUTY_DIRECTOR_DAYS = 22;
+
+const HALF_QUOTA_DEPARTMENTS = new Set(["PHONG-Y", "PHONG-DU-AN"]);
+
+export const quotaTarget = (target: number, departmentCode: string | null): number =>
+  departmentCode && HALF_QUOTA_DEPARTMENTS.has(departmentCode) ? target / 2 : target;
 
 const vnd = (amount: number) => `${amount.toLocaleString("vi-VN")}đ`;
 const total = (items: SalaryItem[]) => items.reduce((sum, item) => sum + item.amount, 0);
@@ -42,9 +52,12 @@ function quotaResult(
   penalty: (shortfall: number) => number,
 ): { points: number; text: string } {
   const shortfall = shortfallPercent(quota);
-  const reached = `${quota.achieved}/${quota.target}`;
+  // Chỉ tiêu nửa của phòng Y và phòng Dự án có thể lẻ ,5.
+  const reached = `${quota.achieved}/${formatPoints(quota.target)}`;
   if (shortfall === 0) return { points: reward, text: `${reached}, đạt, cộng ${reward} điểm` };
   const points = -roundPoints(penalty(shortfall));
+  if (points === 0)
+    return { points: 0, text: `${reached}, thiếu ${formatPoints(shortfall)}%, không trừ` };
   return {
     points,
     text: `${reached}, thiếu ${formatPoints(shortfall)}%, trừ ${formatPoints(-points)} điểm`,
@@ -82,27 +95,34 @@ export function staff({ points, workDays, directedQuota }: StaffSalaryInput): Sa
   };
 }
 
-/** Chỉ tiêu phòng của Trưởng/Phó phòng: đạt cộng 10, thiếu trừ 1 điểm cho mỗi 1%. */
-function quotaItems(quota: QuotaProgress | null | undefined, label: string, rate: number): SalaryItem[] {
+/** Chỉ tiêu phòng của Trưởng/Phó phòng: đạt cộng 10, thiếu trừ `penalty(Thiếu%)`. */
+function quotaItems(
+  quota: QuotaProgress | null | undefined,
+  label: string,
+  rate: number,
+  penalty: (shortfall: number) => number,
+): SalaryItem[] {
   if (!quota) return [];
-  const result = quotaResult(quota, 10, (shortfall) => shortfall);
+  const result = quotaResult(quota, 10, penalty);
   return [{ label, formula: `${result.text} × ${vnd(rate)}`, amount: result.points * rate }];
 }
 
-/** Chỉ tiêu các phòng của Phó GĐ: mỗi phòng đạt cộng 10, thiếu trừ 20. */
-function branchQuotaItem(quotas: (QuotaProgress | null)[], label: string): SalaryItem[] {
+/** Chỉ tiêu các phòng của Phó GĐ: mỗi phòng đạt cộng 10, thiếu trừ `failPoints`. */
+function branchQuotaItem(
+  quotas: (QuotaProgress | null)[],
+  label: string,
+  failPoints: number,
+): SalaryItem[] {
   const scored = quotas.filter((q): q is QuotaProgress => q !== null);
   if (scored.length === 0) return [];
   const passed = scored.filter((q) => q.achieved >= q.target).length;
   const failed = scored.length - passed;
-  const points = passed * 10 - failed * 20;
-  return [
-    {
-      label,
-      formula: `${passed} phòng đạt × 10 - ${failed} phòng thiếu × 20 = ${points} điểm × 150.000đ`,
-      amount: points * 150_000,
-    },
-  ];
+  const points = passed * 10 - failed * failPoints;
+  const formula =
+    failPoints > 0
+      ? `${passed} phòng đạt × 10 - ${failed} phòng thiếu × ${failPoints} = ${points} điểm × 150.000đ`
+      : `${passed} phòng đạt × 10 = ${points} điểm × 150.000đ`;
+  return [{ label, formula, amount: points * 150_000 }];
 }
 
 /** Quỹ thưởng vượt của phòng theo điểm trung bình, lũy tiến 7/8/9 nghìn mỗi điểm. */
@@ -138,8 +158,8 @@ export function manager({
       formula: `${reached} người × ${unit} điểm × ${vnd(rate)}`,
       amount: reached * unit * rate,
     },
-    ...quotaItems(departmentQuota?.hkd, "Chỉ tiêu HKD của phòng", rate),
-    ...quotaItems(departmentQuota?.directed, "Chỉ tiêu định hướng của phòng", rate),
+    ...quotaItems(departmentQuota?.hkd, "Chỉ tiêu HKD của phòng", rate, () => 0),
+    ...quotaItems(departmentQuota?.directed, "Chỉ tiêu định hướng của phòng", rate, (shortfall) => shortfall),
     {
       label: "Làm trực tiếp",
       formula: `${formatPoints(Math.max(direct, 0))} điểm × 70.000đ`,
@@ -173,10 +193,12 @@ export function deputyDirector({
     ...branchQuotaItem(
       departmentQuotas.map((q) => q.hkd),
       "Chỉ tiêu HKD các phòng",
+      0,
     ),
     ...branchQuotaItem(
       departmentQuotas.map((q) => q.directed),
       "Chỉ tiêu định hướng các phòng",
+      20,
     ),
   ];
   const reached = teamPoints.filter((p) => p >= 100).length;

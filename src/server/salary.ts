@@ -2,6 +2,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { businessMonth, monthRange } from "@/lib/format";
 import type { ContractType, RoleKey, User } from "@/lib/types";
 import {
+  quotaTargetFor,
   salaryRulesFor,
   type DepartmentQuotaProgress,
   type QuotaProgress,
@@ -63,6 +64,7 @@ type Subject = {
   role: RoleKey;
   contractType: ContractType | null;
   departmentId: string | null;
+  departmentCode: string | null;
   departmentType: "sales" | "office" | null;
   points: number;
 };
@@ -136,6 +138,7 @@ async function liveSalaries(
       role: users.role,
       contractType: users.contractType,
       departmentId: users.departmentId,
+      departmentCode: departments.code,
       departmentType: departments.type,
       points,
     })
@@ -152,7 +155,11 @@ async function liveSalaries(
     .map((subject) => subject.id);
   const managedRows = deputyDirectorIds.length
     ? await db
-        .select({ userId: userManagedDepartments.userId, departmentId: departments.id })
+        .select({
+          userId: userManagedDepartments.userId,
+          departmentId: departments.id,
+          departmentCode: departments.code,
+        })
         .from(userManagedDepartments)
         .innerJoin(
           departments,
@@ -314,7 +321,7 @@ async function liveSalaries(
 async function quotaProgressFor(
   yearMonth: string,
   subjects: Subject[],
-  managedRows: { departmentId: string }[],
+  managedRows: { departmentId: string; departmentCode: string }[],
 ): Promise<{
   staff: (userId: string) => QuotaProgress | null;
   department: (departmentId: string) => DepartmentQuotaProgress | null;
@@ -344,26 +351,47 @@ async function quotaProgressFor(
     countQuotaAccounts(yearMonth, config.directedKinds, "department", departmentIds),
   ]);
 
+  const codeOfDepartment = new Map<string, string | null>([
+    ...subjects.flatMap((s) => (s.departmentId ? [[s.departmentId, s.departmentCode] as const] : [])),
+    ...managedRows.map((row) => [row.departmentId, row.departmentCode] as const),
+  ]);
+  const codeOfStaff = new Map(subjects.map((s) => [s.id, s.departmentCode]));
+
   const progress = (
     target: number | null,
     kindsCount: number,
     achieved: number | undefined,
+    departmentCode: string | null,
   ): QuotaProgress | null =>
-    target && kindsCount > 0 ? { target, achieved: achieved ?? 0 } : null;
+    target && kindsCount > 0
+      ? { target: quotaTargetFor(yearMonth, target, departmentCode), achieved: achieved ?? 0 }
+      : null;
 
   return {
     staff: (userId) =>
       staffIds.includes(userId)
-        ? progress(config.staffDirected, config.directedKinds.length, directedByStaff.get(userId))
+        ? progress(
+            config.staffDirected,
+            config.directedKinds.length,
+            directedByStaff.get(userId),
+            codeOfStaff.get(userId) ?? null,
+          )
         : null,
     department: (departmentId) => {
       const targets = config.departments.get(departmentId);
       if (!targets) return null;
-      const hkd = progress(targets.hkd, config.hkdKinds.length, hkdByDepartment.get(departmentId));
+      const code = codeOfDepartment.get(departmentId) ?? null;
+      const hkd = progress(
+        targets.hkd,
+        config.hkdKinds.length,
+        hkdByDepartment.get(departmentId),
+        code,
+      );
       const directed = progress(
         targets.directed,
         config.directedKinds.length,
         directedByDepartment.get(departmentId),
+        code,
       );
       return hkd || directed ? { hkd, directed } : null;
     },

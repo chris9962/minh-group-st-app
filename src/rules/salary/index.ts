@@ -59,6 +59,8 @@ type SalaryRules = {
   manager(input: ManagerSalaryInput): SalaryResult;
   /** Kỳ chưa có bảng lương Phó GĐ thì không khai. */
   deputyDirector?(input: DeputyDirectorSalaryInput): SalaryResult;
+  /** Chỉ tiêu dùng để chấm, từ số admin nhập và mã phòng. Kỳ không khai thì dùng nguyên số nhập. */
+  quotaTarget?(target: number, departmentCode: string | null): number;
 };
 
 /** Khoá là THÁNG bắt đầu áp dụng. Tháng trước kỳ đầu tiên không có công thức lương. */
@@ -75,4 +77,16 @@ export function salaryRulesFor(yearMonth: string): SalaryRules | null {
     .sort()
     .at(-1);
   return latest ? PERIODS[latest] : null;
+}
+
+/**
+ * Chỉ tiêu dùng để chấm trong tháng. Lương và màn Nhánh cùng đọc hàm này: tính
+ * ở hai nơi thì màn Nhánh hiện một chỉ tiêu, lương chấm theo chỉ tiêu khác.
+ */
+export function quotaTargetFor(
+  yearMonth: string,
+  target: number,
+  departmentCode: string | null,
+): number {
+  return salaryRulesFor(yearMonth)?.quotaTarget?.(target, departmentCode) ?? target;
 }
