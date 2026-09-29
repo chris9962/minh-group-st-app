@@ -66,6 +66,7 @@ import {
 import type { PageArgs } from "./pagination";
 import { PVI_NEW_ORDER_CHANNEL, type PviRoute } from "./pvi-api/route";
 import { pviRouteMode } from "./pviRouteMode";
+import { demoMode } from "./demoMode";
 import { imageKeyOf, imageUrl } from "./storage";
 
 /**
@@ -945,11 +946,25 @@ const newOrderRoute = (): { status: "queued" | "manual-queued"; route: PviRoute 
 async function notifyPviWorker(
   tx: Pick<typeof db, "execute">,
   route: PviRoute,
-  status: "queued" | "manual-queued",
+  status: InsuranceOrderStatus,
 ) {
   if (route !== "api" || status !== "queued") return;
   await wakePviWorker(tx);
 }
+
+/** Bản demo không có worker: đơn mới là Hoàn thành ngay, xem `demoMode`. */
+const DEMO_ROUTE = { status: "done", route: "" } as const;
+
+/**
+ * Ảnh GCN mẫu tải sẵn lên bucket một lần, mọi đơn demo trỏ chung. Khoá sai
+ * `KEY_PATTERN` thì bỏ, vì `/api/images` không đọc được khoá đó.
+ */
+const demoCertificateKey = (product: InsuranceProduct): string | null =>
+  imageKeyOf(
+    (product === "electric-accident"
+      ? process.env.DEMO_GCN_ELECTRIC_KEY
+      : process.env.DEMO_GCN_MOTORBIKE_KEY) ?? "",
+  );
 
 async function wakePviWorker(tx: Pick<typeof db, "execute">) {
   try {
@@ -1015,6 +1030,8 @@ export async function createInsuranceOrders(
     intakePhotoKeys.push({ first, back });
   }
 
+  const demo = demoMode();
+
   /**
    * Nối tên gói về `package_id` để đơn còn dẫn ngược được về danh mục. Tên thì
    * vẫn CHỤP vào `package_name`: CEO đổi tên gói ở P-82 không được viết lại đơn
@@ -1061,7 +1078,7 @@ export async function createInsuranceOrders(
 
     // Đọc MỘT lần cho cả lô: mọi đơn của một lần tạo phải cùng một trạng thái,
     // kể cả khi ai đó đổi đường đúng lúc câu insert đang chạy.
-    const { status: newStatus, route } = newOrderRoute();
+    const { status: newStatus, route } = demo ? DEMO_ROUTE : newOrderRoute();
 
     const rows = await tx
       .insert(insuranceOrders)
@@ -1104,6 +1121,7 @@ export async function createInsuranceOrders(
           engineNumber: leg.engineNumber,
           intakePhotoUrl: intakePhotoKeys[i].first,
           intakePhotoBackUrl: intakePhotoKeys[i].back,
+          certificatePhotoUrl: demo ? demoCertificateKey(leg.product) : null,
           createdBy: actor.id,
           // Đơn vị của người tạo lúc tạo. Người này chuyển phòng thì
           // `writeStaff` viết lại cột này cho mọi dòng của họ (chốt 13/08).
@@ -1747,15 +1765,11 @@ export async function recreateInsuranceOrder(
   const wanted = InsuranceRecreateBody.safeParse(body);
   if (!wanted.success) return { ok: false, message: "Chưa chọn trạng thái cho đơn mới" };
   const machineRoute = newOrderRoute();
-  if (wanted.data.status === "queued" && machineRoute.status !== "queued")
+  if (!demoMode() && wanted.data.status === "queued" && machineRoute.status !== "queued")
     return {
       ok: false,
       message: "Điều hướng đơn đang là Làm tay, cấp lại vào Chờ tạo thì không worker nào lấy đơn.",
     };
-  const { status: newStatus, route } =
-    wanted.data.status === "queued"
-      ? machineRoute
-      : { status: "manual-queued" as const, route: "" as PviRoute };
 
   const today = businessDay();
   if (form.endDate <= form.startDate)
@@ -1780,6 +1794,13 @@ export async function recreateInsuranceOrder(
     : null;
   if (form.intakePhotoBackUrl && !intakePhotoBackKey)
     return { ok: false, message: "Ảnh CCCD thứ hai không hợp lệ" };
+
+  const demo = demoMode();
+  const { status: newStatus, route } = demo
+    ? DEMO_ROUTE
+    : wanted.data.status === "queued"
+      ? machineRoute
+      : { status: "manual-queued" as const, route: "" as PviRoute };
 
   const yearMonth = businessMonth();
 
@@ -1829,6 +1850,7 @@ export async function recreateInsuranceOrder(
         engineNumber: form.engineNumber,
         intakePhotoUrl: intakePhotoKey,
         intakePhotoBackUrl: intakePhotoBackKey,
+        certificatePhotoUrl: demo ? demoCertificateKey(current.product) : null,
         createdBy: ownerId,
         createdByDepartmentId: current.createdByDepartmentId,
         replacesOrderId: id,

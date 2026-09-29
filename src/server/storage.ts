@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { demoMode } from "./demoMode";
 import { toWebpOnServer } from "./toWebpOnServer";
 
 /**
@@ -113,7 +114,8 @@ const MIME_BY_EXT = new Map(IMAGE_SIGNATURES.map((s) => [s.ext, s.mime]));
 const IMAGE_ROUTE = "/api/images";
 
 /**
- * Hình dạng ĐÚNG của một khoá: `<nhóm>/<ngày>/<uuid>.<đuôi>`.
+ * Hình dạng ĐÚNG của một khoá: `<nhóm>/<ngày>/<uuid>.<đuôi>`, bản demo thêm
+ * `demo/` ở đầu (xem `demoMode`).
  *
  * ⚠️ Đây là chốt chặn DUYỆT NGƯỢC THƯ MỤC, không phải kiểm tra cho gọn. Khoá đi
  * thẳng vào `path.join` của bản tạm và vào `Key` của S3; nhận chuỗi tự do thì
@@ -124,7 +126,7 @@ const IMAGE_ROUTE = "/api/images";
  * không khớp được, nên không chuỗi nào ngoài kho của mình vào nổi database.
  */
 const KEY_PATTERN = new RegExp(
-  `^[a-z0-9-]+/\\d{4}-\\d{2}-\\d{2}/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.(${IMAGE_SIGNATURES.map(
+  `^(?:demo/)?[a-z0-9-]+/\\d{4}-\\d{2}-\\d{2}/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.(${IMAGE_SIGNATURES.map(
     (s) => s.ext,
   ).join("|")})$`,
 );
@@ -188,7 +190,7 @@ export async function putImage(file: File, folder: string): Promise<PutResult> {
   const mime = converted ? "image/webp" : kind.mime;
 
   const day = new Date().toISOString().slice(0, 10);
-  const key = `${folder}/${day}/${randomUUID()}.${ext}`;
+  const key = `${demoMode() ? "demo/" : ""}${folder}/${day}/${randomUUID()}.${ext}`;
 
   const config = readConfig();
   return config ? putToS3(config, key, bytes, mime) : putToDisk(key, bytes);
