@@ -45,6 +45,8 @@ export type ManagerSalaryInput = {
   points: number;
   /** Điểm của từng nhân viên ĐANG LÀM trong phòng, không gồm Trưởng/Phó phòng. */
   teamPoints: number[];
+  /** Điểm chia trung bình phòng: nhân viên có điểm khác 0 trong tháng, gồm cả người đã khoá. */
+  averagePoints: number[];
   /** Số ngày phòng có ngày công, chưa cắt trần. */
   workDays: number;
   /** Chỉ tiêu của phòng mình. Kỳ trước 2026-09 bỏ qua. */
