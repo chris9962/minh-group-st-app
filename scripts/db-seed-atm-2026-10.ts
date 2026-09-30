@@ -1,5 +1,4 @@
 import { eq, inArray } from "drizzle-orm";
-import { businessMonth } from "../src/lib/format";
 import { db } from "../src/server/db/client";
 import { departments, serviceTypes, users } from "../src/server/db/schema";
 
@@ -19,8 +18,9 @@ import { departments, serviceTypes, users } from "../src/server/db/schema";
  * này, thêm bớt người ở ô "Cách tính lương" của hộp thoại nhân viên, đổi điểm
  * và trần ở màn loại dịch vụ P-84.
  *
- * Thiếu một loại dịch vụ hay một mã nhân viên thì dừng, không ghi gì. Ghi thật
- * chỉ chạy từ tháng 2026-10. Chạy lại nhiều lần vô hại. Cần migration 0111 và 0112.
+ * Thiếu một loại dịch vụ hay một mã nhân viên thì dừng, không ghi gì. Chạy lại
+ * nhiều lần vô hại. Cần migration 0111 và 0112. Không còn chặn ghi trước tháng
+ * 2026-10: chủ dự án yêu cầu ghi ngay tối 2026-09-30.
  *
  * Script KHÔNG tính lại điểm (chủ dự án chốt 2026-09-30): chạy đầu tháng 2026-10
  * thì tháng đó chưa có dữ liệu, còn tính lại tháng cũ của 8 người làm điểm dịch
@@ -69,9 +69,6 @@ const STAFF_CODES = [
   "424MUNGPTC", // Xã Thuận Hòa
   "427UYENNDP", // Phường Sóc Trăng
 ];
-
-/** Tháng thông báo bắt đầu áp dụng. */
-const START_MONTH = "2026-10";
 
 const apply = process.argv.slice(2).includes("--apply");
 
@@ -141,11 +138,6 @@ async function main() {
     console.log("\nChạy khô, chưa ghi gì. Thêm --apply để ghi.");
     return;
   }
-  // Ghi trước tháng áp dụng là đổi điểm dịch vụ, ngày công và cách tính lương
-  // của tháng trước đó: tháng đang chạy đọc hồ sơ hiện tại, rồi bị chụp lại y vậy.
-  if (businessMonth() < START_MONTH)
-    throw new Error(`Thông báo áp từ tháng ${START_MONTH}. Đang là tháng ${businessMonth()}, không ghi.`);
-
   await db.transaction(async (tx) => {
     for (const t of types) {
       const next = SERVICE_TYPES[t.name];
