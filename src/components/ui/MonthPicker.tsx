@@ -25,11 +25,13 @@ export const monthLabel = (month: Month): string => {
 type Props = {
   value: Month;
   onChange: (month: Month) => void;
+  /** Số tháng được đi quá tháng hiện tại. Màn Chỉ tiêu tháng nhập trước chỉ tiêu tháng sau nên đặt 1. */
+  monthsAhead?: number;
 };
 
 /** Chọn tháng. Chỉ tiêu tính theo tháng nên đây là đơn vị tự nhiên, không phải khoảng ngày. */
-export function MonthPicker({ value, onChange }: Props) {
-  const atCurrent = value >= thisMonth();
+export function MonthPicker({ value, onChange, monthsAhead = 0 }: Props) {
+  const atLimit = value >= shift(thisMonth(), monthsAhead);
 
   return (
     <div className={styles.wrap}>
@@ -44,7 +46,7 @@ export function MonthPicker({ value, onChange }: Props) {
       <Button
         variant="secondary"
         aria-label="Tháng sau"
-        disabled={atCurrent}
+        disabled={atLimit}
         onClick={() => onChange(shift(value, 1))}
       >
         ›

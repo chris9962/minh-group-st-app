@@ -13,7 +13,7 @@ export default function QuotaMonthPage() {
   return (
     <RequirePermission module="system" action="configure-catalog">
       <TopBar title="Chỉ tiêu tháng" keepTitleOnMobile>
-        <MonthPicker value={month} onChange={setMonth} />
+        <MonthPicker value={month} onChange={setMonth} monthsAhead={1} />
       </TopBar>
       <main className={styles.body}>
         <QuotaMonthSection month={month} />
