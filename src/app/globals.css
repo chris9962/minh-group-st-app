@@ -136,6 +136,211 @@ a {
   --om-rank-ink: #25150a;
 }
 
+/**
+ * Màu chủ đạo xanh dương, người dùng tự chọn ở menu tài khoản (chốt 2026-09-29).
+ *
+ * Đè lên dải `--om-orange*` thay vì đổi tên: 193 chỗ đang đọc tên đó, và
+ * `organic.css` đồng bộ từ `../mgst-design/_ds` nên không sửa tay được.
+ * Cam vẫn là mặc định khi thẻ html không có `data-accent`.
+ *
+ * Luật bộ tối phải kèm cả `[data-theme="dark"]` để thắng luật bộ sáng ngay
+ * dưới: cùng độ ưu tiên thì luật viết sau thắng, mà bộ tối của organic.css
+ * nằm TRƯỚC file này.
+ *
+ * Đã đo: bộ sáng nút 6,7:1, chữ trên nền nhạt 7,2:1; bộ tối nút 6,8:1 với mực
+ * tối, chữ trên nền nhạt 8,2:1. Mục sidebar đang mở 5,2:1 ở cả hai bộ.
+ */
+:root[data-accent="blue"] {
+  --om-sidebar-active: #2563eb;
+  --om-orange: #1d4ed8;
+  --om-orange-mid: #1e40af;
+  --om-orange-ink: #1e3a8a;
+  --om-orange-strong: #172554;
+  --om-orange-soft: #dbeafe;
+  --om-orange-light: #bfdbfe;
+  --om-orange-2: #60a5fa;
+  --om-chip-bg: #eff6ff;
+  --om-chip-ink: #1d4ed8;
+  --color-accent-100: #eff6ff;
+  --color-accent-400: #60a5fa;
+  --color-accent-500: #3b82f6;
+  --color-accent-800: #1e3a8a;
+  --color-accent-900: #172554;
+}
+
+:root[data-theme="dark"][data-accent="blue"] {
+  --om-text-on-accent: #0b1a33;
+  --om-orange: #60a5fa;
+  --om-orange-mid: #93c5fd;
+  --om-orange-ink: #bfdbfe;
+  --om-orange-strong: #dbeafe;
+  --om-orange-soft: #172554;
+  --om-orange-light: #1e3a8a;
+  --om-orange-2: #93c5fd;
+  --om-chip-bg: #172554;
+  --om-chip-ink: #93c5fd;
+  --color-accent-100: #1d2a3c;
+  --color-accent-500: #60a5fa;
+  --color-accent-800: #dbeafe;
+  --color-accent-900: #eff6ff;
+}
+
+/* Xanh ngọc, hồng, xám than thêm 2026-09-29, cùng cách đè như xanh dương.
+   Không có xanh lá, tím, đỏ: ba màu đó đang nói "đạt", "chờ duyệt", "huỷ".
+   Mục sidebar đang mở và nút dùng tông 700 vì tông 600 của xanh ngọc (3,7:1)
+   và hồng (4,1:1) dưới 4,5:1 với chữ trắng.
+   Đã đo, bộ sáng nút / chữ trên nền nhạt / chip, rồi bộ tối cùng ba cặp đó:
+   xanh ngọc 5,4 / 8,1 / 5,2 và 7,4 / 10,7 / 9,2; hồng 6,0 / 8,2 / 5,5 và
+   5,7 / 10,9 / 8,3; xám than 10,4 / 12,0 / 7,0 và 14,5 / 6,9 / 6,9. */
+:root[data-accent="cyan"] {
+  --om-sidebar-active: #0e7490;
+  --om-orange: #0e7490;
+  --om-orange-mid: #155e75;
+  --om-orange-ink: #164e63;
+  --om-orange-strong: #083344;
+  --om-orange-soft: #cffafe;
+  --om-orange-light: #a5f3fc;
+  --om-orange-2: #22d3ee;
+  --om-chip-bg: #ecfeff;
+  --om-chip-ink: #0e7490;
+  --color-accent-100: #ecfeff;
+  --color-accent-400: #22d3ee;
+  --color-accent-500: #06b6d4;
+  --color-accent-800: #164e63;
+  --color-accent-900: #083344;
+}
+
+:root[data-theme="dark"][data-accent="cyan"] {
+  --om-text-on-accent: #083344;
+  --om-orange: #22d3ee;
+  --om-orange-mid: #67e8f9;
+  --om-orange-ink: #a5f3fc;
+  --om-orange-strong: #cffafe;
+  --om-orange-soft: #083344;
+  --om-orange-light: #164e63;
+  --om-orange-2: #67e8f9;
+  --om-chip-bg: #083344;
+  --om-chip-ink: #67e8f9;
+  --color-accent-100: #173242;
+  --color-accent-500: #22d3ee;
+  --color-accent-800: #cffafe;
+  --color-accent-900: #ecfeff;
+}
+
+:root[data-accent="pink"] {
+  --om-sidebar-active: #be185d;
+  --om-orange: #be185d;
+  --om-orange-mid: #9d174d;
+  --om-orange-ink: #831843;
+  --om-orange-strong: #500724;
+  --om-orange-soft: #fce7f3;
+  --om-orange-light: #fbcfe8;
+  --om-orange-2: #f472b6;
+  --om-chip-bg: #fdf2f8;
+  --om-chip-ink: #be185d;
+  --color-accent-100: #fdf2f8;
+  --color-accent-400: #f472b6;
+  --color-accent-500: #ec4899;
+  --color-accent-800: #831843;
+  --color-accent-900: #500724;
+}
+
+:root[data-theme="dark"][data-accent="pink"] {
+  --om-text-on-accent: #500724;
+  --om-orange: #f472b6;
+  --om-orange-mid: #f9a8d4;
+  --om-orange-ink: #fbcfe8;
+  --om-orange-strong: #fce7f3;
+  --om-orange-soft: #500724;
+  --om-orange-light: #831843;
+  --om-orange-2: #f9a8d4;
+  --om-chip-bg: #500724;
+  --om-chip-ink: #f9a8d4;
+  --color-accent-100: #2c283c;
+  --color-accent-500: #f472b6;
+  --color-accent-800: #fce7f3;
+  --color-accent-900: #fdf2f8;
+}
+
+/* Xám than không có sắc màu nên chỉ tách khỏi nền bằng độ sáng. Nền nhạt tông
+   100–200 trùng `--om-surface` của cả hai bộ (bộ tối 1,01:1), nên bộ sáng dùng
+   tông 300, bộ tối dùng tông 600: 1,3:1 và 1,9:1 so với `--om-surface`. */
+:root[data-accent="slate"] {
+  --om-sidebar-active: #475569;
+  --om-orange: #334155;
+  --om-orange-mid: #1e293b;
+  --om-orange-ink: #0f172a;
+  --om-orange-strong: #020617;
+  --om-orange-soft: #cbd5e1;
+  --om-orange-light: #94a3b8;
+  --om-orange-2: #94a3b8;
+  --om-chip-bg: #cbd5e1;
+  --om-chip-ink: #334155;
+  --color-accent-100: #cbd5e1;
+  --color-accent-400: #94a3b8;
+  --color-accent-500: #64748b;
+  --color-accent-800: #0f172a;
+  --color-accent-900: #020617;
+}
+
+:root[data-theme="dark"][data-accent="slate"] {
+  --om-text-on-accent: #0f172a;
+  --om-orange: #e2e8f0;
+  --om-orange-mid: #f1f5f9;
+  --om-orange-ink: #f1f5f9;
+  --om-orange-strong: #f8fafc;
+  --om-orange-soft: #475569;
+  --om-orange-light: #64748b;
+  --om-orange-2: #94a3b8;
+  --om-chip-bg: #475569;
+  --om-chip-ink: #f1f5f9;
+  --color-accent-100: #475569;
+  --color-accent-500: #e2e8f0;
+  --color-accent-800: #f1f5f9;
+  --color-accent-900: #f8fafc;
+}
+
+/* Màu cho ảnh xem trước trong hộp chọn giao diện. Ảnh "Sáng" phải hiện màu bộ
+   sáng kể cả khi app đang ở bộ tối, nên không đọc được `--om-*` đang chạy.
+   Giá trị chép từ hai bộ trong organic.css và bộ xanh ở trên. */
+:root {
+  --om-preview-light-bg: #f8f5f0;
+  --om-preview-light-card: #ffffff;
+  --om-preview-light-line: #ebe5dc;
+  --om-preview-light-text: #201e1d;
+  --om-preview-light-accent: #ca4d25;
+  --om-preview-dark-bg: #0f1826;
+  --om-preview-dark-card: #16202f;
+  --om-preview-dark-line: #26344a;
+  --om-preview-dark-text: #eef2f8;
+  --om-preview-dark-accent: #f97316;
+  --om-swatch-orange: #ca4d25;
+  --om-swatch-blue: #1d4ed8;
+  --om-swatch-cyan: #0e7490;
+  --om-swatch-pink: #be185d;
+  --om-swatch-slate: #334155;
+}
+
+:root[data-accent="blue"] {
+  --om-preview-light-accent: #1d4ed8;
+  --om-preview-dark-accent: #60a5fa;
+}
+
+:root[data-accent="cyan"] {
+  --om-preview-light-accent: #0e7490;
+  --om-preview-dark-accent: #22d3ee;
+}
+
+:root[data-accent="pink"] {
+  --om-preview-light-accent: #be185d;
+  --om-preview-dark-accent: #f472b6;
+}
+
+:root[data-accent="slate"] {
+  --om-preview-light-accent: #334155;
+  --om-preview-dark-accent: #e2e8f0;
+}
+
 /* Máy tính: sidebar và vùng nội dung tự cuộn bên trong AppShell, còn TÀI LIỆU
    thì không cuộn — khoá luôn ở đây cho chắc.
 

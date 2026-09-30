@@ -1,0 +1,228 @@
+.group {
+  min-width: 0;
+  margin: 0 0 22px;
+  padding: 0;
+  border: 0;
+}
+
+.legend {
+  padding: 0;
+  margin-bottom: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--om-text-2);
+}
+
+.themes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.themeOption,
+.accentOption {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.optionLabel {
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  font-size: 13.5px;
+  color: var(--om-text-2);
+}
+
+.themeOption:has(input:checked) .optionLabel,
+.accentOption:has(input:checked) .optionLabel {
+  color: var(--om-text);
+  font-weight: 600;
+}
+
+/* Vòng màu nhấn quanh ảnh đã báo mục đang chọn, nên tiêu điểm bàn phím vẽ ở
+   nhãn chữ. Vẽ chung một chỗ thì không phân biệt được "đang chọn" với "đang
+   đứng ở đây". */
+.themeOption input:focus-visible ~ .optionLabel,
+.accentOption input:focus-visible ~ .optionLabel {
+  outline: 2px solid var(--om-orange);
+  outline-offset: 2px;
+}
+
+/* — ảnh thu nhỏ cửa sổ app — */
+.window {
+  display: flex;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  border: 1px solid var(--p-line);
+  border-radius: var(--radius-md);
+  background: var(--p-bg);
+  box-shadow: var(--shadow-sm);
+}
+
+.windowLight {
+  --p-bg: var(--om-preview-light-bg);
+  --p-card: var(--om-preview-light-card);
+  --p-line: var(--om-preview-light-line);
+  --p-text: var(--om-preview-light-text);
+  --p-accent: var(--om-preview-light-accent);
+}
+
+.windowDark {
+  --p-bg: var(--om-preview-dark-bg);
+  --p-card: var(--om-preview-dark-card);
+  --p-line: var(--om-preview-dark-line);
+  --p-text: var(--om-preview-dark-text);
+  --p-accent: var(--om-preview-dark-accent);
+}
+
+.themeOption:hover .window {
+  outline: 3px solid var(--om-line-strong);
+  outline-offset: 2px;
+}
+
+.themeOption input:checked + .window {
+  outline: 3px solid var(--om-orange);
+  outline-offset: 2px;
+}
+
+.sidebar {
+  flex: none;
+  width: 28%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 7px;
+  background: var(--p-card);
+  border-right: 1px solid var(--p-line);
+}
+
+.nav,
+.navActive {
+  height: 7px;
+  border-radius: 3px;
+}
+
+.nav {
+  background: var(--p-text);
+  opacity: 0.14;
+}
+
+.navActive {
+  background: var(--p-accent);
+}
+
+.content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+}
+
+.card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  background: var(--p-card);
+  border: 1px solid var(--p-line);
+  border-radius: 6px;
+}
+
+.line {
+  width: 55%;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--p-text);
+  opacity: 0.16;
+}
+
+.lineWide {
+  width: 85%;
+  opacity: 0.3;
+}
+
+.bar {
+  width: 45%;
+  height: 5px;
+  margin-top: auto;
+  border-radius: 3px;
+  background: var(--p-accent);
+}
+
+.button {
+  align-self: flex-end;
+  width: 34%;
+  height: 11px;
+  border-radius: 4px;
+  background: var(--p-accent);
+}
+
+/* — hàng chấm màu nhấn — */
+.accents {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 22px;
+}
+
+.accentOption {
+  min-width: 44px;
+  padding-top: 4px;
+}
+
+.swatch {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--om-text) 15%, transparent);
+}
+
+.swatch::after {
+  content: "";
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: var(--om-preview-light-card);
+  opacity: 0;
+}
+
+.swatchOrange {
+  background: var(--om-swatch-orange);
+}
+
+.swatchBlue {
+  background: var(--om-swatch-blue);
+}
+
+.swatchCyan {
+  background: var(--om-swatch-cyan);
+}
+
+.swatchPink {
+  background: var(--om-swatch-pink);
+}
+
+.swatchSlate {
+  background: var(--om-swatch-slate);
+}
+
+.accentOption:hover .swatch {
+  outline: 2px solid var(--om-line-strong);
+  outline-offset: 3px;
+}
+
+.accentOption input:checked + .swatch {
+  outline: 2px solid var(--om-text);
+  outline-offset: 3px;
+}
+
+.accentOption input:checked + .swatch::after {
+  opacity: 1;
+}

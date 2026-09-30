@@ -172,6 +172,12 @@ Quy tắc:
   sau. `--om-link` chỉ dùng cho **màu chữ** của thứ bấm được; `--om-violet*`
   chỉ dùng cho nhãn trạng thái. Không cái nào làm màu nhấn — cam vẫn là màu
   nhấn duy nhất.
+
+  Người dùng đổi được màu nhấn sang xanh dương, xanh ngọc, hồng, xám than ở
+  menu tài khoản (chốt 2026-09-29). Mỗi bộ đè lên `--om-orange*` ở
+  `app/globals.css` qua `:root[data-accent="…"]`, nên component vẫn chỉ đọc
+  `--om-orange*`. Thêm token cam mới thì phải thêm giá trị cho mọi bộ ở đó,
+  và thêm màu biểu đồ ở `lib/chart-colors.ts`.
   **Không viết mã màu và khoảng cách cứng.** Ngoại lệ duy nhất: khối thương hiệu
   `BrandPanel` dùng đúng màu bộ nhận diện, có ghi chú lý do.
 - Component của design system dùng qua class có sẵn: `.btn`, `.input`, `.card`, `.tag`, `.table`

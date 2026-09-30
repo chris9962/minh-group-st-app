@@ -78,7 +78,7 @@ export default function RootLayout({
           vào HTML, ngoài cây React, nên nó chạy trước hydration như cũ.
         */}
         <Script id="mgst-theme-init" strategy="beforeInteractive">
-          {`try{var t=JSON.parse(localStorage.getItem("mgst-theme")||"{}").state?.theme;if(t)document.documentElement.dataset.theme=t}catch(e){}`}
+          {`try{var s=JSON.parse(localStorage.getItem("mgst-theme")||"{}").state||{},d=document.documentElement.dataset;if(s.theme)d.theme=s.theme;if(s.accent)d.accent=s.accent}catch(e){}`}
         </Script>
         <Providers>{children}</Providers>
       </body>
