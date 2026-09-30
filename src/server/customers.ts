@@ -62,6 +62,7 @@ import {
   customers,
   departments,
   giftGrantChanges,
+  giftGrantExtras,
   giftGrants,
   insuranceOrders,
   referralCodes,
@@ -406,14 +407,14 @@ function decorate(page: ReturnType<typeof pickPage>) {
               (select b->>'name' from jsonb_array_elements(${giftGrants.snapshot}->'basket') b
                 where b->>'code' = ${giftGrants.chosenItem} limit 1),
               ${giftGrants.chosenItem}) end,
-          case
-            when ${giftGrants.extraItem} is null or ${giftGrants.extraItem} = ${GIFT_DECLINED} then null
-            else coalesce(
-              (select b->>'name' from jsonb_array_elements(${giftGrants.snapshot}->'extraBasket') b
-                where b->>'code' = ${giftGrants.extraItem} limit 1),
-              (select b->>'name' from jsonb_array_elements(${giftGrants.snapshot}->'basket') b
-                where b->>'code' = ${giftGrants.extraItem} limit 1),
-              ${giftGrants.extraItem}) end
+          (select string_agg(coalesce(
+              (select b->>'name' from jsonb_array_elements(gift_grants.snapshot->'extraBasket') b
+                where b->>'code' = e.item limit 1),
+              (select b->>'name' from jsonb_array_elements(gift_grants.snapshot->'basket') b
+                where b->>'code' = e.item limit 1),
+              e.item), ' + ' order by e.chosen_at, e.id)
+            from gift_grant_extras e
+            where e.gift_grant_id = gift_grants.id and e.item <> ${GIFT_DECLINED})
         ), ''), ${GIFT_NONE_LABEL}) end`,
       channel: sql<string>`coalesce(${channels.name}, '')`,
       createdAt: page.createdAt,
@@ -1831,6 +1832,22 @@ export async function customerDetailFor(
     note: s.note,
   }));
 
+  // Quà thêm đã ghi của đợt, mỗi dòng HKD một dòng; dòng migration 0110 chuyển
+  // từ cột cũ có thể không có tài khoản, nên nối trái.
+  const givenExtraRows = grant
+    ? await db
+        .select({
+          bankAccountId: giftGrantExtras.bankAccountId,
+          item: giftGrantExtras.item,
+          bankCode: banks.code,
+        })
+        .from(giftGrantExtras)
+        .leftJoin(bankAccounts, eq(bankAccounts.id, giftGrantExtras.bankAccountId))
+        .leftJoin(banks, eq(banks.id, bankAccounts.bankId))
+        .where(eq(giftGrantExtras.giftGrantId, grant.id))
+        .orderBy(asc(giftGrantExtras.chosenAt), asc(giftGrantExtras.id))
+    : [];
+
   // Lịch sử này không đi qua phạm vi phòng của đơn/tài khoản: đó là lịch sử
   // của chính lượt quà trên hồ sơ khách, và chỉ ai có quyền đổi quà mới có thể
   // tạo thêm dòng mới.
@@ -1844,9 +1861,12 @@ export async function customerDetailFor(
           reason: giftGrantChanges.reason,
           changedByName: users.fullName,
           changedAt: giftGrantChanges.changedAt,
+          bankCode: banks.code,
         })
         .from(giftGrantChanges)
         .innerJoin(users, eq(users.id, giftGrantChanges.changedBy))
+        .leftJoin(bankAccounts, eq(bankAccounts.id, giftGrantChanges.bankAccountId))
+        .leftJoin(banks, eq(banks.id, bankAccounts.bankId))
         .where(eq(giftGrantChanges.giftGrantId, grant.id))
         .orderBy(desc(giftGrantChanges.changedAt), desc(giftGrantChanges.id))
     : [];
@@ -1918,18 +1938,24 @@ export async function customerDetailFor(
           // Snapshot chốt trước 2026-09-17 không có rổ quà thêm; điền rỗng để hình
           // dạng trả về không đổi theo tuổi của đợt.
           extraBasket: (grant.snapshot as GiftSimulateResult).extraBasket ?? [],
+          // Suất quà thêm theo dòng HKD HIỆN TẠI: dòng chưa có câu trả lời là
+          // chỗ nút "Chọn quà thêm" bù.
+          extraSlots: liveGift.extraSlots,
           liveBasket: liveGift.basket,
           liveExtraBasket: liveGift.extraBasket,
           given: true,
           givenItem: grantedItemLabel(grant.chosenItem, grant.snapshot),
           givenCode: grant.chosenItem,
-          givenExtraItem:
-            grant.extraItem === null
-              ? null
-              : grant.extraItem === GIFT_DECLINED
+          givenExtras: givenExtraRows.map((e) => ({
+            bankAccountId: e.bankAccountId,
+            // Dòng chuyển từ cột cũ không tìm được tài khoản: kỳ đó HKD chỉ kèm VPa.
+            bankCode: e.bankCode ?? "VPa",
+            code: e.item,
+            item:
+              e.item === GIFT_DECLINED
                 ? GIFT_EXTRA_DECLINED_LABEL
-                : grantedItemLabel(grant.extraItem, grant.snapshot),
-          givenExtraCode: grant.extraItem,
+                : grantedItemLabel(e.item, grant.snapshot),
+          })),
           givenAt: grant.grantedAt,
           changes: giftChanges,
         }
@@ -1940,8 +1966,7 @@ export async function customerDetailFor(
           given: false,
           givenItem: null,
           givenCode: null,
-          givenExtraItem: null,
-          givenExtraCode: null,
+          givenExtras: [],
           givenAt: null,
           changes: [],
         },

@@ -12,7 +12,10 @@ import { InsuranceOrderFormDialog } from "@/components/insurance/InsuranceOrderF
 import {
   GIFT_DECLINED,
   GIFT_NONE,
+  extraSlotKey,
+  extraSlotLabel,
   fetchCustomerDetail,
+  isCashOnlyGift,
   markGiftGiven,
   type CustomerDetail,
 } from "@/lib/api/customers";
@@ -35,9 +38,9 @@ type BasketItem = CustomerDetail["gift"]["basket"][number];
 /**
  * P-43 · Tặng quà — bật lên từ hồ sơ khách (P-42) hoặc bảng khách hàng (P-40).
  *
- * Hai rổ, mỗi rổ chọn ĐÚNG 1 món hoặc từ chối (chốt 2026-09-17):
- * - rổ chính: gói bảo hiểm của combo, hoặc món quy đổi của Phòng Y;
- * - rổ quà thêm: Loa hoặc Bảng mica của khách HKD, CỘNG THÊM vào rổ chính.
+ * Rổ chính chọn ĐÚNG 1 món hoặc từ chối: gói bảo hiểm của combo, hoặc món quy
+ * đổi của Phòng Y. Rổ quà thêm: MỖI dòng HKD của khách chọn đúng 1 món hoặc
+ * từ chối (chốt 2026-09-30), cộng thêm vào rổ chính.
  *
  * Món bảo hiểm tự mở form người thụ hưởng và tạo đơn luôn, món vật phẩm đánh
  * dấu đã tặng ngay. Rổ quà thêm chỉ có vật phẩm.
@@ -45,7 +48,8 @@ type BasketItem = CustomerDetail["gift"]["basket"][number];
 export function GiftGivingDialog({ open, onClose, customerId, customerName }: Props) {
   const queryClient = useQueryClient();
   const [selected, setSelected] = useState<string>("");
-  const [selectedExtra, setSelectedExtra] = useState<string>("");
+  /** Món đang chọn của từng dòng HKD, khoá theo `extraSlotKey`. */
+  const [selectedExtras, setSelectedExtras] = useState<Record<string, string>>({});
   const [creatingOrder, setCreatingOrder] = useState(false);
 
   const { data, isPending, isError, refetch, isFetching } = useQuery({
@@ -74,7 +78,8 @@ export function GiftGivingDialog({ open, onClose, customerId, customerName }: Pr
 
   const basket = data?.gift.basket ?? [];
   const extraBasket = data?.gift.extraBasket ?? [];
-  const hasExtra = extraBasket.length > 0;
+  const extraSlots = data?.gift.extraSlots ?? [];
+  const hasExtra = extraBasket.length > 0 && extraSlots.length > 0;
   /**
    * Rổ chính rỗng mà rổ quà thêm có món — khách chỉ có dòng HKD. Không có gì để chọn
    * ở rổ chính nên máy chủ nhận `NONE`, khác với "từ chối".
@@ -83,21 +88,28 @@ export function GiftGivingDialog({ open, onClose, customerId, customerName }: Pr
 
   // Sự thật gửi lên máy chủ. `DECLINE` là giá trị nội bộ của nút radio.
   const mainCode = mainIsNone ? GIFT_NONE : selected === DECLINE ? GIFT_DECLINED : selected;
-  const extraCode = !hasExtra ? null : selectedExtra === DECLINE ? GIFT_DECLINED : selectedExtra || null;
-  const chosenExtra = extraBasket.find((b) => b.code === extraCode) ?? null;
+  const extras = hasExtra
+    ? extraSlots.map((slot) => {
+        const picked = selectedExtras[extraSlotKey(slot)] ?? "";
+        return { bankAccountId: slot.bankAccountId, item: picked === DECLINE ? GIFT_DECLINED : picked };
+      })
+    : [];
+  const chosenExtraNames = extras
+    .map((e) => extraBasket.find((b) => b.code === e.item)?.name ?? "")
+    .filter(Boolean);
 
-  const ready = (mainIsNone || selected !== "") && (!hasExtra || selectedExtra !== "");
+  const ready = (mainIsNone || selected !== "") && extras.every((e) => e.item !== "");
 
   // Gửi MÃ món lên máy chủ (#74), nhưng toast phải nói TÊN — người dùng không
   // đọc `BH-1N-XEMAY`. Nên mutation nhận cả hai.
   const markGiven = useMutation({
     mutationFn: ({ code, orderIds = [] }: { code: string; label: string; orderIds?: string[] }) =>
-      markGiftGiven(customerId, code, orderIds, extraCode),
+      markGiftGiven(customerId, code, orderIds, extras),
     onSuccess: (_data, { code, label }) => {
       queryClient.invalidateQueries({ queryKey: ["customers"] });
       queryClient.invalidateQueries({ queryKey: ["customer", customerId] });
       onClose();
-      const parts = [code === GIFT_DECLINED || code === GIFT_NONE ? "" : label, chosenExtra?.name ?? ""].filter(
+      const parts = [code === GIFT_DECLINED || code === GIFT_NONE ? "" : label, ...chosenExtraNames].filter(
         Boolean,
       );
       toast.ok(
@@ -156,24 +168,32 @@ export function GiftGivingDialog({ open, onClose, customerId, customerName }: Pr
     }
   };
 
-  const renderCard = (item: BasketItem, group: "main" | "extra", index: number) => {
-    const current = group === "main" ? selected : selectedExtra;
-    const pick = group === "main" ? setSelected : setSelectedExtra;
-    const isInsurance = group === "main" && packages.some((p) => p.id === item.id);
+  /** Một nhóm radio: rổ chính hoặc một dòng HKD. */
+  type Group = { name: string; current: string; pick: (code: string) => void; insurance: boolean };
+  const mainGroup: Group = { name: "gift-choice-main", current: selected, pick: setSelected, insurance: true };
+  const extraGroupOf = (key: string): Group => ({
+    name: `gift-choice-extra-${key}`,
+    current: selectedExtras[key] ?? "",
+    pick: (code) => setSelectedExtras((prev) => ({ ...prev, [key]: code })),
+    insurance: false,
+  });
+
+  const renderCard = (item: BasketItem, group: Group, index: number) => {
+    const isInsurance = group.insurance && packages.some((p) => p.id === item.id);
     // Vẫn hiện, nhưng không chọn được: khách đủ điều kiện nhận món này, chỉ là
     // danh mục đang ngừng cấp. Giấu đi thì nhân viên tưởng khách không được hưởng.
     const off = item.status !== "ok";
     return (
       <label
-        key={`${group}-${item.code}-${index}`}
-        className={clsx(styles.card, current === item.code && styles.cardActive, off && styles.cardOff)}
+        key={`${group.name}-${item.code}-${index}`}
+        className={clsx(styles.card, group.current === item.code && styles.cardActive, off && styles.cardOff)}
       >
         <input
           type="radio"
-          name={`gift-choice-${group}`}
+          name={group.name}
           disabled={off}
-          checked={!off && current === item.code}
-          onChange={() => pick(item.code)}
+          checked={!off && group.current === item.code}
+          onChange={() => group.pick(item.code)}
         />
         <span className={styles.cardName}>{item.name}</span>
         <span className={styles.cardKind}>
@@ -189,27 +209,23 @@ export function GiftGivingDialog({ open, onClose, customerId, customerName }: Pr
     );
   };
 
-  const renderDecline = (group: "main" | "extra", label: string) => {
-    const current = group === "main" ? selected : selectedExtra;
-    const pick = group === "main" ? setSelected : setSelectedExtra;
-    return (
-      <label className={clsx(styles.card, current === DECLINE && styles.cardActive)}>
-        <input
-          type="radio"
-          name={`gift-choice-${group}`}
-          checked={current === DECLINE}
-          onChange={() => pick(DECLINE)}
-        />
-        <span className={styles.cardName}>{label}</span>
-      </label>
-    );
-  };
+  const renderDecline = (group: Group, label: string) => (
+    <label className={clsx(styles.card, group.current === DECLINE && styles.cardActive)}>
+      <input
+        type="radio"
+        name={group.name}
+        checked={group.current === DECLINE}
+        onChange={() => group.pick(DECLINE)}
+      />
+      <span className={styles.cardName}>{label}</span>
+    </label>
+  );
 
   return (
     <Dialog
       open={open}
       onClose={onClose}
-      title={`Tặng quà · ${customerName}`}
+      title={`Tặng quà - ${customerName}`}
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>
@@ -255,7 +271,11 @@ export function GiftGivingDialog({ open, onClose, customerId, customerName }: Pr
               </p>
 
               {basket.length === 0 && !hasExtra ? (
-                <p className="text-muted">Khách chưa đủ điều kiện nhận quà.</p>
+                // Danh sách khách (P-40) vẫn mở được hộp này cho khách chỉ nhận
+                // tiền; câu "chưa đủ điều kiện" sai với họ.
+                <p className="text-muted">
+                  {isCashOnlyGift(data.gift) ? "Khách chỉ nhận tiền mặt." : "Khách chưa đủ điều kiện nhận quà."}
+                </p>
               ) : (
                 <>
                   <fieldset className={styles.group}>
@@ -268,25 +288,30 @@ export function GiftGivingDialog({ open, onClose, customerId, customerName }: Pr
                           Chọn <strong>đúng 1</strong> món dưới đây:
                         </p>
                         <div className={styles.cards}>
-                          {basket.map((item, i) => renderCard(item, "main", i))}
-                          {renderDecline("main", "Từ chối, không lấy gì")}
+                          {basket.map((item, i) => renderCard(item, mainGroup, i))}
+                          {renderDecline(mainGroup, "Từ chối, không lấy gì")}
                         </div>
                       </>
                     )}
                   </fieldset>
 
-                  {hasExtra && (
-                    <fieldset className={styles.group}>
-                      <legend className={styles.groupTitle}>Quà thêm HKD</legend>
-                      <p className={styles.hint}>
-                        Khách có HKD nên được thêm <strong>đúng 1</strong> món dưới đây, cộng với quà chính:
-                      </p>
-                      <div className={styles.cards}>
-                        {extraBasket.map((item, i) => renderCard(item, "extra", i))}
-                        {renderDecline("extra", "Từ chối quà thêm")}
-                      </div>
-                    </fieldset>
-                  )}
+                  {/* Mỗi dòng HKD một nhóm: khách có hai HKD thì chọn hai lần. */}
+                  {hasExtra &&
+                    extraSlots.map((slot) => {
+                      const group = extraGroupOf(extraSlotKey(slot));
+                      return (
+                        <fieldset key={group.name} className={styles.group}>
+                          <legend className={styles.groupTitle}>Quà thêm {extraSlotLabel(slot)}</legend>
+                          <p className={styles.hint}>
+                            Chọn <strong>đúng 1</strong> món dưới đây, cộng với quà chính:
+                          </p>
+                          <div className={styles.cards}>
+                            {extraBasket.map((item, i) => renderCard(item, group, i))}
+                            {renderDecline(group, "Từ chối quà thêm")}
+                          </div>
+                        </fieldset>
+                      );
+                    })}
                 </>
               )}
 

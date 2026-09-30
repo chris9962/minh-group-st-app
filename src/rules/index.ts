@@ -3,6 +3,7 @@ import * as period202608 from "./2026-08";
 import * as period202609 from "./2026-09";
 import * as period20260916 from "./2026-09-16";
 import * as period20260928 from "./2026-09-28";
+import * as period20261001 from "./2026-10-01";
 import type { Tier } from "./2026-08";
 
 export type { Tier };
@@ -107,9 +108,10 @@ export type GiftCash = {
   amount: number;
   /**
    * Hạn công ty phải chi, tính bằng ngày. CHỈ ĐỂ HIỆN — việc chi tiền nằm ngoài
-   * hệ thống này (chốt 07/08), không màn nào theo dõi đã chi hay chưa.
+   * hệ thống này (chốt 07/08), không màn nào theo dõi đã chi hay chưa. Kỳ
+   * 2026-10-01 bỏ hạn chi, nên tuỳ chọn.
    */
-  withinDays: number;
+  withinDays?: number;
   reason: string;
 };
 
@@ -155,6 +157,13 @@ export type GiftResult = {
    * trong khi thể lệ cho cả hai. Kỳ 2026-08 không có rổ quà thêm, luôn rỗng.
    */
   extraBasket: GiftChoice[];
+  /**
+   * Mã ngân hàng của từng dòng HKD được quà thêm, mỗi dòng chọn MỘT món trong
+   * `extraBasket` (kỳ 2026-10-01, thể lệ mục 4b). File kỳ trước không khai:
+   * `giftFor` điền `["VPa"]` khi rổ quà thêm có món, vì các kỳ đó HKD chỉ kèm
+   * `VPa` và một món mỗi hồ sơ.
+   */
+  extraBanks?: string[];
   /**
    * Vì sao ra kết quả này, mỗi dòng một lý do.
    *
@@ -210,6 +219,7 @@ const PERIODS: Record<string, PeriodRules> = {
   "2026-09-01": period202609,
   "2026-09-16": period20260916,
   "2026-09-28": period20260928,
+  "2026-10-01": period20261001,
 };
 
 /**
@@ -325,7 +335,10 @@ export function bankingPointsFor(
  */
 export function giftFor(input: GiftInput, at: string): GiftResult | null {
   const rules = rulesFor(at);
-  return rules ? rules.gift(input) : null;
+  if (!rules) return null;
+  const result = rules.gift(input);
+  // File kỳ trước 2026-10-01 đóng băng, không thêm trường: một món mỗi hồ sơ, dòng HKD là VPa.
+  return { ...result, extraBanks: result.extraBanks ?? (result.extraBasket.length > 0 ? ["VPa"] : []) };
 }
 
 /**

@@ -16,7 +16,7 @@ import { MAX_BANK_ACCOUNTS_PER_CUSTOMER, type AccountType } from "@/lib/api/bank
 import { fetchChannels } from "@/lib/api/channelCatalog";
 import { simulateGift, type GiftSimulateInput } from "@/lib/api/settings";
 import { businessDay, formatVnd } from "@/lib/format";
-import { bankTierLabelFor, openBlockReasonAt } from "@/rules";
+import { bankTierLabelFor, householdPointsAt, openBlockReasonAt } from "@/rules";
 import styles from "./RuleSimulator.module.scss";
 
 /**
@@ -32,8 +32,8 @@ import styles from "./RuleSimulator.module.scss";
  */
 const DEPARTMENTS: { value: string; label: string }[] = [
   { value: "", label: "— Không thuộc phòng có luật riêng —" },
-  { value: "PHONG-Y", label: "Phòng Y — quy đổi quà ở TH5, TH6" },
-  { value: "PHONG-DU-AN", label: "Phòng Dự án — quy đổi quà ở TH5, TH6" },
+  { value: "PHONG-Y", label: "Phòng Y" },
+  { value: "PHONG-DU-AN", label: "Phòng Dự án" },
 ];
 
 /**
@@ -43,10 +43,10 @@ const DEPARTMENTS: { value: string; label: string }[] = [
  * CNKD kèm mọi ngân hàng trong thể lệ (chủ dự án chốt 2026-09-15). Bản trước
  * chỉ hiện trên `VPa`, `VPb` nên không thử được MSBb kèm CNKD.
  *
- * Ô chọn KHÔNG có `HKD`: dòng HKD là tài khoản VPa THỨ HAI, đứng cạnh dòng
- * chính (chốt 2026-09-06), nên nó là một thẻ riêng trong danh sách, xem
- * `HKD_ROW`. Bản trước để HKD trong ô chọn này, và người thử không dựng được
- * ca "VPa thường kèm dòng HKD".
+ * Ô chọn KHÔNG có `HKD`: dòng HKD là tài khoản THỨ HAI của ngân hàng đó, đứng
+ * cạnh dòng chính (chốt 2026-09-06), nên nó là một thẻ riêng trong danh sách,
+ * xem `hkdScores`. Bản trước để HKD trong ô chọn này, và người thử không dựng
+ * được ca "VPa thường kèm dòng HKD".
  */
 const ACCOUNT_TYPE_OPTIONS: { value: AccountType; label: string }[] = [
   { value: "none", label: "Không" },
@@ -54,11 +54,20 @@ const ACCOUNT_TYPE_OPTIONS: { value: AccountType; label: string }[] = [
 ];
 
 /**
- * Thẻ "VPa HKD" đứng ngay sau thẻ VPa. Tick một mình là ca "chỉ dòng HKD";
- * tick cùng thẻ VPa là "VPa thường kèm dòng HKD". Không đi chung với VPa loại
- * CNKD (`slotConflict` ở server/banking.ts), và không chiếm chỗ trần 3.
+ * Ngân hàng này có thẻ "<mã> HKD" ở ngày đang thử không. Tra từ luật, không
+ * viết cứng mã: kỳ trước 2026-10-01 chỉ `VPa` có điểm HKD, từ kỳ đó là mọi ngân
+ * hàng trong thể lệ và khách tick được nhiều thẻ HKD.
+ *
+ * Thẻ đứng ngay sau thẻ của ngân hàng đó. Tick một mình là ca "chỉ dòng HKD";
+ * tick cùng thẻ chính là "tài khoản thường kèm dòng HKD". Không đi chung với
+ * loại CNKD của cùng ngân hàng (`slotConflict` ở server/banking.ts), và không
+ * chiếm chỗ trần 3.
  */
-const HKD_ROW = { bankCode: "VPa", label: "VPa HKD" };
+const hkdScores = (bankCode: string, at: string): boolean =>
+  householdPointsAt(
+    [{ customerId: "simulate", bankCode, appInstalled: true, openedDate: at, household: "HKD" }],
+    at,
+  ) > 0;
 
 /**
  * P-81 · Nút thử — chỉ tính toán, không ghi gì (spec §5.3). Không tạo khách,
@@ -81,14 +90,15 @@ export function RuleSimulator() {
   const [channel, setChannel] = useState("");
   const [department, setDepartment] = useState("");
   /**
-   * Mặc định 2026-09-28, ngày kỳ luật mới bắt đầu, để Kế toán thử bản mới mà
+   * Mặc định 2026-10-01, ngày kỳ luật mới bắt đầu, để Kế toán thử bản mới mà
    * không phải nhớ đổi ngày. Xoá trống thì máy chủ dùng ngày làm việc — xem
    * `GiftSimulateInput.at`. Đổi lại khi kỳ này không còn là kỳ mới nhất.
    */
-  const [at, setAt] = useState("2026-09-28");
+  const [at, setAt] = useState("2026-10-01");
   /** Một mã cho mỗi ngân hàng chủ — khách tick CNKD trên VPa hay VPb là hai ca khác nhau. */
   const [accountTypes, setAccountTypes] = useState<Record<string, AccountType>>({});
-  const [hkd, setHkd] = useState(false);
+  /** Mã ngân hàng của các thẻ HKD đang tick. */
+  const [hkd, setHkd] = useState<string[]>([]);
   const [rulesOpen, setRulesOpen] = useState(false);
 
   const { data: allBanks = [] } = useQuery({ queryKey: ["banks"], queryFn: fetchBanks });
@@ -102,6 +112,10 @@ export function RuleSimulator() {
    * (AGENTS.md §7). Chính nó cũng là khoá truy vấn: ô nào đổi thì khoá đổi và
    * TanStack Query chạy lại.
    */
+  // Đổi ngày thử về kỳ chỉ nhận VPa HKD thì thẻ HKD của ngân hàng khác không
+  // còn hiện, dòng đang tick của nó cũng không được gửi đi.
+  const simulateAt = at || businessDay();
+  const hkdPicked = hkd.filter((bankCode) => hkdScores(bankCode, simulateAt));
   const input: GiftSimulateInput = {
     accounts: [
       ...opened.map((bankCode) => ({
@@ -109,15 +123,11 @@ export function RuleSimulator() {
         appInstalled: apps.includes(bankCode),
         accountType: accountTypes[bankCode] ?? ("none" as AccountType),
       })),
-      ...(hkd
-        ? [
-            {
-              bankCode: HKD_ROW.bankCode,
-              appInstalled: apps.includes(HKD_ROW.bankCode),
-              accountType: "HKD" as AccountType,
-            },
-          ]
-        : []),
+      ...hkdPicked.map((bankCode) => ({
+        bankCode,
+        appInstalled: apps.includes(bankCode),
+        accountType: "HKD" as AccountType,
+      })),
     ],
     channelCodes: channel ? [channel] : [],
     departmentCode: department || null,
@@ -144,7 +154,7 @@ export function RuleSimulator() {
   const run = useQuery({
     queryKey: ["gift-simulate", input],
     queryFn: () => simulateGift(input),
-    enabled: opened.length > 0 || hkd,
+    enabled: opened.length > 0 || hkdPicked.length > 0,
     placeholderData: (prev) => prev,
   });
 
@@ -224,16 +234,16 @@ export function RuleSimulator() {
         <ul className={styles.banks}>
           {activeBanks.map((bank) => {
             const picked = opened.includes(bank.code);
-            // Hai chiều của "CNKD và HKD không đi chung": VPa đang tick và chọn
-            // CNKD thì khoá thẻ HKD; thẻ HKD đang tick thì ô chọn VPa bỏ CNKD.
-            // Chỉ xét VPa ĐANG TICK: bỏ tick VPa là dòng đó không còn trong
-            // request, loại đã chọn không còn nghĩa.
-            const hkdBlocked =
-              opened.includes(HKD_ROW.bankCode) && accountTypes[HKD_ROW.bankCode] === "CNKD";
-            const typeOptions =
-              hkd && bank.code === HKD_ROW.bankCode
-                ? ACCOUNT_TYPE_OPTIONS.filter((o) => o.value !== "CNKD")
-                : ACCOUNT_TYPE_OPTIONS;
+            // Hai chiều của "CNKD và HKD không đi chung" trong CÙNG một ngân
+            // hàng: thẻ chính đang tick và chọn CNKD thì khoá thẻ HKD; thẻ HKD
+            // đang tick thì ô chọn của thẻ chính bỏ CNKD. Chỉ xét thẻ chính
+            // ĐANG TICK: bỏ tick là dòng đó không còn trong request, loại đã
+            // chọn không còn nghĩa.
+            const hkdOn = hkdPicked.includes(bank.code);
+            const hkdBlocked = picked && accountTypes[bank.code] === "CNKD";
+            const typeOptions = hkdOn
+              ? ACCOUNT_TYPE_OPTIONS.filter((o) => o.value !== "CNKD")
+              : ACCOUNT_TYPE_OPTIONS;
             /**
              * Cùng luật chặn với hộp thoại mở tài khoản (`openBlockReason` ở
              * `src/rules`): màn thử chỉ dựng được khách hệ thống dựng được.
@@ -304,16 +314,22 @@ export function RuleSimulator() {
                     </div>
                   )}
                 </li>
-                {bank.code === HKD_ROW.bankCode && (
+                {hkdScores(bank.code, ruleAt) && (
                   <li
-                    className={clsx(styles.bank, hkd && styles.bankOn, hkdBlocked && styles.bankOff)}
+                    className={clsx(styles.bank, hkdOn && styles.bankOn, hkdBlocked && styles.bankOff)}
                   >
                     <Checkbox
                       block
-                      label={HKD_ROW.label}
-                      checked={hkd}
+                      label={`${bank.code} HKD`}
+                      checked={hkdOn}
                       disabled={hkdBlocked}
-                      onCheckedChange={() => setHkd((prev) => !prev)}
+                      onCheckedChange={() =>
+                        setHkd((prev) =>
+                          prev.includes(bank.code)
+                            ? prev.filter((code) => code !== bank.code)
+                            : [...prev, bank.code],
+                        )
+                      }
                     />
                   </li>
                 )}
@@ -359,7 +375,7 @@ export function RuleSimulator() {
       {/* Bỏ tick hết ngân hàng thì xoá luôn kết quả. `placeholderData` giữ số
           của lần chọn trước, nên không có dòng này là màn hiện kết quả của một
           tình huống người dùng vừa xoá. */}
-      {(opened.length > 0 || hkd) && run.data && (
+      {(opened.length > 0 || hkdPicked.length > 0) && run.data && (
         <div className={styles.result}>
           {/* Ba con số kết luận đứng thành hàng riêng: người dùng mở màn này để
               biết khách rơi vào bậc nào, được bao nhiêu tiền và bao nhiêu điểm.
@@ -376,7 +392,7 @@ export function RuleSimulator() {
                 )}
                 {run.data.insuranceYears > 0 && (
                   <span className={styles.statNote}>
-                    {run.data.caseCode === "TH5"
+                    {run.data.caseCode === "TH5" && run.data.insuranceYears === 2
                       ? "Chọn gói bảo hiểm 1 hoặc 2 năm"
                       : `${run.data.insuranceYears} năm bảo hiểm`}
                   </span>

@@ -1274,13 +1274,7 @@ export const giftGrants = pgTable(
     cashTotal: integer("cash_total").notNull().default(0),
     /** Tên món đã chọn, hoặc câu mô tả việc từ chối. */
     chosenItem: text("chosen_item").notNull(),
-    /**
-     * Quà PHỤ của khách HKD — mã món trong `snapshot.extraBasket`, hoặc
-     * `DECLINED` (chốt 2026-09-17). `null` = chưa chọn: đợt phát trước ngày đó
-     * không có bước này, và khách không có rổ quà thêm cũng để `null`.
-     */
-    extraItem: text("extra_item"),
-    /** Rổ quà + breakdown ĐÓNG BĂNG lúc chốt — chỗ jsonb có chủ đích duy nhất. */
+    /** Rổ quà + breakdown ĐÓNG BĂNG lúc chốt — chỗ jsonb có chủ đích duy nhất. Quà thêm HKD ở `gift_grant_extras`. */
     snapshot: jsonb("snapshot").notNull(),
   },
   (t) => [
@@ -1377,6 +1371,8 @@ export const giftGrantChanges = pgTable(
      * không nói được khách vẫn giữ gói bảo hiểm.
      */
     part: text("part", { enum: ["main", "extra"] }).notNull().default("main"),
+    /** Dòng đổi quà thêm nói rõ tài khoản HKD nào (migration 0110); dòng cũ và dòng quà chính để null. */
+    bankAccountId: uuid("bank_account_id").references(() => bankAccounts.id, { onDelete: "set null" }),
     reason: text("reason").notNull(),
     changedBy: uuid("changed_by")
       .notNull()
@@ -1386,6 +1382,44 @@ export const giftGrantChanges = pgTable(
   (t) => [
     index("gift_grant_changes_grant_time").on(t.giftGrantId, t.changedAt),
     check("gift_grant_changes_part", sql`part in ('main', 'extra')`),
+  ],
+);
+
+/**
+ * Quà thêm HKD của một đợt phát, MỖI TÀI KHOẢN HKD MỘT DÒNG (chủ dự án duyệt
+ * 2026-09-30, thể lệ kỳ 2026-10-01 mục 4b). Bản trước là cột
+ * `gift_grants.extra_item`, một món cho cả khách, nên không nói được HKD nào
+ * chọn món nào khi khách có hai tài khoản HKD.
+ *
+ * `item` là mã món trong `snapshot.extraBasket` hoặc `DECLINED`. Dòng HKD của
+ * khách chưa có dòng ở đây là "chưa chọn": hộp thoại Chọn quà thêm bù.
+ *
+ * `bank_account_id` null ở ba ca: dòng migration 0110 chuyển từ cột cũ mà
+ * không tìm được dòng HKD; khách ghi HKD theo cách cũ (tài khoản riêng mã
+ * `HKD`); và tài khoản HKD bị xoá sau lượt phát (`on delete set null`, để nút
+ * Xoá tài khoản ở màn chi tiết tài khoản vẫn chạy).
+ *
+ * TODO(quà thêm HKD, lượt deploy sau migration 0110): cột
+ * `gift_grants.extra_item` còn trong DB, không khai ở đây và không ai đọc ghi.
+ * Giữ để `deploy/deploy.sh` lùi về bản cũ vẫn chạy; bỏ bằng migration riêng.
+ */
+export const giftGrantExtras = pgTable(
+  "gift_grant_extras",
+  {
+    id: id(),
+    giftGrantId: uuid("gift_grant_id")
+      .notNull()
+      .references(() => giftGrants.id, { onDelete: "cascade" }),
+    bankAccountId: uuid("bank_account_id").references(() => bankAccounts.id, { onDelete: "set null" }),
+    item: text("item").notNull(),
+    chosenBy: uuid("chosen_by").references(() => users.id),
+    chosenAt: timestamp("chosen_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("gift_grant_extras_slot")
+      .on(t.giftGrantId, t.bankAccountId)
+      .where(sql`bank_account_id is not null`),
+    index("gift_grant_extras_grant").on(t.giftGrantId),
   ],
 );
 

@@ -28,7 +28,10 @@ export const ScoringExportRow = z.object({
   openedBanks: z.array(z.string()),
   msbAccountNumber: z.string(),
   /** `CNKD` · `HKD` · rỗng. */
-  household: z.string(),
+  /** Loại hộ kinh doanh của tài khoản VPa: `CNKD`, `HKD` hoặc rỗng. Hai cột vì HKD mở được ở nhiều ngân hàng từ kỳ 2026-10-01. */
+  householdVpa: z.string(),
+  /** Như trên, của tài khoản MB. */
+  householdMb: z.string(),
   /** Mã ngân hàng đã cài app trên thiết bị, đọc cả dòng VPa HKD. */
   installedBanks: z.array(z.string()),
   /** Món đã giao kèm tiền đã ghi, đọc từ đợt phát. Rỗng khi chưa phát. */

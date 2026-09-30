@@ -82,21 +82,35 @@ export function BankComboRulesDialog({ open, onClose, at, banks }: Props) {
   const notes = openNotesAt(at);
 
   /**
-   * Điểm CNKD và HKD tra bằng một khách giả có đúng ngân hàng chủ: HKD chỉ kèm
-   * VPa, CNKD kèm bất kỳ ngân hàng nào nên tra bằng VPa là đủ. Dòng ra 0 bỏ.
+   * Điểm CNKD và HKD tra bằng một khách giả mở `VPa`: mọi kỳ đều nhận `VPa` làm
+   * ngân hàng chủ của cả hai. Dòng ra 0 bỏ.
+   *
+   * Chữ của dòng HKD cũng tra từ luật, không viết cứng theo ngày: khách có HKD
+   * ở hai ngân hàng mà điểm cao hơn một HKD thì kỳ đó tính theo từng tài khoản
+   * (kỳ 2026-10-01), ngược lại là một mức cho cả khách và chỉ kèm `VPa`.
    */
-  const household = (label: string, kind: "CNKD" | "HKD") => {
-    const acc: ScoringAccount = {
-      customerId: "rules",
-      bankCode: "VPa",
-      appInstalled: true,
-      openedDate: at,
-      household: kind,
-    };
-    return { label, points: householdPointsAt([acc], at) };
-  };
-  const extras = [household("CNKD, cộng thêm mỗi khách", "CNKD"), household("VPa HKD, cộng thêm mỗi khách", "HKD")]
-    .filter((r) => r.points > 0);
+  const householdAccount = (bankCode: string, kind: "CNKD" | "HKD"): ScoringAccount => ({
+    customerId: "rules",
+    bankCode,
+    appInstalled: true,
+    openedDate: at,
+    household: kind,
+  });
+  const hkdPoints = householdPointsAt([householdAccount("VPa", "HKD")], at);
+  const secondBank = TIERS.flatMap((tier) => pools[tier]).find((code) => code !== "VPa");
+  const hkdPerAccount =
+    secondBank !== undefined &&
+    householdPointsAt([householdAccount("VPa", "HKD"), householdAccount(secondBank, "HKD")], at) > hkdPoints;
+  const extras = [
+    {
+      label: "CNKD, cộng thêm mỗi khách",
+      points: householdPointsAt([householdAccount("VPa", "CNKD")], at),
+    },
+    {
+      label: hkdPerAccount ? "HKD, cộng thêm mỗi tài khoản" : "VPa HKD, cộng thêm mỗi khách",
+      points: hkdPoints,
+    },
+  ].filter((r) => r.points > 0);
 
   /**
    * Dựng ra `document.body`, không lồng trong hộp thoại đang gọi.

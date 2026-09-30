@@ -8,7 +8,7 @@ import { isRealIsoDate, type User } from "@/lib/types";
 import { accountExportWhere } from "./banking";
 import { customerDayText } from "./customerDay";
 import { addressWhere } from "./customers";
-import { grantedLabel } from "./gift";
+import { extraItemsSql, grantedLabel } from "./gift";
 import { searchTerms } from "@/lib/search";
 import { db } from "./db/client";
 import {
@@ -220,13 +220,36 @@ const withExtraBasket = (main: string, extra: string): string =>
  * Các khoản tiền khác vẫn giữ theo thời điểm chốt. Vì vậy không dùng thẳng
  * `gift.cashTotal`: làm vậy sẽ biến cả 50k MSBa thành dữ liệu động.
  */
-export function giftReportLabel(
-  grant: { chosenItem: string; extraItem: string | null; cashTotal: number; snapshot: unknown } | undefined,
-  currentGift: Pick<GiftResult, "cash"> | null,
+/** Mã danh mục của cái loa, cùng lối với `HEALTH_GIFT_CODE`. */
+const SPEAKER_CODE = "QUA-LOA";
+
+/** Cột `LOA`: số loa đã phát, "LOA" khi một cái, "LOA x2" khi hai dòng HKD cùng lấy loa. */
+function speakerLabel(
+  grant: { chosenItem: string; extraItems: string[] } | undefined,
 ): string {
   if (!grant) return "";
-  // Quà chính + quà thêm trong một chữ, "Gói BH 2 năm + Loa".
-  const name = grantedLabel(grant.chosenItem, grant.extraItem, grant.snapshot);
+  const count =
+    grant.extraItems.filter((item) => item === SPEAKER_CODE).length +
+    (grant.chosenItem === SPEAKER_CODE ? 1 : 0);
+  return count === 0 ? "" : count === 1 ? "LOA" : `LOA x${count}`;
+}
+
+export function giftReportLabel(
+  grant: { chosenItem: string; extraItems: string[]; cashTotal: number; snapshot: unknown } | undefined,
+  currentGift: Pick<GiftResult, "cash"> | null,
+): string {
+  /**
+   * Chưa có lượt tặng thì vẫn ghi TIỀN (chủ dự án chốt 2026-09-30): tiền mặt
+   * là mặc định theo tài khoản khách mở, không đợi bấm Tặng quà. Bản trước để
+   * trống, nên khách chỉ nhận tiền (TH2, TH3, TH4 kỳ 2026-10-01) không bao giờ
+   * có gì ở cột này: rổ của họ rỗng, không có lượt tặng nào để ghi.
+   */
+  if (!grant) {
+    const cash = currentGift?.cash.reduce((sum, item) => sum + item.amount, 0) ?? 0;
+    return cash > 0 ? shortCash(cash) : "";
+  }
+  // Quà chính + quà thêm của từng dòng HKD trong một chữ, "Gói BH 2 năm + Loa".
+  const name = grantedLabel(grant.chosenItem, grant.extraItems, grant.snapshot);
 
   // Không có dữ liệu sống để đối chiếu thì giữ nguyên số đã chốt, không tự
   // xoá tiền khỏi báo cáo chỉ vì một hồ sơ cũ thiếu ngày mở tài khoản.
@@ -412,7 +435,7 @@ export async function listScoringExport(
       .select({
         customerId: giftGrants.customerId,
         chosenItem: giftGrants.chosenItem,
-        extraItem: giftGrants.extraItem,
+        extraItems: extraItemsSql,
         cashTotal: giftGrants.cashTotal,
         // Rổ quà ĐÓNG BĂNG lúc phát — nguồn duy nhất nói đúng khách được chọn
         // những món nào, tên món lúc phát, và bậc lúc phát.
@@ -505,13 +528,22 @@ export async function listScoringExport(
      */
     const comboPoints = Number((total - householdPoints).toFixed(2));
 
-    const household =
-      accounts.find((a) => a.accountType !== "none")?.accountType ??
-      (accounts.some((a) => a.bankCode === "CNKD")
-        ? "CNKD"
-        : accounts.some((a) => a.bankCode === "HKD")
-          ? "HKD"
-          : "");
+    /**
+     * Hai cột `HKD/CNKD VPa` và `HKD/CNKD MB` (chủ dự án chốt 2026-09-30): từ kỳ
+     * 2026-10-01 khách có HKD ở nhiều ngân hàng, một cột chung chỉ ghi được
+     * loại của dòng đầu tiên. Một ngân hàng không vừa CNKD vừa HKD
+     * (`slotConflict`), nên mỗi ô một giá trị.
+     *
+     * Cách ghi cũ, tài khoản riêng mang mã `CNKD`/`HKD`, vào cột VPa: kỳ đó hai
+     * mã chỉ kèm VPa.
+     */
+    const householdOf = (bankCode: string): string =>
+      accounts.find((a) => a.bankCode === bankCode && a.accountType !== "none")?.accountType ?? "";
+    const legacyHousehold = accounts.some((a) => a.bankCode === "CNKD")
+      ? "CNKD"
+      : accounts.some((a) => a.bankCode === "HKD")
+        ? "HKD"
+        : "";
 
     rows.push({
       customerId,
@@ -525,7 +557,8 @@ export async function listScoringExport(
       // File chỉ có ô STK cho MSB; hai mã MSB dùng chung một ô.
       msbAccountNumber:
         accounts.find((a) => a.bankCode.startsWith("MSB"))?.accountNumber ?? "",
-      household: household === "none" ? "" : household,
+      householdVpa: householdOf("VPa") || legacyHousehold,
+      householdMb: householdOf("MB"),
       // Khử trùng như `bankCodes`: khách có hai tài khoản cùng một ngân hàng
       // thì ô app cài vẫn là một, y hệt file Kế toán ghi mỗi ngân hàng một ô.
       // Khác `bankCodes`, khối này đọc CẢ dòng HKD (chốt 2026-09-07): ô VPa
@@ -536,8 +569,9 @@ export async function listScoringExport(
       giftReport: giftReportLabel(grant, gift),
       giftCombo: liveBasketLabel(gift, catalogName),
       giftBasketAtGrant: frozenBasketLabel(grant?.snapshot ?? null),
-      // Loa nằm ở quà thêm từ 2026-09-17; đợt kỳ 2026-08 còn ghi ở quà chính.
-      speaker: grant?.extraItem === "QUA-LOA" || grant?.chosenItem === "QUA-LOA" ? "LOA" : "",
+      // Loa nằm ở quà thêm từ 2026-09-17, mỗi dòng HKD một cái từ 2026-10-01;
+      // đợt kỳ 2026-08 còn ghi ở quà chính.
+      speaker: speakerLabel(grant),
       insuranceLabel: insurance
         ? insuranceLabelOf(insurance.product, insurance.packageName)
         : "",

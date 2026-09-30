@@ -23,7 +23,7 @@ import { comboPointsFor } from "../src/rules/2026-08";
 
 const PERIOD = "2026-08";
 
-type Value = number | boolean | string | null;
+type Value = number | boolean | string | null | undefined;
 
 let passed = 0;
 const failures: string[] = [];

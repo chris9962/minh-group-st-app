@@ -24,7 +24,7 @@ const gift = (cash: { bankCode: string; amount: number }[]): Pick<GiftResult, "c
 
 const grant = (cashTotal: number, frozenCash: { bankCode: string; amount: number }[]) => ({
   chosenItem: "BH-1N",
-  extraItem: null,
+  extraItems: [] as string[],
   cashTotal,
   snapshot: snapshot("1 năm bảo hiểm", "TH1", frozenCash),
 });
@@ -49,6 +49,17 @@ assert.equal(beforeInstallingVpa?.cashTotal, 0);
 assert.equal(afterInstallingVpa?.cashTotal, 20_000);
 
 assert.equal(giftReportLabel(undefined, gift([])), "");
+assert.equal(
+  giftReportLabel(undefined, gift([{ bankCode: "VPa", amount: 20_000 }])),
+  "20k",
+  "chưa tặng vẫn ghi tiền mặt: tiền là mặc định",
+);
+assert.equal(
+  giftReportLabel(undefined, gift([{ bankCode: "VPa", amount: 20_000 }, { bankCode: "MSBa", amount: 50_000 }])),
+  "70k",
+  "chưa tặng, VPa + MSBa ghi tổng 70k",
+);
+assert.equal(giftReportLabel(undefined, null), "", "không có dữ liệu sống thì để trống");
 assert.equal(
   giftReportLabel(grant(0, []), afterInstallingVpa),
   "1 năm bảo hiểm + 20k",
@@ -84,10 +95,10 @@ assert.equal(
   "thiếu dữ liệu sống thì giữ số chốt cũ",
 );
 
-/* Quà thêm HKD (chốt 2026-09-17): ghép sau quà chính, tên lấy trong snapshot. */
-const withExtra = (extraItem: string | null, chosenItem = "BH-1N") => ({
+/* Quà thêm HKD (chốt 2026-09-17, mỗi dòng HKD một món 2026-09-30): ghép sau quà chính, tên lấy trong snapshot. */
+const withExtra = (extraItem: string | null, chosenItem = "BH-1N", more: string[] = []) => ({
   chosenItem,
-  extraItem,
+  extraItems: extraItem === null ? more : [extraItem, ...more],
   cashTotal: 0,
   snapshot: {
     ...snapshot("1 năm bảo hiểm", "TH1", []),
@@ -100,6 +111,16 @@ assert.equal(giftReportLabel(withExtra(null), gift([])), "1 năm bảo hiểm", 
 assert.equal(giftReportLabel(withExtra("QUA-LOA", "NONE"), gift([])), "Loa", "không có quà chính thì chỉ in quà thêm");
 assert.equal(giftReportLabel(withExtra("DECLINED", "NONE"), gift([])), "Không có quà chính");
 assert.equal(giftReportLabel(withExtra("QUA-MICA", "UNCHOSEN"), gift([])), "Chưa chọn quà chính + Bảng mica");
+assert.equal(
+  giftReportLabel(withExtra("QUA-LOA", "BH-1N", ["QUA-MICA"]), gift([])),
+  "1 năm bảo hiểm + Loa + Bảng mica",
+  "hai dòng HKD in cả hai món",
+);
+assert.equal(
+  giftReportLabel(withExtra("QUA-LOA", "BH-1N", ["DECLINED"]), gift([])),
+  "1 năm bảo hiểm + Loa",
+  "dòng HKD từ chối thì bỏ qua",
+);
 assert.equal(
   giftReportLabel(withExtra("QUA-LOA"), gift([{ bankCode: "VPa", amount: 20_000 }])),
   "1 năm bảo hiểm + Loa + 20k",

@@ -9,7 +9,16 @@ import { isRealIsoDate, type User } from "@/lib/types";
 import { giftFor, type GiftInput } from "@/rules";
 import { customerDayText } from "./customerDay";
 import { db } from "./db/client";
-import { bankAccounts, banks, channels, customers, departments, giftGrants, users } from "./db/schema";
+import {
+  bankAccounts,
+  banks,
+  channels,
+  customers,
+  departments,
+  giftGrantExtras,
+  giftGrants,
+  users,
+} from "./db/schema";
 import { grantedItemLabel } from "./gift";
 
 /**
@@ -101,7 +110,7 @@ export async function listGiftExcessExport(
       grantedAt: giftGrants.grantedAt,
       cashTotal: giftGrants.cashTotal,
       chosenItem: giftGrants.chosenItem,
-      extraItem: giftGrants.extraItem,
+      grantId: giftGrants.id,
       snapshot: giftGrants.snapshot,
     })
     .from(giftGrants)
@@ -146,8 +155,26 @@ export async function listGiftExcessExport(
     .leftJoin(accountChannel, eq(accountChannel.id, bankAccounts.channelId))
     .where(and(inArray(bankAccounts.customerId, ids), inArray(bankAccounts.status, ["done", "error"])));
 
+  // Quà thêm đã ghi của từng đợt, theo thứ tự chọn.
+  const extraRows = await db
+    .select({
+      giftGrantId: giftGrantExtras.giftGrantId,
+      bankAccountId: giftGrantExtras.bankAccountId,
+      item: giftGrantExtras.item,
+    })
+    .from(giftGrantExtras)
+    .where(inArray(giftGrantExtras.giftGrantId, batch.map((c) => c.grantId)))
+    .orderBy(asc(giftGrantExtras.chosenAt), asc(giftGrantExtras.id));
+  const extrasOf = new Map<string, typeof extraRows>();
+  for (const row of extraRows) {
+    const list = extrasOf.get(row.giftGrantId) ?? [];
+    list.push(row);
+    extrasOf.set(row.giftGrantId, list);
+  }
+
   const doneOf = new Map<string, GiftInput["accounts"]>();
   const errorOf = new Map<string, { id: string; bankCode: string }[]>();
+  const hkdOf = new Map<string, { id: string; bankCode: string }[]>();
   const channelsOf = new Map<string, Set<string>>();
   const recordDayOf = new Map(batch.map((c) => [c.id, c.recordDay]));
   for (const row of accountRows) {
@@ -166,6 +193,11 @@ export async function listGiftExcessExport(
       household: row.accountType,
     });
     doneOf.set(row.customerId, list);
+    if (row.accountType === "HKD") {
+      const hkd = hkdOf.get(row.customerId) ?? [];
+      hkd.push({ id: row.id, bankCode: row.bankCode });
+      hkdOf.set(row.customerId, hkd);
+    }
     if (row.channelCode) {
       const set = channelsOf.get(row.customerId) ?? new Set<string>();
       set.add(row.channelCode);
@@ -188,15 +220,25 @@ export async function listGiftExcessExport(
     );
     const liveMain = new Set((live?.basket ?? []).map((b) => b.code));
     const liveExtra = new Set((live?.extraBasket ?? []).map((b) => b.code));
+    // Suất quà thêm còn sống: dòng HKD `done` của ngân hàng luật còn cho quà thêm.
+    const liveBanks = new Set(live?.extraBanks ?? []);
+    const liveSlotIds = new Set(
+      (hkdOf.get(c.id) ?? []).filter((a) => liveBanks.has(a.bankCode)).map((a) => a.id),
+    );
 
     const mainIsItem = !NOT_AN_ITEM.has(c.chosenItem);
-    const extraIsItem = Boolean(c.extraItem) && !NOT_AN_ITEM.has(c.extraItem as string);
+    const extras = (extrasOf.get(c.grantId) ?? []).filter((e) => !NOT_AN_ITEM.has(e.item));
 
     const excessItem = mainIsItem && !liveMain.has(c.chosenItem) ? grantedItemLabel(c.chosenItem, c.snapshot) : "";
-    const excessExtra =
-      extraIsItem && !liveExtra.has(c.extraItem as string)
-        ? grantedItemLabel(c.extraItem as string, c.snapshot)
-        : "";
+    // Dòng dư: món không còn trong rổ, hoặc dòng HKD của nó không còn được quà thêm.
+    const excessExtra = extras
+      .filter(
+        (e) =>
+          !liveExtra.has(e.item) ||
+          (e.bankAccountId !== null ? !liveSlotIds.has(e.bankAccountId) : liveBanks.size === 0),
+      )
+      .map((e) => grantedItemLabel(e.item, c.snapshot))
+      .join(", ");
     // Rổ chạy lại có thể RA NHIỀU tiền hơn (tick app sau lượt phát); phần đó
     // không phải dư, chỉ lấy chiều thiếu.
     const excessCash = Math.max(0, c.cashTotal - (live?.cashTotal ?? 0));
@@ -211,7 +253,7 @@ export async function listGiftExcessExport(
       errorAccounts: (errorOf.get(c.id) ?? []).sort((a, b) => a.bankCode.localeCompare(b.bankCode)),
       grantedAt: c.grantedAt.toISOString(),
       grantedItem: mainIsItem ? grantedItemLabel(c.chosenItem, c.snapshot) : "",
-      grantedExtra: extraIsItem ? grantedItemLabel(c.extraItem as string, c.snapshot) : "",
+      grantedExtra: extras.map((e) => grantedItemLabel(e.item, c.snapshot)).join(", "),
       grantedCash: c.cashTotal,
       caseAtGrant: frozen.caseCode ?? "",
       caseNow: live?.caseCode ?? "",

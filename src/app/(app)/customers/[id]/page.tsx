@@ -34,6 +34,10 @@ import {
   type CustomerAccountRow,
   type CustomerInsuranceRow,
   type CustomerServiceRow,
+  extraSlotKey,
+  extraSlotLabel,
+  isCashOnlyGift,
+  pendingExtraSlots,
 } from "@/lib/api/customers";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { INSURANCE_STATUS_LABEL, INSURANCE_STATUS_TONE } from "@/lib/api/insuranceOrders";
@@ -349,7 +353,13 @@ export default function CustomerDetailPage({
                   </Button>
                 )}
                 {!data.gift.given && (
-                  <Button variant="secondary" onClick={() => setGivingGift(true)}>
+                  // Mờ với khách chỉ nhận tiền: không có món nào để chọn, tiền
+                  // chi ngoài hệ thống nên không có lượt tặng.
+                  <Button
+                    variant="secondary"
+                    disabled={isCashOnlyGift(data.gift)}
+                    onClick={() => setGivingGift(true)}
+                  >
                     <Gift size={16} />
                     Tặng quà
                   </Button>
@@ -360,10 +370,10 @@ export default function CustomerDetailPage({
                     Đổi quà
                   </Button>
                 )}
-                {/* Đợt phát trước 2026-09-17 chưa có bước quà thêm; hiện khi rổ
-                    phụ tính lại có món mà đợt chưa ghi câu trả lời nào. */}
+                {/* Dòng HKD chưa có câu trả lời quà thêm: đợt phát trước
+                    2026-09-17, hoặc khách mở thêm HKD sau lượt phát. */}
                 {data.gift.given &&
-                  data.gift.givenExtraCode === null &&
+                  pendingExtraSlots(data.gift).length > 0 &&
                   data.gift.liveExtraBasket.length > 0 &&
                   can(actor, "banking", "grant-gift") && (
                     <Button variant="secondary" onClick={() => setChoosingExtra(true)}>
@@ -539,7 +549,7 @@ export default function CustomerDetailPage({
                   <div>
                     <dt>Bảo hiểm</dt>
                     <dd>
-                      {data.gift.caseCode === "TH5"
+                      {data.gift.caseCode === "TH5" && data.gift.insuranceYears === 2
                         ? "Chọn gói 1 hoặc 2 năm"
                         : `${data.gift.insuranceYears} năm`}
                       {data.gift.caseCode && (
@@ -574,18 +584,27 @@ export default function CustomerDetailPage({
                     </dd>
                   </div>
                 )}
-                {/* Quà thêm HKD của đợt đã chốt. Đợt cũ chưa có câu trả lời thì
-                    nói "Chưa chọn" — nút "Chọn quà thêm" ở đầu trang bù cho nó. */}
+                {/* Quà thêm HKD của đợt đã chốt, mỗi dòng HKD một dòng. Dòng
+                    chưa có câu trả lời nói "Chưa chọn" — nút "Chọn quà thêm" ở
+                    đầu trang bù cho nó. */}
                 {data.gift.given &&
-                  (data.gift.givenExtraCode !== null || data.gift.liveExtraBasket.length > 0) && (
+                  (data.gift.givenExtras.length > 0 || pendingExtraSlots(data.gift).length > 0) && (
                     <div>
                       <dt>Quà thêm HKD</dt>
-                      <dd className={styles.currentGift}>
-                        {data.gift.givenExtraCode === null ? (
-                          <StatusTag tone="waiting">Chưa chọn</StatusTag>
-                        ) : (
-                          <span>{data.gift.givenExtraItem}</span>
-                        )}
+                      <dd>
+                        <ul className={styles.basket}>
+                          {data.gift.givenExtras.map((extra) => (
+                            <li key={extraSlotKey(extra) || extra.code}>
+                              {extraSlotLabel(extra)}: {extra.item}
+                            </li>
+                          ))}
+                          {pendingExtraSlots(data.gift).map((slot) => (
+                            <li key={`pending-${extraSlotKey(slot)}`} className={styles.currentGift}>
+                              <span>{extraSlotLabel(slot)}</span>
+                              <StatusTag tone="waiting">Chưa chọn</StatusTag>
+                            </li>
+                          ))}
+                        </ul>
                       </dd>
                     </div>
                   )}
@@ -598,7 +617,9 @@ export default function CustomerDetailPage({
                           mục. Nói gộp thì nhân viên đi tư vấn khách mở thêm tài
                           khoản trong khi lỗi nằm ở màn danh mục. */}
                       {data.gift.basket.length === 0 ? (
-                        data.gift.caseCode ? (
+                        isCashOnlyGift(data.gift) ? (
+                          "Chỉ tiền mặt"
+                        ) : data.gift.caseCode ? (
                           <span className="text-muted">
                             Đủ điều kiện nhưng danh mục chưa có món nào phát được — xem lại
                             danh mục quà và gói bảo hiểm.
@@ -685,7 +706,10 @@ export default function CustomerDetailPage({
                       <ul className={styles.giftTimeline}>
                         {data.gift.changes.map((change) => (
                           <li key={change.id}>
-                            {change.part === "extra" ? "Đổi quà thêm sang" : "Đổi sang"} {change.toItem}
+                            {change.part === "extra"
+                              ? `Đổi quà thêm${change.bankCode ? ` ${change.bankCode}` : ""} sang`
+                              : "Đổi sang"}{" "}
+                            {change.toItem}
                             <span className={styles.detail}>{formatDateTime(change.changedAt)}</span>
                           </li>
                         ))}

@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { InsuranceProduct, MIN_BIRTH_YEAR, isRealIsoDate } from '@/lib/types';
 import { AccountType, BankAccountStatus } from './bankAccounts';
 import { InsuranceOrderStatus } from './insuranceOrders';
-import { GiftSimulateResult } from './settings';
+import { GiftSimulateResult, type GiftExtraSlot } from './settings';
 import { pageOf, pageParams, type Page, type PageQuery } from './pagination';
 import { PERSON_NAME_LETTER_ERROR, capitalizePersonName, personNameHasLetter } from './personName';
 
@@ -653,6 +653,15 @@ export const CustomerChange = z.object({
 });
 export type CustomerChange = z.infer<typeof CustomerChange>;
 
+/** Một dòng quà thêm HKD đã ghi. `code` là mã món hoặc `GIFT_DECLINED`, `item` là chữ hiện. */
+export const GivenExtra = z.object({
+  bankAccountId: z.string().nullable(),
+  bankCode: z.string(),
+  code: z.string(),
+  item: z.string(),
+});
+export type GivenExtra = z.infer<typeof GivenExtra>;
+
 export const CustomerDetail = z.object({
   customer: Customer,
   /**
@@ -701,12 +710,12 @@ export const CustomerDetail = z.object({
     /** Mã món đang áp dụng, dùng để không chọn lại chính món đó khi đổi quà. */
     givenCode: z.string().nullable(),
     /**
-     * Quà thêm HKD của đợt đã chốt. `givenExtraCode` là `null` khi khách CHƯA
-     * chọn — đợt phát trước 2026-09-17 không có bước này, và hộp thoại "Chọn
-     * quà thêm" bù cho những đợt đó.
+     * Quà thêm HKD đã ghi của đợt, mỗi tài khoản HKD một dòng (kỳ 2026-10-01).
+     * Dòng HKD có trong `extraSlots` mà không có ở đây là CHƯA chọn: đợt phát
+     * trước 2026-09-17, hoặc khách mở thêm HKD sau lượt phát; hộp thoại "Chọn
+     * quà thêm" bù, xem `pendingExtraSlots`.
      */
-    givenExtraItem: z.string().nullable(),
-    givenExtraCode: z.string().nullable(),
+    givenExtras: z.array(GivenExtra),
     /** Thời điểm khách nhận quà lần đầu — mốc đầu của lịch sử đổi quà. */
     givenAt: z.coerce.date().nullable(),
     /** Các lần đổi sau khi đã chốt quà, mới nhất trước. */
@@ -715,6 +724,8 @@ export const CustomerDetail = z.object({
         id: z.string(),
         /** Dòng này đổi quà chính hay quà thêm HKD. */
         part: z.enum(['main', 'extra']),
+        /** Ngân hàng của dòng HKD khi đổi quà thêm; null ở dòng quà chính và dòng cũ. */
+        bankCode: z.string().nullable(),
         fromItem: z.string(),
         toItem: z.string(),
         reason: z.string(),
@@ -725,6 +736,39 @@ export const CustomerDetail = z.object({
   }),
 });
 export type CustomerDetail = z.infer<typeof CustomerDetail>;
+
+/**
+ * Bậc quà chỉ có tiền mặt: luật không cho món nào để chọn (TH2, TH3, TH4 kỳ
+ * 2026-10-01; TH8 kỳ trước). Tiền chi ngoài hệ thống nên khách này không có
+ * lượt tặng, coi như chưa tặng (chủ dự án chốt 2026-09-30). `insuranceYears`
+ * tách ca này khỏi ca "đủ điều kiện nhưng danh mục tắt hết món".
+ */
+export const isCashOnlyGift = (
+  gift: Pick<GiftSimulateResult, 'caseCode' | 'insuranceYears' | 'basket' | 'extraBasket'>,
+): boolean =>
+  gift.caseCode !== null &&
+  gift.insuranceYears === 0 &&
+  gift.basket.length === 0 &&
+  gift.extraBasket.length === 0;
+
+/** Khoá của một suất quà thêm; dòng chuyển từ cột cũ không có tài khoản nên là chuỗi rỗng. */
+export const extraSlotKey = (slot: { bankAccountId: string | null }): string => slot.bankAccountId ?? '';
+
+/**
+ * Chữ gọi một suất quà thêm: "VPa HKD". Mỗi ngân hàng chỉ có một dòng HKD nên
+ * mã ngân hàng là đủ phân biệt; không kèm số tài khoản, vì bảng tài khoản ở hồ
+ * sơ khách không hiện số và còn lọc theo phạm vi ngân hàng của người xem.
+ */
+export const extraSlotLabel = (slot: { bankCode: string }): string => `${slot.bankCode} HKD`;
+
+/** Dòng HKD hiện tại của khách chưa có câu trả lời quà thêm trong đợt đã chốt. */
+export function pendingExtraSlots(
+  gift: Pick<CustomerDetail['gift'], 'extraSlots' | 'givenExtras'> | undefined,
+): GiftExtraSlot[] {
+  if (!gift) return [];
+  const answered = new Set(gift.givenExtras.map(extraSlotKey));
+  return gift.extraSlots.filter((slot) => !answered.has(extraSlotKey(slot)));
+}
 
 /** Người xem lấy từ cookie phiên ở máy chủ — không gửi kèm định danh tự khai. */
 export async function fetchCustomerDetail(id: string): Promise<CustomerDetail> {
@@ -786,15 +830,23 @@ export const GIFT_ERROR = {
   ITEM_DISCONTINUED: 'ITEM_DISCONTINUED',
 } as const;
 
+/** Câu trả lời cho MỘT dòng HKD: mã món trong rổ quà thêm hoặc `GIFT_DECLINED`. */
+export const GiftExtraChoice = z.object({
+  // uuid hoặc null: chuỗi rỗng khớp suất không có tài khoản rồi hỏng lúc ghi vào cột uuid.
+  bankAccountId: z.guid().nullable(),
+  item: z.string().trim().min(1),
+});
+export type GiftExtraChoice = z.infer<typeof GiftExtraChoice>;
+
 /** Một lần đổi món quà đã chốt; rổ quà gốc không bị tính lại. */
 export const GiftChangeForm = z.object({
   /** Quà chính sau khi đổi. Gửi lại đúng mã đang giữ nghĩa là không đổi phần này. */
   item: z.string().trim().min(1, 'Chưa chọn món quà mới'),
   /**
-   * Quà thêm HKD sau khi đổi — mã món hoặc `GIFT_DECLINED`. Bỏ trống là giữ
-   * nguyên. Phải đổi ít nhất một trong hai phần, máy chủ kiểm.
+   * Quà thêm HKD sau khi đổi, từng dòng HKD. Dòng không có trong danh sách là
+   * giữ nguyên. Phải đổi ít nhất một phần, máy chủ kiểm.
    */
-  extraItem: z.string().trim().min(1).optional(),
+  extras: z.array(GiftExtraChoice).default([]),
   reason: z.string().trim().min(2, 'Chưa nhập lý do đổi quà').max(500, 'Lý do nhiều nhất 500 ký tự'),
   /** Đơn bảo hiểm mới vừa tạo khi đổi sang quà bảo hiểm. */
   newOrderIds: z.array(z.string()).default([]),
@@ -812,13 +864,13 @@ export async function markGiftGiven(
   customerId: string,
   item: string,
   orderIds: string[] = [],
-  /** Mã món quà thêm hoặc `GIFT_DECLINED`; `null` khi khách không có rổ quà thêm. */
-  extraItem: string | null = null,
+  /** Câu trả lời cho TỪNG dòng HKD; rỗng khi khách không có quà thêm. */
+  extras: GiftExtraChoice[] = [],
 ): Promise<void> {
   const res = await fetch(`/api/customers/${customerId}/gift-given`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ item, orderIds, extraItem }),
+    body: JSON.stringify({ item, orderIds, extras }),
   });
   if (!res.ok) {
     // Máy chủ nói rõ vì sao ("Khách này đã được tặng quà rồi") — nuốt đi rồi
@@ -829,14 +881,15 @@ export async function markGiftGiven(
 }
 
 /**
- * Chọn quà thêm cho đợt ĐÃ chốt mà chưa có quà thêm — đợt phát trước
- * 2026-09-17. Chỉ ghi được một lần; đổi quà thêm đã chọn chưa có đường.
+ * Chọn quà thêm cho dòng HKD chưa có câu trả lời trong đợt ĐÃ chốt: đợt phát
+ * trước 2026-09-17, hoặc khách mở thêm HKD sau lượt phát. Đổi món đã chọn đi
+ * đường `changeGift`.
  */
-export async function chooseExtraGift(customerId: string, extraItem: string): Promise<void> {
+export async function chooseExtraGift(customerId: string, extras: GiftExtraChoice[]): Promise<void> {
   const res = await fetch(`/api/customers/${customerId}/gift-extra`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ extraItem }),
+    body: JSON.stringify({ extras }),
   });
   if (!res.ok) {
     const body = (await res.json().catch(() => null)) as { message?: string } | null;

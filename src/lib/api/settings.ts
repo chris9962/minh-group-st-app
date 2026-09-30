@@ -166,6 +166,17 @@ const GiftBasketItem = z.object({
   cashIfChosen: z.number().default(0),
 });
 
+/**
+ * Một suất quà thêm: một dòng HKD của khách, chọn MỘT món trong `extraBasket`
+ * (kỳ 2026-10-01). `bankAccountId` null ở màn thử P-81, nơi không có tài khoản
+ * thật, và ở dòng cũ chuyển từ cột `extra_item` không tìm được dòng HKD.
+ */
+export const GiftExtraSlot = z.object({
+  bankAccountId: z.string().nullable(),
+  bankCode: z.string(),
+});
+export type GiftExtraSlot = z.infer<typeof GiftExtraSlot>;
+
 export const GiftSimulateResult = z.object({
   /** `TH1`…`TH6` của bảng quà; `null` khi khách chưa đủ combo nào. */
   caseCode: z.string().nullable(),
@@ -189,6 +200,11 @@ export const GiftSimulateResult = z.object({
    * bản ghi lịch sử, không vá ngược.
    */
   extraBasket: z.array(GiftBasketItem).default([]),
+  /**
+   * Từng dòng HKD được quà thêm, mỗi dòng một món trong `extraBasket` (chủ dự
+   * án chốt 2026-09-30). `default` cho snapshot chốt trước 2026-10-01.
+   */
+  extraSlots: z.array(GiftExtraSlot).default([]),
   /**
    * Điểm COMBO của khách — thứ quyết định bậc quà (TH1…TH6). Tên trường là di
    * sản và không đổi được: nó đã đóng băng trong `gift_grants.snapshot` của
@@ -248,6 +264,7 @@ export const EMPTY_GIFT: GiftSimulateResult = {
   cashBreakdown: [],
   basket: [],
   extraBasket: [],
+  extraSlots: [],
   kpiPoints: 0,
   kpiBreakdown: [],
   householdPoints: 0,

@@ -1,15 +1,17 @@
 import { z } from "zod";
+import { GiftExtraChoice } from "@/lib/api/customers";
 import { can } from "@/lib/permissions";
 import { logAudit } from "@/server/audit";
 import { badRequest, forbidden, getActor, isUuid, jsonBody, notFound, unauthorized } from "@/server/auth";
 import { chooseExtraGift } from "@/server/gift";
 
-const Body = z.object({ extraItem: z.string().trim().min(1, "Chưa chọn quà thêm") });
+const Body = z.object({ extras: z.array(GiftExtraChoice).min(1, "Chưa chọn quà thêm") });
 
 /**
- * Chọn quà thêm HKD cho đợt ĐÃ chốt mà chưa có quà thêm — đợt phát trước
- * 2026-09-17. Cùng quyền với phát quà; máy chủ tự tính lại rổ quà thêm rồi mới kiểm
- * món, không tin rổ client gửi lên.
+ * Chọn quà thêm HKD cho dòng HKD chưa có câu trả lời trong đợt ĐÃ chốt: đợt
+ * phát trước 2026-09-17, hoặc khách mở thêm HKD sau lượt phát. Cùng quyền với
+ * phát quà; máy chủ tự tính lại suất và rổ quà thêm rồi mới kiểm món, không
+ * tin rổ client gửi lên.
  */
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const actor = await getActor(request);
@@ -21,7 +23,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const parsed = Body.safeParse(await jsonBody(request));
   if (!parsed.success) return badRequest(parsed.error.issues[0]?.message ?? "Dữ liệu không hợp lệ");
 
-  const result = await chooseExtraGift(actor, id, parsed.data.extraItem);
+  const result = await chooseExtraGift(actor, id, parsed.data.extras);
   if (result === null) return notFound();
   if (!result.ok) return Response.json({ message: result.message }, { status: 409 });
 

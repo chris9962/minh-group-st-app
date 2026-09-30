@@ -223,7 +223,8 @@ function catalogFor(report: ReportId, banks: Bank[], staffById: Map<string, Staf
           value: (r) => (r.openedBanks.includes(b.code) ? 1 : ""),
         })),
         { key: "msbAccount", header: "STK MSB", ...MO_TK, type: "text", width: 15, defaultOn: true, sample: ["80003630480", ""], total: countIf((r) => Boolean(r.msbAccountNumber)), value: (r) => r.msbAccountNumber },
-        { key: "household", header: "HKD/CNKD", ...MO_TK, align: "center", width: 10, defaultOn: true, sample: ["CNKD", ""], total: countIf((r) => Boolean(r.household)), value: (r) => r.household },
+        { key: "householdVpa", header: "HKD/CNKD VPa", ...MO_TK, align: "center", width: 14, defaultOn: true, sample: ["CNKD", ""], total: countIf((r) => Boolean(r.householdVpa)), value: (r) => r.householdVpa },
+        { key: "householdMb", header: "HKD/CNKD MB", ...MO_TK, align: "center", width: 14, defaultOn: true, sample: ["HKD", ""], total: countIf((r) => Boolean(r.householdMb)), value: (r) => r.householdMb },
         // Cột ngăn hai khối, luôn trống — file Kế toán có nó nên giữ đúng vị trí cột.
         { key: "spacer", header: "0", ...APP_CAI, width: 6, defaultOn: true, sample: ["", ""], value: () => "" },
         ...scoring.map((b): CatalogColumn => ({
