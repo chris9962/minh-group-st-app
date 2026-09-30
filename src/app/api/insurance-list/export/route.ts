@@ -36,6 +36,7 @@ export async function GET(request: Request) {
     product: params.get("product") ?? "",
     from,
     to,
+    startMonth: params.get("startMonth") ?? "",
     staffId: uuidParam(params.get("staffId")),
     departmentId: uuidParam(params.get("departmentId")),
     handler: params.get("handler") ?? "",

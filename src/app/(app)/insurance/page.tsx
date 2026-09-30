@@ -18,6 +18,8 @@ import { FilterButton } from "@/components/ui/FilterButton";
 import { FilterChoices } from "@/components/ui/FilterChoices";
 import { FilterField } from "@/components/ui/FilterField";
 import { FilterChips } from "@/components/ui/FilterChips";
+import { MonthChoice } from "@/components/ui/MonthChoice";
+import { monthLabel } from "@/components/ui/MonthPicker";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { RowActions } from "@/components/ui/RowActions";
 import { SearchField } from "@/components/ui/SearchField";
@@ -65,6 +67,9 @@ const iso = (d: Date) =>
 const dateFromUrl = (value: string | null): Date | undefined =>
   value && isRealIsoDate(value) ? new Date(`${value}T00:00:00`) : undefined;
 
+const monthFromUrl = (value: string | null): string =>
+  value && /^\d{4}-(0[1-9]|1[0-2])$/.test(value) ? value : "";
+
 const pageFromUrl = (value: string | null): number => {
   const page = Number(value);
   // URL đếm từ 1 để người dùng đọc được; `RankTable` đếm từ 0 nội bộ.
@@ -105,6 +110,8 @@ export default function InsurancePage() {
     const to = dateFromUrl(searchParams.get("to"));
     return from || to ? { from, to } : undefined;
   });
+  /** Tháng của ngày bắt đầu hiệu lực, `YYYY-MM`. Chuỗi rỗng = không lọc. */
+  const [startMonth, setStartMonth] = useState(() => monthFromUrl(searchParams.get("startMonth")));
   const [staffId, setStaffId] = useState(() => searchParams.get("staffId") ?? "");
   /** Đơn có hai người liên quan — ô lọc phải nói rõ đang hỏi vai nào. */
   const [staffRole, setStaffRole] = useState<"any" | "creator" | "handler">(() => {
@@ -184,6 +191,7 @@ export default function InsurancePage() {
     if (product) params.set("product", product);
     if (from) params.set("from", from);
     if (to) params.set("to", to);
+    if (startMonth) params.set("startMonth", startMonth);
     if (staffId) params.set("staffId", staffId);
     if (staffId && staffRole !== "any") params.set("staffRole", staffRole);
     if (departmentId) params.set("departmentId", departmentId);
@@ -192,7 +200,7 @@ export default function InsurancePage() {
     if (dir === "asc") params.set("dir", dir);
     const query = params.toString();
     return query ? `/insurance?${query}` : "/insurance";
-  }, [departmentId, dir, from, handler, page, product, search, staffId, staffRole, status, to]);
+  }, [departmentId, dir, from, handler, page, product, search, staffId, staffRole, startMonth, status, to]);
 
   useEffect(() => {
     window.history.replaceState(null, "", listUrl);
@@ -225,6 +233,7 @@ export default function InsurancePage() {
         product,
         from,
         to,
+        startMonth,
         staffId,
         staffRole,
         departmentId,
@@ -264,7 +273,7 @@ export default function InsurancePage() {
   };
 
   const { data = EMPTY_PAGE, isPending, isError, refetch, isFetching } = useQuery({
-    queryKey: ["insurance-list", searchQuery, status, product, from, to, staffId, staffRole, departmentId, handler, page, dir],
+    queryKey: ["insurance-list", searchQuery, status, product, from, to, startMonth, staffId, staffRole, departmentId, handler, page, dir],
     queryFn: () =>
       fetchInsuranceOrders({
         search: searchQuery,
@@ -272,6 +281,7 @@ export default function InsurancePage() {
         product,
         from,
         to,
+        startMonth,
         staffId,
         staffRole,
         departmentId,
@@ -360,6 +370,7 @@ export default function InsurancePage() {
     (status ? 1 : 0) +
     (product ? 1 : 0) +
     (from && to ? 1 : 0) +
+    (startMonth ? 1 : 0) +
     (staffId ? 1 : 0) +
     (departmentId ? 1 : 0) +
     (handler ? 1 : 0);
@@ -611,6 +622,7 @@ export default function InsurancePage() {
               setStatus("");
               setProduct("");
               setRange(undefined);
+              setStartMonth("");
               setStaffId("");
               setStaffRole("any");
               setDepartmentId("");
@@ -624,6 +636,13 @@ export default function InsurancePage() {
               label="Khoảng ngày"
               value={range}
               onChange={(v) => refine(() => setRange(v))}
+            />
+          </FilterField>
+          <FilterField id="startMonth" label="Ngày bắt đầu" count={startMonth ? 1 : 0}>
+            <MonthChoice
+              label="Tháng của ngày bắt đầu"
+              value={startMonth}
+              onChange={(v) => refine(() => setStartMonth(v))}
             />
           </FilterField>
           <FilterField id="department" label="Phòng" count={departmentId ? 1 : 0}>
@@ -743,6 +762,14 @@ export default function InsurancePage() {
                   {
                     label: `Ngày: ${formatDate(from)} → ${formatDate(to)}`,
                     onRemove: () => refine(() => setRange(undefined)),
+                  },
+                ]
+              : []),
+            ...(startMonth
+              ? [
+                  {
+                    label: `Ngày bắt đầu: ${monthLabel(startMonth)}`,
+                    onRemove: () => refine(() => setStartMonth("")),
                   },
                 ]
               : []),

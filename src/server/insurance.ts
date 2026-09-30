@@ -9,6 +9,7 @@ import {
   inArray,
   isNotNull,
   isNull,
+  lt,
   lte,
   notInArray,
   or,
@@ -97,6 +98,8 @@ export type InsuranceFilters = {
   product: string;
   from: string;
   to: string;
+  /** Tháng của NGÀY BẮT ĐẦU hiệu lực, `YYYY-MM`. Chuỗi rỗng = không lọc. */
+  startMonth: string;
   staffId: string;
   staffRole: string;
   /** Phòng của NGƯỜI TẠO đơn. Chuỗi rỗng = mọi phòng. */
@@ -319,6 +322,20 @@ const productFilter = (raw: string): SQL | undefined => {
 };
 
 /**
+ * Đơn có ngày bắt đầu hiệu lực nằm trong tháng `YYYY-MM`.
+ *
+ * So hai đầu mốc trên cột `date` trần, không bọc hàm quanh cột. Chuỗi sai định
+ * dạng thành "không lọc", cùng lối với khoảng ngày.
+ */
+const startMonthFilter = (raw: string): SQL | undefined => {
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(raw)) return undefined;
+  const [year, month] = raw.split("-").map(Number);
+  const next =
+    month === 12 ? `${year + 1}-01-01` : `${year}-${String(month + 1).padStart(2, "0")}-01`;
+  return and(gte(insuranceOrders.startDate, `${raw}-01`), lt(insuranceOrders.startDate, next));
+};
+
+/**
  * Khoảng ngày lọc theo NGÀY TẠO ĐƠN, không theo ngày hiệu lực.
  *
  * Quản lý hỏi "tháng này đội làm được bao nhiêu đơn", không hỏi "bao nhiêu hợp
@@ -338,6 +355,7 @@ const orderFilters = (actor: User, query: InsuranceFilters): SQL | undefined => 
     // nhầm không đáng làm hỏng cả màn (cùng lối nghĩ với `uuidParam`).
     usableDate(query.from) ? gte(insuranceOrders.orderDate, query.from) : undefined,
     usableDate(query.to) ? lte(insuranceOrders.orderDate, query.to) : undefined,
+    startMonthFilter(query.startMonth),
     staffFilter(query),
     handlerFilter(query.handler),
     // Lọc theo phòng của NGƯỜI TẠO, không phải người xử lý: câu hỏi thường gặp

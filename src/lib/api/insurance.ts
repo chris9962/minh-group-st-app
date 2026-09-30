@@ -208,6 +208,8 @@ export type InsuranceQuery = PageQuery<InsuranceSort> & {
   /** Khoảng NGÀY TẠO ĐƠN, YYYY-MM-DD. Rỗng = không giới hạn. */
   from: string;
   to: string;
+  /** Tháng của NGÀY BẮT ĐẦU hiệu lực, `YYYY-MM`. Rỗng = không lọc. */
+  startMonth: string;
   staffId: string;
   /**
    * `staffId` soi vai nào của đơn. Một đơn có HAI người liên quan, nên "lọc
@@ -277,6 +279,7 @@ const listParams = (query: Omit<InsuranceQuery, keyof PageQuery>) => ({
   product: query.product,
   from: query.from,
   to: query.to,
+  startMonth: query.startMonth,
   staffId: query.staffId,
   staffRole: query.staffRole,
   departmentId: query.departmentId,

@@ -170,6 +170,7 @@ async function hitsOf(source: JumpSource, query: string): Promise<JumpHit[]> {
             product: '',
             from: '',
             to: '',
+            startMonth: '',
             staffId: '',
             staffRole: 'any',
             departmentId: '',

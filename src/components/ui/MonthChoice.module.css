@@ -1,0 +1,58 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.year {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.yearLabel {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--om-text);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.month {
+  all: unset;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 44px;
+  padding: 0 6px;
+  border: 1px solid var(--om-line);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--om-text);
+  white-space: nowrap;
+}
+
+.month:hover {
+  background: var(--om-soft);
+}
+
+.monthOn,
+.monthOn:hover {
+  background: var(--om-orange-soft);
+  border-color: var(--om-orange);
+  color: var(--om-orange-ink);
+}
+
+.month:focus-visible {
+  outline: 2px solid var(--om-orange);
+  outline-offset: 1px;
+}

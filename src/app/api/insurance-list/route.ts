@@ -25,6 +25,7 @@ export async function GET(request: Request) {
         product: params.get("product") ?? "",
         from: params.get("from") ?? "",
         to: params.get("to") ?? "",
+        startMonth: params.get("startMonth") ?? "",
         // Chuỗi không phải uuid đi thẳng vào SQL là `22P02` → 500. Bỏ qua bộ
         // lọc hỏng chứ đừng làm vỡ cả màn.
         staffId: uuidParam(params.get("staffId")),
