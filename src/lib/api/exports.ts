@@ -299,8 +299,10 @@ export const WorkDayExportRow = z.object({
 });
 export type WorkDayExportRow = z.infer<typeof WorkDayExportRow>;
 
-export async function fetchWorkDayExport(month: string): Promise<WorkDayExportRow[]> {
-  const res = await fetch(`/api/exports/work-days?month=${month}`);
+export async function fetchWorkDayExport(month: string, departmentId: string): Promise<WorkDayExportRow[]> {
+  const params = new URLSearchParams({ month });
+  if (departmentId) params.set('departmentId', departmentId);
+  const res = await fetch(`/api/exports/work-days?${params}`);
   if (!res.ok) throw new Error('Không tải được ngày công');
   return z.array(WorkDayExportRow).parse(await res.json());
 }

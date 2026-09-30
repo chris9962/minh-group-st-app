@@ -141,8 +141,13 @@ const ROLE_ORDER: Record<string, number> = { head: 0, "deputy-head": 1, staff: 2
  * Trưởng phòng và Phó phòng đọc ngày của PHÒNG, cùng cách `departmentWorkDayCount`
  * mà màn lương dùng. Đọc ngày của chính họ thì dòng luôn trống: chỉ Nhân viên
  * mới tạo ngày công.
+ *
+ * `departmentId` rỗng là mọi phòng; có thì chỉ lấy người thuộc phòng đó.
  */
-export async function listWorkDayExport(yearMonth: string): Promise<WorkDayExportRow[]> {
+export async function listWorkDayExport(
+  yearMonth: string,
+  departmentId = "",
+): Promise<WorkDayExportRow[]> {
   const { from, to } = monthRange(yearMonth);
   const [people, dayRows] = await Promise.all([
     db
@@ -156,7 +161,12 @@ export async function listWorkDayExport(yearMonth: string): Promise<WorkDayExpor
       })
       .from(users)
       .leftJoin(departments, eq(departments.id, users.departmentId))
-      .where(inArray(users.role, ["staff", "head", "deputy-head"])),
+      .where(
+        and(
+          inArray(users.role, ["staff", "head", "deputy-head"]),
+          departmentId ? eq(users.departmentId, departmentId) : undefined,
+        ),
+      ),
     db
       .select({
         userId: employeeWorkDays.userId,

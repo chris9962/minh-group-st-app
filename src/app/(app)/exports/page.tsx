@@ -734,7 +734,7 @@ export default function ExportsPage() {
     },
 
     async "work-days"() {
-      const rows = await fetchWorkDayExport(month);
+      const rows = await fetchWorkDayExport(month, departmentId);
       const [year, mm] = month.split("-").map(Number);
       const dayCount = new Date(year, mm, 0).getDate();
       const dayColumns: ExcelColumn<WorkDayExportRow>[] = Array.from({ length: dayCount }, (_, i) => ({
@@ -1038,12 +1038,21 @@ export default function ExportsPage() {
               )}
 
               {active === "work-days" && (
-                <div className={styles.field} role="group" aria-label="Tháng">
-                  <span className={styles.fieldLabel} aria-hidden>
-                    Tháng
-                  </span>
-                  <MonthPicker value={month} onChange={setMonth} />
-                </div>
+                <>
+                  <div className={styles.field} role="group" aria-label="Tháng">
+                    <span className={styles.fieldLabel} aria-hidden>
+                      Tháng
+                    </span>
+                    <MonthPicker value={month} onChange={setMonth} />
+                  </div>
+                  <Select
+                    block
+                    label="Phòng"
+                    value={departmentId}
+                    onChange={setDepartmentId}
+                    options={[{ value: "", label: "Tất cả phòng" }, ...departments.map((d) => ({ value: d.id, label: d.name }))]}
+                  />
+                </>
               )}
 
               {active === "cancelled-insurance" && (

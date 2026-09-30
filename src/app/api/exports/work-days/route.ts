@@ -1,6 +1,6 @@
 import { scopeFor } from "@/lib/permissions";
 import { logAudit } from "@/server/audit";
-import { badRequest, forbidden, getActor, unauthorized } from "@/server/auth";
+import { badRequest, forbidden, getActor, unauthorized, uuidParam } from "@/server/auth";
 import { isYearMonth } from "@/server/people";
 import { listWorkDayExport } from "@/server/workDays";
 
@@ -16,10 +16,12 @@ export async function GET(request: Request) {
   if (!actor) return unauthorized();
   if (scopeFor(actor, "staff", "export") !== "company") return forbidden();
 
-  const month = new URL(request.url).searchParams.get("month") ?? "";
+  const params = new URL(request.url).searchParams;
+  const month = params.get("month") ?? "";
   if (!isYearMonth(month)) return badRequest("Tháng không hợp lệ");
 
-  const rows = await listWorkDayExport(month);
+  // Ô lọc phòng chỉ thu hẹp file, không phải phạm vi quyền: chốt ở trên vẫn đòi `company`.
+  const rows = await listWorkDayExport(month, uuidParam(params.get("departmentId")));
 
   await logAudit(actor, {
     module: "staff",
