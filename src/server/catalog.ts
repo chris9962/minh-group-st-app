@@ -753,6 +753,7 @@ function codeFilters(query: ReferralCodeFilters): SQL | undefined {
         )`
       : undefined,
     query.status ? eq(statusExpr, query.status) : undefined,
+    query.hideStopped ? eq(referralCodes.active, true) : undefined,
     // Tìm trên tên hiển thị, mã text lẫn tên ngân hàng.
     query.search
       ? (() => {
@@ -782,6 +783,8 @@ export type ReferralCodeFilters = {
   /** Phòng người quản lý đang muốn kiểm tra; rỗng = không thu hẹp theo phòng. */
   departmentId: string;
   status: CodeStatus | "";
+  /** Bỏ mã đã ngừng tay (`active = false`) khỏi kết quả. */
+  hideStopped?: boolean;
   search: string;
   /**
    * Ngân hàng người gọi được phép thấy; `null` = không giới hạn.

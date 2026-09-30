@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { SkeletonTable } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { Button } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { SearchField } from "@/components/ui/SearchField";
@@ -40,6 +41,7 @@ const FIRST_PAGE: ReferralCodeQuery = {
   bankId: "",
   departmentId: "",
   status: "",
+  hideStopped: true,
   search: "",
   page: 0,
   sort: "progress",
@@ -70,6 +72,7 @@ const queryFromUrl = (params: URLSearchParams): ReferralCodeQuery => {
     bankId: params.get("bankId") ?? "",
     departmentId: params.get("departmentId") ?? "",
     status: CodeStatus.safeParse(status).success ? (status as CodeStatus) : "",
+    hideStopped: params.get("hideStopped") !== "0",
     page: pageFromUrl(params.get("page")),
     // Khoá lạ rơi về mặc định, không làm hỏng màn — cùng lối với `pageArgsFrom`.
     sort: REFERRAL_CODE_SORT.includes(sort as ReferralCodeSort) ? (sort as ReferralCodeSort) : "progress",
@@ -131,6 +134,7 @@ export function ReferralCodesSection({ creating, onCreatingChange }: Props) {
     if (asked.bankId) params.set("bankId", asked.bankId);
     if (asked.departmentId) params.set("departmentId", asked.departmentId);
     if (asked.status) params.set("status", asked.status);
+    if (!asked.hideStopped) params.set("hideStopped", "0");
     if (asked.page > 0) params.set("page", String(asked.page + 1));
     if (asked.sort !== "progress") params.set("sort", asked.sort);
     if (asked.dir === "asc") params.set("dir", asked.dir);
@@ -342,6 +346,11 @@ export function ReferralCodesSection({ creating, onCreatingChange }: Props) {
             { value: "", label: "Tất cả trạng thái" },
             ...Object.entries(CODE_STATUS_LABEL).map(([value, label]) => ({ value, label })),
           ]}
+        />
+        <Checkbox
+          checked={query.hideStopped}
+          onCheckedChange={(v) => refine({ hideStopped: v })}
+          label="Ẩn mã đã ngừng"
         />
       </div>
 

@@ -44,6 +44,7 @@ export async function GET(request: Request) {
         bankId: uuidParam(params.get("bankId")),
         departmentId: uuidParam(params.get("departmentId")),
         status: status.success ? status.data : "",
+        hideStopped: params.get("hideStopped") === "1",
         search: (params.get("search") ?? "").trim(),
         // Phạm vi quyền, không phải bộ lọc người dùng chọn — xem `ReferralCodeFilters`.
         allowedBankIds: visibleBankIds(guard.actor),

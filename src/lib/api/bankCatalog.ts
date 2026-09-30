@@ -319,6 +319,8 @@ export type ReferralCodeQuery = PageQuery<ReferralCodeSort> & {
   /** Rỗng = không giới hạn theo phòng. Mã `all` vẫn khớp khi đã chọn phòng. */
   departmentId: string;
   status: CodeStatus | '';
+  /** `true` = không trả mã đã ngừng. */
+  hideStopped: boolean;
   search: string;
 };
 
@@ -331,6 +333,7 @@ export async function fetchReferralCodes(query: ReferralCodeQuery): Promise<Page
       bankId: query.bankId,
       departmentId: query.departmentId,
       status: query.status,
+      hideStopped: query.hideStopped ? '1' : '',
       search: query.search,
     })}`,
   );
