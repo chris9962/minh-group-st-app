@@ -86,7 +86,7 @@ export function ServiceTypeSection({ creating, onCreatingChange }: Props) {
             <Pencil size={16} aria-hidden />
           </Button>
           <Button
-            variant="secondary"
+            variant={r.active ? "danger" : "secondary"}
             disabled={toggleActive.isPending}
             onClick={() => setConfirming(r)}
           >

@@ -6,8 +6,9 @@ import { recomputeForSalaryScheme, recomputeKpiForMonth } from "../src/server/kp
 
 /**
  * Nhập dữ liệu của thông báo "Bảng tính lương nhân viên Chuyển đổi số" ngày
- * 2026-09-30, áp từ 2026-10-01: điểm mỗi lượt và trần của từng loại dịch vụ, và
- * danh sách nhân viên trực điểm ATM (cách tính lương `atm`).
+ * 2026-09-30, áp từ 2026-10-01: điểm mỗi lượt và trần của từng loại dịch vụ, ba
+ * loại dịch vụ còn thiếu, và danh sách nhân viên trực điểm ATM (cách tính lương
+ * `atm`).
  *
  * Chạy khô, in những gì sẽ ghi:
  *   bun run db:seed-atm-2026-10
@@ -42,6 +43,17 @@ const SERVICE_TYPES: Record<
   "Hỗ trợ chi BTXH": { coefficient: 0.05, dailyCap: null, monthlyCap: null }, // Chi BTXH
 };
 
+/**
+ * Ba dòng của bảng chưa có loại dịch vụ trong app; script tạo khi chưa có.
+ * `active: false` cho dòng thông báo ghi "nếu có ký hợp đồng": bật ở P-84 khi
+ * công ty ký hợp đồng. Loại đã có thì chỉ đặt lại điểm, giữ nguyên trạng thái.
+ */
+const NEW_SERVICE_TYPES: Record<string, { coefficient: number; active: boolean }> = {
+  "Tích hợp VNeID": { coefficient: 0.01, active: true }, // Tích hợp tiện ích lên VNeID
+  "Bồi thường BH học sinh": { coefficient: 0.1, active: false }, // Tiếp nhận hồ sơ bồi thường bảo hiểm học sinh
+  "Phát triển đại lý": { coefficient: 3, active: true }, // Phát triển đại lý BHXH, BHYT, BHXM, Top Up
+};
+
 /** Danh sách của thông báo, theo mã nhân viên. Điểm ATM ghi ở comment. */
 const STAFF_CODES = [
   "273NIHTH", // Xã Tân Thạnh
@@ -71,6 +83,13 @@ async function main() {
     .where(inArray(serviceTypes.name, Object.keys(SERVICE_TYPES)));
   const missingTypes = Object.keys(SERVICE_TYPES).filter((name) => !types.some((t) => t.name === name));
   if (missingTypes.length) throw new Error(`Không có loại dịch vụ: ${missingTypes.join(", ")}`);
+  const existingNew = await db
+    .select({ name: serviceTypes.name })
+    .from(serviceTypes)
+    .where(inArray(serviceTypes.name, Object.keys(NEW_SERVICE_TYPES)));
+  const toCreate = Object.entries(NEW_SERVICE_TYPES).filter(
+    ([name]) => !existingNew.some((t) => t.name === name),
+  );
 
   const staff = await db
     .select({
@@ -101,6 +120,13 @@ async function main() {
       `- ${t.name}: ${Number(t.coefficient)} điểm, ${capText(t.dailyCap, t.monthlyCap)} → ${next.coefficient} điểm, ${capText(next.dailyCap, next.monthlyCap)}`,
     );
   }
+  console.log("\nLoại dịch vụ tạo mới:");
+  for (const [name, next] of Object.entries(NEW_SERVICE_TYPES))
+    console.log(
+      toCreate.some(([created]) => created === name)
+        ? `- ${name}: ${next.coefficient} điểm, không trần, ${next.active ? "đang dùng" : "đã ngừng"}`
+        : `- ${name}: đã có, đặt ${next.coefficient} điểm, giữ nguyên trạng thái`,
+    );
   console.log("\nNhân viên chuyển sang cách tính lương Điểm ATM:");
   for (const s of staff)
     console.log(
@@ -127,6 +153,17 @@ async function main() {
           monthlyCap: next.monthlyCap,
         })
         .where(eq(serviceTypes.id, t.id));
+    }
+    for (const [name, next] of Object.entries(NEW_SERVICE_TYPES)) {
+      if (toCreate.some(([created]) => created === name))
+        await tx
+          .insert(serviceTypes)
+          .values({ name, coefficient: String(next.coefficient), active: next.active });
+      else
+        await tx
+          .update(serviceTypes)
+          .set({ coefficient: String(next.coefficient), dailyCap: null, monthlyCap: null })
+          .where(eq(serviceTypes.name, name));
     }
     await tx
       .update(users)
