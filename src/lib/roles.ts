@@ -71,17 +71,11 @@ const staffPermissions: Permission[] = [
   /** Xoá tài khoản đang tạo dở (chưa hoàn thành) — nhả lại chỗ mã (spec §4.5). */
   p('banking', 'delete', 'own'),
   p('banking', 'grant-gift', 'own'),
-  p('services', 'view-summary', 'own'),
-  p('services', 'view-detail', 'own'),
-  p('services', 'create', 'own'),
   /**
-   * Dịch vụ không có màn sửa (spec P-31): ghi sai thì xoá rồi ghi lại. Nhưng
-   * quyền `update` vẫn cấp để mọi module nghiệp vụ có cùng bộ sáu hành động —
-   * ngày P-31 mở đường sửa thì không phải đi vá phân quyền lần nữa, và đó đúng
-   * là lần vá mà module ngân hàng vừa phải chịu.
+   * KHÔNG có quyền `services` ở vai nào (chốt 2026-09-30). Trưởng phòng, Phó
+   * phòng, Phó giám đốc kế thừa danh sách này nên cũng không có; Giám đốc có
+   * qua `fullPermissions`. Ai cần thì chủ dự án cấp lẻ ở lưới P-92.
    */
-  p('services', 'update', 'own'),
-  p('services', 'delete', 'own'),
 ];
 
 /**
@@ -113,12 +107,12 @@ const managerPermissions: Permission[] = [
   ...staffPermissions.map((x) => (x.action === 'create' ? x : { ...x, scope: 'managed' as const })),
   /**
    * Xuất Excel chỉ từ cấp quản lý trở lên — kéo cả kho về máy khác hẳn xem một
-   * bản ghi. Bốn quyền này phải khớp ĐÚNG bốn báo cáo ở màn Xuất dữ liệu; thiếu
+   * bản ghi. Các quyền này phải khớp ĐÚNG các báo cáo ở màn Xuất dữ liệu; thiếu
    * cái nào thì báo cáo đó hiện ra rồi bấm vào nhận 403 mà không hiểu vì sao.
+   * Báo cáo Dịch vụ không có ở đây: quyền `services` chỉ cấp lẻ.
    */
   p('insurance', 'export', 'managed'),
   p('banking', 'export', 'managed'),
-  p('services', 'export', 'managed'),
   p('staff', 'export', 'managed'),
   /**
    * Xuất danh sách khách — Phó GĐ, Trưởng phòng, Phó phòng (chốt 06/08).

@@ -578,16 +578,19 @@ test.describe("P-42 · P-43 · quà theo thể lệ của kỳ", () => {
  */
 test.describe("nút nghiệp vụ trên dòng khách", () => {
   /**
-   * Đăng nhập bằng TRƯỞNG PHÒNG chứ không phải Nhân viên, và đó là ràng buộc
+   * Đăng nhập bằng GIÁM ĐỐC chứ không phải Nhân viên, và đó là ràng buộc
    * chéo file chứ không phải sở thích.
    *
    * `staff.spec` chốt rằng `zz_e2e_staff` mở 12 tài khoản ngân hàng mà điểm vẫn
    * bằng 0 — bằng chứng công thức ngân hàng không bịa số. Ghi một lượt dịch vụ
    * dưới đúng tài khoản đó là cộng cho họ điểm dịch vụ, và ca kia đỏ ở một file
    * khác vì một dòng viết ở đây.
+   *
+   * Không dùng Trưởng phòng: từ 2026-09-30 bộ quyền mặc định của các chức vụ
+   * dưới Giám đốc không còn quyền Dịch vụ.
    */
   test("ghi dịch vụ từ dòng khách → toast xác nhận", async ({ page }) => {
-    await openCustomerList(page, "head");
+    await openCustomerList(page, "director");
     await search(page, "minh dung");
     await rows(page).first().getByRole("button", { name: /Ghi dịch vụ/ }).click();
 
