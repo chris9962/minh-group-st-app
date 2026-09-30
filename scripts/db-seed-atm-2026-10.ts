@@ -2,7 +2,6 @@ import { eq, inArray } from "drizzle-orm";
 import { businessMonth } from "../src/lib/format";
 import { db } from "../src/server/db/client";
 import { departments, serviceTypes, users } from "../src/server/db/schema";
-import { recomputeForSalaryScheme, recomputeKpiForMonth } from "../src/server/kpi";
 
 /**
  * Nhập dữ liệu của thông báo "Bảng tính lương nhân viên Chuyển đổi số" ngày
@@ -23,9 +22,14 @@ import { recomputeForSalaryScheme, recomputeKpiForMonth } from "../src/server/kp
  * Thiếu một loại dịch vụ hay một mã nhân viên thì dừng, không ghi gì. Ghi thật
  * chỉ chạy từ tháng 2026-10. Chạy lại nhiều lần vô hại. Cần migration 0111 và 0112.
  *
- * ⚠️ Điểm mỗi lượt không lưu theo tháng. Tháng 2026-09 chưa chốt lương thì mọi
- * lượt tính lại điểm tháng 9 sau lượt ghi này dùng mức điểm mới. Chốt lương
- * tháng 9 trước khi chạy `--apply`.
+ * Script KHÔNG tính lại điểm (chủ dự án chốt 2026-09-30): chạy đầu tháng 2026-10
+ * thì tháng đó chưa có dữ liệu, còn tính lại tháng cũ của 8 người làm điểm dịch
+ * vụ tháng 2026-09 về 0, vì tháng đó chưa ai là Điểm ATM. Chạy giữa tháng thì
+ * chạy thêm `bun run kpi:recompute <tháng>` cho tháng đang chạy.
+ *
+ * ⚠️ Điểm mỗi lượt không lưu theo tháng. Tháng 2026-09 chưa chốt lương thì app
+ * vẫn tự tính lại điểm tháng 9 của một người khi tài khoản ngân hàng của khách
+ * tháng 9 đổi trạng thái, và lượt đó dùng luật mới.
  */
 
 /** Bảng "Cách tính điểm KPI" của thông báo. Khoá là tên loại dịch vụ trong app. */
@@ -171,13 +175,7 @@ async function main() {
       .where(inArray(users.staffCode, STAFF_CODES));
   });
 
-  // Điểm dịch vụ và ngày công theo lượt dịch vụ của 8 người, mọi tháng họ có dữ liệu.
-  for (const s of staff) await recomputeForSalaryScheme(s.id);
-  // Mức điểm mới áp cho tháng đang chạy của cả công ty: người ngoài nhóm về 0
-  // điểm dịch vụ. Cùng cách `updateServiceType` làm khi đổi hệ số ở P-84.
-  const month = businessMonth();
-  const count = await recomputeKpiForMonth(month);
-  console.log(`\nĐã ghi. Tính lại điểm tháng ${month} cho ${count} người.`);
+  console.log("\nĐã ghi. Không tính lại điểm tháng nào.");
 }
 
 main()
