@@ -88,7 +88,9 @@ export async function pdfToWebp(pdf: Buffer): Promise<Buffer> {
 
     // `-resize 1600 0` giữ tỉ lệ và chỉ thu nhỏ khi ảnh rộng hơn 1600px.
     await run("cwebp", ["-q", WEBP_QUALITY, "-resize", MAX_EDGE, "0", pngPath, "-o", webpPath]);
-    return readFile(webpPath);
+    // Phải `await`: thiếu nó thì `finally` xoá thư mục khi file chưa đọc xong,
+    // `readFile` báo ENOENT ngoài mọi `try` và worker thoát (17 lần tới 2026-09-30).
+    return await readFile(webpPath);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
