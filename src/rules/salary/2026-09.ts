@@ -140,7 +140,6 @@ export function manager({
   role,
   points,
   teamPoints,
-  averagePoints,
   workDays,
   departmentQuota,
 }: ManagerSalaryInput): SalaryResult {
@@ -149,7 +148,7 @@ export function manager({
   const unit = role === "head" ? 9 : 6;
   const managementPoints = unit * reached;
   const average =
-    averagePoints.length === 0 ? 0 : averagePoints.reduce((sum, p) => sum + p, 0) / averagePoints.length;
+    teamPoints.length === 0 ? 0 : teamPoints.reduce((sum, p) => sum + p, 0) / teamPoints.length;
   const overTargetStaff = teamPoints.filter((p) => p > 100).length;
   const poolShare = role === "head" ? 0.7 : 0.3;
   const days = Math.min(workDays, MAX_DAYS);

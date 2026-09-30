@@ -51,13 +51,7 @@ function departmentPool(averagePoints: number, overTargetStaff: number): number 
   return perStaff * overTargetStaff;
 }
 
-export function manager({
-  role,
-  points,
-  teamPoints,
-  averagePoints,
-  workDays,
-}: ManagerSalaryInput): SalaryResult {
+export function manager({ role, points, teamPoints, workDays }: ManagerSalaryInput): SalaryResult {
   const direct = roundPoints(points);
   const reached = teamPoints.filter((p) => p >= 100).length;
   const below = teamPoints.length - reached;
@@ -65,7 +59,7 @@ export function manager({
   const unit = role === "head" ? 9 : 6;
   const managementPoints = unit * reached - unit * below + (allOver ? unit : 0);
   const average =
-    averagePoints.length === 0 ? 0 : averagePoints.reduce((sum, p) => sum + p, 0) / averagePoints.length;
+    teamPoints.length === 0 ? 0 : teamPoints.reduce((sum, p) => sum + p, 0) / teamPoints.length;
   const overTargetStaff = teamPoints.filter((p) => p > 100).length;
   const poolShare = role === "head" ? 0.7 : 0.3;
   const days = Math.min(workDays, MAX_DAYS);

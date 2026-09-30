@@ -78,7 +78,6 @@ type StaffScore = {
   id: string;
   departmentId: string;
   role: RoleKey;
-  active: boolean;
   points: number;
 };
 
@@ -194,9 +193,9 @@ async function liveSalaries(
   /**
    * Kéo cả Phó phòng và người đã nghỉ: "Tổng điểm nhánh" của PGĐ phải khớp tổng
    * điểm phòng ở màn Tổng quan (chốt 2026-09-22), mà màn đó cộng mọi người có
-   * điểm trong tháng. Các phép đếm theo ĐẦU NGƯỜI bên dưới vẫn chỉ lấy nhân
-   * viên đang làm, lọc ở `staffByDepartment`. Riêng trung bình phòng chia cho
-   * mọi nhân viên có điểm khác 0, kể cả người đã khoá (chốt 2026-09-30).
+   * điểm trong tháng. Các phép đếm theo ĐẦU NGƯỜI bên dưới chỉ lấy nhân viên
+   * có điểm khác 0 trong tháng, kể cả người đã khoá (chốt 2026-09-30), lọc ở
+   * `staffByDepartment`.
    */
   const scoreRows: StaffScore[] = relevantDepartmentIds.length
     ? await db
@@ -204,7 +203,6 @@ async function liveSalaries(
           id: users.id,
           departmentId: users.departmentId,
           role: users.role,
-          active: users.active,
           points,
         })
         .from(users)
@@ -253,19 +251,13 @@ async function liveSalaries(
     departmentDayRows.map((row) => [row.departmentId, row.count]),
   );
   const staffByDepartment = new Map<string, number[]>();
-  const averageBaseByDepartment = new Map<string, number[]>();
   const branchPointsByDepartment = new Map<string, number>();
   for (const row of scoreRows) {
     branchPointsByDepartment.set(
       row.departmentId,
       (branchPointsByDepartment.get(row.departmentId) ?? 0) + row.points,
     );
-    if (row.role === "staff" && row.points !== 0) {
-      const base = averageBaseByDepartment.get(row.departmentId);
-      if (base) base.push(row.points);
-      else averageBaseByDepartment.set(row.departmentId, [row.points]);
-    }
-    if (row.role !== "staff" || !row.active) continue;
+    if (row.role !== "staff" || row.points === 0) continue;
     const kept = staffByDepartment.get(row.departmentId);
     if (kept) kept.push(row.points);
     else staffByDepartment.set(row.departmentId, [row.points]);
@@ -291,7 +283,6 @@ async function liveSalaries(
         role: subject.role,
         points: subject.points,
         teamPoints: staffByDepartment.get(subject.departmentId) ?? [],
-        averagePoints: averageBaseByDepartment.get(subject.departmentId) ?? [],
         workDays: departmentDays.get(subject.departmentId) ?? 0,
         departmentQuota: quota.department(subject.departmentId),
       });
