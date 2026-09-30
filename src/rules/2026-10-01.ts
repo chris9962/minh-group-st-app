@@ -103,7 +103,7 @@ export const OPEN_NOTES: string[] = [
   "Combo 2 có bank hạn chế: chỉ 1 ưu tiên + 1 hạn chế. Bank khác + bank hạn chế tính Combo 1 của bank khác.",
   "Combo 3 có 1 bank hạn chế: 2 ưu tiên + 1 hạn chế, 1 ưu tiên + 1 khác + 1 hạn chế, hoặc 2 khác + 1 hạn chế.",
   "Combo 3 có 2 bank hạn chế: 1 ưu tiên + 2 hạn chế, hoặc 1 khác + 2 hạn chế.",
-  "Hồ sơ chỉ mở VPa và MB: 0 điểm, không quà. Có ngân hàng thứ ba thì tính Combo 3.",
+  "Cấm mở VPa + MB trong Combo 2: 0 điểm, không quà. Có ngân hàng thứ ba thì tính Combo 3.",
   "Không mở cả VPa lẫn VPb cho cùng một khách. Hồ sơ đó 0 điểm.",
   "CNKD kèm ngân hàng nào cũng cộng 1,0. Mỗi tài khoản HKD cộng 3,0, ngân hàng nào cũng được.",
 ];
@@ -660,7 +660,7 @@ export function gift(input: GiftInput): GiftResult {
   if (!matched) {
     explain.push(
       isVoidPair(ruleBanksOf(bankRows.map((a) => a.bankCode)))
-        ? "Hồ sơ chỉ mở VPa và MB không được tính điểm và không có quà."
+        ? "Cấm mở VPa + MB trong Combo 2: 0 điểm, không quà."
         : bankRows.some((a) => a.bankCode in TIER_OF)
           ? "Khách chưa có tài khoản nào vào được tổ hợp theo thể lệ."
           : "Khách chưa mở tài khoản nào tính được vào thể lệ.",
