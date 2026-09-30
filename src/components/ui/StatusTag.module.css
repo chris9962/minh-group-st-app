@@ -8,10 +8,12 @@
   color: var(--om-green-ink);
 }
 
+/* `--om-warn*` chứ không phải `--om-orange*`: cảnh báo giữ màu cam khi người
+   dùng đổi màu nhấn. */
 .warn {
   background: transparent;
-  border: 1px solid var(--om-orange);
-  color: var(--om-orange-mid);
+  border: 1px solid var(--om-warn);
+  color: var(--om-warn-mid);
 }
 
 /* Chờ một quyết định ở NGOÀI hệ thống — tím, tách hẳn khỏi xám (hàng chờ của
@@ -23,7 +25,7 @@
   color: var(--om-violet-ink);
 }
 
-/* Đang chạy: cùng dải cam với `.warn` nhưng ĐẶC nền, và ký hiệu là hai mũi tên
+/* Đang chạy: theo màu nhấn, ĐẶC nền, và ký hiệu là hai mũi tên
    xoay chứ không phải tam giác cảnh báo. Một việc đang chạy bình thường không
    phải lỗi — dùng chung tam giác thì bảng nào cũng như đang có sự cố.
    Nền đặc là chỗ phân biệt với `.warn` khi hai tông đứng cạnh nhau. */

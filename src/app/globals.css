@@ -111,6 +111,24 @@ a {
 }
 
 /**
+ * Cam CẢNH BÁO của nhãn trạng thái, không đổi theo màu nhấn (chốt 2026-09-30).
+ *
+ * Nhãn "Đã ngừng", "Hỏng", "Chưa đạt" đọc `--om-orange*`. Người dùng chọn màu
+ * nhấn xanh dương thì nhãn cảnh báo thành xanh dương, mất nghĩa "cần để ý".
+ * Hai token này giữ đúng giá trị cam gốc của `organic.css` ở cả hai bộ sáng
+ * tối, và KHÔNG có trong các khối `[data-accent]` bên dưới.
+ */
+:root {
+  --om-warn: #ca4d25;
+  --om-warn-mid: #bf4420;
+}
+
+:root[data-theme="dark"] {
+  --om-warn: #f97316;
+  --om-warn-mid: #fb923c;
+}
+
+/**
  * Dải vàng cho đĩa hạng 1–3 trên bảng xếp hạng dashboard (chốt 2026-09-18).
  *
  * Không dùng `--om-orange-soft`: đó là nền cảnh báo, ba dòng đầu nhìn như lỗi.
