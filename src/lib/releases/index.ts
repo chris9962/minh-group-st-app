@@ -11,6 +11,138 @@ export type { Release, ReleaseSection } from './types';
  */
 export const RELEASES: Release[] = [
   {
+    id: '2026-10-01',
+    version: '2.0.0',
+    title: 'Cập nhật ngày 01/10/2026',
+    summary:
+      'Thể lệ mới từ 01/10/2026, lương tháng 10/2026 đổi phần chỉ tiêu và có thêm cách tính Điểm ATM, số liệu tháng cũ tính theo nhân sự của tháng đó.',
+    sections: [
+      {
+        title: 'Thể lệ từ ngày 01/10/2026',
+        items: [
+          'Áp cho hồ sơ khách từ 01/10/2026.',
+          'VPb chuyển sang nhóm bank khác.',
+          'VIB chuyển sang nhóm bank hạn chế.',
+          'MSBa được tính vào Combo 1 và Combo 2.',
+          'Cấm mở VPa + MB trong Combo 2: 0 điểm, không quà.',
+        ],
+      },
+      {
+        title: 'Quà Combo 1 và Combo 2',
+        items: [
+          'Có VPa: tặng 20k, không tặng BH.',
+          'Có MSBa: tặng 50k, không tặng BH.',
+          'Có cả VPa và MSBa: tặng 70k, không tặng BH.',
+          'Hồ sơ còn lại: tặng 1 năm BH.',
+        ],
+      },
+      {
+        title: 'Quà Combo 3',
+        items: [
+          'Có VPa: tặng 1 năm BH và 20k.',
+          'Có MSBa: tặng 1 năm BH và 50k.',
+          'Có cả VPa và MSBa: tặng 1 năm BH và 70k.',
+          'Hồ sơ còn lại: tặng 2 năm BH.',
+          'Phòng Y, Phòng Dự án, kênh Bệnh viện: chỉ hồ sơ tặng 2 năm BH được đổi sang quà vật phẩm.',
+        ],
+      },
+      {
+        title: 'Tài khoản HKD',
+        items: [
+          'Mỗi tài khoản HKD cộng 3,0 điểm và được một món quà thêm.',
+          'HKD mở được ở mọi ngân hàng, mỗi ngân hàng một tài khoản HKD.',
+          'CNKD và HKD khác ngân hàng được cộng điểm cả hai.',
+          'Hộp Tặng quà, Chọn quà thêm, Đổi quà chọn món cho từng tài khoản HKD.',
+        ],
+      },
+      {
+        title: 'Khách chỉ nhận tiền mặt',
+        items: ['Hồ sơ khách ghi "Chỉ tiền mặt". Khách này không có lượt tặng quà.'],
+        visibleTo: (user) => canOpenPath(user, '/customers'),
+      },
+      {
+        title: 'Lương tạm tính từ tháng 10/2026',
+        items: [
+          'Trưởng phòng, Phó phòng, Phó giám đốc: thiếu chỉ tiêu HKD bị trừ điểm.',
+          'Phòng Y và Phòng Dự án tính đủ chỉ tiêu.',
+          'Phòng không giao chỉ tiêu định hướng thì nhân viên phòng đó không tính chỉ tiêu định hướng.',
+        ],
+      },
+      {
+        title: 'Lương Điểm ATM từ tháng 10/2026',
+        items: [
+          'Nhân viên Điểm ATM có cách tính lương riêng.',
+          'Chỉ nhân viên Điểm ATM có điểm dịch vụ.',
+          'Ngày có lượt dịch vụ là ngày công của nhân viên Điểm ATM.',
+          'Mỗi loại dịch vụ có trần lượt mỗi ngày và mỗi tháng. Lượt vượt trần được 0 điểm.',
+        ],
+      },
+      {
+        title: 'Lương Trưởng phòng, Phó phòng, Phó giám đốc',
+        items: [
+          'Trung bình phòng, số nhân viên đạt 100 điểm và số người vượt tính trên nhân viên có điểm trong tháng, kể cả người đã khoá.',
+        ],
+        visibleTo: (user) =>
+          user.role === 'head' ||
+          user.role === 'deputy-head' ||
+          user.role === 'deputy-director' ||
+          canOpenPath(user, '/users'),
+      },
+      {
+        title: 'Số liệu tháng cũ',
+        items: [
+          'Lương, điểm, ngày công và báo cáo của tháng cũ tính theo phòng, chức vụ, loại hợp đồng của đúng tháng đó.',
+          'Chuyển phòng chỉ dời số liệu của tháng đang chuyển.',
+        ],
+      },
+      {
+        title: 'Chọn khoảng ngày',
+        items: ['Mọi ô chọn khoảng ngày chỉ chọn trong một tháng.'],
+      },
+      {
+        title: 'Màu giao diện',
+        items: ['Menu tài khoản có mục Giao diện: chọn màu Cam, Xanh dương, Xanh ngọc, Hồng hoặc Xám than.'],
+      },
+      {
+        title: 'Chỉ tiêu tháng',
+        items: [
+          'Có thêm chỉ tiêu mỗi nhân viên HĐDV. Lương chưa tính theo chỉ tiêu này.',
+          'Xem và nhập được chỉ tiêu của tháng sau.',
+        ],
+        visibleTo: (user) => canOpenPath(user, '/settings/quota'),
+      },
+      {
+        title: 'Loại dịch vụ',
+        items: ['Có thêm ô Trần lượt mỗi ngày và Trần lượt mỗi tháng.'],
+        visibleTo: (user) => canOpenPath(user, '/settings/service-types'),
+      },
+      {
+        title: 'Hồ sơ nhân viên',
+        items: ['Có ô Cách tính lương: Theo phòng hoặc Điểm ATM.'],
+        visibleTo: (user) => isFullAccess(user.permissions),
+      },
+      {
+        title: 'Quyền Dịch vụ',
+        items: ['Bộ quyền mặc định của các chức vụ dưới Giám đốc không còn quyền Dịch vụ.'],
+        visibleTo: (user) => canOpenPath(user, '/users'),
+      },
+      {
+        title: 'Xuất dữ liệu',
+        items: [
+          'File Tính điểm tổng có hai cột HKD/CNKD VPa và HKD/CNKD MB.',
+          'Cột QUÀ TẶNG BÁO CÁO ghi tiền mặt cả khi chưa tặng quà.',
+        ],
+        visibleTo: (user) => canOpenPath(user, '/exports'),
+      },
+      {
+        title: 'Báo cáo Ngày công',
+        items: ['Chọn được phòng.'],
+        // Cùng điều kiện với route xuất Ngày công.
+        visibleTo: (user) => scopeFor(user, 'staff', 'export') === 'company',
+      },
+    ],
+  },
+  {
     id: '2026-09-29',
     version: '1.7.0',
     title: 'Cập nhật ngày 29/09/2026',
