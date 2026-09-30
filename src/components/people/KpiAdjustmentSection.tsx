@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { deleteKpiAdjustment, type KpiAdjustment, type PersonDetail } from "@/lib/api/person";
-import { formatDate, formatPoints } from "@/lib/format";
+import { businessMonth, formatDate, formatPoints } from "@/lib/format";
 import { invalidateKpi } from "@/lib/invalidateKpi";
 import { can } from "@/lib/permissions";
 import { useSession } from "@/store/session";
@@ -18,16 +18,18 @@ import styles from "./KpiAdjustmentSection.module.scss";
 type Props = { person: PersonDetail };
 
 /**
- * P-52 · Các lần cộng điểm KPI tay của tháng hiện tại.
+ * P-52 · Các lần cộng điểm KPI tay của tháng đang xem.
  *
- * Nút ghi chỉ hiện với người có `system:adjust-kpi`; máy chủ kiểm lại ở route.
+ * Nút ghi chỉ hiện với người có `system:adjust-kpi` và chỉ ở tháng hiện tại:
+ * máy chủ chỉ ghi, sửa, xoá điểm cộng của tháng hiện tại, và kiểm lại ở route.
  * Người không có quyền vẫn THẤY danh sách — điểm cộng nằm trong tổng KPI, giấu
  * đi thì tổng lớn hơn các phần nhìn thấy được.
  */
 export function KpiAdjustmentSection({ person }: Props) {
   const queryClient = useQueryClient();
   const actor = useSession((s) => s.user);
-  const canAdjust = can(actor, "system", "adjust-kpi");
+  const canAdjust =
+    can(actor, "system", "adjust-kpi") && person.summaryMonth === businessMonth();
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<KpiAdjustment | null>(null);
   const [deleting, setDeleting] = useState<KpiAdjustment | null>(null);

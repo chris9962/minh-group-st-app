@@ -294,8 +294,17 @@ export const ServiceTypeRow = z.object({
   name: z.string(),
   active: z.boolean(),
   coefficient: z.number(),
+  /** Số lượt tối đa được tính điểm mỗi ngày / mỗi tháng của một người; null = không giới hạn. */
+  dailyCap: z.number().nullable(),
+  monthlyCap: z.number().nullable(),
 });
 export type ServiceTypeRow = z.infer<typeof ServiceTypeRow>;
+
+const OptionalCap = z
+  .int('Trần phải là số nguyên')
+  .min(1, 'Trần phải lớn hơn 0')
+  .max(INT_MAX, 'Trần lớn quá')
+  .nullable();
 
 export const ServiceTypeForm = z.object({
   name: z.string().trim().min(2, 'Chưa nhập tên loại dịch vụ'),
@@ -304,6 +313,8 @@ export const ServiceTypeForm = z.object({
     .min(0, 'Hệ số phải từ 0 trở lên')
     .max(COEFFICIENT_MAX, `Hệ số nhiều nhất ${COEFFICIENT_MAX}`)
     .multipleOf(0.01, 'Hệ số nhiều nhất 2 chữ số thập phân'),
+  dailyCap: OptionalCap,
+  monthlyCap: OptionalCap,
 });
 export type ServiceTypeForm = z.infer<typeof ServiceTypeForm>;
 

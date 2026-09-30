@@ -1,9 +1,8 @@
 import { and, asc, eq, inArray } from "drizzle-orm";
 import type { BranchDepartment, BranchSummary } from "@/lib/api/person";
-import { businessMonth } from "@/lib/format";
 import { quotaTargetFor } from "@/rules/salary";
 import { db } from "./db/client";
-import { departments, userManagedDepartments, users } from "./db/schema";
+import { departments, staffRoster } from "./db/schema";
 import { pointsByStaffInRange } from "./kpi";
 import { statsByDepartment, type Range } from "./org";
 import { countQuotaAccounts, quotaConfigOf } from "./quota";
@@ -39,28 +38,43 @@ const percentOf = (part: number, whole: number): number =>
  *   - điểm: `pointsByStaffInRange`, gom theo người lập hồ sơ như bảng lương
  *   - lương: `salaryForUsers`, cộng mọi người đang làm trong phòng
  *
- * Tài khoản, app, điểm theo KỲ người xem chọn. Nhân viên và lương thì không:
- * lương là số của tháng, còn số người là số hiện tại.
+ * Tài khoản, app, điểm theo KỲ người xem chọn. Lương, chỉ tiêu, phòng phụ trách
+ * và số người là của THÁNG chứa kỳ đó (chốt 2026-09-30), đọc theo nhân sự của
+ * tháng: lương không tính theo khoảng ngày.
  */
 export async function branchSummaryFor(subjectId: string, range: Range): Promise<BranchSummary> {
-  const salaryMonth = businessMonth();
-  const managed = await db
-    .select({ id: departments.id, name: departments.name, code: departments.code })
-    .from(userManagedDepartments)
-    .innerJoin(
-      departments,
-      and(eq(departments.id, userManagedDepartments.departmentId), eq(departments.type, "sales")),
-    )
-    .where(eq(userManagedDepartments.userId, subjectId))
-    .orderBy(asc(departments.name));
+  const salaryMonth = range.from.slice(0, 7);
+  const [subject] = await db
+    .select({ managedDepartmentIds: staffRoster.managedDepartmentIds })
+    .from(staffRoster)
+    .where(and(eq(staffRoster.userId, subjectId), eq(staffRoster.yearMonth, salaryMonth)))
+    .limit(1);
+  const managedIds = subject?.managedDepartmentIds ?? [];
+  const managed = managedIds.length
+    ? await db
+        .select({ id: departments.id, name: departments.name, code: departments.code })
+        .from(departments)
+        .where(and(inArray(departments.id, managedIds), eq(departments.type, "sales")))
+        .orderBy(asc(departments.name))
+    : [];
   if (managed.length === 0) return { salaryMonth, departments: [], totals: EMPTY };
 
   const ids = managed.map((d) => d.id);
   const [people, stats, points] = await Promise.all([
     db
-      .select({ id: users.id, departmentId: users.departmentId, role: users.role })
-      .from(users)
-      .where(and(eq(users.active, true), inArray(users.departmentId, ids))),
+      .select({
+        id: staffRoster.userId,
+        departmentId: staffRoster.departmentId,
+        role: staffRoster.role,
+      })
+      .from(staffRoster)
+      .where(
+        and(
+          eq(staffRoster.yearMonth, salaryMonth),
+          eq(staffRoster.active, true),
+          inArray(staffRoster.departmentId, ids),
+        ),
+      ),
     statsByDepartment(range),
     pointsByStaffInRange(range),
   ]);

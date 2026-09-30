@@ -303,6 +303,35 @@ Không phải mọi bảng đều đáng làm. Danh mục đóng vài chục dò
 phải soi là bảng **lớn thêm theo ngày làm việc**: `bank_accounts`,
 `insurance_orders`, `services`, `customers`, `audit_log`.
 
+### 5.3 Số liệu theo tháng đọc NHÂN SỰ CỦA THÁNG ĐÓ
+
+Chốt 2026-09-30. Xem lại hay xuất tháng 9 phải ra đúng nhân sự của tháng 9, kể
+cả khi tháng 10 có người chuyển phòng, lên chức, nghỉ việc hay mới vào.
+
+| | |
+|---|---|
+| View `staff_roster` (`staffRoster` ở `db/schema.ts`) | Mỗi người mỗi tháng một dòng: phòng, chức vụ, loại hợp đồng, cách tính lương, phòng phụ trách, đang làm hay đã nghỉ |
+| Bảng `staff_months` | Bản chụp của các tháng đã qua. Không đọc thẳng, đọc view |
+| Hàm DB `ensure_staff_months()` | Chụp các tháng đã kết thúc theo hồ sơ lúc gọi. Job `mgst-staff-snapshot.timer` gọi nó lúc 00:00 ngày 1 hằng tháng qua `scripts/snapshot-staff-months.ts` (`docs/deploy-fpt-cloud.md` §8f) |
+
+Luật:
+
+- Câu truy vấn nào trả số theo tháng hay theo khoảng ngày thì nối `staffRoster`
+  theo `(user_id, year_month)` của ĐÚNG tháng đang hỏi. **Không đọc
+  `users.department_id`, `users.role`, `users.contract_type`,
+  `users.salary_scheme`, `users.active` cho số liệu theo tháng.**
+- Màn quản trị hồ sơ (hộp thoại sửa nhân viên, khoá tài khoản, cấp quyền, sĩ số
+  ở P-91) và phân quyền vẫn đọc `users`: chúng nói về hiện tại.
+- Thay đổi giữa tháng: cả tháng tính theo trạng thái cuối tháng. Chuyển phòng
+  chỉ dời bản ghi nghiệp vụ và ngày công của tháng đang chuyển (`writeStaff`).
+- Thêm một thuộc tính nhân sự có ảnh hưởng tới số liệu theo tháng thì thêm cột
+  vào `staff_months`, vào view và vào `ensure_staff_months()`.
+- Bộ chọn khoảng ngày (`DateRangePicker`) luôn khoá trong một tháng. Đừng thêm
+  kỳ vắt hai tháng: điểm, tổ hợp và nhân sự đều tính theo từng tháng.
+
+Snapshot chỉ giữ thông tin nhân sự. Điểm KPI, ngày công và dữ liệu nghiệp vụ
+vẫn tính từ dữ liệu thật; số lương chỉ đứng yên sau khi chốt lương.
+
 ## 6. Phân quyền
 
 - **Đúng một hàm kiểm quyền**: `src/lib/permissions.ts`. Mọi màn danh sách, chi tiết, xuất Excel đều qua đó

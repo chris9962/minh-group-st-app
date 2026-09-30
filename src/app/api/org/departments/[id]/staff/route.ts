@@ -1,5 +1,7 @@
 import { STAFF_SORT, type StaffQuery } from "@/lib/api/staff";
+import { monthRange } from "@/lib/format";
 import { can } from "@/lib/permissions";
+import { isRealIsoDate } from "@/lib/types";
 import { forbidden, getActor, isUuid, notFound, unauthorized } from "@/server/auth";
 import { pageArgsFrom } from "@/server/pagination";
 import { staffFor } from "@/server/staff";
@@ -37,6 +39,14 @@ export async function GET(request: Request, { params }: Params) {
   if (!isUuid(id)) return notFound();
 
   const url = new URL(request.url);
+  const from = url.searchParams.get("from") ?? "";
+  const requestedTo = url.searchParams.get("to") ?? "";
+  // Danh sách người là của tháng chứa `from`, nên số đếm cũng chỉ của tháng đó.
+  // Nhận `to` ở tháng sau là trả số các tháng người ta đã sang phòng khác.
+  const to =
+    isRealIsoDate(from) && requestedTo.slice(0, 7) !== from.slice(0, 7)
+      ? monthRange(from.slice(0, 7)).to
+      : requestedTo;
   const query: Omit<StaffQuery, "page" | "sort" | "dir"> = {
     // `staffFor` hạ phạm vi này về mức thật của người gọi. Phòng ngoài phạm vi
     // cho ra bảng rỗng, không phải 403 — trang còn phân biệt hai ca đó bằng câu
@@ -44,10 +54,12 @@ export async function GET(request: Request, { params }: Params) {
     scope: "company",
     departmentId: id,
     search: "",
-    // Bảng này không có cột Chỉ tiêu nên để máy chủ tự lấy tháng làm việc.
-    summaryMonth: "",
-    from: url.searchParams.get("from") ?? "",
-    to: url.searchParams.get("to") ?? "",
+    // Tháng của khoảng ngày đang xem: danh sách người và cột Lương là của
+    // tháng đó, không phải tháng hiện tại (chốt 2026-09-30). Khoảng ngày luôn
+    // nằm trong một tháng. Ngày sai thì để máy chủ tự lấy tháng làm việc.
+    summaryMonth: isRealIsoDate(from) ? from.slice(0, 7) : "",
+    from,
+    to,
     // Cả người đã khoá: họ vẫn có số của kỳ đang xem, bỏ đi thì tổng điểm phòng
     // ở tiêu đề khối không khớp tổng cột Điểm.
     status: "all",

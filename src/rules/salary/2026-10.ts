@@ -21,6 +21,7 @@ import type {
  * - Trưởng/Phó phòng, HKD và định hướng theo chỉ tiêu phòng: đạt cộng 10, thiếu
  *   trừ 1 điểm cho mỗi 1% (Phụ lục 05).
  * - Phó GĐ, từng phòng phụ trách: đạt cộng 10, thiếu trừ 20 (Phụ lục 07).
+ * - Nhân viên trực điểm ATM có công thức riêng, xem `atmStaff`.
  *
  * Khác kỳ 2026-09: quản lý bị trừ lại khi thiếu chỉ tiêu HKD; Phòng Y và phòng
  * Dự án chấm đủ số admin nhập, không còn 50%.
@@ -32,6 +33,8 @@ import type {
 
 const DAILY_SUPPORT = 120_000;
 const MAX_DAYS = 26;
+const ATM_MAX_DAYS = 22;
+const ATM_COMBO_BONUS = 50_000;
 const DEPUTY_DIRECTOR_DAYS = 22;
 
 /**
@@ -65,7 +68,50 @@ function quotaResult(
   };
 }
 
-export function staff({ points, workDays, directedQuota }: StaffSalaryInput): SalaryResult {
+/**
+ * Nhân viên trực điểm ATM, theo thông báo "Bảng tính lương nhân viên Chuyển đổi
+ * số" ngày 2026-09-30, hiệu lực 2026-10-01 tới 2026-12-31. Ai thuộc nhóm này do
+ * ô "Cách tính lương" trên hồ sơ nhân viên quyết định.
+ *
+ * - Lương tiêu chuẩn 5.000.000đ ở 100 điểm, dưới 100 điểm tính theo tỉ lệ.
+ * - Thưởng vượt 70.000 / 80.000 / 90.000đ mỗi điểm, như nhân viên kinh doanh.
+ * - Ăn ca 120.000đ mỗi ngày, tối đa 22 ngày.
+ * - Thưởng 50.000đ cho mỗi khách đạt Combo 2 hoặc Combo 3.
+ *
+ * Không chấm chỉ tiêu định hướng: thông báo không có mục đó.
+ */
+function atmStaff({ points, workDays, bonusCombos = 0 }: StaffSalaryInput): SalaryResult {
+  const direct = roundPoints(points);
+  const days = Math.min(workDays, ATM_MAX_DAYS);
+  const tier1 = Math.min(Math.max(direct, 0), 100);
+  const tier2 = Math.min(Math.max(direct - 100, 0), 30);
+  const tier3 = Math.min(Math.max(direct - 130, 0), 30);
+  const tier4 = Math.max(direct - 160, 0);
+  const items: SalaryItem[] = [
+    { label: "Lương tiêu chuẩn", formula: `${formatPoints(tier1)} điểm × 50.000đ`, amount: tier1 * 50_000 },
+    { label: "Thưởng vượt mốc 1", formula: `${formatPoints(tier2)} điểm × 70.000đ`, amount: tier2 * 70_000 },
+    { label: "Thưởng vượt mốc 2", formula: `${formatPoints(tier3)} điểm × 80.000đ`, amount: tier3 * 80_000 },
+    { label: "Thưởng vượt mốc 3", formula: `${formatPoints(tier4)} điểm × 90.000đ`, amount: tier4 * 90_000 },
+    {
+      label: "Thưởng Combo 2, Combo 3",
+      formula: `${bonusCombos} combo × 50.000đ`,
+      amount: bonusCombos * ATM_COMBO_BONUS,
+    },
+    { label: "Hỗ trợ ăn ca", formula: `${days} ngày × 120.000đ`, amount: days * DAILY_SUPPORT },
+  ];
+  return {
+    amount: Math.max(0, Math.round(total(items))),
+    facts: [
+      { label: "Điểm KPI", value: `${formatPoints(direct)} điểm` },
+      { label: "Ngày công", value: `${days} ngày` },
+    ],
+    items,
+  };
+}
+
+export function staff(input: StaffSalaryInput): SalaryResult {
+  if (input.scheme === "atm") return atmStaff(input);
+  const { points, workDays, directedQuota } = input;
   const directed = directedQuota ? quotaResult(directedQuota, 3, (shortfall) => shortfall) : null;
   const direct = roundPoints(points + (directed?.points ?? 0));
   const days = Math.min(workDays, MAX_DAYS);

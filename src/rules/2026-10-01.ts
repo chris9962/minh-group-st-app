@@ -406,6 +406,29 @@ export function bankingPoints(accounts: ScoringAccount[], _granted: GrantedGifts
 }
 
 /**
+ * Số khách có tổ hợp thắng là Combo 2 hoặc Combo 3. Thông báo lương 2026-09-30
+ * thưởng nhân viên điểm ATM 50.000đ cho mỗi combo như vậy.
+ *
+ * Cùng phép gom và cùng tổ hợp thắng với `bankingPoints`: khách không được điểm
+ * tổ hợp thì cũng không được đếm ở đây.
+ */
+export function multiBankComboCount(accounts: ScoringAccount[]): number {
+  const byCustomer = new Map<string, ScoringAccount[]>();
+  for (const account of accounts) {
+    const rows = byCustomer.get(account.customerId);
+    if (rows) rows.push(account);
+    else byCustomer.set(account.customerId, [account]);
+  }
+
+  let count = 0;
+  for (const rows of byCustomer.values()) {
+    if (hasBothVpModes(rows)) continue;
+    if (bestComboOf(comboRowsOf(rows).map((a) => a.bankCode)).size >= 2) count += 1;
+  }
+  return count;
+}
+
+/**
  * Phần điểm hộ kinh doanh của một khách, tính bằng ĐIỂM chứ không phải phần mười.
  *
  * `_grantedItem` không dùng ở kỳ này — xem `bankingPoints`. Tham số giữ lại cho

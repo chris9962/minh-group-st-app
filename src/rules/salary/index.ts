@@ -39,6 +39,10 @@ export type StaffSalaryInput = {
   workDays: number;
   /** Chỉ tiêu tài khoản định hướng; chỉ nhân viên HĐLĐ có. Kỳ trước 2026-09 bỏ qua. */
   directedQuota?: QuotaProgress | null;
+  /** Cách tính lương ghi trên hồ sơ nhân viên. Kỳ trước 2026-10 bỏ qua. */
+  scheme?: "department" | "atm";
+  /** Số khách đạt Combo 2 hoặc Combo 3 trong tháng; chỉ truyền cho nhân viên điểm ATM. */
+  bonusCombos?: number;
 };
 
 export type ManagerSalaryInput = {

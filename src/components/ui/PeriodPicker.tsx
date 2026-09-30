@@ -59,17 +59,6 @@ type Props = {
   value: Period;
   onChange: (period: Period) => void;
   /**
-   * Khoảng ngày phải nằm TRỌN trong một tháng.
-   *
-   * Bật ở màn có cột ĐIỂM. Điểm KPI tính theo từng tháng và tổ hợp không nối
-   * qua tháng (thể lệ câu 7.13), nên một khoảng vắt hai tháng ra con số không
-   * ai đoán được: khách mở `VPa` ngày 30/08 và `MB` ngày 02/09 KHÔNG thành
-   * Combo 2, dù cả hai đều nằm trong khoảng đang chọn.
-   *
-   * Màn chỉ đếm dòng thì không cần bật — đếm thì khoảng nào cũng cộng được.
-   */
-  sameMonthOnly?: boolean;
-  /**
    * `toolbar`: ô chọn kỳ + viên thuốc khoảng ngày trên thanh trên.
    * Mặc định giữ cụm phân đoạn cho bộ lọc điện thoại.
    */
@@ -103,7 +92,6 @@ const pickKind = (
 export function PeriodPicker({
   value,
   onChange,
-  sameMonthOnly = false,
   variant = "seg",
   kinds = FILTER_PERIOD_KINDS,
 }: Props) {
@@ -156,7 +144,6 @@ export function PeriodPicker({
         <span className={styles.split} aria-hidden />
         <DateRangePicker
           value={pickedRange}
-          sameMonthOnly={sameMonthOnly}
           appearance="chip"
           onChange={(next) => onChange({ kind: "range", range: next })}
         />
@@ -189,7 +176,6 @@ export function PeriodPicker({
 
       <DateRangePicker
         value={pickedRange}
-        sameMonthOnly={sameMonthOnly}
         onChange={(next) => onChange({ kind: "range", range: next })}
       />
     </div>

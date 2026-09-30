@@ -24,7 +24,15 @@ import {
 } from "@/lib/api/staff";
 import { removeDiacritics } from "@/lib/format";
 import { assignableRoles, isFullAccess } from "@/lib/permissions";
-import { CONTRACT_TYPE_LABEL, ContractType, ROLE_LABEL, ROLE_TITLE, type Department } from "@/lib/types";
+import {
+  CONTRACT_TYPE_LABEL,
+  ContractType,
+  ROLE_LABEL,
+  ROLE_TITLE,
+  SALARY_SCHEME_LABEL,
+  SalaryScheme,
+  type Department,
+} from "@/lib/types";
 import { ROLE_PERMISSIONS } from "@/lib/roles";
 import { useSession } from "@/store/session";
 import { PermissionsEditor } from "./PermissionsEditor";
@@ -49,6 +57,7 @@ const emptyForm: StaffForm = {
   role: "staff",
   title: ROLE_TITLE.staff,
   contractType: "",
+  salaryScheme: "department",
   manageScope: "none",
   managedDepartmentIds: [],
   insuranceDepartmentIds: [],
@@ -78,6 +87,7 @@ const toForm = (s: StaffAccount): StaffForm => ({
   role: s.role,
   title: s.title,
   contractType: s.contractType ?? "",
+  salaryScheme: s.salaryScheme,
   manageScope: s.manageScope,
   managedDepartmentIds: s.managedDepartmentIds,
   insuranceDepartmentIds: s.insuranceDepartmentIds,
@@ -398,6 +408,23 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
             ]}
           />
         </div>
+
+        {/* Ô này đổi số tiền lương, nên chỉ tài khoản toàn quyền thấy và đổi
+            được. Máy chủ cũng giữ giá trị cũ với người khác (`updateStaff`). */}
+        {actor && isFullAccess(actor.permissions) && (
+          <Select
+            block
+            label="Cách tính lương"
+            value={watch("salaryScheme")}
+            onChange={(v) =>
+              setValue("salaryScheme", SalaryScheme.parse(v), { shouldDirty: true })
+            }
+            options={SalaryScheme.options.map((s) => ({
+              value: s,
+              label: SALARY_SCHEME_LABEL[s],
+            }))}
+          />
+        )}
 
         {picksManaged && (
           <fieldset className={styles.fieldset}>

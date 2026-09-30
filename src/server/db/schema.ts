@@ -10,6 +10,7 @@ import {
   numeric,
   pgEnum,
   pgTable,
+  pgView,
   primaryKey,
   smallint,
   text,
@@ -104,6 +105,7 @@ export const bankAccountType = pgEnum("bank_account_type", ["none", "CNKD", "HKD
  * `hdtv` (thử việc) tính như `hddv` (chốt 2026-09-25).
  */
 export const contractType = pgEnum("contract_type", ["hdld", "hddv", "hdtv"]);
+export const salaryScheme = pgEnum("salary_scheme", ["department", "atm"]);
 
 /** Nhóm tài khoản tính chỉ tiêu, danh sách cặp ngân hàng + loại do admin chọn theo tháng. */
 export const quotaAccountKind = pgEnum("quota_account_kind", ["hkd", "directed"]);
@@ -222,6 +224,11 @@ export const users = pgTable(
     manageScope: manageScope("manage_scope").notNull().default("none"),
     /** null = chưa nhập loại hợp đồng; người đó không có chỉ tiêu cá nhân. */
     contractType: contractType("contract_type"),
+    /**
+     * Cách tính lương. `atm` = nhân viên trực điểm ATM, theo thông báo lương
+     * 2026-09-30: công thức riêng, và chỉ nhóm này có điểm dịch vụ.
+     */
+    salaryScheme: salaryScheme("salary_scheme").notNull().default("department"),
     active: boolean("active").notNull().default(true),
     /** C-01: sai 5 lần liên tiếp → khoá 15 phút, quản trị mở lại. */
     failedAttempts: smallint("failed_attempts").notNull().default(0),
@@ -315,6 +322,56 @@ export const userManagedDepartments = pgTable(
   },
   (t) => [primaryKey({ columns: [t.userId, t.departmentId] })],
 );
+
+/**
+ * Nhân sự của các tháng ĐÃ QUA, mỗi người mỗi tháng một dòng (migration 0112).
+ *
+ * Không đọc thẳng bảng này: mọi câu hỏi theo tháng đọc view `staffRoster`. Dòng
+ * do hàm `ensure_staff_months()` ở DB ghi; job `mgst-staff-snapshot.timer` gọi
+ * hàm đó lúc 00:00 ngày 1 hằng tháng, nên dòng là trạng thái cuối tháng.
+ */
+export const staffMonths = pgTable(
+  "staff_months",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    yearMonth: text("year_month").notNull(),
+    departmentId: uuid("department_id").references(() => departments.id),
+    role: roleKey("role").notNull(),
+    contractType: contractType("contract_type"),
+    salaryScheme: salaryScheme("salary_scheme").notNull(),
+    active: boolean("active").notNull(),
+    managedDepartmentIds: uuid("managed_department_ids").array().notNull().default([]),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.yearMonth], name: "staff_months_pk" }),
+    index("staff_months_month_department").on(t.yearMonth, t.departmentId),
+  ],
+);
+
+/**
+ * Nhân sự của MỘT THÁNG: ai thuộc phòng nào, chức vụ gì, loại hợp đồng, cách
+ * tính lương, phòng phụ trách, đang làm hay đã nghỉ (chốt 2026-09-30).
+ *
+ * Mọi số liệu theo tháng phải nối view này theo `(user_id, year_month)` của
+ * đúng tháng đang hỏi, KHÔNG đọc `users.department_id`, `users.role`… Đọc hồ sơ
+ * hiện tại thì chuyển phòng hay thêm người trong tháng 10 làm đổi số tháng 9.
+ *
+ * Tháng đã chụp đọc `staff_months`; tháng chưa chụp, gồm tháng đang chạy, đọc
+ * hồ sơ hiện tại. Người tạo sau một tháng không có dòng của tháng đó. Thay đổi
+ * giữa tháng: cả tháng tính theo trạng thái cuối tháng.
+ */
+export const staffRoster = pgView("staff_roster", {
+  userId: uuid("user_id").notNull(),
+  yearMonth: text("year_month").notNull(),
+  departmentId: uuid("department_id"),
+  role: roleKey("role").notNull(),
+  contractType: contractType("contract_type"),
+  salaryScheme: salaryScheme("salary_scheme").notNull(),
+  active: boolean("active").notNull(),
+  managedDepartmentIds: uuid("managed_department_ids").array().notNull(),
+}).existing();
 
 /**
  * Phòng được giao theo dõi ĐƠN BẢO HIỂM — trục riêng của module bảo hiểm.
@@ -619,8 +676,12 @@ export const hospitals = pgTable("hospitals", {
 export const serviceTypes = pgTable("service_types", {
   id: id(),
   name: text("name").notNull().unique(),
-  /** Hệ số điểm KPI theo loại dịch vụ (P-84). */
+  /** Điểm KPI mỗi lượt (P-84). Chỉ nhân viên `salary_scheme = atm` được điểm. */
   coefficient: numeric("coefficient", { precision: 4, scale: 2 }).notNull().default("1"),
+  /** Số lượt tối đa được tính điểm mỗi ngày của một người; null = không giới hạn. */
+  dailyCap: integer("daily_cap"),
+  /** Số lượt tối đa được tính điểm mỗi tháng của một người; null = không giới hạn. */
+  monthlyCap: integer("monthly_cap"),
   active: boolean("active").notNull().default(true),
   createdAt: createdAt(),
   updatedAt: updatedAt(),

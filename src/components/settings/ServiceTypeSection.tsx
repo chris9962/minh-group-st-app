@@ -54,6 +54,17 @@ export function ServiceTypeSection({ creating, onCreatingChange }: Props) {
       render: (r) => r.coefficient,
     },
     {
+      key: "cap",
+      label: "Trần lượt",
+      render: (r) =>
+        [
+          r.dailyCap === null ? null : `${r.dailyCap} lượt/ngày`,
+          r.monthlyCap === null ? null : `${r.monthlyCap} lượt/tháng`,
+        ]
+          .filter(Boolean)
+          .join(" - ") || "Không giới hạn",
+    },
+    {
       key: "active",
       label: "Trạng thái",
       render: (r) => (

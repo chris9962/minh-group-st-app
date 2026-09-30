@@ -1,10 +1,15 @@
-import { and, asc, eq, gte, inArray, lte, sql } from "drizzle-orm";
-import { monthRange } from "@/lib/format";
-import { bankingPointsFor, kpiAppliesTo, type ScoringAccount } from "@/rules";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { businessMonth, monthRange, roundPoints } from "@/lib/format";
+import {
+  bankingPointsFor,
+  kpiAppliesTo,
+  multiBankComboCountFor,
+  type ScoringAccount,
+} from "@/rules";
 import type { Range } from "./org";
 import { customerDayBetween, customerDayText } from "./customerDay";
 import { db } from "./db/client";
-import { recomputeWorkDayForCustomer } from "./workDays";
+import { recomputeEmployeeWorkDay, recomputeWorkDayForCustomer } from "./workDays";
 import {
   bankAccounts,
   banks,
@@ -12,9 +17,7 @@ import {
   departments,
   giftGrants,
   kpiScores,
-  services,
-  serviceTypes,
-  users,
+  staffRoster,
 } from "./db/schema";
 
 /**
@@ -53,20 +56,91 @@ import {
  */
 type Db = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
 
-/** Điểm dịch vụ giữ cách cũ: Σ hệ số loại dịch vụ (spec §7.2), vẫn tính được bằng SQL. */
+/**
+ * Các lượt dịch vụ ĐƯỢC TÍNH ĐIỂM trong khoảng ngày, dạng câu con có các cột
+ * `id`, `created_by`, `department_id` (phòng của người làm trong tháng của
+ * lượt đó), `service_type_id`, `coefficient`.
+ *
+ * Luật của thông báo lương 2026-09-30 (chốt với chủ dự án cùng ngày):
+ * - Chỉ người có cách tính lương `atm` TRONG tháng của lượt dịch vụ được điểm
+ *   (đọc `staff_roster`). Người khác 0 điểm.
+ * - Mỗi loại có trần số lượt theo ngày và theo tháng của từng người
+ *   (`service_types.daily_cap`, `monthly_cap`). Lượt vượt trần không có điểm.
+ *   Lượt ghi trước được tính trước.
+ *
+ * Trần tháng xếp hạng trên TRỌN tháng rồi mới cắt về khoảng đang hỏi. Xếp hạng
+ * trong riêng khoảng thì hai nửa tháng cộng lại ra nhiều hơn cả tháng.
+ *
+ * Mọi nơi hiện điểm dịch vụ đọc câu con này. Tính ở hai nơi là điểm lưu cho
+ * lương và điểm trên màn lệch nhau.
+ */
+const countedServices = (from: string, to: string, userId?: string) => sql`(
+  select k.id, k.created_by, k.department_id, k.service_type_id, k.coefficient
+  from (
+    select d.*,
+           row_number() over (
+             partition by d.created_by, d.service_type_id, date_trunc('month', d.service_date)
+             order by d.service_date, d.created_at, d.id
+           ) as month_rank
+    from (
+      select s.id, s.created_by, r.department_id, s.service_type_id, s.service_date,
+             s.created_at, t.coefficient, t.daily_cap, t.monthly_cap,
+             row_number() over (
+               partition by s.created_by, s.service_type_id, s.service_date
+               order by s.created_at, s.id
+             ) as day_rank
+      from services s
+      join service_types t on t.id = s.service_type_id
+      join staff_roster r
+        on r.user_id = s.created_by and r.year_month = to_char(s.service_date, 'YYYY-MM')
+      where r.salary_scheme = 'atm'
+        and s.service_date >= date_trunc('month', ${from}::date)::date
+        and s.service_date < (date_trunc('month', ${to}::date) + interval '1 month')::date
+        ${userId ? sql`and s.created_by = ${userId}` : sql``}
+    ) d
+    where d.daily_cap is null or d.day_rank <= d.daily_cap
+  ) k
+  where (k.monthly_cap is null or k.month_rank <= k.monthly_cap)
+    and k.service_date between ${from}::date and ${to}::date
+)`;
+
 async function servicePointsOf(conn: Db, userId: string, from: string, to: string): Promise<number> {
-  const [row] = await conn
-    .select({ points: sql<number>`coalesce(sum(${serviceTypes.coefficient}), 0)::float` })
-    .from(services)
-    .innerJoin(serviceTypes, eq(serviceTypes.id, services.serviceTypeId))
-    .where(
-      and(
-        eq(services.createdBy, userId),
-        gte(services.serviceDate, from),
-        lte(services.serviceDate, to),
-      ),
-    );
-  return row?.points ?? 0;
+  const result = await conn.execute<{ points: number }>(
+    sql`select coalesce(sum(c.coefficient), 0)::float as points from ${countedServices(from, to, userId)} c`,
+  );
+  return result.rows[0]?.points ?? 0;
+}
+
+/** Điểm dịch vụ của một người trong khoảng ngày, gộp theo loại. Loại không có lượt được tính thì vắng mặt. */
+export async function servicePointsByType(
+  userId: string,
+  from: string,
+  to: string,
+): Promise<Map<string, number>> {
+  const result = await db.execute<{ service_type_id: string; points: number }>(
+    sql`select c.service_type_id, sum(c.coefficient)::float as points
+        from ${countedServices(from, to, userId)} c
+        group by c.service_type_id`,
+  );
+  return new Map(result.rows.map((r) => [r.service_type_id, r.points]));
+}
+
+/** Trong các lượt dịch vụ `ids` của một người, những lượt được tính điểm. */
+export async function countedServiceIds(
+  userId: string,
+  from: string,
+  to: string,
+  ids: string[],
+): Promise<Set<string>> {
+  if (ids.length === 0) return new Set();
+  const result = await db.execute<{ id: string }>(
+    sql`select c.id from ${countedServices(from, to, userId)} c
+        where c.id in (${sql.join(
+          ids.map((id) => sql`${id}::uuid`),
+          sql`, `,
+        )})`,
+  );
+  return new Set(result.rows.map((r) => r.id));
 }
 
 /**
@@ -222,12 +296,13 @@ export async function bankingPointsByCustomer(
  * hai chuyện khác nhau nhưng cùng dẫn tới "chưa có công thức", nên không cần
  * tách.
  */
-async function departmentTypeOf(conn: Db, userId: string) {
+/** Loại phòng của người đó TRONG tháng đang tính, đọc từ nhân sự của tháng. */
+async function departmentTypeOf(conn: Db, userId: string, yearMonth: string) {
   const [row] = await conn
     .select({ type: departments.type })
-    .from(users)
-    .leftJoin(departments, eq(departments.id, users.departmentId))
-    .where(eq(users.id, userId));
+    .from(staffRoster)
+    .leftJoin(departments, eq(departments.id, staffRoster.departmentId))
+    .where(and(eq(staffRoster.userId, userId), eq(staffRoster.yearMonth, yearMonth)));
   return row?.type ?? null;
 }
 
@@ -278,12 +353,11 @@ async function recomputeKpiOn(tx: Db, userId: string, yearMonth: string): Promis
    * `office` là nói họ làm mà không được điểm nào, trong khi thật ra chưa ai
    * viết công thức cho công của họ.
    *
-   * ⚠️ Người chuyển từ phòng kinh doanh sang phòng `office` mất điểm của MỌI
-   * tháng có lượt tính lại chạm tới, kể cả tháng đã trả lương. Câu 4 của spec
-   * §7.0 — tính theo phòng lúc ghi bản ghi hay phòng cuối tháng — vẫn chờ đội
-   * KD trả lời; code đang lấy phòng HIỆN TẠI.
+   * Phòng lấy theo nhân sự của THÁNG đang tính (chốt 2026-09-30): người chuyển
+   * từ phòng kinh doanh sang phòng `office` giữ điểm của các tháng còn ở phòng
+   * kinh doanh.
    */
-  if (!kpiAppliesTo(await departmentTypeOf(tx, userId))) {
+  if (!kpiAppliesTo(await departmentTypeOf(tx, userId, yearMonth))) {
     await tx
       .delete(kpiScores)
       .where(and(eq(kpiScores.userId, userId), eq(kpiScores.yearMonth, yearMonth)));
@@ -367,11 +441,13 @@ export async function recomputeKpiForMonth(yearMonth: string): Promise<number> {
    * kết nối và làm nghẽn các request đang phục vụ.
    */
   return db.transaction(async (tx) => {
+    // Mọi người thuộc tháng đó, kể cả người đã khoá về sau: điểm tháng cũ của
+    // họ vẫn vào lương quản lý.
     const rows = await tx
-      .select({ id: users.id })
-      .from(users)
-      .where(eq(users.active, true))
-      .orderBy(asc(users.id));
+      .select({ id: staffRoster.userId })
+      .from(staffRoster)
+      .where(eq(staffRoster.yearMonth, yearMonth))
+      .orderBy(asc(staffRoster.userId));
     for (const row of rows) await recomputeKpiOn(tx, row.id, yearMonth);
     return rows.length;
   });
@@ -403,7 +479,7 @@ export async function pointsByStaffInRange(
     db
       .select({
         userId: customers.createdBy,
-        departmentId: users.departmentId,
+        departmentId: staffRoster.departmentId,
         customerId: bankAccounts.customerId,
         bankCode: banks.code,
         appInstalled: bankAccounts.appInstalled,
@@ -413,8 +489,15 @@ export async function pointsByStaffInRange(
       .from(bankAccounts)
       .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
       .innerJoin(customers, eq(customers.id, bankAccounts.customerId))
-      .innerJoin(users, eq(users.id, customers.createdBy))
-      .innerJoin(departments, eq(departments.id, users.departmentId))
+      // Phòng của người lập hồ sơ TRONG tháng của hồ sơ, không phải phòng hiện tại.
+      .innerJoin(
+        staffRoster,
+        and(
+          eq(staffRoster.userId, customers.createdBy),
+          eq(staffRoster.yearMonth, sql`left(${customerDayText}, 7)`),
+        ),
+      )
+      .innerJoin(departments, eq(departments.id, staffRoster.departmentId))
       .where(
         and(
           eq(departments.type, "sales"),
@@ -423,23 +506,15 @@ export async function pointsByStaffInRange(
         ),
       ),
     db
-      .select({
-        userId: services.createdBy,
-        departmentId: users.departmentId,
-        points: sql<number>`coalesce(sum(${serviceTypes.coefficient}), 0)::float`,
-      })
-      .from(services)
-      .innerJoin(serviceTypes, eq(serviceTypes.id, services.serviceTypeId))
-      .innerJoin(users, eq(users.id, services.createdBy))
-      .innerJoin(departments, eq(departments.id, users.departmentId))
-      .where(
-        and(
-          eq(departments.type, "sales"),
-          gte(services.serviceDate, range.from),
-          lte(services.serviceDate, range.to),
-        ),
+      .execute<{ userId: string; departmentId: string; points: number }>(
+        sql`select c.created_by as "userId", c.department_id as "departmentId",
+                   sum(c.coefficient)::float as points
+            from ${countedServices(range.from, range.to)} c
+            join departments d on d.id = c.department_id
+            where d.type = 'sales'
+            group by c.created_by, c.department_id`,
       )
-      .groupBy(services.createdBy, users.departmentId),
+      .then((result) => result.rows),
     // Món khách đã nhận — vào của phép tính điểm ở kỳ 2026-08. Kéo trọn bảng
     // vì nó nhỏ, và lọc theo khách thì phải biết trước danh sách khách.
     db.select({ customerId: giftGrants.customerId, chosenItem: giftGrants.chosenItem }).from(giftGrants),
@@ -472,10 +547,11 @@ export async function pointsByStaffInRange(
   }
 
   const out = new Map<string, { departmentId: string | null; points: number }>();
+  // Hai số lẻ như `kpi_scores`: điểm dịch vụ có mức 0,01 mỗi lượt.
   const add = (userId: string, departmentId: string | null, points: number) => {
     const cur = out.get(userId);
-    if (cur) cur.points = Math.round((cur.points + points) * 10) / 10;
-    else out.set(userId, { departmentId, points: Math.round(points * 10) / 10 });
+    if (cur) cur.points = roundPoints(cur.points + points);
+    else out.set(userId, { departmentId, points: roundPoints(points) });
   };
 
   for (const [userId, staff] of byStaff)
@@ -493,7 +569,44 @@ export async function pointsByDepartmentInRange(range: Range): Promise<Map<strin
   const out = new Map<string, number>();
   for (const { departmentId, points } of byStaff.values()) {
     if (!departmentId) continue;
-    out.set(departmentId, Math.round(((out.get(departmentId) ?? 0) + points) * 10) / 10);
+    out.set(departmentId, roundPoints((out.get(departmentId) ?? 0) + points));
   }
   return out;
 }
+
+/**
+ * Số khách đạt Combo 2 hoặc Combo 3 của từng người trong tháng — thưởng combo
+ * của nhân viên điểm ATM. Cùng nguồn tài khoản với điểm ngân hàng.
+ */
+export async function multiBankComboCounts(
+  userIds: string[],
+  yearMonth: string,
+): Promise<Map<string, number>> {
+  const { from, to } = monthRange(yearMonth);
+  const out = new Map<string, number>();
+  for (const userId of userIds)
+    out.set(userId, multiBankComboCountFor(await scoringAccountsOf(db, userId, from, to), yearMonth));
+  return out;
+}
+
+/**
+ * Tính lại điểm và ngày công của MỘT người sau khi đổi cách tính lương: điểm
+ * dịch vụ và ngày công theo lượt dịch vụ chỉ có ở nhóm `atm`.
+ *
+ * Phủ mọi tháng và mọi ngày người đó có lượt dịch vụ hoặc ngày công. Tháng đã
+ * chốt lương không đổi số lương: `salaryForUsers` đọc bản chốt.
+ */
+export async function recomputeForSalaryScheme(userId: string): Promise<void> {
+  const result = await db.execute<{ day: string }>(sql`
+    select to_char(d, 'YYYY-MM-DD') as day from (
+      select service_date as d from services where created_by = ${userId}
+      union
+      select work_date from employee_work_days where user_id = ${userId}
+    ) days
+  `);
+  const days = result.rows.map((r) => r.day);
+  const months = new Set([businessMonth(), ...days.map((day) => day.slice(0, 7))]);
+  for (const month of months) await recomputeKpi(userId, month);
+  for (const day of days) await recomputeEmployeeWorkDay(userId, day);
+}
+

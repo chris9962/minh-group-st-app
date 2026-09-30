@@ -1,6 +1,7 @@
 import { randomInt } from "node:crypto";
 import { compare, hashSync } from "bcryptjs";
-import { and, asc, count, desc, eq, inArray, isNull, ne, sql, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray, isNull, ne, sql, type SQL } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import type {
   StaffAccount,
   StaffForm,
@@ -18,6 +19,7 @@ import {
   canGrant,
   clampScope,
   inVisibleScope,
+  isFullAccess,
   visibleDepartmentIds,
 } from "@/lib/permissions";
 import {
@@ -29,8 +31,9 @@ import {
   type User,
 } from "@/lib/types";
 import { forbidden, isUuid, notFound } from "./auth";
+import { accountCustomerDayBetween, customerDayBetween } from "./customerDay";
 import { db, uniqueViolationOf } from "./db/client";
-import { pointsByStaffInRange } from "./kpi";
+import { pointsByStaffInRange, recomputeForSalaryScheme } from "./kpi";
 import {
   bankAccounts,
   customers,
@@ -40,6 +43,7 @@ import {
   kpiScores,
   services,
   sessions,
+  staffRoster,
   userInsuranceDepartments,
   userManagedBanks,
   userManagedDepartments,
@@ -49,10 +53,9 @@ import {
 import type { PageArgs } from "./pagination";
 import {
   countsInRange,
-  createdByEndOf,
   daysLeftOf,
   pointsExpr,
-  roleRankExpr,
+  roleRankOf,
   staffSearchWhere,
   targetExpr,
 } from "./people";
@@ -97,6 +100,7 @@ async function toAccounts(rows: UserWithDepartment[]): Promise<StaffAccount[]> {
     role: r.role,
     title: r.title,
     contractType: r.contractType,
+    salaryScheme: r.salaryScheme,
     manageScope: r.manageScope,
     managedDepartmentIds: managedOf.get(r.id) ?? [],
     insuranceDepartmentIds: insuranceDepartmentsOf.get(r.id) ?? [],
@@ -132,7 +136,7 @@ export async function staffFor(
   const visible = visibleDepartmentIds(actor, scope);
 
   const summaryMonth = query.summaryMonth || businessMonth();
-  const target = targetExpr(summaryMonth);
+  const target = targetExpr(summaryMonth, staffRoster.departmentId);
   const points = pointsExpr(summaryMonth);
   const daysLeft = daysLeftOf(summaryMonth);
 
@@ -147,31 +151,35 @@ export async function staffFor(
     };
 
   /**
-   * Phạm vi + ô lọc đơn vị + mốc thời điểm + trạng thái tài khoản.
+   * Phạm vi + ô lọc đơn vị + trạng thái tài khoản, tất cả theo NHÂN SỰ CỦA
+   * THÁNG đang xem (`staffRoster`, chốt 2026-09-30): phòng, chức vụ, loại hợp
+   * đồng, đang làm hay đã khoá đều là của tháng đó, không phải hồ sơ hiện tại.
    * Thẻ tóm tắt và bảng cùng áp dụng trạng thái đang chọn.
    *
-   * `createdByEndOf` nằm ở đây chứ không ở `where`: thẻ tóm tắt cũng phải bỏ
-   * người chưa có tài khoản trong tháng đang xem, nếu không thì thẻ "chưa đạt"
-   * đếm cả họ.
+   * Phép nối `staffRoster` ở ba câu dưới cũng bỏ luôn người chưa có tài khoản
+   * trong tháng đang xem: họ không có dòng nhân sự của tháng đó.
    */
+  const inMonth = and(eq(staffRoster.userId, users.id), eq(staffRoster.yearMonth, summaryMonth));
   const inScope = and(
-    visible === null ? undefined : inArray(users.departmentId, visible),
-    query.departmentId ? eq(users.departmentId, query.departmentId) : undefined,
-    createdByEndOf(summaryMonth),
-    query.status === "all" ? undefined : eq(users.active, query.status === "active"),
+    visible === null ? undefined : inArray(staffRoster.departmentId, visible),
+    query.departmentId ? eq(staffRoster.departmentId, query.departmentId) : undefined,
+    query.status === "all" ? undefined : eq(staffRoster.active, query.status === "active"),
   );
 
   const where = and(
     inScope,
     // Rỗng nghĩa là lấy hết — hiểu thành "không lấy gì" thì lần đầu mở trang bảng trống trơn.
-    query.roles.length > 0 ? inArray(users.role, query.roles) : undefined,
+    query.roles.length > 0 ? inArray(staffRoster.role, query.roles) : undefined,
     query.contractType === "none"
-      ? isNull(users.contractType)
+      ? isNull(staffRoster.contractType)
       : query.contractType
-        ? eq(users.contractType, query.contractType)
+        ? eq(staffRoster.contractType, query.contractType)
         : undefined,
     staffSearchWhere(query.search),
   );
+  // `departments` là phòng của THÁNG đang xem (ô tìm soi tên này); phòng hiện
+  // tại đi riêng cho hồ sơ mà hộp thoại sửa đọc.
+  const currentDepartments = alias(departments, "current_departments");
 
   const direction = page.dir === "asc" ? asc : desc;
   /**
@@ -184,10 +192,14 @@ export async function staffFor(
     // Sắp theo tên đã bỏ dấu: collate mặc định của Postgres xếp `Đặng` sau
     // `Zũng`, người dùng đọc ra là bảng sắp sai.
     name: [direction(sql`mgst_normalize(${users.fullName})`), asc(users.id)],
-    // `roleRankExpr` chứ không phải cột `role`: enum khai `director` trước
+    // `roleRankOf` chứ không phải cột `role`: enum khai `director` trước
     // `staff` nên Giám đốc mang số nhỏ nhất, và `DESC` trên cột đó đẩy Nhân
     // viên lên đầu trong khi mũi tên ↓ hứa điều ngược lại.
-    role: [direction(roleRankExpr), asc(sql`mgst_normalize(${users.fullName})`), asc(users.id)],
+    role: [
+      direction(roleRankOf(staffRoster.role)),
+      asc(sql`mgst_normalize(${users.fullName})`),
+      asc(users.id),
+    ],
     // Sắp theo TỈ LỆ đạt, không theo hiệu số: mốc mỗi phòng có thể khác nhau
     // nên "còn thiếu 10" của người mốc 50 nặng hơn của người mốc 200.
     kpi: [direction(sql`${points}::float / nullif(${target}, 0)`), asc(users.id)],
@@ -195,9 +207,20 @@ export async function staffFor(
 
   const [rows, [totals], [counts]] = await Promise.all([
     db
-      .select({ user: users, departmentName: departments.name, points, target })
+      .select({
+        user: users,
+        departmentName: currentDepartments.name,
+        monthDepartmentId: staffRoster.departmentId,
+        monthDepartmentName: departments.name,
+        monthRole: staffRoster.role,
+        monthActive: staffRoster.active,
+        points,
+        target,
+      })
       .from(users)
-      .leftJoin(departments, eq(departments.id, users.departmentId))
+      .innerJoin(staffRoster, inMonth)
+      .leftJoin(departments, eq(departments.id, staffRoster.departmentId))
+      .leftJoin(currentDepartments, eq(currentDepartments.id, users.departmentId))
       .leftJoin(
         kpiScores,
         and(eq(kpiScores.userId, users.id), eq(kpiScores.yearMonth, summaryMonth)),
@@ -210,19 +233,21 @@ export async function staffFor(
     db
       .select({ value: count() })
       .from(users)
-      .leftJoin(departments, eq(departments.id, users.departmentId))
+      .innerJoin(staffRoster, inMonth)
+      .leftJoin(departments, eq(departments.id, staffRoster.departmentId))
       .where(where),
     // Tóm tắt cố ý KHÔNG áp tìm kiếm / chức vụ: gõ tên một người
     // không có nghĩa công ty chỉ còn một người.
     db
       .select({
-        active: sql<number>`count(*) filter (where ${users.active})::int`,
-        locked: sql<number>`count(*) filter (where not ${users.active})::int`,
+        active: sql<number>`count(*) filter (where ${staffRoster.active})::int`,
+        locked: sql<number>`count(*) filter (where not ${staffRoster.active})::int`,
         // Chỉ người đang làm mới có chỉ tiêu. Tính cả tài khoản đã khoá thì họ
         // vào với 0 điểm và "chưa đạt" phồng lên mà không ai thấy vì sao.
-        onTarget: sql<number>`count(*) filter (where ${users.active} and ${points} >= ${target})::int`,
+        onTarget: sql<number>`count(*) filter (where ${staffRoster.active} and ${points} >= ${target})::int`,
       })
       .from(users)
+      .innerJoin(staffRoster, inMonth)
       .leftJoin(
         kpiScores,
         and(eq(kpiScores.userId, users.id), eq(kpiScores.yearMonth, summaryMonth)),
@@ -287,6 +312,10 @@ export async function staffFor(
     page: {
       rows: accounts.map((a) => ({
         ...a,
+        monthDepartmentId: scoreById.get(a.id)?.monthDepartmentId ?? null,
+        monthDepartmentName: scoreById.get(a.id)?.monthDepartmentName ?? "",
+        monthRole: scoreById.get(a.id)?.monthRole ?? a.role,
+        monthActive: scoreById.get(a.id)?.monthActive ?? a.active,
         points: scoreById.get(a.id)?.points ?? 0,
         target: scoreById.get(a.id)?.target ?? 100,
         customers: countsById.get(a.id)?.customers ?? 0,
@@ -295,6 +324,11 @@ export async function staffFor(
         services: countsById.get(a.id)?.services ?? 0,
         rangePoints: rangePoints ? (rangePoints.get(a.id)?.points ?? 0) : null,
         salary: salaryById.get(a.id)?.amount ?? 0,
+        salaryBreakdown: {
+          month: summaryMonth,
+          facts: salaryById.get(a.id)?.facts ?? [],
+          items: salaryById.get(a.id)?.items ?? [],
+        },
       })),
       total: totals?.value ?? 0,
     },
@@ -550,22 +584,23 @@ async function writeStaff(
         role: form.role,
         title: form.title,
         contractType: form.contractType || null,
+        salaryScheme: form.salaryScheme,
         departmentId: form.departmentId || null,
         manageScope: form.manageScope,
       });
     } else {
       /**
-       * Chuyển phòng thì DỮ LIỆU ĐI THEO NGƯỜI (chốt 13/08).
+       * Chuyển phòng chỉ dời bản ghi của THÁNG ĐANG CHUYỂN (chốt 2026-09-30).
        *
-       * Bốn bảng nghiệp vụ chụp `created_by_department_id` lúc tạo. Đội chốt
-       * bản ghi của một người luôn thuộc phòng họ ĐANG ở, nên lượt chuyển phòng
-       * phải viết lại cột đó — cùng lối với điểm KPI, vốn khoá theo `user_id`
-       * nên vẫn đi theo người.
+       * Bốn bảng nghiệp vụ chụp `created_by_department_id` lúc tạo. Mỗi người
+       * mỗi tháng thuộc đúng một phòng, là phòng cuối tháng (`staffRoster`), nên
+       * bản ghi của tháng đang chạy đi theo người sang phòng mới, còn bản ghi
+       * của các tháng đã qua giữ phòng cũ: xem lại hay xuất tháng 9 vẫn thấy
+       * người đó ở phòng của tháng 9. Bản trước (chốt 13/08) dời mọi tháng.
        *
-       * Viết lại cột chứ không bỏ cột rồi nối sang `users` lúc truy vấn: nối
+       * Viết lại cột chứ không bỏ cột rồi nối sang nhân sự lúc truy vấn: nối
        * thì bốn chỉ mục `*_dept_date` hết tác dụng, và lọc theo phòng buộc phải
-       * nối `users` TRƯỚC khi cắt trang — đúng hình dạng câu hỏi mà AGENTS.md
-       * §5.2 cấm.
+       * nối TRƯỚC khi cắt trang — đúng hình dạng câu hỏi mà AGENTS.md §5.2 cấm.
        */
       const [before] = await tx
         .select({ departmentId: users.departmentId })
@@ -573,18 +608,32 @@ async function writeStaff(
         .where(eq(users.id, id));
       const movedTo = form.departmentId || null;
       if (before && before.departmentId !== movedTo) {
-        for (const table of [bankAccounts, insuranceOrders, services, customers])
-          await tx
-            .update(table)
-            .set({ createdByDepartmentId: movedTo })
-            .where(eq(table.createdBy, id));
+        const { from, to } = monthRange(businessMonth());
+        const moved = { createdByDepartmentId: movedTo };
+        await tx
+          .update(customers)
+          .set(moved)
+          .where(and(eq(customers.createdBy, id), customerDayBetween(from, to)));
+        // Tài khoản thuộc tháng của HỒ SƠ KHÁCH, cùng mốc với điểm KPI.
+        await tx
+          .update(bankAccounts)
+          .set(moved)
+          .where(and(eq(bankAccounts.createdBy, id), accountCustomerDayBetween(from, to)));
+        await tx
+          .update(insuranceOrders)
+          .set(moved)
+          .where(and(eq(insuranceOrders.createdBy, id), gte(insuranceOrders.orderDate, from)));
+        await tx
+          .update(services)
+          .set(moved)
+          .where(and(eq(services.createdBy, id), gte(services.serviceDate, from)));
         // Ngày công cũng đi theo người như bốn bảng nghiệp vụ trên. Nhờ vậy
         // số ngày của TP/PT phòng cũ và mới không đọc hai quy ước khác nhau.
         if (movedTo)
           await tx
             .update(employeeWorkDays)
             .set({ departmentId: movedTo, updatedAt: new Date() })
-            .where(eq(employeeWorkDays.userId, id));
+            .where(and(eq(employeeWorkDays.userId, id), gte(employeeWorkDays.workDate, from)));
       }
 
       await tx
@@ -597,6 +646,7 @@ async function writeStaff(
           role: form.role,
           title: form.title,
           contractType: form.contractType || null,
+          salaryScheme: form.salaryScheme,
           departmentId: form.departmentId || null,
           manageScope: form.manageScope,
           updatedAt: new Date(),
@@ -699,7 +749,15 @@ async function writeGuarded(
   }
 }
 
-export async function createStaff(actor: User, form: StaffForm): Promise<SaveOutcome> {
+/**
+ * Cách tính lương đổi số tiền lương, nên chỉ tài khoản toàn quyền đổi được
+ * (chốt 2026-09-30). Người khác gửi gì lên cũng giữ giá trị đang lưu.
+ */
+const withSalaryScheme = (actor: User, form: StaffForm, stored: StaffForm["salaryScheme"]): StaffForm =>
+  isFullAccess(actor.permissions) ? form : { ...form, salaryScheme: stored };
+
+export async function createStaff(actor: User, sent: StaffForm): Promise<SaveOutcome> {
+  const form = withSalaryScheme(actor, sent, "department");
   const ceiling = checkCeilings(actor, form, "create");
   if (ceiling) return { ok: false, code: ceiling };
   if (await usernameTaken(form.username)) return { ok: false, code: "username-taken" };
@@ -711,9 +769,10 @@ export async function createStaff(actor: User, form: StaffForm): Promise<SaveOut
   return { ok: true, staff: (await findStaff(id))!, password: written.password ?? undefined };
 }
 
-export async function updateStaff(actor: User, id: string, form: StaffForm): Promise<SaveOutcome | null> {
+export async function updateStaff(actor: User, id: string, sent: StaffForm): Promise<SaveOutcome | null> {
   const current = await findStaff(id);
   if (!current) return null;
+  const form = withSalaryScheme(actor, sent, current.salaryScheme);
 
   /**
    * TỰ sửa quyền của chính mình thì TỪ CHỐI thẳng.
@@ -763,21 +822,26 @@ export async function updateStaff(actor: User, id: string, form: StaffForm): Pro
     !sameIdSet(current.insuranceDepartmentIds, form.insuranceDepartmentIds);
   if (accessChanged) await db.delete(sessions).where(eq(sessions.userId, id));
 
+  // Điểm dịch vụ và ngày công của người này tính theo cách tính lương.
+  if (current.salaryScheme !== form.salaryScheme) await recomputeForSalaryScheme(id);
+
   /**
    * Rổ quà tính lại sau khi chuyển phòng — chốt 13/08.
    *
    * Luật quà đọc phòng của người lập hồ sơ khách để biết có áp phần quy đổi của
-   * Phòng Y không (thể lệ mục 4). `writeStaff` vừa dời khách sang phòng mới nên
-   * rổ của họ đã khác, mà cột `customers.gift_basket` lưu sẵn thì chưa biết.
+   * Phòng Y không (thể lệ mục 4). `writeStaff` vừa dời khách của tháng đang
+   * chuyển sang phòng mới nên rổ của họ đã khác, mà cột `customers.gift_basket`
+   * lưu sẵn thì chưa biết. Khách của các tháng đã qua không dời, không tính lại.
    *
    * Đợt ĐÃ phát không đụng tới: `gift_grants.snapshot` đóng băng (spec §5.3),
    * và `recomputeGiftCase` chỉ ghi cột `gift_basket` của khách.
    */
   if (movedDepartment) {
+    const { from, to } = monthRange(businessMonth());
     const moved = await db
       .select({ id: customers.id })
       .from(customers)
-      .where(eq(customers.createdBy, id));
+      .where(and(eq(customers.createdBy, id), customerDayBetween(from, to)));
     for (const row of moved) await recomputeGiftCase(row.id);
   }
 

@@ -20,6 +20,8 @@
     "db:import-contract-types": "bun --env-file=.env.local scripts/db-import-contract-types.ts",
     "db:seed-quota-2026-09": "bun --env-file=.env.local scripts/db-seed-quota-2026-09.ts",
     "db:seed-quota-2026-10": "bun --env-file=.env.local scripts/db-seed-quota-2026-10.ts",
+    "db:seed-atm-2026-10": "bun --env-file=.env.local scripts/db-seed-atm-2026-10.ts",
+    "db:snapshot-staff": "bun --env-file=.env.local scripts/snapshot-staff-months.ts",
     "db:grant-missing": "bun --env-file=.env.local scripts/db-grant-missing-permissions.ts",
     "db:grant-department-read": "bun --env-file=.env.local scripts/db-grant-department-read.ts",
     "db:grant-adjust-kpi": "bun --env-file=.env.local scripts/db-grant-adjust-kpi.ts",

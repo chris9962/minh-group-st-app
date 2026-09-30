@@ -26,6 +26,7 @@ import { BankingHeadline } from "@/components/dashboard/BankingHeadline";
 import { EMPTY_PAGE } from "@/lib/api/pagination";
 import { fetchDepartmentDetail, fetchDepartmentSummary } from "@/lib/api/org";
 import { fetchDepartmentStaff, type StaffRow } from "@/lib/api/staff";
+import { personHref } from "@/lib/api/people";
 import { scopeFor, visibleDepartmentIds } from "@/lib/permissions";
 import { ROLE_LABEL, ROLE_RANK } from "@/lib/types";
 import { useSession } from "@/store/session";
@@ -49,7 +50,7 @@ const EMPLOYEE_COLUMNS: RankColumn<StaffRow>[] = [
     label: "Tên",
     sortText: (s) => s.fullName,
     render: (s) => (
-      <Link href={`/users/${s.id}`} className={styles.nameLink}>
+      <Link href={personHref(s.id, s.salaryBreakdown.month)} className={styles.nameLink}>
         {s.fullName}
       </Link>
     ),
@@ -59,15 +60,17 @@ const EMPLOYEE_COLUMNS: RankColumn<StaffRow>[] = [
     label: "Chức vụ",
     // `ROLE_RANK` chứ không phải chuỗi `role`: số càng cao chức vụ càng cao, nên
     // mũi tên ↓ đẩy Trưởng phòng lên đầu như người đọc trông đợi.
-    sortBy: (s) => ROLE_RANK[s.role],
-    render: (s) => ROLE_LABEL[s.role],
+    sortBy: (s) => ROLE_RANK[s.monthRole],
+    render: (s) => ROLE_LABEL[s.monthRole],
   },
   {
     key: "active",
     label: "Trạng thái",
-    sortBy: (s) => (s.active ? 1 : 0),
+    // Trạng thái của THÁNG đang xem: người nghỉ ở tháng sau vẫn là người đang
+    // làm của tháng này.
+    sortBy: (s) => (s.monthActive ? 1 : 0),
     render: (s) => (
-      <StatusTag ok={s.active}>{s.active ? "Đang hoạt động" : "Đã khoá"}</StatusTag>
+      <StatusTag ok={s.monthActive}>{s.monthActive ? "Đang hoạt động" : "Đã khoá"}</StatusTag>
     ),
   },
   {
@@ -107,7 +110,16 @@ const EMPLOYEE_COLUMNS: RankColumn<StaffRow>[] = [
     key: "salary",
     label: "Lương",
     align: "right",
-    render: (staff) => <SalaryAmount amount={staff.salary} visible />,
+    render: (staff) => (
+      <span className={styles.salaryCell}>
+        <SalaryAmount amount={staff.salary} visible />
+        <SalaryBreakdownButton
+          iconOnly={{ personName: staff.fullName }}
+          amount={staff.salary}
+          breakdown={staff.salaryBreakdown}
+        />
+      </span>
+    ),
   },
 ];
 
@@ -121,16 +133,19 @@ export default function DepartmentDetailPage({
   const user = useSession((s) => s.user);
   const [period, setPeriod] = useState<Period>(DEFAULT_PERIOD);
 
+  const { from, to } = periodDates(period);
+  // Người quản lý và lương của họ là của THÁNG đang xem.
+  const month = from.slice(0, 7);
   const { data, isPending, isError, refetch, isFetching } = useQuery({
-    queryKey: ["org-department", id],
-    queryFn: () => fetchDepartmentDetail(id),
+    queryKey: ["org-department", id, month],
+    queryFn: () => fetchDepartmentDetail(id, month),
+    placeholderData: keepPreviousData,
   });
 
   /**
    * Trọn danh sách nhân viên của phòng, một lượt gọi cho cả kỳ. Trình duyệt tự
    * sắp — xem `fetchDepartmentStaff` cho lý do bỏ phân trang.
    */
-  const { from, to } = periodDates(period);
   const {
     data: staffData,
     isPending: staffPending,
@@ -179,8 +194,8 @@ export default function DepartmentDetailPage({
    * `fetchDepartmentStaff` trả trọn danh sách, không phân trang.
    */
   const [showLocked, setShowLocked] = useState(false);
-  const lockedCount = rows.filter((s) => !s.active).length;
-  const visibleRows = showLocked ? rows : rows.filter((s) => s.active);
+  const lockedCount = rows.filter((s) => !s.monthActive).length;
+  const visibleRows = showLocked ? rows : rows.filter((s) => s.monthActive);
   const totals = visibleRows.reduce(
     (sum, staff) => ({
       customers: sum.customers + staff.customers,
@@ -205,7 +220,7 @@ export default function DepartmentDetailPage({
     <>
       <TopBar title={data?.department.name ?? "Phòng ban"}>
         <div className={styles.periodInline}>
-          <PeriodPicker value={period} onChange={setPeriod} sameMonthOnly />
+          <PeriodPicker value={period} onChange={setPeriod} />
         </div>
         <div className={styles.periodCollapsed}>
           <FilterButton
@@ -213,7 +228,7 @@ export default function DepartmentDetailPage({
             onClear={() => setPeriod(DEFAULT_PERIOD)}
           >
             <FilterField id="period" label="Kỳ" count={period.kind === "today" ? 0 : 1}>
-              <PeriodPicker value={period} onChange={setPeriod} sameMonthOnly />
+              <PeriodPicker value={period} onChange={setPeriod} />
             </FilterField>
           </FilterButton>
         </div>
@@ -239,7 +254,10 @@ export default function DepartmentDetailPage({
               <ul className={styles.managers}>
                 {data.managers.map((m) => (
                   <li key={m.id}>
-                    <Link href={`/users/${m.id}`} className={styles.nameLink}>
+                    <Link
+                      href={personHref(m.id, m.salaryBreakdown.month)}
+                      className={styles.nameLink}
+                    >
                       {m.fullName}
                     </Link>
                     <span className={styles.managerTitle}>{m.title}</span>

@@ -3,7 +3,15 @@ import type { WorkDayExportRow } from "@/lib/api/exports";
 import { monthRange } from "@/lib/format";
 import { customerDayBetween, customerDayText } from "./customerDay";
 import { db } from "./db/client";
-import { bankAccounts, customers, departments, employeeWorkDays, users } from "./db/schema";
+import {
+  bankAccounts,
+  customers,
+  departments,
+  employeeWorkDays,
+  services,
+  staffRoster,
+  users,
+} from "./db/schema";
 
 type Db = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -25,10 +33,15 @@ async function recomputeEmployeeWorkDayOn(
     sql`select pg_advisory_xact_lock(hashtext(${`work-day:${userId}`}), hashtext(${workDate}))`,
   );
 
+  // Chức vụ, phòng và cách tính lương của người đó TRONG tháng của ngày công.
   const [staff] = await tx
-    .select({ role: users.role, departmentId: users.departmentId })
-    .from(users)
-    .where(eq(users.id, userId))
+    .select({
+      role: staffRoster.role,
+      departmentId: staffRoster.departmentId,
+      salaryScheme: staffRoster.salaryScheme,
+    })
+    .from(staffRoster)
+    .where(and(eq(staffRoster.userId, userId), eq(staffRoster.yearMonth, workDate.slice(0, 7))))
     .limit(1);
 
   // Chỉ vai Nhân viên tạo ngày công. TP/PT lấy ngày từ hợp của nhân viên trong
@@ -40,10 +53,8 @@ async function recomputeEmployeeWorkDayOn(
     return;
   }
 
-  const [row] = await tx
-    .select({
-      count: sql<number>`count(distinct ${customers.id})::int`,
-    })
+  const accountCustomers = await tx
+    .selectDistinct({ id: customers.id })
     .from(customers)
     .innerJoin(
       bankAccounts,
@@ -56,7 +67,18 @@ async function recomputeEmployeeWorkDayOn(
       ),
     );
 
-  const qualifyingCustomerCount = row?.count ?? 0;
+  // Nhân viên điểm ATM: ngày có lượt dịch vụ cũng là ngày công (chốt 2026-09-30).
+  const serviceCustomers =
+    staff.salaryScheme === "atm"
+      ? await tx
+          .selectDistinct({ id: services.customerId })
+          .from(services)
+          .where(and(eq(services.createdBy, userId), eq(services.serviceDate, workDate)))
+      : [];
+
+  const qualifyingCustomerCount = new Set(
+    [...accountCustomers, ...serviceCustomers].map((row) => row.id),
+  ).size;
   if (qualifyingCustomerCount === 0) {
     await tx
       .delete(employeeWorkDays)
@@ -142,7 +164,8 @@ const ROLE_ORDER: Record<string, number> = { head: 0, "deputy-head": 1, staff: 2
  * mà màn lương dùng. Đọc ngày của chính họ thì dòng luôn trống: chỉ Nhân viên
  * mới tạo ngày công.
  *
- * `departmentId` rỗng là mọi phòng; có thì chỉ lấy người thuộc phòng đó.
+ * `departmentId` rỗng là mọi phòng; có thì chỉ lấy người thuộc phòng đó TRONG
+ * tháng xuất.
  */
 export async function listWorkDayExport(
   yearMonth: string,
@@ -150,21 +173,26 @@ export async function listWorkDayExport(
 ): Promise<WorkDayExportRow[]> {
   const { from, to } = monthRange(yearMonth);
   const [people, dayRows] = await Promise.all([
+    // Phòng, chức vụ và trạng thái của từng người TRONG tháng xuất.
     db
       .select({
         id: users.id,
         fullName: users.fullName,
-        role: users.role,
-        active: users.active,
-        departmentId: users.departmentId,
+        role: staffRoster.role,
+        active: staffRoster.active,
+        departmentId: staffRoster.departmentId,
         departmentName: departments.name,
       })
       .from(users)
-      .leftJoin(departments, eq(departments.id, users.departmentId))
+      .innerJoin(
+        staffRoster,
+        and(eq(staffRoster.userId, users.id), eq(staffRoster.yearMonth, yearMonth)),
+      )
+      .leftJoin(departments, eq(departments.id, staffRoster.departmentId))
       .where(
         and(
-          inArray(users.role, ["staff", "head", "deputy-head"]),
-          departmentId ? eq(users.departmentId, departmentId) : undefined,
+          inArray(staffRoster.role, ["staff", "head", "deputy-head"]),
+          departmentId ? eq(staffRoster.departmentId, departmentId) : undefined,
         ),
       ),
     db
@@ -214,20 +242,32 @@ export async function listWorkDayExport(
  * hoặc khi nghi một lượt cập nhật hậu kỳ đã thất bại.
  */
 export async function recountEmployeeWorkDays(): Promise<unknown[]> {
-  const drift = await db.execute(sql`
-    with expected as (
+  // Khách có tài khoản hoàn thành, cộng khách của lượt dịch vụ với nhân viên
+  // điểm ATM: cùng điều kiện với `recomputeEmployeeWorkDayOn`. Chức vụ, phòng
+  // và cách tính lương đọc theo nhân sự của tháng chứa ngày công.
+  const expected = sql`
+    select d.user_id, d.work_date, r.department_id,
+           count(distinct d.customer_id)::int qualifying_customer_count
+    from (
       select c.created_by user_id,
              (c.created_at at time zone 'Asia/Ho_Chi_Minh')::date work_date,
-             u.department_id,
-             count(distinct c.id)::int qualifying_customer_count
+             c.id customer_id,
+             false from_service
       from customers c
-      join users u on u.id = c.created_by
       join bank_accounts a on a.customer_id = c.id and a.status = 'done'
-      where u.role = 'staff' and u.department_id is not null
-      group by c.created_by,
-               (c.created_at at time zone 'Asia/Ho_Chi_Minh')::date,
-               u.department_id
-    )
+      union
+      select s.created_by, s.service_date, s.customer_id, true
+      from services s
+    ) d
+    join staff_roster r
+      on r.user_id = d.user_id and r.year_month = to_char(d.work_date, 'YYYY-MM')
+    where r.role = 'staff' and r.department_id is not null
+      and (not d.from_service or r.salary_scheme = 'atm')
+    group by d.user_id, d.work_date, r.department_id
+  `;
+
+  const drift = await db.execute(sql`
+    with expected as (${expected})
     select coalesce(s.user_id, e.user_id) user_id,
            coalesce(s.work_date, e.work_date) work_date,
            s.qualifying_customer_count stored_count,
@@ -246,17 +286,7 @@ export async function recountEmployeeWorkDays(): Promise<unknown[]> {
     await tx.execute(sql`
       insert into employee_work_days
         (user_id, work_date, department_id, qualifying_customer_count)
-      select c.created_by,
-             (c.created_at at time zone 'Asia/Ho_Chi_Minh')::date,
-             u.department_id,
-             count(distinct c.id)::int
-      from customers c
-      join users u on u.id = c.created_by
-      join bank_accounts a on a.customer_id = c.id and a.status = 'done'
-      where u.role = 'staff' and u.department_id is not null
-      group by c.created_by,
-               (c.created_at at time zone 'Asia/Ho_Chi_Minh')::date,
-               u.department_id
+      ${expected}
     `);
   });
 

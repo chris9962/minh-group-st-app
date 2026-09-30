@@ -5,7 +5,7 @@ import type {
   DashboardDraftAccount,
   DepartmentRanking,
 } from "@/lib/api/dashboard";
-import { BUSINESS_TIMEZONE, businessDay, businessMonth } from "@/lib/format";
+import { BUSINESS_TIMEZONE, businessDay } from "@/lib/format";
 import { periodRanges } from "@/lib/period";
 import { recordVisibility } from "@/lib/permissions";
 import type { User } from "@/lib/types";
@@ -23,6 +23,7 @@ import {
   referralCodes,
   serviceTypes,
   services,
+  staffRoster,
   users,
 } from "./db/schema";
 import { giftItemNames } from "./gift";
@@ -648,22 +649,30 @@ async function ranking(
 
   if (v.kind === "departments" && (actor.role === "head" || actor.role === "deputy-head")) {
     const [people, now, before, spark] = await Promise.all([
+      // Người thuộc phòng TRONG tháng của kỳ đang xem, không phải hiện tại.
       db
         .select({ id: users.id, fullName: users.fullName })
         .from(users)
-        .where(inArray(users.departmentId, v.departmentIds)),
+        .innerJoin(
+          staffRoster,
+          and(
+            eq(staffRoster.userId, users.id),
+            eq(staffRoster.yearMonth, current.from.slice(0, 7)),
+          ),
+        )
+        .where(inArray(staffRoster.departmentId, v.departmentIds)),
       statsByStaff(current, v.departmentIds),
       previous ? statsByStaff(previous, v.departmentIds) : Promise.resolve(null),
       accountsOpenedByDay(sparkRange, "staff", v.departmentIds),
     ]);
 
     /**
-     * Người đã CHUYỂN ĐI vẫn có dòng nếu họ còn số trong kỳ.
+     * Người có số trong kỳ mà không nằm trong danh sách phòng vẫn có dòng.
      *
-     * `statsByStaff` lọc theo `created_by_department_id` trên bản ghi, mà lượt
-     * chuyển phòng viết lại cột đó (chốt 13/08) — nên thực tế danh sách hai bên
-     * luôn khớp. Gộp thêm cho chắc: thiếu một dòng thì tổng bảng nhân viên không
-     * bằng dòng phòng đó trong bảng của Giám đốc, và không ai giải thích được.
+     * `statsByStaff` lọc theo `created_by_department_id` trên bản ghi, và danh
+     * sách người đọc nhân sự của cùng tháng, nên hai bên khớp. Gộp thêm cho
+     * chắc: thiếu một dòng thì tổng bảng nhân viên không bằng dòng phòng đó
+     * trong bảng của Giám đốc, và không ai giải thích được.
      */
     const names = new Map(people.map((p) => [p.id, p.fullName]));
     for (const id of now.keys()) if (!names.has(id)) names.set(id, "Người đã chuyển đi");
@@ -790,13 +799,20 @@ export async function dashboardFor(
       visibilityLabel(v),
       pointsByStaffInRange(current),
       previous ? pointsByStaffInRange(previous) : Promise.resolve(null),
+      // Lương là số của THÁNG chứa kỳ đang xem, không tính theo khoảng ngày
+      // (chốt 2026-09-30); người tính lương là người đang làm trong tháng đó.
       v.kind === "company"
         ? db
-            .select({ id: users.id })
-            .from(users)
-            .where(eq(users.active, true))
+            .select({ id: staffRoster.userId })
+            .from(staffRoster)
+            .where(
+              and(eq(staffRoster.yearMonth, current.from.slice(0, 7)), eq(staffRoster.active, true)),
+            )
             .then(async (rows) => {
-              const salaries = await salaryForUsers(rows.map((row) => row.id), businessMonth());
+              const salaries = await salaryForUsers(
+                rows.map((row) => row.id),
+                current.from.slice(0, 7),
+              );
               return [...salaries.values()].reduce((sum, salary) => sum + salary.amount, 0);
             })
         : Promise.resolve(null),
@@ -863,8 +879,8 @@ export async function dashboardFor(
                 ) / 10,
             }
           : null,
-      // Luôn là tháng làm việc hiện tại, không chạy theo bộ chọn kỳ của các số
-      // nghiệp vụ phía trên. Lương là số tháng, không có nghĩa ở kỳ ngày tùy ý.
+      // Lương của THÁNG chứa kỳ đang xem. Lương là số tháng, không tính theo
+      // khoảng ngày của các số nghiệp vụ phía trên.
       companySalary,
       rankingKind: ranked.kind,
       departments: rowsWithPoints,

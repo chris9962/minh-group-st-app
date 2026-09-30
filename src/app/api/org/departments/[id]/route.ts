@@ -27,7 +27,13 @@ export async function GET(request: Request, { params }: Params) {
   // hay bookmark hỏng, trong khi đúng ra chỉ là "không có phòng này".
   if (!isUuid(id)) return notFound();
 
-  const detail = await departmentDetailFor(id, visibleOrgDepartmentIds(actor));
+  // Tháng đang xem ở màn chi tiết; thiếu hoặc sai dạng thì lấy tháng làm việc.
+  const month = new URL(request.url).searchParams.get("month") ?? "";
+  const detail = await departmentDetailFor(
+    id,
+    visibleOrgDepartmentIds(actor),
+    /^\d{4}-(0[1-9]|1[0-2])$/.test(month) ? month : undefined,
+  );
   return detail ? Response.json(detail) : notFound();
 }
 

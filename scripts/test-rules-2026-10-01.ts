@@ -10,6 +10,7 @@ import {
   comboRowsAt,
   giftFor,
   householdPointsAt,
+  multiBankComboCountFor,
   openBlockReasonAt,
   openNotesAt,
   type GiftResult,
@@ -426,6 +427,21 @@ check("MB + LPB: 01 năm BH", gift(accountsOf(["MB", "LPB"])).insuranceYears, 1)
 section("VPa + VPb: điểm 0, quà vẫn tính (việc treo từ kỳ 28/9)");
 check("điểm 0", points(accountsOf(["VPa", "VPb"])), 0);
 check("quà ra TH2 như VPa một mình", gift(accountsOf(["VPa", "VPb"])).caseCode, "TH2");
+
+section("Số khách đạt Combo 2, Combo 3 (thưởng combo của nhân viên điểm ATM)");
+const comboCount = (accounts: ScoringAccount[], yearMonth = "2026-10"): number =>
+  multiBankComboCountFor(accounts, yearMonth);
+check("Combo 1 không đếm", comboCount(accountsOf(["VPa"])), 0);
+check("VPa + MSBa là Combo 2", comboCount(accountsOf(["VPa", "MSBa"])), 1);
+check("VPa + MB + MSBa là Combo 3", comboCount(accountsOf(["VPa", "MB", "MSBa"])), 1);
+check("VPa + MB không thành tổ hợp", comboCount(accountsOf(["VPa", "MB"])), 0);
+check("VPa + VPb là dữ liệu sai, không đếm", comboCount(accountsOf(["VPa", "VPb"])), 0);
+check(
+  "hai khách: một Combo 2, một Combo 1",
+  comboCount([account("a", "VPa"), account("a", "MSBa"), account("b", "VPa")]),
+  1,
+);
+check("kỳ trước 2026-10-01 không có thưởng combo", comboCount(accountsOf(["VPa", "MSBa"], BEFORE), "2026-09"), 0);
 
 /* ── Tổng kết ────────────────────────────────────────────────────────── */
 

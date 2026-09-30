@@ -1491,6 +1491,8 @@ const toServiceType = (r: typeof serviceTypes.$inferSelect): ServiceTypeRow => (
   name: r.name,
   active: r.active,
   coefficient: Number(r.coefficient),
+  dailyCap: r.dailyCap,
+  monthlyCap: r.monthlyCap,
 });
 
 export async function listServiceTypes(): Promise<ServiceTypeRow[]> {
@@ -1503,7 +1505,12 @@ export async function createServiceType(
   return catalogWrite(async () => {
     const [row] = await db
       .insert(serviceTypes)
-      .values({ name: form.name, coefficient: String(form.coefficient) })
+      .values({
+        name: form.name,
+        coefficient: String(form.coefficient),
+        dailyCap: form.dailyCap,
+        monthlyCap: form.monthlyCap,
+      })
       .returning();
     return toServiceType(row);
   });
@@ -1530,21 +1537,35 @@ export async function updateServiceType(
 ): Promise<CatalogOutcome<ServiceTypeRow | null>> {
   return catalogWrite(async () => {
     const [current] = await db
-      .select({ coefficient: serviceTypes.coefficient })
+      .select({
+        coefficient: serviceTypes.coefficient,
+        dailyCap: serviceTypes.dailyCap,
+        monthlyCap: serviceTypes.monthlyCap,
+      })
       .from(serviceTypes)
       .where(eq(serviceTypes.id, id))
       .limit(1);
 
     const [row] = await db
       .update(serviceTypes)
-      .set({ name: form.name, coefficient: String(form.coefficient) })
+      .set({
+        name: form.name,
+        coefficient: String(form.coefficient),
+        dailyCap: form.dailyCap,
+        monthlyCap: form.monthlyCap,
+      })
       .where(eq(serviceTypes.id, id))
       .returning();
     if (!row) return null;
 
-    // Chỉ tính lại khi HỆ SỐ đổi. Sửa mỗi cái tên mà chạy lại điểm của cả công
-    // ty là trả giá cho một thao tác không đụng tới con số nào.
-    if (current && Number(current.coefficient) !== form.coefficient)
+    // Chỉ tính lại khi HỆ SỐ hoặc TRẦN đổi. Sửa mỗi cái tên mà chạy lại điểm của
+    // cả công ty là trả giá cho một thao tác không đụng tới con số nào.
+    if (
+      current &&
+      (Number(current.coefficient) !== form.coefficient ||
+        current.dailyCap !== form.dailyCap ||
+        current.monthlyCap !== form.monthlyCap)
+    )
       await recomputeKpiForMonth(businessMonth());
 
     return toServiceType(row);

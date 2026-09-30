@@ -1,6 +1,6 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { businessMonth, monthRange } from "@/lib/format";
-import type { ContractType, RoleKey, User } from "@/lib/types";
+import type { ContractType, RoleKey, SalaryScheme, User } from "@/lib/types";
 import {
   quotaTargetFor,
   salaryRulesFor,
@@ -17,9 +17,10 @@ import {
   kpiScores,
   salaryClosings,
   salarySnapshots,
-  userManagedDepartments,
+  staffRoster,
   users,
 } from "./db/schema";
+import { multiBankComboCounts } from "./kpi";
 import { countQuotaAccounts, quotaConfigOf } from "./quota";
 
 export type SalaryBreakdown = {
@@ -68,6 +69,7 @@ type Subject = {
   id: string;
   role: RoleKey;
   contractType: ContractType | null;
+  salaryScheme: SalaryScheme;
   departmentId: string | null;
   departmentCode: string | null;
   departmentType: "sales" | "office" | null;
@@ -123,8 +125,10 @@ export async function salaryForUsers(
  * TODO(lương CĐS, file mẫu CASA của Yên): chưa đếm CASA, nên chưa truyền chỉ
  * tiêu CASA vào file kỳ. Gỡ khi có màn nhập danh sách CASA.
  *
- * ⚠️ Đọc phòng, chức vụ và trạng thái HIỆN TẠI của từng người. Chuyển phòng
- * sau tháng đó làm đổi lương tháng đó, nên tháng đã trả phải chốt lại.
+ * Phòng, chức vụ, loại hợp đồng, cách tính lương và phòng phụ trách đọc từ
+ * `staffRoster` của ĐÚNG tháng đang tính (chốt 2026-09-30). Chuyển phòng hay
+ * thêm người ở tháng sau không đổi lương tháng này. Điểm và ngày công vẫn tính
+ * từ dữ liệu thật, nên tháng đã trả vẫn phải chốt.
  */
 async function liveSalaries(
   userIds: string[],
@@ -136,49 +140,59 @@ async function liveSalaries(
   if (userIds.length === 0 || !rules) return result;
 
   const points = scoreExpr(yearMonth);
-  const subjects: Subject[] = await db
+  // innerJoin: người chưa có tài khoản trong tháng đó không có dòng nhân sự của
+  // tháng, giữ lương 0 đã điền sẵn.
+  const rosterRows = await db
     .select({
       id: users.id,
-      role: users.role,
-      contractType: users.contractType,
-      departmentId: users.departmentId,
+      role: staffRoster.role,
+      contractType: staffRoster.contractType,
+      salaryScheme: staffRoster.salaryScheme,
+      departmentId: staffRoster.departmentId,
       departmentCode: departments.code,
       departmentType: departments.type,
+      managedDepartmentIds: staffRoster.managedDepartmentIds,
       points,
     })
     .from(users)
-    .leftJoin(departments, eq(departments.id, users.departmentId))
+    .innerJoin(
+      staffRoster,
+      and(eq(staffRoster.userId, users.id), eq(staffRoster.yearMonth, yearMonth)),
+    )
+    .leftJoin(departments, eq(departments.id, staffRoster.departmentId))
     .leftJoin(
       kpiScores,
       and(eq(kpiScores.userId, users.id), eq(kpiScores.yearMonth, yearMonth)),
     )
     .where(inArray(users.id, userIds));
+  const subjects: Subject[] = rosterRows;
 
-  const deputyDirectorIds = subjects
-    .filter((subject) => subject.role === "deputy-director")
-    .map((subject) => subject.id);
-  const managedRows = deputyDirectorIds.length
+  const managedIdsByDeputyDirector = new Map(
+    rosterRows
+      .filter((row) => row.role === "deputy-director")
+      .map((row) => [row.id, row.managedDepartmentIds] as const),
+  );
+  const allManagedIds = [...new Set([...managedIdsByDeputyDirector.values()].flat())];
+  const managedSalesDepartments = allManagedIds.length
     ? await db
-        .select({
-          userId: userManagedDepartments.userId,
-          departmentId: departments.id,
-          departmentCode: departments.code,
-        })
-        .from(userManagedDepartments)
-        .innerJoin(
-          departments,
-          and(
-            eq(departments.id, userManagedDepartments.departmentId),
-            eq(departments.type, "sales"),
-          ),
-        )
-        .where(inArray(userManagedDepartments.userId, deputyDirectorIds))
+        .select({ departmentId: departments.id, departmentCode: departments.code })
+        .from(departments)
+        .where(and(inArray(departments.id, allManagedIds), eq(departments.type, "sales")))
     : [];
+  const salesDepartmentCode = new Map(
+    managedSalesDepartments.map((row) => [row.departmentId, row.departmentCode]),
+  );
   const managedByUser = new Map<string, string[]>();
-  for (const row of managedRows) {
-    const kept = managedByUser.get(row.userId);
-    if (kept) kept.push(row.departmentId);
-    else managedByUser.set(row.userId, [row.departmentId]);
+  const managedRows: { userId: string; departmentId: string; departmentCode: string }[] = [];
+  for (const [userId, departmentIds] of managedIdsByDeputyDirector) {
+    const sales = departmentIds.filter((departmentId) => salesDepartmentCode.has(departmentId));
+    managedByUser.set(userId, sales);
+    for (const departmentId of sales)
+      managedRows.push({
+        userId,
+        departmentId,
+        departmentCode: salesDepartmentCode.get(departmentId)!,
+      });
   }
 
   const relevantDepartmentIds = [
@@ -201,19 +215,23 @@ async function liveSalaries(
     ? await db
         .select({
           id: users.id,
-          departmentId: users.departmentId,
-          role: users.role,
+          departmentId: staffRoster.departmentId,
+          role: staffRoster.role,
           points,
         })
         .from(users)
+        .innerJoin(
+          staffRoster,
+          and(eq(staffRoster.userId, users.id), eq(staffRoster.yearMonth, yearMonth)),
+        )
         .leftJoin(
           kpiScores,
           and(eq(kpiScores.userId, users.id), eq(kpiScores.yearMonth, yearMonth)),
         )
         .where(
           and(
-            inArray(users.role, ["staff", "deputy-head"]),
-            inArray(users.departmentId, relevantDepartmentIds),
+            inArray(staffRoster.role, ["staff", "deputy-head"]),
+            inArray(staffRoster.departmentId, relevantDepartmentIds),
           ),
         ) as StaffScore[]
     : [];
@@ -265,6 +283,13 @@ async function liveSalaries(
 
   const quota = await quotaProgressFor(yearMonth, subjects, managedRows);
 
+  const isAtmStaff = (s: Subject) =>
+    s.role === "staff" && s.departmentType === "sales" && s.salaryScheme === "atm";
+  const bonusCombos = await multiBankComboCounts(
+    subjects.filter(isAtmStaff).map((s) => s.id),
+    yearMonth,
+  );
+
   for (const subject of subjects) {
     let salary = null;
 
@@ -273,6 +298,8 @@ async function liveSalaries(
         points: subject.points,
         workDays: userDays.get(subject.id) ?? 0,
         directedQuota: quota.staff(subject.id),
+        scheme: subject.salaryScheme,
+        bonusCombos: bonusCombos.get(subject.id) ?? 0,
       });
     } else if (
       (subject.role === "head" || subject.role === "deputy-head") &&

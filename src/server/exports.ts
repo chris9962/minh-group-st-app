@@ -1,4 +1,17 @@
-import { and, count, eq, exists, gte, inArray, lt, or, sql, type SQL, type SQLWrapper } from "drizzle-orm";
+import {
+  and,
+  count,
+  eq,
+  exists,
+  gte,
+  inArray,
+  lt,
+  or,
+  sql,
+  type AnyColumn,
+  type SQL,
+  type SQLWrapper,
+} from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { bankingPointsFor, bankTierFor, giftFor, householdPointsAt, ruleDateOf } from "@/rules";
 import type { GiftResult, ScoringAccount } from "@/rules";
@@ -23,6 +36,7 @@ import {
   giftItems,
   insuranceOrders,
   insurancePackages,
+  staffRoster,
   users,
 } from "./db/schema";
 import type { BankAccountFilters } from "./banking";
@@ -758,7 +772,7 @@ export async function listOrderStats(
 
   await addHealthGiftCounts(cells, cellOf, month, groupBy);
 
-  return { groups: await groupsOf(groupBy, cells), cells: [...cells.values()] };
+  return { groups: await groupsOf(groupBy, cells, month), cells: [...cells.values()] };
 }
 
 /**
@@ -770,8 +784,8 @@ export async function listOrderStats(
  * món đó. Hai cột tự loại trừ nhau: `chosen_item` giữ món HIỆN TẠI, nên khách
  * đổi sang món khác rời cột đầu và vào cột sau.
  *
- * ⚠️ Phòng lấy từ `users.department_id` HIỆN TẠI của người phát, không phải
- * phòng lúc phát. Khác đơn bảo hiểm, `gift_grants` không chụp phòng lúc ghi.
+ * Phòng lấy từ nhân sự của THÁNG xuất (`staffRoster`, chốt 2026-09-30): khác
+ * đơn bảo hiểm, `gift_grants` không chụp phòng lúc ghi.
  */
 async function addHealthGiftCounts(
   cells: Map<string, OrderStatsCell>,
@@ -790,10 +804,12 @@ async function addHealthGiftCounts(
 
   const granter = alias(users, "granter");
   const changer = alias(users, "changer");
-  const keyOf = (u: { departmentId: SQLWrapper; id: SQLWrapper }) =>
+  const keyOf = (u: { id: SQLWrapper }) =>
     groupBy === "department"
-      ? sql<string>`coalesce(${u.departmentId}::text, '')`
+      ? sql<string>`coalesce(${staffRoster.departmentId}::text, '')`
       : sql<string>`coalesce(${u.id}::text, '')`;
+  const rosterOf = (u: { id: AnyColumn }) =>
+    and(eq(staffRoster.userId, u.id), eq(staffRoster.yearMonth, month));
 
   const [granted, changed] = await Promise.all([
     db
@@ -804,6 +820,7 @@ async function addHealthGiftCounts(
       })
       .from(giftGrants)
       .innerJoin(granter, eq(granter.id, giftGrants.grantedBy))
+      .leftJoin(staffRoster, rosterOf(granter))
       .where(and(eq(giftGrants.chosenItem, HEALTH_GIFT_CODE), inMonth(giftGrants.grantedAt)))
       .groupBy(sql`1`, sql`2`),
     db
@@ -814,6 +831,7 @@ async function addHealthGiftCounts(
       })
       .from(giftGrantChanges)
       .innerJoin(changer, eq(changer.id, giftGrantChanges.changedBy))
+      .leftJoin(staffRoster, rosterOf(changer))
       .where(
         and(
           eq(giftGrantChanges.fromChosenItem, HEALTH_GIFT_CODE),
@@ -844,6 +862,7 @@ async function addHealthGiftCounts(
 async function groupsOf(
   groupBy: OrderStatsGroupBy,
   cells: Map<string, OrderStatsCell>,
+  month: string,
 ): Promise<OrderStatsGroup[]> {
   const used = new Set([...cells.values()].map((c) => c.groupId));
 
@@ -878,13 +897,14 @@ async function groupsOf(
     .select({
       id: users.id,
       label: users.fullName,
-      // Phòng HIỆN TẠI của người nhập (chốt 2026-09-02) — hai cột BHSK vốn đã
-      // gộp theo phòng hiện tại (xem `addHealthGiftCounts`), lấy cùng nguồn
-      // thì cột PHÒNG không mâu thuẫn với chính số liệu trên dòng.
+      // Phòng của người nhập trong THÁNG xuất (chốt 2026-09-30) — hai cột BHSK
+      // cũng gộp theo nhân sự của tháng (xem `addHealthGiftCounts`), lấy cùng
+      // nguồn thì cột PHÒNG không mâu thuẫn với chính số liệu trên dòng.
       department: sql<string>`coalesce(${departments.name}, '')`,
     })
     .from(users)
-    .leftJoin(departments, eq(departments.id, users.departmentId))
+    .leftJoin(staffRoster, and(eq(staffRoster.userId, users.id), eq(staffRoster.yearMonth, month)))
+    .leftJoin(departments, eq(departments.id, staffRoster.departmentId))
     .where(inArray(users.id, ids))
     .orderBy(users.fullName);
 

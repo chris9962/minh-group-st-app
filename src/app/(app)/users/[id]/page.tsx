@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { useSearchParams } from "next/navigation";
 import { use, useState } from "react";
 import { BackLink } from "@/components/ui/BackLink";
 import { SkeletonCard } from "@/components/ui/Skeleton";
@@ -40,16 +41,23 @@ export default function PersonPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
-  const [period, setPeriod] = useState<PeriodMode>({ kind: "this-month" });
+  const searchParams = useSearchParams();
+  // Bảng Nhân sự đang xem tháng cũ thì gửi kèm `?month=`, hồ sơ mở sẵn tháng đó.
+  const [period, setPeriod] = useState<PeriodMode>(() => {
+    const month = searchParams.get("month");
+    return month && /^\d{4}-(0[1-9]|1[0-2])$/.test(month) && month !== thisMonth()
+      ? { kind: "month", month }
+      : { kind: "this-month" };
+  });
   /** Tab ngoài: hồ sơ KPI hay thẻ tài khoản đăng nhập. */
   const [section, setSection] = useState<SectionKey>("kpi");
 
   const current = thisMonth();
-  /* Khối KPI LUÔN theo tháng hiện tại (chốt 2026-08-27) — kỳ lọc chỉ đổi bốn
-     danh sách hoạt động, nên `summaryMonth` không đọc từ `period`. Tháng của
-     kỳ lọc (`listMonth`) chỉ dùng cho khoảng ngày và câu chú của bốn bảng. */
-  const summaryMonth = current;
+  /* Khối KPI và Lương theo THÁNG ĐANG CHỌN (chốt 2026-09-30, thay chốt
+     2026-08-27 "luôn tháng hiện tại"): xem tháng cũ thì điểm, chỉ tiêu, lương,
+     phòng và chức vụ là của tháng đó. "Hôm nay" vẫn là tháng hiện tại. */
   const listMonth = periodMonth(period, current);
+  const summaryMonth = listMonth;
   const param = periodParam(period, current);
 
   const { data, isPending, isError, refetch, isFetching } = useQuery({

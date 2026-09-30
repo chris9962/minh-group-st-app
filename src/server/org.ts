@@ -27,7 +27,7 @@ import {
   customers,
   departments,
   referralCodes,
-  userManagedDepartments,
+  staffRoster,
   users,
 } from "./db/schema";
 import { pointsByStaffInRange } from "./kpi";
@@ -270,6 +270,8 @@ export async function setDepartmentActive(
 export async function departmentDetailFor(
   id: string,
   visible: string[] | null,
+  /** Tháng đang xem; người quản lý và lương của họ đọc theo nhân sự của tháng đó. */
+  yearMonth: string = businessMonth(),
 ): Promise<DepartmentDetail | null> {
   // Ngoài phạm vi thì trả `null` — route đổi thành 404. Trả 403 là nói ra rằng
   // phòng đó có tồn tại, mà người hỏi không được biết điều đó.
@@ -278,19 +280,19 @@ export async function departmentDetailFor(
   const [department] = await db.select().from(departments).where(eq(departments.id, id)).limit(1);
   if (!department) return null;
 
+  const inMonth = and(eq(staffRoster.userId, users.id), eq(staffRoster.yearMonth, yearMonth));
   const listed = await db
     .select({ id: users.id, fullName: users.fullName, title: users.title })
-    .from(userManagedDepartments)
-    .innerJoin(users, eq(users.id, userManagedDepartments.userId))
+    .from(users)
+    .innerJoin(staffRoster, inMonth)
     .where(
       and(
-        eq(userManagedDepartments.departmentId, id),
-        eq(users.role, "deputy-director"),
-        eq(users.manageScope, "listed"),
+        sql`${id}::uuid = any(${staffRoster.managedDepartmentIds})`,
+        eq(staffRoster.role, "deputy-director"),
         // Người đã bị khoá không đăng nhập được nên không quản được gì. Không
         // lọc thì phòng hiện tên một người không vào nổi hệ thống, mà vì danh
         // sách khác rỗng nên cũng không rơi về Giám đốc.
-        eq(users.active, true),
+        eq(staffRoster.active, true),
       ),
     );
 
@@ -299,9 +301,10 @@ export async function departmentDetailFor(
     ? await db
         .select({ id: users.id, fullName: users.fullName, title: users.title })
         .from(users)
-        .where(and(eq(users.role, "director"), eq(users.active, true)))
+        .innerJoin(staffRoster, inMonth)
+        .where(and(eq(staffRoster.role, "director"), eq(staffRoster.active, true)))
     : listed;
-  const salaryMonth = businessMonth();
+  const salaryMonth = yearMonth;
   const managerSalary = await salaryForUsers(managers.map((manager) => manager.id), salaryMonth);
 
   return {

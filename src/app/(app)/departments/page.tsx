@@ -284,7 +284,7 @@ export default function DepartmentsPage() {
         {canSeeStats && (
           <>
             <div className={styles.periodInline}>
-              <PeriodPicker value={period} onChange={setPeriod} sameMonthOnly />
+              <PeriodPicker value={period} onChange={setPeriod} />
             </div>
             <div className={styles.periodCollapsed}>
               <FilterButton
@@ -292,7 +292,7 @@ export default function DepartmentsPage() {
                 onClear={() => setPeriod(DEFAULT_PERIOD)}
               >
                 <FilterField id="period" label="Kỳ" count={period.kind === "today" ? 0 : 1}>
-                  <PeriodPicker value={period} onChange={setPeriod} sameMonthOnly />
+                  <PeriodPicker value={period} onChange={setPeriod} />
                 </FilterField>
               </FilterButton>
             </div>

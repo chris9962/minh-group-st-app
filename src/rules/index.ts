@@ -202,6 +202,8 @@ type PeriodRules = {
   OPEN_NOTES?: string[];
   /** Bảng tổ hợp riêng của kỳ cho hộp thoại luật; vắng thì hộp thoại dùng bảng chung. */
   COMBO_ROWS?: { label: string; tiers: Tier[] }[];
+  /** Số khách đạt Combo 2 hoặc Combo 3. Tuỳ chọn: kỳ trước 2026-10-01 không có thưởng combo. */
+  multiBankComboCount?(accounts: ScoringAccount[]): number;
 };
 
 /**
@@ -288,17 +290,31 @@ export function bankingPointsFor(
   yearMonth: string,
   granted: GrantedGifts = new Map(),
 ): number {
+  let total = 0;
+  for (const [rules, rows] of accountsByRules(accounts, yearMonth))
+    total += rules.bankingPoints(rows, granted);
+  // Chỉ vài phép cộng số thực, và mọi điểm đều là bội của 0,1 — làm tròn một
+  // chữ số trả về đúng số nguyên phần mười.
+  return Math.round(total * 10) / 10;
+}
+
+/**
+ * Tài khoản của một tháng, gom theo file luật áp cho từng khách.
+ *
+ * Một tháng có thể có HAI file luật (kỳ 2026-09-16 bắt đầu giữa tháng), nên
+ * luật chọn theo từng khách bằng `ruleDateOf`, không chọn một lần cho cả
+ * tháng. Gom khách cùng file để nơi gọi gọi file đó ĐÚNG MỘT LẦN: file kỳ tự
+ * gom theo khách và cộng bằng số nguyên phần mười, gọi từng khách rồi cộng số
+ * thực là đưa sai số nhị phân trở lại.
+ */
+function accountsByRules(
+  accounts: ScoringAccount[],
+  yearMonth: string,
+): Map<PeriodRules, ScoringAccount[]> {
   // Combo chỉ tính tài khoản mở TRONG tháng đang tính, không nối combo qua
   // tháng (chốt 07/08, câu 7.13). Lọc ở đây để file kỳ nào cũng khỏi tự nhớ.
   const inMonth = accounts.filter((a) => a.openedDate.startsWith(`${yearMonth}-`));
 
-  /**
-   * Một tháng có thể có HAI file luật (kỳ 2026-09-16 bắt đầu giữa tháng), nên
-   * luật chọn theo từng khách bằng `ruleDateOf`, không chọn một lần cho cả
-   * tháng. Gom khách cùng file rồi gọi file đó ĐÚNG MỘT LẦN: file kỳ tự gom
-   * theo khách và cộng bằng số nguyên phần mười, gọi từng khách rồi cộng số
-   * thực ở đây là đưa sai số nhị phân trở lại.
-   */
   const byCustomer = new Map<string, ScoringAccount[]>();
   for (const account of inMonth) {
     const rows = byCustomer.get(account.customerId);
@@ -314,12 +330,19 @@ export function bankingPointsFor(
     if (kept) kept.push(...rows);
     else byRules.set(rules, [...rows]);
   }
+  return byRules;
+}
 
-  let total = 0;
-  for (const [rules, rows] of byRules) total += rules.bankingPoints(rows, granted);
-  // Chỉ vài phép cộng số thực, và mọi điểm đều là bội của 0,1 — làm tròn một
-  // chữ số trả về đúng số nguyên phần mười.
-  return Math.round(total * 10) / 10;
+/**
+ * Số khách đạt Combo 2 hoặc Combo 3 của MỘT người trong một tháng, cho thưởng
+ * combo của nhân viên điểm ATM. Khách thuộc kỳ luật không khai phép đếm này
+ * thì không được đếm.
+ */
+export function multiBankComboCountFor(accounts: ScoringAccount[], yearMonth: string): number {
+  let count = 0;
+  for (const [rules, rows] of accountsByRules(accounts, yearMonth))
+    count += rules.multiBankComboCount?.(rows) ?? 0;
+  return count;
 }
 
 /**

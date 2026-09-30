@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, inArray, isNull, notInArray, sql, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, exists, inArray, isNull, notInArray, sql, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import {
   GIFT_DECLINED,
@@ -47,6 +47,7 @@ import {
   insuranceOrderStatusHistory,
   insuranceOrders,
   insurancePackages,
+  staffRoster,
   users,
 } from "./db/schema";
 
@@ -1095,7 +1096,7 @@ export type GiftGrantFilters = {
   /** Khoảng NGÀY PHÁT, YYYY-MM-DD. Rỗng = không giới hạn. */
   from: string;
   to: string;
-  /** Phòng của người phát, đọc động từ `users` — xem `departmentUserIds`. */
+  /** Phòng của người phát trong tháng phát — xem `grantedByDepartments`. */
   departmentId: string;
   staffId: string;
 };
@@ -1105,30 +1106,37 @@ export type GiftGrantFilters = {
  * hàng, nên ai đọc được tài khoản của một phòng thì đọc được quà phòng đó phát.
  *
  * `gift_grants` KHÔNG chụp phòng của người phát, khác `insurance_orders` và
- * `bank_accounts`. Nên phạm vi phòng phải đổi thành danh sách người TRƯỚC khi
- * lọc — cùng lối với `bankIdsOf` ở `server/banking.ts`.
- *
- * ⚠️ Hệ quả: người phát chuyển phòng thì đợt quà cũ của họ đi theo phòng MỚI.
- * Muốn lịch sử đứng yên thì phải chụp phòng vào một cột riêng, cần migration.
+ * `bank_accounts`. Phòng đọc từ nhân sự của THÁNG PHÁT (`staffRoster`, chốt
+ * 2026-09-30): người phát chuyển phòng ở tháng sau thì đợt quà cũ vẫn thuộc
+ * phòng cũ.
  */
-async function departmentUserIds(departmentIds: string[]): Promise<string[]> {
-  if (departmentIds.length === 0) return [];
-  const rows = await db
-    .select({ id: users.id })
-    .from(users)
-    .where(inArray(users.departmentId, departmentIds));
-  return rows.map((r) => r.id);
-}
+const grantMonth = sql<string>`to_char(${giftGrants.grantedAt} at time zone ${BUSINESS_TIMEZONE}, 'YYYY-MM')`;
+
+/** Đợt quà do người thuộc một trong các phòng này phát. `[]` không khớp dòng nào. */
+const grantedByDepartments = (departmentIds: string[]): SQL =>
+  departmentIds.length === 0
+    ? sql`false`
+    : exists(
+        db
+          .select({ one: sql`1` })
+          .from(staffRoster)
+          .where(
+            and(
+              eq(staffRoster.userId, giftGrants.grantedBy),
+              eq(staffRoster.yearMonth, grantMonth),
+              inArray(staffRoster.departmentId, departmentIds),
+            ),
+          ),
+      );
 
 async function giftGrantWhere(actor: User, query: GiftGrantFilters): Promise<SQL | undefined> {
   const visible = recordVisibility(actor, "banking", "view-detail");
 
   let scope: SQL | undefined;
   if (visible.kind === "departments") {
-    const ids = await departmentUserIds(visible.departmentIds);
-    // `[]` = phạm vi không có ai → không dòng nào khớp. Bỏ qua điều kiện là mở
-    // cả kho cho đúng người đáng hẹp nhất.
-    scope = ids.length > 0 ? inArray(giftGrants.grantedBy, ids) : sql`false`;
+    // `[]` = phạm vi không có phòng nào → không dòng nào khớp. Bỏ qua điều kiện
+    // là mở cả kho cho đúng người đáng hẹp nhất.
+    scope = grantedByDepartments(visible.departmentIds);
   } else if (visible.kind === "creator") {
     scope = eq(giftGrants.grantedBy, visible.userId);
   } else if (visible.kind !== "all") {
@@ -1137,11 +1145,9 @@ async function giftGrantWhere(actor: User, query: GiftGrantFilters): Promise<SQL
 
   // Ô lọc phòng nối bằng VÀ với phạm vi, không thay nó: chọn phòng ngoài phạm vi
   // cho ra bảng rỗng chứ không nới phạm vi.
-  let departmentPick: SQL | undefined;
-  if (query.departmentId) {
-    const ids = await departmentUserIds([query.departmentId]);
-    departmentPick = ids.length > 0 ? inArray(giftGrants.grantedBy, ids) : sql`false`;
-  }
+  const departmentPick = query.departmentId
+    ? grantedByDepartments([query.departmentId])
+    : undefined;
 
   const search = query.search.trim();
   const searchWhere =
@@ -1196,7 +1202,12 @@ const giftGrantRows = (where: SQL | undefined) =>
     // leftJoin: người phát có thể đã bị xoá khỏi hệ thống, và ban giám đốc không
     // thuộc phòng nào. innerJoin thì những dòng đó biến mất mà không báo gì.
     .leftJoin(users, eq(users.id, giftGrants.grantedBy))
-    .leftJoin(departments, eq(departments.id, users.departmentId))
+    // Phòng của người phát trong tháng phát.
+    .leftJoin(
+      staffRoster,
+      and(eq(staffRoster.userId, giftGrants.grantedBy), eq(staffRoster.yearMonth, grantMonth)),
+    )
+    .leftJoin(departments, eq(departments.id, staffRoster.departmentId))
     .where(where);
 
 type GiftGrantQueryRow = Awaited<ReturnType<typeof giftGrantRows>>[number];

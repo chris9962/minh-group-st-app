@@ -15,7 +15,7 @@ import { DepartmentType, ROLE_RANK, Scope, type User } from "@/lib/types";
 import { searchTerms } from "@/lib/search";
 import { accountCustomerDayBetween } from "./customerDay";
 import { db } from "./db/client";
-import { bankingPointsByCustomer } from "./kpi";
+import { bankingPointsByCustomer, countedServiceIds, servicePointsByType } from "./kpi";
 import type { PageArgs } from "./pagination";
 import {
   bankAccounts,
@@ -33,6 +33,7 @@ import {
   referralCodes,
   services,
   serviceTypes,
+  staffRoster,
   users,
 } from "./db/schema";
 import { appsInstalledCount, variantOfAccount } from "./appCounted";
@@ -183,9 +184,12 @@ export const pointsExpr = (yearMonth: string) =>
  * thuộc phòng nào (ban giám đốc) có `department_id` null nên vế đầu không khớp
  * dòng nào và rơi thẳng xuống mốc chung — đúng như bản JS.
  */
-export const targetExpr = (yearMonth: string) => sql<number>`coalesce(
+export const targetExpr = (
+  yearMonth: string,
+  departmentId: AnyColumn | SQL = users.departmentId,
+) => sql<number>`coalesce(
   (select t.monthly_points from ${kpiTargets} t
-    where t.year_month = ${yearMonth} and t.department_id = ${users.departmentId}),
+    where t.year_month = ${yearMonth} and t.department_id = ${departmentId}),
   (select t.monthly_points from ${kpiTargets} t
     where t.department_id is null and t.year_month <= ${yearMonth}
     order by t.year_month desc limit 1),
@@ -200,29 +204,12 @@ export const targetExpr = (yearMonth: string) => sql<number>`coalesce(
  * `director` trước `staff`. Giám đốc vì thế mang số nhỏ nhất, và `DESC` đẩy
  * Nhân viên lên đầu — mũi tên trên tiêu đề cột nói ngược với thứ tự thấy được.
  */
-export const roleRankExpr: SQL = sql`case ${users.role}
+export const roleRankOf = (role: AnyColumn | SQL): SQL => sql`case ${role}
 ${sql.join(
-  Object.entries(ROLE_RANK).map(([role, rank]) => sql`when ${role} then ${rank}`),
+  Object.entries(ROLE_RANK).map(([key, rank]) => sql`when ${key} then ${rank}`),
   sql` `,
 )}
 else 0 end`;
-
-/**
- * Người đã có tài khoản tính tới hết tháng `yearMonth`.
- *
- * Bảng nhân sự đổi tháng là đổi cột Chỉ tiêu, nên danh sách người phải đổi
- * theo. Không có điều kiện này thì người lập tài khoản 2026-08 vẫn nằm trong
- * bảng của 2026-07 với 0 điểm, và thẻ "chưa đạt" đếm cả người chưa vào công ty.
- *
- * Mốc là `created_at` — chốt 2026-08-14, KHÔNG thêm cột ngày vào làm. Hai thứ
- * này khác nhau: người vào từ tháng 5 mà tài khoản lập tháng 8 thì tháng 5 đến
- * tháng 7 không thấy họ trong bảng.
- *
- * ⚠️ Ép `::timestamp` TRƯỚC `at time zone`, và đây là chỗ đã sai một lần ở
- * `server/audit.ts` — xem ghi chú dài tại đó.
- */
-export const createdByEndOf = (yearMonth: string): SQL =>
-  sql`${users.createdAt} < ((${monthRange(yearMonth).to}::date + 1)::timestamp at time zone ${BUSINESS_TIMEZONE})`;
 
 export type StaffCounts = {
   customers: number;
@@ -284,8 +271,8 @@ export async function countsInRange(
       .where(
         and(
           inArray(customers.createdBy, userIds),
-          // Cột là `timestamptz`, hai mốc phải quy về giờ làm việc — cùng cách
-          // với `createdByEndOf` ngay bên trên.
+          // Cột là `timestamptz`, hai mốc phải quy về giờ làm việc. Ép
+          // `::timestamp` TRƯỚC `at time zone`, xem ghi chú ở `server/audit.ts`.
           sql`${customers.createdAt} >= ((${from}::date)::timestamp at time zone ${BUSINESS_TIMEZONE})`,
           sql`${customers.createdAt} < ((${to}::date + 1)::timestamp at time zone ${BUSINESS_TIMEZONE})`,
         ),
@@ -565,10 +552,13 @@ export async function peopleForExport(
 
   const departmentType = DepartmentType.safeParse(query.departmentType);
 
+  // Phòng và trạng thái đọc theo NHÂN SỰ CỦA THÁNG xuất (`staffRoster`), cùng
+  // nguồn với màn P-51: người chuyển phòng ở tháng sau vẫn nằm ở phòng cũ.
+  //
   // Chỉ người đang làm mới có chỉ tiêu. Tính cả tài khoản đã khoá thì họ vào
   // bảng với 0 điểm và cột "chưa đạt" phồng lên mà không ai thấy vì sao.
   const where = and(
-    eq(users.active, true),
+    eq(staffRoster.active, true),
     /**
      * Bỏ người KHÔNG thuộc phòng nào (chốt 2026-08-22): Ban giám đốc và tài
      * khoản quản trị. Đây là bảng thành tích của các phòng, mà họ không có
@@ -576,13 +566,10 @@ export async function peopleForExport(
      *
      * Chỉ áp cho bản XUẤT. Màn P-51 vẫn liệt kê họ.
      */
-    isNotNull(users.departmentId),
-    visible === null ? undefined : inArray(users.departmentId, visible),
-    query.departmentId ? eq(users.departmentId, query.departmentId) : undefined,
+    isNotNull(staffRoster.departmentId),
+    visible === null ? undefined : inArray(staffRoster.departmentId, visible),
+    query.departmentId ? eq(staffRoster.departmentId, query.departmentId) : undefined,
     departmentType.success ? eq(departments.type, departmentType.data) : undefined,
-    // Cùng mốc với màn P-51. Lệch hai vế là bản xuất Excel và bảng trên màn
-    // hình cho hai số khác nhau cho cùng một tháng.
-    createdByEndOf(summaryMonth),
     staffSearchWhere(query.search),
   );
 
@@ -598,10 +585,15 @@ export async function peopleForExport(
       bankingPoints: bankingExpr,
       servicePoints: serviceExpr,
       adjustmentPoints: adjustmentExpr(summaryMonth),
-      target: targetExpr(summaryMonth),
+      target: targetExpr(summaryMonth, staffRoster.departmentId),
     })
     .from(users)
-    .leftJoin(departments, eq(departments.id, users.departmentId))
+    // Người chưa có tài khoản trong tháng xuất không có dòng nhân sự của tháng.
+    .innerJoin(
+      staffRoster,
+      and(eq(staffRoster.userId, users.id), eq(staffRoster.yearMonth, summaryMonth)),
+    )
+    .leftJoin(departments, eq(departments.id, staffRoster.departmentId))
     .leftJoin(
       kpiScores,
       and(eq(kpiScores.userId, users.id), eq(kpiScores.yearMonth, summaryMonth)),
@@ -648,10 +640,27 @@ export async function personFor(
     .limit(1);
   const row = rows[0];
   if (!row) return null;
-  if (!inVisibleScope(actor, "staff", "view-detail", row.user.departmentId)) return null;
 
   const summaryMonth = query.summaryMonth || businessMonth();
   const range = periodOf(query.period || "today");
+  // Phòng và chức vụ của THÁNG đang xem: người đã chuyển phòng vẫn mở được ở
+  // phòng cũ khi xem tháng cũ, và chỉ tiêu là của phòng tháng đó.
+  const inMonth = await staffInMonth(id, summaryMonth);
+  if (!inVisibleScope(actor, "staff", "view-detail", row.user.departmentId)) {
+    // Chỉ qua được nhờ phòng của tháng cũ thì kỳ của bốn danh sách cũng phải
+    // nằm TRỌN trong tháng đó: không thì quản lý phòng cũ đọc được số của các
+    // tháng người này đã sang phòng khác.
+    const withinMonth =
+      range.from.slice(0, 7) === summaryMonth && range.to.slice(0, 7) === summaryMonth;
+    if (
+      !inMonth ||
+      !withinMonth ||
+      !inVisibleScope(actor, "staff", "view-detail", inMonth.departmentId)
+    )
+      return null;
+  }
+  const monthDepartmentId = inMonth ? inMonth.departmentId : row.user.departmentId;
+  const monthRole = inMonth?.role ?? row.user.role;
 
   /* Bốn danh sách hoạt động trong kỳ KHÔNG còn nằm ở đây — mỗi tab một route
      phân trang riêng (`personCustomersFor`…, chốt 2026-08-15). Hàm này chỉ còn
@@ -708,9 +717,10 @@ export async function personFor(
   const kpiRange = monthRange(summaryMonth);
   const serviceAgg = await db
     .select({
+      typeId: serviceTypes.id,
       typeName: serviceTypes.name,
+      coefficient: serviceTypes.coefficient,
       count: sql<number>`count(*)::int`,
-      points: sql<number>`sum(${serviceTypes.coefficient})::float`,
     })
     .from(services)
     .innerJoin(serviceTypes, eq(serviceTypes.id, services.serviceTypeId))
@@ -721,7 +731,9 @@ export async function personFor(
         lte(services.serviceDate, kpiRange.to),
       ),
     )
-    .groupBy(serviceTypes.name);
+    .groupBy(serviceTypes.id, serviceTypes.name, serviceTypes.coefficient);
+  // Điểm theo loại đọc cùng luật với `kpi_scores`: chỉ nhóm điểm ATM, có trần.
+  const servicePoints = await servicePointsByType(id, kpiRange.from, kpiRange.to);
 
   /** Từng lần cộng điểm tay của tháng, kèm tên người cộng — bảng ở P-52. */
   const adjustmentRows = await db
@@ -743,7 +755,7 @@ export async function personFor(
   // Hồ sơ một người chỉ cần ĐIỂM của tháng — số đếm ở đây lấy từ chính các danh
   // sách chi tiết bên dưới, không đi qua phép gộp nào.
   const monthAgg = (await storedPointsFor(summaryMonth)).get(id) ?? EMPTY;
-  const target = await targetFor(summaryMonth, row.user.departmentId);
+  const target = await targetFor(summaryMonth, monthDepartmentId);
 
   const [y, m] = summaryMonth.split("-").map(Number);
   const months = Array.from({ length: 5 }, (_, i) =>
@@ -765,12 +777,14 @@ export async function personFor(
    * nguồn ở đây phải cộng ra ĐÚNG `points.total` bên cạnh — lệch là hai con số
    * mâu thuẫn trên cùng một thẻ.
    */
-  const pointSources = serviceAgg.map((s) => ({
-    label: s.typeName,
-    // Làm tròn 2 số: hệ số là `numeric(4,2)` nên cộng dồn ra 4.199999999999999.
-    detail: `${s.count} lượt · hệ số ${roundPoints(s.points / s.count)}`,
-    points: roundPoints(s.points),
-  }));
+  const pointSources = serviceAgg
+    .map((s) => ({
+      label: s.typeName,
+      detail: `${s.count} lượt - hệ số ${Number(s.coefficient)}`,
+      // Làm tròn 2 số: hệ số là `numeric(4,2)` nên cộng dồn ra 4.199999999999999.
+      points: roundPoints(servicePoints.get(s.typeId) ?? 0),
+    }))
+    .filter((s) => s.points > 0);
 
   /* Điểm ngân hàng về MỘT cung duy nhất. Luật của kỳ quy điểm cho cả combo của
      một khách chứ không cho từng ngân hàng, nên chẻ nhỏ theo ngân hàng là bịa
@@ -799,7 +813,7 @@ export async function personFor(
 
   // Phó giám đốc không lập hồ sơ nên vòng điểm và bốn tab hoạt động của họ luôn
   // trống. Hồ sơ của họ hiện các phòng họ quản thay vào đó (chốt 2026-09-22).
-  const branch = row.user.role === "deputy-director" ? await branchSummaryFor(id, range) : null;
+  const branch = monthRole === "deputy-director" ? await branchSummaryFor(id, range) : null;
 
   return {
     id: row.user.id,
@@ -807,7 +821,7 @@ export async function personFor(
     username: row.user.username,
     staffCode: row.user.staffCode,
     phone: row.user.phone,
-    departmentName: row.departmentName ?? "",
+    departmentName: (inMonth ? inMonth.departmentName : row.departmentName) ?? "",
     joinedMonth: businessMonth(row.user.createdAt),
     summaryMonth,
     daysLeft: daysLeftOf(summaryMonth),
@@ -844,14 +858,39 @@ export async function personFor(
  * Khoá sắp duy nhất là `date`; luôn kèm `id` làm khoá phụ — thứ tự giữa những
  * dòng cùng ngày phải ổn định qua các trang (xem `listCustomers`).
  */
-async function visibleStaffId(actor: User, id: string): Promise<boolean> {
+/** Phòng và chức vụ của một người trong tháng; `null` khi người đó chưa có tài khoản trong tháng. */
+async function staffInMonth(id: string, yearMonth: string) {
+  const [row] = await db
+    .select({
+      departmentId: staffRoster.departmentId,
+      departmentName: departments.name,
+      role: staffRoster.role,
+    })
+    .from(staffRoster)
+    .leftJoin(departments, eq(departments.id, staffRoster.departmentId))
+    .where(and(eq(staffRoster.userId, id), eq(staffRoster.yearMonth, yearMonth)))
+    .limit(1);
+  return row ?? null;
+}
+
+/**
+ * Người xem có thấy hồ sơ này trong khoảng ngày đó không: theo phòng hiện tại,
+ * hoặc theo phòng của người đó trong tháng đang xem. Vế sau để quản lý phòng cũ
+ * vẫn mở được số của tháng người đó còn ở phòng mình, và CHỈ tháng đó: khoảng
+ * ngày phải nằm trọn trong một tháng, không thì lộ số của các tháng sau.
+ */
+async function visibleStaffId(actor: User, id: string, range: Period): Promise<boolean> {
   const rows = await db
     .select({ departmentId: users.departmentId })
     .from(users)
     .where(eq(users.id, id))
     .limit(1);
   if (!rows[0]) return false;
-  return inVisibleScope(actor, "staff", "view-detail", rows[0].departmentId);
+  if (inVisibleScope(actor, "staff", "view-detail", rows[0].departmentId)) return true;
+  const yearMonth = range.from.slice(0, 7);
+  if (range.to.slice(0, 7) !== yearMonth) return false;
+  const inMonth = await staffInMonth(id, yearMonth);
+  return inMonth !== null && inVisibleScope(actor, "staff", "view-detail", inMonth.departmentId);
 }
 
 const orderedBy = (col: AnyColumn, dir: "asc" | "desc", idCol: AnyColumn) =>
@@ -863,7 +902,7 @@ export async function personCustomersFor(
   range: Period,
   page: PageArgs<"date">,
 ): Promise<Page<PersonCustomer> | null> {
-  if (!(await visibleStaffId(actor, id))) return null;
+  if (!(await visibleStaffId(actor, id, range))) return null;
 
   /* `created_at` là `timestamptz` nên hai mốc phải quy về giờ làm việc — so
      thẳng thì khách lập lúc 23:30 ngày cuối kỳ rơi sang kỳ sau. */
@@ -913,7 +952,7 @@ export async function personAccountsFor(
   range: Period,
   page: PageArgs<"date">,
 ): Promise<Page<PersonAccount> | null> {
-  if (!(await visibleStaffId(actor, id))) return null;
+  if (!(await visibleStaffId(actor, id, range))) return null;
 
   const where = and(
     eq(bankAccounts.createdBy, id),
@@ -967,7 +1006,7 @@ export async function personInsuranceFor(
   range: Period,
   page: PageArgs<"date">,
 ): Promise<Page<PersonInsurance> | null> {
-  if (!(await visibleStaffId(actor, id))) return null;
+  if (!(await visibleStaffId(actor, id, range))) return null;
 
   const where = and(eq(insuranceOrders.createdBy, id), orderedInRange(range));
 
@@ -1070,7 +1109,7 @@ export async function personHandledFor(
   // Tự xem mình luôn đi qua: chức vụ Nhân viên KHÔNG có `staff:view-detail`,
   // mà màn Tổng quan của chính họ phải hiện được khối này. Cùng lối với đường
   // `selfView` của route chấm điểm.
-  if (actor.id !== id && !(await visibleStaffId(actor, id))) return null;
+  if (actor.id !== id && !(await visibleStaffId(actor, id, range))) return null;
 
   const [rows, [totals]] = await Promise.all([
     handledRows(id, range)
@@ -1098,7 +1137,7 @@ export async function personHandledForExport(
   id: string,
   range: Period,
 ): Promise<PersonHandledOrder[] | null> {
-  if (actor.id !== id && !(await visibleStaffId(actor, id))) return null;
+  if (actor.id !== id && !(await visibleStaffId(actor, id, range))) return null;
 
   return handledRows(id, range).orderBy(
     ...orderedBy(insuranceOrders.orderDate, "desc", insuranceOrders.id),
@@ -1111,7 +1150,7 @@ export async function personServicesFor(
   range: Period,
   page: PageArgs<"date">,
 ): Promise<Page<PersonService> | null> {
-  if (!(await visibleStaffId(actor, id))) return null;
+  if (!(await visibleStaffId(actor, id, range))) return null;
 
   const where = and(
     eq(services.createdBy, id),
@@ -1139,6 +1178,14 @@ export async function personServicesFor(
     .from(services)
     .where(where);
 
+  // Lượt vượt trần, và lượt của người không thuộc nhóm điểm ATM, hiện 0 điểm.
+  const counted = await countedServiceIds(
+    id,
+    range.from,
+    range.to,
+    rows.map((r) => r.service.id),
+  );
+
   return {
     rows: rows.map((r) => ({
       id: r.service.id,
@@ -1147,7 +1194,7 @@ export async function personServicesFor(
       customerName: r.customerName,
       serviceType: r.typeName,
       ward: r.service.wardName ?? "",
-      points: Number(r.coefficient),
+      points: counted.has(r.service.id) ? Number(r.coefficient) : 0,
     })),
     total,
   };

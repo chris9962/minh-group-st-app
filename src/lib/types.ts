@@ -395,7 +395,7 @@ export const ROLE_LABEL: Record<RoleKey, string> = {
  * ⚠️ ĐỪNG sắp bảng bằng chính cột `role`. Enum trong database khai theo thứ tự
  * `director` → `staff`, nên `director` mang số NHỎ nhất và `ORDER BY role DESC`
  * đẩy Nhân viên lên đầu — mũi tên trên tiêu đề cột nói ngược với thứ tự thấy
- * được. Sửa 2026-08-14; câu SQL tương ứng là `roleRankExpr` ở `server/people.ts`.
+ * được. Sửa 2026-08-14; câu SQL tương ứng là `roleRankOf` ở `server/people.ts`.
  */
 export const ROLE_RANK: Record<RoleKey, number> = {
   director: 4,
@@ -438,6 +438,19 @@ export const CONTRACT_TYPE_LABEL: Record<ContractType, string> = {
   hdld: 'HĐLĐ',
   hddv: 'HĐDV',
   hdtv: 'HĐTV',
+};
+
+/**
+ * Cách tính lương của một nhân viên. `atm` là nhân viên trực điểm ATM theo
+ * thông báo lương 2026-09-30: công thức riêng ở `src/rules/salary`, và chỉ nhóm
+ * này có điểm dịch vụ.
+ */
+export const SalaryScheme = z.enum(['department', 'atm']);
+export type SalaryScheme = z.infer<typeof SalaryScheme>;
+
+export const SALARY_SCHEME_LABEL: Record<SalaryScheme, string> = {
+  department: 'Theo phòng',
+  atm: 'Điểm ATM',
 };
 
 

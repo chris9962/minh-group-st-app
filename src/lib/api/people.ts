@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { roundPoints } from '@/lib/format';
+import { businessMonth, roundPoints } from '@/lib/format';
 import type { Scope } from '@/lib/types';
 
 /** Số liệu cho P-51 Danh sách nhân viên + điểm. */
@@ -22,6 +22,14 @@ export const showsKpi = (p: PeriodMode): boolean => p.kind !== 'today';
 
 export const periodParam = (p: PeriodMode, current: string): string =>
   p.kind === 'today' ? 'today' : periodMonth(p, current);
+
+/**
+ * Đường tới hồ sơ một người từ một bảng đang xem tháng `month`. Tháng cũ thì
+ * gửi kèm để hồ sơ mở sẵn tháng đó: người đã chuyển phòng chỉ mở được ở tháng
+ * họ còn thuộc phòng của người xem.
+ */
+export const personHref = (id: string, month: string): string =>
+  month === businessMonth() ? `/users/${id}` : `/users/${id}?month=${month}`;
 
 export const PersonScore = z.object({
   id: z.string(),

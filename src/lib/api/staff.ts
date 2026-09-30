@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { ContractType, ManageScope, Permission, ROLE_LABEL, RoleKey } from '@/lib/types';
+import { ContractType, ManageScope, Permission, ROLE_LABEL, RoleKey, SalaryScheme } from '@/lib/types';
 import { pageOf, pageParams, type PageQuery } from './pagination';
+import { SalaryBreakdown } from './person';
 
 /** Hồ sơ nhân viên = tài khoản đăng nhập. Một thứ, không tách (spec §2.2). */
 
@@ -19,6 +20,7 @@ export const StaffAccount = z.object({
   title: z.string(),
   /** null = chưa nhập. */
   contractType: ContractType.nullable(),
+  salaryScheme: SalaryScheme,
   manageScope: ManageScope,
   managedDepartmentIds: z.array(z.string()),
   /**
@@ -49,6 +51,17 @@ export type StaffAccount = z.infer<typeof StaffAccount>;
  * phải tự tính lấy thì mới cắt đúng trang (AGENTS.md §5.1, điều 3).
  */
 export const StaffRow = StaffAccount.extend({
+  /**
+   * Phòng và chức vụ của người này TRONG THÁNG đang xem (chốt 2026-09-30) —
+   * bảng hiện các trường này. Các trường cùng tên của `StaffAccount` là hồ sơ
+   * HIỆN TẠI, hộp thoại sửa đọc chúng: lấy giá trị của tháng cũ đổ vào hộp
+   * thoại thì bấm Lưu là trả người đó về phòng cũ.
+   */
+  monthDepartmentId: z.string().nullable(),
+  monthDepartmentName: z.string(),
+  monthRole: RoleKey,
+  /** Đang làm hay đã khoá TRONG tháng đang xem. `active` là trạng thái hiện tại, cho nút Khoá. */
+  monthActive: z.boolean(),
   /** Điểm tháng, đã làm tròn. Chưa có bản ghi nào thì bằng 0 thật. */
   points: z.number(),
   /** Mốc của đúng phòng người này. */
@@ -80,6 +93,8 @@ export const StaffRow = StaffAccount.extend({
   rangePoints: z.number().nullable().default(null),
   /** Lương CĐS đang tính của tháng; 0 khi chức vụ/phòng chưa có công thức. */
   salary: z.number(),
+  /** Từng khoản của `salary`, cùng tháng. Tháng đã chốt lương là bản đã lưu lúc chốt. */
+  salaryBreakdown: SalaryBreakdown,
 });
 export type StaffRow = z.infer<typeof StaffRow>;
 
@@ -210,6 +225,8 @@ export const StaffForm = z.object({
   title: z.string().trim().min(2, 'Chưa nhập chức danh'),
   /** Chuỗi rỗng = chưa nhập, lưu null. */
   contractType: z.union([z.literal(''), ContractType]),
+  /** Chỉ tài khoản toàn quyền đổi được; máy chủ giữ giá trị cũ với người khác. */
+  salaryScheme: SalaryScheme,
   manageScope: ManageScope,
   managedDepartmentIds: z.array(z.guid()),
   /**

@@ -105,8 +105,8 @@ export async function fetchDepartmentStats(periodKey: string): Promise<Departmen
   return DepartmentStats.parse(await res.json());
 }
 
-export async function fetchDepartmentDetail(id: string): Promise<DepartmentDetail> {
-  const res = await fetch(`/api/org/departments/${id}`);
+export async function fetchDepartmentDetail(id: string, month: string): Promise<DepartmentDetail> {
+  const res = await fetch(`/api/org/departments/${id}?${new URLSearchParams({ month })}`);
   if (!res.ok) throw new Error('Không tải được phòng ban này');
   return DepartmentDetail.parse(await res.json());
 }

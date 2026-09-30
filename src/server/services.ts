@@ -21,6 +21,7 @@ import { db } from "./db/client";
 import { departmentForNewRecord } from "./writeDepartment";
 import { customers, serviceTypes, services, users, wards } from "./db/schema";
 import { recomputeKpi } from "./kpi";
+import { recomputeEmployeeWorkDay } from "./workDays";
 import type { PageArgs } from "./pagination";
 
 /**
@@ -397,6 +398,7 @@ export async function createService(actor: User, form: ServiceForm): Promise<Ser
   // Điểm dịch vụ = Σ hệ số loại dịch vụ trong kỳ, nên ghi xong phải tính lại
   // ngay; để lệ thuộc một lượt chạy sau là điểm đứng im mà không ai báo.
   await recomputeKpi(actor.id, businessMonth(new Date(`${serviceDate}T00:00:00+07:00`)));
+  await recomputeEmployeeWorkDay(actor.id, serviceDate);
 
   return { ok: true, service: (await serviceById(row.id))! };
 }
@@ -450,6 +452,8 @@ export async function updateService(
    */
   const months = new Set([current.date.slice(0, 7), form.date.slice(0, 7)]);
   for (const month of months) await recomputeKpi(current.createdById, month);
+  for (const day of new Set([current.date, form.date]))
+    await recomputeEmployeeWorkDay(current.createdById, day);
 
   return { ok: true, service: (await serviceById(id))! };
 }
@@ -474,6 +478,7 @@ export async function deleteService(actor: User, id: string): Promise<ServiceRow
   // bấm xoá và tháng hiện tại — quản lý xoá hộ một dòng của tháng trước là ca
   // có thật.
   await recomputeKpi(current.createdById, current.date.slice(0, 7));
+  await recomputeEmployeeWorkDay(current.createdById, current.date);
 
   return current;
 }

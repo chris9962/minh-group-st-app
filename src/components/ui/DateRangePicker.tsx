@@ -2,7 +2,7 @@
 
 import { CalendarDays } from "lucide-react";
 import * as Popover from "@radix-ui/react-popover";
-import { useId, useRef, useSyncExternalStore } from "react";
+import { useId, useRef, useState, useSyncExternalStore } from "react";
 import { format } from "date-fns";
 import { vi } from "date-fns/locale";
 import { DayPicker, type DateRange } from "react-day-picker";
@@ -23,15 +23,6 @@ type Props = {
   label?: string;
   /** Ẩn nhãn khỏi màn hình — dùng khi tên mục đã nằm ở cột trái `FilterButton`. */
   hideLabel?: boolean;
-  /**
-   * Khoảng ngày phải nằm TRỌN trong một tháng.
-   *
-   * Bật ở màn có cột ĐIỂM. Điểm KPI tính theo từng tháng và tổ hợp không nối
-   * qua tháng (thể lệ câu 7.13), nên một khoảng vắt hai tháng ra con số không
-   * ai đoán được: khách mở `VPa` ngày 30/08 và `MB` ngày 02/09 KHÔNG thành
-   * Combo 2, dù cả hai đều nằm trong khoảng đang chọn.
-   */
-  sameMonthOnly?: boolean;
   /**
    * Dáng viên thuốc trên thanh công cụ (Tổng quan): lịch + khoảng ngày, không
    * phải ô nhập `.input` của bộ lọc.
@@ -64,12 +55,9 @@ const earlier = (a: Date, b: Date): Date => (a.getTime() <= b.getTime() ? a : b)
 const firstOfMonth = (d: Date): Date => new Date(d.getFullYear(), d.getMonth(), 1);
 const lastOfMonth = (d: Date): Date => new Date(d.getFullYear(), d.getMonth() + 1, 0);
 
-/**
- * Cắt ngày cuối về cuối tháng của ngày đầu, khi màn đòi khoảng nằm trọn một
- * tháng. Không bật thì trả nguyên khoảng.
- */
-const clampToMonth = (r: DateRange | undefined, on: boolean): DateRange | undefined => {
-  if (!on || !r?.from || !r.to) return r;
+/** Cắt ngày cuối về cuối tháng của ngày đầu. */
+const clampToMonth = (r: DateRange | undefined): DateRange | undefined => {
+  if (!r?.from || !r.to) return r;
   const last = lastOfMonth(r.from);
   return r.to.getTime() > last.getTime() ? { from: r.from, to: last } : r;
 };
@@ -93,6 +81,12 @@ function useNarrowViewport() {
  * Chọn khoảng ngày bằng MỘT lịch: bấm ngày đầu rồi kéo tới ngày cuối.
  * Dùng react-day-picker vì tự viết lịch có khoảng là rất dễ sai ở tuần giao
  * tháng, năm nhuận và điều hướng bàn phím.
+ *
+ * Khoảng ngày luôn nằm TRỌN trong một tháng, ở mọi màn (chốt 2026-09-30). Điểm
+ * KPI, tổ hợp (thể lệ câu 7.13) và nhân sự của phòng đều tính theo từng tháng,
+ * nên một khoảng vắt hai tháng ra con số không ai đoán được: khách mở `VPa`
+ * ngày 30/08 và `MB` ngày 02/09 KHÔNG thành Combo 2, dù cả hai đều nằm trong
+ * khoảng đang chọn.
  */
 export function DateRangePicker({
   value,
@@ -101,7 +95,6 @@ export function DateRangePicker({
   minDate,
   label,
   hideLabel = false,
-  sameMonthOnly = false,
   appearance = "input",
 }: Props) {
   const id = useId();
@@ -114,8 +107,11 @@ export function DateRangePicker({
    *
    * Chỉ khoá lúc chọn dở, không khoá lúc đã xong: chọn xong rồi thì người dùng
    * phải bấm được sang tháng khác để bắt đầu khoảng mới.
+   *
+   * Ngày đầu giữ ở ĐÂY, chưa báo ra ngoài: màn nhận một khoảng mới có ngày đầu
+   * sẽ lọc "từ ngày đó trở đi", tức vắt qua các tháng sau, và tải thừa một lượt.
    */
-  const picking = sameMonthOnly && value?.from && !value.to ? value.from : null;
+  const [picking, setPicking] = useState<Date | null>(null);
   const from = picking ? firstOfMonth(picking) : minDate;
   const to = picking ? earlier(lastOfMonth(picking), maxDate) : maxDate;
 
@@ -135,7 +131,8 @@ export function DateRangePicker({
   );
 
   return (
-    <Popover.Root>
+    // Đóng lịch giữa chừng thì bỏ ngày đầu đang chọn dở.
+    <Popover.Root onOpenChange={(opened) => !opened && setPicking(null)}>
       {/*
         Nhãn và ô phải nằm TRONG một khối bọc. `Popover.Root` không sinh thẻ
         DOM nào, nên để rời thì hai thứ thành hai ô của lưới bên ngoài và ăn
@@ -181,10 +178,20 @@ export function DateRangePicker({
             locale={vi}
             numberOfMonths={narrow ? 1 : 2}
             defaultMonth={value?.from}
-            selected={value}
-            // Lưới lịch đã khoá, dòng này chặn nốt đường còn lại: giá trị cũ
-            // đọc từ URL, hoặc khoảng chọn xong trước khi bật `sameMonthOnly`.
-            onSelect={(range) => onChange(clampToMonth(range, sameMonthOnly))}
+            selected={picking ? { from: picking, to: undefined } : value}
+            // Đã có khoảng đủ hai đầu thì lượt bấm kế tiếp MỞ KHOẢNG MỚI. Không
+            // có dòng này thư viện nối dài khoảng cũ, rồi `clampToMonth` cắt về
+            // tháng cũ: người dùng không sang được tháng khác nếu chưa xoá lọc.
+            resetOnSelect
+            onSelect={(range) => {
+              if (range?.from && !range.to) {
+                setPicking(range.from);
+                return;
+              }
+              setPicking(null);
+              // Lưới lịch đã khoá, `clampToMonth` chặn nốt đường còn lại.
+              onChange(clampToMonth(range));
+            }}
             disabled={from ? [{ after: to }, { before: from }] : { after: to }}
             className={styles.calendar}
           />

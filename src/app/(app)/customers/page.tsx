@@ -613,9 +613,6 @@ export default function CustomersPage() {
               hideLabel
               label="Khoảng ngày"
               value={range}
-              // Cột Điểm đọc tháng từ ngày đầu khoảng, mà luật điểm là luật của
-              // MỘT tháng — khoảng vắt hai tháng thì không có file luật nào đúng.
-              sameMonthOnly
               onChange={(next) => {
                 setRange(next);
                 setQuery((q) => ({ ...q, page: 0 }));

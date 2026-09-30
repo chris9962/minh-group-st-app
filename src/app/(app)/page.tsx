@@ -6,6 +6,7 @@ import { Briefcase, Gift, ShieldCheck, Trophy } from "lucide-react";
 import { SkeletonStats, SkeletonTable } from "@/components/ui/Skeleton";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { ErrorState } from "@/components/ui/ErrorState";
+import { monthLabel } from "@/components/ui/MonthPicker";
 import { TopBar } from "@/components/layout/TopBar";
 import { BarChart } from "@/components/ui/BarChart";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
@@ -259,7 +260,6 @@ export default function DashboardPage() {
             value={period}
             onChange={setPeriod}
             kinds={OVERVIEW_PERIOD_KINDS}
-            sameMonthOnly
             variant="toolbar"
           />
         </div>
@@ -329,7 +329,13 @@ export default function DashboardPage() {
                     // Lương đứng thành số lớn riêng, không nằm ở dòng phụ: đây
                     // là con số người xem toàn công ty mở màn này để đọc.
                     ...(data.scopePoints.kind === "company" && data.companySalary !== null
-                      ? [{ value: formatVnd(data.companySalary), label: "lương tạm tính tháng hiện tại" }]
+                      ? [
+                          {
+                            value: formatVnd(data.companySalary),
+                            // Lương của THÁNG chứa kỳ đang xem, không tính theo khoảng ngày.
+                            label: `lương tạm tính ${monthLabel(periodDates(period).from.slice(0, 7))}`,
+                          },
+                        ]
                       : []),
                   ]}
                 />

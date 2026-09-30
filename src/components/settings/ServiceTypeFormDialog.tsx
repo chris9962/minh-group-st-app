@@ -16,7 +16,13 @@ import {
 } from "@/lib/api/settings";
 import styles from "./ServiceTypeFormDialog.module.scss";
 import { errorMessage, toast } from "@/lib/toast";
-import { decimalOnly, numberValue, numericField } from "@/lib/numberField";
+import {
+  decimalOnly,
+  digitsOnly,
+  numberValue,
+  numericField,
+  optionalNumberValue,
+} from "@/lib/numberField";
 import { reportInvalid } from "@/lib/formErrors";
 
 type Props = {
@@ -43,6 +49,8 @@ export function ServiceTypeFormDialog({ open, onClose, serviceType }: Props) {
     defaultValues: {
       name: serviceType?.name ?? "",
       coefficient: serviceType?.coefficient ?? 1,
+      dailyCap: serviceType?.dailyCap ?? null,
+      monthlyCap: serviceType?.monthlyCap ?? null,
     },
   });
 
@@ -113,6 +121,22 @@ export function ServiceTypeFormDialog({ open, onClose, serviceType }: Props) {
           hint="Mặc định 1"
           error={errors.coefficient?.message}
           {...numericField(register("coefficient", { setValueAs: numberValue }), decimalOnly)}
+        />
+        <TextField
+          label="Trần lượt mỗi ngày"
+          type="text"
+          inputMode="numeric"
+          placeholder="Không giới hạn"
+          error={errors.dailyCap?.message}
+          {...numericField(register("dailyCap", { setValueAs: optionalNumberValue }), digitsOnly)}
+        />
+        <TextField
+          label="Trần lượt mỗi tháng"
+          type="text"
+          inputMode="numeric"
+          placeholder="Không giới hạn"
+          error={errors.monthlyCap?.message}
+          {...numericField(register("monthlyCap", { setValueAs: optionalNumberValue }), digitsOnly)}
         />
       </form>
     </Dialog>

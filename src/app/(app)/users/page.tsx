@@ -32,6 +32,7 @@ import {
   type StaffSort,
 } from "@/lib/api/staff";
 import { EMPTY_PAGE, PAGE_SIZE, type SortDir } from "@/lib/api/pagination";
+import { personHref } from "@/lib/api/people";
 import { FilterButton } from "@/components/ui/FilterButton";
 import { FilterField } from "@/components/ui/FilterField";
 import { FilterChips } from "@/components/ui/FilterChips";
@@ -42,7 +43,14 @@ import { SalaryAmount } from "@/components/payroll/SalaryAmount";
 import { SalaryClosingControl } from "@/components/payroll/SalaryClosingControl";
 import { useDebouncedValue } from "@/lib/hooks";
 import { useCreateIntent } from "@/lib/useCreateIntent";
-import { availableScopes, can, canOrg, scopeFor, visibleDepartmentIds } from "@/lib/permissions";
+import {
+  availableScopes,
+  can,
+  canOrg,
+  inVisibleScope,
+  scopeFor,
+  visibleDepartmentIds,
+} from "@/lib/permissions";
 import { CONTRACT_TYPE_LABEL, ContractType, ROLE_LABEL, RoleKey, type Scope } from "@/lib/types";
 import { errorMessage, toast } from "@/lib/toast";
 import { useSession } from "@/store/session";
@@ -55,9 +63,20 @@ import styles from "./page.module.scss";
  * bắt mở từng hồ sơ. Xếp dọc chứ không nối bằng dấu · để tên vẫn là dòng bấm
  * được và mắt không phải lọc chữ ra khỏi mã.
  */
-function StaffName({ id, fullName, staffCode }: { id: string; fullName: string; staffCode: string | null }) {
+function StaffName({
+  id,
+  fullName,
+  staffCode,
+  month,
+}: {
+  id: string;
+  fullName: string;
+  staffCode: string | null;
+  /** Tháng bảng đang xem; hồ sơ mở sẵn tháng này khi nó không phải tháng hiện tại. */
+  month: string;
+}) {
   return (
-    <Link href={`/users/${id}`} className={styles.nameCell}>
+    <Link href={personHref(id, month)} className={styles.nameCell}>
       <span className={styles.nameText}>{fullName}</span>
       {staffCode && <span className={`${styles.nameCode} tabular-nums`}>{staffCode}</span>}
     </Link>
@@ -111,14 +130,21 @@ const BASE_COLUMNS: RankColumn<StaffRow>[] = [
     key: "name",
     label: "Nhân viên",
     sortable: true,
-    render: (r) => <StaffName id={r.id} fullName={r.fullName} staffCode={r.staffCode} />,
+    render: (r) => (
+      <StaffName
+        id={r.id}
+        fullName={r.fullName}
+        staffCode={r.staffCode}
+        month={r.salaryBreakdown.month}
+      />
+    ),
   },
   {
     key: "departmentName",
     label: "Đơn vị",
-    render: (r) => <DepartmentCell id={r.departmentId} name={r.departmentName} />,
+    render: (r) => <DepartmentCell id={r.monthDepartmentId} name={r.monthDepartmentName} />,
   },
-  { key: "role", label: "Chức vụ", sortable: true, render: (r) => ROLE_LABEL[r.role] },
+  { key: "role", label: "Chức vụ", sortable: true, render: (r) => ROLE_LABEL[r.monthRole] },
   /**
    * Bốn cột đếm của ĐÚNG tháng đang chọn, gộp theo người tạo.
    *
@@ -346,7 +372,11 @@ export default function PeoplePage() {
             {
               key: "actions",
               label: "Thao tác",
-              render: (r) => (
+              // Bảng tháng cũ còn hiện người đã sang phòng ngoài phạm vi của
+              // người xem. Máy chủ từ chối sửa và khoá họ (`staffTargetFor`),
+              // nên không bày nút.
+              render: (r) =>
+                !inVisibleScope(user, "staff", "update", r.departmentId) ? null : (
                 <div className={styles.rowActions}>
                   <Button
                     variant="secondary"
@@ -383,7 +413,7 @@ export default function PeoplePage() {
               render: (r) => <SalaryAmount amount={r.salary} visible />,
             },
           ],
-    [canManage, user?.id],
+    [canManage, user],
   );
 
   return (

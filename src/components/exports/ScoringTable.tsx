@@ -280,7 +280,7 @@ export function ScoringTable({ defaultStaffId = "", lockedStaffId, pageSize }: P
             ]}
           />
         )}
-        <DateRangePicker label="Khoảng ngày" value={range} onChange={setRange} sameMonthOnly />
+        <DateRangePicker label="Khoảng ngày" value={range} onChange={setRange} />
       </div>
 
       {!ready ? (
