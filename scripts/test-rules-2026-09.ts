@@ -595,10 +595,11 @@ check(
 check(
   "sang năm vẫn tính bằng luật 2026-09",
   points(
-    [account("kh1", "MB", { date: "2027-03-10" }), account("kh1", "VPa", { date: "2027-03-11" })],
+    // Không dùng MB + VPa: cặp đó ra 0 từ kỳ 2026-10-01, kỳ mới nhất áp cho năm sau.
+    [account("kh1", "MB", { date: "2027-03-10" }), account("kh1", "TPB", { date: "2027-03-11" })],
     "2027-03",
   ),
-  0.7,
+  0.5,
 );
 
 /* ── Cộng dồn không được có sai số dấu phẩy động ─────────────────────── */

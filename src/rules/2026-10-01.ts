@@ -28,6 +28,8 @@ import type {
  *   F. Phòng Y quy đổi quà chỉ ở TH8
  *   G. HKD mở ở mọi ngân hàng, MỖI tài khoản HKD cộng 3,0; CNKD và HKD cộng
  *      dồn thay vì lấy mức cao hơn
+ *   H. Hồ sơ chỉ mở `VPa` và `MB` không thành tổ hợp: 0 điểm, không quà —
+ *      `isVoidPair`
  *
  * Giữ nguyên kỳ 2026-09-28: bảng điểm Combo 2, Combo 3; tổ hợp bằng điểm thì
  * tổ hợp nhiều ngân hàng hơn thắng; tối đa hai bank hạn chế mỗi hồ sơ; CNKD
@@ -101,6 +103,7 @@ export const OPEN_NOTES: string[] = [
   "Combo 2 có bank hạn chế: chỉ 1 ưu tiên + 1 hạn chế. Bank khác + bank hạn chế tính Combo 1 của bank khác.",
   "Combo 3 có 1 bank hạn chế: 2 ưu tiên + 1 hạn chế, 1 ưu tiên + 1 khác + 1 hạn chế, hoặc 2 khác + 1 hạn chế.",
   "Combo 3 có 2 bank hạn chế: 1 ưu tiên + 2 hạn chế, hoặc 1 khác + 2 hạn chế.",
+  "Hồ sơ chỉ mở VPa và MB: 0 điểm, không quà. Có ngân hàng thứ ba thì tính Combo 3.",
   "Không mở cả VPa lẫn VPb cho cùng một khách. Hồ sơ đó 0 điểm.",
   "CNKD kèm ngân hàng nào cũng cộng 1,0. Mỗi tài khoản HKD cộng 3,0, ngân hàng nào cũng được.",
 ];
@@ -192,6 +195,21 @@ type Combo = { tenths: number; size: 0 | 1 | 2 | 3; codes: string[] };
 
 const NO_COMBO: Combo = { tenths: 0, size: 0, codes: [] };
 
+/** Ngân hàng trong thể lệ của một hồ sơ, mỗi mã một lần. */
+const ruleBanksOf = (bankCodes: string[]): string[] =>
+  [...new Set(bankCodes)].filter((code) => code in TIER_OF);
+
+/**
+ * Hồ sơ mở ĐÚNG hai ngân hàng `VPa` và `MB` không thành tổ hợp nào: 0 điểm,
+ * không quà (chủ dự án chốt 2026-09-30, thể lệ mục 2b). KHÔNG hạ xuống Combo 1
+ * của từng ngân hàng như ca "1 khác + 1 hạn chế". Hồ sơ có thêm ngân hàng thứ
+ * ba vẫn là Combo 3 theo bảng. Điểm CNKD, HKD và quà thêm HKD tính riêng, giống
+ * hồ sơ chỉ có hai bank hạn chế.
+ */
+const VOID_PAIR = ["VPa", "MB"];
+const isVoidPair = (ruleBanks: string[]): boolean =>
+  ruleBanks.length === VOID_PAIR.length && VOID_PAIR.every((code) => ruleBanks.includes(code));
+
 /**
  * Tổ hợp CHO ĐIỂM CAO NHẤT của một khách — dùng chung cho cả điểm lẫn quà.
  *
@@ -207,7 +225,8 @@ const NO_COMBO: Combo = { tenths: 0, size: 0, codes: [] };
 function bestComboOf(bankCodes: string[]): Combo {
   // Trùng mã chỉ tính một lần: "02 Bank ưu tiên" nghĩa là hai NGÂN HÀNG khác
   // nhau, hai tài khoản cùng một ngân hàng không thành combo.
-  const codes = [...new Set(bankCodes)].filter((code) => code in TIER_OF);
+  const codes = ruleBanksOf(bankCodes);
+  if (isVoidPair(codes)) return NO_COMBO;
 
   let best = NO_COMBO;
   const keep = (tenths: number, size: 1 | 2 | 3, picked: string[]) => {
@@ -617,9 +636,11 @@ export function gift(input: GiftInput): GiftResult {
 
   if (!matched) {
     explain.push(
-      bankRows.some((a) => a.bankCode in TIER_OF)
-        ? "Khách chưa có tài khoản nào vào được tổ hợp theo thể lệ."
-        : "Khách chưa mở tài khoản nào tính được vào thể lệ.",
+      isVoidPair(ruleBanksOf(bankRows.map((a) => a.bankCode)))
+        ? "Hồ sơ chỉ mở VPa và MB không được tính điểm và không có quà."
+        : bankRows.some((a) => a.bankCode in TIER_OF)
+          ? "Khách chưa có tài khoản nào vào được tổ hợp theo thể lệ."
+          : "Khách chưa mở tài khoản nào tính được vào thể lệ.",
     );
 
     return {

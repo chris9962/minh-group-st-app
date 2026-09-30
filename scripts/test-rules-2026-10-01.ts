@@ -88,12 +88,15 @@ check("VPb + CNKD = 0,2 + 1,0", points([account("k", "VPb", { household: "CNKD" 
 
 /* ── Đủ 19 tổ hợp hạng · điểm theo bảng mục 2 ───────────────────────── */
 
-/** P = MB, O = TPB/SHB/MSBb, R = LPB/BIDV/MBV. Dòng không có trong bảng ra 0. */
+/**
+ * P = MB, O = TPB/SHB/MSBb, R = LPB/BIDV/MBV. Dòng không có trong bảng ra 0.
+ * Dòng "2 ưu tiên" lấy VPa + MSBa: cặp VPa + MB không thành tổ hợp, xem mục riêng.
+ */
 const TIER_POINTS: [string[], number][] = [
   [["MB"], 0.3],
   [["TPB"], 0.2],
   [["LPB"], 0],
-  [["MB", "VPa"], 0.7],
+  [["VPa", "MSBa"], 0.7],
   [["MB", "TPB"], 0.5],
   [["MB", "LPB"], 0.3],
   [["TPB", "SHB"], 0.4],
@@ -132,7 +135,6 @@ const GIFT_MATRIX: [string[], string, 0 | 1 | 2, number][] = [
   [["TPB"], "TH1", 1, 0],
   [["VPb"], "TH1", 1, 0],
   [["VPa", "MSBa"], "TH4", 0, 70_000],
-  [["VPa", "MB"], "TH2", 0, 20_000],
   [["VPa", "TPB"], "TH2", 0, 20_000],
   [["VPa", "LPB"], "TH2", 0, 20_000],
   [["MSBa", "MB"], "TH3", 0, 50_000],
@@ -171,6 +173,40 @@ for (const [codes, code, years, cash] of GIFT_MATRIX) {
   check(`${name}: ${years} năm BH`, r.insuranceYears, years);
   check(`${name}: tiền ${cash}`, r.cashTotal, cash);
 }
+
+/* ── Mục 2b · hồ sơ chỉ mở VPa và MB không thành tổ hợp ─────────────── */
+
+section("VPa + MB: 0 điểm, không quà");
+check("VPa + MB = 0", comboPointsFor(["VPa", "MB"]), 0);
+check("MB + VPa theo thứ tự ngược = 0", comboPointsFor(["MB", "VPa"]), 0);
+check("VPa + MB không hạ xuống Combo 1", points(accountsOf(["VPa", "MB"])), 0);
+const voidPair = gift(accountsOf(["VPa", "MB"]));
+check("VPa + MB không có bậc", voidPair.caseCode, null);
+check("VPa + MB không có tiền", voidPair.cashTotal, 0);
+check("VPa + MB không có bảo hiểm", voidPair.insuranceYears, 0);
+check("VPa + MB rổ quà rỗng", voidPair.basket.length, 0);
+check("VPa một mình vẫn 0,3", comboPointsFor(["VPa"]), 0.3);
+check("MB một mình vẫn 0,3", comboPointsFor(["MB"]), 0.3);
+check("MB + MSBa vẫn 0,7", comboPointsFor(["MB", "MSBa"]), 0.7);
+check("MB + MSBa vẫn TH3", gift(accountsOf(["MB", "MSBa"])).caseCode, "TH3");
+check("VPa + MB + TPB vẫn là Combo 3, 1,0", comboPointsFor(["VPa", "MB", "TPB"]), 1);
+check("VPa + MB + LPB vẫn là Combo 3, 0,9", comboPointsFor(["VPa", "MB", "LPB"]), 0.9);
+check(
+  "VPa CNKD + MB: chỉ còn 1,0 của CNKD",
+  points([account("k", "VPa", { household: "CNKD" }), account("k", "MB")]),
+  1,
+);
+check(
+  "VPa + MB + VPa HKD: chỉ còn 3,0 của HKD",
+  points([account("k", "VPa"), account("k", "MB"), account("k", "VPa", { household: "HKD" })]),
+  3,
+);
+check(
+  "VPa + MB + VPa HKD: vẫn có quà thêm HKD",
+  gift([account("k", "VPa"), account("k", "MB"), account("k", "VPa", { household: "HKD" })]).extraBasket.length,
+  2,
+);
+check("VPa + MB ngày 30/9 vẫn 0,7", points(accountsOf(["VPa", "MB"], BEFORE), "2026-09"), 0.7);
 
 /* ── Mục 4b · HKD mỗi tài khoản 3,0, cộng dồn với CNKD ──────────────── */
 
