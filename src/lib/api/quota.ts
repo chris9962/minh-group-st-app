@@ -30,6 +30,10 @@ export const QuotaMonth = z.object({
   staffHkd: z.number().nullable(),
   staffDirected: z.number().nullable(),
   staffCasa: z.number().nullable(),
+  /** Chỉ tiêu mỗi nhân viên HĐDV, chỉ lưu, lương không chấm. */
+  serviceHkd: z.number().nullable(),
+  serviceDirected: z.number().nullable(),
+  serviceCasa: z.number().nullable(),
   departments: z.array(DepartmentQuota),
   hkdKinds: z.array(QuotaKindItem),
   directedKinds: z.array(QuotaKindItem),
@@ -42,6 +46,9 @@ export const QuotaMonthForm = z.object({
   staffHkd: target,
   staffDirected: target,
   staffCasa: target,
+  serviceHkd: target,
+  serviceDirected: target,
+  serviceCasa: target,
   departments: z.array(
     z.object({ departmentId: z.guid(), hkd: target, directed: target, casa: target }),
   ),

@@ -757,6 +757,13 @@
       "when": 1789891400034,
       "tag": "0108_zalo_contacts",
       "breakpoints": true
+    },
+    {
+      "idx": 109,
+      "version": "7",
+      "when": 1789891400035,
+      "tag": "0109_quota_service_staff",
+      "breakpoints": true
     }
   ]
 }

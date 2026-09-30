@@ -1735,6 +1735,8 @@ export const kpiTargets = pgTable(
  * Chỉ tiêu theo QĐ 145, một dòng mỗi tháng. Ba số là chỉ tiêu của MỖI nhân viên
  * HĐLĐ. Chỉ `staff_directed` vào công thức lương; `staff_hkd`, `staff_casa` chỉ
  * lưu vì Phụ lục 04 không có mức cộng trừ cho hai chỉ tiêu này (chốt 2026-09-25).
+ * Ba số `service_*` là chỉ tiêu mỗi nhân viên HĐDV, có từ 2026-10, chỉ lưu
+ * (chốt 2026-09-29).
  *
  * Ô null = không chấm mục đó. Tháng không có dòng dùng dòng gần nhất trước đó.
  */
@@ -1746,13 +1748,16 @@ export const quotaMonths = pgTable(
     staffHkd: integer("staff_hkd"),
     staffDirected: integer("staff_directed"),
     staffCasa: integer("staff_casa"),
+    serviceHkd: integer("service_hkd"),
+    serviceDirected: integer("service_directed"),
+    serviceCasa: integer("service_casa"),
     updatedBy: uuid("updated_by").references(() => users.id),
     updatedAt: updatedAt(),
   },
   (t) => [
     check(
       "quota_months_positive",
-      sql`coalesce(${t.staffHkd}, 1) > 0 and coalesce(${t.staffDirected}, 1) > 0 and coalesce(${t.staffCasa}, 1) > 0`,
+      sql`coalesce(${t.staffHkd}, 1) > 0 and coalesce(${t.staffDirected}, 1) > 0 and coalesce(${t.staffCasa}, 1) > 0 and coalesce(${t.serviceHkd}, 1) > 0 and coalesce(${t.serviceDirected}, 1) > 0 and coalesce(${t.serviceCasa}, 1) > 0`,
     ),
   ],
 );

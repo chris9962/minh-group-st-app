@@ -86,6 +86,11 @@ function QuotaForm({ data, banks }: { data: QuotaMonth; banks: Bank[] }) {
     directed: toText(data.staffDirected),
     casa: toText(data.staffCasa),
   });
+  const [service, setService] = useState({
+    hkd: toText(data.serviceHkd),
+    directed: toText(data.serviceDirected),
+    casa: toText(data.serviceCasa),
+  });
   const [rows, setRows] = useState(
     data.departments.map((d) => ({
       departmentId: d.departmentId,
@@ -103,6 +108,9 @@ function QuotaForm({ data, banks }: { data: QuotaMonth; banks: Bank[] }) {
     staffHkd: toNumber(staff.hkd),
     staffDirected: toNumber(staff.directed),
     staffCasa: toNumber(staff.casa),
+    serviceHkd: toNumber(service.hkd),
+    serviceDirected: toNumber(service.directed),
+    serviceCasa: toNumber(service.casa),
     departments: rows.map((r) => ({
       departmentId: r.departmentId,
       hkd: toNumber(r.hkd),
@@ -168,6 +176,32 @@ function QuotaForm({ data, banks }: { data: QuotaMonth; banks: Bank[] }) {
             value={staff.casa}
             disabled={locked}
             onChange={(e) => setStaff((s) => ({ ...s, casa: onlyDigits(e.target.value) }))}
+          />
+        </div>
+      </SectionCard>
+
+      <SectionCard title="Chỉ tiêu mỗi nhân viên HĐDV" icon={<Target size={17} />}>
+        <div className={styles.staffRow}>
+          <TextField
+            label="HKD"
+            inputMode="numeric"
+            value={service.hkd}
+            disabled={locked}
+            onChange={(e) => setService((s) => ({ ...s, hkd: onlyDigits(e.target.value) }))}
+          />
+          <TextField
+            label="Tài khoản định hướng"
+            inputMode="numeric"
+            value={service.directed}
+            disabled={locked}
+            onChange={(e) => setService((s) => ({ ...s, directed: onlyDigits(e.target.value) }))}
+          />
+          <TextField
+            label="CASA"
+            inputMode="numeric"
+            value={service.casa}
+            disabled={locked}
+            onChange={(e) => setService((s) => ({ ...s, casa: onlyDigits(e.target.value) }))}
           />
         </div>
       </SectionCard>
@@ -260,6 +294,9 @@ const formOf = (data: QuotaMonth) => ({
   staffHkd: data.staffHkd,
   staffDirected: data.staffDirected,
   staffCasa: data.staffCasa,
+  serviceHkd: data.serviceHkd,
+  serviceDirected: data.serviceDirected,
+  serviceCasa: data.serviceCasa,
   departments: data.departments.map((d) => ({
     departmentId: d.departmentId,
     hkd: d.hkd,

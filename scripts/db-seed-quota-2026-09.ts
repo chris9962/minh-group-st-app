@@ -82,6 +82,9 @@ async function main() {
       staffHkd: STAFF.hkd,
       staffDirected: STAFF.directed,
       staffCasa: STAFF.casa,
+      serviceHkd: null,
+      serviceDirected: null,
+      serviceCasa: null,
       departments: current.departments.map((d) => {
         const target = found.find((f) => f.id === d.departmentId);
         return target

@@ -334,10 +334,16 @@ async function quotaProgressFor(
   const config = await quotaConfigOf(yearMonth);
   if (!config) return none;
 
+  const needsDepartmentQuota = salaryRulesFor(yearMonth)?.staffQuotaNeedsDepartmentQuota ?? false;
   const staffIds =
     config.staffDirected && config.directedKinds.length > 0
       ? subjects
           .filter((s) => s.role === "staff" && s.departmentType === "sales" && s.contractType === "hdld")
+          .filter(
+            (s) =>
+              !needsDepartmentQuota ||
+              (s.departmentId !== null && Boolean(config.departments.get(s.departmentId)?.directed)),
+          )
           .map((s) => s.id)
       : [];
   const departmentIds = [

@@ -70,6 +70,9 @@ export async function getQuotaMonth(yearMonth: string): Promise<QuotaMonth> {
     staffHkd: data?.month.staffHkd ?? null,
     staffDirected: data?.month.staffDirected ?? null,
     staffCasa: data?.month.staffCasa ?? null,
+    serviceHkd: data?.month.serviceHkd ?? null,
+    serviceDirected: data?.month.serviceDirected ?? null,
+    serviceCasa: data?.month.serviceCasa ?? null,
     departments: salesDepartments.map((d) => ({
       departmentId: d.id,
       departmentName: d.name,
@@ -103,6 +106,9 @@ export async function saveQuotaMonth(
       staffHkd: form.staffHkd,
       staffDirected: form.staffDirected,
       staffCasa: form.staffCasa,
+      serviceHkd: form.serviceHkd,
+      serviceDirected: form.serviceDirected,
+      serviceCasa: form.serviceCasa,
       updatedBy: actorId,
       updatedAt: new Date(),
     };
