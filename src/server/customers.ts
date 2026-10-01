@@ -874,7 +874,13 @@ export async function duplicateIdNumberInfo(
 ): Promise<{
   rootId: string;
   openDraftId: string | null;
-  existing: { fullName: string; dob: string | null; address: string };
+  existing: {
+    fullName: string;
+    dob: string | null;
+    address: string;
+    createdByName: string;
+    createdByDepartmentName: string;
+  };
   mismatch: DuplicateField[];
   nextSeq: number;
 } | null> {
@@ -884,17 +890,27 @@ export async function duplicateIdNumberInfo(
       fullName: customers.fullName,
       dob: customers.dob,
       address: customers.address,
+      createdByName: sql<string>`coalesce(${users.fullName}, '')`,
+      createdByDepartmentName: sql<string>`coalesce(${departments.name}, '')`,
       maxSeq: sql<number>`(select coalesce(max(seq), 0) from ${customers} c2 where c2.root_customer_id = ${customers.id})`,
     })
     .from(customers)
-    .where(and(eq(customers.idNumber, idNumber), sql`root_customer_id = id`))
+    .leftJoin(users, eq(users.id, customers.createdBy))
+    .leftJoin(departments, eq(departments.id, customers.createdByDepartmentId))
+    .where(and(eq(customers.idNumber, idNumber), sql`root_customer_id = ${customers.id}`))
     .limit(1);
   if (!root) return null;
 
   return {
     rootId: root.id,
     openDraftId: await openDraftOf(root.id, actorId),
-    existing: { fullName: root.fullName, dob: root.dob, address: root.address },
+    existing: {
+      fullName: root.fullName,
+      dob: root.dob,
+      address: root.address,
+      createdByName: root.createdByName,
+      createdByDepartmentName: root.createdByDepartmentName,
+    },
     mismatch: mismatchAgainst(root, form),
     nextSeq: Number(root.maxSeq) + 1,
   };

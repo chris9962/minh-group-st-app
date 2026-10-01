@@ -108,6 +108,10 @@
   }
 }
 
+.compareToggle {
+  align-self: flex-start;
+}
+
 .compareDiff td {
   font-weight: 600;
   color: var(--om-orange-ink);

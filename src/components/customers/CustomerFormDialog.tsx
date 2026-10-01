@@ -22,7 +22,6 @@ import {
   CustomerEditForm,
   CustomerForm,
   type CustomerEditForm as CustomerEditFormValues,
-  DUPLICATE_FIELD_LABEL,
   DuplicateIdError,
   pickerStartForDob,
   updateCustomer,
@@ -525,6 +524,10 @@ const ROW_LABEL: Record<DuplicateField, string> = {
  */
 function DuplicateDialog({ info, typed, pending, onClose, onCreate }: DuplicateDialogProps) {
   const lech = info.mismatch;
+  const [showDetail, setShowDetail] = useState(false);
+  const rootCreator = [info.existing.createdByName, info.existing.createdByDepartmentName]
+    .filter(Boolean)
+    .join(" - ");
   const dobText = (d: string | null | undefined) => (d ? formatDate(d) : "(trống)");
   const rows: [DuplicateField, string, string][] = [
     ["fullName", info.existing.fullName, typed.fullName],
@@ -557,38 +560,42 @@ function DuplicateDialog({ info, typed, pending, onClose, onCreate }: DuplicateD
         </p>
       ) : (
         <div className={styles.compare}>
-          <p>
-            Hồ sơ đang có cùng CCCD nhưng {lech.map((f) => DUPLICATE_FIELD_LABEL[f]).join(", ")}{" "}
-            không khớp. Đối chiếu với khách:
-          </p>
-          <table>
-            <thead>
-              <tr>
-                <th scope="col"></th>
-                <th scope="col">Đang có</th>
-                <th scope="col">Vừa nhập</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <th scope="row">CCCD</th>
-                <td>{typed.idNumber}</td>
-                <td>{typed.idNumber}</td>
-              </tr>
-              {rows.map(([f, cu, moi]) => (
-                <tr key={f} className={lech.includes(f) ? styles.compareDiff : undefined}>
-                  <th scope="row">{ROW_LABEL[f]}</th>
-                  <td>{cu}</td>
-                  <td>{moi}</td>
+          <p>Thông tin không khớp để tạo hồ sơ lần {info.nextSeq}.</p>
+          {rootCreator && <p>Người tạo hồ sơ gốc: {rootCreator}</p>}
+          <Button
+            variant="secondary"
+            className={styles.compareToggle}
+            aria-expanded={showDetail}
+            aria-controls="duplicate-compare"
+            onClick={() => setShowDetail((v) => !v)}
+          >
+            {showDetail ? "Ẩn chi tiết" : "Xem chi tiết"}
+          </Button>
+          {showDetail && (
+            <table id="duplicate-compare">
+              <thead>
+                <tr>
+                  <th scope="col"></th>
+                  <th scope="col">Đang có</th>
+                  <th scope="col">Vừa nhập</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          <p>
-            Chưa tạo được hồ sơ mới. Nếu đúng là người này, bạn đóng thông báo này, sửa{" "}
-            {lech.map((f) => DUPLICATE_FIELD_LABEL[f]).join(", ")}
-            {" cho khớp cột "}&quot;Đang có&quot; rồi lưu lại.
-          </p>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">CCCD</th>
+                  <td>{typed.idNumber}</td>
+                  <td>{typed.idNumber}</td>
+                </tr>
+                {rows.map(([f, cu, moi]) => (
+                  <tr key={f} className={lech.includes(f) ? styles.compareDiff : undefined}>
+                    <th scope="row">{ROW_LABEL[f]}</th>
+                    <td>{cu}</td>
+                    <td>{moi}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
           <p>
             Nếu khách không phải người này,{" "}
             <strong className={styles.compareWarn}>có thể bạn gõ nhầm CCCD.</strong> Kiểm lại số.

@@ -462,6 +462,8 @@ export const DuplicateIdInfo = z.object({
     fullName: z.string(),
     dob: z.string().nullable(),
     address: z.string(),
+    createdByName: z.string(),
+    createdByDepartmentName: z.string(),
   }),
   /** Trường nào của biểu mẫu KHÁC hồ sơ gốc; rỗng là trùng khớp hoàn toàn. */
   mismatch: z.array(DuplicateField),
