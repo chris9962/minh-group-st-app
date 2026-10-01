@@ -354,7 +354,9 @@ export default function CustomerDetailPage({
                     Sửa thông tin
                   </Button>
                 )}
-                {!data.gift.given && (
+                {/* Tháng của hồ sơ đã chốt lương: máy chủ từ chối mọi thao tác quà
+                    và mở ngân hàng của hồ sơ này, nên ẩn nút. */}
+                {!data.monthClosed && !data.gift.given && (
                   // Mờ với khách chỉ nhận tiền: không có món nào để chọn, tiền
                   // chi ngoài hệ thống nên không có lượt tặng.
                   <Button
@@ -366,7 +368,7 @@ export default function CustomerDetailPage({
                     Tặng quà
                   </Button>
                 )}
-                {data.gift.given && can(actor, "banking", "grant-gift") && (
+                {!data.monthClosed && data.gift.given && can(actor, "banking", "grant-gift") && (
                   <Button variant="secondary" onClick={() => setChangingGift(true)}>
                     <Gift size={16} />
                     Đổi quà
@@ -374,7 +376,8 @@ export default function CustomerDetailPage({
                 )}
                 {/* Dòng HKD chưa có câu trả lời quà thêm: đợt phát trước
                     2026-09-17, hoặc khách mở thêm HKD sau lượt phát. */}
-                {data.gift.given &&
+                {!data.monthClosed &&
+                  data.gift.given &&
                   pendingExtraSlots(data.gift).length > 0 &&
                   data.gift.liveExtraBasket.length > 0 &&
                   can(actor, "banking", "grant-gift") && (
@@ -383,14 +386,16 @@ export default function CustomerDetailPage({
                       Chọn quà thêm
                     </Button>
                   )}
-                <Button
-                  variant="secondary"
-                  disabled={data.bankSlotsLeft <= 0}
-                  onClick={() => setOpeningBank(true)}
-                >
-                  <Landmark size={16} />
-                  Mở ngân hàng
-                </Button>
+                {!data.monthClosed && (
+                  <Button
+                    variant="secondary"
+                    disabled={data.bankSlotsLeft <= 0}
+                    onClick={() => setOpeningBank(true)}
+                  >
+                    <Landmark size={16} />
+                    Mở ngân hàng
+                  </Button>
+                )}
                 <Button variant="secondary" onClick={() => setLoggingService(true)}>
                   <Briefcase size={16} />
                   Ghi dịch vụ
@@ -427,23 +432,25 @@ export default function CustomerDetailPage({
                     {data.draftAccounts.map((a) => (
                       <li key={a.id} className={styles.draftRow}>
                         <span>
-                          <strong>{a.bankName}</strong> · {a.referralCode} — đang tạo, chưa hoàn thành
+                          <strong>{a.bankName}</strong> - {a.referralCode} - đang tạo, chưa hoàn thành
                         </span>
-                        <span className={styles.draftActions}>
-                          <Link href={`/banking/${a.id}`} className="btn btn-secondary">
-                            Tiếp tục
-                          </Link>
-                          <Button
-                            variant="secondary"
-                            icon
-                            tooltip="Xoá tài khoản"
-                            aria-label={`Xoá tài khoản đang tạo ${a.bankName}`}
-                            disabled={removeDraft.isPending}
-                            onClick={() => setDeletingDraft({ id: a.id, bankName: a.bankName })}
-                          >
-                            <Trash2 size={16} aria-hidden />
-                          </Button>
-                        </span>
+                        {!data.monthClosed && (
+                          <span className={styles.draftActions}>
+                            <Link href={`/banking/${a.id}`} className="btn btn-secondary">
+                              Tiếp tục
+                            </Link>
+                            <Button
+                              variant="secondary"
+                              icon
+                              tooltip="Xoá tài khoản"
+                              aria-label={`Xoá tài khoản đang tạo ${a.bankName}`}
+                              disabled={removeDraft.isPending}
+                              onClick={() => setDeletingDraft({ id: a.id, bankName: a.bankName })}
+                            >
+                              <Trash2 size={16} aria-hidden />
+                            </Button>
+                          </span>
+                        )}
                       </li>
                     ))}
                   </ul>

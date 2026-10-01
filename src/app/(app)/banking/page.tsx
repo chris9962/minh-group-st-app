@@ -348,7 +348,8 @@ export default function BankingPage() {
 
                 Nhãn đổi theo trạng thái: bản lỗi ghi "Sửa lỗi" để nhân viên biết
                 đây là đường chữa, cùng một hộp thoại với đường sửa thường. */}
-            {canWrite && (
+            {/* Tháng của hồ sơ khách đã chốt lương: máy chủ từ chối sửa và xoá. */}
+            {canWrite && !r.monthClosed && (
               <Button
                 variant="secondary"
                 icon
@@ -362,7 +363,7 @@ export default function BankingPage() {
             {/* Chỉ bản NHÁP mới xoá được (spec §4.5): tài khoản đã hoàn thành
                 đã tiêu một lượt mã và đã vào điểm KPI. Ẩn nút thay vì hiện rồi
                 báo lỗi — nút bấm không làm gì là lời hứa suông. */}
-            {canRemove && r.status === "creating" && (
+            {canRemove && r.status === "creating" && !r.monthClosed && (
               <Button
                 variant="secondary"
                 icon

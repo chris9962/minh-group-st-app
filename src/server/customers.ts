@@ -49,7 +49,7 @@ import { searchTerms } from "@/lib/search";
 import { customerDay, customerDayText } from "./customerDay";
 import { db, uniqueViolationOf } from "./db/client";
 import { giftForCustomer, giftItemNames, grantedItemLabel, recomputeGiftCase } from "./gift";
-import { closedMonthAmong } from "./closedMonths";
+import { closedMonthAmong, closedMonthOfCustomer, customerMonthClosed } from "./closedMonths";
 import { bankingPointsByCustomer, recomputeKpi, recomputeKpiForCustomer } from "./kpi";
 import { enqueuePhotoCheck } from "./photoCheck";
 import { recomputeEmployeeWorkDay } from "./workDays";
@@ -448,6 +448,7 @@ function decorate(page: ReturnType<typeof pickPage>) {
         select count(*) from ${bankAccounts}
         where ${bankAccounts.customerId} = ${page.id} and ${bankAccounts.accountType} <> 'HKD'
       ))::int`,
+      monthClosed: customerMonthClosed(page.createdInstant),
     })
     .from(page)
     .leftJoinLateral(phone, sql`true`)
@@ -1950,6 +1951,7 @@ export async function customerDetailFor(
       // Dòng HKD không chiếm chỗ trong trần (chốt 2026-09-06).
       MAX_BANK_ACCOUNTS_PER_CUSTOMER - accountRows.filter((a) => a.accountType !== "HKD").length,
     ),
+    monthClosed: (await closedMonthOfCustomer(id)) !== null,
     accounts,
     accountsHiddenCount: doneAccounts.length - visibleDone.length,
     draftAccounts: drafts,

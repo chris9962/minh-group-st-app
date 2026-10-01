@@ -61,7 +61,7 @@ import {
   users,
 } from "./db/schema";
 import { openBlockReasonAt } from "@/rules";
-import { closedMonthMessage, closedMonthOfCustomer } from "./closedMonths";
+import { closedMonthMessage, closedMonthOfCustomer, customerMonthClosed } from "./closedMonths";
 import { accountCustomerDayBetween } from "./customerDay";
 import { recomputeGiftCase } from "./gift";
 import { recomputeKpiForCustomer } from "./kpi";
@@ -588,6 +588,7 @@ const decorate = (page: ReturnType<typeof pickPage>) => {
       id: page.id,
       customerId: page.customerId,
       customerName: customers.fullName,
+      monthClosed: customerMonthClosed(customers.createdAt),
       bankId: page.bankId,
       bankCode: banks.code,
       referralCodeId: page.referralCodeId,
@@ -684,6 +685,7 @@ const toRow = (r: DecoratedRow): BankAccountRow => ({
   createdByStaffCode: r.createdByStaffCode,
   createdByDepartmentName: r.createdByDepartmentName,
   status: r.status,
+  monthClosed: r.monthClosed,
   photoCheck: toPhotoCheck({
     status: r.photoCheckStatus,
     result: r.photoCheckResult,

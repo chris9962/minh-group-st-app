@@ -32,6 +32,7 @@ import {
 } from "@/rules";
 import { searchTerms } from "@/lib/search";
 import { customerDayText } from "./customerDay";
+import { closedMonthMessage, closedMonthOfCustomer } from "./closedMonths";
 import { db } from "./db/client";
 import { recomputeKpiForCustomer } from "./kpi";
 import {
@@ -568,6 +569,9 @@ export async function grantGift(
     .from(customers)
     .where(eq(customers.id, customerId));
   if (!customer) return null;
+  const closedMonth = await closedMonthOfCustomer(customerId);
+  if (closedMonth)
+    return { ok: false, code: GIFT_ERROR.MONTH_CLOSED, message: closedMonthMessage(closedMonth) };
 
   const gift = await giftForCustomer(customerId);
   const declined = item === GIFT_DECLINED;
@@ -764,6 +768,8 @@ export async function chooseExtraGift(
     .where(eq(giftGrants.customerId, customerId))
     .limit(1);
   if (!grant) return null;
+  const closedMonth = await closedMonthOfCustomer(customerId);
+  if (closedMonth) return { ok: false, message: closedMonthMessage(closedMonth) };
   if (extras.length === 0) return { ok: false, message: "Chưa chọn quà thêm." };
 
   const live = await giftForCustomer(customerId);
@@ -848,6 +854,8 @@ export async function changeGift(
     .where(eq(giftGrants.customerId, customerId))
     .limit(1);
   if (!grant) return null;
+  const closedMonth = await closedMonthOfCustomer(customerId);
+  if (closedMonth) return { ok: false, message: closedMonthMessage(closedMonth) };
   const existingExtras = await db
     .select({ id: giftGrantExtras.id, bankAccountId: giftGrantExtras.bankAccountId, item: giftGrantExtras.item })
     .from(giftGrantExtras)

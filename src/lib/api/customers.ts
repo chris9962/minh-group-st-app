@@ -118,6 +118,8 @@ export const CustomerRow = z.object({
    * còn trần tính cả bản nháp `creating` vì bản nháp đã giữ một chỗ mã.
    */
   bankSlotsLeft: z.number(),
+  /** Tháng của hồ sơ đã chốt lương: giao diện ẩn nút Tặng quà và Mở ngân hàng của dòng này. */
+  monthClosed: z.boolean(),
   /**
    * Điểm combo ngân hàng của riêng khách này (`src/rules/`), hiện chung ô với
    * `accountCount` chứ không đứng thành cột riêng.
@@ -681,6 +683,8 @@ export const CustomerDetail = z.object({
    * `accounts` với `draftAccounts` bên dưới: hai mảng đó đã lọc theo phạm vi.
    */
   bankSlotsLeft: z.number(),
+  /** Tháng của hồ sơ này đã chốt lương: giao diện ẩn các nút quà, mở ngân hàng, xoá bản nháp. */
+  monthClosed: z.boolean(),
   accounts: z.array(CustomerAccountRow),
   /** Tài khoản đang tạo dở, chưa hoàn thành — cùng áp phạm vi như `accounts`. */
   draftAccounts: z.array(CustomerDraftAccountRow),
@@ -830,6 +834,8 @@ export const GIFT_ERROR = {
    * "khách không được món này" so với "khách được, nhưng món hết".
    */
   ITEM_DISCONTINUED: 'ITEM_DISCONTINUED',
+  /** Lương tháng của hồ sơ khách đã chốt: không tặng, đổi hay thêm quà (chốt 2026-10-01). */
+  MONTH_CLOSED: 'MONTH_CLOSED',
 } as const;
 
 /** Câu trả lời cho MỘT dòng HKD: mã món trong rổ quà thêm hoặc `GIFT_DECLINED`. */

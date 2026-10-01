@@ -513,28 +513,33 @@ export default function CustomersPage() {
                 hình điện thoại. `aria-label` kèm tên khách ở cả hai chế độ:
                 giữa mười lăm dòng giống nhau, "Tặng quà" một mình không nói
                 đang tặng cho ai. */}
-            <Button
-              variant="secondary"
-              icon={compact}
-              tooltip={compact ? "Tặng quà" : undefined}
-              aria-label={`Tặng quà cho ${c.fullName}`}
-              disabled={c.giftStatus === "given"}
-              onClick={() => setGivingGiftTo(c)}
-            >
-              <Gift size={16} aria-hidden />
-              {!compact && "Tặng quà"}
-            </Button>
-            <Button
-              variant="secondary"
-              icon={compact}
-              tooltip={compact ? "Mở ngân hàng" : undefined}
-              aria-label={`Mở ngân hàng cho ${c.fullName}`}
-              disabled={c.bankSlotsLeft <= 0}
-              onClick={() => setOpeningBankFor(c)}
-            >
-              <Landmark size={16} aria-hidden />
-              {!compact && "Mở ngân hàng"}
-            </Button>
+            {/* Tháng của hồ sơ đã chốt lương: máy chủ từ chối quà và mở ngân hàng. */}
+            {!c.monthClosed && (
+              <>
+                <Button
+                  variant="secondary"
+                  icon={compact}
+                  tooltip={compact ? "Tặng quà" : undefined}
+                  aria-label={`Tặng quà cho ${c.fullName}`}
+                  disabled={c.giftStatus === "given"}
+                  onClick={() => setGivingGiftTo(c)}
+                >
+                  <Gift size={16} aria-hidden />
+                  {!compact && "Tặng quà"}
+                </Button>
+                <Button
+                  variant="secondary"
+                  icon={compact}
+                  tooltip={compact ? "Mở ngân hàng" : undefined}
+                  aria-label={`Mở ngân hàng cho ${c.fullName}`}
+                  disabled={c.bankSlotsLeft <= 0}
+                  onClick={() => setOpeningBankFor(c)}
+                >
+                  <Landmark size={16} aria-hidden />
+                  {!compact && "Mở ngân hàng"}
+                </Button>
+              </>
+            )}
             <Button
               variant="secondary"
               icon={compact}

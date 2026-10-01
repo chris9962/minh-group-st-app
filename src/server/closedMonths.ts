@@ -55,6 +55,12 @@ export const accountInClosedMonth = (accountId: SQLWrapper): SQL<boolean> => sql
   where a.id = ${accountId}
 )`;
 
+/** Điều kiện SQL: hồ sơ khách lập lúc `createdAt` thuộc tháng đã chốt lương. Giao diện đọc để ẩn nút thao tác. */
+export const customerMonthClosed = (createdAt: SQLWrapper): SQL<boolean> => sql<boolean>`exists (
+  select 1 from ${salaryClosings} cm_s
+  where cm_s.year_month = to_char(${createdAt} at time zone ${BUSINESS_TIMEZONE}, 'YYYY-MM')
+)`;
+
 export function closedMonthMessage(yearMonth: string): string {
   const [year, month] = yearMonth.split("-").map(Number);
   return `Lương tháng ${month}/${year} đã chốt, không sửa được dữ liệu của tháng này.`;

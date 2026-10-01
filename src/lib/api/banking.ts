@@ -42,6 +42,8 @@ export const BankAccountRow = z.object({
   /** Đơn vị của người tạo LÚC TẠO — chụp một lần, không tra động (spec §1.1.5). Dùng cho báo cáo xuất theo phòng (P-73 #4). */
   createdByDepartmentName: z.string().nullable(),
   status: BankAccountStatus,
+  /** Tháng của hồ sơ khách đã chốt lương: giao diện ẩn mọi nút sửa, xoá, đổi trạng thái. */
+  monthClosed: z.boolean(),
   /**
    * Lượt kiểm ảnh tự động mới nhất. `null` = ngân hàng chưa có bộ nhãn OCR,
    * hoặc tài khoản chưa hoàn thành. Chỉ để gợi ý cho người duyệt.

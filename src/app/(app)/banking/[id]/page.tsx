@@ -299,20 +299,23 @@ function FinishAccountCard({
         busy={finish.isPending}
       />
 
-      <div className={styles.actions}>
-        <Button
-          type="submit"
-          form="finish-account-form"
-          disabled={finishForm.formState.isSubmitting || finish.isPending || !enoughPhotos}
-        >
-          <CheckCircle2 size={16} />
-          Hoàn thành
-        </Button>
-        <Button variant="secondary" disabled={remove.isPending} onClick={() => setRemoving(true)}>
-          <Trash2 size={16} />
-          Xoá
-        </Button>
-      </div>
+      {/* Tháng của hồ sơ khách đã chốt lương: máy chủ từ chối hoàn thành và xoá. */}
+      {!data.monthClosed && (
+        <div className={styles.actions}>
+          <Button
+            type="submit"
+            form="finish-account-form"
+            disabled={finishForm.formState.isSubmitting || finish.isPending || !enoughPhotos}
+          >
+            <CheckCircle2 size={16} />
+            Hoàn thành
+          </Button>
+          <Button variant="secondary" disabled={remove.isPending} onClick={() => setRemoving(true)}>
+            <Trash2 size={16} />
+            Xoá
+          </Button>
+        </div>
+      )}
 
       {removing && (
         <ConfirmDialog
@@ -340,7 +343,8 @@ function DoneAccountCard({
   departmentName?: string;
 }) {
   const user = useSession((s) => s.user);
-  const canWrite = can(user, "banking", "update");
+  // Tháng của hồ sơ khách đã chốt lương: máy chủ từ chối mọi lượt sửa, đổi trạng thái, xoá.
+  const canWrite = can(user, "banking", "update") && !data.monthClosed;
   /**
    * Xoá một tài khoản ĐÃ hoàn thành là việc của quản lý (chốt 2026-09-10).
    *
@@ -348,7 +352,7 @@ function DoneAccountCard({
    * `can(user, "banking", "delete")` ở đây: quyền đó họ cũng có. Cấp phòng
    * chỉ thấy nút trong ngày hoàn thành; Ban giám đốc không bị giới hạn ngày.
    */
-  const canRemove = canDeleteFinished(user, "banking", data);
+  const canRemove = canDeleteFinished(user, "banking", data) && !data.monthClosed;
   const [editing, setEditing] = useState(false);
   const [markingError, setMarkingError] = useState(false);
   const [errorNote, setErrorNote] = useState("");
@@ -709,15 +713,16 @@ function DoneAccountCard({
             Tài khoản mất hẳn, không lấy lại được. Mã giới thiệu {data.referralCode} được
             trả lại
             {data.status === "done" ? ". Điểm KPI của người lập hồ sơ khách tính lại" : ""}.
+            {/* Rổ đã trao đóng băng trong `gift_grants`, lượt xoá không sửa được
+                nó — người bấm phải biết mình đang tạo ra một chỗ lệch. */}
+            {data.customerGiftItem && (
+              <>
+                <br />
+                Khách đã nhận quà: {data.customerGiftItem}. Rổ quà đã phát giữ nguyên và sẽ
+                lệch với rổ tính lại sau khi xoá.
+              </>
+            )}
           </Alert>
-          {/* Rổ đã trao đóng băng trong `gift_grants`, lượt xoá không sửa được
-              nó — người bấm phải biết mình đang tạo ra một chỗ lệch. */}
-          {data.customerGiftItem && (
-            <Alert tone="warning">
-              Khách đã nhận quà: {data.customerGiftItem}. Rổ quà đã phát giữ nguyên và sẽ lệch
-              với rổ tính lại sau khi xoá.
-            </Alert>
-          )}
           <TextArea
             label="Lý do xoá"
             required
@@ -733,7 +738,9 @@ function DoneAccountCard({
       <PhotoCheckPanel
         check={data.photoCheck}
         onMarkError={
-          (data.status === "done" || data.status === "fixed") && canManageBank(user, data.bankId)
+          !data.monthClosed &&
+          (data.status === "done" || data.status === "fixed") &&
+          canManageBank(user, data.bankId)
             ? (note) => {
                 setErrorNote(note);
                 setMarkingError(true);
@@ -741,7 +748,9 @@ function DoneAccountCard({
             : undefined
         }
         onConfirm={
-          canManageBank(user, data.bankId) ? (confirmed) => confirmPhotos.mutate(confirmed) : undefined
+          !data.monthClosed && canManageBank(user, data.bankId)
+            ? (confirmed) => confirmPhotos.mutate(confirmed)
+            : undefined
         }
         confirming={confirmPhotos.isPending}
       />

@@ -51,6 +51,7 @@ import {
 } from "@/lib/permissions";
 import { InsuranceProduct, isRealIsoDate, type User } from "@/lib/types";
 import { searchTerms } from "@/lib/search";
+import { closedMonthMessage, closedMonthOfCustomer } from "./closedMonths";
 import { db } from "./db/client";
 import { departmentForNewRecord } from "./writeDepartment";
 import {
@@ -1007,6 +1008,10 @@ export async function createInsuranceOrders(
     .where(eq(customers.id, form.customerId))
     .limit(1);
   if (!customer) return { ok: false, message: "Không tìm thấy khách hàng này" };
+  if (form.source === "gift") {
+    const closedMonth = await closedMonthOfCustomer(customer.id);
+    if (closedMonth) return { ok: false, message: closedMonthMessage(closedMonth) };
+  }
 
   const department = departmentForNewRecord(
     actor,
