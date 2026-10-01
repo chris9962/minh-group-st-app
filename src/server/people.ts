@@ -646,7 +646,8 @@ export async function personFor(
   // Phòng và chức vụ của THÁNG đang xem: người đã chuyển phòng vẫn mở được ở
   // phòng cũ khi xem tháng cũ, và chỉ tiêu là của phòng tháng đó.
   const inMonth = await staffInMonth(id, summaryMonth);
-  if (!inVisibleScope(actor, "staff", "view-detail", row.user.departmentId)) {
+  // Phó giám đốc không thuộc phòng nào mình quản, nên phạm vi phòng không bao giờ gồm chính họ.
+  if (id !== actor.id && !inVisibleScope(actor, "staff", "view-detail", row.user.departmentId)) {
     // Chỉ qua được nhờ phòng của tháng cũ thì kỳ của bốn danh sách cũng phải
     // nằm TRỌN trong tháng đó: không thì quản lý phòng cũ đọc được số của các
     // tháng người này đã sang phòng khác.

@@ -7,10 +7,9 @@ type Params = { params: Promise<{ id: string }> };
 export async function GET(request: Request, { params }: Params) {
   const actor = await getActor(request);
   if (!actor) return unauthorized();
-  if (!can(actor, "staff", "view-detail")) return forbidden();
-
   const { id } = await params;
   if (!isUuid(id)) return notFound();
+  if (id !== actor.id && !can(actor, "staff", "view-detail")) return forbidden();
 
   const search = new URL(request.url).searchParams;
   const period = search.get("period") ?? "today";

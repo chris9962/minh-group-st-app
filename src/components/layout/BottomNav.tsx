@@ -51,9 +51,11 @@ export function BottomNav({ user, onOpenMenu }: { user: User; onOpenMenu: () => 
   const thirdEntry: Entry | null =
     createOptions.length > 0
       ? { kind: "create", label: "Tạo mới" }
-      : canReadOrg
-        ? { kind: "link", href: "/departments", label: "Phòng ban", icon: "org" }
-        : null;
+      : user.role === "deputy-director"
+        ? { kind: "link", href: `/users/${user.id}`, label: "Phòng phụ trách", icon: "target" }
+        : canReadOrg
+          ? { kind: "link", href: "/departments", label: "Phòng ban", icon: "org" }
+          : null;
 
   const entries: Entry[] = [
     ...(canSeeOverview ? [{ kind: "link", href: "/", label: "Tổng quan", icon: "overview" } as Entry] : []),

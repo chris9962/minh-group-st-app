@@ -74,7 +74,8 @@ export default function PersonPage({
   // Thẻ tài khoản chỉ hiện với người quản trị được tài khoản — không có quyền
   // thì `AccountCard` trả về null, bày ra một tab rỗng cho họ bấm là vô nghĩa.
   const actor = useSession((st) => st.user);
-  const canManage = can(actor, "staff", "create") || can(actor, "staff", "update");
+  const canManage =
+    (can(actor, "staff", "create") || can(actor, "staff", "update")) && actor?.id !== id;
   const showAccount = canManage && section === "account";
 
   const periodText = period.kind === "today" ? "Hôm nay" : monthLabel(listMonth);
@@ -88,7 +89,7 @@ export default function PersonPage({
       </TopBar>
 
       <main className={styles.body}>
-        <BackLink href="/users">Nhân sự &amp; KPI</BackLink>
+        {actor?.id !== id && <BackLink href="/users">Nhân sự &amp; KPI</BackLink>}
 
         {isPending && <SkeletonCard lines={5} />}
         {isError && (

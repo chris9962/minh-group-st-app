@@ -160,10 +160,22 @@ export function navFor(user: User | null): NavEntry[] {
     items.push({ href: '/users', label: 'Nhân sự', icon: 'people', screen: 'P-51' });
   }
 
+  // Bảng Nhân sự không có dòng của Phó giám đốc, nên họ không có đường nào khác tới P-52 của mình.
+  if (user.role === 'deputy-director') {
+    items.push({ href: `/users/${user.id}`, label: 'Phòng phụ trách', icon: 'target', screen: 'P-52' });
+  }
+
   // Phó giám đốc vào bằng `department:view-detail` — xem sơ đồ và số liệu,
   // không có nút sửa nào. Xem `canOrg`.
   if (canOrg(user, 'view-detail')) {
-    items.push({ href: '/departments', label: 'Phòng ban', icon: 'org', screen: 'P-91' });
+    items.push({
+      href: '/departments',
+      label: 'Phòng ban',
+      icon: 'org',
+      screen: 'P-91',
+      // Phó giám đốc xem các phòng mình quản ở "Phòng phụ trách"; vẫn để trong nav để mở được trang chi tiết phòng.
+      hidden: user.role === 'deputy-director',
+    });
   }
 
   if (

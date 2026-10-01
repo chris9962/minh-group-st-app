@@ -91,6 +91,11 @@ export function Sidebar({ user, mobileOpen = false, onMobileClose }: Props) {
   const pathname = usePathname();
   // Mục `hidden` vẫn nằm trong `navFor` để `canOpenPath` cho qua, chỉ không vẽ.
   const entries = navFor(user).filter((entry) => isNavGroup(entry) || !entry.hidden);
+  // "/users/<id>" khớp cả "Nhân sự" lẫn "Phòng phụ trách"; chỉ tô mục khớp dài nhất.
+  const activeHref = entries
+    .flatMap((entry) => (isNavGroup(entry) ? [] : [entry.href]))
+    .filter((href) => (href === "/" ? pathname === "/" : pathname.startsWith(href)))
+    .sort((a, b) => b.length - a.length)[0];
 
   useEffect(() => {
     if (!mobileOpen) return;
@@ -144,8 +149,7 @@ export function Sidebar({ user, mobileOpen = false, onMobileClose }: Props) {
               );
             }
 
-            const active =
-              entry.href === "/" ? pathname === "/" : pathname.startsWith(entry.href);
+            const active = entry.href === activeHref;
             return (
               <li key={entry.href}>
                 <Link
