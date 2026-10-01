@@ -8,7 +8,7 @@ const monthFrom = (request: Request): string | null => {
   return /^\d{4}-(0[1-9]|1[0-2])$/.test(month) ? month : null;
 };
 
-/** Chỉ tiêu tháng theo QĐ 145. Cùng quyền với màn Chỉ tiêu KPI P-83. */
+/** Chỉ tiêu tháng theo QĐ 145 và mốc điểm KPI (gộp từ P-83, chốt 2026-10-01). */
 export async function GET(request: Request) {
   const guard = await actorWith(request, "system", "configure-catalog");
   if (!guard.ok) return guard.response;

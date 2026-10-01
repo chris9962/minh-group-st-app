@@ -9,6 +9,7 @@
  * Chạy lại nhiều lần vô hại: hàm ghi đè theo `(user_id, year_month)`.
  */
 import { businessMonth } from "../src/lib/format";
+import { closedMonthMessage, isMonthClosed } from "../src/server/closedMonths";
 import { recomputeKpiForMonth } from "../src/server/kpi";
 import { hasRulesFor } from "../src/rules";
 
@@ -23,6 +24,8 @@ async function main() {
     throw new Error(
       `Chưa có file luật cho kỳ ${yearMonth} (src/rules/) — chạy tiếp sẽ ghi đè điểm ngân hàng thành 0.`,
     );
+
+  if (await isMonthClosed(yearMonth)) throw new Error(closedMonthMessage(yearMonth));
 
   const count = await recomputeKpiForMonth(yearMonth);
   console.log(`Tính lại xong ${count} nhân viên cho tháng ${yearMonth}.`);

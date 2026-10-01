@@ -1,6 +1,7 @@
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, sql, type SQLWrapper } from "drizzle-orm";
 import type { WorkDayExportRow } from "@/lib/api/exports";
 import { monthRange } from "@/lib/format";
+import { isMonthClosed } from "./closedMonths";
 import { customerDayBetween, customerDayText } from "./customerDay";
 import { db } from "./db/client";
 import {
@@ -32,6 +33,7 @@ async function recomputeEmployeeWorkDayOn(
   await tx.execute(
     sql`select pg_advisory_xact_lock(hashtext(${`work-day:${userId}`}), hashtext(${workDate}))`,
   );
+  if (await isMonthClosed(workDate.slice(0, 7), tx)) return;
 
   // Chức vụ, phòng và cách tính lương của người đó TRONG tháng của ngày công.
   const [staff] = await tx
@@ -237,9 +239,13 @@ export async function listWorkDayExport(
     .map((p) => ({ fullName: p.fullName, departmentName: p.departmentName ?? "", days: p.days }));
 }
 
+/** Ngày thuộc tháng chưa chốt lương. Ngày công của tháng đã chốt đứng yên. */
+const openMonth = (day: SQLWrapper) =>
+  sql`to_char(${day}, 'YYYY-MM') not in (select year_month from salary_closings)`;
+
 /**
- * So và dựng lại toàn bộ bảng ngày công. Dùng sau khi nạp dữ liệu ngoài app
- * hoặc khi nghi một lượt cập nhật hậu kỳ đã thất bại.
+ * So và dựng lại bảng ngày công của các tháng chưa chốt lương. Dùng sau khi nạp
+ * dữ liệu ngoài app hoặc khi nghi một lượt cập nhật hậu kỳ đã thất bại.
  */
 export async function recountEmployeeWorkDays(): Promise<unknown[]> {
   // Khách có tài khoản hoàn thành, cộng khách của lượt dịch vụ với nhân viên
@@ -263,6 +269,7 @@ export async function recountEmployeeWorkDays(): Promise<unknown[]> {
       on r.user_id = d.user_id and r.year_month = to_char(d.work_date, 'YYYY-MM')
     where r.role = 'staff' and r.department_id is not null
       and (not d.from_service or r.salary_scheme = 'atm')
+      and ${openMonth(sql`d.work_date`)}
     group by d.user_id, d.work_date, r.department_id
   `;
 
@@ -272,7 +279,7 @@ export async function recountEmployeeWorkDays(): Promise<unknown[]> {
            coalesce(s.work_date, e.work_date) work_date,
            s.qualifying_customer_count stored_count,
            e.qualifying_customer_count real_count
-    from employee_work_days s
+    from (select * from employee_work_days where ${openMonth(sql`work_date`)}) s
     full join expected e using (user_id, work_date)
     where s.user_id is null
        or e.user_id is null
@@ -282,7 +289,7 @@ export async function recountEmployeeWorkDays(): Promise<unknown[]> {
   `);
 
   await db.transaction(async (tx) => {
-    await tx.delete(employeeWorkDays);
+    await tx.delete(employeeWorkDays).where(openMonth(employeeWorkDays.workDate));
     await tx.execute(sql`
       insert into employee_work_days
         (user_id, work_date, department_id, qualifying_customer_count)

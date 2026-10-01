@@ -12,6 +12,7 @@ import {
   unauthorized,
 } from "@/server/auth";
 import { setPhotos } from "@/server/banking";
+import { closedMonthMessage } from "@/server/closedMonths";
 import { imageKeyOf, isImageRef } from "@/server/storage";
 
 /**
@@ -63,6 +64,8 @@ export async function PATCH(
   const { photoUrls, kind } = parsed.data;
   const account = await setPhotos(actor, id, photoUrls, kind);
   if (!account) return notFound();
+  if ("closedMonth" in account)
+    return Response.json({ message: closedMonthMessage(account.closedMonth) }, { status: 422 });
   // Hết ngày hoàn thành thì ảnh chứng minh chốt lại (spec §4.7). Nói luôn ai
   // sửa hộ được, không để người dùng đi hỏi vòng.
   if ("locked" in account)

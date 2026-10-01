@@ -97,6 +97,7 @@ async function main() {
   const saved = await saveQuotaMonth(
     MONTH,
     {
+      kpiPoints: current.kpiPoints,
       staffHkd: STAFF.hkd,
       staffDirected: STAFF.directed,
       staffCasa: STAFF.casa,

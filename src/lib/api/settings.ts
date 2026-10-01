@@ -275,45 +275,52 @@ export const EMPTY_GIFT: GiftSimulateResult = {
   giftNote: '',
 };
 
-/* ── P-83 · Chỉ tiêu KPI theo tháng ──────────────────────────────────── */
-
-export const KpiTarget = z.object({
-  monthlyPoints: z.number(),
-});
-export type KpiTarget = z.infer<typeof KpiTarget>;
-
-export const KpiTargetForm = z.object({
-  monthlyPoints: z.int('Chỉ tiêu phải là số nguyên').min(1, 'Chỉ tiêu phải lớn hơn 0').max(INT_MAX, 'Chỉ tiêu lớn quá'),
-});
-export type KpiTargetForm = z.infer<typeof KpiTargetForm>;
-
 /* ── P-84 · Danh mục loại dịch vụ + hệ số điểm ───────────────────────── */
 
 export const ServiceTypeRow = z.object({
   id: z.string(),
   name: z.string(),
   active: z.boolean(),
+  /** Trọng số của tháng đang xem. Loại chưa có trọng số ở tháng đó thì hệ số 0. */
   coefficient: z.number(),
   /** Số lượt tối đa được tính điểm mỗi ngày / mỗi tháng của một người; null = không giới hạn. */
   dailyCap: z.number().nullable(),
+  /** Điểm mỗi lượt vượt trần ngày; 0 = không có điểm. */
+  overCapCoefficient: z.number(),
   monthlyCap: z.number().nullable(),
 });
 export type ServiceTypeRow = z.infer<typeof ServiceTypeRow>;
 
+/** Tháng đầu có trọng số điểm dịch vụ (thông báo lương Điểm ATM). Tháng trước đó không sửa. */
+export const SERVICE_WEIGHTS_FROM = '2026-10';
+
+/** P-84 theo tháng: trọng số của `month`, `locked` khi lương tháng đó đã chốt. */
+export const ServiceTypeMonth = z.object({
+  month: z.string(),
+  locked: z.boolean(),
+  rows: z.array(ServiceTypeRow),
+});
+export type ServiceTypeMonth = z.infer<typeof ServiceTypeMonth>;
+
 const OptionalCap = z
-  .int('Trần phải là số nguyên')
-  .min(1, 'Trần phải lớn hơn 0')
-  .max(INT_MAX, 'Trần lớn quá')
+  .int('Số lượt phải là số nguyên')
+  .min(1, 'Số lượt phải lớn hơn 0')
+  .max(INT_MAX, 'Số lượt lớn quá')
   .nullable();
 
 export const ServiceTypeForm = z.object({
   name: z.string().trim().min(2, 'Chưa nhập tên loại dịch vụ'),
   coefficient: z
-    .number()
+    .number('Chưa nhập hệ số')
     .min(0, 'Hệ số phải từ 0 trở lên')
     .max(COEFFICIENT_MAX, `Hệ số nhiều nhất ${COEFFICIENT_MAX}`)
     .multipleOf(0.01, 'Hệ số nhiều nhất 2 chữ số thập phân'),
   dailyCap: OptionalCap,
+  overCapCoefficient: z
+    .number('Chưa nhập hệ số')
+    .min(0, 'Hệ số phải từ 0 trở lên')
+    .max(COEFFICIENT_MAX, `Hệ số nhiều nhất ${COEFFICIENT_MAX}`)
+    .multipleOf(0.01, 'Hệ số nhiều nhất 2 chữ số thập phân'),
   monthlyCap: OptionalCap,
 });
 export type ServiceTypeForm = z.infer<typeof ServiceTypeForm>;
@@ -366,26 +373,26 @@ export const setInsurancePackageActive = (id: string, active: boolean) =>
     InsurancePackage.parse,
   );
 
-/** `null` = chưa đặt mốc nào. Khác hẳn tải hỏng, và nơi gọi phải nói khác nhau. */
-export const fetchKpiTarget = (): Promise<KpiTarget | null> =>
-  fetch('/api/settings/kpi-target').then(async (r) => {
-    if (!r.ok) throw new Error('Không tải được chỉ tiêu KPI');
-    return KpiTarget.nullable().parse(await r.json());
-  });
-
-export const updateKpiTarget = (form: KpiTargetForm) =>
-  send('/api/settings/kpi-target', 'POST', form).then(KpiTarget.parse);
-
 export const fetchServiceTypes = (): Promise<ServiceTypeRow[]> =>
   fetch('/api/settings/service-types')
     .then((r) => r.json())
     .then((d) => z.array(ServiceTypeRow).parse(d));
 
-export const createServiceType = (form: ServiceTypeForm) =>
-  send('/api/settings/service-types', 'POST', form).then(ServiceTypeRow.parse);
+export const fetchServiceTypeMonth = (month: string): Promise<ServiceTypeMonth> =>
+  fetch(`/api/settings/service-types/month?month=${encodeURIComponent(month)}`).then(async (r) => {
+    if (!r.ok) throw new Error('Không tải được danh mục loại dịch vụ');
+    return ServiceTypeMonth.parse(await r.json());
+  });
 
-export const updateServiceType = (id: string, form: ServiceTypeForm) =>
-  send(`/api/settings/service-types/${id}`, 'PATCH', form).then(ServiceTypeRow.parse);
+export const createServiceType = (form: ServiceTypeForm, month: string) =>
+  send(`/api/settings/service-types?month=${encodeURIComponent(month)}`, 'POST', form).then(
+    ServiceTypeRow.parse,
+  );
+
+export const updateServiceType = (id: string, form: ServiceTypeForm, month: string) =>
+  send(`/api/settings/service-types/${id}?month=${encodeURIComponent(month)}`, 'PATCH', form).then(
+    ServiceTypeRow.parse,
+  );
 
 export const setServiceTypeActive = (id: string, active: boolean) =>
   send(`/api/settings/service-types/${id}/active`, 'POST', { active }).then(ServiceTypeRow.parse);

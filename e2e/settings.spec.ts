@@ -201,19 +201,6 @@ test.describe("trạng thái tải và rỗng", () => {
   });
 });
 
-test.describe("chỉ tiêu KPI", () => {
-  test("chưa đặt mốc thì nói rõ hai số là gợi ý", async ({ page }) => {
-    await page.route("**/api/settings/kpi-target", async (route) => {
-      if (route.request().method() === "GET") return route.fulfill({ status: 200, body: "null" });
-      return route.continue();
-    });
-    await page.goto("/settings/kpi-target");
-
-    await expect(page.locator("main")).toContainText(/Chưa đặt chỉ tiêu/i);
-    await expect(page.locator("main")).toContainText(/gợi ý/i);
-  });
-});
-
 test.describe("danh mục ấp", () => {
   test("hai ấp trùng tên trong cùng một xã bị chặn, báo rõ lý do", async ({ page }) => {
     await page.goto("/settings/wards");

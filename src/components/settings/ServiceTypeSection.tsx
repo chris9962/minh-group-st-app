@@ -10,13 +10,15 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusTag } from "@/components/ui/StatusTag";
-import { fetchServiceTypes, setServiceTypeActive, type ServiceTypeRow } from "@/lib/api/settings";
+import { fetchServiceTypeMonth, setServiceTypeActive, type ServiceTypeRow } from "@/lib/api/settings";
 import { formatPoints } from "@/lib/format";
 import { ServiceTypeFormDialog } from "./ServiceTypeFormDialog";
 import styles from "./ServiceTypeSection.module.scss";
 import { errorMessage, toast } from "@/lib/toast";
 
 type Props = {
+  /** Tháng của trọng số đang xem và đang sửa. */
+  month: string;
   /**
    * Nút "Thêm loại dịch vụ" nằm ở thanh tiêu đề TRANG, đồng bộ với P-60 và
    * P-61 — nên trạng thái mở hộp thoại do trang giữ, khối này chỉ nhận vào.
@@ -26,15 +28,17 @@ type Props = {
 };
 
 /** P-84 · Danh mục loại dịch vụ + hệ số điểm KPI. */
-export function ServiceTypeSection({ creating, onCreatingChange }: Props) {
+export function ServiceTypeSection({ month, creating, onCreatingChange }: Props) {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<ServiceTypeRow | null>(null);
   const [confirming, setConfirming] = useState<ServiceTypeRow | null>(null);
 
-  const { data: rows = [], isPending, isError, refetch, isFetching } = useQuery({
-    queryKey: ["service-types"],
-    queryFn: fetchServiceTypes,
+  const { data, isPending, isError, refetch, isFetching } = useQuery({
+    queryKey: ["service-types", month],
+    queryFn: () => fetchServiceTypeMonth(month),
   });
+  const rows = data?.rows ?? [];
+  const locked = data?.locked ?? false;
 
   const toggleActive = useMutation({
     mutationFn: ({ id, next }: { id: string; next: boolean }) => setServiceTypeActive(id, next),
@@ -56,10 +60,14 @@ export function ServiceTypeSection({ creating, onCreatingChange }: Props) {
     },
     {
       key: "cap",
-      label: "Trần lượt",
+      label: "Giới hạn lượt",
       render: (r) =>
         [
-          r.dailyCap === null ? null : `${r.dailyCap} lượt/ngày`,
+          r.dailyCap === null
+            ? null
+            : r.overCapCoefficient > 0
+              ? `${r.dailyCap} lượt/ngày, lượt vượt ${formatPoints(r.overCapCoefficient)} điểm`
+              : `${r.dailyCap} lượt/ngày`,
           r.monthlyCap === null ? null : `${r.monthlyCap} lượt/tháng`,
         ]
           .filter(Boolean)
@@ -104,6 +112,7 @@ export function ServiceTypeSection({ creating, onCreatingChange }: Props) {
         title="Loại dịch vụ"
         icon={<Wrench size={17} />}
         meta={isPending ? undefined : `${rows.length} loại`}
+        action={locked ? <StatusTag tone="neutral">Đã chốt lương</StatusTag> : undefined}
       >
         {isPending && <SkeletonTable rows={5} columns={4} />}
         {isError && (
@@ -126,6 +135,8 @@ export function ServiceTypeSection({ creating, onCreatingChange }: Props) {
       {(creating || editing) && (
         <ServiceTypeFormDialog
           open
+          month={month}
+          locked={locked}
           serviceType={editing}
           onClose={() => {
             onCreatingChange(false);

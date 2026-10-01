@@ -1,6 +1,7 @@
 import { CUSTOMER_ERROR, CustomerEditForm } from "@/lib/api/customers";
 import { logAudit } from "@/server/audit";
 import { actorWith, badRequest, isUuid, jsonBody, notFound, signedIn } from "@/server/auth";
+import { closedMonthMessage } from "@/server/closedMonths";
 import {
   channelDetailMissing,
   customerDetailFor,
@@ -83,6 +84,8 @@ export async function PATCH(request: Request, { params }: Params) {
       return badRequest("Vai Nhân viên không dời được ngày hồ sơ");
     if (result.reason === "move-day-gifted")
       return badRequest("Ngày hồ sơ không được sau ngày chốt quà");
+    if (result.reason === "move-day-closed" && result.month)
+      return badRequest(closedMonthMessage(result.month));
     if (result.reason !== "duplicate-id-number")
       return badRequest("Không lưu được hồ sơ khách này");
     return Response.json(

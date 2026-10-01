@@ -13,9 +13,10 @@ import { BUSINESS_TIMEZONE, businessDay, businessMonth, formatPoints, monthRange
 import { clampScope, inVisibleScope, visibleDepartmentIds } from "@/lib/permissions";
 import { DepartmentType, ROLE_RANK, Scope, type User } from "@/lib/types";
 import { searchTerms } from "@/lib/search";
+import { serviceTypeWeights } from "./catalog";
 import { accountCustomerDayBetween } from "./customerDay";
 import { db } from "./db/client";
-import { bankingPointsByCustomer, countedServiceIds, servicePointsByType } from "./kpi";
+import { bankingPointsByCustomer, countedServicePoints, servicePointsByType } from "./kpi";
 import type { PageArgs } from "./pagination";
 import {
   bankAccounts,
@@ -720,7 +721,6 @@ export async function personFor(
     .select({
       typeId: serviceTypes.id,
       typeName: serviceTypes.name,
-      coefficient: serviceTypes.coefficient,
       count: sql<number>`count(*)::int`,
     })
     .from(services)
@@ -732,7 +732,8 @@ export async function personFor(
         lte(services.serviceDate, kpiRange.to),
       ),
     )
-    .groupBy(serviceTypes.id, serviceTypes.name, serviceTypes.coefficient);
+    .groupBy(serviceTypes.id, serviceTypes.name);
+  const weights = await serviceTypeWeights(summaryMonth);
   // Điểm theo loại đọc cùng luật với `kpi_scores`: chỉ nhóm điểm ATM, có trần.
   const servicePoints = await servicePointsByType(id, kpiRange.from, kpiRange.to);
 
@@ -781,7 +782,7 @@ export async function personFor(
   const pointSources = serviceAgg
     .map((s) => ({
       label: s.typeName,
-      detail: `${s.count} lượt - hệ số ${formatPoints(Number(s.coefficient))}`,
+      detail: `${s.count} lượt - hệ số ${formatPoints(weights.get(s.typeId)?.coefficient ?? 0)}`,
       // Làm tròn 2 số: hệ số là `numeric(4,2)` nên cộng dồn ra 4.199999999999999.
       points: roundPoints(servicePoints.get(s.typeId) ?? 0),
     }))
@@ -1163,7 +1164,6 @@ export async function personServicesFor(
     .select({
       service: services,
       typeName: serviceTypes.name,
-      coefficient: serviceTypes.coefficient,
       customerName: customers.fullName,
     })
     .from(services)
@@ -1180,7 +1180,7 @@ export async function personServicesFor(
     .where(where);
 
   // Lượt vượt trần, và lượt của người không thuộc nhóm điểm ATM, hiện 0 điểm.
-  const counted = await countedServiceIds(
+  const counted = await countedServicePoints(
     id,
     range.from,
     range.to,
@@ -1195,7 +1195,7 @@ export async function personServicesFor(
       customerName: r.customerName,
       serviceType: r.typeName,
       ward: r.service.wardName ?? "",
-      points: counted.has(r.service.id) ? Number(r.coefficient) : 0,
+      points: counted.get(r.service.id) ?? 0,
     })),
     total,
   };

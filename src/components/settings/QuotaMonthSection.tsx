@@ -25,7 +25,7 @@ import { errorMessage, toast } from "@/lib/toast";
 import styles from "./QuotaMonthSection.module.scss";
 
 /**
- * Màn Chỉ tiêu tháng theo QĐ 145: số chỉ tiêu và danh sách tài khoản tính vào HKD, định hướng.
+ * Màn Chỉ tiêu tháng theo QĐ 145: mốc điểm KPI, số chỉ tiêu và danh sách tài khoản tính vào HKD, định hướng.
  *
  * TODO(lương CĐS, file mẫu CASA của Yên): ô CASA lưu được nhưng lương chưa dùng,
  * vì chưa có màn nhập danh sách CASA. Gỡ khi `server/salary.ts` đếm CASA.
@@ -81,6 +81,7 @@ const kindOptions = (banks: Bank[], types: AccountType[]) =>
 
 function QuotaForm({ data, banks }: { data: QuotaMonth; banks: Bank[] }) {
   const queryClient = useQueryClient();
+  const [kpiPoints, setKpiPoints] = useState(toText(data.kpiPoints));
   const [staff, setStaff] = useState({
     hkd: toText(data.staffHkd),
     directed: toText(data.staffDirected),
@@ -105,6 +106,7 @@ function QuotaForm({ data, banks }: { data: QuotaMonth; banks: Bank[] }) {
 
   const [confirming, setConfirming] = useState(false);
   const form = {
+    kpiPoints: toNumber(kpiPoints),
     staffHkd: toNumber(staff.hkd),
     staffDirected: toNumber(staff.directed),
     staffCasa: toNumber(staff.casa),
@@ -128,6 +130,9 @@ function QuotaForm({ data, banks }: { data: QuotaMonth; banks: Bank[] }) {
     onSuccess: (next) => {
       setConfirming(false);
       queryClient.setQueryData(["quota-month", data.month], next);
+      // P-51/P-52 đọc mốc điểm KPI của tháng: đổi xong phải thấy ngay ở đó.
+      queryClient.invalidateQueries({ queryKey: ["staff"] });
+      queryClient.invalidateQueries({ queryKey: ["person"] });
       toast.ok(`Đã lưu chỉ tiêu ${monthLabel(data.month).toLowerCase()}`);
     },
     onError: (e) => toast.fail(errorMessage(e, "Không lưu được chỉ tiêu tháng.")),
@@ -151,10 +156,22 @@ function QuotaForm({ data, banks }: { data: QuotaMonth; banks: Bank[] }) {
       )}
 
       <SectionCard
-        title="Chỉ tiêu mỗi nhân viên HĐLĐ"
+        title="Chỉ tiêu điểm KPI"
         icon={<Target size={17} />}
         action={locked ? <StatusTag tone="neutral">Đã chốt lương</StatusTag> : undefined}
       >
+        <div className={styles.staffRow}>
+          <TextField
+            label="Điểm KPI mỗi nhân viên"
+            inputMode="numeric"
+            value={kpiPoints}
+            disabled={locked}
+            onChange={(e) => setKpiPoints(onlyDigits(e.target.value))}
+          />
+        </div>
+      </SectionCard>
+
+      <SectionCard title="Chỉ tiêu mỗi nhân viên HĐLĐ" icon={<Target size={17} />}>
         <div className={styles.staffRow}>
           <TextField
             label="HKD"
@@ -290,6 +307,7 @@ const FIELD_LABEL = { hkd: "HKD", directed: "Tài khoản định hướng", cas
 
 /** Dạng gửi lên máy chủ của số đã tải, để so với số đang gõ. */
 const formOf = (data: QuotaMonth) => ({
+  kpiPoints: data.kpiPoints,
   staffHkd: data.staffHkd,
   staffDirected: data.staffDirected,
   staffCasa: data.staffCasa,

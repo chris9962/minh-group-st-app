@@ -712,7 +712,7 @@ async function build() {
   // điểm là của thang CŨ, thang mới trần 1.2 điểm mỗi khách (thể lệ câu 7.12).
   console.log(
     "⚠️ Chỉ tiêu KPI đang là 100 điểm/tháng — thang mới nhỏ hơn nhiều nên mọi " +
-      "nhân viên sẽ hiện “chưa đạt”. Đặt lại ở màn Chỉ tiêu KPI (P-83).",
+      "nhân viên sẽ hiện “chưa đạt”. Đặt lại ở màn Chỉ tiêu tháng (P-85).",
   );
 }
 

@@ -678,16 +678,45 @@ export const hospitals = pgTable("hospitals", {
 export const serviceTypes = pgTable("service_types", {
   id: id(),
   name: text("name").notNull().unique(),
-  /** Điểm KPI mỗi lượt (P-84). Chỉ nhân viên `salary_scheme = atm` được điểm. */
-  coefficient: numeric("coefficient", { precision: 4, scale: 2 }).notNull().default("1"),
-  /** Số lượt tối đa được tính điểm mỗi ngày của một người; null = không giới hạn. */
-  dailyCap: integer("daily_cap"),
-  /** Số lượt tối đa được tính điểm mỗi tháng của một người; null = không giới hạn. */
-  monthlyCap: integer("monthly_cap"),
   active: boolean("active").notNull().default(true),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 });
+
+/**
+ * Trọng số điểm của loại dịch vụ theo tháng (P-84, chốt 2026-10-01), cùng cách
+ * với `quota_months`: tháng không có dòng dùng dòng gần nhất trước đó, tháng đã
+ * chốt lương không sửa. Đổi trọng số tháng sau không làm đổi điểm tháng trước.
+ * Chỉ nhân viên `salary_scheme = atm` được điểm dịch vụ.
+ */
+export const serviceTypeMonths = pgTable(
+  "service_type_months",
+  {
+    serviceTypeId: uuid("service_type_id")
+      .notNull()
+      .references(() => serviceTypes.id, { onDelete: "cascade" }),
+    /** '2026-10'. */
+    yearMonth: text("year_month").notNull(),
+    /** Điểm KPI mỗi lượt. */
+    coefficient: numeric("coefficient", { precision: 4, scale: 2 }).notNull(),
+    /** Số lượt tính đủ `coefficient` mỗi ngày của một người; null = không giới hạn. */
+    dailyCap: integer("daily_cap"),
+    /** Điểm mỗi lượt vượt `dailyCap` trong ngày; 0 = lượt vượt trần không có điểm. */
+    overCapCoefficient: numeric("over_cap_coefficient", { precision: 4, scale: 2 }).notNull().default("0"),
+    /** Số lượt tối đa được tính điểm mỗi tháng của một người; null = không giới hạn. */
+    monthlyCap: integer("monthly_cap"),
+    updatedBy: uuid("updated_by").references(() => users.id),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.serviceTypeId, t.yearMonth] }),
+    check("service_type_months_year_month", sql`${t.yearMonth} ~ '^\\d{4}-(0[1-9]|1[0-2])$'`),
+    check(
+      "service_type_months_values",
+      sql`${t.coefficient} >= 0 and ${t.overCapCoefficient} >= 0 and coalesce(${t.dailyCap}, 1) > 0 and coalesce(${t.monthlyCap}, 1) > 0`,
+    ),
+  ],
+);
 
 export const giftItems = pgTable("gift_items", {
   id: id(),

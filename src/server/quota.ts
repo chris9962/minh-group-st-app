@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, lte, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, lte, or, sql, type SQL } from "drizzle-orm";
 import { monthRange } from "@/lib/format";
 import type { QuotaKindItem, QuotaMonth, QuotaMonthForm } from "@/lib/api/quota";
 import { customerDayBetween } from "./customerDay";
@@ -8,6 +8,7 @@ import {
   customers,
   departmentQuotas,
   departments,
+  kpiTargets,
   quotaAccountKinds,
   quotaMonths,
   referralCodes,
@@ -32,6 +33,21 @@ async function latestSavedMonth(yearMonth: string): Promise<string | null> {
     .orderBy(desc(quotaMonths.yearMonth))
     .limit(1);
   return row?.yearMonth ?? null;
+}
+
+/**
+ * Mốc điểm KPI chung của tháng: mốc của tháng đó, hoặc mốc gần nhất trước đó.
+ * Cùng chuỗi rơi với `targetsFor` ở `people.ts`, trừ bước cuối: chưa có mốc
+ * nào thì trả `null` chứ không bịa 100, để form không hiện số chưa ai lưu.
+ */
+async function kpiPointsOf(yearMonth: string): Promise<number | null> {
+  const [row] = await db
+    .select({ monthlyPoints: kpiTargets.monthlyPoints })
+    .from(kpiTargets)
+    .where(and(isNull(kpiTargets.departmentId), lte(kpiTargets.yearMonth, yearMonth)))
+    .orderBy(desc(kpiTargets.yearMonth))
+    .limit(1);
+  return row?.monthlyPoints ?? null;
 }
 
 async function readMonth(yearMonth: string) {
@@ -67,6 +83,7 @@ export async function getQuotaMonth(yearMonth: string): Promise<QuotaMonth> {
     month: yearMonth,
     copiedFrom: data && source !== yearMonth ? source : null,
     locked: await isClosed(yearMonth),
+    kpiPoints: await kpiPointsOf(yearMonth),
     staffHkd: data?.month.staffHkd ?? null,
     staffDirected: data?.month.staffDirected ?? null,
     staffCasa: data?.month.staffCasa ?? null,
@@ -121,6 +138,18 @@ export async function saveQuotaMonth(
     if (departmentRows.length > 0) await tx.insert(departmentQuotas).values(departmentRows);
     if (kindRows.length > 0)
       await tx.insert(quotaAccountKinds).values(kindRows).onConflictDoNothing();
+
+    // Khoá duy nhất của mốc chung là chỉ mục một phần (`department_id is null`), nên xoá rồi ghi.
+    const companyRow = and(eq(kpiTargets.yearMonth, yearMonth), isNull(kpiTargets.departmentId));
+    await tx.delete(kpiTargets).where(companyRow);
+    if (form.kpiPoints !== null)
+      await tx.insert(kpiTargets).values({
+        yearMonth,
+        departmentId: null,
+        monthlyPoints: form.kpiPoints,
+        updatedBy: actorId,
+        updatedAt: new Date(),
+      });
   });
 
   return getQuotaMonth(yearMonth);

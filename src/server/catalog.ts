@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, inArray, ne, sql, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, lte, ne, sql, type SQL } from "drizzle-orm";
 import { CODE_LOW_RATIO } from "@/lib/api/bankCatalog";
 import type {
   Bank,
@@ -29,12 +29,11 @@ import type {
   InsurancePackage,
   InsurancePackageForm,
   InsurancePackageLeg,
-  KpiTarget,
-  KpiTargetForm,
   ServiceTypeForm,
   ServiceTypeRow,
 } from "@/lib/api/settings";
 import { businessMonth, digitsOnly, uniqueCode } from "@/lib/format";
+import { isMonthClosed } from "./closedMonths";
 import { db, uniqueViolationOf } from "./db/client";
 import { recomputeKpiForMonth } from "./kpi";
 import { everyoneWanting, notifyUsers } from "./notifications";
@@ -49,7 +48,6 @@ import {
   insurancePackageLegs,
   insurancePackages,
   hamlets,
-  kpiTargets,
   provinces,
   refProvinces,
   refWards,
@@ -58,6 +56,7 @@ import {
   userManagedBanks,
   userPermissions,
   users,
+  serviceTypeMonths,
   serviceTypes,
   wards,
 } from "./db/schema";
@@ -1494,90 +1493,187 @@ export async function setInsurancePackageActive(
 
 /* ── Loại dịch vụ ─────────────────────────────────────────────────────── */
 
-const toServiceType = (r: typeof serviceTypes.$inferSelect): ServiceTypeRow => ({
+type ServiceWeights = Pick<
+  ServiceTypeRow,
+  "coefficient" | "dailyCap" | "overCapCoefficient" | "monthlyCap"
+>;
+
+/** Loại chưa có trọng số ở tháng đó: lượt dịch vụ không có điểm. */
+const NO_WEIGHTS: ServiceWeights = {
+  coefficient: 0,
+  dailyCap: null,
+  overCapCoefficient: 0,
+  monthlyCap: null,
+};
+
+/**
+ * Tháng đã chốt lương thì không đổi trọng số. Route đọc `month` để báo đúng
+ * tháng; tên và trạng thái của loại vẫn sửa được vì chúng không theo tháng.
+ */
+export type ServiceTypeOutcome<T> =
+  | CatalogOutcome<T>
+  | { ok: false; reason: "month-closed"; month: string };
+
+const weightsOf = (form: ServiceTypeForm): ServiceWeights => ({
+  coefficient: form.coefficient,
+  dailyCap: form.dailyCap,
+  overCapCoefficient: form.overCapCoefficient,
+  monthlyCap: form.monthlyCap,
+});
+
+const sameWeights = (a: ServiceWeights, b: ServiceWeights): boolean =>
+  a.coefficient === b.coefficient &&
+  a.dailyCap === b.dailyCap &&
+  a.overCapCoefficient === b.overCapCoefficient &&
+  a.monthlyCap === b.monthlyCap;
+
+/**
+ * Trọng số áp cho `yearMonth` của từng loại: dòng gần nhất không sau tháng đó,
+ * cùng cách đọc với `countedServices` ở `kpi.ts`. Loại vắng mặt là chưa có trọng số.
+ */
+export async function serviceTypeWeights(yearMonth: string): Promise<Map<string, ServiceWeights>> {
+  const rows = await db
+    .selectDistinctOn([serviceTypeMonths.serviceTypeId])
+    .from(serviceTypeMonths)
+    .where(lte(serviceTypeMonths.yearMonth, yearMonth))
+    .orderBy(serviceTypeMonths.serviceTypeId, desc(serviceTypeMonths.yearMonth));
+  return new Map(
+    rows.map((r) => [
+      r.serviceTypeId,
+      {
+        coefficient: Number(r.coefficient),
+        dailyCap: r.dailyCap,
+        overCapCoefficient: Number(r.overCapCoefficient),
+        monthlyCap: r.monthlyCap,
+      },
+    ]),
+  );
+}
+
+const toServiceType = (
+  r: typeof serviceTypes.$inferSelect,
+  weights: ServiceWeights | undefined,
+): ServiceTypeRow => ({
   id: r.id,
   name: r.name,
   active: r.active,
-  coefficient: Number(r.coefficient),
-  dailyCap: r.dailyCap,
-  monthlyCap: r.monthlyCap,
+  ...(weights ?? NO_WEIGHTS),
 });
 
-export async function listServiceTypes(): Promise<ServiceTypeRow[]> {
-  return (await db.select().from(serviceTypes).orderBy(asc(serviceTypes.name))).map(toServiceType);
+const weightRow = (id: string, yearMonth: string, weights: ServiceWeights, actorId: string) => ({
+  serviceTypeId: id,
+  yearMonth,
+  coefficient: String(weights.coefficient),
+  dailyCap: weights.dailyCap,
+  overCapCoefficient: String(weights.overCapCoefficient),
+  monthlyCap: weights.monthlyCap,
+  updatedBy: actorId,
+  updatedAt: new Date(),
+});
+
+/** Các tháng từ `from` tới `to`, hai đầu đóng, dạng YYYY-MM. */
+function monthsBetween(from: string, to: string): string[] {
+  const out: string[] = [];
+  let [year, month] = from.split("-").map(Number);
+  for (let ym = from; ym <= to; ) {
+    out.push(ym);
+    [year, month] = month === 12 ? [year + 1, 1] : [year, month + 1];
+    ym = `${year}-${String(month).padStart(2, "0")}`;
+  }
+  return out;
 }
 
-export async function createServiceType(
-  form: ServiceTypeForm,
-): Promise<CatalogOutcome<ServiceTypeRow>> {
-  return catalogWrite(async () => {
-    const [row] = await db
-      .insert(serviceTypes)
-      .values({
-        name: form.name,
-        coefficient: String(form.coefficient),
-        dailyCap: form.dailyCap,
-        monthlyCap: form.monthlyCap,
-      })
-      .returning();
-    return toServiceType(row);
-  });
+export async function listServiceTypes(yearMonth = businessMonth()): Promise<ServiceTypeRow[]> {
+  const [rows, weights] = await Promise.all([
+    db.select().from(serviceTypes).orderBy(asc(serviceTypes.name)),
+    serviceTypeWeights(yearMonth),
+  ]);
+  return rows.map((r) => toServiceType(r, weights.get(r.id)));
 }
 
 /**
- * Hệ số loại dịch vụ VẪN còn tác dụng (spec §7.2 — dịch vụ giữ cách cũ), khác
- * hẳn `banks.coefficient` đã bỏ. Nên sửa nó là ĐỔI ĐIỂM KPI THẬT.
+ * Danh sách cho các form nghiệp vụ: chỉ loại đã có trọng số tới tháng hiện tại.
+ * Loại tạo trước cho tháng sau chưa hiện, để không ai ghi lượt 0 điểm vào nó.
+ */
+export async function listUsableServiceTypes(): Promise<ServiceTypeRow[]> {
+  const month = businessMonth();
+  const [rows, weights] = await Promise.all([
+    db.select().from(serviceTypes).orderBy(asc(serviceTypes.name)),
+    serviceTypeWeights(month),
+  ]);
+  return rows.flatMap((r) => {
+    const w = weights.get(r.id);
+    return w ? [toServiceType(r, w)] : [];
+  });
+}
+
+/** Loại mới có trọng số từ `yearMonth`; các tháng trước đó loại này không có điểm. */
+export async function createServiceType(
+  form: ServiceTypeForm,
+  yearMonth: string,
+  actorId: string,
+): Promise<ServiceTypeOutcome<ServiceTypeRow>> {
+  if (await isMonthClosed(yearMonth)) return { ok: false, reason: "month-closed", month: yearMonth };
+  return catalogWrite(() =>
+    db.transaction(async (tx) => {
+      const [row] = await tx.insert(serviceTypes).values({ name: form.name }).returning();
+      await tx.insert(serviceTypeMonths).values(weightRow(row.id, yearMonth, weightsOf(form), actorId));
+      return toServiceType(row, weightsOf(form));
+    }),
+  );
+}
+
+/**
+ * Sửa tên và trọng số của `yearMonth`. Trọng số là ĐIỂM KPI THẬT nên ghi xong
+ * phải tính lại ngay; không gọi thì điểm đã lưu giữ trọng số cũ mà không báo gì.
  *
- * Vì vậy phải tính lại điểm ngay sau khi ghi. Không gọi thì điểm đã lưu giữ
- * nguyên hệ số cũ, và không có gì báo — người quản trị kéo hệ số từ 1 lên 2 rồi
- * mở bảng nhân sự, thấy số không nhúc nhích, tưởng mình bấm hụt.
+ * Trọng số giống bản tháng đó đang dùng thì không ghi dòng mới: tháng đó vẫn
+ * dùng dòng của tháng trước, sửa mỗi cái tên không làm tách thêm một mốc.
  *
- * Chỉ tính lại THÁNG HIỆN TẠI. Tháng cũ giữ nguyên là cố ý: đổi hệ số hôm nay
- * mà chấm lại quá khứ thì báo cáo đã chốt tự viết lại, và người đã nhận lương
- * theo con số cũ bỗng có con số khác.
+ * Tính lại từ `yearMonth` tới tháng hiện tại, vì các tháng sau chưa có dòng
+ * riêng thì dùng dòng này. Tháng trước `yearMonth` không đổi: chúng đọc dòng
+ * của tháng mình. Tháng đã chốt lương thì `recomputeKpi` tự bỏ qua.
  *
- * Chạy tuần tự cho vài trăm người nên chậm — chấp nhận được, đây là thao tác
- * cấu hình hiếm khi làm, không phải đường đi hằng ngày.
+ * Chạy tuần tự cho vài trăm người nên chậm. Chấp nhận được: đây là thao tác cấu
+ * hình hiếm khi làm, không phải đường đi hằng ngày.
  */
 export async function updateServiceType(
   id: string,
   form: ServiceTypeForm,
-): Promise<CatalogOutcome<ServiceTypeRow | null>> {
-  return catalogWrite(async () => {
-    const [current] = await db
-      .select({
-        coefficient: serviceTypes.coefficient,
-        dailyCap: serviceTypes.dailyCap,
-        monthlyCap: serviceTypes.monthlyCap,
-      })
-      .from(serviceTypes)
-      .where(eq(serviceTypes.id, id))
-      .limit(1);
+  yearMonth: string,
+  actorId: string,
+): Promise<ServiceTypeOutcome<(ServiceTypeRow & { weightsChanged: boolean }) | null>> {
+  const current = (await serviceTypeWeights(yearMonth)).get(id) ?? NO_WEIGHTS;
+  const weights = weightsOf(form);
+  const weightsChanged = !sameWeights(current, weights);
+  if (weightsChanged && (await isMonthClosed(yearMonth)))
+    return { ok: false, reason: "month-closed", month: yearMonth };
 
-    const [row] = await db
-      .update(serviceTypes)
-      .set({
-        name: form.name,
-        coefficient: String(form.coefficient),
-        dailyCap: form.dailyCap,
-        monthlyCap: form.monthlyCap,
-      })
-      .where(eq(serviceTypes.id, id))
-      .returning();
-    if (!row) return null;
+  const outcome = await catalogWrite(() =>
+    db.transaction(async (tx) => {
+      const [row] = await tx
+        .update(serviceTypes)
+        .set({ name: form.name })
+        .where(eq(serviceTypes.id, id))
+        .returning();
+      if (!row) return null;
+      if (weightsChanged) {
+        const values = weightRow(id, yearMonth, weights, actorId);
+        await tx
+          .insert(serviceTypeMonths)
+          .values(values)
+          .onConflictDoUpdate({
+            target: [serviceTypeMonths.serviceTypeId, serviceTypeMonths.yearMonth],
+            set: values,
+          });
+      }
+      return { ...toServiceType(row, weights), weightsChanged };
+    }),
+  );
 
-    // Chỉ tính lại khi HỆ SỐ hoặc TRẦN đổi. Sửa mỗi cái tên mà chạy lại điểm của
-    // cả công ty là trả giá cho một thao tác không đụng tới con số nào.
-    if (
-      current &&
-      (Number(current.coefficient) !== form.coefficient ||
-        current.dailyCap !== form.dailyCap ||
-        current.monthlyCap !== form.monthlyCap)
-    )
-      await recomputeKpiForMonth(businessMonth());
-
-    return toServiceType(row);
-  });
+  if (outcome.ok && outcome.item && weightsChanged)
+    for (const month of monthsBetween(yearMonth, businessMonth())) await recomputeKpiForMonth(month);
+  return outcome;
 }
 
 export async function setServiceTypeActive(
@@ -1589,55 +1685,7 @@ export async function setServiceTypeActive(
     .set({ active })
     .where(eq(serviceTypes.id, id))
     .returning();
-  return row ? toServiceType(row) : null;
-}
-
-/* ── Chỉ tiêu KPI ─────────────────────────────────────────────────────── */
-
-/**
- * Mốc của THÁNG HIỆN TẠI, rơi về mốc chung gần nhất không vượt tháng này.
- *
- * Cùng chuỗi rơi với `people.ts` — hai nơi lệch nhau thì màn cấu hình hiện một
- * số mà bảng KPI chấm theo số khác.
- *
- * Chưa có mốc nào thì trả `null`, KHÔNG bịa 100/7. Bịa thì màn P-83 hiện hai
- * con số trông y như đã lưu, quản trị bấm Lưu là ghi đè bằng số máy tự nghĩ ra
- * — đúng cái mà chốt chặn ở `KpiTargetSection` dựng ra để tránh, chỉ là đi vòng
- * từ phía máy chủ nên chốt đó không bắt được.
- */
-export async function getKpiTarget(): Promise<KpiTarget | null> {
-  const month = businessMonth();
-  const [row] = await db
-    .select()
-    .from(kpiTargets)
-    .where(sql`${kpiTargets.departmentId} is null and ${kpiTargets.yearMonth} <= ${month}`)
-    .orderBy(desc(kpiTargets.yearMonth))
-    .limit(1);
-  return row ? { monthlyPoints: row.monthlyPoints } : null;
-}
-
-/** Ghi mốc cho THÁNG HIỆN TẠI. Tháng cũ không sửa — sửa là chấm lại quá khứ. */
-export async function setKpiTarget(form: KpiTargetForm, updatedBy: string): Promise<KpiTarget> {
-  const month = businessMonth();
-  const [existing] = await db
-    .select({ id: kpiTargets.id })
-    .from(kpiTargets)
-    .where(sql`${kpiTargets.yearMonth} = ${month} and ${kpiTargets.departmentId} is null`)
-    .limit(1);
-
-  const values = {
-    yearMonth: month,
-    departmentId: null,
-    monthlyPoints: form.monthlyPoints,
-    updatedBy,
-    updatedAt: new Date(),
-  };
-
-  const [row] = existing
-    ? await db.update(kpiTargets).set(values).where(eq(kpiTargets.id, existing.id)).returning()
-    : await db.insert(kpiTargets).values(values).returning();
-
-  return { monthlyPoints: row.monthlyPoints };
+  return row ? toServiceType(row, (await serviceTypeWeights(businessMonth())).get(row.id)) : null;
 }
 
 /* ── Địa bàn: tỉnh · xã/phường · ấp ───────────────────────────────────── */

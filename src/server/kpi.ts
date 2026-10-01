@@ -7,6 +7,7 @@ import {
   type ScoringAccount,
 } from "@/rules";
 import type { Range } from "./org";
+import { isMonthClosed } from "./closedMonths";
 import { customerDayBetween, customerDayText } from "./customerDay";
 import { db } from "./db/client";
 import { recomputeEmployeeWorkDay, recomputeWorkDayForCustomer } from "./workDays";
@@ -64,9 +65,11 @@ type Db = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
  * Luật của thông báo lương 2026-09-30 (chốt với chủ dự án cùng ngày):
  * - Chỉ người có cách tính lương `atm` TRONG tháng của lượt dịch vụ được điểm
  *   (đọc `staff_roster`). Người khác 0 điểm.
- * - Mỗi loại có trần số lượt theo ngày và theo tháng của từng người
- *   (`service_types.daily_cap`, `monthly_cap`). Lượt vượt trần không có điểm.
- *   Lượt ghi trước được tính trước.
+ * - Hệ số và trần đọc ở `service_type_months` của tháng có lượt dịch vụ (dòng
+ *   gần nhất không sau tháng đó). Loại chưa có dòng nào thì không có điểm.
+ * - Mỗi loại có trần số lượt theo ngày và theo tháng của từng người. Lượt vượt
+ *   trần ngày lấy `over_cap_coefficient` (Chi BTXH: từ lượt thứ 11 là 0,05, chốt
+ *   2026-10-01); lượt vượt trần tháng không có điểm. Lượt ghi trước được tính trước.
  *
  * Trần tháng xếp hạng trên TRỌN tháng rồi mới cắt về khoảng đang hỏi. Xếp hạng
  * trong riêng khoảng thì hai nửa tháng cộng lại ra nhiều hơn cả tháng.
@@ -75,22 +78,31 @@ type Db = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
  * lương và điểm trên màn lệch nhau.
  */
 const countedServices = (from: string, to: string, userId?: string) => sql`(
-  select k.id, k.created_by, k.department_id, k.service_type_id, k.coefficient
+  select k.id, k.created_by, k.department_id, k.service_type_id, k.points as coefficient
   from (
     select d.*,
+           case when d.daily_cap is null or d.day_rank <= d.daily_cap
+                then d.coefficient else d.over_cap_coefficient end as points,
            row_number() over (
              partition by d.created_by, d.service_type_id, date_trunc('month', d.service_date)
              order by d.service_date, d.created_at, d.id
            ) as month_rank
     from (
       select s.id, s.created_by, r.department_id, s.service_type_id, s.service_date,
-             s.created_at, t.coefficient, t.daily_cap, t.monthly_cap,
+             s.created_at, t.coefficient, t.daily_cap, t.over_cap_coefficient, t.monthly_cap,
              row_number() over (
                partition by s.created_by, s.service_type_id, s.service_date
                order by s.created_at, s.id
              ) as day_rank
       from services s
-      join service_types t on t.id = s.service_type_id
+      join lateral (
+        select w.coefficient, w.daily_cap, w.over_cap_coefficient, w.monthly_cap
+        from service_type_months w
+        where w.service_type_id = s.service_type_id
+          and w.year_month <= to_char(s.service_date, 'YYYY-MM')
+        order by w.year_month desc
+        limit 1
+      ) t on true
       join staff_roster r
         on r.user_id = s.created_by and r.year_month = to_char(s.service_date, 'YYYY-MM')
       where r.salary_scheme = 'atm'
@@ -98,7 +110,7 @@ const countedServices = (from: string, to: string, userId?: string) => sql`(
         and s.service_date < (date_trunc('month', ${to}::date) + interval '1 month')::date
         ${userId ? sql`and s.created_by = ${userId}` : sql``}
     ) d
-    where d.daily_cap is null or d.day_rank <= d.daily_cap
+    where d.daily_cap is null or d.day_rank <= d.daily_cap or d.over_cap_coefficient > 0
   ) k
   where (k.monthly_cap is null or k.month_rank <= k.monthly_cap)
     and k.service_date between ${from}::date and ${to}::date
@@ -125,22 +137,22 @@ export async function servicePointsByType(
   return new Map(result.rows.map((r) => [r.service_type_id, r.points]));
 }
 
-/** Trong các lượt dịch vụ `ids` của một người, những lượt được tính điểm. */
-export async function countedServiceIds(
+/** Điểm của từng lượt dịch vụ `ids` của một người. Lượt không được tính điểm thì vắng mặt. */
+export async function countedServicePoints(
   userId: string,
   from: string,
   to: string,
   ids: string[],
-): Promise<Set<string>> {
-  if (ids.length === 0) return new Set();
-  const result = await db.execute<{ id: string }>(
-    sql`select c.id from ${countedServices(from, to, userId)} c
+): Promise<Map<string, number>> {
+  if (ids.length === 0) return new Map();
+  const result = await db.execute<{ id: string; points: number }>(
+    sql`select c.id, c.coefficient::float as points from ${countedServices(from, to, userId)} c
         where c.id in (${sql.join(
           ids.map((id) => sql`${id}::uuid`),
           sql`, `,
         )})`,
   );
-  return new Set(result.rows.map((r) => r.id));
+  return new Map(result.rows.map((r) => [r.id, r.points]));
 }
 
 /**
@@ -345,6 +357,9 @@ async function recomputeKpiOn(tx: Db, userId: string, yearMonth: string): Promis
   await tx.execute(
     sql`select pg_advisory_xact_lock(hashtext(${userId}), hashtext(${yearMonth}))`,
   );
+
+  // Tháng đã chốt lương: điểm đứng yên theo số đã trả, kể cả khi đường ghi nào đó vẫn gọi tới đây.
+  if (await isMonthClosed(yearMonth, tx)) return;
 
   /**
    * Phòng chưa có công thức thì XOÁ dòng điểm, không ghi 0 (spec §7.0).

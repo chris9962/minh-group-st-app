@@ -27,6 +27,8 @@ export const QuotaMonth = z.object({
   copiedFrom: z.string().nullable(),
   /** Lương tháng đã chốt thì không sửa chỉ tiêu tháng đó. */
   locked: z.boolean(),
+  /** Mốc điểm KPI mỗi nhân viên, chung toàn công ty. Tháng chưa lưu dùng mốc gần nhất trước đó; `null` = chưa đặt mốc nào. */
+  kpiPoints: z.number().nullable(),
   staffHkd: z.number().nullable(),
   staffDirected: z.number().nullable(),
   staffCasa: z.number().nullable(),
@@ -43,6 +45,7 @@ export type QuotaMonth = z.infer<typeof QuotaMonth>;
 const target = z.number().int().min(1).max(INT_MAX).nullable();
 
 export const QuotaMonthForm = z.object({
+  kpiPoints: target,
   staffHkd: target,
   staffDirected: target,
   staffCasa: target,

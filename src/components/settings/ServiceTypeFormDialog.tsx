@@ -7,6 +7,7 @@ import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Dialog } from "@/components/ui/Dialog";
+import { monthLabel } from "@/components/ui/MonthPicker";
 import { TextField } from "@/components/ui/TextField";
 import {
   createServiceType,
@@ -24,17 +25,20 @@ import {
   optionalNumberValue,
 } from "@/lib/numberField";
 import { reportInvalid } from "@/lib/formErrors";
-import { formatPoints } from "@/lib/format";
 
 type Props = {
   open: boolean;
+  /** Tháng nhận trọng số khi lưu. */
+  month: string;
+  /** Lương tháng đó đã chốt: chỉ sửa được tên. */
+  locked: boolean;
   onClose: () => void;
   /** Có thì là sửa, không có thì là thêm loại mới. */
   serviceType?: ServiceTypeRow | null;
 };
 
 /** P-84 · Lập / sửa một loại dịch vụ. */
-export function ServiceTypeFormDialog({ open, onClose, serviceType }: Props) {
+export function ServiceTypeFormDialog({ open, month, locked, onClose, serviceType }: Props) {
   const queryClient = useQueryClient();
   const editing = Boolean(serviceType);
   const [confirming, setConfirming] = useState<ServiceTypeForm | null>(null);
@@ -51,13 +55,14 @@ export function ServiceTypeFormDialog({ open, onClose, serviceType }: Props) {
       name: serviceType?.name ?? "",
       coefficient: serviceType?.coefficient ?? 1,
       dailyCap: serviceType?.dailyCap ?? null,
+      overCapCoefficient: serviceType?.overCapCoefficient ?? 0,
       monthlyCap: serviceType?.monthlyCap ?? null,
     },
   });
 
   const save = useMutation({
     mutationFn: (form: ServiceTypeForm) =>
-      serviceType ? updateServiceType(serviceType.id, form) : createServiceType(form),
+      serviceType ? updateServiceType(serviceType.id, form, month) : createServiceType(form, month),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["service-types"] });
       // Hệ số vào thẳng công thức điểm KPI, mà P-51/P-52 đọc điểm qua các khoá
@@ -78,7 +83,11 @@ export function ServiceTypeFormDialog({ open, onClose, serviceType }: Props) {
    * chỉ khi hệ số thật sự đổi, không phải mọi lần bấm Lưu.
    */
   const submit = (form: ServiceTypeForm) => {
-    if (serviceType && form.coefficient !== serviceType.coefficient) setConfirming(form);
+    const coefficientChanged =
+      serviceType &&
+      (form.coefficient !== serviceType.coefficient ||
+        form.overCapCoefficient !== serviceType.overCapCoefficient);
+    if (coefficientChanged) setConfirming(form);
     else save.mutate(form);
   };
 
@@ -120,22 +129,33 @@ export function ServiceTypeFormDialog({ open, onClose, serviceType }: Props) {
           type="text"
           inputMode="decimal"
           hint="Mặc định 1"
+          disabled={locked}
           error={errors.coefficient?.message}
           {...numericField(register("coefficient", { setValueAs: numberValue }), decimalOnly)}
         />
         <TextField
-          label="Trần lượt mỗi ngày"
+          label="Giới hạn lượt mỗi ngày"
           type="text"
           inputMode="numeric"
           placeholder="Không giới hạn"
+          disabled={locked}
           error={errors.dailyCap?.message}
           {...numericField(register("dailyCap", { setValueAs: optionalNumberValue }), digitsOnly)}
         />
         <TextField
-          label="Trần lượt mỗi tháng"
+          label="Hệ số lượt vượt giới hạn ngày"
+          type="text"
+          inputMode="decimal"
+          disabled={locked}
+          error={errors.overCapCoefficient?.message}
+          {...numericField(register("overCapCoefficient", { setValueAs: numberValue }), decimalOnly)}
+        />
+        <TextField
+          label="Giới hạn lượt mỗi tháng"
           type="text"
           inputMode="numeric"
           placeholder="Không giới hạn"
+          disabled={locked}
           error={errors.monthlyCap?.message}
           {...numericField(register("monthlyCap", { setValueAs: optionalNumberValue }), digitsOnly)}
         />
@@ -150,10 +170,8 @@ export function ServiceTypeFormDialog({ open, onClose, serviceType }: Props) {
         onConfirm={() => confirming && save.mutate(confirming)}
         onClose={() => setConfirming(null)}
       >
-        Bạn muốn đổi hệ số của <strong>{serviceType?.name}</strong> từ{" "}
-        <strong>{serviceType && formatPoints(serviceType.coefficient)}</strong> thành{" "}
-        <strong>{confirming && formatPoints(confirming.coefficient)}</strong>? Điểm KPI của các tháng
-        trước cũng tính lại.
+        Bạn muốn đổi hệ số của <strong>{serviceType?.name}</strong>, áp dụng từ{" "}
+        {monthLabel(month).toLowerCase()}?
       </ConfirmDialog>
     </>
   );

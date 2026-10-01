@@ -55,8 +55,10 @@ export async function DELETE(
   if (!isUuid(id)) return notFound();
 
   // Ngoài tầm nhìn trả 404 y hệt "không tồn tại" — 403 là xác nhận id có thật.
-  const removed = await deleteService(actor, id);
-  if (!removed) return notFound();
+  const result = await deleteService(actor, id);
+  if (!result) return notFound();
+  if (!result.ok) return Response.json({ message: result.message }, { status: 422 });
+  const removed = result.service;
 
   await logAudit(actor, {
     module: "services",

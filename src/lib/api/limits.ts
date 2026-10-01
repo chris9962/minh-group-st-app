@@ -13,5 +13,5 @@
 export const SMALLINT_MAX = 32_767;
 export const INT_MAX = 2_147_483_647;
 
-/** `service_types.coefficient` là `numeric(4,2)` — nhiều nhất 99.99. */
+/** `service_type_months.coefficient` là `numeric(4,2)` — nhiều nhất 99.99. */
 export const COEFFICIENT_MAX = 99.99;

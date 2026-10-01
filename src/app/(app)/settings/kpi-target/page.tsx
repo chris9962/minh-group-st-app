@@ -1,18 +1,6 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import { RequirePermission } from "@/components/layout/RequirePermission";
-import { TopBar } from "@/components/layout/TopBar";
-import { KpiTargetSection } from "@/components/settings/KpiTargetSection";
-import styles from "./page.module.scss";
-
-/** P-83 · Chỉ tiêu KPI theo tháng. */
+/** P-83 đã gộp vào Chỉ tiêu tháng P-85 (chốt 2026-10-01). Giữ đường cũ cho link đã lưu. */
 export default function KpiTargetPage() {
-  return (
-    <RequirePermission module="system" action="configure-catalog">
-      <TopBar title="Chỉ tiêu KPI" keepTitleOnMobile />
-      <main className={styles.body}>
-        <KpiTargetSection />
-      </main>
-    </RequirePermission>
-  );
+  redirect("/settings/quota");
 }

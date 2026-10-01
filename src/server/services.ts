@@ -20,6 +20,7 @@ import { searchTerms } from "@/lib/search";
 import { db } from "./db/client";
 import { departmentForNewRecord } from "./writeDepartment";
 import { customers, serviceTypes, services, users, wards } from "./db/schema";
+import { closedMonthAmong, closedMonthMessage } from "./closedMonths";
 import { recomputeKpi } from "./kpi";
 import { recomputeEmployeeWorkDay } from "./workDays";
 import type { PageArgs } from "./pagination";
@@ -377,6 +378,8 @@ export async function createService(actor: User, form: ServiceForm): Promise<Ser
   const serviceDate = form.date;
   if (serviceDate > businessDay())
     return { ok: false, message: "Ngày thực hiện không được ở tương lai" };
+  const closed = await closedMonthAmong([serviceDate.slice(0, 7)]);
+  if (closed) return { ok: false, message: closedMonthMessage(closed) };
 
   const [row] = await db
     .insert(services)
@@ -437,6 +440,8 @@ export async function updateService(
 
   if (form.date > businessDay())
     return { ok: false, message: "Ngày thực hiện không được ở tương lai" };
+  const closed = await closedMonthAmong([current.date.slice(0, 7), form.date.slice(0, 7)]);
+  if (closed) return { ok: false, message: closedMonthMessage(closed) };
 
   await db
     .update(services)
@@ -465,12 +470,14 @@ export async function updateService(
  * Trả `null` khi không tìm thấy HOẶC nằm ngoài tầm nhìn: 404 giống hệt nhau để
  * endpoint không thành chỗ dò id có thật.
  */
-export async function deleteService(actor: User, id: string): Promise<ServiceRow | null> {
+export async function deleteService(actor: User, id: string): Promise<ServiceOutcome | null> {
   const visible = scopeOf(actor, "delete");
   if (visible.kind === "none") return null;
 
   const current = await serviceById(id);
   if (!current || !inScope(visible, current)) return null;
+  const closed = await closedMonthAmong([current.date.slice(0, 7)]);
+  if (closed) return { ok: false, message: closedMonthMessage(closed) };
 
   await db.delete(services).where(eq(services.id, id));
 
@@ -480,5 +487,5 @@ export async function deleteService(actor: User, id: string): Promise<ServiceRow
   await recomputeKpi(current.createdById, current.date.slice(0, 7));
   await recomputeEmployeeWorkDay(current.createdById, current.date);
 
-  return current;
+  return { ok: true, service: current };
 }

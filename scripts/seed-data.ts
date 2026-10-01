@@ -236,12 +236,13 @@ export const HOSPITALS: string[] = [
 
 /* ── Dịch vụ, quà, gói bảo hiểm — spec §6, §5.2, P-82 ───────────────── */
 
+// Trọng số theo tháng nằm ở `service_type_months`, ghi ở P-84 hoặc `db:seed-atm-2026-10`.
 export const SERVICE_TYPES = [
-  { name: "Thanh toán hoá đơn", coefficient: "1" },
-  { name: "Nạp / rút", coefficient: "1" },
-  { name: "Thủ tục hành chính", coefficient: "1" },
-  { name: "Bảo hiểm xã hội", coefficient: "1" },
-  { name: "Bảo hiểm y tế", coefficient: "1" },
+  { name: "Thanh toán hoá đơn" },
+  { name: "Nạp / rút" },
+  { name: "Thủ tục hành chính" },
+  { name: "Bảo hiểm xã hội" },
+  { name: "Bảo hiểm y tế" },
 ] as const;
 
 export const GIFT_ITEMS = [
@@ -301,5 +302,5 @@ export const INSURANCE_PACKAGES = [
 /* Quy tắc quà KHÔNG còn ở đây: thể lệ nằm trong module code theo kỳ
    `src/rules/YYYY-MM.ts` (spec §5.3), tài liệu nguồn ở `mgst-the-le/`. */
 
-/** Chỉ tiêu KPI khởi điểm — 100 điểm/tháng, cảnh báo khi còn 7 ngày (P-83). */
+/** Chỉ tiêu KPI khởi điểm — 100 điểm/tháng, cảnh báo khi còn 7 ngày (P-85). */
 export const KPI_TARGET = { monthlyPoints: 100 };

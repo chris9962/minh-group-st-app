@@ -61,6 +61,7 @@ import {
   users,
 } from "./db/schema";
 import { openBlockReasonAt } from "@/rules";
+import { closedMonthMessage, closedMonthOfCustomer } from "./closedMonths";
 import { accountCustomerDayBetween } from "./customerDay";
 import { recomputeGiftCase } from "./gift";
 import { recomputeKpiForCustomer } from "./kpi";
@@ -1316,6 +1317,16 @@ async function guideVariantFor(
 export type BankingOutcome<T> = { ok: true; value: T } | { ok: false; message: string };
 
 /**
+ * Tháng của hồ sơ khách đã chốt lương thì mọi tài khoản của hồ sơ đó đứng yên
+ * (chủ dự án chốt 2026-10-01): không mở thêm, không đổi trạng thái, không sửa,
+ * không xoá, không đổi ảnh hay mã.
+ */
+async function closedMonthRejection(customerId: string): Promise<{ ok: false; message: string } | null> {
+  const month = await closedMonthOfCustomer(customerId);
+  return month ? { ok: false, message: closedMonthMessage(month) } : null;
+}
+
+/**
  * BƯỚC GIỮ CHỖ — giữ chỗ mã và tạo bản ghi `creating` cho 1–3 ngân hàng trong
  * MỘT giao dịch.
  *
@@ -1355,6 +1366,9 @@ export async function startBankAccount(
     .where(eq(customers.id, form.customerId))
     .limit(1);
   if (!customer) return { ok: false, message: "Không tìm thấy khách hàng này" };
+
+  const closed = await closedMonthRejection(customer.id);
+  if (closed) return closed;
 
   /**
    * Nhân viên chỉ mở tài khoản vào hồ sơ CỦA CHÍNH MÌNH (chốt 2026-09-05).
@@ -1694,6 +1708,9 @@ export async function finishBankAccount(
   const current = await rawById(id);
   if (!current || !inScope(visible, current)) return null;
 
+  const closed = await closedMonthRejection(current.customerId);
+  if (closed) return closed;
+
   if (current.status !== "creating")
     return { ok: false, message: "Tài khoản này đã hoàn thành rồi" };
 
@@ -1834,6 +1851,9 @@ export async function updateFinishedAccount(
   const current = await rawById(id);
   if (!current || !inScope(visible, current)) return null;
 
+  const closed = await closedMonthRejection(current.customerId);
+  if (closed) return closed;
+
   if (current.status === "creating")
     return { ok: false, message: "Tài khoản này chưa hoàn thành — dùng bước Hoàn thành" };
 
@@ -1931,6 +1951,8 @@ export async function approveFixedAccount(
   const current = await rawById(id);
   if (!current) return null;
   if (!canManageBank(actor, current.bankId)) return null;
+  const closed = await closedMonthRejection(current.customerId);
+  if (closed) return closed;
   if (current.status !== "fixed")
     return { ok: false, message: "Tài khoản này không ở trạng thái chờ duyệt lại." };
 
@@ -1979,6 +2001,8 @@ export async function markAccountErrorByBankManager(
   const current = await rawById(id);
   if (!current) return null;
   if (!canManageBank(actor, current.bankId)) return null;
+  const closed = await closedMonthRejection(current.customerId);
+  if (closed) return closed;
   if (current.status !== "done" && current.status !== "fixed")
     return {
       ok: false,
@@ -2034,6 +2058,8 @@ export async function changeReferralCodeByBankManager(
   const current = await rawById(id);
   if (!current) return null;
   if (!canManageBank(actor, current.bankId)) return null;
+  const closed = await closedMonthRejection(current.customerId);
+  if (closed) return closed;
   if (current.referralCodeId === referralCodeId)
     return { ok: false, message: "Tài khoản đang dùng đúng mã này." };
 
@@ -2098,6 +2124,8 @@ export async function deleteCreatingAccountByBankManager(
   const current = await rawById(id);
   if (!current) return null;
   if (!canManageBank(actor, current.bankId)) return null;
+  const closed = await closedMonthRejection(current.customerId);
+  if (closed) return closed;
   if (current.status !== "creating")
     return { ok: false, message: "Chỉ xoá được tài khoản đang tạo." };
 
@@ -2198,6 +2226,8 @@ export async function updateBankAccountStatus(
 
   const current = await rawById(id);
   if (!current || !inScope(visible, current)) return null;
+  const closed = await closedMonthRejection(current.customerId);
+  if (closed) return closed;
   if (current.status === "creating")
     return { ok: false, message: "Tài khoản đang tạo không thể đối soát lỗi." };
   if (current.status === form.status)
@@ -2275,6 +2305,8 @@ export async function deleteAccount(
   // Dòng đã hoàn thành cần phạm vi rộng hơn một người. Cấp phòng còn bị kẹp
   // trong ngày hoàn thành; Ban giám đốc không bị giới hạn ngày.
   if (finished && !canDeleteFinished(actor, "banking", current)) return null;
+  const closed = await closedMonthRejection(current.customerId);
+  if (closed) return closed;
   // Lý do chỉ bắt ở nhánh đã hoàn thành: dòng đó biến mất khỏi kho và nhật ký
   // là vết duy nhất còn lại. Bản nháp chưa là gì cả, hỏi lý do là hỏi thừa.
   if (finished && reason.trim().length < 2)
@@ -2325,12 +2357,15 @@ export async function setPhotos(
   /** KHOÁ trong kho, không phải URL — route đã cắt phần `/api/images/` ra. */
   photoKeys: string[],
   kind: PhotoKind,
-): Promise<BankAccount | { tooFew: number } | { locked: true } | null> {
+): Promise<BankAccount | { tooFew: number } | { locked: true } | { closedMonth: string } | null> {
   const visible = scopeOf(actor, WRITE_ACTION);
   if (visible.kind === "none") return null;
 
   const current = await rawById(id);
   if (!current || !inScope(visible, current)) return null;
+
+  const closedMonth = await closedMonthOfCustomer(current.customerId);
+  if (closedMonth) return { closedMonth } as const;
 
   /**
    * Hết ngày hoàn thành là ảnh chứng minh chốt lại (chốt 2026-08-23) — luật ở

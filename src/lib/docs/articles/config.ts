@@ -265,56 +265,6 @@ export const CONFIG_DOCS: DocArticle[] = [
     ],
   },
   {
-    slug: 'chi-tieu-kpi',
-    title: 'Chỉ tiêu KPI',
-    screen: 'P-83',
-    group: 'config',
-    summary: 'Đặt mốc điểm tháng chung cho toàn công ty.',
-    keywords: [
-      'chỉ tiêu',
-      'KPI',
-      'mốc điểm',
-      'chỉ tiêu tháng',
-      'mục tiêu tháng',
-      'định mức',
-      'đổi chỉ tiêu',
-    ],
-    visibleTo: (user) => can(user, 'system', 'configure-catalog'),
-    blocks: [
-      {
-        kind: 'text',
-        body: 'Một con số cho toàn công ty: mốc điểm mỗi nhân viên phải đạt trong tháng. Nhân viên mở màn Tổng quan thì thấy phần trăm hoàn thành của chính mình tính theo số này.',
-      },
-      {
-        kind: 'note',
-        tone: 'warning',
-        body: 'Bạn bấm lưu là thay con số của cả công ty. Màn này chỉ ghi cho tháng hiện tại, tháng cũ không sửa được.',
-      },
-      {
-        kind: 'steps',
-        items: [
-          'Mở **Cấu hình → Chỉ tiêu KPI**.',
-          'Nhập **Chỉ tiêu điểm mỗi tháng**.',
-          'Bấm **Lưu chỉ tiêu**.',
-        ],
-      },
-      {
-        kind: 'shot',
-        shot: {
-          src: '/docs/kpi-target-page.png',
-          alt: 'Màn Chỉ tiêu KPI',
-          width: 1280,
-          height: 800,
-          markers: [
-            { n: 1, x: 9.2, y: 81, label: 'Đường vào: Cấu hình → Chỉ tiêu KPI.' },
-            { n: 2, x: 42.4, y: 24.2, label: 'Mốc điểm tháng chung cho toàn công ty.' },
-            { n: 3, x: 26.4, y: 30.5, label: 'Nút Lưu chỉ tiêu.' },
-          ],
-        },
-      },
-    ],
-  },
-  {
     slug: 'loai-dich-vu',
     title: 'Loại dịch vụ',
     screen: 'P-84',

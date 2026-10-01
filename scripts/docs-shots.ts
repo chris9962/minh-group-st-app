@@ -298,15 +298,6 @@ await shoot(page, "gift-catalog-page", [
   { n: 3, target: page.getByRole("heading", { name: "Gói bảo hiểm", exact: true }), label: "Bảng Gói bảo hiểm — gói hiện khi tạo đơn." },
 ]);
 
-await page.goto(`${BASE_URL}/settings/kpi-target`);
-await openSettingsGroup(page);
-await page.getByLabel("Chỉ tiêu điểm mỗi tháng").waitFor();
-await shoot(page, "kpi-target-page", [
-  { n: 1, target: nav(page).getByRole("link", { name: "Chỉ tiêu KPI" }), label: "Đường vào: Cấu hình → Chỉ tiêu KPI." },
-  { n: 2, target: page.getByLabel("Chỉ tiêu điểm mỗi tháng"), label: "Mốc điểm tháng chung cho toàn công ty." },
-  { n: 3, target: page.getByRole("button", { name: "Lưu chỉ tiêu" }), label: "Nút Lưu chỉ tiêu." },
-]);
-
 await page.goto(`${BASE_URL}/settings/service-types`);
 await openSettingsGroup(page);
 await page.getByRole("button", { name: "Thêm loại dịch vụ" }).waitFor();

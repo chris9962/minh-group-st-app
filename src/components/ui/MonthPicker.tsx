@@ -27,17 +27,21 @@ type Props = {
   onChange: (month: Month) => void;
   /** Số tháng được đi quá tháng hiện tại. Màn Chỉ tiêu tháng nhập trước chỉ tiêu tháng sau nên đặt 1. */
   monthsAhead?: number;
+  /** Tháng nhỏ nhất được lùi về. Không truyền thì lùi tuỳ ý. */
+  minMonth?: Month;
 };
 
 /** Chọn tháng. Chỉ tiêu tính theo tháng nên đây là đơn vị tự nhiên, không phải khoảng ngày. */
-export function MonthPicker({ value, onChange, monthsAhead = 0 }: Props) {
+export function MonthPicker({ value, onChange, monthsAhead = 0, minMonth }: Props) {
   const atLimit = value >= shift(thisMonth(), monthsAhead);
+  const atStart = minMonth !== undefined && value <= minMonth;
 
   return (
     <div className={styles.wrap}>
       <Button
         variant="secondary"
         aria-label="Tháng trước"
+        disabled={atStart}
         onClick={() => onChange(shift(value, -1))}
       >
         ‹

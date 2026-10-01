@@ -32,7 +32,7 @@ const SETTINGS_SCREENS = [
   ["/settings/channels", "Danh mục kênh"],
   ["/settings/service-types", "Loại dịch vụ"],
   ["/settings/gift-catalog", "Danh mục quà"],
-  ["/settings/kpi-target", "Chỉ tiêu KPI"],
+  ["/settings/quota", "Chỉ tiêu tháng"],
 ] as const;
 
 for (const role of ROLES) {

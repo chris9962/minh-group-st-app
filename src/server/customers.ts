@@ -49,6 +49,7 @@ import { searchTerms } from "@/lib/search";
 import { customerDay, customerDayText } from "./customerDay";
 import { db, uniqueViolationOf } from "./db/client";
 import { giftForCustomer, giftItemNames, grantedItemLabel, recomputeGiftCase } from "./gift";
+import { closedMonthAmong } from "./closedMonths";
 import { bankingPointsByCustomer, recomputeKpi, recomputeKpiForCustomer } from "./kpi";
 import { enqueuePhotoCheck } from "./photoCheck";
 import { recomputeEmployeeWorkDay } from "./workDays";
@@ -816,11 +817,13 @@ export type CustomerConflict =
   /** Vai Nhân viên không dời được ngày hồ sơ (chốt 2026-09-16). */
   | "move-day-forbidden"
   /** Ngày hồ sơ mới sau ngày chốt quà. */
-  | "move-day-gifted";
+  | "move-day-gifted"
+  /** Tháng cũ hoặc tháng mới đã chốt lương, và hồ sơ có tài khoản ngân hàng (chốt 2026-10-01). */
+  | "move-day-closed";
 
 export type CustomerOutcome<T> =
   | { ok: true; customer: T }
-  | { ok: false; reason: CustomerConflict };
+  | { ok: false; reason: CustomerConflict; month?: string };
 
 /**
  * Hồ sơ CHƯA CHỐT QUÀ của chính người đang thao tác, cho một CCCD.
@@ -1460,6 +1463,19 @@ export async function updateCustomer(
         if (cur && cur.day !== form.createdDay) {
           if (actor.role === "staff") return "move-day-forbidden" as const;
           if (cur.giftDay && form.createdDay > cur.giftDay) return "move-day-gifted" as const;
+          // Tài khoản đi theo tháng hồ sơ, nên dời là kéo điểm ra khỏi hoặc vào tháng đã trả lương.
+          const closedMonth = await closedMonthAmong(
+            [cur.day.slice(0, 7), form.createdDay.slice(0, 7)],
+            tx,
+          );
+          if (closedMonth) {
+            const [account] = await tx
+              .select({ id: bankAccounts.id })
+              .from(bankAccounts)
+              .where(eq(bankAccounts.customerId, id))
+              .limit(1);
+            if (account) return { closedMonth };
+          }
           const at = new Date(`${form.createdDay}T${clockNowVn()}+07:00`);
           await tx.update(customers).set({ createdAt: at }).where(eq(customers.id, id));
           await tx.insert(customerChanges).values({
@@ -1479,6 +1495,7 @@ export async function updateCustomer(
     });
 
     if (updated === "move-day-forbidden" || updated === "move-day-gifted") return updated;
+    if (typeof updated === "object") return updated;
     if (typeof updated === "string") {
       // Dời qua tháng khác: ô điểm tháng cũ mất khách này, phải ghi lại; tháng
       // mới do `recomputeKpiForCustomer` bên dưới lo.
@@ -1493,6 +1510,8 @@ export async function updateCustomer(
   if (!result.ok) return result;
   if (result.customer === "move-day-forbidden" || result.customer === "move-day-gifted")
     return { ok: false, reason: result.customer };
+  if (result.customer && "closedMonth" in result.customer)
+    return { ok: false, reason: "move-day-closed", month: result.customer.closedMonth };
   await recomputeKpiForCustomer(id);
 
   /**

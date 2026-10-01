@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, notInArray, sql, type SQL, type SQLWrapper } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, not, notInArray, sql, type SQL, type SQLWrapper } from "drizzle-orm";
 import {
   PhotoCheckFilter,
   PhotoCheckResult,
@@ -20,6 +20,7 @@ import {
 } from "./db/schema";
 import { canManageBank } from "@/lib/permissions";
 import type { User } from "@/lib/types";
+import { accountInClosedMonth, closedMonthMessage, closedMonthOfCustomer } from "./closedMonths";
 import { bankManagersFor, notify, notifyUsers } from "./notifications";
 import { checkLpbImages, type LpbCheckContext } from "./ocr/banks/lpb";
 import { checkMbImages, type MbCheckContext } from "./ocr/banks/mb";
@@ -88,18 +89,23 @@ type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
  * bao giờ được kiểm. Huỷ là xoá dòng: worker đang đọc dòng đó ghi kết quả
  * vào 0 dòng và bỏ qua, xem `finishPhotoCheck`.
  *
- * Bỏ qua khi ngân hàng chưa bật kiểm ảnh. `pg_notify` trong transaction thì
- * Postgres chỉ phát khi commit, nên worker không bao giờ dậy trước lúc dòng
- * có thật.
+ * Bỏ qua khi ngân hàng chưa bật kiểm ảnh, hoặc khi tháng của hồ sơ khách đã
+ * chốt lương: số tháng đó đứng yên, kiểm ảnh không còn gì để đổi (chốt
+ * 2026-10-01). `pg_notify` trong transaction thì Postgres chỉ phát khi commit,
+ * nên worker không bao giờ dậy trước lúc dòng có thật.
  */
 export async function enqueuePhotoCheck(tx: Tx, accountId: string): Promise<void> {
   const [row] = await tx
-    .select({ bankCode: banks.code, status: bankAccounts.status })
+    .select({
+      bankCode: banks.code,
+      status: bankAccounts.status,
+      closed: accountInClosedMonth(bankAccounts.id),
+    })
     .from(bankAccounts)
     .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
     .where(eq(bankAccounts.id, accountId))
     .limit(1);
-  if (!row || !hasPhotoChecker(row.bankCode) || row.status === "creating") return;
+  if (!row || row.closed || !hasPhotoChecker(row.bankCode) || row.status === "creating") return;
 
   await tx
     .delete(bankAccountChecks)
@@ -222,11 +228,14 @@ export async function setPhotoCheckConfirmed(
   confirmed: boolean,
 ): Promise<ConfirmOutcome> {
   const [account] = await db
-    .select({ bankId: bankAccounts.bankId })
+    .select({ bankId: bankAccounts.bankId, customerId: bankAccounts.customerId })
     .from(bankAccounts)
     .where(eq(bankAccounts.id, accountId))
     .limit(1);
   if (!account || !canManageBank(actor, account.bankId)) return null;
+
+  const closedMonth = await closedMonthOfCustomer(account.customerId);
+  if (closedMonth) return { ok: false, message: closedMonthMessage(closedMonth) };
 
   const [latest] = await db
     .select({ id: bankAccountChecks.id, status: bankAccountChecks.status })
@@ -266,8 +275,18 @@ export type PhotoCheckRun = {
   notify: boolean;
 };
 
-/** Dòng `pending` cũ nhất của ngân hàng đang bật, tối đa `limit`. */
+/**
+ * Dòng `pending` cũ nhất của ngân hàng đang bật, tối đa `limit`.
+ *
+ * Trước đó xoá dòng chờ của tháng đã chốt lương. Dọn ở mỗi vòng chứ không chỉ
+ * lúc khởi động như `dropDisabledPendingChecks`: lương chốt trong lúc worker
+ * đang chạy, và dòng chờ để lại thì giao diện hiện "Đang phân tích" mãi.
+ */
 export async function pendingPhotoChecks(limit: number): Promise<PhotoCheckRun[]> {
+  await db
+    .delete(bankAccountChecks)
+    .where(and(eq(bankAccountChecks.status, "pending"), accountInClosedMonth(bankAccountChecks.accountId)));
+
   const rows = await db
     .select({
       checkId: bankAccountChecks.id,
@@ -376,10 +395,14 @@ export async function finishPhotoCheck(run: PhotoCheckRun, items: PhotoCheckItem
       error: "",
       checkedAt: new Date(),
     })
-    .where(eq(bankAccountChecks.id, run.checkId))
+    .where(
+      and(eq(bankAccountChecks.id, run.checkId), not(accountInClosedMonth(bankAccountChecks.accountId))),
+    )
     .returning({ id: bankAccountChecks.id });
   // Dòng chờ bị `enqueuePhotoCheck` huỷ trong lúc đọc: kết quả này là của bộ
   // ảnh cũ, dòng chờ mới sẽ kiểm lại, không ghi dòng thời gian hay báo ai.
+  // Lương tháng của hồ sơ vừa chốt trong lúc đọc cũng vậy: không ghi gì, vòng
+  // sau `pendingPhotoChecks` xoá dòng chờ.
   if (written.length === 0) return;
 
   // Dòng thời gian ghi cả lượt đạt hết, để đọc lịch sử biết máy đã kiểm lúc nào.
@@ -481,5 +504,5 @@ export async function failPhotoCheck(checkId: string, error: string): Promise<vo
   await db
     .update(bankAccountChecks)
     .set({ status: "failed", error, checkedAt: new Date() })
-    .where(eq(bankAccountChecks.id, checkId));
+    .where(and(eq(bankAccountChecks.id, checkId), not(accountInClosedMonth(bankAccountChecks.accountId))));
 }
