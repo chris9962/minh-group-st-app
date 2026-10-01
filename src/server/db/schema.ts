@@ -1551,6 +1551,8 @@ export const insuranceOrders = pgTable(
     intakePhotoUrl: text("intake_photo_url"),
     /** Ảnh hồ sơ thứ hai — mặt sau CCCD, tùy chọn; null với đơn chỉ cần một ảnh. */
     intakePhotoBackUrl: text("intake_photo_back_url"),
+    /** Ảnh giấy viết tay của nhân viên, người tạo đơn hoặc admin tải lên khi đơn đã hoàn thành. */
+    handwrittenPhotoUrl: text("handwritten_photo_url"),
     /**
      * "Số đơn ĐT" bên PVI — `26/21/14/TNCN/0096592`. Bot đọc ở BẢNG
      * `/Service/Manager`; màn duyệt không hiện số này.

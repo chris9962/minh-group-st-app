@@ -406,6 +406,7 @@ const pickPage = (where: SQL | undefined, orderBy: SQL[], limit: number, offset:
       certificatePhotoUrl: insuranceOrders.certificatePhotoUrl,
       intakePhotoUrl: insuranceOrders.intakePhotoUrl,
       intakePhotoBackUrl: insuranceOrders.intakePhotoBackUrl,
+      handwrittenPhotoUrl: insuranceOrders.handwrittenPhotoUrl,
       certificateAttempts: insuranceOrders.certificateAttempts,
       pviCertificateUrl: insuranceOrders.pviCertificateUrl,
       pviSerialNumber: insuranceOrders.pviSerialNumber,
@@ -455,6 +456,7 @@ const decorate = (page: ReturnType<typeof pickPage>) =>
       certificatePhotoUrl: page.certificatePhotoUrl,
       intakePhotoUrl: page.intakePhotoUrl,
       intakePhotoBackUrl: page.intakePhotoBackUrl,
+      handwrittenPhotoUrl: page.handwrittenPhotoUrl,
       certificateAttempts: page.certificateAttempts,
       /**
        * Lượt chuyển sang `awaiting-certificate` GẦN NHẤT. Câu con chạy trên
@@ -559,6 +561,7 @@ const toOrder = (r: DecoratedRow): InsuranceOrder => ({
   ...toRow(r),
   intakePhotoUrl: r.intakePhotoUrl ? imageUrl(r.intakePhotoUrl) : null,
   intakePhotoBackUrl: r.intakePhotoBackUrl ? imageUrl(r.intakePhotoBackUrl) : null,
+  handwrittenPhotoUrl: r.handwrittenPhotoUrl ? imageUrl(r.handwrittenPhotoUrl) : null,
   pviCertificateUrl: r.pviCertificateUrl,
   pviSerialNumber: r.pviSerialNumber,
   pviPolicyNumber: r.pviPolicyNumber,
@@ -1939,6 +1942,36 @@ export async function setCertificatePhoto(
     ...toOrder((await rawById(id))!),
     history: await historyOf(id),
     ...(await replacementOf(id)),
+  };
+}
+
+/**
+ * Đính/thay ảnh giấy viết tay (chốt 2026-10-01). Người tạo đơn hoặc admin, chỉ
+ * khi đơn đã hoàn thành. App không có chức vụ admin nên đọc quyền cấp quyền.
+ */
+export async function setHandwrittenPhoto(
+  actor: User,
+  id: string,
+  photoKey: string,
+): Promise<InsuranceOutcome<InsuranceDetail> | null> {
+  const current = await rawById(id);
+  if (!current) return null;
+  if (current.createdById !== actor.id && !can(actor, "system", "grant-permission")) return null;
+  if (current.status !== "done")
+    return { ok: false, message: "Đơn chưa hoàn thành, chưa tải ảnh giấy viết tay được." };
+
+  await db
+    .update(insuranceOrders)
+    .set({ handwrittenPhotoUrl: photoKey, updatedAt: new Date() })
+    .where(eq(insuranceOrders.id, id));
+
+  return {
+    ok: true,
+    value: {
+      ...toOrder((await rawById(id))!),
+      history: await historyOf(id),
+      ...(await replacementOf(id)),
+    },
   };
 }
 

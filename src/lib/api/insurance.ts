@@ -117,6 +117,8 @@ export const InsuranceOrder = InsuranceListRow.extend({
   intakePhotoUrl: z.string().nullable(),
   /** Ảnh hồ sơ thứ hai, thường là mặt sau CCCD; null khi chỉ có một ảnh. */
   intakePhotoBackUrl: z.string().nullable(),
+  /** Ảnh giấy viết tay người tạo đơn hoặc admin tải lên sau khi đơn hoàn thành; null khi chưa có. */
+  handwrittenPhotoUrl: z.string().nullable().default(null),
   /**
    * Link file PDF giấy chứng nhận trên máy chủ PVI.
    *
@@ -486,5 +488,19 @@ export async function setInsuranceOrderPhoto(
     body: JSON.stringify({ photoUrl }),
   });
   if (!res.ok) throw await failure(res, 'Không lưu được ảnh chứng nhận này');
+  return InsuranceDetail.parse(await res.json());
+}
+
+/** Đính/thay ảnh giấy viết tay — người tạo đơn hoặc admin, chỉ đơn đã hoàn thành. */
+export async function setInsuranceOrderHandwrittenPhoto(
+  id: string,
+  photoUrl: string,
+): Promise<InsuranceDetail> {
+  const res = await fetch(`/api/insurance-orders/${id}/handwritten-photo`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ photoUrl }),
+  });
+  if (!res.ok) throw await failure(res, 'Không lưu được ảnh giấy viết tay này');
   return InsuranceDetail.parse(await res.json());
 }

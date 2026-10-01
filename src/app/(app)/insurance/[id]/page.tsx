@@ -22,6 +22,7 @@ import { Alert } from "@/components/ui/Alert";
 import {
   fetchInsuranceDetail,
   overrideInsuranceOrderStatus,
+  setInsuranceOrderHandwrittenPhoto,
   setInsuranceOrderPhoto,
   setInsuranceOrderStatus,
 } from "@/lib/api/insurance";
@@ -155,6 +156,7 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
   const actor = useSession((s) => s.user);
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const handwrittenInputRef = useRef<HTMLInputElement>(null);
 
   /**
    * Ảnh đang tải lên — chỉ sống trong lúc chờ, để có gì đó hiện lên thay vì một
@@ -265,6 +267,30 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
   const showPviRefs = actor?.role !== "staff";
   /** Người tạo chỉ được huỷ đơn đã hoàn thành của chính mình; đơn chưa xong có đường xoá riêng. */
   const canCancelCompletedOwnOrder = data?.status === "done" && data.createdById === actor?.id;
+  /** Ảnh giấy viết tay: người tạo đơn hoặc admin tải lên, chỉ khi đơn đã hoàn thành. */
+  const canAttachHandwritten =
+    Boolean(actor) &&
+    data?.status === "done" &&
+    (data.createdById === actor?.id || can(actor, "system", "grant-permission"));
+
+  const saveHandwritten = useMutation({
+    mutationFn: async (file: File) =>
+      setInsuranceOrderHandwrittenPhoto(id, await uploadImage(file, "insurance-orders")),
+    onSuccess: () => {
+      invalidate();
+      toast.ok("Đã lưu ảnh giấy viết tay");
+    },
+    onError: (e) => toast.fail(errorMessage(e, "Không lưu được ảnh giấy viết tay này.")),
+  });
+
+  const acceptHandwritten = (file: File) => {
+    const problem = imageProblem(file);
+    if (problem) {
+      toast.fail(problem);
+      return;
+    }
+    saveHandwritten.mutate(file);
+  };
   /**
    * Nút Huỷ chỉ hiện trong NGÀY LẬP ĐƠN, so `orderDate` với ngày làm việc hiện
    * tại (chốt 2026-09-08). Chặn cả người có `set-status`: đơn của một ngày đã
@@ -852,6 +878,81 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
                 </>
               )}
             </div>
+
+            {data.status === "done" && (
+              <div className={styles.photoSection}>
+                <h3 className={styles.photoTitle}>Ảnh giấy viết tay</h3>
+                {data.handwrittenPhotoUrl ? (
+                  <div
+                    className={`${styles.photoBox} ${canAttachHandwritten ? styles.saved : styles.viewOnly}`}
+                  >
+                    <button
+                      type="button"
+                      className={styles.photoZoom}
+                      aria-label="Xem ảnh giấy viết tay cỡ lớn"
+                      onClick={() =>
+                        setZoomed({ src: data.handwrittenPhotoUrl!, alt: "Ảnh giấy viết tay" })
+                      }
+                    >
+                      <PhotoView
+                        key={data.handwrittenPhotoUrl}
+                        src={data.handwrittenPhotoUrl}
+                        alt="Ảnh giấy viết tay"
+                      />
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.photoDownload}
+                      title="Tải ảnh về máy"
+                      aria-label="Tải ảnh giấy viết tay về máy"
+                      onClick={() => downloadImage(data.handwrittenPhotoUrl!, "Ảnh giấy viết tay")}
+                    >
+                      <Download size={14} aria-hidden />
+                    </button>
+                    {canAttachHandwritten && (
+                      <button
+                        type="button"
+                        className={styles.photoEdit}
+                        title="Đổi ảnh giấy viết tay"
+                        aria-label="Đổi ảnh giấy viết tay"
+                        disabled={saveHandwritten.isPending}
+                        onClick={() => handwrittenInputRef.current?.click()}
+                      >
+                        <Pencil size={14} aria-hidden />
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-muted">Chưa có ảnh.</p>
+                )}
+
+                {canAttachHandwritten && (
+                  <>
+                    <input
+                      ref={handwrittenInputRef}
+                      type="file"
+                      accept="image/*"
+                      className={styles.hiddenInput}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        e.target.value = "";
+                        if (file) acceptHandwritten(file);
+                      }}
+                    />
+                    {!data.handwrittenPhotoUrl && (
+                      <Button
+                        variant="secondary"
+                        disabled={saveHandwritten.isPending}
+                        onClick={() => handwrittenInputRef.current?.click()}
+                      >
+                        <ImagePlus size={16} aria-hidden />
+                        {saveHandwritten.isPending ? "Đang tải lên…" : "Chọn ảnh"}
+                      </Button>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
             </div>
 
             {canHandleFallback &&
