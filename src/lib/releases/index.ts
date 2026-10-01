@@ -11,6 +11,59 @@ export type { Release, ReleaseSection } from './types';
  */
 export const RELEASES: Release[] = [
   {
+    id: '2026-10-02',
+    version: '2.1.0',
+    title: 'Cập nhật ngày 02/10/2026',
+    summary:
+      'Tháng đã chốt lương không sửa được dữ liệu, hệ số loại dịch vụ theo tháng, đơn bảo hiểm có ảnh giấy viết tay.',
+    sections: [
+      {
+        title: 'Tháng đã chốt lương',
+        items: [
+          'Không ghi, sửa, xoá được lượt dịch vụ của tháng đã chốt lương.',
+          'Không mở, sửa, đánh lỗi, xoá được tài khoản ngân hàng của hồ sơ lập trong tháng đã chốt lương.',
+          'Hồ sơ khách có tài khoản ngân hàng không dời được ngày hồ sơ vào hoặc ra khỏi tháng đã chốt lương.',
+          'Điểm KPI và ngày công của tháng đã chốt lương không đổi.',
+        ],
+      },
+      {
+        title: 'Lương Điểm ATM',
+        items: ['Chi BTXH: 10 lượt đầu mỗi ngày 0,1 điểm/lượt, từ lượt thứ 11 là 0,05 điểm/lượt.'],
+      },
+      {
+        title: 'Đơn bảo hiểm',
+        items: [
+          'Đơn hoàn thành có thêm ảnh giấy viết tay.',
+          'Người tạo đơn tải ảnh lên. Ai mở được đơn thì xem và tải ảnh về.',
+        ],
+        visibleTo: (user) => canOpenPath(user, '/insurance'),
+      },
+      {
+        title: 'Loại dịch vụ',
+        items: [
+          'Chọn tháng để xem và sửa hệ số, giới hạn lượt của tháng đó.',
+          'Có thêm ô Hệ số lượt vượt giới hạn ngày.',
+          'Tháng đã chốt lương không sửa được hệ số.',
+          'Trần lượt đổi tên thành Giới hạn lượt.',
+        ],
+        visibleTo: (user) => canOpenPath(user, '/settings/service-types'),
+      },
+      {
+        title: 'Chỉ tiêu tháng',
+        items: [
+          'Có thêm ô Điểm KPI mỗi nhân viên, nhập theo từng tháng.',
+          'Bỏ màn Chỉ tiêu KPI.',
+        ],
+        visibleTo: (user) => canOpenPath(user, '/settings/quota'),
+      },
+      {
+        title: 'Kho mã giới thiệu',
+        items: ['Có thêm cột Người tạo.'],
+        visibleTo: (user) => canOpenPath(user, '/settings/banks'),
+      },
+    ],
+  },
+  {
     id: '2026-10-01',
     version: '2.0.0',
     title: 'Cập nhật ngày 01/10/2026',
