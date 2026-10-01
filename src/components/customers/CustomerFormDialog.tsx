@@ -524,7 +524,6 @@ const ROW_LABEL: Record<DuplicateField, string> = {
  */
 function DuplicateDialog({ info, typed, pending, onClose, onCreate }: DuplicateDialogProps) {
   const lech = info.mismatch;
-  const [showDetail, setShowDetail] = useState(false);
   const rootCreator = [info.existing.createdByName, info.existing.createdByDepartmentName]
     .filter(Boolean)
     .join(" - ");
@@ -561,41 +560,35 @@ function DuplicateDialog({ info, typed, pending, onClose, onCreate }: DuplicateD
       ) : (
         <div className={styles.compare}>
           <p>Thông tin không khớp để tạo hồ sơ lần {info.nextSeq}.</p>
-          {rootCreator && <p>Người tạo hồ sơ gốc: {rootCreator}</p>}
-          <Button
-            variant="secondary"
-            className={styles.compareToggle}
-            aria-expanded={showDetail}
-            aria-controls="duplicate-compare"
-            onClick={() => setShowDetail((v) => !v)}
-          >
-            {showDetail ? "Ẩn chi tiết" : "Xem chi tiết"}
-          </Button>
-          {showDetail && (
-            <table id="duplicate-compare">
-              <thead>
-                <tr>
-                  <th scope="col"></th>
-                  <th scope="col">Đang có</th>
-                  <th scope="col">Vừa nhập</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <th scope="row">CCCD</th>
-                  <td>{typed.idNumber}</td>
-                  <td>{typed.idNumber}</td>
-                </tr>
-                {rows.map(([f, cu, moi]) => (
-                  <tr key={f} className={lech.includes(f) ? styles.compareDiff : undefined}>
-                    <th scope="row">{ROW_LABEL[f]}</th>
-                    <td>{cu}</td>
-                    <td>{moi}</td>
+          <details>
+            <summary className={styles.compareToggle}>Xem chi tiết</summary>
+            <div className={styles.compareBody}>
+              {rootCreator && <p>Người tạo hồ sơ gốc: {rootCreator}</p>}
+              <table>
+                <thead>
+                  <tr>
+                    <th scope="col"></th>
+                    <th scope="col">Hồ sơ gốc</th>
+                    <th scope="col">Vừa nhập</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+                </thead>
+                <tbody>
+                  <tr>
+                    <th scope="row">CCCD</th>
+                    <td>{typed.idNumber}</td>
+                    <td>{typed.idNumber}</td>
+                  </tr>
+                  {rows.map(([f, cu, moi]) => (
+                    <tr key={f} className={lech.includes(f) ? styles.compareDiff : undefined}>
+                      <th scope="row">{ROW_LABEL[f]}</th>
+                      <td>{cu}</td>
+                      <td>{moi}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </details>
           <p>
             Nếu khách không phải người này,{" "}
             <strong className={styles.compareWarn}>có thể bạn gõ nhầm CCCD.</strong> Kiểm lại số.

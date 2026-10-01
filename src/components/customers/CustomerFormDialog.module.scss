@@ -109,7 +109,49 @@
 }
 
 .compareToggle {
-  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  font-size: 13px;
+  color: var(--om-link);
+  cursor: pointer;
+  list-style: none;
+
+  &::-webkit-details-marker {
+    display: none;
+  }
+
+  &::before {
+    content: "▸";
+    font-size: 11px;
+    line-height: 1;
+  }
+
+  &:hover {
+    color: var(--om-link-hover);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--om-orange-mid);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+
+  @media (pointer: coarse) {
+    min-height: 44px;
+  }
+}
+
+details[open] > .compareToggle::before {
+  content: "▾";
+}
+
+.compareBody {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 6px;
 }
 
 .compareDiff td {
