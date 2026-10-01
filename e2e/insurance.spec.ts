@@ -239,7 +239,7 @@ for (const role of ROLES) {
       await row.getByRole("button", { name: /^Xoá đơn/ }).click();
       // Việc khó lùi thì phải hỏi lại — không xoá thẳng khi bấm icon.
       const confirm = page.getByRole("dialog");
-      await expect(confirm.getByText("Xoá hẳn đơn bảo hiểm này?")).toBeVisible();
+      await expect(confirm.getByText("Xoá đơn bảo hiểm")).toBeVisible();
       await confirm.getByRole("button", { name: "Xoá đơn", exact: true }).click();
       await expect(toast(page, /Đã xoá đơn/)).toBeVisible();
       await expect(row).toHaveCount(0);

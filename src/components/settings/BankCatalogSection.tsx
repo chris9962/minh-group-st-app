@@ -254,20 +254,8 @@ export function BankCatalogSection({ creating, onCreatingChange }: Props) {
           confirming && toggleActive.mutate({ id: confirming.id, next: !confirming.active })
         }
         onClose={() => setConfirming(null)}
-        consequence={
-          confirming?.active ? (
-            <>
-              Ngân hàng biến mất khỏi ô chọn lúc mở tài khoản và lúc nhập mã giới
-              thiệu nên <strong>không mở tài khoản mới cho ngân hàng này được nữa</strong>.
-              Tài khoản đã mở và mã đã cấp vẫn giữ nguyên, bật lại lúc nào cũng được.
-            </>
-          ) : (
-            <>Ngân hàng hiện lại ở mọi ô chọn và nhận tài khoản mới được ngay.</>
-          )
-        }
       >
-        {confirming?.active ? "Tắt ngân hàng " : "Bật lại ngân hàng "}
-        <strong>{confirming?.code}</strong>?
+        Bạn muốn {confirming?.active ? "tắt" : "bật lại"} ngân hàng <strong>{confirming?.code}</strong>?
       </ConfirmDialog>
     </>
   );

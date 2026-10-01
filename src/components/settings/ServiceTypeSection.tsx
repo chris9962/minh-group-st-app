@@ -11,6 +11,7 @@ import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusTag } from "@/components/ui/StatusTag";
 import { fetchServiceTypes, setServiceTypeActive, type ServiceTypeRow } from "@/lib/api/settings";
+import { formatPoints } from "@/lib/format";
 import { ServiceTypeFormDialog } from "./ServiceTypeFormDialog";
 import styles from "./ServiceTypeSection.module.scss";
 import { errorMessage, toast } from "@/lib/toast";
@@ -51,7 +52,7 @@ export function ServiceTypeSection({ creating, onCreatingChange }: Props) {
       key: "coefficient",
       label: "Hệ số điểm",
       sortBy: (r) => r.coefficient,
-      render: (r) => r.coefficient,
+      render: (r) => formatPoints(r.coefficient),
     },
     {
       key: "cap",
@@ -142,19 +143,8 @@ export function ServiceTypeSection({ creating, onCreatingChange }: Props) {
           confirming && toggleActive.mutate({ id: confirming.id, next: !confirming.active })
         }
         onClose={() => setConfirming(null)}
-        consequence={
-          confirming?.active ? (
-            <>
-              Loại này biến mất khỏi ô chọn lúc ghi dịch vụ nên{" "}
-              <strong>không ghi dịch vụ mới thuộc loại này được nữa</strong>. Dịch
-              vụ đã ghi vẫn giữ nguyên và vẫn tính điểm KPI theo hệ số hiện tại.
-            </>
-          ) : (
-            <>Loại này hiện lại ở ô chọn lúc ghi dịch vụ và tính điểm ngay.</>
-          )
-        }
       >
-        {confirming?.active ? "Ngừng loại dịch vụ " : "Dùng lại loại dịch vụ "}
+        Bạn muốn {confirming?.active ? "ngừng" : "dùng lại"} loại dịch vụ{" "}
         <strong>{confirming?.name}</strong>?
       </ConfirmDialog>
     </>

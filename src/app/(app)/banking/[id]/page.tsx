@@ -186,6 +186,7 @@ function FinishAccountCard({
 
   /** `null` = chưa đụng vào ảnh, cứ lấy theo bản ghi (AGENTS.md §7 — không effect). */
   const [editedPhotos, setEditedPhotos] = useState<PhotoItem[] | null>(null);
+  const [removing, setRemoving] = useState(false);
   const photos = editedPhotos ?? savedPhotos(data.photoUrls);
 
   /**
@@ -307,11 +308,24 @@ function FinishAccountCard({
           <CheckCircle2 size={16} />
           Hoàn thành
         </Button>
-        <Button variant="secondary" disabled={remove.isPending} onClick={() => remove.mutate()}>
+        <Button variant="secondary" disabled={remove.isPending} onClick={() => setRemoving(true)}>
           <Trash2 size={16} />
           Xoá
         </Button>
       </div>
+
+      {removing && (
+        <ConfirmDialog
+          open
+          title="Xoá tài khoản đang tạo"
+          confirmLabel="Xoá tài khoản"
+          pending={remove.isPending}
+          onConfirm={() => remove.mutate()}
+          onClose={() => setRemoving(false)}
+        >
+          Bạn muốn xoá tài khoản <strong>{data.bankCode}</strong> đang tạo dở?
+        </ConfirmDialog>
+      )}
     </SectionCard>
   );
 }
@@ -517,15 +531,14 @@ function DoneAccountCard({
       {approving && (
         <ConfirmDialog
           open
-          title="Duyệt tài khoản đã sửa?"
-          consequence="Tài khoản về Hoàn thành và điểm KPI của người mở được tính lại ngay."
+          title="Duyệt tài khoản đã sửa"
           confirmLabel="Duyệt"
           pending={approve.isPending}
           onConfirm={() => approve.mutate()}
           onClose={() => setApproving(false)}
         >
-          Tài khoản <strong>{data.bankCode}</strong> của {data.customerName}. Lý do đánh dấu
-          lỗi trước đó: {data.errorNote || "không ghi"}.
+          Bạn muốn duyệt tài khoản <strong>{data.bankCode}</strong> của {data.customerName}? Lý do lỗi
+          trước đó: {data.errorNote || "không ghi"}.
         </ConfirmDialog>
       )}
       <dl className={styles.fields}>

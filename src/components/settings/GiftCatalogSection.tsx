@@ -226,18 +226,8 @@ export function GiftCatalogSection() {
           toggleGiftItem.mutate({ id: confirmingGift.id, next: !confirmingGift.active })
         }
         onClose={() => setConfirmingGift(null)}
-        consequence={
-          confirmingGift?.active ? (
-            <>
-              Món này <strong>không vào danh sách quà của khách mới nữa</strong>. Quà đã
-              tặng vẫn nằm nguyên trong lịch sử của khách, dùng lại lúc nào cũng được.
-            </>
-          ) : (
-            <>Món này lại được xét vào danh sách quà của khách mới.</>
-          )
-        }
       >
-        {confirmingGift?.active ? "Ngừng vật phẩm " : "Dùng lại vật phẩm "}
+        Bạn muốn {confirmingGift?.active ? "ngừng" : "dùng lại"} vật phẩm{" "}
         <strong>{confirmingGift?.name}</strong>?
       </ConfirmDialog>
 
@@ -251,19 +241,8 @@ export function GiftCatalogSection() {
           togglePackage.mutate({ id: confirmingPackage.id, next: !confirmingPackage.active })
         }
         onClose={() => setConfirmingPackage(null)}
-        consequence={
-          confirmingPackage?.active ? (
-            <>
-              Gói biến mất khỏi ô chọn lúc tạo đơn bảo hiểm nên{" "}
-              <strong>không tặng gói này cho khách mới được nữa</strong>. Đơn đã
-              tạo vẫn giữ nguyên, dùng lại lúc nào cũng được.
-            </>
-          ) : (
-            <>Gói hiện lại ở ô chọn lúc tạo đơn và tặng cho khách mới được ngay.</>
-          )
-        }
       >
-        {confirmingPackage?.active ? "Ngừng gói " : "Dùng lại gói "}
+        Bạn muốn {confirmingPackage?.active ? "ngừng" : "dùng lại"} gói{" "}
         <strong>{confirmingPackage?.name}</strong>?
       </ConfirmDialog>
     </div>

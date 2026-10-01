@@ -128,15 +128,9 @@ export function KpiAdjustmentSection({ person }: Props) {
         pending={remove.isPending}
         onConfirm={() => deleting && remove.mutate(deleting.id)}
         onClose={() => setDeleting(null)}
-        consequence={
-          <>
-            Tổng điểm KPI trong tháng của <strong>{person.fullName}</strong> đổi
-            ngay theo. Điểm KPI dính tới lương.
-          </>
-        }
       >
-        Xoá lần cộng <strong>{deleting ? formatPoints(deleting.points) : ""} điểm</strong>
-        {deleting?.reason ? <> — {deleting.reason}</> : null}?
+        Bạn muốn xoá lần cộng <strong>{deleting ? formatPoints(deleting.points) : ""} điểm</strong> của{" "}
+        {person.fullName}?
       </ConfirmDialog>
     </>
   );

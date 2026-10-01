@@ -32,6 +32,7 @@ import {
   setDepartmentActive,
   type DepartmentRow,
 } from "@/lib/api/org";
+import { formatPoints } from "@/lib/format";
 import { useDebouncedValue } from "@/lib/hooks";
 import { useCreateIntent } from "@/lib/useCreateIntent";
 import { can, canOrg } from "@/lib/permissions";
@@ -187,7 +188,7 @@ export default function DepartmentsPage() {
                 return p === undefined || p === null ? (
                   "—"
                 ) : (
-                  <span className="tabular-nums">{p}</span>
+                  <span className="tabular-nums">{formatPoints(p)}</span>
                 );
               },
             },
@@ -398,17 +399,8 @@ export default function DepartmentsPage() {
             toggleActive.mutate({ id: confirming.id, next: !confirming.active })
           }
           onClose={() => setConfirming(null)}
-          consequence={
-            confirming?.active ? (
-              <>
-                Phòng biến mất khỏi các ô chọn đơn vị nên{" "}
-                <strong>không gán người mới vào được nữa</strong>. Số liệu và bản
-                ghi cũ của phòng vẫn giữ nguyên, mở lại lúc nào cũng được.
-              </>
-            ) : undefined
-          }
         >
-          {confirming?.active ? "Ngừng hoạt động phòng " : "Mở lại phòng "}
+          Bạn muốn {confirming?.active ? "ngừng hoạt động" : "mở lại"} phòng{" "}
           <strong>{confirming?.name}</strong>?
         </ConfirmDialog>
       </main>

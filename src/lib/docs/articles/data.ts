@@ -219,7 +219,7 @@ export const DATA_DOCS: DocArticle[] = [
         kind: 'shot',
         shot: {
           src: '/docs/audit-log-page.png',
-          alt: 'Màn Nhật ký hoạt động với hộp Bộ lọc đang mở',
+          alt: 'Màn Nhật ký hoạt động với Bộ lọc đang mở',
           width: 1280,
           height: 800,
           markers: [

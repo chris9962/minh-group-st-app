@@ -145,8 +145,8 @@ export function GiftChangeDialog({ open, onClose, customerId, customerName }: Pr
     {detail.isError && <ErrorState what="danh sách quà" onRetry={detail.refetch} retrying={detail.isFetching} />}
     {gift && <div className={styles.body}>
       {unchosen
-        ? <Alert tone="warning">Khách đã nhận quà thêm trước đó, phần quà chính chưa chọn. Danh sách tính theo tài khoản hiện tại của khách.</Alert>
-        : <Alert tone="warning">Danh sách quà tính theo tài khoản hiện tại của khách. Đổi quà chính thì đơn bảo hiểm quà cũ sẽ được huỷ tự động.</Alert>}
+        ? <Alert tone="warning">Khách đã nhận quà thêm, chưa chọn quà chính.</Alert>
+        : <Alert tone="warning">Đổi quà chính thì app tự huỷ đơn bảo hiểm của quà cũ.</Alert>}
 
       <fieldset className={styles.group}>
         <legend className={styles.groupTitle}>{changeableExtras.length > 0 ? "Quà chính" : "Danh sách quà"}</legend>

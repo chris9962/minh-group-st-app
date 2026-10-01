@@ -370,9 +370,8 @@ export function WardCatalogSection() {
           pending={removeHamlet.isPending}
           onConfirm={() => removeHamlet.mutate(deletingHamlet.id)}
           onClose={() => setDeletingHamlet(null)}
-          consequence="Hồ sơ cũ gắn ấp này giữ nguyên tên đã lưu; ô chọn ấp không hiện tên này nữa."
         >
-          Xoá ấp {deletingHamlet.name}?
+          Bạn muốn xoá ấp <strong>{deletingHamlet.name}</strong>?
         </ConfirmDialog>
       )}
     </>

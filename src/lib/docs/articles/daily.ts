@@ -203,7 +203,7 @@ export const DAILY_DOCS: DocArticle[] = [
         kind: 'shot',
         shot: {
           src: '/docs/customer-picker.png',
-          alt: 'Hộp thoại chọn khách hàng',
+          alt: 'Form chọn khách hàng',
           width: 560,
           height: 348,
           markers: [
@@ -272,7 +272,7 @@ export const DAILY_DOCS: DocArticle[] = [
         items: [
           'Mở mục **Ngân hàng**.',
           'Bấm vào dòng tài khoản đang ở trạng thái *Đang tạo*.',
-          'Hộp thoại **Hoàn tất tài khoản** mở ra.',
+          'Form **Hoàn tất tài khoản** mở ra.',
           'Điền **Số tài khoản**. Ngày mở là ngày bạn tạo tài khoản ở bước 1, không sửa được.',
           'Khách mở tài khoản hộ kinh doanh thì bạn tích **Mở tài khoản CNKD / HKD**.',
           'Khách đã cài app ngân hàng thì bạn tích ô tương ứng.',
@@ -536,7 +536,7 @@ export const DAILY_DOCS: DocArticle[] = [
         items: [
           'Mở mục **Khách hàng**, hoặc mở hồ sơ của khách.',
           'Bấm nút **Tặng quà** ở dòng của khách.',
-          'Hộp thoại hiện danh sách quà khách đủ điều kiện nhận.',
+          'Form **Tặng quà** hiện danh sách quà khách đủ điều kiện nhận.',
           'Chọn một món quà.',
           'Bấm **Xác nhận**.',
         ],

@@ -74,6 +74,7 @@ export default function CustomerDetailPage({
   const [editing, setEditing] = useState(false);
   const [editingNote, setEditingNote] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [deletingDraft, setDeletingDraft] = useState<{ id: string; bankName: string } | null>(null);
   const [givingGift, setGivingGift] = useState(false);
   const [changingGift, setChangingGift] = useState(false);
   const [choosingExtra, setChoosingExtra] = useState(false);
@@ -89,6 +90,7 @@ export default function CustomerDetailPage({
   const removeDraft = useMutation({
     mutationFn: (accountId: string) => deleteBankAccount(accountId),
     onSuccess: () => {
+      setDeletingDraft(null);
       queryClient.invalidateQueries({ queryKey: ["customer", id] });
       queryClient.invalidateQueries({ queryKey: ["customers"] });
       // Xoá nhả chỗ mã ngay — không invalidate thì hộp thoại "Mở ngân hàng"
@@ -437,7 +439,7 @@ export default function CustomerDetailPage({
                             tooltip="Xoá tài khoản"
                             aria-label={`Xoá tài khoản đang tạo ${a.bankName}`}
                             disabled={removeDraft.isPending}
-                            onClick={() => removeDraft.mutate(a.id)}
+                            onClick={() => setDeletingDraft({ id: a.id, bankName: a.bankName })}
                           >
                             <Trash2 size={16} aria-hidden />
                           </Button>
@@ -854,8 +856,20 @@ export default function CustomerDetailPage({
             onConfirm={() => removeCustomer.mutate()}
             onClose={() => setDeleting(false)}
           >
-            Xoá hẳn hồ sơ của <strong>{data.customer.fullName}</strong> cùng mọi số điện
-            thoại của khách?
+            Bạn muốn xoá hồ sơ của <strong>{data.customer.fullName}</strong>?
+          </ConfirmDialog>
+        )}
+
+        {deletingDraft && (
+          <ConfirmDialog
+            open
+            title="Xoá tài khoản đang tạo"
+            confirmLabel="Xoá tài khoản"
+            pending={removeDraft.isPending}
+            onConfirm={() => removeDraft.mutate(deletingDraft.id)}
+            onClose={() => setDeletingDraft(null)}
+          >
+            Bạn muốn xoá tài khoản <strong>{deletingDraft.bankName}</strong> đang tạo dở?
           </ConfirmDialog>
         )}
       </main>

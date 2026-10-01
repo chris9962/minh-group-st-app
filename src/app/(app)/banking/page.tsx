@@ -612,15 +612,14 @@ export default function BankingPage() {
         {removing && (
           <ConfirmDialog
             open
-            title="Xoá tài khoản đang tạo dở?"
-            consequence="Chỗ đang giữ trên mã giới thiệu được nhả lại kho ngay. Ảnh đã tải lên cũng mất theo."
-            confirmLabel="Xoá"
+            title="Xoá tài khoản đang tạo"
+            confirmLabel="Xoá tài khoản"
             pending={remove.isPending}
             onConfirm={() => remove.mutate(removing)}
             onClose={() => setRemoving(null)}
           >
-            Tài khoản <strong>{removing.bankCode}</strong> của {removing.customerName}, mã{" "}
-            {removing.referralCode}.
+            Bạn muốn xoá tài khoản <strong>{removing.bankCode}</strong> đang tạo dở của{" "}
+            {removing.customerName}?
           </ConfirmDialog>
         )}
       </main>

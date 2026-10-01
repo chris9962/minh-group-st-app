@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { formatBytes } from '../format';
 import { toWebpImage } from '../toWebpImage';
 
 /**
@@ -33,7 +34,7 @@ export const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'i
  */
 export function imageProblem(file: File): string | null {
   if (file.size > MAX_IMAGE_BYTES)
-    return `Ảnh "${file.name}" nặng ${(file.size / 1024 / 1024).toFixed(1)}MB, vượt mức 20MB.`;
+    return `Ảnh "${file.name}" nặng ${formatBytes(file.size)}, vượt mức 20 MB.`;
   if (file.type && !ACCEPTED_IMAGE_TYPES.includes(file.type))
     return `"${file.name}" không phải ảnh. Chỉ nhận JPG, PNG, WEBP hoặc HEIC.`;
   return null;

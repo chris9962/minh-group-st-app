@@ -1,3 +1,5 @@
+import { formatPoints } from "@/lib/format";
+
 /** Số hạng người dùng thấy trên bảng: trang 0, dòng 0 = 1. */
 export function rankingPlace(
   rowIndex: number,
@@ -76,8 +78,8 @@ export function rankingShareTitle(
   total: number,
   unit: string,
 ): string {
-  if (total <= 0) return `${value} ${unit}`;
-  return `${value} trên ${total} ${unit}, ${rankingShare(value, total)}%`;
+  if (total <= 0) return `${formatPoints(value)} ${unit}`;
+  return `${formatPoints(value)} trên ${formatPoints(total)} ${unit}, ${rankingShare(value, total)}%`;
 }
 
 /**

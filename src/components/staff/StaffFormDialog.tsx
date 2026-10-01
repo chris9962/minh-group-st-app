@@ -238,8 +238,8 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
       {created ? (
         <div className={styles.created}>
           <Alert tone="warning">
-            <strong>Mật khẩu chỉ hiện một lần.</strong> Chép và gửi cho nhân viên
-            trước khi đóng. Lỡ đóng thì vào hồ sơ của họ, bấm “Đặt lại mật khẩu”.
+            <strong>Mật khẩu chỉ hiện một lần.</strong> Bạn chép và gửi cho nhân viên trước khi
+            đóng thông báo.
           </Alert>
           <dl className={styles.credentials}>
             <dt>Tên đăng nhập</dt>
@@ -504,10 +504,9 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
 
       <ConfirmDialog
         open={roleToReset !== null}
-        title="Đặt lại quyền theo chức vụ mới?"
+        title="Đặt lại quyền theo chức vụ mới"
         confirmLabel="Đặt lại quyền"
         cancelLabel="Giữ quyền hiện tại"
-        consequence="Quyền cấp thêm riêng cho người này sẽ mất. Sau khi lưu, hệ thống tự đăng xuất người này để nạp quyền mới."
         onConfirm={() => {
           if (roleToReset)
             setValue("permissions", ROLE_PERMISSIONS[roleToReset], { shouldDirty: true });
@@ -515,8 +514,8 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
         }}
         onClose={() => setRoleToReset(null)}
       >
-        Bạn vừa đổi chức vụ thành {roleToReset ? ROLE_LABEL[roleToReset] : ""}. Đặt lại toàn bộ
-        quyền của người này theo bộ mặc định của chức vụ đó?
+        Bạn vừa đổi chức vụ thành {roleToReset ? ROLE_LABEL[roleToReset] : ""}. Bạn muốn đặt lại
+        quyền theo chức vụ này?
       </ConfirmDialog>
     </Dialog>
   );

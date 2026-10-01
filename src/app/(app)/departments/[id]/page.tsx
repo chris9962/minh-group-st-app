@@ -24,6 +24,7 @@ import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusTag } from "@/components/ui/StatusTag";
 import { BankingHeadline } from "@/components/dashboard/BankingHeadline";
 import { EMPTY_PAGE } from "@/lib/api/pagination";
+import { formatPoints } from "@/lib/format";
 import { fetchDepartmentDetail, fetchDepartmentSummary } from "@/lib/api/org";
 import { fetchDepartmentStaff, type StaffRow } from "@/lib/api/staff";
 import { personHref } from "@/lib/api/people";
@@ -104,7 +105,7 @@ const EMPLOYEE_COLUMNS: RankColumn<StaffRow>[] = [
     // TẠO bản ghi (thể lệ câu 7.11). Hai cách lệch nhau ở ca mở hộ tài khoản
     // cho khách của đồng nghiệp, và cột điểm phải khớp bảng lương.
     sortBy: (s) => s.rangePoints ?? 0,
-    render: (s) => <span className="tabular-nums">{s.rangePoints ?? 0}</span>,
+    render: (s) => <span className="tabular-nums">{formatPoints(s.rangePoints ?? 0)}</span>,
   },
   {
     key: "salary",
@@ -214,7 +215,6 @@ export default function DepartmentDetailPage({
       salary: 0,
     },
   );
-  const totalPoints = Math.round(totals.points * 10) / 10;
 
   return (
     <>
@@ -289,7 +289,7 @@ export default function DepartmentDetailPage({
                   ? undefined
                   : staffData?.departmentPoints === null || staffData === undefined
                     ? `${visibleRows.length} người`
-                    : `${visibleRows.length} người · ${staffData.departmentPoints} điểm`
+                    : `${visibleRows.length} người · ${formatPoints(staffData.departmentPoints)} điểm`
               }
               action={
                 lockedCount > 0 ? (
@@ -330,7 +330,7 @@ export default function DepartmentDetailPage({
                           <Count key="accounts" n={totals.accounts} />,
                           <Count key="services" n={totals.services} />,
                           <span key="points" className="tabular-nums">
-                            {totalPoints}
+                            {formatPoints(totals.points)}
                           </span>,
                           <SalaryAmount
                             key="salary"

@@ -15,7 +15,7 @@ import { fetchBanks } from "@/lib/api/bankCatalog";
 import { MAX_BANK_ACCOUNTS_PER_CUSTOMER, type AccountType } from "@/lib/api/bankAccounts";
 import { fetchChannels } from "@/lib/api/channelCatalog";
 import { simulateGift, type GiftSimulateInput } from "@/lib/api/settings";
-import { businessDay, formatVnd } from "@/lib/format";
+import { businessDay, formatPoints, formatVnd } from "@/lib/format";
 import { bankTierLabelFor, householdPointsAt, openBlockReasonAt } from "@/rules";
 import styles from "./RuleSimulator.module.scss";
 
@@ -182,12 +182,12 @@ export function RuleSimulator() {
    */
   const pointsDetail = run.data
     ? [
-        `Tổ hợp ${run.data.kpiPoints}${
+        `Tổ hợp ${formatPoints(run.data.kpiPoints)}${
           run.data.kpiBreakdown.length > 0
             ? ` (${run.data.kpiBreakdown.map((b) => b.label).join(" + ")})`
             : ""
         }`,
-        `CNKD/HKD ${run.data.householdPoints}${
+        `CNKD/HKD ${formatPoints(run.data.householdPoints)}${
           run.data.householdNote ? ` (${run.data.householdNote})` : ""
         }`,
       ].join(" + ")
@@ -420,7 +420,7 @@ export function RuleSimulator() {
             <div className={styles.stat}>
               <dt>Tổng điểm</dt>
               <dd>
-                <strong className="tabular-nums">{run.data.totalPoints}</strong>
+                <strong className="tabular-nums">{formatPoints(run.data.totalPoints)}</strong>
                 <span className={styles.statNote}>{pointsDetail}</span>
                 {run.data.pointsNote && (
                   <span className={styles.statNote}>{run.data.pointsNote}</span>

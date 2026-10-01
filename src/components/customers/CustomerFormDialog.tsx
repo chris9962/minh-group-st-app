@@ -585,7 +585,7 @@ function DuplicateDialog({ info, typed, pending, onClose, onCreate }: DuplicateD
             </tbody>
           </table>
           <p>
-            Chưa tạo được hồ sơ mới. Nếu đúng là người này, bạn đóng hộp này, sửa{" "}
+            Chưa tạo được hồ sơ mới. Nếu đúng là người này, bạn đóng thông báo này, sửa{" "}
             {lech.map((f) => DUPLICATE_FIELD_LABEL[f]).join(", ")}
             {" cho khớp cột "}&quot;Đang có&quot; rồi lưu lại.
           </p>

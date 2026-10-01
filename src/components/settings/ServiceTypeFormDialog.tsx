@@ -24,6 +24,7 @@ import {
   optionalNumberValue,
 } from "@/lib/numberField";
 import { reportInvalid } from "@/lib/formErrors";
+import { formatPoints } from "@/lib/format";
 
 type Props = {
   open: boolean;
@@ -148,17 +149,11 @@ export function ServiceTypeFormDialog({ open, onClose, serviceType }: Props) {
         pending={save.isPending}
         onConfirm={() => confirming && save.mutate(confirming)}
         onClose={() => setConfirming(null)}
-        consequence={
-          <>
-            Điểm KPI của <strong>mọi nhân viên</strong> đã ghi dịch vụ loại này
-            sẽ được tính lại theo hệ số mới, kể cả dịch vụ của những tháng trước.
-            Điểm KPI dính tới lương.
-          </>
-        }
       >
-        Đổi hệ số của <strong>{serviceType?.name}</strong> từ{" "}
-        <strong>{serviceType?.coefficient}</strong> thành{" "}
-        <strong>{confirming?.coefficient}</strong>?
+        Bạn muốn đổi hệ số của <strong>{serviceType?.name}</strong> từ{" "}
+        <strong>{serviceType && formatPoints(serviceType.coefficient)}</strong> thành{" "}
+        <strong>{confirming && formatPoints(confirming.coefficient)}</strong>? Điểm KPI của các tháng
+        trước cũng tính lại.
       </ConfirmDialog>
     </>
   );

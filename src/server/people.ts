@@ -9,7 +9,7 @@ import type {
   PersonService,
 } from "@/lib/api/person";
 import type { Page } from "@/lib/api/pagination";
-import { BUSINESS_TIMEZONE, businessDay, businessMonth, monthRange, roundPoints } from "@/lib/format";
+import { BUSINESS_TIMEZONE, businessDay, businessMonth, formatPoints, monthRange, roundPoints } from "@/lib/format";
 import { clampScope, inVisibleScope, visibleDepartmentIds } from "@/lib/permissions";
 import { DepartmentType, ROLE_RANK, Scope, type User } from "@/lib/types";
 import { searchTerms } from "@/lib/search";
@@ -780,7 +780,7 @@ export async function personFor(
   const pointSources = serviceAgg
     .map((s) => ({
       label: s.typeName,
-      detail: `${s.count} lượt - hệ số ${Number(s.coefficient)}`,
+      detail: `${s.count} lượt - hệ số ${formatPoints(Number(s.coefficient))}`,
       // Làm tròn 2 số: hệ số là `numeric(4,2)` nên cộng dồn ra 4.199999999999999.
       points: roundPoints(servicePoints.get(s.typeId) ?? 0),
     }))

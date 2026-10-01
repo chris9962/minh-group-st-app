@@ -12,7 +12,7 @@ import { TopBar } from "@/components/layout/TopBar";
 import { Button } from "@/components/ui/Button";
 import buttonStyles from "@/components/ui/Button.module.css";
 import { Checkbox } from "@/components/ui/Checkbox";
-import { ConfirmDialog, ConfirmFacts } from "@/components/ui/ConfirmDialog";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { DateRangePicker } from "@/components/ui/DateRangePicker";
 import { FilterButton } from "@/components/ui/FilterButton";
 import { FilterChoices } from "@/components/ui/FilterChoices";
@@ -77,15 +77,6 @@ const pageFromUrl = (value: string | null): number => {
 };
 
 /** Từng trường một — đừng ghép mã · gói · tên thành một câu trên hộp thoại. */
-const orderConfirmFacts = (row: InsuranceListRow) => [
-  { label: "Mã đơn", value: <strong className="tabular-nums">{row.orderCode}</strong> },
-  { label: "Khách hàng", value: row.customerName },
-  { label: "Sản phẩm", value: PRODUCT_LABEL[row.product] },
-  { label: "Gói", value: row.packageName },
-  { label: "Ngày bán", value: formatDate(row.orderDate) },
-  ...(row.createdByName ? [{ label: "Người tạo", value: row.createdByName }] : []),
-];
-
 /**
  * P-13 · Danh sách đơn bảo hiểm.
  *
@@ -875,14 +866,14 @@ export default function InsurancePage() {
         {removing && (
           <ConfirmDialog
             open
-            title="Xoá hẳn đơn bảo hiểm này?"
-            consequence="Đơn biến mất khỏi hệ thống cùng dòng thời gian của nó. Muốn giữ lại vết thì mở đơn ra và bấm “Huỷ đơn”: đơn đứng lại ở trạng thái Huỷ đơn kèm lý do."
+            title="Xoá đơn bảo hiểm"
             confirmLabel="Xoá đơn"
             pending={remove.isPending}
             onConfirm={() => remove.mutate(removing)}
             onClose={() => setRemoving(null)}
           >
-            <ConfirmFacts items={orderConfirmFacts(removing)} />
+            Bạn muốn xoá đơn <strong>{removing.orderCode}</strong> của {removing.customerName}? Đơn xoá
+            rồi không lấy lại được.
           </ConfirmDialog>
         )}
 
@@ -892,14 +883,14 @@ export default function InsurancePage() {
         {handingOver && (
           <ConfirmDialog
             open
-            title="Chuyển đơn này sang làm tay?"
-            consequence="Bot thôi không tạo đơn này nữa. Đơn về hàng chờ làm tay để đội KD nhận và gõ tay trên web PVI."
+            title="Chuyển đơn sang làm tay"
             confirmLabel="Chuyển sang làm tay"
             pending={handOver.isPending}
             onConfirm={() => handOver.mutate(handingOver)}
             onClose={() => setHandingOver(null)}
           >
-            <ConfirmFacts items={orderConfirmFacts(handingOver)} />
+            Bạn muốn chuyển đơn <strong>{handingOver.orderCode}</strong> của {handingOver.customerName}{" "}
+            sang làm tay?
           </ConfirmDialog>
         )}
       </main>

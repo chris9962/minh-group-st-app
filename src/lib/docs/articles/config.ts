@@ -117,7 +117,7 @@ export const CONFIG_DOCS: DocArticle[] = [
     blocks: [
       {
         kind: 'text',
-        body: 'Bảng này là danh sách ngân hàng công ty đang triển khai. Ngân hàng tắt không hiện trong hộp thoại mở tài khoản. Dữ liệu tài khoản cũ giữ nguyên.',
+        body: 'Bảng này là danh sách ngân hàng công ty đang triển khai. Ngân hàng tắt không hiện trong form mở tài khoản. Dữ liệu tài khoản cũ giữ nguyên.',
       },
       {
         kind: 'shot',
@@ -138,7 +138,7 @@ export const CONFIG_DOCS: DocArticle[] = [
           'Mở **Cấu hình → Ngân hàng & mã giới thiệu**. Trang mở sẵn tab **Danh sách ngân hàng**.',
           'Bấm **Thêm ngân hàng** để thêm ngân hàng mới.',
           'Sửa một ngân hàng thì bạn bấm nút hình bút chì ở cột **Thao tác**.',
-          'Trong hộp thoại sửa, bạn gán người phụ trách ngân hàng đó.',
+          'Trong form sửa, bạn gán người phụ trách ngân hàng đó.',
         ],
       },
       {
@@ -226,7 +226,7 @@ export const CONFIG_DOCS: DocArticle[] = [
     blocks: [
       {
         kind: 'text',
-        body: 'Màn này có hai bảng. Bảng **Vật phẩm** là các món quà dùng khi phát quà. Bảng **Gói bảo hiểm** là các gói hiện trong hộp thoại tạo đơn.',
+        body: 'Màn này có hai bảng. Bảng **Vật phẩm** là các món quà dùng khi phát quà. Bảng **Gói bảo hiểm** là các gói hiện trong form tạo đơn.',
       },
       {
         kind: 'shot',

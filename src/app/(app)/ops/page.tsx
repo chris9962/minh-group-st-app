@@ -544,7 +544,7 @@ export default function OpsPage() {
       >
         <div className={styles.form}>
           <Alert tone="warning">
-            Mỗi đơn chọn ở đây sẽ huỷ rồi lập một đơn mới thay cho nó. Đơn cũ không lấy lại được.
+            Lập lại đơn sẽ huỷ đơn cũ. Đơn cũ không lấy lại được.
           </Alert>
 
           <Select

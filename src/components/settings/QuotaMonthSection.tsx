@@ -273,14 +273,13 @@ function QuotaForm({ data, banks }: { data: QuotaMonth; banks: Bank[] }) {
       {confirming && (
         <ConfirmDialog
           open
-          title={`Lưu chỉ tiêu ${monthLabel(data.month).toLowerCase()}?`}
-          consequence="Điểm tính lương và lương tạm tính của nhân viên HĐLĐ, Trưởng phòng, Phó phòng, Phó giám đốc thay đổi theo chỉ tiêu mới. Các tháng sau chưa lưu chỉ tiêu riêng cũng dùng số này."
+          title={`Lưu chỉ tiêu ${monthLabel(data.month).toLowerCase()}`}
           confirmLabel="Lưu"
           pending={save.isPending}
           onConfirm={() => save.mutate()}
           onClose={() => setConfirming(false)}
         >
-          Chỉ tiêu và danh sách tài khoản của {monthLabel(data.month).toLowerCase()}.
+          Bạn muốn lưu chỉ tiêu {monthLabel(data.month).toLowerCase()}?
         </ConfirmDialog>
       )}
     </>

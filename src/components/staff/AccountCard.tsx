@@ -219,14 +219,9 @@ export function AccountCard({ staffId }: { staffId: string }) {
         pending={reset.isPending}
         onConfirm={() => reset.mutate()}
         onClose={() => setConfirming(null)}
-        consequence={
-          <>
-            Mật khẩu cũ mất ngay, và <strong>mọi thiết bị {staff.fullName} đang
-            đăng nhập đều bị đăng xuất</strong>.
-          </>
-        }
       >
-        Đặt lại mật khẩu cho <strong>{staff.fullName}</strong>?
+        Bạn muốn đặt lại mật khẩu cho <strong>{staff.fullName}</strong>? Người này sẽ bị đăng
+        xuất trên mọi thiết bị.
       </ConfirmDialog>
 
       {/* Bước sau khi xác nhận: mật khẩu mới ở lại trong hộp thoại cho người
@@ -250,14 +245,9 @@ export function AccountCard({ staffId }: { staffId: string }) {
         pending={toggleActive.isPending}
         onConfirm={() => toggleActive.mutate(false)}
         onClose={() => setConfirming(null)}
-        consequence={
-          <>
-            Người này sẽ <strong>không thể đăng nhập</strong> cho đến khi bạn mở
-            khoá lại. Các bản ghi cũ vẫn giữ nguyên tên người tạo.
-          </>
-        }
       >
-        Khoá tài khoản của <strong>{staff.fullName}</strong>?
+        Bạn muốn khoá tài khoản của <strong>{staff.fullName}</strong>? Người này sẽ không đăng
+        nhập được.
       </ConfirmDialog>
 
       <ConfirmDialog
@@ -267,14 +257,8 @@ export function AccountCard({ staffId }: { staffId: string }) {
         pending={toggleActive.isPending}
         onConfirm={() => toggleActive.mutate(true)}
         onClose={() => setConfirming(null)}
-        consequence={
-          <>
-            Người này đăng nhập lại được bằng <strong>mật khẩu cũ</strong>. Nghi
-            lộ mật khẩu thì đặt lại luôn sau khi mở.
-          </>
-        }
       >
-        Mở khoá tài khoản của <strong>{staff.fullName}</strong>?
+        Bạn muốn mở khoá tài khoản của <strong>{staff.fullName}</strong>?
       </ConfirmDialog>
     </SectionCard>
   );

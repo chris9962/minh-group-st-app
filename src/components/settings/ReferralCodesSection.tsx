@@ -421,19 +421,10 @@ export function ReferralCodesSection({ creating, onCreatingChange }: Props) {
           confirming && toggleActive.mutate({ id: confirming.id, next: !confirming.active })
         }
         onClose={() => setConfirming(null)}
-        consequence={
-          confirming?.active ? (
-            <>
-              Mã rời ô chọn ở màn mở tài khoản ngay, kể cả khi còn chỗ. Tài
-              khoản đã mở bằng mã này không bị đụng.
-            </>
-          ) : (
-            <>Mã hiện lại trong ô chọn nếu còn chỗ trống.</>
-          )
-        }
       >
-        {confirming?.active ? "Ngừng" : "Dùng lại"} mã <strong>{confirming?.displayName || confirming?.code}</strong> của
-        ngân hàng <strong>{confirming?.bankCode}</strong>?
+        Bạn muốn {confirming?.active ? "ngừng" : "dùng lại"} mã{" "}
+        <strong>{confirming?.displayName || confirming?.code}</strong> của ngân hàng{" "}
+        <strong>{confirming?.bankCode}</strong>?
       </ConfirmDialog>
     </SectionCard>
   );

@@ -255,7 +255,7 @@ export function GiftGivingDialog({ open, onClose, customerId, customerName }: Pr
         <div className={styles.body}>
           {data.gift.given ? (
             <Alert tone="warning">
-              Khách này đã được tặng quà rồi — mỗi khách chỉ tặng đúng một lần.
+              Khách này đã nhận quà.
             </Alert>
           ) : (
             <>

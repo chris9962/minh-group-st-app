@@ -314,7 +314,7 @@ export function BankAccountFormDialog({
           */}
           {noSlotLeft && (
             <Alert tone="warning">
-              {`Hồ sơ này đã có đủ ${MAX_BANK_ACCOUNTS_PER_CUSTOMER} tài khoản ngân hàng, chỉ còn mở thêm được dòng HKD. Bản nháp cũng tính; xoá một bản nháp thì mở thêm được một tài khoản.`}
+              {`Hồ sơ này đã đủ ${MAX_BANK_ACCOUNTS_PER_CUSTOMER} tài khoản, chỉ mở thêm được dòng HKD.`}
             </Alert>
           )}
           <DepartmentPicker

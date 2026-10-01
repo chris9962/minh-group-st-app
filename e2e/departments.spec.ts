@@ -57,7 +57,7 @@ test("tìm phòng ban lọc đúng bảng", async ({ page }) => {
     .toBe(true);
 });
 
-test("ngừng hoạt động phải hỏi lại và nói rõ hệ quả", async ({ page }) => {
+test("ngừng hoạt động phải hỏi lại", async ({ page }) => {
   // Phải lấy hàng có nút BẤM ĐƯỢC: phòng còn người thì nút vẫn hiện nhưng bị
   // khoá, bấm vào là treo cho tới hết thời gian chờ.
   const row = page
@@ -71,9 +71,7 @@ test("ngừng hoạt động phải hỏi lại và nói rõ hệ quả", async 
 
   const box = dialog(page);
   await expect(box).toBeVisible();
-  await expect(box).toContainText(/không gán người mới vào được nữa/i);
-  // Nói rõ dữ liệu cũ không mất — thiếu câu này thì không ai dám bấm.
-  await expect(box).toContainText(/vẫn giữ nguyên/i);
+  await expect(box).toContainText(/Bạn muốn ngừng hoạt động phòng/i);
 
   await box.getByRole("button", { name: "Huỷ" }).click();
   await expect(box).toBeHidden();

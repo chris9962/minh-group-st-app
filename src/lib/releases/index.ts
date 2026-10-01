@@ -52,7 +52,7 @@ export const RELEASES: Release[] = [
           'Mỗi tài khoản HKD cộng 3,0 điểm và được một món quà thêm.',
           'HKD mở được ở mọi ngân hàng, mỗi ngân hàng một tài khoản HKD.',
           'CNKD và HKD khác ngân hàng được cộng điểm cả hai.',
-          'Hộp Tặng quà, Chọn quà thêm, Đổi quà chọn món cho từng tài khoản HKD.',
+          'Form Tặng quà, Chọn quà thêm, Đổi quà chọn món cho từng tài khoản HKD.',
         ],
       },
       {
@@ -162,7 +162,7 @@ export const RELEASES: Release[] = [
         items: [
           'Phòng Y và Phòng Dự án tính theo 50% chỉ tiêu.',
           'Trưởng phòng, Phó phòng, Phó giám đốc: thiếu chỉ tiêu HKD không bị trừ điểm.',
-          'Hộp Diễn giải lương luôn hiện dòng chỉ tiêu, kể cả khi 0đ.',
+          'Diễn giải lương luôn hiện dòng chỉ tiêu, kể cả khi 0đ.',
         ],
       },
       {
@@ -215,13 +215,13 @@ export const RELEASES: Release[] = [
     version: '1.5.0',
     title: 'Cập nhật ngày 25/09/2026',
     summary:
-      'Lương tạm tính từ tháng 9/2026 có thêm phần chỉ tiêu theo QĐ 145, hộp Diễn giải lương gọn hơn. Trang Khách hàng lọc được nhiều ấp cùng lúc.',
+      'Lương tạm tính từ tháng 9/2026 có thêm phần chỉ tiêu theo QĐ 145, Diễn giải lương gọn hơn. Trang Khách hàng lọc được nhiều ấp cùng lúc.',
     sections: [
       {
         title: 'Chỉ tiêu trong lương tạm tính',
         items: [
           'Từ tháng 9/2026, lương tạm tính có thêm phần chỉ tiêu theo QĐ 145 cho nhân viên HĐLĐ, Trưởng phòng, Phó phòng và Phó giám đốc của các phòng kinh doanh CĐS.',
-          'Hộp Diễn giải lương hiện số tài khoản đã đạt trên chỉ tiêu, và số điểm được cộng hoặc bị trừ.',
+          'Diễn giải lương hiện số tài khoản đã đạt trên chỉ tiêu, và số điểm được cộng hoặc bị trừ.',
           'Nhân viên HĐDV và HĐTV không có chỉ tiêu. Lương của các bạn tính như cũ.',
         ],
       },
@@ -229,7 +229,7 @@ export const RELEASES: Release[] = [
         title: 'Diễn giải lương gọn hơn',
         items: [
           'Mỗi khoản lương hiện trên hai dòng: tên khoản và số tiền ở trên, cách tính ở dưới.',
-          'Các số ở đầu hộp xếp thành hai cột.',
+          'Các số ở đầu Diễn giải lương xếp thành hai cột.',
         ],
       },
       {
@@ -266,7 +266,7 @@ export const RELEASES: Release[] = [
       {
         title: 'Loại hợp đồng của nhân viên',
         items: [
-          'Hộp sửa nhân viên có ô Loại hợp đồng: HĐLĐ, HĐDV, HĐTV.',
+          'Form sửa nhân viên có ô Loại hợp đồng: HĐLĐ, HĐDV, HĐTV.',
           'Trang Nhân sự & KPI có ô lọc Loại hợp đồng.',
         ],
         visibleTo: (user) => canOpenPath(user, '/users'),
@@ -305,7 +305,7 @@ export const RELEASES: Release[] = [
       {
         title: 'Đăng nhập',
         items: [
-          'Bạn gõ sai mật khẩu 3 lần liên tiếp thì màn đăng nhập hiện hộp nhắc.',
+          'Bạn gõ sai mật khẩu 3 lần liên tiếp thì màn đăng nhập hiện thông báo nhắc.',
           'Sai 5 lần liên tiếp thì tài khoản khoá 15 phút.',
         ],
       },
@@ -343,7 +343,7 @@ export const RELEASES: Release[] = [
         title: 'Lương tạm tính theo KPI',
         items: [
           'Trang Tổng quan và hồ sơ nhân viên có ô Lương của tháng hiện tại. Số che sẵn, bạn bấm nút con mắt để hiện.',
-          'Nút Diễn giải mở hộp liệt kê từng khoản của tháng.',
+          'Nút Diễn giải liệt kê từng khoản của tháng.',
           'Lương tạm tính áp cho nhân viên, Trưởng phòng, Phó phòng của các phòng kinh doanh CĐS, và Phó giám đốc. Người ở phòng khác thấy ô Lương là 0đ.',
           'Số này là tạm tính, chưa gồm chỉ tiêu HKD, CASA và tài khoản định hướng.',
         ],
@@ -377,7 +377,7 @@ export const RELEASES: Release[] = [
       {
         title: 'Giao diện',
         items: [
-          'Trên điện thoại: nút Tạo mới ở thanh đáy có đủ việc bạn được phép tạo, hộp thoại mở từ đáy màn, tiêu đề màn luôn hiện.',
+          'Trên điện thoại: nút Tạo mới ở thanh đáy có đủ việc bạn được phép tạo, form và thông báo mở từ đáy màn, tiêu đề màn luôn hiện.',
           'Chữ trên app dùng phông Google Sans, rõ hơn trên màn hình điện thoại.',
         ],
       },
@@ -401,8 +401,8 @@ export const RELEASES: Release[] = [
         title: 'Quà tặng cho khách có HKD',
         items: [
           'Khách có tài khoản HKD nhận Loa hoặc Bảng mica CỘNG với quà chính, không phải chọn một trong hai như trước.',
-          'Hộp Tặng quà có hai phần: Quà chính và Quà thêm HKD. Bạn chọn mỗi phần một món, hoặc từ chối, rồi bấm Xác nhận một lần.',
-          'Hộp Đổi quà cũng có hai phần. Bạn đổi quà chính, quà thêm, hoặc cả hai trong một lần.',
+          'Form Tặng quà có hai phần: Quà chính và Quà thêm HKD. Bạn chọn mỗi phần một món, hoặc từ chối, rồi bấm Xác nhận một lần.',
+          'Form Đổi quà cũng có hai phần. Bạn đổi quà chính, quà thêm, hoặc cả hai trong một lần.',
           'Hồ sơ khách, danh sách khách và file Excel ghi cả hai món, ví dụ "1 năm BH xe máy + Loa".',
         ],
       },
@@ -442,7 +442,7 @@ export const RELEASES: Release[] = [
         title: 'Đơn bảo hiểm',
         items: [
           'Ngày kết thúc, mức phí và số tiền bảo hiểm lấy theo gói, không sửa tay. Bạn chỉ chọn ngày bắt đầu, app tự tính ngày kết thúc.',
-          'Ô Mức phí không còn hiện ở hộp Tạo đơn, Sửa đơn và Cấp lại.',
+          'Ô Mức phí không còn hiện ở form Tạo đơn, Sửa đơn và Cấp lại.',
           'Nút "Điền theo hồ sơ khách" hỏi trước: mua cho bản thân khách hay người thân. Chọn "Bản thân khách" thì app điền tên, địa chỉ, ngày sinh. Chọn "Người thân" thì bạn tự nhập.',
           'Ngày sinh không nhận ngày sau ngày hiện tại.',
         ],
@@ -475,7 +475,7 @@ export const RELEASES: Release[] = [
         items: [
           'Điểm KPI, quà và luật chọn ngân hàng tính theo NGÀY HỒ SƠ của khách, không theo ngày mở tài khoản.',
           'Tình huống: khách lập hồ sơ ngày 15, ngày 16 mới mở tài khoản. Điểm KPI ghi vào ngày 15.',
-          'Cách xử lý: Trưởng phòng hoặc Phó phòng mở hộp Sửa khách, dời ngày hồ sơ sang ngày 16. Điểm KPI chuyển sang ngày 16.',
+          'Cách xử lý: Trưởng phòng hoặc Phó phòng mở form Sửa khách, dời ngày hồ sơ sang ngày 16. Điểm KPI chuyển sang ngày 16.',
           'Nhân viên không dời được. Bạn nhờ Trưởng phòng hoặc Phó phòng dời.',
           'Hồ sơ đã chốt quà thì không dời được.',
         ],
@@ -485,7 +485,7 @@ export const RELEASES: Release[] = [
         items: [
           'LPB, MBV và BIDV là ngân hàng hạn chế. Mỗi hồ sơ khách chỉ mở được MỘT ngân hàng trong ba ngân hàng này.',
           'Tài khoản CNKD kèm bất kỳ ngân hàng nào đều cộng 1,0 điểm.',
-          'Ở hộp Mở tài khoản, bạn bấm nút xem luật để biết ngày đó chọn được ngân hàng nào.',
+          'Ở form Mở tài khoản, bạn bấm nút xem luật để biết ngày đó chọn được ngân hàng nào.',
         ],
       },
       {

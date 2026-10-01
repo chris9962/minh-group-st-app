@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { formatBytes } from "@/lib/format";
 import { demoMode } from "./demoMode";
 import { toWebpOnServer } from "./toWebpOnServer";
 
@@ -173,7 +174,7 @@ export async function putImage(file: File, folder: string): Promise<PutResult> {
   if (file.size > MAX_BYTES)
     return {
       ok: false,
-      message: `Ảnh nặng ${(file.size / 1024 / 1024).toFixed(1)}MB, vượt mức 20MB.`,
+      message: `Ảnh nặng ${formatBytes(file.size)}, vượt mức 20 MB.`,
     };
 
   const raw = new Uint8Array(await file.arrayBuffer());

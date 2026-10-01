@@ -12,6 +12,7 @@ import {
   YAxis,
 } from "recharts";
 import { useChartColors } from "@/lib/chart-colors";
+import { formatPoints } from "@/lib/format";
 import styles from "./BarChart.module.css";
 
 export type BarSeries = {
@@ -38,6 +39,9 @@ type Props = {
   /** Một chuỗi thì chú thích chỉ chiếm chỗ chứ không nói thêm gì. */
   showLegend?: boolean;
 };
+
+const valueText = (value: string | number) =>
+  typeof value === "number" ? formatPoints(value) : value;
 
 const AXIS_TICK = {
   fontSize: 10.5,
@@ -108,6 +112,7 @@ export function BarChart({
                 boxShadow: "var(--shadow-md)",
               }}
               labelStyle={{ fontWeight: 600, marginBottom: 4 }}
+              formatter={(value) => (typeof value === "number" ? formatPoints(value) : value)}
             />
             {showLegend && (
               <Legend
@@ -172,7 +177,7 @@ export function BarChart({
             <tr key={String(row[labelKey])}>
               <th scope="row">{String(row[labelKey])}</th>
               {series.map((s) => (
-                <td key={s.key}>{row[s.key]}</td>
+                <td key={s.key}>{valueText(row[s.key])}</td>
               ))}
             </tr>
           ))}

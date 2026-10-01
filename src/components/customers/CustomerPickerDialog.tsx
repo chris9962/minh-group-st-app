@@ -154,9 +154,8 @@ export function CustomerPickerDialog({ open, onClose, title, forBankAccount, chi
                   bắt buộc nên khoá trùng CCCD không chặn được ca đó. */}
               {!listPending && !listError && hiddenBankFull > 0 && (
                 <Alert tone="warning">
-                  {hiddenBankFull} khách khớp “{searchQuery}” đã có đủ{" "}
-                  {MAX_BANK_ACCOUNTS_PER_CUSTOMER} tài khoản ngân hàng nên không hiện ở đây. Đừng
-                  lập hồ sơ mới cho họ — mở hồ sơ khách để xem hoặc xoá bớt bản nháp.
+                  {hiddenBankFull} khách đã đủ {MAX_BANK_ACCOUNTS_PER_CUSTOMER} tài khoản nên không
+                  hiện ở đây.
                 </Alert>
               )}
               {customers.length > 0 && (

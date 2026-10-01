@@ -91,7 +91,7 @@ export const PEOPLE_DOCS: DocArticle[] = [
       {
         kind: 'note',
         tone: 'warning',
-        body: 'Mật khẩu chỉ hiện một lần. Bạn chép và gửi cho nhân viên trước khi đóng hộp thoại. Lỡ đóng rồi thì bạn mở hồ sơ của họ và bấm **Đặt lại mật khẩu**.',
+        body: 'Mật khẩu chỉ hiện một lần. Bạn chép và gửi cho nhân viên trước khi đóng thông báo. Lỡ đóng rồi thì bạn mở hồ sơ của họ và bấm **Đặt lại mật khẩu**.',
       },
       {
         kind: 'shot',
@@ -180,7 +180,7 @@ export const PEOPLE_DOCS: DocArticle[] = [
       {
         kind: 'note',
         tone: 'warning',
-        body: 'Bạn chỉ cấp được quyền không rộng hơn trần cấp quyền của chính bạn. Bạn mở hồ sơ của chính mình thì hộp thoại không có khối Quyền.',
+        body: 'Bạn chỉ cấp được quyền không rộng hơn trần cấp quyền của chính bạn. Bạn mở hồ sơ của chính mình thì form không có khối Quyền.',
       },
       {
         kind: 'steps',
@@ -189,7 +189,7 @@ export const PEOPLE_DOCS: DocArticle[] = [
           'Bấm vào tên nhân viên trong bảng.',
           'Chuyển sang tab **Tài khoản & quyền**.',
           'Bấm **Sửa**.',
-          'Mở khối **Quyền** trong hộp thoại.',
+          'Mở khối **Quyền** trong form.',
           'Bật hoặc tắt từng quyền. Chọn phạm vi cho quyền đó.',
           'Bấm **Lưu**.',
         ],
@@ -198,7 +198,7 @@ export const PEOPLE_DOCS: DocArticle[] = [
         kind: 'shot',
         shot: {
           src: '/docs/staff-permissions.png',
-          alt: 'Khối Quyền trong hộp thoại nhân viên',
+          alt: 'Khối Quyền trong form nhân viên',
           width: 560,
           height: 736,
           markers: [

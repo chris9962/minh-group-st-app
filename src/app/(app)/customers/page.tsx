@@ -863,8 +863,7 @@ export default function CustomersPage() {
             onConfirm={() => removeCustomer.mutate(deletingCustomer.id)}
             onClose={() => setDeletingCustomer(null)}
           >
-            Xoá hẳn hồ sơ của <strong>{deletingCustomer.fullName}</strong> cùng mọi số điện
-            thoại của khách?
+            Bạn muốn xoá hồ sơ của <strong>{deletingCustomer.fullName}</strong>?
           </ConfirmDialog>
         )}
       </main>

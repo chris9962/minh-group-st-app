@@ -646,17 +646,17 @@ export default function PeoplePage() {
           pending={changeAccountStatus.isPending}
           onConfirm={() => locking && changeAccountStatus.mutate(locking)}
           onClose={() => setLocking(null)}
-          consequence={
-            locking?.active ? (
-              <>
-                Người này sẽ <strong>không thể đăng nhập</strong>. Khi cần mở khoá,
-                vào bộ lọc <strong>Trạng thái tài khoản</strong>, chọn <strong>Đã khoá</strong>{" "}
-                rồi mở hồ sơ của họ. Các bản ghi cũ vẫn giữ nguyên tên người tạo.
-              </>
-            ) : undefined
-          }
         >
-          {locking?.active ? "Khoá" : "Mở khoá"} tài khoản của <strong>{locking?.fullName}</strong>?
+          {locking?.active ? (
+            <>
+              Bạn muốn khoá tài khoản của <strong>{locking.fullName}</strong>? Người này sẽ không
+              đăng nhập được.
+            </>
+          ) : (
+            <>
+              Bạn muốn mở khoá tài khoản của <strong>{locking?.fullName}</strong>?
+            </>
+          )}
         </ConfirmDialog>
       </main>
     </>

@@ -3,7 +3,7 @@
 import { createPortal } from "react-dom";
 import { Dialog } from "@/components/ui/Dialog";
 import type { Bank } from "@/lib/api/bankCatalog";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatPoints } from "@/lib/format";
 import {
   bankTierFor,
   comboPointsAt,
@@ -147,13 +147,13 @@ export function BankComboRulesDialog({ open, onClose, at, banks }: Props) {
           {rows.map((r) => (
             <tr key={r.label}>
               <td>{r.label}</td>
-              <td className="tabular-nums">{r.points.toFixed(1).replace(".", ",")}</td>
+              <td className="tabular-nums">{formatPoints(r.points)}</td>
             </tr>
           ))}
           {extras.map((r) => (
             <tr key={r.label}>
               <td>{r.label}</td>
-              <td className="tabular-nums">+{r.points.toFixed(1).replace(".", ",")}</td>
+              <td className="tabular-nums">+{formatPoints(r.points)}</td>
             </tr>
           ))}
         </tbody>

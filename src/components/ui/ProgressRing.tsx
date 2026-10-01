@@ -1,4 +1,5 @@
 import { clsx } from "clsx";
+import { formatPoints } from "@/lib/format";
 import styles from "./ProgressRing.module.css";
 
 export type RingSegment = {
@@ -76,9 +77,9 @@ export function ProgressRing({ segments, max, ariaLabel }: Props) {
         <strong
           className={clsx(styles.value, reached && styles.reached, "tabular-nums")}
         >
-          {shown}
+          {formatPoints(shown)}
         </strong>
-        <span className={`${styles.max} so`}>/ {max}</span>
+        <span className={`${styles.max} so`}>/ {formatPoints(max)}</span>
       </span>
     </div>
   );

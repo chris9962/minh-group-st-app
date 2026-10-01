@@ -484,15 +484,14 @@ export default function ServicesPage() {
         {removing && (
           <ConfirmDialog
             open
-            title="Xoá dịch vụ này?"
-            consequence="Điểm KPI của người thực hiện sẽ được tính lại ngay. Xoá rồi không lấy lại được."
+            title="Xoá dịch vụ"
             confirmLabel="Xoá"
             pending={remove.isPending}
             onConfirm={() => remove.mutate(removing)}
             onClose={() => setRemoving(null)}
           >
-            <strong>{removing.serviceTypeName}</strong> cho {removing.customerName}, ngày{" "}
-            {formatDate(removing.date)}, do {removing.createdByName} thực hiện.
+            Bạn muốn xoá dịch vụ <strong>{removing.serviceTypeName}</strong> của {removing.customerName},
+            ngày {formatDate(removing.date)}? Xoá rồi không lấy lại được.
           </ConfirmDialog>
         )}
       </main>

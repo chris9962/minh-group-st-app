@@ -54,9 +54,8 @@ export function SalaryClosingControl({ month }: { month: string }) {
         pending={close.isPending}
         onConfirm={() => close.mutate()}
         onClose={() => setConfirming(false)}
-        consequence="Sau khi chốt, lương tháng này không đổi nữa và không mở chốt được."
       >
-        Chốt lương <strong>{monthLabel(month)}</strong>?
+        Bạn muốn chốt lương <strong>{monthLabel(month)}</strong>? Chốt rồi không mở lại được.
       </ConfirmDialog>
     </>
   );

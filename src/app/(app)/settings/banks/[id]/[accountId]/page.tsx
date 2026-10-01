@@ -345,30 +345,27 @@ export default function BankAccountOfBankPage({
         {removing && data && (
           <ConfirmDialog
             open
-            title="Xoá tài khoản đang tạo?"
-            consequence="Tài khoản biến mất khỏi kho ngay, mã giới thiệu được trả lại. Không khôi phục lại được. Người tạo tài khoản nhận được thông báo."
-            confirmLabel="Xoá"
+            title="Xoá tài khoản đang tạo"
+            confirmLabel="Xoá tài khoản"
             pending={remove.isPending}
             onConfirm={() => remove.mutate()}
             onClose={() => setRemoving(false)}
           >
-            Tài khoản <strong>{data.bankCode}</strong> của {data.customerName}, mã{" "}
-            {data.referralCode}.
+            Bạn muốn xoá tài khoản <strong>{data.bankCode}</strong> đang tạo dở của {data.customerName}?
           </ConfirmDialog>
         )}
 
         {approving && data && (
           <ConfirmDialog
             open
-            title="Duyệt tài khoản đã sửa?"
-            consequence="Tài khoản về Hoàn thành và điểm KPI của người mở được tính lại ngay."
+            title="Duyệt tài khoản đã sửa"
             confirmLabel="Duyệt"
             pending={approve.isPending}
             onConfirm={() => approve.mutate()}
             onClose={() => setApproving(false)}
           >
-            Tài khoản <strong>{data.bankCode}</strong> của {data.customerName}. Lý do đánh dấu
-            lỗi trước đó: {data.errorNote || "không ghi"}.
+            Bạn muốn duyệt tài khoản <strong>{data.bankCode}</strong> của {data.customerName}? Lý do lỗi
+            trước đó: {data.errorNote || "không ghi"}.
           </ConfirmDialog>
         )}
 
