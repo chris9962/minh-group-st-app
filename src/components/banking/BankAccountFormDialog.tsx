@@ -15,7 +15,7 @@ import { DepartmentPicker } from "@/components/layout/DepartmentPicker";
 import { Select } from "@/components/ui/Select";
 import { SkeletonText } from "@/components/ui/Skeleton";
 import { fetchBanks, fetchOpenReferralCodes, type Bank } from "@/lib/api/bankCatalog";
-import { ageRangeLabel, businessDay } from "@/lib/format";
+import { ageRangeLabel, businessDay, formatDate } from "@/lib/format";
 import { bankTierFor, openBlockReasonAt, TIER_LABEL, type Tier } from "@/rules";
 import {
   ACCOUNT_TYPE_LABEL,
@@ -26,6 +26,8 @@ import {
   AccountType,
   type BankAccountPick,
 } from "@/lib/api/bankAccounts";
+import { CustomerFormDialog } from "@/components/customers/CustomerFormDialog";
+import { fetchCustomerDetail } from "@/lib/api/customers";
 import { BankComboRulesDialog } from "./BankComboRulesDialog";
 import styles from "./BankAccountFormDialog.module.scss";
 import { invalidateKpi } from "@/lib/invalidateKpi";
@@ -83,6 +85,7 @@ export function BankAccountFormDialog({
 
   const { data: banks = [] } = useQuery({ queryKey: ["banks"], queryFn: fetchBanks });
   const [rulesOpen, setRulesOpen] = useState(false);
+  const [step, setStep] = useState<"check" | "form" | "edit">("check");
 
   /**
    * Trần tài khoản của khách (chốt 2026-08-25): mỗi ngân hàng một tài khoản, và
@@ -236,7 +239,8 @@ export function BankAccountFormDialog({
    * giữ chỗ (chốt 2026-09-16). Dòng đang tích không tự khoá mình: hàm chỉ so
    * với mã KHÁC.
    */
-  const ruleAt = slots?.ruleDate ?? businessDay();
+  const today = businessDay();
+  const ruleAt = slots?.ruleDate ?? today;
   const codeOf = (bankId: string) => banks.find((b) => b.id === bankId)?.code ?? "";
   const comboReason = (bank: Bank, hkd: boolean): string | null => {
     if (hkd || !slots) return null;
@@ -266,6 +270,31 @@ export function BankAccountFormDialog({
     ...options.filter((o) => o.reason === null),
     ...options.filter((o) => o.reason !== null),
   ];
+
+  if (step === "edit") return <EditCustomerStep customerId={customerId} onClose={onClose} />;
+
+  // KPI tính theo ngày hồ sơ, không theo ngày mở tài khoản (chốt 2026-10-01).
+  if (step === "check" && slots && slots.ruleDate !== today)
+    return (
+      <Dialog
+        open={open}
+        onClose={onClose}
+        title="Kiểm tra ngày hồ sơ"
+        footerStart={onBack && <BackButton onClick={onBack}>Chọn khách khác</BackButton>}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setStep("edit")}>
+              Sửa thông tin khách
+            </Button>
+            <Button onClick={() => setStep("form")}>Tiếp tục</Button>
+          </>
+        }
+      >
+        <p className={styles.dayNotice}>
+          {`Hồ sơ này tạo ngày ${formatDate(slots.ruleDate)}. Tài khoản mở thêm sẽ tính KPI vào ngày ${formatDate(slots.ruleDate)}, không tính vào ngày ${formatDate(today)}.`}
+        </p>
+      </Dialog>
+    );
 
   return (
     <Dialog
@@ -394,6 +423,25 @@ export function BankAccountFormDialog({
         />
       )}
     </Dialog>
+  );
+}
+
+function EditCustomerStep({ customerId, onClose }: { customerId: string; onClose: () => void }) {
+  const { data, isPending, isError, refetch, isFetching } = useQuery({
+    queryKey: ["customer", customerId],
+    queryFn: () => fetchCustomerDetail(customerId),
+    // Refetch giữa chừng là form reset mất chữ đang gõ, cùng lý do với P-40.
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+  });
+  return (
+    <CustomerFormDialog
+      open
+      customer={data?.customer ?? null}
+      loading={isPending}
+      loadError={isError ? { onRetry: () => void refetch(), retrying: isFetching } : null}
+      onClose={onClose}
+    />
   );
 }
 
