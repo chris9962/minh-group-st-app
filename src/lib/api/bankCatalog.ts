@@ -308,6 +308,8 @@ export const ReferralCode = z.object({
   supportBranch: z.string(),
   /** `false` = đã ngừng tay: mã rời ô chọn và bị từ chối lúc mở tài khoản. */
   active: z.boolean(),
+  /** Tên người tạo mã; null khi không rõ người tạo. */
+  createdByName: z.string().nullable().default(null),
 });
 export type ReferralCode = z.infer<typeof ReferralCode>;
 

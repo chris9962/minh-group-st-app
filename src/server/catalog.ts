@@ -672,6 +672,8 @@ const codeColumns = {
   province: referralCodes.province,
   supportBranch: referralCodes.supportBranch,
   active: referralCodes.active,
+  // Câu con theo khoá chính: không phải thêm phép nối ở ba câu cùng dùng `codeColumns`.
+  createdByName: sql<string | null>`(select ${users.fullName} from ${users} where ${users.id} = ${referralCodes.createdBy})`,
   /**
    * Gom phòng trong CÙNG câu chọn, không gọi thêm lượt nào cho mỗi dòng.
    *
@@ -709,6 +711,7 @@ const codeGroupBy = [
   referralCodes.province,
   referralCodes.supportBranch,
   referralCodes.active,
+  referralCodes.createdBy,
 ] as const;
 
 type CodeRow = Omit<ReferralCode, "qrImageUrl"> & { qrImage: string | null };
@@ -1052,6 +1055,7 @@ export async function bankIdOfReferralCode(id: string): Promise<string | null> {
 
 export async function createReferralCode(
   form: ReferralCodeForm,
+  createdBy: string,
 ): Promise<CatalogOutcome<ReferralCode>> {
   if (!form.code && !qrImageKey(form))
     return { ok: false, reason: "identifier-required" };
@@ -1077,6 +1081,7 @@ export async function createReferralCode(
         scope: form.scope,
         province: form.province,
         supportBranch: form.supportBranch,
+        createdBy,
       })
       .returning();
 

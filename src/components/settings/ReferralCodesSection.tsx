@@ -270,6 +270,11 @@ export function ReferralCodesSection({ creating, onCreatingChange }: Props) {
         ),
     },
     {
+      key: "createdBy",
+      label: "Người tạo",
+      render: (c) => c.createdByName ?? <span className="text-muted">—</span>,
+    },
+    {
       key: "actions",
       label: "Thao tác",
       render: (c) => (

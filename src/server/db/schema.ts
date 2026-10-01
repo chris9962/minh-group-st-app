@@ -606,6 +606,8 @@ export const referralCodes = pgTable(
      * chỗ. Trước migration 0047 mã chỉ dừng khi tiêu hết `total`.
      */
     active: boolean("active").notNull().default(true),
+    /** Mã lập trước migration 0115 lấy từ `audit_log`; null khi nhật ký không có dòng tạo. */
+    createdBy: uuid("created_by").references(() => users.id),
     createdAt: createdAt(),
   },
   (t) => [

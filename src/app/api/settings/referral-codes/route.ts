@@ -64,7 +64,7 @@ export async function POST(request: Request) {
   // Mã thuộc về một ngân hàng, nên chốt phạm vi đi theo ngân hàng của mã.
   if (!canManageBank(guard.actor, parsed.data.bankId)) return forbidden();
 
-  const result = await createReferralCode(parsed.data);
+  const result = await createReferralCode(parsed.data, guard.actor.id);
   if (!result.ok)
     return badRequest(
       result.reason === "identifier-required"
