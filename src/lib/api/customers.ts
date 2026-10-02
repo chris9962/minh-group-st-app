@@ -662,6 +662,7 @@ export type CustomerChange = z.infer<typeof CustomerChange>;
 export const GivenExtra = z.object({
   bankAccountId: z.string().nullable(),
   bankCode: z.string(),
+  accountType: z.enum(['HKD', 'CNKD']),
   code: z.string(),
   item: z.string(),
 });
@@ -762,11 +763,12 @@ export const isCashOnlyGift = (
 export const extraSlotKey = (slot: { bankAccountId: string | null }): string => slot.bankAccountId ?? '';
 
 /**
- * Chữ gọi một suất quà thêm: "VPa HKD". Mỗi ngân hàng chỉ có một dòng HKD nên
- * mã ngân hàng là đủ phân biệt; không kèm số tài khoản, vì bảng tài khoản ở hồ
- * sơ khách không hiện số và còn lọc theo phạm vi ngân hàng của người xem.
+ * Chữ gọi một suất quà thêm: "VPa HKD", "VPa CNKD". Mỗi ngân hàng chỉ có một
+ * dòng HKD nên mã ngân hàng là đủ phân biệt; không kèm số tài khoản, vì bảng tài
+ * khoản ở hồ sơ khách không hiện số và còn lọc theo phạm vi ngân hàng của người xem.
  */
-export const extraSlotLabel = (slot: { bankCode: string }): string => `${slot.bankCode} HKD`;
+export const extraSlotLabel = (slot: { bankCode: string; accountType: 'HKD' | 'CNKD' }): string =>
+  `${slot.bankCode} ${slot.accountType}`;
 
 /** Dòng HKD hiện tại của khách chưa có câu trả lời quà thêm trong đợt đã chốt. */
 export function pendingExtraSlots(

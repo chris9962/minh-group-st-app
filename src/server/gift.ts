@@ -7,6 +7,7 @@ import {
   GIFT_NONE_LABEL,
   GIFT_SENTINEL_LABELS,
   GIFT_UNCHOSEN,
+  extraSlotLabel,
   type GiftChangeForm,
   type GiftExtraChoice,
 } from "@/lib/api/customers";
@@ -245,8 +246,12 @@ export async function giftResultOf(
     })),
     basket: await resolveBasket(result.basket),
     extraBasket: await resolveBasket(result.extraBasket),
-    // Mỗi dòng HKD một suất. Ở đây chưa biết tài khoản nào; `giftForCustomer` gắn sau.
-    extraSlots: (result.extraBanks ?? []).map((bankCode) => ({ bankAccountId: null, bankCode })),
+    // Mỗi dòng HKD hoặc VPa CNKD một suất. Ở đây chưa biết tài khoản nào; `giftForCustomer` gắn sau.
+    extraSlots: (result.extraBanks ?? []).map((bankCode) => ({
+      bankAccountId: null,
+      bankCode,
+      accountType: result.cnkdExtraBanks?.includes(bankCode) ? ("CNKD" as const) : ("HKD" as const),
+    })),
     kpiPoints: result.comboPoints,
     kpiBreakdown:
       result.comboPoints > 0
@@ -331,27 +336,27 @@ export async function giftForCustomer(
 }
 
 /**
- * Gắn dòng HKD thật vào từng suất quà thêm. Luật chỉ nói ngân hàng nào có dòng
- * HKD được quà (`extraBanks`); tài khoản nào là dòng đó thì đọc `bank_accounts`,
+ * Gắn dòng HKD hoặc `VPa` CNKD thật vào từng suất quà thêm. Luật chỉ nói ngân
+ * hàng nào được quà (`extraBanks`); tài khoản nào là dòng đó thì đọc `bank_accounts`,
  * mỗi ngân hàng một dòng HKD mỗi khách (khoá `bank_accounts_root_bank_slot`).
  * Ngân hàng không tra ra dòng HKD `done` (cách ghi cũ mã `HKD`) giữ `null`.
  */
 async function extraSlotsOf(customerId: string, slots: GiftExtraSlot[]): Promise<GiftExtraSlot[]> {
   if (slots.length === 0) return [];
   const rows = await db
-    .select({ id: bankAccounts.id, bankCode: banks.code })
+    .select({ id: bankAccounts.id, bankCode: banks.code, accountType: bankAccounts.accountType })
     .from(bankAccounts)
     .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
     .where(
       and(
         eq(bankAccounts.customerId, customerId),
         eq(bankAccounts.status, "done"),
-        eq(bankAccounts.accountType, "HKD"),
+        inArray(bankAccounts.accountType, ["HKD", "CNKD"]),
       ),
     );
   return slots.map((slot) => {
-    const row = rows.find((r) => r.bankCode === slot.bankCode);
-    return row ? { bankAccountId: row.id, bankCode: row.bankCode } : slot;
+    const row = rows.find((r) => r.bankCode === slot.bankCode && r.accountType === slot.accountType);
+    return row ? { ...slot, bankAccountId: row.id } : slot;
   });
 }
 
@@ -364,11 +369,11 @@ function matchExtras(gift: GiftSimulateResult, extras: GiftExtraChoice[]): strin
   const keyOf = (id: string | null) => id ?? "";
   if (gift.extraSlots.length === 0) return extras.length > 0 ? "Khách này không có quà thêm" : null;
   const answered = new Set(extras.map((e) => keyOf(e.bankAccountId)));
-  if (answered.size !== extras.length) return "Một dòng HKD được chọn quà thêm hai lần";
+  if (answered.size !== extras.length) return "Một tài khoản được chọn quà thêm hai lần";
   for (const slot of gift.extraSlots)
-    if (!answered.has(keyOf(slot.bankAccountId))) return `Chưa chọn quà thêm cho dòng ${slot.bankCode} HKD`;
+    if (!answered.has(keyOf(slot.bankAccountId))) return `Chưa chọn quà thêm cho dòng ${extraSlotLabel(slot)}`;
   if (extras.length !== gift.extraSlots.length)
-    return "Có câu trả lời quà thêm không thuộc dòng HKD nào của khách";
+    return "Có câu trả lời quà thêm không thuộc tài khoản nào của khách";
   return null;
 }
 
@@ -784,12 +789,12 @@ export async function chooseExtraGift(
   const pending = live.extraSlots.filter((slot) => !answered.has(keyOf(slot.bankAccountId)));
   if (pending.length === 0) return { ok: false, message: "Khách này đã chọn quà thêm rồi." };
   if (new Set(extras.map((e) => keyOf(e.bankAccountId))).size !== extras.length)
-    return { ok: false, message: "Một dòng HKD được chọn quà thêm hai lần." };
+    return { ok: false, message: "Một tài khoản được chọn quà thêm hai lần." };
 
   const labels: string[] = [];
   for (const choice of extras) {
     const slot = pending.find((s) => keyOf(s.bankAccountId) === keyOf(choice.bankAccountId));
-    if (!slot) return { ok: false, message: "Có dòng HKD không còn chờ chọn quà thêm. Tải lại rồi thử lại." };
+    if (!slot) return { ok: false, message: "Có tài khoản không còn chờ chọn quà thêm. Tải lại rồi thử lại." };
     const picked = choice.item === GIFT_DECLINED ? null : live.extraBasket.find((b) => b.code === choice.item);
     if (choice.item !== GIFT_DECLINED && (!picked || !picked.id || picked.status !== "ok"))
       return { ok: false, message: "Món quà thêm phải nằm trong rổ quà thêm của khách và còn cấp được." };
@@ -800,9 +805,19 @@ export async function chooseExtraGift(
    * Snapshot chỉ được BỔ SUNG phần rổ quà thêm còn thiếu, không ghi đè phần đã đóng
    * băng: tên món lúc chọn phải nằm trong snapshot thì `grantedItemLabel` mới
    * đọc ra được, còn bậc, tiền và rổ chính vẫn là của lúc phát.
+   *
+   * Bổ sung theo TỪNG MÓN, không chỉ khi rổ đóng băng rỗng: khách VPa CNKD chốt
+   * với rổ chỉ có Loa, mở thêm HKD sau đó thì Bảng mica phải được thêm vào.
    */
   const snapshot = grant.snapshot as GiftSimulateResult;
-  const merged = { ...snapshot, extraBasket: snapshot.extraBasket?.length ? snapshot.extraBasket : live.extraBasket };
+  const frozenExtra = snapshot.extraBasket ?? [];
+  const merged = {
+    ...snapshot,
+    extraBasket: [
+      ...frozenExtra,
+      ...live.extraBasket.filter((b) => !frozenExtra.some((f) => f.code === b.code)),
+    ],
+  };
 
   const inserted = await db
     .transaction(async (tx) => {
@@ -882,7 +897,7 @@ export async function changeGift(
   for (const choice of form.extras) {
     const current = existingExtras.find((e) => keyOf(e.bankAccountId) === keyOf(choice.bankAccountId));
     // Dòng HKD chưa có câu trả lời đi đường "Chọn quà thêm", không đi đường đổi.
-    if (!current) return { ok: false, message: "Dòng HKD này chưa chọn quà thêm. Dùng nút Chọn quà thêm." };
+    if (!current) return { ok: false, message: "Tài khoản này chưa chọn quà thêm. Dùng nút Chọn quà thêm." };
     if (current.item !== choice.item) extraChanges.push({ current, item: choice.item });
   }
   const extraChanged = extraChanges.length > 0;
@@ -913,7 +928,7 @@ export async function changeGift(
     if (change.item === GIFT_DECLINED) continue;
     // Dòng HKD đã bị đánh lỗi thì rổ không còn suất cho nó: chỉ còn từ chối được.
     if (!nextGift.extraSlots.some((s) => keyOf(s.bankAccountId) === keyOf(change.current.bankAccountId)))
-      return { ok: false, message: "Dòng HKD này không còn được quà thêm theo tài khoản hiện tại." };
+      return { ok: false, message: "Tài khoản này không còn được quà thêm." };
     const pickedExtra = nextGift.extraBasket.find((b) => b.code === change.item);
     if (!pickedExtra || !pickedExtra.id || pickedExtra.status !== "ok")
       return { ok: false, message: "Món quà thêm phải nằm trong rổ quà thêm của khách và còn cấp được." };

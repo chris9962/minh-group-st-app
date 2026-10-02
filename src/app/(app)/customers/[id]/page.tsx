@@ -694,7 +694,7 @@ export default function CustomerDetailPage({
                 {data.gift.given &&
                   (data.gift.givenExtras.length > 0 || pendingExtraSlots(data.gift).length > 0) && (
                     <div>
-                      <dt>Quà thêm HKD</dt>
+                      <dt>Quà thêm</dt>
                       <dd>
                         <ul className={styles.basket}>
                           {data.gift.givenExtras.map((extra) => (
@@ -756,7 +756,7 @@ export default function CustomerDetailPage({
                 {/* Rổ quà thêm của khách HKD: một món ở đây CỘNG với quà chính. */}
                 {!data.gift.given && data.gift.extraBasket.length > 0 && (
                   <div>
-                    <dt>Quà thêm HKD</dt>
+                    <dt>Quà thêm</dt>
                     <dd>
                       <ol className={styles.basket}>
                         {data.gift.extraBasket.map((item, i) => (

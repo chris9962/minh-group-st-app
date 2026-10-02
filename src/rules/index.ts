@@ -158,12 +158,18 @@ export type GiftResult = {
    */
   extraBasket: GiftChoice[];
   /**
-   * Mã ngân hàng của từng dòng HKD được quà thêm, mỗi dòng chọn MỘT món trong
-   * `extraBasket` (kỳ 2026-10-01, thể lệ mục 4b). File kỳ trước không khai:
+   * Mã ngân hàng của từng dòng HKD được quà thêm, cộng `VPa` khi khách có dòng
+   * `VPa` CNKD (xem `cnkdExtraBanks`); mỗi dòng chọn MỘT món trong `extraBasket`
+   * (kỳ 2026-10-01, thể lệ mục 4b). File kỳ trước không khai:
    * `giftFor` điền `["VPa"]` khi rổ quà thêm có món, vì các kỳ đó HKD chỉ kèm
    * `VPa` và một món mỗi hồ sơ.
    */
   extraBanks?: string[];
+  /**
+   * Các mã trong `extraBanks` mà suất là dòng CNKD, không phải dòng HKD (chủ dự
+   * án chốt 2026-10-02). File không khai thì mọi suất là dòng HKD.
+   */
+  cnkdExtraBanks?: string[];
   /**
    * Vì sao ra kết quả này, mỗi dòng một lý do.
    *

@@ -1880,6 +1880,7 @@ export async function customerDetailFor(
           bankAccountId: giftGrantExtras.bankAccountId,
           item: giftGrantExtras.item,
           bankCode: banks.code,
+          accountType: bankAccounts.accountType,
         })
         .from(giftGrantExtras)
         .leftJoin(bankAccounts, eq(bankAccounts.id, giftGrantExtras.bankAccountId))
@@ -1991,6 +1992,7 @@ export async function customerDetailFor(
             bankAccountId: e.bankAccountId,
             // Dòng chuyển từ cột cũ không tìm được tài khoản: kỳ đó HKD chỉ kèm VPa.
             bankCode: e.bankCode ?? "VPa",
+            accountType: e.accountType === "CNKD" ? ("CNKD" as const) : ("HKD" as const),
             code: e.item,
             item:
               e.item === GIFT_DECLINED

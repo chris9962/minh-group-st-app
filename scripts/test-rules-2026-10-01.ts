@@ -271,6 +271,34 @@ check(
   true,
 );
 
+section("VPa CNKD được quà thêm Loa (chốt 2026-10-02)");
+const vpaCnkd = gift([account("k", "VPa", { household: "CNKD" })]);
+check("VPa CNKD: rổ quà thêm chỉ có Loa", vpaCnkd.extraBasket.map((b) => b.code).join(","), "QUA-LOA");
+check("VPa CNKD: một suất ở VPa", (vpaCnkd.extraBanks ?? []).join(","), "VPa");
+check("VPa CNKD: điểm giữ 0,3 + 1,0", points([account("k", "VPa", { household: "CNKD" })]), 1.3);
+const vpaCnkdMbHkd = gift([account("k", "VPa", { household: "CNKD" }), account("k", "MB", { household: "HKD" })]);
+check("VPa CNKD + MB HKD: hai suất", [...(vpaCnkdMbHkd.extraBanks ?? [])].sort().join(","), "MB,VPa");
+check("VPa CNKD + MB HKD: rổ có Loa và Bảng mica", vpaCnkdMbHkd.extraBasket.length, 2);
+check("MB CNKD không có quà thêm", (gift([account("k", "MB", { household: "CNKD" })]).extraBanks ?? []).length, 0);
+check("VPa CNKD: suất VPa là dòng CNKD", (vpaCnkd.cnkdExtraBanks ?? []).join(","), "VPa");
+check("VPa CNKD + MB HKD: chỉ suất VPa là dòng CNKD", (vpaCnkdMbHkd.cnkdExtraBanks ?? []).join(","), "VPa");
+check(
+  "VPa HKD: không có suất CNKD",
+  (gift([account("k", "VPa", { household: "HKD" })]).cnkdExtraBanks ?? []).length,
+  0,
+);
+check(
+  "kỳ 30/9 VPa CNKD + MB HKD: suất VPa vẫn là dòng HKD",
+  (gift([account("k", "VPa", { household: "CNKD", date: BEFORE }), account("k", "MB", { household: "HKD", date: BEFORE })], BEFORE)
+    .cnkdExtraBanks ?? []).length,
+  0,
+);
+check(
+  "kỳ 30/9 VPa CNKD không có quà thêm",
+  gift([account("k", "VPa", { household: "CNKD", date: BEFORE })], BEFORE).extraBasket.length,
+  0,
+);
+
 /* ── Mục 3 · quà đọc bằng loại trừ ──────────────────────────────────── */
 
 section("Combo 1");

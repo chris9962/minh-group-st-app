@@ -174,7 +174,7 @@ export async function listGiftExcessExport(
 
   const doneOf = new Map<string, GiftInput["accounts"]>();
   const errorOf = new Map<string, { id: string; bankCode: string }[]>();
-  const hkdOf = new Map<string, { id: string; bankCode: string }[]>();
+  const extraRowsOf = new Map<string, { id: string; bankCode: string }[]>();
   const channelsOf = new Map<string, Set<string>>();
   const recordDayOf = new Map(batch.map((c) => [c.id, c.recordDay]));
   for (const row of accountRows) {
@@ -193,10 +193,12 @@ export async function listGiftExcessExport(
       household: row.accountType,
     });
     doneOf.set(row.customerId, list);
-    if (row.accountType === "HKD") {
-      const hkd = hkdOf.get(row.customerId) ?? [];
-      hkd.push({ id: row.id, bankCode: row.bankCode });
-      hkdOf.set(row.customerId, hkd);
+    // Dòng `VPa` CNKD cũng giữ suất quà thêm từ 2026-10-02. Một ngân hàng không
+    // vừa CNKD vừa HKD, nên khớp theo mã ngân hàng vẫn ra đúng một dòng.
+    if (row.accountType === "HKD" || row.accountType === "CNKD") {
+      const extraRows = extraRowsOf.get(row.customerId) ?? [];
+      extraRows.push({ id: row.id, bankCode: row.bankCode });
+      extraRowsOf.set(row.customerId, extraRows);
     }
     if (row.channelCode) {
       const set = channelsOf.get(row.customerId) ?? new Set<string>();
@@ -220,10 +222,10 @@ export async function listGiftExcessExport(
     );
     const liveMain = new Set((live?.basket ?? []).map((b) => b.code));
     const liveExtra = new Set((live?.extraBasket ?? []).map((b) => b.code));
-    // Suất quà thêm còn sống: dòng HKD `done` của ngân hàng luật còn cho quà thêm.
+    // Suất quà thêm còn sống: dòng HKD hoặc CNKD `done` của ngân hàng luật còn cho quà thêm.
     const liveBanks = new Set(live?.extraBanks ?? []);
     const liveSlotIds = new Set(
-      (hkdOf.get(c.id) ?? []).filter((a) => liveBanks.has(a.bankCode)).map((a) => a.id),
+      (extraRowsOf.get(c.id) ?? []).filter((a) => liveBanks.has(a.bankCode)).map((a) => a.id),
     );
 
     const mainIsItem = !NOT_AN_ITEM.has(c.chosenItem);

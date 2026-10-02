@@ -468,7 +468,7 @@ export function RuleSimulator() {
                 thay thế. Chỉ hiện khi có, vì phần lớn khách không có HKD. */}
             {run.data.extraBasket.length > 0 && (
               <>
-                <h3 className={styles.blockTitle}>Quà thêm HKD</h3>
+                <h3 className={styles.blockTitle}>Quà thêm</h3>
                 <p className={styles.blockText}>
                   Khách chọn thêm <strong>đúng 1</strong> trong{" "}
                   <span className="tabular-nums">{run.data.extraBasket.length}</span> món dưới đây, cộng với

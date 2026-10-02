@@ -167,13 +167,16 @@ const GiftBasketItem = z.object({
 });
 
 /**
- * Một suất quà thêm: một dòng HKD của khách, chọn MỘT món trong `extraBasket`
- * (kỳ 2026-10-01). `bankAccountId` null ở màn thử P-81, nơi không có tài khoản
- * thật, và ở dòng cũ chuyển từ cột `extra_item` không tìm được dòng HKD.
+ * Một suất quà thêm: một dòng HKD hoặc dòng `VPa` CNKD của khách, chọn MỘT món
+ * trong `extraBasket` (kỳ 2026-10-01). `bankAccountId` null ở màn thử P-81, nơi
+ * không có tài khoản thật, và ở dòng cũ chuyển từ cột `extra_item` không tìm
+ * được dòng HKD.
  */
 export const GiftExtraSlot = z.object({
   bankAccountId: z.string().nullable(),
   bankCode: z.string(),
+  // Snapshot chốt trước 2026-10-02 không có trường này; mọi suất khi đó là HKD.
+  accountType: z.enum(['HKD', 'CNKD']).default('HKD'),
 });
 export type GiftExtraSlot = z.infer<typeof GiftExtraSlot>;
 

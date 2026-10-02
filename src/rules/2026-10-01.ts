@@ -36,8 +36,8 @@ import type {
  * 1,0 kèm ngân hàng nào cũng được; `VPa` + `VPb` là dữ liệu sai; dòng HKD
  * không vào combo; rổ quà thêm Loa, Bảng mica.
  *
- * `extraBanks` nói dòng HKD nào được quà thêm; máy chủ gắn tài khoản và lưu
- * mỗi dòng một món ở `gift_grant_extras` (migration 0110).
+ * `extraBanks` nói dòng HKD, hoặc dòng `VPa` CNKD, nào được quà thêm; máy chủ
+ * gắn tài khoản và lưu mỗi dòng một món ở `gift_grant_extras` (migration 0110).
  *
  * Chạy thử: `bun run test:rules` (`scripts/test-rules-2026-10-01.ts`).
  */
@@ -318,6 +318,10 @@ function hkdBanksOf(accounts: ScoringAccount[]): string[] {
 
 const hkdAccountCountOf = (accounts: ScoringAccount[]): number => hkdBanksOf(accounts).length;
 
+/** Dòng `VPa` CNKD được một suất quà thêm Loa, không cộng điểm (chủ dự án chốt 2026-10-02). */
+const hasVpaCnkd = (accounts: ScoringAccount[]): boolean =>
+  accounts.some((a) => a.bankCode === "VPa" && a.household === "CNKD");
+
 /**
  * Những dòng ĐƯỢC TÍNH là ngân hàng — bỏ dòng HKD (chủ dự án chốt 2026-09-06).
  *
@@ -487,6 +491,8 @@ const INSURANCE_BASKET: Record<0 | 1 | 2, string[]> = {
  * bảo hiểm của combo.
  */
 const ITEMS_HKD = ["QUA-LOA", "QUA-MICA"];
+/** Khách chỉ có dòng `VPa` CNKD, không có HKD: rổ quà thêm chỉ có Loa. */
+const ITEMS_VPA_CNKD = ["QUA-LOA"];
 
 /**
  * Lưu ý 1 mục 4: nhóm Phòng Y quy đổi quà sang vật phẩm.
@@ -621,16 +627,27 @@ export function gift(input: GiftInput): GiftResult {
    *
    * Kỳ 2026-08 đòi hai vế — khách mở `VPa`, và khách có `CNKD` hoặc `HKD`. Kỳ
    * này bỏ cả hai: khách `CNKD` KHÔNG còn hai món này, và khách `HKD` nhận bất
-   * kể mở ngân hàng nào.
+   * kể mở ngân hàng nào. Riêng dòng `VPa` CNKD được một suất Loa (chốt 2026-10-02).
    */
   const hkdBanks = hkdBanksOf(input.accounts);
   const hkdCount = hkdBanks.length;
+  // CNKD và HKD cùng ở `VPa` bị chặn lúc mở; dữ liệu sai còn sót thì giữ một suất HKD.
+  const cnkdExtraBanks = hasVpaCnkd(input.accounts) && !hkdBanks.includes("VPa") ? ["VPa"] : [];
+  const extraBanks = [...hkdBanks, ...cnkdExtraBanks];
   if (hkdCount > 0) {
     addItems(extraBasket, ITEMS_HKD, "Khách có HKD");
     explain.push(
       hkdCount === 1
         ? "Khách có 1 tài khoản HKD nên được quà thêm: chọn Loa hoặc Bảng mica, cộng với quà chính."
         : `Khách có ${hkdCount} tài khoản HKD nên được ${hkdCount} món quà thêm, mỗi tài khoản chọn Loa hoặc Bảng mica, cộng với quà chính.`,
+    );
+  }
+  if (cnkdExtraBanks.length > 0) {
+    addItems(extraBasket, ITEMS_VPA_CNKD, "Khách có VPa CNKD");
+    explain.push(
+      hkdCount > 0
+        ? "Khách có VPa CNKD nên được thêm 1 món quà thêm, chọn Loa hoặc Bảng mica, cộng với quà chính."
+        : "Khách có VPa CNKD nên được quà thêm Loa, cộng với quà chính.",
     );
   }
 
@@ -675,7 +692,8 @@ export function gift(input: GiftInput): GiftResult {
       // Chưa đạt bậc nào thì không có gói bảo hiểm, nhưng món thêm vẫn phát.
       basket: withCashIfChosen(extras, 0),
       extraBasket: withCashIfChosen(extraBasket, 0),
-      extraBanks: hkdBanks,
+      extraBanks,
+      cnkdExtraBanks,
       explain,
       giftNote: giftNoteOf(combo),
     };
@@ -722,7 +740,8 @@ export function gift(input: GiftInput): GiftResult {
     cashTotal,
     basket: withCashIfChosen(basket, cashTotal),
     extraBasket: withCashIfChosen(extraBasket, cashTotal),
-    extraBanks: hkdBanks,
+    extraBanks,
+    cnkdExtraBanks,
     explain,
     giftNote: giftNoteOf(combo),
   };
