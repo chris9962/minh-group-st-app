@@ -41,12 +41,12 @@ import {
 import { MAX_BANK_ACCOUNTS_PER_CUSTOMER } from "@/lib/api/bankAccounts";
 import type { Page } from "@/lib/api/pagination";
 import type { PageArgs } from "./pagination";
-import { BUSINESS_TIMEZONE, clockNowVn, digitsOnly, searchKey } from "@/lib/format";
+import { BUSINESS_TIMEZONE, businessMonth, clockNowVn, digitsOnly, monthRange, searchKey } from "@/lib/format";
 import { can, recordInScope, recordVisibility, type RecordVisibility } from "@/lib/permissions";
 import type { GiftSimulateResult } from "@/lib/api/settings";
 import { isRealIsoDate, type User } from "@/lib/types";
 import { searchTerms } from "@/lib/search";
-import { customerDay, customerDayText } from "./customerDay";
+import { customerDay, customerDayBetween, customerDayText } from "./customerDay";
 import { db, uniqueViolationOf } from "./db/client";
 import { giftForCustomer, giftItemNames, grantedItemLabel, recomputeGiftCase } from "./gift";
 import { closedMonthAmong, closedMonthOfCustomer, customerMonthClosed } from "./closedMonths";
@@ -836,18 +836,25 @@ export type CustomerOutcome<T> =
  *
  * Trục là NGƯỜI TẠO, không phải cả công ty: nhân viên B mở lần của B cho cùng
  * khách là hợp lệ, vì hai người bán hai combo khác nhau.
+ *
+ * Chỉ chặn khi hồ sơ dở dang nằm CÙNG THÁNG với hồ sơ sắp tạo (chốt
+ * 2026-10-02). Hồ sơ tháng khác chưa chốt quà vẫn cho tạo lần mới.
  */
+const openDraftWhere = (rootId: string, actorId: string): SQL => {
+  const { from, to } = monthRange(businessMonth());
+  return and(
+    eq(customers.rootCustomerId, rootId),
+    eq(customers.createdBy, actorId),
+    customerDayBetween(from, to),
+    sql`not exists (select 1 from ${giftGrants} g where g.customer_id = ${customers.id})`,
+  ) as SQL;
+};
+
 async function openDraftOf(rootId: string, actorId: string): Promise<string | null> {
   const [row] = await db
     .select({ id: customers.id })
     .from(customers)
-    .where(
-      and(
-        eq(customers.rootCustomerId, rootId),
-        eq(customers.createdBy, actorId),
-        sql`not exists (select 1 from ${giftGrants} g where g.customer_id = ${customers.id})`,
-      ),
-    )
+    .where(openDraftWhere(rootId, actorId))
     .limit(1);
   return row?.id ?? null;
 }
@@ -1052,13 +1059,7 @@ export async function createCustomer(
         const [dangGiu] = await tx
           .select({ id: customers.id })
           .from(customers)
-          .where(
-            and(
-              eq(customers.rootCustomerId, linkToRootId),
-              eq(customers.createdBy, actor.id),
-              sql`not exists (select 1 from ${giftGrants} g where g.customer_id = ${customers.id})`,
-            ),
-          )
+          .where(openDraftWhere(linkToRootId, actor.id))
           .limit(1);
         if (dangGiu) return null;
 
