@@ -1,4 +1,5 @@
-import { monthLabel } from "@/components/ui/MonthPicker";
+import { monthLabel, thisMonth } from "@/components/ui/MonthPicker";
+import { StatusTag } from "@/components/ui/StatusTag";
 import type { PersonDetail } from "@/lib/api/person";
 import { formatPhone } from "@/lib/format";
 import styles from "./PersonIdentity.module.scss";
@@ -10,7 +11,10 @@ import styles from "./PersonIdentity.module.scss";
  * khối này mà không cần vòng điểm bên dưới.
  */
 type Props = {
-  person: Pick<PersonDetail, "fullName" | "staffCode" | "phone" | "departmentName" | "joinedMonth">;
+  person: Pick<
+    PersonDetail,
+    "fullName" | "staffCode" | "phone" | "departmentName" | "joinedMonth" | "summaryMonth" | "monthClosed"
+  >;
 };
 
 /** Hai chữ cái đầu của tên — ảnh đại diện chưa có, và tên viết tắt đọc nhanh hơn một ô xám. */
@@ -40,6 +44,15 @@ export function PersonIdentity({ person }: Props) {
             .filter(Boolean)
             .join(" · ")}
         </span>
+        {/* Tháng cũ thì phòng ở dòng trên là phòng của tháng đó, không phải phòng hiện tại. */}
+        {person.summaryMonth < thisMonth() && (
+          <span className={styles.month}>
+            <StatusTag tone={person.monthClosed ? "ok" : "waiting"}>
+              {monthLabel(person.summaryMonth)}
+              {person.monthClosed ? " - Đã chốt lương" : " - Chưa chốt lương"}
+            </StatusTag>
+          </span>
+        )}
       </div>
     </div>
   );

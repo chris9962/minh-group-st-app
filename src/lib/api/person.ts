@@ -190,6 +190,7 @@ export const PersonDetail = z.object({
   joinedMonth: z.string(),
   /** Tháng của phần điểm. Luôn là tháng, kể cả khi bảng đang xem theo ngày. */
   summaryMonth: z.string(),
+  monthClosed: z.boolean(),
   daysLeft: z.number(),
   points: z.object({
     banking: z.number(),

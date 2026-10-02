@@ -40,6 +40,7 @@ import {
 import { appsInstalledCount, variantOfAccount } from "./appCounted";
 import { salaryForUsers } from "./salary";
 import { branchSummaryFor } from "./branch";
+import { isMonthClosed } from "./closedMonths";
 
 /**
  * P-51 · P-52 — điểm KPI tính SỐNG từ bản ghi nghiệp vụ × hệ số danh mục
@@ -826,6 +827,7 @@ export async function personFor(
     departmentName: (inMonth ? inMonth.departmentName : row.departmentName) ?? "",
     joinedMonth: businessMonth(row.user.createdAt),
     summaryMonth,
+    monthClosed: await isMonthClosed(summaryMonth),
     daysLeft: daysLeftOf(summaryMonth),
     points: {
       banking: roundPoints(monthAgg.bankingPoints),
