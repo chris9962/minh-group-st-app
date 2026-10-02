@@ -11,6 +11,73 @@ export type { Release, ReleaseSection } from './types';
  */
 export const RELEASES: Release[] = [
   {
+    id: '2026-10-03',
+    version: '2.2.0',
+    title: 'Cập nhật ngày 03/10/2026',
+    summary: 'Có màn VNeID, tài khoản VPa CNKD được tặng thêm Loa, xuất Excel chọn được cột.',
+    sections: [
+      {
+        title: 'Quà thêm VPa CNKD',
+        items: [
+          'Áp cho hồ sơ khách từ 01/10/2026.',
+          'Tài khoản VPa CNKD được tặng thêm Loa.',
+          'Khách có thêm tài khoản HKD thì mỗi tài khoản chọn Loa hoặc Bảng mica.',
+        ],
+      },
+      {
+        title: 'Tháng đã chốt lương',
+        items: ['Không tặng, đổi quà được cho hồ sơ lập trong tháng đã chốt lương.'],
+      },
+      {
+        title: 'Lương tháng 09/2026',
+        items: [
+          'Phòng không giao chỉ tiêu định hướng thì nhân viên phòng đó không tính chỉ tiêu định hướng.',
+          'Phòng Y và Phòng Dự án: chỉ tiêu cá nhân tính đủ số, chỉ tiêu phòng vẫn tính 50%.',
+        ],
+      },
+      {
+        title: 'VNeID',
+        items: [
+          'Có thêm màn VNeID.',
+          'Mỗi hồ sơ khách ghi BHYT, ASXH, Chữ ký số, ảnh và ghi chú.',
+          'Bảng khách hàng có nút Tích hợp VNeID ở mỗi dòng.',
+          'Xuất Excel theo bộ lọc đang xem.',
+        ],
+        visibleTo: (user) => canOpenPath(user, '/vneid'),
+      },
+      {
+        title: 'Khách hàng',
+        items: ['Khách còn hồ sơ chưa chốt quà trong cùng tháng thì không tạo được hồ sơ mới.'],
+        visibleTo: (user) => canOpenPath(user, '/customers'),
+      },
+      {
+        title: 'Xuất Excel khách hàng',
+        items: [
+          'Chọn cột trước khi xuất, lần sau giữ lựa chọn.',
+          'File có thêm cột Mã nhân viên.',
+          'File có thêm cột Ngân hàng, ví dụ MB, TPB, VPa(HKD).',
+          'File bỏ cột Số tài khoản, Điểm, Quà.',
+        ],
+        visibleTo: (user) => can(user, 'customer', 'export'),
+      },
+      {
+        title: 'Xuất Excel đơn bảo hiểm',
+        items: ['Chọn cột trước khi xuất, lần sau giữ lựa chọn.', 'File có thêm cột Mã nhân viên.'],
+        visibleTo: (user) => can(user, 'insurance', 'export'),
+      },
+      {
+        title: 'Dịch vụ',
+        items: ['Nạp / Rút / Chuyển có ô Ảnh giao dịch, không bắt buộc.', 'Bảng Dịch vụ có cột Ảnh.'],
+        visibleTo: (user) => canOpenPath(user, '/services'),
+      },
+      {
+        title: 'Chi tiết nhân viên',
+        items: ['Xem tháng cũ thì hiện nhãn Đã chốt lương hoặc Chưa chốt lương.'],
+        visibleTo: (user) => canOpenPath(user, '/users'),
+      },
+    ],
+  },
+  {
     id: '2026-10-02',
     version: '2.1.0',
     title: 'Cập nhật ngày 02/10/2026',
