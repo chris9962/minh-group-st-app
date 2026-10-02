@@ -18,22 +18,11 @@ export const RELEASES: Release[] = [
     sections: [
       {
         title: 'Quà thêm VPa CNKD',
-        items: [
-          'Áp cho hồ sơ khách từ 01/10/2026.',
-          'Tài khoản VPa CNKD được tặng thêm Loa.',
-          'Khách có thêm tài khoản HKD thì mỗi tài khoản chọn Loa hoặc Bảng mica.',
-        ],
+        items: ['Tài khoản VPa CNKD được tặng thêm Loa.'],
       },
       {
         title: 'Tháng đã chốt lương',
         items: ['Không tặng, đổi quà được cho hồ sơ lập trong tháng đã chốt lương.'],
-      },
-      {
-        title: 'Lương tháng 09/2026',
-        items: [
-          'Phòng không giao chỉ tiêu định hướng thì nhân viên phòng đó không tính chỉ tiêu định hướng.',
-          'Phòng Y và Phòng Dự án: chỉ tiêu cá nhân tính đủ số, chỉ tiêu phòng vẫn tính 50%.',
-        ],
       },
       {
         title: 'VNeID',
