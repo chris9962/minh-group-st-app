@@ -542,16 +542,18 @@ export default function CustomersPage() {
                 </Button>
               </>
             )}
-            <Button
-              variant="secondary"
-              icon={compact}
-              tooltip={compact ? "Ghi dịch vụ" : undefined}
-              aria-label={`Ghi dịch vụ cho ${c.fullName}`}
-              onClick={() => setLoggingServiceFor(c)}
-            >
-              <Briefcase size={16} aria-hidden />
-              {!compact && "Ghi dịch vụ"}
-            </Button>
+            {can(user, "services", "create") && (
+              <Button
+                variant="secondary"
+                icon={compact}
+                tooltip={compact ? "Ghi dịch vụ" : undefined}
+                aria-label={`Ghi dịch vụ cho ${c.fullName}`}
+                onClick={() => setLoggingServiceFor(c)}
+              >
+                <Briefcase size={16} aria-hidden />
+                {!compact && "Ghi dịch vụ"}
+              </Button>
+            )}
             {!c.monthClosed && can(user, "vneid", "create") && (
               <Button
                 variant="secondary"

@@ -458,10 +458,12 @@ export default function CustomerDetailPage({
                     Mở ngân hàng
                   </Button>
                 )}
-                <Button variant="secondary" onClick={() => setLoggingService(true)}>
-                  <Briefcase size={16} />
-                  Ghi dịch vụ
-                </Button>
+                {can(actor, "services", "create") && (
+                  <Button variant="secondary" onClick={() => setLoggingService(true)}>
+                    <Briefcase size={16} />
+                    Ghi dịch vụ
+                  </Button>
+                )}
                 {!data.monthClosed && can(actor, "vneid", "create") && (
                   <Button variant="secondary" onClick={() => setLoggingVneid(true)}>
                     <IdCard size={16} />
@@ -580,7 +582,8 @@ export default function CustomerDetailPage({
               </SectionCard>
             )}
 
-            {(data.services.length > 0 || data.servicesHiddenCount > 0) && (
+            {can(actor, "services", "view-detail") &&
+              (data.services.length > 0 || data.servicesHiddenCount > 0) && (
               <SectionCard
                 title="Dịch vụ đã làm"
                 icon={<Briefcase size={17} />}
