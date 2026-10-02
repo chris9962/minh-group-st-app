@@ -15,14 +15,18 @@ import type {
  * - Nhân viên HĐLĐ, tài khoản định hướng: đạt cộng 3 điểm, thiếu trừ 1 điểm
  *   cho mỗi 1% (QĐ 107 Phụ lục 04). Điểm này vào điểm KPI trước khi chia mốc.
  *   Chỉ tiêu HKD và CASA của nhân viên chỉ lưu: Phụ lục 04 không có mức.
+ * - Phòng có chỉ tiêu định hướng trống thì nhân viên phòng đó cũng không chấm
+ *   định hướng, xem `staffQuotaNeedsDepartmentQuota`.
  * - Trưởng/Phó phòng, định hướng theo chỉ tiêu phòng: đạt cộng 10, thiếu trừ 1
  *   điểm cho mỗi 1% (Phụ lục 05). HKD: đạt cộng 10, thiếu không trừ.
  * - Phó GĐ, từng phòng phụ trách, định hướng: đạt cộng 10, thiếu trừ 20 (Phụ
  *   lục 07). HKD: đạt cộng 10, thiếu không trừ.
- * - Phòng Y và phòng Dự án chấm theo 50% chỉ tiêu admin nhập, cả chỉ tiêu phòng
- *   lẫn chỉ tiêu cá nhân.
+ * - Phòng Y và phòng Dự án chấm theo 50% chỉ tiêu phòng admin nhập. Chỉ tiêu cá
+ *   nhân chấm đủ số.
  *
  * Bỏ phần trừ HKD của quản lý và giảm chỉ tiêu hai phòng: chốt 2026-09-28.
+ * Nhân viên phòng không có chỉ tiêu thì không chấm, bỏ 50% chỉ tiêu cá nhân:
+ * chốt 2026-10-02.
  *
  * TODO(lương CĐS, file mẫu CASA của Yên): CASA chưa tính. Nhân viên HĐLĐ cộng
  * 0,2 điểm/tài khoản; Trưởng/Phó phòng đạt cộng 4, thiếu trừ 10; tự mở cộng
@@ -34,6 +38,8 @@ const MAX_DAYS = 26;
 const DEPUTY_DIRECTOR_DAYS = 22;
 
 const HALF_QUOTA_DEPARTMENTS = new Set(["PHONG-Y", "PHONG-DU-AN"]);
+
+export const staffQuotaNeedsDepartmentQuota = true;
 
 export const quotaTarget = (target: number, departmentCode: string | null): number =>
   departmentCode && HALF_QUOTA_DEPARTMENTS.has(departmentCode) ? target / 2 : target;

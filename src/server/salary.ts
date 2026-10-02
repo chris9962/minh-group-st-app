@@ -392,7 +392,6 @@ async function quotaProgressFor(
     ...subjects.flatMap((s) => (s.departmentId ? [[s.departmentId, s.departmentCode] as const] : [])),
     ...managedRows.map((row) => [row.departmentId, row.departmentCode] as const),
   ]);
-  const codeOfStaff = new Map(subjects.map((s) => [s.id, s.departmentCode]));
 
   const progress = (
     target: number | null,
@@ -405,14 +404,10 @@ async function quotaProgressFor(
       : null;
 
   return {
+    // Không truyền mã phòng: chỉ tiêu cá nhân chấm đủ số, kể cả Phòng Y và Dự án.
     staff: (userId) =>
       staffIds.includes(userId)
-        ? progress(
-            config.staffDirected,
-            config.directedKinds.length,
-            directedByStaff.get(userId),
-            codeOfStaff.get(userId) ?? null,
-          )
+        ? progress(config.staffDirected, config.directedKinds.length, directedByStaff.get(userId), null)
         : null,
     department: (departmentId) => {
       const targets = config.departments.get(departmentId);
