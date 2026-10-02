@@ -13,10 +13,10 @@ import { Pool } from "pg";
  * transaction với `ALTER TYPE … ADD VALUE`.
  *
  * Chạy khô để xem trước, không ghi gì:
- *   bun run db:grant-attendance-view -- --dry-run
+ *   bun --env-file=.env.local scripts/db-grant-attendance-view.ts --dry-run
  *
  * Ghi thật thì BẮT BUỘC khai tên đăng nhập của người chịu trách nhiệm:
- *   bun run db:grant-attendance-view -- --as=admin
+ *   bun --env-file=.env.local scripts/db-grant-attendance-view.ts --as=admin
  *
  * Chạy lại được: đã có dòng nào thì bỏ qua dòng đó.
  */
@@ -65,7 +65,7 @@ async function main() {
 
   if (!asArg) {
     console.error(
-      "Thiếu --as=<tên đăng nhập>. Cấp quyền phải có người chịu trách nhiệm, và tên đó đi vào nhật ký truy vết.\nVí dụ:  bun run db:grant-attendance-view -- --as=admin",
+      "Thiếu --as=<tên đăng nhập>. Cấp quyền phải có người chịu trách nhiệm, và tên đó đi vào nhật ký truy vết.\nVí dụ:  bun --env-file=.env.local scripts/db-grant-attendance-view.ts --as=admin",
     );
     await pool.end();
     process.exit(1);
