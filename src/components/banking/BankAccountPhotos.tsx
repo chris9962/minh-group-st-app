@@ -115,6 +115,8 @@ type Props = {
   small?: boolean;
   /** Hiện dấu * cạnh tiêu đề, cùng lối với `TextField`. Nơi gọi tự khoá nút gửi. */
   required?: boolean;
+  /** Hiện trọn ảnh trong khung thay vì cắt cho đầy khung. */
+  contain?: boolean;
 };
 
 /**
@@ -148,6 +150,7 @@ export function BankAccountPhotos({
   compact = false,
   small = false,
   required = false,
+  contain = false,
 }: Props) {
   /**
    * Kẹp bởi trần của máy chủ. `banks.required_photos` là số admin gõ ở P-60 và
@@ -262,7 +265,7 @@ export function BankAccountPhotos({
 
   return (
     <div
-      className={`${styles.photoSection} ${compact ? styles.compact : ""} ${small ? styles.small : ""}`}
+      className={`${styles.photoSection} ${compact ? styles.compact : ""} ${small ? styles.small : ""} ${contain ? styles.contain : ""}`}
     >
       <Heading className={styles.photoTitle}>
         {title}

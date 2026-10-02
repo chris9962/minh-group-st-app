@@ -4,7 +4,8 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { Briefcase, Pencil, Plus, Trash2 } from "lucide-react";
+import { Briefcase, Image as ImageIcon, Pencil, Plus, Trash2 } from "lucide-react";
+import { ImageLightbox } from "@/components/ui/ImageLightbox";
 import { SkeletonTable } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
@@ -79,6 +80,7 @@ export default function ServicesPage() {
   const [creating, setCreating] = useCreateIntent();
   const [editing, setEditing] = useState<ServiceRow | null>(null);
   const [removing, setRemoving] = useState<ServiceRow | null>(null);
+  const [viewingPhoto, setViewingPhoto] = useState<ServiceRow | null>(null);
 
   const { data: serviceTypes = [] } = useQuery({
     queryKey: ["service-types"],
@@ -261,6 +263,24 @@ export default function ServicesPage() {
         ),
       },
       { key: "note", label: "Ghi chú", render: (r) => r.note || "—" },
+      {
+        key: "photo",
+        label: "Ảnh",
+        render: (r) =>
+          r.photoUrl ? (
+            <Button
+              variant="secondary"
+              icon
+              tooltip="Xem ảnh"
+              aria-label={`Xem ảnh dịch vụ ${r.serviceTypeName} của ${r.customerName}`}
+              onClick={() => setViewingPhoto(r)}
+            >
+              <ImageIcon size={16} aria-hidden />
+            </Button>
+          ) : (
+            "—"
+          ),
+      },
       ...(canEdit || canRemove
         ? [
             {
@@ -480,6 +500,13 @@ export default function ServicesPage() {
         {creating && <CreateServiceDialog open onClose={() => setCreating(false)} />}
         {editing && (
           <ServiceEditDialog open service={editing} onClose={() => setEditing(null)} />
+        )}
+        {viewingPhoto?.photoUrl && (
+          <ImageLightbox
+            src={viewingPhoto.photoUrl}
+            alt={`Ảnh dịch vụ ${viewingPhoto.serviceTypeName} của ${viewingPhoto.customerName}`}
+            onClose={() => setViewingPhoto(null)}
+          />
         )}
         {removing && (
           <ConfirmDialog

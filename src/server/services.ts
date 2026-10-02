@@ -23,6 +23,7 @@ import { customers, serviceTypes, services, users, wards } from "./db/schema";
 import { closedMonthAmong, closedMonthMessage } from "./closedMonths";
 import { recomputeKpi } from "./kpi";
 import { recomputeEmployeeWorkDay } from "./workDays";
+import { imageKeyOf, imageUrl } from "./storage";
 import type { PageArgs } from "./pagination";
 
 /**
@@ -135,6 +136,7 @@ const pickPage = (where: SQL | undefined, orderBy: SQL[], limit: number, offset:
       createdById: services.createdBy,
       createdByDepartmentId: services.createdByDepartmentId,
       wardName: services.wardName,
+      photoUrl: services.photoUrl,
     })
     .from(services)
     .where(where)
@@ -158,11 +160,18 @@ const decorate = (page: ReturnType<typeof pickPage>) =>
       createdByName: users.fullName,
       createdByDepartmentId: page.createdByDepartmentId,
       wardName: page.wardName,
+      photoUrl: page.photoUrl,
     })
     .from(page)
     .innerJoin(customers, eq(customers.id, page.customerId))
     .innerJoin(serviceTypes, eq(serviceTypes.id, page.serviceTypeId))
     .innerJoin(users, eq(users.id, page.createdById));
+
+/** Cột giữ KHOÁ trong kho, giao diện cần URL đọc ảnh. */
+const withPhotoUrl = <R extends { photoUrl: string | null }>(row: R): R => ({
+  ...row,
+  photoUrl: row.photoUrl ? imageUrl(row.photoUrl) : null,
+});
 
 /**
  * `null` = không giới hạn phòng; `[]` = không thấy dòng nào.
@@ -285,7 +294,7 @@ export async function listServices(
     db.select({ value: count() }).from(services).where(where),
   ]);
 
-  return { rows, total: totals?.value ?? 0 };
+  return { rows: rows.map(withPhotoUrl), total: totals?.value ?? 0 };
 }
 
 /**
@@ -312,15 +321,17 @@ export async function listServicesForExport(
     db.select({ value: count() }).from(services).where(where),
   ]);
 
-  return { rows, total: totals?.value ?? 0 };
+  return { rows: rows.map(withPhotoUrl), total: totals?.value ?? 0 };
 }
 
 export type ServiceOutcome =
   | { ok: true; service: ServiceRow }
   | { ok: false; message: string };
 
-const serviceById = async (id: string): Promise<ServiceRow | null> =>
-  (await decorate(pickPage(eq(services.id, id), [], 1, 0)))[0] ?? null;
+const serviceById = async (id: string): Promise<ServiceRow | null> => {
+  const [row] = await decorate(pickPage(eq(services.id, id), [], 1, 0));
+  return row ? withPhotoUrl(row) : null;
+};
 
 /**
  * Ghi một lượt dịch vụ đã làm.
@@ -381,6 +392,9 @@ export async function createService(actor: User, form: ServiceForm): Promise<Ser
   const closed = await closedMonthAmong([serviceDate.slice(0, 7)]);
   if (closed) return { ok: false, message: closedMonthMessage(closed) };
 
+  const photoKey = form.photoUrl ? imageKeyOf(form.photoUrl) : null;
+  if (form.photoUrl && !photoKey) return { ok: false, message: "Ảnh giao dịch không hợp lệ" };
+
   const [row] = await db
     .insert(services)
     .values({
@@ -395,6 +409,7 @@ export async function createService(actor: User, form: ServiceForm): Promise<Ser
       createdByDepartmentId: department.departmentId,
       wardId: form.wardId || null,
       wardName: ward?.name ?? null,
+      photoUrl: photoKey,
     })
     .returning({ id: services.id });
 
@@ -443,9 +458,17 @@ export async function updateService(
   const closed = await closedMonthAmong([current.date.slice(0, 7), form.date.slice(0, 7)]);
   if (closed) return { ok: false, message: closedMonthMessage(closed) };
 
+  const photoKey = form.photoUrl ? imageKeyOf(form.photoUrl) : null;
+  if (form.photoUrl && !photoKey) return { ok: false, message: "Ảnh giao dịch không hợp lệ" };
+
   await db
     .update(services)
-    .set({ serviceTypeId: form.serviceTypeId, serviceDate: form.date, note: form.note })
+    .set({
+      serviceTypeId: form.serviceTypeId,
+      serviceDate: form.date,
+      note: form.note,
+      photoUrl: photoKey,
+    })
     .where(eq(services.id, id));
 
   /**

@@ -1813,6 +1813,8 @@ export const services = pgTable(
     wardId: uuid("ward_id").references(() => wards.id),
     /** Snapshot tên xã lúc tạo — đổi xã phụ trách không đổi dữ liệu tháng trước. */
     wardName: text("ward_name"),
+    /** KHOÁ ảnh giao dịch trong kho (thư mục `services/`), không bắt buộc. */
+    photoUrl: text("photo_url"),
     createdAt: createdAt(),
   },
   (t) => [

@@ -33,6 +33,8 @@ export const ServiceRow = z.object({
    * dữ liệu tháng trước).
    */
   wardName: z.string().nullable(),
+  /** `/api/images/<key>` của ảnh giao dịch; `null` = không có ảnh. */
+  photoUrl: z.string().nullable(),
 });
 export type ServiceRow = z.infer<typeof ServiceRow>;
 
@@ -127,6 +129,9 @@ export async function fetchServicesForExport(
  */
 const serviceDate = isoDate('Chưa chọn ngày');
 
+/** Loại dịch vụ có ô ảnh giao dịch (chốt 2026-10-02). Bảng `service_types` không có mã, nên so theo tên. */
+export const PHOTO_SERVICE_TYPE = "Nạp / Rút / Chuyển";
+
 export const ServiceForm = z.object({
   // `z.uuid` chứ không phải `z.string`: hai id này đi thẳng vào cột uuid, nên
   // chuỗi sai dạng qua được tầng kiểm thì Postgres từ chối bằng `22P02` và cả
@@ -148,6 +153,8 @@ export const ServiceForm = z.object({
    * cột này và báo cáo theo xã thiếu hẳn phần việc của họ.
    */
   wardId: z.string(),
+  /** URL ảnh sau khi tải lên kho. `''` = không có ảnh, ảnh không bắt buộc. */
+  photoUrl: z.string().trim(),
 });
 export type ServiceForm = z.infer<typeof ServiceForm>;
 

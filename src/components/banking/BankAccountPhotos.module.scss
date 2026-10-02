@@ -235,3 +235,10 @@
   height: 100px;
   aspect-ratio: auto;
 }
+
+/* Ảnh giao dịch dịch vụ phần lớn là ảnh chụp màn hình DỌC: `cover` cắt mất
+   số tiền, nên hiện trọn tấm trong khung. */
+.contain .photo {
+  object-fit: contain;
+  background: var(--om-soft);
+}

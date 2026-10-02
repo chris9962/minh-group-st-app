@@ -54,7 +54,12 @@ export function imageProblem(file: File): string | null {
  * Nhóm ảnh — quyết thư mục trong kho. Máy chủ có danh sách trắng riêng và tự
  * hạ về `bank-accounts` khi nhận giá trị lạ.
  */
-export type UploadFolder = 'bank-accounts' | 'referral-codes' | 'bank-guides' | 'insurance-orders';
+export type UploadFolder =
+  | 'bank-accounts'
+  | 'referral-codes'
+  | 'bank-guides'
+  | 'insurance-orders'
+  | 'services';
 
 export async function uploadImage(
   file: File,

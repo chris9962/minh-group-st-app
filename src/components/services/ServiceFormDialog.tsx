@@ -4,6 +4,11 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
+import {
+  BankAccountPhotos,
+  uploadPendingPhotos,
+  type PhotoItem,
+} from "@/components/banking/BankAccountPhotos";
 import { DepartmentPicker } from "@/components/layout/DepartmentPicker";
 import { BackButton } from "@/components/ui/BackButton";
 import { Button } from "@/components/ui/Button";
@@ -15,7 +20,7 @@ import { TextField } from "@/components/ui/TextField";
 import { fetchServiceTypes } from "@/lib/api/settings";
 import { fetchProvinces } from "@/lib/api/wardCatalog";
 import { businessDay } from "@/lib/format";
-import { createService, ServiceForm } from "@/lib/api/services";
+import { createService, PHOTO_SERVICE_TYPE, ServiceForm } from "@/lib/api/services";
 import styles from "./ServiceFormDialog.module.scss";
 import { invalidateKpi } from "@/lib/invalidateKpi";
 import { errorMessage, toast } from "@/lib/toast";
@@ -90,13 +95,23 @@ export function ServiceFormDialog({
       note: "",
       departmentId: customerDepartmentId ?? "",
       wardId: "",
+      photoUrl: "",
     },
   });
+
+  const [photos, setPhotos] = useState<PhotoItem[]>([]);
+  const allowsPhoto =
+    activeTypes.find((t) => t.id === watch("serviceTypeId"))?.name === PHOTO_SERVICE_TYPE;
 
   const save = useMutation({
     // Người thực hiện do máy chủ tự ghi từ phiên đăng nhập — gửi kèm `actorId`
     // là mở đường ghi công của mình vào tên người khác.
-    mutationFn: (form: ServiceForm) => createService(form),
+    mutationFn: async (form: ServiceForm) => {
+      // Ảnh lên kho TRƯỚC, ghi dịch vụ SAU — xem chú thích ở `BankAccountPhotos`.
+      const urls = allowsPhoto ? await uploadPendingPhotos(photos, "services") : [];
+      if (urls.length > 0) setPhotos(urls.map((url) => ({ kind: "saved", url })));
+      return createService({ ...form, photoUrl: urls[0] ?? "" });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["services"] });
       // Card "Dịch vụ đã làm" ở hồ sơ 360° đọc từ key này — không invalidate
@@ -150,6 +165,19 @@ export function ServiceFormDialog({
           ]}
         />
         {errors.serviceTypeId && <p className={styles.error}>{errors.serviceTypeId.message}</p>}
+
+        {allowsPhoto && (
+          <BankAccountPhotos
+            title="Ảnh giao dịch"
+            requiredPhotos={0}
+            max={1}
+            small
+            contain
+            photos={photos}
+            onChange={setPhotos}
+            busy={save.isPending}
+          />
+        )}
 
         {/* Mặc định hôm nay, sửa được: làm cho khách ngày 31 mà mùng 2 mới
             ngồi nhập thì lượt đó phải tính vào tháng ĐÃ LÀM, không phải tháng

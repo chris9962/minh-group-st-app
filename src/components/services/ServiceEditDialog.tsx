@@ -2,13 +2,25 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
+import {
+  BankAccountPhotos,
+  savedPhotos,
+  uploadPendingPhotos,
+  type PhotoItem,
+} from "@/components/banking/BankAccountPhotos";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { Select } from "@/components/ui/Select";
 import { DateField } from "@/components/ui/DateField";
 import { TextField } from "@/components/ui/TextField";
-import { ServiceEditForm, updateService, type ServiceRow } from "@/lib/api/services";
+import {
+  PHOTO_SERVICE_TYPE,
+  ServiceEditForm,
+  updateService,
+  type ServiceRow,
+} from "@/lib/api/services";
 import { fetchServiceTypes } from "@/lib/api/settings";
 import { businessDay, formatDate } from "@/lib/format";
 import { invalidateKpi } from "@/lib/invalidateKpi";
@@ -69,8 +81,18 @@ export function ServiceEditDialog({ open, onClose, service }: Props) {
       serviceTypeId: service.serviceTypeId,
       date: service.date,
       note: service.note,
+      photoUrl: service.photoUrl ?? "",
     },
   });
+
+  const [photos, setPhotos] = useState<PhotoItem[]>(() =>
+    savedPhotos(service.photoUrl ? [service.photoUrl] : []),
+  );
+  const selectedTypeId = form.watch("serviceTypeId");
+  const allowsPhoto =
+    (serviceTypes.find((t) => t.id === selectedTypeId)?.name ??
+      (selectedTypeId === service.serviceTypeId ? service.serviceTypeName : "")) ===
+    PHOTO_SERVICE_TYPE;
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["services"] });
@@ -80,7 +102,11 @@ export function ServiceEditDialog({ open, onClose, service }: Props) {
   };
 
   const save = useMutation({
-    mutationFn: (values: ServiceEditForm) => updateService(service.id, values),
+    mutationFn: async (values: ServiceEditForm) => {
+      const urls = allowsPhoto ? await uploadPendingPhotos(photos, "services") : [];
+      if (urls.length > 0) setPhotos(savedPhotos(urls));
+      return updateService(service.id, { ...values, photoUrl: urls[0] ?? "" });
+    },
     onSuccess: () => {
       invalidate();
       onClose();
@@ -123,6 +149,19 @@ export function ServiceEditDialog({ open, onClose, service }: Props) {
           options={options.length > 0 ? options : fallback}
           error={typesError ? "Không tải được danh mục loại dịch vụ — chỉ giữ được loại hiện tại." : undefined}
         />
+
+        {allowsPhoto && (
+          <BankAccountPhotos
+            title="Ảnh giao dịch"
+            requiredPhotos={0}
+            max={1}
+            small
+            contain
+            photos={photos}
+            onChange={setPhotos}
+            busy={save.isPending}
+          />
+        )}
 
         {/* Đổi ngày là ĐỔI THÁNG TÍNH ĐIỂM — máy chủ tính lại KPI cho cả tháng
             cũ lẫn tháng mới. Chặn ngày tương lai: đây là sổ việc ĐÃ LÀM. */}
