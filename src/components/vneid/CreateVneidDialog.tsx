@@ -1,7 +1,7 @@
 "use client";
 
 import { CustomerPickerDialog } from "@/components/customers/CustomerPickerDialog";
-import { VneidFormDialog } from "@/components/vneid/VneidFormDialog";
+import { CustomerVneidDialog } from "@/components/vneid/CustomerVneidDialog";
 
 type Props = {
   open: boolean;
@@ -13,8 +13,7 @@ export function CreateVneidDialog({ open, onClose }: Props) {
   return (
     <CustomerPickerDialog open={open} onClose={onClose} title="Tích hợp VNeID - chọn khách hàng">
       {(customer, back) => (
-        <VneidFormDialog
-          open
+        <CustomerVneidDialog
           customerId={customer.id}
           customerName={customer.fullName}
           customerDepartmentId={customer.createdByDepartmentId}

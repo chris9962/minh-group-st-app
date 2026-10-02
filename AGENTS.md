@@ -497,3 +497,52 @@ Màn nào chỉ chỉnh giao diện thì ghi đúng một dòng: `Cập nhật l
 
 Gửi thông báo cho nhân viên sau khi deploy: xem `docs/deploy-fpt-cloud.md`,
 chạy `--dry-run` trước.
+
+## 12. Xuất Excel
+
+Chuẩn chung cho mọi file Excel, chốt 2026-10-02. Mẫu chuẩn là file "Tính điểm
+tổng" ở màn Xuất dữ liệu và file của màn VNeID.
+
+Mọi file đi qua `exportExcel` ở `src/lib/excel.ts`. Không dựng ExcelJS riêng ở
+màn khác. `excelOrderStats.ts` là ngoại lệ có sẵn, vì bảng đó gộp ô theo ngày.
+
+### Đầu bảng 3 tầng
+
+Mọi cột phải khai `group` và `groupColor`. Cột đếm hoặc cộng được thì khai thêm
+`total`. Có hai trường đó, `exportExcel` tự dựng:
+
+| Dòng | Nội dung |
+|---|---|
+| 1 | Nhãn nhóm, có màu nền. Các cột liền nhau cùng nhóm được gộp ô. |
+| 2 | Số tổng của từng cột, nền xám nhạt. |
+| 3 | Tên cột, in đậm, có viền, xuống dòng khi dài. |
+
+Hàm cũng tự khoá 3 dòng đầu và 2 cột đầu khi cuộn, và bật bộ lọc ở dòng tên cột.
+
+Màu nhóm lấy từ `EXCEL_GROUP_COLORS`, chọn theo nghĩa của nhóm: `customer`
+cho thông tin khách, `staff` cho nhân sự, `account` cho việc đã làm. Không tự
+đặt mã màu mới. Nhóm không có màu riêng thì bỏ `groupColor`, hàm dùng nền xám.
+
+### Cột
+
+- Cột đầu là STT. Dòng tổng của STT là số dòng.
+- Tên cột VIẾT HOA.
+- Ngày: `formatDate`, dạng `02/10/2026`. Ngày giờ: `formatDateTime`, dạng
+  `02/10/2026 08:12`, giờ Việt Nam. Giờ luôn đứng sau ngày.
+- Tên khách: `transform: 'name'`, ra VIẾT HOA BỎ DẤU.
+- SĐT, CCCD, mã nhân viên, mã giới thiệu, ghi chú: `type: 'text'`.
+- Căn trái. Chỉ cột đánh dấu ngắn như `Có`, `1` mới căn giữa.
+- Mỗi cột đặt `width` theo độ dài nội dung thường gặp.
+- Có cột người thực hiện thì kèm cột MÃ NHÂN VIÊN và PHÒNG.
+
+### Dữ liệu
+
+- Nút Xuất Excel ở màn danh sách xuất theo đúng bộ lọc đang xem.
+- File lấy trọn danh sách qua route `/export` riêng, không lấy trang đang hiện
+  (§5.1).
+- Chạm trần số dòng thì báo rõ số dòng thiếu, hoặc dừng không dựng file.
+
+Các file sau còn đầu bảng 1 tầng, chưa theo chuẩn: danh sách khách, danh sách
+đơn bảo hiểm, danh sách quà, tài khoản theo ngân hàng, và các báo cáo ở màn
+Xuất dữ liệu trừ "Tính điểm tổng". Màn nào được sửa thì chuyển file của màn đó
+sang chuẩn này.

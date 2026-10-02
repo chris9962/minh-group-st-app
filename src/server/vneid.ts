@@ -6,8 +6,9 @@ import { recordInScope, recordVisibility, type RecordVisibility } from "@/lib/pe
 import { searchTerms } from "@/lib/search";
 import { isRealIsoDate, type User } from "@/lib/types";
 import { uuidParam } from "./auth";
-import { db } from "./db/client";
-import { customers, users, vneidRecords } from "./db/schema";
+import { closedMonthMessage, closedMonthOfCustomer, customerMonthClosed } from "./closedMonths";
+import { db, uniqueViolationOf } from "./db/client";
+import { customers, departments, users, vneidRecords } from "./db/schema";
 import type { PageArgs } from "./pagination";
 import { imageKeyOf, imageUrl } from "./storage";
 import { departmentForNewRecord } from "./writeDepartment";
@@ -132,12 +133,16 @@ const decorate = (page: ReturnType<typeof pickPage>) =>
       note: page.note,
       createdById: page.createdById,
       createdByName: users.fullName,
+      createdByCode: users.staffCode,
       createdByDepartmentId: page.createdByDepartmentId,
+      createdByDepartmentName: departments.name,
       createdAt: page.createdAt,
+      monthClosed: customerMonthClosed(customers.createdAt),
     })
     .from(page)
     .innerJoin(customers, eq(customers.id, page.customerId))
-    .innerJoin(users, eq(users.id, page.createdById));
+    .innerJoin(users, eq(users.id, page.createdById))
+    .leftJoin(departments, eq(departments.id, page.createdByDepartmentId));
 
 /** `id` đứng cuối để hai dòng cùng giờ tạo không đổi chỗ giữa các trang. */
 const orderByCreated = (t: { at: SQLWrapper; id: SQLWrapper }, dir: "asc" | "desc"): SQL[] =>
@@ -198,9 +203,20 @@ const recordById = async (id: string): Promise<VneidRow | null> => {
 
 export type VneidOutcome = { ok: true; record: VneidRow } | { ok: false; message: string };
 
+const ALREADY_EXISTS = "Khách này đã có dòng VNeID. Sửa dòng đó để đánh dấu thêm việc.";
+
+/** Tháng của hồ sơ khách đã chốt lương thì không thêm, sửa, xoá dòng VNeID của hồ sơ đó. */
+async function closedMessageOf(customerId: string): Promise<string | null> {
+  const month = await closedMonthOfCustomer(customerId);
+  return month ? closedMonthMessage(month) : null;
+}
+
+/** Chỉ nhận khoá trong thư mục `vneid/`: khoá của thư mục khác là ảnh CCCD, ảnh tài khoản ngân hàng. */
 function photoKeysOf(urls: string[]): string[] | null {
   const keys = urls.map(imageKeyOf);
-  return keys.some((key) => key === null) ? null : (keys as string[]);
+  return keys.every((key) => key?.replace(/^demo\//, "").startsWith("vneid/"))
+    ? (keys as string[])
+    : null;
 }
 
 /** Người làm và phòng do máy chủ tự ghi từ phiên đăng nhập, không nhận từ client. */
@@ -212,33 +228,54 @@ export async function createVneid(actor: User, form: VneidForm): Promise<VneidOu
     .limit(1);
   if (!customer) return { ok: false, message: "Không tìm thấy khách hàng này" };
 
+  const closed = await closedMessageOf(form.customerId);
+  if (closed) return { ok: false, message: closed };
+
+  const [existing] = await db
+    .select({ id: vneidRecords.id })
+    .from(vneidRecords)
+    .where(eq(vneidRecords.customerId, form.customerId))
+    .limit(1);
+  if (existing) return { ok: false, message: ALREADY_EXISTS };
+
   const department = departmentForNewRecord(actor, "vneid", form.departmentId, customer.departmentId);
   if (!department.ok) return { ok: false, message: department.message };
 
   const photoKeys = photoKeysOf(form.photoUrls);
   if (!photoKeys) return { ok: false, message: "Ảnh không hợp lệ" };
 
-  const [row] = await db
-    .insert(vneidRecords)
-    .values({
-      customerId: form.customerId,
-      healthInsurance: form.healthInsurance,
-      socialWelfare: form.socialWelfare,
-      digitalSignature: form.digitalSignature,
-      photoUrls: photoKeys,
-      note: form.note,
-      createdBy: actor.id,
-      createdByDepartmentId: department.departmentId,
-    })
-    .returning({ id: vneidRecords.id });
+  let id: string;
+  try {
+    const [row] = await db
+      .insert(vneidRecords)
+      .values({
+        customerId: form.customerId,
+        healthInsurance: form.healthInsurance,
+        socialWelfare: form.socialWelfare,
+        digitalSignature: form.digitalSignature,
+        photoUrls: photoKeys,
+        note: form.note,
+        createdBy: actor.id,
+        createdByDepartmentId: department.departmentId,
+      })
+      .returning({ id: vneidRecords.id });
+    id = row.id;
+  } catch (e) {
+    // Hai người cùng ghi cho một khách: phép kiểm ở trên cùng đọc ra "chưa có", khoá duy nhất chặn lượt sau.
+    if (uniqueViolationOf(e) === "vneid_records_customer") return { ok: false, message: ALREADY_EXISTS };
+    throw e;
+  }
 
-  return { ok: true, record: (await recordById(row.id))! };
+  return { ok: true, record: (await recordById(id))! };
 }
 
 /** `null` = không có HOẶC ngoài phạm vi — route trả 404 giống nhau để không dò được id. */
 export async function updateVneid(actor: User, id: string, form: VneidEditForm): Promise<VneidOutcome | null> {
   const current = await recordById(id);
   if (!current || !recordInScope(scopeOf(actor, "update"), current)) return null;
+
+  const closed = await closedMessageOf(current.customerId);
+  if (closed) return { ok: false, message: closed };
 
   const photoKeys = photoKeysOf(form.photoUrls);
   if (!photoKeys) return { ok: false, message: "Ảnh không hợp lệ" };
@@ -257,10 +294,13 @@ export async function updateVneid(actor: User, id: string, form: VneidEditForm):
   return { ok: true, record: (await recordById(id))! };
 }
 
-export async function deleteVneid(actor: User, id: string): Promise<VneidRow | null> {
+export async function deleteVneid(actor: User, id: string): Promise<VneidOutcome | null> {
   const current = await recordById(id);
   if (!current || !recordInScope(scopeOf(actor, "delete"), current)) return null;
 
+  const closed = await closedMessageOf(current.customerId);
+  if (closed) return { ok: false, message: closed };
+
   await db.delete(vneidRecords).where(eq(vneidRecords.id, id));
-  return current;
+  return { ok: true, record: current };
 }

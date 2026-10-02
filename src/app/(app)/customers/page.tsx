@@ -4,7 +4,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { Briefcase, Download, Gift, Landmark, Pencil, Plus, Trash2, Users } from "lucide-react";
+import { Briefcase, Download, Gift, IdCard, Landmark, Pencil, Plus, Trash2, Users } from "lucide-react";
 import type { DateRange } from "react-day-picker";
 import { SkeletonTable } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
@@ -13,6 +13,7 @@ import { BankAccountFormDialog } from "@/components/banking/BankAccountFormDialo
 import { CustomerFormDialog } from "@/components/customers/CustomerFormDialog";
 import { GiftGivingDialog } from "@/components/customers/GiftGivingDialog";
 import { ServiceFormDialog } from "@/components/services/ServiceFormDialog";
+import { CustomerVneidDialog } from "@/components/vneid/CustomerVneidDialog";
 import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
 import buttonStyles from "@/components/ui/Button.module.css";
@@ -154,6 +155,7 @@ export default function CustomersPage() {
   const [givingGiftTo, setGivingGiftTo] = useState<CustomerRow | null>(null);
   const [openingBankFor, setOpeningBankFor] = useState<CustomerRow | null>(null);
   const [loggingServiceFor, setLoggingServiceFor] = useState<CustomerRow | null>(null);
+  const [loggingVneidFor, setLoggingVneidFor] = useState<CustomerRow | null>(null);
   const [deletingCustomer, setDeletingCustomer] = useState<CustomerRow | null>(null);
   const [exporting, setExporting] = useState(false);
 
@@ -550,6 +552,18 @@ export default function CustomersPage() {
               <Briefcase size={16} aria-hidden />
               {!compact && "Ghi dịch vụ"}
             </Button>
+            {!c.monthClosed && can(user, "vneid", "create") && (
+              <Button
+                variant="secondary"
+                icon={compact}
+                tooltip={compact ? "Tích hợp VNeID" : undefined}
+                aria-label={`Tích hợp VNeID cho ${c.fullName}`}
+                onClick={() => setLoggingVneidFor(c)}
+              >
+                <IdCard size={16} aria-hidden />
+                {!compact && "Tích hợp VNeID"}
+              </Button>
+            )}
             {/* Phạm vi mức DÒNG, không phải `can()` mức module: quản lý thấy
                 khách của cả công ty nhưng chỉ sửa được khách phòng mình quản.
                 Cùng hàm với máy chủ ở `updateCustomer` (AGENTS.md §6). */}
@@ -856,6 +870,15 @@ export default function CustomersPage() {
             customerName={loggingServiceFor.fullName}
             customerDepartmentId={loggingServiceFor.createdByDepartmentId}
             onClose={() => setLoggingServiceFor(null)}
+          />
+        )}
+
+        {loggingVneidFor && (
+          <CustomerVneidDialog
+            customerId={loggingVneidFor.id}
+            customerName={loggingVneidFor.fullName}
+            customerDepartmentId={loggingVneidFor.createdByDepartmentId}
+            onClose={() => setLoggingVneidFor(null)}
           />
         )}
 

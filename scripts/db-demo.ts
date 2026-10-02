@@ -39,6 +39,7 @@ import {
   userManagedDepartments,
   userPermissions,
   users,
+  vneidRecords,
 } from "../src/server/db/schema";
 import type { RoleKey } from "../src/lib/types";
 
@@ -128,6 +129,7 @@ async function clean() {
       );
     await db.delete(insuranceOrders).where(inArray(insuranceOrders.customerId, customerIds));
     await db.delete(services).where(inArray(services.customerId, customerIds));
+    await db.delete(vneidRecords).where(inArray(vneidRecords.customerId, customerIds));
     await db.delete(giftGrants).where(inArray(giftGrants.customerId, customerIds));
     await db.delete(bankAccounts).where(inArray(bankAccounts.customerId, customerIds));
     await db.delete(customerPhones).where(inArray(customerPhones.customerId, customerIds));

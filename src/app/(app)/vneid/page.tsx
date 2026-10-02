@@ -4,7 +4,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { IdCard, Image as ImageIcon, Pencil, Plus, Trash2 } from "lucide-react";
+import { Download, IdCard, Image as ImageIcon, Pencil, Plus, Trash2 } from "lucide-react";
 import type { DateRange } from "react-day-picker";
 import { TopBar } from "@/components/layout/TopBar";
 import { Button } from "@/components/ui/Button";
@@ -30,6 +30,7 @@ import { EMPTY_PAGE, PAGE_SIZE, type SortDir } from "@/lib/api/pagination";
 import { fetchStaffOptions } from "@/lib/api/staff";
 import {
   deleteVneidRecord,
+  fetchVneidForExport,
   fetchVneidRecords,
   VNEID_TASKS,
   type VneidRow,
@@ -38,6 +39,7 @@ import {
 import { formatDate, formatDateTime } from "@/lib/format";
 import { useDebouncedValue } from "@/lib/hooks";
 import { can, recordInScope, recordVisibility, scopeFor } from "@/lib/permissions";
+import { EXCEL_GROUP_COLORS, exportExcel, type ExcelColumn } from "@/lib/excel";
 import { errorMessage, toast } from "@/lib/toast";
 import { isRealIsoDate } from "@/lib/types";
 import { useCreateIntent } from "@/lib/useCreateIntent";
@@ -170,6 +172,54 @@ export default function VneidPage() {
     onError: (e) => toast.fail(errorMessage(e, "Không xoá được lượt VNeID này.")),
   });
 
+  /** Xuất đúng bộ lọc đang xem, trọn danh sách chứ không chỉ trang đang hiện. */
+  const [exporting, setExporting] = useState(false);
+  const xuatExcel = async () => {
+    setExporting(true);
+    try {
+      const { rows, total } = await fetchVneidForExport({
+        search: searchQuery,
+        from,
+        to,
+        departmentId,
+        staffId,
+        customerId: "",
+        task,
+      });
+      // Đầu bảng 3 tầng theo chuẩn chung ở AGENTS.md §12: nhóm, tổng, tên cột.
+      const KHACH = { group: "KHÁCH HÀNG", groupColor: EXCEL_GROUP_COLORS.customer };
+      const VIEC = { group: "VIỆC ĐÃ LÀM", groupColor: EXCEL_GROUP_COLORS.account };
+      const NHAN_SU = { group: "NHÂN SỰ", groupColor: EXCEL_GROUP_COLORS.staff };
+      const columns: ExcelColumn<VneidRow>[] = [
+        { header: "STT", ...KHACH, width: 7, type: "number", align: "center", total: (all) => all.length, value: (_r, i) => i + 1 },
+        { header: "NGÀY GIỜ", ...KHACH, width: 17, value: (r) => formatDateTime(r.createdAt) },
+        { header: "TÊN KHÁCH HÀNG", ...KHACH, width: 28, transform: "name", value: (r) => r.customerName },
+        { header: "ĐỊA CHỈ", ...KHACH, width: 36, value: (r) => r.customerAddress },
+        ...VNEID_TASKS.map(
+          (t): ExcelColumn<VneidRow> => ({
+            header: t.label.toUpperCase(),
+            ...VIEC,
+            width: 12,
+            align: "center",
+            total: (all) => all.filter((r) => r[t.key]).length,
+            value: (r) => (r[t.key] ? "Có" : ""),
+          }),
+        ),
+        { header: "MÃ NHÂN VIÊN", ...NHAN_SU, width: 16, type: "text", value: (r) => r.createdByCode ?? "" },
+        { header: "NGƯỜI THỰC HIỆN", ...NHAN_SU, width: 24, value: (r) => r.createdByName },
+        { header: "PHÒNG", ...NHAN_SU, width: 24, value: (r) => r.createdByDepartmentName ?? "" },
+        { header: "GHI CHÚ", group: "GHI CHÚ", width: 40, type: "text", value: (r) => r.note },
+      ];
+      await exportExcel({ fileName: `vneid-${iso(new Date())}.xlsx`, sheetName: "VNeID", columns, rows });
+      if (total > rows.length)
+        toast.warn(`File có ${rows.length} trên ${total} dòng khớp bộ lọc. Thu hẹp bộ lọc để lấy đủ.`);
+    } catch (e) {
+      toast.fail(errorMessage(e, "Không xuất được file"));
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const editScope = recordVisibility(user, "vneid", "update");
   const removeScope = recordVisibility(user, "vneid", "delete");
   const hasActions = can(user, "vneid", "update") || can(user, "vneid", "delete");
@@ -193,7 +243,15 @@ export default function VneidPage() {
         render: (r) => (r[t.key] ? <StatusTag ok>Có</StatusTag> : "—"),
       }),
     ),
-    { key: "createdByName", label: "Người thực hiện", render: (r) => r.createdByName },
+    {
+      key: "createdByName",
+      label: "Người thực hiện",
+      render: (r) => (
+        <Link href={`/users/${r.createdById}`} className={styles.nameLink}>
+          {r.createdByName}
+        </Link>
+      ),
+    },
     {
       key: "photos",
       label: "Ảnh",
@@ -220,7 +278,7 @@ export default function VneidPage() {
             label: "Thao tác",
             render: (r: VneidRow) => (
               <RowActions>
-                {recordInScope(editScope, r) && (
+                {!r.monthClosed && recordInScope(editScope, r) && (
                   <Button
                     variant="secondary"
                     icon
@@ -231,7 +289,7 @@ export default function VneidPage() {
                     <Pencil size={16} aria-hidden />
                   </Button>
                 )}
-                {recordInScope(removeScope, r) && (
+                {!r.monthClosed && recordInScope(removeScope, r) && (
                   <Button
                     variant="secondary"
                     icon
@@ -313,6 +371,17 @@ export default function VneidPage() {
             </FilterField>
           ) : null}
         </FilterButton>
+        {can(user, "vneid", "export") && (
+          <Button
+            variant="secondary"
+            aria-label="Xuất Excel"
+            disabled={exporting}
+            onClick={() => void xuatExcel()}
+          >
+            <Download size={16} aria-hidden />
+            <span className={buttonStyles.label}>{exporting ? "Đang xuất…" : "Xuất Excel"}</span>
+          </Button>
+        )}
         {can(user, "vneid", "create") && (
           <Button
             aria-label="Tích hợp VNeID"

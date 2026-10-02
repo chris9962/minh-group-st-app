@@ -30,9 +30,14 @@ export const VneidRow = z.object({
   note: z.string(),
   createdById: z.string(),
   createdByName: z.string(),
+  createdByCode: z.string().nullable(),
   createdByDepartmentId: z.string().nullable(),
+  /** Phòng ghi nhận lượt này, chụp lúc tạo; nhân viên chuyển phòng thì dời theo từ đầu tháng. */
+  createdByDepartmentName: z.string().nullable(),
   /** Giờ tạo, ISO. Cũng là ngày thực hiện. */
   createdAt: z.string(),
+  /** Tháng của hồ sơ khách đã chốt lương: không thêm, sửa, xoá được nữa. */
+  monthClosed: z.boolean(),
 });
 export type VneidRow = z.infer<typeof VneidRow>;
 

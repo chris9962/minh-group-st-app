@@ -1865,6 +1865,7 @@ export async function customerDetailFor(
     id: s.id,
     date: s.date,
     serviceTypeName: s.serviceTypeName,
+    createdById: s.createdById,
     // Người thực hiện đã bị xoá khỏi hệ thống thì vẫn phải hiện lượt dịch vụ,
     // chỉ là không biết ai làm.
     createdByName: s.createdByName ?? "—",

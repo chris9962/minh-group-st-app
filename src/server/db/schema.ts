@@ -1856,7 +1856,13 @@ export const vneidRecords = pgTable(
     index("vneid_records_created").on(sql`created_at desc, id`),
     index("vneid_records_dept_created").on(t.createdByDepartmentId, t.createdAt),
     index("vneid_records_creator_created").on(t.createdBy, t.createdAt),
-    index("vneid_records_customer").on(t.customerId),
+    // Mỗi hồ sơ khách đúng một dòng VNeID (chốt 2026-10-02).
+    uniqueIndex("vneid_records_customer").on(t.customerId),
+    check(
+      "vneid_records_has_task",
+      sql`${t.healthInsurance} or ${t.socialWelfare} or ${t.digitalSignature}`,
+    ),
+    check("vneid_records_photo_max", sql`cardinality(${t.photoUrls}) <= 4`),
   ],
 );
 

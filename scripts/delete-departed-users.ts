@@ -64,6 +64,7 @@ try {
     UNION ALL SELECT 'bank_account_photos (S3 keys)', count(*)::text FROM bank_account_photos WHERE account_id IN (SELECT id FROM bank_accounts WHERE customer_id IN (SELECT id FROM target_customers))
     UNION ALL SELECT 'insurance_orders', count(*)::text FROM target_orders
     UNION ALL SELECT 'services', count(*)::text FROM services WHERE customer_id IN (SELECT id FROM target_customers) OR created_by IN (SELECT id FROM target_users)
+    UNION ALL SELECT 'vneid_records', count(*)::text FROM vneid_records WHERE customer_id IN (SELECT id FROM target_customers) OR created_by IN (SELECT id FROM target_users)
     UNION ALL SELECT 'gift_grants', count(*)::text FROM target_grants
     UNION ALL SELECT 'kpi_scores', count(*)::text FROM kpi_scores WHERE user_id IN (SELECT id FROM target_users)
     UNION ALL SELECT 'audit_log', count(*)::text FROM audit_log WHERE actor_id IN (SELECT id FROM target_users)
@@ -85,6 +86,7 @@ try {
     await client.query("DELETE FROM gift_grant_changes WHERE gift_grant_id IN (SELECT id FROM target_grants) OR changed_by IN (SELECT id FROM target_users)");
     await client.query("DELETE FROM gift_grants WHERE id IN (SELECT id FROM target_grants)");
     await client.query("DELETE FROM services WHERE customer_id IN (SELECT id FROM target_customers) OR created_by IN (SELECT id FROM target_users)");
+    await client.query("DELETE FROM vneid_records WHERE customer_id IN (SELECT id FROM target_customers) OR created_by IN (SELECT id FROM target_users)");
     await client.query("DELETE FROM bank_accounts WHERE customer_id IN (SELECT id FROM target_customers)");
     await client.query("DELETE FROM customer_phones WHERE customer_id IN (SELECT id FROM target_customers)");
     await client.query("DELETE FROM customers WHERE id IN (SELECT id FROM target_customers)");

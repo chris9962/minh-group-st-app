@@ -14,7 +14,7 @@ export async function GET(request: Request) {
   await logAudit(actor, {
     module: "vneid",
     action: "export",
-    targetLabel: `VNeID · ${result.rows.length}/${result.total} dòng`,
+    targetLabel: `VNeID - ${result.rows.length}/${result.total} dòng`,
   });
   return Response.json(result);
 }

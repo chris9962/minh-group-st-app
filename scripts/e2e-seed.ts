@@ -30,6 +30,7 @@ import {
   userManagedDepartments,
   userPermissions,
   users,
+  vneidRecords,
 } from "../src/server/db/schema";
 import { businessMonth } from "../src/lib/format";
 import { recomputeGiftCase } from "../src/server/gift";
@@ -72,6 +73,7 @@ for (const c of staleCustomers) {
   );
   await db.delete(insuranceOrders).where(eq(insuranceOrders.customerId, c.id));
   await db.delete(services).where(eq(services.customerId, c.id));
+  await db.delete(vneidRecords).where(eq(vneidRecords.customerId, c.id));
   // Ca "tặng quà" của lần trước để lại một dòng ở đây, và nó trỏ vào khách —
   // xoá khách trước là vướng khoá ngoại ngay từ bước dựng.
   await db.delete(giftGrants).where(eq(giftGrants.customerId, c.id));

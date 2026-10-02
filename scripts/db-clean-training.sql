@@ -19,6 +19,7 @@ BEGIN;
 DELETE FROM insurance_order_status_history;
 DELETE FROM insurance_orders;
 DELETE FROM services;
+DELETE FROM vneid_records;
 -- `gift_grant_changes` trỏ `gift_grants` và KHÔNG có on delete cascade, nên phải
 -- xoá trước. Bảng này sinh sau đợt dọn 2026-08-30 nên bản script cũ thiếu nó, và
 -- lượt chạy 2026-09-02 dừng ở đây.

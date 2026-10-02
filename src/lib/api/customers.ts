@@ -602,6 +602,7 @@ export const CustomerServiceRow = z.object({
   date: z.string(),
   serviceTypeName: z.string(),
   /** Người thực hiện — khối này là để trả lời "ai đã chăm khách này". */
+  createdById: z.string(),
   createdByName: z.string(),
   note: z.string(),
 });

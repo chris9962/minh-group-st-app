@@ -58,7 +58,8 @@ export function VneidFormDialog({
     handleSubmit,
     watch,
     setValue,
-    formState: { errors },
+    trigger,
+    formState: { errors, isSubmitted },
   } = useForm<VneidForm>({
     shouldFocusError: false,
     resolver: zodResolver(VneidForm),
@@ -99,7 +100,7 @@ export function VneidFormDialog({
     <Dialog
       open={open}
       onClose={onClose}
-      title={record ? "Sửa lượt VNeID" : `Tích hợp VNeID - ${customerName}`}
+      title={`Tích hợp VNeID - ${customerName}`}
       footerStart={onBack && <BackButton onClick={onBack}>Chọn khách khác</BackButton>}
       footer={
         <>
@@ -130,7 +131,10 @@ export function VneidFormDialog({
           />
         )}
 
-        <fieldset className={styles.tasks}>
+        <fieldset
+          className={styles.tasks}
+          aria-describedby={errors.healthInsurance ? "vneid-tasks-error" : undefined}
+        >
           <legend className={styles.legend}>Việc đã làm</legend>
           {VNEID_TASKS.map((task) => (
             <Checkbox
@@ -138,13 +142,19 @@ export function VneidFormDialog({
               label={task.label}
               checked={watch(task.key)}
               disabled={save.isPending}
-              onCheckedChange={(on) =>
-                setValue(task.key, on, { shouldDirty: true, shouldValidate: true })
-              }
+              onCheckedChange={(on) => {
+                setValue(task.key, on, { shouldDirty: true });
+                // Lỗi "ít nhất một việc" gắn ở ô BHYT, nên tích ô khác cũng phải kiểm lại ô đó.
+                if (isSubmitted) void trigger("healthInsurance");
+              }}
             />
           ))}
         </fieldset>
-        {errors.healthInsurance && <p className={styles.error}>{errors.healthInsurance.message}</p>}
+        {errors.healthInsurance && (
+          <p id="vneid-tasks-error" role="alert" className={styles.error}>
+            {errors.healthInsurance.message}
+          </p>
+        )}
 
         <BankAccountPhotos
           title="Ảnh"

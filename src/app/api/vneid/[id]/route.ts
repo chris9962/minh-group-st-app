@@ -45,8 +45,10 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   const { id } = await params;
   if (!isUuid(id)) return notFound();
 
-  const removed = await deleteVneid(actor, id);
-  if (!removed) return notFound();
+  const result = await deleteVneid(actor, id);
+  if (!result) return notFound();
+  if (!result.ok) return Response.json({ message: result.message }, { status: 422 });
+  const removed = result.record;
 
   await logAudit(actor, {
     module: "vneid",

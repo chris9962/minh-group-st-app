@@ -80,6 +80,8 @@ async function main() {
     select 'insurance_orders', count(*)::int from insurance_orders where customer_id = ${customerId}
     union all
     select 'services', count(*)::int from services where customer_id = ${customerId}
+    union all
+    select 'vneid_records', count(*)::int from vneid_records where customer_id = ${customerId}
   `);
 
   const months = await monthsToRecompute(customerId);

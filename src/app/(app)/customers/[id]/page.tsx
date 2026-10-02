@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { use, useState } from "react";
@@ -16,7 +16,7 @@ import { GiftGivingDialog } from "@/components/customers/GiftGivingDialog";
 import { GiftChangeDialog } from "@/components/customers/GiftChangeDialog";
 import { GiftExtraDialog } from "@/components/customers/GiftExtraDialog";
 import { ServiceFormDialog } from "@/components/services/ServiceFormDialog";
-import { VneidFormDialog } from "@/components/vneid/VneidFormDialog";
+import { CustomerVneidDialog } from "@/components/vneid/CustomerVneidDialog";
 import { Button } from "@/components/ui/Button";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { SectionCard } from "@/components/ui/SectionCard";
@@ -43,7 +43,14 @@ import {
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { INSURANCE_STATUS_LABEL, INSURANCE_STATUS_TONE } from "@/lib/api/insuranceOrders";
 import { fetchVneidRecords, VNEID_TASKS, type VneidRow } from "@/lib/api/vneid";
-import { formatDate, formatIdNumber, formatPhone, formatVnd } from "@/lib/format";
+import {
+  formatDate,
+  formatDateTime as formatDateTimeVn,
+  formatIdNumber,
+  formatPhone,
+  formatVnd,
+} from "@/lib/format";
+import { PAGE_SIZE } from "@/lib/api/pagination";
 import { canOpenPath } from "@/lib/nav";
 import { can, recordInScope, recordVisibility } from "@/lib/permissions";
 import { PRODUCT_LABEL } from "@/lib/types";
@@ -84,6 +91,8 @@ export default function CustomerDetailPage({
   const [openingBank, setOpeningBank] = useState(false);
   const [loggingService, setLoggingService] = useState(false);
   const [loggingVneid, setLoggingVneid] = useState(false);
+  const [vneidPage, setVneidPage] = useState(0);
+  const [vneidDir, setVneidDir] = useState<"asc" | "desc">("desc");
 
   const { data, isPending, isError, refetch, isFetching } = useQuery({
     queryKey: ["customer", id],
@@ -92,7 +101,7 @@ export default function CustomerDetailPage({
 
   // Đọc qua route danh sách VNeID, máy chủ tự cắt theo phạm vi xem của người xem.
   const { data: vneid } = useQuery({
-    queryKey: ["vneid", "customer", id],
+    queryKey: ["vneid", "customer", id, vneidPage, vneidDir],
     queryFn: () =>
       fetchVneidRecords({
         search: "",
@@ -102,11 +111,12 @@ export default function CustomerDetailPage({
         staffId: "",
         customerId: id,
         task: "",
-        page: 0,
+        page: vneidPage,
         sort: "createdAt",
-        dir: "desc",
+        dir: vneidDir,
       }),
     enabled: can(actor, "vneid", "view-detail"),
+    placeholderData: keepPreviousData,
   });
 
   const removeDraft = useMutation({
@@ -225,6 +235,16 @@ export default function CustomerDetailPage({
     },
   ];
 
+  // Chỉ gắn link khi người xem mở được hồ sơ nhân viên đó, cùng luật với ô "Người tạo".
+  const staffLink = (userId: string, name: string) =>
+    canOpenPath(actor, `/users/${userId}`) ? (
+      <Link href={`/users/${userId}`} className={styles.infoLink}>
+        {name}
+      </Link>
+    ) : (
+      name
+    );
+
   const serviceColumns: RankColumn<CustomerServiceRow>[] = [
     {
       key: "date",
@@ -233,7 +253,7 @@ export default function CustomerDetailPage({
       render: (s) => formatDate(s.date),
     },
     { key: "serviceTypeName", label: "Loại dịch vụ", render: (s) => s.serviceTypeName },
-    { key: "createdByName", label: "Người thực hiện", render: (s) => s.createdByName },
+    { key: "createdByName", label: "Người thực hiện", render: (s) => staffLink(s.createdById, s.createdByName) },
     { key: "note", label: "Ghi chú", render: (s) => s.note || "" },
   ];
 
@@ -241,8 +261,8 @@ export default function CustomerDetailPage({
     {
       key: "createdAt",
       label: "Ngày giờ",
-      sortBy: (v) => Date.parse(v.createdAt),
-      render: (v) => formatDateTime(new Date(v.createdAt)),
+      sortable: true,
+      render: (v) => formatDateTimeVn(v.createdAt),
     },
     {
       key: "tasks",
@@ -253,7 +273,7 @@ export default function CustomerDetailPage({
           .join(", "),
     },
     { key: "photos", label: "Ảnh", render: (v) => (v.photoUrls.length > 0 ? `${v.photoUrls.length} ảnh` : "") },
-    { key: "createdByName", label: "Người thực hiện", render: (v) => v.createdByName },
+    { key: "createdByName", label: "Người thực hiện", render: (v) => staffLink(v.createdById, v.createdByName) },
     { key: "note", label: "Ghi chú", render: (v) => v.note || "" },
   ];
 
@@ -442,7 +462,7 @@ export default function CustomerDetailPage({
                   <Briefcase size={16} />
                   Ghi dịch vụ
                 </Button>
-                {can(actor, "vneid", "create") && (
+                {!data.monthClosed && can(actor, "vneid", "create") && (
                   <Button variant="secondary" onClick={() => setLoggingVneid(true)}>
                     <IdCard size={16} />
                     Tích hợp VNeID
@@ -594,8 +614,19 @@ export default function CustomerDetailPage({
                   columns={vneidColumns}
                   rowKey={(v) => v.id}
                   defaultSort="createdAt"
-                  pageSize={10}
                   caption="Lượt tích hợp VNeID của khách"
+                  server={{
+                    sort: "createdAt",
+                    dir: vneidDir,
+                    page: vneidPage,
+                    total: vneid.total,
+                    pageSize: PAGE_SIZE,
+                    onSortChange: (_sort, nextDir) => {
+                      setVneidDir(nextDir);
+                      setVneidPage(0);
+                    },
+                    onPageChange: setVneidPage,
+                  }}
                 />
               </SectionCard>
             )}
@@ -916,8 +947,7 @@ export default function CustomerDetailPage({
         )}
 
         {loggingVneid && data && (
-          <VneidFormDialog
-            open
+          <CustomerVneidDialog
             customerId={data.customer.id}
             customerName={data.customer.fullName}
             customerDepartmentId={data.customer.createdByDepartmentId}

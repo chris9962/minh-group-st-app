@@ -59,6 +59,20 @@ export type ExcelColumn<T> = {
   link?: (row: T) => string;
 };
 
+/**
+ * Màu nền của nhóm cột ở đầu bảng 3 tầng — bộ màu của file `TÍNH ĐIỂM TỔNG`.
+ * File mới chọn trong bộ này theo nghĩa của nhóm, không tự đặt mã màu khác.
+ */
+export const EXCEL_GROUP_COLORS = {
+  customer: 'FFDCE9F7',
+  account: 'FFDFF0E0',
+  app: 'FFFDF2D5',
+  gift: 'FFF6E2F0',
+  insurance: 'FFE6E2F6',
+  staff: 'FFEDEEF0',
+  points: 'FFFBE0DC',
+} as const;
+
 const HEADER_GREY = 'FFE8EAED';
 const TOTAL_GREY = 'FFF5F6F7';
 const LINE = 'FFB0B4BA';
