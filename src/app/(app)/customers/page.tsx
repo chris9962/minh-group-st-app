@@ -72,44 +72,23 @@ const iso = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60_000).
 const KHACH = { group: "Khách hàng", groupColor: EXCEL_GROUP_COLORS.customer };
 const VIEC = { group: "Việc đã làm", groupColor: EXCEL_GROUP_COLORS.account };
 const NHAN_SU = { group: "Nhân sự", groupColor: EXCEL_GROUP_COLORS.staff };
-const sum = (values: number[]) => Math.round(values.reduce((a, b) => a + b, 0) * 100) / 100;
+
+/** "MB, TPB, VPa(HKD)": tài khoản HKD, CNKD ghi loại sau mã ngân hàng. */
+const banksOf = (c: CustomerExportRow): string =>
+  c.accounts.map((a) => (a.accountType === "none" ? a.bankCode : `${a.bankCode}(${a.accountType})`)).join(", ");
 
 /**
  * Cột chọn được ở hộp thoại Xuất Excel. STT luôn đứng đầu file nên không nằm ở đây.
- * `label` dựng nhãn "hồ sơ 2" từ chính các dòng xuất; cột Điểm chỉ có khi đã chọn khoảng ngày.
+ * `label` dựng nhãn "hồ sơ 2" từ chính các dòng xuất.
  */
-const customerExcelColumns = (
-  label: (c: CustomerExportRow) => string,
-  showPoints: boolean,
-): ExcelColumnDef<CustomerExportRow>[] => [
+const customerExcelColumns = (label: (c: CustomerExportRow) => string): ExcelColumnDef<CustomerExportRow>[] => [
   { key: "createdAt", label: "Ngày tạo", ...KHACH, width: 12, value: (c) => formatDate(c.createdAt) },
   { key: "fullName", label: "Tên khách hàng", ...KHACH, width: 28, transform: "name", value: (c) => label(c) },
   { key: "primaryPhone", label: "Số điện thoại", ...KHACH, width: 14, type: "text", value: (c) => c.primaryPhone },
   { key: "address", label: "Địa chỉ", ...KHACH, width: 36, value: (c) => c.address },
   { key: "channel", label: "Kênh", ...KHACH, width: 14, value: (c) => c.channel },
-  { key: "accountCount", label: "Số tài khoản", ...VIEC, width: 12, type: "number", total: (all) => sum(all.map((c) => c.accountCount)), value: (c) => c.accountCount },
-  ...(showPoints
-    ? [
-        {
-          key: "points",
-          label: "Điểm",
-          ...VIEC,
-          width: 8,
-          type: "number" as const,
-          total: (all: CustomerExportRow[]) => sum(all.map((c) => c.points ?? 0)),
-          value: (c: CustomerExportRow) => c.points ?? 0,
-        },
-      ]
-    : []),
-  { key: "insuranceCount", label: "Số đơn BH", ...VIEC, width: 10, type: "number", total: (all) => sum(all.map((c) => c.insuranceCount)), value: (c) => c.insuranceCount },
-  {
-    key: "gift",
-    label: "Quà",
-    ...VIEC,
-    width: 26,
-    value: (c) =>
-      c.giftStatus === "given" ? (c.givenItem ?? "Đã tặng") : c.giftStatus === "eligible" ? "Đủ điều kiện" : "",
-  },
+  { key: "banks", label: "Ngân hàng", ...VIEC, width: 30, value: banksOf },
+  { key: "insuranceCount", label: "Số đơn BH", ...VIEC, width: 10, type: "number", total: (all) => all.reduce((s, c) => s + c.insuranceCount, 0), value: (c) => c.insuranceCount },
   { key: "createdByCode", label: "Mã nhân viên", ...NHAN_SU, width: 16, type: "text", value: (c) => c.createdByCode ?? "" },
   { key: "createdByName", label: "Người tạo", ...NHAN_SU, width: 24, value: (c) => c.createdByName },
   { key: "createdByDepartmentName", label: "Phòng", ...NHAN_SU, width: 24, value: (c) => c.createdByDepartmentName },
@@ -429,7 +408,7 @@ export default function CustomersPage() {
       // Đầu bảng 3 tầng theo chuẩn chung ở AGENTS.md §12: nhóm, tổng, tên cột.
       const columns: ExcelColumn<CustomerExportRow>[] = [
         { header: "STT", group: "KHÁCH HÀNG", groupColor: EXCEL_GROUP_COLORS.customer, width: 7, type: "number", align: "center", total: (all) => all.length, value: (_c, i) => i + 1 },
-        ...pickExcelColumns(customerExcelColumns(seqLabeller(rows), showPoints), keys),
+        ...pickExcelColumns(customerExcelColumns(seqLabeller(rows)), keys),
       ];
       await exportExcel({
         fileName: `khach-hang-${iso(new Date())}.xlsx`,
@@ -915,7 +894,7 @@ export default function CustomersPage() {
         {choosingColumns && (
           <ExcelColumnsDialog
             screen="customers"
-            columns={excelColumnOptions(customerExcelColumns(() => "", showPoints))}
+            columns={excelColumnOptions(customerExcelColumns(() => ""))}
             exporting={exporting}
             onClose={() => setChoosingColumns(false)}
             onExport={(keys) => void xuatExcel(keys)}

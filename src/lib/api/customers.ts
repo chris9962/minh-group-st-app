@@ -310,7 +310,11 @@ export type CustomerExportQuery = Pick<
  * `total` là tổng số dòng KHỚP BỘ LỌC. Lớn hơn `rows.length` nghĩa là máy chủ
  * đã cắt ở trần — nơi gọi phải nói ra, không được lặng lẽ đưa file thiếu.
  */
-export const CustomerExportRow = CustomerRow.extend({ note: z.string() });
+export const CustomerExportRow = CustomerRow.extend({
+  note: z.string(),
+  /** Tài khoản đã hoàn thành của khách theo thứ tự mở, cho cột Ngân hàng của file. */
+  accounts: z.array(z.object({ bankCode: z.string(), accountType: AccountType })),
+});
 export type CustomerExportRow = z.infer<typeof CustomerExportRow>;
 const CustomerExportPage = z.object({ rows: z.array(CustomerExportRow), total: z.number() });
 

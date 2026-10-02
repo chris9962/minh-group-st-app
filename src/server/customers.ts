@@ -38,7 +38,7 @@ import {
   GIFT_UNCHOSEN,
   GIFT_UNCHOSEN_LABEL,
 } from "@/lib/api/customers";
-import { MAX_BANK_ACCOUNTS_PER_CUSTOMER } from "@/lib/api/bankAccounts";
+import { MAX_BANK_ACCOUNTS_PER_CUSTOMER, type AccountType } from "@/lib/api/bankAccounts";
 import type { Page } from "@/lib/api/pagination";
 import type { PageArgs } from "./pagination";
 import { BUSINESS_TIMEZONE, businessMonth, clockNowVn, digitsOnly, monthRange, searchKey } from "@/lib/format";
@@ -701,8 +701,29 @@ export async function listCustomersForExport(
     ? await bankingPointsByCustomer(rows.map((r) => r.id), filters.from.slice(0, 7))
     : null;
 
+  // Cột Ngân hàng của file: chỉ tài khoản `done`, cùng phép đếm với `account_count`.
+  const accountRows =
+    rows.length === 0
+      ? []
+      : await db
+          .select({ customerId: bankAccounts.customerId, bankCode: banks.code, accountType: bankAccounts.accountType })
+          .from(bankAccounts)
+          .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
+          .where(and(inArray(bankAccounts.customerId, rows.map((r) => r.id)), eq(bankAccounts.status, "done")))
+          .orderBy(asc(bankAccounts.createdAt));
+  const accountsOf = new Map<string, { bankCode: string; accountType: AccountType }[]>();
+  for (const a of accountRows) {
+    const list = accountsOf.get(a.customerId) ?? [];
+    list.push({ bankCode: a.bankCode, accountType: a.accountType });
+    accountsOf.set(a.customerId, list);
+  }
+
   return {
-    rows: rows.map((r) => ({ ...r, points: points ? (points.get(r.id) ?? 0) : null })),
+    rows: rows.map((r) => ({
+      ...r,
+      points: points ? (points.get(r.id) ?? 0) : null,
+      accounts: accountsOf.get(r.id) ?? [],
+    })),
     total: totals?.value ?? 0,
   };
 }
