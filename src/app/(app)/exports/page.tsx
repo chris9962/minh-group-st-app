@@ -35,6 +35,7 @@ import { errorMessage } from "@/lib/toast";
 import { fetchDepartments } from "@/lib/api/departments";
 import { fetchPeopleForExport, periodMonth, periodParam, totalPoints } from "@/lib/api/people";
 import { fetchServicesForExport } from "@/lib/api/services";
+import { fetchVneidForExport, VNEID_TASKS } from "@/lib/api/vneid";
 import { fetchServiceTypes } from "@/lib/api/settings";
 import { fetchStaffOptions, type StaffOption } from "@/lib/api/staff";
 import { fetchProvinces } from "@/lib/api/wardCatalog";
@@ -81,7 +82,8 @@ type ReportId =
   | "order-stats"
   | "cancelled-insurance"
   | "gift-excess"
-  | "work-days";
+  | "work-days"
+  | "vneid";
 
 /**
  * Ba báo cáo, chốt 2026-08-22.
@@ -106,6 +108,7 @@ const REPORTS: { id: ReportId; label: string; module: ModuleKey }[] = [
   // Thêm 2026-09-19: truy thu quà đã phát cho khách mà app ngân hàng lỗi sau đó.
   { id: "gift-excess", label: "Quà cấp dư do app lỗi", module: "banking" },
   { id: "work-days", label: "Ngày công", module: "staff" },
+  { id: "vneid", label: "Tích hợp VNeID", module: "vneid" },
 ];
 
 /**
@@ -283,6 +286,24 @@ function catalogFor(report: ReportId, banks: Bank[], staffById: Map<string, Staf
         { key: "createdByCode", header: "Mã người thực hiện", type: "text", defaultOn: false, sample: ["MG-0123", "MG-0007"], value: (r) => staffCodeOf(r.createdById) },
         { key: "createdByName", header: "Người thực hiện", defaultOn: true, sample: ["Lý Hoàng Nam", "Phan Thị Tuyết"], value: (r) => r.createdByName },
         { key: "note", header: "Ghi chú", defaultOn: true, sample: ["—", "Đã hoàn tất hồ sơ"], value: (r) => r.note || "—" },
+      ];
+
+    case "vneid":
+      return [
+        { key: "createdAt", header: "Ngày giờ", width: 17, defaultOn: true, sample: ["02/10/2026 08:12", "02/10/2026 15:55"], value: (r) => formatDateTime(r.createdAt) },
+        { key: "customerName", header: "Khách hàng", transform: "name", defaultOn: true, sample: ["PHAM MINH TUAN", "BUI THI KIM CHI"], value: (r) => r.customerName },
+        { key: "customerAddress", header: "Địa chỉ", defaultOn: true, sample: ["Ấp 3, Xã Tân Thành", "Ấp 1, Xã Bình Phú"], value: (r) => r.customerAddress || "—" },
+        ...VNEID_TASKS.map((t): CatalogColumn => ({
+          key: t.key,
+          header: t.label,
+          defaultOn: true,
+          sample: ["Có", ""],
+          value: (r) => (r[t.key] ? "Có" : ""),
+        })),
+        { key: "photos", header: "Số ảnh", type: "number", defaultOn: false, sample: ["2", "0"], value: (r) => r.photoUrls.length },
+        { key: "createdByCode", header: "Mã người thực hiện", type: "text", defaultOn: false, sample: ["MG-0123", "MG-0007"], value: (r) => staffCodeOf(r.createdById) },
+        { key: "createdByName", header: "Người thực hiện", defaultOn: true, sample: ["Lý Hoàng Nam", "Phan Thị Tuyết"], value: (r) => r.createdByName },
+        { key: "note", header: "Ghi chú", defaultOn: true, sample: ["—", "Khách đã có tài khoản định danh"], value: (r) => r.note || "—" },
       ];
 
     /**
@@ -683,6 +704,26 @@ export default function ExportsPage() {
         sheetName: "Dịch vụ",
         rows,
         columns: buildColumns(catalogFor("services-by-ward", banks, staffById), exportOrder),
+      });
+      return rows.length;
+    },
+
+    async vneid() {
+      const { rows, total } = await fetchVneidForExport({
+        search: "",
+        from,
+        to,
+        departmentId: "",
+        staffId: "",
+        customerId: "",
+        task: "",
+      });
+      capCheck(rows.length, total, "lượt VNeID");
+      await exportExcel({
+        fileName: `vneid-${iso(new Date())}.xlsx`,
+        sheetName: "VNeID",
+        rows,
+        columns: buildColumns(catalogFor("vneid", banks, staffById), exportOrder),
       });
       return rows.length;
     },

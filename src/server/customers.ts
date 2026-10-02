@@ -70,6 +70,7 @@ import {
   serviceTypes,
   services,
   users,
+  vneidRecords,
 } from "./db/schema";
 
 /**
@@ -1545,6 +1546,7 @@ const BLOCKING_TABLES = [
   { table: bankAccounts, label: "tài khoản ngân hàng" },
   { table: insuranceOrders, label: "đơn bảo hiểm" },
   { table: services, label: "dịch vụ đã làm" },
+  { table: vneidRecords, label: "lượt VNeID" },
   { table: giftGrants, label: "đợt phát quà" },
 ] as const;
 

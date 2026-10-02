@@ -17,6 +17,7 @@ export type NavIconKey =
   | 'insurance'
   | 'banking'
   | 'services'
+  | 'vneid'
   | 'customers'
   | 'people'
   | 'profile'
@@ -124,6 +125,10 @@ export function navFor(user: User | null): NavEntry[] {
     items.push({ href: '/services', label: 'Dịch vụ', icon: 'services', screen: 'P-31' });
   }
 
+  if (can(user, 'vneid', 'view-detail')) {
+    items.push({ href: '/vneid', label: 'VNeID', icon: 'vneid', screen: 'P-32' });
+  }
+
   // Hồ sơ khách hàng không áp trục phạm vi — ai đăng nhập được cũng thấy.
   items.push({ href: '/customers', label: 'Khách hàng', icon: 'customers', screen: 'P-40' });
 
@@ -182,7 +187,8 @@ export function navFor(user: User | null): NavEntry[] {
     can(user, 'insurance', 'export') ||
     can(user, 'banking', 'export') ||
     can(user, 'services', 'export') ||
-    can(user, 'staff', 'export')
+    can(user, 'staff', 'export') ||
+    can(user, 'vneid', 'export')
   ) {
     items.push({ href: '/exports', label: 'Xuất dữ liệu', icon: 'exports', screen: 'P-73' });
   }
@@ -399,6 +405,9 @@ export function jumpActionsFor(user: User | null): JumpTarget[] {
   }
   if (can(user, 'services', 'create')) {
     actions.push({ href: '/services?create=1', label: 'Ghi dịch vụ', icon: 'services' });
+  }
+  if (can(user, 'vneid', 'create')) {
+    actions.push({ href: '/vneid?create=1', label: 'Tích hợp VNeID', icon: 'vneid' });
   }
   if (can(user, 'staff', 'create')) {
     actions.push({ href: '/users?create=1', label: 'Thêm nhân viên', icon: 'people' });

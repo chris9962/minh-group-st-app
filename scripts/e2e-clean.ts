@@ -42,6 +42,7 @@ import {
   userManagedDepartments,
   userPermissions,
   users,
+  vneidRecords,
 } from "../src/server/db/schema";
 
 const TAG = "ZZE2E%";
@@ -73,6 +74,7 @@ for (const c of testCustomers) {
   );
   await db.delete(insuranceOrders).where(eq(insuranceOrders.customerId, c.id));
   await db.delete(services).where(eq(services.customerId, c.id));
+  await db.delete(vneidRecords).where(eq(vneidRecords.customerId, c.id));
   await db.delete(giftGrants).where(eq(giftGrants.customerId, c.id));
   await db.delete(bankAccounts).where(eq(bankAccounts.customerId, c.id));
   await db.delete(customerPhones).where(eq(customerPhones.customerId, c.id));

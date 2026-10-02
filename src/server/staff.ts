@@ -49,8 +49,10 @@ import {
   userManagedDepartments,
   userPermissions,
   users,
+  vneidRecords,
 } from "./db/schema";
 import type { PageArgs } from "./pagination";
+import { createdFrom } from "./vneid";
 import {
   countsInRange,
   daysLeftOf,
@@ -627,6 +629,10 @@ async function writeStaff(
           .update(services)
           .set(moved)
           .where(and(eq(services.createdBy, id), gte(services.serviceDate, from)));
+        await tx
+          .update(vneidRecords)
+          .set(moved)
+          .where(and(eq(vneidRecords.createdBy, id), createdFrom(from)));
         // Ngày công cũng đi theo người như bốn bảng nghiệp vụ trên. Nhờ vậy
         // số ngày của TP/PT phòng cũ và mới không đọc hai quy ước khác nhau.
         if (movedTo)

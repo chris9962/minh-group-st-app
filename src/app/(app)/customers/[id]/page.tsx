@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { use, useState } from "react";
-import { Briefcase, ChevronRight, Gift, History, Landmark, Pencil, ShieldCheck, Trash2, User as UserIcon } from "lucide-react";
+import { Briefcase, ChevronRight, Gift, History, IdCard, Landmark, Pencil, ShieldCheck, Trash2, User as UserIcon } from "lucide-react";
 import { BackLink } from "@/components/ui/BackLink";
 import { SkeletonCard } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
@@ -16,6 +16,7 @@ import { GiftGivingDialog } from "@/components/customers/GiftGivingDialog";
 import { GiftChangeDialog } from "@/components/customers/GiftChangeDialog";
 import { GiftExtraDialog } from "@/components/customers/GiftExtraDialog";
 import { ServiceFormDialog } from "@/components/services/ServiceFormDialog";
+import { VneidFormDialog } from "@/components/vneid/VneidFormDialog";
 import { Button } from "@/components/ui/Button";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { SectionCard } from "@/components/ui/SectionCard";
@@ -41,6 +42,7 @@ import {
 } from "@/lib/api/customers";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { INSURANCE_STATUS_LABEL, INSURANCE_STATUS_TONE } from "@/lib/api/insuranceOrders";
+import { fetchVneidRecords, VNEID_TASKS, type VneidRow } from "@/lib/api/vneid";
 import { formatDate, formatIdNumber, formatPhone, formatVnd } from "@/lib/format";
 import { canOpenPath } from "@/lib/nav";
 import { can, recordInScope, recordVisibility } from "@/lib/permissions";
@@ -81,10 +83,30 @@ export default function CustomerDetailPage({
   const [showGiftHistory, setShowGiftHistory] = useState(false);
   const [openingBank, setOpeningBank] = useState(false);
   const [loggingService, setLoggingService] = useState(false);
+  const [loggingVneid, setLoggingVneid] = useState(false);
 
   const { data, isPending, isError, refetch, isFetching } = useQuery({
     queryKey: ["customer", id],
     queryFn: () => fetchCustomerDetail(id),
+  });
+
+  // Đọc qua route danh sách VNeID, máy chủ tự cắt theo phạm vi xem của người xem.
+  const { data: vneid } = useQuery({
+    queryKey: ["vneid", "customer", id],
+    queryFn: () =>
+      fetchVneidRecords({
+        search: "",
+        from: "",
+        to: "",
+        departmentId: "",
+        staffId: "",
+        customerId: id,
+        task: "",
+        page: 0,
+        sort: "createdAt",
+        dir: "desc",
+      }),
+    enabled: can(actor, "vneid", "view-detail"),
   });
 
   const removeDraft = useMutation({
@@ -213,6 +235,26 @@ export default function CustomerDetailPage({
     { key: "serviceTypeName", label: "Loại dịch vụ", render: (s) => s.serviceTypeName },
     { key: "createdByName", label: "Người thực hiện", render: (s) => s.createdByName },
     { key: "note", label: "Ghi chú", render: (s) => s.note || "" },
+  ];
+
+  const vneidColumns: RankColumn<VneidRow>[] = [
+    {
+      key: "createdAt",
+      label: "Ngày giờ",
+      sortBy: (v) => Date.parse(v.createdAt),
+      render: (v) => formatDateTime(new Date(v.createdAt)),
+    },
+    {
+      key: "tasks",
+      label: "Việc đã làm",
+      render: (v) =>
+        VNEID_TASKS.filter((t) => v[t.key])
+          .map((t) => t.label)
+          .join(", "),
+    },
+    { key: "photos", label: "Ảnh", render: (v) => (v.photoUrls.length > 0 ? `${v.photoUrls.length} ảnh` : "") },
+    { key: "createdByName", label: "Người thực hiện", render: (v) => v.createdByName },
+    { key: "note", label: "Ghi chú", render: (v) => v.note || "" },
   ];
 
   return (
@@ -400,6 +442,12 @@ export default function CustomerDetailPage({
                   <Briefcase size={16} />
                   Ghi dịch vụ
                 </Button>
+                {can(actor, "vneid", "create") && (
+                  <Button variant="secondary" onClick={() => setLoggingVneid(true)}>
+                    <IdCard size={16} />
+                    Tích hợp VNeID
+                  </Button>
+                )}
                 {/* Cùng điều kiện phạm vi mức DÒNG với `deleteCustomer` ở máy
                     chủ — xem nút Sửa thông tin ở trên. */}
                 {recordInScope(
@@ -536,6 +584,19 @@ export default function CustomerDetailPage({
                     phạm vi xem của bạn.
                   </p>
                 )}
+              </SectionCard>
+            )}
+
+            {vneid && vneid.total > 0 && (
+              <SectionCard title="Tích hợp VNeID" icon={<IdCard size={17} />} meta={`${vneid.total} lượt`}>
+                <RankTable
+                  rows={vneid.rows}
+                  columns={vneidColumns}
+                  rowKey={(v) => v.id}
+                  defaultSort="createdAt"
+                  pageSize={10}
+                  caption="Lượt tích hợp VNeID của khách"
+                />
               </SectionCard>
             )}
 
@@ -851,6 +912,16 @@ export default function CustomerDetailPage({
             customerName={data.customer.fullName}
             customerDepartmentId={data.customer.createdByDepartmentId}
             onClose={() => setLoggingService(false)}
+          />
+        )}
+
+        {loggingVneid && data && (
+          <VneidFormDialog
+            open
+            customerId={data.customer.id}
+            customerName={data.customer.fullName}
+            customerDepartmentId={data.customer.createdByDepartmentId}
+            onClose={() => setLoggingVneid(false)}
           />
         )}
 

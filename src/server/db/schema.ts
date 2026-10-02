@@ -35,6 +35,8 @@ export const moduleKey = pgEnum("module_key", [
   "customer", "insurance", "banking", "services", "staff",
   // P-91 · sơ đồ tổ chức, thêm ở migration 0026
   "department",
+  // Tích hợp VNeID, thêm ở migration 0117
+  "vneid",
   "system", "*",
 ]);
 
@@ -1827,6 +1829,34 @@ export const services = pgTable(
     index("services_date").on(sql`service_date desc, created_at desc, id`),
     // Ô lọc "Xã" ở P-31 — không có index này thì ai bấm cũng seq scan (74ms).
     index("services_ward").on(t.wardId),
+  ],
+);
+
+/**
+ * Tích hợp VNeID (migration 0117, chốt 2026-10-02) — module riêng, không tính
+ * điểm KPI. Check ở DB: ít nhất một việc được đánh dấu, tối đa 4 ảnh. Ngày thực
+ * hiện là `created_at`, không có cột ngày riêng.
+ */
+export const vneidRecords = pgTable(
+  "vneid_records",
+  {
+    id: id(),
+    customerId: uuid("customer_id").notNull().references(() => customers.id),
+    healthInsurance: boolean("health_insurance").notNull().default(false),
+    socialWelfare: boolean("social_welfare").notNull().default(false),
+    digitalSignature: boolean("digital_signature").notNull().default(false),
+    /** KHOÁ ảnh trong kho, thư mục `vneid/`. */
+    photoUrls: text("photo_urls").array().notNull().default([]),
+    note: text("note").notNull().default(""),
+    createdBy: uuid("created_by").notNull().references(() => users.id),
+    createdByDepartmentId: uuid("created_by_department_id").references(() => departments.id),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index("vneid_records_created").on(sql`created_at desc, id`),
+    index("vneid_records_dept_created").on(t.createdByDepartmentId, t.createdAt),
+    index("vneid_records_creator_created").on(t.createdBy, t.createdAt),
+    index("vneid_records_customer").on(t.customerId),
   ],
 );
 

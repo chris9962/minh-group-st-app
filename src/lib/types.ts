@@ -68,6 +68,8 @@ export const ModuleKey = z.enum([
   /** P-91 · Sơ đồ tổ chức. Tách khỏi `staff`: sửa cơ cấu phòng không cùng
       việc với luân chuyển một con người. */
   'department',
+  /** Tích hợp VNeID (migration 0117). Không tính điểm KPI. */
+  'vneid',
   'system',
   '*',
 ]);
@@ -180,6 +182,7 @@ export const MODULE_LABEL: Record<ModuleKey, string> = {
   services: 'Dịch vụ',
   staff: 'Nhân viên',
   department: 'Phòng ban',
+  vneid: 'VNeID',
   system: 'Hệ thống',
   '*': 'Tất cả module',
 };
@@ -286,6 +289,7 @@ export const EDITABLE_MODULES: ModuleKey[] = [
   'services',
   'staff',
   'department',
+  'vneid',
   'system',
 ];
 

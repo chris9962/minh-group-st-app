@@ -1,5 +1,5 @@
 import { eq, inArray, sql } from "drizzle-orm";
-import { auditLog, bankAccounts, customers, insuranceOrders, services, users } from "../src/server/db/schema";
+import { auditLog, bankAccounts, customers, insuranceOrders, services, users, vneidRecords } from "../src/server/db/schema";
 import { db } from "../src/server/db/client";
 import { recomputeGiftCase } from "../src/server/gift";
 import { recomputeKpi } from "../src/server/kpi";
@@ -117,6 +117,7 @@ async function main() {
     await tx.update(bankAccounts).set(chu).where(eq(bankAccounts.customerId, customerId));
     await tx.update(insuranceOrders).set(chu).where(eq(insuranceOrders.customerId, customerId));
     await tx.update(services).set(chu).where(eq(services.customerId, customerId));
+    await tx.update(vneidRecords).set(chu).where(eq(vneidRecords.customerId, customerId));
 
     await tx.insert(auditLog).values({
       actorId: actor.id,

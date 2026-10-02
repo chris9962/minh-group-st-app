@@ -59,7 +59,8 @@ export type UploadFolder =
   | 'referral-codes'
   | 'bank-guides'
   | 'insurance-orders'
-  | 'services';
+  | 'services'
+  | 'vneid';
 
 export async function uploadImage(
   file: File,
