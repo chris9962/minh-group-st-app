@@ -8,6 +8,7 @@ import { Briefcase, Download, Gift, IdCard, Landmark, Pencil, Plus, Trash2, User
 import type { DateRange } from "react-day-picker";
 import { SkeletonTable } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
+import { ExcelColumnsDialog } from "@/components/ui/ExcelColumnsDialog";
 import { TopBar } from "@/components/layout/TopBar";
 import { BankAccountFormDialog } from "@/components/banking/BankAccountFormDialog";
 import { CustomerFormDialog } from "@/components/customers/CustomerFormDialog";
@@ -47,7 +48,14 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { seqLabeller } from "@/lib/customerLabel";
 import { errorMessage, toast } from "@/lib/toast";
 import { EMPTY_PAGE, PAGE_SIZE } from "@/lib/api/pagination";
-import { exportExcel, type ExcelColumn } from "@/lib/excel";
+import {
+  EXCEL_GROUP_COLORS,
+  excelColumnOptions,
+  exportExcel,
+  pickExcelColumns,
+  type ExcelColumn,
+  type ExcelColumnDef,
+} from "@/lib/excel";
 import { formatDate, formatPhone, formatPoints } from "@/lib/format";
 import { useAddressSuggestions } from "@/lib/useAddressSuggestions";
 import { useDebouncedValue } from "@/lib/hooks";
@@ -60,6 +68,53 @@ import { useSession } from "@/store/session";
 import styles from "./page.module.scss";
 
 const iso = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
+
+const KHACH = { group: "Khách hàng", groupColor: EXCEL_GROUP_COLORS.customer };
+const VIEC = { group: "Việc đã làm", groupColor: EXCEL_GROUP_COLORS.account };
+const NHAN_SU = { group: "Nhân sự", groupColor: EXCEL_GROUP_COLORS.staff };
+const sum = (values: number[]) => Math.round(values.reduce((a, b) => a + b, 0) * 100) / 100;
+
+/**
+ * Cột chọn được ở hộp thoại Xuất Excel. STT luôn đứng đầu file nên không nằm ở đây.
+ * `label` dựng nhãn "hồ sơ 2" từ chính các dòng xuất; cột Điểm chỉ có khi đã chọn khoảng ngày.
+ */
+const customerExcelColumns = (
+  label: (c: CustomerExportRow) => string,
+  showPoints: boolean,
+): ExcelColumnDef<CustomerExportRow>[] => [
+  { key: "createdAt", label: "Ngày tạo", ...KHACH, width: 12, value: (c) => formatDate(c.createdAt) },
+  { key: "fullName", label: "Tên khách hàng", ...KHACH, width: 28, transform: "name", value: (c) => label(c) },
+  { key: "primaryPhone", label: "Số điện thoại", ...KHACH, width: 14, type: "text", value: (c) => c.primaryPhone },
+  { key: "address", label: "Địa chỉ", ...KHACH, width: 36, value: (c) => c.address },
+  { key: "channel", label: "Kênh", ...KHACH, width: 14, value: (c) => c.channel },
+  { key: "accountCount", label: "Số tài khoản", ...VIEC, width: 12, type: "number", total: (all) => sum(all.map((c) => c.accountCount)), value: (c) => c.accountCount },
+  ...(showPoints
+    ? [
+        {
+          key: "points",
+          label: "Điểm",
+          ...VIEC,
+          width: 8,
+          type: "number" as const,
+          total: (all: CustomerExportRow[]) => sum(all.map((c) => c.points ?? 0)),
+          value: (c: CustomerExportRow) => c.points ?? 0,
+        },
+      ]
+    : []),
+  { key: "insuranceCount", label: "Số đơn BH", ...VIEC, width: 10, type: "number", total: (all) => sum(all.map((c) => c.insuranceCount)), value: (c) => c.insuranceCount },
+  {
+    key: "gift",
+    label: "Quà",
+    ...VIEC,
+    width: 26,
+    value: (c) =>
+      c.giftStatus === "given" ? (c.givenItem ?? "Đã tặng") : c.giftStatus === "eligible" ? "Đủ điều kiện" : "",
+  },
+  { key: "createdByCode", label: "Mã nhân viên", ...NHAN_SU, width: 16, type: "text", value: (c) => c.createdByCode ?? "" },
+  { key: "createdByName", label: "Người tạo", ...NHAN_SU, width: 24, value: (c) => c.createdByName },
+  { key: "createdByDepartmentName", label: "Phòng", ...NHAN_SU, width: 24, value: (c) => c.createdByDepartmentName },
+  { key: "note", label: "Ghi chú", group: "Ghi chú", width: 48, type: "text", value: (c) => c.note },
+];
 
 /** Khách mới nhất lên đầu — người nhập vừa tạo xong là thấy ngay dòng của mình. */
 const FIRST_PAGE: CustomerQuery = {
@@ -158,6 +213,7 @@ export default function CustomersPage() {
   const [loggingVneidFor, setLoggingVneidFor] = useState<CustomerRow | null>(null);
   const [deletingCustomer, setDeletingCustomer] = useState<CustomerRow | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [choosingColumns, setChoosingColumns] = useState(false);
 
   // Ô tìm giữ chữ đang gõ riêng, chỉ hoãn xong mới thành câu hỏi gửi đi — nối
   // thẳng vào `query` thì mỗi phím là một lượt gọi máy chủ.
@@ -356,7 +412,7 @@ export default function CustomersPage() {
    * Nhãn "hồ sơ 2" dựng lại từ chính dòng xuất, không dùng `nameOf` của trang:
    * trang chỉ có 15 dòng nên không biết hồ sơ anh em nằm ở trang khác.
    */
-  const xuatExcel = async () => {
+  const xuatExcel = async (keys: string[]) => {
     setExporting(true);
     try {
       const { rows, total } = await fetchCustomersForExport({
@@ -370,39 +426,10 @@ export default function CustomersPage() {
         from: asked.from,
         to: asked.to,
       });
-      const label = seqLabeller(rows);
+      // Đầu bảng 3 tầng theo chuẩn chung ở AGENTS.md §12: nhóm, tổng, tên cột.
       const columns: ExcelColumn<CustomerExportRow>[] = [
-        { header: "STT", width: 6, type: "number", value: (_c, i) => i + 1 },
-        { header: "NGÀY TẠO", width: 12, value: (c) => formatDate(c.createdAt) },
-        { header: "TÊN KHÁCH HÀNG", width: 28, transform: "name", value: (c) => label(c) },
-        { header: "SỐ ĐIỆN THOẠI", width: 14, type: "text", value: (c) => c.primaryPhone },
-        { header: "ĐỊA CHỈ", width: 36, value: (c) => c.address },
-        { header: "SỐ TÀI KHOẢN", width: 12, type: "number", value: (c) => c.accountCount },
-        ...(showPoints
-          ? [
-              {
-                header: "ĐIỂM",
-                width: 8,
-                type: "number" as const,
-                value: (c: CustomerRow) => c.points ?? 0,
-              },
-            ]
-          : []),
-        { header: "SỐ ĐƠN BH", width: 10, type: "number", value: (c) => c.insuranceCount },
-        { header: "KÊNH", width: 14, value: (c) => c.channel },
-        {
-          header: "QUÀ",
-          width: 26,
-          value: (c) =>
-            c.giftStatus === "given"
-              ? (c.givenItem ?? "Đã tặng")
-              : c.giftStatus === "eligible"
-                ? "Đủ điều kiện"
-                : "",
-        },
-        { header: "NGƯỜI TẠO", width: 24, value: (c) => c.createdByName },
-        { header: "PHÒNG", width: 24, value: (c) => c.createdByDepartmentName },
-        { header: "GHI CHÚ", width: 48, type: "text", value: (c) => c.note },
+        { header: "STT", group: "KHÁCH HÀNG", groupColor: EXCEL_GROUP_COLORS.customer, width: 7, type: "number", align: "center", total: (all) => all.length, value: (_c, i) => i + 1 },
+        ...pickExcelColumns(customerExcelColumns(seqLabeller(rows), showPoints), keys),
       ];
       await exportExcel({
         fileName: `khach-hang-${iso(new Date())}.xlsx`,
@@ -410,6 +437,7 @@ export default function CustomersPage() {
         columns,
         rows,
       });
+      setChoosingColumns(false);
       if (total > rows.length)
         toast.warn(`File có ${rows.length} trên ${total} khách khớp bộ lọc. Thu hẹp bộ lọc để lấy đủ.`);
     } catch (e) {
@@ -716,7 +744,7 @@ export default function CustomersPage() {
             variant="secondary"
             aria-label="Xuất Excel"
             disabled={exporting}
-            onClick={() => void xuatExcel()}
+            onClick={() => setChoosingColumns(true)}
           >
             <Download size={16} aria-hidden />
             <span className={buttonStyles.label}>{exporting ? "Đang xuất…" : "Xuất Excel"}</span>
@@ -884,6 +912,15 @@ export default function CustomersPage() {
           />
         )}
 
+        {choosingColumns && (
+          <ExcelColumnsDialog
+            screen="customers"
+            columns={excelColumnOptions(customerExcelColumns(() => "", showPoints))}
+            exporting={exporting}
+            onClose={() => setChoosingColumns(false)}
+            onExport={(keys) => void xuatExcel(keys)}
+          />
+        )}
         {deletingCustomer && (
           <ConfirmDialog
             open

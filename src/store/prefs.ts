@@ -42,6 +42,12 @@ type Prefs = {
    */
   hideSingleAccountCustomers: boolean;
   setHideSingleAccountCustomers: (value: boolean) => void;
+  /**
+   * Cột bỏ tick ở hộp thoại Xuất Excel, khoá theo màn. Lưu cột BỎ chứ không lưu
+   * cột chọn: màn thêm cột mới thì cột đó mặc định được xuất.
+   */
+  excelHiddenColumns: Record<string, string[]>;
+  setExcelHiddenColumns: (screen: string, keys: string[]) => void;
 };
 
 export const usePrefs = create<Prefs>()(
@@ -58,6 +64,9 @@ export const usePrefs = create<Prefs>()(
       hideSingleAccountCustomers: false,
       setHideSingleAccountCustomers: (hideSingleAccountCustomers) =>
         set({ hideSingleAccountCustomers }),
+      excelHiddenColumns: {},
+      setExcelHiddenColumns: (screen, keys) =>
+        set((s) => ({ excelHiddenColumns: { ...s.excelHiddenColumns, [screen]: keys } })),
     }),
     { name: 'mgst-prefs' },
   ),

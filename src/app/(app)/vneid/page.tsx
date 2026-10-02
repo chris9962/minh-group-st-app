@@ -12,6 +12,7 @@ import buttonStyles from "@/components/ui/Button.module.css";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { DateRangePicker } from "@/components/ui/DateRangePicker";
 import { ErrorState } from "@/components/ui/ErrorState";
+import { ExcelColumnsDialog } from "@/components/ui/ExcelColumnsDialog";
 import { FilterButton } from "@/components/ui/FilterButton";
 import { FilterChips } from "@/components/ui/FilterChips";
 import { FilterChoices } from "@/components/ui/FilterChoices";
@@ -39,7 +40,14 @@ import {
 import { formatDate, formatDateTime } from "@/lib/format";
 import { useDebouncedValue } from "@/lib/hooks";
 import { can, recordInScope, recordVisibility, scopeFor } from "@/lib/permissions";
-import { EXCEL_GROUP_COLORS, exportExcel, type ExcelColumn } from "@/lib/excel";
+import {
+  EXCEL_GROUP_COLORS,
+  excelColumnOptions,
+  exportExcel,
+  pickExcelColumns,
+  type ExcelColumn,
+  type ExcelColumnDef,
+} from "@/lib/excel";
 import { errorMessage, toast } from "@/lib/toast";
 import { isRealIsoDate } from "@/lib/types";
 import { useCreateIntent } from "@/lib/useCreateIntent";
@@ -58,6 +66,34 @@ const pageFromUrl = (value: string | null): number => {
 
 const taskFromUrl = (value: string | null): VneidTaskKey | "" =>
   VNEID_TASKS.find((t) => t.key === value)?.key ?? "";
+
+const KHACH = { group: "Khách hàng", groupColor: EXCEL_GROUP_COLORS.customer };
+const VIEC = { group: "Việc đã làm", groupColor: EXCEL_GROUP_COLORS.account };
+const NHAN_SU = { group: "Nhân sự", groupColor: EXCEL_GROUP_COLORS.staff };
+
+/** Cột chọn được ở hộp thoại Xuất Excel. STT luôn đứng đầu file nên không nằm ở đây. */
+const VNEID_EXCEL_COLUMNS: ExcelColumnDef<VneidRow>[] = [
+  { key: "createdAt", label: "Ngày giờ", ...KHACH, width: 17, value: (r) => formatDateTime(r.createdAt) },
+  { key: "customerName", label: "Tên khách hàng", ...KHACH, width: 28, transform: "name", value: (r) => r.customerName },
+  { key: "customerAddress", label: "Địa chỉ", ...KHACH, width: 36, value: (r) => r.customerAddress },
+  ...VNEID_TASKS.map(
+    (t): ExcelColumnDef<VneidRow> => ({
+      key: t.key,
+      label: t.label,
+      ...VIEC,
+      width: 12,
+      align: "center",
+      total: (all) => all.filter((r) => r[t.key]).length,
+      value: (r) => (r[t.key] ? "Có" : ""),
+    }),
+  ),
+  { key: "createdByCode", label: "Mã nhân viên", ...NHAN_SU, width: 16, type: "text", value: (r) => r.createdByCode ?? "" },
+  { key: "createdByName", label: "Người thực hiện", ...NHAN_SU, width: 24, value: (r) => r.createdByName },
+  { key: "createdByDepartmentName", label: "Phòng", ...NHAN_SU, width: 24, value: (r) => r.createdByDepartmentName ?? "" },
+  { key: "note", label: "Ghi chú", group: "Ghi chú", width: 40, type: "text", value: (r) => r.note },
+];
+
+const VNEID_EXCEL_OPTIONS = excelColumnOptions(VNEID_EXCEL_COLUMNS);
 
 /** Tích hợp VNeID — danh sách các lượt đã làm, cùng khuôn với màn Dịch vụ. */
 export default function VneidPage() {
@@ -174,7 +210,8 @@ export default function VneidPage() {
 
   /** Xuất đúng bộ lọc đang xem, trọn danh sách chứ không chỉ trang đang hiện. */
   const [exporting, setExporting] = useState(false);
-  const xuatExcel = async () => {
+  const [choosingColumns, setChoosingColumns] = useState(false);
+  const xuatExcel = async (keys: string[]) => {
     setExporting(true);
     try {
       const { rows, total } = await fetchVneidForExport({
@@ -187,30 +224,12 @@ export default function VneidPage() {
         task,
       });
       // Đầu bảng 3 tầng theo chuẩn chung ở AGENTS.md §12: nhóm, tổng, tên cột.
-      const KHACH = { group: "KHÁCH HÀNG", groupColor: EXCEL_GROUP_COLORS.customer };
-      const VIEC = { group: "VIỆC ĐÃ LÀM", groupColor: EXCEL_GROUP_COLORS.account };
-      const NHAN_SU = { group: "NHÂN SỰ", groupColor: EXCEL_GROUP_COLORS.staff };
       const columns: ExcelColumn<VneidRow>[] = [
-        { header: "STT", ...KHACH, width: 7, type: "number", align: "center", total: (all) => all.length, value: (_r, i) => i + 1 },
-        { header: "NGÀY GIỜ", ...KHACH, width: 17, value: (r) => formatDateTime(r.createdAt) },
-        { header: "TÊN KHÁCH HÀNG", ...KHACH, width: 28, transform: "name", value: (r) => r.customerName },
-        { header: "ĐỊA CHỈ", ...KHACH, width: 36, value: (r) => r.customerAddress },
-        ...VNEID_TASKS.map(
-          (t): ExcelColumn<VneidRow> => ({
-            header: t.label.toUpperCase(),
-            ...VIEC,
-            width: 12,
-            align: "center",
-            total: (all) => all.filter((r) => r[t.key]).length,
-            value: (r) => (r[t.key] ? "Có" : ""),
-          }),
-        ),
-        { header: "MÃ NHÂN VIÊN", ...NHAN_SU, width: 16, type: "text", value: (r) => r.createdByCode ?? "" },
-        { header: "NGƯỜI THỰC HIỆN", ...NHAN_SU, width: 24, value: (r) => r.createdByName },
-        { header: "PHÒNG", ...NHAN_SU, width: 24, value: (r) => r.createdByDepartmentName ?? "" },
-        { header: "GHI CHÚ", group: "GHI CHÚ", width: 40, type: "text", value: (r) => r.note },
+        { header: "STT", group: "KHÁCH HÀNG", groupColor: EXCEL_GROUP_COLORS.customer, width: 7, type: "number", align: "center", total: (all) => all.length, value: (_r, i) => i + 1 },
+        ...pickExcelColumns(VNEID_EXCEL_COLUMNS, keys),
       ];
       await exportExcel({ fileName: `vneid-${iso(new Date())}.xlsx`, sheetName: "VNeID", columns, rows });
+      setChoosingColumns(false);
       if (total > rows.length)
         toast.warn(`File có ${rows.length} trên ${total} dòng khớp bộ lọc. Thu hẹp bộ lọc để lấy đủ.`);
     } catch (e) {
@@ -376,7 +395,7 @@ export default function VneidPage() {
             variant="secondary"
             aria-label="Xuất Excel"
             disabled={exporting}
-            onClick={() => void xuatExcel()}
+            onClick={() => setChoosingColumns(true)}
           >
             <Download size={16} aria-hidden />
             <span className={buttonStyles.label}>{exporting ? "Đang xuất…" : "Xuất Excel"}</span>
@@ -461,6 +480,15 @@ export default function VneidPage() {
         )}
 
         {creating && <CreateVneidDialog open onClose={() => setCreating(false)} />}
+        {choosingColumns && (
+          <ExcelColumnsDialog
+            screen="vneid"
+            columns={VNEID_EXCEL_OPTIONS}
+            exporting={exporting}
+            onClose={() => setChoosingColumns(false)}
+            onExport={(keys) => void xuatExcel(keys)}
+          />
+        )}
         {editing && (
           <VneidFormDialog
             open

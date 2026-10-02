@@ -60,6 +60,25 @@ export type ExcelColumn<T> = {
 };
 
 /**
+ * Cột chọn được ở hộp thoại Xuất Excel (`ExcelColumnsDialog`). Hộp thoại hiện
+ * `label` và `group`; file ghi hai chữ đó VIẾT HOA (§12 AGENTS.md).
+ */
+export type ExcelColumnDef<T> = Omit<ExcelColumn<T>, 'header' | 'group'> & {
+  key: string;
+  label: string;
+  group: string;
+};
+
+/** Các cột đã tick, đúng thứ tự khai, ở dạng `exportExcel` nhận. */
+export const pickExcelColumns = <T>(defs: ExcelColumnDef<T>[], keys: string[]): ExcelColumn<T>[] =>
+  defs
+    .filter((d) => keys.includes(d.key))
+    .map((d) => ({ ...d, header: d.label.toUpperCase(), group: d.group.toUpperCase() }));
+
+export const excelColumnOptions = <T>(defs: ExcelColumnDef<T>[]) =>
+  defs.map((d) => ({ key: d.key, label: d.label, group: d.group }));
+
+/**
  * Màu nền của nhóm cột ở đầu bảng 3 tầng — bộ màu của file `TÍNH ĐIỂM TỔNG`.
  * File mới chọn trong bộ này theo nghĩa của nhóm, không tự đặt mã màu khác.
  */

@@ -98,6 +98,8 @@ export const CustomerRow = z.object({
   channel: z.string(),
   createdAt: z.string(),
   createdByName: z.string(),
+  /** Mã nhân viên của người tạo, cho file Excel. `null` với tài khoản chưa có mã. */
+  createdByCode: z.string().nullable(),
   /** Tên phòng LÚC LẬP hồ sơ. `''` khi hồ sơ chưa gắn phòng nào. */
   createdByDepartmentName: z.string(),
   /**

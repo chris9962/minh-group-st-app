@@ -8,6 +8,7 @@ import { BotOff, Download, Pencil, Plus, ShieldCheck, Trash2, UserCheck } from "
 import type { DateRange } from "react-day-picker";
 import { SkeletonTable } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
+import { ExcelColumnsDialog } from "@/components/ui/ExcelColumnsDialog";
 import { TopBar } from "@/components/layout/TopBar";
 import { Button } from "@/components/ui/Button";
 import buttonStyles from "@/components/ui/Button.module.css";
@@ -48,7 +49,14 @@ import {
 } from "@/lib/api/insuranceOrders";
 import { EMPTY_PAGE, PAGE_SIZE, type SortDir } from "@/lib/api/pagination";
 import { fetchStaffOptions } from "@/lib/api/staff";
-import { exportExcel, type ExcelColumn } from "@/lib/excel";
+import {
+  EXCEL_GROUP_COLORS,
+  excelColumnOptions,
+  exportExcel,
+  pickExcelColumns,
+  type ExcelColumn,
+  type ExcelColumnDef,
+} from "@/lib/excel";
 import { formatDate } from "@/lib/format";
 import { useDebouncedValue } from "@/lib/hooks";
 import { useCreateIntent } from "@/lib/useCreateIntent";
@@ -62,6 +70,30 @@ import styles from "./page.module.scss";
 
 const iso = (d: Date) =>
   new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
+
+const DON = { group: "Đơn bảo hiểm", groupColor: EXCEL_GROUP_COLORS.insurance };
+const NHAN_SU = { group: "Nhân sự", groupColor: EXCEL_GROUP_COLORS.staff };
+
+/** Cột chọn được ở hộp thoại Xuất Excel. STT luôn đứng đầu file nên không nằm ở đây. */
+const INSURANCE_EXCEL_COLUMNS: ExcelColumnDef<InsuranceExportRow>[] = [
+  { key: "orderDate", label: "Ngày tạo đơn", ...DON, width: 13, value: (r) => formatDate(r.orderDate) },
+  { key: "orderCode", label: "Mã đơn", ...DON, width: 14, type: "text", value: (r) => r.orderCode },
+  { key: "customerName", label: "Khách hàng", ...DON, width: 28, transform: "name", value: (r) => r.customerName },
+  { key: "product", label: "Sản phẩm", ...DON, width: 18, value: (r) => PRODUCT_LABEL[r.product] },
+  { key: "packageName", label: "Gói", ...DON, width: 30, value: (r) => r.packageName },
+  { key: "fee", label: "Mức phí", ...DON, width: 12, type: "number", total: (all) => all.reduce((s, r) => s + r.fee, 0), value: (r) => r.fee },
+  { key: "startDate", label: "Hiệu lực từ", ...DON, width: 13, value: (r) => formatDate(r.startDate) },
+  { key: "endDate", label: "Ngày kết thúc", ...DON, width: 13, value: (r) => formatDate(r.endDate) },
+  { key: "status", label: "Trạng thái", ...DON, width: 18, value: (r) => INSURANCE_STATUS_LABEL[r.status] },
+  { key: "pviSerialNumber", label: "Số ấn chỉ", ...DON, width: 24, type: "text", value: (r) => r.pviSerialNumber },
+  { key: "pviPolicyGcn", label: "Số GCN", ...DON, width: 24, type: "text", value: (r) => r.pviPolicyGcn },
+  { key: "createdByCode", label: "Mã nhân viên", ...NHAN_SU, width: 16, type: "text", value: (r) => r.createdByCode ?? "" },
+  { key: "createdByName", label: "Người tạo", ...NHAN_SU, width: 24, value: (r) => r.createdByName ?? "" },
+  { key: "createdByDepartmentName", label: "Phòng", ...NHAN_SU, width: 22, value: (r) => r.createdByDepartmentName ?? "" },
+  { key: "handledByName", label: "Người xử lý", ...NHAN_SU, width: 24, value: (r) => r.handledByName ?? "" },
+];
+
+const INSURANCE_EXCEL_OPTIONS = excelColumnOptions(INSURANCE_EXCEL_COLUMNS);
 
 /** URL chỉ nhận ngày có thật — `2026-02-31` không được biến thành tháng Ba im lặng. */
 const dateFromUrl = (value: string | null): Date | undefined =>
@@ -126,6 +158,7 @@ export default function InsurancePage() {
   const compact = usePrefs((s) => s.compactInsuranceTable);
   const setCompact = usePrefs((s) => s.setCompactInsuranceTable);
   const [exporting, setExporting] = useState(false);
+  const [choosingColumns, setChoosingColumns] = useState(false);
   const [creating, setCreating] = useCreateIntent();
   const [editing, setEditing] = useState<InsuranceListRow | null>(null);
   const [removing, setRemoving] = useState<InsuranceListRow | null>(null);
@@ -210,12 +243,16 @@ export default function InsurancePage() {
    * bảng — hai quyền cấp rời nhau nên một người xem được cả công ty mà chỉ xuất
    * được phòng mình là chuyện bình thường.
    */
-  const xuatExcel = async () => {
+  const chooseColumns = () => {
     // Nói trước khi gọi máy chủ: kéo 30.000 dòng về rồi mới từ chối là phí.
     if (!insuranceExportRangeOk(from, to)) {
       toast.warn(INSURANCE_EXPORT_RANGE_MESSAGE);
       return;
     }
+    setChoosingColumns(true);
+  };
+
+  const xuatExcel = async (keys: string[]) => {
     setExporting(true);
     try {
       const { rows, total } = await fetchInsuranceOrdersForExport({
@@ -230,22 +267,10 @@ export default function InsurancePage() {
         departmentId,
         handler,
       });
+      // Đầu bảng 3 tầng theo chuẩn chung ở AGENTS.md §12: nhóm, tổng, tên cột.
       const columns: ExcelColumn<InsuranceExportRow>[] = [
-        { header: "STT", width: 6, type: "number", value: (_r, i) => i + 1 },
-        { header: "NGÀY TẠO ĐƠN", width: 13, value: (r) => formatDate(r.orderDate) },
-        { header: "MÃ ĐƠN", width: 14, type: "text", value: (r) => r.orderCode },
-        { header: "KHÁCH HÀNG", width: 28, transform: "name", value: (r) => r.customerName },
-        { header: "SẢN PHẨM", width: 18, value: (r) => PRODUCT_LABEL[r.product] },
-        { header: "GÓI", width: 30, value: (r) => r.packageName },
-        { header: "MỨC PHÍ", width: 12, type: "number", value: (r) => r.fee },
-        { header: "HIỆU LỰC TỪ", width: 13, value: (r) => formatDate(r.startDate) },
-        { header: "NGÀY KẾT THÚC", width: 13, value: (r) => formatDate(r.endDate) },
-        { header: "TRẠNG THÁI", width: 18, value: (r) => INSURANCE_STATUS_LABEL[r.status] },
-        { header: "SỐ ẤN CHỈ", width: 24, type: "text", value: (r) => r.pviSerialNumber },
-        { header: "SỐ GCN", width: 24, type: "text", value: (r) => r.pviPolicyGcn },
-        { header: "NGƯỜI TẠO", width: 24, value: (r) => r.createdByName ?? "" },
-        { header: "PHÒNG", width: 22, value: (r) => r.createdByDepartmentName ?? "" },
-        { header: "NGƯỜI XỬ LÝ", width: 24, value: (r) => r.handledByName ?? "" },
+        { header: "STT", group: "ĐƠN BẢO HIỂM", groupColor: EXCEL_GROUP_COLORS.insurance, width: 7, type: "number", align: "center", total: (all) => all.length, value: (_r, i) => i + 1 },
+        ...pickExcelColumns(INSURANCE_EXCEL_COLUMNS, keys),
       ];
       await exportExcel({
         fileName: `don-bao-hiem-${iso(new Date())}.xlsx`,
@@ -253,6 +278,7 @@ export default function InsurancePage() {
         columns,
         rows,
       });
+      setChoosingColumns(false);
       // File thiếu dòng trông y hệt file đủ, nên chạm trần phải nói ra.
       if (total > rows.length)
         toast.warn(`File có ${rows.length} trên ${total} đơn khớp bộ lọc. Thu hẹp bộ lọc để lấy đủ.`);
@@ -718,7 +744,7 @@ export default function InsurancePage() {
             variant="secondary"
             aria-label="Xuất Excel"
             disabled={exporting}
-            onClick={() => void xuatExcel()}
+            onClick={chooseColumns}
           >
             <Download size={16} aria-hidden />
             <span className={buttonStyles.label}>{exporting ? "Đang xuất…" : "Xuất Excel"}</span>
@@ -862,6 +888,15 @@ export default function InsurancePage() {
 
         {editing && (
           <InsuranceOrderEditDialog open orderId={editing.id} onClose={() => setEditing(null)} />
+        )}
+        {choosingColumns && (
+          <ExcelColumnsDialog
+            screen="insurance"
+            columns={INSURANCE_EXCEL_OPTIONS}
+            exporting={exporting}
+            onClose={() => setChoosingColumns(false)}
+            onExport={(keys) => void xuatExcel(keys)}
+          />
         )}
         {removing && (
           <ConfirmDialog

@@ -46,6 +46,8 @@ export const InsuranceListRow = z.object({
   endDate: z.string(),
   createdById: z.string().nullable(),
   createdByName: z.string().nullable(),
+  /** Mã nhân viên của người tạo, cho file Excel. `null` với tài khoản chưa có mã. */
+  createdByCode: z.string().nullable(),
   /**
    * Phòng của người tạo LÚC TẠO — giao diện cần nó để biết dòng này có nằm
    * trong phạm vi `managed` của người xem không, tức có hiện nút Sửa/Huỷ hay

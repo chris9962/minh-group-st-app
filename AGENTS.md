@@ -542,7 +542,13 @@ cho thông tin khách, `staff` cho nhân sự, `account` cho việc đã làm. K
   (§5.1).
 - Chạm trần số dòng thì báo rõ số dòng thiếu, hoặc dừng không dựng file.
 
-Các file sau còn đầu bảng 1 tầng, chưa theo chuẩn: danh sách khách, danh sách
-đơn bảo hiểm, danh sách quà, tài khoản theo ngân hàng, và các báo cáo ở màn
-Xuất dữ liệu trừ "Tính điểm tổng". Màn nào được sửa thì chuyển file của màn đó
-sang chuẩn này.
+Các file sau còn đầu bảng 1 tầng, chưa theo chuẩn: danh sách quà, tài khoản theo
+ngân hàng, và các báo cáo ở màn Xuất dữ liệu trừ "Tính điểm tổng". Màn nào được
+sửa thì chuyển file của màn đó sang chuẩn này.
+
+### Chọn cột trước khi xuất
+
+Màn VNeID, Khách hàng và Bảo hiểm mở hộp thoại `ExcelColumnsDialog` khi bấm
+Xuất Excel. Cột khai bằng `ExcelColumnDef` ở `src/lib/excel.ts`, lọc bằng
+`pickExcelColumns`. Cột STT luôn xuất, không nằm trong hộp thoại. Cột bỏ tick
+lưu ở `usePrefs().excelHiddenColumns`, theo máy, khoá theo tên màn.

@@ -421,6 +421,7 @@ function decorate(page: ReturnType<typeof pickPage>) {
       channel: sql<string>`coalesce(${channels.name}, '')`,
       createdAt: page.createdAt,
       createdByName: sql<string>`coalesce(${users.fullName}, '')`,
+      createdByCode: users.staffCode,
       /**
        * Phòng LÚC LẬP hồ sơ, không phải phòng người đó đang thuộc về — người
        * chuyển phòng thì hồ sơ cũ vẫn thuộc phòng đã lập nó.
