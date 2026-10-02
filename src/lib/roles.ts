@@ -72,6 +72,15 @@ const staffPermissions: Permission[] = [
   p('banking', 'delete', 'own'),
   p('banking', 'grant-gift', 'own'),
   /**
+   * Mọi vai đều làm được Tích hợp VNeID (chủ dự án chốt 2026-10-02). Không có
+   * `export`: xuất Excel vẫn cấp lẻ. Tài khoản đã có cấp bù bằng `db:grant-vneid`.
+   */
+  p('vneid', 'view-summary', 'own'),
+  p('vneid', 'view-detail', 'own'),
+  p('vneid', 'create', 'own'),
+  p('vneid', 'update', 'own'),
+  p('vneid', 'delete', 'own'),
+  /**
    * KHÔNG có quyền `services` ở vai nào (chốt 2026-09-30). Trưởng phòng, Phó
    * phòng, Phó giám đốc kế thừa danh sách này nên cũng không có; Giám đốc có
    * qua `fullPermissions`. Ai cần thì chủ dự án cấp lẻ ở lưới P-92.
