@@ -9,17 +9,9 @@ import {
   setFeedbackStatus,
   type Feedback,
 } from "@/lib/api/feedback";
+import { formatDateTime } from "@/lib/format";
 import { errorMessage, toast } from "@/lib/toast";
 import styles from "./FeedbackDetailDialog.module.scss";
-
-const formatDateTime = (value: string): string =>
-  new Intl.DateTimeFormat("vi-VN", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(value));
 
 type Props = {
   /** `null` là đóng — bảng truyền dòng đang mở vào đây. */

@@ -17,24 +17,13 @@ import { SectionCard } from "@/components/ui/SectionCard";
 import { fetchAuditLog, type AuditLogEntry } from "@/lib/api/auditLog";
 import { fetchStaffOptions } from "@/lib/api/staff";
 import { EMPTY_PAGE, PAGE_SIZE, type SortDir } from "@/lib/api/pagination";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatDateTime } from "@/lib/format";
 import { can } from "@/lib/permissions";
 import { ACTION_LABEL, Action, MODULE_LABEL } from "@/lib/types";
 import { useSession } from "@/store/session";
 import styles from "./page.module.scss";
 
 const iso = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
-
-const formatDateTime = (value: string): string => {
-  const d = new Date(value);
-  return new Intl.DateTimeFormat("vi-VN", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(d);
-};
 
 /**
  * P-93 · Nhật ký hoạt động — ai · làm gì · lúc nào · trên bản ghi nào.

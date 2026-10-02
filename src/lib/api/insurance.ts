@@ -176,6 +176,8 @@ export type InsuranceCancelForm = z.infer<typeof InsuranceCancelForm>;
 
 /** P-14 · Toàn bộ dữ liệu đã nhập + dòng thời gian trạng thái kèm mốc giờ. */
 export const InsuranceDetail = InsuranceOrder.extend({
+  /** Giờ tạo đơn trên hệ thống, ISO. */
+  createdAt: z.string(),
   history: z.array(InsuranceStatusStep),
   /**
    * Hai đầu của một lượt cấp lại (chốt 2026-09-03); `''` = không có.

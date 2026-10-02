@@ -36,7 +36,7 @@ import {
   type InsuranceManualStep,
 } from "@/lib/api/insuranceOrders";
 import { imageProblem, uploadImage } from "@/lib/api/uploads";
-import { businessDay, formatDate, formatVnd } from "@/lib/format";
+import { businessDay, formatDate, formatDateTime, formatVnd } from "@/lib/format";
 import { can, recordInScope, recordVisibility } from "@/lib/permissions";
 import { vehicleTypeLabel } from "@/lib/pvi";
 import { errorMessage, toast } from "@/lib/toast";
@@ -51,15 +51,6 @@ const SOURCE_LABEL = { self: "Tự mua", gift: "Quà tặng" } as const;
  * tab đang mở, tải lại trang là mất. Nó không bao giờ được đi vào bản ghi.
  */
 type PendingPhoto = { file: File; preview: string };
-
-const formatDateTime = (value: string): string =>
-  new Intl.DateTimeFormat("vi-VN", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(value));
 
 /** Một cặp nhãn — giá trị. `wide` cho giá trị dài chiếm trọn hàng lưới. */
 /**
@@ -658,7 +649,7 @@ export default function InsuranceDetailPage({ params }: { params: Promise<{ id: 
 
               <FieldGroup title="Ghi nhận">
                 {/* Ngày TẠO đơn — thứ quyết định đơn này tính vào tháng nào. */}
-                <Field label="Ngày tạo đơn">{formatDate(data.orderDate)}</Field>
+                <Field label="Ngày tạo đơn">{formatDateTime(data.createdAt)}</Field>
                 <Field label="Người tạo">{data.createdByName ?? "—"}</Field>
                 <Field label="Người xử lý">{data.handledByName ?? "—"}</Field>
               </FieldGroup>

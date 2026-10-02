@@ -442,6 +442,7 @@ const decorate = (page: ReturnType<typeof pickPage>) =>
       status: page.status,
       source: page.source,
       orderDate: page.orderDate,
+      createdAt: page.createdAt,
       startDate: page.startDate,
       endDate: page.endDate,
       beneficiaryName: page.beneficiaryName,
@@ -863,8 +864,16 @@ export async function insuranceOrderDetail(
   const r = await rawById(id);
   if (!r || !canSeeOrder(actor, r)) return null;
 
-  return { ...toOrder(r), history: await historyOf(id), ...(await replacementOf(id)) };
+  return detailOf(r);
 }
+
+/** Dữ liệu màn chi tiết P-14 của một đơn đã đọc. */
+const detailOf = async (r: DecoratedRow): Promise<InsuranceDetail> => ({
+  ...toOrder(r),
+  createdAt: r.createdAt.toISOString(),
+  history: await historyOf(r.id),
+  ...(await replacementOf(r.id)),
+});
 
 /**
  * Hai đầu của một lượt cấp lại: đơn này thay cho đơn nào, và đơn nào đã thay
@@ -1943,11 +1952,7 @@ export async function setCertificatePhoto(
     .set({ certificatePhotoUrl: photoKey, updatedAt: new Date() })
     .where(eq(insuranceOrders.id, id));
 
-  return {
-    ...toOrder((await rawById(id))!),
-    history: await historyOf(id),
-    ...(await replacementOf(id)),
-  };
+  return detailOf((await rawById(id))!);
 }
 
 /**
@@ -1972,11 +1977,7 @@ export async function setHandwrittenPhoto(
 
   return {
     ok: true,
-    value: {
-      ...toOrder((await rawById(id))!),
-      history: await historyOf(id),
-      ...(await replacementOf(id)),
-    },
+    value: await detailOf((await rawById(id))!),
   };
 }
 

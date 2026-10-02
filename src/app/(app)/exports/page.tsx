@@ -41,7 +41,7 @@ import { fetchStaffOptions, type StaffOption } from "@/lib/api/staff";
 import { fetchProvinces } from "@/lib/api/wardCatalog";
 import { useAddressSuggestions } from "@/lib/useAddressSuggestions";
 import { exportExcel, type ExcelColumn } from "@/lib/excel";
-import { BUSINESS_TIMEZONE, formatDate } from "@/lib/format";
+import { formatDate, formatDateTime } from "@/lib/format";
 import { can, scopeFor } from "@/lib/permissions";
 import {
   INSURANCE_STATUS_LABEL,
@@ -60,20 +60,6 @@ import { useSession } from "@/store/session";
 import styles from "./page.module.scss";
 
 const iso = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
-
-/** Mốc ISO → `08/09/2026 15:55` giờ Việt Nam — cột "Ngày giờ huỷ" của báo cáo #5. */
-const formatDateTime = (value: string): string =>
-  new Intl.DateTimeFormat("vi-VN", {
-    timeZone: BUSINESS_TIMEZONE,
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  })
-    .format(new Date(value))
-    .replace(",", "");
 
 type ReportId =
   | "accounts-by-customer"
