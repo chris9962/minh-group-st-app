@@ -1,0 +1,203 @@
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-6);
+  align-items: start;
+}
+
+.slotsWrap {
+  container-type: inline-size;
+}
+
+.slots {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+  align-content: start;
+}
+
+/* Đủ chỗ thì 4 ô một hàng; hẹp thì 2 x 2 để nút Chấm công không bị bóp. */
+@container (min-width: 520px) {
+  .slots {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* Ô dọc 3:4 theo ảnh chụp bằng điện thoại cầm dọc, ảnh không bị cắt đầu chân. */
+.slot {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: var(--space-2);
+  aspect-ratio: 3 / 4;
+  padding: var(--space-3);
+  border: 1px solid var(--om-line);
+  border-radius: var(--radius-md);
+}
+
+.slotPhoto {
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  background: var(--om-panel);
+}
+
+.label {
+  font-size: 12.5px;
+  color: var(--om-text-2);
+}
+
+.photoTile {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.photoTile:focus-visible {
+  outline: 2px solid var(--om-orange);
+  outline-offset: 2px;
+}
+
+.photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/*
+ * Chữ trắng trên nền tối, ở cả hai bộ màu: nền là ảnh chụp, không phải nền
+ * trang, nên token màu của trang không đọc được trên đó.
+ */
+.overlayTime {
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-2);
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 50%);
+  color: rgb(255 255 255);
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.overlayPlace {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: var(--space-6) var(--space-2) var(--space-2);
+  background: linear-gradient(to top, rgb(0 0 0 / 65%), rgb(0 0 0 / 0%));
+  color: rgb(255 255 255);
+  text-shadow: 0 1px 2px rgb(0 0 0 / 50%);
+  text-align: left;
+  font-size: 12px;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.missing {
+  color: var(--om-text-3);
+}
+
+.slotNext {
+  position: relative;
+}
+
+.captureTile {
+  display: none;
+}
+
+@media (max-width: bp.$bp-mobile) {
+  .slotNext .captureButton {
+    display: none;
+  }
+
+  .captureTile {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: inherit;
+    background: none;
+    color: var(--om-text-2);
+    cursor: pointer;
+  }
+
+  .captureTile:focus-visible {
+    outline: 2px solid var(--om-orange);
+    outline-offset: 2px;
+  }
+}
+
+.calendar {
+  --rdp-accent-color: var(--color-accent);
+  --rdp-accent-background-color: var(--color-accent-200);
+  --rdp-today-color: var(--color-accent-700);
+  --rdp-day-height: 44px;
+  --rdp-day-width: 44px;
+  --rdp-day_button-height: 40px;
+  --rdp-day_button-width: 40px;
+  --rdp-day_button-border-radius: var(--radius-sm);
+  font-family: var(--font-body);
+  font-size: 13px;
+  margin: 0;
+  padding-left: var(--space-6);
+  border-left: 1px solid var(--om-line);
+}
+
+.calendar :global(.rdp-month_caption) {
+  font-family: var(--font-heading);
+  font-size: 15px;
+}
+
+/* Màu không là kênh duy nhất: ngày có chấm công còn có chấm tròn dưới số. */
+.checked :global(.rdp-day_button) {
+  position: relative;
+  background: var(--om-green-soft);
+  color: var(--om-green-ink);
+}
+
+.checked :global(.rdp-day_button)::after {
+  content: "";
+  position: absolute;
+  bottom: 5px;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  margin-left: -2px;
+  border-radius: 999px;
+  background: var(--om-green);
+}
+
+@media (max-width: bp.$bp-mobile) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-4);
+  }
+
+  .calendar {
+    justify-self: stretch;
+    display: flex;
+    justify-content: center;
+    padding-left: 0;
+    padding-top: var(--space-4);
+    border-left: 0;
+    border-top: 1px solid var(--om-line);
+  }
+}

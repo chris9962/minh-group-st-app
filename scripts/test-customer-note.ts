@@ -47,7 +47,7 @@ try {
   const actor: User = {
     id: ownerId, username: "ZZE2E_note", fullName: "ZZE2E Ghi chú", role: "staff",
     departmentId: null, managedDepartmentIds: [], insuranceDepartmentIds: [], managedBankIds: [],
-    manageScope: "none", title: "Nhân viên", active: true,
+    salaryScheme: "department", manageScope: "none", title: "Nhân viên", active: true,
     permissions: [{ module: "customer", action: "update", scope: "own" }],
   };
   const note = "Khách hẹn gọi lại chiều mai.\nGiữ nguyên dấu tiếng Việt và số 001.";

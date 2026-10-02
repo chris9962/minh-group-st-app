@@ -1,0 +1,198 @@
+/*
+ * Màn chụp đen ở cả hai bộ màu, như camera của điện thoại: ảnh xem trước cần nền
+ * trung tính, không nhuốm màu kem hay xanh đêm của trang. Các màu dưới đây chỉ
+ * dùng trong màn này.
+ */
+.camera {
+  --cam-bg: rgb(0 0 0);
+  --cam-fg: rgb(255 255 255);
+  --cam-glass: rgb(255 255 255 / 16%);
+  --cam-scrim: rgb(0 0 0 / 55%);
+
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100dvh;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: var(--cam-bg);
+  color: var(--cam-fg);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+}
+
+.camera:not([open]) {
+  display: none;
+}
+
+.camera::backdrop {
+  background: rgb(0 0 0 / 80%);
+}
+
+.top {
+  display: grid;
+  grid-template-columns: 44px 1fr 44px;
+  align-items: center;
+  gap: var(--space-3);
+  padding: calc(var(--space-3) + env(safe-area-inset-top)) var(--space-4) var(--space-3);
+}
+
+.slot {
+  justify-self: center;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: var(--cam-glass);
+  font-size: 13px;
+}
+
+.location {
+  position: absolute;
+  left: var(--space-3);
+  right: var(--space-3);
+  bottom: var(--space-3);
+  width: fit-content;
+  max-width: calc(100% - 2 * var(--space-3));
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--cam-scrim);
+  font-size: 13px;
+}
+
+.viewfinder {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* `contain` chứ không `cover`: nhân viên thấy đúng khung sẽ lưu, không bị cắt mép. */
+.media {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.media[hidden] {
+  display: none;
+}
+
+.notices {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-6);
+  text-align: center;
+  font-size: 14px;
+
+  p {
+    margin: 0;
+  }
+}
+
+.bottom {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  padding: var(--space-6) var(--space-6) calc(var(--space-6) + env(safe-area-inset-bottom));
+
+  > :last-child {
+    justify-self: end;
+  }
+}
+
+.round {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: var(--cam-glass);
+  color: var(--cam-fg);
+  cursor: pointer;
+}
+
+.shutter {
+  width: 76px;
+  height: 76px;
+  padding: 5px;
+  border: 4px solid var(--cam-fg);
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.shutterInner {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--cam-fg);
+  transition: transform 0.1s ease;
+}
+
+.shutter:active .shutterInner {
+  transform: scale(0.9);
+}
+
+.textButton {
+  justify-self: start;
+  min-height: 44px;
+  padding: 0 var(--space-2);
+  border: 0;
+  background: none;
+  color: var(--cam-fg);
+  font: inherit;
+  font-size: 17px;
+  cursor: pointer;
+}
+
+.confirm {
+  min-height: 44px;
+  padding: 0 var(--space-4);
+  border: 0;
+  border-radius: 999px;
+  background: var(--cam-fg);
+  color: var(--cam-bg);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.round:disabled,
+.shutter:disabled,
+.textButton:disabled,
+.confirm:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.round:focus-visible,
+.shutter:focus-visible,
+.textButton:focus-visible,
+.confirm:focus-visible {
+  outline: 2px solid var(--cam-fg);
+  outline-offset: 3px;
+}
+
+/* Máy tính: khung dọc cỡ điện thoại giữa màn, không phủ kín cả màn hình rộng. */
+@media (min-width: bp.$bp-mobile) {
+  .camera {
+    inset: 0;
+    width: min(440px, calc(100vw - 32px));
+    height: min(860px, calc(100dvh - 32px));
+    margin: auto;
+    border-radius: 28px;
+  }
+}

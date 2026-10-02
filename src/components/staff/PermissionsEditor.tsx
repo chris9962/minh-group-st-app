@@ -50,7 +50,9 @@ function actionsForModule(module: ModuleKey): Action[] {
       ? []
       : module === "department"
         ? BASE_ACTIONS.filter((a) => a !== "export")
-        : BASE_ACTIONS;
+        : module === "attendance"
+          ? (["view-detail"] as Action[])
+          : BASE_ACTIONS;
   const special = SPECIAL_ACTIONS_OF[module] ?? [];
   return [...base, ...special];
 }

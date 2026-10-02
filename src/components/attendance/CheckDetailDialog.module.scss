@@ -1,0 +1,98 @@
+/* Ảnh và bản đồ cùng một bề ngang: bề ngang của khung ảnh cao tối đa 62vh. */
+.body {
+  width: min(100%, calc(min(62vh, 560px) * 9 / 16));
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/*
+ * Khung dọc 9:16 như màn hình điện thoại, nền đen. Ảnh `contain` nằm trọn trong
+ * khung, phần thừa là viền đen, giống lúc nhân viên xem trên máy.
+ */
+.photoWrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 9 / 16;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: rgb(0 0 0);
+}
+
+.photo {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/*
+ * Chữ đè trên ảnh luôn trắng trên dải tối, ở cả hai bộ màu: nền là ảnh chụp,
+ * không phải nền trang, nên token màu của trang không đọc được trên đó.
+ */
+.stamp {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--space-6) var(--space-3) var(--space-3);
+  background: linear-gradient(to top, rgb(0 0 0 / 65%), rgb(0 0 0 / 0%));
+  color: rgb(255 255 255);
+  text-shadow: 0 1px 2px rgb(0 0 0 / 50%);
+}
+
+.clock {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.time {
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.date {
+  padding-left: var(--space-2);
+  border-left: 2px solid rgb(255 255 255);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.place {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.mapWrap {
+  position: relative;
+  height: 140px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.map {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 1px solid var(--om-line);
+  border-radius: var(--radius-md);
+}
+
+/* Phủ đúng khung ảnh và khung bản đồ cho tới khi tải xong, bố cục không nhảy. */
+.skeleton {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+  z-index: 1;
+}

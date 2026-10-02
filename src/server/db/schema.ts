@@ -4,6 +4,7 @@ import {
   boolean,
   check,
   date,
+  doublePrecision,
   index,
   integer,
   jsonb,
@@ -37,6 +38,8 @@ export const moduleKey = pgEnum("module_key", [
   "department",
   // Tích hợp VNeID, thêm ở migration 0117
   "vneid",
+  // Chấm công nhân viên Điểm ATM, thêm ở migration 0118
+  "attendance",
   "system", "*",
 ]);
 
@@ -1863,6 +1866,48 @@ export const vneidRecords = pgTable(
       sql`${t.healthInsurance} or ${t.socialWelfare} or ${t.digitalSignature}`,
     ),
     check("vneid_records_photo_max", sql`cardinality(${t.photoUrls}) <= 4`),
+  ],
+);
+
+export const attendanceSlot = pgEnum("attendance_slot", [
+  "morning-in",
+  "noon-out",
+  "afternoon-in",
+  "afternoon-out",
+]);
+
+/**
+ * Chấm công nhân viên Điểm ATM (migration 0118, chốt 2026-10-02). Chỉ để theo
+ * dõi, không đụng ngày công và lương. `checked_at` là giờ máy chủ lúc nhận lượt
+ * chấm, `work_date` là ngày của mốc đó theo giờ Việt Nam.
+ */
+export const attendanceChecks = pgTable(
+  "attendance_checks",
+  {
+    id: id(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** Phòng của người chấm lúc chấm, để lọc theo phạm vi người xem. */
+    departmentId: uuid("department_id").references(() => departments.id),
+    workDate: date("work_date", { mode: "string" }).notNull(),
+    slot: attendanceSlot("slot").notNull(),
+    checkedAt: timestamp("checked_at", { withTimezone: true }).notNull().defaultNow(),
+    /** KHOÁ ảnh trong kho, thư mục `attendance/`. */
+    photoUrl: text("photo_url").notNull(),
+    latitude: doublePrecision("latitude").notNull(),
+    longitude: doublePrecision("longitude").notNull(),
+    /** Sai số GPS do trình duyệt báo, tính bằng mét. */
+    accuracy: doublePrecision("accuracy").notNull(),
+    /** "Xã - Tỉnh" tra từ tọa độ lúc chấm. `null` khi dịch vụ tra địa danh lỗi. */
+    place: text("place"),
+  },
+  (t) => [
+    uniqueIndex("attendance_checks_user_day_slot").on(t.userId, t.workDate, t.slot),
+    index("attendance_checks_dept_day").on(t.departmentId, t.workDate),
+    check("attendance_checks_latitude", sql`${t.latitude} between -90 and 90`),
+    check("attendance_checks_longitude", sql`${t.longitude} between -180 and 180`),
+    check("attendance_checks_accuracy", sql`${t.accuracy} >= 0`),
   ],
 );
 

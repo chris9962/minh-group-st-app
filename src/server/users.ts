@@ -39,6 +39,7 @@ export function toUser(
     manageScope: row.manageScope,
     insuranceDepartmentIds,
     managedBankIds,
+    salaryScheme: row.salaryScheme,
     title: row.title,
     permissions,
     active: row.active,

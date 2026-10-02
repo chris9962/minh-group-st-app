@@ -70,6 +70,8 @@ export const ModuleKey = z.enum([
   'department',
   /** Tích hợp VNeID (migration 0117). Không tính điểm KPI. */
   'vneid',
+  /** Chấm công nhân viên Điểm ATM (migration 0118). Chỉ có quyền xem. */
+  'attendance',
   'system',
   '*',
 ]);
@@ -183,6 +185,7 @@ export const MODULE_LABEL: Record<ModuleKey, string> = {
   staff: 'Nhân viên',
   department: 'Phòng ban',
   vneid: 'VNeID',
+  attendance: 'Chấm công',
   system: 'Hệ thống',
   '*': 'Tất cả module',
 };
@@ -290,6 +293,7 @@ export const EDITABLE_MODULES: ModuleKey[] = [
   'staff',
   'department',
   'vneid',
+  'attendance',
   'system',
 ];
 
@@ -490,6 +494,11 @@ export const User = z.object({
    * Gán ở hộp thoại sửa ngân hàng, không ở hồ sơ nhân viên.
    */
   managedBankIds: z.array(z.string()),
+  /**
+   * `atm` thì người này có màn Chấm công. `.default` cùng lý do với
+   * `insuranceDepartmentIds`: phiên cũ trong trình duyệt chưa có trường này.
+   */
+  salaryScheme: SalaryScheme.default('department'),
   /** Tên chức danh hiển thị, ví dụ "Phó GĐ 2" — khác với `role`. */
   title: z.string(),
   permissions: z.array(Permission),

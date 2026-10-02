@@ -18,6 +18,7 @@ export type NavIconKey =
   | 'banking'
   | 'services'
   | 'vneid'
+  | 'attendance'
   | 'customers'
   | 'people'
   | 'profile'
@@ -127,6 +128,11 @@ export function navFor(user: User | null): NavEntry[] {
 
   if (can(user, 'vneid', 'view-detail')) {
     items.push({ href: '/vneid', label: 'VNeID', icon: 'vneid', screen: 'P-32' });
+  }
+
+  // Nhân viên Điểm ATM chấm công; người có quyền xem thì xem bảng của phòng.
+  if (user.salaryScheme === 'atm' || can(user, 'attendance', 'view-detail')) {
+    items.push({ href: '/attendance', label: 'Chấm công', icon: 'attendance', screen: 'P-33' });
   }
 
   // Hồ sơ khách hàng không áp trục phạm vi — ai đăng nhập được cũng thấy.

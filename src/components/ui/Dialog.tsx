@@ -30,6 +30,8 @@ type Props = {
   footerStart?: React.ReactNode;
   /** Hộp rộng cho nội dung dạng lưới; mặc định giữ 560px cho biểu mẫu. */
   wide?: boolean;
+  /** Hộp hẹp 380px cho nội dung dọc, ví dụ một ảnh chụp bằng điện thoại. */
+  narrow?: boolean;
   /**
    * `sheet` = trượt lên từ đáy màn hình (chọn việc trên điện thoại).
    * Mặc định hộp thoại giữa màn.
@@ -58,6 +60,7 @@ export function Dialog({
   footer,
   footerStart,
   wide = false,
+  narrow = false,
   placement = "center",
   dismissible = true,
 }: Props) {
@@ -204,6 +207,7 @@ export function Dialog({
             className={clsx(
               styles.panel,
               wide && styles.wide,
+              narrow && styles.narrow,
               placement === "sheet" && styles.sheet,
             )}
             tabIndex={-1}

@@ -1,0 +1,37 @@
+.date {
+  max-width: 220px;
+}
+
+.nameLink {
+  display: block;
+  padding: 12px 0;
+  margin: -12px 0;
+  color: var(--om-link);
+}
+
+.nameLink:hover {
+  color: var(--om-link-hover);
+  text-decoration: underline;
+}
+
+.time {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  color: var(--om-link);
+  cursor: pointer;
+  text-align: left;
+}
+
+.time:hover {
+  color: var(--om-link-hover);
+  text-decoration: underline;
+}
+
+.missing {
+  color: var(--om-text-3);
+}
