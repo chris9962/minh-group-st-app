@@ -108,7 +108,7 @@ export async function branchSummaryFor(subjectId: string, range: Range): Promise
     return {
       id: d.id,
       name: d.name,
-      staffCount: members.filter((p) => p.role === "staff").length,
+      staffCount: members.filter((p) => ["staff", "deputy-head", "head"].includes(p.role)).length,
       accountsOpened,
       appsInstalled,
       installPercent: percentOf(appsInstalled, accountsOpened),

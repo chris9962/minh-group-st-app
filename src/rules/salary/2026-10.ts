@@ -267,7 +267,6 @@ export function deputyDirector({
     ),
     facts: [
       { label: "Điểm quản lý", value: `${formatPoints(managementPoints)} điểm` },
-      { label: "Nhân viên các phòng phụ trách", value: `${teamPoints.length} người` },
       { label: "Tổng điểm nhánh", value: `${formatPoints(roundPoints(branchPoints))} điểm` },
       { label: "Ngày công", value: `${DEPUTY_DIRECTOR_DAYS} ngày` },
     ],

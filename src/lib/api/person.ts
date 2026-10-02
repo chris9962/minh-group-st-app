@@ -147,7 +147,7 @@ export type SalaryBreakdown = z.infer<typeof SalaryBreakdown>;
 export const BranchDepartment = z.object({
   id: z.string(),
   name: z.string(),
-  /** Nhân viên đang làm, cùng phép đếm với "Nhân viên các phòng phụ trách" ở lương. */
+  /** Nhân viên, Trưởng phòng và Phó phòng đang làm. */
   staffCount: z.number(),
   accountsOpened: z.number(),
   appsInstalled: z.number(),

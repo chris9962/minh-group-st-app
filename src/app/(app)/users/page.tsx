@@ -566,7 +566,7 @@ export default function PeoplePage() {
         {data && summary && (
           <>
             <div className={styles.stats}>
-              <StatCard value={summary.active + summary.locked} label="nhân viên" />
+              <StatCard value={summary.active} label="nhân viên" />
               <StatCard value={summary.onTarget} label="đã đạt chỉ tiêu" />
               <StatCard
                 value={summary.offTarget}
