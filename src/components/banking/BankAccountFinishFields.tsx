@@ -115,6 +115,21 @@ export function BankAccountFinishFields({
    */
   const hasGuide = Boolean(bankGuide) || bankGuidePhotoUrls.length > 0;
 
+  /**
+   * Bỏ khoảng trắng TRƯỚC khi chèn đoạn dán: để trình duyệt tự chèn thì
+   * `maxLength` cắt đoạn dán, khoảng trắng chiếm chỗ và mất mấy số cuối.
+   */
+  const pasteAccountNumber = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    const pasted = e.clipboardData.getData("text");
+    if (!/\s/.test(pasted)) return;
+    e.preventDefault();
+    const input = e.currentTarget;
+    const start = input.selectionStart ?? input.value.length;
+    const end = input.selectionEnd ?? input.value.length;
+    const next = input.value.slice(0, start) + pasted.replace(/\s/g, "") + input.value.slice(end);
+    setValue("accountNumber", next, { shouldDirty: true, shouldValidate: Boolean(errors.accountNumber) });
+  };
+
   return (
     <>
       {(referralQrUrl || hasGuide) && (
@@ -213,6 +228,7 @@ export function BankAccountFinishFields({
             }
             hint={accountNumberLength ? `Đủ ${accountNumberLength} chữ số.` : undefined}
             error={errors.accountNumber?.message}
+            onPaste={pasteAccountNumber}
             {...register("accountNumber")}
           />
         )}
