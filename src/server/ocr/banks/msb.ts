@@ -1,4 +1,4 @@
-import { codeKey, hasDigits, hasLabel, hasPhrase, letterWords, lineHasName, linesHaveCode, splitLines, stripAccents } from "../text";
+import { hasDigits, hasLabel, hasPhrase, letterWords, lineHasName, linesHaveExactCode, splitLines, stripAccents } from "../text";
 import { itemsFromFacts, ocrModelOf, readUntilFound, type Facts } from "../facts";
 import type { CheckedItem } from "../types";
 
@@ -21,27 +21,17 @@ import type { CheckedItem } from "../types";
  */
 
 export type MsbCheckContext = {
-  /** `referral_codes.code`, kèm chú thích phòng hay " - MCT: …" ở sau mã. */
+  /**
+   * `referral_codes.code`, so nguyên văn (chốt 2026-10-02). Mã text kèm chú
+   * thích như `ACT23 - MCT: Trống` là lỗi nhập liệu và phải không đạt; chú
+   * thích thuộc về `display_name`.
+   */
   referralCode: string;
   customerName: string;
   accountNumber: string;
   /** `MSBa` | `MSBb`, chọn model đọc chữ, xem `ocrModelOf`. */
   bankCode?: string;
 };
-
-/**
- * Mã hiện trên ảnh: token đầu của `code` (`MGST2026`, `DNS960`, `XPDFTGF-5`).
- * Phần sau token là chú thích phòng hay "MCT: CTV1", không có trên ô "Mã giới
- * thiệu".
- *
- * KHÔNG đọc `display_name` nữa (chốt 2026-09-22). Bản trước ưu tiên trường đó
- * vì tưởng nó luôn là mã ngắn, nhưng 14 mã nhóm DNS960 ghi nhãn ở đầu —
- * `"MGT: DNS960  - MCT: Trống (py)"`, một mã ghi `"P2MGT: …"` — nên token đầu
- * ra `MGT` và 335 tài khoản MSBb báo thiếu mã giới thiệu oan.
- */
-export function msbReferral(ctx: Pick<MsbCheckContext, "referralCode">): string {
-  return ctx.referralCode.trim().match(/^[A-Z0-9]+(?:-\d+)?/i)?.[0]?.toUpperCase() ?? "";
-}
 
 /** Nội dung giao dịch đi của MSB luôn là `<STK>-Ref <mã>-CK 24/7 cho …`. */
 const TRANSFER_REF = /(?:^|[^A-Za-z])Ref(?:[^A-Za-z]|$)/;
@@ -78,7 +68,7 @@ export function msbFacts(ocrText: string, ctx: MsbCheckContext): Facts {
   return {
     nameFound: lines.some((line) => lineHasName(line, expectedName)),
     accountFound: hasDigits(ocrText, ctx.accountNumber.replace(/\D/g, "")),
-    codeFound: linesHaveCode(lines, codeKey(msbReferral(ctx))),
+    codeFound: linesHaveExactCode(lines, ctx.referralCode),
     successFound: hasSuccess(lines),
   };
 }
@@ -87,7 +77,7 @@ export function msbFacts(ocrText: string, ctx: MsbCheckContext): Facts {
 export function checkMsb(texts: string[], ctx: MsbCheckContext): CheckedItem[] {
   return itemsFromFacts(
     texts.map((text) => msbFacts(text, ctx)),
-    { code: msbReferral(ctx), customerName: ctx.customerName, accountNumber: ctx.accountNumber },
+    { code: ctx.referralCode, customerName: ctx.customerName, accountNumber: ctx.accountNumber },
   );
 }
 

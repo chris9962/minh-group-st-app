@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { checkMsb, msbFacts, msbReferral } from "../src/server/ocr/banks/msb";
+import { checkMsb, msbFacts } from "../src/server/ocr/banks/msb";
 
 /**
  * Chữ mẫu là chữ VietOCR đọc từ ảnh thật trong bộ đo 2026-09-21 (60 tài khoản
@@ -104,17 +104,17 @@ Thông tin về giao dịch sẽ hiển thị ở đây
 `;
 
 const ctx = {
-  referralCode: "BSJFUXA-5 - MCT: TIKTOK",
+  referralCode: "BSJFUXA-5",
   customerName: "Phan Ngọc Lương",
   accountNumber: "0522514735",
 };
 
-assert.equal(msbReferral(ctx), "BSJFUXA-5");
-assert.equal(msbReferral({ referralCode: "MGST2026 - P1" }), "MGST2026");
-assert.equal(msbReferral({ referralCode: "MGST2026 (phòng 8)" }), "MGST2026");
-assert.equal(msbReferral({ referralCode: "ACT24  - MCT: Trống" }), "ACT24");
-// Nhóm DNS960: nhãn nằm ở `display_name`, `code` sạch (chốt 2026-09-22).
-assert.equal(msbReferral({ referralCode: "DNS960 (cho phòngY)" }), "DNS960");
+// Mã text so nguyên văn, chỉ bỏ dấu và viết hoa (chốt 2026-10-02).
+assert.equal(msbFacts(supplement, { ...ctx, referralCode: "bsjfuxa-5" }).codeFound, true);
+assert.equal(msbFacts(supplement, { ...ctx, referralCode: "BSJFUXA-5 - MCT: TIKTOK" }).codeFound, false, "Mã text kèm chú thích là lỗi nhập liệu");
+assert.equal(msbFacts(supplement, { ...ctx, referralCode: "BSJFUXA5" }).codeFound, false, "không bỏ gạch nối");
+assert.equal(msbFacts("BSJFUXA 5", ctx).codeFound, false, "không ghép cụm");
+assert.equal(msbFacts("MG5T2026", { ...ctx, referralCode: "MGST2026" }).codeFound, false, "không gộp S/5");
 
 assert.deepEqual(msbFacts(register, ctx), { nameFound: true, accountFound: true, codeFound: false, successFound: false });
 assert.deepEqual(msbFacts(supplement, ctx), { nameFound: false, accountFound: false, codeFound: true, successFound: false });

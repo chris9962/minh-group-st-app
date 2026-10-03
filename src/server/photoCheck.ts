@@ -45,7 +45,7 @@ export const PHOTO_CHECK_CHANNEL = "bank_photo_check";
 
 type PhotoCheckContext = TpbCheckContext &
   // `referralName` chỉ còn MB cần: mã MB để trống `code`, tên hiện trên ảnh
-  // nằm trọn ở `display_name`. MSB đọc `code` — xem `msbReferral`.
+  // nằm trọn ở `display_name`. MSB đọc nguyên văn `code`.
   Pick<MbCheckContext, "referralName" | "province" | "supportBranch"> &
   Pick<LpbCheckContext, "openedDate"> &
   Pick<VpbCheckContext, "accountType" | "bankCode">;
