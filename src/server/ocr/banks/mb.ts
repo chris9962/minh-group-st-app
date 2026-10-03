@@ -1,4 +1,4 @@
-import { codeKey, compact, hasDigits, hasLabel, letterWords, lineHasName, linesHaveCode, splitLines, stripAccents } from "../text";
+import { compact, exactText, hasDigits, hasLabel, letterWords, lineHasName, linesHaveExactCode, splitLines, stripAccents } from "../text";
 import { itemsFromFacts, readUntilFound, type Facts } from "../facts";
 import type { CheckedItem } from "../types";
 
@@ -15,50 +15,30 @@ import type { CheckedItem } from "../types";
  *                        "Nhập số điện thoại" ở màn đăng ký
  *   6. giao dịch         xem `hasSuccess`
  *
- * Mã MB không có mã chữ (`referral_codes.code` rỗng); mã trên ảnh là token
- * đầu của `display_name` ("Q607-Truong Duy-CN Tiền Giang"). Tỉnh và chi nhánh
- * lấy từ `province` / `support_branch` của mã, đã có cấu trúc ("Cần Thơ",
- * "CN Tây Đô"), khác MSB gõ tay nên so được.
+ * Mã RM so nguyên văn `referral_codes.code`, tỉnh và chi nhánh so nguyên văn
+ * `province` / `support_branch`; chỉ bỏ dấu và viết hoa (chốt 2026-10-02).
+ * Mã text trống thì không so mã: 349/350 mã MB đang để trống, mã RM chỉ nằm ở
+ * `display_name`.
  */
 
 export type MbCheckContext = {
   referralCode: string;
-  referralName: string;
   province: string;
   supportBranch: string;
   customerName: string;
   accountNumber: string;
 };
 
-/** Mã RM hiện trên ảnh: token đầu của `display_name` ("o826 chữ O -…" là `O826`). */
-export const mbReferral = (ctx: Pick<MbCheckContext, "referralCode" | "referralName">): string =>
-  (ctx.referralName || ctx.referralCode).trim().match(/^[A-Z0-9]{3,6}/i)?.[0]?.toUpperCase() ?? "";
-
 const flexible = (value: string): boolean => compact(value).includes("TUCHON");
 
 /**
- * Cấu hình về dạng in trên màn: tỉnh không có chữ "Tỉnh"/"Thành phố" ("Tỉnh
- * An Giang" → `ANGIANG`); chi nhánh viết tắt `CN`, `PGD`, kể cả người cấu hình
- * gõ "MB Tân Hương" cho "CN Tân Hương".
- */
-const placeKey = (value: string): string =>
-  compact(value)
-    .replace(/^(?:TINH|THANHPHO|TP)(?=[A-Z])/, "")
-    .replace(/^(?:CHINHANH|MB)(?=[A-Z])/, "CN")
-    .replace(/^PHONGGIAODICH/, "PGD");
-
-/**
- * Dòng có đúng giá trị không: bỏ nhãn "Chọn Tỉnh/Thành phố" / "Chọn chi nhánh
- * hỗ trợ" nếu bộ dò gộp nhãn với ô, còn lại phải khớp trọn, dư mỗi đầu tối
- * đa 2 ký tự (biểu tượng vị trí đọc thành chữ).
+ * Dòng đúng bằng giá trị cấu hình. Chỉ bỏ nhãn "Chọn Tỉnh/Thành phố" / "Chọn
+ * chi nhánh hỗ trợ" khi bộ dò gộp nhãn với ô; không so chuỗi con vì tỉnh "An
+ * Giang" nằm trong dòng chi nhánh "CN An Giang".
  */
 function lineHasPlace(line: string, expected: string): boolean {
-  if (!expected) return false;
-  const c = placeKey(line.replace(/^\s*Ch[oọ]n\s+(?:T[iỉ]nh\/Th[àa]nh ph[oố]|chi nh[áa]nh h[oỗ] tr[oợ])\s*/iu, ""));
-  for (let at = c.indexOf(expected); at >= 0; at = c.indexOf(expected, at + 1)) {
-    if (at <= 2 && c.length - at - expected.length <= 2) return true;
-  }
-  return false;
+  const value = line.replace(/^\s*Ch[oọ]n\s+(?:T[iỉ]nh\/Th[àa]nh ph[oố]|chi nh[áa]nh h[oỗ] tr[oợ])\s*/iu, "");
+  return exactText(value) === exactText(expected);
 }
 
 const AMOUNT = /\d[\d,.]*\s*VND/i;
@@ -90,13 +70,13 @@ export function mbFacts(ocrText: string, ctx: MbCheckContext): Facts {
   const facts: Facts = {
     nameFound: lines.some((line) => lineHasName(line, expectedName)),
     accountFound: hasDigits(ocrText, ctx.accountNumber.replace(/\D/g, "")),
-    codeFound: linesHaveCode(lines, codeKey(mbReferral(ctx))),
+    codeFound: linesHaveExactCode(lines, ctx.referralCode),
     successFound: hasSuccess(lines),
   };
   if (ctx.province && !flexible(ctx.province))
-    facts.provinceFound = lines.some((line) => lineHasPlace(line, placeKey(ctx.province)));
+    facts.provinceFound = lines.some((line) => lineHasPlace(line, ctx.province));
   if (ctx.supportBranch && !flexible(ctx.supportBranch))
-    facts.branchFound = lines.some((line) => lineHasPlace(line, placeKey(ctx.supportBranch)));
+    facts.branchFound = lines.some((line) => lineHasPlace(line, ctx.supportBranch));
   return facts;
 }
 
@@ -104,7 +84,7 @@ export function checkMb(texts: string[], ctx: MbCheckContext): CheckedItem[] {
   return itemsFromFacts(
     texts.map((text) => mbFacts(text, ctx)),
     {
-      code: mbReferral(ctx),
+      code: ctx.referralCode.trim(),
       customerName: ctx.customerName,
       accountNumber: ctx.accountNumber,
       province: flexible(ctx.province) ? "" : ctx.province,

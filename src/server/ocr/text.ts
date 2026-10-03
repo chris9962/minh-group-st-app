@@ -179,7 +179,7 @@ export function codeTokens(line: string): string[] {
 export const linesHaveCode = (lines: string[], expected: string): boolean =>
   Boolean(expected) && lines.some((line) => codeTokens(line).some((t) => codeKey(t) === expected));
 
-const exactText = (s: string): string => stripAccents(s).trim().toUpperCase();
+export const exactText = (s: string): string => stripAccents(s).trim().toUpperCase();
 
 /**
  * Dòng nào chứa nguyên văn Mã text không (chốt 2026-10-02): chỉ bỏ dấu và viết

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { checkMb, mbFacts, mbReferral } from "../src/server/ocr/banks/mb";
+import { checkMb, mbFacts } from "../src/server/ocr/banks/mb";
 
 /**
  * Chữ mẫu lấy từ chữ VietOCR đọc ảnh thật trong bộ đo 2026-09-22 (40 tài
@@ -61,17 +61,18 @@ Về trang Đăng nhập
 `;
 
 const ctx = {
-  referralCode: "",
-  referralName: "5168-Tiến Phò-CN An Giang",
+  referralCode: "5168",
   province: "An Giang",
   supportBranch: "CN An Giang",
   customerName: "Lê Thị Châu",
   accountNumber: "0812012238",
 };
 
-assert.equal(mbReferral(ctx), "5168");
-assert.equal(mbReferral({ referralCode: "", referralName: "o826 chữ O -Thị Ước-CN Tiền Giang-Đồng Tháp" }), "O826");
-assert.equal(mbReferral({ referralCode: "", referralName: "BL59-Phan Mỹ Đình- CN Sóc Trăng-Cần Thơ" }), "BL59");
+// Mã text, tỉnh, chi nhánh so nguyên văn, chỉ bỏ dấu và viết hoa (chốt 2026-10-02).
+assert.equal(mbFacts("Mã người giới thiệu (Mã RM)\n1453", { ...ctx, referralCode: "I453" }).codeFound, false, "không gộp I/1");
+assert.equal(mbFacts("Mã người giới thiệu (Mã RM)\nI 453", { ...ctx, referralCode: "I453" }).codeFound, false, "không ghép cụm");
+assert.equal(mbFacts(registration, { ...ctx, province: "Tỉnh An Giang" }).provinceFound, false, "không bỏ chữ Tỉnh");
+assert.equal(mbFacts("CN An Giang", ctx).provinceFound, false, "tỉnh phải đứng riêng một dòng");
 
 assert.deepEqual(mbFacts(registration, ctx), {
   nameFound: false,
@@ -94,9 +95,9 @@ assert.equal(mbFacts(history, ctx).nameFound, true, "tên dính nhãn CUSTOMER r
 assert.equal(mbFacts(unlinkDevice, ctx).successFound, false);
 assert.equal(mbFacts("Hạn mức chuyển tiền ra ngoài hệ thống\n50,000,000 VND", ctx).successFound, false, "TIỀN RA phải là hai từ riêng");
 
-assert.equal(mbFacts(registration, { ...ctx, referralName: "5186-…" }).codeFound, false);
+assert.equal(mbFacts(registration, { ...ctx, referralCode: "5186" }).codeFound, false);
 assert.equal(mbFacts(registration, { ...ctx, province: "Đồng Tháp" }).provinceFound, false);
-assert.equal(mbFacts(registration, { ...ctx, supportBranch: "Chi nhánh An Giang" }).branchFound, true, "Chi nhánh = CN");
+assert.equal(mbFacts(registration, { ...ctx, supportBranch: "Chi nhánh An Giang" }).branchFound, false, "không đổi Chi nhánh thành CN");
 assert.equal(mbFacts(registration, { ...ctx, supportBranch: "PGD Châu Phú" }).branchFound, false);
 assert.equal("provinceFound" in mbFacts(registration, { ...ctx, province: "" }), false, "mã chưa cấu hình tỉnh thì không so");
 assert.equal("branchFound" in mbFacts(registration, { ...ctx, supportBranch: "Tự chọn" }), false);
@@ -117,5 +118,10 @@ const wrong = checkMb([registration, profile, history], { ...ctx, province: "C�
 assert.deepEqual(wrong[0].issues, ["Không tìm thấy Tỉnh/Thành phố", "Không tìm thấy Chi nhánh hỗ trợ"]);
 assert.equal(wrong[0].note, "Không tìm thấy Tỉnh/Thành phố Cần Thơ trong ảnh. Không tìm thấy Chi nhánh hỗ trợ CN Tây Đô trong ảnh.");
 assert.equal(wrong[0].photoIndex, 0, "vẫn trỏ ảnh có mã");
+
+// Mã text trống thì không so mã: 349/350 mã MB để trống.
+const noCode = checkMb([registration, profile, history], { ...ctx, referralCode: "" });
+assert.equal(noCode[0].verdict, "pass");
+assert.equal(noCode[0].expected, "An Giang - CN An Giang");
 
 console.log("MB: mọi ca đạt.");
