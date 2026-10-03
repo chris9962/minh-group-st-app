@@ -597,6 +597,7 @@ const decorate = (page: ReturnType<typeof pickPage>) => {
       // Chuỗi mã ngân hàng cấp. `''` = mã QR-only, nhân viên phải quét QR chứ
       // không gõ được mã nào — bước 2 ẩn dòng thay vì hiện tên mã.
       referralCodeText: sql<string>`coalesce(${referralCodes.code}, '')`,
+      referralDaoSale: sql<string>`coalesce(${referralCodes.daoSale}, '')`,
       // Bản ghi trước migration 0056 chưa chụp loại tài khoản vào chính đơn.
       // Mã đã được dùng không đổi loại được, nên đây là nguồn dự phòng an toàn
       // để màn chi tiết vẫn hiện đúng CNKD/HKD cho dữ liệu cũ.
@@ -676,6 +677,7 @@ const toRow = (r: DecoratedRow): BankAccountRow => ({
   accountNumber: r.accountNumber,
   referralCode: r.referralCode,
   referralCodeText: r.referralCodeText,
+  referralDaoSale: r.referralDaoSale,
   accountType: accountTypeOf(r),
   channel: r.channel,
   appInstalled: r.appInstalled,
@@ -1254,6 +1256,7 @@ async function detailBody(r: DecoratedRow): Promise<BankAccountDetail> {
     customerPhones: await customerPhoneNumbers(r.customerId),
     customerGiftItem: await grantedGiftItemOf(r.customerId),
     referralCodeText: r.referralCodeText,
+    referralDaoSale: r.referralDaoSale,
     referralProvince: r.referralProvince,
     referralSupportBranch: r.referralSupportBranch,
     referralOpenUrl: r.referralOpenUrl,

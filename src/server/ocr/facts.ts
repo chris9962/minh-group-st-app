@@ -48,7 +48,7 @@ export type FactValues = {
   supportBranch?: string;
   /** `dd/mm/yyyy` như in trên ảnh. */
   openedDate?: string;
-  /** Mã giới thiệu cố định phải thấy cùng `code` (VPBank: `MINHAP`). */
+  /** VPBank: Mã text, ô "MÃ GIỚI THIỆU" đứng cạnh mã DAO ở `code`. */
   program?: string;
   /** Đòi thêm giao dịch nạp chứng khoán trong mục giao dịch. */
   securities?: boolean;
@@ -166,7 +166,8 @@ export function itemsFromFacts(facts: Facts[], values: FactValues): CheckedItem[
     openIssues.push("Không tìm thấy mục đích sử dụng tài khoản");
     openNotes.push(`Không tìm thấy mục đích sử dụng "${values.purpose}" trong ảnh.`);
   }
-  const openLabel = values.program
+  // `codeLabel` chỉ VPBank đặt; Mã text trống thì `program` rỗng mà màn vẫn là màn mã DAO.
+  const openLabel = values.codeLabel
     ? values.purpose
       ? "Mã DAO, mã giới thiệu và mục đích sử dụng"
       : "Mã DAO và mã giới thiệu"

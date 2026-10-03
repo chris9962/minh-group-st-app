@@ -1,4 +1,4 @@
-import { codeTokens, compact, hasDigits, hasLabel, hasPhrase, letterWords, lineHasName, splitLines, stripAccents } from "../text";
+import { codeTokens, compact, hasDigits, hasLabel, hasPhrase, letterWords, lineHasName, linesHaveExactCode, splitLines, stripAccents } from "../text";
 import { itemsFromFacts, readUntilFound, type Facts } from "../facts";
 import type { CheckedItem } from "../types";
 
@@ -7,11 +7,10 @@ import type { CheckedItem } from "../types";
  * 2026-09-22 theo cách của `tpbank.ts`: tìm giá trị hệ thống trong chữ của cả
  * bộ ảnh, không nhận màn, không dung sai, xem `facts.ts`.
  *
- *   1. mã DAO          `referral_codes.code`, 5 chữ số, ô "DAO SALE" ở bước
- *                      chọn chi nhánh của app VPBank NEO; HKD in "Mã DAO" ở
- *                      màn "Thông tin quy mô và chi nhánh mở TK"
- *   2. mã giới thiệu   ô "MÃ GIỚI THIỆU" cùng màn, cố định theo ngân hàng và
- *                      loại tài khoản, xem `programOf`
+ *   1. mã DAO          `referral_codes.dao_sale`, ô "DAO SALE" ở bước chọn
+ *                      chi nhánh của app VPBank NEO; HKD in "Mã DAO" ở màn
+ *                      "Thông tin quy mô và chi nhánh mở TK"
+ *   2. mã giới thiệu   `referral_codes.code` (Mã text), ô "MÃ GIỚI THIỆU" cùng màn
  *   3. tên khách       màn "Đăng ký thành công" (Họ và tên), màn hình chính
  *                      NEO, lời nhắn "TÊN chuyen tien"; HKD: "Tên công ty",
  *                      màn QR nhận tiền, màn liên kết eTax
@@ -26,34 +25,23 @@ import type { CheckedItem } from "../types";
  *                      "Cá nhân kinh doanh"
  *   8. liên kết eTax   CNKD và HKD: màn "Hủy liên kết tài khoản" của eTax
  *                      Mobile ghi ngân hàng VPBank; CNKD phải kèm số tài khoản
+ *
+ * Hai mã so nguyên văn, chỉ bỏ dấu và viết hoa (chốt 2026-10-03); cột trống
+ * thì không so ô đó.
  */
 
 export type VpbCheckContext = {
   /** `banks.code`: `VPa` hay `VPb`. */
   bankCode: string;
-  /** Mã DAO, 5 chữ số. */
+  /** Mã text: ô "MÃ GIỚI THIỆU". */
   referralCode: string;
+  /** Ô "DAO SALE". */
+  daoSale: string;
   customerName: string;
   accountNumber: string;
   /** `bank_accounts.account_type`: `none` | `CNKD` | `HKD`. */
   accountType: string;
 };
-
-/**
- * Ô "Mã giới thiệu" của VPBank NEO không theo nhân viên. VPa mở app tay và
- * gõ mã công ty theo loại tài khoản (`banks.guide`: "Nhập MGT: MINHAP (bắt
- * buộc)"; bộ đo 2026-09-22 thấy CNKD gõ `MINHCA`, HKD gõ `MINHHKD`). VPb mở
- * bằng QR nên app tự điền số điện thoại người giới thiệu của QR, mỗi loại
- * tài khoản một QR: cá nhân 8/8 mã DAO cùng số, CNKD 25/27; hướng dẫn ghi
- * "MGT giữ nguyên không xoá". Đổi QR thì đổi số ở đây.
- */
-const PROGRAM: Record<string, Record<string, string>> = {
-  VPa: { none: "MINHAP", CNKD: "MINHCA", HKD: "MINHHKD" },
-  VPb: { none: "0948822956", CNKD: "0369835106" },
-};
-
-export const programOf = (ctx: Pick<VpbCheckContext, "bankCode" | "accountType">): string =>
-  PROGRAM[ctx.bankCode]?.[ctx.accountType] ?? "";
 
 const CNKD_PURPOSE = "Cá nhân kinh doanh";
 
@@ -118,15 +106,6 @@ const hasSecurities = (lines: string[]): boolean =>
   lines.some((l) => codeTokens(l).includes("VPBANKS"));
 
 /**
- * Token đúng bằng mã, không so chuỗi con và không ghép token kề như
- * `codeTokens`: tên khách `NGUYEN MINH CANH` chứa `MINHCA`, số tiền `60 000`
- * ghép lại thành mã DAO `60000`.
- */
-const hasToken = (lines: string[], code: string): boolean =>
-  Boolean(code) &&
-  lines.some((l) => stripAccents(l).toUpperCase().split(/[^A-Z0-9]+/).includes(code));
-
-/**
  * Màn "Hủy liên kết tài khoản" của eTax Mobile, phần "Thông tin tài khoản" ghi
  * ngân hàng VPBank. Đòi đúng tiêu đề màn đó: NEO cũng có màn "Liên kết ví
  * điện tử" ghi VPBank.
@@ -160,11 +139,10 @@ export function vpbFacts(ocrText: string, ctx: VpbCheckContext): Facts {
     nameFound: lines.some((line) => lineHasName(line, expectedName)),
     // HKD không so số tài khoản (eTax liên kết số doanh nghiệp): coi như đã có để dừng đọc sớm.
     accountFound: kind === "HKD" ? true : accountFound,
-    // Mã DAO so token trọn, không cho khoảng trắng như `hasDigits`: số tiền "60 000 đ" cũng là dãy 60000.
-    codeFound: hasToken(lines, ctx.referralCode.replace(/\D/g, "")),
+    codeFound: linesHaveExactCode(lines, ctx.daoSale),
     successFound: success,
   };
-  if (programOf(ctx)) facts.programFound = hasToken(lines, programOf(ctx));
+  if (ctx.referralCode.trim()) facts.programFound = linesHaveExactCode(lines, ctx.referralCode);
   if (kind === "none") facts.securitiesFound = success && hasSecurities(lines);
   if (kind === "CNKD") {
     facts.purposeFound = hasPhrase(lines, compact(CNKD_PURPOSE));
@@ -179,9 +157,9 @@ export function checkVpb(texts: string[], ctx: VpbCheckContext): CheckedItem[] {
   return itemsFromFacts(
     texts.map((text) => vpbFacts(text, ctx)),
     {
-      code: ctx.referralCode.replace(/\D/g, ""),
+      code: ctx.daoSale.trim(),
       codeLabel: "mã DAO",
-      program: programOf(ctx),
+      program: ctx.referralCode.trim(),
       customerName: ctx.customerName,
       accountNumber: kind === "HKD" ? "" : ctx.accountNumber,
       securities: kind === "none",

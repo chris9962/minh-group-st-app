@@ -25,6 +25,13 @@ export function ReferralCodeCard({ account }: { account: BankAccountDetail }) {
       <span className={styles.label}>Tên hiển thị</span>
       <span>{account.referralCode}</span>
 
+      {account.referralDaoSale && (
+        <>
+          <span className={styles.label}>Mã DAO SALE</span>
+          <CopyValue value={account.referralDaoSale} label="mã DAO SALE" />
+        </>
+      )}
+
       {account.referralCodeText && (
         <>
           <span className={styles.label}>Mã text</span>

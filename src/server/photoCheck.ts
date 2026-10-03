@@ -46,7 +46,7 @@ export const PHOTO_CHECK_CHANNEL = "bank_photo_check";
 type PhotoCheckContext = TpbCheckContext &
   Pick<MbCheckContext, "province" | "supportBranch"> &
   Pick<LpbCheckContext, "openedDate" | "referralName"> &
-  Pick<VpbCheckContext, "accountType" | "bankCode">;
+  Pick<VpbCheckContext, "accountType" | "bankCode" | "daoSale">;
 
 type Checker = (images: Buffer[], ctx: PhotoCheckContext) => Promise<CheckedItem[]>;
 
@@ -334,6 +334,7 @@ export async function runPhotoCheck(run: PhotoCheckRun): Promise<PhotoCheckItem[
       accountType: bankAccounts.accountType,
       customerName: customers.fullName,
       referralCode: referralCodes.code,
+      daoSale: referralCodes.daoSale,
       referralName: referralCodes.displayName,
       province: referralCodes.province,
       supportBranch: referralCodes.supportBranch,
@@ -365,6 +366,7 @@ export async function runPhotoCheck(run: PhotoCheckRun): Promise<PhotoCheckItem[
   }
   const context: PhotoCheckContext = {
     referralCode: account.referralCode ?? "",
+    daoSale: account.daoSale ?? "",
     referralName: account.referralName,
     province: account.province,
     supportBranch: account.supportBranch,

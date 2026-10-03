@@ -655,6 +655,7 @@ const codeColumns = {
   displayName: referralCodes.displayName,
   // Hợp đồng API dùng chuỗi rỗng cho QR-only; không đẩy `null` sang mọi nơi dùng.
   code: sql<string>`coalesce(${referralCodes.code}, '')`,
+  daoSale: sql<string>`coalesce(${referralCodes.daoSale}, '')`,
   total: referralCodes.total,
   used: usedExpr,
   holding: referralCodes.holdingCount,
@@ -698,6 +699,7 @@ const codeGroupBy = [
   referralCodes.bankId,
   referralCodes.displayName,
   referralCodes.code,
+  referralCodes.daoSale,
   referralCodes.total,
   referralCodes.importedUsed,
   referralCodes.usedCount,
@@ -756,11 +758,11 @@ function codeFilters(query: ReferralCodeFilters): SQL | undefined {
       : undefined,
     query.status ? eq(statusExpr, query.status) : undefined,
     query.hideStopped ? eq(referralCodes.active, true) : undefined,
-    // Tìm trên tên hiển thị, mã text lẫn tên ngân hàng.
+    // Tìm trên tên hiển thị, mã text, mã DAO SALE lẫn tên ngân hàng.
     query.search
       ? (() => {
           const needle = `%${likeEscape(query.search)}%`;
-          return sql`(${referralCodes.displayName} ilike ${needle} escape '\\' or ${referralCodes.code} ilike ${needle} escape '\\' or ${banks.code} ilike ${needle} escape '\\')`;
+          return sql`(${referralCodes.displayName} ilike ${needle} escape '\\' or ${referralCodes.code} ilike ${needle} escape '\\' or ${referralCodes.daoSale} ilike ${needle} escape '\\' or ${banks.code} ilike ${needle} escape '\\')`;
         })()
       : undefined,
     /**
@@ -1056,7 +1058,7 @@ export async function createReferralCode(
   form: ReferralCodeForm,
   createdBy: string,
 ): Promise<CatalogOutcome<ReferralCode>> {
-  if (!form.code && !qrImageKey(form))
+  if (!form.code && !form.daoSale && !qrImageKey(form))
     return { ok: false, reason: "identifier-required" };
 
   let result: CatalogOutcome<ReferralCode>;
@@ -1070,6 +1072,7 @@ export async function createReferralCode(
         // không có mã, biểu mẫu sẽ gửi một tên riêng vào trường này.
         displayName: form.displayName,
         code: form.code || null,
+        daoSale: form.daoSale || null,
         total: form.total,
         // Chuỗi rỗng thành NULL: cột này là "có link hay không", và hai cách
         // biểu diễn cho cùng một trạng thái sớm muộn lệch nhau khi lọc.
@@ -1163,7 +1166,7 @@ export async function updateReferralCode(
   id: string,
   form: ReferralCodeForm,
 ): Promise<ReferralCodeUpdate> {
-  if (!form.code && !qrImageKey(form))
+  if (!form.code && !form.daoSale && !qrImageKey(form))
     return { ok: false, message: "Nhập mã text hoặc chọn ảnh QR" };
 
   // Đọc trong giao dịch, dùng sau khi giao dịch xong để biết `total` có đổi.
@@ -1210,6 +1213,7 @@ export async function updateReferralCode(
         .set({
           displayName: form.displayName,
           code: form.code || null,
+          daoSale: form.daoSale || null,
           total: form.total,
           openUrl: form.openUrl || null,
           qrImage: qrImageKey(form),

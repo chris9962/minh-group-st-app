@@ -92,7 +92,8 @@ Chuyển tiền
 
 const ctx = {
   bankCode: "VPa",
-  referralCode: "49978",
+  referralCode: "MINHAP",
+  daoSale: "49978",
   customerName: "Nguyễn Thanh Huy",
   accountNumber: "0328539924",
   accountType: "none",
@@ -123,16 +124,23 @@ assert.equal(vpbFacts(history, ctx).successFound, true);
 assert.equal(vpbFacts(history, ctx).securitiesFound, true, "VPS Securities trong lịch sử");
 assert.equal(vpbFacts(home, ctx).nameFound, true);
 
-assert.equal(vpbFacts(branchStep, { ...ctx, referralCode: "49979" }).codeFound, false);
-assert.equal(vpbFacts("Thành công\n60 000 đ\nChuyển tiền", { ...ctx, referralCode: "60000" }).codeFound, false, "số tiền không phải mã DAO");
-assert.equal(vpbFacts("Họ và tên\nNGUYEN MINH CANH", { ...ctx, accountType: "CNKD" }).programFound, false, "tên khách chứa MINHCA không phải mã");
+assert.equal(vpbFacts(branchStep, { ...ctx, daoSale: "49979" }).codeFound, false);
+assert.equal(vpbFacts("Thành công\n60 000 đ\nChuyển tiền", { ...ctx, daoSale: "60000" }).codeFound, false, "số tiền không phải mã DAO");
+assert.equal(vpbFacts("Họ và tên\nNGUYEN MINH CANH", { ...ctx, accountType: "CNKD", referralCode: "MINHCA" }).programFound, false, "tên khách chứa MINHCA không phải mã");
 assert.equal(vpbFacts("VPBank sẽ gửi các thông tin eKYC\nThành công\n10 000 đ\nChi tiết giao dịch", ctx).securitiesFound, false, "VPBank sẽ… không phải VPBankS");
 assert.equal(vpbFacts("Đăng ký\nthành công\n200.000.000 VND/Ngày", ctx).successFound, false, "tiêu đề đăng ký tách hai dòng");
 assert.equal(vpbFacts("Liên kết ví điện tử\nVPBank\n0328539924", { ...ctx, accountType: "CNKD" }).etaxFound, false, "màn liên kết ví của NEO không phải eTax");
 assert.equal(vpbFacts(branchStep.replace("MINHAP", "MINHCA"), ctx).programFound, false, "gõ sai mã giới thiệu công ty");
-assert.equal(vpbFacts(branchStep, { ...ctx, bankCode: "VPb" }).programFound, false, "VPb đòi số của QR, không phải MINHAP");
-assert.equal(vpbFacts(branchStep.replace("MINHAP", "0948822956"), { ...ctx, bankCode: "VPb" }).programFound, true);
-assert.equal(vpbFacts(branchStep.replace("MINHAP", "MINHCA"), { ...ctx, accountType: "CNKD" }).programFound, true, "CNKD gõ MINHCA");
+const vpb = { ...ctx, bankCode: "VPb", referralCode: "0948822956" };
+assert.equal(vpbFacts(branchStep, vpb).programFound, false, "Mã text là số của QR, ảnh in MINHAP");
+assert.equal(vpbFacts(branchStep.replace("MINHAP", "0948822956"), vpb).programFound, true);
+assert.equal(vpbFacts(branchStep.replace("MINHAP", "MINHCA"), { ...ctx, accountType: "CNKD", referralCode: "MINHCA" }).programFound, true, "CNKD gõ MINHCA");
+// Hai mã so nguyên văn, chỉ bỏ dấu và viết hoa; cột trống thì không so (chốt 2026-10-03).
+assert.equal(vpbFacts(branchStep, { ...ctx, daoSale: "49978 T10" }).codeFound, false, "mã DAO kèm chữ là lỗi nhập liệu");
+assert.equal("programFound" in vpbFacts(branchStep, { ...ctx, referralCode: "" }), false, "Mã text trống thì không so mã giới thiệu");
+const noDao = checkVpb([branchStep, registered, transferDetail, securitiesDetail], { ...ctx, daoSale: "" });
+assert.equal(noDao[0].verdict, "pass", "mã DAO trống thì không so");
+assert.equal(noDao[0].label, "Mã DAO và mã giới thiệu");
 assert.equal("securitiesFound" in vpbFacts(history, { ...ctx, accountType: "CNKD" }), false);
 
 const items = checkVpb([home, branchStep, registered, transferDetail, securitiesDetail], ctx);
@@ -152,7 +160,7 @@ const noSecurities = checkVpb([branchStep, registered, transferDetail], ctx);
 assert.deepEqual(noSecurities[2].issues, ["Không tìm thấy giao dịch nạp chứng khoán"]);
 assert.equal(noSecurities[2].verdict, "fail");
 
-const wrongCode = checkVpb([branchStep, registered, transferDetail], { ...ctx, referralCode: "12345" });
+const wrongCode = checkVpb([branchStep, registered, transferDetail], { ...ctx, daoSale: "12345" });
 assert.deepEqual(wrongCode[0].issues, ["Không tìm thấy mã DAO"]);
 assert.equal(wrongCode[0].note, "Không tìm thấy mã DAO 12345 trong ảnh.");
 
@@ -181,7 +189,7 @@ Quay lại
 Hủy liên kết
 `;
 
-const cnkd = { ...ctx, accountType: "CNKD" };
+const cnkd = { ...ctx, accountType: "CNKD", referralCode: "MINHCA" };
 assert.equal(vpbFacts(purposeStep, cnkd).purposeFound, true);
 assert.equal(vpbFacts(etaxLink, cnkd).etaxFound, true);
 assert.equal(vpbFacts(etaxLink, { ...cnkd, accountNumber: "0328539925" }).etaxFound, false, "eTax phải liên kết đúng số");
@@ -216,7 +224,7 @@ NGUYEN NGOC DUY
 Số tài khoản
 A0BZLPS513XVJ0LKLHJ
 `;
-const hkd = { bankCode: "VPa", referralCode: "56173", customerName: "Nguyễn Ngọc Duy", accountNumber: "0785980578", accountType: "HKD" };
+const hkd = { bankCode: "VPa", referralCode: "MINHHKD", daoSale: "56173", customerName: "Nguyễn Ngọc Duy", accountNumber: "0785980578", accountType: "HKD" };
 const hkdItems = checkVpb([hkdBranch, receiveQr, etaxLink], hkd);
 assert.deepEqual(hkdItems.map((i) => [i.verdict, i.label]), [
   ["pass", "Mã DAO và mã giới thiệu"],

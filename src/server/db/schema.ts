@@ -531,6 +531,8 @@ export const referralCodes = pgTable(
     displayName: text("display_name").notNull(),
     /** Mã text do ngân hàng cấp; QR-only thì để null. */
     code: text("code"),
+    /** Ô "DAO SALE" của app VPBank NEO, chỉ VPa và VPb; null = không có (migration 0119). */
+    daoSale: text("dao_sale"),
     total: integer("total").notNull(),
     /** Số đã dùng TRƯỚC khi nhập vào hệ thống (P-62) — không có dòng `bank_accounts` nào để đếm. */
     importedUsed: integer("imported_used").notNull().default(0),
@@ -627,7 +629,7 @@ export const referralCodes = pgTable(
     ),
     check(
       "referral_codes_text_or_qr",
-      sql`nullif(btrim(${t.code}), '') is not null or ${t.qrImage} is not null`,
+      sql`nullif(btrim(${t.code}), '') is not null or nullif(btrim(${t.daoSale}), '') is not null or ${t.qrImage} is not null`,
     ),
     check("referral_codes_total_positive", sql`total > 0`),
     // Số đếm âm là trigger sai. Vỡ ra ở đây còn hơn để nó âm thầm làm màn P-61

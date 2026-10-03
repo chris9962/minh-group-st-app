@@ -827,6 +827,13 @@
       "when": 1789891400044,
       "tag": "0118_attendance_checks",
       "breakpoints": true
+    },
+    {
+      "idx": 119,
+      "version": "7",
+      "when": 1789891400045,
+      "tag": "0119_referral_code_dao_sale",
+      "breakpoints": true
     }
   ]
 }

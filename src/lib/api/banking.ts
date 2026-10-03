@@ -26,6 +26,8 @@ export const BankAccountRow = z.object({
   referralCode: z.string(),
   /** Mã text ngân hàng cấp; `''` = mã QR-only, không có chuỗi nào để ghi. */
   referralCodeText: z.string(),
+  /** Mã DAO SALE của VPa, VPb; `''` = không có. */
+  referralDaoSale: z.string().default(''),
   accountType: AccountType,
   channel: z.string(),
   appInstalled: z.boolean(),
@@ -115,6 +117,8 @@ export const BankAccountDetail = BankAccountRow.extend({
   customerGiftItem: z.string(),
   /** Mã text ngân hàng cấp; `''` = mã QR-only, không có chuỗi nào để gõ. */
   referralCodeText: z.string(),
+  /** Mã DAO SALE của VPa, VPb; `''` = không có. */
+  referralDaoSale: z.string().default(''),
   /** Tỉnh của mã; `''` = chưa gán. Ghép với `referralSupportBranch` thành dòng "CN PGD". */
   referralProvince: z.string(),
   /** Chi nhánh ngân hàng hỗ trợ mã này; `''` = chưa gán. */

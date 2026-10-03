@@ -43,7 +43,7 @@ import {
   type BankAccountRow,
 } from "@/lib/api/banking";
 import { EMPTY_PAGE, PAGE_SIZE, type SortDir } from "@/lib/api/pagination";
-import { exportExcel } from "@/lib/excel";
+import { EXCEL_GROUP_COLORS, exportExcel } from "@/lib/excel";
 import { formatDate, formatPhone } from "@/lib/format";
 import { useDebouncedValue } from "@/lib/hooks";
 import { canManageBank, canOpenBankAdmin } from "@/lib/permissions";
@@ -54,6 +54,10 @@ import styles from "./page.module.scss";
 
 const iso = (d: Date) =>
   new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
+
+const CUSTOMER = { group: "KHÁCH HÀNG", groupColor: EXCEL_GROUP_COLORS.customer };
+const ACCOUNT = { group: "TÀI KHOẢN", groupColor: EXCEL_GROUP_COLORS.account };
+const STAFF = { group: "NHÂN VIÊN", groupColor: EXCEL_GROUP_COLORS.staff };
 
 /** URL chỉ nhận ngày có thật — `2026-02-31` không được biến thành tháng Ba. */
 const dateFromUrl = (value: string | null): Date | undefined =>
@@ -347,31 +351,47 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
         fileName: `tai-khoan-${bank?.code ?? "ngan-hang"}-${iso(new Date())}.xlsx`,
         sheetName: `Tài khoản ${bank?.code ?? ""}`.trim(),
         rows,
+        // Đầu bảng 3 tầng theo chuẩn chung ở AGENTS.md §12: nhóm, tổng, tên cột.
         columns: [
-          { header: "Ngày", value: (r) => (r.date ? formatDate(r.date) : "") },
-          { header: "Khách hàng", transform: "name", value: (r) => r.customerName },
+          { header: "STT", ...CUSTOMER, width: 7, type: "number", align: "center", total: (all) => all.length, value: (_r, i) => i + 1 },
+          { header: "KHÁCH HÀNG", ...CUSTOMER, width: 28, transform: "name", value: (r) => r.customerName },
+          { header: "NGÀY", ...ACCOUNT, width: 12, value: (r) => (r.date ? formatDate(r.date) : "") },
           // `text` cho STK và mã: để mặc định thì Excel hiểu là số học và cắt
           // mất số 0 đầu.
-          { header: "STK", type: "text", value: (r) => r.accountNumber },
+          { header: "STK", ...ACCOUNT, width: 16, type: "text", value: (r) => r.accountNumber },
           // Mã text ĐỨNG TRƯỚC tên hiển thị: file này đem đối chiếu với bảng
           // của ngân hàng, mà bên đó chỉ có chuỗi mã. Mã QR-only không có chuỗi
           // nào nên ô chỉ còn tên.
           {
-            header: "Mã giới thiệu",
+            header: "MÃ GIỚI THIỆU",
+            ...ACCOUNT,
+            width: 30,
             type: "text",
             value: (r) =>
               [r.referralCodeText, r.referralCode].filter(Boolean).join(" - "),
           },
+          ...(bank?.code === "VPa" || bank?.code === "VPb"
+            ? [{ header: "MÃ DAO SALE", ...ACCOUNT, width: 14, type: "text" as const, value: (r: BankAccountRow) => r.referralDaoSale }]
+            : []),
           {
-            header: "Loại TK",
+            header: "LOẠI TK",
+            ...ACCOUNT,
+            width: 10,
             value: (r) => (r.accountType === "none" ? "" : ACCOUNT_TYPE_LABEL[r.accountType]),
           },
-          { header: "Trạng thái", value: (r) => BANK_ACCOUNT_STATUS_LABEL[r.status] },
-          { header: "Đã cài app", value: (r) => (r.appInstalled ? "Có" : "Không") },
+          { header: "TRẠNG THÁI", ...ACCOUNT, width: 16, value: (r) => BANK_ACCOUNT_STATUS_LABEL[r.status] },
+          {
+            header: "ĐÃ CÀI APP",
+            ...ACCOUNT,
+            width: 11,
+            align: "center",
+            total: (all) => all.filter((r) => r.appInstalled).length,
+            value: (r) => (r.appInstalled ? "Có" : "Không"),
+          },
           // MÃ nhân viên chứ không phải tên: file này đem đối chiếu với app khác
           // của công ty, mà app đó định danh theo mã.
-          { header: "Mã NV", type: "text", value: (r) => r.createdByStaffCode },
-          { header: "Phòng", value: (r) => r.createdByDepartmentName ?? "" },
+          { header: "MÃ NHÂN VIÊN", ...STAFF, width: 13, type: "text", value: (r) => r.createdByStaffCode },
+          { header: "PHÒNG", ...STAFF, width: 24, value: (r) => r.createdByDepartmentName ?? "" },
         ],
       });
       toast.ok(`Đã xuất ${rows.length.toLocaleString("vi-VN")} tài khoản`);

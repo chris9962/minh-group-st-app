@@ -81,6 +81,7 @@ export function ReferralCodeFormDialog({ open, onClose, referral }: Props) {
       // phương án dự phòng để mở hộp thoại sửa không bị trống tên.
       displayName: referral?.displayName ?? referral?.code ?? "",
       code: referral?.code ?? "",
+      daoSale: referral?.daoSale ?? "",
       total: referral?.total ?? 100,
       openUrl: referral?.openUrl ?? "",
       priority: referral?.priority ?? 0,
@@ -109,6 +110,8 @@ export function ReferralCodeFormDialog({ open, onClose, referral }: Props) {
   const departmentsRef = useRef<HTMLDetailsElement>(null);
   const scope = watch("scope");
   const previousScope = useRef(scope);
+  // App VPBank NEO có thêm ô "DAO SALE" cạnh ô mã giới thiệu; ngân hàng khác không có.
+  const hasDaoSale = ["VPa", "VPb"].includes(banks.find((b) => b.id === watch("bankId"))?.code ?? "");
 
   // Danh sách phòng vừa được thêm ngay SAU ô phạm vi. Nếu giữ nguyên vị trí
   // cuộn, nó nằm khuất dưới chân hộp thoại và trông như chọn xong mà không có
@@ -177,11 +180,12 @@ export function ReferralCodeFormDialog({ open, onClose, referral }: Props) {
         id="referral-code-form"
         className={styles.form}
         onSubmit={handleSubmit((form) => {
-          if (!form.code && qrPhotos.length === 0) {
+          const daoSale = hasDaoSale ? form.daoSale : "";
+          if (!form.code && !daoSale && qrPhotos.length === 0) {
             setError("code", { message: "Nhập mã text hoặc chọn ảnh QR" });
             return;
           }
-          save.mutate(form);
+          save.mutate({ ...form, daoSale });
         }, reportInvalid)}
         noValidate
       >
@@ -245,13 +249,22 @@ export function ReferralCodeFormDialog({ open, onClose, referral }: Props) {
           </div>
 
           <TextField
-            label="Mã text"
+            label="Mã text (Mã giới thiệu)"
             placeholder="VPA-2026-01"
             hint="Có thể để trống nếu ngân hàng chỉ cấp QR."
             error={errors.code?.message}
             {...register("code")}
           />
         </div>
+
+        {hasDaoSale && (
+          <TextField
+            label="Mã DAO SALE"
+            placeholder="25731"
+            error={errors.daoSale?.message}
+            {...register("daoSale")}
+          />
+        )}
 
         {/* Lưu TÊN tỉnh, không lưu id — xem chú thích cột `province` ở schema.
             Hai trường này hiện cạnh ô chọn mã ở bước 2 khi mở tài khoản.
