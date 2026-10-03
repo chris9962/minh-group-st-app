@@ -57,6 +57,8 @@ export type VneidFilters = {
   customerId: string;
   /** Chỉ những lượt có đánh dấu việc này. `''` = không lọc. */
   task: VneidTaskKey | '';
+  /** Địa chỉ khách, cùng dạng với ô Ấp ở P-40: `Ấp, Xã, Tỉnh` hoặc `Xã, Tỉnh`, nhiều giá trị ngăn bằng `|`. */
+  address?: string;
 };
 export type VneidQuery = PageQuery<VneidSort> & VneidFilters;
 
@@ -70,6 +72,7 @@ const filterParams = (query: VneidFilters) => ({
   staffId: query.staffId,
   customerId: query.customerId,
   task: query.task,
+  address: query.address ?? '',
 });
 
 export async function fetchVneidRecords(query: VneidQuery): Promise<Page<VneidRow>> {

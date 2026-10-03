@@ -7,6 +7,7 @@ import { searchTerms } from "@/lib/search";
 import { isRealIsoDate, type User } from "@/lib/types";
 import { uuidParam } from "./auth";
 import { closedMonthMessage, closedMonthOfCustomer, customerMonthClosed } from "./closedMonths";
+import { addressWhere } from "./customers";
 import { db, uniqueViolationOf } from "./db/client";
 import { customers, departments, users, vneidRecords } from "./db/schema";
 import type { PageArgs } from "./pagination";
@@ -40,6 +41,7 @@ export const vneidFiltersFrom = (params: URLSearchParams): VneidFilters => {
     staffId: uuidParam(params.get("staffId")),
     customerId: uuidParam(params.get("customerId")),
     task: Object.hasOwn(TASK_COLUMN, task) ? (task as keyof typeof TASK_COLUMN) : "",
+    address: params.get("address") ?? "",
   };
 };
 
@@ -74,6 +76,17 @@ function searchWhere(raw: string): SQL | undefined {
   );
 }
 
+/** Cùng luật so địa chỉ với ô Ấp của P-40, đặt trong `exists` để vẫn cắt trang trên `vneid_records`. */
+function addressFilter(address: string | undefined): SQL | undefined {
+  const matches = addressWhere(address);
+  if (!matches) return undefined;
+  return sql`exists (
+    select 1 from ${customers}
+    where ${customers.id} = ${vneidRecords.customerId}
+      and ${matches}
+  )`;
+}
+
 /**
  * Tạo từ ngày `day` trở đi, theo giờ Việt Nam. So trên cột gốc để dùng được chỉ
  * mục, cùng cách `customerDayBetween`.
@@ -94,6 +107,7 @@ const filtersWhere = (visible: RecordVisibility, query: VneidFilters): SQL | und
     query.staffId ? eq(vneidRecords.createdBy, query.staffId) : undefined,
     query.customerId ? eq(vneidRecords.customerId, query.customerId) : undefined,
     query.task ? eq(TASK_COLUMN[query.task], true) : undefined,
+    addressFilter(query.address),
   ].filter(Boolean) as SQL[];
   return parts.length > 0 ? and(...parts) : undefined;
 };

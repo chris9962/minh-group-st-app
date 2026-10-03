@@ -50,6 +50,7 @@ import {
 } from "@/lib/excel";
 import { errorMessage, toast } from "@/lib/toast";
 import { isRealIsoDate } from "@/lib/types";
+import { useAddressSuggestions } from "@/lib/useAddressSuggestions";
 import { useCreateIntent } from "@/lib/useCreateIntent";
 import { useSession } from "@/store/session";
 import styles from "./page.module.scss";
@@ -109,6 +110,7 @@ export default function VneidPage() {
   const [departmentId, setDepartmentId] = useState(() => searchParams.get("departmentId") ?? "");
   const [staffId, setStaffId] = useState(() => searchParams.get("staffId") ?? "");
   const [task, setTask] = useState(() => taskFromUrl(searchParams.get("task")));
+  const [address, setAddress] = useState(() => searchParams.get("address") ?? "");
   const [page, setPage] = useState(() => pageFromUrl(searchParams.get("page")));
   const [dir, setDir] = useState<SortDir>(() => (searchParams.get("dir") === "asc" ? "asc" : "desc"));
   const [creating, setCreating] = useCreateIntent();
@@ -147,6 +149,13 @@ export default function VneidPage() {
   });
   const staffOptions = useMemo(() => staff.map((s) => ({ value: s.id, label: s.fullName })), [staff]);
 
+  const addressSuggestions = useAddressSuggestions();
+  const addressOptions = useMemo(
+    () => addressSuggestions.map((s) => ({ value: s, label: s })),
+    [addressSuggestions],
+  );
+  const pickedAddresses = useMemo(() => (address ? address.split("|") : []), [address]);
+
   const from = range?.from ? iso(range.from) : "";
   const to = range?.to ? iso(range.to) : "";
 
@@ -158,11 +167,12 @@ export default function VneidPage() {
     if (departmentId) params.set("departmentId", departmentId);
     if (staffId) params.set("staffId", staffId);
     if (task) params.set("task", task);
+    if (address) params.set("address", address);
     if (page > 0) params.set("page", String(page + 1));
     if (dir === "asc") params.set("dir", dir);
     const query = params.toString();
     return query ? `/vneid?${query}` : "/vneid";
-  }, [departmentId, dir, from, page, searchQuery, staffId, task, to]);
+  }, [address, departmentId, dir, from, page, searchQuery, staffId, task, to]);
 
   // Bộ lọc nằm trên URL để quay lại và chia sẻ được; URL là hệ thống ngoài React.
   useEffect(() => {
@@ -175,7 +185,7 @@ export default function VneidPage() {
   };
 
   const { data = EMPTY_PAGE, isPending, isError, refetch, isFetching } = useQuery({
-    queryKey: ["vneid", searchQuery, from, to, departmentId, staffId, task, page, dir],
+    queryKey: ["vneid", searchQuery, from, to, departmentId, staffId, task, address, page, dir],
     queryFn: () =>
       fetchVneidRecords({
         search: searchQuery,
@@ -185,6 +195,7 @@ export default function VneidPage() {
         staffId,
         customerId: "",
         task,
+        address,
         page,
         sort: "createdAt",
         dir,
@@ -193,7 +204,11 @@ export default function VneidPage() {
   });
 
   const activeCount =
-    (from && to ? 1 : 0) + (departmentId ? 1 : 0) + (staffId ? 1 : 0) + (task ? 1 : 0);
+    (from && to ? 1 : 0) +
+    (departmentId ? 1 : 0) +
+    (staffId ? 1 : 0) +
+    (task ? 1 : 0) +
+    (address ? 1 : 0);
   const filtering = Boolean(searchQuery) || activeCount > 0;
 
   const queryClient = useQueryClient();
@@ -222,6 +237,7 @@ export default function VneidPage() {
         staffId,
         customerId: "",
         task,
+        address,
       });
       // Đầu bảng 3 tầng theo chuẩn chung ở AGENTS.md §12: nhóm, tổng, tên cột.
       const columns: ExcelColumn<VneidRow>[] = [
@@ -346,6 +362,7 @@ export default function VneidPage() {
               setDepartmentId("");
               setStaffId("");
               setTask("");
+              setAddress("");
             })
           }
         >
@@ -366,6 +383,16 @@ export default function VneidPage() {
                 { value: "", label: "Tất cả" },
                 ...VNEID_TASKS.map((t) => ({ value: t.key, label: t.label })),
               ]}
+            />
+          </FilterField>
+          <FilterField id="address" label="Ấp" count={pickedAddresses.length}>
+            <FilterChoices
+              multiple
+              label="Ấp"
+              searchPlaceholder="Gõ để tìm Ấp, Xã, Tỉnh…"
+              value={pickedAddresses}
+              onChange={(v) => refine(() => setAddress(v.join("|")))}
+              options={addressOptions}
             />
           </FilterField>
           {canFilterByDepartment ? (
@@ -429,6 +456,14 @@ export default function VneidPage() {
                   {
                     label: `Việc: ${VNEID_TASKS.find((t) => t.key === task)?.label ?? ""}`,
                     onRemove: () => refine(() => setTask("")),
+                  },
+                ]
+              : []),
+            ...(address
+              ? [
+                  {
+                    label: `Ấp: ${pickedAddresses.join("; ")}`,
+                    onRemove: () => refine(() => setAddress("")),
                   },
                 ]
               : []),
