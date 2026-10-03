@@ -2,8 +2,7 @@
 -- "DAO SALE" và "MÃ GIỚI THIỆU". Mã text giữ ô MÃ GIỚI THIỆU, cột này giữ ô DAO
 -- SALE; kiểm ảnh so nguyên văn từng ô với đúng cột của nó.
 --
--- Chuyển số DAO đang nằm ở Mã text sang cột này bằng
--- `scripts/db-move-vp-dao-sale.ts`, không làm trong migration.
+-- Không chuyển dữ liệu: người nhập liệu tự điền hai cột cho mã VPa, VPb.
 ALTER TABLE "referral_codes" ADD COLUMN IF NOT EXISTS "dao_sale" text;
 --> statement-breakpoint
 ALTER TABLE "referral_codes" DROP CONSTRAINT IF EXISTS "referral_codes_text_or_qr";
