@@ -248,23 +248,24 @@ export function ReferralCodeFormDialog({ open, onClose, referral }: Props) {
             />
           </div>
 
-          <TextField
-            label="Mã text (Mã giới thiệu)"
-            placeholder="VPA-2026-01"
-            hint="Có thể để trống nếu ngân hàng chỉ cấp QR."
-            error={errors.code?.message}
-            {...register("code")}
-          />
-        </div>
+          <div className={styles.codeFields}>
+            <TextField
+              label="Mã text (Mã giới thiệu)"
+              placeholder="VPA-2026-01"
+              hint="Có thể để trống nếu ngân hàng chỉ cấp QR."
+              error={errors.code?.message}
+              {...register("code")}
+            />
 
-        {hasDaoSale && (
-          <TextField
-            label="Mã DAO SALE"
-            placeholder="25731"
-            error={errors.daoSale?.message}
-            {...register("daoSale")}
-          />
-        )}
+            {hasDaoSale && (
+              <TextField
+                label="Mã DAO SALE"
+                error={errors.daoSale?.message}
+                {...register("daoSale")}
+              />
+            )}
+          </div>
+        </div>
 
         {/* Lưu TÊN tỉnh, không lưu id — xem chú thích cột `province` ở schema.
             Hai trường này hiện cạnh ô chọn mã ở bước 2 khi mở tài khoản.
