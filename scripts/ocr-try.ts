@@ -6,6 +6,11 @@ import { checkLpb, lpbFacts } from "../src/server/ocr/banks/lpb";
 import { checkMb, mbFacts } from "../src/server/ocr/banks/mb";
 import { checkTpbank, tpbFacts } from "../src/server/ocr/banks/tpbank";
 import { checkVpb, vpbFacts } from "../src/server/ocr/banks/vpbank";
+import { bidvFacts, checkBidv } from "../src/server/ocr/banks/bidv";
+import { checkMbv, mbvFacts } from "../src/server/ocr/banks/mbv";
+import { checkShb, shbFacts } from "../src/server/ocr/banks/shb";
+import { checkTcb, tcbFacts } from "../src/server/ocr/banks/tcb";
+import { checkVib, vibFacts } from "../src/server/ocr/banks/vib";
 
 /**
  * Đọc chữ trên ảnh trong máy rồi in ra, kèm kết quả parser của một ngân hàng.
@@ -30,9 +35,25 @@ const PARSERS: Record<string, (text: string) => unknown> = {
   msb: ctx ? (text) => msbFacts(text, ctx) : lineCount,
   tpbank: ctx ? (text) => tpbFacts(text, ctx) : lineCount,
   vpbank: ctx ? (text) => vpbFacts(text, ctx) : lineCount,
+  bidv: ctx ? (text) => bidvFacts(text, ctx) : lineCount,
+  mbv: ctx ? (text) => mbvFacts(text, ctx) : lineCount,
+  shb: ctx ? (text) => shbFacts(text, ctx) : lineCount,
+  tcb: ctx ? (text) => tcbFacts(text, ctx) : lineCount,
+  vib: ctx ? (text) => vibFacts(text, ctx) : lineCount,
 };
 
-const CHECKS: Record<string, (texts: string[], ctx: never) => unknown> = { lpb: checkLpb, mb: checkMb, msb: checkMsb, tpbank: checkTpbank, vpbank: checkVpb };
+const CHECKS: Record<string, (texts: string[], ctx: never) => unknown> = {
+  lpb: checkLpb,
+  mb: checkMb,
+  msb: checkMsb,
+  tpbank: checkTpbank,
+  vpbank: checkVpb,
+  bidv: checkBidv,
+  mbv: checkMbv,
+  shb: checkShb,
+  tcb: checkTcb,
+  vib: checkVib,
+};
 
 async function main() {
   const [bank, ...rest] = process.argv.slice(2);

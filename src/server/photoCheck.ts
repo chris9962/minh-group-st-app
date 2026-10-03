@@ -27,6 +27,11 @@ import { checkMbImages, type MbCheckContext } from "./ocr/banks/mb";
 import { checkMsbImages, type MsbCheckContext } from "./ocr/banks/msb";
 import { checkTpbankImages, type TpbCheckContext } from "./ocr/banks/tpbank";
 import { checkVpbImages, type VpbCheckContext } from "./ocr/banks/vpbank";
+import { checkBidvImages } from "./ocr/banks/bidv";
+import { checkMbvImages } from "./ocr/banks/mbv";
+import { checkShbImages } from "./ocr/banks/shb";
+import { checkTcbImages } from "./ocr/banks/tcb";
+import { checkVibImages } from "./ocr/banks/vib";
 import type { CheckedItem } from "./ocr/types";
 import { readImage } from "./storage";
 
@@ -63,15 +68,21 @@ const CHECKERS: Record<string, Checker> = {
   MB: checkMbImages,
   VPa: checkVpbImages,
   VPb: checkVpbImages,
+  BIDV: checkBidvImages,
+  MBV: checkMbvImages,
+  SHB: checkShbImages,
+  TCB: checkTcbImages,
+  VIB: checkVibImages,
 };
 
 /**
  * Ngân hàng đang BẬT kiểm ảnh: đã đo trên benchmark của `.claude/skills/ocr-verify`
  * (số đo ở `docs/plan-ocr-cac-ngan-hang-2026-09-22.md`). BIDV, MBV, SHB, TCB,
- * VIB chưa có bộ nhãn. Làm xong ngân hàng nào thì thêm mã vào đây; dòng chờ
- * cũ của ngân hàng tắt bị worker xoá lúc khởi động.
+ * VIB bật 2026-10-03, đo trên 2 tài khoản mỗi ngân hàng (TCB 1). Làm xong ngân
+ * hàng nào thì thêm mã vào đây; dòng chờ cũ của ngân hàng tắt bị worker xoá lúc
+ * khởi động.
  */
-const ENABLED_BANKS = ["TPB", "MSBa", "MSBb", "MB", "LPB", "VPa", "VPb"];
+const ENABLED_BANKS = ["TPB", "MSBa", "MSBb", "MB", "LPB", "VPa", "VPb", "BIDV", "MBV", "SHB", "TCB", "VIB"];
 
 export const hasPhotoChecker = (bankCode: string): boolean =>
   ENABLED_BANKS.includes(bankCode) && bankCode in CHECKERS;

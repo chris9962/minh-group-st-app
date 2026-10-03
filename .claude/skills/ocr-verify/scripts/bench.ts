@@ -35,6 +35,11 @@ import { checkMb } from "../../../../src/server/ocr/banks/mb";
 import { checkMsb } from "../../../../src/server/ocr/banks/msb";
 import { checkTpbank } from "../../../../src/server/ocr/banks/tpbank";
 import { checkVpb } from "../../../../src/server/ocr/banks/vpbank";
+import { checkBidv } from "../../../../src/server/ocr/banks/bidv";
+import { checkMbv } from "../../../../src/server/ocr/banks/mbv";
+import { checkShb } from "../../../../src/server/ocr/banks/shb";
+import { checkTcb } from "../../../../src/server/ocr/banks/tcb";
+import { checkVib } from "../../../../src/server/ocr/banks/vib";
 import { ocrModelOf } from "../../../../src/server/ocr/facts";
 import { closeOcr, ocrLines } from "../../../../src/server/ocr/reader";
 import { readImage } from "../../../../src/server/storage";
@@ -51,6 +56,8 @@ type BenchContext = {
   /** `referral_codes.account_type`: `none` | `CNKD` | `HKD`, VPBank chấm khác nhau theo loại. */
   accountType: string;
   bankCode: string;
+  /** VPa, VPb: ô "DAO SALE" (migration 0119). */
+  daoSale: string;
 };
 
 type Row = {
@@ -69,6 +76,11 @@ const CHECKERS: Record<string, (texts: string[], ctx: BenchContext) => PhotoChec
   LPB: checkLpb,
   VPa: checkVpb,
   VPb: checkVpb,
+  BIDV: checkBidv,
+  MBV: checkMbv,
+  SHB: checkShb,
+  TCB: checkTcb,
+  VIB: checkVib,
 };
 
 const [cmd, root, ...rest] = process.argv.slice(2);
@@ -108,7 +120,8 @@ async function xuat() {
                          'province', coalesce(r.province, ''), 'supportBranch', coalesce(r.support_branch, ''),
                          'customerName', c.full_name, 'accountNumber', coalesce(a.account_number, ''),
                          'openedDate', coalesce(a.opened_date::text, ''),
-                         'accountType', coalesce(r.account_type::text, 'none')) as context,
+                         'accountType', coalesce(r.account_type::text, 'none'),
+                         'bankCode', b.code, 'daoSale', coalesce(r.dao_sale, '')) as context,
        (select json_agg(p.url order by p.sort_order) from bank_account_photos p where p.account_id = a.id and p.kind = 'opening') as photos,
        (select k.result->'items' from bank_account_checks k
          where k.account_id = a.id and k.status = 'done' order by k.created_at desc limit 1) as "oldItems"

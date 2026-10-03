@@ -21,7 +21,7 @@ Luật chấm, không dung sai (`ocr/text.ts`: `lineHasName`, `hasDigits`, `code
 
 - Tên: bỏ dấu, viết hoa, chuỗi chữ cái của tên nằm trong chuỗi chữ cái của một dòng, dư mỗi đầu tối đa 2 chữ; hoặc tên nối liền `CHUYENTIEN` (lời nhắn app tự điền).
 - Số tài khoản: đúng từng chữ số, trọn dãy, cho khoảng trắng giữa các số. Không so chuỗi con: nhập thiếu hai số vẫn là chuỗi con. Ngân hàng `phone-match` (MSBb, MB, LPB, VPBank) lưu số điện thoại làm số tài khoản, tìm đúng số đó.
-- Mã giới thiệu: gộp O/0, I/1, S/5, B/8, Z/2 rồi so đúng. Token liền nhau ghép lại vì OCR tách `ATI 07`. Mã toàn số (LPB, VPBank) tìm bằng `hasDigits`.
+- Mã giới thiệu: so nguyên văn Mã text (`referral_codes.code`), chỉ bỏ dấu và viết hoa, bằng `linesHaveExactCode` (chốt 2026-10-02). Không bỏ ký tự, không gộp O/0, không ghép cụm. Mã text kèm chú thích là lỗi nhập liệu, ảnh không đạt. Mã text trống thì không so. VPa, VPb so thêm ô DAO SALE với cột `dao_sale`.
 - Thành công: mỗi ngân hàng một `hasSuccess` riêng theo màn thật, xem đầu file `banks/<bank>.ts`.
 
 Giá trị riêng từng ngân hàng (`Facts` có thêm khoá tuỳ chọn, `itemsFromFacts` gộp vào ba mục):
@@ -107,4 +107,4 @@ Bộ 62 tài khoản TPBank, 310 ảnh, đo 2026-09-19 trên máy user, so VietO
 
 ## Thêm ngân hàng mới
 
-Theo đúng cách của `tpbank.ts`: một hàm `facts(text, ctx)` trả các giá trị hệ thống có trong chữ không (`Facts`, thêm khoá tuỳ chọn nếu ngân hàng đòi thêm giá trị), `check(texts, ctx)` gọi `itemsFromFacts`, `checkImages(images, ctx)` gọi `readUntilFound`. Đăng ký ở `CHECKERS` của `photoCheck.ts`, `bench.ts` và `ocr-try.ts`; viết `scripts/test-<bank>-photo-parser.ts` với chữ VietOCR thật và nối vào `test:ocr`. Đo trên benchmark của ngân hàng đó (`bench.ts xuat --bank X [--loai CNKD]`) rồi mới thêm vào `ENABLED_BANKS`. BIDV, MBV, SHB, TCB, VIB chưa có bộ nhãn (2026-09-22).
+Theo đúng cách của `tpbank.ts`: một hàm `facts(text, ctx)` trả các giá trị hệ thống có trong chữ không (`Facts`, thêm khoá tuỳ chọn nếu ngân hàng đòi thêm giá trị), `check(texts, ctx)` gọi `itemsFromFacts`, `checkImages(images, ctx)` gọi `readUntilFound`. Đăng ký ở `CHECKERS` của `photoCheck.ts`, `bench.ts` và `ocr-try.ts`; viết `scripts/test-<bank>-photo-parser.ts` với chữ VietOCR thật và nối vào `test:ocr`. Đo trên benchmark của ngân hàng đó (`bench.ts xuat --bank X [--loai CNKD]`) rồi mới thêm vào `ENABLED_BANKS`. BIDV, MBV, SHB, TCB, VIB có bộ nhãn từ 2026-10-03, đo trên 2 tài khoản mỗi ngân hàng; BIDV và TCB không so số tài khoản vì app không in số điện thoại.
