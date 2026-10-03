@@ -13,7 +13,8 @@
  *
  *   1. đo CPU, RAM, ổ đĩa rồi ghi một dòng `host_metrics`
  *   2. mỗi `OPS_S3_EVERY_MINUTES` phút thì đo thêm dung lượng bucket S3
- *   3. gom cảnh báo: đơn chờ giấy chứng nhận quá 10 và 15 phút, tài nguyên quá 80%
+ *   3. gom cảnh báo: worker không chạy hoặc khởi động lại, đơn chờ giấy chứng
+ *      nhận quá 10 và 15 phút, tài nguyên quá 80%
  *   4. đẩy TỐI ĐA MỘT thông báo cho người cầm `system:view-ops`
  *
  * Trần một thông báo mỗi vòng là chốt của người dùng: 20 đơn kẹt cùng lúc thì
@@ -44,6 +45,17 @@ const DISK_PATH = process.env.OPS_DISK_PATH ?? "/";
 const RESOURCE_COOLDOWN_MINUTES = Number(process.env.OPS_RESOURCE_COOLDOWN_MINUTES ?? 30);
 /** Số đo cũ hơn ngần này ngày thì xoá — bảng này chỉ để nhìn hiện tại. */
 const KEEP_DAYS = Number(process.env.OPS_KEEP_DAYS ?? 7);
+/**
+ * Container phải luôn chạy. Danh sách tên cố định chứ không lọc theo chế độ
+ * `unless-stopped`: container bản lùi `mgst-app-cu-*` cũng mang chế độ đó mà
+ * cố ý để dừng. Bot cũ `mgst-worker` đã tắt hẳn nên không nằm trong danh sách.
+ */
+const WORKERS = (process.env.OPS_WORKERS ?? "mgst-api-worker,mgst-photo-check,mgst-zalo-worker")
+  .split(",")
+  .map((name) => name.trim())
+  .filter(Boolean);
+/** Worker vẫn hỏng thì nhắc lại sau ngần này phút. */
+const WORKER_COOLDOWN_MINUTES = Number(process.env.OPS_WORKER_COOLDOWN_MINUTES ?? 30);
 
 const log = (line: string) => console.log(`[${new Date().toISOString()}] ${line}`);
 
@@ -169,6 +181,60 @@ async function claimAlert(key: string, cooldownMinutes: number): Promise<boolean
 
 /* ── Cảnh báo ───────────────────────────────────────────────────────────── */
 
+type WorkerState = { id: string; status: string; restarts: number; exitCode: number };
+
+function inspectWorker(name: string): WorkerState | null {
+  try {
+    const out = execFileSync(
+      "docker",
+      ["inspect", "--format", "{{.Id}} {{.State.Status}} {{.RestartCount}} {{.State.ExitCode}}", name],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] },
+    );
+    const [id, status, restarts, exitCode] = out.trim().split(" ");
+    return { id, status, restarts: Number(restarts), exitCode: Number(exitCode) };
+  } catch {
+    return null;
+  }
+}
+
+/** Số lần khởi động lại ở vòng trước, kèm id để container dựng lại không bị tính nhầm. */
+const lastRestarts = new Map<string, { id: string; restarts: number }>();
+
+/**
+ * Worker không chạy, hoặc chạy nhưng đã khởi động lại từ vòng trước.
+ *
+ * Phải xét cả số lần khởi động lại: worker thoát ngay sau khi lên thì phần lớn
+ * thời gian Docker ghi `restarting`, nhưng vòng đo có thể rơi đúng vào giây
+ * nó đang `running`. Sự cố 2026-10-03: `mgst-api-worker` khởi động lại 20 lần
+ * mà không ai nhận được tin nào.
+ */
+async function workerAlerts(): Promise<string[]> {
+  const lines: string[] = [];
+  for (const name of WORKERS) {
+    const state = inspectWorker(name);
+    const before = lastRestarts.get(name);
+    if (state) lastRestarts.set(name, { id: state.id, restarts: state.restarts });
+    const restarted = state && before?.id === state.id ? state.restarts - before.restarts : 0;
+
+    const problem = !state
+      ? "không có container"
+      : state.status === "restarting"
+        ? `đang khởi động lại liên tục (mã thoát ${state.exitCode})`
+        : state.status !== "running"
+          ? `đã dừng (mã thoát ${state.exitCode})`
+          : restarted > 0
+            ? `vừa khởi động lại ${restarted} lần`
+            : null;
+
+    if (!problem) {
+      await db.execute(sql`delete from ops_alerts where key = ${`worker:${name}`}`);
+      continue;
+    }
+    if (await claimAlert(`worker:${name}`, WORKER_COOLDOWN_MINUTES)) lines.push(`${name} ${problem}`);
+  }
+  return lines;
+}
+
 /** Đơn chờ giấy chứng nhận quá mốc mà chưa báo mốc đó. */
 async function certificateAlerts(): Promise<string[]> {
   const rows = await db.execute<{ id: string; order_code: string; minutes: string }>(sql`
@@ -262,6 +328,7 @@ async function runOnce(): Promise<void> {
 
   const quotaBytes = Math.max(0, Number(process.env.S3_QUOTA_GB ?? 0)) * 1024 ** 3;
   const lines = [
+    ...(await workerAlerts()),
     ...(await certificateAlerts()),
     ...(await resourceAlerts([
       { key: "cpu", label: "CPU", percent: cpuPercent, detail: `${Math.round(cpuPercent)}%` },

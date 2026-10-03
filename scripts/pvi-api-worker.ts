@@ -341,12 +341,16 @@ async function failed(order: OrderForPvi, e: unknown) {
   }
 
   /**
-   * Lỗi cấu hình: thiếu biến `.env`, hoặc PVI trả `-105 Sai chữ ký`. Mọi đơn
-   * hỏng như nhau, làm tiếp là đẩy cả hàng chờ sang làm tay. Trả đơn về hàng
-   * chờ rồi THOÁT (chốt 2026-09-07): khởi động lại thì `checkPviAccess` ở
-   * `main` chặn cho tới khi sửa xong `.env`, và lịch sử đơn chỉ có một dòng.
+   * Lỗi cấu hình: thiếu biến `.env`. Mọi đơn hỏng như nhau, làm tiếp là đẩy cả
+   * hàng chờ sang làm tay. Trả đơn về hàng chờ rồi THOÁT (chốt 2026-09-07):
+   * khởi động lại thì `checkPviAccess` ở `main` chặn cho tới khi sửa xong `.env`.
+   *
+   * `-105` KHÔNG thuộc nhóm này nữa (chốt 2026-10-03). Khoá sai đã bị
+   * `checkPviAccess` chặn lúc khởi động, nên `-105` lúc tạo đơn là do dữ liệu
+   * của riêng đơn đó: biển số `63B7-16456'` làm worker thoát rồi khởi động lại
+   * 20 lần, cả hàng chờ đứng theo. Nó đi xuống nhánh làm tay bên dưới.
    */
-  if (err?.kind === "config" || err?.status === "-105") {
+  if (err?.kind === "config") {
     await setStatus(order.id, "creating", "queued", {
       note: `Cấu hình PVI sai: ${describeError(e)}. Worker dừng.`,
     });
