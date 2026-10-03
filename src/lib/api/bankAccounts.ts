@@ -267,7 +267,12 @@ export async function fetchCustomerBankSlots(customerId: string): Promise<Custom
 
 /** Bước 2 (P-22, khi tài khoản đang `creating`) — điền nốt sau khi đã mở xong ở ngoài. */
 export const BankAccountFinishForm = z.object({
-  accountNumber: z.string().trim().min(1, 'Chưa có số tài khoản'),
+  // Ký tự lạ đếm vào độ dài: `10005495 92` thiếu một số vẫn qua luật TPB đủ 11 ký tự (2026-09-13).
+  accountNumber: z
+    .string()
+    .trim()
+    .min(1, 'Chưa có số tài khoản')
+    .regex(/^\d*$/, 'Số tài khoản chỉ được có chữ số'),
   /**
    * Bắt đúng `YYYY-MM-DD`, và phải là ngày CÓ THẬT.
    *
