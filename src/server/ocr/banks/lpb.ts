@@ -1,4 +1,4 @@
-import { hasDigits, hasLabel, hasPhrase, letterWords, lineHasName, splitLines, stripAccents } from "../text";
+import { hasDigits, hasLabel, hasPhrase, letterWords, lineHasName, linesHaveExactCode, splitLines, stripAccents } from "../text";
 import { itemsFromFacts, readUntilFound, type Facts } from "../facts";
 import type { CheckedItem } from "../types";
 
@@ -62,7 +62,7 @@ export function lpbFacts(ocrText: string, ctx: LpbCheckContext): Facts {
   const facts: Facts = {
     nameFound: lines.some((line) => lineHasName(line.replace(OWNER_LABEL, ""), expectedName)),
     accountFound: hasDigits(ocrText, ctx.accountNumber.replace(/\D/g, "")),
-    codeFound: hasDigits(ocrText, ctx.referralCode.replace(/\D/g, "")),
+    codeFound: linesHaveExactCode(lines, ctx.referralCode),
     successFound: hasSuccess(lines),
   };
   if (ctx.openedDate) facts.openedDateFound = hasDate(ocrText, displayDate(ctx.openedDate));
@@ -73,7 +73,7 @@ export function checkLpb(texts: string[], ctx: LpbCheckContext): CheckedItem[] {
   return itemsFromFacts(
     texts.map((text) => lpbFacts(text, ctx)),
     {
-      code: ctx.referralCode.replace(/\D/g, ""),
+      code: ctx.referralCode,
       customerName: ctx.customerName,
       accountNumber: ctx.accountNumber,
       openedDate: displayDate(ctx.openedDate),

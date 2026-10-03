@@ -75,6 +75,8 @@ assert.equal(lpbFacts(qrScreen, ctx).successFound, false);
 
 assert.equal(lpbFacts(accountInfo, { ...ctx, openedDate: "2026-09-11" }).openedDateFound, false);
 assert.equal(lpbFacts(referralTab, { ...ctx, referralCode: "0777706076" }).codeFound, false, "sai một số là người khác");
+assert.equal(lpbFacts("Mã giới thiệu 0777 706 075", ctx).codeFound, false, "Mã text so nguyên văn, không cho khoảng trắng giữa số");
+assert.equal(lpbFacts(referralTab, { ...ctx, referralCode: "0777706075 (phòng 2)" }).codeFound, false, "Mã text kèm chú thích là lỗi nhập liệu");
 assert.equal("openedDateFound" in lpbFacts(accountInfo, { ...ctx, openedDate: "" }), false, "chưa có ngày mở thì không so");
 
 const items = checkLpb([qrScreen, accountInfo, referralTab, transferSuccess], ctx);
