@@ -218,6 +218,8 @@ async function lockUsableCode(
     .select({
       id: referralCodes.id,
       code: referralCodes.code,
+      displayName: referralCodes.displayName,
+      hideCode: referralCodes.hideCode,
       bankId: referralCodes.bankId,
       total: referralCodes.total,
       importedUsed: referralCodes.importedUsed,
@@ -233,16 +235,17 @@ async function lockUsableCode(
     .for("update");
 
   if (!code) return { ok: false, message: "Không tìm thấy mã giới thiệu này" };
+  const codeLabel = code.hideCode ? code.displayName : code.code;
   if (code.bankId !== bankId)
     return { ok: false, message: "Mã giới thiệu này không thuộc ngân hàng đã chọn" };
   if (code.accountType !== accountType)
     return {
       ok: false,
-      message: `Mã ${code.code} không thuộc loại tài khoản đã chọn. Chọn lại mã giúp.`,
+      message: `Mã ${codeLabel} không thuộc loại tài khoản đã chọn. Chọn lại mã giúp.`,
     };
   // Ô chọn đã lọc mã ngừng, nhưng đây mới là chốt — cùng lý do với phạm vi phòng.
   if (!code.active)
-    return { ok: false, message: `Mã ${code.code} đã ngừng sử dụng. Chọn mã khác giúp.` };
+    return { ok: false, message: `Mã ${codeLabel} đã ngừng sử dụng. Chọn mã khác giúp.` };
 
   /**
    * Kiểm LẠI phạm vi phòng ở đây, không tin ô chọn đã lọc (spec §4.4d).
@@ -263,14 +266,14 @@ async function lockUsableCode(
       .limit(1);
 
     if (!allowed)
-      return { ok: false, message: `Mã ${code.code} không dùng được cho phòng đã chọn.` };
+      return { ok: false, message: `Mã ${codeLabel} không dùng được cho phòng đã chọn.` };
   }
 
   const remaining = code.total - code.importedUsed - code.usedCount - code.holdingCount;
   if (remaining <= 0)
     return {
       ok: false,
-      message: `Mã ${code.code} vừa hết chỗ — người khác đã lấy chỗ cuối. Chọn mã khác giúp.`,
+      message: `Mã ${codeLabel} vừa hết chỗ — người khác đã lấy chỗ cuối. Chọn mã khác giúp.`,
     };
 
   return { ok: true, code: { id: code.id, code: code.code } };
@@ -595,8 +598,11 @@ const decorate = (page: ReturnType<typeof pickPage>) => {
       // Lịch sử tài khoản phải đọc được cả với mã QR-only.
       referralCode: referralCodes.displayName,
       // Chuỗi mã ngân hàng cấp. `''` = mã QR-only, nhân viên phải quét QR chứ
-      // không gõ được mã nào — bước 2 ẩn dòng thay vì hiện tên mã.
-      referralCodeText: sql<string>`coalesce(${referralCodes.code}, '')`,
+      // không gõ được mã nào — bước 2 ẩn dòng thay vì hiện tên mã. Mã ẩn với
+      // nhân viên (migration 0120) cũng ra `''`.
+      referralCodeText: sql<string>`case when ${referralCodes.hideCode} then '' else coalesce(${referralCodes.code}, '') end`,
+      // Trang quản lý ngân hàng đọc cả mã ẩn: file xuất ở đó đem đối chiếu với bảng của ngân hàng.
+      referralCodeFullText: sql<string>`coalesce(${referralCodes.code}, '')`,
       referralDaoSale: sql<string>`coalesce(${referralCodes.daoSale}, '')`,
       // Bản ghi trước migration 0056 chưa chụp loại tài khoản vào chính đơn.
       // Mã đã được dùng không đổi loại được, nên đây là nguồn dự phòng an toàn
@@ -668,6 +674,9 @@ type DecoratedRow = Awaited<ReturnType<typeof decorate>>[number];
 /** Loại đã chụp trên đơn; dữ liệu cũ chưa có thì đọc từ mã giới thiệu đã dùng. */
 const accountTypeOf = (row: DecoratedRow) =>
   row.accountType === "none" ? row.referralAccountType : row.accountType;
+
+/** Chỉ các hàm của trang quản lý ngân hàng gọi — chốt quyền `canManageBank` ở route. */
+const revealCodeText = (r: DecoratedRow): DecoratedRow => ({ ...r, referralCodeText: r.referralCodeFullText });
 
 const toRow = (r: DecoratedRow): BankAccountRow => ({
   id: r.id,
@@ -867,7 +876,7 @@ export async function listBankAccountsOfBank(
     db.select({ value: count() }).from(bankAccounts).where(where),
   ]);
 
-  return { rows: rows.map(toRow), total: totals?.value ?? 0 };
+  return { rows: rows.map((r) => toRow(revealCodeText(r))), total: totals?.value ?? 0 };
 }
 
 /**
@@ -907,7 +916,7 @@ export async function listBankAccountsOfBankForExport(
     db.select({ value: count() }).from(bankAccounts).where(where),
   ]);
 
-  return { rows: rows.map(toRow), total: totals?.value ?? 0 };
+  return { rows: rows.map((r) => toRow(revealCodeText(r))), total: totals?.value ?? 0 };
 }
 
 /**
@@ -1008,7 +1017,7 @@ export async function listBankPhotos(
   }
 
   return {
-    rows: rows.map((r) => ({ ...toRow(r), photos: photosByAccount.get(r.id) ?? [] })),
+    rows: rows.map((r) => ({ ...toRow(revealCodeText(r)), photos: photosByAccount.get(r.id) ?? [] })),
     total: totals?.value ?? 0,
   };
 }
@@ -1216,7 +1225,7 @@ export async function bankAccountDetailOfBank(
 ): Promise<BankAccountDetail | null> {
   const r = await rawById(accountId);
   if (!r || r.bankId !== bankId) return null;
-  return detailBody(r);
+  return detailBody(revealCodeText(r));
 }
 
 /** Trọn thân chi tiết — P-22 và trang chi tiết ngân hàng dùng chung. */

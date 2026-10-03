@@ -656,6 +656,7 @@ const codeColumns = {
   // Hợp đồng API dùng chuỗi rỗng cho QR-only; không đẩy `null` sang mọi nơi dùng.
   code: sql<string>`coalesce(${referralCodes.code}, '')`,
   daoSale: sql<string>`coalesce(${referralCodes.daoSale}, '')`,
+  hideCode: referralCodes.hideCode,
   total: referralCodes.total,
   used: usedExpr,
   holding: referralCodes.holdingCount,
@@ -700,6 +701,7 @@ const codeGroupBy = [
   referralCodes.displayName,
   referralCodes.code,
   referralCodes.daoSale,
+  referralCodes.hideCode,
   referralCodes.total,
   referralCodes.importedUsed,
   referralCodes.usedCount,
@@ -908,7 +910,7 @@ export async function listReferralCodeOptions(): Promise<string[]> {
   const rows = await db
     .selectDistinct({ code: referralCodes.code })
     .from(referralCodes)
-    .where(sql`${referralCodes.code} is not null`)
+    .where(sql`${referralCodes.code} is not null and not ${referralCodes.hideCode}`)
     .orderBy(asc(referralCodes.code));
   return rows.map((r) => r.code!);
 }
@@ -985,7 +987,8 @@ export async function listOpenReferralCodes(
     // đầy không nằm trong câu này nên ưu tiên cao cũng không kéo nó trở lại.
     .orderBy(desc(referralCodes.priority), desc(remainingExpr), asc(referralCodes.code));
 
-  return rows.map(toCode);
+  // Mã ẩn thì ô chọn mã không nhận Mã text; tên hiển thị đủ để chọn.
+  return rows.map(toCode).map((c) => (c.hideCode ? { ...c, code: "" } : c));
 }
 
 /**
@@ -1073,6 +1076,7 @@ export async function createReferralCode(
         displayName: form.displayName,
         code: form.code || null,
         daoSale: form.daoSale || null,
+        hideCode: form.hideCode,
         total: form.total,
         // Chuỗi rỗng thành NULL: cột này là "có link hay không", và hai cách
         // biểu diễn cho cùng một trạng thái sớm muộn lệch nhau khi lọc.
@@ -1214,6 +1218,7 @@ export async function updateReferralCode(
           displayName: form.displayName,
           code: form.code || null,
           daoSale: form.daoSale || null,
+          hideCode: form.hideCode,
           total: form.total,
           openUrl: form.openUrl || null,
           qrImage: qrImageKey(form),

@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
+import { Info } from "lucide-react";
 import {
   BankAccountPhotos,
   savedPhotos,
@@ -15,6 +16,7 @@ import { Checkbox } from "@/components/ui/Checkbox";
 import { Dialog } from "@/components/ui/Dialog";
 import { Select } from "@/components/ui/Select";
 import { TextField } from "@/components/ui/TextField";
+import { Tooltip } from "@/components/ui/Tooltip";
 import {
   CODE_SCOPE_LABEL,
   createReferralCode,
@@ -82,6 +84,7 @@ export function ReferralCodeFormDialog({ open, onClose, referral }: Props) {
       displayName: referral?.displayName ?? referral?.code ?? "",
       code: referral?.code ?? "",
       daoSale: referral?.daoSale ?? "",
+      hideCode: referral?.hideCode ?? false,
       total: referral?.total ?? 100,
       openUrl: referral?.openUrl ?? "",
       priority: referral?.priority ?? 0,
@@ -251,6 +254,24 @@ export function ReferralCodeFormDialog({ open, onClose, referral }: Props) {
           <div className={styles.codeFields}>
             <TextField
               label="Mã text (Mã giới thiệu)"
+              labelAside={
+                <span className={styles.hideCode}>
+                  <Checkbox
+                    label="Ẩn với nhân viên"
+                    checked={watch("hideCode")}
+                    onCheckedChange={(v) => setValue("hideCode", v, { shouldDirty: true })}
+                  />
+                  <Tooltip content="Tick ô này thì nhân viên không thấy mã. Mã chủ yếu dùng cho hệ thống quét ảnh.">
+                    <button
+                      type="button"
+                      className={styles.infoButton}
+                      aria-label="Giải thích ô Ẩn với nhân viên"
+                    >
+                      <Info size={15} aria-hidden />
+                    </button>
+                  </Tooltip>
+                </span>
+              }
               placeholder="VPA-2026-01"
               hint="Có thể để trống nếu ngân hàng chỉ cấp QR."
               error={errors.code?.message}

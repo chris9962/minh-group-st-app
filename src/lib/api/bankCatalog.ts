@@ -289,6 +289,8 @@ export const ReferralCode = z.object({
   code: z.string(),
   /** Ô "DAO SALE" của VPa, VPb; `''` = không có. */
   daoSale: z.string().default(''),
+  /** `true` = nhân viên không thấy Mã text; ô chọn mã nhận `code` rỗng. */
+  hideCode: z.boolean().default(false),
   used: z.number(),
   holding: z.number(),
   total: z.number(),
@@ -433,6 +435,7 @@ export const ReferralCodeForm = z.object({
   code: z.string().trim(),
   /** Chỉ VPa, VPb nhập; ngân hàng khác gửi `''`. */
   daoSale: z.string().trim(),
+  hideCode: z.boolean(),
   total: z.int('Tổng số phải là số nguyên').min(1, 'Tổng số phải lớn hơn 0').max(INT_MAX, 'Tổng số lớn quá'),
   /** Dữ liệu link cũ để tương thích; biểu mẫu mới không nhập hoặc đọc từ QR. */
   openUrl: OpenUrl,

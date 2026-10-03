@@ -533,6 +533,8 @@ export const referralCodes = pgTable(
     code: text("code"),
     /** Ô "DAO SALE" của app VPBank NEO, chỉ VPa và VPb; null = không có (migration 0119). */
     daoSale: text("dao_sale"),
+    /** Ẩn Mã text với nhân viên, mã chỉ để kiểm ảnh (migration 0120). Kho mã và trang quản lý ngân hàng vẫn thấy. */
+    hideCode: boolean("hide_code").notNull().default(false),
     total: integer("total").notNull(),
     /** Số đã dùng TRƯỚC khi nhập vào hệ thống (P-62) — không có dòng `bank_accounts` nào để đếm. */
     importedUsed: integer("imported_used").notNull().default(0),

@@ -18,6 +18,8 @@ type Props = Omit<React.InputHTMLAttributes<HTMLInputElement>, "id"> & {
    * và luật của nó, `TextField` không cần biết thứ dán vào là gì.
    */
   labelAppend?: React.ReactNode;
+  /** Điều khiển đứng cạnh nhãn nhưng NGOÀI thẻ `label`, ví dụ ô tích: `label` không được lồng `label`. */
+  labelAside?: React.ReactNode;
   /** Nút hoặc ký hiệu nằm đè bên phải trong ô — nút hiện mật khẩu, đơn vị tiền. */
   trailing?: React.ReactNode;
   ref?: React.Ref<HTMLInputElement>;
@@ -35,6 +37,7 @@ export function TextField({
   error,
   hint,
   labelAppend,
+  labelAside,
   trailing,
   className,
   ref,
@@ -45,17 +48,28 @@ export function TextField({
   const hintId = `${id}-hint`;
   const describedBy = [error && errorId, hint && hintId].filter(Boolean).join(" ");
 
+  const labelElement = (
+    <label htmlFor={id}>
+      {label}
+      {required && (
+        <span className={styles.required} aria-hidden>
+          {" *"}
+        </span>
+      )}
+      {labelAppend}
+    </label>
+  );
+
   return (
     <div className={clsx(styles.field, className)}>
-      <label htmlFor={id}>
-        {label}
-        {required && (
-          <span className={styles.required} aria-hidden>
-            {" *"}
-          </span>
-        )}
-        {labelAppend}
-      </label>
+      {labelAside ? (
+        <div className={styles.labelRow}>
+          {labelElement}
+          {labelAside}
+        </div>
+      ) : (
+        labelElement
+      )}
       <div className={styles.control}>
         <input
           id={id}
