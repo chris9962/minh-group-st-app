@@ -1,4 +1,4 @@
-import { codeKey, hasDigits, hasLabel, hasPhrase, letterWords, lineHasName, linesHaveCode, splitLines, stripAccents } from "../text";
+import { hasDigits, hasLabel, hasPhrase, letterWords, lineHasName, linesHaveExactCode, splitLines, stripAccents } from "../text";
 import { itemsFromFacts, readUntilFound, type Facts } from "../facts";
 import type { CheckedItem } from "../types";
 
@@ -9,7 +9,7 @@ import type { CheckedItem } from "../types";
  *
  *   1. tên khách                 đúng từng chữ cái sau khi bỏ dấu
  *   2. số tài khoản              đúng từng chữ số, trọn dãy
- *   3. mã giới thiệu             đúng từng ký tự sau khi gộp O/0, I/1, S/5, B/8, Z/2
+ *   3. mã giới thiệu             nguyên văn Mã text, chỉ bỏ dấu và viết hoa
  *   4. chuyển khoản thành công   có dòng "Chuyển thành công" hoặc "Giao dịch thành công"
  *
  * Chữ do `reader.ts` đọc một lượt, không tiền xử lý, không nhận màn. Bản
@@ -50,7 +50,7 @@ export function tpbFacts(ocrText: string, ctx: TpbCheckContext): Facts {
   return {
     nameFound: lines.some((line) => lineHasName(line, expectedName)),
     accountFound: hasDigits(ocrText, ctx.accountNumber.replace(/\D/g, "")),
-    codeFound: linesHaveCode(lines, codeKey(ctx.referralCode)),
+    codeFound: linesHaveExactCode(lines, ctx.referralCode),
     successFound: hasSuccess(lines),
   };
 }

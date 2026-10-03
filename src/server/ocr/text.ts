@@ -178,3 +178,23 @@ export function codeTokens(line: string): string[] {
 /** Dòng nào có mã hệ thống không, `expected` là `codeKey(mã)`. */
 export const linesHaveCode = (lines: string[], expected: string): boolean =>
   Boolean(expected) && lines.some((line) => codeTokens(line).some((t) => codeKey(t) === expected));
+
+const exactText = (s: string): string => stripAccents(s).trim().toUpperCase();
+
+/**
+ * Dòng nào chứa nguyên văn Mã text không (chốt 2026-10-02): chỉ bỏ dấu và viết
+ * hoa, không bỏ ký tự, không gộp O/0, không ghép cụm. Trước và sau mã không
+ * được dính chữ hay số: `AT1050` không chứa mã `AT105`.
+ */
+export function linesHaveExactCode(lines: string[], code: string): boolean {
+  const expected = exactText(code);
+  if (!expected) return false;
+  const isAlnum = (c: string | undefined) => c !== undefined && /[A-Z0-9]/.test(c);
+  return lines.some((line) => {
+    const text = exactText(line);
+    for (let at = text.indexOf(expected); at >= 0; at = text.indexOf(expected, at + 1)) {
+      if (!isAlnum(text[at - 1]) && !isAlnum(text[at + expected.length])) return true;
+    }
+    return false;
+  });
+}
