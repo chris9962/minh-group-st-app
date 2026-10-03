@@ -11,6 +11,39 @@ export type { Release, ReleaseSection } from './types';
  */
 export const RELEASES: Release[] = [
   {
+    id: '2026-10-04',
+    version: '2.3.0',
+    title: 'Cập nhật ngày 04/10/2026',
+    summary: 'Số tài khoản chỉ nhận chữ số, biển số xe chỉ nhận chữ, số, dấu - và dấu ., VPa và VPb có Mã DAO SALE.',
+    sections: [
+      {
+        title: 'Mở tài khoản ngân hàng',
+        items: ['Số tài khoản chỉ nhận chữ số.', 'Chi tiết tài khoản VPa, VPb hiện Mã DAO SALE.'],
+        visibleTo: (user) => canOpenPath(user, '/banking'),
+      },
+      {
+        title: 'Đơn bảo hiểm',
+        items: ['Biển số xe chỉ nhận chữ, số, dấu - và dấu .'],
+        visibleTo: (user) => canOpenPath(user, '/insurance'),
+      },
+      {
+        title: 'Dịch vụ',
+        items: ['Thanh toán Không dùng tiền mặt có ô Ảnh giao dịch, không bắt buộc.'],
+        visibleTo: (user) => canOpenPath(user, '/services'),
+      },
+      {
+        title: 'VNeID',
+        items: ['Lọc được theo ấp.'],
+        visibleTo: (user) => canOpenPath(user, '/vneid'),
+      },
+      {
+        title: 'Mã giới thiệu',
+        items: ['Mã VPa, VPb có thêm ô Mã DAO SALE.', 'File Excel tài khoản có thêm cột Mã DAO SALE.'],
+        visibleTo: (user) => canOpenPath(user, '/settings/banks'),
+      },
+    ],
+  },
+  {
     id: '2026-10-03',
     version: '2.2.0',
     title: 'Cập nhật ngày 03/10/2026',
