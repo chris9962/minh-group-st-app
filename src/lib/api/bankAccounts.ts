@@ -427,6 +427,17 @@ export async function approveBankAccount(id: string): Promise<BankAccount> {
   return BankAccount.parse(await res.json());
 }
 
+export const BankAccountMoveForm = z.object({ customerId: z.guid('Chưa chọn khách nhận') });
+
+export async function moveBankAccount(id: string, customerId: string): Promise<void> {
+  const res = await fetch(`/api/bank-accounts/${id}/move`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ customerId }),
+  });
+  if (!res.ok) throw await failure(res, 'Không chuyển được tài khoản này');
+}
+
 /**
  * Xoá một tài khoản — nhả chỗ mã về kho ngay (mục 4.5).
  *

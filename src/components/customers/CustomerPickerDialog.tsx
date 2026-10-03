@@ -11,7 +11,12 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { SearchField } from "@/components/ui/SearchField";
 import { SkeletonTable, SkeletonText } from "@/components/ui/Skeleton";
 import { MAX_BANK_ACCOUNTS_PER_CUSTOMER } from "@/lib/api/bankAccounts";
-import { fetchCustomerDetail, fetchCustomerLookup, type Customer } from "@/lib/api/customers";
+import {
+  fetchCustomerDetail,
+  fetchCustomerLookup,
+  type Customer,
+  type CustomerLookupResult,
+} from "@/lib/api/customers";
 import { seqLabeller } from "@/lib/customerLabel";
 import { useDebouncedValue } from "@/lib/hooks";
 import styles from "./CustomerPickerDialog.module.scss";
@@ -26,6 +31,11 @@ type Props = {
    * sách. Hai luồng còn lại — đơn bảo hiểm, dịch vụ — không có trần nào.
    */
   forBankAccount?: boolean;
+  /**
+   * Nguồn danh sách riêng thay cho tra cứu chung, kèm khoá cache. Có nguồn
+   * riêng thì không có nút tạo khách: luồng đó chỉ chọn hồ sơ có sẵn.
+   */
+  lookup?: { key: string; fetch: (search: string) => Promise<CustomerLookupResult> };
   /**
    * Bước tiếp theo, dựng khi đã có khách — hộp thoại mở tài khoản, tạo đơn, ghi
    * dịch vụ. `back` đưa người dùng về bước chọn khách; hộp thoại bước sau gắn
@@ -48,7 +58,7 @@ type Props = {
  * Không tìm thấy khách thì tạo mới NGAY tại đây, tạo xong đi THẲNG vào bước
  * tiếp theo, không chặn lại ở một bước xác nhận trung gian.
  */
-export function CustomerPickerDialog({ open, onClose, title, forBankAccount, children }: Props) {
+export function CustomerPickerDialog({ open, onClose, title, forBankAccount, lookup, children }: Props) {
   const [pickedId, setPickedId] = useState("");
   const [creatingCustomer, setCreatingCustomer] = useState(false);
   // Khách vừa tạo đã có sẵn đủ dữ liệu — khỏi tải lại qua `fetchCustomerDetail`
@@ -64,8 +74,9 @@ export function CustomerPickerDialog({ open, onClose, title, forBankAccount, chi
     refetch: refetchList,
     isFetching: listFetching,
   } = useQuery({
-    queryKey: ["customers-picker", searchQuery, forBankAccount ?? false],
-    queryFn: () => fetchCustomerLookup(searchQuery, { forBankAccount }),
+    queryKey: ["customers-picker", searchQuery, forBankAccount ?? false, lookup?.key ?? ""],
+    queryFn: () =>
+      lookup ? lookup.fetch(searchQuery) : fetchCustomerLookup(searchQuery, { forBankAccount }),
     enabled: open && !pickedId && !readyCustomer,
     placeholderData: (previous) => previous,
   });
@@ -109,10 +120,12 @@ export function CustomerPickerDialog({ open, onClose, title, forBankAccount, chi
             </Button>
             {/* Luôn hiện, không chỉ lúc tìm không ra — khách mới toanh thì
                 nhân viên bấm thẳng, khỏi phải gõ tìm vu vơ trước. */}
-            <Button onClick={() => setCreatingCustomer(true)}>
-              <Plus size={16} aria-hidden />
-              Tạo KH mới
-            </Button>
+            {!lookup && (
+              <Button onClick={() => setCreatingCustomer(true)}>
+                <Plus size={16} aria-hidden />
+                Tạo KH mới
+              </Button>
+            )}
           </>
         }
       >
@@ -145,8 +158,18 @@ export function CustomerPickerDialog({ open, onClose, title, forBankAccount, chi
                   này mời người dùng tạo hồ sơ cho một người có thể đã có — ra hồ sơ trùng. */}
               {!listPending && !listError && customers.length === 0 && hiddenBankFull === 0 && (
                 <p className="text-muted">
-                  Không tìm thấy khách hàng nào khớp “{searchQuery}”. Bấm{" "}
-                  <strong>Tạo KH mới</strong> để lập hồ sơ.
+                  {lookup && !searchQuery ? (
+                    "Không có hồ sơ khách nào khác."
+                  ) : (
+                    <>
+                      Không tìm thấy khách hàng nào khớp “{searchQuery}”.
+                      {!lookup && (
+                        <>
+                          {" "}Bấm <strong>Tạo KH mới</strong> để lập hồ sơ.
+                        </>
+                      )}
+                    </>
+                  )}
                 </p>
               )}
               {/* Nói ra số khách đã bị bỏ. Bỏ mà không nói thì người tìm không

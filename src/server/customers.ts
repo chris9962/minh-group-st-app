@@ -620,10 +620,14 @@ function lookupScope(actor: User): SQL {
 export async function lookupCustomers(
   actor: User,
   search: string,
-  opts: { forBankAccount?: boolean } = {},
+  opts: { forBankAccount?: boolean; ownerId?: string; excludeId?: string } = {},
 ): Promise<CustomerLookupResult> {
   const match = searchWhere(search);
-  const scope = lookupScope(actor);
+  const scope = and(
+    lookupScope(actor),
+    opts.ownerId ? eq(customers.createdBy, opts.ownerId) : undefined,
+    opts.excludeId ? ne(customers.id, opts.excludeId) : undefined,
+  );
   const where = opts.forBankAccount
     ? and(scope, match, sql`${bankAccountsOfCustomer} < ${MAX_BANK_ACCOUNTS_PER_CUSTOMER}`)
     : and(scope, match);

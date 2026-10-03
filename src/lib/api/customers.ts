@@ -260,7 +260,7 @@ export type CustomerLookupRow = z.infer<typeof CustomerLookupRow>;
  * Luôn 0 khi ô tìm để trống — lúc đó đếm là quét cả bảng khách để trả lời một
  * câu không ai hỏi.
  */
-const CustomerLookupResult = z.object({
+export const CustomerLookupResult = z.object({
   rows: z.array(CustomerLookupRow),
   hiddenBankFull: z.number(),
 });
@@ -288,6 +288,16 @@ export async function fetchCustomerLookup(
   const query = new URLSearchParams({ search });
   if (opts.forBankAccount) query.set('for', 'bank-account');
   const res = await fetch(`/api/customers/lookup?${query}`);
+  if (!res.ok) throw new Error('Không tra được khách hàng');
+  return CustomerLookupResult.parse(await res.json());
+}
+
+/** Hồ sơ khách nhận được tài khoản `accountId`: cùng người tạo, trừ hồ sơ đang giữ nó. */
+export async function fetchBankAccountMoveTargets(
+  accountId: string,
+  search: string,
+): Promise<CustomerLookupResult> {
+  const res = await fetch(`/api/bank-accounts/${accountId}/move?${new URLSearchParams({ search })}`);
   if (!res.ok) throw new Error('Không tra được khách hàng');
   return CustomerLookupResult.parse(await res.json());
 }
@@ -546,6 +556,11 @@ export const CustomerNoteForm = z.object({
 
 export const updateCustomerNote = (id: string, note: string) =>
   send(`/api/customers/${id}/note`, 'PATCH', { note }).then(CustomerNoteForm.parse);
+
+export const CustomerOwnerForm = z.object({ userId: z.guid('Chưa chọn nhân viên nhận') });
+
+export const transferCustomerOwner = (id: string, userId: string) =>
+  send(`/api/customers/${id}/owner`, 'PATCH', { userId });
 
 /**
  * Xoá hẳn hồ sơ khách. Chỉ chạy được khi khách chưa có bản ghi nghiệp vụ nào.

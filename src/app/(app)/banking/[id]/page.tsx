@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { use, useState } from "react";
 import { useForm } from "react-hook-form";
-import { Check, CheckCircle2, Landmark, Pencil, RotateCcw, TriangleAlert, Trash2 } from "lucide-react";
+import { ArrowRightLeft, Check, CheckCircle2, Landmark, Pencil, RotateCcw, TriangleAlert, Trash2 } from "lucide-react";
 import { Alert } from "@/components/ui/Alert";
 import { BackLink } from "@/components/ui/BackLink";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
@@ -16,6 +16,7 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
 import { BankAccountEditDialog } from "@/components/banking/BankAccountEditDialog";
 import { BankAccountHistory } from "@/components/banking/BankAccountHistory";
+import { BankAccountMoveDialog } from "@/components/banking/BankAccountMoveDialog";
 import { PhotoCheckPanel } from "@/components/banking/PhotoCheckPanel";
 import { BankAccountFinishFields } from "@/components/banking/BankAccountFinishFields";
 import { DraftPurgeCountdown } from "@/components/banking/DraftPurgeCountdown";
@@ -47,7 +48,7 @@ import { fetchBankAccountDetail, markBankAccountError, type BankAccountDetail } 
 import { fetchDepartments } from "@/lib/api/departments";
 import { invalidateKpi } from "@/lib/invalidateKpi";
 import { canOpenPath } from "@/lib/nav";
-import { can, canDeleteFinished, canManageBank } from "@/lib/permissions";
+import { can, canDeleteFinished, canManageBank, isFullAccess } from "@/lib/permissions";
 import { errorMessage, toast } from "@/lib/toast";
 import { formatDate, formatPhone, businessDay } from "@/lib/format";
 import { useSession } from "@/store/session";
@@ -353,6 +354,8 @@ function DoneAccountCard({
    * chỉ thấy nút trong ngày hoàn thành; Ban giám đốc không bị giới hạn ngày.
    */
   const canRemove = canDeleteFinished(user, "banking", data) && !data.monthClosed;
+  const canMove = !!user && isFullAccess(user.permissions) && !data.monthClosed && !!data.customerId;
+  const [moving, setMoving] = useState(false);
   const [editing, setEditing] = useState(false);
   const [markingError, setMarkingError] = useState(false);
   const [errorNote, setErrorNote] = useState("");
@@ -448,7 +451,7 @@ function DoneAccountCard({
       /* Bản `done` sửa được từ 07/08 — dùng lại đúng hộp thoại của bảng P-21,
          không dựng biểu mẫu thứ hai để rồi hai chỗ lệch luật nhau. */
       action={
-        canWrite || canRemove ? (
+        canWrite || canRemove || canMove ? (
           /* Nút sửa có ở MỌI trạng thái, chỉ khác chữ: bản lỗi ghi "Sửa lỗi" để
              nhân viên biết đây là đường chữa. Cùng một hộp thoại.
 
@@ -498,6 +501,17 @@ function DoneAccountCard({
                   </Button>
                 )}
               </>
+            )}
+            {/* Khách đã nhận quà thì máy chủ từ chối đổi tài khoản sang khách khác. */}
+            {canMove && (
+              <Button
+                variant="secondary"
+                disabled={!!data.customerGiftItem}
+                onClick={() => setMoving(true)}
+              >
+                <ArrowRightLeft size={16} aria-hidden />
+                Đổi khách
+              </Button>
             )}
             {/* Xoá đứng CUỐI hàng: nó là đường không lùi được, còn mọi nút bên
                 trái đều sửa lại được. Ẩn với nhân viên — họ vẫn xoá được bản
@@ -677,6 +691,15 @@ function DoneAccountCard({
             onChange={(event) => setErrorNote(event.target.value)}
           />
         </Dialog>
+      )}
+
+      {moving && data.customerId && (
+        <BankAccountMoveDialog
+          accountId={id}
+          bankCode={data.bankCode}
+          customerId={data.customerId}
+          onClose={() => setMoving(false)}
+        />
       )}
 
       {removing && (

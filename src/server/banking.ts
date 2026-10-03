@@ -172,7 +172,7 @@ type SlotConflict = "duplicate" | "hkd-over-cnkd" | "cnkd-over-hkd";
  * vì hai cách sau đọc hai dòng khác nhau. Nên phép kiểm này phải chạy trong
  * giao dịch đã khoá dòng khách, ở cả đường mở lẫn đường đổi loại.
  */
-function slotConflict(owned: SlotRow[], incoming: SlotRow): SlotConflict | null {
+export function slotConflict(owned: SlotRow[], incoming: SlotRow): SlotConflict | null {
   const sameBank = owned.filter((r) => r.bankId === incoming.bankId);
   if (sameBank.some((r) => isHkd(r.accountType) === isHkd(incoming.accountType))) return "duplicate";
   if (isHkd(incoming.accountType) && sameBank.some((r) => r.accountType === "CNKD"))
@@ -182,7 +182,7 @@ function slotConflict(owned: SlotRow[], incoming: SlotRow): SlotConflict | null 
   return null;
 }
 
-function slotConflictMessage(kind: SlotConflict, bankCode: string, hkd: boolean): string {
+export function slotConflictMessage(kind: SlotConflict, bankCode: string, hkd: boolean): string {
   switch (kind) {
     case "duplicate":
       return hkd

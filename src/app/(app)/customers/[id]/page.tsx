@@ -12,6 +12,7 @@ import { TopBar } from "@/components/layout/TopBar";
 import { BankAccountFormDialog } from "@/components/banking/BankAccountFormDialog";
 import { CustomerFormDialog } from "@/components/customers/CustomerFormDialog";
 import { CustomerNoteDialog } from "@/components/customers/CustomerNoteDialog";
+import { CustomerOwnerDialog } from "@/components/customers/CustomerOwnerDialog";
 import { GiftGivingDialog } from "@/components/customers/GiftGivingDialog";
 import { GiftChangeDialog } from "@/components/customers/GiftChangeDialog";
 import { GiftExtraDialog } from "@/components/customers/GiftExtraDialog";
@@ -52,7 +53,7 @@ import {
 } from "@/lib/format";
 import { PAGE_SIZE } from "@/lib/api/pagination";
 import { canOpenPath } from "@/lib/nav";
-import { can, recordInScope, recordVisibility } from "@/lib/permissions";
+import { can, isFullAccess, recordInScope, recordVisibility } from "@/lib/permissions";
 import { PRODUCT_LABEL } from "@/lib/types";
 import { useSession } from "@/store/session";
 import { errorMessage, toast } from "@/lib/toast";
@@ -82,6 +83,7 @@ export default function CustomerDetailPage({
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [editingNote, setEditingNote] = useState(false);
+  const [transferring, setTransferring] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deletingDraft, setDeletingDraft] = useState<{ id: string; bankName: string } | null>(null);
   const [givingGift, setGivingGift] = useState(false);
@@ -345,8 +347,25 @@ export default function CustomerDetailPage({
                 {/* Phòng đi kèm tên: mọi bản ghi mở cho khách này mặc định ghi
                     vào phòng của hồ sơ, nên người xem phải biết đó là phòng nào
                     trước khi bấm nút mở tài khoản hay tạo đơn. */}
-                <div>
-                  <dt>Người tạo</dt>
+                <div className={styles.ownerRow}>
+                  <dt>
+                    <span>Người tạo</span>
+                    {actor &&
+                      isFullAccess(actor.permissions) &&
+                      !data.monthClosed &&
+                      data.customer.createdByDepartmentId && (
+                        <Button
+                          variant="ghost"
+                          icon
+                          className={styles.noteEdit}
+                          tooltip="Đổi người tạo"
+                          aria-label="Đổi người tạo"
+                          onClick={() => setTransferring(true)}
+                        >
+                          <Pencil size={15} aria-hidden />
+                        </Button>
+                      )}
+                  </dt>
                   <dd>
                     {/* Chỉ gắn link khi người xem mở được màn đó, không thì bấm
                         vào chỉ ra màn báo không có quyền. */}
@@ -892,6 +911,15 @@ export default function CustomerDetailPage({
 
         {editing && data && (
           <CustomerFormDialog open customer={data.customer} onClose={() => setEditing(false)} />
+        )}
+
+        {transferring && data?.customer.createdByDepartmentId && (
+          <CustomerOwnerDialog
+            customerId={id}
+            ownerId={data.customer.createdById}
+            departmentId={data.customer.createdByDepartmentId}
+            onClose={() => setTransferring(false)}
+          />
         )}
 
         {editingNote && data && (
