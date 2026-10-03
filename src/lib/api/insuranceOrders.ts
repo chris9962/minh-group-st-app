@@ -228,7 +228,12 @@ const orderFields = {
   sumInsured: z
     .number({ error: 'Chưa nhập số tiền bảo hiểm' })
     .min(0, 'Số tiền bảo hiểm không được là số âm'),
-  licensePlate: z.string().trim(),
+  // PVI lọc ký tự lạ trước khi tính chữ ký, nên biển số `63B7-16456'` ra lỗi
+  // `-105` (2026-10-03). Rỗng vẫn hợp lệ: bắt buộc hay không do `.refine` theo sản phẩm.
+  licensePlate: z
+    .string()
+    .trim()
+    .regex(/^[A-Za-z0-9.-]*$/, 'Biển số xe chỉ được có chữ, số, dấu - và dấu .'),
   vehicleType: z.string().trim(),
   chassisNumber: z.string().trim(),
   engineNumber: z.string().trim(),
