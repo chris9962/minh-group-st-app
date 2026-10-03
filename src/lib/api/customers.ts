@@ -283,10 +283,11 @@ export async function fetchCustomerLookup(
    * trần khỏi danh sách. Hai luồng còn lại (đơn bảo hiểm, dịch vụ) không có
    * trần nào nên không truyền.
    */
-  opts: { forBankAccount?: boolean } = {},
+  opts: { forBankAccount?: boolean; currentMonth?: boolean } = {},
 ): Promise<CustomerLookupResult> {
   const query = new URLSearchParams({ search });
   if (opts.forBankAccount) query.set('for', 'bank-account');
+  if (opts.currentMonth) query.set('month', 'current');
   const res = await fetch(`/api/customers/lookup?${query}`);
   if (!res.ok) throw new Error('Không tra được khách hàng');
   return CustomerLookupResult.parse(await res.json());

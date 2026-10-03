@@ -620,11 +620,13 @@ function lookupScope(actor: User): SQL {
 export async function lookupCustomers(
   actor: User,
   search: string,
-  opts: { forBankAccount?: boolean; ownerId?: string; excludeId?: string } = {},
+  opts: { forBankAccount?: boolean; currentMonth?: boolean; ownerId?: string; excludeId?: string } = {},
 ): Promise<CustomerLookupResult> {
   const match = searchWhere(search);
+  const month = monthRange(businessMonth());
   const scope = and(
     lookupScope(actor),
+    opts.currentMonth ? customerDayBetween(month.from, month.to) : undefined,
     opts.ownerId ? eq(customers.createdBy, opts.ownerId) : undefined,
     opts.excludeId ? ne(customers.id, opts.excludeId) : undefined,
   );

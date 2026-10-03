@@ -31,5 +31,7 @@ export async function GET(request: Request) {
    * vẫn còn người chọn được.
    */
   const forBankAccount = params.get("for") === "bank-account";
-  return Response.json(await lookupCustomers(guard.actor, search, { forBankAccount }));
+  /** `month=current` chỉ giữ hồ sơ lập trong tháng hiện tại, theo giờ Việt Nam. */
+  const currentMonth = params.get("month") === "current";
+  return Response.json(await lookupCustomers(guard.actor, search, { forBankAccount, currentMonth }));
 }

@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Plus } from "lucide-react";
 import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { CustomerFormDialog } from "@/components/customers/CustomerFormDialog";
 import { Dialog } from "@/components/ui/Dialog";
 import { ErrorState } from "@/components/ui/ErrorState";
@@ -66,6 +67,9 @@ export function CustomerPickerDialog({ open, onClose, title, forBankAccount, loo
   const [readyCustomer, setReadyCustomer] = useState<Customer | null>(null);
   const [search, setSearch] = useState("");
   const searchQuery = useDebouncedValue(search);
+  const [hideOldMonths, setHideOldMonths] = useState(true);
+  const canHideOldMonths = Boolean(forBankAccount && !lookup);
+  const currentMonthOnly = canHideOldMonths && hideOldMonths;
 
   const {
     data: list,
@@ -74,9 +78,11 @@ export function CustomerPickerDialog({ open, onClose, title, forBankAccount, loo
     refetch: refetchList,
     isFetching: listFetching,
   } = useQuery({
-    queryKey: ["customers-picker", searchQuery, forBankAccount ?? false, lookup?.key ?? ""],
+    queryKey: ["customers-picker", searchQuery, forBankAccount ?? false, currentMonthOnly, lookup?.key ?? ""],
     queryFn: () =>
-      lookup ? lookup.fetch(searchQuery) : fetchCustomerLookup(searchQuery, { forBankAccount }),
+      lookup
+        ? lookup.fetch(searchQuery)
+        : fetchCustomerLookup(searchQuery, { forBankAccount, currentMonth: currentMonthOnly }),
     enabled: open && !pickedId && !readyCustomer,
     placeholderData: (previous) => previous,
   });
@@ -137,6 +143,14 @@ export function CustomerPickerDialog({ open, onClose, title, forBankAccount, loo
             value={search}
             onChange={setSearch}
           />
+
+          {canHideOldMonths && (
+            <Checkbox
+              label="Ẩn khách tháng cũ"
+              checked={hideOldMonths}
+              onCheckedChange={setHideOldMonths}
+            />
+          )}
 
           {pickedId && detailPending && (
             <SkeletonText lines={3} label="Đang tải hồ sơ khách hàng" />
