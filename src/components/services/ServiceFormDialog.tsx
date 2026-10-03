@@ -20,7 +20,7 @@ import { TextField } from "@/components/ui/TextField";
 import { fetchServiceTypes } from "@/lib/api/settings";
 import { fetchProvinces } from "@/lib/api/wardCatalog";
 import { businessDay } from "@/lib/format";
-import { createService, PHOTO_SERVICE_TYPE, ServiceForm } from "@/lib/api/services";
+import { createService, PHOTO_SERVICE_TYPES, ServiceForm } from "@/lib/api/services";
 import styles from "./ServiceFormDialog.module.scss";
 import { invalidateKpi } from "@/lib/invalidateKpi";
 import { errorMessage, toast } from "@/lib/toast";
@@ -100,8 +100,9 @@ export function ServiceFormDialog({
   });
 
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
-  const allowsPhoto =
-    activeTypes.find((t) => t.id === watch("serviceTypeId"))?.name === PHOTO_SERVICE_TYPE;
+  const allowsPhoto = PHOTO_SERVICE_TYPES.includes(
+    activeTypes.find((t) => t.id === watch("serviceTypeId"))?.name ?? "",
+  );
 
   const save = useMutation({
     // Người thực hiện do máy chủ tự ghi từ phiên đăng nhập — gửi kèm `actorId`

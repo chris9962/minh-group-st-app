@@ -16,7 +16,7 @@ import { Select } from "@/components/ui/Select";
 import { DateField } from "@/components/ui/DateField";
 import { TextField } from "@/components/ui/TextField";
 import {
-  PHOTO_SERVICE_TYPE,
+  PHOTO_SERVICE_TYPES,
   ServiceEditForm,
   updateService,
   type ServiceRow,
@@ -89,10 +89,10 @@ export function ServiceEditDialog({ open, onClose, service }: Props) {
     savedPhotos(service.photoUrl ? [service.photoUrl] : []),
   );
   const selectedTypeId = form.watch("serviceTypeId");
-  const allowsPhoto =
-    (serviceTypes.find((t) => t.id === selectedTypeId)?.name ??
-      (selectedTypeId === service.serviceTypeId ? service.serviceTypeName : "")) ===
-    PHOTO_SERVICE_TYPE;
+  const allowsPhoto = PHOTO_SERVICE_TYPES.includes(
+    serviceTypes.find((t) => t.id === selectedTypeId)?.name ??
+      (selectedTypeId === service.serviceTypeId ? service.serviceTypeName : ""),
+  );
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["services"] });

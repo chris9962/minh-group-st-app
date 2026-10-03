@@ -129,8 +129,8 @@ export async function fetchServicesForExport(
  */
 const serviceDate = isoDate('Chưa chọn ngày');
 
-/** Loại dịch vụ có ô ảnh giao dịch (chốt 2026-10-02). Bảng `service_types` không có mã, nên so theo tên. */
-export const PHOTO_SERVICE_TYPE = "Nạp / Rút / Chuyển";
+/** Loại dịch vụ có ô ảnh giao dịch (chốt 2026-10-02, thêm thanh toán 2026-10-03). Bảng `service_types` không có mã, nên so theo tên. */
+export const PHOTO_SERVICE_TYPES: readonly string[] = ["Nạp / Rút / Chuyển", "Thanh toán Không dùng tiền mặt"];
 
 export const ServiceForm = z.object({
   // `z.uuid` chứ không phải `z.string`: hai id này đi thẳng vào cột uuid, nên
