@@ -1,5 +1,6 @@
+import { attendanceModeOf } from './api/attendance';
 import { matchesSearch } from './format';
-import { can, canConfigureWards, canCreateBank, canOpenBankAdmin, canOrg } from './permissions';
+import { can, canConfigureWards, canCreateBank, canOpenBankAdmin, canOrg, isFullAccess } from './permissions';
 import type { User } from './types';
 
 /**
@@ -19,6 +20,7 @@ export type NavIconKey =
   | 'services'
   | 'vneid'
   | 'attendance'
+  | 'socialInsurance'
   | 'customers'
   | 'people'
   | 'profile'
@@ -114,29 +116,48 @@ export function navFor(user: User | null): NavEntry[] {
     items.push({ href: '/', label: 'Tổng quan', icon: 'overview', screen: 'P-80' });
   }
 
+  const business: NavItem[] = [];
   if (can(user, 'insurance', 'view-detail')) {
-    items.push({ href: '/insurance', label: 'Bảo hiểm', icon: 'insurance', screen: 'P-13' });
+    business.push({ href: '/insurance', label: 'Bảo hiểm', icon: 'insurance', screen: 'P-13' });
   }
 
   if (can(user, 'banking', 'view-detail')) {
-    items.push({ href: '/banking', label: 'Ngân hàng', icon: 'banking', screen: 'P-21' });
+    business.push({ href: '/banking', label: 'Ngân hàng', icon: 'banking', screen: 'P-21' });
   }
 
   if (can(user, 'services', 'view-detail')) {
-    items.push({ href: '/services', label: 'Dịch vụ', icon: 'services', screen: 'P-31' });
+    business.push({ href: '/services', label: 'Dịch vụ', icon: 'services', screen: 'P-31' });
   }
 
   if (can(user, 'vneid', 'view-detail')) {
-    items.push({ href: '/vneid', label: 'VNeID', icon: 'vneid', screen: 'P-32' });
+    business.push({ href: '/vneid', label: 'VNeID', icon: 'vneid', screen: 'P-32' });
   }
 
-  // Nhân viên Điểm ATM chấm công; người có quyền xem thì xem bảng của phòng.
-  if (user.salaryScheme === 'atm' || can(user, 'attendance', 'view-detail')) {
-    items.push({ href: '/attendance', label: 'Chấm công', icon: 'attendance', screen: 'P-33' });
+  if (can(user, 'social-insurance', 'view-detail')) {
+    business.push({ href: '/social-insurance', label: 'BHYT/BHXH', icon: 'socialInsurance', screen: 'P-34' });
   }
 
   // Hồ sơ khách hàng không áp trục phạm vi — ai đăng nhập được cũng thấy.
-  items.push({ href: '/customers', label: 'Khách hàng', icon: 'customers', screen: 'P-40' });
+  const customersItem: NavItem = { href: '/customers', label: 'Khách hàng', icon: 'customers', screen: 'P-40' };
+
+  // Nhân viên Điểm ATM chấm công, người Phòng An Sinh điểm danh; người có quyền xem thì xem bảng của phòng.
+  const attendanceItem: NavItem | null =
+    attendanceModeOf(user) || can(user, 'attendance', 'view-detail')
+      ? { href: '/attendance', label: 'Chấm công', icon: 'attendance', screen: 'P-33' }
+      : null;
+
+  // Tài khoản toàn quyền thấy đủ mọi màn, nên gộp thành nhóm "Nghiệp vụ" và "Quản lý" cho sidebar gọn.
+  const fullAccess = isFullAccess(user.permissions);
+  const manage: NavItem[] = [];
+  const asChildren = (list: NavItem[]) => list.map(({ href, label, screen }) => ({ href, label, screen }));
+  if (fullAccess) {
+    items.push({ label: 'Nghiệp vụ', icon: 'services', children: asChildren([customersItem, ...business]) });
+    if (attendanceItem) manage.push(attendanceItem);
+  } else {
+    items.push(...business);
+    if (attendanceItem) items.push(attendanceItem);
+    items.push(customersItem);
+  }
 
   /**
    * Quà sinh ra từ combo tài khoản ngân hàng, nên màn đọc đi theo phạm vi của
@@ -168,7 +189,7 @@ export function navFor(user: User | null): NavEntry[] {
    * một nội dung thì thừa một mục.
    */
   if (user.manageScope !== 'none' || can(user, 'staff', 'create')) {
-    items.push({ href: '/users', label: 'Nhân sự', icon: 'people', screen: 'P-51' });
+    (fullAccess ? manage : items).push({ href: '/users', label: 'Nhân sự', icon: 'people', screen: 'P-51' });
   }
 
   // Bảng Nhân sự không có dòng của Phó giám đốc, nên họ không có đường nào khác tới P-52 của mình.
@@ -179,7 +200,7 @@ export function navFor(user: User | null): NavEntry[] {
   // Phó giám đốc vào bằng `department:view-detail` — xem sơ đồ và số liệu,
   // không có nút sửa nào. Xem `canOrg`.
   if (canOrg(user, 'view-detail')) {
-    items.push({
+    (fullAccess && user.role !== 'deputy-director' ? manage : items).push({
       href: '/departments',
       label: 'Phòng ban',
       icon: 'org',
@@ -196,8 +217,10 @@ export function navFor(user: User | null): NavEntry[] {
     can(user, 'staff', 'export') ||
     can(user, 'vneid', 'export')
   ) {
-    items.push({ href: '/exports', label: 'Xuất dữ liệu', icon: 'exports', screen: 'P-73' });
+    (fullAccess ? manage : items).push({ href: '/exports', label: 'Xuất dữ liệu', icon: 'exports', screen: 'P-73' });
   }
+
+  if (manage.length > 0) items.push({ label: 'Quản lý', icon: 'org', children: asChildren(manage) });
 
   // Không có mục "tài khoản người dùng" riêng: nhân viên và tài khoản là một
   // thứ nên quản trị tài khoản nằm luôn trong màn Nhân sự ở trên.
@@ -278,6 +301,7 @@ export function navFor(user: User | null): NavEntry[] {
       label: 'Loại dịch vụ',
       screen: 'P-84',
     });
+    settingsChildren.push({ href: '/settings/social-insurance', label: 'BHYT/BHXH', screen: 'P-86' });
   }
   /**
    * MỘT mục cho hai màn (chốt 2026-08-24). Trang `/settings/banks` dựng hai tab:

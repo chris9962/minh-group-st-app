@@ -21,6 +21,7 @@ import { fetchServiceTypes } from "@/lib/api/settings";
 import { fetchProvinces } from "@/lib/api/wardCatalog";
 import { businessDay } from "@/lib/format";
 import { createService, PHOTO_SERVICE_TYPES, ServiceForm } from "@/lib/api/services";
+import { DATA_ENTRY_TYPE_NAMES } from "@/lib/api/socialInsurance";
 import styles from "./ServiceFormDialog.module.scss";
 import { invalidateKpi } from "@/lib/invalidateKpi";
 import { errorMessage, toast } from "@/lib/toast";
@@ -64,7 +65,8 @@ export function ServiceFormDialog({
     queryKey: ["service-types"],
     queryFn: fetchServiceTypes,
   });
-  const activeTypes = serviceTypes.filter((t) => t.active);
+  // Hai loại nhập liệu BHYT/BHXH chỉ sinh từ file của trang BHYT/BHXH.
+  const activeTypes = serviceTypes.filter((t) => t.active && !DATA_ENTRY_TYPE_NAMES.includes(t.name));
 
   const { data: provinces = [] } = useQuery({
     queryKey: ["provinces"],

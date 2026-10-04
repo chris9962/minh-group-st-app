@@ -294,8 +294,8 @@ export async function fetchGiftExcessExport(
 export const WorkDayExportRow = z.object({
   fullName: z.string(),
   departmentName: z.string(),
-  /** Ngày trong tháng có công, đếm từ 1, tăng dần. */
-  days: z.array(z.number()),
+  /** Ngày trong tháng có công, đếm từ 1, tăng dần. `fraction` 0,5 là nửa ngày. */
+  days: z.array(z.object({ day: z.number(), fraction: z.number() })),
 });
 export type WorkDayExportRow = z.infer<typeof WorkDayExportRow>;
 

@@ -65,8 +65,13 @@ export async function transferCustomerOwner(
     ? await db.select({ fullName: users.fullName }).from(users).where(eq(users.id, customer.ownerId))
     : [];
 
+  // Lượt nhập liệu BHYT/BHXH đi theo cột NHẬP LIỆU của dòng đó, không theo chủ hồ sơ.
   const ownServices = customer.ownerId
-    ? and(eq(services.customerId, customerId), eq(services.createdBy, customer.ownerId))
+    ? and(
+        eq(services.customerId, customerId),
+        eq(services.createdBy, customer.ownerId),
+        sql`not exists (select 1 from social_insurance_records sir where sir.service_id = ${services.id})`,
+      )
     : sql`false`;
 
   // Điểm dịch vụ tính theo ngày làm dịch vụ, không theo ngày hồ sơ, nên tháng của từng lượt dịch vụ cũng phải tính lại.

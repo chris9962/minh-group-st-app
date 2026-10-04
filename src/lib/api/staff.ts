@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { parseMoneyCents } from '@/lib/money';
 import { ContractType, ManageScope, Permission, ROLE_LABEL, RoleKey, SalaryScheme } from '@/lib/types';
 import { pageOf, pageParams, type PageQuery } from './pagination';
 import { SalaryBreakdown } from './person';
@@ -21,6 +22,8 @@ export const StaffAccount = z.object({
   /** null = chưa nhập. */
   contractType: ContractType.nullable(),
   salaryScheme: SalaryScheme,
+  /** Lương cứng mỗi tháng, đồng. Chỉ có khi `salaryScheme = 'fixed'`. */
+  fixedSalary: z.number().nullable(),
   manageScope: ManageScope,
   managedDepartmentIds: z.array(z.string()),
   /**
@@ -146,6 +149,9 @@ export type StaffSort = (typeof STAFF_SORT)[number];
  */
 export const INSURANCE_WATCH_DEPARTMENT_CODE = 'PHONG-KDTH';
 
+/** Phòng An Sinh: mọi người trong phòng điểm danh 1 nút, kể cả Trưởng phòng và Phó phòng. */
+export const SOCIAL_DEPARTMENT_CODE = 'PHONG-AN-SINH';
+
 /**
  * Chức vụ quyết định luôn hai trục tổ chức, không để người tạo tự tích.
  *
@@ -227,6 +233,8 @@ export const StaffForm = z.object({
   contractType: z.union([z.literal(''), ContractType]),
   /** Chỉ tài khoản toàn quyền đổi được; máy chủ giữ giá trị cũ với người khác. */
   salaryScheme: SalaryScheme,
+  /** Ô "Số tiền lương" khi chọn Lương cứng. Cùng luật quyền với `salaryScheme`. */
+  fixedSalary: z.string().trim(),
   manageScope: ManageScope,
   managedDepartmentIds: z.array(z.guid()),
   /**
@@ -247,6 +255,9 @@ export const StaffForm = z.object({
   */
   permissions: z.array(Permission),
 }).superRefine((form, ctx) => {
+  const salaryError = form.salaryScheme === 'fixed' ? fixedSalaryError(form.fixedSalary) : null;
+  if (salaryError) ctx.addIssue({ code: 'custom', path: ['fixedSalary'], message: salaryError });
+
   const shape = ROLE_SHAPE[form.role];
   if (shape.manages === 'free') return;
   const label = ROLE_LABEL[form.role];
@@ -268,6 +279,22 @@ export const StaffForm = z.object({
     fail('managedDepartmentIds', `${label} không phụ trách phòng nào`);
 });
 export type StaffForm = z.infer<typeof StaffForm>;
+
+const MAX_FIXED_SALARY = 2_000_000_000;
+
+/** Ô "Số tiền lương" thành đồng: số nguyên lớn hơn 0. Không đọc được thì `null`. */
+export function fixedSalaryOf(text: string): number | null {
+  return fixedSalaryError(text) === null ? parseMoneyCents(text) as number / 100 : null;
+}
+
+function fixedSalaryError(text: string): string | null {
+  if (!text) return 'Chưa nhập số tiền lương';
+  const cents = text.length > 30 ? 'invalid' : parseMoneyCents(text);
+  if (typeof cents !== 'number' || cents % 100 !== 0) return 'Số tiền lương chỉ gồm chữ số';
+  if (cents === 0) return 'Số tiền lương phải lớn hơn 0';
+  if (cents / 100 > MAX_FIXED_SALARY) return 'Số tiền lương tối đa 2.000.000.000đ';
+  return null;
+}
 
 export const SAVE_ERROR = {
   USERNAME_TAKEN: 'username-taken',

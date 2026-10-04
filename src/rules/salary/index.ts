@@ -22,7 +22,22 @@ export type SalaryItem = {
   keepAtZero?: boolean;
 };
 export type SalaryFact = { label: string; value: string };
-export type SalaryResult = { amount: number; facts: SalaryFact[]; items: SalaryItem[] };
+/** Một nhóm loại và phương án BHYT/BHXH: tiền thu ra điểm, đã định dạng để hiện thành bảng. */
+export type SalaryRevenueLine = { label: string; collected: string; perPoint: string; points: string };
+/** Bảng tiền thu ra điểm, có ở mọi người tính lương An Sinh. Các dòng điểm cộng ra đúng `total`. */
+export type SalaryRevenue = {
+  lines: SalaryRevenueLine[];
+  /** Điểm ngân hàng, dịch vụ, điểm cộng tay trong cùng tháng. `null` khi bằng 0. */
+  other: string | null;
+  /** Điểm KPI của tháng. */
+  total: string;
+};
+export type SalaryResult = {
+  amount: number;
+  facts: SalaryFact[];
+  items: SalaryItem[];
+  revenue?: SalaryRevenue;
+};
 
 /** Một chỉ tiêu trong tháng theo QĐ 145: số được giao và số đã đạt. */
 export type QuotaProgress = { target: number; achieved: number };
@@ -40,9 +55,20 @@ export type StaffSalaryInput = {
   /** Chỉ tiêu tài khoản định hướng; chỉ nhân viên HĐLĐ có. Kỳ trước 2026-09 bỏ qua. */
   directedQuota?: QuotaProgress | null;
   /** Cách tính lương ghi trên hồ sơ nhân viên. Kỳ trước 2026-10 bỏ qua. */
-  scheme?: "department" | "atm";
+  scheme?: "department" | "atm" | "social" | "fixed";
   /** Số khách đạt Combo 2 hoặc Combo 3 trong tháng; chỉ truyền cho nhân viên điểm ATM. */
   bonusCombos?: number;
+  /** Điểm An Sinh theo nhóm loại và phương án, đã nằm trong `points`. Kỳ trước 2026-10 bỏ qua. */
+  socialInsurance?: SocialInsuranceGroupInput[];
+};
+
+export type SocialInsuranceGroupInput = {
+  /** Ví dụ "BHXH Tăng mới". */
+  label: string;
+  collectedCents: number;
+  /** Doanh thu cho 1 điểm, đồng. */
+  revenuePerPoint: number;
+  points: number;
 };
 
 export type ManagerSalaryInput = {
@@ -54,6 +80,13 @@ export type ManagerSalaryInput = {
   workDays: number;
   /** Chỉ tiêu của phòng mình. Kỳ trước 2026-09 bỏ qua. */
   departmentQuota?: DepartmentQuotaProgress | null;
+};
+
+export type FixedSalaryInput = {
+  /** Lương cứng của tháng, đồng, theo nhân sự của tháng. `null` là hồ sơ chưa có số tiền. */
+  amount: number | null;
+  /** Số ngày công của chính người này, chưa cắt trần. */
+  workDays: number;
 };
 
 export type DeputyDirectorSalaryInput = {
@@ -70,6 +103,8 @@ type SalaryRules = {
   manager(input: ManagerSalaryInput): SalaryResult;
   /** Kỳ chưa có bảng lương Phó GĐ thì không khai. */
   deputyDirector?(input: DeputyDirectorSalaryInput): SalaryResult;
+  /** Lương cứng, mọi chức vụ. Kỳ trước 2026-10 không khai. */
+  fixed?(input: FixedSalaryInput): SalaryResult;
   /** Chỉ tiêu dùng để chấm, từ số admin nhập và mã phòng. Kỳ không khai thì dùng nguyên số nhập. */
   quotaTarget?(target: number, departmentCode: string | null): number;
   /** Phòng không có chỉ tiêu định hướng thì nhân viên phòng đó cũng không chấm định hướng. */

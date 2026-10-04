@@ -1,4 +1,5 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
+import { KIND_LABEL, PLAN_LABEL } from "@/lib/api/socialInsurance";
 import { businessMonth, monthRange } from "@/lib/format";
 import type { ContractType, RoleKey, SalaryScheme, User } from "@/lib/types";
 import {
@@ -7,6 +8,7 @@ import {
   type DepartmentQuotaProgress,
   type QuotaProgress,
   type SalaryFact,
+  type SalaryRevenue,
   type SalaryItem,
 } from "@/rules/salary";
 import { db } from "./db/client";
@@ -20,7 +22,7 @@ import {
   staffRoster,
   users,
 } from "./db/schema";
-import { multiBankComboCounts } from "./kpi";
+import { multiBankComboCounts, socialInsuranceGroupsOf } from "./kpi";
 import { countQuotaAccounts, quotaConfigOf } from "./quota";
 
 export type SalaryBreakdown = {
@@ -28,6 +30,7 @@ export type SalaryBreakdown = {
   month: string;
   facts: SalaryFact[];
   items: SalaryItem[];
+  revenue?: SalaryRevenue;
 };
 
 const zeroSalary = (month: string): SalaryBreakdown => ({
@@ -62,6 +65,7 @@ const adjustmentExpr = (yearMonth: string) => sql<number>`coalesce((
 const scoreExpr = (yearMonth: string) => sql<number>`(
   coalesce(${kpiScores.bankingPoints}, 0) +
   coalesce(${kpiScores.servicePoints}, 0) +
+  coalesce(${kpiScores.socialInsurancePoints}, 0) +
   ${adjustmentExpr(yearMonth)}
 )::float`;
 
@@ -70,6 +74,8 @@ type Subject = {
   role: RoleKey;
   contractType: ContractType | null;
   salaryScheme: SalaryScheme;
+  fixedSalary: number | null;
+  active: boolean;
   departmentId: string | null;
   departmentCode: string | null;
   departmentType: "sales" | "office" | null;
@@ -148,6 +154,8 @@ async function liveSalaries(
       role: staffRoster.role,
       contractType: staffRoster.contractType,
       salaryScheme: staffRoster.salaryScheme,
+      fixedSalary: staffRoster.fixedSalary,
+      active: staffRoster.active,
       departmentId: staffRoster.departmentId,
       departmentCode: departments.code,
       departmentType: departments.type,
@@ -239,7 +247,8 @@ async function liveSalaries(
   const { from, to } = monthRange(yearMonth);
   const [userDayRows, departmentDayRows] = await Promise.all([
     db
-      .select({ userId: employeeWorkDays.userId, count: sql<number>`count(*)::int` })
+      // Nhân viên Điểm ATM có nửa ngày từ tháng 2026-10, nên cộng `fraction` chứ không đếm dòng.
+      .select({ userId: employeeWorkDays.userId, count: sql<number>`sum(${employeeWorkDays.fraction})::float` })
       .from(employeeWorkDays)
       .where(
         and(
@@ -289,17 +298,32 @@ async function liveSalaries(
     subjects.filter(isAtmStaff).map((s) => s.id),
     yearMonth,
   );
+  const socialGroups = await socialInsuranceGroupsOf(
+    subjects.filter((s) => s.salaryScheme === "social").map((s) => s.id),
+    yearMonth,
+  );
 
   for (const subject of subjects) {
     let salary = null;
 
-    if (subject.role === "staff" && subject.departmentType === "sales") {
+    // Lương cứng đứng trước mọi nhánh chức vụ: Trưởng, Phó phòng An Sinh lương cứng không có lương quản lý.
+    // Người đã khoá cuối tháng mà không có ngày công nào thì không nhận lương cứng của tháng đó.
+    const workDays = userDays.get(subject.id) ?? 0;
+    if (subject.salaryScheme === "fixed" && rules.fixed) {
+      if (subject.active || workDays > 0) salary = rules.fixed({ amount: subject.fixedSalary, workDays });
+    } else if (subject.role === "staff" && subject.departmentType === "sales") {
       salary = rules.staff({
         points: subject.points,
         workDays: userDays.get(subject.id) ?? 0,
         directedQuota: quota.staff(subject.id),
         scheme: subject.salaryScheme,
         bonusCombos: bonusCombos.get(subject.id) ?? 0,
+        socialInsurance: (socialGroups.get(subject.id) ?? []).map((group) => ({
+          label: `${KIND_LABEL[group.kind]} ${PLAN_LABEL[group.plan]}`,
+          collectedCents: group.collectedCents,
+          revenuePerPoint: group.revenuePerPoint,
+          points: group.points,
+        })),
       });
     } else if (
       (subject.role === "head" || subject.role === "deputy-head") &&
@@ -335,6 +359,7 @@ async function liveSalaries(
         month: yearMonth,
         facts: salary.facts,
         items: nonZeroItems(salary.items),
+        revenue: salary.revenue,
       });
   }
 
@@ -503,7 +528,7 @@ export async function closeSalaryMonth(actor: User, yearMonth: string): Promise<
       yearMonth,
       userId,
       amount: salary.amount,
-      breakdown: { facts: salary.facts, items: salary.items },
+      breakdown: { facts: salary.facts, items: salary.items, revenue: salary.revenue },
     }));
 
   return db.transaction(async (tx) => {

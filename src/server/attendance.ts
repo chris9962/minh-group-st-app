@@ -1,18 +1,30 @@
 import { and, asc, between, eq, inArray, or, sql, type SQL } from "drizzle-orm";
 import {
   ATTENDANCE_SLOTS,
+  attendanceModeOf,
+  CHECK_IN_SLOT,
   type AttendanceCheck,
   type AttendanceDay,
   type AttendanceForm,
   type MyAttendance,
 } from "@/lib/api/attendance";
+import { SOCIAL_DEPARTMENT_CODE } from "@/lib/api/staff";
 import { BUSINESS_TIMEZONE, businessDay, monthRange } from "@/lib/format";
 import { recordVisibility, type RecordVisibility } from "@/lib/permissions";
 import type { User } from "@/lib/types";
 import { db, uniqueViolationOf } from "./db/client";
-import { attendanceChecks, staffRoster, users } from "./db/schema";
+import { attendanceChecks, departments, staffRoster, users } from "./db/schema";
 import { placeName } from "./placeName";
 import { imageKeyOf, imageUrl } from "./storage";
+import { recomputeEmployeeWorkDay } from "./workDays";
+
+/**
+ * Tháng cho chấm bù ngày đã qua trong tháng (spec 4.2). Từ 2026-11-01 không
+ * tháng nào khớp nên app tự khoá chấm bù.
+ */
+const BACKFILL_MONTHS = new Set(["2026-10"]);
+
+const backfillOpen = (today: string) => BACKFILL_MONTHS.has(today.slice(0, 7));
 
 const checkColumns = {
   id: attendanceChecks.id,
@@ -35,14 +47,14 @@ const toCheck = (row: CheckRow): AttendanceCheck => ({
   workDate: row.workDate,
   slot: row.slot,
   checkedAt: row.checkedAt.toISOString(),
-  photoUrl: imageUrl(row.photoUrl),
+  photoUrl: row.photoUrl ? imageUrl(row.photoUrl) : null,
   latitude: row.latitude,
   longitude: row.longitude,
   accuracy: row.accuracy,
   place: row.place,
 });
 
-export const canCheckIn = (actor: User): boolean => actor.salaryScheme === "atm";
+export const canCheckIn = (actor: User): boolean => attendanceModeOf(actor) !== null;
 
 export async function myAttendance(actor: User, month: string): Promise<MyAttendance> {
   const { from, to } = monthRange(month);
@@ -51,7 +63,8 @@ export async function myAttendance(actor: User, month: string): Promise<MyAttend
     .from(attendanceChecks)
     .where(and(eq(attendanceChecks.userId, actor.id), between(attendanceChecks.workDate, from, to)))
     .orderBy(asc(attendanceChecks.checkedAt));
-  return { month, today: businessDay(), checks: rows.map(toCheck) };
+  const today = businessDay();
+  return { month, today, backfill: backfillOpen(today), checks: rows.map(toCheck) };
 }
 
 export type AttendanceOutcome = { ok: true; check: AttendanceCheck } | { ok: false; message: string };
@@ -63,17 +76,31 @@ function photoKeyOf(url: string): string | null {
 }
 
 /**
- * Giờ và ngày lấy từ đồng hồ database, không nhận từ client. `now()` đứng yên
+ * Giờ lấy từ đồng hồ database, không nhận từ client. Ngày cũng vậy, trừ lượt
+ * chấm bù: ngày đó do người dùng chọn, giờ vẫn là giờ lúc bấm. `now()` đứng yên
  * trong một transaction nên ngày dùng để kiểm lượt trước và ngày ghi là một.
  *
- * Bốn lượt đi đúng thứ tự: lượt trước chưa chấm thì không chấm được lượt sau.
+ * Bốn lượt của nhân viên Điểm ATM đi đúng thứ tự: lượt trước chưa chấm thì
+ * không chấm được lượt sau. Người Phòng An Sinh chỉ có lượt điểm danh, không ảnh.
  */
 export async function createAttendanceCheck(
   actor: User,
   form: AttendanceForm,
 ): Promise<AttendanceOutcome> {
-  const photoKey = photoKeyOf(form.photoUrl);
-  if (!photoKey) return { ok: false, message: "Ảnh không hợp lệ" };
+  const mode = attendanceModeOf(actor);
+  if (mode === "daily" && form.slot !== CHECK_IN_SLOT.key)
+    return { ok: false, message: "Bạn chỉ có lượt điểm danh." };
+  if (mode === "slots" && form.slot === CHECK_IN_SLOT.key)
+    return { ok: false, message: "Lượt chấm công không hợp lệ." };
+  const photoKey = mode === "slots" ? photoKeyOf(form.photoUrl) : null;
+  if (mode === "slots" && !photoKey) return { ok: false, message: "Ảnh không hợp lệ" };
+
+  const today = businessDay();
+  if (form.workDate && form.workDate !== today) {
+    const backfillable =
+      backfillOpen(today) && form.workDate.slice(0, 7) === today.slice(0, 7) && form.workDate < today;
+    if (!backfillable) return { ok: false, message: "Ngày này không chấm bù được." };
+  }
 
   const index = ATTENDANCE_SLOTS.findIndex((s) => s.key === form.slot);
   const previous = index > 0 ? ATTENDANCE_SLOTS[index - 1] : null;
@@ -81,8 +108,11 @@ export async function createAttendanceCheck(
   const place = await placeName(form.latitude, form.longitude);
 
   try {
-    return await db.transaction(async (tx): Promise<AttendanceOutcome> => {
-      const workDate = sql`(now() at time zone ${BUSINESS_TIMEZONE})::date`;
+    const outcome = await db.transaction(async (tx): Promise<AttendanceOutcome> => {
+      const workDate =
+        form.workDate && form.workDate !== today
+          ? sql`${form.workDate}::date`
+          : sql`(now() at time zone ${BUSINESS_TIMEZONE})::date`;
       if (previous) {
         const [done] = await tx
           .select({ id: attendanceChecks.id })
@@ -114,6 +144,8 @@ export async function createAttendanceCheck(
         .returning(checkColumns);
       return { ok: true, check: toCheck(row) };
     });
+    if (outcome.ok) await recomputeEmployeeWorkDay(actor.id, outcome.check.workDate);
+    return outcome;
   } catch (e) {
     if (uniqueViolationOf(e) === "attendance_checks_user_day_slot")
       return { ok: false, message: "Lượt này đã chấm công rồi." };
@@ -148,8 +180,9 @@ const rosterScope = (v: RecordVisibility): SQL | undefined => {
 };
 
 /**
- * Bảng một ngày: mọi nhân viên Điểm ATM trong phạm vi theo nhân sự của tháng
- * chứa ngày đó, cộng người đã chấm công ngày đó mà nay không còn ở nhóm ATM.
+ * Bảng một ngày: mọi nhân viên Điểm ATM và người Phòng An Sinh trong phạm vi,
+ * theo nhân sự của tháng chứa ngày đó, cộng người đã chấm công ngày đó mà nay
+ * không còn ở hai nhóm này.
  */
 export async function attendanceDay(actor: User, workDate: string): Promise<AttendanceDay> {
   const visible = recordVisibility(actor, "attendance", "view-detail");
@@ -163,16 +196,22 @@ export async function attendanceDay(actor: User, workDate: string): Promise<Atte
   const checkedUserIds = [...new Set(checks.map((c) => c.userId))];
 
   const people = await db
-    .select({ userId: users.id, fullName: users.fullName, staffCode: users.staffCode })
+    .select({
+      userId: users.id,
+      fullName: users.fullName,
+      staffCode: users.staffCode,
+      departmentCode: departments.code,
+    })
     .from(users)
     .leftJoin(
       staffRoster,
       and(eq(staffRoster.userId, users.id), eq(staffRoster.yearMonth, workDate.slice(0, 7))),
     )
+    .leftJoin(departments, eq(departments.id, staffRoster.departmentId))
     .where(
       or(
         and(
-          eq(staffRoster.salaryScheme, "atm"),
+          or(eq(staffRoster.salaryScheme, "atm"), eq(departments.code, SOCIAL_DEPARTMENT_CODE)),
           eq(staffRoster.active, true),
           rosterScope(visible),
         ),
@@ -184,9 +223,11 @@ export async function attendanceDay(actor: User, workDate: string): Promise<Atte
     workDate,
     rows: people
       .sort((a, b) => a.fullName.localeCompare(b.fullName, "vi"))
-      .map((p) => ({
-        ...p,
-        checks: checks.filter((c) => c.userId === p.userId).map(toCheck),
-      })),
+      .map(({ departmentCode, ...p }) => {
+        const own = checks.filter((c) => c.userId === p.userId);
+        const daily =
+          departmentCode === SOCIAL_DEPARTMENT_CODE || own.some((c) => c.slot === CHECK_IN_SLOT.key);
+        return { ...p, mode: daily ? ("daily" as const) : ("slots" as const), checks: own.map(toCheck) };
+      }),
   };
 }

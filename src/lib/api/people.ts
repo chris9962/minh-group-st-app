@@ -41,6 +41,8 @@ export const PersonScore = z.object({
   bankingPoints: z.number(),
   /** Điểm từ dịch vụ: hệ số theo loại dịch vụ. */
   servicePoints: z.number(),
+  /** Điểm An Sinh từ tiền thu BHYT/BHXH của file người này tải lên. */
+  socialInsurancePoints: z.number(),
   /** Điểm cộng tay theo tháng (`kpi_adjustments`) — âm khi bị trừ nhiều hơn cộng. */
   adjustmentPoints: z.number(),
   accounts: z.number(),
@@ -55,8 +57,9 @@ export type PersonScore = z.infer<typeof PersonScore>;
 export const totalPoints = (p: {
   bankingPoints: number;
   servicePoints: number;
+  socialInsurancePoints: number;
   adjustmentPoints: number;
-}) => roundPoints(p.bankingPoints + p.servicePoints + p.adjustmentPoints);
+}) => roundPoints(p.bankingPoints + p.servicePoints + p.socialInsurancePoints + p.adjustmentPoints);
 
 export type PeopleQuery = {
   scope: Scope;

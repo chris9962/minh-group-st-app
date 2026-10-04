@@ -1,5 +1,8 @@
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, sql, type SQL } from "drizzle-orm";
 import { businessMonth, monthRange, roundPoints } from "@/lib/format";
+import { centsFromDecimal } from "@/lib/money";
+import { shiftMonth } from "@/lib/period";
+import type { SocialInsuranceKind, SocialInsurancePlan } from "@/lib/api/socialInsurance";
 import {
   bankingPointsFor,
   kpiAppliesTo,
@@ -34,8 +37,9 @@ import {
  *
  * Đã nối: chuyển tài khoản sang `done` (`server/banking.ts`), ghi/sửa/xoá dịch
  * vụ (`server/services.ts`), sửa hệ số một loại dịch vụ (`server/catalog.ts`,
- * gọi `recomputeKpiForMonth`). Bản `creating` không vào điểm nên tạo và xoá
- * nháp không cần tính lại.
+ * gọi `recomputeKpiForMonth`), ghi/sửa/xoá dòng BHYT/BHXH và lưu mức điểm An
+ * Sinh (`server/socialInsurance*.ts`). Bản `creating` không vào điểm nên tạo và
+ * xoá nháp không cần tính lại.
  *
  * Sửa một tài khoản đã `done` (chốt 07/08) đi qua `updateFinishedAccount`, và
  * nhánh đó tính lại điểm cho CẢ tháng cũ lẫn tháng mới khi ngày mở đổi — chỉ
@@ -119,6 +123,146 @@ const countedServices = (from: string, to: string, userId?: string) => sql`(
 async function servicePointsOf(conn: Db, userId: string, from: string, to: string): Promise<number> {
   const result = await conn.execute<{ points: number }>(
     sql`select coalesce(sum(c.coefficient), 0)::float as points from ${countedServices(from, to, userId)} c`,
+  );
+  return result.rows[0]?.points ?? 0;
+}
+
+/**
+ * Điểm An Sinh theo người tải file, tháng biên lai, loại và phương án, dạng câu
+ * con có các cột `uploaded_by`, `receipt_month`, `kind`, `plan`, `collected`,
+ * `revenue_per_point`, `points`.
+ *
+ * Mỗi nhóm lấy tổng tiền thu chia mức điểm của nhóm đó, làm tròn 2 số lẻ ngay ở
+ * nhóm: các dòng diễn giải theo nhóm phải cộng ra đúng điểm tháng. Bộ mức điểm là
+ * bộ của tháng gần nhất không sau tháng biên lai, cùng luật với % hoa hồng. Nhóm
+ * thiếu mức điểm thì không có điểm.
+ */
+const socialInsuranceGroupPoints = (fromMonth: string, toMonth: string, where?: SQL) => sql`(
+  select g.uploaded_by, g.receipt_month, g.kind, g.plan, g.collected, k.revenue_per_point,
+         round(g.collected / k.revenue_per_point, 2) as points
+  from (
+    select r.uploaded_by, r.receipt_month, r.kind, r.plan, sum(r.collected_amount) as collected
+    from social_insurance_records r
+    where r.receipt_month between ${fromMonth} and ${toMonth}
+      ${where ? sql`and ${where}` : sql``}
+    group by r.uploaded_by, r.receipt_month, r.kind, r.plan
+  ) g
+  join social_insurance_kpi_rates k
+    on k.kind = g.kind and k.plan = g.plan
+   and k.year_month = (
+     select max(e.year_month) from social_insurance_kpi_rates e where e.year_month <= g.receipt_month
+   )
+)`;
+
+/** Điểm An Sinh theo người tải file và tháng biên lai: cột `uploaded_by`, `receipt_month`, `points`. */
+const socialInsurancePoints = (fromMonth: string, toMonth: string, userId?: string) => sql`(
+  select p.uploaded_by, p.receipt_month, sum(p.points) as points
+  from ${socialInsuranceGroupPoints(fromMonth, toMonth, userId ? sql`r.uploaded_by = ${userId}` : undefined)} p
+  group by p.uploaded_by, p.receipt_month
+)`;
+
+export type SocialInsuranceGroup = {
+  kind: SocialInsuranceKind;
+  plan: SocialInsurancePlan;
+  collectedCents: number;
+  /** Doanh thu cho 1 điểm, đồng. */
+  revenuePerPoint: number;
+  points: number;
+};
+
+/** Phần diễn giải của điểm An Sinh một tháng: tiền thu ra điểm theo từng nhóm, của từng người. */
+export async function socialInsuranceGroupsOf(
+  userIds: string[],
+  yearMonth: string,
+): Promise<Map<string, SocialInsuranceGroup[]>> {
+  if (userIds.length === 0) return new Map();
+  const result = await db.execute<{
+    uploaded_by: string;
+    kind: SocialInsuranceKind;
+    plan: SocialInsurancePlan;
+    collected: string;
+    revenue_per_point: number;
+    points: number;
+  }>(
+    sql`select p.uploaded_by, p.kind, p.plan, p.collected::text, p.revenue_per_point, p.points::float
+        from ${socialInsuranceGroupPoints(
+          yearMonth,
+          yearMonth,
+          sql`r.uploaded_by in (${sql.join(
+            userIds.map((id) => sql`${id}::uuid`),
+            sql`, `,
+          )})`,
+        )} p
+        order by p.kind, p.plan`,
+  );
+  const groups = new Map<string, SocialInsuranceGroup[]>();
+  for (const row of result.rows) {
+    const group: SocialInsuranceGroup = {
+      kind: row.kind,
+      plan: row.plan,
+      collectedCents: centsFromDecimal(row.collected),
+      revenuePerPoint: row.revenue_per_point,
+      points: row.points,
+    };
+    const kept = groups.get(row.uploaded_by);
+    if (kept) kept.push(group);
+    else groups.set(row.uploaded_by, [group]);
+  }
+  return groups;
+}
+
+/**
+ * Doanh thu BHYT/BHXH của một phòng theo tháng biên lai: hồ sơ do người trong
+ * phòng tải lên, chia theo người tải, loại, phương án. Điểm cùng cách tính với
+ * điểm KPI; nhóm chưa có mức điểm thì điểm 0 mà doanh thu vẫn đủ.
+ */
+export async function socialInsuranceOfDepartment(
+  departmentId: string,
+  yearMonth: string,
+): Promise<
+  {
+    uploadedBy: string;
+    kind: SocialInsuranceKind;
+    plan: SocialInsurancePlan;
+    records: number;
+    collectedCents: number;
+    points: number;
+  }[]
+> {
+  const inDepartment = sql`r.uploaded_by_department_id = ${departmentId}`;
+  const [totals, scored] = await Promise.all([
+    db.execute<{
+      uploaded_by: string;
+      kind: SocialInsuranceKind;
+      plan: SocialInsurancePlan;
+      records: number;
+      collected: string;
+    }>(sql`
+      select r.uploaded_by, r.kind, r.plan, count(*)::int as records, sum(r.collected_amount)::text as collected
+      from social_insurance_records r
+      where r.receipt_month = ${yearMonth} and ${inDepartment}
+      group by r.uploaded_by, r.kind, r.plan
+    `),
+    db.execute<{ uploaded_by: string; kind: string; plan: string; points: number }>(
+      sql`select p.uploaded_by, p.kind, p.plan, p.points::float
+          from ${socialInsuranceGroupPoints(yearMonth, yearMonth, inDepartment)} p`,
+    ),
+  ]);
+  const pointsOf = new Map(scored.rows.map((r) => [`${r.uploaded_by}|${r.kind}|${r.plan}`, r.points]));
+  return totals.rows.map((r) => ({
+    uploadedBy: r.uploaded_by,
+    kind: r.kind,
+    plan: r.plan,
+    records: r.records,
+    collectedCents: centsFromDecimal(r.collected),
+    points: pointsOf.get(`${r.uploaded_by}|${r.kind}|${r.plan}`) ?? 0,
+  }));
+}
+
+async function socialInsurancePointsOf(conn: Db, userId: string, yearMonth: string): Promise<number> {
+  const result = await conn.execute<{ points: number }>(
+    sql`select coalesce(sum(p.points), 0)::float as points
+        from ${socialInsurancePoints(yearMonth, yearMonth, userId)} p`,
   );
   return result.rows[0]?.points ?? 0;
 }
@@ -384,6 +528,7 @@ async function recomputeKpiOn(tx: Db, userId: string, yearMonth: string): Promis
   const accounts = await scoringAccountsOf(tx, userId, from, to);
   const granted = await grantedGiftsOf(tx, userId);
   const service = await servicePointsOf(tx, userId, from, to);
+  const socialInsurance = await socialInsurancePointsOf(tx, userId, yearMonth);
   const banking = bankingPointsFor(accounts, yearMonth, granted);
 
   await tx
@@ -393,6 +538,7 @@ async function recomputeKpiOn(tx: Db, userId: string, yearMonth: string): Promis
       yearMonth,
       bankingPoints: String(banking),
       servicePoints: String(service),
+      socialInsurancePoints: String(socialInsurance),
       updatedAt: new Date(),
     })
     .onConflictDoUpdate({
@@ -400,6 +546,7 @@ async function recomputeKpiOn(tx: Db, userId: string, yearMonth: string): Promis
       set: {
         bankingPoints: String(banking),
         servicePoints: String(service),
+        socialInsurancePoints: String(socialInsurance),
         updatedAt: new Date(),
       },
     });
@@ -490,7 +637,13 @@ export async function recomputeKpiForMonth(yearMonth: string): Promise<number> {
 export async function pointsByStaffInRange(
   range: Range,
 ): Promise<Map<string, { departmentId: string | null; points: number }>> {
-  const [accountRows, serviceRows, grantRows] = await Promise.all([
+  const fromMonth = range.from.slice(0, 7);
+  const toMonth = range.to.slice(0, 7);
+  const fullMonths = {
+    from: range.from === monthRange(fromMonth).from ? fromMonth : shiftMonth(fromMonth, 1),
+    to: range.to === monthRange(toMonth).to ? toMonth : shiftMonth(toMonth, -1),
+  };
+  const [accountRows, serviceRows, socialInsuranceRows, grantRows] = await Promise.all([
     db
       .select({
         userId: customers.createdBy,
@@ -530,6 +683,21 @@ export async function pointsByStaffInRange(
             group by c.created_by, c.department_id`,
       )
       .then((result) => result.rows),
+    // Biên lai chỉ có tháng, không có ngày: điểm An Sinh chỉ vào kỳ phủ trọn
+    // tháng đó. Kỳ "Hôm nay" mà cộng cả tháng thì Phòng An Sinh đứng đầu mọi ngày.
+    fullMonths.from <= fullMonths.to
+      ? db
+          .execute<{ userId: string; departmentId: string; points: number }>(
+            sql`select p.uploaded_by as "userId", r.department_id as "departmentId",
+                       sum(p.points)::float as points
+                from ${socialInsurancePoints(fullMonths.from, fullMonths.to)} p
+                join staff_roster r on r.user_id = p.uploaded_by and r.year_month = p.receipt_month
+                join departments d on d.id = r.department_id
+                where d.type = 'sales'
+                group by p.uploaded_by, r.department_id`,
+          )
+          .then((result) => result.rows)
+      : Promise.resolve([]),
     // Món khách đã nhận — vào của phép tính điểm ở kỳ 2026-08. Kéo trọn bảng
     // vì nó nhỏ, và lọc theo khách thì phải biết trước danh sách khách.
     db.select({ customerId: giftGrants.customerId, chosenItem: giftGrants.chosenItem }).from(giftGrants),
@@ -574,6 +742,7 @@ export async function pointsByStaffInRange(
       add(userId, staff.departmentId, bankingPointsFor(accounts, month, granted));
 
   for (const r of serviceRows) if (r.userId) add(r.userId, r.departmentId, r.points);
+  for (const r of socialInsuranceRows) add(r.userId, r.departmentId, r.points);
 
   return out;
 }
@@ -605,19 +774,31 @@ export async function multiBankComboCounts(
 }
 
 /**
- * Tính lại điểm và ngày công của MỘT người sau khi đổi cách tính lương: điểm
- * dịch vụ và ngày công theo lượt dịch vụ chỉ có ở nhóm `atm`.
+ * Tính lại điểm và ngày công của MỘT người sau khi đổi cách tính lương, phòng
+ * hoặc chức vụ: điểm dịch vụ và ngày công theo lượt dịch vụ chỉ có ở nhóm `atm`,
+ * ngày công theo chấm công có ở nhóm `atm` và Phòng An Sinh.
  *
- * Phủ mọi tháng và mọi ngày người đó có lượt dịch vụ hoặc ngày công. Tháng đã
- * chốt lương không đổi số lương: `salaryForUsers` đọc bản chốt.
+ * Chỉ từ tháng đang chạy: tháng trước đọc nhân sự đã chụp (`staff_months`), sửa
+ * hồ sơ không đổi chúng. Dựng lại tháng trước theo luật hiện tại là đụng số của
+ * tháng chưa chốt mà không ai sửa gì.
+ *
+ * Phủ mọi ngày người đó có lượt dịch vụ, lượt chấm công, hồ sơ khách tự lập hoặc
+ * ngày công. Thiếu nguồn hồ sơ khách thì chuyển nhầm sang An Sinh rồi chuyển lại
+ * là mất ngày công theo tài khoản.
  */
 export async function recomputeForSalaryScheme(userId: string): Promise<void> {
+  const from = monthRange(businessMonth()).from;
   const result = await db.execute<{ day: string }>(sql`
     select to_char(d, 'YYYY-MM-DD') as day from (
       select service_date as d from services where created_by = ${userId}
       union
+      select work_date from attendance_checks where user_id = ${userId}
+      union
+      select (created_at at time zone 'Asia/Ho_Chi_Minh')::date from customers where created_by = ${userId}
+      union
       select work_date from employee_work_days where user_id = ${userId}
     ) days
+    where d >= ${from}::date
   `);
   const days = result.rows.map((r) => r.day);
   const months = new Set([businessMonth(), ...days.map((day) => day.slice(0, 7))]);

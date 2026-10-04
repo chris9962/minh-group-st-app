@@ -25,6 +25,39 @@
   text-align: right;
 }
 
+/* Tiền thu BHYT/BHXH ra điểm: bảng 4 cột thay cho từng dòng "nhãn: giá trị" dài. */
+.revenue {
+  width: 100%;
+  margin: 0 0 12px;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.revenue th,
+.revenue td {
+  padding: 6px 12px 6px 0;
+  text-align: left;
+  font-weight: normal;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--om-line);
+}
+
+.revenue thead th {
+  color: var(--om-text-2);
+}
+
+.revenue tbody th {
+  color: var(--om-text);
+  white-space: normal;
+}
+
+/* Hàng tổng đậm và có kẻ dưới 2px, cùng nét với ranh giới phần thông tin cũ. */
+.revenue tfoot th,
+.revenue tfoot td {
+  font-weight: 700;
+  border-bottom-width: 2px;
+}
+
 .list {
   display: grid;
 }

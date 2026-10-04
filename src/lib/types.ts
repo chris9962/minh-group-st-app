@@ -72,6 +72,8 @@ export const ModuleKey = z.enum([
   'vneid',
   /** Chấm công nhân viên Điểm ATM (migration 0118). Chỉ có quyền xem. */
   'attendance',
+  /** Trang BHYT/BHXH của Phòng An Sinh (migration 0121). */
+  'social-insurance',
   'system',
   '*',
 ]);
@@ -186,6 +188,7 @@ export const MODULE_LABEL: Record<ModuleKey, string> = {
   department: 'Phòng ban',
   vneid: 'VNeID',
   attendance: 'Chấm công',
+  'social-insurance': 'BHYT/BHXH',
   system: 'Hệ thống',
   '*': 'Tất cả module',
 };
@@ -294,6 +297,7 @@ export const EDITABLE_MODULES: ModuleKey[] = [
   'department',
   'vneid',
   'attendance',
+  'social-insurance',
   'system',
 ];
 
@@ -453,12 +457,14 @@ export const CONTRACT_TYPE_LABEL: Record<ContractType, string> = {
  * thông báo lương 2026-09-30: công thức riêng ở `src/rules/salary`, và chỉ nhóm
  * này có điểm dịch vụ.
  */
-export const SalaryScheme = z.enum(['department', 'atm']);
+export const SalaryScheme = z.enum(['department', 'atm', 'social', 'fixed']);
 export type SalaryScheme = z.infer<typeof SalaryScheme>;
 
 export const SALARY_SCHEME_LABEL: Record<SalaryScheme, string> = {
   department: 'Theo phòng',
   atm: 'Điểm ATM',
+  social: 'An Sinh',
+  fixed: 'Lương cứng',
 };
 
 
@@ -499,6 +505,11 @@ export const User = z.object({
    * `insuranceDepartmentIds`: phiên cũ trong trình duyệt chưa có trường này.
    */
   salaryScheme: SalaryScheme.default('department'),
+  /**
+   * Người thuộc Phòng An Sinh: màn Chấm công có nút điểm danh. Tuỳ chọn vì hồ sơ
+   * nhân viên (`StaffAccount`) cũng đi qua kiểu này mà không mang trường này.
+   */
+  dailyCheckIn: z.boolean().optional(),
   /** Tên chức danh hiển thị, ví dụ "Phó GĐ 2" — khác với `role`. */
   title: z.string(),
   permissions: z.array(Permission),

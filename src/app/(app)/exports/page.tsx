@@ -255,6 +255,7 @@ function catalogFor(report: ReportId, banks: Bank[], staffById: Map<string, Staf
         { key: "departmentName", header: "Đơn vị", defaultOn: true, sample: ["Phòng Kinh doanh 2", "Phòng Kinh doanh 2"], value: (r) => r.departmentName },
         { key: "bankingPoints", header: "Điểm ngân hàng", type: "number", defaultOn: true, sample: ["4,2", "2,8"], value: (r) => r.bankingPoints },
         { key: "servicePoints", header: "Điểm dịch vụ", type: "number", defaultOn: true, sample: ["6,5", "3"], value: (r) => r.servicePoints },
+        { key: "socialInsurancePoints", header: "Điểm BHYT/BHXH", type: "number", defaultOn: true, sample: ["0", "12,4"], value: (r) => r.socialInsurancePoints },
         { key: "adjustmentPoints", header: "Điểm cộng", type: "number", defaultOn: true, sample: ["2", "0"], value: (r) => r.adjustmentPoints },
         { key: "totalPoints", header: "Tổng điểm", type: "number", defaultOn: true, sample: ["12,7", "5,8"], value: (r) => totalPoints(r) },
         { key: "target", header: "Chỉ tiêu", type: "number", defaultOn: true, sample: ["100", "100"], value: (r) => r.target },
@@ -769,7 +770,7 @@ export default function ExportsPage() {
         type: "number",
         align: "center",
         width: 5,
-        value: (r) => (r.days.includes(i + 1) ? 1 : 0),
+        value: (r) => r.days.find((d) => d.day === i + 1)?.fraction ?? 0,
       }));
 
       await exportExcel({
@@ -780,7 +781,7 @@ export default function ExportsPage() {
           { header: "Tên", width: 28, value: (r) => r.fullName },
           { header: "Phòng", width: 22, value: (r) => r.departmentName },
           ...dayColumns,
-          { header: "Tổng", type: "number", align: "center", width: 7, value: (r) => r.days.length },
+          { header: "Tổng", type: "number", align: "center", width: 7, value: (r) => r.days.reduce((sum, d) => sum + d.fraction, 0) },
         ],
       });
       return rows.length;

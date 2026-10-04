@@ -1,4 +1,4 @@
-import { eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { auditLog, bankAccounts, customers, insuranceOrders, services, users, vneidRecords } from "../src/server/db/schema";
 import { db } from "../src/server/db/client";
 import { recomputeGiftCase } from "../src/server/gift";
@@ -118,7 +118,16 @@ async function main() {
     await tx.update(customers).set(chu).where(eq(customers.id, customerId));
     await tx.update(bankAccounts).set(chu).where(eq(bankAccounts.customerId, customerId));
     await tx.update(insuranceOrders).set(chu).where(eq(insuranceOrders.customerId, customerId));
-    await tx.update(services).set(chu).where(eq(services.customerId, customerId));
+    // Lượt nhập liệu BHYT/BHXH đi theo cột NHẬP LIỆU của dòng đó, không theo chủ hồ sơ.
+    await tx
+      .update(services)
+      .set(chu)
+      .where(
+        and(
+          eq(services.customerId, customerId),
+          sql`not exists (select 1 from social_insurance_records sir where sir.service_id = ${services.id})`,
+        ),
+      );
     await tx.update(vneidRecords).set(chu).where(eq(vneidRecords.customerId, customerId));
 
     await tx.insert(auditLog).values({

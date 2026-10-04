@@ -61,9 +61,10 @@
   cursor: pointer;
 }
 
+/* Ô cha cắt phần tràn, nên viền focus vẽ vào trong. */
 .photoTile:focus-visible {
   outline: 2px solid var(--om-orange);
-  outline-offset: 2px;
+  outline-offset: -2px;
 }
 
 .photo {
@@ -111,6 +112,57 @@
 
 .missing {
   color: var(--om-text-3);
+}
+
+.slotDone {
+  padding: 0;
+  overflow: hidden;
+}
+
+/* Điểm danh không có ảnh dọc để bám tỉ lệ 3:4: một ô, rộng vừa nút. */
+.slots.daily {
+  grid-template-columns: minmax(0, 1fr);
+  max-width: 360px;
+}
+
+.daily .slot {
+  aspect-ratio: auto;
+  min-height: 120px;
+}
+
+/* Lượt điểm danh không ảnh: giờ và nơi chấm trên nền xanh của ngày đã chấm. */
+.doneTile {
+  font: inherit;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
+  height: 100%;
+  padding: var(--space-3);
+  border: 0;
+  background: var(--om-green-soft);
+  color: var(--om-green-ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.doneTile:focus-visible {
+  outline: 2px solid var(--om-orange);
+  outline-offset: -2px;
+}
+
+.doneTime {
+  font-size: 22px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.donePlace {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  font-size: 12.5px;
+  line-height: 1.3;
 }
 
 .slotNext {

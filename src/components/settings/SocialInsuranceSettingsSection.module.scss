@@ -1,0 +1,46 @@
+.scroll {
+  overflow-x: auto;
+}
+
+.cellInput {
+  width: 96px;
+}
+
+.moneyInput {
+  width: 160px;
+}
+
+.cellInput[aria-invalid="true"],
+.moneyInput[aria-invalid="true"] {
+  border-color: var(--om-red);
+}
+
+.cellError {
+  display: block;
+  margin-top: var(--space-1);
+  font-size: 12.5px;
+  color: var(--om-red);
+}
+
+.addRow {
+  display: flex;
+  padding-top: 12px;
+}
+
+.saveBar {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  display: flex;
+  justify-content: flex-start;
+  padding: 12px 0;
+  background: var(--om-bg);
+  border-top: 1px solid var(--om-line);
+}
+
+@media (max-width: bp.$bp-mobile) {
+  /* Điện thoại cuộn cả trang, BottomNav cố định ở đáy: đứng trên nó. */
+  .saveBar {
+    bottom: calc(52px + env(safe-area-inset-bottom, 0px));
+  }
+}

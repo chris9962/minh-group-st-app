@@ -72,6 +72,32 @@
   font-size: 13px;
 }
 
+/* Lượt điểm danh không ảnh: không có khung ảnh 9:16 để bám, bản đồ là bằng chứng duy nhất nên lấy đủ bề ngang. */
+.bodyNoPhoto {
+  width: 100%;
+}
+
+.mapWrap.mapTall {
+  height: auto;
+  aspect-ratio: 4 / 3;
+}
+
+/* Giờ và nơi chấm nằm trên nền thẻ, dùng màu chữ của trang. */
+.textStamp {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--om-text);
+}
+
+.textDate {
+  padding-left: var(--space-2);
+  border-left: 2px solid var(--om-line);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--om-text-2);
+}
+
 .mapWrap {
   position: relative;
   height: 140px;

@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { BankingSummary, DepartmentRanking } from './dashboard';
 import { Department, DepartmentType } from '@/lib/types';
 import { SalaryBreakdown } from './person';
+import { SocialInsuranceKind, SocialInsurancePlan } from './socialInsurance';
 
 /**
  * Tổ chức — P-91.
@@ -109,6 +110,33 @@ export async function fetchDepartmentDetail(id: string, month: string): Promise<
   const res = await fetch(`/api/org/departments/${id}?${new URLSearchParams({ month })}`);
   if (!res.ok) throw new Error('Không tải được phòng ban này');
   return DepartmentDetail.parse(await res.json());
+}
+
+/** Doanh thu BHYT/BHXH: số hồ sơ, tổng tiền thu, điểm KPI. */
+export const SocialInsuranceRevenue = z.object({
+  records: z.number(),
+  collectedCents: z.number(),
+  points: z.number(),
+});
+export type SocialInsuranceRevenue = z.infer<typeof SocialInsuranceRevenue>;
+
+/** Doanh thu BHYT/BHXH của Phòng An Sinh theo tháng biên lai, thay khối số ngân hàng. */
+export const DepartmentSocialInsurance = z.object({
+  /** Đủ 4 nhóm loại và phương án, cả nhóm chưa có hồ sơ. */
+  groups: z.array(SocialInsuranceRevenue.extend({ kind: SocialInsuranceKind, plan: SocialInsurancePlan })),
+  people: z.array(
+    z.object({ userId: z.string(), bhyt: SocialInsuranceRevenue, bhxh: SocialInsuranceRevenue }),
+  ),
+});
+export type DepartmentSocialInsurance = z.infer<typeof DepartmentSocialInsurance>;
+
+export async function fetchDepartmentSocialInsurance(
+  id: string,
+  month: string,
+): Promise<DepartmentSocialInsurance> {
+  const res = await fetch(`/api/org/departments/${id}/social-insurance?${new URLSearchParams({ month })}`);
+  if (!res.ok) throw new Error('Không tải được doanh thu BHYT/BHXH của phòng');
+  return DepartmentSocialInsurance.parse(await res.json());
 }
 
 /** Khối số ngân hàng của một phòng trong kỳ — cùng hình dạng với Tổng quan. */

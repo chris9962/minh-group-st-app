@@ -12,6 +12,8 @@ type Props = {
   options: SelectOption[];
   /** Gợi ý trong ô tìm. Bỏ trống thì dựng từ `label`. */
   searchPlaceholder?: string;
+  /** Luôn có ô tìm, kể cả khi danh sách còn ngắn: dùng cho danh sách lớn dần theo dữ liệu. */
+  alwaysSearchable?: boolean;
 } & (
   | { multiple?: false; value: string; onChange: (value: string) => void }
   /** Chọn nhiều dòng; mảng rỗng là không lọc. */
@@ -27,7 +29,7 @@ type Props = {
 export function FilterChoices(props: Props) {
   const { label, options, searchPlaceholder } = props;
   const [query, setQuery] = useState("");
-  const searchable = options.length >= 6;
+  const searchable = props.alwaysSearchable || options.length >= 6;
   const shown = useMemo(
     () => (query.trim() ? options.filter((option) => matchesSearch(option.label, query)) : options),
     [options, query],

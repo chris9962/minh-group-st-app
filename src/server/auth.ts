@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { and, eq, gt } from "drizzle-orm";
 import { db } from "./db/client";
-import { sessions, users } from "./db/schema";
+import { departments, sessions, users } from "./db/schema";
 import { relationsFor, toUser } from "./users";
 import { can } from "@/lib/permissions";
 import type { Action, ModuleKey, User } from "@/lib/types";
@@ -94,9 +94,10 @@ export async function getActor(request: Request): Promise<User | null> {
   if (!token) return null;
 
   const rows = await db
-    .select({ user: users })
+    .select({ user: users, departmentCode: departments.code })
     .from(sessions)
     .innerJoin(users, eq(sessions.userId, users.id))
+    .leftJoin(departments, eq(departments.id, users.departmentId))
     .where(and(eq(sessions.tokenHash, hashToken(token)), gt(sessions.expiresAt, new Date())))
     .limit(1);
 
@@ -112,6 +113,7 @@ export async function getActor(request: Request): Promise<User | null> {
     managedOf.get(row.user.id) ?? [],
     managedBanksOf.get(row.user.id) ?? [],
     insuranceDepartmentsOf.get(row.user.id) ?? [],
+    row.departmentCode,
   );
 }
 

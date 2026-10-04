@@ -310,7 +310,7 @@ cả khi tháng 10 có người chuyển phòng, lên chức, nghỉ việc hay 
 
 | | |
 |---|---|
-| View `staff_roster` (`staffRoster` ở `db/schema.ts`) | Mỗi người mỗi tháng một dòng: phòng, chức vụ, loại hợp đồng, cách tính lương, phòng phụ trách, đang làm hay đã nghỉ |
+| View `staff_roster` (`staffRoster` ở `db/schema.ts`) | Mỗi người mỗi tháng một dòng: phòng, chức vụ, loại hợp đồng, cách tính lương, số tiền lương cứng, phòng phụ trách, đang làm hay đã nghỉ |
 | Bảng `staff_months` | Bản chụp của các tháng đã qua. Không đọc thẳng, đọc view |
 | Hàm DB `ensure_staff_months()` | Chụp các tháng đã kết thúc theo hồ sơ lúc gọi. Job `mgst-staff-snapshot.timer` gọi nó lúc 00:00 ngày 1 hằng tháng qua `scripts/snapshot-staff-months.ts` (`docs/deploy-fpt-cloud.md` §8f) |
 

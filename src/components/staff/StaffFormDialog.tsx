@@ -22,7 +22,8 @@ import {
   updateStaff,
   type StaffAccount,
 } from "@/lib/api/staff";
-import { removeDiacritics } from "@/lib/format";
+import { formatCount, removeDiacritics } from "@/lib/format";
+import { decimalOnly, numericField } from "@/lib/numberField";
 import { assignableRoles, isFullAccess } from "@/lib/permissions";
 import {
   CONTRACT_TYPE_LABEL,
@@ -58,6 +59,7 @@ const emptyForm: StaffForm = {
   title: ROLE_TITLE.staff,
   contractType: "",
   salaryScheme: "department",
+  fixedSalary: "",
   manageScope: "none",
   managedDepartmentIds: [],
   insuranceDepartmentIds: [],
@@ -88,6 +90,7 @@ const toForm = (s: StaffAccount): StaffForm => ({
   title: s.title,
   contractType: s.contractType ?? "",
   salaryScheme: s.salaryScheme,
+  fixedSalary: s.fixedSalary ? formatCount(s.fixedSalary) : "",
   manageScope: s.manageScope,
   managedDepartmentIds: s.managedDepartmentIds,
   insuranceDepartmentIds: s.insuranceDepartmentIds,
@@ -97,6 +100,7 @@ const toForm = (s: StaffAccount): StaffForm => ({
 /** P-53 · Tạo / sửa nhân viên. */
 export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
   const actor = useSession((s) => s.user);
+  const canSetSalary = Boolean(actor && isFullAccess(actor.permissions));
   const queryClient = useQueryClient();
   const editing = Boolean(staff);
   /**
@@ -411,19 +415,32 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
 
         {/* Ô này đổi số tiền lương, nên chỉ tài khoản toàn quyền thấy và đổi
             được. Máy chủ cũng giữ giá trị cũ với người khác (`updateStaff`). */}
-        {actor && isFullAccess(actor.permissions) && (
-          <Select
-            block
-            label="Cách tính lương"
-            value={watch("salaryScheme")}
-            onChange={(v) =>
-              setValue("salaryScheme", SalaryScheme.parse(v), { shouldDirty: true })
-            }
-            options={SalaryScheme.options.map((s) => ({
-              value: s,
-              label: SALARY_SCHEME_LABEL[s],
-            }))}
-          />
+        {canSetSalary && (
+          <div className={styles.pair}>
+            <Select
+              block
+              label="Cách tính lương"
+              value={watch("salaryScheme")}
+              onChange={(v) =>
+                setValue("salaryScheme", SalaryScheme.parse(v), { shouldDirty: true })
+              }
+              options={SalaryScheme.options.map((s) => ({
+                value: s,
+                label: SALARY_SCHEME_LABEL[s],
+              }))}
+            />
+            {watch("salaryScheme") === "fixed" && (
+              <TextField
+                label="Số tiền lương"
+                inputMode="numeric"
+                placeholder="12.000.000"
+                maxLength={30}
+                required
+                error={errors.fixedSalary?.message}
+                {...numericField(register("fixedSalary"), decimalOnly)}
+              />
+            )}
+          </div>
         )}
 
         {picksManaged && (

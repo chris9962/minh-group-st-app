@@ -1027,7 +1027,8 @@ export async function createCustomer(
   | CustomerOutcome<Customer>
   | { ok: false; reason: "open-draft-exists" | "id-number-mismatch" | "info-mismatch" }
 > {
-  let goc: { fullName: string; dob: string | null; address: string } | null = null;
+  let goc: { fullName: string; dob: string | null; address: string; socialInsuranceCode: string | null } | null =
+    null;
   if (linkToRootId) {
     const [root] = await db
       .select({
@@ -1036,6 +1037,7 @@ export async function createCustomer(
         fullName: customers.fullName,
         dob: customers.dob,
         address: customers.address,
+        socialInsuranceCode: customers.socialInsuranceCode,
       })
       .from(customers)
       .where(and(eq(customers.id, linkToRootId), sql`root_customer_id = id`))
@@ -1056,7 +1058,12 @@ export async function createCustomer(
     if (mismatchAgainst(root, form).length > 0) return { ok: false, reason: "info-mismatch" };
 
     if (await openDraftOf(linkToRootId, actor.id)) return { ok: false, reason: "open-draft-exists" };
-    goc = { fullName: root.fullName, dob: root.dob, address: root.address };
+    goc = {
+      fullName: root.fullName,
+      dob: root.dob,
+      address: root.address,
+      socialInsuranceCode: root.socialInsuranceCode,
+    };
   }
 
   const result = await writeGuarded(async () => {
@@ -1110,6 +1117,8 @@ export async function createCustomer(
           dob: goc ? goc.dob : form.dob || null,
           idNumber: form.idNumber || null,
           address: goc ? goc.address : form.address,
+          // Mã số BHXH là của người, mọi lần mở hồ sơ mang cùng mã.
+          socialInsuranceCode: goc?.socialInsuranceCode ?? null,
           channelId: form.channelId || null,
           channelDetail: form.channelDetail,
           createdBy: actor.id,

@@ -1,0 +1,59 @@
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-bottom: 4px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.label {
+  font-size: 13px;
+  color: var(--om-text-2);
+}
+
+.summary {
+  margin: 0;
+  color: var(--om-text-2);
+}
+
+.error {
+  margin: 0;
+  color: var(--om-red);
+}
+
+.problems {
+  margin: 0;
+  padding-left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.filePick {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.fileName,
+.fileEmpty {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13.5px;
+}
+
+.fileName {
+  color: var(--om-text);
+}
+
+.fileEmpty {
+  color: var(--om-text-3);
+}

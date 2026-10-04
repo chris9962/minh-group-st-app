@@ -40,6 +40,8 @@ export const moduleKey = pgEnum("module_key", [
   "vneid",
   // Chấm công nhân viên Điểm ATM, thêm ở migration 0118
   "attendance",
+  // Trang BHYT/BHXH của Phòng An Sinh, thêm ở migration 0121
+  "social-insurance",
   "system", "*",
 ]);
 
@@ -110,7 +112,7 @@ export const bankAccountType = pgEnum("bank_account_type", ["none", "CNKD", "HKD
  * `hdtv` (thử việc) tính như `hddv` (chốt 2026-09-25).
  */
 export const contractType = pgEnum("contract_type", ["hdld", "hddv", "hdtv"]);
-export const salaryScheme = pgEnum("salary_scheme", ["department", "atm"]);
+export const salaryScheme = pgEnum("salary_scheme", ["department", "atm", "social", "fixed"]);
 
 /** Nhóm tài khoản tính chỉ tiêu, danh sách cặp ngân hàng + loại do admin chọn theo tháng. */
 export const quotaAccountKind = pgEnum("quota_account_kind", ["hkd", "directed"]);
@@ -231,9 +233,12 @@ export const users = pgTable(
     contractType: contractType("contract_type"),
     /**
      * Cách tính lương. `atm` = nhân viên trực điểm ATM, theo thông báo lương
-     * 2026-09-30: công thức riêng, và chỉ nhóm này có điểm dịch vụ.
+     * 2026-09-30: công thức riêng, và chỉ nhóm này có điểm dịch vụ. `social` =
+     * nhân viên Phòng An Sinh, `fixed` = lương cứng (migration 0125).
      */
     salaryScheme: salaryScheme("salary_scheme").notNull().default("department"),
+    /** Lương cứng mỗi tháng, đồng. Chỉ có khi `salary_scheme = 'fixed'`. */
+    fixedSalary: integer("fixed_salary"),
     active: boolean("active").notNull().default(true),
     /** C-01: sai 5 lần liên tiếp → khoá 15 phút, quản trị mở lại. */
     failedAttempts: smallint("failed_attempts").notNull().default(0),
@@ -248,7 +253,8 @@ export const users = pgTable(
 );
 
 /**
- * Ngày làm việc suy ra từ khách có ít nhất một tài khoản hoàn thành.
+ * Ngày làm việc suy ra từ khách có ít nhất một tài khoản hoàn thành. Từ tháng
+ * 2026-10, nhân viên Điểm ATM và người Phòng An Sinh lấy ngày công từ chấm công.
  *
  * Một người một ngày đúng một dòng. `qualifying_customer_count` không dùng để
  * nhân tiền — nó là dấu vết để Kế toán biết vì sao ngày đó được ghi nhận và để
@@ -266,13 +272,17 @@ export const employeeWorkDays = pgTable(
     departmentId: uuid("department_id")
       .notNull()
       .references(() => departments.id),
+    /** Ngày công từ chấm công (từ tháng 2026-10) không gắn khách nào: 0. */
     qualifyingCustomerCount: integer("qualifying_customer_count").notNull(),
+    /** 0,5 khi nhân viên Điểm ATM chỉ đủ một cặp vào ra trong ngày. Lương cộng cột này. */
+    fraction: numeric("fraction", { precision: 2, scale: 1 }).notNull().default("1"),
     updatedAt: updatedAt(),
   },
   (t) => [
     primaryKey({ columns: [t.userId, t.workDate] }),
     index("employee_work_days_department_date").on(t.departmentId, t.workDate),
-    check("employee_work_days_customer_count_positive", sql`${t.qualifyingCustomerCount} > 0`),
+    check("employee_work_days_customer_count_non_negative", sql`${t.qualifyingCustomerCount} >= 0`),
+    check("employee_work_days_fraction", sql`${t.fraction} in (0.5, 1)`),
   ],
 );
 
@@ -348,6 +358,7 @@ export const staffMonths = pgTable(
     salaryScheme: salaryScheme("salary_scheme").notNull(),
     active: boolean("active").notNull(),
     managedDepartmentIds: uuid("managed_department_ids").array().notNull().default([]),
+    fixedSalary: integer("fixed_salary"),
   },
   (t) => [
     primaryKey({ columns: [t.userId, t.yearMonth], name: "staff_months_pk" }),
@@ -376,6 +387,7 @@ export const staffRoster = pgView("staff_roster", {
   salaryScheme: salaryScheme("salary_scheme").notNull(),
   active: boolean("active").notNull(),
   managedDepartmentIds: uuid("managed_department_ids").array().notNull(),
+  fixedSalary: integer("fixed_salary"),
 }).existing();
 
 /**
@@ -903,6 +915,8 @@ export const customers = pgTable(
     /** Kênh thuộc về KHÁCH, nhập đúng một lần (spec §2.3). */
     channelId: uuid("channel_id").references(() => channels.id),
     channelDetail: text("channel_detail").notNull().default(""),
+    /** Mã số BHXH (migration 0121), ghi từ file BHYT/BHXH và đồng bộ mọi lần mở hồ sơ. */
+    socialInsuranceCode: text("social_insurance_code"),
     /**
      * Số tài khoản `done` và số đơn bảo hiểm của khách — LƯU SẴN, ngoại lệ có
      * chủ đích của luật "tính ra được thì không lưu" (db-design §9).
@@ -1873,17 +1887,137 @@ export const vneidRecords = pgTable(
   ],
 );
 
+/* ── BHYT/BHXH của Phòng An Sinh (migration 0121) ─────────────────────── */
+
+export const socialInsuranceKind = pgEnum("social_insurance_kind", ["bhyt", "bhxh"]);
+export const socialInsurancePlan = pgEnum("social_insurance_plan", ["new", "renewal"]);
+
+/** Danh sách CTV cho ô lọc. Lưu nguyên chuỗi của file, ví dụ `N1 - Nguyễn Văn A`. */
+export const collaborators = pgTable("collaborators", {
+  id: id(),
+  name: text("name").notNull().unique(),
+  createdAt: createdAt(),
+});
+
+/**
+ * % hoa hồng theo tháng. % lưu số nguyên đơn vị 0,001% (9,120% = 9120), để phép
+ * nhân với tiền không đi qua số thực. Tái tục dùng `months = 0` cho mọi số tháng.
+ * Tháng không có dòng nào thì dùng bộ của tháng gần nhất trước đó.
+ */
+export const socialInsuranceRates = pgTable(
+  "social_insurance_rates",
+  {
+    yearMonth: text("year_month").notNull(),
+    kind: socialInsuranceKind("kind").notNull(),
+    plan: socialInsurancePlan("plan").notNull(),
+    months: integer("months").notNull(),
+    receiveRate: integer("receive_rate").notNull(),
+    payRate: integer("pay_rate").notNull(),
+    updatedBy: uuid("updated_by").references(() => users.id),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.yearMonth, t.kind, t.plan, t.months] }),
+    check("social_insurance_rates_year_month", sql`${t.yearMonth} ~ '^[0-9]{4}-[0-9]{2}$'`),
+    check("social_insurance_rates_months", sql`${t.months} >= 0`),
+    check("social_insurance_rates_renewal_any_month", sql`${t.plan} = 'new' or ${t.months} = 0`),
+    check(
+      "social_insurance_rates_range",
+      sql`${t.receiveRate} between 0 and 100000 and ${t.payRate} between 0 and 100000`,
+    ),
+  ],
+);
+
+/**
+ * Mức điểm KPI An Sinh theo tháng (migration 0122): `revenue_per_point` đồng
+ * doanh thu được 1 điểm. Tháng không có dòng thì dùng bộ của tháng gần nhất trước đó.
+ */
+export const socialInsuranceKpiRates = pgTable(
+  "social_insurance_kpi_rates",
+  {
+    yearMonth: text("year_month").notNull(),
+    kind: socialInsuranceKind("kind").notNull(),
+    plan: socialInsurancePlan("plan").notNull(),
+    revenuePerPoint: integer("revenue_per_point").notNull(),
+    updatedBy: uuid("updated_by").references(() => users.id),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.yearMonth, t.kind, t.plan] }),
+    check("social_insurance_kpi_rates_year_month", sql`${t.yearMonth} ~ '^[0-9]{4}-[0-9]{2}$'`),
+    check("social_insurance_kpi_rates_positive", sql`${t.revenuePerPoint} > 0`),
+  ],
+);
+
+/**
+ * Một dòng của file 1, cộng 4 cột đối chiếu của file 2. `customer_id` là hồ sơ
+ * GỐC: mỗi khách mỗi loại mỗi tháng biên lai đúng một dòng, tính trên mọi lần mở
+ * hồ sơ. `service_id` là lượt "Nhập liệu BHYT/BHXH" của nhân viên ATM.
+ */
+export const socialInsuranceRecords = pgTable(
+  "social_insurance_records",
+  {
+    id: id(),
+    kind: socialInsuranceKind("kind").notNull(),
+    customerId: uuid("customer_id").notNull().references(() => customers.id),
+    /** `YYYY-MM` của NGÀY BIÊN LAI. */
+    receiptMonth: text("receipt_month").notNull(),
+    plan: socialInsurancePlan("plan").notNull(),
+    months: integer("months").notNull(),
+    collectedAmount: numeric("collected_amount", { precision: 14, scale: 2 }).notNull(),
+    paidAmount: numeric("paid_amount", { precision: 14, scale: 2 }).notNull(),
+    collaboratorId: uuid("collaborator_id").references(() => collaborators.id),
+    serviceId: uuid("service_id")
+      .notNull()
+      .unique()
+      .references(() => services.id),
+    /** Nhân viên ATM ở cột NHẬP LIỆU, trùng `services.created_by` của lượt. */
+    entryStaffId: uuid("entry_staff_id").notNull().references(() => users.id),
+    uploadedBy: uuid("uploaded_by").notNull().references(() => users.id),
+    uploadedByDepartmentId: uuid("uploaded_by_department_id").references(() => departments.id),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+    reconciledPlan: socialInsurancePlan("reconciled_plan"),
+    reconciledMonths: integer("reconciled_months"),
+    reconciledCollectedAmount: numeric("reconciled_collected_amount", { precision: 14, scale: 2 }),
+    receivedAmount: numeric("received_amount", { precision: 14, scale: 2 }),
+    receivedRate: integer("received_rate"),
+    reconciledAt: timestamp("reconciled_at", { withTimezone: true }),
+    reconciledBy: uuid("reconciled_by").references(() => users.id),
+  },
+  (t) => [
+    uniqueIndex("social_insurance_records_customer_month").on(t.kind, t.customerId, t.receiptMonth),
+    index("social_insurance_records_month").on(sql`receipt_month desc, created_at desc, id`),
+    index("social_insurance_records_dept_month").on(t.uploadedByDepartmentId, t.receiptMonth),
+    index("social_insurance_records_uploader_month").on(t.uploadedBy, t.receiptMonth),
+    index("social_insurance_records_entry_staff").on(t.entryStaffId),
+    index("social_insurance_records_collaborator").on(t.collaboratorId),
+    index("social_insurance_records_created").on(t.createdAt),
+    check("social_insurance_records_receipt_month", sql`${t.receiptMonth} ~ '^[0-9]{4}-[0-9]{2}$'`),
+    check("social_insurance_records_months", sql`${t.months} > 0`),
+    check("social_insurance_records_collected", sql`${t.collectedAmount} > 0`),
+    check(
+      "social_insurance_records_paid",
+      sql`${t.paidAmount} >= 0 and ${t.paidAmount} <= ${t.collectedAmount}`,
+    ),
+  ],
+);
+
 export const attendanceSlot = pgEnum("attendance_slot", [
   "morning-in",
   "noon-out",
   "afternoon-in",
   "afternoon-out",
+  /** Điểm danh 1 nút của Phòng An Sinh, không có ảnh (migration 0124). */
+  "check-in",
 ]);
 
 /**
- * Chấm công nhân viên Điểm ATM (migration 0118, chốt 2026-10-02). Chỉ để theo
- * dõi, không đụng ngày công và lương. `checked_at` là giờ máy chủ lúc nhận lượt
- * chấm, `work_date` là ngày của mốc đó theo giờ Việt Nam.
+ * Chấm công nhân viên Điểm ATM (migration 0118, chốt 2026-10-02) và điểm danh
+ * Phòng An Sinh (migration 0124). Từ tháng 2026-10 bảng này tạo ngày công
+ * (`server/workDays.ts`). `checked_at` là giờ máy chủ lúc nhận lượt chấm,
+ * `work_date` là ngày của lượt đó theo giờ Việt Nam, khác ngày của
+ * `checked_at` khi chấm bù.
  */
 export const attendanceChecks = pgTable(
   "attendance_checks",
@@ -1897,8 +2031,8 @@ export const attendanceChecks = pgTable(
     workDate: date("work_date", { mode: "string" }).notNull(),
     slot: attendanceSlot("slot").notNull(),
     checkedAt: timestamp("checked_at", { withTimezone: true }).notNull().defaultNow(),
-    /** KHOÁ ảnh trong kho, thư mục `attendance/`. */
-    photoUrl: text("photo_url").notNull(),
+    /** KHOÁ ảnh trong kho, thư mục `attendance/`. Điểm danh An Sinh không có ảnh. */
+    photoUrl: text("photo_url"),
     latitude: doublePrecision("latitude").notNull(),
     longitude: doublePrecision("longitude").notNull(),
     /** Sai số GPS do trình duyệt báo, tính bằng mét. */
@@ -2050,6 +2184,8 @@ export const kpiScores = pgTable(
     bankingPoints: numeric("banking_points", { precision: 10, scale: 2 }).notNull().default("0"),
     /** Σ hệ số loại dịch vụ — spec §7.2 giữ cách cũ, vẫn ở DB. */
     servicePoints: numeric("service_points", { precision: 10, scale: 2 }).notNull().default("0"),
+    /** Tiền thu file 1 BHYT/BHXH chia mức điểm của tháng biên lai, về người tải file. */
+    socialInsurancePoints: numeric("social_insurance_points", { precision: 10, scale: 2 }).notNull().default("0"),
     updatedAt: updatedAt(),
   },
   (t) => [
@@ -2124,6 +2260,11 @@ export const salarySnapshots = pgTable(
       .$type<{
         facts: { label: string; value: string }[];
         items: { label: string; formula: string; amount: number }[];
+        revenue?: {
+          lines: { label: string; collected: string; perPoint: string; points: string }[];
+          other: string | null;
+          total: string;
+        };
       }>()
       .notNull(),
   },

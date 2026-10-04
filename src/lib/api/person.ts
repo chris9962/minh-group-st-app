@@ -141,6 +141,16 @@ export const SalaryBreakdown = z.object({
     formula: z.string(),
     amount: z.number(),
   })),
+  /** Tiền thu BHYT/BHXH ra điểm theo nhóm, chỉ có ở người tính lương An Sinh. */
+  revenue: z
+    .object({
+      lines: z.array(
+        z.object({ label: z.string(), collected: z.string(), perPoint: z.string(), points: z.string() }),
+      ),
+      other: z.string().nullable(),
+      total: z.string(),
+    })
+    .optional(),
 });
 export type SalaryBreakdown = z.infer<typeof SalaryBreakdown>;
 
@@ -195,6 +205,7 @@ export const PersonDetail = z.object({
   points: z.object({
     banking: z.number(),
     service: z.number(),
+    socialInsurance: z.number(),
     /** Tổng điểm cộng tay của tháng — âm khi bị trừ nhiều hơn cộng. */
     adjustment: z.number(),
     total: z.number(),

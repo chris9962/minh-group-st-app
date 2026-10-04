@@ -19,14 +19,22 @@ import {
   periodDates,
   periodKey,
 } from "@/components/ui/PeriodPicker";
+import { MonthPicker } from "@/components/ui/MonthPicker";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusTag } from "@/components/ui/StatusTag";
 import { BankingHeadline } from "@/components/dashboard/BankingHeadline";
+import { SocialInsuranceHeadline } from "@/components/socialInsurance/SocialInsuranceHeadline";
 import { EMPTY_PAGE } from "@/lib/api/pagination";
-import { formatPoints } from "@/lib/format";
-import { fetchDepartmentDetail, fetchDepartmentSummary } from "@/lib/api/org";
-import { fetchDepartmentStaff, type StaffRow } from "@/lib/api/staff";
+import { formatPoints, monthRange } from "@/lib/format";
+import { formatCents } from "@/lib/money";
+import {
+  fetchDepartmentDetail,
+  fetchDepartmentSocialInsurance,
+  fetchDepartmentSummary,
+  type DepartmentSocialInsurance,
+} from "@/lib/api/org";
+import { fetchDepartmentStaff, SOCIAL_DEPARTMENT_CODE, type StaffRow } from "@/lib/api/staff";
 import { personHref } from "@/lib/api/people";
 import { scopeFor, visibleDepartmentIds } from "@/lib/permissions";
 import { ROLE_LABEL, ROLE_RANK } from "@/lib/types";
@@ -124,6 +132,41 @@ const EMPLOYEE_COLUMNS: RankColumn<StaffRow>[] = [
   },
 ];
 
+type PersonRevenue = DepartmentSocialInsurance["people"][number];
+
+const columnOf = (key: string) => EMPLOYEE_COLUMNS.find((c) => c.key === key)!;
+
+/** Phòng An Sinh chỉ xem doanh thu BHYT/BHXH: bốn cột khách, tài khoản, dịch vụ đổi thành hồ sơ và doanh thu. */
+function socialColumns(revenueOf: (id: string) => PersonRevenue | undefined): RankColumn<StaffRow>[] {
+  const records = (kind: "bhyt" | "bhxh", label: string): RankColumn<StaffRow> => ({
+    key: `${kind}Records`,
+    label,
+    sortBy: (s) => revenueOf(s.id)?.[kind].records ?? 0,
+    render: (s) => <Count n={revenueOf(s.id)?.[kind].records ?? 0} />,
+  });
+  const collected = (kind: "bhyt" | "bhxh", label: string): RankColumn<StaffRow> => ({
+    key: `${kind}Collected`,
+    label,
+    sortBy: (s) => revenueOf(s.id)?.[kind].collectedCents ?? 0,
+    render: (s) => (
+      <span className="tabular-nums">{formatCents(revenueOf(s.id)?.[kind].collectedCents ?? 0)}</span>
+    ),
+  });
+  return [
+    columnOf("name"),
+    columnOf("role"),
+    columnOf("active"),
+    records("bhyt", "Hồ sơ BHYT"),
+    collected("bhyt", "Doanh thu BHYT"),
+    records("bhxh", "Hồ sơ BHXH"),
+    collected("bhxh", "Doanh thu BHXH"),
+    columnOf("rangePoints"),
+    columnOf("salary"),
+  ];
+}
+
+const startOfDay = (isoDate: string) => new Date(`${isoDate}T00:00:00`);
+
 /** Chi tiết một phòng ban — mở rộng P-91: bấm tên phòng ở bảng đi tới đây. */
 export default function DepartmentDetailPage({
   params,
@@ -134,14 +177,22 @@ export default function DepartmentDetailPage({
   const user = useSession((s) => s.user);
   const [period, setPeriod] = useState<Period>(DEFAULT_PERIOD);
 
-  const { from, to } = periodDates(period);
+  const periodRange = periodDates(period);
   // Người quản lý và lương của họ là của THÁNG đang xem.
-  const month = from.slice(0, 7);
+  const month = periodRange.from.slice(0, 7);
   const { data, isPending, isError, refetch, isFetching } = useQuery({
     queryKey: ["org-department", id, month],
     queryFn: () => fetchDepartmentDetail(id, month),
     placeholderData: keepPreviousData,
   });
+
+  // Phòng An Sinh tính điểm, doanh thu, lương theo tháng biên lai, nên luôn đọc trọn tháng.
+  const social = data?.department.code === SOCIAL_DEPARTMENT_CODE;
+  const { from, to } = social ? monthRange(month) : periodRange;
+  const pickMonth = (picked: string) => {
+    const range = monthRange(picked);
+    setPeriod({ kind: "range", range: { from: startOfDay(range.from), to: startOfDay(range.to) } });
+  };
 
   /**
    * Trọn danh sách nhân viên của phòng, một lượt gọi cho cả kỳ. Trình duyệt tự
@@ -164,9 +215,18 @@ export default function DepartmentDetailPage({
   const { data: summary } = useQuery({
     queryKey: ["org-department-summary", id, periodKey(period)],
     queryFn: () => fetchDepartmentSummary(id, periodKey(period)),
-    enabled: Boolean(data),
+    enabled: Boolean(data) && !social,
     placeholderData: keepPreviousData,
   });
+
+  const { data: revenue } = useQuery({
+    queryKey: ["org-department-social-insurance", id, month],
+    queryFn: () => fetchDepartmentSocialInsurance(id, month),
+    enabled: social,
+    placeholderData: keepPreviousData,
+  });
+  const revenueById = new Map(revenue?.people.map((p) => [p.userId, p]) ?? []);
+  const columns = social ? socialColumns((userId) => revenueById.get(userId)) : EMPLOYEE_COLUMNS;
 
   const periodLabel =
     period.kind === "today"
@@ -215,23 +275,74 @@ export default function DepartmentDetailPage({
       salary: 0,
     },
   );
+  const revenueTotals = visibleRows.reduce(
+    (sum, staff) => {
+      const r = revenueById.get(staff.id);
+      return {
+        bhytRecords: sum.bhytRecords + (r?.bhyt.records ?? 0),
+        bhytCollected: sum.bhytCollected + (r?.bhyt.collectedCents ?? 0),
+        bhxhRecords: sum.bhxhRecords + (r?.bhxh.records ?? 0),
+        bhxhCollected: sum.bhxhCollected + (r?.bhxh.collectedCents ?? 0),
+      };
+    },
+    { bhytRecords: 0, bhytCollected: 0, bhxhRecords: 0, bhxhCollected: 0 },
+  );
+  const pointsCell = (
+    <span key="points" className="tabular-nums">
+      {formatPoints(totals.points)}
+    </span>
+  );
+  const salaryCell = <SalaryAmount key="salary" amount={totals.salary} visible />;
+  const summaryRow = social
+    ? [
+        "Tổng",
+        null,
+        null,
+        <Count key="bhytRecords" n={revenueTotals.bhytRecords} />,
+        <span key="bhytCollected" className="tabular-nums">
+          {formatCents(revenueTotals.bhytCollected)}
+        </span>,
+        <Count key="bhxhRecords" n={revenueTotals.bhxhRecords} />,
+        <span key="bhxhCollected" className="tabular-nums">
+          {formatCents(revenueTotals.bhxhCollected)}
+        </span>,
+        pointsCell,
+        salaryCell,
+      ]
+    : [
+        "Tổng",
+        null,
+        null,
+        <Count key="customers" n={totals.customers} />,
+        <Count key="customersWithAccounts" n={totals.customersWithAccounts} />,
+        <Count key="accounts" n={totals.accounts} />,
+        <Count key="services" n={totals.services} />,
+        pointsCell,
+        salaryCell,
+      ];
 
   return (
     <>
       <TopBar title={data?.department.name ?? "Phòng ban"}>
-        <div className={styles.periodInline}>
-          <PeriodPicker value={period} onChange={setPeriod} />
-        </div>
-        <div className={styles.periodCollapsed}>
-          <FilterButton
-            activeCount={period.kind === "today" ? 0 : 1}
-            onClear={() => setPeriod(DEFAULT_PERIOD)}
-          >
-            <FilterField id="period" label="Kỳ" count={period.kind === "today" ? 0 : 1}>
+        {social ? (
+          <MonthPicker value={month} onChange={pickMonth} monthsAhead={1} />
+        ) : (
+          <>
+            <div className={styles.periodInline}>
               <PeriodPicker value={period} onChange={setPeriod} />
-            </FilterField>
-          </FilterButton>
-        </div>
+            </div>
+            <div className={styles.periodCollapsed}>
+              <FilterButton
+                activeCount={period.kind === "today" ? 0 : 1}
+                onClear={() => setPeriod(DEFAULT_PERIOD)}
+              >
+                <FilterField id="period" label="Kỳ" count={period.kind === "today" ? 0 : 1}>
+                  <PeriodPicker value={period} onChange={setPeriod} />
+                </FilterField>
+              </FilterButton>
+            </div>
+          </>
+        )}
       </TopBar>
 
       <main className={styles.body}>
@@ -244,7 +355,13 @@ export default function DepartmentDetailPage({
 
         {data && (
           <>
-            {summary ? (
+            {social ? (
+              revenue ? (
+                <SocialInsuranceHeadline data={revenue} />
+              ) : (
+                <SkeletonStats count={3} />
+              )
+            ) : summary ? (
               <BankingHeadline summary={summary} periodLabel={periodLabel} />
             ) : (
               <SkeletonStats count={3} />
@@ -311,35 +428,15 @@ export default function DepartmentDetailPage({
                   retrying={staffFetching}
                 />
               ) : staffPending ? (
-                <SkeletonTable rows={5} columns={EMPLOYEE_COLUMNS.length} />
+                <SkeletonTable rows={5} columns={columns.length} />
               ) : (
                 <RankTable
                   rows={visibleRows}
-                  columns={EMPLOYEE_COLUMNS}
+                  columns={columns}
                   rowKey={(s) => s.id}
                   defaultSort="role"
                   caption="Nhân viên của phòng, Trưởng và Phó phòng nằm đầu bảng"
-                  summaryRow={
-                    visibleRows.length > 0
-                      ? [
-                          "Tổng",
-                          null,
-                          null,
-                          <Count key="customers" n={totals.customers} />,
-                          <Count key="customersWithAccounts" n={totals.customersWithAccounts} />,
-                          <Count key="accounts" n={totals.accounts} />,
-                          <Count key="services" n={totals.services} />,
-                          <span key="points" className="tabular-nums">
-                            {formatPoints(totals.points)}
-                          </span>,
-                          <SalaryAmount
-                            key="salary"
-                            amount={totals.salary}
-                            visible
-                          />,
-                        ]
-                      : undefined
-                  }
+                  summaryRow={visibleRows.length > 0 ? summaryRow : undefined}
                   emptyText={
                     !staffInScope
                       ? "Bạn không xem được danh sách nhân viên của phòng này."

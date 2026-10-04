@@ -13,13 +13,14 @@ import {
 } from "drizzle-orm";
 import type { Page } from "@/lib/api/pagination";
 import type { ServiceEditForm, ServiceForm, ServiceRow, ServiceSort } from "@/lib/api/services";
+import { DATA_ENTRY_TYPE_NAMES } from "@/lib/api/socialInsurance";
 import { businessDay, businessMonth } from "@/lib/format";
 import { recordVisibility, type RecordVisibility } from "@/lib/permissions";
 import { isRealIsoDate, type User } from "@/lib/types";
 import { searchTerms } from "@/lib/search";
 import { db } from "./db/client";
 import { departmentForNewRecord } from "./writeDepartment";
-import { customers, serviceTypes, services, users, wards } from "./db/schema";
+import { customers, serviceTypes, services, socialInsuranceRecords, users, wards } from "./db/schema";
 import { closedMonthAmong, closedMonthMessage } from "./closedMonths";
 import { recomputeKpi } from "./kpi";
 import { recomputeEmployeeWorkDay } from "./workDays";
@@ -328,6 +329,22 @@ export type ServiceOutcome =
   | { ok: true; service: ServiceRow }
   | { ok: false; message: string };
 
+/**
+ * "Nhập liệu BHYT/BHXH" chỉ sinh từ file của trang BHYT/BHXH (chốt 2026-10-04),
+ * và lượt đó chỉ sửa, xoá ở trang ấy: xoá ở đây là dòng BHYT/BHXH mất lượt của nó.
+ */
+const DATA_ENTRY_ONLY = "Loại dịch vụ này chỉ nhập từ trang BHYT/BHXH.";
+const LINKED_TO_RECORD = "Lượt này thuộc trang BHYT/BHXH. Sửa hoặc xoá ở trang đó.";
+
+async function linkedToRecord(serviceId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ id: socialInsuranceRecords.id })
+    .from(socialInsuranceRecords)
+    .where(eq(socialInsuranceRecords.serviceId, serviceId))
+    .limit(1);
+  return Boolean(row);
+}
+
 const serviceById = async (id: string): Promise<ServiceRow | null> => {
   const [row] = await decorate(pickPage(eq(services.id, id), [], 1, 0));
   return row ? withPhotoUrl(row) : null;
@@ -342,11 +359,12 @@ const serviceById = async (id: string): Promise<ServiceRow | null> => {
  */
 export async function createService(actor: User, form: ServiceForm): Promise<ServiceOutcome> {
   const [type] = await db
-    .select({ id: serviceTypes.id, active: serviceTypes.active })
+    .select({ id: serviceTypes.id, name: serviceTypes.name, active: serviceTypes.active })
     .from(serviceTypes)
     .where(eq(serviceTypes.id, form.serviceTypeId))
     .limit(1);
   if (!type) return { ok: false, message: "Loại dịch vụ này không còn trong danh mục" };
+  if (DATA_ENTRY_TYPE_NAMES.includes(type.name)) return { ok: false, message: DATA_ENTRY_ONLY };
   // Danh mục đã ngừng thì không ghi mới được, nhưng dòng CŨ vẫn giữ nguyên —
   // ngừng một loại dịch vụ không được xoá lịch sử đã làm.
   if (!type.active) return { ok: false, message: "Loại dịch vụ này đã ngừng dùng" };
@@ -441,13 +459,16 @@ export async function updateService(
 
   const current = await serviceById(id);
   if (!current || !inScope(visible, current)) return null;
+  if (await linkedToRecord(id)) return { ok: false, message: LINKED_TO_RECORD };
 
   const [type] = await db
-    .select({ id: serviceTypes.id, active: serviceTypes.active })
+    .select({ id: serviceTypes.id, name: serviceTypes.name, active: serviceTypes.active })
     .from(serviceTypes)
     .where(eq(serviceTypes.id, form.serviceTypeId))
     .limit(1);
   if (!type) return { ok: false, message: "Loại dịch vụ này không còn trong danh mục" };
+  if (form.serviceTypeId !== current.serviceTypeId && DATA_ENTRY_TYPE_NAMES.includes(type.name))
+    return { ok: false, message: DATA_ENTRY_ONLY };
   // Cho giữ NGUYÊN loại đã ngừng nếu người dùng không đổi nó — chặn ở đây thì
   // sửa mỗi ghi chú của một bản ghi cũ cũng không lưu nổi.
   if (!type.active && form.serviceTypeId !== current.serviceTypeId)
@@ -499,6 +520,7 @@ export async function deleteService(actor: User, id: string): Promise<ServiceOut
 
   const current = await serviceById(id);
   if (!current || !inScope(visible, current)) return null;
+  if (await linkedToRecord(id)) return { ok: false, message: LINKED_TO_RECORD };
   const closed = await closedMonthAmong([current.date.slice(0, 7)]);
   if (closed) return { ok: false, message: closedMonthMessage(closed) };
 

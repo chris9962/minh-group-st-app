@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { ReceiptText } from "lucide-react";
 import type { PersonDetail } from "@/lib/api/person";
 import { formatVnd } from "@/lib/format";
+import { FIXED_SALARY_ITEM } from "@/rules/salary/labels";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import styles from "./SalaryBreakdownButton.module.css";
@@ -75,14 +76,55 @@ export function SalaryBreakdownButton({ amount, breakdown, iconOnly }: Props) {
           >
             {breakdown.items.length > 0 ? (
               <>
-                <dl className={styles.facts}>
-                  {breakdown.facts.map((fact) => (
-                    <div key={fact.label}>
-                      <dt>{fact.label}</dt>
-                      <dd className="tabular-nums">{fact.value}</dd>
-                    </div>
-                  ))}
-                </dl>
+                {breakdown.revenue && (
+                  <table className={styles.revenue}>
+                    <caption className="sr-only">Tiền thu BHYT/BHXH ra điểm KPI</caption>
+                    <thead>
+                      <tr>
+                        <th scope="col">Nhóm</th>
+                        <th scope="col">Tiền thu</th>
+                        <th scope="col">Mức 1 điểm</th>
+                        <th scope="col">Điểm</th>
+                      </tr>
+                    </thead>
+                    <tbody className="tabular-nums">
+                      {breakdown.revenue.lines.map((line) => (
+                        <tr key={line.label}>
+                          <th scope="row">{line.label}</th>
+                          <td>{line.collected}</td>
+                          <td>{line.perPoint}</td>
+                          <td>{line.points}</td>
+                        </tr>
+                      ))}
+                      {breakdown.revenue.other && (
+                        <tr>
+                          <th scope="row" colSpan={3}>
+                            Ngân hàng, dịch vụ, điểm cộng
+                          </th>
+                          <td>{breakdown.revenue.other}</td>
+                        </tr>
+                      )}
+                    </tbody>
+                    <tfoot className="tabular-nums">
+                      <tr>
+                        <th scope="row" colSpan={3}>
+                          Điểm KPI
+                        </th>
+                        <td>{breakdown.revenue.total}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                )}
+                {breakdown.facts.length > 0 && (
+                  <dl className={styles.facts}>
+                    {breakdown.facts.map((fact) => (
+                      <div key={fact.label}>
+                        <dt>{fact.label}</dt>
+                        <dd className="tabular-nums">{fact.value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                )}
                 <div className={styles.list}>
                   {breakdown.items.map((item, index) => (
                     <div className={styles.item} key={`${item.label}-${index}`}>
@@ -100,8 +142,13 @@ export function SalaryBreakdownButton({ amount, breakdown, iconOnly }: Props) {
                     </strong>
                   </div>
                 </div>
-                {/* TODO(lương CĐS, file mẫu CASA của Yên): gỡ dòng này khi lương tính CASA. */}
-                <p className={styles.note}>Chưa gồm CASA.</p>
+                {/* TODO(lương CĐS, file mẫu CASA của Yên): gỡ phần CASA khi lương tính CASA. Lương cứng không có CASA. */}
+                {!breakdown.items.some((item) => item.label === FIXED_SALARY_ITEM) && (
+                  <p className={styles.note}>
+                    {/* Khoản hỗ trợ của An Sinh giảm dần mỗi tháng, kế toán tính ngoài app (spec BHYT/BHXH mục 0). */}
+                    {breakdown.revenue ? "Chưa gồm CASA và tiền hỗ trợ 2.000.000đ." : "Chưa gồm CASA."}
+                  </p>
+                )}
               </>
             ) : (
               <p className={styles.empty}>

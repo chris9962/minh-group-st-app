@@ -4,13 +4,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { MapPin, SwitchCamera, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import {
+  addMyCheck,
   createAttendanceCheck,
   fetchPlaceName,
   slotLabel,
   type AttendanceSlot,
 } from "@/lib/api/attendance";
 import { uploadImage } from "@/lib/api/uploads";
-import { clockNowVn } from "@/lib/format";
+import { clockNowVn, formatDate } from "@/lib/format";
 import { errorMessage, toast } from "@/lib/toast";
 import { useDialogLayer } from "@/store/dialogLayer";
 import styles from "./CameraCheckIn.module.scss";
@@ -29,7 +30,16 @@ const LOCATION_ERROR = "Không lấy được vị trí. Bạn bật vị trí c
  * Dùng `<dialog>` riêng thay vì `Dialog`: màn này không có tiêu đề, thân và
  * chân của hộp thoại thường. Vẫn khai báo vào `dialogLayer` để toast nổi lên trên.
  */
-export function CameraCheckIn({ slot, onClose }: { slot: AttendanceSlot; onClose: () => void }) {
+export function CameraCheckIn({
+  slot,
+  workDate,
+  onClose,
+}: {
+  slot: AttendanceSlot;
+  /** Ngày chấm bù. Không truyền là ngày của máy chủ. */
+  workDate?: string;
+  onClose: () => void;
+}) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [facing, setFacing] = useState<"user" | "environment">("user");
@@ -131,11 +141,14 @@ export function CameraCheckIn({ slot, onClose }: { slot: AttendanceSlot; onClose
   const submit = useMutation({
     mutationFn: async ({ file, at }: { file: File; at: Position }) => {
       const photoUrl = await uploadImage(file, "attendance");
-      return createAttendanceCheck({ slot, photoUrl, ...at });
+      return createAttendanceCheck({ slot, photoUrl, workDate, ...at });
     },
     onSuccess: (check) => {
+      addMyCheck(queryClient, check);
       queryClient.invalidateQueries({ queryKey: ["attendance"] });
-      toast.ok(`Đã chấm công ${slotLabel(slot)} lúc ${clockNowVn(new Date(check.checkedAt)).slice(0, 5)}`);
+      toast.ok(
+        `Đã chấm công ${slotLabel(slot)}${workDate ? ` ngày ${formatDate(workDate)}` : ""} lúc ${clockNowVn(new Date(check.checkedAt)).slice(0, 5)}`,
+      );
       onClose();
     },
     onError: (e) => {
@@ -169,7 +182,10 @@ export function CameraCheckIn({ slot, onClose }: { slot: AttendanceSlot; onClose
         >
           <X size={20} aria-hidden />
         </button>
-        <span className={styles.slot}>{slotLabel(slot)}</span>
+        <span className={styles.slot}>
+          {slotLabel(slot)}
+          {workDate && ` - ${formatDate(workDate)}`}
+        </span>
       </header>
 
       <div className={styles.viewfinder}>

@@ -30,6 +30,8 @@ type Props = {
   footerStart?: React.ReactNode;
   /** Hộp rộng cho nội dung dạng lưới; mặc định giữ 560px cho biểu mẫu. */
   wide?: boolean;
+  /** Hộp gần hết bề ngang màn hình cho bảng nhiều cột, ví dụ bảng kiểm file nhập. */
+  full?: boolean;
   /** Hộp hẹp 380px cho nội dung dọc, ví dụ một ảnh chụp bằng điện thoại. */
   narrow?: boolean;
   /**
@@ -60,6 +62,7 @@ export function Dialog({
   footer,
   footerStart,
   wide = false,
+  full = false,
   narrow = false,
   placement = "center",
   dismissible = true,
@@ -186,6 +189,9 @@ export function Dialog({
       )}
       aria-label={title}
       onCancel={(e) => {
+        // Đóng hộp chọn file mà không chọn cũng phát `cancel` từ ô file, và sự
+        // kiện đó nổi lên tới đây. Chỉ Esc phát `cancel` trên chính thẻ dialog.
+        if (e.target !== e.currentTarget) return;
         e.preventDefault();
         // Hộp thoại lồng nhau: React cho `onCancel` nổi lên hộp cha theo cây
         // component, kể cả qua portal. Không chặn thì Esc trong hộp con đóng
@@ -207,6 +213,7 @@ export function Dialog({
             className={clsx(
               styles.panel,
               wide && styles.wide,
+              full && styles.full,
               narrow && styles.narrow,
               placement === "sheet" && styles.sheet,
             )}

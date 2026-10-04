@@ -841,6 +841,41 @@
       "when": 1789891400046,
       "tag": "0120_referral_code_hide_code",
       "breakpoints": true
+    },
+    {
+      "idx": 121,
+      "version": "7",
+      "when": 1789891400047,
+      "tag": "0121_social_insurance",
+      "breakpoints": true
+    },
+    {
+      "idx": 122,
+      "version": "7",
+      "when": 1789891400048,
+      "tag": "0122_social_insurance_kpi",
+      "breakpoints": true
+    },
+    {
+      "idx": 123,
+      "version": "7",
+      "when": 1789891400049,
+      "tag": "0123_kpi_social_insurance_points",
+      "breakpoints": true
+    },
+    {
+      "idx": 124,
+      "version": "7",
+      "when": 1789891400050,
+      "tag": "0124_attendance_work_days",
+      "breakpoints": true
+    },
+    {
+      "idx": 125,
+      "version": "7",
+      "when": 1789891400051,
+      "tag": "0125_salary_scheme_social_fixed",
+      "breakpoints": true
     }
   ]
 }

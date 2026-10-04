@@ -325,6 +325,7 @@ export async function departmentDetailFor(
           month: salaryMonth,
           facts: salary?.facts ?? [],
           items: salary?.items ?? [],
+          revenue: salary?.revenue,
         },
       };
     }),

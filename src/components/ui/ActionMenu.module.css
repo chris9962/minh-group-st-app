@@ -1,0 +1,36 @@
+.panel {
+  min-width: 200px;
+  background: var(--om-card);
+  border: 1px solid var(--om-line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: 5px;
+  /* Trên 50 của drawer sidebar mobile, dưới 60 của toast: cùng mức với menu tài khoản. */
+  z-index: 55;
+  display: flex;
+  flex-direction: column;
+}
+
+.item {
+  all: unset;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: calc(var(--radius-md) - 4px);
+  font-size: 13.5px;
+  cursor: pointer;
+  color: var(--om-text);
+}
+
+.item:hover {
+  background: color-mix(in srgb, var(--om-text) 7%, transparent);
+}
+
+.item:focus-visible {
+  outline: 2px solid var(--om-orange);
+  outline-offset: -2px;
+}

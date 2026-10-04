@@ -29,6 +29,10 @@
   width: min(960px, calc(100vw - 32px));
 }
 
+.full {
+  width: min(1440px, calc(100vw - 32px));
+}
+
 .narrow {
   width: min(380px, calc(100vw - 32px));
 }

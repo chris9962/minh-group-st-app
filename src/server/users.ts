@@ -1,6 +1,8 @@
 import { eq, inArray } from "drizzle-orm";
+import { SOCIAL_DEPARTMENT_CODE } from "@/lib/api/staff";
 import { db } from "./db/client";
 import {
+  departments,
   userInsuranceDepartments,
   userManagedBanks,
   userManagedDepartments,
@@ -28,6 +30,8 @@ export function toUser(
    * ra thấy bảng trắng, không có câu lỗi nào.
    */
   insuranceDepartmentIds: string[],
+  /** Mã phòng của `row.departmentId`. Không có mặc định, cùng lý do với đối số trên. */
+  departmentCode: string | null,
 ): User {
   return {
     id: row.id,
@@ -40,6 +44,7 @@ export function toUser(
     insuranceDepartmentIds,
     managedBankIds,
     salaryScheme: row.salaryScheme,
+    dailyCheckIn: departmentCode === SOCIAL_DEPARTMENT_CODE,
     title: row.title,
     permissions,
     active: row.active,
@@ -97,9 +102,14 @@ export async function relationsFor(userIds: string[]): Promise<{
 }
 
 export async function loadUser(id: string): Promise<User | null> {
-  const rows = await db.select().from(users).where(eq(users.id, id)).limit(1);
-  const row = rows[0];
-  if (!row) return null;
+  const rows = await db
+    .select({ user: users, departmentCode: departments.code })
+    .from(users)
+    .leftJoin(departments, eq(departments.id, users.departmentId))
+    .where(eq(users.id, id))
+    .limit(1);
+  if (!rows[0]) return null;
+  const { user: row, departmentCode } = rows[0];
 
   const { permissionsOf, managedOf, managedBanksOf, insuranceDepartmentsOf } =
     await relationsFor([row.id]);
@@ -109,5 +119,6 @@ export async function loadUser(id: string): Promise<User | null> {
     managedOf.get(row.id) ?? [],
     managedBanksOf.get(row.id) ?? [],
     insuranceDepartmentsOf.get(row.id) ?? [],
+    departmentCode,
   );
 }

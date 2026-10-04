@@ -10,6 +10,7 @@ import type {
   StaffQuery,
   StaffSort,
 } from "@/lib/api/staff";
+import { fixedSalaryOf } from "@/lib/api/staff";
 import type { ProfileInfoForm } from "@/lib/api/profile";
 import { businessMonth, monthRange } from "@/lib/format";
 import {
@@ -43,6 +44,7 @@ import {
   kpiScores,
   services,
   sessions,
+  socialInsuranceRecords,
   staffRoster,
   userInsuranceDepartments,
   userManagedBanks,
@@ -103,6 +105,7 @@ async function toAccounts(rows: UserWithDepartment[]): Promise<StaffAccount[]> {
     title: r.title,
     contractType: r.contractType,
     salaryScheme: r.salaryScheme,
+    fixedSalary: r.fixedSalary,
     manageScope: r.manageScope,
     managedDepartmentIds: managedOf.get(r.id) ?? [],
     insuranceDepartmentIds: insuranceDepartmentsOf.get(r.id) ?? [],
@@ -330,6 +333,7 @@ export async function staffFor(
           month: summaryMonth,
           facts: salaryById.get(a.id)?.facts ?? [],
           items: salaryById.get(a.id)?.items ?? [],
+          revenue: salaryById.get(a.id)?.revenue,
         },
       })),
       total: totals?.value ?? 0,
@@ -587,6 +591,7 @@ async function writeStaff(
         title: form.title,
         contractType: form.contractType || null,
         salaryScheme: form.salaryScheme,
+        fixedSalary: fixedSalaryColumn(form),
         departmentId: form.departmentId || null,
         manageScope: form.manageScope,
       });
@@ -633,6 +638,12 @@ async function writeStaff(
           .update(vneidRecords)
           .set(moved)
           .where(and(eq(vneidRecords.createdBy, id), createdFrom(from)));
+        await tx
+          .update(socialInsuranceRecords)
+          .set({ uploadedByDepartmentId: movedTo })
+          .where(
+            and(eq(socialInsuranceRecords.uploadedBy, id), gte(socialInsuranceRecords.receiptMonth, businessMonth())),
+          );
         // Ngày công cũng đi theo người như bốn bảng nghiệp vụ trên. Nhờ vậy
         // số ngày của TP/PT phòng cũ và mới không đọc hai quy ước khác nhau.
         if (movedTo)
@@ -653,6 +664,7 @@ async function writeStaff(
           title: form.title,
           contractType: form.contractType || null,
           salaryScheme: form.salaryScheme,
+          fixedSalary: fixedSalaryColumn(form),
           departmentId: form.departmentId || null,
           manageScope: form.manageScope,
           updatedAt: new Date(),
@@ -756,14 +768,25 @@ async function writeGuarded(
 }
 
 /**
- * Cách tính lương đổi số tiền lương, nên chỉ tài khoản toàn quyền đổi được
- * (chốt 2026-09-30). Người khác gửi gì lên cũng giữ giá trị đang lưu.
+ * Cách tính lương và số tiền lương cứng đổi số tiền lương, nên chỉ tài khoản
+ * toàn quyền đổi được (chốt 2026-09-30). Người khác gửi gì lên cũng giữ giá trị
+ * đang lưu.
  */
-const withSalaryScheme = (actor: User, form: StaffForm, stored: StaffForm["salaryScheme"]): StaffForm =>
-  isFullAccess(actor.permissions) ? form : { ...form, salaryScheme: stored };
+const withSalaryScheme = (
+  actor: User,
+  form: StaffForm,
+  stored: Pick<StaffAccount, "salaryScheme" | "fixedSalary">,
+): StaffForm =>
+  isFullAccess(actor.permissions)
+    ? form
+    : { ...form, salaryScheme: stored.salaryScheme, fixedSalary: stored.fixedSalary ? String(stored.fixedSalary) : "" };
+
+/** Lương cứng chỉ lưu khi chọn cách tính Lương cứng; đổi sang cách khác thì xoá số cũ. */
+const fixedSalaryColumn = (form: StaffForm) =>
+  form.salaryScheme === "fixed" ? fixedSalaryOf(form.fixedSalary) : null;
 
 export async function createStaff(actor: User, sent: StaffForm): Promise<SaveOutcome> {
-  const form = withSalaryScheme(actor, sent, "department");
+  const form = withSalaryScheme(actor, sent, { salaryScheme: "department", fixedSalary: null });
   const ceiling = checkCeilings(actor, form, "create");
   if (ceiling) return { ok: false, code: ceiling };
   if (await usernameTaken(form.username)) return { ok: false, code: "username-taken" };
@@ -778,7 +801,7 @@ export async function createStaff(actor: User, sent: StaffForm): Promise<SaveOut
 export async function updateStaff(actor: User, id: string, sent: StaffForm): Promise<SaveOutcome | null> {
   const current = await findStaff(id);
   if (!current) return null;
-  const form = withSalaryScheme(actor, sent, current.salaryScheme);
+  const form = withSalaryScheme(actor, sent, current);
 
   /**
    * TỰ sửa quyền của chính mình thì TỪ CHỐI thẳng.
@@ -828,8 +851,10 @@ export async function updateStaff(actor: User, id: string, sent: StaffForm): Pro
     !sameIdSet(current.insuranceDepartmentIds, form.insuranceDepartmentIds);
   if (accessChanged) await db.delete(sessions).where(eq(sessions.userId, id));
 
-  // Điểm dịch vụ và ngày công của người này tính theo cách tính lương.
-  if (current.salaryScheme !== form.salaryScheme) await recomputeForSalaryScheme(id);
+  // Điểm dịch vụ và ngày công tính theo cách tính lương, phòng (Phòng An Sinh) và
+  // chức vụ (chỉ Nhân viên ATM có ngày công theo cặp vào ra).
+  if (current.salaryScheme !== form.salaryScheme || movedDepartment || current.role !== form.role)
+    await recomputeForSalaryScheme(id);
 
   /**
    * Rổ quà tính lại sau khi chuyển phòng — chốt 13/08.

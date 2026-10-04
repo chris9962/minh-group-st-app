@@ -57,6 +57,8 @@ export type ExcelColumn<T> = {
    * cần người đọc mở được đúng đơn từ file.
    */
   link?: (row: T) => string;
+  /** Tô nền ô khi trả `true`, ví dụ ô file 1 lệch file 2 ở trang BHYT/BHXH. Đi kèm cột ghi chú nói rõ lệch gì. */
+  highlight?: (row: T) => boolean;
 };
 
 /**
@@ -97,6 +99,7 @@ const TOTAL_GREY = 'FFF5F6F7';
 const LINE = 'FFB0B4BA';
 /** Xanh gạch chân — màu Excel dùng sẵn cho ô bấm được, người đọc nhận ra ngay. */
 const LINK_BLUE = 'FF0563C1';
+const HIGHLIGHT_RED = 'FFFAD4D4';
 
 const thinBorder = {
   top: { style: 'thin' as const, color: { argb: LINE } },
@@ -221,6 +224,8 @@ export async function exportExcel<T>({
     // Gắn địa chỉ SAU khi ghi dòng: `addRow` nhận giá trị thường, còn ô bấm
     // được cần hình dạng `{ text, hyperlink }` của ExcelJS.
     columns.forEach((c, i) => {
+      if (c.highlight?.(row))
+        added.getCell(i + 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: HIGHLIGHT_RED } };
       const href = c.link?.(row);
       if (!href) return;
       const cell = added.getCell(i + 1);

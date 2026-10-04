@@ -1,9 +1,12 @@
+import type { QueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
+import { isRealIsoDate } from '@/lib/types';
 
 /**
- * Chấm công nhân viên Điểm ATM (chốt 2026-10-02). Chỉ để theo dõi: không đụng
- * ngày công, không đụng lương. Mỗi lượt là một ảnh chụp tại chỗ, tọa độ GPS và
- * giờ máy chủ lúc nhận.
+ * Chấm công nhân viên Điểm ATM (chốt 2026-10-02): 4 lượt, mỗi lượt một ảnh chụp
+ * tại chỗ, tọa độ GPS và giờ máy chủ lúc nhận. Điểm danh Phòng An Sinh (chốt
+ * 2026-10-04): 1 lượt, tọa độ GPS và giờ máy chủ, không có ảnh. Từ tháng
+ * 2026-10, lượt chấm tạo ngày công.
  */
 
 /** Thứ tự này là thứ tự dòng ở màn nhân viên và cột ở bảng quản lý. */
@@ -14,11 +17,20 @@ export const ATTENDANCE_SLOTS = [
   { key: 'afternoon-out', label: 'Ra ca chiều' },
 ] as const;
 
-export const AttendanceSlot = z.enum(['morning-in', 'noon-out', 'afternoon-in', 'afternoon-out']);
+export const CHECK_IN_SLOT = { key: 'check-in', label: 'Điểm danh' } as const;
+
+export const AttendanceSlot = z.enum(['morning-in', 'noon-out', 'afternoon-in', 'afternoon-out', 'check-in']);
 export type AttendanceSlot = z.infer<typeof AttendanceSlot>;
 
 export const slotLabel = (slot: AttendanceSlot): string =>
-  ATTENDANCE_SLOTS.find((s) => s.key === slot)?.label ?? '';
+  slot === CHECK_IN_SLOT.key ? CHECK_IN_SLOT.label : (ATTENDANCE_SLOTS.find((s) => s.key === slot)?.label ?? '');
+
+/** `slots`: 4 lượt có ảnh của nhân viên Điểm ATM. `daily`: điểm danh 1 nút của Phòng An Sinh. */
+export type AttendanceMode = 'slots' | 'daily';
+
+export const attendanceModeOf = (
+  user: { salaryScheme?: string; dailyCheckIn?: boolean } | null,
+): AttendanceMode | null => (user?.dailyCheckIn ? 'daily' : user?.salaryScheme === 'atm' ? 'slots' : null);
 
 export const AttendanceCheck = z.object({
   id: z.string(),
@@ -27,8 +39,8 @@ export const AttendanceCheck = z.object({
   slot: AttendanceSlot,
   /** Giờ máy chủ, ISO. */
   checkedAt: z.string(),
-  /** `/api/images/<key>`. */
-  photoUrl: z.string(),
+  /** `/api/images/<key>`. Điểm danh không có ảnh. */
+  photoUrl: z.string().nullable(),
   latitude: z.number(),
   longitude: z.number(),
   /** Sai số GPS, mét. */
@@ -41,8 +53,10 @@ export type AttendanceCheck = z.infer<typeof AttendanceCheck>;
 /** Mọi lượt của chính mình trong một tháng `YYYY-MM`. */
 export const MyAttendance = z.object({
   month: z.string(),
-  /** Ngày của máy chủ, `YYYY-MM-DD`. Chỉ ngày này mới chấm công được. */
+  /** Ngày của máy chủ, `YYYY-MM-DD`. */
   today: z.string(),
+  /** Tháng của `today` cho chấm bù ngày đã qua trong tháng (spec 4.2). */
+  backfill: z.boolean(),
   checks: z.array(AttendanceCheck),
 });
 export type MyAttendance = z.infer<typeof MyAttendance>;
@@ -51,6 +65,7 @@ export const AttendanceDayRow = z.object({
   userId: z.string(),
   fullName: z.string(),
   staffCode: z.string().nullable(),
+  mode: z.enum(['slots', 'daily']),
   checks: z.array(AttendanceCheck),
 });
 export type AttendanceDayRow = z.infer<typeof AttendanceDayRow>;
@@ -63,7 +78,10 @@ export type AttendanceDay = z.infer<typeof AttendanceDay>;
 
 export const AttendanceForm = z.object({
   slot: AttendanceSlot,
-  photoUrl: z.string().trim().min(1),
+  /** Rỗng với điểm danh An Sinh. */
+  photoUrl: z.string().trim(),
+  /** Ngày chấm bù, `YYYY-MM-DD`. Không gửi là ngày của máy chủ. */
+  workDate: z.string().refine(isRealIsoDate).optional(),
   latitude: z.number().min(-90).max(90),
   longitude: z.number().min(-180).max(180),
   accuracy: z.number().min(0),
@@ -94,6 +112,14 @@ export async function fetchPlaceName(latitude: number, longitude: number): Promi
   );
   if (!res.ok) return null;
   return z.object({ place: z.string().nullable() }).parse(await res.json()).place;
+}
+
+/** Ghi lượt vừa chấm vào lịch ngay, không chờ tải lại: nút của lượt đó không hiện lại để bấm lần hai. */
+export function addMyCheck(queryClient: QueryClient, check: AttendanceCheck): void {
+  queryClient.setQueryData<MyAttendance>(
+    ['attendance', 'mine', check.workDate.slice(0, 7)],
+    (old) => old && { ...old, checks: [...old.checks, check] },
+  );
 }
 
 export async function createAttendanceCheck(form: AttendanceForm): Promise<AttendanceCheck> {

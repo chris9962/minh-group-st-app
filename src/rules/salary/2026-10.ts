@@ -1,6 +1,9 @@
 import { formatPoints, roundPoints } from "@/lib/format";
+import { formatCents } from "@/lib/money";
+import { FIXED_SALARY_ITEM } from "./labels";
 import type {
   DeputyDirectorSalaryInput,
+  FixedSalaryInput,
   ManagerSalaryInput,
   QuotaProgress,
   SalaryItem,
@@ -22,6 +25,10 @@ import type {
  *   trừ 1 điểm cho mỗi 1% (Phụ lục 05).
  * - Phó GĐ, từng phòng phụ trách: đạt cộng 10, thiếu trừ 20 (Phụ lục 07).
  * - Nhân viên trực điểm ATM có công thức riêng, xem `atmStaff`.
+ * - Nhân viên Phòng An Sinh dùng công thức nhân viên kinh doanh, ăn ca tối đa
+ *   22 ngày (thông báo tính lương mới của Phòng An Sinh). Khoản hỗ trợ 2 triệu
+ *   của thông báo đó tính ngoài app (chốt 2026-10-04).
+ * - Lương cứng: số tiền trên hồ sơ của tháng, cộng ăn ca, xem `fixed`.
  *
  * Khác kỳ 2026-09: quản lý bị trừ lại khi thiếu chỉ tiêu HKD; Phòng Y và phòng
  * Dự án chấm đủ số admin nhập, không còn 50%.
@@ -34,6 +41,8 @@ import type {
 const DAILY_SUPPORT = 120_000;
 const MAX_DAYS = 26;
 const ATM_MAX_DAYS = 22;
+const SOCIAL_MAX_DAYS = 22;
+const FIXED_MAX_DAYS = 22;
 const ATM_COMBO_BONUS = 50_000;
 const DEPUTY_DIRECTOR_DAYS = 22;
 
@@ -97,13 +106,14 @@ function atmStaff({ points, workDays, bonusCombos = 0 }: StaffSalaryInput): Sala
       formula: `${bonusCombos} combo × 50.000đ`,
       amount: bonusCombos * ATM_COMBO_BONUS,
     },
-    { label: "Hỗ trợ ăn ca", formula: `${days} ngày × 120.000đ`, amount: days * DAILY_SUPPORT },
+    // Từ tháng 2026-10 nhân viên Điểm ATM có nửa ngày công: "12,5 ngày", không phải "12.5 ngày".
+    { label: "Hỗ trợ ăn ca", formula: `${formatPoints(days)} ngày × 120.000đ`, amount: days * DAILY_SUPPORT },
   ];
   return {
     amount: Math.max(0, Math.round(total(items))),
     facts: [
       { label: "Điểm KPI", value: `${formatPoints(direct)} điểm` },
-      { label: "Ngày công", value: `${days} ngày` },
+      { label: "Ngày công", value: `${formatPoints(days)} ngày` },
     ],
     items,
   };
@@ -114,7 +124,8 @@ export function staff(input: StaffSalaryInput): SalaryResult {
   const { points, workDays, directedQuota } = input;
   const directed = directedQuota ? quotaResult(directedQuota, 3, (shortfall) => shortfall) : null;
   const direct = roundPoints(points + (directed?.points ?? 0));
-  const days = Math.min(workDays, MAX_DAYS);
+  const social = input.scheme === "social";
+  const days = Math.min(workDays, social ? SOCIAL_MAX_DAYS : MAX_DAYS);
   const tier1 = Math.min(Math.max(direct, 0), 100);
   const tier2 = Math.min(Math.max(direct - 100, 0), 30);
   const tier3 = Math.min(Math.max(direct - 130, 0), 30);
@@ -124,20 +135,61 @@ export function staff(input: StaffSalaryInput): SalaryResult {
     { label: "Thưởng vượt mốc 1", formula: `${formatPoints(tier2)} điểm × 70.000đ`, amount: tier2 * 70_000 },
     { label: "Thưởng vượt mốc 2", formula: `${formatPoints(tier3)} điểm × 80.000đ`, amount: tier3 * 80_000 },
     { label: "Thưởng vượt mốc 3", formula: `${formatPoints(tier4)} điểm × 90.000đ`, amount: tier4 * 90_000 },
-    { label: "Hỗ trợ ăn ca", formula: `${days} ngày × 120.000đ`, amount: days * DAILY_SUPPORT },
+    {
+      label: "Hỗ trợ ăn ca",
+      formula: `${days} ngày × 120.000đ`,
+      amount: days * DAILY_SUPPORT,
+      // An Sinh không có dòng "Ngày công" ở trên: số ngày nằm ở dòng này, kể cả khi 0đ.
+      keepAtZero: social,
+    },
   ];
+  const groups = input.socialInsurance ?? [];
+  const groupPoints = roundPoints(groups.reduce((sum, group) => sum + group.points, 0));
+  const otherPoints = roundPoints(points - groupPoints);
   return {
     amount: Math.max(0, Math.round(total(items))),
+    // Điểm KPI thành hàng tổng của bảng tiền thu, nên không nhắc lại ở phần thông tin.
+    revenue: social
+      ? {
+          lines: groups.map((group) => ({
+            label: group.label,
+            collected: formatCents(group.collectedCents),
+            perPoint: vnd(group.revenuePerPoint),
+            points: formatPoints(group.points),
+          })),
+          other: otherPoints === 0 ? null : formatPoints(otherPoints),
+          total: formatPoints(roundPoints(points)),
+        }
+      : undefined,
     facts: [
-      { label: "Điểm KPI", value: `${formatPoints(roundPoints(points))} điểm` },
+      ...(social ? [] : [{ label: "Điểm KPI", value: `${formatPoints(roundPoints(points))} điểm` }]),
       ...(directed
         ? [
             { label: "Tài khoản định hướng", value: directed.text },
             { label: "Điểm tính lương", value: `${formatPoints(direct)} điểm` },
           ]
         : []),
-      { label: "Ngày công", value: `${days} ngày` },
+      ...(social ? [] : [{ label: "Ngày công", value: `${days} ngày` }]),
     ],
+    items,
+  };
+}
+
+/**
+ * Lương cứng (spec mục 5.2): nguyên số tiền trên hồ sơ của tháng, cộng ăn ca
+ * theo ngày công của chính người đó. Điểm KPI không đổi lương.
+ */
+export function fixed({ amount, workDays }: FixedSalaryInput): SalaryResult {
+  const days = Math.min(workDays, FIXED_MAX_DAYS);
+  const items: SalaryItem[] = [
+    amount === null
+      ? { label: FIXED_SALARY_ITEM, formula: "Chưa nhập số tiền", amount: 0, keepAtZero: true }
+      : { label: FIXED_SALARY_ITEM, formula: "Nguyên tháng", amount },
+    { label: "Hỗ trợ ăn ca", formula: `${formatPoints(days)} ngày × 120.000đ`, amount: days * DAILY_SUPPORT },
+  ];
+  return {
+    amount: Math.max(0, Math.round(total(items))),
+    facts: [{ label: "Ngày công", value: `${formatPoints(days)} ngày` }],
     items,
   };
 }

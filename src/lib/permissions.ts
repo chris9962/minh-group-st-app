@@ -547,7 +547,7 @@ export function canActOn(actor: User | null, target: User): boolean {
  * Cộng phòng mình THUỘC VỀ vào danh sách phòng QUẢN: hai nguồn khác nhau, và
  * người quản 0 phòng vẫn đọc được phòng mình qua phạm vi `own` của danh bạ.
  */
-const RECORD_MODULES: ModuleKey[] = ['insurance', 'banking', 'services', 'staff', 'vneid'];
+const RECORD_MODULES: ModuleKey[] = ['insurance', 'banking', 'services', 'staff', 'vneid', 'social-insurance'];
 const RECORD_ACTIONS: Action[] = ['view-summary', 'view-detail', 'update', 'delete', 'export'];
 
 function reachOf(user: User): string[] | null {
