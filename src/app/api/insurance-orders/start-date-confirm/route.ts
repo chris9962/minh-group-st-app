@@ -10,5 +10,5 @@ export async function GET(request: Request) {
   const guard = await signedIn(request);
   if (!guard.ok) return guard.response;
 
-  return Response.json({ required: await mustConfirmStartDate(guard.actor) });
+  return Response.json({ required: await mustConfirmStartDate() });
 }

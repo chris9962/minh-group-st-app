@@ -77,8 +77,8 @@ type Props = {
  * xe khác nhau, cùng bắt đầu hôm nay. Gói ghép hai sản phẩm khác nhau cũng
  * cùng bắt đầu hôm nay.
  *
- * `blankStart` bỏ mặc định ngày bắt đầu (chốt 2026-09-19) cho người huỷ nhiều
- * đơn trong tháng: 260 trên 623 lượt huỷ tháng 9/2026 là để nguyên ngày mặc
+ * `blankStart` bỏ mặc định ngày bắt đầu (chốt 2026-09-19, mọi người từ
+ * 2026-10-04): 260 trên 623 lượt huỷ tháng 9/2026 là để nguyên ngày mặc
  * định trong khi khách còn bảo hiểm cũ. Ô trống thì phải nhập, không bấm qua
  * được. Đơn nối tiếp vẫn tính từ đơn trước, trống theo nếu đơn trước trống.
  */
@@ -214,8 +214,8 @@ export function InsuranceOrderFormDialog({
   const selectedPackage = packages.find((p) => p.name === packageName) ?? null;
 
   /**
-   * Người huỷ từ 4 đơn trong tháng phải xác nhận với khách trước khi nhập ngày
-   * bắt đầu (chốt 2026-09-19). Máy chủ đếm, form chỉ hỏi "có phải tôi không".
+   * Người nhập phải xác nhận với khách trước khi nhập ngày bắt đầu (chốt
+   * 2026-09-19, áp cho mọi người từ 2026-10-04). Máy chủ quyết định.
    *
    * Hỏi lại mỗi lần mở form và KHÔNG dựng `legs` trước khi có câu trả lời:
    * ngày mặc định quyết định lúc dựng, dựng sớm với câu trả lời cũ là người

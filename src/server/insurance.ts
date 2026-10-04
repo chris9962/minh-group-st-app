@@ -58,7 +58,6 @@ import {
   customers,
   departments,
   giftGrants,
-  insuranceCancelEvents,
   insuranceOrderStatusHistory,
   insuranceOrders,
   insurancePackages,
@@ -1691,32 +1690,12 @@ export async function cancelInsuranceOrder(
 }
 
 /**
- * Huỷ từ ngần này đơn trong tháng lịch thì form tạo đơn bắt xác nhận lại với
- * khách trước khi nhập ngày bắt đầu (chốt 2026-09-19). Đếm mọi lượt huỷ, không
- * phân loại lý do — xem `insurance_cancel_events`.
- *
- * Số 4 chọn trên số liệu tháng 9/2026: áp 72 trên 249 người lập đơn, phủ 70%
- * lượt huỷ. Không tính tỷ lệ: tỷ lệ huỷ của mọi người đều 2 đến 7%, không tách
- * được ai.
+ * Form tạo đơn bắt xác nhận lại với khách trước khi nhập ngày bắt đầu. Từ
+ * 2026-10-04 áp cho mọi người, không còn ngưỡng 4 lượt huỷ trong tháng: ngày
+ * 2026-10-04 có 47 đơn huỷ chia cho 36 người, 15 đơn vì sai năm hoặc ngày.
  */
-export const START_DATE_CONFIRM_THRESHOLD = 4;
-
-/**
- * Người này có phải xác nhận ngày bắt đầu với khách không. Đọc sổ huỷ của
- * CHÍNH người gọi từ ngày 1 tháng hiện tại theo giờ Việt Nam. Tháng lịch nên
- * ngày 1 mọi người về 0 — chốt vậy.
- */
-export async function mustConfirmStartDate(actor: User): Promise<boolean> {
-  const [row] = await db
-    .select({ n: count() })
-    .from(insuranceCancelEvents)
-    .where(
-      and(
-        eq(insuranceCancelEvents.userId, actor.id),
-        gte(insuranceCancelEvents.cancelledOn, `${businessMonth()}-01`),
-      ),
-    );
-  return (row?.n ?? 0) >= START_DATE_CONFIRM_THRESHOLD;
+export async function mustConfirmStartDate(): Promise<boolean> {
+  return true;
 }
 
 /**

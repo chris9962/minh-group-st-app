@@ -470,7 +470,7 @@ const StartDateConfirm = z.object({ required: z.boolean() });
 
 /**
  * Người đang đăng nhập có phải xác nhận ngày bắt đầu với khách trước khi nhập
- * không (chốt 2026-09-19) — máy chủ đếm số đơn họ huỷ trong tháng.
+ * không (chốt 2026-09-19). Từ 2026-10-04 máy chủ trả "có" cho mọi người.
  *
  * Hỏng thì coi như KHÔNG bắt: form vẫn dùng được, luật này chỉ thêm một bước
  * hỏi, không phải phân quyền.

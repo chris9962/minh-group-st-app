@@ -1781,8 +1781,8 @@ export const insuranceOrderStatusHistory = pgTable(
 
 /**
  * Sổ lượt huỷ đơn theo NGƯỜI LẬP (migration 0096). Trigger DB ghi một dòng mỗi
- * lần đơn sang `cancelled`, không phân loại lý do. Form tạo đơn đếm số dòng
- * trong tháng lịch để bắt người huỷ nhiều xác nhận lại ngày bắt đầu.
+ * lần đơn sang `cancelled`, không phân loại lý do. Từ 2026-10-04 form tạo đơn
+ * không đọc bảng này nữa: mọi người đều phải xác nhận ngày bắt đầu.
  */
 export const insuranceCancelEvents = pgTable(
   "insurance_cancel_events",
