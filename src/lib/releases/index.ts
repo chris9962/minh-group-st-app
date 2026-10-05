@@ -1,3 +1,4 @@
+import { attendanceModeOf } from '@/lib/api/attendance';
 import { canOpenPath } from '@/lib/nav';
 import { can, isFullAccess, scopeFor } from '@/lib/permissions';
 import type { User } from '@/lib/types';
@@ -10,6 +11,86 @@ export type { Release, ReleaseSection } from './types';
  * và trang `/releases` bày theo đúng thứ tự này.
  */
 export const RELEASES: Release[] = [
+  {
+    id: '2026-10-05',
+    version: '2.4.0',
+    title: 'Cập nhật ngày 05/10/2026',
+    summary: 'Có màn BHYT/BHXH cho Phòng An Sinh, ngày công nhân viên ATM tính theo chấm công, tạo đơn bảo hiểm phải xác nhận ngày bắt đầu.',
+    sections: [
+      {
+        title: 'Bảo hiểm',
+        items: ['Mọi người phải xác nhận Ngày bắt đầu với khách khi tạo đơn.'],
+        visibleTo: (user) => canOpenPath(user, '/insurance'),
+      },
+      {
+        title: 'Hồ sơ tháng cũ',
+        items: ['Không mở tài khoản ngân hàng, không tặng, không đổi quà cho hồ sơ tháng cũ.'],
+        visibleTo: (user) => canOpenPath(user, '/customers'),
+      },
+      {
+        title: 'Ngân hàng',
+        items: ['Bước chọn khách chỉ hiện hồ sơ tháng hiện tại.', 'Cột Người tạo ghi tên, bấm được tên và phòng.'],
+        visibleTo: (user) => canOpenPath(user, '/banking'),
+      },
+      {
+        title: 'Chấm công',
+        items: [
+          'Từ 10/2026, ngày công tính theo 4 lượt chấm công: đủ vào và ra một ca được 0,5 ngày.',
+          'Chấm được ca chiều mà không cần ca sáng.',
+          'Tháng 10/2026 chấm bù được ngày đã qua.',
+        ],
+        visibleTo: (user) => attendanceModeOf(user) === 'slots',
+      },
+      {
+        title: 'Phòng An Sinh',
+        items: [
+          'Điểm danh 1 lần mỗi ngày ở màn Chấm công.',
+          'Tháng 10/2026 điểm danh bù được ngày đã qua.',
+          'Điểm KPI tính theo tiền thu BHYT/BHXH.',
+          'Diễn giải lương có bảng tiền thu ra điểm.',
+        ],
+        visibleTo: (user) => attendanceModeOf(user) === 'daily',
+      },
+      {
+        title: 'BHYT/BHXH',
+        items: [
+          'Màn mới: nhập file hồ sơ, nhập file đối chiếu, xuất Excel.',
+          'Nhập file hồ sơ chọn tỉnh, xã phải có trong danh mục tỉnh / xã / ấp.',
+          'App tô màu ô lệch giữa file hồ sơ và file đối chiếu.',
+        ],
+        visibleTo: (user) => canOpenPath(user, '/social-insurance'),
+      },
+      {
+        title: 'Cấu hình BHYT/BHXH',
+        items: ['% hoa hồng và mức điểm KPI An Sinh theo tháng.'],
+        visibleTo: (user) => canOpenPath(user, '/settings/social-insurance'),
+      },
+      {
+        title: 'Nhân sự',
+        items: ['Cách tính lương có thêm An Sinh và Lương cứng.'],
+        visibleTo: (user) => canOpenPath(user, '/users'),
+      },
+      {
+        title: 'Phòng ban',
+        items: ['Chi tiết Phòng An Sinh hiện doanh thu BHYT/BHXH.'],
+        visibleTo: (user) => canOpenPath(user, '/departments'),
+      },
+      {
+        title: 'Xuất dữ liệu',
+        items: ['Báo cáo Nhân viên + điểm thêm cột Điểm BHYT/BHXH.', 'Báo cáo Ngày công ghi được nửa ngày.'],
+        visibleTo: (user) => canOpenPath(user, '/exports'),
+      },
+      {
+        title: 'Menu',
+        items: [
+          'Gom các mục menu vào 2 nhóm Nghiệp vụ và Quản lý.',
+          'Nghiệp vụ: Khách hàng, Bảo hiểm, Ngân hàng, Dịch vụ, VNeID, BHYT/BHXH.',
+          'Quản lý: Chấm công, Nhân sự, Phòng ban, Xuất dữ liệu.',
+        ],
+        visibleTo: (user) => isFullAccess(user.permissions),
+      },
+    ],
+  },
   {
     id: '2026-10-04',
     version: '2.3.0',
