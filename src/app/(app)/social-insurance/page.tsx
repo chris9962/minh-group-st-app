@@ -56,7 +56,7 @@ import {
   type ExcelColumn,
   type ExcelColumnDef,
 } from "@/lib/excel";
-import { formatCount, formatDate, formatDateTime } from "@/lib/format";
+import { businessDay, businessMonth, formatCount, formatDate, formatDateTime } from "@/lib/format";
 import { useDebouncedValue } from "@/lib/hooks";
 import { invalidateKpi } from "@/lib/invalidateKpi";
 import { decimalFromCents, formatCents, formatRate, RATE_SCALE } from "@/lib/money";
@@ -209,9 +209,11 @@ export default function SocialInsuranceScreen() {
     const status = ReconcileStatus.safeParse(searchParams.get("status"));
     const from = searchParams.get("from") ?? "";
     const to = searchParams.get("to") ?? "";
+    const range = isRealIsoDate(from)
+      ? { from, to: isRealIsoDate(to) ? to : "" }
+      : { from: `${businessMonth()}-01`, to: businessDay() };
     return {
-      from: isRealIsoDate(from) ? from : "",
-      to: isRealIsoDate(to) ? to : "",
+      ...range,
       kind: kind.success ? kind.data : "",
       plan: plan.success ? plan.data : "",
       collaboratorId: searchParams.get("collaboratorId") ?? "",
