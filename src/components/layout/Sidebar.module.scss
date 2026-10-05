@@ -132,11 +132,22 @@
 .subItem {
   display: flex;
   align-items: center;
-  /* Thụt vào để thấy nó thuộc nhóm cha, không phải mục ngang hàng. */
-  padding: 9px 13px 9px 42px;
+  gap: 10px;
+  /* Chữ thụt sâu hơn chữ của nhóm cha (42px) để thấy nó thuộc nhóm, không phải mục ngang hàng. */
+  padding: 9px 13px 9px 52px;
   border-radius: var(--radius-md);
   font-size: 13px;
   color: var(--om-sidebar-ink);
+}
+
+/* Icon 16px + khoảng 10px: chữ vẫn bắt đầu ở 52px như mục con không có icon. */
+.subItemWithIcon {
+  padding-left: 26px;
+}
+
+.subItem svg {
+  flex: none;
+  opacity: 0.72;
 }
 
 .subItem:hover {

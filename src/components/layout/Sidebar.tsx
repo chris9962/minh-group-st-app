@@ -54,10 +54,11 @@ function SidebarGroup({
               <li key={child.href}>
                 <Link
                   href={child.href}
-                  className={clsx(styles.subItem, active && styles.active)}
+                  className={clsx(styles.subItem, child.icon && styles.subItemWithIcon, active && styles.active)}
                   aria-current={active ? "page" : undefined}
                   onClick={onNavigate}
                 >
+                  {child.icon && <NavIcon name={child.icon} size={16} />}
                   {child.label}
                 </Link>
               </li>

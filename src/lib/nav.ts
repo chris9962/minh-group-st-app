@@ -50,11 +50,12 @@ export type NavItem = {
   hidden?: boolean;
 };
 
-/** Mục con trong một nhóm mở rộng — không có icon riêng, đi theo icon của nhóm. */
+/** Mục con trong một nhóm mở rộng. Mục vốn đứng riêng rồi được gom vào nhóm thì giữ icon của nó. */
 export type NavChild = {
   href: string;
   label: string;
   screen: string;
+  icon?: NavIconKey;
 };
 
 /** Nhóm mở rộng trong sidebar — ví dụ "Cấu hình" gồm nhiều màn nhỏ. */
@@ -149,7 +150,8 @@ export function navFor(user: User | null): NavEntry[] {
   // Tài khoản toàn quyền thấy đủ mọi màn, nên gộp thành nhóm "Nghiệp vụ" và "Quản lý" cho sidebar gọn.
   const fullAccess = isFullAccess(user.permissions);
   const manage: NavItem[] = [];
-  const asChildren = (list: NavItem[]) => list.map(({ href, label, screen }) => ({ href, label, screen }));
+  const asChildren = (list: NavItem[]) =>
+    list.map(({ href, label, screen, icon }) => ({ href, label, screen, icon }));
   if (fullAccess) {
     items.push({ label: 'Nghiệp vụ', icon: 'services', children: asChildren([customersItem, ...business]) });
     if (attendanceItem) manage.push(attendanceItem);
@@ -382,7 +384,7 @@ export function jumpTargetsFrom(entries: NavEntry[]): JumpTarget[] {
         targets.push({
           href: child.href,
           label: child.label,
-          icon: entry.icon,
+          icon: child.icon ?? entry.icon,
           group: entry.label,
         });
       }
