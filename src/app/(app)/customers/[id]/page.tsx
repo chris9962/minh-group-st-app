@@ -45,6 +45,7 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { INSURANCE_STATUS_LABEL, INSURANCE_STATUS_TONE } from "@/lib/api/insuranceOrders";
 import { fetchVneidRecords, VNEID_TASKS, type VneidRow } from "@/lib/api/vneid";
 import {
+  businessMonth,
   formatDate,
   formatDateTime as formatDateTimeVn,
   formatIdNumber,
@@ -279,6 +280,9 @@ export default function CustomerDetailPage({
     { key: "note", label: "Ghi chú", render: (v) => v.note || "" },
   ];
 
+  // Hồ sơ tháng cũ không tặng, đổi quà hay mở ngân hàng nữa (chốt 2026-10-05).
+  const currentMonthProfile = data?.customer.createdAt.slice(0, 7) === businessMonth();
+
   return (
     <>
       {/* Hồ sơ 1 không ghi số — đại đa số khách chỉ có một hồ sơ. */}
@@ -437,7 +441,7 @@ export default function CustomerDetailPage({
                 )}
                 {/* Tháng của hồ sơ đã chốt lương: máy chủ từ chối mọi thao tác quà
                     và mở ngân hàng của hồ sơ này, nên ẩn nút. */}
-                {!data.monthClosed && !data.gift.given && (
+                {!data.monthClosed && currentMonthProfile && !data.gift.given && (
                   // Mờ với khách chỉ nhận tiền: không có món nào để chọn, tiền
                   // chi ngoài hệ thống nên không có lượt tặng.
                   <Button
@@ -449,7 +453,7 @@ export default function CustomerDetailPage({
                     Tặng quà
                   </Button>
                 )}
-                {!data.monthClosed && data.gift.given && can(actor, "banking", "grant-gift") && (
+                {!data.monthClosed && currentMonthProfile && data.gift.given && can(actor, "banking", "grant-gift") && (
                   <Button variant="secondary" onClick={() => setChangingGift(true)}>
                     <Gift size={16} />
                     Đổi quà
@@ -458,6 +462,7 @@ export default function CustomerDetailPage({
                 {/* Dòng HKD chưa có câu trả lời quà thêm: đợt phát trước
                     2026-09-17, hoặc khách mở thêm HKD sau lượt phát. */}
                 {!data.monthClosed &&
+                  currentMonthProfile &&
                   data.gift.given &&
                   pendingExtraSlots(data.gift).length > 0 &&
                   data.gift.liveExtraBasket.length > 0 &&
@@ -467,7 +472,7 @@ export default function CustomerDetailPage({
                       Chọn quà thêm
                     </Button>
                   )}
-                {!data.monthClosed && (
+                {!data.monthClosed && currentMonthProfile && (
                   <Button
                     variant="secondary"
                     disabled={data.bankSlotsLeft <= 0}

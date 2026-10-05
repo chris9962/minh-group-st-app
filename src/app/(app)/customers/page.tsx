@@ -56,7 +56,7 @@ import {
   type ExcelColumn,
   type ExcelColumnDef,
 } from "@/lib/excel";
-import { formatDate, formatPhone, formatPoints } from "@/lib/format";
+import { businessMonth, formatDate, formatPhone, formatPoints } from "@/lib/format";
 import { useAddressSuggestions } from "@/lib/useAddressSuggestions";
 import { useDebouncedValue } from "@/lib/hooks";
 import { useCreateIntent } from "@/lib/useCreateIntent";
@@ -522,8 +522,9 @@ export default function CustomersPage() {
                 hình điện thoại. `aria-label` kèm tên khách ở cả hai chế độ:
                 giữa mười lăm dòng giống nhau, "Tặng quà" một mình không nói
                 đang tặng cho ai. */}
-            {/* Tháng của hồ sơ đã chốt lương: máy chủ từ chối quà và mở ngân hàng. */}
-            {!c.monthClosed && (
+            {/* Tháng của hồ sơ đã chốt lương: máy chủ từ chối quà và mở ngân hàng.
+                Hồ sơ tháng cũ cũng ẩn hai nút này (chốt 2026-10-05). */}
+            {!c.monthClosed && c.createdAt.slice(0, 7) === businessMonth() && (
               <>
                 <Button
                   variant="secondary"

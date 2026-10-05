@@ -5,7 +5,6 @@ import { useState } from "react";
 import { Plus } from "lucide-react";
 import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
-import { Checkbox } from "@/components/ui/Checkbox";
 import { CustomerFormDialog } from "@/components/customers/CustomerFormDialog";
 import { Dialog } from "@/components/ui/Dialog";
 import { ErrorState } from "@/components/ui/ErrorState";
@@ -67,9 +66,8 @@ export function CustomerPickerDialog({ open, onClose, title, forBankAccount, loo
   const [readyCustomer, setReadyCustomer] = useState<Customer | null>(null);
   const [search, setSearch] = useState("");
   const searchQuery = useDebouncedValue(search);
-  const [hideOldMonths, setHideOldMonths] = useState(true);
-  const canHideOldMonths = Boolean(forBankAccount && !lookup);
-  const currentMonthOnly = canHideOldMonths && hideOldMonths;
+  // Hồ sơ tháng cũ không mở thêm tài khoản được (chốt 2026-10-05), máy chủ cũng từ chối.
+  const currentMonthOnly = Boolean(forBankAccount && !lookup);
 
   const {
     data: list,
@@ -143,14 +141,6 @@ export function CustomerPickerDialog({ open, onClose, title, forBankAccount, loo
             value={search}
             onChange={setSearch}
           />
-
-          {canHideOldMonths && (
-            <Checkbox
-              label="Ẩn khách tháng cũ"
-              checked={hideOldMonths}
-              onCheckedChange={setHideOldMonths}
-            />
-          )}
 
           {pickedId && detailPending && (
             <SkeletonText lines={3} label="Đang tải hồ sơ khách hàng" />

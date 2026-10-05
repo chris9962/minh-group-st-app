@@ -1384,6 +1384,14 @@ export async function startBankAccount(
   const closed = await closedMonthRejection(customer.id);
   if (closed) return closed;
 
+  // Chốt 2026-10-05: tài khoản tháng này phải vào hồ sơ tháng này. Ngày 2026-10-05
+  // có 11 tài khoản mở vào hồ sơ tháng 9.
+  if (businessMonth(customer.createdAt) !== businessMonth())
+    return {
+      ok: false,
+      message: "Hồ sơ khách này thuộc tháng cũ. Tạo hồ sơ mới cho khách này rồi mở tài khoản.",
+    };
+
   /**
    * Nhân viên chỉ mở tài khoản vào hồ sơ CỦA CHÍNH MÌNH (chốt 2026-09-05).
    *
