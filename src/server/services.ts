@@ -13,7 +13,6 @@ import {
 } from "drizzle-orm";
 import type { Page } from "@/lib/api/pagination";
 import type { ServiceEditForm, ServiceForm, ServiceRow, ServiceSort } from "@/lib/api/services";
-import { DATA_ENTRY_TYPE_NAMES } from "@/lib/api/socialInsurance";
 import { businessDay, businessMonth } from "@/lib/format";
 import { recordVisibility, type RecordVisibility } from "@/lib/permissions";
 import { isRealIsoDate, type User } from "@/lib/types";
@@ -162,6 +161,7 @@ const decorate = (page: ReturnType<typeof pickPage>) =>
       createdByDepartmentId: page.createdByDepartmentId,
       wardName: page.wardName,
       photoUrl: page.photoUrl,
+      linkedToSocialInsurance: sql<boolean>`exists (select 1 from ${socialInsuranceRecords} where ${socialInsuranceRecords.serviceId} = ${page.id})`,
     })
     .from(page)
     .innerJoin(customers, eq(customers.id, page.customerId))
@@ -329,11 +329,7 @@ export type ServiceOutcome =
   | { ok: true; service: ServiceRow }
   | { ok: false; message: string };
 
-/**
- * "Nhập liệu BHYT/BHXH" chỉ sinh từ file của trang BHYT/BHXH (chốt 2026-10-04),
- * và lượt đó chỉ sửa, xoá ở trang ấy: xoá ở đây là dòng BHYT/BHXH mất lượt của nó.
- */
-const DATA_ENTRY_ONLY = "Loại dịch vụ này chỉ nhập từ trang BHYT/BHXH.";
+/** Lượt sinh từ file của trang BHYT/BHXH chỉ sửa, xoá ở trang ấy: xoá ở đây là dòng BHYT/BHXH mất lượt của nó. */
 const LINKED_TO_RECORD = "Lượt này thuộc trang BHYT/BHXH. Sửa hoặc xoá ở trang đó.";
 
 async function linkedToRecord(serviceId: string): Promise<boolean> {
@@ -364,7 +360,6 @@ export async function createService(actor: User, form: ServiceForm): Promise<Ser
     .where(eq(serviceTypes.id, form.serviceTypeId))
     .limit(1);
   if (!type) return { ok: false, message: "Loại dịch vụ này không còn trong danh mục" };
-  if (DATA_ENTRY_TYPE_NAMES.includes(type.name)) return { ok: false, message: DATA_ENTRY_ONLY };
   // Danh mục đã ngừng thì không ghi mới được, nhưng dòng CŨ vẫn giữ nguyên —
   // ngừng một loại dịch vụ không được xoá lịch sử đã làm.
   if (!type.active) return { ok: false, message: "Loại dịch vụ này đã ngừng dùng" };
@@ -467,8 +462,6 @@ export async function updateService(
     .where(eq(serviceTypes.id, form.serviceTypeId))
     .limit(1);
   if (!type) return { ok: false, message: "Loại dịch vụ này không còn trong danh mục" };
-  if (form.serviceTypeId !== current.serviceTypeId && DATA_ENTRY_TYPE_NAMES.includes(type.name))
-    return { ok: false, message: DATA_ENTRY_ONLY };
   // Cho giữ NGUYÊN loại đã ngừng nếu người dùng không đổi nó — chặn ở đây thì
   // sửa mỗi ghi chú của một bản ghi cũ cũng không lưu nổi.
   if (!type.active && form.serviceTypeId !== current.serviceTypeId)

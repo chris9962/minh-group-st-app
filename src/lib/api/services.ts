@@ -35,6 +35,8 @@ export const ServiceRow = z.object({
   wardName: z.string().nullable(),
   /** `/api/images/<key>` của ảnh giao dịch; `null` = không có ảnh. */
   photoUrl: z.string().nullable(),
+  /** Lượt sinh từ file của trang BHYT/BHXH: chỉ sửa, xoá ở trang đó. */
+  linkedToSocialInsurance: z.boolean(),
 });
 export type ServiceRow = z.infer<typeof ServiceRow>;
 

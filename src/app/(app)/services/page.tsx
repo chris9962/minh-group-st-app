@@ -26,7 +26,6 @@ import { SectionCard } from "@/components/ui/SectionCard";
 import { fetchDepartments } from "@/lib/api/departments";
 import { EMPTY_PAGE, PAGE_SIZE, type SortDir } from "@/lib/api/pagination";
 import { deleteService, fetchServices, type ServiceRow } from "@/lib/api/services";
-import { DATA_ENTRY_TYPE_NAMES } from "@/lib/api/socialInsurance";
 import { fetchServiceTypes } from "@/lib/api/settings";
 import { fetchStaffOptions } from "@/lib/api/staff";
 import { fetchProvinces } from "@/lib/api/wardCatalog";
@@ -290,8 +289,7 @@ export default function ServicesPage() {
               // Nút chỉ có icon nên `aria-label` phải kèm tên khách: giữa mười
               // lăm dòng giống nhau, "Sửa" một mình không nói đang sửa dòng nào.
               render: (r: ServiceRow) =>
-                // Lượt nhập liệu BHYT/BHXH chỉ sửa, xoá ở trang BHYT/BHXH.
-                DATA_ENTRY_TYPE_NAMES.includes(r.serviceTypeName) ? null : (
+                r.linkedToSocialInsurance ? null : (
                 <RowActions>
                   {canEdit && (
                     <Button
