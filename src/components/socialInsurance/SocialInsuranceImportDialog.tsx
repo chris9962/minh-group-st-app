@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { Combobox } from "@/components/ui/Combobox";
 import { Dialog } from "@/components/ui/Dialog";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
+import { SegmentedTabs } from "@/components/ui/SegmentedTabs";
 import { Select } from "@/components/ui/Select";
 import {
   IMPORT_MAX_ROWS,
@@ -54,6 +55,8 @@ type Checked =
   | { mode: "reconcile"; kind: SocialInsuranceKind; rows: ReconcileFileRow[]; preview: ReconcilePreviewRow[] };
 
 const PAGE_SIZE = 10;
+
+type View = "all" | "errors" | "differences";
 
 const money = (cents: number | null) => (cents === null ? "—" : formatCents(cents));
 const monthText = (month: string) => (month ? `${month.slice(5)}/${month.slice(0, 4)}` : "—");
@@ -128,6 +131,7 @@ export function SocialInsuranceImportDialog({ open, mode, onClose }: Props) {
   const [provinceId, setProvinceId] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [checked, setChecked] = useState<Checked | null>(null);
+  const [view, setView] = useState<View>("all");
 
   const check = useMutation({
     mutationFn: async (): Promise<Checked> => {
@@ -147,7 +151,11 @@ export function SocialInsuranceImportDialog({ open, mode, onClose }: Props) {
       const result = await importReconciliation({ kind, rows, commit: false });
       return { mode, kind, rows, preview: result.rows };
     },
-    onSuccess: setChecked,
+    onSuccess: (result) => {
+      setChecked(result);
+      // File có dòng lỗi thì mở sẵn các dòng lỗi: người tải cần sửa đúng những dòng đó.
+      setView(result.preview.some((r) => r.errors.length > 0) ? "errors" : "all");
+    },
     onError: (e) => toast.fail(errorMessage(e, "Không đọc được file này.")),
   });
 
@@ -176,6 +184,12 @@ export function SocialInsuranceImportDialog({ open, mode, onClose }: Props) {
   const errorRows = checked?.preview.filter((r) => r.errors.length > 0).length ?? 0;
   const differenceRows =
     checked?.mode === "reconcile" ? checked.preview.filter((r) => r.differences.length > 0).length : 0;
+  const pick = <T extends { errors: string[]; differences?: string[] }>(rows: T[]) =>
+    view === "errors"
+      ? rows.filter((r) => r.errors.length > 0)
+      : view === "differences"
+        ? rows.filter((r) => (r.differences?.length ?? 0) > 0)
+        : errorsFirst(rows);
 
   return (
     <Dialog
@@ -223,9 +237,21 @@ export function SocialInsuranceImportDialog({ open, mode, onClose }: Props) {
               : `${checked.preview.length} dòng hợp lệ.`}
             {differenceRows > 0 && ` ${differenceRows} dòng lệch file hồ sơ.`}
           </p>
+          {(errorRows > 0 || differenceRows > 0) && (
+            <SegmentedTabs
+              label="Lọc dòng"
+              value={view}
+              onChange={(v) => setView(v as View)}
+              options={[
+                { value: "all", label: "Tất cả", count: checked.preview.length },
+                ...(errorRows > 0 ? [{ value: "errors", label: "Lỗi", count: errorRows }] : []),
+                ...(differenceRows > 0 ? [{ value: "differences", label: "Lệch", count: differenceRows }] : []),
+              ]}
+            />
+          )}
           {checked.mode === "records" ? (
             <RankTable
-              rows={errorsFirst(checked.preview)}
+              rows={pick(checked.preview)}
               columns={recordColumns}
               rowKey={(r) => String(r.row)}
               defaultSort="row"
@@ -234,7 +260,7 @@ export function SocialInsuranceImportDialog({ open, mode, onClose }: Props) {
             />
           ) : (
             <RankTable
-              rows={errorsFirst(checked.preview)}
+              rows={pick(checked.preview)}
               columns={reconcileColumns}
               rowKey={(r) => String(r.row)}
               defaultSort="row"
