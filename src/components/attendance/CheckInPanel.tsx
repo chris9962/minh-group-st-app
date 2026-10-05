@@ -1,13 +1,8 @@
 "use client";
 
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { clsx } from "clsx";
-import { vi } from "date-fns/locale";
 import { Camera, CalendarCheck, MapPin } from "lucide-react";
 import { useState } from "react";
-import { DayPicker } from "react-day-picker";
-import "react-day-picker/style.css";
-import { Button } from "@/components/ui/Button";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { SkeletonCard } from "@/components/ui/Skeleton";
@@ -24,14 +19,11 @@ import {
 } from "@/lib/api/attendance";
 import { businessDay, businessMonth, clockNowVn, formatDate } from "@/lib/format";
 import { errorMessage, toast } from "@/lib/toast";
+import { AttendanceCalendar } from "./AttendanceCalendar";
 import { CameraCheckIn } from "./CameraCheckIn";
 import { CheckDetailDialog } from "./CheckDetailDialog";
+import { SlotTile, type SlotAction } from "./SlotTile";
 import styles from "./CheckInPanel.module.scss";
-
-/** Ngày lịch của trình duyệt ↔ chuỗi `YYYY-MM-DD`, đọc theo giờ địa phương như DayPicker. */
-const toDate = (iso: string) => new Date(`${iso}T00:00:00`);
-const toIso = (d: Date) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
 /** Mã 1 là bị từ chối quyền; mã 2 và 3 là chưa bắt được tín hiệu hoặc quá 20 giây. */
 const locationError = (code?: number) =>
@@ -94,7 +86,7 @@ export function CheckInPanel({ mode }: { mode: AttendanceMode }) {
   const slots = daily ? [CHECK_IN_SLOT] : ATTENDANCE_SLOTS;
   // Các lượt đi đúng thứ tự: chỉ lượt đầu tiên chưa chấm mới bấm được.
   const nextSlot = slots.find((s) => !dayChecks.some((c) => c.slot === s.key))?.key;
-  const checkedDays = [...new Set(data.checks.map((c) => c.workDate))].map(toDate);
+  const checkedDays = [...new Set(data.checks.map((c) => c.workDate))];
   // Chấm bù chỉ mở khi máy chủ cho (spec 4.2), và chỉ cho ngày đã qua trong tháng đang chạy.
   const backfillDay = data.backfill && selected.slice(0, 7) === today.slice(0, 7) && selected < today;
   const workDate = backfillDay ? selected : undefined;
@@ -103,108 +95,50 @@ export function CheckInPanel({ mode }: { mode: AttendanceMode }) {
     <SectionCard title="Chấm công của tôi" icon={<CalendarCheck size={17} />} meta={formatDate(selected)}>
       <div className={styles.layout}>
         <div className={styles.slotsWrap}>
-          <ul className={clsx(styles.slots, daily && styles.daily)}>
+          <ul className={styles.slots}>
             {slots.map((s) => {
-              const check = dayChecks.find((c) => c.slot === s.key);
-              if (check && !check.photoUrl) {
-                const time = clockNowVn(new Date(check.checkedAt)).slice(0, 5);
-                return (
-                  <li key={s.key} className={clsx(styles.slot, styles.slotDone)}>
-                    <button
-                      type="button"
-                      className={styles.doneTile}
-                      aria-label={`Xem lượt ${s.label} lúc ${time}`}
-                      onClick={() => setViewing(check)}
-                    >
-                      <span className={styles.label}>{s.label}</span>
-                      <span className={styles.doneTime}>{time}</span>
-                      {check.place && (
-                        <span className={styles.donePlace}>
-                          <MapPin size={13} aria-hidden />
-                          {check.place}
-                        </span>
-                      )}
-                    </button>
-                  </li>
-                );
-              }
-              if (check) {
-                const time = clockNowVn(new Date(check.checkedAt)).slice(0, 5);
-                return (
-                  <li key={s.key} className={clsx(styles.slot, styles.slotPhoto)}>
-                    <button
-                      type="button"
-                      className={styles.photoTile}
-                      aria-label={`Xem lượt ${s.label} lúc ${time}`}
-                      onClick={() => setViewing(check)}
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element -- ảnh đi qua /api/images có kiểm phiên, next/image không tối ưu được */}
-                      <img src={check.photoUrl ?? undefined} alt="" className={styles.photo} />
-                      <span className={styles.overlayTime}>{time}</span>
-                      {check.place && <span className={styles.overlayPlace}>{check.place}</span>}
-                    </button>
-                  </li>
-                );
-              }
-              if (daily && (selected === today || backfillDay) && monthLoaded && s.key === nextSlot) {
-                return (
-                  <li key={s.key} className={clsx(styles.slot, styles.slotNext)}>
-                    <span className={styles.label}>{s.label}</span>
-                    <Button block large disabled={checkIn.isPending} onClick={() => checkIn.mutate(workDate)}>
-                      <MapPin size={16} aria-hidden />
-                      {checkIn.isPending ? "Đang lấy vị trí…" : "Điểm danh"}
-                    </Button>
-                  </li>
-                );
-              }
-              if ((selected === today || backfillDay) && monthLoaded && s.key === nextSlot) {
-                // Máy tính bấm nút cam; điện thoại bấm cả ô, ô chỉ có icon camera ở giữa.
-                return (
-                  <li key={s.key} className={clsx(styles.slot, styles.slotNext)}>
-                    <span className={styles.label}>{s.label}</span>
-                    <Button block className={styles.captureButton} onClick={() => setCapturing(s.key)}>
-                      <Camera size={16} aria-hidden />
-                      Chấm công
-                    </Button>
-                    <button
-                      type="button"
-                      className={styles.captureTile}
-                      aria-label={`Chấm công ${s.label}`}
-                      onClick={() => setCapturing(s.key)}
-                    >
-                      <Camera size={28} aria-hidden />
-                    </button>
-                  </li>
-                );
-              }
+              const canAct = (selected === today || backfillDay) && monthLoaded && s.key === nextSlot;
+              const action: SlotAction | undefined = !canAct
+                ? undefined
+                : daily
+                  ? {
+                      icon: MapPin,
+                      text: checkIn.isPending ? "Đang lấy vị trí…" : "Điểm danh",
+                      ariaLabel: "Điểm danh",
+                      disabled: checkIn.isPending,
+                      onClick: () => checkIn.mutate(workDate),
+                    }
+                  : {
+                      icon: Camera,
+                      text: "Chấm công",
+                      ariaLabel: `Chấm công ${s.label}`,
+                      onClick: () => setCapturing(s.key),
+                    };
               return (
-                <li key={s.key} className={styles.slot}>
-                  <span className={styles.label}>{s.label}</span>
-                  {monthLoaded && <span className={styles.missing}>{daily ? "Chưa điểm danh" : "Chưa chấm"}</span>}
-                </li>
+                <SlotTile
+                  key={s.key}
+                  label={s.label}
+                  check={dayChecks.find((c) => c.slot === s.key)}
+                  onView={setViewing}
+                  action={action}
+                  missingText={monthLoaded ? (daily ? "Chưa điểm danh" : "Chưa chấm") : null}
+                />
               );
             })}
           </ul>
         </div>
 
-        <DayPicker
-          mode="single"
-          locale={vi}
-          required
-          selected={toDate(selected)}
-          onSelect={(d) => setPicked(toIso(d))}
-          month={toDate(`${month}-01`)}
-          onMonthChange={(d) => {
+        <AttendanceCalendar
+          selected={selected}
+          month={month}
+          today={today}
+          checkedDays={checkedDays}
+          onSelect={setPicked}
+          onMonthChange={(next) => {
             // Ngày đang chọn đi theo tháng đang xem, không thì 4 lượt hiện ngày của tháng khác.
-            const next = toIso(d).slice(0, 7);
             setMonth(next);
             setPicked(next === today.slice(0, 7) ? null : `${next}-01`);
           }}
-          endMonth={toDate(today)}
-          disabled={{ after: toDate(today) }}
-          modifiers={{ checked: checkedDays }}
-          modifiersClassNames={{ checked: styles.checked }}
-          className={styles.calendar}
         />
       </div>
 

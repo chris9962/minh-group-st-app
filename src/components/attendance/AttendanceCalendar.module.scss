@@ -1,0 +1,51 @@
+.calendar {
+  --rdp-accent-color: var(--color-accent);
+  --rdp-accent-background-color: var(--color-accent-200);
+  --rdp-today-color: var(--color-accent-700);
+  --rdp-day-height: 44px;
+  --rdp-day-width: 44px;
+  --rdp-day_button-height: 40px;
+  --rdp-day_button-width: 40px;
+  --rdp-day_button-border-radius: var(--radius-sm);
+  font-family: var(--font-body);
+  font-size: 13px;
+  margin: 0;
+  padding-left: var(--space-6);
+  border-left: 1px solid var(--om-line);
+}
+
+.calendar :global(.rdp-month_caption) {
+  font-family: var(--font-heading);
+  font-size: 15px;
+}
+
+/* Màu không là kênh duy nhất: ngày có chấm công còn có chấm tròn dưới số. */
+.checked :global(.rdp-day_button) {
+  position: relative;
+  background: var(--om-green-soft);
+  color: var(--om-green-ink);
+}
+
+.checked :global(.rdp-day_button)::after {
+  content: "";
+  position: absolute;
+  bottom: 5px;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  margin-left: -2px;
+  border-radius: 999px;
+  background: var(--om-green);
+}
+
+@media (max-width: bp.$bp-mobile) {
+  .calendar {
+    justify-self: stretch;
+    display: flex;
+    justify-content: center;
+    padding-left: 0;
+    padding-top: var(--space-4);
+    border-left: 0;
+    border-top: 1px solid var(--om-line);
+  }
+}
