@@ -1,8 +1,9 @@
 import { and, asc, between, eq, inArray, or, sql, type SQL } from "drizzle-orm";
 import {
-  ATTENDANCE_SLOTS,
   attendanceModeOf,
   CHECK_IN_SLOT,
+  SLOT_REQUIRES,
+  slotLabel,
   type AttendanceCheck,
   type AttendanceDay,
   type AttendanceForm,
@@ -80,8 +81,8 @@ function photoKeyOf(url: string): string | null {
  * chấm bù: ngày đó do người dùng chọn, giờ vẫn là giờ lúc bấm. `now()` đứng yên
  * trong một transaction nên ngày dùng để kiểm lượt trước và ngày ghi là một.
  *
- * Bốn lượt của nhân viên Điểm ATM đi đúng thứ tự: lượt trước chưa chấm thì
- * không chấm được lượt sau. Người Phòng An Sinh chỉ có lượt điểm danh, không ảnh.
+ * Lượt ra của mỗi ca chỉ chấm được sau lượt vào cùng ca (`SLOT_REQUIRES`); hai ca
+ * sáng và chiều không phụ thuộc nhau. Người Phòng An Sinh chỉ có lượt điểm danh, không ảnh.
  */
 export async function createAttendanceCheck(
   actor: User,
@@ -102,8 +103,7 @@ export async function createAttendanceCheck(
     if (!backfillable) return { ok: false, message: "Ngày này không chấm bù được." };
   }
 
-  const index = ATTENDANCE_SLOTS.findIndex((s) => s.key === form.slot);
-  const previous = index > 0 ? ATTENDANCE_SLOTS[index - 1] : null;
+  const previous = SLOT_REQUIRES[form.slot];
   // Tra trước khi mở transaction để không giữ kết nối trong lúc chờ dịch vụ ngoài.
   const place = await placeName(form.latitude, form.longitude);
 
@@ -121,11 +121,11 @@ export async function createAttendanceCheck(
             and(
               eq(attendanceChecks.userId, actor.id),
               eq(attendanceChecks.workDate, workDate),
-              eq(attendanceChecks.slot, previous.key),
+              eq(attendanceChecks.slot, previous),
             ),
           )
           .limit(1);
-        if (!done) return { ok: false, message: `Bạn phải chấm ${previous.label} trước.` };
+        if (!done) return { ok: false, message: `Bạn phải chấm ${slotLabel(previous)} trước.` };
       }
 
       const [row] = await tx

@@ -13,6 +13,7 @@ import {
   createAttendanceCheck,
   fetchMyAttendance,
   slotLabel,
+  SLOT_REQUIRES,
   type AttendanceCheck,
   type AttendanceMode,
   type AttendanceSlot,
@@ -84,8 +85,9 @@ export function CheckInPanel({ mode }: { mode: AttendanceMode }) {
   const dayChecks = data.checks.filter((c) => c.workDate === selected);
   const daily = mode === "daily";
   const slots = daily ? [CHECK_IN_SLOT] : ATTENDANCE_SLOTS;
-  // Các lượt đi đúng thứ tự: chỉ lượt đầu tiên chưa chấm mới bấm được.
-  const nextSlot = slots.find((s) => !dayChecks.some((c) => c.slot === s.key))?.key;
+  const done = (slot: AttendanceSlot) => dayChecks.some((c) => c.slot === slot);
+  // Lượt chưa chấm bấm được khi lượt phải có trước nó đã chấm: mỗi ca vào trước, ra sau.
+  const ready = (slot: AttendanceSlot) => !done(slot) && (!SLOT_REQUIRES[slot] || done(SLOT_REQUIRES[slot]));
   const checkedDays = [...new Set(data.checks.map((c) => c.workDate))];
   // Chấm bù chỉ mở khi máy chủ cho (spec 4.2), và chỉ cho ngày đã qua trong tháng đang chạy.
   const backfillDay = data.backfill && selected.slice(0, 7) === today.slice(0, 7) && selected < today;
@@ -97,7 +99,7 @@ export function CheckInPanel({ mode }: { mode: AttendanceMode }) {
         <div className={styles.slotsWrap}>
           <ul className={styles.slots}>
             {slots.map((s) => {
-              const canAct = (selected === today || backfillDay) && monthLoaded && s.key === nextSlot;
+              const canAct = (selected === today || backfillDay) && monthLoaded && ready(s.key);
               const action: SlotAction | undefined = !canAct
                 ? undefined
                 : daily

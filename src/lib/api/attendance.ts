@@ -22,6 +22,15 @@ export const CHECK_IN_SLOT = { key: 'check-in', label: 'Điểm danh' } as const
 export const AttendanceSlot = z.enum(['morning-in', 'noon-out', 'afternoon-in', 'afternoon-out', 'check-in']);
 export type AttendanceSlot = z.infer<typeof AttendanceSlot>;
 
+/**
+ * Lượt phải chấm trước của mỗi lượt: ca nào cũng vào trước, ra sau. Hai ca không
+ * phụ thuộc nhau, nên người chỉ làm ca chiều vẫn chấm được (đổi 2026-10-05).
+ */
+export const SLOT_REQUIRES: Partial<Record<AttendanceSlot, AttendanceSlot>> = {
+  'noon-out': 'morning-in',
+  'afternoon-out': 'afternoon-in',
+};
+
 export const slotLabel = (slot: AttendanceSlot): string =>
   slot === CHECK_IN_SLOT.key ? CHECK_IN_SLOT.label : (ATTENDANCE_SLOTS.find((s) => s.key === slot)?.label ?? '');
 
