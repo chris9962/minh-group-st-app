@@ -7,7 +7,9 @@ import {
   gte,
   inArray,
   isNull,
+  lt,
   ne,
+  notExists,
   or,
   sql,
   type SQL,
@@ -69,6 +71,7 @@ import {
   referralCodes,
   serviceTypes,
   services,
+  socialInsuranceRecords,
   users,
   vneidRecords,
 } from "./db/schema";
@@ -1586,6 +1589,7 @@ const BLOCKING_TABLES = [
   { table: services, label: "dịch vụ đã làm" },
   { table: vneidRecords, label: "lượt VNeID" },
   { table: giftGrants, label: "đợt phát quà" },
+  { table: socialInsuranceRecords, label: "hồ sơ BHYT/BHXH" },
 ] as const;
 
 /** Một loại bản ghi đang giữ khách lại, kèm số dòng. */
@@ -1694,6 +1698,96 @@ export async function deleteCustomer(
     await tx.delete(customers).where(eq(customers.id, id));
     return { ok: true, fullName: locked.fullName };
   });
+}
+
+export type PurgedCustomer = { id: string; fullName: string; createdAt: Date; createdByName: string | null };
+
+/** Mỗi câu xoá tối đa chừng này hồ sơ, để danh sách id không vượt trần tham số của Postgres. */
+const PURGE_CHUNK = 5000;
+
+/**
+ * Xoá hồ sơ khách chỉ có hồ sơ, không có bản ghi nghiệp vụ nào (chốt 2026-10-05).
+ *
+ * Timer `mgst-purge-customers.timer` gọi lúc 00:00 ngày 1 hằng tháng với `before`
+ * là 00:00 ngày 1 của tháng mới: hồ sơ tháng cũ không mở được tài khoản ngân hàng
+ * nữa. Cùng luật với nút xoá hồ sơ: `BLOCKING_TABLES`, và hồ sơ gốc còn lần sau
+ * thì giữ, trừ khi các lần sau cũng bị xoá trong cùng lượt. Nhật ký thay đổi giữ
+ * nguyên và có thêm dòng `profile_deleted` không ghi người xoá.
+ *
+ * Ảnh CCCD trong kho không xoá: `.env.local` ở máy dev trỏ chung bucket thật.
+ */
+export async function purgeEmptyCustomers(
+  before: Date,
+  dryRun = false,
+): Promise<{ removed: PurgedCustomer[] }> {
+  const empty = and(
+    lt(customers.createdAt, before),
+    ...BLOCKING_TABLES.map(({ table }) =>
+      notExists(db.select({ one: sql`1` }).from(table).where(eq(table.customerId, customers.id))),
+    ),
+  );
+  const candidates = await db
+    .select({
+      id: customers.id,
+      rootCustomerId: customers.rootCustomerId,
+      seq: customers.seq,
+      fullName: customers.fullName,
+      createdAt: customers.createdAt,
+      createdByName: users.fullName,
+    })
+    .from(customers)
+    .leftJoin(users, eq(users.id, customers.createdBy))
+    .where(empty)
+    .orderBy(asc(customers.createdAt));
+
+  // Hồ sơ gốc còn một lần sau không bị xoá thì giữ: lần sau trỏ `root_customer_id` về nó.
+  const candidateIds = new Set(candidates.map((c) => c.id));
+  const roots = candidates.filter((c) => c.rootCustomerId === c.id).map((c) => c.id);
+  const keptRoots = new Set<string>();
+  for (let i = 0; i < roots.length; i += PURGE_CHUNK) {
+    const later = await db
+      .select({ id: customers.id, rootCustomerId: customers.rootCustomerId })
+      .from(customers)
+      .where(and(inArray(customers.rootCustomerId, roots.slice(i, i + PURGE_CHUNK)), ne(customers.id, customers.rootCustomerId)));
+    for (const row of later) if (!candidateIds.has(row.id)) keptRoots.add(row.rootCustomerId);
+  }
+  const doomed = candidates.filter((c) => !keptRoots.has(c.id));
+  const brief = (rows: typeof doomed): PurgedCustomer[] =>
+    rows.map(({ id, fullName, createdAt, createdByName }) => ({ id, fullName, createdAt, createdByName }));
+  if (dryRun || doomed.length === 0) return { removed: brief(doomed) };
+
+  const removed: PurgedCustomer[] = [];
+  await db.transaction(async (tx) => {
+    for (let i = 0; i < doomed.length; i += PURGE_CHUNK) {
+      const chunk = doomed.slice(i, i + PURGE_CHUNK);
+      // Khoá và kiểm lại: giữa lúc đọc và lúc xoá, nhân viên có thể vừa mở tài khoản cho khách.
+      const locked = await tx
+        .select({ id: customers.id })
+        .from(customers)
+        .where(and(inArray(customers.id, chunk.map((c) => c.id)), empty))
+        .for("update");
+      const stillEmpty = new Set(locked.map((r) => r.id));
+      const rows = chunk.filter((c) => stillEmpty.has(c.id));
+      if (rows.length === 0) continue;
+      const ids = rows.map((c) => c.id);
+      await tx.update(customerChanges).set({ customerId: null }).where(inArray(customerChanges.customerId, ids));
+      await tx.insert(customerChanges).values(
+        rows.map((c) => ({
+          rootCustomerId: c.rootCustomerId,
+          customerId: null,
+          seq: c.seq,
+          changedBy: null,
+          field: "profile_deleted" as const,
+          fromValue: c.fullName,
+          toValue: "",
+        })),
+      );
+      await tx.delete(customerPhones).where(inArray(customerPhones.customerId, ids));
+      await tx.delete(customers).where(inArray(customers.id, ids));
+      removed.push(...brief(rows));
+    }
+  });
+  return { removed };
 }
 
 /* ── P-42 · Hồ sơ 360° ────────────────────────────────────────────────── */

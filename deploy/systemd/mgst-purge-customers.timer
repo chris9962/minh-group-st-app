@@ -1,0 +1,11 @@
+[Unit]
+Description=Dọn hồ sơ khách trống MGST — 00:00 ngày 1 hằng tháng, giờ Việt Nam
+
+[Timer]
+OnCalendar=*-*-01 00:00:00 Asia/Ho_Chi_Minh
+# Máy chủ tắt qua mốc này thì chạy bù khi bật lại. Script chỉ xoá hồ sơ mở trước
+# ngày 1 của tháng hiện tại nên chạy trễ không đụng hồ sơ mới.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

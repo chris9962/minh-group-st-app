@@ -1,0 +1,13 @@
+[Unit]
+Description=Xoá hồ sơ khách tháng cũ không có bản ghi nghiệp vụ nào
+After=docker.service mgst-purge-drafts.service
+OnFailure=mgst-alert@%n.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/mgst-app
+# .env.local mang DATABASE_URL trỏ localhost:5433 — đúng khi chạy từ máy chủ,
+# không phải từ trong container.
+EnvironmentFile=/opt/mgst-app/.env.local
+ExecStart=/root/.bun/bin/bun scripts/purge-empty-customers.ts
+TimeoutStartSec=600
