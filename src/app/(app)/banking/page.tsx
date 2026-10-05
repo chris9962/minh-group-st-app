@@ -45,6 +45,7 @@ import { EMPTY_PAGE, PAGE_SIZE, type SortDir } from "@/lib/api/pagination";
 import { formatDate, formatPhone } from "@/lib/format";
 import { useDebouncedValue } from "@/lib/hooks";
 import { useCreateIntent } from "@/lib/useCreateIntent";
+import { canOpenPath } from "@/lib/nav";
 import { can, recordVisibility, scopeFor } from "@/lib/permissions";
 import { errorMessage, toast } from "@/lib/toast";
 import { isRealIsoDate } from "@/lib/types";
@@ -323,15 +324,33 @@ export default function BankingPage() {
             {
               key: "createdByName",
               label: "Người tạo",
-              /*
-                Mã nhân viên chứ không phải tên: app khác của công ty định danh
-                theo mã, mà người đối chiếu hai bên ngồi ngay trên bảng này. Chưa
-                gán mã thì hiện tên — ô trống không nói được ai đã tạo dòng đó.
-              */
-              render: (r: BankAccountRow) =>
-                [r.createdByStaffCode || r.createdByName, r.createdByDepartmentName]
-                  .filter(Boolean)
-                  .join(" - ") || "—",
+              // File Excel vẫn ghi mã nhân viên, bảng ghi tên (đổi 2026-10-05).
+              render: (r: BankAccountRow) => {
+                if (!r.createdByName && !r.createdByDepartmentName) return "—";
+                const person = r.createdById ? `/users/${r.createdById}` : null;
+                const department = r.createdByDepartmentId ? `/departments/${r.createdByDepartmentId}` : null;
+                return (
+                  <>
+                    {r.createdByName &&
+                      (person && canOpenPath(user, person) ? (
+                        <Link href={person} className={styles.nameLink}>
+                          {r.createdByName}
+                        </Link>
+                      ) : (
+                        r.createdByName
+                      ))}
+                    {r.createdByName && r.createdByDepartmentName && " - "}
+                    {r.createdByDepartmentName &&
+                      (department && canOpenPath(user, department) ? (
+                        <Link href={department} className={styles.nameLink}>
+                          {r.createdByDepartmentName}
+                        </Link>
+                      ) : (
+                        r.createdByDepartmentName
+                      ))}
+                  </>
+                );
+              },
             },
           ]),
       ...(canWrite || canRemove
@@ -379,7 +398,7 @@ export default function BankingPage() {
       }]
         : []),
     ],
-    [canWrite, canRemove, compact],
+    [canWrite, canRemove, compact, user],
   );
 
   return (

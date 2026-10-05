@@ -695,6 +695,7 @@ const toRow = (r: DecoratedRow): BankAccountRow => ({
   createdByName: r.createdByName,
   createdByStaffCode: r.createdByStaffCode,
   createdByDepartmentName: r.createdByDepartmentName,
+  createdByDepartmentId: r.createdByDepartmentId,
   status: r.status,
   monthClosed: r.monthClosed,
   photoCheck: toPhotoCheck({

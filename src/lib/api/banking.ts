@@ -37,12 +37,13 @@ export const BankAccountRow = z.object({
   /**
    * Mã nhân viên của người tạo; `''` = chưa gán mã, hoặc người tạo đã bị xoá.
    *
-   * Bảng P-21 và file Excel đều hiện mã chứ không hiện tên: app khác của công
-   * ty định danh theo mã (chốt 2026-09-01).
+   * File Excel hiện mã chứ không hiện tên: app khác của công ty định danh theo
+   * mã (chốt 2026-09-01). Bảng P-21 hiện tên từ 2026-10-05.
    */
   createdByStaffCode: z.string(),
   /** Đơn vị của người tạo LÚC TẠO — chụp một lần, không tra động (spec §1.1.5). Dùng cho báo cáo xuất theo phòng (P-73 #4). */
   createdByDepartmentName: z.string().nullable(),
+  createdByDepartmentId: z.string().nullable(),
   status: BankAccountStatus,
   /** Tháng của hồ sơ khách đã chốt lương: giao diện ẩn mọi nút sửa, xoá, đổi trạng thái. */
   monthClosed: z.boolean(),
