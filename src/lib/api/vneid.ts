@@ -7,11 +7,14 @@ import { pageOf, pageParams, type Page, type PageQuery } from './pagination';
  * hiện là giờ tạo `created_at`: hiện, lọc, sắp đều theo cột đó.
  */
 
-/** Ba việc làm cho khách. Thứ tự này là thứ tự ô đánh dấu, cột bảng và cột Excel. */
+/** Việc làm cho khách. Thứ tự này là thứ tự ô đánh dấu, cột bảng và cột Excel. */
 export const VNEID_TASKS = [
   { key: 'healthInsurance', label: 'BHYT' },
   { key: 'socialWelfare', label: 'ASXH' },
   { key: 'digitalSignature', label: 'Chữ ký số' },
+  { key: 'healthRecord', label: 'Sổ SKĐT' },
+  { key: 'drivingLicense', label: 'GPLX' },
+  { key: 'vehicleRegistration', label: 'Cavet xe' },
 ] as const;
 export type VneidTaskKey = (typeof VNEID_TASKS)[number]['key'];
 
@@ -25,6 +28,9 @@ export const VneidRow = z.object({
   healthInsurance: z.boolean(),
   socialWelfare: z.boolean(),
   digitalSignature: z.boolean(),
+  healthRecord: z.boolean(),
+  drivingLicense: z.boolean(),
+  vehicleRegistration: z.boolean(),
   /** `/api/images/<key>` của từng ảnh. */
   photoUrls: z.array(z.string()),
   note: z.string(),
@@ -93,6 +99,9 @@ const baseFields = {
   healthInsurance: z.boolean(),
   socialWelfare: z.boolean(),
   digitalSignature: z.boolean(),
+  healthRecord: z.boolean(),
+  drivingLicense: z.boolean(),
+  vehicleRegistration: z.boolean(),
   /** URL ảnh sau khi tải lên kho. Không bắt buộc. */
   photoUrls: z.array(z.string().trim()).max(MAX_VNEID_PHOTOS),
   note: z.string().trim(),
@@ -100,8 +109,7 @@ const baseFields = {
   departmentId: z.string(),
 };
 
-const hasTask = (f: { healthInsurance: boolean; socialWelfare: boolean; digitalSignature: boolean }) =>
-  f.healthInsurance || f.socialWelfare || f.digitalSignature;
+const hasTask = (f: Record<VneidTaskKey, boolean>) => VNEID_TASKS.some((t) => f[t.key]);
 const hasTaskIssue = { message: 'Chưa đánh dấu việc nào', path: ['healthInsurance'] };
 
 export const VneidForm = z.object(baseFields).refine(hasTask, hasTaskIssue);
@@ -113,6 +121,9 @@ export const VneidEditForm = z
     healthInsurance: baseFields.healthInsurance,
     socialWelfare: baseFields.socialWelfare,
     digitalSignature: baseFields.digitalSignature,
+    healthRecord: baseFields.healthRecord,
+    drivingLicense: baseFields.drivingLicense,
+    vehicleRegistration: baseFields.vehicleRegistration,
     photoUrls: baseFields.photoUrls,
     note: baseFields.note,
   })
