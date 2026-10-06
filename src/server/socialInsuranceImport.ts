@@ -37,7 +37,6 @@ import { db } from "./db/client";
 import {
   channels,
   collaborators,
-  customerPhones,
   customers,
   provinces,
   refWards,
@@ -75,11 +74,6 @@ const normalizeIdNumber = (raw: string) => {
 /** Mã số BHXH đủ 10 số, cũng bắt đầu bằng mã tỉnh có số 0 mà ô số trong Excel bỏ mất. */
 const normalizeSocialCode = (raw: string) => {
   const v = raw.replace(/\s/g, "");
-  return /^\d{9}$/.test(v) ? `0${v}` : v;
-};
-
-const normalizePhone = (raw: string) => {
-  const v = raw.replace(/[\s.-]/g, "");
   return /^\d{9}$/.test(v) ? `0${v}` : v;
 };
 
@@ -377,7 +371,6 @@ type ParsedRecord = {
   row: number;
   fullName: string;
   idNumber: string;
-  phone: string;
   address: string;
   ward: { id: string; name: string };
   socialInsuranceCode: string;
@@ -464,10 +457,6 @@ async function checkRecords(
     if (!idNumber) errors.push("Thiếu CCCD");
     else if (!/^\d{12}$/.test(idNumber)) errors.push("CCCD phải đủ 12 số");
 
-    const phone = normalizePhone(input.phone);
-    if (!phone) errors.push("Thiếu SĐT");
-    else if (!/^0\d{9}$/.test(phone)) errors.push("SĐT phải đủ 10 số và bắt đầu bằng 0");
-
     const place = matchWard(input.address, wardBook);
     if (typeof place === "string") errors.push(place);
 
@@ -518,7 +507,6 @@ async function checkRecords(
         row: input.row,
         fullName: capitalizePersonName(fullName),
         idNumber,
-        phone,
         address: place.address,
         ward: place.ward,
         socialInsuranceCode: code,
@@ -605,7 +593,6 @@ export async function importRecords(
           createdBy: p.entry.staff.id,
           createdByDepartmentId: p.entry.staff.departmentId,
         });
-        await tx.insert(customerPhones).values({ customerId: rootId, number: p.phone, isPrimary: true });
         createdRoot.set(p.idNumber, rootId);
         if (p.socialInsuranceCode) codedRoots.add(rootId);
       } else if (p.socialInsuranceCode && !codedRoots.has(rootId)) {
