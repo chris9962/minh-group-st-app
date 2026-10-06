@@ -53,6 +53,11 @@
   border-radius: 6px;
 }
 
-.picker:hover + .pick {
+.picker:enabled:hover + .pick {
   color: var(--om-orange-mid);
+}
+
+.picker:disabled,
+.picker:disabled::-webkit-calendar-picker-indicator {
+  cursor: default;
 }
