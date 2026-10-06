@@ -15,9 +15,9 @@ type Props = Omit<
   /**
    * Ngày lịch mở sẵn khi ô còn TRỐNG, dạng `yyyy-mm-dd`.
    *
-   * Ô ngày sinh cần nó: lịch mặc định mở ở năm hiện tại, mà khách nhỏ tuổi nhất
-   * cũng sinh trước đó 15 năm, nên người nhập phải cuộn ngược 15 lần mỗi lần
-   * lập hồ sơ. Không truyền thì lịch mở ở ngày trình duyệt tự chọn.
+   * Ô ngày sinh cần nó: lịch mặc định mở ở năm hiện tại, mà phần lớn khách sinh
+   * trước đó nhiều năm, nên người nhập phải cuộn ngược nhiều lần mỗi lần lập hồ
+   * sơ. Không truyền thì lịch mở ở ngày trình duyệt tự chọn.
    *
    * Chỉ đổi chỗ lịch MỞ RA. Ô vẫn trống cho tới khi người dùng chọn thật.
    */

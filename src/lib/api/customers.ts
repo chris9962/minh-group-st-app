@@ -364,35 +364,20 @@ export type CustomerPhoneForm = z.infer<typeof CustomerPhoneForm>;
  * Tên không ràng buộc định dạng (spec §4.4 P-41) — nhân viên gõ sao lưu vậy.
  */
 /**
- * Khách phải từ 15 tuổi, đo bằng HIỆU HAI NĂM — không so ngày và tháng.
+ * Ngày lịch của ô ngày sinh mở sẵn khi ô còn trống: 01/01 của 15 năm trước.
  *
- * `2026 - 2011 = 15` nên mọi khách sinh năm 2011 đều đạt, kể cả người sinh
- * tháng 12 và tới tháng 8 mới 14 tuổi rưỡi. Đội Kinh doanh chốt cách đo này
- * (2026-08-21): nhân viên nhìn năm sinh là biết ngay đạt hay không, không phải
- * nhẩm ngày sinh nhật.
- *
+ * Lịch mặc định mở ở năm hiện tại, mà phần lớn khách sinh trước đó nhiều năm.
+ * Không còn giới hạn tuổi tối thiểu (bỏ 2026-10-04), con số này chỉ để đỡ cuộn.
+ */
+export const pickerStartForDob = () => `${new Date().getFullYear() - 15}-01-01`;
+
+/**
  * Cận dưới `MIN_BIRTH_YEAR` (`lib/types.ts`) chặn lỗi gõ tay — `06/04/0996` là
  * thiếu một phím, không phải một khách 1030 tuổi.
  */
-export const MIN_AGE = 15;
-
-/**
- * Ngày lịch của ô ngày sinh mở sẵn khi ô còn trống: 01/01 của năm sinh MUỘN
- * NHẤT còn nhận.
- *
- * Lịch mặc định mở ở năm hiện tại, mà khách nhỏ tuổi nhất cũng sinh trước đó 15
- * năm — người nhập phải cuộn ngược 15 lần mỗi lần lập hồ sơ.
- *
- * Đặt cạnh `bornEarlyEnough` để hai chỗ cùng đọc một con số. Tách ra là ngày
- * đổi tuổi tối thiểu thì lịch vẫn mở ở năm cũ.
- */
-export const pickerStartForDob = () => `${new Date().getFullYear() - MIN_AGE}-01-01`;
-
-const bornEarlyEnough = (isoDate: string) => {
+const bornInRange = (isoDate: string) => {
   const year = Number(isoDate.slice(0, 4));
-  if (!year) return false;
-  const thisYear = new Date().getFullYear();
-  return year >= MIN_BIRTH_YEAR && thisYear - year >= MIN_AGE;
+  return year >= MIN_BIRTH_YEAR && year <= new Date().getFullYear();
 };
 
 export const CustomerForm = z.object({
@@ -405,7 +390,7 @@ export const CustomerForm = z.object({
   dob: z
     .string()
     .min(1, 'Chưa nhập ngày sinh')
-    .refine(bornEarlyEnough, `Khách phải từ ${MIN_AGE} tuổi trở lên`),
+    .refine(bornInRange, `Năm sinh phải từ ${MIN_BIRTH_YEAR} tới năm hiện tại`),
   idNumber: z
     .string()
     .trim()
