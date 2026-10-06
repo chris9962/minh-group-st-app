@@ -22,6 +22,7 @@ import {
   type ServiceRow,
 } from "@/lib/api/services";
 import { fetchServiceTypes } from "@/lib/api/settings";
+import { DATA_ENTRY_TYPE_NAMES } from "@/lib/api/socialInsurance";
 import { businessDay, formatDate } from "@/lib/format";
 import { invalidateKpi } from "@/lib/invalidateKpi";
 import { errorMessage, toast } from "@/lib/toast";
@@ -60,7 +61,10 @@ export function ServiceEditDialog({ open, onClose, service }: Props) {
    * khác. Máy chủ cũng cho giữ nguyên loại đã ngừng, chỉ chặn khi ĐỔI SANG nó.
    */
   const options = serviceTypes
-    .filter((t) => t.active || t.id === service.serviceTypeId)
+    .filter(
+      (t) =>
+        (t.active && !DATA_ENTRY_TYPE_NAMES.includes(t.name)) || t.id === service.serviceTypeId,
+    )
     .map((t) => ({
       value: t.id,
       label: t.active ? t.name : `${t.name} (đã ngừng)`,

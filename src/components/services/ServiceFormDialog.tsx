@@ -18,6 +18,7 @@ import { Select } from "@/components/ui/Select";
 import { DateField } from "@/components/ui/DateField";
 import { TextField } from "@/components/ui/TextField";
 import { fetchServiceTypes } from "@/lib/api/settings";
+import { DATA_ENTRY_TYPE_NAMES } from "@/lib/api/socialInsurance";
 import { fetchProvinces } from "@/lib/api/wardCatalog";
 import { businessDay } from "@/lib/format";
 import { createService, PHOTO_SERVICE_TYPES, ServiceForm } from "@/lib/api/services";
@@ -64,7 +65,8 @@ export function ServiceFormDialog({
     queryKey: ["service-types"],
     queryFn: fetchServiceTypes,
   });
-  const activeTypes = serviceTypes.filter((t) => t.active);
+  // Hai loại nhập liệu BHYT/BHXH không ghi tay ở đây (chốt 2026-10-06), chỉ ẩn khỏi ô chọn.
+  const activeTypes = serviceTypes.filter((t) => t.active && !DATA_ENTRY_TYPE_NAMES.includes(t.name));
 
   const { data: provinces = [] } = useQuery({
     queryKey: ["provinces"],
