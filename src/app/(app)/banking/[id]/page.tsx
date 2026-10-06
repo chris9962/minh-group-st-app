@@ -15,6 +15,7 @@ import { SkeletonCard } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
 import { BankAccountEditDialog } from "@/components/banking/BankAccountEditDialog";
+import { BankAccountErrorNoteField } from "@/components/banking/BankAccountErrorNoteField";
 import { BankAccountHistory } from "@/components/banking/BankAccountHistory";
 import { BankAccountMoveDialog } from "@/components/banking/BankAccountMoveDialog";
 import { PhotoCheckPanel } from "@/components/banking/PhotoCheckPanel";
@@ -682,14 +683,7 @@ function DoneAccountCard({
               ? "Tài khoản quay về trạng thái lỗi. Nhân viên sửa tiếp rồi gửi duyệt lại."
               : "Tài khoản này sẽ bị loại khỏi KPI. Quà của khách giữ nguyên."}
           </Alert>
-          <TextArea
-            label="Lý do lỗi"
-            required
-            rows={3}
-            placeholder="Ví dụ: Tài khoản không hợp lệ khi đối soát"
-            value={errorNote}
-            onChange={(event) => setErrorNote(event.target.value)}
-          />
+          <BankAccountErrorNoteField value={errorNote} onChange={setErrorNote} />
         </Dialog>
       )}
 

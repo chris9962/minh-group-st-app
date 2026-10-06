@@ -1,4 +1,5 @@
 "use client";
+import { BankAccountErrorNoteField } from "@/components/banking/BankAccountErrorNoteField";
 import { BankAccountHistory } from "@/components/banking/BankAccountHistory";
 import { PhotoCheckPanel } from "@/components/banking/PhotoCheckPanel";
 
@@ -19,7 +20,6 @@ import { SectionCard } from "@/components/ui/SectionCard";
 import { Select } from "@/components/ui/Select";
 import { SkeletonCard } from "@/components/ui/Skeleton";
 import { StatusTag } from "@/components/ui/StatusTag";
-import { TextArea } from "@/components/ui/TextArea";
 import {
   BANK_ACCOUNT_STATUS_LABEL,
   BANK_ACCOUNT_STATUS_TONE,
@@ -449,14 +449,7 @@ export default function BankAccountOfBankPage({
                 ? "Tài khoản quay về trạng thái lỗi. Nhân viên sửa tiếp rồi gửi duyệt lại."
                 : "Tài khoản này sẽ bị loại khỏi KPI của người mở. Quà của khách giữ nguyên."}
             </Alert>
-            <TextArea
-              label="Lý do lỗi"
-              required
-              rows={3}
-              placeholder="Ví dụ: Tài khoản không hợp lệ khi đối soát"
-              value={errorNote}
-              onChange={(event) => setErrorNote(event.target.value)}
-            />
+            <BankAccountErrorNoteField value={errorNote} onChange={setErrorNote} />
           </Dialog>
         )}
       </main>
