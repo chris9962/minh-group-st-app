@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Plus } from "lucide-react";
 import { Alert } from "@/components/ui/Alert";
@@ -9,7 +9,7 @@ import { CustomerFormDialog } from "@/components/customers/CustomerFormDialog";
 import { Dialog } from "@/components/ui/Dialog";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { SearchField } from "@/components/ui/SearchField";
-import { SkeletonTable, SkeletonText } from "@/components/ui/Skeleton";
+import { SkeletonTable } from "@/components/ui/Skeleton";
 import { MAX_BANK_ACCOUNTS_PER_CUSTOMER } from "@/lib/api/bankAccounts";
 import {
   fetchCustomerDetail,
@@ -19,6 +19,7 @@ import {
 } from "@/lib/api/customers";
 import { seqLabeller } from "@/lib/customerLabel";
 import { useDebouncedValue } from "@/lib/hooks";
+import { errorMessage, toast } from "@/lib/toast";
 import styles from "./CustomerPickerDialog.module.scss";
 
 type Props = {
@@ -36,6 +37,8 @@ type Props = {
    * riêng thì không có nút tạo khách: luồng đó chỉ chọn hồ sơ có sẵn.
    */
   lookup?: { key: string; fetch: (search: string) => Promise<CustomerLookupResult> };
+  /** Dữ liệu bước sau cần có ngay lúc mở, tải cùng hồ sơ khách khi bấm chọn. */
+  preload?: (customerId: string) => { queryKey: readonly unknown[]; queryFn: () => Promise<unknown> };
   /**
    * Bước tiếp theo, dựng khi đã có khách — hộp thoại mở tài khoản, tạo đơn, ghi
    * dịch vụ. `back` đưa người dùng về bước chọn khách; hộp thoại bước sau gắn
@@ -58,8 +61,18 @@ type Props = {
  * Không tìm thấy khách thì tạo mới NGAY tại đây, tạo xong đi THẲNG vào bước
  * tiếp theo, không chặn lại ở một bước xác nhận trung gian.
  */
-export function CustomerPickerDialog({ open, onClose, title, forBankAccount, lookup, children }: Props) {
+export function CustomerPickerDialog({
+  open,
+  onClose,
+  title,
+  forBankAccount,
+  lookup,
+  preload,
+  children,
+}: Props) {
+  const queryClient = useQueryClient();
   const [pickedId, setPickedId] = useState("");
+  const [openingId, setOpeningId] = useState("");
   const [creatingCustomer, setCreatingCustomer] = useState(false);
   // Khách vừa tạo đã có sẵn đủ dữ liệu — khỏi tải lại qua `fetchCustomerDetail`
   // như đường "chọn khách có sẵn" bên dưới.
@@ -85,11 +98,27 @@ export function CustomerPickerDialog({ open, onClose, title, forBankAccount, loo
     placeholderData: (previous) => previous,
   });
 
-  const { data: detail, isPending: detailPending } = useQuery({
+  const { data: detail } = useQuery({
     queryKey: ["customer", pickedId],
     queryFn: () => fetchCustomerDetail(pickedId),
     enabled: !!pickedId,
   });
+
+  /** Tải xong rồi mới chuyển bước: danh sách giữ nguyên trong lúc chờ, modal không co lại. */
+  const pick = async (id: string) => {
+    setOpeningId(id);
+    try {
+      await Promise.all([
+        queryClient.fetchQuery({ queryKey: ["customer", id], queryFn: () => fetchCustomerDetail(id) }),
+        preload && queryClient.fetchQuery(preload(id)),
+      ]);
+      setPickedId(id);
+    } catch (e) {
+      toast.fail(errorMessage(e, "Không tải được hồ sơ khách hàng."));
+    } finally {
+      setOpeningId("");
+    }
+  };
 
   /**
    * Quay về bước chọn khách. Phải xoá CẢ HAI nguồn — chọn khách có sẵn ghi vào
@@ -142,10 +171,6 @@ export function CustomerPickerDialog({ open, onClose, title, forBankAccount, loo
             onChange={setSearch}
           />
 
-          {pickedId && detailPending && (
-            <SkeletonText lines={3} label="Đang tải hồ sơ khách hàng" />
-          )}
-
           {!pickedId && (
             <>
               {listPending && (
@@ -192,7 +217,9 @@ export function CustomerPickerDialog({ open, onClose, title, forBankAccount, loo
                       <button
                         type="button"
                         className={styles.row}
-                        onClick={() => setPickedId(c.id)}
+                        disabled={!!openingId}
+                        aria-busy={openingId === c.id}
+                        onClick={() => void pick(c.id)}
                       >
                         <span className={styles.rowName}>{nameOf(c)}</span>
                         <span className={styles.rowPhone}>{c.primaryPhone}</span>
@@ -210,7 +237,9 @@ export function CustomerPickerDialog({ open, onClose, title, forBankAccount, loo
         <CustomerFormDialog
           open
           onClose={() => setCreatingCustomer(false)}
-          onCreated={(customer) => {
+          onCreated={async (customer) => {
+            // Lỗi thì bước sau tự tải lại bằng cùng khoá.
+            if (preload) await queryClient.fetchQuery(preload(customer.id)).catch(() => undefined);
             setCreatingCustomer(false);
             setReadyCustomer(customer);
           }}

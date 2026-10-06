@@ -16,6 +16,24 @@ type Props = {
   onBack?: () => void;
 };
 
+/** Dòng VNeID của một khách. Màn chọn khách tải trước bằng đúng khoá này. */
+export const customerVneidQuery = (customerId: string) => ({
+  queryKey: ["vneid", "customer", customerId, "current"],
+  queryFn: () =>
+    fetchVneidRecords({
+      search: "",
+      from: "",
+      to: "",
+      departmentId: "",
+      staffId: "",
+      customerId,
+      task: "",
+      page: 0,
+      sort: "createdAt",
+      dir: "desc",
+    }),
+});
+
 /** Mỗi hồ sơ khách đúng một dòng VNeID: đã có thì mở form sửa dòng đó, chưa có thì mở form thêm. */
 export function CustomerVneidDialog({
   customerId,
@@ -26,23 +44,7 @@ export function CustomerVneidDialog({
 }: Props) {
   const user = useSession((s) => s.user);
   const canRead = can(user, "vneid", "view-detail");
-  const { data, isPending } = useQuery({
-    queryKey: ["vneid", "customer", customerId, "current"],
-    queryFn: () =>
-      fetchVneidRecords({
-        search: "",
-        from: "",
-        to: "",
-        departmentId: "",
-        staffId: "",
-        customerId,
-        task: "",
-        page: 0,
-        sort: "createdAt",
-        dir: "desc",
-      }),
-    enabled: canRead,
-  });
+  const { data, isPending } = useQuery({ ...customerVneidQuery(customerId), enabled: canRead });
 
   if (canRead && isPending) return null;
 
