@@ -1,27 +1,49 @@
 .field {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 10px;
 }
 
-.group {
+.suggestions {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  min-width: 0;
 }
 
-.title {
-  padding: 0;
-  font-size: 14px;
+.lead {
+  font-size: 12.5px;
+  color: var(--om-text-3);
+}
+
+.chip {
+  all: unset;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 32px;
+  padding: 0 12px 0 9px;
+  border-radius: 999px;
+  background: var(--om-chip-bg);
+  color: var(--om-chip-ink);
+  font-size: 13px;
   font-weight: 600;
+  cursor: pointer;
 }
 
-.options {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px 16px;
+.chip:hover {
+  box-shadow: inset 0 0 0 1px var(--om-chip-ink);
+}
+
+.chip:focus-visible {
+  outline: 2px solid var(--om-orange);
+  outline-offset: 1px;
+}
+
+/* Vùng bấm 44px cho ngón tay (AGENTS.md §8). */
+@media (pointer: coarse) {
+  .chip {
+    min-height: 44px;
+  }
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { Checkbox } from "@/components/ui/Checkbox";
+import { Plus } from "lucide-react";
 import { TextArea } from "@/components/ui/TextArea";
 import styles from "./BankAccountErrorNoteField.module.scss";
 
@@ -18,30 +18,16 @@ type Props = {
 };
 
 /**
- * Ô lý do đánh lỗi tài khoản (chốt 2026-10-06): tích lỗi hay gặp thay cho gõ
- * tay. Mỗi lỗi là một đoạn ngăn bằng `; ` trong cùng chuỗi `errorNote`, nên ô
- * chữ vẫn sửa tự do và lý do điền sẵn từ kiểm ảnh vẫn giữ nguyên.
+ * Ô lý do đánh lỗi tài khoản (chốt 2026-10-06): bấm gợi ý để chèn lỗi hay gặp
+ * thay cho gõ tay. Mỗi lỗi là một đoạn ngăn bằng `; ` trong cùng chuỗi
+ * `errorNote`, nên lý do điền sẵn từ kiểm ảnh vẫn giữ nguyên.
  */
 export function BankAccountErrorNoteField({ value, onChange }: Props) {
   const parts = partsOf(value);
-  const toggle = (reason: string, on: boolean) =>
-    onChange((on ? [...parts, reason] : parts.filter((part) => part !== reason)).join("; "));
+  const suggestions = COMMON_REASONS.filter((reason) => !parts.includes(reason));
 
   return (
     <div className={styles.field}>
-      <fieldset className={styles.group}>
-        <legend className={styles.title}>Lỗi hay gặp</legend>
-        <div className={styles.options}>
-          {COMMON_REASONS.map((reason) => (
-            <Checkbox
-              key={reason}
-              label={reason}
-              checked={parts.includes(reason)}
-              onCheckedChange={(on) => toggle(reason, on)}
-            />
-          ))}
-        </div>
-      </fieldset>
       <TextArea
         label="Lý do lỗi"
         required
@@ -50,6 +36,23 @@ export function BankAccountErrorNoteField({ value, onChange }: Props) {
         value={value}
         onChange={(event) => onChange(event.target.value)}
       />
+      {suggestions.length > 0 && (
+        <div className={styles.suggestions}>
+          <span className={styles.lead}>Gợi ý</span>
+          {suggestions.map((reason) => (
+            <button
+              key={reason}
+              type="button"
+              className={styles.chip}
+              aria-label={`Thêm "${reason}" vào lý do lỗi`}
+              onClick={() => onChange([...parts, reason].join("; "))}
+            >
+              <Plus size={14} aria-hidden />
+              {reason}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
