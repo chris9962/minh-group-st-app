@@ -34,6 +34,7 @@
     "db:seed-social-insurance": "bun --env-file=.env.local scripts/db-seed-social-insurance.ts",
     "db:seed-social-salary": "bun --env-file=.env.local scripts/db-seed-social-salary.ts",
     "db:recount-work-days": "bun --env-file=.env.local scripts/db-recount-work-days.ts",
+    "db:set-draft-ttl": "bun --env-file=.env.local scripts/db-set-draft-ttl.ts",
     "db:announce-release": "bun --env-file=.env.local scripts/db-announce-release.ts",
     "db:backfill-policy-gcn": "bun --env-file=.env.local scripts/db-backfill-policy-gcn.ts",
     "db:enqueue-photo-checks": "bun --env-file=.env.local scripts/db-enqueue-photo-checks.ts",

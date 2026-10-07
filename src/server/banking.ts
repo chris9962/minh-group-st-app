@@ -9,6 +9,7 @@ import {
   inArray,
   isNull,
   lte,
+  not,
   or,
   sql,
   type SQL,
@@ -18,7 +19,7 @@ import {
   BankAccountStatus,
   canEditOpeningPhotos,
   DRAFT_TTL_MINUTES,
-  DRAFT_WARN_MINUTES,
+  DRAFT_WARN_LEAD_MINUTES,
   MAX_BANK_ACCOUNTS_PER_CUSTOMER,
   MAX_DRAFTS_PER_STAFF_BY_TYPE,
 } from "@/lib/api/bankAccounts";
@@ -642,6 +643,8 @@ const decorate = (page: ReturnType<typeof pickPage>) => {
       lastErrorAt: page.lastErrorAt,
       // Mốc giữ chỗ: bước 2 đếm ngược hạn xoá bản nháp từ đây.
       createdAt: page.createdAt,
+      // Thời hạn bản nháp theo người giữ chỗ, `users` đã có mặt cho `createdByName`.
+      draftTtlMinutes: sql<number>`coalesce(${users.draftTtlMinutes}, ${DRAFT_TTL_MINUTES})::int`,
       status: page.status,
       requiredPhotos: banks.requiredPhotos,
       accountNumberMethod: banks.accountNumberMethod,
@@ -1259,6 +1262,7 @@ async function detailBody(r: DecoratedRow): Promise<BankAccountDetail> {
     finishedAt: r.finishedAt?.toISOString() ?? "",
     lastErrorAt: r.lastErrorAt?.toISOString() ?? "",
     createdAt: r.createdAt.toISOString(),
+    draftTtlMinutes: r.draftTtlMinutes,
     history: (await db.select().from(bankAccountStatusHistory)
       .where(eq(bankAccountStatusHistory.accountId, r.id))
       .orderBy(asc(bankAccountStatusHistory.changedAt), asc(bankAccountStatusHistory.id)))
@@ -2187,15 +2191,16 @@ const MINUTE_MS = 60_000;
 /**
  * Bản nháp (`creating`) sống `DRAFT_TTL_MINUTES` kể từ lúc giữ chỗ (chốt
  * 2026-10-06): nhân viên tạo khách ảo rồi giữ chỗ để găm mã giới thiệu, nên
- * không để bản nháp nằm tới cuối ngày nữa. Timer `mgst-purge-drafts` gọi mỗi
- * phút qua `scripts/purge-draft-accounts.ts`, hai việc theo thứ tự:
+ * không để bản nháp nằm tới cuối ngày nữa. Người có `users.draft_ttl_minutes`
+ * thì dùng thời hạn riêng đó (chốt 2026-10-07). Timer `mgst-purge-drafts` gọi
+ * mỗi phút qua `scripts/purge-draft-accounts.ts`, hai việc theo thứ tự:
  *
- *   1. Báo trước: bản nháp đủ `DRAFT_WARN_MINUTES` mà chưa báo thì chủ bản
- *      nháp nhận một dòng `bank-expiring`, đúng một lần. Ghi `expiry_warned_at`
+ *   1. Báo trước: bản nháp còn `DRAFT_WARN_LEAD_MINUTES` tới hạn mà chưa báo
+ *      thì chủ bản nháp nhận một dòng `bank-expiring`, đúng một lần. Ghi `expiry_warned_at`
  *      TRƯỚC khi gửi, với điều kiện `IS NULL` nằm ngay trong câu UPDATE: hai
  *      lượt chạy chồng nhau thì chỉ lượt ghi được dòng mới gửi. Bản nháp đã
  *      quá hạn mà chưa báo thì không báo nữa, bước 2 xoá ngay sau đó.
- *   2. Xoá: bản nháp đủ `DRAFT_TTL_MINUTES`. Xoá thẳng, không đi qua
+ *   2. Xoá: bản nháp đủ thời hạn của người giữ chỗ. Xoá thẳng, không đi qua
  *      `deleteCreatingAccountByBankManager`: không có người bấm nên không có
  *      phạm vi nào để kẹp. Trigger DB trả chỗ mã giới thiệu và hạ số tài khoản
  *      của khách; ảnh chết theo `on delete cascade`, file trên kho nằm lại như
@@ -2210,8 +2215,9 @@ export async function expireDraftAccounts(
   now: Date,
   dryRun = false,
 ): Promise<{ warned: DecoratedRow[]; removed: DecoratedRow[] }> {
-  const warnBefore = new Date(now.getTime() - DRAFT_WARN_MINUTES * MINUTE_MS);
-  const deleteBefore = new Date(now.getTime() - DRAFT_TTL_MINUTES * MINUTE_MS);
+  const ttl = sql`coalesce((select ${users.draftTtlMinutes} from ${users} where ${users.id} = ${bankAccounts.createdBy}), ${DRAFT_TTL_MINUTES})::int`;
+  const heldAtLeast = (minutes: SQL) =>
+    sql`${bankAccounts.createdAt} <= ${now.toISOString()}::timestamptz - make_interval(mins => ${minutes})`;
   const draftsSince = (where: SQL) =>
     decorate(
       pickPage(and(eq(bankAccounts.status, "creating"), where), [asc(bankAccounts.createdAt)], 10_000, 0),
@@ -2219,12 +2225,12 @@ export async function expireDraftAccounts(
 
   const toWarn = await draftsSince(
     and(
-      lte(bankAccounts.createdAt, warnBefore),
-      gt(bankAccounts.createdAt, deleteBefore),
+      heldAtLeast(sql`${ttl} - ${DRAFT_WARN_LEAD_MINUTES}`),
+      not(heldAtLeast(ttl)),
       isNull(bankAccounts.expiryWarnedAt),
     )!,
   );
-  const toRemove = await draftsSince(lte(bankAccounts.createdAt, deleteBefore));
+  const toRemove = await draftsSince(heldAtLeast(ttl));
   if (dryRun) return { warned: toWarn, removed: toRemove };
 
   let warned: DecoratedRow[] = [];
@@ -2245,7 +2251,7 @@ export async function expireDraftAccounts(
     for (const row of warned) {
       const minutesLeft = Math.max(
         1,
-        Math.ceil((row.createdAt.getTime() + DRAFT_TTL_MINUTES * MINUTE_MS - now.getTime()) / MINUTE_MS),
+        Math.ceil((row.createdAt.getTime() + row.draftTtlMinutes * MINUTE_MS - now.getTime()) / MINUTE_MS),
       );
       await baoChuTaiKhoan(
         row,
@@ -2276,7 +2282,7 @@ export async function expireDraftAccounts(
         row,
         "bank-deleted",
         "Tài khoản đang tạo đã bị xoá",
-        `quá ${DRAFT_TTL_MINUTES} phút chưa hoàn tất, hệ thống đã xoá`,
+        `quá ${row.draftTtlMinutes} phút chưa hoàn tất, hệ thống đã xoá`,
       );
     }
   }

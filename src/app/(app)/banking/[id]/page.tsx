@@ -39,7 +39,6 @@ import {
   BANK_ACCOUNT_STATUS_TONE,
   BankAccountFinishForm,
   BankAccountNotFoundError,
-  DRAFT_TTL_MINUTES,
   approveBankAccount,
   deleteBankAccount,
   finishBankAccount,
@@ -135,7 +134,7 @@ function DraftGoneCard() {
   return (
     <SectionCard title="Hoàn tất tài khoản" icon={<Landmark size={17} />}>
       <Alert tone="warning">
-        Bản nháp đã quá {DRAFT_TTL_MINUTES} phút và bị xoá. Giữ chỗ lại.
+        Bản nháp đã quá hạn giữ chỗ và bị xoá. Giữ chỗ lại.
       </Alert>
       <div className={styles.actions}>
         <Link href="/banking" className="btn btn-secondary">
@@ -270,7 +269,7 @@ function FinishAccountCard({
 
   return (
     <SectionCard title="Hoàn tất tài khoản" icon={<Landmark size={17} />}>
-      <DraftPurgeCountdown createdAt={data.createdAt} />
+      <DraftPurgeCountdown createdAt={data.createdAt} ttlMinutes={data.draftTtlMinutes} />
       <dl className={styles.fields}>
         {/* Nhãn trạng thái cùng kiểu với mặt đã hoàn thành — chữ meta thường
             quá mờ cho một trạng thái cần thấy ngay. */}

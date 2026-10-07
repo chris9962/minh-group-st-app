@@ -143,11 +143,13 @@ export const MAX_DRAFTS_PER_STAFF_BY_TYPE: Record<AccountType, number> = {
 
 /**
  * Bản nháp sống bấy nhiêu phút kể từ lúc giữ chỗ (chốt 2026-10-06), quá hạn
- * thì hệ thống xoá và trả mã về kho. Đủ `DRAFT_WARN_MINUTES` thì chủ bản nháp
- * nhận một thông báo "sắp bị xoá", đúng một lần. Xem `expireDraftAccounts`.
+ * thì hệ thống xoá và trả mã về kho. Người có `users.draft_ttl_minutes` dùng
+ * thời hạn riêng (chốt 2026-10-07). Còn `DRAFT_WARN_LEAD_MINUTES` tới hạn thì
+ * chủ bản nháp nhận một thông báo "sắp bị xoá", đúng một lần. Xem
+ * `expireDraftAccounts`.
  */
 export const DRAFT_TTL_MINUTES = 30;
-export const DRAFT_WARN_MINUTES = 25;
+export const DRAFT_WARN_LEAD_MINUTES = 5;
 
 /**
  * MỘT ngân hàng khách chọn mở, kèm mã giữ chỗ cho nó.

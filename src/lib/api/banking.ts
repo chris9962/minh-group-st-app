@@ -97,6 +97,8 @@ export const BankAccountDetail = BankAccountRow.extend({
   lastErrorAt: z.string(),
   /** Lúc giữ chỗ, dạng ISO. Bước 2 đếm ngược hạn xoá bản nháp từ mốc này. */
   createdAt: z.string(),
+  /** Thời hạn bản nháp của người giữ chỗ, phút. */
+  draftTtlMinutes: z.number(),
   history: z.array(BankAccountStatusStep),
   requiredPhotos: z.number(),
   /** Quyết ô số tài khoản ở bước 2 là ô gõ tay hay ô chọn SĐT. */

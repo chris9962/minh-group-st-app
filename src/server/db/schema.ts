@@ -241,6 +241,11 @@ export const users = pgTable(
     salaryScheme: salaryScheme("salary_scheme").notNull().default("department"),
     /** Lương cứng mỗi tháng, đồng. Chỉ có khi `salary_scheme = 'fixed'`. */
     fixedSalary: integer("fixed_salary"),
+    /**
+     * Bản nháp tài khoản ngân hàng của người này sống bấy nhiêu phút (migration
+     * 0129). NULL = `DRAFT_TTL_MINUTES`. Gán bằng `db:set-draft-ttl`.
+     */
+    draftTtlMinutes: smallint("draft_ttl_minutes"),
     active: boolean("active").notNull().default(true),
     /** C-01: sai 5 lần liên tiếp → khoá 15 phút, quản trị mở lại. */
     failedAttempts: smallint("failed_attempts").notNull().default(0),
