@@ -205,6 +205,10 @@ export const isUuid = (id: string): boolean => UUID.test(id);
 export const uuidParam = (value: string | null): string =>
   value && isUuid(value) ? value : "";
 
+/** Như `uuidParam` cho nhiều id ngăn bằng dấu phẩy: bỏ id sai dạng, giữ id đúng. */
+export const uuidListParam = (value: string | null): string =>
+  (value ?? "").split(",").filter(isUuid).join(",");
+
 /** Đọc JSON an toàn — body rỗng hoặc không phải JSON thì trả null, không ném. */
 export const jsonBody = async (request: Request): Promise<unknown> =>
   request.json().catch(() => null);

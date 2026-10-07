@@ -1,7 +1,7 @@
 import { BANK_ACCOUNT_SORT } from "@/lib/api/banking";
 import { BANK_PHOTOS_PAGE_SIZE } from "@/lib/api/bankPhotos";
 import { canManageBank, canOpenBankAdmin } from "@/lib/permissions";
-import { forbidden, getActor, isUuid, notFound, unauthorized, uuidParam } from "@/server/auth";
+import { forbidden, getActor, isUuid, notFound, unauthorized, uuidListParam, uuidParam } from "@/server/auth";
 import { listBankPhotos } from "@/server/banking";
 import { pageArgsFrom } from "@/server/pagination";
 
@@ -32,7 +32,7 @@ export async function GET(request: Request, { params }: Params) {
         to: query.get("to") ?? "",
         status: query.get("status") ?? "",
         // Chuỗi không phải uuid đi thẳng vào SQL là `22P02` → 500.
-        referralCodeId: uuidParam(query.get("referralCodeId")),
+        referralCodeId: uuidListParam(query.get("referralCodeId")),
         departmentId: uuidParam(query.get("departmentId")),
         channelId: uuidParam(query.get("channelId")),
         accountType: query.get("accountType") ?? "",

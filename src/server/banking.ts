@@ -815,6 +815,7 @@ export type BankOfBankFilters = {
   from: string;
   to: string;
   status: string;
+  /** Một hoặc nhiều id mã, ngăn bằng dấu phẩy. Rỗng = mọi mã. */
   referralCodeId: string;
   /** Phòng GHI NHẬN lúc tạo bản ghi, chụp một lần (spec §1.1.5). */
   departmentId: string;
@@ -859,7 +860,7 @@ const bankAccountsOfBankWhere = (bankId: string, filters: BankOfBankFilters): SQ
       statusFilter(filters.status),
       // Lọc theo ID, không theo mã text: mã QR-only để trống cột `code`.
       filters.referralCodeId
-        ? eq(bankAccounts.referralCodeId, filters.referralCodeId)
+        ? inArray(bankAccounts.referralCodeId, filters.referralCodeId.split(","))
         : undefined,
       filters.departmentId
         ? eq(bankAccounts.createdByDepartmentId, filters.departmentId)

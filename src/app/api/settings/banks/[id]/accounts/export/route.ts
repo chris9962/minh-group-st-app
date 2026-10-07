@@ -1,5 +1,5 @@
 import { canManageBank, canOpenBankAdmin } from "@/lib/permissions";
-import { forbidden, getActor, isUuid, notFound, unauthorized, uuidParam } from "@/server/auth";
+import { forbidden, getActor, isUuid, notFound, unauthorized, uuidListParam, uuidParam } from "@/server/auth";
 import { listBankAccountsOfBankForExport } from "@/server/banking";
 
 type Params = { params: Promise<{ id: string }> };
@@ -28,7 +28,7 @@ export async function GET(request: Request, { params }: Params) {
       from: query.get("from") ?? "",
       to: query.get("to") ?? "",
       status: query.get("status") ?? "",
-      referralCodeId: uuidParam(query.get("referralCodeId")),
+      referralCodeId: uuidListParam(query.get("referralCodeId")),
       departmentId: uuidParam(query.get("departmentId")),
       channelId: uuidParam(query.get("channelId")),
       accountType: query.get("accountType") ?? "",

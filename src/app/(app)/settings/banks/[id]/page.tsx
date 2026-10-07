@@ -164,9 +164,10 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
     return parsed.success ? parsed.data : "";
   });
   /** Bảng mã ở tab Kho mã giới thiệu dẫn tới đây kèm sẵn `referralCodeId`. */
-  const [referralCodeId, setReferralCodeId] = useState(
-    () => searchParams.get("referralCodeId") ?? "",
+  const [referralCodeIds, setReferralCodeIds] = useState<string[]>(() =>
+    (searchParams.get("referralCodeId") ?? "").split(",").filter(Boolean),
   );
+  const referralCodeId = referralCodeIds.join(",");
   const [departmentId, setDepartmentId] = useState(
     () => searchParams.get("departmentId") ?? "",
   );
@@ -405,12 +406,11 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
   const activeCount =
     (from && to ? 1 : 0) +
     (status ? 1 : 0) +
-    (referralCodeId ? 1 : 0) +
+    referralCodeIds.length +
     (departmentId ? 1 : 0) +
     (channelId ? 1 : 0) +
     (accountType ? 1 : 0) +
     (photoCheck ? 1 : 0);
-  const codeName = codes.find((c) => c.id === referralCodeId)?.name ?? "";
 
   /**
    * Sang ngân hàng khác giữ tab và bộ lọc, trừ mã giới thiệu: mã thuộc riêng
@@ -482,7 +482,7 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
             refine(() => {
               setRange(undefined);
               setStatus("");
-              setReferralCodeId("");
+              setReferralCodeIds([]);
               setDepartmentId("");
               setChannelId("");
               setAccountTypes([]);
@@ -525,16 +525,14 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
               ]}
             />
           </FilterField>
-          <FilterField id="code" label="Mã giới thiệu" count={referralCodeId ? 1 : 0}>
+          <FilterField id="code" label="Mã giới thiệu" count={referralCodeIds.length}>
             <FilterChoices
+              multiple
               label="Mã giới thiệu"
               searchPlaceholder="Gõ để tìm mã…"
-              value={referralCodeId}
-              onChange={(v) => refine(() => setReferralCodeId(v))}
-              options={[
-                { value: "", label: "Tất cả mã giới thiệu" },
-                ...codes.map((c) => ({ value: c.id, label: c.name })),
-              ]}
+              value={referralCodeIds}
+              onChange={(v) => refine(() => setReferralCodeIds(v))}
+              options={codes.map((c) => ({ value: c.id, label: c.name }))}
             />
           </FilterField>
           <FilterField id="department" label="Phòng" count={departmentId ? 1 : 0}>
@@ -621,16 +619,16 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
                   },
                 ]
               : []),
-            ...(referralCodeId
-              ? [
-                  {
-                    // Vào màn bằng link có sẵn `referralCodeId` thì kho mã chưa
-                    // nạp xong; chip để trống tên trông như đang hỏng.
-                    label: codeName ? `Mã giới thiệu: ${codeName}` : "Mã giới thiệu",
-                    onRemove: () => refine(() => setReferralCodeId("")),
-                  },
-                ]
-              : []),
+            ...referralCodeIds.map((codeId) => {
+              // Vào màn bằng link có sẵn `referralCodeId` thì kho mã chưa nạp
+              // xong; chip để trống tên trông như đang hỏng.
+              const codeName = codes.find((c) => c.id === codeId)?.name ?? "";
+              return {
+                label: codeName ? `Mã giới thiệu: ${codeName}` : "Mã giới thiệu",
+                onRemove: () =>
+                  refine(() => setReferralCodeIds(referralCodeIds.filter((x) => x !== codeId))),
+              };
+            }),
           ]}
         />
 
