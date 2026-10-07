@@ -3,7 +3,13 @@ import path from "node:path";
 import convert from "heic-convert";
 import sharp from "sharp";
 import { prepareZXingModule, readBarcodes } from "zxing-wasm/reader";
-import { ID_CARD_QR_REGION, ID_CARD_QR_UNREADABLE, parseIdCardQr, type IdCardQr } from "@/lib/idCardQr";
+import {
+  ID_CARD_QR_REGIONS,
+  ID_CARD_QR_UNREADABLE,
+  parseIdCardQr,
+  type IdCardQr,
+  type QrRegion,
+} from "@/lib/idCardQr";
 import { imageExtOf } from "./storage";
 
 /**
@@ -32,7 +38,7 @@ const prepareZxing = () =>
     });
   }));
 
-async function decode(src: Buffer, region?: typeof ID_CARD_QR_REGION): Promise<string | null> {
+async function decode(src: Buffer, region?: QrRegion): Promise<string | null> {
   await prepareZxing();
   let pipeline = sharp(src, { failOn: "none" }).rotate();
   if (region) {
@@ -70,8 +76,12 @@ export async function readIdCardQr(bytes: Uint8Array): Promise<IdCardQr> {
       ext === "heic"
         ? Buffer.from(await convert({ buffer: Buffer.from(bytes), format: "JPEG", quality: 0.92 }))
         : Buffer.from(bytes);
-    // Ảnh từ màn chụp thẻ có QR ở ô cố định; ảnh khác (không cắt theo khung) thì đọc cả ảnh.
-    text = (await decode(src, ID_CARD_QR_REGION)) ?? (await decode(src));
+    // Ảnh từ màn chụp thẻ có QR ở một trong các ô cố định; ảnh khác (không cắt theo khung) thì đọc cả ảnh.
+    for (const region of ID_CARD_QR_REGIONS) {
+      text = await decode(src, region);
+      if (text) break;
+    }
+    text ??= await decode(src);
   } catch (e) {
     console.error("[idCardQr] không đọc được ảnh:", e);
     return { ok: false, message: ID_CARD_QR_UNREADABLE };

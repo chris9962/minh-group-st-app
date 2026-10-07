@@ -28,15 +28,23 @@ export const ID_CARD_QR_UNREADABLE = 'Không đọc được thông tin từ ả
 export const ID_CARD_CROP_MARGIN = 0.05;
 
 /**
- * Ô chứa QR trong ảnh thẻ đã cắt (gồm cả viền `ID_CARD_CROP_MARGIN`), theo phần
- * của ảnh. Hai mẫu thẻ đều in QR ở góc trên phải, đo trên ảnh thật 2026-10-07:
- * CCCD gắn chip mặt trước QR ở x 0,77-0,91, y 0,09-0,28 của ảnh cắt; thẻ căn
- * cước mẫu mới mặt sau ở x 0,72-0,92, y 0,08-0,40.
+ * Các ô có thể chứa QR trong ảnh thẻ đã cắt (gồm cả viền `ID_CARD_CROP_MARGIN`),
+ * theo phần của ảnh. Trình duyệt quét các ô này trên video, máy chủ đọc lại các
+ * ô này trên ảnh gửi lên. Đọc cả ảnh thẻ thì zxing hay không tìm ra QR giữa nền
+ * hoa văn của thẻ.
  *
- * Trình duyệt quét ô này trên video, máy chủ đọc lại ô này trên ảnh gửi lên.
- * Đọc cả ảnh thẻ thì zxing hay không tìm ra QR giữa nền hoa văn của thẻ.
+ * 1. Góc trên phải: hai mẫu thẻ đều in QR ở đây, đo trên ảnh thật 2026-10-07.
+ *    CCCD gắn chip mặt trước QR ở x 0,77-0,91, y 0,09-0,28 của ảnh cắt; thẻ căn
+ *    cước mẫu mới mặt sau ở x 0,72-0,92, y 0,08-0,40.
+ * 2. Giữa khung: khách đưa màn hình app VNeID chỉ có QR, người dùng canh QR vào
+ *    giữa khung (chốt 2026-10-07).
  */
-export const ID_CARD_QR_REGION = { x: 0.62, y: 0, w: 0.38, h: 0.55 };
+export const ID_CARD_QR_REGIONS = [
+  { x: 0.62, y: 0, w: 0.38, h: 0.55 },
+  { x: 0.2, y: 0.05, w: 0.6, h: 0.9 },
+] as const;
+
+export type QrRegion = (typeof ID_CARD_QR_REGIONS)[number];
 
 const NOT_ID_CARD = ID_CARD_QR_UNREADABLE;
 

@@ -5,10 +5,11 @@ import { clsx } from "clsx";
 import { useEffect, useRef, useState } from "react";
 import {
   ID_CARD_CROP_MARGIN,
-  ID_CARD_QR_REGION,
+  ID_CARD_QR_REGIONS,
   ID_CARD_QR_UNREADABLE,
   parseIdCardQr,
   type IdCardQr,
+  type QrRegion,
 } from "@/lib/idCardQr";
 import { readQrPixels } from "@/lib/readQrImage";
 import styles from "./IdCardScanner.module.scss";
@@ -62,12 +63,12 @@ function cardRect(video: HTMLVideoElement, viewportEl: HTMLElement, frameEl: HTM
   return { left, top, width: right - left, height: bottom - top };
 }
 
-/** Ô QR trong một vùng ảnh thẻ, cùng phép tính máy chủ dùng trên ảnh gửi lên. */
-const qrRect = (card: Rect): Rect => ({
-  left: card.left + card.width * ID_CARD_QR_REGION.x,
-  top: card.top + card.height * ID_CARD_QR_REGION.y,
-  width: card.width * ID_CARD_QR_REGION.w,
-  height: card.height * ID_CARD_QR_REGION.h,
+/** Một ô QR trong vùng ảnh thẻ, cùng phép tính máy chủ dùng trên ảnh gửi lên. */
+const qrRect = (card: Rect, region: QrRegion): Rect => ({
+  left: card.left + card.width * region.x,
+  top: card.top + card.height * region.y,
+  width: card.width * region.w,
+  height: card.height * region.h,
 });
 
 /** Thẻ đọc được từ chuỗi QR, hoặc `null`; zxing nạp hỏng cũng coi như chưa đọc được. */
@@ -85,8 +86,9 @@ async function cardIn(pixels: ImageData): Promise<ScannedIdCard | null> {
  * Bước 1 của form tạo khách (chốt 2026-10-06): khung ngắm kiểu camera điện
  * thoại ngay trong hộp thoại, cùng lối với `CameraCheckIn`.
  *
- * Trong lúc người dùng canh thẻ, trang quét liên tục ô góc trên phải của khung
- * thẻ, ô đó không vẽ ra (chốt 2026-10-07). Đọc được QR thì viền khung chuyển
+ * Trong lúc người dùng canh thẻ, trang quét xen kẽ các ô `ID_CARD_QR_REGIONS`
+ * của khung thẻ: góc trên phải cho thẻ, giữa khung cho màn hình VNeID. Các ô
+ * không vẽ ra (chốt 2026-10-07). Đọc được QR thì viền khung chuyển
  * xanh và nút chụp mở; người dùng tự bấm chụp khi đã canh thẻ cho thẳng. Quét
  * riêng ô QR ở độ phân giải gốc của video là cách duy nhất đọc được QR nhỏ của
  * CCCD mẫu cũ: đọc cả khung thẻ thì zxing không tìm ra QR giữa nền hoa văn.
@@ -174,7 +176,8 @@ export function IdCardScanner({ onScanned, onCancel }: Props) {
     };
   }, [attempt]);
 
-  // Quét ô QR liên tục trong lúc người dùng canh thẻ; dừng khi đang chụp hay đã chụp.
+  // Quét ô QR liên tục trong lúc người dùng canh thẻ, mỗi lượt một ô cho nhẹ máy;
+  // dừng khi đang chụp hay đã chụp.
   useEffect(() => {
     const video = videoRef.current;
     const viewport = viewportRef.current;
@@ -183,13 +186,14 @@ export function IdCardScanner({ onScanned, onCancel }: Props) {
     let stopped = false;
     let lastSeen = 0;
     let timer = 0;
+    let turn = 0;
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
 
     const scan = async () => {
       const card = cardRect(video, viewport, frame);
       if (card && ctx) {
-        const qr = qrRect(card);
+        const qr = qrRect(card, ID_CARD_QR_REGIONS[turn++ % ID_CARD_QR_REGIONS.length]);
         canvas.width = Math.round(qr.width);
         canvas.height = Math.round(qr.height);
         ctx.drawImage(video, qr.left, qr.top, qr.width, qr.height, 0, 0, canvas.width, canvas.height);
@@ -239,11 +243,14 @@ export function IdCardScanner({ onScanned, onCancel }: Props) {
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
     if (!ctx) return null;
     ctx.drawImage(video, rect.left, rect.top, rect.width, rect.height, 0, 0, canvas.width, canvas.height);
-    const qr = qrRect({ left: 0, top: 0, width: canvas.width, height: canvas.height });
-    const card = await cardIn(
-      ctx.getImageData(Math.round(qr.left), Math.round(qr.top), Math.round(qr.width), Math.round(qr.height)),
-    );
-    return card ? { canvas, card } : null;
+    for (const region of ID_CARD_QR_REGIONS) {
+      const qr = qrRect({ left: 0, top: 0, width: canvas.width, height: canvas.height }, region);
+      const card = await cardIn(
+        ctx.getImageData(Math.round(qr.left), Math.round(qr.top), Math.round(qr.width), Math.round(qr.height)),
+      );
+      if (card) return { canvas, card };
+    }
+    return null;
   };
 
   const capture = async () => {
