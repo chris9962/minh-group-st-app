@@ -42,6 +42,12 @@ type Props = {
   referral?: ReferralCode | null;
 };
 
+/** Thêm mã mới cho các tổ hợp này thì tick sẵn "Ẩn với nhân viên" (chủ dự án chốt 2026-10-07). */
+const HIDE_CODE_BY_DEFAULT: Record<string, AccountType[]> = {
+  VPa: ["CNKD"],
+  VPb: ["none", "CNKD"],
+};
+
 /**
  * P-61 · Thêm / sửa một mã giới thiệu lẻ. Nhập hàng loạt từ Excel là việc của P-62.
  *
@@ -135,6 +141,15 @@ export function ReferralCodeFormDialog({ open, onClose, referral }: Props) {
   // QR chỉ được đưa ra cho khách quét; không giải ảnh thành link hay mở app từ đây.
   const takeQrPhotos = (next: PhotoItem[]) => setQrPhotos(next);
 
+  // Mã đang sửa giữ giá trị đã lưu, chỉ lúc thêm mới mới tick theo tổ hợp.
+  const tickHideCode = (bankId: string, accountType: AccountType) => {
+    if (editing) return;
+    const bankCode = banks.find((b) => b.id === bankId)?.code ?? "";
+    setValue("hideCode", HIDE_CODE_BY_DEFAULT[bankCode]?.includes(accountType) ?? false, {
+      shouldDirty: true,
+    });
+  };
+
   const save = useMutation({
     mutationFn: async (form: ReferralCodeForm) => {
       // Ảnh đi lên TRƯỚC, rồi mới ghi bản ghi. Gửi thẳng `blob:` thì nó chạy
@@ -199,7 +214,10 @@ export function ReferralCodeFormDialog({ open, onClose, referral }: Props) {
             label="Ngân hàng"
             disabled={editing}
             value={watch("bankId")}
-            onChange={(v) => setValue("bankId", v, { shouldDirty: true })}
+            onChange={(v) => {
+              setValue("bankId", v, { shouldDirty: true });
+              tickHideCode(v, watch("accountType"));
+            }}
             options={[
               { value: "", label: "— Chọn ngân hàng —" },
               ...bankOptions.map((b) => ({ value: b.id, label: b.code })),
@@ -213,7 +231,10 @@ export function ReferralCodeFormDialog({ open, onClose, referral }: Props) {
             label="Loại tài khoản"
             disabled={Boolean(referral && referral.used + referral.holding > 0)}
             value={watch("accountType")}
-            onChange={(v) => setValue("accountType", v as AccountType, { shouldDirty: true })}
+            onChange={(v) => {
+              setValue("accountType", v as AccountType, { shouldDirty: true });
+              tickHideCode(watch("bankId"), v as AccountType);
+            }}
             options={[
               { value: "none", label: "Thường" },
               { value: "CNKD", label: "CNKD" },
