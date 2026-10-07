@@ -17,6 +17,8 @@
   --cam-fg-2: rgb(255 255 255 / 78%);
   --cam-glass: rgb(255 255 255 / 16%);
   --cam-scrim: rgb(0 0 0 / 55%);
+  /* Điện thoại: khung thẻ rộng 90% để QR trên thẻ có nhiều điểm ảnh nhất. */
+  --frame-w: 90%;
 
   position: relative;
   margin: 0 -20px -4px;
@@ -27,9 +29,12 @@
   color: var(--cam-fg);
 }
 
-/* Máy tính: hộp thoại rộng 560px nên khung 4:3 là đủ chỗ cho thẻ nằm ngang. */
+/* Máy tính: hộp thoại rộng 560px nên khung 4:3 là đủ chỗ cho thẻ nằm ngang.
+   Khung 4:3 thấp, khung thẻ 90% sẽ đè lên hàng nút. */
 @media (min-width: bp.$bp-mobile) {
   .viewport {
+    --frame-w: 76%;
+
     aspect-ratio: 4 / 3;
   }
 }
@@ -49,8 +54,16 @@
   display: none;
 }
 
-/* Ảnh vừa chụp đã cắt theo khung thẻ: hiện trọn tấm, không phóng cắt thêm. */
+/* Ảnh vừa chụp đè đúng chỗ khung thẻ, để thẻ trong ảnh nằm khớp bốn góc khung.
+   Ảnh cắt rộng hơn khung `ID_CARD_CROP_MARGIN` (5%) mỗi bên, nên rộng gấp 1,1. */
 .shot {
+  position: absolute;
+  top: 42%;
+  left: 50%;
+  display: block;
+  width: calc(var(--frame-w) * 1.1);
+  aspect-ratio: 86 / 54;
+  transform: translate(-50%, -50%);
   object-fit: contain;
 }
 
@@ -60,7 +73,7 @@
   position: absolute;
   top: 42%;
   left: 50%;
-  width: 76%;
+  width: var(--frame-w);
   aspect-ratio: 86 / 54;
   transform: translate(-50%, -50%);
   border-radius: 12px;

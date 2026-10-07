@@ -91,7 +91,7 @@ export function BankAccountFinishFields({
   /**
    * Giải ảnh QR khi người dùng phóng to nó, không giải sẵn lúc mở màn.
    *
-   * Link chỉ hiện trong lượt xem cỡ lớn, mà giải ảnh phải tải thêm `jsqr` và
+   * Link chỉ hiện trong lượt xem cỡ lớn, mà giải ảnh phải tải thêm `zxing-wasm` và
    * chính tấm ảnh — đội kinh doanh dùng 4G ngoài trời, đa số lượt vào màn này
    * không mở QR.
    */

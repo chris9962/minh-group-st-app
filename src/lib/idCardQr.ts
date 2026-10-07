@@ -24,6 +24,20 @@ export type IdCardQr =
 
 export const ID_CARD_QR_UNREADABLE = 'Không đọc được thông tin từ ảnh.';
 
+/** Viền giữ thêm quanh khung thẻ khi cắt ảnh, theo tỉ lệ cạnh khung: thẻ lệch một chút vẫn còn đủ QR. */
+export const ID_CARD_CROP_MARGIN = 0.05;
+
+/**
+ * Ô chứa QR trong ảnh thẻ đã cắt (gồm cả viền `ID_CARD_CROP_MARGIN`), theo phần
+ * của ảnh. Hai mẫu thẻ đều in QR ở góc trên phải, đo trên ảnh thật 2026-10-07:
+ * CCCD gắn chip mặt trước QR ở x 0,77-0,91, y 0,09-0,28 của ảnh cắt; thẻ căn
+ * cước mẫu mới mặt sau ở x 0,72-0,92, y 0,08-0,40.
+ *
+ * Trình duyệt quét ô này trên video, máy chủ đọc lại ô này trên ảnh gửi lên.
+ * Đọc cả ảnh thẻ thì zxing hay không tìm ra QR giữa nền hoa văn của thẻ.
+ */
+export const ID_CARD_QR_REGION = { x: 0.62, y: 0, w: 0.38, h: 0.55 };
+
 const NOT_ID_CARD = ID_CARD_QR_UNREADABLE;
 
 /** `ddmmyyyy` → `yyyy-mm-dd`, hoặc `''` khi không phải ngày có thật. */

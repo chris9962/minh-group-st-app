@@ -1,7 +1,9 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import convert from "heic-convert";
-import jsQR from "jsqr";
 import sharp from "sharp";
-import { ID_CARD_QR_UNREADABLE, parseIdCardQr, type IdCardQr } from "@/lib/idCardQr";
+import { prepareZXingModule, readBarcodes } from "zxing-wasm/reader";
+import { ID_CARD_QR_REGION, ID_CARD_QR_UNREADABLE, parseIdCardQr, type IdCardQr } from "@/lib/idCardQr";
 import { imageExtOf } from "./storage";
 
 /**
@@ -14,34 +16,45 @@ import { imageExtOf } from "./storage";
  *
  * Đọc từ bytes GỐC, trước khi `putImage` ép về WebP 1600px: QR chiếm một góc
  * nhỏ của thẻ, nén thêm một lượt là mất ô.
+ *
+ * Cùng thư viện `zxing-wasm` với trình duyệt (đổi từ `jsqr` 2026-10-07): khác
+ * thư viện thì có ảnh trình duyệt đọc được mà máy chủ từ chối.
  */
 
-/** Cạnh dài khi dò lượt đầu — cùng mức với `lib/readQrImage.ts`. */
-const MAX_EDGE = 1600;
+let zxingReady: Promise<void> | null = null;
 
-async function pixelsOf(src: Buffer, maxEdge: number | null) {
-  let pipeline = sharp(src, { failOn: "none" }).rotate();
-  if (maxEdge)
-    pipeline = pipeline.resize({
-      width: maxEdge,
-      height: maxEdge,
-      fit: "inside",
-      withoutEnlargement: true,
+// Wasm đọc từ `public/` vì Dockerfile chép nguyên thư mục đó vào image, còn
+// `.next/standalone` không mang theo file này.
+const prepareZxing = () =>
+  (zxingReady ??= readFile(path.join(process.cwd(), "public", "zxing_reader.wasm")).then((wasm) => {
+    prepareZXingModule({
+      overrides: { wasmBinary: wasm.buffer.slice(wasm.byteOffset, wasm.byteOffset + wasm.byteLength) },
     });
+  }));
+
+async function decode(src: Buffer, region?: typeof ID_CARD_QR_REGION): Promise<string | null> {
+  await prepareZxing();
+  let pipeline = sharp(src, { failOn: "none" }).rotate();
+  if (region) {
+    const { width = 0, height = 0 } = await sharp(src, { failOn: "none" }).rotate().metadata();
+    const left = Math.round(width * region.x);
+    const top = Math.round(height * region.y);
+    pipeline = sharp(await pipeline.toBuffer()).extract({
+      left,
+      top,
+      width: Math.min(width - left, Math.round(width * region.w)),
+      height: Math.min(height - top, Math.round(height * region.h)),
+    });
+  }
   const { data, info } = await pipeline.ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-  return {
+  const pixels = {
     data: new Uint8ClampedArray(data.buffer, data.byteOffset, data.byteLength),
     width: info.width,
     height: info.height,
-  };
-}
-
-async function decodeAt(src: Buffer, maxEdge: number | null): Promise<string | null> {
-  const pixels = await pixelsOf(src, maxEdge);
-  const found = jsQR(pixels.data, pixels.width, pixels.height, {
-    inversionAttempts: "attemptBoth",
-  });
-  return found?.data.trim() || null;
+    colorSpace: "srgb",
+  } as ImageData;
+  const [found] = await readBarcodes(pixels, { formats: ["QRCode"], tryHarder: true, maxNumberOfSymbols: 1 });
+  return found?.text.trim() || null;
 }
 
 export async function readIdCardQr(bytes: Uint8Array): Promise<IdCardQr> {
@@ -57,13 +70,8 @@ export async function readIdCardQr(bytes: Uint8Array): Promise<IdCardQr> {
       ext === "heic"
         ? Buffer.from(await convert({ buffer: Buffer.from(bytes), format: "JPEG", quality: 0.92 }))
         : Buffer.from(bytes);
-
-    // Thu về 1600 trước cho nhanh; ảnh chụp xa mà QR nhỏ thì thử lại ở cỡ gốc.
-    text = await decodeAt(src, MAX_EDGE);
-    if (!text) {
-      const meta = await sharp(src, { failOn: "none" }).metadata();
-      if (Math.max(meta.width ?? 0, meta.height ?? 0) > MAX_EDGE) text = await decodeAt(src, null);
-    }
+    // Ảnh từ màn chụp thẻ có QR ở ô cố định; ảnh khác (không cắt theo khung) thì đọc cả ảnh.
+    text = (await decode(src, ID_CARD_QR_REGION)) ?? (await decode(src));
   } catch (e) {
     console.error("[idCardQr] không đọc được ảnh:", e);
     return { ok: false, message: ID_CARD_QR_UNREADABLE };
