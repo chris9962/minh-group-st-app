@@ -42,6 +42,7 @@ import {
 } from "@/lib/api/customers";
 import { MAX_BANK_ACCOUNTS_PER_CUSTOMER, type AccountType } from "@/lib/api/bankAccounts";
 import type { Page } from "@/lib/api/pagination";
+import { capitalizePersonName } from "@/lib/api/personName";
 import type { PageArgs } from "./pagination";
 import { BUSINESS_TIMEZONE, businessMonth, clockNowVn, digitsOnly, monthRange, searchKey } from "@/lib/format";
 import { can, recordInScope, recordVisibility, type RecordVisibility } from "@/lib/permissions";
@@ -1443,7 +1444,6 @@ export async function updateCustomer(
       fullName: customers.fullName,
       dob: customers.dob,
       idNumber: customers.idNumber,
-      idCardImage: customers.idCardImage,
     })
     .from(customers)
     .where(eq(customers.id, id))
@@ -1452,17 +1452,22 @@ export async function updateCustomer(
   if (!recordInScope(recordVisibility(actor, "customer", "update"), owner)) return null;
 
   /**
-   * Ba trường lấy từ thẻ CCCD thì vai Nhân viên không sửa (chốt 2026-10-06).
-   * Cùng ngoại lệ đọc chức vụ như `move-day-forbidden` bên dưới: chủ dự án chốt
-   * "trừ nhân viên ra", không mở quyền mới. CCCD rỗng là "không đụng tới" nên
-   * không tính là đổi.
+   * Vai Nhân viên không sửa họ tên, ngày sinh, CCCD của MỌI hồ sơ, có ảnh thẻ
+   * hay không (chốt 2026-10-06, mở sang hồ sơ cũ 2026-10-07). Cùng ngoại lệ đọc
+   * chức vụ như `move-day-forbidden` bên dưới: chủ dự án chốt "trừ nhân viên
+   * ra", không mở quyền mới.
+   *
+   * - Tên so sau `capitalizePersonName`: form đã chuẩn hoá tên, hồ sơ cũ lưu
+   *   trước khi có bước đó thì chỉ khác hoa thường, không phải đổi tên.
+   * - Ô đang trống thì cho điền: 38 hồ sơ cũ thiếu ngày sinh mà form sửa bắt
+   *   buộc ngày sinh, khoá luôn là nhân viên không lưu được gì trên hồ sơ đó.
+   * - CCCD gửi rỗng là "không đụng tới", không tính là đổi.
    */
   if (
-    owner.idCardImage &&
     actor.role === "staff" &&
-    (form.fullName !== owner.fullName ||
-      form.dob !== (owner.dob ?? "") ||
-      (form.idNumber !== "" && form.idNumber !== (owner.idNumber ?? "")))
+    (form.fullName !== capitalizePersonName(owner.fullName) ||
+      (owner.dob !== null && form.dob !== owner.dob) ||
+      (form.idNumber !== "" && Boolean(owner.idNumber) && form.idNumber !== owner.idNumber))
   )
     return { ok: false, reason: "id-card-locked" };
 

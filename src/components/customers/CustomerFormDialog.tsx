@@ -133,12 +133,13 @@ export function CustomerFormDialog({
     return () => URL.revokeObjectURL(scanUrl);
   }, [scanUrl]);
   /**
-   * Ba ô lấy từ thẻ khoá khi: đang tạo mà đã chụp thẻ; đang sửa hồ sơ có ảnh
-   * thẻ mà là Nhân viên. Máy chủ từ chối cùng điều kiện.
+   * Họ tên, ngày sinh, CCCD khoá khi: đang tạo mà đã chụp thẻ; đang sửa mà là
+   * Nhân viên, ở mọi hồ sơ (chốt 2026-10-07). Hồ sơ cũ thiếu ngày sinh thì ô
+   * ngày sinh vẫn cho điền. Máy chủ từ chối cùng điều kiện.
    */
-  const idCardLocked = editing
-    ? Boolean(customer?.hasIdCardImage) && actorRole === "staff"
-    : scan !== null;
+  const staffEditing = editing && actorRole === "staff";
+  const idCardLocked = editing ? staffEditing : scan !== null;
+  const dobLocked = editing ? staffEditing && Boolean(customer?.dob) : scan !== null;
 
   // `values` để form nhận hồ sơ tải xong SAU khi dialog đã mở (luồng nút Sửa ở
   // P-40). Memo theo `customer` — mỗi render một object mới là form reset liên tục.
@@ -369,7 +370,7 @@ export function CustomerFormDialog({
             <DateField
               label="Ngày sinh"
               required
-              readOnly={idCardLocked}
+              readOnly={dobLocked}
               pickerStart={pickerStartForDob()}
               value={watch("dob")}
               onChange={(v) => setValue("dob", v, { shouldDirty: true, shouldValidate: true })}
@@ -378,8 +379,8 @@ export function CustomerFormDialog({
             {/* CCCD là trường bảo mật, ba nhánh theo đúng ba nhóm ở
                 `updateCustomer`. Người không ghi đè được thì ô phải KHOÁ: để mở
                 mà máy chủ lặng lẽ bỏ qua thì người sửa gõ xong bấm Lưu, thấy
-                "đã lưu", rồi mở lại thấy số cũ. Hồ sơ có ảnh thẻ mà người sửa
-                là Nhân viên thì cũng vào nhánh khoá, dù họ là người tạo. */}
+                "đã lưu", rồi mở lại thấy số cũ. Người sửa là Nhân viên thì
+                cũng vào nhánh khoá, dù họ là người tạo. */}
             {maskedId && (!canWriteMaskedId || idCardLocked) ? (
               <TextField
                 label="CCCD"
