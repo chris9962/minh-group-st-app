@@ -85,6 +85,7 @@ export async function readUntilFound(
   images: Buffer[],
   facts: (text: string) => Facts,
   model?: OcrModel,
+  padY?: number,
 ): Promise<string[]> {
   const texts: string[] = [];
   let have: Facts | null = null;
@@ -93,7 +94,7 @@ export async function readUntilFound(
       texts.push("");
       continue;
     }
-    const text = (await ocrLines(image, model)).join("\n");
+    const text = (await ocrLines(image, model, padY)).join("\n");
     texts.push(text);
     const found = facts(text);
     have = have ? mergeFacts(have, found) : found;

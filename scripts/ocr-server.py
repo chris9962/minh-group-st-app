@@ -5,6 +5,7 @@ Tiến trình đọc chữ trên ảnh, chạy lâu dài, nói chuyện bằng J
 mất khoảng 4 giây, gọi lại mỗi ảnh thì mỗi ảnh tốn thêm chừng đó.
 
     stdin   {"path": "/tmp/anh.png", "model": "seq2seq"}     `model` thiếu = "transformer"
+            {"path": "/tmp/anh.png", "pad_y": 8}             `pad_y` thay lề dọc của model, xem `REC_MODELS`
     stdout  {"lines": ["Mở Tài Khoản Thành Công!", "1000 5616 831", ...], "ms": 2300}
             {"error": "..."}
     dòng đầu khi sẵn sàng: {"ready": true}
@@ -54,11 +55,12 @@ from paddleocr import TextDetection  # noqa: E402
 from vietocr.tool.config import Cfg  # noqa: E402
 from vietocr.tool.predictor import Predictor  # noqa: E402
 
-# Khoá trong yêu cầu → (tên model VietOCR, biến YAML, biến trọng số, lề cắt vùng px).
+# Khoá trong yêu cầu → (tên model VietOCR, biến YAML, biến trọng số, lề cắt vùng (ngang, dọc) px).
 # `vgg_seq2seq` cắt sát 0 px: trên 32 ô mã giới thiệu MSBb đọc đúng 25, lề 4 px chỉ 22.
+# Yêu cầu có `pad_y` thì thay lề dọc, xem `TPB_PAD_Y` ở `src/server/ocr/banks/tpbank.ts`.
 REC_MODELS = {
-    "transformer": ("vgg_transformer", "OCR_CONFIG", "OCR_WEIGHTS", 4),
-    "seq2seq": ("vgg_seq2seq", "OCR_SEQ2SEQ_CONFIG", "OCR_SEQ2SEQ_WEIGHTS", 0),
+    "transformer": ("vgg_transformer", "OCR_CONFIG", "OCR_WEIGHTS", (4, 4)),
+    "seq2seq": ("vgg_seq2seq", "OCR_SEQ2SEQ_CONFIG", "OCR_SEQ2SEQ_WEIGHTS", (0, 0)),
 }
 
 
@@ -89,10 +91,11 @@ def load_rec(key):
 
 
 def crop(img, poly, pad):
+    pad_x, pad_y = pad
     xs = [int(p[0]) for p in poly]
     ys = [int(p[1]) for p in poly]
-    x0, x1 = max(min(xs) - pad, 0), min(max(xs) + pad, img.shape[1])
-    y0, y1 = max(min(ys) - pad, 0), min(max(ys) + pad, img.shape[0])
+    x0, x1 = max(min(xs) - pad_x, 0), min(max(xs) + pad_x, img.shape[1])
+    y0, y1 = max(min(ys) - pad_y, 0), min(max(ys) + pad_y, img.shape[0])
     if x1 - x0 < 2 or y1 - y0 < 2:
         return None
     return Image.fromarray(cv2.cvtColor(img[y0:y1, x0:x1], cv2.COLOR_BGR2RGB))
@@ -207,7 +210,10 @@ def main():
             key = req.get("model") or "transformer"
             if key not in recs:
                 recs[key] = load_rec(key)
-            lines = read(det, recs[key], req["path"])
+            predictor, pad = recs[key]
+            if req.get("pad_y") is not None:
+                pad = (pad[0], int(req["pad_y"]))
+            lines = read(det, (predictor, pad), req["path"])
             reply = {"lines": lines, "ms": int((time.time() - t) * 1000)}
         except Exception as e:  # noqa: BLE001
             reply = {"error": f"{type(e).__name__}: {e}"}

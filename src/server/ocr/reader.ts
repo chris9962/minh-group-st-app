@@ -102,7 +102,7 @@ async function start(lane: Lane): Promise<Server> {
   return ready;
 }
 
-async function ask(lane: Lane, image: Buffer, model: OcrModel): Promise<string[]> {
+async function ask(lane: Lane, image: Buffer, model: OcrModel, padY: number | undefined): Promise<string[]> {
   if (!lane.server) lane.server = start(lane).catch((e) => {
     lane.server = null;
     throw e;
@@ -116,7 +116,7 @@ async function ask(lane: Lane, image: Buffer, model: OcrModel): Promise<string[]
     await writeFile(file, image);
     const reply = await new Promise<Reply>((resolve) => {
       s.waiting = resolve;
-      s.child.stdin.write(JSON.stringify({ path: file, model }) + "\n");
+      s.child.stdin.write(JSON.stringify({ path: file, model, pad_y: padY }) + "\n");
     });
     if (reply.error) throw new Error(`OCR lỗi: ${reply.error}`);
     return reply.lines ?? [];
@@ -131,10 +131,10 @@ async function ask(lane: Lane, image: Buffer, model: OcrModel): Promise<string[]
  * Chọn hàng NGẮN NHẤT chứ không chia vòng tròn: ảnh dài ngắn khác nhau tới
  * vài giây, chia vòng tròn thì một hàng đọng lại trong khi hàng khác rỗi.
  */
-export function ocrLines(image: Buffer, model: OcrModel = "transformer"): Promise<string[]> {
+export function ocrLines(image: Buffer, model: OcrModel = "transformer", padY?: number): Promise<string[]> {
   const lane = pool.reduce((min, l) => (l.pending < min.pending ? l : min));
   lane.pending += 1;
-  const turn = lane.queue.then(() => ask(lane, image, model));
+  const turn = lane.queue.then(() => ask(lane, image, model, padY));
   lane.queue = turn.catch(() => undefined).finally(() => {
     lane.pending -= 1;
   });

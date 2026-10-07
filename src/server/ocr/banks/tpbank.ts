@@ -63,6 +63,13 @@ export function checkTpbank(texts: string[], ctx: TpbCheckContext): CheckedItem[
   );
 }
 
+/**
+ * Lề dọc khi cắt vùng chữ, ngân hàng khác giữ 4 px. Lề 4 px đọc `DNS960`
+ * thành `DNSI60` ở 30/30 tài khoản thử 2026-10-07; lề 8 px đọc đúng cả 30,
+ * 40 tài khoản đang đạt vẫn đạt.
+ */
+export const TPB_PAD_Y = 8;
+
 export async function checkTpbankImages(images: Buffer[], ctx: TpbCheckContext): Promise<CheckedItem[]> {
-  return checkTpbank(await readUntilFound(images, (text) => tpbFacts(text, ctx)), ctx);
+  return checkTpbank(await readUntilFound(images, (text) => tpbFacts(text, ctx), "transformer", TPB_PAD_Y), ctx);
 }

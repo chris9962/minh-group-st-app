@@ -4,7 +4,7 @@ import { closeOcr, ocrLines } from "../src/server/ocr/reader";
 import { checkMsb, msbFacts } from "../src/server/ocr/banks/msb";
 import { checkLpb, lpbFacts } from "../src/server/ocr/banks/lpb";
 import { checkMb, mbFacts } from "../src/server/ocr/banks/mb";
-import { checkTpbank, tpbFacts } from "../src/server/ocr/banks/tpbank";
+import { checkTpbank, TPB_PAD_Y, tpbFacts } from "../src/server/ocr/banks/tpbank";
 import { checkVpb, vpbFacts } from "../src/server/ocr/banks/vpbank";
 import { bidvFacts, checkBidv } from "../src/server/ocr/banks/bidv";
 import { checkMbv, mbvFacts } from "../src/server/ocr/banks/mbv";
@@ -70,7 +70,8 @@ async function main() {
   for (const image of images) {
     console.log(`\n=== ${image} ===`);
     const t = Date.now();
-    const text = (await ocrLines(await readFile(image), ocrModelOf(ctx?.bankCode ?? ""))).join("\n");
+    const padY = bank === "tpbank" ? TPB_PAD_Y : undefined;
+    const text = (await ocrLines(await readFile(image), ocrModelOf(ctx?.bankCode ?? ""), padY)).join("\n");
     texts.push(text);
     console.log(`${Date.now() - t} ms`);
     if (raw) console.log(text + "\n---");
