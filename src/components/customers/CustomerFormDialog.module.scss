@@ -59,6 +59,36 @@
   color: var(--om-red);
 }
 
+/* Bước 2: dòng "Đã đọc thẻ CCCD" kèm nút Chụp lại ở đầu form. Bước 1 nằm ở
+   `IdCardScanner`. */
+.cardDone {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 8px 8px 10px;
+  border: 1px solid var(--om-line);
+  border-radius: var(--radius-md);
+  background: var(--om-card);
+  font-size: 13.5px;
+}
+
+.cardThumb {
+  flex: none;
+  width: 64px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  background: var(--om-soft);
+}
+
+.cardDoneText {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--om-green-ink);
+}
+
 @media (max-width: bp.$bp-narrow) {
   .pair {
     grid-template-columns: minmax(0, 1fr);

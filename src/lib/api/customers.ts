@@ -45,6 +45,13 @@ export const Customer = z.object({
    */
   idNumber: z.string().nullable(),
   idNumberMasked: z.boolean(),
+  /**
+   * URL ảnh mặt trước thẻ CCCD, chỉ khác `null` khi người xem thấy được số CCCD
+   * đầy đủ. `hasIdCardImage` nói hồ sơ CÓ ảnh dù người xem không được mở ảnh:
+   * form sửa khoá ba ô họ tên, ngày sinh, CCCD với vai Nhân viên (chốt 2026-10-06).
+   */
+  idCardImageUrl: z.string().nullable(),
+  hasIdCardImage: z.boolean(),
   note: z.string(),
   address: z.string(),
   phones: z.array(CustomerPhone),
@@ -516,11 +523,26 @@ async function send(url: string, method: string, body: unknown) {
  * tiếp truyền vào `linkToRootId`. Ném `DuplicateIdError` chứ không `Error`
  * thường, vì giao diện phải đọc được `rootId` từ đó.
  */
-export async function createCustomer(form: CustomerForm, linkToRootId?: string): Promise<Customer> {
+export async function createCustomer(
+  form: CustomerForm,
+  linkToRootId?: string,
+  idCardImage?: File,
+): Promise<Customer> {
+  const payload = JSON.stringify(linkToRootId ? { ...form, linkToRootId } : form);
+  /**
+   * Có ảnh thẻ CCCD thì gửi `multipart/form-data`: ô `image` là file GỐC, ô
+   * `form` là chính chuỗi JSON ở trên. Không ép WebP ở trình duyệt như
+   * `uploadImage`: máy chủ đọc QR từ bytes gốc, thu nhỏ trước là mất ô QR.
+   */
+  const body = idCardImage ? new FormData() : payload;
+  if (body instanceof FormData) {
+    body.append('image', idCardImage!);
+    body.append('form', payload);
+  }
   const res = await fetch('/api/customers', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(linkToRootId ? { ...form, linkToRootId } : form),
+    ...(body instanceof FormData ? {} : { headers: { 'Content-Type': 'application/json' } }),
+    body,
   });
   if (!res.ok) {
     const payload = await res.json().catch(() => null);

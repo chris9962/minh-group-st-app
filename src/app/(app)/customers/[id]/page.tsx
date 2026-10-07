@@ -8,6 +8,7 @@ import { Briefcase, ChevronRight, Gift, History, IdCard, Landmark, Pencil, Shiel
 import { BackLink } from "@/components/ui/BackLink";
 import { SkeletonCard } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
+import { ImageLightbox } from "@/components/ui/ImageLightbox";
 import { TopBar } from "@/components/layout/TopBar";
 import { BankAccountFormDialog } from "@/components/banking/BankAccountFormDialog";
 import { CustomerFormDialog } from "@/components/customers/CustomerFormDialog";
@@ -85,6 +86,7 @@ export default function CustomerDetailPage({
   const [editing, setEditing] = useState(false);
   const [editingNote, setEditingNote] = useState(false);
   const [transferring, setTransferring] = useState(false);
+  const [zoomedIdCard, setZoomedIdCard] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deletingDraft, setDeletingDraft] = useState<{ id: string; bankName: string } | null>(null);
   const [givingGift, setGivingGift] = useState(false);
@@ -326,6 +328,27 @@ export default function CustomerDetailPage({
                         : formatIdNumber(data.customer.idNumber)}
                   </dd>
                 </div>
+                {/* Chỉ người thấy số CCCD đầy đủ mới nhận URL ảnh (chốt 2026-10-06). */}
+                {data.customer.idCardImageUrl && (
+                  <div>
+                    <dt>Ảnh CCCD</dt>
+                    <dd>
+                      <button
+                        type="button"
+                        className={styles.idCardZoom}
+                        aria-label="Xem ảnh CCCD cỡ lớn"
+                        onClick={() => setZoomedIdCard(true)}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={data.customer.idCardImageUrl}
+                          alt="Ảnh CCCD"
+                          className={styles.idCardThumb}
+                        />
+                      </button>
+                    </dd>
+                  </div>
+                )}
                 <div>
                   <dt>Địa chỉ</dt>
                   <dd>{data.customer.address || "Chưa có"}</dd>
@@ -916,6 +939,14 @@ export default function CustomerDetailPage({
 
         {editing && data && (
           <CustomerFormDialog open customer={data.customer} onClose={() => setEditing(false)} />
+        )}
+
+        {zoomedIdCard && data?.customer.idCardImageUrl && (
+          <ImageLightbox
+            src={data.customer.idCardImageUrl}
+            alt="Ảnh CCCD"
+            onClose={() => setZoomedIdCard(false)}
+          />
         )}
 
         {transferring && data?.customer.createdByDepartmentId && (

@@ -111,6 +111,20 @@ const IMAGE_SIGNATURES: { ext: string; mime: string; test: (b: Uint8Array) => bo
 
 const MIME_BY_EXT = new Map(IMAGE_SIGNATURES.map((s) => [s.ext, s.mime]));
 
+/** Đuôi file suy từ chữ ký đầu file, `null` khi không phải ảnh. */
+export const imageExtOf = (bytes: Uint8Array): string | null =>
+  IMAGE_SIGNATURES.find((s) => s.test(bytes))?.ext ?? null;
+
+/**
+ * Thư mục ảnh thẻ CCCD của hồ sơ khách (migration 0127). Tách riêng vì route đọc
+ * ảnh gác thư mục này theo quyền `customer:access-id-number`, các thư mục khác
+ * chỉ đòi phiên đăng nhập.
+ */
+export const ID_CARD_FOLDER = "cccd";
+
+export const isIdCardImageKey = (key: string): boolean =>
+  key.replace(/^demo\//, "").startsWith(`${ID_CARD_FOLDER}/`);
+
 /** Đường dẫn của route đọc ảnh. Đổi ở đây thì đổi cả thư mục route theo. */
 const IMAGE_ROUTE = "/api/images";
 
@@ -178,17 +192,17 @@ export async function putImage(file: File, folder: string): Promise<PutResult> {
     };
 
   const raw = new Uint8Array(await file.arrayBuffer());
-  const kind = IMAGE_SIGNATURES.find((s) => s.test(raw));
-  if (!kind)
+  const rawExt = imageExtOf(raw);
+  if (!rawExt)
     return { ok: false, message: "File này không phải ảnh. Chỉ nhận JPG, PNG, WEBP hoặc HEIC." };
 
   // Kho chỉ giữ MỘT định dạng. Đổi ngay tại đây chứ không ở route `/api/uploads`
   // để mọi đường tải ảnh đều đi qua. Đổi hỏng thì giữ nguyên bản gốc như trước,
   // xem ghi chú ở `toWebpOnServer`.
-  const converted = await toWebpOnServer(raw, kind.ext);
+  const converted = await toWebpOnServer(raw, rawExt);
   const bytes = converted ?? raw;
-  const ext = converted ? "webp" : kind.ext;
-  const mime = converted ? "image/webp" : kind.mime;
+  const ext = converted ? "webp" : rawExt;
+  const mime = converted ? "image/webp" : MIME_BY_EXT.get(rawExt)!;
 
   const day = new Date().toISOString().slice(0, 10);
   const key = `${demoMode() ? "demo/" : ""}${folder}/${day}/${randomUUID()}.${ext}`;

@@ -883,6 +883,13 @@
       "when": 1789891400052,
       "tag": "0126_vneid_more_tasks",
       "breakpoints": true
+    },
+    {
+      "idx": 127,
+      "version": "7",
+      "when": 1789891400053,
+      "tag": "0127_customer_id_card_image",
+      "breakpoints": true
     }
   ]
 }

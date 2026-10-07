@@ -90,7 +90,7 @@ function toIso(digits: string): string {
  * `dd/mm/yyyy` chỉ để nhìn: nó sắp xếp sai thứ tự khi so chuỗi, và đổi cả giá
  * trị lưu là phải sửa zod, API lẫn cột database theo.
  */
-export function DateField({ value, onChange, pickerStart, min, max, disabled, ...rest }: Props) {
+export function DateField({ value, onChange, pickerStart, min, max, disabled, readOnly, ...rest }: Props) {
   const [digits, setDigits] = useState(() => toDigits(value));
 
   /**
@@ -153,6 +153,7 @@ export function DateField({ value, onChange, pickerStart, min, max, disabled, ..
     <TextField
         {...rest}
         disabled={disabled}
+        readOnly={readOnly}
         ref={inputRef}
         type="text"
         inputMode="numeric"
@@ -187,7 +188,8 @@ export function DateField({ value, onChange, pickerStart, min, max, disabled, ..
             aria-label="Chọn ngày trên lịch"
             // Ô khoá thì lịch cũng khoá: bản trước chỉ khoá ô gõ, chọn lịch vẫn
             // đổi được Ngày kết thúc của đơn bảo hiểm (39 đơn lệch gói, 2026-10-06).
-            disabled={disabled}
+            // `readOnly` cùng luật: ô ngày sinh lấy từ thẻ CCCD không cho chọn lịch.
+            disabled={disabled || readOnly}
             min={min}
             max={max}
             value={value || pickerStart || ""}

@@ -54,6 +54,7 @@ import { giftForCustomer, giftItemNames, grantedItemLabel, recomputeGiftCase } f
 import { closedMonthAmong, closedMonthOfCustomer, customerMonthClosed } from "./closedMonths";
 import { bankingPointsByCustomer, recomputeKpi, recomputeKpiForCustomer } from "./kpi";
 import { enqueuePhotoCheck } from "./photoCheck";
+import { imageUrl } from "./storage";
 import { recomputeEmployeeWorkDay } from "./workDays";
 import {
   bankAccounts,
@@ -95,7 +96,8 @@ const last4 = (idNumber: string | null): string | null =>
 const maskIdNumber = (idNumber: string): string =>
   idNumber ? `•••• •••• ${idNumber.slice(-4)}` : "";
 
-const seesIdNumber = (actor: User): boolean => can(actor, "customer", "access-id-number");
+/** Cũng là chốt của route đọc ảnh thẻ CCCD (`/api/images/cccd/...`). */
+export const seesIdNumber = (actor: User): boolean => can(actor, "customer", "access-id-number");
 
 /**
  * Vô hiệu ký tự đại diện của `LIKE` trong chữ người dùng gõ — gõ `%` phải ra
@@ -794,6 +796,7 @@ async function customerById(id: string, actor: User): Promise<Customer | null> {
       rootId: customers.rootCustomerId,
       dob: customers.dob,
       idNumber: customers.idNumber,
+      idCardImage: customers.idCardImage,
       note: customers.note,
       address: customers.address,
       channelId: customers.channelId,
@@ -824,11 +827,16 @@ async function customerById(id: string, actor: User): Promise<Customer | null> {
     .orderBy(desc(customerPhones.isPrimary), asc(customerPhones.number));
 
   const full = seesIdNumber(actor);
+  // Khoá ảnh không ra khỏi máy chủ: ảnh thẻ cùng mức bảo mật với số CCCD, người
+  // không thấy số thì chỉ biết hồ sơ CÓ ảnh để giao diện khoá ba ô.
+  const { idCardImage, ...rest } = row;
   return {
-    ...row,
+    ...rest,
     channelId: row.channelId ?? "",
     idNumber: full ? row.idNumber : last4(row.idNumber),
     idNumberMasked: !full,
+    idCardImageUrl: full && idCardImage ? imageUrl(idCardImage) : null,
+    hasIdCardImage: idCardImage !== null,
     phones,
   };
 }
@@ -852,7 +860,9 @@ export type CustomerConflict =
   /** Ngày hồ sơ mới sau ngày chốt quà. */
   | "move-day-gifted"
   /** Tháng cũ hoặc tháng mới đã chốt lương, và hồ sơ có tài khoản ngân hàng (chốt 2026-10-01). */
-  | "move-day-closed";
+  | "move-day-closed"
+  /** Hồ sơ có ảnh thẻ CCCD: vai Nhân viên không sửa được họ tên, ngày sinh, CCCD (chốt 2026-10-06). */
+  | "id-card-locked";
 
 export type CustomerOutcome<T> =
   | { ok: true; customer: T }
@@ -1021,11 +1031,16 @@ async function writeGuarded<T>(run: () => Promise<T>): Promise<CustomerOutcome<T
  * CCCD của khách khác, nối vào rồi sửa hồ sơ lần 2, đồng bộ nhóm ghi đè trọn
  * hồ sơ gốc có 3 tài khoản và quà đã phát. Hồ sơ mới chép ba trường đó từ gốc,
  * không lấy từ biểu mẫu, để không sinh dòng nhật ký vì lệch hoa thường hay dấu.
+ *
+ * `idCardImage` là KHOÁ ảnh thẻ CCCD đã nằm trong kho (chốt 2026-10-06). Route
+ * đọc QR và lưu ảnh trước khi gọi vào đây, mọi vai đều phải có ảnh; `null` chỉ
+ * dành cho lời gọi ngoài route, ví dụ script nhập dữ liệu.
  */
 export async function createCustomer(
   actor: User,
   form: CustomerForm,
   linkToRootId?: string,
+  idCardImage: string | null = null,
 ): Promise<
   | CustomerOutcome<Customer>
   | { ok: false; reason: "open-draft-exists" | "id-number-mismatch" | "info-mismatch" }
@@ -1119,6 +1134,7 @@ export async function createCustomer(
           // lỗi cast, không phải "chưa có ngày sinh".
           dob: goc ? goc.dob : form.dob || null,
           idNumber: form.idNumber || null,
+          idCardImage,
           address: goc ? goc.address : form.address,
           // Mã số BHXH là của người, mọi lần mở hồ sơ mang cùng mã.
           socialInsuranceCode: goc?.socialInsuranceCode ?? null,
@@ -1424,12 +1440,31 @@ export async function updateCustomer(
       createdById: customers.createdBy,
       createdByDepartmentId: customers.createdByDepartmentId,
       rootCustomerId: customers.rootCustomerId,
+      fullName: customers.fullName,
+      dob: customers.dob,
+      idNumber: customers.idNumber,
+      idCardImage: customers.idCardImage,
     })
     .from(customers)
     .where(eq(customers.id, id))
     .limit(1);
   if (!owner) return null;
   if (!recordInScope(recordVisibility(actor, "customer", "update"), owner)) return null;
+
+  /**
+   * Ba trường lấy từ thẻ CCCD thì vai Nhân viên không sửa (chốt 2026-10-06).
+   * Cùng ngoại lệ đọc chức vụ như `move-day-forbidden` bên dưới: chủ dự án chốt
+   * "trừ nhân viên ra", không mở quyền mới. CCCD rỗng là "không đụng tới" nên
+   * không tính là đổi.
+   */
+  if (
+    owner.idCardImage &&
+    actor.role === "staff" &&
+    (form.fullName !== owner.fullName ||
+      form.dob !== (owner.dob ?? "") ||
+      (form.idNumber !== "" && form.idNumber !== (owner.idNumber ?? "")))
+  )
+    return { ok: false, reason: "id-card-locked" };
 
   const full = seesIdNumber(actor);
   const isCreator = owner.createdById === actor.id;

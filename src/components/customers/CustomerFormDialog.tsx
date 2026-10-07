@@ -3,8 +3,8 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { z } from "zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Trash2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { CheckCircle2, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
@@ -34,6 +34,7 @@ import { fetchHospitals } from "@/lib/api/hospitalCatalog";
 import { useAddressSuggestions } from "@/lib/useAddressSuggestions";
 import { errorMessage, toast } from "@/lib/toast";
 import { useSession } from "@/store/session";
+import { IdCardScanner } from "./IdCardScanner";
 import styles from "./CustomerFormDialog.module.scss";
 import { reportInvalid } from "@/lib/formErrors";
 
@@ -115,6 +116,29 @@ export function CustomerFormDialog({
    */
   const actorRole = useSession((s) => s.user?.role);
   const showCreatedDay = editing && Boolean(customer) && actorRole !== "staff";
+
+  /**
+   * Tạo hồ sơ đi HAI BƯỚC (chốt 2026-10-06): bước 1 chụp mặt trước thẻ CCCD
+   * bằng camera trong hộp thoại, bước 2 điền thông tin. Mọi vai đều phải chụp,
+   * không có đường nhập tay. Máy chủ đọc lại QR từ chính ảnh gửi lên và ghi đè
+   * ba giá trị, nên thứ điền ở bước 2 chỉ để người nhập đối chiếu với khách.
+   */
+  const [scan, setScan] = useState<File | null>(null);
+  const capturing = !editing && !scan;
+  // Ảnh thu nhỏ của thẻ vừa chụp ở đầu bước 2. Blob URL là tài nguyên của trình
+  // duyệt, phải thu hồi khi đổi ảnh hoặc gỡ component.
+  const scanUrl = useMemo(() => (scan ? URL.createObjectURL(scan) : null), [scan]);
+  useEffect(() => {
+    if (!scanUrl) return;
+    return () => URL.revokeObjectURL(scanUrl);
+  }, [scanUrl]);
+  /**
+   * Ba ô lấy từ thẻ khoá khi: đang tạo mà đã chụp thẻ; đang sửa hồ sơ có ảnh
+   * thẻ mà là Nhân viên. Máy chủ từ chối cùng điều kiện.
+   */
+  const idCardLocked = editing
+    ? Boolean(customer?.hasIdCardImage) && actorRole === "staff"
+    : scan !== null;
 
   // `values` để form nhận hồ sơ tải xong SAU khi dialog đã mở (luồng nút Sửa ở
   // P-40). Memo theo `customer` — mỗi render một object mới là form reset liên tục.
@@ -217,7 +241,9 @@ export function CustomerFormDialog({
   type SaveArgs = { form: FormValues; linkToRootId?: string };
   const save = useMutation({
     mutationFn: ({ form, linkToRootId }: SaveArgs) =>
-      customer ? updateCustomer(customer.id, form) : createCustomer(form, linkToRootId),
+      customer
+        ? updateCustomer(customer.id, form)
+        : createCustomer(form, linkToRootId, scan ?? undefined),
     onSuccess: (saved) => {
       queryClient.invalidateQueries({ queryKey: ["customers"] });
       if (customer) {
@@ -225,6 +251,7 @@ export function CustomerFormDialog({
       } else {
         onCreated?.(saved);
       }
+      setScan(null);
       setDuplicate(null);
       onClose();
       toast.ok(customer ? `Đã lưu hồ sơ ${saved.fullName}` : `Đã thêm khách hàng ${saved.fullName}`);
@@ -249,24 +276,35 @@ export function CustomerFormDialog({
     phones.forEach((_, i) => setValue(`phones.${i}.primary`, i === index, { shouldDirty: true }));
   };
 
+  /** Về bước 1: bỏ ảnh và ba giá trị lấy từ thẻ; camera mở lại khi bước 1 gắn lại. */
+  const retake = () => {
+    setScan(null);
+    setValue("idNumber", "");
+    setValue("fullName", "");
+    setValue("dob", "");
+  };
+
   return (
     <Dialog
       open={open}
       onClose={onClose}
       title={editing ? "Sửa khách hàng" : "Thêm khách hàng"}
       footer={
-        <>
-          <Button variant="secondary" onClick={onClose}>
-            Huỷ
-          </Button>
-          <Button
-            type="submit"
-            form="customer-form"
-            disabled={loading || Boolean(loadError) || isSubmitting || save.isPending}
-          >
-            {editing ? "Lưu" : "Tạo khách hàng"}
-          </Button>
-        </>
+        // Bước 1 không có chân hộp thoại: nút Huỷ nằm ngay trên khung ngắm.
+        capturing ? undefined : (
+          <>
+            <Button variant="secondary" onClick={onClose}>
+              Huỷ
+            </Button>
+            <Button
+              type="submit"
+              form="customer-form"
+              disabled={loading || Boolean(loadError) || isSubmitting || save.isPending}
+            >
+              {editing ? "Lưu" : "Tạo khách hàng"}
+            </Button>
+          </>
+        )
       }
     >
       {loading && <SkeletonText lines={6} label="Đang tải hồ sơ khách" />}
@@ -279,17 +317,50 @@ export function CustomerFormDialog({
         />
       )}
 
-      {!loading && !loadError && (
+      {/* Bước 1: chụp thẻ. Đổi bước là gắn/gỡ component, nên camera tự tắt
+          khi sang bước 2 và mở lại khi bấm "Chụp lại". */}
+      {!loading && !loadError && capturing && (
+        <IdCardScanner
+          onCancel={onClose}
+          onScanned={(card, file) => {
+            // Ô chưa gắn lên màn ở bước 1, react-hook-form vẫn giữ giá trị và
+            // đổ vào ô khi form hiện ở bước 2.
+            setValue("idNumber", card.idNumber, { shouldDirty: true, shouldValidate: true });
+            setValue("fullName", card.fullName, { shouldDirty: true, shouldValidate: true });
+            setValue("dob", card.dob, { shouldDirty: true, shouldValidate: true });
+            setScan(file);
+          }}
+        />
+      )}
+
+      {!loading && !loadError && !capturing && (
       <form
         id="customer-form"
         className={styles.form}
         onSubmit={handleSubmit((form) => submit(form), reportInvalid)}
         noValidate
       >
+          {scan && (
+            <div className={styles.cardDone}>
+              {scanUrl && (
+                // eslint-disable-next-line @next/next/no-img-element -- ảnh là blob vừa chụp, next/image không tối ưu được
+                <img src={scanUrl} alt="Ảnh thẻ CCCD vừa chụp" className={styles.cardThumb} />
+              )}
+              <span className={styles.cardDoneText}>
+                <CheckCircle2 size={17} aria-hidden />
+                Đã đọc thẻ CCCD
+              </span>
+              <Button type="button" variant="ghost" disabled={save.isPending} onClick={retake}>
+                Chụp lại
+              </Button>
+            </div>
+          )}
+
           <TextField
             label="Họ tên"
             required
             placeholder="Nguyễn Văn An"
+            readOnly={idCardLocked}
             error={errors.fullName?.message}
             {...register("fullName")}
           />
@@ -298,6 +369,7 @@ export function CustomerFormDialog({
             <DateField
               label="Ngày sinh"
               required
+              readOnly={idCardLocked}
               pickerStart={pickerStartForDob()}
               value={watch("dob")}
               onChange={(v) => setValue("dob", v, { shouldDirty: true, shouldValidate: true })}
@@ -306,13 +378,18 @@ export function CustomerFormDialog({
             {/* CCCD là trường bảo mật, ba nhánh theo đúng ba nhóm ở
                 `updateCustomer`. Người không ghi đè được thì ô phải KHOÁ: để mở
                 mà máy chủ lặng lẽ bỏ qua thì người sửa gõ xong bấm Lưu, thấy
-                "đã lưu", rồi mở lại thấy số cũ. */}
-            {maskedId && !canWriteMaskedId ? (
+                "đã lưu", rồi mở lại thấy số cũ. Hồ sơ có ảnh thẻ mà người sửa
+                là Nhân viên thì cũng vào nhánh khoá, dù họ là người tạo. */}
+            {maskedId && (!canWriteMaskedId || idCardLocked) ? (
               <TextField
                 label="CCCD"
                 readOnly
                 value={`•••• •••• ${customer?.idNumber ?? ""}`}
-                hint="Bạn chỉ được xem 4 số cuối — cần sửa thì nhờ người có quyền xem CCCD."
+                hint={
+                  idCardLocked
+                    ? undefined
+                    : "Bạn chỉ được xem 4 số cuối — cần sửa thì nhờ người có quyền xem CCCD."
+                }
               />
             ) : maskedId ? (
               /* Ô để TRỐNG, không đổ 4 số cuối vào: đổ vào thì người sửa bấm Lưu
@@ -335,6 +412,7 @@ export function CustomerFormDialog({
                 placeholder="092301004871"
                 inputMode="numeric"
                 maxLength={12}
+                readOnly={idCardLocked}
                 labelAppend={<CharCount value={watch("idNumber")} max={12} />}
                 error={errors.idNumber?.message}
                 {...register("idNumber")}

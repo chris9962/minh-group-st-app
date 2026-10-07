@@ -1,5 +1,6 @@
 import { getActor, notFound, unauthorized } from "@/server/auth";
-import { imageKeyOf, readImage } from "@/server/storage";
+import { seesIdNumber } from "@/server/customers";
+import { imageKeyOf, isIdCardImageKey, readImage } from "@/server/storage";
 
 /**
  * Đọc một tấm ảnh trong kho — cửa DUY NHẤT ra ảnh chứng minh.
@@ -17,6 +18,10 @@ import { imageKeyOf, readImage } from "@/server/storage";
  * đã mở được. Nhưng một nhân viên cầm sẵn khoá của bản ghi ngoài tầm nhìn vẫn xem
  * được ảnh đó. Gác theo bản ghi thì phải tra ngược khoá về `bank_account_photos`
  * và `insurance_orders` mỗi lượt xem — chưa làm.
+ *
+ * Ngoại lệ: thư mục `cccd/` (ảnh thẻ CCCD của hồ sơ khách, chốt 2026-10-06) gác
+ * theo quyền `customer:access-id-number`, cùng chốt với số CCCD đầy đủ. Không
+ * có quyền thì 404, không 403: giống mọi bản ghi ngoài tầm nhìn.
  */
 export async function GET(
   request: Request,
@@ -27,6 +32,7 @@ export async function GET(
 
   const key = imageKeyOf((await params).key.join("/"));
   if (!key) return notFound();
+  if (isIdCardImageKey(key) && !seesIdNumber(actor)) return notFound();
 
   const image = await readImage(key);
   if (!image) return notFound();

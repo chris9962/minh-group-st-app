@@ -13,7 +13,9 @@ import {
   duplicateIdNumberInfo,
   listCustomers,
 } from "@/server/customers";
+import { readIdCardQr } from "@/server/idCardQr";
 import { pageArgsFrom } from "@/server/pagination";
+import { ID_CARD_FOLDER, putImage } from "@/server/storage";
 
 const SORTABLE: readonly CustomerSort[] = ["name", "accounts", "insurance", "created"];
 
@@ -63,12 +65,64 @@ export async function GET(request: Request) {
   );
 }
 
+/**
+ * Thân request của lượt tạo: JSON như cũ, hoặc `multipart/form-data` khi kèm
+ * ảnh thẻ CCCD — ô `image` là file, ô `form` là chuỗi JSON cùng hình dạng với
+ * thân JSON. `null` = body vượt trần.
+ */
+async function bodyAndImage(
+  request: Request,
+): Promise<{ body: unknown; image: File | null } | null> {
+  if (!request.headers.get("content-type")?.includes("multipart/form-data"))
+    return { body: await jsonBody(request), image: null };
+
+  // Chặn theo `Content-Length` TRƯỚC khi `formData()` nạp trọn body vào bộ nhớ,
+  // cùng lý do với `/api/uploads`.
+  const declared = Number(request.headers.get("content-length") ?? 0);
+  if (declared > 22 * 1024 * 1024) return null;
+
+  const form = await request.formData().catch(() => null);
+  const image = form?.get("image");
+  const raw = form?.get("form");
+  let body: unknown = null;
+  if (typeof raw === "string") {
+    try {
+      body = JSON.parse(raw);
+    } catch {
+      body = null;
+    }
+  }
+  return { body, image: image instanceof File ? image : null };
+}
+
 /** P-41 · Tạo hồ sơ khách. */
 export async function POST(request: Request) {
   const guard = await actorWith(request, "customer", "create");
   if (!guard.ok) return guard.response;
 
-  const body = await jsonBody(request);
+  const received = await bodyAndImage(request);
+  if (!received) return Response.json({ message: "Ảnh nặng quá 20MB." }, { status: 413 });
+  const { image } = received;
+  let body = received.body;
+
+  // Mọi vai phải quét QR trên thẻ CCCD khi tạo hồ sơ (chốt 2026-10-06), kể cả
+  // quản lý: không có đường nhập tay. Ảnh là nguồn của ba trường, không phải
+  // thứ kèm theo tuỳ chọn.
+  if (!image) return badRequest("Phải quét QR trên thẻ CCCD để tạo hồ sơ.");
+
+  if (image) {
+    const qr = await readIdCardQr(new Uint8Array(await image.arrayBuffer()));
+    if (!qr.ok) return badRequest(qr.message);
+    // Ba trường lấy từ thẻ GHI ĐÈ thứ trình duyệt gửi, trước mọi phép kiểm khác:
+    // JSON sửa được bằng tay, ảnh thì không.
+    body = {
+      ...(typeof body === "object" && body ? body : {}),
+      idNumber: qr.idNumber,
+      fullName: qr.fullName,
+      dob: qr.dob,
+    };
+  }
+
   const parsed = CustomerForm.safeParse(body);
   if (!parsed.success) return badRequest();
   const thieuChiTiet = await channelDetailMissing(parsed.data);
@@ -79,7 +133,22 @@ export async function POST(request: Request) {
   const raw = (body as { linkToRootId?: unknown } | null) ?? {};
   const linkToRootId = uuidParam(typeof raw.linkToRootId === "string" ? raw.linkToRootId : null);
 
-  const result = await createCustomer(guard.actor, parsed.data, linkToRootId || undefined);
+  // Lưu ảnh sau khi QR đã đọc được và thông tin đã hợp lệ. Lượt bị từ chối vì
+  // CCCD trùng vẫn để lại một ảnh không ai trỏ tới — kho chưa dọn rác, xem
+  // ghi chú đầu `storage.ts`.
+  let idCardImage: string | null = null;
+  if (image) {
+    const stored = await putImage(image, ID_CARD_FOLDER);
+    if (!stored.ok) return badRequest(stored.message);
+    idCardImage = stored.key;
+  }
+
+  const result = await createCustomer(
+    guard.actor,
+    parsed.data,
+    linkToRootId || undefined,
+    idCardImage,
+  );
   if (!result.ok) {
     if (result.reason === "open-draft-exists")
       return Response.json(

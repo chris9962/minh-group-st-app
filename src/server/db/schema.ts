@@ -918,6 +918,17 @@ export const customers = pgTable(
     /** Mã số BHXH (migration 0121), ghi từ file BHYT/BHXH và đồng bộ mọi lần mở hồ sơ. */
     socialInsuranceCode: text("social_insurance_code"),
     /**
+     * KHOÁ của ảnh mặt trước thẻ CCCD trong kho ảnh (`server/storage.ts`), không
+     * phải URL (migration 0127). Mọi vai tạo hồ sơ đều phải quét QR trên thẻ,
+     * máy chủ lấy CCCD, họ tên, ngày sinh từ QR và giữ ảnh làm bằng chứng (chốt
+     * 2026-10-06).
+     *
+     * `null` = hồ sơ lập trước khi có luật này hoặc nhập bằng script. Có ảnh thì
+     * vai Nhân viên không sửa được ba trường lấy từ thẻ, quản lý sửa được, xem
+     * `updateCustomer`.
+     */
+    idCardImage: text("id_card_image"),
+    /**
      * Số tài khoản `done` và số đơn bảo hiểm của khách — LƯU SẴN, ngoại lệ có
      * chủ đích của luật "tính ra được thì không lưu" (db-design §9).
      *
