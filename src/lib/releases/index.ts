@@ -12,6 +12,60 @@ export type { Release, ReleaseSection } from './types';
  */
 export const RELEASES: Release[] = [
   {
+    id: '2026-10-08',
+    version: '2.5.0',
+    title: 'Cập nhật ngày 08/10/2026',
+    summary: 'Tạo khách bằng cách chụp mã QR trên thẻ CCCD, bản nháp tài khoản tự xoá khi hết hạn giữ mã, VNeID thêm 3 việc.',
+    sections: [
+      {
+        title: 'Khách hàng',
+        items: [
+          'Tạo hồ sơ bắt đầu bằng chụp mặt có mã QR của thẻ CCCD hoặc màn hình VNeID.',
+          'App lấy CCCD, họ tên, ngày sinh từ mã QR.',
+          'Nhân viên không sửa được họ tên, ngày sinh, CCCD.',
+        ],
+        visibleTo: (user) => canOpenPath(user, '/customers'),
+      },
+      {
+        title: 'Ngân hàng',
+        items: [
+          'Mỗi ngân hàng, mỗi loại tài khoản chỉ giữ 1 bản nháp.',
+          'Bản nháp hết hạn giữ mã thì tự xoá, mã trả về kho.',
+          'App báo trước khi xoá 5 phút.',
+        ],
+        visibleTo: (user) => canOpenPath(user, '/banking'),
+      },
+      {
+        title: 'Dịch vụ',
+        items: ['Ô chọn loại dịch vụ bỏ Nhập liệu BHYT/BHXH.', 'File nhập liệu BHYT/BHXH bỏ cột SĐT.'],
+        visibleTo: (user) => canOpenPath(user, '/services'),
+      },
+      {
+        title: 'VNeID',
+        items: ['Thêm việc Sổ SKĐT, GPLX, Cavet xe.'],
+        visibleTo: (user) => canOpenPath(user, '/vneid'),
+      },
+      {
+        title: 'Mã giới thiệu',
+        items: [
+          'Mã mới VPa CNKD, VPb, VPb CNKD tick sẵn Ẩn với nhân viên.',
+          'Mã CNKD giới hạn phòng chỉ báo cho phòng được dùng.',
+        ],
+        visibleTo: (user) => canOpenPath(user, '/settings/banks'),
+      },
+      {
+        title: 'Chi tiết ngân hàng',
+        items: ['Lọc được nhiều mã giới thiệu cùng lúc.', 'Đánh dấu tài khoản lỗi có gợi ý các lỗi hay gặp.'],
+        visibleTo: (user) => canOpenPath(user, '/settings/banks'),
+      },
+      {
+        title: 'Nhân sự',
+        items: ['Chi tiết nhân viên ghi rõ số lượt dịch vụ vượt trần không tính điểm.'],
+        visibleTo: (user) => canOpenPath(user, '/users'),
+      },
+    ],
+  },
+  {
     id: '2026-10-05',
     version: '2.4.0',
     title: 'Cập nhật ngày 05/10/2026',
