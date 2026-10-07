@@ -243,6 +243,40 @@ export async function fetchPviRoute(): Promise<PviRouteSetting> {
   return PviRouteSetting.parse(await res.json());
 }
 
+/**
+ * Công tắc chụp CCCD khi tạo khách, chỉnh trên P-99 (chốt 2026-10-08). Tắt thì
+ * form tạo khách cho gõ tay ba ô CCCD, họ tên, ngày sinh. Nằm trong bộ nhớ app:
+ * khởi động lại thì quay về biến `ID_CARD_SCAN`.
+ */
+export const IdCardScanSetting = z.object({
+  enabled: z.boolean(),
+  /** ISO datetime của lần đổi gần nhất. Rỗng khi chưa ai đổi từ lúc app khởi động. */
+  updatedAt: z.string(),
+  updatedBy: z.string(),
+});
+export type IdCardScanSetting = z.infer<typeof IdCardScanSetting>;
+
+export const IdCardScanBody = z.object({ enabled: z.boolean() });
+export type IdCardScanBody = z.infer<typeof IdCardScanBody>;
+
+export async function fetchIdCardScan(): Promise<IdCardScanSetting> {
+  const res = await fetch('/api/ops/id-card-scan');
+  if (!res.ok) throw new Error('Không đọc được công tắc chụp CCCD');
+  return IdCardScanSetting.parse(await res.json());
+}
+
+export async function saveIdCardScan(body: IdCardScanBody): Promise<void> {
+  const res = await fetch('/api/ops/id-card-scan', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    throw new Error(data?.message ?? 'Không lưu được công tắc chụp CCCD');
+  }
+}
+
 export async function savePviRoute(body: PviRouteBody): Promise<void> {
   const res = await fetch('/api/ops/pvi-route', {
     method: 'PUT',

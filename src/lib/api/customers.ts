@@ -516,6 +516,13 @@ async function send(url: string, method: string, body: unknown) {
   return res.json();
 }
 
+/** Form tạo khách có phải chụp CCCD không; công tắc ở màn Vận hành P-99. */
+export async function fetchIdCardScanEnabled(): Promise<boolean> {
+  const res = await fetch('/api/customers/id-card-scan');
+  if (!res.ok) throw new Error('Không đọc được công tắc chụp CCCD');
+  return z.object({ enabled: z.boolean() }).parse(await res.json()).enabled;
+}
+
 /**
  * Tạo hồ sơ khách. `linkToRootId` = tạo THÊM MỘT LẦN cho người đã có hồ sơ.
  *

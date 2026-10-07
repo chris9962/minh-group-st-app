@@ -14,6 +14,7 @@ import {
   listCustomers,
 } from "@/server/customers";
 import { readIdCardQr } from "@/server/idCardQr";
+import { idCardScanEnabled } from "@/server/idCardScanMode";
 import { pageArgsFrom } from "@/server/pagination";
 import { ID_CARD_FOLDER, putImage } from "@/server/storage";
 
@@ -106,9 +107,9 @@ export async function POST(request: Request) {
   let body = received.body;
 
   // Mọi vai phải quét QR trên thẻ CCCD khi tạo hồ sơ (chốt 2026-10-06), kể cả
-  // quản lý: không có đường nhập tay. Ảnh là nguồn của ba trường, không phải
-  // thứ kèm theo tuỳ chọn.
-  if (!image) return badRequest("Phải quét QR trên thẻ CCCD để tạo hồ sơ.");
+  // quản lý. Ảnh là nguồn của ba trường, không phải thứ kèm theo tuỳ chọn. Màn
+  // Vận hành tắt được công tắc này (chốt 2026-10-08), khi đó nhận ba trường gõ tay.
+  if (!image && idCardScanEnabled()) return badRequest("Phải quét QR trên thẻ CCCD để tạo hồ sơ.");
 
   if (image) {
     const qr = await readIdCardQr(new Uint8Array(await image.arrayBuffer()));

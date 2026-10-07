@@ -23,6 +23,7 @@ import {
   CustomerForm,
   type CustomerEditForm as CustomerEditFormValues,
   DuplicateIdError,
+  fetchIdCardScanEnabled,
   pickerStartForDob,
   updateCustomer,
   type Customer,
@@ -119,12 +120,20 @@ export function CustomerFormDialog({
 
   /**
    * Tạo hồ sơ đi HAI BƯỚC (chốt 2026-10-06): bước 1 chụp mặt trước thẻ CCCD
-   * bằng camera trong hộp thoại, bước 2 điền thông tin. Mọi vai đều phải chụp,
-   * không có đường nhập tay. Máy chủ đọc lại QR từ chính ảnh gửi lên và ghi đè
+   * bằng camera trong hộp thoại, bước 2 điền thông tin. Mọi vai đều phải chụp
+   * khi công tắc ở màn Vận hành bật. Máy chủ đọc lại QR từ chính ảnh gửi lên và ghi đè
    * ba giá trị, nên thứ điền ở bước 2 chỉ để người nhập đối chiếu với khách.
    */
   const [scan, setScan] = useState<File | null>(null);
-  const capturing = !editing && !scan;
+  // Màn Vận hành tắt được bước chụp (chốt 2026-10-08): tắt thì mở thẳng form, gõ
+  // tay ba ô như trước. Đọc hỏng thì coi như bật, máy chủ mới là chốt thật.
+  const scanSwitch = useQuery({
+    queryKey: ["customers", "id-card-scan"],
+    queryFn: fetchIdCardScanEnabled,
+    enabled: open && !editing,
+  });
+  const switchLoading = !editing && scanSwitch.isPending;
+  const capturing = !editing && !scan && (scanSwitch.data ?? true);
   // Ảnh thu nhỏ của thẻ vừa chụp ở đầu bước 2. Blob URL là tài nguyên của trình
   // duyệt, phải thu hồi khi đổi ảnh hoặc gỡ component.
   const scanUrl = useMemo(() => (scan ? URL.createObjectURL(scan) : null), [scan]);
@@ -292,7 +301,7 @@ export function CustomerFormDialog({
       title={editing ? "Sửa khách hàng" : "Thêm khách hàng"}
       footer={
         // Bước 1 không có chân hộp thoại: nút Huỷ nằm ngay trên khung ngắm.
-        capturing ? undefined : (
+        capturing || switchLoading ? undefined : (
           <>
             <Button variant="secondary" onClick={onClose}>
               Huỷ
@@ -309,6 +318,7 @@ export function CustomerFormDialog({
       }
     >
       {loading && <SkeletonText lines={6} label="Đang tải hồ sơ khách" />}
+      {switchLoading && <SkeletonText lines={6} label="Đang mở form" />}
       {/* Thiếu nhánh này thì tải hỏng ra hộp thoại RỖNG: không chữ, không nút thử lại. */}
       {!loading && loadError && (
         <ErrorState
@@ -320,7 +330,7 @@ export function CustomerFormDialog({
 
       {/* Bước 1: chụp thẻ. Đổi bước là gắn/gỡ component, nên camera tự tắt
           khi sang bước 2 và mở lại khi bấm "Chụp lại". */}
-      {!loading && !loadError && capturing && (
+      {!loading && !switchLoading && !loadError && capturing && (
         <IdCardScanner
           onCancel={onClose}
           onScanned={(card, file) => {
@@ -334,7 +344,7 @@ export function CustomerFormDialog({
         />
       )}
 
-      {!loading && !loadError && !capturing && (
+      {!loading && !switchLoading && !loadError && !capturing && (
       <form
         id="customer-form"
         className={styles.form}
