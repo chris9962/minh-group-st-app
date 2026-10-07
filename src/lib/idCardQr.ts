@@ -22,10 +22,9 @@ export type IdCardQr =
   | { ok: true; idNumber: string; fullName: string; dob: string }
   | { ok: false; message: string };
 
-export const ID_CARD_QR_UNREADABLE =
-  'Không đọc được mã QR trên thẻ. Chụp lại cho rõ, QR ở góc trên bên phải mặt trước.';
+export const ID_CARD_QR_UNREADABLE = 'Không đọc được thông tin từ ảnh.';
 
-const NOT_ID_CARD = 'Mã QR trong ảnh không phải QR của thẻ CCCD gắn chip.';
+const NOT_ID_CARD = ID_CARD_QR_UNREADABLE;
 
 /** `ddmmyyyy` → `yyyy-mm-dd`, hoặc `''` khi không phải ngày có thật. */
 const isoDateOf = (ddmmyyyy: string): string => {
@@ -53,7 +52,8 @@ const matchesIdNumber = (idNumber: string, dob: string, gender: string): boolean
 
 export function parseIdCardQr(text: string): IdCardQr {
   const parts = text.split('|').map((p) => p.trim());
-  if (parts.length !== 7) return { ok: false, message: NOT_ID_CARD };
+  // Thẻ căn cước mẫu mới (cấp từ 2024-07-01) thêm 4 phần rỗng sau ngày cấp.
+  if (parts.length < 7) return { ok: false, message: NOT_ID_CARD };
 
   const [idNumber, , rawName, rawDob, gender] = parts;
   if (!/^\d{12}$/.test(idNumber)) return { ok: false, message: NOT_ID_CARD };
@@ -62,12 +62,12 @@ export function parseIdCardQr(text: string): IdCardQr {
   const dob = isoDateOf(rawDob);
   const year = Number(dob.slice(0, 4));
   if (!dob || year < MIN_BIRTH_YEAR || year > new Date().getFullYear())
-    return { ok: false, message: 'Ngày sinh trên QR không hợp lệ. Chụp lại mặt trước thẻ.' };
+    return { ok: false, message: 'Ngày sinh trên QR không hợp lệ. Chụp lại.' };
 
   if (!matchesIdNumber(idNumber, dob, gender))
     return {
       ok: false,
-      message: 'Số CCCD không khớp giới tính và năm sinh trên thẻ. Chụp lại mặt trước thẻ.',
+      message: 'Số CCCD không khớp giới tính và năm sinh. Chụp lại.',
     };
 
   return { ok: true, idNumber, fullName: capitalizePersonName(rawName), dob };
