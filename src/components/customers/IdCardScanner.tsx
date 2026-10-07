@@ -22,6 +22,8 @@ type Shot = { file: File; preview: string };
 const CAMERA_FAILED = "Không mở được camera. Bạn cho phép trình duyệt dùng camera rồi bấm Thử lại.";
 /** Giữ khung xanh một nhịp để người dùng thấy thẻ đã đọc được trước khi form hiện ra. */
 const DONE_FLASH_MS = 350;
+/** Viền giữ thêm quanh khung khi cắt, theo tỉ lệ cạnh khung: thẻ lệch một chút vẫn còn đủ QR. */
+const CROP_MARGIN = 0.05;
 
 /** `mediaDevices` chỉ có trên HTTPS hoặc localhost; thiếu nó là không hỏi được camera. */
 const cameraAvailable = () =>
@@ -30,8 +32,8 @@ const cameraAvailable = () =>
 /**
  * Bước 1 của form tạo khách (chốt 2026-10-06): khung ngắm kiểu camera điện
  * thoại ngay trong hộp thoại, cùng lối với `CameraCheckIn`. Người dùng đưa thẻ
- * vào khung rồi bấm nút chụp tròn. Khung hình chụp ở độ phân giải gốc của video
- * thành file JPEG; trình duyệt đọc QR từ file đó để điền sẵn ba ô, và chính file
+ * vào khung rồi bấm nút chụp tròn. Khung hình chụp được cắt theo khung thẻ thành
+ * file JPEG; trình duyệt đọc QR từ file đó để điền sẵn ba ô, và chính file
  * đó gửi lên máy chủ để đọc lại.
  *
  * Ảnh vừa chụp hiện đè lên video trong lúc đọc, để người dùng thấy đúng tấm sẽ
@@ -42,6 +44,8 @@ const cameraAvailable = () =>
  */
 export function IdCardScanner({ onScanned, onCancel }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const frameRef = useRef<HTMLDivElement>(null);
   const alive = useRef(false);
   const [camera, setCamera] = useState<"starting" | "live" | "failed">(() =>
     cameraAvailable() ? "starting" : "failed",
@@ -155,17 +159,40 @@ export function IdCardScanner({ onScanned, onCancel }: Props) {
     }, DONE_FLASH_MS);
   };
 
-  /** Khung hình hiện tại ở độ phân giải gốc của video, thành file JPEG. */
+  /**
+   * Cắt khung hình hiện tại theo đúng khung thẻ trên màn hình (chốt 2026-10-07),
+   * ở độ phân giải gốc của video, thành file JPEG. Ảnh lưu và ảnh đọc QR chỉ còn
+   * phần thẻ, không kèm nền xung quanh.
+   *
+   * Video hiện bằng `object-fit: cover` nên bị phóng và cắt mép: phải đổi toạ độ
+   * khung trên màn hình sang toạ độ điểm ảnh của video theo cùng tỉ lệ đó.
+   */
   const capture = () => {
     const video = videoRef.current;
-    if (!video || video.videoWidth === 0) {
+    const viewport = viewportRef.current?.getBoundingClientRect();
+    const frame = frameRef.current?.getBoundingClientRect();
+    if (!video || video.videoWidth === 0 || !viewport || !frame) {
       fail(ID_CARD_QR_UNREADABLE);
       return;
     }
+    const vw = video.videoWidth;
+    const vh = video.videoHeight;
+    const scale = Math.max(viewport.width / vw, viewport.height / vh);
+    const offsetX = (viewport.width - vw * scale) / 2;
+    const offsetY = (viewport.height - vh * scale) / 2;
+    const marginX = frame.width * CROP_MARGIN;
+    const marginY = frame.height * CROP_MARGIN;
+    const left = Math.max(0, (frame.left - viewport.left - marginX - offsetX) / scale);
+    const top = Math.max(0, (frame.top - viewport.top - marginY - offsetY) / scale);
+    const right = Math.min(vw, (frame.right - viewport.left + marginX - offsetX) / scale);
+    const bottom = Math.min(vh, (frame.bottom - viewport.top + marginY - offsetY) / scale);
+
     const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    canvas.getContext("2d")?.drawImage(video, 0, 0);
+    canvas.width = Math.round(right - left);
+    canvas.height = Math.round(bottom - top);
+    canvas
+      .getContext("2d")
+      ?.drawImage(video, left, top, right - left, bottom - top, 0, 0, canvas.width, canvas.height);
     canvas.toBlob(
       (blob) => {
         if (!blob) {
@@ -192,7 +219,7 @@ export function IdCardScanner({ onScanned, onCancel }: Props) {
 
   return (
     <div className={styles.scanner}>
-      <div className={styles.viewport} aria-busy={reading || undefined}>
+      <div ref={viewportRef} className={styles.viewport} aria-busy={reading || undefined}>
         {/* Thẻ video luôn có mặt, kể cả lúc giấu đi: luồng camera vẫn gắn
             trên nó, nên Chụp lại và Thử lại không phải mở lại từ đầu. */}
         <video
@@ -205,7 +232,7 @@ export function IdCardScanner({ onScanned, onCancel }: Props) {
         />
         {shot && (
           // eslint-disable-next-line @next/next/no-img-element -- ảnh là blob vừa chụp, next/image không tối ưu được
-          <img src={shot.preview} alt="Ảnh thẻ vừa chụp" className={styles.media} />
+          <img src={shot.preview} alt="Ảnh thẻ vừa chụp" className={clsx(styles.media, styles.shot)} />
         )}
 
         {showPanel ? (
@@ -216,6 +243,7 @@ export function IdCardScanner({ onScanned, onCancel }: Props) {
         ) : (
           <>
             <div
+              ref={frameRef}
               className={clsx(styles.frame, phase === "done" && styles.frameDone)}
               aria-hidden
             >

@@ -49,6 +49,11 @@
   display: none;
 }
 
+/* Ảnh vừa chụp đã cắt theo khung thẻ: hiện trọn tấm, không phóng cắt thêm. */
+.shot {
+  object-fit: contain;
+}
+
 /* Khung cỡ thẻ CCCD (86 x 54 mm) đặt hơi cao hơn giữa để chừa chỗ cho hàng nút.
    Bóng đổ rất lớn làm tối phần ngoài khung, bốn góc vẽ bằng bốn thẻ `i`. */
 .frame {
