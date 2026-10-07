@@ -890,6 +890,13 @@
       "when": 1789891400053,
       "tag": "0127_customer_id_card_image",
       "breakpoints": true
+    },
+    {
+      "idx": 128,
+      "version": "7",
+      "when": 1789891400054,
+      "tag": "0128_draft_expiry",
+      "breakpoints": true
     }
   ]
 }

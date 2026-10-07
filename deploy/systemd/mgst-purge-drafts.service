@@ -1,5 +1,5 @@
 [Unit]
-Description=Xoá tài khoản ngân hàng còn ở trạng thái đang tạo của ngày trước
+Description=Báo trước rồi xoá bản nháp tài khoản ngân hàng quá 30 phút chưa hoàn tất
 After=docker.service
 OnFailure=mgst-alert@%n.service
 

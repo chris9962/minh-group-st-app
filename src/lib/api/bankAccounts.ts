@@ -118,6 +118,8 @@ export const BankAccount = z.object({
    */
   customerPhones: z.array(z.string()),
   status: BankAccountStatus,
+  /** Lúc giữ chỗ, dạng ISO. Bản nháp sống `DRAFT_TTL_MINUTES` kể từ mốc này. */
+  createdAt: z.string(),
 });
 export type BankAccount = z.infer<typeof BankAccount>;
 
@@ -126,15 +128,26 @@ export const MAX_BANK_ACCOUNTS_PER_CUSTOMER = 3;
 
 /**
  * Trần số bản nháp MỘT nhân viên được giữ cùng lúc ở MỘT ngân hàng, tính riêng
- * từng loại tài khoản (chốt 2026-09-28). Bản BGĐ chốt 2026-09-16 gộp mọi loại
- * vào trần 2; CNKD hạ xuống 1 vì đêm 2026-09-16 ba người mở 30 bản nháp VPb
- * CNKD trong 25 phút, mỗi bản nháp chiếm một mã giới thiệu của phòng.
+ * từng loại tài khoản.
+ *
+ * Chốt 2026-10-06: mỗi loại đúng 1. Nhân viên tạo khách ảo rồi bấm Tiếp tục để
+ * giữ chỗ mã giới thiệu, nên trần 2 là mỗi người găm được hai mã ở mỗi ngân
+ * hàng mà chưa mở tài khoản nào. Bản 2026-09-28 (2/1/2) bị thay; bản BGĐ
+ * 2026-09-16 gộp mọi loại vào trần 2.
  */
 export const MAX_DRAFTS_PER_STAFF_BY_TYPE: Record<AccountType, number> = {
-  none: 2,
+  none: 1,
   CNKD: 1,
-  HKD: 2,
+  HKD: 1,
 };
+
+/**
+ * Bản nháp sống bấy nhiêu phút kể từ lúc giữ chỗ (chốt 2026-10-06), quá hạn
+ * thì hệ thống xoá và trả mã về kho. Đủ `DRAFT_WARN_MINUTES` thì chủ bản nháp
+ * nhận một thông báo "sắp bị xoá", đúng một lần. Xem `expireDraftAccounts`.
+ */
+export const DRAFT_TTL_MINUTES = 30;
+export const DRAFT_WARN_MINUTES = 25;
 
 /**
  * MỘT ngân hàng khách chọn mở, kèm mã giữ chỗ cho nó.
@@ -326,10 +339,23 @@ export const CreateBankAccountResult = z.object({
 export type CreateBankAccountResult = z.infer<typeof CreateBankAccountResult>;
 
 /**
+ * Máy chủ trả 404: bản ghi không còn, hoặc ngoài tầm nhìn (route không phân
+ * biệt hai ca). Bước 2 cần nhận ra ca này vì bản nháp quá `DRAFT_TTL_MINUTES`
+ * bị hệ thống xoá ngay trong lúc nhân viên đang điền.
+ */
+export class BankAccountNotFoundError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'BankAccountNotFoundError';
+  }
+}
+
+/**
  * Máy chủ đã nói rõ vì sao ("Mã này vừa hết chỗ") — nuốt đi rồi ném câu chung
  * chung là bắt người dùng tự đoán mình sai chỗ nào.
  */
 async function failure(res: Response, fallback: string): Promise<Error> {
+  if (res.status === 404) return new BankAccountNotFoundError(fallback);
   const body = (await res.json().catch(() => null)) as { message?: string } | null;
   return new Error(body?.message?.trim() || fallback);
 }

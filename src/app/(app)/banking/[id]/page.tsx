@@ -38,6 +38,8 @@ import {
   BANK_ACCOUNT_STATUS_LABEL,
   BANK_ACCOUNT_STATUS_TONE,
   BankAccountFinishForm,
+  BankAccountNotFoundError,
+  DRAFT_TTL_MINUTES,
   approveBankAccount,
   deleteBankAccount,
   finishBankAccount,
@@ -77,10 +79,16 @@ export default function BankAccountDetailPage({
 }) {
   const { id } = use(params);
 
-  const { data, isPending, isError, refetch, isFetching } = useQuery({
+  const { data, isPending, isError, error, refetch, isFetching } = useQuery({
     queryKey: ["bank-account-detail", id],
     queryFn: () => fetchBankAccountDetail(id),
   });
+  /**
+   * 404 sau khi đã tải được: bản nháp vừa bị hệ thống xoá vì quá hạn trong lúc
+   * nhân viên đang điền. `data` cũ vẫn còn trong cache nên phải chặn, không
+   * thì thẻ bước 2 hiện tiếp bên dưới câu báo đã xoá.
+   */
+  const gone = isError && error instanceof BankAccountNotFoundError;
 
   const { data: departments = [] } = useQuery({
     queryKey: ["departments"],
@@ -92,7 +100,7 @@ export default function BankAccountDetailPage({
   return (
     <>
       <TopBar
-        title={data ? `${data.bankCode} · ${data.customerName}` : "Tài khoản ngân hàng"}
+        title={data && !gone ? `${data.bankCode} · ${data.customerName}` : "Tài khoản ngân hàng"}
         keepTitleOnMobile
       />
 
@@ -100,20 +108,41 @@ export default function BankAccountDetailPage({
         <BackLink href="/banking">Ngân hàng</BackLink>
 
         {isPending && <SkeletonCard lines={5} />}
-        {isError && (
+        {gone && <DraftGoneCard />}
+        {isError && !gone && (
           <ErrorState what="tài khoản này" onRetry={refetch} retrying={isFetching} />
         )}
 
-        {data && data.status === "creating" && (
+        {data && !gone && data.status === "creating" && (
           <FinishAccountCard id={id} data={data} departmentName={departmentName} />
         )}
 
-        {data && data.status !== "creating" && (
+        {data && !gone && data.status !== "creating" && (
           <DoneAccountCard id={id} data={data} departmentName={departmentName} />
         )}
-        {data && <BankAccountHistory history={data.history} />}
+        {data && !gone && <BankAccountHistory history={data.history} />}
       </main>
     </>
+  );
+}
+
+/**
+ * Máy chủ trả 404 cho cả bản ghi không còn lẫn bản ghi ngoài tầm nhìn, không
+ * phân biệt. Với bản nháp đang điền thì câu dưới đúng; mở link cũ của tài
+ * khoản khác cũng ra câu này, chấp nhận.
+ */
+function DraftGoneCard() {
+  return (
+    <SectionCard title="Hoàn tất tài khoản" icon={<Landmark size={17} />}>
+      <Alert tone="warning">
+        Bản nháp đã quá {DRAFT_TTL_MINUTES} phút và bị xoá. Giữ chỗ lại.
+      </Alert>
+      <div className={styles.actions}>
+        <Link href="/banking" className="btn btn-secondary">
+          Về Ngân hàng
+        </Link>
+      </div>
+    </SectionCard>
   );
 }
 
@@ -217,7 +246,16 @@ function FinishAccountCard({
       invalidateShared();
       toast.ok("Đã hoàn tất tài khoản ngân hàng");
     },
-    onError: (e) => toast.fail(errorMessage(e, "Không hoàn tất được tài khoản này.")),
+    onError: (e) => {
+      // Bản nháp vừa bị hệ thống xoá vì quá hạn: tải lại để trang hiện câu
+      // "đã bị xoá" thay cho thẻ bước 2, không toast câu chung chung.
+      if (e instanceof BankAccountNotFoundError) {
+        queryClient.invalidateQueries({ queryKey: ["bank-account-detail", id] });
+        invalidateShared();
+        return;
+      }
+      toast.fail(errorMessage(e, "Không hoàn tất được tài khoản này."));
+    },
   });
 
   const remove = useMutation({
@@ -232,7 +270,7 @@ function FinishAccountCard({
 
   return (
     <SectionCard title="Hoàn tất tài khoản" icon={<Landmark size={17} />}>
-      <DraftPurgeCountdown />
+      <DraftPurgeCountdown createdAt={data.createdAt} />
       <dl className={styles.fields}>
         {/* Nhãn trạng thái cùng kiểu với mặt đã hoàn thành — chữ meta thường
             quá mờ cho một trạng thái cần thấy ngay. */}

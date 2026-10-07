@@ -22,6 +22,7 @@ Thông số máy chủ, chứng chỉ, tài khoản nằm ở `docs/deploy-fpt-c
 | `maintenance-on.sh` | bật bảo trì, tham số là số phút dự kiến |
 | `maintenance-off.sh` | tắt bảo trì |
 | `upload-existing-images.ts` | đẩy ảnh còn trên đĩa lên FPT, chạy một lần lúc chuyển kho |
+| `systemd/mgst-purge-drafts.service`, `.timer` | Mỗi phút: bản nháp tài khoản ngân hàng đủ 25 phút thì báo chủ bản nháp "sắp bị xoá" một lần, đủ 30 phút thì xoá và trả mã về kho (chốt 2026-10-06). Script `scripts/purge-draft-accounts.ts`, chạy khô bằng `--dry-run`. Cách cài ở `docs/deploy-fpt-cloud.md` §8d |
 | `systemd/mgst-purge-customers.service`, `.timer` | 00:00 ngày 1 hằng tháng xoá hồ sơ khách mở trước tháng mới mà không có tài khoản, đơn bảo hiểm, dịch vụ, VNeID, BHYT/BHXH hay đợt phát quà; chạy sau `mgst-purge-drafts`. Script `scripts/purge-empty-customers.ts`, chạy khô bằng `--dry-run`. Cách cài ở `docs/deploy-fpt-cloud.md` §8g |
 
 `maintenance/on` và `maintenance/until.txt` là trạng thái lúc chạy, hai script

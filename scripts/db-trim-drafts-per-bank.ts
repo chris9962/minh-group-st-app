@@ -62,7 +62,7 @@ async function main() {
   if (dryRun) return;
 
   if (excess.length > 0) {
-    // Khoá trạng thái trong chính câu xoá, cùng lối `purgeDraftAccounts`: giữa
+    // Khoá trạng thái trong chính câu xoá, cùng lối `expireDraftAccounts`: giữa
     // lúc đọc và lúc xoá, nhân viên có thể vừa bấm Hoàn thành một bản nháp.
     const removed = await db
       .delete(bankAccounts)

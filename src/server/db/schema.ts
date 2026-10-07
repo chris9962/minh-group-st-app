@@ -184,6 +184,8 @@ export const notificationKind = pgEnum("notification_kind", [
   "code-cnkd",
   // Cảnh báo vận hành, chỉ người cầm `system:view-ops`. Migration 0100.
   "ops-alert",
+  // Bản nháp đủ 25 phút, sắp bị xoá, cho chủ bản nháp. Migration 0128.
+  "bank-expiring",
 ]);
 
 /** P-96 · Góp ý đã xử lý hay chưa. Hai trạng thái, thêm ở migration 0052. */
@@ -1147,6 +1149,11 @@ export const bankAccounts = pgTable(
     /** Snapshot phòng lúc tạo (#8) — trục lọc phạm vi. */
     createdByDepartmentId: uuid("created_by_department_id").references(() => departments.id),
     finishedAt: timestamp("finished_at", { withTimezone: true }),
+    /**
+     * Lúc đã báo "sắp bị xoá" cho chủ bản nháp; `null` = chưa báo. Timer chạy
+     * mỗi phút nên không có cột này là mỗi phút một thông báo (migration 0128).
+     */
+    expiryWarnedAt: timestamp("expiry_warned_at", { withTimezone: true }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

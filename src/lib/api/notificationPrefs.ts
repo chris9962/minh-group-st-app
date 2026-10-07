@@ -23,6 +23,7 @@ export const NotificationKind = z.enum([
   'release',
   'code-cnkd',
   'ops-alert',
+  'bank-expiring',
 ]);
 export type NotificationKind = z.infer<typeof NotificationKind>;
 
@@ -50,6 +51,7 @@ export const NOTIFICATION_KINDS: SwitchableKind[] = [
   'bank-approved',
   'bank-photo-fail',
   'bank-photo-review',
+  'bank-expiring',
   'bank-deleted',
   'code-cnkd',
   'ops-alert',
@@ -77,6 +79,7 @@ export const NOTIFICATION_KIND_LABEL: Record<SwitchableKind, string> = {
   'bank-approved': 'Tài khoản của tôi được duyệt',
   'bank-photo-fail': 'Ảnh tài khoản ngân hàng của tôi không đạt',
   'bank-photo-review': 'Tài khoản không đạt xác thực ảnh',
+  'bank-expiring': 'Tài khoản đang tạo của tôi sắp bị xoá',
   'bank-deleted': 'Tài khoản đang tạo của tôi bị xoá',
   'code-low': 'Kho mã giới thiệu sắp hết',
   'code-cnkd': 'Có mã giới thiệu CNKD mới',
@@ -115,6 +118,7 @@ export const NOTIFICATION_KIND_ICON: Record<NotificationKind, NavIconKey> = {
   'bank-approved': 'banking',
   'bank-photo-fail': 'banking',
   'bank-photo-review': 'banking',
+  'bank-expiring': 'banking',
   'bank-deleted': 'banking',
   'code-low': 'banking',
   /** Mã CNKD là mã giới thiệu ngân hàng, người nhận là mọi nhân viên mở tài khoản. */
@@ -145,6 +149,7 @@ export const NOTIFICATION_KIND_NEEDS: Partial<
   'bank-error': { module: 'banking', actions: ['create'] },
   'bank-approved': { module: 'banking', actions: ['create'] },
   'bank-photo-fail': { module: 'banking', actions: ['create'] },
+  'bank-expiring': { module: 'banking', actions: ['create'] },
   'bank-deleted': { module: 'banking', actions: ['create'] },
   /** Loại của NGƯỜI DUYỆT — hai quyền mở cùng màn quản lý ngân hàng. */
   'bank-pending': { module: 'system', actions: ['manage-bank', 'manage-assigned-banks'] },
@@ -162,6 +167,7 @@ export const ALL_ON: Record<NotificationKind, boolean> = {
   'bank-approved': true,
   'bank-photo-fail': true,
   'bank-photo-review': true,
+  'bank-expiring': true,
   'bank-deleted': true,
   'code-low': true,
   'code-cnkd': true,

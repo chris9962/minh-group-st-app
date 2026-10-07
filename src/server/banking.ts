@@ -4,9 +4,10 @@ import {
   count,
   desc,
   eq,
+  gt,
   gte,
   inArray,
-  lt,
+  isNull,
   lte,
   or,
   sql,
@@ -16,6 +17,8 @@ import {
 import {
   BankAccountStatus,
   canEditOpeningPhotos,
+  DRAFT_TTL_MINUTES,
+  DRAFT_WARN_MINUTES,
   MAX_BANK_ACCOUNTS_PER_CUSTOMER,
   MAX_DRAFTS_PER_STAFF_BY_TYPE,
 } from "@/lib/api/bankAccounts";
@@ -637,6 +640,8 @@ const decorate = (page: ReturnType<typeof pickPage>) => {
       createdByDepartmentName: departments.name,
       finishedAt: page.finishedAt,
       lastErrorAt: page.lastErrorAt,
+      // Mốc giữ chỗ: bước 2 đếm ngược hạn xoá bản nháp từ đây.
+      createdAt: page.createdAt,
       status: page.status,
       requiredPhotos: banks.requiredPhotos,
       accountNumberMethod: banks.accountNumberMethod,
@@ -1095,7 +1100,7 @@ const nhanTaiKhoan = (row: DecoratedRow) =>
  */
 async function baoChuTaiKhoan(
   row: DecoratedRow,
-  kind: "bank-error" | "bank-approved" | "bank-deleted",
+  kind: "bank-error" | "bank-approved" | "bank-deleted" | "bank-expiring",
   title: string,
   detail: string,
 ): Promise<void> {
@@ -1194,6 +1199,7 @@ async function accountById(id: string): Promise<BankAccount | null> {
     finishedAt: r.finishedAt?.toISOString() ?? "",
     customerPhones: await customerPhoneNumbers(r.customerId),
     status: r.status,
+    createdAt: r.createdAt.toISOString(),
   };
 }
 
@@ -1251,6 +1257,7 @@ async function detailBody(r: DecoratedRow): Promise<BankAccountDetail> {
     transactionPhotoUrls: await photoUrlsOf(r.id, "transaction"),
     finishedAt: r.finishedAt?.toISOString() ?? "",
     lastErrorAt: r.lastErrorAt?.toISOString() ?? "",
+    createdAt: r.createdAt.toISOString(),
     history: (await db.select().from(bankAccountStatusHistory)
       .where(eq(bankAccountStatusHistory.accountId, r.id))
       .orderBy(asc(bankAccountStatusHistory.changedAt), asc(bankAccountStatusHistory.id)))
@@ -1540,10 +1547,10 @@ export async function startBankAccount(
 
     /**
      * Trần bản nháp theo NGƯỜI MỞ, tính riêng từng loại tài khoản ở mỗi ngân
-     * hàng (chốt 2026-09-28): `MAX_DRAFTS_PER_STAFF_BY_TYPE`, mọi vai, khách nào
-     * cũng vậy. Bản BGĐ chốt 2026-09-16 gộp mọi loại vào trần 2. Đêm 2026-09-16
-     * ba người mở 30 bản nháp VPb CNKD trong 25 phút, mỗi dòng chiếm một mã của
-     * phòng.
+     * hàng: `MAX_DRAFTS_PER_STAFF_BY_TYPE`, mọi vai, khách nào cũng vậy. Chốt
+     * 2026-10-06 mỗi loại đúng 1, vì nhân viên tạo khách ảo rồi giữ chỗ để găm
+     * mã; bản 2026-09-28 (2/1/2) bị thay, bản BGĐ 2026-09-16 gộp mọi loại vào
+     * trần 2.
      *
      * Khoá dòng NGƯỜI MỞ trước khi đếm: hai request của cùng một người cho hai
      * khách khác nhau không chung khoá khách, không khoá là cả hai đếm 1 rồi
@@ -1567,7 +1574,7 @@ export async function startBankAccount(
         const label = pick.accountType === "none" ? code : `${code} ${pick.accountType}`;
         return {
           ok: false as const,
-          message: `Bạn đang giữ ${max} mã ${label} chưa hoàn tất. Hoàn tất hoặc xoá bớt rồi mở tiếp.`,
+          message: `Bạn đang giữ ${max} mã ${label} chưa hoàn tất. Hoàn tất hoặc xoá bản nháp đó rồi mở tiếp.`,
         };
       }
     }
@@ -1799,8 +1806,11 @@ export async function finishBankAccount(
    */
   const outcome = await db.transaction(async (tx) => {
     // Cùng khóa với setPhotos: không cho thay ảnh xen vào lúc hoàn thành.
-    await tx.select({ id: bankAccounts.id }).from(bankAccounts)
+    const [locked] = await tx.select({ id: bankAccounts.id }).from(bankAccounts)
       .where(eq(bankAccounts.id, id)).for("update");
+    // Không còn dòng để khoá: bản nháp vừa bị hệ thống xoá vì quá hạn. Trả 404
+    // để bước 2 hiện đúng câu, không phải "vừa hoàn thành ở nơi khác".
+    if (!locked) return { ok: false as const, gone: true as const };
     const [photos] = await tx
       .select({ n: count() })
       .from(bankAccountPhotos)
@@ -1827,7 +1837,7 @@ export async function finishBankAccount(
     return { ok: true as const };
   });
 
-  if (!outcome.ok) return { ok: false, message: outcome.message };
+  if (!outcome.ok) return "gone" in outcome ? null : { ok: false, message: outcome.message };
 
   // Điểm chỉ tính tài khoản `done`, nên đây là nhánh BẮT BUỘC gọi tính lại. Ghi
   // cho CHỦ HỒ SƠ KHÁCH và THÁNG CỦA NGÀY HỒ SƠ (chốt 07/08 câu 7.11, đổi mốc
@@ -2171,65 +2181,106 @@ export async function deleteCreatingAccountByBankManager(
   return { ok: true, value: current };
 }
 
+const MINUTE_MS = 60_000;
+
 /**
- * Xoá mọi bản nháp (`creating`) mở TRƯỚC mốc `before` — lượt dọn cuối ngày
- * (chốt 2026-09-15), timer `mgst-purge-drafts` gọi lúc 00:00 giờ Việt Nam qua
- * `scripts/purge-draft-accounts.ts`.
+ * Bản nháp (`creating`) sống `DRAFT_TTL_MINUTES` kể từ lúc giữ chỗ (chốt
+ * 2026-10-06): nhân viên tạo khách ảo rồi giữ chỗ để găm mã giới thiệu, nên
+ * không để bản nháp nằm tới cuối ngày nữa. Timer `mgst-purge-drafts` gọi mỗi
+ * phút qua `scripts/purge-draft-accounts.ts`, hai việc theo thứ tự:
  *
- * Nhận mốc chứ không tự lấy "bây giờ": timer `Persistent` chạy bù sau khi máy
- * chủ tắt qua nửa đêm, và lúc đó phải chừa bản nháp nhân viên vừa mở sáng ấy.
- * Mốc là 00:00 của ngày làm việc hiện tại, nên đúng nửa đêm thì trọn kho nháp.
+ *   1. Báo trước: bản nháp đủ `DRAFT_WARN_MINUTES` mà chưa báo thì chủ bản
+ *      nháp nhận một dòng `bank-expiring`, đúng một lần. Ghi `expiry_warned_at`
+ *      TRƯỚC khi gửi, với điều kiện `IS NULL` nằm ngay trong câu UPDATE: hai
+ *      lượt chạy chồng nhau thì chỉ lượt ghi được dòng mới gửi. Bản nháp đã
+ *      quá hạn mà chưa báo thì không báo nữa, bước 2 xoá ngay sau đó.
+ *   2. Xoá: bản nháp đủ `DRAFT_TTL_MINUTES`. Xoá thẳng, không đi qua
+ *      `deleteCreatingAccountByBankManager`: không có người bấm nên không có
+ *      phạm vi nào để kẹp. Trigger DB trả chỗ mã giới thiệu và hạ số tài khoản
+ *      của khách; ảnh chết theo `on delete cascade`, file trên kho nằm lại như
+ *      mọi lượt xoá khác. Bản nháp không nằm trong điểm KPI hay rổ quà. Chủ
+ *      bản nháp nhận một dòng `bank-deleted`, cùng kênh với lượt người quản
+ *      ngân hàng xoá tay.
  *
- * Xoá thẳng, không đi qua `deleteCreatingAccountByBankManager`: không có người
- * bấm nên không có phạm vi nào để kẹp. Trigger DB trả chỗ mã giới thiệu và hạ
- * số tài khoản của khách; ảnh chết theo `on delete cascade`, file trên kho nằm
- * lại như mọi lượt xoá khác. Bản nháp không nằm trong điểm KPI hay rổ quà.
- *
- * Mỗi chủ bản nháp nhận một dòng `bank-deleted`, cùng kênh với lượt người quản
- * ngân hàng xoá tay. `dryRun` chỉ liệt kê, để soát trên máy chủ trước khi bật
- * timer.
+ * Nhận `now` chứ không tự lấy: script và lượt chạy khô cùng một mốc để đọc log
+ * đối chiếu được. `dryRun` chỉ liệt kê hai danh sách, không gửi, không ghi.
  */
-export async function purgeDraftAccounts(
-  before: Date,
+export async function expireDraftAccounts(
+  now: Date,
   dryRun = false,
-): Promise<{ removed: DecoratedRow[] }> {
-  const drafts = await decorate(
-    pickPage(
-      and(eq(bankAccounts.status, "creating"), lt(bankAccounts.createdAt, before)),
-      [asc(bankAccounts.createdAt)],
-      10_000,
-      0,
-    ),
-  );
-  if (dryRun || drafts.length === 0) return { removed: drafts };
-
-  // Khoá trạng thái trong chính câu xoá, cùng lối với `deleteAccount`: giữa lúc
-  // đọc và lúc xoá, nhân viên có thể vừa bấm Hoàn thành một bản nháp.
-  const removed = await db
-    .delete(bankAccounts)
-    .where(
-      and(
-        inArray(
-          bankAccounts.id,
-          drafts.map((d) => d.id),
-        ),
-        eq(bankAccounts.status, "creating"),
-      ),
-    )
-    .returning({ id: bankAccounts.id });
-  const removedIds = new Set(removed.map((r) => r.id));
-  const gone = drafts.filter((d) => removedIds.has(d.id));
-
-  for (const row of gone) {
-    await baoChuTaiKhoan(
-      row,
-      "bank-deleted",
-      "Tài khoản đang tạo đã bị xoá",
-      "chưa hoàn thành trong ngày, hệ thống xoá lúc 00:00",
+): Promise<{ warned: DecoratedRow[]; removed: DecoratedRow[] }> {
+  const warnBefore = new Date(now.getTime() - DRAFT_WARN_MINUTES * MINUTE_MS);
+  const deleteBefore = new Date(now.getTime() - DRAFT_TTL_MINUTES * MINUTE_MS);
+  const draftsSince = (where: SQL) =>
+    decorate(
+      pickPage(and(eq(bankAccounts.status, "creating"), where), [asc(bankAccounts.createdAt)], 10_000, 0),
     );
+
+  const toWarn = await draftsSince(
+    and(
+      lte(bankAccounts.createdAt, warnBefore),
+      gt(bankAccounts.createdAt, deleteBefore),
+      isNull(bankAccounts.expiryWarnedAt),
+    )!,
+  );
+  const toRemove = await draftsSince(lte(bankAccounts.createdAt, deleteBefore));
+  if (dryRun) return { warned: toWarn, removed: toRemove };
+
+  let warned: DecoratedRow[] = [];
+  if (toWarn.length > 0) {
+    const claimed = await db
+      .update(bankAccounts)
+      .set({ expiryWarnedAt: now })
+      .where(
+        and(
+          inArray(bankAccounts.id, toWarn.map((d) => d.id)),
+          eq(bankAccounts.status, "creating"),
+          isNull(bankAccounts.expiryWarnedAt),
+        ),
+      )
+      .returning({ id: bankAccounts.id });
+    const claimedIds = new Set(claimed.map((r) => r.id));
+    warned = toWarn.filter((d) => claimedIds.has(d.id));
+    for (const row of warned) {
+      const minutesLeft = Math.max(
+        1,
+        Math.ceil((row.createdAt.getTime() + DRAFT_TTL_MINUTES * MINUTE_MS - now.getTime()) / MINUTE_MS),
+      );
+      await baoChuTaiKhoan(
+        row,
+        "bank-expiring",
+        "Tài khoản sắp bị xoá",
+        `còn ${minutesLeft} phút để hoàn tất`,
+      );
+    }
   }
 
-  return { removed: gone };
+  let removed: DecoratedRow[] = [];
+  if (toRemove.length > 0) {
+    // Khoá trạng thái trong chính câu xoá, cùng lối với `deleteAccount`: giữa lúc
+    // đọc và lúc xoá, nhân viên có thể vừa bấm Hoàn thành một bản nháp.
+    const deleted = await db
+      .delete(bankAccounts)
+      .where(
+        and(
+          inArray(bankAccounts.id, toRemove.map((d) => d.id)),
+          eq(bankAccounts.status, "creating"),
+        ),
+      )
+      .returning({ id: bankAccounts.id });
+    const deletedIds = new Set(deleted.map((r) => r.id));
+    removed = toRemove.filter((d) => deletedIds.has(d.id));
+    for (const row of removed) {
+      await baoChuTaiKhoan(
+        row,
+        "bank-deleted",
+        "Tài khoản đang tạo đã bị xoá",
+        `quá ${DRAFT_TTL_MINUTES} phút chưa hoàn tất, hệ thống đã xoá`,
+      );
+    }
+  }
+
+  return { warned, removed };
 }
 
 /**

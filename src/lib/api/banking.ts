@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { AccountNumberMethod, ReferralCode } from './bankCatalog';
-import { AccountType, BankAccount, BankAccountStatus } from './bankAccounts';
+import { AccountType, BankAccount, BankAccountNotFoundError, BankAccountStatus } from './bankAccounts';
 import { pageOf, pageParams, type Page, type PageQuery } from './pagination';
 import { PhotoCheck, type PhotoCheckFilter } from './photoCheck';
 
@@ -95,6 +95,8 @@ export const BankAccountDetail = BankAccountRow.extend({
    */
   finishedAt: z.string(),
   lastErrorAt: z.string(),
+  /** Lúc giữ chỗ, dạng ISO. Bước 2 đếm ngược hạn xoá bản nháp từ mốc này. */
+  createdAt: z.string(),
   history: z.array(BankAccountStatusStep),
   requiredPhotos: z.number(),
   /** Quyết ô số tài khoản ở bước 2 là ô gõ tay hay ô chọn SĐT. */
@@ -377,7 +379,7 @@ export async function deleteBankAccountOfBank(bankId: string, accountId: string)
 
 export async function fetchBankAccountDetail(id: string): Promise<BankAccountDetail> {
   const res = await fetch(`/api/bank-account-list/${id}`);
-  if (res.status === 404) throw new Error('Không tìm thấy tài khoản này');
+  if (res.status === 404) throw new BankAccountNotFoundError('Không tìm thấy tài khoản này');
   if (!res.ok) throw new Error('Không tải được chi tiết tài khoản');
   return BankAccountDetail.parse(await res.json());
 }
