@@ -267,18 +267,32 @@ async function socialInsurancePointsOf(conn: Db, userId: string, yearMonth: stri
   return result.rows[0]?.points ?? 0;
 }
 
-/** Điểm dịch vụ của một người trong khoảng ngày, gộp theo loại. Loại không có lượt được tính thì vắng mặt. */
+export type ServiceTier = { coefficient: number; count: number };
+
+/**
+ * Điểm dịch vụ của một người trong khoảng ngày, gộp theo loại, kèm số lượt được
+ * tính theo từng hệ số. Loại không có lượt được tính thì vắng mặt. Lượt vượt trần
+ * không điểm không có trong `tiers`.
+ */
 export async function servicePointsByType(
   userId: string,
   from: string,
   to: string,
-): Promise<Map<string, number>> {
-  const result = await db.execute<{ service_type_id: string; points: number }>(
-    sql`select c.service_type_id, sum(c.coefficient)::float as points
+): Promise<Map<string, { points: number; tiers: ServiceTier[] }>> {
+  const result = await db.execute<{ service_type_id: string; coefficient: number; count: number }>(
+    sql`select c.service_type_id, c.coefficient::float as coefficient, count(*)::int as count
         from ${countedServices(from, to, userId)} c
-        group by c.service_type_id`,
+        group by c.service_type_id, c.coefficient
+        order by c.coefficient desc`,
   );
-  return new Map(result.rows.map((r) => [r.service_type_id, r.points]));
+  const byType = new Map<string, { points: number; tiers: ServiceTier[] }>();
+  for (const r of result.rows) {
+    const entry = byType.get(r.service_type_id) ?? { points: 0, tiers: [] };
+    entry.points += r.coefficient * r.count;
+    entry.tiers.push({ coefficient: r.coefficient, count: r.count });
+    byType.set(r.service_type_id, entry);
+  }
+  return byType;
 }
 
 /** Điểm của từng lượt dịch vụ `ids` của một người. Lượt không được tính điểm thì vắng mặt. */

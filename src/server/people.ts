@@ -15,7 +15,6 @@ import { clampScope, inVisibleScope, visibleDepartmentIds } from "@/lib/permissi
 import { formatCents } from "@/lib/money";
 import { DepartmentType, ROLE_RANK, Scope, type User } from "@/lib/types";
 import { searchTerms } from "@/lib/search";
-import { serviceTypeWeights } from "./catalog";
 import { accountCustomerDayBetween } from "./customerDay";
 import { db } from "./db/client";
 import {
@@ -759,7 +758,6 @@ export async function personFor(
       ),
     )
     .groupBy(serviceTypes.id, serviceTypes.name);
-  const weights = await serviceTypeWeights(summaryMonth);
   // Điểm theo loại đọc cùng luật với `kpi_scores`: chỉ nhóm điểm ATM, có trần.
   const servicePoints = await servicePointsByType(id, kpiRange.from, kpiRange.to);
 
@@ -806,12 +804,25 @@ export async function personFor(
    * mâu thuẫn trên cùng một thẻ.
    */
   const pointSources = serviceAgg
-    .map((s) => ({
-      label: s.typeName,
-      detail: `${s.count} lượt - hệ số ${formatPoints(weights.get(s.typeId)?.coefficient ?? 0)}`,
-      // Làm tròn 2 số: hệ số là `numeric(4,2)` nên cộng dồn ra 4.199999999999999.
-      points: roundPoints(servicePoints.get(s.typeId) ?? 0),
-    }))
+    .map((s) => {
+      const tiers = servicePoints.get(s.typeId)?.tiers ?? [];
+      const counted = tiers.reduce((n, t) => n + t.count, 0);
+      // Lượt vượt trần ngày hay tháng vẫn đếm trong `s.count`, nói rõ để số lượt
+      // nhân hệ số khớp với điểm (chốt 2026-10-07).
+      const detail =
+        tiers.length === 1 && counted === s.count
+          ? `${s.count} lượt - hệ số ${formatPoints(tiers[0].coefficient)}`
+          : `${s.count} lượt: ${[
+              ...tiers.map((t) => `${t.count} lượt hệ số ${formatPoints(t.coefficient)}`),
+              ...(s.count > counted ? [`${s.count - counted} lượt vượt trần không tính điểm`] : []),
+            ].join(", ")}`;
+      return {
+        label: s.typeName,
+        detail,
+        // Làm tròn 2 số: hệ số là `numeric(4,2)` nên cộng dồn ra 4.199999999999999.
+        points: roundPoints(servicePoints.get(s.typeId)?.points ?? 0),
+      };
+    })
     .filter((s) => s.points > 0);
 
   /* Điểm ngân hàng về MỘT cung duy nhất. Luật của kỳ quy điểm cho cả combo của
