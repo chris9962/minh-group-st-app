@@ -1104,8 +1104,8 @@ export async function createReferralCode(
 }
 
 /**
- * Báo cho MỌI nhân viên khi kho mã CNKD đổi (chốt 2026-09-19): thêm mã mới,
- * hoặc sửa `total` của mã CNKD đang có. Mã CNKD ít và cấp theo đợt, nhân
+ * Báo cho nhân viên dùng được mã khi kho mã CNKD đổi (chốt 2026-09-19): thêm
+ * mã mới, hoặc sửa `total` của mã CNKD đang có. Mã CNKD ít và cấp theo đợt, nhân
  * viên không biết có thì không mở được loại tài khoản đó.
  *
  * `previousTotal` có nghĩa là lượt sửa: tin nói rõ số suất đổi từ bao nhiêu
@@ -1126,7 +1126,11 @@ async function baoMaCnkd(item: ReferralCode, previousTotal?: number): Promise<vo
     item.supportBranch,
   ];
   try {
-    const nguoiNhan = await everyoneWanting("code-cnkd");
+    // Mã giới hạn phòng chỉ báo cho phòng được dùng (chốt 2026-10-07).
+    const nguoiNhan = await everyoneWanting(
+      "code-cnkd",
+      item.scope === "departments" ? item.departmentIds : undefined,
+    );
     await notifyUsers(nguoiNhan, "code-cnkd", {
       title: `${changed ? "Mã CNKD đổi số suất" : "Mã CNKD mới"} - ${item.bankCode}`,
       body: parts.filter(Boolean).join(" - "),

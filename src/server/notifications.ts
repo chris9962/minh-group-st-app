@@ -1,4 +1,4 @@
-import { and, count, desc, eq, isNull, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import type { NotificationKind } from "@/lib/api/notificationPrefs";
 import type { NotificationPage, NotificationRow, NotificationSort } from "@/lib/api/notifications";
 import type { Action, ModuleKey } from "@/lib/types";
@@ -187,14 +187,19 @@ export async function notifyUsers(
  * công tắc vì `announcement` không cho tắt.
  *
  * Câu con `coalesce` cùng luật với `recipientsFor`: không có dòng là BẬT.
+ * Có `departmentIds` thì chỉ lấy nhân viên thuộc các phòng đó.
  */
-export async function everyoneWanting(kind: NotificationKind): Promise<string[]> {
+export async function everyoneWanting(
+  kind: NotificationKind,
+  departmentIds?: string[],
+): Promise<string[]> {
   const rows = await db
     .select({ id: users.id })
     .from(users)
     .where(
       and(
         eq(users.active, true),
+        departmentIds ? inArray(users.departmentId, departmentIds) : undefined,
         sql`coalesce((
           select p.enabled from notification_prefs p
           where p.user_id = ${users.id} and p.kind = ${kind}
