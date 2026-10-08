@@ -323,12 +323,9 @@ async function installRateByBank(
 const ACCOUNT_TYPE_ORDER: AccountType[] = ["none", "CNKD", "HKD"];
 
 /**
- * Mỗi cặp ngân hàng và loại tài khoản một dòng. Ngân hàng nhiều tài khoản
+ * Mỗi cặp ngân hàng và loại tài khoản một dòng, đếm tài khoản Lỗi, Chờ duyệt
+ * lại, Hoàn thành của hồ sơ lập trong kỳ. Ngân hàng nhiều tài khoản hoàn thành
  * đứng trước, trong một ngân hàng thì Thường, CNKD, HKD.
- *
- * App đếm riêng trong từng loại, nên cộng các loại của một ngân hàng có thể
- * lớn hơn số app của ngân hàng đó: dòng chính và dòng HKD của cùng khách là
- * một app (`appsInstalledCount`).
  */
 async function countsByBankType(
   v: DashboardVisibility,
@@ -340,22 +337,26 @@ async function countsByBankType(
     .select({
       code: banks.code,
       accountType,
-      accountsOpened: sql<number>`count(*)::int`,
-      appsInstalled: appsInstalledCount,
+      error: sql<number>`count(*) filter (where ${bankAccounts.status} = 'error')::int`,
+      fixed: sql<number>`count(*) filter (where ${bankAccounts.status} = 'fixed')::int`,
+      done: sql<number>`count(*) filter (where ${bankAccounts.status} = 'done')::int`,
     })
     .from(bankAccounts)
     .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
     .innerJoin(referralCodes, eq(referralCodes.id, bankAccounts.referralCodeId))
-    .leftJoin(bankGuideVariants, variantOfAccount)
-    .where(doneInRange(v, actorId, range))
+    .where(
+      and(
+        inArray(bankAccounts.status, ["error", "fixed", "done"]),
+        accountCustomerDayBetween(range.from, range.to),
+        scopeCondition(v, actorId, bankingCols),
+      ),
+    )
     .groupBy(banks.code, accountType);
 
   const bankTotal = new Map<string, number>();
-  for (const r of rows) bankTotal.set(r.code, (bankTotal.get(r.code) ?? 0) + r.accountsOpened);
+  for (const r of rows) bankTotal.set(r.code, (bankTotal.get(r.code) ?? 0) + r.done);
 
-  return rows
-    .map((r) => ({ ...r, percent: rateOf(r.accountsOpened, r.appsInstalled) }))
-    .sort(
+  return rows.sort(
       (a, b) =>
         bankTotal.get(b.code)! - bankTotal.get(a.code)! ||
         a.code.localeCompare(b.code) ||

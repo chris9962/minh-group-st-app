@@ -85,8 +85,17 @@ export const BankingSummary = z.object({
    * trên, chỉ lọc thêm theo ngân hàng.
    */
   installRateByBank: z.array(BankCounts),
-  /** Mỗi cặp ngân hàng và loại tài khoản có tài khoản mở trong kỳ một dòng. */
-  accountsByBank: z.array(BankCounts.extend({ accountType: AccountType })),
+  /** Mỗi cặp ngân hàng và loại tài khoản một dòng, theo hồ sơ lập trong kỳ. */
+  accountsByBank: z.array(
+    z.object({
+      code: z.string(),
+      accountType: AccountType,
+      error: z.number(),
+      /** Đã sửa sau khi bị đánh lỗi, chờ duyệt lại. */
+      fixed: z.number(),
+      done: z.number(),
+    }),
+  ),
   /**
    * Số hồ sơ khách LẬP trong kỳ — trục khác ba số trên (tài khoản MỞ trong
    * kỳ), vì thẻ này phải đếm được cả khách chưa hoàn thành tài khoản nào.

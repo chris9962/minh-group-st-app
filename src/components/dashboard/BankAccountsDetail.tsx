@@ -11,6 +11,8 @@ import { formatCount } from "@/lib/format";
 
 type Row = BankingSummary["accountsByBank"][number];
 
+const COUNT_KEYS = ["error", "fixed", "done"] as const;
+
 const COLUMNS: RankColumn<Row>[] = [
   { key: "code", label: "Ngân hàng", sortText: (r) => r.code, render: (r) => r.code },
   {
@@ -19,24 +21,9 @@ const COLUMNS: RankColumn<Row>[] = [
     sortText: (r) => ACCOUNT_TYPE_LABEL[r.accountType],
     render: (r) => ACCOUNT_TYPE_LABEL[r.accountType],
   },
-  {
-    key: "accountsOpened",
-    label: "Tài khoản mở",
-    sortBy: (r) => r.accountsOpened,
-    render: (r) => formatCount(r.accountsOpened),
-  },
-  {
-    key: "appsInstalled",
-    label: "App đã cài",
-    sortBy: (r) => r.appsInstalled,
-    render: (r) => formatCount(r.appsInstalled),
-  },
-  {
-    key: "percent",
-    label: "Tỉ lệ cài app",
-    sortBy: (r) => r.percent,
-    render: (r) => `${r.percent}%`,
-  },
+  { key: "error", label: "Lỗi", sortBy: (r) => r.error, render: (r) => formatCount(r.error) },
+  { key: "fixed", label: "Chờ duyệt", sortBy: (r) => r.fixed, render: (r) => formatCount(r.fixed) },
+  { key: "done", label: "Hoàn thành", sortBy: (r) => r.done, render: (r) => formatCount(r.done) },
 ];
 
 export function BankAccountsDetail({
@@ -47,13 +34,14 @@ export function BankAccountsDetail({
   periodLabel: string;
 }) {
   const [open, setOpen] = useState(false);
+  const rows = summary.accountsByBank;
 
   return (
     <>
       <Button
         variant="ghost"
         icon
-        aria-label="Xem tài khoản mở theo ngân hàng"
+        aria-label="Xem tài khoản theo ngân hàng"
         onClick={() => setOpen(true)}
       >
         <Maximize2 size={16} />
@@ -61,23 +49,21 @@ export function BankAccountsDetail({
       <Dialog
         open={open}
         full
-        title={`Tài khoản mở theo ngân hàng ${periodLabel}`}
+        title={`Tài khoản theo ngân hàng ${periodLabel}`}
         onClose={() => setOpen(false)}
       >
         <RankTable
-          rows={summary.accountsByBank}
+          rows={rows}
           columns={COLUMNS}
           rowKey={(r) => `${r.code}-${r.accountType}`}
           // Không trùng cột nào: giữ thứ tự máy chủ, các loại của một ngân hàng đứng liền nhau.
           defaultSort="server"
-          caption="Số tài khoản mở, app đã cài và tỉ lệ cài app theo ngân hàng và loại tài khoản"
-          emptyText="Chưa có tài khoản mở"
+          caption="Số tài khoản lỗi, chờ duyệt và hoàn thành theo ngân hàng và loại tài khoản"
+          emptyText="Chưa có tài khoản"
           summaryRow={[
             "Tổng",
             "",
-            formatCount(summary.accountsOpened),
-            formatCount(summary.appsInstalled),
-            `${summary.installPercent}%`,
+            ...COUNT_KEYS.map((k) => formatCount(rows.reduce((sum, r) => sum + r[k], 0))),
           ]}
         />
       </Dialog>
