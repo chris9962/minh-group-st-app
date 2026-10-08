@@ -8,7 +8,7 @@ import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { ACCOUNT_TYPE_LABEL } from "@/lib/api/bankAccounts";
 import type { BankingSummary } from "@/lib/api/dashboard";
 import { formatCount } from "@/lib/format";
-import styles from "./BankAccountsDetail.module.css";
+import styles from "./BankAccountsDetail.module.scss";
 
 type Row = BankingSummary["accountsByBank"][number];
 
