@@ -42,7 +42,6 @@ import {
 } from "@/lib/api/customers";
 import { MAX_BANK_ACCOUNTS_PER_CUSTOMER, type AccountType } from "@/lib/api/bankAccounts";
 import type { Page } from "@/lib/api/pagination";
-import { capitalizePersonName } from "@/lib/api/personName";
 import type { PageArgs } from "./pagination";
 import { BUSINESS_TIMEZONE, businessMonth, clockNowVn, digitsOnly, monthRange, searchKey } from "@/lib/format";
 import { can, recordInScope, recordVisibility, type RecordVisibility } from "@/lib/permissions";
@@ -861,9 +860,7 @@ export type CustomerConflict =
   /** Ngày hồ sơ mới sau ngày chốt quà. */
   | "move-day-gifted"
   /** Tháng cũ hoặc tháng mới đã chốt lương, và hồ sơ có tài khoản ngân hàng (chốt 2026-10-01). */
-  | "move-day-closed"
-  /** Vai Nhân viên không sửa được họ tên, ngày sinh (chốt 2026-10-06, CCCD mở lại 2026-10-08). */
-  | "id-card-locked";
+  | "move-day-closed";
 
 export type CustomerOutcome<T> =
   | { ok: true; customer: T }
@@ -1395,20 +1392,8 @@ async function dongBoNhom(
 }
 
 /**
- * Sửa hồ sơ. Ba nhóm, hai cách xử lý ô CCCD (chốt 2026-08-21, câu M2):
- *
- *   có `access-id-number`  →  ghi đè được, họ thấy số thật
- *   NGƯỜI TẠO hồ sơ        →  ghi đè được, dù chỉ thấy 4 số cuối
- *   mọi vai trừ Nhân viên  →  ghi đè được, dù chỉ thấy 4 số cuối (chốt 2026-10-08)
- *   còn lại                →  ô CCCD bị bỏ qua
- *
- * Người tạo được sửa vì chính họ là người gõ 12 số lúc lập hồ sơ, nên cũng
- * chính họ là người gõ sai. Bắt họ nhờ người có quyền xem CCCD thì một lỗi gõ
- * phải đi qua hai người.
- *
- * Nhóm thứ ba bị bỏ qua chứ không trả 403: giao diện chỉ đưa cho họ 4 số cuối,
- * nên thứ quay về máy chủ là `"4871"` — nhận vào là ghi đè số thật bằng 4 ký
- * tự. Khoá một chiều ở đây thì kể cả request nặn tay cũng không đụng được số.
+ * Sửa hồ sơ. Ai sửa được hồ sơ thì ghi đè được CCCD (chốt 2026-10-08); người
+ * không có `access-id-number` chỉ thấy 4 số cuối nên gõ lại đủ 12 số.
  *
  * ⚠️ RỖNG NGHĨA LÀ "KHÔNG ĐỤNG TỚI", KHÔNG PHẢI "XOÁ". Ô CCCD của người không
  * thấy số nạp lên rỗng, và họ mở biểu mẫu để sửa địa chỉ hay số điện thoại là
@@ -1452,29 +1437,9 @@ export async function updateCustomer(
   if (!owner) return null;
   if (!recordInScope(recordVisibility(actor, "customer", "update"), owner)) return null;
 
-  /**
-   * Vai Nhân viên không sửa họ tên, ngày sinh của MỌI hồ sơ, có ảnh thẻ hay
-   * không (chốt 2026-10-06, mở sang hồ sơ cũ 2026-10-07). CCCD mở lại theo luật
-   * người tạo ghi đè ở trên (chốt 2026-10-08). Cùng ngoại lệ đọc
-   * chức vụ như `move-day-forbidden` bên dưới: chủ dự án chốt "trừ nhân viên
-   * ra", không mở quyền mới.
-   *
-   * - Tên so sau `capitalizePersonName`: form đã chuẩn hoá tên, hồ sơ cũ lưu
-   *   trước khi có bước đó thì chỉ khác hoa thường, không phải đổi tên.
-   * - Ô đang trống thì cho điền: 38 hồ sơ cũ thiếu ngày sinh mà form sửa bắt
-   *   buộc ngày sinh, khoá luôn là nhân viên không lưu được gì trên hồ sơ đó.
-   */
-  if (
-    actor.role === "staff" &&
-    (form.fullName !== capitalizePersonName(owner.fullName) ||
-      (owner.dob !== null && form.dob !== owner.dob))
-  )
-    return { ok: false, reason: "id-card-locked" };
-
-  const full = seesIdNumber(actor);
-  const isCreator = owner.createdById === actor.id;
-  const canWriteIdNumber = full || isCreator || actor.role !== "staff";
-  const idNumberWritten = canWriteIdNumber && Boolean(form.idNumber);
+  // Họ tên, ngày sinh, CCCD theo quyền sửa khách, không khoá theo vai (chốt
+  // 2026-10-08): muốn chặn ai thì thu hồi quyền `customer:update` của người đó.
+  const idNumberWritten = Boolean(form.idNumber);
 
   const result = await writeGuarded(async () => {
     const updated = await db.transaction(async (tx) => {

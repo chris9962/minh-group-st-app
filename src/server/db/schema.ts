@@ -930,9 +930,8 @@ export const customers = pgTable(
      * máy chủ lấy CCCD, họ tên, ngày sinh từ QR và giữ ảnh làm bằng chứng (chốt
      * 2026-10-06).
      *
-     * `null` = hồ sơ lập trước khi có luật này hoặc nhập bằng script. Vai Nhân
-     * viên không sửa ba trường này ở mọi hồ sơ, có ảnh hay không; quản lý sửa
-     * được, xem `updateCustomer`.
+     * `null` = hồ sơ lập trước khi có luật này hoặc nhập bằng script. Ai có
+     * quyền sửa hồ sơ thì sửa được ba trường này, xem `updateCustomer`.
      */
     idCardImage: text("id_card_image"),
     /**

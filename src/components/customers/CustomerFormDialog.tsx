@@ -76,8 +76,8 @@ const emptyForm: FormValues = {
  * Hồ sơ đang sửa → giá trị ban đầu của biểu mẫu.
  *
  * CCCD bị che thì để TRỐNG chứ không đổ 4 số cuối vào ô: đổ vào là người sửa
- * nhìn ra một số CCCD 4 chữ số và tưởng hồ sơ đang lưu sai. Máy chủ cũng bỏ qua
- * ô này với người không có quyền nên trống hay không đều không ghi đè gì.
+ * nhìn ra một số CCCD 4 chữ số và tưởng hồ sơ đang lưu sai. Ô trống thì máy chủ
+ * giữ nguyên số cũ.
  */
 const toForm = (c: Customer): FormValues => ({
   fullName: c.fullName,
@@ -102,18 +102,7 @@ export function CustomerFormDialog({
   const queryClient = useQueryClient();
   const editing = Boolean(customer) || loading || Boolean(loadError);
   const maskedId = Boolean(customer?.idNumberMasked);
-  /**
-   * Người TẠO hồ sơ ghi đè được CCCD dù chỉ thấy 4 số cuối (chốt 2026-08-21),
-   * mọi vai trừ Nhân viên cũng vậy (chốt 2026-10-08).
-   *
-   * Chính họ gõ 12 số lúc lập hồ sơ nên cũng chính họ gõ sai. Đây chỉ là phép
-   * ẩn/hiện; chốt thật nằm ở `updateCustomer` — xem `server/customers.ts`.
-   */
-  const actorId = useSession((s) => s.user?.id);
   const actorRole = useSession((s) => s.user?.role);
-  const canWriteMaskedId = Boolean(
-    customer && actorId && (customer.createdById === actorId || actorRole !== "staff"),
-  );
   /**
    * Ô "Ngày hồ sơ" (chốt 2026-09-16): mốc của điểm KPI, rổ quà và kỳ luật.
    * Ẩn với vai Nhân viên — chủ dự án chốt "trừ nhân viên ra", không mở quyền
@@ -144,16 +133,9 @@ export function CustomerFormDialog({
     if (!scanUrl) return;
     return () => URL.revokeObjectURL(scanUrl);
   }, [scanUrl]);
-  /**
-   * Họ tên, ngày sinh, CCCD khoá khi đang tạo mà đã chụp thẻ. Đang sửa mà là
-   * Nhân viên thì khoá họ tên, ngày sinh ở mọi hồ sơ (chốt 2026-10-07); CCCD mở
-   * lại cho người tạo ghi đè (chốt 2026-10-08). Hồ sơ cũ thiếu ngày sinh thì ô
-   * ngày sinh vẫn cho điền. Máy chủ từ chối cùng điều kiện.
-   */
-  const staffEditing = editing && actorRole === "staff";
-  const idCardLocked = editing ? staffEditing : scan !== null;
-  const dobLocked = editing ? staffEditing && Boolean(customer?.dob) : scan !== null;
-  const idNumberLocked = !editing && scan !== null;
+  // Họ tên, ngày sinh, CCCD chỉ khoá khi đang tạo mà đã chụp thẻ. Lúc sửa thì
+  // theo quyền sửa khách, không khoá theo vai (chốt 2026-10-08).
+  const idCardLocked = !editing && scan !== null;
 
   // `values` để form nhận hồ sơ tải xong SAU khi dialog đã mở (luồng nút Sửa ở
   // P-40). Memo theo `customer` — mỗi render một object mới là form reset liên tục.
@@ -385,24 +367,13 @@ export function CustomerFormDialog({
             <DateField
               label="Ngày sinh"
               required
-              readOnly={dobLocked}
+              readOnly={idCardLocked}
               pickerStart={pickerStartForDob()}
               value={watch("dob")}
               onChange={(v) => setValue("dob", v, { shouldDirty: true, shouldValidate: true })}
               error={errors.dob?.message}
             />
-            {/* CCCD là trường bảo mật, ba nhánh theo đúng ba nhóm ở
-                `updateCustomer`. Người không ghi đè được thì ô phải KHOÁ: để mở
-                mà máy chủ lặng lẽ bỏ qua thì người sửa gõ xong bấm Lưu, thấy
-                "đã lưu", rồi mở lại thấy số cũ. */}
-            {maskedId && !canWriteMaskedId ? (
-              <TextField
-                label="CCCD"
-                readOnly
-                value={`•••• •••• ${customer?.idNumber ?? ""}`}
-                hint="Bạn chỉ được xem 4 số cuối — cần sửa thì nhờ người có quyền xem CCCD."
-              />
-            ) : maskedId ? (
+            {maskedId ? (
               /* Ô để TRỐNG, không đổ 4 số cuối vào: đổ vào thì người sửa bấm Lưu
                  mà không gõ gì là gửi lên một chuỗi 4 ký tự. Không đánh dấu
                  `required` vì trống là hợp lệ — nó nghĩa là giữ nguyên số cũ. */
@@ -423,7 +394,7 @@ export function CustomerFormDialog({
                 placeholder="092301004871"
                 inputMode="numeric"
                 maxLength={12}
-                readOnly={idNumberLocked}
+                readOnly={idCardLocked}
                 labelAppend={<CharCount value={watch("idNumber")} max={12} />}
                 error={errors.idNumber?.message}
                 {...register("idNumber")}
