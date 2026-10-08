@@ -428,18 +428,14 @@ async function insuranceBlock(
     .from(insuranceOrders)
     .where(and(createdInRange(range), scope));
 
-  /**
-   * Đơn tồn là số TỨC THỜI — "ngay lúc này còn bao nhiêu đơn chưa xong" — nên
-   * cố ý KHÔNG lọc theo kỳ. Lọc theo kỳ thì chọn "hôm nay" sẽ giấu mất đống đơn
-   * tồn từ tuần trước, mà đó đúng là đống cần người xử lý nhất.
-   */
+  // Đơn tồn lọc theo kỳ đang chọn như các ô khác (chốt 2026-10-08).
   const [pending] = await db
     .select({
       bot: sql<number>`count(*) filter (where ${insuranceOrders.status} in ('queued','creating','pending-approval'))::int`,
       manual: sql<number>`count(*) filter (where ${insuranceOrders.status} in ('manual-queued','manual-progress'))::int`,
     })
     .from(insuranceOrders)
-    .where(and(sql`${insuranceOrders.status} <> 'done'`, scope));
+    .where(and(sql`${insuranceOrders.status} <> 'done'`, createdInRange(range), scope));
 
   const bucketType = bucketTypeFor(range);
 

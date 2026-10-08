@@ -361,7 +361,7 @@ export default function DashboardPage() {
                   />
                   <StatCard
                     value={formatCount(data.insurance.pending)}
-                    label="đơn tồn hiện tại"
+                    label={`đơn tồn ${periodLabel}`}
                     detail={`${formatCount(data.insurance.pendingBot)} đang chạy · ${formatCount(data.insurance.pendingManual)} chờ làm tay`}
                   />
                   {/* Đứng riêng vì nó KHÔNG nằm trong ô "đơn BH tạo" bên trái —

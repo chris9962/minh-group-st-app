@@ -138,7 +138,7 @@ export const DashboardData = z.object({
     completedPercent: z.number(),
     /** Đơn huỷ trong kỳ. KHÔNG nằm trong `createdToday` — hai số cộng lại ra tổng đơn đã lập. */
     cancelled: z.number(),
-    /** Số tức thời — "ngay lúc này còn bao nhiêu đơn chưa xong", không theo kỳ. */
+    /** Đơn lập trong kỳ mà chưa xong, không tính đơn huỷ. */
     pending: z.number(),
     pendingBot: z.number(),
     pendingManual: z.number(),
