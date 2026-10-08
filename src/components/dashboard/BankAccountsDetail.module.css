@@ -1,0 +1,11 @@
+.error {
+  color: var(--om-red);
+}
+
+.fixed {
+  color: var(--om-warn);
+}
+
+.done {
+  color: var(--om-green-ink);
+}

@@ -8,10 +8,15 @@ import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { ACCOUNT_TYPE_LABEL } from "@/lib/api/bankAccounts";
 import type { BankingSummary } from "@/lib/api/dashboard";
 import { formatCount } from "@/lib/format";
+import styles from "./BankAccountsDetail.module.css";
 
 type Row = BankingSummary["accountsByBank"][number];
 
-const COUNT_KEYS = ["error", "fixed", "done"] as const;
+const COUNT_COLUMNS = [
+  ["error", "Lỗi"],
+  ["fixed", "Chờ duyệt"],
+  ["done", "Hoàn thành"],
+] as const;
 
 const COLUMNS: RankColumn<Row>[] = [
   { key: "code", label: "Ngân hàng", sortText: (r) => r.code, render: (r) => r.code },
@@ -21,9 +26,14 @@ const COLUMNS: RankColumn<Row>[] = [
     sortText: (r) => ACCOUNT_TYPE_LABEL[r.accountType],
     render: (r) => ACCOUNT_TYPE_LABEL[r.accountType],
   },
-  { key: "error", label: "Lỗi", sortBy: (r) => r.error, render: (r) => formatCount(r.error) },
-  { key: "fixed", label: "Chờ duyệt", sortBy: (r) => r.fixed, render: (r) => formatCount(r.fixed) },
-  { key: "done", label: "Hoàn thành", sortBy: (r) => r.done, render: (r) => formatCount(r.done) },
+  ...COUNT_COLUMNS.map(
+    ([key, label]): RankColumn<Row> => ({
+      key,
+      label,
+      sortBy: (r) => r[key],
+      render: (r) => <span className={styles[key]}>{formatCount(r[key])}</span>,
+    }),
+  ),
 ];
 
 export function BankAccountsDetail({
@@ -63,7 +73,7 @@ export function BankAccountsDetail({
           summaryRow={[
             "Tổng",
             "",
-            ...COUNT_KEYS.map((k) => formatCount(rows.reduce((sum, r) => sum + r[k], 0))),
+            ...COUNT_COLUMNS.map(([k]) => formatCount(rows.reduce((sum, r) => sum + r[k], 0))),
           ]}
         />
       </Dialog>
