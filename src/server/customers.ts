@@ -1399,7 +1399,7 @@ async function dongBoNhom(
  *
  *   có `access-id-number`  →  ghi đè được, họ thấy số thật
  *   NGƯỜI TẠO hồ sơ        →  ghi đè được, dù chỉ thấy 4 số cuối
- *   vai Trưởng phòng       →  ghi đè được, dù chỉ thấy 4 số cuối (chốt 2026-10-08)
+ *   mọi vai trừ Nhân viên  →  ghi đè được, dù chỉ thấy 4 số cuối (chốt 2026-10-08)
  *   còn lại                →  ô CCCD bị bỏ qua
  *
  * Người tạo được sửa vì chính họ là người gõ 12 số lúc lập hồ sơ, nên cũng
@@ -1473,7 +1473,7 @@ export async function updateCustomer(
 
   const full = seesIdNumber(actor);
   const isCreator = owner.createdById === actor.id;
-  const canWriteIdNumber = full || isCreator || actor.role === "head";
+  const canWriteIdNumber = full || isCreator || actor.role !== "staff";
   const idNumberWritten = canWriteIdNumber && Boolean(form.idNumber);
 
   const result = await writeGuarded(async () => {

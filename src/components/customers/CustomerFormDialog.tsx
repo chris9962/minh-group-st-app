@@ -104,7 +104,7 @@ export function CustomerFormDialog({
   const maskedId = Boolean(customer?.idNumberMasked);
   /**
    * Người TẠO hồ sơ ghi đè được CCCD dù chỉ thấy 4 số cuối (chốt 2026-08-21),
-   * vai Trưởng phòng cũng vậy (chốt 2026-10-08).
+   * mọi vai trừ Nhân viên cũng vậy (chốt 2026-10-08).
    *
    * Chính họ gõ 12 số lúc lập hồ sơ nên cũng chính họ gõ sai. Đây chỉ là phép
    * ẩn/hiện; chốt thật nằm ở `updateCustomer` — xem `server/customers.ts`.
@@ -112,7 +112,7 @@ export function CustomerFormDialog({
   const actorId = useSession((s) => s.user?.id);
   const actorRole = useSession((s) => s.user?.role);
   const canWriteMaskedId = Boolean(
-    customer && actorId && (customer.createdById === actorId || actorRole === "head"),
+    customer && actorId && (customer.createdById === actorId || actorRole !== "staff"),
   );
   /**
    * Ô "Ngày hồ sơ" (chốt 2026-09-16): mốc của điểm KPI, rổ quà và kỳ luật.
