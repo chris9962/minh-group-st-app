@@ -4,6 +4,7 @@ import { StatStack, type StatStackItem } from "@/components/ui/StatStack";
 import type { BankingSummary } from "@/lib/api/dashboard";
 import { sourceColor } from "@/lib/chart-colors";
 import { formatCount } from "@/lib/format";
+import { BankAccountsDetail } from "./BankAccountsDetail";
 import styles from "./BankingHeadline.module.scss";
 
 /* Số phía trên là số KHÁCH; nhãn là số tài khoản hoàn thành của khách đó. */
@@ -55,7 +56,11 @@ export function BankingHeadline({
 
       <StatStack
         items={[
-          { value: formatCount(summary.accountsOpened), label: "tài khoản mở" },
+          {
+            value: formatCount(summary.accountsOpened),
+            label: "tài khoản mở",
+            action: <BankAccountsDetail summary={summary} periodLabel={periodLabel} />,
+          },
           {
             // Số lớn là khách CÓ tài khoản; tổng hồ sơ suy ra từ bốn ô dưới, ô
             // "0 tài khoản" là số hồ sơ chưa mở được tài khoản nào.

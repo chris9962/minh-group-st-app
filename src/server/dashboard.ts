@@ -292,12 +292,11 @@ const rateOf = (opened: number, installed: number): number =>
  */
 const INSTALL_RATE_BANKS = ["VPa", "MSBa"];
 
-/** Ngân hàng không có tài khoản nào trong kỳ vẫn có dòng, số 0. */
-async function installRateByBank(
+async function countsByBank(
   v: DashboardVisibility,
   actorId: string,
   range: Range,
-): Promise<BankingSummary["installRateByBank"]> {
+): Promise<BankingSummary["accountsByBank"]> {
   const rows = await db
     .select({
       code: banks.code,
@@ -308,16 +307,21 @@ async function installRateByBank(
     .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
     .innerJoin(referralCodes, eq(referralCodes.id, bankAccounts.referralCodeId))
     .leftJoin(bankGuideVariants, variantOfAccount)
-    .where(and(doneInRange(v, actorId, range), inArray(banks.code, INSTALL_RATE_BANKS)))
+    .where(doneInRange(v, actorId, range))
     .groupBy(banks.code);
 
-  return INSTALL_RATE_BANKS.map((code) => {
-    const row = rows.find((r) => r.code === code);
-    const accountsOpened = row?.accountsOpened ?? 0;
-    const appsInstalled = row?.appsInstalled ?? 0;
-    return { code, percent: rateOf(accountsOpened, appsInstalled), appsInstalled, accountsOpened };
-  });
+  return rows
+    .map((r) => ({ ...r, percent: rateOf(r.accountsOpened, r.appsInstalled) }))
+    .sort((a, b) => b.accountsOpened - a.accountsOpened || a.code.localeCompare(b.code));
 }
+
+/** Ngân hàng không có tài khoản nào trong kỳ vẫn có dòng, số 0. */
+const installRateByBank = (
+  byBank: BankingSummary["accountsByBank"],
+): BankingSummary["installRateByBank"] =>
+  INSTALL_RATE_BANKS.map(
+    (code) => byBank.find((r) => r.code === code) ?? { code, percent: 0, appsInstalled: 0, accountsOpened: 0 },
+  );
 
 /**
  * Khối số ngân hàng của một phạm vi trong một kỳ — Tổng quan P-80 và chi tiết
@@ -331,13 +335,14 @@ export async function bankingSummaryFor(
   const [totals, profiles, byBank] = await Promise.all([
     bankingTotals(v, actorId, range),
     customersByAccounts(v, actorId, range),
-    installRateByBank(v, actorId, range),
+    countsByBank(v, actorId, range),
   ]);
   return {
     accountsOpened: totals.accountsOpened,
     appsInstalled: totals.appsInstalled,
     installPercent: rateOf(totals.accountsOpened, totals.appsInstalled),
-    installRateByBank: byBank,
+    installRateByBank: installRateByBank(byBank),
+    accountsByBank: byBank,
     customers: profiles.customers,
     customersWithAccounts: profiles.customersWithAccounts,
     customersByAccounts: profiles.byAccounts,

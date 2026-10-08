@@ -7,6 +7,8 @@ export type StatStackItem = {
   badge?: string;
   /** Tách con số theo loại: mỗi phần một số nhỏ kèm nhãn, xếp ngang dưới nhãn chính. */
   breakdown?: { value: React.ReactNode; label: string }[];
+  /** Nút nhỏ ở cuối hàng số, ví dụ mở bảng chi tiết. */
+  action?: React.ReactNode;
 };
 
 /**
@@ -30,6 +32,7 @@ export function StatStack({ items }: { items: StatStackItem[] }) {
               {item.value}
             </strong>
             {item.badge && <span className={styles.badge}>{item.badge}</span>}
+            {item.action}
           </div>
           <span className={styles.label}>{item.label}</span>
           {item.breakdown && (

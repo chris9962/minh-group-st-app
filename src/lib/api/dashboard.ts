@@ -66,6 +66,13 @@ export type DepartmentRanking = z.infer<typeof DepartmentRanking>;
  * phòng ban P-91 cùng đọc hình dạng này, máy chủ tính ở một chỗ
  * (`bankingSummaryFor` ở `server/dashboard.ts`).
  */
+const BankCounts = z.object({
+  code: z.string(),
+  percent: z.number(),
+  appsInstalled: z.number(),
+  accountsOpened: z.number(),
+});
+
 export const BankingSummary = z.object({
   accountsOpened: z.number(),
   appsInstalled: z.number(),
@@ -76,14 +83,9 @@ export const BankingSummary = z.object({
    * (`INSTALL_RATE_BANKS` ở `server/dashboard.ts`). Cùng cách đếm với ba số
    * trên, chỉ lọc thêm theo ngân hàng.
    */
-  installRateByBank: z.array(
-    z.object({
-      code: z.string(),
-      percent: z.number(),
-      appsInstalled: z.number(),
-      accountsOpened: z.number(),
-    }),
-  ),
+  installRateByBank: z.array(BankCounts),
+  /** Mọi ngân hàng có tài khoản mở trong kỳ, nhiều tài khoản đứng trước. */
+  accountsByBank: z.array(BankCounts),
   /**
    * Số hồ sơ khách LẬP trong kỳ — trục khác ba số trên (tài khoản MỞ trong
    * kỳ), vì thẻ này phải đếm được cả khách chưa hoàn thành tài khoản nào.
