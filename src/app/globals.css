@@ -428,6 +428,10 @@ a {
    không được làm cả trang trượt ngang. */
 .table-scroll {
   overflow-x: auto;
+  /* Chỉ khai `overflow-x` thì trình duyệt tự cho chiều dọc thành `auto`: bảng
+     dư 0,4px chiều cao là hiện thêm thanh cuộn dọc trong khung, trong khi trang
+     đã có thanh cuộn dọc của nó (2026-10-08). */
+  overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
 }
 
