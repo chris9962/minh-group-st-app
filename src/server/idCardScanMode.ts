@@ -10,8 +10,7 @@ import { logAudit } from "./audit";
  * deploy thì đặt `ID_CARD_SCAN=off` trong `.env.local` của máy chủ.
  *
  * Tắt thì form tạo khách bỏ bước chụp thẻ, người dùng gõ tay CCCD, họ tên, ngày
- * sinh như trước 2026-10-07, máy chủ không đòi ảnh. Khoá sửa ba trường đó của
- * vai Nhân viên ở hồ sơ đã có vẫn giữ.
+ * sinh như trước 2026-10-07, máy chủ không đòi ảnh.
  *
  * Đặt trên `globalThis` cùng lý do với `pviRouteMode`: mỗi bundle route có thể
  * mang bản module riêng.

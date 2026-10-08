@@ -4,6 +4,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import { Cpu, Images, ShieldCheck } from "lucide-react";
 import { useMemo, useState } from "react";
 import { CertificateWait } from "@/components/insurance/CertificateWait";
+import { CustomerEditLockCard } from "@/components/customers/CustomerEditLockCard";
 import { IdCardScanCard } from "@/components/customers/IdCardScanCard";
 import { PviRouteCard } from "@/components/insurance/PviRouteCard";
 import { RequirePermission } from "@/components/layout/RequirePermission";
@@ -335,6 +336,8 @@ export default function OpsPage() {
             <PviRouteCard />
 
             <IdCardScanCard />
+
+            <CustomerEditLockCard />
 
             <SectionCard
               title="Đơn chờ giấy chứng nhận"

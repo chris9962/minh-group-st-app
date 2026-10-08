@@ -277,6 +277,37 @@ export async function saveIdCardScan(body: IdCardScanBody): Promise<void> {
   }
 }
 
+export const CustomerEditLock = z.object({
+  /** Số người đang bị thu hồi quyền sửa khách. */
+  revoked: z.number(),
+  /** ISO datetime của lượt thu hồi gần nhất. Rỗng khi không ai đang bị thu hồi. */
+  revokedAt: z.string(),
+  revokedBy: z.string(),
+});
+export type CustomerEditLock = z.infer<typeof CustomerEditLock>;
+
+/** `revoke: true` là thu hồi, `false` là cấp lại. */
+export const CustomerEditLockBody = z.object({ revoke: z.boolean() });
+export type CustomerEditLockBody = z.infer<typeof CustomerEditLockBody>;
+
+export async function fetchCustomerEditLock(): Promise<CustomerEditLock> {
+  const res = await fetch('/api/ops/customer-edit');
+  if (!res.ok) throw new Error('Không đọc được trạng thái quyền sửa khách');
+  return CustomerEditLock.parse(await res.json());
+}
+
+/** Trả số người vừa bị thu hồi hoặc vừa được cấp lại. */
+export async function saveCustomerEditLock(body: CustomerEditLockBody): Promise<number> {
+  const res = await fetch('/api/ops/customer-edit', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(data?.message ?? 'Không đổi được quyền sửa khách');
+  return z.object({ count: z.number() }).parse(data).count;
+}
+
 export async function savePviRoute(body: PviRouteBody): Promise<void> {
   const res = await fetch('/api/ops/pvi-route', {
     method: 'PUT',

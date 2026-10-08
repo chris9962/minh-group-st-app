@@ -904,6 +904,13 @@
       "when": 1789891400055,
       "tag": "0129_user_draft_ttl",
       "breakpoints": true
+    },
+    {
+      "idx": 130,
+      "version": "7",
+      "when": 1789891400056,
+      "tag": "0130_customer_edit_revocations",
+      "breakpoints": true
     }
   ]
 }

@@ -449,6 +449,17 @@ export const userPermissions = pgTable(
   (t) => [primaryKey({ columns: [t.userId, t.module, t.action] })],
 );
 
+/**
+ * Người bị nút "Thu hồi quyền sửa khách" ở P-99 rút `customer:update` (chốt
+ * 2026-10-08). Giữ phạm vi cũ để nút "Cấp lại" trả đúng phạm vi đó, rồi xoá dòng.
+ */
+export const customerEditRevocations = pgTable("customer_edit_revocations", {
+  userId: uuid("user_id").primaryKey().references(() => users.id),
+  scope: scopeKey("scope").notNull(),
+  revokedBy: uuid("revoked_by").notNull().references(() => users.id),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const sessions = pgTable(
   "sessions",
   {
