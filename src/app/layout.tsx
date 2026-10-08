@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import Script from "next/script";
+import { InAppBrowserGate } from "@/components/layout/InAppBrowserGate";
 import { Providers } from "./providers";
 import "./globals.css";
 
@@ -80,7 +81,9 @@ export default function RootLayout({
         <Script id="mgst-theme-init" strategy="beforeInteractive">
           {`try{var s=JSON.parse(localStorage.getItem("mgst-theme")||"{}").state||{},d=document.documentElement.dataset;if(s.theme)d.theme=s.theme;if(s.accent)d.accent=s.accent}catch(e){}`}
         </Script>
-        <Providers>{children}</Providers>
+        <InAppBrowserGate>
+          <Providers>{children}</Providers>
+        </InAppBrowserGate>
       </body>
     </html>
   );
