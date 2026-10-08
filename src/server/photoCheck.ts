@@ -78,11 +78,11 @@ const CHECKERS: Record<string, Checker> = {
 /**
  * Ngân hàng đang BẬT kiểm ảnh: đã đo trên benchmark của `.claude/skills/ocr-verify`
  * (số đo ở `docs/plan-ocr-cac-ngan-hang-2026-09-22.md`). BIDV, MBV, SHB, TCB,
- * VIB có bộ nhãn từ 2026-10-03 nhưng chưa bật, chờ chủ dự án cho chạy. Làm
- * xong ngân hàng nào thì thêm mã vào đây; dòng chờ cũ của ngân hàng tắt bị
- * worker xoá lúc khởi động.
+ * VIB có bộ nhãn từ 2026-10-03; MBV bật 2026-10-08 theo lệnh chủ dự án, bốn
+ * ngân hàng còn lại chưa bật. Làm xong ngân hàng nào thì thêm mã vào đây; dòng
+ * chờ cũ của ngân hàng tắt bị worker xoá lúc khởi động.
  */
-const ENABLED_BANKS = ["TPB", "MSBa", "MSBb", "MB", "LPB", "VPa", "VPb"];
+const ENABLED_BANKS = ["TPB", "MSBa", "MSBb", "MB", "LPB", "VPa", "VPb", "MBV"];
 
 export const hasPhotoChecker = (bankCode: string): boolean =>
   ENABLED_BANKS.includes(bankCode) && bankCode in CHECKERS;
