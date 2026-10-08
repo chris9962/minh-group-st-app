@@ -5,11 +5,9 @@ import { clsx } from "clsx";
 import { useEffect, useRef, useState } from "react";
 import {
   ID_CARD_CROP_MARGIN,
-  ID_CARD_QR_REGIONS,
   ID_CARD_QR_UNREADABLE,
   parseIdCardQr,
   type IdCardQr,
-  type QrRegion,
 } from "@/lib/idCardQr";
 import { readQrPixels } from "@/lib/readQrImage";
 import styles from "./IdCardScanner.module.scss";
@@ -41,11 +39,11 @@ const cameraAvailable = () =>
   typeof navigator !== "undefined" && Boolean(navigator.mediaDevices?.getUserMedia);
 
 /**
- * Khung thẻ trên màn hình đổi sang toạ độ điểm ảnh của video, cộng viền
+ * Ô vuông QR trên màn hình đổi sang toạ độ điểm ảnh của video, cộng viền
  * `ID_CARD_CROP_MARGIN`. Video hiện bằng `object-fit: cover` nên bị phóng và cắt
  * mép: phải đổi toạ độ theo cùng tỉ lệ đó.
  */
-function cardRect(video: HTMLVideoElement, viewportEl: HTMLElement, frameEl: HTMLElement): Rect | null {
+function qrRect(video: HTMLVideoElement, viewportEl: HTMLElement, frameEl: HTMLElement): Rect | null {
   const vw = video.videoWidth;
   const vh = video.videoHeight;
   if (vw === 0) return null;
@@ -63,14 +61,6 @@ function cardRect(video: HTMLVideoElement, viewportEl: HTMLElement, frameEl: HTM
   return { left, top, width: right - left, height: bottom - top };
 }
 
-/** Một ô QR trong vùng ảnh thẻ, cùng phép tính máy chủ dùng trên ảnh gửi lên. */
-const qrRect = (card: Rect, region: QrRegion): Rect => ({
-  left: card.left + card.width * region.x,
-  top: card.top + card.height * region.y,
-  width: card.width * region.w,
-  height: card.height * region.h,
-});
-
 /** Thẻ đọc được từ chuỗi QR, hoặc `null`; zxing nạp hỏng cũng coi như chưa đọc được. */
 async function cardIn(pixels: ImageData): Promise<ScannedIdCard | null> {
   try {
@@ -86,14 +76,12 @@ async function cardIn(pixels: ImageData): Promise<ScannedIdCard | null> {
  * Bước 1 của form tạo khách (chốt 2026-10-06): khung ngắm kiểu camera điện
  * thoại ngay trong hộp thoại, cùng lối với `CameraCheckIn`.
  *
- * Trong lúc người dùng canh thẻ, trang quét xen kẽ các ô `ID_CARD_QR_REGIONS`
- * của khung thẻ: góc trên phải cho thẻ, giữa khung cho màn hình VNeID. Các ô
- * không vẽ ra (chốt 2026-10-07). Đọc được QR thì viền khung chuyển
- * xanh và nút chụp mở; người dùng tự bấm chụp khi đã canh thẻ cho thẳng. Quét
- * riêng ô QR ở độ phân giải gốc của video là cách duy nhất đọc được QR nhỏ của
- * CCCD mẫu cũ: đọc cả khung thẻ thì zxing không tìm ra QR giữa nền hoa văn.
+ * Khung ngắm chỉ có một ô vuông giữa màn hình, người dùng canh mã QR của thẻ
+ * hoặc của app VNeID vào ô đó (chốt 2026-10-08, thay khung cả thẻ vì máy yếu
+ * không đọc được QR nhỏ). Trang quét liên tục riêng ô vuông ở độ phân giải gốc
+ * của video. Đọc được QR thì viền ô chuyển xanh và nút chụp mở.
  *
- * Bấm chụp: cắt khung thẻ của MỘT khung hình thành file JPEG, đọc QR ngay trên
+ * Bấm chụp: cắt ô vuông của MỘT khung hình thành file JPEG, đọc QR ngay trên
  * khung hình đó, nên ảnh gửi lên máy chủ chắc chắn chứa đúng QR đã đọc.
  *
  * KHÔNG có đường chọn ảnh từ thư viện (chủ dự án chốt 2026-10-06): ảnh thẻ phải
@@ -176,8 +164,7 @@ export function IdCardScanner({ onScanned, onCancel }: Props) {
     };
   }, [attempt]);
 
-  // Quét ô QR liên tục trong lúc người dùng canh thẻ, mỗi lượt một ô cho nhẹ máy;
-  // dừng khi đang chụp hay đã chụp.
+  // Quét ô vuông liên tục trong lúc người dùng canh QR; dừng khi đang chụp hay đã chụp.
   useEffect(() => {
     const video = videoRef.current;
     const viewport = viewportRef.current;
@@ -186,14 +173,12 @@ export function IdCardScanner({ onScanned, onCancel }: Props) {
     let stopped = false;
     let lastSeen = 0;
     let timer = 0;
-    let turn = 0;
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
 
     const scan = async () => {
-      const card = cardRect(video, viewport, frame);
-      if (card && ctx) {
-        const qr = qrRect(card, ID_CARD_QR_REGIONS[turn++ % ID_CARD_QR_REGIONS.length]);
+      const qr = qrRect(video, viewport, frame);
+      if (qr && ctx) {
         canvas.width = Math.round(qr.width);
         canvas.height = Math.round(qr.height);
         ctx.drawImage(video, qr.left, qr.top, qr.width, qr.height, 0, 0, canvas.width, canvas.height);
@@ -230,12 +215,12 @@ export function IdCardScanner({ onScanned, onCancel }: Props) {
     setPhase("idle");
   };
 
-  /** Cắt khung thẻ của khung hình hiện tại và đọc QR trên chính khung hình đó. */
+  /** Cắt ô vuông của khung hình hiện tại và đọc QR trên chính khung hình đó. */
   const grab = async (): Promise<{ canvas: HTMLCanvasElement; card: ScannedIdCard } | null> => {
     const video = videoRef.current;
     const viewport = viewportRef.current;
     const frame = frameRef.current;
-    const rect = video && viewport && frame ? cardRect(video, viewport, frame) : null;
+    const rect = video && viewport && frame ? qrRect(video, viewport, frame) : null;
     if (!video || !rect) return null;
     const canvas = document.createElement("canvas");
     canvas.width = Math.round(rect.width);
@@ -243,14 +228,8 @@ export function IdCardScanner({ onScanned, onCancel }: Props) {
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
     if (!ctx) return null;
     ctx.drawImage(video, rect.left, rect.top, rect.width, rect.height, 0, 0, canvas.width, canvas.height);
-    for (const region of ID_CARD_QR_REGIONS) {
-      const qr = qrRect({ left: 0, top: 0, width: canvas.width, height: canvas.height }, region);
-      const card = await cardIn(
-        ctx.getImageData(Math.round(qr.left), Math.round(qr.top), Math.round(qr.width), Math.round(qr.height)),
-      );
-      if (card) return { canvas, card };
-    }
-    return null;
+    const card = await cardIn(ctx.getImageData(0, 0, canvas.width, canvas.height));
+    return card ? { canvas, card } : null;
   };
 
   const capture = async () => {
@@ -292,7 +271,7 @@ export function IdCardScanner({ onScanned, onCancel }: Props) {
         ? "Đang mở camera…"
         : ready
           ? "Đã thấy mã QR"
-          : "Đưa mặt có mã QR vào khung";
+          : "Đưa mã QR vào ô vuông";
 
   return (
     <div className={styles.scanner}>
@@ -309,7 +288,7 @@ export function IdCardScanner({ onScanned, onCancel }: Props) {
         />
         {shot && (
           // eslint-disable-next-line @next/next/no-img-element -- ảnh là blob vừa chụp, next/image không tối ưu được
-          <img src={shot.preview} alt="Ảnh thẻ vừa chụp" className={styles.shot} />
+          <img src={shot.preview} alt="Ảnh mã QR vừa chụp" className={styles.shot} />
         )}
 
         {showPanel ? (

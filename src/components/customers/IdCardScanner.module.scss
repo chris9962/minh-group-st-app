@@ -17,23 +17,24 @@
   --cam-fg-2: rgb(255 255 255 / 78%);
   --cam-glass: rgb(255 255 255 / 16%);
   --cam-scrim: rgb(0 0 0 / 55%);
-  /* Điện thoại: khung thẻ rộng 90% để QR trên thẻ có nhiều điểm ảnh nhất. */
-  --frame-w: 90%;
+  /* Ô vuông QR: trang chỉ quét phần trong ô, ô nhỏ thì máy yếu quét nhanh hơn. */
+  --frame-w: 60%;
 
   position: relative;
   margin: 0 -20px -4px;
-  aspect-ratio: 1 / 1;
+  /* Điện thoại: khung 1:1 thấp quá, nhãn ở góc trên đè lên ô vuông. */
+  aspect-ratio: 4 / 5;
   overflow: hidden;
   border-radius: 0 0 var(--radius-lg) var(--radius-lg);
   background: var(--cam-bg);
   color: var(--cam-fg);
 }
 
-/* Máy tính: hộp thoại rộng 560px nên khung 4:3 là đủ chỗ cho thẻ nằm ngang.
-   Khung 4:3 thấp, khung thẻ 90% sẽ đè lên hàng nút. */
+/* Máy tính: hộp thoại rộng 560px nên khung ngắm 4:3. Khung 4:3 thấp, ô vuông
+   60% bề ngang sẽ đè lên hàng nút. */
 @media (min-width: bp.$bp-mobile) {
   .viewport {
-    --frame-w: 76%;
+    --frame-w: 44%;
 
     aspect-ratio: 4 / 3;
   }
@@ -54,27 +55,27 @@
   display: none;
 }
 
-/* Ảnh vừa chụp đè đúng chỗ khung thẻ, để thẻ trong ảnh nằm khớp bốn góc khung.
-   Ảnh cắt rộng hơn khung `ID_CARD_CROP_MARGIN` (5%) mỗi bên, nên rộng gấp 1,1. */
+/* Ảnh vừa chụp đè đúng chỗ ô vuông, để QR trong ảnh nằm khớp bốn góc ô.
+   Ảnh cắt rộng hơn ô `ID_CARD_CROP_MARGIN` (10%) mỗi bên, nên rộng gấp 1,2. */
 .shot {
   position: absolute;
-  top: 42%;
+  top: 40%;
   left: 50%;
   display: block;
-  width: calc(var(--frame-w) * 1.1);
-  aspect-ratio: 86 / 54;
+  width: calc(var(--frame-w) * 1.2);
+  aspect-ratio: 1 / 1;
   transform: translate(-50%, -50%);
   object-fit: contain;
 }
 
-/* Khung cỡ thẻ CCCD (86 x 54 mm) đặt hơi cao hơn giữa để chừa chỗ cho hàng nút.
-   Bóng đổ rất lớn làm tối phần ngoài khung, bốn góc vẽ bằng bốn thẻ `i`. */
+/* Ô vuông QR đặt hơi cao hơn giữa để chừa chỗ cho hàng nút.
+   Bóng đổ rất lớn làm tối phần ngoài ô, bốn góc vẽ bằng bốn thẻ `i`. */
 .frame {
   position: absolute;
-  top: 42%;
+  top: 40%;
   left: 50%;
   width: var(--frame-w);
-  aspect-ratio: 86 / 54;
+  aspect-ratio: 1 / 1;
   transform: translate(-50%, -50%);
   border-radius: 12px;
   box-shadow: 0 0 0 100vmax var(--cam-scrim);

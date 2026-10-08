@@ -3,13 +3,7 @@ import path from "node:path";
 import convert from "heic-convert";
 import sharp from "sharp";
 import { prepareZXingModule, readBarcodes } from "zxing-wasm/reader";
-import {
-  ID_CARD_QR_REGIONS,
-  ID_CARD_QR_UNREADABLE,
-  parseIdCardQr,
-  type IdCardQr,
-  type QrRegion,
-} from "@/lib/idCardQr";
+import { ID_CARD_QR_UNREADABLE, parseIdCardQr, type IdCardQr } from "@/lib/idCardQr";
 import { imageExtOf } from "./storage";
 
 /**
@@ -38,21 +32,13 @@ const prepareZxing = () =>
     });
   }));
 
-async function decode(src: Buffer, region?: QrRegion): Promise<string | null> {
+async function decode(src: Buffer): Promise<string | null> {
   await prepareZxing();
-  let pipeline = sharp(src, { failOn: "none" }).rotate();
-  if (region) {
-    const { width = 0, height = 0 } = await sharp(src, { failOn: "none" }).rotate().metadata();
-    const left = Math.round(width * region.x);
-    const top = Math.round(height * region.y);
-    pipeline = sharp(await pipeline.toBuffer()).extract({
-      left,
-      top,
-      width: Math.min(width - left, Math.round(width * region.w)),
-      height: Math.min(height - top, Math.round(height * region.h)),
-    });
-  }
-  const { data, info } = await pipeline.ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const { data, info } = await sharp(src, { failOn: "none" })
+    .rotate()
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
   const pixels = {
     data: new Uint8ClampedArray(data.buffer, data.byteOffset, data.byteLength),
     width: info.width,
@@ -76,12 +62,8 @@ export async function readIdCardQr(bytes: Uint8Array): Promise<IdCardQr> {
       ext === "heic"
         ? Buffer.from(await convert({ buffer: Buffer.from(bytes), format: "JPEG", quality: 0.92 }))
         : Buffer.from(bytes);
-    // Ảnh từ màn chụp thẻ có QR ở một trong các ô cố định; ảnh khác (không cắt theo khung) thì đọc cả ảnh.
-    for (const region of ID_CARD_QR_REGIONS) {
-      text = await decode(src, region);
-      if (text) break;
-    }
-    text ??= await decode(src);
+    // Màn chụp chỉ gửi ô vuông QR đã cắt (chốt 2026-10-08), nên đọc cả ảnh là đủ.
+    text = await decode(src);
   } catch (e) {
     console.error("[idCardQr] không đọc được ảnh:", e);
     return { ok: false, message: ID_CARD_QR_UNREADABLE };
