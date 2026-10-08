@@ -342,11 +342,11 @@ export function CustomerFormDialog({
             <div className={styles.cardDone}>
               {scanUrl && (
                 // eslint-disable-next-line @next/next/no-img-element -- ảnh là blob vừa chụp, next/image không tối ưu được
-                <img src={scanUrl} alt="Ảnh thẻ CCCD vừa chụp" className={styles.cardThumb} />
+                <img src={scanUrl} alt="Ảnh mã QR vừa chụp" className={styles.cardThumb} />
               )}
               <span className={styles.cardDoneText}>
                 <CheckCircle2 size={17} aria-hidden />
-                Đã đọc thẻ CCCD
+                Đã xác nhận
               </span>
               <Button type="button" variant="ghost" disabled={save.isPending} onClick={retake}>
                 Chụp lại
