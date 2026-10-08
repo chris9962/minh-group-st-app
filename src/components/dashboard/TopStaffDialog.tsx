@@ -24,7 +24,7 @@ const lastMonths = (count: number): string[] =>
 const shortMonth = (month: string) => `${Number(month.slice(5, 7))}/${month.slice(0, 4)}`;
 
 /**
- * Nút mở rộng của khối "Nhân viên dẫn đầu" ở P-80: chọn một khoảng tháng liên
+ * Nút mở rộng của khối "Cá nhân xuất sắc" ở P-80: chọn một khoảng tháng liên
  * tiếp, xem người đứng đầu cộng dồn các tháng đó (chốt 2026-10-08).
  */
 export function TopStaffDialog() {
@@ -43,12 +43,12 @@ export function TopStaffDialog() {
       <Button
         variant="ghost"
         icon
-        aria-label="Xem nhân viên dẫn đầu theo nhiều tháng"
+        aria-label="Xem cá nhân xuất sắc theo nhiều tháng"
         onClick={() => setOpen(true)}
       >
         <Maximize2 size={16} />
       </Button>
-      <Dialog open={open} wide title="Nhân viên dẫn đầu" onClose={() => setOpen(false)}>
+      <Dialog open={open} wide title="Cá nhân xuất sắc" onClose={() => setOpen(false)}>
         <div className={styles.layout}>
           <MonthChoice
             range
@@ -67,9 +67,9 @@ export function TopStaffDialog() {
               </p>
             )}
             {isError ? (
-              <ErrorState what="nhân viên dẫn đầu" onRetry={refetch} retrying={isFetching} />
+              <ErrorState what="cá nhân xuất sắc" onRetry={refetch} retrying={isFetching} />
             ) : months.length > 0 && isPending ? (
-              <SkeletonStats count={4} label="Đang tải nhân viên dẫn đầu" />
+              <SkeletonStats count={4} label="Đang tải cá nhân xuất sắc" />
             ) : (
               <TopStaffCards top={months.length > 0 ? (data ?? null) : null} columns={2} />
             )}

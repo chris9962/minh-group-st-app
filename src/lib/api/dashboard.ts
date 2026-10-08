@@ -260,9 +260,9 @@ export async function fetchDashboard(period: Period): Promise<DashboardView> {
   return DashboardView.parse(await res.json());
 }
 
-/** Người đứng đầu cộng dồn qua các tháng `YYYY-MM` đã chọn, cho modal mở rộng của khối "Nhân viên dẫn đầu". */
+/** Người đứng đầu cộng dồn qua các tháng `YYYY-MM` đã chọn, cho modal mở rộng của khối "Cá nhân xuất sắc". */
 export async function fetchTopStaff(months: string[]): Promise<TopStaff> {
   const res = await fetch(`/api/dashboard/top-staff?months=${months.join(',')}`);
-  if (!res.ok) throw new Error('Không tải được nhân viên dẫn đầu');
+  if (!res.ok) throw new Error('Không tải được cá nhân xuất sắc');
   return TopStaff.parse(await res.json());
 }

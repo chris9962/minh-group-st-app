@@ -388,7 +388,7 @@ export default function DashboardPage() {
 
               {data.topStaff && (
                 <SectionCard
-                  title="Nhân viên dẫn đầu"
+                  title="Cá nhân xuất sắc"
                   icon={<Trophy size={17} />}
                   meta={periodLabel}
                   className={styles.wide}

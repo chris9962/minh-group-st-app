@@ -5,7 +5,7 @@ import { dashboardVisibility, topStaffForMonths } from "@/server/dashboard";
 const MAX_MONTHS = 12;
 
 /**
- * P-80 · Modal mở rộng của khối "Nhân viên dẫn đầu": cộng dồn các tháng đã chọn
+ * P-80 · Modal mở rộng của khối "Cá nhân xuất sắc": cộng dồn các tháng đã chọn
  * (chốt 2026-10-08). Chỉ người xem toàn công ty có, cùng điều kiện với khối đó.
  *
  *   GET /api/dashboard/top-staff?months=2026-08,2026-09,2026-10
