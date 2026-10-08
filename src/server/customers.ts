@@ -862,7 +862,7 @@ export type CustomerConflict =
   | "move-day-gifted"
   /** Tháng cũ hoặc tháng mới đã chốt lương, và hồ sơ có tài khoản ngân hàng (chốt 2026-10-01). */
   | "move-day-closed"
-  /** Hồ sơ có ảnh thẻ CCCD: vai Nhân viên không sửa được họ tên, ngày sinh, CCCD (chốt 2026-10-06). */
+  /** Vai Nhân viên không sửa được họ tên, ngày sinh (chốt 2026-10-06, CCCD mở lại 2026-10-08). */
   | "id-card-locked";
 
 export type CustomerOutcome<T> =
@@ -1452,8 +1452,9 @@ export async function updateCustomer(
   if (!recordInScope(recordVisibility(actor, "customer", "update"), owner)) return null;
 
   /**
-   * Vai Nhân viên không sửa họ tên, ngày sinh, CCCD của MỌI hồ sơ, có ảnh thẻ
-   * hay không (chốt 2026-10-06, mở sang hồ sơ cũ 2026-10-07). Cùng ngoại lệ đọc
+   * Vai Nhân viên không sửa họ tên, ngày sinh của MỌI hồ sơ, có ảnh thẻ hay
+   * không (chốt 2026-10-06, mở sang hồ sơ cũ 2026-10-07). CCCD mở lại theo luật
+   * người tạo ghi đè ở trên (chốt 2026-10-08). Cùng ngoại lệ đọc
    * chức vụ như `move-day-forbidden` bên dưới: chủ dự án chốt "trừ nhân viên
    * ra", không mở quyền mới.
    *
@@ -1461,13 +1462,11 @@ export async function updateCustomer(
    *   trước khi có bước đó thì chỉ khác hoa thường, không phải đổi tên.
    * - Ô đang trống thì cho điền: 38 hồ sơ cũ thiếu ngày sinh mà form sửa bắt
    *   buộc ngày sinh, khoá luôn là nhân viên không lưu được gì trên hồ sơ đó.
-   * - CCCD gửi rỗng là "không đụng tới", không tính là đổi.
    */
   if (
     actor.role === "staff" &&
     (form.fullName !== capitalizePersonName(owner.fullName) ||
-      (owner.dob !== null && form.dob !== owner.dob) ||
-      (form.idNumber !== "" && Boolean(owner.idNumber) && form.idNumber !== owner.idNumber))
+      (owner.dob !== null && form.dob !== owner.dob))
   )
     return { ok: false, reason: "id-card-locked" };
 

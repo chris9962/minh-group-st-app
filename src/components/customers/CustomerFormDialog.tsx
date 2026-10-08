@@ -142,13 +142,15 @@ export function CustomerFormDialog({
     return () => URL.revokeObjectURL(scanUrl);
   }, [scanUrl]);
   /**
-   * Họ tên, ngày sinh, CCCD khoá khi: đang tạo mà đã chụp thẻ; đang sửa mà là
-   * Nhân viên, ở mọi hồ sơ (chốt 2026-10-07). Hồ sơ cũ thiếu ngày sinh thì ô
+   * Họ tên, ngày sinh, CCCD khoá khi đang tạo mà đã chụp thẻ. Đang sửa mà là
+   * Nhân viên thì khoá họ tên, ngày sinh ở mọi hồ sơ (chốt 2026-10-07); CCCD mở
+   * lại cho người tạo ghi đè (chốt 2026-10-08). Hồ sơ cũ thiếu ngày sinh thì ô
    * ngày sinh vẫn cho điền. Máy chủ từ chối cùng điều kiện.
    */
   const staffEditing = editing && actorRole === "staff";
   const idCardLocked = editing ? staffEditing : scan !== null;
   const dobLocked = editing ? staffEditing && Boolean(customer?.dob) : scan !== null;
+  const idNumberLocked = !editing && scan !== null;
 
   // `values` để form nhận hồ sơ tải xong SAU khi dialog đã mở (luồng nút Sửa ở
   // P-40). Memo theo `customer` — mỗi render một object mới là form reset liên tục.
@@ -389,18 +391,13 @@ export function CustomerFormDialog({
             {/* CCCD là trường bảo mật, ba nhánh theo đúng ba nhóm ở
                 `updateCustomer`. Người không ghi đè được thì ô phải KHOÁ: để mở
                 mà máy chủ lặng lẽ bỏ qua thì người sửa gõ xong bấm Lưu, thấy
-                "đã lưu", rồi mở lại thấy số cũ. Người sửa là Nhân viên thì
-                cũng vào nhánh khoá, dù họ là người tạo. */}
-            {maskedId && (!canWriteMaskedId || idCardLocked) ? (
+                "đã lưu", rồi mở lại thấy số cũ. */}
+            {maskedId && !canWriteMaskedId ? (
               <TextField
                 label="CCCD"
                 readOnly
                 value={`•••• •••• ${customer?.idNumber ?? ""}`}
-                hint={
-                  idCardLocked
-                    ? undefined
-                    : "Bạn chỉ được xem 4 số cuối — cần sửa thì nhờ người có quyền xem CCCD."
-                }
+                hint="Bạn chỉ được xem 4 số cuối — cần sửa thì nhờ người có quyền xem CCCD."
               />
             ) : maskedId ? (
               /* Ô để TRỐNG, không đổ 4 số cuối vào: đổ vào thì người sửa bấm Lưu
@@ -423,7 +420,7 @@ export function CustomerFormDialog({
                 placeholder="092301004871"
                 inputMode="numeric"
                 maxLength={12}
-                readOnly={idCardLocked}
+                readOnly={idNumberLocked}
                 labelAppend={<CharCount value={watch("idNumber")} max={12} />}
                 error={errors.idNumber?.message}
                 {...register("idNumber")}

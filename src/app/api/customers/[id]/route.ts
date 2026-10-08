@@ -87,7 +87,7 @@ export async function PATCH(request: Request, { params }: Params) {
     if (result.reason === "move-day-closed" && result.month)
       return badRequest(closedMonthMessage(result.month));
     if (result.reason === "id-card-locked")
-      return badRequest("Nhân viên không sửa được họ tên, ngày sinh, CCCD.");
+      return badRequest("Nhân viên không sửa được họ tên, ngày sinh.");
     if (result.reason !== "duplicate-id-number")
       return badRequest("Không lưu được hồ sơ khách này");
     return Response.json(
