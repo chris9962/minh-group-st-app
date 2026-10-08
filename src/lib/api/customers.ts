@@ -47,8 +47,9 @@ export const Customer = z.object({
   idNumberMasked: z.boolean(),
   /**
    * URL ảnh mặt trước thẻ CCCD, chỉ khác `null` khi người xem thấy được số CCCD
-   * đầy đủ. `hasIdCardImage` nói hồ sơ CÓ ảnh dù người xem không được mở ảnh:
-   * form sửa khoá ba ô họ tên, ngày sinh, CCCD với vai Nhân viên (chốt 2026-10-06).
+   * đầy đủ. `hasIdCardImage` nói nhóm hồ sơ của khách CÓ ảnh quét QR dù người
+   * xem không được mở ảnh: form sửa khoá ba ô họ tên, ngày sinh, CCCD với vai
+   * Nhân viên (chốt 2026-10-08).
    */
   idCardImageUrl: z.string().nullable(),
   hasIdCardImage: z.boolean(),

@@ -133,9 +133,11 @@ export function CustomerFormDialog({
     if (!scanUrl) return;
     return () => URL.revokeObjectURL(scanUrl);
   }, [scanUrl]);
-  // Họ tên, ngày sinh, CCCD chỉ khoá khi đang tạo mà đã chụp thẻ. Lúc sửa thì
-  // theo quyền sửa khách, không khoá theo vai (chốt 2026-10-08).
-  const idCardLocked = !editing && scan !== null;
+  // Họ tên, ngày sinh, CCCD khoá khi đang tạo mà đã chụp thẻ. Lúc sửa, khách tạo
+  // bằng quét QR thì khoá với vai Nhân viên (chốt 2026-10-08); máy chủ từ chối cùng điều kiện.
+  const idCardLocked = editing
+    ? actorRole === "staff" && Boolean(customer?.hasIdCardImage)
+    : scan !== null;
 
   // `values` để form nhận hồ sơ tải xong SAU khi dialog đã mở (luồng nút Sửa ở
   // P-40). Memo theo `customer` — mỗi render một object mới là form reset liên tục.
@@ -373,7 +375,9 @@ export function CustomerFormDialog({
               onChange={(v) => setValue("dob", v, { shouldDirty: true, shouldValidate: true })}
               error={errors.dob?.message}
             />
-            {maskedId ? (
+            {maskedId && idCardLocked ? (
+              <TextField label="CCCD" readOnly value={`•••• •••• ${customer?.idNumber ?? ""}`} />
+            ) : maskedId ? (
               /* Ô để TRỐNG, không đổ 4 số cuối vào: đổ vào thì người sửa bấm Lưu
                  mà không gõ gì là gửi lên một chuỗi 4 ký tự. Không đánh dấu
                  `required` vì trống là hợp lệ — nó nghĩa là giữ nguyên số cũ. */

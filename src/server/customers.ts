@@ -42,6 +42,7 @@ import {
 } from "@/lib/api/customers";
 import { MAX_BANK_ACCOUNTS_PER_CUSTOMER, type AccountType } from "@/lib/api/bankAccounts";
 import type { Page } from "@/lib/api/pagination";
+import { capitalizePersonName } from "@/lib/api/personName";
 import type { PageArgs } from "./pagination";
 import { BUSINESS_TIMEZONE, businessMonth, clockNowVn, digitsOnly, monthRange, searchKey } from "@/lib/format";
 import { can, recordInScope, recordVisibility, type RecordVisibility } from "@/lib/permissions";
@@ -787,6 +788,12 @@ export async function updateCustomerNote(actor: User, id: string, note: string) 
 
 /* ── P-41 · Tạo / sửa ─────────────────────────────────────────────────── */
 
+/** Nhóm hồ sơ của khách có ảnh thẻ quét QR: họ tên, ngày sinh, CCCD đồng bộ cả nhóm nên khoá theo nhóm. */
+const groupHasIdCardImage = (rootCustomerId: SQLWrapper) => sql<boolean>`exists (
+  select 1 from ${customers} qr
+  where qr.root_customer_id = ${rootCustomerId} and qr.id_card_image is not null
+)`;
+
 async function customerById(id: string, actor: User): Promise<Customer | null> {
   const [row] = await db
     .select({
@@ -797,6 +804,7 @@ async function customerById(id: string, actor: User): Promise<Customer | null> {
       dob: customers.dob,
       idNumber: customers.idNumber,
       idCardImage: customers.idCardImage,
+      groupHasIdCardImage: groupHasIdCardImage(customers.rootCustomerId),
       note: customers.note,
       address: customers.address,
       channelId: customers.channelId,
@@ -829,14 +837,14 @@ async function customerById(id: string, actor: User): Promise<Customer | null> {
   const full = seesIdNumber(actor);
   // Khoá ảnh không ra khỏi máy chủ: ảnh thẻ cùng mức bảo mật với số CCCD, người
   // không thấy số thì chỉ biết hồ sơ CÓ ảnh để giao diện khoá ba ô.
-  const { idCardImage, ...rest } = row;
+  const { idCardImage, groupHasIdCardImage: hasIdCardImage, ...rest } = row;
   return {
     ...rest,
     channelId: row.channelId ?? "",
     idNumber: full ? row.idNumber : last4(row.idNumber),
     idNumberMasked: !full,
     idCardImageUrl: full && idCardImage ? imageUrl(idCardImage) : null,
-    hasIdCardImage: idCardImage !== null,
+    hasIdCardImage,
     phones,
   };
 }
@@ -860,7 +868,9 @@ export type CustomerConflict =
   /** Ngày hồ sơ mới sau ngày chốt quà. */
   | "move-day-gifted"
   /** Tháng cũ hoặc tháng mới đã chốt lương, và hồ sơ có tài khoản ngân hàng (chốt 2026-10-01). */
-  | "move-day-closed";
+  | "move-day-closed"
+  /** Khách tạo bằng quét QR: vai Nhân viên không sửa họ tên, ngày sinh, CCCD (chốt 2026-10-08). */
+  | "id-card-locked";
 
 export type CustomerOutcome<T> =
   | { ok: true; customer: T }
@@ -1392,8 +1402,9 @@ async function dongBoNhom(
 }
 
 /**
- * Sửa hồ sơ. Ai sửa được hồ sơ thì ghi đè được CCCD (chốt 2026-10-08); người
- * không có `access-id-number` chỉ thấy 4 số cuối nên gõ lại đủ 12 số.
+ * Sửa hồ sơ. Ai sửa được hồ sơ thì ghi đè được CCCD (chốt 2026-10-08), trừ vai
+ * Nhân viên trên khách tạo bằng quét QR; người không có `access-id-number` chỉ
+ * thấy 4 số cuối nên gõ lại đủ 12 số.
  *
  * ⚠️ RỖNG NGHĨA LÀ "KHÔNG ĐỤNG TỚI", KHÔNG PHẢI "XOÁ". Ô CCCD của người không
  * thấy số nạp lên rỗng, và họ mở biểu mẫu để sửa địa chỉ hay số điện thoại là
@@ -1430,6 +1441,7 @@ export async function updateCustomer(
       fullName: customers.fullName,
       dob: customers.dob,
       idNumber: customers.idNumber,
+      fromQr: groupHasIdCardImage(customers.rootCustomerId),
     })
     .from(customers)
     .where(eq(customers.id, id))
@@ -1437,8 +1449,21 @@ export async function updateCustomer(
   if (!owner) return null;
   if (!recordInScope(recordVisibility(actor, "customer", "update"), owner)) return null;
 
-  // Họ tên, ngày sinh, CCCD theo quyền sửa khách, không khoá theo vai (chốt
-  // 2026-10-08): muốn chặn ai thì thu hồi quyền `customer:update` của người đó.
+  /**
+   * Khách tạo bằng quét QR thì vai Nhân viên không sửa họ tên, ngày sinh, CCCD;
+   * Trưởng phòng, Phó phòng và các cấp trên sửa như cũ (chốt 2026-10-08). Cùng
+   * ngoại lệ đọc chức vụ như `move-day-forbidden` bên dưới. Tên so sau
+   * `capitalizePersonName` vì form chuẩn hoá tên trước khi gửi.
+   */
+  if (
+    actor.role === "staff" &&
+    owner.fromQr &&
+    (form.fullName !== capitalizePersonName(owner.fullName) ||
+      form.dob !== (owner.dob ?? "") ||
+      (form.idNumber !== "" && form.idNumber !== owner.idNumber))
+  )
+    return { ok: false, reason: "id-card-locked" };
+
   const idNumberWritten = Boolean(form.idNumber);
 
   const result = await writeGuarded(async () => {
