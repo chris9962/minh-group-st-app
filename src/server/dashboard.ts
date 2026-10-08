@@ -4,8 +4,9 @@ import type {
   DashboardData,
   DashboardDraftAccount,
   DepartmentRanking,
+  TopStaff,
 } from "@/lib/api/dashboard";
-import { BUSINESS_TIMEZONE, businessDay } from "@/lib/format";
+import { BUSINESS_TIMEZONE, businessDay, monthRange } from "@/lib/format";
 import { periodRanges } from "@/lib/period";
 import { recordVisibility } from "@/lib/permissions";
 import type { User } from "@/lib/types";
@@ -811,7 +812,6 @@ function pointsByDepartmentFrom(
   return byDepartment;
 }
 
-type TopStaff = NonNullable<DashboardData["topStaff"]>;
 
 /**
  * Người đứng đầu từng chỉ số trên toàn công ty, chỉ mặt `company` có (chốt
@@ -867,6 +867,40 @@ async function topStaffOf(
     accountsOpened: card(leaders.accountsOpened),
     points: card(leaders.points),
   };
+}
+
+/**
+ * Người đứng đầu cộng dồn qua các tháng `YYYY-MM` đã chọn, cho modal mở rộng
+ * (chốt 2026-10-08). Đếm từng tháng rồi cộng theo người, nên tháng không liền
+ * nhau vẫn đúng, và điểm mỗi tháng tính theo thể lệ của tháng đó. Phòng hiện
+ * trên card là phòng ở tháng muộn nhất đã chọn.
+ */
+export async function topStaffForMonths(months: string[]): Promise<TopStaff> {
+  const perMonth = await Promise.all(
+    months.map((month) =>
+      Promise.all([statsByStaff(monthRange(month)), pointsByStaffInRange(monthRange(month))]),
+    ),
+  );
+
+  const stats: Awaited<ReturnType<typeof statsByStaff>> = new Map();
+  const points = new Map<string, { departmentId: string | null; points: number }>();
+  for (const [monthStats, monthPoints] of perMonth) {
+    for (const [id, s] of monthStats) {
+      const sum = stats.get(id) ?? { accountsOpened: 0, appsInstalled: 0, customers: 0, customersMultiAccount: 0 };
+      stats.set(id, {
+        accountsOpened: sum.accountsOpened + s.accountsOpened,
+        appsInstalled: sum.appsInstalled + s.appsInstalled,
+        customers: sum.customers + s.customers,
+        customersMultiAccount: sum.customersMultiAccount + s.customersMultiAccount,
+      });
+    }
+    for (const [id, p] of monthPoints) {
+      const sum = points.get(id)?.points ?? 0;
+      points.set(id, { departmentId: p.departmentId, points: Math.round((sum + p.points) * 10) / 10 });
+    }
+  }
+
+  return topStaffOf(stats, points, [...months].sort().at(-1)!);
 }
 
 /* ── Ghép lại ──────────────────────────────────────────────────────────── */

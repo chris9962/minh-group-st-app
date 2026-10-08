@@ -122,6 +122,15 @@ const TopStaffEntry = z
   })
   .nullable();
 
+/** Người đứng đầu từng chỉ số. `null` ở một ô khi chưa ai có số đó. */
+export const TopStaff = z.object({
+  customers: TopStaffEntry,
+  appsInstalled: TopStaffEntry,
+  accountsOpened: TopStaffEntry,
+  points: TopStaffEntry,
+});
+export type TopStaff = z.infer<typeof TopStaff>;
+
 export const DashboardData = z.object({
   banking: BankingSummary.extend({
     /**
@@ -151,15 +160,7 @@ export const DashboardData = z.object({
    * Người đứng đầu từng chỉ số trên toàn công ty trong kỳ xem; chỉ mặt công ty
    * có (chốt 2026-10-08). `null` ở một ô khi chưa ai có số đó.
    */
-  topStaff: z
-    .object({
-      customers: TopStaffEntry,
-      appsInstalled: TopStaffEntry,
-      accountsOpened: TopStaffEntry,
-      points: TopStaffEntry,
-    })
-    .nullable()
-    .default(null),
+  topStaff: TopStaff.nullable().default(null),
   insurance: z.object({
     createdToday: z.number(),
     /** Bảo hiểm tai nạn hộ sử dụng điện. */
@@ -257,4 +258,11 @@ export async function fetchDashboard(period: Period): Promise<DashboardView> {
   const res = await fetch(`/api/dashboard?period=${encodeURIComponent(periodKey(period))}`);
   if (!res.ok) throw new Error('Không tải được số liệu tổng quan');
   return DashboardView.parse(await res.json());
+}
+
+/** Người đứng đầu cộng dồn qua các tháng `YYYY-MM` đã chọn, cho modal mở rộng của khối "Nhân viên dẫn đầu". */
+export async function fetchTopStaff(months: string[]): Promise<TopStaff> {
+  const res = await fetch(`/api/dashboard/top-staff?months=${months.join(',')}`);
+  if (!res.ok) throw new Error('Không tải được nhân viên dẫn đầu');
+  return TopStaff.parse(await res.json());
 }

@@ -36,7 +36,8 @@ import { SectionCard } from "@/components/ui/SectionCard";
 import { StatCard } from "@/components/ui/StatCard";
 import { StatStack } from "@/components/ui/StatStack";
 import { BankingHeadline } from "@/components/dashboard/BankingHeadline";
-import { TopStaffCard } from "@/components/dashboard/TopStaffCard";
+import { TopStaffCards } from "@/components/dashboard/TopStaffCards";
+import { TopStaffDialog } from "@/components/dashboard/TopStaffDialog";
 import { StaffDashboard } from "@/components/dashboard/StaffDashboard";
 import { fetchDashboard, type DepartmentRanking } from "@/lib/api/dashboard";
 import { useChartColors } from "@/lib/chart-colors";
@@ -391,27 +392,9 @@ export default function DashboardPage() {
                   icon={<Trophy size={17} />}
                   meta={periodLabel}
                   className={styles.wide}
+                  action={<TopStaffDialog />}
                 >
-                  <div className={styles.statRow}>
-                    {(
-                      [
-                        ["customers", "Khách có TK", "khách", formatCount],
-                        ["appsInstalled", "App cài", "app", formatCount],
-                        ["accountsOpened", "TK mở", "TK", formatCount],
-                        ["points", "Điểm cá nhân", "điểm", formatPoints],
-                      ] as const
-                    ).map(([key, label, unit, format]) => {
-                      const top = data.topStaff![key];
-                      return (
-                        <TopStaffCard
-                          key={key}
-                          label={label}
-                          person={top}
-                          value={top ? `${format(top.value)} ${unit}` : ""}
-                        />
-                      );
-                    })}
-                  </div>
+                  <TopStaffCards top={data.topStaff} />
                 </SectionCard>
               )}
 

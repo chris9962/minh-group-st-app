@@ -1,0 +1,26 @@
+/* Thân `Dialog` chỉ đệm đáy 4px vì thường có hàng nút ở chân; hộp này không có, nên tự đệm bằng hai bên. */
+.layout {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+  padding-bottom: 20px;
+}
+
+.result {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.months {
+  margin: 0;
+  font-size: 13px;
+  color: var(--om-text-2);
+}
+
+@media (max-width: bp.$bp-mobile) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}
