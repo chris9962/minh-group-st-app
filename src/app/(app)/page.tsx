@@ -36,6 +36,7 @@ import { SectionCard } from "@/components/ui/SectionCard";
 import { StatCard } from "@/components/ui/StatCard";
 import { StatStack } from "@/components/ui/StatStack";
 import { BankingHeadline } from "@/components/dashboard/BankingHeadline";
+import { TopStaffCard } from "@/components/dashboard/TopStaffCard";
 import { StaffDashboard } from "@/components/dashboard/StaffDashboard";
 import { fetchDashboard, type DepartmentRanking } from "@/lib/api/dashboard";
 import { useChartColors } from "@/lib/chart-colors";
@@ -383,6 +384,36 @@ export default function DashboardPage() {
                   ]}
                 />
               </SectionCard>
+
+              {data.topStaff && (
+                <SectionCard
+                  title="Nhân viên dẫn đầu"
+                  icon={<Trophy size={17} />}
+                  meta={periodLabel}
+                  className={styles.wide}
+                >
+                  <div className={styles.statRow}>
+                    {(
+                      [
+                        ["customers", "Khách có TK", "khách", formatCount],
+                        ["appsInstalled", "App cài", "app", formatCount],
+                        ["accountsOpened", "TK mở", "TK", formatCount],
+                        ["points", "Điểm cá nhân", "điểm", formatPoints],
+                      ] as const
+                    ).map(([key, label, unit, format]) => {
+                      const top = data.topStaff![key];
+                      return (
+                        <TopStaffCard
+                          key={key}
+                          label={label}
+                          person={top}
+                          value={top ? `${format(top.value)} ${unit}` : ""}
+                        />
+                      );
+                    })}
+                  </div>
+                </SectionCard>
+              )}
 
               {/* Trưởng phòng và Phó phòng chỉ thấy một phòng, nên máy chủ đổi
                   bảng sang xếp hạng nhân viên trong phòng đó (chốt 13/08). Bốn

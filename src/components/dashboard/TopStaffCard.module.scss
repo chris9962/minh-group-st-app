@@ -1,0 +1,54 @@
+/* Cùng khung với `StatCard` để hai hàng card trên P-80 nhìn như một bộ. */
+.card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+  padding: 16px 18px;
+  border-radius: var(--radius-lg);
+  background: var(--om-card);
+  border: 1px solid var(--om-line);
+  box-shadow: var(--shadow-sm);
+}
+
+.label {
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--om-text-3);
+}
+
+.name {
+  margin-top: 10px;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--om-link);
+  text-decoration: none;
+
+  &:hover {
+    color: var(--om-link-hover);
+    text-decoration: underline;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--om-link);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+}
+
+.department {
+  font-size: 12.5px;
+  color: var(--om-text-2);
+}
+
+/* Đẩy xuống đáy card để con số của bốn card nằm cùng một hàng dù tên dài ngắn khác nhau. */
+.value {
+  margin-top: auto;
+  padding-top: 12px;
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.1;
+}

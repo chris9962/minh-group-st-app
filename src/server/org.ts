@@ -459,8 +459,10 @@ function mergeStats<K extends { accountsOpened: number; appsInstalled: number },
  * thuộc phòng: hai cách cho kết quả khác nhau khi có người vừa chuyển đi. Cách
  * này bảo đảm tổng bảng nhân viên của Trưởng phòng bằng đúng dòng phòng đó
  * trong bảng của Giám đốc.
+ *
+ * Bỏ trống `departmentIds` thì đếm cả công ty: bảng xếp hạng nhân viên của Giám đốc.
  */
-export async function statsByStaff(range: Range, departmentIds: string[]) {
+export async function statsByStaff(range: Range, departmentIds?: string[]) {
   const [accountRows, customerRows] = await Promise.all([
     db
       .select({
@@ -476,7 +478,7 @@ export async function statsByStaff(range: Range, departmentIds: string[]) {
         and(
           eq(bankAccounts.status, "done"),
           accountCustomerDayBetween(range.from, range.to),
-          inArray(bankAccounts.createdByDepartmentId, departmentIds),
+          departmentIds ? inArray(bankAccounts.createdByDepartmentId, departmentIds) : undefined,
         ),
       )
       .groupBy(bankAccounts.createdBy),
@@ -490,7 +492,7 @@ export async function statsByStaff(range: Range, departmentIds: string[]) {
       .where(
         and(
           customersWithAccountsIn(range),
-          inArray(customers.createdByDepartmentId, departmentIds),
+          departmentIds ? inArray(customers.createdByDepartmentId, departmentIds) : undefined,
         ),
       )
       .groupBy(customers.createdBy),

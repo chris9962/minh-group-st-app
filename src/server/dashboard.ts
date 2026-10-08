@@ -811,6 +811,64 @@ function pointsByDepartmentFrom(
   return byDepartment;
 }
 
+type TopStaff = NonNullable<DashboardData["topStaff"]>;
+
+/**
+ * Người đứng đầu từng chỉ số trên toàn công ty, chỉ mặt `company` có (chốt
+ * 2026-10-08). Cùng cách đếm với bảng xếp hạng: ba số đầu gom theo người mở
+ * tài khoản, điểm gom theo người lập hồ sơ khách.
+ */
+async function topStaffOf(
+  stats: Awaited<ReturnType<typeof statsByStaff>>,
+  points: Map<string, { departmentId: string | null; points: number }>,
+  yearMonth: string,
+): Promise<TopStaff> {
+  const leader = (entries: [string, number][]) => {
+    let best: { id: string; value: number } | null = null;
+    for (const [id, value] of entries) if (value > 0 && (!best || value > best.value)) best = { id, value };
+    return best;
+  };
+  const counted = [...stats];
+  const leaders = {
+    customers: leader(counted.map(([id, s]) => [id, s.customers])),
+    appsInstalled: leader(counted.map(([id, s]) => [id, s.appsInstalled])),
+    accountsOpened: leader(counted.map(([id, s]) => [id, s.accountsOpened])),
+    points: leader([...points].map(([id, p]) => [id, p.points])),
+  };
+
+  const ids = [...new Set(Object.values(leaders).flatMap((l) => (l ? [l.id] : [])))];
+  const people =
+    ids.length === 0
+      ? []
+      : await db
+          .select({ id: users.id, name: users.fullName, departmentName: departments.name })
+          .from(users)
+          // Phòng của người đó TRONG tháng của kỳ đang xem, không phải phòng hiện tại.
+          .leftJoin(
+            staffRoster,
+            and(eq(staffRoster.userId, users.id), eq(staffRoster.yearMonth, yearMonth)),
+          )
+          .leftJoin(departments, eq(departments.id, staffRoster.departmentId))
+          .where(inArray(users.id, ids));
+  const byId = new Map(people.map((p) => [p.id, p]));
+
+  const card = (l: { id: string; value: number } | null) =>
+    l
+      ? {
+          id: l.id,
+          name: byId.get(l.id)?.name ?? "",
+          departmentName: byId.get(l.id)?.departmentName ?? "",
+          value: l.value,
+        }
+      : null;
+  return {
+    customers: card(leaders.customers),
+    appsInstalled: card(leaders.appsInstalled),
+    accountsOpened: card(leaders.accountsOpened),
+    points: card(leaders.points),
+  };
+}
+
 /* ── Ghép lại ──────────────────────────────────────────────────────────── */
 
 export async function dashboardFor(
@@ -831,6 +889,7 @@ export async function dashboardFor(
     points,
     previousPoints,
     companySalary,
+    companyStaffStats,
   ] =
     await Promise.all([
       bankingSummaryFor(v, actor.id, current),
@@ -859,7 +918,12 @@ export async function dashboardFor(
               return [...salaries.values()].reduce((sum, salary) => sum + salary.amount, 0);
             })
         : Promise.resolve(null),
+      v.kind === "company" ? statsByStaff(current) : Promise.resolve(null),
     ]);
+
+  const topStaff = companyStaffStats
+    ? await topStaffOf(companyStaffStats, points, current.from.slice(0, 7))
+    : null;
 
   /**
    * Điểm cuộn lên phòng, tính TẠI CHỖ từ bản đồ theo người — một lượt đọc dữ
@@ -925,6 +989,7 @@ export async function dashboardFor(
       // Lương của THÁNG chứa kỳ đang xem. Lương là số tháng, không tính theo
       // khoảng ngày của các số nghiệp vụ phía trên.
       companySalary,
+      topStaff,
       rankingKind: ranked.kind,
       departments: rowsWithPoints,
       services: servicesData,

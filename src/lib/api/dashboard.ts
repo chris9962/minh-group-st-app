@@ -112,6 +112,16 @@ export const BankingSummary = z.object({
 });
 export type BankingSummary = z.infer<typeof BankingSummary>;
 
+const TopStaffEntry = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    /** Phòng trong tháng của kỳ đang xem. `''` khi tháng đó người này không thuộc phòng nào. */
+    departmentName: z.string(),
+    value: z.number(),
+  })
+  .nullable();
+
 export const DashboardData = z.object({
   banking: BankingSummary.extend({
     /**
@@ -137,6 +147,19 @@ export const DashboardData = z.object({
     .default(null),
   /** Tổng lương động của toàn công ty trong tháng hiện tại; chỉ mặt công ty có. */
   companySalary: z.number().nullable().default(null),
+  /**
+   * Người đứng đầu từng chỉ số trên toàn công ty trong kỳ xem; chỉ mặt công ty
+   * có (chốt 2026-10-08). `null` ở một ô khi chưa ai có số đó.
+   */
+  topStaff: z
+    .object({
+      customers: TopStaffEntry,
+      appsInstalled: TopStaffEntry,
+      accountsOpened: TopStaffEntry,
+      points: TopStaffEntry,
+    })
+    .nullable()
+    .default(null),
   insurance: z.object({
     createdToday: z.number(),
     /** Bảo hiểm tai nạn hộ sử dụng điện. */
