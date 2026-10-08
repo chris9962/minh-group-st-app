@@ -148,7 +148,7 @@ export const MAX_DRAFTS_PER_STAFF_BY_TYPE: Record<AccountType, number> = {
  * chủ bản nháp nhận một thông báo "sắp bị xoá", đúng một lần. Xem
  * `expireDraftAccounts`.
  */
-export const DRAFT_TTL_MINUTES = 30;
+export const DRAFT_TTL_MINUTES = 45;
 export const DRAFT_WARN_LEAD_MINUTES = 5;
 
 /**

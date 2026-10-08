@@ -30,7 +30,7 @@ export const RELEASES: Release[] = [
         title: 'Ngân hàng',
         items: [
           'Mỗi ngân hàng, mỗi loại tài khoản chỉ giữ 1 bản nháp.',
-          'Bản nháp tự xoá sau đúng 30 phút kể từ lúc tạo, mã trả về kho.',
+          'Bản nháp tự xoá sau đúng 45 phút kể từ lúc tạo, mã trả về kho.',
           'App báo trước khi xoá 5 phút.',
         ],
         visibleTo: (user) => canOpenPath(user, '/banking'),
