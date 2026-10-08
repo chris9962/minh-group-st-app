@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
+import { ACCOUNT_TYPE_LABEL } from "@/lib/api/bankAccounts";
 import type { BankingSummary } from "@/lib/api/dashboard";
 import { formatCount } from "@/lib/format";
 
@@ -12,6 +13,12 @@ type Row = BankingSummary["accountsByBank"][number];
 
 const COLUMNS: RankColumn<Row>[] = [
   { key: "code", label: "Ngân hàng", sortText: (r) => r.code, render: (r) => r.code },
+  {
+    key: "accountType",
+    label: "Loại TK",
+    sortText: (r) => ACCOUNT_TYPE_LABEL[r.accountType],
+    render: (r) => ACCOUNT_TYPE_LABEL[r.accountType],
+  },
   {
     key: "accountsOpened",
     label: "Tài khoản mở",
@@ -60,12 +67,14 @@ export function BankAccountsDetail({
         <RankTable
           rows={summary.accountsByBank}
           columns={COLUMNS}
-          rowKey={(r) => r.code}
-          defaultSort="accountsOpened"
-          caption="Số tài khoản mở, app đã cài và tỉ lệ cài app của từng ngân hàng"
+          rowKey={(r) => `${r.code}-${r.accountType}`}
+          // Không trùng cột nào: giữ thứ tự máy chủ, các loại của một ngân hàng đứng liền nhau.
+          defaultSort="server"
+          caption="Số tài khoản mở, app đã cài và tỉ lệ cài app theo ngân hàng và loại tài khoản"
           emptyText="Chưa có tài khoản mở"
           summaryRow={[
             "Tổng",
+            "",
             formatCount(summary.accountsOpened),
             formatCount(summary.appsInstalled),
             `${summary.installPercent}%`,

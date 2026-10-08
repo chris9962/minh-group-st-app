@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { Period } from '@/components/ui/PeriodPicker';
 import { periodKey } from '@/components/ui/PeriodPicker';
 import { PersonDetail } from './person';
+import { AccountType } from './bankAccounts';
 
 /** Số liệu cho P-80 Dashboard tổng. */
 
@@ -84,8 +85,8 @@ export const BankingSummary = z.object({
    * trên, chỉ lọc thêm theo ngân hàng.
    */
   installRateByBank: z.array(BankCounts),
-  /** Mọi ngân hàng có tài khoản mở trong kỳ, nhiều tài khoản đứng trước. */
-  accountsByBank: z.array(BankCounts),
+  /** Mỗi cặp ngân hàng và loại tài khoản có tài khoản mở trong kỳ một dòng. */
+  accountsByBank: z.array(BankCounts.extend({ accountType: AccountType })),
   /**
    * Số hồ sơ khách LẬP trong kỳ — trục khác ba số trên (tài khoản MỞ trong
    * kỳ), vì thẻ này phải đếm được cả khách chưa hoàn thành tài khoản nào.

@@ -9,7 +9,8 @@ import { BUSINESS_TIMEZONE, businessDay } from "@/lib/format";
 import { periodRanges } from "@/lib/period";
 import { recordVisibility } from "@/lib/permissions";
 import type { User } from "@/lib/types";
-import { appsInstalledCount, variantOfAccount } from "./appCounted";
+import type { AccountType } from "@/lib/api/bankAccounts";
+import { appsInstalledCount, effectiveAccountType, variantOfAccount } from "./appCounted";
 import { accountCustomerDayBetween, customerDayBetween } from "./customerDay";
 import { db } from "./db/client";
 import {
@@ -292,11 +293,12 @@ const rateOf = (opened: number, installed: number): number =>
  */
 const INSTALL_RATE_BANKS = ["VPa", "MSBa"];
 
-async function countsByBank(
+/** Ngân hàng không có tài khoản nào trong kỳ vẫn có dòng, số 0. */
+async function installRateByBank(
   v: DashboardVisibility,
   actorId: string,
   range: Range,
-): Promise<BankingSummary["accountsByBank"]> {
+): Promise<BankingSummary["installRateByBank"]> {
   const rows = await db
     .select({
       code: banks.code,
@@ -307,21 +309,59 @@ async function countsByBank(
     .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
     .innerJoin(referralCodes, eq(referralCodes.id, bankAccounts.referralCodeId))
     .leftJoin(bankGuideVariants, variantOfAccount)
-    .where(doneInRange(v, actorId, range))
+    .where(and(doneInRange(v, actorId, range), inArray(banks.code, INSTALL_RATE_BANKS)))
     .groupBy(banks.code);
+
+  return INSTALL_RATE_BANKS.map((code) => {
+    const row = rows.find((r) => r.code === code);
+    const accountsOpened = row?.accountsOpened ?? 0;
+    const appsInstalled = row?.appsInstalled ?? 0;
+    return { code, percent: rateOf(accountsOpened, appsInstalled), appsInstalled, accountsOpened };
+  });
+}
+
+const ACCOUNT_TYPE_ORDER: AccountType[] = ["none", "CNKD", "HKD"];
+
+/**
+ * Mỗi cặp ngân hàng và loại tài khoản một dòng. Ngân hàng nhiều tài khoản
+ * đứng trước, trong một ngân hàng thì Thường, CNKD, HKD.
+ *
+ * App đếm riêng trong từng loại, nên cộng các loại của một ngân hàng có thể
+ * lớn hơn số app của ngân hàng đó: dòng chính và dòng HKD của cùng khách là
+ * một app (`appsInstalledCount`).
+ */
+async function countsByBankType(
+  v: DashboardVisibility,
+  actorId: string,
+  range: Range,
+): Promise<BankingSummary["accountsByBank"]> {
+  const accountType = sql<AccountType>`${effectiveAccountType}`;
+  const rows = await db
+    .select({
+      code: banks.code,
+      accountType,
+      accountsOpened: sql<number>`count(*)::int`,
+      appsInstalled: appsInstalledCount,
+    })
+    .from(bankAccounts)
+    .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
+    .innerJoin(referralCodes, eq(referralCodes.id, bankAccounts.referralCodeId))
+    .leftJoin(bankGuideVariants, variantOfAccount)
+    .where(doneInRange(v, actorId, range))
+    .groupBy(banks.code, accountType);
+
+  const bankTotal = new Map<string, number>();
+  for (const r of rows) bankTotal.set(r.code, (bankTotal.get(r.code) ?? 0) + r.accountsOpened);
 
   return rows
     .map((r) => ({ ...r, percent: rateOf(r.accountsOpened, r.appsInstalled) }))
-    .sort((a, b) => b.accountsOpened - a.accountsOpened || a.code.localeCompare(b.code));
+    .sort(
+      (a, b) =>
+        bankTotal.get(b.code)! - bankTotal.get(a.code)! ||
+        a.code.localeCompare(b.code) ||
+        ACCOUNT_TYPE_ORDER.indexOf(a.accountType) - ACCOUNT_TYPE_ORDER.indexOf(b.accountType),
+    );
 }
-
-/** Ngân hàng không có tài khoản nào trong kỳ vẫn có dòng, số 0. */
-const installRateByBank = (
-  byBank: BankingSummary["accountsByBank"],
-): BankingSummary["installRateByBank"] =>
-  INSTALL_RATE_BANKS.map(
-    (code) => byBank.find((r) => r.code === code) ?? { code, percent: 0, appsInstalled: 0, accountsOpened: 0 },
-  );
 
 /**
  * Khối số ngân hàng của một phạm vi trong một kỳ — Tổng quan P-80 và chi tiết
@@ -332,17 +372,18 @@ export async function bankingSummaryFor(
   actorId: string,
   range: Range,
 ): Promise<BankingSummary> {
-  const [totals, profiles, byBank] = await Promise.all([
+  const [totals, profiles, byBank, byBankType] = await Promise.all([
     bankingTotals(v, actorId, range),
     customersByAccounts(v, actorId, range),
-    countsByBank(v, actorId, range),
+    installRateByBank(v, actorId, range),
+    countsByBankType(v, actorId, range),
   ]);
   return {
     accountsOpened: totals.accountsOpened,
     appsInstalled: totals.appsInstalled,
     installPercent: rateOf(totals.accountsOpened, totals.appsInstalled),
-    installRateByBank: installRateByBank(byBank),
-    accountsByBank: byBank,
+    installRateByBank: byBank,
+    accountsByBank: byBankType,
     customers: profiles.customers,
     customersWithAccounts: profiles.customersWithAccounts,
     customersByAccounts: profiles.byAccounts,
