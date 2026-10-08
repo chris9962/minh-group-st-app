@@ -6,11 +6,41 @@ import type { Release, ReleaseSection } from './types';
 
 export type { Release, ReleaseSection } from './types';
 
+const seesCompanyDashboard = (user: User) =>
+  user.role === 'director' ||
+  (['banking', 'insurance', 'services'] as const).every((m) => scopeFor(user, m, 'view-detail') === 'company');
+
 /**
  * Bản MỚI NHẤT đứng đầu. Script `db:announce-release` lấy phần tử đầu tiên,
  * và trang `/releases` bày theo đúng thứ tự này.
  */
 export const RELEASES: Release[] = [
+  {
+    id: '2026-10-09',
+    version: '2.6.0',
+    title: 'Cập nhật ngày 09/10/2026',
+    summary: 'Chụp CCCD chỉ quét mã QR, Tổng quan thêm bảng tài khoản theo ngân hàng.',
+    sections: [
+      {
+        title: 'Khách hàng',
+        items: ['Chụp CCCD: đưa mã QR vào ô vuông giữa màn hình.'],
+        visibleTo: (user) => canOpenPath(user, '/customers'),
+      },
+      {
+        title: 'Tổng quan',
+        items: [
+          'Ô tài khoản mở có nút xem bảng theo ngân hàng, loại tài khoản.',
+          'Bảng có cột Lỗi, Chờ duyệt, Hoàn thành.',
+        ],
+        visibleTo: (user) => user.role !== 'staff' || seesCompanyDashboard(user),
+      },
+      {
+        title: 'Tổng quan toàn công ty',
+        items: ['Thêm khối Nhân viên dẫn đầu: khách có TK, app cài, TK mở, điểm cá nhân.'],
+        visibleTo: seesCompanyDashboard,
+      },
+    ],
+  },
   {
     id: '2026-10-08',
     version: '2.5.0',
