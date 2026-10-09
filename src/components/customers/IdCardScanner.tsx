@@ -25,6 +25,32 @@ type Shot = { file: File; preview: string };
 type Rect = { left: number; top: number; width: number; height: number };
 
 const CAMERA_FAILED = "Không mở được camera. Bạn cho phép trình duyệt dùng camera rồi bấm Thử lại.";
+const CAMERA_NO_PICTURE = "Camera không có hình. Bạn tắt các app đang dùng camera rồi bấm Thử lại.";
+
+/**
+ * Các mức xin camera, thử lần lượt. 4K trước vì QR trên CCCD mẫu cũ nhỏ, cần
+ * nhiều điểm ảnh. Có máy báo có 4K mà camera không gửi hình ở mức đó: luồng mở
+ * được nhưng màn đen. Quá `FIRST_FRAME_MS` chưa có hình thì đóng luồng, xin mức
+ * kế tiếp; mức cuối không kèm độ phân giải, để máy tự chọn như app camera.
+ */
+const CAMERA_TRIES: MediaTrackConstraints[] = [
+  { facingMode: { ideal: "environment" }, width: { ideal: 3840 }, height: { ideal: 2160 } },
+  { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+  { facingMode: { ideal: "environment" } },
+];
+const FIRST_FRAME_MS = 3000;
+
+/** `true` khi video có khung hình đầu tiên trong `ms`. */
+const firstFrame = (video: HTMLVideoElement, ms: number) =>
+  new Promise<boolean>((resolve) => {
+    const started = performance.now();
+    const check = () => {
+      if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && video.videoWidth > 0) return resolve(true);
+      if (performance.now() - started > ms) return resolve(false);
+      window.setTimeout(check, 200);
+    };
+    check();
+  });
 /** Giữ khung xanh một nhịp để người dùng thấy thẻ đã đọc được trước khi form hiện ra. */
 const DONE_FLASH_MS = 350;
 /** Quá lâu không đọc được QR thì viền khung về lại màu trắng. */
@@ -126,41 +152,43 @@ export function IdCardScanner({ onScanned, onCancel }: Props) {
     setCamera("starting");
     setError(null);
 
-    navigator.mediaDevices
-      .getUserMedia({
-        // Xin 4K: QR trên CCCD mẫu cũ chỉ rộng khoảng 1/8 bề ngang thẻ, video
-        // 1080p để lại quá ít điểm ảnh cho QR. Máy không có 4K thì trình duyệt
-        // tự hạ xuống mức cao nhất máy có.
-        video: {
-          facingMode: { ideal: "environment" },
-          width: { ideal: 3840 },
-          height: { ideal: 2160 },
-        },
-        audio: false,
-      })
-      .then((granted) => {
-        // Hộp thoại đã đóng trong lúc chờ người dùng cho phép.
-        if (cancelled) {
-          granted.getTracks().forEach((t) => t.stop());
+    const stop = () => {
+      stream?.getTracks().forEach((t) => t.stop());
+      stream = null;
+      video.srcObject = null;
+    };
+
+    const open = async () => {
+      for (const constraints of CAMERA_TRIES) {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({ video: constraints, audio: false });
+        } catch {
+          if (cancelled) return;
+          setCamera("failed");
+          setError(CAMERA_FAILED);
           return;
         }
-        stream = granted;
-        video.srcObject = granted;
+        // Hộp thoại đã đóng trong lúc chờ người dùng cho phép.
+        if (cancelled) return stop();
+        video.srcObject = stream;
         // iOS Safari chỉ tự chạy khi có `muted` + `playsInline`; gọi `play()`
         // cho máy không tự chạy, lỗi của nó không có gì để xử lý.
         void video.play().catch(() => {});
-        setCamera("live");
-      })
-      .catch(() => {
+        if (await firstFrame(video, FIRST_FRAME_MS)) {
+          if (!cancelled) setCamera("live");
+          return;
+        }
+        stop();
         if (cancelled) return;
-        setCamera("failed");
-        setError(CAMERA_FAILED);
-      });
+      }
+      setCamera("failed");
+      setError(CAMERA_NO_PICTURE);
+    };
+    void open();
 
     return () => {
       cancelled = true;
-      stream?.getTracks().forEach((t) => t.stop());
-      video.srcObject = null;
+      stop();
     };
   }, [attempt]);
 
