@@ -460,6 +460,29 @@ export const customerEditRevocations = pgTable("customer_edit_revocations", {
   revokedAt: timestamp("revoked_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+/**
+ * Chụp CCCD khi tạo khách theo từng người (migration 0132, chốt 2026-10-09).
+ * Mức mặc định tối đa một dòng; chưa có dòng thì đọc biến `ID_CARD_SCAN`. Người
+ * có dòng ở `idCardScanOverrides` theo dòng đó. Xem `server/idCardScanMode.ts`.
+ */
+export const idCardScanDefault = pgTable(
+  "id_card_scan_default",
+  {
+    id: smallint("id").primaryKey().default(1),
+    enabled: boolean("enabled").notNull(),
+    updatedBy: uuid("updated_by").notNull().references(() => users.id),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  () => [check("id_card_scan_default_single_row", sql`id = 1`)],
+);
+
+export const idCardScanOverrides = pgTable("id_card_scan_overrides", {
+  userId: uuid("user_id").primaryKey().references(() => users.id),
+  enabled: boolean("enabled").notNull(),
+  updatedBy: uuid("updated_by").notNull().references(() => users.id),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const sessions = pgTable(
   "sessions",
   {

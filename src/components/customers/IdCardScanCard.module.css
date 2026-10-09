@@ -1,6 +1,30 @@
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
 .row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3);
+}
+
+.overrides {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.subTitle {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--om-text);
+}
+
+.picker {
+  flex: 1 1 260px;
+  min-width: 0;
 }
