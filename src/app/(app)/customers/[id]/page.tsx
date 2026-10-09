@@ -284,6 +284,8 @@ export default function CustomerDetailPage({
 
   // Hồ sơ tháng cũ không tặng, đổi quà hay mở ngân hàng nữa (chốt 2026-10-05).
   const currentMonthProfile = data?.customer.createdAt.slice(0, 7) === businessMonth();
+  // Địa chỉ ghi riêng từng hồ sơ, nên khách có nhiều hồ sơ thì dòng nào cũng phải ghi hồ sơ nào.
+  const showChangeSeq = !!data && (data.customer.seq > 1 || data.changes.some((c) => c.seq > 1));
 
   return (
     <>
@@ -900,10 +902,11 @@ export default function CustomerDetailPage({
               </p>
             </SectionCard>
 
-            {/* Thông tin cá nhân đồng bộ giữa MỌI LẦN của một người, nên khối
-                này đọc chung cho cả nhóm — mở hồ sơ lần nào cũng thấy một dòng
-                thời gian. Không có nó thì nhân viên A sửa địa chỉ, nhân viên B
-                thấy khác lúc mình nhập và không tra được ai đổi. */}
+            {/* Tên, ngày sinh, CCCD, số điện thoại đồng bộ giữa MỌI LẦN của một
+                người, nên khối này đọc chung cho cả nhóm — mở hồ sơ lần nào cũng
+                thấy một dòng thời gian. Không có nó thì nhân viên A sửa số điện
+                thoại, nhân viên B thấy khác lúc mình nhập và không tra được ai
+                đổi. Địa chỉ ghi riêng từng hồ sơ (chốt 2026-10-09). */}
             {data.changes.length > 0 && (
               <SectionCard title="Lịch sử sửa thông tin" icon={<History size={17} />}>
                 <ol className={styles.changeList}>
@@ -911,7 +914,7 @@ export default function CustomerDetailPage({
                     <li key={c.id}>
                       <span className={styles.changeHead}>
                         {c.changedByName || "Người dùng đã xoá"} - {formatDateTime(c.changedAt)}
-                        {c.seq > 1 && ` - hồ sơ ${c.seq}`}
+                        {showChangeSeq && ` - hồ sơ ${c.seq}`}
                       </span>
                       {/* Lượt xoá hồ sơ không có trường nào. Dòng CCCD ghi
                           trước 2026-09-13 cố ý để rỗng hai giá trị, in mũi tên

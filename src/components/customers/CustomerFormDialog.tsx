@@ -567,7 +567,6 @@ type DuplicateDialogProps = {
 const ROW_LABEL: Record<DuplicateField, string> = {
   fullName: "Tên",
   dob: "Ngày sinh",
-  address: "Địa chỉ",
 };
 
 /**
@@ -595,7 +594,6 @@ function DuplicateDialog({ info, typed, pending, onClose, onCreate }: DuplicateD
   const rows: [DuplicateField, string, string][] = [
     ["fullName", info.existing.fullName, typed.fullName],
     ["dob", dobText(info.existing.dob), dobText(typed.dob)],
-    ["address", info.existing.address, typed.address],
   ];
 
   return (
@@ -618,8 +616,8 @@ function DuplicateDialog({ info, typed, pending, onClose, onCreate }: DuplicateD
     >
       {lech.length === 0 ? (
         <p>
-          CCCD {typed.idNumber} đã có hồ sơ {info.existing.fullName}. Tên, ngày sinh, địa chỉ khớp
-          với hồ sơ đang có. Tạo hồ sơ lần {info.nextSeq} để mở combo mới?
+          CCCD {typed.idNumber} đã có hồ sơ {info.existing.fullName}. Tên, ngày sinh khớp với hồ
+          sơ đang có. Tạo hồ sơ lần {info.nextSeq} để mở combo mới?
         </p>
       ) : (
         <div className={styles.compare}>

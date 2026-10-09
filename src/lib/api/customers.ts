@@ -452,13 +452,12 @@ export const CUSTOMER_ERROR = {
  * 2026-08-18): một lượt ghi hỏng không được kéo theo một lượt đọc hồ sơ người
  * khác. `openDraftId` chỉ nói hồ sơ dở dang ấy là CỦA CHÍNH người đang gõ.
  */
-export const DuplicateField = z.enum(['fullName', 'dob', 'address']);
+export const DuplicateField = z.enum(['fullName', 'dob']);
 export type DuplicateField = z.infer<typeof DuplicateField>;
 
 export const DUPLICATE_FIELD_LABEL: Record<DuplicateField, string> = {
   fullName: 'tên',
   dob: 'ngày sinh',
-  address: 'địa chỉ',
 };
 
 export const DuplicateIdInfo = z.object({
@@ -467,13 +466,12 @@ export const DuplicateIdInfo = z.object({
   rootId: z.string(),
   openDraftId: z.string().nullable(),
   /**
-   * Ba trường của hồ sơ gốc để nhân viên đối chiếu với khách (chốt
-   * 2026-09-06). Không có số điện thoại, không có số bản ghi.
+   * Hai trường của hồ sơ gốc để nhân viên đối chiếu với khách (chốt
+   * 2026-09-06, bỏ địa chỉ 2026-10-09). Không có số điện thoại, không có số bản ghi.
    */
   existing: z.object({
     fullName: z.string(),
     dob: z.string().nullable(),
-    address: z.string(),
     createdByName: z.string(),
     createdByDepartmentName: z.string(),
   }),
@@ -710,8 +708,9 @@ export const CustomerDetail = z.object({
   /**
    * Nhật ký sửa thông tin, mới nhất trước — chung cho MỌI LẦN của người này.
    *
-   * Thông tin cá nhân đồng bộ giữa các lần, nên một lượt sửa thuộc về cả nhóm.
-   * Hồ sơ nào cũng đọc chung một dòng thời gian.
+   * Tên, ngày sinh, CCCD, số điện thoại đồng bộ giữa các lần, nên một lượt sửa
+   * thuộc về cả nhóm. Hồ sơ nào cũng đọc chung một dòng thời gian. Dòng địa chỉ
+   * thuộc riêng hồ sơ ghi ở `seq` (chốt 2026-10-09).
    */
   changes: z.array(CustomerChange),
   /**

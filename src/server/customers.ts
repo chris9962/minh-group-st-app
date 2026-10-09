@@ -916,29 +916,31 @@ async function openDraftOf(rootId: string, actorId: string): Promise<string | nu
  * giá trị này chỉ đủ để giao diện chọn giữa "tạo thêm lần" và "bạn đang có một
  * lần chưa chốt quà".
  */
-/** Ba trường máy chủ đem so với hồ sơ gốc khi CCCD trùng. Kênh không so. */
-export type DuplicateField = "fullName" | "dob" | "address";
+/**
+ * Hai trường máy chủ đem so với hồ sơ gốc khi CCCD trùng. Kênh và địa chỉ không
+ * so (địa chỉ bỏ từ 2026-10-09): mỗi hồ sơ giữ địa chỉ riêng.
+ */
+export type DuplicateField = "fullName" | "dob";
 
 /**
- * Hồ sơ gốc đang giữ CCCD này, kèm ba trường để nhân viên đối chiếu với khách
+ * Hồ sơ gốc đang giữ CCCD này, kèm hai trường để nhân viên đối chiếu với khách
  * đang ngồi trước mặt (chủ dự án chốt 2026-09-06, đảo lại chốt 2026-08-18).
  *
  * Trùng CCCD chưa chắc là cùng một người: gõ nhầm một số là đụng hồ sơ của
- * người khác. Tên, ngày sinh, địa chỉ lệch thì giao diện bày hai cột cho nhân
- * viên hỏi khách, và cho chọn ghi theo bên nào. Tên và địa chỉ so sau khi bỏ
- * dấu, gộp khoảng trắng, không phân biệt hoa thường; ngày sinh so đúng chuỗi.
+ * người khác. Tên, ngày sinh lệch thì giao diện bày hai cột cho nhân viên hỏi
+ * khách. Tên so sau khi bỏ dấu, gộp khoảng trắng, không phân biệt hoa thường;
+ * ngày sinh so đúng chuỗi.
  */
 export async function duplicateIdNumberInfo(
   idNumber: string,
   actorId: string,
-  form: Pick<CustomerForm, "fullName" | "dob" | "address">,
+  form: Pick<CustomerForm, "fullName" | "dob">,
 ): Promise<{
   rootId: string;
   openDraftId: string | null;
   existing: {
     fullName: string;
     dob: string | null;
-    address: string;
     createdByName: string;
     createdByDepartmentName: string;
   };
@@ -950,7 +952,6 @@ export async function duplicateIdNumberInfo(
       id: customers.id,
       fullName: customers.fullName,
       dob: customers.dob,
-      address: customers.address,
       createdByName: sql<string>`coalesce(${users.fullName}, '')`,
       createdByDepartmentName: sql<string>`coalesce(${departments.name}, '')`,
       maxSeq: sql<number>`(select coalesce(max(seq), 0) from ${customers} c2 where c2.root_customer_id = ${customers.id})`,
@@ -968,7 +969,6 @@ export async function duplicateIdNumberInfo(
     existing: {
       fullName: root.fullName,
       dob: root.dob,
-      address: root.address,
       createdByName: root.createdByName,
       createdByDepartmentName: root.createdByDepartmentName,
     },
@@ -978,13 +978,12 @@ export async function duplicateIdNumberInfo(
 }
 
 function mismatchAgainst(
-  root: { fullName: string; dob: string | null; address: string },
-  form: Pick<CustomerForm, "fullName" | "dob" | "address">,
+  root: { fullName: string; dob: string | null },
+  form: Pick<CustomerForm, "fullName" | "dob">,
 ): DuplicateField[] {
   const mismatch: DuplicateField[] = [];
   if (searchKey(root.fullName) !== searchKey(form.fullName)) mismatch.push("fullName");
   if ((root.dob ?? "") !== (form.dob ?? "")) mismatch.push("dob");
-  if (searchKey(root.address) !== searchKey(form.address)) mismatch.push("address");
   return mismatch;
 }
 
@@ -1033,12 +1032,15 @@ async function writeGuarded<T>(run: () => Promise<T>): Promise<CustomerOutcome<T
  * Có `linkToRootId` thì CCCD trùng là chuyện đúng — khoá duy nhất chỉ áp cho hồ
  * sơ gốc. Chốt duy nhất ở đây là một người không giữ hai lần dở dang cùng lúc.
  *
- * Tên, ngày sinh, địa chỉ PHẢI khớp hồ sơ gốc (chốt 2026-09-13, thay chốt
- * 2026-09-06 cho chọn "dùng bên nào"). Lệch là từ chối: nhân viên sửa biểu mẫu
- * cho khớp rồi gửi lại, hoặc kiểm lại CCCD. Lý do: 2026-09-13 một nhân viên gõ
- * CCCD của khách khác, nối vào rồi sửa hồ sơ lần 2, đồng bộ nhóm ghi đè trọn
- * hồ sơ gốc có 3 tài khoản và quà đã phát. Hồ sơ mới chép ba trường đó từ gốc,
- * không lấy từ biểu mẫu, để không sinh dòng nhật ký vì lệch hoa thường hay dấu.
+ * Tên, ngày sinh PHẢI khớp hồ sơ gốc (chốt 2026-09-13, thay chốt 2026-09-06
+ * cho chọn "dùng bên nào"). Lệch là từ chối: nhân viên sửa biểu mẫu cho khớp
+ * rồi gửi lại, hoặc kiểm lại CCCD. Lý do: 2026-09-13 một nhân viên gõ CCCD của
+ * khách khác, nối vào rồi sửa hồ sơ lần 2, đồng bộ nhóm ghi đè trọn hồ sơ gốc
+ * có 3 tài khoản và quà đã phát. Hồ sơ mới chép hai trường đó từ gốc, không lấy
+ * từ biểu mẫu, để không sinh dòng nhật ký vì lệch hoa thường hay dấu.
+ *
+ * Địa chỉ lấy từ biểu mẫu, không so với gốc (chốt 2026-10-09): kênh Ấp lấy địa
+ * chỉ làm chi tiết kênh, mà khách mở lần 2 ở ấp khác lần 1.
  *
  * `idCardImage` là KHOÁ ảnh thẻ CCCD đã nằm trong kho (chốt 2026-10-06). Route
  * đọc QR và lưu ảnh trước khi gọi vào đây, mọi vai đều phải có ảnh; `null` chỉ
@@ -1053,8 +1055,7 @@ export async function createCustomer(
   | CustomerOutcome<Customer>
   | { ok: false; reason: "open-draft-exists" | "id-number-mismatch" | "info-mismatch" }
 > {
-  let goc: { fullName: string; dob: string | null; address: string; socialInsuranceCode: string | null } | null =
-    null;
+  let goc: { fullName: string; dob: string | null; socialInsuranceCode: string | null } | null = null;
   if (linkToRootId) {
     const [root] = await db
       .select({
@@ -1062,7 +1063,6 @@ export async function createCustomer(
         idNumber: customers.idNumber,
         fullName: customers.fullName,
         dob: customers.dob,
-        address: customers.address,
         socialInsuranceCode: customers.socialInsuranceCode,
       })
       .from(customers)
@@ -1087,7 +1087,6 @@ export async function createCustomer(
     goc = {
       fullName: root.fullName,
       dob: root.dob,
-      address: root.address,
       socialInsuranceCode: root.socialInsuranceCode,
     };
   }
@@ -1143,7 +1142,7 @@ export async function createCustomer(
           dob: goc ? goc.dob : form.dob || null,
           idNumber: form.idNumber || null,
           idCardImage,
-          address: goc ? goc.address : form.address,
+          address: form.address,
           // Mã số BHXH là của người, mọi lần mở hồ sơ mang cùng mã.
           socialInsuranceCode: goc?.socialInsuranceCode ?? null,
           channelId: form.channelId || null,
@@ -1159,8 +1158,8 @@ export async function createCustomer(
       /**
        * Lần mới ĐỒNG BỘ số điện thoại lên các lần cũ, và ghi nhật ký nếu khác.
        *
-       * Ba trường kia đã kiểm khớp và chép từ gốc nên không đổi gì; chỉ còn số
-       * điện thoại là thứ người tạo lần mới gõ và có thể mới hơn. Không có bước
+       * Tên và ngày sinh đã kiểm khớp và chép từ gốc nên không đổi gì; chỉ còn
+       * số điện thoại là thứ người tạo lần mới gõ và có thể mới hơn. Không có bước
        * này thì ngay sau lượt tạo, lần 1 và lần 2 mang hai số khác nhau — đúng
        * thứ luật đồng bộ sinh ra để chặn.
        */
@@ -1172,7 +1171,7 @@ export async function createCustomer(
           mocId: linkToRootId,
           seq,
           actorId: actor.id,
-          form: { ...form, fullName: goc.fullName, dob: goc.dob ?? "", address: goc.address },
+          form: { ...form, fullName: goc.fullName, dob: goc.dob ?? "" },
           ghiCccd: false,
         });
 
@@ -1259,11 +1258,12 @@ async function ghiNhatKy(
 }
 
 /**
- * Ghi TOÀN BỘ thông tin cá nhân của `form` lên MỌI LẦN cùng root, kèm nhật ký.
+ * Ghi tên, ngày sinh, CCCD, số điện thoại của `form` lên MỌI LẦN cùng root, kèm
+ * nhật ký. Kênh và địa chỉ chỉ ghi lên hồ sơ `customerId`.
  *
  * Dùng chung cho hai đường ghi — sửa hồ sơ, và tạo thêm một lần. Hai đường phải
  * đi qua đây chứ không tự viết lấy: lệch nhau nghĩa là một đường đồng bộ còn
- * đường kia không, và hai lần của một người mang hai địa chỉ.
+ * đường kia không, và hai lần của một người mang hai số điện thoại.
  *
  * `mocId` là hồ sơ lấy làm bản CŨ để so. Lượt sửa thì chính hồ sơ đang sửa;
  * lượt tạo lần mới thì hồ sơ gốc, vì hồ sơ vừa tạo đã mang giá trị mới rồi.
@@ -1290,12 +1290,18 @@ async function dongBoNhom(
       fullName: customers.fullName,
       dob: customers.dob,
       idNumber: customers.idNumber,
-      address: customers.address,
     })
     .from(customers)
     .where(eq(customers.id, mocId))
     .limit(1);
   if (!truoc) return;
+
+  // Địa chỉ là của từng hồ sơ, nên bản cũ đọc ở hồ sơ đang ghi chứ không ở `mocId`.
+  const [diaChiTruoc] = await tx
+    .select({ address: customers.address })
+    .from(customers)
+    .where(eq(customers.id, customerId))
+    .limit(1);
 
   const phoneTruoc = await tx
     .select({ number: customerPhones.number, isPrimary: customerPhones.isPrimary })
@@ -1310,12 +1316,16 @@ async function dongBoNhom(
    * hồ sơ 2 qua kênh Bệnh viện. Mọi chỗ đọc kênh đều đọc theo TỪNG hồ sơ — luật
    * quà, bảng nhân sự, tài khoản ngân hàng chép kênh lúc mở, file xuất Excel —
    * nên giữ riêng là đúng, và rổ quà của hồ sơ anh em cũng không phải tính lại.
+   *
+   * ĐỊA CHỈ CŨNG KHÔNG ĐỒNG BỘ (chốt 2026-10-09). Kênh Ấp lấy địa chỉ làm chi
+   * tiết kênh, mà đội KD gặp cùng một khách ở ấp khác nhau mỗi lần mở.
    */
   await tx
     .update(customers)
     .set({
       channelId: form.channelId || null,
       channelDetail: form.channelDetail,
+      address: form.address,
       updatedAt: new Date(),
     })
     .where(eq(customers.id, customerId));
@@ -1329,7 +1339,6 @@ async function dongBoNhom(
       dob: form.dob || null,
       // Rỗng là "không đụng tới", không phải "xoá" — xem ba nhóm ở `updateCustomer`.
       ...(ghiCccd ? { idNumber: form.idNumber } : {}),
-      address: form.address,
       updatedAt: new Date(),
     })
     .where(eq(customers.rootCustomerId, rootCustomerId));
@@ -1343,21 +1352,6 @@ async function dongBoNhom(
       .where(eq(bankAccounts.rootCustomerId, rootCustomerId));
     for (const account of accounts) await enqueuePhotoCheck(tx, account.id);
   }
-
-  /**
-   * Kênh Ấp và Định danh lấy ĐỊA CHỈ làm chi tiết kênh (spec §U9), mà địa chỉ
-   * thì đồng bộ. Không chạy câu này thì hồ sơ anh em mang kênh loại đó giữ
-   * nguyên địa chỉ cũ trong cột chi tiết, lệch với cột địa chỉ ngay bên cạnh.
-   */
-  await tx
-    .update(customers)
-    .set({ channelDetail: form.address })
-    .where(
-      and(
-        eq(customers.rootCustomerId, rootCustomerId),
-        sql`exists (select 1 from ${channels} c where c.id = ${customers.channelId} and c.input_kind = 'ward-hamlet')`,
-      ),
-    );
 
   /**
    * Số điện thoại xoá theo NHÓM rồi chèn lại cho từng hồ sơ.
@@ -1384,7 +1378,7 @@ async function dongBoNhom(
     truoc: {
       fullName: truoc.fullName,
       dob: truoc.dob ?? "",
-      address: truoc.address,
+      address: diaChiTruoc?.address ?? "",
       phones: phoneLabel(phoneTruoc),
     },
     sau: {
@@ -1490,7 +1484,8 @@ export async function updateCustomer(
       if (!ton) return false;
 
       /**
-       * Mọi thông tin cá nhân đi chung cho cả nhóm (chốt 2026-09-05).
+       * Thông tin cá nhân đi chung cho cả nhóm (chốt 2026-09-05), trừ địa chỉ
+       * (chốt 2026-10-09).
        *
        * `mocId` là chính hồ sơ đang sửa: mọi lần đã mang cùng giá trị, và người
        * sửa đối chiếu với thứ họ đang nhìn.
@@ -1845,8 +1840,9 @@ export async function customerDetailFor(
   if (!customer) return null;
 
   /**
-   * Nhật ký đọc theo NHÓM, không theo hồ sơ đang mở: thông tin cá nhân đồng bộ
-   * giữa các lần nên một lượt sửa thuộc về cả nhóm.
+   * Nhật ký đọc theo NHÓM, không theo hồ sơ đang mở: tên, ngày sinh, CCCD, số
+   * điện thoại đồng bộ giữa các lần nên một lượt sửa thuộc về cả nhóm. Dòng địa
+   * chỉ thuộc riêng một hồ sơ (chốt 2026-10-09); giao diện ghi kèm số hồ sơ.
    *
    * Cắt 50 dòng gần nhất. Khối này để tra "ai đổi cái gì", không phải để lật
    * trang; hồ sơ sửa quá 50 lượt thì phần cũ tra ở nhật ký hệ thống.

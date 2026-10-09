@@ -171,7 +171,7 @@ export async function POST(request: Request) {
 
     /**
      * Trả kèm `rootId` để giao diện hỏi lại "tạo hồ sơ mới cho khách này?", và
-     * trả cả tên, ngày sinh, địa chỉ của hồ sơ gốc cùng danh sách trường lệch
+     * trả cả tên, ngày sinh của hồ sơ gốc cùng danh sách trường lệch
      * (chủ dự án chốt 2026-09-06, đảo lại chốt 2026-08-18): trùng CCCD chưa
      * chắc là cùng người, nhân viên phải đối chiếu với khách trước khi nối.
      * Số điện thoại và số bản ghi vẫn không trả.
