@@ -2370,6 +2370,27 @@ export const feedbacks = pgTable(
 );
 
 /**
+ * Lỗi phía trình duyệt gửi về qua `POST /api/client-errors` (migration 0131,
+ * chốt 2026-10-09). Trước mắt dùng để soi lỗi camera ở màn chụp CCCD; chưa có
+ * màn xem, đọc bằng SQL. `user_agent` máy chủ lấy từ header, không nhận từ body.
+ */
+export const clientErrors = pgTable(
+  "client_errors",
+  {
+    id: id(),
+    userId: uuid("user_id").references(() => users.id),
+    /** Nơi phát lỗi, ví dụ `id-card-camera`. */
+    source: text("source").notNull(),
+    message: text("message").notNull(),
+    detail: jsonb("detail").notNull().default({}),
+    userAgent: text("user_agent").notNull().default(""),
+    path: text("path").notNull().default(""),
+    createdAt: createdAt(),
+  },
+  (t) => [index("client_errors_created").on(t.createdAt.desc())],
+);
+
+/**
  * Một dòng cho một THIẾT BỊ đã cho phép nhận thông báo đẩy, không phải một dòng
  * cho một người. Người dùng có điện thoại và máy tính là hai dòng.
  *

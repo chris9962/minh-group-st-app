@@ -911,6 +911,13 @@
       "when": 1789891400056,
       "tag": "0130_customer_edit_revocations",
       "breakpoints": true
+    },
+    {
+      "idx": 131,
+      "version": "7",
+      "when": 1789891400057,
+      "tag": "0131_client_errors",
+      "breakpoints": true
     }
   ]
 }

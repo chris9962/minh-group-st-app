@@ -9,6 +9,7 @@ import {
   parseIdCardQr,
   type IdCardQr,
 } from "@/lib/idCardQr";
+import { reportClientError } from "@/lib/api/clientErrors";
 import { readQrPixels } from "@/lib/readQrImage";
 import styles from "./IdCardScanner.module.scss";
 
@@ -39,6 +40,17 @@ const CAMERA_TRIES: MediaTrackConstraints[] = [
   { facingMode: { ideal: "environment" } },
 ];
 const FIRST_FRAME_MS = 3000;
+
+const errorInfo = (e: unknown) =>
+  e instanceof Error ? { name: e.name, message: e.message } : { name: "unknown", message: String(e) };
+
+/** Camera trình duyệt đã chọn và mức nó thật sự trả về, để biết máy nào đen ở mức nào. */
+const trackInfo = (stream: MediaStream | null) => {
+  const track = stream?.getVideoTracks()[0];
+  return track
+    ? { label: track.label, readyState: track.readyState, muted: track.muted, settings: track.getSettings() }
+    : null;
+};
 
 /** `true` khi video có khung hình đầu tiên trong `ms`. */
 const firstFrame = (video: HTMLVideoElement, ms: number) =>
@@ -159,11 +171,13 @@ export function IdCardScanner({ onScanned, onCancel }: Props) {
     };
 
     const open = async () => {
-      for (const constraints of CAMERA_TRIES) {
+      for (const [index, constraints] of CAMERA_TRIES.entries()) {
+        const at = { try: index + 1, constraints };
         try {
           stream = await navigator.mediaDevices.getUserMedia({ video: constraints, audio: false });
-        } catch {
+        } catch (e) {
           if (cancelled) return;
+          reportClientError("id-card-camera", "getUserMedia bị từ chối", { ...at, ...errorInfo(e) });
           setCamera("failed");
           setError(CAMERA_FAILED);
           return;
@@ -172,15 +186,27 @@ export function IdCardScanner({ onScanned, onCancel }: Props) {
         if (cancelled) return stop();
         video.srcObject = stream;
         // iOS Safari chỉ tự chạy khi có `muted` + `playsInline`; gọi `play()`
-        // cho máy không tự chạy, lỗi của nó không có gì để xử lý.
-        void video.play().catch(() => {});
+        // cho máy không tự chạy. `AbortError` là do chính `stop()` đổi nguồn video, không phải lỗi.
+        video.play().catch((e) => {
+          if (!cancelled && errorInfo(e).name !== "AbortError")
+            reportClientError("id-card-camera", "video.play lỗi", { ...at, ...errorInfo(e) });
+        });
         if (await firstFrame(video, FIRST_FRAME_MS)) {
           if (!cancelled) setCamera("live");
           return;
         }
+        if (!cancelled)
+          reportClientError("id-card-camera", "Camera không có hình sau 3 giây", {
+            ...at,
+            readyState: video.readyState,
+            videoWidth: video.videoWidth,
+            videoHeight: video.videoHeight,
+            track: trackInfo(stream),
+          });
         stop();
         if (cancelled) return;
       }
+      reportClientError("id-card-camera", "Cả 3 mức camera đều không có hình", { tries: CAMERA_TRIES.length });
       setCamera("failed");
       setError(CAMERA_NO_PICTURE);
     };
