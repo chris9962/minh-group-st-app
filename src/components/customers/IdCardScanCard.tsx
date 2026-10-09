@@ -98,7 +98,10 @@ function IdCardScanOverrides({ overrides }: { overrides: IdCardScanOverride[] })
   const taken = new Set(overrides.map((o) => o.userId));
   const staffOptions = (staff.data ?? [])
     .filter((s) => !taken.has(s.id))
-    .map((s) => ({ value: s.id, label: s.departmentName ? `${s.fullName} - ${s.departmentName}` : s.fullName }));
+    .map((s) => ({
+      value: s.id,
+      label: [s.staffCode, s.fullName, s.departmentName].filter(Boolean).join(" - "),
+    }));
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["ops", "id-card-scan"] });
   const save = useMutation({
