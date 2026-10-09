@@ -48,6 +48,10 @@ const HIDE_CODE_BY_DEFAULT: Record<string, AccountType[]> = {
   VPb: ["none", "CNKD"],
 };
 
+/** Tổng số lượt điền sẵn khi thêm mã mới, mọi loại tài khoản (chủ dự án chốt 2026-10-09). */
+const TOTAL_BY_BANK: Record<string, number> = { VPa: 5, VPb: 5 };
+const DEFAULT_TOTAL = 100;
+
 /**
  * P-61 · Thêm / sửa một mã giới thiệu lẻ. Nhập hàng loạt từ Excel là việc của P-62.
  *
@@ -91,7 +95,7 @@ export function ReferralCodeFormDialog({ open, onClose, referral }: Props) {
       code: referral?.code ?? "",
       daoSale: referral?.daoSale ?? "",
       hideCode: referral?.hideCode ?? false,
-      total: referral?.total ?? 100,
+      total: referral?.total ?? DEFAULT_TOTAL,
       openUrl: referral?.openUrl ?? "",
       priority: referral?.priority ?? 0,
       accountType: referral?.accountType ?? "none",
@@ -148,6 +152,12 @@ export function ReferralCodeFormDialog({ open, onClose, referral }: Props) {
     setValue("hideCode", HIDE_CODE_BY_DEFAULT[bankCode]?.includes(accountType) ?? false, {
       shouldDirty: true,
     });
+  };
+
+  const fillTotal = (bankId: string) => {
+    if (editing) return;
+    const bankCode = banks.find((b) => b.id === bankId)?.code ?? "";
+    setValue("total", TOTAL_BY_BANK[bankCode] ?? DEFAULT_TOTAL, { shouldDirty: true });
   };
 
   const save = useMutation({
@@ -217,6 +227,7 @@ export function ReferralCodeFormDialog({ open, onClose, referral }: Props) {
             onChange={(v) => {
               setValue("bankId", v, { shouldDirty: true });
               tickHideCode(v, watch("accountType"));
+              fillTotal(v);
             }}
             options={[
               { value: "", label: "— Chọn ngân hàng —" },
