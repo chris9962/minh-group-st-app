@@ -3,6 +3,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Cpu, Images, ShieldCheck } from "lucide-react";
 import { useMemo, useState } from "react";
+import { DraftLimitCard } from "@/components/banking/DraftLimitCard";
 import { CertificateWait } from "@/components/insurance/CertificateWait";
 import { CustomerEditLockCard } from "@/components/customers/CustomerEditLockCard";
 import { IdCardScanCard } from "@/components/customers/IdCardScanCard";
@@ -18,6 +19,7 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { SearchField } from "@/components/ui/SearchField";
 import { SectionCard } from "@/components/ui/SectionCard";
+import { SectionTabs } from "@/components/ui/SectionTabs";
 import { SegmentedTabs } from "@/components/ui/SegmentedTabs";
 import { Select } from "@/components/ui/Select";
 import { SkeletonTable } from "@/components/ui/Skeleton";
@@ -67,6 +69,14 @@ import styles from "./page.module.scss";
  * Tự tải lại mỗi 60 giây: ba khối đều là trạng thái hiện tại, mở màn ra rồi để
  * đó mà số đứng yên thì người xem tưởng hàng đợi không nhúc nhích.
  */
+
+// Chia tab từ 2026-10-09: bảy khối trên một trang dài khó tìm.
+const TABS = [
+  { value: "server", label: "Máy chủ" },
+  { value: "insurance", label: "Bảo hiểm" },
+  { value: "customers", label: "Khách hàng" },
+] as const;
+type Tab = (typeof TABS)[number]["value"];
 
 const minutesLabel = (minutes: number): string =>
   minutes >= 60 ? `${Math.floor(minutes / 60)} giờ ${minutes % 60} phút` : `${minutes} phút`;
@@ -123,6 +133,7 @@ export default function OpsPage() {
   const canRefresh = can(user, "insurance", "update");
   const queryClient = useQueryClient();
 
+  const [tab, setTab] = useState<Tab>("server");
   const [days, setDays] = useState(OPS_DEFAULT_DAYS);
   const [filter, setFilter] = useState<Omit<OpsOrderFilter, "search">>({
     product: OPS_ORDER_DEFAULT_PRODUCT,
@@ -144,7 +155,7 @@ export default function OpsPage() {
   const { data, isPending, isError, refetch, isFetching } = useQuery({
     queryKey: ["ops", days],
     queryFn: () => fetchOpsSummary(days),
-    enabled: canView,
+    enabled: canView && tab !== "customers",
     refetchInterval: 60_000,
     placeholderData: keepPreviousData,
   });
@@ -152,7 +163,7 @@ export default function OpsPage() {
   const orders = useQuery({
     queryKey: ["ops", "orders", page, dir, filter.product, filter.status, searchQuery],
     queryFn: () => fetchOpsOrders({ page, sort: "orderCode", dir }, { ...filter, search: searchQuery }),
-    enabled: canView,
+    enabled: canView && tab === "insurance",
     refetchInterval: 60_000,
     placeholderData: keepPreviousData,
   });
@@ -283,249 +294,270 @@ export default function OpsPage() {
       <TopBar title="Vận hành hệ thống" keepTitleOnMobile />
 
       <main className={styles.body}>
-        {isPending && <SkeletonTable rows={8} columns={5} />}
-        {isError && <ErrorState what="số liệu vận hành" onRetry={refetch} retrying={isFetching} />}
+        <SectionTabs
+          label="Vận hành hệ thống"
+          options={[...TABS]}
+          value={tab}
+          onChange={(v) => setTab(TABS.find((t) => t.value === v)?.value ?? "server")}
+        />
 
-        {!isPending && !isError && data && (
+        {tab === "customers" && (
           <>
-            <SectionCard
-              title="Máy chủ"
-              icon={<Cpu size={17} />}
-              meta={host ? `Đo lúc ${formatDateTime(host.at)}` : "Chưa có số đo"}
-            >
-              {!host ? (
-                // Rỗng chỉ có MỘT nguyên nhân: dịch vụ `mgst-ops-watch` chưa
-                // chạy trên máy chủ. Tên dịch vụ không viết ra màn — người đọc
-                // màn này đã có tài liệu deploy, mục 8e.
-                <p className="text-muted">Chưa có số đo nào.</p>
-              ) : (
-                <div className={styles.resources}>
-                  <ResourceCard
-                    label="CPU"
-                    percent={Math.round(host.cpuPercent)}
-                    used={`${Math.round(host.cpuPercent)}% trong một phút`}
-                    total=""
-                  />
-                  <ResourceCard
-                    label="RAM"
-                    percent={percentOf(host.ramUsed, host.ramTotal)}
-                    used={formatBytes(host.ramUsed)}
-                    total={formatBytes(host.ramTotal)}
-                  />
-                  <ResourceCard
-                    label="Ổ đĩa"
-                    percent={percentOf(host.diskUsed, host.diskTotal)}
-                    used={formatBytes(host.diskUsed)}
-                    total={formatBytes(host.diskTotal)}
-                  />
-                  <ResourceCard
-                    label="S3"
-                    percent={percentOf(host.s3Bytes, host.s3Quota)}
-                    used={formatBytes(host.s3Bytes)}
-                    total={host.s3Quota > 0 ? formatBytes(host.s3Quota) : ""}
-                    detail={
-                      host.s3At
-                        ? `${formatCount(host.s3Objects)} tệp · đo lúc ${formatDateTime(host.s3At)}`
-                        : "Chưa đo lần nào"
-                    }
-                  />
-                </div>
-              )}
-            </SectionCard>
-
-            <PviRouteCard />
-
             <IdCardScanCard />
 
             <CustomerEditLockCard />
 
-            <SectionCard
-              title="Đơn chờ giấy chứng nhận"
-              icon={<ShieldCheck size={17} />}
-              meta={`${formatCount(data.insurance.awaiting)} đơn`}
-            >
-              <div className={styles.stats}>
-                <StatCard
-                  value={formatCount(data.insurance.awaiting)}
-                  label="Đang chờ giấy chứng nhận"
-                  tone={data.insurance.awaiting > 0 ? "attention" : "normal"}
-                />
-                <StatCard
-                  value={
-                    data.insurance.oldest
-                      ? minutesLabel(data.insurance.oldest.waitingMinutes)
-                      : "Không có"
-                  }
-                  label="Đơn chờ lâu nhất"
-                  detail={
-                    data.insurance.oldest
-                      ? `${data.insurance.oldest.orderCode} - ${data.insurance.oldest.customerName}`
-                      : undefined
-                  }
-                />
-              </div>
+            <DraftLimitCard />
+          </>
+        )}
 
-              <div className={styles.filterRow}>
-                <SearchField
-                  label="Tìm đơn"
-                  placeholder="Mã đơn, ID hoặc tên khách…"
-                  value={search}
-                  onChange={(v) => {
-                    setSearch(v);
-                    setPage(0);
-                    setPicked([]);
-                  }}
-                />
-                <Select
-                  label="Sản phẩm"
-                  value={filter.product}
-                  onChange={(v) => {
-                    const parsed = InsuranceProduct.safeParse(v);
-                    refine({ product: parsed.success ? parsed.data : "" });
-                  }}
-                  options={[
-                    { value: "", label: "Tất cả" },
-                    ...InsuranceProduct.options.map((p) => ({ value: p, label: PRODUCT_LABEL[p] })),
-                  ]}
-                />
-                <Select
-                  label="Trạng thái"
-                  value={filter.status}
-                  onChange={(v) => {
-                    const parsed = InsuranceOrderStatus.safeParse(v);
-                    refine({ status: parsed.success ? parsed.data : "" });
-                  }}
-                  options={[
-                    { value: "", label: "Tất cả" },
-                    ...InsuranceOrderStatus.options.map((s) => ({
-                      value: s,
-                      label: INSURANCE_STATUS_LABEL[s],
-                    })),
-                  ]}
-                />
-              </div>
+        {tab === "insurance" && <PviRouteCard />}
 
-              {failures.rows.length > 0 && (
-                <Alert tone="warning">
-                  <strong>
-                    {failures.rows.length} đơn không {failures.action.toLowerCase()} được
-                  </strong>
-                  <ul className={styles.failList}>
-                    {failures.rows.map((f) => (
-                      <li key={f.id}>
-                        {f.orderCode || f.id}: {f.message}
-                      </li>
-                    ))}
-                  </ul>
-                </Alert>
-              )}
+        {tab !== "customers" && isPending && <SkeletonTable rows={8} columns={5} />}
+        {tab !== "customers" && isError && (
+          <ErrorState what="số liệu vận hành" onRetry={refetch} retrying={isFetching} />
+        )}
 
-              {canPick && (
-                <div className={styles.actions}>
-                  {canRefresh && (
-                    <Button
-                      onClick={() => refresh.mutate()}
-                      disabled={
-                        refresh.isPending || chosen.length === 0 || chosen.length > OPS_REFRESH_MAX
+        {tab !== "customers" && !isPending && !isError && data && (
+          <>
+            {tab === "server" && (
+              <SectionCard
+                title="Máy chủ"
+                icon={<Cpu size={17} />}
+                meta={host ? `Đo lúc ${formatDateTime(host.at)}` : "Chưa có số đo"}
+              >
+                {!host ? (
+                  // Rỗng chỉ có MỘT nguyên nhân: dịch vụ `mgst-ops-watch` chưa
+                  // chạy trên máy chủ. Tên dịch vụ không viết ra màn — người đọc
+                  // màn này đã có tài liệu deploy, mục 8e.
+                  <p className="text-muted">Chưa có số đo nào.</p>
+                ) : (
+                  <div className={styles.resources}>
+                    <ResourceCard
+                      label="CPU"
+                      percent={Math.round(host.cpuPercent)}
+                      used={`${Math.round(host.cpuPercent)}% trong một phút`}
+                      total=""
+                    />
+                    <ResourceCard
+                      label="RAM"
+                      percent={percentOf(host.ramUsed, host.ramTotal)}
+                      used={formatBytes(host.ramUsed)}
+                      total={formatBytes(host.ramTotal)}
+                    />
+                    <ResourceCard
+                      label="Ổ đĩa"
+                      percent={percentOf(host.diskUsed, host.diskTotal)}
+                      used={formatBytes(host.diskUsed)}
+                      total={formatBytes(host.diskTotal)}
+                    />
+                    <ResourceCard
+                      label="S3"
+                      percent={percentOf(host.s3Bytes, host.s3Quota)}
+                      used={formatBytes(host.s3Bytes)}
+                      total={host.s3Quota > 0 ? formatBytes(host.s3Quota) : ""}
+                      detail={
+                        host.s3At
+                          ? `${formatCount(host.s3Objects)} tệp · đo lúc ${formatDateTime(host.s3At)}`
+                          : "Chưa đo lần nào"
                       }
-                    >
-                      {refresh.isPending
-                        ? "Đang chạy lại policy…"
-                        : `Chạy lại policy${chosen.length > 0 ? ` (${chosen.length})` : ""}`}
-                    </Button>
-                  )}
-                  {canCreateOrder && (
+                    />
+                  </div>
+                )}
+              </SectionCard>
+            )}
+
+            {tab === "insurance" && (
+              <SectionCard
+                title="Đơn chờ giấy chứng nhận"
+                icon={<ShieldCheck size={17} />}
+                meta={`${formatCount(data.insurance.awaiting)} đơn`}
+              >
+                <div className={styles.stats}>
+                  <StatCard
+                    value={formatCount(data.insurance.awaiting)}
+                    label="Đang chờ giấy chứng nhận"
+                    tone={data.insurance.awaiting > 0 ? "attention" : "normal"}
+                  />
+                  <StatCard
+                    value={
+                      data.insurance.oldest
+                        ? minutesLabel(data.insurance.oldest.waitingMinutes)
+                        : "Không có"
+                    }
+                    label="Đơn chờ lâu nhất"
+                    detail={
+                      data.insurance.oldest
+                        ? `${data.insurance.oldest.orderCode} - ${data.insurance.oldest.customerName}`
+                        : undefined
+                    }
+                  />
+                </div>
+
+                <div className={styles.filterRow}>
+                  <SearchField
+                    label="Tìm đơn"
+                    placeholder="Mã đơn, ID hoặc tên khách…"
+                    value={search}
+                    onChange={(v) => {
+                      setSearch(v);
+                      setPage(0);
+                      setPicked([]);
+                    }}
+                  />
+                  <Select
+                    label="Sản phẩm"
+                    value={filter.product}
+                    onChange={(v) => {
+                      const parsed = InsuranceProduct.safeParse(v);
+                      refine({ product: parsed.success ? parsed.data : "" });
+                    }}
+                    options={[
+                      { value: "", label: "Tất cả" },
+                      ...InsuranceProduct.options.map((p) => ({ value: p, label: PRODUCT_LABEL[p] })),
+                    ]}
+                  />
+                  <Select
+                    label="Trạng thái"
+                    value={filter.status}
+                    onChange={(v) => {
+                      const parsed = InsuranceOrderStatus.safeParse(v);
+                      refine({ status: parsed.success ? parsed.data : "" });
+                    }}
+                    options={[
+                      { value: "", label: "Tất cả" },
+                      ...InsuranceOrderStatus.options.map((s) => ({
+                        value: s,
+                        label: INSURANCE_STATUS_LABEL[s],
+                      })),
+                    ]}
+                  />
+                </div>
+
+                {failures.rows.length > 0 && (
+                  <Alert tone="warning">
+                    <strong>
+                      {failures.rows.length} đơn không {failures.action.toLowerCase()} được
+                    </strong>
+                    <ul className={styles.failList}>
+                      {failures.rows.map((f) => (
+                        <li key={f.id}>
+                          {f.orderCode || f.id}: {f.message}
+                        </li>
+                      ))}
+                    </ul>
+                  </Alert>
+                )}
+
+                {canPick && (
+                  <div className={styles.actions}>
+                    {canRefresh && (
+                      <Button
+                        onClick={() => refresh.mutate()}
+                        disabled={
+                          refresh.isPending || chosen.length === 0 || chosen.length > OPS_REFRESH_MAX
+                        }
+                      >
+                        {refresh.isPending
+                          ? "Đang chạy lại policy…"
+                          : `Chạy lại policy${chosen.length > 0 ? ` (${chosen.length})` : ""}`}
+                      </Button>
+                    )}
+                    {canCreateOrder && (
+                      <Button
+                        variant="ghost"
+                        onClick={() => setDialogOpen(true)}
+                        disabled={recreatable.length === 0 || recreatable.length > OPS_RECREATE_MAX}
+                      >
+                        Huỷ và cấp lại {recreatable.length > 0 ? `(${recreatable.length})` : ""}
+                      </Button>
+                    )}
                     <Button
                       variant="ghost"
-                      onClick={() => setDialogOpen(true)}
-                      disabled={recreatable.length === 0 || recreatable.length > OPS_RECREATE_MAX}
+                      disabled={rows.length === 0}
+                      onClick={() =>
+                        setPicked(chosen.length === rows.length ? [] : rows.map((r) => r.id))
+                      }
                     >
-                      Huỷ và cấp lại {recreatable.length > 0 ? `(${recreatable.length})` : ""}
+                      {rows.length > 0 && chosen.length === rows.length ? "Bỏ chọn hết" : "Chọn hết"}
                     </Button>
-                  )}
-                  <Button
-                    variant="ghost"
-                    disabled={rows.length === 0}
-                    onClick={() =>
-                      setPicked(chosen.length === rows.length ? [] : rows.map((r) => r.id))
+                  </div>
+                )}
+
+                {orders.isError ? (
+                  <ErrorState
+                    what="danh sách đơn"
+                    onRetry={orders.refetch}
+                    retrying={orders.isFetching}
+                  />
+                ) : orders.isPending ? (
+                  <SkeletonTable rows={8} columns={7} />
+                ) : (
+                  <RankTable
+                    rows={rows}
+                    columns={orderColumns}
+                    rowKey={(r) => r.id}
+                    defaultSort="orderCode"
+                    caption="Đơn bảo hiểm theo bộ lọc"
+                    emptyText="Không đơn nào khớp bộ lọc."
+                    server={{
+                      sort: "orderCode",
+                      dir,
+                      page,
+                      total: orders.data?.total ?? 0,
+                      pageSize: PAGE_SIZE,
+                      onSortChange: (_sort, nextDir) => {
+                        setDir(nextDir);
+                        setPage(0);
+                      },
+                      onPageChange: setPage,
+                    }}
+                  />
+                )}
+              </SectionCard>
+            )}
+
+            {tab === "server" && (
+              <SectionCard
+                title="Kiểm ảnh tài khoản"
+                icon={<Images size={17} />}
+                meta={`${formatCount(data.photoCheck.pending)} lượt đang đợi`}
+              >
+                <div className={styles.stats}>
+                  <StatCard
+                    value={formatCount(data.photoCheck.pending)}
+                    label="Đang đợi kiểm"
+                    tone={data.photoCheck.pending > 0 ? "attention" : "normal"}
+                  />
+                  <StatCard
+                    value={
+                      data.photoCheck.oldestPendingAt
+                        ? formatDateTime(data.photoCheck.oldestPendingAt)
+                        : "Không có"
                     }
-                  >
-                    {rows.length > 0 && chosen.length === rows.length ? "Bỏ chọn hết" : "Chọn hết"}
-                  </Button>
+                    label="Lượt đợi lâu nhất"
+                  />
                 </div>
-              )}
 
-              {orders.isError ? (
-                <ErrorState
-                  what="danh sách đơn"
-                  onRetry={orders.refetch}
-                  retrying={orders.isFetching}
-                />
-              ) : orders.isPending ? (
-                <SkeletonTable rows={8} columns={7} />
-              ) : (
+                <div className={styles.rangeRow}>
+                  <SegmentedTabs
+                    label="Khoảng thống kê"
+                    value={String(days)}
+                    onChange={(v) => setDays(Number(v))}
+                    options={OPS_DAY_RANGES.map((d) => ({ value: String(d), label: `${d} ngày` }))}
+                  />
+                </div>
+
                 <RankTable
-                  rows={rows}
-                  columns={orderColumns}
-                  rowKey={(r) => r.id}
-                  defaultSort="orderCode"
-                  caption="Đơn bảo hiểm theo bộ lọc"
-                  emptyText="Không đơn nào khớp bộ lọc."
-                  server={{
-                    sort: "orderCode",
-                    dir,
-                    page,
-                    total: orders.data?.total ?? 0,
-                    pageSize: PAGE_SIZE,
-                    onSortChange: (_sort, nextDir) => {
-                      setDir(nextDir);
-                      setPage(0);
-                    },
-                    onPageChange: setPage,
-                  }}
+                  rows={data.photoCheck.banks}
+                  columns={bankColumns}
+                  rowKey={(r) => r.bankId}
+                  defaultSort="pending"
+                  caption="Kết quả kiểm ảnh theo ngân hàng"
+                  emptyText="Chưa có lượt kiểm nào trong khoảng này."
                 />
-              )}
-            </SectionCard>
-
-            <SectionCard
-              title="Kiểm ảnh tài khoản"
-              icon={<Images size={17} />}
-              meta={`${formatCount(data.photoCheck.pending)} lượt đang đợi`}
-            >
-              <div className={styles.stats}>
-                <StatCard
-                  value={formatCount(data.photoCheck.pending)}
-                  label="Đang đợi kiểm"
-                  tone={data.photoCheck.pending > 0 ? "attention" : "normal"}
-                />
-                <StatCard
-                  value={
-                    data.photoCheck.oldestPendingAt
-                      ? formatDateTime(data.photoCheck.oldestPendingAt)
-                      : "Không có"
-                  }
-                  label="Lượt đợi lâu nhất"
-                />
-              </div>
-
-              <div className={styles.rangeRow}>
-                <SegmentedTabs
-                  label="Khoảng thống kê"
-                  value={String(days)}
-                  onChange={(v) => setDays(Number(v))}
-                  options={OPS_DAY_RANGES.map((d) => ({ value: String(d), label: `${d} ngày` }))}
-                />
-              </div>
-
-              <RankTable
-                rows={data.photoCheck.banks}
-                columns={bankColumns}
-                rowKey={(r) => r.bankId}
-                defaultSort="pending"
-                caption="Kết quả kiểm ảnh theo ngân hàng"
-                emptyText="Chưa có lượt kiểm nào trong khoảng này."
-              />
-            </SectionCard>
+              </SectionCard>
+            )}
           </>
         )}
       </main>

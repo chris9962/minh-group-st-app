@@ -1,0 +1,34 @@
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.subTitle {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--om-text);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
+}
+
+.limit {
+  width: 88px;
+}
+
+.picker {
+  flex: 1 1 260px;
+  min-width: 0;
+}

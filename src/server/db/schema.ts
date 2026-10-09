@@ -483,6 +483,42 @@ export const idCardScanOverrides = pgTable("id_card_scan_overrides", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+/**
+ * Trần bản nháp mỗi nhân viên ở một ngân hàng, theo loại tài khoản (migration
+ * 0133, chốt 2026-10-09). Cùng dạng với chụp CCCD: mức mặc định tối đa một dòng,
+ * chưa có dòng thì dùng `MAX_DRAFTS_PER_STAFF_BY_TYPE`. Xem `server/draftLimit.ts`.
+ */
+export const draftLimitDefault = pgTable(
+  "draft_limit_default",
+  {
+    id: smallint("id").primaryKey().default(1),
+    limitNone: smallint("limit_none").notNull(),
+    limitCnkd: smallint("limit_cnkd").notNull(),
+    limitHkd: smallint("limit_hkd").notNull(),
+    updatedBy: uuid("updated_by").notNull().references(() => users.id),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  () => [
+    check("draft_limit_default_single_row", sql`id = 1`),
+    check("draft_limit_default_positive", sql`limit_none >= 1 and limit_cnkd >= 1 and limit_hkd >= 1`),
+  ],
+);
+
+export const draftLimitOverrides = pgTable(
+  "draft_limit_overrides",
+  {
+    userId: uuid("user_id").primaryKey().references(() => users.id),
+    limitNone: smallint("limit_none").notNull(),
+    limitCnkd: smallint("limit_cnkd").notNull(),
+    limitHkd: smallint("limit_hkd").notNull(),
+    updatedBy: uuid("updated_by").notNull().references(() => users.id),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  () => [
+    check("draft_limit_overrides_positive", sql`limit_none >= 1 and limit_cnkd >= 1 and limit_hkd >= 1`),
+  ],
+);
+
 export const sessions = pgTable(
   "sessions",
   {

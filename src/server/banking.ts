@@ -21,7 +21,6 @@ import {
   DRAFT_TTL_MINUTES,
   DRAFT_WARN_LEAD_MINUTES,
   MAX_BANK_ACCOUNTS_PER_CUSTOMER,
-  MAX_DRAFTS_PER_STAFF_BY_TYPE,
 } from "@/lib/api/bankAccounts";
 import type {
   BankAccount,
@@ -67,6 +66,7 @@ import {
 import { openBlockReasonAt } from "@/rules";
 import { closedMonthMessage, closedMonthOfCustomer, customerMonthClosed } from "./closedMonths";
 import { accountCustomerDayBetween } from "./customerDay";
+import { draftLimitsFor } from "./draftLimit";
 import { recomputeGiftCase } from "./gift";
 import { recomputeKpiForCustomer } from "./kpi";
 import type { PageArgs } from "./pagination";
@@ -1464,6 +1464,8 @@ export async function startBankAccount(
       };
   }
 
+  const draftLimits = await draftLimitsFor(actor.id);
+
   const outcome = await db.transaction(async (tx) => {
     /**
      * Khoá dòng KHÁCH trước khi đếm.
@@ -1552,10 +1554,11 @@ export async function startBankAccount(
 
     /**
      * Trần bản nháp theo NGƯỜI MỞ, tính riêng từng loại tài khoản ở mỗi ngân
-     * hàng: `MAX_DRAFTS_PER_STAFF_BY_TYPE`, mọi vai, khách nào cũng vậy. Chốt
-     * 2026-10-06 mỗi loại đúng 1, vì nhân viên tạo khách ảo rồi giữ chỗ để găm
-     * mã; bản 2026-09-28 (2/1/2) bị thay, bản BGĐ 2026-09-16 gộp mọi loại vào
-     * trần 2.
+     * hàng: `draftLimitsFor`, mọi vai, khách nào cũng vậy. Chốt 2026-10-06 mỗi
+     * loại đúng 1, vì nhân viên tạo khách ảo rồi giữ chỗ để găm mã; từ
+     * 2026-10-09 số đó là mức mặc định, P-99 đặt được trần riêng cho từng
+     * người. Bản 2026-09-28 (2/1/2) bị thay, bản BGĐ 2026-09-16 gộp mọi loại
+     * vào trần 2.
      *
      * Khoá dòng NGƯỜI MỞ trước khi đếm: hai request của cùng một người cho hai
      * khách khác nhau không chung khoá khách, không khoá là cả hai đếm 1 rồi
@@ -1573,7 +1576,7 @@ export async function startBankAccount(
       const key = `${pick.bankId}|${pick.accountType}`;
       const held = (heldByType.get(key) ?? 0) + 1;
       heldByType.set(key, held);
-      const max = MAX_DRAFTS_PER_STAFF_BY_TYPE[pick.accountType];
+      const max = draftLimits[pick.accountType];
       if (held > max) {
         const code = bankById.get(pick.bankId)!.code;
         const label = pick.accountType === "none" ? code : `${code} ${pick.accountType}`;

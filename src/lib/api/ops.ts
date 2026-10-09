@@ -311,6 +311,81 @@ export async function saveIdCardScan(body: IdCardScanBody): Promise<void> {
   }
 }
 
+/** Trần bản nháp theo loại tài khoản, khoá trùng `AccountType` của `bankAccounts.ts`. */
+export const DraftLimits = z.object({
+  none: z.number().int().min(1).max(99),
+  CNKD: z.number().int().min(1).max(99),
+  HKD: z.number().int().min(1).max(99),
+});
+export type DraftLimits = z.infer<typeof DraftLimits>;
+
+export const DraftLimitOverride = z.object({
+  userId: z.string(),
+  fullName: z.string(),
+  departmentName: z.string(),
+  limits: DraftLimits,
+  updatedAt: z.string(),
+  updatedBy: z.string(),
+});
+export type DraftLimitOverride = z.infer<typeof DraftLimitOverride>;
+
+/**
+ * Trần bản nháp mỗi nhân viên giữ cùng lúc ở một ngân hàng, chỉnh trên P-99:
+ * mức mặc định cộng ngoại lệ theo người (chốt 2026-10-09). Chưa ai lưu mức mặc
+ * định thì dùng `MAX_DRAFTS_PER_STAFF_BY_TYPE`.
+ */
+export const DraftLimitSetting = z.object({
+  limits: DraftLimits,
+  /** ISO datetime của lần đổi mức mặc định gần nhất. Rỗng khi chưa ai đổi. */
+  updatedAt: z.string(),
+  updatedBy: z.string(),
+  overrides: z.array(DraftLimitOverride),
+});
+export type DraftLimitSetting = z.infer<typeof DraftLimitSetting>;
+
+export const DraftLimitBody = z.object({ limits: DraftLimits });
+export type DraftLimitBody = z.infer<typeof DraftLimitBody>;
+
+export const DraftLimitOverrideBody = z.object({ userId: z.guid(), limits: DraftLimits });
+export type DraftLimitOverrideBody = z.infer<typeof DraftLimitOverrideBody>;
+
+export async function fetchDraftLimit(): Promise<DraftLimitSetting> {
+  const res = await fetch('/api/ops/draft-limit');
+  if (!res.ok) throw new Error('Không đọc được trần mã giới thiệu');
+  return DraftLimitSetting.parse(await res.json());
+}
+
+export async function saveDraftLimit(body: DraftLimitBody): Promise<void> {
+  const res = await fetch('/api/ops/draft-limit', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    throw new Error(data?.message ?? 'Không lưu được trần mã giới thiệu');
+  }
+}
+
+export async function saveDraftLimitOverride(body: DraftLimitOverrideBody): Promise<void> {
+  const res = await fetch('/api/ops/draft-limit/overrides', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    throw new Error(data?.message ?? 'Không lưu được ngoại lệ trần mã giới thiệu');
+  }
+}
+
+export async function removeDraftLimitOverride(userId: string): Promise<void> {
+  const res = await fetch(`/api/ops/draft-limit/overrides?userId=${encodeURIComponent(userId)}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) throw new Error('Không xoá được ngoại lệ trần mã giới thiệu');
+}
+
 export const CustomerEditLock = z.object({
   /** Số người đang bị thu hồi quyền sửa khách. */
   revoked: z.number(),

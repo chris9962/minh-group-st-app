@@ -134,6 +134,9 @@ export const MAX_BANK_ACCOUNTS_PER_CUSTOMER = 3;
  * giữ chỗ mã giới thiệu, nên trần 2 là mỗi người găm được hai mã ở mỗi ngân
  * hàng mà chưa mở tài khoản nào. Bản 2026-09-28 (2/1/2) bị thay; bản BGĐ
  * 2026-09-16 gộp mọi loại vào trần 2.
+ *
+ * Từ 2026-10-09 đây chỉ là mức mặc định khi chưa ai lưu trên P-99. Trần thật của
+ * từng người đọc qua `draftLimitsFor` (`server/draftLimit.ts`).
  */
 export const MAX_DRAFTS_PER_STAFF_BY_TYPE: Record<AccountType, number> = {
   none: 1,
