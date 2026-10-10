@@ -16,9 +16,14 @@
 .input {
   width: 210px;
   min-height: 34px;
+  font-size: 13px;
+}
+
+/* Hai class để thắng `padding-inline` của `.input` chung: bản build production nạp organic.css sau file này. */
+.wrap .input,
+.blockWrap .input {
   padding-left: 32px;
   padding-right: 30px;
-  font-size: 13px;
 }
 
 .blockWrap {
