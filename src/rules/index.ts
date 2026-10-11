@@ -4,6 +4,7 @@ import * as period202609 from "./2026-09";
 import * as period20260916 from "./2026-09-16";
 import * as period20260928 from "./2026-09-28";
 import * as period20261001 from "./2026-10-01";
+import * as period20261011 from "./2026-10-11";
 import type { Tier } from "./2026-08";
 
 export type { Tier };
@@ -228,6 +229,7 @@ const PERIODS: Record<string, PeriodRules> = {
   "2026-09-16": period20260916,
   "2026-09-28": period20260928,
   "2026-10-01": period20261001,
+  "2026-10-11": period20261011,
 };
 
 /**
