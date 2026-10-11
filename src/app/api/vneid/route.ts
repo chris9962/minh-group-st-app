@@ -2,6 +2,7 @@ import { VNEID_SORT, VneidForm } from "@/lib/api/vneid";
 import { can } from "@/lib/permissions";
 import { logAudit } from "@/server/audit";
 import { badRequest, forbidden, getActor, jsonBody, unauthorized } from "@/server/auth";
+import { lookupOnlyMessage } from "@/server/customerLookup";
 import { pageArgsFrom } from "@/server/pagination";
 import { createVneid, listVneid, vneidFiltersFrom } from "@/server/vneid";
 
@@ -23,6 +24,8 @@ export async function POST(request: Request) {
 
   const parsed = VneidForm.safeParse(await jsonBody(request));
   if (!parsed.success) return badRequest();
+  const lookupOnly = await lookupOnlyMessage(actor, parsed.data.customerId);
+  if (lookupOnly) return badRequest(lookupOnly);
 
   const result = await createVneid(actor, parsed.data);
   if (!result.ok) return Response.json({ message: result.message }, { status: 422 });

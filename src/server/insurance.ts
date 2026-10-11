@@ -42,16 +42,19 @@ import {
   type InsuranceOrderForm,
 } from "@/lib/api/insuranceOrders";
 import type { Page } from "@/lib/api/pagination";
-import { BUSINESS_TIMEZONE, businessDay, businessMonth } from "@/lib/format";
+import { BUSINESS_TIMEZONE, businessDay, businessMonth, digitsOnly } from "@/lib/format";
 import {
   can,
+  pinnedVisibility,
   recordInScope,
   recordVisibility,
+  searchVisibility,
   type RecordVisibility,
 } from "@/lib/permissions";
 import { InsuranceProduct, isRealIsoDate, type User } from "@/lib/types";
-import { searchTerms } from "@/lib/search";
+import { isIdNumberQuery, searchTerms } from "@/lib/search";
 import { closedMonthMessage, closedMonthOfCustomer } from "./closedMonths";
+import { customerIdsWithIdNumber } from "./customerLookup";
 import { db } from "./db/client";
 import { departmentForNewRecord } from "./writeDepartment";
 import {
@@ -243,11 +246,16 @@ const canSeeOrder = (
  * mục, nhưng `order_code ilike` cũng không dùng được chỉ mục, nên thêm cột
  * không đổi hình dạng câu.
  */
-function searchWhere(raw: string): SQL | undefined {
+function searchWhere(raw: string, idNumberOnly = false): SQL | undefined {
   const text = raw.trim();
   if (!text) return undefined;
 
-  return and(
+  const byIdNumber = isIdNumberQuery(text)
+    ? inArray(insuranceOrders.customerId, customerIdsWithIdNumber(digitsOnly(text)))
+    : undefined;
+  if (byIdNumber && idNumberOnly) return byIdNumber;
+
+  const byTerms = and(
     ...searchTerms(text).map(
       (term) =>
         or(
@@ -262,6 +270,7 @@ function searchWhere(raw: string): SQL | undefined {
         ),
     ),
   );
+  return byIdNumber ? or(byIdNumber, byTerms) : byTerms;
 }
 
 /**
@@ -345,10 +354,11 @@ const startMonthFilter = (raw: string): SQL | undefined => {
  * `order_date` là cột `date` trần nên so thẳng chuỗi `YYYY-MM-DD` là đủ — không
  * còn phép quy múi giờ nào, và phép so dùng lại được chỉ mục.
  */
-const orderFilters = (actor: User, query: InsuranceFilters): SQL | undefined => {
+/** `byLookup`: quyền `lookup` đã mở toàn công ty cho lượt tìm CCCD này, nên chỉ khớp theo CCCD. */
+const orderFilters = (actor: User, query: InsuranceFilters, byLookup = false): SQL | undefined => {
   const parts = [
-    visibleOrderWhere(actor),
-    searchWhere(query.search),
+    byLookup ? undefined : visibleOrderWhere(actor),
+    searchWhere(query.search, byLookup),
     statusFilter(query.status),
     productFilter(query.product),
     // Ngày sai định dạng thì bỏ qua, không trả 400 — link cũ hay ô địa chỉ gõ
@@ -653,10 +663,14 @@ export async function listInsuranceOrders(
   filters: InsuranceFilters,
   page: PageArgs<InsuranceSort>,
 ): Promise<Page<InsuranceListRow>> {
-  const visible = scopeOf(actor, "view-detail");
+  const visible = searchVisibility(actor, "insurance", filters.search);
   if (visible.kind === "none") return { rows: [], total: 0 };
 
-  const where = orderFilters(actor, filters);
+  const where = orderFilters(
+    actor,
+    filters,
+    visible.kind === "all" && scopeOf(actor, "view-detail").kind !== "all",
+  );
 
   const [rows, [totals]] = await Promise.all([
     orderedPage(where, page.dir, page.limit, page.offset),
@@ -863,7 +877,9 @@ export async function insuranceOrderDetail(
   id: string,
 ): Promise<InsuranceDetail | null> {
   const r = await rawById(id);
-  if (!r || !canSeeOrder(actor, r)) return null;
+  if (!r) return null;
+  // `canSeeOrder` còn gác đường nhận đơn, nên quyền `lookup` chỉ mở ở đây.
+  if (pinnedVisibility(actor, "insurance").kind !== "all" && !canSeeOrder(actor, r)) return null;
 
   return detailOf(r);
 }

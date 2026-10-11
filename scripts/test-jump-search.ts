@@ -233,7 +233,7 @@ check("có quyền thì tra phòng", viewer.includes("departments"), true);
 check("có quyền thì tra nhân sự", viewer.includes("staff"), true);
 
 const customers = jumpHitsFromCustomers([
-  { id: "c1", fullName: "Nguyễn Văn An", primaryPhone: "0901234567", seq: 1, rootId: "c1" },
+  { id: "c1", fullName: "Nguyễn Văn An", primaryPhone: "0901234567" },
 ]);
 check("khách ra đúng đường", customers[0]?.href ?? "", "/customers/c1");
 check("khách mang nhóm Khách hàng", customers[0]?.group ?? "", "Khách hàng");

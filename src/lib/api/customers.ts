@@ -145,8 +145,11 @@ export type CustomerRow = z.infer<typeof CustomerRow>;
 /**
  * Khoá sắp xếp — DANH SÁCH TRẮNG, vì nó đi thẳng vào `ORDER BY` của máy chủ.
  * Thêm khoá ở đây thì phải thêm nhánh tương ứng trong `server/customers.ts`.
+ *
+ * `match` là kiểu mặc định, không gắn với cột nào: tên giống chữ gõ nhất lên
+ * đầu, cùng hạng thì khách mới nhất trước.
  */
-export const CUSTOMER_SORT = ['name', 'accounts', 'insurance', 'created'] as const;
+export const CUSTOMER_SORT = ['match', 'name', 'accounts', 'insurance', 'created'] as const;
 export type CustomerSort = (typeof CUSTOMER_SORT)[number];
 
 /**

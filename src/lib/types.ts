@@ -100,6 +100,13 @@ export const Action = z.enum([
   // Đặc biệt — customer: XEM + SỬA CCCD đầy đủ, gộp một quyền (quyết định 03/08).
   // Không có quyền này thì mọi response chỉ thấy 4 số cuối và ô CCCD khoá.
   'access-id-number',
+  /**
+   * Đặc biệt — customer, banking, insurance, vneid (migration 0134, chốt
+   * 2026-10-10 cho Phòng Thanh tra): tìm bằng CCCD đủ 12 số hoặc mở một bản ghi
+   * thì thấy toàn công ty. Danh sách chưa tìm vẫn theo `view-detail`, và thiếu
+   * `view-detail` thì quyền này không mở được màn nào. Xem `pinnedVisibility`.
+   */
+  'lookup',
   // Đặc biệt — insurance
   'handle-fallback',
   /**
@@ -201,6 +208,7 @@ export const ACTION_LABEL: Record<Action, string> = {
   delete: 'Xoá / huỷ',
   export: 'Xuất dữ liệu',
   'access-id-number': 'Xem & sửa CCCD đầy đủ',
+  lookup: 'Tra cứu toàn công ty bằng CCCD',
   'handle-fallback': 'Xử lý đơn lỗi (làm tay)',
   'set-status': 'Sửa trạng thái đơn bảo hiểm',
   'grant-gift': 'Chốt & phát quà',
@@ -253,12 +261,15 @@ export const SCOPELESS_ACTIONS: Action[] = [
   'view-ops',
   // Chốt là chốt lương cả công ty trong một tháng, không chốt riêng một phòng.
   'close-salary',
+  // Tra cứu có nghĩa là toàn công ty; tra trong phòng mình thì `view-detail` đã đủ.
+  'lookup',
 ];
 
 export const SPECIAL_ACTIONS_OF: Partial<Record<ModuleKey, Action[]>> = {
-  customer: ['access-id-number'],
-  insurance: ['handle-fallback', 'set-status'],
-  banking: ['grant-gift'],
+  customer: ['access-id-number', 'lookup'],
+  insurance: ['handle-fallback', 'set-status', 'lookup'],
+  banking: ['grant-gift', 'lookup'],
+  vneid: ['lookup'],
   /**
    * MỌI quyền cấu hình nằm ở `system` (chốt 2026-08-24).
    *

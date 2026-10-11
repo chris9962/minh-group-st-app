@@ -1,5 +1,5 @@
 import { fetchBankAccounts } from '@/lib/api/banking';
-import { fetchCustomerLookup, type CustomerLookupRow } from '@/lib/api/customers';
+import { fetchCustomers } from '@/lib/api/customers';
 import { fetchInsuranceOrders } from '@/lib/api/insurance';
 import { fetchDepartmentRows } from '@/lib/api/org';
 import { fetchServices } from '@/lib/api/services';
@@ -55,7 +55,9 @@ const hit = (
   detail?: string,
 ): JumpHit => ({ key, href, label, icon, group, detail });
 
-export function jumpHitsFromCustomers(rows: CustomerLookupRow[]): JumpHit[] {
+export function jumpHitsFromCustomers(
+  rows: { id: string; fullName: string; primaryPhone: string }[],
+): JumpHit[] {
   return rows.map((r) =>
     hit(
       `customer:${r.id}`,
@@ -138,7 +140,24 @@ const PAGE0 = { page: 0, dir: 'desc' as const };
 async function hitsOf(source: JumpSource, query: string): Promise<JumpHit[]> {
   switch (source) {
     case 'customers':
-      return jumpHitsFromCustomers((await fetchCustomerLookup(query)).rows);
+      // Bảng P-40 chứ không phải ô tra cứu của form: chỉ bảng này mở theo quyền `lookup`.
+      return jumpHitsFromCustomers(
+        (
+          await fetchCustomers({
+            ...PAGE0,
+            sort: 'match',
+            search: query,
+            channelId: '',
+            channelDetail: '',
+            address: '',
+            staffId: '',
+            departmentId: '',
+            accounts: [],
+            from: '',
+            to: '',
+          })
+        ).rows,
+      );
     case 'banking':
       return jumpHitsFromBanking(
         (

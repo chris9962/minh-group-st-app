@@ -1,13 +1,20 @@
 import { and, asc, count, desc, eq, inArray, sql, type SQL, type SQLWrapper } from "drizzle-orm";
 import type { Page } from "@/lib/api/pagination";
 import type { VneidEditForm, VneidFilters, VneidForm, VneidRow, VneidSort } from "@/lib/api/vneid";
-import { BUSINESS_TIMEZONE } from "@/lib/format";
-import { recordInScope, recordVisibility, type RecordVisibility } from "@/lib/permissions";
-import { searchTerms } from "@/lib/search";
+import { BUSINESS_TIMEZONE, digitsOnly } from "@/lib/format";
+import {
+  pinnedVisibility,
+  recordInScope,
+  recordVisibility,
+  searchVisibility,
+  type RecordVisibility,
+} from "@/lib/permissions";
+import { isIdNumberQuery, searchTerms } from "@/lib/search";
 import { isRealIsoDate, type User } from "@/lib/types";
 import { uuidParam } from "./auth";
 import { closedMonthMessage, closedMonthOfCustomer, customerMonthClosed } from "./closedMonths";
 import { addressWhere } from "./customers";
+import { customerIdsWithIdNumber } from "./customerLookup";
 import { db, uniqueViolationOf } from "./db/client";
 import { customers, departments, users, vneidRecords } from "./db/schema";
 import type { PageArgs } from "./pagination";
@@ -67,6 +74,8 @@ const scopeWhere = (v: RecordVisibility): SQL | undefined => {
 function searchWhere(raw: string): SQL | undefined {
   const text = raw.trim();
   if (!text) return undefined;
+  if (isIdNumberQuery(text))
+    return inArray(vneidRecords.customerId, customerIdsWithIdNumber(digitsOnly(text)));
   return and(
     ...searchTerms(text).map(
       (term) =>
@@ -194,7 +203,10 @@ export async function listVneid(
   filters: VneidFilters,
   page: PageArgs<VneidSort>,
 ): Promise<Page<VneidRow>> {
-  const visible = scopeOf(actor, "view-detail");
+  // Lọc theo một khách là khối VNeID trong hồ sơ khách: đã ghim vào một khách.
+  const visible = filters.customerId
+    ? pinnedVisibility(actor, "vneid")
+    : searchVisibility(actor, "vneid", filters.search);
   if (visible.kind === "none") return { rows: [], total: 0 };
 
   const where = filtersWhere(visible, filters);

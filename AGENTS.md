@@ -367,6 +367,13 @@ vẫn tính từ dữ liệu thật; số lương chỉ đứng yên sau khi ch�
   làm được hành động này không", không trả lời "có làm được lên ĐÚNG bản ghi này
   không". Mọi đường GHI phải hỏi cả hai; hỏi mỗi `can()` là ai có quyền sửa cũng
   sửa được bản ghi của cả công ty
+- **Quyền `lookup` (chốt 2026-10-10, Phòng Thanh tra)**: tìm bằng CCCD đủ 12 số
+  hoặc mở một bản ghi thì thấy toàn công ty, ở khách, ngân hàng, bảo hiểm, VNeID.
+  Danh sách chưa tìm vẫn theo `view-detail`. Đường ĐỌC hỏi `pinnedVisibility` hoặc
+  `searchVisibility`; đường ghi và xuất Excel không dùng hai hàm này. Khách chỉ
+  thấy nhờ `lookup` thì không ghi bản ghi mới: route tạo gọi `lookupOnlyMessage`,
+  giao diện ẩn nút theo `lookupOnlyCustomer`. Ô tìm khách của form tạo không mở
+  theo `lookup`
 - **Chức vụ KHÔNG phải nguồn quyền.** Nó chỉ là bộ quyền mặc định lúc tạo hồ sơ; quyền thật nằm ở `user_permissions`
 
 ### 6.1 Ngoại lệ duy nhất: màn Tổng quan P-80 đọc chức vụ

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { GIFT_DECLINED, GiftExtraChoice } from "@/lib/api/customers";
 import { logAudit } from "@/server/audit";
 import { actorWith, badRequest, isUuid, jsonBody, notFound } from "@/server/auth";
+import { lookupOnlyMessage } from "@/server/customerLookup";
 import { grantGift } from "@/server/gift";
 
 type Params = { params: Promise<{ id: string }> };
@@ -30,6 +31,8 @@ export async function POST(request: Request, { params }: Params) {
 
   const parsed = Body.safeParse(await jsonBody(request));
   if (!parsed.success) return badRequest("Chưa chọn món quà nào");
+  const lookupOnly = await lookupOnlyMessage(guard.actor, id);
+  if (lookupOnly) return badRequest(lookupOnly);
 
   const result = await grantGift(
     guard.actor,

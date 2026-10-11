@@ -1,5 +1,6 @@
 import { ROLE_PERMISSIONS } from './roles';
 import { businessDay } from './format';
+import { isIdNumberQuery } from './search';
 import {
   Action,
   ROLE_RANK,
@@ -366,6 +367,45 @@ export function recordVisibility(
 }
 
 /**
+ * Phạm vi ĐỌC khi câu hỏi đã ghim vào đúng một khách hoặc một bản ghi: tìm bằng
+ * CCCD đủ 12 số, mở một bản ghi theo id, xem bản ghi trong hồ sơ một khách.
+ *
+ * Quyền `lookup` mở toàn công ty cho đúng những câu hỏi này (chốt 2026-10-10,
+ * Phòng Thanh tra). Danh sách chưa ghim vẫn theo `view-detail`, nên người tra
+ * cứu không đọc lướt được cả kho. Chỉ dùng cho đường ĐỌC; đường ghi và xuất
+ * Excel vẫn hỏi `recordVisibility` của đúng hành động đó.
+ */
+export function pinnedVisibility(user: User | null, module: ModuleKey): RecordVisibility {
+  if (can(user, module, 'view-detail') && can(user, module, 'lookup')) return { kind: 'all' };
+  return recordVisibility(user, module, 'view-detail');
+}
+
+/**
+ * Khách người này chỉ thấy nhờ quyền `customer:lookup`: được xem, không được
+ * ghi bản ghi mới cho khách đó. Máy chủ chặn ở các route tạo, giao diện ẩn nút.
+ */
+export function lookupOnlyCustomer(
+  user: User | null,
+  row: { createdById: string | null; createdByDepartmentId: string | null },
+): boolean {
+  return (
+    can(user, 'customer', 'lookup') &&
+    !recordInScope(recordVisibility(user, 'customer', 'view-detail'), row)
+  );
+}
+
+/** Phạm vi đọc của một màn danh sách theo chữ trong ô tìm. */
+export function searchVisibility(
+  user: User | null,
+  module: ModuleKey,
+  search: string,
+): RecordVisibility {
+  return isIdNumberQuery(search)
+    ? pinnedVisibility(user, module)
+    : recordVisibility(user, module, 'view-detail');
+}
+
+/**
  * MỘT bản ghi cụ thể có nằm trong phạm vi này không.
  *
  * `recordVisibility` trả phạm vi ở mức module; hàm này áp nó lên từng dòng. Hai
@@ -548,7 +588,9 @@ export function canActOn(actor: User | null, target: User): boolean {
  * người quản 0 phòng vẫn đọc được phòng mình qua phạm vi `own` của danh bạ.
  */
 const RECORD_MODULES: ModuleKey[] = ['insurance', 'banking', 'services', 'staff', 'vneid', 'social-insurance'];
-const RECORD_ACTIONS: Action[] = ['view-summary', 'view-detail', 'update', 'delete', 'export'];
+// `lookup` có mặt vì người tra cứu đọc được bản ghi toàn công ty: ai đặt lại mật
+// khẩu của họ rồi đăng nhập vào là đọc được thứ đó.
+const RECORD_ACTIONS: Action[] = ['view-summary', 'view-detail', 'update', 'delete', 'export', 'lookup'];
 
 function reachOf(user: User): string[] | null {
   const ids = new Set(user.managedDepartmentIds);

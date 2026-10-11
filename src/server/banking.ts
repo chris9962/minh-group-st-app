@@ -39,11 +39,14 @@ import { BUSINESS_TIMEZONE, ageRangeLabel, businessDay, businessMonth, digitsOnl
 import {
   canDeleteFinished,
   canManageBank,
+  pinnedVisibility,
   recordVisibility,
+  searchVisibility,
   type RecordVisibility,
 } from "@/lib/permissions";
 import { isRealIsoDate, type User } from "@/lib/types";
-import { searchTerms } from "@/lib/search";
+import { isIdNumberQuery, searchTerms } from "@/lib/search";
+import { customerIdsWithIdNumber } from "./customerLookup";
 import { db } from "./db/client";
 import { bankManagersFor, notify, notifyUsers } from "./notifications";
 import { departmentForNewRecord } from "./writeDepartment";
@@ -378,9 +381,17 @@ const inScope = (
  * Mã giới thiệu đổi sang id ở `referralCodeIdsMatching` trước, rồi `inArray`
  * trên cột sẵn có. Không `exists` lên `referral_codes` từng dòng tài khoản.
  */
-function searchWhere(raw: string, codeIds: string[]): SQL | undefined {
+function searchWhere(raw: string, codeIds: string[], idNumberOnly = false): SQL | undefined {
   const text = raw.trim();
   if (!text) return undefined;
+
+  if (isIdNumberQuery(text)) {
+    const digits = digitsOnly(text);
+    const byIdNumber = inArray(bankAccounts.customerId, customerIdsWithIdNumber(digits));
+    return idNumberOnly
+      ? byIdNumber
+      : or(byIdNumber, sql`${bankAccounts.accountNumber} like ${`%${digits}%`}`);
+  }
 
   return and(
     ...searchTerms(text).map((term) => {
@@ -508,6 +519,7 @@ async function accountFilters(
   visible: RecordVisibility,
   query: BankAccountFilters,
   dayOf: "customer" | "opened" = "customer",
+  idNumberOnly = false,
 ): Promise<SQL | undefined> {
   const [bankIds, codeIds, searchCodeIds] = await Promise.all([
     bankIdsOf(query.bankCode),
@@ -517,7 +529,7 @@ async function accountFilters(
 
   const parts = [
     scopeWhere(visible),
-    searchWhere(query.search, searchCodeIds),
+    searchWhere(query.search, searchCodeIds, idNumberOnly),
     // `[]` = mã gõ vào không có thật → không dòng nào khớp. `sql\`false\`` nói
     // đúng điều đó; bỏ qua bộ lọc thì người dùng gõ sai mã lại thấy cả kho.
     bankIds === null ? undefined : bankIds.length > 0 ? inArray(bankAccounts.bankId, bankIds) : sql`false`,
@@ -789,10 +801,12 @@ export async function listBankAccounts(
   filters: BankAccountFilters,
   page: PageArgs<BankAccountSort>,
 ): Promise<Page<BankAccountRow>> {
-  const visible = scopeOf(actor, "view-detail");
+  const visible = searchVisibility(actor, "banking", filters.search);
   if (visible.kind === "none") return { rows: [], total: 0 };
+  // Quyền `lookup` mở toàn công ty cho CCCD, không cho số tài khoản trùng đoạn số.
+  const byLookup = visible.kind === "all" && scopeOf(actor, "view-detail").kind !== "all";
 
-  const where = await accountFilters(visible, filters, "opened");
+  const where = await accountFilters(visible, filters, "opened", byLookup);
   const [rows, [totals]] = await Promise.all([
     orderedPage(where, page.dir, page.limit, page.offset),
     db.select({ value: count() }).from(bankAccounts).where(where),
@@ -1217,7 +1231,7 @@ export async function bankAccountDetail(
   actor: User,
   id: string,
 ): Promise<BankAccountDetail | null> {
-  const visible = scopeOf(actor, "view-detail");
+  const visible = pinnedVisibility(actor, "banking");
   if (visible.kind === "none") return null;
 
   const r = await rawById(id);

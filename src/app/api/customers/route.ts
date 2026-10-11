@@ -18,7 +18,7 @@ import { idCardScanFor } from "@/server/idCardScanMode";
 import { pageArgsFrom } from "@/server/pagination";
 import { ID_CARD_FOLDER, putImage } from "@/server/storage";
 
-const SORTABLE: readonly CustomerSort[] = ["name", "accounts", "insurance", "created"];
+const SORTABLE: readonly CustomerSort[] = ["match", "name", "accounts", "insurance", "created"];
 
 /**
  * P-40 · Danh sách khách hàng.
@@ -38,12 +38,13 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const params = url.searchParams;
-  const scope = customerListScope(guard.actor);
+  const search = params.get("search") ?? "";
+  const scope = customerListScope(guard.actor, search);
 
   return Response.json(
     await listCustomers(
       {
-        search: params.get("search") ?? "",
+        search,
         channelId: uuidParam(params.get("channelId")),
         channelDetail: params.get("channelDetail") ?? "",
         address: params.get("address") ?? "",
@@ -61,7 +62,7 @@ export async function GET(request: Request) {
         departmentId: uuidParam(params.get("departmentId")),
         accounts: accountFiltersFrom(params.get("accounts")),
       },
-      pageArgsFrom(url, SORTABLE, "created"),
+      pageArgsFrom(url, SORTABLE, "match"),
     ),
   );
 }

@@ -85,6 +85,8 @@ export const actionKey = pgEnum("action_key", [
   "view-ops",
   // đặc biệt · system: chốt lương theo tháng (migration 0102)
   "close-salary",
+  // đặc biệt · customer/banking/insurance/vneid: tra cứu toàn công ty bằng CCCD (migration 0134)
+  "lookup",
 ]);
 
 export const scopeKey = pgEnum("scope_key", ["own", "managed", "company"]);

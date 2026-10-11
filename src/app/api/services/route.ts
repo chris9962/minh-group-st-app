@@ -2,6 +2,7 @@ import { SERVICE_SORT, ServiceForm } from "@/lib/api/services";
 import { can } from "@/lib/permissions";
 import { logAudit } from "@/server/audit";
 import { badRequest, forbidden, getActor, jsonBody, unauthorized, uuidParam } from "@/server/auth";
+import { lookupOnlyMessage } from "@/server/customerLookup";
 import { pageArgsFrom } from "@/server/pagination";
 import { createService, listServices } from "@/server/services";
 
@@ -42,6 +43,8 @@ export async function POST(request: Request) {
   // Máy chủ tự kiểm dữ liệu vào — không tin client đã chạy zod.
   const parsed = ServiceForm.safeParse(await jsonBody(request));
   if (!parsed.success) return badRequest();
+  const lookupOnly = await lookupOnlyMessage(actor, parsed.data.customerId);
+  if (lookupOnly) return badRequest(lookupOnly);
 
   const result = await createService(actor, parsed.data);
   if (!result.ok) return Response.json({ message: result.message }, { status: 422 });

@@ -45,11 +45,19 @@ import type { Page } from "@/lib/api/pagination";
 import { capitalizePersonName } from "@/lib/api/personName";
 import type { PageArgs } from "./pagination";
 import { BUSINESS_TIMEZONE, businessMonth, clockNowVn, digitsOnly, monthRange, searchKey } from "@/lib/format";
-import { can, recordInScope, recordVisibility, type RecordVisibility } from "@/lib/permissions";
+import {
+  can,
+  pinnedVisibility,
+  recordInScope,
+  recordVisibility,
+  searchVisibility,
+  type RecordVisibility,
+} from "@/lib/permissions";
 import type { GiftSimulateResult } from "@/lib/api/settings";
 import { isRealIsoDate, type User } from "@/lib/types";
 import { searchTerms } from "@/lib/search";
 import { customerDay, customerDayBetween, customerDayText } from "./customerDay";
+import { customerIdsWithIdNumber } from "./customerLookup";
 import { db, uniqueViolationOf } from "./db/client";
 import { giftForCustomer, giftItemNames, grantedItemLabel, recomputeGiftCase } from "./gift";
 import { closedMonthAmong, closedMonthOfCustomer, customerMonthClosed } from "./closedMonths";
@@ -188,8 +196,11 @@ export type CustomerFilters = {
  * Dùng chung cho bảng P-40 và danh sách ấp của ô lọc, để ô lọc không hiện ấp
  * của khách mà bảng không cho người đó xem.
  */
-export function customerListScope(actor: User): { departmentIds?: string[]; createdBy?: string } {
-  const view = recordVisibility(actor, "customer", "view-detail");
+export function customerListScope(
+  actor: User,
+  search = "",
+): { departmentIds?: string[]; createdBy?: string } {
+  const view = searchVisibility(actor, "customer", search);
   switch (view.kind) {
     case "all":
       return {};
@@ -238,7 +249,7 @@ function searchWhere(raw: string): SQL | undefined {
   const allDigits = digits.length === text.replace(/\s/g, "").length;
 
   // CCCD đủ 12 số thì so chính xác, giữ cả số 0 đầu và không tìm lẫn qua SĐT.
-  if (allDigits && digits.length === 12) return eq(customers.idNumber, digits);
+  if (allDigits && digits.length === 12) return inArray(customers.id, customerIdsWithIdNumber(digits));
 
   if (allDigits && digits.length >= 3) {
     const byPhone = sql`exists (select 1 from ${customerPhones} where ${customerPhones.customerId} = ${customers.id} and ${customerPhones.number} like ${`%${digits}%`})`;
@@ -258,6 +269,32 @@ function searchWhere(raw: string): SQL | undefined {
         sql`${customers.searchName} like '%' || mgst_normalize(${likeEscape(term)}) || '%' escape '\\'`,
     ),
   );
+}
+
+/**
+ * Hạng giống của tên khách với chữ đã gõ, số nhỏ đứng trước (chốt 2026-10-10).
+ *
+ * `searchWhere` vẫn quyết định dòng nào khớp; hàm này chỉ xếp. Trước đó kết quả
+ * xếp theo bảng chữ cái, nên gõ đúng "Nguyễn Văn An" thì "Nguyễn Thị Vân An"
+ * đứng trên. Không phải tìm tên thì mọi dòng cùng hạng 0.
+ */
+const NO_RANK = sql<number>`0::int`;
+
+function nameRank(raw: string): SQL<number> {
+  const text = raw.trim();
+  const digits = digitsOnly(text);
+  const allDigits = digits.length === text.replace(/\s/g, "").length;
+  // `0` trần trong ORDER BY là số thứ tự cột; ép kiểu thì nó mới là hằng số.
+  if (!text || (allDigits && digits.length >= 3)) return NO_RANK;
+
+  const phrase = searchTerms(text).join(" ");
+  const pattern = sql`mgst_normalize(${likeEscape(phrase)})`;
+  return sql<number>`case
+    when lower(${customers.fullName}) = lower(${phrase}) then 0
+    when ${customers.searchName} = mgst_normalize(${phrase}) then 1
+    when ${customers.searchName} like ${pattern} || '%' escape '\\' then 2
+    when ${customers.searchName} like '%' || ${pattern} || '%' escape '\\' then 3
+    else 4 end`;
 }
 
 /**
@@ -320,7 +357,13 @@ function customerFilters(query: CustomerFilters): SQL | undefined {
  * được. Hai cột đếm nay lưu sẵn (trigger giữ) nên sắp theo chúng cũng nằm gọn
  * trong bảng này.
  */
-const pickPage = (where: SQL | undefined, orderBy: SQL[], limit: number, offset: number) =>
+const pickPage = (
+  where: SQL | undefined,
+  orderBy: SQL[],
+  limit: number,
+  offset: number,
+  rank: SQL<number> = NO_RANK,
+) =>
   db
     .select({
       id: customers.id,
@@ -345,6 +388,7 @@ const pickPage = (where: SQL | undefined, orderBy: SQL[], limit: number, offset:
        */
       searchName: customers.searchName,
       createdInstant: customers.createdAt,
+      searchRank: rank.as("search_rank"),
     })
     .from(customers)
     .where(where)
@@ -479,12 +523,15 @@ const orderKeys = (
     insuranceCount: SQLWrapper;
     createdAt: SQLWrapper;
     id: SQLWrapper;
+    rank: SQLWrapper;
   },
   sort: CustomerSort,
   dir: "asc" | "desc",
 ): SQL[] => {
   const direction = dir === "asc" ? asc : desc;
   return {
+    // Kiểu sắp mặc định: chưa gõ tên thì mọi dòng cùng hạng, nên ra khách mới nhất trước như cũ.
+    match: [asc(c.rank), desc(c.createdAt), asc(c.id)],
     // Sắp theo cột đã bỏ dấu, không theo `full_name`: Postgres xếp `Đặng` sau
     // `Zũng` với collate mặc định, người dùng đọc ra là bảng sắp sai.
     name: [direction(c.searchName), asc(c.id)],
@@ -527,7 +574,25 @@ export async function listCustomers(
    * Chỉ trùng khi nhiều dòng đi chung MỘT transaction (`now()` là giờ mở
    * transaction, không phải giờ từng dòng), tức lúc có màn nhập hàng loạt.
    */
-  const inner = pickPage(where, orderKeys(customers, page.sort, page.dir), page.limit, page.offset);
+  const rank = nameRank(filters.search);
+  const inner = pickPage(
+    where,
+    orderKeys(
+      {
+        searchName: customers.searchName,
+        accountCount: customers.accountCount,
+        insuranceCount: customers.insuranceCount,
+        createdAt: customers.createdAt,
+        id: customers.id,
+        rank,
+      },
+      page.sort,
+      page.dir,
+    ),
+    page.limit,
+    page.offset,
+    rank,
+  );
 
   /**
    * Sắp LẠI ở câu ngoài, CÙNG một `orderKeys`, chỉ khác nguồn cột.
@@ -549,6 +614,7 @@ export async function listCustomers(
           insuranceCount: inner.insuranceCount,
           createdAt: inner.createdInstant,
           id: inner.id,
+          rank: inner.searchRank,
         },
         page.sort,
         page.dir,
@@ -594,6 +660,10 @@ const bankAccountsOfCustomer = sql`(select count(*) from ${bankAccounts} where $
 const LOOKUP_LIMIT = 15;
 
 /** Điều kiện phạm vi cho ô tìm khách, tính từ quyền đọc hồ sơ khách. */
+/**
+ * Không mở theo quyền `lookup`: ô này đứng trước các luồng TẠO bản ghi, mà khách
+ * chỉ thấy nhờ tra cứu thì chỉ được xem. Ô tìm trên thanh trên cùng đi bảng P-40.
+ */
 function lookupScope(actor: User): SQL {
   const visible = recordVisibility(actor, "customer", "view-detail");
   switch (visible.kind) {
@@ -621,7 +691,8 @@ function lookupScope(actor: User): SQL {
  * sinh, không có bốn số cuối CCCD — chúng nằm ở `/api/customers/[id]`, và mở
  * một hồ sơ cụ thể có ghi nhật ký.
  *
- * Sắp theo tên chứ không theo ngày tạo: người dùng đang tìm một cái tên.
+ * Sắp theo hạng giống (`nameRank`) rồi theo tên, không theo ngày tạo: người
+ * dùng đang tìm một cái tên.
  */
 export async function lookupCustomers(
   actor: User,
@@ -640,14 +711,16 @@ export async function lookupCustomers(
     ? and(scope, match, sql`${bankAccountsOfCustomer} < ${MAX_BANK_ACCOUNTS_PER_CUSTOMER}`)
     : and(scope, match);
 
+  const rank = nameRank(search);
   const inner = pickPage(
     where,
-    [asc(customers.searchName), asc(customers.id)] as SQL[],
+    [asc(rank), asc(customers.searchName), asc(customers.id)] as SQL[],
     LOOKUP_LIMIT,
     0,
+    rank,
   );
   const rows = await decorate(inner)
-    .orderBy(asc(inner.searchName), asc(inner.id))
+    .orderBy(asc(inner.searchRank), asc(inner.searchName), asc(inner.id))
     .then((list) =>
       list.map((r) => ({
         id: r.id,
@@ -1822,9 +1895,10 @@ export async function purgeEmptyCustomers(
  *
  * `chỉ mình` nghĩa là bản ghi do CHÍNH MÌNH tạo (spec §1.1.2) — xem ghi chú ở
  * `recordVisibility`. Phần bị giấu vẫn được đếm và nói ra, không giấu im.
+ * Hồ sơ đã ghim vào một khách nên người có quyền `lookup` thấy đủ.
  */
 const scopeOf = (actor: User, module: "banking" | "insurance" | "services"): RecordVisibility =>
-  recordVisibility(actor, module, "view-detail");
+  pinnedVisibility(actor, module);
 
 /**
  * Hồ sơ 360° — thông tin khách (không phạm vi) + bản ghi nghiệp vụ (có phạm vi).
@@ -1859,7 +1933,7 @@ export async function customerDetailFor(
    * không". Dòng của hồ sơ đã xoá luôn hiện — hồ sơ mất rồi thì không còn chủ để
    * so, mà giấu đi là mất dấu vết lượt xoá.
    */
-  const changeVisible = recordVisibility(actor, "customer", "view-detail");
+  const changeVisible = pinnedVisibility(actor, "customer");
   const chuHoSo = alias(customers, "chu_ho_so");
 
   const changeScope =

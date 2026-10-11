@@ -55,7 +55,7 @@ import {
 } from "@/lib/format";
 import { PAGE_SIZE } from "@/lib/api/pagination";
 import { canOpenPath } from "@/lib/nav";
-import { can, isFullAccess, recordInScope, recordVisibility } from "@/lib/permissions";
+import { can, isFullAccess, lookupOnlyCustomer, recordInScope, recordVisibility } from "@/lib/permissions";
 import { PRODUCT_LABEL } from "@/lib/types";
 import { useSession } from "@/store/session";
 import { errorMessage, toast } from "@/lib/toast";
@@ -464,6 +464,10 @@ export default function CustomerDetailPage({
                     Sửa thông tin
                   </Button>
                 )}
+                {/* Khách chỉ thấy nhờ quyền tra cứu thì chỉ xem: máy chủ từ chối
+                    mọi lượt ghi bên dưới. */}
+                {!lookupOnlyCustomer(actor, data.customer) && (
+                <>
                 {/* Tháng của hồ sơ đã chốt lương: máy chủ từ chối mọi thao tác quà
                     và mở ngân hàng của hồ sơ này, nên ẩn nút. */}
                 {!data.monthClosed && currentMonthProfile && !data.gift.given && (
@@ -518,6 +522,8 @@ export default function CustomerDetailPage({
                     <IdCard size={16} />
                     Tích hợp VNeID
                   </Button>
+                )}
+                </>
                 )}
                 {/* Cùng điều kiện phạm vi mức DÒNG với `deleteCustomer` ở máy
                     chủ — xem nút Sửa thông tin ở trên. */}

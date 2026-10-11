@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { parseMoneyCents } from '@/lib/money';
+import { ROLE_PERMISSIONS } from '@/lib/roles';
 import { ContractType, ManageScope, Permission, ROLE_LABEL, RoleKey, SalaryScheme } from '@/lib/types';
 import { pageOf, pageParams, type PageQuery } from './pagination';
 import { SalaryBreakdown } from './person';
@@ -151,6 +152,37 @@ export const INSURANCE_WATCH_DEPARTMENT_CODE = 'PHONG-KDTH';
 
 /** Phòng An Sinh: mọi người trong phòng điểm danh 1 nút, kể cả Trưởng phòng và Phó phòng. */
 export const SOCIAL_DEPARTMENT_CODE = 'PHONG-AN-SINH';
+
+/**
+ * Phòng Thanh tra. Mã còn mang tên cũ "Phòng Bảo trợ xã hội": phòng đổi tên
+ * ngày 2026-10-05, còn mã cố định từ lúc lập.
+ */
+export const INSPECTION_DEPARTMENT_CODE = 'PHONG-BTXH';
+
+/**
+ * Bộ quyền điền sẵn khi tạo người hoặc bấm "Đặt lại theo chức vụ".
+ *
+ * Người Phòng Thanh tra có thêm `lookup` ở bốn module (chốt 2026-10-10). Bộ
+ * của chức vụ đã có `view-detail` ở cả bốn, thiếu nó thì `lookup` không mở gì.
+ */
+export function defaultPermissionsFor(role: RoleKey, departmentCode: string | undefined): Permission[] {
+  return withInspectionLookup(ROLE_PERMISSIONS[role], departmentCode);
+}
+
+const INSPECTION_LOOKUP: Permission[] = (['customer', 'banking', 'insurance', 'vneid'] as const).map(
+  (module) => ({ module, action: 'lookup', scope: 'company' }),
+);
+
+/** Thêm hoặc bỏ đúng bốn dòng `lookup` theo phòng, giữ nguyên các ô người tạo đã tích. */
+export function withInspectionLookup(
+  permissions: Permission[],
+  departmentCode: string | undefined,
+): Permission[] {
+  const rest = permissions.filter(
+    (p) => !INSPECTION_LOOKUP.some((l) => l.module === p.module && l.action === p.action),
+  );
+  return departmentCode === INSPECTION_DEPARTMENT_CODE ? [...rest, ...INSPECTION_LOOKUP] : rest;
+}
 
 /**
  * Chức vụ quyết định luôn hai trục tổ chức, không để người tạo tự tích.

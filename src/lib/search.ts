@@ -19,3 +19,6 @@ export function searchTerms(raw: string): string[] {
     .filter(Boolean)
     .slice(0, SEARCH_MAX_TERMS);
 }
+
+/** Chuỗi tìm là đúng một số CCCD đủ 12 chữ số, cho phép gõ cách quãng. */
+export const isIdNumberQuery = (raw: string): boolean => /^\d{12}$/.test(raw.replace(/\s/g, ""));

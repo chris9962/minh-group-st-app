@@ -2,6 +2,7 @@ import { BankAccountStartForm } from "@/lib/api/bankAccounts";
 import { can } from "@/lib/permissions";
 import { logAudit } from "@/server/audit";
 import { badRequest, forbidden, getActor, jsonBody, unauthorized } from "@/server/auth";
+import { lookupOnlyMessage } from "@/server/customerLookup";
 import { startBankAccount } from "@/server/banking";
 
 /**
@@ -20,6 +21,8 @@ export async function POST(request: Request) {
 
   const parsed = BankAccountStartForm.safeParse(await jsonBody(request));
   if (!parsed.success) return badRequest();
+  const lookupOnly = await lookupOnlyMessage(actor, parsed.data.customerId);
+  if (lookupOnly) return badRequest(lookupOnly);
 
   const result = await startBankAccount(actor, parsed.data);
   // 409 chứ không phải 422: "mã vừa hết chỗ" là XUNG ĐỘT với người khác, không

@@ -3,6 +3,7 @@ import { GiftExtraChoice } from "@/lib/api/customers";
 import { can } from "@/lib/permissions";
 import { logAudit } from "@/server/audit";
 import { badRequest, forbidden, getActor, isUuid, jsonBody, notFound, unauthorized } from "@/server/auth";
+import { lookupOnlyMessage } from "@/server/customerLookup";
 import { chooseExtraGift } from "@/server/gift";
 
 const Body = z.object({ extras: z.array(GiftExtraChoice).min(1, "Chưa chọn quà thêm") });
@@ -22,6 +23,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (!isUuid(id)) return notFound();
   const parsed = Body.safeParse(await jsonBody(request));
   if (!parsed.success) return badRequest(parsed.error.issues[0]?.message ?? "Dữ liệu không hợp lệ");
+  const lookupOnly = await lookupOnlyMessage(actor, id);
+  if (lookupOnly) return badRequest(lookupOnly);
 
   const result = await chooseExtraGift(actor, id, parsed.data.extras);
   if (result === null) return notFound();

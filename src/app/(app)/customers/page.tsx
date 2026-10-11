@@ -60,7 +60,7 @@ import { businessMonth, formatDate, formatPhone, formatPoints } from "@/lib/form
 import { useAddressSuggestions } from "@/lib/useAddressSuggestions";
 import { useDebouncedValue } from "@/lib/hooks";
 import { useCreateIntent } from "@/lib/useCreateIntent";
-import { can, recordInScope, recordVisibility } from "@/lib/permissions";
+import { can, lookupOnlyCustomer, recordInScope, recordVisibility } from "@/lib/permissions";
 import { isRealIsoDate } from "@/lib/types";
 import { fetchStaffOptions } from "@/lib/api/staff";
 import { usePrefs } from "@/store/prefs";
@@ -107,7 +107,7 @@ const FIRST_PAGE: CustomerQuery = {
   from: "",
   to: "",
   page: 0,
-  sort: "created",
+  sort: "match",
   dir: "desc",
 };
 
@@ -140,7 +140,12 @@ const queryFromUrl = (params: URLSearchParams): CustomerQuery => {
     accounts: accountFiltersFrom(params.get("accounts")),
     page: pageFromUrl(params.get("page")),
     // Khoá lạ rơi về mặc định, không làm hỏng màn — cùng lối với `pageArgsFrom`.
-    sort: CUSTOMER_SORT.includes(sort as CustomerSort) ? (sort as CustomerSort) : "created",
+    // Link cũ ghi "Ngày tạo tăng dần" là `?dir=asc` không kèm `sort`.
+    sort: CUSTOMER_SORT.includes(sort as CustomerSort)
+      ? (sort as CustomerSort)
+      : params.get("dir") === "asc"
+        ? "created"
+        : "match",
     dir: params.get("dir") === "asc" ? "asc" : "desc",
   };
 };
@@ -339,7 +344,7 @@ export default function CustomersPage() {
     if (asked.staffId) params.set("staffId", asked.staffId);
     if (asked.accounts.length > 0) params.set("accounts", asked.accounts.join(","));
     if (asked.page > 0) params.set("page", String(asked.page + 1));
-    if (asked.sort !== "created") params.set("sort", asked.sort);
+    if (asked.sort !== "match") params.set("sort", asked.sort);
     if (asked.dir === "asc") params.set("dir", asked.dir);
     const query = params.toString();
     return query ? `/customers?${query}` : "/customers";
@@ -524,7 +529,8 @@ export default function CustomersPage() {
                 đang tặng cho ai. */}
             {/* Tháng của hồ sơ đã chốt lương: máy chủ từ chối quà và mở ngân hàng.
                 Hồ sơ tháng cũ cũng ẩn hai nút này (chốt 2026-10-05). */}
-            {!c.monthClosed && c.createdAt.slice(0, 7) === businessMonth() && (
+            {/* Khách chỉ thấy nhờ quyền tra cứu thì chỉ xem: ẩn bốn nút ghi. */}
+            {!c.monthClosed && c.createdAt.slice(0, 7) === businessMonth() && !lookupOnlyCustomer(user, c) && (
               <>
                 <Button
                   variant="secondary"
@@ -550,7 +556,7 @@ export default function CustomersPage() {
                 </Button>
               </>
             )}
-            {can(user, "services", "create") && (
+            {can(user, "services", "create") && !lookupOnlyCustomer(user, c) && (
               <Button
                 variant="secondary"
                 icon={compact}
@@ -562,7 +568,7 @@ export default function CustomersPage() {
                 {!compact && "Ghi dịch vụ"}
               </Button>
             )}
-            {!c.monthClosed && can(user, "vneid", "create") && (
+            {!c.monthClosed && can(user, "vneid", "create") && !lookupOnlyCustomer(user, c) && (
               <Button
                 variant="secondary"
                 icon={compact}
@@ -837,7 +843,9 @@ export default function CustomersPage() {
                 defaultSort="created"
                 caption="Khách hàng, số tài khoản, số đơn bảo hiểm và trạng thái quà"
                 server={{
-                  sort: query.sort,
+                  // Chưa gõ tên thì `match` ra đúng thứ tự Ngày tạo giảm dần, nên đánh dấu cột đó.
+                  sort:
+                    query.sort === "match" && !/[^\d\s]/.test(debouncedSearch) ? "created" : query.sort,
                   dir: query.dir,
                   page: query.page,
                   total: page.total,

@@ -15,16 +15,19 @@ import { Select } from "@/components/ui/Select";
 import { TextField } from "@/components/ui/TextField";
 import {
   createStaff,
+  defaultPermissionsFor,
+  INSPECTION_DEPARTMENT_CODE,
   INSURANCE_WATCH_DEPARTMENT_CODE,
   normalizeStaffForm,
   ROLE_SHAPE,
   StaffForm,
   updateStaff,
+  withInspectionLookup,
   type StaffAccount,
 } from "@/lib/api/staff";
 import { formatCount, removeDiacritics } from "@/lib/format";
 import { decimalOnly, numericField } from "@/lib/numberField";
-import { assignableRoles, isFullAccess } from "@/lib/permissions";
+import { assignableRoles, canGrant, isFullAccess } from "@/lib/permissions";
 import {
   CONTRACT_TYPE_LABEL,
   ContractType,
@@ -33,6 +36,7 @@ import {
   SALARY_SCHEME_LABEL,
   SalaryScheme,
   type Department,
+  type Permission,
 } from "@/lib/types";
 import { ROLE_PERMISSIONS } from "@/lib/roles";
 import { useSession } from "@/store/session";
@@ -119,6 +123,12 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
   const [created, setCreated] = useState<{ username: string; password: string } | null>(null);
   /** Tên đăng nhập tự sinh gần nhất — mốc để biết người tạo đã tự gõ hay chưa. */
   const suggestedUsername = useRef("");
+  const codeOf = (departmentId: string) => departments.find((d) => d.id === departmentId)?.code;
+  /** Người tạo không phát được `lookup` thì bỏ các dòng đó, nếu không máy chủ từ chối cả lượt lưu. */
+  const grantable = (permissions: Permission[]) =>
+    permissions.filter((p) => p.action !== "lookup" || canGrant(actor, p));
+  const defaultsFor = (role: StaffForm["role"], departmentId: string) =>
+    grantable(defaultPermissionsFor(role, codeOf(departmentId)));
 
   const {
     register,
@@ -140,7 +150,11 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
     // ô vẫn trống như cũ.
     defaultValues: staff
       ? normalizeStaffForm(toForm(staff))
-      : { ...emptyForm, departmentId: actor?.departmentId ?? "" },
+      : {
+          ...emptyForm,
+          departmentId: actor?.departmentId ?? "",
+          permissions: defaultsFor("staff", actor?.departmentId ?? ""),
+        },
   });
 
   const roles = assignableRoles(actor);
@@ -329,11 +343,17 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
             disabled={!shape.department}
             error={errors.departmentId?.message}
             onChange={(v) => {
+              const wasInspection = codeOf(getValues("departmentId")) === INSPECTION_DEPARTMENT_CODE;
               setValue("departmentId", v, { shouldDirty: true });
               // Trưởng phòng và Phó phòng nhìn đúng đơn vị mình thuộc về, nên
               // đổi đơn vị là đổi luôn phạm vi nhìn.
               if (shape.manages === "own-department")
                 setValue("managedDepartmentIds", v ? [v] : [], { shouldDirty: true });
+              // Vào hoặc ra Phòng Thanh tra lúc tạo người: thêm hoặc bỏ đúng các dòng `lookup`.
+              if (!editing && wasInspection !== (codeOf(v) === INSPECTION_DEPARTMENT_CODE))
+                setValue("permissions", grantable(withInspectionLookup(getValues("permissions"), codeOf(v))), {
+                  shouldDirty: true,
+                });
             }}
             options={[
               { value: "", label: "Không thuộc phòng nào" },
@@ -357,18 +377,19 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
               if (!editing && (currentTitle === "" || currentTitle === ROLE_TITLE[previous])) {
                 setValue("title", ROLE_TITLE[role], { shouldDirty: true });
               }
-              // Chỉ tự điền lại quyền khi TẠO MỚI — sửa người đã có thì giữ
-              // nguyên quyền hiện tại, đổi chức vụ không được xoá mất phần
-              // admin đã cấp thêm riêng cho người đó. Lượt sửa thì hỏi.
-              if (!editing) {
-                setValue("permissions", ROLE_PERMISSIONS[role], { shouldDirty: true });
-              } else if (role !== previous) {
-                setRoleToReset(role);
-              }
               // Đơn vị và phòng phụ trách suy ra từ chức vụ, người dùng không
               // tích tay. Bỏ bước này thì Trưởng phòng mới lập giữ nguyên
               // `manageScope: none` và thấy 0 bản ghi.
               const next = normalizeStaffForm({ ...getValues(), role });
+              // Chỉ tự điền lại quyền khi TẠO MỚI — sửa người đã có thì giữ
+              // nguyên quyền hiện tại, đổi chức vụ không được xoá mất phần
+              // admin đã cấp thêm riêng cho người đó. Lượt sửa thì hỏi.
+              // Đọc phòng SAU khi chuẩn hoá: Phó giám đốc không thuộc phòng nào.
+              if (!editing) {
+                setValue("permissions", defaultsFor(role, next.departmentId), { shouldDirty: true });
+              } else if (role !== previous) {
+                setRoleToReset(role);
+              }
               // `normalizeStaffForm` cố ý không đụng vai Nhân viên, nên phòng
               // phụ trách của vai vừa bỏ còn nguyên: đổi Nhân viên → Phó phòng
               // → Nhân viên trong cùng hộp thoại là khối Phòng phụ trách hiện
@@ -507,7 +528,9 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
                 type="button"
                 className={styles.resetPermissions}
                 onClick={() =>
-                  setValue("permissions", ROLE_PERMISSIONS[watch("role")], { shouldDirty: true })
+                  setValue("permissions", defaultsFor(watch("role"), watch("departmentId")), {
+                    shouldDirty: true,
+                  })
                 }
               >
                 Đặt lại theo chức vụ
@@ -526,7 +549,9 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
         cancelLabel="Giữ quyền hiện tại"
         onConfirm={() => {
           if (roleToReset)
-            setValue("permissions", ROLE_PERMISSIONS[roleToReset], { shouldDirty: true });
+            setValue("permissions", defaultsFor(roleToReset, getValues("departmentId")), {
+              shouldDirty: true,
+            });
           setRoleToReset(null);
         }}
         onClose={() => setRoleToReset(null)}
