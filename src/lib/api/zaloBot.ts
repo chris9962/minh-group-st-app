@@ -283,6 +283,14 @@ export async function saveZaloNotificationPgds(
   }
 }
 
+/** Nút "Gửi ngay". Trả số tin đã đưa vào hàng chờ; 0 khi không có gì để gửi. */
+export async function sendZaloNotificationNow(kind: ZaloNotificationKind): Promise<number> {
+  const res = await fetch(`/api/zalo-bot/notifications/${kind}/send`, { method: 'POST' });
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(data?.message ?? 'Không gửi được thông báo');
+  return z.object({ queued: z.number() }).parse(data).queued;
+}
+
 export async function syncZaloGroups(): Promise<void> {
   const res = await fetch('/api/zalo-bot/groups/sync', { method: 'POST' });
   if (!res.ok) throw new Error('Không gửi được yêu cầu tải lại danh sách nhóm');

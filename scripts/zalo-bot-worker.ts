@@ -38,14 +38,12 @@ import {
   type Credentials,
   type Message,
 } from "zca-js";
-import { notificationNeedsPgd, ZaloNotificationKind } from "../src/lib/api/zaloBot";
+import { ZaloNotificationKind } from "../src/lib/api/zaloBot";
 import { replyToCommand } from "../src/server/zalo/commands";
-import { collectZaloNotice } from "../src/server/zalo/notifications";
+import { queueZaloNotices } from "../src/server/zalo/notifications";
 import {
   beatZaloHeartbeat,
   currentZaloAccountId,
-  enqueueZaloGroupText,
-  enqueueZaloPhoneText,
   finishZaloOutbox,
   forgetZaloContact,
   markZaloWorkerStopped,
@@ -249,15 +247,8 @@ async function syncGroups(api: API, accountId: string): Promise<void> {
 
 async function queueNotices(accountId: string): Promise<void> {
   for (const kind of ZaloNotificationKind.options) {
-    // Loại gửi riêng cho PGĐ không có nhóm nhận; tin của nó mang sẵn SĐT người nhận.
-    const toPgds = notificationNeedsPgd(kind);
-    const groupIds = toPgds ? [] : await routedZaloGroupIds(accountId, kind);
-    if (!toPgds && groupIds.length === 0) continue;
-    const notices = await collectZaloNotice(kind, accountId);
-    for (const n of notices)
-      if (n.phone) await enqueueZaloPhoneText([n.phone], n.body);
-      else await enqueueZaloGroupText(groupIds, n.body);
-    if (notices.length > 0) log(`Thông báo ${kind}: ${notices.length} tin vào hàng chờ.`);
+    const queued = await queueZaloNotices(accountId, kind);
+    if (queued) log(`Thông báo ${kind}: ${queued} tin vào hàng chờ.`);
   }
 }
 

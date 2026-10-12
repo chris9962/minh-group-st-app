@@ -7,6 +7,7 @@ import { RequirePermission } from "@/components/layout/RequirePermission";
 import { TopBar } from "@/components/layout/TopBar";
 import { Alert } from "@/components/ui/Alert";
 import { Button } from "@/components/ui/Button";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { SectionCard } from "@/components/ui/SectionCard";
@@ -26,6 +27,7 @@ import {
   fetchZaloNotificationRoutes,
   logoutZaloBot,
   notificationNeedsPgd,
+  sendZaloNotificationNow,
   syncZaloGroups,
   ZALO_BOT_STATUS_LABEL,
   ZALO_NOTIFICATION_LABEL,
@@ -123,6 +125,18 @@ export default function ZaloBotPage() {
   const editingGroups = routes.data?.find((r) => r.kind === editingKind)?.groups ?? [];
   const [editingPgdKind, setEditingPgdKind] = useState<ZaloNotificationKind | null>(null);
   const editingPgds = routes.data?.find((r) => r.kind === editingPgdKind)?.pgds ?? [];
+  const [sendingKind, setSendingKind] = useState<ZaloNotificationKind | null>(null);
+
+  const sendNow = useMutation({
+    mutationFn: sendZaloNotificationNow,
+    onSuccess: (queued) => {
+      setSendingKind(null);
+      if (queued === 0) toast.ok("Không có gì để gửi.");
+      else toast.ok(`Đã đưa ${queued} tin vào hàng chờ gửi.`);
+      void queryClient.invalidateQueries({ queryKey: ["zalo-bot"] });
+    },
+    onError: (e) => toast.fail(errorMessage(e, "Không gửi được thông báo.")),
+  });
 
   const [chatTarget, setChatTarget] = useState<ZaloChatTarget | null>(null);
 
@@ -258,15 +272,22 @@ export default function ZaloBotPage() {
                                 : route.groups.map((g) => g.name).join(", ")}
                           </span>
                         </div>
-                        {notificationNeedsPgd(route.kind) ? (
-                          <Button variant="secondary" onClick={() => setEditingPgdKind(route.kind)}>
-                            Chọn PGĐ
-                          </Button>
-                        ) : (
-                          <Button variant="secondary" onClick={() => setEditingKind(route.kind)}>
-                            Chọn nhóm
-                          </Button>
-                        )}
+                        <div className={styles.noticeActions}>
+                          {(notificationNeedsPgd(route.kind) ? route.pgds : route.groups).length > 0 && (
+                            <Button variant="secondary" onClick={() => setSendingKind(route.kind)}>
+                              Gửi ngay
+                            </Button>
+                          )}
+                          {notificationNeedsPgd(route.kind) ? (
+                            <Button variant="secondary" onClick={() => setEditingPgdKind(route.kind)}>
+                              Chọn PGĐ
+                            </Button>
+                          ) : (
+                            <Button variant="secondary" onClick={() => setEditingKind(route.kind)}>
+                              Chọn nhóm
+                            </Button>
+                          )}
+                        </div>
                       </li>
                     ))}
                   </ul>
@@ -304,6 +325,18 @@ export default function ZaloBotPage() {
           initialUserIds={editingPgds.map((p) => p.id)}
           onClose={() => setEditingPgdKind(null)}
         />
+      )}
+      {sendingKind && (
+        <ConfirmDialog
+          open
+          title="Gửi ngay"
+          confirmLabel="Gửi"
+          pending={sendNow.isPending}
+          onConfirm={() => sendNow.mutate(sendingKind)}
+          onClose={() => setSendingKind(null)}
+        >
+          Bạn muốn gửi ngay &quot;{ZALO_NOTIFICATION_LABEL[sendingKind]}&quot;?
+        </ConfirmDialog>
       )}
     </RequirePermission>
   );
