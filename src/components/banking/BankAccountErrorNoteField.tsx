@@ -4,7 +4,14 @@ import { Plus } from "lucide-react";
 import { TextArea } from "@/components/ui/TextArea";
 import styles from "./BankAccountErrorNoteField.module.scss";
 
-const COMMON_REASONS = ["STK không đúng", "Tên không đúng", "MGT không đúng", "Thiếu ảnh"];
+const COMMON_REASONS = [
+  "STK KHÔNG ĐÚNG",
+  "TÊN KHÔNG ĐÚNG",
+  "TK LỖI: SAI MÃ GIỚI THIỆU",
+  "ẢNH KHÔNG ĐÚNG NGÂN HÀNG",
+  "ẢNH KHÔNG CÙNG 1 TÀI KHOẢN",
+  "THIẾU ẢNH GIAO DỊCH",
+];
 
 const partsOf = (note: string) =>
   note
