@@ -3,10 +3,12 @@ import { db } from "../src/server/db/client";
 import { notifications, users } from "../src/server/db/schema";
 import { notifyUsers } from "../src/server/notifications";
 import { RELEASES } from "../src/lib/releases";
+import { announceReleaseToZalo } from "./zalo-announce-release";
 
 /**
  * Gửi thông báo bản cập nhật MỚI NHẤT (phần tử đầu của `RELEASES`) cho mọi
- * nhân viên đang hoạt động. Chạy sau khi deploy xong, trên máy chủ:
+ * nhân viên đang hoạt động, rồi báo vào nhóm Zalo qua
+ * `zalo-announce-release.ts`. Chạy sau khi deploy xong, trên máy chủ:
  *
  *   bun --env-file=.env.local scripts/db-announce-release.ts
  *   bun --env-file=.env.local scripts/db-announce-release.ts --dry-run
@@ -39,26 +41,28 @@ async function main() {
     .limit(1);
   if (sent) {
     console.log(`Bản ${release.id} đã gửi rồi, không gửi lại.`);
-    return;
+  } else {
+    const people = await db.select({ id: users.id }).from(users).where(eq(users.active, true));
+    console.log(
+      `Bản ${release.id} v${release.version} "${release.title}" sắp gửi cho ${people.length} người${dryRun ? " (CHẠY KHÔ — không ghi gì)" : ""}.`,
+    );
+    if (!dryRun) {
+      const count = await notifyUsers(
+        people.map((p) => p.id),
+        "release",
+        {
+          title: `${release.title}, bản v${release.version}`,
+          body: release.summary,
+          url: `/releases/${release.id}`,
+          release: release.id,
+        },
+      );
+      console.log(`Đã gửi cho ${count} người.`);
+    }
   }
 
-  const people = await db.select({ id: users.id }).from(users).where(eq(users.active, true));
-  console.log(
-    `Bản ${release.id} v${release.version} "${release.title}" sắp gửi cho ${people.length} người${dryRun ? " (CHẠY KHÔ — không ghi gì)" : ""}.`,
-  );
-  if (dryRun) return;
-
-  const count = await notifyUsers(
-    people.map((p) => p.id),
-    "release",
-    {
-      title: `${release.title}, bản v${release.version}`,
-      body: release.summary,
-      url: `/releases/${release.id}`,
-      release: release.id,
-    },
-  );
-  console.log(`Đã gửi cho ${count} người.`);
+  // Tách khỏi nhánh trên: bản đã báo trong app trước khi có bước Zalo vẫn được báo vào nhóm.
+  await announceReleaseToZalo(release, dryRun);
 }
 
 main()
