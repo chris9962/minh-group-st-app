@@ -16,6 +16,37 @@ const seesCompanyDashboard = (user: User) =>
  */
 export const RELEASES: Release[] = [
   {
+    id: '2026-10-12',
+    version: '2.7.0',
+    title: 'Cập nhật ngày 12/10/2026',
+    summary: 'Combo 2 có tài khoản lỗi thì điểm combo về 0, người quản ngân hàng có thể chặn sửa tài khoản lỗi và cài giới hạn độ tuổi riêng cho CNKD, HKD.',
+    sections: [
+      {
+        title: 'Điểm KPI',
+        items: ['Combo 2 có tài khoản lỗi: điểm combo về 0.'],
+      },
+      {
+        title: 'Ngân hàng',
+        items: ['Người quản ngân hàng có thể chặn sửa tài khoản lỗi.'],
+        visibleTo: (user) => canOpenPath(user, '/banking'),
+      },
+      {
+        title: 'Quản lý ngân hàng',
+        items: [
+          'Đánh dấu lỗi có ô Không cho sửa.',
+          'Đổi danh sách gợi ý ở ô Lý do lỗi.',
+          'Cài được giới hạn độ tuổi riêng cho CNKD, HKD.',
+        ],
+        visibleTo: (user) => canOpenPath(user, '/settings/banks'),
+      },
+      {
+        title: 'Danh mục xã / ấp',
+        items: ['Bảng ấp thêm cột Người tạo.', 'Tên ấp tự viết hoa chữ đầu mỗi từ.', 'Cập nhật lại giao diện.'],
+        visibleTo: (user) => canOpenPath(user, '/settings/wards'),
+      },
+    ],
+  },
+  {
     id: '2026-10-09',
     version: '2.6.0',
     title: 'Cập nhật ngày 09/10/2026',
