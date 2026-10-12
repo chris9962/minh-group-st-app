@@ -38,13 +38,14 @@ import {
   type Credentials,
   type Message,
 } from "zca-js";
-import { ZaloNotificationKind } from "../src/lib/api/zaloBot";
+import { notificationNeedsPgd, ZaloNotificationKind } from "../src/lib/api/zaloBot";
 import { replyToCommand } from "../src/server/zalo/commands";
 import { collectZaloNotice } from "../src/server/zalo/notifications";
 import {
   beatZaloHeartbeat,
   currentZaloAccountId,
   enqueueZaloGroupText,
+  enqueueZaloPhoneText,
   finishZaloOutbox,
   forgetZaloContact,
   markZaloWorkerStopped,
@@ -168,7 +169,9 @@ async function answer(api: API, message: Message): Promise<void> {
 async function loadFriends(api: API, accountId: string): Promise<Map<string, string>> {
   const byPhone = new Map<string, { uid: string; name: string }>();
   try {
-    for (const f of await api.getAllFriends()) {
+    const all = await api.getAllFriends();
+    log(`Zalo trả ${all.length} bạn bè.`);
+    for (const f of all) {
       if (f.phoneNumber && f.userId)
         byPhone.set(toLocalPhone(f.phoneNumber), {
           uid: f.userId,
@@ -246,12 +249,15 @@ async function syncGroups(api: API, accountId: string): Promise<void> {
 
 async function queueNotices(accountId: string): Promise<void> {
   for (const kind of ZaloNotificationKind.options) {
-    const groupIds = await routedZaloGroupIds(accountId, kind);
-    if (groupIds.length === 0) continue;
-    const text = await collectZaloNotice(kind);
-    if (!text) continue;
-    await enqueueZaloGroupText(groupIds, text);
-    log(`Thông báo ${kind} vào hàng chờ cho ${groupIds.length} nhóm.`);
+    // Loại gửi riêng cho PGĐ không có nhóm nhận; tin của nó mang sẵn SĐT người nhận.
+    const toPgds = notificationNeedsPgd(kind);
+    const groupIds = toPgds ? [] : await routedZaloGroupIds(accountId, kind);
+    if (!toPgds && groupIds.length === 0) continue;
+    const notices = await collectZaloNotice(kind, accountId);
+    for (const n of notices)
+      if (n.phone) await enqueueZaloPhoneText([n.phone], n.body);
+      else await enqueueZaloGroupText(groupIds, n.body);
+    if (notices.length > 0) log(`Thông báo ${kind}: ${notices.length} tin vào hàng chờ.`);
   }
 }
 

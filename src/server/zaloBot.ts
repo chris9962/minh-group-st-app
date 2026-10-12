@@ -8,6 +8,7 @@ import {
   ZaloNotificationKind,
   ZaloOutboxStatus,
   ZaloThreadType,
+  notificationNeedsPgd,
   type ZaloBotSummary,
   type ZaloContactRow,
   type ZaloContactSort,
@@ -16,16 +17,19 @@ import {
   type ZaloGroupSort,
   type ZaloNotificationRoute,
   type ZaloOutboxRow,
+  type ZaloPersonOption,
   type ZaloSendBody,
 } from "@/lib/api/zaloBot";
-import { digitsOnly } from "@/lib/format";
+import { digitsOnly, isValidPhone } from "@/lib/format";
 import { searchTerms } from "@/lib/search";
 import type { User } from "@/lib/types";
 import { db } from "./db/client";
 import {
+  users,
   zaloBotState,
   zaloContacts,
   zaloGroups,
+  zaloNotificationPgds,
   zaloNotificationRoutes,
   zaloOutbox,
 } from "./db/schema";
@@ -242,11 +246,77 @@ export async function zaloNotificationRoutesFor(accountId: string): Promise<Zalo
     )
     .where(eq(zaloNotificationRoutes.accountId, accountId))
     .orderBy(asc(zaloGroups.name));
+  const pgdRows = await db
+    .select({ kind: zaloNotificationPgds.kind, id: users.id, name: users.fullName, phone: users.phone })
+    .from(zaloNotificationPgds)
+    .innerJoin(users, eq(users.id, zaloNotificationPgds.userId))
+    .where(eq(zaloNotificationPgds.accountId, accountId))
+    .orderBy(asc(users.fullName));
 
   return ZaloNotificationKind.options.map((kind) => ({
     kind,
     groups: rows.filter((r) => r.kind === kind).map(({ id, name }) => ({ id, name })),
+    pgds: pgdRows.filter((r) => r.kind === kind).map(({ id, name, phone }) => ({ id, name, phone })),
   }));
+}
+
+/** Điều kiện của người được chọn vào báo cáo PGĐ: đang làm và đang giữ chức Phó giám đốc. */
+const isActivePgd = and(eq(users.role, "deputy-director"), eq(users.active, true));
+
+export async function zaloPgdOptions(): Promise<ZaloPersonOption[]> {
+  return db
+    .select({ id: users.id, name: users.fullName, phone: users.phone })
+    .from(users)
+    .where(isActivePgd)
+    .orderBy(asc(users.fullName));
+}
+
+export async function saveZaloNotificationPgds(
+  actor: User,
+  accountId: string,
+  kind: ZaloNotificationKind,
+  userIds: string[],
+): Promise<void> {
+  if (!notificationNeedsPgd(kind)) throw new ZaloRouteError("Thông báo này không chọn Phó giám đốc");
+  const unique = [...new Set(userIds)];
+  if (unique.length > 0) {
+    const known = await db
+      .select({ id: users.id, phone: users.phone })
+      .from(users)
+      .where(and(isActivePgd, inArray(users.id, unique)));
+    if (known.length !== unique.length)
+      throw new ZaloRouteError("Chỉ chọn được Phó giám đốc đang làm việc");
+    if (known.some((p) => !isValidPhone(p.phone)))
+      throw new ZaloRouteError("Phó giám đốc chưa có số điện thoại đủ 10 số");
+  }
+
+  await db.transaction(async (tx) => {
+    await tx
+      .delete(zaloNotificationPgds)
+      .where(and(eq(zaloNotificationPgds.accountId, accountId), eq(zaloNotificationPgds.kind, kind)));
+    if (unique.length > 0)
+      await tx
+        .insert(zaloNotificationPgds)
+        .values(unique.map((userId) => ({ accountId, kind, userId, createdBy: actor.id })));
+  });
+}
+
+/** PGĐ đã chọn cho loại này kèm SĐT hồ sơ, bỏ người đã nghỉ hoặc không còn giữ chức PGĐ. */
+export async function routedZaloPgds(
+  accountId: string,
+  kind: ZaloNotificationKind,
+): Promise<{ id: string; phone: string }[]> {
+  return db
+    .select({ id: users.id, phone: users.phone })
+    .from(zaloNotificationPgds)
+    .innerJoin(users, eq(users.id, zaloNotificationPgds.userId))
+    .where(
+      and(
+        eq(zaloNotificationPgds.accountId, accountId),
+        eq(zaloNotificationPgds.kind, kind),
+        isActivePgd,
+      ),
+    );
 }
 
 export class ZaloRouteError extends Error {}

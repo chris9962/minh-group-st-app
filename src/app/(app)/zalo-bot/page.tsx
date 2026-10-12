@@ -14,6 +14,7 @@ import { SectionTabs } from "@/components/ui/SectionTabs";
 import { SkeletonTable } from "@/components/ui/Skeleton";
 import { StatusTag } from "@/components/ui/StatusTag";
 import { NotificationGroupsDialog } from "@/components/zalo/NotificationGroupsDialog";
+import { NotificationPgdsDialog } from "@/components/zalo/NotificationPgdsDialog";
 import { ZaloChatPane } from "@/components/zalo/ZaloChatPane";
 import {
   chatTargetKey,
@@ -24,6 +25,7 @@ import {
   fetchZaloBot,
   fetchZaloNotificationRoutes,
   logoutZaloBot,
+  notificationNeedsPgd,
   syncZaloGroups,
   ZALO_BOT_STATUS_LABEL,
   ZALO_NOTIFICATION_LABEL,
@@ -119,6 +121,8 @@ export default function ZaloBotPage() {
   });
   const [editingKind, setEditingKind] = useState<ZaloNotificationKind | null>(null);
   const editingGroups = routes.data?.find((r) => r.kind === editingKind)?.groups ?? [];
+  const [editingPgdKind, setEditingPgdKind] = useState<ZaloNotificationKind | null>(null);
+  const editingPgds = routes.data?.find((r) => r.kind === editingPgdKind)?.pgds ?? [];
 
   const [chatTarget, setChatTarget] = useState<ZaloChatTarget | null>(null);
 
@@ -227,7 +231,7 @@ export default function ZaloBotPage() {
             )}
 
             {tab === "notices" && (
-              <SectionCard title="Nhóm nhận thông báo" icon={<Bell size={17} />}>
+              <SectionCard title="Nơi nhận thông báo" icon={<Bell size={17} />}>
                 {routes.isError ? (
                   <ErrorState
                     what="cấu hình thông báo"
@@ -245,14 +249,24 @@ export default function ZaloBotPage() {
                             {ZALO_NOTIFICATION_LABEL[route.kind]}
                           </span>
                           <span className={styles.noticeGroups}>
-                            {route.groups.length === 0
-                              ? "Chưa chọn nhóm"
-                              : route.groups.map((g) => g.name).join(", ")}
+                            {notificationNeedsPgd(route.kind)
+                              ? route.pgds.length === 0
+                                ? "Chưa chọn Phó giám đốc"
+                                : route.pgds.map((p) => `${p.name} - ${formatPhone(p.phone)}`).join(", ")
+                              : route.groups.length === 0
+                                ? "Chưa chọn nhóm"
+                                : route.groups.map((g) => g.name).join(", ")}
                           </span>
                         </div>
-                        <Button variant="secondary" onClick={() => setEditingKind(route.kind)}>
-                          Chọn nhóm
-                        </Button>
+                        {notificationNeedsPgd(route.kind) ? (
+                          <Button variant="secondary" onClick={() => setEditingPgdKind(route.kind)}>
+                            Chọn PGĐ
+                          </Button>
+                        ) : (
+                          <Button variant="secondary" onClick={() => setEditingKind(route.kind)}>
+                            Chọn nhóm
+                          </Button>
+                        )}
                       </li>
                     ))}
                   </ul>
@@ -281,6 +295,14 @@ export default function ZaloBotPage() {
           kind={editingKind}
           initialGroupIds={editingGroups.map((g) => g.id)}
           onClose={() => setEditingKind(null)}
+        />
+      )}
+      {editingPgdKind && (
+        <NotificationPgdsDialog
+          key={`${accountId}:${editingPgdKind}`}
+          kind={editingPgdKind}
+          initialUserIds={editingPgds.map((p) => p.id)}
+          onClose={() => setEditingPgdKind(null)}
         />
       )}
     </RequirePermission>

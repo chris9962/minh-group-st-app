@@ -730,7 +730,7 @@ const emptyCell = (day: string, groupId: string): OrderStatsCell => ({
  * Tính trong SQL chứ không kéo từng đơn về Node: một tháng thật có hơn ba vạn
  * đơn, mà báo cáo chỉ cần tổng.
  */
-const YEARS_SQL = sql<number>`greatest(1, least(3, round((${insuranceOrders.endDate} - ${insuranceOrders.startDate}) / 365.25)))`;
+export const YEARS_SQL = sql<number>`greatest(1, least(3, round((${insuranceOrders.endDate} - ${insuranceOrders.startDate}) / 365.25)))`;
 
 /**
  * Số liệu cấp đơn của MỘT tháng, chưa gộp ngày.

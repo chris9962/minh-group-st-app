@@ -2695,6 +2695,27 @@ export const zaloNotificationRoutes = pgTable(
   ],
 );
 
+/**
+ * Phó giám đốc nhận loại thông báo gửi riêng, ví dụ báo cáo ngày (migration
+ * 0137). Mỗi PGĐ một tin riêng tới SĐT trên hồ sơ nhân viên, không qua nhóm.
+ * Khoá theo tài khoản Zalo như bảng nhóm nhận.
+ */
+export const zaloNotificationPgds = pgTable(
+  "zalo_notification_pgds",
+  {
+    accountId: text("account_id").notNull(),
+    kind: text("kind").notNull(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    createdBy: uuid("created_by").references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ name: "zalo_notification_pgds_pk", columns: [t.accountId, t.kind, t.userId] }),
+  ],
+);
+
 /** Sổ chống gửi trùng của thông báo Zalo, một dòng một sự việc đã báo. Migration 0104. */
 export const zaloNotificationLog = pgTable("zalo_notification_log", {
   key: text("key").primaryKey(),

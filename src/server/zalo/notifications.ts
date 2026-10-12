@@ -1,7 +1,17 @@
 import { sql } from "drizzle-orm";
-import { ZALO_CERT_OVERDUE_MINUTES, type ZaloNotificationKind } from "@/lib/api/zaloBot";
+import {
+  ZALO_CERT_OVERDUE_MINUTES,
+  ZALO_PGD_REPORT_AT,
+  type ZaloNotificationKind,
+} from "@/lib/api/zaloBot";
+import { businessDay, clockNowVn, isValidPhone } from "@/lib/format";
 import { db } from "../db/client";
 import { zaloNotificationLog } from "../db/schema";
+import { routedZaloPgds } from "../zaloBot";
+import { pgdDailyReport, pgdDailyReportMessages } from "./pgdDailyReport";
+
+/** Một tin cần gửi. Có `phone` thì gửi riêng tới số đó, không thì gửi vào các nhóm của loại. */
+export type ZaloNotice = { body: string; phone?: string };
 
 /**
  * Điều kiện và nội dung tin của từng loại thông báo Zalo. Worker gọi mỗi phút,
@@ -57,10 +67,40 @@ async function certificateOverdueText(): Promise<string | null> {
   return [`Đơn bảo hiểm chờ giấy chứng nhận quá ${ZALO_CERT_OVERDUE_MINUTES} phút:`, ...lines].join("\n");
 }
 
-/** Nội dung tin cho các sự việc mới của loại này, `null` khi không có gì mới. */
-export function collectZaloNotice(kind: ZaloNotificationKind): Promise<string | null> {
+/**
+ * Báo cáo ngày: mỗi PGĐ một tin riêng tới SĐT hồ sơ, mỗi ngày một lần, từ
+ * `ZALO_PGD_REPORT_AT` trở đi. Worker tắt qua giờ đó thì bật lại trong ngày vẫn
+ * gửi; qua ngày thì bỏ ngày cũ. SĐT sai dạng thì không gửi, màn chọn PGĐ hiện số.
+ */
+async function pgdDailyReportNotices(accountId: string): Promise<ZaloNotice[]> {
+  const kind: ZaloNotificationKind = "pgd-daily-report";
+  const now = new Date();
+  if (clockNowVn(now) < ZALO_PGD_REPORT_AT) return [];
+  const day = businessDay(now);
+  const pgds = (await routedZaloPgds(accountId, kind)).filter((p) => isValidPhone(p.phone));
+  const keyOf = (id: string) => `${kind}:${day}:${id}`;
+  const fresh = await claimKeys(pgds.map((p) => keyOf(p.id)));
+
+  const notices: ZaloNotice[] = [];
+  for (const p of pgds) {
+    if (!fresh.has(keyOf(p.id))) continue;
+    for (const body of pgdDailyReportMessages(await pgdDailyReport(p.id, day)))
+      notices.push({ body, phone: p.phone });
+  }
+  return notices;
+}
+
+/** Các tin cần gửi cho sự việc mới của loại này; mảng rỗng khi không có gì mới. */
+export async function collectZaloNotice(
+  kind: ZaloNotificationKind,
+  accountId: string,
+): Promise<ZaloNotice[]> {
   switch (kind) {
-    case "insurance-certificate-overdue":
-      return certificateOverdueText();
+    case "insurance-certificate-overdue": {
+      const body = await certificateOverdueText();
+      return body ? [{ body }] : [];
+    }
+    case "pgd-daily-report":
+      return pgdDailyReportNotices(accountId);
   }
 }

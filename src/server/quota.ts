@@ -195,7 +195,7 @@ export async function quotaConfigOf(yearMonth: string): Promise<QuotaConfig | nu
  * Loại đã chụp trên tài khoản; dữ liệu cũ mang `none` thì đọc loại của mã giới
  * thiệu, cùng luật với `accountTypeOf` ở `banking.ts`.
  */
-const effectiveType = sql`case when ${bankAccounts.accountType} = 'none'
+export const effectiveType = sql`case when ${bankAccounts.accountType} = 'none'
   then ${referralCodes.accountType} else ${bankAccounts.accountType} end`;
 
 const kindWhere = (kinds: QuotaKindItem[]): SQL =>
@@ -210,15 +210,19 @@ const kindWhere = (kinds: QuotaKindItem[]): SQL =>
  * KPI (chốt 2026-09-25). `by` chọn trục đếm:
  * - `creator`: người lập hồ sơ khách, cùng người được tính điểm KPI.
  * - `department`: phòng ghi nhận của tài khoản; chuyển phòng thì cột này đi theo người.
+ *
+ * `until` cắt tháng ở một ngày, cho báo cáo tiến độ giữa tháng.
  */
 export async function countQuotaAccounts(
   yearMonth: string,
   kinds: QuotaKindItem[],
   by: "creator" | "department",
   ids: string[],
+  until?: string,
 ): Promise<Map<string, number>> {
   if (kinds.length === 0 || ids.length === 0) return new Map();
-  const { from, to } = monthRange(yearMonth);
+  const { from, to: monthEnd } = monthRange(yearMonth);
+  const to = until ?? monthEnd;
   const key = by === "creator" ? customers.createdBy : bankAccounts.createdByDepartmentId;
   const rows = await db
     .select({ id: key, count: sql<number>`count(*)::int` })

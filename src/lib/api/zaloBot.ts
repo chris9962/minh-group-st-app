@@ -105,19 +105,35 @@ export type ZaloGroupOption = z.infer<typeof ZaloGroupOption>;
  * Loại thông báo tự động. Điều kiện và nội dung tin viết trong code, ở
  * `src/server/zalo/notifications.ts`. Màn Bot Zalo chỉ chọn loại nào gửi tới nhóm nào.
  */
-export const ZaloNotificationKind = z.enum(['insurance-certificate-overdue']);
+export const ZaloNotificationKind = z.enum(['insurance-certificate-overdue', 'pgd-daily-report']);
 export type ZaloNotificationKind = z.infer<typeof ZaloNotificationKind>;
 
 /** Đơn chờ giấy chứng nhận quá ngần này phút thì báo vào nhóm Zalo, mỗi đơn một lần. */
 export const ZALO_CERT_OVERDUE_MINUTES = 20;
 
+/** Giờ Việt Nam gửi báo cáo ngày cho PGĐ. Tạm đặt, chủ dự án chưa chốt giờ (2026-10-12). */
+export const ZALO_PGD_REPORT_AT = '17:30';
+
 export const ZALO_NOTIFICATION_LABEL: Record<ZaloNotificationKind, string> = {
   'insurance-certificate-overdue': `Đơn bảo hiểm chờ giấy chứng nhận quá ${ZALO_CERT_OVERDUE_MINUTES} phút`,
+  'pgd-daily-report': `Báo cáo ngày cho Phó giám đốc, gửi lúc ${ZALO_PGD_REPORT_AT}`,
 };
+
+/**
+ * Loại thông báo gửi riêng cho Phó giám đốc: mỗi PGĐ được chọn nhận một tin
+ * riêng, tới SĐT trên hồ sơ nhân viên, số liệu lấy từ các phòng người đó quản.
+ * Loại này không gửi vào nhóm.
+ */
+export const notificationNeedsPgd = (kind: ZaloNotificationKind): boolean =>
+  kind === 'pgd-daily-report';
+
+export const ZaloPersonOption = z.object({ id: z.string(), name: z.string(), phone: z.string() });
+export type ZaloPersonOption = z.infer<typeof ZaloPersonOption>;
 
 export const ZaloNotificationRoute = z.object({
   kind: ZaloNotificationKind,
   groups: z.array(ZaloGroupOption),
+  pgds: z.array(ZaloPersonOption),
 });
 export type ZaloNotificationRoute = z.infer<typeof ZaloNotificationRoute>;
 
@@ -125,6 +141,11 @@ export const ZaloNotificationRoutesBody = z.object({
   groupIds: z.array(z.string().regex(/^\d+$/)).max(100),
 });
 export type ZaloNotificationRoutesBody = z.infer<typeof ZaloNotificationRoutesBody>;
+
+export const ZaloNotificationPgdsBody = z.object({
+  userIds: z.array(z.guid()).max(50),
+});
+export type ZaloNotificationPgdsBody = z.infer<typeof ZaloNotificationPgdsBody>;
 
 export const ZaloSendTarget = z.enum(['group', 'user', 'phone']);
 export type ZaloSendTarget = z.infer<typeof ZaloSendTarget>;
@@ -238,6 +259,27 @@ export async function saveZaloNotificationRoutes(
   if (!res.ok) {
     const data = await res.json().catch(() => null);
     throw new Error(data?.message ?? 'Không lưu được cấu hình thông báo');
+  }
+}
+
+export async function fetchZaloPgdOptions(): Promise<ZaloPersonOption[]> {
+  const res = await fetch('/api/zalo-bot/pgd-options');
+  if (!res.ok) throw new Error('Không đọc được danh sách Phó giám đốc');
+  return z.array(ZaloPersonOption).parse(await res.json());
+}
+
+export async function saveZaloNotificationPgds(
+  kind: ZaloNotificationKind,
+  body: ZaloNotificationPgdsBody,
+): Promise<void> {
+  const res = await fetch(`/api/zalo-bot/notifications/${kind}/pgds`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    throw new Error(data?.message ?? 'Không lưu được danh sách Phó giám đốc');
   }
 }
 
