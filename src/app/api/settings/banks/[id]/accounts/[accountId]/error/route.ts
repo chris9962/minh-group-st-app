@@ -8,6 +8,7 @@ type Params = { params: Promise<{ id: string; accountId: string }> };
 
 const Form = z.object({
   errorNote: z.string().trim().min(2, "Nhập lý do đánh dấu lỗi").max(500, "Lý do nhiều nhất 500 ký tự"),
+  errorLocked: z.boolean().default(false),
 });
 
 /**
@@ -31,7 +32,12 @@ export async function POST(request: Request, { params }: Params) {
   if (!parsed.success) return badRequest(parsed.error.issues[0]?.message ?? "Dữ liệu không hợp lệ");
 
   // Ngoài quyền quản ngân hàng trả 404, không phải 403 — 403 xác nhận id có thật.
-  const result = await markAccountErrorByBankManager(actor, accountId, parsed.data.errorNote);
+  const result = await markAccountErrorByBankManager(
+    actor,
+    accountId,
+    parsed.data.errorNote,
+    parsed.data.errorLocked,
+  );
   if (!result) return notFound();
   if (!result.ok) return Response.json({ message: result.message }, { status: 422 });
 

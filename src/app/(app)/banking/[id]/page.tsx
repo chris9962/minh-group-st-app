@@ -397,6 +397,7 @@ function DoneAccountCard({
   const [editing, setEditing] = useState(false);
   const [markingError, setMarkingError] = useState(false);
   const [errorNote, setErrorNote] = useState("");
+  const [errorLocked, setErrorLocked] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [removeReason, setRemoveReason] = useState("");
   const router = useRouter();
@@ -409,6 +410,7 @@ function DoneAccountCard({
     invalidateKpi(queryClient);
     setMarkingError(false);
     setErrorNote("");
+    setErrorLocked(false);
     // `data.status` là trạng thái TRƯỚC lượt bấm: từ `fixed` đi ra thì KPI
     // không đổi số nào, vì chỉ `done` mới vào phép tính.
     toast.ok(
@@ -430,7 +432,7 @@ function DoneAccountCard({
    * phạm vi `creator` nên không đụng được tài khoản của nhân viên khác.
    */
   const markError = useMutation({
-    mutationFn: (note: string) => markBankAccountError(data.bankId, id, note),
+    mutationFn: (note: string) => markBankAccountError(data.bankId, id, note, errorLocked),
     onSuccess: afterStatusChange,
     onError: (e) => toast.fail(errorMessage(e, "Không đánh dấu lỗi được tài khoản này.")),
   });
@@ -500,10 +502,12 @@ function DoneAccountCard({
           <div className={styles.headerActions}>
             {canWrite && (
               <>
-                <Button variant="secondary" onClick={() => setEditing(true)}>
-                  <Pencil size={16} aria-hidden />
-                  {data.status === "error" ? "Sửa lỗi" : "Sửa"}
-                </Button>
+                {!data.errorLocked && (
+                  <Button variant="secondary" onClick={() => setEditing(true)}>
+                    <Pencil size={16} aria-hidden />
+                    {data.status === "error" ? "Sửa lỗi" : "Sửa"}
+                  </Button>
+                )}
                 {/* Ở `fixed` đây là nút TỪ CHỐI của vòng duyệt. Không có nút này
                     thì người duyệt chỉ có hai lối: duyệt, hoặc bỏ đó. Ở `done`
                     bản trước cho cả người mở tài khoản bấm; bỏ từ 2026-09-08,
@@ -720,7 +724,12 @@ function DoneAccountCard({
               ? "Tài khoản quay về trạng thái lỗi. Nhân viên sửa tiếp rồi gửi duyệt lại."
               : "Tài khoản này sẽ bị loại khỏi KPI. Quà của khách giữ nguyên."}
           </Alert>
-          <BankAccountErrorNoteField value={errorNote} onChange={setErrorNote} />
+          <BankAccountErrorNoteField
+            value={errorNote}
+            onChange={setErrorNote}
+            locked={errorLocked}
+            onLockedChange={setErrorLocked}
+          />
         </Dialog>
       )}
 

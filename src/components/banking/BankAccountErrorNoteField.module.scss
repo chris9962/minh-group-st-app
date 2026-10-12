@@ -1,7 +1,8 @@
 .field {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
 }
 
 .suggestions {

@@ -1,6 +1,7 @@
 "use client";
 
 import { Plus } from "lucide-react";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { TextArea } from "@/components/ui/TextArea";
 import styles from "./BankAccountErrorNoteField.module.scss";
 
@@ -22,6 +23,8 @@ const partsOf = (note: string) =>
 type Props = {
   value: string;
   onChange: (next: string) => void;
+  locked: boolean;
+  onLockedChange: (next: boolean) => void;
 };
 
 /**
@@ -29,7 +32,7 @@ type Props = {
  * thay cho gõ tay. Mỗi lỗi là một đoạn ngăn bằng `; ` trong cùng chuỗi
  * `errorNote`, nên lý do điền sẵn từ kiểm ảnh vẫn giữ nguyên.
  */
-export function BankAccountErrorNoteField({ value, onChange }: Props) {
+export function BankAccountErrorNoteField({ value, onChange, locked, onLockedChange }: Props) {
   const parts = partsOf(value);
   const suggestions = COMMON_REASONS.filter((reason) => !parts.includes(reason));
 
@@ -60,6 +63,7 @@ export function BankAccountErrorNoteField({ value, onChange }: Props) {
           ))}
         </div>
       )}
+      <Checkbox checked={locked} onCheckedChange={onLockedChange} label="Không cho sửa" />
     </div>
   );
 }

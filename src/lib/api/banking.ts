@@ -47,6 +47,8 @@ export const BankAccountRow = z.object({
   status: BankAccountStatus,
   /** Tháng của hồ sơ khách đã chốt lương: giao diện ẩn mọi nút sửa, xoá, đổi trạng thái. */
   monthClosed: z.boolean(),
+  /** Tài khoản lỗi mà người quản ngân hàng chọn "Không cho sửa": giao diện ẩn nút sửa. */
+  errorLocked: z.boolean(),
   /**
    * Lượt kiểm ảnh tự động mới nhất. `null` = ngân hàng chưa có bộ nhãn OCR,
    * hoặc tài khoản chưa hoàn thành. Chỉ để gợi ý cho người duyệt.
@@ -321,11 +323,12 @@ export async function markBankAccountError(
   bankId: string,
   accountId: string,
   errorNote: string,
+  errorLocked: boolean,
 ): Promise<BankAccount> {
   const res = await fetch(`/api/settings/banks/${bankId}/accounts/${accountId}/error`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ errorNote }),
+    body: JSON.stringify({ errorNote, errorLocked }),
   });
   if (!res.ok) {
     const detail = (await res.json().catch(() => null)) as { message?: string } | null;

@@ -120,6 +120,8 @@ function meetsBankAgeRule(dob: string | null, rule: BankAgeRule, at = businessDa
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
+export const ERROR_LOCKED_MESSAGE = "Tài khoản lỗi này không cho sửa. Liên hệ người quản ngân hàng.";
+
 /** Trạng thái và lịch sử ghi cùng giao dịch; lỗi ghi lịch sử phải rollback cả lượt đổi. */
 async function changeAccountStatus(
   tx: Tx,
@@ -591,6 +593,7 @@ const pickPage = (where: SQL | undefined, orderBy: SQL[], limit: number, offset:
       // Mốc tính cửa sổ sửa ảnh chứng minh (`canEditOpeningPhotos`).
       finishedAt: bankAccounts.finishedAt,
       lastErrorAt: bankAccounts.lastErrorAt,
+      errorLocked: bankAccounts.errorLocked,
       status: bankAccounts.status,
     })
     .from(bankAccounts)
@@ -653,6 +656,7 @@ const decorate = (page: ReturnType<typeof pickPage>) => {
       createdByDepartmentName: departments.name,
       finishedAt: page.finishedAt,
       lastErrorAt: page.lastErrorAt,
+      errorLocked: page.errorLocked,
       // Mốc giữ chỗ: bước 2 đếm ngược hạn xoá bản nháp từ đây.
       createdAt: page.createdAt,
       // Thời hạn bản nháp theo người giữ chỗ, `users` đã có mặt cho `createdByName`.
@@ -718,6 +722,7 @@ const toRow = (r: DecoratedRow): BankAccountRow => ({
   createdByDepartmentId: r.createdByDepartmentId,
   status: r.status,
   monthClosed: r.monthClosed,
+  errorLocked: r.errorLocked,
   photoCheck: toPhotoCheck({
     status: r.photoCheckStatus,
     result: r.photoCheckResult,
@@ -1911,6 +1916,7 @@ export async function updateFinishedAccount(
 
   if (current.status === "creating")
     return { ok: false, message: "Tài khoản này chưa hoàn thành — dùng bước Hoàn thành" };
+  if (current.errorLocked) return { ok: false, message: ERROR_LOCKED_MESSAGE };
 
   /**
    * Sửa một bản ĐANG LỖI là nộp lại để duyệt, không phải sửa xong là xong
@@ -2052,6 +2058,7 @@ export async function markAccountErrorByBankManager(
   actor: User,
   id: string,
   errorNote: string,
+  errorLocked: boolean,
 ): Promise<BankingOutcome<BankAccount> | null> {
   const current = await rawById(id);
   if (!current) return null;
@@ -2065,7 +2072,7 @@ export async function markAccountErrorByBankManager(
     };
 
   const updated = await db.transaction((tx) =>
-    changeAccountStatus(tx, actor, id, current.status, "error", { errorNote }, errorNote),
+    changeAccountStatus(tx, actor, id, current.status, "error", { errorNote, errorLocked }, errorNote),
   );
   if (updated.length === 0)
     return { ok: false, message: "Tài khoản vừa được đối soát ở nơi khác." };
@@ -2355,6 +2362,7 @@ export async function updateBankAccountStatus(
   const updated = await db.transaction((tx) =>
     changeAccountStatus(tx, actor, id, current.status, form.status, {
       errorNote: form.status === "error" ? form.errorNote : "",
+      errorLocked: false,
     }, form.status === "error" ? form.errorNote : "Khôi phục tài khoản"),
   );
   if (updated.length === 0)
@@ -2455,7 +2463,9 @@ export async function setPhotos(
   /** KHOÁ trong kho, không phải URL — route đã cắt phần `/api/images/` ra. */
   photoKeys: string[],
   kind: PhotoKind,
-): Promise<BankAccount | { tooFew: number } | { locked: true } | { closedMonth: string } | null> {
+): Promise<
+  BankAccount | { tooFew: number } | { locked: true } | { errorLocked: true } | { closedMonth: string } | null
+> {
   const visible = scopeOf(actor, WRITE_ACTION);
   if (visible.kind === "none") return null;
 
@@ -2464,6 +2474,7 @@ export async function setPhotos(
 
   const closedMonth = await closedMonthOfCustomer(current.customerId);
   if (closedMonth) return { closedMonth } as const;
+  if (current.errorLocked) return { errorLocked: true } as const;
 
   /**
    * Hết ngày hoàn thành là ảnh chứng minh chốt lại (chốt 2026-08-23) — luật ở

@@ -368,7 +368,7 @@ export default function BankingPage() {
                 Nhãn đổi theo trạng thái: bản lỗi ghi "Sửa lỗi" để nhân viên biết
                 đây là đường chữa, cùng một hộp thoại với đường sửa thường. */}
             {/* Tháng của hồ sơ khách đã chốt lương: máy chủ từ chối sửa và xoá. */}
-            {canWrite && !r.monthClosed && (
+            {canWrite && !r.monthClosed && !r.errorLocked && (
               <Button
                 variant="secondary"
                 icon

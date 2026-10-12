@@ -948,6 +948,13 @@
       "breakpoints": true
     },
     {
+      "idx": 136,
+      "version": "7",
+      "when": 1789891400062,
+      "tag": "0136_bank_account_error_locked",
+      "breakpoints": true
+    },
+    {
       "idx": 137,
       "version": "7",
       "when": 1789891400063,

@@ -1205,6 +1205,8 @@ export const bankAccounts = pgTable(
     errorNote: text("error_note").notNull().default(""),
     /** Lần đánh lỗi gần nhất; chỉ quản trị đánh lỗi mới mở lại hạn sửa ảnh. */
     lastErrorAt: timestamp("last_error_at", { withTimezone: true }),
+    /** Người quản ngân hàng đánh lỗi kèm "Không cho sửa" (migration 0136). */
+    errorLocked: boolean("error_locked").notNull().default(false),
     accountNumber: text("account_number"),
     openedDate: date("opened_date"),
     /** Trường quyết định quà. */

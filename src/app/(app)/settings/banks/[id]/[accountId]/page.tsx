@@ -79,6 +79,7 @@ export default function BankAccountOfBankPage({
   const [approving, setApproving] = useState(false);
   const [markingError, setMarkingError] = useState(false);
   const [errorNote, setErrorNote] = useState("");
+  const [errorLocked, setErrorLocked] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [changingCode, setChangingCode] = useState(false);
   const [pickedCode, setPickedCode] = useState("");
@@ -110,10 +111,11 @@ export default function BankAccountOfBankPage({
   });
 
   const markError = useMutation({
-    mutationFn: () => markBankAccountError(id, accountId, errorNote),
+    mutationFn: () => markBankAccountError(id, accountId, errorNote, errorLocked),
     onSuccess: () => {
       setMarkingError(false);
       setErrorNote("");
+      setErrorLocked(false);
       refreshAfterChange();
       toast.ok("Đã đánh dấu lỗi và tính lại KPI");
     },
@@ -449,7 +451,12 @@ export default function BankAccountOfBankPage({
                 ? "Tài khoản quay về trạng thái lỗi. Nhân viên sửa tiếp rồi gửi duyệt lại."
                 : "Tài khoản này sẽ bị loại khỏi KPI của người mở. Quà của khách giữ nguyên."}
             </Alert>
-            <BankAccountErrorNoteField value={errorNote} onChange={setErrorNote} />
+            <BankAccountErrorNoteField
+              value={errorNote}
+              onChange={setErrorNote}
+              locked={errorLocked}
+              onLockedChange={setErrorLocked}
+            />
           </Dialog>
         )}
       </main>
