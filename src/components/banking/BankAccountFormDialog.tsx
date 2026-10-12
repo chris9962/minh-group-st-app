@@ -43,6 +43,14 @@ const TIER_CLASS: Record<Tier, string> = {
   restricted: `${styles.pickTier} ${styles.pickTierRestricted}`,
 };
 
+const ACCOUNT_TYPES = AccountType.options;
+
+/** CNKD/HKD chưa có bản riêng thì không giới hạn tuổi (chốt 2026-10-12). */
+const ageRuleFor = (bank: Bank, type: AccountType) =>
+  type === "none"
+    ? bank
+    : (bank.guideVariants.find((v) => v.accountType === type) ?? { minAge: null, maxAge: null });
+
 type Props = {
   open: boolean;
   onClose: () => void;
@@ -205,6 +213,15 @@ export function BankAccountFormDialog({
    * chứ không so với dòng chính. Dòng chính đang CNKD thì dòng HKD khoá, vì
    * một khách chỉ có CNKD hoặc HKD.
    */
+  const ageOk = (bankId: string, type: AccountType) =>
+    !slots || slots.eligibleBankIds[type].includes(bankId);
+  /** Dòng chính mở loại thường hoặc CNKD; ngân hàng chỉ có mã CNKD thì xét tuổi của CNKD. */
+  const mainTypesOf = (bankId: string): AccountType[] => {
+    const cnkd = !!slots?.cnkdBankIds.includes(bankId);
+    const regular = !cnkd || !!slots?.regularBankIds.includes(bankId);
+    return [...(regular ? (["none"] as const) : []), ...(cnkd ? (["CNKD"] as const) : [])];
+  };
+
   const reasonFor = (bank: Bank, hkd: boolean): string | null => {
     if (!bank.active) return "Ngừng triển khai";
     if (!slots) return null;
@@ -212,9 +229,10 @@ export function BankAccountFormDialog({
     const taken = mine.find((u) => u.hkd === hkd);
     if (taken) return taken.here ? "Hồ sơ này đã có tài khoản" : "Khách đã mở ở hồ sơ trước";
     if (hkd && mine.some((u) => !u.hkd && u.cnkd)) return "Tài khoản chính đang là CNKD";
-    if (slots.eligibleBankIds.includes(bank.id)) return null;
+    const types = hkd ? (["HKD"] as const) : mainTypesOf(bank.id);
+    if (types.some((t) => ageOk(bank.id, t))) return null;
     return slots.hasDob
-      ? `Khách ngoài độ tuổi (${ageRangeLabel(bank)})`
+      ? `Khách ngoài độ tuổi (${ageRangeLabel(ageRuleFor(bank, types[0]))})`
       : "Chưa có ngày sinh của khách";
   };
 
@@ -398,6 +416,7 @@ export function BankAccountFormDialog({
                 full={!hkd && mainPicks >= remaining}
                 reason={reason ?? inFormReason(bank.id, hkd) ?? comboReason(bank, hkd)}
                 hideCnkd={picks.some((p) => samePick(p, bank.id, true))}
+                ageOkTypes={ACCOUNT_TYPES.filter((t) => ageOk(bank.id, t))}
                 onToggle={(checked) => toggleBank(bank.id, hkd, checked)}
                 onCodeChange={(code) => setCode(bank.id, hkd, code)}
                 onAccountTypeChange={(type) => setAccountType(bank.id, type)}
@@ -460,6 +479,8 @@ type RowProps = {
   reason: string | null;
   /** Dòng HKD của ngân hàng này đang tích, nên dòng chính không được chọn CNKD. */
   hideCnkd: boolean;
+  /** Loại tài khoản khách đủ tuổi mở ở ngân hàng này. */
+  ageOkTypes: AccountType[];
   onToggle: (checked: boolean) => void;
   onCodeChange: (referralCode: string) => void;
   onAccountTypeChange: (accountType: AccountType) => void;
@@ -480,6 +501,7 @@ function BankPickRow({
   full,
   reason,
   hideCnkd,
+  ageOkTypes,
   onToggle,
   onCodeChange,
   onAccountTypeChange,
@@ -510,7 +532,7 @@ function BankPickRow({
   const availableTypes: AccountType[] = hkd
     ? ["HKD"]
     : [...new Set(allCodes.map((code) => code.accountType))].filter(
-        (t) => t !== "HKD" && !(hideCnkd && t === "CNKD"),
+        (t) => t !== "HKD" && !(hideCnkd && t === "CNKD") && ageOkTypes.includes(t),
       );
   const accountType = pick?.accountType ?? (hkd ? "HKD" : "none");
   const { data: codes = [], isPending } = useQuery({

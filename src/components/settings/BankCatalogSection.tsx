@@ -44,6 +44,13 @@ const hasGuide = (b: Bank) =>
   b.guidePhotoUrls.length > 0 ||
   b.guideVariants.some((v) => v.guide || v.guidePhotoUrls.length > 0);
 
+const ageColumnLabel = ({ minAge, maxAge }: { minAge: number | null; maxAge: number | null }) =>
+  minAge !== null && maxAge !== null
+    ? `${minAge}–${maxAge} tuổi`
+    : minAge !== null
+      ? `Từ ${minAge} tuổi`
+      : `Đến ${maxAge} tuổi`;
+
 /** P-60 · Kho ngân hàng — danh sách phẳng, mỗi dòng một ngân hàng độc lập. */
 export function BankCatalogSection({ creating, onCreatingChange }: Props) {
   const queryClient = useQueryClient();
@@ -103,16 +110,24 @@ export function BankCatalogSection({ creating, onCreatingChange }: Props) {
     {
       key: "ageRange",
       label: "Độ tuổi mở tài khoản",
-      render: (b) =>
-        b.minAge === null && b.maxAge === null ? (
-          <span className="text-muted">Không giới hạn</span>
-        ) : b.minAge !== null && b.maxAge !== null ? (
-          `${b.minAge}–${b.maxAge} tuổi`
-        ) : b.minAge !== null ? (
-          `Từ ${b.minAge} tuổi`
-        ) : (
-          `Đến ${b.maxAge} tuổi`
-        ),
+      // CNKD/HKD có tuổi riêng (chốt 2026-10-12) thì hiện thêm sau tuổi của bản thường.
+      render: (b) => {
+        const limited = b.guideVariants.filter((v) => v.minAge !== null || v.maxAge !== null);
+        return (
+          <>
+            {b.minAge === null && b.maxAge === null ? (
+              <span className="text-muted">Không giới hạn</span>
+            ) : (
+              ageColumnLabel(b)
+            )}
+            {limited.map((v) => (
+              <div key={v.accountType}>
+                {v.accountType}: {ageColumnLabel(v)}
+              </div>
+            ))}
+          </>
+        );
+      },
     },
     {
       key: "accountNumberMethod",

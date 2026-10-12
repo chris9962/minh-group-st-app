@@ -1467,12 +1467,21 @@ export const bankGuideVariants = pgTable(
      */
     countsAsApp: boolean("counts_as_app").notNull().default(false),
     appDefault: boolean("app_default").notNull().default(false),
+    /** Giới hạn tuổi riêng của loại này (migration 0138); null = không giới hạn, không lấy của bản thường. */
+    minAge: smallint("min_age"),
+    maxAge: smallint("max_age"),
     createdAt: createdAt(),
   },
   (t) => [
     uniqueIndex("bank_guide_variants_bank_type").on(t.bankId, t.accountType),
     check("bank_guide_variants_type", sql`account_type in ('CNKD', 'HKD')`),
     check("bank_guide_variants_photos", sql`required_photos >= 0`),
+    check("bank_guide_variants_min_age_non_negative", sql`${t.minAge} is null or ${t.minAge} >= 0`),
+    check("bank_guide_variants_max_age_non_negative", sql`${t.maxAge} is null or ${t.maxAge} >= 0`),
+    check(
+      "bank_guide_variants_age_range_valid",
+      sql`${t.minAge} is null or ${t.maxAge} is null or ${t.minAge} <= ${t.maxAge}`,
+    ),
   ],
 );
 

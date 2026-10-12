@@ -255,8 +255,19 @@ export type UsedBankSlot = z.infer<typeof UsedBankSlot>;
 
 export const CustomerBankSlots = z.object({
   used: z.array(UsedBankSlot),
-  /** Ngân hàng khách đủ tuổi mở; ngân hàng không giới hạn tuổi luôn có mặt. */
-  eligibleBankIds: z.array(z.string()),
+  /**
+   * Ngân hàng khách đủ tuổi mở, tách theo loại tài khoản (chốt 2026-10-12);
+   * ngân hàng không giới hạn tuổi ở loại đó luôn có mặt.
+   */
+  eligibleBankIds: z.object({
+    none: z.array(z.string()),
+    CNKD: z.array(z.string()),
+    HKD: z.array(z.string()),
+  }),
+  /** Ngân hàng có mã giới thiệu loại thường còn hoạt động. */
+  regularBankIds: z.array(z.string()),
+  /** Ngân hàng có mã giới thiệu loại CNKD còn hoạt động. */
+  cnkdBankIds: z.array(z.string()),
   /**
    * Ngân hàng có mã giới thiệu loại HKD, tức có dòng HKD để mở. Đọc từ kho mã
    * chứ không viết cứng `VPa`: ngày ngân hàng khác có HKD thì chỉ cần nhập mã.

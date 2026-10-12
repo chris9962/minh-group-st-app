@@ -107,6 +107,9 @@ export const Bank = z.object({
       guidePhotoUrls: z.array(z.string()),
       countsAsApp: z.boolean(),
       appDefault: z.boolean(),
+      /** null = không giới hạn; không lấy tuổi của bản Thường (chốt 2026-10-12). */
+      minAge: z.number().nullable(),
+      maxAge: z.number().nullable(),
     }),
   ),
 });
@@ -186,11 +189,21 @@ export const BankForm = z.object({
       guidePhotoUrls: z.array(ImageRef),
       countsAsApp: z.boolean(),
       appDefault: z.boolean(),
+      minAge: OptionalAge,
+      maxAge: OptionalAge,
     }),
   ),
 }).superRefine((value, ctx) => {
   if (value.minAge !== null && value.maxAge !== null && value.minAge > value.maxAge)
     ctx.addIssue({ code: "custom", path: ["maxAge"], message: "Tuổi tối đa phải lớn hơn hoặc bằng tuổi tối thiểu" });
+  value.guideVariants.forEach((v, i) => {
+    if (v.minAge !== null && v.maxAge !== null && v.minAge > v.maxAge)
+      ctx.addIssue({
+        code: "custom",
+        path: ["guideVariants", i, "maxAge"],
+        message: `Tuổi tối đa (${v.accountType}) phải lớn hơn hoặc bằng tuổi tối thiểu`,
+      });
+  });
   // Độ dài là TỔNG, tính cả tiền tố — tiền tố chiếm trọn độ dài thì không còn
   // chỗ cho phần nhân viên gõ.
   if (value.accountNumberLength !== null && value.accountNumberPrefix.length >= value.accountNumberLength)

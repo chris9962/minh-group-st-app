@@ -247,6 +247,8 @@ async function guideVariantsOf(
       guidePhotoUrls: (await guidePhotosOf(runner, bankId, v.accountType)).map(imageUrl),
       countsAsApp: v.countsAsApp,
       appDefault: v.appDefault,
+      minAge: v.minAge,
+      maxAge: v.maxAge,
     });
   }
   return variants;
@@ -272,6 +274,8 @@ async function guideVariantsAll(
       guidePhotoUrls: (photosByKey.get(`${v.bankId}|${v.accountType}`) ?? []).map(imageUrl),
       countsAsApp: v.countsAsApp,
       appDefault: v.appDefault,
+      minAge: v.minAge,
+      maxAge: v.maxAge,
     });
     byBank.set(v.bankId, list);
   }
@@ -331,6 +335,8 @@ async function writeGuideVariants(tx: Tx, bankId: string, variants: BankForm["gu
       guide: v.guide || null,
       countsAsApp: v.countsAsApp,
       appDefault: v.countsAsApp && v.appDefault,
+      minAge: v.minAge,
+      maxAge: v.maxAge,
     });
     await writeGuidePhotos(tx, bankId, v.guidePhotoUrls, v.accountType);
   }

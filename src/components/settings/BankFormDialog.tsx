@@ -56,6 +56,8 @@ type VariantDraft = {
   photos: PhotoItem[];
   countsAsApp: boolean;
   appDefault: boolean;
+  minAge: string;
+  maxAge: string;
 };
 
 const variantDraftFrom = (bank: Bank | null | undefined, type: BankGuideVariantType): VariantDraft => {
@@ -69,8 +71,56 @@ const variantDraftFrom = (bank: Bank | null | undefined, type: BankGuideVariantT
     // KHÔNG mượn của bản thường: spec §2.6 chốt CNKD/HKD mặc định không đi kèm app.
     countsAsApp: saved?.countsAsApp ?? false,
     appDefault: saved?.appDefault ?? false,
+    // Trống là không giới hạn tuổi, không mượn tuổi của bản thường (chốt 2026-10-12).
+    minAge: saved?.minAge == null ? "" : String(saved.minAge),
+    maxAge: saved?.maxAge == null ? "" : String(saved.maxAge),
   };
 };
+
+/** Ô tuổi của bản CNKD/HKD: `''` = không giới hạn. Kiểm cùng chữ với lỗi zod. */
+const variantAge = (raw: string, type: BankGuideVariantType, label: string): number | null => {
+  if (raw === "") return null;
+  const age = Number(raw);
+  if (!Number.isInteger(age) || age < 0 || age > 130)
+    throw new Error(`${label} của bản ${type} phải là số từ 0 tới 130.`);
+  return age;
+};
+
+/** Hai ô tuổi của MỘT loại tài khoản — dùng chung cho tab CNKD và HKD. */
+function VariantAgeFields({
+  type,
+  minAge,
+  maxAge,
+  onChange,
+}: {
+  type: BankGuideVariantType;
+  minAge: string;
+  maxAge: string;
+  onChange: (patch: Partial<Pick<VariantDraft, "minAge" | "maxAge">>) => void;
+}) {
+  return (
+    <div className={styles.pair}>
+      <TextField
+        label={`Tuổi tối thiểu (${type})`}
+        type="text"
+        inputMode="numeric"
+        placeholder="Không giới hạn"
+        hint="Để trống nếu không giới hạn phía dưới."
+        value={minAge}
+        onChange={(e) => onChange({ minAge: digitsOnly(e.target.value) })}
+      />
+      <TextField
+        label={`Tuổi tối đa (${type})`}
+        type="text"
+        inputMode="numeric"
+        placeholder="Không giới hạn"
+        hint="Để trống nếu không giới hạn phía trên."
+        value={maxAge}
+        onChange={(e) => onChange({ maxAge: digitsOnly(e.target.value) })}
+      />
+    </div>
+  );
+}
 
 type AppFlagsPatch = Partial<Pick<VariantDraft, "countsAsApp" | "appDefault">>;
 
@@ -209,6 +259,10 @@ export function BankFormDialog({ open, onClose, bank }: Props) {
         // Ô này nằm ngoài react-hook-form nên kiểm ở đây, cùng chữ với lỗi zod.
         if (!Number.isInteger(requiredPhotos) || requiredPhotos < 0)
           throw new Error(`Số ảnh bắt buộc của bản ${type} phải là số từ 0 trở lên.`);
+        const minAge = variantAge(draft.minAge, type, "Tuổi tối thiểu");
+        const maxAge = variantAge(draft.maxAge, type, "Tuổi tối đa");
+        if (minAge !== null && maxAge !== null && minAge > maxAge)
+          throw new Error(`Tuổi tối đa (${type}) phải lớn hơn hoặc bằng tuổi tối thiểu.`);
         guideVariants.push({
           accountType: type,
           requiredPhotos,
@@ -216,6 +270,8 @@ export function BankFormDialog({ open, onClose, bank }: Props) {
           guidePhotoUrls: await uploadPendingPhotos(draft.photos, "bank-guides"),
           countsAsApp: draft.countsAsApp,
           appDefault: draft.countsAsApp && draft.appDefault,
+          minAge,
+          maxAge,
         });
       }
 
@@ -297,34 +353,6 @@ export function BankFormDialog({ open, onClose, bank }: Props) {
           {...numericField(register("priority", { setValueAs: numberValue }), digitsOnly)}
         />
 
-        <div className={styles.pair}>
-          <TextField
-            label="Tuổi tối thiểu"
-            type="text"
-            inputMode="numeric"
-            placeholder="Không giới hạn"
-            hint="Để trống nếu không giới hạn phía dưới."
-            error={errors.minAge?.message}
-            {...numericField(
-              register("minAge", { setValueAs: optionalNumberValue }),
-              digitsOnly,
-            )}
-          />
-
-          <TextField
-            label="Tuổi tối đa"
-            type="text"
-            inputMode="numeric"
-            placeholder="Không giới hạn"
-            hint="Để trống nếu không giới hạn phía trên."
-            error={errors.maxAge?.message}
-            {...numericField(
-              register("maxAge", { setValueAs: optionalNumberValue }),
-              digitsOnly,
-            )}
-          />
-        </div>
-
         <Select
           block
           label="Cách lấy số tài khoản"
@@ -382,6 +410,33 @@ export function BankFormDialog({ open, onClose, bank }: Props) {
 
         {guideTab === "none" && (
           <>
+            <div className={styles.pair}>
+              <TextField
+                label="Tuổi tối thiểu"
+                type="text"
+                inputMode="numeric"
+                placeholder="Không giới hạn"
+                hint="Để trống nếu không giới hạn phía dưới."
+                error={errors.minAge?.message}
+                {...numericField(
+                  register("minAge", { setValueAs: optionalNumberValue }),
+                  digitsOnly,
+                )}
+              />
+
+              <TextField
+                label="Tuổi tối đa"
+                type="text"
+                inputMode="numeric"
+                placeholder="Không giới hạn"
+                hint="Để trống nếu không giới hạn phía trên."
+                error={errors.maxAge?.message}
+                {...numericField(
+                  register("maxAge", { setValueAs: optionalNumberValue }),
+                  digitsOnly,
+                )}
+              />
+            </div>
             <AppFlags
               countsAsApp={watch("countsAsApp")}
               appDefault={watch("appDefault")}
@@ -429,6 +484,12 @@ export function BankFormDialog({ open, onClose, bank }: Props) {
             const draft = variants[type];
             return (
               <>
+                <VariantAgeFields
+                  type={type}
+                  minAge={draft.minAge}
+                  maxAge={draft.maxAge}
+                  onChange={(patch) => patchVariant(type, patch)}
+                />
                 <AppFlags
                   countsAsApp={draft.countsAsApp}
                   appDefault={draft.appDefault}

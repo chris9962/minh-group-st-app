@@ -23,6 +23,7 @@ import {
   MAX_BANK_ACCOUNTS_PER_CUSTOMER,
 } from "@/lib/api/bankAccounts";
 import type {
+  AccountType,
   BankAccount,
   BankAccountFinishForm,
   BankAccountStartForm,
@@ -116,6 +117,31 @@ function meetsBankAgeRule(dob: string | null, rule: BankAgeRule, at = businessDa
   if (!dob) return false;
   const age = ageOn(dob, at);
   return age !== null && (rule.minAge === null || age >= rule.minAge) && (rule.maxAge === null || age <= rule.maxAge);
+}
+
+/** Tuổi của bản CNKD/HKD theo `bankId|loại`. */
+async function ageRulesByType(bankIds?: string[]): Promise<Map<string, BankAgeRule>> {
+  const rows = await db
+    .select({
+      bankId: bankGuideVariants.bankId,
+      accountType: bankGuideVariants.accountType,
+      minAge: bankGuideVariants.minAge,
+      maxAge: bankGuideVariants.maxAge,
+    })
+    .from(bankGuideVariants)
+    .where(bankIds ? inArray(bankGuideVariants.bankId, bankIds) : undefined);
+  return new Map(rows.map((r) => [`${r.bankId}|${r.accountType}`, { minAge: r.minAge, maxAge: r.maxAge }]));
+}
+
+/** CNKD/HKD chưa có bản riêng thì không giới hạn tuổi, không lấy tuổi của bản thường (chốt 2026-10-12). */
+const NO_AGE_RULE: BankAgeRule = { minAge: null, maxAge: null };
+function ageRuleOf(
+  bank: BankAgeRule & { id: string },
+  variants: Map<string, BankAgeRule>,
+  accountType: string,
+): BankAgeRule {
+  if (accountType !== "CNKD" && accountType !== "HKD") return bank;
+  return variants.get(`${bank.id}|${accountType}`) ?? NO_AGE_RULE;
 }
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -1467,6 +1493,7 @@ export async function startBankAccount(
     })
     .from(banks)
     .where(inArray(banks.id, form.picks.map((p) => p.bankId)));
+  const ageRules = await ageRulesByType(form.picks.map((p) => p.bankId));
 
   const bankById = new Map(chosenBanks.map((b) => [b.id, b]));
   for (const pick of form.picks) {
@@ -1474,12 +1501,14 @@ export async function startBankAccount(
     if (!bank) return { ok: false, message: "Không tìm thấy ngân hàng này" };
     if (!bank.active)
       return { ok: false, message: `Ngân hàng ${bank.code} đã ngừng triển khai` };
-    if (!meetsBankAgeRule(customer.dob, bank))
+    const rule = ageRuleOf(bank, ageRules, pick.accountType);
+    const label = pick.accountType === "none" ? bank.code : `${bank.code} ${pick.accountType}`;
+    if (!meetsBankAgeRule(customer.dob, rule))
       return {
         ok: false,
         message: customer.dob
-          ? `Khách không thuộc độ tuổi mở tài khoản ${bank.code} (${ageRangeLabel(bank)}).`
-          : `Ngân hàng ${bank.code} yêu cầu ngày sinh khách hàng để kiểm tra độ tuổi.`,
+          ? `Khách không thuộc độ tuổi mở tài khoản ${label} (${ageRangeLabel(rule)}).`
+          : `Tài khoản ${label} yêu cầu ngày sinh khách hàng để kiểm tra độ tuổi.`,
       };
   }
 
@@ -1704,7 +1733,7 @@ export async function customerBankSlots(customerId: string): Promise<CustomerBan
    * người này, còn trần 3 tính trên hồ sơ đang mở. Đọc cùng một trục cho cả hai
    * thì ô chọn nói khác máy chủ, và người dùng chọn xong mới bị từ chối.
    */
-  const [byPerson, bankRows, hkdBanks] = await Promise.all([
+  const [byPerson, bankRows, codeTypes, ageRules] = await Promise.all([
     db
       .select({
         bankId: bankAccounts.bankId,
@@ -1714,12 +1743,19 @@ export async function customerBankSlots(customerId: string): Promise<CustomerBan
       .from(bankAccounts)
       .where(eq(bankAccounts.rootCustomerId, customer.rootCustomerId)),
     db.select({ id: banks.id, minAge: banks.minAge, maxAge: banks.maxAge }).from(banks),
-    // Ngân hàng nào có dòng HKD để mở: đọc từ kho mã, không viết cứng `VPa`.
+    // Ngân hàng có loại tài khoản nào để mở: đọc từ kho mã, không viết cứng `VPa`.
     db
-      .selectDistinct({ bankId: referralCodes.bankId })
+      .selectDistinct({ bankId: referralCodes.bankId, accountType: referralCodes.accountType })
       .from(referralCodes)
-      .where(and(eq(referralCodes.accountType, "HKD"), eq(referralCodes.active, true))),
+      .where(eq(referralCodes.active, true)),
+    ageRulesByType(),
   ]);
+  const banksWithCodes = (type: AccountType) =>
+    codeTypes.filter((r) => r.accountType === type).map((r) => r.bankId);
+  const eligibleFor = (type: AccountType) =>
+    bankRows
+      .filter((bank) => meetsBankAgeRule(customer.dob, ageRuleOf(bank, ageRules, type)))
+      .map((bank) => bank.id);
 
   // Trần 3 chỉ đếm dòng CHÍNH của hồ sơ đang mở; dòng HKD không phải ngân hàng.
   const mainHere = byPerson.filter((r) => r.customerId === customerId && !isHkd(r.accountType)).length;
@@ -1731,8 +1767,10 @@ export async function customerBankSlots(customerId: string): Promise<CustomerBan
       here: r.customerId === customerId,
       cnkd: r.accountType === "CNKD",
     })),
-    eligibleBankIds: bankRows.filter((bank) => meetsBankAgeRule(customer.dob, bank)).map((bank) => bank.id),
-    hkdBankIds: hkdBanks.map((r) => r.bankId),
+    eligibleBankIds: { none: eligibleFor("none"), CNKD: eligibleFor("CNKD"), HKD: eligibleFor("HKD") },
+    regularBankIds: banksWithCodes("none"),
+    cnkdBankIds: banksWithCodes("CNKD"),
+    hkdBankIds: banksWithCodes("HKD"),
     remaining: Math.max(0, MAX_BANK_ACCOUNTS_PER_CUSTOMER - mainHere),
     // Ngày hồ sơ khách — giao diện tra luật chặn, hạng ngân hàng và hộp thoại
     // luật bằng đúng ngày máy chủ sẽ dùng ở `startBankAccount`.
