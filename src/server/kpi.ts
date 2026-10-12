@@ -2,6 +2,7 @@ import { and, asc, eq, inArray, sql, type SQL } from "drizzle-orm";
 import { businessMonth, monthRange, roundPoints } from "@/lib/format";
 import { centsFromDecimal } from "@/lib/money";
 import { shiftMonth } from "@/lib/period";
+import type { BankAccountStatus } from "@/lib/api/bankAccounts";
 import type { SocialInsuranceKind, SocialInsurancePlan } from "@/lib/api/socialInsurance";
 import {
   bankingPointsFor,
@@ -313,6 +314,9 @@ export async function countedServicePoints(
   return new Map(result.rows.map((r) => [r.id, r.points]));
 }
 
+/** Tài khoản bị đánh lỗi, kể cả bản đã sửa đang chờ duyệt lại. Xem `lostCombo2Customers`. */
+export const BROKEN_STATUSES: readonly BankAccountStatus[] = ["error", "fixed"];
+
 /**
  * Tài khoản đã tính điểm của một người trong tháng, nắn về dạng hàm luật cần.
  *
@@ -324,12 +328,15 @@ export async function countedServicePoints(
  * (chốt 07/08, câu 7.11): điểm combo thuộc về người lập hồ sơ khách, vì thể lệ
  * xét theo KHÁCH. Mở hộ tài khoản cho khách của đồng nghiệp thì điểm về đồng
  * nghiệp. Đổi lại chỗ này là đổi lương của người khác — đừng "dọn cho gọn".
+ *
+ * `statuses` khác `done` chỉ dùng để lấy `BROKEN_STATUSES` cho `bankingPointsFor`.
  */
 async function scoringAccountsOf(
   conn: Db,
   userId: string,
   from: string,
   to: string,
+  statuses: readonly BankAccountStatus[] = ["done"],
 ): Promise<ScoringAccount[]> {
   // Tháng và ngày tra luật đều theo NGÀY HỒ SƠ khách, không theo ngày mở từng
   // tài khoản (chốt 2026-09-16, xem `customerDay.ts`). `openedDate` của
@@ -350,7 +357,7 @@ async function scoringAccountsOf(
     .where(
       and(
         eq(customers.createdBy, userId),
-        eq(bankAccounts.status, "done"),
+        inArray(bankAccounts.status, [...statuses]),
         customerDayBetween(from, to),
       ),
     );
@@ -416,6 +423,7 @@ export async function bankingPointsByCustomer(
       appInstalled: bankAccounts.appInstalled,
       openedDate: customerDayText,
       household: bankAccounts.accountType,
+      status: bankAccounts.status,
     })
     .from(bankAccounts)
     .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
@@ -423,7 +431,7 @@ export async function bankingPointsByCustomer(
     .where(
       and(
         inArray(bankAccounts.customerId, customerIds),
-        eq(bankAccounts.status, "done"),
+        inArray(bankAccounts.status, ["done", ...BROKEN_STATUSES]),
         customerDayBetween(from, to),
       ),
     );
@@ -438,6 +446,7 @@ export async function bankingPointsByCustomer(
   );
 
   const byCustomer = new Map<string, ScoringAccount[]>();
+  const brokenByCustomer = new Map<string, ScoringAccount[]>();
   for (const r of rows) {
     const account: ScoringAccount = {
       customerId: r.customerId,
@@ -446,13 +455,15 @@ export async function bankingPointsByCustomer(
       openedDate: r.openedDate ?? "",
       household: r.household,
     };
-    const kept = byCustomer.get(r.customerId);
+    const target = r.status === "done" ? byCustomer : brokenByCustomer;
+    const kept = target.get(r.customerId);
     if (kept) kept.push(account);
-    else byCustomer.set(r.customerId, [account]);
+    else target.set(r.customerId, [account]);
   }
 
   for (const [customerId, accounts] of byCustomer) {
-    points.set(customerId, bankingPointsFor(accounts, yearMonth, granted));
+    const broken = brokenByCustomer.get(customerId) ?? [];
+    points.set(customerId, bankingPointsFor(accounts, yearMonth, granted, broken));
   }
   return points;
 }
@@ -540,10 +551,11 @@ async function recomputeKpiOn(tx: Db, userId: string, yearMonth: string): Promis
   // Nối tiếp chứ không `Promise.all`: một transaction đi trên một kết nối,
   // gửi hai câu cùng lúc lên đó là lỗi giao thức.
   const accounts = await scoringAccountsOf(tx, userId, from, to);
+  const broken = await scoringAccountsOf(tx, userId, from, to, BROKEN_STATUSES);
   const granted = await grantedGiftsOf(tx, userId);
   const service = await servicePointsOf(tx, userId, from, to);
   const socialInsurance = await socialInsurancePointsOf(tx, userId, yearMonth);
-  const banking = bankingPointsFor(accounts, yearMonth, granted);
+  const banking = bankingPointsFor(accounts, yearMonth, granted, broken);
 
   await tx
     .insert(kpiScores)
@@ -667,6 +679,7 @@ export async function pointsByStaffInRange(
         appInstalled: bankAccounts.appInstalled,
         openedDate: customerDayText,
         accountType: bankAccounts.accountType,
+        status: bankAccounts.status,
       })
       .from(bankAccounts)
       .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
@@ -683,7 +696,7 @@ export async function pointsByStaffInRange(
       .where(
         and(
           eq(departments.type, "sales"),
-          eq(bankAccounts.status, "done"),
+          inArray(bankAccounts.status, ["done", ...BROKEN_STATUSES]),
           customerDayBetween(range.from, range.to),
         ),
       ),
@@ -720,7 +733,10 @@ export async function pointsByStaffInRange(
   const granted = new Map(grantRows.map((r) => [r.customerId, r.chosenItem]));
 
   /** Tài khoản gom theo người rồi theo tháng — mỗi tháng một file luật. */
-  const byStaff = new Map<string, { departmentId: string | null; months: Map<string, ScoringAccount[]> }>();
+  const byStaff = new Map<
+    string,
+    { departmentId: string | null; months: Map<string, ScoringAccount[]>; broken: ScoringAccount[] }
+  >();
   for (const r of accountRows) {
     if (!r.userId) continue;
     const month = (r.openedDate ?? "").slice(0, 7);
@@ -728,7 +744,7 @@ export async function pointsByStaffInRange(
 
     let staff = byStaff.get(r.userId);
     if (!staff) {
-      staff = { departmentId: r.departmentId, months: new Map() };
+      staff = { departmentId: r.departmentId, months: new Map(), broken: [] };
       byStaff.set(r.userId, staff);
     }
     const rows = staff.months.get(month);
@@ -739,7 +755,8 @@ export async function pointsByStaffInRange(
       openedDate: r.openedDate ?? "",
       household: r.accountType,
     };
-    if (rows) rows.push(account);
+    if (r.status !== "done") staff.broken.push(account);
+    else if (rows) rows.push(account);
     else staff.months.set(month, [account]);
   }
 
@@ -753,7 +770,7 @@ export async function pointsByStaffInRange(
 
   for (const [userId, staff] of byStaff)
     for (const [month, accounts] of staff.months)
-      add(userId, staff.departmentId, bankingPointsFor(accounts, month, granted));
+      add(userId, staff.departmentId, bankingPointsFor(accounts, month, granted, staff.broken));
 
   for (const r of serviceRows) if (r.userId) add(r.userId, r.departmentId, r.points);
   for (const r of socialInsuranceRows) add(r.userId, r.departmentId, r.points);

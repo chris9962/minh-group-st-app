@@ -12,6 +12,7 @@ import {
   multiBankComboCountFor,
   openNotesAt,
   type GiftResult,
+  type HouseholdKind,
   type ScoringAccount,
 } from "../src/rules";
 import { comboPointsFor } from "../src/rules/2026-10-11";
@@ -100,6 +101,39 @@ check(
   false,
 );
 check("câu luật nhắc ngoại lệ", openNotesAt(AT).some((note) => note.includes("TPB + LPB")), true);
+
+section("Combo 2 có tài khoản lỗi về 0, áp cho mọi kỳ, có quà hay không");
+const row = (bankCode: string, household: HouseholdKind = "none", date = AT): ScoringAccount => ({
+  ...account("k", bankCode, date),
+  household,
+});
+const given = new Map([["k", "BH-1N-XEMAY"]]);
+const declined = new Map([["k", "DECLINED"]]);
+const points = (done: ScoringAccount[], granted: Map<string, string>, broken: ScoringAccount[]) =>
+  bankingPointsFor(done, done[0].openedDate.slice(0, 7), granted, broken);
+
+check("VPb CNKD + MB đều done = 1,5", points([row("VPb", "CNKD"), row("MB")], given, []), 1.5);
+check("MB lỗi: combo 0, giữ CNKD 1,0", points([row("VPb", "CNKD")], given, [row("MB")]), 1);
+check("VPb CNKD lỗi: 0", points([row("MB")], given, [row("VPb", "CNKD")]), 0);
+check("chưa phát quà: combo cũng về 0", points([row("VPb", "CNKD")], new Map(), [row("MB")]), 1);
+check("khách từ chối quà: combo cũng về 0", points([row("VPb", "CNKD")], declined, [row("MB")]), 1);
+check(
+  "MB lỗi, dòng HKD MB còn done: combo 0, giữ HKD 3,0",
+  points([row("VPb"), row("MB", "HKD")], given, [row("MB")]),
+  3,
+);
+check("Combo 3 có tài khoản lỗi vẫn hạ về Combo 2", points([row("MB"), row("TPB")], given, [row("VPb")]), 0.5);
+check(
+  "kỳ 2026-09-16: Combo 2 lỗi cũng về 0",
+  points([row("MB", "none", "2026-09-20")], given, [row("TPB", "none", "2026-09-20")]),
+  0,
+);
+check(
+  "kỳ 2026-09-16: chưa phát quà cũng về 0",
+  points([row("MB", "none", "2026-09-20")], new Map(), [row("TPB", "none", "2026-09-20")]),
+  0,
+);
+check("không có tài khoản lỗi: điểm như cũ", points([row("VPb", "CNKD")], new Map(), []), 1.2);
 
 /* ── Tổng kết ────────────────────────────────────────────────────────── */
 

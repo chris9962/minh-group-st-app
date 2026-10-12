@@ -22,6 +22,7 @@ import { accountExportWhere } from "./banking";
 import { customerDayText } from "./customerDay";
 import { addressWhere } from "./customers";
 import { extraItemsSql, grantedLabel } from "./gift";
+import { BROKEN_STATUSES } from "./kpi";
 import { searchTerms } from "@/lib/search";
 import { db } from "./db/client";
 import {
@@ -412,7 +413,7 @@ export async function listScoringExport(
   if (ids.length === 0) return { rows: [], total: 0 };
 
   const ownerDepartment = alias(departments, "owner_department");
-  const [customerRows, phoneRows, insuranceRows, grantRows, giftItemRows, packageRows] =
+  const [customerRows, phoneRows, insuranceRows, grantRows, giftItemRows, packageRows, brokenRows] =
     await Promise.all([
     db
       .select({
@@ -470,6 +471,23 @@ export async function listScoringExport(
     db
       .select({ code: insurancePackages.code, name: insurancePackages.name })
       .from(insurancePackages),
+    db
+      .select({
+        customerId: bankAccounts.customerId,
+        bankCode: banks.code,
+        appInstalled: bankAccounts.appInstalled,
+        openedDate: customerDayText,
+        household: bankAccounts.accountType,
+      })
+      .from(bankAccounts)
+      .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
+      .innerJoin(customers, eq(customers.id, bankAccounts.customerId))
+      .where(
+        and(
+          inArray(bankAccounts.customerId, ids),
+          inArray(bankAccounts.status, [...BROKEN_STATUSES]),
+        ),
+      ),
   ]);
 
   const catalogName = new Map(
@@ -479,6 +497,13 @@ export async function listScoringExport(
   const customerById = new Map(customerRows.map((c) => [c.id, c]));
   const phoneById = new Map(phoneRows.map((p) => [p.customerId, p.number]));
   const grantById = new Map(grantRows.map((g) => [g.customerId, g]));
+  const brokenById = new Map<string, ScoringAccount[]>();
+  for (const r of brokenRows) {
+    const account: ScoringAccount = { ...r, openedDate: r.openedDate ?? "" };
+    const list = brokenById.get(r.customerId);
+    if (list) list.push(account);
+    else brokenById.set(r.customerId, [account]);
+  }
   const insuranceById = new Map<string, (typeof insuranceRows)[number]>();
   // Một khách có thể nhiều đơn; file Kế toán một dòng một khách nên lấy đơn đầu.
   for (const order of insuranceRows)
@@ -529,7 +554,9 @@ export async function listScoringExport(
     const tierCount = (tier: string) =>
       bankCodes.filter((code) => bankTierFor(code, ruleDate) === tier).length;
 
-    const total = month ? bankingPointsFor(scoring, month, granted) : 0;
+    const total = month
+      ? bankingPointsFor(scoring, month, granted, brokenById.get(customerId) ?? [])
+      : 0;
     const householdPoints = month
       ? householdPointsAt(scoring, ruleDate, grant?.chosenItem ?? null)
       : 0;

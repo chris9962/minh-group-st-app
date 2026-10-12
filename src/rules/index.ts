@@ -199,6 +199,8 @@ type PeriodRules = {
   bankTierOf(bankCode: string): Tier | null;
   /** Điểm của MỘT tổ hợp mã, không xét khách và không xét cài app. */
   comboPointsFor(bankCodes: string[]): number;
+  /** Tổ hợp thắng của MỘT khách, cùng phép gom với `bankingPoints`. */
+  winningComboOf(accounts: ScoringAccount[]): { tenths: number; size: number };
   /**
    * Vì sao KHÔNG được mở thêm `candidate` vào hồ sơ đang có `existingBankCodes`;
    * `null` là mở được. Tuỳ chọn: kỳ 2026-08 và 2026-09-01 không có luật chặn,
@@ -292,15 +294,24 @@ export function ruleDateOf(accounts: ScoringAccount[]): string | null {
  * `granted` mang món quà từng khách ĐÃ nhận (chốt 2026-08-24, thể lệ mục 4c).
  * Bỏ trống thì mọi khách coi như chưa phát quà — dùng được cho ca thử và cho
  * màn xem thử, KHÔNG dùng cho đường ghi `kpi_scores` thật.
+ *
+ * `broken` là tài khoản `error` và `fixed` của cùng nhóm khách. Chúng không vào
+ * điểm, chỉ cho biết khách từng có Combo 2, xem `lostCombo2Customers`.
  */
 export function bankingPointsFor(
   accounts: ScoringAccount[],
   yearMonth: string,
   granted: GrantedGifts = new Map(),
+  broken: ScoringAccount[] = [],
 ): number {
+  const brokenByCustomer = byCustomerOf(broken);
   let total = 0;
-  for (const [rules, rows] of accountsByRules(accounts, yearMonth))
-    total += rules.bankingPoints(rows, granted);
+  for (const [rules, rows] of accountsByRules(accounts, yearMonth)) {
+    const lost = lostCombo2Customers(rules, rows, brokenByCustomer);
+    total += rules.bankingPoints(rows.filter((a) => !lost.has(a.customerId)), granted);
+    for (const [customerId, done] of lost)
+      total += rules.householdPointsOf(done, granted.get(customerId) ?? null);
+  }
   // Chỉ vài phép cộng số thực, và mọi điểm đều là bội của 0,1 — làm tròn một
   // chữ số trả về đúng số nguyên phần mười.
   return Math.round(total * 10) / 10;
@@ -339,6 +350,44 @@ function accountsByRules(
     else byRules.set(rules, [...rows]);
   }
   return byRules;
+}
+
+function byCustomerOf(accounts: ScoringAccount[]): Map<string, ScoringAccount[]> {
+  const byCustomer = new Map<string, ScoringAccount[]>();
+  for (const account of accounts) {
+    const rows = byCustomer.get(account.customerId);
+    if (rows) rows.push(account);
+    else byCustomer.set(account.customerId, [account]);
+  }
+  return byCustomer;
+}
+
+/**
+ * Khách có Combo 2 mà một tài khoản của tổ hợp đó bị đánh lỗi. Chủ dự án chốt
+ * 2026-10-12, áp cho MỌI kỳ, khách đã nhận quà hay chưa đều như nhau: điểm tổ
+ * hợp về 0, KHÔNG hạ xuống Combo 1 của tài khoản còn `done`. Điểm CNKD, HKD
+ * của tài khoản còn `done` vẫn cộng như cũ.
+ *
+ * Combo 3 có tài khoản lỗi vẫn hạ xuống tổ hợp nhỏ hơn. Trả về tài khoản
+ * `done` của từng khách bị về 0.
+ */
+function lostCombo2Customers(
+  rules: PeriodRules,
+  rows: ScoringAccount[],
+  brokenByCustomer: Map<string, ScoringAccount[]>,
+): Map<string, ScoringAccount[]> {
+  const lost = new Map<string, ScoringAccount[]>();
+  for (const [customerId, done] of byCustomerOf(rows)) {
+    const broken = brokenByCustomer.get(customerId);
+    if (!broken) continue;
+
+    const before = rules.winningComboOf([...done, ...broken]);
+    const after = rules.winningComboOf(done);
+    // Tài khoản `done` vẫn ra Combo 2 cùng điểm thì tài khoản lỗi nằm ngoài tổ hợp.
+    if (before.size === 2 && !(after.size === 2 && after.tenths === before.tenths))
+      lost.set(customerId, done);
+  }
+  return lost;
 }
 
 /**

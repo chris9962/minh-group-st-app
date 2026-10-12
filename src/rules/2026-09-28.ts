@@ -506,6 +506,12 @@ export function bankingPoints(accounts: ScoringAccount[], _granted: GrantedGifts
   return tenths / 10;
 }
 
+/** Tổ hợp thắng của MỘT khách, cùng phép gom với `bankingPoints`. Xem `lostCombo2Customers` ở `index.ts`. */
+export const winningComboOf = (accounts: ScoringAccount[]): Combo =>
+  hasBothVpModes(accounts)
+    ? NO_COMBO
+    : bestComboOf(comboRowsOf(accounts).map((a) => a.bankCode), hasHousehold(accounts, "CNKD"));
+
 /**
  * Tài khoản còn được vào tổ hợp QUÀ sau khi lọc điều kiện cài app (câu 7.8).
  *

@@ -409,6 +409,10 @@ export function bankingPoints(accounts: ScoringAccount[], _granted: GrantedGifts
   return tenths / 10;
 }
 
+/** Tổ hợp thắng của MỘT khách, cùng phép gom với `bankingPoints`. Xem `lostCombo2Customers` ở `index.ts`. */
+export const winningComboOf = (accounts: ScoringAccount[]): Combo =>
+  hasBothVpModes(accounts) ? NO_COMBO : bestComboOf(comboRowsOf(accounts).map((a) => a.bankCode));
+
 /**
  * Số khách có tổ hợp thắng là Combo 2 hoặc Combo 3. Thông báo lương 2026-09-30
  * thưởng nhân viên điểm ATM 50.000đ cho mỗi combo như vậy.
