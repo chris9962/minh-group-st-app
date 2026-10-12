@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { isValidPhone } from '@/lib/format';
+import { capitalizeWords, isValidPhone } from '@/lib/format';
 
 /**
  * P-71 · Danh mục xã / ấp — CÂY BA CẤP: Tỉnh/Thành phố → Xã/Phường → Ấp/Khu vực
@@ -61,7 +61,13 @@ export async function fetchReferenceWards(provinceId: string): Promise<Reference
  */
 const leaderShape = { leaderName: z.string(), leaderPhone: z.string() };
 
-export const Hamlet = z.object({ id: z.string(), name: z.string(), ...leaderShape });
+export const Hamlet = z.object({
+  id: z.string(),
+  name: z.string(),
+  ...leaderShape,
+  /** `null` khi ấp thêm trước migration 0135 mà nhật ký không có dòng tạo. */
+  createdByName: z.string().nullable(),
+});
 export type Hamlet = z.infer<typeof Hamlet>;
 
 export const Ward = z.object({
@@ -114,15 +120,18 @@ const leaderFormShape = {
     .refine((v) => v === '' || isValidPhone(v), 'Số điện thoại phải đủ 10 số'),
 };
 
+/** Route parse lại bằng chính schema này, nên tên lưu DB luôn viết hoa kể cả khi không gửi từ form. */
+const hamletName = z.string().trim().min(1, 'Chưa nhập tên ấp').transform(capitalizeWords);
+
 export const HamletForm = z.object({
   wardId: z.guid('Chưa chọn xã'),
-  name: z.string().trim().min(1, 'Chưa nhập tên ấp'),
+  name: hamletName,
   ...leaderFormShape,
 });
 export type HamletForm = z.infer<typeof HamletForm>;
 
 export const HamletUpdateForm = z.object({
-  name: z.string().trim().min(1, 'Chưa nhập tên ấp'),
+  name: hamletName,
   ...leaderFormShape,
 });
 export type HamletUpdateForm = z.infer<typeof HamletUpdateForm>;

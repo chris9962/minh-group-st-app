@@ -94,6 +94,12 @@ export function WardCatalogSection() {
       render: (h) => (h.leaderPhone ? formatPhone(h.leaderPhone) : <Missing />),
     },
     {
+      key: "createdByName",
+      label: "Người tạo",
+      sortText: (h) => h.createdByName ?? "",
+      render: (h) => h.createdByName ?? <span className="text-muted">—</span>,
+    },
+    {
       key: "actions",
       label: "Thao tác",
       render: (h) => (

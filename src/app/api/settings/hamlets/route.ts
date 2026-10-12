@@ -12,7 +12,7 @@ export async function POST(request: Request) {
   const parsed = HamletForm.safeParse(await jsonBody(request));
   if (!parsed.success) return badRequest();
 
-  const result = await addHamlet(parsed.data);
+  const result = await addHamlet(parsed.data, guard.actor.id);
   if (!result.ok) return badRequest("Xã này đã có ấp trùng tên");
   const province = result.item;
   if (!province) return notFound();

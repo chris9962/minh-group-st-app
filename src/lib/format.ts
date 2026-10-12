@@ -67,6 +67,13 @@ export function ageRangeLabel(rule: { minAge: number | null; maxAge: number | nu
 export const nameForExcel = (name: string): string =>
   removeDiacritics(name).toUpperCase();
 
+/**
+ * Viết hoa chữ đầu mỗi từ — "thới an đông" → "Thới An Đông". Giữ nguyên các chữ
+ * còn lại để tên viết tắt như "KDC" không thành "Kdc".
+ */
+export const capitalizeWords = (text: string): string =>
+  text.replace(/(^|\s)(\p{L})/gu, (_, space: string, letter: string) => space + letter.toUpperCase());
+
 /** Chữ tắt: chữ đầu của từ đầu và từ cuối — "Nguyễn Thị Bích Trâm" → "NT". */
 export function nameInitials(fullName: string): string {
   const parts = fullName.trim().split(/\s+/).filter(Boolean);

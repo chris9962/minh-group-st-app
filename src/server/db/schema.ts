@@ -936,6 +936,8 @@ export const hamlets = pgTable(
     /** Trưởng ấp — tên và SĐT liên hệ (migration 0072). Rỗng = chưa có. */
     leaderName: text("leader_name").notNull().default(""),
     leaderPhone: text("leader_phone").notNull().default(""),
+    /** Ấp thêm trước migration 0135 lấy từ `audit_log`; null khi nhật ký không có dòng tạo. */
+    createdBy: uuid("created_by").references(() => users.id),
     createdAt: createdAt(),
   },
   (t) => [

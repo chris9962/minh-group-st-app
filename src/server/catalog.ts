@@ -1720,13 +1720,30 @@ export async function listProvinceTree(): Promise<Province[]> {
   const [provinceRows, wardRows, hamletRows] = await Promise.all([
     db.select().from(provinces).orderBy(asc(provinces.name)),
     db.select().from(wards).orderBy(asc(wards.name)),
-    db.select().from(hamlets).orderBy(asc(hamlets.name)),
+    db
+      .select({
+        id: hamlets.id,
+        wardId: hamlets.wardId,
+        name: hamlets.name,
+        leaderName: hamlets.leaderName,
+        leaderPhone: hamlets.leaderPhone,
+        createdByName: users.fullName,
+      })
+      .from(hamlets)
+      .leftJoin(users, eq(users.id, hamlets.createdBy))
+      .orderBy(asc(hamlets.name)),
   ]);
 
   const hamletsByWard = new Map<string, Hamlet[]>();
   for (const h of hamletRows) {
     const list = hamletsByWard.get(h.wardId) ?? [];
-    list.push({ id: h.id, name: h.name, leaderName: h.leaderName, leaderPhone: h.leaderPhone });
+    list.push({
+      id: h.id,
+      name: h.name,
+      leaderName: h.leaderName,
+      leaderPhone: h.leaderPhone,
+      createdByName: h.createdByName,
+    });
     hamletsByWard.set(h.wardId, list);
   }
 
@@ -1836,7 +1853,10 @@ const leaderColumns = (form: { leaderName: string; leaderPhone: string }) => ({
   leaderPhone: digitsOnly(form.leaderPhone),
 });
 
-export async function addHamlet(form: HamletForm): Promise<CatalogOutcome<Province | null>> {
+export async function addHamlet(
+  form: HamletForm,
+  actorId: string,
+): Promise<CatalogOutcome<Province | null>> {
   const [ward] = await db.select().from(wards).where(eq(wards.id, form.wardId)).limit(1);
   if (!ward) return { ok: true, item: null };
   if (await hamletNameTaken(form.wardId, form.name, null)) {
@@ -1846,7 +1866,7 @@ export async function addHamlet(form: HamletForm): Promise<CatalogOutcome<Provin
   return catalogWrite(async () => {
     await db
       .insert(hamlets)
-      .values({ wardId: form.wardId, name: form.name, ...leaderColumns(form) });
+      .values({ wardId: form.wardId, name: form.name, ...leaderColumns(form), createdBy: actorId });
     return provinceById(ward.provinceId);
   });
 }
