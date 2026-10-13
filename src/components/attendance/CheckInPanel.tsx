@@ -44,8 +44,8 @@ const currentPosition = () =>
 
 /**
  * Lịch tháng của chính mình: ngày có chấm công tô xanh, bấm ngày nào thì hiện
- * các lượt của ngày đó. `slots` là 4 lượt có ảnh của nhân viên Điểm ATM,
- * `daily` là 1 lượt điểm danh không ảnh của Phòng An Sinh.
+ * các lượt của ngày đó. `slots` là 4 lượt có ảnh, `daily` là 1 lượt điểm danh
+ * không ảnh; admin chọn cho từng phòng ở P-91.
  */
 export function CheckInPanel({ mode }: { mode: AttendanceMode }) {
   const [month, setMonth] = useState(() => businessMonth());
@@ -84,8 +84,13 @@ export function CheckInPanel({ mode }: { mode: AttendanceMode }) {
   const monthLoaded = data.month === selected.slice(0, 7);
   const dayChecks = data.checks.filter((c) => c.workDate === selected);
   const daily = mode === "daily";
-  const slots = daily ? [CHECK_IN_SLOT] : ATTENDANCE_SLOTS;
   const done = (slot: AttendanceSlot) => dayChecks.some((c) => c.slot === slot);
+  const modeSlots = daily ? [CHECK_IN_SLOT] : ATTENDANCE_SLOTS;
+  // Phòng đổi cách chấm giữa tháng: lượt đã chấm theo cách cũ vẫn hiện để xem, không bấm được.
+  const slots = [
+    ...modeSlots,
+    ...[...ATTENDANCE_SLOTS, CHECK_IN_SLOT].filter((s) => !modeSlots.some((m) => m.key === s.key) && done(s.key)),
+  ];
   // Lượt chưa chấm bấm được khi lượt phải có trước nó đã chấm: mỗi ca vào trước, ra sau.
   const ready = (slot: AttendanceSlot) => !done(slot) && (!SLOT_REQUIRES[slot] || done(SLOT_REQUIRES[slot]));
   const checkedDays = [...new Set(data.checks.map((c) => c.workDate))];
@@ -99,7 +104,8 @@ export function CheckInPanel({ mode }: { mode: AttendanceMode }) {
         <div className={styles.slotsWrap}>
           <ul className={styles.slots}>
             {slots.map((s) => {
-              const canAct = (selected === today || backfillDay) && monthLoaded && ready(s.key);
+              const own = modeSlots.some((m) => m.key === s.key);
+              const canAct = own && (selected === today || backfillDay) && monthLoaded && ready(s.key);
               const action: SlotAction | undefined = !canAct
                 ? undefined
                 : daily
@@ -123,7 +129,7 @@ export function CheckInPanel({ mode }: { mode: AttendanceMode }) {
                   check={dayChecks.find((c) => c.slot === s.key)}
                   onView={setViewing}
                   action={action}
-                  missingText={monthLoaded ? (daily ? "Chưa điểm danh" : "Chưa chấm") : null}
+                  missingText={monthLoaded ? (s.key === CHECK_IN_SLOT.key ? "Chưa điểm danh" : "Chưa chấm") : null}
                 />
               );
             })}

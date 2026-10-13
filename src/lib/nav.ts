@@ -141,7 +141,7 @@ export function navFor(user: User | null): NavEntry[] {
   // Hồ sơ khách hàng không áp trục phạm vi — ai đăng nhập được cũng thấy.
   const customersItem: NavItem = { href: '/customers', label: 'Khách hàng', icon: 'customers', screen: 'P-40' };
 
-  // Nhân viên Điểm ATM chấm công, người Phòng An Sinh điểm danh; người có quyền xem thì xem bảng của phòng.
+  // Người của phòng có bật chấm công thì chấm; người có quyền xem thì xem bảng theo phòng.
   const attendanceItem: NavItem | null =
     attendanceModeOf(user) || can(user, 'attendance', 'view-detail')
       ? { href: '/attendance', label: 'Chấm công', icon: 'attendance', screen: 'P-33' }

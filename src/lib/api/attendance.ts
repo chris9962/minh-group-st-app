@@ -1,12 +1,15 @@
 import type { QueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
-import { isRealIsoDate } from '@/lib/types';
+import { AttendanceMode, isRealIsoDate } from '@/lib/types';
+
+export { AttendanceMode };
 
 /**
- * Chấm công nhân viên Điểm ATM (chốt 2026-10-02): 4 lượt, mỗi lượt một ảnh chụp
- * tại chỗ, tọa độ GPS và giờ máy chủ lúc nhận. Điểm danh Phòng An Sinh (chốt
- * 2026-10-04): 1 lượt, tọa độ GPS và giờ máy chủ, không có ảnh. Từ tháng
- * 2026-10, lượt chấm tạo ngày công.
+ * Chấm công theo phòng (chốt 2026-10-13): admin bật cách chấm cho từng phòng ở
+ * P-91, mọi chức vụ trong phòng chấm cùng cách. `slots` (chốt 2026-10-02): 4
+ * lượt, mỗi lượt một ảnh chụp tại chỗ, tọa độ GPS và giờ máy chủ lúc nhận.
+ * `daily` (chốt 2026-10-04): 1 lượt điểm danh, tọa độ GPS và giờ máy chủ, không
+ * có ảnh. Từ tháng 2026-10, lượt chấm tạo ngày công.
  */
 
 /** Thứ tự này là thứ tự dòng ở màn nhân viên và cột ở bảng quản lý. */
@@ -34,12 +37,10 @@ export const SLOT_REQUIRES: Partial<Record<AttendanceSlot, AttendanceSlot>> = {
 export const slotLabel = (slot: AttendanceSlot): string =>
   slot === CHECK_IN_SLOT.key ? CHECK_IN_SLOT.label : (ATTENDANCE_SLOTS.find((s) => s.key === slot)?.label ?? '');
 
-/** `slots`: 4 lượt có ảnh của nhân viên Điểm ATM. `daily`: điểm danh 1 nút của Phòng An Sinh. */
-export type AttendanceMode = 'slots' | 'daily';
-
+/** Cách chấm công của phòng người này đang thuộc về; `null` là không chấm công. */
 export const attendanceModeOf = (
-  user: { salaryScheme?: string; dailyCheckIn?: boolean } | null,
-): AttendanceMode | null => (user?.dailyCheckIn ? 'daily' : user?.salaryScheme === 'atm' ? 'slots' : null);
+  user: { attendanceMode?: AttendanceMode | null } | null,
+): AttendanceMode | null => user?.attendanceMode ?? null;
 
 export const AttendanceCheck = z.object({
   id: z.string(),
@@ -74,20 +75,29 @@ export const AttendanceDayRow = z.object({
   userId: z.string(),
   fullName: z.string(),
   staffCode: z.string().nullable(),
-  mode: z.enum(['slots', 'daily']),
   checks: z.array(AttendanceCheck),
 });
 export type AttendanceDayRow = z.infer<typeof AttendanceDayRow>;
 
+/** Người của một phòng trong ngày, theo nhân sự của tháng chứa ngày đó. */
+export const AttendanceDayGroup = z.object({
+  /** Rỗng khi người chấm công không còn thuộc phòng nào trong tháng đó. */
+  departmentId: z.string().nullable(),
+  departmentName: z.string(),
+  mode: AttendanceMode,
+  rows: z.array(AttendanceDayRow),
+});
+export type AttendanceDayGroup = z.infer<typeof AttendanceDayGroup>;
+
 export const AttendanceDay = z.object({
   workDate: z.string(),
-  rows: z.array(AttendanceDayRow),
+  groups: z.array(AttendanceDayGroup),
 });
 export type AttendanceDay = z.infer<typeof AttendanceDay>;
 
 export const AttendanceForm = z.object({
   slot: AttendanceSlot,
-  /** Rỗng với điểm danh An Sinh. */
+  /** Rỗng với lượt điểm danh. */
   photoUrl: z.string().trim(),
   /** Ngày chấm bù, `YYYY-MM-DD`. Không gửi là ngày của máy chủ. */
   workDate: z.string().refine(isRealIsoDate).optional(),

@@ -1,5 +1,5 @@
 import { DepartmentForm } from "@/lib/api/org";
-import { DEPARTMENT_TYPE_LABEL } from "@/lib/types";
+import { ATTENDANCE_MODE_LABEL, DEPARTMENT_TYPE_LABEL } from "@/lib/types";
 import { canOrg, visibleOrgDepartmentIds } from "@/lib/permissions";
 import { logAudit } from "@/server/audit";
 import { badRequest, forbidden, getActor, jsonBody, unauthorized } from "@/server/auth";
@@ -27,13 +27,15 @@ export async function POST(request: Request) {
   const parsed = DepartmentForm.safeParse(await jsonBody(request));
   if (!parsed.success) return badRequest();
 
-  const result = await createDepartment(parsed.data.name, parsed.data.type);
+  const { name, type, attendanceMode } = parsed.data;
+  const result = await createDepartment(name, type, attendanceMode);
   if (!result.ok) return Response.json(orgError(result.code), { status: 422 });
 
+  const { department } = result;
   await logAudit(actor, {
     module: "department",
     action: "create",
-    targetLabel: `Lập phòng ${result.department.name} · ${DEPARTMENT_TYPE_LABEL[result.department.type]}`,
+    targetLabel: `Lập phòng ${department.name} - ${DEPARTMENT_TYPE_LABEL[department.type]} - Chấm công: ${ATTENDANCE_MODE_LABEL[department.attendanceMode ?? ""]}`,
     targetTable: "departments",
     targetId: result.department.id,
   });

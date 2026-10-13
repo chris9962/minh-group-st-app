@@ -360,6 +360,22 @@ export const DEPARTMENT_TYPE_HINT: Record<DepartmentType, string> = {
   office: 'Phòng này chưa có công thức tính điểm — nhân viên không có điểm KPI.',
 };
 
+/**
+ * Cách chấm công của một phòng (chốt 2026-10-13). `slots`: 4 lượt có ảnh.
+ * `daily`: 1 lượt điểm danh không ảnh. Mọi chức vụ trong phòng chấm cùng cách.
+ *
+ * Bản mirror của `attendanceMode` ở `server/db/schema.ts`.
+ */
+export const AttendanceMode = z.enum(['slots', 'daily']);
+export type AttendanceMode = z.infer<typeof AttendanceMode>;
+
+/** Nhãn ở ô chọn "Chấm công" của P-91. Khoá rỗng là phòng không chấm công. */
+export const ATTENDANCE_MODE_LABEL: Record<AttendanceMode | '', string> = {
+  '': 'Không chấm công',
+  slots: '4 lượt có ảnh',
+  daily: 'Điểm danh 1 lượt',
+};
+
 export const Department = z.object({
   id: z.string(),
   /**
@@ -512,15 +528,16 @@ export const User = z.object({
    */
   managedBankIds: z.array(z.string()),
   /**
-   * `atm` thì người này có màn Chấm công. `.default` cùng lý do với
-   * `insuranceDepartmentIds`: phiên cũ trong trình duyệt chưa có trường này.
+   * `.default` cùng lý do với `insuranceDepartmentIds`: phiên cũ trong trình
+   * duyệt chưa có trường này.
    */
   salaryScheme: SalaryScheme.default('department'),
   /**
-   * Người thuộc Phòng An Sinh: màn Chấm công có nút điểm danh. Tuỳ chọn vì hồ sơ
-   * nhân viên (`StaffAccount`) cũng đi qua kiểu này mà không mang trường này.
+   * Cách chấm công của phòng người này đang thuộc về; rỗng là không chấm công.
+   * Tuỳ chọn vì hồ sơ nhân viên (`StaffAccount`) cũng đi qua kiểu này mà không
+   * mang trường này.
    */
-  dailyCheckIn: z.boolean().optional(),
+  attendanceMode: AttendanceMode.nullable().optional(),
   /** Tên chức danh hiển thị, ví dụ "Phó GĐ 2" — khác với `role`. */
   title: z.string(),
   permissions: z.array(Permission),

@@ -94,7 +94,7 @@ export async function getActor(request: Request): Promise<User | null> {
   if (!token) return null;
 
   const rows = await db
-    .select({ user: users, departmentCode: departments.code })
+    .select({ user: users, attendanceMode: departments.attendanceMode })
     .from(sessions)
     .innerJoin(users, eq(sessions.userId, users.id))
     .leftJoin(departments, eq(departments.id, users.departmentId))
@@ -113,7 +113,7 @@ export async function getActor(request: Request): Promise<User | null> {
     managedOf.get(row.user.id) ?? [],
     managedBanksOf.get(row.user.id) ?? [],
     insuranceDepartmentsOf.get(row.user.id) ?? [],
-    row.departmentCode,
+    row.attendanceMode ?? null,
   );
 }
 

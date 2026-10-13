@@ -94,6 +94,7 @@ test("lập phòng mới rồi sửa tên và loại", async ({ page }) => {
   const box = dialog(page);
   await box.getByLabel(/Tên phòng/).fill(name);
   await box.getByLabel(/Loại phòng/).selectOption("office");
+  await box.getByLabel(/Chấm công/).selectOption("slots");
   await box.getByRole("button", { name: "Tạo phòng ban" }).click();
   await expect(box).toBeHidden({ timeout: 10_000 });
 
@@ -110,9 +111,12 @@ test("lập phòng mới rồi sửa tên và loại", async ({ page }) => {
   // `sales` của form.
   const edit = dialog(page);
   await expect(edit.getByLabel(/Loại phòng/)).toHaveValue("office");
+  // Ô Chấm công cũng chỉ đọc được ở đây, và phải khác mặc định "Không chấm công" của form.
+  await expect(edit.getByLabel(/Chấm công/)).toHaveValue("slots");
 
   await edit.getByLabel(/Tên phòng/).fill(`${name} 2`);
   await edit.getByLabel(/Loại phòng/).selectOption("sales");
+  await edit.getByLabel(/Chấm công/).selectOption("");
   await edit.getByRole("button", { name: /Lưu/ }).click();
   await expect(edit).toBeHidden({ timeout: 10_000 });
   await page.getByRole("searchbox", { name: "Tìm phòng ban" }).fill(`${name} 2`);
@@ -121,6 +125,7 @@ test("lập phòng mới rồi sửa tên và loại", async ({ page }) => {
   const renamed = page.locator("table tbody tr").filter({ hasText: `${name} 2` }).first();
   await renamed.getByRole("button", { name: `Sửa phòng ${name} 2` }).click();
   await expect(dialog(page).getByLabel(/Loại phòng/)).toHaveValue("sales");
+  await expect(dialog(page).getByLabel(/Chấm công/)).toHaveValue("");
 });
 
 /**

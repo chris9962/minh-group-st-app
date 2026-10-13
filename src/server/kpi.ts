@@ -807,7 +807,7 @@ export async function multiBankComboCounts(
 /**
  * Tính lại điểm và ngày công của MỘT người sau khi đổi cách tính lương, phòng
  * hoặc chức vụ: điểm dịch vụ và ngày công theo lượt dịch vụ chỉ có ở nhóm `atm`,
- * ngày công theo chấm công có ở nhóm `atm` và Phòng An Sinh.
+ * ngày công theo chấm công có ở phòng bật chấm công (`departments.attendance_mode`).
  *
  * Chỉ từ tháng đang chạy: tháng trước đọc nhân sự đã chụp (`staff_months`), sửa
  * hồ sơ không đổi chúng. Dựng lại tháng trước theo luật hiện tại là đụng số của

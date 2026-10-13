@@ -9,8 +9,8 @@ import { useSession } from "@/store/session";
 import styles from "./page.module.scss";
 
 /**
- * Chấm công: nhân viên Điểm ATM thấy 4 lượt của mình, người Phòng An Sinh thấy
- * nút điểm danh, người có quyền xem thấy bảng của phòng.
+ * Chấm công: người của phòng có bật chấm công thấy các lượt của mình theo cách
+ * chấm của phòng, người có quyền xem thấy bảng theo phòng.
  */
 export default function AttendancePage() {
   const user = useSession((s) => s.user);

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { BankingSummary, DepartmentRanking } from './dashboard';
-import { Department, DepartmentType } from '@/lib/types';
+import { AttendanceMode, Department, DepartmentType } from '@/lib/types';
 import { SalaryBreakdown } from './person';
 import { SocialInsuranceKind, SocialInsurancePlan } from './socialInsurance';
 
@@ -18,6 +18,8 @@ export const DepartmentRow = Department.extend({
   headcount: z.number(),
   /** Loại phòng — quyết định công thức tính điểm KPI (spec §7.0). */
   type: DepartmentType,
+  /** Cách chấm công của cả phòng; rỗng là không chấm công. */
+  attendanceMode: AttendanceMode.nullable(),
 });
 export type DepartmentRow = z.infer<typeof DepartmentRow>;
 
@@ -64,6 +66,7 @@ export const DepartmentForm = z.object({
    * tính lương mà không ai bấm gì — nên form bắt chọn.
    */
   type: DepartmentType,
+  attendanceMode: AttendanceMode.nullable(),
 });
 export type DepartmentForm = z.infer<typeof DepartmentForm>;
 

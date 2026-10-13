@@ -1,6 +1,5 @@
 import { and, eq, inArray, sql, type SQLWrapper } from "drizzle-orm";
 import type { WorkDayExportRow } from "@/lib/api/exports";
-import { SOCIAL_DEPARTMENT_CODE } from "@/lib/api/staff";
 import { monthRange } from "@/lib/format";
 import { isMonthClosed } from "./closedMonths";
 import { customerDayBetween, customerDayText } from "./customerDay";
@@ -19,32 +18,31 @@ import {
 type Db = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 /**
- * Từ ngày này, nhân viên Điểm ATM và người Phòng An Sinh lấy ngày công từ chấm
- * công (spec 4.3). Lượt dịch vụ và tài khoản ngân hàng không còn tạo ngày công
- * cho hai nhóm này.
+ * Từ ngày này, mọi người của phòng có bật chấm công lấy ngày công từ lượt chấm
+ * (spec 4.3). Lượt dịch vụ và tài khoản ngân hàng không còn tạo ngày công cho họ.
  */
 export const ATTENDANCE_WORK_DAYS_FROM = "2026-10-01";
 
 /**
- * Ngày công từ chấm công của một ngày. Phòng An Sinh: có lượt điểm danh là 1
- * ngày. Điểm ATM: đủ cặp vào ra sáng 0,5, đủ cặp vào ra chiều 0,5. `null` là
- * người không thuộc hai nhóm này.
+ * Ngày công từ chấm công của một ngày, tính theo lượt có trong ngày chứ không
+ * theo cách chấm của phòng: có lượt điểm danh là 1 ngày; không thì đủ cặp vào ra
+ * sáng 0,5, đủ cặp vào ra chiều 0,5. Nhờ vậy phòng đổi từ điểm danh sang 4 lượt
+ * giữa tháng không cần mốc ngày. `null` là người của phòng không chấm công.
  */
 async function attendanceFraction(
   tx: Db,
   userId: string,
   workDate: string,
-  staff: { role: string; salaryScheme: string; departmentCode: string | null },
+  staff: { attendanceMode: string | null },
 ): Promise<number | null> {
-  const daily = staff.departmentCode === SOCIAL_DEPARTMENT_CODE;
-  if (!daily && !(staff.salaryScheme === "atm" && staff.role === "staff")) return null;
+  if (!staff.attendanceMode) return null;
 
   const rows = await tx
     .select({ slot: attendanceChecks.slot })
     .from(attendanceChecks)
     .where(and(eq(attendanceChecks.userId, userId), eq(attendanceChecks.workDate, workDate)));
   const has = new Set(rows.map((r) => r.slot));
-  if (daily) return has.has("check-in") ? 1 : 0;
+  if (has.has("check-in")) return 1;
   return (
     (has.has("morning-in") && has.has("noon-out") ? 0.5 : 0) +
     (has.has("afternoon-in") && has.has("afternoon-out") ? 0.5 : 0)
@@ -70,16 +68,15 @@ async function recomputeEmployeeWorkDayOn(
   );
   if (await isMonthClosed(workDate.slice(0, 7), tx)) return;
 
-  // Chức vụ, phòng và cách tính lương của người đó TRONG tháng của ngày công.
+  // Chức vụ, phòng, cách tính lương và cách chấm công của người đó TRONG tháng của ngày công.
   const [staff] = await tx
     .select({
       role: staffRoster.role,
       departmentId: staffRoster.departmentId,
-      departmentCode: departments.code,
+      attendanceMode: staffRoster.attendanceMode,
       salaryScheme: staffRoster.salaryScheme,
     })
     .from(staffRoster)
-    .leftJoin(departments, eq(departments.id, staffRoster.departmentId))
     .where(and(eq(staffRoster.userId, userId), eq(staffRoster.yearMonth, workDate.slice(0, 7))))
     .limit(1);
 
@@ -235,8 +232,8 @@ const ROLE_ORDER: Record<string, number> = { head: 0, "deputy-head": 1, staff: 2
  *
  * Trưởng phòng và Phó phòng đọc ngày của PHÒNG, cùng cách `departmentWorkDayCount`
  * mà màn lương dùng. Đọc ngày của chính họ thì dòng luôn trống: chỉ Nhân viên
- * mới tạo ngày công. Phòng An Sinh là ngoại lệ: mọi người điểm danh, nên ai
- * cũng đọc ngày của chính mình.
+ * mới tạo ngày công. Phòng có bật chấm công là ngoại lệ: mọi người chấm công,
+ * nên ai cũng đọc ngày của chính mình.
  *
  * `departmentId` rỗng là mọi phòng; có thì chỉ lấy người thuộc phòng đó TRONG
  * tháng xuất.
@@ -255,7 +252,7 @@ export async function listWorkDayExport(
         role: staffRoster.role,
         active: staffRoster.active,
         departmentId: staffRoster.departmentId,
-        departmentCode: departments.code,
+        attendanceMode: staffRoster.attendanceMode,
         departmentName: departments.name,
       })
       .from(users)
@@ -299,7 +296,7 @@ export async function listWorkDayExport(
     .map((p) => {
       const own =
         p.role === "staff" ||
-        (p.departmentCode === SOCIAL_DEPARTMENT_CODE && yearMonth >= ATTENDANCE_WORK_DAYS_FROM.slice(0, 7));
+        (p.attendanceMode !== null && yearMonth >= ATTENDANCE_WORK_DAYS_FROM.slice(0, 7));
       const days = (own ? byUser.get(p.id) : byDepartment.get(p.departmentId ?? "")) ?? new Map();
       return {
         ...p,
@@ -334,12 +331,12 @@ export async function recountEmployeeWorkDays(
 ): Promise<unknown[]> {
   const inScope = (day: SQLWrapper) =>
     fromMonth ? sql`${openMonth(day)} and to_char(${day}, 'YYYY-MM') >= ${fromMonth}` : openMonth(day);
-  // Cùng điều kiện với `recomputeEmployeeWorkDayOn`: chức vụ, phòng và cách tính
-  // lương đọc theo nhân sự của tháng chứa ngày công. Vế đầu là ngày công theo
-  // khách, vế sau là ngày công theo chấm công từ `ATTENDANCE_WORK_DAYS_FROM`.
+  // Cùng điều kiện với `recomputeEmployeeWorkDayOn`: chức vụ, phòng, cách tính
+  // lương và cách chấm công đọc theo nhân sự của tháng chứa ngày công. Vế đầu là
+  // ngày công theo khách, vế sau là ngày công theo chấm công từ `ATTENDANCE_WORK_DAYS_FROM`.
   const attendanceGroup = sql`(
     r.department_id is not null and d.work_date >= ${ATTENDANCE_WORK_DAYS_FROM}::date
-    and (dep.code = ${SOCIAL_DEPARTMENT_CODE} or (r.salary_scheme = 'atm' and r.role = 'staff'))
+    and r.attendance_mode is not null
   )`;
   const expected = sql`
     select d.user_id, d.work_date, r.department_id,
@@ -358,7 +355,6 @@ export async function recountEmployeeWorkDays(
     ) d
     join staff_roster r
       on r.user_id = d.user_id and r.year_month = to_char(d.work_date, 'YYYY-MM')
-    left join departments dep on dep.id = r.department_id
     where r.role = 'staff' and r.department_id is not null
       and (not d.from_service or r.salary_scheme = 'atm')
       and not ${attendanceGroup}
@@ -366,7 +362,7 @@ export async function recountEmployeeWorkDays(
     group by d.user_id, d.work_date, r.department_id
     union all
     select d.user_id, d.work_date, r.department_id, 0,
-           case when dep.code = ${SOCIAL_DEPARTMENT_CODE}
+           case when d.check_in
                 then 1
                 else 0.5 * (d.morning::int) + 0.5 * (d.afternoon::int) end::numeric
     from (
@@ -379,9 +375,8 @@ export async function recountEmployeeWorkDays(
     ) d
     join staff_roster r
       on r.user_id = d.user_id and r.year_month = to_char(d.work_date, 'YYYY-MM')
-    left join departments dep on dep.id = r.department_id
     where ${attendanceGroup}
-      and (case when dep.code = ${SOCIAL_DEPARTMENT_CODE} then d.check_in else d.morning or d.afternoon end)
+      and (d.check_in or d.morning or d.afternoon)
       and ${inScope(sql`d.work_date`)}
   `;
 

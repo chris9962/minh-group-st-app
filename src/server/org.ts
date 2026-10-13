@@ -8,7 +8,7 @@ import {
   uniqueCode,
 } from "@/lib/format";
 import { periodRanges } from "@/lib/period";
-import type { DepartmentType } from "@/lib/types";
+import type { AttendanceMode, DepartmentType } from "@/lib/types";
 import {
   ORG_ERROR,
   type DepartmentDetail,
@@ -30,7 +30,7 @@ import {
   staffRoster,
   users,
 } from "./db/schema";
-import { pointsByStaffInRange } from "./kpi";
+import { pointsByStaffInRange, recomputeForSalaryScheme } from "./kpi";
 import { salaryForUsers } from "./salary";
 
 /**
@@ -57,6 +57,7 @@ async function rowsWithHeadcount(visible: string[] | null): Promise<DepartmentRo
       code: departments.code,
       name: departments.name,
       type: departments.type,
+      attendanceMode: departments.attendanceMode,
       active: departments.active,
       headcount: count(users.id),
     })
@@ -155,13 +156,17 @@ async function nextDepartmentCode(name: string): Promise<string> {
   return uniqueCode(name, "PHONG", taken);
 }
 
-export async function createDepartment(name: string, type: DepartmentType): Promise<OrgOutcome> {
+export async function createDepartment(
+  name: string,
+  type: DepartmentType,
+  attendanceMode: AttendanceMode | null,
+): Promise<OrgOutcome> {
   if (await nameTaken(name)) return { ok: false, code: ORG_ERROR.NAME_TAKEN };
 
   const insert = async (): Promise<OrgOutcome> => {
     const [row] = await db
       .insert(departments)
-      .values({ code: await nextDepartmentCode(name), name, type })
+      .values({ code: await nextDepartmentCode(name), name, type, attendanceMode })
       .returning();
     return {
       ok: true,
@@ -170,6 +175,7 @@ export async function createDepartment(name: string, type: DepartmentType): Prom
         code: row.code,
         name: row.name,
         type: row.type,
+        attendanceMode: row.attendanceMode,
         active: row.active,
         headcount: 0,
       },
@@ -193,16 +199,24 @@ export async function createDepartment(name: string, type: DepartmentType): Prom
 }
 
 /**
- * Đổi tên và loại phòng.
+ * Đổi tên, loại và cách chấm công của phòng.
  *
  * ⚠️ Đổi loại là đổi cách tính điểm của cả phòng (spec §7.0). Chuyển sang
  * `office` thì lượt tính lại kế tiếp XOÁ dòng điểm của mọi người trong phòng,
  * kể cả của tháng đã trả lương. Nhật ký hoạt động ghi lại lượt đổi này.
+ *
+ * ⚠️ Đổi cách chấm công là đổi nguồn ngày công của cả phòng trong tháng đang
+ * chạy (`server/workDays.ts`), nên tính lại ngay cho mọi người thuộc phòng
+ * trong tháng đó, kể cả người đã nghỉ còn ngày công. Bật chấm công giữa tháng
+ * cho một phòng kinh doanh thì ngày công theo khách từ đầu tháng của cả phòng
+ * mất, nhân viên phải chấm bù (chủ dự án chốt 2026-10-13 cho Phòng Y). Tháng
+ * trước không đổi: cách chấm đã chụp theo tháng ở `staff_months`.
  */
 export async function updateDepartment(
   id: string,
   name: string,
   type: DepartmentType,
+  attendanceMode: AttendanceMode | null,
 ): Promise<OrgOutcome | null> {
   const [current] = await db.select().from(departments).where(eq(departments.id, id)).limit(1);
   if (!current) return null;
@@ -213,13 +227,22 @@ export async function updateDepartment(
   try {
     [row] = await db
       .update(departments)
-      .set({ name, type, updatedAt: sql`now()` })
+      .set({ name, type, attendanceMode, updatedAt: sql`now()` })
       .where(eq(departments.id, id))
       .returning();
   } catch (e) {
     if (uniqueViolationOf(e) !== null) return { ok: false, code: ORG_ERROR.NAME_TAKEN };
     throw e;
   }
+
+  if ((current.attendanceMode ?? null) !== attendanceMode) {
+    const members = await db
+      .select({ id: staffRoster.userId })
+      .from(staffRoster)
+      .where(and(eq(staffRoster.departmentId, id), eq(staffRoster.yearMonth, businessMonth())));
+    for (const member of members) await recomputeForSalaryScheme(member.id);
+  }
+
   return {
     ok: true,
     department: {
@@ -227,6 +250,7 @@ export async function updateDepartment(
       code: row.code,
       name: row.name,
       type: row.type,
+      attendanceMode: row.attendanceMode,
       active: row.active,
       headcount: await headcountOf(id),
     },
@@ -257,6 +281,7 @@ export async function setDepartmentActive(
       code: row.code,
       name: row.name,
       type: row.type,
+      attendanceMode: row.attendanceMode,
       active: row.active,
       headcount,
     },
@@ -313,6 +338,7 @@ export async function departmentDetailFor(
       code: department.code,
       name: department.name,
       type: department.type,
+      attendanceMode: department.attendanceMode,
       active: department.active,
       headcount: await headcountOf(id),
     },

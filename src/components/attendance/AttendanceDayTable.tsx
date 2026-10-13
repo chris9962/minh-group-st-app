@@ -16,8 +16,8 @@ import {
   fetchAttendanceDay,
   slotLabel,
   type AttendanceCheck,
+  type AttendanceDayGroup,
   type AttendanceDayRow,
-  type AttendanceMode,
 } from "@/lib/api/attendance";
 import { businessDay, clockNowVn, formatDate } from "@/lib/format";
 import { isRealIsoDate } from "@/lib/types";
@@ -26,15 +26,18 @@ import styles from "./AttendanceDayTable.module.scss";
 
 type Viewing = { row: AttendanceDayRow; check: AttendanceCheck };
 
+const groupKey = (g: AttendanceDayGroup) => g.departmentId ?? "";
+const groupLabel = (g: AttendanceDayGroup) => g.departmentName || "Không có phòng";
+
 /**
- * Bảng một ngày cho người có quyền xem, tách 2 tab: ATM là 4 lượt có ảnh của
- * nhân viên Điểm ATM, Hành chính là lượt điểm danh của người Phòng An Sinh.
+ * Bảng một ngày cho người có quyền xem, một tab mỗi phòng có chấm công. Cột
+ * theo cách chấm của phòng đó.
  */
 export function AttendanceDayTable() {
   const today = businessDay();
   const [workDate, setWorkDate] = useState(today);
   const [viewing, setViewing] = useState<Viewing | null>(null);
-  const [picked, setPicked] = useState<AttendanceMode | null>(null);
+  const [picked, setPicked] = useState<string | null>(null);
   const { data, isPending, isError, refetch, isFetching } = useQuery({
     queryKey: ["attendance", "day", workDate],
     queryFn: () => fetchAttendanceDay(workDate),
@@ -42,12 +45,16 @@ export function AttendanceDayTable() {
     placeholderData: keepPreviousData,
   });
 
-  const rows = data?.rows ?? [];
-  const atmRows = rows.filter((r) => r.mode === "slots");
-  const dailyRows = rows.filter((r) => r.mode === "daily");
-  // Người chỉ xem được một nhóm thì mở thẳng tab của nhóm đó.
-  const group = picked ?? (atmRows.length === 0 && dailyRows.length > 0 ? "daily" : "slots");
-  const slotColumns = group === "daily" ? [CHECK_IN_SLOT] : ATTENDANCE_SLOTS;
+  const groups = data?.groups ?? [];
+  const current = groups.find((g) => groupKey(g) === picked) ?? groups[0] ?? null;
+  const daily = current?.mode === "daily";
+  // Phòng đổi cách chấm giữa tháng: ngày cũ còn lượt của cách cũ, phải có cột để xem.
+  const hasSlot = (key: string) => current?.rows.some((r) => r.checks.some((c) => c.slot === key)) ?? false;
+  const modeColumns = daily ? [CHECK_IN_SLOT] : ATTENDANCE_SLOTS;
+  const slotColumns = [
+    ...modeColumns,
+    ...[...ATTENDANCE_SLOTS, CHECK_IN_SLOT].filter((s) => !modeColumns.some((m) => m.key === s.key) && hasSlot(s.key)),
+  ];
 
   const columns: RankColumn<AttendanceDayRow>[] = [
     {
@@ -68,7 +75,9 @@ export function AttendanceDayTable() {
         render: (r) => {
           const check = r.checks.find((c) => c.slot === s.key);
           if (!check)
-            return <span className={styles.missing}>{group === "daily" ? "Chưa điểm danh" : "Chưa chấm"}</span>;
+            return (
+              <span className={styles.missing}>{s.key === CHECK_IN_SLOT.key ? "Chưa điểm danh" : "Chưa chấm"}</span>
+            );
           const time = clockNowVn(new Date(check.checkedAt)).slice(0, 5);
           return (
             <button
@@ -95,27 +104,22 @@ export function AttendanceDayTable() {
       {isError && <ErrorState what="bảng chấm công" onRetry={refetch} retrying={isFetching} />}
       {data && !isError && (
         <>
-          <SegmentedTabs
-            label="Loại chấm công"
-            value={group}
-            onChange={(v) => setPicked(v === "daily" ? "daily" : "slots")}
-            options={[
-              { value: "slots", label: "ATM", count: atmRows.length },
-              { value: "daily", label: "Hành chính", count: dailyRows.length },
-            ]}
-          />
+          {groups.length > 1 && current && (
+            <SegmentedTabs
+              label="Phòng"
+              value={groupKey(current)}
+              onChange={setPicked}
+              options={groups.map((g) => ({ value: groupKey(g), label: groupLabel(g), count: g.rows.length }))}
+            />
+          )}
           <RankTable
-            key={group}
-            rows={group === "daily" ? dailyRows : atmRows}
+            key={current ? groupKey(current) : "none"}
+            rows={current?.rows ?? []}
             columns={columns}
             rowKey={(r) => r.userId}
             defaultSort="fullName"
-            caption={group === "daily" ? "Điểm danh hành chính trong ngày" : "Chấm công ATM trong ngày"}
-            emptyText={
-              group === "daily"
-                ? "Không có người Phòng An Sinh nào trong phạm vi bạn xem."
-                : "Không có nhân viên Điểm ATM nào trong phạm vi bạn xem."
-            }
+            caption={current ? `Chấm công ${groupLabel(current)} trong ngày` : "Chấm công trong ngày"}
+            emptyText="Không có phòng nào chấm công trong phạm vi bạn xem."
           />
         </>
       )}

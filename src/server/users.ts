@@ -1,5 +1,4 @@
 import { eq, inArray } from "drizzle-orm";
-import { SOCIAL_DEPARTMENT_CODE } from "@/lib/api/staff";
 import { db } from "./db/client";
 import {
   departments,
@@ -9,7 +8,7 @@ import {
   userPermissions,
   users,
 } from "./db/schema";
-import type { Permission, User } from "@/lib/types";
+import type { AttendanceMode, Permission, User } from "@/lib/types";
 
 /**
  * Dựng đối tượng `User` (đúng schema zod ở lib/types) từ 3 bảng.
@@ -30,8 +29,8 @@ export function toUser(
    * ra thấy bảng trắng, không có câu lỗi nào.
    */
   insuranceDepartmentIds: string[],
-  /** Mã phòng của `row.departmentId`. Không có mặc định, cùng lý do với đối số trên. */
-  departmentCode: string | null,
+  /** Cách chấm công của phòng `row.departmentId`. Không có mặc định, cùng lý do với đối số trên. */
+  attendanceMode: AttendanceMode | null,
 ): User {
   return {
     id: row.id,
@@ -44,7 +43,7 @@ export function toUser(
     insuranceDepartmentIds,
     managedBankIds,
     salaryScheme: row.salaryScheme,
-    dailyCheckIn: departmentCode === SOCIAL_DEPARTMENT_CODE,
+    attendanceMode,
     title: row.title,
     permissions,
     active: row.active,
@@ -103,13 +102,13 @@ export async function relationsFor(userIds: string[]): Promise<{
 
 export async function loadUser(id: string): Promise<User | null> {
   const rows = await db
-    .select({ user: users, departmentCode: departments.code })
+    .select({ user: users, attendanceMode: departments.attendanceMode })
     .from(users)
     .leftJoin(departments, eq(departments.id, users.departmentId))
     .where(eq(users.id, id))
     .limit(1);
   if (!rows[0]) return null;
-  const { user: row, departmentCode } = rows[0];
+  const { user: row, attendanceMode } = rows[0];
 
   const { permissionsOf, managedOf, managedBanksOf, insuranceDepartmentsOf } =
     await relationsFor([row.id]);
@@ -119,6 +118,6 @@ export async function loadUser(id: string): Promise<User | null> {
     managedOf.get(row.id) ?? [],
     managedBanksOf.get(row.id) ?? [],
     insuranceDepartmentsOf.get(row.id) ?? [],
-    departmentCode,
+    attendanceMode ?? null,
   );
 }

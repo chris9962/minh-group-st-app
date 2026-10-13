@@ -967,6 +967,20 @@
       "when": 1789891400064,
       "tag": "0138_bank_guide_variant_ages",
       "breakpoints": true
+    },
+    {
+      "idx": 139,
+      "version": "7",
+      "when": 1789891400065,
+      "tag": "0139_department_attendance_mode",
+      "breakpoints": true
+    },
+    {
+      "idx": 140,
+      "version": "7",
+      "when": 1789891400066,
+      "tag": "0140_staff_months_attendance_mode",
+      "breakpoints": true
     }
   ]
 }

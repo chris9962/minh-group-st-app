@@ -164,7 +164,8 @@ export const RELEASES: Release[] = [
           'Điểm KPI tính theo tiền thu BHYT/BHXH.',
           'Diễn giải lương có bảng tiền thu ra điểm.',
         ],
-        visibleTo: (user) => attendanceModeOf(user) === 'daily',
+        // Cách tính lương An Sinh và Lương cứng chỉ Phòng An Sinh có; chấm công nay bật theo phòng nên không dùng để nhận ra họ.
+        visibleTo: (user) => user.salaryScheme === 'social' || user.salaryScheme === 'fixed',
       },
       {
         title: 'BHYT/BHXH',

@@ -1,7 +1,7 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { KIND_LABEL, PLAN_LABEL } from "@/lib/api/socialInsurance";
 import { businessMonth, monthRange } from "@/lib/format";
-import type { ContractType, RoleKey, SalaryScheme, User } from "@/lib/types";
+import type { AttendanceMode, ContractType, RoleKey, SalaryScheme, User } from "@/lib/types";
 import {
   quotaTargetFor,
   salaryRulesFor,
@@ -79,6 +79,8 @@ type Subject = {
   departmentId: string | null;
   departmentCode: string | null;
   departmentType: "sales" | "office" | null;
+  /** Phòng có chấm công thì Trưởng/Phó phòng ăn ca theo ngày tự chấm, không theo ngày của phòng. */
+  attendanceMode: AttendanceMode | null;
   points: number;
 };
 
@@ -159,6 +161,7 @@ async function liveSalaries(
       departmentId: staffRoster.departmentId,
       departmentCode: departments.code,
       departmentType: departments.type,
+      attendanceMode: staffRoster.attendanceMode,
       managedDepartmentIds: staffRoster.managedDepartmentIds,
       points,
     })
@@ -247,7 +250,7 @@ async function liveSalaries(
   const { from, to } = monthRange(yearMonth);
   const [userDayRows, departmentDayRows] = await Promise.all([
     db
-      // Nhân viên Điểm ATM có nửa ngày từ tháng 2026-10, nên cộng `fraction` chứ không đếm dòng.
+      // Người chấm công có nửa ngày từ tháng 2026-10, nên cộng `fraction` chứ không đếm dòng.
       .select({ userId: employeeWorkDays.userId, count: sql<number>`sum(${employeeWorkDays.fraction})::float` })
       .from(employeeWorkDays)
       .where(
@@ -334,7 +337,8 @@ async function liveSalaries(
         role: subject.role,
         points: subject.points,
         teamPoints: staffByDepartment.get(subject.departmentId) ?? [],
-        workDays: departmentDays.get(subject.departmentId) ?? 0,
+        // Cùng nguồn với báo cáo Ngày công (`listWorkDayExport`): phòng có chấm công thì quản lý cũng chấm.
+        workDays: subject.attendanceMode ? workDays : (departmentDays.get(subject.departmentId) ?? 0),
         departmentQuota: quota.department(subject.departmentId),
       });
     } else if (subject.role === "deputy-director" && rules.deputyDirector) {

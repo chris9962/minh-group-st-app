@@ -106,6 +106,13 @@ export const manageScope = pgEnum("manage_scope", ["none", "listed", "company"])
  */
 export const departmentType = pgEnum("department_type", ["sales", "office"]);
 
+/**
+ * Cách chấm công của một phòng (migration 0139, chốt 2026-10-13). `slots` là 4
+ * lượt có ảnh, `daily` là 1 lượt điểm danh không ảnh. Cột để trống là phòng
+ * không chấm công. Mọi chức vụ trong phòng chấm cùng một cách.
+ */
+export const attendanceMode = pgEnum("attendance_mode", ["slots", "daily"]);
+
 export const accountNumberMethod = pgEnum("account_number_method", ["phone-match", "manual"]);
 export const bankAccountType = pgEnum("bank_account_type", ["none", "CNKD", "HKD"]);
 
@@ -211,6 +218,8 @@ export const departments = pgTable("departments", {
    * kinh doanh mới bị chấm 0 thì nhân viên báo ngay.
    */
   type: departmentType("type").notNull().default("office"),
+  /** Phòng có chấm công hay không, chấm kiểu gì. Admin bật ở P-91. */
+  attendanceMode: attendanceMode("attendance_mode"),
   active: boolean("active").notNull().default(true),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
@@ -263,7 +272,7 @@ export const users = pgTable(
 
 /**
  * Ngày làm việc suy ra từ khách có ít nhất một tài khoản hoàn thành. Từ tháng
- * 2026-10, nhân viên Điểm ATM và người Phòng An Sinh lấy ngày công từ chấm công.
+ * 2026-10, người của phòng có bật chấm công lấy ngày công từ lượt chấm.
  *
  * Một người một ngày đúng một dòng. `qualifying_customer_count` không dùng để
  * nhân tiền — nó là dấu vết để Kế toán biết vì sao ngày đó được ghi nhận và để
@@ -368,6 +377,8 @@ export const staffMonths = pgTable(
     active: boolean("active").notNull(),
     managedDepartmentIds: uuid("managed_department_ids").array().notNull().default([]),
     fixedSalary: integer("fixed_salary"),
+    /** Cách chấm công của phòng người đó cuối tháng (migration 0140). */
+    attendanceMode: attendanceMode("attendance_mode"),
   },
   (t) => [
     primaryKey({ columns: [t.userId, t.yearMonth], name: "staff_months_pk" }),
@@ -397,6 +408,8 @@ export const staffRoster = pgView("staff_roster", {
   active: boolean("active").notNull(),
   managedDepartmentIds: uuid("managed_department_ids").array().notNull(),
   fixedSalary: integer("fixed_salary"),
+  /** Tháng đang chạy đọc `departments.attendance_mode`, tháng đã chụp đọc bản chụp. */
+  attendanceMode: attendanceMode("attendance_mode"),
 }).existing();
 
 /**

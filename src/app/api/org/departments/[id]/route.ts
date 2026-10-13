@@ -1,5 +1,5 @@
 import { DepartmentForm } from "@/lib/api/org";
-import { DEPARTMENT_TYPE_LABEL } from "@/lib/types";
+import { ATTENDANCE_MODE_LABEL, DEPARTMENT_TYPE_LABEL } from "@/lib/types";
 import { canOrg, visibleOrgDepartmentIds } from "@/lib/permissions";
 import { logAudit } from "@/server/audit";
 import {
@@ -48,16 +48,19 @@ export async function POST(request: Request, { params }: Params) {
   const parsed = DepartmentForm.safeParse(await jsonBody(request));
   if (!parsed.success) return badRequest();
 
-  const result = await updateDepartment(id, parsed.data.name, parsed.data.type);
+  const { name, type, attendanceMode } = parsed.data;
+  const result = await updateDepartment(id, name, type, attendanceMode);
   if (!result) return notFound();
   if (!result.ok) return Response.json(orgError(result.code), { status: 422 });
 
-  // Loại phòng quyết định cách tính điểm KPI, nên nhật ký phải ghi lại nó —
+  // Loại phòng quyết định cách tính điểm KPI, cách chấm công quyết định nguồn
+  // ngày công, nên nhật ký phải ghi lại cả hai, kể cả lượt tắt chấm công:
   // "đổi tên phòng" không nói được rằng cả phòng vừa đổi cách tính lương.
+  const { department } = result;
   await logAudit(actor, {
     module: "department",
     action: "update",
-    targetLabel: `Sửa phòng ${result.department.name} · ${DEPARTMENT_TYPE_LABEL[result.department.type]}`,
+    targetLabel: `Sửa phòng ${department.name} - ${DEPARTMENT_TYPE_LABEL[department.type]} - Chấm công: ${ATTENDANCE_MODE_LABEL[department.attendanceMode ?? ""]}`,
     targetTable: "departments",
     targetId: id,
   });

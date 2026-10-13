@@ -851,8 +851,8 @@ export async function updateStaff(actor: User, id: string, sent: StaffForm): Pro
     !sameIdSet(current.insuranceDepartmentIds, form.insuranceDepartmentIds);
   if (accessChanged) await db.delete(sessions).where(eq(sessions.userId, id));
 
-  // Điểm dịch vụ và ngày công tính theo cách tính lương, phòng (Phòng An Sinh) và
-  // chức vụ (chỉ Nhân viên ATM có ngày công theo cặp vào ra).
+  // Điểm dịch vụ tính theo cách tính lương; ngày công theo phòng (phòng có bật
+  // chấm công) và chức vụ (chỉ Nhân viên có ngày công theo khách).
   if (current.salaryScheme !== form.salaryScheme || movedDepartment || current.role !== form.role)
     await recomputeForSalaryScheme(id);
 

@@ -5,8 +5,10 @@ import { recountEmployeeWorkDays } from "../src/server/workDays";
  * `db:recount`: không đụng mã giới thiệu, rổ quà, và không đụng tháng trước
  * `--from`.
  *
- * Dùng sau khi deploy luật ngày công theo chấm công (migration 0124): ngày công
- * tháng 2026-10 của nhân viên Điểm ATM và Phòng An Sinh đang ghi theo luật cũ.
+ * Dùng sau khi deploy luật ngày công theo chấm công (migration 0124, rồi 0139
+ * chuyển sang bật theo phòng): đối chiếu ngày công tháng 2026-10 của người thuộc
+ * phòng có chấm công. Chạy SAU khi `db:seed-attendance-mode` và admin đã đặt
+ * cách chấm cho các phòng; chạy trước là xoá ngày chấm công của họ.
  *
  * Chạy khô, in dòng lệch, không ghi gì:
  *   bun run db:recount-work-days -- --from=2026-10

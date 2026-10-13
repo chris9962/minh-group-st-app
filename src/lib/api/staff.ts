@@ -150,7 +150,7 @@ export type StaffSort = (typeof STAFF_SORT)[number];
  */
 export const INSURANCE_WATCH_DEPARTMENT_CODE = 'PHONG-KDTH';
 
-/** Phòng An Sinh: mọi người trong phòng điểm danh 1 nút, kể cả Trưởng phòng và Phó phòng. */
+/** Phòng An Sinh: trang BHYT/BHXH, khoá sửa khách và thẻ phòng đọc theo mã này. Chấm công đi theo `departments.attendance_mode`, không theo mã. */
 export const SOCIAL_DEPARTMENT_CODE = 'PHONG-AN-SINH';
 
 /**

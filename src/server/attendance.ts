@@ -1,4 +1,4 @@
-import { and, asc, between, eq, inArray, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, between, eq, inArray, isNotNull, or, sql, type SQL } from "drizzle-orm";
 import {
   attendanceModeOf,
   CHECK_IN_SLOT,
@@ -6,10 +6,10 @@ import {
   slotLabel,
   type AttendanceCheck,
   type AttendanceDay,
+  type AttendanceDayGroup,
   type AttendanceForm,
   type MyAttendance,
 } from "@/lib/api/attendance";
-import { SOCIAL_DEPARTMENT_CODE } from "@/lib/api/staff";
 import { BUSINESS_TIMEZONE, businessDay, monthRange } from "@/lib/format";
 import { recordVisibility, type RecordVisibility } from "@/lib/permissions";
 import type { User } from "@/lib/types";
@@ -82,7 +82,7 @@ function photoKeyOf(url: string): string | null {
  * trong một transaction nên ngày dùng để kiểm lượt trước và ngày ghi là một.
  *
  * Lượt ra của mỗi ca chỉ chấm được sau lượt vào cùng ca (`SLOT_REQUIRES`); hai ca
- * sáng và chiều không phụ thuộc nhau. Người Phòng An Sinh chỉ có lượt điểm danh, không ảnh.
+ * sáng và chiều không phụ thuộc nhau. Phòng chấm kiểu `daily` chỉ có lượt điểm danh, không ảnh.
  */
 export async function createAttendanceCheck(
   actor: User,
@@ -180,13 +180,13 @@ const rosterScope = (v: RecordVisibility): SQL | undefined => {
 };
 
 /**
- * Bảng một ngày: mọi nhân viên Điểm ATM và người Phòng An Sinh trong phạm vi,
- * theo nhân sự của tháng chứa ngày đó, cộng người đã chấm công ngày đó mà nay
- * không còn ở hai nhóm này.
+ * Bảng một ngày, nhóm theo phòng: người của mọi phòng có bật chấm công trong
+ * phạm vi, theo nhân sự của tháng chứa ngày đó, cộng người đã chấm công ngày đó
+ * mà phòng của họ tháng đó không chấm công.
  */
 export async function attendanceDay(actor: User, workDate: string): Promise<AttendanceDay> {
   const visible = recordVisibility(actor, "attendance", "view-detail");
-  if (visible.kind === "none") return { workDate, rows: [] };
+  if (visible.kind === "none") return { workDate, groups: [] };
 
   const checks = await db
     .select(checkColumns)
@@ -200,7 +200,9 @@ export async function attendanceDay(actor: User, workDate: string): Promise<Atte
       userId: users.id,
       fullName: users.fullName,
       staffCode: users.staffCode,
-      departmentCode: departments.code,
+      departmentId: staffRoster.departmentId,
+      departmentName: departments.name,
+      mode: staffRoster.attendanceMode,
     })
     .from(users)
     .leftJoin(
@@ -210,24 +212,42 @@ export async function attendanceDay(actor: User, workDate: string): Promise<Atte
     .leftJoin(departments, eq(departments.id, staffRoster.departmentId))
     .where(
       or(
-        and(
-          or(eq(staffRoster.salaryScheme, "atm"), eq(departments.code, SOCIAL_DEPARTMENT_CODE)),
-          eq(staffRoster.active, true),
-          rosterScope(visible),
-        ),
+        and(isNotNull(staffRoster.attendanceMode), eq(staffRoster.active, true), rosterScope(visible)),
         checkedUserIds.length > 0 ? inArray(users.id, checkedUserIds) : undefined,
       ),
     );
 
+  type Group = Omit<AttendanceDayGroup, "mode"> & { mode: AttendanceDayGroup["mode"] | null };
+  const groups = new Map<string, Group>();
+  for (const p of people.sort((a, b) => a.fullName.localeCompare(b.fullName, "vi"))) {
+    const key = p.departmentId ?? "";
+    const group = groups.get(key) ?? {
+      departmentId: p.departmentId ?? null,
+      departmentName: p.departmentName ?? "",
+      mode: p.mode ?? null,
+      rows: [],
+    };
+    group.rows.push({
+      userId: p.userId,
+      fullName: p.fullName,
+      staffCode: p.staffCode,
+      checks: checks.filter((c) => c.userId === p.userId).map(toCheck),
+    });
+    groups.set(key, group);
+  }
+
+  // Phòng không chấm công tháng đó mà có người có lượt: đoán cách chấm theo mọi lượt của nhóm.
+  const inferredMode = (g: Group): AttendanceDayGroup["mode"] =>
+    g.rows.some((r) => r.checks.some((c) => c.slot !== CHECK_IN_SLOT.key)) ? "slots" : "daily";
+
   return {
     workDate,
-    rows: people
-      .sort((a, b) => a.fullName.localeCompare(b.fullName, "vi"))
-      .map(({ departmentCode, ...p }) => {
-        const own = checks.filter((c) => c.userId === p.userId);
-        const daily =
-          departmentCode === SOCIAL_DEPARTMENT_CODE || own.some((c) => c.slot === CHECK_IN_SLOT.key);
-        return { ...p, mode: daily ? ("daily" as const) : ("slots" as const), checks: own.map(toCheck) };
-      }),
+    groups: [...groups.values()]
+      .map((g) => ({ ...g, mode: g.mode ?? inferredMode(g) }))
+      .sort(
+        (a, b) =>
+          Number(a.departmentId === null) - Number(b.departmentId === null) ||
+          a.departmentName.localeCompare(b.departmentName, "vi"),
+      ),
   };
 }

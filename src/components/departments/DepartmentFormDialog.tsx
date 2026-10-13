@@ -15,7 +15,13 @@ import {
 } from "@/lib/api/org";
 import styles from "./DepartmentFormDialog.module.css";
 import { errorMessage, toast } from "@/lib/toast";
-import { DEPARTMENT_TYPE_HINT, DEPARTMENT_TYPE_LABEL, DepartmentType } from "@/lib/types";
+import {
+  ATTENDANCE_MODE_LABEL,
+  AttendanceMode,
+  DEPARTMENT_TYPE_HINT,
+  DEPARTMENT_TYPE_LABEL,
+  DepartmentType,
+} from "@/lib/types";
 import { reportInvalid } from "@/lib/formErrors";
 
 type Props = {
@@ -25,7 +31,7 @@ type Props = {
   department?: DepartmentRow | null;
 };
 
-/** P-91 · Lập phòng mới / đổi tên phòng. */
+/** P-91 · Lập phòng mới / sửa tên, loại và cách chấm công của phòng. */
 export function DepartmentFormDialog({ open, onClose, department }: Props) {
   const queryClient = useQueryClient();
   const editing = Boolean(department);
@@ -47,10 +53,15 @@ export function DepartmentFormDialog({ open, onClose, department }: Props) {
      * ĐANG NHÌN ô chọn và đọc được câu giải thích dưới nó — mà phòng lập mới
      * hầu hết là phòng kinh doanh.
      */
-    defaultValues: { name: department?.name ?? "", type: department?.type ?? "sales" },
+    defaultValues: {
+      name: department?.name ?? "",
+      type: department?.type ?? "sales",
+      attendanceMode: department?.attendanceMode ?? null,
+    },
   });
 
   const type = watch("type");
+  const attendanceMode = watch("attendanceMode");
 
   const save = useMutation({
     mutationFn: (form: DepartmentForm) =>
@@ -115,6 +126,20 @@ export function DepartmentFormDialog({ open, onClose, department }: Props) {
           options={DepartmentType.options.map((t) => ({
             value: t,
             label: DEPARTMENT_TYPE_LABEL[t],
+          }))}
+        />
+
+        <Select
+          label="Chấm công"
+          block
+          value={attendanceMode ?? ""}
+          onChange={(v) =>
+            setValue("attendanceMode", v === "" ? null : (v as AttendanceMode), { shouldDirty: true })
+          }
+          error={errors.attendanceMode?.message}
+          options={["", ...AttendanceMode.options].map((m) => ({
+            value: m,
+            label: ATTENDANCE_MODE_LABEL[m as AttendanceMode | ""],
           }))}
         />
       </form>
