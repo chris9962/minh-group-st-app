@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { MapPin, SwitchCamera, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   addMyCheck,
   createAttendanceCheck,
@@ -21,6 +21,13 @@ type Shot = { file: File; preview: string };
 
 const CAMERA_ERROR = "Không mở được camera. Bạn cho phép trình duyệt dùng camera rồi thử lại.";
 const LOCATION_ERROR = "Không lấy được vị trí. Bạn bật vị trí cho trình duyệt rồi thử lại.";
+
+/** Hẹn giờ chụp, tính bằng giây; 0 là chụp ngay khi bấm. */
+const TIMER_OPTIONS: { seconds: number; label: string }[] = [
+  { seconds: 0, label: "Chụp liền" },
+  { seconds: 5, label: "5s" },
+  { seconds: 10, label: "10s" },
+];
 
 /**
  * Màn chụp toàn màn hình kiểu camera điện thoại, không có đường chọn ảnh từ thư
@@ -47,6 +54,9 @@ export function CameraCheckIn({
   const [position, setPosition] = useState<Position | null>(null);
   const [locationFailed, setLocationFailed] = useState(false);
   const [shot, setShot] = useState<Shot | null>(null);
+  const [timerSeconds, setTimerSeconds] = useState(0);
+  /** Số giây còn lại của lượt hẹn giờ đang chạy; `null` là không đếm. */
+  const [countdown, setCountdown] = useState<number | null>(null);
 
   const cameraSupported = Boolean(navigator.mediaDevices?.getUserMedia);
   const locationSupported = "geolocation" in navigator;
@@ -117,7 +127,7 @@ export function CameraCheckIn({
     return () => URL.revokeObjectURL(shot.preview);
   }, [shot]);
 
-  const capture = () => {
+  const capture = useCallback(() => {
     const video = videoRef.current;
     if (!video || video.videoWidth === 0) return;
     const canvas = document.createElement("canvas");
@@ -135,6 +145,27 @@ export function CameraCheckIn({
       "image/jpeg",
       0.9,
     );
+  }, [slot]);
+
+  // Đếm ngược mỗi giây như hẹn giờ camera điện thoại; về 1 xong thì chụp.
+  // Đổi `countdown` hay tháo component đều huỷ lượt chờ đang treo.
+  useEffect(() => {
+    if (countdown === null) return;
+    const id = window.setTimeout(() => {
+      if (countdown > 1) {
+        setCountdown(countdown - 1);
+        return;
+      }
+      setCountdown(null);
+      capture();
+    }, 1000);
+    return () => window.clearTimeout(id);
+  }, [countdown, capture]);
+
+  const onShutter = () => {
+    if (countdown !== null) setCountdown(null);
+    else if (timerSeconds > 0) setCountdown(timerSeconds);
+    else capture();
   };
 
   const queryClient = useQueryClient();
@@ -194,6 +225,11 @@ export function CameraCheckIn({
           // eslint-disable-next-line @next/next/no-img-element -- ảnh là blob vừa chụp, next/image không tối ưu được
           <img src={shot.preview} alt={`Ảnh chấm công ${slotLabel(slot)}`} className={styles.media} />
         )}
+        {countdown !== null && (
+          <span className={styles.countdown} role="status" aria-live="assertive">
+            {countdown}
+          </span>
+        )}
         <span className={styles.location}>
           <MapPin size={14} aria-hidden />
           {position ? (place ?? "Đã có vị trí") : locationError ? "Chưa có vị trí" : "Đang lấy vị trí…"}
@@ -208,7 +244,7 @@ export function CameraCheckIn({
 
       <footer className={styles.bottom}>
         {shot ? (
-          <>
+          <div className={styles.controls}>
             <button
               type="button"
               className={styles.textButton}
@@ -226,28 +262,45 @@ export function CameraCheckIn({
             >
               {submit.isPending ? "Đang gửi…" : "Chấm công"}
             </button>
-          </>
+          </div>
         ) : (
           <>
-            <span />
-            <button
-              type="button"
-              className={styles.shutter}
-              aria-label="Chụp"
-              disabled={cameraError}
-              onClick={capture}
-            >
-              <span className={styles.shutterInner} />
-            </button>
-            <button
-              type="button"
-              className={styles.round}
-              aria-label="Đổi camera"
-              disabled={cameraError}
-              onClick={() => setFacing((f) => (f === "user" ? "environment" : "user"))}
-            >
-              <SwitchCamera size={20} aria-hidden />
-            </button>
+            <div className={styles.timerRow} role="radiogroup" aria-label="Hẹn giờ chụp">
+              {TIMER_OPTIONS.map((option) => (
+                <button
+                  key={option.seconds}
+                  type="button"
+                  role="radio"
+                  aria-checked={timerSeconds === option.seconds}
+                  className={styles.timerChip}
+                  disabled={cameraError || countdown !== null}
+                  onClick={() => setTimerSeconds(option.seconds)}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+            <div className={styles.controls}>
+              <span />
+              <button
+                type="button"
+                className={styles.shutter}
+                aria-label={countdown !== null ? "Huỷ hẹn giờ" : "Chụp"}
+                disabled={cameraError}
+                onClick={onShutter}
+              >
+                <span className={styles.shutterInner} />
+              </button>
+              <button
+                type="button"
+                className={styles.round}
+                aria-label="Đổi camera"
+                disabled={cameraError || countdown !== null}
+                onClick={() => setFacing((f) => (f === "user" ? "environment" : "user"))}
+              >
+                <SwitchCamera size={20} aria-hidden />
+              </button>
+            </div>
           </>
         )}
       </footer>
