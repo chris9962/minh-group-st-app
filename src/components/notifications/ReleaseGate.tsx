@@ -1,7 +1,6 @@
 "use client";
 
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
+import { useMutation } from "@tanstack/react-query";
 import { usePendingRelease } from "@/components/layout/useUnreadCount";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
@@ -18,18 +17,19 @@ import styles from "./ReleaseGate.module.css";
  *
  * Dữ liệu đi cùng lượt hỏi chuông 60 giây (`usePendingRelease`), nên deploy xong
  * và chạy `db:announce-release` thì người đang mở app thấy trong vòng một phút.
+ *
+ * Chuyển trang bằng tải lại trọn trang, không dùng `router.push`: tab mở từ
+ * trước deploy còn chạy JS cũ, gửi form thiếu trường mới thì máy chủ trả
+ * "Dữ liệu không hợp lệ" (VPb, 2026-10-13). Tải lại là lấy đúng bản JS đang
+ * chạy trên máy chủ.
  */
 export function ReleaseGate() {
-  const router = useRouter();
-  const queryClient = useQueryClient();
   const release = usePendingRelease();
 
   const view = useMutation({
     mutationFn: (id: string) => markNotificationsRead(id),
     onSuccess: (_, id) => {
-      queryClient.invalidateQueries({ queryKey: ["notifications"] });
-      queryClient.invalidateQueries({ queryKey: ["notifications-unread"] });
-      if (release?.id === id && release.url) router.push(release.url);
+      window.location.assign(release?.id === id && release.url ? release.url : window.location.pathname);
     },
     onError: (e) => toast.fail(errorMessage(e, "Không mở được bản cập nhật")),
   });
