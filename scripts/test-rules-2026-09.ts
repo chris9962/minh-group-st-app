@@ -595,8 +595,9 @@ check(
 check(
   "sang năm vẫn tính bằng luật 2026-09",
   points(
-    // Không dùng MB + VPa: cặp đó ra 0 từ kỳ 2026-10-01, kỳ mới nhất áp cho năm sau.
-    [account("kh1", "MB", { date: "2027-03-10" }), account("kh1", "TPB", { date: "2027-03-11" })],
+    // Kỳ mới nhất áp cho năm sau. Không dùng MB + VPa (ra 0 từ kỳ 2026-10-01),
+    // không dùng TPB (lên bank ưu tiên từ kỳ 2026-10-15); MB + TCB là 0,5 ở mọi kỳ.
+    [account("kh1", "MB", { date: "2027-03-10" }), account("kh1", "TCB", { date: "2027-03-11" })],
     "2027-03",
   ),
   0.5,

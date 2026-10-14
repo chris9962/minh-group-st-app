@@ -90,11 +90,11 @@ export function RuleSimulator() {
   const [channel, setChannel] = useState("");
   const [department, setDepartment] = useState("");
   /**
-   * Mặc định 2026-10-11, ngày kỳ luật mới bắt đầu, để Kế toán thử bản mới mà
+   * Mặc định 2026-10-15, ngày kỳ luật mới bắt đầu, để Kế toán thử bản mới mà
    * không phải nhớ đổi ngày. Xoá trống thì máy chủ dùng ngày làm việc — xem
    * `GiftSimulateInput.at`. Đổi lại khi kỳ này không còn là kỳ mới nhất.
    */
-  const [at, setAt] = useState("2026-10-11");
+  const [at, setAt] = useState("2026-10-15");
   /** Một mã cho mỗi ngân hàng chủ — khách tick CNKD trên VPa hay VPb là hai ca khác nhau. */
   const [accountTypes, setAccountTypes] = useState<Record<string, AccountType>>({});
   /** Mã ngân hàng của các thẻ HKD đang tick. */
