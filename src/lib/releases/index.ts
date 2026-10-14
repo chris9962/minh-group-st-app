@@ -35,11 +35,6 @@ export const RELEASES: Release[] = [
         visibleTo: (user) => canOpenPath(user, '/attendance'),
       },
       {
-        title: 'Khách hàng',
-        items: ['Phòng Thanh tra đánh dấu hồ sơ khách đã kiểm tra, kèm ghi chú.'],
-        visibleTo: (user) => can(user, 'customer', 'lookup'),
-      },
-      {
         title: 'Quản lý ngân hàng',
         items: ['Người quản ngân hàng khôi phục được tài khoản lỗi về hoàn thành.'],
         visibleTo: (user) => canOpenPath(user, '/settings/banks'),
