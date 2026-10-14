@@ -110,6 +110,18 @@ sẵn trong tài liệu:
 
 Hợp đồng là POC, hết hạn 2026-08-25. Không đưa dữ liệu thật lên.
 
+### Nhánh git, chủ dự án chốt 2026-10-14
+
+| Nhánh | Máy chạy | Nhận code từ đâu |
+|---|---|---|
+| `dev` | testapp | mọi tính năng code và commit ở đây |
+| `main` | production, app.mgst.com.vn | chỉ nhận merge từ `dev` |
+
+- Mọi tính năng triển khai trên `dev`. Không commit thẳng lên `main`.
+- Khi chủ dự án yêu cầu deploy production: merge `dev` vào `main`, push
+  `main`, rồi deploy theo `docs/deploy-fpt-cloud.md`.
+- Deploy testapp lấy nhánh `dev`.
+
 ## 1. Ngôn ngữ
 
 | | |
