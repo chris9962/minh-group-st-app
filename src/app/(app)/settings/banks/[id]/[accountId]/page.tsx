@@ -37,7 +37,7 @@ import {
 } from "@/lib/api/banking";
 import { formatDate, formatPhone } from "@/lib/format";
 import { invalidateKpi } from "@/lib/invalidateKpi";
-import { canManageBank, canOpenBankAdmin, isFullAccess } from "@/lib/permissions";
+import { canManageBank, canOpenBankAdmin } from "@/lib/permissions";
 import { errorMessage, toast } from "@/lib/toast";
 import { useSession } from "@/store/session";
 import styles from "./page.module.scss";
@@ -192,8 +192,11 @@ export default function BankAccountOfBankPage({
               `creating` chỉ có nút Xoá: bản nháp bỏ dở, không có gì để duyệt
               hay đánh dấu lỗi.
 
-              `error` có nút Khôi phục cho người toàn quyền (chốt 2026-09-24):
-              đi tắt vòng duyệt, không chờ nhân viên sửa rồi gửi lại.
+              `error` có nút Khôi phục cho người quản ngân hàng này (chủ dự án
+              chốt 2026-10-14, bản 2026-09-24 chỉ cho người toàn quyền): ai
+              đánh dấu lỗi được thì khôi phục được, đi tắt vòng duyệt. Màn này
+              đã gác `inScope` bằng `canManageBank`, máy chủ kiểm lại ở
+              `updateBankAccountStatus`.
             */
             action={
               data.status === "done" || data.status === "fixed" ? (
@@ -213,7 +216,7 @@ export default function BankAccountOfBankPage({
                     Đánh dấu lỗi
                   </Button>
                 </>
-              ) : data.status === "error" && user && isFullAccess(user.permissions) ? (
+              ) : data.status === "error" ? (
                 <Button variant="secondary" disabled={restore.isPending} onClick={() => restore.mutate()}>
                   <RotateCcw size={16} aria-hidden />
                   Khôi phục hoàn thành
