@@ -16,6 +16,45 @@ const seesCompanyDashboard = (user: User) =>
  */
 export const RELEASES: Release[] = [
   {
+    id: '2026-10-15',
+    version: '2.8.0',
+    title: 'Cập nhật ngày 15/10/2026',
+    summary: 'Thể lệ mới từ 15/10/2026: TPB sang nhóm bank ưu tiên, MSBb sang nhóm bank hạn chế. Chấm công có hẹn giờ chụp, mỗi ấp ghi được nhiều người liên hệ.',
+    sections: [
+      {
+        title: 'Thể lệ từ ngày 15/10/2026',
+        items: [
+          'Áp cho hồ sơ khách từ 15/10/2026.',
+          'TPB chuyển sang nhóm bank ưu tiên.',
+          'MSBb chuyển sang nhóm bank hạn chế: không vào Combo 1, Combo 2 chỉ đi cùng bank ưu tiên.',
+        ],
+      },
+      {
+        title: 'Chấm công',
+        items: ['Màn chụp hình có hẹn giờ 5s, 10s.'],
+        visibleTo: (user) => canOpenPath(user, '/attendance'),
+      },
+      {
+        title: 'Khách hàng',
+        items: ['Phòng Thanh tra đánh dấu hồ sơ khách đã kiểm tra, kèm ghi chú.'],
+        visibleTo: (user) => can(user, 'customer', 'lookup'),
+      },
+      {
+        title: 'Quản lý ngân hàng',
+        items: ['Người quản ngân hàng khôi phục được tài khoản lỗi về hoàn thành.'],
+        visibleTo: (user) => canOpenPath(user, '/settings/banks'),
+      },
+      {
+        title: 'Danh mục xã / ấp',
+        items: [
+          'Mỗi ấp ghi được nhiều người liên hệ: chức vụ, họ tên, số điện thoại.',
+          'Xuất Excel ấp và người liên hệ của một xã.',
+        ],
+        visibleTo: (user) => canOpenPath(user, '/settings/wards'),
+      },
+    ],
+  },
+  {
     id: '2026-10-12',
     version: '2.7.0',
     title: 'Cập nhật ngày 12/10/2026',
