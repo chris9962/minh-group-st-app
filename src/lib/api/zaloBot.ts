@@ -111,8 +111,8 @@ export type ZaloNotificationKind = z.infer<typeof ZaloNotificationKind>;
 /** Đơn chờ giấy chứng nhận quá ngần này phút thì báo vào nhóm Zalo, mỗi đơn một lần. */
 export const ZALO_CERT_OVERDUE_MINUTES = 20;
 
-/** Giờ Việt Nam gửi báo cáo ngày cho PGĐ. Tạm đặt, chủ dự án chưa chốt giờ (2026-10-12). */
-export const ZALO_PGD_REPORT_AT = '17:30';
+/** Giờ Việt Nam gửi báo cáo ngày cho PGĐ. Chủ dự án chốt 20:00 ngày 2026-10-13. */
+export const ZALO_PGD_REPORT_AT = '20:00';
 
 export const ZALO_NOTIFICATION_LABEL: Record<ZaloNotificationKind, string> = {
   'insurance-certificate-overdue': `Đơn bảo hiểm chờ giấy chứng nhận quá ${ZALO_CERT_OVERDUE_MINUTES} phút`,
