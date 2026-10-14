@@ -22,6 +22,25 @@ export const CustomerPhone = z.object({
 });
 export type CustomerPhone = z.infer<typeof CustomerPhone>;
 
+/**
+ * Dấu "đã kiểm tra" của Phòng Thanh tra trên một hồ sơ (chốt 2026-10-14).
+ *
+ * Máy chủ CHỈ gửi trường này cho người có `customer:lookup`; người khác không
+ * nhận trường, nên giao diện phân biệt ba trạng thái: thiếu trường = không được
+ * xem, `null` = chưa kiểm, có giá trị = đã kiểm.
+ */
+export const CustomerInspection = z.object({
+  at: z.coerce.date(),
+  byName: z.string(),
+  note: z.string(),
+  /**
+   * Có tài khoản ngân hàng hoàn thành, đổi trạng thái, đổi ảnh hoặc dời tới SAU
+   * lần kiểm: người kiểm nên xem lại. Bản nháp và tài khoản đã xoá không tính.
+   */
+  changedAfter: z.boolean(),
+});
+export type CustomerInspection = z.infer<typeof CustomerInspection>;
+
 export const Customer = z.object({
   id: z.string(),
   fullName: z.string(),
@@ -84,6 +103,8 @@ export const Customer = z.object({
    */
   createdByName: z.string(),
   createdByDepartmentName: z.string(),
+  /** Xem `CustomerInspection`: thiếu = người xem không có `customer:lookup`. */
+  inspection: CustomerInspection.nullable().optional(),
 });
 export type Customer = z.infer<typeof Customer>;
 
@@ -139,6 +160,8 @@ export const CustomerRow = z.object({
    * tháng để chọn file — màn để trống chứ không đoán.
    */
   points: z.number().nullable(),
+  /** Xem `CustomerInspection`: thiếu = người xem không có `customer:lookup`. */
+  inspection: CustomerInspection.nullable().optional(),
 });
 export type CustomerRow = z.infer<typeof CustomerRow>;
 
@@ -573,6 +596,28 @@ export const CustomerNoteForm = z.object({
 
 export const updateCustomerNote = (id: string, note: string) =>
   send(`/api/customers/${id}/note`, 'PATCH', { note }).then(CustomerNoteForm.parse);
+
+/* ── Thanh tra · dấu đã kiểm tra (chốt 2026-10-14) ────────────────────── */
+
+export const CustomerInspectionForm = z.object({
+  note: z.string().max(500, 'Ghi chú tối đa 500 ký tự'),
+});
+
+/** Đánh dấu đã kiểm tra, hoặc kiểm tra lại: ngày và người ghi lấy lúc bấm. */
+export const markCustomerInspected = (id: string, note: string) =>
+  send(`/api/customers/${id}/inspection`, 'PUT', { note }).then(CustomerInspection.parse);
+
+/** Chỉ sửa ghi chú của dấu đang có, giữ nguyên ngày và người kiểm. */
+export const updateCustomerInspectionNote = (id: string, note: string) =>
+  send(`/api/customers/${id}/inspection`, 'PATCH', { note }).then(CustomerInspection.parse);
+
+export async function clearCustomerInspection(id: string): Promise<void> {
+  const res = await fetch(`/api/customers/${id}/inspection`, { method: 'DELETE' });
+  if (!res.ok) {
+    const payload = (await res.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(payload?.message?.trim() || 'Không bỏ được dấu đã kiểm tra');
+  }
+}
 
 export const CustomerOwnerForm = z.object({ userId: z.guid('Chưa chọn nhân viên nhận') });
 

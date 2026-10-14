@@ -12,6 +12,7 @@ import {
   customerListScope,
   duplicateIdNumberInfo,
   listCustomers,
+  seesInspection,
 } from "@/server/customers";
 import { readIdCardQr } from "@/server/idCardQr";
 import { idCardScanFor } from "@/server/idCardScanMode";
@@ -63,6 +64,8 @@ export async function GET(request: Request) {
         accounts: accountFiltersFrom(params.get("accounts")),
       },
       pageArgsFrom(url, SORTABLE, "match"),
+      // Dấu của Phòng Thanh tra chỉ gửi cho người có `customer:lookup`.
+      seesInspection(guard.actor),
     ),
   );
 }

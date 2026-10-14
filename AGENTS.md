@@ -385,7 +385,11 @@ vẫn tính từ dữ liệu thật; số lương chỉ đứng yên sau khi ch�
   `searchVisibility`; đường ghi và xuất Excel không dùng hai hàm này. Khách chỉ
   thấy nhờ `lookup` thì không ghi bản ghi mới: route tạo gọi `lookupOnlyMessage`,
   giao diện ẩn nút theo `lookupOnlyCustomer`. Ô tìm khách của form tạo không mở
-  theo `lookup`
+  theo `lookup`. Ngoại lệ duy nhất của luật "đường ghi hỏi cả hai" ở trên: dấu
+  "Đã kiểm tra" của Phòng Thanh tra (chốt 2026-10-14, migration 0141) ghi chỉ
+  với `customer:lookup`, không hỏi phạm vi, vì `lookup` không chia phạm vi và
+  dấu là của riêng phòng này; máy chủ chỉ gửi trường `inspection` cho người có
+  quyền đó
 - **Chức vụ KHÔNG phải nguồn quyền.** Nó chỉ là bộ quyền mặc định lúc tạo hồ sơ; quyền thật nằm ở `user_permissions`
 
 ### 6.1 Ngoại lệ duy nhất: màn Tổng quan P-80 đọc chức vụ

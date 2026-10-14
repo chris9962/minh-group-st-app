@@ -6,6 +6,7 @@ import {
   eq,
   gte,
   inArray,
+  isNotNull,
   isNull,
   lt,
   ne,
@@ -26,11 +27,11 @@ import type {
   CustomerForm,
   CustomerInsuranceRow,
   CustomerLookupResult,
-  CustomerExportRow,
   CustomerServiceRow,
   CustomerSort,
 } from "@/lib/api/customers";
 import {
+  CustomerExportRow,
   CustomerRow,
   GIFT_DECLINED,
   GIFT_DECLINED_LABEL,
@@ -107,6 +108,41 @@ const maskIdNumber = (idNumber: string): string =>
 
 /** Cũng là chốt của route đọc ảnh thẻ CCCD (`/api/images/cccd/...`). */
 export const seesIdNumber = (actor: User): boolean => can(actor, "customer", "access-id-number");
+
+/**
+ * Dấu "đã kiểm tra" của Phòng Thanh tra chỉ dành cho người có `customer:lookup`
+ * (chốt 2026-10-14): người khác không nhận trường `inspection`, không lọc
+ * được theo nó và không ghi được. Tài khoản toàn quyền có mọi quyền nên cũng thấy.
+ */
+export const seesInspection = (actor: User): boolean => can(actor, "customer", "lookup");
+
+type InspectionColumns = {
+  inspectedAt: Date | null;
+  inspectedByName: string;
+  inspectedNote: string;
+  inspectionChangedAfter: boolean;
+};
+
+/**
+ * Có tài khoản ngân hàng tạo, hoàn thành, đổi trạng thái, đổi ảnh hoặc dời tới
+ * SAU lần kiểm; `false` khi chưa kiểm. Đọc `bank_accounts.updated_at`, nên mọi
+ * đường sửa tài khoản phải ghi cột đó (`moveBankAccount`, `setPhotos` ghi tay).
+ * Bản nháp `creating` không tính: chưa có tài khoản thật để kiểm, lúc hoàn
+ * thành thì `updated_at` đổi và nhãn bật. Xoá tài khoản không tính.
+ */
+const inspectionChangedAfter = (customerId: SQLWrapper, inspectedAt: SQLWrapper) => sql<boolean>`case
+  when ${inspectedAt} is null then false
+  else exists (
+    select 1 from ${bankAccounts}
+    where ${bankAccounts.customerId} = ${customerId}
+      and ${bankAccounts.status} <> 'creating'
+      and coalesce(${bankAccounts.updatedAt}, ${bankAccounts.createdAt}) > ${inspectedAt}
+  ) end`;
+
+const inspectionOf = (r: InspectionColumns) =>
+  r.inspectedAt
+    ? { at: r.inspectedAt, byName: r.inspectedByName, note: r.inspectedNote, changedAfter: r.inspectionChangedAfter }
+    : null;
 
 /**
  * Vô hiệu ký tự đại diện của `LIKE` trong chữ người dùng gõ — gõ `%` phải ra
@@ -378,6 +414,9 @@ const pickPage = (
       address: customers.address,
       createdBy: customers.createdBy,
       createdByDepartmentId: customers.createdByDepartmentId,
+      inspectedAt: customers.inspectedAt,
+      inspectedByName: customers.inspectedByName,
+      inspectedNote: customers.inspectedNote,
       // Cột tính bằng `sql` nằm trong truy vấn con thì BẮT BUỘC có bí danh —
       // không có thì câu ngoài không gọi tên nó được, drizzle ném lỗi lúc dựng.
       createdAt: createdDayText.as("created_day"),
@@ -501,6 +540,16 @@ function decorate(page: ReturnType<typeof pickPage>) {
         where ${bankAccounts.customerId} = ${page.id} and ${bankAccounts.accountType} <> 'HKD'
       ))::int`,
       monthClosed: customerMonthClosed(page.createdInstant),
+      /**
+       * Dấu của Phòng Thanh tra, đọc cho mọi người rồi `listCustomers` mới cắt
+       * theo `seesInspection`: thêm một tầng cột tuỳ người xem vào câu con là
+       * hai hình dạng truy vấn cho một bảng. Vế "có thay đổi sau lần kiểm" là
+       * một lượt tra chỉ mục `bank_accounts_customer` cho mỗi dòng của TRANG.
+       */
+      inspectedAt: page.inspectedAt,
+      inspectedByName: page.inspectedByName,
+      inspectedNote: page.inspectedNote,
+      inspectionChangedAfter: inspectionChangedAfter(page.id, page.inspectedAt),
     })
     .from(page)
     .leftJoinLateral(phone, sql`true`)
@@ -551,6 +600,8 @@ const orderKeys = (
 export async function listCustomers(
   filters: CustomerFilters,
   page: PageArgs<CustomerSort>,
+  /** Gửi kèm dấu kiểm tra của Phòng Thanh tra: route đặt theo `seesInspection`. */
+  withInspection = false,
 ): Promise<Page<CustomerRow>> {
   const where = customerFilters(filters);
 
@@ -636,6 +687,8 @@ export async function listCustomers(
     rows: rows.map((r) => CustomerRow.parse({
       ...r,
       points: points ? (points.get(r.id) ?? 0) : null,
+      // Thiếu trường, không phải `null`: giao diện đọc "thiếu" là không được xem.
+      ...(withInspection ? { inspection: inspectionOf(r) } : {}),
     })),
     total: totals?.value ?? 0,
   };
@@ -804,11 +857,15 @@ export async function listCustomersForExport(
   }
 
   return {
-    rows: rows.map((r) => ({
-      ...r,
-      points: points ? (points.get(r.id) ?? 0) : null,
-      accounts: accountsOf.get(r.id) ?? [],
-    })),
+    // File không có cột Thanh tra (chủ dự án chốt 2026-10-14). `parse` bỏ bốn
+    // cột dấu kiểm tra mà `decorate` đọc sẵn, không để chúng ra khỏi máy chủ.
+    rows: rows.map((r) =>
+      CustomerExportRow.parse({
+        ...r,
+        points: points ? (points.get(r.id) ?? 0) : null,
+        accounts: accountsOf.get(r.id) ?? [],
+      }),
+    ),
     total: totals?.value ?? 0,
   };
 }
@@ -859,6 +916,63 @@ export async function updateCustomerNote(actor: User, id: string, note: string) 
   });
 }
 
+/* ── Thanh tra · dấu đã kiểm tra (chốt 2026-10-14) ────────────────────── */
+
+async function inspectionOfCustomer(id: string) {
+  const [row] = await db
+    .select({
+      fullName: customers.fullName,
+      inspectedAt: customers.inspectedAt,
+      inspectedByName: customers.inspectedByName,
+      inspectedNote: customers.inspectedNote,
+      inspectionChangedAfter: inspectionChangedAfter(customers.id, customers.inspectedAt),
+    })
+    .from(customers)
+    .where(eq(customers.id, id))
+    .limit(1);
+  return row ? { fullName: row.fullName, inspection: inspectionOf(row) } : null;
+}
+
+/**
+ * Đánh dấu hồ sơ đã kiểm tra, hoặc kiểm tra lại: ngày và người ghi lấy lúc bấm.
+ *
+ * Chỉ người có `customer:lookup`, KHÔNG hỏi phạm vi: `lookup` không chia phạm
+ * vi (AGENTS.md §6), route GET hồ sơ đã mở cho mọi người đăng nhập, và dấu này
+ * là của riêng Phòng Thanh tra. Không đụng điểm, quà, trạng thái nào; tháng đã
+ * chốt lương vẫn ghi được.
+ */
+export async function markCustomerInspected(actor: User, id: string, note: string) {
+  if (!seesInspection(actor)) return null;
+  const updated = await db
+    .update(customers)
+    .set({ inspectedAt: new Date(), inspectedBy: actor.id, inspectedByName: actor.fullName, inspectedNote: note })
+    .where(eq(customers.id, id))
+    .returning({ id: customers.id });
+  return updated.length > 0 ? inspectionOfCustomer(id) : null;
+}
+
+/** Chỉ sửa ghi chú của dấu đang có; hồ sơ chưa kiểm thì không có gì để sửa. */
+export async function updateCustomerInspectionNote(actor: User, id: string, note: string) {
+  if (!seesInspection(actor)) return null;
+  const updated = await db
+    .update(customers)
+    .set({ inspectedNote: note })
+    .where(and(eq(customers.id, id), isNotNull(customers.inspectedAt)))
+    .returning({ id: customers.id });
+  return updated.length > 0 ? inspectionOfCustomer(id) : null;
+}
+
+/** Hồ sơ chưa kiểm thì không có dấu để bỏ: trả `null`, route không ghi nhật ký. */
+export async function clearCustomerInspection(actor: User, id: string) {
+  if (!seesInspection(actor)) return null;
+  const [row] = await db
+    .update(customers)
+    .set({ inspectedAt: null, inspectedBy: null, inspectedByName: "", inspectedNote: "" })
+    .where(and(eq(customers.id, id), isNotNull(customers.inspectedAt)))
+    .returning({ fullName: customers.fullName });
+  return row ?? null;
+}
+
 /* ── P-41 · Tạo / sửa ─────────────────────────────────────────────────── */
 
 /** Nhóm hồ sơ của khách có ảnh thẻ quét QR: họ tên, ngày sinh, CCCD đồng bộ cả nhóm nên khoá theo nhóm. */
@@ -892,6 +1006,10 @@ async function customerById(id: string, actor: User): Promise<Customer | null> {
       // nhập từ file có thể chưa gắn phòng nào.
       createdByName: sql<string>`coalesce(${users.fullName}, '')`,
       createdByDepartmentName: sql<string>`coalesce(${departments.name}, '')`,
+      inspectedAt: customers.inspectedAt,
+      inspectedByName: customers.inspectedByName,
+      inspectedNote: customers.inspectedNote,
+      inspectionChangedAfter: inspectionChangedAfter(customers.id, customers.inspectedAt),
     })
     .from(customers)
     .leftJoin(channels, eq(channels.id, customers.channelId))
@@ -910,7 +1028,15 @@ async function customerById(id: string, actor: User): Promise<Customer | null> {
   const full = seesIdNumber(actor);
   // Khoá ảnh không ra khỏi máy chủ: ảnh thẻ cùng mức bảo mật với số CCCD, người
   // không thấy số thì chỉ biết hồ sơ CÓ ảnh để giao diện khoá ba ô.
-  const { idCardImage, groupHasIdCardImage: hasIdCardImage, ...rest } = row;
+  const {
+    idCardImage,
+    groupHasIdCardImage: hasIdCardImage,
+    inspectedAt,
+    inspectedByName,
+    inspectedNote,
+    inspectionChangedAfter: changedAfter,
+    ...rest
+  } = row;
   return {
     ...rest,
     channelId: row.channelId ?? "",
@@ -919,6 +1045,17 @@ async function customerById(id: string, actor: User): Promise<Customer | null> {
     idCardImageUrl: full && idCardImage ? imageUrl(idCardImage) : null,
     hasIdCardImage,
     phones,
+    // Dấu của Phòng Thanh tra chỉ ra khỏi máy chủ với người có `customer:lookup`.
+    ...(seesInspection(actor)
+      ? {
+          inspection: inspectionOf({
+            inspectedAt,
+            inspectedByName,
+            inspectedNote,
+            inspectionChangedAfter: changedAfter,
+          }),
+        }
+      : {}),
   };
 }
 

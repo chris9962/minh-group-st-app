@@ -4,7 +4,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { use, useState } from "react";
-import { Briefcase, ChevronRight, Gift, History, IdCard, Landmark, Pencil, ShieldCheck, Trash2, User as UserIcon } from "lucide-react";
+import { Briefcase, ChevronRight, ClipboardCheck, Gift, History, IdCard, Landmark, Pencil, ShieldCheck, Trash2, User as UserIcon } from "lucide-react";
 import { BackLink } from "@/components/ui/BackLink";
 import { SkeletonCard } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
@@ -12,6 +12,7 @@ import { ImageLightbox } from "@/components/ui/ImageLightbox";
 import { TopBar } from "@/components/layout/TopBar";
 import { BankAccountFormDialog } from "@/components/banking/BankAccountFormDialog";
 import { CustomerFormDialog } from "@/components/customers/CustomerFormDialog";
+import { CustomerInspectionDialog, type InspectionDialogMode } from "@/components/customers/CustomerInspectionDialog";
 import { CustomerNoteDialog } from "@/components/customers/CustomerNoteDialog";
 import { CustomerOwnerDialog } from "@/components/customers/CustomerOwnerDialog";
 import { GiftGivingDialog } from "@/components/customers/GiftGivingDialog";
@@ -32,9 +33,11 @@ import {
 import {
   CUSTOMER_FIELD_LABEL,
   GIFT_UNCHOSEN,
+  clearCustomerInspection,
   deleteCustomer,
   fetchCustomerDetail,
   type CustomerAccountRow,
+  type CustomerDetail,
   type CustomerInsuranceRow,
   type CustomerServiceRow,
   extraSlotKey,
@@ -98,10 +101,26 @@ export default function CustomerDetailPage({
   const [loggingVneid, setLoggingVneid] = useState(false);
   const [vneidPage, setVneidPage] = useState(0);
   const [vneidDir, setVneidDir] = useState<"asc" | "desc">("desc");
+  const [inspecting, setInspecting] = useState<InspectionDialogMode | null>(null);
+  const [clearingInspection, setClearingInspection] = useState(false);
 
   const { data, isPending, isError, refetch, isFetching } = useQuery({
     queryKey: ["customer", id],
     queryFn: () => fetchCustomerDetail(id),
+  });
+
+  const clearInspection = useMutation({
+    mutationFn: () => clearCustomerInspection(id),
+    onSuccess: () => {
+      queryClient.setQueryData<CustomerDetail>(["customer", id], (previous) =>
+        previous ? { ...previous, customer: { ...previous.customer, inspection: null } } : previous,
+      );
+      queryClient.invalidateQueries({ queryKey: ["customer", id] });
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
+      setClearingInspection(false);
+      toast.ok("Đã bỏ đánh dấu");
+    },
+    onError: (e) => toast.fail(errorMessage(e, "Không bỏ được đánh dấu.")),
   });
 
   // Đọc qua route danh sách VNeID, máy chủ tự cắt theo phạm vi xem của người xem.
@@ -538,6 +557,69 @@ export default function CustomerDetailPage({
                 )}
               </div>
             </SectionCard>
+
+            {/* Dấu của Phòng Thanh tra (chốt 2026-10-14). Máy chủ chỉ gửi
+                `inspection` cho người có `customer:lookup`, thiếu trường là
+                không hiện khối. Dấu theo từng hồ sơ: lần mở mới tự là chưa kiểm. */}
+            {data.customer.inspection !== undefined && can(actor, "customer", "lookup") && (
+              <SectionCard title="Thanh tra" icon={<ClipboardCheck size={17} />}>
+                {data.customer.inspection ? (
+                  <>
+                    <dl className={styles.info}>
+                      <div>
+                        <dt>Kiểm tra</dt>
+                        <dd className={styles.tagLine}>
+                          <StatusTag tone="ok">Đã kiểm tra</StatusTag>
+                          <span>
+                            {data.customer.inspection.byName} - {formatDateTime(data.customer.inspection.at)}
+                          </span>
+                        </dd>
+                      </div>
+                      {data.customer.inspection.changedAfter && (
+                        <div>
+                          <dt>Sau khi kiểm tra</dt>
+                          <dd className={styles.tagLine}>
+                            <StatusTag tone="warn">Có thay đổi</StatusTag>
+                            <span>Tài khoản ngân hàng tạo hoặc sửa sau lần kiểm tra</span>
+                          </dd>
+                        </div>
+                      )}
+                      <div className={styles.noteRow}>
+                        <dt>Ghi chú</dt>
+                        <dd className={styles.noteText}>
+                          {data.customer.inspection.note || "Chưa có ghi chú"}
+                        </dd>
+                      </div>
+                    </dl>
+                    <div className={styles.footRow}>
+                      {data.customer.inspection.changedAfter && (
+                        <Button variant="secondary" onClick={() => setInspecting("recheck")}>
+                          <ClipboardCheck size={16} />
+                          Đã kiểm tra lại
+                        </Button>
+                      )}
+                      <Button variant="secondary" onClick={() => setInspecting("note")}>
+                        <Pencil size={16} />
+                        Sửa ghi chú kiểm tra
+                      </Button>
+                      <Button variant="secondary" onClick={() => setClearingInspection(true)}>
+                        Bỏ đánh dấu
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-muted">Chưa kiểm tra</p>
+                    <div className={styles.footRow}>
+                      <Button variant="secondary" onClick={() => setInspecting("mark")}>
+                        <ClipboardCheck size={16} />
+                        Đã kiểm tra
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </SectionCard>
+            )}
 
             {/* Khối rỗng thì ẩn hẳn, nhưng CHỈ khi không có dòng nào bị giấu:
                 câu "Còn N tài khoản của phòng khác" là thứ giữ nhân viên khỏi mở
@@ -1029,6 +1111,28 @@ export default function CustomerDetailPage({
             customerDepartmentId={data.customer.createdByDepartmentId}
             onClose={() => setLoggingVneid(false)}
           />
+        )}
+
+        {inspecting && data && (
+          <CustomerInspectionDialog
+            id={data.customer.id}
+            mode={inspecting}
+            note={data.customer.inspection?.note ?? ""}
+            onClose={() => setInspecting(null)}
+          />
+        )}
+
+        {clearingInspection && data && (
+          <ConfirmDialog
+            open
+            title="Bỏ đánh dấu"
+            confirmLabel="Bỏ đánh dấu"
+            pending={clearInspection.isPending}
+            onConfirm={() => clearInspection.mutate()}
+            onClose={() => setClearingInspection(false)}
+          >
+            Bạn muốn bỏ đánh dấu đã kiểm tra của <strong>{data.customer.fullName}</strong>?
+          </ConfirmDialog>
         )}
 
         {deleting && data && (

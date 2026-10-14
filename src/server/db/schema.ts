@@ -1108,6 +1108,21 @@ export const customers = pgTable(
      * không đụng — `gift_grants.snapshot` đóng băng (spec §5.3).
      */
     createdByDepartmentId: uuid("created_by_department_id").references(() => departments.id),
+    /**
+     * Dấu "đã kiểm tra" của Phòng Thanh tra (migration 0141, chốt 2026-10-14).
+     *
+     * Theo TỪNG HỒ SƠ, không theo nhóm CCCD: lần mở mới là hồ sơ mới, tự ở
+     * trạng thái chưa kiểm, còn hồ sơ cũ giữ dấu. Chỉ người có
+     * `customer:lookup` đọc và ghi; máy chủ bỏ các cột này khỏi dữ liệu trả cho
+     * người khác (`seesInspection`). Không đổi điểm, quà hay trạng thái nào.
+     *
+     * Tên người ghi lưu sẵn như `bank_account_status_history.changed_by_name`:
+     * đọc danh sách không phải nối `users` lần nữa.
+     */
+    inspectedAt: timestamp("inspected_at", { withTimezone: true }),
+    inspectedBy: uuid("inspected_by").references(() => users.id, { onDelete: "set null" }),
+    inspectedByName: text("inspected_by_name").notNull().default(""),
+    inspectedNote: text("inspected_note").notNull().default(""),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

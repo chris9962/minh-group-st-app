@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Search } from "lucide-react";
+import { Check, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
   useCallback,
@@ -33,7 +33,7 @@ import { useDialogLayer } from "@/store/dialogLayer";
 import { useSession } from "@/store/session";
 import styles from "./JumpSearch.module.css";
 
-type JumpRow = JumpTarget & { detail?: string; key?: string };
+type JumpRow = JumpTarget & { detail?: string; key?: string; checked?: boolean };
 
 /**
  * Ô tìm trên thanh trên — việc đã làm được, màn sidebar, rồi bản ghi khớp
@@ -171,7 +171,14 @@ export function JumpSearch() {
           <NavIcon name={item.icon} />
         </span>
         <span className={styles.itemText}>
-          <span className={styles.itemLabel}>{item.label}</span>
+          <span className={styles.itemLabel}>
+            {item.label}
+            {item.checked && (
+              <span className={styles.itemCheck} role="img" aria-label="Đã kiểm tra">
+                <Check size={14} aria-hidden />
+              </span>
+            )}
+          </span>
           {(item.detail || item.group) && (
             <span className={styles.itemGroup}>{item.detail || item.group}</span>
           )}

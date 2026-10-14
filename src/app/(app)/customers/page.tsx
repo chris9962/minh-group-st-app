@@ -26,6 +26,7 @@ import { FilterChips } from "@/components/ui/FilterChips";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { SearchField } from "@/components/ui/SearchField";
 import { SectionCard } from "@/components/ui/SectionCard";
+import { StatusTag } from "@/components/ui/StatusTag";
 import { fetchChannels } from "@/lib/api/channelCatalog";
 import { fetchDepartments } from "@/lib/api/departments";
 import { fetchHospitals } from "@/lib/api/hospitalCatalog";
@@ -236,6 +237,8 @@ export default function CustomersPage() {
    * đã chỉ có khách của chính mình.
    */
   const canFilterByStaff = can(user, "staff", "view-detail");
+  /** Cột Thanh tra: máy chủ chỉ gửi dấu kiểm tra cho người có `customer:lookup`. */
+  const canInspect = can(user, "customer", "lookup");
   const { data: staff = [] } = useQuery({
     queryKey: ["staff", "options", "active"],
     queryFn: () => fetchStaffOptions({ status: "active" }),
@@ -517,6 +520,22 @@ export default function CustomersPage() {
                 [c.createdByName, c.createdByDepartmentName].filter(Boolean).join(" - "),
             },
           ]),
+      ...(canInspect
+        ? [
+            {
+              key: "inspection",
+              label: "Thanh tra",
+              render: (c: CustomerRow) =>
+                c.inspection ? (
+                  <StatusTag tone={c.inspection.changedAfter ? "warn" : "ok"}>
+                    {c.inspection.changedAfter ? "Có thay đổi" : "Đã kiểm tra"}
+                  </StatusTag>
+                ) : (
+                  ""
+                ),
+            },
+          ]
+        : []),
       {
         key: "actions",
         label: "Thao tác",
@@ -613,7 +632,7 @@ export default function CustomersPage() {
         ),
       },
     ];
-  }, [user, showPoints, nameOf, compact]);
+  }, [user, showPoints, nameOf, compact, canInspect]);
 
   return (
     <>

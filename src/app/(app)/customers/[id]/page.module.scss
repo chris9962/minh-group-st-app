@@ -103,6 +103,14 @@
   color: var(--om-orange-ink);
 }
 
+// Nhãn trạng thái đứng cạnh chữ ở khối Thanh tra, cách nhau 8px, xuống dòng khi hẹp.
+.tagLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
 // Ảnh thẻ CCCD: ô nhỏ theo tỷ lệ thẻ, bấm mở cỡ lớn bằng `ImageLightbox`.
 .idCardZoom {
   display: block;

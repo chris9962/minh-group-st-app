@@ -15,6 +15,12 @@ export type JumpHit = JumpTarget & {
   detail?: string;
   /** Phân biệt hai kết quả trùng href (dịch vụ và khách cùng một hồ sơ). */
   key: string;
+  /**
+   * Hồ sơ khách Phòng Thanh tra đã kiểm tra: ô tìm chỉ vẽ một dấu tick, không
+   * ghi chữ (chủ dự án chốt 2026-10-14). Máy chủ chỉ gửi dấu cho người có
+   * `customer:lookup`, nên người khác không bao giờ thấy tick.
+   */
+  checked?: boolean;
 };
 
 export type JumpSource =
@@ -56,10 +62,15 @@ const hit = (
 ): JumpHit => ({ key, href, label, icon, group, detail });
 
 export function jumpHitsFromCustomers(
-  rows: { id: string; fullName: string; primaryPhone: string }[],
+  rows: {
+    id: string;
+    fullName: string;
+    primaryPhone: string;
+    inspection?: { changedAfter: boolean } | null;
+  }[],
 ): JumpHit[] {
-  return rows.map((r) =>
-    hit(
+  return rows.map((r) => ({
+    ...hit(
       `customer:${r.id}`,
       `/customers/${r.id}`,
       r.fullName,
@@ -67,7 +78,9 @@ export function jumpHitsFromCustomers(
       'Khách hàng',
       r.primaryPhone ? formatPhone(r.primaryPhone) : undefined,
     ),
-  );
+    // Hồ sơ có thay đổi sau lần kiểm thì không tick: người kiểm phải mở lại.
+    checked: Boolean(r.inspection && !r.inspection.changedAfter),
+  }));
 }
 
 export function jumpHitsFromBanking(
