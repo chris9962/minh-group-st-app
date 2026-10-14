@@ -2,7 +2,8 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useForm } from "react-hook-form";
+import { Plus, Trash2 } from "lucide-react";
+import { useFieldArray, useForm } from "react-hook-form";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { TextField } from "@/components/ui/TextField";
@@ -13,12 +14,19 @@ import { reportInvalid } from "@/lib/formErrors";
 
 type Props = { open: boolean; onClose: () => void; ward: Ward; hamlet?: Hamlet };
 
-/** P-71 · Thêm một ấp vào xã đã chọn sẵn; truyền `hamlet` thì thành sửa ấp đó. */
+/**
+ * P-71 · Thêm một ấp vào xã đã chọn sẵn; truyền `hamlet` thì thành sửa ấp đó.
+ *
+ * Người liên hệ nhiều dòng (chốt 2026-10-14): chức vụ, họ tên, số điện thoại.
+ * Form mở sẵn một dòng "Trưởng ấp" cho ấp chưa có ai; dòng để trống tên lẫn SĐT
+ * bị bỏ lúc lưu nên không bắt điền.
+ */
 export function HamletFormDialog({ open, onClose, ward, hamlet }: Props) {
   const queryClient = useQueryClient();
 
   const {
     register,
+    control,
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<HamletForm>({
@@ -28,19 +36,18 @@ export function HamletFormDialog({ open, onClose, ward, hamlet }: Props) {
     defaultValues: {
       wardId: ward.id,
       name: hamlet?.name ?? "",
-      leaderName: hamlet?.leaderName ?? "",
-      leaderPhone: hamlet?.leaderPhone ?? "",
+      contacts:
+        hamlet && hamlet.contacts.length > 0
+          ? hamlet.contacts.map(({ title, name, phone }) => ({ title, name, phone }))
+          : [{ title: "Trưởng ấp", name: "", phone: "" }],
     },
   });
+  const contacts = useFieldArray({ control, name: "contacts" });
 
   const save = useMutation({
     mutationFn: (form: HamletForm) =>
       hamlet
-        ? updateHamlet(hamlet.id, {
-            name: form.name,
-            leaderName: form.leaderName,
-            leaderPhone: form.leaderPhone,
-          })
+        ? updateHamlet(hamlet.id, { name: form.name, contacts: form.contacts })
         : createHamlet(form),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["provinces"] });
@@ -80,21 +87,54 @@ export function HamletFormDialog({ open, onClose, ward, hamlet }: Props) {
           error={errors.name?.message}
           {...register("name")}
         />
-        <TextField
-          label="Trưởng ấp"
-          placeholder="Nguyễn Văn A"
-          autoComplete="off"
-          error={errors.leaderName?.message}
-          {...register("leaderName")}
-        />
-        <TextField
-          label="Số điện thoại trưởng ấp"
-          placeholder="0901 234 567"
-          inputMode="tel"
-          autoComplete="off"
-          error={errors.leaderPhone?.message}
-          {...register("leaderPhone")}
-        />
+
+        <fieldset className={styles.contacts}>
+          <legend className={styles.legend}>Người liên hệ</legend>
+          {contacts.fields.map((field, i) => (
+            <div key={field.id} className={styles.contact}>
+              <TextField
+                label="Chức vụ"
+                placeholder="Trưởng ấp"
+                autoComplete="off"
+                error={errors.contacts?.[i]?.title?.message}
+                {...register(`contacts.${i}.title`)}
+              />
+              <TextField
+                label="Họ tên"
+                placeholder="Nguyễn Văn A"
+                autoComplete="off"
+                error={errors.contacts?.[i]?.name?.message}
+                {...register(`contacts.${i}.name`)}
+              />
+              <TextField
+                label="Số điện thoại"
+                placeholder="0901 234 567"
+                inputMode="tel"
+                autoComplete="off"
+                error={errors.contacts?.[i]?.phone?.message}
+                {...register(`contacts.${i}.phone`)}
+              />
+              <Button
+                variant="secondary"
+                icon
+                tooltip="Bỏ liên hệ này"
+                aria-label={`Bỏ liên hệ ${i + 1}`}
+                onClick={() => contacts.remove(i)}
+              >
+                <Trash2 size={16} aria-hidden />
+              </Button>
+            </div>
+          ))}
+          <div>
+            <Button
+              variant="secondary"
+              onClick={() => contacts.append({ title: "", name: "", phone: "" })}
+            >
+              <Plus size={16} aria-hidden />
+              Thêm liên hệ
+            </Button>
+          </div>
+        </fieldset>
       </form>
     </Dialog>
   );

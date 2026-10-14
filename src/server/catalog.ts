@@ -15,6 +15,7 @@ import type { Channel, ChannelForm } from "@/lib/api/channelCatalog";
 import type { Hospital, HospitalForm } from "@/lib/api/hospitalCatalog";
 import type {
   Hamlet,
+  HamletContactForm,
   HamletForm,
   HamletUpdateForm,
   Province,
@@ -47,6 +48,7 @@ import {
   hospitals,
   insurancePackageLegs,
   insurancePackages,
+  hamletContacts,
   hamlets,
   provinces,
   refProvinces,
@@ -1721,9 +1723,9 @@ export async function setServiceTypeActive(
  * đưa cả 3.321 xã ra cho nhân viên tự tìm là chỗ nhập sai.
  */
 
-/** Cả cây địa bàn công ty. Ba câu, gộp ở app — không N+1 theo tỉnh. */
+/** Cả cây địa bàn công ty. Bốn câu, gộp ở app — không N+1 theo tỉnh hay theo ấp. */
 export async function listProvinceTree(): Promise<Province[]> {
-  const [provinceRows, wardRows, hamletRows] = await Promise.all([
+  const [provinceRows, wardRows, hamletRows, contactRows] = await Promise.all([
     db.select().from(provinces).orderBy(asc(provinces.name)),
     db.select().from(wards).orderBy(asc(wards.name)),
     db
@@ -1731,14 +1733,29 @@ export async function listProvinceTree(): Promise<Province[]> {
         id: hamlets.id,
         wardId: hamlets.wardId,
         name: hamlets.name,
-        leaderName: hamlets.leaderName,
-        leaderPhone: hamlets.leaderPhone,
         createdByName: users.fullName,
       })
       .from(hamlets)
       .leftJoin(users, eq(users.id, hamlets.createdBy))
       .orderBy(asc(hamlets.name)),
+    db
+      .select({
+        id: hamletContacts.id,
+        hamletId: hamletContacts.hamletId,
+        title: hamletContacts.title,
+        name: hamletContacts.name,
+        phone: hamletContacts.phone,
+      })
+      .from(hamletContacts)
+      .orderBy(asc(hamletContacts.sortOrder), asc(hamletContacts.createdAt), asc(hamletContacts.id)),
   ]);
+
+  const contactsByHamlet = new Map<string, Hamlet["contacts"]>();
+  for (const c of contactRows) {
+    const list = contactsByHamlet.get(c.hamletId) ?? [];
+    list.push({ id: c.id, title: c.title, name: c.name, phone: c.phone });
+    contactsByHamlet.set(c.hamletId, list);
+  }
 
   const hamletsByWard = new Map<string, Hamlet[]>();
   for (const h of hamletRows) {
@@ -1746,8 +1763,7 @@ export async function listProvinceTree(): Promise<Province[]> {
     list.push({
       id: h.id,
       name: h.name,
-      leaderName: h.leaderName,
-      leaderPhone: h.leaderPhone,
+      contacts: contactsByHamlet.get(h.id) ?? [],
       createdByName: h.createdByName,
     });
     hamletsByWard.set(h.wardId, list);
@@ -1859,6 +1875,24 @@ const leaderColumns = (form: { leaderName: string; leaderPhone: string }) => ({
   leaderPhone: digitsOnly(form.leaderPhone),
 });
 
+/**
+ * Ghi lại TRỌN danh sách liên hệ của ấp theo thứ tự form: xoá hết rồi chèn.
+ * Không bản ghi nào trỏ tới dòng liên hệ nên đổi id mỗi lần lưu không sao.
+ */
+async function writeHamletContacts(tx: Tx, hamletId: string, contacts: HamletContactForm[]) {
+  await tx.delete(hamletContacts).where(eq(hamletContacts.hamletId, hamletId));
+  if (contacts.length === 0) return;
+  await tx.insert(hamletContacts).values(
+    contacts.map((c, i) => ({
+      hamletId,
+      title: c.title,
+      name: c.name,
+      phone: digitsOnly(c.phone),
+      sortOrder: i,
+    })),
+  );
+}
+
 export async function addHamlet(
   form: HamletForm,
   actorId: string,
@@ -1870,9 +1904,13 @@ export async function addHamlet(
   }
 
   return catalogWrite(async () => {
-    await db
-      .insert(hamlets)
-      .values({ wardId: form.wardId, name: form.name, ...leaderColumns(form), createdBy: actorId });
+    await db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(hamlets)
+        .values({ wardId: form.wardId, name: form.name, createdBy: actorId })
+        .returning({ id: hamlets.id });
+      await writeHamletContacts(tx, row.id, form.contacts);
+    });
     return provinceById(ward.provinceId);
   });
 }
@@ -1896,10 +1934,10 @@ export async function updateHamlet(
   }
 
   return catalogWrite(async () => {
-    await db
-      .update(hamlets)
-      .set({ name: form.name, ...leaderColumns(form) })
-      .where(eq(hamlets.id, hamletId));
+    await db.transaction(async (tx) => {
+      await tx.update(hamlets).set({ name: form.name }).where(eq(hamlets.id, hamletId));
+      await writeHamletContacts(tx, hamletId, form.contacts);
+    });
     return { previousName: hamlet.name, province: await provinceById(ward.provinceId) };
   });
 }

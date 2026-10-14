@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { MapPin, Pencil, Plus, Trash2 } from "lucide-react";
+import { Download, MapPin, Pencil, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { SkeletonTable } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
@@ -12,8 +12,15 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { RowActions } from "@/components/ui/RowActions";
 import { SectionCard } from "@/components/ui/SectionCard";
-import { deleteHamlet, fetchProvinces, type Hamlet } from "@/lib/api/wardCatalog";
-import { formatPhone } from "@/lib/format";
+import {
+  deleteHamlet,
+  fetchProvinces,
+  type Hamlet,
+  type HamletContact,
+  type Ward,
+} from "@/lib/api/wardCatalog";
+import { EXCEL_GROUP_COLORS, exportExcel, type ExcelColumn } from "@/lib/excel";
+import { formatPhone, nameForExcel } from "@/lib/format";
 import { errorMessage, toast } from "@/lib/toast";
 import { HamletFormDialog } from "./HamletFormDialog";
 import { ProvinceFormDialog } from "./ProvinceFormDialog";
@@ -22,6 +29,46 @@ import { WardInfoDialog } from "./WardInfoDialog";
 import styles from "./WardCatalogSection.module.scss";
 
 const Missing = () => <span className="text-muted">Chưa có</span>;
+
+const iso = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
+
+/** "Trưởng ấp: Nguyễn Văn A - 0901 234 567"; thiếu vế nào thì bỏ vế đó. */
+const contactLine = (c: HamletContact): string => {
+  const who = [c.title, c.name].filter(Boolean).join(": ");
+  return [who, c.phone ? formatPhone(c.phone) : ""].filter(Boolean).join(" - ");
+};
+
+/** Một dòng file Excel: mỗi người liên hệ một dòng, ấp chưa có ai vẫn một dòng. */
+type HamletExportRow = { hamlet: Hamlet; contact: HamletContact | null };
+
+/**
+ * Xuất ấp và người liên hệ của MỘT xã (chốt 2026-10-14). Dữ liệu lấy từ cây đã
+ * tải: danh mục đóng, vài chục ấp mỗi xã, không cần route xuất riêng
+ * (AGENTS.md §5.1). Đầu bảng 3 tầng theo §12.
+ */
+async function exportHamlets(ward: Ward, provinceName: string): Promise<void> {
+  const rows = ward.hamlets.flatMap((hamlet): HamletExportRow[] =>
+    hamlet.contacts.length === 0
+      ? [{ hamlet, contact: null }]
+      : hamlet.contacts.map((contact) => ({ hamlet, contact })),
+  );
+  const columns: ExcelColumn<HamletExportRow>[] = [
+    { header: "STT", group: "ẤP", width: 7, type: "number", align: "center", total: (all) => all.length, value: (_r, i) => i + 1 },
+    { header: "ẤP", group: "ẤP", width: 24, value: (r) => r.hamlet.name },
+    { header: "XÃ/PHƯỜNG", group: "ẤP", width: 24, value: () => ward.name },
+    { header: "TỈNH/THÀNH PHỐ", group: "ẤP", width: 20, value: () => provinceName },
+    { header: "CHỨC VỤ", group: "LIÊN HỆ", width: 18, value: (r) => r.contact?.title ?? "" },
+    { header: "HỌ TÊN", group: "LIÊN HỆ", width: 28, value: (r) => r.contact?.name ?? "" },
+    { header: "SỐ ĐIỆN THOẠI", group: "LIÊN HỆ", width: 16, type: "text", value: (r) => r.contact?.phone ?? "" },
+    { header: "NGƯỜI TẠO", group: "NHÂN SỰ", groupColor: EXCEL_GROUP_COLORS.staff, width: 24, value: (r) => r.hamlet.createdByName ?? "" },
+  ];
+  await exportExcel({
+    fileName: `ap-${nameForExcel(ward.name).toLowerCase().replace(/\s+/g, "-")}-${iso(new Date())}.xlsx`,
+    sheetName: "Ấp",
+    columns,
+    rows,
+  });
+}
 
 /**
  * P-71 · Danh mục xã / ấp — cây BA cấp Tỉnh/thành phố → Xã/phường → Ấp/khu
@@ -80,18 +127,31 @@ export function WardCatalogSection() {
     setWardId(null);
   };
 
+  const xuatExcel = async () => {
+    if (!ward || !province) return;
+    try {
+      await exportHamlets(ward, province.name);
+    } catch (e) {
+      toast.fail(errorMessage(e, "Không xuất được file"));
+    }
+  };
+
   const hamletColumns: RankColumn<Hamlet>[] = [
     { key: "name", label: "Ấp", sortText: (h) => h.name, render: (h) => h.name },
     {
-      key: "leaderName",
-      label: "Trưởng ấp",
-      sortText: (h) => h.leaderName,
-      render: (h) => h.leaderName || <Missing />,
-    },
-    {
-      key: "leaderPhone",
-      label: "Số điện thoại",
-      render: (h) => (h.leaderPhone ? formatPhone(h.leaderPhone) : <Missing />),
+      key: "contacts",
+      label: "Liên hệ",
+      sortText: (h) => h.contacts[0]?.name ?? "",
+      render: (h) =>
+        h.contacts.length === 0 ? (
+          <Missing />
+        ) : (
+          <ul className={styles.contactList}>
+            {h.contacts.map((c) => (
+              <li key={c.id}>{contactLine(c)}</li>
+            ))}
+          </ul>
+        ),
     },
     {
       key: "createdByName",
@@ -205,10 +265,21 @@ export function WardCatalogSection() {
                 <h3 className={styles.detailTitle}>{ward.name}</h3>
                 <p className={styles.detailSub}>{province.name}</p>
               </div>
-              <Button onClick={() => setAddingHamlet(true)}>
-                <Plus size={16} />
-                Thêm ấp
-              </Button>
+              <div className={styles.detailActions}>
+                <Button
+                  variant="secondary"
+                  aria-label="Xuất Excel ấp của xã này"
+                  disabled={ward.hamlets.length === 0}
+                  onClick={() => void xuatExcel()}
+                >
+                  <Download size={16} aria-hidden />
+                  <span className={buttonStyles.label}>Xuất Excel</span>
+                </Button>
+                <Button onClick={() => setAddingHamlet(true)}>
+                  <Plus size={16} />
+                  Thêm ấp
+                </Button>
+              </div>
             </div>
 
             {/* Thông tin trưởng xã thu gọn, bấm mới mở (chốt 2026-09-27). */}

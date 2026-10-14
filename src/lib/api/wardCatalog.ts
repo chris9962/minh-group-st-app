@@ -55,16 +55,28 @@ export async function fetchReferenceWards(provinceId: string): Promise<Reference
 /* ── Đang dùng — danh mục thật của công ty, bắt đầu rỗng ──────────────── */
 
 /**
- * Người đứng đầu địa bàn — trưởng xã trên `Ward`, trưởng ấp trên `Hamlet`
- * (chốt 2026-09-07). Chuỗi rỗng = chưa có, không dùng null: ô nhập và câu tìm
- * kiếm chỉ phải xử lý một kiểu "trống".
+ * Trưởng xã trên `Ward` (chốt 2026-09-07). Chuỗi rỗng = chưa có, không dùng
+ * null: ô nhập và câu tìm kiếm chỉ phải xử lý một kiểu "trống".
  */
 const leaderShape = { leaderName: z.string(), leaderPhone: z.string() };
+
+/**
+ * Một người liên hệ của ấp (chốt 2026-10-14): trưởng ấp, phó ấp, công an viên...
+ * `title` nhập tay, rỗng = không ghi chức vụ. `phone` chỉ chữ số, rỗng = chưa có.
+ */
+export const HamletContact = z.object({
+  id: z.string(),
+  title: z.string(),
+  name: z.string(),
+  phone: z.string(),
+});
+export type HamletContact = z.infer<typeof HamletContact>;
 
 export const Hamlet = z.object({
   id: z.string(),
   name: z.string(),
-  ...leaderShape,
+  /** Theo thứ tự nhập trên form. Rỗng = chưa có ai. */
+  contacts: z.array(HamletContact),
   /** `null` khi ấp thêm trước migration 0135 mà nhật ký không có dòng tạo. */
   createdByName: z.string().nullable(),
 });
@@ -109,8 +121,8 @@ export const AddWardForm = z.object({
 export type AddWardForm = z.infer<typeof AddWardForm>;
 
 /**
- * Trưởng xã / trưởng ấp — cả hai ô đều để trống được: nhiều ấp thêm vào trước
- * khi ai biết trưởng ấp là ai. Có SĐT thì phải đủ 10 số, cùng luật với SĐT khách.
+ * Trưởng xã — cả hai ô đều để trống được: nhiều xã thêm vào trước khi ai biết
+ * trưởng xã là ai. Có SĐT thì phải đủ 10 số, cùng luật với SĐT khách.
  */
 const leaderFormShape = {
   leaderName: z.string().trim().max(120, 'Tên quá dài'),
@@ -123,16 +135,44 @@ const leaderFormShape = {
 /** Route parse lại bằng chính schema này, nên tên lưu DB luôn viết hoa kể cả khi không gửi từ form. */
 const hamletName = z.string().trim().min(1, 'Chưa nhập tên ấp').transform(capitalizeWords);
 
+/** Một dòng liên hệ trên form ấp. Có SĐT thì phải đủ 10 số, cùng luật với SĐT khách. */
+export const HamletContactForm = z.object({
+  title: z.string().trim().max(60, 'Chức vụ quá dài'),
+  name: z.string().trim().max(120, 'Tên quá dài'),
+  phone: z
+    .string()
+    .trim()
+    .refine((v) => v === '' || isValidPhone(v), 'Số điện thoại phải đủ 10 số'),
+});
+export type HamletContactForm = z.infer<typeof HamletContactForm>;
+
+/** Dòng chưa gõ tên lẫn SĐT: form mở sẵn một dòng trống, người dùng không điền thì bỏ. */
+const isBlankContact = (c: HamletContactForm) => c.name === '' && c.phone === '';
+
+/**
+ * Danh sách liên hệ: dòng trống bỏ khi lưu, dòng có SĐT thì phải có họ tên.
+ * Lỗi gắn vào đúng ô tên của dòng đó để form chỉ ra chỗ sai.
+ */
+const hamletContacts = z
+  .array(HamletContactForm)
+  .superRefine((list, ctx) => {
+    list.forEach((c, i) => {
+      if (!isBlankContact(c) && c.name === '')
+        ctx.addIssue({ code: 'custom', path: [i, 'name'], message: 'Chưa nhập họ tên' });
+    });
+  })
+  .transform((list) => list.filter((c) => !isBlankContact(c)));
+
 export const HamletForm = z.object({
   wardId: z.guid('Chưa chọn xã'),
   name: hamletName,
-  ...leaderFormShape,
+  contacts: hamletContacts,
 });
 export type HamletForm = z.infer<typeof HamletForm>;
 
 export const HamletUpdateForm = z.object({
   name: hamletName,
-  ...leaderFormShape,
+  contacts: hamletContacts,
 });
 export type HamletUpdateForm = z.infer<typeof HamletUpdateForm>;
 

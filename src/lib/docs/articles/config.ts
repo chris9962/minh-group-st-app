@@ -359,10 +359,10 @@ export const CONFIG_DOCS: DocArticle[] = [
   },
   {
     slug: 'danh-muc-xa-ap',
-    title: 'Thêm xã, ấp và trưởng ấp',
+    title: 'Thêm xã, ấp và người liên hệ của ấp',
     screen: 'P-71',
     group: 'config',
-    summary: 'Địa bàn công ty đang làm: tỉnh, xã/phường, ấp, kèm trưởng xã và trưởng ấp.',
+    summary: 'Địa bàn công ty đang làm: tỉnh, xã/phường, ấp, kèm trưởng xã và người liên hệ của từng ấp.',
     keywords: [
       'xã',
       'ấp',
@@ -372,6 +372,8 @@ export const CONFIG_DOCS: DocArticle[] = [
       'trưởng ấp',
       'trưởng xã',
       'số điện thoại trưởng ấp',
+      'liên hệ ấp',
+      'xuất excel ấp',
       'không tìm thấy ấp',
       'thiếu xã',
       'thêm tỉnh',
@@ -396,7 +398,8 @@ export const CONFIG_DOCS: DocArticle[] = [
           'Bấm **Thêm xã/phường** dưới cột trái rồi tìm xã trong danh sách của tỉnh đó.',
           'Bấm vào một xã ở cột trái để xem ấp của xã đó.',
           'Bấm **Sửa trưởng xã** để ghi tên và số điện thoại trưởng xã.',
-          'Bấm **Thêm ấp** rồi nhập tên ấp. Trưởng ấp và số điện thoại để trống được, bạn bổ sung sau bằng nút Sửa trên dòng ấp.',
+          'Bấm **Thêm ấp** rồi nhập tên ấp. Người liên hệ nhập từng dòng: chức vụ, họ tên, số điện thoại. Bấm **Thêm liên hệ** để thêm dòng. Để trống được, bạn bổ sung sau bằng nút Sửa trên dòng ấp.',
+          'Bấm **Xuất Excel** cạnh nút Thêm ấp để lấy danh sách ấp và người liên hệ của xã đang chọn.',
         ],
       },
       {

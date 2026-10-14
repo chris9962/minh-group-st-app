@@ -10,3 +10,33 @@
   font-size: 12.5px;
   color: var(--om-red);
 }
+
+/* Người liên hệ của ấp: mỗi dòng chức vụ, họ tên, SĐT và nút bỏ dòng. */
+.contacts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--om-line);
+  border-radius: var(--radius-md);
+}
+
+.legend {
+  padding: 0 var(--space-1);
+  font-size: 12.5px;
+  color: var(--om-text-2);
+}
+
+.contact {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.3fr) minmax(0, 1fr) auto;
+  align-items: end;
+  gap: var(--space-2);
+}
+
+@media (max-width: bp.$bp-narrow) {
+  .contact {
+    grid-template-columns: 1fr 1fr;
+  }
+}

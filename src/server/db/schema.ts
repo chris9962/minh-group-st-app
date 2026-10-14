@@ -946,7 +946,11 @@ export const hamlets = pgTable(
     wardId: uuid("ward_id").notNull().references(() => wards.id),
     /** Ấp KHÔNG có nguồn tham chiếu — luôn nhập tay. */
     name: text("name").notNull(),
-    /** Trưởng ấp — tên và SĐT liên hệ (migration 0072). Rỗng = chưa có. */
+    /**
+     * Trưởng ấp cũ (migration 0072). Từ migration 0142 người liên hệ nằm ở
+     * `hamletContacts`, app không đọc và không ghi hai cột này nữa; giữ cột để
+     * `deploy.sh` lùi về bản cũ vẫn chạy, bỏ ở migration sau.
+     */
     leaderName: text("leader_name").notNull().default(""),
     leaderPhone: text("leader_phone").notNull().default(""),
     /** Ấp thêm trước migration 0135 lấy từ `audit_log`; null khi nhật ký không có dòng tạo. */
@@ -967,6 +971,30 @@ export const hamlets = pgTable(
      */
     uniqueIndex("hamlets_ward_name").on(t.wardId, t.name),
   ],
+);
+
+/**
+ * Người liên hệ của một ấp (migration 0142, chủ dự án chốt 2026-10-14): trưởng
+ * ấp, phó ấp, công an viên... Mỗi dòng một người, `sortOrder` là thứ tự nhập
+ * trên form. Form lưu là ghi lại trọn danh sách: xoá hết rồi chèn, vì không bản
+ * ghi nào trỏ tới dòng liên hệ.
+ */
+export const hamletContacts = pgTable(
+  "hamlet_contacts",
+  {
+    id: id(),
+    hamletId: uuid("hamlet_id")
+      .notNull()
+      .references(() => hamlets.id, { onDelete: "cascade" }),
+    /** Chức vụ nhập tay: "Trưởng ấp", "Phó ấp"... Rỗng = không ghi. */
+    title: text("title").notNull().default(""),
+    name: text("name").notNull(),
+    /** Chỉ chữ số, cùng lối `customer_phones`. Rỗng = chưa có. */
+    phone: text("phone").notNull().default(""),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: createdAt(),
+  },
+  (t) => [index("hamlet_contacts_hamlet").on(t.hamletId, t.sortOrder)],
 );
 
 /* ── §3 · Khách hàng ────────────────────────────────────────────────── */
