@@ -4,8 +4,9 @@ import {
   Bar,
   CartesianGrid,
   Cell,
+  ComposedChart,
   Legend,
-  BarChart as RechartsBarChart,
+  Line,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -27,6 +28,8 @@ type Props = {
   /** Khoá của cột nhãn trục ngang. */
   labelKey: string;
   series: BarSeries[];
+  /** Chuỗi vẽ thành đường đè lên cột, cùng trục dọc với cột. */
+  lines?: BarSeries[];
   title?: string;
   /** Mô tả cho trình đọc màn hình, đặt ở caption của bảng số ẩn. */
   caption: string;
@@ -62,6 +65,7 @@ export function BarChart({
   rows,
   labelKey,
   series,
+  lines = [],
   title,
   caption,
   height = 190,
@@ -69,6 +73,7 @@ export function BarChart({
   showLegend = true,
 }: Props) {
   const chartColors = useChartColors();
+  const columns = [...series, ...lines];
 
   return (
     <div className={styles.wrap}>
@@ -76,9 +81,9 @@ export function BarChart({
 
       <div className={styles.chart} aria-hidden>
         <ResponsiveContainer width="100%" height={height}>
-          <RechartsBarChart
+          <ComposedChart
             data={rows}
-            margin={{ top: 4, right: 4, bottom: 0, left: -18 }}
+            margin={{ top: 4, right: 4, bottom: 0, left: 0 }}
             barCategoryGap="18%"
           >
             <CartesianGrid
@@ -98,8 +103,11 @@ export function BarChart({
               tick={AXIS_TICK}
               tickLine={false}
               axisLine={false}
-              width={44}
+              // Bề ngang theo số dài nhất: cột khách hàng lên tới hàng nghìn,
+              // bề ngang cố định cho số hai chữ số thì cắt mất đầu số.
+              width="auto"
               allowDecimals={false}
+              tickFormatter={(value: number) => formatPoints(value)}
             />
             <Tooltip
               cursor={{ fill: "var(--om-sidebar-hover)" }}
@@ -112,6 +120,9 @@ export function BarChart({
                 boxShadow: "var(--shadow-md)",
               }}
               labelStyle={{ fontWeight: 600, marginBottom: 4 }}
+              // Recharts tô chữ từng dòng bằng màu chuỗi; chuỗi màu nhạt thì
+              // không đọc được trên nền tooltip.
+              itemStyle={{ color: "var(--om-text)" }}
               formatter={(value) => (typeof value === "number" ? formatPoints(value) : value)}
             />
             {showLegend && (
@@ -156,7 +167,19 @@ export function BarChart({
                   ))}
               </Bar>
             ))}
-          </RechartsBarChart>
+            {lines.map((s) => (
+              <Line
+                key={s.key}
+                dataKey={s.key}
+                name={s.label}
+                stroke={s.color}
+                strokeWidth={2}
+                dot={{ r: 3, fill: s.color, strokeWidth: 0 }}
+                activeDot={{ r: 4 }}
+                isAnimationActive={false}
+              />
+            ))}
+          </ComposedChart>
         </ResponsiveContainer>
       </div>
 
@@ -165,7 +188,7 @@ export function BarChart({
         <thead>
           <tr>
             <th scope="col">Mốc</th>
-            {series.map((s) => (
+            {columns.map((s) => (
               <th key={s.key} scope="col">
                 {s.label}
               </th>
@@ -176,7 +199,7 @@ export function BarChart({
           {rows.map((row) => (
             <tr key={String(row[labelKey])}>
               <th scope="row">{String(row[labelKey])}</th>
-              {series.map((s) => (
+              {columns.map((s) => (
                 <td key={s.key}>{valueText(row[s.key])}</td>
               ))}
             </tr>

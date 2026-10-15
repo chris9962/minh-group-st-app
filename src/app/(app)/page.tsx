@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Briefcase, Gift, ShieldCheck, Trophy } from "lucide-react";
+import { Briefcase, Gift, ShieldCheck, Trophy, Users } from "lucide-react";
 import { SkeletonStats, SkeletonTable } from "@/components/ui/Skeleton";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { ErrorState } from "@/components/ui/ErrorState";
@@ -346,8 +346,32 @@ export default function DashboardPage() {
 
             <div className={styles.grid}>
               <SectionCard
-                title={`Bảo hiểm ${periodLabel}`}
+                title="Khách và tài khoản"
+                icon={<Users size={17} />}
+                meta={periodLabel}
+                className={styles.wide}
+              >
+                <BarChart
+                  title={`Khách theo ${BUCKET_LABEL[data.customerAccounts.bucketType]}`}
+                  caption={`Khách lập hồ sơ theo ${BUCKET_LABEL[data.customerAccounts.bucketType]}, tách theo số tài khoản hoàn thành, kèm số tài khoản mở`}
+                  labelKey="label"
+                  rows={data.customerAccounts.buckets}
+                  series={[
+                    { key: "zero", label: "0 tài khoản", color: chartColors.neutral },
+                    { key: "one", label: "1 tài khoản", color: chartColors.secondary },
+                    { key: "two", label: "2 tài khoản", color: chartColors.primary },
+                    { key: "threePlus", label: "3+ tài khoản", color: chartColors.strong },
+                  ]}
+                  lines={[
+                    { key: "accountsOpened", label: "Tài khoản mở", color: chartColors.ink },
+                  ]}
+                />
+              </SectionCard>
+
+              <SectionCard
+                title="Đơn bảo hiểm"
                 icon={<ShieldCheck size={17} />}
+                meta={periodLabel}
                 className={styles.wide}
               >
                 <div className={styles.statRow}>
@@ -457,7 +481,7 @@ export default function DashboardPage() {
               </SectionCard>
 
               <SectionCard
-                title="Dịch vụ theo loại"
+                title="Dịch vụ"
                 icon={<Briefcase size={17} />}
                 meta={periodLabel}
               >

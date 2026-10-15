@@ -14,6 +14,12 @@ import { useTheme, type Accent } from '@/store/theme';
 export type ChartColors = {
   primary: string;
   secondary: string;
+  /** Bậc đậm hơn `primary`, cho chuỗi thứ ba của cột chồng. */
+  strong: string;
+  /** Đường vẽ đè lên cột — màu chữ chính, không theo màu nhấn. */
+  ink: string;
+  /** Khúc "chưa có gì" của cột chồng — màu chữ mờ `--om-text-3`, không theo màu nhấn. */
+  neutral: string;
   /** Cột bị làm mờ khi chỉ một cột được làm nổi. */
   muted: string;
 };
@@ -21,60 +27,90 @@ export type ChartColors = {
 const LIGHT: ChartColors = {
   primary: '#d95328',
   secondary: '#e88055',
+  strong: '#963317',
+  ink: '#201e1d',
+  neutral: '#776f61',
   muted: '#ebe5dc',
 };
 
 const DARK: ChartColors = {
   primary: '#f97316',
   secondary: '#fb923c',
+  strong: '#c2410c',
+  ink: '#eef2f8',
+  neutral: '#7e8da3',
   muted: '#26344a',
 };
 
 const BLUE_LIGHT: ChartColors = {
   primary: '#1d4ed8',
   secondary: '#60a5fa',
+  strong: '#1e3a8a',
+  ink: '#201e1d',
+  neutral: '#776f61',
   muted: '#ebe5dc',
 };
 
 const BLUE_DARK: ChartColors = {
   primary: '#60a5fa',
   secondary: '#93c5fd',
+  strong: '#2563eb',
+  ink: '#eef2f8',
+  neutral: '#7e8da3',
   muted: '#26344a',
 };
 
 const CYAN_LIGHT: ChartColors = {
   primary: '#0e7490',
   secondary: '#22d3ee',
+  strong: '#164e63',
+  ink: '#201e1d',
+  neutral: '#776f61',
   muted: '#ebe5dc',
 };
 
 const CYAN_DARK: ChartColors = {
   primary: '#22d3ee',
   secondary: '#67e8f9',
+  strong: '#0891b2',
+  ink: '#eef2f8',
+  neutral: '#7e8da3',
   muted: '#26344a',
 };
 
 const PINK_LIGHT: ChartColors = {
   primary: '#be185d',
   secondary: '#f472b6',
+  strong: '#831843',
+  ink: '#201e1d',
+  neutral: '#776f61',
   muted: '#ebe5dc',
 };
 
 const PINK_DARK: ChartColors = {
   primary: '#f472b6',
   secondary: '#f9a8d4',
+  strong: '#db2777',
+  ink: '#eef2f8',
+  neutral: '#7e8da3',
   muted: '#26344a',
 };
 
 const SLATE_LIGHT: ChartColors = {
   primary: '#334155',
   secondary: '#94a3b8',
+  strong: '#0f172a',
+  ink: '#201e1d',
+  neutral: '#776f61',
   muted: '#ebe5dc',
 };
 
 const SLATE_DARK: ChartColors = {
   primary: '#e2e8f0',
   secondary: '#94a3b8',
+  strong: '#64748b',
+  ink: '#eef2f8',
+  neutral: '#7e8da3',
   muted: '#26344a',
 };
 

@@ -1,6 +1,7 @@
 import { and, desc, eq, gte, inArray, lte, sql, type SQL } from "drizzle-orm";
 import type {
   BankingSummary,
+  BucketType,
   DashboardData,
   DashboardDraftAccount,
   DepartmentRanking,
@@ -135,7 +136,7 @@ const daysBetween = (r: Range): number =>
  * Độ chia của biểu đồ do ĐỘ DÀI KỲ quyết định, không cố định theo giờ: một
  * tháng chia theo giờ là 744 cột không ai đọc nổi.
  */
-const bucketTypeFor = (r: Range): DashboardData["insurance"]["bucketType"] => {
+const bucketTypeFor = (r: Range): BucketType => {
   const days = daysBetween(r);
   if (days <= 1) return "hour";
   if (days <= 31) return "day";
@@ -508,6 +509,117 @@ async function insuranceBlock(
       electric: b.electric,
       motorbike: b.motorbike,
     })),
+  };
+}
+
+/** Giờ Việt Nam lúc lập hồ sơ khách — mốc chia cột của biểu đồ khách hàng. */
+const customerLocalTime = sql`(${customers.createdAt} at time zone ${BUSINESS_TIMEZONE})`;
+
+const customerBucketLabel = (bucketType: BucketType) =>
+  sql<string>`${
+    {
+      hour: sql`to_char(${customerLocalTime}, 'HH24:00')`,
+      day: sql`to_char(${customerLocalTime}, 'DD/MM')`,
+      week: sql`'Tuần ' || to_char(${customerLocalTime}, 'IW')`,
+      month: sql`to_char(${customerLocalTime}, 'MM/YYYY')`,
+    }[bucketType]
+  }`.as("label");
+
+/**
+ * Mốc sớm nhất trong cột, để sắp cột theo thời gian thật. Nhãn `DD/MM` sắp
+ * theo chuỗi thì 01/09 đứng trước 31/08.
+ */
+const customerBucketSortKey = sql<string>`to_char(min(${customerLocalTime}), 'YYYY-MM-DD HH24:MI:SS')`;
+
+/**
+ * Hồ sơ khách lập trong kỳ chia theo số tài khoản hoàn thành (cột chồng) và
+ * tài khoản mở trong kỳ (đường), cùng độ chia với biểu đồ bảo hiểm.
+ *
+ * Hai chuỗi đọc hai bảng, cùng định nghĩa với hai ô đầu trang: cột theo cách
+ * đếm của `customersByAccounts`, đường theo cách đếm của `bankingTotals`. Mốc
+ * của cả hai là ngày lập hồ sơ khách. Phạm vi lọc khác cột: khách theo phòng
+ * lập hồ sơ, tài khoản theo phòng mở tài khoản, nên ở phạm vi phòng một mốc
+ * có thể có đường mà không có cột — tài khoản mở hộ cho khách của phòng khác.
+ */
+async function customerAccountsBlock(
+  v: DashboardVisibility,
+  actorId: string,
+  range: Range,
+): Promise<DashboardData["customerAccounts"]> {
+  const bucketType = bucketTypeFor(range);
+
+  const [customerRows, accountRows] = await Promise.all([
+    db
+      .select({
+        label: customerBucketLabel(bucketType),
+        sortKey: customerBucketSortKey,
+        zero: sql<number>`count(*) filter (where ${customers.accountCount} = 0)::int`,
+        one: sql<number>`count(*) filter (where ${customers.accountCount} = 1)::int`,
+        two: sql<number>`count(*) filter (where ${customers.accountCount} = 2)::int`,
+        threePlus: sql<number>`count(*) filter (where ${customers.accountCount} >= 3)::int`,
+      })
+      .from(customers)
+      .where(
+        and(customerDayBetween(range.from, range.to), scopeCondition(v, actorId, customerCols)),
+      )
+      .groupBy(sql`1`),
+    db
+      .select({
+        label: customerBucketLabel(bucketType),
+        sortKey: customerBucketSortKey,
+        accountsOpened: sql<number>`count(*)::int`,
+      })
+      .from(bankAccounts)
+      .innerJoin(customers, eq(customers.id, bankAccounts.customerId))
+      .where(
+        and(
+          eq(bankAccounts.status, "done"),
+          customerDayBetween(range.from, range.to),
+          scopeCondition(v, actorId, bankingCols),
+        ),
+      )
+      .groupBy(sql`1`),
+  ]);
+
+  type Bucket = DashboardData["customerAccounts"]["buckets"][number];
+  const byLabel = new Map<string, { sortKey: string; bucket: Bucket }>();
+  for (const r of customerRows) {
+    byLabel.set(r.label, {
+      sortKey: r.sortKey,
+      bucket: {
+        label: r.label,
+        zero: r.zero,
+        one: r.one,
+        two: r.two,
+        threePlus: r.threePlus,
+        accountsOpened: 0,
+      },
+    });
+  }
+  for (const r of accountRows) {
+    const found = byLabel.get(r.label);
+    if (found) {
+      found.bucket.accountsOpened = r.accountsOpened;
+    } else {
+      byLabel.set(r.label, {
+        sortKey: r.sortKey,
+        bucket: {
+          label: r.label,
+          zero: 0,
+          one: 0,
+          two: 0,
+          threePlus: 0,
+          accountsOpened: r.accountsOpened,
+        },
+      });
+    }
+  }
+
+  return {
+    bucketType,
+    buckets: [...byLabel.values()]
+      .sort((a, b) => a.sortKey.localeCompare(b.sortKey))
+      .map((b) => b.bucket),
   };
 }
 
@@ -916,6 +1028,7 @@ export async function dashboardFor(
     banking,
     previousBanking,
     insurance,
+    customerAccounts,
     servicesData,
     gifts,
     ranked,
@@ -929,6 +1042,7 @@ export async function dashboardFor(
       bankingSummaryFor(v, actor.id, current),
       previous ? bankingTotals(v, actor.id, previous) : Promise.resolve(null),
       insuranceBlock(v, actor.id, current),
+      customerAccountsBlock(v, actor.id, current),
       servicesBlock(v, actor.id, current),
       giftsBlock(v, actor.id, current),
       ranking(actor, v, current, previous),
@@ -994,6 +1108,7 @@ export async function dashboardFor(
         giftsPending: gifts.pending,
       },
       insurance,
+      customerAccounts,
       /**
        * Tổng của CHÍNH bản đồ điểm theo phòng, nên ô này và cột Điểm của bảng
        * xếp hạng luôn khớp nhau.

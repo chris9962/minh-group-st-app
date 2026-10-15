@@ -131,6 +131,13 @@ export const TopStaff = z.object({
 });
 export type TopStaff = z.infer<typeof TopStaff>;
 
+/**
+ * Độ chia của trục ngang biểu đồ. KỲ quyết định, không cố định theo giờ: một
+ * ngày → khung giờ, một tháng → ngày, dài hơn → tuần hoặc tháng.
+ */
+export const BucketType = z.enum(['hour', 'day', 'week', 'month']);
+export type BucketType = z.infer<typeof BucketType>;
+
 export const DashboardData = z.object({
   banking: BankingSummary.extend({
     /**
@@ -175,11 +182,7 @@ export const DashboardData = z.object({
     pending: z.number(),
     pendingBot: z.number(),
     pendingManual: z.number(),
-    /**
-     * Cột của biểu đồ. Độ chia do KỲ quyết định, không cố định theo giờ:
-     * một ngày → khung giờ, một tháng → ngày, dài hơn → tuần hoặc tháng.
-     */
-    bucketType: z.enum(['hour', 'day', 'week', 'month']),
+    bucketType: BucketType,
     buckets: z.array(
       z.object({
         label: z.string(),
@@ -187,6 +190,29 @@ export const DashboardData = z.object({
         electric: z.number(),
         /** Bảo hiểm xe máy. */
         motorbike: z.number(),
+      }),
+    ),
+  }),
+  /**
+   * Biểu đồ khách hàng và tài khoản, cùng độ chia với biểu đồ bảo hiểm. Mốc
+   * của cả hai chuỗi là ngày LẬP HỒ SƠ khách.
+   *
+   * Bốn số khách cùng định nghĩa với `banking.customersByAccounts`;
+   * `accountsOpened` cùng định nghĩa với `banking.accountsOpened`. Cộng dọc
+   * các cột ra đúng các ô đó.
+   */
+  customerAccounts: z.object({
+    bucketType: BucketType,
+    buckets: z.array(
+      z.object({
+        label: z.string(),
+        /** Khách chưa có tài khoản hoàn thành nào. */
+        zero: z.number(),
+        one: z.number(),
+        two: z.number(),
+        /** Khách có từ 3 tài khoản hoàn thành trở lên. */
+        threePlus: z.number(),
+        accountsOpened: z.number(),
       }),
     ),
   }),
