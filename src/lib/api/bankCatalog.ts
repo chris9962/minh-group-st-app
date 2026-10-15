@@ -439,6 +439,16 @@ export async function fetchOpenReferralCodes(
   return z.array(ReferralCode).parse(await res.json());
 }
 
+/**
+ * Mã còn chỗ của mọi ngân hàng trong phạm vi người xem — nút MGT ở P-21. Máy
+ * chủ tự lấy phạm vi từ phiên đăng nhập, không nhận tham số.
+ */
+export async function fetchAvailableReferralCodes(): Promise<ReferralCode[]> {
+  const res = await fetch('/api/settings/referral-codes/available');
+  if (!res.ok) throw new Error('Không tải được mã giới thiệu còn chỗ');
+  return z.array(ReferralCode).parse(await res.json());
+}
+
 /** Thêm một mã lẻ. Nhập hàng loạt từ Excel vẫn là việc riêng của P-62. */
 export const ReferralCodeForm = z.object({
   // Đi thẳng vào cột uuid — xem chú thích cùng loại ở `ServiceForm`.

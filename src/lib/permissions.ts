@@ -378,6 +378,16 @@ export function recordVisibility(
 }
 
 /**
+ * Nút MGT ở màn Ngân hàng P-21 (chủ dự án chốt 2026-10-15): ai đọc được tài
+ * khoản của cả phòng trở lên thì xem được mã giới thiệu còn chỗ của phạm vi
+ * đó. Nhân viên (phạm vi `own`) không thấy. Nút và route cùng hỏi hàm này.
+ */
+export function canSeeAvailableReferralCodes(user: User | null): boolean {
+  const kind = recordVisibility(user, 'banking', 'view-detail').kind;
+  return kind === 'all' || kind === 'departments';
+}
+
+/**
  * Phạm vi ĐỌC khi câu hỏi đã ghim vào đúng một khách hoặc một bản ghi: tìm bằng
  * CCCD đủ 12 số, mở một bản ghi theo id, xem bản ghi trong hồ sơ một khách.
  *

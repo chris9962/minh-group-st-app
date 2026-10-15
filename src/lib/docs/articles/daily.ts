@@ -178,12 +178,12 @@ export const DAILY_DOCS: DocArticle[] = [
         kind: 'shot',
         shot: {
           src: '/docs/banking-page.png',
-          alt: 'Màn Ngân hàng với nút Tạo tài khoản ngân hàng',
+          alt: 'Màn Ngân hàng với nút Tạo ngân hàng',
           width: 1280,
           height: 800,
           markers: [
             { n: 1, x: 9.2, y: 24, label: 'Mục Ngân hàng trên thanh điều hướng.' },
-            { n: 2, x: 89.2, y: 4.1, label: 'Nút Tạo tài khoản ngân hàng — bước đầu là chọn khách.' },
+            { n: 2, x: 89.2, y: 4.1, label: 'Nút Tạo ngân hàng — bước đầu là chọn khách.' },
           ],
         },
       },
@@ -191,7 +191,7 @@ export const DAILY_DOCS: DocArticle[] = [
         kind: 'steps',
         items: [
           'Mở mục **Ngân hàng**.',
-          'Bấm **Tạo tài khoản ngân hàng** ở góc trên bên phải.',
+          'Bấm **Tạo ngân hàng** ở góc trên bên phải.',
           'Gõ tên hoặc số điện thoại vào ô **Tìm khách hàng**, rồi bấm vào khách trong danh sách.',
           'Khách chưa có hồ sơ thì bạn bấm **Tạo KH mới**.',
           'Tích chọn ngân hàng muốn mở. Ngân hàng khách đã mở trước đó không hiện lại.',

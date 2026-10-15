@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, inArray, lte, ne, sql, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, exists, inArray, lte, ne, sql, type SQL } from "drizzle-orm";
 import { CODE_LOW_RATIO } from "@/lib/api/bankCatalog";
 import type {
   Bank,
@@ -996,6 +996,60 @@ export async function listOpenReferralCodes(
     .orderBy(desc(referralCodes.priority), desc(remainingExpr), asc(referralCodes.code));
 
   // Mã ẩn thì ô chọn mã không nhận Mã text; tên hiển thị đủ để chọn.
+  return rows.map(toCode).map((c) => (c.hideCode ? { ...c, code: "" } : c));
+}
+
+/**
+ * Mã còn chỗ của MỌI ngân hàng mà các phòng `departmentIds` dùng được — nút MGT
+ * ở P-21 (chốt 2026-10-15). `null` = toàn công ty, không lọc phòng.
+ *
+ * Cùng điều kiện "còn chỗ" với `listOpenReferralCodes`: trừ cả phần đang giữ,
+ * bỏ mã ngừng tay. Trưởng phòng đọc số ở đây phải khớp số nhân viên thấy ở ô
+ * chọn mã. Ngân hàng xếp theo ưu tiên như ô chọn, trong ngân hàng thì mã nhiều
+ * chỗ lên trước.
+ */
+export async function listAvailableReferralCodes(
+  departmentIds: string[] | null,
+): Promise<ReferralCode[]> {
+  const rows = await db
+    .select(codeColumns)
+    .from(referralCodes)
+    .innerJoin(banks, eq(banks.id, referralCodes.bankId))
+    .leftJoin(
+      referralCodeDepartments,
+      eq(referralCodeDepartments.referralCodeId, referralCodes.id),
+    )
+    .where(
+      and(
+        eq(referralCodes.active, true),
+        sql`${remainingExpr} > 0`,
+        departmentIds === null
+          ? undefined
+          : departmentIds.length === 0
+            ? eq(referralCodes.scope, "all")
+            : sql`(${referralCodes.scope} = 'all' or ${exists(
+                db
+                  .select({ one: sql`1` })
+                  .from(referralCodeDepartments)
+                  .where(
+                    and(
+                      eq(referralCodeDepartments.referralCodeId, referralCodes.id),
+                      inArray(referralCodeDepartments.departmentId, departmentIds),
+                    ),
+                  ),
+              )})`,
+      ),
+    )
+    // `banks.priority` không nằm trong `codeGroupBy` vì ba câu kia không sắp theo nó.
+    .groupBy(...codeGroupBy, banks.priority)
+    .orderBy(
+      desc(banks.priority),
+      asc(banks.code),
+      desc(referralCodes.priority),
+      desc(remainingExpr),
+      asc(referralCodes.displayName),
+    );
+
   return rows.map(toCode).map((c) => (c.hideCode ? { ...c, code: "" } : c));
 }
 

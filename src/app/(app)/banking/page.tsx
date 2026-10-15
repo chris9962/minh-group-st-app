@@ -9,6 +9,7 @@ import type { DateRange } from "react-day-picker";
 import { SkeletonTable } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { TopBar } from "@/components/layout/TopBar";
+import { AvailableReferralCodesDialog } from "@/components/banking/AvailableReferralCodesDialog";
 import { BankAccountEditDialog } from "@/components/banking/BankAccountEditDialog";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { CreateBankAccountDialog } from "@/components/banking/CreateBankAccountDialog";
@@ -46,7 +47,7 @@ import { formatDate, formatPhone } from "@/lib/format";
 import { useDebouncedValue } from "@/lib/hooks";
 import { useCreateIntent } from "@/lib/useCreateIntent";
 import { canOpenPath } from "@/lib/nav";
-import { can, recordVisibility, scopeFor } from "@/lib/permissions";
+import { can, canSeeAvailableReferralCodes, recordVisibility, scopeFor } from "@/lib/permissions";
 import { errorMessage, toast } from "@/lib/toast";
 import { isRealIsoDate } from "@/lib/types";
 import { usePrefs } from "@/store/prefs";
@@ -515,14 +516,15 @@ export default function BankingPage() {
             </FilterField>
           ) : null}
         </FilterButton>
+        {canSeeAvailableReferralCodes(user) && <AvailableReferralCodesDialog />}
         {can(user, "banking", "create") && (
           <Button
-            aria-label="Tạo tài khoản ngân hàng"
+            aria-label="Tạo ngân hàng"
             className={buttonStyles.hideOnMobile}
             onClick={() => setCreating(true)}
           >
             <Plus size={16} aria-hidden />
-            <span className={buttonStyles.label}>Tạo tài khoản ngân hàng</span>
+            <span className={buttonStyles.label}>Tạo ngân hàng</span>
           </Button>
         )}
       </TopBar>
