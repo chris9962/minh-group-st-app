@@ -292,9 +292,10 @@ export const InsuranceOrderLegForm = z
     path: ['beneficiaryDob'],
   })
   // PVI từ chối ngày bắt đầu đã qua (`-505` xe máy, `-401` tai nạn điện), tính
-  // theo giờ Việt Nam. Chặn ở form thay vì để đơn về Chờ làm tay.
-  .refine((leg) => leg.startDate >= businessDay(), {
-    message: 'Ngày bắt đầu không được ở quá khứ',
+  // theo giờ Việt Nam. Chặn ở form thay vì để đơn về Chờ làm tay. Mốc sớm nhất
+  // xem `INSURANCE_MIN_START_DATE`; chữ lỗi tính lúc kiểm vì mốc đổi theo ngày.
+  .refine((leg) => leg.startDate >= earliestStartDate(), {
+    error: () => earliestStartDateMessage(),
     path: ['startDate'],
   })
   .refine((leg) => leg.endDate > leg.startDate, {
@@ -404,3 +405,22 @@ export const PVI_MAX_DATE_MESSAGE = "Ngày kết thúc không được sau 06/06
 
 /** Ngày bắt đầu xa nhất để đơn `years` năm còn kết thúc trong mốc PVI. */
 export const latestStartDate = (years: number): string => yearsLater(PVI_MAX_DATE, -years);
+
+/**
+ * Đơn bảo hiểm đã đủ chỉ tiêu (chủ dự án chốt 2026-10-15): đơn TẠO MỚI phải
+ * bắt đầu từ 2027-01-01. Qua mốc đó `earliestStartDate()` tự quay về ngày hiện
+ * tại, không cần gỡ. Lượt sửa và cấp lại vẫn chặn theo ngày hiện tại.
+ */
+export const INSURANCE_MIN_START_DATE = '2027-01-01';
+
+export const earliestStartDate = (): string => {
+  const today = businessDay();
+  return today > INSURANCE_MIN_START_DATE ? today : INSURANCE_MIN_START_DATE;
+};
+
+export const earliestStartDateMessage = (): string => {
+  const d = INSURANCE_MIN_START_DATE;
+  return earliestStartDate() === d
+    ? `Ngày bắt đầu phải từ ${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}`
+    : 'Ngày bắt đầu không được ở quá khứ';
+};

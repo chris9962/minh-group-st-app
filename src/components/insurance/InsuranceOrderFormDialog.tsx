@@ -24,6 +24,7 @@ import type { Customer } from "@/lib/api/customers";
 import { createInsuranceOrders, fetchStartDateConfirm } from "@/lib/api/insurance";
 import {
   INTAKE_PHOTO_LABEL,
+  earliestStartDate,
   latestStartDate,
   yearsLater,
   InsuranceOrderForm,
@@ -89,7 +90,11 @@ function defaultLegsFor(pkg: InsurancePackage | null, blankStart: boolean): Insu
   const today = businessDay();
   const legs: InsuranceOrderLegForm[] = [];
   pkg.legs.forEach((leg, i) => {
-    const startDate = chainsToPrevious(pkg, i) ? legs[i - 1].endDate : blankStart ? "" : today;
+    const startDate = chainsToPrevious(pkg, i)
+      ? legs[i - 1].endDate
+      : blankStart
+        ? ""
+        : earliestStartDate();
     const values: InsuranceOrderLegForm = {
       product: leg.product,
       packageName: pkg.name,
@@ -567,7 +572,7 @@ export function InsuranceOrderFormDialog({
         error={errors.legs?.[i]?.startDate?.message}
         value={watch(`legs.${i}.startDate`)}
         onChange={(v) => changeStartDate(i, v)}
-        min={businessDay()}
+        min={earliestStartDate()}
         max={latestStartDate(yearsThroughChain(selectedPackage, i))}
       />
     </div>

@@ -35,6 +35,8 @@ import {
   INTAKE_PHOTO_LABEL,
   InsuranceOrderStatus,
   InsuranceRecreateBody,
+  earliestStartDate,
+  earliestStartDateMessage,
   insuranceOrderEditSchema,
   PVI_MAX_DATE,
   PVI_MAX_DATE_MESSAGE,
@@ -1060,12 +1062,14 @@ export async function createInsuranceOrders(
       : [];
 
   const today = businessDay();
+  const earliest = earliestStartDate();
   const intakePhotoKeys: { first: string; back: string | null }[] = [];
   for (const [i, leg] of form.legs.entries()) {
     if (leg.endDate <= leg.startDate)
       return { ok: false, message: "Ngày kết thúc phải sau ngày bắt đầu" };
     // PVI từ chối ngày bắt đầu đã qua: `-505` xe máy, `-401` tai nạn điện.
-    if (leg.startDate < today) return { ok: false, message: "Ngày bắt đầu không được ở quá khứ" };
+    // Mốc sớm nhất còn theo `INSURANCE_MIN_START_DATE`.
+    if (leg.startDate < earliest) return { ok: false, message: earliestStartDateMessage() };
     if (leg.endDate > PVI_MAX_DATE) return { ok: false, message: PVI_MAX_DATE_MESSAGE };
     // Ảnh đầu bắt buộc; ảnh thứ hai tùy chọn cho mặt sau CCCD. Giao diện đã
     // khoá nút khi thiếu ảnh đầu, đây là chốt thật ở máy chủ.
