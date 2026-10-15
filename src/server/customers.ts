@@ -52,6 +52,7 @@ import {
   recordInScope,
   recordVisibility,
   searchVisibility,
+  staffLocked,
   type RecordVisibility,
 } from "@/lib/permissions";
 import type { GiftSimulateResult } from "@/lib/api/settings";
@@ -1656,11 +1657,13 @@ export async function updateCustomer(
   /**
    * Khách tạo bằng quét QR thì vai Nhân viên không sửa họ tên, ngày sinh, CCCD;
    * Trưởng phòng, Phó phòng và các cấp trên sửa như cũ (chốt 2026-10-08). Cùng
-   * ngoại lệ đọc chức vụ như `move-day-forbidden` bên dưới. Tên so sau
-   * `capitalizePersonName` vì form chuẩn hoá tên trước khi gửi.
+   * ngoại lệ đọc chức vụ như `move-day-forbidden` bên dưới. Nhân viên mang
+   * TOÀN QUYỀN sửa như cấp trên (chủ dự án chốt 2026-10-15), xem
+   * `staffLocked`. Tên so sau `capitalizePersonName` vì form chuẩn hoá tên
+   * trước khi gửi.
    */
   if (
-    actor.role === "staff" &&
+    staffLocked(actor) &&
     owner.fromQr &&
     (form.fullName !== capitalizePersonName(owner.fullName) ||
       form.dob !== (owner.dob ?? "") ||
@@ -1739,7 +1742,7 @@ export async function updateCustomer(
           .where(eq(customers.id, id))
           .limit(1);
         if (cur && cur.day !== form.createdDay) {
-          if (actor.role === "staff") return "move-day-forbidden" as const;
+          if (staffLocked(actor)) return "move-day-forbidden" as const;
           if (cur.giftDay && form.createdDay > cur.giftDay) return "move-day-gifted" as const;
           // Tài khoản đi theo tháng hồ sơ, nên dời là kéo điểm ra khỏi hoặc vào tháng đã trả lương.
           const closedMonth = await closedMonthAmong(

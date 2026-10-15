@@ -34,6 +34,7 @@ import { formatDate } from "@/lib/format";
 import { fetchHospitals } from "@/lib/api/hospitalCatalog";
 import { useAddressSuggestions } from "@/lib/useAddressSuggestions";
 import { errorMessage, toast } from "@/lib/toast";
+import { staffLocked } from "@/lib/permissions";
 import { useSession } from "@/store/session";
 import { IdCardScanner } from "./IdCardScanner";
 import styles from "./CustomerFormDialog.module.scss";
@@ -102,13 +103,15 @@ export function CustomerFormDialog({
   const queryClient = useQueryClient();
   const editing = Boolean(customer) || loading || Boolean(loadError);
   const maskedId = Boolean(customer?.idNumberMasked);
-  const actorRole = useSession((s) => s.user?.role);
+  const actor = useSession((s) => s.user);
+  // Nhân viên không toàn quyền: khoá Ngày hồ sơ và ba ô danh tính, cùng câu với máy chủ.
+  const locked = staffLocked(actor);
   /**
    * Ô "Ngày hồ sơ" (chốt 2026-09-16): mốc của điểm KPI, rổ quà và kỳ luật.
    * Ẩn với vai Nhân viên — chủ dự án chốt "trừ nhân viên ra", không mở quyền
    * mới, máy chủ từ chối cùng điều kiện. Hồ sơ đã chốt quà thì ô khoá.
    */
-  const showCreatedDay = editing && Boolean(customer) && actorRole !== "staff";
+  const showCreatedDay = editing && Boolean(customer) && !locked;
 
   /**
    * Tạo hồ sơ đi HAI BƯỚC (chốt 2026-10-06): bước 1 chụp mặt trước thẻ CCCD
@@ -135,9 +138,7 @@ export function CustomerFormDialog({
   }, [scanUrl]);
   // Họ tên, ngày sinh, CCCD khoá khi đang tạo mà đã chụp thẻ. Lúc sửa, khách tạo
   // bằng quét QR thì khoá với vai Nhân viên (chốt 2026-10-08); máy chủ từ chối cùng điều kiện.
-  const idCardLocked = editing
-    ? actorRole === "staff" && Boolean(customer?.hasIdCardImage)
-    : scan !== null;
+  const idCardLocked = editing ? locked && Boolean(customer?.hasIdCardImage) : scan !== null;
 
   // `values` để form nhận hồ sơ tải xong SAU khi dialog đã mở (luồng nút Sửa ở
   // P-40). Memo theo `customer` — mỗi render một object mới là form reset liên tục.

@@ -136,6 +136,17 @@ export function isFullAccess(permissions: Permission[]): boolean {
 }
 
 /**
+ * Hai khoá theo CHỨC VỤ của hồ sơ khách — ba ô danh tính của khách quét QR
+ * (chốt 2026-10-08) và ô Ngày hồ sơ (chốt 2026-09-16) — áp cho vai Nhân viên.
+ * Nhân viên mang toàn quyền thì sửa như cấp trên (chủ dự án chốt 2026-10-15):
+ * người được cấp toàn quyền là người được tin, chức vụ chỉ là nhãn hồ sơ.
+ * Máy chủ (`updateCustomer`) và form sửa khách hỏi cùng hàm này.
+ */
+export function staffLocked(user: User | null): boolean {
+  return user !== null && user.role === 'staff' && !isFullAccess(user.permissions);
+}
+
+/**
  * Người này có phát nổi TRỌN bộ toàn quyền cho người khác không.
  *
  * Chỉ ai đang cầm `system:grant-permission` mới qua được — `grantScopeFor` trả
