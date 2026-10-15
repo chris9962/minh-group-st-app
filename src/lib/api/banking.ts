@@ -337,6 +337,16 @@ export async function markBankAccountError(
   return BankAccount.parse(await res.json());
 }
 
+/** Khôi phục tài khoản lỗi về hoàn thành, đường của người quản ngân hàng, cùng chốt quyền với `markBankAccountError`. */
+export async function restoreBankAccountByManager(bankId: string, accountId: string): Promise<BankAccount> {
+  const res = await fetch(`/api/settings/banks/${bankId}/accounts/${accountId}/restore`, { method: 'POST' });
+  if (!res.ok) {
+    const detail = (await res.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(detail?.message?.trim() || 'Không khôi phục được tài khoản này');
+  }
+  return BankAccount.parse(await res.json());
+}
+
 /** Mã đổi được cho một tài khoản: cùng ngân hàng, cùng loại, đúng phòng của tài khoản, còn chỗ. */
 export async function fetchUsableCodesForAccount(bankId: string, accountId: string): Promise<ReferralCode[]> {
   const res = await fetch(`/api/settings/banks/${bankId}/accounts/${accountId}/referral-code`);

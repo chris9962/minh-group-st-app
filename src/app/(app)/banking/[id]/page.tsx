@@ -44,9 +44,13 @@ import {
   finishBankAccount,
   setBankAccountPhotos,
   setPhotoCheckConfirmed,
-  updateBankAccountStatus,
 } from "@/lib/api/bankAccounts";
-import { fetchBankAccountDetail, markBankAccountError, type BankAccountDetail } from "@/lib/api/banking";
+import {
+  fetchBankAccountDetail,
+  markBankAccountError,
+  restoreBankAccountByManager,
+  type BankAccountDetail,
+} from "@/lib/api/banking";
 import { fetchDepartments } from "@/lib/api/departments";
 import { invalidateKpi } from "@/lib/invalidateKpi";
 import { canOpenPath } from "@/lib/nav";
@@ -421,10 +425,12 @@ function DoneAccountCard({
           : "Đã đánh dấu tài khoản lỗi và tính lại KPI",
     );
   };
-  const statusUpdate = useMutation({
-    mutationFn: (form: { status: "done"; errorNote: string }) => updateBankAccountStatus(id, form),
+  // Cùng đường của người quản ngân hàng như `markError` bên dưới: route đổi
+  // trạng thái kẹp `banking:update` và phạm vi ghi nên người quản bấm là bị từ chối.
+  const restore = useMutation({
+    mutationFn: () => restoreBankAccountByManager(data.bankId, id),
     onSuccess: afterStatusChange,
-    onError: (e) => toast.fail(errorMessage(e, "Không đổi được trạng thái tài khoản.")),
+    onError: (e) => toast.fail(errorMessage(e, "Không khôi phục được tài khoản này.")),
   });
   /**
    * Đi route của người quản ngân hàng, không đi route đổi trạng thái: route đó
@@ -511,7 +517,7 @@ function DoneAccountCard({
                 {/* Ở `fixed` đây là nút TỪ CHỐI của vòng duyệt. Không có nút này
                     thì người duyệt chỉ có hai lối: duyệt, hoặc bỏ đó. Ở `done`
                     bản trước cho cả người mở tài khoản bấm; bỏ từ 2026-09-08,
-                    lý do ở `updateBankAccountStatus`. */}
+                    lý do ở `markAccountErrorByBankManager`. */}
                 {(data.status === "done" || data.status === "fixed") &&
                   canManageBank(user, data.bankId) && (
                     <Button variant="danger" onClick={() => setMarkingError(true)}>
@@ -524,8 +530,8 @@ function DoneAccountCard({
                 {data.status === "error" && canManageBank(user, data.bankId) && (
                   <Button
                     variant="secondary"
-                    disabled={statusUpdate.isPending}
-                    onClick={() => statusUpdate.mutate({ status: "done", errorNote: "" })}
+                    disabled={restore.isPending}
+                    onClick={() => restore.mutate()}
                   >
                     <RotateCcw size={16} aria-hidden />
                     Khôi phục hoàn thành

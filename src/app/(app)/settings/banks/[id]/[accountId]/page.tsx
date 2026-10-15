@@ -25,7 +25,6 @@ import {
   BANK_ACCOUNT_STATUS_TONE,
   approveBankAccount,
   setPhotoCheckConfirmed,
-  updateBankAccountStatus,
   type AccountType,
 } from "@/lib/api/bankAccounts";
 import {
@@ -34,6 +33,7 @@ import {
   fetchBankAccountOfBank,
   fetchUsableCodesForAccount,
   markBankAccountError,
+  restoreBankAccountByManager,
 } from "@/lib/api/banking";
 import { formatDate, formatPhone } from "@/lib/format";
 import { invalidateKpi } from "@/lib/invalidateKpi";
@@ -101,8 +101,10 @@ export default function BankAccountOfBankPage({
     onError: (e) => toast.fail(errorMessage(e, "Không duyệt được tài khoản này.")),
   });
 
+  // Đi route của người quản ngân hàng như Đánh dấu lỗi: route đổi trạng thái
+  // kẹp `banking:update` và phạm vi ghi, người quản ngân hàng thường không qua.
   const restore = useMutation({
-    mutationFn: () => updateBankAccountStatus(accountId, { status: "done", errorNote: "" }),
+    mutationFn: () => restoreBankAccountByManager(id, accountId),
     onSuccess: () => {
       refreshAfterChange();
       toast.ok("Đã khôi phục tài khoản và tính lại KPI");
@@ -196,7 +198,7 @@ export default function BankAccountOfBankPage({
               chốt 2026-10-14, bản 2026-09-24 chỉ cho người toàn quyền): ai
               đánh dấu lỗi được thì khôi phục được, đi tắt vòng duyệt. Màn này
               đã gác `inScope` bằng `canManageBank`, máy chủ kiểm lại ở
-              `updateBankAccountStatus`.
+              `restoreAccountByBankManager`.
             */
             action={
               data.status === "done" || data.status === "fixed" ? (

@@ -2078,8 +2078,8 @@ export async function approveFixedAccount(
  *
  * | Đường | Ai đi | Gác bằng |
  * |---|---|---|
- * | `updateBankAccountStatus` (P-22) | người quản ngân hàng, kể cả khôi phục | `canManageBank` + `banking:update` + phạm vi ghi |
- * | hàm này (trang ngân hàng và P-22) | người quản ngân hàng | `canManageBank` |
+ * | `updateBankAccountStatus` | người có `banking:update` trong phạm vi ghi | `canManageBank` + `banking:update` + phạm vi ghi |
+ * | hàm này và `restoreAccountByBankManager` (trang ngân hàng và P-22) | người quản ngân hàng | `canManageBank` |
  *
  * Người quản ngân hàng thường có phạm vi ghi `creator` hoặc không có
  * `banking:update`, nên đường P-22 chặn họ ngay ở phạm vi — họ DUYỆT LẠI được
@@ -2120,6 +2120,49 @@ export async function markAccountErrorByBankManager(
   if (current.date) await recomputeKpiForCustomer(current.customerId);
 
   await baoChuTaiKhoan(current, "bank-error", "Tài khoản bị đánh lỗi", errorNote);
+
+  return { ok: true, value: (await accountById(id))! };
+}
+
+/**
+ * Khôi phục `error` → `done` từ trang chi tiết ngân hàng và P-22, đường của
+ * người quản ngân hàng (chủ dự án chốt 2026-10-14: ai đánh dấu lỗi được thì
+ * khôi phục được).
+ *
+ * Song song với chiều ngược ở `markAccountErrorByBankManager`, cùng lý do tách
+ * khỏi `updateBankAccountStatus`: đường đó kẹp `banking:update` và phạm vi ghi,
+ * người quản ngân hàng thường không qua được nên bấm Khôi phục chỉ nhận
+ * "Không khôi phục được". Vẫn là đường đi tắt qua vòng duyệt, nên chỉ
+ * `canManageBank`.
+ */
+export async function restoreAccountByBankManager(
+  actor: User,
+  id: string,
+): Promise<BankingOutcome<BankAccount> | null> {
+  const current = await rawById(id);
+  if (!current) return null;
+  if (!canManageBank(actor, current.bankId)) return null;
+  const closed = await closedMonthRejection(current.customerId);
+  if (closed) return closed;
+  if (current.status !== "error")
+    return { ok: false, message: "Chỉ tài khoản đang lỗi mới khôi phục được." };
+
+  const updated = await db.transaction((tx) =>
+    changeAccountStatus(
+      tx,
+      actor,
+      id,
+      current.status,
+      "done",
+      { errorNote: "", errorLocked: false },
+      "Khôi phục tài khoản",
+    ),
+  );
+  if (updated.length === 0)
+    return { ok: false, message: "Tài khoản vừa được đối soát ở nơi khác." };
+
+  if (current.date) await recomputeKpiForCustomer(current.customerId);
+  await baoChuTaiKhoan(current, "bank-approved", "Tài khoản đã được khôi phục", "");
 
   return { ok: true, value: (await accountById(id))! };
 }
