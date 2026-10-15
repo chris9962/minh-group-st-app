@@ -749,6 +749,7 @@ const toRow = (r: DecoratedRow): BankAccountRow => ({
   status: r.status,
   monthClosed: r.monthClosed,
   errorLocked: r.errorLocked,
+  errorNote: r.errorNote,
   photoCheck: toPhotoCheck({
     status: r.photoCheckStatus,
     result: r.photoCheckResult,
@@ -1299,7 +1300,6 @@ async function detailBody(r: DecoratedRow): Promise<BankAccountDetail> {
     channelDetail: r.channelDetail,
     accountType,
     note: r.note,
-    errorNote: r.errorNote,
     createdByDepartmentId: r.createdByDepartmentId,
     photoUrls: await photoUrlsOf(r.id, "opening"),
     transactionAt: r.transactionAt,

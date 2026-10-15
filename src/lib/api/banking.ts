@@ -49,6 +49,8 @@ export const BankAccountRow = z.object({
   monthClosed: z.boolean(),
   /** Tài khoản lỗi mà người quản ngân hàng chọn "Không cho sửa": giao diện ẩn nút sửa. */
   errorLocked: z.boolean(),
+  /** Lý do đánh lỗi; `''` khi không ở trạng thái lỗi. File xuất ở trang ngân hàng có cột này. */
+  errorNote: z.string(),
   /**
    * Lượt kiểm ảnh tự động mới nhất. `null` = ngân hàng chưa có bộ nhãn OCR,
    * hoặc tài khoản chưa hoàn thành. Chỉ để gợi ý cho người duyệt.
@@ -81,7 +83,6 @@ export const BankAccountDetail = BankAccountRow.extend({
   channelDetail: z.string(),
   accountType: AccountType,
   note: z.string(),
-  errorNote: z.string(),
   createdByDepartmentId: z.string().nullable(),
   photoUrls: z.array(z.string()),
   /**

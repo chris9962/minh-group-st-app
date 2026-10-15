@@ -381,6 +381,7 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
             value: (r) => (r.accountType === "none" ? "" : ACCOUNT_TYPE_LABEL[r.accountType]),
           },
           { header: "TRẠNG THÁI", ...ACCOUNT, width: 16, value: (r) => BANK_ACCOUNT_STATUS_LABEL[r.status] },
+          { header: "LÝ DO LỖI", ...ACCOUNT, width: 32, value: (r) => r.errorNote },
           {
             header: "ĐÃ CÀI APP",
             ...ACCOUNT,
