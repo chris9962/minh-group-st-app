@@ -1,6 +1,6 @@
 import { attendanceModeOf } from '@/lib/api/attendance';
 import { canOpenPath } from '@/lib/nav';
-import { can, isFullAccess, scopeFor } from '@/lib/permissions';
+import { can, canSeeAvailableReferralCodes, isFullAccess, scopeFor } from '@/lib/permissions';
 import type { User } from '@/lib/types';
 import type { Release, ReleaseSection } from './types';
 
@@ -15,6 +15,39 @@ const seesCompanyDashboard = (user: User) =>
  * và trang `/releases` bày theo đúng thứ tự này.
  */
 export const RELEASES: Release[] = [
+  {
+    id: '2026-10-15-2',
+    version: '2.9.0',
+    title: 'Cập nhật ngày 15/10/2026',
+    summary: 'Đơn bảo hiểm tạo mới bắt đầu từ 01/01/2027, Tổng quan thêm biểu đồ khách và tài khoản, màn Ngân hàng thêm nút MGT.',
+    sections: [
+      {
+        title: 'Bảo hiểm',
+        items: ['Ngày bắt đầu của đơn tạo mới từ 01/01/2027.'],
+        visibleTo: (user) => canOpenPath(user, '/insurance'),
+      },
+      {
+        title: 'Tổng quan',
+        items: ['Thêm biểu đồ khách theo số tài khoản và số tài khoản mở.'],
+        visibleTo: (user) => user.role !== 'staff' || seesCompanyDashboard(user),
+      },
+      {
+        title: 'Ngân hàng',
+        items: ['Nút MGT xem mã giới thiệu còn chỗ.'],
+        visibleTo: canSeeAvailableReferralCodes,
+      },
+      {
+        title: 'Khách hàng',
+        items: ['Nhân viên toàn quyền sửa hồ sơ khách như cấp trên.'],
+        visibleTo: (user) => user.role === 'staff' && isFullAccess(user.permissions),
+      },
+      {
+        title: 'Quản lý ngân hàng',
+        items: ['File Excel tài khoản thêm cột Lý do lỗi.'],
+        visibleTo: (user) => canOpenPath(user, '/settings/banks'),
+      },
+    ],
+  },
   {
     id: '2026-10-15',
     version: '2.8.0',
