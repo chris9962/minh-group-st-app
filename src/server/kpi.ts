@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, sql, type SQL } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, lte, sql, type SQL } from "drizzle-orm";
 import { businessMonth, monthRange, roundPoints } from "@/lib/format";
 import { centsFromDecimal } from "@/lib/money";
 import { shiftMonth } from "@/lib/period";
@@ -21,6 +21,7 @@ import {
   customers,
   departments,
   giftGrants,
+  kpiAdjustments,
   kpiScores,
   staffRoster,
 } from "./db/schema";
@@ -669,7 +670,7 @@ export async function pointsByStaffInRange(
     from: range.from === monthRange(fromMonth).from ? fromMonth : shiftMonth(fromMonth, 1),
     to: range.to === monthRange(toMonth).to ? toMonth : shiftMonth(toMonth, -1),
   };
-  const [accountRows, serviceRows, socialInsuranceRows, grantRows] = await Promise.all([
+  const [accountRows, serviceRows, socialInsuranceRows, grantRows, adjustmentRows] = await Promise.all([
     db
       .select({
         userId: customers.createdBy,
@@ -728,6 +729,33 @@ export async function pointsByStaffInRange(
     // Món khách đã nhận — vào của phép tính điểm ở kỳ 2026-08. Kéo trọn bảng
     // vì nó nhỏ, và lọc theo khách thì phải biết trước danh sách khách.
     db.select({ customerId: giftGrants.customerId, chosenItem: giftGrants.chosenItem }).from(giftGrants),
+    // Điểm cộng/trừ tay cũng chỉ có tháng. Khác An Sinh, nó vào mọi kỳ bắt đầu
+    // từ ngày 1 của tháng: báo cáo Zalo cộng từ đầu tháng tới ngày báo cáo.
+    fullMonths.from <= toMonth
+      ? db
+          .select({
+            userId: kpiAdjustments.userId,
+            departmentId: staffRoster.departmentId,
+            points: sql<number>`sum(${kpiAdjustments.points})::float`,
+          })
+          .from(kpiAdjustments)
+          .innerJoin(
+            staffRoster,
+            and(
+              eq(staffRoster.userId, kpiAdjustments.userId),
+              eq(staffRoster.yearMonth, kpiAdjustments.yearMonth),
+            ),
+          )
+          .innerJoin(departments, eq(departments.id, staffRoster.departmentId))
+          .where(
+            and(
+              eq(departments.type, "sales"),
+              gte(kpiAdjustments.yearMonth, fullMonths.from),
+              lte(kpiAdjustments.yearMonth, toMonth),
+            ),
+          )
+          .groupBy(kpiAdjustments.userId, staffRoster.departmentId)
+      : Promise.resolve([]),
   ]);
 
   const granted = new Map(grantRows.map((r) => [r.customerId, r.chosenItem]));
@@ -774,6 +802,7 @@ export async function pointsByStaffInRange(
 
   for (const r of serviceRows) if (r.userId) add(r.userId, r.departmentId, r.points);
   for (const r of socialInsuranceRows) add(r.userId, r.departmentId, r.points);
+  for (const r of adjustmentRows) add(r.userId, r.departmentId, r.points);
 
   return out;
 }
