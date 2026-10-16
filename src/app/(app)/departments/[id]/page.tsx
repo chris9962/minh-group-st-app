@@ -263,7 +263,10 @@ export default function DepartmentDetailPage({
       customersWithAccounts: sum.customersWithAccounts + staff.customersWithAccounts,
       accounts: sum.accounts + staff.accounts,
       services: sum.services + staff.services,
-      points: sum.points + (staff.rangePoints ?? 0),
+      // Tổng điểm phòng không cộng Trưởng và Phó phòng (chốt 2026-10-16).
+      points:
+        sum.points +
+        (staff.monthRole === "head" || staff.monthRole === "deputy-head" ? 0 : (staff.rangePoints ?? 0)),
       salary: sum.salary + staff.salary,
     }),
     {

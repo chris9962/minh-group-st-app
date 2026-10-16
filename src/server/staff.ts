@@ -295,14 +295,31 @@ export async function staffFor(
    * Tổng điểm CẢ PHÒNG, cộng trên toàn phòng chứ không trên trang đang xem.
    *
    * Bảng cắt 15 dòng một trang; cộng theo trang thì mỗi lần bấm sang trang lại
-   * ra một tổng khác.
+   * ra một tổng khác. Không cộng Trưởng và Phó phòng (chốt 2026-10-16).
    */
-  const departmentPoints =
+  const managerIds =
     rangePoints && query.departmentId
+      ? new Set(
+          (
+            await db
+              .select({ id: staffRoster.userId })
+              .from(staffRoster)
+              .where(
+                and(
+                  eq(staffRoster.yearMonth, summaryMonth),
+                  eq(staffRoster.departmentId, query.departmentId),
+                  inArray(staffRoster.role, ["head", "deputy-head"]),
+                ),
+              )
+          ).map((r) => r.id),
+        )
+      : null;
+  const departmentPoints =
+    rangePoints && query.departmentId && managerIds
       ? Math.round(
-          [...rangePoints.values()]
-            .filter((p) => p.departmentId === query.departmentId)
-            .reduce((sum, p) => sum + p.points, 0) * 10,
+          [...rangePoints]
+            .filter(([id, p]) => p.departmentId === query.departmentId && !managerIds.has(id))
+            .reduce((sum, [, p]) => sum + p.points, 0) * 10,
         ) / 10
       : null;
 
