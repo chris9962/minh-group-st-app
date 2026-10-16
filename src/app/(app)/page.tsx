@@ -352,7 +352,6 @@ export default function DashboardPage() {
                 className={styles.wide}
               >
                 <BarChart
-                  title={`Khách theo ${BUCKET_LABEL[data.customerAccounts.bucketType]}`}
                   caption={`Khách lập hồ sơ theo ${BUCKET_LABEL[data.customerAccounts.bucketType]}, tách theo số tài khoản hoàn thành, kèm số tài khoản mở`}
                   labelKey="label"
                   rows={data.customerAccounts.buckets}
