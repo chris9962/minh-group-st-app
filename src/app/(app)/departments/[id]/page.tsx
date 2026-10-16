@@ -433,21 +433,26 @@ export default function DepartmentDetailPage({
               ) : staffPending ? (
                 <SkeletonTable rows={5} columns={columns.length} />
               ) : (
-                <RankTable
-                  rows={visibleRows}
-                  columns={columns}
-                  rowKey={(s) => s.id}
-                  defaultSort="role"
-                  caption="Nhân viên của phòng, Trưởng và Phó phòng nằm đầu bảng"
-                  summaryRow={visibleRows.length > 0 ? summaryRow : undefined}
-                  emptyText={
-                    !staffInScope
-                      ? "Bạn không xem được danh sách nhân viên của phòng này."
-                      : rows.length > 0
-                        ? "Phòng này chỉ còn tài khoản đã khoá."
-                        : "Phòng này chưa có nhân viên nào."
-                  }
-                />
+                <>
+                  <RankTable
+                    rows={visibleRows}
+                    columns={columns}
+                    rowKey={(s) => s.id}
+                    defaultSort="role"
+                    caption="Nhân viên của phòng, Trưởng và Phó phòng nằm đầu bảng"
+                    summaryRow={visibleRows.length > 0 ? summaryRow : undefined}
+                    emptyText={
+                      !staffInScope
+                        ? "Bạn không xem được danh sách nhân viên của phòng này."
+                        : rows.length > 0
+                          ? "Phòng này chỉ còn tài khoản đã khoá."
+                          : "Phòng này chưa có nhân viên nào."
+                    }
+                  />
+                  {visibleRows.length > 0 && (
+                    <p className={styles.footnote}>Tổng điểm không tính Trưởng phòng và Phó phòng.</p>
+                  )}
+                </>
               )}
             </SectionCard>
           </>
