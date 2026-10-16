@@ -88,6 +88,7 @@ type StaffScore = {
   id: string;
   departmentId: string;
   role: RoleKey;
+  salaryScheme: SalaryScheme;
   points: number;
 };
 
@@ -217,10 +218,10 @@ async function liveSalaries(
 
   /**
    * Kéo cả Trưởng, Phó phòng và người đã nghỉ: "Tổng điểm nhánh" của PGĐ cộng
-   * mọi người có điểm trong phòng (chốt 2026-10-16), khớp tổng điểm phòng ở màn
-   * Tổng quan. Điểm TB và các phép đếm theo ĐẦU NGƯỜI bên dưới chỉ lấy nhân
-   * viên có điểm khác 0 trong tháng, kể cả người đã khoá (chốt 2026-09-30), lọc
-   * ở `staffByDepartment`.
+   * điểm KPI của mọi người có điểm trong phòng, cộng thêm điểm quản lý và điểm
+   * chỉ tiêu của Trưởng/Phó phòng (chốt 2026-10-16). Điểm TB và các phép đếm
+   * theo ĐẦU NGƯỜI bên dưới chỉ lấy nhân viên có điểm khác 0 trong tháng, kể cả
+   * người đã khoá (chốt 2026-09-30), lọc ở `staffByDepartment`.
    */
   const scoreRows: StaffScore[] = relevantDepartmentIds.length
     ? await db
@@ -228,6 +229,7 @@ async function liveSalaries(
           id: users.id,
           departmentId: staffRoster.departmentId,
           role: staffRoster.role,
+          salaryScheme: staffRoster.salaryScheme,
           points,
         })
         .from(users)
@@ -294,6 +296,23 @@ async function liveSalaries(
   }
 
   const quota = await quotaProgressFor(yearMonth, subjects, managedRows);
+
+  // Lương cứng không có điểm quản lý, cùng điều kiện với nhánh lương bên dưới.
+  for (const row of scoreRows) {
+    if (row.role !== "head" && row.role !== "deputy-head") continue;
+    if (row.salaryScheme === "fixed" && rules.fixed) continue;
+    const { managerPoints = 0 } = rules.manager({
+      role: row.role,
+      points: row.points,
+      teamPoints: staffByDepartment.get(row.departmentId) ?? [],
+      workDays: 0,
+      departmentQuota: quota.department(row.departmentId),
+    });
+    branchPointsByDepartment.set(
+      row.departmentId,
+      (branchPointsByDepartment.get(row.departmentId) ?? 0) + managerPoints,
+    );
+  }
 
   const isAtmStaff = (s: Subject) =>
     s.role === "staff" && s.departmentType === "sales" && s.salaryScheme === "atm";
