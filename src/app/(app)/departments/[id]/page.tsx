@@ -167,6 +167,10 @@ function socialColumns(revenueOf: (id: string) => PersonRevenue | undefined): Ra
 
 const startOfDay = (isoDate: string) => new Date(`${isoDate}T00:00:00`);
 
+// Tổng điểm phòng không cộng Trưởng và Phó phòng (chốt 2026-10-16).
+const staffPointsOf = (s: StaffRow): number =>
+  s.monthRole === "head" || s.monthRole === "deputy-head" ? 0 : (s.rangePoints ?? 0);
+
 /** Chi tiết một phòng ban — mở rộng P-91: bấm tên phòng ở bảng đi tới đây. */
 export default function DepartmentDetailPage({
   params,
@@ -263,10 +267,7 @@ export default function DepartmentDetailPage({
       customersWithAccounts: sum.customersWithAccounts + staff.customersWithAccounts,
       accounts: sum.accounts + staff.accounts,
       services: sum.services + staff.services,
-      // Tổng điểm phòng không cộng Trưởng và Phó phòng (chốt 2026-10-16).
-      points:
-        sum.points +
-        (staff.monthRole === "head" || staff.monthRole === "deputy-head" ? 0 : (staff.rangePoints ?? 0)),
+      points: sum.points + staffPointsOf(staff),
       salary: sum.salary + staff.salary,
     }),
     {
@@ -278,6 +279,8 @@ export default function DepartmentDetailPage({
       salary: 0,
     },
   );
+  const hiddenLocked = showLocked ? [] : rows.filter((s) => !s.monthActive);
+  const hiddenLockedPoints = hiddenLocked.reduce((sum, s) => sum + staffPointsOf(s), 0);
   const revenueTotals = visibleRows.reduce(
     (sum, staff) => {
       const r = revenueById.get(staff.id);
@@ -450,7 +453,11 @@ export default function DepartmentDetailPage({
                     }
                   />
                   {visibleRows.length > 0 && (
-                    <p className={styles.footnote}>Tổng điểm không tính Trưởng phòng và Phó phòng.</p>
+                    <p className={styles.footnote}>
+                      Tổng điểm không tính Trưởng phòng và Phó phòng.
+                      {hiddenLocked.length > 0 &&
+                        ` Dòng Tổng chưa cộng ${formatPoints(hiddenLockedPoints)} điểm của ${hiddenLocked.length} tài khoản đã khoá.`}
+                    </p>
                   )}
                 </>
               )}
