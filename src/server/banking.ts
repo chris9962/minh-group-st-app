@@ -74,7 +74,7 @@ import { draftLimitsFor } from "./draftLimit";
 import { recomputeGiftCase } from "./gift";
 import { recomputeKpiForCustomer } from "./kpi";
 import type { PageArgs } from "./pagination";
-import { listOpenReferralCodes } from "./catalog";
+import { listOpenReferralCodes, openCodeWhere } from "./catalog";
 import { enqueuePhotoCheck, latestPhotoCheck, photoCheckFilter, toPhotoCheck } from "./photoCheck";
 import { imageUrl } from "./storage";
 
@@ -1715,7 +1715,10 @@ export async function startBankAccount(
  * khác mở; lọc theo phạm vi ở đây là báo còn chỗ trong khi máy chủ sẽ từ chối.
  * Đường này chỉ trả về id ngân hàng và một con số, không lộ bản ghi nào.
  */
-export async function customerBankSlots(customerId: string): Promise<CustomerBankSlots | null> {
+export async function customerBankSlots(
+  customerId: string,
+  departmentId: string,
+): Promise<CustomerBankSlots | null> {
   const [customer] = await db
     .select({
       id: customers.id,
@@ -1744,10 +1747,12 @@ export async function customerBankSlots(customerId: string): Promise<CustomerBan
       .where(eq(bankAccounts.rootCustomerId, customer.rootCustomerId)),
     db.select({ id: banks.id, minAge: banks.minAge, maxAge: banks.maxAge }).from(banks),
     // Ngân hàng có loại tài khoản nào để mở: đọc từ kho mã, không viết cứng `VPa`.
+    // Chỉ tính mã phòng ghi nhận dùng được: mã CNKD của phòng khác từng mở dòng VPb
+    // cho khách ngoài tuổi VPb thường, rồi ô mã hiện mã thường (2026-10-16).
     db
       .selectDistinct({ bankId: referralCodes.bankId, accountType: referralCodes.accountType })
       .from(referralCodes)
-      .where(eq(referralCodes.active, true)),
+      .where(openCodeWhere(departmentId)),
     ageRulesByType(),
   ]);
   const banksWithCodes = (type: AccountType) =>

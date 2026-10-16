@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePathname, useRouter } from "next/navigation";
 import { Info } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -95,18 +95,6 @@ export function BankAccountFormDialog({
   const [rulesOpen, setRulesOpen] = useState(false);
   const [step, setStep] = useState<"check" | "form" | "edit">("check");
 
-  /**
-   * Trần tài khoản của khách (chốt 2026-08-25): mỗi ngân hàng một tài khoản, và
-   * tối đa ba tài khoản. Máy chủ mới là chỗ chặn — đọc ở đây để tắt ô tích thay
-   * vì để người dùng chọn xong mã rồi mới bị từ chối.
-   */
-  const { data: slots } = useQuery({
-    queryKey: ["customer-bank-slots", customerId],
-    queryFn: () => fetchCustomerBankSlots(customerId),
-    enabled: open && Boolean(customerId),
-  });
-  const remaining = slots?.remaining ?? MAX_BANK_ACCOUNTS_PER_CUSTOMER;
-
   const {
     watch,
     setValue,
@@ -122,6 +110,22 @@ export function BankAccountFormDialog({
 
   const picks = watch("picks");
   const departmentId = watch("departmentId");
+
+  /**
+   * Trần tài khoản của khách (chốt 2026-08-25): mỗi ngân hàng một tài khoản, và
+   * tối đa ba tài khoản. Máy chủ mới là chỗ chặn — đọc ở đây để tắt ô tích thay
+   * vì để người dùng chọn xong mã rồi mới bị từ chối.
+   *
+   * Theo phòng ghi nhận vì loại tài khoản mở được đọc từ mã của phòng đó. Giữ số
+   * cũ lúc đổi phòng, không thì danh sách thành khung chờ và ô chọn phòng mất focus.
+   */
+  const { data: slots } = useQuery({
+    queryKey: ["customer-bank-slots", customerId, departmentId],
+    queryFn: () => fetchCustomerBankSlots(customerId, departmentId),
+    enabled: open && Boolean(customerId),
+    placeholderData: keepPreviousData,
+  });
+  const remaining = slots?.remaining ?? MAX_BANK_ACCOUNTS_PER_CUSTOMER;
 
   /**
    * Đọc `picks` bằng `getValues`, KHÔNG dùng biến `picks` của lượt render này.
@@ -535,11 +539,14 @@ function BankPickRow({
         (t) => t !== "HKD" && !(hideCnkd && t === "CNKD") && ageOkTypes.includes(t),
       );
   const accountType = pick?.accountType ?? (hkd ? "HKD" : "none");
-  const { data: codes = [], isPending } = useQuery({
+  const typeOk = availableTypes.includes(accountType);
+  const { data: typeCodes = [], isPending } = useQuery({
     queryKey: ["referral-codes", "open", bank.id, departmentId, accountType],
     queryFn: () => fetchOpenReferralCodes(bank.id, departmentId, accountType),
-    enabled: checked && availableTypes.includes(accountType),
+    enabled: checked && typeOk,
   });
+  // Query tắt vẫn trả mã đã tải cho khách trước, nên loại ngoài độ tuổi phải bỏ hẳn.
+  const codes = typeOk ? typeCodes : [];
 
   // Ngân hàng chỉ có một loại (VD VPb chỉ CNKD) tự chốt loại đó; không bày
   // thêm ô chọn một giá trị duy nhất. Dòng HKD cố định loại từ lúc tích.
@@ -622,7 +629,7 @@ function BankPickRow({
             onChange={onCodeChange}
             options={
               codes.length === 0
-                ? [{ value: "", label: isPending || allCodesPending ? "— Đang tải mã —" : "— Hết mã —" }]
+                ? [{ value: "", label: (typeOk && isPending) || allCodesPending ? "— Đang tải mã —" : "— Hết mã —" }]
                 : codes.map((c) => ({
                     value: c.id,
                     // Trừ cả `holding`: tài khoản người khác đang mở dở đã chiếm

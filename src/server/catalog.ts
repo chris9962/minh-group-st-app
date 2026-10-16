@@ -964,6 +964,20 @@ export const inDepartmentScope = (departmentId: string): SQL =>
           and ${referralCodeDepartments.departmentId} = ${departmentId}::uuid
       ))`;
 
+/**
+ * Mã dùng được để mở tài khoản cho phòng ghi nhận `departmentId`. Ô chọn mã và
+ * `customerBankSlots` dùng chung, lệch nhau thì dòng ngân hàng mở mà không có mã.
+ *
+ * Mã ngừng tay rời ô chọn ngay, kể cả khi còn chỗ. Chốt thật vẫn nằm trong
+ * transaction của `startBankAccount`.
+ */
+export const openCodeWhere = (departmentId: string): SQL | undefined =>
+  and(
+    eq(referralCodes.active, true),
+    sql`${remainingExpr} > 0`,
+    departmentId ? inDepartmentScope(departmentId) : sql`${referralCodes.scope} = 'all'`,
+  );
+
 export async function listOpenReferralCodes(
   bankId: string,
   departmentId: string,
@@ -981,13 +995,7 @@ export async function listOpenReferralCodes(
       and(
         eq(referralCodes.bankId, bankId),
         accountType ? eq(referralCodes.accountType, accountType as "none" | "CNKD" | "HKD") : undefined,
-        // Mã ngừng tay rời ô chọn ngay, kể cả khi còn chỗ. Chốt thật vẫn nằm
-        // trong transaction của `startBankAccount`.
-        eq(referralCodes.active, true),
-        sql`${remainingExpr} > 0`,
-        departmentId
-          ? inDepartmentScope(departmentId)
-          : sql`${referralCodes.scope} = 'all'`,
+        openCodeWhere(departmentId),
       ),
     )
     .groupBy(...codeGroupBy)

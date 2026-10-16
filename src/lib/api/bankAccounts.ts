@@ -288,8 +288,14 @@ export const CustomerBankSlots = z.object({
 });
 export type CustomerBankSlots = z.infer<typeof CustomerBankSlots>;
 
-export async function fetchCustomerBankSlots(customerId: string): Promise<CustomerBankSlots> {
-  const res = await fetch(`/api/customers/${customerId}/bank-slots`);
+export async function fetchCustomerBankSlots(
+  customerId: string,
+  departmentId = '',
+): Promise<CustomerBankSlots> {
+  const res = await fetch(
+    `/api/customers/${customerId}/bank-slots` +
+      (departmentId ? `?departmentId=${encodeURIComponent(departmentId)}` : ''),
+  );
   if (!res.ok) throw await failure(res, 'Không đọc được số tài khoản của khách này');
   return CustomerBankSlots.parse(await res.json());
 }

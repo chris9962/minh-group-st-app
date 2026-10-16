@@ -1,6 +1,7 @@
 import { can } from "@/lib/permissions";
-import { forbidden, getActor, isUuid, notFound, unauthorized } from "@/server/auth";
+import { forbidden, getActor, isUuid, notFound, unauthorized, uuidParam } from "@/server/auth";
 import { customerBankSlots } from "@/server/banking";
+import { departmentForNewRecord } from "@/server/writeDepartment";
 
 /**
  * P-20 bước 1 — ngân hàng nào khách đã mở, còn mở thêm được mấy tài khoản.
@@ -16,6 +17,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const { id } = await params;
   if (!isUuid(id)) return notFound();
 
-  const slots = await customerBankSlots(id);
+  // Tính phòng như route `/referral-codes/open`, để loại tài khoản mở được khớp ô chọn mã.
+  const department = departmentForNewRecord(
+    actor,
+    "banking",
+    uuidParam(new URL(request.url).searchParams.get("departmentId")),
+  );
+  const slots = await customerBankSlots(id, department.ok ? (department.departmentId ?? "") : "");
   return slots ? Response.json(slots) : notFound();
 }
