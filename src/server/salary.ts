@@ -216,11 +216,11 @@ async function liveSalaries(
   ];
 
   /**
-   * Kéo cả Phó phòng và người đã nghỉ: "Tổng điểm nhánh" của PGĐ phải khớp tổng
-   * điểm phòng ở màn Tổng quan (chốt 2026-09-22), mà màn đó cộng mọi người có
-   * điểm trong tháng. Các phép đếm theo ĐẦU NGƯỜI bên dưới chỉ lấy nhân viên
-   * có điểm khác 0 trong tháng, kể cả người đã khoá (chốt 2026-09-30), lọc ở
-   * `staffByDepartment`.
+   * Kéo cả Trưởng, Phó phòng và người đã nghỉ: "Tổng điểm nhánh" của PGĐ cộng
+   * mọi người có điểm trong phòng (chốt 2026-10-16), khớp tổng điểm phòng ở màn
+   * Tổng quan. Điểm TB và các phép đếm theo ĐẦU NGƯỜI bên dưới chỉ lấy nhân
+   * viên có điểm khác 0 trong tháng, kể cả người đã khoá (chốt 2026-09-30), lọc
+   * ở `staffByDepartment`.
    */
   const scoreRows: StaffScore[] = relevantDepartmentIds.length
     ? await db
@@ -241,7 +241,7 @@ async function liveSalaries(
         )
         .where(
           and(
-            inArray(staffRoster.role, ["staff", "deputy-head"]),
+            inArray(staffRoster.role, ["staff", "deputy-head", "head"]),
             inArray(staffRoster.departmentId, relevantDepartmentIds),
           ),
         ) as StaffScore[]
