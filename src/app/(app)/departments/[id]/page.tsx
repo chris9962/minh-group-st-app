@@ -252,15 +252,17 @@ export default function DepartmentDetailPage({
   const rows = staffData?.page.rows ?? EMPTY_PAGE.rows;
 
   /**
-   * Tài khoản đã khoá ẩn mặc định.
+   * Tài khoản đã khoá không có điểm trong kỳ thì ẩn mặc định. Có điểm thì vẫn
+   * hiện, để dòng Tổng khớp tổng điểm phòng ở tiêu đề khối (chốt 2026-10-16).
    *
    * Người rời công ty vẫn nằm trong phòng cũ để giữ lịch sử bản ghi, nên bảng
    * phòng lâu năm lẫn nhiều dòng không còn làm việc. Lọc ở TRÌNH DUYỆT được vì
    * `fetchDepartmentStaff` trả trọn danh sách, không phân trang.
    */
   const [showLocked, setShowLocked] = useState(false);
-  const lockedCount = rows.filter((s) => !s.monthActive).length;
-  const visibleRows = showLocked ? rows : rows.filter((s) => s.monthActive);
+  const hideable = (s: StaffRow) => !s.monthActive && !s.rangePoints;
+  const lockedCount = rows.filter(hideable).length;
+  const visibleRows = showLocked ? rows : rows.filter((s) => !hideable(s));
   const totals = visibleRows.reduce(
     (sum, staff) => ({
       customers: sum.customers + staff.customers,
@@ -279,8 +281,6 @@ export default function DepartmentDetailPage({
       salary: 0,
     },
   );
-  const hiddenLocked = showLocked ? [] : rows.filter((s) => !s.monthActive);
-  const hiddenLockedPoints = hiddenLocked.reduce((sum, s) => sum + staffPointsOf(s), 0);
   const revenueTotals = visibleRows.reduce(
     (sum, staff) => {
       const r = revenueById.get(staff.id);
@@ -453,11 +453,7 @@ export default function DepartmentDetailPage({
                     }
                   />
                   {visibleRows.length > 0 && (
-                    <p className={styles.footnote}>
-                      Tổng điểm không tính Trưởng phòng và Phó phòng.
-                      {hiddenLocked.length > 0 &&
-                        ` Dòng Tổng chưa cộng ${formatPoints(hiddenLockedPoints)} điểm của ${hiddenLocked.length} tài khoản đã khoá.`}
-                    </p>
+                    <p className={styles.footnote}>Tổng điểm không tính Trưởng phòng và Phó phòng.</p>
                   )}
                 </>
               )}
