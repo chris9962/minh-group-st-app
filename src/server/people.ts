@@ -852,8 +852,8 @@ export async function personFor(
      nhưng vẫn trừ vào con số giữa vòng. */
   if (adjustmentTotal !== 0)
     pointSources.push({
-      label: "Điểm cộng",
-      detail: `${adjustments.length} lần cộng tay trong tháng`,
+      label: adjustmentTotal < 0 ? "Điểm trừ" : "Điểm cộng",
+      detail: `${adjustments.length} lần ${adjustmentTotal < 0 ? "trừ" : "cộng"} tay trong tháng`,
       points: roundPoints(adjustmentTotal),
     });
 

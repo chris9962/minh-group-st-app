@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { CirclePlus, Pencil, Plus, Trash2 } from "lucide-react";
+import { CircleMinus, CirclePlus, Pencil, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
@@ -47,11 +47,13 @@ export function KpiAdjustmentSection({ person }: Props) {
   // Không có quyền ghi và tháng cũng chưa có dòng nào thì cả khối không có gì để nói.
   if (!canAdjust && person.adjustments.length === 0) return null;
 
+  const deducted = person.points.adjustment < 0;
+
   return (
     <>
       <SectionCard
-        title="Điểm cộng"
-        icon={<CirclePlus size={17} />}
+        title={deducted ? "Điểm trừ" : "Điểm cộng"}
+        icon={deducted ? <CircleMinus size={17} /> : <CirclePlus size={17} />}
         meta={
           person.adjustments.length > 0
             ? `${formatPoints(person.points.adjustment)} điểm`
