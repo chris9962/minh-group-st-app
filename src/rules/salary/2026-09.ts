@@ -174,7 +174,7 @@ export function manager({
     },
     {
       label: "Thưởng vượt của phòng",
-      formula: `Trung bình ${formatPoints(roundPoints(average))} điểm - ${overTargetStaff} người vượt - ${role === "head" ? "70%" : "30%"} quỹ`,
+      formula: `Trung bình ${formatPoints(roundPoints(average))} điểm của ${teamPoints.length} nhân viên - ${overTargetStaff} người vượt 100 điểm - ${role === "head" ? "70%" : "30%"} quỹ`,
       amount: departmentPool(average, overTargetStaff) * poolShare,
     },
     { label: "Hỗ trợ ăn ca", formula: `${days} ngày × 120.000đ`, amount: days * DAILY_SUPPORT },
