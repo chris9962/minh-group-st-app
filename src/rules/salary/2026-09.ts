@@ -159,17 +159,14 @@ export function manager({
   const poolShare = role === "head" ? 0.7 : 0.3;
   const days = Math.min(workDays, MAX_DAYS);
   const rate = role === "head" ? 120_000 : 80_000;
-  const quota = [
-    ...quotaItems(departmentQuota?.hkd, "Chỉ tiêu HKD của phòng", rate, () => 0),
-    ...quotaItems(departmentQuota?.directed, "Chỉ tiêu định hướng của phòng", rate, (shortfall) => shortfall),
-  ];
   const items: SalaryItem[] = [
     {
       label: "Nhân viên đạt 100 điểm",
       formula: `${reached} người × ${unit} điểm × ${vnd(rate)}`,
       amount: reached * unit * rate,
     },
-    ...quota,
+    ...quotaItems(departmentQuota?.hkd, "Chỉ tiêu HKD của phòng", rate, () => 0),
+    ...quotaItems(departmentQuota?.directed, "Chỉ tiêu định hướng của phòng", rate, (shortfall) => shortfall),
     {
       label: "Làm trực tiếp",
       formula: `${formatPoints(Math.max(direct, 0))} điểm × 70.000đ`,
@@ -191,7 +188,6 @@ export function manager({
       { label: "Ngày công", value: `${days} ngày` },
     ],
     items,
-    managerPoints: roundPoints(managementPoints + total(quota) / rate),
   };
 }
 

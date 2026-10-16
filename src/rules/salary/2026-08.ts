@@ -97,7 +97,6 @@ export function manager({ role, points, teamPoints, workDays }: ManagerSalaryInp
       { label: "Ngày công", value: `${days} ngày` },
     ],
     items,
-    managerPoints: managementPoints,
   };
 }
 

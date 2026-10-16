@@ -37,8 +37,6 @@ export type SalaryResult = {
   facts: SalaryFact[];
   items: SalaryItem[];
   revenue?: SalaryRevenue;
-  /** Trưởng/Phó phòng: điểm quản lý cộng điểm chỉ tiêu phòng (Phụ lục 05 mục 1), vào "Tổng điểm nhánh" của PGĐ. */
-  managerPoints?: number;
 };
 
 /** Một chỉ tiêu trong tháng theo QĐ 145: số được giao và số đã đạt. */
@@ -94,7 +92,7 @@ export type FixedSalaryInput = {
 export type DeputyDirectorSalaryInput = {
   /** Điểm của từng nhân viên có điểm khác 0 trong tháng ở các phòng phụ trách, gồm cả người đã khoá. */
   teamPoints: number[];
-  /** Tổng điểm các phòng phụ trách: điểm KPI của mọi người kể cả người đã nghỉ, cộng `managerPoints` của Trưởng/Phó phòng. */
+  /** Tổng điểm các phòng phụ trách, gồm cả Phó phòng và người đã nghỉ có điểm. */
   branchPoints: number;
   /** Chỉ tiêu từng phòng phụ trách. Kỳ trước 2026-09 bỏ qua. */
   departmentQuotas?: DepartmentQuotaProgress[];
