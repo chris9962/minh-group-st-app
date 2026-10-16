@@ -11,6 +11,7 @@ import {
   Tooltip,
   XAxis,
   YAxis,
+  type TooltipContentProps,
 } from "recharts";
 import { useChartColors } from "@/lib/chart-colors";
 import { formatPoints } from "@/lib/format";
@@ -51,6 +52,42 @@ const AXIS_TICK = {
   fill: "var(--om-text-3)",
   fontFamily: "var(--font-body)",
 };
+
+/**
+ * Tooltip tự dựng để mỗi dòng có chấm màu như chú thích. Nội dung mặc định của
+ * recharts chỉ báo màu bằng màu chữ, mà chữ chuỗi màu nhạt không đọc được.
+ */
+function ChartTooltip({
+  active,
+  payload,
+  label,
+  columns,
+}: TooltipContentProps & { columns: BarSeries[] }) {
+  if (!active || payload.length === 0) return null;
+  return (
+    <div className={styles.tooltip}>
+      <strong className={styles.tooltipLabel}>{label}</strong>
+      <ul className={styles.tooltipList}>
+        {payload.map((entry) => {
+          const column = columns.find((c) => c.key === entry.dataKey);
+          return (
+            <li key={String(entry.dataKey)} className={styles.tooltipRow}>
+              <span
+                className={styles.tooltipDot}
+                style={{ background: column?.color ?? entry.color }}
+                aria-hidden
+              />
+              <span className={styles.tooltipName}>{entry.name}</span>
+              <span className={styles.tooltipValue}>
+                {valueText(entry.value as number | string)}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
 
 /**
  * Biểu đồ cột chồng.
@@ -111,19 +148,7 @@ export function BarChart({
             />
             <Tooltip
               cursor={{ fill: "var(--om-sidebar-hover)" }}
-              contentStyle={{
-                background: "var(--om-bg)",
-                border: "1px solid var(--om-line)",
-                borderRadius: 14,
-                fontSize: 12.5,
-                fontFamily: "var(--font-body)",
-                boxShadow: "var(--shadow-md)",
-              }}
-              labelStyle={{ fontWeight: 600, marginBottom: 4 }}
-              // Recharts tô chữ từng dòng bằng màu chuỗi; chuỗi màu nhạt thì
-              // không đọc được trên nền tooltip.
-              itemStyle={{ color: "var(--om-text)" }}
-              formatter={(value) => (typeof value === "number" ? formatPoints(value) : value)}
+              content={(props) => <ChartTooltip {...props} columns={columns} />}
             />
             {showLegend && (
               <Legend
@@ -183,29 +208,32 @@ export function BarChart({
         </ResponsiveContainer>
       </div>
 
-      <table className="sr-only">
-        <caption>{caption}</caption>
-        <thead>
-          <tr>
-            <th scope="col">Mốc</th>
-            {columns.map((s) => (
-              <th key={s.key} scope="col">
-                {s.label}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr key={String(row[labelKey])}>
-              <th scope="row">{String(row[labelKey])}</th>
+      {/* `sr-only` đặt ở div bọc: thẻ table bỏ qua `width: 1px` và `overflow`, nên giãn theo nội dung và làm trang mobile tràn ngang. */}
+      <div className="sr-only">
+        <table>
+          <caption>{caption}</caption>
+          <thead>
+            <tr>
+              <th scope="col">Mốc</th>
               {columns.map((s) => (
-                <td key={s.key}>{valueText(row[s.key])}</td>
+                <th key={s.key} scope="col">
+                  {s.label}
+                </th>
               ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={String(row[labelKey])}>
+                <th scope="row">{String(row[labelKey])}</th>
+                {columns.map((s) => (
+                  <td key={s.key}>{valueText(row[s.key])}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
