@@ -167,10 +167,6 @@ function socialColumns(revenueOf: (id: string) => PersonRevenue | undefined): Ra
 
 const startOfDay = (isoDate: string) => new Date(`${isoDate}T00:00:00`);
 
-// Tổng điểm phòng không cộng Trưởng và Phó phòng (chốt 2026-10-16).
-const staffPointsOf = (s: StaffRow): number =>
-  s.monthRole === "head" || s.monthRole === "deputy-head" ? 0 : (s.rangePoints ?? 0);
-
 /** Chi tiết một phòng ban — mở rộng P-91: bấm tên phòng ở bảng đi tới đây. */
 export default function DepartmentDetailPage({
   params,
@@ -269,7 +265,7 @@ export default function DepartmentDetailPage({
       customersWithAccounts: sum.customersWithAccounts + staff.customersWithAccounts,
       accounts: sum.accounts + staff.accounts,
       services: sum.services + staff.services,
-      points: sum.points + staffPointsOf(staff),
+      points: sum.points + (staff.rangePoints ?? 0),
       salary: sum.salary + staff.salary,
     }),
     {
@@ -436,26 +432,21 @@ export default function DepartmentDetailPage({
               ) : staffPending ? (
                 <SkeletonTable rows={5} columns={columns.length} />
               ) : (
-                <>
-                  <RankTable
-                    rows={visibleRows}
-                    columns={columns}
-                    rowKey={(s) => s.id}
-                    defaultSort="role"
-                    caption="Nhân viên của phòng, Trưởng và Phó phòng nằm đầu bảng"
-                    summaryRow={visibleRows.length > 0 ? summaryRow : undefined}
-                    emptyText={
-                      !staffInScope
-                        ? "Bạn không xem được danh sách nhân viên của phòng này."
-                        : rows.length > 0
-                          ? "Phòng này chỉ còn tài khoản đã khoá."
-                          : "Phòng này chưa có nhân viên nào."
-                    }
-                  />
-                  {visibleRows.length > 0 && (
-                    <p className={styles.footnote}>Tổng điểm không tính Trưởng phòng và Phó phòng.</p>
-                  )}
-                </>
+                <RankTable
+                  rows={visibleRows}
+                  columns={columns}
+                  rowKey={(s) => s.id}
+                  defaultSort="role"
+                  caption="Nhân viên của phòng, Trưởng và Phó phòng nằm đầu bảng"
+                  summaryRow={visibleRows.length > 0 ? summaryRow : undefined}
+                  emptyText={
+                    !staffInScope
+                      ? "Bạn không xem được danh sách nhân viên của phòng này."
+                      : rows.length > 0
+                        ? "Phòng này chỉ còn tài khoản đã khoá."
+                        : "Phòng này chưa có nhân viên nào."
+                  }
+                />
               )}
             </SectionCard>
           </>
