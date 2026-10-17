@@ -127,7 +127,7 @@ export const BankAccountDetail = BankAccountRow.extend({
   referralCodeText: z.string(),
   /** Mã DAO SALE của VPa, VPb; `''` = không có. */
   referralDaoSale: z.string().default(''),
-  /** Tỉnh của mã; `''` = chưa gán. Ghép với `referralSupportBranch` thành dòng "CN PGD". */
+  /** Tỉnh của mã; `''` = chưa gán. */
   referralProvince: z.string(),
   /** Chi nhánh ngân hàng hỗ trợ mã này; `''` = chưa gán. */
   referralSupportBranch: z.string(),
@@ -141,13 +141,6 @@ export const BankAccountDetail = BankAccountRow.extend({
   bankGuidePhotoUrls: z.array(z.string()),
 });
 export type BankAccountDetail = z.infer<typeof BankAccountDetail>;
-
-/**
- * Dòng "CN PGD" của bước 2 — tỉnh và chi nhánh hỗ trợ của mã, ghép đúng lối ô
- * chọn mã ở bước 1. `''` = mã chưa gán cả hai, nơi gọi ẩn dòng.
- */
-export const referralBranchLine = (a: BankAccountDetail): string =>
-  [a.referralProvince, a.referralSupportBranch].filter(Boolean).join(' - ');
 
 /**
  * Khoá sắp xếp — DANH SÁCH TRẮNG, đi thẳng vào `ORDER BY` của máy chủ.

@@ -1,7 +1,7 @@
 "use client";
 
 import { CopyValue } from "@/components/ui/CopyValue";
-import { referralBranchLine, type BankAccountDetail } from "@/lib/api/banking";
+import type { BankAccountDetail } from "@/lib/api/banking";
 import styles from "./ReferralCodeCard.module.scss";
 
 /**
@@ -18,8 +18,6 @@ import styles from "./ReferralCodeCard.module.scss";
  * nơi sớm muộn lệch nhau.
  */
 export function ReferralCodeCard({ account }: { account: BankAccountDetail }) {
-  const branch = referralBranchLine(account);
-
   return (
     <div className={styles.card}>
       <span className={styles.label}>Tên hiển thị</span>
@@ -39,10 +37,17 @@ export function ReferralCodeCard({ account }: { account: BankAccountDetail }) {
         </>
       )}
 
-      {branch && (
+      {account.referralProvince && (
         <>
-          <span className={styles.label}>CN PGD</span>
-          <span>{branch}</span>
+          <span className={styles.label}>Tỉnh</span>
+          <span>{account.referralProvince}</span>
+        </>
+      )}
+
+      {account.referralSupportBranch && (
+        <>
+          <span className={styles.label}>Chi nhánh hỗ trợ</span>
+          <span>{account.referralSupportBranch}</span>
         </>
       )}
     </div>
