@@ -19,6 +19,8 @@ export const ScoringExportRow = z.object({
   /** CCCD đầy đủ. Route gác bằng `customer:access-id-number`. */
   idNumber: z.string(),
   phone: z.string(),
+  /** `YYYY-MM-DD`; `''` = hồ sơ chưa có ngày sinh. */
+  dob: z.string(),
   /** Ngày mở tài khoản SỚM NHẤT của khách — cột `NGÀY` của file. */
   date: z.string(),
   /** Dạng `ẤP/XÃ`, tách từ `customers.channel_detail`. */
@@ -85,7 +87,7 @@ export async function fetchScoringExport(
   query: Omit<BankAccountQuery, keyof PageQuery> & { address?: string },
   include: ScoringInclude = 'with-accounts',
   /**
-   * Bỏ CCCD và số điện thoại khỏi mỗi dòng — bảng hiện trên màn bật cờ này,
+   * Bỏ CCCD, số điện thoại và ngày sinh khỏi mỗi dòng — bảng hiện trên màn bật cờ này,
    * đường xuất Excel thì không (chốt 2026-09-04).
    *
    * Cờ cũng là điều kiện để NGƯỜI TỰ XEM MÌNH đi qua cửa quyền: xem

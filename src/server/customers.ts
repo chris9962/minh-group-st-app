@@ -857,6 +857,15 @@ export async function listCustomersForExport(
     accountsOf.set(a.customerId, list);
   }
 
+  const dobRows =
+    rows.length === 0
+      ? []
+      : await db
+          .select({ id: customers.id, dob: customers.dob })
+          .from(customers)
+          .where(inArray(customers.id, rows.map((r) => r.id)));
+  const dobOf = new Map(dobRows.map((r) => [r.id, r.dob ?? ""]));
+
   return {
     // File không có cột Thanh tra (chủ dự án chốt 2026-10-14). `parse` bỏ bốn
     // cột dấu kiểm tra mà `decorate` đọc sẵn, không để chúng ra khỏi máy chủ.
@@ -865,6 +874,7 @@ export async function listCustomersForExport(
         ...r,
         points: points ? (points.get(r.id) ?? 0) : null,
         accounts: accountsOf.get(r.id) ?? [],
+        dob: dobOf.get(r.id) ?? "",
       }),
     ),
     total: totals?.value ?? 0,

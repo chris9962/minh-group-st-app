@@ -196,6 +196,7 @@ function catalogFor(report: ReportId, banks: Bank[], staffById: Map<string, Staf
         { key: "customerName", header: "TÊN KHÁCH HÀNG", ...KHACH, transform: "name", width: 26, defaultOn: true, sample: ["NGUYEN VAN MEN", "VO VAN CHIEN"], total: countIf((r) => Boolean(r.customerName)), value: (r) => r.customerName },
         { key: "idNumber", header: "SỐ CCCD", ...KHACH, type: "text", width: 15, defaultOn: true, sample: ["82077017051", "82047005635"], total: countIf((r) => Boolean(r.idNumber)), value: (r) => r.idNumber },
         { key: "phone", header: "SỐ ĐIỆN THOẠI", ...KHACH, type: "text", width: 17, defaultOn: true, sample: ["336585699", "369907415"], total: countIf((r) => Boolean(r.phone)), value: (r) => r.phone },
+        { key: "dob", header: "NGÀY SINH", ...KHACH, width: 12, defaultOn: true, sample: ["15/03/1968", "02/09/1975"], total: countIf((r) => Boolean(r.dob)), value: (r) => (r.dob ? formatDate(r.dob) : "") },
         { key: "date", header: "NGÀY", ...KHACH, ...mark, width: 7, defaultOn: true, sample: ["1", "1"], total: countIf((r) => Boolean(r.date)), value: (r) => Number(r.date.slice(8, 10)) || "" },
         { key: "hamlet", header: "ẤP", ...KHACH, width: 24, defaultOn: true, sample: ["MỸ TRUNG/HẬU MỸ", "MỸ TRUNG/HẬU MỸ"], total: countIf((r) => Boolean(r.hamlet)), value: (r) => r.hamlet },
         { key: "channel", header: "KÊNH", ...KHACH, width: 13, defaultOn: true, sample: ["KÊNH ẤP", "KÊNH ẤP"], value: (r) => r.channelName },

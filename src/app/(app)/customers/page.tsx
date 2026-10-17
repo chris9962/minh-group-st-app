@@ -86,6 +86,7 @@ const customerExcelColumns = (label: (c: CustomerExportRow) => string): ExcelCol
   { key: "createdAt", label: "Ngày tạo", ...KHACH, width: 12, value: (c) => formatDate(c.createdAt) },
   { key: "fullName", label: "Tên khách hàng", ...KHACH, width: 28, transform: "name", value: (c) => label(c) },
   { key: "primaryPhone", label: "Số điện thoại", ...KHACH, width: 14, type: "text", value: (c) => c.primaryPhone },
+  { key: "dob", label: "Ngày sinh", ...KHACH, width: 12, value: (c) => (c.dob ? formatDate(c.dob) : "") },
   { key: "address", label: "Địa chỉ", ...KHACH, width: 36, value: (c) => c.address },
   { key: "channel", label: "Kênh", ...KHACH, width: 14, value: (c) => c.channel },
   { key: "banks", label: "Ngân hàng", ...VIEC, width: 30, value: banksOf },

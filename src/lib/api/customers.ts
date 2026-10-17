@@ -357,6 +357,8 @@ export type CustomerExportQuery = Pick<
  */
 export const CustomerExportRow = CustomerRow.extend({
   note: z.string(),
+  /** `YYYY-MM-DD`; `''` = hồ sơ chưa có ngày sinh. */
+  dob: z.string(),
   /** Tài khoản đã hoàn thành của khách theo thứ tự mở, cho cột Ngân hàng của file. */
   accounts: z.array(z.object({ bankCode: z.string(), accountType: AccountType })),
 });
