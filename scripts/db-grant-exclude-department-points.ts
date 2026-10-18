@@ -12,7 +12,7 @@ import { Pool } from "pg";
  *
  * Vì sao phải cấp bù: `isFullAccess` đòi đủ MỌI hành động trên `*` phạm vi
  * `company`. Thiếu dòng này thì tài khoản toàn quyền rớt khỏi trạng thái toàn
- * quyền ở lưới P-92. Dòng này mở màn P-54 cho họ.
+ * quyền ở lưới P-92. Dòng này mở nút Loại và Khôi phục ở trang chi tiết phòng.
  *
  * Người khác thì cấp tay ở P-92, module Nhân viên.
  *

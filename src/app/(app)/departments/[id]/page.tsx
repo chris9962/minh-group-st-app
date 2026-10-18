@@ -241,7 +241,7 @@ export default function DepartmentDetailPage({
   });
   const revenueById = new Map(revenue?.people.map((p) => [p.userId, p]) ?? []);
 
-  // Dấu P-54 chỉ có ở phòng kinh doanh, chỉ cho chức vụ Nhân viên, và khoá khi tháng đã chốt lương.
+  // Dấu loại khỏi điểm phòng chỉ có ở phòng kinh doanh, chỉ cho chức vụ Nhân viên, và khoá khi tháng đã chốt lương.
   const [excluding, setExcluding] = useState<StaffRow | null>(null);
   const [restoring, setRestoring] = useState<StaffRow | null>(null);
   const canExclude =
@@ -315,7 +315,7 @@ export default function DepartmentDetailPage({
       customersWithAccounts: sum.customersWithAccounts + staff.customersWithAccounts,
       accounts: sum.accounts + staff.accounts,
       services: sum.services + staff.services,
-      // Khớp tổng điểm phòng ở tiêu đề khối, nơi người bị loại ở P-54 không được cộng.
+      // Khớp tổng điểm phòng ở tiêu đề khối, nơi người bị loại không được cộng.
       points: sum.points + (staff.excludedFromDepartment ? 0 : (staff.rangePoints ?? 0)),
       salary: sum.salary + staff.salary,
     }),

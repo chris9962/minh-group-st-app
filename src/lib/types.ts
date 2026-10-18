@@ -185,8 +185,8 @@ export const Action = z.enum([
   'close-salary',
   /**
    * Đặc biệt — staff (migration 0143, chốt 2026-10-18): loại một nhân viên khỏi
-   * điểm phòng của một tháng, ở màn P-54. Đổi lương của Trưởng phòng, Phó phòng
-   * và PGĐ, nên không chia phạm vi và chỉ Giám đốc có sẵn.
+   * điểm phòng của một tháng, ở trang chi tiết phòng. Đổi lương của Trưởng
+   * phòng, Phó phòng và PGĐ, nên không chia phạm vi và chỉ Giám đốc có sẵn.
    */
   'exclude-department-points',
 ]);

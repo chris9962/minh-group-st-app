@@ -90,7 +90,7 @@ type StaffScore = {
   departmentId: string;
   role: RoleKey;
   points: number;
-  /** Bị loại khỏi điểm phòng của tháng ở P-54. */
+  /** Bị loại khỏi điểm phòng của tháng. */
   excluded: boolean;
 };
 
@@ -223,7 +223,7 @@ async function liveSalaries(
    * mọi người có điểm trong phòng (chốt 2026-10-16), khớp tổng điểm phòng ở màn
    * Tổng quan. Điểm TB và các phép đếm theo ĐẦU NGƯỜI bên dưới chỉ lấy nhân
    * viên có điểm khác 0 trong tháng, kể cả người đã khoá (chốt 2026-09-30), lọc
-   * ở `staffByDepartment`. Nhân viên bị loại khỏi điểm phòng ở P-54 không vào
+   * ở `staffByDepartment`. Nhân viên bị loại khỏi điểm phòng không vào
    * cả hai phép tính (chốt 2026-10-18).
    */
   const scoreRows: StaffScore[] = relevantDepartmentIds.length
@@ -295,7 +295,7 @@ async function liveSalaries(
   const staffByDepartment = new Map<string, number[]>();
   const branchPointsByDepartment = new Map<string, number>();
   for (const row of scoreRows) {
-    // Dấu P-54 chỉ áp cho Nhân viên, cùng luật với `excludedStaffIn`.
+    // Dấu loại khỏi điểm phòng chỉ áp cho Nhân viên, cùng luật với `excludedStaffIn`.
     if (row.role === "staff" && row.excluded) continue;
     branchPointsByDepartment.set(
       row.departmentId,

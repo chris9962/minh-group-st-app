@@ -194,15 +194,6 @@ export function navFor(user: User | null): NavEntry[] {
     (fullAccess ? manage : items).push({ href: '/users', label: 'Nhân sự', icon: 'people', screen: 'P-51' });
   }
 
-  if (can(user, 'staff', 'exclude-department-points')) {
-    (fullAccess ? manage : items).push({
-      href: '/department-points',
-      label: 'Loại khỏi điểm phòng',
-      icon: 'people',
-      screen: 'P-54',
-    });
-  }
-
   // Bảng Nhân sự không có dòng của Phó giám đốc, nên họ không có đường nào khác tới P-52 của mình.
   if (user.role === 'deputy-director') {
     items.push({ href: `/users/${user.id}`, label: 'Phòng phụ trách', icon: 'target', screen: 'P-52' });

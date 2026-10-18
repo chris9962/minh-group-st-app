@@ -814,7 +814,7 @@ export async function pointsByDepartmentInRange(range: Range): Promise<Map<strin
 }
 
 /**
- * Tháng → id nhân viên không tính vào điểm phòng của tháng đó (P-54, chốt
+ * Tháng → id nhân viên không tính vào điểm phòng của tháng đó (chốt
  * 2026-10-18). Chỉ người có chức vụ Nhân viên ở phòng kinh doanh trong ĐÚNG
  * tháng đó, cùng luật với `liveSalaries`: người lên Trưởng phòng hay sang phòng
  * khác sau khi bị đánh dấu thì dấu cũ hết tác dụng.
@@ -852,8 +852,9 @@ export async function excludedStaffIn(months: string[]): Promise<Map<string, Set
 }
 
 /**
- * Điểm cuộn lên PHÒNG của người lập hồ sơ, bỏ điểm của nhân viên bị loại ở
- * P-54. `points` là kết quả `pointsByStaffInRange(range)` mà nơi gọi đã có.
+ * Điểm cuộn lên PHÒNG của người lập hồ sơ, bỏ điểm của nhân viên bị loại
+ * khỏi điểm phòng. `points` là kết quả `pointsByStaffInRange(range)` mà nơi
+ * gọi đã có.
  *
  * Mọi chỗ ra tổng điểm phòng đi qua hàm này: màn Tổng quan, P-91, khối nhánh
  * của PGĐ, báo cáo Zalo. Tự cộng ở chỗ khác là hai màn ra hai tổng.

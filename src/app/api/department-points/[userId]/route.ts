@@ -9,7 +9,7 @@ import {
 
 type Params = { params: Promise<{ userId: string }> };
 
-/** P-54 · Loại một nhân viên khỏi điểm phòng của một tháng. */
+/** Trang chi tiết phòng · Loại một nhân viên khỏi điểm phòng của một tháng. */
 export async function PUT(request: Request, { params }: Params) {
   const guard = await actorWith(request, "staff", "exclude-department-points");
   if (!guard.ok) return guard.response;
@@ -34,7 +34,7 @@ export async function PUT(request: Request, { params }: Params) {
   return Response.json({ ok: true });
 }
 
-/** P-54 · Khôi phục nhân viên vào điểm phòng của một tháng. */
+/** Trang chi tiết phòng · Khôi phục nhân viên vào điểm phòng của một tháng. */
 export async function DELETE(request: Request, { params }: Params) {
   const guard = await actorWith(request, "staff", "exclude-department-points");
   if (!guard.ok) return guard.response;

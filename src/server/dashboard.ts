@@ -910,7 +910,7 @@ function withGrowth(
  * người mở tài khoản. Hai cách gom lệch nhau ở ca mở hộ tài khoản cho khách của
  * đồng nghiệp, và cột điểm phải khớp bảng lương chứ không khớp ba cột cạnh nó.
  *
- * Nhân viên bị loại khỏi điểm phòng ở P-54 không vào tổng, xem `departmentPointsFrom`.
+ * Nhân viên bị loại khỏi điểm phòng không vào tổng, xem `departmentPointsFrom`.
  */
 async function pointsByDepartmentFrom(
   range: Range,

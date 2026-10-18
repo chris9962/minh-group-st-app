@@ -14,7 +14,7 @@ type Props = {
   onClose: () => void;
 };
 
-/** Khôi phục một nhân viên vào điểm phòng của tháng, dùng ở P-54 và trang chi tiết phòng. */
+/** Khôi phục một nhân viên vào điểm phòng của tháng, ở trang chi tiết phòng. */
 export function RestoreToDepartmentDialog({ staff, month, onClose }: Props) {
   const queryClient = useQueryClient();
   const restore = useMutation({
