@@ -44,7 +44,7 @@ export default function DepartmentPointsPage() {
   const [sort, setSort] = useState<DepartmentPointsSort>("at");
   const [dir, setDir] = useState<SortDir>("desc");
   const [adding, setAdding] = useState(false);
-  const [including, setIncluding] = useState<DepartmentPointsRow | null>(null);
+  const [removing, setRemoving] = useState<DepartmentPointsRow | null>(null);
 
   const refine = (apply: () => void) => {
     apply();
@@ -61,15 +61,15 @@ export default function DepartmentPointsPage() {
   const departments = data?.departments ?? [];
   const canEdit = data !== undefined && !data.monthClosed;
 
-  const include = useMutation({
+  const remove = useMutation({
     mutationFn: (row: DepartmentPointsRow) => includeInDepartmentPoints(row.id, month),
     onSuccess: (_result, row) => {
       queryClient.invalidateQueries({ queryKey: ["department-points"] });
       queryClient.invalidateQueries({ queryKey: ["department-points-options"] });
-      toast.ok(`Đã tính lại ${row.fullName} vào điểm phòng`);
-      setIncluding(null);
+      toast.ok(`Đã xoá ${row.fullName} khỏi danh sách`);
+      setRemoving(null);
     },
-    onError: (e) => toast.fail(errorMessage(e, "Không tính lại được nhân viên này. Thử lại.")),
+    onError: (e) => toast.fail(errorMessage(e, "Không xoá được nhân viên này khỏi danh sách. Thử lại.")),
   });
 
   const columns: RankColumn<DepartmentPointsRow>[] = [
@@ -109,8 +109,8 @@ export default function DepartmentPointsPage() {
             key: "actions",
             label: "Thao tác",
             render: (r: DepartmentPointsRow) => (
-              <Button variant="secondary" onClick={() => setIncluding(r)}>
-                Tính lại
+              <Button variant="secondary" onClick={() => setRemoving(r)}>
+                Xoá
               </Button>
             ),
           },
@@ -216,14 +216,14 @@ export default function DepartmentPointsPage() {
         {adding && <ExcludeFromDepartmentDialog month={month} onClose={() => setAdding(false)} />}
 
         <ConfirmDialog
-          open={including !== null}
-          title="Tính lại điểm phòng"
-          confirmLabel="Tính lại"
-          pending={include.isPending}
-          onConfirm={() => including && include.mutate(including)}
-          onClose={() => setIncluding(null)}
+          open={removing !== null}
+          title="Xoá khỏi danh sách"
+          confirmLabel="Xoá"
+          pending={remove.isPending}
+          onConfirm={() => removing && remove.mutate(removing)}
+          onClose={() => setRemoving(null)}
         >
-          Bạn muốn tính lại <strong>{including?.fullName}</strong> vào điểm phòng{" "}
+          Bạn muốn xoá <strong>{removing?.fullName}</strong> khỏi danh sách loại điểm phòng{" "}
           {monthLabel(month).toLowerCase()}?
         </ConfirmDialog>
       </main>

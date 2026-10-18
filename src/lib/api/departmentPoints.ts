@@ -85,4 +85,4 @@ export const excludeFromDepartmentPoints = (userId: string, form: DepartmentPoin
   send(`/api/department-points/${userId}`, 'PUT', form, 'Không loại được nhân viên này');
 
 export const includeInDepartmentPoints = (userId: string, month: string) =>
-  send(`/api/department-points/${userId}`, 'DELETE', { month }, 'Không tính lại được nhân viên này');
+  send(`/api/department-points/${userId}`, 'DELETE', { month }, 'Không xoá được nhân viên này khỏi danh sách');
