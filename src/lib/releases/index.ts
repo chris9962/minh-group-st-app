@@ -16,6 +16,27 @@ const seesCompanyDashboard = (user: User) =>
  */
 export const RELEASES: Release[] = [
   {
+    id: '2026-10-18',
+    version: '2.10.0',
+    title: 'Cập nhật ngày 18/10/2026',
+    summary: 'Phòng ban: đánh dấu nhân viên không tính vào điểm phòng theo tháng.',
+    sections: [
+      {
+        title: 'Phòng ban',
+        items: ['Nhân viên có nhãn "Không tính điểm phòng" không vào tổng điểm phòng và Điểm TB phòng.'],
+        visibleTo: (user) => canOpenPath(user, '/departments'),
+      },
+      {
+        title: 'Không tính điểm phòng',
+        items: [
+          'Nút "Không tính điểm phòng" ở trang chi tiết phòng, kèm lý do.',
+          'Nút "Khôi phục" để gỡ đánh dấu.',
+        ],
+        visibleTo: (user) => can(user, 'staff', 'exclude-department-points'),
+      },
+    ],
+  },
+  {
     id: '2026-10-15-2',
     version: '2.9.0',
     title: 'Cập nhật ngày 15/10/2026',
