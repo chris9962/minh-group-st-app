@@ -19,6 +19,7 @@ import {
   bankAccounts,
   banks,
   customers,
+  departmentPointExclusions,
   departments,
   giftGrants,
   kpiAdjustments,
@@ -809,11 +810,75 @@ export async function pointsByStaffInRange(
 
 /** Cùng con số, cuộn lên PHÒNG của người lập hồ sơ. */
 export async function pointsByDepartmentInRange(range: Range): Promise<Map<string, number>> {
-  const byStaff = await pointsByStaffInRange(range);
+  return departmentPointsFrom(range, await pointsByStaffInRange(range));
+}
+
+/**
+ * Tháng → id nhân viên không tính vào điểm phòng của tháng đó (P-54, chốt
+ * 2026-10-18). Chỉ người có chức vụ Nhân viên trong ĐÚNG tháng đó: người lên
+ * Trưởng phòng sau khi bị đánh dấu thì dấu cũ hết tác dụng.
+ */
+export async function excludedStaffIn(months: string[]): Promise<Map<string, Set<string>>> {
+  const byMonth = new Map<string, Set<string>>();
+  const unique = [...new Set(months)];
+  if (unique.length === 0) return byMonth;
+
+  const rows = await db
+    .select({ userId: departmentPointExclusions.userId, yearMonth: departmentPointExclusions.yearMonth })
+    .from(departmentPointExclusions)
+    .innerJoin(
+      staffRoster,
+      and(
+        eq(staffRoster.userId, departmentPointExclusions.userId),
+        eq(staffRoster.yearMonth, departmentPointExclusions.yearMonth),
+      ),
+    )
+    .where(and(inArray(departmentPointExclusions.yearMonth, unique), eq(staffRoster.role, "staff")));
+
+  for (const row of rows) {
+    const ids = byMonth.get(row.yearMonth) ?? new Set<string>();
+    ids.add(row.userId);
+    byMonth.set(row.yearMonth, ids);
+  }
+  return byMonth;
+}
+
+/**
+ * Điểm cuộn lên PHÒNG của người lập hồ sơ, bỏ điểm của nhân viên bị loại ở
+ * P-54. `points` là kết quả `pointsByStaffInRange(range)` mà nơi gọi đã có.
+ *
+ * Mọi chỗ ra tổng điểm phòng đi qua hàm này: màn Tổng quan, P-91, khối nhánh
+ * của PGĐ, báo cáo Zalo. Tự cộng ở chỗ khác là hai màn ra hai tổng.
+ *
+ * Kỳ vắt nhiều tháng thì trừ theo từng tháng có người bị loại: dấu là của một
+ * tháng, nên người bị loại tháng 9 vẫn được tính điểm tháng 10.
+ */
+export async function departmentPointsFrom(
+  range: Range,
+  points: Map<string, { departmentId: string | null; points: number }>,
+): Promise<Map<string, number>> {
   const out = new Map<string, number>();
-  for (const { departmentId, points } of byStaff.values()) {
-    if (!departmentId) continue;
-    out.set(departmentId, roundPoints((out.get(departmentId) ?? 0) + points));
+  const add = (departmentId: string | null, p: number) => {
+    if (departmentId) out.set(departmentId, roundPoints((out.get(departmentId) ?? 0) + p));
+  };
+  for (const row of points.values()) add(row.departmentId, row.points);
+
+  const months: string[] = [];
+  for (let m = range.from.slice(0, 7); m <= range.to.slice(0, 7); m = shiftMonth(m, 1)) months.push(m);
+  const excluded = await excludedStaffIn(months);
+
+  for (const [month, ids] of excluded) {
+    const whole = monthRange(month);
+    const part = {
+      from: whole.from > range.from ? whole.from : range.from,
+      to: whole.to < range.to ? whole.to : range.to,
+    };
+    const samePeriod = part.from === range.from && part.to === range.to;
+    const monthPoints = samePeriod ? points : await pointsByStaffInRange(part);
+    for (const id of ids) {
+      const row = monthPoints.get(id);
+      if (row) add(row.departmentId, -row.points);
+    }
   }
   return out;
 }

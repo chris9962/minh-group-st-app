@@ -3,7 +3,7 @@ import type { BranchDepartment, BranchSummary } from "@/lib/api/person";
 import { quotaTargetFor } from "@/rules/salary";
 import { db } from "./db/client";
 import { departments, staffRoster } from "./db/schema";
-import { pointsByStaffInRange } from "./kpi";
+import { departmentPointsFrom, pointsByStaffInRange } from "./kpi";
 import { statsByDepartment, type Range } from "./org";
 import { countQuotaAccounts, quotaConfigOf } from "./quota";
 import { salaryForUsers } from "./salary";
@@ -35,7 +35,7 @@ const percentOf = (part: number, whole: number): number =>
  *
  * Ba nguồn đã có sẵn, không tính lại:
  *   - tài khoản, app: `statsByDepartment`, cùng câu với bảng xếp hạng phòng
- *   - điểm: `pointsByStaffInRange`, gom theo người lập hồ sơ như bảng lương
+ *   - điểm: `departmentPointsFrom`, gom theo người lập hồ sơ như bảng lương
  *   - lương: `salaryForUsers`, cộng mọi người đang làm trong phòng
  *
  * Tài khoản, app, điểm theo KỲ người xem chọn. Lương, chỉ tiêu, phòng phụ trách
@@ -94,11 +94,7 @@ export async function branchSummaryFor(subjectId: string, range: Range): Promise
   const targetOf = (target: number | null | undefined, code: string): number | null =>
     target == null ? null : quotaTargetFor(salaryMonth, target, code);
 
-  const pointsByDepartment = new Map<string, number>();
-  for (const { departmentId, points: p } of points.values()) {
-    if (!departmentId) continue;
-    pointsByDepartment.set(departmentId, (pointsByDepartment.get(departmentId) ?? 0) + p);
-  }
+  const pointsByDepartment = await departmentPointsFrom(range, points);
 
   const rows: BranchDepartment[] = managed.map((d) => {
     const members = people.filter((p) => p.departmentId === d.id);

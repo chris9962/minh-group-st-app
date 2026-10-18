@@ -183,6 +183,12 @@ export const Action = z.enum([
   'view-ops',
   /** Chốt lương theo tháng trên màn Nhân sự & KPI (migration 0102). Không có mở chốt. */
   'close-salary',
+  /**
+   * Đặc biệt — staff (migration 0143, chốt 2026-10-18): loại một nhân viên khỏi
+   * điểm phòng của một tháng, ở màn P-54. Đổi lương của Trưởng phòng, Phó phòng
+   * và PGĐ, nên không chia phạm vi và chỉ Giám đốc có sẵn.
+   */
+  'exclude-department-points',
 ]);
 export type Action = z.infer<typeof Action>;
 
@@ -224,6 +230,7 @@ export const ACTION_LABEL: Record<Action, string> = {
   'send-announcement': 'Gửi thông báo chung',
   'view-ops': 'Xem vận hành hệ thống',
   'close-salary': 'Chốt lương',
+  'exclude-department-points': 'Loại khỏi điểm phòng',
 };
 
 /** 6 hành động dùng chung cho mọi module cơ bản — xem mục 1.1.2 spec. */
@@ -263,6 +270,8 @@ export const SCOPELESS_ACTIONS: Action[] = [
   'close-salary',
   // Tra cứu có nghĩa là toàn công ty; tra trong phòng mình thì `view-detail` đã đủ.
   'lookup',
+  // Trưởng phòng loại người của phòng mình là tự nâng lương của chính mình.
+  'exclude-department-points',
 ];
 
 export const SPECIAL_ACTIONS_OF: Partial<Record<ModuleKey, Action[]>> = {
@@ -270,6 +279,7 @@ export const SPECIAL_ACTIONS_OF: Partial<Record<ModuleKey, Action[]>> = {
   insurance: ['handle-fallback', 'set-status', 'lookup'],
   banking: ['grant-gift', 'lookup'],
   vneid: ['lookup'],
+  staff: ['exclude-department-points'],
   /**
    * MỌI quyền cấu hình nằm ở `system` (chốt 2026-08-24).
    *

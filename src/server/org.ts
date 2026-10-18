@@ -30,7 +30,7 @@ import {
   staffRoster,
   users,
 } from "./db/schema";
-import { pointsByStaffInRange, recomputeForSalaryScheme } from "./kpi";
+import { departmentPointsFrom, pointsByStaffInRange, recomputeForSalaryScheme } from "./kpi";
 import { salaryForUsers } from "./salary";
 
 /**
@@ -605,21 +605,14 @@ export async function departmentStatsFor(
    * người mở tài khoản (thể lệ câu 7.11). Hai cách lệch nhau ở ca mở hộ tài
    * khoản cho khách của đồng nghiệp, và cột điểm phải khớp bảng lương.
    */
-  const pointsByDepartment = new Map<string, number>();
-  for (const { departmentId, points: p } of points.values()) {
-    if (!departmentId) continue;
-    pointsByDepartment.set(
-      departmentId,
-      Math.round(((pointsByDepartment.get(departmentId) ?? 0) + p) * 10) / 10,
-    );
-  }
+  const pointsByDepartment = await departmentPointsFrom(current, points);
 
   return {
     departments: rows.map((d) => {
       const s = now.get(d.id);
       const p = before?.get(d.id);
       return {
-        points: pointsByDepartment.get(d.id) ?? 0,
+        points: Math.round((pointsByDepartment.get(d.id) ?? 0) * 10) / 10,
         id: d.id,
         name: d.name,
         accountsOpened: s?.accountsOpened ?? 0,

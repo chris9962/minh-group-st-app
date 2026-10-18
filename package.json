@@ -32,6 +32,7 @@
     "db:grant-view-ops": "bun --env-file=.env.local scripts/db-grant-view-ops.ts",
     "db:grant-close-salary": "bun --env-file=.env.local scripts/db-grant-close-salary.ts",
     "db:grant-lookup": "bun --env-file=.env.local scripts/db-grant-lookup.ts",
+    "db:grant-exclude-department-points": "bun --env-file=.env.local scripts/db-grant-exclude-department-points.ts",
     "db:grant-social-insurance": "bun --env-file=.env.local scripts/db-grant-social-insurance.ts",
     "db:seed-social-insurance": "bun --env-file=.env.local scripts/db-seed-social-insurance.ts",
     "db:seed-social-salary": "bun --env-file=.env.local scripts/db-seed-social-salary.ts",

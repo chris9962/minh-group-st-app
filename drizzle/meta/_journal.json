@@ -995,6 +995,13 @@
       "when": 1789891400068,
       "tag": "0142_hamlet_contacts",
       "breakpoints": true
+    },
+    {
+      "idx": 143,
+      "version": "7",
+      "when": 1789891400069,
+      "tag": "0143_department_point_exclusions",
+      "breakpoints": true
     }
   ]
 }

@@ -13,6 +13,7 @@ import {
 } from "@/rules/salary";
 import { db } from "./db/client";
 import {
+  departmentPointExclusions,
   departments,
   employeeWorkDays,
   kpiAdjustments,
@@ -89,6 +90,8 @@ type StaffScore = {
   departmentId: string;
   role: RoleKey;
   points: number;
+  /** Bị loại khỏi điểm phòng của tháng ở P-54. */
+  excluded: boolean;
 };
 
 /**
@@ -220,7 +223,8 @@ async function liveSalaries(
    * mọi người có điểm trong phòng (chốt 2026-10-16), khớp tổng điểm phòng ở màn
    * Tổng quan. Điểm TB và các phép đếm theo ĐẦU NGƯỜI bên dưới chỉ lấy nhân
    * viên có điểm khác 0 trong tháng, kể cả người đã khoá (chốt 2026-09-30), lọc
-   * ở `staffByDepartment`.
+   * ở `staffByDepartment`. Nhân viên bị loại khỏi điểm phòng ở P-54 không vào
+   * cả hai phép tính (chốt 2026-10-18).
    */
   const scoreRows: StaffScore[] = relevantDepartmentIds.length
     ? await db
@@ -229,6 +233,7 @@ async function liveSalaries(
           departmentId: staffRoster.departmentId,
           role: staffRoster.role,
           points,
+          excluded: sql<boolean>`${departmentPointExclusions.userId} is not null`,
         })
         .from(users)
         .innerJoin(
@@ -238,6 +243,13 @@ async function liveSalaries(
         .leftJoin(
           kpiScores,
           and(eq(kpiScores.userId, users.id), eq(kpiScores.yearMonth, yearMonth)),
+        )
+        .leftJoin(
+          departmentPointExclusions,
+          and(
+            eq(departmentPointExclusions.userId, users.id),
+            eq(departmentPointExclusions.yearMonth, yearMonth),
+          ),
         )
         .where(
           and(
@@ -283,6 +295,8 @@ async function liveSalaries(
   const staffByDepartment = new Map<string, number[]>();
   const branchPointsByDepartment = new Map<string, number>();
   for (const row of scoreRows) {
+    // Dấu P-54 chỉ áp cho Nhân viên, cùng luật với `excludedStaffIn`.
+    if (row.role === "staff" && row.excluded) continue;
     branchPointsByDepartment.set(
       row.departmentId,
       (branchPointsByDepartment.get(row.departmentId) ?? 0) + row.points,

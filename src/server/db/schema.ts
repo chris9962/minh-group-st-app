@@ -87,6 +87,8 @@ export const actionKey = pgEnum("action_key", [
   "close-salary",
   // đặc biệt · customer/banking/insurance/vneid: tra cứu toàn công ty bằng CCCD (migration 0134)
   "lookup",
+  // đặc biệt · staff: loại nhân viên khỏi điểm phòng theo tháng (migration 0143)
+  "exclude-department-points",
 ]);
 
 export const scopeKey = pgEnum("scope_key", ["own", "managed", "company"]);
@@ -2390,6 +2392,36 @@ export const kpiAdjustments = pgTable(
   (t) => [
     index("kpi_adjustments_user_month").on(t.userId, t.yearMonth),
     check("kpi_adjustments_points_nonzero", sql`points <> 0`),
+  ],
+);
+
+/**
+ * Nhân viên không tính vào điểm phòng của một tháng (migration 0143, chốt
+ * 2026-10-18), quyền `staff:exclude-department-points`.
+ *
+ * Bỏ điểm người này khỏi Điểm TB phòng, số nhân sự đạt chỉ tiêu, tổng điểm
+ * phòng và tổng điểm nhánh. Điểm và lương của chính họ không đổi. Chỉ áp cho
+ * người có chức vụ Nhân viên trong tháng đó, đọc ở `excludedStaffIn`.
+ *
+ * Bảng riêng, không phải cột của `staff_months`: bảng đó chưa có dòng của
+ * tháng đang chạy.
+ */
+export const departmentPointExclusions = pgTable(
+  "department_point_exclusions",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** '2026-10'. */
+    yearMonth: text("year_month").notNull(),
+    note: text("note").notNull().default(""),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdByName: text("created_by_name").notNull().default(""),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.yearMonth] }),
+    index("department_point_exclusions_month").on(t.yearMonth),
   ],
 );
 

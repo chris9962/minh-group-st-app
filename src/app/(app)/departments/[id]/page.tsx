@@ -113,7 +113,15 @@ const EMPLOYEE_COLUMNS: RankColumn<StaffRow>[] = [
     // TẠO bản ghi (thể lệ câu 7.11). Hai cách lệch nhau ở ca mở hộ tài khoản
     // cho khách của đồng nghiệp, và cột điểm phải khớp bảng lương.
     sortBy: (s) => s.rangePoints ?? 0,
-    render: (s) => <span className="tabular-nums">{formatPoints(s.rangePoints ?? 0)}</span>,
+    render: (s) =>
+      s.excludedFromDepartment ? (
+        <span className={styles.salaryCell}>
+          <span className="tabular-nums">{formatPoints(s.rangePoints ?? 0)}</span>
+          <StatusTag tone="cancelled">Không tính điểm phòng</StatusTag>
+        </span>
+      ) : (
+        <span className="tabular-nums">{formatPoints(s.rangePoints ?? 0)}</span>
+      ),
   },
   {
     key: "salary",
@@ -265,7 +273,8 @@ export default function DepartmentDetailPage({
       customersWithAccounts: sum.customersWithAccounts + staff.customersWithAccounts,
       accounts: sum.accounts + staff.accounts,
       services: sum.services + staff.services,
-      points: sum.points + (staff.rangePoints ?? 0),
+      // Khớp tổng điểm phòng ở tiêu đề khối, nơi người bị loại ở P-54 không được cộng.
+      points: sum.points + (staff.excludedFromDepartment ? 0 : (staff.rangePoints ?? 0)),
       salary: sum.salary + staff.salary,
     }),
     {

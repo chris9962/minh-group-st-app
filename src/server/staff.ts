@@ -34,7 +34,12 @@ import {
 import { forbidden, isUuid, notFound } from "./auth";
 import { accountCustomerDayBetween, customerDayBetween } from "./customerDay";
 import { db, uniqueViolationOf } from "./db/client";
-import { pointsByStaffInRange, recomputeForSalaryScheme } from "./kpi";
+import {
+  departmentPointsFrom,
+  excludedStaffIn,
+  pointsByStaffInRange,
+  recomputeForSalaryScheme,
+} from "./kpi";
 import {
   bankAccounts,
   customers,
@@ -300,11 +305,10 @@ export async function staffFor(
   const departmentPoints =
     rangePoints && query.departmentId
       ? Math.round(
-          [...rangePoints.values()]
-            .filter((p) => p.departmentId === query.departmentId)
-            .reduce((sum, p) => sum + p.points, 0) * 10,
+          ((await departmentPointsFrom(countsRange, rangePoints)).get(query.departmentId) ?? 0) * 10,
         ) / 10
       : null;
+  const excluded = (await excludedStaffIn([summaryMonth])).get(summaryMonth);
 
   const active = counts?.active ?? 0;
   const onTarget = counts?.onTarget ?? 0;
@@ -328,6 +332,7 @@ export async function staffFor(
         accounts: countsById.get(a.id)?.accounts ?? 0,
         services: countsById.get(a.id)?.services ?? 0,
         rangePoints: rangePoints ? (rangePoints.get(a.id)?.points ?? 0) : null,
+        excludedFromDepartment: excluded?.has(a.id) ?? false,
         salary: salaryById.get(a.id)?.amount ?? 0,
         salaryBreakdown: {
           month: summaryMonth,

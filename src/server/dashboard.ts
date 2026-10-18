@@ -30,7 +30,7 @@ import {
   users,
 } from "./db/schema";
 import { giftItemNames } from "./gift";
-import { pointsByStaffInRange } from "./kpi";
+import { departmentPointsFrom, pointsByStaffInRange } from "./kpi";
 import { SPARKLINE_DAYS, daysEndingOn } from "@/components/ui/ranking";
 import { statsByDepartment, statsByStaff, accountsOpenedByDay, type Range } from "./org";
 import { salaryForUsers } from "./salary";
@@ -909,19 +909,15 @@ function withGrowth(
  * ⚠️ Gom theo NGƯỜI LẬP HỒ SƠ KHÁCH, khác `statsByDepartment` — hàm đó gom theo
  * người mở tài khoản. Hai cách gom lệch nhau ở ca mở hộ tài khoản cho khách của
  * đồng nghiệp, và cột điểm phải khớp bảng lương chứ không khớp ba cột cạnh nó.
+ *
+ * Nhân viên bị loại khỏi điểm phòng ở P-54 không vào tổng, xem `departmentPointsFrom`.
  */
-function pointsByDepartmentFrom(
+async function pointsByDepartmentFrom(
+  range: Range,
   points: Map<string, { departmentId: string | null; points: number }>,
-): Map<string, number> {
-  const byDepartment = new Map<string, number>();
-  for (const { departmentId, points: p } of points.values()) {
-    if (!departmentId) continue;
-    byDepartment.set(
-      departmentId,
-      Math.round(((byDepartment.get(departmentId) ?? 0) + p) * 10) / 10,
-    );
-  }
-  return byDepartment;
+): Promise<Map<string, number>> {
+  const byDepartment = await departmentPointsFrom(range, points);
+  return new Map([...byDepartment].map(([id, p]) => [id, Math.round(p * 10) / 10]));
 }
 
 
@@ -1078,10 +1074,10 @@ export async function dashboardFor(
    * liệu cho cả ba chỗ dùng: cột điểm của bảng xếp hạng phòng, bảng xếp hạng
    * nhân viên, và ô điểm tổng công ty.
    */
-  const pointsByDepartment = pointsByDepartmentFrom(points);
-  const previousByDepartment = previousPoints
-    ? pointsByDepartmentFrom(previousPoints)
-    : null;
+  const [pointsByDepartment, previousByDepartment] = await Promise.all([
+    pointsByDepartmentFrom(current, points),
+    previous && previousPoints ? pointsByDepartmentFrom(previous, previousPoints) : null,
+  ]);
 
   const rowsWithPoints = ranked.rows.map((r) => ({
     ...r,

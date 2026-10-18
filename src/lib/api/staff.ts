@@ -95,6 +95,8 @@ export const StaffRow = StaffAccount.extend({
    * tạo bản ghi (thể lệ câu 7.11).
    */
   rangePoints: z.number().nullable().default(null),
+  /** Bị loại khỏi điểm phòng của tháng đang xem ở P-54; điểm vẫn hiện nhưng không vào tổng phòng. */
+  excludedFromDepartment: z.boolean().default(false),
   /** Lương CĐS đang tính của tháng; 0 khi chức vụ/phòng chưa có công thức. */
   salary: z.number(),
   /** Từng khoản của `salary`, cùng tháng. Tháng đã chốt lương là bản đã lưu lúc chốt. */
