@@ -3,9 +3,11 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState } from "react";
-import { UserMinus } from "lucide-react";
+import { Plus, UserMinus } from "lucide-react";
 import { TopBar } from "@/components/layout/TopBar";
+import { ExcludeFromDepartmentDialog } from "@/components/staff/ExcludeFromDepartmentDialog";
 import { Button } from "@/components/ui/Button";
+import buttonStyles from "@/components/ui/Button.module.css";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { FilterButton } from "@/components/ui/FilterButton";
@@ -17,10 +19,7 @@ import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { SearchField } from "@/components/ui/SearchField";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { SkeletonTable } from "@/components/ui/Skeleton";
-import { StatusTag } from "@/components/ui/StatusTag";
-import { TextArea } from "@/components/ui/TextArea";
 import {
-  excludeFromDepartmentPoints,
   fetchDepartmentPoints,
   includeInDepartmentPoints,
   type DepartmentPointsQuery,
@@ -34,7 +33,7 @@ import { useDebouncedValue } from "@/lib/hooks";
 import { errorMessage, toast } from "@/lib/toast";
 import styles from "./page.module.scss";
 
-/** P-54 · Loại nhân viên khỏi điểm phòng theo tháng (chốt 2026-10-18). */
+/** P-54 · Danh sách nhân viên bị loại khỏi điểm phòng theo tháng (chốt 2026-10-18). */
 export default function DepartmentPointsPage() {
   const queryClient = useQueryClient();
   const [month, setMonth] = useState(thisMonth);
@@ -42,11 +41,10 @@ export default function DepartmentPointsPage() {
   const [search, setSearch] = useState("");
   const searchQuery = useDebouncedValue(search);
   const [page, setPage] = useState(0);
-  const [sort, setSort] = useState<DepartmentPointsSort>("points");
-  const [dir, setDir] = useState<SortDir>("asc");
-  const [excluding, setExcluding] = useState<DepartmentPointsRow | null>(null);
+  const [sort, setSort] = useState<DepartmentPointsSort>("at");
+  const [dir, setDir] = useState<SortDir>("desc");
+  const [adding, setAdding] = useState(false);
   const [including, setIncluding] = useState<DepartmentPointsRow | null>(null);
-  const [note, setNote] = useState("");
 
   const refine = (apply: () => void) => {
     apply();
@@ -61,25 +59,14 @@ export default function DepartmentPointsPage() {
   });
   const rows = data?.page.rows ?? EMPTY_PAGE.rows;
   const departments = data?.departments ?? [];
-
-  const onSaved = (message: string) => {
-    queryClient.invalidateQueries({ queryKey: ["department-points"] });
-    toast.ok(message);
-  };
-
-  const exclude = useMutation({
-    mutationFn: (row: DepartmentPointsRow) => excludeFromDepartmentPoints(row.id, { month, note }),
-    onSuccess: (_result, row) => {
-      onSaved(`Đã loại ${row.fullName} khỏi điểm phòng`);
-      setExcluding(null);
-    },
-    onError: (e) => toast.fail(errorMessage(e, "Không loại được nhân viên này. Thử lại.")),
-  });
+  const canEdit = data !== undefined && !data.monthClosed;
 
   const include = useMutation({
     mutationFn: (row: DepartmentPointsRow) => includeInDepartmentPoints(row.id, month),
     onSuccess: (_result, row) => {
-      onSaved(`Đã tính lại ${row.fullName} vào điểm phòng`);
+      queryClient.invalidateQueries({ queryKey: ["department-points"] });
+      queryClient.invalidateQueries({ queryKey: ["department-points-options"] });
+      toast.ok(`Đã tính lại ${row.fullName} vào điểm phòng`);
       setIncluding(null);
     },
     onError: (e) => toast.fail(errorMessage(e, "Không tính lại được nhân viên này. Thử lại.")),
@@ -104,54 +91,31 @@ export default function DepartmentPointsPage() {
       sortable: true,
       render: (r) => <span className="tabular-nums">{formatPoints(r.points)}</span>,
     },
+    { key: "note", label: "Lý do", render: (r) => r.note },
     {
-      key: "excluded",
-      label: "Điểm phòng",
+      key: "at",
+      label: "Người loại",
       sortable: true,
-      render: (r) =>
-        r.exclusion ? (
-          <StatusTag tone="cancelled">Không tính</StatusTag>
-        ) : (
-          <StatusTag ok>Tính</StatusTag>
-        ),
+      render: (r) => (
+        <span className={styles.byCell}>
+          <span>{r.byName}</span>
+          <span className={styles.byDate}>{formatDate(r.at)}</span>
+        </span>
+      ),
     },
-    {
-      key: "note",
-      label: "Lý do",
-      render: (r) =>
-        r.exclusion ? (
-          <span className={styles.note}>
-            {r.exclusion.note && <span>{r.exclusion.note}</span>}
-            <span className={styles.noteBy}>
-              {r.exclusion.byName} - {formatDate(r.exclusion.at)}
-            </span>
-          </span>
-        ) : null,
-    },
-    ...(data?.monthClosed
-      ? []
-      : [
+    ...(canEdit
+      ? [
           {
             key: "actions",
             label: "Thao tác",
-            render: (r: DepartmentPointsRow) =>
-              r.exclusion ? (
-                <Button variant="secondary" onClick={() => setIncluding(r)}>
-                  Tính lại
-                </Button>
-              ) : (
-                <Button
-                  variant="secondary"
-                  onClick={() => {
-                    setNote("");
-                    setExcluding(r);
-                  }}
-                >
-                  Loại
-                </Button>
-              ),
+            render: (r: DepartmentPointsRow) => (
+              <Button variant="secondary" onClick={() => setIncluding(r)}>
+                Tính lại
+              </Button>
+            ),
           },
-        ]),
+        ]
+      : []),
   ];
 
   const departmentName = departments.find((d) => d.id === departmentId)?.name ?? "";
@@ -187,6 +151,12 @@ export default function DepartmentPointsPage() {
             />
           </FilterField>
         </FilterButton>
+        {canEdit && (
+          <Button aria-label="Thêm nhân viên" onClick={() => setAdding(true)}>
+            <Plus size={16} aria-hidden />
+            <span className={buttonStyles.label}>Thêm nhân viên</span>
+          </Button>
+        )}
       </TopBar>
 
       <main className={styles.body}>
@@ -198,12 +168,12 @@ export default function DepartmentPointsPage() {
           }
         />
 
-        {isPending && <SkeletonTable rows={8} columns={columns.length} />}
+        {isPending && <SkeletonTable rows={6} columns={columns.length} />}
         {isError && <ErrorState what="danh sách nhân viên" onRetry={refetch} retrying={isFetching} />}
 
         {data && (
           <SectionCard
-            title="Nhân viên"
+            title="Nhân viên bị loại"
             icon={<UserMinus size={17} />}
             meta={
               data.monthClosed
@@ -218,13 +188,13 @@ export default function DepartmentPointsPage() {
               columns={columns}
               rowKey={(r) => r.id}
               defaultSort={sort}
-              caption={`Nhân viên và điểm phòng ${monthLabel(data.month)}`}
+              caption={`Nhân viên bị loại khỏi điểm phòng ${monthLabel(data.month)}`}
               emptyText={
                 searchQuery
                   ? `Không tìm thấy nhân viên nào khớp “${searchQuery}”.`
                   : departmentId
                     ? "Không có nhân viên nào khớp bộ lọc đang chọn."
-                    : "Chưa có nhân viên nào."
+                    : `Chưa có nhân viên nào bị loại khỏi điểm phòng ${monthLabel(data.month).toLowerCase()}.`
               }
               server={{
                 sort,
@@ -243,26 +213,7 @@ export default function DepartmentPointsPage() {
           </SectionCard>
         )}
 
-        <ConfirmDialog
-          open={excluding !== null}
-          title="Loại khỏi điểm phòng"
-          confirmLabel="Loại"
-          pending={exclude.isPending}
-          onConfirm={() => excluding && exclude.mutate(excluding)}
-          onClose={() => setExcluding(null)}
-        >
-          <p className={styles.dialogText}>
-            Bạn muốn loại <strong>{excluding?.fullName}</strong> khỏi điểm phòng{" "}
-            {monthLabel(month).toLowerCase()}?
-          </p>
-          <TextArea
-            label="Lý do"
-            rows={3}
-            maxLength={500}
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-          />
-        </ConfirmDialog>
+        {adding && <ExcludeFromDepartmentDialog month={month} onClose={() => setAdding(false)} />}
 
         <ConfirmDialog
           open={including !== null}

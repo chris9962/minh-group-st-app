@@ -3,27 +3,32 @@ import { pageOf, pageParams, type PageQuery } from './pagination';
 
 /* ── P-54 · Loại khỏi điểm phòng (chốt 2026-10-18) ──────────────────────── */
 
-export const DEPARTMENT_POINTS_SORT = ['name', 'points', 'excluded'] as const;
+export const DEPARTMENT_POINTS_SORT = ['name', 'points', 'at'] as const;
 export type DepartmentPointsSort = (typeof DEPARTMENT_POINTS_SORT)[number];
 
-export const DepartmentPointsExclusion = z.object({
-  note: z.string(),
-  byName: z.string(),
-  at: z.coerce.date(),
-});
-export type DepartmentPointsExclusion = z.infer<typeof DepartmentPointsExclusion>;
-
-/** Một nhân viên của phòng kinh doanh trong tháng đang xem. */
+/** Một nhân viên bị loại khỏi điểm phòng của tháng đang xem. */
 export const DepartmentPointsRow = z.object({
   id: z.string(),
   fullName: z.string(),
   staffCode: z.string().nullable(),
   departmentName: z.string(),
   points: z.number(),
-  /** `null` = vẫn tính vào điểm phòng. */
-  exclusion: DepartmentPointsExclusion.nullable(),
+  note: z.string(),
+  /** Người đánh dấu và lúc đánh dấu. */
+  byName: z.string(),
+  at: z.coerce.date(),
 });
 export type DepartmentPointsRow = z.infer<typeof DepartmentPointsRow>;
+
+/** Người có thể thêm vào danh sách loại, cho ô chọn ở form Thêm. */
+export const DepartmentPointsOption = z.object({
+  id: z.string(),
+  fullName: z.string(),
+  staffCode: z.string().nullable(),
+  departmentName: z.string(),
+  points: z.number(),
+});
+export type DepartmentPointsOption = z.infer<typeof DepartmentPointsOption>;
 
 export const DepartmentPointsList = z.object({
   month: z.string(),
@@ -56,6 +61,12 @@ export async function fetchDepartmentPoints(query: DepartmentPointsQuery): Promi
   const res = await fetch(`/api/department-points?${params}`);
   if (!res.ok) throw new Error('Không tải được danh sách nhân viên');
   return DepartmentPointsList.parse(await res.json());
+}
+
+export async function fetchDepartmentPointsOptions(month: string): Promise<DepartmentPointsOption[]> {
+  const res = await fetch(`/api/department-points/options?month=${month}`);
+  if (!res.ok) throw new Error('Không tải được danh sách nhân viên');
+  return z.array(DepartmentPointsOption).parse(await res.json());
 }
 
 async function send(url: string, method: string, body: unknown, fallback: string): Promise<void> {
