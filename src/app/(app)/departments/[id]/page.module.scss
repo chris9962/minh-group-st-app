@@ -19,12 +19,12 @@
   text-decoration: underline;
 }
 
-/* Tên kèm nhãn "Không tính điểm phòng" của P-54, nhãn xuống dòng khi cột hẹp. */
+/* Tên ở trên, nhãn "Không tính điểm phòng" của P-54 ở dưới. */
 .nameWithTag {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
 }
 
 .managers {
