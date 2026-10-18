@@ -230,7 +230,7 @@ export const ACTION_LABEL: Record<Action, string> = {
   'send-announcement': 'Gửi thông báo chung',
   'view-ops': 'Xem vận hành hệ thống',
   'close-salary': 'Chốt lương',
-  'exclude-department-points': 'Loại khỏi điểm phòng',
+  'exclude-department-points': 'Đánh dấu không tính điểm phòng',
 };
 
 /** 6 hành động dùng chung cho mọi module cơ bản — xem mục 1.1.2 spec. */

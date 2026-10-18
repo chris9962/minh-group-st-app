@@ -27,7 +27,7 @@ export async function PUT(request: Request, { params }: Params) {
   await logAudit(guard.actor, {
     module: "staff",
     action: "exclude-department-points",
-    targetLabel: `Loại ${result.fullName} khỏi điểm phòng ${monthText(month)}`,
+    targetLabel: `Không tính ${result.fullName} vào điểm phòng ${monthText(month)}`,
     targetTable: "department_point_exclusions",
     targetId: userId,
   });

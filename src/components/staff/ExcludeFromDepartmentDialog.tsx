@@ -31,8 +31,8 @@ type Props = {
 };
 
 /**
- * Loại một nhân viên khỏi điểm phòng của tháng, ở trang chi tiết phòng.
- * Nơi gọi chỉ vẽ hộp thoại khi mở, nên mỗi lần mở là một form trống.
+ * Không tính điểm của một nhân viên vào điểm phòng của tháng, ở trang chi
+ * tiết phòng. Nơi gọi chỉ vẽ hộp thoại khi mở, nên mỗi lần mở là một form trống.
  */
 export function ExcludeFromDepartmentDialog({ month, staff, onClose }: Props) {
   const queryClient = useQueryClient();
@@ -42,13 +42,13 @@ export function ExcludeFromDepartmentDialog({ month, staff, onClose }: Props) {
     mutationFn: () => excludeFromDepartmentPoints(staff.id, { month, note }),
     onSuccess: () => {
       invalidateDepartmentPoints(queryClient);
-      toast.ok(`Đã loại ${staff.fullName} khỏi điểm phòng`);
+      toast.ok(`Đã đánh dấu ${staff.fullName} không tính điểm phòng`);
       onClose();
     },
-    onError: (e) => toast.fail(errorMessage(e, "Không loại được nhân viên này. Thử lại.")),
+    onError: (e) => toast.fail(errorMessage(e, "Không lưu được. Thử lại.")),
   });
 
-  // Đang lưu thì không đóng được: đóng rồi mà lượt loại vẫn chạy là người dùng tưởng đã huỷ.
+  // Đang lưu thì không đóng được: đóng rồi mà lượt ghi vẫn chạy là người dùng tưởng đã huỷ.
   const close = () => {
     if (!save.isPending) onClose();
   };
@@ -57,14 +57,14 @@ export function ExcludeFromDepartmentDialog({ month, staff, onClose }: Props) {
     <Dialog
       open
       onClose={close}
-      title={`Loại khỏi điểm phòng ${monthLabel(month).toLowerCase()}`}
+      title={`Không tính điểm phòng ${monthLabel(month).toLowerCase()}`}
       footer={
         <>
           <Button variant="secondary" onClick={close} disabled={save.isPending}>
             Huỷ
           </Button>
           <Button type="submit" form="exclude-department-form" disabled={save.isPending}>
-            Loại
+            Không tính
           </Button>
         </>
       }
@@ -79,7 +79,7 @@ export function ExcludeFromDepartmentDialog({ month, staff, onClose }: Props) {
         noValidate
       >
         <p className={styles.question}>
-          Bạn muốn loại <strong>{staff.fullName}</strong> khỏi điểm phòng{" "}
+          Bạn muốn không tính điểm của <strong>{staff.fullName}</strong> vào điểm phòng{" "}
           {monthLabel(month).toLowerCase()}?
         </p>
         <TextArea

@@ -265,10 +265,10 @@ export default function DepartmentDetailPage({
       ) : (
         <Button
           variant="secondary"
-          aria-label={`Loại ${s.fullName} khỏi điểm phòng`}
+          aria-label={`Không tính ${s.fullName} vào điểm phòng`}
           onClick={() => setExcluding(s)}
         >
-          Loại
+          Không tính điểm phòng
         </Button>
       ),
   };
