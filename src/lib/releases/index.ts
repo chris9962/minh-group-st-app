@@ -19,11 +19,20 @@ export const RELEASES: Release[] = [
     id: '2026-10-18',
     version: '2.10.0',
     title: 'Cập nhật ngày 18/10/2026',
-    summary: 'Phòng ban: đánh dấu nhân viên không tính vào điểm phòng theo tháng.',
+    summary:
+      'Mở tài khoản khoá ngân hàng theo mã còn chỗ của phòng ghi nhận, Phòng ban đánh dấu được nhân viên không tính điểm phòng.',
     sections: [
       {
+        title: 'Ngân hàng',
+        items: ['Mở tài khoản: ngân hàng mở hay khoá theo mã còn chỗ của phòng ghi nhận.'],
+        visibleTo: (user) => can(user, 'banking', 'create'),
+      },
+      {
         title: 'Phòng ban',
-        items: ['Nhân viên có nhãn "Không tính điểm phòng" không vào tổng điểm phòng và Điểm TB phòng.'],
+        items: [
+          'Nhân viên có nhãn "Không tính điểm phòng" không vào tổng điểm phòng và Điểm TB phòng.',
+          'Tài khoản đã khoá có điểm trong kỳ luôn hiện ở bảng nhân viên.',
+        ],
         visibleTo: (user) => canOpenPath(user, '/departments'),
       },
       {
@@ -33,6 +42,26 @@ export const RELEASES: Release[] = [
           'Nút "Khôi phục" để gỡ đánh dấu.',
         ],
         visibleTo: (user) => can(user, 'staff', 'exclude-department-points'),
+      },
+      {
+        title: 'Lương quản lý',
+        items: ['Diễn giải thưởng vượt ghi rõ số nhân viên tính Điểm TB.'],
+        visibleTo: (user) => user.role !== 'staff',
+      },
+      {
+        title: 'Lương Phó giám đốc',
+        items: ['Tổng điểm nhánh cộng cả điểm KPI app của Trưởng phòng và Phó phòng.'],
+        visibleTo: (user) => user.role === 'director' || user.role === 'deputy-director',
+      },
+      {
+        title: 'Khách hàng',
+        items: ['File Excel thêm cột Ngày sinh.'],
+        visibleTo: (user) => can(user, 'customer', 'export'),
+      },
+      {
+        title: 'Xuất dữ liệu',
+        items: ['Báo cáo Tính điểm tổng thêm cột Ngày sinh.'],
+        visibleTo: (user) => canOpenPath(user, '/exports'),
       },
     ],
   },
