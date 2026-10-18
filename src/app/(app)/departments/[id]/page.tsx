@@ -70,7 +70,7 @@ const EMPLOYEE_COLUMNS: RankColumn<StaffRow>[] = [
       return s.excludedFromDepartment ? (
         <span className={styles.nameWithTag}>
           {link}
-          <StatusTag tone="cancelled">Bị loại</StatusTag>
+          <StatusTag tone="cancelled">Không tính điểm phòng</StatusTag>
         </span>
       ) : (
         link
