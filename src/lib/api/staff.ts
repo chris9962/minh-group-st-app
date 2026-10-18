@@ -127,6 +127,8 @@ export const StaffList = z.object({
    * một trang, cộng theo trang thì mỗi lần bấm sang trang lại ra một tổng khác.
    */
   departmentPoints: z.number().nullable().default(null),
+  /** Tháng `summaryMonth` đã chốt lương: trang chi tiết phòng ẩn nút Loại và Khôi phục. */
+  monthClosed: z.boolean().default(false),
   page: pageOf(StaffRow),
 });
 export type StaffList = z.infer<typeof StaffList>;

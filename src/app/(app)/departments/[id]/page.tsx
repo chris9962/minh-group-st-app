@@ -23,6 +23,9 @@ import { MonthPicker } from "@/components/ui/MonthPicker";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { StatusTag } from "@/components/ui/StatusTag";
+import { Button } from "@/components/ui/Button";
+import { ExcludeFromDepartmentDialog } from "@/components/staff/ExcludeFromDepartmentDialog";
+import { RestoreToDepartmentDialog } from "@/components/staff/RestoreToDepartmentDialog";
 import { BankingHeadline } from "@/components/dashboard/BankingHeadline";
 import { SocialInsuranceHeadline } from "@/components/socialInsurance/SocialInsuranceHeadline";
 import { EMPTY_PAGE } from "@/lib/api/pagination";
@@ -36,7 +39,7 @@ import {
 } from "@/lib/api/org";
 import { fetchDepartmentStaff, SOCIAL_DEPARTMENT_CODE, type StaffRow } from "@/lib/api/staff";
 import { personHref } from "@/lib/api/people";
-import { scopeFor, visibleDepartmentIds } from "@/lib/permissions";
+import { can, scopeFor, visibleDepartmentIds } from "@/lib/permissions";
 import { ROLE_LABEL, ROLE_RANK } from "@/lib/types";
 import { useSession } from "@/store/session";
 import { SalaryAmount } from "@/components/payroll/SalaryAmount";
@@ -58,11 +61,21 @@ const EMPLOYEE_COLUMNS: RankColumn<StaffRow>[] = [
     key: "name",
     label: "Tên",
     sortText: (s) => s.fullName,
-    render: (s) => (
-      <Link href={personHref(s.id, s.salaryBreakdown.month)} className={styles.nameLink}>
-        {s.fullName}
-      </Link>
-    ),
+    render: (s) => {
+      const link = (
+        <Link href={personHref(s.id, s.salaryBreakdown.month)} className={styles.nameLink}>
+          {s.fullName}
+        </Link>
+      );
+      return s.excludedFromDepartment ? (
+        <span className={styles.nameWithTag}>
+          {link}
+          <StatusTag tone="cancelled">Bị loại</StatusTag>
+        </span>
+      ) : (
+        link
+      );
+    },
   },
   {
     key: "role",
@@ -113,15 +126,7 @@ const EMPLOYEE_COLUMNS: RankColumn<StaffRow>[] = [
     // TẠO bản ghi (thể lệ câu 7.11). Hai cách lệch nhau ở ca mở hộ tài khoản
     // cho khách của đồng nghiệp, và cột điểm phải khớp bảng lương.
     sortBy: (s) => s.rangePoints ?? 0,
-    render: (s) =>
-      s.excludedFromDepartment ? (
-        <span className={styles.salaryCell}>
-          <span className="tabular-nums">{formatPoints(s.rangePoints ?? 0)}</span>
-          <StatusTag tone="cancelled">Không tính điểm phòng</StatusTag>
-        </span>
-      ) : (
-        <span className="tabular-nums">{formatPoints(s.rangePoints ?? 0)}</span>
-      ),
+    render: (s) => <span className="tabular-nums">{formatPoints(s.rangePoints ?? 0)}</span>,
   },
   {
     key: "salary",
@@ -234,7 +239,34 @@ export default function DepartmentDetailPage({
     placeholderData: keepPreviousData,
   });
   const revenueById = new Map(revenue?.people.map((p) => [p.userId, p]) ?? []);
-  const columns = social ? socialColumns((userId) => revenueById.get(userId)) : EMPLOYEE_COLUMNS;
+
+  // Dấu P-54 chỉ có ở phòng kinh doanh, chỉ cho chức vụ Nhân viên, và khoá khi tháng đã chốt lương.
+  const [excluding, setExcluding] = useState<StaffRow | null>(null);
+  const [restoring, setRestoring] = useState<StaffRow | null>(null);
+  const canExclude =
+    can(user, "staff", "exclude-department-points") &&
+    data?.department.type === "sales" &&
+    staffData !== undefined &&
+    !staffData.monthClosed;
+  const exclusionColumn: RankColumn<StaffRow> = {
+    key: "exclusion",
+    label: "Điểm phòng",
+    render: (s) =>
+      s.monthRole !== "staff" ? null : s.excludedFromDepartment ? (
+        <Button variant="secondary" onClick={() => setRestoring(s)}>
+          Khôi phục
+        </Button>
+      ) : (
+        <Button variant="secondary" onClick={() => setExcluding(s)}>
+          Loại
+        </Button>
+      ),
+  };
+  const columns = social
+    ? socialColumns((userId) => revenueById.get(userId))
+    : canExclude
+      ? [...EMPLOYEE_COLUMNS, exclusionColumn]
+      : EMPLOYEE_COLUMNS;
 
   const periodLabel =
     period.kind === "today"
@@ -460,6 +492,19 @@ export default function DepartmentDetailPage({
             </SectionCard>
           </>
         )}
+
+        {excluding && (
+          <ExcludeFromDepartmentDialog
+            month={month}
+            staff={excluding}
+            onClose={() => setExcluding(null)}
+          />
+        )}
+        <RestoreToDepartmentDialog
+          staff={restoring}
+          month={month}
+          onClose={() => setRestoring(null)}
+        />
       </main>
     </>
   );

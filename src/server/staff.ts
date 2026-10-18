@@ -32,6 +32,7 @@ import {
   type User,
 } from "@/lib/types";
 import { forbidden, isUuid, notFound } from "./auth";
+import { isMonthClosed } from "./closedMonths";
 import { accountCustomerDayBetween, customerDayBetween } from "./customerDay";
 import { db, uniqueViolationOf } from "./db/client";
 import {
@@ -157,6 +158,7 @@ export async function staffFor(
       daysLeft,
       summary: { active: 0, locked: 0, onTarget: 0, offTarget: 0 },
       departmentPoints: null,
+      monthClosed: false,
       page: { rows: [], total: 0 },
     };
 
@@ -308,7 +310,11 @@ export async function staffFor(
           ((await departmentPointsFrom(countsRange, rangePoints)).get(query.departmentId) ?? 0) * 10,
         ) / 10
       : null;
-  const excluded = (await excludedStaffIn([summaryMonth])).get(summaryMonth);
+  const [excludedByMonth, monthClosed] = await Promise.all([
+    excludedStaffIn([summaryMonth]),
+    isMonthClosed(summaryMonth),
+  ]);
+  const excluded = excludedByMonth.get(summaryMonth);
 
   const active = counts?.active ?? 0;
   const onTarget = counts?.onTarget ?? 0;
@@ -318,6 +324,7 @@ export async function staffFor(
     daysLeft,
     summary: { active, locked: counts?.locked ?? 0, onTarget, offTarget: active - onTarget },
     departmentPoints,
+    monthClosed,
     page: {
       rows: accounts.map((a) => ({
         ...a,

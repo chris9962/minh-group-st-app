@@ -19,6 +19,14 @@
   text-decoration: underline;
 }
 
+/* Tên kèm nhãn "Bị loại" của P-54, nhãn xuống dòng khi cột hẹp. */
+.nameWithTag {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
 .managers {
   list-style: none;
   margin: 0;

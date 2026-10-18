@@ -1,14 +1,14 @@
 "use client";
 
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState } from "react";
 import { Plus, UserMinus } from "lucide-react";
 import { TopBar } from "@/components/layout/TopBar";
 import { ExcludeFromDepartmentDialog } from "@/components/staff/ExcludeFromDepartmentDialog";
+import { RestoreToDepartmentDialog } from "@/components/staff/RestoreToDepartmentDialog";
 import { Button } from "@/components/ui/Button";
 import buttonStyles from "@/components/ui/Button.module.css";
-import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { FilterButton } from "@/components/ui/FilterButton";
 import { FilterChips } from "@/components/ui/FilterChips";
@@ -21,7 +21,6 @@ import { SectionCard } from "@/components/ui/SectionCard";
 import { SkeletonTable } from "@/components/ui/Skeleton";
 import {
   fetchDepartmentPoints,
-  includeInDepartmentPoints,
   type DepartmentPointsQuery,
   type DepartmentPointsRow,
   type DepartmentPointsSort,
@@ -30,12 +29,10 @@ import { EMPTY_PAGE, PAGE_SIZE, type SortDir } from "@/lib/api/pagination";
 import { personHref } from "@/lib/api/people";
 import { formatDate, formatPoints } from "@/lib/format";
 import { useDebouncedValue } from "@/lib/hooks";
-import { errorMessage, toast } from "@/lib/toast";
 import styles from "./page.module.scss";
 
 /** P-54 · Danh sách nhân viên bị loại khỏi điểm phòng theo tháng (chốt 2026-10-18). */
 export default function DepartmentPointsPage() {
-  const queryClient = useQueryClient();
   const [month, setMonth] = useState(thisMonth);
   const [departmentId, setDepartmentId] = useState("");
   const [search, setSearch] = useState("");
@@ -44,7 +41,7 @@ export default function DepartmentPointsPage() {
   const [sort, setSort] = useState<DepartmentPointsSort>("at");
   const [dir, setDir] = useState<SortDir>("desc");
   const [adding, setAdding] = useState(false);
-  const [removing, setRemoving] = useState<DepartmentPointsRow | null>(null);
+  const [restoring, setRestoring] = useState<DepartmentPointsRow | null>(null);
 
   const refine = (apply: () => void) => {
     apply();
@@ -60,17 +57,6 @@ export default function DepartmentPointsPage() {
   const rows = data?.page.rows ?? EMPTY_PAGE.rows;
   const departments = data?.departments ?? [];
   const canEdit = data !== undefined && !data.monthClosed;
-
-  const remove = useMutation({
-    mutationFn: (row: DepartmentPointsRow) => includeInDepartmentPoints(row.id, month),
-    onSuccess: (_result, row) => {
-      queryClient.invalidateQueries({ queryKey: ["department-points"] });
-      queryClient.invalidateQueries({ queryKey: ["department-points-options"] });
-      toast.ok(`Đã xoá ${row.fullName} khỏi danh sách`);
-      setRemoving(null);
-    },
-    onError: (e) => toast.fail(errorMessage(e, "Không xoá được nhân viên này khỏi danh sách. Thử lại.")),
-  });
 
   const columns: RankColumn<DepartmentPointsRow>[] = [
     {
@@ -109,8 +95,8 @@ export default function DepartmentPointsPage() {
             key: "actions",
             label: "Thao tác",
             render: (r: DepartmentPointsRow) => (
-              <Button variant="secondary" onClick={() => setRemoving(r)}>
-                Xoá
+              <Button variant="secondary" onClick={() => setRestoring(r)}>
+                Khôi phục
               </Button>
             ),
           },
@@ -215,17 +201,7 @@ export default function DepartmentPointsPage() {
 
         {adding && <ExcludeFromDepartmentDialog month={month} onClose={() => setAdding(false)} />}
 
-        <ConfirmDialog
-          open={removing !== null}
-          title="Xoá khỏi danh sách"
-          confirmLabel="Xoá"
-          pending={remove.isPending}
-          onConfirm={() => removing && remove.mutate(removing)}
-          onClose={() => setRemoving(null)}
-        >
-          Bạn muốn xoá <strong>{removing?.fullName}</strong> khỏi danh sách loại điểm phòng{" "}
-          {monthLabel(month).toLowerCase()}?
-        </ConfirmDialog>
+        <RestoreToDepartmentDialog staff={restoring} month={month} onClose={() => setRestoring(null)} />
       </main>
     </>
   );
