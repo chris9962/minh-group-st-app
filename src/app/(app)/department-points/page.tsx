@@ -49,14 +49,16 @@ export default function DepartmentPointsPage() {
   };
 
   const query: DepartmentPointsQuery = { month, departmentId, search: searchQuery, page, sort, dir };
-  const { data, isPending, isError, refetch, isFetching } = useQuery({
+  const { data, isPending, isError, refetch, isFetching, isPlaceholderData } = useQuery({
     queryKey: ["department-points", query],
     queryFn: () => fetchDepartmentPoints(query),
     placeholderData: keepPreviousData,
   });
   const rows = data?.page.rows ?? EMPTY_PAGE.rows;
   const departments = data?.departments ?? [];
-  const canEdit = data !== undefined && !data.monthClosed;
+  // Bảng còn là dữ liệu tháng cũ trong lúc tải tháng mới: ẩn nút để không ghi nhầm tháng.
+  const canEdit = data !== undefined && !data.monthClosed && !isPlaceholderData;
+  const shownMonth = data?.month ?? month;
 
   const columns: RankColumn<DepartmentPointsRow>[] = [
     {
@@ -64,7 +66,7 @@ export default function DepartmentPointsPage() {
       label: "Nhân viên",
       sortable: true,
       render: (r) => (
-        <Link href={personHref(r.id, month)} className={styles.nameCell}>
+        <Link href={personHref(r.id, shownMonth)} className={styles.nameCell}>
           <span className={styles.nameText}>{r.fullName}</span>
           {r.staffCode && <span className={`${styles.nameCode} tabular-nums`}>{r.staffCode}</span>}
         </Link>
@@ -95,7 +97,11 @@ export default function DepartmentPointsPage() {
             key: "actions",
             label: "Thao tác",
             render: (r: DepartmentPointsRow) => (
-              <Button variant="secondary" onClick={() => setRestoring(r)}>
+              <Button
+                variant="secondary"
+                aria-label={`Khôi phục ${r.fullName} vào điểm phòng`}
+                onClick={() => setRestoring(r)}
+              >
                 Khôi phục
               </Button>
             ),
@@ -199,9 +205,9 @@ export default function DepartmentPointsPage() {
           </SectionCard>
         )}
 
-        {adding && <ExcludeFromDepartmentDialog month={month} onClose={() => setAdding(false)} />}
+        {adding && <ExcludeFromDepartmentDialog month={shownMonth} onClose={() => setAdding(false)} />}
 
-        <RestoreToDepartmentDialog staff={restoring} month={month} onClose={() => setRestoring(null)} />
+        <RestoreToDepartmentDialog staff={restoring} month={shownMonth} onClose={() => setRestoring(null)} />
       </main>
     </>
   );

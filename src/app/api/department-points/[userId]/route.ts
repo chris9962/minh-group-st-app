@@ -34,7 +34,7 @@ export async function PUT(request: Request, { params }: Params) {
   return Response.json({ ok: true });
 }
 
-/** P-54 · Xoá nhân viên khỏi danh sách loại điểm phòng của một tháng. */
+/** P-54 · Khôi phục nhân viên vào điểm phòng của một tháng. */
 export async function DELETE(request: Request, { params }: Params) {
   const guard = await actorWith(request, "staff", "exclude-department-points");
   if (!guard.ok) return guard.response;
@@ -52,7 +52,7 @@ export async function DELETE(request: Request, { params }: Params) {
   await logAudit(guard.actor, {
     module: "staff",
     action: "exclude-department-points",
-    targetLabel: `Xoá ${result.fullName} khỏi danh sách loại điểm phòng ${monthText(month)}`,
+    targetLabel: `Khôi phục ${result.fullName} vào điểm phòng ${monthText(month)}`,
     targetTable: "department_point_exclusions",
     targetId: userId,
   });

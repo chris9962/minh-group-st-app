@@ -82,7 +82,7 @@ async function send(url: string, method: string, body: unknown, fallback: string
 }
 
 export const excludeFromDepartmentPoints = (userId: string, form: DepartmentPointsExcludeForm) =>
-  send(`/api/department-points/${userId}`, 'PUT', form, 'Không loại được nhân viên này');
+  send(`/api/department-points/${userId}`, 'PUT', form, 'Không loại được nhân viên này. Thử lại.');
 
 export const includeInDepartmentPoints = (userId: string, month: string) =>
-  send(`/api/department-points/${userId}`, 'DELETE', { month }, 'Không xoá được nhân viên này khỏi danh sách');
+  send(`/api/department-points/${userId}`, 'DELETE', { month }, 'Không khôi phục được nhân viên này. Thử lại.');

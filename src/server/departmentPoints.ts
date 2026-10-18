@@ -30,7 +30,7 @@ const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
 export const monthText = (month: string): string =>
   `tháng ${Number(month.slice(5))}/${month.slice(0, 4)}`;
 
-/** Phòng, chức vụ và tháng mà dấu P-54 có tác dụng, cùng luật với `excludedStaffIn`. */
+/** Người có thể bị loại trong tháng: chức vụ Nhân viên, cùng luật với `excludedStaffIn`. */
 const eligibleIn = (month: string) =>
   and(
     eq(staffRoster.userId, users.id),
@@ -38,7 +38,13 @@ const eligibleIn = (month: string) =>
     eq(staffRoster.role, "staff"),
   );
 
-/** P-54 · Danh sách NGOẠI LỆ: chỉ người bị loại khỏi điểm phòng của tháng. */
+/**
+ * P-54 · Danh sách NGOẠI LỆ: chỉ người bị loại khỏi điểm phòng của tháng.
+ *
+ * Hiện MỌI dấu của tháng, kể cả dấu đã hết tác dụng vì người đó lên Trưởng
+ * phòng hay sang phòng khác: giấu đi thì không ai khôi phục được, và người đó
+ * quay về làm Nhân viên phòng kinh doanh là dấu cũ có tác dụng trở lại.
+ */
 export async function departmentPointsList(
   query: { month: string; departmentId: string; search: string },
   page: PageArgs<DepartmentPointsSort>,
@@ -50,8 +56,8 @@ export async function departmentPointsList(
     eq(departmentPointExclusions.userId, users.id),
     eq(departmentPointExclusions.yearMonth, month),
   );
+  const inMonth = and(eq(staffRoster.userId, users.id), eq(staffRoster.yearMonth, month));
   const where = and(
-    eq(departments.type, "sales"),
     query.departmentId ? eq(staffRoster.departmentId, query.departmentId) : undefined,
     staffSearchWhere(query.search),
   );
@@ -70,7 +76,7 @@ export async function departmentPointsList(
         id: users.id,
         fullName: users.fullName,
         staffCode: users.staffCode,
-        departmentName: departments.name,
+        departmentName: sql<string>`coalesce(${departments.name}, '')`,
         points,
         note: departmentPointExclusions.note,
         byName: departmentPointExclusions.createdByName,
@@ -78,8 +84,8 @@ export async function departmentPointsList(
       })
       .from(departmentPointExclusions)
       .innerJoin(users, excludedJoin)
-      .innerJoin(staffRoster, eligibleIn(month))
-      .innerJoin(departments, eq(departments.id, staffRoster.departmentId))
+      .leftJoin(staffRoster, inMonth)
+      .leftJoin(departments, eq(departments.id, staffRoster.departmentId))
       .leftJoin(kpiScores, and(eq(kpiScores.userId, users.id), eq(kpiScores.yearMonth, month)))
       .where(where)
       .orderBy(...orderBy)
@@ -89,8 +95,8 @@ export async function departmentPointsList(
       .select({ value: count() })
       .from(departmentPointExclusions)
       .innerJoin(users, excludedJoin)
-      .innerJoin(staffRoster, eligibleIn(month))
-      .innerJoin(departments, eq(departments.id, staffRoster.departmentId))
+      .leftJoin(staffRoster, inMonth)
+      .leftJoin(departments, eq(departments.id, staffRoster.departmentId))
       .where(where),
     isMonthClosed(month),
     db
@@ -189,14 +195,20 @@ export async function excludeFromDepartmentPoints(
   return target;
 }
 
+/**
+ * Khôi phục chỉ đòi tháng còn mở, không đòi người đó còn là Nhân viên phòng
+ * kinh doanh: dấu đã hết tác dụng vẫn phải gỡ được.
+ */
 export async function includeInDepartmentPoints(userId: string, month: string): Promise<Outcome> {
-  const target = await targetOf(userId, month);
-  if (!target?.ok) return target;
-  const deleted = await db
+  if (!MONTH.test(month)) return null;
+  if (await isMonthClosed(month)) return { ok: false, message: closedMonthMessage(month) };
+  const [deleted] = await db
     .delete(departmentPointExclusions)
     .where(
       and(eq(departmentPointExclusions.userId, userId), eq(departmentPointExclusions.yearMonth, month)),
     )
     .returning({ userId: departmentPointExclusions.userId });
-  return deleted.length > 0 ? target : null;
+  if (!deleted) return null;
+  const [user] = await db.select({ fullName: users.fullName }).from(users).where(eq(users.id, userId));
+  return { ok: true, fullName: user?.fullName ?? "" };
 }

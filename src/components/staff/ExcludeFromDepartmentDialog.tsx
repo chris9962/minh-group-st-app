@@ -15,10 +15,20 @@ import { formatPoints } from "@/lib/format";
 import { errorMessage, toast } from "@/lib/toast";
 import styles from "./ExcludeFromDepartmentDialog.module.scss";
 
-/** Loại hay khôi phục đều đổi điểm phòng và lương quản lý ở trang chi tiết phòng. */
+/** Loại hay khôi phục đều đổi điểm phòng và lương quản lý ở mọi màn hiện hai số đó. */
+const DEPARTMENT_POINTS_KEYS = [
+  "department-points",
+  "department-points-options",
+  "staff-by-department",
+  "org-department",
+  "org-department-stats",
+  "dashboard",
+  "person",
+  "staff",
+];
+
 export function invalidateDepartmentPoints(queryClient: QueryClient) {
-  for (const key of ["department-points", "department-points-options", "staff-by-department", "org-department"])
-    queryClient.invalidateQueries({ queryKey: [key] });
+  for (const key of DEPARTMENT_POINTS_KEYS) queryClient.invalidateQueries({ queryKey: [key] });
 }
 
 type Props = {
@@ -38,7 +48,11 @@ export function ExcludeFromDepartmentDialog({ month, staff, onClose }: Props) {
   const [note, setNote] = useState("");
   const [missing, setMissing] = useState(false);
 
-  const { data: options = [] } = useQuery({
+  const {
+    data: options = [],
+    isPending: optionsPending,
+    isError: optionsError,
+  } = useQuery({
     queryKey: ["department-points-options", month],
     queryFn: () => fetchDepartmentPointsOptions(month),
     enabled: !staff,
@@ -55,6 +69,11 @@ export function ExcludeFromDepartmentDialog({ month, staff, onClose }: Props) {
     onError: (e) => toast.fail(errorMessage(e, "Không loại được nhân viên này. Thử lại.")),
   });
 
+  // Đang lưu thì không đóng được: đóng rồi mà lượt loại vẫn chạy là người dùng tưởng đã huỷ.
+  const close = () => {
+    if (!save.isPending) onClose();
+  };
+
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!userId) {
@@ -67,11 +86,11 @@ export function ExcludeFromDepartmentDialog({ month, staff, onClose }: Props) {
   return (
     <Dialog
       open
-      onClose={onClose}
+      onClose={close}
       title={`Loại khỏi điểm phòng ${monthLabel(month).toLowerCase()}`}
       footer={
         <>
-          <Button variant="secondary" onClick={onClose} disabled={save.isPending}>
+          <Button variant="secondary" onClick={close} disabled={save.isPending}>
             Huỷ
           </Button>
           <Button type="submit" form="exclude-department-form" disabled={save.isPending}>
@@ -91,13 +110,19 @@ export function ExcludeFromDepartmentDialog({ month, staff, onClose }: Props) {
             label="Nhân viên"
             block
             required
-            placeholder="Gõ tên hoặc mã nhân viên"
+            placeholder={optionsPending ? "Đang tải danh sách nhân viên…" : "Gõ tên hoặc mã nhân viên"}
             value={userId}
             onChange={(value) => {
               setUserId(value);
               setMissing(false);
             }}
-            error={missing ? "Chọn nhân viên cần loại" : undefined}
+            error={
+              optionsError
+                ? "Không tải được danh sách nhân viên. Đóng form rồi mở lại."
+                : missing
+                  ? "Chọn nhân viên cần loại"
+                  : undefined
+            }
             options={options.map((o) => ({
               value: o.id,
               label: [o.fullName, o.staffCode, o.departmentName, `${formatPoints(o.points)} điểm`]

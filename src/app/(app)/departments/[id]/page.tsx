@@ -217,6 +217,7 @@ export default function DepartmentDetailPage({
     isError: staffError,
     refetch: refetchStaff,
     isFetching: staffFetching,
+    isPlaceholderData: staffPlaceholder,
   } = useQuery({
     queryKey: ["staff-by-department", id, from, to],
     queryFn: () => fetchDepartmentStaff(id, { from, to }),
@@ -247,17 +248,26 @@ export default function DepartmentDetailPage({
     can(user, "staff", "exclude-department-points") &&
     data?.department.type === "sales" &&
     staffData !== undefined &&
-    !staffData.monthClosed;
+    !staffData.monthClosed &&
+    !staffPlaceholder;
   const exclusionColumn: RankColumn<StaffRow> = {
     key: "exclusion",
     label: "Điểm phòng",
     render: (s) =>
       s.monthRole !== "staff" ? null : s.excludedFromDepartment ? (
-        <Button variant="secondary" onClick={() => setRestoring(s)}>
+        <Button
+          variant="secondary"
+          aria-label={`Khôi phục ${s.fullName} vào điểm phòng`}
+          onClick={() => setRestoring(s)}
+        >
           Khôi phục
         </Button>
       ) : (
-        <Button variant="secondary" onClick={() => setExcluding(s)}>
+        <Button
+          variant="secondary"
+          aria-label={`Loại ${s.fullName} khỏi điểm phòng`}
+          onClick={() => setExcluding(s)}
+        >
           Loại
         </Button>
       ),
@@ -495,14 +505,14 @@ export default function DepartmentDetailPage({
 
         {excluding && (
           <ExcludeFromDepartmentDialog
-            month={month}
+            month={staffData?.summaryMonth ?? month}
             staff={excluding}
             onClose={() => setExcluding(null)}
           />
         )}
         <RestoreToDepartmentDialog
           staff={restoring}
-          month={month}
+          month={staffData?.summaryMonth ?? month}
           onClose={() => setRestoring(null)}
         />
       </main>

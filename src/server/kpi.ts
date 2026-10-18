@@ -815,8 +815,9 @@ export async function pointsByDepartmentInRange(range: Range): Promise<Map<strin
 
 /**
  * Tháng → id nhân viên không tính vào điểm phòng của tháng đó (P-54, chốt
- * 2026-10-18). Chỉ người có chức vụ Nhân viên trong ĐÚNG tháng đó: người lên
- * Trưởng phòng sau khi bị đánh dấu thì dấu cũ hết tác dụng.
+ * 2026-10-18). Chỉ người có chức vụ Nhân viên ở phòng kinh doanh trong ĐÚNG
+ * tháng đó, cùng luật với `liveSalaries`: người lên Trưởng phòng hay sang phòng
+ * khác sau khi bị đánh dấu thì dấu cũ hết tác dụng.
  */
 export async function excludedStaffIn(months: string[]): Promise<Map<string, Set<string>>> {
   const byMonth = new Map<string, Set<string>>();
@@ -833,7 +834,14 @@ export async function excludedStaffIn(months: string[]): Promise<Map<string, Set
         eq(staffRoster.yearMonth, departmentPointExclusions.yearMonth),
       ),
     )
-    .where(and(inArray(departmentPointExclusions.yearMonth, unique), eq(staffRoster.role, "staff")));
+    .innerJoin(departments, eq(departments.id, staffRoster.departmentId))
+    .where(
+      and(
+        inArray(departmentPointExclusions.yearMonth, unique),
+        eq(staffRoster.role, "staff"),
+        eq(departments.type, "sales"),
+      ),
+    );
 
   for (const row of rows) {
     const ids = byMonth.get(row.yearMonth) ?? new Set<string>();
@@ -867,19 +875,23 @@ export async function departmentPointsFrom(
   for (let m = range.from.slice(0, 7); m <= range.to.slice(0, 7); m = shiftMonth(m, 1)) months.push(m);
   const excluded = await excludedStaffIn(months);
 
-  for (const [month, ids] of excluded) {
-    const whole = monthRange(month);
-    const part = {
-      from: whole.from > range.from ? whole.from : range.from,
-      to: whole.to < range.to ? whole.to : range.to,
-    };
-    const samePeriod = part.from === range.from && part.to === range.to;
-    const monthPoints = samePeriod ? points : await pointsByStaffInRange(part);
+  const perMonth = await Promise.all(
+    [...excluded].map(async ([month, ids]) => {
+      const whole = monthRange(month);
+      const part = {
+        from: whole.from > range.from ? whole.from : range.from,
+        to: whole.to < range.to ? whole.to : range.to,
+      };
+      const samePeriod = part.from === range.from && part.to === range.to;
+      return { ids, monthPoints: samePeriod ? points : await pointsByStaffInRange(part) };
+    }),
+  );
+  for (const { ids, monthPoints } of perMonth)
     for (const id of ids) {
       const row = monthPoints.get(id);
-      if (row) add(row.departmentId, -row.points);
+      // Trừ ở đúng phòng đã cộng phía trên: kỳ nhiều tháng gán cả kỳ cho MỘT phòng của người đó.
+      if (row) add(points.get(id)?.departmentId ?? row.departmentId, -row.points);
     }
-  }
   return out;
 }
 
