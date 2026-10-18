@@ -50,7 +50,7 @@ export const RELEASES: Release[] = [
       },
       {
         title: 'Lương Phó giám đốc',
-        items: ['Tổng điểm nhánh cộng cả điểm KPI app của Trưởng phòng và Phó phòng.'],
+        items: ['Tổng điểm nhánh cộng cả điểm KPI app của Trưởng phòng.'],
         visibleTo: (user) => user.role === 'director' || user.role === 'deputy-director',
       },
       {
