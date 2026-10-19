@@ -1,5 +1,5 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
-import type { DirectedExportRow, SalaryExportRow } from "@/lib/api/exports";
+import type { DirectedExportRow, DirectedResult, SalaryExportRow } from "@/lib/api/exports";
 import { monthRange, roundPoints } from "@/lib/format";
 import { ROLE_RANK } from "@/lib/types";
 import { accountCustomerDayBetween } from "./customerDay";
@@ -139,7 +139,10 @@ export async function listSalaryExport(yearMonth: string): Promise<SalaryExportR
  * `quotaProgressFor`, câu chấm lấy từ dòng lương, nên khớp đúng bảng lương.
  * Người đã nghỉ chỉ có dòng khi có tài khoản định hướng hoặc có lương.
  */
-export async function listDirectedExport(yearMonth: string): Promise<DirectedExportRow[]> {
+export async function listDirectedExport(
+  yearMonth: string,
+  result: DirectedResult | null,
+): Promise<DirectedExportRow[]> {
   const staff = await db
     .select({
       id: users.id,
@@ -171,6 +174,7 @@ export async function listDirectedExport(yearMonth: string): Promise<DirectedExp
   const salaries = await salaryForUsers(scored.map((s) => s.id), yearMonth);
   return scored
     .filter((s) => s.active || s.achieved > 0 || (salaries.get(s.id)?.amount ?? 0) > 0)
+    .filter((s) => result === null || (s.achieved >= s.target) === (result === "reached"))
     .map((s) => ({
       fullName: s.fullName,
       staffCode: s.staffCode ?? "",

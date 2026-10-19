@@ -359,8 +359,21 @@ export const DirectedExportRow = z.object({
 });
 export type DirectedExportRow = z.infer<typeof DirectedExportRow>;
 
-export async function fetchDirectedExport(month: string): Promise<DirectedExportRow[]> {
-  const res = await fetch(`/api/exports/directed-accounts?${new URLSearchParams({ month })}`);
+/** Ô lọc Kết quả; chuỗi rỗng là cả người đạt lẫn chưa đạt. */
+export const DirectedResult = z.enum(['reached', 'missed']);
+export type DirectedResult = z.infer<typeof DirectedResult>;
+export const DIRECTED_RESULT_LABEL: Record<DirectedResult, string> = {
+  reached: 'Đạt',
+  missed: 'Chưa đạt',
+};
+
+export async function fetchDirectedExport(
+  month: string,
+  result: DirectedResult | '',
+): Promise<DirectedExportRow[]> {
+  const params = new URLSearchParams({ month });
+  if (result) params.set('result', result);
+  const res = await fetch(`/api/exports/directed-accounts?${params}`);
   if (!res.ok) throw new Error('Không tải được tài khoản định hướng');
   return z.array(DirectedExportRow).parse(await res.json());
 }
