@@ -12,21 +12,21 @@ import type {
  * Lương CĐS từ tháng 2026-09: kỳ 2026-08 cộng phần chỉ tiêu của QĐ 145 (chốt
  * với chủ dự án 2026-09-25). Số chỉ tiêu do admin nhập ở màn Chỉ tiêu tháng.
  *
- * - Nhân viên HĐLĐ, tài khoản định hướng: đạt cộng 3 điểm, thiếu trừ 1 điểm
- *   cho mỗi 1% (QĐ 107 Phụ lục 04). Điểm này vào điểm KPI trước khi chia mốc.
+ * - Nhân viên HĐLĐ, tài khoản định hướng: đạt cộng 3 điểm, thiếu không trừ
+ *   (QĐ 107 Phụ lục 04). Điểm này vào điểm KPI trước khi chia mốc.
  *   Chỉ tiêu HKD và CASA của nhân viên chỉ lưu: Phụ lục 04 không có mức.
  * - Phòng có chỉ tiêu định hướng trống thì nhân viên phòng đó cũng không chấm
  *   định hướng, xem `staffQuotaNeedsDepartmentQuota`.
- * - Trưởng/Phó phòng, định hướng theo chỉ tiêu phòng: đạt cộng 10, thiếu trừ 1
- *   điểm cho mỗi 1% (Phụ lục 05). HKD: đạt cộng 10, thiếu không trừ.
- * - Phó GĐ, từng phòng phụ trách, định hướng: đạt cộng 10, thiếu trừ 20 (Phụ
- *   lục 07). HKD: đạt cộng 10, thiếu không trừ.
+ * - Trưởng/Phó phòng, định hướng và HKD theo chỉ tiêu phòng: đạt cộng 10, thiếu
+ *   không trừ (Phụ lục 05).
+ * - Phó GĐ, từng phòng phụ trách, định hướng và HKD: đạt cộng 10, thiếu không
+ *   trừ (Phụ lục 07).
  * - Phòng Y và phòng Dự án chấm theo 50% chỉ tiêu phòng admin nhập. Chỉ tiêu cá
  *   nhân chấm đủ số.
  *
  * Bỏ phần trừ HKD của quản lý và giảm chỉ tiêu hai phòng: chốt 2026-09-28.
  * Nhân viên phòng không có chỉ tiêu thì không chấm, bỏ 50% chỉ tiêu cá nhân:
- * chốt 2026-10-02.
+ * chốt 2026-10-02. Bỏ phần trừ định hướng của mọi người: chốt 2026-10-19.
  *
  * TODO(lương CĐS, file mẫu CASA của Yên): CASA chưa tính. Nhân viên HĐLĐ cộng
  * 0,2 điểm/tài khoản; Trưởng/Phó phòng đạt cộng 4, thiếu trừ 10; tự mở cộng
@@ -71,7 +71,7 @@ function quotaResult(
 }
 
 export function staff({ points, workDays, directedQuota }: StaffSalaryInput): SalaryResult {
-  const directed = directedQuota ? quotaResult(directedQuota, 3, (shortfall) => shortfall) : null;
+  const directed = directedQuota ? quotaResult(directedQuota, 3, () => 0) : null;
   const direct = roundPoints(points + (directed?.points ?? 0));
   const days = Math.min(workDays, MAX_DAYS);
   const tier1 = Math.min(Math.max(direct, 0), 100);
@@ -166,7 +166,7 @@ export function manager({
       amount: reached * unit * rate,
     },
     ...quotaItems(departmentQuota?.hkd, "Chỉ tiêu HKD của phòng", rate, () => 0),
-    ...quotaItems(departmentQuota?.directed, "Chỉ tiêu định hướng của phòng", rate, (shortfall) => shortfall),
+    ...quotaItems(departmentQuota?.directed, "Chỉ tiêu định hướng của phòng", rate, () => 0),
     {
       label: "Làm trực tiếp",
       formula: `${formatPoints(Math.max(direct, 0))} điểm × 70.000đ`,
@@ -205,7 +205,7 @@ export function deputyDirector({
     ...branchQuotaItem(
       departmentQuotas.map((q) => q.directed),
       "Chỉ tiêu định hướng các phòng",
-      20,
+      0,
     ),
   ];
   const reached = teamPoints.filter((p) => p >= 100).length;
