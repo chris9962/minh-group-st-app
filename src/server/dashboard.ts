@@ -1046,14 +1046,13 @@ export async function dashboardFor(
       pointsByStaffInRange(current),
       previous ? pointsByStaffInRange(previous) : Promise.resolve(null),
       // Lương là số của THÁNG chứa kỳ đang xem, không tính theo khoảng ngày
-      // (chốt 2026-09-30); người tính lương là người đang làm trong tháng đó.
+      // (chốt 2026-09-30). Lấy cả người nghỉ giữa tháng: họ vẫn có lương tháng
+      // đó, cùng tập người với `closeSalaryMonth`.
       v.kind === "company"
         ? db
             .select({ id: staffRoster.userId })
             .from(staffRoster)
-            .where(
-              and(eq(staffRoster.yearMonth, current.from.slice(0, 7)), eq(staffRoster.active, true)),
-            )
+            .where(eq(staffRoster.yearMonth, current.from.slice(0, 7)))
             .then(async (rows) => {
               const salaries = await salaryForUsers(
                 rows.map((row) => row.id),

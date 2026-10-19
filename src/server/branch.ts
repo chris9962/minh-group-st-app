@@ -36,7 +36,8 @@ const percentOf = (part: number, whole: number): number =>
  * Ba nguồn đã có sẵn, không tính lại:
  *   - tài khoản, app: `statsByDepartment`, cùng câu với bảng xếp hạng phòng
  *   - điểm: `departmentPointsFrom`, gom theo người lập hồ sơ như bảng lương
- *   - lương: `salaryForUsers`, cộng mọi người đang làm trong phòng
+ *   - lương: `salaryForUsers`, cộng cả người nghỉ giữa tháng như chốt lương;
+ *     số người chỉ đếm người đang làm
  *
  * Tài khoản, app, điểm theo KỲ người xem chọn. Lương, chỉ tiêu, phòng phụ trách
  * và số người là của THÁNG chứa kỳ đó (chốt 2026-09-30), đọc theo nhân sự của
@@ -66,15 +67,10 @@ export async function branchSummaryFor(subjectId: string, range: Range): Promise
         id: staffRoster.userId,
         departmentId: staffRoster.departmentId,
         role: staffRoster.role,
+        active: staffRoster.active,
       })
       .from(staffRoster)
-      .where(
-        and(
-          eq(staffRoster.yearMonth, salaryMonth),
-          eq(staffRoster.active, true),
-          inArray(staffRoster.departmentId, ids),
-        ),
-      ),
+      .where(and(eq(staffRoster.yearMonth, salaryMonth), inArray(staffRoster.departmentId, ids))),
     statsByDepartment(range),
     pointsByStaffInRange(range),
   ]);
@@ -104,7 +100,7 @@ export async function branchSummaryFor(subjectId: string, range: Range): Promise
     return {
       id: d.id,
       name: d.name,
-      staffCount: members.filter((p) => ["staff", "deputy-head", "head"].includes(p.role)).length,
+      staffCount: members.filter((p) => p.active && ["staff", "deputy-head", "head"].includes(p.role)).length,
       accountsOpened,
       appsInstalled,
       installPercent: percentOf(appsInstalled, accountsOpened),
