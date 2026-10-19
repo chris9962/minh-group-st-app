@@ -16,6 +16,33 @@ const seesCompanyDashboard = (user: User) =>
  */
 export const RELEASES: Release[] = [
   {
+    id: '2026-10-19',
+    version: '2.11.0',
+    title: 'Cập nhật ngày 19/10/2026',
+    summary: 'Xuất dữ liệu thêm báo cáo Lương và Tài khoản định hướng, Tổng quan của nhân viên xem được điểm và lương tháng cũ.',
+    sections: [
+      {
+        title: 'Xuất dữ liệu',
+        items: [
+          'Thêm báo cáo Lương theo tháng.',
+          'Thêm báo cáo Tài khoản định hướng theo tháng.',
+          'Cập nhật lại giao diện.',
+        ],
+        visibleTo: (user) => scopeFor(user, 'staff', 'export') === 'company',
+      },
+      {
+        title: 'Xuất dữ liệu',
+        items: ['Cập nhật lại giao diện.'],
+        visibleTo: (user) => canOpenPath(user, '/exports') && scopeFor(user, 'staff', 'export') !== 'company',
+      },
+      {
+        title: 'Tổng quan',
+        items: ['Khối Điểm và Lương hiện tháng của khoảng ngày đang chọn.'],
+        visibleTo: (user) => user.role === 'staff' && !seesCompanyDashboard(user),
+      },
+    ],
+  },
+  {
     id: '2026-10-18',
     version: '2.10.0',
     title: 'Cập nhật ngày 18/10/2026',
