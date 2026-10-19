@@ -75,6 +75,24 @@ export const capitalizeWords = (text: string): string =>
   text.replace(/(^|\s)(\p{L})/gu, (_, space: string, letter: string) => space + letter.toUpperCase());
 
 /** Chữ tắt: chữ đầu của từ đầu và từ cuối — "Nguyễn Thị Bích Trâm" → "NT". */
+/**
+ * Danh sách tên phòng rút gọn cho một ô bảng (chốt 2026-10-19): các "Phòng Kinh
+ * doanh N" gộp thành "Phòng 1, 2, 4", số xếp tăng dần; phòng khác giữ nguyên
+ * tên. Mười một phòng kinh doanh viết đủ tên là ô dài hơn cả bảng.
+ */
+export function departmentListLabel(names: string[]): string {
+  const numbers: number[] = [];
+  const others: string[] = [];
+  for (const name of names) {
+    const match = /^Phòng Kinh doanh (\d+)$/.exec(name.trim());
+    if (match) numbers.push(Number(match[1]));
+    else others.push(name);
+  }
+  numbers.sort((a, b) => a - b);
+  const grouped = numbers.length > 0 ? [`Phòng ${numbers.join(', ')}`] : [];
+  return [...grouped, ...others].join(', ');
+}
+
 export function nameInitials(fullName: string): string {
   const parts = fullName.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return "?";

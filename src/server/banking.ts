@@ -63,6 +63,7 @@ import {
   customers,
   departments,
   giftGrants,
+  referralCodeAllocations,
   referralCodeDepartments,
   referralCodes,
   users,
@@ -239,6 +240,9 @@ export function slotConflictMessage(kind: SlotConflict, bankCode: string, hkd: b
  *
  * Khoá dòng mã bằng `for update`: request thứ hai chạm cùng dòng sẽ ĐỨNG ĐỢI ở
  * đây, không đọc được con số cũ.
+ *
+ * `userId` là NGƯỜI MỞ tài khoản — chỗ riêng của mã đã chia tính theo người
+ * này, kể cả khi người quản ngân hàng đổi mã hộ.
  */
 async function lockUsableCode(
   tx: Tx,
@@ -246,6 +250,7 @@ async function lockUsableCode(
   bankId: string,
   accountType: string,
   departmentId: string | null,
+  userId: string | null,
 ): Promise<
   { ok: true; code: { id: string; code: string | null } } | { ok: false; message: string }
 > {
@@ -262,6 +267,7 @@ async function lockUsableCode(
       holdingCount: referralCodes.holdingCount,
       accountType: referralCodes.accountType,
       scope: referralCodes.scope,
+      perUserAllocation: referralCodes.perUserAllocation,
       active: referralCodes.active,
     })
     .from(referralCodes)
@@ -310,6 +316,38 @@ async function lockUsableCode(
       ok: false,
       message: `Mã ${codeLabel} vừa hết chỗ — người khác đã lấy chỗ cuối. Chọn mã khác giúp.`,
     };
+
+  /**
+   * Mã bật chia cho từng nhân viên (chốt 2026-10-19): chỉ người có phần dùng
+   * được, và không quá phần của mình. Đếm sau khi đã khoá dòng mã, nên hai lượt
+   * mở song song của cùng một người không cùng đếm ra một số.
+   */
+  if (code.perUserAllocation) {
+    const [mine] = userId
+      ? await tx
+          .select({ userId: referralCodeAllocations.userId, quota: referralCodeAllocations.quota })
+          .from(referralCodeAllocations)
+          .where(
+            and(
+              eq(referralCodeAllocations.referralCodeId, code.id),
+              eq(referralCodeAllocations.userId, userId),
+            ),
+          )
+          .limit(1)
+      : [];
+    if (!mine)
+      return { ok: false, message: `Mã ${codeLabel} chưa chia cho người mở. Chọn mã khác giúp.` };
+    const [{ used }] = await tx
+      .select({ used: count() })
+      .from(bankAccounts)
+      .where(and(eq(bankAccounts.referralCodeId, code.id), eq(bankAccounts.createdBy, mine.userId)));
+    // Không viết "Bạn": người quản ngân hàng đổi mã hộ cũng đọc câu này.
+    if (used >= mine.quota)
+      return {
+        ok: false,
+        message: `Mã ${codeLabel} đã dùng hết ${mine.quota} chỗ được chia cho người mở. Chọn mã khác giúp.`,
+      };
+  }
 
   return { ok: true, code: { id: code.id, code: code.code } };
 }
@@ -1610,8 +1648,9 @@ export async function startBankAccount(
      *
      * Khoá dòng NGƯỜI MỞ trước khi đếm: hai request của cùng một người cho hai
      * khách khác nhau không chung khoá khách, không khoá là cả hai đếm 1 rồi
-     * cùng chèn thành 3. Khoá sau khách, trước mã, chưa đường ghi nào khác khoá
-     * `users` nên không thêm vòng khoá chéo.
+     * cùng chèn thành 3. Khoá sau khách, trước mã. `saveReferralCodeAllocations`
+     * (chia mã, 2026-10-19) cũng khoá `users` rồi mới tới mã, cùng thứ tự nên
+     * không thêm vòng khoá chéo.
      */
     await tx.select({ id: users.id }).from(users).where(eq(users.id, actor.id)).for("update");
     const heldByActor = await tx
@@ -1652,6 +1691,7 @@ export async function startBankAccount(
         pick.bankId,
         pick.accountType,
         department.departmentId,
+        actor.id,
       );
       if (!locked.ok) return { ok: false as const, message: locked.message };
       const code = locked.code;
@@ -1718,6 +1758,7 @@ export async function startBankAccount(
 export async function customerBankSlots(
   customerId: string,
   departmentId: string,
+  userId: string,
 ): Promise<CustomerBankSlots | null> {
   const [customer] = await db
     .select({
@@ -1752,7 +1793,7 @@ export async function customerBankSlots(
     db
       .selectDistinct({ bankId: referralCodes.bankId, accountType: referralCodes.accountType })
       .from(referralCodes)
-      .where(openCodeWhere(departmentId)),
+      .where(openCodeWhere(departmentId, userId)),
     ageRulesByType(),
   ]);
   const banksWithCodes = (type: AccountType) =>
@@ -2195,7 +2236,12 @@ export async function usableCodesForAccount(actor: User, id: string): Promise<Re
   const current = await rawById(id);
   if (!current) return null;
   if (!canManageBank(actor, current.bankId)) return null;
-  return listOpenReferralCodes(current.bankId, current.createdByDepartmentId ?? "", accountTypeOf(current));
+  return listOpenReferralCodes(
+    current.bankId,
+    current.createdByDepartmentId ?? "",
+    current.createdById ?? "",
+    accountTypeOf(current),
+  );
 }
 
 export async function changeReferralCodeByBankManager(
@@ -2218,6 +2264,7 @@ export async function changeReferralCodeByBankManager(
       current.bankId,
       accountTypeOf(current),
       current.createdByDepartmentId,
+      current.createdById,
     );
     if (!lock.ok) return lock;
 

@@ -388,6 +388,31 @@ export function canSeeAvailableReferralCodes(user: User | null): boolean {
 }
 
 /**
+ * Nút MGT của NHÂN VIÊN (chốt 2026-10-19): ai mở được tài khoản mà không xem
+ * được mã cả phòng thì xem mã Trưởng phòng đã chia cho mình. Hai nút loại trừ
+ * nhau để thanh tiêu đề không có hai nút cùng tên.
+ */
+export function canSeeMyReferralCodes(user: User | null): boolean {
+  return can(user, 'banking', 'create') && !canSeeAvailableReferralCodes(user);
+}
+
+/**
+ * Chia chỗ của một mã cho nhân viên phòng `departmentId` (chốt 2026-10-19).
+ *
+ * Hỏi `banking:update` ở mức dòng, không hỏi `manage-bank`: chia mã là việc
+ * của Trưởng phòng với phòng mình quản, người quản kho mã không nhất thiết biết
+ * ai trong phòng cần bao nhiêu. Ban giám đốc có `company` nên chia được cho
+ * mọi phòng.
+ */
+export function canAllocateReferralCodes(user: User | null, departmentId: string): boolean {
+  const visibility = recordVisibility(user, 'banking', 'update');
+  return (
+    visibility.kind === 'all' ||
+    (visibility.kind === 'departments' && visibility.departmentIds.includes(departmentId))
+  );
+}
+
+/**
  * Phạm vi ĐỌC khi câu hỏi đã ghim vào đúng một khách hoặc một bản ghi: tìm bằng
  * CCCD đủ 12 số, mở một bản ghi theo id, xem bản ghi trong hồ sơ một khách.
  *

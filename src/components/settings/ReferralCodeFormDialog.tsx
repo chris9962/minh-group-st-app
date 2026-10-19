@@ -53,6 +53,17 @@ const TOTAL_BY_BANK: Record<string, number> = { VPa: 5, VPb: 5 };
 const DEFAULT_TOTAL = 100;
 
 /**
+ * Ba mức của ô "Phạm vi sử dụng". Máy chủ chỉ có hai (`scope`), mức thứ ba là
+ * `departments` + `perUserAllocation` với đúng một phòng (chốt 2026-10-19).
+ */
+type ScopeChoice = CodeScope | "allocated";
+const SCOPE_CHOICE_OPTIONS: { value: ScopeChoice; label: string }[] = [
+  { value: "all", label: CODE_SCOPE_LABEL.all },
+  { value: "departments", label: CODE_SCOPE_LABEL.departments },
+  { value: "allocated", label: "Một phòng, Trưởng phòng chia cho từng nhân viên" },
+];
+
+/**
  * P-61 · Thêm / sửa một mã giới thiệu lẻ. Nhập hàng loạt từ Excel là việc của P-62.
  *
  * Sửa được tên hiển thị, mã text, ảnh QR và tổng số lượt; ngân hàng thì không —
@@ -101,6 +112,7 @@ export function ReferralCodeFormDialog({ open, onClose, referral }: Props) {
       accountType: referral?.accountType ?? "none",
       scope: referral?.scope ?? "all",
       departmentIds: referral?.departmentIds ?? [],
+      perUserAllocation: referral?.perUserAllocation ?? false,
       qrImageUrl: referral?.qrImageUrl ?? "",
       province: referral?.province ?? "",
       supportBranch: referral?.supportBranch ?? "",
@@ -122,6 +134,8 @@ export function ReferralCodeFormDialog({ open, onClose, referral }: Props) {
   );
   const departmentsRef = useRef<HTMLDetailsElement>(null);
   const scope = watch("scope");
+  const scopeChoice: ScopeChoice =
+    scope === "all" ? "all" : watch("perUserAllocation") ? "allocated" : "departments";
   const previousScope = useRef(scope);
   // App VPBank NEO có thêm ô "DAO SALE" cạnh ô mã giới thiệu; ngân hàng khác không có.
   const hasDaoSale = ["VPa", "VPb"].includes(banks.find((b) => b.id === watch("bankId"))?.code ?? "");
@@ -364,22 +378,49 @@ export function ReferralCodeFormDialog({ open, onClose, referral }: Props) {
         />
 
         {/* Cụm phạm vi đứng CUỐI biểu mẫu: nó là mục dài nhất, và phần lớn mã
-            để "Mọi phòng" nên người dùng đi qua nó chứ không dừng lại. */}
+            để "Mọi phòng" nên người dùng đi qua nó chứ không dừng lại.
+
+            Ba mức trong MỘT ô chọn, dù máy chủ lưu hai trường (`scope` và
+            `perUserAllocation`): mức "chia cho từng nhân viên" chọn ngay ở đây,
+            trước khi chọn phòng. Bản đầu đặt ô tick dưới danh sách 15 phòng,
+            người dùng tick phòng xong không cuộn xuống nên không thấy. */}
         <Select
           block
           required
           label="Phạm vi sử dụng"
-          value={scope}
+          value={scopeChoice}
           onChange={(v) => {
-            setValue("scope", v as CodeScope, { shouldDirty: true });
+            const next = v as ScopeChoice;
+            setValue("scope", next === "all" ? "all" : "departments", { shouldDirty: true });
+            setValue("perUserAllocation", next === "allocated", { shouldDirty: true });
             // Về "Mọi phòng" thì dọn luôn danh sách: giữ lại là lần sau mở ra
-            // thấy phòng còn tick mà ô chọn nói "Mọi phòng".
-            if (v === "all") setValue("departmentIds", [], { shouldDirty: true });
+            // thấy phòng còn tick mà ô chọn nói "Mọi phòng". Sang mức chia thì
+            // chỉ giữ một phòng, vì mức đó chỉ nhận đúng một phòng.
+            if (next === "all") setValue("departmentIds", [], { shouldDirty: true });
+            if (next === "allocated")
+              setValue("departmentIds", watch("departmentIds").slice(0, 1), { shouldDirty: true });
           }}
-          options={Object.entries(CODE_SCOPE_LABEL).map(([value, label]) => ({ value, label }))}
+          options={SCOPE_CHOICE_OPTIONS}
         />
 
-        {scope === "departments" && (
+        {scopeChoice === "allocated" && (
+          <Select
+            block
+            required
+            label="Phòng dùng mã này"
+            value={watch("departmentIds")[0] ?? ""}
+            onChange={(v) =>
+              setValue("departmentIds", v ? [v] : [], { shouldDirty: true, shouldValidate: true })
+            }
+            options={[
+              { value: "", label: "Chọn phòng" },
+              ...departments.map((d) => ({ value: d.id, label: d.name })),
+            ]}
+            error={errors.departmentIds?.message}
+          />
+        )}
+
+        {scopeChoice === "departments" && (
           /*
             `<details>` gốc, không dựng khối đóng mở bằng tay: trình duyệt lo sẵn
             phím Enter/Space, tiêu điểm và cách trình đọc màn hình đọc trạng thái

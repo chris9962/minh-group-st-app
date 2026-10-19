@@ -17,9 +17,12 @@ export async function GET(request: Request) {
   if (!canSeeAvailableReferralCodes(guard.actor)) return forbidden();
 
   const visibility = recordVisibility(guard.actor, "banking", "view-detail");
+  // `all=1` = thấy cả mã đã đầy và đã ngừng (ô tích trong modal, chốt 2026-10-19).
+  const all = new URL(request.url).searchParams.get("all") === "1";
   return Response.json(
     await listAvailableReferralCodes(
       visibility.kind === "departments" ? visibility.departmentIds : null,
+      !all,
     ),
   );
 }

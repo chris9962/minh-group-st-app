@@ -13,6 +13,7 @@ import { AvailableReferralCodesDialog } from "@/components/banking/AvailableRefe
 import { BankAccountEditDialog } from "@/components/banking/BankAccountEditDialog";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { CreateBankAccountDialog } from "@/components/banking/CreateBankAccountDialog";
+import { MyReferralCodesDialog } from "@/components/banking/MyReferralCodesDialog";
 import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
 import buttonStyles from "@/components/ui/Button.module.css";
@@ -47,7 +48,13 @@ import { formatDate, formatPhone } from "@/lib/format";
 import { useDebouncedValue } from "@/lib/hooks";
 import { useCreateIntent } from "@/lib/useCreateIntent";
 import { canOpenPath } from "@/lib/nav";
-import { can, canSeeAvailableReferralCodes, recordVisibility, scopeFor } from "@/lib/permissions";
+import {
+  can,
+  canSeeAvailableReferralCodes,
+  canSeeMyReferralCodes,
+  recordVisibility,
+  scopeFor,
+} from "@/lib/permissions";
 import { errorMessage, toast } from "@/lib/toast";
 import { isRealIsoDate } from "@/lib/types";
 import { usePrefs } from "@/store/prefs";
@@ -517,6 +524,7 @@ export default function BankingPage() {
           ) : null}
         </FilterButton>
         {canSeeAvailableReferralCodes(user) && <AvailableReferralCodesDialog />}
+        {canSeeMyReferralCodes(user) && <MyReferralCodesDialog />}
         {can(user, "banking", "create") && (
           <Button
             aria-label="Tạo ngân hàng"

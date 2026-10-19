@@ -38,6 +38,7 @@ export async function GET(request: Request) {
     await listOpenReferralCodes(
       bankId,
       department.ok ? (department.departmentId ?? "") : "",
+      guard.actor.id,
       accountType.success ? accountType.data : "",
     ),
   );

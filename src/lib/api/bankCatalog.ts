@@ -327,8 +327,24 @@ export const ReferralCode = z.object({
   active: z.boolean(),
   /** Tên người tạo mã; null khi không rõ người tạo. */
   createdByName: z.string().nullable().default(null),
+  /**
+   * Kho mã bật "Trưởng phòng chia mã cho từng nhân viên". Chỉ có với mã gán
+   * đúng một phòng. Bật thì mã chỉ dùng qua phần chia; tắt thì cả phòng dùng.
+   */
+  perUserAllocation: z.boolean().default(false),
+  /** Tổng số chỗ Trưởng phòng đã chia cho nhân viên; 0 = chưa chia. */
+  allocated: z.number().default(0),
 });
 export type ReferralCode = z.infer<typeof ReferralCode>;
+
+/** Mã gán đúng MỘT phòng: điều kiện để bật chia cho từng nhân viên (chốt 2026-10-19). */
+export const isSingleDepartment = (code: Pick<ReferralCode, 'scope' | 'departmentIds'>) =>
+  code.scope === 'departments' && code.departmentIds.length === 1;
+
+/** Mã Trưởng phòng chia được: gán đúng một phòng VÀ kho mã đã bật chia. */
+export const isAllocatable = (
+  code: Pick<ReferralCode, 'scope' | 'departmentIds' | 'perUserAllocation'>,
+) => isSingleDepartment(code) && code.perUserAllocation;
 
 export const REFERRAL_CODE_SORT = ['bank', 'code', 'progress', 'priority'] as const;
 export type ReferralCodeSort = (typeof REFERRAL_CODE_SORT)[number];
@@ -440,13 +456,82 @@ export async function fetchOpenReferralCodes(
 }
 
 /**
- * Mã còn chỗ của mọi ngân hàng trong phạm vi người xem — nút MGT ở P-21. Máy
- * chủ tự lấy phạm vi từ phiên đăng nhập, không nhận tham số.
+ * Mã của mọi ngân hàng trong phạm vi người xem — nút MGT ở P-21. Máy chủ tự
+ * lấy phạm vi từ phiên đăng nhập. `hideUnusable` bỏ mã đã đầy và đã ngừng
+ * (chốt 2026-10-19); lọc ở máy chủ vì toàn công ty có vài nghìn mã.
  */
-export async function fetchAvailableReferralCodes(): Promise<ReferralCode[]> {
-  const res = await fetch('/api/settings/referral-codes/available');
-  if (!res.ok) throw new Error('Không tải được mã giới thiệu còn chỗ');
+export async function fetchAvailableReferralCodes(hideUnusable: boolean): Promise<ReferralCode[]> {
+  const res = await fetch(`/api/settings/referral-codes/available${hideUnusable ? '' : '?all=1'}`);
+  if (!res.ok) throw new Error('Không tải được mã giới thiệu');
   return z.array(ReferralCode).parse(await res.json());
+}
+
+/** Một dòng trong form chia mã: một nhân viên, số chỗ được chia, số đã dùng trên mã này. */
+export const ReferralCodeAllocationRow = z.object({
+  userId: z.string(),
+  fullName: z.string(),
+  staffCode: z.string().nullable(),
+  /** 0 = chưa chia cho người này. */
+  quota: z.number(),
+  /** Tài khoản người này đã mở bằng mã, tính cả đang mở dở. */
+  used: z.number(),
+  /** `false` = đã rời phòng nhưng còn phần chia; hiện để Trưởng phòng thu hồi. */
+  member: z.boolean(),
+});
+export type ReferralCodeAllocationRow = z.infer<typeof ReferralCodeAllocationRow>;
+
+export const ReferralCodeAllocationSheet = z.object({
+  code: ReferralCode,
+  departmentName: z.string(),
+  /**
+   * Số chỗ còn chia được = tổng trừ phần nhập tay, phần đã chia và phần người
+   * ngoài danh sách đã dùng. Form cộng trừ trên số này khi người dùng gõ.
+   */
+  unallocated: z.number(),
+  rows: z.array(ReferralCodeAllocationRow),
+});
+export type ReferralCodeAllocationSheet = z.infer<typeof ReferralCodeAllocationSheet>;
+
+export const ReferralCodeAllocationItem = z.object({
+  userId: z.guid(),
+  /** 0 = thu hồi, chỉ được khi người đó chưa dùng chỗ nào. */
+  quota: z.number().int().min(0),
+});
+export type ReferralCodeAllocationItem = z.infer<typeof ReferralCodeAllocationItem>;
+
+/** Form chia mã cho nhân viên — nút MGT của Trưởng phòng. */
+export async function fetchReferralCodeAllocations(codeId: string): Promise<ReferralCodeAllocationSheet> {
+  const res = await fetch(`/api/settings/referral-codes/${codeId}/allocations`);
+  if (!res.ok) throw new Error('Không tải được phần chia của mã này');
+  return ReferralCodeAllocationSheet.parse(await res.json());
+}
+
+export const saveReferralCodeAllocations = (codeId: string, items: ReferralCodeAllocationItem[]) =>
+  send(`/api/settings/referral-codes/${codeId}/allocations`, 'PUT', { items }).then(
+    ReferralCodeAllocationSheet.parse,
+  );
+
+/** Một mã nhân viên được chia, kèm số họ đã dùng — modal "Mã của tôi". */
+export const MyReferralCode = z.object({
+  id: z.string(),
+  bankId: z.string(),
+  bankCode: z.string(),
+  accountType: AccountType,
+  displayName: z.string(),
+  quota: z.number(),
+  used: z.number(),
+  /** `false` = kho mã đã ngừng mã này. */
+  active: z.boolean(),
+  /** Mã hết chỗ ở mức cả mã, dù phần riêng còn. */
+  codeFull: z.boolean(),
+});
+export type MyReferralCode = z.infer<typeof MyReferralCode>;
+
+/** `hideUnusable` bỏ mã đã ngừng, mã hết chỗ và phần riêng đã dùng hết. */
+export async function fetchMyReferralCodes(hideUnusable: boolean): Promise<MyReferralCode[]> {
+  const res = await fetch(`/api/settings/referral-codes/mine${hideUnusable ? '' : '?all=1'}`);
+  if (!res.ok) throw new Error('Không tải được mã giới thiệu của bạn');
+  return z.array(MyReferralCode).parse(await res.json());
 }
 
 /** Thêm một mã lẻ. Nhập hàng loạt từ Excel vẫn là việc riêng của P-62. */
@@ -481,6 +566,8 @@ export const ReferralCodeForm = z.object({
   accountType: AccountType,
   scope: CodeScope,
   departmentIds: z.array(z.guid()),
+  /** Bật chia cho từng nhân viên. Biểu mẫu tự tắt khi mã không còn gán đúng một phòng. */
+  perUserAllocation: z.boolean(),
   /** Tên tỉnh, gõ tay; `''` = không gán. */
   province: z.string().trim(),
   /** Chi nhánh hỗ trợ, gõ tay; `''` = không gán. */
@@ -493,6 +580,10 @@ export const ReferralCodeForm = z.object({
   .refine((form) => form.scope === 'all' || form.departmentIds.length > 0, {
     path: ['departmentIds'],
     message: 'Chọn ít nhất một phòng, hoặc đổi sang Mọi phòng',
+  })
+  .refine((form) => !form.perUserAllocation || isSingleDepartment(form), {
+    path: ['perUserAllocation'],
+    message: 'Chỉ bật chia cho từng nhân viên với mã gán đúng một phòng',
   });
 export type ReferralCodeForm = z.infer<typeof ReferralCodeForm>;
 

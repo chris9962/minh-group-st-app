@@ -709,6 +709,12 @@ export const referralCodes = pgTable(
      */
     scope: text("scope").notNull().default("all"),
     /**
+     * Trưởng phòng chia mã cho từng nhân viên (chốt 2026-10-19, migration 0144).
+     * Chỉ bật được khi `scope` là `departments` với đúng một phòng. Bật thì mã
+     * chỉ dùng qua `referral_code_allocations`; tắt thì cả phòng dùng như cũ.
+     */
+    perUserAllocation: boolean("per_user_allocation").notNull().default(false),
+    /**
      * Tên tỉnh của mã, chọn từ 34 tỉnh tham chiếu; `''` = chưa gán. Lưu TÊN
      * chứ không lưu id — cùng lối `channelDetail` của tài khoản: chuỗi hiện
      * cho nhân viên đọc ở bước 2, không có phép nối nào cần id.
@@ -769,6 +775,41 @@ export const referralCodeDepartments = pgTable(
     primaryKey({ columns: [t.referralCodeId, t.departmentId] }),
     // Câu lọc đi từ MỘT phòng ra danh sách mã; khoá chính lo chiều ngược lại.
     index("referral_code_departments_department").on(t.departmentId),
+  ],
+);
+
+/**
+ * Chỗ của một mã chia cho từng nhân viên — Trưởng phòng chia ở nút MGT màn
+ * Ngân hàng (chốt 2026-10-19, migration 0144).
+ *
+ * Mã có dòng ở đây thì CHỈ người được chia dùng được, mỗi người đúng `quota`
+ * chỗ, tính cả tài khoản đang mở dở. Mã không có dòng nào giữ luật theo phòng.
+ * Chỉ mã gán đúng MỘT phòng mới chia được; đã chia thì kho mã không đổi được
+ * phạm vi và không hạ `total` xuống dưới phần đã chia.
+ *
+ * Số đã dùng của từng người KHÔNG lưu: đếm sống từ `bank_accounts` theo
+ * (referral_code_id, created_by). Mỗi mã tối đa vài trăm dòng, và phép kiểm
+ * "còn chỗ riêng" chạy sau khi `lockUsableCode` đã khoá dòng `referral_codes`.
+ */
+export const referralCodeAllocations = pgTable(
+  "referral_code_allocations",
+  {
+    referralCodeId: uuid("referral_code_id")
+      .notNull()
+      .references(() => referralCodes.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    quota: integer("quota").notNull(),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.referralCodeId, t.userId] }),
+    // Chia 0 chỗ là xoá dòng, không phải lưu số 0.
+    check("referral_code_allocations_quota_positive", sql`quota > 0`),
+    // Modal "Mã của tôi" đi từ MỘT người ra danh sách mã.
+    index("referral_code_allocations_user").on(t.userId),
   ],
 );
 

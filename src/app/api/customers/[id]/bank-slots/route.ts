@@ -23,6 +23,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     "banking",
     uuidParam(new URL(request.url).searchParams.get("departmentId")),
   );
-  const slots = await customerBankSlots(id, department.ok ? (department.departmentId ?? "") : "");
+  const slots = await customerBankSlots(
+    id,
+    department.ok ? (department.departmentId ?? "") : "",
+    actor.id,
+  );
   return slots ? Response.json(slots) : notFound();
 }

@@ -5,11 +5,16 @@ import type {
   BankForm,
   CodeScope,
   CodeStatus,
+  MyReferralCode,
   ReferralCode,
+  ReferralCodeAllocationItem,
+  ReferralCodeAllocationSheet,
   ReferralCodeForm,
   ReferralCodeSort,
 } from "@/lib/api/bankCatalog";
 import type { Page } from "@/lib/api/pagination";
+import { canAllocateReferralCodes } from "@/lib/permissions";
+import type { User } from "@/lib/types";
 import type { PageArgs } from "./pagination";
 import type { Channel, ChannelForm } from "@/lib/api/channelCatalog";
 import type { Hospital, HospitalForm } from "@/lib/api/hospitalCatalog";
@@ -53,6 +58,9 @@ import {
   provinces,
   refProvinces,
   refWards,
+  bankAccounts,
+  departments,
+  referralCodeAllocations,
   referralCodeDepartments,
   referralCodes,
   userManagedBanks,
@@ -643,6 +651,27 @@ const usedExpr = sql<number>`(${referralCodes.importedUsed} + ${referralCodes.us
 const remainingExpr = sql<number>`(${referralCodes.total} - ${referralCodes.importedUsed} - ${referralCodes.usedCount} - ${referralCodes.holdingCount})`;
 
 /**
+ * Tổng chỗ Trưởng phòng đã chia cho nhân viên (migration 0144). `sum` của
+ * Postgres trả bigint, driver đưa về chuỗi — ép `int` để hợp đồng API nhận số.
+ */
+const allocatedExpr = sql<number>`(select coalesce(sum(${referralCodeAllocations.quota}), 0)::int
+  from ${referralCodeAllocations}
+  where ${referralCodeAllocations.referralCodeId} = ${referralCodes.id})`;
+
+/** Mã đang xét có phần chia cho `userId` không; không có người thì luôn sai. */
+const allocatedToUserExpr = (userId: string) =>
+  userId
+    ? sql<boolean>`exists (select 1 from ${referralCodeAllocations}
+        where ${referralCodeAllocations.referralCodeId} = ${referralCodes.id}
+          and ${referralCodeAllocations.userId} = ${userId}::uuid)`
+    : sql<boolean>`false`;
+
+/** Tài khoản `userId` đã mở bằng mã đang xét, tính cả đang mở dở. */
+const usedByUserExpr = (userId: string) => sql<number>`(select count(*)::int from ${bankAccounts}
+  where ${bankAccounts.referralCodeId} = ${referralCodes.id}
+    and ${bankAccounts.createdBy} = ${userId}::uuid)`;
+
+/**
  * Nhãn trạng thái ở P-61 — đo mã đã TIÊU tới đâu, nên chỉ đọc `used` và `total`.
  * Cùng ngưỡng với `CODE_LOW_RATIO`.
  *
@@ -678,11 +707,13 @@ const codeColumns = {
   priority: referralCodes.priority,
   accountType: referralCodes.accountType,
   scope: sql<CodeScope>`${referralCodes.scope}`,
+  perUserAllocation: referralCodes.perUserAllocation,
   province: referralCodes.province,
   supportBranch: referralCodes.supportBranch,
   active: referralCodes.active,
   // Câu con theo khoá chính: không phải thêm phép nối ở ba câu cùng dùng `codeColumns`.
   createdByName: sql<string | null>`(select ${users.fullName} from ${users} where ${users.id} = ${referralCodes.createdBy})`,
+  allocated: allocatedExpr,
   /**
    * Gom phòng trong CÙNG câu chọn, không gọi thêm lượt nào cho mỗi dòng.
    *
@@ -719,6 +750,7 @@ const codeGroupBy = [
   referralCodes.priority,
   referralCodes.accountType,
   referralCodes.scope,
+  referralCodes.perUserAllocation,
   referralCodes.province,
   referralCodes.supportBranch,
   referralCodes.active,
@@ -965,22 +997,42 @@ export const inDepartmentScope = (departmentId: string): SQL =>
       ))`;
 
 /**
- * Mã dùng được để mở tài khoản cho phòng ghi nhận `departmentId`. Ô chọn mã và
- * `customerBankSlots` dùng chung, lệch nhau thì dòng ngân hàng mở mà không có mã.
+ * Mã KHÔNG bật chia thì ai trong phạm vi phòng cũng dùng; mã bật chia thì chỉ
+ * người có phần và còn chỗ riêng (chốt 2026-10-19). Chưa chia cho ai, hoặc
+ * không có người (`createdBy` null), thì mã bật chia không dùng được.
+ */
+const inUserAllocation = (userId: string): SQL =>
+  sql`(not ${referralCodes.perUserAllocation}${
+        userId
+          ? sql` or exists (
+        select 1 from ${referralCodeAllocations}
+        where ${referralCodeAllocations.referralCodeId} = ${referralCodes.id}
+          and ${referralCodeAllocations.userId} = ${userId}::uuid
+          and ${referralCodeAllocations.quota} > ${usedByUserExpr(userId)}
+      )`
+          : sql``
+      })`;
+
+/**
+ * Mã dùng được để mở tài khoản cho phòng ghi nhận `departmentId`, bởi người
+ * `userId`. Ô chọn mã và `customerBankSlots` dùng chung, lệch nhau thì dòng
+ * ngân hàng mở mà không có mã.
  *
  * Mã ngừng tay rời ô chọn ngay, kể cả khi còn chỗ. Chốt thật vẫn nằm trong
  * transaction của `startBankAccount`.
  */
-export const openCodeWhere = (departmentId: string): SQL | undefined =>
+export const openCodeWhere = (departmentId: string, userId: string): SQL | undefined =>
   and(
     eq(referralCodes.active, true),
     sql`${remainingExpr} > 0`,
     departmentId ? inDepartmentScope(departmentId) : sql`${referralCodes.scope} = 'all'`,
+    inUserAllocation(userId),
   );
 
 export async function listOpenReferralCodes(
   bankId: string,
   departmentId: string,
+  userId: string,
   accountType = "",
 ): Promise<ReferralCode[]> {
   const rows = await db
@@ -995,29 +1047,40 @@ export async function listOpenReferralCodes(
       and(
         eq(referralCodes.bankId, bankId),
         accountType ? eq(referralCodes.accountType, accountType as "none" | "CNKD" | "HKD") : undefined,
-        openCodeWhere(departmentId),
+        openCodeWhere(departmentId, userId),
       ),
     )
     .groupBy(...codeGroupBy)
-    // Ưu tiên do người dùng đặt đứng trước, rồi mới tới số chỗ trống. Mã đã
-    // đầy không nằm trong câu này nên ưu tiên cao cũng không kéo nó trở lại.
-    .orderBy(desc(referralCodes.priority), desc(remainingExpr), asc(referralCodes.code));
+    // Mã chia riêng cho người mở đứng đầu (chốt 2026-10-19): Trưởng phòng chia
+    // là để người đó dùng mã ấy trước mã dùng chung, mà ô chọn tự lấy mã đầu.
+    // Rồi tới ưu tiên do người dùng đặt, rồi mới tới số chỗ trống. Mã đã đầy
+    // không nằm trong câu này nên ưu tiên cao cũng không kéo nó trở lại.
+    .orderBy(
+      desc(allocatedToUserExpr(userId)),
+      desc(referralCodes.priority),
+      desc(remainingExpr),
+      asc(referralCodes.code),
+    );
 
   // Mã ẩn thì ô chọn mã không nhận Mã text; tên hiển thị đủ để chọn.
   return rows.map(toCode).map((c) => (c.hideCode ? { ...c, code: "" } : c));
 }
 
 /**
- * Mã còn chỗ của MỌI ngân hàng mà các phòng `departmentIds` dùng được — nút MGT
- * ở P-21 (chốt 2026-10-15). `null` = toàn công ty, không lọc phòng.
+ * Mã của MỌI ngân hàng mà các phòng `departmentIds` dùng được — nút MGT ở
+ * P-21 (chốt 2026-10-15). `null` = toàn công ty, không lọc phòng.
  *
- * Cùng điều kiện "còn chỗ" với `listOpenReferralCodes`: trừ cả phần đang giữ,
- * bỏ mã ngừng tay. Trưởng phòng đọc số ở đây phải khớp số nhân viên thấy ở ô
- * chọn mã. Ngân hàng xếp theo ưu tiên như ô chọn, trong ngân hàng thì mã nhiều
- * chỗ lên trước.
+ * `hideUnusable` (mặc định của modal, chốt 2026-10-19) giữ cùng điều kiện
+ * "còn chỗ" với `listOpenReferralCodes`: trừ cả phần đang giữ, bỏ mã ngừng
+ * tay. Trưởng phòng đọc số ở đây phải khớp số nhân viên thấy ở ô chọn mã. Tắt
+ * đi thì thấy thêm mã đầy và mã ngừng CỦA PHÒNG (scope `departments`), để thu
+ * hồi phần đã chia; mã dùng chung đã đầy hay đã ngừng vẫn không hiện, vì
+ * chúng là kho của cả công ty, vài nghìn dòng cũ không ai cần ở đây. Ngân
+ * hàng xếp theo ưu tiên như ô chọn, trong ngân hàng thì mã nhiều chỗ lên trước.
  */
 export async function listAvailableReferralCodes(
   departmentIds: string[] | null,
+  hideUnusable = true,
 ): Promise<ReferralCode[]> {
   const rows = await db
     .select(codeColumns)
@@ -1029,8 +1092,9 @@ export async function listAvailableReferralCodes(
     )
     .where(
       and(
-        eq(referralCodes.active, true),
-        sql`${remainingExpr} > 0`,
+        hideUnusable
+          ? and(eq(referralCodes.active, true), sql`${remainingExpr} > 0`)
+          : sql`((${referralCodes.active} and ${remainingExpr} > 0) or ${referralCodes.scope} = 'departments')`,
         departmentIds === null
           ? undefined
           : departmentIds.length === 0
@@ -1059,6 +1123,302 @@ export async function listAvailableReferralCodes(
     );
 
   return rows.map(toCode).map((c) => (c.hideCode ? { ...c, code: "" } : c));
+}
+
+/* ── Chia mã cho nhân viên (chốt 2026-10-19, migration 0144) ───────────── */
+
+/** Số tài khoản từng người đã mở bằng mã, tính cả đang mở dở. Chỉ người có dòng. */
+async function usedByUser(tx: Tx, codeId: string): Promise<Map<string | null, number>> {
+  const rows = await tx
+    .select({ userId: bankAccounts.createdBy, used: count() })
+    .from(bankAccounts)
+    .where(eq(bankAccounts.referralCodeId, codeId))
+    .groupBy(bankAccounts.createdBy);
+  return new Map(rows.map((r) => [r.userId, r.used]));
+}
+
+/**
+ * Phần của mã đã có chủ: tổng chỗ đã chia, cộng chỗ người KHÔNG được chia đã
+ * dùng (mở trước khi chia, hoặc đã rời phòng và bị thu hồi). Hai số này cộng
+ * `imported_used` là mức sàn của `total` và là phần không chia thêm được nữa.
+ */
+async function allocationCommitment(tx: Tx, codeId: string) {
+  // Tuần tự: một kết nối giao dịch chỉ chạy một câu một lúc, `Promise.all` không nhanh hơn.
+  const allocations = await tx
+    .select({ userId: referralCodeAllocations.userId, quota: referralCodeAllocations.quota })
+    .from(referralCodeAllocations)
+    .where(eq(referralCodeAllocations.referralCodeId, codeId));
+  const used = await usedByUser(tx, codeId);
+  const departmentRows = await tx
+    .select({ departmentId: referralCodeDepartments.departmentId })
+    .from(referralCodeDepartments)
+    .where(eq(referralCodeDepartments.referralCodeId, codeId));
+  const [code] = await tx
+    .select({ total: referralCodes.total, importedUsed: referralCodes.importedUsed })
+    .from(referralCodes)
+    .where(eq(referralCodes.id, codeId))
+    .limit(1);
+  const holders = new Set(allocations.map((a) => a.userId));
+  let usedByOthers = 0;
+  for (const [userId, n] of used) if (!userId || !holders.has(userId)) usedByOthers += n;
+  const allocated = allocations.reduce((sum, a) => sum + a.quota, 0);
+  return {
+    holders: allocations.length,
+    allocated,
+    usedByOthers,
+    allocations,
+    used,
+    departmentIds: departmentRows.map((d) => d.departmentId),
+    /** Phần nhập tay trước khi lên hệ thống không thuộc về ai, trừ thẳng. */
+    unallocated: (code?.total ?? 0) - (code?.importedUsed ?? 0) - allocated - usedByOthers,
+  };
+}
+
+type AllocationTarget =
+  | { ok: true; departmentId: string; departmentName: string; code: ReferralCode }
+  | { ok: false; status: 404 | 400 | 403; message: string };
+
+/** Mã chia được không, và chia cho phòng nào. Mọi đường đọc/ghi phần chia đi qua đây. */
+async function allocationTarget(tx: Tx, actor: User, codeId: string): Promise<AllocationTarget> {
+  const [row] = await tx
+    .select({ id: referralCodes.id })
+    .from(referralCodes)
+    .where(eq(referralCodes.id, codeId))
+    .limit(1);
+  if (!row) return { ok: false, status: 404, message: "Không tìm thấy mã giới thiệu này" };
+
+  const raw = await readCode(tx, codeId);
+  // Người chia chỉ cần quản phòng, không quản kho mã: mã ẩn thì che Mã text như modal MGT.
+  const code = raw.hideCode ? { ...raw, code: "" } : raw;
+  if (code.scope !== "departments" || code.departmentIds.length !== 1)
+    return { ok: false, status: 400, message: "Chỉ chia được mã gán đúng một phòng." };
+  if (!code.perUserAllocation)
+    return { ok: false, status: 400, message: "Kho mã chưa bật chia mã này cho từng nhân viên." };
+  const departmentId = code.departmentIds[0];
+  if (!canAllocateReferralCodes(actor, departmentId))
+    return { ok: false, status: 403, message: "Bạn không quản phòng dùng mã này." };
+
+  const [department] = await tx
+    .select({ name: departments.name })
+    .from(departments)
+    .where(eq(departments.id, departmentId))
+    .limit(1);
+  return { ok: true, departmentId, departmentName: department?.name ?? "", code };
+}
+
+async function buildSheet(
+  tx: Tx,
+  target: Extract<AllocationTarget, { ok: true }>,
+): Promise<ReferralCodeAllocationSheet> {
+  const commitment = await allocationCommitment(tx, target.code.id);
+  const quotaOf = new Map(commitment.allocations.map((a) => [a.userId, a.quota]));
+
+  /**
+   * Nhân viên đang làm trong phòng, CỘNG người đã rời phòng mà còn phần chia:
+   * không bày họ ra thì Trưởng phòng không thu hồi được phần đó.
+   */
+  const people = await tx
+    .select({
+      id: users.id,
+      fullName: users.fullName,
+      staffCode: users.staffCode,
+      departmentId: users.departmentId,
+      active: users.active,
+    })
+    .from(users)
+    .where(
+      quotaOf.size > 0
+        ? sql`(${users.departmentId} = ${target.departmentId}::uuid and ${users.active}) or ${inArray(users.id, [...quotaOf.keys()])}`
+        : and(eq(users.departmentId, target.departmentId), eq(users.active, true)),
+    )
+    .orderBy(asc(sql`mgst_normalize(${users.fullName})`), asc(users.id));
+
+  return {
+    code: target.code,
+    departmentName: target.departmentName,
+    unallocated: commitment.unallocated,
+    rows: people.map((p) => ({
+      userId: p.id,
+      fullName: p.fullName,
+      staffCode: p.staffCode,
+      quota: quotaOf.get(p.id) ?? 0,
+      used: commitment.used.get(p.id) ?? 0,
+      member: p.departmentId === target.departmentId && p.active,
+    })),
+  };
+}
+
+export type AllocationResult =
+  | { ok: true; sheet: ReferralCodeAllocationSheet }
+  | { ok: false; status: 404 | 400 | 403; message: string };
+
+/** Form chia mã: mọi người trong phòng, số chỗ mỗi người, số còn chia được. */
+export async function referralCodeAllocationSheet(actor: User, codeId: string): Promise<AllocationResult> {
+  return db.transaction(async (tx) => {
+    const target = await allocationTarget(tx, actor, codeId);
+    if (!target.ok) return target;
+    return { ok: true, sheet: await buildSheet(tx, target) };
+  });
+}
+
+/**
+ * Ghi phần chia của một mã. `quota` 0 là thu hồi; mỗi người không hạ dưới số
+ * đã dùng; tổng không vượt phần còn chia được. Người đã rời phòng chỉ được
+ * thu hồi hoặc giữ nguyên, không tăng. Form chỉ gửi những dòng có sửa.
+ *
+ * Thứ tự khoá PHẢI là người rồi mới tới mã, cùng thứ tự với `startBankAccount`
+ * (khoá `users` của người mở rồi `referral_codes`). Chèn dòng chia lấy khoá
+ * `key share` trên `users` qua khoá ngoại; khoá mã trước rồi mới chèn là hai
+ * giao dịch chờ nhau khi nhân viên bấm "Tiếp tục" đúng lúc Trưởng phòng bấm
+ * "Lưu", và Postgres huỷ một bên.
+ *
+ * Khoá dòng mã trước khi đếm: số đã dùng đọc ở đây không bị một lượt mở song
+ * song làm lệch.
+ */
+export async function saveReferralCodeAllocations(
+  actor: User,
+  codeId: string,
+  items: ReferralCodeAllocationItem[],
+): Promise<AllocationResult> {
+  const byUser = new Map<string, number>();
+  for (const item of items) {
+    if (byUser.has(item.userId))
+      return { ok: false, status: 400, message: "Có nhân viên lặp lại trong danh sách." };
+    byUser.set(item.userId, item.quota);
+  }
+
+  return db.transaction(async (tx) => {
+    const lockedUsers = [...new Set([actor.id, ...byUser.keys()])].sort();
+    await tx
+      .select({ id: users.id })
+      .from(users)
+      .where(inArray(users.id, lockedUsers))
+      .for("key share");
+    await tx.select({ id: referralCodes.id }).from(referralCodes).where(eq(referralCodes.id, codeId)).for("update");
+    const target = await allocationTarget(tx, actor, codeId);
+    if (!target.ok) return target;
+
+    const before = await allocationCommitment(tx, codeId);
+    const quotaOf = new Map(before.allocations.map((a) => [a.userId, a.quota]));
+
+    const people = await tx
+      .select({ id: users.id, fullName: users.fullName, departmentId: users.departmentId, active: users.active })
+      .from(users)
+      .where(byUser.size > 0 ? inArray(users.id, [...byUser.keys()]) : sql`false`);
+    const personOf = new Map(people.map((p) => [p.id, p]));
+
+    for (const [userId, quota] of byUser) {
+      const person = personOf.get(userId);
+      if (!person) return { ok: false as const, status: 400 as const, message: "Có nhân viên không tồn tại." };
+      const current = quotaOf.get(userId) ?? 0;
+      // Chưa có phần mà gửi 0 là "không chia", không phải thu hồi: bỏ qua.
+      if (quota === 0 && current === 0) continue;
+      const member = person.departmentId === target.departmentId && person.active;
+      if (!member && quota > current)
+        return {
+          ok: false as const,
+          status: 400 as const,
+          message: current > 0
+            ? `${person.fullName} đã rời phòng, chỉ thu hồi được.`
+            : `${person.fullName} không thuộc phòng dùng mã này.`,
+        };
+      const used = before.used.get(userId) ?? 0;
+      if (quota < used)
+        return {
+          ok: false as const,
+          status: 400 as const,
+          message: `${person.fullName} đã dùng ${used} chỗ, không chia dưới ${used}.`,
+        };
+    }
+
+    // Tổng SAU khi ghi: phần nhắc tới lấy số mới, phần không nhắc giữ số cũ.
+    const after = new Map(quotaOf);
+    for (const [userId, quota] of byUser) {
+      if (quota > 0) after.set(userId, quota);
+      else after.delete(userId);
+    }
+    let usedByOthers = 0;
+    for (const [userId, n] of before.used) if (!userId || !after.has(userId)) usedByOthers += n;
+    const allocated = [...after.values()].reduce((sum, q) => sum + q, 0);
+    // Cùng công thức với `unallocated` của form: tổng sau khi ghi không được âm.
+    const over = allocated + usedByOthers - (before.allocated + before.usedByOthers + before.unallocated);
+    if (over > 0)
+      return {
+        ok: false as const,
+        status: 400 as const,
+        message: `Vượt ${over} chỗ, mã chỉ còn ${Math.max(0, before.unallocated)} chỗ chia được.`,
+      };
+
+    for (const [userId, quota] of byUser) {
+      if (quota === 0 && !quotaOf.has(userId)) continue;
+      if (quota > 0)
+        await tx
+          .insert(referralCodeAllocations)
+          .values({ referralCodeId: codeId, userId, quota, createdBy: actor.id })
+          .onConflictDoUpdate({
+            target: [referralCodeAllocations.referralCodeId, referralCodeAllocations.userId],
+            set: { quota, createdBy: actor.id, updatedAt: sql`now()` },
+          });
+      else
+        await tx
+          .delete(referralCodeAllocations)
+          .where(
+            and(
+              eq(referralCodeAllocations.referralCodeId, codeId),
+              eq(referralCodeAllocations.userId, userId),
+            ),
+          );
+    }
+
+    return { ok: true as const, sheet: await buildSheet(tx, target) };
+  });
+}
+
+/**
+ * Mã còn hoạt động mà `userId` được chia, kèm số họ đã dùng — modal "Mã của tôi".
+ *
+ * Chỉ mã của PHÒNG HIỆN TẠI của người đó: chuyển phòng mà còn phần ở phòng cũ
+ * thì ô chọn mã không bày mã đó (phạm vi phòng chặn trước), modal cũng không
+ * bày, để hai màn nói cùng một điều.
+ */
+export async function listMyReferralCodes(
+  userId: string,
+  hideUnusable = true,
+): Promise<MyReferralCode[]> {
+  const used = usedByUserExpr(userId);
+  return db
+    .select({
+      id: referralCodes.id,
+      bankId: referralCodes.bankId,
+      bankCode: banks.code,
+      accountType: referralCodes.accountType,
+      displayName: referralCodes.displayName,
+      quota: referralCodeAllocations.quota,
+      used,
+      active: referralCodes.active,
+      codeFull: sql<boolean>`${remainingExpr} <= 0`,
+    })
+    .from(referralCodeAllocations)
+    .innerJoin(referralCodes, eq(referralCodes.id, referralCodeAllocations.referralCodeId))
+    .innerJoin(banks, eq(banks.id, referralCodes.bankId))
+    .innerJoin(users, eq(users.id, referralCodeAllocations.userId))
+    .innerJoin(
+      referralCodeDepartments,
+      and(
+        eq(referralCodeDepartments.referralCodeId, referralCodes.id),
+        eq(referralCodeDepartments.departmentId, users.departmentId),
+      ),
+    )
+    .where(
+      and(
+        eq(referralCodeAllocations.userId, userId),
+        // Ẩn mã không dùng được nữa: đã ngừng, cả mã hết chỗ, hoặc phần riêng đã dùng hết.
+        hideUnusable ? eq(referralCodes.active, true) : undefined,
+        hideUnusable ? sql`${remainingExpr} > 0` : undefined,
+        hideUnusable ? sql`${referralCodeAllocations.quota} > ${used}` : undefined,
+      ),
+    )
+    .orderBy(desc(banks.priority), asc(banks.code), asc(referralCodes.displayName));
 }
 
 /**
@@ -1155,6 +1515,7 @@ export async function createReferralCode(
         priority: form.priority,
         accountType: form.accountType,
         scope: form.scope,
+        perUserAllocation: form.perUserAllocation,
         province: form.province,
         supportBranch: form.supportBranch,
         createdBy,
@@ -1285,6 +1646,35 @@ export async function updateReferralCode(
         message: `Mã này đã dùng và đang giữ ${taken} lượt — tổng số không được nhỏ hơn ${taken}`,
       };
 
+    /**
+     * Mã đã chia cho nhân viên (chốt 2026-10-19): giữ nguyên phòng, và tổng
+     * không hạ dưới phần đã chia. Trưởng phòng phải thu hồi trước thì kho mã
+     * mới hạ được — hạ trước là có người cầm phần chia không còn chỗ thật.
+     */
+    const commitment = await allocationCommitment(tx, id);
+    if (commitment.holders > 0) {
+      const sameScope =
+        form.scope === "departments" &&
+        form.departmentIds.length === commitment.departmentIds.length &&
+        form.departmentIds.every((d) => commitment.departmentIds.includes(d));
+      if (!sameScope)
+        return {
+          ok: false as const,
+          message: "Mã này đã chia cho nhân viên, không đổi được phòng. Trưởng phòng thu hồi hết rồi mới đổi.",
+        };
+      if (!form.perUserAllocation)
+        return {
+          ok: false as const,
+          message: "Mã này đã chia cho nhân viên, không tắt được. Trưởng phòng thu hồi hết, hoặc ngừng mã.",
+        };
+      const floor = current.importedUsed + commitment.allocated + commitment.usedByOthers;
+      if (form.total < floor)
+        return {
+          ok: false as const,
+          message: `Mã này đã chia ${commitment.allocated} chỗ cho nhân viên, tổng số không được nhỏ hơn ${floor}`,
+        };
+    }
+
     try {
       await tx
         .update(referralCodes)
@@ -1299,6 +1689,7 @@ export async function updateReferralCode(
           priority: form.priority,
           accountType: form.accountType,
           scope: form.scope,
+          perUserAllocation: form.perUserAllocation,
           province: form.province,
           supportBranch: form.supportBranch,
         })

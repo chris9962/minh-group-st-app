@@ -1,6 +1,25 @@
 .filters {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 16px;
   margin-bottom: var(--space-3);
+}
+
+/* Chữ bấm được trong ô bảng — cùng màu link, vùng bấm đủ 44px cho ngón tay. */
+.allocate {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0;
+  min-height: 44px;
+  font: inherit;
+  color: var(--om-link);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.allocate:hover {
+  color: var(--om-link-hover);
 }

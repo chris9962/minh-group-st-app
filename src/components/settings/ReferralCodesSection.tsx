@@ -28,6 +28,7 @@ import {
   type ReferralCodeSort,
 } from "@/lib/api/bankCatalog";
 import { fetchDepartments } from "@/lib/api/departments";
+import { departmentListLabel } from "@/lib/format";
 import { banksInScope } from "@/lib/permissions";
 import { useSession } from "@/store/session";
 import { EMPTY_PAGE, PAGE_SIZE } from "@/lib/api/pagination";
@@ -248,14 +249,16 @@ export function ReferralCodesSection({ creating, onCreatingChange }: Props) {
          sách trắng của máy chủ, mà cột này chưa có. */
       key: "scope",
       label: "Phạm vi",
-      render: (c) =>
-        c.scope === "all" ? (
-          CODE_SCOPE_LABEL.all
-        ) : (
-          <span className={styles.scopeNames}>
-            {c.departmentIds.map((id) => departmentName.get(id) ?? id).join(", ")}
+      render: (c) => {
+        if (c.scope === "all") return CODE_SCOPE_LABEL.all;
+        const names = c.departmentIds.map((id) => departmentName.get(id) ?? id);
+        // Tên đầy đủ nằm ở `title`: rê chuột vẫn đọc được "Phòng Kinh doanh 4".
+        return (
+          <span className={styles.scopeNames} title={names.join(", ")}>
+            {departmentListLabel(names)}
           </span>
-        ),
+        );
+      },
     },
     {
       key: "status",

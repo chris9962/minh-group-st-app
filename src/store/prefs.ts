@@ -48,6 +48,13 @@ type Prefs = {
    */
   excelHiddenColumns: Record<string, string[]>;
   setExcelHiddenColumns: (screen: string, keys: string[]) => void;
+  /**
+   * Hai modal MGT ở màn Ngân hàng (của Trưởng phòng và của nhân viên) bỏ mã đã
+   * đầy và mã đã ngừng (chốt 2026-10-19). Mặc định bật: người mở modal là để
+   * tìm mã còn dùng được.
+   */
+  hideUnusableReferralCodes: boolean;
+  setHideUnusableReferralCodes: (value: boolean) => void;
 };
 
 export const usePrefs = create<Prefs>()(
@@ -67,6 +74,8 @@ export const usePrefs = create<Prefs>()(
       excelHiddenColumns: {},
       setExcelHiddenColumns: (screen, keys) =>
         set((s) => ({ excelHiddenColumns: { ...s.excelHiddenColumns, [screen]: keys } })),
+      hideUnusableReferralCodes: true,
+      setHideUnusableReferralCodes: (hideUnusableReferralCodes) => set({ hideUnusableReferralCodes }),
     }),
     { name: 'mgst-prefs' },
   ),
