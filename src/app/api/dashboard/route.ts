@@ -1,7 +1,7 @@
 import { badRequest, forbidden, getActor, unauthorized } from "@/server/auth";
 import { dashboardFor, dashboardVisibility, draftAccountsFor } from "@/server/dashboard";
-import { businessDay, businessMonth } from "@/lib/format";
-import { toPersonPeriod } from "@/lib/period";
+import { businessDay } from "@/lib/format";
+import { periodRanges, toPersonPeriod } from "@/lib/period";
 import { isPeriod, personFor } from "@/server/people";
 
 /**
@@ -42,16 +42,17 @@ export async function GET(request: Request) {
      * `YYYY-MM` · `range:từ:đến`. Truyền thẳng `this-month` sang là Postgres
      * nhận `this-month-01` rồi đổ lỗi cast ngày — 500 cho mọi nhân viên.
      */
-    const personPeriod = toPersonPeriod(period, businessDay());
+    const today = businessDay();
+    const personPeriod = toPersonPeriod(period, today);
     if (!isPeriod(personPeriod)) return badRequest("Kỳ xem không hợp lệ");
 
     const [person, draftAccounts] = await Promise.all([
       personFor(actor, actor.id, {
         period: personPeriod,
-        // Vòng điểm LUÔN theo tháng hiện tại, kể cả khi đang xem theo ngày: chỉ
-        // tiêu là con số của cả tháng, đem so với một ngày ra một vòng gần như
-        // trống và người đọc tưởng mình đang tụt.
-        summaryMonth: businessMonth(),
+        // Vòng điểm và lương theo THÁNG chứa kỳ đang xem, như hồ sơ P-52 (chốt
+        // 2026-10-19). Xem theo ngày vẫn ra cả tháng của ngày đó: chỉ tiêu là
+        // con số của cả tháng, so với một ngày thì vòng gần như trống.
+        summaryMonth: periodRanges(period, today).current.from.slice(0, 7),
       }),
       draftAccountsFor(actor.id),
     ]);
