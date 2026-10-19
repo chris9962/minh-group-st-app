@@ -11,11 +11,15 @@ import { DateRangePicker } from "@/components/ui/DateRangePicker";
 import { MonthPicker, thisMonth } from "@/components/ui/MonthPicker";
 import {
   fetchCancelledInsuranceExport,
+  fetchDirectedExport,
   fetchGiftExcessExport,
   fetchOrderStats,
+  fetchSalaryExport,
   fetchWorkDayExport,
+  type DirectedExportRow,
   type GiftExcessRow,
   type OrderStatsGroupBy,
+  type SalaryExportRow,
   type WorkDayExportRow,
 } from "@/lib/api/exports";
 import { exportOrderStats, type OrderStatsMeasures, type OrderStatsSheet } from "@/lib/excelOrderStats";
@@ -40,7 +44,7 @@ import { fetchServiceTypes } from "@/lib/api/settings";
 import { fetchStaffOptions, type StaffOption } from "@/lib/api/staff";
 import { fetchProvinces } from "@/lib/api/wardCatalog";
 import { useAddressSuggestions } from "@/lib/useAddressSuggestions";
-import { exportExcel, type ExcelColumn } from "@/lib/excel";
+import { EXCEL_GROUP_COLORS, exportExcel, exportExcelSheets, type ExcelColumn } from "@/lib/excel";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { can, scopeFor } from "@/lib/permissions";
 import {
@@ -52,6 +56,7 @@ import {
   DepartmentType,
   InsuranceProduct as InsuranceProductEnum,
   PRODUCT_LABEL,
+  ROLE_LABEL,
   type InsuranceProduct,
   type ModuleKey,
   type Scope,
@@ -69,6 +74,8 @@ type ReportId =
   | "cancelled-insurance"
   | "gift-excess"
   | "work-days"
+  | "salary"
+  | "directed-accounts"
   | "vneid";
 
 /**
@@ -94,6 +101,9 @@ const REPORTS: { id: ReportId; label: string; module: ModuleKey }[] = [
   // Thêm 2026-09-19: truy thu quà đã phát cho khách mà app ngân hàng lỗi sau đó.
   { id: "gift-excess", label: "Quà cấp dư do app lỗi", module: "banking" },
   { id: "work-days", label: "Ngày công", module: "staff" },
+  // Thêm 2026-10-19: bảng lương và chỉ tiêu định hướng của phòng kinh doanh theo tháng.
+  { id: "salary", label: "Lương", module: "staff" },
+  { id: "directed-accounts", label: "Tài khoản định hướng", module: "staff" },
   { id: "vneid", label: "Tích hợp VNeID", module: "vneid" },
 ];
 
@@ -104,14 +114,17 @@ const REPORTS: { id: ReportId; label: string; module: ModuleKey }[] = [
  * này dựng lại đúng hình dạng file Kế toán — đầu bảng hai tầng gộp ô, dòng TỔNG
  * ở chân — nên bỏ một cột là hỏng cả bố cục.
  */
-const FIXED_SHAPE: ReportId[] = ["order-stats", "work-days"];
+const FIXED_SHAPE: ReportId[] = ["order-stats", "work-days", "salary", "directed-accounts"];
+
+/** File có số của mọi phòng, nên route đòi `staff:export` phạm vi `company`. */
+const COMPANY_ONLY: ReportId[] = ["work-days", "salary", "directed-accounts"];
 
 /**
  * Điều kiện này phải khớp chốt của route xuất tương ứng; lệch nhau thì người
  * dùng bấm một báo cáo đang hiện và nhận về 403 không hiểu vì sao.
  */
 const hasAccess = (user: Parameters<typeof can>[0], report: (typeof REPORTS)[number]): boolean =>
-  report.id === "work-days"
+  COMPANY_ONLY.includes(report.id)
     ? scopeFor(user, "staff", "export") === "company"
     : can(user, report.module, "export");
 
@@ -360,6 +373,8 @@ function catalogFor(report: ReportId, banks: Bank[], staffById: Map<string, Staf
     // Báo cáo hình dạng cố định — không có bảng chọn cột, xem `FIXED_SHAPE`.
     case "order-stats":
     case "work-days":
+    case "salary":
+    case "directed-accounts":
       return [];
   }
 }
@@ -787,6 +802,90 @@ export default function ExportsPage() {
       });
       return rows.length;
     },
+
+    /**
+     * Hai sheet, chốt 2026-10-19: sheet chính, và sheet riêng cho Nhân viên bị
+     * đánh dấu không tính điểm phòng của tháng.
+     */
+    async salary() {
+      const rows = await fetchSalaryExport(month);
+      const [year, mm] = month.split("-");
+      if (rows.length === 0) throw new Error(`Tháng ${mm}/${year} chưa có nhân sự phòng kinh doanh.`);
+
+      const NHAN_SU = { group: "NHÂN SỰ", groupColor: EXCEL_GROUP_COLORS.staff };
+      const APP = { group: "APP", groupColor: EXCEL_GROUP_COLORS.account };
+      const DIEM = { group: "ĐIỂM", groupColor: EXCEL_GROUP_COLORS.points };
+      const sum = (pick: (r: SalaryExportRow) => number) => (list: SalaryExportRow[]) =>
+        Number(list.reduce((t, r) => t + pick(r), 0).toFixed(2));
+      const finalPoints = (r: SalaryExportRow) => Number((r.points + r.minusPoints + r.plusPoints).toFixed(2));
+      const columns: ExcelColumn<SalaryExportRow>[] = [
+        { header: "STT", ...NHAN_SU, type: "number", width: 6, total: (list) => list.length, value: (_r, index) => index + 1 },
+        { header: "HỌ TÊN", ...NHAN_SU, transform: "name", width: 26, value: (r) => r.fullName },
+        { header: "MÃ NHÂN VIÊN", ...NHAN_SU, type: "text", width: 15, value: (r) => r.staffCode },
+        { header: "PHÒNG", ...NHAN_SU, width: 24, value: (r) => r.departmentName },
+        { header: "CHỨC VỤ", ...NHAN_SU, width: 14, value: (r) => ROLE_LABEL[r.role] },
+        { header: "TRẠNG THÁI", ...NHAN_SU, width: 12, value: (r) => (r.active ? "Đang làm" : "Đã nghỉ") },
+        { header: "TỔNG APP (GỒM LỖI)", ...APP, type: "number", width: 12, total: sum((r) => r.appsAll), value: (r) => r.appsAll },
+        { header: "APP LỖI", ...APP, type: "number", width: 10, total: sum((r) => r.appsBroken), value: (r) => r.appsBroken },
+        { header: "APP SAU TRỪ LỖI", ...APP, type: "number", width: 12, total: sum((r) => r.appsAll - r.appsBroken), value: (r) => r.appsAll - r.appsBroken },
+        { header: "ĐIỂM", ...DIEM, type: "number", width: 11, total: sum((r) => r.points), value: (r) => r.points },
+        { header: "ĐIỂM TRỪ", ...DIEM, type: "number", width: 11, total: sum((r) => r.minusPoints), value: (r) => r.minusPoints },
+        { header: "LÝ DO TRỪ ĐIỂM", ...DIEM, width: 62, value: (r) => r.minusReason },
+        { header: "ĐIỂM CỘNG", ...DIEM, type: "number", width: 11, total: sum((r) => r.plusPoints), value: (r) => r.plusPoints },
+        { header: "LÝ DO CỘNG ĐIỂM", ...DIEM, width: 30, value: (r) => r.plusReason },
+        { header: "ĐIỂM SAU CÙNG", ...DIEM, type: "number", width: 12, total: sum(finalPoints), value: finalPoints },
+        { header: "LƯƠNG (VNĐ)", group: "LƯƠNG", type: "number", width: 15, total: sum((r) => r.salary), value: (r) => r.salary },
+      ];
+      const excluded = rows.filter((r) => r.excludedNote !== null);
+
+      await exportExcelSheets({
+        fileName: `luong-${month}.xlsx`,
+        sheets: [
+          { sheetName: `Lương ${mm}-${year}`, columns, rows: rows.filter((r) => r.excludedNote === null) },
+          ...(excluded.length > 0
+            ? [
+                {
+                  sheetName: "Không tính điểm phòng",
+                  columns: [
+                    ...columns,
+                    { header: "LÝ DO", group: "KHÔNG TÍNH ĐIỂM PHÒNG", groupColor: EXCEL_GROUP_COLORS.staff, width: 24, value: (r: SalaryExportRow) => r.excludedNote ?? "" },
+                  ],
+                  rows: excluded,
+                },
+              ]
+            : []),
+        ],
+      });
+      return rows.length;
+    },
+
+    async "directed-accounts"() {
+      const rows = await fetchDirectedExport(month);
+      const [year, mm] = month.split("-");
+      if (rows.length === 0) throw new Error(`Tháng ${mm}/${year} không có nhân viên nào bị chấm tài khoản định hướng.`);
+
+      const NHAN_SU = { group: "NHÂN SỰ", groupColor: EXCEL_GROUP_COLORS.staff };
+      const DINH_HUONG = { group: "TÀI KHOẢN ĐỊNH HƯỚNG", groupColor: EXCEL_GROUP_COLORS.account };
+      const missing = (r: DirectedExportRow) => Math.max(r.target - r.achieved, 0);
+      await exportExcel({
+        fileName: `tai-khoan-dinh-huong-${month}.xlsx`,
+        sheetName: `Định hướng ${mm}-${year}`,
+        rows,
+        columns: [
+          { header: "STT", ...NHAN_SU, type: "number", width: 6, total: (list) => list.length, value: (_r, index) => index + 1 },
+          { header: "HỌ TÊN", ...NHAN_SU, transform: "name", width: 26, value: (r) => r.fullName },
+          { header: "MÃ NHÂN VIÊN", ...NHAN_SU, type: "text", width: 15, value: (r) => r.staffCode },
+          { header: "PHÒNG", ...NHAN_SU, width: 22, value: (r) => r.departmentName },
+          { header: "TRẠNG THÁI", ...NHAN_SU, width: 12, value: (r) => (r.active ? "Đang làm" : "Đã nghỉ") },
+          { header: "ĐÃ ĐẠT", ...DINH_HUONG, type: "number", width: 10, total: (list) => list.reduce((t, r) => t + r.achieved, 0), value: (r) => r.achieved },
+          { header: "CHỈ TIÊU", ...DINH_HUONG, type: "number", width: 10, value: (r) => r.target },
+          { header: "CÒN THIẾU", ...DINH_HUONG, type: "number", width: 11, total: (list) => list.reduce((t, r) => t + missing(r), 0), value: missing },
+          { header: "KẾT QUẢ", ...DINH_HUONG, width: 11, value: (r) => (r.achieved >= r.target ? "Đạt" : "Chưa đạt") },
+          { header: "CHẤM LƯƠNG", ...DINH_HUONG, width: 34, value: (r) => r.result },
+        ],
+      });
+      return rows.length;
+    },
   };
 
   if (allowed.length === 0) {
@@ -1084,6 +1183,15 @@ export default function ExportsPage() {
                 </>
               )}
 
+              {(active === "salary" || active === "directed-accounts") && (
+                <div className={styles.field} role="group" aria-label="Tháng">
+                  <span className={styles.fieldLabel} aria-hidden>
+                    Tháng
+                  </span>
+                  <MonthPicker value={month} onChange={setMonth} />
+                </div>
+              )}
+
               {active === "cancelled-insurance" && (
                 <>
                   <Select
@@ -1166,7 +1274,11 @@ export default function ExportsPage() {
                 </>
               )}
 
-              {active !== "staff-points" && active !== "order-stats" && active !== "work-days" && (
+              {active !== "staff-points" &&
+                active !== "order-stats" &&
+                active !== "work-days" &&
+                active !== "salary" &&
+                active !== "directed-accounts" && (
                 <DateRangePicker
                   // Báo cáo #5 lọc theo NGÀY HUỶ, #6 theo NGÀY PHÁT QUÀ, các báo
                   // cáo khác theo ngày nghiệp vụ của chúng — nói rõ để người

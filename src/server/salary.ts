@@ -392,9 +392,9 @@ async function liveSalaries(
  * Nhân viên chỉ chấm khi là HĐLĐ (chốt 2026-09-25); đếm theo người lập hồ sơ
  * khách như KPI. Phòng đếm MỌI tài khoản ghi nhận cho phòng, không riêng HĐLĐ.
  */
-async function quotaProgressFor(
+export async function quotaProgressFor(
   yearMonth: string,
-  subjects: Subject[],
+  subjects: Pick<Subject, "id" | "role" | "contractType" | "departmentId" | "departmentCode" | "departmentType">[],
   managedRows: { departmentId: string; departmentCode: string }[],
 ): Promise<{
   staff: (userId: string) => QuotaProgress | null;

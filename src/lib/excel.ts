@@ -108,18 +108,45 @@ const thinBorder = {
   right: { style: 'thin' as const, color: { argb: LINE } },
 };
 
-export async function exportExcel<T>({
-  fileName,
-  sheetName,
-  columns,
-  rows,
-}: {
-  fileName: string;
+export type ExcelSheet<T> = {
   sheetName: string;
   columns: ExcelColumn<T>[];
   rows: T[];
+};
+
+export async function exportExcel<T>({
+  fileName,
+  ...sheet
+}: { fileName: string } & ExcelSheet<T>): Promise<void> {
+  await exportExcelSheets({ fileName, sheets: [sheet] });
+}
+
+/** Nhiều sheet trong một file, mỗi sheet dựng đúng như `exportExcel`. */
+export async function exportExcelSheets<T>({
+  fileName,
+  sheets,
+}: {
+  fileName: string;
+  sheets: ExcelSheet<T>[];
 }): Promise<void> {
   const wb = new ExcelJS.Workbook();
+  for (const sheet of sheets) addSheet(wb, sheet);
+
+  const buffer = await wb.xlsx.writeBuffer();
+  const url = URL.createObjectURL(
+    new Blob([buffer], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    }),
+  );
+
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function addSheet<T>(wb: ExcelJS.Workbook, { sheetName, columns, rows }: ExcelSheet<T>): void {
   // Excel cấm * ? : \\ / [ ] trong tên sheet và giới hạn 31 ký tự.
   // Không lọc thì "Tháng 7/2026" làm hỏng cả file.
   const ws = wb.addWorksheet(
@@ -245,17 +272,4 @@ export async function exportExcel<T>({
   } else {
     ws.getRow(1).font = { name: FONT, bold: true, size: 10 };
   }
-
-  const buffer = await wb.xlsx.writeBuffer();
-  const url = URL.createObjectURL(
-    new Blob([buffer], {
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    }),
-  );
-
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = fileName;
-  a.click();
-  URL.revokeObjectURL(url);
 }

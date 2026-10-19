@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { InsuranceProduct } from '@/lib/types';
+import { InsuranceProduct, RoleKey } from '@/lib/types';
 import type { BankAccountQuery } from './banking';
 import type { PageQuery } from './pagination';
 
@@ -307,4 +307,60 @@ export async function fetchWorkDayExport(month: string, departmentId: string): P
   const res = await fetch(`/api/exports/work-days?${params}`);
   if (!res.ok) throw new Error('Không tải được ngày công');
   return z.array(WorkDayExportRow).parse(await res.json());
+}
+
+/* ── Báo cáo #8 · Lương ─────────────────────────────────────────────── */
+
+/**
+ * Phó giám đốc, Trưởng phòng, Phó phòng, Nhân viên của phòng kinh doanh, theo
+ * nhân sự của tháng xuất. "App" là tài khoản ngân hàng, tính cho người mở tài
+ * khoản; `appsAll` gồm cả `error` và `fixed`, `appsBroken` chỉ hai trạng thái đó.
+ */
+export const SalaryExportRow = z.object({
+  fullName: z.string(),
+  staffCode: z.string(),
+  role: RoleKey,
+  active: z.boolean(),
+  /** Phó giám đốc: các phòng kinh doanh được giao quản, ngăn bằng dấu phẩy. */
+  departmentName: z.string(),
+  appsAll: z.number(),
+  appsBroken: z.number(),
+  /** Điểm ngân hàng + dịch vụ + BHYT/BHXH, chưa gồm điểm cộng tay. */
+  points: z.number(),
+  /** Tổng các dòng điểm âm của tháng, số âm. */
+  minusPoints: z.number(),
+  minusReason: z.string(),
+  plusPoints: z.number(),
+  plusReason: z.string(),
+  salary: z.number(),
+  /** Lý do ghi lúc bấm "Không tính điểm phòng"; `null` là vẫn tính điểm phòng. */
+  excludedNote: z.string().nullable(),
+});
+export type SalaryExportRow = z.infer<typeof SalaryExportRow>;
+
+export async function fetchSalaryExport(month: string): Promise<SalaryExportRow[]> {
+  const res = await fetch(`/api/exports/salary?${new URLSearchParams({ month })}`);
+  if (!res.ok) throw new Error('Không tải được bảng lương');
+  return z.array(SalaryExportRow).parse(await res.json());
+}
+
+/* ── Báo cáo #9 · Tài khoản định hướng ──────────────────────────────── */
+
+/** Một Nhân viên bị chấm chỉ tiêu định hướng của tháng, cùng tập người với bảng lương. */
+export const DirectedExportRow = z.object({
+  fullName: z.string(),
+  staffCode: z.string(),
+  departmentName: z.string(),
+  active: z.boolean(),
+  achieved: z.number(),
+  target: z.number(),
+  /** Câu chấm của bảng lương, ví dụ `31/50, thiếu 38%, trừ 38 điểm`. */
+  result: z.string(),
+});
+export type DirectedExportRow = z.infer<typeof DirectedExportRow>;
+
+export async function fetchDirectedExport(month: string): Promise<DirectedExportRow[]> {
+  const res = await fetch(`/api/exports/directed-accounts?${new URLSearchParams({ month })}`);
+  if (!res.ok) throw new Error('Không tải được tài khoản định hướng');
+  return z.array(DirectedExportRow).parse(await res.json());
 }
