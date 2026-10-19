@@ -1,6 +1,12 @@
 import { attendanceModeOf } from '@/lib/api/attendance';
 import { canOpenPath } from '@/lib/nav';
-import { can, canSeeAvailableReferralCodes, isFullAccess, scopeFor } from '@/lib/permissions';
+import {
+  can,
+  canSeeAvailableReferralCodes,
+  canSeeMyReferralCodes,
+  isFullAccess,
+  scopeFor,
+} from '@/lib/permissions';
 import type { User } from '@/lib/types';
 import type { Release, ReleaseSection } from './types';
 
@@ -15,6 +21,40 @@ const seesCompanyDashboard = (user: User) =>
  * và trang `/releases` bày theo đúng thứ tự này.
  */
 export const RELEASES: Release[] = [
+  {
+    id: '2026-10-19-2',
+    version: '2.12.0',
+    title: 'Cập nhật ngày 19/10/2026',
+    summary: 'Trưởng phòng chia chỗ của mã giới thiệu cho từng nhân viên, nhân viên xem mã được chia ở nút MGT.',
+    sections: [
+      {
+        title: 'Ngân hàng',
+        items: [
+          'Nút MGT thêm cột "Chia cho nhân viên": bấm để chia số chỗ của mã cho từng người trong phòng.',
+          'Mã đã chia thì chỉ người được chia dùng được, đúng số chỗ của mình.',
+          'Thêm ô "Ẩn mã đã đầy và đã ngừng" và cột Trạng thái.',
+        ],
+        visibleTo: (user) => canSeeAvailableReferralCodes(user),
+      },
+      {
+        title: 'Ngân hàng',
+        items: [
+          'Nút MGT: xem mã Trưởng phòng đã chia cho bạn và số đã dùng.',
+          'Mở tài khoản thì mã được chia tự chọn sẵn.',
+        ],
+        visibleTo: (user) => canSeeMyReferralCodes(user),
+      },
+      {
+        title: 'Ngân hàng & mã giới thiệu',
+        items: [
+          'Phạm vi sử dụng thêm mức "Một phòng, Trưởng phòng chia cho từng nhân viên".',
+          'Mã đang chia cho nhân viên không đổi được phòng, không hạ tổng số dưới phần đã chia.',
+          'Cột Phạm vi gộp các phòng kinh doanh thành "Phòng 1, 2, 4".',
+        ],
+        visibleTo: (user) => canOpenPath(user, '/settings/banks'),
+      },
+    ],
+  },
   {
     id: '2026-10-19',
     version: '2.11.0',
