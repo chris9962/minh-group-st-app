@@ -28,7 +28,7 @@ import {
   type ReferralCodeSort,
 } from "@/lib/api/bankCatalog";
 import { fetchDepartments } from "@/lib/api/departments";
-import { departmentListLabel } from "@/lib/format";
+import { ageRangeLabel, departmentListLabel } from "@/lib/format";
 import { banksInScope } from "@/lib/permissions";
 import { useSession } from "@/store/session";
 import { EMPTY_PAGE, PAGE_SIZE } from "@/lib/api/pagination";
@@ -211,6 +211,16 @@ export function ReferralCodesSection({ creating, onCreatingChange }: Props) {
       ),
     },
     { key: "accountType", label: "Loại TK", render: (c) => ACCOUNT_TYPE_LABEL[c.accountType] },
+    {
+      key: "ageRange",
+      label: "Độ tuổi",
+      render: (c) =>
+        c.minAge === null && c.maxAge === null ? (
+          <span className="text-muted">—</span>
+        ) : (
+          ageRangeLabel(c)
+        ),
+    },
     {
       // Không cho sắp: khoá sắp phải nằm trong danh sách trắng của máy chủ.
       key: "province",

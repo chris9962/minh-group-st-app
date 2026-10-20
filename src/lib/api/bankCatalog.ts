@@ -323,6 +323,9 @@ export const ReferralCode = z.object({
   province: z.string(),
   /** Chi nhánh ngân hàng hỗ trợ; `''` = chưa gán. Cùng chỗ hiện với `province`. */
   supportBranch: z.string(),
+  /** Giới hạn tuổi riêng của mã, cộng thêm vào luật ngân hàng; null = không giới hạn (chốt 2026-10-20). */
+  minAge: z.number().nullable().default(null),
+  maxAge: z.number().nullable().default(null),
   /** `false` = đã ngừng tay: mã rời ô chọn và bị từ chối lúc mở tài khoản. */
   active: z.boolean(),
   /** Tên người tạo mã; null khi không rõ người tạo. */
@@ -440,16 +443,21 @@ export async function fetchReferralCodeOptions(): Promise<string[]> {
  * bằng nhau; với Ban giám đốc thì chỉ có cái đầu tồn tại.
  *
  * Bỏ trống thì máy chủ tự dùng phòng của người gọi.
+ *
+ * `customerId` là khách sắp mở: máy chủ bỏ mã cài tuổi khác tuổi khách (chốt
+ * 2026-10-20). Bỏ trống thì không lọc tuổi.
  */
 export async function fetchOpenReferralCodes(
   bankId: string,
   departmentId = '',
   accountType = '',
+  customerId = '',
 ): Promise<ReferralCode[]> {
   const res = await fetch(
     `/api/settings/referral-codes/open?bankId=${encodeURIComponent(bankId)}` +
       (departmentId ? `&departmentId=${encodeURIComponent(departmentId)}` : '') +
-      (accountType ? `&accountType=${encodeURIComponent(accountType)}` : ''),
+      (accountType ? `&accountType=${encodeURIComponent(accountType)}` : '') +
+      (customerId ? `&customerId=${encodeURIComponent(customerId)}` : ''),
   );
   if (!res.ok) throw new Error('Không tải được mã giới thiệu còn chỗ');
   return z.array(ReferralCode).parse(await res.json());
@@ -572,6 +580,9 @@ export const ReferralCodeForm = z.object({
   province: z.string().trim(),
   /** Chi nhánh hỗ trợ, gõ tay; `''` = không gán. */
   supportBranch: z.string().trim(),
+  /** Giới hạn tuổi riêng của mã; null = không giới hạn phía đó. Cùng luật `BankForm`. */
+  minAge: OptionalAge,
+  maxAge: OptionalAge,
 })
   /**
    * Chọn "Phòng chỉ định" mà không tick phòng nào là mã KHÔNG AI dùng được —
@@ -584,6 +595,10 @@ export const ReferralCodeForm = z.object({
   .refine((form) => !form.perUserAllocation || isSingleDepartment(form), {
     path: ['perUserAllocation'],
     message: 'Chỉ bật chia cho từng nhân viên với mã gán đúng một phòng',
+  })
+  .refine((form) => form.minAge === null || form.maxAge === null || form.minAge <= form.maxAge, {
+    path: ['maxAge'],
+    message: 'Tuổi tối đa phải lớn hơn hoặc bằng tuổi tối thiểu',
   });
 export type ReferralCodeForm = z.infer<typeof ReferralCodeForm>;
 

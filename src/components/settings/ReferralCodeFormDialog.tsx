@@ -28,7 +28,7 @@ import {
 } from "@/lib/api/bankCatalog";
 import { AccountType } from "@/lib/api/bankAccounts";
 import { fetchDepartments } from "@/lib/api/departments";
-import { digitsOnly, numberValue, numericField } from "@/lib/numberField";
+import { digitsOnly, numberValue, numericField, optionalNumberValue } from "@/lib/numberField";
 import { banksInScope } from "@/lib/permissions";
 import { useSession } from "@/store/session";
 import styles from "./ReferralCodeFormDialog.module.scss";
@@ -116,6 +116,8 @@ export function ReferralCodeFormDialog({ open, onClose, referral }: Props) {
       qrImageUrl: referral?.qrImageUrl ?? "",
       province: referral?.province ?? "",
       supportBranch: referral?.supportBranch ?? "",
+      minAge: referral?.minAge ?? null,
+      maxAge: referral?.maxAge ?? null,
     },
   });
 
@@ -376,6 +378,29 @@ export function ReferralCodeFormDialog({ open, onClose, referral }: Props) {
           error={errors.priority?.message}
           {...numericField(register("priority", { setValueAs: numberValue }), digitsOnly)}
         />
+
+        {/* Tuổi của mã cộng thêm vào tuổi của ngân hàng: khách phải qua cả hai
+            mới thấy mã này trong ô chọn. Để trống cả hai là không giới hạn. */}
+        <div className={styles.ageFields}>
+          <TextField
+            label="Tuổi tối thiểu"
+            type="text"
+            inputMode="numeric"
+            placeholder="Không giới hạn"
+            hint="Để trống nếu không giới hạn phía dưới."
+            error={errors.minAge?.message}
+            {...numericField(register("minAge", { setValueAs: optionalNumberValue }), digitsOnly)}
+          />
+          <TextField
+            label="Tuổi tối đa"
+            type="text"
+            inputMode="numeric"
+            placeholder="Không giới hạn"
+            hint="Để trống nếu không giới hạn phía trên."
+            error={errors.maxAge?.message}
+            {...numericField(register("maxAge", { setValueAs: optionalNumberValue }), digitsOnly)}
+          />
+        </div>
 
         {/* Cụm phạm vi đứng CUỐI biểu mẫu: nó là mục dài nhất, và phần lớn mã
             để "Mọi phòng" nên người dùng đi qua nó chứ không dừng lại.

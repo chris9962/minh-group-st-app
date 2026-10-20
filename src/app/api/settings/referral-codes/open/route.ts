@@ -1,5 +1,6 @@
 import { actorWith, uuidParam } from "@/server/auth";
 import { AccountType } from "@/lib/api/bankAccounts";
+import { customerAge } from "@/server/age";
 import { listOpenReferralCodes } from "@/server/catalog";
 import { departmentForNewRecord } from "@/server/writeDepartment";
 
@@ -33,6 +34,9 @@ export async function GET(request: Request) {
    */
   const department = departmentForNewRecord(guard.actor, "banking", uuidParam(params.get("departmentId")));
   const accountType = AccountType.safeParse(params.get("accountType"));
+  // Mã cài tuổi riêng chỉ hiện cho khách đúng tuổi (chốt 2026-10-20). Máy chủ
+  // đọc ngày sinh từ hồ sơ, không nhận tuổi do trình duyệt gửi.
+  const customerId = uuidParam(params.get("customerId"));
 
   return Response.json(
     await listOpenReferralCodes(
@@ -40,6 +44,7 @@ export async function GET(request: Request) {
       department.ok ? (department.departmentId ?? "") : "",
       guard.actor.id,
       accountType.success ? accountType.data : "",
+      customerId ? await customerAge(customerId) : undefined,
     ),
   );
 }

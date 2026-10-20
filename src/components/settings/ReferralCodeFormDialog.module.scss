@@ -21,7 +21,8 @@
 
 /* Hai lựa chọn xác định mã này thuộc ngân hàng nào và dùng cho loại tài khoản
    nào; đặt cạnh nhau để đọc như một quyết định duy nhất. */
-.bankTypeFields {
+.bankTypeFields,
+.ageFields {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;

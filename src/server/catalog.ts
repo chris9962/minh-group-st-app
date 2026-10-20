@@ -710,6 +710,8 @@ const codeColumns = {
   perUserAllocation: referralCodes.perUserAllocation,
   province: referralCodes.province,
   supportBranch: referralCodes.supportBranch,
+  minAge: referralCodes.minAge,
+  maxAge: referralCodes.maxAge,
   active: referralCodes.active,
   // Câu con theo khoá chính: không phải thêm phép nối ở ba câu cùng dùng `codeColumns`.
   createdByName: sql<string | null>`(select ${users.fullName} from ${users} where ${users.id} = ${referralCodes.createdBy})`,
@@ -753,6 +755,8 @@ const codeGroupBy = [
   referralCodes.perUserAllocation,
   referralCodes.province,
   referralCodes.supportBranch,
+  referralCodes.minAge,
+  referralCodes.maxAge,
   referralCodes.active,
   referralCodes.createdBy,
 ] as const;
@@ -1029,11 +1033,26 @@ export const openCodeWhere = (departmentId: string, userId: string): SQL | undef
     inUserAllocation(userId),
   );
 
+/**
+ * Mã vừa tuổi khách (chốt 2026-10-20), cùng luật `ageFits` ở `server/age.ts`:
+ * mã không cài tuổi thì ai cũng dùng; khách chưa có ngày sinh (`age` null) thì
+ * chỉ dùng được mã không cài tuổi.
+ */
+export const ageFitWhere = (age: number | null): SQL =>
+  age === null
+    ? sql`(${referralCodes.minAge} is null and ${referralCodes.maxAge} is null)`
+    : sql`((${referralCodes.minAge} is null or ${referralCodes.minAge} <= ${age}) and (${referralCodes.maxAge} is null or ${referralCodes.maxAge} >= ${age}))`;
+
+/**
+ * `age` là tuổi của khách sắp mở; `undefined` = chưa biết khách, không lọc tuổi.
+ * Chốt thật vẫn ở `lockUsableCode`.
+ */
 export async function listOpenReferralCodes(
   bankId: string,
   departmentId: string,
   userId: string,
   accountType = "",
+  age?: number | null,
 ): Promise<ReferralCode[]> {
   const rows = await db
     .select(codeColumns)
@@ -1048,6 +1067,7 @@ export async function listOpenReferralCodes(
         eq(referralCodes.bankId, bankId),
         accountType ? eq(referralCodes.accountType, accountType as "none" | "CNKD" | "HKD") : undefined,
         openCodeWhere(departmentId, userId),
+        age === undefined ? undefined : ageFitWhere(age),
       ),
     )
     .groupBy(...codeGroupBy)
@@ -1518,6 +1538,8 @@ export async function createReferralCode(
         perUserAllocation: form.perUserAllocation,
         province: form.province,
         supportBranch: form.supportBranch,
+        minAge: form.minAge,
+        maxAge: form.maxAge,
         createdBy,
       })
       .returning();
@@ -1692,6 +1714,8 @@ export async function updateReferralCode(
           perUserAllocation: form.perUserAllocation,
           province: form.province,
           supportBranch: form.supportBranch,
+          minAge: form.minAge,
+          maxAge: form.maxAge,
         })
         .where(eq(referralCodes.id, id));
 

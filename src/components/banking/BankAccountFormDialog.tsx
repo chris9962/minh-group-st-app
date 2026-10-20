@@ -219,6 +219,9 @@ export function BankAccountFormDialog({
    */
   const ageOk = (bankId: string, type: AccountType) =>
     !slots || slots.eligibleBankIds[type].includes(bankId);
+  /** Ngân hàng cho mở nhưng mã nào của loại đó cũng cài tuổi khác tuổi khách. */
+  const codeAgeOk = (bankId: string, type: AccountType) =>
+    !slots || !slots.ageBlockedBankIds[type].includes(bankId);
   /** Dòng chính mở loại thường hoặc CNKD; ngân hàng chỉ có mã CNKD thì xét tuổi của CNKD. */
   const mainTypesOf = (bankId: string): AccountType[] => {
     const cnkd = !!slots?.cnkdBankIds.includes(bankId);
@@ -234,10 +237,13 @@ export function BankAccountFormDialog({
     if (taken) return taken.here ? "Hồ sơ này đã có tài khoản" : "Khách đã mở ở hồ sơ trước";
     if (hkd && mine.some((u) => !u.hkd && u.cnkd)) return "Tài khoản chính đang là CNKD";
     const types = hkd ? (["HKD"] as const) : mainTypesOf(bank.id);
-    if (types.some((t) => ageOk(bank.id, t))) return null;
-    return slots.hasDob
-      ? `Khách ngoài độ tuổi (${ageRangeLabel(ageRuleFor(bank, types[0]))})`
-      : "Chưa có ngày sinh của khách";
+    const bankOkTypes = types.filter((t) => ageOk(bank.id, t));
+    if (bankOkTypes.length === 0)
+      return slots.hasDob
+        ? `Khách ngoài độ tuổi (${ageRangeLabel(ageRuleFor(bank, types[0]))})`
+        : "Chưa có ngày sinh của khách";
+    if (bankOkTypes.some((t) => codeAgeOk(bank.id, t))) return null;
+    return slots.hasDob ? "Không có mã phù hợp độ tuổi" : "Chưa có ngày sinh của khách";
   };
 
   /**
@@ -416,11 +422,12 @@ export function BankAccountFormDialog({
                 hkd={hkd}
                 ruleAt={ruleAt}
                 departmentId={departmentId}
+                customerId={customerId}
                 pick={picks.find((p) => samePick(p, bank.id, hkd))}
                 full={!hkd && mainPicks >= remaining}
                 reason={reason ?? inFormReason(bank.id, hkd) ?? comboReason(bank, hkd)}
                 hideCnkd={picks.some((p) => samePick(p, bank.id, true))}
-                ageOkTypes={ACCOUNT_TYPES.filter((t) => ageOk(bank.id, t))}
+                ageOkTypes={ACCOUNT_TYPES.filter((t) => ageOk(bank.id, t) && codeAgeOk(bank.id, t))}
                 onToggle={(checked) => toggleBank(bank.id, hkd, checked)}
                 onCodeChange={(code) => setCode(bank.id, hkd, code)}
                 onAccountTypeChange={(type) => setAccountType(bank.id, type)}
@@ -475,6 +482,8 @@ type RowProps = {
   /** Ngày tra luật — ngày hồ sơ khách, xem `comboReason`. */
   ruleAt: string;
   departmentId: string;
+  /** Khách sắp mở: máy chủ lọc mã theo tuổi của khách này. */
+  customerId: string;
   /** Có giá trị nghĩa là ngân hàng này đang được tích. */
   pick: BankAccountPick | undefined;
   /** Đã tích đủ số tài khoản khách mở thêm được. */
@@ -501,6 +510,7 @@ function BankPickRow({
   hkd,
   ruleAt,
   departmentId,
+  customerId,
   pick,
   full,
   reason,
@@ -524,8 +534,8 @@ function BankPickRow({
    * vì đổi phòng là đổi danh sách mã (spec §4.4d).
    */
   const { data: allCodes = [], isPending: allCodesPending } = useQuery({
-    queryKey: ["referral-codes", "open", bank.id, departmentId, "all-types"],
-    queryFn: () => fetchOpenReferralCodes(bank.id, departmentId),
+    queryKey: ["referral-codes", "open", bank.id, departmentId, customerId, "all-types"],
+    queryFn: () => fetchOpenReferralCodes(bank.id, departmentId, "", customerId),
     enabled: checked && !hkd,
   });
   /**
@@ -541,8 +551,8 @@ function BankPickRow({
   const accountType = pick?.accountType ?? (hkd ? "HKD" : "none");
   const typeOk = availableTypes.includes(accountType);
   const { data: typeCodes = [], isPending } = useQuery({
-    queryKey: ["referral-codes", "open", bank.id, departmentId, accountType],
-    queryFn: () => fetchOpenReferralCodes(bank.id, departmentId, accountType),
+    queryKey: ["referral-codes", "open", bank.id, departmentId, customerId, accountType],
+    queryFn: () => fetchOpenReferralCodes(bank.id, departmentId, accountType, customerId),
     enabled: checked && typeOk,
   });
   // Query tắt vẫn trả mã đã tải cho khách trước, nên loại ngoài độ tuổi phải bỏ hẳn.

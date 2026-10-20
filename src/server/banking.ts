@@ -75,7 +75,8 @@ import { draftLimitsFor } from "./draftLimit";
 import { recomputeGiftCase } from "./gift";
 import { recomputeKpiForCustomer } from "./kpi";
 import type { PageArgs } from "./pagination";
-import { listOpenReferralCodes, openCodeWhere } from "./catalog";
+import { ageFitWhere, listOpenReferralCodes, openCodeWhere } from "./catalog";
+import { ageFits, ageOf, customerAge, meetsAgeRule, type AgeRule } from "./age";
 import { enqueuePhotoCheck, latestPhotoCheck, photoCheckFilter, toPhotoCheck } from "./photoCheck";
 import { imageUrl } from "./storage";
 
@@ -103,25 +104,8 @@ const likeEscape = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
  */
 const usableDate = isRealIsoDate;
 
-type BankAgeRule = { minAge: number | null; maxAge: number | null };
-
-/** Tuổi tròn theo ngày làm việc Việt Nam, không tính năm sinh đơn thuần. */
-function ageOn(dob: string, at: string): number | null {
-  if (!isRealIsoDate(dob) || !isRealIsoDate(at)) return null;
-  const [birthYear, birthMonth, birthDay] = dob.split("-").map(Number);
-  const [year, month, day] = at.split("-").map(Number);
-  return year - birthYear - (month < birthMonth || (month === birthMonth && day < birthDay) ? 1 : 0);
-}
-
-function meetsBankAgeRule(dob: string | null, rule: BankAgeRule, at = businessDay()): boolean {
-  if (rule.minAge === null && rule.maxAge === null) return true;
-  if (!dob) return false;
-  const age = ageOn(dob, at);
-  return age !== null && (rule.minAge === null || age >= rule.minAge) && (rule.maxAge === null || age <= rule.maxAge);
-}
-
 /** Tuổi của bản CNKD/HKD theo `bankId|loại`. */
-async function ageRulesByType(bankIds?: string[]): Promise<Map<string, BankAgeRule>> {
+async function ageRulesByType(bankIds?: string[]): Promise<Map<string, AgeRule>> {
   const rows = await db
     .select({
       bankId: bankGuideVariants.bankId,
@@ -135,12 +119,12 @@ async function ageRulesByType(bankIds?: string[]): Promise<Map<string, BankAgeRu
 }
 
 /** CNKD/HKD chưa có bản riêng thì không giới hạn tuổi, không lấy tuổi của bản thường (chốt 2026-10-12). */
-const NO_AGE_RULE: BankAgeRule = { minAge: null, maxAge: null };
+const NO_AGE_RULE: AgeRule = { minAge: null, maxAge: null };
 function ageRuleOf(
-  bank: BankAgeRule & { id: string },
-  variants: Map<string, BankAgeRule>,
+  bank: AgeRule & { id: string },
+  variants: Map<string, AgeRule>,
   accountType: string,
-): BankAgeRule {
+): AgeRule {
   if (accountType !== "CNKD" && accountType !== "HKD") return bank;
   return variants.get(`${bank.id}|${accountType}`) ?? NO_AGE_RULE;
 }
@@ -243,6 +227,9 @@ export function slotConflictMessage(kind: SlotConflict, bankCode: string, hkd: b
  *
  * `userId` là NGƯỜI MỞ tài khoản — chỗ riêng của mã đã chia tính theo người
  * này, kể cả khi người quản ngân hàng đổi mã hộ.
+ *
+ * `age` là tuổi của KHÁCH, null khi chưa có ngày sinh: mã cài tuổi riêng (chốt
+ * 2026-10-20) chỉ dành cho khách đúng tuổi, kiểm lại ở đây như phạm vi phòng.
  */
 async function lockUsableCode(
   tx: Tx,
@@ -251,6 +238,7 @@ async function lockUsableCode(
   accountType: string,
   departmentId: string | null,
   userId: string | null,
+  age: number | null,
 ): Promise<
   { ok: true; code: { id: string; code: string | null } } | { ok: false; message: string }
 > {
@@ -269,6 +257,8 @@ async function lockUsableCode(
       scope: referralCodes.scope,
       perUserAllocation: referralCodes.perUserAllocation,
       active: referralCodes.active,
+      minAge: referralCodes.minAge,
+      maxAge: referralCodes.maxAge,
     })
     .from(referralCodes)
     .where(eq(referralCodes.id, codeId))
@@ -309,6 +299,15 @@ async function lockUsableCode(
     if (!allowed)
       return { ok: false, message: `Mã ${codeLabel} không dùng được cho phòng đã chọn.` };
   }
+
+  if (!ageFits(age, code))
+    return {
+      ok: false,
+      message:
+        age === null
+          ? `Mã ${codeLabel} có giới hạn độ tuổi, cần ngày sinh khách hàng để kiểm tra.`
+          : `Khách không thuộc độ tuổi của mã ${codeLabel} (${ageRangeLabel(code)}). Chọn mã khác giúp.`,
+    };
 
   const remaining = code.total - code.importedUsed - code.usedCount - code.holdingCount;
   if (remaining <= 0)
@@ -1541,7 +1540,7 @@ export async function startBankAccount(
       return { ok: false, message: `Ngân hàng ${bank.code} đã ngừng triển khai` };
     const rule = ageRuleOf(bank, ageRules, pick.accountType);
     const label = pick.accountType === "none" ? bank.code : `${bank.code} ${pick.accountType}`;
-    if (!meetsBankAgeRule(customer.dob, rule))
+    if (!meetsAgeRule(customer.dob, rule))
       return {
         ok: false,
         message: customer.dob
@@ -1684,6 +1683,7 @@ export async function startBankAccount(
      * ghi. Ghi được hai dòng rồi dừng ở dòng thứ ba là để lại một lượt mở dở
      * mà người dùng không hề chọn.
      */
+    const customerAgeToday = ageOf(customer.dob);
     for (const pick of [...form.picks].sort((a, b) => a.referralCode.localeCompare(b.referralCode))) {
       const locked = await lockUsableCode(
         tx,
@@ -1692,6 +1692,7 @@ export async function startBankAccount(
         pick.accountType,
         department.departmentId,
         actor.id,
+        customerAgeToday,
       );
       if (!locked.ok) return { ok: false as const, message: locked.message };
       const code = locked.code;
@@ -1777,6 +1778,7 @@ export async function customerBankSlots(
    * người này, còn trần 3 tính trên hồ sơ đang mở. Đọc cùng một trục cho cả hai
    * thì ô chọn nói khác máy chủ, và người dùng chọn xong mới bị từ chối.
    */
+  const age = ageOf(customer.dob);
   const [byPerson, bankRows, codeTypes, ageRules] = await Promise.all([
     db
       .select({
@@ -1790,17 +1792,28 @@ export async function customerBankSlots(
     // Ngân hàng có loại tài khoản nào để mở: đọc từ kho mã, không viết cứng `VPa`.
     // Chỉ tính mã phòng ghi nhận dùng được: mã CNKD của phòng khác từng mở dòng VPb
     // cho khách ngoài tuổi VPb thường, rồi ô mã hiện mã thường (2026-10-16).
+    // `ageFit` tách riêng, không lọc trong `where`: ngân hàng có mã nhưng mã nào
+    // cũng ngoài tuổi khách phải khoá với lý do riêng, không phải "không có mã".
     db
-      .selectDistinct({ bankId: referralCodes.bankId, accountType: referralCodes.accountType })
+      .selectDistinct({
+        bankId: referralCodes.bankId,
+        accountType: referralCodes.accountType,
+        ageFit: sql<boolean>`${ageFitWhere(age)}`,
+      })
       .from(referralCodes)
       .where(openCodeWhere(departmentId, userId)),
     ageRulesByType(),
   ]);
-  const banksWithCodes = (type: AccountType) =>
-    codeTypes.filter((r) => r.accountType === type).map((r) => r.bankId);
+  const banksWithCodes = (type: AccountType) => [
+    ...new Set(codeTypes.filter((r) => r.accountType === type).map((r) => r.bankId)),
+  ];
+  const ageBlockedFor = (type: AccountType) =>
+    banksWithCodes(type).filter(
+      (bankId) => !codeTypes.some((r) => r.bankId === bankId && r.accountType === type && r.ageFit),
+    );
   const eligibleFor = (type: AccountType) =>
     bankRows
-      .filter((bank) => meetsBankAgeRule(customer.dob, ageRuleOf(bank, ageRules, type)))
+      .filter((bank) => ageFits(age, ageRuleOf(bank, ageRules, type)))
       .map((bank) => bank.id);
 
   // Trần 3 chỉ đếm dòng CHÍNH của hồ sơ đang mở; dòng HKD không phải ngân hàng.
@@ -1814,6 +1827,11 @@ export async function customerBankSlots(
       cnkd: r.accountType === "CNKD",
     })),
     eligibleBankIds: { none: eligibleFor("none"), CNKD: eligibleFor("CNKD"), HKD: eligibleFor("HKD") },
+    ageBlockedBankIds: {
+      none: ageBlockedFor("none"),
+      CNKD: ageBlockedFor("CNKD"),
+      HKD: ageBlockedFor("HKD"),
+    },
     regularBankIds: banksWithCodes("none"),
     cnkdBankIds: banksWithCodes("CNKD"),
     hkdBankIds: banksWithCodes("HKD"),
@@ -1822,7 +1840,7 @@ export async function customerBankSlots(
     // luật bằng đúng ngày máy chủ sẽ dùng ở `startBankAccount`.
     ruleDate: businessDay(customer.createdAt),
     /**
-     * Không có ngày sinh thì `meetsBankAgeRule` từ chối MỌI ngân hàng có giới
+     * Không có ngày sinh thì `ageFits` từ chối MỌI ngân hàng và mã có giới
      * hạn tuổi. Thiếu trường này, giao diện viết "khách ngoài độ tuổi" cho một
      * khách mà không ai biết tuổi — sai, và nhân viên không biết phải đi bổ
      * sung ngày sinh.
@@ -2241,6 +2259,7 @@ export async function usableCodesForAccount(actor: User, id: string): Promise<Re
     current.createdByDepartmentId ?? "",
     current.createdById ?? "",
     accountTypeOf(current),
+    await customerAge(current.customerId),
   );
 }
 
@@ -2257,6 +2276,7 @@ export async function changeReferralCodeByBankManager(
   if (current.referralCodeId === referralCodeId)
     return { ok: false, message: "Tài khoản đang dùng đúng mã này." };
 
+  const age = await customerAge(current.customerId);
   const outcome = await db.transaction(async (tx): Promise<BankingOutcome<null>> => {
     const lock = await lockUsableCode(
       tx,
@@ -2265,6 +2285,7 @@ export async function changeReferralCodeByBankManager(
       accountTypeOf(current),
       current.createdByDepartmentId,
       current.createdById,
+      age,
     );
     if (!lock.ok) return lock;
 

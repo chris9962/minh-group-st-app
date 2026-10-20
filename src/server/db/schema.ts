@@ -723,6 +723,12 @@ export const referralCodes = pgTable(
     /** Chi nhánh ngân hàng hỗ trợ mã này, người dùng gõ tay; `''` = chưa gán. */
     supportBranch: text("support_branch").notNull().default(""),
     /**
+     * Giới hạn tuổi riêng của mã (migration 0145), cộng thêm vào luật tuổi của
+     * ngân hàng chứ không thay nó. null = mã không giới hạn.
+     */
+    minAge: smallint("min_age"),
+    maxAge: smallint("max_age"),
+    /**
      * Tắt là mã rời ô chọn và bị `startBankAccount` từ chối, kể cả khi còn
      * chỗ. Trước migration 0047 mã chỉ dừng khi tiêu hết `total`.
      */
@@ -751,6 +757,12 @@ export const referralCodes = pgTable(
     check(
       "referral_codes_counts_non_negative",
       sql`used_count >= 0 and holding_count >= 0`,
+    ),
+    check("referral_codes_min_age_non_negative", sql`${t.minAge} is null or ${t.minAge} >= 0`),
+    check("referral_codes_max_age_non_negative", sql`${t.maxAge} is null or ${t.maxAge} >= 0`),
+    check(
+      "referral_codes_age_range_valid",
+      sql`${t.minAge} is null or ${t.maxAge} is null or ${t.minAge} <= ${t.maxAge}`,
     ),
   ],
 );

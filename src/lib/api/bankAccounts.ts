@@ -264,6 +264,15 @@ export const CustomerBankSlots = z.object({
     CNKD: z.array(z.string()),
     HKD: z.array(z.string()),
   }),
+  /**
+   * Ngân hàng có mã loại đó còn chỗ nhưng mã nào cũng cài tuổi khác tuổi khách
+   * (chốt 2026-10-20). Dòng ngân hàng khoá với lý do riêng, không hiện "Hết mã".
+   */
+  ageBlockedBankIds: z.object({
+    none: z.array(z.string()),
+    CNKD: z.array(z.string()),
+    HKD: z.array(z.string()),
+  }),
   /** Ngân hàng có mã giới thiệu loại thường còn hoạt động. */
   regularBankIds: z.array(z.string()),
   /** Ngân hàng có mã giới thiệu loại CNKD còn hoạt động. */
