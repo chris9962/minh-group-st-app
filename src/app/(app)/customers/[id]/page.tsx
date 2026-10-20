@@ -51,7 +51,7 @@ import { fetchVneidRecords, VNEID_TASKS, type VneidRow } from "@/lib/api/vneid";
 import {
   businessMonth,
   formatDate,
-  formatDateTime as formatDateTimeVn,
+  formatDateTime,
   formatIdNumber,
   formatPhone,
   formatVnd,
@@ -68,13 +68,6 @@ const INSURANCE_SOURCE_LABEL: Record<CustomerInsuranceRow["source"], string> = {
   self: "Tự mua",
   gift: "Quà tặng",
 };
-
-// `vi-VN` ghép sẵn ra "22:08 17/09/2026"; ghép tay để ngày đứng trước giờ.
-const formatDateTime = (value: Date): string =>
-  `${formatDate(value)} ${new Intl.DateTimeFormat("vi-VN", {
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(value)}`;
 
 /** P-42 · Hồ sơ khách hàng 360°. */
 export default function CustomerDetailPage({
@@ -286,7 +279,7 @@ export default function CustomerDetailPage({
       key: "createdAt",
       label: "Ngày giờ",
       sortable: true,
-      render: (v) => formatDateTimeVn(v.createdAt),
+      render: (v) => formatDateTime(v.createdAt),
     },
     {
       key: "tasks",
