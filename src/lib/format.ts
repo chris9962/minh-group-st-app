@@ -142,20 +142,25 @@ export function formatBytes(bytes: number): string {
   return `${new Intl.NumberFormat('vi-VN', { maximumFractionDigits: digits }).format(value)} ${units[unit]}`;
 }
 
-export function formatDate(value: Date | string): string {
-  const d = typeof value === 'string' ? new Date(value) : value;
-  return new Intl.DateTimeFormat('vi-VN', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  }).format(d);
-}
-
 /**
  * Múi giờ nghiệp vụ. Máy chủ và container Postgres đều chạy UTC, nên mọi phép
  * "hôm nay là ngày mấy" phải nói rõ múi giờ, không được để môi trường tự quyết.
  */
 export const BUSINESS_TIMEZONE = 'Asia/Ho_Chi_Minh';
+
+/**
+ * Luôn in theo giờ Việt Nam (chốt 2026-10-20). `new Date('2027-01-01')` là 0h
+ * UTC, máy đặt múi giờ sau UTC mà in theo máy thì ra 31/12/2026.
+ */
+export function formatDate(value: Date | string): string {
+  const d = typeof value === 'string' ? new Date(value) : value;
+  return new Intl.DateTimeFormat('vi-VN', {
+    timeZone: BUSINESS_TIMEZONE,
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(d);
+}
 
 /**
  * Mốc giờ nghiệp vụ cho hạn sửa và dòng thời gian, luôn theo giờ Việt Nam:
