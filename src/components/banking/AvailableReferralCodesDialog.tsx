@@ -114,6 +114,8 @@ export function AvailableReferralCodesDialog() {
   const user = useSession((s) => s.user);
   const hideUnusable = usePrefs((s) => s.hideUnusableReferralCodes);
   const setHideUnusable = usePrefs((s) => s.setHideUnusableReferralCodes);
+  const onlyAllocatable = usePrefs((s) => s.onlyAllocatableReferralCodes);
+  const setOnlyAllocatable = usePrefs((s) => s.setOnlyAllocatableReferralCodes);
   const columns = columnsFor(
     (c) => canAllocateReferralCodes(user, c.departmentIds[0]),
     setAllocating,
@@ -130,10 +132,12 @@ export function AvailableReferralCodesDialog() {
    * chục mã, không phân trang), và ô chọn chỉ bày ngân hàng CÓ mã còn chỗ —
    * lấy từ chính danh sách này, không gọi thêm danh mục ngân hàng.
    */
-  const bankOptions = [...new Map(allCodes.map((c) => [c.bankId, c.bankCode])).entries()].map(
+  // "Chỉ mã chia được" lọc trước, để ô ngân hàng chỉ bày ngân hàng có mã chia được.
+  const base = onlyAllocatable ? allCodes.filter(isAllocatable) : allCodes;
+  const bankOptions = [...new Map(base.map((c) => [c.bankId, c.bankCode])).entries()].map(
     ([value, label]) => ({ value, label }),
   );
-  const codes = bankId ? allCodes.filter((c) => c.bankId === bankId) : allCodes;
+  const codes = bankId ? base.filter((c) => c.bankId === bankId) : base;
 
   const used = codes.reduce((sum, c) => sum + c.used, 0);
   const total = codes.reduce((sum, c) => sum + c.total, 0);
@@ -161,6 +165,11 @@ export function AvailableReferralCodesDialog() {
             checked={hideUnusable}
             onCheckedChange={setHideUnusable}
           />
+          <Checkbox
+            label="Chỉ mã chia được"
+            checked={onlyAllocatable}
+            onCheckedChange={setOnlyAllocatable}
+          />
         </div>
         {isError ? (
           <ErrorState what="mã giới thiệu" onRetry={refetch} retrying={isFetching} />
@@ -175,7 +184,13 @@ export function AvailableReferralCodesDialog() {
             // ngân hàng thì mã nhiều chỗ lên trước.
             defaultSort="server"
             caption="Mã giới thiệu theo ngân hàng, kèm số đã dùng trên tổng và trạng thái"
-            emptyText={hideUnusable ? "Chưa có mã nào còn chỗ." : "Chưa có mã nào."}
+            emptyText={
+              onlyAllocatable
+                ? "Chưa có mã nào bật chia cho từng nhân viên."
+                : hideUnusable
+                  ? "Chưa có mã nào còn chỗ."
+                  : "Chưa có mã nào."
+            }
             summaryRow={
               codes.length > 0
                 ? [

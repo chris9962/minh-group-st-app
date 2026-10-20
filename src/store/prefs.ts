@@ -55,6 +55,13 @@ type Prefs = {
    */
   hideUnusableReferralCodes: boolean;
   setHideUnusableReferralCodes: (value: boolean) => void;
+  /**
+   * Modal MGT của Trưởng phòng chỉ hiện mã chia được cho nhân viên (chốt
+   * 2026-10-20): mã dùng chung cả công ty nhiều gấp mấy lần mã của phòng, lẫn
+   * vào thì khó tìm mã cần chia.
+   */
+  onlyAllocatableReferralCodes: boolean;
+  setOnlyAllocatableReferralCodes: (value: boolean) => void;
 };
 
 export const usePrefs = create<Prefs>()(
@@ -76,6 +83,9 @@ export const usePrefs = create<Prefs>()(
         set((s) => ({ excelHiddenColumns: { ...s.excelHiddenColumns, [screen]: keys } })),
       hideUnusableReferralCodes: true,
       setHideUnusableReferralCodes: (hideUnusableReferralCodes) => set({ hideUnusableReferralCodes }),
+      onlyAllocatableReferralCodes: false,
+      setOnlyAllocatableReferralCodes: (onlyAllocatableReferralCodes) =>
+        set({ onlyAllocatableReferralCodes }),
     }),
     { name: 'mgst-prefs' },
   ),
