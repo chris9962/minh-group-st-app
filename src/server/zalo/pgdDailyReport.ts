@@ -227,9 +227,15 @@ export async function pgdDailyReport(pgdId: string, day: string): Promise<PgdDai
       areaOf(areaLabel(r.channelName, r.inputKind, r.channelDetail)).insuranceYears += r.years;
   }
 
-  report.areas = [...areas.values()].sort(
-    (a, b) => b.points - a.points || a.label.localeCompare(b.label, "vi"),
-  );
+  /**
+   * Ấp toàn số 0 không vào tin (chốt 2026-10-20): khách lập trong ngày mà chưa
+   * mở tài khoản nào vẫn sinh ra ấp, và sáu dòng số 0 chỉ làm tin dài thêm.
+   */
+  const hasAnyCount = (a: ReportArea) =>
+    a.multiApp + a.singleApp + a.points + a.insuranceYears + a.vpa + a.hkd > 0;
+  report.areas = [...areas.values()]
+    .filter(hasAnyCount)
+    .sort((a, b) => b.points - a.points || a.label.localeCompare(b.label, "vi"));
   report.departments = departmentRows.map((d) => {
     const counts = monthCounts.get(d.id) ?? emptyCounts();
     const target = quota?.departments.get(d.id);
