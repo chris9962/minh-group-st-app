@@ -22,6 +22,27 @@ const seesCompanyDashboard = (user: User) =>
  */
 export const RELEASES: Release[] = [
   {
+    id: '2026-10-21',
+    version: '2.13.0',
+    title: 'Cập nhật ngày 21/10/2026',
+    summary: 'Tạo đơn bảo hiểm cảnh báo biển số đã có đơn trùng ngày, Xuất dữ liệu thêm báo cáo Khách đã nhận Nón, Mì.',
+    sections: [
+      {
+        title: 'Bảo hiểm',
+        items: [
+          'Bấm Tạo đơn: biển số đã có đơn trùng ngày hiệu lực thì hiện cảnh báo.',
+          'Nút "Đổi ngày" chuyển ngày bắt đầu sang ngày đơn cũ hết hạn.',
+        ],
+        visibleTo: (user) => can(user, 'insurance', 'create'),
+      },
+      {
+        title: 'Xuất dữ liệu',
+        items: ['Thêm báo cáo Khách đã nhận Nón, Mì.'],
+        visibleTo: (user) => canOpenPath(user, '/exports') && can(user, 'banking', 'export'),
+      },
+    ],
+  },
+  {
     id: '2026-10-19-2',
     version: '2.12.0',
     title: 'Cập nhật ngày 19/10/2026',
