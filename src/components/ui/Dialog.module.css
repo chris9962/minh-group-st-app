@@ -25,6 +25,15 @@
   box-shadow: var(--shadow-lg);
 }
 
+/* Bộ tối: hộp thoại mở chồng lên hộp thoại khác thì hai nền cùng màu, lớp phủ
+   45% không tách được hai lớp nên mép hộp trên khó thấy. 900.02px là
+   `$bp-mobile` của `_breakpoints.scss`, cùng mốc máy tính với AppShell. */
+@media (min-width: 900.02px) {
+  :global(:root[data-theme="dark"]) .panel {
+    border: 1px solid var(--om-line-strong);
+  }
+}
+
 .wide {
   width: min(960px, calc(100vw - 32px));
 }
