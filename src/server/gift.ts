@@ -11,6 +11,7 @@ import {
   type GiftChangeForm,
   type GiftExtraChoice,
 } from "@/lib/api/customers";
+import { HelmetNoodleItem, type HelmetNoodleQuery, type HelmetNoodleRow } from "@/lib/api/exports";
 import { GIFT_EXPORT_LIMIT, type GiftGrantRow } from "@/lib/api/gifts";
 import type { Page } from "@/lib/api/pagination";
 import {
@@ -40,6 +41,7 @@ import {
   bankAccounts,
   banks,
   channels,
+  customerPhones,
   customers,
   departments,
   giftGrantChanges,
@@ -1291,4 +1293,75 @@ export async function listGiftGrantsForExport(
   ]);
 
   return { rows: rows.map(toGiftGrantRow), total: totals?.value ?? 0 };
+}
+
+/**
+ * Màn Xuất dữ liệu · Khách đã nhận Nón, Mì. Cùng phạm vi và bộ lọc với danh
+ * sách Quà đã phát, để hai file xuất cùng bộ lọc ra cùng tập đợt phát.
+ */
+export async function listHelmetNoodleExport(
+  actor: User,
+  query: HelmetNoodleQuery,
+): Promise<Page<HelmetNoodleRow>> {
+  const base = await giftGrantWhere(actor, {
+    search: "",
+    from: query.from,
+    to: query.to,
+    departmentId: query.departmentId,
+    staffId: query.staffId,
+  });
+  const where = and(base, inArray(giftGrants.chosenItem, query.item ? [query.item] : HelmetNoodleItem.options));
+
+  const [rows, [totals]] = await Promise.all([
+    db
+      .select({
+        customerId: customers.id,
+        customerName: customers.fullName,
+        idNumber: customers.idNumber,
+        dob: customers.dob,
+        address: customers.address,
+        phone: customerPhones.number,
+        chosenItem: giftGrants.chosenItem,
+        snapshot: giftGrants.snapshot,
+        grantedAt: giftGrants.grantedAt,
+        grantedByName: users.fullName,
+        grantedByStaffCode: users.staffCode,
+        grantedByDepartmentName: departments.name,
+      })
+      .from(giftGrants)
+      .innerJoin(customers, eq(customers.id, giftGrants.customerId))
+      .leftJoin(
+        customerPhones,
+        and(eq(customerPhones.customerId, customers.id), eq(customerPhones.isPrimary, true)),
+      )
+      .leftJoin(users, eq(users.id, giftGrants.grantedBy))
+      .leftJoin(
+        staffRoster,
+        and(eq(staffRoster.userId, giftGrants.grantedBy), eq(staffRoster.yearMonth, grantMonth)),
+      )
+      .leftJoin(departments, eq(departments.id, staffRoster.departmentId))
+      .where(where)
+      .orderBy(asc(giftGrants.grantedAt), asc(giftGrants.id))
+      .limit(GIFT_EXPORT_LIMIT),
+    db.select({ value: count() }).from(giftGrants).where(where),
+  ]);
+
+  return {
+    rows: rows.map((r) => ({
+      customerId: r.customerId,
+      customerName: r.customerName,
+      idNumber: r.idNumber ?? "",
+      phone: r.phone ?? "",
+      dob: r.dob ?? "",
+      address: r.address,
+      item: r.chosenItem as HelmetNoodleItem,
+      itemName: grantedItemLabel(r.chosenItem, r.snapshot),
+      grantedAt: r.grantedAt.toISOString(),
+      caseCode: (r.snapshot as Partial<GiftSimulateResult> | null)?.caseCode ?? "",
+      grantedByName: r.grantedByName ?? "",
+      grantedByStaffCode: r.grantedByStaffCode ?? "",
+      grantedByDepartmentName: r.grantedByDepartmentName ?? "",
+    })),
+    total: totals?.value ?? 0,
+  };
 }

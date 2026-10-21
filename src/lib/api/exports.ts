@@ -287,6 +287,67 @@ export async function fetchGiftExcessExport(
   return GiftExcessPage.parse(await res.json());
 }
 
+/* ── Khách đã nhận Nón, Mì ──────────────────────────────────────────── */
+
+/** Mã khớp `gift_items.code`. Hai món chỉ có ở rổ quà chính, không có ở rổ quà thêm. */
+export const HelmetNoodleItem = z.enum(['QUA-NON-BH', 'QUA-MI']);
+export type HelmetNoodleItem = z.infer<typeof HelmetNoodleItem>;
+
+export const HELMET_NOODLE_LABEL: Record<HelmetNoodleItem, string> = {
+  'QUA-NON-BH': 'Nón bảo hiểm',
+  'QUA-MI': 'Mì',
+};
+
+/** Một đợt phát một dòng; một khách chỉ có một đợt phát. */
+export const HelmetNoodleRow = z.object({
+  customerId: z.string(),
+  customerName: z.string(),
+  /** CCCD đầy đủ; `''` khi người xuất thiếu `customer:access-id-number`. */
+  idNumber: z.string(),
+  phone: z.string(),
+  /** `YYYY-MM-DD`; `''` = hồ sơ chưa có ngày sinh. */
+  dob: z.string(),
+  address: z.string(),
+  item: HelmetNoodleItem,
+  /** Tên món lúc phát, đọc từ `snapshot`. */
+  itemName: z.string(),
+  /** Mốc phát dạng ISO. */
+  grantedAt: z.string(),
+  /** Bậc `THn` lúc phát; `''` khi snapshot không ghi. */
+  caseCode: z.string(),
+  grantedByName: z.string(),
+  grantedByStaffCode: z.string(),
+  /** Phòng của người phát trong tháng phát. */
+  grantedByDepartmentName: z.string(),
+});
+export type HelmetNoodleRow = z.infer<typeof HelmetNoodleRow>;
+
+const HelmetNoodlePage = z.object({
+  rows: z.array(HelmetNoodleRow),
+  total: z.number(),
+});
+
+export type HelmetNoodleQuery = {
+  /** Khoảng NGÀY PHÁT QUÀ. */
+  from: string;
+  to: string;
+  /** Phòng của người phát, cùng trục với danh sách Quà đã phát. */
+  departmentId: string;
+  /** Người phát quà. */
+  staffId: string;
+  /** Rỗng = cả hai món. */
+  item: HelmetNoodleItem | '';
+};
+
+export async function fetchHelmetNoodleExport(
+  query: HelmetNoodleQuery,
+): Promise<{ rows: HelmetNoodleRow[]; total: number }> {
+  const params = new URLSearchParams(query);
+  const res = await fetch(`/api/exports/helmet-noodle-gifts?${params}`);
+  if (!res.ok) throw new Error('Không tải được danh sách khách đã nhận Nón, Mì');
+  return HelmetNoodlePage.parse(await res.json());
+}
+
 /* ── Báo cáo #7 · Ngày công ─────────────────────────────────────────── */
 
 /**

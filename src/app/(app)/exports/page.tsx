@@ -12,14 +12,18 @@ import { MonthPicker, thisMonth } from "@/components/ui/MonthPicker";
 import {
   DIRECTED_RESULT_LABEL,
   DirectedResult,
+  HELMET_NOODLE_LABEL,
+  HelmetNoodleItem,
   fetchCancelledInsuranceExport,
   fetchDirectedExport,
   fetchGiftExcessExport,
+  fetchHelmetNoodleExport,
   fetchOrderStats,
   fetchSalaryExport,
   fetchWorkDayExport,
   type DirectedExportRow,
   type GiftExcessRow,
+  type HelmetNoodleRow,
   type OrderStatsGroupBy,
   type SalaryExportRow,
   type WorkDayExportRow,
@@ -76,6 +80,7 @@ type ReportId =
   | "order-stats"
   | "cancelled-insurance"
   | "gift-excess"
+  | "helmet-noodle-gifts"
   | "work-days"
   | "salary"
   | "directed-accounts"
@@ -107,6 +112,7 @@ const REPORTS: { id: ReportId; label: string; module: ModuleKey; group: ReportGr
   { id: "accounts-by-customer", label: "Tính điểm tổng", module: "banking", group: "banking" },
   // Thêm 2026-09-19: truy thu quà đã phát cho khách mà app ngân hàng lỗi sau đó.
   { id: "gift-excess", label: "Quà cấp dư do app lỗi", module: "banking", group: "banking" },
+  { id: "helmet-noodle-gifts", label: "Khách đã nhận Nón, Mì", module: "banking", group: "banking" },
   { id: "order-stats", label: "Số liệu cấp đơn", module: "insurance", group: "insurance" },
   // Thêm 2026-09-08: đối soát đơn huỷ. Báo cáo #4 chỉ đếm gộp đơn huỷ theo ngày
   // và theo phòng, không nói đơn nào và vì sao huỷ.
@@ -383,6 +389,30 @@ function catalogFor(report: ReportId, banks: Bank[], staffById: Map<string, Staf
       ];
     }
 
+    case "helmet-noodle-gifts": {
+      const KHACH = { group: "KHÁCH HÀNG", groupColor: EXCEL_GROUP_COLORS.customer };
+      const QUA = { group: "QUÀ TẶNG", groupColor: EXCEL_GROUP_COLORS.gift };
+      const NHAN_SU = { group: "NHÂN SỰ", groupColor: EXCEL_GROUP_COLORS.staff };
+      const mark = { align: "center" as const, type: "number" as const };
+      const countOf = (item: HelmetNoodleItem) => (rows: HelmetNoodleRow[]) => rows.filter((r) => r.item === item).length;
+      return [
+        { key: "stt", header: "STT", ...KHACH, ...mark, width: 6, defaultOn: true, sample: ["1", "2"], total: (rows) => rows.length, value: (_row, index) => index + 1 },
+        { key: "customerName", header: "TÊN KHÁCH HÀNG", ...KHACH, transform: "name", width: 26, defaultOn: true, sample: ["NGUYEN VAN MEN", "VO VAN CHIEN"], value: (r: HelmetNoodleRow) => r.customerName, link: (r: HelmetNoodleRow) => `${window.location.origin}/customers/${r.customerId}` },
+        { key: "idNumber", header: "SỐ CCCD", ...KHACH, type: "text", width: 15, defaultOn: true, sample: ["082077017051", "082047005635"], value: (r: HelmetNoodleRow) => r.idNumber },
+        { key: "phone", header: "SỐ ĐIỆN THOẠI", ...KHACH, type: "text", width: 14, defaultOn: true, sample: ["0901234567", "0912345678"], value: (r: HelmetNoodleRow) => r.phone },
+        { key: "dob", header: "NGÀY SINH", ...KHACH, width: 12, defaultOn: true, sample: ["15/03/1968", "02/09/1975"], value: (r: HelmetNoodleRow) => (r.dob ? formatDate(r.dob) : "") },
+        { key: "address", header: "ĐỊA CHỈ", ...KHACH, width: 40, defaultOn: true, sample: ["Ấp 1, Xã Phú Hựu, Tỉnh Đồng Tháp", "Ấp 2, Xã Mỹ Thành, Tỉnh Đồng Tháp"], value: (r: HelmetNoodleRow) => r.address },
+        { key: "itemName", header: "MÓN QUÀ", ...QUA, width: 16, defaultOn: true, sample: ["Mì", "Nón bảo hiểm"], value: (r: HelmetNoodleRow) => r.itemName },
+        { key: "noodle", header: "MÌ", ...QUA, ...mark, width: 7, defaultOn: true, sample: ["1", ""], total: countOf("QUA-MI"), value: (r: HelmetNoodleRow) => (r.item === "QUA-MI" ? 1 : "") },
+        { key: "helmet", header: "NÓN BẢO HIỂM", ...QUA, ...mark, width: 10, defaultOn: true, sample: ["", "1"], total: countOf("QUA-NON-BH"), value: (r: HelmetNoodleRow) => (r.item === "QUA-NON-BH" ? 1 : "") },
+        { key: "grantedAt", header: "NGÀY PHÁT", ...QUA, width: 17, defaultOn: true, sample: ["02/10/2026 08:12", "02/10/2026 15:55"], value: (r: HelmetNoodleRow) => formatDateTime(r.grantedAt) },
+        { key: "caseCode", header: "BẬC LÚC PHÁT", ...QUA, width: 12, defaultOn: false, sample: ["TH8", "TH8"], value: (r: HelmetNoodleRow) => r.caseCode || "—" },
+        { key: "grantedByName", header: "NHÂN VIÊN PHÁT", ...NHAN_SU, width: 26, defaultOn: true, sample: ["Phan Thị Thanh Trang", "Lý Hoàng Nam"], value: (r: HelmetNoodleRow) => r.grantedByName || "—" },
+        { key: "grantedByStaffCode", header: "MÃ NHÂN VIÊN", ...NHAN_SU, type: "text", width: 14, defaultOn: true, sample: ["163TRANGPTT", "MG-0007"], value: (r: HelmetNoodleRow) => r.grantedByStaffCode || "—" },
+        { key: "department", header: "PHÒNG", ...NHAN_SU, width: 22, defaultOn: true, sample: ["Phòng Y", "Phòng Dự án"], value: (r: HelmetNoodleRow) => r.grantedByDepartmentName || "—" },
+      ];
+    }
+
     /**
      * Cột theo file làm tay T9, chốt 2026-10-19. Sheet "Không tính điểm phòng"
      * dùng đúng các cột đã tick, thêm cột LÝ DO ở cuối, xem `RUN.salary`.
@@ -533,6 +563,9 @@ export default function ExportsPage() {
   const [excessStaffId, setExcessStaffId] = useState("");
   /** Báo cáo #6: ngân hàng của tài khoản `error`. Tách khỏi `bankCodes` vì hai ô hỏi hai chuyện khác nhau. */
   const [excessBankCodes, setExcessBankCodes] = useState<string[]>([]);
+  const [helmetNoodleItem, setHelmetNoodleItem] = useState<HelmetNoodleItem | "">("");
+  /** Người PHÁT quà, cùng trục với danh sách Quà đã phát. */
+  const [helmetNoodleStaffId, setHelmetNoodleStaffId] = useState("");
   /** Báo cáo #9: rỗng là cả người đạt lẫn chưa đạt. */
   const [directedResult, setDirectedResult] = useState<DirectedResult | "">("");
 
@@ -835,6 +868,27 @@ export default function ExportsPage() {
         sheetName: "Quà cấp dư",
         rows,
         columns: buildColumns(catalogFor("gift-excess", banks, staffById), exportOrder),
+      });
+      return rows.length;
+    },
+
+    async "helmet-noodle-gifts"() {
+      const { rows, total } = await fetchHelmetNoodleExport({
+        from,
+        to,
+        departmentId,
+        staffId: helmetNoodleStaffId,
+        item: helmetNoodleItem,
+      });
+      capCheck(rows.length, total, "khách đã nhận Nón, Mì");
+
+      if (rows.length === 0) throw new Error("Không có khách nào nhận Nón, Mì theo bộ lọc này.");
+
+      await exportExcel({
+        fileName: `khach-nhan-non-mi-${from || "tat-ca"}-den-${to || "tat-ca"}.xlsx`,
+        sheetName: "Nón, Mì",
+        rows,
+        columns: buildColumns(catalogFor("helmet-noodle-gifts", banks, staffById), exportOrder),
       });
       return rows.length;
     },
@@ -1331,6 +1385,39 @@ export default function ExportsPage() {
                 </>
               )}
 
+              {active === "helmet-noodle-gifts" && (
+                <>
+                  <Select
+                    block
+                    label="Món quà"
+                    value={helmetNoodleItem}
+                    onChange={(v) => setHelmetNoodleItem(v as HelmetNoodleItem | "")}
+                    options={[
+                      { value: "", label: "Cả Nón và Mì" },
+                      ...HelmetNoodleItem.options.map((item) => ({ value: item, label: HELMET_NOODLE_LABEL[item] })),
+                    ]}
+                  />
+                  <Select
+                    block
+                    label="Phòng"
+                    value={departmentId}
+                    onChange={setDepartmentId}
+                    options={[{ value: "", label: "Tất cả phòng" }, ...departments.map((d) => ({ value: d.id, label: d.name }))]}
+                  />
+                  <Combobox
+                    block
+                    label="Nhân viên phát quà"
+                    placeholder="Gõ để tìm nhân viên…"
+                    value={helmetNoodleStaffId}
+                    onChange={setHelmetNoodleStaffId}
+                    options={[
+                      { value: "", label: "Tất cả nhân viên" },
+                      ...staffOptions.map((s) => ({ value: s.id, label: s.fullName })),
+                    ]}
+                  />
+                </>
+              )}
+
               {active !== "staff-points" &&
                 active !== "order-stats" &&
                 active !== "work-days" &&
@@ -1343,7 +1430,7 @@ export default function ExportsPage() {
                   label={
                     active === "cancelled-insurance"
                       ? "Khoảng ngày huỷ"
-                      : active === "gift-excess"
+                      : active === "gift-excess" || active === "helmet-noodle-gifts"
                         ? "Khoảng ngày phát quà"
                         : "Khoảng ngày"
                   }
