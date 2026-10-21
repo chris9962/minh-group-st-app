@@ -26,11 +26,13 @@ import { isRealIsoDate, type User } from "@/lib/types";
 import type { PageArgs } from "./pagination";
 import {
   bankingPointsFor,
+  bankTierFor,
   giftFor,
   ruleDateOf,
   householdPointsAt,
   type GiftInput,
   type GiftResult,
+  type Tier,
 } from "@/rules";
 import { searchTerms } from "@/lib/search";
 import { customerDayText } from "./customerDay";
@@ -1295,6 +1297,13 @@ export async function listGiftGrantsForExport(
   return { rows: rows.map(toGiftGrantRow), total: totals?.value ?? 0 };
 }
 
+const TIER_ORDER: (Tier | null)[] = ["priority", "other", "restricted", null];
+const TIER_SHORT_LABEL: Record<Tier, string> = {
+  priority: "ưu tiên",
+  other: "khác",
+  restricted: "hạn chế",
+};
+
 /**
  * Màn Xuất dữ liệu · Khách đã nhận Nón, Mì. Cùng phạm vi và bộ lọc với danh
  * sách Quà đã phát, để hai file xuất cùng bộ lọc ra cùng tập đợt phát.
@@ -1320,6 +1329,7 @@ export async function listHelmetNoodleExport(
         idNumber: customers.idNumber,
         dob: customers.dob,
         address: customers.address,
+        recordDay: customerDayText,
         phone: customerPhones.number,
         chosenItem: giftGrants.chosenItem,
         snapshot: giftGrants.snapshot,
@@ -1346,6 +1356,49 @@ export async function listHelmetNoodleExport(
     db.select({ value: count() }).from(giftGrants).where(where),
   ]);
 
+  const accountRows =
+    rows.length === 0
+      ? []
+      : await db
+          .select({
+            customerId: bankAccounts.customerId,
+            bankCode: banks.code,
+            accountType: bankAccounts.accountType,
+          })
+          .from(bankAccounts)
+          .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
+          .where(
+            and(
+              inArray(bankAccounts.customerId, rows.map((r) => r.customerId)),
+              eq(bankAccounts.status, "done"),
+            ),
+          );
+  const accountsOf = new Map<string, typeof accountRows>();
+  for (const a of accountRows) {
+    const list = accountsOf.get(a.customerId) ?? [];
+    list.push(a);
+    accountsOf.set(a.customerId, list);
+  }
+
+  // Hạng đổi theo kỳ thể lệ, nên tra theo NGÀY HỒ SƠ, cùng mốc với luật quà.
+  const openedAccountsOf = (customerId: string, recordDay: string) =>
+    (accountsOf.get(customerId) ?? [])
+      .map((a) => ({
+        ...a,
+        tier: a.accountType === "HKD" ? null : bankTierFor(a.bankCode, recordDay),
+      }))
+      .sort(
+        (a, b) =>
+          Number(a.accountType === "HKD") - Number(b.accountType === "HKD") ||
+          TIER_ORDER.indexOf(a.tier) - TIER_ORDER.indexOf(b.tier) ||
+          a.bankCode.localeCompare(b.bankCode),
+      )
+      .map(
+        (a) =>
+          `${a.bankCode}${a.accountType === "none" ? "" : ` ${a.accountType}`}${a.tier ? ` (${TIER_SHORT_LABEL[a.tier]})` : ""}`,
+      )
+      .join(", ");
+
   return {
     rows: rows.map((r) => ({
       customerId: r.customerId,
@@ -1357,7 +1410,7 @@ export async function listHelmetNoodleExport(
       item: r.chosenItem as HelmetNoodleItem,
       itemName: grantedItemLabel(r.chosenItem, r.snapshot),
       grantedAt: r.grantedAt.toISOString(),
-      caseCode: (r.snapshot as Partial<GiftSimulateResult> | null)?.caseCode ?? "",
+      openedAccounts: openedAccountsOf(r.customerId, r.recordDay),
       grantedByName: r.grantedByName ?? "",
       grantedByStaffCode: r.grantedByStaffCode ?? "",
       grantedByDepartmentName: r.grantedByDepartmentName ?? "",

@@ -393,6 +393,7 @@ function catalogFor(report: ReportId, banks: Bank[], staffById: Map<string, Staf
       const KHACH = { group: "KHÁCH HÀNG", groupColor: EXCEL_GROUP_COLORS.customer };
       const QUA = { group: "QUÀ TẶNG", groupColor: EXCEL_GROUP_COLORS.gift };
       const NHAN_SU = { group: "NHÂN SỰ", groupColor: EXCEL_GROUP_COLORS.staff };
+      const MO_TK = { group: "MỞ TÀI KHOẢN", groupColor: EXCEL_GROUP_COLORS.account };
       const mark = { align: "center" as const, type: "number" as const };
       const countOf = (item: HelmetNoodleItem) => (rows: HelmetNoodleRow[]) => rows.filter((r) => r.item === item).length;
       return [
@@ -402,11 +403,11 @@ function catalogFor(report: ReportId, banks: Bank[], staffById: Map<string, Staf
         { key: "phone", header: "SỐ ĐIỆN THOẠI", ...KHACH, type: "text", width: 14, defaultOn: true, sample: ["0901234567", "0912345678"], value: (r: HelmetNoodleRow) => r.phone },
         { key: "dob", header: "NGÀY SINH", ...KHACH, width: 12, defaultOn: true, sample: ["15/03/1968", "02/09/1975"], value: (r: HelmetNoodleRow) => (r.dob ? formatDate(r.dob) : "") },
         { key: "address", header: "ĐỊA CHỈ", ...KHACH, width: 40, defaultOn: true, sample: ["Ấp 1, Xã Phú Hựu, Tỉnh Đồng Tháp", "Ấp 2, Xã Mỹ Thành, Tỉnh Đồng Tháp"], value: (r: HelmetNoodleRow) => r.address },
+        { key: "openedAccounts", header: "TÀI KHOẢN ĐÃ MỞ", ...MO_TK, width: 42, defaultOn: true, sample: ["TPB (ưu tiên), MB (khác), MSBb (hạn chế)", "VPb CNKD (khác), LPB (hạn chế)"], value: (r: HelmetNoodleRow) => r.openedAccounts },
         { key: "itemName", header: "MÓN QUÀ", ...QUA, width: 16, defaultOn: true, sample: ["Mì", "Nón bảo hiểm"], value: (r: HelmetNoodleRow) => r.itemName },
         { key: "noodle", header: "MÌ", ...QUA, ...mark, width: 7, defaultOn: true, sample: ["1", ""], total: countOf("QUA-MI"), value: (r: HelmetNoodleRow) => (r.item === "QUA-MI" ? 1 : "") },
         { key: "helmet", header: "NÓN BẢO HIỂM", ...QUA, ...mark, width: 10, defaultOn: true, sample: ["", "1"], total: countOf("QUA-NON-BH"), value: (r: HelmetNoodleRow) => (r.item === "QUA-NON-BH" ? 1 : "") },
         { key: "grantedAt", header: "NGÀY PHÁT", ...QUA, width: 17, defaultOn: true, sample: ["02/10/2026 08:12", "02/10/2026 15:55"], value: (r: HelmetNoodleRow) => formatDateTime(r.grantedAt) },
-        { key: "caseCode", header: "TRƯỜNG HỢP QUÀ", ...QUA, width: 14, defaultOn: false, sample: ["TH8", "TH8"], value: (r: HelmetNoodleRow) => r.caseCode || "—" },
         { key: "grantedByName", header: "NHÂN VIÊN PHÁT", ...NHAN_SU, width: 26, defaultOn: true, sample: ["Phan Thị Thanh Trang", "Lý Hoàng Nam"], value: (r: HelmetNoodleRow) => r.grantedByName || "—" },
         { key: "grantedByStaffCode", header: "MÃ NHÂN VIÊN", ...NHAN_SU, type: "text", width: 14, defaultOn: true, sample: ["163TRANGPTT", "MG-0007"], value: (r: HelmetNoodleRow) => r.grantedByStaffCode || "—" },
         { key: "department", header: "PHÒNG", ...NHAN_SU, width: 22, defaultOn: true, sample: ["Phòng Y", "Phòng Dự án"], value: (r: HelmetNoodleRow) => r.grantedByDepartmentName || "—" },

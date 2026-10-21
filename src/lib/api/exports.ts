@@ -313,8 +313,11 @@ export const HelmetNoodleRow = z.object({
   itemName: z.string(),
   /** Mốc phát dạng ISO. */
   grantedAt: z.string(),
-  /** Bậc `THn` lúc phát; `''` khi snapshot không ghi. */
-  caseCode: z.string(),
+  /**
+   * Tài khoản `done` hiện tại kèm hạng ngân hàng theo kỳ thể lệ của khách, ví
+   * dụ `TPB (ưu tiên), MB (khác), VPa HKD`. Dòng HKD không mang hạng.
+   */
+  openedAccounts: z.string(),
   grantedByName: z.string(),
   grantedByStaffCode: z.string(),
   /** Phòng của người phát trong tháng phát. */
