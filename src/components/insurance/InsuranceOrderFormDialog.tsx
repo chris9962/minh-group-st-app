@@ -853,27 +853,20 @@ export function InsuranceOrderFormDialog({
     <Dialog
       open={plateWarning !== null}
       onClose={() => setPlateWarning(null)}
-      title="Biển số đã có bảo hiểm"
+      title={`Biển số ${plateWarning?.leg.licensePlate ?? ""} đã có bảo hiểm`}
       footer={
         plateWarning && (
           <>
             <Button variant="secondary" onClick={keepStartDate}>
-              Giữ ngày {formatDate(plateWarning.leg.startDate)}
+              Giữ ngày
             </Button>
-            {plateWarning.check.earliestStart && (
-              <Button onClick={moveStartDate}>
-                Đổi sang {formatDate(plateWarning.check.earliestStart)}
-              </Button>
-            )}
+            {plateWarning.check.earliestStart && <Button onClick={moveStartDate}>Đổi ngày</Button>}
           </>
         )
       }
     >
       {plateWarning && (
         <div className={styles.reviewList}>
-          <p className={styles.confirmAsk}>
-            Biển số <strong>{plateWarning.leg.licensePlate}</strong> đã có đơn:
-          </p>
           <ul className={styles.plateOverlapList}>
             {plateWarning.check.overlaps.map((order) => (
               <li key={order.orderCode} className={styles.reviewLeg}>
@@ -889,9 +882,6 @@ export function InsuranceOrderFormDialog({
               </li>
             ))}
           </ul>
-          <p className={styles.confirmAsk}>
-            Đơn đang tạo bắt đầu {formatDate(plateWarning.leg.startDate)}.
-          </p>
           {plateWarning.check.earliestStart && (
             <p className={styles.confirmAsk}>
               Bạn muốn đổi ngày bắt đầu sang{" "}
