@@ -384,8 +384,8 @@ function catalogFor(report: ReportId, banks: Bank[], staffById: Map<string, Staf
         { key: "departmentName", header: "Phòng", width: 22, defaultOn: true, sample: ["Phòng Kinh doanh 3", "Phòng Kinh doanh 7"], value: (r) => r.departmentName || "—" },
         { key: "grantedExtra", header: "Quà thêm đã phát", width: 16, defaultOn: false, sample: ["", "Loa"], value: (r) => r.grantedExtra },
         { key: "grantedCash", header: "Tiền mặt đã phát (đ)", type: "number", width: 14, defaultOn: false, sample: ["20000", "70000"], value: (r) => r.grantedCash },
-        { key: "caseAtGrant", header: "Bậc lúc phát", width: 12, defaultOn: false, sample: ["TH5", "TH3"], value: (r) => r.caseAtGrant || "—" },
-        { key: "caseNow", header: "Bậc hiện tại", width: 12, defaultOn: false, sample: ["TH1", "—"], value: (r) => r.caseNow || "—" },
+        { key: "caseAtGrant", header: "Trường hợp lúc phát", width: 14, defaultOn: false, sample: ["TH5", "TH3"], value: (r) => r.caseAtGrant || "—" },
+        { key: "caseNow", header: "Trường hợp hiện tại", width: 14, defaultOn: false, sample: ["TH1", "—"], value: (r) => r.caseNow || "—" },
       ];
     }
 
@@ -406,7 +406,7 @@ function catalogFor(report: ReportId, banks: Bank[], staffById: Map<string, Staf
         { key: "noodle", header: "MÌ", ...QUA, ...mark, width: 7, defaultOn: true, sample: ["1", ""], total: countOf("QUA-MI"), value: (r: HelmetNoodleRow) => (r.item === "QUA-MI" ? 1 : "") },
         { key: "helmet", header: "NÓN BẢO HIỂM", ...QUA, ...mark, width: 10, defaultOn: true, sample: ["", "1"], total: countOf("QUA-NON-BH"), value: (r: HelmetNoodleRow) => (r.item === "QUA-NON-BH" ? 1 : "") },
         { key: "grantedAt", header: "NGÀY PHÁT", ...QUA, width: 17, defaultOn: true, sample: ["02/10/2026 08:12", "02/10/2026 15:55"], value: (r: HelmetNoodleRow) => formatDateTime(r.grantedAt) },
-        { key: "caseCode", header: "BẬC LÚC PHÁT", ...QUA, width: 12, defaultOn: false, sample: ["TH8", "TH8"], value: (r: HelmetNoodleRow) => r.caseCode || "—" },
+        { key: "caseCode", header: "TRƯỜNG HỢP QUÀ", ...QUA, width: 14, defaultOn: false, sample: ["TH8", "TH8"], value: (r: HelmetNoodleRow) => r.caseCode || "—" },
         { key: "grantedByName", header: "NHÂN VIÊN PHÁT", ...NHAN_SU, width: 26, defaultOn: true, sample: ["Phan Thị Thanh Trang", "Lý Hoàng Nam"], value: (r: HelmetNoodleRow) => r.grantedByName || "—" },
         { key: "grantedByStaffCode", header: "MÃ NHÂN VIÊN", ...NHAN_SU, type: "text", width: 14, defaultOn: true, sample: ["163TRANGPTT", "MG-0007"], value: (r: HelmetNoodleRow) => r.grantedByStaffCode || "—" },
         { key: "department", header: "PHÒNG", ...NHAN_SU, width: 22, defaultOn: true, sample: ["Phòng Y", "Phòng Dự án"], value: (r: HelmetNoodleRow) => r.grantedByDepartmentName || "—" },
