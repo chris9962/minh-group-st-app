@@ -1980,6 +1980,10 @@ export const insuranceOrders = pgTable(
     index("insurance_orders_date").on(sql`order_date desc, created_at desc, id`),
     /** Một đơn huỷ chỉ đẻ ra đúng MỘT đơn thay thế — xem `replacesOrderId`. */
     uniqueIndex("insurance_orders_replaces").on(t.replacesOrderId),
+    /** Tra đơn xe máy cùng biển số lúc tạo đơn (migration 0146), xem `plateOverlaps`. */
+    index("insurance_orders_plate_key")
+      .on(sql`upper(regexp_replace(license_plate, '[^0-9A-Za-z]', '', 'g'))`)
+      .where(sql`product = 'motorbike' and status <> 'cancelled'`),
     check(
       "insurance_orders_motorbike_plate",
       sql`product <> 'motorbike' or license_plate <> ''`,

@@ -21,7 +21,12 @@ import { TextField } from "@/components/ui/TextField";
 import { AddressField } from "@/components/ui/AddressField";
 import { useAddressSuggestions } from "@/lib/useAddressSuggestions";
 import type { Customer } from "@/lib/api/customers";
-import { createInsuranceOrders, fetchStartDateConfirm } from "@/lib/api/insurance";
+import {
+  createInsuranceOrders,
+  fetchPlateCheck,
+  fetchStartDateConfirm,
+  type PlateCheck,
+} from "@/lib/api/insurance";
 import {
   INTAKE_PHOTO_LABEL,
   earliestStartDate,
@@ -413,9 +418,54 @@ export function InsuranceOrderFormDialog({
     },
   });
 
+  /**
+   * Đơn xe máy có biển số đã có đơn chồng ngày hiệu lực (chốt 2026-10-21). App
+   * chỉ kiểm khi bấm "Tạo đơn", không kiểm lúc đang gõ.
+   */
+  const [plateWarning, setPlateWarning] = useState<{
+    index: number;
+    leg: InsuranceOrderLegForm;
+    check: PlateCheck;
+  } | null>(null);
+  /** Đơn đã bấm "Giữ ngày". Đổi biển số hoặc ngày bắt đầu thì khoá đổi, nên app hỏi lại. */
+  const keptPlateDates = useRef(new Set<string>());
+  const plateDateKey = (i: number, leg: InsuranceOrderLegForm) =>
+    `${i}|${leg.licensePlate}|${leg.startDate}`;
+
+  const firstPlateOverlap = async (legs: InsuranceOrderLegForm[]) => {
+    const checks = await Promise.all(
+      legs.map((leg, i) =>
+        leg.product === "motorbike" && !keptPlateDates.current.has(plateDateKey(i, leg))
+          ? fetchPlateCheck(leg.licensePlate, leg.startDate, leg.endDate)
+          : null,
+      ),
+    );
+    const index = checks.findIndex((check) => (check?.overlaps.length ?? 0) > 0);
+    const check = checks[index];
+    return check ? { index, leg: legs[index], check } : null;
+  };
+
   // Mở màn kiểm lại — CHƯA gửi. `save.mutate` chỉ chạy khi người dùng bấm xác
   // nhận ở đó (`confirmCreate`).
-  const openReview = handleSubmit((values) => setReviewValues(values), reportInvalid);
+  const openReview = handleSubmit(async (values) => {
+    const warning = await firstPlateOverlap(values.legs);
+    if (warning) setPlateWarning(warning);
+    else setReviewValues(values);
+  }, reportInvalid);
+
+  const moveStartDate = () => {
+    if (!plateWarning?.check.earliestStart) return;
+    changeStartDate(plateWarning.index, plateWarning.check.earliestStart);
+    setPlateWarning(null);
+    void openReview();
+  };
+
+  const keepStartDate = () => {
+    if (!plateWarning) return;
+    keptPlateDates.current.add(plateDateKey(plateWarning.index, plateWarning.leg));
+    setPlateWarning(null);
+    void openReview();
+  };
   const confirmCreate = () => {
     if (reviewValues) save.mutate(reviewValues);
   };
@@ -797,6 +847,62 @@ export function InsuranceOrderFormDialog({
           </>
         )}
       </form>
+    </Dialog>
+
+    {/* Esc và dấu X quay về form, không đi tiếp tới màn kiểm lại. */}
+    <Dialog
+      open={plateWarning !== null}
+      onClose={() => setPlateWarning(null)}
+      title="Biển số đã có bảo hiểm"
+      footer={
+        plateWarning && (
+          <>
+            <Button variant="secondary" onClick={keepStartDate}>
+              Giữ ngày {formatDate(plateWarning.leg.startDate)}
+            </Button>
+            {plateWarning.check.earliestStart && (
+              <Button onClick={moveStartDate}>
+                Đổi sang {formatDate(plateWarning.check.earliestStart)}
+              </Button>
+            )}
+          </>
+        )
+      }
+    >
+      {plateWarning && (
+        <div className={styles.reviewList}>
+          <p className={styles.confirmAsk}>
+            Biển số <strong>{plateWarning.leg.licensePlate}</strong> đã có đơn:
+          </p>
+          <ul className={styles.plateOverlapList}>
+            {plateWarning.check.overlaps.map((order) => (
+              <li key={order.orderCode} className={styles.reviewLeg}>
+                <span>
+                  <strong>{order.orderCode}</strong>: {formatDate(order.startDate)} đến{" "}
+                  {formatDate(order.endDate)}
+                </span>
+                <span>Người thụ hưởng: {order.beneficiaryName}</span>
+                <span>
+                  Người lập: {order.createdByName || "—"}
+                  {order.departmentName && ` - ${order.departmentName}`}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className={styles.confirmAsk}>
+            Đơn đang tạo bắt đầu {formatDate(plateWarning.leg.startDate)}.
+          </p>
+          {plateWarning.check.earliestStart && (
+            <p className={styles.confirmAsk}>
+              Bạn muốn đổi ngày bắt đầu sang{" "}
+              <strong className={styles.fillAskEmphasis}>
+                {formatDate(plateWarning.check.earliestStart)}
+              </strong>
+              ?
+            </p>
+          )}
+        </div>
+      )}
     </Dialog>
 
     {/* Kiểm lại trước khi gửi (chốt 2026-09-13). Đứng NGOÀI form phía trên nên

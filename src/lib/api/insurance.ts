@@ -481,6 +481,39 @@ export async function fetchStartDateConfirm(): Promise<boolean> {
   return StartDateConfirm.parse(await res.json()).required;
 }
 
+/** Một đơn xe máy chưa huỷ, cùng biển số, chồng ngày hiệu lực với đơn đang tạo. */
+export const PlateOverlapOrder = z.object({
+  orderCode: z.string(),
+  startDate: z.string(),
+  endDate: z.string(),
+  beneficiaryName: z.string(),
+  createdByName: z.string(),
+  departmentName: z.string(),
+});
+export type PlateOverlapOrder = z.infer<typeof PlateOverlapOrder>;
+
+export const PlateCheck = z.object({
+  overlaps: z.array(PlateOverlapOrder),
+  /** Ngày kết thúc muộn nhất của mọi đơn cùng biển số; `null` khi biển số chưa có đơn. */
+  earliestStart: z.string().nullable(),
+});
+export type PlateCheck = z.infer<typeof PlateCheck>;
+
+/**
+ * Hỏng thì coi như không có đơn trùng, cùng lối với `fetchStartDateConfirm`:
+ * đây là cảnh báo, không phải điều kiện để tạo đơn.
+ */
+export async function fetchPlateCheck(
+  licensePlate: string,
+  startDate: string,
+  endDate: string,
+): Promise<PlateCheck> {
+  const params = new URLSearchParams({ licensePlate, startDate, endDate });
+  const res = await fetch(`/api/insurance-orders/plate-check?${params}`);
+  if (!res.ok) return { overlaps: [], earliestStart: null };
+  return PlateCheck.parse(await res.json());
+}
+
 /** Đính/thay ảnh chứng nhận — dùng được ở MỌI trạng thái đơn (spec §3.4). */
 export async function setInsuranceOrderPhoto(
   id: string,

@@ -28,6 +28,7 @@ import type {
   InsuranceListRow,
   InsuranceOrder,
   InsuranceSort,
+  PlateCheck,
 } from "@/lib/api/insurance";
 import {
   CERTIFICATE_MAX_ATTEMPTS,
@@ -1716,6 +1717,57 @@ export async function cancelInsuranceOrder(
  */
 export async function mustConfirmStartDate(): Promise<boolean> {
   return true;
+}
+
+/** Viết đúng biểu thức của chỉ mục `insurance_orders_plate_key`, không thì Postgres quét cả bảng. */
+const plateKeySql = sql`upper(regexp_replace(${insuranceOrders.licensePlate}, '[^0-9A-Za-z]', '', 'g'))`;
+const plateKeyOf = (plate: string) => plate.toUpperCase().replace(/[^0-9A-Z]/g, "");
+
+/**
+ * Đơn xe máy chưa huỷ cùng biển số mà chồng ngày hiệu lực với khoảng
+ * `startDate`..`endDate` (chốt 2026-10-21). Đơn mới bắt đầu đúng ngày đơn cũ
+ * kết thúc thì không tính là chồng.
+ */
+export async function plateOverlaps(
+  licensePlate: string,
+  startDate: string,
+  endDate: string,
+): Promise<PlateCheck> {
+  const key = plateKeyOf(licensePlate);
+  if (!key) return { overlaps: [], earliestStart: null };
+
+  const rows = await db
+    .select({
+      orderCode: insuranceOrders.orderCode,
+      startDate: insuranceOrders.startDate,
+      endDate: insuranceOrders.endDate,
+      beneficiaryName: insuranceOrders.beneficiaryName,
+      createdByName: users.fullName,
+      departmentName: departments.name,
+    })
+    .from(insuranceOrders)
+    .leftJoin(users, eq(users.id, insuranceOrders.createdBy))
+    .leftJoin(departments, eq(departments.id, insuranceOrders.createdByDepartmentId))
+    .where(
+      and(
+        sql`${insuranceOrders.product} = 'motorbike' and ${insuranceOrders.status} <> 'cancelled'`,
+        sql`${plateKeySql} = ${key}`,
+      ),
+    )
+    .orderBy(asc(insuranceOrders.startDate));
+
+  const overlaps = rows
+    .filter((r) => r.startDate < endDate && startDate < r.endDate)
+    .map((r) => ({
+      ...r,
+      createdByName: r.createdByName ?? "",
+      departmentName: r.departmentName ?? "",
+    }));
+  const earliestStart = rows.reduce<string | null>(
+    (latest, r) => (latest === null || r.endDate > latest ? r.endDate : latest),
+    null,
+  );
+  return { overlaps, earliestStart };
 }
 
 /**

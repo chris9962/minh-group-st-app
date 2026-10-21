@@ -108,6 +108,22 @@
   min-width: 0;
 }
 
+.plateOverlapList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.plateOverlapList li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13.5px;
+}
+
 .reviewNameWarning {
   display: block;
   margin-top: var(--space-1);
