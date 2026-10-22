@@ -102,7 +102,13 @@ async function start(lane: Lane): Promise<Server> {
   return ready;
 }
 
-async function ask(lane: Lane, image: Buffer, model: OcrModel, padY: number | undefined): Promise<string[]> {
+async function ask(
+  lane: Lane,
+  image: Buffer,
+  model: OcrModel,
+  padY: number | undefined,
+  code: string | undefined,
+): Promise<string[]> {
   if (!lane.server) lane.server = start(lane).catch((e) => {
     lane.server = null;
     throw e;
@@ -116,7 +122,7 @@ async function ask(lane: Lane, image: Buffer, model: OcrModel, padY: number | un
     await writeFile(file, image);
     const reply = await new Promise<Reply>((resolve) => {
       s.waiting = resolve;
-      s.child.stdin.write(JSON.stringify({ path: file, model, pad_y: padY }) + "\n");
+      s.child.stdin.write(JSON.stringify({ path: file, model, pad_y: padY, code }) + "\n");
     });
     if (reply.error) throw new Error(`OCR lỗi: ${reply.error}`);
     return reply.lines ?? [];
@@ -130,11 +136,20 @@ async function ask(lane: Lane, image: Buffer, model: OcrModel, padY: number | un
  *
  * Chọn hàng NGẮN NHẤT chứ không chia vòng tròn: ảnh dài ngắn khác nhau tới
  * vài giây, chia vòng tròn thì một hàng đọng lại trong khi hàng khác rỗi.
+ *
+ * `code` có thì vùng VietOCR đọc lệch O/0, I/1 so với mã được đọc lại bằng
+ * model khác, bản đọc lại thêm thành một dòng; xem `make_fallback` trong
+ * `ocr-server.py`.
  */
-export function ocrLines(image: Buffer, model: OcrModel = "transformer", padY?: number): Promise<string[]> {
+export function ocrLines(
+  image: Buffer,
+  model: OcrModel = "transformer",
+  padY?: number,
+  code?: string,
+): Promise<string[]> {
   const lane = pool.reduce((min, l) => (l.pending < min.pending ? l : min));
   lane.pending += 1;
-  const turn = lane.queue.then(() => ask(lane, image, model, padY));
+  const turn = lane.queue.then(() => ask(lane, image, model, padY, code));
   lane.queue = turn.catch(() => undefined).finally(() => {
     lane.pending -= 1;
   });

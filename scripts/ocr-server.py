@@ -6,6 +6,7 @@ mất khoảng 4 giây, gọi lại mỗi ảnh thì mỗi ảnh tốn thêm ch�
 
     stdin   {"path": "/tmp/anh.png", "model": "seq2seq"}     `model` thiếu = "transformer"
             {"path": "/tmp/anh.png", "pad_y": 8}             `pad_y` thay lề dọc của model, xem `REC_MODELS`
+            {"path": "/tmp/anh.png", "code": "O108"}         đọc lại vùng lệch O/0, I/1 của mã, xem `make_fallback`
     stdout  {"lines": ["Mở Tài Khoản Thành Công!", "1000 5616 831", ...], "ms": 2300}
             {"error": "..."}
     dòng đầu khi sẵn sàng: {"ready": true}
@@ -16,6 +17,9 @@ tiền xử lý, đọc đủ bốn giá trị ở các ca Tesseract 36 cấu h�
 
 MSBb đọc bằng `vgg_seq2seq` (chốt 2026-09-25), xem `ocrModelOf` ở
 `src/server/ocr/facts.ts`. Model này chỉ nạp ở lượt đầu có yêu cầu nó.
+
+Mã giới thiệu có O, I, 0, 1 thì vùng VietOCR đọc lệch O/0, I/1 được đọc lại
+bằng `PP-OCRv6_medium_rec` (chốt 2026-10-22), cũng chỉ nạp ở lượt đầu cần.
 
 Mọi log của thư viện đi ra stderr; stdout chỉ có JSON.
 
@@ -41,6 +45,7 @@ OUT = sys.stdout
 sys.stdout = sys.stderr
 
 import cv2  # noqa: E402
+import numpy as np  # noqa: E402
 import torch  # noqa: E402
 from PIL import Image  # noqa: E402
 
@@ -51,7 +56,7 @@ if not hasattr(Image, "ANTIALIAS"):
 THREADS = int(os.environ.get("OCR_THREADS", "2"))
 torch.set_num_threads(THREADS)
 
-from paddleocr import TextDetection  # noqa: E402
+from paddleocr import TextDetection, TextRecognition  # noqa: E402
 from vietocr.tool.config import Cfg  # noqa: E402
 from vietocr.tool.predictor import Predictor  # noqa: E402
 
@@ -66,12 +71,54 @@ REC_MODELS = {
 
 DET_MODEL = os.environ.get("OCR_DET_MODEL", "PP-OCRv5_mobile_det")
 
+# Đọc mất dấu tiếng Việt ("Nhập số" ra "Nhp s") nên không thay VietOCR được,
+# chỉ đọc lại vùng mã: trên 26 ô mã MB đo 2026-10-22 đúng 23, VietOCR đúng 8.
+ALT_REC_MODEL = "PP-OCRv6_medium_rec"
+alt_rec = None
+
 
 def load_det():
     # `enable_mkldnn=False`: paddlepaddle 3.3.1 trên x86 lỗi
     # "ConvertPirAttribute2RuntimeAttribute not support" ở tầng oneDNN khi dò vùng
     # (thử trong image linux/amd64 2026-09-19). Dò vùng chỉ 0,4 s, tắt không đáng kể.
     return TextDetection(model_name=DET_MODEL, device="cpu", cpu_threads=THREADS, enable_mkldnn=False)
+
+
+def load_alt_rec():
+    global alt_rec
+    if alt_rec is None:
+        alt_rec = TextRecognition(model_name=ALT_REC_MODEL, device="cpu", cpu_threads=THREADS, enable_mkldnn=False)
+    return alt_rec
+
+
+AMBIGUOUS = str.maketrans("OI", "01")
+
+
+def code_tokens(text):
+    tokens = [t for t in re.split(r"[^A-Z0-9]+", strip_accents(text).upper()) if t]
+    return tokens + [a + b for a, b in zip(tokens, tokens[1:])]
+
+
+def make_fallback(code):
+    """Hàm đọc lại một vùng bằng Paddle, hoặc None khi yêu cầu không kèm mã.
+
+    VietOCR chọn O hay 0, I hay 1 theo ký tự đứng trước: `O108` ra `0108`,
+    `BO08` ra `BOO8`, `AI83` ra `A183` (tài khoản MB, đo 2026-10-21). Chỉ đọc
+    lại vùng VietOCR đọc khác mã mà gộp O/0, I/1 thì bằng mã; vùng đã đọc
+    đúng mã thì thôi. So nguyên văn vẫn là việc của `banks/<mã>.ts`."""
+    if not code:
+        return None
+    exact = re.sub(r"[^A-Z0-9]", "", strip_accents(code).upper())
+    key = exact.translate(AMBIGUOUS)
+
+    def fallback(image, text):
+        tokens = code_tokens(text)
+        if exact in tokens or not any(t.translate(AMBIGUOUS) == key for t in tokens):
+            return None
+        bgr = cv2.cvtColor(np.asarray(image), cv2.COLOR_RGB2BGR)
+        return next(iter(load_alt_rec().predict(bgr)))["rec_text"].strip()
+
+    return fallback
 
 
 def load_rec(key):
@@ -101,20 +148,20 @@ def crop(img, poly, pad):
     return Image.fromarray(cv2.cvtColor(img[y0:y1, x0:x1], cv2.COLOR_BGR2RGB))
 
 
-def read(det, rec, path):
+def read(det, rec, path, fallback=None):
     img = cv2.imread(path)
     if img is None:
         raise ValueError(f"Không mở được ảnh {path}")
     h, w = img.shape[:2]
     if w <= h:
-        return read_portrait(det, rec, img)
+        return read_portrait(det, rec, img, fallback)
     # Ảnh ngang là điện thoại nằm nghiêng hay lộn ngược trong ảnh chụp; app chỉ
     # có bố cục dọc. Bộ phân loại hướng của Paddle đoán sai 1/2 ảnh thử
     # (2026-09-19), nên đọc cả bốn hướng và giữ hướng nhiều từ có nghĩa nhất,
     # hoà thì nhiều chữ nhất. Chỉ tốn thêm ở ảnh ngang.
     best = []
     for rot in (None, cv2.ROTATE_90_CLOCKWISE, cv2.ROTATE_90_COUNTERCLOCKWISE, cv2.ROTATE_180):
-        lines = read_upright(det, rec, img if rot is None else cv2.rotate(img, rot))
+        lines = read_upright(det, rec, img if rot is None else cv2.rotate(img, rot), fallback)
         if (vocab_hits(lines), word_letters(lines)) > (vocab_hits(best), word_letters(best)):
             best = lines
     return best
@@ -146,18 +193,18 @@ def vocab_hits(lines):
     return sum(1 for line in lines for w in re.findall(r"[A-Za-zÀ-ỹ]+", line) if strip_accents(w).lower() in VOCAB)
 
 
-def read_portrait(det, rec, img):
+def read_portrait(det, rec, img, fallback):
     """Ảnh dọc đọc một lượt; đọc ra gần như không có từ nào có nghĩa thì thử
     lộn 180° (ảnh chụp lại điện thoại khách cầm ngược, 5/85 bộ VPBank đo
     2026-09-22) và giữ lượt nhiều từ có nghĩa hơn."""
-    lines = read_upright(det, rec, img)
+    lines = read_upright(det, rec, img, fallback)
     if vocab_hits(lines) >= 3:
         return lines
-    flipped = read_upright(det, rec, cv2.rotate(img, cv2.ROTATE_180))
+    flipped = read_upright(det, rec, cv2.rotate(img, cv2.ROTATE_180), fallback)
     return flipped if vocab_hits(flipped) > vocab_hits(lines) else lines
 
 
-def read_upright(det, rec, img):
+def read_upright(det, rec, img, fallback):
     polys = []
     for res in det.predict(img):
         polys.extend(res["dt_polys"])
@@ -173,13 +220,24 @@ def read_upright(det, rec, img):
     crops = [c for c in crops if c is not None]
     if not crops:
         return []
-    return [t.strip() for t in predictor.predict_batch(crops) if t and t.strip()]
+    lines = []
+    for image, text in zip(crops, predictor.predict_batch(crops)):
+        text = (text or "").strip()
+        if not text:
+            continue
+        lines.append(text)
+        # Bản đọc lại đứng ngay sau dòng gốc, như thêm một dòng chữ của ảnh.
+        alt = fallback(image, text) if fallback else None
+        if alt:
+            lines.append(alt)
+    return lines
 
 
 def fetch_models(target):
     """Tải model dò vùng, YAML và trọng số VietOCR vào `target`, chạy một lần lúc build."""
     os.makedirs(target, exist_ok=True)
     TextDetection(model_name=DET_MODEL, device="cpu", enable_mkldnn=False)
+    TextRecognition(model_name=ALT_REC_MODEL, device="cpu", enable_mkldnn=False)
     from vietocr.tool.utils import download_weights
 
     for name, _, _, _ in REC_MODELS.values():
@@ -213,7 +271,7 @@ def main():
             predictor, pad = recs[key]
             if req.get("pad_y") is not None:
                 pad = (pad[0], int(req["pad_y"]))
-            lines = read(det, (predictor, pad), req["path"])
+            lines = read(det, (predictor, pad), req["path"], make_fallback(req.get("code")))
             reply = {"lines": lines, "ms": int((time.time() - t) * 1000)}
         except Exception as e:  # noqa: BLE001
             reply = {"error": f"{type(e).__name__}: {e}"}

@@ -3,7 +3,7 @@ import { ocrModelOf } from "../src/server/ocr/facts";
 import { closeOcr, ocrLines } from "../src/server/ocr/reader";
 import { checkMsb, msbFacts } from "../src/server/ocr/banks/msb";
 import { checkLpb, lpbFacts } from "../src/server/ocr/banks/lpb";
-import { checkMb, mbFacts } from "../src/server/ocr/banks/mb";
+import { checkMb, mbFacts, mbFallbackCode } from "../src/server/ocr/banks/mb";
 import { checkTpbank, TPB_PAD_Y, tpbFacts } from "../src/server/ocr/banks/tpbank";
 import { checkVpb, vpbFacts } from "../src/server/ocr/banks/vpbank";
 import { bidvFacts, checkBidv } from "../src/server/ocr/banks/bidv";
@@ -71,7 +71,8 @@ async function main() {
     console.log(`\n=== ${image} ===`);
     const t = Date.now();
     const padY = bank === "tpbank" ? TPB_PAD_Y : undefined;
-    const text = (await ocrLines(await readFile(image), ocrModelOf(ctx?.bankCode ?? ""), padY)).join("\n");
+    const code = bank === "mb" && ctx ? mbFallbackCode(ctx.referralCode) : undefined;
+    const text = (await ocrLines(await readFile(image), ocrModelOf(ctx?.bankCode ?? ""), padY, code)).join("\n");
     texts.push(text);
     console.log(`${Date.now() - t} ms`);
     if (raw) console.log(text + "\n---");

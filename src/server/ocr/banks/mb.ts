@@ -19,6 +19,10 @@ import type { CheckedItem } from "../types";
  * `province` / `support_branch`; chỉ bỏ dấu và viết hoa (chốt 2026-10-02).
  * Mã text trống thì không so mã: 349/350 mã MB đang để trống, mã RM chỉ nằm ở
  * `display_name`.
+ *
+ * Mã có O, I, 0, 1 thì VietOCR hay đọc lệch O/0, I/1 (`O108` ra `0108`), nên
+ * gửi mã kèm yêu cầu đọc để `ocr-server.py` đọc lại vùng lệch bằng Paddle
+ * (chốt 2026-10-22). Vẫn so nguyên văn.
  */
 
 export type MbCheckContext = {
@@ -93,6 +97,15 @@ export function checkMb(texts: string[], ctx: MbCheckContext): CheckedItem[] {
   );
 }
 
+export const mbFallbackCode = (code: string): string | undefined => (/[OI01]/i.test(code) ? code.trim() : undefined);
+
 export async function checkMbImages(images: Buffer[], ctx: MbCheckContext): Promise<CheckedItem[]> {
-  return checkMb(await readUntilFound(images, (text) => mbFacts(text, ctx)), ctx);
+  const texts = await readUntilFound(
+    images,
+    (text) => mbFacts(text, ctx),
+    "transformer",
+    undefined,
+    mbFallbackCode(ctx.referralCode),
+  );
+  return checkMb(texts, ctx);
 }
