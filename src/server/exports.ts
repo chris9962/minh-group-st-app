@@ -19,7 +19,7 @@ import { BUSINESS_TIMEZONE } from "@/lib/format";
 import { recordVisibility, type RecordVisibility } from "@/lib/permissions";
 import { isRealIsoDate, type User } from "@/lib/types";
 import { accountExportWhere } from "./banking";
-import { customerDayText } from "./customerDay";
+import { customerDay, customerDayBetween, customerDayText } from "./customerDay";
 import { addressWhere } from "./customers";
 import { extraItemsSql, grantedLabel } from "./gift";
 import { BROKEN_STATUSES } from "./kpi";
@@ -41,7 +41,7 @@ import {
   users,
 } from "./db/schema";
 import type { BankAccountFilters } from "./banking";
-import type { ScoringExportRow } from "@/lib/api/exports";
+import type { BankNotOpenedQuery, BankNotOpenedRow, ScoringExportRow } from "@/lib/api/exports";
 
 /**
  * Báo cáo #1 · Tính điểm tổng — dựng lại đúng hình dạng sheet `TỔNG` của
@@ -941,4 +941,95 @@ async function groupsOf(
     ...rows,
     ...(used.has("") ? [{ id: "", label: "Không rõ người tạo", department: "" }] : []),
   ];
+}
+
+/**
+ * Màn Xuất dữ liệu, báo cáo Khách không mở ngân hàng (thêm 2026-10-22).
+ *
+ * Mỗi HỒ SƠ lập trong khoảng ngày vào đúng một nhóm, xét theo thứ tự: không
+ * có tài khoản nào, đã mở ngân hàng đang xét, lý do khác, đủ tuổi mà không mở.
+ * "Lý do khác" gồm khách đã mở ngân hàng đó ở lần mở khác (một người không mở
+ * lại ngân hàng đã mở, xem `bank_accounts_root_bank_slot`) và khách ngoài độ
+ * tuổi của ngân hàng.
+ *
+ * Tuổi chỉ đọc `banks.min_age`/`max_age`, không đọc tuổi của mã giới thiệu hay
+ * bản CNKD/HKD (chủ dự án chốt 2026-10-22). Tuổi tính tới ngày lập hồ sơ.
+ *
+ * Trả `null` khi không có ngân hàng `bankId`.
+ */
+export async function listBankNotOpenedExport(
+  actor: User,
+  query: BankNotOpenedQuery,
+): Promise<BankNotOpenedRow[] | null> {
+  const [bank] = await db
+    .select({ id: banks.id, minAge: banks.minAge, maxAge: banks.maxAge })
+    .from(banks)
+    .where(eq(banks.id, query.bankId))
+    .limit(1);
+  if (!bank) return null;
+
+  const visible = recordVisibility(actor, "banking", "export");
+  if (visible.kind === "none") return [];
+
+  const age = sql`extract(year from age(${customerDay}, ${customers.dob}))`;
+  // Cùng luật với `ageFits`: thiếu ngày sinh thì tuổi null, mọi giới hạn đều không đạt.
+  const ageFits =
+    and(
+      bank.minAge === null ? undefined : sql`${age} >= ${bank.minAge}`,
+      bank.maxAge === null ? undefined : sql`${age} <= ${bank.maxAge}`,
+    ) ?? sql`true`;
+
+  // Các phép join nằm TRONG câu con: câu một bảng thì drizzle bỏ tên bảng khỏi
+  // cột, và `"id"` trong `exists` bên dưới thành id của `bank_accounts`.
+  const profiles = db
+    .select({
+      day: sql<string>`${customerDayText}`.as("day"),
+      createdBy: customers.createdBy,
+      staffName: sql<string>`coalesce(${users.fullName}, '')`.as("staff_name"),
+      staffCode: sql<string>`coalesce(${users.staffCode}, '')`.as("staff_code"),
+      departmentName: sql<string>`coalesce(${departments.name}, '')`.as("department_name"),
+      kind: sql<string>`case
+        when not exists (select 1 from ${bankAccounts} where ${bankAccounts.customerId} = ${customers.id}) then 'none'
+        when exists (select 1 from ${bankAccounts} where ${bankAccounts.customerId} = ${customers.id} and ${bankAccounts.bankId} = ${bank.id}) then 'opened'
+        when exists (select 1 from ${bankAccounts} where ${bankAccounts.rootCustomerId} = ${customers.rootCustomerId} and ${bankAccounts.bankId} = ${bank.id}) then 'other'
+        when ${ageFits} then 'fit'
+        else 'other'
+      end`.as("kind"),
+    })
+    .from(customers)
+    .leftJoin(users, eq(users.id, customers.createdBy))
+    // Phòng của người lập trong THÁNG của ngày lập hồ sơ (AGENTS.md §5.3).
+    .leftJoin(
+      staffRoster,
+      and(eq(staffRoster.userId, customers.createdBy), sql`${staffRoster.yearMonth} = left(${customerDayText}, 7)`),
+    )
+    .leftJoin(departments, eq(departments.id, staffRoster.departmentId))
+    .where(
+      and(
+        customerDayBetween(query.from, query.to),
+        visible.kind === "departments"
+          ? inArray(customers.createdByDepartmentId, visible.departmentIds)
+          : visible.kind === "creator"
+            ? eq(customers.createdBy, visible.userId)
+            : undefined,
+      ),
+    )
+    .as("profiles");
+
+  const countOf = (kind: string) => sql<number>`count(*) filter (where ${profiles.kind} = ${kind})`.mapWith(Number);
+
+  return db
+    .select({
+      day: profiles.day,
+      fullName: profiles.staffName,
+      staffCode: profiles.staffCode,
+      departmentName: profiles.departmentName,
+      ageFitNotOpened: countOf("fit"),
+      otherReason: countOf("other"),
+      noAccount: countOf("none"),
+      total: sql<number>`count(*)`.mapWith(Number),
+    })
+    .from(profiles)
+    .groupBy(profiles.day, profiles.createdBy, profiles.staffName, profiles.staffCode, profiles.departmentName)
+    .orderBy(profiles.day, profiles.departmentName, profiles.staffName);
 }

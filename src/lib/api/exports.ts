@@ -351,6 +351,46 @@ export async function fetchHelmetNoodleExport(
   return HelmetNoodlePage.parse(await res.json());
 }
 
+/* ── Khách không mở ngân hàng ───────────────────────────────────────── */
+
+/**
+ * Một người lập hồ sơ trong một ngày lập hồ sơ một dòng (thêm 2026-10-22).
+ *
+ * Mỗi hồ sơ vào đúng một trong bốn nhóm: đã mở ngân hàng đang xét, ba cột
+ * đếm bên dưới. `total` gồm cả nhóm đã mở, nên ba cột cộng lại nhỏ hơn hoặc
+ * bằng `total`.
+ */
+export const BankNotOpenedRow = z.object({
+  /** Ngày lập hồ sơ `YYYY-MM-DD`, mỗi ngày một sheet. */
+  day: z.string(),
+  fullName: z.string(),
+  staffCode: z.string(),
+  /** Phòng của người lập trong tháng của `day`. */
+  departmentName: z.string(),
+  /** Hồ sơ có tài khoản khác, đủ tuổi ngân hàng mà không mở ngân hàng đó. */
+  ageFitNotOpened: z.number(),
+  /** Hồ sơ ngoài độ tuổi ngân hàng, hoặc khách đã mở ngân hàng đó ở lần mở khác. */
+  otherReason: z.number(),
+  /** Hồ sơ không có tài khoản ngân hàng nào. */
+  noAccount: z.number(),
+  total: z.number(),
+});
+export type BankNotOpenedRow = z.infer<typeof BankNotOpenedRow>;
+
+export type BankNotOpenedQuery = {
+  /** Khoảng NGÀY LẬP HỒ SƠ. */
+  from: string;
+  to: string;
+  bankId: string;
+};
+
+export async function fetchBankNotOpenedExport(query: BankNotOpenedQuery): Promise<BankNotOpenedRow[]> {
+  const params = new URLSearchParams(query);
+  const res = await fetch(`/api/exports/bank-not-opened?${params}`);
+  if (!res.ok) throw new Error('Không tải được số khách không mở ngân hàng');
+  return z.object({ rows: z.array(BankNotOpenedRow) }).parse(await res.json()).rows;
+}
+
 /* ── Báo cáo #7 · Ngày công ─────────────────────────────────────────── */
 
 /**

@@ -14,6 +14,7 @@ import {
   DirectedResult,
   HELMET_NOODLE_LABEL,
   HelmetNoodleItem,
+  fetchBankNotOpenedExport,
   fetchCancelledInsuranceExport,
   fetchDirectedExport,
   fetchGiftExcessExport,
@@ -21,6 +22,7 @@ import {
   fetchOrderStats,
   fetchSalaryExport,
   fetchWorkDayExport,
+  type BankNotOpenedRow,
   type DirectedExportRow,
   type GiftExcessRow,
   type HelmetNoodleRow,
@@ -81,6 +83,7 @@ type ReportId =
   | "cancelled-insurance"
   | "gift-excess"
   | "helmet-noodle-gifts"
+  | "bank-not-opened"
   | "work-days"
   | "salary"
   | "directed-accounts"
@@ -113,6 +116,7 @@ const REPORTS: { id: ReportId; label: string; module: ModuleKey; group: ReportGr
   // Thêm 2026-09-19: truy thu quà đã phát cho khách mà app ngân hàng lỗi sau đó.
   { id: "gift-excess", label: "Quà cấp dư do app lỗi", module: "banking", group: "banking" },
   { id: "helmet-noodle-gifts", label: "Khách đã nhận Nón, Mì", module: "banking", group: "banking" },
+  { id: "bank-not-opened", label: "Khách không mở ngân hàng", module: "banking", group: "banking" },
   { id: "order-stats", label: "Số liệu cấp đơn", module: "insurance", group: "insurance" },
   // Thêm 2026-09-08: đối soát đơn huỷ. Báo cáo #4 chỉ đếm gộp đơn huỷ theo ngày
   // và theo phòng, không nói đơn nào và vì sao huỷ.
@@ -133,7 +137,7 @@ const REPORTS: { id: ReportId; label: string; module: ModuleKey; group: ReportGr
  * này dựng lại đúng hình dạng file Kế toán — đầu bảng hai tầng gộp ô, dòng TỔNG
  * ở chân — nên bỏ một cột là hỏng cả bố cục.
  */
-const FIXED_SHAPE: ReportId[] = ["order-stats", "work-days"];
+const FIXED_SHAPE: ReportId[] = ["order-stats", "work-days", "bank-not-opened"];
 
 /** File có số của mọi phòng, nên route đòi `staff:export` phạm vi `company`. */
 const COMPANY_ONLY: ReportId[] = ["work-days", "salary", "directed-accounts"];
@@ -466,6 +470,7 @@ function catalogFor(report: ReportId, banks: Bank[], staffById: Map<string, Staf
     // Báo cáo hình dạng cố định — không có bảng chọn cột, xem `FIXED_SHAPE`.
     case "order-stats":
     case "work-days":
+    case "bank-not-opened":
       return [];
   }
 }
@@ -567,6 +572,8 @@ export default function ExportsPage() {
   const [helmetNoodleItem, setHelmetNoodleItem] = useState<HelmetNoodleItem | "">("");
   /** Người PHÁT quà, cùng trục với danh sách Quà đã phát. */
   const [helmetNoodleStaffId, setHelmetNoodleStaffId] = useState("");
+  /** Rỗng = MB, ngân hàng chủ dự án đang theo dõi (chốt 2026-10-22). */
+  const [notOpenedBankId, setNotOpenedBankId] = useState("");
   /** Báo cáo #9: rỗng là cả người đạt lẫn chưa đạt. */
   const [directedResult, setDirectedResult] = useState<DirectedResult | "">("");
 
@@ -592,6 +599,7 @@ export default function ExportsPage() {
 
   const from = range?.from ? iso(range.from) : "";
   const to = range?.to ? iso(range.to) : "";
+  const notOpenedBank = banks.find((b) => b.id === notOpenedBankId) ?? banks.find((b) => b.code === "MB");
 
   const catalog = active ? catalogFor(active, banks, staffById) : [];
   /* Thứ tự cột CỐ ĐỊNH theo file mẫu của từng báo cáo (chốt 2026-08-27, bỏ
@@ -890,6 +898,41 @@ export default function ExportsPage() {
         sheetName: "Nón, Mì",
         rows,
         columns: buildColumns(catalogFor("helmet-noodle-gifts", banks, staffById), exportOrder),
+      });
+      return rows.length;
+    },
+
+    /** Mỗi ngày lập hồ sơ một sheet, một người lập một dòng (chốt 2026-10-22). */
+    async "bank-not-opened"() {
+      if (!from || !to) throw new Error("Chọn khoảng ngày lập hồ sơ trước khi xuất.");
+      if (!notOpenedBank) throw new Error("Chọn ngân hàng trước khi xuất.");
+
+      const rows = await fetchBankNotOpenedExport({ from, to, bankId: notOpenedBank.id });
+      const days = [...new Set(rows.map((r) => r.day))].sort();
+      if (days.length === 0) throw new Error("Khoảng ngày này chưa có hồ sơ khách nào.");
+
+      const code = notOpenedBank.code;
+      const NHAN_SU = { group: "NHÂN SỰ", groupColor: EXCEL_GROUP_COLORS.staff };
+      const KHACH = { group: "KHÁCH HÀNG", groupColor: EXCEL_GROUP_COLORS.customer };
+      const sum = (pick: (r: BankNotOpenedRow) => number) => (list: BankNotOpenedRow[]) =>
+        list.reduce((t, r) => t + pick(r), 0);
+      const columns: ExcelColumn<BankNotOpenedRow>[] = [
+        { header: "STT", ...NHAN_SU, type: "number", width: 6, total: (list) => list.length, value: (_r, index) => index + 1 },
+        { header: "NHÂN VIÊN", ...NHAN_SU, width: 26, value: (r) => r.fullName || "—" },
+        { header: "MÃ NHÂN VIÊN", ...NHAN_SU, type: "text", width: 15, value: (r) => r.staffCode || "—" },
+        { header: "PHÒNG", ...NHAN_SU, width: 22, value: (r) => r.departmentName || "—" },
+        { header: `ĐỦ TUỔI NHƯNG KHÔNG MỞ ${code}`, ...KHACH, type: "number", width: 14, total: sum((r) => r.ageFitNotOpened), value: (r) => r.ageFitNotOpened },
+        { header: `KHÔNG MỞ ${code} VÌ LÝ DO KHÁC`, ...KHACH, type: "number", width: 14, total: sum((r) => r.otherReason), value: (r) => r.otherReason },
+        { header: "KHÔNG CÓ TÀI KHOẢN NÀO", ...KHACH, type: "number", width: 14, total: sum((r) => r.noAccount), value: (r) => r.noAccount },
+        { header: "TỔNG SỐ KHÁCH", ...KHACH, type: "number", width: 12, total: sum((r) => r.total), value: (r) => r.total },
+      ];
+
+      await exportExcelSheets({
+        fileName: `khach-khong-mo-${code}-${from}-den-${to}.xlsx`,
+        sheets: days.map((day) => {
+          const [, mm, dd] = day.split("-");
+          return { sheetName: `${dd}.${mm}`, columns, rows: rows.filter((r) => r.day === day) };
+        }),
       });
       return rows.length;
     },
@@ -1419,6 +1462,16 @@ export default function ExportsPage() {
                 </>
               )}
 
+              {active === "bank-not-opened" && (
+                <Select
+                  block
+                  label="Ngân hàng"
+                  value={notOpenedBank?.id ?? ""}
+                  onChange={setNotOpenedBankId}
+                  options={banksInRuleOrder(banks).map((b) => ({ value: b.id, label: b.code }))}
+                />
+              )}
+
               {active !== "staff-points" &&
                 active !== "order-stats" &&
                 active !== "work-days" &&
@@ -1433,7 +1486,9 @@ export default function ExportsPage() {
                       ? "Khoảng ngày huỷ"
                       : active === "gift-excess" || active === "helmet-noodle-gifts"
                         ? "Khoảng ngày phát quà"
-                        : "Khoảng ngày"
+                        : active === "bank-not-opened"
+                          ? "Khoảng ngày lập hồ sơ"
+                          : "Khoảng ngày"
                   }
                   value={range}
                   onChange={setRange}
