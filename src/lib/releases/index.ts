@@ -22,6 +22,29 @@ const seesCompanyDashboard = (user: User) =>
  */
 export const RELEASES: Release[] = [
   {
+    id: '2026-10-22',
+    version: '2.14.0',
+    title: 'Cập nhật ngày 22/10/2026',
+    summary: 'Đơn tai nạn điện bắt đầu trong năm 2026, Xuất dữ liệu thêm báo cáo Khách không mở ngân hàng.',
+    sections: [
+      {
+        title: 'Bảo hiểm',
+        items: ['Tạo đơn tai nạn điện: ngày bắt đầu không được sau 31/12/2026.'],
+        visibleTo: (user) => can(user, 'insurance', 'create'),
+      },
+      {
+        title: 'Xuất dữ liệu',
+        items: ['Thêm báo cáo Khách không mở ngân hàng.'],
+        visibleTo: (user) => canOpenPath(user, '/exports') && can(user, 'banking', 'export'),
+      },
+      {
+        title: 'Khách hàng',
+        items: ['Xuất Excel thêm ô "Tên có dấu".'],
+        visibleTo: (user) => can(user, 'customer', 'export'),
+      },
+    ],
+  },
+  {
     id: '2026-10-21',
     version: '2.13.0',
     title: 'Cập nhật ngày 21/10/2026',
