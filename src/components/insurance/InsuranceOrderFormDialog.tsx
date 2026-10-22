@@ -29,6 +29,7 @@ import {
 } from "@/lib/api/insurance";
 import {
   INTAKE_PHOTO_LABEL,
+  ELECTRIC_LATEST_START_DATE,
   earliestStartDate,
   latestStartDate,
   yearsLater,
@@ -99,7 +100,7 @@ function defaultLegsFor(pkg: InsurancePackage | null, blankStart: boolean): Insu
       ? legs[i - 1].endDate
       : blankStart
         ? ""
-        : earliestStartDate();
+        : earliestStartDate(leg.product);
     const values: InsuranceOrderLegForm = {
       product: leg.product,
       packageName: pkg.name,
@@ -622,8 +623,12 @@ export function InsuranceOrderFormDialog({
         error={errors.legs?.[i]?.startDate?.message}
         value={watch(`legs.${i}.startDate`)}
         onChange={(v) => changeStartDate(i, v)}
-        min={earliestStartDate()}
-        max={latestStartDate(yearsThroughChain(selectedPackage, i))}
+        min={earliestStartDate(watch(`legs.${i}.product`))}
+        max={
+          watch(`legs.${i}.product`) === "electric-accident" && !chainsToPrevious(selectedPackage, i)
+            ? ELECTRIC_LATEST_START_DATE
+            : latestStartDate(yearsThroughChain(selectedPackage, i))
+        }
       />
     </div>
   );
