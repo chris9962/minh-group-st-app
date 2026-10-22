@@ -33,7 +33,7 @@ export const OpsBankCheck = z.object({
   bankCode: z.string(),
   /** Lượt kiểm chưa chạy — không kẹp theo khoảng ngày, hàng đợi là chuyện hiện tại. */
   pending: z.number(),
-  /** Ba con số dưới đây đếm LƯỢT KIỂM đã chạy xong trong khoảng ngày đang chọn. */
+  /** Ba con số dưới đây đếm TÀI KHOẢN theo lượt kiểm mới nhất, lượt đó chạy trong khoảng ngày đang chọn. */
   passed: z.number(),
   failed: z.number(),
   /** Worker không chạy nổi lượt kiểm: ảnh hỏng, OCR ngã, hết giờ chờ. */

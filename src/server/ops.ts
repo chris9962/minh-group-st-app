@@ -52,13 +52,18 @@ export const opsDaysFrom = (raw: string | null): number => {
  * thống kê của khoảng đang chọn.
  *
  * Luật "đạt" chép ĐÚNG `photoCheckFilter` ở `photoCheck.ts`: xác nhận tay của
- * người duyệt thắng điểm máy. Hai nơi tính khác nhau thì màn này và màn Ngân
- * hàng nói hai con số khác nhau về cùng một tài khoản.
+ * người duyệt thắng điểm máy, và chỉ lượt kiểm MỚI NHẤT của tài khoản được
+ * tính (chốt 2026-10-22). Bản trước đếm mọi lượt: tài khoản kiểm lại đạt vẫn
+ * còn lượt cũ nằm ở cột "Không đạt", MB ngày 2026-10-22 hiện 481 lượt mà chỉ
+ * 170 tài khoản không đạt thật.
  */
 async function photoCheckStats(days: number) {
   // N ngày = N ngày lịch giờ Việt Nam tính cả ngày đang chạy, không phải N×24 giờ trượt.
   const since = sql`(date_trunc('day', now() at time zone 'Asia/Ho_Chi_Minh')
     - ${`${days - 1} days`}::interval) at time zone 'Asia/Ho_Chi_Minh'`;
+  // Lượt mới nhất trong tập lọc cũng là lượt mới nhất của tài khoản: dòng chờ
+  // luôn mới nhất (`enqueuePhotoCheck` xoá dòng chờ cũ), dòng trong khoảng thì
+  // mới hơn mọi dòng trước khoảng.
   const rows = await db.execute<{
     bank_id: string;
     code: string;
@@ -67,24 +72,27 @@ async function photoCheckStats(days: number) {
     failed: string;
     error: string;
   }>(sql`
+    with latest as (
+      select distinct on (c.account_id)
+        c.account_id, c.status, c.passed, c.total, c.confirmed_at
+      from bank_account_checks c
+      where c.status = 'pending' or c.created_at >= ${since}
+      order by c.account_id, c.created_at desc
+    )
     select
       b.id as bank_id, b.code,
-      count(*) filter (where c.status = 'pending') as pending,
+      count(*) filter (where l.status = 'pending') as pending,
       count(*) filter (
-        where c.status = 'done' and c.created_at >= ${since}
-          and ((c.total > 0 and c.passed = c.total) or c.confirmed_at is not null)
+        where l.status = 'done'
+          and ((l.total > 0 and l.passed = l.total) or l.confirmed_at is not null)
       ) as passed,
       count(*) filter (
-        where c.status = 'done' and c.created_at >= ${since}
-          and c.passed < c.total and c.confirmed_at is null
+        where l.status = 'done' and l.passed < l.total and l.confirmed_at is null
       ) as failed,
-      count(*) filter (
-        where c.status = 'failed' and c.created_at >= ${since}
-      ) as error
-    from bank_account_checks c
-    join bank_accounts a on a.id = c.account_id
+      count(*) filter (where l.status = 'failed') as error
+    from latest l
+    join bank_accounts a on a.id = l.account_id
     join banks b on b.id = a.bank_id
-    where c.status = 'pending' or c.created_at >= ${since}
     group by b.id, b.code
     order by b.code
   `);
