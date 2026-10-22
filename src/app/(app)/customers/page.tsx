@@ -82,9 +82,12 @@ const banksOf = (c: CustomerExportRow): string =>
  * Cột chọn được ở hộp thoại Xuất Excel. STT luôn đứng đầu file nên không nằm ở đây.
  * `label` dựng nhãn "hồ sơ 2" từ chính các dòng xuất.
  */
-const customerExcelColumns = (label: (c: CustomerExportRow) => string): ExcelColumnDef<CustomerExportRow>[] => [
+const customerExcelColumns = (
+  label: (c: CustomerExportRow) => string,
+  accentedName = false,
+): ExcelColumnDef<CustomerExportRow>[] => [
   { key: "createdAt", label: "Ngày tạo", ...KHACH, width: 12, value: (c) => formatDate(c.createdAt) },
-  { key: "fullName", label: "Tên khách hàng", ...KHACH, width: 28, transform: "name", value: (c) => label(c) },
+  { key: "fullName", label: "Tên khách hàng", ...KHACH, width: 28, transform: accentedName ? undefined : "name", value: (c) => label(c) },
   { key: "primaryPhone", label: "Số điện thoại", ...KHACH, width: 14, type: "text", value: (c) => c.primaryPhone },
   { key: "dob", label: "Ngày sinh", ...KHACH, width: 12, value: (c) => (c.dob ? formatDate(c.dob) : "") },
   { key: "address", label: "Địa chỉ", ...KHACH, width: 36, value: (c) => c.address },
@@ -400,7 +403,7 @@ export default function CustomersPage() {
    * Nhãn "hồ sơ 2" dựng lại từ chính dòng xuất, không dùng `nameOf` của trang:
    * trang chỉ có 15 dòng nên không biết hồ sơ anh em nằm ở trang khác.
    */
-  const xuatExcel = async (keys: string[]) => {
+  const xuatExcel = async (keys: string[], accentedName: boolean) => {
     setExporting(true);
     try {
       const { rows, total } = await fetchCustomersForExport({
@@ -417,7 +420,7 @@ export default function CustomersPage() {
       // Đầu bảng 3 tầng theo chuẩn chung ở AGENTS.md §12: nhóm, tổng, tên cột.
       const columns: ExcelColumn<CustomerExportRow>[] = [
         { header: "STT", group: "KHÁCH HÀNG", groupColor: EXCEL_GROUP_COLORS.customer, width: 7, type: "number", align: "center", total: (all) => all.length, value: (_c, i) => i + 1 },
-        ...pickExcelColumns(customerExcelColumns(seqLabeller(rows)), keys),
+        ...pickExcelColumns(customerExcelColumns(seqLabeller(rows), accentedName), keys),
       ];
       await exportExcel({
         fileName: `khach-hang-${iso(new Date())}.xlsx`,
@@ -924,9 +927,10 @@ export default function CustomersPage() {
           <ExcelColumnsDialog
             screen="customers"
             columns={excelColumnOptions(customerExcelColumns(() => ""))}
+            options={[{ key: "accentedName", label: "Tên có dấu" }]}
             exporting={exporting}
             onClose={() => setChoosingColumns(false)}
-            onExport={(keys) => void xuatExcel(keys)}
+            onExport={(keys, options) => void xuatExcel(keys, options.includes("accentedName"))}
           />
         )}
         {deletingCustomer && (
