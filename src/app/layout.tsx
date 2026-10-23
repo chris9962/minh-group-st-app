@@ -49,10 +49,11 @@ export const metadata: Metadata = {
   },
 };
 
-/** Đội KD làm việc trên điện thoại — không khoá zoom, để họ phóng to được. */
+/** Khoá zoom (chốt 2026-10-23): iPhone tự zoom khi chạm ô nhập có chữ dưới 16px. */
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  maximumScale: 1,
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#f8f5f0" },
     { media: "(prefers-color-scheme: dark)", color: "#0f1826" },
