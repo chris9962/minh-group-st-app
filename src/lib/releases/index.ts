@@ -25,11 +25,11 @@ export const RELEASES: Release[] = [
     id: '2026-10-23',
     version: '2.15.0',
     title: 'Cập nhật ngày 23/10/2026',
-    summary: 'Bot tự động huỷ đơn BH cuối ngày, tắt zoom trên iPhone.',
+    summary: 'Bot tự động huỷ đơn BH trên hệ thống PVI cuối ngày, tắt zoom trên iPhone.',
     sections: [
       {
         title: 'Bảo hiểm',
-        items: ['Bot tự động huỷ đơn BH cuối ngày.'],
+        items: ['Bot tự động huỷ đơn BH trên hệ thống PVI cuối ngày.'],
         visibleTo: (user) => canOpenPath(user, '/insurance'),
       },
       {
