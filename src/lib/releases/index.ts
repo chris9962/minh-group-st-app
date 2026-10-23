@@ -22,6 +22,23 @@ const seesCompanyDashboard = (user: User) =>
  */
 export const RELEASES: Release[] = [
   {
+    id: '2026-10-23',
+    version: '2.15.0',
+    title: 'Cập nhật ngày 23/10/2026',
+    summary: 'Bot tự động huỷ đơn BH cuối ngày, tắt zoom trên iPhone.',
+    sections: [
+      {
+        title: 'Bảo hiểm',
+        items: ['Bot tự động huỷ đơn BH cuối ngày.'],
+        visibleTo: (user) => canOpenPath(user, '/insurance'),
+      },
+      {
+        title: 'Điện thoại',
+        items: ['Tắt zoom trên iPhone, không còn bị mất các nút ở góc.'],
+      },
+    ],
+  },
+  {
     id: '2026-10-22',
     version: '2.14.0',
     title: 'Cập nhật ngày 22/10/2026',
