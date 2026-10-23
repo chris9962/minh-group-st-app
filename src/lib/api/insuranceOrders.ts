@@ -313,14 +313,7 @@ export const InsuranceOrderForm = z.object({
    * người có phòng thì máy chủ dùng phòng của họ và bỏ qua giá trị này.
    */
   departmentId: z.string(),
-})
-  // Kiểm ở mức cả form, không ở từng leg: biết đơn nối tiếp hay không phải nhìn đơn liền trước.
-  .superRefine((form, ctx) => {
-    form.legs.forEach((_leg, i) => {
-      if (exceedsElectricLatestStart(form.legs, i))
-        ctx.addIssue({ code: 'custom', message: ELECTRIC_LATEST_START_MESSAGE, path: ['legs', i, 'startDate'] });
-    });
-  });
+});
 export type InsuranceOrderForm = z.infer<typeof InsuranceOrderForm>;
 
 /**
@@ -418,7 +411,7 @@ export const latestStartDate = (years: number): string => yearsLater(PVI_MAX_DAT
  * phải bắt đầu từ 2027-01-01. Qua mốc đó `earliestStartDate()` tự quay về ngày
  * hiện tại, không cần gỡ. Lượt sửa và cấp lại vẫn chặn theo ngày hiện tại.
  *
- * Đơn tai nạn điện bỏ mốc này từ 2026-10-22, xem `ELECTRIC_LATEST_START_DATE`.
+ * Đơn tai nạn điện bỏ mốc này từ 2026-10-22, chỉ chặn ngày ở quá khứ.
  */
 export const INSURANCE_MIN_START_DATE = '2027-01-01';
 
@@ -433,21 +426,3 @@ export const earliestStartDateMessage = (product: InsuranceProduct): string => {
     ? `Ngày bắt đầu phải từ ${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}`
     : 'Ngày bắt đầu không được ở quá khứ';
 };
-
-/**
- * Đơn tai nạn điện TẠO MỚI chỉ bắt đầu trong năm 2026 (chủ dự án chốt
- * 2026-10-22). Đơn nối tiếp không theo mốc này: ngày của nó là ngày kết thúc
- * của đơn trước, nên đơn thứ hai của gói 2 năm luôn bắt đầu trong năm 2027.
- */
-export const ELECTRIC_LATEST_START_DATE = '2026-12-31';
-
-export const ELECTRIC_LATEST_START_MESSAGE = 'Ngày bắt đầu không được sau 31/12/2026';
-
-/** Đơn thứ `i` nối tiếp đơn liền trước: chỉ khi CẢ HAI là tai nạn điện, cùng luật với form tạo đơn. */
-export const chainsToPreviousLeg = (legs: { product: InsuranceProduct }[], i: number): boolean =>
-  i > 0 && legs[i - 1].product === 'electric-accident' && legs[i].product === 'electric-accident';
-
-export const exceedsElectricLatestStart = (legs: { product: InsuranceProduct; startDate: string }[], i: number): boolean =>
-  legs[i].product === 'electric-accident' &&
-  !chainsToPreviousLeg(legs, i) &&
-  legs[i].startDate > ELECTRIC_LATEST_START_DATE;

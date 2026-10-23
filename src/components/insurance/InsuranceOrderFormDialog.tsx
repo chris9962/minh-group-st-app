@@ -29,7 +29,6 @@ import {
 } from "@/lib/api/insurance";
 import {
   INTAKE_PHOTO_LABEL,
-  ELECTRIC_LATEST_START_DATE,
   earliestStartDate,
   latestStartDate,
   yearsLater,
@@ -624,11 +623,7 @@ export function InsuranceOrderFormDialog({
         value={watch(`legs.${i}.startDate`)}
         onChange={(v) => changeStartDate(i, v)}
         min={earliestStartDate(watch(`legs.${i}.product`))}
-        max={
-          watch(`legs.${i}.product`) === "electric-accident" && !chainsToPrevious(selectedPackage, i)
-            ? ELECTRIC_LATEST_START_DATE
-            : latestStartDate(yearsThroughChain(selectedPackage, i))
-        }
+        max={latestStartDate(yearsThroughChain(selectedPackage, i))}
       />
     </div>
   );
