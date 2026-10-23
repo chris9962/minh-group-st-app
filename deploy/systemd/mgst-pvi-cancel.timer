@@ -1,0 +1,10 @@
+[Unit]
+Description=Huỷ đơn bảo hiểm trên PVI Connect, 20:00 mỗi ngày, giờ Việt Nam
+
+[Timer]
+# Phải xong trước lượt gom tự động của PVI, khoảng 21:00. Không chạy bù khi máy chủ tắt qua mốc:
+# sau 21:00 PVI đã gom đơn huỷ chung với đơn còn hiệu lực, job không gom được nữa.
+OnCalendar=*-*-* 20:00:00 Asia/Ho_Chi_Minh
+
+[Install]
+WantedBy=timers.target

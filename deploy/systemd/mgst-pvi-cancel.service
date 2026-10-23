@@ -1,0 +1,16 @@
+[Unit]
+Description=Huỷ trên PVI Connect các đơn bảo hiểm đã huỷ trong ngày
+After=docker.service
+OnFailure=mgst-alert@%n.service
+
+[Service]
+Type=oneshot
+# Đường tới database giống deploy/worker-lib.sh: localhost:5433 chỉ đúng từ máy chủ,
+# trong container bridge thì phải qua host.docker.internal.
+ExecStart=/usr/bin/docker run --rm --name mgst-pvi-cancel \
+  --add-host host.docker.internal:host-gateway \
+  --env-file /opt/mgst-app/.env.pvi-cancel \
+  -e DATABASE_URL=postgres://mgst:mgst@host.docker.internal:5433/mgst \
+  -v /var/lib/mgst-pvi-cancel:/data \
+  mgst-pvi-cancel:latest
+TimeoutStartSec=1800

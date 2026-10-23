@@ -1,0 +1,7 @@
+{
+  "name": "mgst-pvi-cancel-orders",
+  "private": true,
+  "dependencies": {
+    "pg": "8.22.0"
+  }
+}
