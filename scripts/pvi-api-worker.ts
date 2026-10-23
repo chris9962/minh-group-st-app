@@ -253,6 +253,31 @@ async function baoDonLamTay(order: OrderForPvi, note: string) {
   }
 }
 
+/**
+ * Báo người vận hành NGAY lần đầu một đơn không gọi được PVI (chốt 2026-10-23).
+ *
+ * Trước đó chỉ `baoDonLamTay` sau 5 lần hỏng, tức 25 phút sau khi PVI ngừng
+ * trả lời. Sự cố 2026-10-23 15:49 PVI hết giờ chờ ở mọi lệnh tạo đơn, và người
+ * vận hành chỉ biết lúc 16:02 khi đơn đầu tiên sang làm tay.
+ *
+ * Mỗi đơn báo đúng một lần: nơi gọi chỉ gọi hàm này ở lần hỏng thứ nhất. Cùng
+ * loại `ops-alert` với `scripts/ops-watch.ts` nên cùng người nhận và cùng công
+ * tắc ở trang cá nhân. Nuốt lỗi như `baoDonLamTay`, cùng lý do.
+ */
+async function baoHetGioCho(order: OrderForPvi, e: unknown) {
+  try {
+    const nguoiNhan = await recipientsFor("system", "view-ops", "ops-alert");
+    const sent = await notifyUsers(nguoiNhan, "ops-alert", {
+      title: "Gọi PVI không được",
+      body: `${order.orderCode} · ${describeError(e)}`,
+      url: `/insurance/${order.id}`,
+    });
+    if (sent > 0) log(`${order.orderCode}: đã báo ${sent} người vận hành`);
+  } catch (err) {
+    log(`${order.orderCode}: không báo được cho người vận hành — ${describeError(err)}`);
+  }
+}
+
 /** Gọi PVI tạo một đơn rồi ghi kết quả. Trả trạng thái mới. */
 async function createOne(order: OrderForPvi) {
   if (!(await claim(order.id))) return null;
@@ -334,8 +359,10 @@ async function failed(order: OrderForPvi, e: unknown) {
       `${order.orderCode}: ${describeError(e)} (lần ${attempts}/${MAX_CREATE_ATTEMPTS})` +
         (giveUp ? " → làm tay" : ""),
     );
-    // Chỉ báo khi ĐÃ bỏ cuộc. Còn thử lại thì đơn vẫn nằm trong hàng chờ của
-    // worker, chưa ai phải làm gì.
+    // Lần hỏng đầu tiên vì mạng thì báo người vận hành ngay, không đợi bỏ cuộc.
+    if (attempts === 1 && err.kind === "network") await baoHetGioCho(order, e);
+    // Người xử lý đơn làm tay chỉ báo khi ĐÃ bỏ cuộc. Còn thử lại thì đơn vẫn
+    // nằm trong hàng chờ của worker, chưa ai phải làm gì.
     if (giveUp) await baoDonLamTay(order, note);
     return giveUp ? "manual-queued" : "queued";
   }
