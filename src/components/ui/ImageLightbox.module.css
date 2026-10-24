@@ -38,7 +38,11 @@
   background: rgb(32 30 29 / 70%);
 }
 
+/* `z-index` giữ thanh nút và chú thích nằm trên ảnh: ảnh phóng to tràn ra
+   ngoài sân, che mất nút đóng nếu đứng cùng lớp. */
 .bar {
+  position: relative;
+  z-index: 1;
   flex: none;
   display: flex;
   align-items: center;
@@ -156,6 +160,8 @@
 }
 
 .caption {
+  position: relative;
+  z-index: 1;
   flex: none;
   align-self: center;
   margin: 0 var(--space-3) var(--space-3);
