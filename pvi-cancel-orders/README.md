@@ -21,7 +21,7 @@ Thư mục này đứng riêng: không import gì từ phần còn lại của r
 | `solve-captcha.py` | Đọc captcha đăng nhập |
 | `Dockerfile` | Image có bun, tesseract, python |
 | `../deploy/systemd/mgst-pvi-cancel.service` | Chạy job một lần bằng `docker run` |
-| `../deploy/systemd/mgst-pvi-cancel.timer` | Gọi service lúc 20:00 mỗi ngày |
+| `../deploy/systemd/mgst-pvi-cancel.timer` | Gọi service lúc 19:30 mỗi ngày |
 
 ## Job làm gì
 
