@@ -37,6 +37,10 @@ Thư mục này đứng riêng: không import gì từ phần còn lại của r
 
 Form SĐBS đơn điện bắt nhập 2 ô mà đơn gom để trống: "Phạm vi BH" và mã điều khoản ở bảng "Quy tắc bảo hiểm". Job điền theo SĐBS nhân viên đã lập: nội dung phạm vi chuẩn của sản phẩm và mã 030224.
 
+Đơn không còn chờ gom thì job tra đơn gom đang chứa nó, và xem đơn gom đó đã có SĐBS huỷ chưa.
+
+Cuối mỗi lượt chạy, kể cả lượt dừng vì lỗi, job ghi một dòng vào bảng `pvi_cancel_runs` (migration 0148). Worker Zalo đọc dòng mới và gửi thông báo "Kết quả gom và huỷ đơn trên PVI Connect" tới người nhận và nhóm chọn ở màn Bot Zalo, tab "Thông báo tự động". Nội dung tin dựng ở `src/server/zalo/pviCancelReport.ts`.
+
 Kết quả ghi ở `/data/results-<ngày>.json`, ghi lại ngay sau mỗi lệnh ghi lên PVI. Chạy lại trong ngày thì job làm tiếp từ chỗ dừng: đơn đã gom không gom lại, đơn gom chưa ký thì lập SĐBS và ký tiếp. Cuối lượt, log in danh sách đơn gom và đơn bị bỏ qua.
 
 ## Biến môi trường

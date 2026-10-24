@@ -105,7 +105,11 @@ export type ZaloGroupOption = z.infer<typeof ZaloGroupOption>;
  * Loại thông báo tự động. Điều kiện và nội dung tin viết trong code, ở
  * `src/server/zalo/notifications.ts`. Màn Bot Zalo chỉ chọn loại nào gửi tới nhóm nào.
  */
-export const ZaloNotificationKind = z.enum(['insurance-certificate-overdue', 'pgd-daily-report']);
+export const ZaloNotificationKind = z.enum([
+  'insurance-certificate-overdue',
+  'pgd-daily-report',
+  'pvi-cancel-report',
+]);
 export type ZaloNotificationKind = z.infer<typeof ZaloNotificationKind>;
 
 /** Đơn chờ giấy chứng nhận quá ngần này phút thì báo vào nhóm Zalo, mỗi đơn một lần. */
@@ -117,6 +121,7 @@ export const ZALO_PGD_REPORT_AT = '20:00';
 export const ZALO_NOTIFICATION_LABEL: Record<ZaloNotificationKind, string> = {
   'insurance-certificate-overdue': `Đơn bảo hiểm chờ giấy chứng nhận quá ${ZALO_CERT_OVERDUE_MINUTES} phút`,
   'pgd-daily-report': `Báo cáo ngày cho Phó giám đốc, gửi lúc ${ZALO_PGD_REPORT_AT}`,
+  'pvi-cancel-report': 'Kết quả gom và huỷ đơn trên PVI Connect, sau mỗi lượt job huỷ đơn',
 };
 
 /**
@@ -126,6 +131,16 @@ export const ZALO_NOTIFICATION_LABEL: Record<ZaloNotificationKind, string> = {
  */
 export const notificationNeedsPgd = (kind: ZaloNotificationKind): boolean =>
   kind === 'pgd-daily-report';
+
+/**
+ * Loại thông báo gửi tin riêng tới SĐT hồ sơ của người được chọn, và chọn trong
+ * danh sách nào: `pgd` chỉ Phó giám đốc đang làm, `staff` mọi người đang làm.
+ * `null` là loại chỉ gửi vào nhóm.
+ */
+export const notificationPeople = (kind: ZaloNotificationKind): 'pgd' | 'staff' | null =>
+  notificationNeedsPgd(kind) ? 'pgd' : kind === 'pvi-cancel-report' ? 'staff' : null;
+
+export const notificationTakesGroups = (kind: ZaloNotificationKind): boolean => !notificationNeedsPgd(kind);
 
 export const ZaloPersonOption = z.object({ id: z.string(), name: z.string(), phone: z.string() });
 export type ZaloPersonOption = z.infer<typeof ZaloPersonOption>;
@@ -262,9 +277,9 @@ export async function saveZaloNotificationRoutes(
   }
 }
 
-export async function fetchZaloPgdOptions(): Promise<ZaloPersonOption[]> {
-  const res = await fetch('/api/zalo-bot/pgd-options');
-  if (!res.ok) throw new Error('Không đọc được danh sách Phó giám đốc');
+export async function fetchZaloPeopleOptions(kind: ZaloNotificationKind): Promise<ZaloPersonOption[]> {
+  const res = await fetch(`/api/zalo-bot/notifications/${kind}/people-options`);
+  if (!res.ok) throw new Error('Không đọc được danh sách người nhận');
   return z.array(ZaloPersonOption).parse(await res.json());
 }
 
@@ -279,7 +294,7 @@ export async function saveZaloNotificationPgds(
   });
   if (!res.ok) {
     const data = await res.json().catch(() => null);
-    throw new Error(data?.message ?? 'Không lưu được danh sách Phó giám đốc');
+    throw new Error(data?.message ?? 'Không lưu được danh sách người nhận');
   }
 }
 

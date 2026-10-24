@@ -7,7 +7,8 @@ import { Checkbox } from "@/components/ui/Checkbox";
 import { Dialog } from "@/components/ui/Dialog";
 import { ErrorState } from "@/components/ui/ErrorState";
 import {
-  fetchZaloPgdOptions,
+  fetchZaloPeopleOptions,
+  notificationPeople,
   saveZaloNotificationPgds,
   ZALO_NOTIFICATION_LABEL,
   type ZaloNotificationKind,
@@ -23,23 +24,28 @@ type Props = {
 };
 
 /**
- * Chọn Phó giám đốc nhận báo cáo ngày: mỗi PGĐ được chọn nhận một tin riêng tới
- * SĐT trên hồ sơ. Danh sách chỉ có PGĐ đang làm, máy chủ kiểm lại khi lưu.
+ * Chọn người nhận riêng của một loại thông báo: mỗi người được chọn nhận một tin
+ * riêng tới SĐT trên hồ sơ. Báo cáo ngày chỉ chọn Phó giám đốc đang làm, loại
+ * khác chọn mọi người đang làm. Máy chủ kiểm lại khi lưu.
  */
 export function NotificationPgdsDialog({ kind, initialUserIds, onClose }: Props) {
   const queryClient = useQueryClient();
   const [picked, setPicked] = useState<string[]>(initialUserIds);
+  const who = notificationPeople(kind) === "pgd" ? "Phó giám đốc" : "người nhận";
 
-  const options = useQuery({ queryKey: ["zalo-bot", "pgd-options"], queryFn: fetchZaloPgdOptions });
+  const options = useQuery({
+    queryKey: ["zalo-bot", "people-options", kind],
+    queryFn: () => fetchZaloPeopleOptions(kind),
+  });
 
   const save = useMutation({
     mutationFn: () => saveZaloNotificationPgds(kind, { userIds: picked }),
     onSuccess: () => {
-      toast.ok("Đã lưu Phó giám đốc nhận báo cáo.");
+      toast.ok(`Đã lưu ${who}.`);
       void queryClient.invalidateQueries({ queryKey: ["zalo-bot", "notifications"] });
       onClose();
     },
-    onError: (e) => toast.fail(errorMessage(e, "Không lưu được danh sách Phó giám đốc.")),
+    onError: (e) => toast.fail(errorMessage(e, `Không lưu được danh sách ${who}.`)),
   });
 
   const toggle = (id: string, checked: boolean) =>
@@ -64,11 +70,11 @@ export function NotificationPgdsDialog({ kind, initialUserIds, onClose }: Props)
     >
       <div className={styles.body}>
         {options.isError ? (
-          <ErrorState what="danh sách Phó giám đốc" onRetry={options.refetch} retrying={options.isFetching} />
+          <ErrorState what={`danh sách ${who}`} onRetry={options.refetch} retrying={options.isFetching} />
         ) : options.isPending ? (
-          <p className="text-muted">Đang tải danh sách Phó giám đốc…</p>
+          <p className="text-muted">Đang tải danh sách {who}…</p>
         ) : options.data.length === 0 ? (
-          <p className="text-muted">Chưa có Phó giám đốc nào.</p>
+          <p className="text-muted">Chưa có {who} nào.</p>
         ) : (
           <ul className={styles.list}>
             {options.data.map((p) => {

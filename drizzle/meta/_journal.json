@@ -1030,6 +1030,13 @@
       "when": 1789891400073,
       "tag": "0147_role_admin",
       "breakpoints": true
+    },
+    {
+      "idx": 148,
+      "version": "7",
+      "when": 1789891400074,
+      "tag": "0148_pvi_cancel_runs",
+      "breakpoints": true
     }
   ]
 }

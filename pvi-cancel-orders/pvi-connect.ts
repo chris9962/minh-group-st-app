@@ -253,17 +253,37 @@ export class PviClient {
     return numbers.map((number, i) => ({ number, prKey: prKeys[i] }));
   }
 
-  /** Số đơn đang chứa seri xe máy, tra bằng "Tìm kiếm chung" theo ngày cấp trong năm `year`. */
-  async findMotorbikePolicyNumbers(serial: string, year: string): Promise<string[]> {
+  /** Số đơn đang chứa seri, tra bằng "Tìm kiếm chung" theo ngày cấp trong năm `year`. `product` là mã sản phẩm. */
+  async findPolicyNumbers(product: string, serial: string, year: string): Promise<string[]> {
     const data = await this.get("/api/CtuTraCuu", {
       pageIndex: "1",
       pageSize: "10",
-      maSp: "050201",
+      maSp: product,
       tuNgay: `${year}-01-01`,
       denNgay: `${year}-12-31`,
       soSeri: serial,
     });
     return [...new Set<string>((data?.items || []).map((i: PviJson) => i.soDonbh))];
+  }
+
+  /**
+   * Đơn gom `policyNumber` đã huỷ chưa. "Tìm kiếm chung" trả đơn gom và mọi SĐBS của nó:
+   * đã huỷ khi có SĐBS, và phí các dòng đã ký cộng lại bằng 0. Còn SĐBS chưa ký thì báo
+   * `unsigned`: việc cần làm là ký, không phải lập SĐBS mới.
+   */
+  async mergedOrderState(
+    product: string,
+    policyNumber: string,
+  ): Promise<{ state: "cancelled" | "unsigned" | "partial" | "active"; amendments: string[] }> {
+    const data = await this.get("/api/CtuTraCuu", { pageIndex: "1", pageSize: "20", maSp: product, soDonbh: policyNumber });
+    const rows: PviJson[] = data?.items || [];
+    const amendments = rows.filter((r) => r.soDonbhBs).map((r) => String(r.soDonbhBs));
+    if (!amendments.length) return { state: "active", amendments };
+    const signed = rows.filter((r) => r.maTrangThai === "02");
+    const total = signed.reduce((sum, r) => sum + (Number(r.phiBhVnd) || 0), 0);
+    if (total === 0 && signed.some((r) => r.soDonbhBs)) return { state: "cancelled", amendments };
+    const unsigned = rows.some((r) => r.soDonbhBs && r.maTrangThai !== "02");
+    return { state: unsigned ? "unsigned" : "partial", amendments };
   }
 
   /** Số seri của từng đơn lẻ trong một đơn gom điện. */

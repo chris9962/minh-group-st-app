@@ -30,6 +30,7 @@ const SDBS_NOTE = "Hủy do sai thông tin khách hàng";
 const SIGN_NOTE = "ok";
 /** Giá trị ô "Thời hạn bảo hiểm" của trang Gom đơn xe máy: <= 12 tháng, 12-24 tháng, trên 24 tháng. */
 const MOTORBIKE_TERMS = [1, 2, 3];
+const PRODUCT_CODE = { motorbike: "050201", "electric-accident": "010206" } as const;
 /** Còn ít hơn ngần này thì làm mới access token trước khi chạy. */
 const SESSION_MARGIN_MS = 10 * 60 * 1000;
 
@@ -48,11 +49,15 @@ type CancelledOrder = {
 
 type OrderStatus = "skipped" | "planned" | "merged" | "failed";
 
+/** Đơn gom đang chứa một đơn bị bỏ qua, và đơn gom đó đã huỷ chưa. */
+type Holder = { number: string; state: "cancelled" | "unsigned" | "partial" | "active"; amendments: string[] };
+
 type OrderResult = CancelledOrder & {
   status: OrderStatus;
   reason?: string;
   group?: string;
   mergedNumber?: string;
+  holders?: Holder[];
 };
 
 type MergedResult = {
@@ -110,6 +115,22 @@ async function loadCancelledOrders(date: string): Promise<CancelledOrder[]> {
       serial: String(r.pvi_serial_number),
       policyNumber: r.pvi_policy_number ?? "",
     }));
+  } finally {
+    await pool.end();
+  }
+}
+
+/** Ghi kết quả lượt chạy vào `pvi_cancel_runs`. Worker Zalo đọc bảng này để gửi thông báo. */
+async function saveRunReport(result: DayResult, error: string) {
+  const pool = new Pool({ connectionString: requireEnv("DATABASE_URL") });
+  try {
+    const report = { date: result.date, orders: Object.values(result.orders), merged: Object.values(result.merged) };
+    await pool.query(`insert into pvi_cancel_runs (run_date, mode, report, error) values ($1, $2, $3, $4)`, [
+      result.date,
+      ENABLED ? "write" : "check",
+      JSON.stringify(report),
+      error,
+    ]);
   } finally {
     await pool.end();
   }
@@ -183,14 +204,29 @@ async function planMotorbike(client: PviClient, orders: CancelledOrder[], date: 
       result.orders[order.orderCode] = { ...order, status: "planned", group: found[0].group };
       continue;
     }
-    let reason = `ra ${found.length} dòng chờ gom`;
-    if (!found.length) {
-      const holders = await client.findMotorbikePolicyNumbers(order.serial, date.slice(0, 4));
-      reason = holders.length ? `không còn chờ gom, đang ở ${holders.join(", ")}` : "không còn chờ gom";
-    }
-    result.orders[order.orderCode] = { ...order, status: "skipped", reason };
+    result.orders[order.orderCode] = found.length
+      ? { ...order, status: "skipped", reason: `ra ${found.length} dòng chờ gom` }
+      : await skippedNotWaiting(client, order, date);
   }
   return plans;
+}
+
+/**
+ * Đơn không còn trong danh sách chờ gom: ghi lại đơn gom đang chứa nó, và đơn gom đó đã huỷ chưa.
+ * Lệnh tra chỉ để báo cáo, nên tra lỗi thì ghi lý do rồi làm tiếp, không dừng lượt huỷ.
+ */
+async function skippedNotWaiting(client: PviClient, order: CancelledOrder, date: string): Promise<OrderResult> {
+  const product = PRODUCT_CODE[order.product];
+  const holders: Holder[] = [];
+  try {
+    for (const number of await client.findPolicyNumbers(product, order.serial, date.slice(0, 4))) {
+      holders.push({ number, ...(await client.mergedOrderState(product, number)) });
+    }
+  } catch (e) {
+    return { ...order, status: "skipped", reason: `không còn chờ gom, tra đơn gom chứa seri lỗi: ${(e as Error).message}` };
+  }
+  const reason = holders.length ? `không còn chờ gom, đang ở ${holders.map((h) => h.number).join(", ")}` : "không còn chờ gom";
+  return { ...order, status: "skipped", reason, holders };
 }
 
 /** Đơn điện: tải cả danh sách chờ gom của ngày, khớp số đơn lẻ với `pvi_policy_number`. */
@@ -203,11 +239,9 @@ async function planElectric(client: PviClient, orders: CancelledOrder[], date: s
       plans.push({ candidate: found[0], order });
       result.orders[order.orderCode] = { ...order, status: "planned", group: found[0].group };
     } else {
-      result.orders[order.orderCode] = {
-        ...order,
-        status: "skipped",
-        reason: found.length ? `ra ${found.length} dòng chờ gom` : "không còn chờ gom",
-      };
+      result.orders[order.orderCode] = found.length
+        ? { ...order, status: "skipped", reason: `ra ${found.length} dòng chờ gom` }
+        : await skippedNotWaiting(client, order, date);
     }
   }
   return plans;
@@ -226,7 +260,7 @@ async function mergeMotorbike(client: PviClient, plans: Plan[], date: string, re
     );
     for (const merged of created) result.merged[merged.number] = { product: "motorbike", ...merged, orderCodes: [] };
     for (const plan of lot) {
-      const holders = await client.findMotorbikePolicyNumbers(plan.order.serial, date.slice(0, 4));
+      const holders = await client.findPolicyNumbers(PRODUCT_CODE.motorbike, plan.order.serial, date.slice(0, 4));
       const merged = created.find((m) => holders.includes(m.number));
       const order = result.orders[plan.order.orderCode];
       if (merged) {
@@ -252,6 +286,12 @@ async function mergeElectric(client: PviClient, plans: Plan[], result: DayResult
     const inside = plans.filter((p) => serials.has(p.order.serial));
     result.merged[merged.number] = { product: "electric-accident", ...merged, orderCodes: inside.map((p) => p.order.orderCode) };
     for (const p of inside) Object.assign(result.orders[p.order.orderCode], { status: "merged", mergedNumber: merged.number });
+  }
+  for (const p of plans) {
+    const order = result.orders[p.order.orderCode];
+    if (order.status === "planned") {
+      Object.assign(order, { status: "failed", reason: "đã gửi lệnh gom nhưng không tìm thấy seri trong đơn gom mới" });
+    }
   }
   await saveDayResult(result);
 }
@@ -314,7 +354,19 @@ async function main() {
   await mkdir(DATA_DIR, { recursive: true });
   const result = await loadDayResult(date);
   result.runs.push(new Date().toISOString());
+  try {
+    await run(date, result);
+  } catch (e) {
+    await saveRunReport(result, (e as Error).message).catch((saveError) => console.error(saveError));
+    throw e;
+  }
+  await saveRunReport(result, "");
 
+  const failed = Object.values(result.orders).some((o) => o.status === "failed") || Object.values(result.merged).some((m) => m.error);
+  if (failed) process.exit(1);
+}
+
+async function run(date: string, result: DayResult) {
   const done = new Set(Object.values(result.orders).filter((o) => o.status === "merged").map((o) => o.orderCode));
   const orders = (await loadCancelledOrders(date)).filter((o) => !done.has(o.orderCode));
   log(`Ngày ${date}, ${ENABLED ? "GHI THẬT lên PVI" : "chỉ kiểm tra"}. ${orders.length} đơn huỷ chưa gom.`);
@@ -338,9 +390,6 @@ async function main() {
 
   await saveDayResult(result);
   printSummary(result);
-
-  const failed = Object.values(result.orders).some((o) => o.status === "failed") || Object.values(result.merged).some((m) => m.error);
-  if (failed) process.exit(1);
 }
 
 main()

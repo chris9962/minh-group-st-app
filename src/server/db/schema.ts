@@ -2872,6 +2872,26 @@ export const zaloNotificationPgds = pgTable(
   ],
 );
 
+/**
+ * Kết quả từng lượt chạy của job huỷ đơn trên PVI Connect (`pvi-cancel-orders/`).
+ * Job ghi, worker Zalo đọc để gửi thông báo `pvi-cancel-report`. Migration 0148.
+ */
+export const pviCancelRuns = pgTable(
+  "pvi_cancel_runs",
+  {
+    id: id(),
+    runDate: date("run_date", { mode: "string" }).notNull(),
+    mode: text("mode").notNull(),
+    report: jsonb("report").notNull(),
+    error: text("error").notNull().default(""),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index("pvi_cancel_runs_created_at").on(t.createdAt),
+    check("pvi_cancel_runs_mode", sql`${t.mode} in ('write', 'check')`),
+  ],
+);
+
 /** Sổ chống gửi trùng của thông báo Zalo, một dòng một sự việc đã báo. Migration 0104. */
 export const zaloNotificationLog = pgTable("zalo_notification_log", {
   key: text("key").primaryKey(),

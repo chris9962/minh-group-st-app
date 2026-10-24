@@ -26,7 +26,8 @@ import {
   fetchZaloBot,
   fetchZaloNotificationRoutes,
   logoutZaloBot,
-  notificationNeedsPgd,
+  notificationPeople,
+  notificationTakesGroups,
   sendZaloNotificationNow,
   syncZaloGroups,
   ZALO_BOT_STATUS_LABEL,
@@ -256,40 +257,48 @@ export default function ZaloBotPage() {
                   <SkeletonTable rows={2} columns={2} />
                 ) : (
                   <ul className={styles.notices}>
-                    {routes.data.map((route) => (
-                      <li key={route.kind} className={styles.notice}>
-                        <div className={styles.noticeText}>
-                          <span className={styles.noticeLabel}>
-                            {ZALO_NOTIFICATION_LABEL[route.kind]}
-                          </span>
-                          <span className={styles.noticeGroups}>
-                            {notificationNeedsPgd(route.kind)
-                              ? route.pgds.length === 0
-                                ? "Chưa chọn Phó giám đốc"
-                                : route.pgds.map((p) => `${p.name} - ${formatPhone(p.phone)}`).join(", ")
-                              : route.groups.length === 0
-                                ? "Chưa chọn nhóm"
-                                : route.groups.map((g) => g.name).join(", ")}
-                          </span>
-                        </div>
-                        <div className={styles.noticeActions}>
-                          {(notificationNeedsPgd(route.kind) ? route.pgds : route.groups).length > 0 && (
-                            <Button variant="secondary" onClick={() => setSendingKind(route.kind)}>
-                              Gửi ngay
-                            </Button>
-                          )}
-                          {notificationNeedsPgd(route.kind) ? (
-                            <Button variant="secondary" onClick={() => setEditingPgdKind(route.kind)}>
-                              Chọn PGĐ
-                            </Button>
-                          ) : (
-                            <Button variant="secondary" onClick={() => setEditingKind(route.kind)}>
-                              Chọn nhóm
-                            </Button>
-                          )}
-                        </div>
-                      </li>
-                    ))}
+                    {routes.data.map((route) => {
+                      const people = notificationPeople(route.kind);
+                      const takesGroups = notificationTakesGroups(route.kind);
+                      const peopleText =
+                        route.pgds.length === 0
+                          ? people === "pgd"
+                            ? "Chưa chọn Phó giám đốc"
+                            : "Chưa chọn người nhận"
+                          : route.pgds.map((p) => `${p.name} - ${formatPhone(p.phone)}`).join(", ");
+                      const groupsText =
+                        route.groups.length === 0
+                          ? "Chưa chọn nhóm"
+                          : route.groups.map((g) => g.name).join(", ");
+                      return (
+                        <li key={route.kind} className={styles.notice}>
+                          <div className={styles.noticeText}>
+                            <span className={styles.noticeLabel}>
+                              {ZALO_NOTIFICATION_LABEL[route.kind]}
+                            </span>
+                            {people && <span className={styles.noticeGroups}>{peopleText}</span>}
+                            {takesGroups && <span className={styles.noticeGroups}>{groupsText}</span>}
+                          </div>
+                          <div className={styles.noticeActions}>
+                            {route.pgds.length + route.groups.length > 0 && (
+                              <Button variant="secondary" onClick={() => setSendingKind(route.kind)}>
+                                Gửi ngay
+                              </Button>
+                            )}
+                            {people && (
+                              <Button variant="secondary" onClick={() => setEditingPgdKind(route.kind)}>
+                                {people === "pgd" ? "Chọn PGĐ" : "Chọn người nhận"}
+                              </Button>
+                            )}
+                            {takesGroups && (
+                              <Button variant="secondary" onClick={() => setEditingKind(route.kind)}>
+                                Chọn nhóm
+                              </Button>
+                            )}
+                          </div>
+                        </li>
+                      );
+                    })}
                   </ul>
                 )}
               </SectionCard>

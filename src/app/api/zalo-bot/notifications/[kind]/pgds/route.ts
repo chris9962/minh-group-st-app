@@ -8,7 +8,7 @@ import {
 
 type Params = { params: Promise<{ kind: string }> };
 
-/** Màn Bot Zalo · thay trọn danh sách Phó giám đốc của một loại thông báo, theo tài khoản đang đăng nhập. */
+/** Màn Bot Zalo · thay trọn danh sách người nhận riêng của một loại thông báo, theo tài khoản đang đăng nhập. */
 export async function PUT(request: Request, { params }: Params) {
   const guard = await actorWith(request, "system", "view-ops");
   if (!guard.ok) return guard.response;
