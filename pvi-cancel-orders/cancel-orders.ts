@@ -60,6 +60,8 @@ type MergedResult = {
   number: string;
   prKey: number;
   orderCodes: string[];
+  /** Chỉ đơn điện: đơn gom điện tạo ra ở trạng thái Chờ duyệt, phải ký trước khi lập SĐBS. */
+  mergedSigned?: boolean;
   sdbsPrKey?: number;
   signed?: boolean;
   error?: string;
@@ -254,16 +256,29 @@ async function mergeElectric(client: PviClient, plans: Plan[], result: DayResult
   await saveDayResult(result);
 }
 
-/** Lập SĐBS huỷ rồi ký cho từng đơn gom xe máy chưa ký, kể cả đơn gom của lượt chạy trước trong ngày. */
-async function cancelMotorbikeMerged(client: PviClient, date: string, result: DayResult) {
+/**
+ * Lập SĐBS huỷ rồi ký cho từng đơn gom chưa ký, kể cả đơn gom của lượt chạy trước trong ngày.
+ * Đơn gom điện phải ký trước khi lập SĐBS.
+ */
+async function cancelMerged(client: PviClient, date: string, result: DayResult) {
   for (const merged of Object.values(result.merged)) {
-    if (merged.product !== "motorbike" || merged.signed) continue;
+    if (merged.signed) continue;
+    const electric = merged.product === "electric-accident";
     try {
-      if (!merged.sdbsPrKey) {
-        merged.sdbsPrKey = await client.createMotorbikeCancellation(merged.prKey, SDBS_NOTE, date);
+      if (electric && !merged.mergedSigned) {
+        await client.signElectric(merged.prKey, SIGN_NOTE);
+        merged.mergedSigned = true;
         await saveDayResult(result);
       }
-      const message = await client.signMotorbikeCancellation(merged.sdbsPrKey, SIGN_NOTE);
+      if (!merged.sdbsPrKey) {
+        merged.sdbsPrKey = electric
+          ? await client.createElectricCancellation(merged.prKey, SDBS_NOTE, date)
+          : await client.createMotorbikeCancellation(merged.prKey, SDBS_NOTE, date);
+        await saveDayResult(result);
+      }
+      const message = electric
+        ? await client.signElectric(merged.sdbsPrKey, SIGN_NOTE)
+        : await client.signMotorbikeCancellation(merged.sdbsPrKey, SIGN_NOTE);
       merged.signed = true;
       delete merged.error;
       log(`${merged.number}: ${message}`);
@@ -317,11 +332,8 @@ async function main() {
 
   if (ENABLED) {
     if (motorbikePlans.length) await mergeMotorbike(client, motorbikePlans, date, result);
-    await cancelMotorbikeMerged(client, date, result);
-    // TODO(pvi-cancel-orders, chờ body thật của bước ký đơn gom điện và bước lập SĐBS đơn điện):
-    // đơn điện chỉ gom, chưa ký và chưa huỷ. Đơn gom nằm ở trạng thái Chờ duyệt cho người làm tiếp
-    // trên giao diện. Gỡ khi có đủ 3 bước sau gom.
     if (electricPlans.length) await mergeElectric(client, electricPlans, result);
+    await cancelMerged(client, date, result);
   }
 
   await saveDayResult(result);

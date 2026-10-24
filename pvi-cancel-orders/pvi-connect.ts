@@ -57,6 +57,17 @@ const messageOf = (json: PviJson | null) => json?.message || json?.error?.messag
 const dateOnly = (value: string | null | undefined) => (value || "").slice(0, 10);
 const negate = (value: unknown) => -(Number(value) || 0);
 
+// Đơn gom điện để trống các ô dưới đây. Form SĐBS tự điền 2 mẫu đầu của sản phẩm 010206 và bắt nhập
+// 2 ô sau; giá trị lấy theo SĐBS nhân viên lập (C061133/E01) và SĐBS C061144/E01 ngày 2026-10-24.
+const ELECTRIC_BENEFITS =
+  "I.\tQuyền lợi bảo hiểm chính\n1.\tTử vong do tai nạn điện: ……… VNĐ/người\n2.\tThương tật vĩnh viễn do tai nạn điện: ……… VNĐ/người\n3.\tThương tật tạm thời do tai nạn điện:  ……… VNĐ/người\nII.\tĐiều khoản bổ sung\n1.\tĐKBS 01: Tai nạn điện ngoài hộ gia đình: ……… VNĐ/người\n2.\tĐKBS 02: Tai nạn cá nhân cho hộ gia đình: ………  VNĐ/người";
+const ELECTRIC_HOUSEHOLD_NOTE =
+  "Số thành viên gia đình tại cùng địa chỉ thường trú:..............người\nSố thành viên gia đình không có đăng ký thường trú nhưng sống cùng chủ hộ::..............người\nSố người không phải thành viên gia đình và sống cùng chủ hộ::..............người\n(chi tiết danh sách như đính kèm)";
+const ELECTRIC_SCOPE =
+  "NĐBH tử vong hoặc thương tật thân thể do ảnh hưởng trực tiếp của dòng điện xảy ra tại các hộ đăng ký sử dụng điện.\nNĐBH tử vong hoặc thương tật thân thể do ảnh hưởng trực tiếp của dòng điện xảy ra tại các hộ đăng ký sử dụng điện và ngoài phạm vi hộ đăng ký sử dụng điện (giới hạn trong lãnh thổ Việt Nam)";
+/** Quy tắc bảo hiểm Tai nạn hộ sử dụng điện. */
+const ELECTRIC_RULE_CODE = "030224";
+
 /** PVI trả `expiresAt` khi dạng chuỗi ngày, khi dạng số. Không đọc được thì coi như đã hết hạn. */
 export function expiresAtMs(value: PviSession["expiresAt"]) {
   if (typeof value === "number") return value < 1e12 ? value * 1000 : value;
@@ -270,18 +281,44 @@ export class PviClient {
     return json.data;
   }
 
-  /** Như bấm "Ký" trong thông báo "Ký đơn" của SĐBS xe máy. */
-  async signMotorbikeCancellation(sdbsPrKey: number, note: string): Promise<string> {
+  /** Như bấm "Ký" trong thông báo "Ký đơn". `linkView` là trang xem đơn, mỗi loại đơn một dạng. */
+  private async approve(prKey: number, note: string, linkView: string): Promise<string> {
     const json = await this.post("/api/PheDuyetCtu/update-status", {
       isThuHoi: false,
-      prKey: sdbsPrKey,
+      prKey,
       trangThai: "02",
       nguoiDuyet: this.user.ma_user,
       ghiChu: note,
       tenNguoiDuyet: this.user.full_name,
-      linkView: `${WEB}/insurance/vehicle/motorcycle/${sdbsPrKey}?type=view&sdbsType=04&sdbsDetailType=0401&sdbsMode=sdbs&sdbsOutputType=02`,
+      linkView,
     });
     return json.message;
+  }
+
+  /** Ký SĐBS xe máy. */
+  signMotorbikeCancellation(sdbsPrKey: number, note: string): Promise<string> {
+    return this.approve(
+      sdbsPrKey,
+      note,
+      `${WEB}/insurance/vehicle/motorcycle/${sdbsPrKey}?type=view&sdbsType=04&sdbsDetailType=0401&sdbsMode=sdbs&sdbsOutputType=02`,
+    );
+  }
+
+  /** Ký đơn gom điện hoặc SĐBS đơn điện: trang tai nạn con người gửi cùng một dạng `linkView` cho cả hai. */
+  signElectric(prKey: number, note: string): Promise<string> {
+    return this.approve(prKey, note, `${WEB}/insurance/personal/tncg/${prKey}?type=view`);
+  }
+
+  /**
+   * Như bấm "Lưu" trên form SĐBS 0401 của đơn điện. Đơn gom phải ký trước: đơn gom còn Chờ duyệt
+   * thì menu không có "Tạo SĐBS". SĐBS tạo ra ở trạng thái Chờ duyệt.
+   */
+  async createElectricCancellation(mergedPrKey: number, note: string, date: string): Promise<number> {
+    const policy = await this.get(`/api/CtuConNguoi/${mergedPrKey}`);
+    const check = await this.post("/api/PheDuyetCtu/kiem-tra-don-bh-sdbs-huy", { soDonBh: policy.header.so_donbh });
+    if (!check.isValid) throw new Error(`${policy.header.so_donbh} không huỷ được: ${check.message}`);
+    const json = await this.post(`/api/CtuConNguoi/${mergedPrKey}/sdbs`, buildElectricCancellation(policy, note, date));
+    return json.prKey;
   }
 }
 
@@ -417,5 +454,104 @@ export function buildMotorbikeCancellation(policy: PviJson, note: string, date: 
         giatri_tte: c.giatri_tte ?? 0,
       })),
     })),
+  };
+}
+
+/**
+ * Body trang gửi khi bấm "Lưu" trên form SĐBS 0401 của đơn điện (bắt request ngày 2026-10-24,
+ * C061144/E01): số liệu đơn gom đổi dấu, cộng các ô form tự điền hoặc bắt nhập.
+ */
+export function buildElectricCancellation(policy: PviJson, note: string, date: string) {
+  const h = policy.header;
+  const rules: PviJson[] = policy.tab8_quy_tac_bao_hiem || [];
+  return {
+    pr_key: h.pr_key,
+    ma_sdbs: "04",
+    ma_sdbs_ct: "0401",
+    ngay_capd: dateOnly(h.ngay_capd),
+    ngay_dau: dateOnly(h.ngay_dau),
+    ngay_ctu: date,
+    time_ngay_dau: h.time_ngay_dau,
+    ngay_cuoi: dateOnly(h.ngay_cuoi),
+    time_ngay_cuoi: h.time_ngay_cuoi,
+    ngay_ttoan: dateOnly(h.ngay_ttoan),
+    ma_cbkt: h.ma_cbkt,
+    ma_kthac: h.ma_kthac,
+    // Ô "Loại đơn BH" của form, ví dụ 0102. Cột ma_ldon của đơn gom chỉ có 2 số đầu.
+    ma_ldon: h.ma_donbh,
+    ma_daily: h.ma_daily,
+    ma_nhkenhbh: h.ma_nhkenhbh,
+    tyle_dong: h.tyle_dong,
+    rloai_don: h.rloai_don,
+    tyle_noclaim: h.tyle_noclaim,
+    up_front: h.up_front ?? null,
+    an_phi: h.an_phi ?? false,
+    ma_kh: h.ma_kh,
+    ng_gdich: h.ng_gdich,
+    dia_chi: h.dia_chi,
+    so_ngtg: h.so_ngtg,
+    gui_an_chi_dtu: h.gui_an_chi_dtu ?? false,
+    ma_kh_th: h.ma_kh_th,
+    dia_chi_th: h.dia_chi_th,
+    ghan_bh: h.ghan_bh || ELECTRIC_SCOPE,
+    phamvi_hdong: h.phamvi_hdong,
+    thongtin_bosung: h.thongtin_bosung || ELECTRIC_BENEFITS,
+    gioihan_lanhtho: h.gioihan_lanhtho,
+    ctybh_cu: h.ctybh_cu,
+    ghi_chu_ndbh: h.ghi_chu_ndbh || ELECTRIC_HOUSEHOLD_NOTE,
+    ma_nkd: h.ma_nkd,
+    thong_tin_dk: h.thong_tin_dk,
+    phe_duyetdv: h.phe_duyetdv,
+    ma_tte: h.ma_tte,
+    tygia_ht: h.tygia_ht,
+    tygia_tt: h.tygia_tt,
+    hdon_dientu: h.hdon_dientu ?? 0,
+    ten_kh_vat: h.ten_kh_vat || h.ng_gdich,
+    dia_chi_vat: h.dia_chi_vat || h.dia_chi,
+    is_mst_dn_ngoai: h.is_mst_dn_ngoai ?? false,
+    ngay_ycau_sdbs: date,
+    noi_dung_sdbs: note,
+    tbh_tt: h.tbh_tt ?? false,
+    vai_tro_pvi: h.vai_tro_pvi || null,
+    kieu_tai_ho: h.kieu_tai_ho || null,
+    co_dthu_nhan: h.co_dthu_nhan ?? false,
+    khong_phat_sinh: h.khong_phat_sinh ?? false,
+    tab1_chi_tiet_san_pham: policy.tab1_chi_tiet_san_pham.map((x: PviJson) => ({
+      ma_sp: x.ma_sp,
+      ma_dk: x.ma_dk,
+      so_tienbh: 0,
+      so_tienbh_lke: negate(x.so_tienbh_lke),
+      so_tienbh_don: 0,
+      tyle_phi: x.tyle_phi,
+      muc_khtru: x.muc_khtru || "0",
+      nguyen_tep: negate(x.nguyen_tep),
+      so_tienp: negate(x.so_tienp),
+      muc_vat: x.muc_vat,
+      nguyen_tev: negate(x.nguyen_tev),
+      tien_vat: negate(x.tien_vat),
+      tyle_hhong: x.tyle_hhong,
+    })),
+    tab7_phan_bo_doanh_thu: policy.tab7_phan_bo_doanh_thu.map((x: PviJson) => ({
+      ma_khpbo: x.ma_khpbo,
+      ma_kieupbo: x.ma_kieupbo,
+      so_tienbh: negate(x.so_tienbh),
+      tyle_pbo: x.tyle_pbo,
+      nguyen_tep: negate(x.nguyen_tep),
+      so_tienp: negate(x.so_tienp),
+    })),
+    // Form báo "Phải nhập mã điều khoản bảo hiểm" khi bảng Quy tắc bảo hiểm trống.
+    tab8_quy_tac: rules.length
+      ? rules.map((r) => ({ ma_dkhoan: r.ma_dkhoan, ten_dkhoan: r.ten_dkhoan || "", ten_dkhoan_eng: r.ten_dkhoan_eng || "" }))
+      : [{ ma_dkhoan: ELECTRIC_RULE_CODE, ten_dkhoan: "", ten_dkhoan_eng: "" }],
+    tab11_ky_thu_phi: policy.tab11_ky_thu_phi.map((x: PviJson, i: number) => ({
+      stt: x.stt ?? i,
+      tyle_phithu: x.tyle_phithu,
+      ngay_hl: dateOnly(x.ngay_hl),
+      so_tien: negate(x.so_tien),
+      tra_phi: x.tra_phi ?? false,
+      ke_toan: x.ke_toan ?? false,
+      nam_nvu: x.nam_nvu ?? "",
+    })),
+    danh_sach_seri: null,
   };
 }

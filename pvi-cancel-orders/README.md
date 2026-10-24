@@ -31,9 +31,11 @@ Thư mục này đứng riêng: không import gì từ phần còn lại của r
    - Xe máy: lọc theo số seri, thử lần lượt 3 giá trị "Thời hạn bảo hiểm".
    - Đơn điện: tải cả danh sách, khớp số đơn lẻ với `pvi_policy_number`.
 4. Ghi kế hoạch: đơn nào gom được, đơn nào vào chung một đơn gom, đơn nào bỏ qua và lý do.
-5. Khi `PVI_CANCEL_ENABLED=1`, job gom cả xe máy lẫn đơn điện. Với đơn gom xe máy, job lập SĐBS huỷ rồi ký.
+5. Khi `PVI_CANCEL_ENABLED=1`, job gom cả xe máy lẫn đơn điện, rồi huỷ từng đơn gom:
+   - Xe máy: lập SĐBS huỷ, ký SĐBS.
+   - Đơn điện: ký đơn gom, lập SĐBS huỷ, ký SĐBS. Đơn gom điện tạo ra ở trạng thái Chờ duyệt, chưa ký thì không lập được SĐBS.
 
-Đơn điện chỉ gom được, chưa huỷ được: chưa có body thật của bước ký đơn gom điện và bước lập SĐBS đơn điện. Đơn gom điện nằm ở trạng thái Chờ duyệt cho người làm tiếp trên giao diện. Mốc `TODO(pvi-cancel-orders, …)` nằm trong `cancel-orders.ts`.
+Form SĐBS đơn điện bắt nhập 2 ô mà đơn gom để trống: "Phạm vi BH" và mã điều khoản ở bảng "Quy tắc bảo hiểm". Job điền theo SĐBS nhân viên đã lập: nội dung phạm vi chuẩn của sản phẩm và mã 030224.
 
 Kết quả ghi ở `/data/results-<ngày>.json`, ghi lại ngay sau mỗi lệnh ghi lên PVI. Chạy lại trong ngày thì job làm tiếp từ chỗ dừng: đơn đã gom không gom lại, đơn gom chưa ký thì lập SĐBS và ký tiếp. Cuối lượt, log in danh sách đơn gom và đơn bị bỏ qua.
 
@@ -98,5 +100,4 @@ Job hỏng thì `mgst-alert@` ghi lỗi vào journal, cùng cách với các tim
 ## Việc còn thiếu
 
 - Captcha: `solve-captcha.py` đọc đúng 3 trên 6 ảnh mẫu trên máy Mac, 2 trên 6 trong image. Job thử tối đa 8 captcha mỗi lần đăng nhập, và chỉ thử lại khi PVI báo sai captcha. Chưa biết PVI có khoá tài khoản sau nhiều lần sai hay không.
-- Đơn điện: chưa có body của bước ký đơn gom điện và bước lập SĐBS đơn điện.
-- Chưa thử gọi API PVI Connect từ IP máy chủ.
+- Đơn điện: body của 3 bước sau gom chép từ lượt huỷ C061144 ngày 2026-10-24 trên giao diện, đơn gom có 1 đơn lẻ. Job chưa chạy thật cho đơn điện, và chưa thử đơn gom điện có nhiều đơn lẻ.
