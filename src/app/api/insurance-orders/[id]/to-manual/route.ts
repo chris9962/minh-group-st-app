@@ -1,3 +1,4 @@
+import { isDirectorRole } from "@/lib/types";
 import { logAudit } from "@/server/audit";
 import { forbidden, getActor, isUuid, notFound, unauthorized } from "@/server/auth";
 import { sendInsuranceOrderToManual } from "@/server/insurance";
@@ -15,7 +16,7 @@ import { sendInsuranceOrderToManual } from "@/server/insurance";
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const actor = await getActor(request);
   if (!actor) return unauthorized();
-  if (actor.role !== "director") return forbidden();
+  if (!isDirectorRole(actor.role)) return forbidden();
 
   const { id } = await params;
   if (!isUuid(id)) return notFound();

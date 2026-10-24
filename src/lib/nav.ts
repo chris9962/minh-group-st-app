@@ -1,7 +1,7 @@
 import { attendanceModeOf } from './api/attendance';
 import { matchesSearch } from './format';
 import { can, canConfigureWards, canCreateBank, canOpenBankAdmin, canOrg, isFullAccess } from './permissions';
-import type { User } from './types';
+import { isDirectorRole, type User } from './types';
 
 /**
  * Menu sinh ra từ QUYỀN ĐƯỢC CẤP, không từ chức danh.
@@ -432,7 +432,7 @@ export function jumpActionsFor(user: User | null): JumpTarget[] {
       icon: 'banking',
     });
   }
-  if (user.role === 'director' && can(user, 'insurance', 'create')) {
+  if (isDirectorRole(user.role) && can(user, 'insurance', 'create')) {
     actions.push({ href: '/insurance?create=1', label: 'Lập đơn', icon: 'insurance' });
   }
   if (can(user, 'services', 'create')) {

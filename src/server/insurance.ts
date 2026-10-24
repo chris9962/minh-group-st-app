@@ -54,7 +54,7 @@ import {
   searchVisibility,
   type RecordVisibility,
 } from "@/lib/permissions";
-import { InsuranceProduct, isRealIsoDate, type User } from "@/lib/types";
+import { InsuranceProduct, isDirectorRole, isRealIsoDate, type User } from "@/lib/types";
 import { isIdNumberQuery, searchTerms } from "@/lib/search";
 import { closedMonthMessage, closedMonthOfCustomer } from "./closedMonths";
 import { customerIdsWithIdNumber } from "./customerLookup";
@@ -1583,7 +1583,7 @@ export async function sendInsuranceOrderToManual(
   actor: User,
   id: string,
 ): Promise<InsuranceOutcome<InsuranceDetail> | null> {
-  if (actor.role !== "director") return null;
+  if (!isDirectorRole(actor.role)) return null;
 
   const current = await rawById(id);
   if (!current) return null;

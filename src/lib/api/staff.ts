@@ -202,6 +202,7 @@ export const ROLE_SHAPE: Record<
   { department: boolean; manages: 'company' | 'own-department' | 'listed' | 'none' | 'free' }
 > = {
   director: { department: false, manages: 'company' },
+  admin: { department: false, manages: 'company' },
   'deputy-director': { department: false, manages: 'listed' },
   head: { department: true, manages: 'own-department' },
   'deputy-head': { department: true, manages: 'own-department' },

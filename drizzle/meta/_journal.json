@@ -1023,6 +1023,13 @@
       "when": 1789891400072,
       "tag": "0146_insurance_orders_plate_key",
       "breakpoints": true
+    },
+    {
+      "idx": 147,
+      "version": "7",
+      "when": 1789891400073,
+      "tag": "0147_role_admin",
+      "breakpoints": true
     }
   ]
 }

@@ -63,7 +63,7 @@ import { useCreateIntent } from "@/lib/useCreateIntent";
 import { can, recordInScope, recordVisibility, scopeFor } from "@/lib/permissions";
 import { invalidateKpi } from "@/lib/invalidateKpi";
 import { errorMessage, toast } from "@/lib/toast";
-import { InsuranceProduct, isRealIsoDate, PRODUCT_LABEL } from "@/lib/types";
+import { InsuranceProduct, isDirectorRole, isRealIsoDate, PRODUCT_LABEL } from "@/lib/types";
 import { usePrefs } from "@/store/prefs";
 import { useSession } from "@/store/session";
 import styles from "./page.module.scss";
@@ -399,7 +399,7 @@ export default function InsurancePage() {
    * Rút đơn khỏi bot buộc vào CHỨC VỤ, không vào quyền — ngoại lệ thứ hai của
    * AGENTS.md §6.1, cùng lý do ghi ở `sendInsuranceOrderToManual`.
    */
-  const isDirector = user?.role === "director";
+  const isDirector = isDirectorRole(user?.role);
   /**
    * Cột "Người xử lý" chỉ hiện với cấp quản lý. Nhân viên nhìn đơn của người
    * khác để tra cứu, không để theo dõi ai đang cầm đơn nào. Ranh giới lấy theo

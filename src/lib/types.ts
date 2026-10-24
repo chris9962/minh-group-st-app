@@ -401,6 +401,7 @@ export type Department = z.infer<typeof Department>;
 /** Chức vụ — chỉ là bộ mặc định khi tạo tài khoản, không khoá cứng quyền. */
 export const RoleKey = z.enum([
   'director',
+  'admin',
   'deputy-director',
   'head',
   'deputy-head',
@@ -429,11 +430,17 @@ export const PRODUCT_LABEL: Record<InsuranceProduct, string> = {
 
 export const ROLE_LABEL: Record<RoleKey, string> = {
   director: 'Giám đốc',
+  admin: 'Quản trị viên',
   'deputy-director': 'Phó giám đốc',
   head: 'Trưởng phòng',
   'deputy-head': 'Phó phòng',
   staff: 'Nhân viên',
 };
+
+/** Quản trị viên chạy như Giám đốc ở mọi chỗ code đọc chức vụ Giám đốc (chủ dự án chốt 2026-10-24). */
+export const DIRECTOR_ROLES: RoleKey[] = ['director', 'admin'];
+export const isDirectorRole = (role: RoleKey | null | undefined): boolean =>
+  role === 'director' || role === 'admin';
 
 /**
  * Bậc chức vụ — SỐ CÀNG CAO CHỨC VỤ CÀNG CAO.
@@ -448,6 +455,7 @@ export const ROLE_LABEL: Record<RoleKey, string> = {
  */
 export const ROLE_RANK: Record<RoleKey, number> = {
   director: 4,
+  admin: 4,
   'deputy-director': 3,
   head: 2,
   'deputy-head': 1,
@@ -464,6 +472,7 @@ export const ROLE_RANK: Record<RoleKey, number> = {
  */
 export const ROLE_TITLE: Record<RoleKey, string> = {
   director: 'Giám đốc',
+  admin: 'Quản trị hệ thống',
   'deputy-director': 'Phó Giám Đốc',
   head: 'Trưởng phòng',
   'deputy-head': 'Phó phòng',

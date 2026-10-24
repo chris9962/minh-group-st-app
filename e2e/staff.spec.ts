@@ -13,7 +13,7 @@ const dialog = (page: Page) => page.locator("dialog[open]");
 
 /** Vai mỗi chức vụ được phép gán — bậc bằng hoặc thấp hơn mình (spec §10.1). */
 const ASSIGNABLE: Record<Role, string[]> = {
-  director: ["Giám đốc", "Phó giám đốc", "Trưởng phòng", "Phó phòng", "Nhân viên"],
+  director: ["Giám đốc", "Quản trị viên", "Phó giám đốc", "Trưởng phòng", "Phó phòng", "Nhân viên"],
   "deputy-director": ["Phó giám đốc", "Trưởng phòng", "Phó phòng", "Nhân viên"],
   head: ["Trưởng phòng", "Phó phòng", "Nhân viên"],
   "deputy-head": ["Phó phòng", "Nhân viên"],

@@ -221,6 +221,7 @@ const deputyDirectorPermissions: Permission[] = [
 
 export const ROLE_PERMISSIONS: Record<RoleKey, Permission[]> = {
   director: directorPermissions,
+  admin: directorPermissions,
   'deputy-director': deputyDirectorPermissions,
   head: managerPermissions,
   'deputy-head': managerPermissions,

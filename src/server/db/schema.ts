@@ -93,7 +93,7 @@ export const actionKey = pgEnum("action_key", [
 
 export const scopeKey = pgEnum("scope_key", ["own", "managed", "company"]);
 export const roleKey = pgEnum("role_key", [
-  "director", "deputy-director", "head", "deputy-head", "staff",
+  "director", "admin", "deputy-director", "head", "deputy-head", "staff",
 ]);
 export const manageScope = pgEnum("manage_scope", ["none", "listed", "company"]);
 

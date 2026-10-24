@@ -81,6 +81,7 @@ export function dashboardVisibility(actor: User): DashboardVisibility {
 
   switch (actor.role) {
     case "director":
+    case "admin":
       return { kind: "company" };
 
     /** Phó GĐ không thuộc phòng nào — họ chỉ có danh sách phòng được giao quản. */

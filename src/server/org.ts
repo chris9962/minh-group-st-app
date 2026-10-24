@@ -8,7 +8,7 @@ import {
   uniqueCode,
 } from "@/lib/format";
 import { periodRanges } from "@/lib/period";
-import type { AttendanceMode, DepartmentType } from "@/lib/types";
+import { DIRECTOR_ROLES, type AttendanceMode, type DepartmentType } from "@/lib/types";
 import {
   ORG_ERROR,
   type DepartmentDetail,
@@ -327,7 +327,7 @@ export async function departmentDetailFor(
         .select({ id: users.id, fullName: users.fullName, title: users.title })
         .from(users)
         .innerJoin(staffRoster, inMonth)
-        .where(and(eq(staffRoster.role, "director"), eq(staffRoster.active, true)))
+        .where(and(inArray(staffRoster.role, DIRECTOR_ROLES), eq(staffRoster.active, true)))
     : listed;
   const salaryMonth = yearMonth;
   const managerSalary = await salaryForUsers(managers.map((manager) => manager.id), salaryMonth);
