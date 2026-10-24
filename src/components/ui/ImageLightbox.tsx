@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Download, X } from "lucide-react";
 import { downloadImage } from "@/lib/downloadImage";
 import { useDialogLayer } from "@/store/dialogLayer";
+import { ZoomableImage } from "./ZoomableImage";
 import styles from "./ImageLightbox.module.css";
 
 export type LightboxPhoto = {
@@ -53,6 +54,7 @@ export function ImageLightbox(props: Props) {
   const ref = useRef<HTMLDialogElement>(null);
   const [saving, setSaving] = useState(false);
   const [index, setIndex] = useState(() => (isList(props) ? clamp(props.startIndex ?? 0, last) : 0));
+  const [zoomed, setZoomed] = useState(false);
 
   // Danh sách co lại lúc đang mở (nơi gọi xoá một ảnh) thì kẹp lại, không để
   // `current` thành `undefined`.
@@ -83,6 +85,7 @@ export function ImageLightbox(props: Props) {
       e.preventDefault();
       const step = e.key === "ArrowRight" ? 1 : -1;
       setIndex((i) => clamp(clamp(i, photos.length - 1) + step, photos.length - 1));
+      setZoomed(false);
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
@@ -102,7 +105,10 @@ export function ImageLightbox(props: Props) {
   if (!current) return null;
 
   const many = photos.length > 1;
-  const go = (step: number) => setIndex(clamp(at + step, last));
+  const go = (step: number) => {
+    setIndex(clamp(at + step, last));
+    setZoomed(false);
+  };
 
   const download = async () => {
     setSaving(true);
@@ -155,11 +161,12 @@ export function ImageLightbox(props: Props) {
       </div>
 
       <div className={styles.stage}>
-        <img src={current.src} alt={current.alt} className={styles.image} />
+        <ZoomableImage key={current.src} src={current.src} alt={current.alt} onZoomedChange={setZoomed} />
 
         {/* Hai vùng bấm trong suốt phủ mép trái và mép phải của ảnh, mỗi bên
-            10% nhưng không dưới 44px. Phần giữa để nguyên cho phóng to. */}
-        {many && (
+            10% nhưng không dưới 44px. Ẩn lúc đang phóng to: kéo ảnh bắt đầu ở
+            mép là bấm nhầm sang ảnh khác. */}
+        {many && !zoomed && (
           <>
             <button
               type="button"

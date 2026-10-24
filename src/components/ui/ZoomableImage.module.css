@@ -1,0 +1,18 @@
+/* Ảnh không bao giờ vượt khung, dù gốc rộng hay cao bao nhiêu. `touch-action:
+   none` giao mọi cử chỉ trên ảnh cho `ZoomableImage`, trình duyệt không tự cuộn
+   hay zoom trang. */
+.image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transform-origin: center;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-drag: none;
+  cursor: zoom-in;
+}
+
+.zoomed {
+  cursor: grab;
+}
