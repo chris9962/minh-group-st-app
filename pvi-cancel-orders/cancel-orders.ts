@@ -106,6 +106,7 @@ async function loadCancelledOrders(date: string): Promise<CancelledOrder[]> {
           and status = 'cancelled'
           and coalesce(pvi_serial_number, '') <> ''
           and order_date = $1
+          and pvi_cancelled_at is null
         order by product, order_code`,
       [date],
     );
@@ -115,6 +116,39 @@ async function loadCancelledOrders(date: string): Promise<CancelledOrder[]> {
       serial: String(r.pvi_serial_number),
       policyNumber: r.pvi_policy_number ?? "",
     }));
+  } finally {
+    await pool.end();
+  }
+}
+
+/**
+ * Ghi vào `insurance_orders` số đơn gom chứa từng đơn huỷ, và lúc đơn gom đó đã ký SĐBS huỷ. Đơn
+ * nằm sẵn trong một đơn gom đã huỷ, do người khác gom, cũng được ghi. Thông báo Zalo lúc 00:00 đọc
+ * `pvi_cancelled_at` để tìm đơn huỷ trong ngày mà chưa huỷ trên PVI.
+ */
+async function markOrders(result: DayResult) {
+  const marks = [
+    ...Object.values(result.merged).flatMap((m) =>
+      m.orderCodes.map((orderCode) => ({ orderCode, number: m.number, cancelled: Boolean(m.signed) })),
+    ),
+    ...Object.values(result.orders).flatMap((o) => {
+      const holder = o.holders?.find((h) => h.state === "cancelled");
+      return holder ? [{ orderCode: o.orderCode, number: holder.number, cancelled: true }] : [];
+    }),
+  ];
+  if (marks.length === 0) return;
+
+  const pool = new Pool({ connectionString: requireEnv("DATABASE_URL") });
+  try {
+    for (const mark of marks) {
+      await pool.query(
+        `update insurance_orders
+            set pvi_cancel_merged_number = $2,
+                pvi_cancelled_at = case when $3::boolean then coalesce(pvi_cancelled_at, now()) else pvi_cancelled_at end
+          where order_code = $1`,
+        [mark.orderCode, mark.number, mark.cancelled],
+      );
+    }
   } finally {
     await pool.end();
   }
@@ -354,11 +388,22 @@ async function main() {
   await mkdir(DATA_DIR, { recursive: true });
   const result = await loadDayResult(date);
   result.runs.push(new Date().toISOString());
+  let runError: Error | null = null;
   try {
     await run(date, result);
   } catch (e) {
-    await saveRunReport(result, (e as Error).message).catch((saveError) => console.error(saveError));
-    throw e;
+    runError = e as Error;
+  }
+  // Lượt dừng giữa chừng vẫn ghi: đơn gom đã ký trước lúc lỗi phải được đánh dấu đã huỷ.
+  const markError = await markOrders(result).then(
+    () => null,
+    (e: Error) => new Error(`Ghi trạng thái huỷ vào DB lỗi: ${e.message}`),
+  );
+  const error = runError ?? markError;
+  if (error) {
+    const message = [runError, markError].filter((e) => e !== null).map((e) => e.message).join(". ");
+    await saveRunReport(result, message).catch((saveError) => console.error(saveError));
+    throw error;
   }
   await saveRunReport(result, "");
 

@@ -25,7 +25,7 @@ Thư mục này đứng riêng: không import gì từ phần còn lại của r
 
 ## Job làm gì
 
-1. Đọc DB: đơn `motorbike` và `electric-accident`, trạng thái `cancelled`, `order_date` bằng ngày hiện tại, có số seri.
+1. Đọc DB: đơn `motorbike` và `electric-accident`, trạng thái `cancelled`, `order_date` bằng ngày hiện tại, có số seri, `pvi_cancelled_at` rỗng.
 2. Đăng nhập PVI Connect. Job dùng lại phiên đã lưu, làm mới bằng refresh token, hoặc đăng nhập lại bằng captcha.
 3. Tìm từng đơn trong danh sách chờ gom của ngày hiện tại:
    - Xe máy: lọc theo số seri, thử lần lượt 3 giá trị "Thời hạn bảo hiểm".
@@ -38,6 +38,15 @@ Thư mục này đứng riêng: không import gì từ phần còn lại của r
 Form SĐBS đơn điện bắt nhập 2 ô mà đơn gom để trống: "Phạm vi BH" và mã điều khoản ở bảng "Quy tắc bảo hiểm". Job điền theo SĐBS nhân viên đã lập: nội dung phạm vi chuẩn của sản phẩm và mã 030224.
 
 Đơn không còn chờ gom thì job tra đơn gom đang chứa nó, và xem đơn gom đó đã có SĐBS huỷ chưa.
+
+Cuối mỗi lượt chạy, job ghi vào bảng `insurance_orders` (migration 0149):
+
+| Cột | Giá trị |
+|---|---|
+| `pvi_cancel_merged_number` | Số đơn gom chứa đơn huỷ. Job ghi lúc gom, hoặc lúc thấy đơn đã nằm trong một đơn gom đã huỷ. |
+| `pvi_cancelled_at` | Lúc job thấy đơn gom đó đã ký SĐBS huỷ. Rỗng nghĩa là đơn chưa huỷ trên PVI Connect. |
+
+Lượt dừng vì lỗi cũng ghi phần đã làm được. Thông báo Zalo "Đơn BH huỷ chưa huỷ trên PVI Connect" lúc 00:00 đọc cột `pvi_cancelled_at`.
 
 Cuối mỗi lượt chạy, kể cả lượt dừng vì lỗi, job ghi một dòng vào bảng `pvi_cancel_runs` (migration 0148). Worker Zalo đọc dòng mới và gửi thông báo "Kết quả gom và huỷ đơn trên PVI Connect" tới người nhận và nhóm chọn ở màn Bot Zalo, tab "Thông báo tự động". Nội dung tin dựng ở `src/server/zalo/pviCancelReport.ts`.
 

@@ -135,11 +135,43 @@ function reportLines(run: PviCancelRun): string[] {
   ];
 }
 
-/** Tách theo dòng, mỗi tin tối đa 1.500 ký tự: Zalo từ chối tin quá dài (đo 2026-10-12). */
+export type PviCancelMissedOrder = {
+  orderCode: string;
+  product: z.infer<typeof Product>;
+  serial: string;
+  mergedNumber: string;
+  cancelledAt: Date | null;
+  createdByName: string;
+};
+
+/** Tin lúc 00:00: đơn huỷ của ngày `day` mà chưa huỷ trên PVI Connect. */
+export function pviCancelMissedMessages(day: string, orders: PviCancelMissedOrder[]): string[] {
+  const title = `Đơn BH huỷ ngày ${formatDate(day)} chưa huỷ trên PVI Connect`;
+  if (orders.length === 0) return [`${title}: không có đơn nào.`];
+  return splitMessages([
+    `${title}: ${orders.length} đơn.`,
+    ...orders.map((o) =>
+      [
+        `- ${o.orderCode} (${PRODUCT_TEXT[o.product]}), seri ${o.serial}`,
+        o.cancelledAt ? `huỷ ${formatDateTime(o.cancelledAt)}` : "",
+        o.createdByName ? `người lập ${o.createdByName}` : "",
+        o.mergedNumber ? `đã gom vào ${shortNumber(o.mergedNumber)} nhưng chưa ký SĐBS huỷ` : "",
+      ]
+        .filter(Boolean)
+        .join(", "),
+    ),
+  ]);
+}
+
 export function pviCancelReportMessages(run: PviCancelRun): string[] {
+  return splitMessages(reportLines(run));
+}
+
+/** Tách theo dòng, mỗi tin tối đa 1.500 ký tự: Zalo từ chối tin quá dài (đo 2026-10-12). */
+function splitMessages(lines: string[]): string[] {
   const parts: string[][] = [[]];
   let size = 0;
-  for (const line of reportLines(run)) {
+  for (const line of lines) {
     if (size + line.length + 1 > MAX_MESSAGE_CHARS - 10 && parts[parts.length - 1].length > 0) {
       parts.push([]);
       size = 0;

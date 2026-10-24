@@ -1904,6 +1904,17 @@ export const insuranceOrders = pgTable(
     pviPrKeyNumber: bigint("pvi_pr_key_number", { mode: "number" }),
     /** Số lần worker API gọi tạo đơn mà hỏng vì mạng. Đủ ngưỡng thì đơn về làm tay. */
     pviAttempts: smallint("pvi_attempts").notNull().default(0),
+    /**
+     * Số đơn gom trên PVI Connect chứa đơn huỷ này, `26/21/14/MOTO/CK15571` (migration 0149).
+     * Job `pvi-cancel-orders/` ghi lúc gom, hoặc lúc thấy đơn đã nằm trong một đơn gom đã huỷ.
+     * Rỗng = chưa gom.
+     */
+    pviCancelMergedNumber: text("pvi_cancel_merged_number").notNull().default(""),
+    /**
+     * Lúc job thấy đơn gom đó đã ký SĐBS huỷ. Null = đơn chưa huỷ trên PVI Connect, kể cả khi đã
+     * gom: gom xong mà ký SĐBS lỗi thì đơn vẫn còn hiệu lực trên PVI.
+     */
+    pviCancelledAt: timestamp("pvi_cancelled_at", { withTimezone: true }),
     /** Số lần luồng 3 đã hỏi `/Service/DownloadFile` mà chưa có file. */
     certificateAttempts: smallint("certificate_attempts").notNull().default(0),
     certificateCheckedAt: timestamp("certificate_checked_at", { withTimezone: true }),

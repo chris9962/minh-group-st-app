@@ -109,6 +109,7 @@ export const ZaloNotificationKind = z.enum([
   'insurance-certificate-overdue',
   'pgd-daily-report',
   'pvi-cancel-report',
+  'pvi-cancel-missed',
 ]);
 export type ZaloNotificationKind = z.infer<typeof ZaloNotificationKind>;
 
@@ -122,6 +123,7 @@ export const ZALO_NOTIFICATION_LABEL: Record<ZaloNotificationKind, string> = {
   'insurance-certificate-overdue': `Đơn bảo hiểm chờ giấy chứng nhận quá ${ZALO_CERT_OVERDUE_MINUTES} phút`,
   'pgd-daily-report': `Báo cáo ngày cho Phó giám đốc, gửi lúc ${ZALO_PGD_REPORT_AT}`,
   'pvi-cancel-report': 'Kết quả gom và huỷ đơn trên PVI Connect, sau mỗi lượt job huỷ đơn',
+  'pvi-cancel-missed': 'Đơn BH huỷ trong ngày mà chưa huỷ trên PVI Connect, gửi lúc 00:00',
 };
 
 /**
@@ -138,7 +140,11 @@ export const notificationNeedsPgd = (kind: ZaloNotificationKind): boolean =>
  * `null` là loại chỉ gửi vào nhóm.
  */
 export const notificationPeople = (kind: ZaloNotificationKind): 'pgd' | 'staff' | null =>
-  notificationNeedsPgd(kind) ? 'pgd' : kind === 'pvi-cancel-report' ? 'staff' : null;
+  notificationNeedsPgd(kind)
+    ? 'pgd'
+    : kind === 'pvi-cancel-report' || kind === 'pvi-cancel-missed'
+      ? 'staff'
+      : null;
 
 export const notificationTakesGroups = (kind: ZaloNotificationKind): boolean => !notificationNeedsPgd(kind);
 
