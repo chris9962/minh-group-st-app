@@ -84,6 +84,11 @@ function usernameFrom(staffCode: string): string {
   return removeDiacritics(staffCode).trim().toLowerCase().replace(/[^a-z0-9._-]/g, "");
 }
 
+/** HĐDV ghi "Dịch vụ" ở mọi chức vụ, theo danh sách nhân sự tháng 10-2026. */
+function suggestedTitle(role: StaffForm["role"], contractType: StaffForm["contractType"]): string {
+  return contractType === "hddv" ? "Dịch vụ" : ROLE_TITLE[role];
+}
+
 const toForm = (s: StaffAccount): StaffForm => ({
   fullName: s.fullName,
   username: s.username,
@@ -374,8 +379,9 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
               // người tạo mới đều mang chức danh của vai mặc định: trong DB
               // đang có một Trưởng phòng ghi "Nhân viên kinh doanh".
               const currentTitle = getValues("title").trim();
-              if (!editing && (currentTitle === "" || currentTitle === ROLE_TITLE[previous])) {
-                setValue("title", ROLE_TITLE[role], { shouldDirty: true });
+              const contractType = getValues("contractType");
+              if (!editing && (currentTitle === "" || currentTitle === suggestedTitle(previous, contractType))) {
+                setValue("title", suggestedTitle(role, contractType), { shouldDirty: true });
               }
               // Đơn vị và phòng phụ trách suy ra từ chức vụ, người dùng không
               // tích tay. Bỏ bước này thì Trưởng phòng mới lập giữ nguyên
@@ -416,7 +422,7 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
           <TextField
             label="Chức danh hiển thị"
             required
-            placeholder={ROLE_TITLE[watch("role")]}
+            placeholder={suggestedTitle(watch("role"), watch("contractType"))}
             error={errors.title?.message}
             {...register("title")}
           />
@@ -424,9 +430,18 @@ export function StaffFormDialog({ open, onClose, staff, departments }: Props) {
             block
             label="Loại hợp đồng"
             value={watch("contractType")}
-            onChange={(v) =>
-              setValue("contractType", v === "" ? "" : ContractType.parse(v), { shouldDirty: true })
-            }
+            onChange={(v) => {
+              const contractType = v === "" ? "" : ContractType.parse(v);
+              const role = getValues("role");
+              const currentTitle = getValues("title").trim();
+              if (
+                !editing &&
+                (currentTitle === "" || currentTitle === suggestedTitle(role, getValues("contractType")))
+              ) {
+                setValue("title", suggestedTitle(role, contractType), { shouldDirty: true });
+              }
+              setValue("contractType", contractType, { shouldDirty: true });
+            }}
             options={[
               { value: "", label: "Chưa nhập" },
               ...ContractType.options.map((c) => ({ value: c, label: CONTRACT_TYPE_LABEL[c] })),
