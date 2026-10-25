@@ -19,7 +19,7 @@ import {
   markGiftGiven,
   type CustomerDetail,
 } from "@/lib/api/customers";
-import { fetchInsurancePackages } from "@/lib/api/settings";
+import { fetchInsurancePackages, GIFT_ITEM_OFF_LABEL } from "@/lib/api/settings";
 import { formatVnd } from "@/lib/format";
 import { errorMessage, toast } from "@/lib/toast";
 import styles from "./GiftGivingDialog.module.scss";
@@ -197,10 +197,8 @@ export function GiftGivingDialog({ open, onClose, customerId, customerName }: Pr
         />
         <span className={styles.cardName}>{item.name}</span>
         <span className={styles.cardKind}>
-          {off
-            ? item.status === "discontinued"
-              ? "Đã ngưng cấp"
-              : "Không còn trong danh mục"
+          {item.status !== "ok"
+            ? GIFT_ITEM_OFF_LABEL[item.status]
             : isInsurance
               ? "Bảo hiểm"
               : "Vật phẩm"}

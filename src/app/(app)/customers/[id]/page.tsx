@@ -47,6 +47,7 @@ import {
 } from "@/lib/api/customers";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { INSURANCE_STATUS_LABEL, INSURANCE_STATUS_TONE } from "@/lib/api/insuranceOrders";
+import { GIFT_ITEM_OFF_LABEL } from "@/lib/api/settings";
 import { fetchVneidRecords, VNEID_TASKS, type VneidRow } from "@/lib/api/vneid";
 import {
   businessMonth,
@@ -871,9 +872,7 @@ export default function CustomerDetailPage({
                                   không ai biết vì sao. */}
                               {item.status !== "ok" && (
                                 <span className={styles.basketOff}>
-                                  {item.status === "discontinued"
-                                    ? " (đã ngưng cấp)"
-                                    : " (không còn trong danh mục)"}
+                                  {" "}({GIFT_ITEM_OFF_LABEL[item.status].toLowerCase()})
                                 </span>
                               )}
                             </li>
@@ -894,9 +893,7 @@ export default function CustomerDetailPage({
                             {item.name}
                             {item.status !== "ok" && (
                               <span className={styles.basketOff}>
-                                {item.status === "discontinued"
-                                  ? " (đã ngưng cấp)"
-                                  : " (không còn trong danh mục)"}
+                                {" "}({GIFT_ITEM_OFF_LABEL[item.status].toLowerCase()})
                               </span>
                             )}
                           </li>

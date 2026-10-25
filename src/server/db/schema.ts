@@ -1623,6 +1623,36 @@ export const giftGrants = pgTable(
      * nhân viên đều đi qua cột này.
      */
     index("gift_grants_granter_date").on(sql`granted_by, granted_at desc, id`),
+    /** Kho quà đếm số đã phát của một món từ một mốc (migration 0150). */
+    index("gift_grants_item_date").on(t.chosenItem, t.grantedAt),
+  ],
+);
+
+/**
+ * Một lần nhập quà vào kho quà (migration 0150). Số còn lại của một món bằng tổng
+ * `quantity` trừ số đã phát kể từ dòng đầu tiên, xem `server/giftStock.ts`. Món chưa
+ * có dòng nào thì không giới hạn.
+ *
+ * Nhập nhầm thì sửa `quantity` trên dòng, không thêm dòng số âm: thống kê tháng đếm
+ * số lần nhập theo số dòng.
+ */
+export const giftStockEntries = pgTable(
+  "gift_stock_entries",
+  {
+    id: id(),
+    giftItemId: uuid("gift_item_id")
+      .notNull()
+      .references(() => giftItems.id),
+    quantity: integer("quantity").notNull(),
+    note: text("note").notNull().default(""),
+    createdBy: uuid("created_by").references(() => users.id),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("gift_stock_entries_item_date").on(t.giftItemId, t.createdAt),
+    index("gift_stock_entries_date").on(t.createdAt),
+    check("gift_stock_entries_quantity_positive", sql`${t.quantity} > 0`),
   ],
 );
 

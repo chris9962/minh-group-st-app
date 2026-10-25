@@ -14,6 +14,7 @@ import {
   fetchCustomerDetail,
   pendingExtraSlots,
 } from "@/lib/api/customers";
+import { GIFT_ITEM_OFF_LABEL } from "@/lib/api/settings";
 import { errorMessage, toast } from "@/lib/toast";
 import styles from "./GiftGivingDialog.module.scss";
 
@@ -105,7 +106,7 @@ export function GiftExtraDialog({ open, onClose, customerId, customerName }: Pro
                         />
                         <span className={styles.cardName}>{item.name}</span>
                         <span className={styles.cardKind}>
-                          {off ? (item.status === "discontinued" ? "Đã ngưng cấp" : "Không còn trong danh mục") : "Vật phẩm"}
+                          {item.status !== "ok" ? GIFT_ITEM_OFF_LABEL[item.status] : "Vật phẩm"}
                         </span>
                       </label>
                     );

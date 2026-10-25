@@ -140,6 +140,15 @@ export const GiftSimulateInput = z.object({
 });
 export type GiftSimulateInput = z.infer<typeof GiftSimulateInput>;
 
+export type GiftItemStatus = 'ok' | 'discontinued' | 'missing' | 'out-of-stock';
+
+/** Nhãn của món không phát được, dùng chung cho form phát quà, hồ sơ khách và màn thử luật. */
+export const GIFT_ITEM_OFF_LABEL: Record<Exclude<GiftItemStatus, 'ok'>, string> = {
+  discontinued: 'Đã ngưng cấp',
+  missing: 'Không còn trong danh mục',
+  'out-of-stock': 'Hết hàng',
+};
+
 const GiftBasketItem = z.object({
   id: z.string().nullable(),
   /**
@@ -151,8 +160,8 @@ const GiftBasketItem = z.object({
   code: z.string().default(''),
   name: z.string(),
   source: z.string(),
-  /** Món phát được ở thời điểm chốt, nên đợt cũ quy về `ok`. */
-  status: z.enum(['ok', 'discontinued', 'missing']).default('ok'),
+  /** Món phát được ở thời điểm chốt, nên đợt cũ quy về `ok`. `out-of-stock` = kho quà hết hàng. */
+  status: z.enum(['ok', 'discontinued', 'missing', 'out-of-stock']).default('ok'),
   /**
    * Tổng tiền mặt khách nhận nếu lấy đúng món này.
    *

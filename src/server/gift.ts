@@ -38,6 +38,7 @@ import { searchTerms } from "@/lib/search";
 import { customerDayText } from "./customerDay";
 import { closedMonthMessage, closedMonthOfCustomer } from "./closedMonths";
 import { db } from "./db/client";
+import { OutOfStock, reserveStock, stockRemaining } from "./giftStock";
 import { recomputeKpiForCustomer } from "./kpi";
 import {
   bankAccounts,
@@ -143,7 +144,7 @@ async function resolveBasket(items: GiftResult["basket"]) {
   const packageCodes = items.filter((i) => i.kind === "insurance-package").map((i) => i.code);
   const itemCodes = items.filter((i) => i.kind === "gift-item").map((i) => i.code);
 
-  const [packageRows, itemRows] = await Promise.all([
+  const [packageRows, itemRows, stock] = await Promise.all([
     packageCodes.length === 0
       ? []
       : db
@@ -166,6 +167,7 @@ async function resolveBasket(items: GiftResult["basket"]) {
           })
           .from(giftItems)
           .where(inArray(giftItems.code, itemCodes)),
+    stockRemaining(itemCodes),
   ]);
 
   const byCode = new Map([...packageRows, ...itemRows].map((r) => [r.code, r]));
@@ -184,12 +186,17 @@ async function resolveBasket(items: GiftResult["basket"]) {
         status: "missing" as const,
         cashIfChosen: item.cashIfChosen,
       };
+    const left = stock.get(row.code);
     return {
       id: row.id,
       code: row.code,
       name: row.name,
       source: item.reason,
-      status: row.active ? ("ok" as const) : ("discontinued" as const),
+      status: !row.active
+        ? ("discontinued" as const)
+        : left !== undefined && left <= 0
+          ? ("out-of-stock" as const)
+          : ("ok" as const),
       cashIfChosen: item.cashIfChosen,
     };
   });
@@ -629,7 +636,9 @@ export async function grantGift(
     message:
       choice.status === "discontinued"
         ? `"${choice.name}" đã ngừng cấp — chọn món khác trong rổ`
-        : `"${choice.name}" không còn trong danh mục quà — báo quản trị thêm lại rồi phát`,
+        : choice.status === "out-of-stock"
+          ? new OutOfStock(choice.name).message
+          : `"${choice.name}" không còn trong danh mục quà — báo quản trị thêm lại rồi phát`,
   });
   if (picked && picked.status !== "ok") return discontinuedError(picked);
 
@@ -683,6 +692,8 @@ export async function grantGift(
   const granted = await giftForCustomer(customerId, mainItem);
 
   const inserted = await db.transaction(async (tx) => {
+    // Mã từ chối và gói bảo hiểm không có trong kho quà, `reserveStock` bỏ qua.
+    await reserveStock(tx, [mainItem, ...extras.map((e) => e.item)]);
     const rows = await tx
       .insert(giftGrants)
       .values({
@@ -727,8 +738,13 @@ export async function grantGift(
       if (linked.length !== newIds.length) throw new Error("Gift order was linked concurrently");
     }
     return rows[0];
+  }).catch((e: unknown) => {
+    if (e instanceof OutOfStock) return e;
+    throw e;
   });
 
+  if (inserted instanceof OutOfStock)
+    return { ok: false, code: GIFT_ERROR.ITEM_DISCONTINUED, message: inserted.message };
   if (!inserted)
     return {
       ok: false,
@@ -825,6 +841,7 @@ export async function chooseExtraGift(
 
   const inserted = await db
     .transaction(async (tx) => {
+      await reserveStock(tx, extras.map((e) => e.item));
       const rows = await tx
         .insert(giftGrantExtras)
         .values(
@@ -844,8 +861,10 @@ export async function chooseExtraGift(
     })
     .catch((e: unknown) => {
       if (e instanceof ConcurrentChange) return false;
+      if (e instanceof OutOfStock) return e;
       throw e;
     });
+  if (inserted instanceof OutOfStock) return { ok: false, message: inserted.message };
   if (!inserted) return { ok: false, message: "Quà thêm vừa được người khác ghi. Tải lại rồi thử lại." };
 
   return { ok: true, grantId: grant.id, customerName: grant.customerName, label: labels.join(", ") };
@@ -958,6 +977,8 @@ export async function changeGift(
   }
 
   const changed = await db.transaction(async (tx) => {
+    // Món đổi đi tự trả về kho khi dòng đổi món; chỉ món đổi tới phải còn hàng.
+    await reserveStock(tx, [...(mainChanged ? [form.item] : []), ...extraChanges.map((c) => c.item)]);
     const [updated] = await tx
       .update(giftGrants)
       /**
@@ -1021,9 +1042,11 @@ export async function changeGift(
     return true;
   }).catch((e: unknown) => {
     if (e instanceof ConcurrentChange) return false;
+    if (e instanceof OutOfStock) return e;
     throw e;
   });
 
+  if (changed instanceof OutOfStock) return { ok: false, message: changed.message };
   if (!changed) return { ok: false, message: "Quà vừa được người khác thay đổi. Tải lại rồi thử lại." };
   await recomputeKpiForCustomer(customerId);
   // Món CŨ lấy tên trong rổ lúc phát, món MỚI lấy tên trong rổ vừa tính — sau

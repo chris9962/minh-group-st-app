@@ -293,6 +293,7 @@ export function navFor(user: User | null): NavEntry[] {
       label: 'Danh mục quà & gói BH',
       screen: 'P-82',
     });
+    settingsChildren.push({ href: '/settings/gift-stock', label: 'Kho quà', screen: 'P-87' });
   }
   if (can(user, 'system', 'configure-catalog')) {
     settingsChildren.push({ href: '/settings/quota', label: 'Chỉ tiêu tháng', screen: 'P-85' });

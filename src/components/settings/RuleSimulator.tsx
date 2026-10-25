@@ -14,7 +14,7 @@ import { errorMessage } from "@/lib/toast";
 import { fetchBanks } from "@/lib/api/bankCatalog";
 import { MAX_BANK_ACCOUNTS_PER_CUSTOMER, type AccountType } from "@/lib/api/bankAccounts";
 import { fetchChannels } from "@/lib/api/channelCatalog";
-import { simulateGift, type GiftSimulateInput } from "@/lib/api/settings";
+import { GIFT_ITEM_OFF_LABEL, simulateGift, type GiftSimulateInput } from "@/lib/api/settings";
 import { businessDay, formatPoints, formatVnd } from "@/lib/format";
 import { bankTierLabelFor, householdPointsAt, openBlockReasonAt } from "@/rules";
 import styles from "./RuleSimulator.module.scss";
@@ -451,11 +451,7 @@ export function RuleSimulator() {
                         {/* Màn thử của quản trị — đây đúng là chỗ phải thấy món
                             nào đang tắt, vì họ là người bấm cái công tắc đó. */}
                         {item.status !== "ok" && (
-                          <strong>
-                            {item.status === "discontinued"
-                              ? " (đã ngưng cấp)"
-                              : " (không còn trong danh mục)"}
-                          </strong>
+                          <strong> ({GIFT_ITEM_OFF_LABEL[item.status].toLowerCase()})</strong>
                         )}
                       </span>
                       {!sharedSource && <span className={styles.detail}>{item.source}</span>}
@@ -480,11 +476,7 @@ export function RuleSimulator() {
                       <span>
                         {item.name}
                         {item.status !== "ok" && (
-                          <strong>
-                            {item.status === "discontinued"
-                              ? " (đã ngưng cấp)"
-                              : " (không còn trong danh mục)"}
-                          </strong>
+                          <strong> ({GIFT_ITEM_OFF_LABEL[item.status].toLowerCase()})</strong>
                         )}
                       </span>
                       <span className={styles.detail}>{item.source}</span>
