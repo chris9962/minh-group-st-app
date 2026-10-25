@@ -35,6 +35,7 @@ export async function listSalaryExport(yearMonth: string): Promise<SalaryExportR
       fullName: users.fullName,
       staffCode: users.staffCode,
       role: staffRoster.role,
+      title: users.title,
       active: staffRoster.active,
       departmentId: staffRoster.departmentId,
       managedDepartmentIds: staffRoster.managedDepartmentIds,
@@ -100,6 +101,7 @@ export async function listSalaryExport(yearMonth: string): Promise<SalaryExportR
       fullName: r.fullName,
       staffCode: r.staffCode ?? "",
       role: r.role,
+      title: r.title,
       active: r.active,
       departmentName:
         r.role === "deputy-director"

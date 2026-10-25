@@ -424,6 +424,7 @@ export const SalaryExportRow = z.object({
   fullName: z.string(),
   staffCode: z.string(),
   role: RoleKey,
+  title: z.string(),
   active: z.boolean(),
   /** Phó giám đốc: các phòng kinh doanh được giao quản, ngăn bằng dấu phẩy. */
   departmentName: z.string(),
