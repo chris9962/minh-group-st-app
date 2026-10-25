@@ -15,6 +15,7 @@ export const VNEID_TASKS = [
   { key: 'healthRecord', label: 'Sổ SKĐT' },
   { key: 'drivingLicense', label: 'GPLX' },
   { key: 'vehicleRegistration', label: 'Cavet xe' },
+  { key: 'hamletSupport', label: 'Ấp hỗ trợ' },
 ] as const;
 export type VneidTaskKey = (typeof VNEID_TASKS)[number]['key'];
 
@@ -31,6 +32,7 @@ export const VneidRow = z.object({
   healthRecord: z.boolean(),
   drivingLicense: z.boolean(),
   vehicleRegistration: z.boolean(),
+  hamletSupport: z.boolean(),
   /** `/api/images/<key>` của từng ảnh. */
   photoUrls: z.array(z.string()),
   note: z.string(),
@@ -102,6 +104,7 @@ const baseFields = {
   healthRecord: z.boolean(),
   drivingLicense: z.boolean(),
   vehicleRegistration: z.boolean(),
+  hamletSupport: z.boolean(),
   /** URL ảnh sau khi tải lên kho. Không bắt buộc. */
   photoUrls: z.array(z.string().trim()).max(MAX_VNEID_PHOTOS),
   note: z.string().trim(),
@@ -124,6 +127,7 @@ export const VneidEditForm = z
     healthRecord: baseFields.healthRecord,
     drivingLicense: baseFields.drivingLicense,
     vehicleRegistration: baseFields.vehicleRegistration,
+    hamletSupport: baseFields.hamletSupport,
     photoUrls: baseFields.photoUrls,
     note: baseFields.note,
   })

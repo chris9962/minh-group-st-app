@@ -1051,6 +1051,13 @@
       "when": 1789891400076,
       "tag": "0150_gift_stock_entries",
       "breakpoints": true
+    },
+    {
+      "idx": 151,
+      "version": "7",
+      "when": 1789891400077,
+      "tag": "0151_vneid_hamlet_support",
+      "breakpoints": true
     }
   ]
 }

@@ -2133,6 +2133,8 @@ export const vneidRecords = pgTable(
     healthRecord: boolean("health_record").notNull().default(false),
     drivingLicense: boolean("driving_license").notNull().default(false),
     vehicleRegistration: boolean("vehicle_registration").notNull().default(false),
+    // Thêm ở migration 0151.
+    hamletSupport: boolean("hamlet_support").notNull().default(false),
     /** KHOÁ ảnh trong kho, thư mục `vneid/`. */
     photoUrls: text("photo_urls").array().notNull().default([]),
     note: text("note").notNull().default(""),
@@ -2148,7 +2150,7 @@ export const vneidRecords = pgTable(
     uniqueIndex("vneid_records_customer").on(t.customerId),
     check(
       "vneid_records_has_task",
-      sql`${t.healthInsurance} or ${t.socialWelfare} or ${t.digitalSignature} or ${t.healthRecord} or ${t.drivingLicense} or ${t.vehicleRegistration}`,
+      sql`${t.healthInsurance} or ${t.socialWelfare} or ${t.digitalSignature} or ${t.healthRecord} or ${t.drivingLicense} or ${t.vehicleRegistration} or ${t.hamletSupport}`,
     ),
     check("vneid_records_photo_max", sql`cardinality(${t.photoUrls}) <= 4`),
   ],

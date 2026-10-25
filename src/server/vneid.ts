@@ -38,6 +38,7 @@ const TASK_COLUMN = {
   healthRecord: vneidRecords.healthRecord,
   drivingLicense: vneidRecords.drivingLicense,
   vehicleRegistration: vneidRecords.vehicleRegistration,
+  hamletSupport: vneidRecords.hamletSupport,
 } as const;
 
 /** Bộ lọc từ địa chỉ trang. Giá trị hỏng thì bỏ lọc, không làm vỡ cả màn. */
@@ -135,6 +136,7 @@ const pickPage = (where: SQL | undefined, orderBy: SQL[], limit: number, offset:
       healthRecord: vneidRecords.healthRecord,
       drivingLicense: vneidRecords.drivingLicense,
       vehicleRegistration: vneidRecords.vehicleRegistration,
+      hamletSupport: vneidRecords.hamletSupport,
       photoUrls: vneidRecords.photoUrls,
       note: vneidRecords.note,
       createdAt: vneidRecords.createdAt,
@@ -161,6 +163,7 @@ const decorate = (page: ReturnType<typeof pickPage>) =>
       healthRecord: page.healthRecord,
       drivingLicense: page.drivingLicense,
       vehicleRegistration: page.vehicleRegistration,
+      hamletSupport: page.hamletSupport,
       photoUrls: page.photoUrls,
       note: page.note,
       createdById: page.createdById,
@@ -291,6 +294,7 @@ export async function createVneid(actor: User, form: VneidForm): Promise<VneidOu
         healthRecord: form.healthRecord,
         drivingLicense: form.drivingLicense,
         vehicleRegistration: form.vehicleRegistration,
+        hamletSupport: form.hamletSupport,
         photoUrls: photoKeys,
         note: form.note,
         createdBy: actor.id,
@@ -327,6 +331,7 @@ export async function updateVneid(actor: User, id: string, form: VneidEditForm):
       healthRecord: form.healthRecord,
       drivingLicense: form.drivingLicense,
       vehicleRegistration: form.vehicleRegistration,
+      hamletSupport: form.hamletSupport,
       photoUrls: photoKeys,
       note: form.note,
     })

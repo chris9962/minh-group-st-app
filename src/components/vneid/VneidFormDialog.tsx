@@ -71,6 +71,7 @@ export function VneidFormDialog({
       healthRecord: record?.healthRecord ?? false,
       drivingLicense: record?.drivingLicense ?? false,
       vehicleRegistration: record?.vehicleRegistration ?? false,
+      hamletSupport: record?.hamletSupport ?? false,
       photoUrls: [],
       note: record?.note ?? "",
       departmentId: customerDepartmentId ?? "",
@@ -90,6 +91,7 @@ export function VneidFormDialog({
         healthRecord: form.healthRecord,
         drivingLicense: form.drivingLicense,
         vehicleRegistration: form.vehicleRegistration,
+        hamletSupport: form.hamletSupport,
         note: form.note,
         photoUrls,
       });
