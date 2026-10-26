@@ -64,6 +64,7 @@ import { db, uniqueViolationOf } from "./db/client";
 import { giftForCustomer, giftItemNames, grantedItemLabel, recomputeGiftCase } from "./gift";
 import { closedMonthAmong, closedMonthOfCustomer, customerMonthClosed } from "./closedMonths";
 import { bankingPointsByCustomer, recomputeKpi, recomputeKpiForCustomer } from "./kpi";
+import { bankSkipReasonState } from "./bankSkipReason";
 import { enqueuePhotoCheck } from "./photoCheck";
 import { imageUrl } from "./storage";
 import { recomputeEmployeeWorkDay } from "./workDays";
@@ -2326,6 +2327,7 @@ export async function customerDetailFor(
 
   return {
     customer,
+    bankSkipReason: await bankSkipReasonState(id),
     changes: changeRows,
     /**
      * `accountRows` là TOÀN BỘ tài khoản của khách — phạm vi phòng áp sau, lúc

@@ -57,6 +57,7 @@ import {
 import { InsuranceProduct, isDirectorRole, isRealIsoDate, type User } from "@/lib/types";
 import { isIdNumberQuery, searchTerms } from "@/lib/search";
 import { closedMonthMessage, closedMonthOfCustomer } from "./closedMonths";
+import { SKIP_REASON_BEFORE_GIFT, bankSkipReasonMissingOf } from "./bankSkipReason";
 import { customerIdsWithIdNumber } from "./customerLookup";
 import { db } from "./db/client";
 import { departmentForNewRecord } from "./writeDepartment";
@@ -1040,6 +1041,8 @@ export async function createInsuranceOrders(
   if (form.source === "gift") {
     const closedMonth = await closedMonthOfCustomer(customer.id);
     if (closedMonth) return { ok: false, message: closedMonthMessage(closedMonth) };
+    // Đơn quà tạo trước lượt chốt quà, nên chặn ở đây cùng luật với `grantGift`.
+    if (await bankSkipReasonMissingOf(customer.id)) return { ok: false, message: SKIP_REASON_BEFORE_GIFT };
   }
 
   const department = departmentForNewRecord(

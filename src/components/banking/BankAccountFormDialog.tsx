@@ -27,7 +27,8 @@ import {
   type BankAccountPick,
 } from "@/lib/api/bankAccounts";
 import { CustomerFormDialog } from "@/components/customers/CustomerFormDialog";
-import { fetchCustomerDetail } from "@/lib/api/customers";
+import { BankSkipReasonDialog } from "@/components/customers/BankSkipReasonDialog";
+import { fetchCustomerDetail, SKIP_REASON_BANK_CODE } from "@/lib/api/customers";
 import { BankComboRulesDialog } from "./BankComboRulesDialog";
 import styles from "./BankAccountFormDialog.module.scss";
 import { invalidateKpi } from "@/lib/invalidateKpi";
@@ -94,6 +95,8 @@ export function BankAccountFormDialog({
   const { data: banks = [] } = useQuery({ queryKey: ["banks"], queryFn: fetchBanks });
   const [rulesOpen, setRulesOpen] = useState(false);
   const [step, setStep] = useState<"check" | "form" | "edit">("check");
+  /** Lượt tạo đang chờ lý do không mở ngân hàng bắt buộc. */
+  const [skipReasonForm, setSkipReasonForm] = useState<BankAccountStartForm | null>(null);
 
   const {
     watch,
@@ -279,6 +282,12 @@ export function BankAccountFormDialog({
     return openBlockReasonAt([...here, ...picked], bank.code, ruleAt);
   };
 
+  const submitPicks = (form: BankAccountStartForm) => {
+    if (slots?.bankSkipReasonMissing && !form.picks.some((p) => codeOf(p.bankId) === SKIP_REASON_BANK_CODE))
+      setSkipReasonForm(form);
+    else create.mutate(form);
+  };
+
   /**
    * Sắp lại ở trình duyệt là ngoại lệ có chủ ý của AGENTS.md §5.1. Đây là danh
    * mục đóng vài chục dòng, và thứ hạng phụ thuộc dữ liệu của KHÁCH chứ không
@@ -300,6 +309,22 @@ export function BankAccountFormDialog({
   ];
 
   if (step === "edit") return <EditCustomerStep customerId={customerId} onClose={onClose} />;
+
+  // Hồ sơ đủ 3 ngân hàng sau lượt này thì không bỏ qua lý do được (chốt 2026-10-26).
+  if (skipReasonForm)
+    return (
+      <BankSkipReasonDialog
+        customerId={customerId}
+        submitLabel={
+          skipReasonForm.picks.length > 1 ? `Tạo ${skipReasonForm.picks.length} tài khoản` : "Tạo tài khoản"
+        }
+        busy={create.isPending}
+        onBack={() => setSkipReasonForm(null)}
+        onSkip={mainPicks < remaining ? () => create.mutate(skipReasonForm) : undefined}
+        onClose={onClose}
+        onSaved={() => create.mutate(skipReasonForm)}
+      />
+    );
 
   // KPI tính theo ngày hồ sơ, không theo ngày mở tài khoản (chốt 2026-10-01).
   if (step === "check" && slots && slots.ruleDate !== today)
@@ -359,7 +384,7 @@ export function BankAccountFormDialog({
         <form
           id="bank-account-form"
           className={styles.form}
-          onSubmit={handleSubmit((form) => create.mutate(form), reportInvalid)}
+          onSubmit={handleSubmit(submitPicks, reportInvalid)}
           noValidate
         >
           {/*

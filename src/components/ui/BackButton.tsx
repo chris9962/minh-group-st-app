@@ -8,6 +8,7 @@ type Props = {
   onClick: () => void;
   /** Nhãn hành động, ví dụ "Chọn khách khác". Cũng là `aria-label` của nút. */
   children: string;
+  disabled?: boolean;
 };
 
 /**
@@ -18,9 +19,9 @@ type Props = {
  * nút chỉ có icon mà không có nhãn là người dùng trình đọc màn hình nghe thấy
  * "button" trống.
  */
-export function BackButton({ onClick, children }: Props) {
+export function BackButton({ onClick, children, disabled }: Props) {
   return (
-    <Button variant="secondary" onClick={onClick} aria-label={children}>
+    <Button variant="secondary" onClick={onClick} aria-label={children} disabled={disabled}>
       <ArrowLeft size={16} aria-hidden />
       <span className={styles.label}>{children}</span>
     </Button>

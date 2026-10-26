@@ -39,6 +39,7 @@ import { customerDayText } from "./customerDay";
 import { closedMonthMessage, closedMonthOfCustomer } from "./closedMonths";
 import { db } from "./db/client";
 import { OutOfStock, reserveStock, stockRemaining } from "./giftStock";
+import { SKIP_REASON_BEFORE_GIFT, bankSkipReasonMissingOf } from "./bankSkipReason";
 import { recomputeKpiForCustomer } from "./kpi";
 import {
   bankAccounts,
@@ -588,6 +589,9 @@ export async function grantGift(
   const closedMonth = await closedMonthOfCustomer(customerId);
   if (closedMonth)
     return { ok: false, code: GIFT_ERROR.MONTH_CLOSED, message: closedMonthMessage(closedMonth) };
+  // Áp cả lượt khách từ chối quà (chốt 2026-10-26).
+  if (await bankSkipReasonMissingOf(customerId))
+    return { ok: false, code: GIFT_ERROR.BANK_SKIP_REASON_MISSING, message: SKIP_REASON_BEFORE_GIFT };
 
   const gift = await giftForCustomer(customerId);
   const declined = item === GIFT_DECLINED;

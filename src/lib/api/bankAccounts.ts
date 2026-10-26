@@ -294,6 +294,12 @@ export const CustomerBankSlots = z.object({
    * (chốt 2026-09-16). Máy chủ dùng đúng ngày này lúc giữ chỗ.
    */
   ruleDate: z.string(),
+  /**
+   * Khách đủ tuổi mở ngân hàng bắt buộc, chưa có tài khoản Hoàn thành của ngân
+   * hàng đó ở hồ sơ nào, hồ sơ chưa ghi lý do (chốt 2026-10-26). Lượt tạo không
+   * có ngân hàng đó thì form hỏi lý do trước khi tạo.
+   */
+  bankSkipReasonMissing: z.boolean(),
 });
 export type CustomerBankSlots = z.infer<typeof CustomerBankSlots>;
 

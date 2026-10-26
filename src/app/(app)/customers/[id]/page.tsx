@@ -4,13 +4,14 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { use, useState } from "react";
-import { Briefcase, ChevronRight, ClipboardCheck, Gift, History, IdCard, Landmark, Pencil, ShieldCheck, Trash2, User as UserIcon } from "lucide-react";
+import { Briefcase, ChevronRight, ClipboardCheck, FileText, Gift, History, IdCard, Landmark, Pencil, ShieldCheck, Trash2, User as UserIcon } from "lucide-react";
 import { BackLink } from "@/components/ui/BackLink";
 import { SkeletonCard } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { ImageLightbox } from "@/components/ui/ImageLightbox";
 import { TopBar } from "@/components/layout/TopBar";
 import { BankAccountFormDialog } from "@/components/banking/BankAccountFormDialog";
+import { BankAccountPhotos, savedPhotos } from "@/components/banking/BankAccountPhotos";
 import { CustomerFormDialog } from "@/components/customers/CustomerFormDialog";
 import { CustomerInspectionDialog, type InspectionDialogMode } from "@/components/customers/CustomerInspectionDialog";
 import { CustomerNoteDialog } from "@/components/customers/CustomerNoteDialog";
@@ -18,6 +19,7 @@ import { CustomerOwnerDialog } from "@/components/customers/CustomerOwnerDialog"
 import { GiftGivingDialog } from "@/components/customers/GiftGivingDialog";
 import { GiftChangeDialog } from "@/components/customers/GiftChangeDialog";
 import { GiftExtraDialog } from "@/components/customers/GiftExtraDialog";
+import { BankSkipReasonDialog } from "@/components/customers/BankSkipReasonDialog";
 import { ServiceFormDialog } from "@/components/services/ServiceFormDialog";
 import { CustomerVneidDialog } from "@/components/vneid/CustomerVneidDialog";
 import { Button } from "@/components/ui/Button";
@@ -44,6 +46,7 @@ import {
   extraSlotLabel,
   isCashOnlyGift,
   pendingExtraSlots,
+  SKIP_REASON_BANK_CODE,
 } from "@/lib/api/customers";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { INSURANCE_STATUS_LABEL, INSURANCE_STATUS_TONE } from "@/lib/api/insuranceOrders";
@@ -97,6 +100,7 @@ export default function CustomerDetailPage({
   const [vneidDir, setVneidDir] = useState<"asc" | "desc">("desc");
   const [inspecting, setInspecting] = useState<InspectionDialogMode | null>(null);
   const [clearingInspection, setClearingInspection] = useState(false);
+  const [editingSkipReason, setEditingSkipReason] = useState(false);
 
   const { data, isPending, isError, refetch, isFetching } = useQuery({
     queryKey: ["customer", id],
@@ -685,6 +689,45 @@ export default function CustomerDetailPage({
               </SectionCard>
             )}
 
+            {(data.bankSkipReason.needed || data.bankSkipReason.reason) && (
+              <SectionCard title={`Lý do không mở ${SKIP_REASON_BANK_CODE}`} icon={<FileText size={17} />}>
+                {data.bankSkipReason.reason ? (
+                  <>
+                    <dl className={styles.info}>
+                      <div className={styles.noteRow}>
+                        <dt>Lý do</dt>
+                        <dd className={styles.noteText}>{data.bankSkipReason.reason.note}</dd>
+                      </div>
+                      <div>
+                        <dt>Người ghi</dt>
+                        <dd>
+                          {data.bankSkipReason.reason.updatedByName} -{" "}
+                          {formatDateTime(data.bankSkipReason.reason.updatedAt)}
+                        </dd>
+                      </div>
+                    </dl>
+                    <BankAccountPhotos
+                      title="Ảnh"
+                      requiredPhotos={0}
+                      small
+                      contain
+                      photos={savedPhotos(data.bankSkipReason.reason.photoUrls)}
+                    />
+                  </>
+                ) : (
+                  <p className="text-muted">Chưa có lý do</p>
+                )}
+                {recordInScope(recordVisibility(actor, "customer", "update"), data.customer) && (
+                  <div className={styles.footRow}>
+                    <Button variant="secondary" onClick={() => setEditingSkipReason(true)}>
+                      <Pencil size={16} />
+                      {data.bankSkipReason.reason ? "Sửa lý do" : "Ghi lý do"}
+                    </Button>
+                  </div>
+                )}
+              </SectionCard>
+            )}
+
             {(data.insurance.length > 0 || data.insuranceHiddenCount > 0) && (
               <SectionCard
                 title="Đơn bảo hiểm"
@@ -1045,6 +1088,19 @@ export default function CustomerDetailPage({
             id={id}
             note={data.customer.note}
             onClose={() => setEditingNote(false)}
+          />
+        )}
+
+        {editingSkipReason && data && (
+          <BankSkipReasonDialog
+            customerId={data.customer.id}
+            reason={data.bankSkipReason.reason}
+            submitLabel="Lưu"
+            onClose={() => setEditingSkipReason(false)}
+            onSaved={() => {
+              setEditingSkipReason(false);
+              toast.ok(`Đã lưu lý do không mở ${SKIP_REASON_BANK_CODE}`);
+            }}
           />
         )}
 

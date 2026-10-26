@@ -753,8 +753,51 @@ export const GivenExtra = z.object({
 });
 export type GivenExtra = z.infer<typeof GivenExtra>;
 
+/* ── Lý do không mở ngân hàng bắt buộc (chốt 2026-10-26) ──────────────── */
+
+/** Ngân hàng khách đủ tuổi thì phải mở, không mở thì ghi lý do. Đổi ngân hàng chỉ sửa dòng này. */
+export const SKIP_REASON_BANK_CODE = 'MB';
+export const MAX_BANK_SKIP_REASON_PHOTOS = 3;
+
+export const BankSkipReasonForm = z.object({
+  note: z
+    .string()
+    .trim()
+    .min(1, `Nhập lý do không mở ${SKIP_REASON_BANK_CODE}`)
+    .max(2000, 'Lý do tối đa 2.000 ký tự'),
+  photoUrls: z
+    .array(z.string().trim())
+    .min(1, 'Thêm ít nhất 1 ảnh')
+    .max(MAX_BANK_SKIP_REASON_PHOTOS, `Tối đa ${MAX_BANK_SKIP_REASON_PHOTOS} ảnh`),
+});
+export type BankSkipReasonForm = z.infer<typeof BankSkipReasonForm>;
+
+export const BankSkipReason = z.object({
+  note: z.string(),
+  /** `/api/images/<key>` của từng ảnh. */
+  photoUrls: z.array(z.string()),
+  updatedByName: z.string(),
+  updatedAt: z.coerce.date(),
+});
+export type BankSkipReason = z.infer<typeof BankSkipReason>;
+
+/**
+ * `needed`: khách đủ tuổi mở ngân hàng bắt buộc mà chưa có tài khoản Hoàn thành
+ * của ngân hàng đó ở hồ sơ nào. Lúc đó thiếu `reason` thì không tặng quà được,
+ * và không tạo được ngân hàng thứ 3.
+ */
+export const CustomerBankSkipReason = z.object({
+  needed: z.boolean(),
+  reason: BankSkipReason.nullable(),
+});
+export type CustomerBankSkipReason = z.infer<typeof CustomerBankSkipReason>;
+
+export const saveBankSkipReason = (id: string, form: BankSkipReasonForm) =>
+  send(`/api/customers/${id}/bank-skip-reason`, 'PUT', form).then(BankSkipReason.parse);
+
 export const CustomerDetail = z.object({
   customer: Customer,
+  bankSkipReason: CustomerBankSkipReason,
   /**
    * Nhật ký sửa thông tin, mới nhất trước — chung cho MỌI LẦN của người này.
    *
@@ -925,6 +968,7 @@ export const GIFT_ERROR = {
   ITEM_DISCONTINUED: 'ITEM_DISCONTINUED',
   /** Lương tháng của hồ sơ khách đã chốt: không tặng, đổi hay thêm quà (chốt 2026-10-01). */
   MONTH_CLOSED: 'MONTH_CLOSED',
+  BANK_SKIP_REASON_MISSING: 'BANK_SKIP_REASON_MISSING',
 } as const;
 
 /** Câu trả lời cho MỘT dòng HKD: mã món trong rổ quà thêm hoặc `GIFT_DECLINED`. */

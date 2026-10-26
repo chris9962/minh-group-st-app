@@ -17,11 +17,13 @@ import {
   fetchCustomerDetail,
   isCashOnlyGift,
   markGiftGiven,
+  SKIP_REASON_BANK_CODE,
   type CustomerDetail,
 } from "@/lib/api/customers";
 import { fetchInsurancePackages, GIFT_ITEM_OFF_LABEL } from "@/lib/api/settings";
 import { formatVnd } from "@/lib/format";
 import { errorMessage, toast } from "@/lib/toast";
+import { BankSkipReasonDialog } from "./BankSkipReasonDialog";
 import styles from "./GiftGivingDialog.module.scss";
 
 type Props = {
@@ -51,6 +53,8 @@ export function GiftGivingDialog({ open, onClose, customerId, customerName }: Pr
   /** Món đang chọn của từng dòng HKD, khoá theo `extraSlotKey`. */
   const [selectedExtras, setSelectedExtras] = useState<Record<string, string>>({});
   const [creatingOrder, setCreatingOrder] = useState(false);
+  /** Lý do đã lưu, đang chờ hồ sơ tải lại để hiện danh sách quà. */
+  const [skipReasonSaved, setSkipReasonSaved] = useState(false);
 
   const { data, isPending, isError, refetch, isFetching } = useQuery({
     queryKey: ["customer", customerId],
@@ -120,6 +124,28 @@ export function GiftGivingDialog({ open, onClose, customerId, customerName }: Pr
     },
     onError: (e) => toast.fail(errorMessage(e, "Không đánh dấu được quà đã tặng.")),
   });
+
+  // Lý do đứng trước danh sách quà: món bảo hiểm tạo đơn ngay khi chọn (chốt 2026-10-26).
+  // Khách chưa có món nào để chọn thì chưa hỏi.
+  if (
+    data &&
+    !data.gift.given &&
+    (basket.length > 0 || hasExtra) &&
+    data.bankSkipReason.needed &&
+    !data.bankSkipReason.reason
+  )
+    return (
+      <BankSkipReasonDialog
+        customerId={customerId}
+        submitLabel="Lưu"
+        busy={skipReasonSaved}
+        onClose={onClose}
+        onSaved={() => {
+          setSkipReasonSaved(true);
+          toast.ok(`Đã lưu lý do không mở ${SKIP_REASON_BANK_CODE}`);
+        }}
+      />
+    );
 
   if (creatingOrder && data) {
     const chosen = basket.find((b) => b.code === selected);
