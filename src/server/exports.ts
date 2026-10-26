@@ -27,6 +27,7 @@ import { searchTerms } from "@/lib/search";
 import { db } from "./db/client";
 import {
   bankAccounts,
+  bankSkipReasons,
   banks,
   channels,
   customerPhones,
@@ -41,7 +42,7 @@ import {
   users,
 } from "./db/schema";
 import type { BankAccountFilters } from "./banking";
-import type { BankNotOpenedQuery, BankNotOpenedRow, ScoringExportRow } from "@/lib/api/exports";
+import type { BankNotOpenedExport, BankNotOpenedQuery, ScoringExportRow } from "@/lib/api/exports";
 
 /**
  * Báo cáo #1 · Tính điểm tổng — dựng lại đúng hình dạng sheet `TỔNG` của
@@ -960,7 +961,7 @@ async function groupsOf(
 export async function listBankNotOpenedExport(
   actor: User,
   query: BankNotOpenedQuery,
-): Promise<BankNotOpenedRow[] | null> {
+): Promise<BankNotOpenedExport | null> {
   const [bank] = await db
     .select({ id: banks.id, minAge: banks.minAge, maxAge: banks.maxAge })
     .from(banks)
@@ -969,7 +970,7 @@ export async function listBankNotOpenedExport(
   if (!bank) return null;
 
   const visible = recordVisibility(actor, "banking", "export");
-  if (visible.kind === "none") return [];
+  if (visible.kind === "none") return { rows: [], customers: [] };
 
   const age = sql`extract(year from age(${customerDay}, ${customers.dob}))`;
   // Cùng luật với `ageFits`: thiếu ngày sinh thì tuổi null, mọi giới hạn đều không đạt.
@@ -988,6 +989,8 @@ export async function listBankNotOpenedExport(
       staffName: sql<string>`coalesce(${users.fullName}, '')`.as("staff_name"),
       staffCode: sql<string>`coalesce(${users.staffCode}, '')`.as("staff_code"),
       departmentName: sql<string>`coalesce(${departments.name}, '')`.as("department_name"),
+      customerId: sql<string>`${customers.id}`.as("customer_id"),
+      customerName: sql<string>`${customers.fullName}`.as("customer_name"),
       kind: sql<string>`case
         when not exists (select 1 from ${bankAccounts} where ${bankAccounts.customerId} = ${customers.id}) then 'none'
         when exists (select 1 from ${bankAccounts} where ${bankAccounts.customerId} = ${customers.id} and ${bankAccounts.bankId} = ${bank.id}) then 'opened'
@@ -1018,18 +1021,39 @@ export async function listBankNotOpenedExport(
 
   const countOf = (kind: string) => sql<number>`count(*) filter (where ${profiles.kind} = ${kind})`.mapWith(Number);
 
-  return db
-    .select({
-      day: profiles.day,
-      fullName: profiles.staffName,
-      staffCode: profiles.staffCode,
-      departmentName: profiles.departmentName,
-      ageFitNotOpened: countOf("fit"),
-      otherReason: countOf("other"),
-      noAccount: countOf("none"),
-      total: sql<number>`count(*)`.mapWith(Number),
-    })
-    .from(profiles)
-    .groupBy(profiles.day, profiles.createdBy, profiles.staffName, profiles.staffCode, profiles.departmentName)
-    .orderBy(profiles.day, profiles.departmentName, profiles.staffName);
+  const [rows, customerRows] = await Promise.all([
+    db
+      .select({
+        day: profiles.day,
+        fullName: profiles.staffName,
+        staffCode: profiles.staffCode,
+        departmentName: profiles.departmentName,
+        ageFitNotOpened: countOf("fit"),
+        otherReason: countOf("other"),
+        noAccount: countOf("none"),
+        total: sql<number>`count(*)`.mapWith(Number),
+      })
+      .from(profiles)
+      .groupBy(profiles.day, profiles.createdBy, profiles.staffName, profiles.staffCode, profiles.departmentName)
+      .orderBy(profiles.day, profiles.departmentName, profiles.staffName),
+    // Sheet danh sách khách (chốt 2026-10-26): chỉ nhóm đủ tuổi mà không mở, kèm lý do của đúng ngân hàng này.
+    db
+      .select({
+        day: profiles.day,
+        customerId: profiles.customerId,
+        customerName: profiles.customerName,
+        fullName: profiles.staffName,
+        staffCode: profiles.staffCode,
+        departmentName: profiles.departmentName,
+        reason: sql<string>`coalesce(${bankSkipReasons.note}, '')`,
+      })
+      .from(profiles)
+      .leftJoin(
+        bankSkipReasons,
+        and(eq(bankSkipReasons.customerId, profiles.customerId), eq(bankSkipReasons.bankId, bank.id)),
+      )
+      .where(eq(profiles.kind, "fit"))
+      .orderBy(profiles.day, profiles.departmentName, profiles.staffName, profiles.customerName),
+  ]);
+  return { rows, customers: customerRows };
 }

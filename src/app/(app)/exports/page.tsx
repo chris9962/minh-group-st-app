@@ -22,6 +22,7 @@ import {
   fetchOrderStats,
   fetchSalaryExport,
   fetchWorkDayExport,
+  type BankNotOpenedCustomer,
   type BankNotOpenedRow,
   type DirectedExportRow,
   type GiftExcessRow,
@@ -53,7 +54,7 @@ import { fetchServiceTypes } from "@/lib/api/settings";
 import { fetchStaffOptions, type StaffOption } from "@/lib/api/staff";
 import { fetchProvinces } from "@/lib/api/wardCatalog";
 import { useAddressSuggestions } from "@/lib/useAddressSuggestions";
-import { EXCEL_GROUP_COLORS, exportExcel, exportExcelSheets, type ExcelColumn } from "@/lib/excel";
+import { EXCEL_GROUP_COLORS, exportExcel, exportExcelSheets, type ExcelColumn, type ExcelSheet } from "@/lib/excel";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { can, scopeFor } from "@/lib/permissions";
 import {
@@ -906,7 +907,7 @@ export default function ExportsPage() {
       if (!from || !to) throw new Error("Chọn khoảng ngày lập hồ sơ trước khi xuất.");
       if (!notOpenedBank) throw new Error("Chọn ngân hàng trước khi xuất.");
 
-      const rows = await fetchBankNotOpenedExport({ from, to, bankId: notOpenedBank.id });
+      const { rows, customers } = await fetchBankNotOpenedExport({ from, to, bankId: notOpenedBank.id });
       const days = [...new Set(rows.map((r) => r.day))].sort();
       if (days.length === 0) throw new Error("Khoảng ngày này chưa có hồ sơ khách nào.");
 
@@ -925,14 +926,27 @@ export default function ExportsPage() {
         { header: "KHÔNG CÓ TÀI KHOẢN NÀO", ...KHACH, type: "number", width: 14, total: sum((r) => r.noAccount), value: (r) => r.noAccount },
         { header: "TỔNG SỐ KHÁCH", ...KHACH, type: "number", width: 12, total: sum((r) => r.total), value: (r) => r.total },
       ];
+      // Sheet danh sách khách (chốt 2026-10-26): link mở hồ sơ khách để xem ảnh của lý do.
+      const customerColumns: ExcelColumn<BankNotOpenedCustomer>[] = [
+        { header: "STT", ...KHACH, type: "number", width: 6, total: (list) => list.length, value: (_r, index) => index + 1 },
+        { header: "NGÀY LẬP HỒ SƠ", ...KHACH, width: 14, value: (r) => formatDate(r.day) },
+        { header: "KHÁCH HÀNG", ...KHACH, transform: "name", width: 26, value: (r) => r.customerName },
+        { header: `LÝ DO KHÔNG MỞ ${code}`, ...KHACH, type: "text", width: 40, total: (list) => list.filter((r) => r.reason).length, value: (r) => r.reason },
+        { header: "LINK HỒ SƠ", ...KHACH, width: 14, value: () => "Xem hồ sơ", link: (r) => `${window.location.origin}/customers/${r.customerId}` },
+        { header: "NHÂN VIÊN", ...NHAN_SU, width: 26, value: (r) => r.fullName || "—" },
+        { header: "MÃ NHÂN VIÊN", ...NHAN_SU, type: "text", width: 15, value: (r) => r.staffCode || "—" },
+        { header: "PHÒNG", ...NHAN_SU, width: 22, value: (r) => r.departmentName || "—" },
+      ];
 
-      await exportExcelSheets({
-        fileName: `khach-khong-mo-${code}-${from}-den-${to}.xlsx`,
-        sheets: days.map((day) => {
+      // Hai kiểu dòng; `exportExcelSheets` chỉ nhận một kiểu nên ép qua `unknown`.
+      const sheets = [
+        ...days.map((day) => {
           const [, mm, dd] = day.split("-");
           return { sheetName: `${dd}.${mm}`, columns, rows: rows.filter((r) => r.day === day) };
         }),
-      });
+        { sheetName: "Danh sách khách", columns: customerColumns, rows: customers },
+      ] as unknown as ExcelSheet<unknown>[];
+      await exportExcelSheets({ fileName: `khach-khong-mo-${code}-${from}-den-${to}.xlsx`, sheets });
       return rows.length;
     },
 

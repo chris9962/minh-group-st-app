@@ -377,6 +377,25 @@ export const BankNotOpenedRow = z.object({
 });
 export type BankNotOpenedRow = z.infer<typeof BankNotOpenedRow>;
 
+/** Một khách nhóm "đủ tuổi mà không mở", cho sheet danh sách khách (chốt 2026-10-26). */
+export const BankNotOpenedCustomer = z.object({
+  day: z.string(),
+  customerId: z.string(),
+  customerName: z.string(),
+  fullName: z.string(),
+  staffCode: z.string(),
+  departmentName: z.string(),
+  /** Lý do không mở ngân hàng đang xét; rỗng khi hồ sơ chưa ghi. */
+  reason: z.string(),
+});
+export type BankNotOpenedCustomer = z.infer<typeof BankNotOpenedCustomer>;
+
+export const BankNotOpenedExport = z.object({
+  rows: z.array(BankNotOpenedRow),
+  customers: z.array(BankNotOpenedCustomer),
+});
+export type BankNotOpenedExport = z.infer<typeof BankNotOpenedExport>;
+
 export type BankNotOpenedQuery = {
   /** Khoảng NGÀY LẬP HỒ SƠ. */
   from: string;
@@ -384,11 +403,11 @@ export type BankNotOpenedQuery = {
   bankId: string;
 };
 
-export async function fetchBankNotOpenedExport(query: BankNotOpenedQuery): Promise<BankNotOpenedRow[]> {
+export async function fetchBankNotOpenedExport(query: BankNotOpenedQuery): Promise<BankNotOpenedExport> {
   const params = new URLSearchParams(query);
   const res = await fetch(`/api/exports/bank-not-opened?${params}`);
   if (!res.ok) throw new Error('Không tải được số khách không mở ngân hàng');
-  return z.object({ rows: z.array(BankNotOpenedRow) }).parse(await res.json()).rows;
+  return BankNotOpenedExport.parse(await res.json());
 }
 
 /* ── Báo cáo #7 · Ngày công ─────────────────────────────────────────── */
