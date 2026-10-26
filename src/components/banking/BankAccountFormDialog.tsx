@@ -321,7 +321,6 @@ export function BankAccountFormDialog({
 
   if (step === "edit") return <EditCustomerStep customerId={customerId} onClose={onClose} />;
 
-  // Hồ sơ đủ 3 ngân hàng sau lượt này thì không bỏ qua lý do được (chốt 2026-10-26).
   if (skipReasonForm)
     return (
       <BankSkipReasonDialog
@@ -331,7 +330,6 @@ export function BankAccountFormDialog({
         }
         busy={create.isPending}
         onBack={() => setSkipReasonForm(null)}
-        onSkip={mainPicks < remaining ? () => create.mutate(skipReasonForm) : undefined}
         onClose={onClose}
         onSaved={() => create.mutate(skipReasonForm)}
       />

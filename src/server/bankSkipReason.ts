@@ -15,9 +15,9 @@ import { imageKeyOf, imageUrl } from "./storage";
 /**
  * Lý do không mở ngân hàng bắt buộc (chốt 2026-10-26), ngân hàng đó là
  * `SKIP_REASON_BANK_CODE`. Khách đủ tuổi mở mà chưa có tài khoản ngân hàng đó ở
- * hồ sơ nào thì nhân viên ghi lý do kèm ảnh. App bắt ở hai chỗ: tạo ngân hàng
- * thứ 3 của hồ sơ (`startBankAccount`) và tặng quà (`grantGift`). Mỗi hồ sơ một
- * lý do cho mỗi ngân hàng.
+ * hồ sơ nào thì nhân viên ghi lý do kèm ảnh. App bắt ở hai chỗ: mọi lượt tạo
+ * ngân hàng không có ngân hàng đó (`startBankAccount`) và tặng quà (`grantGift`).
+ * Mỗi hồ sơ một lý do cho mỗi ngân hàng.
  *
  * Chỉ xét tuổi của ngân hàng, không xét mã giới thiệu. Chỉ tài khoản Hoàn thành
  * mới tính là đã có (chốt 2026-10-26): bản nháp tự xoá sau 60 phút, tính nháp
@@ -27,7 +27,7 @@ import { imageKeyOf, imageUrl } from "./storage";
 
 export type SkipReasonCustomerRef = { id: string; rootCustomerId: string; dob: string | null };
 
-export const SKIP_REASON_BEFORE_THIRD_BANK = `Hồ sơ đủ 3 ngân hàng mà chưa có ${SKIP_REASON_BANK_CODE}. Ghi lý do không mở ${SKIP_REASON_BANK_CODE} rồi tạo tài khoản.`;
+export const SKIP_REASON_BEFORE_OPEN = `Khách chưa có ${SKIP_REASON_BANK_CODE}. Ghi lý do không mở ${SKIP_REASON_BANK_CODE} rồi tạo tài khoản.`;
 export const SKIP_REASON_BEFORE_GIFT = `Khách chưa có ${SKIP_REASON_BANK_CODE}. Ghi lý do không mở ${SKIP_REASON_BANK_CODE} rồi tặng quà.`;
 
 async function skipReasonBank() {

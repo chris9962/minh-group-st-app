@@ -78,7 +78,7 @@ import { recomputeKpiForCustomer } from "./kpi";
 import type { PageArgs } from "./pagination";
 import { ageFitWhere, listOpenReferralCodes, openCodeWhere } from "./catalog";
 import { ageFits, ageOf, customerAge, meetsAgeRule, type AgeRule } from "./age";
-import { SKIP_REASON_BEFORE_THIRD_BANK, bankSkipReasonMissing } from "./bankSkipReason";
+import { SKIP_REASON_BEFORE_OPEN, bankSkipReasonMissing } from "./bankSkipReason";
 import { enqueuePhotoCheck, latestPhotoCheck, photoCheckFilter, toPhotoCheck } from "./photoCheck";
 import { imageUrl } from "./storage";
 
@@ -1640,9 +1640,9 @@ export async function startBankAccount(
         ok: false as const,
         message: `Hồ sơ này đã có ${mainHere} tài khoản ngân hàng, chọn thêm ${mainPicks} là vượt trần ${MAX_BANK_ACCOUNTS_PER_CUSTOMER}.`,
       };
-    // Hồ sơ 1 hoặc 2 ngân hàng được bỏ qua lý do không mở ngân hàng bắt buộc, đủ 3 thì không (chốt 2026-10-26).
-    if (skipReasonMissing && mainHere + mainPicks >= MAX_BANK_ACCOUNTS_PER_CUSTOMER)
-      return { ok: false as const, message: SKIP_REASON_BEFORE_THIRD_BANK };
+    // Lượt tạo nào không có ngân hàng bắt buộc cũng phải có lý do, không bỏ qua (chốt 2026-10-26):
+    // khách chỉ nhận tiền mặt không qua bước Tặng quà, nên đây là chỗ hỏi duy nhất.
+    if (skipReasonMissing) return { ok: false as const, message: SKIP_REASON_BEFORE_OPEN };
 
     /**
      * Trần bản nháp theo NGƯỜI MỞ, tính riêng từng loại tài khoản ở mỗi ngân

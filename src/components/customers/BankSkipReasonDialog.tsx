@@ -34,8 +34,6 @@ type Props = {
   /** Có thì là form sửa lý do đã ghi. */
   reason?: BankSkipReason | null;
   submitLabel: string;
-  /** Có thì hiện nút Bỏ qua thay cho nút Huỷ: hồ sơ mới 1 hoặc 2 ngân hàng. */
-  onSkip?: () => void;
   onBack?: () => void;
   /** Việc nối tiếp sau khi lưu đang chạy, ví dụ tạo tài khoản. */
   busy?: boolean;
@@ -51,7 +49,6 @@ export function BankSkipReasonDialog({
   customerId,
   reason,
   submitLabel,
-  onSkip,
   onBack,
   busy = false,
   onClose,
@@ -112,15 +109,9 @@ export function BankSkipReasonDialog({
       }
       footer={
         <>
-          {onSkip ? (
-            <Button variant="secondary" onClick={onSkip} disabled={pending}>
-              Bỏ qua
-            </Button>
-          ) : (
-            <Button variant="secondary" onClick={onClose} disabled={pending}>
-              Huỷ
-            </Button>
-          )}
+          <Button variant="secondary" onClick={onClose} disabled={pending}>
+            Huỷ
+          </Button>
           <Button type="submit" form="bank-skip-reason-form" disabled={pending}>
             {submitLabel}
           </Button>

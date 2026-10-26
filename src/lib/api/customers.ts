@@ -784,7 +784,7 @@ export type BankSkipReason = z.infer<typeof BankSkipReason>;
 /**
  * `needed`: khách đủ tuổi mở ngân hàng bắt buộc mà chưa có tài khoản Hoàn thành
  * của ngân hàng đó ở hồ sơ nào. Lúc đó thiếu `reason` thì không tặng quà được,
- * và không tạo được ngân hàng thứ 3.
+ * và không tạo được ngân hàng nào khác.
  */
 export const CustomerBankSkipReason = z.object({
   needed: z.boolean(),
