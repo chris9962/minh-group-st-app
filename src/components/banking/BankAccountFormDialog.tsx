@@ -34,6 +34,7 @@ import styles from "./BankAccountFormDialog.module.scss";
 import { invalidateKpi } from "@/lib/invalidateKpi";
 import { errorMessage, toast } from "@/lib/toast";
 import { reportInvalid } from "@/lib/formErrors";
+import { useSession } from "@/store/session";
 
 const BANKING_PATH = "/banking";
 
@@ -98,11 +99,14 @@ export function BankAccountFormDialog({
   /** Lượt tạo đang chờ lý do không mở ngân hàng bắt buộc. */
   const [skipReasonForm, setSkipReasonForm] = useState<BankAccountStartForm | null>(null);
 
+  const user = useSession((s) => s.user);
   const {
     watch,
     setValue,
     getValues,
     handleSubmit,
+    setError,
+    clearErrors,
     formState: { errors, isSubmitting },
   } = useForm<BankAccountStartForm>({
     // Focus ô sai do `reportInvalid` lo — xem `lib/formErrors.ts`.
@@ -282,7 +286,14 @@ export function BankAccountFormDialog({
     return openBlockReasonAt([...here, ...picked], bank.code, ruleAt);
   };
 
-  const submitPicks = (form: BankAccountStartForm) => {
+  const submitPicks = (form: BankAccountStartForm, event?: React.BaseSyntheticEvent) => {
+    // Máy chủ cũng chặn, nhưng chặn ở đây để thiếu phòng không lọt sang bước lý do.
+    if (user?.departmentId === null && !form.departmentId) {
+      const departmentError = { type: "manual", message: "Chưa chọn phòng" };
+      setError("departmentId", departmentError);
+      reportInvalid({ departmentId: departmentError }, event);
+      return;
+    }
     if (slots?.bankSkipReasonMissing && !form.picks.some((p) => codeOf(p.bankId) === SKIP_REASON_BANK_CODE))
       setSkipReasonForm(form);
     else create.mutate(form);
@@ -402,6 +413,7 @@ export function BankAccountFormDialog({
           <DepartmentPicker
             module="banking"
             value={departmentId}
+            error={errors.departmentId?.message}
             /**
              * Đổi phòng là đổi danh sách mã dùng được (spec §4.4d). Mã đã chọn
              * theo phòng cũ có thể không còn dùng được cho phòng mới, mà máy chủ
@@ -409,6 +421,7 @@ export function BankAccountFormDialog({
              */
             onChange={(v) => {
               setValue("departmentId", v, { shouldDirty: true });
+              clearErrors("departmentId");
               writePicks((current) => current.map((p) => ({ ...p, referralCode: "" })));
             }}
           />
