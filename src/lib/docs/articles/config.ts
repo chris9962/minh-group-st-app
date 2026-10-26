@@ -405,7 +405,7 @@ export const CONFIG_DOCS: DocArticle[] = [
       {
         kind: 'note',
         tone: 'info',
-        body: 'Đổi tên hoặc xoá ấp không đổi hồ sơ khách đã lưu. Hồ sơ cũ giữ nguyên tên cũ, chỉ ô chọn về sau đổi theo.',
+        body: 'Đổi tên ấp thì địa chỉ của khách đã lưu đổi theo tên mới. Xoá ấp không đổi hồ sơ khách đã lưu.',
       },
     ],
   },

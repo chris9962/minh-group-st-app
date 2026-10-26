@@ -59,6 +59,7 @@ import {
   refProvinces,
   refWards,
   bankAccounts,
+  customers,
   departments,
   referralCodeAllocations,
   referralCodeDepartments,
@@ -2393,9 +2394,14 @@ export async function addHamlet(
 }
 
 /**
- * Đổi tên / xoá ấp KHÔNG đụng bản ghi nghiệp vụ (chốt 2026-09-02): kênh ấp lưu
- * CHUỖI TÊN trong `channelDetail` chứ không lưu id, bản cũ giữ nguyên tên cũ,
- * chỉ ô chọn ấp về sau đổi theo.
+ * Đổi tên ấp thì đổi luôn chuỗi "Ấp, Xã, Tỉnh" đã lưu ở hồ sơ khách và tài khoản
+ * ngân hàng (chốt 2026-10-26). Kênh ấp lưu CHUỖI TÊN chứ không lưu id, nên không
+ * đổi thì hồ sơ cũ giữ tên gõ sai, ô Địa chỉ không còn khớp gợi ý nào, và báo cáo
+ * gom theo ấp tách một ấp làm hai nhóm. Tên cũ chỉ thuộc đúng ấp này vì một xã
+ * không có hai ấp trùng tên.
+ *
+ * Địa chỉ trên đơn bảo hiểm không đổi: đơn đã gửi PVI. Xoá ấp vẫn không đụng bản
+ * ghi nghiệp vụ (chốt 2026-09-02).
  */
 export async function updateHamlet(
   hamletId: string,
@@ -2409,11 +2415,23 @@ export async function updateHamlet(
   if (await hamletNameTaken(hamlet.wardId, form.name, hamletId)) {
     return { ok: false, reason: "name-taken" };
   }
+  const [province] = await db
+    .select({ name: provinces.name })
+    .from(provinces)
+    .where(eq(provinces.id, ward.provinceId))
+    .limit(1);
 
   return catalogWrite(async () => {
     await db.transaction(async (tx) => {
       await tx.update(hamlets).set({ name: form.name }).where(eq(hamlets.id, hamletId));
       await writeHamletContacts(tx, hamletId, form.contacts);
+      if (province && form.name !== hamlet.name) {
+        const from = `${hamlet.name}, ${ward.name}, ${province.name}`;
+        const to = `${form.name}, ${ward.name}, ${province.name}`;
+        await tx.update(customers).set({ address: to }).where(eq(customers.address, from));
+        await tx.update(customers).set({ channelDetail: to }).where(eq(customers.channelDetail, from));
+        await tx.update(bankAccounts).set({ channelDetail: to }).where(eq(bankAccounts.channelDetail, from));
+      }
     });
     return { previousName: hamlet.name, province: await provinceById(ward.provinceId) };
   });
