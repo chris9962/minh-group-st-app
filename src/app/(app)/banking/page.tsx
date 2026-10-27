@@ -90,7 +90,9 @@ export default function BankingPage() {
   const searchParams = useSearchParams();
   const [search, setSearch] = useState(() => searchParams.get("search") ?? "");
   const searchQuery = useDebouncedValue(search);
-  const [bankCode, setBankCode] = useState(() => searchParams.get("bankCode") ?? "");
+  const [bankCodes, setBankCodes] = useState<string[]>(() =>
+    (searchParams.get("bankCode") ?? "").split(",").filter(Boolean),
+  );
   const [range, setRange] = useState<DateRange | undefined>(() => {
     const from = dateFromUrl(searchParams.get("from"));
     const to = dateFromUrl(searchParams.get("to"));
@@ -215,7 +217,7 @@ export default function BankingPage() {
   const listUrl = useMemo(() => {
     const params = new URLSearchParams();
     if (searchQuery) params.set("search", searchQuery);
-    if (bankCode) params.set("bankCode", bankCode);
+    if (bankCodes.length > 0) params.set("bankCode", bankCodes.join(","));
     if (from) params.set("from", from);
     if (to) params.set("to", to);
     if (departmentId) params.set("departmentId", departmentId);
@@ -228,7 +230,7 @@ export default function BankingPage() {
     if (dir === "asc") params.set("dir", dir);
     const query = params.toString();
     return query ? `/banking?${query}` : "/banking";
-  }, [accountTypes, bankCode, channelId, departmentId, dir, from, page, photoCheck, searchQuery, staffId, status, to]);
+  }, [accountTypes, bankCodes, channelId, departmentId, dir, from, page, photoCheck, searchQuery, staffId, status, to]);
 
   useEffect(() => {
     window.history.replaceState(null, "", listUrl);
@@ -236,7 +238,7 @@ export default function BankingPage() {
 
   const filters = {
     search: searchQuery,
-    bankCode,
+    bankCode: bankCodes.join(","),
     from,
     to,
     // Trang này bỏ ô lọc theo mã (chốt 2026-09-03): trang chi tiết ngân hàng đã
@@ -257,7 +259,7 @@ export default function BankingPage() {
   });
 
   const activeCount =
-    (bankCode ? 1 : 0) +
+    (bankCodes.length > 0 ? 1 : 0) +
     (from && to ? 1 : 0) +
     (departmentId ? 1 : 0) +
     (channelId ? 1 : 0) +
@@ -427,7 +429,7 @@ export default function BankingPage() {
           activeCount={activeCount}
           onClear={() =>
             refine(() => {
-              setBankCode("");
+              setBankCodes([]);
               setRange(undefined);
               setDepartmentId("");
               setChannelId("");
@@ -456,15 +458,13 @@ export default function BankingPage() {
               />
             </FilterField>
           ) : null}
-          <FilterField id="bank" label="Ngân hàng" count={bankCode ? 1 : 0}>
+          <FilterField id="bank" label="Ngân hàng" count={bankCodes.length}>
             <FilterChoices
+              multiple
               label="Ngân hàng"
-              value={bankCode}
-              onChange={(v) => refine(() => setBankCode(v))}
-              options={[
-                { value: "", label: "Tất cả ngân hàng" },
-                ...banks.map((b) => ({ value: b.code, label: b.code })),
-              ]}
+              value={bankCodes}
+              onChange={(v) => refine(() => setBankCodes(v))}
+              options={banks.map((b) => ({ value: b.code, label: b.code }))}
             />
           </FilterField>
           <FilterField id="accountType" label="Loại TK" count={accountTypes.length}>
@@ -551,7 +551,9 @@ export default function BankingPage() {
                   },
                 ]
               : []),
-            ...(bankCode ? [{ label: `Ngân hàng: ${bankCode}`, onRemove: () => refine(() => setBankCode("")) }] : []),
+            ...(bankCodes.length > 0
+              ? [{ label: `Ngân hàng: ${bankCodes.join(", ")}`, onRemove: () => refine(() => setBankCodes([])) }]
+              : []),
             ...(accountTypes.length > 0
               ? [
                   {
