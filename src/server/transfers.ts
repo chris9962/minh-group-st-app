@@ -227,7 +227,7 @@ export async function moveBankAccount(
       if (reason) return { ok: false as const, message: `${account.bankCode}: ${reason}` };
     }
 
-    // Kênh trên tài khoản là bản chụp kênh của hồ sơ lúc mở, rổ quà đọc nó. Giữ kênh khách cũ là tính quà sai kênh.
+    // Kênh trên tài khoản theo kênh của hồ sơ chứa nó, rổ quà đọc nó. Giữ kênh khách cũ là tính quà sai kênh.
     // `updatedAt` để dấu "Đã kiểm tra" của hồ sơ nhận biết có tài khoản dời tới sau lần kiểm.
     await tx
       .update(bankAccounts)

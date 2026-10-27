@@ -1714,8 +1714,8 @@ export async function startBankAccount(
           bankId: pick.bankId,
           referralCodeId: code.id,
           status: "creating",
-          // Kênh CHÉP từ khách lúc mở — kênh thuộc về khách, không nhập lại ở đây,
-          // và chép thì đổi kênh của khách về sau không viết lại lịch sử.
+          // Kênh CHÉP từ khách lúc mở — kênh thuộc về khách, không nhập lại ở đây.
+          // Sửa kênh hồ sơ về sau thì `dongBoNhom` đổi theo.
           channelId: customer.channelId,
           channelDetail: customer.channelDetail,
           /**

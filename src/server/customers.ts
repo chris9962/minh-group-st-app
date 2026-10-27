@@ -1536,11 +1536,14 @@ async function dongBoNhom(
    *
    * Một khách tới từ nhiều kênh khác nhau là chuyện thật: hồ sơ 1 qua kênh Ấp,
    * hồ sơ 2 qua kênh Bệnh viện. Mọi chỗ đọc kênh đều đọc theo TỪNG hồ sơ — luật
-   * quà, bảng nhân sự, tài khoản ngân hàng chép kênh lúc mở, file xuất Excel —
-   * nên giữ riêng là đúng, và rổ quà của hồ sơ anh em cũng không phải tính lại.
+   * quà, bảng nhân sự, tài khoản ngân hàng, file xuất Excel — nên giữ riêng là
+   * đúng, và rổ quà của hồ sơ anh em cũng không phải tính lại.
    *
    * ĐỊA CHỈ CŨNG KHÔNG ĐỒNG BỘ (chốt 2026-10-09). Kênh Ấp lấy địa chỉ làm chi
    * tiết kênh, mà đội KD gặp cùng một khách ở ấp khác nhau mỗi lần mở.
+   *
+   * Trong MỘT hồ sơ thì tài khoản theo kênh của hồ sơ (chốt 2026-10-27): sửa kênh
+   * là sửa chỗ nhập sai, mà danh sách tài khoản và rổ quà đọc kênh trên tài khoản.
    */
   await tx
     .update(customers)
@@ -1551,6 +1554,10 @@ async function dongBoNhom(
       updatedAt: new Date(),
     })
     .where(eq(customers.id, customerId));
+  await tx
+    .update(bankAccounts)
+    .set({ channelId: form.channelId || null, channelDetail: form.channelDetail })
+    .where(eq(bankAccounts.customerId, customerId));
 
   await tx
     .update(customers)
