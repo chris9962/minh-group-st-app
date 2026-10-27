@@ -31,6 +31,8 @@ export const GiftStockEntry = z.object({
   /** Khác `createdAt` khi dòng đã được sửa. */
   updatedAt: z.string(),
   createdByName: z.string(),
+  createdByStaffCode: z.string(),
+  createdByDepartmentName: z.string(),
 });
 export type GiftStockEntry = z.infer<typeof GiftStockEntry>;
 

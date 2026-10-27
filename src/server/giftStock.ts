@@ -7,7 +7,7 @@ import type {
 } from "@/lib/api/giftStock";
 import { BUSINESS_TIMEZONE } from "@/lib/format";
 import { db } from "./db/client";
-import { giftItems, giftStockEntries, users } from "./db/schema";
+import { departments, giftItems, giftStockEntries, staffRoster, users } from "./db/schema";
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 type Runner = Tx | typeof db;
@@ -87,12 +87,22 @@ const toEntry = (r: {
   createdAt: Date;
   updatedAt: Date;
   createdByName: string | null;
+  createdByStaffCode: string | null;
+  createdByDepartmentName: string | null;
 }): GiftStockEntry => ({
   ...r,
   createdAt: r.createdAt.toISOString(),
   updatedAt: r.updatedAt.toISOString(),
   createdByName: r.createdByName ?? "",
+  createdByStaffCode: r.createdByStaffCode ?? "",
+  createdByDepartmentName: r.createdByDepartmentName ?? "",
 });
+
+// Phòng của người nhập trong tháng nhập, không theo phòng hiện tại (AGENTS.md §5.3).
+const rosterOfEntry = and(
+  eq(staffRoster.userId, giftStockEntries.createdBy),
+  eq(staffRoster.yearMonth, sql`to_char(${giftStockEntries.createdAt} at time zone ${BUSINESS_TIMEZONE}, 'YYYY-MM')`),
+);
 
 const entryColumns = {
   id: giftStockEntries.id,
@@ -103,6 +113,8 @@ const entryColumns = {
   createdAt: giftStockEntries.createdAt,
   updatedAt: giftStockEntries.updatedAt,
   createdByName: users.fullName,
+  createdByStaffCode: users.staffCode,
+  createdByDepartmentName: departments.name,
 };
 
 /**
@@ -144,6 +156,8 @@ export async function giftStockMonth(month: string): Promise<GiftStockMonth> {
       .from(giftStockEntries)
       .innerJoin(giftItems, eq(giftItems.id, giftStockEntries.giftItemId))
       .leftJoin(users, eq(users.id, giftStockEntries.createdBy))
+      .leftJoin(staffRoster, rosterOfEntry)
+      .leftJoin(departments, eq(departments.id, staffRoster.departmentId))
       .where(
         and(
           sql`${giftStockEntries.createdAt} >= ${start}`,
@@ -181,6 +195,8 @@ async function entryById(id: string, runner: Runner = db): Promise<GiftStockEntr
     .from(giftStockEntries)
     .innerJoin(giftItems, eq(giftItems.id, giftStockEntries.giftItemId))
     .leftJoin(users, eq(users.id, giftStockEntries.createdBy))
+    .leftJoin(staffRoster, rosterOfEntry)
+    .leftJoin(departments, eq(departments.id, staffRoster.departmentId))
     .where(eq(giftStockEntries.id, id))
     .limit(1);
   return row ? toEntry(row) : null;
