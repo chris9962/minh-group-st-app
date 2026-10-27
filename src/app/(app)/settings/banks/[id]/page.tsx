@@ -44,7 +44,7 @@ import {
 } from "@/lib/api/banking";
 import { EMPTY_PAGE, PAGE_SIZE, type SortDir } from "@/lib/api/pagination";
 import { EXCEL_GROUP_COLORS, exportExcel } from "@/lib/excel";
-import { formatDate, formatPhone } from "@/lib/format";
+import { businessMonth, formatDate, formatPhone, monthRange } from "@/lib/format";
 import { useDebouncedValue } from "@/lib/hooks";
 import { canManageBank, canOpenBankAdmin } from "@/lib/permissions";
 import { errorMessage, toast } from "@/lib/toast";
@@ -150,14 +150,16 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
   const router = useRouter();
   const searchParams = useSearchParams();
   const [tab, setTab] = useState<Tab>(() => tabFromUrl(searchParams.get("tab")));
-  /** Tab thống kê chỉ nhận bộ lọc ngày: bộ lọc khác vẫn giữ cho hai tab kia nhưng ẩn đi. */
+  /** Tab thống kê chỉ nhận bộ lọc ngày và loại TK: bộ lọc khác vẫn giữ cho hai tab kia nhưng ẩn đi. */
   const statsTab = tab === "photo-stats";
   const [search, setSearch] = useState(() => searchParams.get("search") ?? "");
   const searchQuery = useDebouncedValue(search);
   const [range, setRange] = useState<DateRange | undefined>(() => {
     const from = dateFromUrl(searchParams.get("from"));
     const to = dateFromUrl(searchParams.get("to"));
-    return from || to ? { from, to } : undefined;
+    if (from || to) return { from, to };
+    const month = monthRange(businessMonth());
+    return { from: dateFromUrl(month.from), to: dateFromUrl(month.to) };
   });
   const [status, setStatus] = useState<BankAccountStatus | "">(() => {
     const parsed = BankAccountStatus.safeParse(searchParams.get("status"));
@@ -445,6 +447,26 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
           },
         ]
       : [];
+  const accountTypeField = (
+    <FilterField id="accountType" label="Loại TK" count={accountTypes.length}>
+      <FilterChoices
+        multiple
+        label="Loại TK"
+        value={accountTypes}
+        onChange={(v) => refine(() => setAccountTypes(v as AccountType[]))}
+        options={AccountType.options.map((t) => ({ value: t, label: ACCOUNT_TYPE_LABEL[t] }))}
+      />
+    </FilterField>
+  );
+  const accountTypeChips =
+    accountTypes.length > 0
+      ? [
+          {
+            label: `Loại TK: ${accountTypes.map((t) => ACCOUNT_TYPE_LABEL[t]).join(", ")}`,
+            onRemove: () => refine(() => setAccountTypes([])),
+          },
+        ]
+      : [];
 
   return (
     <RequirePermission allow={canOpenBankAdmin}>
@@ -459,10 +481,16 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
       >
         {statsTab ? (
           <FilterButton
-            activeCount={from && to ? 1 : 0}
-            onClear={() => refine(() => setRange(undefined))}
+            activeCount={(from && to ? 1 : 0) + (accountType ? 1 : 0)}
+            onClear={() =>
+              refine(() => {
+                setRange(undefined);
+                setAccountTypes([]);
+              })
+            }
           >
             {dateField}
+            {accountTypeField}
           </FilterButton>
         ) : (
         <>
@@ -506,15 +534,7 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
               ]}
             />
           </FilterField>
-          <FilterField id="accountType" label="Loại TK" count={accountTypes.length}>
-            <FilterChoices
-              multiple
-              label="Loại TK"
-              value={accountTypes}
-              onChange={(v) => refine(() => setAccountTypes(v as AccountType[]))}
-              options={AccountType.options.map((t) => ({ value: t, label: ACCOUNT_TYPE_LABEL[t] }))}
-            />
-          </FilterField>
+          {accountTypeField}
           <FilterField id="photoCheck" label="Xác thực ảnh" count={photoCheck ? 1 : 0}>
             <FilterChoices
               label="Xác thực ảnh"
@@ -578,7 +598,7 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
         <BackLink href="/settings/banks">Ngân hàng &amp; mã giới thiệu</BackLink>
 
         <FilterChips
-          chips={statsTab ? dateChips : [
+          chips={statsTab ? [...dateChips, ...accountTypeChips] : [
             ...dateChips,
             ...(status
               ? [
@@ -588,14 +608,7 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
                   },
                 ]
               : []),
-            ...(accountTypes.length > 0
-              ? [
-                  {
-                    label: `Loại TK: ${accountTypes.map((t) => ACCOUNT_TYPE_LABEL[t]).join(", ")}`,
-                    onRemove: () => refine(() => setAccountTypes([])),
-                  },
-                ]
-              : []),
+            ...accountTypeChips,
             ...(photoCheck
               ? [
                   {
@@ -636,7 +649,7 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
         <SectionTabs label="Khu vực" options={TAB_OPTIONS} value={tab} onChange={(v) => setTab(v as Tab)} />
 
         {statsTab ? (
-          <PhotoCheckStatsPanel bankId={id} from={from} to={to} inScope={inScope} />
+          <PhotoCheckStatsPanel bankId={id} from={from} to={to} accountType={accountType} inScope={inScope} />
         ) : tab === "photos" ? (
           <BankPhotoGallery
             /*

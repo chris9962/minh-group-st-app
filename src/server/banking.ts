@@ -554,7 +554,7 @@ async function referralCodeIdsMatching(raw: string): Promise<string[]> {
  * Danh sách mã của một ngân hàng chỉ vài trăm dòng nên phép nửa-nối này rẻ; chỗ
  * đắt là để `LIMIT` rơi xuống sau một phép gộp, không phải ở đây.
  */
-const accountTypeFilter = (raw: string): SQL | undefined => {
+export const accountTypeFilter = (raw: string): SQL | undefined => {
   const picked = raw.split(",");
   const types = (["none", "CNKD", "HKD"] as const).filter((t) => picked.includes(t));
   if (types.length === 0) return undefined;

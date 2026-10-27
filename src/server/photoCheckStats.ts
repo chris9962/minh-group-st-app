@@ -7,7 +7,7 @@ import {
 } from "@/lib/api/photoCheckStats";
 import { BUSINESS_TIMEZONE } from "@/lib/format";
 import { isRealIsoDate } from "@/lib/types";
-import { accountOpenedDayBetween } from "./banking";
+import { accountOpenedDayBetween, accountTypeFilter } from "./banking";
 import { db } from "./db/client";
 
 /**
@@ -27,6 +27,7 @@ export async function photoCheckStatsOfBank(
   bankId: string,
   from: string,
   to: string,
+  accountType: string,
 ): Promise<PhotoCheckStats> {
   const dayFilter =
     isRealIsoDate(from) || isRealIsoDate(to)
@@ -35,6 +36,8 @@ export async function photoCheckStatsOfBank(
           isRealIsoDate(to) ? to : "9999-12-31",
         )}`
       : sql``;
+  const byType = accountTypeFilter(accountType);
+  const typeFilter = byType ? sql`and ${byType}` : sql``;
 
   const everError = sql`bank_accounts.id in (
     select h.account_id from bank_account_status_history h where h.to_status = 'error'
@@ -116,6 +119,7 @@ export async function photoCheckStatsOfBank(
     where bank_accounts.bank_id = ${bankId}
       and bank_accounts.status <> 'creating'
       ${dayFilter}
+      ${typeFilter}
   `;
 
   const [dayRows, failRows, fixRows] = await Promise.all([

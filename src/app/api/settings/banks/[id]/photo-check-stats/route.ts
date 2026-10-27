@@ -19,6 +19,11 @@ export async function GET(request: Request, { params }: Params) {
 
   const query = new URL(request.url).searchParams;
   return Response.json(
-    await photoCheckStatsOfBank(id, query.get("from") ?? "", query.get("to") ?? ""),
+    await photoCheckStatsOfBank(
+      id,
+      query.get("from") ?? "",
+      query.get("to") ?? "",
+      query.get("accountType") ?? "",
+    ),
   );
 }

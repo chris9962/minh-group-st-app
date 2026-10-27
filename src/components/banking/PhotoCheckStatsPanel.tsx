@@ -80,14 +80,16 @@ type Props = {
   /** `YYYY-MM-DD` hoặc `''`, cùng bộ lọc ngày với hai tab còn lại của trang. */
   from: string;
   to: string;
+  /** Nhiều loại ngăn bằng dấu phẩy, `''` = mọi loại. */
+  accountType: string;
   inScope: boolean;
 };
 
 /** Tab Hiệu suất kiểm ảnh: cùng bố cục với file Excel đánh giá bot TPB (2026-09-28). */
-export function PhotoCheckStatsPanel({ bankId, from, to, inScope }: Props) {
+export function PhotoCheckStatsPanel({ bankId, from, to, accountType, inScope }: Props) {
   const { data, isPending, isError, refetch, isFetching } = useQuery({
-    queryKey: ["photo-check-stats", bankId, from, to],
-    queryFn: () => fetchPhotoCheckStats(bankId, { from, to }),
+    queryKey: ["photo-check-stats", bankId, from, to, accountType],
+    queryFn: () => fetchPhotoCheckStats(bankId, { from, to, accountType }),
     enabled: inScope,
     placeholderData: keepPreviousData,
   });

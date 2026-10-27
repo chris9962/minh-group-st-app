@@ -57,11 +57,12 @@ export type PhotoCheckStats = z.infer<typeof PhotoCheckStats>;
 
 export async function fetchPhotoCheckStats(
   bankId: string,
-  query: { from: string; to: string },
+  query: { from: string; to: string; accountType: string },
 ): Promise<PhotoCheckStats> {
   const params = new URLSearchParams();
   if (query.from) params.set('from', query.from);
   if (query.to) params.set('to', query.to);
+  if (query.accountType) params.set('accountType', query.accountType);
   const res = await fetch(`/api/settings/banks/${bankId}/photo-check-stats?${params}`);
   if (res.status === 403) throw new Error('Bạn không quản ngân hàng này');
   if (!res.ok) throw new Error('Không tải được số liệu kiểm ảnh của ngân hàng');
