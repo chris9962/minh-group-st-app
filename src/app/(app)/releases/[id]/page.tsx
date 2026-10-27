@@ -32,8 +32,8 @@ export default function ReleasePage({ params }: { params: Promise<{ id: string }
           <span className="tag">v{release.version}</span> {release.summary}
         </p>
 
-        {sections.map((section) => (
-          <section key={section.title} className={styles.section}>
+        {sections.map((section, i) => (
+          <section key={i} className={styles.section}>
             <h2 className={styles.sectionTitle}>{section.title}</h2>
             <ul className={styles.items}>
               {section.items.map((item) => (

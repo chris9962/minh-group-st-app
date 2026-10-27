@@ -22,6 +22,58 @@ const seesCompanyDashboard = (user: User) =>
  */
 export const RELEASES: Release[] = [
   {
+    id: '2026-10-27',
+    version: '2.16.0',
+    title: 'Cập nhật ngày 27/10/2026',
+    summary: 'Ghi lý do khách không mở MB, đổi tên ấp thì hồ sơ khách đổi theo, trang Ngân hàng lọc nhiều ngân hàng.',
+    sections: [
+      {
+        title: 'Mở tài khoản ngân hàng',
+        items: [
+          'Khách đủ tuổi mở MB mà chưa có MB: ghi lý do không mở MB, kèm 1-3 ảnh.',
+          'Bắt buộc ghi khi tạo ngân hàng và khi tặng quà.',
+          'Hồ sơ khách hiện lý do đã ghi.',
+        ],
+        visibleTo: (user) => can(user, 'banking', 'create'),
+      },
+      {
+        title: 'Khách hàng',
+        items: ['Sửa hồ sơ khách thì kênh của các tài khoản đã mở đổi theo.'],
+        visibleTo: (user) => can(user, 'customer', 'update'),
+      },
+      {
+        title: 'Ngân hàng',
+        items: ['Lọc nhiều ngân hàng cùng lúc.'],
+        visibleTo: (user) => canOpenPath(user, '/banking'),
+      },
+      {
+        title: 'Xuất dữ liệu',
+        items: ['Báo cáo Khách không mở ngân hàng thêm sheet danh sách khách, kèm lý do và link hồ sơ.'],
+        visibleTo: (user) => canOpenPath(user, '/exports') && can(user, 'banking', 'export'),
+      },
+      {
+        title: 'Xuất dữ liệu',
+        items: ['Báo cáo Lương: cột CHỨC VỤ ghi chức danh.'],
+        visibleTo: (user) => scopeFor(user, 'staff', 'export') === 'company',
+      },
+      {
+        title: 'Danh mục xã / ấp',
+        items: ['Đổi tên ấp thì địa chỉ khách và kênh tài khoản đổi theo tên mới.'],
+        visibleTo: (user) => canOpenPath(user, '/settings/wards'),
+      },
+      {
+        title: 'Nhân sự',
+        items: ['Thêm nhân viên hợp đồng dịch vụ: gợi ý chức danh Dịch vụ.'],
+        visibleTo: (user) => canOpenPath(user, '/users'),
+      },
+      {
+        title: 'Kho quà',
+        items: ['File Excel sheet Lần nhập thêm cột MÃ NHÂN VIÊN và PHÒNG.'],
+        visibleTo: (user) => canOpenPath(user, '/settings/gift-stock'),
+      },
+    ],
+  },
+  {
     id: '2026-10-23',
     version: '2.15.0',
     title: 'Cập nhật ngày 23/10/2026',
