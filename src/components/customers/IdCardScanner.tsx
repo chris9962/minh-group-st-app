@@ -40,6 +40,12 @@ const CAMERA_TRIES: MediaTrackConstraints[] = [
   { facingMode: { ideal: "environment" } },
 ];
 const FIRST_FRAME_MS = 3000;
+/** Phóng sẵn khi camera có hình (thử 2026-10-28): người dùng cầm máy xa hơn, camera lấy nét được. */
+const CAMERA_ZOOM = 1.5;
+
+/** Kiểu DOM của TypeScript chưa khai `zoom` cho capabilities và constraints. */
+type ZoomCapabilities = MediaTrackCapabilities & { zoom?: { min: number; max: number } };
+type ZoomConstraintSet = MediaTrackConstraintSet & { zoom?: number };
 
 const errorInfo = (e: unknown) =>
   e instanceof Error ? { name: e.name, message: e.message } : { name: "unknown", message: String(e) };
@@ -51,6 +57,15 @@ const trackInfo = (stream: MediaStream | null) => {
     ? { label: track.label, readyState: track.readyState, muted: track.muted, settings: track.getSettings() }
     : null;
 };
+
+/** Máy không báo có `zoom` (iPhone, Firefox) thì giữ nguyên khung hình. */
+async function zoomIn(stream: MediaStream | null) {
+  const track = stream?.getVideoTracks()[0];
+  const range = (track?.getCapabilities?.() as ZoomCapabilities | undefined)?.zoom;
+  if (!track || !range) return;
+  const advanced: ZoomConstraintSet[] = [{ zoom: Math.min(range.max, Math.max(range.min, CAMERA_ZOOM)) }];
+  await track.applyConstraints({ advanced });
+}
 
 /** `true` khi video có khung hình đầu tiên trong `ms`. */
 const firstFrame = (video: HTMLVideoElement, ms: number) =>
@@ -192,6 +207,14 @@ export function IdCardScanner({ onScanned, onCancel }: Props) {
             reportClientError("id-card-camera", "video.play lỗi", { ...at, ...errorInfo(e) });
         });
         if (await firstFrame(video, FIRST_FRAME_MS)) {
+          await zoomIn(stream).catch((e) => {
+            if (!cancelled)
+              reportClientError("id-card-camera", "Không phóng được camera", {
+                ...at,
+                ...errorInfo(e),
+                track: trackInfo(stream),
+              });
+          });
           if (!cancelled) setCamera("live");
           return;
         }
