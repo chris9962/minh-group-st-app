@@ -989,7 +989,8 @@ export async function listBankNotOpenedExport(
       staffName: sql<string>`coalesce(${users.fullName}, '')`.as("staff_name"),
       staffCode: sql<string>`coalesce(${users.staffCode}, '')`.as("staff_code"),
       departmentName: sql<string>`coalesce(${departments.name}, '')`.as("department_name"),
-      customerId: sql<string>`${customers.id}`.as("customer_id"),
+      // Không đặt `customer_id`: cột ngoài câu con không kèm tên câu con, trùng cột của `bank_skip_reasons`.
+      customerId: sql<string>`${customers.id}`.as("profile_customer_id"),
       customerName: sql<string>`${customers.fullName}`.as("customer_name"),
       kind: sql<string>`case
         when not exists (select 1 from ${bankAccounts} where ${bankAccounts.customerId} = ${customers.id}) then 'none'
