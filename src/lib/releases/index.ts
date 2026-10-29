@@ -51,6 +51,11 @@ export const RELEASES: Release[] = [
         items: ['File có thêm cột Biển số xe.'],
         visibleTo: (user) => can(user, 'insurance', 'export'),
       },
+      {
+        title: 'Nhân sự',
+        items: ['Chi tiết nhân viên, tab Tài khoản: thêm bảng số tài khoản theo ngân hàng, tách CNKD và HKD.'],
+        visibleTo: (user) => canOpenPath(user, '/users'),
+      },
     ],
   },
   {

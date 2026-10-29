@@ -26,6 +26,15 @@ export const PersonAccount = z.object({
 });
 export type PersonAccount = z.infer<typeof PersonAccount>;
 
+/** Một ngân hàng trong bảng tóm tắt tab Tài khoản. `total` gồm cả tài khoản thường. */
+export const PersonBankCount = z.object({
+  bankName: z.string(),
+  total: z.number(),
+  cnkd: z.number(),
+  hkd: z.number(),
+});
+export type PersonBankCount = z.infer<typeof PersonBankCount>;
+
 /** Một khách do người này lập hồ sơ trong kỳ. */
 export const PersonCustomer = z.object({
   id: z.string(),
@@ -309,6 +318,18 @@ export const fetchPersonAccounts = personListPage(PersonAccount, 'accounts');
 export const fetchPersonInsurance = personListPage(PersonInsurance, 'insurance');
 export const fetchPersonServices = personListPage(PersonService, 'services');
 export const fetchPersonHandled = personListPage(PersonHandledOrder, 'handled');
+
+export async function fetchPersonAccountsByBank(
+  query: Omit<PersonListQuery, 'page' | 'dir'>,
+): Promise<PersonBankCount[]> {
+  const qs = new URLSearchParams({ from: query.from, to: query.to });
+  const res = await fetch(
+    `/api/people/${encodeURIComponent(query.id)}/accounts/by-bank?${qs}`,
+  );
+  if (res.status === 404) throw new Error('Không tìm thấy nhân viên này');
+  if (!res.ok) throw new Error('Không tải được số tài khoản theo ngân hàng');
+  return z.array(PersonBankCount).parse(await res.json());
+}
 
 /**
  * TRỌN danh sách đơn đã xử lý trong kỳ, cho nút Xuất Excel của tab.

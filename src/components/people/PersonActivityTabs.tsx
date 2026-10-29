@@ -6,6 +6,7 @@ import { useState } from "react";
 import { ExternalLink } from "lucide-react";
 import { ScoringTable } from "@/components/exports/ScoringTable";
 import { HandledOrdersTable } from "@/components/people/HandledOrdersTable";
+import { PersonBankSummary } from "@/components/people/PersonBankSummary";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { SkeletonCard } from "@/components/ui/Skeleton";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
@@ -391,16 +392,21 @@ export function PersonActivityTabs({
       )}
 
       {activeTab === "accounts" && (
-        <div className={styles.panel}>
-          <RankTable
-            rows={accountsQ.data?.rows ?? []}
-            columns={ACCOUNT_COLUMNS}
-            rowKey={(a) => a.id}
-            defaultSort="date"
-            caption={`Tài khoản ngân hàng đã mở ${periodText}`}
-            server={serverFor("accounts", accountsQ.data?.total ?? 0)}
-          />
-        </div>
+        <>
+          <div className={styles.panel}>
+            <PersonBankSummary staffId={staffId} from={from} to={to} periodText={periodText} />
+          </div>
+          <div className={styles.panel}>
+            <RankTable
+              rows={accountsQ.data?.rows ?? []}
+              columns={ACCOUNT_COLUMNS}
+              rowKey={(a) => a.id}
+              defaultSort="date"
+              caption={`Tài khoản ngân hàng đã mở ${periodText}`}
+              server={serverFor("accounts", accountsQ.data?.total ?? 0)}
+            />
+          </div>
+        </>
       )}
 
       {activeTab === "insurance" && (

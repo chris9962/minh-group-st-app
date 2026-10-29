@@ -2,6 +2,7 @@ import { and, asc, desc, eq, gte, inArray, isNotNull, lte, ne, sql, type AnyColu
 import type { PersonScore } from "@/lib/api/people";
 import type {
   PersonAccount,
+  PersonBankCount,
   PersonCustomer,
   PersonDetail,
   PersonHandledOrder,
@@ -1000,6 +1001,38 @@ export async function personCustomersFor(
   };
 }
 
+const personAccountsWhere = (id: string, range: Period) =>
+  and(
+    eq(bankAccounts.createdBy, id),
+    // MỌI trạng thái trừ bản nháp (chốt 2026-09-04). Tài khoản bị đánh lỗi phải
+    // hiện ở đây, nếu không nhân viên không có màn nào tìm ra nó để sửa.
+    ne(bankAccounts.status, "creating"),
+    gte(bankAccounts.openedDate, range.from),
+    lte(bankAccounts.openedDate, range.to),
+  );
+
+/** Bảng tóm tắt đầu tab Tài khoản: chung điều kiện lọc với danh sách nên cộng các dòng ra đúng tổng của tab. */
+export async function personAccountsByBankFor(
+  actor: User,
+  id: string,
+  range: Period,
+): Promise<PersonBankCount[] | null> {
+  if (!(await visibleStaffId(actor, id, range))) return null;
+
+  return db
+    .select({
+      bankName: banks.code,
+      total: sql<number>`count(*)::int`,
+      cnkd: sql<number>`(count(*) filter (where ${bankAccounts.accountType} = 'CNKD'))::int`,
+      hkd: sql<number>`(count(*) filter (where ${bankAccounts.accountType} = 'HKD'))::int`,
+    })
+    .from(bankAccounts)
+    .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
+    .where(personAccountsWhere(id, range))
+    .groupBy(banks.code)
+    .orderBy(desc(sql`count(*)`), asc(banks.code));
+}
+
 export async function personAccountsFor(
   actor: User,
   id: string,
@@ -1008,14 +1041,7 @@ export async function personAccountsFor(
 ): Promise<Page<PersonAccount> | null> {
   if (!(await visibleStaffId(actor, id, range))) return null;
 
-  const where = and(
-    eq(bankAccounts.createdBy, id),
-    // MỌI trạng thái trừ bản nháp (chốt 2026-09-04). Tài khoản bị đánh lỗi phải
-    // hiện ở đây, nếu không nhân viên không có màn nào tìm ra nó để sửa.
-    ne(bankAccounts.status, "creating"),
-    gte(bankAccounts.openedDate, range.from),
-    lte(bankAccounts.openedDate, range.to),
-  );
+  const where = personAccountsWhere(id, range);
 
   const rows = await db
     .select({

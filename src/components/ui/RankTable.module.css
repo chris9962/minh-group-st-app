@@ -35,6 +35,21 @@
   outline-offset: 2px;
 }
 
+.hintBtn {
+  all: unset;
+  display: inline-grid;
+  place-items: center;
+  margin-left: 4px;
+  vertical-align: middle;
+  border-radius: 50%;
+  color: var(--om-text-3);
+}
+
+.hintBtn:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
 /* Chữ tiêu đề cột chỉ cao 17px — bấm bằng ngón tay là trượt (§8 đòi 44px).
    Nới vùng bấm bằng min-height chứ không bằng padding: hàng tiêu đề cao thêm
    một chút trên điện thoại, còn trên máy tính giữ nguyên. */

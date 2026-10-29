@@ -1,6 +1,7 @@
 "use client";
 
 import { clsx } from "clsx";
+import { Info } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
@@ -54,6 +55,8 @@ export type RankColumn<T> = {
    * của tổng, dãy 7 ngày) khi ô chỉ còn thanh hoặc sparkline.
    */
   title?: (row: T) => string | null;
+  /** Câu giải thích cột, hiện khi rê chuột hoặc bấm vào icon cạnh tiêu đề. */
+  hint?: string;
 };
 
 /**
@@ -217,6 +220,10 @@ export function RankTable<T>({
   const [tip, setTip] = useState<{ text: string; x: number; y: number } | null>(
     null,
   );
+  const showTipAt = (el: Element, text: string) => {
+    const box = el.getBoundingClientRect();
+    setTip({ text, x: box.left + box.width / 2, y: box.top });
+  };
 
   const goTo = (next: number) =>
     server ? server.onPageChange(next) : setPage(next);
@@ -278,6 +285,21 @@ export function RankTable<T>({
                       </button>
                     ) : (
                       col.label
+                    )}
+                    {/* Đứng cạnh nút sắp chứ không lồng vào: nút trong nút là HTML sai. */}
+                    {col.hint && (
+                      <button
+                        type="button"
+                        className={styles.hintBtn}
+                        aria-label={col.hint}
+                        onPointerEnter={(event) => showTipAt(event.currentTarget, col.hint!)}
+                        onPointerLeave={() => setTip(null)}
+                        onFocus={(event) => showTipAt(event.currentTarget, col.hint!)}
+                        onBlur={() => setTip(null)}
+                        onClick={(event) => showTipAt(event.currentTarget, col.hint!)}
+                      >
+                        <Info size={14} aria-hidden />
+                      </button>
                     )}
                   </th>
                 );
