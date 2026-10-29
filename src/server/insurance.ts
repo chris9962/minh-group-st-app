@@ -597,7 +597,7 @@ const toOrder = (r: DecoratedRow): InsuranceOrder => ({
 });
 
 /**
- * Dòng cho file Excel của P-13 — thêm hai số giấy PVI so với dòng bảng.
+ * Dòng cho file Excel của P-13 — thêm biển số và hai số giấy PVI so với dòng bảng.
  *
  * `pvi_policy_gcn` nullable ở kho: `null` nghĩa là chưa từng hỏi PVI, còn rỗng
  * là đã hỏi và PVI trả rỗng. File Excel không diễn tả nổi hai nghĩa đó nên cả
@@ -605,6 +605,7 @@ const toOrder = (r: DecoratedRow): InsuranceOrder => ({
  */
 const toExportRow = (r: DecoratedRow): InsuranceExportRow => ({
   ...toRow(r),
+  licensePlate: r.licensePlate,
   pviSerialNumber: r.pviSerialNumber,
   pviPolicyGcn: r.pviPolicyGcn ?? "",
 });

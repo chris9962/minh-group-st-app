@@ -79,6 +79,7 @@ const INSURANCE_EXCEL_COLUMNS: ExcelColumnDef<InsuranceExportRow>[] = [
   { key: "orderDate", label: "Ngày tạo đơn", ...DON, width: 13, value: (r) => formatDate(r.orderDate) },
   { key: "orderCode", label: "Mã đơn", ...DON, width: 14, type: "text", value: (r) => r.orderCode },
   { key: "customerName", label: "Khách hàng", ...DON, width: 28, transform: "name", value: (r) => r.customerName },
+  { key: "licensePlate", label: "Biển số xe", ...DON, width: 14, type: "text", value: (r) => r.licensePlate },
   { key: "product", label: "Sản phẩm", ...DON, width: 18, value: (r) => PRODUCT_LABEL[r.product] },
   { key: "packageName", label: "Gói", ...DON, width: 30, value: (r) => r.packageName },
   { key: "fee", label: "Mức phí", ...DON, width: 12, type: "number", total: (all) => all.reduce((s, r) => s + r.fee, 0), value: (r) => r.fee },

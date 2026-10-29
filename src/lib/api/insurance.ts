@@ -237,13 +237,15 @@ export type InsuranceQuery = PageQuery<InsuranceSort> & {
 const InsurancePage = pageOf(InsuranceListRow);
 
 /**
- * Dòng xuất Excel của P-13 — dòng danh sách cộng hai số giấy của PVI.
+ * Dòng xuất Excel của P-13 — dòng danh sách cộng biển số và hai số giấy của PVI.
  *
  * Hai số này KHÔNG nằm ở `InsuranceListRow`: bảng không hiện chúng, và mười lăm
  * dòng mỗi lượt lật trang không cần chở thêm. File Excel thì cần, vì đội KD tra
  * ngược đơn theo số khách đọc trên giấy.
  */
 export const InsuranceExportRow = InsuranceListRow.extend({
+  /** Rỗng với đơn tai nạn điện. */
+  licensePlate: z.string().default(''),
   /** Số ấn chỉ điện tử. Rỗng khi PVI chưa cấp, hoặc đơn đi đường bot. */
   pviSerialNumber: z.string().default(''),
   /** Số in trên giấy chứng nhận của đơn tai nạn điện. Rỗng với đơn xe máy. */
