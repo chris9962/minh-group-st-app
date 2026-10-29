@@ -1037,7 +1037,8 @@ export async function listBankNotOpenedExport(
       .from(profiles)
       .groupBy(profiles.day, profiles.createdBy, profiles.staffName, profiles.staffCode, profiles.departmentName)
       .orderBy(profiles.day, profiles.departmentName, profiles.staffName),
-    // Sheet danh sách khách (chốt 2026-10-26): chỉ nhóm đủ tuổi mà không mở, kèm lý do của đúng ngân hàng này.
+    // Sheet danh sách khách (chốt 2026-10-26): chỉ nhóm đủ tuổi mà không mở. Lý do không mở bank ưu
+    // tiên (chốt 2026-10-29) chỉ hiện khi ngân hàng này nằm trong danh sách bank lưu cùng lý do.
     db
       .select({
         day: profiles.day,
@@ -1051,7 +1052,10 @@ export async function listBankNotOpenedExport(
       .from(profiles)
       .leftJoin(
         bankSkipReasons,
-        and(eq(bankSkipReasons.customerId, profiles.customerId), eq(bankSkipReasons.bankId, bank.id)),
+        and(
+          eq(bankSkipReasons.customerId, profiles.customerId),
+          sql`${bank.id}::uuid = any(${bankSkipReasons.bankIds})`,
+        ),
       )
       .where(eq(profiles.kind, "fit"))
       .orderBy(profiles.day, profiles.departmentName, profiles.staffName, profiles.customerName),

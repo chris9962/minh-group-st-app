@@ -46,7 +46,6 @@ import {
   extraSlotLabel,
   isCashOnlyGift,
   pendingExtraSlots,
-  SKIP_REASON_BANK_CODE,
 } from "@/lib/api/customers";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { INSURANCE_STATUS_LABEL, INSURANCE_STATUS_TONE } from "@/lib/api/insuranceOrders";
@@ -690,10 +689,14 @@ export default function CustomerDetailPage({
             )}
 
             {(data.bankSkipReason.needed || data.bankSkipReason.reason) && (
-              <SectionCard title={`Lý do không mở ${SKIP_REASON_BANK_CODE}`} icon={<FileText size={17} />}>
+              <SectionCard title="Lý do không mở bank ưu tiên" icon={<FileText size={17} />}>
                 {data.bankSkipReason.reason ? (
                   <>
                     <dl className={styles.info}>
+                      <div>
+                        <dt>Bank ưu tiên chưa mở</dt>
+                        <dd>{data.bankSkipReason.reason.bankCodes.join(", ")}</dd>
+                      </div>
                       <div className={styles.noteRow}>
                         <dt>Lý do</dt>
                         <dd className={styles.noteText}>{data.bankSkipReason.reason.note}</dd>
@@ -1094,12 +1097,13 @@ export default function CustomerDetailPage({
         {editingSkipReason && data && (
           <BankSkipReasonDialog
             customerId={data.customer.id}
+            bankCodes={data.bankSkipReason.reason?.bankCodes ?? data.bankSkipReason.bankCodes}
             reason={data.bankSkipReason.reason}
             submitLabel="Lưu"
             onClose={() => setEditingSkipReason(false)}
             onSaved={() => {
               setEditingSkipReason(false);
-              toast.ok(`Đã lưu lý do không mở ${SKIP_REASON_BANK_CODE}`);
+              toast.ok("Đã lưu lý do không mở bank ưu tiên");
             }}
           />
         )}

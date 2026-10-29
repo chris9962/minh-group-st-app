@@ -19,7 +19,6 @@ import {
   BankSkipReasonForm,
   MAX_BANK_SKIP_REASON_PHOTOS,
   saveBankSkipReason,
-  SKIP_REASON_BANK_CODE,
   type BankSkipReason,
 } from "@/lib/api/customers";
 import { reportInvalid } from "@/lib/formErrors";
@@ -31,25 +30,33 @@ type NoteForm = z.infer<typeof NoteForm>;
 
 type Props = {
   customerId: string;
+  /** Có khi ghi lý do cho hồ sơ khác hồ sơ đang mở. */
+  customerName?: string;
+  /** Bank ưu tiên chưa mở, máy chủ tự lưu kèm lý do. */
+  bankCodes: string[];
   /** Có thì là form sửa lý do đã ghi. */
   reason?: BankSkipReason | null;
   submitLabel: string;
   onBack?: () => void;
-  /** Việc nối tiếp sau khi lưu đang chạy, ví dụ tạo tài khoản. */
+  backLabel?: string;
+  /** Việc nối tiếp sau khi lưu đang chạy, ví dụ chờ danh sách tải lại. */
   busy?: boolean;
   onClose: () => void;
   onSaved: () => void;
 };
 
 /**
- * Lý do không mở ngân hàng bắt buộc (chốt 2026-10-26): ghi chú và 1 đến 3 ảnh.
- * Dùng ở form Tạo ngân hàng, lúc Tặng quà và ở hồ sơ khách.
+ * Lý do không mở bank ưu tiên (chốt 2026-10-29): ghi chú và 1 đến 3 ảnh.
+ * Dùng lúc mở tài khoản, lúc Tặng quà và ở hồ sơ khách.
  */
 export function BankSkipReasonDialog({
   customerId,
+  customerName,
+  bankCodes,
   reason,
   submitLabel,
   onBack,
+  backLabel = "Quay lại",
   busy = false,
   onClose,
   onSaved,
@@ -78,7 +85,8 @@ export function BankSkipReasonDialog({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["customer", customerId] });
-      queryClient.invalidateQueries({ queryKey: ["customer-bank-slots", customerId] });
+      // Form mở tài khoản của khách KHÁC đọc danh sách hồ sơ thiếu lý do qua key này.
+      queryClient.invalidateQueries({ queryKey: ["customer-bank-slots"] });
       onSaved();
     },
     onError: (e) => toast.fail(errorMessage(e, "Không lưu được lý do.")),
@@ -97,13 +105,12 @@ export function BankSkipReasonDialog({
     <Dialog
       open
       onClose={onClose}
-      // Lưu xong là tạo tài khoản ngay, nên không cho đóng hay quay lại giữa chừng.
       dismissible={!pending}
-      title={`Lý do không mở ${SKIP_REASON_BANK_CODE}`}
+      title="Lý do không mở bank ưu tiên"
       footerStart={
         onBack && (
           <BackButton onClick={onBack} disabled={pending}>
-            Chọn lại ngân hàng
+            {backLabel}
           </BackButton>
         )
       }
@@ -119,6 +126,18 @@ export function BankSkipReasonDialog({
       }
     >
       <form id="bank-skip-reason-form" className={styles.form} onSubmit={submit} noValidate>
+        <dl className={styles.info}>
+          {customerName && (
+            <div>
+              <dt>Khách</dt>
+              <dd>{customerName}</dd>
+            </div>
+          )}
+          <div>
+            <dt>Bank ưu tiên chưa mở</dt>
+            <dd>{bankCodes.join(", ")}</dd>
+          </div>
+        </dl>
         <BankAccountPhotos
           title="Ảnh"
           required

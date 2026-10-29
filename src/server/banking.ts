@@ -21,6 +21,7 @@ import {
   DRAFT_TTL_MINUTES,
   DRAFT_WARN_LEAD_MINUTES,
   MAX_BANK_ACCOUNTS_PER_CUSTOMER,
+  pendingSkipReasonMessage,
 } from "@/lib/api/bankAccounts";
 import type {
   AccountType,
@@ -34,7 +35,6 @@ import type {
 } from "@/lib/api/bankAccounts";
 import type { BankAccountDetail, BankAccountRow, BankAccountSort } from "@/lib/api/banking";
 import type { ReferralCode } from "@/lib/api/bankCatalog";
-import { SKIP_REASON_BANK_CODE } from "@/lib/api/customers";
 import type { Page } from "@/lib/api/pagination";
 import type { BankPhoto, BankPhotoRow } from "@/lib/api/bankPhotos";
 import { BUSINESS_TIMEZONE, ageRangeLabel, businessDay, businessMonth, digitsOnly } from "@/lib/format";
@@ -78,7 +78,7 @@ import { recomputeKpiForCustomer } from "./kpi";
 import type { PageArgs } from "./pagination";
 import { ageFitWhere, listOpenReferralCodes, openCodeWhere } from "./catalog";
 import { ageFits, ageOf, customerAge, meetsAgeRule, type AgeRule } from "./age";
-import { SKIP_REASON_BEFORE_OPEN, bankSkipReasonMissing } from "./bankSkipReason";
+import { pendingSkipReasons } from "./bankSkipReason";
 import { enqueuePhotoCheck, latestPhotoCheck, photoCheckFilter, toPhotoCheck } from "./photoCheck";
 import { imageUrl } from "./storage";
 
@@ -1552,8 +1552,7 @@ export async function startBankAccount(
   }
 
   const draftLimits = await draftLimitsFor(actor.id);
-  const skipReasonMissing =
-    !chosenBanks.some((b) => b.code === SKIP_REASON_BANK_CODE) && (await bankSkipReasonMissing(customer));
+  const [pendingReason] = await pendingSkipReasons(actor.id, customer);
 
   const outcome = await db.transaction(async (tx) => {
     /**
@@ -1640,9 +1639,9 @@ export async function startBankAccount(
         ok: false as const,
         message: `Hồ sơ này đã có ${mainHere} tài khoản ngân hàng, chọn thêm ${mainPicks} là vượt trần ${MAX_BANK_ACCOUNTS_PER_CUSTOMER}.`,
       };
-    // Lượt tạo nào không có ngân hàng bắt buộc cũng phải có lý do, không bỏ qua (chốt 2026-10-26):
-    // khách chỉ nhận tiền mặt không qua bước Tặng quà, nên đây là chỗ hỏi duy nhất.
-    if (skipReasonMissing) return { ok: false as const, message: SKIP_REASON_BEFORE_OPEN };
+    // Khách nhận tiền mặt không qua bước Tặng quà, nên hồ sơ trước được hỏi lý do ở đây (chốt 2026-10-29).
+    if (pendingReason)
+      return { ok: false as const, message: pendingSkipReasonMessage(pendingReason, "mở tài khoản cho khách mới") };
 
     /**
      * Trần bản nháp theo NGƯỜI MỞ, tính riêng từng loại tài khoản ở mỗi ngân
@@ -1786,7 +1785,7 @@ export async function customerBankSlots(
    * thì ô chọn nói khác máy chủ, và người dùng chọn xong mới bị từ chối.
    */
   const age = ageOf(customer.dob);
-  const [byPerson, bankRows, codeTypes, ageRules, skipReasonMissing] = await Promise.all([
+  const [byPerson, bankRows, codeTypes, ageRules, pendingReasons] = await Promise.all([
     db
       .select({
         bankId: bankAccounts.bankId,
@@ -1810,7 +1809,7 @@ export async function customerBankSlots(
       .from(referralCodes)
       .where(openCodeWhere(departmentId, userId)),
     ageRulesByType(),
-    bankSkipReasonMissing(customer),
+    pendingSkipReasons(userId, customer),
   ]);
   const banksWithCodes = (type: AccountType) => [
     ...new Set(codeTypes.filter((r) => r.accountType === type).map((r) => r.bankId)),
@@ -1854,7 +1853,7 @@ export async function customerBankSlots(
      * sung ngày sinh.
      */
     hasDob: customer.dob !== null,
-    bankSkipReasonMissing: skipReasonMissing,
+    pendingSkipReasons: pendingReasons,
   };
 }
 

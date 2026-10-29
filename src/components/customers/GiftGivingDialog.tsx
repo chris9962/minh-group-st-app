@@ -17,13 +17,12 @@ import {
   fetchCustomerDetail,
   isCashOnlyGift,
   markGiftGiven,
-  SKIP_REASON_BANK_CODE,
   type CustomerDetail,
 } from "@/lib/api/customers";
 import { fetchInsurancePackages, GIFT_ITEM_OFF_LABEL } from "@/lib/api/settings";
 import { formatVnd } from "@/lib/format";
 import { errorMessage, toast } from "@/lib/toast";
-import { BankSkipReasonDialog } from "./BankSkipReasonDialog";
+import { PendingSkipReasonDialog } from "./PendingSkipReasonDialog";
 import styles from "./GiftGivingDialog.module.scss";
 
 type Props = {
@@ -53,8 +52,6 @@ export function GiftGivingDialog({ open, onClose, customerId, customerName }: Pr
   /** Món đang chọn của từng dòng HKD, khoá theo `extraSlotKey`. */
   const [selectedExtras, setSelectedExtras] = useState<Record<string, string>>({});
   const [creatingOrder, setCreatingOrder] = useState(false);
-  /** Lý do đã lưu, đang chờ hồ sơ tải lại để hiện danh sách quà. */
-  const [skipReasonSaved, setSkipReasonSaved] = useState(false);
 
   const { data, isPending, isError, refetch, isFetching } = useQuery({
     queryKey: ["customer", customerId],
@@ -135,15 +132,17 @@ export function GiftGivingDialog({ open, onClose, customerId, customerName }: Pr
     !data.bankSkipReason.reason
   )
     return (
-      <BankSkipReasonDialog
-        customerId={customerId}
-        submitLabel="Lưu"
-        busy={skipReasonSaved}
+      <PendingSkipReasonDialog
+        pending={[
+          {
+            customerId,
+            fullName: customerName,
+            bankCodes: data.bankSkipReason.bankCodes,
+            creating: data.bankSkipReason.creating,
+          },
+        ]}
+        next="tặng quà"
         onClose={onClose}
-        onSaved={() => {
-          setSkipReasonSaved(true);
-          toast.ok(`Đã lưu lý do không mở ${SKIP_REASON_BANK_CODE}`);
-        }}
       />
     );
 

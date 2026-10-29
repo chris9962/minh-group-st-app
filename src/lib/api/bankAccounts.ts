@@ -253,6 +253,33 @@ export const UsedBankSlot = z.object({
 });
 export type UsedBankSlot = z.infer<typeof UsedBankSlot>;
 
+/** Tài khoản bank ưu tiên đang tạo: nhân viên hoàn thành nó, hoặc gãy thì ghi lý do. */
+export const SkipReasonCreatingAccount = z.object({
+  id: z.string(),
+  bankCode: z.string(),
+});
+export type SkipReasonCreatingAccount = z.infer<typeof SkipReasonCreatingAccount>;
+
+/**
+ * Hồ sơ đang thiếu lý do không mở bank ưu tiên (chốt 2026-10-29). `bankCodes` là
+ * bank ưu tiên khách đủ tuổi mà chưa mở, máy chủ lưu lại danh sách này cùng lý do.
+ */
+export const PendingSkipReason = z.object({
+  customerId: z.string(),
+  fullName: z.string(),
+  bankCodes: z.array(z.string()),
+  creating: z.array(SkipReasonCreatingAccount),
+});
+export type PendingSkipReason = z.infer<typeof PendingSkipReason>;
+
+/** `next` là việc nhân viên đang muốn làm, ví dụ "mở tài khoản cho khách mới". */
+export function pendingSkipReasonMessage(pending: PendingSkipReason, next: string): string {
+  if (pending.creating.length === 0)
+    return `Khách ${pending.fullName} chưa có bank ưu tiên. Hãy điền lý do không mở bank ưu tiên trước khi ${next}.`;
+  const codes = pending.creating.map((a) => a.bankCode).join(', ');
+  return `Hãy hoàn thành bank ưu tiên (${codes}) của khách ${pending.fullName} trước khi ${next}. Nếu gãy ngân hàng (${codes}), hãy điền lý do.`;
+}
+
 export const CustomerBankSlots = z.object({
   used: z.array(UsedBankSlot),
   /**
@@ -295,11 +322,10 @@ export const CustomerBankSlots = z.object({
    */
   ruleDate: z.string(),
   /**
-   * Khách đủ tuổi mở ngân hàng bắt buộc, chưa có tài khoản Hoàn thành của ngân
-   * hàng đó ở hồ sơ nào, hồ sơ chưa ghi lý do (chốt 2026-10-26). Lượt tạo không
-   * có ngân hàng đó thì form hỏi lý do trước khi tạo.
+   * Hồ sơ KHÁC của người mở đang thiếu lý do không mở bank ưu tiên (chốt
+   * 2026-10-29). Còn dòng nào thì form chưa cho mở tài khoản cho khách này.
    */
-  bankSkipReasonMissing: z.boolean(),
+  pendingSkipReasons: z.array(PendingSkipReason),
 });
 export type CustomerBankSlots = z.infer<typeof CustomerBankSlots>;
 

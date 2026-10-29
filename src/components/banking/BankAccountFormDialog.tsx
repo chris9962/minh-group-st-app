@@ -27,8 +27,8 @@ import {
   type BankAccountPick,
 } from "@/lib/api/bankAccounts";
 import { CustomerFormDialog } from "@/components/customers/CustomerFormDialog";
-import { BankSkipReasonDialog } from "@/components/customers/BankSkipReasonDialog";
-import { fetchCustomerDetail, SKIP_REASON_BANK_CODE } from "@/lib/api/customers";
+import { PendingSkipReasonDialog } from "@/components/customers/PendingSkipReasonDialog";
+import { fetchCustomerDetail } from "@/lib/api/customers";
 import { BankComboRulesDialog } from "./BankComboRulesDialog";
 import styles from "./BankAccountFormDialog.module.scss";
 import { invalidateKpi } from "@/lib/invalidateKpi";
@@ -96,8 +96,6 @@ export function BankAccountFormDialog({
   const { data: banks = [] } = useQuery({ queryKey: ["banks"], queryFn: fetchBanks });
   const [rulesOpen, setRulesOpen] = useState(false);
   const [step, setStep] = useState<"check" | "form" | "edit">("check");
-  /** Lượt tạo đang chờ lý do không mở ngân hàng bắt buộc. */
-  const [skipReasonForm, setSkipReasonForm] = useState<BankAccountStartForm | null>(null);
 
   const user = useSession((s) => s.user);
   const {
@@ -131,6 +129,8 @@ export function BankAccountFormDialog({
     queryFn: () => fetchCustomerBankSlots(customerId, departmentId),
     enabled: open && Boolean(customerId),
     placeholderData: keepPreviousData,
+    // Danh sách hồ sơ thiếu lý do đổi theo việc làm ở khách KHÁC, nên mỗi lần mở form phải đọc mới.
+    gcTime: 0,
   });
   const remaining = slots?.remaining ?? MAX_BANK_ACCOUNTS_PER_CUSTOMER;
 
@@ -203,7 +203,11 @@ export function BankAccountFormDialog({
        */
       if (pathname !== BANKING_PATH) router.push(BANKING_PATH);
     },
-    onError: (e) => toast.fail(errorMessage(e, "Không mở được tài khoản nào.")),
+    onError: (e) => {
+      toast.fail(errorMessage(e, "Không mở được tài khoản nào."));
+      // Máy chủ từ chối vì hồ sơ khác thiếu lý do thì form đọc lại để hiện bước điền lý do.
+      queryClient.invalidateQueries({ queryKey: ["customer-bank-slots", customerId] });
+    },
   });
 
   const noSlotLeft = slots ? remaining <= 0 : false;
@@ -287,16 +291,13 @@ export function BankAccountFormDialog({
   };
 
   const submitPicks = (form: BankAccountStartForm, event?: React.BaseSyntheticEvent) => {
-    // Máy chủ cũng chặn, nhưng chặn ở đây để thiếu phòng không lọt sang bước lý do.
     if (user?.departmentId === null && !form.departmentId) {
       const departmentError = { type: "manual", message: "Chưa chọn phòng" };
       setError("departmentId", departmentError);
       reportInvalid({ departmentId: departmentError }, event);
       return;
     }
-    if (slots?.bankSkipReasonMissing && !form.picks.some((p) => codeOf(p.bankId) === SKIP_REASON_BANK_CODE))
-      setSkipReasonForm(form);
-    else create.mutate(form);
+    create.mutate(form);
   };
 
   /**
@@ -321,17 +322,14 @@ export function BankAccountFormDialog({
 
   if (step === "edit") return <EditCustomerStep customerId={customerId} onClose={onClose} />;
 
-  if (skipReasonForm)
+  // Hồ sơ khác của người mở còn thiếu lý do thì chưa cho chọn ngân hàng (chốt 2026-10-29).
+  if (slots && slots.pendingSkipReasons.length > 0)
     return (
-      <BankSkipReasonDialog
-        customerId={customerId}
-        submitLabel={
-          skipReasonForm.picks.length > 1 ? `Tạo ${skipReasonForm.picks.length} tài khoản` : "Tạo tài khoản"
-        }
-        busy={create.isPending}
-        onBack={() => setSkipReasonForm(null)}
+      <PendingSkipReasonDialog
+        pending={slots.pendingSkipReasons}
+        next="mở tài khoản cho khách mới"
+        showName
         onClose={onClose}
-        onSaved={() => create.mutate(skipReasonForm)}
       />
     );
 

@@ -2157,9 +2157,8 @@ export const vneidRecords = pgTable(
 );
 
 /**
- * Lý do không mở ngân hàng bắt buộc của từng hồ sơ khách (migration 0152, chốt
- * 2026-10-26), `server/bankSkipReason.ts`. Có `bank_id` để đổi ngân hàng bắt
- * buộc mà lý do cũ vẫn gắn với ngân hàng cũ. Xoá hồ sơ thì xoá theo.
+ * Lý do không mở bank ưu tiên, mỗi hồ sơ khách một dòng (migration 0153, chốt
+ * 2026-10-29), `server/bankSkipReason.ts`. Xoá hồ sơ thì xoá theo.
  */
 export const bankSkipReasons = pgTable(
   "bank_skip_reasons",
@@ -2168,7 +2167,11 @@ export const bankSkipReasons = pgTable(
     customerId: uuid("customer_id")
       .notNull()
       .references(() => customers.id, { onDelete: "cascade" }),
-    bankId: uuid("bank_id").notNull().references(() => banks.id),
+    /**
+     * Bank ưu tiên khách đủ tuổi mà chưa mở, chụp lúc ghi lý do. Bank ưu tiên
+     * đổi theo kỳ thể lệ, nên file Excel đọc cột này chứ không tính lại.
+     */
+    bankIds: uuid("bank_ids").array().notNull(),
     note: text("note").notNull(),
     /** KHOÁ ảnh trong kho, thư mục `bank-skip-reasons/`. */
     photoUrls: text("photo_urls").array().notNull(),
@@ -2178,7 +2181,8 @@ export const bankSkipReasons = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    uniqueIndex("bank_skip_reasons_customer_bank").on(t.customerId, t.bankId),
+    uniqueIndex("bank_skip_reasons_customer").on(t.customerId),
+    check("bank_skip_reasons_banks", sql`cardinality(${t.bankIds}) > 0`),
     check("bank_skip_reasons_note", sql`length(btrim(${t.note})) > 0`),
     check("bank_skip_reasons_photos", sql`cardinality(${t.photoUrls}) between 1 and 3`),
   ],

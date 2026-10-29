@@ -477,6 +477,11 @@ export function bankTierFor(bankCode: string, at: string): Tier | null {
   return rulesFor(at)?.bankTierOf(bankCode) ?? null;
 }
 
+/** Ngày bắt đầu từng kỳ, tăng dần. Câu SQL cần hạng theo ngày hồ sơ thì dựng `case` theo danh sách này. */
+export function rulePeriodStarts(): string[] {
+  return Object.keys(PERIODS).sort();
+}
+
 /**
  * Điểm của MỘT tổ hợp mã ngân hàng, theo luật của kỳ.
  *

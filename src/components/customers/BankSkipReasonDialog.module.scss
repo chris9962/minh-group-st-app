@@ -5,6 +5,27 @@
   padding-bottom: 4px;
 }
 
+.info {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+
+  div {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 8px;
+  }
+
+  dt {
+    color: var(--om-text-2);
+  }
+
+  dd {
+    margin: 0;
+    color: var(--om-text);
+  }
+}
+
 .error {
   margin: -8px 0 0;
   font-size: 12.5px;

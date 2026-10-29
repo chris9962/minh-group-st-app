@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { InsuranceProduct, MIN_BIRTH_YEAR, isRealIsoDate } from '@/lib/types';
-import { AccountType, BankAccountStatus } from './bankAccounts';
+import { AccountType, BankAccountStatus, SkipReasonCreatingAccount } from './bankAccounts';
 import { InsuranceOrderStatus } from './insuranceOrders';
 import { GiftSimulateResult, type GiftExtraSlot } from './settings';
 import { pageOf, pageParams, type Page, type PageQuery } from './pagination';
@@ -753,17 +753,15 @@ export const GivenExtra = z.object({
 });
 export type GivenExtra = z.infer<typeof GivenExtra>;
 
-/* ── Lý do không mở ngân hàng bắt buộc (chốt 2026-10-26) ──────────────── */
+/* ── Lý do không mở bank ưu tiên (chốt 2026-10-29) ───────────────────── */
 
-/** Ngân hàng khách đủ tuổi thì phải mở, không mở thì ghi lý do. Đổi ngân hàng chỉ sửa dòng này. */
-export const SKIP_REASON_BANK_CODE = 'MB';
 export const MAX_BANK_SKIP_REASON_PHOTOS = 3;
 
 export const BankSkipReasonForm = z.object({
   note: z
     .string()
     .trim()
-    .min(1, `Nhập lý do không mở ${SKIP_REASON_BANK_CODE}`)
+    .min(1, 'Nhập lý do không mở bank ưu tiên')
     .max(2000, 'Lý do tối đa 2.000 ký tự'),
   photoUrls: z
     .array(z.string().trim())
@@ -776,18 +774,22 @@ export const BankSkipReason = z.object({
   note: z.string(),
   /** `/api/images/<key>` của từng ảnh. */
   photoUrls: z.array(z.string()),
+  /** Bank ưu tiên chưa mở, chụp lúc ghi lý do. */
+  bankCodes: z.array(z.string()),
   updatedByName: z.string(),
   updatedAt: z.coerce.date(),
 });
 export type BankSkipReason = z.infer<typeof BankSkipReason>;
 
 /**
- * `needed`: khách đủ tuổi mở ngân hàng bắt buộc mà chưa có tài khoản Hoàn thành
- * của ngân hàng đó ở hồ sơ nào. Lúc đó thiếu `reason` thì không tặng quà được,
- * và không tạo được ngân hàng nào khác.
+ * `needed`: hồ sơ có ít nhất 1 tài khoản, khách đủ tuổi mở ít nhất 1 bank ưu tiên
+ * mà chưa có bank ưu tiên nào ở hồ sơ nào. Lúc đó thiếu `reason` thì không tặng
+ * quà được.
  */
 export const CustomerBankSkipReason = z.object({
   needed: z.boolean(),
+  bankCodes: z.array(z.string()),
+  creating: z.array(SkipReasonCreatingAccount),
   reason: BankSkipReason.nullable(),
 });
 export type CustomerBankSkipReason = z.infer<typeof CustomerBankSkipReason>;

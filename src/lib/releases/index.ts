@@ -22,6 +22,38 @@ const seesCompanyDashboard = (user: User) =>
  */
 export const RELEASES: Release[] = [
   {
+    id: '2026-10-30',
+    version: '2.17.0',
+    title: 'Cập nhật ngày 30/10/2026',
+    summary: 'Ghi lý do không mở bank ưu tiên thay cho lý do không mở MB, hỏi khi mở tài khoản cho khách mới và khi tặng quà.',
+    sections: [
+      {
+        title: 'Mở tài khoản ngân hàng',
+        items: [
+          'Lý do không mở MB đổi thành lý do không mở bank ưu tiên.',
+          'Khách có ít nhất 1 bank, đủ tuổi mở bank ưu tiên mà chưa có bank ưu tiên nào: ghi lý do, kèm 1-3 ảnh.',
+          'Bank ưu tiên Đang tạo tính là chưa có.',
+          'Mở tài khoản cho khách mới: khách trước chưa có bank ưu tiên thì phải hoàn thành bank ưu tiên hoặc điền lý do trước.',
+          'Chỉ xét khách trước tạo từ 30/10/2026.',
+          'Tặng quà: khách chưa có bank ưu tiên thì điền lý do trước.',
+          'Tạo khách mới không cần lý do.',
+          'Hồ sơ khách hiện các bank ưu tiên chưa mở kèm lý do.',
+        ],
+        visibleTo: (user) => can(user, 'banking', 'create'),
+      },
+      {
+        title: 'Xuất dữ liệu',
+        items: ['Báo cáo Khách không mở ngân hàng: lý do hiện khi ngân hàng đang lọc nằm trong các bank ưu tiên chưa mở.'],
+        visibleTo: (user) => canOpenPath(user, '/exports') && can(user, 'banking', 'export'),
+      },
+      {
+        title: 'Xuất Excel đơn bảo hiểm',
+        items: ['File có thêm cột Biển số xe.'],
+        visibleTo: (user) => can(user, 'insurance', 'export'),
+      },
+    ],
+  },
+  {
     id: '2026-10-27',
     version: '2.16.0',
     title: 'Cập nhật ngày 27/10/2026',
