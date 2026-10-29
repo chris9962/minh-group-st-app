@@ -14,6 +14,7 @@ import {
 import { BackButton } from "@/components/ui/BackButton";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
+import { NoteSuggestions } from "@/components/ui/NoteSuggestions";
 import { TextArea } from "@/components/ui/TextArea";
 import {
   BankSkipReasonForm,
@@ -69,6 +70,8 @@ export function BankSkipReasonDialog({
   const {
     register,
     handleSubmit,
+    watch,
+    setValue,
     formState: { errors },
   } = useForm<NoteForm>({
     shouldFocusError: false,
@@ -163,6 +166,19 @@ export function BankSkipReasonDialog({
           error={errors.note?.message}
           {...register("note")}
         />
+        {!pending && (
+          <NoteSuggestions
+            value={watch("note")}
+            options={bankCodes.flatMap((code) => [
+              `Lỗi không cài được ${code}`,
+              `Khách đã có ${code}`,
+            ])}
+            onChange={(note) =>
+              setValue("note", note, { shouldDirty: true, shouldValidate: submitted })
+            }
+            fieldLabel="lý do"
+          />
+        )}
       </form>
     </Dialog>
   );

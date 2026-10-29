@@ -1,7 +1,7 @@
 "use client";
 
-import { Plus } from "lucide-react";
 import { Checkbox } from "@/components/ui/Checkbox";
+import { NoteSuggestions } from "@/components/ui/NoteSuggestions";
 import { TextArea } from "@/components/ui/TextArea";
 import styles from "./BankAccountErrorNoteField.module.scss";
 
@@ -13,12 +13,6 @@ const COMMON_REASONS = [
   "ẢNH KHÔNG CÙNG 1 TÀI KHOẢN",
   "THIẾU ẢNH GIAO DỊCH",
 ];
-
-const partsOf = (note: string) =>
-  note
-    .split(";")
-    .map((part) => part.trim())
-    .filter(Boolean);
 
 type Props = {
   value: string;
@@ -33,9 +27,6 @@ type Props = {
  * `errorNote`, nên lý do điền sẵn từ kiểm ảnh vẫn giữ nguyên.
  */
 export function BankAccountErrorNoteField({ value, onChange, locked, onLockedChange }: Props) {
-  const parts = partsOf(value);
-  const suggestions = COMMON_REASONS.filter((reason) => !parts.includes(reason));
-
   return (
     <div className={styles.field}>
       <TextArea
@@ -46,23 +37,12 @@ export function BankAccountErrorNoteField({ value, onChange, locked, onLockedCha
         value={value}
         onChange={(event) => onChange(event.target.value)}
       />
-      {suggestions.length > 0 && (
-        <div className={styles.suggestions}>
-          <span className={styles.lead}>Gợi ý</span>
-          {suggestions.map((reason) => (
-            <button
-              key={reason}
-              type="button"
-              className={styles.chip}
-              aria-label={`Thêm "${reason}" vào lý do lỗi`}
-              onClick={() => onChange([...parts, reason].join("; "))}
-            >
-              <Plus size={14} aria-hidden />
-              {reason}
-            </button>
-          ))}
-        </div>
-      )}
+      <NoteSuggestions
+        value={value}
+        options={COMMON_REASONS}
+        onChange={onChange}
+        fieldLabel="lý do lỗi"
+      />
       <Checkbox checked={locked} onCheckedChange={onLockedChange} label="Không cho sửa" />
     </div>
   );
