@@ -223,7 +223,8 @@ function SplitForm({ data, onDepartmentChange }: { data: StaffBlanks; onDepartme
                           variant="secondary"
                           icon
                           aria-label={`${r.fullName}: phát thêm phôi`}
-                          onClick={() => setAdjusting({ key: r.key, fullName: r.fullName, sign: 1 })}
+                          disabled={left <= 0}
+                          onClick={() => setAdjusting({ key: r.key, fullName: r.fullName, sign: 1, max: left })}
                         >
                           <Plus size={16} aria-hidden />
                         </Button>
