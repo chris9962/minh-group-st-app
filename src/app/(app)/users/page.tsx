@@ -184,6 +184,9 @@ const ACCOUNT_STATUS_FILTERS: { value: StaffQuery["status"]; label: string }[] =
   { value: "all", label: "Tất cả trạng thái" },
 ];
 
+const lockedNote = (count: number): string | undefined =>
+  count > 0 ? `gồm ${count} người đã khoá tài khoản` : undefined;
+
 const monthFromUrl = (value: string | null): string =>
   value && /^\d{4}-(0[1-9]|1[0-2])$/.test(value) ? value : thisMonth();
 
@@ -566,13 +569,28 @@ export default function PeoplePage() {
         {data && summary && (
           <>
             <div className={styles.stats}>
-              <StatCard value={summary.active} label="nhân viên" />
-              <StatCard value={summary.onTarget} label="đã đạt chỉ tiêu" />
+              <StatCard
+                value={summary.active}
+                label="nhân viên"
+                detail={lockedNote(summary.locked)}
+              />
+              <StatCard
+                value={summary.onTarget}
+                label="đã đạt chỉ tiêu"
+                detail={lockedNote(summary.lockedOnTarget)}
+              />
               <StatCard
                 value={summary.offTarget}
                 label="chưa đạt"
                 tone={summary.offTarget > 0 ? "attention" : "normal"}
-                detail={data.daysLeft > 0 ? `còn ${data.daysLeft} ngày` : undefined}
+                detail={
+                  [
+                    data.daysLeft > 0 ? `còn ${data.daysLeft} ngày` : undefined,
+                    lockedNote(summary.locked - summary.lockedOnTarget),
+                  ]
+                    .filter(Boolean)
+                    .join(" - ") || undefined
+                }
               />
             </div>
 

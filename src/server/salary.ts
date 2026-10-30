@@ -24,6 +24,7 @@ import {
   users,
 } from "./db/schema";
 import { multiBankComboCounts, socialInsuranceGroupsOf } from "./kpi";
+import { reachMemberWhere, reachPointsExpr, targetExpr } from "./reach";
 import { countQuotaAccounts, quotaConfigOf } from "./quota";
 
 export type SalaryBreakdown = {
@@ -93,6 +94,8 @@ type StaffScore = {
   /** Bị loại khỏi điểm phòng của tháng. */
   excluded: boolean;
 };
+
+type ReachRow = { departmentId: string; reachPoints: number; target: number };
 
 /**
  * Lương của tháng: tháng đã chốt đọc số đã lưu, tháng chưa chốt tính từ dữ
@@ -258,6 +261,30 @@ async function liveSalaries(
           ),
         ) as StaffScore[]
     : [];
+  // Cùng luật đếm với thẻ "đã đạt chỉ tiêu"; `reachMemberWhere` đã bỏ Nhân viên bị loại.
+  const reachRows: ReachRow[] = relevantDepartmentIds.length
+    ? await db
+        .select({
+          departmentId: staffRoster.departmentId,
+          reachPoints: reachPointsExpr(points),
+          target: sql<number>`${targetExpr(yearMonth, staffRoster.departmentId)}::float`,
+        })
+        .from(users)
+        .innerJoin(
+          staffRoster,
+          and(eq(staffRoster.userId, users.id), eq(staffRoster.yearMonth, yearMonth)),
+        )
+        .leftJoin(
+          kpiScores,
+          and(eq(kpiScores.userId, users.id), eq(kpiScores.yearMonth, yearMonth)),
+        )
+        .where(
+          and(
+            reachMemberWhere(yearMonth),
+            inArray(staffRoster.departmentId, relevantDepartmentIds),
+          ),
+        ) as ReachRow[]
+    : [];
 
   const { from, to } = monthRange(yearMonth);
   const [userDayRows, departmentDayRows] = await Promise.all([
@@ -305,6 +332,13 @@ async function liveSalaries(
     const kept = staffByDepartment.get(row.departmentId);
     if (kept) kept.push(row.points);
     else staffByDepartment.set(row.departmentId, [row.points]);
+  }
+  const reachByDepartment = new Map<string, { points: number; target: number }[]>();
+  for (const row of reachRows) {
+    const member = { points: row.reachPoints, target: row.target };
+    const kept = reachByDepartment.get(row.departmentId);
+    if (kept) kept.push(member);
+    else reachByDepartment.set(row.departmentId, [member]);
   }
 
   const quota = await quotaProgressFor(yearMonth, subjects, managedRows);
@@ -360,6 +394,7 @@ async function liveSalaries(
       if (managed.length > 0)
         salary = rules.deputyDirector({
           teamPoints: managed.flatMap((departmentId) => staffByDepartment.get(departmentId) ?? []),
+          members: managed.flatMap((departmentId) => reachByDepartment.get(departmentId) ?? []),
           branchPoints: managed.reduce(
             (sum, departmentId) => sum + (branchPointsByDepartment.get(departmentId) ?? 0),
             0,

@@ -106,9 +106,12 @@ export type StaffRow = z.infer<typeof StaffRow>;
 
 export const StaffSummary = z.object({
   active: z.number(),
+  /** Người đã khoá có điểm trong tháng, đã nằm trong `active`. */
   locked: z.number(),
   onTarget: z.number(),
   offTarget: z.number(),
+  /** Người đã khoá đạt chỉ tiêu, đã nằm trong `onTarget`. */
+  lockedOnTarget: z.number(),
 });
 export type StaffSummary = z.infer<typeof StaffSummary>;
 

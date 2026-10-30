@@ -46,6 +46,7 @@ import {
 } from "./db/schema";
 import { appsInstalledCount, variantOfAccount } from "./appCounted";
 import { salaryForUsers } from "./salary";
+import { targetExpr } from "./reach";
 import { branchSummaryFor } from "./branch";
 import { isMonthClosed } from "./closedMonths";
 
@@ -187,24 +188,7 @@ export const adjustmentExpr = (yearMonth: string) =>
 export const pointsExpr = (yearMonth: string) =>
   sql<number>`(coalesce(${kpiScores.bankingPoints}, 0) + coalesce(${kpiScores.servicePoints}, 0) + coalesce(${kpiScores.socialInsurancePoints}, 0) + ${adjustmentExpr(yearMonth)})::float`;
 
-/**
- * Chỉ tiêu của ĐÚNG phòng người này, viết thẳng trong SQL.
- *
- * Cùng chuỗi rơi với `targetsFor`, chỉ khác là chạy trong database. Người không
- * thuộc phòng nào (ban giám đốc) có `department_id` null nên vế đầu không khớp
- * dòng nào và rơi thẳng xuống mốc chung — đúng như bản JS.
- */
-export const targetExpr = (
-  yearMonth: string,
-  departmentId: AnyColumn | SQL = users.departmentId,
-) => sql<number>`coalesce(
-  (select t.monthly_points from ${kpiTargets} t
-    where t.year_month = ${yearMonth} and t.department_id = ${departmentId}),
-  (select t.monthly_points from ${kpiTargets} t
-    where t.department_id is null and t.year_month <= ${yearMonth}
-    order by t.year_month desc limit 1),
-  100
-)`;
+export { targetExpr };
 
 /**
  * Bậc chức vụ viết trong SQL — bản `ROLE_RANK` của `lib/types.ts`, sinh từ

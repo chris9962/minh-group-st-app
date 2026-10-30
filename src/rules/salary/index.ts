@@ -92,6 +92,12 @@ export type FixedSalaryInput = {
 export type DeputyDirectorSalaryInput = {
   /** Điểm của từng nhân viên có điểm khác 0 trong tháng ở các phòng phụ trách, gồm cả người đã khoá. */
   teamPoints: number[];
+  /**
+   * Người xét đạt chỉ tiêu ở các phòng phụ trách, cùng luật với thẻ "đã đạt chỉ
+   * tiêu" (`server/reach.ts`): Nhân viên, Trưởng, Phó phòng, gồm cả người đã khoá.
+   * Kỳ trước 2026-10 bỏ qua.
+   */
+  members: { points: number; target: number }[];
   /** Tổng điểm các phòng phụ trách, gồm cả Phó phòng và người đã nghỉ có điểm. */
   branchPoints: number;
   /** Chỉ tiêu từng phòng phụ trách. Kỳ trước 2026-09 bỏ qua. */

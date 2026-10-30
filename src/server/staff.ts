@@ -69,6 +69,7 @@ import {
   staffSearchWhere,
   targetExpr,
 } from "./people";
+import { reachMemberWhere, reachPointsExpr } from "./reach";
 import { recomputeGiftCase } from "./gift";
 import { relationsFor } from "./users";
 import { salaryForUsers } from "./salary";
@@ -156,7 +157,7 @@ export async function staffFor(
     return {
       summaryMonth,
       daysLeft,
-      summary: { active: 0, locked: 0, onTarget: 0, offTarget: 0 },
+      summary: { active: 0, locked: 0, onTarget: 0, offTarget: 0, lockedOnTarget: 0 },
       departmentPoints: null,
       monthClosed: false,
       page: { rows: [], total: 0 },
@@ -166,7 +167,7 @@ export async function staffFor(
    * Phạm vi + ô lọc đơn vị + trạng thái tài khoản, tất cả theo NHÂN SỰ CỦA
    * THÁNG đang xem (`staffRoster`, chốt 2026-09-30): phòng, chức vụ, loại hợp
    * đồng, đang làm hay đã khoá đều là của tháng đó, không phải hồ sơ hiện tại.
-   * Thẻ tóm tắt và bảng cùng áp dụng trạng thái đang chọn.
+   * Thẻ tóm tắt không áp trạng thái đang chọn, xem `summaryScope`.
    *
    * Phép nối `staffRoster` ở ba câu dưới cũng bỏ luôn người chưa có tài khoản
    * trong tháng đang xem: họ không có dòng nhân sự của tháng đó.
@@ -177,6 +178,13 @@ export async function staffFor(
     query.departmentId ? eq(staffRoster.departmentId, query.departmentId) : undefined,
     query.status === "all" ? undefined : eq(staffRoster.active, query.status === "active"),
   );
+  // Thẻ tóm tắt đếm cùng luật với dòng "Nhân viên đạt 100 điểm" của lương PGĐ (chốt 2026-10-30).
+  const summaryScope = and(
+    visible === null ? undefined : inArray(staffRoster.departmentId, visible),
+    query.departmentId ? eq(staffRoster.departmentId, query.departmentId) : undefined,
+    reachMemberWhere(summaryMonth),
+  );
+  const reachPoints = reachPointsExpr(points);
 
   const where = and(
     inScope,
@@ -252,11 +260,12 @@ export async function staffFor(
     // không có nghĩa công ty chỉ còn một người.
     db
       .select({
-        active: sql<number>`count(*) filter (where ${staffRoster.active})::int`,
-        locked: sql<number>`count(*) filter (where not ${staffRoster.active})::int`,
-        // Chỉ người đang làm mới có chỉ tiêu. Tính cả tài khoản đã khoá thì họ
-        // vào với 0 điểm và "chưa đạt" phồng lên mà không ai thấy vì sao.
-        onTarget: sql<number>`count(*) filter (where ${staffRoster.active} and ${points} >= ${target})::int`,
+        // Người đã khoá chỉ vào khi có điểm trong tháng: không thì họ vào với 0
+        // điểm và "chưa đạt" phồng lên mà không ai thấy vì sao.
+        active: sql<number>`count(*) filter (where ${staffRoster.active} or ${reachPoints} <> 0)::int`,
+        locked: sql<number>`count(*) filter (where not ${staffRoster.active} and ${reachPoints} <> 0)::int`,
+        onTarget: sql<number>`count(*) filter (where ${reachPoints} >= ${target})::int`,
+        lockedOnTarget: sql<number>`count(*) filter (where not ${staffRoster.active} and ${reachPoints} >= ${target})::int`,
       })
       .from(users)
       .innerJoin(staffRoster, inMonth)
@@ -264,7 +273,7 @@ export async function staffFor(
         kpiScores,
         and(eq(kpiScores.userId, users.id), eq(kpiScores.yearMonth, summaryMonth)),
       )
-      .where(inScope),
+      .where(summaryScope),
   ]);
 
   const accounts = await toAccounts(
@@ -322,7 +331,13 @@ export async function staffFor(
   return {
     summaryMonth,
     daysLeft,
-    summary: { active, locked: counts?.locked ?? 0, onTarget, offTarget: active - onTarget },
+    summary: {
+      active,
+      locked: counts?.locked ?? 0,
+      onTarget,
+      offTarget: active - onTarget,
+      lockedOnTarget: counts?.lockedOnTarget ?? 0,
+    },
     departmentPoints,
     monthClosed,
     page: {

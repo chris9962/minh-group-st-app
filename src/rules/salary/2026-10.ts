@@ -285,7 +285,7 @@ export function manager({
 }
 
 export function deputyDirector({
-  teamPoints,
+  members,
   branchPoints,
   departmentQuotas = [],
 }: DeputyDirectorSalaryInput): SalaryResult {
@@ -301,7 +301,8 @@ export function deputyDirector({
       20,
     ),
   ];
-  const reached = teamPoints.filter((p) => p >= 100).length;
+  // Từ kỳ 2026-10 đếm cả Trưởng, Phó phòng và so với chỉ tiêu phòng thay mốc 100 (chốt 2026-10-30).
+  const reached = members.filter((m) => m.points >= m.target).length;
   const managementPoints = 3 * reached;
   const managementPay = managementPoints * 150_000;
   const branchBonus =
