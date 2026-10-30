@@ -1,7 +1,7 @@
 "use client";
 
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Layers, Users } from "lucide-react";
+import { Layers, Minus, Plus, Users } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { ErrorState } from "@/components/ui/ErrorState";
@@ -20,6 +20,7 @@ import {
 import { digitsOnly } from "@/lib/numberField";
 import { errorMessage, toast } from "@/lib/toast";
 import { ROLE_LABEL } from "@/lib/types";
+import { BlankAdjustDialog } from "./BlankAdjustDialog";
 import { BlankLeft } from "./BlankLeft";
 import { BlankMix } from "./BlankMix";
 import styles from "./InsuranceBlanks.module.scss";
@@ -58,6 +59,9 @@ function SplitForm({ data, onDepartmentChange }: { data: StaffBlanks; onDepartme
   );
   const [issued, setIssued] = useState<Record<string, string>>(initialIssued);
   const [used, setUsed] = useState<Record<string, string>>(initialUsed);
+  const [adjusting, setAdjusting] = useState<{ key: string; fullName: string; sign: 1 | -1; max?: number } | null>(
+    null,
+  );
 
   const issuedOf = (key: string) => Number(issued[key] || 0);
   const usedInput = (key: string) => (used[key] ?? "") === "" ? null : Number(used[key]);
@@ -190,16 +194,41 @@ function SplitForm({ data, onDepartmentChange }: { data: StaffBlanks; onDepartme
                   </th>
                   <td className={styles.number}>{r.cell.opening}</td>
                   <td>
-                    <input
-                      className={`input ${styles.cellInput}`}
-                      inputMode="numeric"
-                      aria-label={`${r.fullName}: số phôi đã phát`}
-                      value={issued[r.key] ?? ""}
-                      disabled={locked}
-                      onChange={(e) =>
-                        setIssued((prev) => ({ ...prev, [r.key]: digitsOnly(e.target.value).slice(0, 9) }))
-                      }
-                    />
+                    <div className={styles.cellAdjust}>
+                      {!locked && (
+                        <Button
+                          variant="secondary"
+                          icon
+                          aria-label={`${r.fullName}: trừ phôi đã phát`}
+                          disabled={issuedOf(r.key) === 0}
+                          onClick={() =>
+                            setAdjusting({ key: r.key, fullName: r.fullName, sign: -1, max: issuedOf(r.key) })
+                          }
+                        >
+                          <Minus size={16} aria-hidden />
+                        </Button>
+                      )}
+                      <input
+                        className={`input ${styles.cellInput}`}
+                        inputMode="numeric"
+                        aria-label={`${r.fullName}: số phôi đã phát`}
+                        value={issued[r.key] ?? ""}
+                        disabled={locked}
+                        onChange={(e) =>
+                          setIssued((prev) => ({ ...prev, [r.key]: digitsOnly(e.target.value).slice(0, 9) }))
+                        }
+                      />
+                      {!locked && (
+                        <Button
+                          variant="secondary"
+                          icon
+                          aria-label={`${r.fullName}: phát thêm phôi`}
+                          onClick={() => setAdjusting({ key: r.key, fullName: r.fullName, sign: 1 })}
+                        >
+                          <Plus size={16} aria-hidden />
+                        </Button>
+                      )}
+                    </div>
                   </td>
                   <td>
                     <input
@@ -239,6 +268,22 @@ function SplitForm({ data, onDepartmentChange }: { data: StaffBlanks; onDepartme
             Lưu
           </Button>
         </div>
+      )}
+
+      {adjusting && (
+        <BlankAdjustDialog
+          title={`${adjusting.sign > 0 ? "Phát thêm phôi" : "Trừ phôi đã phát"} - ${adjusting.fullName}`}
+          label={`Số phôi ${data.types.find((t) => t.id === typeId)?.name ?? ""} ${adjusting.sign > 0 ? "phát thêm" : "trừ ra"}`}
+          submitLabel={adjusting.sign > 0 ? "Cộng thêm" : "Trừ ra"}
+          max={adjusting.max}
+          onSubmit={(quantity) =>
+            setIssued((prev) => {
+              const next = Number(prev[adjusting.key] || 0) + adjusting.sign * quantity;
+              return { ...prev, [adjusting.key]: next ? String(next) : "" };
+            })
+          }
+          onClose={() => setAdjusting(null)}
+        />
       )}
     </>
   );

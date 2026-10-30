@@ -31,7 +31,8 @@ export const RELEASES: Release[] = [
         title: 'Cấp phôi bảo hiểm',
         items: [
           'Màn mới Cấu hình > Cấp phôi BH: văn phòng cấp phôi cho phòng theo tháng.',
-          'Phôi còn lại cộng dồn sang tháng sau, không chặn việc tạo đơn.',
+          'Phôi còn lại cộng dồn sang tháng sau.',
+          'Người hết phôi vẫn tạo được đơn bảo hiểm, số phôi còn lại thành số âm.',
         ],
         visibleTo: (user) => canOpenPath(user, '/settings/insurance-blanks'),
       },
@@ -39,7 +40,8 @@ export const RELEASES: Release[] = [
         title: 'Phát phôi bảo hiểm',
         items: [
           'Màn Bảo hiểm có nút Phát phôi: Trưởng phòng nhập phôi đã phát và đã sử dụng của từng người.',
-          'Phôi còn lại cộng dồn sang tháng sau, không chặn việc tạo đơn.',
+          'Phôi còn lại cộng dồn sang tháng sau.',
+          'Người hết phôi vẫn tạo được đơn bảo hiểm, số phôi còn lại thành số âm.',
           'Hiện tỉ lệ đơn điện/xe của từng người và của phòng, cảnh báo khi dưới mục tiêu.',
         ],
         visibleTo: (user) => can(user, 'insurance', 'split-blanks'),

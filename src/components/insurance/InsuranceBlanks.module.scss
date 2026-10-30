@@ -24,6 +24,12 @@
   width: 90px;
 }
 
+.cellAdjust {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .number {
   white-space: nowrap;
 }
@@ -64,7 +70,7 @@
 }
 
 .warn {
-  color: var(--om-orange-ink);
+  color: var(--om-orange);
   font-weight: 600;
 }
 

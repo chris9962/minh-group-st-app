@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Building2, Target } from "lucide-react";
+import { Building2, Minus, Plus, Target } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { ErrorState } from "@/components/ui/ErrorState";
@@ -18,6 +18,7 @@ import {
 } from "@/lib/api/insuranceBlanks";
 import { digitsOnly } from "@/lib/numberField";
 import { errorMessage, toast } from "@/lib/toast";
+import { BlankAdjustDialog } from "./BlankAdjustDialog";
 import { BlankLeft } from "./BlankLeft";
 import { BlankMix } from "./BlankMix";
 import styles from "./InsuranceBlanks.module.scss";
@@ -48,6 +49,12 @@ function AllocationForm({ data }: { data: DepartmentBlanks }) {
   );
   const [quantities, setQuantities] = useState<Record<string, string>>(initial);
   const quantityOf = (key: string) => Number(quantities[key] || 0);
+  const [adjusting, setAdjusting] = useState<{
+    key: string;
+    departmentName: string;
+    sign: 1 | -1;
+    max?: number;
+  } | null>(null);
 
   const form = {
     target: { electricParts: Number(electric || 0), motorbikeParts: Number(motorbike || 0) },
@@ -78,8 +85,11 @@ function AllocationForm({ data }: { data: DepartmentBlanks }) {
   const locked = !data.editable;
   const rows = data.rows.map((r) => {
     const cell = r.cells.find((c) => c.blankTypeId === typeId)!;
-    const allocated = quantityOf(keyOf(r.departmentId, typeId));
-    return { ...r, cell, allocated, closing: cell.openingUnallocated + allocated - cell.issued };
+    const key = keyOf(r.departmentId, typeId);
+    const allocated = quantityOf(key);
+    const closing = cell.openingUnallocated + allocated - cell.issued;
+    // Trừ ra không được làm phòng còn ít hơn số đã phát cho nhân viên, cùng luật với `belowIssued`.
+    return { ...r, cell, key, allocated, closing, removable: Math.max(0, Math.min(allocated, closing)) };
   });
   const sum = (pick: (row: (typeof rows)[number]) => number) => rows.reduce((s, r) => s + pick(r), 0);
   // Hạ số cấp xuống dưới số phòng đã phát thì khoá Lưu ngay; máy chủ cũng chặn.
@@ -142,19 +152,41 @@ function AllocationForm({ data }: { data: DepartmentBlanks }) {
                   <th scope="row">{r.departmentName}</th>
                   <td className={styles.number}>{r.cell.openingUnallocated}</td>
                   <td>
-                    <input
-                      className={`input ${styles.cellInput}`}
-                      inputMode="numeric"
-                      aria-label={`${r.departmentName}: số phôi cấp`}
-                      value={quantities[keyOf(r.departmentId, typeId)] ?? ""}
-                      disabled={locked}
-                      onChange={(e) =>
-                        setQuantities((prev) => ({
-                          ...prev,
-                          [keyOf(r.departmentId, typeId)]: digitsOnly(e.target.value).slice(0, 9),
-                        }))
-                      }
-                    />
+                    <div className={styles.cellAdjust}>
+                      {!locked && (
+                        <Button
+                          variant="secondary"
+                          icon
+                          aria-label={`${r.departmentName}: trừ phôi đã cấp`}
+                          disabled={r.removable === 0}
+                          onClick={() =>
+                            setAdjusting({ key: r.key, departmentName: r.departmentName, sign: -1, max: r.removable })
+                          }
+                        >
+                          <Minus size={16} aria-hidden />
+                        </Button>
+                      )}
+                      <input
+                        className={`input ${styles.cellInput}`}
+                        inputMode="numeric"
+                        aria-label={`${r.departmentName}: số phôi cấp`}
+                        value={quantities[r.key] ?? ""}
+                        disabled={locked}
+                        onChange={(e) =>
+                          setQuantities((prev) => ({ ...prev, [r.key]: digitsOnly(e.target.value).slice(0, 9) }))
+                        }
+                      />
+                      {!locked && (
+                        <Button
+                          variant="secondary"
+                          icon
+                          aria-label={`${r.departmentName}: cấp thêm phôi`}
+                          onClick={() => setAdjusting({ key: r.key, departmentName: r.departmentName, sign: 1 })}
+                        >
+                          <Plus size={16} aria-hidden />
+                        </Button>
+                      )}
+                    </div>
                   </td>
                   <td className={styles.number}>{r.cell.issued}</td>
                   <td className={styles.number}>
@@ -184,6 +216,22 @@ function AllocationForm({ data }: { data: DepartmentBlanks }) {
             Lưu
           </Button>
         </div>
+      )}
+
+      {adjusting && (
+        <BlankAdjustDialog
+          title={`${adjusting.sign > 0 ? "Cấp thêm phôi" : "Trừ phôi đã cấp"} - ${adjusting.departmentName}`}
+          label={`Số phôi ${data.types.find((t) => t.id === typeId)?.name ?? ""} ${adjusting.sign > 0 ? "cấp thêm" : "trừ ra"}`}
+          submitLabel={adjusting.sign > 0 ? "Cộng thêm" : "Trừ ra"}
+          max={adjusting.max}
+          onSubmit={(quantity) =>
+            setQuantities((prev) => ({
+              ...prev,
+              [adjusting.key]: toText(Number(prev[adjusting.key] || 0) + adjusting.sign * quantity),
+            }))
+          }
+          onClose={() => setAdjusting(null)}
+        />
       )}
     </>
   );
