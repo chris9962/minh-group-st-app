@@ -105,13 +105,15 @@ export const StaffRow = StaffAccount.extend({
 export type StaffRow = z.infer<typeof StaffRow>;
 
 export const StaffSummary = z.object({
+  /** Mọi người đang làm trong phạm vi, kể cả phòng văn phòng; `onTarget` + `offTarget` không cộng ra số này. */
   active: z.number(),
-  /** Người đã khoá có điểm trong tháng, đã nằm trong `active`. */
   locked: z.number(),
   onTarget: z.number(),
   offTarget: z.number(),
   /** Người đã khoá đạt chỉ tiêu, đã nằm trong `onTarget`. */
   lockedOnTarget: z.number(),
+  /** Người đã khoá có điểm dương mà chưa đạt, đã nằm trong `offTarget`. */
+  lockedOffTarget: z.number(),
 });
 export type StaffSummary = z.infer<typeof StaffSummary>;
 

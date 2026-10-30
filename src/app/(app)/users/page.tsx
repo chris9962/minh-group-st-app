@@ -3,7 +3,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { Lock, Pencil, Plus, Unlock, Users } from "lucide-react";
 import { SkeletonStats, SkeletonTable } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
@@ -184,8 +184,13 @@ const ACCOUNT_STATUS_FILTERS: { value: StaffQuery["status"]; label: string }[] =
   { value: "all", label: "Tất cả trạng thái" },
 ];
 
-const lockedNote = (count: number): string | undefined =>
-  count > 0 ? `gồm ${count} người đã khoá tài khoản` : undefined;
+const noteLines = (lines: (string | false)[]): React.ReactNode =>
+  lines.filter(Boolean).map((line, index) => (
+    <Fragment key={index}>
+      {index > 0 && <br />}
+      {line}
+    </Fragment>
+  ));
 
 const monthFromUrl = (value: string | null): string =>
   value && /^\d{4}-(0[1-9]|1[0-2])$/.test(value) ? value : thisMonth();
@@ -572,25 +577,27 @@ export default function PeoplePage() {
               <StatCard
                 value={summary.active}
                 label="nhân viên"
-                detail={lockedNote(summary.locked)}
+                detail="đang hoạt động, mọi phòng"
               />
               <StatCard
                 value={summary.onTarget}
                 label="đã đạt chỉ tiêu"
-                detail={lockedNote(summary.lockedOnTarget)}
+                detail={noteLines([
+                  "chỉ phòng kinh doanh",
+                  summary.lockedOnTarget > 0 &&
+                    `gồm ${summary.lockedOnTarget} người đã khoá tài khoản`,
+                ])}
               />
               <StatCard
                 value={summary.offTarget}
                 label="chưa đạt"
                 tone={summary.offTarget > 0 ? "attention" : "normal"}
-                detail={
-                  [
-                    data.daysLeft > 0 ? `còn ${data.daysLeft} ngày` : undefined,
-                    lockedNote(summary.locked - summary.lockedOnTarget),
-                  ]
-                    .filter(Boolean)
-                    .join(" - ") || undefined
-                }
+                detail={noteLines([
+                  data.daysLeft > 0 && `còn ${data.daysLeft} ngày`,
+                  "chỉ phòng kinh doanh",
+                  summary.lockedOffTarget > 0 &&
+                    `gồm ${summary.lockedOffTarget} người đã khoá tài khoản có điểm`,
+                ])}
               />
             </div>
 
