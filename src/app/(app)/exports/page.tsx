@@ -56,7 +56,7 @@ import { fetchProvinces } from "@/lib/api/wardCatalog";
 import { useAddressSuggestions } from "@/lib/useAddressSuggestions";
 import { EXCEL_GROUP_COLORS, exportExcel, exportExcelSheets, type ExcelColumn, type ExcelSheet } from "@/lib/excel";
 import { formatDate, formatDateTime } from "@/lib/format";
-import { can, scopeFor } from "@/lib/permissions";
+import { can, scopeFor, visibleDepartmentIds } from "@/lib/permissions";
 import {
   INSURANCE_STATUS_LABEL,
   type InsuranceOrderStatus,
@@ -140,7 +140,7 @@ const REPORTS: { id: ReportId; label: string; module: ModuleKey; group: ReportGr
 const FIXED_SHAPE: ReportId[] = ["order-stats", "work-days", "bank-not-opened"];
 
 /** File có số của mọi phòng, nên route đòi `staff:export` phạm vi `company`. */
-const COMPANY_ONLY: ReportId[] = ["work-days", "salary", "directed-accounts"];
+const COMPANY_ONLY: ReportId[] = ["salary", "directed-accounts"];
 
 /**
  * Điều kiện này phải khớp chốt của route xuất tương ứng; lệch nhau thì người
@@ -583,6 +583,12 @@ export default function ExportsPage() {
     queryFn: fetchReferralCodeOptions,
   });
   const { data: departments = [] } = useQuery({ queryKey: ["departments"], queryFn: fetchDepartments });
+  const staffExportScope = scopeFor(user, "staff", "export");
+  const workDayVisible = staffExportScope ? visibleDepartmentIds(user, staffExportScope) : [];
+  const workDayDepartments =
+    workDayVisible === null ? departments : departments.filter((d) => workDayVisible.includes(d.id));
+  // Ô Phòng dùng chung giữa các báo cáo, nên phòng chọn ở báo cáo khác có thể nằm ngoài phạm vi ngày công.
+  const workDayDepartmentId = workDayDepartments.some((d) => d.id === departmentId) ? departmentId : "";
   const { data: serviceTypes = [] } = useQuery({ queryKey: ["service-types"], queryFn: fetchServiceTypes });
   const { data: provinces = [] } = useQuery({ queryKey: ["provinces"], queryFn: fetchProvinces });
   const wards = provinces.flatMap((p) => p.wards);
@@ -951,7 +957,7 @@ export default function ExportsPage() {
     },
 
     async "work-days"() {
-      const rows = await fetchWorkDayExport(month, departmentId);
+      const rows = await fetchWorkDayExport(month, workDayDepartmentId);
       const [year, mm] = month.split("-").map(Number);
       const dayCount = new Date(year, mm, 0).getDate();
       const dayColumns: ExcelColumn<WorkDayExportRow>[] = Array.from({ length: dayCount }, (_, i) => ({
@@ -1328,13 +1334,18 @@ export default function ExportsPage() {
                     </span>
                     <MonthPicker value={month} onChange={setMonth} />
                   </div>
-                  <Select
-                    block
-                    label="Phòng"
-                    value={departmentId}
-                    onChange={setDepartmentId}
-                    options={[{ value: "", label: "Tất cả phòng" }, ...departments.map((d) => ({ value: d.id, label: d.name }))]}
-                  />
+                  {workDayDepartments.length > 1 && (
+                    <Select
+                      block
+                      label="Phòng"
+                      value={workDayDepartmentId}
+                      onChange={setDepartmentId}
+                      options={[
+                        { value: "", label: "Tất cả phòng" },
+                        ...workDayDepartments.map((d) => ({ value: d.id, label: d.name })),
+                      ]}
+                    />
+                  )}
                 </>
               )}
 

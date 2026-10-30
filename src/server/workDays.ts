@@ -236,12 +236,14 @@ const ROLE_ORDER: Record<string, number> = { head: 0, "deputy-head": 1, staff: 2
  * nên ai cũng đọc ngày của chính mình.
  *
  * `departmentId` rỗng là mọi phòng; có thì chỉ lấy người thuộc phòng đó TRONG
- * tháng xuất.
+ * tháng xuất. `visible` là phạm vi quyền, `null` là toàn công ty.
  */
 export async function listWorkDayExport(
   yearMonth: string,
   departmentId = "",
+  visible: string[] | null = null,
 ): Promise<WorkDayExportRow[]> {
+  if (visible !== null && visible.length === 0) return [];
   const { from, to } = monthRange(yearMonth);
   const [people, dayRows] = await Promise.all([
     // Phòng, chức vụ và trạng thái của từng người TRONG tháng xuất.
@@ -264,6 +266,7 @@ export async function listWorkDayExport(
       .where(
         and(
           inArray(staffRoster.role, ["staff", "head", "deputy-head"]),
+          visible === null ? undefined : inArray(staffRoster.departmentId, visible),
           departmentId ? eq(staffRoster.departmentId, departmentId) : undefined,
         ),
       ),

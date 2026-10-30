@@ -44,6 +44,11 @@ export const RELEASES: Release[] = [
         ],
         visibleTo: (user) => can(user, 'insurance', 'split-blanks'),
       },
+      {
+        title: 'Xuất dữ liệu',
+        items: ['Thêm báo cáo Ngày công của các phòng mình quản lý.'],
+        visibleTo: (user) => can(user, 'staff', 'export') && scopeFor(user, 'staff', 'export') !== 'company',
+      },
     ],
   },
   {
