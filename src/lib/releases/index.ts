@@ -22,6 +22,31 @@ const seesCompanyDashboard = (user: User) =>
  */
 export const RELEASES: Release[] = [
   {
+    id: '2026-10-31',
+    version: '2.18.0',
+    title: 'Cập nhật ngày 31/10/2026',
+    summary: 'Thêm màn Cấp phôi, Phát phôi bảo hiểm theo tháng.',
+    sections: [
+      {
+        title: 'Cấp phôi bảo hiểm',
+        items: [
+          'Màn mới Cấu hình > Cấp phôi BH: văn phòng cấp phôi cho phòng theo tháng.',
+          'Phôi còn lại cộng dồn sang tháng sau, không chặn việc tạo đơn.',
+        ],
+        visibleTo: (user) => canOpenPath(user, '/settings/insurance-blanks'),
+      },
+      {
+        title: 'Phát phôi bảo hiểm',
+        items: [
+          'Màn Bảo hiểm có nút Phát phôi: Trưởng phòng nhập phôi đã phát và đã sử dụng của từng người.',
+          'Phôi còn lại cộng dồn sang tháng sau, không chặn việc tạo đơn.',
+          'Hiện tỉ lệ đơn điện/xe của từng người và của phòng, cảnh báo khi dưới mục tiêu.',
+        ],
+        visibleTo: (user) => can(user, 'insurance', 'split-blanks'),
+      },
+    ],
+  },
+  {
     id: '2026-10-30',
     version: '2.17.0',
     title: 'Cập nhật ngày 30/10/2026',

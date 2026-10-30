@@ -89,6 +89,9 @@ export const actionKey = pgEnum("action_key", [
   "lookup",
   // đặc biệt · staff: loại nhân viên khỏi điểm phòng theo tháng (migration 0143)
   "exclude-department-points",
+  // đặc biệt · insurance: cấp phôi cho phòng, chia phôi cho nhân viên (migration 0154)
+  "allocate-blanks",
+  "split-blanks",
 ]);
 
 export const scopeKey = pgEnum("scope_key", ["own", "managed", "company"]);
@@ -2185,6 +2188,84 @@ export const bankSkipReasons = pgTable(
     check("bank_skip_reasons_banks", sql`cardinality(${t.bankIds}) > 0`),
     check("bank_skip_reasons_note", sql`length(btrim(${t.note})) > 0`),
     check("bank_skip_reasons_photos", sql`cardinality(${t.photoUrls}) between 1 and 3`),
+  ],
+);
+
+/* ── Phôi bảo hiểm theo tháng (migration 0154, chốt 2026-10-29) ───────── */
+
+/**
+ * Danh mục phôi. Đơn Hoàn thành dùng 1 phôi của loại khớp `product`; `sum_insured`
+ * null là khớp mọi đơn của sản phẩm đó, còn đơn điện chia loại theo số tiền bảo
+ * hiểm 40 hay 80 triệu. Dòng danh mục nạp bằng `db:seed-insurance-blanks`.
+ */
+export const insuranceBlankTypes = pgTable("insurance_blank_types", {
+  id: id(),
+  code: text("code").notNull().unique(),
+  name: text("name").notNull(),
+  product: insuranceProduct("product").notNull(),
+  sumInsured: integer("sum_insured"),
+  sort: smallint("sort").notNull().default(0),
+  active: boolean("active").notNull().default(true),
+});
+
+/** Số phôi văn phòng cấp THÊM cho một phòng trong một tháng. Cấp 0 là xoá dòng. */
+export const insuranceBlankDepartmentQuotas = pgTable(
+  "insurance_blank_department_quotas",
+  {
+    yearMonth: text("year_month").notNull(),
+    departmentId: uuid("department_id").notNull().references(() => departments.id),
+    blankTypeId: uuid("blank_type_id").notNull().references(() => insuranceBlankTypes.id),
+    quantity: integer("quantity").notNull(),
+    updatedBy: uuid("updated_by").references(() => users.id, { onDelete: "set null" }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ name: "insurance_blank_department_quotas_pk", columns: [t.yearMonth, t.departmentId, t.blankTypeId] }),
+    check("insurance_blank_department_quotas_quantity", sql`${t.quantity} > 0`),
+  ],
+);
+
+/**
+ * Trưởng phòng nhập cho một người trong một tháng: số đã phát và số đã sử dụng
+ * thực tế. `used` null là dùng số đơn Hoàn thành app đếm được. `department_id`
+ * là phòng đã phát, để người chuyển phòng giữa tháng vẫn trừ vào phòng cũ.
+ */
+export const insuranceBlankStaffQuotas = pgTable(
+  "insurance_blank_staff_quotas",
+  {
+    yearMonth: text("year_month").notNull(),
+    userId: uuid("user_id").notNull().references(() => users.id),
+    blankTypeId: uuid("blank_type_id").notNull().references(() => insuranceBlankTypes.id),
+    departmentId: uuid("department_id").notNull().references(() => departments.id),
+    issued: integer("issued").notNull(),
+    used: integer("used"),
+    updatedBy: uuid("updated_by").references(() => users.id, { onDelete: "set null" }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ name: "insurance_blank_staff_quotas_pk", columns: [t.yearMonth, t.userId, t.blankTypeId] }),
+    index("insurance_blank_staff_quotas_department").on(t.departmentId, t.yearMonth),
+    check("insurance_blank_staff_quotas_issued", sql`${t.issued} >= 0`),
+    check("insurance_blank_staff_quotas_used", sql`${t.used} is null or ${t.used} >= 0`),
+    check("insurance_blank_staff_quotas_not_empty", sql`${t.issued} > 0 or ${t.used} is not null`),
+  ],
+);
+
+/** Mục tiêu tỉ lệ đơn điện/xe, chung cho mọi phòng. Tháng không có dòng dùng tháng gần nhất trước đó. */
+export const insuranceMixTargets = pgTable(
+  "insurance_mix_targets",
+  {
+    yearMonth: text("year_month").primaryKey(),
+    electricParts: smallint("electric_parts").notNull(),
+    motorbikeParts: smallint("motorbike_parts").notNull(),
+    updatedBy: uuid("updated_by").references(() => users.id, { onDelete: "set null" }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check(
+      "insurance_mix_targets_parts",
+      sql`${t.electricParts} >= 0 and ${t.motorbikeParts} >= 0 and ${t.electricParts} + ${t.motorbikeParts} > 0`,
+    ),
   ],
 );
 

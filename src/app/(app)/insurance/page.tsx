@@ -4,7 +4,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { BotOff, Download, Pencil, Plus, ShieldCheck, Trash2, UserCheck } from "lucide-react";
+import { BotOff, Download, Layers, Pencil, Plus, ShieldCheck, Trash2, UserCheck } from "lucide-react";
 import type { DateRange } from "react-day-picker";
 import { SkeletonTable } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
@@ -740,6 +740,12 @@ export default function InsurancePage() {
             </FilterField>
           ) : null}
         </FilterButton>
+        {can(user, "insurance", "split-blanks") && (
+          <Link href="/insurance/blanks" aria-label="Phát phôi" className={`btn btn-secondary ${buttonStyles.base}`}>
+            <Layers size={16} aria-hidden />
+            <span className={buttonStyles.label}>Phát phôi</span>
+          </Link>
+        )}
         {can(user, "insurance", "export") && (
           <Button
             variant="secondary"

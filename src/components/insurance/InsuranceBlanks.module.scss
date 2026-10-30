@@ -1,0 +1,103 @@
+.scroll {
+  overflow-x: auto;
+}
+
+/* Cột tên đứng yên khi cuộn ngang trên điện thoại. */
+.table th:first-child,
+.table td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--om-card);
+}
+
+/* Tên phòng, tên người đọc dễ hơn khi không viết hoa như ô tiêu đề cột. */
+.table tbody th {
+  min-width: 150px;
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: inherit;
+  font-weight: 600;
+}
+
+.cellInput {
+  width: 90px;
+}
+
+.number {
+  white-space: nowrap;
+}
+
+.role {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 400;
+}
+
+.total th,
+.total td {
+  font-weight: 600;
+}
+
+.targetRow {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 140px));
+  gap: 14px;
+  align-items: end;
+}
+
+.note {
+  margin: 0;
+  font-size: 13px;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 14px;
+}
+
+.mixLine {
+  margin: 0;
+  color: var(--om-text);
+}
+
+.warn {
+  color: var(--om-orange-ink);
+  font-weight: 600;
+}
+
+/* Phát vượt chặn việc lưu, nên dùng màu đỏ của trạng thái lỗi; cảnh báo tỉ lệ không chặn gì nên giữ cam. */
+.danger {
+  margin: 0;
+  padding: 10px 12px;
+  border-left: 3px solid var(--om-red);
+  border-radius: var(--radius-sm);
+  background: var(--om-red-soft);
+  color: var(--om-red-ink);
+  font-weight: 600;
+}
+
+.dangerText {
+  color: var(--om-red);
+  font-weight: 600;
+}
+
+.saveBar {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  justify-content: flex-start;
+  padding: 12px 0;
+  background: var(--om-bg);
+  border-top: 1px solid var(--om-line);
+}
+
+@media (max-width: bp.$bp-mobile) {
+  /* Điện thoại cuộn cả trang, BottomNav cố định ở đáy: đứng trên nó. */
+  .saveBar {
+    bottom: calc(52px + env(safe-area-inset-bottom, 0px));
+  }
+}

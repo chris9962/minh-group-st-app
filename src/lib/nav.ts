@@ -298,6 +298,9 @@ export function navFor(user: User | null): NavEntry[] {
   if (can(user, 'system', 'configure-catalog')) {
     settingsChildren.push({ href: '/settings/quota', label: 'Chỉ tiêu tháng', screen: 'P-85' });
   }
+  if (can(user, 'insurance', 'allocate-blanks')) {
+    settingsChildren.push({ href: '/settings/insurance-blanks', label: 'Cấp phôi BH', screen: 'P-17' });
+  }
   if (can(user, 'system', 'configure-catalog')) {
     settingsChildren.push({
       href: '/settings/service-types',

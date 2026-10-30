@@ -189,6 +189,13 @@ export const Action = z.enum([
    * phòng, Phó phòng và PGĐ, nên không chia phạm vi và chỉ Giám đốc có sẵn.
    */
   'exclude-department-points',
+  /**
+   * Đặc biệt — insurance (migration 0154, chốt 2026-10-29): văn phòng cấp phôi
+   * bảo hiểm cho từng phòng theo tháng và đặt mục tiêu tỉ lệ đơn điện/xe.
+   */
+  'allocate-blanks',
+  /** Đặc biệt — insurance (migration 0154): Trưởng phòng nhập phôi đã phát và đã sử dụng của người trong phòng. */
+  'split-blanks',
 ]);
 export type Action = z.infer<typeof Action>;
 
@@ -231,6 +238,8 @@ export const ACTION_LABEL: Record<Action, string> = {
   'view-ops': 'Xem vận hành hệ thống',
   'close-salary': 'Chốt lương',
   'exclude-department-points': 'Đánh dấu không tính điểm phòng',
+  'allocate-blanks': 'Cấp phôi cho phòng',
+  'split-blanks': 'Chia phôi cho nhân viên',
 };
 
 /** 6 hành động dùng chung cho mọi module cơ bản — xem mục 1.1.2 spec. */
@@ -272,11 +281,13 @@ export const SCOPELESS_ACTIONS: Action[] = [
   'lookup',
   // Trưởng phòng loại người của phòng mình là tự nâng lương của chính mình.
   'exclude-department-points',
+  // Văn phòng cấp phôi cho mọi phòng và đặt một mục tiêu tỉ lệ chung cho cả công ty.
+  'allocate-blanks',
 ];
 
 export const SPECIAL_ACTIONS_OF: Partial<Record<ModuleKey, Action[]>> = {
   customer: ['access-id-number', 'lookup'],
-  insurance: ['handle-fallback', 'set-status', 'lookup'],
+  insurance: ['handle-fallback', 'set-status', 'lookup', 'allocate-blanks', 'split-blanks'],
   banking: ['grant-gift', 'lookup'],
   vneid: ['lookup'],
   staff: ['exclude-department-points'],
