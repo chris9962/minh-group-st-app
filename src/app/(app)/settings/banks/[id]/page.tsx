@@ -44,7 +44,7 @@ import {
 } from "@/lib/api/banking";
 import { EMPTY_PAGE, PAGE_SIZE, type SortDir } from "@/lib/api/pagination";
 import { EXCEL_GROUP_COLORS, exportExcel } from "@/lib/excel";
-import { businessMonth, formatDate, formatPhone, monthRange } from "@/lib/format";
+import { formatDate, formatPhone } from "@/lib/format";
 import { useDebouncedValue } from "@/lib/hooks";
 import { canManageBank, canOpenBankAdmin } from "@/lib/permissions";
 import { errorMessage, toast } from "@/lib/toast";
@@ -157,9 +157,7 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
   const [range, setRange] = useState<DateRange | undefined>(() => {
     const from = dateFromUrl(searchParams.get("from"));
     const to = dateFromUrl(searchParams.get("to"));
-    if (from || to) return { from, to };
-    const month = monthRange(businessMonth());
-    return { from: dateFromUrl(month.from), to: dateFromUrl(month.to) };
+    return from || to ? { from, to } : undefined;
   });
   const [status, setStatus] = useState<BankAccountStatus | "">(() => {
     const parsed = BankAccountStatus.safeParse(searchParams.get("status"));
