@@ -25,7 +25,7 @@ export const RELEASES: Release[] = [
     id: '2026-11-01',
     version: '2.19.0',
     title: 'Cập nhật ngày 01/11/2026',
-    summary: 'Thêm màn Cấp phiếu, Phát phiếu thông tin ngân hàng theo tháng; Phó phòng được phát phôi bảo hiểm.',
+    summary: 'Thêm màn Cấp phiếu, Phát phiếu thông tin ngân hàng theo tháng, nút Ghi công ở màn Chấm công; Phó phòng được phát phôi bảo hiểm.',
     sections: [
       {
         title: 'Cấp phiếu thông tin ngân hàng',
@@ -48,6 +48,15 @@ export const RELEASES: Release[] = [
         title: 'Phát phôi bảo hiểm',
         items: ['Phó phòng được phát phôi bảo hiểm.'],
         visibleTo: (user) => can(user, 'insurance', 'split-blanks'),
+      },
+      {
+        title: 'Chấm công',
+        items: [
+          'Bảng chấm công có nút Ghi công: ghi công thay nhân viên, giờ điền sẵn.',
+          'Phòng chấm 4 lượt: ca sáng 07:00 - 11:00, ca chiều 13:00 - 17:00. Phòng điểm danh: 07:00 - 17:00.',
+          'Lượt ghi công hiện chữ Ghi công và tên người ghi.',
+        ],
+        visibleTo: (user) => can(user, 'attendance', 'record-attendance'),
       },
       {
         title: 'Tổng quan',

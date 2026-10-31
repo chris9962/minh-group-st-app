@@ -51,12 +51,16 @@ export const AttendanceCheck = z.object({
   checkedAt: z.string(),
   /** `/api/images/<key>`. Điểm danh không có ảnh. */
   photoUrl: z.string().nullable(),
-  latitude: z.number(),
-  longitude: z.number(),
+  latitude: z.number().nullable(),
+  longitude: z.number().nullable(),
   /** Sai số GPS, mét. */
-  accuracy: z.number(),
+  accuracy: z.number().nullable(),
   /** "Xã - Tỉnh" tra từ tọa độ lúc chấm. */
   place: z.string().nullable(),
+  /** Tên người ghi công thay nhân viên; `null` là nhân viên tự chấm. */
+  recordedByName: z.string().nullable(),
+  /** Giờ ra của lượt điểm danh do người ghi công nhập, ISO. */
+  checkedOutAt: z.string().nullable(),
 });
 export type AttendanceCheck = z.infer<typeof AttendanceCheck>;
 
@@ -149,4 +153,43 @@ export async function createAttendanceCheck(form: AttendanceForm): Promise<Atten
   });
   if (!res.ok) throw await failure(res, 'Không lưu được lượt chấm công');
   return AttendanceCheck.parse(await res.json());
+}
+
+/* ── Ghi công thay nhân viên (chốt 2026-10-30) ───────────────────────── */
+
+const clock = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Giờ không hợp lệ');
+
+export const TimeRange = z
+  .object({ from: clock, to: clock })
+  .refine((r) => r.from < r.to, 'Giờ ra phải sau giờ vào');
+export type TimeRange = z.infer<typeof TimeRange>;
+
+/** Giờ điền sẵn của form ghi công; người ghi sửa được. */
+export const RECORD_DEFAULTS = {
+  morning: { from: '07:00', to: '11:00' },
+  afternoon: { from: '13:00', to: '17:00' },
+  day: { from: '07:00', to: '17:00' },
+} as const;
+
+/**
+ * Phòng chấm 4 lượt gửi `morning` và/hoặc `afternoon`; phòng điểm danh gửi `day`.
+ * Máy chủ chỉ thêm lượt còn thiếu, không ghi đè lượt nhân viên tự chấm.
+ */
+export const RecordAttendanceForm = z.object({
+  userId: z.guid(),
+  workDate: z.string().refine(isRealIsoDate),
+  morning: TimeRange.nullable(),
+  afternoon: TimeRange.nullable(),
+  day: TimeRange.nullable(),
+});
+export type RecordAttendanceForm = z.infer<typeof RecordAttendanceForm>;
+
+export async function recordAttendance(form: RecordAttendanceForm): Promise<AttendanceCheck[]> {
+  const res = await fetch('/api/attendance/record', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(form),
+  });
+  if (!res.ok) throw await failure(res, 'Không ghi được công');
+  return z.array(AttendanceCheck).parse(await res.json());
 }

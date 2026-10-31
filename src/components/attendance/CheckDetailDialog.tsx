@@ -26,8 +26,11 @@ export function CheckDetailDialog({
   onClose: () => void;
 }) {
   const [photoLoaded, setPhotoLoaded] = useState(!check.photoUrl);
-  const [mapLoaded, setMapLoaded] = useState(false);
+  // Lượt ghi công không có vị trí, nên không có bản đồ để chờ tải.
+  const hasMap = check.latitude !== null && check.longitude !== null;
+  const [mapLoaded, setMapLoaded] = useState(!hasMap);
   const stamp = formatDateTime(check.checkedAt);
+  const clock = check.checkedOutAt ? `${stamp.slice(11)} - ${formatDateTime(check.checkedOutAt).slice(11)}` : stamp.slice(11);
 
   return (
     <Dialog open narrow title={title} onClose={onClose}>
@@ -61,7 +64,7 @@ export function CheckDetailDialog({
         ) : (
           <div className={styles.textStamp}>
             <div className={styles.clock}>
-              <span className={styles.time}>{stamp.slice(11)}</span>
+              <span className={styles.time}>{clock}</span>
               <span className={styles.textDate}>{stamp.slice(0, 10)}</span>
             </div>
             {check.place && (
@@ -70,19 +73,22 @@ export function CheckDetailDialog({
                 {check.place}
               </div>
             )}
+            {check.recordedByName && <div className={styles.place}>Ghi công bởi {check.recordedByName}</div>}
           </div>
         )}
-        <div className={clsx(styles.mapWrap, !check.photoUrl && styles.mapTall)}>
-          {!mapLoaded && <Skeleton className={styles.skeleton} />}
-          <iframe
-            src={mapEmbedUrl(check)}
-            title={`Bản đồ vị trí ${title}`}
-            className={styles.map}
-            loading="lazy"
-            referrerPolicy="no-referrer-when-downgrade"
-            onLoad={() => setMapLoaded(true)}
-          />
-        </div>
+        {hasMap && (
+          <div className={clsx(styles.mapWrap, !check.photoUrl && styles.mapTall)}>
+            {!mapLoaded && <Skeleton className={styles.skeleton} />}
+            <iframe
+              src={mapEmbedUrl(check)}
+              title={`Bản đồ vị trí ${title}`}
+              className={styles.map}
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+              onLoad={() => setMapLoaded(true)}
+            />
+          </div>
+        )}
       </div>
     </Dialog>
   );

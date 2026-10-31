@@ -14,6 +14,7 @@ import { hashSync } from "bcryptjs";
 import { eq, like, sql } from "drizzle-orm";
 import { db } from "../src/server/db/client";
 import {
+  attendanceChecks,
   auditLog,
   bankAccounts,
   banks,
@@ -90,6 +91,7 @@ for (const u of stale) {
   await db.delete(userPermissions).where(eq(userPermissions.userId, u.id));
   await db.delete(kpiScores).where(eq(kpiScores.userId, u.id));
   await db.delete(userManagedDepartments).where(eq(userManagedDepartments.userId, u.id));
+  await db.delete(attendanceChecks).where(eq(attendanceChecks.recordedBy, u.id));
   await db.delete(users).where(eq(users.id, u.id));
 }
 

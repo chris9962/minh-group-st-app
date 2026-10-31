@@ -1,0 +1,35 @@
+.date {
+  margin: 0 0 12px;
+  color: var(--om-text-2);
+}
+
+.shifts {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.shift {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--om-line);
+  border-radius: var(--radius-md);
+}
+
+.shiftName {
+  font-weight: 600;
+  color: var(--om-text);
+}
+
+.times {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.done {
+  color: var(--om-text-3);
+}

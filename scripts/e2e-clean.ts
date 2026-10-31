@@ -19,6 +19,7 @@
 import { eq, inArray, like, or, sql } from "drizzle-orm";
 import { db } from "../src/server/db/client";
 import {
+  attendanceChecks,
   auditLog,
   bankAccounts,
   banks,
@@ -139,6 +140,8 @@ for (const u of accounts) {
   await db.delete(kpiScores).where(eq(kpiScores.userId, u.id));
   // Chốt lương chụp mọi người, kể cả tài khoản test đang nằm trong phòng kinh doanh.
   await db.delete(salarySnapshots).where(eq(salarySnapshots.userId, u.id));
+  // Lượt ghi công trỏ tới người ghi mà không cascade, nên xoá trước tài khoản.
+  await db.delete(attendanceChecks).where(eq(attendanceChecks.recordedBy, u.id));
   await db.delete(users).where(eq(users.id, u.id));
 }
 if (accounts.length) wiped.push(`tài khoản: ${accounts.length}`);

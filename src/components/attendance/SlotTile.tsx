@@ -33,7 +33,9 @@ type Props = {
  */
 export function SlotTile({ label, check, onView, action, missingText }: Props) {
   if (check) {
-    const time = clockNowVn(new Date(check.checkedAt)).slice(0, 5);
+    const time = check.checkedOutAt
+      ? `${clockNowVn(new Date(check.checkedAt)).slice(0, 5)} - ${clockNowVn(new Date(check.checkedOutAt)).slice(0, 5)}`
+      : clockNowVn(new Date(check.checkedAt)).slice(0, 5);
     if (!check.photoUrl)
       return (
         <li className={clsx(styles.slot, styles.slotDone)}>
@@ -51,6 +53,7 @@ export function SlotTile({ label, check, onView, action, missingText }: Props) {
                 {check.place}
               </span>
             )}
+            {check.recordedByName && <span className={styles.donePlace}>Ghi công</span>}
           </button>
         </li>
       );

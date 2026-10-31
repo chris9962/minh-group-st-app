@@ -1,4 +1,5 @@
 import { and, asc, between, eq, inArray, isNotNull, or, sql, type SQL } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import {
   attendanceModeOf,
   CHECK_IN_SLOT,
@@ -8,11 +9,14 @@ import {
   type AttendanceDay,
   type AttendanceDayGroup,
   type AttendanceForm,
+  type AttendanceSlot,
   type MyAttendance,
+  type RecordAttendanceForm,
 } from "@/lib/api/attendance";
 import { BUSINESS_TIMEZONE, businessDay, monthRange } from "@/lib/format";
 import { recordVisibility, type RecordVisibility } from "@/lib/permissions";
 import type { User } from "@/lib/types";
+import { closedMonthMessage, isMonthClosed } from "./closedMonths";
 import { db, uniqueViolationOf } from "./db/client";
 import { attendanceChecks, departments, staffRoster, users } from "./db/schema";
 import { placeName } from "./placeName";
@@ -38,9 +42,17 @@ const checkColumns = {
   longitude: attendanceChecks.longitude,
   accuracy: attendanceChecks.accuracy,
   place: attendanceChecks.place,
+  checkedOutAt: attendanceChecks.checkedOutAt,
 };
 
-type CheckRow = Pick<typeof attendanceChecks.$inferSelect, keyof typeof checkColumns>;
+type CheckRow = Pick<typeof attendanceChecks.$inferSelect, keyof typeof checkColumns> & {
+  recordedByName?: string | null;
+};
+
+const recorder = alias(users, "recorder");
+/** Cột của lượt chấm kèm tên người ghi công; câu đọc phải `leftJoin(recorder, recorderJoin)`. */
+const checkWithRecorder = { ...checkColumns, recordedByName: recorder.fullName };
+const recorderJoin = eq(recorder.id, attendanceChecks.recordedBy);
 
 /** Cột giữ KHOÁ ảnh trong kho, giao diện cần URL đọc ảnh. */
 const toCheck = (row: CheckRow): AttendanceCheck => ({
@@ -53,6 +65,8 @@ const toCheck = (row: CheckRow): AttendanceCheck => ({
   longitude: row.longitude,
   accuracy: row.accuracy,
   place: row.place,
+  recordedByName: row.recordedByName ?? null,
+  checkedOutAt: row.checkedOutAt?.toISOString() ?? null,
 });
 
 export const canCheckIn = (actor: User): boolean => attendanceModeOf(actor) !== null;
@@ -60,8 +74,9 @@ export const canCheckIn = (actor: User): boolean => attendanceModeOf(actor) !== 
 export async function myAttendance(actor: User, month: string): Promise<MyAttendance> {
   const { from, to } = monthRange(month);
   const rows = await db
-    .select(checkColumns)
+    .select(checkWithRecorder)
     .from(attendanceChecks)
+    .leftJoin(recorder, recorderJoin)
     .where(and(eq(attendanceChecks.userId, actor.id), between(attendanceChecks.workDate, from, to)))
     .orderBy(asc(attendanceChecks.checkedAt));
   const today = businessDay();
@@ -189,8 +204,9 @@ export async function attendanceDay(actor: User, workDate: string): Promise<Atte
   if (visible.kind === "none") return { workDate, groups: [] };
 
   const checks = await db
-    .select(checkColumns)
+    .select(checkWithRecorder)
     .from(attendanceChecks)
+    .leftJoin(recorder, recorderJoin)
     .where(and(eq(attendanceChecks.workDate, workDate), checkScope(visible)))
     .orderBy(asc(attendanceChecks.checkedAt));
   const checkedUserIds = [...new Set(checks.map((c) => c.userId))];
@@ -249,5 +265,95 @@ export async function attendanceDay(actor: User, workDate: string): Promise<Atte
           Number(a.departmentId === null) - Number(b.departmentId === null) ||
           a.departmentName.localeCompare(b.departmentName, "vi"),
       ),
+  };
+}
+
+export type RecordOutcome =
+  | { ok: true; checks: AttendanceCheck[]; fullName: string }
+  | { ok: false; message: string };
+
+/**
+ * Ghi công thay nhân viên (chốt 2026-10-30). Lượt ghi nằm chung bảng với lượt tự
+ * chấm nên ngày công tính cùng luật. Chỉ thêm lượt còn thiếu: lượt nhân viên tự
+ * chấm giữ nguyên. Giờ là giờ người ghi nhập, theo giờ Việt Nam của ngày được ghi.
+ *
+ * Cách chấm và phòng lấy theo nhân sự của tháng chứa ngày đó, cùng nguồn với bảng
+ * chấm công theo ngày.
+ */
+export async function recordAttendance(actor: User, form: RecordAttendanceForm): Promise<RecordOutcome> {
+  if (form.workDate > businessDay()) return { ok: false, message: "Không ghi công cho ngày chưa tới." };
+  const month = form.workDate.slice(0, 7);
+  if (await isMonthClosed(month)) return { ok: false, message: closedMonthMessage(month) };
+
+  const [person] = await db
+    .select({ fullName: users.fullName, departmentId: staffRoster.departmentId, mode: staffRoster.attendanceMode })
+    .from(users)
+    .innerJoin(staffRoster, and(eq(staffRoster.userId, users.id), eq(staffRoster.yearMonth, month)))
+    .where(eq(users.id, form.userId))
+    .limit(1);
+  if (!person?.mode) return { ok: false, message: "Phòng của nhân viên này không chấm công trong tháng đó." };
+
+  const scope = recordVisibility(actor, "attendance", "record-attendance");
+  const inScope =
+    scope.kind === "all" ||
+    (scope.kind === "departments" && person.departmentId !== null && scope.departmentIds.includes(person.departmentId)) ||
+    (scope.kind === "creator" && form.userId === actor.id);
+  if (!inScope) return { ok: false, message: "Nhân viên này ngoài phạm vi ghi công của bạn." };
+
+  const at = (time: string) => sql`(${form.workDate}::date + ${time}::time) at time zone ${BUSINESS_TIMEZONE}`;
+  type Wanted = { slot: AttendanceSlot; time: string; outTime?: string };
+  const wanted: Wanted[] =
+    person.mode === "daily"
+      ? form.day
+        ? [{ slot: "check-in", time: form.day.from, outTime: form.day.to }]
+        : []
+      : [
+          ...(form.morning
+            ? [
+                { slot: "morning-in" as const, time: form.morning.from },
+                { slot: "noon-out" as const, time: form.morning.to },
+              ]
+            : []),
+          ...(form.afternoon
+            ? [
+                { slot: "afternoon-in" as const, time: form.afternoon.from },
+                { slot: "afternoon-out" as const, time: form.afternoon.to },
+              ]
+            : []),
+        ];
+  if (wanted.length === 0) return { ok: false, message: "Chọn ít nhất một ca để ghi công." };
+
+  const inserted = await db.transaction(async (tx) => {
+    const existing = await tx
+      .select({ slot: attendanceChecks.slot })
+      .from(attendanceChecks)
+      .where(and(eq(attendanceChecks.userId, form.userId), eq(attendanceChecks.workDate, form.workDate)));
+    const have = new Set(existing.map((e) => e.slot));
+    const missing = wanted.filter((w) => !have.has(w.slot));
+    if (missing.length === 0) return [];
+    return tx
+      .insert(attendanceChecks)
+      .values(
+        missing.map((w) => ({
+          userId: form.userId,
+          departmentId: person.departmentId,
+          workDate: form.workDate,
+          slot: w.slot,
+          checkedAt: at(w.time),
+          checkedOutAt: w.outTime ? at(w.outTime) : null,
+          recordedBy: actor.id,
+          recordedAt: sql`now()`,
+        })),
+      )
+      .onConflictDoNothing()
+      .returning(checkColumns);
+  });
+  if (inserted.length === 0) return { ok: false, message: "Các ca đã chọn đã đủ lượt chấm." };
+
+  await recomputeEmployeeWorkDay(form.userId, form.workDate);
+  return {
+    ok: true,
+    fullName: person.fullName,
+    checks: inserted.map((row) => toCheck({ ...row, recordedByName: actor.fullName })),
   };
 }

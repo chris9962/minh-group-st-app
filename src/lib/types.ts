@@ -197,6 +197,8 @@ export const Action = z.enum([
   'allocate-blanks',
   /** Đặc biệt — insurance (0154) và banking (0156): Trưởng phòng, Phó phòng nhập số đã phát và đã sử dụng của người trong phòng. */
   'split-blanks',
+  /** Đặc biệt — attendance (migration 0155, chốt 2026-10-30): ghi công thay nhân viên ở bảng chấm công. */
+  'record-attendance',
 ]);
 export type Action = z.infer<typeof Action>;
 
@@ -241,6 +243,7 @@ export const ACTION_LABEL: Record<Action, string> = {
   'exclude-department-points': 'Đánh dấu không tính điểm phòng',
   'allocate-blanks': 'Cấp phôi cho phòng',
   'split-blanks': 'Chia phôi cho nhân viên',
+  'record-attendance': 'Ghi công cho nhân viên',
 };
 
 /** 6 hành động dùng chung cho mọi module cơ bản — xem mục 1.1.2 spec. */
@@ -292,6 +295,7 @@ export const SPECIAL_ACTIONS_OF: Partial<Record<ModuleKey, Action[]>> = {
   banking: ['grant-gift', 'lookup', 'allocate-blanks', 'split-blanks'],
   vneid: ['lookup'],
   staff: ['exclude-department-points'],
+  attendance: ['record-attendance'],
   /**
    * MỌI quyền cấu hình nằm ở `system` (chốt 2026-08-24).
    *

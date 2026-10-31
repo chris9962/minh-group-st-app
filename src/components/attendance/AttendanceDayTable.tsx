@@ -4,6 +4,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Users } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
+import { Button } from "@/components/ui/Button";
 import { DateField } from "@/components/ui/DateField";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
@@ -20,11 +21,16 @@ import {
   type AttendanceDayRow,
 } from "@/lib/api/attendance";
 import { businessDay, clockNowVn, formatDate } from "@/lib/format";
+import { can } from "@/lib/permissions";
 import { isRealIsoDate } from "@/lib/types";
+import { useSession } from "@/store/session";
 import { CheckDetailDialog } from "./CheckDetailDialog";
+import { RecordAttendanceDialog } from "./RecordAttendanceDialog";
 import styles from "./AttendanceDayTable.module.scss";
 
 type Viewing = { row: AttendanceDayRow; check: AttendanceCheck };
+
+const clockOf = (iso: string) => clockNowVn(new Date(iso)).slice(0, 5);
 
 const groupKey = (g: AttendanceDayGroup) => g.departmentId ?? "";
 const groupLabel = (g: AttendanceDayGroup) => g.departmentName || "Không có phòng";
@@ -37,7 +43,9 @@ export function AttendanceDayTable() {
   const today = businessDay();
   const [workDate, setWorkDate] = useState(today);
   const [viewing, setViewing] = useState<Viewing | null>(null);
+  const [recording, setRecording] = useState<AttendanceDayRow | null>(null);
   const [picked, setPicked] = useState<string | null>(null);
+  const canRecord = can(useSession((s) => s.user), "attendance", "record-attendance");
   const { data, isPending, isError, refetch, isFetching } = useQuery({
     queryKey: ["attendance", "day", workDate],
     queryFn: () => fetchAttendanceDay(workDate),
@@ -78,20 +86,39 @@ export function AttendanceDayTable() {
             return (
               <span className={styles.missing}>{s.key === CHECK_IN_SLOT.key ? "Chưa điểm danh" : "Chưa chấm"}</span>
             );
-          const time = clockNowVn(new Date(check.checkedAt)).slice(0, 5);
+          const time = check.checkedOutAt
+            ? `${clockOf(check.checkedAt)} - ${clockOf(check.checkedOutAt)}`
+            : clockOf(check.checkedAt);
           return (
-            <button
-              type="button"
-              className={styles.time}
-              aria-label={`Xem lượt ${s.label} của ${r.fullName} lúc ${time}`}
-              onClick={() => setViewing({ row: r, check })}
-            >
-              {time}
-            </button>
+            <>
+              <button
+                type="button"
+                className={styles.time}
+                aria-label={`Xem lượt ${s.label} của ${r.fullName} lúc ${time}`}
+                onClick={() => setViewing({ row: r, check })}
+              >
+                {time}
+              </button>
+              {check.recordedByName && <span className={styles.recorded}>Ghi công</span>}
+            </>
           );
         },
       }),
     ),
+    ...(canRecord && current
+      ? [
+          {
+            key: "record",
+            label: "Ghi công",
+            render: (r: AttendanceDayRow) =>
+              modeColumns.every((s) => r.checks.some((c) => c.slot === s.key)) ? null : (
+                <Button variant="secondary" onClick={() => setRecording(r)} aria-label={`Ghi công cho ${r.fullName}`}>
+                  Ghi công
+                </Button>
+              ),
+          } satisfies RankColumn<AttendanceDayRow>,
+        ]
+      : []),
   ];
 
   return (
@@ -130,6 +157,16 @@ export function AttendanceDayTable() {
           check={viewing.check}
           title={`${viewing.row.fullName} - ${slotLabel(viewing.check.slot)}`}
           onClose={() => setViewing(null)}
+        />
+      )}
+
+      {recording && current && (
+        <RecordAttendanceDialog
+          key={`${recording.userId}:${workDate}`}
+          row={recording}
+          mode={current.mode}
+          workDate={workDate}
+          onClose={() => setRecording(null)}
         />
       )}
     </SectionCard>

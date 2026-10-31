@@ -92,6 +92,8 @@ export const actionKey = pgEnum("action_key", [
   // đặc biệt · insurance: cấp phôi cho phòng, chia phôi cho nhân viên (migration 0154)
   "allocate-blanks",
   "split-blanks",
+  // đặc biệt · attendance: ghi công thay nhân viên (migration 0155)
+  "record-attendance",
 ]);
 
 export const scopeKey = pgEnum("scope_key", ["own", "managed", "company"]);
@@ -2460,16 +2462,26 @@ export const attendanceChecks = pgTable(
     checkedAt: timestamp("checked_at", { withTimezone: true }).notNull().defaultNow(),
     /** KHOÁ ảnh trong kho, thư mục `attendance/`. Điểm danh An Sinh không có ảnh. */
     photoUrl: text("photo_url"),
-    latitude: doublePrecision("latitude").notNull(),
-    longitude: doublePrecision("longitude").notNull(),
+    /** Lượt ghi công không có vị trí; lượt tự chấm bắt buộc có, xem `attendance_checks_location`. */
+    latitude: doublePrecision("latitude"),
+    longitude: doublePrecision("longitude"),
     /** Sai số GPS do trình duyệt báo, tính bằng mét. */
-    accuracy: doublePrecision("accuracy").notNull(),
+    accuracy: doublePrecision("accuracy"),
     /** "Xã - Tỉnh" tra từ tọa độ lúc chấm. `null` khi dịch vụ tra địa danh lỗi. */
     place: text("place"),
+    /** Người ghi công thay nhân viên (migration 0155); `null` là nhân viên tự chấm. */
+    recordedBy: uuid("recorded_by").references(() => users.id),
+    recordedAt: timestamp("recorded_at", { withTimezone: true }),
+    /** Giờ ra của lượt điểm danh do người ghi công nhập. */
+    checkedOutAt: timestamp("checked_out_at", { withTimezone: true }),
   },
   (t) => [
     uniqueIndex("attendance_checks_user_day_slot").on(t.userId, t.workDate, t.slot),
     index("attendance_checks_dept_day").on(t.departmentId, t.workDate),
+    check(
+      "attendance_checks_location",
+      sql`${t.recordedBy} is not null or (${t.latitude} is not null and ${t.longitude} is not null and ${t.accuracy} is not null)`,
+    ),
     check("attendance_checks_latitude", sql`${t.latitude} between -90 and 90`),
     check("attendance_checks_longitude", sql`${t.longitude} between -180 and 180`),
     check("attendance_checks_accuracy", sql`${t.accuracy} >= 0`),
