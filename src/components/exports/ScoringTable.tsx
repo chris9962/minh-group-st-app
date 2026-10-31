@@ -179,8 +179,9 @@ type Props = {
  * KHÔNG có cột CCCD lẫn số điện thoại, và máy chủ cũng không gửi hai trường đó
  * xuống (chốt 2026-09-04). Chúng chỉ tồn tại trong file Excel.
  *
- * Khách chưa mở ngân hàng nào VẪN nằm trong bảng (`include: "all"`): người xem
- * cần thấy đủ khách của nhân viên đó, kể cả khách 0 điểm.
+ * Chỉ khách có tài khoản Hoàn thành (`include: "with-accounts"`). Khách chưa mở
+ * ngân hàng nào không vào bảng (chốt 2026-10-31): nhân viên điểm ATM lập hàng
+ * trăm khách chỉ để ghi dịch vụ.
  *
  * Khoảng ngày khoá trong MỘT tháng: điểm tính theo tháng và tổ hợp không nối
  * qua tháng (thể lệ câu 7.13), nên một khoảng vắt hai tháng ra con số không ai
@@ -226,7 +227,7 @@ export function ScoringTable({ defaultStaffId = "", lockedStaffId, pageSize }: P
           accountType: "",
           photoCheck: "",
         },
-        "all",
+        "with-accounts",
         // Máy chủ bỏ CCCD và số điện thoại: hai trường đó chỉ tồn tại trong file
         // Excel. Xoá cột ở đây là chưa đủ — dữ liệu vẫn nằm trong lượt gọi mạng.
         true,
@@ -313,7 +314,7 @@ export function ScoringTable({ defaultStaffId = "", lockedStaffId, pageSize }: P
               defaultSort="date"
               pageSize={pageSize}
               caption="Điểm từng khách của nhân viên đã chọn"
-              emptyText="Nhân viên này chưa lập hồ sơ khách nào trong khoảng ngày đã chọn."
+              emptyText="Nhân viên này chưa có khách mở ngân hàng nào trong khoảng ngày đã chọn."
             />
           </div>
         </SectionCard>

@@ -3,10 +3,11 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState } from "react";
-import { ExternalLink } from "lucide-react";
+import { Download, ExternalLink } from "lucide-react";
 import { ScoringTable } from "@/components/exports/ScoringTable";
 import { HandledOrdersTable } from "@/components/people/HandledOrdersTable";
 import { PersonBankSummary } from "@/components/people/PersonBankSummary";
+import { Button } from "@/components/ui/Button";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { SkeletonCard } from "@/components/ui/Skeleton";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
@@ -24,13 +25,16 @@ import {
   fetchPersonHandled,
   fetchPersonInsurance,
   fetchPersonServices,
+  fetchPersonServicesForExport,
   type PersonAccount,
   type PersonCustomer,
   type PersonInsurance,
   type PersonService,
 } from "@/lib/api/person";
+import { EXCEL_GROUP_COLORS, exportExcel, type ExcelColumn } from "@/lib/excel";
 import { formatDate, formatPhone, formatPoints } from "@/lib/format";
 import { can } from "@/lib/permissions";
+import { errorMessage, toast } from "@/lib/toast";
 import { PRODUCT_LABEL } from "@/lib/types";
 import { useSession } from "@/store/session";
 import styles from "./PersonActivityTabs.module.scss";
@@ -217,9 +221,29 @@ const SERVICE_COLUMNS: RankColumn<PersonService>[] = [
   },
 ];
 
+const SERVICE_EXCEL_GROUP = { group: "LƯỢT DỊCH VỤ", groupColor: EXCEL_GROUP_COLORS.account };
+const CUSTOMER_EXCEL_GROUP = { group: "KHÁCH HÀNG", groupColor: EXCEL_GROUP_COLORS.customer };
+
+const SERVICE_EXCEL_COLUMNS: ExcelColumn<PersonService>[] = [
+  { header: "STT", width: 6, type: "number", ...CUSTOMER_EXCEL_GROUP, total: (rows) => rows.length, value: (_s, i) => i + 1 },
+  { header: "KHÁCH HÀNG", width: 26, transform: "name", ...CUSTOMER_EXCEL_GROUP, value: (s) => s.customerName },
+  { header: "NGÀY", width: 12, ...SERVICE_EXCEL_GROUP, value: (s) => formatDate(s.date) },
+  { header: "LOẠI DỊCH VỤ", width: 30, ...SERVICE_EXCEL_GROUP, value: (s) => s.serviceType },
+  { header: "XÃ", width: 20, ...SERVICE_EXCEL_GROUP, value: (s) => s.ward },
+  {
+    header: "ĐIỂM",
+    width: 10,
+    type: "number",
+    group: "ĐIỂM",
+    groupColor: EXCEL_GROUP_COLORS.points,
+    total: (rows) => Number(rows.reduce((t, s) => t + s.points, 0).toFixed(2)),
+    value: (s) => s.points,
+  },
+];
+
 /**
  * `scoring` KHÁC bốn tab kia: nó không đọc kỳ của trang và không phân trang ở
- * máy chủ. Bảng điểm có ô chọn khoảng ngày riêng bên trong.
+ * máy chủ. Tab Điểm cài app có ô chọn khoảng ngày riêng bên trong.
  */
 type TabKey = "customers" | "accounts" | "insurance" | "handled" | "services" | "scoring";
 
@@ -268,7 +292,9 @@ export function PersonActivityTabs({
   insuranceCancelled,
   personName,
 }: Props) {
+  const user = useSession((s) => s.user);
   const [tab, setTab] = useState<TabKey>("customers");
+  const [exportingServices, setExportingServices] = useState(false);
   const [tabPages, setTabPages] = useState<Record<ListTabKey, number>>(ZERO_PAGES);
   const [tabDirs, setTabDirs] = useState<Record<ListTabKey, SortDir>>({
     customers: "desc",
@@ -315,6 +341,26 @@ export function PersonActivityTabs({
     onPageChange: (next: number) => setTabPages((p) => ({ ...p, [key]: next })),
   });
 
+  // Tự xuất việc của mình không cần `staff:export`, cùng chốt với máy chủ.
+  const canExportServices = user?.id === staffId || can(user, "staff", "export");
+  const exportServices = async () => {
+    setExportingServices(true);
+    try {
+      const rows = await fetchPersonServicesForExport({ id: staffId, from, to });
+      await exportExcel({
+        fileName: `diem-dich-vu-${from}-den-${to}.xlsx`,
+        sheetName: "Điểm dịch vụ",
+        columns: SERVICE_EXCEL_COLUMNS,
+        rows,
+      });
+      toast.ok(`Đã xuất ${rows.length.toLocaleString("vi-VN")} lượt dịch vụ`);
+    } catch (e) {
+      toast.fail(errorMessage(e, "Không xuất được file Excel."));
+    } finally {
+      setExportingServices(false);
+    }
+  };
+
   // Chỉ hiện thẻ có dòng. Thẻ rỗng chỉ để người dùng bấm vào rồi thấy trống.
   const listQueries = [customersQ, accountsQ, insuranceQ, handledQ, servicesQ];
   const listsReady = listQueries.every((q) => q.isSuccess);
@@ -341,13 +387,13 @@ export function PersonActivityTabs({
              của NGƯỜI KHÁC không có ở trình duyệt, mà người không có quyền đó
              thì không bao giờ có dòng nào ở đây. */
           { value: "handled", label: "Đơn đã xử lý", count: handledQ.data?.total ?? 0 },
-          { value: "services", label: "Dịch vụ", count: servicesQ.data?.total ?? 0 },
+          { value: "services", label: "Điểm dịch vụ", count: servicesQ.data?.total ?? 0 },
         ] as TabOption[]
       )
         .filter((t) => (t.count ?? 0) > 0)
-        // Bảng điểm LUÔN hiện, kể cả khi bốn tab kia rỗng: nó chạy theo khoảng
+        // Điểm cài app LUÔN hiện, kể cả khi bốn tab kia rỗng: nó chạy theo khoảng
         // ngày riêng, nên kỳ của trang không nói được nó có dòng hay không.
-        .concat([{ value: "scoring", label: "Bảng điểm" }])
+        .concat([{ value: "scoring", label: "Điểm cài app" }])
     : [];
   const activeTab = tabs.some((t) => t.value === tab) ? tab : tabs[0]?.value;
 
@@ -448,6 +494,14 @@ export function PersonActivityTabs({
 
       {activeTab === "services" && (
         <div className={styles.panel}>
+          {canExportServices && (
+            <div className={styles.tools}>
+              <Button variant="secondary" onClick={exportServices} disabled={exportingServices}>
+                <Download size={16} aria-hidden />
+                {exportingServices ? "Đang xuất…" : "Xuất Excel"}
+              </Button>
+            </div>
+          )}
           <RankTable
             rows={servicesQ.data?.rows ?? []}
             columns={SERVICE_COLUMNS}

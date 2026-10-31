@@ -348,3 +348,16 @@ export async function fetchPersonHandledForExport(
   if (!res.ok) throw new Error('Không tải được danh sách đơn đã xử lý');
   return z.array(PersonHandledOrder).parse(await res.json());
 }
+
+/** TRỌN danh sách lượt dịch vụ kèm điểm trong kỳ, cho nút Xuất Excel của tab Điểm dịch vụ. */
+export async function fetchPersonServicesForExport(
+  query: Omit<PersonListQuery, 'page' | 'dir'>,
+): Promise<PersonService[]> {
+  const qs = new URLSearchParams({ from: query.from, to: query.to });
+  const res = await fetch(
+    `/api/people/${encodeURIComponent(query.id)}/services/export?${qs}`,
+  );
+  if (res.status === 404) throw new Error('Không tìm thấy nhân viên này');
+  if (!res.ok) throw new Error('Không tải được danh sách lượt dịch vụ');
+  return z.array(PersonService).parse(await res.json());
+}

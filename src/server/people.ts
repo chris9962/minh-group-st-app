@@ -1208,21 +1208,15 @@ export async function personHandledForExport(
   );
 }
 
-export async function personServicesFor(
-  actor: User,
-  id: string,
-  range: Period,
-  page: PageArgs<"date">,
-): Promise<Page<PersonService> | null> {
-  if (!(await visibleStaffId(actor, id, range))) return null;
-
-  const where = and(
+const servicesWhere = (id: string, range: Period): SQL =>
+  and(
     eq(services.createdBy, id),
     gte(services.serviceDate, range.from),
     lte(services.serviceDate, range.to),
-  );
+  ) as SQL;
 
-  const rows = await db
+const serviceRows = (id: string, range: Period) =>
+  db
     .select({
       service: services,
       typeName: serviceTypes.name,
@@ -1231,16 +1225,13 @@ export async function personServicesFor(
     .from(services)
     .innerJoin(serviceTypes, eq(serviceTypes.id, services.serviceTypeId))
     .innerJoin(customers, eq(customers.id, services.customerId))
-    .where(where)
-    .orderBy(...orderedBy(services.serviceDate, page.dir, services.id))
-    .limit(page.limit)
-    .offset(page.offset);
+    .where(servicesWhere(id, range));
 
-  const [{ total }] = await db
-    .select({ total: sql<number>`count(*)::int` })
-    .from(services)
-    .where(where);
-
+async function withServicePoints(
+  id: string,
+  range: Period,
+  rows: Awaited<ReturnType<typeof serviceRows>>,
+): Promise<PersonService[]> {
   // Lượt vượt trần, và lượt của người không thuộc nhóm điểm ATM, hiện 0 điểm.
   const counted = await countedServicePoints(
     id,
@@ -1248,17 +1239,51 @@ export async function personServicesFor(
     range.to,
     rows.map((r) => r.service.id),
   );
+  return rows.map((r) => ({
+    id: r.service.id,
+    date: r.service.serviceDate,
+    customerId: r.service.customerId,
+    customerName: r.customerName,
+    serviceType: r.typeName,
+    ward: r.service.wardName ?? "",
+    points: counted.get(r.service.id) ?? 0,
+  }));
+}
 
-  return {
-    rows: rows.map((r) => ({
-      id: r.service.id,
-      date: r.service.serviceDate,
-      customerId: r.service.customerId,
-      customerName: r.customerName,
-      serviceType: r.typeName,
-      ward: r.service.wardName ?? "",
-      points: counted.get(r.service.id) ?? 0,
-    })),
-    total,
-  };
+export async function personServicesFor(
+  actor: User,
+  id: string,
+  range: Period,
+  page: PageArgs<"date">,
+): Promise<Page<PersonService> | null> {
+  if (!(await visibleStaffId(actor, id, range))) return null;
+
+  const rows = await serviceRows(id, range)
+    .orderBy(...orderedBy(services.serviceDate, page.dir, services.id))
+    .limit(page.limit)
+    .offset(page.offset);
+
+  const [{ total }] = await db
+    .select({ total: sql<number>`count(*)::int` })
+    .from(services)
+    .where(servicesWhere(id, range));
+
+  return { rows: await withServicePoints(id, range, rows), total };
+}
+
+/**
+ * TRỌN danh sách lượt dịch vụ trong kỳ kèm điểm, CHỈ cho việc xuất Excel — cùng
+ * lối với `personHandledForExport`, cũng không đặt trần vì kỳ dài nhất là một tháng.
+ */
+export async function personServicesForExport(
+  actor: User,
+  id: string,
+  range: Period,
+): Promise<PersonService[] | null> {
+  if (actor.id !== id && !(await visibleStaffId(actor, id, range))) return null;
+
+  const rows = await serviceRows(id, range).orderBy(
+    ...orderedBy(services.serviceDate, "desc", services.id),
+  );
+  return withServicePoints(id, range, rows);
 }
