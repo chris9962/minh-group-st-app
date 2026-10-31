@@ -1,5 +1,6 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 import type { DirectedExportRow, DirectedResult, SalaryExportRow } from "@/lib/api/exports";
+import type { SalaryAdjustmentKind } from "@/lib/api/salaryAdjustments";
 import { monthRange, roundPoints } from "@/lib/format";
 import { ROLE_RANK } from "@/lib/types";
 import { accountCustomerDayBetween } from "./customerDay";
@@ -97,6 +98,11 @@ export async function listSalaryExport(yearMonth: string): Promise<SalaryExportR
   const rows: SalaryExportRow[] = picked.map((r) => {
     const adjustment = adjustments.get(r.id);
     const account = accounts.get(r.id);
+    const salary = salaries.get(r.id);
+    const ofKind = (kind: SalaryAdjustmentKind) => (salary?.adjustments ?? []).filter((a) => a.kind === kind);
+    const totalOf = (kind: SalaryAdjustmentKind) => ofKind(kind).reduce((t, a) => t + a.amount, 0);
+    const notesOf = (kind: SalaryAdjustmentKind) =>
+      [...new Set(ofKind(kind).map((a) => a.note).filter(Boolean))].join("; ");
     return {
       fullName: r.fullName,
       staffCode: r.staffCode ?? "",
@@ -118,13 +124,19 @@ export async function listSalaryExport(yearMonth: string): Promise<SalaryExportR
       minusReason: adjustment?.minusReason ?? "",
       plusPoints: roundPoints(adjustment?.plus ?? 0),
       plusReason: adjustment?.plusReason ?? "",
-      salary: salaries.get(r.id)?.amount ?? 0,
+      pointsSalary: salary?.pointsAmount ?? 0,
+      bonus: totalOf("bonus"),
+      bonusReason: notesOf("bonus"),
+      deduction: totalOf("deduction"),
+      deductionReason: notesOf("deduction"),
+      advance: totalOf("advance"),
+      salary: salary?.amount ?? 0,
       excludedNote: exclusions.get(r.id) ?? null,
     };
   });
 
   const hasData = (r: SalaryExportRow) =>
-    [r.appsAll, r.points, r.minusPoints, r.plusPoints, r.salary].some((v) => v !== 0);
+    [r.appsAll, r.points, r.minusPoints, r.plusPoints, r.pointsSalary, r.salary].some((v) => v !== 0);
   return rows
     .filter((r) => r.active || r.excludedNote !== null || hasData(r))
     .sort(

@@ -456,6 +456,15 @@ export const SalaryExportRow = z.object({
   minusReason: z.string(),
   plusPoints: z.number(),
   plusReason: z.string(),
+  /** Lương theo điểm, trước thưởng, trừ, ứng trước. */
+  pointsSalary: z.number(),
+  bonus: z.number(),
+  /** Ghi chú các lần thưởng, ngăn bằng `; `. */
+  bonusReason: z.string(),
+  deduction: z.number(),
+  deductionReason: z.string(),
+  advance: z.number(),
+  /** Lương cuối cùng = `pointsSalary` + `bonus` - `deduction` - `advance`. */
   salary: z.number(),
   /** Lý do ghi lúc bấm "Không tính điểm phòng"; `null` là vẫn tính điểm phòng. */
   excludedNote: z.string().nullable(),

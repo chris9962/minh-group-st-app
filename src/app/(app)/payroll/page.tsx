@@ -3,12 +3,14 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Wallet } from "lucide-react";
+import { Download, Wallet } from "lucide-react";
 import { TopBar } from "@/components/layout/TopBar";
 import { SalaryAdjustmentsDialog } from "@/components/payroll/SalaryAdjustmentsDialog";
 import { SalaryBreakdownDialog } from "@/components/payroll/SalaryBreakdownButton";
 import { SalaryAdjustmentCell, SalaryAmountButton } from "@/components/payroll/SalaryCells";
 import { SalaryClosingControl } from "@/components/payroll/SalaryClosingControl";
+import { exportSalaryWorkbook, salaryExportColumns } from "@/components/payroll/salaryExcel";
+import { Button } from "@/components/ui/Button";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { FilterButton } from "@/components/ui/FilterButton";
 import { FilterChips } from "@/components/ui/FilterChips";
@@ -20,6 +22,7 @@ import { SearchField } from "@/components/ui/SearchField";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { SkeletonTable } from "@/components/ui/Skeleton";
 import { fetchDepartments } from "@/lib/api/departments";
+import { fetchSalaryExport } from "@/lib/api/exports";
 import { PAGE_SIZE, type SortDir } from "@/lib/api/pagination";
 import { personHref } from "@/lib/api/people";
 import {
@@ -30,7 +33,8 @@ import {
 import { fetchStaff, type StaffQuery, type StaffRow, type StaffSort } from "@/lib/api/staff";
 import { formatVnd } from "@/lib/format";
 import { useDebouncedValue } from "@/lib/hooks";
-import { availableScopes, can, visibleDepartmentIds } from "@/lib/permissions";
+import { availableScopes, can, scopeFor, visibleDepartmentIds } from "@/lib/permissions";
+import { errorMessage, toast } from "@/lib/toast";
 import type { Scope } from "@/lib/types";
 import { useSession } from "@/store/session";
 import styles from "./page.module.scss";
@@ -62,6 +66,7 @@ export default function PayrollPage() {
     mode: "list" | "add";
   } | null>(null);
   const [finalOf, setFinalOf] = useState<StaffRow | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   const { data: departments = [] } = useQuery({
     queryKey: ["departments"],
@@ -98,6 +103,21 @@ export default function PayrollPage() {
   });
 
   const canClose = can(user, "system", "close-salary");
+  // Cùng điều kiện với route báo cáo Lương: file có lương của mọi phòng kinh doanh.
+  const canExport = scopeFor(user, "staff", "export") === "company";
+
+  const exportFile = async () => {
+    setExporting(true);
+    try {
+      const columns = salaryExportColumns().filter((c) => c.defaultOn);
+      const count = await exportSalaryWorkbook(month, await fetchSalaryExport(month), columns);
+      toast.ok(`Đã xuất ${count.toLocaleString("vi-VN")} dòng`);
+    } catch (e) {
+      toast.fail(errorMessage(e, "Không xuất được file Excel."));
+    } finally {
+      setExporting(false);
+    }
+  };
   const editable = canClose && !data?.monthClosed;
 
   const adjustmentColumn = (kind: SalaryAdjustmentKind): RankColumn<StaffRow> => ({
@@ -224,7 +244,19 @@ export default function PayrollPage() {
             title="Lương"
             icon={<Wallet size={17} />}
             meta={searchQuery ? `${monthLabel(month)} - khớp ${data.page.total}` : monthLabel(month)}
-            action={canClose ? <SalaryClosingControl month={month} /> : undefined}
+            action={
+              canExport || canClose ? (
+                <div className={styles.actions}>
+                  {canExport && (
+                    <Button variant="secondary" onClick={exportFile} disabled={exporting}>
+                      <Download size={16} aria-hidden />
+                      {exporting ? "Đang xuất…" : "Xuất Excel"}
+                    </Button>
+                  )}
+                  {canClose && <SalaryClosingControl month={month} />}
+                </div>
+              ) : undefined
+            }
           >
             <RankTable
               rows={data.page.rows}
