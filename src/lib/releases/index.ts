@@ -22,6 +22,53 @@ const seesCompanyDashboard = (user: User) =>
  */
 export const RELEASES: Release[] = [
   {
+    id: '2026-11-01',
+    version: '2.19.0',
+    title: 'Cập nhật ngày 01/11/2026',
+    summary: 'Thêm màn Cấp phiếu, Phát phiếu thông tin ngân hàng theo tháng; Phó phòng được phát phôi bảo hiểm.',
+    sections: [
+      {
+        title: 'Cấp phiếu thông tin ngân hàng',
+        items: [
+          'Màn mới Cấu hình > Cấp phiếu ngân hàng: văn phòng cấp phiếu của từng ngân hàng cho phòng theo tháng.',
+          'Phiếu còn lại cộng dồn sang tháng sau.',
+        ],
+        visibleTo: (user) => canOpenPath(user, '/settings/bank-blanks'),
+      },
+      {
+        title: 'Phát phiếu thông tin ngân hàng',
+        items: [
+          'Màn Ngân hàng, nút ba chấm > Phát phiếu: Trưởng phòng, Phó phòng nhập phiếu đã phát và đã sử dụng của từng người.',
+          'Chỉ hiện ngân hàng phòng có phiếu.',
+          'Phiếu còn lại cộng dồn sang tháng sau.',
+        ],
+        visibleTo: (user) => can(user, 'banking', 'split-blanks'),
+      },
+      {
+        title: 'Phát phôi bảo hiểm',
+        items: ['Phó phòng được phát phôi bảo hiểm.'],
+        visibleTo: (user) => can(user, 'insurance', 'split-blanks'),
+      },
+      {
+        title: 'Tổng quan',
+        items: [
+          'Ô giữa hiện điểm hôm nay, thay cho ô đơn bảo hiểm.',
+          'Thêm biểu đồ điểm theo ngày của tháng.',
+          'Nhân viên tính lương Điểm ATM có thêm tab Điểm dịch vụ.',
+        ],
+        visibleTo: (user) => user.role === 'staff' && !seesCompanyDashboard(user),
+      },
+      {
+        title: 'Nhân sự',
+        items: [
+          'Chi tiết nhân viên: tab Bảng điểm đổi tên thành Điểm cài app, chỉ còn khách có ngân hàng đã mở.',
+          'Tab Dịch vụ đổi tên thành Điểm dịch vụ, có nút Xuất Excel.',
+        ],
+        visibleTo: (user) => canOpenPath(user, '/users'),
+      },
+    ],
+  },
+  {
     id: '2026-10-31',
     version: '2.18.0',
     title: 'Cập nhật ngày 31/10/2026',
