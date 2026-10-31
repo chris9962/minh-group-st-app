@@ -228,6 +228,12 @@ export const PersonDetail = z.object({
   adjustments: z.array(KpiAdjustment),
   /** Điểm 5 tháng gần nhất, cũ trước mới sau. Luôn theo tháng, không theo ngày. */
   monthlyPoints: z.array(z.object({ month: z.string(), points: z.number() })),
+  /** Điểm từng ngày của `summaryMonth`, đủ mọi ngày. Không gồm điểm An Sinh và điểm cộng tay. */
+  dailyPoints: z.array(z.object({ day: z.string(), points: z.number() })),
+  /** Điểm của ngày đang chạy, cùng nguồn với `dailyPoints`. Không theo kỳ đang xem. */
+  todayPoints: z.number(),
+  /** Người này thuộc nhóm điểm ATM ở tháng đang chạy. Không theo kỳ đang xem. */
+  atmScoring: z.boolean(),
   /**
    * Số bản ghi trong kỳ — cho ba thẻ đếm ở màn Tổng quan của nhân viên.
    * Danh sách chi tiết nằm ở bốn route phân trang riêng (chốt 2026-08-15).

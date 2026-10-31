@@ -1,0 +1,35 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.filter {
+  display: grid;
+  grid-template-columns: minmax(0, 260px);
+}
+
+@media (max-width: bp.$bp-mobile) {
+  .filter {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.nameLink {
+  display: block;
+  padding: 12px 0;
+  margin: -12px 0;
+  color: var(--om-link);
+}
+
+.nameLink:hover {
+  color: var(--om-link-hover);
+  text-decoration: underline;
+}
+
+.tools {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--space-3);
+}

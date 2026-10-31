@@ -21,6 +21,7 @@ import { db } from "./db/client";
 import {
   bankingPointsByCustomer,
   countedServicePoints,
+  dailyPointsOf,
   servicePointsByType,
   socialInsuranceGroupsOf,
 } from "./kpi";
@@ -776,6 +777,20 @@ export async function personFor(
   // người dùng — 15 lượt quét bảng chỉ để lấy 5 con số của một người.
   const trend = await monthlyPointsFor(id, months[0], months[4]);
   const monthlyPoints = months.map((ym) => ({ month: ym, points: trend.get(ym) ?? 0 }));
+  const daily = await dailyPointsOf(id, summaryMonth);
+  const dailyPoints = Array.from({ length: Number(kpiRange.to.slice(8, 10)) }, (_, i) => {
+    const day = `${summaryMonth}-${String(i + 1).padStart(2, "0")}`;
+    return { day, points: roundPoints(daily.get(day) ?? 0) };
+  });
+  // Điểm hôm nay và nhóm điểm ATM đọc theo tháng đang chạy, không theo kỳ đang xem.
+  const currentMonth = businessMonth();
+  const currentDaily = summaryMonth === currentMonth ? daily : await dailyPointsOf(id, currentMonth);
+  const todayPoints = roundPoints(currentDaily.get(businessDay()) ?? 0);
+  const [currentRoster] = await db
+    .select({ salaryScheme: staffRoster.salaryScheme })
+    .from(staffRoster)
+    .where(and(eq(staffRoster.userId, id), eq(staffRoster.yearMonth, currentMonth)))
+    .limit(1);
 
   /**
    * Gộp theo NGUỒN, không phải mỗi bản ghi một dòng.
@@ -883,6 +898,9 @@ export async function personFor(
     pointSources,
     adjustments,
     monthlyPoints,
+    dailyPoints,
+    todayPoints,
+    atmScoring: currentRoster?.salaryScheme === "atm",
     counts,
     branch,
   };
@@ -1256,7 +1274,7 @@ export async function personServicesFor(
   range: Period,
   page: PageArgs<"date">,
 ): Promise<Page<PersonService> | null> {
-  if (!(await visibleStaffId(actor, id, range))) return null;
+  if (actor.id !== id && !(await visibleStaffId(actor, id, range))) return null;
 
   const rows = await serviceRows(id, range)
     .orderBy(...orderedBy(services.serviceDate, page.dir, services.id))

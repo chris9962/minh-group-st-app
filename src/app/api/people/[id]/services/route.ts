@@ -10,10 +10,11 @@ type Params = { params: Promise<{ id: string }> };
 export async function GET(request: Request, { params }: Params) {
   const actor = await getActor(request);
   if (!actor) return unauthorized();
-  if (!can(actor, "staff", "view-detail")) return forbidden();
 
   const { id } = await params;
   if (!isUuid(id)) return notFound();
+  // Tự xem mình đi qua mà không cần `staff:view-detail`: tab Điểm dịch vụ nằm cả trên màn Tổng quan của chính họ.
+  if (actor.id !== id && !can(actor, "staff", "view-detail")) return forbidden();
 
   const url = new URL(request.url);
   const from = url.searchParams.get("from") ?? "";

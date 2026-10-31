@@ -1,13 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { ChartColumn, Landmark, Target } from "lucide-react";
+import { useState } from "react";
+import { CalendarDays, ChartColumn, Landmark, Target } from "lucide-react";
 import { BarChart } from "@/components/ui/BarChart";
 import { monthLabel } from "@/components/ui/MonthPicker";
 import { ScoringTable } from "@/components/exports/ScoringTable";
 import { HandledOrdersSection } from "@/components/people/HandledOrdersTable";
 import { KpiScoreBlock } from "@/components/people/KpiScoreBlock";
+import { PersonServicePoints } from "@/components/people/PersonServicesTable";
 import { SectionCard } from "@/components/ui/SectionCard";
+import { SegmentedTabs } from "@/components/ui/SegmentedTabs";
 import { StatCard } from "@/components/ui/StatCard";
 import type { DashboardDraftAccount } from "@/lib/api/dashboard";
 import type { PersonDetail } from "@/lib/api/person";
@@ -39,18 +42,16 @@ const shortMonth = (month: string) => `T${Number(month.slice(5, 7))}`;
  */
 export function StaffDashboard({ person, draftAccounts, periodLabel, from, to }: Props) {
   const chartColors = useChartColors();
+  const [pointsTab, setPointsTab] = useState("services");
+  // Chỉ nhóm điểm ATM có điểm dịch vụ; người khác chỉ có bảng Điểm cài app.
+  const withServices = person.atmScoring;
 
   return (
     <div className={styles.wrap}>
       <div className={styles.statRow}>
         <StatCard value={person.counts.accounts} label={`tài khoản mở ${periodLabel}`} />
-        {/* Đơn huỷ KHÔNG nằm trong ô bên trái, nên nó là dòng phụ chứ không
-            phải một ô ngang hàng: người xem cần thấy sản lượng trước. */}
-        <StatCard
-          value={person.counts.insurance}
-          label={`đơn bảo hiểm ${periodLabel}`}
-          detail={person.counts.insuranceCancelled > 0 ? `${person.counts.insuranceCancelled} đơn huỷ` : undefined}
-        />
+        {/* Ô giữa luôn là điểm của ngày xem, không theo kỳ đang chọn (chốt 2026-10-31). */}
+        <StatCard value={formatPoints(person.todayPoints)} label="điểm hôm nay" />
         <StatCard value={person.counts.services} label={`dịch vụ đã làm ${periodLabel}`} />
       </div>
 
@@ -96,6 +97,17 @@ export function StaffDashboard({ person, draftAccounts, periodLabel, from, to }:
         </SectionCard>
       </div>
 
+      <SectionCard title={`Điểm theo ngày ${monthLabel(person.summaryMonth).toLowerCase()}`} icon={<CalendarDays size={17} />}>
+        <BarChart
+          rows={person.dailyPoints.map((d) => ({ label: String(Number(d.day.slice(8, 10))), points: d.points }))}
+          labelKey="label"
+          series={[{ key: "points", label: "Điểm", color: chartColors.primary }]}
+          showLegend={false}
+          height={180}
+          caption={`Điểm từng ngày trong ${monthLabel(person.summaryMonth).toLowerCase()}`}
+        />
+      </SectionCard>
+
       {/* Việc đang dở — mỗi bản `creating` là một lượt mã đang bị giữ, bỏ quên
           thì mã nằm chết. Mới tạo nhất đứng đầu (máy chủ sắp). */}
       {draftAccounts.length > 0 && (
@@ -137,7 +149,22 @@ export function StaffDashboard({ person, draftAccounts, periodLabel, from, to }:
       {/* Bảng điểm từng khách, CHẠY RIÊNG: nó có ô chọn khoảng ngày của chính
           nó và không đọc kỳ đang chọn ở thanh trên. Ba thẻ đếm đi theo kỳ, bảng
           này đi theo tháng — hai câu hỏi khác nhau, đừng nối vào nhau. */}
-      <ScoringTable lockedStaffId={person.id} pageSize={50} />
+      {withServices && (
+        <SegmentedTabs
+          label="Loại điểm"
+          value={pointsTab}
+          onChange={setPointsTab}
+          options={[
+            { value: "services", label: "Điểm dịch vụ" },
+            { value: "scoring", label: "Điểm cài app" },
+          ]}
+        />
+      )}
+      {withServices && pointsTab === "services" ? (
+        <PersonServicePoints staffId={person.id} />
+      ) : (
+        <ScoringTable lockedStaffId={person.id} pageSize={50} />
+      )}
     </div>
   );
 }

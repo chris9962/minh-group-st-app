@@ -316,6 +316,39 @@ export async function countedServicePoints(
   return new Map(result.rows.map((r) => [r.id, r.points]));
 }
 
+/**
+ * Điểm từng ngày của một người trong tháng: điểm ngân hàng theo ngày hồ sơ khách
+ * cộng điểm dịch vụ theo ngày làm. Không có điểm An Sinh và điểm cộng tay: hai
+ * phần đó tính cho cả tháng, không gắn với ngày nào.
+ */
+export async function dailyPointsOf(userId: string, yearMonth: string): Promise<Map<string, number>> {
+  const { from, to } = monthRange(yearMonth);
+  const [accounts, broken, granted, serviceDays] = await Promise.all([
+    scoringAccountsOf(db, userId, from, to),
+    scoringAccountsOf(db, userId, from, to, BROKEN_STATUSES),
+    grantedGiftsOf(db, userId),
+    db.execute<{ day: string; points: number }>(
+      sql`select to_char(s.service_date, 'YYYY-MM-DD') as day, sum(c.coefficient)::float as points
+          from ${countedServices(from, to, userId)} c
+          join services s on s.id = c.id
+          group by s.service_date`,
+    ),
+  ]);
+
+  const out = new Map(serviceDays.rows.map((r) => [r.day, r.points]));
+  // Điểm combo tính theo từng khách, nên chia theo ngày hồ sơ rồi cộng lại vẫn ra đúng điểm tháng.
+  for (const day of new Set(accounts.map((a) => a.openedDate))) {
+    const banking = bankingPointsFor(
+      accounts.filter((a) => a.openedDate === day),
+      yearMonth,
+      granted,
+      broken,
+    );
+    if (banking) out.set(day, (out.get(day) ?? 0) + banking);
+  }
+  return out;
+}
+
 /** Tài khoản bị đánh lỗi, kể cả bản đã sửa đang chờ duyệt lại. Xem `lostCombo2Customers`. */
 export const BROKEN_STATUSES: readonly BankAccountStatus[] = ["error", "fixed"];
 

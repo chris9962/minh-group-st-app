@@ -18,11 +18,11 @@ import { errorMessage, toast } from "@/lib/toast";
 import { formatDate, formatPoints } from "@/lib/format";
 import styles from "./ScoringTable.module.scss";
 
-const iso = (d: Date) =>
+export const iso = (d: Date) =>
   new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
 
 /** Đầu tháng hiện tại tới hôm nay — khoảng người dùng cần tới nhiều nhất. */
-const thisMonthSoFar = (): DateRange => {
+export const thisMonthSoFar = (): DateRange => {
   const now = new Date();
   return { from: new Date(now.getFullYear(), now.getMonth(), 1), to: now };
 };
