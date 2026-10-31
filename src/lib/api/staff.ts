@@ -97,10 +97,12 @@ export const StaffRow = StaffAccount.extend({
   rangePoints: z.number().nullable().default(null),
   /** Bị loại khỏi điểm phòng của tháng đang xem; điểm vẫn hiện nhưng không vào tổng phòng. */
   excludedFromDepartment: z.boolean().default(false),
-  /** Lương CĐS đang tính của tháng; 0 khi chức vụ/phòng chưa có công thức. */
+  /** Lương cuối cùng của tháng: lương theo điểm + thưởng - trừ - ứng trước. */
   salary: z.number(),
   /** Từng khoản của `salary`, cùng tháng. Tháng đã chốt lương là bản đã lưu lúc chốt. */
   salaryBreakdown: SalaryBreakdown,
+  /** Tổng ứng trước, thưởng, trừ lương của tháng, đồng. */
+  salaryAdjustments: z.object({ advance: z.number(), bonus: z.number(), deduction: z.number() }),
 });
 export type StaffRow = z.infer<typeof StaffRow>;
 

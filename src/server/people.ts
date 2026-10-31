@@ -894,6 +894,8 @@ export async function personFor(
       facts: salaryResult?.facts ?? [],
       items: salaryResult?.items ?? [],
       revenue: salaryResult?.revenue,
+      pointsAmount: salaryResult?.pointsAmount ?? 0,
+      adjustments: salaryResult?.adjustments ?? [],
     },
     pointSources,
     adjustments,
@@ -936,7 +938,7 @@ async function staffInMonth(id: string, yearMonth: string) {
  * vẫn mở được số của tháng người đó còn ở phòng mình, và CHỈ tháng đó: khoảng
  * ngày phải nằm trọn trong một tháng, không thì lộ số của các tháng sau.
  */
-async function visibleStaffId(actor: User, id: string, range: Period): Promise<boolean> {
+export async function visibleStaffId(actor: User, id: string, range: Period): Promise<boolean> {
   const rows = await db
     .select({ departmentId: users.departmentId })
     .from(users)

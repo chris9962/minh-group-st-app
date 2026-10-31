@@ -4,7 +4,8 @@ import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ReceiptText } from "lucide-react";
 import type { PersonDetail } from "@/lib/api/person";
-import { formatVnd } from "@/lib/format";
+import { SALARY_ADJUSTMENT_LABEL, type SalaryAdjustmentKind } from "@/lib/api/salaryAdjustments";
+import { formatDate, formatVnd } from "@/lib/format";
 import { FIXED_SALARY_ITEM } from "@/rules/salary/labels";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
@@ -19,6 +20,13 @@ type Props = {
    */
   iconOnly?: { personName: string };
 };
+
+/** Dấu của từng loại khoản sau lương theo điểm, theo thứ tự hiện. */
+const ADJUSTMENT_SIGNS: { kind: SalaryAdjustmentKind; sign: 1 | -1 }[] = [
+  { kind: "bonus", sign: 1 },
+  { kind: "deduction", sign: -1 },
+  { kind: "advance", sign: -1 },
+];
 
 const monthText = (month: string) => {
   const [y, m] = month.split("-");
@@ -59,105 +67,146 @@ export function SalaryBreakdownButton({ amount, breakdown, iconOnly }: Props) {
         </Button>
       )}
 
-      {/* Đưa hộp thoại ra `body`: `<dialog>` nằm tại chỗ thì thừa hưởng kiểu chữ
-          của nơi đặt nút. Trong ô bảng đó là `white-space: nowrap` và
-          `text-align: right`, nên cùng một hộp thoại mà mỗi màn một dáng. */}
-      {open &&
-        createPortal(
-          <Dialog
-            open
-            onClose={hide}
-            title={`Diễn giải lương ${monthText(breakdown.month)}`}
-            footer={
-              <Button variant="secondary" onClick={hide}>
-                Đóng
-              </Button>
-            }
-          >
-            {breakdown.items.length > 0 ? (
-              <>
-                {breakdown.revenue && (
-                  <table className={styles.revenue}>
-                    <caption className="sr-only">Tiền thu BHYT/BHXH ra điểm KPI</caption>
-                    <thead>
-                      <tr>
-                        <th scope="col">Nhóm</th>
-                        <th scope="col">Tiền thu</th>
-                        <th scope="col">Mức 1 điểm</th>
-                        <th scope="col">Điểm</th>
-                      </tr>
-                    </thead>
-                    <tbody className="tabular-nums">
-                      {breakdown.revenue.lines.map((line) => (
-                        <tr key={line.label}>
-                          <th scope="row">{line.label}</th>
-                          <td>{line.collected}</td>
-                          <td>{line.perPoint}</td>
-                          <td>{line.points}</td>
-                        </tr>
-                      ))}
-                      {breakdown.revenue.other && (
-                        <tr>
-                          <th scope="row" colSpan={3}>
-                            Ngân hàng, dịch vụ, điểm cộng
-                          </th>
-                          <td>{breakdown.revenue.other}</td>
-                        </tr>
-                      )}
-                    </tbody>
-                    <tfoot className="tabular-nums">
-                      <tr>
-                        <th scope="row" colSpan={3}>
-                          Điểm KPI
-                        </th>
-                        <td>{breakdown.revenue.total}</td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                )}
-                {breakdown.facts.length > 0 && (
-                  <dl className={styles.facts}>
-                    {breakdown.facts.map((fact) => (
-                      <div key={fact.label}>
-                        <dt>{fact.label}</dt>
-                        <dd className="tabular-nums">{fact.value}</dd>
-                      </div>
-                    ))}
-                  </dl>
-                )}
-                <div className={styles.list}>
-                  {breakdown.items.map((item, index) => (
-                    <div className={styles.item} key={`${item.label}-${index}`}>
-                      <strong className={styles.label}>{item.label}</strong>
-                      <span className={styles.formula}>{item.formula}</span>
-                      <span className={`${styles.amount} tabular-nums`}>
-                        {formatVnd(item.amount)}
-                      </span>
-                    </div>
-                  ))}
-                  <div className={styles.total}>
-                    <strong>Tổng tạm tính</strong>
-                    <strong className="tabular-nums">
-                      {formatVnd(amount)}
-                    </strong>
-                  </div>
-                </div>
-                {/* TODO(lương CĐS, file mẫu CASA của Yên): gỡ phần CASA khi lương tính CASA. Lương cứng không có CASA. */}
-                {!breakdown.items.some((item) => item.label === FIXED_SALARY_ITEM) && (
-                  <p className={styles.note}>
-                    {/* Khoản hỗ trợ của An Sinh giảm dần mỗi tháng, kế toán tính ngoài app (spec BHYT/BHXH mục 0). */}
-                    {breakdown.revenue ? "Chưa gồm CASA và tiền hỗ trợ 2.000.000đ." : "Chưa gồm CASA."}
-                  </p>
-                )}
-              </>
-            ) : (
-              <p className={styles.empty}>
-                Chức vụ hoặc phòng này chưa có công thức lương CĐS.
-              </p>
-            )}
-          </Dialog>,
-          document.body,
-        )}
+      {open && <SalaryBreakdownDialog amount={amount} breakdown={breakdown} onClose={hide} />}
     </>
+  );
+}
+
+/** Hộp thoại diễn giải lương, mở từ nút Diễn giải hoặc từ ô Lương cuối cùng của trang Lương. */
+export function SalaryBreakdownDialog({
+  amount,
+  breakdown,
+  onClose,
+}: {
+  amount: number;
+  breakdown: PersonDetail["salaryBreakdown"];
+  onClose: () => void;
+}) {
+  // Đưa hộp thoại ra `body`: `<dialog>` nằm tại chỗ thì thừa hưởng kiểu chữ
+  // của nơi đặt nút. Trong ô bảng đó là `white-space: nowrap` và
+  // `text-align: right`, nên cùng một hộp thoại mà mỗi màn một dáng.
+  return createPortal(
+    <Dialog
+      open
+      onClose={onClose}
+      title={`Diễn giải lương ${monthText(breakdown.month)}`}
+      footer={
+        <Button variant="secondary" onClick={onClose}>
+          Đóng
+        </Button>
+      }
+    >
+      {breakdown.items.length > 0 ? (
+        <>
+          {breakdown.revenue && (
+            <table className={styles.revenue}>
+              <caption className="sr-only">Tiền thu BHYT/BHXH ra điểm KPI</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Nhóm</th>
+                  <th scope="col">Tiền thu</th>
+                  <th scope="col">Mức 1 điểm</th>
+                  <th scope="col">Điểm</th>
+                </tr>
+              </thead>
+              <tbody className="tabular-nums">
+                {breakdown.revenue.lines.map((line) => (
+                  <tr key={line.label}>
+                    <th scope="row">{line.label}</th>
+                    <td>{line.collected}</td>
+                    <td>{line.perPoint}</td>
+                    <td>{line.points}</td>
+                  </tr>
+                ))}
+                {breakdown.revenue.other && (
+                  <tr>
+                    <th scope="row" colSpan={3}>
+                      Ngân hàng, dịch vụ, điểm cộng
+                    </th>
+                    <td>{breakdown.revenue.other}</td>
+                  </tr>
+                )}
+              </tbody>
+              <tfoot className="tabular-nums">
+                <tr>
+                  <th scope="row" colSpan={3}>
+                    Điểm KPI
+                  </th>
+                  <td>{breakdown.revenue.total}</td>
+                </tr>
+              </tfoot>
+            </table>
+          )}
+          {breakdown.facts.length > 0 && (
+            <dl className={styles.facts}>
+              {breakdown.facts.map((fact) => (
+                <div key={fact.label}>
+                  <dt>{fact.label}</dt>
+                  <dd className="tabular-nums">{fact.value}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
+          <div className={styles.list}>
+            {breakdown.items.map((item, index) => (
+              <div className={styles.item} key={`${item.label}-${index}`}>
+                <strong className={styles.label}>{item.label}</strong>
+                <span className={styles.formula}>{item.formula}</span>
+                <span className={`${styles.amount} tabular-nums`}>
+                  {formatVnd(item.amount)}
+                </span>
+              </div>
+            ))}
+            <div className={styles.total}>
+              <strong>Tổng tạm tính</strong>
+              <strong className="tabular-nums">
+                {formatVnd(breakdown.pointsAmount)}
+              </strong>
+            </div>
+          </div>
+          {/* TODO(lương CĐS, file mẫu CASA của Yên): gỡ phần CASA khi lương tính CASA. Lương cứng không có CASA. */}
+          {!breakdown.items.some((item) => item.label === FIXED_SALARY_ITEM) && (
+            <p className={styles.note}>
+              {/* Khoản hỗ trợ của An Sinh giảm dần mỗi tháng, kế toán tính ngoài app (spec BHYT/BHXH mục 0). */}
+              {breakdown.revenue ? "Chưa gồm CASA và tiền hỗ trợ 2.000.000đ." : "Chưa gồm CASA."}
+            </p>
+          )}
+        </>
+      ) : (
+        <p className={styles.empty}>
+          Chức vụ hoặc phòng này chưa có công thức lương CĐS.
+        </p>
+      )}
+      {breakdown.adjustments.length > 0 && (
+        <div className={`${styles.list} ${styles.adjustments}`}>
+          {ADJUSTMENT_SIGNS.flatMap(({ kind, sign }) =>
+            breakdown.adjustments
+              .filter((r) => r.kind === kind)
+              .map((r) => (
+                <div className={styles.item} key={r.id}>
+                  <strong className={styles.label}>
+                    {sign > 0 ? "+" : "-"} {SALARY_ADJUSTMENT_LABEL[kind]}
+                  </strong>
+                  <span className={styles.formula}>
+                    {formatDate(r.date)}
+                    {r.note ? ` - ${r.note}` : ""}
+                  </span>
+                  <span className={`${styles.amount} tabular-nums`}>
+                    {sign > 0 ? "+" : "-"}
+                    {formatVnd(r.amount)}
+                  </span>
+                </div>
+              )),
+          )}
+          <div className={styles.total}>
+            <strong>Lương cuối cùng</strong>
+            <strong className="tabular-nums">
+              {formatVnd(amount)}
+            </strong>
+          </div>
+        </div>
+      )}
+    </Dialog>,
+    document.body,
   );
 }

@@ -3,6 +3,7 @@ import { InsuranceProduct } from '@/lib/types';
 import { BankAccountStatus } from './bankAccounts';
 import { InsuranceOrderStatus } from './insuranceOrders';
 import { pageOf, pageParams, SortDir, type Page } from './pagination';
+import { SalaryAdjustment } from './salaryAdjustments';
 
 /** Số liệu cho P-52 Xem theo một nhân viên. */
 
@@ -160,6 +161,10 @@ export const SalaryBreakdown = z.object({
       total: z.string(),
     })
     .optional(),
+  /** Lương theo điểm, tổng các khoản `items`. Số "Lương" ở mọi màn là lương cuối cùng. */
+  pointsAmount: z.number(),
+  /** Ứng trước, thưởng, trừ lương của tháng. Tháng đã chốt là bản chụp lúc chốt. */
+  adjustments: z.array(SalaryAdjustment).default([]),
 });
 export type SalaryBreakdown = z.infer<typeof SalaryBreakdown>;
 

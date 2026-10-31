@@ -18,6 +18,7 @@ import {
   Briefcase,
   UserRoundCheck,
   Users,
+  Wallet,
 } from "lucide-react";
 import type { NavIconKey } from "@/lib/nav";
 
@@ -38,6 +39,7 @@ const ICONS = {
   socialInsurance: HeartHandshake,
   customers: Users,
   people: UserRoundCheck,
+  payroll: Wallet,
   profile: CircleUserRound,
   target: Target,
   gift: Gift,

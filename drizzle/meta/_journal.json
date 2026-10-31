@@ -1093,6 +1093,13 @@
       "when": 1789891400083,
       "tag": "0155_attendance_record",
       "breakpoints": true
+    },
+    {
+      "idx": 157,
+      "version": "7",
+      "when": 1789891400084,
+      "tag": "0157_salary_adjustments",
+      "breakpoints": true
     }
   ]
 }

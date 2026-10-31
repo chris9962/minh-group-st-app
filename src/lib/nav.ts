@@ -23,6 +23,7 @@ export type NavIconKey =
   | 'socialInsurance'
   | 'customers'
   | 'people'
+  | 'payroll'
   | 'profile'
   | 'target'
   | 'gift'
@@ -192,6 +193,8 @@ export function navFor(user: User | null): NavEntry[] {
    */
   if (user.manageScope !== 'none' || can(user, 'staff', 'create')) {
     (fullAccess ? manage : items).push({ href: '/users', label: 'Nhân sự', icon: 'people', screen: 'P-51' });
+    // Cùng điều kiện với Nhân sự: trang Lương đọc chung danh sách nhân viên và phạm vi phòng.
+    (fullAccess ? manage : items).push({ href: '/payroll', label: 'Lương', icon: 'payroll', screen: 'P-51' });
   }
 
   // Bảng Nhân sự không có dòng của Phó giám đốc, nên họ không có đường nào khác tới P-52 của mình.

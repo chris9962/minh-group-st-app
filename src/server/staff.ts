@@ -73,6 +73,7 @@ import { reachMemberWhere, reachPointsExpr } from "./reach";
 import { recomputeGiftCase } from "./gift";
 import { relationsFor } from "./users";
 import { salaryForUsers } from "./salary";
+import { adjustmentTotals } from "@/lib/api/salaryAdjustments";
 
 /**
  * P-51 · P-52 · P-53 — bản DB của src/mocks/staff.ts, cùng luật nghiệp vụ:
@@ -371,7 +372,10 @@ export async function staffFor(
           facts: salaryById.get(a.id)?.facts ?? [],
           items: salaryById.get(a.id)?.items ?? [],
           revenue: salaryById.get(a.id)?.revenue,
+          pointsAmount: salaryById.get(a.id)?.pointsAmount ?? 0,
+          adjustments: salaryById.get(a.id)?.adjustments ?? [],
         },
+        salaryAdjustments: adjustmentTotals(salaryById.get(a.id)?.adjustments ?? []),
       })),
       total: totals?.value ?? 0,
     },

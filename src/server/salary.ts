@@ -1,6 +1,7 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { KIND_LABEL, PLAN_LABEL } from "@/lib/api/socialInsurance";
 import { businessMonth, monthRange } from "@/lib/format";
+import { finalSalaryOf, type SalaryAdjustment } from "@/lib/api/salaryAdjustments";
 import type { AttendanceMode, ContractType, RoleKey, SalaryScheme, User } from "@/lib/types";
 import {
   quotaTargetFor,
@@ -26,20 +27,28 @@ import {
 import { multiBankComboCounts, socialInsuranceGroupsOf } from "./kpi";
 import { reachMemberWhere, reachPointsExpr, targetExpr } from "./reach";
 import { countQuotaAccounts, quotaConfigOf } from "./quota";
+import { liveSalaryAdjustments } from "./salaryAdjustments";
 
 export type SalaryBreakdown = {
+  /** Lương cuối cùng = `pointsAmount` + thưởng - trừ - ứng trước. Mọi màn hiện số này làm "Lương". */
   amount: number;
+  /** Lương theo điểm, tổng các khoản `items`. */
+  pointsAmount: number;
   month: string;
   facts: SalaryFact[];
   items: SalaryItem[];
   revenue?: SalaryRevenue;
+  /** Ứng trước, thưởng, trừ lương của tháng. Tháng đã chốt đọc bản chụp lúc chốt. */
+  adjustments: SalaryAdjustment[];
 };
 
 const zeroSalary = (month: string): SalaryBreakdown => ({
   amount: 0,
+  pointsAmount: 0,
   month,
   facts: [],
   items: [],
+  adjustments: [],
 });
 
 /**
@@ -122,14 +131,35 @@ export async function salaryForUsers(
       ),
     )
     .where(eq(salaryClosings.yearMonth, yearMonth));
-  if (rows.length === 0) return liveSalaries(userIds, yearMonth);
+  if (rows.length === 0) return withAdjustments(await liveSalaries(userIds, yearMonth), userIds, yearMonth);
 
   const result = new Map<string, SalaryBreakdown>();
   for (const id of userIds) result.set(id, zeroSalary(yearMonth));
   for (const row of rows)
     if (row.userId && row.amount !== null && row.breakdown)
-      result.set(row.userId, { amount: row.amount, month: yearMonth, ...row.breakdown });
+      result.set(row.userId, {
+        amount: row.amount,
+        month: yearMonth,
+        ...row.breakdown,
+        // Bản chụp chốt trước 2026-10-31 chưa có hai trường này: khi đó lương đã lưu là lương theo điểm.
+        pointsAmount: row.breakdown.pointsAmount ?? row.amount,
+        adjustments: row.breakdown.adjustments ?? [],
+      });
   return result;
+}
+
+async function withAdjustments(
+  salaries: Map<string, SalaryBreakdown>,
+  userIds: string[],
+  yearMonth: string,
+): Promise<Map<string, SalaryBreakdown>> {
+  for (const [id, list] of await liveSalaryAdjustments(userIds, yearMonth)) {
+    const salary = salaries.get(id);
+    if (!salary) continue;
+    salary.adjustments = list;
+    salary.amount = finalSalaryOf(salary.pointsAmount, list);
+  }
+  return salaries;
 }
 
 /**
@@ -409,10 +439,12 @@ async function liveSalaries(
     if (salary)
       result.set(subject.id, {
         amount: salary.amount,
+        pointsAmount: salary.amount,
         month: yearMonth,
         facts: salary.facts,
         items: nonZeroItems(salary.items),
         revenue: salary.revenue,
+        adjustments: [],
       });
   }
 
@@ -571,17 +603,22 @@ export async function salaryClosingOf(yearMonth: string): Promise<SalaryClosingS
  */
 export async function closeSalaryMonth(actor: User, yearMonth: string): Promise<number | null> {
   const everyone = await db.select({ id: users.id }).from(users);
-  const salaries = await liveSalaries(
-    everyone.map((row) => row.id),
-    yearMonth,
-  );
+  const ids = everyone.map((row) => row.id);
+  const salaries = await withAdjustments(await liveSalaries(ids, yearMonth), ids, yearMonth);
+  // Người chưa có công thức lương mà có khoản ứng, thưởng, trừ vẫn phải có bản chụp.
   const snapshots = [...salaries]
-    .filter(([, salary]) => salary.items.length > 0)
+    .filter(([, salary]) => salary.items.length > 0 || salary.adjustments.length > 0)
     .map(([userId, salary]) => ({
       yearMonth,
       userId,
       amount: salary.amount,
-      breakdown: { facts: salary.facts, items: salary.items, revenue: salary.revenue },
+      breakdown: {
+        facts: salary.facts,
+        items: salary.items,
+        revenue: salary.revenue,
+        pointsAmount: salary.pointsAmount,
+        adjustments: salary.adjustments,
+      },
     }));
 
   return db.transaction(async (tx) => {

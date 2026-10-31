@@ -352,6 +352,8 @@ export async function departmentDetailFor(
           facts: salary?.facts ?? [],
           items: salary?.items ?? [],
           revenue: salary?.revenue,
+          pointsAmount: salary?.pointsAmount ?? 0,
+          adjustments: salary?.adjustments ?? [],
         },
       };
     }),

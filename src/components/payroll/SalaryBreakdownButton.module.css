@@ -111,6 +111,13 @@
   font-size: 16px;
 }
 
+/* Ứng, thưởng, trừ đứng sau lương theo điểm, ngăn bằng nét 2px như phần thông tin. */
+.adjustments {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 2px solid var(--om-line);
+}
+
 .note {
   margin: 12px 0 0;
   font-size: 12.5px;

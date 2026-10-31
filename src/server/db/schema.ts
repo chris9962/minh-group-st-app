@@ -2665,6 +2665,35 @@ export const kpiAdjustments = pgTable(
   ],
 );
 
+export const salaryAdjustmentKind = pgEnum("salary_adjustment_kind", ["advance", "bonus", "deduction"]);
+
+/**
+ * Ứng lương, thưởng và trừ lương của một người trong tháng (migration 0157, chốt
+ * 2026-10-31). `amount` luôn dương; dấu cộng hay trừ đi theo `kind`. Lương cuối
+ * cùng = lương theo điểm + thưởng - trừ - ứng trước, tính lúc đọc.
+ */
+export const salaryAdjustments = pgTable(
+  "salary_adjustments",
+  {
+    id: id(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    yearMonth: text("year_month").notNull(),
+    kind: salaryAdjustmentKind("kind").notNull(),
+    amount: integer("amount").notNull(),
+    note: text("note").notNull().default(""),
+    createdBy: uuid("created_by")
+      .notNull()
+      .references(() => users.id),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index("salary_adjustments_month_user").on(t.yearMonth, t.userId),
+    check("salary_adjustments_amount_positive", sql`amount > 0`),
+  ],
+);
+
 /**
  * Nhân viên không tính vào điểm phòng của một tháng (migration 0143, chốt
  * 2026-10-18), quyền `staff:exclude-department-points`.
@@ -2734,6 +2763,17 @@ export const salarySnapshots = pgTable(
           other: string | null;
           total: string;
         };
+        /** Lương theo điểm; `amount` là lương cuối cùng (migration 0157). Bản chụp trước đó không có. */
+        pointsAmount?: number;
+        /** Ứng, thưởng, trừ lúc chốt (migration 0157). Bản chụp trước đó không có. */
+        adjustments?: {
+          id: string;
+          kind: "advance" | "bonus" | "deduction";
+          amount: number;
+          note: string;
+          date: string;
+          createdByName: string;
+        }[];
       }>()
       .notNull(),
   },

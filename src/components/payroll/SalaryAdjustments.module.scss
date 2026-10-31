@@ -1,0 +1,81 @@
+/* Số tiền trong ô bảng bấm được để mở hộp thoại. Nút gốc phải đặt màu chữ, không thì bộ màu tối hiện chữ đen. */
+.amountButton {
+  padding: 10px 0;
+  margin: -10px 0;
+  border: 0;
+  background: none;
+  color: var(--om-link);
+  font: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.amountButton:hover {
+  color: var(--om-link-hover);
+  text-decoration: underline;
+}
+
+.amountButton:focus-visible {
+  outline: 2px solid var(--om-orange);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.adjustCell {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+
+.table th,
+.table td {
+  padding: 8px 12px 8px 0;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--om-line);
+}
+
+.table thead th {
+  color: var(--om-text-2);
+  font-weight: 400;
+}
+
+.table tfoot th,
+.table tfoot td {
+  font-weight: 600;
+  border-bottom: 0;
+}
+
+.amount {
+  white-space: nowrap;
+}
+
+/* Đơn vị tiền nằm trong ô nhập, cùng cách đặt với nút hiện mật khẩu của `PasswordField`. */
+.unit {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 100%;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 12px;
+  color: var(--om-text-2);
+  pointer-events: none;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.empty {
+  margin: 0;
+  color: var(--om-text-2);
+}
