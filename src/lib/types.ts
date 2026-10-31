@@ -192,9 +192,10 @@ export const Action = z.enum([
   /**
    * Đặc biệt — insurance (migration 0154, chốt 2026-10-29): văn phòng cấp phôi
    * bảo hiểm cho từng phòng theo tháng và đặt mục tiêu tỉ lệ đơn điện/xe.
+   * Ở banking (migration 0156, chốt 2026-10-31): cấp phiếu thông tin ngân hàng.
    */
   'allocate-blanks',
-  /** Đặc biệt — insurance (migration 0154): Trưởng phòng nhập phôi đã phát và đã sử dụng của người trong phòng. */
+  /** Đặc biệt — insurance (0154) và banking (0156): Trưởng phòng, Phó phòng nhập số đã phát và đã sử dụng của người trong phòng. */
   'split-blanks',
 ]);
 export type Action = z.infer<typeof Action>;
@@ -288,7 +289,7 @@ export const SCOPELESS_ACTIONS: Action[] = [
 export const SPECIAL_ACTIONS_OF: Partial<Record<ModuleKey, Action[]>> = {
   customer: ['access-id-number', 'lookup'],
   insurance: ['handle-fallback', 'set-status', 'lookup', 'allocate-blanks', 'split-blanks'],
-  banking: ['grant-gift', 'lookup'],
+  banking: ['grant-gift', 'lookup', 'allocate-blanks', 'split-blanks'],
   vneid: ['lookup'],
   staff: ['exclude-department-points'],
   /**

@@ -1079,6 +1079,13 @@
       "when": 1789891400080,
       "tag": "0154_insurance_blanks",
       "breakpoints": true
+    },
+    {
+      "idx": 156,
+      "version": "7",
+      "when": 1789891400082,
+      "tag": "0156_bank_blanks",
+      "breakpoints": true
     }
   ]
 }

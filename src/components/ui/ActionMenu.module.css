@@ -34,3 +34,15 @@
   outline: 2px solid var(--om-orange);
   outline-offset: -2px;
 }
+
+/* Cùng danh sách thao tác, đặt trong form trượt từ đáy trên điện thoại. */
+.sheetList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sheetList .item {
+  min-height: 48px;
+  font-size: 15px;
+}

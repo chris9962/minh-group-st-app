@@ -2269,6 +2269,51 @@ export const insuranceMixTargets = pgTable(
   ],
 );
 
+/* ── Phiếu thông tin ngân hàng theo tháng (migration 0156, chốt 2026-10-31) ── */
+
+/** Số phiếu văn phòng cấp THÊM cho một phòng, một ngân hàng, trong một tháng. Cấp 0 là xoá dòng. */
+export const bankBlankDepartmentQuotas = pgTable(
+  "bank_blank_department_quotas",
+  {
+    yearMonth: text("year_month").notNull(),
+    departmentId: uuid("department_id").notNull().references(() => departments.id),
+    bankId: uuid("bank_id").notNull().references(() => banks.id),
+    quantity: integer("quantity").notNull(),
+    updatedBy: uuid("updated_by").references(() => users.id, { onDelete: "set null" }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ name: "bank_blank_department_quotas_pk", columns: [t.yearMonth, t.departmentId, t.bankId] }),
+    check("bank_blank_department_quotas_quantity", sql`${t.quantity} > 0`),
+  ],
+);
+
+/**
+ * Trưởng phòng hoặc Phó phòng nhập cho một người: số phiếu đã phát và số đã sử
+ * dụng thực tế. `used` null là dùng số tài khoản app đếm được. `department_id`
+ * là phòng đã phát, cùng lý do `insurance_blank_staff_quotas`.
+ */
+export const bankBlankStaffQuotas = pgTable(
+  "bank_blank_staff_quotas",
+  {
+    yearMonth: text("year_month").notNull(),
+    userId: uuid("user_id").notNull().references(() => users.id),
+    bankId: uuid("bank_id").notNull().references(() => banks.id),
+    departmentId: uuid("department_id").notNull().references(() => departments.id),
+    issued: integer("issued").notNull(),
+    used: integer("used"),
+    updatedBy: uuid("updated_by").references(() => users.id, { onDelete: "set null" }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ name: "bank_blank_staff_quotas_pk", columns: [t.yearMonth, t.userId, t.bankId] }),
+    index("bank_blank_staff_quotas_department").on(t.departmentId, t.yearMonth),
+    check("bank_blank_staff_quotas_issued", sql`${t.issued} >= 0`),
+    check("bank_blank_staff_quotas_used", sql`${t.used} is null or ${t.used} >= 0`),
+    check("bank_blank_staff_quotas_not_empty", sql`${t.issued} > 0 or ${t.used} is not null`),
+  ],
+);
+
 /* ── BHYT/BHXH của Phòng An Sinh (migration 0121) ─────────────────────── */
 
 export const socialInsuranceKind = pgEnum("social_insurance_kind", ["bhyt", "bhxh"]);

@@ -34,6 +34,7 @@
     "db:grant-lookup": "bun --env-file=.env.local scripts/db-grant-lookup.ts",
     "db:grant-exclude-department-points": "bun --env-file=.env.local scripts/db-grant-exclude-department-points.ts",
     "db:grant-insurance-blanks": "bun --env-file=.env.local scripts/db-grant-insurance-blanks.ts",
+    "db:grant-bank-blanks": "bun --env-file=.env.local scripts/db-grant-bank-blanks.ts",
     "db:seed-insurance-blanks": "bun --env-file=.env.local scripts/db-seed-insurance-blanks.ts",
     "db:grant-social-insurance": "bun --env-file=.env.local scripts/db-grant-social-insurance.ts",
     "db:seed-social-insurance": "bun --env-file=.env.local scripts/db-seed-social-insurance.ts",

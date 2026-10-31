@@ -2,9 +2,9 @@
 
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { Landmark, Pencil, Plus, Trash2 } from "lucide-react";
+import { Landmark, Layers, Pencil, Plus, Ticket, Trash2 } from "lucide-react";
 import type { DateRange } from "react-day-picker";
 import { SkeletonTable } from "@/components/ui/Skeleton";
 import { ErrorState } from "@/components/ui/ErrorState";
@@ -22,6 +22,7 @@ import { FilterButton } from "@/components/ui/FilterButton";
 import { FilterChoices } from "@/components/ui/FilterChoices";
 import { FilterField } from "@/components/ui/FilterField";
 import { FilterChips } from "@/components/ui/FilterChips";
+import { MoreActionsMenu } from "@/components/ui/MoreActionsMenu";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { RowActions } from "@/components/ui/RowActions";
 import { SearchField } from "@/components/ui/SearchField";
@@ -121,6 +122,13 @@ export default function BankingPage() {
   const [creating, setCreating] = useCreateIntent();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [removing, setRemoving] = useState<BankAccountRow | null>(null);
+  const [referralOpen, setReferralOpen] = useState(false);
+  const router = useRouter();
+  const seeAvailableCodes = canSeeAvailableReferralCodes(user);
+  const seeMyCodes = canSeeMyReferralCodes(user);
+  const seeReferralCodes = seeAvailableCodes || seeMyCodes;
+  // Có cả MGT lẫn Phát phiếu thì gom vào nút ba chấm; chỉ một việc thì giữ nút riêng (chốt 2026-10-31).
+  const splitBlanks = can(user, "banking", "split-blanks");
 
   const { data: banks = [] } = useQuery({ queryKey: ["banks"], queryFn: fetchBanks });
   const { data: channels = [] } = useQuery({ queryKey: ["channels"], queryFn: fetchChannels });
@@ -523,8 +531,33 @@ export default function BankingPage() {
             </FilterField>
           ) : null}
         </FilterButton>
-        {canSeeAvailableReferralCodes(user) && <AvailableReferralCodesDialog />}
-        {canSeeMyReferralCodes(user) && <MyReferralCodesDialog />}
+        {seeReferralCodes && splitBlanks ? (
+          <MoreActionsMenu
+            label="Thao tác khác"
+            items={[
+              { label: "Mã giới thiệu", icon: <Ticket size={16} aria-hidden />, onSelect: () => setReferralOpen(true) },
+              { label: "Phát phiếu", icon: <Layers size={16} aria-hidden />, onSelect: () => router.push("/banking/blanks") },
+            ]}
+          />
+        ) : seeReferralCodes ? (
+          <Button
+            variant="secondary"
+            aria-label={seeAvailableCodes ? "MGT - mã giới thiệu của phòng" : "MGT - mã giới thiệu được chia cho tôi"}
+            tooltip={seeAvailableCodes ? "Mã giới thiệu" : "Mã giới thiệu của tôi"}
+            onClick={() => setReferralOpen(true)}
+          >
+            MGT
+          </Button>
+        ) : splitBlanks ? (
+          <Link href="/banking/blanks" aria-label="Phát phiếu" className={`btn btn-secondary ${buttonStyles.base}`}>
+            <Layers size={16} aria-hidden />
+            <span className={buttonStyles.label}>Phát phiếu</span>
+          </Link>
+        ) : null}
+        {seeAvailableCodes && (
+          <AvailableReferralCodesDialog open={referralOpen} onClose={() => setReferralOpen(false)} />
+        )}
+        {seeMyCodes && <MyReferralCodesDialog open={referralOpen} onClose={() => setReferralOpen(false)} />}
         {can(user, "banking", "create") && (
           <Button
             aria-label="Tạo ngân hàng"

@@ -12,12 +12,14 @@ type Props = {
   submitLabel: string;
   /** Trần số nhập được; vượt thì báo lỗi và khoá nút. */
   max?: number;
+  /** Chữ đi sau số trong câu báo trần, phiếu thông tin ngân hàng dùng "phiếu". */
+  unit?: string;
   onSubmit: (quantity: number) => void;
   onClose: () => void;
 };
 
 /** Nhập số phôi cộng thêm hoặc trừ ra ở một ô: "Cấp trong tháng" của phòng hoặc "Đã phát" của người. */
-export function BlankAdjustDialog({ title, label, submitLabel, max, onSubmit, onClose }: Props) {
+export function BlankAdjustDialog({ title, label, submitLabel, max, unit = "phôi", onSubmit, onClose }: Props) {
   const [value, setValue] = useState("");
   const quantity = Number(value || 0);
   const tooMany = max !== undefined && quantity > max;
@@ -52,9 +54,9 @@ export function BlankAdjustDialog({ title, label, submitLabel, max, onSubmit, on
         <TextField
           label={label}
           inputMode="numeric"
-          autoFocus
+          data-autofocus
           value={value}
-          error={tooMany ? `Tối đa ${max} phôi.` : undefined}
+          error={tooMany ? `Tối đa ${max} ${unit}.` : undefined}
           onChange={(e) => setValue(digitsOnly(e.target.value).slice(0, 9))}
         />
       </form>

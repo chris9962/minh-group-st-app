@@ -1,8 +1,6 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
-import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { Dialog } from "@/components/ui/Dialog";
 import { ErrorState } from "@/components/ui/ErrorState";
@@ -59,8 +57,7 @@ const COLUMNS: RankColumn<MyReferralCode>[] = [
  * phần riêng của ai. Ô "Ẩn mã đã đầy và đã ngừng" dùng chung tuỳ chọn với
  * modal của Trưởng phòng, nhớ theo máy.
  */
-export function MyReferralCodesDialog() {
-  const [open, setOpen] = useState(false);
+export function MyReferralCodesDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const hideUnusable = usePrefs((s) => s.hideUnusableReferralCodes);
   const setHideUnusable = usePrefs((s) => s.setHideUnusableReferralCodes);
 
@@ -75,15 +72,7 @@ export function MyReferralCodesDialog() {
 
   return (
     <>
-      <Button
-        variant="secondary"
-        aria-label="MGT - mã giới thiệu được chia cho tôi"
-        tooltip="Mã giới thiệu của tôi"
-        onClick={() => setOpen(true)}
-      >
-        MGT
-      </Button>
-      <Dialog open={open} full title="Mã giới thiệu của tôi" onClose={() => setOpen(false)}>
+      <Dialog open={open} full title="Mã giới thiệu của tôi" onClose={onClose}>
         <div className={styles.filters}>
           <Checkbox
             label="Ẩn mã đã đầy và đã ngừng"

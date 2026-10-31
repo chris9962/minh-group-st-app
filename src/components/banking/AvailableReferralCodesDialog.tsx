@@ -2,7 +2,6 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { Dialog } from "@/components/ui/Dialog";
 import { ErrorState } from "@/components/ui/ErrorState";
@@ -107,8 +106,7 @@ const columnsFor = (
  * ngừng" thì thấy hết (chốt 2026-10-19, nhớ theo máy ở `usePrefs`). Mã text
  * không hiện: tên hiển thị đủ để biết mã nào, và mã ẩn thì không được lộ.
  */
-export function AvailableReferralCodesDialog() {
-  const [open, setOpen] = useState(false);
+export function AvailableReferralCodesDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [bankId, setBankId] = useState("");
   const [allocating, setAllocating] = useState<ReferralCode | null>(null);
   const user = useSession((s) => s.user);
@@ -144,15 +142,7 @@ export function AvailableReferralCodesDialog() {
 
   return (
     <>
-      <Button
-        variant="secondary"
-        aria-label="MGT - mã giới thiệu của phòng"
-        tooltip="Mã giới thiệu"
-        onClick={() => setOpen(true)}
-      >
-        MGT
-      </Button>
-      <Dialog open={open} full title="Mã giới thiệu" onClose={() => setOpen(false)}>
+      <Dialog open={open} full title="Mã giới thiệu" onClose={onClose}>
         <div className={styles.filters}>
           <Select
             label="Ngân hàng"

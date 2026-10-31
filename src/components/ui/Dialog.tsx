@@ -112,8 +112,10 @@ export function Dialog({
        *
        * KHÔNG đặt vào ô nhập đầu tiên: đội kinh doanh dùng điện thoại, và bàn
        * phím ảo bật ngay lúc mở sẽ che mất nửa hộp thoại.
+       *
+       * Ngoại lệ: form chỉ có một ô số (cộng, trừ phôi) gắn `data-autofocus` lên ô đó (chốt 2026-10-31).
        */
-      panelRef.current?.focus();
+      (panelRef.current?.querySelector<HTMLElement>("[data-autofocus]") ?? panelRef.current)?.focus();
       const { push, pop } = useDialogLayer.getState();
       push(el);
       let cancelled = false;

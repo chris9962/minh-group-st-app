@@ -219,15 +219,22 @@ const deputyDirectorPermissions: Permission[] = [
   p('system', 'configure-wards', 'company'),
 ];
 
-/** Trưởng phòng chia phôi bảo hiểm của phòng (chốt 2026-10-29); Phó phòng chỉ nhận phôi. */
-const headPermissions: Permission[] = [...managerPermissions, p('insurance', 'split-blanks', 'managed')];
+/**
+ * Trưởng phòng và Phó phòng chia phôi bảo hiểm (chốt 2026-10-29) và phiếu thông
+ * tin ngân hàng (chốt 2026-10-31) của phòng. Phó phòng có quyền này từ 2026-10-31.
+ */
+const headPermissions: Permission[] = [
+  ...managerPermissions,
+  p('insurance', 'split-blanks', 'managed'),
+  p('banking', 'split-blanks', 'managed'),
+];
 
 export const ROLE_PERMISSIONS: Record<RoleKey, Permission[]> = {
   director: directorPermissions,
   admin: directorPermissions,
   'deputy-director': deputyDirectorPermissions,
   head: headPermissions,
-  'deputy-head': managerPermissions,
+  'deputy-head': headPermissions,
   staff: staffPermissions,
 };
 

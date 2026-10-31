@@ -301,6 +301,9 @@ export function navFor(user: User | null): NavEntry[] {
   if (can(user, 'insurance', 'allocate-blanks')) {
     settingsChildren.push({ href: '/settings/insurance-blanks', label: 'Cấp phôi BH', screen: 'P-17' });
   }
+  if (can(user, 'banking', 'allocate-blanks')) {
+    settingsChildren.push({ href: '/settings/bank-blanks', label: 'Cấp phiếu ngân hàng', screen: 'P-22' });
+  }
   if (can(user, 'system', 'configure-catalog')) {
     settingsChildren.push({
       href: '/settings/service-types',
