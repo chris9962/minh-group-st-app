@@ -1,6 +1,14 @@
 import { attendanceModeOf } from './api/attendance';
 import { matchesSearch } from './format';
-import { can, canConfigureWards, canCreateBank, canOpenBankAdmin, canOrg, isFullAccess } from './permissions';
+import {
+  can,
+  canConfigureWards,
+  canCreateBank,
+  canOpenBankAdmin,
+  canOpenSalaryAdvances,
+  canOrg,
+  isFullAccess,
+} from './permissions';
 import { isDirectorRole, type User } from './types';
 
 /**
@@ -24,6 +32,7 @@ export type NavIconKey =
   | 'customers'
   | 'people'
   | 'payroll'
+  | 'advance'
   | 'profile'
   | 'target'
   | 'gift'
@@ -195,6 +204,9 @@ export function navFor(user: User | null): NavEntry[] {
     (fullAccess ? manage : items).push({ href: '/users', label: 'Nhân sự', icon: 'people', screen: 'P-51' });
     // Cùng điều kiện với Nhân sự: trang Lương đọc chung danh sách nhân viên và phạm vi phòng.
     (fullAccess ? manage : items).push({ href: '/payroll', label: 'Lương', icon: 'payroll', screen: 'P-51' });
+  }
+  if (canOpenSalaryAdvances(user)) {
+    (fullAccess ? manage : items).push({ href: '/salary-advances', label: 'Tạm ứng lương', icon: 'advance', screen: 'P-51' });
   }
 
   // Bảng Nhân sự không có dòng của Phó giám đốc, nên họ không có đường nào khác tới P-52 của mình.

@@ -129,7 +129,8 @@ export default function PayrollPage() {
         label={`${SALARY_ADJUSTMENT_LABEL[kind]} của ${r.fullName}`}
         addLabel={`${SALARY_ADJUSTMENT_ADD_LABEL[kind]} cho ${r.fullName}`}
         onOpen={() => setAdjusting({ row: r, kind, mode: "list" })}
-        onAdd={editable ? () => setAdjusting({ row: r, kind, mode: "add" }) : undefined}
+        // Ứng trước chỉ sinh ra từ yêu cầu tạm ứng đã chi, ở trang Tạm ứng lương (/salary-advances).
+        onAdd={editable && kind !== "advance" ? () => setAdjusting({ row: r, kind, mode: "add" }) : undefined}
       />
     ),
   });

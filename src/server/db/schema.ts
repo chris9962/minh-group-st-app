@@ -94,6 +94,8 @@ export const actionKey = pgEnum("action_key", [
   "split-blanks",
   // đặc biệt · attendance: ghi công thay nhân viên (migration 0155)
   "record-attendance",
+  // đặc biệt · staff: Trưởng phòng duyệt yêu cầu tạm ứng lương của phòng (migration 0159)
+  "approve-advance",
 ]);
 
 export const scopeKey = pgEnum("scope_key", ["own", "managed", "company"]);
@@ -2702,6 +2704,80 @@ export const salaryAdjustments = pgTable(
     index("salary_adjustments_month_user").on(t.yearMonth, t.userId),
     check("salary_adjustments_amount_positive", sql`amount > 0`),
   ],
+);
+
+export const salaryAdvanceStatus = pgEnum("salary_advance_status", [
+  "pending",
+  "head-approved",
+  "head-rejected",
+  "expired",
+  "approved",
+  "rejected",
+  "processing",
+  "paid",
+]);
+
+/**
+ * Yêu cầu tạm ứng lương, mỗi người một yêu cầu mỗi tháng (migration 0159, chốt
+ * 2026-11-01). Luồng và mốc giờ ở `server/salaryAdvances.ts`. Lúc kế toán bấm Đã
+ * chi tạm ứng, app ghi một dòng `advance` vào `salary_adjustments` và giữ id ở
+ * `adjustment_id`.
+ */
+export const salaryAdvanceRequests = pgTable(
+  "salary_advance_requests",
+  {
+    id: id(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    yearMonth: text("year_month").notNull(),
+    /** Phòng lúc gửi; Trưởng phòng của phòng này duyệt. NULL = không thuộc phòng nào, đi thẳng tới kế toán. */
+    departmentId: uuid("department_id").references(() => departments.id),
+    amount: integer("amount").notNull(),
+    status: salaryAdvanceStatus("status").notNull().default("pending"),
+    rejectReason: text("reject_reason").notNull().default(""),
+    // RESTRICT: khoản ứng trước của yêu cầu đã chi mà bị xoá thì tiền đã chuyển không còn trừ vào lương.
+    adjustmentId: uuid("adjustment_id").references(() => salaryAdjustments.id, { onDelete: "restrict" }),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("salary_advance_requests_user_month").on(t.userId, t.yearMonth),
+    index("salary_advance_requests_month_status").on(t.yearMonth, t.status),
+    index("salary_advance_requests_month_department").on(t.yearMonth, t.departmentId),
+    index("salary_advance_requests_adjustment").on(t.adjustmentId),
+    check("salary_advance_requests_amount_positive", sql`amount > 0`),
+  ],
+);
+
+export const salaryAdvanceEventKind = pgEnum("salary_advance_event_kind", [
+  "create",
+  "edit",
+  "head-approve",
+  "head-reject",
+  "expire",
+  "approve",
+  "reject",
+  "processing",
+  "paid",
+]);
+
+/** Lịch sử của yêu cầu tạm ứng: mỗi lần đổi số tiền hoặc trạng thái một dòng. `actor_id` NULL = app tự làm. */
+export const salaryAdvanceEvents = pgTable(
+  "salary_advance_events",
+  {
+    id: id(),
+    requestId: uuid("request_id")
+      .notNull()
+      .references(() => salaryAdvanceRequests.id, { onDelete: "cascade" }),
+    kind: salaryAdvanceEventKind("kind").notNull(),
+    actorId: uuid("actor_id").references(() => users.id),
+    fromAmount: integer("from_amount"),
+    toAmount: integer("to_amount"),
+    note: text("note").notNull().default(""),
+    createdAt: createdAt(),
+  },
+  (t) => [index("salary_advance_events_request").on(t.requestId, t.createdAt)],
 );
 
 /**

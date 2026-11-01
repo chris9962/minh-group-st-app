@@ -378,6 +378,14 @@ export function recordVisibility(
 }
 
 /**
+ * Trang Tạm ứng lương (chốt 2026-11-01): Trưởng phòng duyệt bước đầu bằng
+ * `staff:approve-advance`, kế toán duyệt bước sau bằng quyền chốt lương. Nút và
+ * route cùng hỏi hàm này.
+ */
+export const canOpenSalaryAdvances = (user: User | null): boolean =>
+  can(user, 'staff', 'approve-advance') || can(user, 'system', 'close-salary');
+
+/**
  * Nút MGT ở màn Ngân hàng P-21 (chủ dự án chốt 2026-10-15): ai đọc được tài
  * khoản của cả phòng trở lên thì xem được mã giới thiệu còn chỗ của phạm vi
  * đó. Nhân viên (phạm vi `own`) không thấy. Nút và route cùng hỏi hàm này.

@@ -25,6 +25,14 @@ export async function closedMonthAmong(months: string[], conn: Conn = db): Promi
 export const isMonthClosed = async (yearMonth: string, conn: Conn = db): Promise<boolean> =>
   (await closedMonthAmong([yearMonth], conn)) !== null;
 
+/**
+ * Khoá theo tháng, nhả khi transaction kết thúc. Chốt lương và Đã chi tạm ứng
+ * cùng lấy khoá này: chạy xen nhau thì khoản ứng vừa chi có thể nằm ngoài bản
+ * chụp lương đã chốt.
+ */
+export const lockSalaryMonth = (conn: Pick<typeof db, "execute">, yearMonth: string) =>
+  conn.execute(sql`select pg_advisory_xact_lock(hashtext(${`salary-month:${yearMonth}`}))`);
+
 /** Tháng của hồ sơ khách (mốc điểm KPI, xem `customerDay.ts`) nếu tháng đó đã chốt lương. */
 export async function closedMonthOfCustomer(customerId: string): Promise<string | null> {
   const [row] = await db

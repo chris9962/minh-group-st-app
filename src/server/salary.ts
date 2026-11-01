@@ -12,6 +12,7 @@ import {
   type SalaryRevenue,
   type SalaryItem,
 } from "@/rules/salary";
+import { lockSalaryMonth } from "./closedMonths";
 import { db } from "./db/client";
 import {
   departmentPointExclusions,
@@ -19,6 +20,7 @@ import {
   employeeWorkDays,
   kpiAdjustments,
   kpiScores,
+  salaryAdvanceRequests,
   salaryClosings,
   salarySnapshots,
   staffRoster,
@@ -564,6 +566,25 @@ const firstDayAfter = (yearMonth: string) => {
   return `01/${String(nextMonth).padStart(2, "0")}/${nextYear}`;
 };
 
+/**
+ * Tháng còn yêu cầu tạm ứng chưa chi xong thì không chốt lương: chốt rồi thì
+ * nút Đã chi tạm ứng bị khoá, khoản đã chuyển tiền không bao giờ trừ vào lương.
+ */
+async function unsettledAdvanceReason(conn: Pick<typeof db, "select">, yearMonth: string): Promise<string | null> {
+  const [row] = await conn
+    .select({ n: sql<number>`count(*)::int` })
+    .from(salaryAdvanceRequests)
+    .where(
+      and(
+        eq(salaryAdvanceRequests.yearMonth, yearMonth),
+        inArray(salaryAdvanceRequests.status, ["head-approved", "approved", "processing"]),
+      ),
+    );
+  return row && row.n > 0
+    ? `Lương ${monthText(yearMonth)} còn ${row.n} yêu cầu tạm ứng chưa chi xong, không chốt được.`
+    : null;
+}
+
 function blockedReasonOf(yearMonth: string): string | null {
   if (yearMonth >= businessMonth())
     return `Lương ${monthText(yearMonth)} chốt được từ ngày ${firstDayAfter(yearMonth)}, khi tháng đã kết thúc.`;
@@ -582,7 +603,7 @@ export async function salaryClosingOf(yearMonth: string): Promise<SalaryClosingS
   // Tháng chưa kết thúc thì điểm và ngày công còn tăng. Tháng chưa có công
   // thức thì không có số nào để chốt. Tính ở máy chủ vì tháng hiện tại theo
   // giờ Việt Nam, máy người dùng để múi giờ khác thì ra tháng khác.
-  const blockedReason = row ? null : blockedReasonOf(yearMonth);
+  const blockedReason = row ? null : (blockedReasonOf(yearMonth) ?? (await unsettledAdvanceReason(db, yearMonth)));
   return {
     month: yearMonth,
     closed: Boolean(row),
@@ -601,27 +622,32 @@ export async function salaryClosingOf(yearMonth: string): Promise<SalaryClosingS
  * Lấy cả người đã nghỉ: họ vẫn có lương của tháng họ còn làm. Chỉ lưu dòng có
  * công thức; người không có dòng đọc ra lương 0, giống lúc chưa chốt.
  */
-export async function closeSalaryMonth(actor: User, yearMonth: string): Promise<number | null> {
-  const everyone = await db.select({ id: users.id }).from(users);
-  const ids = everyone.map((row) => row.id);
-  const salaries = await withAdjustments(await liveSalaries(ids, yearMonth), ids, yearMonth);
-  // Người chưa có công thức lương mà có khoản ứng, thưởng, trừ vẫn phải có bản chụp.
-  const snapshots = [...salaries]
-    .filter(([, salary]) => salary.items.length > 0 || salary.adjustments.length > 0)
-    .map(([userId, salary]) => ({
-      yearMonth,
-      userId,
-      amount: salary.amount,
-      breakdown: {
-        facts: salary.facts,
-        items: salary.items,
-        revenue: salary.revenue,
-        pointsAmount: salary.pointsAmount,
-        adjustments: salary.adjustments,
-      },
-    }));
-
+export async function closeSalaryMonth(actor: User, yearMonth: string): Promise<number | null | string> {
   return db.transaction(async (tx) => {
+    // Tính lương SAU khi giữ khoá: Đã chi tạm ứng phải chờ, không chen vào giữa lúc tính và lúc lưu bản chụp.
+    await lockSalaryMonth(tx, yearMonth);
+    const unsettled = await unsettledAdvanceReason(tx, yearMonth);
+    if (unsettled) return unsettled;
+
+    const everyone = await db.select({ id: users.id }).from(users);
+    const ids = everyone.map((row) => row.id);
+    const salaries = await withAdjustments(await liveSalaries(ids, yearMonth), ids, yearMonth);
+    // Người chưa có công thức lương mà có khoản ứng, thưởng, trừ vẫn phải có bản chụp.
+    const snapshots = [...salaries]
+      .filter(([, salary]) => salary.items.length > 0 || salary.adjustments.length > 0)
+      .map(([userId, salary]) => ({
+        yearMonth,
+        userId,
+        amount: salary.amount,
+        breakdown: {
+          facts: salary.facts,
+          items: salary.items,
+          revenue: salary.revenue,
+          pointsAmount: salary.pointsAmount,
+          adjustments: salary.adjustments,
+        },
+      }));
+
     const inserted = await tx
       .insert(salaryClosings)
       .values({ yearMonth, closedBy: actor.id })

@@ -233,7 +233,8 @@ export const ROLE_PERMISSIONS: Record<RoleKey, Permission[]> = {
   director: directorPermissions,
   admin: directorPermissions,
   'deputy-director': deputyDirectorPermissions,
-  head: headPermissions,
+  // Chỉ Trưởng phòng duyệt tạm ứng lương, Phó phòng không duyệt thay (chốt 2026-11-01).
+  head: [...headPermissions, p('staff', 'approve-advance', 'managed')],
   'deputy-head': headPermissions,
   staff: staffPermissions,
 };

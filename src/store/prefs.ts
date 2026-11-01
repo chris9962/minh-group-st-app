@@ -62,6 +62,13 @@ type Prefs = {
    */
   onlyAllocatableReferralCodes: boolean;
   setOnlyAllocatableReferralCodes: (value: boolean) => void;
+  /**
+   * Tháng `YYYY-MM` mà người dùng thu gọn thẻ Tạm ứng lương ở màn Tổng quan
+   * (chốt 2026-11-01). Lưu tháng chứ không lưu true/false: sang tháng mới thì
+   * thẻ tự mở lại, không cần ai bấm.
+   */
+  collapsedAdvanceMonth: string;
+  setCollapsedAdvanceMonth: (month: string) => void;
 };
 
 export const usePrefs = create<Prefs>()(
@@ -86,6 +93,8 @@ export const usePrefs = create<Prefs>()(
       onlyAllocatableReferralCodes: false,
       setOnlyAllocatableReferralCodes: (onlyAllocatableReferralCodes) =>
         set({ onlyAllocatableReferralCodes }),
+      collapsedAdvanceMonth: '',
+      setCollapsedAdvanceMonth: (collapsedAdvanceMonth) => set({ collapsedAdvanceMonth }),
     }),
     { name: 'mgst-prefs' },
   ),

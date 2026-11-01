@@ -1,0 +1,66 @@
+.body {
+  flex: 1;
+  padding: 22px 28px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Nút gốc phải đặt màu chữ, không thì bộ màu tối hiện chữ đen. */
+.nameButton {
+  display: block;
+  padding: 12px 0;
+  margin: -12px 0;
+  border: 0;
+  background: none;
+  color: var(--om-link);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.nameButton:hover {
+  color: var(--om-link-hover);
+  text-decoration: underline;
+}
+
+.nameButton:focus-visible {
+  outline: 2px solid var(--om-orange);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.subLine {
+  display: block;
+  font-size: 12.5px;
+  color: var(--om-text-2);
+}
+
+/* Lý do từ chối dài tới 500 ký tự: ô bảng mặc định không xuống dòng, không giới hạn thì bảng tràn ngang ở màn 1366px. */
+.reason {
+  display: block;
+  max-width: 32ch;
+  white-space: normal;
+  font-size: 12.5px;
+  color: var(--om-text-2);
+}
+
+.responsibility {
+  display: block;
+  margin-top: 10px;
+  font-weight: 600;
+}
+
+@media (max-width: bp.$bp-mobile) {
+  .body {
+    padding: 16px 16px 32px;
+  }
+}

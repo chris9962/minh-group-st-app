@@ -37,6 +37,8 @@ export async function POST(request: Request, { params }: Params) {
   if (!isUuid(id)) return notFound();
   const parsed = SalaryAdjustmentForm.safeParse(await jsonBody(request));
   if (!parsed.success) return badRequest();
+  // Từ 2026-11-01 ứng trước chỉ sinh ra từ yêu cầu tạm ứng đã chi, xem `server/salaryAdvances.ts`.
+  if (parsed.data.kind === "advance") return badRequest("Lương ứng trước ghi qua trang Tạm ứng lương.");
 
   const result = await createSalaryAdjustment(guard.actor, id, parsed.data);
   if (result === "closed") return badRequest(closedMonthMessage(parsed.data.month));

@@ -16,6 +16,7 @@ export async function DELETE(request: Request, { params }: Params) {
   const result = await deleteSalaryAdjustment(id, adjustmentId);
   if (!result) return notFound();
   if (result === "closed") return badRequest("Lương tháng này đã chốt, không xoá được.");
+  if (result === "linked") return badRequest("Khoản này là tạm ứng đã chi, không xoá được.");
 
   await logAudit(guard.actor, {
     module: "system",

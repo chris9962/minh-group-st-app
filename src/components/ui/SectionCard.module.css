@@ -91,6 +91,11 @@
     border-left: 0;
   }
 
+  .inlineAction .action {
+    flex: 0 0 auto;
+    margin-left: auto;
+  }
+
   .stackMeta .head {
     row-gap: 2px;
   }

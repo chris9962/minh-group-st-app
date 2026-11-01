@@ -79,3 +79,44 @@
   margin: 0;
   color: var(--om-text-2);
 }
+
+.summary {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  font-size: 18px;
+}
+
+/* Lịch sử tạm ứng: danh sách dọc thay cho bảng 4 cột, để khổ điện thoại 390px không cắt cột số tiền. */
+.events {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--om-line);
+}
+
+.event {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--om-line);
+}
+
+.eventHead {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 12px;
+}
+
+.eventKind {
+  font-weight: 600;
+}
+
+.eventMeta {
+  color: var(--om-text-2);
+  font-size: 13px;
+}

@@ -16,6 +16,8 @@ type Props = {
    * bảng trông như một hàng của bảng, và đẩy bảng tụt xuống một dòng.
    */
   action?: React.ReactNode;
+  /** Màn hẹp: giữ `action` cùng hàng tiêu đề. Chỉ dùng khi `action` là một nút icon, ví dụ nút thu gọn thẻ. */
+  inlineAction?: boolean;
   /**
    * `plain` bỏ nền và viền — dùng cho bảng.
    *
@@ -34,6 +36,7 @@ export function SectionCard({
   meta,
   stackMeta = false,
   action,
+  inlineAction = false,
   variant = "card",
   children,
   className,
@@ -44,6 +47,7 @@ export function SectionCard({
         styles.card,
         variant === "plain" && styles.plain,
         stackMeta && styles.stackMeta,
+        inlineAction && styles.inlineAction,
         className,
       )}
     >

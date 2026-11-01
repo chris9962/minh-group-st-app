@@ -25,6 +25,8 @@ export const SalaryAdjustment = z.object({
   /** Ngày ghi, YYYY-MM-DD theo giờ Việt Nam. */
   date: z.string(),
   createdByName: z.string(),
+  /** Khoản ứng trước sinh ra từ yêu cầu tạm ứng đã chi: không xoá được. Bản chụp chốt trước 2026-11-01 không có trường này. */
+  linked: z.boolean().optional(),
 });
 export type SalaryAdjustment = z.infer<typeof SalaryAdjustment>;
 

@@ -26,11 +26,12 @@ export async function POST(request: Request) {
   if (status.closed)
     return Response.json({ message: `Lương tháng ${month} đã chốt` }, { status: 409 });
   if (!status.closable)
-    return badRequest("Chỉ chốt được tháng đã kết thúc và đã có công thức lương");
+    return badRequest(status.blockedReason ?? "Chỉ chốt được tháng đã kết thúc và đã có công thức lương");
 
   const saved = await closeSalaryMonth(guard.actor, month);
   if (saved === null)
     return Response.json({ message: `Lương tháng ${month} đã chốt` }, { status: 409 });
+  if (typeof saved === "string") return Response.json({ message: saved }, { status: 409 });
 
   await logAudit(guard.actor, {
     module: "system",

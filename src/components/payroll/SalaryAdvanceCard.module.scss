@@ -1,0 +1,28 @@
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.amount {
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.note {
+  margin: 0;
+  color: var(--om-text-2);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}

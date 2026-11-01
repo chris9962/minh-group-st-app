@@ -1107,6 +1107,13 @@
       "when": 1789891400085,
       "tag": "0158_customer_origin_department",
       "breakpoints": true
+    },
+    {
+      "idx": 159,
+      "version": "7",
+      "when": 1789891400086,
+      "tag": "0159_salary_advances",
+      "breakpoints": true
     }
   ]
 }

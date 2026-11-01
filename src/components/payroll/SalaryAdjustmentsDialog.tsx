@@ -159,14 +159,16 @@ export function SalaryAdjustmentsDialog({ staff, month, kind, mode, editable, on
                   <td>{r.createdByName}</td>
                   {editable && (
                     <td>
-                      <Button
-                        variant="secondary"
-                        icon
-                        aria-label={`Xoá ${formatVnd(r.amount)} ngày ${formatDate(r.date)}`}
-                        onClick={() => setRemoving(r)}
-                      >
-                        <Trash2 size={16} aria-hidden />
-                      </Button>
+                      {!r.linked && (
+                        <Button
+                          variant="secondary"
+                          icon
+                          aria-label={`Xoá ${formatVnd(r.amount)} ngày ${formatDate(r.date)}`}
+                          onClick={() => setRemoving(r)}
+                        >
+                          <Trash2 size={16} aria-hidden />
+                        </Button>
+                      )}
                     </td>
                   )}
                 </tr>
