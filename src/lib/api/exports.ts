@@ -48,6 +48,8 @@ export const ScoringExportRow = z.object({
   beneficiaryName: z.string(),
   staffCode: z.string(),
   departmentName: z.string(),
+  /** Phòng lúc lập hồ sơ, luật Phòng Y đọc phòng này (migration 0158). */
+  originDepartmentName: z.string(),
   priorityCount: z.number(),
   otherCount: z.number(),
   restrictedCount: z.number(),

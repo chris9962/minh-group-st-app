@@ -13,7 +13,14 @@ import {
   type SQLWrapper,
 } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
-import { bankingPointsFor, bankTierFor, giftFor, householdPointsAt, ruleDateOf } from "@/rules";
+import {
+  bankingPointsFor,
+  bankTierFor,
+  giftFor,
+  householdPointsAt,
+  ruleDateOf,
+  winningComboSizeAt,
+} from "@/rules";
 import type { GiftResult, ScoringAccount } from "@/rules";
 import { BUSINESS_TIMEZONE } from "@/lib/format";
 import { recordVisibility, type RecordVisibility } from "@/lib/permissions";
@@ -414,6 +421,8 @@ export async function listScoringExport(
   if (ids.length === 0) return { rows: [], total: 0 };
 
   const ownerDepartment = alias(departments, "owner_department");
+  // Luật Phòng Y đọc phòng lúc lập; cột NHÓM vẫn là phòng hiện tại của hồ sơ.
+  const originDepartment = alias(departments, "origin_department");
   const [customerRows, phoneRows, insuranceRows, grantRows, giftItemRows, packageRows, brokenRows] =
     await Promise.all([
     db
@@ -427,12 +436,14 @@ export async function listScoringExport(
         channelDetail: customers.channelDetail,
         staffCode: users.staffCode,
         departmentName: ownerDepartment.name,
-        departmentCode: ownerDepartment.code,
+        departmentCode: originDepartment.code,
+        originDepartmentName: originDepartment.name,
       })
       .from(customers)
       .leftJoin(channels, eq(channels.id, customers.channelId))
       .leftJoin(users, eq(users.id, customers.createdBy))
       .leftJoin(ownerDepartment, eq(ownerDepartment.id, customers.createdByDepartmentId))
+      .leftJoin(originDepartment, eq(originDepartment.id, customers.originDepartmentId))
       .where(inArray(customers.id, ids)),
     db
       .select({ customerId: customerPhones.customerId, number: customerPhones.number })
@@ -523,6 +534,7 @@ export async function listScoringExport(
       appInstalled: a.appInstalled,
       openedDate: a.openedDate ?? "",
       household: a.accountType,
+      departmentCode: customer?.departmentCode ?? null,
     }));
     // Cùng ngày tra luật với điểm KPI và rổ quà, xem `ruleDateOf`. Bản trước lấy
     // ngày mở SỚM nhất; hai ngày chỉ khác nhau ở khách mở tài khoản khác ngày.
@@ -570,6 +582,8 @@ export async function listScoringExport(
      * nên hiệu của chúng đúng ở mọi kỳ.
      */
     const comboPoints = Number((total - householdPoints).toFixed(2));
+    // Cột theo tổ hợp thắng, không theo số ngân hàng: SHB + LPB là Combo 1 của SHB.
+    const comboSize = ruleDate ? winningComboSizeAt(scoring, ruleDate) : 0;
 
     /**
      * Hai cột `HKD/CNKD VPa` và `HKD/CNKD MB` (chủ dự án chốt 2026-09-30): từ kỳ
@@ -623,12 +637,13 @@ export async function listScoringExport(
       beneficiaryName: insurance?.beneficiaryName ?? "",
       staffCode: customer?.staffCode ?? "",
       departmentName: customer?.departmentName ?? "",
+      originDepartmentName: customer?.originDepartmentName ?? "",
       priorityCount: tierCount("priority"),
       otherCount: tierCount("other"),
       restrictedCount: tierCount("restricted"),
       // Tách hai cột như file: tổ hợp 2 và tổ hợp 3 không bao giờ cùng có giá trị.
-      combo2Points: bankCodes.length === 2 ? comboPoints : 0,
-      combo3Points: bankCodes.length >= 3 ? comboPoints : 0,
+      combo2Points: comboSize === 2 ? comboPoints : 0,
+      combo3Points: comboSize === 3 ? comboPoints : 0,
       householdPoints,
       totalPoints: total,
     });

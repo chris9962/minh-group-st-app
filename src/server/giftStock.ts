@@ -45,7 +45,7 @@ export async function stockRemaining(codes: string[], runner: Runner = db): Prom
 
 export class OutOfStock extends Error {
   constructor(readonly itemName: string) {
-    super(`"${itemName}" đã hết hàng. Chọn món khác trong rổ.`);
+    super(`"${itemName}" đã hết hàng. Chọn món khác trong danh sách quà.`);
   }
 }
 

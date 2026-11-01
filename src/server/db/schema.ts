@@ -1191,11 +1191,21 @@ export const customers = pgTable(
      * truy vấn: nối thì mất chỉ mục và phải nối trước khi cắt trang
      * (AGENTS.md §5.2).
      *
-     * ⚠️ Chuyển phòng ĐỔI RỔ QUÀ của khách chưa phát: `updateStaff` gọi
-     * `recomputeGiftCase` cho từng khách ngay sau lượt chuyển. Đợt ĐÃ phát
-     * không đụng — `gift_grants.snapshot` đóng băng (spec §5.3).
+     * Luật Phòng Y không đọc cột này từ migration 0158: nó đọc
+     * `origin_department_id`, phòng lúc lập, nên chuyển phòng không còn đổi
+     * rổ quà.
      */
     createdByDepartmentId: uuid("created_by_department_id").references(() => departments.id),
+    /**
+     * Phòng LÚC LẬP hồ sơ (migration 0158, chủ dự án chốt 2026-11-01). Trigger
+     * điền lúc thêm dòng từ `created_by_department_id`; sau đó không gì viết
+     * lại, kể cả `writeStaff` và chuyển hồ sơ.
+     *
+     * Luật Phòng Y đọc cột này: cộng 0,1 cho Combo 2, Combo 3 từ kỳ 2026-11-01
+     * và quy đổi quà TH8. Quyền xem, xếp hạng và đếm số liệu theo phòng vẫn đọc
+     * `created_by_department_id`.
+     */
+    originDepartmentId: uuid("origin_department_id").references(() => departments.id),
     /**
      * Dấu "đã kiểm tra" của Phòng Thanh tra (migration 0141, chốt 2026-10-14).
      *

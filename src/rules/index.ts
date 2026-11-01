@@ -6,6 +6,7 @@ import * as period20260928 from "./2026-09-28";
 import * as period20261001 from "./2026-10-01";
 import * as period20261011 from "./2026-10-11";
 import * as period20261015 from "./2026-10-15";
+import * as period20261101 from "./2026-11-01";
 import type { Tier } from "./2026-08";
 
 export type { Tier };
@@ -63,6 +64,13 @@ export type ScoringAccount = {
    * `bankCode` bằng `CNKD`/`HKD` khi người dùng lập tài khoản riêng.
    */
   household: HouseholdKind;
+  /**
+   * Mã phòng lúc lập hồ sơ khách (`customers.origin_department_id`). Kỳ
+   * 2026-11-01 cộng 0,1 cho Combo 2, Combo 3 khi phòng này là Phòng Y (chủ dự
+   * án chốt 2026-11-01). Kỳ trước không đọc trường này; vắng thì coi như không
+   * thuộc Phòng Y.
+   */
+  departmentCode?: string | null;
 };
 
 /**
@@ -90,7 +98,7 @@ export type GiftInput = {
   accounts: ScoringAccount[];
   /** Mã kênh khách đã dùng — mảng, vì mỗi tài khoản mở qua một kênh khác nhau được. */
   channelCodes: string[];
-  /** Mã phòng của người phụ trách khách; `null` khi không thuộc phòng nào. */
+  /** Mã phòng lúc lập hồ sơ (`customers.origin_department_id`); `null` khi không thuộc phòng nào. */
   departmentCode: string | null;
   /**
    * Món khách ĐÃ nhận; `null` khi chưa phát hoặc khách từ chối.
@@ -234,6 +242,7 @@ const PERIODS: Record<string, PeriodRules> = {
   "2026-10-01": period20261001,
   "2026-10-11": period20261011,
   "2026-10-15": period20261015,
+  "2026-11-01": period20261101,
 };
 
 /**
@@ -491,6 +500,15 @@ export function rulePeriodStarts(): string[] {
  */
 export function comboPointsAt(bankCodes: string[], at: string): number {
   return rulesFor(at)?.comboPointsFor(bankCodes) ?? 0;
+}
+
+/**
+ * Số ngân hàng trong tổ hợp thắng của MỘT khách, theo luật ngày `at`; 0 khi
+ * không thành tổ hợp nào. Excel "Tính điểm tổng" chọn cột ĐIỂM COMBO 2 / COMBO 3
+ * theo số này, không theo số ngân hàng khách mở: `SHB` + `LPB` chỉ là Combo 1.
+ */
+export function winningComboSizeAt(accounts: ScoringAccount[], at: string): number {
+  return rulesFor(at)?.winningComboOf(accounts).size ?? 0;
 }
 
 /**

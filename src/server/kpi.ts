@@ -1,4 +1,5 @@
 import { and, asc, eq, gte, inArray, lte, sql, type SQL } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { businessMonth, monthRange, roundPoints } from "@/lib/format";
 import { centsFromDecimal } from "@/lib/money";
 import { shiftMonth } from "@/lib/period";
@@ -385,10 +386,12 @@ async function scoringAccountsOf(
       // Ô chọn "Mở tài khoản CNKD / HKD" nằm trên chính dòng VPa. Từ chốt
       // 2026-08-24 nó RA ĐIỂM (thể lệ mục 4c), không còn chỉ mở nhóm quà.
       accountType: bankAccounts.accountType,
+      departmentCode: departments.code,
     })
     .from(bankAccounts)
     .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
     .innerJoin(customers, eq(customers.id, bankAccounts.customerId))
+    .leftJoin(departments, eq(departments.id, customers.originDepartmentId))
     .where(
       and(
         eq(customers.createdBy, userId),
@@ -403,6 +406,7 @@ async function scoringAccountsOf(
     appInstalled: r.appInstalled,
     openedDate: r.openedDate ?? "",
     household: r.accountType,
+    departmentCode: r.departmentCode,
   }));
 }
 
@@ -459,10 +463,12 @@ export async function bankingPointsByCustomer(
       openedDate: customerDayText,
       household: bankAccounts.accountType,
       status: bankAccounts.status,
+      departmentCode: departments.code,
     })
     .from(bankAccounts)
     .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
     .innerJoin(customers, eq(customers.id, bankAccounts.customerId))
+    .leftJoin(departments, eq(departments.id, customers.originDepartmentId))
     .where(
       and(
         inArray(bankAccounts.customerId, customerIds),
@@ -489,6 +495,7 @@ export async function bankingPointsByCustomer(
       appInstalled: r.appInstalled,
       openedDate: r.openedDate ?? "",
       household: r.household,
+      departmentCode: r.departmentCode,
     };
     const target = r.status === "done" ? byCustomer : brokenByCustomer;
     const kept = target.get(r.customerId);
@@ -704,11 +711,14 @@ export async function pointsByStaffInRange(
     from: range.from === monthRange(fromMonth).from ? fromMonth : shiftMonth(fromMonth, 1),
     to: range.to === monthRange(toMonth).to ? toMonth : shiftMonth(toMonth, -1),
   };
+  // Luật Phòng Y theo phòng lúc lập hồ sơ, còn xếp hạng theo phòng của người lập trong tháng.
+  const originDepartment = alias(departments, "origin_department");
   const [accountRows, serviceRows, socialInsuranceRows, grantRows, adjustmentRows] = await Promise.all([
     db
       .select({
         userId: customers.createdBy,
         departmentId: staffRoster.departmentId,
+        departmentCode: originDepartment.code,
         customerId: bankAccounts.customerId,
         bankCode: banks.code,
         appInstalled: bankAccounts.appInstalled,
@@ -728,6 +738,7 @@ export async function pointsByStaffInRange(
         ),
       )
       .innerJoin(departments, eq(departments.id, staffRoster.departmentId))
+      .leftJoin(originDepartment, eq(originDepartment.id, customers.originDepartmentId))
       .where(
         and(
           eq(departments.type, "sales"),
@@ -816,6 +827,7 @@ export async function pointsByStaffInRange(
       appInstalled: r.appInstalled,
       openedDate: r.openedDate ?? "",
       household: r.accountType,
+      departmentCode: r.departmentCode,
     };
     if (r.status !== "done") staff.broken.push(account);
     else if (rows) rows.push(account);

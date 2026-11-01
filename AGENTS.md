@@ -336,6 +336,15 @@ Luật:
   ở P-91) và phân quyền vẫn đọc `users`: chúng nói về hiện tại.
 - Thay đổi giữa tháng: cả tháng tính theo trạng thái cuối tháng. Chuyển phòng
   chỉ dời bản ghi nghiệp vụ và ngày công của tháng đang chuyển (`writeStaff`).
+- Hồ sơ khách có HAI cột phòng (chủ dự án chốt 2026-11-01, migration 0158):
+
+  | Cột | Đổi khi chuyển phòng | Dùng cho |
+  |---|---|---|
+  | `customers.created_by_department_id` | Có, theo `writeStaff` | Quyền xem, xếp hạng, đếm số liệu theo phòng |
+  | `customers.origin_department_id` | Không bao giờ | Luật Phòng Y: cộng 0,1 Combo 2, Combo 3 và quy đổi quà TH8 |
+
+  Hàm luật nhận mã phòng qua `departmentCode`; mọi nơi dựng `ScoringAccount`
+  hoặc `GiftInput` phải đọc `origin_department_id`.
 - Thêm một thuộc tính nhân sự có ảnh hưởng tới số liệu theo tháng thì thêm cột
   vào `staff_months`, vào view và vào `ensure_staff_months()`.
 - Bộ chọn khoảng ngày (`DateRangePicker`) luôn khoá trong một tháng. Đừng thêm

@@ -96,6 +96,8 @@ export async function listGiftExcessExport(
     ].filter(Boolean) as SQL[]),
   );
 
+  // Luật quy đổi quà của Phòng Y đọc phòng lúc lập; cột PHÒNG vẫn là phòng hiện tại của hồ sơ.
+  const originDepartment = alias(departments, "origin_department");
   const candidates = db
     .select({
       id: customers.id,
@@ -103,7 +105,7 @@ export async function listGiftExcessExport(
       idNumber: customers.idNumber,
       recordDay: customerDayText,
       channelCode: channels.code,
-      departmentCode: departments.code,
+      departmentCode: originDepartment.code,
       departmentName: departments.name,
       createdByName: users.fullName,
       createdByStaffCode: users.staffCode,
@@ -120,6 +122,7 @@ export async function listGiftExcessExport(
     .leftJoin(channels, eq(channels.id, customers.channelId))
     .leftJoin(users, eq(users.id, customers.createdBy))
     .leftJoin(departments, eq(departments.id, customers.createdByDepartmentId))
+    .leftJoin(originDepartment, eq(originDepartment.id, customers.originDepartmentId))
     .where(where);
 
   const [batch, [totals]] = await Promise.all([

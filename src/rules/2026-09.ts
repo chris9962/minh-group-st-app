@@ -673,12 +673,12 @@ export function gift(input: GiftInput): GiftResult {
   if (canSwapGift) {
     addItems(extras, ITEMS_HOSPITAL, "Phòng Y, phòng Dự án hoặc kênh Bệnh viện — bậc TH5/TH6");
     explain.push(
-      "Khách thuộc Phòng Y, phòng Dự án hoặc kênh Bệnh viện và đạt bậc TH5 hoặc TH6 nên rổ có thêm Mì, BH sức khoẻ và Nón bảo hiểm.",
+      "Khách thuộc Phòng Y, phòng Dự án hoặc kênh Bệnh viện và đạt bậc TH5 hoặc TH6 nên danh sách quà có thêm Mì, BH sức khoẻ và Nón bảo hiểm.",
     );
 
     if (input.departmentCode === PHONG_Y) {
       addItems(extras, ITEMS_PHONG_Y, "Phòng Y quy đổi sang quà tặng khác");
-      explain.push("Khách thuộc Phòng Y nên rổ có thêm Bảng mica.");
+      explain.push("Khách thuộc Phòng Y nên danh sách quà có thêm Bảng mica.");
     }
   }
 
@@ -740,7 +740,7 @@ export function gift(input: GiftInput): GiftResult {
     explain.push(
       matched.code === "TH5"
         ? "TH5 được chọn 1 gói bảo hiểm, gồm lựa chọn 1 năm hoặc 2 năm."
-        : `Được ${matched.years} năm bảo hiểm — chọn 1 gói trong rổ.`,
+        : `Được ${matched.years} năm bảo hiểm, chọn 1 gói trong danh sách quà.`,
     );
 
   // Gói bảo hiểm đứng TRƯỚC món thêm trong rổ. Rổ trộn món giá trị rất khác

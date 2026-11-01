@@ -787,8 +787,8 @@ function DoneAccountCard({
             {data.customerGiftItem && (
               <>
                 <br />
-                Khách đã nhận quà: {data.customerGiftItem}. Rổ quà đã phát giữ nguyên và sẽ
-                lệch với rổ tính lại sau khi xoá.
+                Khách đã nhận quà: {data.customerGiftItem}. Danh sách quà đã phát giữ nguyên và sẽ
+                lệch với danh sách quà tính lại sau khi xoá.
               </>
             )}
           </Alert>

@@ -70,7 +70,6 @@ import {
   targetExpr,
 } from "./people";
 import { reachMemberWhere, reachPointsExpr } from "./reach";
-import { recomputeGiftCase } from "./gift";
 import { relationsFor } from "./users";
 import { salaryForUsers } from "./salary";
 import { adjustmentTotals } from "@/lib/api/salaryAdjustments";
@@ -897,26 +896,7 @@ export async function updateStaff(actor: User, id: string, sent: StaffForm): Pro
   if (current.salaryScheme !== form.salaryScheme || movedDepartment || current.role !== form.role)
     await recomputeForSalaryScheme(id);
 
-  /**
-   * Rổ quà tính lại sau khi chuyển phòng — chốt 13/08.
-   *
-   * Luật quà đọc phòng của người lập hồ sơ khách để biết có áp phần quy đổi của
-   * Phòng Y không (thể lệ mục 4). `writeStaff` vừa dời khách của tháng đang
-   * chuyển sang phòng mới nên rổ của họ đã khác, mà cột `customers.gift_basket`
-   * lưu sẵn thì chưa biết. Khách của các tháng đã qua không dời, không tính lại.
-   *
-   * Đợt ĐÃ phát không đụng tới: `gift_grants.snapshot` đóng băng (spec §5.3),
-   * và `recomputeGiftCase` chỉ ghi cột `gift_basket` của khách.
-   */
-  if (movedDepartment) {
-    const { from, to } = monthRange(businessMonth());
-    const moved = await db
-      .select({ id: customers.id })
-      .from(customers)
-      .where(and(eq(customers.createdBy, id), customerDayBetween(from, to)));
-    for (const row of moved) await recomputeGiftCase(row.id);
-  }
-
+  // Không tính lại rổ quà khi chuyển phòng: luật Phòng Y đọc phòng lúc lập hồ sơ (migration 0158).
   return { ok: true, staff: (await findStaff(id))! };
 }
 

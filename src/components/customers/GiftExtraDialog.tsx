@@ -71,8 +71,8 @@ export function GiftExtraDialog({ open, onClose, customerId, customerName }: Pro
         </>
       }
     >
-      {detail.isPending && <p className="text-muted">Đang tải rổ quà thêm…</p>}
-      {detail.isError && <ErrorState what="rổ quà thêm" onRetry={detail.refetch} retrying={detail.isFetching} />}
+      {detail.isPending && <p className="text-muted">Đang tải danh sách quà thêm…</p>}
+      {detail.isError && <ErrorState what="danh sách quà thêm" onRetry={detail.refetch} retrying={detail.isFetching} />}
       {gift && (
         <div className={styles.body}>
           <p className={styles.current}>

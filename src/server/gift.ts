@@ -75,10 +75,9 @@ import {
  * - tài khoản `done` (tài khoản đang tạo dở chưa phải tài khoản thật),
  * - kênh: kênh của khách CỘNG kênh của từng tài khoản, vì mỗi tài khoản mở qua
  *   một kênh riêng và kênh Bệnh viện góp thêm món vào rổ (spec §5.2 bước 2),
- * - phòng của NGƯỜI LẬP HỒ SƠ KHÁCH, cùng trục với điểm KPI (câu 7.11) — chứ
- *   không phải phòng của người bấm nút xem. Đọc cột
- *   `customers.created_by_department_id`, và `writeStaff` viết lại cột đó khi
- *   người lập hồ sơ chuyển phòng, nên rổ quà đi theo người (chốt 13/08).
+ * - phòng LÚC LẬP hồ sơ khách (`customers.origin_department_id`, chủ dự án
+ *   chốt 2026-11-01), chứ không phải phòng của người bấm nút xem. Người lập
+ *   chuyển phòng thì khách lập ở Phòng Y vẫn giữ quà quy đổi TH8.
  */
 export async function giftInputFor(customerId: string): Promise<GiftInput> {
   const [accountRows, [customerRow]] = await Promise.all([
@@ -103,7 +102,7 @@ export async function giftInputFor(customerId: string): Promise<GiftInput> {
       .select({ channelCode: channels.code, departmentCode: departments.code })
       .from(customers)
       .leftJoin(channels, eq(channels.id, customers.channelId))
-      .leftJoin(departments, eq(departments.id, customers.createdByDepartmentId))
+      .leftJoin(departments, eq(departments.id, customers.originDepartmentId))
       .where(eq(customers.id, customerId)),
   ]);
 
@@ -234,7 +233,11 @@ export async function giftResultOf(
    * `at` cắt còn `YYYY-MM` vì `bankingPointsFor` lọc theo tháng (câu 7.13), mà
    * mọi tài khoản của màn thử đều mang ngày mở bằng đúng ngày tra luật.
    */
-  const totalPoints = bankingPointsFor(input.accounts, at.slice(0, 7), new Map());
+  const totalPoints = bankingPointsFor(
+    input.accounts.map((a) => ({ ...a, departmentCode: input.departmentCode })),
+    at.slice(0, 7),
+    new Map(),
+  );
 
   /**
    * Chỉ để VIẾT CÂU giải thích, không tham gia phép tính — con số vẫn do
@@ -485,7 +488,7 @@ export async function recountGiftCases(
       })
       .from(customers)
       .leftJoin(channels, eq(channels.id, customers.channelId))
-      .leftJoin(departments, eq(departments.id, customers.createdByDepartmentId))
+      .leftJoin(departments, eq(departments.id, customers.originDepartmentId))
       .orderBy(customers.id)
       .limit(batchSize)
       .offset(offset);
@@ -639,7 +642,7 @@ export async function grantGift(
     code: GIFT_ERROR.ITEM_DISCONTINUED,
     message:
       choice.status === "discontinued"
-        ? `"${choice.name}" đã ngừng cấp — chọn món khác trong rổ`
+        ? `"${choice.name}" đã ngừng cấp. Chọn món khác trong danh sách quà.`
         : choice.status === "out-of-stock"
           ? new OutOfStock(choice.name).message
           : `"${choice.name}" không còn trong danh mục quà — báo quản trị thêm lại rồi phát`,
@@ -660,7 +663,7 @@ export async function grantGift(
       return {
         ok: false,
         code: GIFT_ERROR.NOT_IN_BASKET,
-        message: `"${choice.item}" không nằm trong rổ quà thêm của khách này`,
+        message: `"${choice.item}" không nằm trong danh sách quà thêm của khách này`,
       };
     if (pickedExtra.status !== "ok") return discontinuedError(pickedExtra);
   }
@@ -821,7 +824,7 @@ export async function chooseExtraGift(
     if (!slot) return { ok: false, message: "Có tài khoản không còn chờ chọn quà thêm. Tải lại rồi thử lại." };
     const picked = choice.item === GIFT_DECLINED ? null : live.extraBasket.find((b) => b.code === choice.item);
     if (choice.item !== GIFT_DECLINED && (!picked || !picked.id || picked.status !== "ok"))
-      return { ok: false, message: "Món quà thêm phải nằm trong rổ quà thêm của khách và còn cấp được." };
+      return { ok: false, message: "Món quà thêm phải nằm trong danh sách quà thêm của khách và còn cấp được." };
     labels.push(`${slot.bankCode}: ${choice.item === GIFT_DECLINED ? "Từ chối quà thêm" : (picked?.name ?? choice.item)}`);
   }
 
@@ -930,7 +933,7 @@ export async function changeGift(
   const extraChanged = extraChanges.length > 0;
   if (!mainChanged && !extraChanged) return { ok: false, message: "Khách đang áp dụng đúng món quà này rồi." };
   if (mainChanged && (form.item === GIFT_NONE || form.item === GIFT_UNCHOSEN))
-    return { ok: false, message: "Món quà mới phải là một món trong rổ hoặc từ chối." };
+    return { ok: false, message: "Món quà mới phải là một món trong danh sách quà hoặc từ chối." };
 
   /**
    * Rổ TÍNH LẠI theo tài khoản hiện tại, không phải rổ đóng băng lúc phát
@@ -958,7 +961,7 @@ export async function changeGift(
       return { ok: false, message: "Tài khoản này không còn được quà thêm." };
     const pickedExtra = nextGift.extraBasket.find((b) => b.code === change.item);
     if (!pickedExtra || !pickedExtra.id || pickedExtra.status !== "ok")
-      return { ok: false, message: "Món quà thêm phải nằm trong rổ quà thêm của khách và còn cấp được." };
+      return { ok: false, message: "Món quà thêm phải nằm trong danh sách quà thêm của khách và còn cấp được." };
   }
 
   // Đơn bảo hiểm chỉ liên quan tới quà CHÍNH; chỉ đổi quà thêm thì không đụng
