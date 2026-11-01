@@ -2,6 +2,7 @@
 
 import { notFound } from "next/navigation";
 import { use } from "react";
+import { AnnotatedShot } from "@/components/docs/AnnotatedShot";
 import { TopBar } from "@/components/layout/TopBar";
 import { BackLink } from "@/components/ui/BackLink";
 import { releaseById, sectionsFor } from "@/lib/releases";
@@ -40,6 +41,21 @@ export default function ReleasePage({ params }: { params: Promise<{ id: string }
                 <li key={item}>{item}</li>
               ))}
             </ul>
+            {section.steps && (
+              <ol className={styles.steps}>
+                {section.steps.map((step, j) => (
+                  <li key={step.shot.src} className={styles.step}>
+                    <p className={styles.stepText}>
+                      <span className={styles.stepNumber} aria-hidden="true">
+                        {j + 1}
+                      </span>
+                      {step.text}
+                    </p>
+                    <AnnotatedShot shot={step.shot} />
+                  </li>
+                ))}
+              </ol>
+            )}
           </section>
         ))}
       </main>

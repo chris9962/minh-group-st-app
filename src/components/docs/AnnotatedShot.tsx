@@ -43,18 +43,20 @@ export function AnnotatedShot({ shot }: Props) {
         ))}
       </button>
 
-      <figcaption>
-        <ol className={styles.legend}>
-          {shot.markers.map((m) => (
-            <li key={m.n}>
-              <span className={styles.legendBadge} aria-hidden="true">
-                {m.n}
-              </span>
-              <span>{m.label}</span>
-            </li>
-          ))}
-        </ol>
-      </figcaption>
+      {shot.markers.length > 0 && (
+        <figcaption>
+          <ol className={styles.legend}>
+            {shot.markers.map((m) => (
+              <li key={m.n}>
+                <span className={styles.legendBadge} aria-hidden="true">
+                  {m.n}
+                </span>
+                <span>{m.label}</span>
+              </li>
+            ))}
+          </ol>
+        </figcaption>
+      )}
 
       {zoomed && (
         <ImageLightbox src={shot.src} alt={shot.alt} onClose={() => setZoomed(false)} />

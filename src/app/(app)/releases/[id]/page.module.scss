@@ -38,6 +38,44 @@
   line-height: 1.55;
 }
 
+.steps {
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: var(--space-4) var(--space-3);
+}
+
+.step {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.stepText {
+  margin: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.stepNumber {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--om-orange);
+  color: var(--om-text-on-accent);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+}
+
 @media (max-width: bp.$bp-mobile) {
   .body {
     padding: 16px 16px 32px;

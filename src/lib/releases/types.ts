@@ -1,3 +1,4 @@
+import type { DocShot } from '@/lib/docs';
 import type { User } from '@/lib/types';
 
 /**
@@ -8,6 +9,12 @@ import type { User } from '@/lib/types';
  * sau khi deploy. Trang `/releases` chỉ đọc mảng này, không gọi máy chủ.
  */
 
+/** Một bước kèm ảnh chụp màn hình, ảnh đặt ở `public/releases/`. */
+export type ReleaseStep = {
+  text: string;
+  shot: DocShot;
+};
+
 export type ReleaseSection = {
   title: string;
   /**
@@ -16,6 +23,8 @@ export type ReleaseSection = {
    * mà nhân viên không dùng (chốt 2026-09-16).
    */
   items: string[];
+  /** Các bước có ảnh, hiện dưới `items`. Dùng cho tính năng mới mà nhân viên phải tự bấm. */
+  steps?: ReleaseStep[];
   /**
    * Ai thấy mục này. Bỏ trống là mọi người. Mục về màn quản trị thì gắn đúng
    * điều kiện mở màn đó ở `lib/nav.ts`, để nhân viên không đọc thay đổi của

@@ -22,6 +22,104 @@ const seesCompanyDashboard = (user: User) =>
  */
 export const RELEASES: Release[] = [
   {
+    id: '2026-11-02',
+    version: '2.20.0',
+    title: 'Cập nhật ngày 02/11/2026',
+    summary: 'Thêm Tạm ứng lương: nhân viên gửi yêu cầu ngày 10, Trưởng phòng và kế toán duyệt.',
+    sections: [
+      {
+        title: 'Tạm ứng lương',
+        items: [
+          'Ngày 10 hằng tháng, trước 22:00, bạn gửi yêu cầu tạm ứng ở màn Tổng quan.',
+          'Mỗi tháng 1 lần, tối đa 3.000.000đ.',
+          'Trưởng phòng duyệt trong ngày 10. Kế toán duyệt và chi từ ngày 11.',
+        ],
+        steps: [
+          {
+            text: 'Màn Tổng quan có thẻ Tạm ứng lương. Nhân viên bấm "Yêu cầu tạm ứng".',
+            shot: {
+              src: '/releases/salary-advance/01-card.png',
+              alt: 'Màn Tổng quan của nhân viên trên điện thoại, thẻ Tạm ứng lương có nút Yêu cầu tạm ứng và dòng Hạn gửi 22:00',
+              width: 780,
+              height: 1688,
+              markers: [],
+            },
+          },
+          {
+            text: 'Nhân viên nhập số tiền, tối đa 3.000.000đ, rồi bấm "Gửi yêu cầu".',
+            shot: {
+              src: '/releases/salary-advance/02-request.png',
+              alt: 'Hộp thoại Yêu cầu tạm ứng lương với ô số tiền 3.000.000 đ và nút Gửi yêu cầu',
+              width: 780,
+              height: 1688,
+              markers: [],
+            },
+          },
+          {
+            text: 'Thẻ hiện số tiền và trạng thái "Chờ Trưởng phòng duyệt".',
+            shot: {
+              src: '/releases/salary-advance/03-sent.png',
+              alt: 'Thẻ Tạm ứng lương hiện 3.000.000đ, trạng thái Chờ Trưởng phòng duyệt, nút Sửa số tiền và Lịch sử',
+              width: 780,
+              height: 1688,
+              markers: [],
+            },
+          },
+          {
+            text: 'Trưởng phòng chưa duyệt thì nhân viên sửa được số tiền, tới 22:00.',
+            shot: {
+              src: '/releases/salary-advance/04-edit.png',
+              alt: 'Hộp thoại Sửa số tiền tạm ứng trên điện thoại',
+              width: 780,
+              height: 1688,
+              markers: [],
+            },
+          },
+          {
+            text: 'Nhân viên bấm nút mũi tên để thu gọn thẻ. Sang tháng mới, thẻ tự mở lại.',
+            shot: {
+              src: '/releases/salary-advance/05-collapsed.png',
+              alt: 'Thẻ Tạm ứng lương đã thu gọn, chỉ còn tiêu đề và nút mở',
+              width: 780,
+              height: 1688,
+              markers: [],
+            },
+          },
+        ],
+      },
+      {
+        title: 'Duyệt tạm ứng lương',
+        items: [
+          'Mục mới Tạm ứng lương: Trưởng phòng sửa số tiền, duyệt, từ chối yêu cầu của phòng tới 23:59 ngày 10.',
+          'Từ chối phải ghi lý do.',
+          'Yêu cầu chưa duyệt lúc 00:00 ngày 11 chuyển sang Hết hạn duyệt.',
+        ],
+        visibleTo: (user) => can(user, 'staff', 'approve-advance'),
+      },
+      {
+        title: 'Kế toán duyệt và chi tạm ứng',
+        items: [
+          'Từ ngày 11, trang Tạm ứng lương hiện các yêu cầu Trưởng phòng đã duyệt.',
+          'Kế toán sửa, duyệt, từ chối từng yêu cầu, hoặc bấm Duyệt tất cả.',
+          'Hết yêu cầu chờ duyệt thì Xuất Excel, rồi chuyển sang Đang xử lý.',
+          'Bấm Đã chi tạm ứng: số tiền vào cột Lương ứng trước ở trang Lương.',
+          'Tháng còn yêu cầu tạm ứng chưa chi thì không chốt lương được.',
+        ],
+        visibleTo: (user) => can(user, 'system', 'close-salary'),
+      },
+      {
+        title: 'Lương',
+        items: ['Lương ứng trước ghi qua trang Tạm ứng lương, không nhập tay ở trang Lương.'],
+        visibleTo: (user) => canOpenPath(user, '/payroll'),
+      },
+      {
+        title: 'Kho quà',
+        items: ['Sửa lần nhập quà thì đổi được món quà.'],
+        visibleTo: (user) => canOpenPath(user, '/settings/gift-stock'),
+      },
+    ],
+  },
+  {
     id: '2026-11-01',
     version: '2.19.0',
     title: 'Cập nhật ngày 01/11/2026',
