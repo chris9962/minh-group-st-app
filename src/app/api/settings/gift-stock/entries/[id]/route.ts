@@ -23,7 +23,11 @@ export async function PATCH(request: Request, { params }: Params) {
   await logAudit(guard.actor, {
     module: "system",
     action: "update",
-    targetLabel: `Sửa lần nhập ${result.entry.itemName}: ${result.previousQuantity} → ${result.entry.quantity}`,
+    targetLabel: `Sửa lần nhập ${
+      result.previousItemName === result.entry.itemName
+        ? result.entry.itemName
+        : `${result.previousItemName} → ${result.entry.itemName}`
+    }: ${result.previousQuantity} → ${result.entry.quantity}`,
     targetTable: "gift_stock_entries",
     targetId: id,
   });

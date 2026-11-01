@@ -29,11 +29,11 @@ type Props = {
   entry?: GiftStockEntry | null;
 };
 
-/** P-87 · Nhập quà hoặc sửa một lần nhập quà. Sửa không đổi được món. */
+/** P-87 · Nhập quà hoặc sửa một lần nhập quà. */
 export function GiftStockEntryDialog({ onClose, entry }: Props) {
   const queryClient = useQueryClient();
   const editing = Boolean(entry);
-  const gifts = useQuery({ queryKey: ["gift-items"], queryFn: fetchGiftItems, enabled: !editing });
+  const gifts = useQuery({ queryKey: ["gift-items"], queryFn: fetchGiftItems });
 
   const {
     register,
@@ -54,9 +54,7 @@ export function GiftStockEntryDialog({ onClose, entry }: Props) {
 
   const save = useMutation({
     mutationFn: (form: GiftStockEntryForm) =>
-      entry
-        ? updateGiftStockEntry(entry.id, { quantity: form.quantity, note: form.note })
-        : createGiftStockEntry(form),
+      entry ? updateGiftStockEntry(entry.id, form) : createGiftStockEntry(form),
     onSuccess: (saved) => {
       queryClient.invalidateQueries({ queryKey: ["gift-stock"] });
       onClose();
@@ -88,30 +86,30 @@ export function GiftStockEntryDialog({ onClose, entry }: Props) {
         onSubmit={handleSubmit((form) => save.mutate(form), reportInvalid)}
         noValidate
       >
-        {entry ? (
+        {entry && (
           <dl className={styles.facts}>
-            <div>
-              <dt>Món quà</dt>
-              <dd>{entry.itemName}</dd>
-            </div>
             <div>
               <dt>Ngày nhập</dt>
               <dd className="tabular-nums">{formatDateTime(entry.createdAt)}</dd>
             </div>
           </dl>
-        ) : (
-          <Select
-            block
-            label="Món quà"
-            value={giftItemId}
-            error={errors.giftItemId?.message}
-            onChange={(v) => setValue("giftItemId", v, { shouldValidate: true })}
-            options={[
-              { value: "", label: gifts.isPending ? "Đang tải danh mục quà" : "Chọn món quà" },
-              ...(gifts.data ?? []).filter((g) => g.active).map((g) => ({ value: g.id, label: g.name })),
-            ]}
-          />
         )}
+
+        <Select
+          block
+          label="Món quà"
+          value={giftItemId}
+          error={errors.giftItemId?.message}
+          onChange={(v) => setValue("giftItemId", v, { shouldValidate: true })}
+          options={[
+            ...(entry && gifts.isPending ? [{ value: entry.giftItemId, label: entry.itemName }] : []),
+            ...(entry ? [] : [{ value: "", label: gifts.isPending ? "Đang tải danh mục quà" : "Chọn món quà" }]),
+            // Món đã ngừng cấp vẫn phải hiện khi lần nhập đang sửa thuộc món đó.
+            ...(gifts.data ?? [])
+              .filter((g) => g.active || g.id === entry?.giftItemId)
+              .map((g) => ({ value: g.id, label: g.name })),
+          ]}
+        />
 
         <TextField
           label="Số lượng"

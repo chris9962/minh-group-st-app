@@ -59,7 +59,7 @@ export const GiftStockEntryForm = z.object({
 });
 export type GiftStockEntryForm = z.infer<typeof GiftStockEntryForm>;
 
-export const GiftStockEntryUpdate = z.object({ quantity, note });
+export const GiftStockEntryUpdate = GiftStockEntryForm;
 export type GiftStockEntryUpdate = z.infer<typeof GiftStockEntryUpdate>;
 
 export async function fetchGiftStockMonth(month: string): Promise<GiftStockMonth> {

@@ -1,4 +1,4 @@
-import { and, desc, eq, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql, type SQL } from "drizzle-orm";
 import type {
   GiftStockEntry,
   GiftStockEntryForm,
@@ -216,49 +216,63 @@ export async function createGiftStockEntry(
 }
 
 export type UpdateStockOutcome =
-  | { ok: true; entry: GiftStockEntry; previousQuantity: number }
+  | { ok: true; entry: GiftStockEntry; previousQuantity: number; previousItemName: string }
   | { ok: false; message: string };
 
 class NegativeStock extends Error {
-  constructor(readonly remaining: number) {
+  constructor(
+    readonly itemName: string,
+    readonly remaining: number,
+  ) {
     super("negative stock");
   }
 }
 
 /**
- * Sửa số lượng hoặc ghi chú của một lần nhập. Sửa xong mà số còn lại âm thì không
- * lưu: số đã phát là việc đã xảy ra, nên số nhập phải đủ cho số đó.
+ * Sửa món, số lượng hoặc ghi chú của một lần nhập. Sửa xong mà số còn lại của món cũ
+ * hay món mới âm thì không lưu: số đã phát là việc đã xảy ra, nên số nhập phải đủ cho số đó.
  */
 export async function updateGiftStockEntry(
   id: string,
   form: GiftStockEntryUpdate,
 ): Promise<UpdateStockOutcome | null> {
   const [current] = await db
-    .select({ quantity: giftStockEntries.quantity, code: giftItems.code, itemId: giftItems.id })
+    .select({ quantity: giftStockEntries.quantity, itemId: giftItems.id, itemName: giftItems.name })
     .from(giftStockEntries)
     .innerJoin(giftItems, eq(giftItems.id, giftStockEntries.giftItemId))
     .where(eq(giftStockEntries.id, id));
   if (!current) return null;
+  const [target] = await db.select({ id: giftItems.id }).from(giftItems).where(eq(giftItems.id, form.giftItemId));
+  if (!target) return { ok: false, message: "Món quà này không còn trong danh mục" };
 
   try {
     const entry = await db.transaction(async (tx) => {
       // Cùng khoá với lượt phát quà, để số còn lại không đổi giữa lúc sửa và lúc kiểm.
-      await tx.select({ id: giftItems.id }).from(giftItems).where(eq(giftItems.id, current.itemId)).for("update");
+      // Khoá theo thứ tự mã như reserveStock, để không chờ vòng tròn với lượt phát hai món.
+      const items = await tx
+        .select({ code: giftItems.code, name: giftItems.name })
+        .from(giftItems)
+        .where(inArray(giftItems.id, [current.itemId, form.giftItemId]))
+        .orderBy(asc(giftItems.code))
+        .for("update");
       await tx
         .update(giftStockEntries)
-        .set({ quantity: form.quantity, note: form.note, updatedAt: new Date() })
+        .set({ giftItemId: form.giftItemId, quantity: form.quantity, note: form.note, updatedAt: new Date() })
         .where(eq(giftStockEntries.id, id));
-      const remaining = (await stockRemaining([current.code], tx)).get(current.code) ?? 0;
-      if (remaining < 0) throw new NegativeStock(remaining);
+      const remaining = await stockRemaining(items.map((i) => i.code), tx);
+      for (const item of items) {
+        const left = remaining.get(item.code) ?? 0;
+        if (left < 0) throw new NegativeStock(item.name, left);
+      }
       return entryById(id, tx);
     });
     if (!entry) return null;
-    return { ok: true, entry, previousQuantity: current.quantity };
+    return { ok: true, entry, previousQuantity: current.quantity, previousItemName: current.itemName };
   } catch (e) {
     if (e instanceof NegativeStock)
       return {
         ok: false,
-        message: `Sửa xong thì số còn lại là ${e.remaining}. Số đã phát lớn hơn số nhập, kiểm lại số lượng.`,
+        message: `Sửa xong thì số còn lại của ${e.itemName} là ${e.remaining}. Số đã phát lớn hơn số nhập, kiểm lại món và số lượng.`,
       };
     throw e;
   }
