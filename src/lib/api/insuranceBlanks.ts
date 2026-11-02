@@ -29,8 +29,14 @@ export const DepartmentBlankCell = z.object({
   openingUnallocated: z.number(),
   allocated: z.number(),
   issued: z.number(),
+  /** Phôi chưa sử dụng người rời phòng trả về phòng trong tháng. */
+  returned: z.number(),
 });
 export type DepartmentBlankCell = z.infer<typeof DepartmentBlankCell>;
+
+/** Phôi phòng còn chưa phát cho ai, tính với số đã phát `issued`. */
+export const departmentLeft = (cell: DepartmentBlankCell, allocated: number, issued: number): number =>
+  cell.openingUnallocated + allocated - issued + cell.returned;
 
 export const DepartmentBlankRow = z.object({
   departmentId: z.string(),
@@ -67,6 +73,8 @@ export const StaffBlankCell = z.object({
   issued: z.number(),
   used: z.number().nullable(),
   usedOrders: z.number(),
+  /** Phôi chưa sử dụng trả về phòng trong tháng người này rời phòng. */
+  returned: z.number(),
 });
 export type StaffBlankCell = z.infer<typeof StaffBlankCell>;
 
@@ -76,6 +84,8 @@ export const StaffBlankRow = z.object({
   role: RoleKey,
   title: z.string(),
   cells: z.array(StaffBlankCell),
+  /** Đã chuyển sang phòng khác trong tháng: dòng chỉ xem, không sửa. */
+  movedOut: z.boolean(),
   mix: MixCount,
 });
 export type StaffBlankRow = z.infer<typeof StaffBlankRow>;

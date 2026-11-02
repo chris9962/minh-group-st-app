@@ -49,6 +49,19 @@ export const db = drizzle(pool, { schema });
  * khớp, nên mọi lần trùng tên đăng nhập / mã nhân viên / tên phòng rơi thành
  * 500 thay vì 422 có mã lỗi mà biểu mẫu đang chờ.
  */
+/**
+ * Câu trigger `RAISE EXCEPTION` ném ra (Postgres `P0001`), ngược lại `null`.
+ * Cùng lối `uniqueViolationOf`: đi dọc chuỗi `cause` vì Drizzle bọc lỗi.
+ */
+export function raisedMessageOf(e: unknown): string | null {
+  for (let cur: unknown = e, depth = 0; cur && depth < 4; depth++) {
+    const err = cur as { code?: string; message?: string; cause?: unknown };
+    if (err.code === "P0001") return err.message ?? "";
+    cur = err.cause;
+  }
+  return null;
+}
+
 export function uniqueViolationOf(e: unknown): string | null {
   for (let cur: unknown = e, depth = 0; cur && depth < 4; depth++) {
     const err = cur as { code?: string; constraint?: string; cause?: unknown };

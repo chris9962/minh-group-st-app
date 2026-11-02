@@ -15,6 +15,7 @@ import { Select } from "@/components/ui/Select";
 import { SkeletonText } from "@/components/ui/Skeleton";
 import { StatusTag } from "@/components/ui/StatusTag";
 import { fetchBankStaffBlanks, saveBankStaffBlanks, type BankStaffBlanks } from "@/lib/api/bankBlanks";
+import { departmentLeft } from "@/lib/api/insuranceBlanks";
 import { digitsOnly } from "@/lib/numberField";
 import { errorMessage, toast } from "@/lib/toast";
 
@@ -84,8 +85,9 @@ function SplitForm({ data, onDepartmentChange }: { data: BankStaffBlanks; onDepa
   const issuedTotal = (id: string) => data.rows.reduce((s, r) => s + issuedOf(keyOf(r.userId, id)), 0);
   const leftOf = (id: string) => {
     const cell = data.departmentCells.find((c) => c.blankTypeId === id)!;
-    return cell.openingUnallocated + cell.allocated - issuedTotal(id);
+    return departmentLeft(cell, cell.allocated, issuedTotal(id));
   };
+  const showReturned = data.departmentCells.some((c) => c.returned > 0);
   const overIssued = data.types.some((t) => leftOf(t.id) < 0);
   const hasBlanks = data.types.length > 0;
   const left = hasBlanks ? leftOf(bankId) : 0;
@@ -95,9 +97,10 @@ function SplitForm({ data, onDepartmentChange }: { data: BankStaffBlanks; onDepa
         const cell = r.cells.find((c) => c.blankTypeId === bankId)!;
         const key = keyOf(r.userId, bankId);
         const usedNow = usedInput(key) ?? cell.usedAccounts;
-        return { ...r, cell, key, closing: cell.opening + issuedOf(key) - usedNow };
+        return { ...r, cell, key, rowLocked: locked || r.movedOut, closing: cell.opening + issuedOf(key) - usedNow - cell.returned };
       })
     : [];
+  const showGivenBack = rows.some((r) => r.cell.returned > 0);
 
   return (
     <>
@@ -125,6 +128,7 @@ function SplitForm({ data, onDepartmentChange }: { data: BankStaffBlanks; onDepa
                   <th scope="col">Tồn tháng trước</th>
                   <th scope="col">Cấp trong tháng</th>
                   <th scope="col">Đã phát</th>
+                  {showReturned && <th scope="col">Nhận lại</th>}
                   <th scope="col">Còn tại phòng</th>
                 </tr>
               </thead>
@@ -138,8 +142,9 @@ function SplitForm({ data, onDepartmentChange }: { data: BankStaffBlanks; onDepa
                       <td className={styles.number}>{cell.openingUnallocated}</td>
                       <td className={styles.number}>{cell.allocated}</td>
                       <td className={styles.number}>{issuedNow}</td>
+                      {showReturned && <td className={styles.number}>{cell.returned}</td>}
                       <td className={styles.number}>
-                        <BlankLeft value={cell.openingUnallocated + cell.allocated - issuedNow} />
+                        <BlankLeft value={departmentLeft(cell, cell.allocated, issuedNow)} />
                       </td>
                     </tr>
                   );
@@ -172,6 +177,7 @@ function SplitForm({ data, onDepartmentChange }: { data: BankStaffBlanks; onDepa
                   <th scope="col">Đã phát</th>
                   <th scope="col">Đã sử dụng</th>
                   <th scope="col">Tài khoản đã mở</th>
+                  {showGivenBack && <th scope="col">Trả lại</th>}
                   <th scope="col">Còn lại</th>
                 </tr>
               </thead>
@@ -181,11 +187,12 @@ function SplitForm({ data, onDepartmentChange }: { data: BankStaffBlanks; onDepa
                     <th scope="row">
                       {r.fullName}
                       <span className={`${styles.role} text-muted`}>{r.title}</span>
+                      {r.movedOut && <StatusTag tone="neutral">Đã chuyển phòng</StatusTag>}
                     </th>
                     <td className={styles.number}>{r.cell.opening}</td>
                     <td>
                       <div className={styles.cellAdjust}>
-                        {!locked && (
+                        {!r.rowLocked && (
                           <Button
                             variant="secondary"
                             icon
@@ -203,12 +210,12 @@ function SplitForm({ data, onDepartmentChange }: { data: BankStaffBlanks; onDepa
                           inputMode="numeric"
                           aria-label={`${r.fullName}: số phiếu đã phát`}
                           value={issued[r.key] ?? ""}
-                          disabled={locked}
+                          disabled={r.rowLocked}
                           onChange={(e) =>
                             setIssued((prev) => ({ ...prev, [r.key]: digitsOnly(e.target.value).slice(0, 9) }))
                           }
                         />
-                        {!locked && (
+                        {!r.rowLocked && (
                           <Button
                             variant="secondary"
                             icon
@@ -228,13 +235,14 @@ function SplitForm({ data, onDepartmentChange }: { data: BankStaffBlanks; onDepa
                         aria-label={`${r.fullName}: số phiếu đã sử dụng, để trống thì dùng số tài khoản đã mở`}
                         placeholder={String(r.cell.usedAccounts)}
                         value={used[r.key] ?? ""}
-                        disabled={locked}
+                        disabled={r.rowLocked}
                         onChange={(e) =>
                           setUsed((prev) => ({ ...prev, [r.key]: digitsOnly(e.target.value).slice(0, 9) }))
                         }
                       />
                     </td>
                     <td className={styles.number}>{r.cell.usedAccounts}</td>
+                    {showGivenBack && <td className={styles.number}>{r.cell.returned}</td>}
                     <td className={styles.number}>{r.closing}</td>
                   </tr>
                 ))}

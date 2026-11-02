@@ -45,7 +45,7 @@ export async function PATCH(request: Request, { params }: Params) {
 
   const result = await updateStaff(actor, id, parsed.data);
   if (!result) return new Response(null, { status: 404 });
-  if (!result.ok) return Response.json(saveError(result.code), { status: 422 });
+  if (!result.ok) return Response.json(saveError(result.code, result.message), { status: 422 });
 
   await logAudit(actor, {
     module: "staff",

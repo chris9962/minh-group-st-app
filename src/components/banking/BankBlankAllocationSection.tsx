@@ -18,6 +18,7 @@ import {
   saveBankDepartmentBlanks,
   type BankDepartmentBlanks,
 } from "@/lib/api/bankBlanks";
+import { departmentLeft } from "@/lib/api/insuranceBlanks";
 import { digitsOnly } from "@/lib/numberField";
 import { errorMessage, toast } from "@/lib/toast";
 
@@ -77,12 +78,13 @@ function AllocationForm({ data }: { data: BankDepartmentBlanks }) {
     const cell = r.cells.find((c) => c.blankTypeId === bankId)!;
     const key = keyOf(r.departmentId, bankId);
     const allocated = quantityOf(key);
-    const closing = cell.openingUnallocated + allocated - cell.issued;
+    const closing = departmentLeft(cell, allocated, cell.issued);
     return { ...r, cell, key, allocated, closing, removable: Math.max(0, Math.min(allocated, closing)) };
   });
   const sum = (pick: (row: (typeof rows)[number]) => number) => rows.reduce((s, r) => s + pick(r), 0);
+  const showReturned = rows.some((r) => r.cell.returned > 0);
   const belowIssued = data.rows.some((r) =>
-    r.cells.some((c) => c.openingUnallocated + quantityOf(keyOf(r.departmentId, c.blankTypeId)) - c.issued < 0),
+    r.cells.some((c) => departmentLeft(c, quantityOf(keyOf(r.departmentId, c.blankTypeId)), c.issued) < 0),
   );
   const bankCode = data.types.find((t) => t.id === bankId)?.code ?? "";
 
@@ -107,6 +109,7 @@ function AllocationForm({ data }: { data: BankDepartmentBlanks }) {
                 <th scope="col">Tồn tháng trước</th>
                 <th scope="col">Cấp trong tháng</th>
                 <th scope="col">Đã phát</th>
+                {showReturned && <th scope="col">Nhận lại</th>}
                 <th scope="col">Còn tại phòng</th>
               </tr>
             </thead>
@@ -153,6 +156,7 @@ function AllocationForm({ data }: { data: BankDepartmentBlanks }) {
                     </div>
                   </td>
                   <td className={styles.number}>{r.cell.issued}</td>
+                  {showReturned && <td className={styles.number}>{r.cell.returned}</td>}
                   <td className={styles.number}>
                     <BlankLeft value={r.closing} />
                   </td>
@@ -163,6 +167,7 @@ function AllocationForm({ data }: { data: BankDepartmentBlanks }) {
                 <td className={styles.number}>{sum((r) => r.cell.openingUnallocated)}</td>
                 <td className={styles.number}>{sum((r) => r.allocated)}</td>
                 <td className={styles.number}>{sum((r) => r.cell.issued)}</td>
+                {showReturned && <td className={styles.number}>{sum((r) => r.cell.returned)}</td>}
                 <td className={styles.number}>{sum((r) => r.closing)}</td>
               </tr>
             </tbody>

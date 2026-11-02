@@ -80,7 +80,7 @@ export async function POST(request: Request) {
     return forbidden();
 
   const result = await createStaff(actor, parsed.data);
-  if (!result.ok) return Response.json(saveError(result.code), { status: 422 });
+  if (!result.ok) return Response.json(saveError(result.code, result.message), { status: 422 });
 
   await logAudit(actor, {
     module: "staff",

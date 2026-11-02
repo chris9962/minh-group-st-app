@@ -12,6 +12,7 @@ import { Select } from "@/components/ui/Select";
 import { SkeletonText } from "@/components/ui/Skeleton";
 import { StatusTag } from "@/components/ui/StatusTag";
 import {
+  departmentLeft,
   fetchStaffBlanks,
   saveStaffBlanks,
   targetPercent,
@@ -92,16 +93,18 @@ function SplitForm({ data, onDepartmentChange }: { data: StaffBlanks; onDepartme
   /** Phôi phòng còn phát được: chưa phát đầu tháng + cấp - tổng đang nhập. Âm là phát vượt; máy chủ cũng chặn. */
   const leftOf = (blankTypeId: string) => {
     const cell = data.departmentCells.find((c) => c.blankTypeId === blankTypeId)!;
-    return cell.openingUnallocated + cell.allocated - issuedTotal(blankTypeId);
+    return departmentLeft(cell, cell.allocated, issuedTotal(blankTypeId));
   };
+  const showReturned = data.departmentCells.some((c) => c.returned > 0);
   const overIssued = data.types.some((t) => leftOf(t.id) < 0);
   const left = leftOf(typeId);
   const rows = data.rows.map((r) => {
     const cell = r.cells.find((c) => c.blankTypeId === typeId)!;
     const key = keyOf(r.userId, typeId);
     const usedNow = usedInput(key) ?? cell.usedOrders;
-    return { ...r, cell, key, closing: cell.opening + issuedOf(key) - usedNow };
+    return { ...r, cell, key, rowLocked: locked || r.movedOut, closing: cell.opening + issuedOf(key) - usedNow - cell.returned };
   });
+  const showGivenBack = rows.some((r) => r.cell.returned > 0);
 
   return (
     <>
@@ -137,6 +140,7 @@ function SplitForm({ data, onDepartmentChange }: { data: StaffBlanks; onDepartme
                 <th scope="col">Tồn tháng trước</th>
                 <th scope="col">Cấp trong tháng</th>
                 <th scope="col">Đã phát</th>
+                {showReturned && <th scope="col">Nhận lại</th>}
                 <th scope="col">Còn tại phòng</th>
               </tr>
             </thead>
@@ -150,8 +154,9 @@ function SplitForm({ data, onDepartmentChange }: { data: StaffBlanks; onDepartme
                     <td className={styles.number}>{cell.openingUnallocated}</td>
                     <td className={styles.number}>{cell.allocated}</td>
                     <td className={styles.number}>{issuedNow}</td>
+                    {showReturned && <td className={styles.number}>{cell.returned}</td>}
                     <td className={styles.number}>
-                      <BlankLeft value={cell.openingUnallocated + cell.allocated - issuedNow} />
+                      <BlankLeft value={departmentLeft(cell, cell.allocated, issuedNow)} />
                     </td>
                   </tr>
                 );
@@ -180,6 +185,7 @@ function SplitForm({ data, onDepartmentChange }: { data: StaffBlanks; onDepartme
                 <th scope="col">Đã phát</th>
                 <th scope="col">Đã sử dụng</th>
                 <th scope="col">Đơn hoàn thành</th>
+                {showGivenBack && <th scope="col">Trả lại</th>}
                 <th scope="col">Còn lại</th>
                 <th scope="col">Điện/xe</th>
               </tr>
@@ -190,11 +196,12 @@ function SplitForm({ data, onDepartmentChange }: { data: StaffBlanks; onDepartme
                   <th scope="row">
                     {r.fullName}
                     <span className={`${styles.role} text-muted`}>{r.title}</span>
+                    {r.movedOut && <StatusTag tone="neutral">Đã chuyển phòng</StatusTag>}
                   </th>
                   <td className={styles.number}>{r.cell.opening}</td>
                   <td>
                     <div className={styles.cellAdjust}>
-                      {!locked && (
+                      {!r.rowLocked && (
                         <Button
                           variant="secondary"
                           icon
@@ -212,12 +219,12 @@ function SplitForm({ data, onDepartmentChange }: { data: StaffBlanks; onDepartme
                         inputMode="numeric"
                         aria-label={`${r.fullName}: số phôi đã phát`}
                         value={issued[r.key] ?? ""}
-                        disabled={locked}
+                        disabled={r.rowLocked}
                         onChange={(e) =>
                           setIssued((prev) => ({ ...prev, [r.key]: digitsOnly(e.target.value).slice(0, 9) }))
                         }
                       />
-                      {!locked && (
+                      {!r.rowLocked && (
                         <Button
                           variant="secondary"
                           icon
@@ -237,13 +244,14 @@ function SplitForm({ data, onDepartmentChange }: { data: StaffBlanks; onDepartme
                       aria-label={`${r.fullName}: số phôi đã sử dụng, để trống thì dùng số đơn hoàn thành`}
                       placeholder={String(r.cell.usedOrders)}
                       value={used[r.key] ?? ""}
-                      disabled={locked}
+                      disabled={r.rowLocked}
                       onChange={(e) =>
                         setUsed((prev) => ({ ...prev, [r.key]: digitsOnly(e.target.value).slice(0, 9) }))
                       }
                     />
                   </td>
                   <td className={styles.number}>{r.cell.usedOrders}</td>
+                  {showGivenBack && <td className={styles.number}>{r.cell.returned}</td>}
                   <td className={styles.number}>{r.closing}</td>
                   <td>
                     <BlankMix mix={r.mix} target={data.target} />

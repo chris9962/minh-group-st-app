@@ -38,6 +38,8 @@ export const BankStaffBlankCell = z.object({
   issued: z.number(),
   used: z.number().nullable(),
   usedAccounts: z.number(),
+  /** Phiếu chưa sử dụng trả về phòng trong tháng người này rời phòng. */
+  returned: z.number(),
 });
 export type BankStaffBlankCell = z.infer<typeof BankStaffBlankCell>;
 
@@ -47,6 +49,8 @@ export const BankStaffBlankRow = z.object({
   role: RoleKey,
   title: z.string(),
   cells: z.array(BankStaffBlankCell),
+  /** Đã chuyển sang phòng khác trong tháng: dòng chỉ xem, không sửa. */
+  movedOut: z.boolean(),
 });
 export type BankStaffBlankRow = z.infer<typeof BankStaffBlankRow>;
 

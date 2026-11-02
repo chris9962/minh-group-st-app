@@ -12,6 +12,7 @@ import { SkeletonText } from "@/components/ui/Skeleton";
 import { StatusTag } from "@/components/ui/StatusTag";
 import { TextField } from "@/components/ui/TextField";
 import {
+  departmentLeft,
   fetchDepartmentBlanks,
   saveDepartmentBlanks,
   type DepartmentBlanks,
@@ -87,14 +88,15 @@ function AllocationForm({ data }: { data: DepartmentBlanks }) {
     const cell = r.cells.find((c) => c.blankTypeId === typeId)!;
     const key = keyOf(r.departmentId, typeId);
     const allocated = quantityOf(key);
-    const closing = cell.openingUnallocated + allocated - cell.issued;
+    const closing = departmentLeft(cell, allocated, cell.issued);
     // Trừ ra không được làm phòng còn ít hơn số đã phát cho nhân viên, cùng luật với `belowIssued`.
     return { ...r, cell, key, allocated, closing, removable: Math.max(0, Math.min(allocated, closing)) };
   });
   const sum = (pick: (row: (typeof rows)[number]) => number) => rows.reduce((s, r) => s + pick(r), 0);
+  const showReturned = rows.some((r) => r.cell.returned > 0);
   // Hạ số cấp xuống dưới số phòng đã phát thì khoá Lưu ngay; máy chủ cũng chặn.
   const belowIssued = data.rows.some((r) =>
-    r.cells.some((c) => c.openingUnallocated + quantityOf(keyOf(r.departmentId, c.blankTypeId)) - c.issued < 0),
+    r.cells.some((c) => departmentLeft(c, quantityOf(keyOf(r.departmentId, c.blankTypeId)), c.issued) < 0),
   );
 
   return (
@@ -142,6 +144,7 @@ function AllocationForm({ data }: { data: DepartmentBlanks }) {
                 <th scope="col">Tồn tháng trước</th>
                 <th scope="col">Cấp trong tháng</th>
                 <th scope="col">Đã phát</th>
+                {showReturned && <th scope="col">Nhận lại</th>}
                 <th scope="col">Còn tại phòng</th>
                 <th scope="col">Điện/xe</th>
               </tr>
@@ -189,6 +192,7 @@ function AllocationForm({ data }: { data: DepartmentBlanks }) {
                     </div>
                   </td>
                   <td className={styles.number}>{r.cell.issued}</td>
+                  {showReturned && <td className={styles.number}>{r.cell.returned}</td>}
                   <td className={styles.number}>
                     <BlankLeft value={r.closing} />
                   </td>
@@ -202,6 +206,7 @@ function AllocationForm({ data }: { data: DepartmentBlanks }) {
                 <td className={styles.number}>{sum((r) => r.cell.openingUnallocated)}</td>
                 <td className={styles.number}>{sum((r) => r.allocated)}</td>
                 <td className={styles.number}>{sum((r) => r.cell.issued)}</td>
+                {showReturned && <td className={styles.number}>{sum((r) => r.cell.returned)}</td>}
                 <td className={styles.number}>{sum((r) => r.closing)}</td>
                 <td />
               </tr>

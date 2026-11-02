@@ -12,7 +12,7 @@ import type {
 } from "@/lib/api/staff";
 import { fixedSalaryOf } from "@/lib/api/staff";
 import type { ProfileInfoForm } from "@/lib/api/profile";
-import { businessMonth, monthRange } from "@/lib/format";
+import { BUSINESS_TIMEZONE, businessDay, businessMonth, monthRange } from "@/lib/format";
 import {
   assignableRoles,
   can,
@@ -32,9 +32,11 @@ import {
   type User,
 } from "@/lib/types";
 import { forbidden, isUuid, notFound } from "./auth";
+import { closeBankStaffBlanks, reopenBankStaffBlanks } from "./bankBlanks";
 import { isMonthClosed } from "./closedMonths";
 import { accountCustomerDayBetween, customerDayBetween } from "./customerDay";
 import { db, uniqueViolationOf } from "./db/client";
+import { closeStaffBlanks, reopenStaffBlanks } from "./insuranceBlanks";
 import {
   departmentPointsFrom,
   excludedStaffIn,
@@ -473,6 +475,7 @@ export async function staffTargetFor(
 }
 
 type SaveErrorCode =
+  | "department-move-blocked"
   | "username-taken"
   | "staff-code-taken"
   | "role-too-high"
@@ -487,7 +490,7 @@ export type SaveOutcome =
    * bỏ lỡ lần này thì phải bấm "Đặt lại mật khẩu" để sinh mật khẩu khác.
    */
   | { ok: true; staff: StaffAccount; password?: string }
-  | { ok: false; code: SaveErrorCode };
+  | { ok: false; code: SaveErrorCode; message?: string };
 
 /**
  * Bảng tra, KHÔNG phải chuỗi ternary: `Record<SaveErrorCode, …>` bắt buộc liệt
@@ -499,6 +502,7 @@ export type SaveOutcome =
  * Cùng kiểu với `MODULE_LABEL` · `ACTION_LABEL` · `SCOPE_LABEL` ở `lib/types.ts`.
  */
 const SAVE_ERROR_MESSAGE: Record<SaveErrorCode, string> = {
+  "department-move-blocked": "Chưa chuyển phòng được",
   "username-taken": "Tên đăng nhập này đã có người dùng",
   "staff-code-taken": "Mã nhân viên này đã có người dùng",
   "role-too-high": "Bạn không gán được chức vụ cao hơn quyền của chính mình",
@@ -508,7 +512,7 @@ const SAVE_ERROR_MESSAGE: Record<SaveErrorCode, string> = {
   "permission-too-high": "Có quyền bạn đang cấp vượt quá quyền của chính bạn",
 };
 
-export const saveError = (code: SaveErrorCode) => ({ code, message: SAVE_ERROR_MESSAGE[code] });
+export const saveError = (code: SaveErrorCode, message = SAVE_ERROR_MESSAGE[code]) => ({ code, message });
 
 /** Máy chủ PHẢI kiểm lại chức vụ — ẩn bớt lựa chọn trong ô chọn không phải là phân quyền. */
 const checkRole = (actor: User, form: StaffForm): boolean =>
@@ -607,6 +611,27 @@ async function staffCodeTaken(staffCode: string, exceptId?: string): Promise<boo
  * không sinh ở `createStaff` để chuỗi chữ và bản băm chắc chắn cùng một giá
  * trị — hai chỗ sinh riêng là thứ sớm muộn lệch nhau.
  */
+/** Lý do chưa chuyển phòng được, null là chuyển được. Đếm bằng `count` để câu báo nêu đúng số. */
+async function moveBlockedMessage(tx: Tx, userId: string, fullName: string): Promise<string | null> {
+  const [orders] = await tx
+    .select({
+      pending: count(sql`case when ${insuranceOrders.status} not in ('done', 'cancelled') then 1 end`),
+      today: count(
+        sql`case when ${insuranceOrders.createdAt} >= ((${businessDay()}::date)::timestamp at time zone ${BUSINESS_TIMEZONE}) then 1 end`,
+      ),
+    })
+    .from(insuranceOrders)
+    .where(eq(insuranceOrders.createdBy, userId));
+  if (orders.pending > 0) return `${fullName} còn ${orders.pending} đơn bảo hiểm chưa hoàn thành.`;
+  if (orders.today > 0) return `${fullName} có ${orders.today} đơn bảo hiểm lập trong ngày, chuyển phòng vào ngày sau.`;
+  const [accounts] = await tx
+    .select({ creating: count() })
+    .from(bankAccounts)
+    .where(and(eq(bankAccounts.createdBy, userId), eq(bankAccounts.status, "creating")));
+  if (accounts.creating > 0) return `${fullName} còn ${accounts.creating} tài khoản ngân hàng đang tạo.`;
+  return null;
+}
+
 async function writeStaff(
   id: string,
   form: StaffForm,
@@ -650,11 +675,32 @@ async function writeStaff(
        * nối TRƯỚC khi cắt trang — đúng hình dạng câu hỏi mà AGENTS.md §5.2 cấm.
        */
       const [before] = await tx
-        .select({ departmentId: users.departmentId })
+        .select({ departmentId: users.departmentId, fullName: users.fullName })
         .from(users)
         .where(eq(users.id, id));
       const movedTo = form.departmentId || null;
       if (before && before.departmentId !== movedTo) {
+        /**
+         * Phôi bảo hiểm và phiếu ngân hàng không đi theo người (chủ dự án chốt
+         * 2026-11-02): phần đã sử dụng ở lại phòng cũ, phần chưa sử dụng về phòng
+         * cũ. Để số ở phòng cũ đứng yên sau lúc chuyển, người này không được còn
+         * đơn hay tài khoản dở, và không có đơn lập trong ngày, vì đơn chỉ huỷ
+         * được trong ngày lập. Khoá trước khi dời bản ghi, để không giữ khoá đơn
+         * và tài khoản trong lúc đợi một lượt lưu phôi đang chạy.
+         */
+        const blocked = await moveBlockedMessage(tx, id, before.fullName);
+        if (blocked) throw new MoveBlocked(blocked);
+        if (before.departmentId) {
+          const at = new Date();
+          await closeStaffBlanks(tx, id, before.departmentId, at);
+          await closeBankStaffBlanks(tx, id, before.departmentId, at);
+        }
+        // Quay lại phòng từng rời trong tháng thì dùng tiếp dòng đã khoá ở đó.
+        if (movedTo) {
+          await reopenStaffBlanks(tx, id, movedTo);
+          await reopenBankStaffBlanks(tx, id, movedTo);
+        }
+
         const { from, to } = monthRange(businessMonth());
         const moved = { createdByDepartmentId: movedTo };
         await tx
@@ -790,15 +836,21 @@ const checkCeilings = (actor: User, form: StaffForm, action: Action): SaveErrorC
   return null;
 };
 
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/** Lượt chuyển phòng bị luật phôi bảo hiểm chặn; câu báo nêu tên người và số đơn. */
+class MoveBlocked extends Error {}
+
 /** Trùng khoá lúc ghi → đúng mã lỗi 422 mà client đang chờ, không phải 500. */
 async function writeGuarded(
   id: string,
   form: StaffForm,
   mode: "create" | "update",
-): Promise<{ code: SaveErrorCode } | { password: string | null }> {
+): Promise<{ code: SaveErrorCode; message?: string } | { password: string | null }> {
   try {
     return { password: await writeStaff(id, form, mode) };
   } catch (e) {
+    if (e instanceof MoveBlocked) return { code: "department-move-blocked", message: e.message };
     const constraint = uniqueViolationOf(e);
     if (constraint === null) throw e;
     if (constraint.includes("staff_code")) return { code: "staff-code-taken" };
@@ -834,7 +886,7 @@ export async function createStaff(actor: User, sent: StaffForm): Promise<SaveOut
 
   const id = crypto.randomUUID();
   const written = await writeGuarded(id, form, "create");
-  if ("code" in written) return { ok: false, code: written.code };
+  if ("code" in written) return { ok: false, code: written.code, message: written.message };
   return { ok: true, staff: (await findStaff(id))!, password: written.password ?? undefined };
 }
 
@@ -872,7 +924,7 @@ export async function updateStaff(actor: User, id: string, sent: StaffForm): Pro
   const movedDepartment = (current.departmentId ?? null) !== (form.departmentId || null);
 
   const written = await writeGuarded(id, form, "update");
-  if ("code" in written) return { ok: false, code: written.code };
+  if ("code" in written) return { ok: false, code: written.code, message: written.message };
 
   /**
    * Đổi quyền, chức vụ hay phòng phụ trách thì xoá hết phiên của người đó

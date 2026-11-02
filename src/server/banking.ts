@@ -49,7 +49,7 @@ import {
 import { isRealIsoDate, type User } from "@/lib/types";
 import { isIdNumberQuery, searchTerms } from "@/lib/search";
 import { customerIdsWithIdNumber } from "./customerLookup";
-import { db } from "./db/client";
+import { db, raisedMessageOf } from "./db/client";
 import { bankManagersFor, notify, notifyUsers } from "./notifications";
 import { departmentForNewRecord } from "./writeDepartment";
 import {
@@ -2558,6 +2558,8 @@ export async function updateBankAccountStatus(
  * `null` = không có, ngoài phạm vi, hoặc không đủ quyền cho dòng đã hoàn thành
  * — route trả 404 cho cả ba, vì phân biệt chúng là xác nhận id nào có thật.
  */
+const BLANK_LOCKED = "Phiếu thông tin của tài khoản này đã tính cho phòng cũ của người lập, không xoá được.";
+
 export async function deleteAccount(
   actor: User,
   id: string,
@@ -2580,14 +2582,34 @@ export async function deleteAccount(
   if (finished && reason.trim().length < 2)
     return { ok: false, message: "Chưa nhập lý do xoá." };
 
+  /**
+   * Phiếu thông tin đã tính cho phòng lúc tài khoản hoàn thành (migration 0161).
+   * Người lập đã sang phòng khác thì phiếu đó là lịch sử của phòng cũ, không trả
+   * lại được. Trigger `mgst_count_bank_blank` cũng chặn, phòng lượt xoá bằng SQL.
+   */
+  if (finished) {
+    const [blank] = await db
+      .select({ counted: bankAccounts.blankDepartmentId, current: users.departmentId })
+      .from(bankAccounts)
+      .leftJoin(users, eq(users.id, bankAccounts.createdBy))
+      .where(eq(bankAccounts.id, id));
+    if (blank?.counted && blank.counted !== blank.current) return { ok: false, message: BLANK_LOCKED };
+  }
+
   // Trạng thái ĐANG ĐỌC nằm ngay trong câu xoá, không chỉ ở phép kiểm bên trên:
   // giữa lúc đọc và lúc xoá, người khác có thể vừa bấm Hoàn thành hay vừa đánh
   // dấu lỗi — xoá trúng thì mất một bản ghi khác hẳn bản ghi người này đã xem,
   // và phần dọn bên dưới chạy theo nhánh sai.
-  const removed = await db
-    .delete(bankAccounts)
-    .where(and(eq(bankAccounts.id, id), eq(bankAccounts.status, current.status)))
-    .returning({ id: bankAccounts.id });
+  let removed: { id: string }[];
+  try {
+    removed = await db
+      .delete(bankAccounts)
+      .where(and(eq(bankAccounts.id, id), eq(bankAccounts.status, current.status)))
+      .returning({ id: bankAccounts.id });
+  } catch (e) {
+    if (raisedMessageOf(e) === null) throw e;
+    return { ok: false, message: BLANK_LOCKED };
+  }
   if (removed.length === 0)
     return { ok: false, message: "Tài khoản này vừa đổi trạng thái. Tải lại trang rồi thử lại." };
 

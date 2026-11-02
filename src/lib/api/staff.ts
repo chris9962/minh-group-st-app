@@ -341,6 +341,8 @@ function fixedSalaryError(text: string): string | null {
 }
 
 export const SAVE_ERROR = {
+  /** Luật phôi bảo hiểm chặn lượt chuyển phòng; `message` nêu tên người và số đơn. */
+  DEPARTMENT_MOVE_BLOCKED: 'department-move-blocked',
   USERNAME_TAKEN: 'username-taken',
   STAFF_CODE_TAKEN: 'staff-code-taken',
   ROLE_TOO_HIGH: 'role-too-high',
@@ -351,6 +353,7 @@ export const SAVE_ERROR = {
 
 export const SaveError = z.object({
   code: z.enum([
+    SAVE_ERROR.DEPARTMENT_MOVE_BLOCKED,
     SAVE_ERROR.USERNAME_TAKEN,
     SAVE_ERROR.STAFF_CODE_TAKEN,
     SAVE_ERROR.ROLE_TOO_HIGH,

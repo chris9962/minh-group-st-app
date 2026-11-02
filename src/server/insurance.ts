@@ -1671,23 +1671,20 @@ export async function cancelInsuranceOrder(
     return { ok: false, message: "Đơn đang gửi PVI, đợi tối đa 2 phút rồi huỷ." };
 
   /**
-   * Người tạo chỉ TỰ huỷ được trong ngày lập đơn (chốt 2026-09-02) — qua ngày
-   * thì nhờ người có `set-status`. Mốc là `createdAt` hệ thống, không phải
-   * `orderDate`: ngày tạo đơn sửa tay được ("nhập bù"), lấy nó làm mốc thì sửa
-   * ngày là tự mở lại được cửa huỷ.
+   * Chỉ huỷ được trong ngày lập đơn, với MỌI người (chủ dự án chốt 2026-11-02;
+   * bản 2026-09-02 cho người có `set-status` huỷ mọi ngày). Đơn Hoàn thành đã
+   * trừ phôi bảo hiểm của phòng lúc đó, và người lập có thể đã chuyển phòng
+   * sang ngày sau; huỷ muộn thì chủ dự án huỷ bằng SQL. Mốc là `createdAt` hệ
+   * thống, không phải `orderDate`: ngày tạo đơn sửa tay được ("nhập bù"), lấy
+   * nó làm mốc thì sửa ngày là tự mở lại được cửa huỷ.
    */
-  if (!canOverride) {
-    const [created] = await db
-      .select({ at: insuranceOrders.createdAt })
-      .from(insuranceOrders)
-      .where(eq(insuranceOrders.id, id))
-      .limit(1);
-    if (!created || businessDay(created.at) !== businessDay())
-      return {
-        ok: false,
-        message: "Chỉ tự huỷ được trong ngày lập đơn. Quá ngày thì báo người quản trị huỷ giúp.",
-      };
-  }
+  const [created] = await db
+    .select({ at: insuranceOrders.createdAt })
+    .from(insuranceOrders)
+    .where(eq(insuranceOrders.id, id))
+    .limit(1);
+  if (!created || businessDay(created.at) !== businessDay())
+    return { ok: false, message: "Chỉ huỷ được trong ngày lập đơn." };
 
   const updated = await db
     .update(insuranceOrders)

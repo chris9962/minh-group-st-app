@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, lt, lte, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, sql, type SQL } from "drizzle-orm";
 import type {
   BlankType,
   DepartmentBlankCell,
@@ -30,9 +30,11 @@ import {
  * Phôi bảo hiểm theo tháng (chốt 2026-10-29), thiết kế ở
  * `docs/spec-phan-phoi-bao-hiem-2026-10-29.md`.
  *
- * Không lưu số tồn, số đã dùng hay kết quả cảnh báo: mọi số đó tính lại từ các
- * dòng cấp, dòng phát và đơn Hoàn thành mỗi lần đọc. Nhờ vậy đơn đổi trạng thái
- * hay văn phòng sửa mục tiêu giữa tháng thì số trên màn tự đúng.
+ * Số tồn, số còn lại và cảnh báo không lưu: tính lại từ dòng cấp và dòng phát mỗi
+ * lần đọc. Số đơn Hoàn thành (`used_orders`) là cột đếm do trigger
+ * `mgst_count_insurance_blank` giữ (migration 0160), nên màn không đọc lại đơn.
+ * Chuyển phòng (chủ dự án chốt 2026-11-02): dòng ở phòng cũ khoá lại làm lịch sử,
+ * phôi chưa sử dụng về phòng cũ qua cột `returned`.
  */
 
 type Db = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -64,10 +66,6 @@ const activeTypes = (): Promise<TypeRow[]> =>
 
 const publicType = ({ id, code, name }: TypeRow): BlankType => ({ id, code, name });
 
-/** Đơn khớp loại phôi đầu tiên cùng sản phẩm; `sum_insured` null là khớp mọi đơn của sản phẩm đó. */
-const typeOfOrder = (types: TypeRow[], product: string, sumInsured: number): string | null =>
-  types.find((t) => t.product === product && (t.sumInsured === null || t.sumInsured === sumInsured))?.id ?? null;
-
 const salesDepartments = () =>
   db
     .select({ id: departments.id, name: departments.name })
@@ -75,13 +73,13 @@ const salesDepartments = () =>
     .where(and(eq(departments.type, "sales"), eq(departments.active, true)))
     .orderBy(asc(departments.name));
 
-/** Tháng đầu tiên có số liệu phôi; đơn trước tháng này không trừ phôi. */
-async function firstBlankMonth(): Promise<string | null> {
-  const result = await db.execute<{ month: string | null }>(sql`
+/** Tháng đầu tiên văn phòng cấp hoặc Trưởng phòng nhập; dòng chỉ do trigger tạo không tính. */
+async function firstBlankMonth(conn: Db = db): Promise<string | null> {
+  const result = await conn.execute<{ month: string | null }>(sql`
     select min(year_month) as month from (
       select year_month from ${insuranceBlankDepartmentQuotas}
       union all
-      select year_month from ${insuranceBlankStaffQuotas}
+      select year_month from ${insuranceBlankStaffQuotas} where issued > 0 or used is not null
     ) months`);
   return result.rows[0]?.month ?? null;
 }
@@ -132,52 +130,58 @@ const mixOf = (rows: OrderCount[]): MixCount => ({
 
 /* ── Sổ phôi của phòng: cấp thêm và đã phát theo từng tháng ─────────────── */
 
-type Movement = { allocated: number; issued: number };
-/** Khoá `phòng:loại phôi` → tháng → số cấp thêm và số đã phát cho người. */
+type Movement = { allocated: number; issued: number; returned: number };
+/** Khoá `phòng:loại phôi` → tháng → số cấp thêm, số đã phát cho người và số người rời phòng trả về. */
 type Ledger = Map<string, Map<string, Movement>>;
 
+/** Đọc tuần tự, không Promise.all: hàm chạy cả trong transaction, mà một kết nối chỉ chạy một truy vấn một lúc. */
 async function departmentLedger(conn: Db, departmentIds: string[]): Promise<Ledger> {
   const ledger: Ledger = new Map();
   if (departmentIds.length === 0) return ledger;
-  const [allocated, issued] = await Promise.all([
-    conn
-      .select({
-        departmentId: insuranceBlankDepartmentQuotas.departmentId,
-        blankTypeId: insuranceBlankDepartmentQuotas.blankTypeId,
-        month: insuranceBlankDepartmentQuotas.yearMonth,
-        quantity: insuranceBlankDepartmentQuotas.quantity,
-      })
-      .from(insuranceBlankDepartmentQuotas)
-      .where(inArray(insuranceBlankDepartmentQuotas.departmentId, departmentIds)),
-    conn
-      .select({
-        departmentId: insuranceBlankStaffQuotas.departmentId,
-        blankTypeId: insuranceBlankStaffQuotas.blankTypeId,
-        month: insuranceBlankStaffQuotas.yearMonth,
-        quantity: sql<number>`sum(${insuranceBlankStaffQuotas.issued})::int`,
-      })
-      .from(insuranceBlankStaffQuotas)
-      .where(inArray(insuranceBlankStaffQuotas.departmentId, departmentIds))
-      .groupBy(insuranceBlankStaffQuotas.departmentId, insuranceBlankStaffQuotas.blankTypeId, insuranceBlankStaffQuotas.yearMonth),
-  ]);
-  const add = (row: { departmentId: string; blankTypeId: string; month: string; quantity: number }, field: keyof Movement) => {
+  const allocated = await conn
+    .select({
+      departmentId: insuranceBlankDepartmentQuotas.departmentId,
+      blankTypeId: insuranceBlankDepartmentQuotas.blankTypeId,
+      month: insuranceBlankDepartmentQuotas.yearMonth,
+      quantity: insuranceBlankDepartmentQuotas.quantity,
+    })
+    .from(insuranceBlankDepartmentQuotas)
+    .where(inArray(insuranceBlankDepartmentQuotas.departmentId, departmentIds));
+  const issued = await conn
+    .select({
+      departmentId: insuranceBlankStaffQuotas.departmentId,
+      blankTypeId: insuranceBlankStaffQuotas.blankTypeId,
+      month: insuranceBlankStaffQuotas.yearMonth,
+      issued: sql<number>`sum(${insuranceBlankStaffQuotas.issued})::int`,
+      returned: sql<number>`sum(${insuranceBlankStaffQuotas.returned})::int`,
+    })
+    .from(insuranceBlankStaffQuotas)
+    .where(inArray(insuranceBlankStaffQuotas.departmentId, departmentIds))
+    .groupBy(insuranceBlankStaffQuotas.departmentId, insuranceBlankStaffQuotas.blankTypeId, insuranceBlankStaffQuotas.yearMonth);
+  const at = (row: { departmentId: string; blankTypeId: string; month: string }): Movement => {
     const key = `${row.departmentId}:${row.blankTypeId}`;
     const months = ledger.get(key) ?? new Map<string, Movement>();
-    const movement = months.get(row.month) ?? { allocated: 0, issued: 0 };
-    movement[field] += row.quantity;
+    const movement = months.get(row.month) ?? { allocated: 0, issued: 0, returned: 0 };
     months.set(row.month, movement);
     ledger.set(key, months);
+    return movement;
   };
-  for (const row of allocated) add(row, "allocated");
-  for (const row of issued) add(row, "issued");
+  for (const row of allocated) at(row).allocated += row.quantity;
+  for (const row of issued) {
+    const movement = at(row);
+    movement.issued += row.issued;
+    movement.returned += row.returned;
+  }
   return ledger;
 }
 
+const unallocated = (m: Movement) => m.allocated - m.issued + m.returned;
+
 function departmentCell(ledger: Ledger, departmentId: string, blankTypeId: string, month: string): DepartmentBlankCell {
   let openingUnallocated = 0;
-  let current: Movement = { allocated: 0, issued: 0 };
+  let current: Movement = { allocated: 0, issued: 0, returned: 0 };
   for (const [m, movement] of ledger.get(`${departmentId}:${blankTypeId}`) ?? []) {
-    if (m < month) openingUnallocated += movement.allocated - movement.issued;
+    if (m < month) openingUnallocated += unallocated(movement);
     else if (m === month) current = movement;
   }
   return { blankTypeId, openingUnallocated, ...current };
@@ -193,7 +197,7 @@ async function shortfallMessage(conn: Db, departmentIds: string[], fromMonth: st
   for (const [key, months] of ledger) {
     let running = 0;
     for (const [month, movement] of [...months].sort(([a], [b]) => a.localeCompare(b))) {
-      running += movement.allocated - movement.issued;
+      running += unallocated(movement);
       if (month < fromMonth || running >= 0) continue;
       const [departmentId, blankTypeId] = key.split(":");
       const [names] = await conn
@@ -353,6 +357,128 @@ async function membersOf(departmentId: string, month: string): Promise<Member[]>
   );
 }
 
+type QuotaRow = typeof insuranceBlankStaffQuotas.$inferSelect;
+
+/** Số Trưởng phòng nhập, không có thì số đơn Hoàn thành trigger đếm. */
+const usedOfRow = (row: QuotaRow) => row.used ?? row.usedOrders;
+
+/** Dòng phôi của những người này ở MỘT phòng, từ `start` tới `month`. */
+const staffRows = (conn: Db, departmentId: string, userIds: string[], start: string, month: string) =>
+  conn
+    .select()
+    .from(insuranceBlankStaffQuotas)
+    .where(
+      and(
+        eq(insuranceBlankStaffQuotas.departmentId, departmentId),
+        inArray(insuranceBlankStaffQuotas.userId, userIds),
+        gte(insuranceBlankStaffQuotas.yearMonth, start),
+        lte(insuranceBlankStaffQuotas.yearMonth, month),
+      ),
+    );
+
+/** Tồn tháng trước cộng các tháng trước ở phòng này: đã phát − đã sử dụng − đã trả về phòng. */
+function cellOf(rows: QuotaRow[], userId: string, blankTypeId: string, month: string): StaffBlankCell {
+  let opening = 0;
+  let current: QuotaRow | undefined;
+  for (const r of rows) {
+    if (r.userId !== userId || r.blankTypeId !== blankTypeId) continue;
+    if (r.yearMonth < month) opening += r.issued - usedOfRow(r) - r.returned;
+    else if (r.yearMonth === month) current = r;
+  }
+  return {
+    blankTypeId,
+    opening,
+    issued: current?.issued ?? 0,
+    used: current?.used ?? null,
+    usedOrders: current?.usedOrders ?? 0,
+    returned: current?.returned ?? 0,
+  };
+}
+
+/**
+ * Khoá mọi dòng đang mở của người này ở phòng cũ, chạy trong transaction lưu chuyển
+ * phòng (chủ dự án chốt 2026-11-02). Phôi chưa sử dụng của tháng hiện tại và tháng
+ * sau về phòng qua `returned`; tồn của các tháng trước gộp vào tháng hiện tại. Số âm
+ * không về phòng, ở lại dòng của người đó. Trả về số dòng đã khoá.
+ */
+export async function closeStaffBlanks(tx: Db, userId: string, departmentId: string, at: Date): Promise<number> {
+  await lockDepartments(tx, [departmentId]);
+  const rows = await tx
+    .select()
+    .from(insuranceBlankStaffQuotas)
+    .where(
+      and(
+        eq(insuranceBlankStaffQuotas.userId, userId),
+        eq(insuranceBlankStaffQuotas.departmentId, departmentId),
+        isNull(insuranceBlankStaffQuotas.closedAt),
+      ),
+    )
+    .orderBy(asc(insuranceBlankStaffQuotas.yearMonth));
+  const first = await firstBlankMonth(tx);
+  const now = businessMonth();
+  const carry = new Map<string, number>();
+  const hasNow = new Set<string>();
+  let closed = rows.length;
+  // Tồn các tháng trước mà tháng hiện tại chưa có dòng: ghi một dòng khoá mang số trả về, để phòng nhận lại đủ.
+  const flush = async (blankTypeId: string) => {
+    const left = carry.get(blankTypeId) ?? 0;
+    if (left <= 0 || hasNow.has(blankTypeId)) return;
+    await tx
+      .insert(insuranceBlankStaffQuotas)
+      .values({ yearMonth: now, userId, blankTypeId, departmentId, issued: 0, returned: left, closedAt: at })
+      .onConflictDoUpdate({
+        target: [insuranceBlankStaffQuotas.yearMonth, insuranceBlankStaffQuotas.userId, insuranceBlankStaffQuotas.blankTypeId, insuranceBlankStaffQuotas.departmentId],
+        set: { returned: sql`${insuranceBlankStaffQuotas.returned} + ${left}`, closedAt: at, updatedAt: new Date() },
+      });
+    carry.set(blankTypeId, 0);
+    hasNow.add(blankTypeId);
+    closed++;
+  };
+  for (const r of rows) {
+    if (r.yearMonth > now) await flush(r.blankTypeId);
+    // Tháng trước tháng cấp đầu không tính, cùng luật màn đọc: chỉ khoá.
+    const counted = !first || r.yearMonth >= first;
+    const balance = counted ? (carry.get(r.blankTypeId) ?? 0) + r.issued - usedOfRow(r) - r.returned : 0;
+    const returned = counted && r.yearMonth >= now ? Math.max(balance, 0) : 0;
+    if (counted) carry.set(r.blankTypeId, balance - returned);
+    if (r.yearMonth === now) hasNow.add(r.blankTypeId);
+    await tx
+      .update(insuranceBlankStaffQuotas)
+      .set({ returned: r.returned + returned, closedAt: at, updatedAt: new Date() })
+      .where(
+        and(
+          eq(insuranceBlankStaffQuotas.yearMonth, r.yearMonth),
+          eq(insuranceBlankStaffQuotas.userId, userId),
+          eq(insuranceBlankStaffQuotas.blankTypeId, r.blankTypeId),
+          eq(insuranceBlankStaffQuotas.departmentId, departmentId),
+        ),
+      );
+  }
+  for (const key of carry.keys()) await flush(key);
+  return closed;
+}
+
+/**
+ * Người quay lại phòng cũ: mở lại dòng đã khoá từ tháng hiện tại, giữ nguyên
+ * `returned` vì phôi đã về phòng lúc đi. Dòng ở phòng vừa rời phải khoá trước, vì
+ * mỗi tháng chỉ một dòng đang mở (`insurance_blank_staff_quotas_open`).
+ */
+export async function reopenStaffBlanks(tx: Db, userId: string, departmentId: string): Promise<number> {
+  const rows = await tx
+    .update(insuranceBlankStaffQuotas)
+    .set({ closedAt: null, updatedAt: new Date() })
+    .where(
+      and(
+        eq(insuranceBlankStaffQuotas.userId, userId),
+        eq(insuranceBlankStaffQuotas.departmentId, departmentId),
+        isNotNull(insuranceBlankStaffQuotas.closedAt),
+        gte(insuranceBlankStaffQuotas.yearMonth, businessMonth()),
+      ),
+    )
+    .returning({ yearMonth: insuranceBlankStaffQuotas.yearMonth });
+  return rows.length;
+}
+
 export type StaffBlanksResult = { ok: true; data: StaffBlanks } | { ok: false; status: 403 | 404; message: string };
 
 export async function staffBlanks(actor: User, month: string, requested: string): Promise<StaffBlanksResult> {
@@ -375,39 +501,9 @@ export async function staffBlanks(actor: User, month: string, requested: string)
   const [ledger, departmentOrders, rows, orders] = await Promise.all([
     departmentLedger(db, [departmentId]),
     doneOrders(eq(insuranceOrders.createdByDepartmentId, departmentId), month, month),
-    memberIds.length > 0
-      ? db
-          .select()
-          .from(insuranceBlankStaffQuotas)
-          .where(and(inArray(insuranceBlankStaffQuotas.userId, memberIds), lte(insuranceBlankStaffQuotas.yearMonth, month)))
-      : [],
-    memberIds.length > 0 ? doneOrders(inArray(insuranceOrders.createdBy, memberIds), start, month) : [],
+    memberIds.length > 0 ? staffRows(db, departmentId, memberIds, start, month) : [],
+    memberIds.length > 0 ? doneOrders(inArray(insuranceOrders.createdBy, memberIds), month, month) : [],
   ]);
-
-  const months: string[] = [];
-  for (let m = start; m < month; m = shiftMonth(m, 1)) months.push(m);
-  const rowOf = (userId: string, blankTypeId: string, m: string) =>
-    rows.find((r) => r.userId === userId && r.blankTypeId === blankTypeId && r.yearMonth === m);
-  const usedByOrders = (userId: string, blankTypeId: string, m: string) =>
-    orders
-      .filter((o) => o.userId === userId && o.month === m && typeOfOrder(types, o.product, o.sumInsured) === blankTypeId)
-      .reduce((s, o) => s + o.count, 0);
-
-  const cellOf = (userId: string, blankTypeId: string): StaffBlankCell => {
-    let opening = 0;
-    for (const m of months) {
-      const row = rowOf(userId, blankTypeId, m);
-      opening += (row?.issued ?? 0) - (row?.used ?? usedByOrders(userId, blankTypeId, m));
-    }
-    const row = rowOf(userId, blankTypeId, month);
-    return {
-      blankTypeId,
-      opening,
-      issued: row?.issued ?? 0,
-      used: row?.used ?? null,
-      usedOrders: usedByOrders(userId, blankTypeId, month),
-    };
-  };
 
   return {
     ok: true,
@@ -422,8 +518,10 @@ export async function staffBlanks(actor: User, month: string, requested: string)
       departmentMix: mixOf(departmentOrders),
       rows: members.map((m) => ({
         ...m,
-        cells: types.map((t) => cellOf(m.userId, t.id)),
-        mix: mixOf(orders.filter((o) => o.userId === m.userId && o.month === month)),
+        cells: types.map((t) => cellOf(rows, m.userId, t.id, month)),
+        movedOut: rows.some((r) => r.userId === m.userId && r.yearMonth === month && r.closedAt !== null),
+        // Tỉ lệ của người đếm mọi đơn của người đó trong tháng, không xét phòng (chốt 2026-11-02).
+        mix: mixOf(orders.filter((o) => o.userId === m.userId)),
       })),
     },
   };
@@ -443,10 +541,11 @@ export async function saveStaffBlanks(
   const [types, members] = await Promise.all([activeTypes(), membersOf(departmentId, month)]);
   const typeIds = new Set(types.map((t) => t.id));
   const memberIds = new Set(members.map((m) => m.userId));
-  if (form.rows.some((r) => !typeIds.has(r.blankTypeId) || !memberIds.has(r.userId)))
-    return { ok: false, message: "Người hoặc loại phôi không thuộc phòng này trong tháng đang chọn." };
+  if (form.rows.some((r) => !typeIds.has(r.blankTypeId))) return { ok: false, message: "Loại phôi không hợp lệ" };
 
-  const userIds = [...new Set(form.rows.map((r) => r.userId))];
+  // Người không còn thuộc phòng thì bỏ qua, không từ chối: màn mở từ trước lúc có người chuyển đi vẫn lưu được.
+  const rows = form.rows.filter((r) => memberIds.has(r.userId));
+  const userIds = [...new Set(rows.map((r) => r.userId))];
   try {
     await db.transaction(async (tx) => {
       await lockDepartments(tx, [departmentId]);
@@ -455,24 +554,30 @@ export async function saveStaffBlanks(
           ? await tx
               .select()
               .from(insuranceBlankStaffQuotas)
-              .where(and(eq(insuranceBlankStaffQuotas.yearMonth, month), inArray(insuranceBlankStaffQuotas.userId, userIds)))
+              .where(
+                and(
+                  eq(insuranceBlankStaffQuotas.yearMonth, month),
+                  eq(insuranceBlankStaffQuotas.departmentId, departmentId),
+                  inArray(insuranceBlankStaffQuotas.userId, userIds),
+                ),
+              )
           : [];
-      const elsewhere = existing.find((r) => r.departmentId !== departmentId);
-      if (elsewhere) {
-        const name = members.find((m) => m.userId === elsewhere.userId)?.fullName ?? "Một người";
-        throw new Refused(`${name} đã được phòng khác nhập phôi trong tháng ${monthText(month)}.`);
-      }
 
-      for (const r of form.rows) {
+      for (const r of rows) {
         const old = existing.find((e) => e.userId === r.userId && e.blankTypeId === r.blankTypeId);
+        // Dòng đã khoá là lịch sử của người đã rời phòng.
+        if (old?.closedAt) continue;
         if (old && old.issued === r.issued && old.used === r.used) continue;
         if (!old && r.issued === 0 && r.used === null) continue;
         const key = and(
           eq(insuranceBlankStaffQuotas.yearMonth, month),
           eq(insuranceBlankStaffQuotas.userId, r.userId),
           eq(insuranceBlankStaffQuotas.blankTypeId, r.blankTypeId),
+          eq(insuranceBlankStaffQuotas.departmentId, departmentId),
         );
-        if (r.issued === 0 && r.used === null) await tx.delete(insuranceBlankStaffQuotas).where(key);
+        // Dòng còn số đơn trigger đếm hay số đã trả về phòng thì giữ lại với hai ô trống.
+        if (r.issued === 0 && r.used === null && old?.usedOrders === 0 && old.returned === 0)
+          await tx.delete(insuranceBlankStaffQuotas).where(key);
         else
           await tx
             .insert(insuranceBlankStaffQuotas)
@@ -486,7 +591,12 @@ export async function saveStaffBlanks(
               updatedBy: actor.id,
             })
             .onConflictDoUpdate({
-              target: [insuranceBlankStaffQuotas.yearMonth, insuranceBlankStaffQuotas.userId, insuranceBlankStaffQuotas.blankTypeId],
+              target: [
+                insuranceBlankStaffQuotas.yearMonth,
+                insuranceBlankStaffQuotas.userId,
+                insuranceBlankStaffQuotas.blankTypeId,
+                insuranceBlankStaffQuotas.departmentId,
+              ],
               set: { issued: r.issued, used: r.used, updatedBy: actor.id, updatedAt: new Date() },
             });
       }
