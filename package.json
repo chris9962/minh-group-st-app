@@ -1,6 +1,6 @@
 {
   "name": "mgst-app",
-  "version": "2.20.0",
+  "version": "2.21.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -38,6 +38,7 @@
     "db:grant-approve-advance": "bun --env-file=.env.local scripts/db-grant-approve-advance.ts",
     "db:grant-record-attendance": "bun --env-file=.env.local scripts/db-grant-record-attendance.ts",
     "db:seed-insurance-blanks": "bun --env-file=.env.local scripts/db-seed-insurance-blanks.ts",
+    "db:seed-blank-quotas-2026-11": "bun --env-file=.env.local scripts/db-seed-blank-quotas-2026-11.ts",
     "db:grant-social-insurance": "bun --env-file=.env.local scripts/db-grant-social-insurance.ts",
     "db:seed-social-insurance": "bun --env-file=.env.local scripts/db-seed-social-insurance.ts",
     "db:seed-social-salary": "bun --env-file=.env.local scripts/db-seed-social-salary.ts",

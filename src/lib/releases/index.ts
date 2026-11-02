@@ -22,6 +22,62 @@ const seesCompanyDashboard = (user: User) =>
  */
 export const RELEASES: Release[] = [
   {
+    id: '2026-11-03',
+    version: '2.21.0',
+    title: 'Cập nhật ngày 03/11/2026',
+    summary:
+      'Phôi bảo hiểm và phiếu ngân hàng của người chuyển phòng: phần đã sử dụng ở lại phòng cũ, phần chưa sử dụng về phòng cũ.',
+    sections: [
+      {
+        title: 'Phát phôi bảo hiểm',
+        items: [
+          'Người chuyển phòng: phôi đã sử dụng ở lại phòng cũ, phôi chưa sử dụng về phòng cũ.',
+          'Dòng của người đã chuyển phòng có nhãn Đã chuyển phòng, không sửa.',
+          'Thêm cột Nhận lại ở bảng phòng và cột Trả lại ở bảng từng người, chỉ hiện khi có số.',
+        ],
+        visibleTo: (user) => can(user, 'insurance', 'split-blanks'),
+      },
+      {
+        title: 'Phát phiếu thông tin ngân hàng',
+        items: [
+          'Người chuyển phòng: phiếu đã sử dụng ở lại phòng cũ, phiếu chưa sử dụng về phòng cũ.',
+          'Phiếu tính một lần khi tài khoản hoàn thành. Xoá tài khoản mới trả phiếu lại.',
+        ],
+        visibleTo: (user) => can(user, 'banking', 'split-blanks'),
+      },
+      {
+        title: 'Cấp phôi, cấp phiếu cho phòng',
+        items: ['Thêm cột Nhận lại: phôi, phiếu của người chuyển đi trả về phòng.'],
+        visibleTo: (user) =>
+          canOpenPath(user, '/settings/insurance-blanks') || canOpenPath(user, '/settings/bank-blanks'),
+      },
+      {
+        title: 'Nhân viên',
+        items: [
+          'Chưa chuyển phòng được khi người đó còn đơn bảo hiểm chưa hoàn thành, có đơn lập trong ngày, hoặc còn tài khoản ngân hàng đang tạo.',
+        ],
+        visibleTo: (user) => can(user, 'staff', 'update'),
+      },
+      {
+        title: 'Bảo hiểm',
+        items: ['Huỷ đơn chỉ trong ngày lập đơn.'],
+      },
+      {
+        title: 'Ngân hàng',
+        items: ['Không xoá được tài khoản đã tính phiếu cho phòng cũ của người lập.'],
+        visibleTo: (user) => can(user, 'banking', 'delete'),
+      },
+      {
+        title: 'Chức danh',
+        items: ['Màn danh sách và file Excel hiện chức danh, không hiện vai.'],
+      },
+      {
+        title: 'Tổng quan',
+        items: ['Cập nhật lại giao diện.'],
+      },
+    ],
+  },
+  {
     id: '2026-11-02',
     version: '2.20.0',
     title: 'Cập nhật ngày 02/11/2026',
