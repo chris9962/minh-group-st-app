@@ -193,6 +193,7 @@ async function exportGiftStock(data: GiftStockMonth) {
     { header: "NGƯỜI NHẬP", ...staff, width: 24, value: (r) => r.createdByName },
     { header: "MÃ NHÂN VIÊN", ...staff, type: "text", width: 15, value: (r) => r.createdByStaffCode },
     { header: "PHÒNG", ...staff, width: 24, value: (r) => r.createdByDepartmentName },
+    { header: "CHỨC VỤ", ...staff, width: 22, value: (r) => r.createdByTitle },
   ];
 
   // Hai sheet hai kiểu dòng; `exportExcelSheets` chỉ nhận một kiểu nên ép qua `unknown`.

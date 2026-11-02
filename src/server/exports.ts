@@ -717,8 +717,8 @@ export type OrderStatsCell = {
   healthCancelled: number;
 };
 
-/** `department` chỉ có ở trục nhân viên — cột PHÒNG cạnh cột HỌ VÀ TÊN. */
-export type OrderStatsGroup = { id: string; label: string; department?: string };
+/** `title` và `department` chỉ có ở trục nhân viên — cột CHỨC VỤ và PHÒNG cạnh cột HỌ VÀ TÊN. */
+export type OrderStatsGroup = { id: string; label: string; title?: string; department?: string };
 
 export type OrderStatsResult = {
   /** Đúng thứ tự hiện trong sheet. Nhóm không có số nào vẫn nằm đây khi gộp theo phòng. */
@@ -942,6 +942,7 @@ async function groupsOf(
     .select({
       id: users.id,
       label: users.fullName,
+      title: users.title,
       // Phòng của người nhập trong THÁNG xuất (chốt 2026-09-30) — hai cột BHSK
       // cũng gộp theo nhân sự của tháng (xem `addHealthGiftCounts`), lấy cùng
       // nguồn thì cột PHÒNG không mâu thuẫn với chính số liệu trên dòng.
@@ -955,7 +956,7 @@ async function groupsOf(
 
   return [
     ...rows,
-    ...(used.has("") ? [{ id: "", label: "Không rõ người tạo", department: "" }] : []),
+    ...(used.has("") ? [{ id: "", label: "Không rõ người tạo", title: "", department: "" }] : []),
   ];
 }
 
@@ -1003,6 +1004,7 @@ export async function listBankNotOpenedExport(
       createdBy: customers.createdBy,
       staffName: sql<string>`coalesce(${users.fullName}, '')`.as("staff_name"),
       staffCode: sql<string>`coalesce(${users.staffCode}, '')`.as("staff_code"),
+      staffTitle: sql<string>`coalesce(${users.title}, '')`.as("staff_title"),
       departmentName: sql<string>`coalesce(${departments.name}, '')`.as("department_name"),
       // Không đặt `customer_id`: cột ngoài câu con không kèm tên câu con, trùng cột của `bank_skip_reasons`.
       customerId: sql<string>`${customers.id}`.as("profile_customer_id"),
@@ -1043,6 +1045,7 @@ export async function listBankNotOpenedExport(
         day: profiles.day,
         fullName: profiles.staffName,
         staffCode: profiles.staffCode,
+        title: profiles.staffTitle,
         departmentName: profiles.departmentName,
         ageFitNotOpened: countOf("fit"),
         otherReason: countOf("other"),
@@ -1050,7 +1053,14 @@ export async function listBankNotOpenedExport(
         total: sql<number>`count(*)`.mapWith(Number),
       })
       .from(profiles)
-      .groupBy(profiles.day, profiles.createdBy, profiles.staffName, profiles.staffCode, profiles.departmentName)
+      .groupBy(
+        profiles.day,
+        profiles.createdBy,
+        profiles.staffName,
+        profiles.staffCode,
+        profiles.staffTitle,
+        profiles.departmentName,
+      )
       .orderBy(profiles.day, profiles.departmentName, profiles.staffName),
     // Sheet danh sách khách (chốt 2026-10-26): chỉ nhóm đủ tuổi mà không mở. Lý do không mở bank ưu
     // tiên (chốt 2026-10-29) chỉ hiện khi ngân hàng này nằm trong danh sách bank lưu cùng lý do.
@@ -1061,6 +1071,7 @@ export async function listBankNotOpenedExport(
         customerName: profiles.customerName,
         fullName: profiles.staffName,
         staffCode: profiles.staffCode,
+        title: profiles.staffTitle,
         departmentName: profiles.departmentName,
         reason: sql<string>`coalesce(${bankSkipReasons.note}, '')`,
       })

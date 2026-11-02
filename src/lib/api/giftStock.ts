@@ -32,6 +32,7 @@ export const GiftStockEntry = z.object({
   updatedAt: z.string(),
   createdByName: z.string(),
   createdByStaffCode: z.string(),
+  createdByTitle: z.string(),
   createdByDepartmentName: z.string(),
 });
 export type GiftStockEntry = z.infer<typeof GiftStockEntry>;

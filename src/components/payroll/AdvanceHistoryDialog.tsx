@@ -54,7 +54,7 @@ export function AdvanceHistoryDialog({ id, onClose }: { id: string; onClose: () 
                   <span className={`${styles.amount} tabular-nums`}>{amountOf(e)}</span>
                 </div>
                 <span className={styles.eventMeta}>
-                  {e.actorName ? `${e.actorName}${e.actorRole ? `, ${e.actorRole}` : ""}` : "App"} -{" "}
+                  {e.actorName ? `${e.actorName}${e.actorTitle ? `, ${e.actorTitle}` : ""}` : "App"} -{" "}
                   <span className="tabular-nums">{formatDateTime(e.at)}</span>
                 </span>
                 {e.note && <span className={styles.eventMeta}>{e.note}</span>}

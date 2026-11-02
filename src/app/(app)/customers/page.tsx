@@ -97,6 +97,7 @@ const customerExcelColumns = (
   { key: "createdByCode", label: "Mã nhân viên", ...NHAN_SU, width: 16, type: "text", value: (c) => c.createdByCode ?? "" },
   { key: "createdByName", label: "Người tạo", ...NHAN_SU, width: 24, value: (c) => c.createdByName },
   { key: "createdByDepartmentName", label: "Phòng", ...NHAN_SU, width: 24, value: (c) => c.createdByDepartmentName },
+  { key: "createdByTitle", label: "Chức vụ", ...NHAN_SU, width: 22, value: (c) => c.createdByTitle },
   { key: "note", label: "Ghi chú", group: "Ghi chú", width: 48, type: "text", value: (c) => c.note },
 ];
 

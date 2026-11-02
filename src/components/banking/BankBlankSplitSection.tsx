@@ -17,7 +17,6 @@ import { StatusTag } from "@/components/ui/StatusTag";
 import { fetchBankStaffBlanks, saveBankStaffBlanks, type BankStaffBlanks } from "@/lib/api/bankBlanks";
 import { digitsOnly } from "@/lib/numberField";
 import { errorMessage, toast } from "@/lib/toast";
-import { ROLE_LABEL } from "@/lib/types";
 
 /** Màn Phát phiếu thông tin ngân hàng: Trưởng phòng, Phó phòng nhập số đã phát và đã sử dụng của từng người. */
 export function BankBlankSplitSection({ month }: { month: string }) {
@@ -181,7 +180,7 @@ function SplitForm({ data, onDepartmentChange }: { data: BankStaffBlanks; onDepa
                   <tr key={r.userId}>
                     <th scope="row">
                       {r.fullName}
-                      <span className={`${styles.role} text-muted`}>{ROLE_LABEL[r.role]}</span>
+                      <span className={`${styles.role} text-muted`}>{r.title}</span>
                     </th>
                     <td className={styles.number}>{r.cell.opening}</td>
                     <td>

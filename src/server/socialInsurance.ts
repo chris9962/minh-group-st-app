@@ -181,9 +181,11 @@ const decorate = (page: ReturnType<typeof pickPage>) =>
       collaboratorName: collaborators.name,
       entryStaffName: entryStaff.fullName,
       entryStaffCode: entryStaff.staffCode,
+      entryStaffTitle: entryStaff.title,
       entryStaffDepartmentName: entryDepartment.name,
       uploaderName: uploader.fullName,
       uploaderCode: uploader.staffCode,
+      uploaderTitle: uploader.title,
       uploaderDepartmentName: uploaderDepartment.name,
       // Tháng biên lai giữ điểm An Sinh, tháng tải file giữ lượt nhập liệu: một trong hai đã chốt là khoá.
       monthClosed: sql<boolean>`exists (
@@ -347,7 +349,14 @@ export async function listSocialInsuranceForExport(
     db.select({ value: count() }).from(r).where(where),
   ]);
   return {
-    rows: await withReconciledPaid(rows.map((d) => ({ ...toRow(d), idNumber: d.idNumber }))),
+    rows: await withReconciledPaid(
+      rows.map((d) => ({
+        ...toRow(d),
+        idNumber: d.idNumber,
+        entryStaffTitle: d.entryStaffTitle,
+        createdByTitle: d.uploaderTitle,
+      })),
+    ),
     total: totals?.value ?? 0,
   };
 }

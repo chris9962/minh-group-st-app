@@ -36,6 +36,8 @@ export const PersonScore = z.object({
   fullName: z.string(),
   /** Mã nhân viên — null với tài khoản có trước khi trường này ra đời. */
   staffCode: z.string().nullable(),
+  /** Chức danh hiển thị ở hồ sơ hiện tại — `staff_roster` không chụp chức danh theo tháng. */
+  title: z.string(),
   departmentName: z.string(),
   /** Điểm combo ngân hàng của những khách do người này lập hồ sơ (`src/rules/`). */
   bankingPoints: z.number(),

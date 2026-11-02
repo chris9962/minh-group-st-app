@@ -162,6 +162,7 @@ export async function listDirectedExport(
       id: users.id,
       fullName: users.fullName,
       staffCode: users.staffCode,
+      title: users.title,
       role: staffRoster.role,
       contractType: staffRoster.contractType,
       active: staffRoster.active,
@@ -192,6 +193,7 @@ export async function listDirectedExport(
     .map((s) => ({
       fullName: s.fullName,
       staffCode: s.staffCode ?? "",
+      title: s.title,
       departmentName: s.departmentName,
       active: s.active,
       achieved: s.achieved,

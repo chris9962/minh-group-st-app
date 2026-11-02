@@ -292,6 +292,7 @@ function catalogFor(report: ReportId, banks: Bank[], staffById: Map<string, Staf
         { key: "username", header: "Tên đăng nhập", type: "text", defaultOn: false, sample: ["lethihong", "vothanhhai"], value: (r) => staffById.get(r.id)?.username ?? "—" },
         { key: "fullName", header: "Nhân viên", transform: "name", defaultOn: true, sample: ["LE THI HONG", "VO THANH HAI"], value: (r) => r.fullName },
         { key: "departmentName", header: "Đơn vị", defaultOn: true, sample: ["Phòng Kinh doanh 2", "Phòng Kinh doanh 2"], value: (r) => r.departmentName },
+        { key: "title", header: "Chức vụ", defaultOn: true, sample: ["Nhân viên kinh doanh", "Trưởng phòng"], value: (r) => r.title },
         { key: "bankingPoints", header: "Điểm ngân hàng", type: "number", defaultOn: true, sample: ["4,2", "2,8"], value: (r) => r.bankingPoints },
         { key: "servicePoints", header: "Điểm dịch vụ", type: "number", defaultOn: true, sample: ["6,5", "3"], value: (r) => r.servicePoints },
         { key: "socialInsurancePoints", header: "Điểm BHYT/BHXH", type: "number", defaultOn: true, sample: ["0", "12,4"], value: (r) => r.socialInsurancePoints },
@@ -311,6 +312,7 @@ function catalogFor(report: ReportId, banks: Bank[], staffById: Map<string, Staf
         { key: "date", header: "Ngày", defaultOn: true, sample: ["10/07/2026", "18/07/2026"], value: (r) => r.date },
         { key: "createdByCode", header: "Mã người thực hiện", type: "text", defaultOn: false, sample: ["MG-0123", "MG-0007"], value: (r) => staffCodeOf(r.createdById) },
         { key: "createdByName", header: "Người thực hiện", defaultOn: true, sample: ["Lý Hoàng Nam", "Phan Thị Tuyết"], value: (r) => r.createdByName },
+        { key: "createdByTitle", header: "Chức vụ", defaultOn: true, sample: ["Nhân viên kinh doanh", "Dịch vụ"], value: (r) => r.createdByTitle },
         { key: "note", header: "Ghi chú", defaultOn: true, sample: ["—", "Đã hoàn tất hồ sơ"], value: (r) => r.note || "—" },
       ];
 
@@ -329,6 +331,7 @@ function catalogFor(report: ReportId, banks: Bank[], staffById: Map<string, Staf
         { key: "photos", header: "Số ảnh", type: "number", defaultOn: false, sample: ["2", "0"], value: (r) => r.photoUrls.length },
         { key: "createdByCode", header: "Mã người thực hiện", type: "text", defaultOn: false, sample: ["MG-0123", "MG-0007"], value: (r) => staffCodeOf(r.createdById) },
         { key: "createdByName", header: "Người thực hiện", defaultOn: true, sample: ["Lý Hoàng Nam", "Phan Thị Tuyết"], value: (r) => r.createdByName },
+        { key: "createdByTitle", header: "Chức vụ", defaultOn: true, sample: ["Nhân viên kinh doanh", "Dịch vụ"], value: (r) => r.createdByTitle },
         { key: "note", header: "Ghi chú", defaultOn: true, sample: ["—", "Khách đã có tài khoản định danh"], value: (r) => r.note || "—" },
       ];
 
@@ -347,6 +350,7 @@ function catalogFor(report: ReportId, banks: Bank[], staffById: Map<string, Staf
         { key: "createdByName", header: "Nhân viên", width: 26, defaultOn: true, sample: ["Phan Thị Thanh Trang", "Lý Hoàng Nam"], value: (r) => r.createdByName || "—" },
         { key: "createdByCode", header: "Mã nhân viên", type: "text", width: 14, defaultOn: true, sample: ["163TRANGPTT", "MG-0007"], value: (r) => staffCodeOf(r.createdById || null) },
         { key: "departmentName", header: "Phòng", width: 22, defaultOn: true, sample: ["Phòng Kinh doanh 3", "Phòng Kinh doanh 7"], value: (r) => r.departmentName || "—" },
+        { key: "createdByTitle", header: "Chức vụ", width: 22, defaultOn: true, sample: ["Nhân viên kinh doanh", "Trưởng phòng"], value: (r) => r.createdByTitle || "—" },
         /**
          * Ô BẤM ĐƯỢC, không phải cột chữ dài: người đối soát mở thẳng đơn từ
          * file. Địa chỉ dựng lúc xuất chứ không lúc render — `window` chưa có ở
@@ -361,6 +365,7 @@ function catalogFor(report: ReportId, banks: Bank[], staffById: Map<string, Staf
         { key: "orderDate", header: "Ngày cấp đơn", width: 14, defaultOn: false, sample: ["08/09/2026", "07/09/2026"], value: (r) => formatDate(r.orderDate) },
         { key: "customerName", header: "Khách hàng", transform: "name", width: 26, defaultOn: false, sample: ["NGUYEN VAN MEN", "VO VAN CHIEN"], value: (r) => r.customerName },
         { key: "cancelledByName", header: "Người huỷ", width: 26, defaultOn: false, sample: ["Phan Thị Thanh Trang", "Trần Thị Hồng Thẩm"], value: (r) => r.cancelledByName || "—" },
+        { key: "cancelledByTitle", header: "Chức vụ người huỷ", width: 22, defaultOn: false, sample: ["Nhân viên kinh doanh", "Phó phòng"], value: (r) => r.cancelledByTitle || "—" },
         { key: "previousStatus", header: "Trạng thái trước khi huỷ", width: 22, defaultOn: false, sample: ["Hoàn thành", "Chờ làm tay"], value: (r) => INSURANCE_STATUS_LABEL[r.previousStatus as InsuranceOrderStatus] ?? "—" },
         { key: "pviElectronicOrderNo", header: "Số đơn PVI", type: "text", width: 22, defaultOn: false, sample: ["26/21/14/MOTO/0107042", "—"], value: (r) => r.pviElectronicOrderNo || "—" },
       ];
@@ -388,6 +393,7 @@ function catalogFor(report: ReportId, banks: Bank[], staffById: Map<string, Staf
         { key: "createdByName", header: "Nhân viên", width: 26, defaultOn: true, sample: ["Phan Thị Thanh Trang", "Lý Hoàng Nam"], value: (r) => r.createdByName || "—" },
         { key: "createdByStaffCode", header: "Mã nhân viên", type: "text", width: 14, defaultOn: true, sample: ["163TRANGPTT", "MG-0007"], value: (r) => r.createdByStaffCode || "—" },
         { key: "departmentName", header: "Phòng", width: 22, defaultOn: true, sample: ["Phòng Kinh doanh 3", "Phòng Kinh doanh 7"], value: (r) => r.departmentName || "—" },
+        { key: "createdByTitle", header: "Chức vụ", width: 22, defaultOn: true, sample: ["Nhân viên kinh doanh", "Trưởng phòng"], value: (r) => r.createdByTitle || "—" },
         { key: "grantedExtra", header: "Quà thêm đã phát", width: 16, defaultOn: false, sample: ["", "Loa"], value: (r) => r.grantedExtra },
         { key: "grantedCash", header: "Tiền mặt đã phát (đ)", type: "number", width: 14, defaultOn: false, sample: ["20000", "70000"], value: (r) => r.grantedCash },
         { key: "caseAtGrant", header: "Trường hợp lúc phát", width: 14, defaultOn: false, sample: ["TH5", "TH3"], value: (r) => r.caseAtGrant || "—" },
@@ -417,6 +423,7 @@ function catalogFor(report: ReportId, banks: Bank[], staffById: Map<string, Staf
         { key: "grantedByName", header: "NHÂN VIÊN PHÁT", ...NHAN_SU, width: 26, defaultOn: true, sample: ["Phan Thị Thanh Trang", "Lý Hoàng Nam"], value: (r: HelmetNoodleRow) => r.grantedByName || "—" },
         { key: "grantedByStaffCode", header: "MÃ NHÂN VIÊN", ...NHAN_SU, type: "text", width: 14, defaultOn: true, sample: ["163TRANGPTT", "MG-0007"], value: (r: HelmetNoodleRow) => r.grantedByStaffCode || "—" },
         { key: "department", header: "PHÒNG", ...NHAN_SU, width: 22, defaultOn: true, sample: ["Phòng Y", "Phòng Dự án"], value: (r: HelmetNoodleRow) => r.grantedByDepartmentName || "—" },
+        { key: "grantedByTitle", header: "CHỨC VỤ", ...NHAN_SU, width: 22, defaultOn: true, sample: ["Nhân viên kinh doanh", "Dịch vụ"], value: (r: HelmetNoodleRow) => r.grantedByTitle || "—" },
       ];
     }
 
@@ -436,6 +443,7 @@ function catalogFor(report: ReportId, banks: Bank[], staffById: Map<string, Staf
         { key: "fullName", header: "HỌ TÊN", ...NHAN_SU, transform: "name", width: 26, defaultOn: true, sample: ["BUI DAN TRUONG", "NGUYEN THI TRAN CHAU"], value: (r: DirectedExportRow) => r.fullName },
         { key: "staffCode", header: "MÃ NHÂN VIÊN", ...NHAN_SU, type: "text", width: 15, defaultOn: true, sample: ["023TRUONGBD", "030CHAUNTT"], value: (r: DirectedExportRow) => r.staffCode },
         { key: "department", header: "PHÒNG", ...NHAN_SU, width: 22, defaultOn: true, sample: ["Phòng Kinh doanh 1", "Phòng Kinh doanh 1"], value: (r: DirectedExportRow) => r.departmentName },
+        { key: "title", header: "CHỨC VỤ", ...NHAN_SU, width: 22, defaultOn: true, sample: ["Nhân viên kinh doanh", "Nhân viên kinh doanh"], value: (r: DirectedExportRow) => r.title },
         { key: "active", header: "TRẠNG THÁI", ...NHAN_SU, width: 12, defaultOn: true, sample: ["Đang làm", "Đang làm"], value: (r: DirectedExportRow) => (r.active ? "Đang làm" : "Đã nghỉ") },
         { key: "achieved", header: "ĐÃ ĐẠT", ...DINH_HUONG, type: "number", width: 10, defaultOn: true, sample: ["31", "52"], total: (rows: DirectedExportRow[]) => rows.reduce((t, r) => t + r.achieved, 0), value: (r: DirectedExportRow) => r.achieved },
         { key: "target", header: "CHỈ TIÊU", ...DINH_HUONG, type: "number", width: 10, defaultOn: true, sample: ["50", "50"], value: (r: DirectedExportRow) => r.target },
@@ -739,6 +747,7 @@ export default function ExportsPage() {
             .filter((g) => statsGroupBy === "department" || byGroup.has(g.id))
             .map((g) => ({
               label: g.label,
+              title: g.title,
               department: g.department,
               measures: byGroup.get(g.id) ?? zero,
             })),
@@ -905,6 +914,7 @@ export default function ExportsPage() {
         { header: "NHÂN VIÊN", ...NHAN_SU, width: 26, value: (r) => r.fullName || "—" },
         { header: "MÃ NHÂN VIÊN", ...NHAN_SU, type: "text", width: 15, value: (r) => r.staffCode || "—" },
         { header: "PHÒNG", ...NHAN_SU, width: 22, value: (r) => r.departmentName || "—" },
+        { header: "CHỨC VỤ", ...NHAN_SU, width: 22, value: (r) => r.title || "—" },
         { header: `ĐỦ TUỔI NHƯNG KHÔNG MỞ ${code}`, ...KHACH, type: "number", width: 14, total: sum((r) => r.ageFitNotOpened), value: (r) => r.ageFitNotOpened },
         { header: `KHÔNG MỞ ${code} VÌ LÝ DO KHÁC`, ...KHACH, type: "number", width: 14, total: sum((r) => r.otherReason), value: (r) => r.otherReason },
         { header: "KHÔNG CÓ TÀI KHOẢN NÀO", ...KHACH, type: "number", width: 14, total: sum((r) => r.noAccount), value: (r) => r.noAccount },
@@ -920,6 +930,7 @@ export default function ExportsPage() {
         { header: "NHÂN VIÊN", ...NHAN_SU, width: 26, value: (r) => r.fullName || "—" },
         { header: "MÃ NHÂN VIÊN", ...NHAN_SU, type: "text", width: 15, value: (r) => r.staffCode || "—" },
         { header: "PHÒNG", ...NHAN_SU, width: 22, value: (r) => r.departmentName || "—" },
+        { header: "CHỨC VỤ", ...NHAN_SU, width: 22, value: (r) => r.title || "—" },
       ];
 
       // Hai kiểu dòng; `exportExcelSheets` chỉ nhận một kiểu nên ép qua `unknown`.
@@ -953,6 +964,7 @@ export default function ExportsPage() {
         columns: [
           { header: "Tên", width: 28, value: (r) => r.fullName },
           { header: "Phòng", width: 22, value: (r) => r.departmentName },
+          { header: "Chức vụ", width: 22, value: (r) => r.title },
           ...dayColumns,
           { header: "Tổng", type: "number", align: "center", width: 7, value: (r) => r.days.reduce((sum, d) => sum + d.fraction, 0) },
         ],

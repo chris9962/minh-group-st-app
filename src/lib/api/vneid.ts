@@ -39,6 +39,7 @@ export const VneidRow = z.object({
   createdById: z.string(),
   createdByName: z.string(),
   createdByCode: z.string().nullable(),
+  createdByTitle: z.string(),
   createdByDepartmentId: z.string().nullable(),
   /** Phòng ghi nhận lượt này, chụp lúc tạo; nhân viên chuyển phòng thì dời theo từ đầu tháng. */
   createdByDepartmentName: z.string().nullable(),

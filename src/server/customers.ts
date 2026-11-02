@@ -513,6 +513,7 @@ function decorate(page: ReturnType<typeof pickPage>) {
       createdAt: page.createdAt,
       createdByName: sql<string>`coalesce(${users.fullName}, '')`,
       createdByCode: users.staffCode,
+      createdByTitle: sql<string>`coalesce(${users.title}, '')`,
       /**
        * Phòng LÚC LẬP hồ sơ, không phải phòng người đó đang thuộc về — người
        * chuyển phòng thì hồ sơ cũ vẫn thuộc phòng đã lập nó.

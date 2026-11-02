@@ -18,7 +18,7 @@ import {
 } from "@/lib/api/salaryAdvances";
 import { BUSINESS_TIMEZONE, businessDay, businessMonth } from "@/lib/format";
 import { can, recordVisibility } from "@/lib/permissions";
-import { ROLE_LABEL, type User } from "@/lib/types";
+import type { User } from "@/lib/types";
 import { isMonthClosed, lockSalaryMonth } from "./closedMonths";
 import { db } from "./db/client";
 import {
@@ -181,7 +181,7 @@ async function eventsOf(requestIds: string[]): Promise<Map<string, AdvanceEvent[
       kind: salaryAdvanceEvents.kind,
       at: salaryAdvanceEvents.createdAt,
       actorName: users.fullName,
-      actorRole: users.role,
+      actorTitle: users.title,
       fromAmount: salaryAdvanceEvents.fromAmount,
       toAmount: salaryAdvanceEvents.toAmount,
       note: salaryAdvanceEvents.note,
@@ -191,12 +191,12 @@ async function eventsOf(requestIds: string[]): Promise<Map<string, AdvanceEvent[
     .where(inArray(salaryAdvanceEvents.requestId, requestIds))
     // Enum `kind` khai theo thứ tự các bước, nên hai dòng cùng thời điểm vẫn đứng đúng thứ tự gửi, duyệt, chi.
     .orderBy(asc(salaryAdvanceEvents.createdAt), asc(salaryAdvanceEvents.kind), asc(salaryAdvanceEvents.id));
-  for (const { requestId, at, actorName, actorRole, ...r } of rows)
+  for (const { requestId, at, actorName, actorTitle, ...r } of rows)
     out.get(requestId)?.push({
       ...r,
       at: at.toISOString(),
       actorName: actorName ?? "",
-      actorRole: actorRole ? ROLE_LABEL[actorRole] : "",
+      actorTitle: actorTitle ?? "",
     });
   return out;
 }
@@ -691,6 +691,7 @@ export async function advanceExportRows(
       id: salaryAdvanceRequests.id,
       fullName: users.fullName,
       staffCode: users.staffCode,
+      title: users.title,
       departmentName: departments.name,
       amount: salaryAdvanceRequests.amount,
       status: salaryAdvanceRequests.status,

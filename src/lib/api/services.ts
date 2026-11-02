@@ -25,6 +25,7 @@ export const ServiceRow = z.object({
   date: z.string(),
   createdById: z.string(),
   createdByName: z.string(),
+  createdByTitle: z.string(),
   /** Đơn vị của người tạo LÚC TẠO — chụp một lần, không tra động (spec §1.1.5). */
   createdByDepartmentId: z.string().nullable(),
   /**

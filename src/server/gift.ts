@@ -1366,6 +1366,7 @@ export async function listHelmetNoodleExport(
         grantedAt: giftGrants.grantedAt,
         grantedByName: users.fullName,
         grantedByStaffCode: users.staffCode,
+        grantedByTitle: users.title,
         grantedByDepartmentName: departments.name,
       })
       .from(giftGrants)
@@ -1443,6 +1444,7 @@ export async function listHelmetNoodleExport(
       openedAccounts: openedAccountsOf(r.customerId, r.recordDay),
       grantedByName: r.grantedByName ?? "",
       grantedByStaffCode: r.grantedByStaffCode ?? "",
+      grantedByTitle: r.grantedByTitle ?? "",
       grantedByDepartmentName: r.grantedByDepartmentName ?? "",
     })),
     total: totals?.value ?? 0,

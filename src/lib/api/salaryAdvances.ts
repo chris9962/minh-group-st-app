@@ -70,7 +70,8 @@ export const AdvanceEvent = z.object({
   at: z.string(),
   /** Chuỗi rỗng = app tự làm. */
   actorName: z.string(),
-  actorRole: z.string(),
+  /** Chức danh hiển thị của người làm; rỗng khi tài khoản đã bị xoá. */
+  actorTitle: z.string(),
   fromAmount: z.number().nullable(),
   toAmount: z.number().nullable(),
   note: z.string(),
@@ -150,6 +151,7 @@ export const AdvanceExportRow = z.object({
   id: z.string(),
   fullName: z.string(),
   staffCode: z.string(),
+  title: z.string(),
   departmentName: z.string(),
   amount: z.number(),
   status: AdvanceStatus,

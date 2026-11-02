@@ -169,6 +169,7 @@ const decorate = (page: ReturnType<typeof pickPage>) =>
       createdById: page.createdById,
       createdByName: users.fullName,
       createdByCode: users.staffCode,
+      createdByTitle: users.title,
       createdByDepartmentId: page.createdByDepartmentId,
       createdByDepartmentName: departments.name,
       createdAt: page.createdAt,

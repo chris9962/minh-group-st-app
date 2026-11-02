@@ -10,6 +10,7 @@ const COLUMNS: ExcelColumn<AdvanceExportRow>[] = [
   { header: "MÃ NHÂN VIÊN", ...NHAN_SU, type: "text", width: 15, value: (r) => r.staffCode },
   { header: "HỌ TÊN", ...NHAN_SU, transform: "name", width: 26, value: (r) => r.fullName },
   { header: "PHÒNG", ...NHAN_SU, width: 22, value: (r) => r.departmentName },
+  { header: "CHỨC VỤ", ...NHAN_SU, width: 22, value: (r) => r.title },
   {
     header: "SỐ TIỀN TẠM ỨNG",
     ...TAM_UNG,

@@ -19,7 +19,6 @@ import {
 } from "@/lib/api/insuranceBlanks";
 import { digitsOnly } from "@/lib/numberField";
 import { errorMessage, toast } from "@/lib/toast";
-import { ROLE_LABEL } from "@/lib/types";
 import { BlankAdjustDialog } from "./BlankAdjustDialog";
 import { BlankLeft } from "./BlankLeft";
 import { BlankMix } from "./BlankMix";
@@ -190,7 +189,7 @@ function SplitForm({ data, onDepartmentChange }: { data: StaffBlanks; onDepartme
                 <tr key={r.userId}>
                   <th scope="row">
                     {r.fullName}
-                    <span className={`${styles.role} text-muted`}>{ROLE_LABEL[r.role]}</span>
+                    <span className={`${styles.role} text-muted`}>{r.title}</span>
                   </th>
                   <td className={styles.number}>{r.cell.opening}</td>
                   <td>

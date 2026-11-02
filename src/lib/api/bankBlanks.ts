@@ -45,6 +45,7 @@ export const BankStaffBlankRow = z.object({
   userId: z.string(),
   fullName: z.string(),
   role: RoleKey,
+  title: z.string(),
   cells: z.array(BankStaffBlankCell),
 });
 export type BankStaffBlankRow = z.infer<typeof BankStaffBlankRow>;

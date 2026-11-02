@@ -40,7 +40,7 @@ import {
 import { fetchDepartmentStaff, SOCIAL_DEPARTMENT_CODE, type StaffRow } from "@/lib/api/staff";
 import { personHref } from "@/lib/api/people";
 import { can, scopeFor, visibleDepartmentIds } from "@/lib/permissions";
-import { ROLE_LABEL, ROLE_RANK } from "@/lib/types";
+import { ROLE_RANK } from "@/lib/types";
 import { useSession } from "@/store/session";
 import { SalaryAmount } from "@/components/payroll/SalaryAmount";
 import { SalaryBreakdownButton } from "@/components/payroll/SalaryBreakdownButton";
@@ -83,7 +83,7 @@ const EMPLOYEE_COLUMNS: RankColumn<StaffRow>[] = [
     // `ROLE_RANK` chứ không phải chuỗi `role`: số càng cao chức vụ càng cao, nên
     // mũi tên ↓ đẩy Trưởng phòng lên đầu như người đọc trông đợi.
     sortBy: (s) => ROLE_RANK[s.monthRole],
-    render: (s) => ROLE_LABEL[s.monthRole],
+    render: (s) => s.title,
   },
   {
     key: "active",

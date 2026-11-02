@@ -9,7 +9,6 @@ import { EditProfileDialog } from "@/components/profile/EditProfileDialog";
 import { NotificationSettings } from "@/components/profile/NotificationSettings";
 import { SettingsAction, SettingsGroup, SettingsRow } from "@/components/ui/SettingsList";
 import { fetchProfileInfo } from "@/lib/api/profile";
-import { ROLE_LABEL } from "@/lib/types";
 import { useSession } from "@/store/session";
 import styles from "./page.module.css";
 
@@ -46,8 +45,7 @@ export default function ProfilePage() {
               label="Số điện thoại"
               value={<span className="tabular-nums">{info?.phone || "—"}</span>}
             />
-            <SettingsRow label="Chức danh" value={user.title} />
-            <SettingsRow label="Chức vụ" value={ROLE_LABEL[user.role]} />
+            <SettingsRow label="Chức vụ" value={user.title} />
             <SettingsAction
               label="Sửa thông tin"
               icon={<Pencil size={17} aria-hidden />}

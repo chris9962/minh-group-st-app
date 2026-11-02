@@ -2212,6 +2212,7 @@ export async function listProvinceTree(): Promise<Province[]> {
         wardId: hamlets.wardId,
         name: hamlets.name,
         createdByName: users.fullName,
+        createdByTitle: users.title,
       })
       .from(hamlets)
       .leftJoin(users, eq(users.id, hamlets.createdBy))
@@ -2243,6 +2244,7 @@ export async function listProvinceTree(): Promise<Province[]> {
       name: h.name,
       contacts: contactsByHamlet.get(h.id) ?? [],
       createdByName: h.createdByName,
+      createdByTitle: h.createdByTitle,
     });
     hamletsByWard.set(h.wardId, list);
   }

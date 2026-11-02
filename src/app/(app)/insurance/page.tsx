@@ -91,7 +91,9 @@ const INSURANCE_EXCEL_COLUMNS: ExcelColumnDef<InsuranceExportRow>[] = [
   { key: "createdByCode", label: "Mã nhân viên", ...NHAN_SU, width: 16, type: "text", value: (r) => r.createdByCode ?? "" },
   { key: "createdByName", label: "Người tạo", ...NHAN_SU, width: 24, value: (r) => r.createdByName ?? "" },
   { key: "createdByDepartmentName", label: "Phòng", ...NHAN_SU, width: 22, value: (r) => r.createdByDepartmentName ?? "" },
+  { key: "createdByTitle", label: "Chức vụ", ...NHAN_SU, width: 22, value: (r) => r.createdByTitle },
   { key: "handledByName", label: "Người xử lý", ...NHAN_SU, width: 24, value: (r) => r.handledByName ?? "" },
+  { key: "handledByTitle", label: "Chức vụ người xử lý", ...NHAN_SU, width: 22, value: (r) => r.handledByTitle },
 ];
 
 const INSURANCE_EXCEL_OPTIONS = excelColumnOptions(INSURANCE_EXCEL_COLUMNS);

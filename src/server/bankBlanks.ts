@@ -259,21 +259,21 @@ async function splitDepartments(actor: User): Promise<{ id: string; name: string
     .orderBy(asc(departments.name));
 }
 
-type Member = { userId: string; fullName: string; role: RoleKey };
+type Member = { userId: string; fullName: string; role: RoleKey; title: string };
 
 /** Người của phòng trong tháng theo `staff_roster`, cộng người đã có dòng phiếu của phòng trong tháng đó. */
 async function membersOf(departmentId: string, month: string): Promise<Member[]> {
   const rosterMonth = month > businessMonth() ? businessMonth() : month;
   const [roster, extra] = await Promise.all([
     db
-      .select({ userId: staffRoster.userId, fullName: users.fullName, role: staffRoster.role })
+      .select({ userId: staffRoster.userId, fullName: users.fullName, role: staffRoster.role, title: users.title })
       .from(staffRoster)
       .innerJoin(users, eq(users.id, staffRoster.userId))
       .where(
         and(eq(staffRoster.departmentId, departmentId), eq(staffRoster.yearMonth, rosterMonth), eq(staffRoster.active, true)),
       ),
     db
-      .selectDistinct({ userId: users.id, fullName: users.fullName, role: users.role })
+      .selectDistinct({ userId: users.id, fullName: users.fullName, role: users.role, title: users.title })
       .from(bankBlankStaffQuotas)
       .innerJoin(users, eq(users.id, bankBlankStaffQuotas.userId))
       .where(and(eq(bankBlankStaffQuotas.departmentId, departmentId), eq(bankBlankStaffQuotas.yearMonth, month))),

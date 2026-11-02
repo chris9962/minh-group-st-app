@@ -88,6 +88,7 @@ const toEntry = (r: {
   updatedAt: Date;
   createdByName: string | null;
   createdByStaffCode: string | null;
+  createdByTitle: string | null;
   createdByDepartmentName: string | null;
 }): GiftStockEntry => ({
   ...r,
@@ -95,6 +96,7 @@ const toEntry = (r: {
   updatedAt: r.updatedAt.toISOString(),
   createdByName: r.createdByName ?? "",
   createdByStaffCode: r.createdByStaffCode ?? "",
+  createdByTitle: r.createdByTitle ?? "",
   createdByDepartmentName: r.createdByDepartmentName ?? "",
 });
 
@@ -114,6 +116,7 @@ const entryColumns = {
   updatedAt: giftStockEntries.updatedAt,
   createdByName: users.fullName,
   createdByStaffCode: users.staffCode,
+  createdByTitle: users.title,
   createdByDepartmentName: departments.name,
 };
 

@@ -195,7 +195,11 @@ export const SocialInsuranceRow = z.object({
 });
 export type SocialInsuranceRow = z.infer<typeof SocialInsuranceRow>;
 
-export const SocialInsuranceExportRow = SocialInsuranceRow.extend({ idNumber: z.string().nullable() });
+export const SocialInsuranceExportRow = SocialInsuranceRow.extend({
+  idNumber: z.string().nullable(),
+  entryStaffTitle: z.string(),
+  createdByTitle: z.string(),
+});
 export type SocialInsuranceExportRow = z.infer<typeof SocialInsuranceExportRow>;
 
 export const ReconcileStatus = z.enum(['pending', 'matched', 'mismatch']);

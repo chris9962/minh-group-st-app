@@ -91,6 +91,7 @@ const VNEID_EXCEL_COLUMNS: ExcelColumnDef<VneidRow>[] = [
   { key: "createdByCode", label: "Mã nhân viên", ...NHAN_SU, width: 16, type: "text", value: (r) => r.createdByCode ?? "" },
   { key: "createdByName", label: "Người thực hiện", ...NHAN_SU, width: 24, value: (r) => r.createdByName },
   { key: "createdByDepartmentName", label: "Phòng", ...NHAN_SU, width: 24, value: (r) => r.createdByDepartmentName ?? "" },
+  { key: "createdByTitle", label: "Chức vụ", ...NHAN_SU, width: 22, value: (r) => r.createdByTitle },
   { key: "note", label: "Ghi chú", group: "Ghi chú", width: 40, type: "text", value: (r) => r.note },
 ];
 

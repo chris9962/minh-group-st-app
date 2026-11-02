@@ -61,6 +61,7 @@ async function exportHamlets(ward: Ward, provinceName: string): Promise<void> {
     { header: "HỌ TÊN", group: "LIÊN HỆ", width: 28, value: (r) => r.contact?.name ?? "" },
     { header: "SỐ ĐIỆN THOẠI", group: "LIÊN HỆ", width: 16, type: "text", value: (r) => r.contact?.phone ?? "" },
     { header: "NGƯỜI TẠO", group: "NHÂN SỰ", groupColor: EXCEL_GROUP_COLORS.staff, width: 24, value: (r) => r.hamlet.createdByName ?? "" },
+    { header: "CHỨC VỤ", group: "NHÂN SỰ", groupColor: EXCEL_GROUP_COLORS.staff, width: 22, value: (r) => r.hamlet.createdByTitle ?? "" },
   ];
   await exportExcel({
     fileName: `ap-${nameForExcel(ward.name).toLowerCase().replace(/\s+/g, "-")}-${iso(new Date())}.xlsx`,

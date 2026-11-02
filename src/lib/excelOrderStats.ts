@@ -50,14 +50,14 @@ export type OrderStatsSheet = {
   name: string;
   /** Dòng tiêu đề gộp trọn bề ngang. */
   title: string;
-  /** `department` chỉ dùng ở bản theo nhân viên — cột PHÒNG. */
-  rows: { label: string; department?: string; measures: OrderStatsMeasures }[];
+  /** `title` và `department` chỉ dùng ở bản theo nhân viên — cột CHỨC VỤ và PHÒNG. */
+  rows: { label: string; title?: string; department?: string; measures: OrderStatsMeasures }[];
 };
 
 /**
  * Cột đầu khác nhau giữa hai trục gộp: theo phòng chỉ có `PHÒNG`, theo nhân
- * viên có `STT` · `HỌ VÀ TÊN` · `PHÒNG` (cột phòng chốt 2026-09-02). Phần còn
- * lại giống hệt.
+ * viên có `STT` · `HỌ VÀ TÊN` · `CHỨC VỤ` · `PHÒNG` (cột phòng chốt 2026-09-02,
+ * cột chức vụ 2026-11-02). Phần còn lại giống hệt.
  */
 export type OrderStatsShape = 'department' | 'staff';
 
@@ -72,11 +72,11 @@ function buildSheet(
   // Excel cấm * ? : \ / [ ] trong tên sheet và giới hạn 31 ký tự.
   const ws = wb.addWorksheet(sheet.name.replace(/[*?:\\/[\]]/g, '-').slice(0, 31) || 'Sheet1');
 
-  const leadWidth = shape === 'staff' ? 3 : 1;
+  const leadWidth = shape === 'staff' ? 4 : 1;
   const total = leadWidth + 10 + 1;
 
   ws.columns = [
-    ...(shape === 'staff' ? [{ width: 6 }, { width: 42 }, { width: 22 }] : [{ width: 26 }]),
+    ...(shape === 'staff' ? [{ width: 6 }, { width: 42 }, { width: 22 }, { width: 22 }] : [{ width: 26 }]),
     ...USED_HEADERS.map(() => ({ width: 16 })),
     ...CANCELLED_HEADERS.map(() => ({ width: 16 })),
     { width: 18 },
@@ -102,7 +102,7 @@ function buildSheet(
   // Dòng 2 và 3 — hai tầng đầu bảng.
   ws.addRow([]);
   ws.addRow([]);
-  const lead = shape === 'staff' ? ['STT', 'HỌ VÀ TÊN', 'PHÒNG'] : ['PHÒNG'];
+  const lead = shape === 'staff' ? ['STT', 'HỌ VÀ TÊN', 'CHỨC VỤ', 'PHÒNG'] : ['PHÒNG'];
   lead.forEach((label, i) => {
     ws.getCell(2, i + 1).value = label;
     ws.mergeCells(2, i + 1, 3, i + 1);
@@ -132,14 +132,14 @@ function buildSheet(
   for (const [index, row] of sheet.rows.entries())
     ws.addRow([
       ...(shape === 'staff'
-        ? [index + 1, nameForExcel(row.label), row.department ?? '']
+        ? [index + 1, nameForExcel(row.label), row.title ?? '', row.department ?? '']
         : [row.label]),
       ...row.measures,
       '',
     ]);
 
   const totalRow = ws.addRow([
-    ...(shape === 'staff' ? ['TỔNG', '', ''] : ['TỔNG']),
+    ...(shape === 'staff' ? ['TỔNG', '', '', ''] : ['TỔNG']),
     ...USED_HEADERS.map((_, i) => sum(sheet.rows, i)),
     ...CANCELLED_HEADERS.map((_, i) => sum(sheet.rows, i + 5)),
     '',

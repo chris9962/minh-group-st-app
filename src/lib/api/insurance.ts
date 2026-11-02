@@ -250,6 +250,9 @@ export const InsuranceExportRow = InsuranceListRow.extend({
   pviSerialNumber: z.string().default(''),
   /** Số in trên giấy chứng nhận của đơn tai nạn điện. Rỗng với đơn xe máy. */
   pviPolicyGcn: z.string().default(''),
+  /** Chức danh hiển thị của người tạo và người xử lý. Rỗng khi tài khoản đã bị xoá hoặc chưa ai xử lý. */
+  createdByTitle: z.string().default(''),
+  handledByTitle: z.string().default(''),
 });
 export type InsuranceExportRow = z.infer<typeof InsuranceExportRow>;
 

@@ -140,7 +140,9 @@ export type OrderStatsCell = z.infer<typeof OrderStatsCell>;
 
 export const OrderStatsResult = z.object({
   /** Đúng thứ tự dòng trong sheet. Gộp theo phòng thì có cả phòng 0 đơn; trục nhân viên kèm tên phòng. */
-  groups: z.array(z.object({ id: z.string(), label: z.string(), department: z.string().optional() })),
+  groups: z.array(
+    z.object({ id: z.string(), label: z.string(), title: z.string().optional(), department: z.string().optional() }),
+  ),
   cells: z.array(OrderStatsCell),
 });
 export type OrderStatsResult = z.infer<typeof OrderStatsResult>;
@@ -176,6 +178,7 @@ export const CancelledInsuranceRow = z.object({
   /** Người LẬP đơn, không phải người bấm huỷ. `''` khi tài khoản đã bị xoá. */
   createdById: z.string(),
   createdByName: z.string(),
+  createdByTitle: z.string(),
   /** Tên phòng của người lập lúc lập đơn. */
   departmentName: z.string(),
   customerName: z.string(),
@@ -183,6 +186,7 @@ export const CancelledInsuranceRow = z.object({
   orderDate: z.string(),
   /** Người bấm huỷ. Trùng người lập ở phần lớn đơn, khác khi quản trị huỷ giúp. */
   cancelledByName: z.string(),
+  cancelledByTitle: z.string(),
   /** Trạng thái ngay trước lượt huỷ, mã thô — giao diện tra nhãn. */
   previousStatus: z.string(),
   pviElectronicOrderNo: z.string(),
@@ -254,6 +258,7 @@ export const GiftExcessRow = z.object({
   /** NGƯỜI LẬP HỒ SƠ khách, cũng là người phát quà. `''` khi tài khoản đã bị xoá. */
   createdByName: z.string(),
   createdByStaffCode: z.string(),
+  createdByTitle: z.string(),
   departmentName: z.string(),
 });
 export type GiftExcessRow = z.infer<typeof GiftExcessRow>;
@@ -322,6 +327,7 @@ export const HelmetNoodleRow = z.object({
   openedAccounts: z.string(),
   grantedByName: z.string(),
   grantedByStaffCode: z.string(),
+  grantedByTitle: z.string(),
   /** Phòng của người phát trong tháng phát. */
   grantedByDepartmentName: z.string(),
 });
@@ -367,6 +373,8 @@ export const BankNotOpenedRow = z.object({
   day: z.string(),
   fullName: z.string(),
   staffCode: z.string(),
+  /** Chức danh hiển thị ở hồ sơ hiện tại — `staff_roster` không chụp chức danh theo tháng. */
+  title: z.string(),
   /** Phòng của người lập trong tháng của `day`. */
   departmentName: z.string(),
   /** Hồ sơ có tài khoản khác, đủ tuổi ngân hàng mà không mở ngân hàng đó. */
@@ -386,6 +394,7 @@ export const BankNotOpenedCustomer = z.object({
   customerName: z.string(),
   fullName: z.string(),
   staffCode: z.string(),
+  title: z.string(),
   departmentName: z.string(),
   /** Lý do không mở ngân hàng đang xét; rỗng khi hồ sơ chưa ghi. */
   reason: z.string(),
@@ -420,6 +429,8 @@ export async function fetchBankNotOpenedExport(query: BankNotOpenedQuery): Promi
  */
 export const WorkDayExportRow = z.object({
   fullName: z.string(),
+  /** Chức danh hiển thị ở hồ sơ hiện tại — `staff_roster` không chụp chức danh theo tháng. */
+  title: z.string(),
   departmentName: z.string(),
   /** Ngày trong tháng có công, đếm từ 1, tăng dần. `fraction` 0,5 là nửa ngày. */
   days: z.array(z.object({ day: z.number(), fraction: z.number() })),
@@ -485,6 +496,8 @@ export async function fetchSalaryExport(month: string): Promise<SalaryExportRow[
 export const DirectedExportRow = z.object({
   fullName: z.string(),
   staffCode: z.string(),
+  /** Chức danh hiển thị ở hồ sơ hiện tại — `staff_roster` không chụp chức danh theo tháng. */
+  title: z.string(),
   departmentName: z.string(),
   active: z.boolean(),
   achieved: z.number(),

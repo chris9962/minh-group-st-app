@@ -251,6 +251,7 @@ export async function listWorkDayExport(
       .select({
         id: users.id,
         fullName: users.fullName,
+        title: users.title,
         role: staffRoster.role,
         active: staffRoster.active,
         departmentId: staffRoster.departmentId,
@@ -314,7 +315,7 @@ export async function listWorkDayExport(
         ROLE_ORDER[a.role] - ROLE_ORDER[b.role] ||
         a.fullName.localeCompare(b.fullName, "vi"),
     )
-    .map((p) => ({ fullName: p.fullName, departmentName: p.departmentName ?? "", days: p.days }));
+    .map((p) => ({ fullName: p.fullName, title: p.title, departmentName: p.departmentName ?? "", days: p.days }));
 }
 
 /** Ngày thuộc tháng chưa chốt lương. Ngày công của tháng đã chốt đứng yên. */

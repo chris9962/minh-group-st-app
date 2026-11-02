@@ -79,6 +79,7 @@ export const Hamlet = z.object({
   contacts: z.array(HamletContact),
   /** `null` khi ấp thêm trước migration 0135 mà nhật ký không có dòng tạo. */
   createdByName: z.string().nullable(),
+  createdByTitle: z.string().nullable(),
 });
 export type Hamlet = z.infer<typeof Hamlet>;
 

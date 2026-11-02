@@ -493,11 +493,13 @@ const decorate = (page: ReturnType<typeof pickPage>) =>
       createdById: page.createdBy,
       createdByName: creator.fullName,
       createdByCode: creator.staffCode,
+      createdByTitle: creator.title,
       createdByDepartmentId: page.createdByDepartmentId,
       createdByDepartmentName: creatorDepartment.name,
       handledById: page.handledBy,
       handledByDepartmentId: page.handledByDepartmentId,
       handledByName: handler.fullName,
+      handledByTitle: handler.title,
     })
     .from(page)
     .innerJoin(customers, eq(customers.id, page.customerId))
@@ -608,6 +610,8 @@ const toExportRow = (r: DecoratedRow): InsuranceExportRow => ({
   licensePlate: r.licensePlate,
   pviSerialNumber: r.pviSerialNumber,
   pviPolicyGcn: r.pviPolicyGcn ?? "",
+  createdByTitle: r.createdByTitle ?? "",
+  handledByTitle: r.handledByTitle ?? "",
 });
 
 /**
@@ -815,12 +819,14 @@ export async function listCancelledInsuranceExport(
         // Cột nullable ở DB nhưng hợp đồng là chuỗi — người tạo có thể đã bị xoá.
         createdById: sql<string>`coalesce(${insuranceOrders.createdBy}::text, '')`,
         createdByName: sql<string>`coalesce(${creator.fullName}, '')`,
+        createdByTitle: sql<string>`coalesce(${creator.title}, '')`,
         departmentName: sql<string>`coalesce(${creatorDepartment.name}, '')`,
         customerName: customers.fullName,
         fee: insuranceOrders.fee,
         orderDate: insuranceOrders.orderDate,
         // `null` = bot hay hệ thống tự chuyển, không phải người bấm.
         cancelledByName: sql<string>`coalesce(${canceller.fullName}, '')`,
+        cancelledByTitle: sql<string>`coalesce(${canceller.title}, '')`,
         previousStatus: sql<string>`coalesce(${cancel.fromStatus}::text, '')`,
         pviElectronicOrderNo: insuranceOrders.pviElectronicOrderNo,
         pviPolicyNumber: insuranceOrders.pviPolicyNumber,

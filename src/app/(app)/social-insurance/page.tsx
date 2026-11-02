@@ -189,9 +189,11 @@ const EXCEL_COLUMNS: ExcelColumnDef<SocialInsuranceExportRow>[] = [
   { key: "entryStaffCode", label: "Mã nhân viên ATM", ...NHAN_SU, width: 15, type: "text", value: (r) => r.entryStaffCode ?? "" },
   { key: "entryStaffName", label: "Nhân viên ATM", ...NHAN_SU, width: 22, value: (r) => r.entryStaffName },
   { key: "entryStaffDepartment", label: "Phòng nhân viên ATM", ...NHAN_SU, width: 22, value: (r) => r.entryStaffDepartmentName ?? "" },
+  { key: "entryStaffTitle", label: "Chức vụ nhân viên ATM", ...NHAN_SU, width: 22, value: (r) => r.entryStaffTitle },
   { key: "createdByCode", label: "Mã nhân viên AS", ...NHAN_SU, width: 15, type: "text", value: (r) => r.createdByCode ?? "" },
   { key: "createdByName", label: "Nhân viên AS", ...NHAN_SU, width: 22, value: (r) => r.createdByName },
   { key: "createdByDepartment", label: "Phòng nhân viên AS", ...NHAN_SU, width: 22, value: (r) => r.createdByDepartmentName ?? "" },
+  { key: "createdByTitle", label: "Chức vụ nhân viên AS", ...NHAN_SU, width: 22, value: (r) => r.createdByTitle },
   { key: "note", label: "Ghi chú", group: "Ghi chú", width: 50, type: "text", value: (r) => differenceNote(r) },
 ];
 

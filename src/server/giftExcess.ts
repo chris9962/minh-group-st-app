@@ -109,6 +109,7 @@ export async function listGiftExcessExport(
       departmentName: departments.name,
       createdByName: users.fullName,
       createdByStaffCode: users.staffCode,
+      createdByTitle: users.title,
       grantedAt: giftGrants.grantedAt,
       cashTotal: giftGrants.cashTotal,
       chosenItem: giftGrants.chosenItem,
@@ -267,6 +268,7 @@ export async function listGiftExcessExport(
       excessCash,
       createdByName: c.createdByName ?? "",
       createdByStaffCode: c.createdByStaffCode ?? "",
+      createdByTitle: c.createdByTitle ?? "",
       departmentName: c.departmentName ?? "",
     });
   }

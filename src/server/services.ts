@@ -158,6 +158,7 @@ const decorate = (page: ReturnType<typeof pickPage>) =>
       date: page.date,
       createdById: page.createdById,
       createdByName: users.fullName,
+      createdByTitle: users.title,
       createdByDepartmentId: page.createdByDepartmentId,
       wardName: page.wardName,
       photoUrl: page.photoUrl,

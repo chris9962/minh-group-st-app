@@ -143,7 +143,8 @@ const BASE_COLUMNS: RankColumn<StaffRow>[] = [
     label: "Đơn vị",
     render: (r) => <DepartmentCell id={r.monthDepartmentId} name={r.monthDepartmentName} />,
   },
-  { key: "role", label: "Chức vụ", sortable: true, render: (r) => ROLE_LABEL[r.monthRole] },
+  // Sắp theo `role` ở máy chủ (thứ bậc), còn chữ hiện là chức danh hiển thị.
+  { key: "role", label: "Chức vụ", sortable: true, render: (r) => r.title },
   /**
    * Bốn cột đếm của ĐÚNG tháng đang chọn, gộp theo người tạo.
    *

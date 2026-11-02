@@ -74,6 +74,7 @@ export const StaffBlankRow = z.object({
   userId: z.string(),
   fullName: z.string(),
   role: RoleKey,
+  title: z.string(),
   cells: z.array(StaffBlankCell),
   mix: MixCount,
 });
