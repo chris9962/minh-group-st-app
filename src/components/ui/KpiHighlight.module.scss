@@ -80,7 +80,8 @@
    mép, đọc so được giữa các dòng. */
 .row {
   display: grid;
-  grid-template-columns: 44px minmax(60px, 1fr) 40px auto;
+  /* Thanh co về 0 được: min 60px cộng số "1.234 / 2.148" đẩy dòng tràn khỏi thẻ trên điện thoại hẹp. */
+  grid-template-columns: 44px minmax(0, 1fr) 40px auto;
   align-items: center;
   gap: 10px;
   font-size: 12.5px;

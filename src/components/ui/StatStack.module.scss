@@ -116,4 +116,9 @@
   .value {
     font-size: 28px;
   }
+
+  /* Phải khai lại: luật `.value` ngay trên đè cỡ co giãn của số dài. */
+  .valueLong {
+    font-size: clamp(18px, 12cqi, 28px);
+  }
 }
