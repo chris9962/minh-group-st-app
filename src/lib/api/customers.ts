@@ -33,11 +33,6 @@ export const CustomerInspection = z.object({
   at: z.coerce.date(),
   byName: z.string(),
   note: z.string(),
-  /**
-   * Có tài khoản ngân hàng hoàn thành, đổi trạng thái, đổi ảnh hoặc dời tới SAU
-   * lần kiểm: người kiểm nên xem lại. Bản nháp và tài khoản đã xoá không tính.
-   */
-  changedAfter: z.boolean(),
   /** `/api/images/<key>` của ảnh kèm dấu; `null` = không có ảnh. */
   photoUrl: z.string().nullable(),
 });
@@ -612,7 +607,7 @@ export const CustomerInspectionForm = z.object({
 });
 export type CustomerInspectionForm = z.infer<typeof CustomerInspectionForm>;
 
-/** Đánh dấu đã kiểm tra, hoặc kiểm tra lại: ngày và người ghi lấy lúc bấm. */
+/** Đánh dấu đã kiểm tra: ngày và người ghi lấy lúc bấm. */
 export const markCustomerInspected = (id: string, form: CustomerInspectionForm) =>
   send(`/api/customers/${id}/inspection`, 'PUT', form).then(CustomerInspection.parse);
 

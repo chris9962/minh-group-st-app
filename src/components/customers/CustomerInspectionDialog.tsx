@@ -21,17 +21,15 @@ import {
 import { errorMessage, toast } from "@/lib/toast";
 import styles from "./CustomerInspectionDialog.module.scss";
 
-export type InspectionDialogMode = "mark" | "recheck" | "note";
+export type InspectionDialogMode = "mark" | "note";
 
 const TITLE: Record<InspectionDialogMode, string> = {
   mark: "Đã kiểm tra",
-  recheck: "Đã kiểm tra lại",
   note: "Sửa ghi chú và ảnh",
 };
 
 /**
- * Phòng Thanh tra đánh dấu hồ sơ đã kiểm tra (`mark`), kiểm tra lại sau khi hồ
- * sơ có thay đổi (`recheck`, cùng đường ghi với `mark`), hoặc sửa ghi chú và ảnh
+ * Phòng Thanh tra đánh dấu hồ sơ đã kiểm tra (`mark`) hoặc sửa ghi chú và ảnh
  * của dấu đang có (`note`). Ghi chú và ảnh đều không bắt buộc, ảnh tối đa một tấm.
  */
 export function CustomerInspectionDialog({

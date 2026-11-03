@@ -66,7 +66,7 @@ export function jumpHitsFromCustomers(
     id: string;
     fullName: string;
     primaryPhone: string;
-    inspection?: { changedAfter: boolean } | null;
+    inspection?: object | null;
   }[],
 ): JumpHit[] {
   return rows.map((r) => ({
@@ -78,8 +78,7 @@ export function jumpHitsFromCustomers(
       'Khách hàng',
       r.primaryPhone ? formatPhone(r.primaryPhone) : undefined,
     ),
-    // Hồ sơ có thay đổi sau lần kiểm thì không tick: người kiểm phải mở lại.
-    checked: Boolean(r.inspection && !r.inspection.changedAfter),
+    checked: Boolean(r.inspection),
   }));
 }
 

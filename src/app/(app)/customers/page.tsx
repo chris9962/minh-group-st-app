@@ -531,13 +531,7 @@ export default function CustomersPage() {
               key: "inspection",
               label: "Thanh tra",
               render: (c: CustomerRow) =>
-                c.inspection ? (
-                  <StatusTag tone={c.inspection.changedAfter ? "warn" : "ok"}>
-                    {c.inspection.changedAfter ? "Có thay đổi" : "Đã kiểm tra"}
-                  </StatusTag>
-                ) : (
-                  ""
-                ),
+                c.inspection ? <StatusTag tone="ok">Đã kiểm tra</StatusTag> : "",
             },
           ]
         : []),

@@ -572,15 +572,6 @@ export default function CustomerDetailPage({
                           </span>
                         </dd>
                       </div>
-                      {data.customer.inspection.changedAfter && (
-                        <div>
-                          <dt>Sau khi kiểm tra</dt>
-                          <dd className={styles.tagLine}>
-                            <StatusTag tone="warn">Có thay đổi</StatusTag>
-                            <span>Tài khoản ngân hàng tạo hoặc sửa sau lần kiểm tra</span>
-                          </dd>
-                        </div>
-                      )}
                       <div className={styles.noteRow}>
                         <dt>Ghi chú</dt>
                         <dd className={styles.noteText}>
@@ -598,12 +589,6 @@ export default function CustomerDetailPage({
                       />
                     )}
                     <div className={styles.footRow}>
-                      {data.customer.inspection.changedAfter && (
-                        <Button variant="secondary" onClick={() => setInspecting("recheck")}>
-                          <ClipboardCheck size={16} />
-                          Đã kiểm tra lại
-                        </Button>
-                      )}
                       <Button variant="secondary" onClick={() => setInspecting("note")}>
                         <Pencil size={16} />
                         Sửa ghi chú và ảnh

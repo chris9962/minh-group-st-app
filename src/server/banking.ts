@@ -2715,13 +2715,6 @@ export async function setPhotos(
       await tx.insert(bankAccountPhotos).values(
         photoKeys.map((url, i) => ({ accountId: id, kind, url, sortOrder: i })),
       );
-    // Bảng ảnh không có cột thời gian, nên ghi `updatedAt` lên tài khoản để dấu
-    // "Đã kiểm tra" của hồ sơ nhận biết ảnh đổi sau lần kiểm.
-    if (locked.status !== "creating")
-      await tx
-        .update(bankAccounts)
-        .set({ updatedAt: sql`statement_timestamp()` })
-        .where(eq(bankAccounts.id, id));
     // Ảnh đổi là kết quả kiểm cũ hết đúng. Bản `creating` thì hàm này tự bỏ qua.
     await enqueuePhotoCheck(tx, id);
   });

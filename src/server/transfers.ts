@@ -228,7 +228,6 @@ export async function moveBankAccount(
     }
 
     // Kênh trên tài khoản theo kênh của hồ sơ chứa nó, rổ quà đọc nó. Giữ kênh khách cũ là tính quà sai kênh.
-    // `updatedAt` để dấu "Đã kiểm tra" của hồ sơ nhận biết có tài khoản dời tới sau lần kiểm.
     await tx
       .update(bankAccounts)
       .set({
@@ -236,7 +235,6 @@ export async function moveBankAccount(
         rootCustomerId: target.rootId,
         channelId: target.channelId,
         channelDetail: target.channelDetail,
-        updatedAt: sql`statement_timestamp()`,
       })
       .where(eq(bankAccounts.id, accountId));
     // Lượt kiểm ảnh cũ so với tên và số của khách nguồn.

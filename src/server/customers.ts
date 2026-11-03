@@ -123,24 +123,7 @@ type InspectionColumns = {
   inspectedByName: string;
   inspectedNote: string;
   inspectedPhoto: string;
-  inspectionChangedAfter: boolean;
 };
-
-/**
- * Có tài khoản ngân hàng tạo, hoàn thành, đổi trạng thái, đổi ảnh hoặc dời tới
- * SAU lần kiểm; `false` khi chưa kiểm. Đọc `bank_accounts.updated_at`, nên mọi
- * đường sửa tài khoản phải ghi cột đó (`moveBankAccount`, `setPhotos` ghi tay).
- * Bản nháp `creating` không tính: chưa có tài khoản thật để kiểm, lúc hoàn
- * thành thì `updated_at` đổi và nhãn bật. Xoá tài khoản không tính.
- */
-const inspectionChangedAfter = (customerId: SQLWrapper, inspectedAt: SQLWrapper) => sql<boolean>`case
-  when ${inspectedAt} is null then false
-  else exists (
-    select 1 from ${bankAccounts}
-    where ${bankAccounts.customerId} = ${customerId}
-      and ${bankAccounts.status} <> 'creating'
-      and coalesce(${bankAccounts.updatedAt}, ${bankAccounts.createdAt}) > ${inspectedAt}
-  ) end`;
 
 const inspectionOf = (r: InspectionColumns) =>
   r.inspectedAt
@@ -148,7 +131,6 @@ const inspectionOf = (r: InspectionColumns) =>
         at: r.inspectedAt,
         byName: r.inspectedByName,
         note: r.inspectedNote,
-        changedAfter: r.inspectionChangedAfter,
         photoUrl: r.inspectedPhoto ? imageUrl(r.inspectedPhoto) : null,
       }
     : null;
@@ -554,14 +536,12 @@ function decorate(page: ReturnType<typeof pickPage>) {
       /**
        * Dấu của Phòng Thanh tra, đọc cho mọi người rồi `listCustomers` mới cắt
        * theo `seesInspection`: thêm một tầng cột tuỳ người xem vào câu con là
-       * hai hình dạng truy vấn cho một bảng. Vế "có thay đổi sau lần kiểm" là
-       * một lượt tra chỉ mục `bank_accounts_customer` cho mỗi dòng của TRANG.
+       * hai hình dạng truy vấn cho một bảng.
        */
       inspectedAt: page.inspectedAt,
       inspectedByName: page.inspectedByName,
       inspectedNote: page.inspectedNote,
       inspectedPhoto: page.inspectedPhoto,
-      inspectionChangedAfter: inspectionChangedAfter(page.id, page.inspectedAt),
     })
     .from(page)
     .leftJoinLateral(phone, sql`true`)
@@ -948,7 +928,6 @@ async function inspectionOfCustomer(id: string) {
       inspectedByName: customers.inspectedByName,
       inspectedNote: customers.inspectedNote,
       inspectedPhoto: customers.inspectedPhoto,
-      inspectionChangedAfter: inspectionChangedAfter(customers.id, customers.inspectedAt),
     })
     .from(customers)
     .where(eq(customers.id, id))
@@ -957,7 +936,7 @@ async function inspectionOfCustomer(id: string) {
 }
 
 /**
- * Đánh dấu hồ sơ đã kiểm tra, hoặc kiểm tra lại: ngày và người ghi lấy lúc bấm.
+ * Đánh dấu hồ sơ đã kiểm tra: ngày và người ghi lấy lúc bấm.
  *
  * Chỉ người có `customer:lookup`, KHÔNG hỏi phạm vi: `lookup` không chia phạm
  * vi (AGENTS.md §6), route GET hồ sơ đã mở cho mọi người đăng nhập, và dấu này
@@ -1039,7 +1018,6 @@ async function customerById(id: string, actor: User): Promise<Customer | null> {
       inspectedByName: customers.inspectedByName,
       inspectedNote: customers.inspectedNote,
       inspectedPhoto: customers.inspectedPhoto,
-      inspectionChangedAfter: inspectionChangedAfter(customers.id, customers.inspectedAt),
     })
     .from(customers)
     .leftJoin(channels, eq(channels.id, customers.channelId))
@@ -1065,7 +1043,6 @@ async function customerById(id: string, actor: User): Promise<Customer | null> {
     inspectedByName,
     inspectedNote,
     inspectedPhoto,
-    inspectionChangedAfter: changedAfter,
     ...rest
   } = row;
   return {
@@ -1084,7 +1061,6 @@ async function customerById(id: string, actor: User): Promise<Customer | null> {
             inspectedByName,
             inspectedNote,
             inspectedPhoto,
-            inspectionChangedAfter: changedAfter,
           }),
         }
       : {}),
