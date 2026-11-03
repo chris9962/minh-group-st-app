@@ -71,7 +71,7 @@ async function main() {
     console.log(`\n=== ${image} ===`);
     const t = Date.now();
     const padY = bank === "tpbank" ? TPB_PAD_Y : undefined;
-    const code = bank === "mb" && ctx ? mbFallbackCode(ctx.referralCode) : undefined;
+    const code = (bank === "mb" || bank === "mbv") && ctx ? mbFallbackCode(ctx.referralCode) : undefined;
     const text = (await ocrLines(await readFile(image), ocrModelOf(ctx?.bankCode ?? ""), padY, code)).join("\n");
     texts.push(text);
     console.log(`${Date.now() - t} ms`);

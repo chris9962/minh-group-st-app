@@ -1,6 +1,7 @@
 import { hasDigits, hasLabel, letterWords, lineHasName, linesHaveExactCode, splitLines } from "../text";
 import { itemsFromFacts, readUntilFound, type Facts } from "../facts";
 import type { CheckedItem } from "../types";
+import { mbFallbackCode } from "./mb";
 
 /**
  * Kiểm ảnh MBV, viết 2026-10-03 theo cách của `tpbank.ts`:
@@ -11,6 +12,9 @@ import type { CheckedItem } from "../types";
  *   4. giao dịch       chứng từ "Giao dịch thành công"
  *
  * Mã text so nguyên văn, chỉ bỏ dấu và viết hoa; trống thì không so.
+ *
+ * Mã có O, I, 0, 1 thì gửi kèm yêu cầu đọc để Paddle đọc lại vùng lệch như MB
+ * (`mbFallbackCode`): mã D040 ngày 2026-11-03 VietOCR đọc ra `DO4O`, 44/44 không đạt.
  */
 
 export type MbvCheckContext = {
@@ -43,5 +47,12 @@ export function checkMbv(texts: string[], ctx: MbvCheckContext): CheckedItem[] {
 }
 
 export async function checkMbvImages(images: Buffer[], ctx: MbvCheckContext): Promise<CheckedItem[]> {
-  return checkMbv(await readUntilFound(images, (text) => mbvFacts(text, ctx)), ctx);
+  const texts = await readUntilFound(
+    images,
+    (text) => mbvFacts(text, ctx),
+    "transformer",
+    undefined,
+    mbFallbackCode(ctx.referralCode),
+  );
+  return checkMbv(texts, ctx);
 }
