@@ -22,6 +22,29 @@ const seesCompanyDashboard = (user: User) =>
  */
 export const RELEASES: Release[] = [
   {
+    id: '2026-11-04',
+    version: '2.22.0',
+    title: 'Cập nhật ngày 04/11/2026',
+    summary: 'Dấu Đã kiểm tra trên hồ sơ khách kèm được một ảnh.',
+    sections: [
+      {
+        title: 'Khách hàng',
+        items: [
+          'Đã kiểm tra kèm được một ảnh.',
+          'Nút Sửa ghi chú kiểm tra đổi thành Sửa ghi chú và ảnh.',
+          'Ảnh hiện dưới dấu Đã kiểm tra ở trang hồ sơ.',
+          'Bỏ nhãn Có thay đổi và nút Đã kiểm tra lại.',
+        ],
+        visibleTo: (user) => can(user, 'customer', 'lookup'),
+      },
+      {
+        title: 'Kho mã giới thiệu',
+        items: ['Cột Phạm vi hiện tên phòng đã ngừng hoạt động.'],
+        visibleTo: (user) => canOpenPath(user, '/settings/banks'),
+      },
+    ],
+  },
+  {
     id: '2026-11-03',
     version: '2.21.0',
     title: 'Cập nhật ngày 03/11/2026',
