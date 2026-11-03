@@ -120,8 +120,6 @@ export function ReferralCodesSection({ creating, onCreatingChange }: Props) {
     queryKey: ["departments"],
     queryFn: fetchDepartments,
   });
-  const departmentName = new Map(departments.map((d) => [d.id, d.name]));
-
   const asked: ReferralCodeQuery = { ...query, search: debouncedSearch };
 
   /**
@@ -261,7 +259,7 @@ export function ReferralCodesSection({ creating, onCreatingChange }: Props) {
       label: "Phạm vi",
       render: (c) => {
         if (c.scope === "all") return CODE_SCOPE_LABEL.all;
-        const names = c.departmentIds.map((id) => departmentName.get(id) ?? id);
+        const names = c.departmentNames;
         // Tên đầy đủ nằm ở `title`: rê chuột vẫn đọc được "Phòng Kinh doanh 4".
         return (
           <span className={styles.scopeNames} title={names.join(", ")}>

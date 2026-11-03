@@ -319,6 +319,8 @@ export const ReferralCode = z.object({
   scope: CodeScope,
   /** Rỗng khi `scope` là `all`. */
   departmentIds: z.array(z.string()),
+  /** Tên phòng cùng thứ tự với `departmentIds`, kể cả phòng đã ngừng. */
+  departmentNames: z.array(z.string()),
   /** Tên tỉnh của mã; `''` = chưa gán. Hiện cạnh ô chọn mã ở bước 2 P-20. */
   province: z.string(),
   /** Chi nhánh ngân hàng hỗ trợ; `''` = chưa gán. Cùng chỗ hiện với `province`. */

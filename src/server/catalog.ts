@@ -728,6 +728,13 @@ const codeColumns = {
       filter (where ${referralCodeDepartments.departmentId} is not null),
     '{}'
   )`,
+  // Tên lấy ở đây chứ không để bảng tra qua `/api/departments`: route đó chỉ
+  // trả phòng đang hoạt động, mã còn gán phòng đã ngừng thì ô Phạm vi hiện id.
+  departmentNames: sql<string[]>`coalesce(
+    array_agg((select ${departments.name} from ${departments} where ${departments.id} = ${referralCodeDepartments.departmentId}))
+      filter (where ${referralCodeDepartments.departmentId} is not null),
+    '{}'
+  )`,
 };
 
 /**
