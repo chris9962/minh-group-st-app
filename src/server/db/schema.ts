@@ -1223,6 +1223,8 @@ export const customers = pgTable(
     inspectedBy: uuid("inspected_by").references(() => users.id, { onDelete: "set null" }),
     inspectedByName: text("inspected_by_name").notNull().default(""),
     inspectedNote: text("inspected_note").notNull().default(""),
+    /** Khoá ảnh kèm dấu, một tấm (migration 0162, chốt 2026-11-03); rỗng = không có. */
+    inspectedPhoto: text("inspected_photo").notNull().default(""),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

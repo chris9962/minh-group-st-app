@@ -122,6 +122,7 @@ type InspectionColumns = {
   inspectedAt: Date | null;
   inspectedByName: string;
   inspectedNote: string;
+  inspectedPhoto: string;
   inspectionChangedAfter: boolean;
 };
 
@@ -143,7 +144,13 @@ const inspectionChangedAfter = (customerId: SQLWrapper, inspectedAt: SQLWrapper)
 
 const inspectionOf = (r: InspectionColumns) =>
   r.inspectedAt
-    ? { at: r.inspectedAt, byName: r.inspectedByName, note: r.inspectedNote, changedAfter: r.inspectionChangedAfter }
+    ? {
+        at: r.inspectedAt,
+        byName: r.inspectedByName,
+        note: r.inspectedNote,
+        changedAfter: r.inspectionChangedAfter,
+        photoUrl: r.inspectedPhoto ? imageUrl(r.inspectedPhoto) : null,
+      }
     : null;
 
 /**
@@ -419,6 +426,7 @@ const pickPage = (
       inspectedAt: customers.inspectedAt,
       inspectedByName: customers.inspectedByName,
       inspectedNote: customers.inspectedNote,
+      inspectedPhoto: customers.inspectedPhoto,
       // Cột tính bằng `sql` nằm trong truy vấn con thì BẮT BUỘC có bí danh —
       // không có thì câu ngoài không gọi tên nó được, drizzle ném lỗi lúc dựng.
       createdAt: createdDayText.as("created_day"),
@@ -552,6 +560,7 @@ function decorate(page: ReturnType<typeof pickPage>) {
       inspectedAt: page.inspectedAt,
       inspectedByName: page.inspectedByName,
       inspectedNote: page.inspectedNote,
+      inspectedPhoto: page.inspectedPhoto,
       inspectionChangedAfter: inspectionChangedAfter(page.id, page.inspectedAt),
     })
     .from(page)
@@ -938,6 +947,7 @@ async function inspectionOfCustomer(id: string) {
       inspectedAt: customers.inspectedAt,
       inspectedByName: customers.inspectedByName,
       inspectedNote: customers.inspectedNote,
+      inspectedPhoto: customers.inspectedPhoto,
       inspectionChangedAfter: inspectionChangedAfter(customers.id, customers.inspectedAt),
     })
     .from(customers)
@@ -954,22 +964,28 @@ async function inspectionOfCustomer(id: string) {
  * là của riêng Phòng Thanh tra. Không đụng điểm, quà, trạng thái nào; tháng đã
  * chốt lương vẫn ghi được.
  */
-export async function markCustomerInspected(actor: User, id: string, note: string) {
+export async function markCustomerInspected(actor: User, id: string, note: string, photo: string) {
   if (!seesInspection(actor)) return null;
   const updated = await db
     .update(customers)
-    .set({ inspectedAt: new Date(), inspectedBy: actor.id, inspectedByName: actor.fullName, inspectedNote: note })
+    .set({
+      inspectedAt: new Date(),
+      inspectedBy: actor.id,
+      inspectedByName: actor.fullName,
+      inspectedNote: note,
+      inspectedPhoto: photo,
+    })
     .where(eq(customers.id, id))
     .returning({ id: customers.id });
   return updated.length > 0 ? inspectionOfCustomer(id) : null;
 }
 
-/** Chỉ sửa ghi chú của dấu đang có; hồ sơ chưa kiểm thì không có gì để sửa. */
-export async function updateCustomerInspectionNote(actor: User, id: string, note: string) {
+/** Chỉ sửa ghi chú và ảnh của dấu đang có; hồ sơ chưa kiểm thì không có gì để sửa. */
+export async function updateCustomerInspectionNote(actor: User, id: string, note: string, photo: string) {
   if (!seesInspection(actor)) return null;
   const updated = await db
     .update(customers)
-    .set({ inspectedNote: note })
+    .set({ inspectedNote: note, inspectedPhoto: photo })
     .where(and(eq(customers.id, id), isNotNull(customers.inspectedAt)))
     .returning({ id: customers.id });
   return updated.length > 0 ? inspectionOfCustomer(id) : null;
@@ -980,7 +996,7 @@ export async function clearCustomerInspection(actor: User, id: string) {
   if (!seesInspection(actor)) return null;
   const [row] = await db
     .update(customers)
-    .set({ inspectedAt: null, inspectedBy: null, inspectedByName: "", inspectedNote: "" })
+    .set({ inspectedAt: null, inspectedBy: null, inspectedByName: "", inspectedNote: "", inspectedPhoto: "" })
     .where(and(eq(customers.id, id), isNotNull(customers.inspectedAt)))
     .returning({ fullName: customers.fullName });
   return row ?? null;
@@ -1022,6 +1038,7 @@ async function customerById(id: string, actor: User): Promise<Customer | null> {
       inspectedAt: customers.inspectedAt,
       inspectedByName: customers.inspectedByName,
       inspectedNote: customers.inspectedNote,
+      inspectedPhoto: customers.inspectedPhoto,
       inspectionChangedAfter: inspectionChangedAfter(customers.id, customers.inspectedAt),
     })
     .from(customers)
@@ -1047,6 +1064,7 @@ async function customerById(id: string, actor: User): Promise<Customer | null> {
     inspectedAt,
     inspectedByName,
     inspectedNote,
+    inspectedPhoto,
     inspectionChangedAfter: changedAfter,
     ...rest
   } = row;
@@ -1065,6 +1083,7 @@ async function customerById(id: string, actor: User): Promise<Customer | null> {
             inspectedAt,
             inspectedByName,
             inspectedNote,
+            inspectedPhoto,
             inspectionChangedAfter: changedAfter,
           }),
         }

@@ -588,6 +588,15 @@ export default function CustomerDetailPage({
                         </dd>
                       </div>
                     </dl>
+                    {data.customer.inspection.photoUrl && (
+                      <BankAccountPhotos
+                        title="Ảnh"
+                        requiredPhotos={0}
+                        small
+                        contain
+                        photos={savedPhotos([data.customer.inspection.photoUrl])}
+                      />
+                    )}
                     <div className={styles.footRow}>
                       {data.customer.inspection.changedAfter && (
                         <Button variant="secondary" onClick={() => setInspecting("recheck")}>
@@ -597,7 +606,7 @@ export default function CustomerDetailPage({
                       )}
                       <Button variant="secondary" onClick={() => setInspecting("note")}>
                         <Pencil size={16} />
-                        Sửa ghi chú kiểm tra
+                        Sửa ghi chú và ảnh
                       </Button>
                       <Button variant="secondary" onClick={() => setClearingInspection(true)}>
                         Bỏ đánh dấu
@@ -1168,6 +1177,7 @@ export default function CustomerDetailPage({
             id={data.customer.id}
             mode={inspecting}
             note={data.customer.inspection?.note ?? ""}
+            photoUrl={data.customer.inspection?.photoUrl ?? null}
             onClose={() => setInspecting(null)}
           />
         )}

@@ -1128,6 +1128,13 @@
       "when": 1789891400088,
       "tag": "0161_bank_blank_transfer",
       "breakpoints": true
+    },
+    {
+      "idx": 162,
+      "version": "7",
+      "when": 1789891400089,
+      "tag": "0162_customer_inspection_photo",
+      "breakpoints": true
     }
   ]
 }

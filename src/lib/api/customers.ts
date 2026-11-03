@@ -38,6 +38,8 @@ export const CustomerInspection = z.object({
    * lần kiểm: người kiểm nên xem lại. Bản nháp và tài khoản đã xoá không tính.
    */
   changedAfter: z.boolean(),
+  /** `/api/images/<key>` của ảnh kèm dấu; `null` = không có ảnh. */
+  photoUrl: z.string().nullable(),
 });
 export type CustomerInspection = z.infer<typeof CustomerInspection>;
 
@@ -605,15 +607,18 @@ export const updateCustomerNote = (id: string, note: string) =>
 
 export const CustomerInspectionForm = z.object({
   note: z.string().max(500, 'Ghi chú tối đa 500 ký tự'),
+  /** Một tấm, đã tải lên kho qua `uploadImage`; `null` = bỏ ảnh. */
+  photoUrl: z.string().trim().nullable(),
 });
+export type CustomerInspectionForm = z.infer<typeof CustomerInspectionForm>;
 
 /** Đánh dấu đã kiểm tra, hoặc kiểm tra lại: ngày và người ghi lấy lúc bấm. */
-export const markCustomerInspected = (id: string, note: string) =>
-  send(`/api/customers/${id}/inspection`, 'PUT', { note }).then(CustomerInspection.parse);
+export const markCustomerInspected = (id: string, form: CustomerInspectionForm) =>
+  send(`/api/customers/${id}/inspection`, 'PUT', form).then(CustomerInspection.parse);
 
-/** Chỉ sửa ghi chú của dấu đang có, giữ nguyên ngày và người kiểm. */
-export const updateCustomerInspectionNote = (id: string, note: string) =>
-  send(`/api/customers/${id}/inspection`, 'PATCH', { note }).then(CustomerInspection.parse);
+/** Chỉ sửa ghi chú và ảnh của dấu đang có, giữ nguyên ngày và người kiểm. */
+export const updateCustomerInspectionNote = (id: string, form: CustomerInspectionForm) =>
+  send(`/api/customers/${id}/inspection`, 'PATCH', form).then(CustomerInspection.parse);
 
 export async function clearCustomerInspection(id: string): Promise<void> {
   const res = await fetch(`/api/customers/${id}/inspection`, { method: 'DELETE' });
