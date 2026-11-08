@@ -22,6 +22,29 @@ const seesCompanyDashboard = (user: User) =>
  */
 export const RELEASES: Release[] = [
   {
+    id: '2026-11-08',
+    version: '2.23.0',
+    title: 'Cập nhật ngày 08/11/2026',
+    summary: 'Nhân viên nhận thông báo khi Trưởng phòng chia mã giới thiệu.',
+    sections: [
+      {
+        title: 'Ngân hàng',
+        items: ['Có thông báo khi Trưởng phòng chia mã giới thiệu cho bạn.'],
+        visibleTo: (user) => canSeeMyReferralCodes(user),
+      },
+      {
+        title: 'Ngân hàng',
+        items: ['Chia mã cho nhân viên thì nhân viên đó nhận thông báo.'],
+        visibleTo: (user) => canSeeAvailableReferralCodes(user),
+      },
+      {
+        title: 'Xuất dữ liệu',
+        items: ['Báo cáo Khách không mở ngân hàng thêm cột tỉ lệ đủ tuổi nhưng không mở.'],
+        visibleTo: (user) => canOpenPath(user, '/exports') && can(user, 'banking', 'export'),
+      },
+    ],
+  },
+  {
     id: '2026-11-04',
     version: '2.22.0',
     title: 'Cập nhật ngày 04/11/2026',
