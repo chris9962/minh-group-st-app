@@ -42,7 +42,7 @@ import { businessMonth, digitsOnly, uniqueCode } from "@/lib/format";
 import { isMonthClosed } from "./closedMonths";
 import { db, uniqueViolationOf } from "./db/client";
 import { recomputeKpiForMonth } from "./kpi";
-import { everyoneWanting, notifyUsers } from "./notifications";
+import { everyoneWanting, notify, notifyUsers } from "./notifications";
 import { imageKeyOf, imageUrl } from "./storage";
 import {
   bankGuidePhotos,
@@ -1315,7 +1315,8 @@ export async function saveReferralCodeAllocations(
     byUser.set(item.userId, item.quota);
   }
 
-  return db.transaction(async (tx) => {
+  const raised: AllocationRaise[] = [];
+  const result = await db.transaction(async (tx) => {
     const lockedUsers = [...new Set([actor.id, ...byUser.keys()])].sort();
     await tx
       .select({ id: users.id })
@@ -1379,6 +1380,8 @@ export async function saveReferralCodeAllocations(
 
     for (const [userId, quota] of byUser) {
       if (quota === 0 && !quotaOf.has(userId)) continue;
+      const current = quotaOf.get(userId) ?? 0;
+      if (quota > current && userId !== actor.id) raised.push({ userId, from: current, to: quota });
       if (quota > 0)
         await tx
           .insert(referralCodeAllocations)
@@ -1400,6 +1403,32 @@ export async function saveReferralCodeAllocations(
 
     return { ok: true as const, sheet: await buildSheet(tx, target) };
   });
+  if (result.ok) await notifyAllocationRaised(actor, result.sheet.code, raised);
+  return result;
+}
+
+type AllocationRaise = { userId: string; from: number; to: number };
+
+/**
+ * Báo cho nhân viên vừa được chia thêm chỗ (chốt 2026-11-08). Giảm hoặc thu hồi
+ * thì không báo. Gọi SAU khi giao dịch xong và bỏ qua lỗi: phần chia đã ghi,
+ * báo tin hỏng không được làm lượt lưu trả về thất bại.
+ */
+async function notifyAllocationRaised(actor: User, code: ReferralCode, raised: AllocationRaise[]): Promise<void> {
+  for (const r of raised) {
+    try {
+      await notify(r.userId, "code-allocated", {
+        title: `Bạn được chia mã giới thiệu - ${code.bankCode}`,
+        body:
+          r.from === 0
+            ? `${actor.fullName} chia cho bạn ${r.to} chỗ mã ${code.displayName}`
+            : `${actor.fullName} tăng phần của bạn ở mã ${code.displayName} từ ${r.from} lên ${r.to} chỗ`,
+        url: "/banking",
+      });
+    } catch {
+      // Không có nơi ghi log ở tầng này; bỏ qua để lượt lưu phần chia vẫn thành công.
+    }
+  }
 }
 
 /**

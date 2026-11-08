@@ -204,6 +204,8 @@ export const notificationKind = pgEnum("notification_kind", [
   "ops-alert",
   // Bản nháp đủ 25 phút, sắp bị xoá, cho chủ bản nháp. Migration 0128.
   "bank-expiring",
+  // Trưởng phòng chia thêm chỗ mã giới thiệu, cho nhân viên được chia. Migration 0163.
+  "code-allocated",
 ]);
 
 /** P-96 · Góp ý đã xử lý hay chưa. Hai trạng thái, thêm ở migration 0052. */

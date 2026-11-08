@@ -24,6 +24,7 @@ export const NotificationKind = z.enum([
   'code-cnkd',
   'ops-alert',
   'bank-expiring',
+  'code-allocated',
 ]);
 export type NotificationKind = z.infer<typeof NotificationKind>;
 
@@ -54,6 +55,7 @@ export const NOTIFICATION_KINDS: SwitchableKind[] = [
   'bank-expiring',
   'bank-deleted',
   'code-cnkd',
+  'code-allocated',
   'ops-alert',
 ];
 
@@ -83,6 +85,7 @@ export const NOTIFICATION_KIND_LABEL: Record<SwitchableKind, string> = {
   'bank-deleted': 'Tài khoản đang tạo của tôi bị xoá',
   'code-low': 'Kho mã giới thiệu sắp hết',
   'code-cnkd': 'Có mã giới thiệu CNKD mới',
+  'code-allocated': 'Tôi được chia mã giới thiệu',
   'ops-alert': 'Cảnh báo vận hành hệ thống',
 };
 
@@ -123,6 +126,7 @@ export const NOTIFICATION_KIND_ICON: Record<NotificationKind, NavIconKey> = {
   'code-low': 'banking',
   /** Mã CNKD là mã giới thiệu ngân hàng, người nhận là mọi nhân viên mở tài khoản. */
   'code-cnkd': 'banking',
+  'code-allocated': 'banking',
   /** Toà nhà, cùng icon với màn Cơ cấu tổ chức: tin này của cả công ty. */
   announcement: 'org',
   /** Cùng icon với Hướng dẫn: bản cập nhật cũng là bài đọc về app. */
@@ -151,6 +155,7 @@ export const NOTIFICATION_KIND_NEEDS: Partial<
   'bank-photo-fail': { module: 'banking', actions: ['create'] },
   'bank-expiring': { module: 'banking', actions: ['create'] },
   'bank-deleted': { module: 'banking', actions: ['create'] },
+  'code-allocated': { module: 'banking', actions: ['create'] },
   /** Loại của NGƯỜI DUYỆT — hai quyền mở cùng màn quản lý ngân hàng. */
   'bank-pending': { module: 'system', actions: ['manage-bank', 'manage-assigned-banks'] },
   'bank-photo-review': { module: 'system', actions: ['manage-bank', 'manage-assigned-banks'] },
@@ -171,6 +176,7 @@ export const ALL_ON: Record<NotificationKind, boolean> = {
   'bank-deleted': true,
   'code-low': true,
   'code-cnkd': true,
+  'code-allocated': true,
   'ops-alert': true,
   announcement: true,
   release: true,
