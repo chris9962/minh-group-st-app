@@ -919,6 +919,15 @@ export default function ExportsPage() {
         { header: `KHÔNG MỞ ${code} VÌ LÝ DO KHÁC`, ...KHACH, type: "number", width: 14, total: sum((r) => r.otherReason), value: (r) => r.otherReason },
         { header: "KHÔNG CÓ TÀI KHOẢN NÀO", ...KHACH, type: "number", width: 14, total: sum((r) => r.noAccount), value: (r) => r.noAccount },
         { header: "TỔNG SỐ KHÁCH", ...KHACH, type: "number", width: 12, total: sum((r) => r.total), value: (r) => r.total },
+        // Chia cho TỔNG SỐ KHÁCH để người đọc chia lại được ngay trên file (chốt 2026-11-08).
+        {
+          header: `TỈ LỆ ĐỦ TUỔI NHƯNG KHÔNG MỞ ${code} (%)`,
+          ...KHACH,
+          type: "number",
+          width: 16,
+          total: (list) => Math.round((sum((r) => r.ageFitNotOpened)(list) / sum((r) => r.total)(list)) * 100),
+          value: (r) => Math.round((r.ageFitNotOpened / r.total) * 100),
+        },
       ];
       // Sheet danh sách khách (chốt 2026-10-26): link mở hồ sơ khách để xem ảnh của lý do.
       const customerColumns: ExcelColumn<BankNotOpenedCustomer>[] = [
