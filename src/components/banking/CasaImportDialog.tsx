@@ -1,29 +1,31 @@
 "use client";
 
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FileSpreadsheet } from "lucide-react";
 import { useId, useRef, useState } from "react";
 import { BackButton } from "@/components/ui/BackButton";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
-import { monthLabel } from "@/components/ui/MonthPicker";
+import { ErrorState } from "@/components/ui/ErrorState";
+import { MonthPicker, monthLabel, thisMonth } from "@/components/ui/MonthPicker";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { SegmentedTabs } from "@/components/ui/SegmentedTabs";
 import {
   CASA_FILE_COLUMNS,
   CASA_IMPORT_MAX_ROWS,
+  fetchCasaMonth,
   importCasa,
   type CasaFileRow,
   type CasaImportResult,
   type CasaPreviewRow,
 } from "@/lib/api/casa";
+import { shiftMonth } from "@/lib/period";
 import { readExcelRows } from "@/lib/readExcelRows";
 import { errorMessage, toast } from "@/lib/toast";
 import styles from "./CasaImportDialog.module.scss";
 
 type Props = {
   open: boolean;
-  month: string;
   onClose: () => void;
 };
 
@@ -71,16 +73,20 @@ const problemsFirst = (rows: CasaPreviewRow[]) =>
   );
 
 /**
- * Nhập sheet "CHI TIẾT CASA ĐẠT" cho lương tháng `month`. Bước 1 chọn file,
- * bước 2 là bảng máy chủ kiểm từng dòng. Có một dòng lỗi thì không ghi được,
- * cùng luật với hộp thoại nhập file BHYT/BHXH. Tài khoản đã nhập ở tháng lương
- * nào thì chỉ hiện ở tab "Đã nhập", không ghi lại.
+ * Nhập sheet "CHI TIẾT CASA ĐẠT" vào lương một tháng. Bước 1 chọn tháng lương
+ * và file, bước 2 là bảng máy chủ kiểm từng dòng. Có một dòng lỗi thì không ghi
+ * được, cùng luật với hộp thoại nhập file BHYT/BHXH. Tài khoản đã nhập ở tháng
+ * lương nào thì chỉ hiện ở tab "Đã nhập", không ghi lại.
  */
-export function CasaImportDialog({ open, month, onClose }: Props) {
+export function CasaImportDialog({ open, onClose }: Props) {
+  const monthLabelId = useId();
   const fileLabelId = useId();
   const fileNameId = useId();
   const fileInput = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
+  // File T09 nhập vào lương tháng 10 lúc 2026-11-09, nên mặc định là tháng trước.
+  const [month, setMonth] = useState(() => shiftMonth(thisMonth(), -1));
+  const casa = useQuery({ queryKey: ["casa-month", month], queryFn: () => fetchCasaMonth(month) });
   const [file, setFile] = useState<File | null>(null);
   const [checked, setChecked] = useState<Checked | null>(null);
   const [view, setView] = useState<View>("all");
@@ -133,7 +139,7 @@ export function CasaImportDialog({ open, month, onClose }: Props) {
       open={open}
       onClose={onClose}
       full={checked !== null}
-      title={`Nhập file CASA lương ${monthLabel(month).toLowerCase()}`}
+      title={checked ? `Nhập file CASA lương ${monthLabel(month).toLowerCase()}` : "Nhập file CASA"}
       footerStart={
         checked && (
           <BackButton
@@ -159,7 +165,10 @@ export function CasaImportDialog({ open, month, onClose }: Props) {
               Ghi {newRows} tài khoản
             </Button>
           ) : (
-            <Button disabled={file === null || check.isPending} onClick={() => check.mutate()}>
+            <Button
+              disabled={file === null || !casa.data || casa.data.locked || check.isPending}
+              onClick={() => check.mutate()}
+            >
               Kiểm tra
             </Button>
           )}
@@ -197,6 +206,24 @@ export function CasaImportDialog({ open, month, onClose }: Props) {
         </div>
       ) : (
         <div className={styles.body}>
+          <div className={styles.field}>
+            <span id={monthLabelId} className={styles.label}>
+              Tháng lương
+            </span>
+            <div role="group" aria-labelledby={monthLabelId}>
+              <MonthPicker value={month} onChange={setMonth} />
+            </div>
+            {casa.data && (
+              <p className={casa.data.locked ? styles.error : styles.summary} role="status">
+                {casa.data.locked
+                  ? `Lương ${monthLabel(month).toLowerCase()} đã chốt.`
+                  : `Đã nhập ${casa.data.count} tài khoản.`}
+              </p>
+            )}
+            {casa.isError && (
+              <ErrorState what="tài khoản CASA" onRetry={casa.refetch} retrying={casa.isFetching} />
+            )}
+          </div>
           <div className={styles.field}>
             <span id={fileLabelId} className={styles.label}>
               File Excel

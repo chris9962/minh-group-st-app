@@ -22,12 +22,11 @@ import {
   type QuotaMonth,
 } from "@/lib/api/quota";
 import { errorMessage, toast } from "@/lib/toast";
-import { CasaSection } from "./CasaSection";
 import styles from "./QuotaMonthSection.module.scss";
 
 /**
- * Màn Chỉ tiêu tháng theo QĐ 145: mốc điểm KPI, số chỉ tiêu, danh sách tài khoản
- * tính vào HKD, định hướng, và tài khoản CASA nhập từ file ngân hàng.
+ * Màn Chỉ tiêu tháng theo QĐ 145: mốc điểm KPI, số chỉ tiêu và danh sách tài khoản tính vào HKD, định hướng.
+ * Tài khoản CASA nhập ở màn Ngân hàng, nút ba chấm.
  */
 export function QuotaMonthSection({ month }: { month: string }) {
   const quota = useQuery({ queryKey: ["quota-month", month], queryFn: () => fetchQuotaMonth(month) });
@@ -278,8 +277,6 @@ function QuotaForm({ data, banks }: { data: QuotaMonth; banks: Bank[] }) {
           />
         </div>
       </SectionCard>
-
-      <CasaSection month={data.month} />
 
       {/* Dính đáy khung cuộn: màn dài bốn khối, lưu ở cuối trang thì phải kéo qua hai bảng. */}
       <div className={styles.saveBar}>
