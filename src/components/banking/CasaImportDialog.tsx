@@ -37,6 +37,8 @@ const PAGE_SIZE = 10;
 
 const isNew = (r: CasaPreviewRow) => r.errors.length === 0 && r.importedMonth === null;
 
+const fileSize = (bytes: number) => `${Math.max(1, Math.round(bytes / 1024)).toLocaleString("vi-VN")} KB`;
+
 function Problems({ errors, differences, importedMonth }: CasaPreviewRow) {
   if (importedMonth) return <>Đã nhập lương {monthLabel(importedMonth).toLowerCase()}</>;
   if (errors.length === 0 && differences.length === 0) return <>Hợp lệ</>;
@@ -80,9 +82,9 @@ const problemsFirst = (rows: CasaPreviewRow[]) =>
  */
 export function CasaImportDialog({ open, onClose }: Props) {
   const monthLabelId = useId();
-  const fileLabelId = useId();
-  const fileNameId = useId();
   const fileInput = useRef<HTMLInputElement>(null);
+  const pickFile = () => fileInput.current?.click();
+  const [dragging, setDragging] = useState(false);
   const queryClient = useQueryClient();
   // File T09 nhập vào lương tháng 10 lúc 2026-11-09, nên mặc định là tháng trước.
   const [month, setMonth] = useState(() => shiftMonth(thisMonth(), -1));
@@ -206,56 +208,76 @@ export function CasaImportDialog({ open, onClose }: Props) {
         </div>
       ) : (
         <div className={styles.body}>
-          <div className={styles.field}>
-            <span id={monthLabelId} className={styles.label}>
-              Tháng lương
-            </span>
+          <div className={styles.monthRow}>
+            <div className={styles.stack}>
+              <span id={monthLabelId} className={styles.title}>
+                Tháng lương
+              </span>
+              {casa.data && (
+                <span className={casa.data.locked ? styles.error : styles.meta} role="status">
+                  {casa.data.locked
+                    ? `Lương ${monthLabel(month).toLowerCase()} đã chốt`
+                    : `Đã nhập ${casa.data.count} tài khoản`}
+                </span>
+              )}
+            </div>
             <div role="group" aria-labelledby={monthLabelId}>
               <MonthPicker value={month} onChange={setMonth} />
             </div>
-            {casa.data && (
-              <p className={casa.data.locked ? styles.error : styles.summary} role="status">
-                {casa.data.locked
-                  ? `Lương ${monthLabel(month).toLowerCase()} đã chốt.`
-                  : `Đã nhập ${casa.data.count} tài khoản.`}
-              </p>
-            )}
-            {casa.isError && (
-              <ErrorState what="tài khoản CASA" onRetry={casa.refetch} retrying={casa.isFetching} />
-            )}
           </div>
-          <div className={styles.field}>
-            <span id={fileLabelId} className={styles.label}>
-              File Excel
-            </span>
-            {/* Ô file gốc hiện chữ theo ngôn ngữ trình duyệt ("Choose file"), nên ẩn đi và mở bằng nút của app. */}
-            <div className={styles.filePick}>
-              <Button
-                variant="secondary"
-                aria-labelledby={fileLabelId}
-                aria-describedby={fileNameId}
-                onClick={() => fileInput.current?.click()}
-              >
-                <FileSpreadsheet size={16} aria-hidden />
-                Chọn file
-              </Button>
-              <span id={fileNameId} className={file ? styles.fileName : styles.fileEmpty}>
-                {file ? file.name : "Chưa chọn file"}
+          {casa.isError && (
+            <ErrorState what="tài khoản CASA" onRetry={casa.refetch} retrying={casa.isFetching} />
+          )}
+
+          {file ? (
+            <div className={styles.fileCard}>
+              <span className={styles.fileIcon} aria-hidden>
+                <FileSpreadsheet size={20} />
               </span>
+              <div className={styles.stack}>
+                <span className={styles.fileName}>{file.name}</span>
+                <span className={styles.meta}>{fileSize(file.size)}</span>
+              </div>
+              <Button variant="secondary" onClick={pickFile}>
+                Đổi file
+              </Button>
             </div>
-            <input
-              ref={fileInput}
-              type="file"
-              accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-              hidden
-              onChange={(e) => {
-                const picked = e.target.files?.[0];
-                if (picked) setFile(picked);
-                // Dọn ô để chọn lại đúng file đó vẫn phát `change`.
-                e.target.value = "";
+          ) : (
+            <button
+              type="button"
+              className={dragging ? `${styles.drop} ${styles.dropActive}` : styles.drop}
+              onClick={pickFile}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragging(true);
               }}
-            />
-          </div>
+              onDragLeave={() => setDragging(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDragging(false);
+                const dropped = e.dataTransfer.files[0];
+                if (dropped) setFile(dropped);
+              }}
+            >
+              <span className={styles.fileIcon} aria-hidden>
+                <FileSpreadsheet size={22} />
+              </span>
+              <span className={styles.title}>Chọn file Excel</span>
+            </button>
+          )}
+          {/* Ô file gốc hiện chữ theo ngôn ngữ trình duyệt ("Choose file"), nên ẩn đi và mở bằng nút của app. */}
+          <input
+            ref={fileInput}
+            type="file"
+            accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            hidden
+            onChange={(e) => {
+              const picked = e.target.files?.[0];
+              if (picked) setFile(picked);
+              // Dọn ô để chọn lại đúng file đó vẫn phát `change`.
+              e.target.value = "";
+            }}
+          />
         </div>
       )}
     </Dialog>

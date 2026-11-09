@@ -5,17 +5,6 @@
   padding-bottom: 4px;
 }
 
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.label {
-  font-size: 13px;
-  color: var(--om-text-2);
-}
-
 .summary {
   margin: 0;
   color: var(--om-text-2);
@@ -34,26 +23,101 @@
   gap: 2px;
 }
 
-.filePick {
+.monthRow {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
+  justify-content: space-between;
+  gap: 10px 16px;
+  padding: 12px 14px;
+  background: var(--om-soft);
+  border: 1px solid var(--om-line);
+  border-radius: var(--radius-md);
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   min-width: 0;
 }
 
-.fileName,
-.fileEmpty {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 13.5px;
-}
-
-.fileName {
+.title {
+  font-size: 14px;
+  font-weight: 600;
   color: var(--om-text);
 }
 
-.fileEmpty {
-  color: var(--om-text-3);
+.meta {
+  font-size: 13px;
+  color: var(--om-text-2);
+}
+
+.monthRow .error {
+  font-size: 13px;
+}
+
+.fileIcon {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  color: var(--om-orange-ink);
+  background: var(--om-orange-soft);
+  border-radius: 50%;
+}
+
+.drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 148px;
+  padding: 20px;
+  font: inherit;
+  color: var(--om-text);
+  background: var(--om-soft);
+  border: 1.5px dashed var(--om-line);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.drop:hover,
+.dropActive {
+  border-color: var(--om-orange-mid);
+  background: var(--om-orange-soft);
+}
+
+.drop:focus-visible {
+  outline: 2px solid var(--om-orange);
+  outline-offset: 2px;
+}
+
+.fileCard {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--om-card);
+  border: 1px solid var(--om-line);
+  border-radius: var(--radius-md);
+}
+
+.fileCard .stack {
+  flex: 1;
+}
+
+.fileName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  color: var(--om-text);
+}
+
+/* Kéo qua icon hay chữ thì trình duyệt phát `dragleave` của ô, viền cam bật tắt liên tục. */
+.drop > * {
+  pointer-events: none;
 }
