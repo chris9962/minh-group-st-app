@@ -14,8 +14,6 @@ export type Outcome<T> = { ok: true; result: T } | { ok: false; message: string 
 /** File CASA hiện chỉ có của VPBank, ghi nhận vào dòng VPa của app. */
 const CASA_BANK_CODE = "VPa";
 
-const monthLabel = (month: string) => `${month.slice(5)}/${month.slice(0, 4)}`;
-
 /** CCCD luôn bắt đầu bằng 0 (mã tỉnh 001–096), mà ô số trong Excel bỏ mất số 0 đó. */
 const normalizeIdNumber = (raw: string) => {
   const v = raw.replace(/\s/g, "");
@@ -55,7 +53,6 @@ function pickAccount(candidates: Candidate[], fileAccount: string): Candidate {
 
 async function checkRows(
   conn: Conn,
-  month: string,
   rows: CasaFileRow[],
 ): Promise<{ preview: CasaPreviewRow[]; accountIds: string[] }> {
   const idNumbers = [...new Set(rows.map((r) => normalizeIdNumber(r.idNumber)).filter(Boolean))];
@@ -117,6 +114,7 @@ async function checkRows(
       fullName: r.fullName,
       idNumberTail: idNumber.slice(-4),
       staffCode: r.staffCode,
+      importedMonth: null,
     };
 
     if (!idNumber) return { ...base, accountNumber: "", errors: ["Thiếu CCCD"], differences };
@@ -132,10 +130,10 @@ async function checkRows(
       return { ...base, accountNumber: "", errors: ["Hồ sơ không có tài khoản VPa"], differences };
 
     const account = pickAccount(candidates, r.accountNumber);
-    if (account.casaMonth && account.casaMonth !== month)
-      errors.push(`Tài khoản đã tính CASA lương tháng ${monthLabel(account.casaMonth)}`);
-
     const appNumber = account.accountNumber ?? "";
+    if (account.casaMonth)
+      return { ...base, accountNumber: appNumber, importedMonth: account.casaMonth, errors, differences };
+
     if (r.accountNumber && accountKey(r.accountNumber) !== accountKey(appNumber))
       differences.push(`STK file ${r.accountNumber}, app ${appNumber || "trống"}`);
     if (account.status !== "done")
@@ -145,7 +143,7 @@ async function checkRows(
     if (r.fullName && nameKey(r.fullName) !== nameKey(account.customerName))
       differences.push(`Tên trong app ${account.customerName}`);
 
-    if (errors.length === 0) accountIds.push(account.id);
+    accountIds.push(account.id);
     return { ...base, accountNumber: appNumber, errors, differences };
   });
 
@@ -167,8 +165,8 @@ export async function getCasaMonth(month: string): Promise<CasaMonth> {
 
 /**
  * Nhập file CASA cho lương tháng `month`. `commit: false` chỉ trả bảng kiểm.
- * Ghi thay toàn bộ tài khoản đã nhập của tháng đó, để nhập lại file đã sửa
- * không cộng dồn. Có một dòng lỗi thì không ghi.
+ * Chỉ ghi thêm tài khoản chưa nhập ở tháng lương nào (chủ dự án chốt
+ * 2026-11-09). Có một dòng lỗi thì không ghi.
  */
 export async function importCasaFile(
   actor: User,
@@ -178,26 +176,22 @@ export async function importCasaFile(
   if (await isMonthClosed(month)) return { ok: false, message: closedMonthMessage(month) };
 
   if (!request.commit) {
-    const [{ preview }, replaced] = await Promise.all([
-      checkRows(db, month, request.rows),
-      countOfMonth(db, month),
-    ]);
-    return { ok: true, result: { rows: preview, written: 0, replaced } };
+    const { preview } = await checkRows(db, request.rows);
+    return { ok: true, result: { rows: preview, written: 0 } };
   }
 
   return db.transaction(async (tx): Promise<Outcome<CasaImportResult>> => {
     await lockSalaryMonth(tx, month);
     if (await isMonthClosed(month, tx)) return { ok: false, message: closedMonthMessage(month) };
-    const { preview, accountIds } = await checkRows(tx, month, request.rows);
+    const { preview, accountIds } = await checkRows(tx, request.rows);
     const errorRows = preview.filter((r) => r.errors.length > 0).length;
     if (errorRows > 0) return { ok: false, message: `File có ${errorRows} dòng lỗi.` };
+    if (accountIds.length === 0) return { ok: false, message: "File không có tài khoản mới." };
 
-    const replaced = await countOfMonth(tx, month);
-    await tx.delete(casaAccounts).where(eq(casaAccounts.yearMonth, month));
     await tx
       .insert(casaAccounts)
       .values(accountIds.map((bankAccountId) => ({ bankAccountId, yearMonth: month, createdBy: actor.id })));
-    return { ok: true, result: { rows: preview, written: accountIds.length, replaced } };
+    return { ok: true, result: { rows: preview, written: accountIds.length } };
   });
 }
 

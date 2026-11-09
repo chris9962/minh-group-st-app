@@ -29,11 +29,14 @@ type Props = {
 
 type Checked = { rows: CasaFileRow[]; result: CasaImportResult };
 
-type View = "all" | "errors" | "differences";
+type View = "all" | "errors" | "differences" | "imported";
 
 const PAGE_SIZE = 10;
 
-function Problems({ errors, differences }: { errors: string[]; differences: string[] }) {
+const isNew = (r: CasaPreviewRow) => r.errors.length === 0 && r.importedMonth === null;
+
+function Problems({ errors, differences, importedMonth }: CasaPreviewRow) {
+  if (importedMonth) return <>Đã nhập lương {monthLabel(importedMonth).toLowerCase()}</>;
   if (errors.length === 0 && differences.length === 0) return <>Hợp lệ</>;
   return (
     <ul className={styles.problems}>
@@ -55,21 +58,23 @@ const columns: RankColumn<CasaPreviewRow>[] = [
   { key: "idNumber", label: "CCCD", render: (r) => (r.idNumberTail ? `…${r.idNumberTail}` : "—") },
   { key: "staffCode", label: "Mã nhân viên", render: (r) => r.staffCode || "—" },
   { key: "accountNumber", label: "STK VPa", render: (r) => r.accountNumber || "—" },
-  { key: "status", label: "Kết quả kiểm", render: (r) => <Problems errors={r.errors} differences={r.differences} /> },
+  { key: "status", label: "Kết quả kiểm", render: (r) => <Problems {...r} /> },
 ];
 
-/** Dòng lỗi lên đầu, rồi dòng lệch, giữ thứ tự dòng trong từng nhóm. */
+/** Dòng lỗi lên đầu, rồi dòng lệch, rồi dòng đã nhập, giữ thứ tự dòng trong từng nhóm. */
 const problemsFirst = (rows: CasaPreviewRow[]) =>
   [...rows].sort(
     (a, b) =>
       Number(b.errors.length > 0) - Number(a.errors.length > 0) ||
-      Number(b.differences.length > 0) - Number(a.differences.length > 0),
+      Number(b.differences.length > 0) - Number(a.differences.length > 0) ||
+      Number(b.importedMonth !== null) - Number(a.importedMonth !== null),
   );
 
 /**
  * Nhập sheet "CHI TIẾT CASA ĐẠT" cho lương tháng `month`. Bước 1 chọn file,
  * bước 2 là bảng máy chủ kiểm từng dòng. Có một dòng lỗi thì không ghi được,
- * cùng luật với hộp thoại nhập file BHYT/BHXH.
+ * cùng luật với hộp thoại nhập file BHYT/BHXH. Tài khoản đã nhập ở tháng lương
+ * nào thì chỉ hiện ở tab "Đã nhập", không ghi lại.
  */
 export function CasaImportDialog({ open, month, onClose }: Props) {
   const fileLabelId = useId();
@@ -112,12 +117,16 @@ export function CasaImportDialog({ open, month, onClose }: Props) {
   const preview = checked?.result.rows ?? [];
   const errorRows = preview.filter((r) => r.errors.length > 0).length;
   const differenceRows = preview.filter((r) => r.differences.length > 0).length;
+  const importedRows = preview.filter((r) => r.importedMonth !== null).length;
+  const newRows = preview.filter(isNew).length;
   const shown =
     view === "errors"
       ? preview.filter((r) => r.errors.length > 0)
       : view === "differences"
         ? preview.filter((r) => r.differences.length > 0)
-        : problemsFirst(preview);
+        : view === "imported"
+          ? preview.filter((r) => r.importedMonth !== null)
+          : problemsFirst(preview);
 
   return (
     <Dialog
@@ -143,8 +152,11 @@ export function CasaImportDialog({ open, month, onClose }: Props) {
             Huỷ
           </Button>
           {checked ? (
-            <Button disabled={errorRows > 0 || save.isPending} onClick={() => save.mutate(checked)}>
-              Ghi {preview.length} tài khoản
+            <Button
+              disabled={errorRows > 0 || newRows === 0 || save.isPending}
+              onClick={() => save.mutate(checked)}
+            >
+              Ghi {newRows} tài khoản
             </Button>
           ) : (
             <Button disabled={file === null || check.isPending} onClick={() => check.mutate()}>
@@ -157,12 +169,11 @@ export function CasaImportDialog({ open, month, onClose }: Props) {
       {checked ? (
         <div className={styles.body}>
           <p className={errorRows > 0 ? styles.error : styles.summary} role="status">
-            {errorRows > 0 ? `File có ${errorRows} dòng lỗi.` : `${preview.length} dòng hợp lệ.`}
+            {errorRows > 0 ? `File có ${errorRows} dòng lỗi.` : `${newRows} dòng mới.`}
+            {importedRows > 0 && ` ${importedRows} dòng đã nhập.`}
             {differenceRows > 0 && ` ${differenceRows} dòng lệch.`}
-            {checked.result.replaced > 0 &&
-              ` Ghi file này thay cho ${checked.result.replaced} tài khoản đã nhập.`}
           </p>
-          {(errorRows > 0 || differenceRows > 0) && (
+          {(errorRows > 0 || differenceRows > 0 || importedRows > 0) && (
             <SegmentedTabs
               label="Lọc dòng"
               value={view}
@@ -171,6 +182,7 @@ export function CasaImportDialog({ open, month, onClose }: Props) {
                 { value: "all", label: "Tất cả", count: preview.length },
                 ...(errorRows > 0 ? [{ value: "errors", label: "Lỗi", count: errorRows }] : []),
                 ...(differenceRows > 0 ? [{ value: "differences", label: "Lệch", count: differenceRows }] : []),
+                ...(importedRows > 0 ? [{ value: "imported", label: "Đã nhập", count: importedRows }] : []),
               ]}
             />
           )}

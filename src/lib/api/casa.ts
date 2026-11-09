@@ -4,7 +4,7 @@ import type { ColumnSpec } from '@/lib/readExcelRows';
 /**
  * Tài khoản VPa đạt CASA, nhập từ sheet "CHI TIẾT CASA ĐẠT" của file ngân hàng
  * gửi (chốt 2026-11-09). File tháng M tính vào lương tháng M+1. Hồ sơ phải khớp
- * CCCD và chính hồ sơ đó có tài khoản VPa.
+ * CCCD và chính hồ sơ đó có tài khoản VPa. Mỗi tài khoản chỉ nhập một lần.
  */
 
 export const CASA_FILE_COLUMNS = {
@@ -42,6 +42,8 @@ export const CasaPreviewRow = z.object({
   staffCode: z.string(),
   /** STK của tài khoản VPa sẽ đánh dấu. Rỗng khi dòng lỗi. */
   accountNumber: z.string(),
+  /** Tháng lương tài khoản đã được nhập trước đó. Có giá trị thì lượt này không ghi lại. */
+  importedMonth: z.string().nullable(),
   /** Có một lỗi thì cả file không ghi được. */
   errors: z.array(z.string()),
   /** Chỉ báo, vẫn ghi được. */
@@ -52,8 +54,6 @@ export type CasaPreviewRow = z.infer<typeof CasaPreviewRow>;
 export const CasaImportResult = z.object({
   rows: z.array(CasaPreviewRow),
   written: z.number(),
-  /** Số tài khoản tháng này đang có; lượt ghi thay toàn bộ số này. */
-  replaced: z.number(),
 });
 export type CasaImportResult = z.infer<typeof CasaImportResult>;
 
