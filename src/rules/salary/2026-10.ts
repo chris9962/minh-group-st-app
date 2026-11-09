@@ -30,12 +30,13 @@ import type {
  *   của thông báo đó tính ngoài app (chốt 2026-10-04).
  * - Lương cứng: số tiền trên hồ sơ của tháng, cộng ăn ca, xem `fixed`.
  *
+ * - CASA theo QĐ 107 Phụ lục 04, 05: nhân viên HĐLĐ cộng 0,2 điểm/tài khoản vào
+ *   điểm KPI trước khi chia mốc; Trưởng/Phó phòng đạt chỉ tiêu CASA của phòng
+ *   cộng 4, thiếu trừ 10; tài khoản tự mở cộng 0,2 điểm × 70.000đ. File CASA
+ *   tháng M tính vào lương tháng M+1 (chốt 2026-11-09).
+ *
  * Khác kỳ 2026-09: quản lý bị trừ lại khi thiếu chỉ tiêu HKD; Phòng Y và phòng
  * Dự án chấm đủ số admin nhập, không còn 50%.
- *
- * TODO(lương CĐS, file mẫu CASA của Yên): CASA chưa tính. Nhân viên HĐLĐ cộng
- * 0,2 điểm/tài khoản; Trưởng/Phó phòng đạt cộng 4, thiếu trừ 10; tự mở cộng
- * 0,2 điểm/tài khoản × 70.000đ. Gỡ khi có màn nhập danh sách CASA.
  */
 
 const DAILY_SUPPORT = 120_000;
@@ -45,6 +46,7 @@ const SOCIAL_MAX_DAYS = 22;
 const FIXED_MAX_DAYS = 22;
 const ATM_COMBO_BONUS = 50_000;
 const DEPUTY_DIRECTOR_DAYS = 22;
+const CASA_POINTS = 0.2;
 
 /**
  * Chỉ tiêu tháng 2026-10 không giao định hướng cho Phòng Y và phòng Dự án. Ghi
@@ -121,9 +123,10 @@ function atmStaff({ points, workDays, bonusCombos = 0 }: StaffSalaryInput): Sala
 
 export function staff(input: StaffSalaryInput): SalaryResult {
   if (input.scheme === "atm") return atmStaff(input);
-  const { points, workDays, directedQuota } = input;
+  const { points, workDays, directedQuota, casaAccounts = 0 } = input;
   const directed = directedQuota ? quotaResult(directedQuota, 3, (shortfall) => shortfall) : null;
-  const direct = roundPoints(points + (directed?.points ?? 0));
+  const casaPoints = roundPoints(casaAccounts * CASA_POINTS);
+  const direct = roundPoints(points + (directed?.points ?? 0) + casaPoints);
   const social = input.scheme === "social";
   const days = Math.min(workDays, social ? SOCIAL_MAX_DAYS : MAX_DAYS);
   const tier1 = Math.min(Math.max(direct, 0), 100);
@@ -163,11 +166,12 @@ export function staff(input: StaffSalaryInput): SalaryResult {
       : undefined,
     facts: [
       ...(social ? [] : [{ label: "Điểm KPI", value: `${formatPoints(roundPoints(points))} điểm` }]),
-      ...(directed
-        ? [
-            { label: "Tài khoản định hướng", value: directed.text },
-            { label: "Điểm tính lương", value: `${formatPoints(direct)} điểm` },
-          ]
+      ...(directed ? [{ label: "Tài khoản định hướng", value: directed.text }] : []),
+      ...(casaAccounts > 0
+        ? [{ label: "Tài khoản CASA", value: `${casaAccounts} tài khoản, cộng ${formatPoints(casaPoints)} điểm` }]
+        : []),
+      ...(directed || casaAccounts > 0
+        ? [{ label: "Điểm tính lương", value: `${formatPoints(direct)} điểm` }]
         : []),
       ...(social ? [] : [{ label: "Ngày công", value: `${days} ngày` }]),
     ],
@@ -194,15 +198,16 @@ export function fixed({ amount, workDays }: FixedSalaryInput): SalaryResult {
   };
 }
 
-/** Chỉ tiêu phòng của Trưởng/Phó phòng: đạt cộng 10, thiếu trừ `penalty(Thiếu%)`. */
+/** Chỉ tiêu phòng của Trưởng/Phó phòng: đạt cộng `reward`, thiếu trừ `penalty(Thiếu%)`. */
 function quotaItems(
   quota: QuotaProgress | null | undefined,
   label: string,
   rate: number,
   penalty: (shortfall: number) => number,
+  reward = 10,
 ): SalaryItem[] {
   if (!quota) return [];
-  const result = quotaResult(quota, 10, penalty);
+  const result = quotaResult(quota, reward, penalty);
   const formula = result.points === 0 ? result.text : `${result.text} × ${vnd(rate)}`;
   return [{ label, formula, amount: result.points * rate, keepAtZero: true }];
 }
@@ -241,6 +246,7 @@ export function manager({
   teamPoints,
   workDays,
   departmentQuota,
+  casaAccounts = 0,
 }: ManagerSalaryInput): SalaryResult {
   const direct = roundPoints(points);
   const reached = teamPoints.filter((p) => p >= 100).length;
@@ -260,10 +266,16 @@ export function manager({
     },
     ...quotaItems(departmentQuota?.hkd, "Chỉ tiêu HKD của phòng", rate, (shortfall) => shortfall),
     ...quotaItems(departmentQuota?.directed, "Chỉ tiêu định hướng của phòng", rate, (shortfall) => shortfall),
+    ...quotaItems(departmentQuota?.casa, "Chỉ tiêu CASA của phòng", rate, () => 10, 4),
     {
       label: "Làm trực tiếp",
       formula: `${formatPoints(Math.max(direct, 0))} điểm × 70.000đ`,
       amount: Math.max(direct, 0) * 70_000,
+    },
+    {
+      label: "CASA tự mở",
+      formula: `${casaAccounts} tài khoản × ${formatPoints(CASA_POINTS)} điểm × 70.000đ`,
+      amount: Math.round(casaAccounts * CASA_POINTS * 70_000),
     },
     {
       label: "Thưởng vượt của phòng",

@@ -28,9 +28,7 @@ import type {
  * Nhân viên phòng không có chỉ tiêu thì không chấm, bỏ 50% chỉ tiêu cá nhân:
  * chốt 2026-10-02.
  *
- * TODO(lương CĐS, file mẫu CASA của Yên): CASA chưa tính. Nhân viên HĐLĐ cộng
- * 0,2 điểm/tài khoản; Trưởng/Phó phòng đạt cộng 4, thiếu trừ 10; tự mở cộng
- * 0,2 điểm/tài khoản × 70.000đ. Gỡ khi có màn nhập danh sách CASA.
+ * Kỳ này không tính CASA. File CASA tháng 9 tính vào lương tháng 10, xem `2026-10.ts`.
  */
 
 const DAILY_SUPPORT = 120_000;

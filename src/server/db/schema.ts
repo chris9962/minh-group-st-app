@@ -2647,6 +2647,24 @@ export const quotaAccountKinds = pgTable(
 );
 
 /**
+ * Tài khoản ngân hàng đạt CASA, nhập từ file của ngân hàng ở màn Chỉ tiêu tháng.
+ * `year_month` là tháng LƯƠNG tính CASA: file tháng M tính vào lương tháng M+1
+ * (chốt 2026-11-09). Khoá chính là tài khoản: một tài khoản chỉ tính CASA một lần.
+ */
+export const casaAccounts = pgTable(
+  "casa_accounts",
+  {
+    bankAccountId: uuid("bank_account_id")
+      .primaryKey()
+      .references(() => bankAccounts.id, { onDelete: "cascade" }),
+    yearMonth: text("year_month").notNull(),
+    createdBy: uuid("created_by").references(() => users.id),
+    createdAt: createdAt(),
+  },
+  (t) => [index("casa_accounts_month").on(t.yearMonth)],
+);
+
+/**
  * Điểm KPI đã tính, một dòng mỗi người mỗi tháng.
  *
  * ⚠️ Đây là ngoại lệ so với `mgst-db-design.md` §9 ("điểm KPI không lưu"). Lý do

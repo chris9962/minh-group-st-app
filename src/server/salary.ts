@@ -12,6 +12,7 @@ import {
   type SalaryRevenue,
   type SalaryItem,
 } from "@/rules/salary";
+import { countCasaAccounts } from "./casa";
 import { lockSalaryMonth } from "./closedMonths";
 import { db } from "./db/client";
 import {
@@ -167,9 +168,7 @@ async function withAdjustments(
 /**
  * Lương CĐS đang chạy, tính theo file kỳ ở `src/rules/salary`.
  *
- * Chỉ tiêu QĐ 145 đọc từ màn Chỉ tiêu tháng, xem `quotaProgressFor`.
- * TODO(lương CĐS, file mẫu CASA của Yên): chưa đếm CASA, nên chưa truyền chỉ
- * tiêu CASA vào file kỳ. Gỡ khi có màn nhập danh sách CASA.
+ * Chỉ tiêu QĐ 145 và tài khoản CASA đọc từ màn Chỉ tiêu tháng, xem `quotaProgressFor`.
  *
  * Phòng, chức vụ, loại hợp đồng, cách tính lương và phòng phụ trách đọc từ
  * `staffRoster` của ĐÚNG tháng đang tính (chốt 2026-09-30). Chuyển phòng hay
@@ -399,6 +398,7 @@ async function liveSalaries(
         points: subject.points,
         workDays: userDays.get(subject.id) ?? 0,
         directedQuota: quota.staff(subject.id),
+        casaAccounts: quota.casa(subject.id),
         scheme: subject.salaryScheme,
         bonusCombos: bonusCombos.get(subject.id) ?? 0,
         socialInsurance: (socialGroups.get(subject.id) ?? []).map((group) => ({
@@ -420,6 +420,7 @@ async function liveSalaries(
         // Cùng nguồn với báo cáo Ngày công (`listWorkDayExport`): phòng có chấm công thì quản lý cũng chấm.
         workDays: subject.attendanceMode ? workDays : (departmentDays.get(subject.departmentId) ?? 0),
         departmentQuota: quota.department(subject.departmentId),
+        casaAccounts: quota.casa(subject.id),
       });
     } else if (subject.role === "deputy-director" && rules.deputyDirector) {
       const managed = managedByUser.get(subject.id) ?? [];
@@ -460,6 +461,9 @@ async function liveSalaries(
  *
  * Nhân viên chỉ chấm khi là HĐLĐ (chốt 2026-09-25); đếm theo người lập hồ sơ
  * khách như KPI. Phòng đếm MỌI tài khoản ghi nhận cho phòng, không riêng HĐLĐ.
+ *
+ * `casa` là số tài khoản CASA của nhân viên HĐLĐ và của Trưởng/Phó phòng tự mở.
+ * CASA không cần chỉ tiêu tháng: chỉ tiêu CASA cá nhân chỉ lưu.
  */
 export async function quotaProgressFor(
   yearMonth: string,
@@ -468,8 +472,21 @@ export async function quotaProgressFor(
 ): Promise<{
   staff: (userId: string) => QuotaProgress | null;
   department: (departmentId: string) => DepartmentQuotaProgress | null;
+  casa: (userId: string) => number;
 }> {
-  const none = { staff: () => null, department: () => null };
+  const casaUserIds = subjects
+    .filter(
+      (s) =>
+        s.departmentType === "sales" &&
+        ((s.role === "staff" && s.contractType === "hdld") ||
+          s.role === "head" ||
+          s.role === "deputy-head"),
+    )
+    .map((s) => s.id);
+  const casaByUser = await countCasaAccounts(yearMonth, "creator", casaUserIds);
+  const casa = (userId: string) => casaByUser.get(userId) ?? 0;
+
+  const none = { staff: () => null, department: () => null, casa };
   const config = await quotaConfigOf(yearMonth);
   if (!config) return none;
 
@@ -494,10 +511,11 @@ export async function quotaProgressFor(
     ]),
   ].filter((id) => config.departments.has(id));
 
-  const [directedByStaff, hkdByDepartment, directedByDepartment] = await Promise.all([
+  const [directedByStaff, hkdByDepartment, directedByDepartment, casaByDepartment] = await Promise.all([
     countQuotaAccounts(yearMonth, config.directedKinds, "creator", staffIds),
     countQuotaAccounts(yearMonth, config.hkdKinds, "department", departmentIds),
     countQuotaAccounts(yearMonth, config.directedKinds, "department", departmentIds),
+    countCasaAccounts(yearMonth, "department", departmentIds),
   ]);
 
   const codeOfDepartment = new Map<string, string | null>([
@@ -537,8 +555,11 @@ export async function quotaProgressFor(
         directedByDepartment.get(departmentId),
         code,
       );
-      return hkd || directed ? { hkd, directed } : null;
+      // CASA không có danh sách loại tài khoản: file CASA đã chỉ rõ từng tài khoản.
+      const casaQuota = progress(targets.casa, 1, casaByDepartment.get(departmentId), code);
+      return hkd || directed || casaQuota ? { hkd, directed, casa: casaQuota } : null;
     },
+    casa,
   };
 }
 
