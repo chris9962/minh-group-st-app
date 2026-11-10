@@ -46,6 +46,8 @@ export type QuotaProgress = { target: number; achieved: number };
 export type DepartmentQuotaProgress = {
   hkd: QuotaProgress | null;
   directed: QuotaProgress | null;
+  /** Kỳ trước 2026-10 bỏ qua. */
+  casa?: QuotaProgress | null;
 };
 
 export type StaffSalaryInput = {
@@ -54,6 +56,8 @@ export type StaffSalaryInput = {
   workDays: number;
   /** Chỉ tiêu tài khoản định hướng; chỉ nhân viên HĐLĐ có. Kỳ trước 2026-09 bỏ qua. */
   directedQuota?: QuotaProgress | null;
+  /** Số tài khoản đạt CASA tính vào lương tháng này; chỉ nhân viên HĐLĐ có. Kỳ trước 2026-10 bỏ qua. */
+  casaAccounts?: number;
   /** Cách tính lương ghi trên hồ sơ nhân viên. Kỳ trước 2026-10 bỏ qua. */
   scheme?: "department" | "atm" | "social" | "fixed";
   /** Số khách đạt Combo 2 hoặc Combo 3 trong tháng; chỉ truyền cho nhân viên điểm ATM. */
@@ -80,6 +84,8 @@ export type ManagerSalaryInput = {
   workDays: number;
   /** Chỉ tiêu của phòng mình. Kỳ trước 2026-09 bỏ qua. */
   departmentQuota?: DepartmentQuotaProgress | null;
+  /** Số tài khoản đạt CASA của khách chính người này lập. Kỳ trước 2026-10 bỏ qua. */
+  casaAccounts?: number;
 };
 
 export type FixedSalaryInput = {

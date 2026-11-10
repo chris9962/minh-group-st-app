@@ -12,6 +12,14 @@ import { isoDate, isoDateOrEmpty, ROLE_RANK, type User } from '@/lib/types';
  * lại y hệt từ P-20/màn Ngân hàng khi màn đó được xây — không đổi API.
  */
 
+/**
+ * Mã trong danh mục ngân hàng mà KHÔNG phải ngân hàng: ví ShopeePay (chủ dự án
+ * chốt 2026-11-10). Dòng của mã này không đếm vào số ngân hàng và không chiếm
+ * chỗ trong giới hạn `MAX_BANK_ACCOUNTS_PER_CUSTOMER`, giống dòng HKD.
+ */
+export const NON_BANK_CODES = ['ShopeePay'];
+export const isNonBankCode = (bankCode: string): boolean => NON_BANK_CODES.includes(bankCode);
+
 export const AccountType = z.enum(['none', 'CNKD', 'HKD']);
 export type AccountType = z.infer<typeof AccountType>;
 
@@ -200,7 +208,9 @@ export const BankAccountStartForm = z
    */
   .refine(
     (form) =>
-      form.picks.filter((p) => p.accountType !== 'HKD').length <= MAX_BANK_ACCOUNTS_PER_CUSTOMER,
+      // Biểu mẫu chỉ biết `bankId`, không biết dòng nào là ShopeePay; máy chủ đếm chính xác.
+      form.picks.filter((p) => p.accountType !== 'HKD').length <=
+        MAX_BANK_ACCOUNTS_PER_CUSTOMER + NON_BANK_CODES.length,
     {
       message: `Một khách mở tối đa ${MAX_BANK_ACCOUNTS_PER_CUSTOMER} tài khoản`,
       path: ['picks'],
@@ -362,6 +372,13 @@ export const BankAccountFinishForm = z.object({
    */
   openedDate: isoDate('Chưa chọn ngày mở'),
   appInstalled: z.boolean(),
+  /** Tài khoản liên kết của dòng ShopeePay. Máy chủ bắt buộc cả hai ô với ShopeePay, bỏ qua với ngân hàng. */
+  linkedBankName: z.string().trim().max(100, 'Tên ngân hàng dài quá'),
+  linkedAccountNumber: z
+    .string()
+    .trim()
+    .max(50, 'Số tài khoản liên kết dài quá')
+    .regex(/^\d*$/, 'Số tài khoản liên kết chỉ được có chữ số'),
   /**
    * KHÔNG có loại tài khoản ở đây (chốt 2026-09-06): loại cố định từ mã giới
    * thiệu chọn lúc giữ chỗ, và mã tách theo loại. Muốn loại khác thì mở dòng

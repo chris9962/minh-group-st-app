@@ -20,6 +20,7 @@ import {
   canEditOpeningPhotos,
   DRAFT_TTL_MINUTES,
   DRAFT_WARN_LEAD_MINUTES,
+  isNonBankCode,
   MAX_BANK_ACCOUNTS_PER_CUSTOMER,
   pendingSkipReasonMessage,
 } from "@/lib/api/bankAccounts";
@@ -652,6 +653,8 @@ const pickPage = (where: SQL | undefined, orderBy: SQL[], limit: number, offset:
       appInstalled: bankAccounts.appInstalled,
       accountType: bankAccounts.accountType,
       note: bankAccounts.note,
+      linkedBankName: bankAccounts.linkedBankName,
+      linkedAccountNumber: bankAccounts.linkedAccountNumber,
       errorNote: bankAccounts.errorNote,
       createdBy: bankAccounts.createdBy,
       createdByDepartmentId: bankAccounts.createdByDepartmentId,
@@ -712,6 +715,8 @@ const decorate = (page: ReturnType<typeof pickPage>) => {
       appInstalled: page.appInstalled,
       accountType: page.accountType,
       note: page.note,
+      linkedBankName: sql<string>`coalesce(${page.linkedBankName}, '')`,
+      linkedAccountNumber: sql<string>`coalesce(${page.linkedAccountNumber}, '')`,
       errorNote: page.errorNote,
       createdById: page.createdBy,
       createdByName: users.fullName,
@@ -735,6 +740,7 @@ const decorate = (page: ReturnType<typeof pickPage>) => {
       countsAsApp: banks.countsAsApp,
       // Hướng dẫn mở tài khoản của ngân hàng này (spec §4.4d). `''` = chưa có.
       bankGuide: sql<string>`coalesce(${banks.guide}, '')`,
+      bankQrLink: sql<string>`coalesce(${banks.qrLink}, '')`,
       // Lượt kiểm ảnh OCR mới nhất; bốn cột null = chưa có lượt nào.
       photoCheckStatus: check.status,
       photoCheckResult: check.result,
@@ -1339,6 +1345,8 @@ async function detailBody(r: DecoratedRow): Promise<BankAccountDetail> {
     channelDetail: r.channelDetail,
     accountType,
     note: r.note,
+    linkedBankName: r.linkedBankName,
+    linkedAccountNumber: r.linkedAccountNumber,
     createdByDepartmentId: r.createdByDepartmentId,
     photoUrls: await photoUrlsOf(r.id, "opening"),
     transactionAt: r.transactionAt,
@@ -1367,6 +1375,7 @@ async function detailBody(r: DecoratedRow): Promise<BankAccountDetail> {
     referralSupportBranch: r.referralSupportBranch,
     referralOpenUrl: r.referralOpenUrl,
     referralQrUrl: r.referralQrImage ? imageUrl(r.referralQrImage) : "",
+    bankQrLink: r.bankQrLink,
     bankGuide: separateGuide ? (variant?.guide ?? "") : r.bankGuide,
     bankGuidePhotoUrls: await bankGuidePhotoUrls(
       r.bankId,
@@ -1622,18 +1631,27 @@ export async function startBankAccount(
      * trước trong cùng lượt.
      */
     const ruleDay = businessDay(customer.createdAt);
-    const mainCodesHere = ownedHere.filter((r) => !isHkd(r.accountType)).map((r) => r.bankCode);
+    // Dòng ShopeePay không phải ngân hàng, giống dòng HKD (chốt 2026-11-10).
+    const mainCodesHere = ownedHere
+      .filter((r) => !isHkd(r.accountType) && !isNonBankCode(r.bankCode))
+      .map((r) => r.bankCode);
+    const mainPickCodes = form.picks
+      .filter((p) => !isHkd(p.accountType))
+      .map((p) => bankById.get(p.bankId)!.code)
+      .filter((code) => !isNonBankCode(code));
     const pickedSoFar: string[] = [];
     for (const pick of form.picks) {
       if (isHkd(pick.accountType)) continue;
       const code = bankById.get(pick.bankId)!.code;
-      const reason = openBlockReasonAt([...mainCodesHere, ...pickedSoFar], code, ruleDay);
+      // ShopeePay xét trên MỌI ngân hàng đang chọn, không theo thứ tự trong lượt.
+      const existing = isNonBankCode(code) ? mainPickCodes : pickedSoFar;
+      const reason = openBlockReasonAt([...mainCodesHere, ...existing], code, ruleDay);
       if (reason) return { ok: false as const, message: `${code}: ${reason}` };
-      pickedSoFar.push(code);
+      if (!isNonBankCode(code)) pickedSoFar.push(code);
     }
 
     const mainHere = mainCodesHere.length;
-    const mainPicks = form.picks.filter((p) => !isHkd(p.accountType)).length;
+    const mainPicks = mainPickCodes.length;
     if (mainHere + mainPicks > MAX_BANK_ACCOUNTS_PER_CUSTOMER)
       return {
         ok: false as const,
@@ -1794,7 +1812,7 @@ export async function customerBankSlots(
       })
       .from(bankAccounts)
       .where(eq(bankAccounts.rootCustomerId, customer.rootCustomerId)),
-    db.select({ id: banks.id, minAge: banks.minAge, maxAge: banks.maxAge }).from(banks),
+    db.select({ id: banks.id, code: banks.code, minAge: banks.minAge, maxAge: banks.maxAge }).from(banks),
     // Ngân hàng có loại tài khoản nào để mở: đọc từ kho mã, không viết cứng `VPa`.
     // Chỉ tính mã phòng ghi nhận dùng được: mã CNKD của phòng khác từng mở dòng VPb
     // cho khách ngoài tuổi VPb thường, rồi ô mã hiện mã thường (2026-10-16).
@@ -1824,7 +1842,10 @@ export async function customerBankSlots(
       .map((bank) => bank.id);
 
   // Trần 3 chỉ đếm dòng CHÍNH của hồ sơ đang mở; dòng HKD không phải ngân hàng.
-  const mainHere = byPerson.filter((r) => r.customerId === customerId && !isHkd(r.accountType)).length;
+  const nonBankIds = new Set(bankRows.filter((b) => isNonBankCode(b.code)).map((b) => b.id));
+  const mainHere = byPerson.filter(
+    (r) => r.customerId === customerId && !isHkd(r.accountType) && !nonBankIds.has(r.bankId),
+  ).length;
 
   return {
     used: byPerson.map((r) => ({
@@ -1864,6 +1885,23 @@ export async function customerBankSlots(
  * thiếu dữ liệu chứ không phải một quyết định kinh doanh. Ba luật cảnh báo mềm
  * còn lại của §4.8 đã bỏ (2026-09-07): chúng đếm "tổng app" theo luật quà cũ.
  */
+type LinkedAccountInput = Pick<BankAccountFinishForm, "linkedBankName" | "linkedAccountNumber">;
+
+const linkedAccountMissing = (bankCode: string, form: LinkedAccountInput): string | null =>
+  isNonBankCode(bankCode) && (!form.linkedBankName || !form.linkedAccountNumber)
+    ? `${bankCode} cần ngân hàng và số tài khoản liên kết.`
+    : null;
+
+// Dòng ShopeePay không có ô số tài khoản riêng: số tài khoản liên kết ghi vào cả hai cột.
+const linkedAccountOf = (bankCode: string, form: LinkedAccountInput) =>
+  isNonBankCode(bankCode)
+    ? {
+        accountNumber: form.linkedAccountNumber,
+        linkedBankName: form.linkedBankName,
+        linkedAccountNumber: form.linkedAccountNumber,
+      }
+    : {};
+
 export async function finishBankAccount(
   actor: User,
   id: string,
@@ -1898,7 +1936,7 @@ export async function finishBankAccount(
    * request nặn tay gửi số bất kỳ vẫn tới đây, và tài khoản `done` thì số tài
    * khoản không sửa lại được nữa.
    */
-  if (current.accountNumberMethod === "phone-match") {
+  if (!isNonBankCode(current.bankCode) && current.accountNumberMethod === "phone-match") {
     const phones = await customerPhoneNumbers(current.customerId);
     if (!phones.includes(form.accountNumber))
       return {
@@ -1910,6 +1948,7 @@ export async function finishBankAccount(
   // Ô nhập đã giới hạn độ dài, nhưng ô nhập không phải chốt chặn — cùng lý do
   // với phép kiểm phone-match ngay trên.
   if (
+    !isNonBankCode(current.bankCode) &&
     current.accountNumberMethod === "manual" &&
     current.accountNumberLength !== null &&
     form.accountNumber.length !== current.accountNumberLength
@@ -1931,6 +1970,9 @@ export async function finishBankAccount(
    * hoàn tất, không để trống: `businessMonth` phía dưới cần một ngày có thật.
    */
   const openedDate = current.date || businessDay();
+
+  const linkedMissing = linkedAccountMissing(current.bankCode, form);
+  if (linkedMissing) return { ok: false, message: linkedMissing };
 
   /**
    * Đếm ảnh và ghi phải nằm TRONG CÙNG MỘT GIAO DỊCH, và câu ghi phải mang lại
@@ -1965,6 +2007,7 @@ export async function finishBankAccount(
       openedDate,
       appInstalled: form.appInstalled,
       note: form.note,
+      ...linkedAccountOf(current.bankCode, form),
       finishedAt: new Date(),
     });
 
@@ -2042,7 +2085,7 @@ export async function updateFinishedAccount(
   const nextStatus = current.status === "error" ? "fixed" : current.status;
 
   // Cùng chốt chặn với `finishBankAccount`: đường sửa cũng ghi đè số tài khoản.
-  if (current.accountNumberMethod === "phone-match") {
+  if (!isNonBankCode(current.bankCode) && current.accountNumberMethod === "phone-match") {
     const phones = await customerPhoneNumbers(current.customerId);
     if (!phones.includes(form.accountNumber))
       return {
@@ -2052,6 +2095,7 @@ export async function updateFinishedAccount(
   }
 
   if (
+    !isNonBankCode(current.bankCode) &&
     current.accountNumberMethod === "manual" &&
     current.accountNumberLength !== null &&
     form.accountNumber.length !== current.accountNumberLength
@@ -2060,6 +2104,9 @@ export async function updateFinishedAccount(
       ok: false,
       message: `Số tài khoản ${current.bankCode} phải đủ ${current.accountNumberLength} chữ số.`,
     };
+
+  const linkedMissing = linkedAccountMissing(current.bankCode, form);
+  if (linkedMissing) return { ok: false, message: linkedMissing };
 
   const previousDate = current.date;
 
@@ -2076,12 +2123,14 @@ export async function updateFinishedAccount(
       transactionAt: form.transactionAt || null,
       appInstalled: form.appInstalled,
       note: form.note,
+      ...linkedAccountOf(current.bankCode, form),
     });
 
     if (updated.length === 0)
       return { ok: false as const, message: "Tài khoản này vừa bị đổi ở nơi khác" };
     // Phép kiểm so số tài khoản trên ảnh với số đã nhập, đổi số là phải kiểm lại.
-    if (form.accountNumber !== current.accountNumber) await enqueuePhotoCheck(tx, id);
+    if (!isNonBankCode(current.bankCode) && form.accountNumber !== current.accountNumber)
+      await enqueuePhotoCheck(tx, id);
     return { ok: true as const };
   });
 

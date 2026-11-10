@@ -6,7 +6,6 @@ import { ReceiptText } from "lucide-react";
 import type { PersonDetail } from "@/lib/api/person";
 import { SALARY_ADJUSTMENT_LABEL, type SalaryAdjustmentKind } from "@/lib/api/salaryAdjustments";
 import { formatDate, formatVnd } from "@/lib/format";
-import { FIXED_SALARY_ITEM } from "@/rules/salary/labels";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import styles from "./SalaryBreakdownButton.module.css";
@@ -164,13 +163,8 @@ export function SalaryBreakdownDialog({
               </strong>
             </div>
           </div>
-          {/* TODO(lương CĐS, file mẫu CASA của Yên): gỡ phần CASA khi lương tính CASA. Lương cứng không có CASA. */}
-          {!breakdown.items.some((item) => item.label === FIXED_SALARY_ITEM) && (
-            <p className={styles.note}>
-              {/* Khoản hỗ trợ của An Sinh giảm dần mỗi tháng, kế toán tính ngoài app (spec BHYT/BHXH mục 0). */}
-              {breakdown.revenue ? "Chưa gồm CASA và tiền hỗ trợ 2.000.000đ." : "Chưa gồm CASA."}
-            </p>
-          )}
+          {/* Khoản hỗ trợ của An Sinh giảm dần mỗi tháng, kế toán tính ngoài app (spec BHYT/BHXH mục 0). */}
+          {breakdown.revenue && <p className={styles.note}>Chưa gồm tiền hỗ trợ 2.000.000đ.</p>}
         </>
       ) : (
         <p className={styles.empty}>

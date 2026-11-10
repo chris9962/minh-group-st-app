@@ -624,6 +624,8 @@ export const banks = pgTable(
      * ngân hàng một khác, và mọi cấu trúc dựng ra đều chật với ngân hàng sau.
      */
     guide: text("guide"),
+    /** Link hiện thành mã QR ở bước 2 cho mọi tài khoản của ngân hàng này (migration 0165). null = không có. */
+    qrLink: text("qr_link"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -1340,6 +1342,9 @@ export const bankAccounts = pgTable(
     /** Người quản ngân hàng đánh lỗi kèm "Không cho sửa" (migration 0136). */
     errorLocked: boolean("error_locked").notNull().default(false),
     accountNumber: text("account_number"),
+    /** Tài khoản ngân hàng khách liên kết với ví, chỉ dòng ShopeePay có (migration 0166). */
+    linkedBankName: text("linked_bank_name"),
+    linkedAccountNumber: text("linked_account_number"),
     openedDate: date("opened_date"),
     /** Trường quyết định quà. */
     appInstalled: boolean("app_installed").notNull().default(false),
@@ -2644,6 +2649,24 @@ export const quotaAccountKinds = pgTable(
     accountType: bankAccountType("account_type").notNull(),
   },
   (t) => [primaryKey({ columns: [t.yearMonth, t.kind, t.bankId, t.accountType] })],
+);
+
+/**
+ * Tài khoản ngân hàng đạt CASA, nhập từ file của ngân hàng ở màn Chỉ tiêu tháng.
+ * `year_month` là tháng LƯƠNG tính CASA: file tháng M tính vào lương tháng M+1
+ * (chốt 2026-11-09). Khoá chính là tài khoản: một tài khoản chỉ tính CASA một lần.
+ */
+export const casaAccounts = pgTable(
+  "casa_accounts",
+  {
+    bankAccountId: uuid("bank_account_id")
+      .primaryKey()
+      .references(() => bankAccounts.id, { onDelete: "cascade" }),
+    yearMonth: text("year_month").notNull(),
+    createdBy: uuid("created_by").references(() => users.id),
+    createdAt: createdAt(),
+  },
+  (t) => [index("casa_accounts_month").on(t.yearMonth)],
 );
 
 /**

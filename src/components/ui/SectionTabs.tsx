@@ -58,7 +58,13 @@ export function SectionTabs({ label, options, value, onChange }: Props) {
             disabled={o.disabled}
             onChange={() => onChange(o.value)}
           />
-          {o.label}
+          <span className={styles.text}>
+            <span>{o.label}</span>
+            {/* Bản chữ đậm ẩn giữ sẵn bề rộng, tab đổi sang đậm không đẩy tab bên cạnh. */}
+            <span className={styles.sizer} aria-hidden="true">
+              {o.label}
+            </span>
+          </span>
         </label>
       ))}
     </div>

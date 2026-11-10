@@ -555,7 +555,7 @@ export async function actOnAdvance(actor: User, id: string, form: AdvanceActionF
   return { ok: true, as: allowed.as, fullName, month: row.yearMonth };
 }
 
-/* ── Ba nút của kế toán ────────────────────────────────────────────────── */
+/* ── Các nút của kế toán ────────────────────────────────────────────────── */
 
 type BatchResult = { ok: true; count: number } | { ok: false; message: string };
 
@@ -602,37 +602,29 @@ export async function approveAllAdvances(actor: User, month: string): Promise<Ba
 }
 
 /**
- * Sau khi xuất Excel: yêu cầu Đã duyệt có trong file chuyển sang Đang xử lý.
- * Khớp cả số tiền trong file: dòng bị sửa số tiền sau lúc xuất thì giữ nguyên
- * Đã duyệt, vì ngân hàng chi theo số trong file chứ không theo số mới.
+ * Chuyển mọi yêu cầu Đã duyệt của tháng sang Đang xử lý. Nút riêng, không gắn
+ * với Xuất Excel (chủ dự án chốt 2026-11-10).
  */
-export async function markAdvancesProcessing(
-  actor: User,
-  month: string,
-  items: { id: string; amount: number }[],
-): Promise<BatchResult> {
+export async function markAdvancesProcessing(actor: User, month: string): Promise<BatchResult> {
   const closed = await accountingOpen(month);
   if (closed) return { ok: false, message: closed };
   const count = await db.transaction(async (tx) => {
-    let moved = 0;
-    for (const item of items) {
-      const [row] = await tx
-        .update(salaryAdvanceRequests)
-        .set({ status: "processing", updatedAt: advanceNow() })
-        .where(
-          and(
-            eq(salaryAdvanceRequests.id, item.id),
-            eq(salaryAdvanceRequests.yearMonth, month),
-            eq(salaryAdvanceRequests.status, "approved"),
-            eq(salaryAdvanceRequests.amount, item.amount),
-          ),
-        )
-        .returning({ id: salaryAdvanceRequests.id });
-      if (!row) continue;
-      await addEvent(tx, row.id, "processing", actor.id, { toAmount: item.amount });
-      moved += 1;
-    }
-    return moved;
+    const moved = await tx
+      .update(salaryAdvanceRequests)
+      .set({ status: "processing", updatedAt: advanceNow() })
+      .where(and(eq(salaryAdvanceRequests.yearMonth, month), eq(salaryAdvanceRequests.status, "approved")))
+      .returning({ id: salaryAdvanceRequests.id, amount: salaryAdvanceRequests.amount });
+    if (moved.length > 0)
+      await tx.insert(salaryAdvanceEvents).values(
+        moved.map((r) => ({
+          requestId: r.id,
+          kind: "processing" as const,
+          actorId: actor.id,
+          toAmount: r.amount,
+          createdAt: advanceNow(),
+        })),
+      );
+    return moved.length;
   });
   return { ok: true, count };
 }
@@ -677,8 +669,8 @@ export async function markAdvancesPaid(actor: User, month: string): Promise<Batc
 
 /**
  * File Excel của kế toán: chỉ yêu cầu Đã duyệt, chưa chuyển Đang xử lý, theo bộ
- * lọc phòng và ô tìm đang xem. Yêu cầu đã vào file trước thì không xuất lại, để
- * ngân hàng không chi hai lần. Còn yêu cầu chờ duyệt thì chưa cho xuất (chốt 2026-11-01).
+ * lọc phòng và ô tìm đang xem. Xuất file không đổi trạng thái (chốt 2026-11-10).
+ * Còn yêu cầu chờ duyệt thì chưa cho xuất (chốt 2026-11-01).
  */
 export async function advanceExportRows(
   actor: User,

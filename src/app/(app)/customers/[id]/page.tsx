@@ -518,10 +518,7 @@ export default function CustomerDetailPage({
                     </Button>
                   )}
                 {!data.monthClosed && currentMonthProfile && (
-                  <Button
-                    variant="secondary"
-                    disabled={data.bankSlotsLeft <= 0}
-                    onClick={() => setOpeningBank(true)}
+                  <Button variant="secondary" onClick={() => setOpeningBank(true)}
                   >
                     <Landmark size={16} />
                     Mở ngân hàng

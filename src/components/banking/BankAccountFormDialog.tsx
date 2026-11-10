@@ -21,6 +21,7 @@ import {
   ACCOUNT_TYPE_LABEL,
   BankAccountStartForm,
   fetchCustomerBankSlots,
+  isNonBankCode,
   MAX_BANK_ACCOUNTS_PER_CUSTOMER,
   startBankAccount,
   AccountType,
@@ -212,7 +213,8 @@ export function BankAccountFormDialog({
 
   const noSlotLeft = slots ? remaining <= 0 : false;
   // Trần 3 chỉ đếm dòng chính; dòng HKD không phải ngân hàng nên không chiếm chỗ.
-  const mainPicks = picks.filter((p) => p.accountType !== "HKD").length;
+  const nonBankIds = new Set(banks.filter((b) => isNonBankCode(b.code)).map((b) => b.id));
+  const mainPicks = picks.filter((p) => p.accountType !== "HKD" && !nonBankIds.has(p.bankId)).length;
 
   /**
    * Ngân hàng KHÔNG tích được vẫn nằm trong danh sách, khoá lại và mang một
@@ -403,7 +405,7 @@ export function BankAccountFormDialog({
           */}
           {noSlotLeft && (
             <Alert tone="warning">
-              {`Hồ sơ này đã đủ ${MAX_BANK_ACCOUNTS_PER_CUSTOMER} tài khoản, chỉ mở thêm được dòng HKD.`}
+              {`Hồ sơ này đã đủ ${MAX_BANK_ACCOUNTS_PER_CUSTOMER} tài khoản, chỉ mở thêm được dòng HKD và ShopeePay.`}
             </Alert>
           )}
           <DepartmentPicker
@@ -458,7 +460,7 @@ export function BankAccountFormDialog({
                 departmentId={departmentId}
                 customerId={customerId}
                 pick={picks.find((p) => samePick(p, bank.id, hkd))}
-                full={!hkd && mainPicks >= remaining}
+                full={!hkd && !nonBankIds.has(bank.id) && mainPicks >= remaining}
                 reason={reason ?? inFormReason(bank.id, hkd) ?? comboReason(bank, hkd)}
                 hideCnkd={picks.some((p) => samePick(p, bank.id, true))}
                 ageOkTypes={ACCOUNT_TYPES.filter((t) => ageOk(bank.id, t) && codeAgeOk(bank.id, t))}
@@ -633,7 +635,8 @@ function BankPickRow({
       <Checkbox
         block
         checked={checked}
-        disabled={locked || reason !== null}
+        // Dòng đang tích vẫn bỏ tích được khi lý do khoá xuất hiện sau.
+        disabled={locked || (reason !== null && !checked)}
         onCheckedChange={onToggle}
         /*
          * Lý do nằm TRONG nhãn của ô tích, không phải một dòng chữ đứng cạnh:

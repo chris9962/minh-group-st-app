@@ -1,2 +1,2 @@
-/** Nhãn dòng lương cứng. Màn diễn giải dựa vào nhãn này để bỏ câu "Chưa gồm CASA". */
+/** Nhãn dòng lương cứng, chung cho mọi file kỳ. */
 export const FIXED_SALARY_ITEM = "Lương cứng";

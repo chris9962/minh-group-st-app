@@ -41,7 +41,7 @@ import {
   GIFT_UNCHOSEN,
   GIFT_UNCHOSEN_LABEL,
 } from "@/lib/api/customers";
-import { MAX_BANK_ACCOUNTS_PER_CUSTOMER, type AccountType } from "@/lib/api/bankAccounts";
+import { isNonBankCode, MAX_BANK_ACCOUNTS_PER_CUSTOMER, NON_BANK_CODES, type AccountType } from "@/lib/api/bankAccounts";
 import type { Page } from "@/lib/api/pagination";
 import { capitalizePersonName } from "@/lib/api/personName";
 import type { PageArgs } from "./pagination";
@@ -531,6 +531,7 @@ function decorate(page: ReturnType<typeof pickPage>) {
       bankSlotsLeft: sql<number>`greatest(0, ${MAX_BANK_ACCOUNTS_PER_CUSTOMER} - (
         select count(*) from ${bankAccounts}
         where ${bankAccounts.customerId} = ${page.id} and ${bankAccounts.accountType} <> 'HKD'
+          and ${bankAccounts.bankId} not in (select id from ${banks} where ${inArray(banks.code, NON_BANK_CODES)})
       ))::int`,
       monthClosed: customerMonthClosed(page.createdInstant),
       /**
@@ -700,7 +701,7 @@ export async function listCustomers(
  * một chỗ mã giới thiệu.
  */
 // Không đếm dòng HKD, cùng phép đếm trần với `startBankAccount` (chốt 2026-09-06).
-const bankAccountsOfCustomer = sql`(select count(*) from ${bankAccounts} where ${bankAccounts.customerId} = ${customers.id} and ${bankAccounts.accountType} <> 'HKD')`;
+const bankAccountsOfCustomer = sql`(select count(*) from ${bankAccounts} where ${bankAccounts.customerId} = ${customers.id} and ${bankAccounts.accountType} <> 'HKD' and ${bankAccounts.bankId} not in (select id from ${banks} where ${inArray(banks.code, NON_BANK_CODES)}))`;
 
 const LOOKUP_LIMIT = 15;
 
@@ -2340,7 +2341,8 @@ export async function customerDetailFor(
     bankSlotsLeft: Math.max(
       0,
       // Dòng HKD không chiếm chỗ trong trần (chốt 2026-09-06).
-      MAX_BANK_ACCOUNTS_PER_CUSTOMER - accountRows.filter((a) => a.accountType !== "HKD").length,
+      MAX_BANK_ACCOUNTS_PER_CUSTOMER -
+        accountRows.filter((a) => a.accountType !== "HKD" && !isNonBankCode(a.bankName)).length,
     ),
     monthClosed: (await closedMonthOfCustomer(id)) !== null,
     accounts,
@@ -2378,7 +2380,8 @@ export async function customerDetailFor(
             bankAccountId: e.bankAccountId,
             // Dòng chuyển từ cột cũ không tìm được tài khoản: kỳ đó HKD chỉ kèm VPa.
             bankCode: e.bankCode ?? "VPa",
-            accountType: e.accountType === "CNKD" ? ("CNKD" as const) : ("HKD" as const),
+            accountType:
+              e.accountType === "CNKD" || e.accountType === "none" ? e.accountType : ("HKD" as const),
             code: e.item,
             item:
               e.item === GIFT_DECLINED

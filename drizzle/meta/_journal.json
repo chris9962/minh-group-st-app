@@ -1142,6 +1142,27 @@
       "when": 1789891400090,
       "tag": "0163_notification_code_allocated",
       "breakpoints": true
+    },
+    {
+      "idx": 164,
+      "version": "7",
+      "when": 1789891400091,
+      "tag": "0164_casa_accounts",
+      "breakpoints": true
+    },
+    {
+      "idx": 165,
+      "version": "7",
+      "when": 1789891400092,
+      "tag": "0165_bank_qr_link",
+      "breakpoints": true
+    },
+    {
+      "idx": 166,
+      "version": "7",
+      "when": 1789891400093,
+      "tag": "0166_bank_account_linked",
+      "breakpoints": true
     }
   ]
 }

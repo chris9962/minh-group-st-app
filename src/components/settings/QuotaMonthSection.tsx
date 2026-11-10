@@ -26,9 +26,7 @@ import styles from "./QuotaMonthSection.module.scss";
 
 /**
  * Màn Chỉ tiêu tháng theo QĐ 145: mốc điểm KPI, số chỉ tiêu và danh sách tài khoản tính vào HKD, định hướng.
- *
- * TODO(lương CĐS, file mẫu CASA của Yên): ô CASA lưu được nhưng lương chưa dùng,
- * vì chưa có màn nhập danh sách CASA. Gỡ khi `server/salary.ts` đếm CASA.
+ * Tài khoản CASA nhập ở màn Ngân hàng, nút ba chấm.
  */
 export function QuotaMonthSection({ month }: { month: string }) {
   const quota = useQuery({ queryKey: ["quota-month", month], queryFn: () => fetchQuotaMonth(month) });

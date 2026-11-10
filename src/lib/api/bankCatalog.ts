@@ -93,6 +93,8 @@ export const Bank = z.object({
    * quản đọc ở bảng ngân hàng.
    */
   guide: z.string(),
+  /** Link hiện thành mã QR ở bước 2 của màn mở tài khoản; `''` = không có. */
+  qrLink: z.string(),
   /** URL ảnh mẫu, ĐÚNG thứ tự người nhập xếp — khớp với "Ảnh 1 · Ảnh 2…" trong `guide`. */
   guidePhotoUrls: z.array(z.string()),
   /**
@@ -170,6 +172,11 @@ export const BankForm = z.object({
   managerIds: z.array(z.guid()),
   /** Chữ tự do, không bắt buộc. Ngân hàng chưa có quy trình riêng thì để trống. */
   guide: z.string(),
+  qrLink: z
+    .string()
+    .trim()
+    .max(2000, 'Link dài quá')
+    .refine((v) => v === '' || /^https?:\/\/\S+$/.test(v), 'Link phải bắt đầu bằng http:// hoặc https://'),
   /**
    * Ảnh mẫu — nhận URL do `/api/uploads` trả về, máy chủ cắt lại thành khoá.
    *

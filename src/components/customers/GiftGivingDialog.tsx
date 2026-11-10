@@ -13,6 +13,7 @@ import {
   GIFT_DECLINED,
   GIFT_NONE,
   extraSlotKey,
+  extraOptionsOf,
   extraSlotLabel,
   fetchCustomerDetail,
   isCashOnlyGift,
@@ -329,7 +330,7 @@ export function GiftGivingDialog({ open, onClose, customerId, customerName }: Pr
                             Chọn <strong>đúng 1</strong> món dưới đây, cộng với quà chính:
                           </p>
                           <div className={styles.cards}>
-                            {extraBasket.map((item, i) => renderCard(item, group, i))}
+                            {extraOptionsOf(extraBasket, slot).map((item, i) => renderCard(item, group, i))}
                             {renderDecline(group, "Từ chối quà thêm")}
                           </div>
                         </fieldset>

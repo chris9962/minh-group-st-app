@@ -22,6 +22,7 @@ import { PhotoCheckPanel } from "@/components/banking/PhotoCheckPanel";
 import { BankAccountFinishFields } from "@/components/banking/BankAccountFinishFields";
 import { DraftPurgeCountdown } from "@/components/banking/DraftPurgeCountdown";
 import { ReferralCodeCard } from "@/components/banking/ReferralCodeCard";
+import { BankShopQrButton } from "@/components/banking/BankShopQrButton";
 import {
   BankAccountPhotos,
   photosChanged,
@@ -42,6 +43,7 @@ import {
   approveBankAccount,
   deleteBankAccount,
   finishBankAccount,
+  isNonBankCode,
   setBankAccountPhotos,
   setPhotoCheckConfirmed,
 } from "@/lib/api/bankAccounts";
@@ -203,6 +205,8 @@ function FinishAccountCard({
       // Từng ngân hàng tự chọn tick sẵn hay không (P-60) — vài ngân hàng khách
       // hiếm khi cài app, để tick sẵn là nhân viên phải bỏ tick từng lượt.
       appInstalled: data.appDefault,
+      linkedBankName: data.linkedBankName,
+      linkedAccountNumber: data.linkedAccountNumber,
       note: data.note,
     },
   });
@@ -333,6 +337,7 @@ function FinishAccountCard({
         accountNumberLength={data.accountNumberLength}
         customerPhones={data.customerPhones}
         referralQrUrl={data.referralQrUrl}
+        bankQrLink={data.bankQrLink}
         bankGuide={data.bankGuide}
         bankGuidePhotoUrls={data.bankGuidePhotoUrls}
         photos={photos}
@@ -630,10 +635,12 @@ function DoneAccountCard({
           <dt>Ngân hàng</dt>
           <dd>{data.bankCode}</dd>
         </div>
-        <div>
-          <dt>Số tài khoản</dt>
-          <dd className="tabular-nums">{formatPhone(data.accountNumber)}</dd>
-        </div>
+        {!isNonBankCode(data.bankCode) && (
+          <div>
+            <dt>Số tài khoản</dt>
+            <dd className="tabular-nums">{formatPhone(data.accountNumber)}</dd>
+          </div>
+        )}
         <div>
           <dt>Ngày mở</dt>
           <dd>{formatDate(data.date)}</dd>
@@ -655,16 +662,30 @@ function DoneAccountCard({
           <dt>Loại tài khoản</dt>
           <dd>{ACCOUNT_TYPE_LABEL[data.accountType]}</dd>
         </div>
-        <div>
-          <dt>Ngày giao dịch</dt>
-          <dd>
-            {data.transactionAt ? (
-              formatDate(data.transactionAt)
-            ) : (
-              <span className="text-muted">Chưa ghi nhận</span>
-            )}
-          </dd>
-        </div>
+        {!isNonBankCode(data.bankCode) && (
+          <div>
+            <dt>Ngày giao dịch</dt>
+            <dd>
+              {data.transactionAt ? (
+                formatDate(data.transactionAt)
+              ) : (
+                <span className="text-muted">Chưa ghi nhận</span>
+              )}
+            </dd>
+          </div>
+        )}
+        {isNonBankCode(data.bankCode) && (
+          <>
+            <div>
+              <dt>Ngân hàng liên kết</dt>
+              <dd>{data.linkedBankName || "—"}</dd>
+            </div>
+            <div>
+              <dt>Số tài khoản liên kết</dt>
+              <dd>{data.linkedAccountNumber || "—"}</dd>
+            </div>
+          </>
+        )}
         <div>
           <dt>Ghi chú</dt>
           <dd>{data.note || "—"}</dd>
@@ -691,17 +712,25 @@ function DoneAccountCard({
 
       <ReferralCodeCard account={data} />
 
+      {data.bankQrLink && (
+        <div>
+          <BankShopQrButton link={data.bankQrLink} />
+        </div>
+      )}
+
       {/* Hai khối ảnh CHỈ XEM (chốt 2026-08-16): thêm/thay/xoá ảnh đi qua hộp
           thoại Sửa cùng với các ô còn lại, không thao tác thẳng ngoài trang. */}
       <BankAccountPhotos photos={savedPhotos(data.photoUrls)} requiredPhotos={data.requiredPhotos} />
 
       {/* Ảnh giao dịch của bước 3 (spec §4.2) — nộp muộn, không bắt buộc tấm
           nào, và KHÔNG cộng vào số ảnh chứng minh bắt buộc. */}
-      <BankAccountPhotos
-        title="Ảnh giao dịch"
-        requiredPhotos={0}
-        photos={savedPhotos(data.transactionPhotoUrls)}
-      />
+      {!isNonBankCode(data.bankCode) && (
+        <BankAccountPhotos
+          title="Ảnh giao dịch"
+          requiredPhotos={0}
+          photos={savedPhotos(data.transactionPhotoUrls)}
+        />
+      )}
 
       {markingError && (
         <Dialog

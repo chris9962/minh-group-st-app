@@ -7,6 +7,7 @@ import * as period20261001 from "./2026-10-01";
 import * as period20261011 from "./2026-10-11";
 import * as period20261015 from "./2026-10-15";
 import * as period20261101 from "./2026-11-01";
+import * as period20261111 from "./2026-11-11";
 import type { Tier } from "./2026-08";
 
 export type { Tier };
@@ -181,6 +182,12 @@ export type GiftResult = {
    */
   cnkdExtraBanks?: string[];
   /**
+   * Mã món từng suất trong `extraBanks` được chọn, khoá là mã ngân hàng của
+   * suất (kỳ 2026-11-11: suất ShopeePay có món riêng). File không khai thì mọi
+   * suất chọn trong trọn `extraBasket`.
+   */
+  extraItemsOf?: Record<string, string[]>;
+  /**
    * Vì sao ra kết quả này, mỗi dòng một lý do.
    *
    * BẮT BUỘC có, không phải trang trí (spec §5.3): khách hỏi "sao tôi chỉ được
@@ -243,6 +250,7 @@ const PERIODS: Record<string, PeriodRules> = {
   "2026-10-11": period20261011,
   "2026-10-15": period20261015,
   "2026-11-01": period20261101,
+  "2026-11-11": period20261111,
 };
 
 /**

@@ -1,10 +1,12 @@
 import { and, asc, eq, inArray, ne, sql } from "drizzle-orm";
+import { isNonBankCode } from "@/lib/api/bankAccounts";
 import type { QuotaKindItem } from "@/lib/api/quota";
 import { formatPoints, monthRange, roundPoints } from "@/lib/format";
 import { customerDayBetween, customerDayText } from "../customerDay";
 import { db } from "../db/client";
 import {
   bankAccounts,
+  banks,
   channels,
   customers,
   departments,
@@ -132,9 +134,11 @@ export async function pgdDailyReport(pgdId: string, day: string): Promise<PgdDai
         .select({
           customerId: bankAccounts.customerId,
           bankId: bankAccounts.bankId,
+          bankCode: banks.code,
           type: sql<string>`${effectiveType}`,
         })
         .from(bankAccounts)
+        .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
         .innerJoin(customers, eq(customers.id, bankAccounts.customerId))
         .innerJoin(staffRoster, inDepartments)
         .leftJoin(referralCodes, eq(referralCodes.id, bankAccounts.referralCodeId))
@@ -179,7 +183,7 @@ export async function pgdDailyReport(pgdId: string, day: string): Promise<PgdDai
   const accountsOf = new Map<string, { apps: number; vpa: number; hkd: number }>();
   for (const a of accountRows) {
     const acc = accountsOf.get(a.customerId) ?? { apps: 0, vpa: 0, hkd: 0 };
-    if (a.type !== "HKD") acc.apps += 1;
+    if (a.type !== "HKD" && !isNonBankCode(a.bankCode)) acc.apps += 1;
     if (matchesKind(directedKinds, a.bankId, a.type)) acc.vpa += 1;
     if (matchesKind(hkdKinds, a.bankId, a.type)) acc.hkd += 1;
     accountsOf.set(a.customerId, acc);

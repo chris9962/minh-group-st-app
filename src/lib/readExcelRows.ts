@@ -57,36 +57,47 @@ function cellText(value: CellValue, numFmt: string | undefined, rate = false): s
  * Đọc trang tính đầu tiên thành từng dòng chuỗi theo `spec`. Thiếu cột bắt buộc
  * thì ném lỗi nêu tên cột thiếu. Dòng trống hết các cột `anchor` (không khai
  * `anchor` thì mọi cột) được bỏ qua.
+ *
+ * `anySheet`: đọc trang tính đầu tiên có đủ cột bắt buộc. File CASA của ngân
+ * hàng để bảng chi tiết ở trang thứ ba, sau hai trang tổng hợp.
  */
 export async function readExcelRows<K extends string>(
   file: File,
   spec: ColumnSpec<K>,
+  { anySheet = false }: { anySheet?: boolean } = {},
 ): Promise<ExcelRow<K>[]> {
   const { default: ExcelJS } = await import('exceljs');
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(await file.arrayBuffer());
-  const sheet = workbook.worksheets[0];
-  if (!sheet) throw new Error('File không có trang tính nào.');
+  const sheets = anySheet ? workbook.worksheets : workbook.worksheets.slice(0, 1);
+  if (sheets.length === 0) throw new Error('File không có trang tính nào.');
 
   const keys = Object.keys(spec) as K[];
   const required = keys.filter((k) => spec[k].required);
   let header = { row: 0, columns: new Map<K, number>() };
+  let sheet = sheets[0];
   let best = new Map<K, number>();
 
-  for (let r = 1; r <= Math.min(HEADER_SEARCH_ROWS, sheet.rowCount); r++) {
-    const found = new Map<K, number>();
-    sheet.getRow(r).eachCell((cell, col) => {
-      const text = headerKey(cellText(cell.value, cell.numFmt));
-      const key = keys.find(
-        (k) => !found.has(k) && spec[k].headers.some((h) => headerKey(h) === text),
-      );
-      if (key) found.set(key, col);
-    });
-    if (required.every((k) => found.has(k))) {
-      header = { row: r, columns: found };
+  for (const candidate of sheets) {
+    for (let r = 1; r <= Math.min(HEADER_SEARCH_ROWS, candidate.rowCount); r++) {
+      const found = new Map<K, number>();
+      candidate.getRow(r).eachCell((cell, col) => {
+        const text = headerKey(cellText(cell.value, cell.numFmt));
+        const key = keys.find(
+          (k) => !found.has(k) && spec[k].headers.some((h) => headerKey(h) === text),
+        );
+        if (key) found.set(key, col);
+      });
+      if (required.every((k) => found.has(k))) {
+        header = { row: r, columns: found };
+        break;
+      }
+      if (found.size > best.size) best = found;
+    }
+    if (header.row !== 0) {
+      sheet = candidate;
       break;
     }
-    if (found.size > best.size) best = found;
   }
 
   if (header.row === 0) {

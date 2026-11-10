@@ -26,6 +26,7 @@ import {
   approveBankAccount,
   setPhotoCheckConfirmed,
   type AccountType,
+  isNonBankCode,
 } from "@/lib/api/bankAccounts";
 import {
   changeBankAccountReferralCode,
@@ -279,16 +280,18 @@ export default function BankAccountOfBankPage({
                 <dt>Ngày mở</dt>
                 <dd>{data.date ? formatDate(data.date) : "—"}</dd>
               </div>
-              <div>
-                <dt>Ngày giao dịch</dt>
-                <dd>
-                  {data.transactionAt ? (
-                    formatDate(data.transactionAt)
-                  ) : (
-                    <span className="text-muted">Chưa ghi nhận</span>
-                  )}
-                </dd>
-              </div>
+              {!isNonBankCode(data.bankCode) && (
+                <div>
+                  <dt>Ngày giao dịch</dt>
+                  <dd>
+                    {data.transactionAt ? (
+                      formatDate(data.transactionAt)
+                    ) : (
+                      <span className="text-muted">Chưa ghi nhận</span>
+                    )}
+                  </dd>
+                </div>
+              )}
               <div>
                 <dt>Đã cài app</dt>
                 <dd>

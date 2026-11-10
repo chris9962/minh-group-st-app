@@ -11,11 +11,12 @@ import { BookOpen, ExternalLink, QrCode } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { ImageLightbox } from "@/components/ui/ImageLightbox";
 import { BankGuideDialog } from "./BankGuideDialog";
+import { BankShopQrButton } from "./BankShopQrButton";
 import { CharCount } from "@/components/ui/CharCount";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { Select } from "@/components/ui/Select";
 import { TextField } from "@/components/ui/TextField";
-import { BankAccountFinishForm } from "@/lib/api/bankAccounts";
+import { BankAccountFinishForm, isNonBankCode } from "@/lib/api/bankAccounts";
 import type { AccountNumberMethod } from "@/lib/api/bankCatalog";
 import { BankAccountPhotos, type PhotoItem } from "./BankAccountPhotos";
 import { httpLinkIn, readQrImageUrl } from "@/lib/readQrImage";
@@ -36,6 +37,8 @@ type Props = {
   customerPhones: string[];
   /** Ảnh QR của mã giới thiệu; `''` = không dựng nút xem. */
   referralQrUrl: string;
+  /** Link của ngân hàng, hiện thành mã QR; `''` = không dựng nút xem. */
+  bankQrLink: string;
   /** Hướng dẫn mở tài khoản của ngân hàng; `''` = không dựng nút xem. */
   bankGuide: string;
   /** Ảnh mẫu kèm hướng dẫn, đúng thứ tự người nhập xếp. */
@@ -71,6 +74,7 @@ export function BankAccountFinishFields({
   accountNumberLength,
   customerPhones,
   referralQrUrl,
+  bankQrLink,
   bankGuide,
   bankGuidePhotoUrls,
   photos,
@@ -132,7 +136,7 @@ export function BankAccountFinishFields({
 
   return (
     <>
-      {(referralQrUrl || hasGuide) && (
+      {(referralQrUrl || bankQrLink || hasGuide) && (
         <div className={styles.openRow}>
           {referralQrUrl && (
             <Button variant="secondary" type="button" className={styles.openAction} onClick={() => setQrOpen(true)}>
@@ -140,6 +144,8 @@ export function BankAccountFinishFields({
               Hiện QR giới thiệu
             </Button>
           )}
+
+          {bankQrLink && <BankShopQrButton link={bankQrLink} className={styles.openAction} />}
 
           {/*
             Mỗi ngân hàng một quy trình: ngân hàng này bắt nhập mã giới thiệu ở
@@ -196,7 +202,7 @@ export function BankAccountFinishFields({
             ô khoá tự điền: áp cứng số chính là ghi sai số tài khoản vào hợp
             đồng, mà bản ghi đã `done` thì không sửa được nữa.
           */}
-        {accountNumberMethod === "phone-match" ? (
+        {isNonBankCode(bankCode) ? null : accountNumberMethod === "phone-match" ? (
           <Select
             block
             required
@@ -241,6 +247,29 @@ export function BankAccountFinishFields({
             checked={watch("appInstalled")}
             onCheckedChange={(v) => setValue("appInstalled", v, { shouldDirty: true })}
           />
+        )}
+
+        {isNonBankCode(bankCode) && (
+          <fieldset className={styles.linked}>
+            <legend>Tài khoản liên kết</legend>
+            <TextField
+              label="Ngân hàng"
+              required
+              error={errors.linkedBankName?.message}
+              {...register("linkedBankName")}
+            />
+            <TextField
+              label="Số tài khoản liên kết"
+              required
+              inputMode="numeric"
+              pattern="[0-9]*"
+              error={errors.linkedAccountNumber?.message ?? errors.accountNumber?.message}
+              {...register("linkedAccountNumber", {
+                // Ô số tài khoản bị ẩn với ShopeePay nhưng biểu mẫu vẫn bắt buộc trường đó.
+                onChange: (e) => setValue("accountNumber", e.target.value.trim()),
+              })}
+            />
+          </fieldset>
         )}
 
         <TextField label="Ghi chú" {...register("note")} />
