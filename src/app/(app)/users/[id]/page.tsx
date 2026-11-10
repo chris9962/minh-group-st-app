@@ -10,6 +10,7 @@ import { TopBar } from "@/components/layout/TopBar";
 import { BranchPanel } from "@/components/people/BranchPanel";
 import { KpiAdjustmentSection } from "@/components/people/KpiAdjustmentSection";
 import { PersonActivityTabs } from "@/components/people/PersonActivityTabs";
+import { PersonAuditLog } from "@/components/people/PersonAuditLog";
 import { PersonKpiPanel } from "@/components/people/PersonKpiPanel";
 import { AccountCard } from "@/components/staff/AccountCard";
 import { monthLabel, thisMonth } from "@/components/ui/MonthPicker";
@@ -27,12 +28,11 @@ import styles from "./page.module.scss";
  * đã có một tab tên "Tài khoản" nghĩa là tài khoản NGÂN HÀNG của khách. Hai chữ
  * giống nhau ở hai tầng chỉ tổ làm người dùng bấm nhầm.
  */
-type SectionKey = "kpi" | "account";
+type SectionKey = "kpi" | "account" | "audit";
 
-const SECTIONS: SectionOption[] = [
-  { value: "kpi", label: "KPI & hoạt động" },
-  { value: "account", label: "Tài khoản & quyền" },
-];
+const KPI_SECTION: SectionOption = { value: "kpi", label: "KPI & hoạt động" };
+const ACCOUNT_SECTION: SectionOption = { value: "account", label: "Tài khoản & quyền" };
+const AUDIT_SECTION: SectionOption = { value: "audit", label: "Nhật ký hoạt động" };
 
 /** P-52 · Xem theo một nhân viên. */
 export default function PersonPage({
@@ -77,6 +77,15 @@ export default function PersonPage({
   const canManage =
     (can(actor, "staff", "create") || can(actor, "staff", "update")) && actor?.id !== id;
   const showAccount = canManage && section === "account";
+  // Cùng quyền với màn P-93: nhật ký có lượt xem CCCD, không mở theo `staff:*`.
+  const canAudit = can(actor, "system", "manage-org");
+  const showAudit = canAudit && section === "audit";
+  const showKpi = !showAccount && !showAudit;
+  const sections = [
+    KPI_SECTION,
+    ...(canManage ? [ACCOUNT_SECTION] : []),
+    ...(canAudit ? [AUDIT_SECTION] : []),
+  ];
 
   const periodText = period.kind === "today" ? "Hôm nay" : monthLabel(listMonth);
 
@@ -96,10 +105,10 @@ export default function PersonPage({
           <ErrorState what="hồ sơ nhân viên này" onRetry={refetch} retrying={isFetching} />
         )}
 
-        {data && canManage && (
+        {data && sections.length > 1 && (
           <SectionTabs
             label="Khu vực hồ sơ"
-            options={SECTIONS}
+            options={sections}
             value={section}
             onChange={(v) => setSection(v as SectionKey)}
           />
@@ -111,13 +120,15 @@ export default function PersonPage({
           </div>
         )}
 
+        {data && showAudit && <PersonAuditLog staffId={id} />}
+
         {/* Phó giám đốc: các phòng họ quản thay cho vòng điểm và bốn tab hoạt
             động, vì họ không lập hồ sơ nên hai khối đó luôn trống. */}
-        {data && !showAccount && data.branch && (
+        {data && showKpi && data.branch && (
           <BranchPanel person={data} branch={data.branch} periodText={periodText} />
         )}
 
-        {data && !showAccount && !data.branch && (
+        {data && showKpi && !data.branch && (
           <div className={styles.columns}>
             <aside className={styles.side}>
               <PersonKpiPanel person={data} />
