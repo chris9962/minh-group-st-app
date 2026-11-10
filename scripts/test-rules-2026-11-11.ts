@@ -95,26 +95,33 @@ check(
 );
 check("VPa + MB + ShopeePay: tổ hợp 0, ShopeePay 0,5", points(accountsOf(["VPa", "MB", SP])), 0.5);
 check("VPa + VPb + ShopeePay: hồ sơ sai, 0 điểm", points(accountsOf(["VPa", "VPb", SP])), 0);
-check("TCB + ShopeePay: TCB ngoài thể lệ, 0 điểm", points(accountsOf(["TCB", SP])), 0);
+check("TCB + ShopeePay: TCB ngoài thể lệ, ShopeePay 0,5", points(accountsOf(["TCB", SP])), 0.5);
 check(
   "hai khách: MB + ShopeePay và TPB = 1,1",
   points([account("a", "MB"), account("a", SP), account("b", "TPB")]),
   1.1,
 );
 
-section("ShopeePay không triển khai một mình");
-check("chỉ ShopeePay = 0", points(accountsOf([SP])), 0);
-check("chỉ ShopeePay: không có suất quà thêm", gift(accountsOf([SP])).extraBanks?.length, 0);
-check("chỉ ShopeePay: rổ quà thêm rỗng", gift(accountsOf([SP])).extraBasket.length, 0);
+section("ShopeePay mở một mình");
+check("chỉ ShopeePay = 0,5", points(accountsOf([SP])), 0.5);
+check("chỉ ShopeePay: một suất quà thêm", gift(accountsOf([SP])).extraBanks?.join(","), SP);
 check(
-  "ShopeePay + chỉ dòng VPa HKD: HKD 3,0, ShopeePay 0",
+  "chỉ ShopeePay: rổ quà thêm là món ShopeePay",
+  gift(accountsOf([SP])).extraBasket.map((b) => b.code).join(","),
+  "QUA-SHOPEEPAY",
+);
+check("chỉ ShopeePay: không có quà chính", gift(accountsOf([SP])).basket.length, 0);
+check("chỉ ShopeePay: không tiền mặt", gift(accountsOf([SP])).cash.length, 0);
+check("chỉ ShopeePay: mở được", openBlockReasonAt([], SP, AT), null);
+check(
+  "ShopeePay + chỉ dòng VPa HKD = 3,5",
   points([account("k", "VPa", { household: "HKD" }), account("k", SP)]),
-  3,
+  3.5,
 );
 check(
-  "MB + ShopeePay, MB bị đánh lỗi = 0",
+  "MB + ShopeePay, MB bị đánh lỗi: ShopeePay còn 0,5",
   points([account("k", SP)], [account("k", "MB")]),
-  0,
+  0.5,
 );
 check(
   "MB + TPB + ShopeePay, TPB bị đánh lỗi: Combo 2 về 0, ShopeePay còn 0,5",
@@ -176,8 +183,7 @@ check("VPa + VPb + ShopeePay: rổ quà thêm rỗng", bothVp.extraBasket.length
 /* ── Chặn lúc mở và mốc ngày ────────────────────────────────────────── */
 
 section("Chặn lúc mở");
-check("hồ sơ chưa có ngân hàng: chặn ShopeePay", openBlockReasonAt([], SP, AT) !== null, true);
-check("hồ sơ chỉ có TCB: chặn ShopeePay", openBlockReasonAt(["TCB"], SP, AT) !== null, true);
+check("hồ sơ chỉ có TCB: mở được ShopeePay", openBlockReasonAt(["TCB"], SP, AT), null);
 check("hồ sơ có MB: mở được ShopeePay", openBlockReasonAt(["MB"], SP, AT), null);
 check("hồ sơ có LPB: mở được ShopeePay", openBlockReasonAt(["LPB"], SP, AT), null);
 check("hồ sơ có ShopeePay: mở được MB", openBlockReasonAt([SP], "MB", AT), null);
@@ -188,7 +194,7 @@ check("MB + ShopeePay ngày 10/11 = 0,3", points(accountsOf(["MB", SP], BEFORE))
 check("LPB + ShopeePay ngày 10/11 = 0", points(accountsOf(["LPB", SP], BEFORE)), 0);
 check("ngày 10/11 không có suất ShopeePay", gift(accountsOf(["MB", SP], BEFORE), BEFORE).extraBanks?.length, 0);
 check("ngày 10/11 không chặn ShopeePay", openBlockReasonAt([], SP, BEFORE), null);
-check("có câu ShopeePay", openNotesAt(AT).some((note) => note.includes("ShopeePay không mở một mình")), true);
+check("có câu ShopeePay", openNotesAt(AT).some((note) => note.includes("mở một mình cũng tính")), true);
 check("ngày 10/11 chưa có câu ShopeePay", openNotesAt(BEFORE).some((note) => note.includes("ShopeePay")), false);
 
 section("Phần không đổi so với kỳ 2026-11-01");

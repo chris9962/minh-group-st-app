@@ -21,8 +21,8 @@ import type {
  * Khác kỳ 2026-11-01 ở hai chỗ, phân hạng, bảng Combo 2, Combo 3 và bảng quà
  * giữ nguyên:
  *
- *   A. Ví `ShopeePay`: không phải ngân hàng, không vào combo. Kèm ngân hàng
- *      trong thể lệ thì cộng 0,5 điểm và một suất quà thêm riêng.
+ *   A. Ví `ShopeePay`: không phải ngân hàng, không vào combo. Có ShopeePay thì
+ *      cộng 0,5 điểm và một suất quà thêm riêng, mở một mình cũng tính.
  *   B. Bank hạn chế kèm `ShopeePay` vào được Combo 1, 0,1 điểm.
  *
  * Chạy thử: `bun run test:rules` (`scripts/test-rules-2026-11-11.ts`).
@@ -67,9 +67,8 @@ const TIER_OF: Record<string, Tier> = {
  * có hạng, không vào combo, không đếm vào số ngân hàng, giống dòng HKD (chủ dự
  * án chốt 2026-11-10).
  *
- * Không triển khai một mình: chỉ tính khi khách có ít nhất một dòng chính của
- * ngân hàng trong thể lệ. Ngân hàng đi kèm bị xoá hoặc đánh lỗi hết thì phần
- * ShopeePay về 0 (chủ dự án chốt 2026-11-10).
+ * Mở một mình được: 0,5 điểm và suất quà ShopeePay, không cần ngân hàng đi kèm
+ * (chủ dự án đổi 2026-11-10, bỏ luật "không triển khai một mình" chốt cùng ngày).
  */
 export const SHOPEEPAY = "ShopeePay";
 const SHOPEEPAY_TENTHS = 5;
@@ -110,14 +109,10 @@ export const OPEN_NOTES: string[] = [
   "Không mở cả VPa lẫn VPb cho cùng một khách. Hồ sơ đó 0 điểm.",
   "CNKD kèm ngân hàng nào cũng cộng 1,0. Mỗi tài khoản HKD cộng 3,0, ngân hàng nào cũng được.",
   "Phòng Y: mỗi khách Combo 2, Combo 3 cộng thêm 0,1 điểm.",
-  "ShopeePay không mở một mình. Kèm ngân hàng trong thể lệ thì cộng 0,5 và có Combo quà tặng ShopeePay.",
+  "ShopeePay cộng 0,5 và có Combo quà tặng ShopeePay, mở một mình cũng tính.",
 ];
 
 export function openBlockReason(existingBankCodes: string[], candidate: string): string | null {
-  if (candidate === SHOPEEPAY)
-    return existingBankCodes.some((code) => code in TIER_OF)
-      ? null
-      : "ShopeePay không mở một mình. Hồ sơ phải có ít nhất một ngân hàng trong thể lệ.";
   if (TIER_OF[candidate] !== "restricted") return null;
   const others = [
     ...new Set(
@@ -277,7 +272,7 @@ export const bankTierOf = (bankCode: string): Tier | null => TIER_OF[bankCode] ?
 export const comboPointsFor = (bankCodes: string[]): number => {
   const accounts = bankCodes.map((bankCode) => ({ bankCode }) as ScoringAccount);
   if (hasBothVpModes(accounts)) return 0;
-  return bestComboOf(bankCodes, bankCodes.includes(SHOPEEPAY) && bankCodes.some((c) => c in TIER_OF)).tenths / 10;
+  return bestComboOf(bankCodes, bankCodes.includes(SHOPEEPAY)).tenths / 10;
 };
 
 /* ── Mục 4c và 4d · điểm CNKD và HKD ─────────────────────────────────── */
@@ -353,10 +348,8 @@ const hasVpaCnkd = (accounts: ScoringAccount[]): boolean =>
 const comboRowsOf = (accounts: ScoringAccount[]): ScoringAccount[] =>
   accounts.filter((a) => a.household !== "HKD");
 
-/** Khách có ShopeePay ĐƯỢC TÍNH: có dòng ShopeePay và có dòng chính của một ngân hàng trong thể lệ. */
 const hasShopeePay = (accounts: ScoringAccount[]): boolean =>
-  accounts.some((a) => a.bankCode === SHOPEEPAY) &&
-  comboRowsOf(accounts).some((a) => a.bankCode in TIER_OF);
+  accounts.some((a) => a.bankCode === SHOPEEPAY);
 
 /** Tổ hợp thắng của một khách. Mọi đường điểm và quà gọi hàm này để cùng một cách xét ShopeePay. */
 const comboOf = (accounts: ScoringAccount[]): Combo =>
@@ -713,11 +706,7 @@ export function gift(input: GiftInput): GiftResult {
   if (shopeePay) {
     addItems(extraBasket, ITEMS_SHOPEEPAY, "Khách có ShopeePay");
     explain.push(
-      "Khách có ShopeePay kèm ngân hàng nên cộng 0,5 điểm và được Combo quà tặng ShopeePay, cộng với quà chính.",
-    );
-  } else if (input.accounts.some((a) => a.bankCode === SHOPEEPAY) && !hasBothVpModes(input.accounts)) {
-    explain.push(
-      "ShopeePay không triển khai một mình: chưa có ngân hàng trong thể lệ đi kèm nên không điểm, không quà.",
+      "Khách có ShopeePay nên cộng 0,5 điểm và được Combo quà tặng ShopeePay, cộng với quà chính nếu có.",
     );
   }
 

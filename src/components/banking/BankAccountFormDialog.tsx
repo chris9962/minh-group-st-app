@@ -635,7 +635,7 @@ function BankPickRow({
       <Checkbox
         block
         checked={checked}
-        // Dòng đang tích vẫn bỏ tích được khi lý do khoá xuất hiện sau, ví dụ bỏ tích ngân hàng đi kèm ShopeePay.
+        // Dòng đang tích vẫn bỏ tích được khi lý do khoá xuất hiện sau.
         disabled={locked || (reason !== null && !checked)}
         onCheckedChange={onToggle}
         /*
