@@ -3,10 +3,12 @@ import { pageOf, pageParams, type PageQuery } from './pagination';
 
 /** Trần một yêu cầu tạm ứng, 50% lương căn bản (chốt 2026-11-01). */
 export const ADVANCE_MAX = 3_000_000;
-/** Ngày trong tháng nhân viên gửi yêu cầu. Trưởng phòng duyệt tới hết ngày này. */
+/** Ngày trong tháng nhân viên gửi yêu cầu và Trưởng phòng duyệt. */
 export const ADVANCE_DAY = 10;
-/** Giờ cuối nhân viên gửi hoặc sửa yêu cầu trong ngày 10. */
-export const ADVANCE_SUBMIT_CLOSE_HOUR = 22;
+/** Giờ cuối nhân viên gửi hoặc sửa yêu cầu trong ngày 10 (chốt 2026-11-10, trước đó 22:00). */
+export const ADVANCE_SUBMIT_CLOSE_HOUR = 12;
+/** Giờ hết hạn Trưởng phòng duyệt trong ngày 10; kế toán xử lý từ giờ này (chốt 2026-11-10, trước đó 00:00 ngày 11). */
+export const ADVANCE_HEAD_CLOSE_HOUR = 13;
 
 export const AdvanceStatus = z.enum([
   'pending',
@@ -58,8 +60,8 @@ export const ADVANCE_EVENT_LABEL: Record<AdvanceEventKind, string> = {
 
 /**
  * Mốc của một tháng tạm ứng, máy chủ tính theo giờ Việt Nam:
- * `before` trước ngày 10, `submit` ngày 10 trước 22:00, `head-review` ngày 10
- * từ 22:00, `accounting` từ 00:00 ngày 11.
+ * `before` trước ngày 10, `submit` ngày 10 trước 12:00, `head-review` ngày 10
+ * từ 12:00, `accounting` từ 13:00 ngày 10.
  */
 export const AdvancePhase = z.enum(['before', 'submit', 'head-review', 'accounting']);
 export type AdvancePhase = z.infer<typeof AdvancePhase>;
@@ -118,8 +120,8 @@ export type AdvanceRow = z.infer<typeof AdvanceRow>;
 
 /**
  * `head`: Trưởng phòng xem yêu cầu của phòng mình. `accounting`: kế toán xem yêu
- * cầu Trưởng phòng đã duyệt của cả công ty, từ 00:00 ngày 11. `waiting`: kế
- * toán mở trang trước 00:00 ngày 11.
+ * cầu Trưởng phòng đã duyệt của cả công ty, từ 13:00 ngày 10. `waiting`: kế
+ * toán mở trang trước 13:00 ngày 10.
  */
 export const AdvanceListMode = z.enum(['head', 'accounting', 'waiting']);
 export type AdvanceListMode = z.infer<typeof AdvanceListMode>;

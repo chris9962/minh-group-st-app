@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, inArray, ne, sql, type SQL } from "drizzle-orm";
 import {
   ADVANCE_DAY,
+  ADVANCE_HEAD_CLOSE_HOUR,
   ADVANCE_MAX,
   ADVANCE_SORTS,
   ADVANCE_SUBMIT_CLOSE_HOUR,
@@ -37,12 +38,13 @@ import { salaryForUsers } from "./salary";
  * Tạm ứng lương (chủ dự án chốt 2026-11-01, tờ trình ở
  * `docs/quy-trinh-tam-ung-luong-2026-11-01.html`):
  *
- *   ngày 10 trước 22:00   nhân viên gửi và sửa yêu cầu, tối đa `ADVANCE_MAX`
- *   ngày 10 tới 23:59     Trưởng phòng sửa số tiền, duyệt hoặc từ chối
- *   00:00 ngày 11         yêu cầu Trưởng phòng chưa duyệt thành "Hết hạn duyệt"
- *   từ ngày 11            kế toán sửa, duyệt, từ chối, xuất Excel, bấm Đã chi tạm ứng
+ *   ngày 10 trước 12:00   nhân viên gửi và sửa yêu cầu, tối đa `ADVANCE_MAX`
+ *   ngày 10 trước 13:00   Trưởng phòng sửa số tiền, duyệt hoặc từ chối
+ *   13:00 ngày 10         yêu cầu Trưởng phòng chưa duyệt thành "Hết hạn duyệt"
+ *   từ 13:00 ngày 10      kế toán sửa, duyệt, từ chối, xuất Excel, bấm Đã chi tạm ứng
  *
- * Không có job chạy lúc 00:00: mọi đường đọc và ghi gọi `expireOverdue` trước,
+ * Mốc giờ đổi 2026-11-10; trước đó là 22:00, 23:59 và 00:00 ngày 11.
+ * Không có job chạy lúc 13:00: mọi đường đọc và ghi gọi `expireOverdue` trước,
  * nên yêu cầu quá hạn đổi trạng thái ngay lần đầu có người mở sau mốc đó.
  */
 
@@ -70,10 +72,12 @@ export function advancePhaseOf(month: string, now: Date): AdvancePhase {
   const day = Number(today.slice(8, 10));
   if (day < ADVANCE_DAY) return "before";
   if (day > ADVANCE_DAY) return "accounting";
-  return Number(hourFormat.format(now)) < ADVANCE_SUBMIT_CLOSE_HOUR ? "submit" : "head-review";
+  const hour = Number(hourFormat.format(now));
+  if (hour < ADVANCE_SUBMIT_CLOSE_HOUR) return "submit";
+  return hour < ADVANCE_HEAD_CLOSE_HOUR ? "head-review" : "accounting";
 }
 
-/** Yêu cầu chưa được Trưởng phòng duyệt khi đã qua 00:00 ngày 11 thì thành "Hết hạn duyệt". */
+/** Yêu cầu chưa được Trưởng phòng duyệt khi đã qua 13:00 ngày 10 thì thành "Hết hạn duyệt". */
 async function expireOverdue(now: Date): Promise<void> {
   const current = businessMonth(now);
   const month = salaryAdvanceRequests.yearMonth;
@@ -124,9 +128,11 @@ async function expireOverdue(now: Date): Promise<void> {
   });
 }
 
-/** 00:00 ngày 11 giờ Việt Nam của tháng: mốc yêu cầu chưa duyệt thành Hết hạn duyệt. */
+/** 13:00 ngày 10 giờ Việt Nam của tháng: mốc yêu cầu chưa duyệt thành Hết hạn duyệt. */
 const headDeadlineOf = (month: string): Date =>
-  new Date(`${month}-${String(ADVANCE_DAY + 1).padStart(2, "0")}T00:00:00+07:00`);
+  new Date(`${month}-${String(ADVANCE_DAY).padStart(2, "0")}T${String(ADVANCE_HEAD_CLOSE_HOUR).padStart(2, "0")}:00:00+07:00`);
+
+const HEAD_CLOSE_LABEL = `${ADVANCE_HEAD_CLOSE_HOUR}:00 ngày ${ADVANCE_DAY}`;
 
 /** Trưởng phòng duyệt yêu cầu của phòng này được. Phạm vi `own` hiểu là phòng của chính họ, như màn Phát phôi. */
 function headCovers(actor: User, departmentId: string | null): boolean {
@@ -166,8 +172,8 @@ function permitted(actor: User, row: RequestRow, phase: AdvancePhase, monthClose
 
 function refusal(row: RequestRow, phase: AdvancePhase, monthClosed: boolean): string {
   if (monthClosed) return "Tháng này đã chốt lương, không đổi được yêu cầu tạm ứng.";
-  if (row.status === "pending" && phase === "accounting") return "Yêu cầu đã hết hạn duyệt lúc 00:00 ngày 11.";
-  if (row.status === "head-approved" && phase !== "accounting") return "Kế toán xử lý yêu cầu từ 00:00 ngày 11.";
+  if (row.status === "pending" && phase === "accounting") return `Yêu cầu đã hết hạn duyệt lúc ${HEAD_CLOSE_LABEL}.`;
+  if (row.status === "head-approved" && phase !== "accounting") return `Kế toán xử lý yêu cầu từ ${HEAD_CLOSE_LABEL}.`;
   return "Yêu cầu vừa đổi trạng thái. Bạn tải lại danh sách.";
 }
 
@@ -473,7 +479,7 @@ async function requestWithName(id: string): Promise<{ row: RequestRow; fullName:
   return found ?? null;
 }
 
-/** Người gửi, Trưởng phòng của phòng đó và kế toán (từ 00:00 ngày 11) đọc được lịch sử của yêu cầu. */
+/** Người gửi, Trưởng phòng của phòng đó và kế toán (từ 13:00 ngày 10) đọc được lịch sử của yêu cầu. */
 const canRead = (actor: User, row: RequestRow, phase: AdvancePhase): boolean =>
   row.userId === actor.id ||
   headCovers(actor, row.departmentId) ||
@@ -556,7 +562,7 @@ type BatchResult = { ok: true; count: number } | { ok: false; message: string };
 async function accountingOpen(month: string): Promise<string | null> {
   const now = advanceNow();
   await expireOverdue(now);
-  if (advancePhaseOf(month, now) !== "accounting") return "Kế toán xử lý yêu cầu từ 00:00 ngày 11.";
+  if (advancePhaseOf(month, now) !== "accounting") return `Kế toán xử lý yêu cầu từ ${HEAD_CLOSE_LABEL}.`;
   if (await isMonthClosed(month)) return "Tháng này đã chốt lương, không đổi được yêu cầu tạm ứng.";
   return null;
 }
@@ -681,7 +687,7 @@ export async function advanceExportRows(
 ): Promise<AdvanceExportRow[] | string> {
   const now = advanceNow();
   await expireOverdue(now);
-  if (advancePhaseOf(month, now) !== "accounting") return "Kế toán xử lý yêu cầu từ 00:00 ngày 11.";
+  if (advancePhaseOf(month, now) !== "accounting") return `Kế toán xử lý yêu cầu từ ${HEAD_CLOSE_LABEL}.`;
   const waiting = (await countsOf(actor, eq(salaryAdvanceRequests.yearMonth, month))).headApproved;
   if (waiting > 0) return `Còn ${waiting} yêu cầu chờ duyệt. Bạn duyệt hoặc từ chối hết rồi mới xuất.`;
 
