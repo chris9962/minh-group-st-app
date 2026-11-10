@@ -180,12 +180,7 @@ const Month = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/);
 
 export const AdvanceBatchForm = z.discriminatedUnion('action', [
   z.object({ action: z.literal('approve-all'), month: Month }),
-  /** `amount` là số trong file đã xuất: dòng bị sửa số tiền sau lúc xuất thì không chuyển. */
-  z.object({
-    action: z.literal('processing'),
-    month: Month,
-    items: z.array(z.object({ id: z.string().uuid(), amount: z.number().int() })).max(5000),
-  }),
+  z.object({ action: z.literal('processing'), month: Month }),
   z.object({ action: z.literal('paid'), month: Month }),
 ]);
 export type AdvanceBatchForm = z.infer<typeof AdvanceBatchForm>;

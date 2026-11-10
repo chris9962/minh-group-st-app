@@ -43,9 +43,7 @@ import { canOpenSalaryAdvances } from "@/lib/permissions";
 import { errorMessage, toast } from "@/lib/toast";
 import styles from "./page.module.scss";
 
-type Batch =
-  | { action: "approve-all" | "paid"; count: number }
-  | { action: "processing"; items: { id: string; amount: number }[] };
+type Batch = { action: "approve-all" | "processing" | "paid"; count: number };
 
 /** Trạng thái kế toán thấy: từ lúc Trưởng phòng đã duyệt trở đi. */
 const ACCOUNTING_STATUSES: AdvanceStatus[] = ["head-approved", "approved", "rejected", "processing", "paid"];
@@ -122,15 +120,10 @@ export default function SalaryAdvancesPage() {
   });
 
   const runBatch = useMutation({
-    mutationFn: (b: Batch) =>
-      b.action === "processing"
-        ? batchAdvances({ action: "processing", month, items: b.items })
-        : batchAdvances({ action: b.action, month }),
+    mutationFn: (b: Batch) => batchAdvances({ action: b.action, month }),
     onSuccess: (count, b) => {
       const label = { "approve-all": "Đã duyệt", processing: "Đã chuyển sang Đang xử lý", paid: "Đã chi tạm ứng" }[b.action];
       toast.ok(`${label} ${count} yêu cầu`);
-      if (b.action === "processing" && count < b.items.length)
-        toast.fail(`${b.items.length - count} yêu cầu đổi số tiền sau lúc xuất file. Bạn xuất lại file cho các yêu cầu này.`);
       setBatch(null);
       refresh();
     },
@@ -146,7 +139,6 @@ export default function SalaryAdvancesPage() {
     try {
       const rows = await exportAdvances({ month, search: searchQuery, departmentId });
       toast.ok(`Đã xuất ${rows.length.toLocaleString("vi-VN")} dòng`);
-      setBatch({ action: "processing", items: rows.map((r) => ({ id: r.id, amount: r.amount })) });
     } catch (e) {
       toast.fail(errorMessage(e, "Không xuất được file Excel."));
     } finally {
@@ -317,11 +309,19 @@ export default function SalaryAdvancesPage() {
                       Duyệt tất cả ({data.counts.headApproved})
                     </Button>
                   )}
-                  {/* Chỉ xuất khi đã duyệt hoặc từ chối hết, và còn yêu cầu Đã duyệt chưa vào file (chốt 2026-11-01). */}
+                  {/* Chỉ xuất khi đã duyệt hoặc từ chối hết, và còn yêu cầu Đã duyệt chưa chuyển Đang xử lý (chốt 2026-11-01). */}
                   {data.counts.headApproved === 0 && data.counts.approved > 0 && !data.monthClosed && (
                     <Button variant="secondary" onClick={exportFile} disabled={exporting}>
                       <Download size={16} aria-hidden />
                       {exporting ? "Đang xuất…" : "Xuất Excel"}
+                    </Button>
+                  )}
+                  {data.counts.headApproved === 0 && data.counts.approved > 0 && !data.monthClosed && (
+                    <Button
+                      variant="secondary"
+                      onClick={() => setBatch({ action: "processing", count: data.counts.approved })}
+                    >
+                      Chuyển Đang xử lý ({data.counts.approved})
                     </Button>
                   )}
                   {data.counts.processing > 0 && !data.monthClosed && (
@@ -409,13 +409,12 @@ export default function SalaryAdvancesPage() {
           open={batch !== null}
           title={batch?.action === "approve-all" ? "Duyệt tất cả" : batch?.action === "paid" ? "Đã chi tạm ứng" : "Đang xử lý"}
           confirmLabel={batch?.action === "approve-all" ? "Duyệt" : "Chuyển"}
-          cancelLabel={batch?.action === "processing" ? "Không" : "Huỷ"}
           pending={runBatch.isPending}
           onConfirm={() => batch && runBatch.mutate(batch)}
           onClose={() => setBatch(null)}
         >
           {batch?.action === "approve-all" && `Duyệt ${batch.count} yêu cầu Trưởng phòng đã duyệt?`}
-          {batch?.action === "processing" && `Chuyển ${batch.items.length} yêu cầu sang Đang xử lý?`}
+          {batch?.action === "processing" && `Chuyển ${batch.count} yêu cầu Đã duyệt sang Đang xử lý?`}
           {batch?.action === "paid" && `Chuyển ${batch.count} yêu cầu Đang xử lý sang Đã chi tạm ứng?`}
         </ConfirmDialog>
       </main>

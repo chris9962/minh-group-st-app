@@ -9,7 +9,7 @@ const LABEL = {
   paid: "Đã chi tạm ứng",
 } as const;
 
-/** Ba nút của kế toán: Duyệt tất cả, chuyển sang Đang xử lý sau khi xuất Excel, Đã chi tạm ứng. */
+/** Ba nút ghi của kế toán: Duyệt tất cả, Chuyển Đang xử lý, Đã chi tạm ứng. */
 export async function POST(request: Request) {
   const guard = await actorWith(request, "system", "close-salary");
   if (!guard.ok) return guard.response;
@@ -21,7 +21,7 @@ export async function POST(request: Request) {
     form.action === "approve-all"
       ? await approveAllAdvances(guard.actor, form.month)
       : form.action === "processing"
-        ? await markAdvancesProcessing(guard.actor, form.month, form.items)
+        ? await markAdvancesProcessing(guard.actor, form.month)
         : await markAdvancesPaid(guard.actor, form.month);
   if (!result.ok) return Response.json({ message: result.message }, { status: 409 });
 
