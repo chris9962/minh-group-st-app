@@ -22,6 +22,61 @@ const seesCompanyDashboard = (user: User) =>
  */
 export const RELEASES: Release[] = [
   {
+    id: '2026-11-10',
+    version: '2.24.0',
+    title: 'Cập nhật ngày 10/11/2026',
+    summary: 'Thể lệ mới từ 11/11/2026: thêm ví ShopeePay, cộng 0,5 điểm và tặng Combo quà tặng ShopeePay.',
+    sections: [
+      {
+        title: 'Thể lệ từ ngày 11/11/2026',
+        items: [
+          'Áp cho hồ sơ khách từ 11/11/2026.',
+          'Thêm ví ShopeePay: cộng 0,5 điểm, tặng Combo quà tặng ShopeePay.',
+          'ShopeePay mở một mình được.',
+          'ShopeePay không tính vào combo, không tính vào 3 ngân hàng của hồ sơ.',
+          'Bank hạn chế kèm ShopeePay: tính Combo 1, 0,1 điểm.',
+        ],
+      },
+      {
+        title: 'Mở tài khoản ShopeePay',
+        items: [
+          'Nhập Ngân hàng và Số tài khoản liên kết.',
+          'Có nút Hiện QR shop mua quà tặng.',
+        ],
+        visibleTo: (user) => canOpenPath(user, '/banking'),
+      },
+      {
+        title: 'Tạm ứng lương',
+        items: [
+          'Ngày 10 hằng tháng, bạn gửi yêu cầu tạm ứng trước 12:00.',
+          'Trưởng phòng duyệt trước 13:00 ngày 10. Kế toán duyệt từ 13:00.',
+        ],
+      },
+      {
+        title: 'Tạm ứng lương',
+        items: ['Xuất Excel và Chuyển Đang xử lý là hai nút riêng.'],
+        visibleTo: (user) => can(user, 'system', 'close-salary'),
+      },
+      {
+        title: 'Lương',
+        items: ['Tài khoản CASA của VPa tính vào lương.'],
+      },
+      {
+        title: 'Quản lý ngân hàng',
+        items: [
+          'Màn Ngân hàng, nút ba chấm > Nhập file CASA: nhập file CASA của VPa vào lương một tháng.',
+          'Mỗi tài khoản chỉ nhập một lần.',
+        ],
+        visibleTo: (user) => can(user, 'system', 'configure-catalog'),
+      },
+      {
+        title: 'Nhân sự',
+        items: ['Trang chi tiết nhân viên có tab Nhật ký hoạt động.'],
+        visibleTo: (user) => can(user, 'system', 'manage-org'),
+      },
+    ],
+  },
+  {
     id: '2026-11-08',
     version: '2.23.0',
     title: 'Cập nhật ngày 08/11/2026',
