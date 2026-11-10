@@ -45,6 +45,19 @@
   background: transparent;
 }
 
+.text {
+  display: inline-grid;
+}
+
+.text > * {
+  grid-area: 1 / 1;
+}
+
+.sizer {
+  font-weight: 600;
+  visibility: hidden;
+}
+
 .tab:hover {
   color: var(--om-text);
 }
