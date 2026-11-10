@@ -1,3 +1,4 @@
+import { isNonBankCode } from "@/lib/api/bankAccounts";
 import {
   and,
   count,
@@ -564,7 +565,7 @@ export async function listScoringExport(
     // 2026-09-07).
     const bankCodes = [
       ...new Set(accounts.filter((a) => a.accountType !== "HKD").map((a) => a.bankCode)),
-    ].filter((code) => !HOUSEHOLD_CODES.has(code));
+    ].filter((code) => !HOUSEHOLD_CODES.has(code) && !isNonBankCode(code));
     const tierCount = (tier: string) =>
       bankCodes.filter((code) => bankTierFor(code, ruleDate) === tier).length;
 

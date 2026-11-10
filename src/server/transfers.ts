@@ -1,5 +1,5 @@
 import { and, eq, inArray, ne, sql } from "drizzle-orm";
-import { MAX_BANK_ACCOUNTS_PER_CUSTOMER } from "@/lib/api/bankAccounts";
+import { isNonBankCode, MAX_BANK_ACCOUNTS_PER_CUSTOMER } from "@/lib/api/bankAccounts";
 import type { CustomerLookupResult } from "@/lib/api/customers";
 import { businessDay } from "@/lib/format";
 import type { User } from "@/lib/types";
@@ -120,17 +120,19 @@ export async function moveTargets(
       customerId: customers.id,
       ownerId: customers.createdBy,
       accountType: bankAccounts.accountType,
+      bankCode: banks.code,
     })
     .from(bankAccounts)
     .innerJoin(customers, eq(customers.id, bankAccounts.customerId))
+    .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
     .where(eq(bankAccounts.id, accountId));
   if (!row) return null;
   if (!row.ownerId) return { rows: [], hiddenBankFull: 0 };
   return lookupCustomers(actor, search, {
     ownerId: row.ownerId,
     excludeId: row.customerId,
-    // Dòng HKD không chiếm trần 3 tài khoản chính, nên hồ sơ đã đủ trần vẫn nhận được.
-    forBankAccount: row.accountType !== "HKD",
+    // Dòng HKD và dòng ShopeePay không chiếm trần 3 tài khoản chính, nên hồ sơ đã đủ trần vẫn nhận được.
+    forBankAccount: row.accountType !== "HKD" && !isNonBankCode(row.bankCode),
   });
 }
 
@@ -217,8 +219,11 @@ export async function moveBankAccount(
           .from(bankAccounts)
           .innerJoin(banks, eq(banks.id, bankAccounts.bankId))
           .where(and(eq(bankAccounts.customerId, target.id), sql`${bankAccounts.accountType} <> 'HKD'`))
-      ).map((r) => r.code);
-      if (mainCodesHere.length >= MAX_BANK_ACCOUNTS_PER_CUSTOMER)
+      )
+        .map((r) => r.code)
+        .filter((code) => !isNonBankCode(code));
+      // Dòng ShopeePay không chiếm chỗ trong giới hạn, chỉ xét luật "không mở một mình".
+      if (!isNonBankCode(account.bankCode) && mainCodesHere.length >= MAX_BANK_ACCOUNTS_PER_CUSTOMER)
         return {
           ok: false as const,
           message: `Hồ sơ ${target.fullName} đã đủ ${MAX_BANK_ACCOUNTS_PER_CUSTOMER} tài khoản ngân hàng.`,

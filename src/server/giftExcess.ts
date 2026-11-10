@@ -1,3 +1,4 @@
+import { isNonBankCode } from "@/lib/api/bankAccounts";
 import { and, asc, count, desc, eq, exists, inArray, sql, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { GIFT_DECLINED, GIFT_NONE, GIFT_UNCHOSEN } from "@/lib/api/customers";
@@ -199,7 +200,7 @@ export async function listGiftExcessExport(
     doneOf.set(row.customerId, list);
     // Dòng `VPa` CNKD cũng giữ suất quà thêm từ 2026-10-02. Một ngân hàng không
     // vừa CNKD vừa HKD, nên khớp theo mã ngân hàng vẫn ra đúng một dòng.
-    if (row.accountType === "HKD" || row.accountType === "CNKD") {
+    if (row.accountType === "HKD" || row.accountType === "CNKD" || isNonBankCode(row.bankCode)) {
       const extraRows = extraRowsOf.get(row.customerId) ?? [];
       extraRows.push({ id: row.id, bankCode: row.bankCode });
       extraRowsOf.set(row.customerId, extraRows);

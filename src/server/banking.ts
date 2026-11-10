@@ -20,6 +20,7 @@ import {
   canEditOpeningPhotos,
   DRAFT_TTL_MINUTES,
   DRAFT_WARN_LEAD_MINUTES,
+  isNonBankCode,
   MAX_BANK_ACCOUNTS_PER_CUSTOMER,
   pendingSkipReasonMessage,
 } from "@/lib/api/bankAccounts";
@@ -1622,18 +1623,27 @@ export async function startBankAccount(
      * trước trong cùng lượt.
      */
     const ruleDay = businessDay(customer.createdAt);
-    const mainCodesHere = ownedHere.filter((r) => !isHkd(r.accountType)).map((r) => r.bankCode);
+    // Dòng ShopeePay không phải ngân hàng, giống dòng HKD (chốt 2026-11-10).
+    const mainCodesHere = ownedHere
+      .filter((r) => !isHkd(r.accountType) && !isNonBankCode(r.bankCode))
+      .map((r) => r.bankCode);
+    const mainPickCodes = form.picks
+      .filter((p) => !isHkd(p.accountType))
+      .map((p) => bankById.get(p.bankId)!.code)
+      .filter((code) => !isNonBankCode(code));
     const pickedSoFar: string[] = [];
     for (const pick of form.picks) {
       if (isHkd(pick.accountType)) continue;
       const code = bankById.get(pick.bankId)!.code;
-      const reason = openBlockReasonAt([...mainCodesHere, ...pickedSoFar], code, ruleDay);
+      // ShopeePay xét trên MỌI ngân hàng đang chọn, không theo thứ tự trong lượt.
+      const existing = isNonBankCode(code) ? mainPickCodes : pickedSoFar;
+      const reason = openBlockReasonAt([...mainCodesHere, ...existing], code, ruleDay);
       if (reason) return { ok: false as const, message: `${code}: ${reason}` };
-      pickedSoFar.push(code);
+      if (!isNonBankCode(code)) pickedSoFar.push(code);
     }
 
     const mainHere = mainCodesHere.length;
-    const mainPicks = form.picks.filter((p) => !isHkd(p.accountType)).length;
+    const mainPicks = mainPickCodes.length;
     if (mainHere + mainPicks > MAX_BANK_ACCOUNTS_PER_CUSTOMER)
       return {
         ok: false as const,
@@ -1794,7 +1804,7 @@ export async function customerBankSlots(
       })
       .from(bankAccounts)
       .where(eq(bankAccounts.rootCustomerId, customer.rootCustomerId)),
-    db.select({ id: banks.id, minAge: banks.minAge, maxAge: banks.maxAge }).from(banks),
+    db.select({ id: banks.id, code: banks.code, minAge: banks.minAge, maxAge: banks.maxAge }).from(banks),
     // Ngân hàng có loại tài khoản nào để mở: đọc từ kho mã, không viết cứng `VPa`.
     // Chỉ tính mã phòng ghi nhận dùng được: mã CNKD của phòng khác từng mở dòng VPb
     // cho khách ngoài tuổi VPb thường, rồi ô mã hiện mã thường (2026-10-16).
@@ -1824,7 +1834,10 @@ export async function customerBankSlots(
       .map((bank) => bank.id);
 
   // Trần 3 chỉ đếm dòng CHÍNH của hồ sơ đang mở; dòng HKD không phải ngân hàng.
-  const mainHere = byPerson.filter((r) => r.customerId === customerId && !isHkd(r.accountType)).length;
+  const nonBankIds = new Set(bankRows.filter((b) => isNonBankCode(b.code)).map((b) => b.id));
+  const mainHere = byPerson.filter(
+    (r) => r.customerId === customerId && !isHkd(r.accountType) && !nonBankIds.has(r.bankId),
+  ).length;
 
   return {
     used: byPerson.map((r) => ({

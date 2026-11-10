@@ -185,7 +185,10 @@ export const GiftExtraSlot = z.object({
   bankAccountId: z.string().nullable(),
   bankCode: z.string(),
   // Snapshot chốt trước 2026-10-02 không có trường này; mọi suất khi đó là HKD.
-  accountType: z.enum(['HKD', 'CNKD']).default('HKD'),
+  // `none` là suất của dòng ShopeePay (kỳ 2026-11-11).
+  accountType: z.enum(['HKD', 'CNKD', 'none']).default('HKD'),
+  /** Mã món suất này được chọn trong `extraBasket`; vắng thì chọn trong trọn rổ. */
+  itemCodes: z.array(z.string()).optional(),
 });
 export type GiftExtraSlot = z.infer<typeof GiftExtraSlot>;
 

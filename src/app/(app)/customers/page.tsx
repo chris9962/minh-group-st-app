@@ -566,7 +566,6 @@ export default function CustomersPage() {
                   icon={compact}
                   tooltip={compact ? "Mở ngân hàng" : undefined}
                   aria-label={`Mở ngân hàng cho ${c.fullName}`}
-                  disabled={c.bankSlotsLeft <= 0}
                   onClick={() => setOpeningBankFor(c)}
                 >
                   <Landmark size={16} aria-hidden />

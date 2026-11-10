@@ -749,7 +749,7 @@ export type CustomerChange = z.infer<typeof CustomerChange>;
 export const GivenExtra = z.object({
   bankAccountId: z.string().nullable(),
   bankCode: z.string(),
-  accountType: z.enum(['HKD', 'CNKD']),
+  accountType: z.enum(['HKD', 'CNKD', 'none']),
   code: z.string(),
   item: z.string(),
 });
@@ -900,8 +900,17 @@ export const extraSlotKey = (slot: { bankAccountId: string | null }): string => 
  * dòng HKD nên mã ngân hàng là đủ phân biệt; không kèm số tài khoản, vì bảng tài
  * khoản ở hồ sơ khách không hiện số và còn lọc theo phạm vi ngân hàng của người xem.
  */
-export const extraSlotLabel = (slot: { bankCode: string; accountType: 'HKD' | 'CNKD' }): string =>
-  `${slot.bankCode} ${slot.accountType}`;
+export const extraSlotLabel = (slot: { bankCode: string; accountType: 'HKD' | 'CNKD' | 'none' }): string =>
+  slot.accountType === 'none' ? slot.bankCode : `${slot.bankCode} ${slot.accountType}`;
+
+/** Món một suất quà thêm được chọn. Suất không khai `itemCodes` chọn trong trọn rổ quà thêm. */
+export const extraOptionsOf = <T extends { code: string }>(
+  basket: T[],
+  slot: { itemCodes?: string[] } | undefined,
+): T[] => {
+  const codes = slot?.itemCodes;
+  return codes ? basket.filter((b) => codes.includes(b.code)) : basket;
+};
 
 /** Dòng HKD hiện tại của khách chưa có câu trả lời quà thêm trong đợt đã chốt. */
 export function pendingExtraSlots(

@@ -1,5 +1,6 @@
 import { and, asc, count, desc, eq, exists, inArray, isNull, notInArray, sql, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
+import { isNonBankCode } from "@/lib/api/bankAccounts";
 import {
   GIFT_DECLINED,
   GIFT_ERROR,
@@ -7,6 +8,7 @@ import {
   GIFT_NONE_LABEL,
   GIFT_SENTINEL_LABELS,
   GIFT_UNCHOSEN,
+  extraOptionsOf,
   extraSlotLabel,
   type GiftChangeForm,
   type GiftExtraChoice,
@@ -265,7 +267,12 @@ export async function giftResultOf(
     extraSlots: (result.extraBanks ?? []).map((bankCode) => ({
       bankAccountId: null,
       bankCode,
-      accountType: result.cnkdExtraBanks?.includes(bankCode) ? ("CNKD" as const) : ("HKD" as const),
+      accountType: isNonBankCode(bankCode)
+        ? ("none" as const)
+        : result.cnkdExtraBanks?.includes(bankCode)
+          ? ("CNKD" as const)
+          : ("HKD" as const),
+      itemCodes: result.extraItemsOf?.[bankCode],
     })),
     kpiPoints: result.comboPoints,
     kpiBreakdown:
@@ -304,9 +311,13 @@ function householdNoteOf(points: number, grantedItem: string | null, at: string)
   }
   if (at < "2026-10-01") return points === 3 ? "HKD, dòng VPa HKD" : "CNKD";
   // CNKD 1,0 nhỏ hơn 3,0 của một HKD, nên phần dư chia 3 nói khách có CNKD.
-  const hkd = Math.floor(points / 3);
+  // Chỉ ShopeePay mang nửa điểm (kỳ 2026-11-11), nên số lẻ 0,5 nói khách có ShopeePay.
+  const shopeePay = Math.round(points * 10) % 10 === 5;
+  const rest = shopeePay ? points - 0.5 : points;
+  const hkd = Math.floor(rest / 3);
   const parts = hkd > 0 ? [`HKD, ${hkd} tài khoản`] : [];
-  if (points - hkd * 3 > 0) parts.push("CNKD");
+  if (rest - hkd * 3 > 0) parts.push("CNKD");
+  if (shopeePay) parts.push("ShopeePay");
   return parts.join(" + ");
 }
 
@@ -366,7 +377,6 @@ async function extraSlotsOf(customerId: string, slots: GiftExtraSlot[]): Promise
       and(
         eq(bankAccounts.customerId, customerId),
         eq(bankAccounts.status, "done"),
-        inArray(bankAccounts.accountType, ["HKD", "CNKD"]),
       ),
     );
   return slots.map((slot) => {
@@ -658,7 +668,8 @@ export async function grantGift(
   if (slotError) return { ok: false, code: GIFT_ERROR.NOT_IN_BASKET, message: slotError };
   for (const choice of extras) {
     if (choice.item === GIFT_DECLINED) continue;
-    const pickedExtra = gift.extraBasket.find((b) => b.code === choice.item);
+    const slot = gift.extraSlots.find((s) => (s.bankAccountId ?? "") === (choice.bankAccountId ?? ""));
+    const pickedExtra = extraOptionsOf(gift.extraBasket, slot).find((b) => b.code === choice.item);
     if (!pickedExtra)
       return {
         ok: false,
@@ -822,7 +833,10 @@ export async function chooseExtraGift(
   for (const choice of extras) {
     const slot = pending.find((s) => keyOf(s.bankAccountId) === keyOf(choice.bankAccountId));
     if (!slot) return { ok: false, message: "Có tài khoản không còn chờ chọn quà thêm. Tải lại rồi thử lại." };
-    const picked = choice.item === GIFT_DECLINED ? null : live.extraBasket.find((b) => b.code === choice.item);
+    const picked =
+      choice.item === GIFT_DECLINED
+        ? null
+        : extraOptionsOf(live.extraBasket, slot).find((b) => b.code === choice.item);
     if (choice.item !== GIFT_DECLINED && (!picked || !picked.id || picked.status !== "ok"))
       return { ok: false, message: "Món quà thêm phải nằm trong danh sách quà thêm của khách và còn cấp được." };
     labels.push(`${slot.bankCode}: ${choice.item === GIFT_DECLINED ? "Từ chối quà thêm" : (picked?.name ?? choice.item)}`);
@@ -957,9 +971,9 @@ export async function changeGift(
   for (const change of extraChanges) {
     if (change.item === GIFT_DECLINED) continue;
     // Dòng HKD đã bị đánh lỗi thì rổ không còn suất cho nó: chỉ còn từ chối được.
-    if (!nextGift.extraSlots.some((s) => keyOf(s.bankAccountId) === keyOf(change.current.bankAccountId)))
-      return { ok: false, message: "Tài khoản này không còn được quà thêm." };
-    const pickedExtra = nextGift.extraBasket.find((b) => b.code === change.item);
+    const slot = nextGift.extraSlots.find((s) => keyOf(s.bankAccountId) === keyOf(change.current.bankAccountId));
+    if (!slot) return { ok: false, message: "Tài khoản này không còn được quà thêm." };
+    const pickedExtra = extraOptionsOf(nextGift.extraBasket, slot).find((b) => b.code === change.item);
     if (!pickedExtra || !pickedExtra.id || pickedExtra.status !== "ok")
       return { ok: false, message: "Món quà thêm phải nằm trong danh sách quà thêm của khách và còn cấp được." };
   }

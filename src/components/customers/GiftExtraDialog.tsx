@@ -10,6 +10,7 @@ import {
   GIFT_DECLINED,
   chooseExtraGift,
   extraSlotKey,
+  extraOptionsOf,
   extraSlotLabel,
   fetchCustomerDetail,
   pendingExtraSlots,
@@ -90,7 +91,7 @@ export function GiftExtraDialog({ open, onClose, customerId, customerName }: Pro
                   Chọn <strong>đúng 1</strong> món dưới đây, cộng với quà chính:
                 </p>
                 <div className={styles.cards}>
-                  {extraBasket.map((item, i) => {
+                  {extraOptionsOf(extraBasket, slot).map((item, i) => {
                     const off = item.status !== "ok";
                     return (
                       <label

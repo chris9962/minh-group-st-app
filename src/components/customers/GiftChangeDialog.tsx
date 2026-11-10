@@ -14,6 +14,7 @@ import {
   GIFT_UNCHOSEN,
   changeGift,
   extraSlotKey,
+  extraOptionsOf,
   extraSlotLabel,
   fetchCustomerDetail,
   type CustomerDetail,
@@ -167,7 +168,10 @@ export function GiftChangeDialog({ open, onClose, customerId, customerName }: Pr
             <legend className={styles.groupTitle}>Quà thêm {extraSlotLabel(given)}</legend>
             <p className={styles.current}>Đang tặng: <strong>{given.item}</strong></p>
             <div className={styles.cards}>
-              {extraBasket.map((item, i) => renderCard(item, group, i))}
+              {extraOptionsOf(
+                extraBasket,
+                gift.extraSlots.find((s) => extraSlotKey(s) === extraSlotKey(given)),
+              ).map((item, i) => renderCard(item, group, i))}
               {given.code !== GIFT_DECLINED && renderDecline(group, "Từ chối quà thêm")}
             </div>
           </fieldset>
