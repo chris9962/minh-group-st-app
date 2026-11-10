@@ -25,3 +25,17 @@
     min-height: 64px;
   }
 }
+
+.linked {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+
+  legend {
+    padding: 0;
+    margin-bottom: 8px;
+    font-weight: 600;
+  }
+}

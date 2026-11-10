@@ -653,6 +653,8 @@ const pickPage = (where: SQL | undefined, orderBy: SQL[], limit: number, offset:
       appInstalled: bankAccounts.appInstalled,
       accountType: bankAccounts.accountType,
       note: bankAccounts.note,
+      linkedBankName: bankAccounts.linkedBankName,
+      linkedAccountNumber: bankAccounts.linkedAccountNumber,
       errorNote: bankAccounts.errorNote,
       createdBy: bankAccounts.createdBy,
       createdByDepartmentId: bankAccounts.createdByDepartmentId,
@@ -713,6 +715,8 @@ const decorate = (page: ReturnType<typeof pickPage>) => {
       appInstalled: page.appInstalled,
       accountType: page.accountType,
       note: page.note,
+      linkedBankName: sql<string>`coalesce(${page.linkedBankName}, '')`,
+      linkedAccountNumber: sql<string>`coalesce(${page.linkedAccountNumber}, '')`,
       errorNote: page.errorNote,
       createdById: page.createdBy,
       createdByName: users.fullName,
@@ -1341,6 +1345,8 @@ async function detailBody(r: DecoratedRow): Promise<BankAccountDetail> {
     channelDetail: r.channelDetail,
     accountType,
     note: r.note,
+    linkedBankName: r.linkedBankName,
+    linkedAccountNumber: r.linkedAccountNumber,
     createdByDepartmentId: r.createdByDepartmentId,
     photoUrls: await photoUrlsOf(r.id, "opening"),
     transactionAt: r.transactionAt,
@@ -1879,6 +1885,18 @@ export async function customerBankSlots(
  * thiếu dữ liệu chứ không phải một quyết định kinh doanh. Ba luật cảnh báo mềm
  * còn lại của §4.8 đã bỏ (2026-09-07): chúng đếm "tổng app" theo luật quà cũ.
  */
+type LinkedAccountInput = Pick<BankAccountFinishForm, "linkedBankName" | "linkedAccountNumber">;
+
+const linkedAccountMissing = (bankCode: string, form: LinkedAccountInput): string | null =>
+  isNonBankCode(bankCode) && (!form.linkedBankName || !form.linkedAccountNumber)
+    ? `${bankCode} cần ngân hàng và số tài khoản liên kết.`
+    : null;
+
+const linkedAccountOf = (bankCode: string, form: LinkedAccountInput) =>
+  isNonBankCode(bankCode)
+    ? { linkedBankName: form.linkedBankName, linkedAccountNumber: form.linkedAccountNumber }
+    : {};
+
 export async function finishBankAccount(
   actor: User,
   id: string,
@@ -1947,6 +1965,9 @@ export async function finishBankAccount(
    */
   const openedDate = current.date || businessDay();
 
+  const linkedMissing = linkedAccountMissing(current.bankCode, form);
+  if (linkedMissing) return { ok: false, message: linkedMissing };
+
   /**
    * Đếm ảnh và ghi phải nằm TRONG CÙNG MỘT GIAO DỊCH, và câu ghi phải mang lại
    * điều kiện `status = 'creating'`.
@@ -1980,6 +2001,7 @@ export async function finishBankAccount(
       openedDate,
       appInstalled: form.appInstalled,
       note: form.note,
+      ...linkedAccountOf(current.bankCode, form),
       finishedAt: new Date(),
     });
 
@@ -2076,6 +2098,9 @@ export async function updateFinishedAccount(
       message: `Số tài khoản ${current.bankCode} phải đủ ${current.accountNumberLength} chữ số.`,
     };
 
+  const linkedMissing = linkedAccountMissing(current.bankCode, form);
+  if (linkedMissing) return { ok: false, message: linkedMissing };
+
   const previousDate = current.date;
 
   /**
@@ -2091,6 +2116,7 @@ export async function updateFinishedAccount(
       transactionAt: form.transactionAt || null,
       appInstalled: form.appInstalled,
       note: form.note,
+      ...linkedAccountOf(current.bankCode, form),
     });
 
     if (updated.length === 0)

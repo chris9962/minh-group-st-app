@@ -15,7 +15,7 @@ import { CharCount } from "@/components/ui/CharCount";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { Select } from "@/components/ui/Select";
 import { TextField } from "@/components/ui/TextField";
-import { BankAccountFinishForm } from "@/lib/api/bankAccounts";
+import { BankAccountFinishForm, isNonBankCode } from "@/lib/api/bankAccounts";
 import type { AccountNumberMethod } from "@/lib/api/bankCatalog";
 import { BankAccountPhotos, type PhotoItem } from "./BankAccountPhotos";
 import { httpLinkIn, readQrImageUrl } from "@/lib/readQrImage";
@@ -170,7 +170,7 @@ export function BankAccountFinishFields({
           {bankQrLink && (
             <Button variant="secondary" type="button" className={styles.openAction} onClick={() => setBankQrOpen(true)}>
               <QrCode size={16} aria-hidden />
-              Hiện QR {bankCode}
+              Hiện QR shop mua quà tặng
             </Button>
           )}
 
@@ -217,7 +217,7 @@ export function BankAccountFinishFields({
       {bankQrOpen && bankQrSrc && (
         <ImageLightbox
           src={bankQrSrc}
-          alt={`Mã QR ${bankCode}`}
+          alt="Mã QR shop mua quà tặng"
           onClose={() => setBankQrOpen(false)}
           caption={
             <a href={bankQrLink} target="_blank" rel="noreferrer">
@@ -288,6 +288,26 @@ export function BankAccountFinishFields({
             checked={watch("appInstalled")}
             onCheckedChange={(v) => setValue("appInstalled", v, { shouldDirty: true })}
           />
+        )}
+
+        {isNonBankCode(bankCode) && (
+          <fieldset className={styles.linked}>
+            <legend>Tài khoản liên kết</legend>
+            <TextField
+              label="Ngân hàng"
+              required
+              error={errors.linkedBankName?.message}
+              {...register("linkedBankName")}
+            />
+            <TextField
+              label="Số tài khoản liên kết"
+              required
+              inputMode="numeric"
+              pattern="[0-9]*"
+              error={errors.linkedAccountNumber?.message}
+              {...register("linkedAccountNumber")}
+            />
+          </fieldset>
         )}
 
         <TextField label="Ghi chú" {...register("note")} />

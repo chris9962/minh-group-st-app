@@ -42,6 +42,7 @@ import {
   approveBankAccount,
   deleteBankAccount,
   finishBankAccount,
+  isNonBankCode,
   setBankAccountPhotos,
   setPhotoCheckConfirmed,
 } from "@/lib/api/bankAccounts";
@@ -203,6 +204,8 @@ function FinishAccountCard({
       // Từng ngân hàng tự chọn tick sẵn hay không (P-60) — vài ngân hàng khách
       // hiếm khi cài app, để tick sẵn là nhân viên phải bỏ tick từng lượt.
       appInstalled: data.appDefault,
+      linkedBankName: data.linkedBankName,
+      linkedAccountNumber: data.linkedAccountNumber,
       note: data.note,
     },
   });
@@ -656,16 +659,30 @@ function DoneAccountCard({
           <dt>Loại tài khoản</dt>
           <dd>{ACCOUNT_TYPE_LABEL[data.accountType]}</dd>
         </div>
-        <div>
-          <dt>Ngày giao dịch</dt>
-          <dd>
-            {data.transactionAt ? (
-              formatDate(data.transactionAt)
-            ) : (
-              <span className="text-muted">Chưa ghi nhận</span>
-            )}
-          </dd>
-        </div>
+        {!isNonBankCode(data.bankCode) && (
+          <div>
+            <dt>Ngày giao dịch</dt>
+            <dd>
+              {data.transactionAt ? (
+                formatDate(data.transactionAt)
+              ) : (
+                <span className="text-muted">Chưa ghi nhận</span>
+              )}
+            </dd>
+          </div>
+        )}
+        {isNonBankCode(data.bankCode) && (
+          <>
+            <div>
+              <dt>Ngân hàng liên kết</dt>
+              <dd>{data.linkedBankName || "—"}</dd>
+            </div>
+            <div>
+              <dt>Số tài khoản liên kết</dt>
+              <dd>{data.linkedAccountNumber || "—"}</dd>
+            </div>
+          </>
+        )}
         <div>
           <dt>Ghi chú</dt>
           <dd>{data.note || "—"}</dd>
@@ -698,11 +715,13 @@ function DoneAccountCard({
 
       {/* Ảnh giao dịch của bước 3 (spec §4.2) — nộp muộn, không bắt buộc tấm
           nào, và KHÔNG cộng vào số ảnh chứng minh bắt buộc. */}
-      <BankAccountPhotos
-        title="Ảnh giao dịch"
-        requiredPhotos={0}
-        photos={savedPhotos(data.transactionPhotoUrls)}
-      />
+      {!isNonBankCode(data.bankCode) && (
+        <BankAccountPhotos
+          title="Ảnh giao dịch"
+          requiredPhotos={0}
+          photos={savedPhotos(data.transactionPhotoUrls)}
+        />
+      )}
 
       {markingError && (
         <Dialog

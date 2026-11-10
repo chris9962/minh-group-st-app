@@ -372,6 +372,13 @@ export const BankAccountFinishForm = z.object({
    */
   openedDate: isoDate('Chưa chọn ngày mở'),
   appInstalled: z.boolean(),
+  /** Tài khoản liên kết của dòng ShopeePay. Máy chủ bắt buộc cả hai ô với ShopeePay, bỏ qua với ngân hàng. */
+  linkedBankName: z.string().trim().max(100, 'Tên ngân hàng dài quá'),
+  linkedAccountNumber: z
+    .string()
+    .trim()
+    .max(50, 'Số tài khoản liên kết dài quá')
+    .regex(/^\d*$/, 'Số tài khoản liên kết chỉ được có chữ số'),
   /**
    * KHÔNG có loại tài khoản ở đây (chốt 2026-09-06): loại cố định từ mã giới
    * thiệu chọn lúc giữ chỗ, và mã tách theo loại. Muốn loại khác thì mở dòng

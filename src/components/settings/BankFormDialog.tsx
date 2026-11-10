@@ -355,7 +355,7 @@ export function BankFormDialog({ open, onClose, bank }: Props) {
         />
 
         <TextField
-          label="Link QR"
+          label="Link shop mua quà tặng"
           type="url"
           inputMode="url"
           placeholder="https://"

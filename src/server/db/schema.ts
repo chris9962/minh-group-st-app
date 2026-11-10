@@ -1342,6 +1342,9 @@ export const bankAccounts = pgTable(
     /** Người quản ngân hàng đánh lỗi kèm "Không cho sửa" (migration 0136). */
     errorLocked: boolean("error_locked").notNull().default(false),
     accountNumber: text("account_number"),
+    /** Tài khoản ngân hàng khách liên kết với ví, chỉ dòng ShopeePay có (migration 0166). */
+    linkedBankName: text("linked_bank_name"),
+    linkedAccountNumber: text("linked_account_number"),
     openedDate: date("opened_date"),
     /** Trường quyết định quà. */
     appInstalled: boolean("app_installed").notNull().default(false),

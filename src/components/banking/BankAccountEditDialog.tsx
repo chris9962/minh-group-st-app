@@ -17,6 +17,7 @@ import {
   finishBankAccount,
   setBankAccountPhotos,
   updateBankAccount,
+  isNonBankCode,
 } from "@/lib/api/bankAccounts";
 import { BankAccountTransaction } from "./BankAccountTransaction";
 import { fetchBankAccountDetail } from "@/lib/api/banking";
@@ -113,6 +114,8 @@ export function BankAccountEditDialog({ open, onClose, accountId }: Props) {
       // Tài khoản đã hoàn thành thì đọc giá trị đã lưu.
       appInstalled:
         data?.status === "creating" ? (data.appDefault ?? false) : (data?.appInstalled ?? false),
+      linkedBankName: data?.linkedBankName ?? "",
+      linkedAccountNumber: data?.linkedAccountNumber ?? "",
       note: data?.note ?? "",
     },
   });
@@ -312,7 +315,7 @@ export function BankAccountEditDialog({ open, onClose, accountId }: Props) {
 
           {/* Bước 3 chỉ có nghĩa khi tài khoản đã xong — lúc còn `creating` thì
               khách chưa có tài khoản thật để mà giao dịch. */}
-          {!draft && (
+          {!draft && !isNonBankCode(data.bankCode) && (
             <BankAccountTransaction
               date={transactionAt}
               onDateChange={setEditedTransactionAt}
