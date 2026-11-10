@@ -1892,9 +1892,14 @@ const linkedAccountMissing = (bankCode: string, form: LinkedAccountInput): strin
     ? `${bankCode} cần ngân hàng và số tài khoản liên kết.`
     : null;
 
+// Dòng ShopeePay không có ô số tài khoản riêng: số tài khoản liên kết ghi vào cả hai cột.
 const linkedAccountOf = (bankCode: string, form: LinkedAccountInput) =>
   isNonBankCode(bankCode)
-    ? { linkedBankName: form.linkedBankName, linkedAccountNumber: form.linkedAccountNumber }
+    ? {
+        accountNumber: form.linkedAccountNumber,
+        linkedBankName: form.linkedBankName,
+        linkedAccountNumber: form.linkedAccountNumber,
+      }
     : {};
 
 export async function finishBankAccount(
@@ -1931,7 +1936,7 @@ export async function finishBankAccount(
    * request nặn tay gửi số bất kỳ vẫn tới đây, và tài khoản `done` thì số tài
    * khoản không sửa lại được nữa.
    */
-  if (current.accountNumberMethod === "phone-match") {
+  if (!isNonBankCode(current.bankCode) && current.accountNumberMethod === "phone-match") {
     const phones = await customerPhoneNumbers(current.customerId);
     if (!phones.includes(form.accountNumber))
       return {
@@ -1943,6 +1948,7 @@ export async function finishBankAccount(
   // Ô nhập đã giới hạn độ dài, nhưng ô nhập không phải chốt chặn — cùng lý do
   // với phép kiểm phone-match ngay trên.
   if (
+    !isNonBankCode(current.bankCode) &&
     current.accountNumberMethod === "manual" &&
     current.accountNumberLength !== null &&
     form.accountNumber.length !== current.accountNumberLength
@@ -2079,7 +2085,7 @@ export async function updateFinishedAccount(
   const nextStatus = current.status === "error" ? "fixed" : current.status;
 
   // Cùng chốt chặn với `finishBankAccount`: đường sửa cũng ghi đè số tài khoản.
-  if (current.accountNumberMethod === "phone-match") {
+  if (!isNonBankCode(current.bankCode) && current.accountNumberMethod === "phone-match") {
     const phones = await customerPhoneNumbers(current.customerId);
     if (!phones.includes(form.accountNumber))
       return {
@@ -2089,6 +2095,7 @@ export async function updateFinishedAccount(
   }
 
   if (
+    !isNonBankCode(current.bankCode) &&
     current.accountNumberMethod === "manual" &&
     current.accountNumberLength !== null &&
     form.accountNumber.length !== current.accountNumberLength
@@ -2122,7 +2129,8 @@ export async function updateFinishedAccount(
     if (updated.length === 0)
       return { ok: false as const, message: "Tài khoản này vừa bị đổi ở nơi khác" };
     // Phép kiểm so số tài khoản trên ảnh với số đã nhập, đổi số là phải kiểm lại.
-    if (form.accountNumber !== current.accountNumber) await enqueuePhotoCheck(tx, id);
+    if (!isNonBankCode(current.bankCode) && form.accountNumber !== current.accountNumber)
+      await enqueuePhotoCheck(tx, id);
     return { ok: true as const };
   });
 

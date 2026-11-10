@@ -22,6 +22,7 @@ import { PhotoCheckPanel } from "@/components/banking/PhotoCheckPanel";
 import { BankAccountFinishFields } from "@/components/banking/BankAccountFinishFields";
 import { DraftPurgeCountdown } from "@/components/banking/DraftPurgeCountdown";
 import { ReferralCodeCard } from "@/components/banking/ReferralCodeCard";
+import { BankShopQrButton } from "@/components/banking/BankShopQrButton";
 import {
   BankAccountPhotos,
   photosChanged,
@@ -634,10 +635,12 @@ function DoneAccountCard({
           <dt>Ngân hàng</dt>
           <dd>{data.bankCode}</dd>
         </div>
-        <div>
-          <dt>Số tài khoản</dt>
-          <dd className="tabular-nums">{formatPhone(data.accountNumber)}</dd>
-        </div>
+        {!isNonBankCode(data.bankCode) && (
+          <div>
+            <dt>Số tài khoản</dt>
+            <dd className="tabular-nums">{formatPhone(data.accountNumber)}</dd>
+          </div>
+        )}
         <div>
           <dt>Ngày mở</dt>
           <dd>{formatDate(data.date)}</dd>
@@ -708,6 +711,12 @@ function DoneAccountCard({
       </dl>
 
       <ReferralCodeCard account={data} />
+
+      {data.bankQrLink && (
+        <div>
+          <BankShopQrButton link={data.bankQrLink} />
+        </div>
+      )}
 
       {/* Hai khối ảnh CHỈ XEM (chốt 2026-08-16): thêm/thay/xoá ảnh đi qua hộp
           thoại Sửa cùng với các ô còn lại, không thao tác thẳng ngoài trang. */}

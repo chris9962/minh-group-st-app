@@ -11,6 +11,7 @@ import { BookOpen, ExternalLink, QrCode } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { ImageLightbox } from "@/components/ui/ImageLightbox";
 import { BankGuideDialog } from "./BankGuideDialog";
+import { BankShopQrButton } from "./BankShopQrButton";
 import { CharCount } from "@/components/ui/CharCount";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { Select } from "@/components/ui/Select";
@@ -19,7 +20,6 @@ import { BankAccountFinishForm, isNonBankCode } from "@/lib/api/bankAccounts";
 import type { AccountNumberMethod } from "@/lib/api/bankCatalog";
 import { BankAccountPhotos, type PhotoItem } from "./BankAccountPhotos";
 import { httpLinkIn, readQrImageUrl } from "@/lib/readQrImage";
-import { writeQrImage } from "@/lib/writeQrImage";
 import styles from "./BankAccountFinishFields.module.scss";
 
 type Props = {
@@ -113,28 +113,6 @@ export function BankAccountFinishFields({
 
   const qrLink = decodedQr.url === referralQrUrl ? decodedQr.link : "";
 
-  const [bankQrOpen, setBankQrOpen] = useState(false);
-  /** Ảnh QR vẽ từ `bankQrLink`, kèm link đã vẽ để link đổi thì vẽ lại. */
-  const [bankQr, setBankQr] = useState({ link: "", src: "" });
-
-  useEffect(() => {
-    if (!bankQrOpen || !bankQrLink) return;
-
-    let live = true;
-    let src = "";
-    writeQrImage(bankQrLink).then((image) => {
-      if (!live || !image) return;
-      src = URL.createObjectURL(image);
-      setBankQr({ link: bankQrLink, src });
-    });
-    return () => {
-      live = false;
-      if (src) URL.revokeObjectURL(src);
-    };
-  }, [bankQrOpen, bankQrLink]);
-
-  const bankQrSrc = bankQr.link === bankQrLink ? bankQr.src : "";
-
   /**
    * Có ảnh mẫu mà chưa có chữ vẫn dựng nút — ảnh chụp từng bước tự nó đã là
    * hướng dẫn, và hộp thoại nói rõ phần chữ còn trống.
@@ -167,12 +145,7 @@ export function BankAccountFinishFields({
             </Button>
           )}
 
-          {bankQrLink && (
-            <Button variant="secondary" type="button" className={styles.openAction} onClick={() => setBankQrOpen(true)}>
-              <QrCode size={16} aria-hidden />
-              Hiện QR shop mua quà tặng
-            </Button>
-          )}
+          {bankQrLink && <BankShopQrButton link={bankQrLink} className={styles.openAction} />}
 
           {/*
             Mỗi ngân hàng một quy trình: ngân hàng này bắt nhập mã giới thiệu ở
@@ -214,20 +187,6 @@ export function BankAccountFinishFields({
         />
       )}
 
-      {bankQrOpen && bankQrSrc && (
-        <ImageLightbox
-          src={bankQrSrc}
-          alt="Mã QR shop mua quà tặng"
-          onClose={() => setBankQrOpen(false)}
-          caption={
-            <a href={bankQrLink} target="_blank" rel="noreferrer">
-              <ExternalLink size={16} aria-hidden />
-              Quét QR code
-            </a>
-          }
-        />
-      )}
-
       <form id={formId} className={styles.form} onSubmit={onSubmit} noValidate>
         {/*
             Không có ô "Ngày mở" (chốt 2026-09-08): sổ chốt theo ngày, không
@@ -243,7 +202,7 @@ export function BankAccountFinishFields({
             ô khoá tự điền: áp cứng số chính là ghi sai số tài khoản vào hợp
             đồng, mà bản ghi đã `done` thì không sửa được nữa.
           */}
-        {accountNumberMethod === "phone-match" ? (
+        {isNonBankCode(bankCode) ? null : accountNumberMethod === "phone-match" ? (
           <Select
             block
             required
@@ -304,8 +263,11 @@ export function BankAccountFinishFields({
               required
               inputMode="numeric"
               pattern="[0-9]*"
-              error={errors.linkedAccountNumber?.message}
-              {...register("linkedAccountNumber")}
+              error={errors.linkedAccountNumber?.message ?? errors.accountNumber?.message}
+              {...register("linkedAccountNumber", {
+                // Ô số tài khoản bị ẩn với ShopeePay nhưng biểu mẫu vẫn bắt buộc trường đó.
+                onChange: (e) => setValue("accountNumber", e.target.value.trim()),
+              })}
             />
           </fieldset>
         )}
