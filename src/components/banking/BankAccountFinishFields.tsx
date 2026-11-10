@@ -19,6 +19,7 @@ import { BankAccountFinishForm } from "@/lib/api/bankAccounts";
 import type { AccountNumberMethod } from "@/lib/api/bankCatalog";
 import { BankAccountPhotos, type PhotoItem } from "./BankAccountPhotos";
 import { httpLinkIn, readQrImageUrl } from "@/lib/readQrImage";
+import { writeQrImage } from "@/lib/writeQrImage";
 import styles from "./BankAccountFinishFields.module.scss";
 
 type Props = {
@@ -36,6 +37,8 @@ type Props = {
   customerPhones: string[];
   /** Ảnh QR của mã giới thiệu; `''` = không dựng nút xem. */
   referralQrUrl: string;
+  /** Link của ngân hàng, hiện thành mã QR; `''` = không dựng nút xem. */
+  bankQrLink: string;
   /** Hướng dẫn mở tài khoản của ngân hàng; `''` = không dựng nút xem. */
   bankGuide: string;
   /** Ảnh mẫu kèm hướng dẫn, đúng thứ tự người nhập xếp. */
@@ -71,6 +74,7 @@ export function BankAccountFinishFields({
   accountNumberLength,
   customerPhones,
   referralQrUrl,
+  bankQrLink,
   bankGuide,
   bankGuidePhotoUrls,
   photos,
@@ -109,6 +113,28 @@ export function BankAccountFinishFields({
 
   const qrLink = decodedQr.url === referralQrUrl ? decodedQr.link : "";
 
+  const [bankQrOpen, setBankQrOpen] = useState(false);
+  /** Ảnh QR vẽ từ `bankQrLink`, kèm link đã vẽ để link đổi thì vẽ lại. */
+  const [bankQr, setBankQr] = useState({ link: "", src: "" });
+
+  useEffect(() => {
+    if (!bankQrOpen || !bankQrLink) return;
+
+    let live = true;
+    let src = "";
+    writeQrImage(bankQrLink).then((image) => {
+      if (!live || !image) return;
+      src = URL.createObjectURL(image);
+      setBankQr({ link: bankQrLink, src });
+    });
+    return () => {
+      live = false;
+      if (src) URL.revokeObjectURL(src);
+    };
+  }, [bankQrOpen, bankQrLink]);
+
+  const bankQrSrc = bankQr.link === bankQrLink ? bankQr.src : "";
+
   /**
    * Có ảnh mẫu mà chưa có chữ vẫn dựng nút — ảnh chụp từng bước tự nó đã là
    * hướng dẫn, và hộp thoại nói rõ phần chữ còn trống.
@@ -132,12 +158,19 @@ export function BankAccountFinishFields({
 
   return (
     <>
-      {(referralQrUrl || hasGuide) && (
+      {(referralQrUrl || bankQrLink || hasGuide) && (
         <div className={styles.openRow}>
           {referralQrUrl && (
             <Button variant="secondary" type="button" className={styles.openAction} onClick={() => setQrOpen(true)}>
               <QrCode size={16} aria-hidden />
               Hiện QR giới thiệu
+            </Button>
+          )}
+
+          {bankQrLink && (
+            <Button variant="secondary" type="button" className={styles.openAction} onClick={() => setBankQrOpen(true)}>
+              <QrCode size={16} aria-hidden />
+              Hiện QR {bankCode}
             </Button>
           )}
 
@@ -177,6 +210,20 @@ export function BankAccountFinishFields({
                 Quét QR code
               </a>
             ) : undefined
+          }
+        />
+      )}
+
+      {bankQrOpen && bankQrSrc && (
+        <ImageLightbox
+          src={bankQrSrc}
+          alt={`Mã QR ${bankCode}`}
+          onClose={() => setBankQrOpen(false)}
+          caption={
+            <a href={bankQrLink} target="_blank" rel="noreferrer">
+              <ExternalLink size={16} aria-hidden />
+              Quét QR code
+            </a>
           }
         />
       )}

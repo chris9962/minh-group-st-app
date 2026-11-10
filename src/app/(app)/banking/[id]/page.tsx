@@ -333,6 +333,7 @@ function FinishAccountCard({
         accountNumberLength={data.accountNumberLength}
         customerPhones={data.customerPhones}
         referralQrUrl={data.referralQrUrl}
+        bankQrLink={data.bankQrLink}
         bankGuide={data.bankGuide}
         bankGuidePhotoUrls={data.bankGuidePhotoUrls}
         photos={photos}

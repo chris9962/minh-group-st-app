@@ -736,6 +736,7 @@ const decorate = (page: ReturnType<typeof pickPage>) => {
       countsAsApp: banks.countsAsApp,
       // Hướng dẫn mở tài khoản của ngân hàng này (spec §4.4d). `''` = chưa có.
       bankGuide: sql<string>`coalesce(${banks.guide}, '')`,
+      bankQrLink: sql<string>`coalesce(${banks.qrLink}, '')`,
       // Lượt kiểm ảnh OCR mới nhất; bốn cột null = chưa có lượt nào.
       photoCheckStatus: check.status,
       photoCheckResult: check.result,
@@ -1368,6 +1369,7 @@ async function detailBody(r: DecoratedRow): Promise<BankAccountDetail> {
     referralSupportBranch: r.referralSupportBranch,
     referralOpenUrl: r.referralOpenUrl,
     referralQrUrl: r.referralQrImage ? imageUrl(r.referralQrImage) : "",
+    bankQrLink: r.bankQrLink,
     bankGuide: separateGuide ? (variant?.guide ?? "") : r.bankGuide,
     bankGuidePhotoUrls: await bankGuidePhotoUrls(
       r.bankId,

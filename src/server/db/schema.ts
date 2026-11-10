@@ -624,6 +624,8 @@ export const banks = pgTable(
      * ngân hàng một khác, và mọi cấu trúc dựng ra đều chật với ngân hàng sau.
      */
     guide: text("guide"),
+    /** Link hiện thành mã QR ở bước 2 cho mọi tài khoản của ngân hàng này (migration 0165). null = không có. */
+    qrLink: text("qr_link"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

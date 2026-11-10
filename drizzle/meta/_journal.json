@@ -1149,6 +1149,13 @@
       "when": 1789891400091,
       "tag": "0164_casa_accounts",
       "breakpoints": true
+    },
+    {
+      "idx": 165,
+      "version": "7",
+      "when": 1789891400092,
+      "tag": "0165_bank_qr_link",
+      "breakpoints": true
     }
   ]
 }

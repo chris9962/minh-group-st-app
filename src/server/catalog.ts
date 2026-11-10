@@ -132,6 +132,7 @@ const toBank = (
   maxAge: r.maxAge,
   managers,
   guide: r.guide ?? "",
+  qrLink: r.qrLink ?? "",
   // Cột giữ KHOÁ, hợp đồng API trả URL — cùng luật ảnh chứng minh.
   guidePhotoUrls: guidePhotoKeys.map(imageUrl),
   guideVariants,
@@ -529,6 +530,7 @@ export async function createBank(
           minAge: form.minAge,
           maxAge: form.maxAge,
           guide: form.guide || null,
+          qrLink: form.qrLink || null,
         })
         .returning();
       await writeBankManagers(tx, row.id, form.managerIds, canAssign);
@@ -586,6 +588,7 @@ export async function updateBank(
           minAge: form.minAge,
           maxAge: form.maxAge,
           guide: form.guide || null,
+          qrLink: form.qrLink || null,
         })
         .where(eq(banks.id, id))
         .returning();

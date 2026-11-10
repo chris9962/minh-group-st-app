@@ -242,6 +242,7 @@ export function BankFormDialog({ open, onClose, bank }: Props) {
       maxAge: bank?.maxAge ?? null,
       managerIds: bank?.managers.map((m) => m.id) ?? [],
       guide: bank?.guide ?? "",
+      qrLink: bank?.qrLink ?? "",
       guidePhotoUrls: bank?.guidePhotoUrls ?? [],
       // Giá trị thật gom từ `variants` lúc gửi — xem `mutationFn`.
       guideVariants: [],
@@ -351,6 +352,15 @@ export function BankFormDialog({ open, onClose, bank }: Props) {
           hint="Số lớn lên đầu ô chọn lúc mở tài khoản."
           error={errors.priority?.message}
           {...numericField(register("priority", { setValueAs: numberValue }), digitsOnly)}
+        />
+
+        <TextField
+          label="Link QR"
+          type="url"
+          inputMode="url"
+          placeholder="https://"
+          error={errors.qrLink?.message}
+          {...register("qrLink")}
         />
 
         <Select

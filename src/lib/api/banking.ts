@@ -135,6 +135,8 @@ export const BankAccountDetail = BankAccountRow.extend({
   referralOpenUrl: z.string(),
   /** Ảnh QR của mã giới thiệu; `''` = mã không có ảnh. */
   referralQrUrl: z.string(),
+  /** Link của ngân hàng, hiện thành mã QR ở bước 2; `''` = ngân hàng không có link. */
+  bankQrLink: z.string().default(''),
   /** Hướng dẫn mở tài khoản của ngân hàng này; `''` = chưa có. */
   bankGuide: z.string(),
   /** Ảnh mẫu kèm hướng dẫn, đúng thứ tự người nhập xếp. */

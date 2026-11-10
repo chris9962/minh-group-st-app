@@ -13,13 +13,16 @@ import { banks, giftItems } from "../src/server/db/schema";
  *   bun run db:seed-shopeepay
  */
 const BANK_CODE = "ShopeePay";
+// Link khởi đầu; sau đó sửa ở ô "Link QR" của hộp Sửa ngân hàng.
+const QR_LINK =
+  "https://shopee.vn/bachhoapp?uls_trackid=573f3m8q01jv&utm_content=MM5vmHFhDAfLWW5fPqAv8SkRjyR";
 const GIFT = { code: "QUA-SHOPEEPAY", name: "Combo quà tặng ShopeePay" };
 
 async function main() {
   // ShopeePay không phải ngân hàng nên không đếm như một app.
   const bank = await db
     .insert(banks)
-    .values({ code: BANK_CODE, countsAsApp: false })
+    .values({ code: BANK_CODE, countsAsApp: false, qrLink: QR_LINK })
     .onConflictDoNothing({ target: banks.code })
     .returning({ id: banks.id });
   const gift = await db
