@@ -250,7 +250,7 @@ const PERIODS: Record<string, PeriodRules> = {
   "2026-10-11": period20261011,
   "2026-10-15": period20261015,
   "2026-11-01": period20261101,
-  "2026-11-10": period20261111,
+  "2026-11-11": period20261111,
 };
 
 /**
