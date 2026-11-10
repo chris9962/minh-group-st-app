@@ -22,7 +22,7 @@ async function main() {
   // ShopeePay không phải ngân hàng nên không đếm như một app.
   const bank = await db
     .insert(banks)
-    .values({ code: BANK_CODE, countsAsApp: false, qrLink: QR_LINK })
+    .values({ code: BANK_CODE, countsAsApp: false, requiredPhotos: 6, qrLink: QR_LINK })
     .onConflictDoNothing({ target: banks.code })
     .returning({ id: banks.id });
   const gift = await db
