@@ -55,11 +55,11 @@ const UNSETTLED: AdvanceStatus[] = ["pending", "head-approved", "approved"];
 function metaOf(data: AdvanceList): string {
   const month = monthLabel(data.month);
   if (data.mode === "accounting") return data.monthClosed ? `${month} - đã chốt lương` : month;
-  if (data.phase === "submit" || data.phase === "head-review") return `${month} - duyệt tới 23:59 ngày 10`;
+  if (data.phase === "submit" || data.phase === "head-review") return `${month} - duyệt trước 13:00 ngày 10`;
   return month;
 }
 
-/** Trưởng phòng duyệt tạm ứng của phòng trong ngày 10; kế toán duyệt, xuất Excel và chi từ ngày 11. */
+/** Trưởng phòng duyệt tạm ứng của phòng trước 13:00 ngày 10; kế toán duyệt, xuất Excel và chi từ 13:00 ngày 10. */
 export default function SalaryAdvancesPage() {
   const queryClient = useQueryClient();
   const [month, setMonth] = useState(thisMonth);
@@ -344,7 +344,7 @@ export default function SalaryAdvancesPage() {
               caption={`Tạm ứng lương ${monthLabel(month)}`}
               emptyText={
                 data.mode === "waiting"
-                  ? "Kế toán xem danh sách từ 00:00 ngày 11."
+                  ? "Kế toán xem danh sách từ 13:00 ngày 10."
                   : searchQuery
                     ? `Không tìm thấy yêu cầu nào khớp “${searchQuery}”.`
                     : "Chưa có yêu cầu tạm ứng nào."

@@ -26,7 +26,7 @@ export function SalaryAdvanceCard() {
   const [historyOf, setHistoryOf] = useState<string | null>(null);
   const collapsedMonth = usePrefs((s) => s.collapsedAdvanceMonth);
   const setCollapsedMonth = usePrefs((s) => s.setCollapsedAdvanceMonth);
-  // Tải lại theo phút: Trưởng phòng duyệt hay qua 22:00 thì thẻ đổi theo mà người dùng không cần tải lại trang.
+  // Tải lại theo phút: Trưởng phòng duyệt hay qua giờ đóng gửi thì thẻ đổi theo mà người dùng không cần tải lại trang.
   const { data } = useQuery({ queryKey: ["salary-advance", "mine"], queryFn: fetchMyAdvance, refetchInterval: 60_000 });
 
   if (!data || (!data.request && !data.canCreate)) return null;

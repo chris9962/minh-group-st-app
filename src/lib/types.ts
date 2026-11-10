@@ -201,7 +201,7 @@ export const Action = z.enum([
   'record-attendance',
   /**
    * Đặc biệt — staff (migration 0159, chốt 2026-11-01): Trưởng phòng duyệt hoặc
-   * từ chối yêu cầu tạm ứng lương của phòng trong ngày 10. Bước kế toán ngày 11
+   * từ chối yêu cầu tạm ứng lương của phòng trước 13:00 ngày 10. Bước kế toán sau đó
    * dùng `system:close-salary`.
    */
   'approve-advance',
