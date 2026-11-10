@@ -35,7 +35,7 @@ type View = "all" | "errors" | "differences" | "imported";
 
 const PAGE_SIZE = 10;
 
-const isNew = (r: CasaPreviewRow) => r.errors.length === 0 && r.importedMonth === null;
+const isNew = (r: CasaPreviewRow) => r.errors.length === 0 && r.importedMonth === null && !r.skipped;
 
 const fileSize = (bytes: number) => `${Math.max(1, Math.round(bytes / 1024)).toLocaleString("vi-VN")} KB`;
 

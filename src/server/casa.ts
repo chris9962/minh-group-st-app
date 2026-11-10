@@ -37,16 +37,16 @@ type Candidate = {
 };
 
 /**
- * Khách có 2 tài khoản VPa (thường và HKD) thì chọn tài khoản trùng STK, rồi
- * tài khoản không phải HKD. Luật này còn chờ chốt (sổ việc chờ làm 2026-11-09).
+ * Khách có 2 tài khoản VPa (thường và HKD) thì đánh dấu tài khoản thường (chủ
+ * dự án chốt 2026-11-10). Cùng loại thì chọn tài khoản trùng STK.
  */
 function pickAccount(candidates: Candidate[], fileAccount: string): Candidate {
   const key = accountKey(fileAccount);
   const sameNumber = (c: Candidate) => key !== "" && accountKey(c.accountNumber ?? "") === key;
   return [...candidates].sort(
     (a, b) =>
-      Number(sameNumber(b)) - Number(sameNumber(a)) ||
       Number(a.accountType === "HKD") - Number(b.accountType === "HKD") ||
+      Number(sameNumber(b)) - Number(sameNumber(a)) ||
       a.createdAt.getTime() - b.createdAt.getTime(),
   )[0];
 }
@@ -115,6 +115,7 @@ async function checkRows(
       idNumberTail: idNumber.slice(-4),
       staffCode: r.staffCode,
       importedMonth: null,
+      skipped: false,
     };
 
     if (!idNumber) return { ...base, accountNumber: "", errors: ["Thiếu CCCD"], differences };
@@ -133,6 +134,16 @@ async function checkRows(
     const appNumber = account.accountNumber ?? "";
     if (account.casaMonth)
       return { ...base, accountNumber: appNumber, importedMonth: account.casaMonth, errors, differences };
+
+    // Tài khoản Lỗi không tính CASA; STK lệch vẫn tính (chủ dự án chốt 2026-11-10).
+    if (account.status === "error")
+      return {
+        ...base,
+        accountNumber: appNumber,
+        skipped: true,
+        errors,
+        differences: ["Tài khoản đang ở trạng thái Lỗi, không tính CASA"],
+      };
 
     if (r.accountNumber && accountKey(r.accountNumber) !== accountKey(appNumber))
       differences.push(`STK file ${r.accountNumber}, app ${appNumber || "trống"}`);

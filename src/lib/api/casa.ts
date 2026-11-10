@@ -44,6 +44,8 @@ export const CasaPreviewRow = z.object({
   accountNumber: z.string(),
   /** Tháng lương tài khoản đã được nhập trước đó. Có giá trị thì lượt này không ghi lại. */
   importedMonth: z.string().nullable(),
+  /** Dòng không ghi và không chặn file: tài khoản đang ở trạng thái Lỗi. */
+  skipped: z.boolean(),
   /** Có một lỗi thì cả file không ghi được. */
   errors: z.array(z.string()),
   /** Chỉ báo, vẫn ghi được. */
