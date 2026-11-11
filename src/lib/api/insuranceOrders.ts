@@ -230,10 +230,11 @@ const orderFields = {
     .min(0, 'Số tiền bảo hiểm không được là số âm'),
   // PVI lọc ký tự lạ trước khi tính chữ ký, nên biển số `63B7-16456'` ra lỗi
   // `-105` (2026-10-03). Rỗng vẫn hợp lệ: bắt buộc hay không do `.refine` theo sản phẩm.
+  // Chữ Đ là sê-ri xe máy điện (71MĐ1-00176), PVI nhận (chủ dự án xác nhận 2026-11-11).
   licensePlate: z
     .string()
     .trim()
-    .regex(/^[A-Za-z0-9.-]*$/, 'Biển số xe chỉ được có chữ, số, dấu - và dấu .'),
+    .regex(/^[A-Za-zĐđ0-9.-]*$/,'Biển số xe chỉ được có chữ, số, dấu - và dấu .'),
   vehicleType: z.string().trim(),
   chassisNumber: z.string().trim(),
   engineNumber: z.string().trim(),
