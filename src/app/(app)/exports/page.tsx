@@ -664,7 +664,7 @@ export default function ExportsPage() {
           referralCode,
           channelId: "",
           staffId: scoringStaffId,
-          departmentId: "",
+          departmentId,
           status: "",
           accountType: "",
           photoCheck: "",
@@ -1153,6 +1153,16 @@ export default function ExportsPage() {
                     { value: "", label: "Tất cả nhân viên" },
                     ...staffOptions.map((s) => ({ value: s.id, label: s.fullName })),
                   ]}
+                />
+              )}
+
+              {active === "accounts-by-customer" && (
+                <Select
+                  block
+                  label="Phòng"
+                  value={departmentId}
+                  onChange={setDepartmentId}
+                  options={[{ value: "", label: "Tất cả phòng" }, ...departments.map((d) => ({ value: d.id, label: d.name }))]}
                 />
               )}
 
