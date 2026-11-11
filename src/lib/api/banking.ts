@@ -190,6 +190,11 @@ export type BankAccountQuery = PageQuery<BankAccountSort> & {
 
 const BankAccountPage = pageOf(BankAccountRow);
 
+/** Dòng của file Excel ở trang chi tiết ngân hàng; `idNumber` rỗng khi người xuất thiếu quyền đọc CCCD. */
+export const BankAccountExportRow = BankAccountRow.extend({ idNumber: z.string() });
+export type BankAccountExportRow = z.infer<typeof BankAccountExportRow>;
+const BankAccountExportPage = pageOf(BankAccountExportRow);
+
 const listParams = (query: Omit<BankAccountQuery, keyof PageQuery>) => ({
   search: query.search,
   bankCode: query.bankCode,
@@ -261,7 +266,7 @@ export type BankAccountsOfBankQuery = PageQuery<BankAccountSort> & {
 export async function fetchBankAccountsOfBankForExport(
   bankId: string,
   query: Omit<BankAccountsOfBankQuery, keyof PageQuery>,
-): Promise<Page<BankAccountRow>> {
+): Promise<Page<BankAccountExportRow>> {
   const params = new URLSearchParams();
   if (query.search) params.set('search', query.search);
   if (query.from) params.set('from', query.from);
@@ -276,7 +281,7 @@ export async function fetchBankAccountsOfBankForExport(
   const res = await fetch(`/api/settings/banks/${bankId}/accounts/export?${params}`);
   if (res.status === 403) throw new Error('Bạn không quản ngân hàng này');
   if (!res.ok) throw new Error('Không tải được danh sách tài khoản của ngân hàng');
-  return BankAccountPage.parse(await res.json());
+  return BankAccountExportPage.parse(await res.json());
 }
 
 /** Chi tiết một tài khoản trong trang chi tiết ngân hàng — gác bằng quyền quản ngân hàng. */

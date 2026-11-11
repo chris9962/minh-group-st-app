@@ -34,7 +34,7 @@ import type {
   CustomerBankSlots,
   PhotoKind,
 } from "@/lib/api/bankAccounts";
-import type { BankAccountDetail, BankAccountRow, BankAccountSort } from "@/lib/api/banking";
+import type { BankAccountDetail, BankAccountExportRow, BankAccountRow, BankAccountSort } from "@/lib/api/banking";
 import type { ReferralCode } from "@/lib/api/bankCatalog";
 import type { Page } from "@/lib/api/pagination";
 import type { BankPhoto, BankPhotoRow } from "@/lib/api/bankPhotos";
@@ -1009,15 +1009,35 @@ export const EXCEL_ROW_LIMIT = 1_048_575;
 export async function listBankAccountsOfBankForExport(
   bankId: string,
   filters: BankOfBankFilters,
-): Promise<Page<BankAccountRow>> {
+  withIdNumber: boolean,
+): Promise<Page<BankAccountExportRow>> {
   const where = bankAccountsOfBankWhere(bankId, filters);
 
-  const [rows, [totals]] = await Promise.all([
+  const [rows, [totals], idRows] = await Promise.all([
     orderedPage(where, "desc", EXCEL_ROW_LIMIT, 0),
     db.select({ value: count() }).from(bankAccounts).where(where),
+    // Thiếu quyền thì không đọc cột CCCD, số không rời máy chủ.
+    withIdNumber
+      ? db
+          .select({ id: customers.id, idNumber: customers.idNumber })
+          .from(customers)
+          .where(
+            inArray(
+              customers.id,
+              db.select({ id: bankAccounts.customerId }).from(bankAccounts).where(where),
+            ),
+          )
+      : [],
   ]);
+  const idNumberOf = new Map(idRows.map((r) => [r.id, r.idNumber ?? ""]));
 
-  return { rows: rows.map((r) => toRow(revealCodeText(r))), total: totals?.value ?? 0 };
+  return {
+    rows: rows.map((r) => ({
+      ...toRow(revealCodeText(r)),
+      idNumber: idNumberOf.get(r.customerId) ?? "",
+    })),
+    total: totals?.value ?? 0,
+  };
 }
 
 /**

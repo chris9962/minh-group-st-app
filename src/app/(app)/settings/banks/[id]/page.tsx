@@ -40,13 +40,14 @@ import { fetchChannels } from "@/lib/api/channelCatalog";
 import {
   fetchBankAccountsOfBank,
   fetchBankAccountsOfBankForExport,
+  type BankAccountExportRow,
   type BankAccountRow,
 } from "@/lib/api/banking";
 import { EMPTY_PAGE, PAGE_SIZE, type SortDir } from "@/lib/api/pagination";
 import { EXCEL_GROUP_COLORS, exportExcel } from "@/lib/excel";
 import { formatDate, formatPhone } from "@/lib/format";
 import { useDebouncedValue } from "@/lib/hooks";
-import { canManageBank, canOpenBankAdmin } from "@/lib/permissions";
+import { can, canManageBank, canOpenBankAdmin } from "@/lib/permissions";
 import { errorMessage, toast } from "@/lib/toast";
 import { isRealIsoDate } from "@/lib/types";
 import { useSession } from "@/store/session";
@@ -356,6 +357,9 @@ export default function BankDetailPage({ params }: { params: Promise<{ id: strin
         columns: [
           { header: "STT", ...CUSTOMER, width: 7, type: "number", align: "center", total: (all) => all.length, value: (_r, i) => i + 1 },
           { header: "KHÁCH HÀNG", ...CUSTOMER, width: 28, transform: "name", value: (r) => r.customerName },
+          ...(user && can(user, "customer", "access-id-number")
+            ? [{ header: "SỐ CCCD", ...CUSTOMER, width: 15, type: "text" as const, value: (r: BankAccountExportRow) => r.idNumber }]
+            : []),
           { header: "NGÀY", ...ACCOUNT, width: 12, value: (r) => (r.date ? formatDate(r.date) : "") },
           // `text` cho STK và mã: để mặc định thì Excel hiểu là số học và cắt
           // mất số 0 đầu.

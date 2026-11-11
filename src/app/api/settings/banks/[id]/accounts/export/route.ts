@@ -1,4 +1,4 @@
-import { canManageBank, canOpenBankAdmin } from "@/lib/permissions";
+import { can, canManageBank, canOpenBankAdmin } from "@/lib/permissions";
 import { forbidden, getActor, isUuid, notFound, unauthorized, uuidListParam, uuidParam } from "@/server/auth";
 import { listBankAccountsOfBankForExport } from "@/server/banking";
 
@@ -33,6 +33,8 @@ export async function GET(request: Request, { params }: Params) {
       channelId: uuidParam(query.get("channelId")),
       accountType: query.get("accountType") ?? "",
       photoCheck: query.get("photoCheck") ?? "",
-    }),
+    },
+    // Cột CCCD chỉ đi ra khi người xuất có quyền đọc số đầy đủ, như file "Tính điểm tổng".
+    can(actor, "customer", "access-id-number")),
   );
 }
