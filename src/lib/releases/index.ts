@@ -22,6 +22,30 @@ const seesCompanyDashboard = (user: User) =>
  */
 export const RELEASES: Release[] = [
   {
+    id: '2026-11-11',
+    version: '2.25.0',
+    title: 'Cập nhật ngày 11/11/2026',
+    summary: 'Biển số xe nhận chữ Đ của xe máy điện, báo cáo Tính điểm tổng lọc được theo phòng.',
+    sections: [
+      {
+        title: 'Bảo hiểm',
+        items: ['Biển số xe nhận chữ Đ của xe máy điện, ví dụ 71MĐ1-00176.'],
+        visibleTo: (user) => canOpenPath(user, '/insurance'),
+      },
+      {
+        title: 'Xuất dữ liệu',
+        items: ['Báo cáo Tính điểm tổng thêm ô lọc Phòng.'],
+        visibleTo: (user) => canOpenPath(user, '/exports') && can(user, 'banking', 'export'),
+      },
+      {
+        title: 'Quản lý ngân hàng',
+        items: ['Trang chi tiết ngân hàng: file Excel thêm cột Số CCCD.'],
+        visibleTo: (user) =>
+          canOpenPath(user, '/settings/banks') && can(user, 'customer', 'access-id-number'),
+      },
+    ],
+  },
+  {
     id: '2026-11-10',
     version: '2.24.0',
     title: 'Cập nhật ngày 10/11/2026',
