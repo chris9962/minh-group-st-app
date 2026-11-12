@@ -1,6 +1,7 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { KIND_LABEL, PLAN_LABEL } from "@/lib/api/socialInsurance";
 import { businessMonth, monthRange } from "@/lib/format";
+import { shiftMonth } from "@/lib/period";
 import { finalSalaryOf, type SalaryAdjustment } from "@/lib/api/salaryAdjustments";
 import type { AttendanceMode, ContractType, RoleKey, SalaryScheme, User } from "@/lib/types";
 import {
@@ -590,6 +591,7 @@ const firstDayAfter = (yearMonth: string) => {
 /**
  * Tháng còn yêu cầu tạm ứng chưa chi xong thì không chốt lương: chốt rồi thì
  * nút Đã chi tạm ứng bị khoá, khoản đã chuyển tiền không bao giờ trừ vào lương.
+ * Khoản ứng trừ vào lương tháng liền trước, nên đọc yêu cầu của tháng liền sau.
  */
 async function unsettledAdvanceReason(conn: Pick<typeof db, "select">, yearMonth: string): Promise<string | null> {
   const [row] = await conn
@@ -597,7 +599,7 @@ async function unsettledAdvanceReason(conn: Pick<typeof db, "select">, yearMonth
     .from(salaryAdvanceRequests)
     .where(
       and(
-        eq(salaryAdvanceRequests.yearMonth, yearMonth),
+        eq(salaryAdvanceRequests.yearMonth, shiftMonth(yearMonth, 1)),
         inArray(salaryAdvanceRequests.status, ["head-approved", "approved", "processing"]),
       ),
     );

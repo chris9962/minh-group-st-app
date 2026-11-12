@@ -17,7 +17,7 @@ import { FilterButton } from "@/components/ui/FilterButton";
 import { FilterChips } from "@/components/ui/FilterChips";
 import { FilterChoices } from "@/components/ui/FilterChoices";
 import { FilterField } from "@/components/ui/FilterField";
-import { MonthPicker, monthLabel, thisMonth } from "@/components/ui/MonthPicker";
+import { MonthPicker, thisMonth } from "@/components/ui/MonthPicker";
 import { RankTable, type RankColumn } from "@/components/ui/RankTable";
 import { RowActions } from "@/components/ui/RowActions";
 import { SearchField } from "@/components/ui/SearchField";
@@ -29,6 +29,7 @@ import {
   ADVANCE_STATUS_LABEL,
   AdvanceStatus,
   actOnAdvance,
+  advanceSalaryLabel,
   batchAdvances,
   fetchAdvances,
   updateAdvanceAmount,
@@ -51,7 +52,7 @@ const ACCOUNTING_STATUSES: AdvanceStatus[] = ["head-approved", "approved", "reje
 const UNSETTLED: AdvanceStatus[] = ["pending", "head-approved", "approved"];
 
 function metaOf(data: AdvanceList): string {
-  const month = monthLabel(data.month);
+  const month = `Trừ vào ${advanceSalaryLabel(data.month)}`;
   if (data.mode === "accounting") return data.monthClosed ? `${month} - đã chốt lương` : month;
   if (data.phase === "submit" || data.phase === "head-review") return `${month} - duyệt trước 13:00 ngày 10`;
   return month;
@@ -171,7 +172,7 @@ export default function SalaryAdvancesPage() {
     },
     {
       key: "currentSalary",
-      label: "Lương hiện tại",
+      label: data ? advanceSalaryLabel(data.month).replace("lương", "Lương") : "Lương",
       render: (r) => (
         <span className="tabular-nums">
           {formatVnd(r.currentSalary)}
@@ -341,7 +342,7 @@ export default function SalaryAdvancesPage() {
               columns={columns}
               rowKey={(r) => r.id}
               defaultSort={sort}
-              caption={`Tạm ứng lương ${monthLabel(month)}`}
+              caption={`Tạm ứng ${advanceSalaryLabel(month)}`}
               emptyText={
                 data.mode === "waiting"
                   ? "Kế toán xem danh sách từ 13:00 ngày 10."

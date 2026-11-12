@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { shiftMonth } from '../period';
 import { pageOf, pageParams, type PageQuery } from './pagination';
 
 /** Trần một yêu cầu tạm ứng, 50% lương căn bản (chốt 2026-11-01). */
@@ -9,6 +10,15 @@ export const ADVANCE_DAY = 10;
 export const ADVANCE_SUBMIT_CLOSE_HOUR = 12;
 /** Giờ hết hạn Trưởng phòng duyệt trong ngày 10; kế toán xử lý từ giờ này (chốt 2026-11-10, trước đó 00:00 ngày 11). */
 export const ADVANCE_HEAD_CLOSE_HOUR = 13;
+
+/** Khoản ứng của tháng gửi yêu cầu trừ vào lương tháng liền trước (chốt 2026-11-11, trước đó trừ vào chính tháng gửi). */
+export const advanceSalaryMonth = (requestMonth: string): string => shiftMonth(requestMonth, -1);
+
+/** Chữ "lương tháng 10/2026" của tháng lương bị trừ, ghép vào tiêu đề ở mọi chỗ hiện yêu cầu tạm ứng. */
+export const advanceSalaryLabel = (requestMonth: string): string => {
+  const [y, m] = advanceSalaryMonth(requestMonth).split('-');
+  return `lương tháng ${Number(m)}/${y}`;
+};
 
 export const AdvanceStatus = z.enum([
   'pending',

@@ -16,6 +16,7 @@ import {
   type AdvancePhase,
   type AdvanceRow,
   type MyAdvance,
+  advanceSalaryMonth,
 } from "@/lib/api/salaryAdvances";
 import { BUSINESS_TIMEZONE, businessDay, businessMonth } from "@/lib/format";
 import { can, recordVisibility } from "@/lib/permissions";
@@ -171,7 +172,7 @@ function permitted(actor: User, row: RequestRow, phase: AdvancePhase, monthClose
 }
 
 function refusal(row: RequestRow, phase: AdvancePhase, monthClosed: boolean): string {
-  if (monthClosed) return "Tháng này đã chốt lương, không đổi được yêu cầu tạm ứng.";
+  if (monthClosed) return "Lương tháng trừ khoản ứng đã chốt, không đổi được yêu cầu tạm ứng.";
   if (row.status === "pending" && phase === "accounting") return `Yêu cầu đã hết hạn duyệt lúc ${HEAD_CLOSE_LABEL}.`;
   if (row.status === "head-approved" && phase !== "accounting") return `Kế toán xử lý yêu cầu từ ${HEAD_CLOSE_LABEL}.`;
   return "Yêu cầu vừa đổi trạng thái. Bạn tải lại danh sách.";
@@ -360,7 +361,7 @@ export async function listAdvances(
     canAccount && phase === "accounting" ? "accounting" : headWhere !== false ? "head" : canAccount ? "waiting" : null;
   if (!mode) return { ok: false, status: 403, message: "Bạn không có quyền xem yêu cầu tạm ứng." };
 
-  const monthClosed = await isMonthClosed(month);
+  const monthClosed = await isMonthClosed(advanceSalaryMonth(month));
   const companyWide = mode !== "head" || headWhere === undefined;
   const empty: AdvanceList = {
     month,
@@ -417,7 +418,7 @@ export async function listAdvances(
 
   const salaries = await salaryForUsers(
     rows.map((r) => r.request.userId),
-    month,
+    advanceSalaryMonth(month),
   );
 
   return {
@@ -504,7 +505,7 @@ async function loadForAction(actor: User, id: string) {
   if (!found) return null;
   const phase = advancePhaseOf(found.row.yearMonth, now);
   if (!canRead(actor, found.row, phase)) return null;
-  const monthClosed = await isMonthClosed(found.row.yearMonth);
+  const monthClosed = await isMonthClosed(advanceSalaryMonth(found.row.yearMonth));
   return { ...found, phase, monthClosed, allowed: permitted(actor, found.row, phase, monthClosed) };
 }
 
@@ -563,7 +564,7 @@ async function accountingOpen(month: string): Promise<string | null> {
   const now = advanceNow();
   await expireOverdue(now);
   if (advancePhaseOf(month, now) !== "accounting") return `Kế toán xử lý yêu cầu từ ${HEAD_CLOSE_LABEL}.`;
-  if (await isMonthClosed(month)) return "Tháng này đã chốt lương, không đổi được yêu cầu tạm ứng.";
+  if (await isMonthClosed(advanceSalaryMonth(month))) return "Lương tháng trừ khoản ứng đã chốt, không đổi được yêu cầu tạm ứng.";
   return null;
 }
 
@@ -629,14 +630,15 @@ export async function markAdvancesProcessing(actor: User, month: string): Promis
   return { ok: true, count };
 }
 
-/** Đã chi tạm ứng: ghi mỗi yêu cầu một dòng ứng trước vào bảng lương, lương cuối cùng trừ số này. */
+/** Đã chi tạm ứng: ghi mỗi yêu cầu một dòng ứng trước vào lương tháng liền trước tháng gửi, lương cuối cùng của tháng đó trừ số này. */
 export async function markAdvancesPaid(actor: User, month: string): Promise<BatchResult> {
   const closed = await accountingOpen(month);
   if (closed) return { ok: false, message: closed };
+  const salaryMonth = advanceSalaryMonth(month);
   const count = await db.transaction(async (tx) => {
     // Cùng khoá với Chốt lương, rồi kiểm lại tháng đã chốt bên trong khoá.
-    await lockSalaryMonth(tx, month);
-    if (await isMonthClosed(month, tx)) return null;
+    await lockSalaryMonth(tx, salaryMonth);
+    if (await isMonthClosed(salaryMonth, tx)) return null;
     const rows = await tx
       .select({ id: salaryAdvanceRequests.id, userId: salaryAdvanceRequests.userId, amount: salaryAdvanceRequests.amount })
       .from(salaryAdvanceRequests)
@@ -647,7 +649,7 @@ export async function markAdvancesPaid(actor: User, month: string): Promise<Batc
         .insert(salaryAdjustments)
         .values({
           userId: r.userId,
-          yearMonth: month,
+          yearMonth: salaryMonth,
           kind: "advance",
           amount: r.amount,
           note: "Tạm ứng lương",
@@ -663,7 +665,7 @@ export async function markAdvancesPaid(actor: User, month: string): Promise<Batc
     }
     return rows.length;
   });
-  if (count === null) return { ok: false, message: "Tháng này đã chốt lương, không đổi được yêu cầu tạm ứng." };
+  if (count === null) return { ok: false, message: "Lương tháng trừ khoản ứng đã chốt, không đổi được yêu cầu tạm ứng." };
   return { ok: true, count };
 }
 

@@ -5,7 +5,7 @@ import { useId, useState } from "react";
 import { ChevronDown, ChevronUp, HandCoins } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { SectionCard } from "@/components/ui/SectionCard";
-import { ADVANCE_SUBMIT_CLOSE_HOUR, fetchMyAdvance, saveMyAdvance } from "@/lib/api/salaryAdvances";
+import { ADVANCE_SUBMIT_CLOSE_HOUR, advanceSalaryLabel, fetchMyAdvance, saveMyAdvance } from "@/lib/api/salaryAdvances";
 import { formatVnd } from "@/lib/format";
 import { toast } from "@/lib/toast";
 import { usePrefs } from "@/store/prefs";
@@ -36,7 +36,7 @@ export function SalaryAdvanceCard() {
   // Dòng tiêu đề chỉ có tên thẻ và nút thu gọn, để khổ điện thoại giữ được nút trên cùng hàng.
   return (
     <SectionCard
-      title="Tạm ứng lương"
+      title={`Tạm ứng ${advanceSalaryLabel(data.month)}`}
       icon={<HandCoins size={17} />}
       inlineAction
       action={
@@ -82,7 +82,7 @@ export function SalaryAdvanceCard() {
 
       {editing && (
         <AdvanceAmountDialog
-          title={editing === "create" ? "Yêu cầu tạm ứng lương" : "Sửa số tiền tạm ứng"}
+          title={editing === "create" ? `Yêu cầu tạm ứng ${advanceSalaryLabel(data.month)}` : `Sửa số tiền tạm ứng ${advanceSalaryLabel(data.month)}`}
           initial={editing === "edit" ? (request?.amount ?? 0) : 0}
           submitLabel={editing === "create" ? "Gửi yêu cầu" : "Lưu"}
           onSubmit={(amount) => saveMyAdvance(amount, editing === "edit")}

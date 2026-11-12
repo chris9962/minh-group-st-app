@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { SkeletonText } from "@/components/ui/Skeleton";
-import { ADVANCE_EVENT_LABEL, fetchAdvance, type AdvanceEvent } from "@/lib/api/salaryAdvances";
+import { ADVANCE_EVENT_LABEL, advanceSalaryLabel, fetchAdvance, type AdvanceEvent } from "@/lib/api/salaryAdvances";
 import { formatDateTime, formatVnd } from "@/lib/format";
 import { AdvanceStatusTag } from "./AdvanceStatusTag";
 import styles from "./SalaryAdjustments.module.scss";
@@ -28,7 +28,7 @@ export function AdvanceHistoryDialog({ id, onClose }: { id: string; onClose: () 
       open
       wide
       onClose={onClose}
-      title={detail ? `Tạm ứng lương - ${detail.fullName}` : "Tạm ứng lương"}
+      title={detail ? `Tạm ứng ${advanceSalaryLabel(detail.month)} - ${detail.fullName}` : "Tạm ứng lương"}
       footer={
         <Button variant="secondary" onClick={onClose}>
           Đóng
