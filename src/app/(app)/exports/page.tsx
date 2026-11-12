@@ -449,7 +449,7 @@ function catalogFor(report: ReportId, banks: Bank[], staffById: Map<string, Staf
         { key: "target", header: "CHỈ TIÊU", ...DINH_HUONG, type: "number", width: 10, defaultOn: true, sample: ["50", "50"], value: (r: DirectedExportRow) => r.target },
         { key: "missing", header: "CÒN THIẾU", ...DINH_HUONG, type: "number", width: 11, defaultOn: true, sample: ["19", "0"], total: (rows: DirectedExportRow[]) => rows.reduce((t, r) => t + missing(r), 0), value: missing },
         { key: "reached", header: "KẾT QUẢ", ...DINH_HUONG, width: 11, defaultOn: true, sample: ["Chưa đạt", "Đạt"], value: (r: DirectedExportRow) => (r.achieved >= r.target ? "Đạt" : "Chưa đạt") },
-        { key: "result", header: "CHẤM LƯƠNG", ...DINH_HUONG, width: 34, defaultOn: true, sample: ["31/50, thiếu 38%, trừ 38 điểm", "52/50, đạt, cộng 3 điểm"], value: (r: DirectedExportRow) => r.result },
+        { key: "result", header: "CHẤM LƯƠNG", ...DINH_HUONG, width: 34, defaultOn: true, sample: ["31/50, thiếu 38%, không cộng không trừ", "52/50, đạt, không cộng không trừ"], value: (r: DirectedExportRow) => r.result },
       ];
     }
 

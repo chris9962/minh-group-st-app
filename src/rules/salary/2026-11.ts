@@ -44,10 +44,7 @@ const ATM_COMBO_BONUS = 50_000;
 const DEPUTY_DIRECTOR_DAYS = 22;
 const CASA_POINTS = 0.2;
 
-/**
- * Chỉ tiêu tháng 2026-10 không giao định hướng cho Phòng Y và phòng Dự án. Ghi
- * chú của bảng: tài khoản thuộc nhóm không giao chỉ tiêu thì không được cộng điểm.
- */
+/** Phòng không có chỉ tiêu định hướng thì nhân viên phòng đó không hiện dòng định hướng, như kỳ 2026-10. */
 export const staffQuotaNeedsDepartmentQuota = true;
 
 const vnd = (amount: number) => `${amount.toLocaleString("vi-VN")}đ`;
@@ -245,7 +242,7 @@ function branchDirectedItem(quotas: (QuotaProgress | null)[]): SalaryItem[] {
   return [
     {
       label: "Chỉ tiêu định hướng các phòng",
-      formula: `${passed} phòng đạt - ${failed} phòng thiếu, ${NO_EFFECT}`,
+      formula: `${passed} phòng đạt, ${failed} phòng thiếu, ${NO_EFFECT}`,
       amount: 0,
       keepAtZero: true,
     },

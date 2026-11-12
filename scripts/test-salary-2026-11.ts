@@ -24,6 +24,7 @@ const item = (result: SalaryResult, label: string) => result.items.find((i) => i
 
 const nov = salaryRulesFor("2026-11")!;
 const oct = salaryRulesFor("2026-10")!;
+check("Tháng 2026-12 dùng kỳ 2026-11", salaryRulesFor("2026-12") === nov, true);
 
 // Nhân viên HĐLĐ
 const staffBase = { points: 120, workDays: 26, scheme: "department" as const };
@@ -42,6 +43,15 @@ check("NV có CASA: CASA vẫn cộng 0,2 điểm mỗi tài khoản", fact(with
 
 const octShort = oct.staff({ ...staffBase, directedQuota: { target: 50, achieved: 49 } });
 check("Kỳ 2026-10 giữ luật trừ: Điểm tính lương", fact(octShort, "Điểm tính lương"), "118 điểm");
+
+const socialBase = { points: 120, workDays: 22, scheme: "social" as const };
+const socialShort = nov.staff({ ...socialBase, directedQuota: { target: 50, achieved: 20 } });
+check("NV An Sinh thiếu định hướng: lương không đổi", socialShort.amount, nov.staff(socialBase).amount);
+check("NV An Sinh thiếu định hướng: câu chấm", fact(socialShort, "Tài khoản định hướng"), "20/50, thiếu 60%, không cộng không trừ");
+
+const atmBase = { points: 120, workDays: 22, scheme: "atm" as const };
+const atmShort = nov.staff({ ...atmBase, directedQuota: { target: 50, achieved: 20 } });
+check("NV ATM: định hướng không đổi lương", atmShort.amount, nov.staff(atmBase).amount);
 
 // Trưởng phòng
 const managerBase = { role: "head" as const, points: 30, teamPoints: [120, 90], workDays: 26 };
@@ -78,7 +88,7 @@ check("PGĐ: dòng định hướng 0đ", item(deputyMixed, "Chỉ tiêu định
 check(
   "PGĐ: câu chấm định hướng",
   item(deputyMixed, "Chỉ tiêu định hướng các phòng")?.formula,
-  "1 phòng đạt - 1 phòng thiếu, không cộng không trừ",
+  "1 phòng đạt, 1 phòng thiếu, không cộng không trừ",
 );
 check("PGĐ: chỉ tiêu HKD vẫn cộng", item(deputyMixed, "Chỉ tiêu HKD các phòng")?.amount, 10 * 150_000);
 
