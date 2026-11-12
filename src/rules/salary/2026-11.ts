@@ -1,0 +1,382 @@
+import { formatPoints, roundPoints } from "@/lib/format";
+import { formatCents } from "@/lib/money";
+import { FIXED_SALARY_ITEM } from "./labels";
+import type {
+  DeputyDirectorSalaryInput,
+  FixedSalaryInput,
+  ManagerSalaryInput,
+  QuotaProgress,
+  SalaryItem,
+  SalaryResult,
+  StaffSalaryInput,
+} from "./index";
+
+/**
+ * Lương CĐS từ tháng 2026-11: giữ kỳ 2026-10, trừ chỉ tiêu tài khoản định
+ * hướng. Định hướng vẫn chấm và hiện số đạt ở mọi chức vụ, nhưng không cộng
+ * không trừ điểm hay tiền (chốt với chủ dự án 2026-11-12).
+ *
+ * - Nhân viên HĐLĐ: chỉ tiêu HKD, định hướng và CASA của nhân viên chỉ lưu.
+ *   Chỉ tiêu HĐDV chỉ lưu.
+ * - Phòng có chỉ tiêu định hướng trống thì nhân viên phòng đó cũng không chấm
+ *   định hướng, xem `staffQuotaNeedsDepartmentQuota`.
+ * - Trưởng/Phó phòng, HKD theo chỉ tiêu phòng: đạt cộng 10, thiếu trừ 1 điểm
+ *   cho mỗi 1% (Phụ lục 05).
+ * - Phó GĐ, HKD từng phòng phụ trách: đạt cộng 10, thiếu trừ 20 (Phụ lục 07).
+ * - Nhân viên trực điểm ATM có công thức riêng, xem `atmStaff`.
+ * - Nhân viên Phòng An Sinh dùng công thức nhân viên kinh doanh, ăn ca tối đa
+ *   22 ngày (thông báo tính lương mới của Phòng An Sinh). Khoản hỗ trợ 2 triệu
+ *   của thông báo đó tính ngoài app (chốt 2026-10-04).
+ * - Lương cứng: số tiền trên hồ sơ của tháng, cộng ăn ca, xem `fixed`.
+ *
+ * - CASA theo QĐ 107 Phụ lục 04, 05: nhân viên HĐLĐ cộng 0,2 điểm/tài khoản vào
+ *   điểm KPI trước khi chia mốc; Trưởng/Phó phòng đạt chỉ tiêu CASA của phòng
+ *   cộng 4, thiếu trừ 10; tài khoản tự mở cộng 0,2 điểm × 70.000đ. File CASA
+ *   tháng M tính vào lương tháng M+1 (chốt 2026-11-09).
+ */
+
+const DAILY_SUPPORT = 120_000;
+const MAX_DAYS = 26;
+const ATM_MAX_DAYS = 22;
+const SOCIAL_MAX_DAYS = 22;
+const FIXED_MAX_DAYS = 22;
+const ATM_COMBO_BONUS = 50_000;
+const DEPUTY_DIRECTOR_DAYS = 22;
+const CASA_POINTS = 0.2;
+
+/**
+ * Chỉ tiêu tháng 2026-10 không giao định hướng cho Phòng Y và phòng Dự án. Ghi
+ * chú của bảng: tài khoản thuộc nhóm không giao chỉ tiêu thì không được cộng điểm.
+ */
+export const staffQuotaNeedsDepartmentQuota = true;
+
+const vnd = (amount: number) => `${amount.toLocaleString("vi-VN")}đ`;
+const total = (items: SalaryItem[]) => items.reduce((sum, item) => sum + item.amount, 0);
+
+/** Phần trăm còn thiếu, 2 số lẻ. Đạt từ chỉ tiêu trở lên là 0. */
+const shortfallPercent = ({ target, achieved }: QuotaProgress): number =>
+  achieved >= target ? 0 : roundPoints(((target - achieved) / target) * 100);
+
+const NO_EFFECT = "không cộng không trừ";
+
+/** Câu chấm định hướng: số đạt và Thiếu%, không có điểm. */
+function directedText(quota: QuotaProgress): string {
+  const shortfall = shortfallPercent(quota);
+  const reached = `${quota.achieved}/${formatPoints(quota.target)}`;
+  return shortfall === 0
+    ? `${reached}, đạt, ${NO_EFFECT}`
+    : `${reached}, thiếu ${formatPoints(shortfall)}%, ${NO_EFFECT}`;
+}
+
+/** Đạt thì cộng `reward`; thiếu thì trừ `penalty(Thiếu%)`. */
+function quotaResult(
+  quota: QuotaProgress,
+  reward: number,
+  penalty: (shortfall: number) => number,
+): { points: number; text: string } {
+  const shortfall = shortfallPercent(quota);
+  const reached = `${quota.achieved}/${formatPoints(quota.target)}`;
+  if (shortfall === 0) return { points: reward, text: `${reached}, đạt, cộng ${reward} điểm` };
+  const points = -roundPoints(penalty(shortfall));
+  if (points === 0)
+    return { points: 0, text: `${reached}, thiếu ${formatPoints(shortfall)}%, không trừ` };
+  return {
+    points,
+    text: `${reached}, thiếu ${formatPoints(shortfall)}%, trừ ${formatPoints(-points)} điểm`,
+  };
+}
+
+/**
+ * Nhân viên trực điểm ATM, theo thông báo "Bảng tính lương nhân viên Chuyển đổi
+ * số" ngày 2026-09-30, hiệu lực 2026-10-01 tới 2026-12-31. Ai thuộc nhóm này do
+ * ô "Cách tính lương" trên hồ sơ nhân viên quyết định.
+ *
+ * - Lương tiêu chuẩn 5.000.000đ ở 100 điểm, dưới 100 điểm tính theo tỉ lệ.
+ * - Thưởng vượt 70.000 / 80.000 / 90.000đ mỗi điểm, như nhân viên kinh doanh.
+ * - Ăn ca 120.000đ mỗi ngày, tối đa 22 ngày.
+ * - Thưởng 50.000đ cho mỗi khách đạt Combo 2 hoặc Combo 3.
+ *
+ * Không chấm chỉ tiêu định hướng: thông báo không có mục đó.
+ */
+function atmStaff({ points, workDays, bonusCombos = 0 }: StaffSalaryInput): SalaryResult {
+  const direct = roundPoints(points);
+  const days = Math.min(workDays, ATM_MAX_DAYS);
+  const tier1 = Math.min(Math.max(direct, 0), 100);
+  const tier2 = Math.min(Math.max(direct - 100, 0), 30);
+  const tier3 = Math.min(Math.max(direct - 130, 0), 30);
+  const tier4 = Math.max(direct - 160, 0);
+  const items: SalaryItem[] = [
+    { label: "Lương tiêu chuẩn", formula: `${formatPoints(tier1)} điểm × 50.000đ`, amount: tier1 * 50_000 },
+    { label: "Thưởng vượt mốc 1", formula: `${formatPoints(tier2)} điểm × 70.000đ`, amount: tier2 * 70_000 },
+    { label: "Thưởng vượt mốc 2", formula: `${formatPoints(tier3)} điểm × 80.000đ`, amount: tier3 * 80_000 },
+    { label: "Thưởng vượt mốc 3", formula: `${formatPoints(tier4)} điểm × 90.000đ`, amount: tier4 * 90_000 },
+    {
+      label: "Thưởng Combo 2, Combo 3",
+      formula: `${bonusCombos} combo × 50.000đ`,
+      amount: bonusCombos * ATM_COMBO_BONUS,
+    },
+    // Từ tháng 2026-10 nhân viên Điểm ATM có nửa ngày công: "12,5 ngày", không phải "12.5 ngày".
+    { label: "Hỗ trợ ăn ca", formula: `${formatPoints(days)} ngày × 120.000đ`, amount: days * DAILY_SUPPORT },
+  ];
+  return {
+    amount: Math.max(0, Math.round(total(items))),
+    facts: [
+      { label: "Điểm KPI", value: `${formatPoints(direct)} điểm` },
+      { label: "Ngày công", value: `${formatPoints(days)} ngày` },
+    ],
+    items,
+  };
+}
+
+export function staff(input: StaffSalaryInput): SalaryResult {
+  if (input.scheme === "atm") return atmStaff(input);
+  const { points, workDays, directedQuota, casaAccounts = 0 } = input;
+  const casaPoints = roundPoints(casaAccounts * CASA_POINTS);
+  const direct = roundPoints(points + casaPoints);
+  const social = input.scheme === "social";
+  const days = Math.min(workDays, social ? SOCIAL_MAX_DAYS : MAX_DAYS);
+  const tier1 = Math.min(Math.max(direct, 0), 100);
+  const tier2 = Math.min(Math.max(direct - 100, 0), 30);
+  const tier3 = Math.min(Math.max(direct - 130, 0), 30);
+  const tier4 = Math.max(direct - 160, 0);
+  const items: SalaryItem[] = [
+    { label: "Lương tiêu chuẩn", formula: `${formatPoints(tier1)} điểm × 60.000đ`, amount: tier1 * 60_000 },
+    { label: "Thưởng vượt mốc 1", formula: `${formatPoints(tier2)} điểm × 70.000đ`, amount: tier2 * 70_000 },
+    { label: "Thưởng vượt mốc 2", formula: `${formatPoints(tier3)} điểm × 80.000đ`, amount: tier3 * 80_000 },
+    { label: "Thưởng vượt mốc 3", formula: `${formatPoints(tier4)} điểm × 90.000đ`, amount: tier4 * 90_000 },
+    {
+      label: "Hỗ trợ ăn ca",
+      formula: `${days} ngày × 120.000đ`,
+      amount: days * DAILY_SUPPORT,
+      // An Sinh không có dòng "Ngày công" ở trên: số ngày nằm ở dòng này, kể cả khi 0đ.
+      keepAtZero: social,
+    },
+  ];
+  const groups = input.socialInsurance ?? [];
+  const groupPoints = roundPoints(groups.reduce((sum, group) => sum + group.points, 0));
+  const otherPoints = roundPoints(points - groupPoints);
+  return {
+    amount: Math.max(0, Math.round(total(items))),
+    // Điểm KPI thành hàng tổng của bảng tiền thu, nên không nhắc lại ở phần thông tin.
+    revenue: social
+      ? {
+          lines: groups.map((group) => ({
+            label: group.label,
+            collected: formatCents(group.collectedCents),
+            perPoint: vnd(group.revenuePerPoint),
+            points: formatPoints(group.points),
+          })),
+          other: otherPoints === 0 ? null : formatPoints(otherPoints),
+          total: formatPoints(roundPoints(points)),
+        }
+      : undefined,
+    facts: [
+      ...(social ? [] : [{ label: "Điểm KPI", value: `${formatPoints(roundPoints(points))} điểm` }]),
+      ...(directedQuota ? [{ label: "Tài khoản định hướng", value: directedText(directedQuota) }] : []),
+      ...(casaAccounts > 0
+        ? [
+            { label: "Tài khoản CASA", value: `${casaAccounts} tài khoản, cộng ${formatPoints(casaPoints)} điểm` },
+            { label: "Điểm tính lương", value: `${formatPoints(direct)} điểm` },
+          ]
+        : []),
+      ...(social ? [] : [{ label: "Ngày công", value: `${days} ngày` }]),
+    ],
+    items,
+  };
+}
+
+/**
+ * Lương cứng (spec mục 5.2): nguyên số tiền trên hồ sơ của tháng, cộng ăn ca
+ * theo ngày công của chính người đó. Điểm KPI không đổi lương.
+ */
+export function fixed({ amount, workDays }: FixedSalaryInput): SalaryResult {
+  const days = Math.min(workDays, FIXED_MAX_DAYS);
+  const items: SalaryItem[] = [
+    amount === null
+      ? { label: FIXED_SALARY_ITEM, formula: "Chưa nhập số tiền", amount: 0, keepAtZero: true }
+      : { label: FIXED_SALARY_ITEM, formula: "Nguyên tháng", amount },
+    { label: "Hỗ trợ ăn ca", formula: `${formatPoints(days)} ngày × 120.000đ`, amount: days * DAILY_SUPPORT },
+  ];
+  return {
+    amount: Math.max(0, Math.round(total(items))),
+    facts: [{ label: "Ngày công", value: `${formatPoints(days)} ngày` }],
+    items,
+  };
+}
+
+/** Chỉ tiêu phòng của Trưởng/Phó phòng: đạt cộng `reward`, thiếu trừ `penalty(Thiếu%)`. */
+function quotaItems(
+  quota: QuotaProgress | null | undefined,
+  label: string,
+  rate: number,
+  penalty: (shortfall: number) => number,
+  reward = 10,
+): SalaryItem[] {
+  if (!quota) return [];
+  const result = quotaResult(quota, reward, penalty);
+  const formula = result.points === 0 ? result.text : `${result.text} × ${vnd(rate)}`;
+  return [{ label, formula, amount: result.points * rate, keepAtZero: true }];
+}
+
+/** Chỉ tiêu các phòng của Phó GĐ: mỗi phòng đạt cộng 10, thiếu trừ `failPoints`. */
+function branchQuotaItem(
+  quotas: (QuotaProgress | null)[],
+  label: string,
+  failPoints: number,
+): SalaryItem[] {
+  const scored = quotas.filter((q): q is QuotaProgress => q !== null);
+  if (scored.length === 0) return [];
+  const passed = scored.filter((q) => q.achieved >= q.target).length;
+  const failed = scored.length - passed;
+  const points = passed * 10 - failed * failPoints;
+  const formula =
+    failPoints > 0
+      ? `${passed} phòng đạt × 10 - ${failed} phòng thiếu × ${failPoints} = ${points} điểm × 150.000đ`
+      : `${passed} phòng đạt × 10 = ${points} điểm × 150.000đ`;
+  return [{ label, formula, amount: points * 150_000, keepAtZero: true }];
+}
+
+/** Định hướng các phòng của Phó GĐ: đếm phòng đạt và phòng thiếu, không có tiền. */
+function branchDirectedItem(quotas: (QuotaProgress | null)[]): SalaryItem[] {
+  const scored = quotas.filter((q): q is QuotaProgress => q !== null);
+  if (scored.length === 0) return [];
+  const passed = scored.filter((q) => q.achieved >= q.target).length;
+  const failed = scored.length - passed;
+  return [
+    {
+      label: "Chỉ tiêu định hướng các phòng",
+      formula: `${passed} phòng đạt - ${failed} phòng thiếu, ${NO_EFFECT}`,
+      amount: 0,
+      keepAtZero: true,
+    },
+  ];
+}
+
+/** Quỹ thưởng vượt của phòng theo điểm trung bình, lũy tiến 7/8/9 nghìn mỗi điểm. */
+function departmentPool(averagePoints: number, overTargetStaff: number): number {
+  if (overTargetStaff === 0) return 0;
+  const perStaff =
+    7_000 * Math.min(Math.max(averagePoints - 100, 0), 30) +
+    8_000 * Math.min(Math.max(averagePoints - 130, 0), 30) +
+    9_000 * Math.max(averagePoints - 160, 0);
+  return perStaff * overTargetStaff;
+}
+
+export function manager({
+  role,
+  points,
+  teamPoints,
+  workDays,
+  departmentQuota,
+  casaAccounts = 0,
+}: ManagerSalaryInput): SalaryResult {
+  const direct = roundPoints(points);
+  const reached = teamPoints.filter((p) => p >= 100).length;
+  const unit = role === "head" ? 9 : 6;
+  const managementPoints = unit * reached;
+  const average =
+    teamPoints.length === 0 ? 0 : teamPoints.reduce((sum, p) => sum + p, 0) / teamPoints.length;
+  const overTargetStaff = teamPoints.filter((p) => p > 100).length;
+  const poolShare = role === "head" ? 0.7 : 0.3;
+  const days = Math.min(workDays, MAX_DAYS);
+  const rate = role === "head" ? 120_000 : 80_000;
+  const items: SalaryItem[] = [
+    {
+      label: "Nhân viên đạt 100 điểm",
+      formula: `${reached} người × ${unit} điểm × ${vnd(rate)}`,
+      amount: reached * unit * rate,
+    },
+    ...quotaItems(departmentQuota?.hkd, "Chỉ tiêu HKD của phòng", rate, (shortfall) => shortfall),
+    ...(departmentQuota?.directed
+      ? [
+          {
+            label: "Chỉ tiêu định hướng của phòng",
+            formula: directedText(departmentQuota.directed),
+            amount: 0,
+            keepAtZero: true,
+          },
+        ]
+      : []),
+    ...quotaItems(departmentQuota?.casa, "Chỉ tiêu CASA của phòng", rate, () => 10, 4),
+    {
+      label: "Làm trực tiếp",
+      formula: `${formatPoints(Math.max(direct, 0))} điểm × 70.000đ`,
+      amount: Math.max(direct, 0) * 70_000,
+    },
+    {
+      label: "CASA tự mở",
+      formula: `${casaAccounts} tài khoản × ${formatPoints(CASA_POINTS)} điểm × 70.000đ`,
+      amount: Math.round(casaAccounts * CASA_POINTS * 70_000),
+    },
+    {
+      label: "Thưởng vượt của phòng",
+      formula: `Trung bình ${formatPoints(roundPoints(average))} điểm của ${teamPoints.length} nhân viên - ${overTargetStaff} người vượt 100 điểm - ${role === "head" ? "70%" : "30%"} quỹ`,
+      amount: departmentPool(average, overTargetStaff) * poolShare,
+    },
+    { label: "Hỗ trợ ăn ca", formula: `${days} ngày × 120.000đ`, amount: days * DAILY_SUPPORT },
+  ];
+  return {
+    amount: Math.max(0, Math.round(total(items))),
+    facts: [
+      { label: "Điểm KPI", value: `${formatPoints(direct)} điểm` },
+      { label: "Điểm quản lý", value: `${formatPoints(managementPoints)} điểm` },
+      { label: "Nhân viên trong phòng", value: `${teamPoints.length} người` },
+      { label: "Ngày công", value: `${days} ngày` },
+    ],
+    items,
+  };
+}
+
+export function deputyDirector({
+  members,
+  branchPoints,
+  departmentQuotas = [],
+}: DeputyDirectorSalaryInput): SalaryResult {
+  const quotaItemsOfBranch = [
+    ...branchQuotaItem(
+      departmentQuotas.map((q) => q.hkd),
+      "Chỉ tiêu HKD các phòng",
+      20,
+    ),
+    ...branchDirectedItem(departmentQuotas.map((q) => q.directed)),
+  ];
+  // Từ kỳ 2026-10 đếm cả Trưởng, Phó phòng và so với chỉ tiêu phòng thay mốc 100 (chốt 2026-10-30).
+  const reached = members.filter((m) => m.points >= m.target).length;
+  const managementPoints = 3 * reached;
+  const managementPay = managementPoints * 150_000;
+  const branchBonus =
+    2_000 * Math.min(Math.max(branchPoints, 0), 10_000) +
+    3_000 * Math.min(Math.max(branchPoints - 10_000, 0), 5_000) +
+    4_000 * Math.max(branchPoints - 15_000, 0);
+  const tier1 = roundPoints(Math.min(Math.max(branchPoints, 0), 10_000));
+  const tier2 = roundPoints(Math.min(Math.max(branchPoints - 10_000, 0), 5_000));
+  const tier3 = roundPoints(Math.max(branchPoints - 15_000, 0));
+  const dailySupport = DEPUTY_DIRECTOR_DAYS * DAILY_SUPPORT;
+  return {
+    amount: Math.max(
+      0,
+      Math.round(managementPay + branchBonus + dailySupport + total(quotaItemsOfBranch)),
+    ),
+    facts: [
+      { label: "Điểm quản lý", value: `${formatPoints(managementPoints)} điểm` },
+      { label: "Tổng điểm nhánh", value: `${formatPoints(roundPoints(branchPoints))} điểm` },
+      { label: "Ngày công", value: `${DEPUTY_DIRECTOR_DAYS} ngày` },
+    ],
+    items: [
+      {
+        label: "Nhân viên đạt 100 điểm",
+        formula: `${reached} người × 3 điểm × 150.000đ`,
+        amount: managementPay,
+      },
+      ...quotaItemsOfBranch,
+      { label: "Thưởng nhánh mốc 1", formula: `${formatPoints(tier1)} điểm × 2.000đ`, amount: tier1 * 2_000 },
+      { label: "Thưởng nhánh mốc 2", formula: `${formatPoints(tier2)} điểm × 3.000đ`, amount: tier2 * 3_000 },
+      { label: "Thưởng nhánh mốc 3", formula: `${formatPoints(tier3)} điểm × 4.000đ`, amount: tier3 * 4_000 },
+      {
+        label: "Hỗ trợ ăn ca",
+        formula: `${DEPUTY_DIRECTOR_DAYS} ngày × 120.000đ`,
+        amount: dailySupport,
+      },
+    ],
+  };
+}

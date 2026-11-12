@@ -2,6 +2,7 @@ import * as period202607 from "./2026-07";
 import * as period202608 from "./2026-08";
 import * as period202609 from "./2026-09";
 import * as period202610 from "./2026-10";
+import * as period202611 from "./2026-11";
 
 /**
  * Cửa vào DUY NHẤT của công thức lương theo kỳ, cùng lối với `src/rules/index.ts`.
@@ -129,6 +130,7 @@ const PERIODS: Record<string, SalaryRules> = {
   "2026-08": period202608,
   "2026-09": period202609,
   "2026-10": period202610,
+  "2026-11": period202611,
 };
 
 /** File kỳ áp cho `yearMonth`: kỳ mới nhất có tháng bắt đầu không sau tháng đó. */
