@@ -99,13 +99,47 @@ def code_tokens(text):
     return tokens + [a + b for a, b in zip(tokens, tokens[1:])]
 
 
+# Bề ngang chia chiều cao của ký tự O/0 trong ô mã app MB, đo 2026-11-12 trên
+# 39 ô mã: số 0 từ 0,67 tới 0,82 (42 ký tự), chữ O từ 0,91 tới 1,05 (9 ký tự).
+O_MIN_RATIO = 0.87
+
+
+def glyph_ratios(bgr):
+    """Bề ngang chia chiều cao của từng ký tự, trái sang phải. Bỏ vệt nhỏ
+    thấp hơn 35% chiều cao vùng (gạch chân, nhiễu)."""
+    gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
+    _, ink = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    _, _, stats, _ = cv2.connectedComponentsWithStats(ink, 8)
+    glyphs = sorted((s for s in stats[1:] if s[3] >= 0.35 * ink.shape[0] and s[4] > 15), key=lambda s: s[0])
+    return [s[2] / s[3] for s in glyphs]
+
+
+def fix_o_zero(bgr, text):
+    """Chọn O hay 0 theo hình ký tự: font app MB vẽ chữ O rộng, số 0 hẹp.
+
+    Paddle cũng chọn theo ký tự đứng trước: `BL00` ra `BLOO` ở 8/8 ảnh, trong
+    khi `BO08`, `O430`, `X107` đọc đúng. Chỉ đo khi vùng chỉ chứa đúng một cụm
+    và đếm được đúng bằng số ký tự của cụm; lệch thì trả nguyên bản đọc."""
+    tokens = code_tokens(text)
+    if len(tokens) != 1:
+        return text
+    token = tokens[0]
+    ratios = glyph_ratios(bgr)
+    if len(ratios) != len(token):
+        return text
+    return "".join(
+        ("O" if r >= O_MIN_RATIO else "0") if c in "O0" else c for c, r in zip(token, ratios)
+    )
+
+
 def make_fallback(code):
     """Hàm đọc lại một vùng bằng Paddle, hoặc None khi yêu cầu không kèm mã.
 
     VietOCR chọn O hay 0, I hay 1 theo ký tự đứng trước: `O108` ra `0108`,
     `BO08` ra `BOO8`, `AI83` ra `A183` (tài khoản MB, đo 2026-10-21). Chỉ đọc
     lại vùng VietOCR đọc khác mã mà gộp O/0, I/1 thì bằng mã; vùng đã đọc
-    đúng mã thì thôi. So nguyên văn vẫn là việc của `banks/<mã>.ts`."""
+    đúng mã thì thôi. Paddle vẫn lệch O/0 thì đo hình ký tự, xem `fix_o_zero`.
+    So nguyên văn vẫn là việc của `banks/<mã>.ts`."""
     if not code:
         return None
     exact = re.sub(r"[^A-Z0-9]", "", strip_accents(code).upper())
@@ -116,7 +150,10 @@ def make_fallback(code):
         if exact in tokens or not any(t.translate(AMBIGUOUS) == key for t in tokens):
             return None
         bgr = cv2.cvtColor(np.asarray(image), cv2.COLOR_RGB2BGR)
-        return next(iter(load_alt_rec().predict(bgr)))["rec_text"].strip()
+        alt = next(iter(load_alt_rec().predict(bgr)))["rec_text"].strip()
+        if exact in code_tokens(alt):
+            return alt
+        return fix_o_zero(bgr, alt)
 
     return fallback
 
