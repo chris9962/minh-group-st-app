@@ -22,6 +22,35 @@ const seesCompanyDashboard = (user: User) =>
  */
 export const RELEASES: Release[] = [
   {
+    id: '2026-11-12',
+    version: '2.26.0',
+    title: 'Cập nhật ngày 12/11/2026',
+    summary: 'Khoản tạm ứng trừ vào lương tháng liền trước, chỉ tiêu tài khoản định hướng từ lương tháng 11/2026 không cộng không trừ.',
+    sections: [
+      {
+        title: 'Tạm ứng lương',
+        items: [
+          'Khoản tạm ứng trừ vào lương tháng liền trước tháng gửi yêu cầu.',
+          'Ví dụ: gửi yêu cầu tháng 11/2026 thì trừ vào lương tháng 10/2026.',
+        ],
+      },
+      {
+        title: 'Lương từ tháng 11/2026',
+        items: ['Chỉ tiêu tài khoản định hướng chỉ chấm, không cộng không trừ.'],
+      },
+      {
+        title: 'BHYT/BHXH',
+        items: [
+          'Nhập file nhận dòng có cột NHẬP LIỆU trống hoặc mã không tra ra.',
+          'Dòng đó không có nhân viên ATM, không tính lượt nhập liệu.',
+          'Mã không tra ra hiện ở tab Lệch.',
+          'Sửa dòng: ô Nhân viên ATM chọn được Không có.',
+        ],
+        visibleTo: (user) => canOpenPath(user, '/social-insurance'),
+      },
+    ],
+  },
+  {
     id: '2026-11-11',
     version: '2.25.0',
     title: 'Cập nhật ngày 11/11/2026',
