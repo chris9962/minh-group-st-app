@@ -1,6 +1,7 @@
 import { and, asc, count, desc, eq, ne, sql, type SQL, type SQLWrapper } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import {
+  DATA_ENTRY_TYPE_NAME,
   KIND_LABEL,
   ReconcileStatus,
   SocialInsuranceKind,
@@ -18,7 +19,7 @@ import { applyRate, centsFromDecimal, decimalFromCents } from "@/lib/money";
 import { recordInScope, recordVisibility, type RecordVisibility } from "@/lib/permissions";
 import { searchTerms } from "@/lib/search";
 import { SOCIAL_DEPARTMENT_CODE } from "@/lib/api/staff";
-import { BUSINESS_TIMEZONE, roundPoints } from "@/lib/format";
+import { BUSINESS_TIMEZONE, businessDay, roundPoints } from "@/lib/format";
 import { isRealIsoDate, type User } from "@/lib/types";
 import { isUuid, uuidParam } from "./auth";
 import { closedMonthAmong, closedMonthMessage } from "./closedMonths";
@@ -30,13 +31,13 @@ import {
   checkEntry,
   closedMonthsOf,
   collaboratorIds,
+  dataEntryTypeId,
   lockSocialInsurance,
   monthLabel,
   recomputeEntryStaff,
   recomputeUploader,
   recordScopeWhere,
   type Conn,
-  type EntryFieldErrors,
 } from "./socialInsuranceImport";
 import { rateBooksFor } from "./socialInsuranceRates";
 import { socialInsuranceOfDepartment } from "./kpi";
@@ -195,8 +196,9 @@ const decorate = (page: ReturnType<typeof pickPage>) =>
     })
     .from(page)
     .innerJoin(customers, eq(customers.id, page.customerId))
-    .innerJoin(services, eq(services.id, page.serviceId))
-    .innerJoin(entryStaff, eq(entryStaff.id, page.entryStaffId))
+    // Dòng không ghi nhân viên ATM thì không có lượt nhập liệu (migration 0167).
+    .leftJoin(services, eq(services.id, page.serviceId))
+    .leftJoin(entryStaff, eq(entryStaff.id, page.entryStaffId))
     .innerJoin(uploader, eq(uploader.id, page.uploadedBy))
     .leftJoin(entryDepartment, eq(entryDepartment.id, services.createdByDepartmentId))
     .leftJoin(uploaderDepartment, eq(uploaderDepartment.id, page.uploadedByDepartmentId))
@@ -415,10 +417,6 @@ export type RecordOutcome =
 
 const STAFF_MISSING = "Chọn một nhân viên Điểm ATM đang làm";
 
-/** Lỗi theo ô của file 1 đổi sang tên ô của form Sửa: ô mã nhân viên là ô chọn nhân viên. */
-const formErrorsOf = ({ staffCode, ...rest }: EntryFieldErrors): FormErrors =>
-  staffCode ? { ...rest, entryStaffId: staffCode } : rest;
-
 /** Đọc lại dòng SAU khi xin khoá: hai lượt sửa hay xoá cùng lúc thấy đúng trạng thái của nhau. */
 async function lockedRecord(tx: Conn, id: string) {
   const [row] = await tx
@@ -428,12 +426,13 @@ async function lockedRecord(tx: Conn, id: string) {
       receiptMonth: r.receiptMonth,
       createdById: r.uploadedBy,
       createdByDepartmentId: r.uploadedByDepartmentId,
+      createdAt: r.createdAt,
       serviceId: r.serviceId,
       serviceStaffId: services.createdBy,
       serviceDate: services.serviceDate,
     })
     .from(r)
-    .innerJoin(services, eq(services.id, r.serviceId))
+    .leftJoin(services, eq(services.id, r.serviceId))
     .where(eq(r.id, id));
   return row ?? null;
 }
@@ -441,7 +440,9 @@ async function lockedRecord(tx: Conn, id: string) {
 /**
  * Sửa một dòng bằng đúng luật kiểm của file 1. Khách và loại không đổi được:
  * đổi chúng thì xoá dòng rồi nhập lại. Đổi nhân viên nhập liệu thì lượt nhập
- * liệu chuyển sang người mới, và điểm của cả hai người được tính lại.
+ * liệu chuyển sang người mới, và điểm của cả hai người được tính lại. Bỏ trống
+ * nhân viên thì xoá lượt; chọn nhân viên cho dòng chưa có thì sinh lượt theo
+ * ngày tải file.
  *
  * `null` = không có HOẶC ngoài phạm vi, route trả 404 giống nhau.
  */
@@ -460,19 +461,22 @@ export async function updateSocialInsurance(
     if (!current || !recordInScope(scopeOf(actor, "update"), current)) return null;
 
     const staff = isUuid(form.entryStaffId) ? await atmStaffById(form.entryStaffId, tx) : null;
-    if (!staff) return { ok: false, message: STAFF_MISSING, fieldErrors: { entryStaffId: STAFF_MISSING } };
+    if (form.entryStaffId && !staff)
+      return { ok: false, message: STAFF_MISSING, fieldErrors: { entryStaffId: STAFF_MISSING } };
 
-    const serviceMonth = current.serviceDate.slice(0, 7);
+    const serviceDate = current.serviceDate ?? businessDay(current.createdAt);
+    // Dòng không có lượt và vẫn không có nhân viên thì tháng tải file không liên quan.
+    const serviceMonths = current.serviceId || staff ? [serviceDate.slice(0, 7)] : [];
     const months = [current.receiptMonth, form.receiptMonth];
     // `checkEntry` tra nhân viên theo mã của file 1; form đã chọn sẵn nhân viên nên đưa vào dưới một khoá cố định.
     const chosen = "CHOSEN";
     const ctx = {
       kind: current.kind,
-      staffOf: new Map([[chosen, staff]]),
+      staffOf: new Map(staff ? [[chosen, staff]] : []),
       rateBooks: await rateBooksFor(months, tx),
-      closedMonths: await closedMonthsOf([...months, serviceMonth], tx),
+      closedMonths: await closedMonthsOf([...months, ...serviceMonths], tx),
     };
-    for (const month of [current.receiptMonth, serviceMonth])
+    for (const month of [current.receiptMonth, ...serviceMonths])
       if (ctx.closedMonths.has(month)) return { ok: false, message: closedMonthMessage(month) };
 
     const { errors, fieldErrors, entry } = checkEntry(
@@ -482,12 +486,12 @@ export async function updateSocialInsurance(
         months: form.months,
         collected: form.collected,
         paid: form.paid,
-        staffCode: chosen,
+        staffCode: staff ? chosen : "",
         collaborator: form.collaborator,
       },
       ctx,
     );
-    if (!entry) return { ok: false, message: errors.join(". "), fieldErrors: formErrorsOf(fieldErrors) };
+    if (!entry) return { ok: false, message: errors.join(". "), fieldErrors };
 
     const [clash] = await tx
       .select({ id: r.id })
@@ -506,6 +510,25 @@ export async function updateSocialInsurance(
       return { ok: false, message, fieldErrors: { receiptMonth: message } };
     }
 
+    let serviceId = current.serviceId;
+    if (!serviceId && staff) {
+      const typeId = await dataEntryTypeId(current.kind, tx);
+      if (!typeId)
+        return { ok: false, message: `Danh mục chưa có loại dịch vụ "${DATA_ENTRY_TYPE_NAME[current.kind]}".` };
+      const [service] = await tx
+        .insert(services)
+        .values({
+          customerId: current.customerId,
+          serviceTypeId: typeId,
+          note: "",
+          serviceDate,
+          createdBy: staff.id,
+          createdByDepartmentId: staff.departmentId,
+        })
+        .returning({ id: services.id });
+      serviceId = service.id;
+    } else if (serviceId && !staff) serviceId = null;
+
     const collaboratorOf = await collaboratorIds([entry.collaborator], tx);
     await tx
       .update(r)
@@ -516,22 +539,27 @@ export async function updateSocialInsurance(
         collectedAmount: decimalFromCents(entry.collectedCents),
         paidAmount: decimalFromCents(entry.paidCents),
         collaboratorId: entry.collaborator ? (collaboratorOf.get(entry.collaborator) ?? null) : null,
-        entryStaffId: entry.staff.id,
+        entryStaffId: staff?.id ?? null,
+        serviceId,
         updatedAt: new Date(),
       })
       .where(eq(r.id, id));
 
     // So với người đang giữ lượt dịch vụ, không so với cột của dòng: hai chỗ này lệch thì vẫn tính lại đúng người.
-    const staffIds = current.serviceStaffId === entry.staff.id ? [] : [current.serviceStaffId, entry.staff.id];
-    if (staffIds.length > 0)
+    const staffIds =
+      current.serviceStaffId === (staff?.id ?? null)
+        ? []
+        : [current.serviceStaffId, staff?.id].filter((v): v is string => Boolean(v));
+    if (current.serviceId && !staff) await tx.delete(services).where(eq(services.id, current.serviceId));
+    else if (current.serviceId && staff && staffIds.length > 0)
       await tx
         .update(services)
-        .set({ createdBy: entry.staff.id, createdByDepartmentId: entry.staff.departmentId })
+        .set({ createdBy: staff.id, createdByDepartmentId: staff.departmentId })
         .where(eq(services.id, current.serviceId));
     return {
       ok: true,
       staffIds,
-      serviceDate: current.serviceDate,
+      serviceDate,
       uploaderId: current.createdById,
       receiptMonths: [current.receiptMonth, entry.receiptMonth],
     };
@@ -553,17 +581,21 @@ export async function deleteSocialInsurance(actor: User, id: string): Promise<Re
     await lockSocialInsurance(tx);
     const current = await lockedRecord(tx, id);
     if (!current || !recordInScope(scopeOf(actor, "delete"), current)) return null;
-    const closed = await closedMonthAmong([current.receiptMonth, current.serviceDate.slice(0, 7)], tx);
+    const closed = await closedMonthAmong(
+      [current.receiptMonth, ...(current.serviceDate ? [current.serviceDate.slice(0, 7)] : [])],
+      tx,
+    );
     if (closed) return { ok: false as const, message: closedMonthMessage(closed) };
 
     await tx.delete(r).where(eq(r.id, id));
-    await tx.delete(services).where(eq(services.id, current.serviceId));
+    if (current.serviceId) await tx.delete(services).where(eq(services.id, current.serviceId));
     return { ok: true as const, current };
   });
 
   if (!outcome) return null;
   if (!outcome.ok) return outcome;
-  await recomputeEntryStaff([outcome.current.serviceStaffId], outcome.current.serviceDate);
+  if (outcome.current.serviceStaffId && outcome.current.serviceDate)
+    await recomputeEntryStaff([outcome.current.serviceStaffId], outcome.current.serviceDate);
   await recomputeUploader(outcome.current.createdById, [outcome.current.receiptMonth]);
   return { ok: true, record };
 }

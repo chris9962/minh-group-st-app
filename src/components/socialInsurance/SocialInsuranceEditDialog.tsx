@@ -58,7 +58,7 @@ export function SocialInsuranceEditDialog({ open, record, onClose }: Props) {
       collected: moneyInput(record.collectedCents),
       paid: moneyInput(record.paidCents),
       collaborator: record.collaboratorName ?? "",
-      entryStaffId: record.entryStaffId,
+      entryStaffId: record.entryStaffId ?? "",
     },
   });
 
@@ -71,9 +71,10 @@ export function SocialInsuranceEditDialog({ open, record, onClose }: Props) {
   const atmStaff = options?.atmStaff ?? [];
   // Người đang giữ lượt có thể đã thôi Điểm ATM: vẫn hiện tên họ để ô không trống.
   const staffOptions = [
-    ...(atmStaff.some((s) => s.id === record.entryStaffId)
+    { value: "", label: "Không có" },
+    ...(!record.entryStaffId || atmStaff.some((s) => s.id === record.entryStaffId)
       ? []
-      : [{ value: record.entryStaffId, label: record.entryStaffName }]),
+      : [{ value: record.entryStaffId, label: record.entryStaffName ?? "" }]),
     ...atmStaff.map((s) => ({ value: s.id, label: s.code ? `${s.name} - ${s.code}` : s.name })),
   ];
 
@@ -168,7 +169,6 @@ export function SocialInsuranceEditDialog({ open, record, onClose }: Props) {
         <TextField label="CTV" {...register("collaborator")} />
         <Combobox
           block
-          required
           label="Nhân viên ATM"
           placeholder="Gõ tên hoặc mã nhân viên…"
           value={watch("entryStaffId")}

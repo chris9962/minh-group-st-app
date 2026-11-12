@@ -187,9 +187,9 @@ const EXCEL_COLUMNS: ExcelColumnDef<SocialInsuranceExportRow>[] = [
   },
   { key: "receivedRate", label: "% HH nhận", ...DOI_CHIEU, width: 9, value: (r) => (r.reconciliation ? formatRate(r.reconciliation.receivedRate) : "") },
   { key: "entryStaffCode", label: "Mã nhân viên ATM", ...NHAN_SU, width: 15, type: "text", value: (r) => r.entryStaffCode ?? "" },
-  { key: "entryStaffName", label: "Nhân viên ATM", ...NHAN_SU, width: 22, value: (r) => r.entryStaffName },
+  { key: "entryStaffName", label: "Nhân viên ATM", ...NHAN_SU, width: 22, value: (r) => r.entryStaffName ?? "" },
   { key: "entryStaffDepartment", label: "Phòng nhân viên ATM", ...NHAN_SU, width: 22, value: (r) => r.entryStaffDepartmentName ?? "" },
-  { key: "entryStaffTitle", label: "Chức vụ nhân viên ATM", ...NHAN_SU, width: 22, value: (r) => r.entryStaffTitle },
+  { key: "entryStaffTitle", label: "Chức vụ nhân viên ATM", ...NHAN_SU, width: 22, value: (r) => r.entryStaffTitle ?? "" },
   { key: "createdByCode", label: "Mã nhân viên AS", ...NHAN_SU, width: 15, type: "text", value: (r) => r.createdByCode ?? "" },
   { key: "createdByName", label: "Nhân viên AS", ...NHAN_SU, width: 22, value: (r) => r.createdByName },
   { key: "createdByDepartment", label: "Phòng nhân viên AS", ...NHAN_SU, width: 22, value: (r) => r.createdByDepartmentName ?? "" },
@@ -371,11 +371,14 @@ export default function SocialInsuranceScreen() {
     {
       key: "entryStaffName",
       label: "Nhân viên ATM",
-      render: (r) => (
-        <Link href={`/users/${r.entryStaffId}`} className={styles.nameLink}>
-          {r.entryStaffName}
-        </Link>
-      ),
+      render: (r) =>
+        r.entryStaffId ? (
+          <Link href={`/users/${r.entryStaffId}`} className={styles.nameLink}>
+            {r.entryStaffName}
+          </Link>
+        ) : (
+          "—"
+        ),
     },
     {
       key: "createdByName",

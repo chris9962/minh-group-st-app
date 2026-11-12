@@ -1163,6 +1163,13 @@
       "when": 1789891400093,
       "tag": "0166_bank_account_linked",
       "breakpoints": true
+    },
+    {
+      "idx": 167,
+      "version": "7",
+      "when": 1789891400094,
+      "tag": "0167_social_insurance_no_entry_staff",
+      "breakpoints": true
     }
   ]
 }

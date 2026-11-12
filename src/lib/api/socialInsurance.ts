@@ -44,7 +44,7 @@ export const RECORD_FILE_COLUMNS = {
   months: { headers: ['SỐ THÁNG'], required: true },
   collected: { headers: ['SỐ TIỀN THU'], required: true },
   paid: { headers: ['SỐ TIỀN CHI'], required: true },
-  staffCode: { headers: ['NHẬP LIỆU'], required: true },
+  staffCode: { headers: ['NHẬP LIỆU'], required: false },
   collaborator: { headers: ['CTV'], required: true },
 } satisfies ColumnSpec<string>;
 
@@ -122,6 +122,8 @@ export const RecordPreviewRow = z.object({
   months: z.number().nullable(),
   collectedCents: z.number().nullable(),
   paidCents: z.number().nullable(),
+  /** Chỉ báo, vẫn ghi được: mã ở cột NHẬP LIỆU không tra ra nhân viên ATM. */
+  differences: z.array(z.string()),
   /** Mọi lỗi của dòng. Rỗng = dòng hợp lệ. */
   errors: z.array(z.string()),
 });
@@ -178,8 +180,9 @@ export const SocialInsuranceRow = z.object({
   collectedCents: z.number(),
   paidCents: z.number(),
   collaboratorName: z.string().nullable(),
-  entryStaffId: z.string(),
-  entryStaffName: z.string(),
+  /** `null` = dòng không ghi nhân viên ATM. */
+  entryStaffId: z.string().nullable(),
+  entryStaffName: z.string().nullable(),
   entryStaffCode: z.string().nullable(),
   entryStaffDepartmentName: z.string().nullable(),
   /** Người tải file. Đặt tên `createdBy…` để dùng chung `recordInScope`. */
@@ -197,7 +200,7 @@ export type SocialInsuranceRow = z.infer<typeof SocialInsuranceRow>;
 
 export const SocialInsuranceExportRow = SocialInsuranceRow.extend({
   idNumber: z.string().nullable(),
-  entryStaffTitle: z.string(),
+  entryStaffTitle: z.string().nullable(),
   createdByTitle: z.string(),
 });
 export type SocialInsuranceExportRow = z.infer<typeof SocialInsuranceExportRow>;
@@ -266,7 +269,8 @@ export const RecordEditForm = z.object({
   collected: z.string().trim().min(1, 'Chưa nhập số tiền thu'),
   paid: z.string().trim().min(1, 'Chưa nhập số tiền chi'),
   collaborator: z.string().trim().max(200),
-  entryStaffId: z.string().trim().min(1, 'Chưa chọn nhân viên ATM'),
+  /** Rỗng = không ghi nhân viên ATM. */
+  entryStaffId: z.string().trim(),
 });
 export type RecordEditForm = z.infer<typeof RecordEditForm>;
 

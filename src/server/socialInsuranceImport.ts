@@ -171,7 +171,8 @@ export type Entry = {
   months: number;
   collectedCents: number;
   paidCents: number;
-  staff: Staff;
+  /** `null` = không ghi người nhập liệu: dòng không sinh lượt dịch vụ. */
+  staff: Staff | null;
   collaborator: string;
 };
 
@@ -182,7 +183,7 @@ export type EntryContext = {
   closedMonths: Set<string>;
 };
 
-export type EntryField = "receiptMonth" | "plan" | "months" | "collected" | "paid" | "staffCode";
+export type EntryField = "receiptMonth" | "plan" | "months" | "collected" | "paid";
 export type EntryFieldErrors = Partial<Record<EntryField, string>>;
 
 /**
@@ -226,11 +227,8 @@ export function checkEntry(
   if (paid === null || paid === "invalid") fail("paid", "Số tiền chi phải là số");
   else partial.paidCents = paid;
 
-  const code = input.staffCode.trim().toUpperCase();
-  const staff = ctx.staffOf.get(code);
-  if (!code) fail("staffCode", "Thiếu mã nhân viên ở cột NHẬP LIỆU");
-  else if (!staff) fail("staffCode", `Mã ${code} không phải nhân viên Điểm ATM đang hoạt động`);
-  else partial.staff = staff;
+  // Cột NHẬP LIỆU trống hoặc mã không tra ra thì dòng vẫn ghi, chỉ không có người nhập liệu (chủ dự án chốt 2026-11-12).
+  partial.staff = ctx.staffOf.get(input.staffCode.trim().toUpperCase()) ?? null;
 
   if (partial.receiptMonth && partial.plan && partial.months && partial.collectedCents !== undefined) {
     const rate = ctx.rateBooks
@@ -259,7 +257,7 @@ export function checkEntry(
           months: partial.months!,
           collectedCents: partial.collectedCents!,
           paidCents: partial.paidCents!,
-          staff: partial.staff!,
+          staff: partial.staff,
           collaborator: input.collaborator.replace(/\s+/g, " ").trim(),
         }
       : null;
@@ -448,6 +446,7 @@ async function checkRecords(
 
   for (const input of rows) {
     const { errors, partial, entry } = checkEntry(input, ctx);
+    const staffCode = input.staffCode.trim().toUpperCase();
 
     const fullName = input.fullName.replace(/\s+/g, " ").trim();
     if (!fullName) errors.unshift("Thiếu họ tên");
@@ -501,6 +500,11 @@ async function checkRecords(
       collectedCents: partial.collectedCents ?? null,
       paidCents: partial.paidCents ?? null,
       errors,
+      // Mã gõ sai thì nhân viên ATM mất lượt mà không ai thấy, nên báo ở bảng kiểm.
+      differences:
+        staffCode && !partial.staff
+          ? [`Mã ${staffCode} không phải nhân viên Điểm ATM đang hoạt động, dòng không ghi nhân viên ATM`]
+          : [],
     });
     if (errors.length === 0 && entry && typeof place !== "string")
       parsed.push({
@@ -538,6 +542,9 @@ export async function recomputeUploader(uploaderId: string, receiptMonths: strin
  * Lượt nhập liệu của nhân viên ATM lấy ngày tải file. Khách mới mang kênh ATM,
  * không ngày sinh, người lập là nhân viên ATM ở cột NHẬP LIỆU. Xã ở cột ĐỊA CHỈ
  * phải có trong danh mục của tỉnh đã chọn.
+ *
+ * Dòng không có nhân viên ATM (chốt 2026-11-12): không sinh lượt nhập liệu, và
+ * khách mới lấy người tải file làm người lập.
  */
 export async function importRecords(
   actor: User,
@@ -576,6 +583,8 @@ export async function importRecords(
     const createdRoot = new Map<string, string>();
     const codedRoots = new Set<string>();
     for (const p of parsed) {
+      const staff = p.entry.staff;
+      const creator = staff ?? { id: actor.id, departmentId: actor.departmentId };
       let rootId = p.customerRootId ?? createdRoot.get(p.idNumber) ?? null;
       if (!rootId) {
         rootId = crypto.randomUUID();
@@ -590,8 +599,8 @@ export async function importRecords(
           channelId: channel?.id ?? null,
           channelDetail: "",
           socialInsuranceCode: p.socialInsuranceCode || null,
-          createdBy: p.entry.staff.id,
-          createdByDepartmentId: p.entry.staff.departmentId,
+          createdBy: creator.id,
+          createdByDepartmentId: creator.departmentId,
         });
         createdRoot.set(p.idNumber, rootId);
         if (p.socialInsuranceCode) codedRoots.add(rootId);
@@ -604,19 +613,21 @@ export async function importRecords(
         codedRoots.add(rootId);
       }
 
-      const [service] = await tx
-        .insert(services)
-        .values({
-          customerId: rootId,
-          serviceTypeId: typeId,
-          note: "",
-          serviceDate,
-          createdBy: p.entry.staff.id,
-          createdByDepartmentId: p.entry.staff.departmentId,
-          wardId: p.ward.id,
-          wardName: p.ward.name,
-        })
-        .returning({ id: services.id });
+      const [service] = staff
+        ? await tx
+            .insert(services)
+            .values({
+              customerId: rootId,
+              serviceTypeId: typeId,
+              note: "",
+              serviceDate,
+              createdBy: staff.id,
+              createdByDepartmentId: staff.departmentId,
+              wardId: p.ward.id,
+              wardName: p.ward.name,
+            })
+            .returning({ id: services.id })
+        : [];
       await tx.insert(socialInsuranceRecords).values({
         kind: request.kind,
         customerId: rootId,
@@ -626,8 +637,8 @@ export async function importRecords(
         collectedAmount: decimalFromCents(p.entry.collectedCents),
         paidAmount: decimalFromCents(p.entry.paidCents),
         collaboratorId: p.entry.collaborator ? (collaboratorOf.get(p.entry.collaborator) ?? null) : null,
-        serviceId: service.id,
-        entryStaffId: p.entry.staff.id,
+        serviceId: service?.id ?? null,
+        entryStaffId: staff?.id ?? null,
         uploadedBy: actor.id,
         uploadedByDepartmentId: actor.departmentId,
       });
@@ -635,7 +646,8 @@ export async function importRecords(
     return {
       ok: true as const,
       preview,
-      staffIds: parsed.map((p) => p.entry.staff.id),
+      written: parsed.length,
+      staffIds: parsed.flatMap((p) => (p.entry.staff ? [p.entry.staff.id] : [])),
       receiptMonths: parsed.map((p) => p.entry.receiptMonth),
     };
   });
@@ -644,7 +656,7 @@ export async function importRecords(
     return { ok: false, message: `File còn ${outcome.errorRows} dòng lỗi.` };
   await recomputeEntryStaff(outcome.staffIds, serviceDate);
   await recomputeUploader(actor.id, outcome.receiptMonths);
-  return { ok: true, result: { rows: outcome.preview, written: outcome.staffIds.length } };
+  return { ok: true, result: { rows: outcome.preview, written: outcome.written } };
 }
 
 type ReconcileMatch = { recordId: string; values: ReconcileValues };

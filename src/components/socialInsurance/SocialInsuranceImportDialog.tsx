@@ -93,7 +93,7 @@ const recordColumns: RankColumn<RecordPreviewRow>[] = [
   { key: "collected", label: "Thu", render: (r) => money(r.collectedCents) },
   { key: "paid", label: "Chi", render: (r) => money(r.paidCents) },
   { key: "staffName", label: "Nhân viên ATM", render: (r) => r.staffName || "—" },
-  { key: "status", label: "Kết quả kiểm", render: (r) => <Problems errors={r.errors} /> },
+  { key: "status", label: "Kết quả kiểm", render: (r) => <Problems errors={r.errors} differences={r.differences} /> },
 ];
 
 /** Dòng lỗi lên đầu, giữ thứ tự dòng trong từng nhóm: file 3.000 dòng có 2 dòng lỗi thì thấy ngay. */
@@ -182,8 +182,7 @@ export function SocialInsuranceImportDialog({ open, mode, onClose }: Props) {
   const ready = file !== null && (mode === "reconcile" || provinceId !== "");
 
   const errorRows = checked?.preview.filter((r) => r.errors.length > 0).length ?? 0;
-  const differenceRows =
-    checked?.mode === "reconcile" ? checked.preview.filter((r) => r.differences.length > 0).length : 0;
+  const differenceRows = checked?.preview.filter((r) => r.differences.length > 0).length ?? 0;
   const pick = <T extends { errors: string[]; differences?: string[] }>(rows: T[]) =>
     view === "errors"
       ? rows.filter((r) => r.errors.length > 0)

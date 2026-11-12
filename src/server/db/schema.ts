@@ -2452,12 +2452,12 @@ export const socialInsuranceRecords = pgTable(
     collectedAmount: numeric("collected_amount", { precision: 14, scale: 2 }).notNull(),
     paidAmount: numeric("paid_amount", { precision: 14, scale: 2 }).notNull(),
     collaboratorId: uuid("collaborator_id").references(() => collaborators.id),
+    /** `null` cùng `entryStaffId`: dòng không có nhân viên ATM thì không có lượt nhập liệu (migration 0167). */
     serviceId: uuid("service_id")
-      .notNull()
       .unique()
       .references(() => services.id),
-    /** Nhân viên ATM ở cột NHẬP LIỆU, trùng `services.created_by` của lượt. */
-    entryStaffId: uuid("entry_staff_id").notNull().references(() => users.id),
+    /** Nhân viên ATM ở cột NHẬP LIỆU, trùng `services.created_by` của lượt. `null` = cột trống hoặc mã không tra ra. */
+    entryStaffId: uuid("entry_staff_id").references(() => users.id),
     uploadedBy: uuid("uploaded_by").notNull().references(() => users.id),
     uploadedByDepartmentId: uuid("uploaded_by_department_id").references(() => departments.id),
     createdAt: createdAt(),
