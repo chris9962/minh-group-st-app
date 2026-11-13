@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { Select } from "@/components/ui/Select";
 import { TextField } from "@/components/ui/TextField";
+import { NO_ATTENDANCE_WINDOWS, type AttendanceWindows } from "@/lib/api/attendance";
 import {
   createDepartment,
   DepartmentForm,
@@ -23,6 +24,13 @@ import {
   DepartmentType,
 } from "@/lib/types";
 import { reportInvalid } from "@/lib/formErrors";
+
+const WINDOW_FIELDS: { key: keyof AttendanceWindows; label: string }[] = [
+  { key: "morningInUntil", label: "Vào ca sáng khoá lúc" },
+  { key: "noonOutFrom", label: "Ra ca sáng mở lúc" },
+  { key: "afternoonInUntil", label: "Vào ca chiều khoá lúc" },
+  { key: "afternoonOutFrom", label: "Ra ca chiều mở lúc" },
+];
 
 type Props = {
   open: boolean;
@@ -57,11 +65,13 @@ export function DepartmentFormDialog({ open, onClose, department }: Props) {
       name: department?.name ?? "",
       type: department?.type ?? "sales",
       attendanceMode: department?.attendanceMode ?? null,
+      attendanceWindows: department?.attendanceWindows ?? NO_ATTENDANCE_WINDOWS,
     },
   });
 
   const type = watch("type");
   const attendanceMode = watch("attendanceMode");
+  const windows = watch("attendanceWindows");
 
   const save = useMutation({
     mutationFn: (form: DepartmentForm) =>
@@ -142,6 +152,26 @@ export function DepartmentFormDialog({ open, onClose, department }: Props) {
             label: ATTENDANCE_MODE_LABEL[m as AttendanceMode | ""],
           }))}
         />
+
+        {attendanceMode === "slots" && (
+          <fieldset className={styles.windows}>
+            <legend className={styles.windowsLegend}>Giờ chấm công</legend>
+            <div className={styles.windowGrid}>
+              {WINDOW_FIELDS.map((f) => (
+                <TextField
+                  key={f.key}
+                  label={f.label}
+                  type="time"
+                  value={windows[f.key] ?? ""}
+                  error={errors.attendanceWindows?.[f.key]?.message}
+                  onChange={(e) =>
+                    setValue(`attendanceWindows.${f.key}`, e.target.value || null, { shouldDirty: true })
+                  }
+                />
+              ))}
+            </div>
+          </fieldset>
+        )}
       </form>
     </Dialog>
   );

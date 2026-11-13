@@ -12,6 +12,8 @@ export type SlotAction = {
   icon: LucideIcon;
   text: string;
   ariaLabel: string;
+  /** Khung giờ của lượt, ví dụ "Trước 08:00". */
+  hint?: string | null;
   disabled?: boolean;
   onClick: () => void;
 };
@@ -79,7 +81,10 @@ export function SlotTile({ label, check, onView, action, missingText }: Props) {
     // Máy tính bấm nút cam; điện thoại bấm cả ô, ô chỉ có icon ở giữa.
     return (
       <li className={clsx(styles.slot, styles.slotNext)}>
-        <span className={styles.label}>{label}</span>
+        <span className={styles.head}>
+          <span className={styles.label}>{label}</span>
+          {action.hint && <span className={styles.hint}>{action.hint}</span>}
+        </span>
         <Button block className={styles.captureButton} disabled={action.disabled} onClick={action.onClick}>
           <Icon size={16} aria-hidden />
           {action.text}

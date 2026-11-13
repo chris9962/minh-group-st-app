@@ -15,6 +15,7 @@ import {
   primaryKey,
   smallint,
   text,
+  time,
   timestamp,
   uniqueIndex,
   uuid,
@@ -231,6 +232,11 @@ export const departments = pgTable("departments", {
   type: departmentType("type").notNull().default("office"),
   /** Phòng có chấm công hay không, chấm kiểu gì. Admin bật ở P-91. */
   attendanceMode: attendanceMode("attendance_mode"),
+  /** Khung giờ của 4 lượt có ảnh, giờ Việt Nam (migration 0171). `null` là không giới hạn. */
+  morningInUntil: time("morning_in_until"),
+  noonOutFrom: time("noon_out_from"),
+  afternoonInUntil: time("afternoon_in_until"),
+  afternoonOutFrom: time("afternoon_out_from"),
   active: boolean("active").notNull().default(true),
   createdAt: createdAt(),
   updatedAt: updatedAt(),

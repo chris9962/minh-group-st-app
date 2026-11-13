@@ -37,6 +37,78 @@ export const SLOT_REQUIRES: Partial<Record<AttendanceSlot, AttendanceSlot>> = {
 export const slotLabel = (slot: AttendanceSlot): string =>
   slot === CHECK_IN_SLOT.key ? CHECK_IN_SLOT.label : (ATTENDANCE_SLOTS.find((s) => s.key === slot)?.label ?? '');
 
+/** `HH:MM`, 24 giờ. */
+const clock = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Giờ không hợp lệ');
+
+/**
+ * Khung giờ tự chấm của phòng chấm 4 lượt, giờ Việt Nam (Ban GĐ yêu cầu
+ * 2026-11-13, admin đặt ở P-91). Lượt vào khoá từ giờ đã đặt, lượt ra mở từ giờ
+ * đã đặt. `null` là lượt đó không giới hạn giờ. Ghi công thay không theo khung này.
+ */
+export const AttendanceWindows = z.object({
+  morningInUntil: clock.nullable(),
+  noonOutFrom: clock.nullable(),
+  afternoonInUntil: clock.nullable(),
+  afternoonOutFrom: clock.nullable(),
+});
+export type AttendanceWindows = z.infer<typeof AttendanceWindows>;
+
+export const NO_ATTENDANCE_WINDOWS: AttendanceWindows = {
+  morningInUntil: null,
+  noonOutFrom: null,
+  afternoonInUntil: null,
+  afternoonOutFrom: null,
+};
+
+export const SLOT_WINDOW: Partial<Record<AttendanceSlot, { field: keyof AttendanceWindows; bound: 'until' | 'from' }>> = {
+  'morning-in': { field: 'morningInUntil', bound: 'until' },
+  'noon-out': { field: 'noonOutFrom', bound: 'from' },
+  'afternoon-in': { field: 'afternoonInUntil', bound: 'until' },
+  'afternoon-out': { field: 'afternoonOutFrom', bound: 'from' },
+};
+
+const windowOf = (slot: AttendanceSlot, windows: AttendanceWindows | null) => {
+  const rule = SLOT_WINDOW[slot];
+  const time = rule && windows?.[rule.field];
+  return rule && time ? { bound: rule.bound, time } : null;
+};
+
+/** Cột `time` của Postgres trả `08:00:00`. */
+export const windowsFromColumns = (row: Record<keyof AttendanceWindows, string | null>): AttendanceWindows => ({
+  morningInUntil: row.morningInUntil?.slice(0, 5) ?? null,
+  noonOutFrom: row.noonOutFrom?.slice(0, 5) ?? null,
+  afternoonInUntil: row.afternoonInUntil?.slice(0, 5) ?? null,
+  afternoonOutFrom: row.afternoonOutFrom?.slice(0, 5) ?? null,
+});
+
+/** Nhật ký hoạt động: "Vào ca sáng trước 08:00, Ra ca sáng từ 10:30". Rỗng là không giới hạn. */
+export const attendanceWindowsLabel = (windows: AttendanceWindows): string =>
+  ATTENDANCE_SLOTS.flatMap((s) => {
+    const hint = slotWindowHint(s.key, windows);
+    return hint ? [`${s.label} ${hint.toLowerCase()}`] : [];
+  }).join(', ');
+
+/** Chữ khung giờ dưới tên lượt: "Trước 08:00", "Từ 10:30". */
+export function slotWindowHint(slot: AttendanceSlot, windows: AttendanceWindows | null): string | null {
+  const w = windowOf(slot, windows);
+  return w ? `${w.bound === 'until' ? 'Trước' : 'Từ'} ${w.time}` : null;
+}
+
+/** Lượt đang ngoài khung giờ lúc `now` (`HH:MM` giờ Việt Nam); `null` là chấm được. */
+export function slotLock(
+  slot: AttendanceSlot,
+  windows: AttendanceWindows | null,
+  now: string,
+): { short: string; message: string } | null {
+  const w = windowOf(slot, windows);
+  if (!w) return null;
+  if (w.bound === 'until')
+    return now >= w.time
+      ? { short: `Đã khoá lúc ${w.time}`, message: `${slotLabel(slot)} đã khoá lúc ${w.time}.` }
+      : null;
+  return now < w.time ? { short: `Mở lúc ${w.time}`, message: `${slotLabel(slot)} mở lúc ${w.time}.` } : null;
+}
+
 /** Cách chấm công của phòng người này đang thuộc về; `null` là không chấm công. */
 export const attendanceModeOf = (
   user: { attendanceMode?: AttendanceMode | null } | null,
@@ -71,6 +143,8 @@ export const MyAttendance = z.object({
   today: z.string(),
   /** Tháng của `today` cho chấm bù ngày đã qua trong tháng (spec 4.2). */
   backfill: z.boolean(),
+  /** Khung giờ của phòng mình đang thuộc về. */
+  windows: AttendanceWindows,
   checks: z.array(AttendanceCheck),
 });
 export type MyAttendance = z.infer<typeof MyAttendance>;
@@ -156,8 +230,6 @@ export async function createAttendanceCheck(form: AttendanceForm): Promise<Atten
 }
 
 /* ── Ghi công thay nhân viên (chốt 2026-10-30) ───────────────────────── */
-
-const clock = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Giờ không hợp lệ');
 
 export const TimeRange = z
   .object({ from: clock, to: clock })

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { BankingSummary, DepartmentRanking } from './dashboard';
 import { AttendanceMode, Department, DepartmentType } from '@/lib/types';
+import { AttendanceWindows } from './attendance';
 import { SalaryBreakdown } from './person';
 import { SocialInsuranceKind, SocialInsurancePlan } from './socialInsurance';
 
@@ -20,6 +21,7 @@ export const DepartmentRow = Department.extend({
   type: DepartmentType,
   /** Cách chấm công của cả phòng; rỗng là không chấm công. */
   attendanceMode: AttendanceMode.nullable(),
+  attendanceWindows: AttendanceWindows,
 });
 export type DepartmentRow = z.infer<typeof DepartmentRow>;
 
@@ -67,6 +69,8 @@ export const DepartmentForm = z.object({
    */
   type: DepartmentType,
   attendanceMode: AttendanceMode.nullable(),
+  /** Chỉ lưu khi phòng chấm 4 lượt có ảnh. */
+  attendanceWindows: AttendanceWindows,
 });
 export type DepartmentForm = z.infer<typeof DepartmentForm>;
 

@@ -3,13 +3,17 @@ import { alias } from "drizzle-orm/pg-core";
 import {
   attendanceModeOf,
   CHECK_IN_SLOT,
+  NO_ATTENDANCE_WINDOWS,
   SLOT_REQUIRES,
   slotLabel,
+  slotLock,
+  windowsFromColumns,
   type AttendanceCheck,
   type AttendanceDay,
   type AttendanceDayGroup,
   type AttendanceForm,
   type AttendanceSlot,
+  type AttendanceWindows,
   type MyAttendance,
   type RecordAttendanceForm,
 } from "@/lib/api/attendance";
@@ -71,6 +75,23 @@ const toCheck = (row: CheckRow): AttendanceCheck => ({
 
 export const canCheckIn = (actor: User): boolean => attendanceModeOf(actor) !== null;
 
+export const departmentWindowColumns = {
+  morningInUntil: departments.morningInUntil,
+  noonOutFrom: departments.noonOutFrom,
+  afternoonInUntil: departments.afternoonInUntil,
+  afternoonOutFrom: departments.afternoonOutFrom,
+};
+
+async function windowsOfDepartment(departmentId: string | null): Promise<AttendanceWindows> {
+  if (!departmentId) return NO_ATTENDANCE_WINDOWS;
+  const [row] = await db
+    .select(departmentWindowColumns)
+    .from(departments)
+    .where(eq(departments.id, departmentId))
+    .limit(1);
+  return row ? windowsFromColumns(row) : NO_ATTENDANCE_WINDOWS;
+}
+
 export async function myAttendance(actor: User, month: string): Promise<MyAttendance> {
   const { from, to } = monthRange(month);
   const rows = await db
@@ -80,7 +101,13 @@ export async function myAttendance(actor: User, month: string): Promise<MyAttend
     .where(and(eq(attendanceChecks.userId, actor.id), between(attendanceChecks.workDate, from, to)))
     .orderBy(asc(attendanceChecks.checkedAt));
   const today = businessDay();
-  return { month, today, backfill: backfillOpen(today), checks: rows.map(toCheck) };
+  return {
+    month,
+    today,
+    backfill: backfillOpen(today),
+    windows: await windowsOfDepartment(actor.departmentId),
+    checks: rows.map(toCheck),
+  };
 }
 
 export type AttendanceOutcome = { ok: true; check: AttendanceCheck } | { ok: false; message: string };
@@ -116,6 +143,13 @@ export async function createAttendanceCheck(
     const backfillable =
       backfillOpen(today) && form.workDate.slice(0, 7) === today.slice(0, 7) && form.workDate < today;
     if (!backfillable) return { ok: false, message: "Ngày này không chấm bù được." };
+  } else if (mode === "slots") {
+    // Giờ của database, cùng đồng hồ ghi `checked_at`; giờ điện thoại có thể sai.
+    const {
+      rows: [{ now }],
+    } = await db.execute<{ now: string }>(sql`select to_char(now() at time zone ${BUSINESS_TIMEZONE}, 'HH24:MI') as now`);
+    const lock = slotLock(form.slot, await windowsOfDepartment(actor.departmentId), now);
+    if (lock) return { ok: false, message: lock.message };
   }
 
   const previous = SLOT_REQUIRES[form.slot];

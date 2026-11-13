@@ -8,6 +8,7 @@ import {
   uniqueCode,
 } from "@/lib/format";
 import { periodRanges } from "@/lib/period";
+import { NO_ATTENDANCE_WINDOWS, windowsFromColumns, type AttendanceWindows } from "@/lib/api/attendance";
 import { DIRECTOR_ROLES, type AttendanceMode, type DepartmentType } from "@/lib/types";
 import {
   ORG_ERROR,
@@ -17,6 +18,7 @@ import {
   type DepartmentStats,
   type OrgErrorCode,
 } from "@/lib/api/org";
+import { departmentWindowColumns } from "./attendance";
 import { accountCustomerDayBetween, customerDayBetween } from "./customerDay";
 import { db, uniqueViolationOf } from "./db/client";
 import { appsInstalledCount, variantOfAccount } from "./appCounted";
@@ -58,6 +60,7 @@ async function rowsWithHeadcount(visible: string[] | null): Promise<DepartmentRo
       name: departments.name,
       type: departments.type,
       attendanceMode: departments.attendanceMode,
+      ...departmentWindowColumns,
       active: departments.active,
       headcount: count(users.id),
     })
@@ -67,7 +70,11 @@ async function rowsWithHeadcount(visible: string[] | null): Promise<DepartmentRo
     .groupBy(departments.id)
     .orderBy(asc(departments.name));
 
-  return rows.map((r) => ({ ...r, headcount: Number(r.headcount) }));
+  return rows.map(({ morningInUntil, noonOutFrom, afternoonInUntil, afternoonOutFrom, ...r }) => ({
+    ...r,
+    attendanceWindows: windowsFromColumns({ morningInUntil, noonOutFrom, afternoonInUntil, afternoonOutFrom }),
+    headcount: Number(r.headcount),
+  }));
 }
 
 async function headcountOf(id: string): Promise<number> {
@@ -156,17 +163,22 @@ async function nextDepartmentCode(name: string): Promise<string> {
   return uniqueCode(name, "PHONG", taken);
 }
 
+/** Khung giờ chỉ áp cho 4 lượt có ảnh; phòng chấm kiểu khác không giữ giờ cũ. */
+const windowsFor = (mode: AttendanceMode | null, windows: AttendanceWindows): AttendanceWindows =>
+  mode === "slots" ? windows : NO_ATTENDANCE_WINDOWS;
+
 export async function createDepartment(
   name: string,
   type: DepartmentType,
   attendanceMode: AttendanceMode | null,
+  attendanceWindows: AttendanceWindows,
 ): Promise<OrgOutcome> {
   if (await nameTaken(name)) return { ok: false, code: ORG_ERROR.NAME_TAKEN };
 
   const insert = async (): Promise<OrgOutcome> => {
     const [row] = await db
       .insert(departments)
-      .values({ code: await nextDepartmentCode(name), name, type, attendanceMode })
+      .values({ code: await nextDepartmentCode(name), name, type, attendanceMode, ...windowsFor(attendanceMode, attendanceWindows) })
       .returning();
     return {
       ok: true,
@@ -176,6 +188,7 @@ export async function createDepartment(
         name: row.name,
         type: row.type,
         attendanceMode: row.attendanceMode,
+        attendanceWindows: windowsFromColumns(row),
         active: row.active,
         headcount: 0,
       },
@@ -217,6 +230,7 @@ export async function updateDepartment(
   name: string,
   type: DepartmentType,
   attendanceMode: AttendanceMode | null,
+  attendanceWindows: AttendanceWindows,
 ): Promise<OrgOutcome | null> {
   const [current] = await db.select().from(departments).where(eq(departments.id, id)).limit(1);
   if (!current) return null;
@@ -227,7 +241,7 @@ export async function updateDepartment(
   try {
     [row] = await db
       .update(departments)
-      .set({ name, type, attendanceMode, updatedAt: sql`now()` })
+      .set({ name, type, attendanceMode, ...windowsFor(attendanceMode, attendanceWindows), updatedAt: sql`now()` })
       .where(eq(departments.id, id))
       .returning();
   } catch (e) {
@@ -251,6 +265,7 @@ export async function updateDepartment(
       name: row.name,
       type: row.type,
       attendanceMode: row.attendanceMode,
+      attendanceWindows: windowsFromColumns(row),
       active: row.active,
       headcount: await headcountOf(id),
     },
@@ -282,6 +297,7 @@ export async function setDepartmentActive(
       name: row.name,
       type: row.type,
       attendanceMode: row.attendanceMode,
+      attendanceWindows: windowsFromColumns(row),
       active: row.active,
       headcount,
     },
@@ -339,6 +355,7 @@ export async function departmentDetailFor(
       name: department.name,
       type: department.type,
       attendanceMode: department.attendanceMode,
+      attendanceWindows: windowsFromColumns(department),
       active: department.active,
       headcount: await headcountOf(id),
     },

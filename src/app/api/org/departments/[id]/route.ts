@@ -1,3 +1,4 @@
+import { attendanceWindowsLabel } from "@/lib/api/attendance";
 import { DepartmentForm } from "@/lib/api/org";
 import { ATTENDANCE_MODE_LABEL, DEPARTMENT_TYPE_LABEL } from "@/lib/types";
 import { canOrg, visibleOrgDepartmentIds } from "@/lib/permissions";
@@ -48,8 +49,8 @@ export async function POST(request: Request, { params }: Params) {
   const parsed = DepartmentForm.safeParse(await jsonBody(request));
   if (!parsed.success) return badRequest();
 
-  const { name, type, attendanceMode } = parsed.data;
-  const result = await updateDepartment(id, name, type, attendanceMode);
+  const { name, type, attendanceMode, attendanceWindows } = parsed.data;
+  const result = await updateDepartment(id, name, type, attendanceMode, attendanceWindows);
   if (!result) return notFound();
   if (!result.ok) return Response.json(orgError(result.code), { status: 422 });
 
@@ -57,10 +58,11 @@ export async function POST(request: Request, { params }: Params) {
   // ngày công, nên nhật ký phải ghi lại cả hai, kể cả lượt tắt chấm công:
   // "đổi tên phòng" không nói được rằng cả phòng vừa đổi cách tính lương.
   const { department } = result;
+  const windows = attendanceWindowsLabel(department.attendanceWindows);
   await logAudit(actor, {
     module: "department",
     action: "update",
-    targetLabel: `Sửa phòng ${department.name} - ${DEPARTMENT_TYPE_LABEL[department.type]} - Chấm công: ${ATTENDANCE_MODE_LABEL[department.attendanceMode ?? ""]}`,
+    targetLabel: `Sửa phòng ${department.name} - ${DEPARTMENT_TYPE_LABEL[department.type]} - Chấm công: ${ATTENDANCE_MODE_LABEL[department.attendanceMode ?? ""]}${windows ? ` - Giờ chấm: ${windows}` : ""}`,
     targetTable: "departments",
     targetId: id,
   });

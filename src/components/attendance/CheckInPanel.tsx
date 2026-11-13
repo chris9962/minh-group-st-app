@@ -2,7 +2,7 @@
 
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Camera, CalendarCheck, MapPin } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { SkeletonCard } from "@/components/ui/Skeleton";
@@ -14,6 +14,8 @@ import {
   fetchMyAttendance,
   slotLabel,
   SLOT_REQUIRES,
+  slotLock,
+  slotWindowHint,
   type AttendanceCheck,
   type AttendanceMode,
   type AttendanceSlot,
@@ -42,6 +44,16 @@ const currentPosition = () =>
     );
   });
 
+/** Giờ Việt Nam `HH:MM` theo đồng hồ máy, để nút tự khoá hoặc tự mở đúng giờ mà không phải tải lại trang. */
+function useClockMinute(): string {
+  const [now, setNow] = useState(() => clockNowVn().slice(0, 5));
+  useEffect(() => {
+    const timer = setInterval(() => setNow(clockNowVn().slice(0, 5)), 15_000);
+    return () => clearInterval(timer);
+  }, []);
+  return now;
+}
+
 /**
  * Lịch tháng của chính mình: ngày có chấm công tô xanh, bấm ngày nào thì hiện
  * các lượt của ngày đó. `slots` là 4 lượt có ảnh, `daily` là 1 lượt điểm danh
@@ -52,6 +64,7 @@ export function CheckInPanel({ mode }: { mode: AttendanceMode }) {
   const [picked, setPicked] = useState<string | null>(null);
   const [capturing, setCapturing] = useState<AttendanceSlot | null>(null);
   const [viewing, setViewing] = useState<AttendanceCheck | null>(null);
+  const clockMinute = useClockMinute();
   const { data, isPending, isError, refetch, isFetching } = useQuery({
     queryKey: ["attendance", "mine", month],
     queryFn: () => fetchMyAttendance(month),
@@ -97,6 +110,9 @@ export function CheckInPanel({ mode }: { mode: AttendanceMode }) {
   // Chấm bù chỉ mở khi máy chủ cho (spec 4.2), và chỉ cho ngày đã qua trong tháng đang chạy.
   const backfillDay = data.backfill && selected.slice(0, 7) === today.slice(0, 7) && selected < today;
   const workDate = backfillDay ? selected : undefined;
+  // Khung giờ chỉ áp cho lượt tự chấm của ngày đang chạy; máy chủ kiểm lại bằng giờ của nó.
+  const lockOf = (slot: AttendanceSlot) =>
+    selected === today && !done(slot) ? slotLock(slot, data.windows, clockMinute) : null;
 
   return (
     <SectionCard title="Chấm công của tôi" icon={<CalendarCheck size={17} />} meta={formatDate(selected)}>
@@ -105,7 +121,9 @@ export function CheckInPanel({ mode }: { mode: AttendanceMode }) {
           <ul className={styles.slots}>
             {slots.map((s) => {
               const own = modeSlots.some((m) => m.key === s.key);
-              const canAct = own && (selected === today || backfillDay) && monthLoaded && ready(s.key);
+              const lock = lockOf(s.key);
+              const canAct =
+                own && (selected === today || backfillDay) && monthLoaded && ready(s.key) && !lock;
               const action: SlotAction | undefined = !canAct
                 ? undefined
                 : daily
@@ -120,6 +138,7 @@ export function CheckInPanel({ mode }: { mode: AttendanceMode }) {
                       icon: Camera,
                       text: "Chấm công",
                       ariaLabel: `Chấm công ${s.label}`,
+                      hint: selected === today ? slotWindowHint(s.key, data.windows) : null,
                       onClick: () => setCapturing(s.key),
                     };
               return (
@@ -129,7 +148,11 @@ export function CheckInPanel({ mode }: { mode: AttendanceMode }) {
                   check={dayChecks.find((c) => c.slot === s.key)}
                   onView={setViewing}
                   action={action}
-                  missingText={monthLoaded ? (s.key === CHECK_IN_SLOT.key ? "Chưa điểm danh" : "Chưa chấm") : null}
+                  missingText={
+                    monthLoaded
+                      ? (lock?.short ?? (s.key === CHECK_IN_SLOT.key ? "Chưa điểm danh" : "Chưa chấm"))
+                      : null
+                  }
                 />
               );
             })}
