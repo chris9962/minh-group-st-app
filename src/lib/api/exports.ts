@@ -107,6 +107,7 @@ export async function fetchScoringExport(
     staffId: query.staffId,
     status: query.status,
     include,
+    ...(query.departmentId ? { departmentId: query.departmentId } : {}),
     ...(query.address ? { address: query.address } : {}),
     ...(omitPii ? { omitPii: '1' } : {}),
   });
