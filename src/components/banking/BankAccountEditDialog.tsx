@@ -116,7 +116,6 @@ export function BankAccountEditDialog({ open, onClose, accountId }: Props) {
       appInstalled:
         data?.status === "creating" ? (data.appDefault ?? false) : (data?.appInstalled ?? false),
       linkedBankName: data?.linkedBankName ?? "",
-      linkedAccountNumber: data?.linkedAccountNumber || (data?.customerPhones[0] ?? ""),
       trackingCode: data?.trackingCode ?? "",
       note: data?.note ?? "",
     },

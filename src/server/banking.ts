@@ -654,7 +654,6 @@ const pickPage = (where: SQL | undefined, orderBy: SQL[], limit: number, offset:
       accountType: bankAccounts.accountType,
       note: bankAccounts.note,
       linkedBankName: bankAccounts.linkedBankName,
-      linkedAccountNumber: bankAccounts.linkedAccountNumber,
       trackingCode: bankAccounts.trackingCode,
       errorNote: bankAccounts.errorNote,
       createdBy: bankAccounts.createdBy,
@@ -717,7 +716,6 @@ const decorate = (page: ReturnType<typeof pickPage>) => {
       accountType: page.accountType,
       note: page.note,
       linkedBankName: sql<string>`coalesce(${page.linkedBankName}, '')`,
-      linkedAccountNumber: sql<string>`coalesce(${page.linkedAccountNumber}, '')`,
       trackingCode: sql<string>`coalesce(${page.trackingCode}, '')`,
       errorNote: page.errorNote,
       createdById: page.createdBy,
@@ -1370,7 +1368,6 @@ async function detailBody(r: DecoratedRow): Promise<BankAccountDetail> {
     accountType,
     note: r.note,
     linkedBankName: r.linkedBankName,
-    linkedAccountNumber: r.linkedAccountNumber,
     trackingCode: r.trackingCode,
     createdByDepartmentId: r.createdByDepartmentId,
     photoUrls: await photoUrlsOf(r.id, "opening"),
@@ -1910,28 +1907,23 @@ export async function customerBankSlots(
  * thiếu dữ liệu chứ không phải một quyết định kinh doanh. Ba luật cảnh báo mềm
  * còn lại của §4.8 đã bỏ (2026-09-07): chúng đếm "tổng app" theo luật quà cũ.
  */
-type FinishFieldsInput = Pick<
-  BankAccountFinishForm,
-  "accountNumber" | "linkedBankName" | "linkedAccountNumber" | "trackingCode"
->;
+type FinishFieldsInput = Pick<BankAccountFinishForm, "accountNumber" | "linkedBankName" | "trackingCode">;
 
 // Schema chung nhận số tài khoản rỗng vì dòng ShopeePay, nên ngân hàng phải kiểm lại ở đây.
 const requiredFieldMissing = (bankCode: string, form: FinishFieldsInput): string | null => {
   if (isNonBankCode(bankCode)) {
     if (!form.linkedBankName) return `${bankCode} cần ngân hàng liên kết.`;
-    if (!form.linkedAccountNumber) return `${bankCode} cần số tài khoản liên kết.`;
     return form.trackingCode ? null : `${bankCode} cần mã đơn hàng.`;
   }
   return form.accountNumber ? null : "Chưa có số tài khoản";
 };
 
-// Số liên kết chỉ ghi vào cột riêng (chốt 2026-11-13): cột số tài khoản của dòng ShopeePay để trống.
+// Dòng ShopeePay không nhập số tài khoản (chốt 2026-11-13): cột số tài khoản để trống.
 const nonBankFieldsOf = (bankCode: string, form: FinishFieldsInput) =>
   isNonBankCode(bankCode)
     ? {
         accountNumber: "",
         linkedBankName: form.linkedBankName,
-        linkedAccountNumber: form.linkedAccountNumber || null,
         trackingCode: form.trackingCode || null,
       }
     : {};

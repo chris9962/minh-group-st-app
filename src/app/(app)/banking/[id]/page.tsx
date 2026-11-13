@@ -207,7 +207,6 @@ function FinishAccountCard({
       // hiếm khi cài app, để tick sẵn là nhân viên phải bỏ tick từng lượt.
       appInstalled: data.appDefault,
       linkedBankName: data.linkedBankName,
-      linkedAccountNumber: data.linkedAccountNumber || (data.customerPhones[0] ?? ""),
       trackingCode: data.trackingCode,
       note: data.note,
     },
@@ -681,10 +680,6 @@ function DoneAccountCard({
             <div>
               <dt>Ngân hàng liên kết</dt>
               <dd>{data.linkedBankName || "—"}</dd>
-            </div>
-            <div>
-              <dt>Số tài khoản liên kết</dt>
-              <dd>{data.linkedAccountNumber || "—"}</dd>
             </div>
             <div>
               <dt>Mã đơn hàng</dt>
