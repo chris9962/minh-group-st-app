@@ -2,6 +2,7 @@ import { attendanceModeOf } from '@/lib/api/attendance';
 import { canOpenPath } from '@/lib/nav';
 import {
   can,
+  canOrg,
   canSeeAvailableReferralCodes,
   canSeeMyReferralCodes,
   isFullAccess,
@@ -21,6 +22,83 @@ const seesCompanyDashboard = (user: User) =>
  * và trang `/releases` bày theo đúng thứ tự này.
  */
 export const RELEASES: Release[] = [
+  {
+    id: '2026-11-13',
+    version: '2.27.0',
+    title: 'Cập nhật ngày 13/11/2026',
+    summary: 'ShopeePay nhập Mã đơn hàng, chấm công có giờ khoá theo phòng, Phòng Y không tặng gói BH điện 1 năm 200k.',
+    sections: [
+      {
+        title: 'Quà tặng',
+        items: ['Hồ sơ Phòng Y từ 11/11/2026 không có gói BH điện 1 năm 200k.'],
+      },
+      {
+        title: 'Mở tài khoản ShopeePay',
+        items: ['Bỏ ô Số tài khoản liên kết.', 'Thêm ô Mã đơn hàng, bắt buộc, có nút Dán.'],
+        visibleTo: (user) => canOpenPath(user, '/banking'),
+      },
+      {
+        title: 'Chấm công',
+        items: [
+          'Phòng có cài giờ chấm công: lượt Vào ca khoá từ giờ khoá, lượt Ra ca mở từ giờ mở.',
+          'Ô chấm công hiện giờ khoá và giờ mở.',
+        ],
+        visibleTo: (user) => attendanceModeOf(user) === 'slots',
+      },
+      {
+        title: 'Cá nhân',
+        items: ['Màn Cá nhân hiện Số tài khoản, Ngân hàng nhận, Mã ngân hàng nhận lương.'],
+      },
+      {
+        title: 'BHYT/BHXH',
+        items: [
+          'File hồ sơ có một cột CCCD/BHXH, nhận CCCD hoặc mã số BHXH.',
+          'Dòng chỉ có mã số BHXH vẫn tạo được khách.',
+          'Số tháng không bắt buộc.',
+          'Cột NHẬP LIỆU không tra ra mã nhân viên thì lưu nguyên chữ.',
+          'Nút File Excel: Xuất Excel, Nhập file hồ sơ, Nhập file đối chiếu, Tải mẫu file hồ sơ, Tải mẫu file đối chiếu.',
+        ],
+        visibleTo: (user) => canOpenPath(user, '/social-insurance'),
+      },
+      {
+        title: 'Cấu hình BHYT/BHXH',
+        items: ['Tăng mới và Tái tục mỗi loại một mức % cho mọi số tháng.'],
+        visibleTo: (user) => canOpenPath(user, '/settings/social-insurance'),
+      },
+      {
+        title: 'Phòng ban',
+        items: [
+          'Phòng chấm 4 lượt có ảnh có 4 ô giờ chấm công.',
+          'Ô trống thì lượt đó không giới hạn giờ.',
+        ],
+        visibleTo: (user) => canOrg(user, 'update'),
+      },
+      {
+        title: 'Nhân sự',
+        items: ['Hồ sơ nhân viên có tab Thông tin thanh toán.'],
+        visibleTo: (user) => can(user, 'system', 'close-salary'),
+      },
+      {
+        title: 'Lương và Tạm ứng',
+        items: ['File Excel thêm cột Số tài khoản, Ngân hàng nhận, Mã ngân hàng.'],
+        visibleTo: (user) =>
+          scopeFor(user, 'staff', 'export') === 'company' || can(user, 'system', 'close-salary'),
+      },
+      {
+        title: 'Xuất dữ liệu',
+        items: ['Báo cáo Tính điểm tổng chỉ lấy khách của phòng chọn ở ô Phòng.'],
+        visibleTo: (user) => canOpenPath(user, '/exports') && can(user, 'banking', 'export'),
+      },
+      {
+        title: 'Quản lý ngân hàng',
+        items: [
+          'Trang chi tiết ngân hàng: file Excel thêm cột SĐT.',
+          'Trang chi tiết ShopeePay: bảng và file Excel thêm cột Mã đơn hàng, ô tìm theo Mã đơn hàng.',
+        ],
+        visibleTo: (user) => canOpenPath(user, '/settings/banks'),
+      },
+    ],
+  },
   {
     id: '2026-11-12',
     version: '2.26.0',
